@@ -1,0 +1,74 @@
+---
+interface Props {
+  title: string;
+  url: string;
+}
+
+const { title, url } = Astro.props;
+---
+
+<a href={url} class="secondary-btn">
+  <span class="btn-text">{title}</span>
+  <div class="energy-pulse"></div>
+</a>
+
+<style>
+  .secondary-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 30px;
+    background: #2a2a2a; /* Темно-серый базовый цвет */
+    color: #b0b0b0;
+    text-decoration: none;
+    border-radius: 4px; /* Можно сделать 30px для более округлой формы */
+    font-weight: 500;
+    border: 1px solid #444;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    min-width: 140px;
+  }
+
+  .btn-text {
+    position: relative;
+    z-index: 2;
+    letter-spacing: 1px;
+  }
+
+  /* Эффект фиолетовой энергии вокруг */
+  .energy-pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: var(--energy-purple, #a020f0);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    filter: blur(20px);
+    transition: width 0.5s ease, height 0.5s ease, opacity 0.4s ease;
+    z-index: 1;
+  }
+
+  /* Состояние при наведении */
+  .secondary-btn:hover {
+    background: transparent;
+    color: var(--accent-gold, #ffd700);
+    border-color: var(--accent-gold, #ffd700);
+    box-shadow: 0 0 15px rgba(160, 32, 240, 0.4);
+    transform: scale(1.05);
+  }
+
+  .secondary-btn:hover .energy-pulse {
+    width: 120%;
+    height: 120%;
+    opacity: 0.3;
+  }
+
+  /* Небольшое свечение текста при наведении */
+  .secondary-btn:hover .btn-text {
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+  }
+</style>

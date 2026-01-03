@@ -1,0 +1,54 @@
+---
+const { title, img, url } = Astro.props;
+---
+<a href={url} class="nav-card">
+  <div class="energy-glow"></div>
+  <img src={img} alt={title} class="card-bg" />
+  <span>{title}</span>
+</a>
+
+<style>
+  .nav-card {
+    position: relative;
+    height: 140px;
+    background: #333;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: white;
+    font-weight: bold;
+    text-transform: uppercase;
+    overflow: hidden;
+    transition: all 0.4s ease;
+    border: 1px solid transparent;
+  }
+
+  .card-bg {
+    position: absolute;
+    width: 100%; height: 100%;
+    object-fit: cover; opacity: 0.3;
+    transition: opacity 0.3s;
+  }
+
+  .energy-glow {
+    position: absolute;
+    width: 150%; height: 150%;
+    background: radial-gradient(circle, var(--energy-purple) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+  }
+
+  .nav-card:hover {
+    background: var(--accent-gold);
+    color: black;
+    transform: translateY(-5px);
+    box-shadow: 0 0 20px var(--energy-purple);
+  }
+
+  .nav-card:hover .energy-glow { opacity: 0.4; }
+  .nav-card:hover .card-bg { opacity: 0.1; }
+  .nav-card span { z-index: 2; position: relative; }
+</style>

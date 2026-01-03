@@ -1,181 +1,132 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import NavCard from '../components/NavCard.astro';
+import SecondaryBtn from '../components/SecondaryBtn.astro';
+
+// Массив для основных кнопок (Книги, Музыка и т.д.)
+const mainCategories = [
+  { title: "Книги", img: "/images/books.jpg", url: "/books" },
+  { title: "Музыка", img: "/images/music.jpg", url: "/music" },
+  { title: "Арты", img: "/images/arts.jpg", url: "/arts" },
+  { title: "Рассказы", img: "/images/stories.jpg", url: "/stories" },
+];
+
+// Массив для горизонтальных кнопок (Герои, Миры и т.д.)
+const secondaryLinks = [
+  { title: "Герои", url: "/heroes" },
+  { title: "Миры", url: "/worlds" },
+  { title: "Города", url: "/cities" },
+];
 ---
 
-<Layout title="Взлом Альказака">
-	<div class="root">
-		<div class="sky"></div>
-		
-		<div class="interface">
-			<div class="header">
-				<span class="glitch">SYSTEM_OVERRIDE: ACTIVE</span>
-				<h2 id="magic-level">MAGIC: 5%</h2>
-			</div>
+<Layout title="Моррис Град — Привет, Элфдид!">
+  <header class="header">
+    <div class="logo-area">
+      <div class="logo-placeholder">M</div>
+      <span class="site-name">Моррис Град</span>
+    </div>
+    <div class="auth-group">
+      <button class="auth-btn disabled">Вход</button>
+      <button class="auth-btn disabled">Регистрация</button>
+    </div>
+  </header>
 
-			<div class="game-area" id="area">
-				<div id="target" class="target">
-					<div class="inner"></div>
-					<div class="scanner"></div>
-				</div>
-			</div>
+  <main class="container">
+    <section class="banner">
+      </section>
 
-			<div class="sidebar">
-				<p>ЦЕЛЬ: Пробить лимит кода до 100%</p>
-				<p>СТАТУС: <span id="status">ЗАПЕРТЫ В ТЮРЬМЕ</span></p>
-			</div>
-		</div>
+    <h1 class="welcome-text">Добро пожаловать, Элфдид!</h1>
 
-		<div id="win-screen" class="hidden">
-			<h1>ЛИМИТ ПРОБИТ!</h1>
-			<p>Мир Завоевателей теперь под твоим контролем.</p>
-			<button onclick="location.reload()">ПЕРЕЗАГРУЗИТЬ МИР</button>
-		</div>
-	</div>
+    <div class="main-grid">
+      {mainCategories.map((item) => (
+        <NavCard title={item.title} img={item.img} url={item.url} />
+      ))}
+    </div>
+
+    <div class="shimmer-line"></div>
+
+    <div class="secondary-list">
+      {secondaryLinks.map((item) => (
+        <SecondaryBtn title={item.title} url={item.url} />
+      ))}
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="socials">
+      <a href="https://author.today/work/530572">Author.Today</a>
+      <a href="#">Telegram</a>
+      <a href="#">VK</a>
+    </div>
+    <p class="copy">&copy; 2026 Alex Seylor. RAI Artist & Producer.</p>
+  </footer>
 </Layout>
 
-<script>
-	let percent = 5;
-	const target = document.getElementById('target');
-	const area = document.getElementById('area');
-	const display = document.getElementById('magic-level');
-	const status = document.getElementById('status');
-	const winScreen = document.getElementById('win-screen');
+<style>
+  :root {
+    --bg-dark: #0a0a0a;
+    --bg-purple: #1a0b2e;
+    --accent-gold: #ffd700;
+    --energy-purple: #a020f0;
+    --btn-gray: #333333;
+  }
 
-	function move() {
-		if (percent >= 100) return;
-		const x = Math.random() * (area.clientWidth - 80);
-		const y = Math.random() * (area.clientHeight - 80);
-		target.style.transform = `translate(${x}px, ${y}px)`;
-	}
+  .header {
+    display: flex;
+    justify-content: space-between;
+    padding: 1.5rem 3rem;
+    background: rgba(0,0,0,0.8);
+    border-bottom: 1px solid #222;
+  }
 
-	target.addEventListener('mousedown', () => {
-		percent += 5;
-		display.innerText = `MAGIC: ${Math.floor(percent)}%`;
-		display.style.color = "#ff5500";
-		display.style.textShadow = "0 0 20px #ff5500";
-		
-		if (percent >= 50) status.innerText = "КОД ТРЕЩИТ";
-		if (percent >= 100) {
-			winScreen.classList.remove('hidden');
-		}
-		
-		move();
-		setTimeout(() => { display.style.color = "#fff"; }, 100);
-	});
+  .logo-area { display: flex; align-items: center; gap: 1rem; }
+  .logo-placeholder { 
+    width: 40px; height: 40px; border-radius: 50%; 
+    background: var(--btn-gray); border: 1px solid var(--energy-purple);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .site-name { font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
 
-	// Постоянное сопротивление системы (тянет вниз)
-	setInterval(() => {
-		if (percent > 5 && percent < 100) {
-			percent -= 0.2;
-			display.innerText = `MAGIC: ${Math.floor(percent)}%`;
-		}
-	}, 100);
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
 
-	move(); // Первый запуск
-</script>
+  .banner {
+    width: 100%; height: 350px;
+    background: linear-gradient(45deg, #1a0b2e, #000);
+    border-radius: 12px; margin-bottom: 2rem;
+    border: 1px solid #333;
+  }
 
-<style is:global>
-	body, html {
-		margin: 0;
-		padding: 0;
-		background: #05010a;
-		color: white;
-		font-family: 'Courier New', monospace;
-		overflow: hidden;
-	}
+  .welcome-text { text-align: center; font-size: 2.5rem; margin-bottom: 3rem; color: #fff; }
 
-	.root {
-		width: 100vw;
-		height: 100vh;
-		position: relative;
-	}
+  .main-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 4rem;
+  }
 
-	.sky {
-		position: absolute;
-		inset: 0;
-		background: radial-gradient(circle at top right, #30106b 0%, #05010a 70%);
-		opacity: 0.6;
-	}
+  .shimmer-line {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+    margin: 3rem 0;
+    box-shadow: 0 0 10px var(--accent-gold);
+  }
 
-	.interface {
-		position: relative;
-		z-index: 10;
-		display: flex;
-		flex-direction: column;
-		height: 100%;
-		padding: 20px;
-	}
+  .secondary-list {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin-bottom: 5rem;
+  }
 
-	.header {
-		text-align: center;
-		border: 1px solid #444;
-		padding: 10px;
-		background: rgba(0,0,0,0.8);
-	}
-
-	.glitch { color: #8833ff; font-size: 12px; letter-spacing: 3px; }
-
-	.game-area {
-		flex-grow: 1;
-		position: relative;
-		margin: 20px 0;
-		border: 1px dashed #333;
-		cursor: crosshair;
-	}
-
-	.target {
-		position: absolute;
-		width: 80px;
-		height: 80px;
-		transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-	}
-
-	.inner {
-		width: 100%;
-		height: 100%;
-		background: #ff5500;
-		box-shadow: 0 0 30px #ff5500;
-		border-radius: 5px;
-	}
-
-	.scanner {
-		position: absolute;
-		top: 0; left: 0; width: 100%; height: 2px;
-		background: white;
-		animation: scan 1s infinite;
-	}
-
-	@keyframes scan {
-		0% { top: 0; } 100% { top: 100%; }
-	}
-
-	.sidebar {
-		background: #111;
-		padding: 15px;
-		font-size: 14px;
-		border-left: 5px solid #ff5500;
-	}
-
-	#win-screen {
-		position: absolute;
-		inset: 0;
-		z-index: 100;
-		background: #ff5500;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		color: black;
-	}
-
-	.hidden { display: none !important; }
-
-	button {
-		padding: 15px 30px;
-		background: black;
-		color: white;
-		border: none;
-		font-weight: bold;
-		cursor: pointer;
-	}
+  .footer {
+    text-align: center;
+    padding: 3rem;
+    background: #050505;
+    border-top: 1px solid #222;
+  }
+  .socials { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; }
+  .socials a { color: var(--accent-gold); text-decoration: none; }
+  .disabled { cursor: not-allowed; opacity: 0.6; background: var(--btn-gray); color: #fff; border: none; padding: 0.5rem 1rem; }
 </style>
