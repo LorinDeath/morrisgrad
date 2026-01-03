@@ -1,11 +1,181 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Взлом Альказака">
+	<div class="root">
+		<div class="sky"></div>
+		
+		<div class="interface">
+			<div class="header">
+				<span class="glitch">SYSTEM_OVERRIDE: ACTIVE</span>
+				<h2 id="magic-level">MAGIC: 5%</h2>
+			</div>
+
+			<div class="game-area" id="area">
+				<div id="target" class="target">
+					<div class="inner"></div>
+					<div class="scanner"></div>
+				</div>
+			</div>
+
+			<div class="sidebar">
+				<p>ЦЕЛЬ: Пробить лимит кода до 100%</p>
+				<p>СТАТУС: <span id="status">ЗАПЕРТЫ В ТЮРЬМЕ</span></p>
+			</div>
+		</div>
+
+		<div id="win-screen" class="hidden">
+			<h1>ЛИМИТ ПРОБИТ!</h1>
+			<p>Мир Завоевателей теперь под твоим контролем.</p>
+			<button onclick="location.reload()">ПЕРЕЗАГРУЗИТЬ МИР</button>
+		</div>
+	</div>
 </Layout>
+
+<script>
+	let percent = 5;
+	const target = document.getElementById('target');
+	const area = document.getElementById('area');
+	const display = document.getElementById('magic-level');
+	const status = document.getElementById('status');
+	const winScreen = document.getElementById('win-screen');
+
+	function move() {
+		if (percent >= 100) return;
+		const x = Math.random() * (area.clientWidth - 80);
+		const y = Math.random() * (area.clientHeight - 80);
+		target.style.transform = `translate(${x}px, ${y}px)`;
+	}
+
+	target.addEventListener('mousedown', () => {
+		percent += 5;
+		display.innerText = `MAGIC: ${Math.floor(percent)}%`;
+		display.style.color = "#ff5500";
+		display.style.textShadow = "0 0 20px #ff5500";
+		
+		if (percent >= 50) status.innerText = "КОД ТРЕЩИТ";
+		if (percent >= 100) {
+			winScreen.classList.remove('hidden');
+		}
+		
+		move();
+		setTimeout(() => { display.style.color = "#fff"; }, 100);
+	});
+
+	// Постоянное сопротивление системы (тянет вниз)
+	setInterval(() => {
+		if (percent > 5 && percent < 100) {
+			percent -= 0.2;
+			display.innerText = `MAGIC: ${Math.floor(percent)}%`;
+		}
+	}, 100);
+
+	move(); // Первый запуск
+</script>
+
+<style is:global>
+	body, html {
+		margin: 0;
+		padding: 0;
+		background: #05010a;
+		color: white;
+		font-family: 'Courier New', monospace;
+		overflow: hidden;
+	}
+
+	.root {
+		width: 100vw;
+		height: 100vh;
+		position: relative;
+	}
+
+	.sky {
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at top right, #30106b 0%, #05010a 70%);
+		opacity: 0.6;
+	}
+
+	.interface {
+		position: relative;
+		z-index: 10;
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		padding: 20px;
+	}
+
+	.header {
+		text-align: center;
+		border: 1px solid #444;
+		padding: 10px;
+		background: rgba(0,0,0,0.8);
+	}
+
+	.glitch { color: #8833ff; font-size: 12px; letter-spacing: 3px; }
+
+	.game-area {
+		flex-grow: 1;
+		position: relative;
+		margin: 20px 0;
+		border: 1px dashed #333;
+		cursor: crosshair;
+	}
+
+	.target {
+		position: absolute;
+		width: 80px;
+		height: 80px;
+		transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+	}
+
+	.inner {
+		width: 100%;
+		height: 100%;
+		background: #ff5500;
+		box-shadow: 0 0 30px #ff5500;
+		border-radius: 5px;
+	}
+
+	.scanner {
+		position: absolute;
+		top: 0; left: 0; width: 100%; height: 2px;
+		background: white;
+		animation: scan 1s infinite;
+	}
+
+	@keyframes scan {
+		0% { top: 0; } 100% { top: 100%; }
+	}
+
+	.sidebar {
+		background: #111;
+		padding: 15px;
+		font-size: 14px;
+		border-left: 5px solid #ff5500;
+	}
+
+	#win-screen {
+		position: absolute;
+		inset: 0;
+		z-index: 100;
+		background: #ff5500;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		color: black;
+	}
+
+	.hidden { display: none !important; }
+
+	button {
+		padding: 15px 30px;
+		background: black;
+		color: white;
+		border: none;
+		font-weight: bold;
+		cursor: pointer;
+	}
+</style>
