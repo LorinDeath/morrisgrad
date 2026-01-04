@@ -1,6 +1,6 @@
 ---
 interface Props {
-	title: string;
+    title: string;
 }
 
 const { title } = Astro.props;
@@ -8,92 +8,173 @@ const { title } = Astro.props;
 
 <!doctype html>
 <html lang="ru">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content="МоррисГрад" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
-		<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Exo+2:wght@300;600&display=swap" rel="stylesheet">
-	</head>
-	<body>
-		<slot />
-	</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="description" content="МоррисГрад" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="generator" content={Astro.generator} />
+        <title>{title}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Exo+2:wght@300;600&display=swap" rel="stylesheet">
+    </head>
+    <body>
+        <main style="flex: 1;"> <slot />
+		
+    </main>
+    </body>
 </html>
 
 <style is:global>
+  :root {
+    --bg-dark: #0a0a0a;
+    --bg-purple: #1a0b2e;
+    --accent-gold: #ffd700;
+    --energy-purple: #a020f0;
+    --btn-gray: #333333;
+    --text-light: #e0e0e0;
+  }
 
-	@font-face {
+  @font-face {
     font-family: 'Shket';
-    src: url('/fonts/Shket-Regular.otf') format('opentype'); /* Проверь расширение своего файла! */
+    src: url('/fonts/Shket-Regular.otf') format('opentype');
     font-weight: normal;
     font-style: normal;
     font-display: swap;
   }
 
-  h1, h2, h3 {
-    font-family: 'Shket', sans-serif;
-    color: var(--accent-gold); /* Это окрасит их в твой фирменный золотой */
-}
+  h1, h2, h3, .site-name, .welcome-text {
+    font-family: 'Shket', sans-serif !important;
+  }
 
-	:root {
-		/* Твоя фирменная палитра Альказака */
-		--bg-dark: #0a0a0a;
-		--bg-purple: #1a0b2e;
-		--accent-gold: #ffd700;
-		--energy-purple: #a020f0;
-		--btn-gray: #333333;
-		--text-light: #e0e0e0;
-	}
+  html {
+    height: 100%;
+    font-family: 'Exo 2', sans-serif;
+    background: var(--bg-dark);
+  }
 
-	html {
-		font-family: 'Exo 2', sans-serif;
-		background: var(--bg-dark);
-	}
-
-	body {
+  body {
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
-    
-    /* Добавляем фоновое изображение */
-    background-image: 
-      /* Слой затемнения (градиент от черного к прозрачному фиолетовому) */
-      linear-gradient(rgba(0, 0, 0, 0.8), rgba(26, 11, 46, 0.7)), 
-      /* Ссылка на твое изображение */
-      url('/images/main-bg.webp');
-    
-    /* Настройки отображения */
-    background-size: cover; /* Растягивает фото на весь экран */
-    background-position: center; /* Центрирует картинку */
-    background-attachment: fixed; /* Картинка не движется при скролле (эффект параллакса) */
-    background-repeat: no-repeat;
-    
     color: var(--text-light);
+    
+    background-image: 
+      linear-gradient(rgba(0, 0, 0, 0.8), rgba(26, 11, 46, 0.7)), 
+      url('/images/main-bg.webp');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
-	h1, h2, .site-name {
-		font-family: 'Cinzel', serif; /* Более фэнтезийный шрифт для заголовков */
-	}
+  main {
+    flex: 1; 
+  }
 
-	/* Убираем стандартные отступы у кнопок и ссылок */
-	button, a {
-		cursor: pointer;
-		font-family: inherit;
-	}
+  .header {
+    display: flex;
+    justify-content: space-between;
+    padding: 1.5rem 3rem;
+    background: rgba(0,0,0,0.8);
+    border-bottom: 1px solid #222;
+  }
 
-	/* Скроллбар в стиле темной магии */
-	::-webkit-scrollbar {
-		width: 8px;
-	}
-	::-webkit-scrollbar-track {
-		background: var(--bg-dark);
-	}
-	::-webkit-scrollbar-thumb {
-		background: var(--btn-gray);
-		border-radius: 10px;
-	}
-	::-webkit-scrollbar-thumb:hover {
-		background: var(--energy-purple);
-	}
+  .logo-area { display: flex; align-items: center; gap: 1rem; }
+  .logo-placeholder { 
+    width: 40px; height: 40px; border-radius: 50%; 
+    background: var(--btn-gray); border: 1px solid var(--energy-purple);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .site-name { font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+  .banner {
+    width: 100%; height: 350px;
+    background: linear-gradient(45deg, #1a0b2e, #000);
+    border-radius: 12px; margin-bottom: 2rem;
+    border: 1px solid #333;
+  }
+
+  .welcome-text { text-align: center; font-size: 2.5rem; margin-bottom: 3rem; color: #fff; }
+
+ .main-grid {
+  display: flex;           /* Меняем grid на flex */
+  flex-wrap: wrap;         /* Разрешаем карточкам переноситься на новую строку */
+  justify-content: center; /* Центрируем блоки в каждом ряду */
+  gap: 2rem;               /* Сохраняем твои отступы */
+  width: 100%;
+  max-width: 1200px;
+  margin: 3rem auto;
+}
+
+/* Чтобы сами карточки не меняли размер, добавь это (если нет в NavCard): */
+.main-grid > * {
+  flex: 0 0 250px;         /* Запрещаем растягиваться, фиксируем ширину 250px */
+}
+
+  .shimmer-line {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+    margin: 3rem 0;
+    box-shadow: 0 0 10px var(--accent-gold);
+  }
+
+    .secondary-list {
+  display: flex;
+  justify-content: center; /* Центрирует кнопки относительно экрана */
+  flex-wrap: wrap;         /* Если не влезут в ряд, перенесутся и тоже будут по центру */
+  gap: 2rem;
+  margin-bottom: 5rem;
+}
+
+ .footer {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: #050505; /* Твой черный фон */
+    border-top: 1px solid #222; /* Та самая линия */
+    position: relative;
+    width: 100%;
+    
+    /* Эта штука создаст бесконечную черную заливку вниз */
+    box-shadow: 0 100vh 0 100vh #050505;
+	
+}
+
+  .socials { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; }
+  .socials a { color: var(--accent-gold); text-decoration: none; }
+  .disabled { cursor: not-allowed; opacity: 0.6; background: var(--btn-gray); color: #fff; border: none; padding: 0.5rem 1rem; }
+
+  button, a {
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--btn-gray); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--energy-purple); }
+
+  @media (max-width: 600px) {
+    .container { padding: 1rem; }
+    .welcome-text { font-size: 1.8rem; }
+  }
+
+  @media (min-width: 1600px) {
+    html { font-size: 110%; }
+  }
+
+  @media (min-width: 1800px) {
+    body { zoom: 1.1; }
+  }
+
+  body {
+	margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Растягивает страницу на всё окно */
+  margin: 0;
+}
 </style>

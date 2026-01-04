@@ -24,7 +24,7 @@ const secondaryLinks = [
   <header class="header">
     <div class="logo-area">
       <div class="logo-placeholder">M</div>
-      <span class="site-name">Моррис Град</span>
+      <span class="site-name">МоррисГрад v0.002</span>
     </div>
     <div class="auth-group">
       <button class="auth-btn disabled">Вход</button>
@@ -54,81 +54,12 @@ const secondaryLinks = [
   </main>
 
   <footer class="footer">
-    <div class="socials">
-      <a href="https://author.today/u/alex_seylor/works/">Author.Today</a>
-      <a href="https://t.me/LorinDeath">Telegram</a>
-      <a href="https://www.youtube.com/@Lorin_Death">YouTube</a>
-      <a href="https://boosty.to/alexseylormusic">Boosty</a>
-    </div>
-    <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
-  </footer>
+  <div class="socials">
+    <a href="https://author.today/u/alex_seylor/works/" target="_blank" rel="noopener noreferrer">Author.Today</a>
+    <a href="https://t.me/LorinDeath" target="_blank" rel="noopener noreferrer">Telegram</a>
+    <a href="https://www.youtube.com/@Lorin_Death" target="_blank" rel="noopener noreferrer">YouTube</a>
+    <a href="https://boosty.to/alexseylormusic" target="_blank" rel="noopener noreferrer">Boosty</a>
+  </div>
+  <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
+</footer>
 </Layout>
-
-<style>
-  :root {
-    --bg-dark: #0a0a0a;
-    --bg-purple: #1a0b2e;
-    --accent-gold: #ffd700;
-    --energy-purple: #a020f0;
-    --btn-gray: #333333;
-  }
-
-  .header {
-    display: flex;
-    justify-content: space-between;
-    padding: 1.5rem 3rem;
-    background: rgba(0,0,0,0.8);
-    border-bottom: 1px solid #222;
-  }
-
-  .logo-area { display: flex; align-items: center; gap: 1rem; }
-  .logo-placeholder { 
-    width: 40px; height: 40px; border-radius: 50%; 
-    background: var(--btn-gray); border: 1px solid var(--energy-purple);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .site-name { font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
-
-  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
-
-  .banner {
-    width: 100%; height: 350px;
-    background: linear-gradient(45deg, #1a0b2e, #000);
-    border-radius: 12px; margin-bottom: 2rem;
-    border: 1px solid #333;
-  }
-
-  .welcome-text { text-align: center; font-size: 2.5rem; margin-bottom: 3rem; color: #fff; }
-
-  .main-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 4rem;
-  }
-
-  .shimmer-line {
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
-    margin: 3rem 0;
-    box-shadow: 0 0 10px var(--accent-gold);
-  }
-
-  .secondary-list {
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
-    flex-wrap: wrap;
-    margin-bottom: 5rem;
-  }
-
-  .footer {
-    text-align: center;
-    padding: 3rem;
-    background: #050505;
-    border-top: 1px solid #222;
-  }
-  .socials { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; }
-  .socials a { color: var(--accent-gold); text-decoration: none; }
-  .disabled { cursor: not-allowed; opacity: 0.6; background: var(--btn-gray); color: #fff; border: none; padding: 0.5rem 1rem; }
-</style>
