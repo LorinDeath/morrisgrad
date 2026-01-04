@@ -18,6 +18,26 @@ const secondaryLinks = [
   { title: "Миры", url: "/worlds" },
   { title: "Города", url: "/cities" },
 ];
+
+// Массив заметок (копируй блок {}, чтобы добавить новую)
+const notes = [
+  {
+    title: "ОШИБКА",
+    text: "Ты прибыл сюда, но не понимаешь что происходит. Это нормально. Этот мир только-только зарождается. Этот мир стремится стать сильнее, показать себя всему миру! Этот мир собирается по кусочкам пазлами расширяя свои границы! И ты один из свидетелей и даже часть души этого мира! Представляешь? Мы вместе сможем стать нечто больше!"
+  },
+  {
+    title: "Рекорды",
+    text: "Зачем делать вход в аккаунты, если можно создать возможность сохранять рекорды в мини играх и подписывать их? Так же намного веселее. Плюс дополнительная безопасность! Есдинственное, что я хотела бы наверное, чтобы данные сохранений в долгих минииграх сохранялись локально на компьютере"
+  },
+  {
+    title: "Сортировка",
+    text: "Это же прям ужас. Мне нужно будет научиться ПРОГРАМИРОВАТЬ всё! Соритировку, упорядочивание, регистрацию, защита, дизайн, аааааа... "
+  },
+  {
+    title: "5 процентов",
+    text: "Есть ли смысл в лечении?"
+  },
+];
 ---
 
 <Layout title="Моррис Град - Время движется лишь вперёд">
@@ -51,6 +71,16 @@ const secondaryLinks = [
         <SecondaryBtn title={item.title} url={item.url} />
       ))}
     </div>
+
+    <div class="notes-container">
+      {notes.map((note) => (
+        <div class="note-card">
+          <h3>{note.title}</h3>
+          <div class="note-divider"></div>
+          <p>{note.text}</p>
+        </div>
+      ))}
+    </div>
   </main>
 
   <footer class="footer">
@@ -60,6 +90,12 @@ const secondaryLinks = [
     <a href="https://www.youtube.com/@Lorin_Death" target="_blank" rel="noopener noreferrer">YouTube</a>
     <a href="https://boosty.to/alexseylormusic" target="_blank" rel="noopener noreferrer">Boosty</a>
   </div>
+
+  
+
   <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
 </footer>
 </Layout>
+
+<style>
+</style>
