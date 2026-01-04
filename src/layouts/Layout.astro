@@ -10,7 +10,7 @@ const { title } = Astro.props;
 <html lang="ru">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="description" content="Мир Завоевателей — проект Алекса Сэйлора" />
+		<meta name="description" content="МоррисГрад" />
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
@@ -23,6 +23,20 @@ const { title } = Astro.props;
 </html>
 
 <style is:global>
+
+	@font-face {
+    font-family: 'Shket';
+    src: url('/fonts/Shket-Regular.otf') format('opentype'); /* Проверь расширение своего файла! */
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Shket', sans-serif;
+    color: var(--accent-gold); /* Это окрасит их в твой фирменный золотой */
+}
+
 	:root {
 		/* Твоя фирменная палитра Альказака */
 		--bg-dark: #0a0a0a;
