@@ -26,13 +26,25 @@ const secondaryLinks = [
   <header class="header">
     <div class="logo-area">
       <div class="logo-placeholder">M</div>
-      <span class="site-name">МоррисГрад v0.002</span>
+      <span class="site-name">МоррисГрад v0.003</span>
     </div>
   </header>
 
   <main class="container">
-    <section class="banner">
-      </section>
+    <section class="music-banner-container">
+      <!-- ЛЕВАЯ ЧАСТЬ: Картинка -->
+      <div class="banner-left">
+        <!-- Замените src на путь к вашей картинке -->
+        <img src="https://via.placeholder.com/400x400.png?text=New+Track" alt="Когда то тут была надпись (Обложка трека), но решила убрать чтобы люди не путались)" class="album-cover">
+      </div>
+
+      <!-- ПРАВАЯ ЧАСТЬ: YouTube плеер -->
+      <div class="banner-right">
+        <div class="video-responsive">
+          <iframe width="560" height="315" src="https://www.youtube.com/embed?listType=playlist&list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" title="YouTube video player" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+    </section>
 
     <!-- Плеер под баннером -->
     <div class="inline-player-container">
@@ -74,9 +86,59 @@ const secondaryLinks = [
 </Layout>
 
 <style>
-  /* Уменьшаем высоту баннера, как ты просил */
-  .banner {
-    height: 200px !important; /* Было 350px */
+  /* Стили для нового баннера */
+  .music-banner-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    padding: 20px 0;
+    width: 100%;
+  }
+
+  .banner-left {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .album-cover {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+
+  .banner-right {
+    flex: 1;
+    min-width: 300px;
+  }
+
+  .video-responsive {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 */
+    height: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+
+  .video-responsive iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  @media (max-width: 768px) {
+    .music-banner-container {
+      flex-direction: column;
+    }
   }
 
   .inline-player-container {
