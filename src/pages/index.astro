@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import NavCard from '../components/NavCard.astro';
 import SecondaryBtn from '../components/SecondaryBtn.astro';
 import Notes from '../components/Notes.astro';
+import RadioPlayer from '../components/RadioPlayer.astro';
 
 // Массив для основных кнопок (Книги, Музыка и т.д.)
 const mainCategories = [
@@ -21,7 +22,7 @@ const secondaryLinks = [
 ];
 ---
 
-<Layout title="Моррис Град - Время движется лишь вперёд">
+<Layout title="Моррис Град - Время движется лишь вперёд" isHome={true}>
   <header class="header">
     <div class="logo-area">
       <div class="logo-placeholder">M</div>
@@ -32,6 +33,11 @@ const secondaryLinks = [
   <main class="container">
     <section class="banner">
       </section>
+
+    <!-- Плеер под баннером -->
+    <div class="inline-player-container">
+      <RadioPlayer />
+    </div>
 
     <h1 class="welcome-text">Добро пожаловать, Элфдид!</h1>
 
@@ -68,4 +74,12 @@ const secondaryLinks = [
 </Layout>
 
 <style>
+  /* Уменьшаем высоту баннера, как ты просил */
+  .banner {
+    height: 200px !important; /* Было 350px */
+  }
+
+  .inline-player-container {
+    margin-bottom: 2rem;
+  }
 </style>

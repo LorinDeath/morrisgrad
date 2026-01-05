@@ -1,0 +1,181 @@
+---
+import { readdirSync, existsSync } from 'node:fs';
+import path from 'node:path';
+
+// Сканируем папку public/music на наличие mp3 файлов
+const musicDir = path.join(process.cwd(), 'public', 'music');
+let songs: { name: string; url: string }[] = [];
+
+try {
+  if (existsSync(musicDir)) {
+    const files = readdirSync(musicDir);
+    songs = files
+      .filter(file => file.endsWith('.mp3'))
+      .map(file => ({
+        name: file.replace('.mp3', ''), // Убираем расширение для красоты
+        url: `/music/${file}`
+      }));
+  } else {
+    console.warn(`[RadioPlayer] Внимание: Папка ${musicDir} не найдена. Создайте её и добавьте музыку.`);
+  }
+} catch (e) {
+  console.error("Ошибка при чтении папки музыки:", e);
+}
+
+// Если музыки нет, добавим заглушку, чтобы не ломалось
+if (songs.length === 0) {
+  songs.push({ name: "Тишина (добавьте файлы в public/music)", url: "" });
+}
+---
+
+<!-- 
+  transition:persist="radio-player" — это магия. 
+  Astro запомнит этот элемент и не будет его перезагружать при переходе между страницами.
+  Атрибут transition:name позволяет плавно перемещать его визуально.
+-->
+<div class="radio-player-wrapper" transition:persist="radio-player" transition:name="radio-morph">
+  <div class="radio-interface">
+    <div class="track-info">
+      <span class="label">ON AIR:</span>
+      <span id="track-name" class="scrolling-text">Нажмите play чтобы включить местное радио</span>
+    </div>
+    
+    <div class="controls">
+      <button id="play-btn" class="control-btn">▶</button>
+      <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+    </div>
+  </div>
+
+  <audio id="audio-element"></audio>
+</div>
+
+<script define:vars={{ songs }}>
+  // Логика плеера
+  const audio = document.getElementById('audio-element');
+  const playBtn = document.getElementById('play-btn');
+  const trackName = document.getElementById('track-name');
+  const volumeSlider = document.getElementById('volume-slider');
+
+  let isPlaying = false;
+  let currentPlaylist = [...songs]; // Копия для перемешивания
+
+  // Функция перемешивания (Fisher-Yates shuffle)
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  function playNextRandom() {
+    // Если плейлист кончился, мешаем заново
+    if (currentPlaylist.length === 0) {
+      currentPlaylist = shuffle([...songs]);
+    }
+    
+    const song = currentPlaylist.pop();
+    if (!song.url) return; // Защита от пустых
+
+    trackName.textContent = song.name;
+    audio.src = song.url;
+    audio.play().then(() => {
+      isPlaying = true;
+      playBtn.textContent = "❚❚";
+    }).catch(e => console.log("Автовоспроизведение заблокировано браузером", e));
+  }
+
+  // Обработчики событий
+  playBtn.addEventListener('click', () => {
+    if (!audio.src) {
+      playNextRandom();
+    } else if (audio.paused) {
+      audio.play();
+      playBtn.textContent = "❚❚";
+    } else {
+      audio.pause();
+      playBtn.textContent = "▶";
+    }
+  });
+
+  volumeSlider.addEventListener('input', (e) => {
+    audio.volume = e.target.value;
+  });
+
+  // Когда песня закончилась — включаем следующую
+  audio.addEventListener('ended', playNextRandom);
+
+  // Инициализация (первый запуск перемешивания)
+  currentPlaylist = shuffle([...songs]);
+</script>
+
+<style>
+  .radio-player-wrapper {
+    background: rgba(26, 11, 46, 0.95);
+    border: 1px solid var(--accent-gold);
+    border-radius: 8px;
+    padding: 10px 20px;
+    box-shadow: 0 0 15px rgba(160, 32, 240, 0.3);
+    backdrop-filter: blur(5px);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .radio-interface {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+  }
+
+  .track-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .label {
+    color: var(--accent-gold);
+    font-weight: bold;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  #track-name {
+    color: #fff;
+    white-space: nowrap;
+    font-family: 'Exo 2', sans-serif;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .control-btn {
+    background: none;
+    border: 1px solid var(--energy-purple);
+    color: var(--accent-gold);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .control-btn:hover {
+    background: var(--energy-purple);
+    color: #fff;
+  }
+
+  input[type=range] {
+    width: 80px;
+    accent-color: var(--accent-gold);
+  }
+</style>
