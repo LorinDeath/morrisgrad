@@ -24,24 +24,32 @@ const allNotes = [
   }
 ];
 
-// 1. Перемешиваем массив случайным образом
-const shuffled = allNotes.sort(() => 0.5 - Math.random());
-
-// 2. Выбираем случайное количество заметок (от 1 до 3)
-const min = 1;
-const max = 3;
-// Учитываем реальное количество заметок, чтобы не сломаться, если их меньше 2
-const count = Math.floor(Math.random() * (Math.min(max, allNotes.length) - min + 1)) + min;
-
-const selectedNotes = shuffled.slice(0, count);
 ---
 
-<div class="notes-container">
-  {selectedNotes.map((note) => (
-    <div class="note-card">
-      <h3>{note.title}</h3>
-      <div class="note-divider"></div>
-      <p>{note.text}</p>
-    </div>
-  ))}
-</div>
+<!-- Контейнер пустой, JavaScript заполнит его при загрузке страницы -->
+<div id="random-notes-container" class="notes-container"></div>
+
+<script define:vars={{ allNotes }}>
+  // Этот код выполняется в браузере пользователя при каждом обновлении
+  
+  // 1. Перемешиваем
+  const shuffled = allNotes.sort(() => 0.5 - Math.random());
+
+  // 2. Выбираем количество (1-3)
+  const min = 1;
+  const max = 3;
+  const count = Math.floor(Math.random() * (Math.min(max, allNotes.length) - min + 1)) + min;
+  const selectedNotes = shuffled.slice(0, count);
+
+  // 3. Вставляем HTML внутрь контейнера
+  const container = document.getElementById('random-notes-container');
+  if (container) {
+    container.innerHTML = selectedNotes.map(note => `
+      <div class="note-card">
+        <h3>${note.title}</h3>
+        <div class="note-divider"></div>
+        <p>${note.text}</p>
+      </div>
+    `).join('');
+  }
+</script>
