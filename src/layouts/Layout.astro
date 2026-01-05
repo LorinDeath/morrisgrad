@@ -178,7 +178,7 @@ const { title } = Astro.props;
   margin: 0;
 }
 
-/* Стили для заметок */
+/* Стили для заметок (восстановленные) */
 .notes-container {
   display: grid;
   grid-template-columns: 1fr;
@@ -187,43 +187,45 @@ const { title } = Astro.props;
   margin-bottom: 40px;
 }
 
-@media (min-width: 768px) {
-  .notes-container {
-    grid-template-columns: 1fr 1fr; /* 2 заметки в строку на ПК */
-  }
-}
-
 .note-card {
   background: linear-gradient(135deg, #2a1b3d 0%, #1a0b2e 100%); /* Фиолетовый фон */
   border: 1px solid rgba(255, 215, 0, 0.3);
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px 25px;
   position: relative;
   overflow: hidden;
   box-shadow: 0 0 15px rgba(255, 215, 0, 0.1); /* Легкое золотое свечение */
   transition: box-shadow 0.3s ease;
   cursor: default; /* Не кликабельная */
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .note-card h3 {
-  margin: 0 0 10px 0;
+  margin: 0;
   color: #ffd700;
   font-size: 1.2rem;
   text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-  text-align: center;
+  text-align: right;
+  min-width: 150px; /* Фиксированная ширина для заголовка */
+  flex-shrink: 0;
 }
 
 .note-divider {
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #ffd700, transparent);
-  margin-bottom: 15px;
+  width: 2px;
+  height: 40px;
+  background: linear-gradient(180deg, transparent, #ffd700, transparent);
+  margin: 0;
   opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .note-card p {
   color: #e0d0ff;
   line-height: 1.5;
   font-size: 0.95rem;
+  margin: 0;
 }
 
 /* Анимации при наведении */
