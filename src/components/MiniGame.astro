@@ -238,16 +238,21 @@
 </style>
 
 <script>
-    const canvas = document.getElementById('mini-game-canvas') as HTMLCanvasElement;
-    const overlay = document.getElementById('game-overlay');
-    const gameOverOverlay = document.getElementById('game-over-overlay');
-    const finalScoreSpan = document.getElementById('final-score-val');
-    const nameInput = document.getElementById('player-name') as HTMLInputElement;
-    const submitBtn = document.getElementById('submit-score-btn') as HTMLButtonElement;
-    const restartBtn = document.getElementById('restart-btn');
-    const dailyList = document.getElementById('daily-list');
-    const weeklyList = document.getElementById('weekly-list');
-    
+    // Оборачиваем код в astro:page-load, чтобы он запускался при каждом переходе
+    document.addEventListener('astro:page-load', () => {
+        const canvas = document.getElementById('mini-game-canvas') as HTMLCanvasElement;
+        // Если на текущей странице нет игры, ничего не делаем
+        if (!canvas) return;
+
+        const overlay = document.getElementById('game-overlay');
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const finalScoreSpan = document.getElementById('final-score-val');
+        const nameInput = document.getElementById('player-name') as HTMLInputElement;
+        const submitBtn = document.getElementById('submit-score-btn') as HTMLButtonElement;
+        const restartBtn = document.getElementById('restart-btn');
+        const dailyList = document.getElementById('daily-list');
+        const weeklyList = document.getElementById('weekly-list');
+
     // Загрузка рекордов
     async function fetchScores() {
         try {
@@ -433,4 +438,5 @@
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    });
 </script>

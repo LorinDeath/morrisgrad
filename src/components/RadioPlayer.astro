@@ -1,41 +1,21 @@
 ---
-import { readdirSync, existsSync } from 'node:fs';
-import path from 'node:path';
 
-// Сканируем папку public/music на наличие mp3 файлов
-let musicDir = path.join(process.cwd(), 'public', 'music');
+// Используем import.meta.glob для создания списка песен при сборке.
+// Это работает в SSR и не требует сканирования диска (fs).
+// ВАЖНО: Переместите папку music из public в src (должно быть src/music)
+const musicFiles = import.meta.glob('/src/music/*.mp3', { eager: true });
 
-// В режиме SSR (после билда) папка public может быть перемещена в dist/client
-if (!existsSync(musicDir)) {
-  const possiblePaths = [
-    path.join(process.cwd(), 'dist', 'client', 'music'), // Стандартный путь для Node адаптера
-    path.join(process.cwd(), 'dist', 'music')            // Альтернативный путь
-  ];
-  const found = possiblePaths.find(p => existsSync(p));
-  if (found) musicDir = found;
-}
-
-let songs: { name: string; url: string }[] = [];
-
-try {
-  if (existsSync(musicDir)) {
-    const files = readdirSync(musicDir);
-    songs = files
-      .filter(file => file.endsWith('.mp3'))
-      .map(file => ({
-        name: file.replace('.mp3', ''), // Убираем расширение для красоты
-        url: `/music/${file}`
-      }));
-  } else {
-    console.warn(`[RadioPlayer] Внимание: Папка ${musicDir} не найдена. Создайте её и добавьте музыку.`);
-  }
-} catch (e) {
-  console.error("Ошибка при чтении папки музыки:", e);
-}
+const songs = Object.entries(musicFiles).map(([filePath, module]) => {
+  // @ts-ignore - Vite возвращает модуль, где default — это URL файла
+  const url = module.default;
+  // Извлекаем имя файла из пути
+  const name = filePath.split('/').pop()?.replace('.mp3', '') || 'Неизвестный трек';
+  return { name, url };
+});
 
 // Если музыки нет, добавим заглушку, чтобы не ломалось
 if (songs.length === 0) {
-  songs.push({ name: "Тишина (добавьте файлы в public/music)", url: "" });
+  songs.push({ name: "Тишина (добавьте файлы в src/music)", url: "" });
 }
 ---
 
@@ -83,7 +63,7 @@ if (songs.length === 0) {
   function playNextRandom() {
     // Если список пуст или содержит только заглушку
     if (songs.length === 0 || (songs.length === 1 && songs[0].url === "")) {
-      alert("Радио не может найти музыку. Проверьте, скопировалась ли папка 'music' в 'dist/client' на сервере.");
+      alert("Радио не нашло музыку. Убедитесь, что файлы лежат в src/music.");
       return;
     }
 
