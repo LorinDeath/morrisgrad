@@ -46,6 +46,14 @@ const allNotes = [
     title: "Обложка" ,
     text: "Когда то вместо банера была обложка трека, но это было когда то и не факт что правда)"
   },
+  {
+    title: "Работа" ,
+    text: "Эх. Опять работать? Да сколько можно уже! Когда можно будет просто погамать игрульки и не париться над жизнью?"
+  },
+  {
+    title: "Жизнь" ,
+    text: "Это нормально, что я потихоньку начинаю привыкать к этому циклу своей жизни, когда заход в VC Code - это уже просто привычка, а не потребность)"
+  },
 ];
 
 ---
@@ -54,20 +62,24 @@ const allNotes = [
 <div id="random-notes-container" class="notes-container"></div>
 
 <script define:vars={{ allNotes }}>
-  // Этот код выполняется в браузере пользователя при каждом обновлении
-  
-  // 1. Перемешиваем
-  const shuffled = allNotes.sort(() => 0.5 - Math.random());
+  function initializeNotes() {
+    const container = document.getElementById('random-notes-container');
 
-  // 2. Выбираем количество (1-3)
-  const min = 1;
-  const max = 3;
-  const count = Math.floor(Math.random() * (Math.min(max, allNotes.length) - min + 1)) + min;
-  const selectedNotes = shuffled.slice(0, count);
+    // Если контейнера нет или он уже инициализирован, ничего не делаем.
+    if (!container || container.hasAttribute('data-initialized')) {
+      return;
+    }
 
-  // 3. Вставляем HTML внутрь контейнера
-  const container = document.getElementById('random-notes-container');
-  if (container) {
+    // 1. Перемешиваем
+    const shuffled = allNotes.sort(() => 0.5 - Math.random());
+
+    // 2. Выбираем количество (1-3)
+    const min = 1;
+    const max = 3;
+    const count = Math.floor(Math.random() * (Math.min(max, allNotes.length) - min + 1)) + min;
+    const selectedNotes = shuffled.slice(0, count);
+
+    // 3. Вставляем HTML внутрь контейнера
     container.innerHTML = selectedNotes.map(note => `
       <div class="note-card">
         <h3>${note.title}</h3>
@@ -75,5 +87,13 @@ const allNotes = [
         <p>${note.text}</p>
       </div>
     `).join('');
+
+    // 4. Помечаем контейнер как инициализированный
+    container.setAttribute('data-initialized', 'true');
   }
+
+  // Запускаем функцию при событии astro:page-load.
+  // Это событие происходит и при первой загрузке, и после каждого перехода.
+  // Наша проверка внутри функции не даст ей сработать больше одного раза.
+  document.addEventListener('astro:page-load', initializeNotes);
 </script>
