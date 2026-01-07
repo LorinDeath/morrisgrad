@@ -1,0 +1,22 @@
+{
+  "main": "dist/_worker.js/index.js",
+  "name": "morrisgrad",
+  "compatibility_date": "2026-01-07",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+ "kv_namespaces": [
+    {
+      "binding": "MORRISGRAD_DB",
+      "id": "e49e4b6d81ff4560be9f75ef2efba84e" // ID с твоего скриншота
+    }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
