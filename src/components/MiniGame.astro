@@ -251,7 +251,7 @@
     // Загрузка рекордов
     async function fetchScores() {
         try {
-            const res = await fetch('/api/scores');
+            const res = await fetch('/api/leaderboard');
             if (!res.ok) {
                 throw new Error(`Ошибка ${res.status}`);
             }
@@ -401,27 +401,24 @@
             submitBtn.textContent = "Отправка...";
 
             try {
-                const res = await fetch('/api/scores', {
+                const res = await fetch('/api/leaderboard', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, score })
                 });
 
+                const result = await res.json();
+
                 if (res.ok) {
-                    await fetchScores(); // Обновить таблицу
-                    alert("Рекорд сохранен!");
-                    restartBtn?.click(); // Вернуться в начало
-                } else if (res.status === 404) {
-                    alert("Ошибка 404: Сервер рекордов не найден.\n\nЕсли вы на GitHub Pages — база данных работать не будет (нужен Node.js).\nЕсли локально — перезапустите сервер.");
-                } else {
-                    // Пытаемся прочитать текст ошибки
-                    try {
-                        const err = await res.json();
-                        alert("Ошибка: " + (err.error || res.statusText));
-                    } catch (parseError) {
-                        // Если сервер вернул не JSON (например, HTML страницу ошибки 404 или 500)
-                        alert(`Ошибка сервера: ${res.status} ${res.statusText}`);
+                    if (result.status === 'new_record') {
+                        await fetchScores(); // Обновить таблицу
+                        alert("Поздравляем! Вы попали в Топ-5!");
+                    } else {
+                        alert("Вы проиграли. Ваш результат не попал в топ. Ещё раз?");
                     }
+                    restartBtn?.click(); // Вернуться в начало
+                } else {
+                    alert("Ошибка: " + (result.error || res.statusText));
                 }
             } catch (e) {
                 console.error(e);
