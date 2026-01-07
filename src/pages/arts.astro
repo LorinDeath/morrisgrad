@@ -1,18 +1,71 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
-import RadioPlayer from '../components/RadioPlayer.astro';
+
+// 1. Список персонажей (8 карточек).
+// Меняй тут ссылки (url), имена и картинки.
+const characters = [
+  { name: "Lorin Death", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Elfdid", url: "/art hero/elfdid" },
+  { name: "Лорелин", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+2", url: "/art hero/char2" },
+  { name: "Мариэль", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+3", url: "/art hero/char3" },
+  { name: "Алекс Сэйлор", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+4", url: "/art hero/char4" },
+  { name: "Листаф Элфдид", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+5", url: "/art hero/char5" },
+  { name: "Лист", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+6", url: "/art hero/char6" },
+  { name: "Дар", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+7", url: "/art hero/char7" },
+  { name: "Гарри", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+8", url: "/art hero/char8" },
+];
+
+// 2. Список "Разное". Просто кидай сюда ссылки на картинки через запятую.
+const miscArts = [
+  "https://i.ytimg.com/vi/rCgUL82RO_w/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGkgQChyMA8=&amp;rs=AOn4CLBMqLjxQgxuzKBbTnJWL5R2XTsKog",
+  "https://i.ytimg.com/vi/427_rXElPoU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGHIgQShqMA8=&amp;rs=AOn4CLAHRv8bZtPBVGEJBQJX0ZxgI5ID7g",
+  "https://i.ytimg.com/vi/bt8JeKf8ZVk/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgSShlMA8=&amp;rs=AOn4CLDUc-hYnYzejutKMA3wwmE7q8--tw",
+  "https://i.ytimg.com/vi/49f9aJTCFUU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGEQgOih_MA8=&amp;rs=AOn4CLAQ595ix38Ub7v_dfPFcOdv0VbrnQ",
+];
 ---
 <Layout title="Арты | Моррис Град">
-    <header class="header">
-        <div class="logo-area">
-          <div class="logo-placeholder">M</div>
-          <span class="site-name">МоррисГрад v0.003</span>
-        </div>
-    </header>
-    <div class="container">
+    <main class="container">
         <h1>Арты</h1>
-    </div>
-    <Notes transition:persist />
-    <RadioPlayer transition:persist />
+
+        <!-- Желтая линия -->
+        <div class="shimmer-line"></div>
+
+        <!-- Секция Персонажи -->
+        <h2 class="section-title">Персонажи</h2>
+        
+        <div class="chars-grid">
+            {characters.map((char) => (
+                <a href={char.url} class="char-card">
+                    <img src={char.img} alt={char.name} class="char-img" />
+                    <div class="char-name">{char.name}</div>
+                    <!-- Эффект блика -->
+                    <div class="shine-effect"></div>
+                </a>
+            ))}
+        </div>
+
+        <!-- Желтая линия -->
+        <div class="shimmer-line"></div>
+
+        <!-- Секция Разное -->
+        <h2 class="section-title">Разное</h2>
+
+        <div class="gallery-grid">
+            {miscArts.map((artUrl) => (
+                <div class="gallery-item">
+                    <img src={artUrl} alt="Арт" loading="lazy" />
+                </div>
+            ))}
+        </div>
+
+        <!-- Желтая линия (закрывающая) -->
+        <div class="shimmer-line"></div>
+
+      <Notes />
+    </main>
+  
 </Layout>
+
+<style>
+    /* Линия разделитель (как на главной) */
+</style>

@@ -1,18 +1,14 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
-import RadioPlayer from '../components/RadioPlayer.astro';
 ---
-<Layout title="Мини-игры | Моррис Град">
-    <header class="header">
-        <div class="logo-area">
-          <div class="logo-placeholder">M</div>
-          <span class="site-name">МоррисГрад v0.003</span>
-        </div>
-    </header>
-    <div class="container">
-        <h1>Мини-игры</h1>
-    </div>
-    <Notes transition:persist />
-    <RadioPlayer transition:persist />
+<Layout title="Рассказы | Моррис Град">
+    <main class="container">
+        <h1>Рассказы</h1>
+
+        <div class="shimmer-line"></div>
+        
+        <Notes />
+    </main>
+  
 </Layout>

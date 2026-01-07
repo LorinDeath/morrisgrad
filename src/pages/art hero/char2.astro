@@ -1,0 +1,32 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Notes from '../../components/Notes.astro';
+
+const miscArts = [
+  "https://i.ytimg.com/vi/3hpN4V0VTWU/maxresdefault.jpg",
+  "https://i.ytimg.com/vi/427_rXElPoU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGHIgQShqMA8=&rs=AOn4CLAHRv8bZtPBVGEJBQJX0ZxgI5ID7g",
+  "https://i.ytimg.com/vi/bt8JeKf8ZVk/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgSShlMA8=&rs=AOn4CLDUc-hYnYzejutKMA3wwmE7q8--tw",
+  "https://i.ytimg.com/vi/49f9aJTCFUU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGEQgOih_MA8=&rs=AOn4CLAQ595ix38Ub7v_dfPFcOdv0VbrnQ",
+];
+
+---
+
+<Layout title="Лорелин | Моррис Град">
+    <main class="container">
+        <h1>Лорелин</h1>
+
+        <div class="shimmer-line"></div>
+
+        <div class="gallery-grid">
+            {miscArts.map((artUrl) => (
+                <div class="gallery-item">
+                    <img src={artUrl} alt="Арт" loading="lazy" />
+                </div>
+            ))}
+        </div>
+
+            <div class="shimmer-line"></div>
+        
+        <Notes />
+    </main>
+</Layout>
