@@ -3,7 +3,18 @@ import { readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 // Сканируем папку public/music на наличие mp3 файлов
-const musicDir = path.join(process.cwd(), 'public', 'music');
+let musicDir = path.join(process.cwd(), 'public', 'music');
+
+// В режиме SSR (после билда) папка public может быть перемещена в dist/client
+if (!existsSync(musicDir)) {
+  const possiblePaths = [
+    path.join(process.cwd(), 'dist', 'client', 'music'), // Стандартный путь для Node адаптера
+    path.join(process.cwd(), 'dist', 'music')            // Альтернативный путь
+  ];
+  const found = possiblePaths.find(p => existsSync(p));
+  if (found) musicDir = found;
+}
+
 let songs: { name: string; url: string }[] = [];
 
 try {
@@ -70,6 +81,12 @@ if (songs.length === 0) {
   }
 
   function playNextRandom() {
+    // Если список пуст или содержит только заглушку
+    if (songs.length === 0 || (songs.length === 1 && songs[0].url === "")) {
+      alert("Радио не может найти музыку. Проверьте, скопировалась ли папка 'music' в 'dist/client' на сервере.");
+      return;
+    }
+
     // Если плейлист кончился, мешаем заново
     if (currentPlaylist.length === 0) {
       currentPlaylist = shuffle([...songs]);
