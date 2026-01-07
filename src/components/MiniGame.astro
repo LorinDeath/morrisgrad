@@ -252,11 +252,18 @@
     async function fetchScores() {
         try {
             const res = await fetch('/api/scores');
+            if (!res.ok) {
+                throw new Error(`Ошибка ${res.status}`);
+            }
             const data = await res.json();
             renderList(dailyList, data.daily);
             renderList(weeklyList, data.weekly);
         } catch (e) {
-            console.error("Не удалось загрузить рекорды");
+            console.error("Не удалось загрузить рекорды", e);
+            // Показываем сообщение в таблице, если API недоступно
+            const errMsg = '<tr><td colspan="2" class="empty-msg">Нет связи с сервером</td></tr>';
+            if (dailyList) dailyList.innerHTML = errMsg;
+            if (weeklyList) weeklyList.innerHTML = errMsg;
         }
     }
 
@@ -404,6 +411,8 @@
                     await fetchScores(); // Обновить таблицу
                     alert("Рекорд сохранен!");
                     restartBtn?.click(); // Вернуться в начало
+                } else if (res.status === 404) {
+                    alert("Ошибка 404: Сервер рекордов не найден.\n\nЕсли вы на GitHub Pages — база данных работать не будет (нужен Node.js).\nЕсли локально — перезапустите сервер.");
                 } else {
                     // Пытаемся прочитать текст ошибки
                     try {
