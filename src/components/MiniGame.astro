@@ -1,0 +1,430 @@
+---
+---
+<div class="arcade-layout">
+    <div class="game-wrapper">
+        <canvas id="mini-game-canvas" width="600" height="600"></canvas>
+        <div id="game-overlay" class="overlay">
+            <div class="message">Нажми, чтобы играть</div>
+            <div class="sub-message">Собери как можно больше за 30 секунд!</div>
+        </div>
+        
+        <!-- Экран Game Over -->
+        <div id="game-over-overlay" class="overlay hidden">
+            <div class="game-over-content">
+                <div class="message">Время вышло!</div>
+                <div class="final-score">Твой счет: <span id="final-score-val">0</span></div>
+                
+                <div class="input-group">
+                    <input type="text" id="player-name" maxlength="6" placeholder="ABCDEF" />
+                    <div class="hint">Введите 6 латинских букв</div>
+                </div>
+                
+                <button id="submit-score-btn" class="action-btn">Отправить рекорд</button>
+                <button id="restart-btn" class="restart-btn">Играть снова</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица рекордов -->
+    <div class="leaderboard-section">
+        <div class="lb-column">
+            <h3>Топ за день</h3>
+            <table class="score-table">
+                <thead>
+                    <tr>
+                        <th>Ник</th>
+                        <th class="text-right">Счет</th>
+                    </tr>
+                </thead>
+                <tbody id="daily-list"><tr><td colspan="2">Загрузка...</td></tr></tbody>
+            </table>
+        </div>
+        <div class="lb-column">
+            <h3>Топ за неделю</h3>
+            <table class="score-table">
+                <thead>
+                    <tr>
+                        <th>Ник</th>
+                        <th class="text-right">Счет</th>
+                    </tr>
+                </thead>
+                <tbody id="weekly-list"><tr><td colspan="2">Загрузка...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .arcade-layout {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+    }
+
+    .game-wrapper {
+        width: 100%;
+        max-width: 500px; /* Ограничим ширину, чтобы не было слишком огромным */
+        aspect-ratio: 1 / 1;
+        margin: 0;
+        position: relative;
+        background-color: #111;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: crosshair;
+    }
+
+    .overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.7);
+        transition: opacity 0.3s ease;
+        cursor: pointer;
+        z-index: 10;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .message {
+        color: white;
+        font-size: 1.5rem;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        user-select: none;
+        text-align: center;
+    }
+
+    .sub-message {
+        color: #ccc;
+        font-size: 1rem;
+    }
+
+    .game-over-content {
+        background: rgba(10, 10, 10, 0.9);
+        padding: 2rem;
+        border-radius: 12px;
+        border: 1px solid var(--accent-gold, #ffd700);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+    }
+
+    .final-score {
+        font-size: 1.2rem;
+        color: var(--accent-gold, #ffd700);
+        margin-bottom: 1rem;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    input {
+        background: #222;
+        border: 1px solid #444;
+        color: #fff;
+        padding: 10px;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 1.2rem;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        outline: none;
+    }
+    input:focus { border-color: var(--accent-gold, #ffd700); }
+
+    .hint { font-size: 0.8rem; color: #666; }
+
+    .action-btn {
+        background: var(--accent-gold, #ffd700);
+        color: #000;
+        border: none;
+        padding: 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .action-btn:hover { transform: scale(1.05); }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .restart-btn {
+        background: transparent;
+        color: #fff;
+        border: 1px solid #444;
+        padding: 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .restart-btn:hover { border-color: #fff; }
+
+    /* Стили таблицы рекордов */
+    .leaderboard-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        width: 280px;
+        flex-shrink: 0;
+    }
+    .lb-column {
+        background: #1a1a1a;
+        padding: 1rem;
+        border-radius: 4px;
+        border: 2px solid #333;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        font-family: 'Courier New', Courier, monospace;
+    }
+    .lb-column h3 {
+        color: #aaa;
+        font-size: 1.1rem;
+        text-align: center;
+        margin: 0 0 0.5rem 0;
+        border-bottom: 1px solid #444;
+        padding-bottom: 0.5rem;
+        text-transform: uppercase;
+    }
+    .score-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+    .score-table th {
+        text-align: left;
+        color: #666;
+        font-weight: normal;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #444;
+    }
+    .score-table td {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .text-right { text-align: right; }
+    .score-name { font-weight: bold; color: #fff; }
+    .score-val { color: var(--accent-gold, #ffd700); font-weight: bold; }
+    .empty-msg { color: #666; text-align: center; font-style: italic; padding: 1rem 0; }
+    
+    @media (max-width: 600px) {
+        .arcade-layout {
+            flex-direction: column;
+            align-items: center;
+        }
+        .leaderboard-section { width: 100%; max-width: 500px; }
+    }
+</style>
+
+<script>
+    const canvas = document.getElementById('mini-game-canvas') as HTMLCanvasElement;
+    const overlay = document.getElementById('game-overlay');
+    const gameOverOverlay = document.getElementById('game-over-overlay');
+    const finalScoreSpan = document.getElementById('final-score-val');
+    const nameInput = document.getElementById('player-name') as HTMLInputElement;
+    const submitBtn = document.getElementById('submit-score-btn') as HTMLButtonElement;
+    const restartBtn = document.getElementById('restart-btn');
+    const dailyList = document.getElementById('daily-list');
+    const weeklyList = document.getElementById('weekly-list');
+    
+    // Загрузка рекордов
+    async function fetchScores() {
+        try {
+            const res = await fetch('/api/scores');
+            const data = await res.json();
+            renderList(dailyList, data.daily);
+            renderList(weeklyList, data.weekly);
+        } catch (e) {
+            console.error("Не удалось загрузить рекорды");
+        }
+    }
+
+    function renderList(el: HTMLElement | null, items: any[]) {
+        if (!el) return;
+        el.innerHTML = '';
+        if (!items || items.length === 0) {
+            el.innerHTML = '<tr><td colspan="2" class="empty-msg">Пока пусто</td></tr>';
+            return;
+        }
+        items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td class="score-name">${item.name}</td><td class="score-val text-right">${item.score}</td>`;
+            el.appendChild(tr);
+        });
+    }
+
+    // Инициализация при загрузке
+    fetchScores();
+
+    if (canvas && overlay && gameOverOverlay) {
+        const ctx = canvas.getContext('2d')!;
+        let isPlaying = false;
+        let score = 0;
+        let timeLeft = 30; // 30 секунд на игру
+        let lastTime = 0;
+        
+        const player = { x: 300, y: 300, size: 30, color: '#4f46e5' };
+        const target = { x: 100, y: 100, size: 20, color: '#ef4444' };
+
+        function spawnTarget() {
+            target.x = Math.random() * (canvas.width - target.size);
+            target.y = Math.random() * (canvas.height - target.size);
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            if (finalScoreSpan) finalScoreSpan.textContent = score.toString();
+            gameOverOverlay?.classList.remove('hidden');
+        }
+
+        function draw(timestamp: number) {
+            if (!isPlaying) return;
+
+            // Таймер
+            if (timestamp - lastTime >= 1000) {
+                timeLeft--;
+                lastTime = timestamp;
+                if (timeLeft <= 0) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Игрок
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+
+            // Цель
+            ctx.fillStyle = target.color;
+            ctx.beginPath();
+            ctx.arc(target.x + target.size/2, target.y + target.size/2, target.size/2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Счет
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 24px sans-serif';
+            ctx.fillText(`Счет: ${score}`, 20, 40);
+
+            // Таймер
+            ctx.fillStyle = timeLeft < 10 ? '#ef4444' : '#ffd700';
+            ctx.fillText(`Время: ${timeLeft}`, canvas.width - 140, 40);
+
+            requestAnimationFrame(draw);
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isPlaying) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            player.x = (e.clientX - rect.left) * scaleX - player.size / 2;
+            player.y = (e.clientY - rect.top) * scaleY - player.size / 2;
+
+            const dx = (player.x + player.size/2) - (target.x + target.size/2);
+            const dy = (player.y + player.size/2) - (target.y + target.size/2);
+            
+            if (Math.sqrt(dx*dx + dy*dy) < (player.size/2 + target.size/2)) {
+                score++;
+                spawnTarget();
+            }
+        });
+
+        overlay.addEventListener('click', () => {
+            if (!isPlaying) {
+                isPlaying = true;
+                score = 0;
+                timeLeft = 30;
+                lastTime = performance.now();
+                overlay.classList.add('hidden');
+                gameOverOverlay?.classList.add('hidden');
+                spawnTarget();
+                requestAnimationFrame(draw);
+            }
+        });
+
+        // Рестарт
+        restartBtn?.addEventListener('click', () => {
+            gameOverOverlay?.classList.add('hidden');
+            overlay?.classList.remove('hidden');
+            // Очистим канвас
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Отправка формы
+        submitBtn?.addEventListener('click', async () => {
+            const name = nameInput.value.toUpperCase();
+            
+            // Валидация
+            if (name.length !== 6) {
+                alert("Имя должно быть ровно 6 символов!");
+                return;
+            }
+            if (!/^[A-Z]+$/.test(name)) {
+                alert("Только латинские буквы!");
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Отправка...";
+
+            try {
+                const res = await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, score })
+                });
+
+                if (res.ok) {
+                    await fetchScores(); // Обновить таблицу
+                    alert("Рекорд сохранен!");
+                    restartBtn?.click(); // Вернуться в начало
+                } else {
+                    // Пытаемся прочитать текст ошибки
+                    try {
+                        const err = await res.json();
+                        alert("Ошибка: " + (err.error || res.statusText));
+                    } catch (parseError) {
+                        // Если сервер вернул не JSON (например, HTML страницу ошибки 404 или 500)
+                        alert(`Ошибка сервера: ${res.status} ${res.statusText}`);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Не удалось соединиться с сервером. Проверьте консоль (F12).");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Отправить рекорд";
+            }
+        });
+
+        // Начальная отрисовка (фон)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+</script>

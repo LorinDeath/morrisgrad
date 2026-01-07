@@ -1,0 +1,117 @@
+---
+---
+
+<div class="scoreboard">
+  <div class="scoreboard-section">
+    <h3 class="scoreboard-title">Топ за день</h3>
+    <ul id="daily-scores" class="scoreboard-list">
+      <li class="loading">Загрузка...</li>
+    </ul>
+  </div>
+
+  <div class="scoreboard-section">
+    <h3 class="scoreboard-title">Топ за неделю</h3>
+    <ul id="weekly-scores" class="scoreboard-list">
+      <li class="loading">Загрузка...</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  async function loadScores() {
+    try {
+      // Запрос к API. Убедитесь, что файл scores.ts доступен как эндпоинт (например, в src/pages/api/scores.ts)
+      const response = await fetch('/api/scores');
+      if (!response.ok) return;
+      const data = await response.json();
+
+      renderList('daily-scores', data.daily);
+      renderList('weekly-scores', data.weekly);
+    } catch (e) {
+      console.error("Ошибка загрузки рекордов:", e);
+    }
+  }
+
+  function renderList(elementId: string, items: any[]) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    if (!items || items.length === 0) {
+      el.innerHTML = '<li class="empty">Нет записей</li>';
+      return;
+    }
+
+    el.innerHTML = items.map((item: any) => `
+      <li>
+        <span class="name">${item.name}</span>
+        <span class="dots"></span>
+        <span class="score">${item.score}</span>
+      </li>
+    `).join('');
+  }
+
+  loadScores();
+  // Обновление раз в минуту
+  setInterval(loadScores, 60000);
+</script>
+
+<style>
+  .scoreboard {
+    /* Стили для панели рекордов */
+    width: 250px;
+    background-color: #1a1a1a;
+    border: 2px solid #333;
+    border-radius: 4px;
+    padding: 1rem;
+    color: #f0f0f0;
+    font-family: 'Courier New', Courier, monospace;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+  }
+  .scoreboard-section {
+    margin-bottom: 1.5rem;
+  }
+  .scoreboard-section:last-child {
+    margin-bottom: 0;
+  }
+  .scoreboard-title {
+    font-size: 1.1rem;
+    text-align: center;
+    margin: 0 0 0.5rem 0;
+    border-bottom: 1px solid #444;
+    padding-bottom: 0.25rem;
+    text-transform: uppercase;
+    color: #aaa;
+  }
+  .scoreboard-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .scoreboard-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.2rem 0;
+  }
+  .scoreboard-list li.loading, .scoreboard-list li.empty {
+    justify-content: center;
+    color: #666;
+    font-style: italic;
+    font-size: 0.9rem;
+  }
+  .name {
+    font-weight: bold;
+    color: #fff;
+  }
+  .dots {
+    flex-grow: 1;
+    border-bottom: 1px dotted #555;
+    margin: 0 0.5rem;
+    position: relative;
+    top: -4px;
+  }
+  .score {
+    color: #ffd700;
+    font-weight: bold;
+  }
+</style>
