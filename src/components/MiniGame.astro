@@ -5,7 +5,7 @@
         <canvas id="mini-game-canvas" width="600" height="600"></canvas>
         <div id="game-overlay" class="overlay">
             <div class="message">Нажми, чтобы играть</div>
-            <div class="sub-message">Собери как можно больше за 30 секунд!</div>
+            <div class="sub-message">Поймай точку! У тебя 1 минута.</div>
         </div>
         
         <!-- Экран Game Over -->
@@ -293,15 +293,30 @@
         const ctx = canvas.getContext('2d')!;
         let isPlaying = false;
         let score = 0;
-        let timeLeft = 30; // 30 секунд на игру
+        let timeLeft = 60; // 60 секунд на игру
         let lastTime = 0;
+        let lastTeleportTime = 0;
+        let teleportInterval = 2000;
+        let clicks: {x: number, y: number, radius: number, alpha: number}[] = [];
+        let hits: {x: number, y: number, size: number, alpha: number}[] = [];
         
-        const player = { x: 300, y: 300, size: 30, color: '#4f46e5' };
-        const target = { x: 100, y: 100, size: 20, color: '#ef4444' };
+        // Цель теперь золотая, под стиль сайта
+        const target = { x: 100, y: 100, size: 10, color: '#ffd700' };
 
         function spawnTarget() {
-            target.x = Math.random() * (canvas.width - target.size);
-            target.y = Math.random() * (canvas.height - target.size);
+            // Размер зависит от фазы игры (времени)
+            let minSize, maxSize;
+            if (timeLeft > 30) {
+                minSize = 30; maxSize = 40; // Первые 30 сек: Легко
+            } else if (timeLeft > 10) {
+                minSize = 20; maxSize = 30; // Следующие 20 сек: Нормально
+            } else {
+                minSize = 3; maxSize = 10;  // Последние 10 сек: Хардкор
+            }
+            target.size = Math.floor(Math.random() * (maxSize - minSize + 1)) + minSize;
+            // Позиция с учетом размера, чтобы не вылезала за край
+            target.x = Math.random() * (canvas.width - target.size * 2) + target.size;
+            target.y = Math.random() * (canvas.height - target.size * 2) + target.size;
         }
 
         function gameOver() {
@@ -313,6 +328,7 @@
         function draw(timestamp: number) {
             if (!isPlaying) return;
 
+            const now = performance.now();
             // Таймер
             if (timestamp - lastTime >= 1000) {
                 timeLeft--;
@@ -323,46 +339,145 @@
                 }
             }
 
-            ctx.fillStyle = '#111';
+            // Логика сложности (интервалы перемещения)
+            // Первые 20 сек (60-40): 2 сек
+            // Следующие 20 сек (40-20): 1 сек
+            // Следующие 10 сек (20-10): 0.5 сек
+            // Последние 10 сек (10-0): 0.2 сек
+            let isBonusPhase = false;
+
+            if (timeLeft > 40) {
+                teleportInterval = 2000;
+            } else if (timeLeft > 20) {
+                teleportInterval = 1000;
+            } else if (timeLeft > 10) {
+                teleportInterval = 600;
+            } else {
+                teleportInterval = 300;
+                isBonusPhase = true; // Двойные очки
+            }
+
+            // Автоматическое перемещение точки
+            if (now - lastTeleportTime > teleportInterval) {
+                spawnTarget();
+                lastTeleportTime = now;
+            }
+
+            // Отрисовка фона
+            ctx.fillStyle = '#0a0a0a'; // Темный фон сайта
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Игрок
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.size, player.size);
+            // Отрисовка эффектов клика (расходящиеся круги)
+            ctx.lineWidth = 2;
+            for (let i = clicks.length - 1; i >= 0; i--) {
+                const click = clicks[i];
+                ctx.beginPath();
+                ctx.arc(click.x, click.y, click.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 215, 0, ${click.alpha})`; // Золотой цвет
+                ctx.stroke();
+                
+                click.radius += 2;   // Круг расширяется
+                click.alpha -= 0.05; // И исчезает
+                
+                if (click.alpha <= 0) clicks.splice(i, 1);
+            }
+
+            // Отрисовка попаданий (фиолетовая точка с волнами)
+            for (let i = hits.length - 1; i >= 0; i--) {
+                const hit = hits[i];
+                ctx.save();
+                ctx.globalAlpha = hit.alpha;
+                
+                // Фиолетовая точка (остается на месте и мешает)
+                ctx.fillStyle = '#a020f0'; // Energy purple
+                ctx.beginPath();
+                ctx.arc(hit.x, hit.y, hit.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Волны и лучи для отвлечения
+                ctx.strokeStyle = '#a020f0';
+                ctx.lineWidth = 2;
+                const progress = 1.0 - hit.alpha; // Насколько давно попали (0..1)
+
+                // Расходящиеся волны (3 штуки)
+                for(let w = 1; w <= 3; w++) {
+                    const waveRadius = hit.size + (progress * 80 * w); 
+                    ctx.beginPath();
+                    ctx.arc(hit.x, hit.y, waveRadius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Вращающиеся лучи
+                const rays = 8;
+                const rayDist = hit.size + 5 + (progress * 80); // Улетают от центра
+                const rayLen = 20 + (progress * 60); // И удлиняются
+                
+                for (let r = 0; r < rays; r++) {
+                    const angle = (Math.PI * 2 / rays) * r + (progress * 3); // Вращение
+                    const sx = hit.x + Math.cos(angle) * rayDist;
+                    const sy = hit.y + Math.sin(angle) * rayDist;
+                    const ex = hit.x + Math.cos(angle) * (rayDist + rayLen);
+                    const ey = hit.y + Math.sin(angle) * (rayDist + rayLen);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(ex, ey);
+                    ctx.stroke();
+                }
+                ctx.restore();
+                
+                hit.alpha -= 0.001; // Очень медленное исчезновение (около 3 сек)
+                if (hit.alpha <= 0) hits.splice(i, 1);
+            }
 
             // Цель
-            ctx.fillStyle = target.color;
+            ctx.fillStyle = isBonusPhase ? '#ff4500' : target.color; // Краснеет в конце
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = ctx.fillStyle;
             ctx.beginPath();
-            ctx.arc(target.x + target.size/2, target.y + target.size/2, target.size/2, 0, Math.PI * 2);
+            ctx.arc(target.x, target.y, target.size, 0, Math.PI * 2);
             ctx.fill();
+            ctx.shadowBlur = 0; // Сброс свечения
 
             // Счет
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 24px sans-serif';
+            ctx.fillStyle = '#e0e0e0';
+            ctx.font = 'bold 24px "Exo 2", sans-serif';
             ctx.fillText(`Счет: ${score}`, 20, 40);
 
             // Таймер
-            ctx.fillStyle = timeLeft < 10 ? '#ef4444' : '#ffd700';
+            ctx.fillStyle = timeLeft <= 10 ? '#ef4444' : '#ffd700';
             ctx.fillText(`Время: ${timeLeft}`, canvas.width - 140, 40);
 
             requestAnimationFrame(draw);
         }
 
-        canvas.addEventListener('mousemove', (e) => {
+        // Обработка клика (вместо движения мыши)
+        canvas.addEventListener('mousedown', (e) => {
             if (!isPlaying) return;
+            
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
             
-            player.x = (e.clientX - rect.left) * scaleX - player.size / 2;
-            player.y = (e.clientY - rect.top) * scaleY - player.size / 2;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
 
-            const dx = (player.x + player.size/2) - (target.x + target.size/2);
-            const dy = (player.y + player.size/2) - (target.y + target.size/2);
+            // Добавляем визуальный эффект клика
+            clicks.push({ x: clickX, y: clickY, radius: 5, alpha: 1.0 });
+
+            // Проверка попадания (расстояние между кликом и центром точки)
+            const dx = clickX - target.x;
+            const dy = clickY - target.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
             
-            if (Math.sqrt(dx*dx + dy*dy) < (player.size/2 + target.size/2)) {
-                score++;
+            // Даем небольшой допуск (target.size + 5px), иначе в 3px попасть нереально
+            if (distance < target.size + 5) {
+                // Добавляем эффект попадания
+                hits.push({ x: target.x, y: target.y, size: target.size, alpha: 1.0 });
+                
+                score += (timeLeft <= 10 ? 2 : 1); // Двойные очки в последние 10 сек
                 spawnTarget();
+                lastTeleportTime = performance.now(); // Сброс таймера телепортации при попадании
             }
         });
 
@@ -370,8 +485,11 @@
             if (!isPlaying) {
                 isPlaying = true;
                 score = 0;
-                timeLeft = 30;
+                timeLeft = 60;
                 lastTime = performance.now();
+                lastTeleportTime = performance.now();
+                clicks = []; // Сброс старых кликов
+                hits = [];   // Сброс старых попаданий
                 overlay.classList.add('hidden');
                 gameOverOverlay?.classList.add('hidden');
                 spawnTarget();
@@ -384,7 +502,7 @@
             gameOverOverlay?.classList.add('hidden');
             overlay?.classList.remove('hidden');
             // Очистим канвас
-            ctx.fillStyle = '#111';
+            ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
 
@@ -435,7 +553,7 @@
         });
 
         // Начальная отрисовка (фон)
-        ctx.fillStyle = '#111';
+        ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     });
