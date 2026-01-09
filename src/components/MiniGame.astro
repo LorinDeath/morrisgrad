@@ -488,12 +488,29 @@
             decoys = [];
             if (difficultyMultiplier >= 2) {
                 const decoyCount = Math.floor(Math.log2(difficultyMultiplier)); // x2=1, x4=2, x8=3
+                const safeDist = target.size * 2.2 + 15; // Безопасное расстояние (диаметры + отступ)
+
                 for (let i = 0; i < decoyCount; i++) {
-                    decoys.push({
-                        x: Math.random() * (canvas.width - target.size * 2) + target.size,
-                        y: Math.random() * (canvas.height - target.size * 2) + target.size,
-                        size: target.size
-                    });
+                    let attempts = 0;
+                    while (attempts < 15) {
+                        const dx = Math.random() * (canvas.width - target.size * 2) + target.size;
+                        const dy = Math.random() * (canvas.height - target.size * 2) + target.size;
+                        
+                        // Проверка: не накладывается ли на цель
+                        if (Math.hypot(dx - target.x, dy - target.y) < safeDist) {
+                            attempts++;
+                            continue;
+                        }
+
+                        // Проверка: не накладывается ли на другие ловушки
+                        if (decoys.some(d => Math.hypot(dx - d.x, dy - d.y) < safeDist)) {
+                            attempts++;
+                            continue;
+                        }
+
+                        decoys.push({ x: dx, y: dy, size: target.size });
+                        break; // Успешно разместили, выходим из цикла попыток
+                    }
                 }
             }
         }
