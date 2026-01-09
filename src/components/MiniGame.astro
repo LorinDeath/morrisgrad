@@ -57,6 +57,18 @@
             <div class="message">Связь с сервером...</div>
             <div class="sub-message">Сверяем результаты</div>
         </div>
+
+        <!-- Fake Error Overlay -->
+        <div id="fake-error-overlay" class="overlay hidden">
+            <div class="dialog-box">
+                <div class="message" style="color: #ef4444">Ой кажется ошибка</div>
+                <div class="sub-message">Сыграть ещё раз?</div>
+                <div class="button-group">
+                    <button id="fake-error-yes-btn" class="action-btn">Да</button>
+                    <button id="fake-error-no-btn" class="restart-btn">Нет</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Таблица рекордов -->
@@ -342,6 +354,9 @@
         const postSubmitOverlay = document.getElementById('post-submit-overlay');
         const glitchOverlay = document.getElementById('glitch-overlay');
         const loadingOverlay = document.getElementById('loading-overlay');
+        const fakeErrorOverlay = document.getElementById('fake-error-overlay');
+        const fakeErrorYesBtn = document.getElementById('fake-error-yes-btn');
+        const fakeErrorNoBtn = document.getElementById('fake-error-no-btn');
         const preSubmitMessage = document.getElementById('pre-submit-message');
         const postSubmitMessage = document.getElementById('post-submit-message');
         const postSubmitSubMessage = document.getElementById('post-submit-sub-message');
@@ -427,6 +442,7 @@
             postSubmitOverlay?.classList.add('hidden');
             glitchOverlay?.classList.add('hidden');
             loadingOverlay?.classList.add('hidden');
+            fakeErrorOverlay?.classList.add('hidden');
             
             spawnTarget();
             requestAnimationFrame(draw);
@@ -486,32 +502,9 @@
             if (!isPlaying) return; // Защита от двойного вызова
             isPlaying = false;
             if (finalScoreSpan) finalScoreSpan.textContent = score.toString();
-
-            // Показываем загрузку перед проверкой
-            loadingOverlay?.classList.remove('hidden');
-            await fetchScores(); // Ждем свежие данные с сервера
-            loadingOverlay?.classList.add('hidden');
             
-            // Проверка на топ-5
-            const minDaily = dailyData.length < 5 ? 0 : dailyData[dailyData.length - 1].score;
-            const minWeekly = weeklyData.length < 5 ? 0 : weeklyData[weeklyData.length - 1].score;
-            
-            const isDailyTop = score > minDaily;
-            const isWeeklyTop = score > minWeekly;
-            
-            if (isDailyTop || isWeeklyTop) {
-                let text = "Вы попали в топ 5";
-                if (isDailyTop && isWeeklyTop) text += " дня и недели!";
-                else if (isDailyTop) text += " дня!";
-                else text += " недели!";
-
-                if (preSubmitMessage) preSubmitMessage.textContent = text;
-                preSubmitOverlay?.classList.remove('hidden');
-            } else {
-                if (postSubmitMessage) postSubmitMessage.textContent = "Увы, вы не побили рекорд";
-                if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Начать заново?";
-                postSubmitOverlay?.classList.remove('hidden');
-            }
+            // Сразу показываем "Ошибку"
+            fakeErrorOverlay?.classList.remove('hidden');
         }
 
         function draw(timestamp: number) {
@@ -592,34 +585,7 @@
                 if (click.alpha <= 0) clicks.splice(i, 1);
             }
 
-            // Эффект помех (Glitch) для сложности x4 и выше
-            const glitchChance = difficultyMultiplier >= 8 ? 0.15 : 0.05;
-            if (difficultyMultiplier >= 4 && Math.random() < glitchChance) {
-                const h = Math.random() * (difficultyMultiplier >= 8 ? 60 : 20) + 5;
-                const y = Math.random() * canvas.height;
-                
-                // На x8 помехи агрессивнее и разнообразнее
-                if (difficultyMultiplier >= 8 && Math.random() > 0.5) {
-                    ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Матричный шум
-                } else {
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)'; // Красный шум
-                }
-                ctx.fillRect(0, y, canvas.width, h);
-
-                // Дополнительные полосы для x8 (сбой синхронизации)
-                if (difficultyMultiplier >= 8 && Math.random() < 0.3) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                    ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 10);
-                }
-                
-                // x16: Дополнительные визуальные искажения (белый шум)
-                if (difficultyMultiplier >= 16 && Math.random() < 0.1) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                }
-            }
-
-            // Отрисовка ловушек (Зеленые со смайликом)
+           // Отрисовка ловушек (Зеленые со смайликом)
             ctx.shadowBlur = 5;
             ctx.shadowColor = '#22c55e';
             ctx.lineWidth = 2;
@@ -654,7 +620,36 @@
                 ctx.stroke();
             }
 
-            // Отрисовка попаданий (фиолетовая точка с волнами)
+
+
+
+            // Эффект помех (Glitch) для сложности x4 и выше
+            const glitchChance = difficultyMultiplier >= 8 ? 0.15 : 0.05;
+            if (difficultyMultiplier >= 4 && Math.random() < glitchChance) {
+                const h = Math.random() * (difficultyMultiplier >= 8 ? 60 : 20) + 5;
+                const y = Math.random() * canvas.height;
+                
+                // На x8 помехи агрессивнее и разнообразнее
+                if (difficultyMultiplier >= 8 && Math.random() > 0.5) {
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Матричный шум
+                } else {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)'; // Красный шум
+                }
+                ctx.fillRect(0, y, canvas.width, h);
+
+                // Дополнительные полосы для x8 (сбой синхронизации)
+                if (difficultyMultiplier >= 8 && Math.random() < 0.3) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                    ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 10);
+                }
+                
+                // x16: Дополнительные визуальные искажения (белый шум)
+                if (difficultyMultiplier >= 16 && Math.random() < 0.1) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+
             for (let i = hits.length - 1; i >= 0; i--) {
                 const hit = hits[i];
                 ctx.save();
@@ -703,6 +698,7 @@
                 if (hit.alpha <= 0) hits.splice(i, 1);
             }
 
+           // Отрисовка попаданий (фиолетовая точка с волнами)
             // Цель
             ctx.fillStyle = isBonusPhase ? '#ff4500' : target.color; // Краснеет в конце
             ctx.shadowBlur = 10;
@@ -803,6 +799,63 @@
 
         overlay.addEventListener('click', startGame);
 
+        // Логика Fake Error (Развилка)
+        
+        // 1. Нажали "Нет" в ошибке -> Хардкор (Ловушка)
+        fakeErrorNoBtn?.addEventListener('click', () => {
+            fakeErrorOverlay?.classList.add('hidden');
+            glitchOverlay?.classList.remove('hidden');
+        });
+
+        // 2. Нажали "Да" в ошибке -> Проверка рекордов (Безопасный путь)
+        fakeErrorYesBtn?.addEventListener('click', () => {
+            fakeErrorOverlay?.classList.add('hidden');
+            
+            // Показываем "Я пошутила"
+            if (loadingOverlay) {
+                const msg = loadingOverlay.querySelector('.message');
+                const sub = loadingOverlay.querySelector('.sub-message');
+                if (msg) msg.textContent = "Я пошутила";
+                if (sub) sub.textContent = "";
+                loadingOverlay.classList.remove('hidden');
+            }
+
+            // Ждем 1 секунду, параллельно загружая данные
+            setTimeout(async () => {
+                await fetchScores();
+                
+                // Возвращаем текст загрузки обратно (для следующего раза)
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('hidden');
+                    const msg = loadingOverlay.querySelector('.message');
+                    const sub = loadingOverlay.querySelector('.sub-message');
+                    if (msg) msg.textContent = "Связь с сервером...";
+                    if (sub) sub.textContent = "Сверяем результаты";
+                }
+
+                // Проверка результатов
+                const minDaily = dailyData.length < 5 ? 0 : dailyData[dailyData.length - 1].score;
+                const minWeekly = weeklyData.length < 5 ? 0 : weeklyData[weeklyData.length - 1].score;
+                
+                const isDailyTop = score > minDaily;
+                const isWeeklyTop = score > minWeekly;
+
+                if (isDailyTop || isWeeklyTop) {
+                    let text = "О, вы молодец! Вы побили ";
+                    if (isDailyTop && isWeeklyTop) text += "оба рекорда!";
+                    else if (isDailyTop) text += "рекорд дня!";
+                    else text += "рекорд недели!";
+
+                    if (preSubmitMessage) preSubmitMessage.textContent = text;
+                    preSubmitOverlay?.classList.remove('hidden');
+                } else {
+                    if (postSubmitMessage) postSubmitMessage.textContent = "Вы не побили ни один рекорд";
+                    if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Сыграть ещё раз?";
+                    postSubmitOverlay?.classList.remove('hidden');
+                }
+            }, 1000);
+        });
+
         // Рестарт
         // Логика кнопок
         
@@ -833,10 +886,14 @@
             overlay!.classList.remove('hidden');
         });
 
-        // Post-Submit: Нет (не играть -> Глич -> Хардкор)
+        // Post-Submit: Нет (Просто выход в меню, БЕЗ хардкора)
         document.getElementById('post-submit-no-btn')?.addEventListener('click', () => {
             postSubmitOverlay?.classList.add('hidden');
-            glitchOverlay?.classList.remove('hidden');
+            // Сброс в начало
+            difficultyMultiplier = 1;
+            const subMsg = overlay!.querySelector('.sub-message');
+            if (subMsg) subMsg.textContent = "Поймай точку! У тебя 30 секунд.";
+            overlay!.classList.remove('hidden');
         });
 
         // Glitch Click -> Hardcore Start
