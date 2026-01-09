@@ -10,6 +10,20 @@ interface ScoreRecord {
     date: number; // timestamp
 }
 
+// Вспомогательная функция для получения ключей с датами (как в leaderboard.js)
+function getKeys() {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const oneJan = new Date(now.getFullYear(), 0, 1);
+    const numberOfDays = Math.floor((now.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
+    const weekNum = Math.ceil((now.getDay() + 1 + numberOfDays) / 7);
+    
+    return {
+        daily: `daily_scores_${dateStr}`,
+        weekly: `weekly_scores_${now.getFullYear()}_w${weekNum}`
+    };
+}
+
 // Получаем доступ к KV через locals (предоставляется адаптером Cloudflare)
 const getKV = (locals: any) => {
     return locals?.runtime?.env?.MORRISGRAD_DB;
@@ -18,32 +32,18 @@ const getKV = (locals: any) => {
 // GET: Получение рекордов (Топ за день и Топ за неделю)
 export const GET: APIRoute = async ({ locals }) => {
     const kv = getKV(locals);
-    let allScores: ScoreRecord[] = [];
-
-    if (kv) {
-        // Читаем из KV
-        const data = await kv.get('scores', { type: 'json' });
-        if (data) allScores = data as ScoreRecord[];
-    } else {
+    if (!kv) {
         // Если запускаем локально без wrangler, вернем пустоту, чтобы не падало
         console.log("KV не подключен (локальный режим)");
+        return new Response(JSON.stringify({ daily: [], weekly: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+        });
     }
 
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-    const oneWeek = 7 * 24 * 60 * 60 * 1000;
-
-    // Топ за день
-    const daily = allScores
-        .filter(r => (now - r.date) < oneDay)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
-
-    // Топ за неделю
-    const weekly = allScores
-        .filter(r => (now - r.date) < oneWeek)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+    const { daily: dailyKey, weekly: weeklyKey } = getKeys();
+    const daily = await kv.get(dailyKey, { type: 'json' }) || [];
+    const weekly = await kv.get(weeklyKey, { type: 'json' }) || [];
 
     return new Response(JSON.stringify({ daily, weekly }), {
         status: 200,
@@ -77,15 +77,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const kv = getKV(locals);
 
         if (kv) {
-            // Читаем текущие, добавляем, сохраняем
-            const currentData: ScoreRecord[] = (await kv.get('scores', { type: 'json' })) || [];
-            currentData.push(newRecord);
-            
-            // Очистка совсем старых записей (старше недели)
-            const oneWeek = 7 * 24 * 60 * 60 * 1000;
-            const cleanedDb = currentData.filter((r: ScoreRecord) => (Date.now() - r.date) < oneWeek);
+            const { daily: dailyKey, weekly: weeklyKey } = getKeys();
 
-            await kv.put('scores', JSON.stringify(cleanedDb));
+            // Функция обновления топа для конкретного ключа
+            const updateTop = async (key: string) => {
+                let list: ScoreRecord[] = (await kv.get(key, { type: 'json' })) || [];
+                const minScore = list.length < 5 ? 0 : list[list.length - 1].score;
+                if (newRecord.score > minScore) {
+                    list.push(newRecord);
+                    list.sort((a, b) => b.score - a.score);
+                    list = list.slice(0, 5);
+                    await kv.put(key, JSON.stringify(list));
+                }
+            };
+
+            await updateTop(dailyKey);
+            await updateTop(weeklyKey);
         } else {
             return new Response(JSON.stringify({ error: "База данных не настроена в Cloudflare" }), { status: 500 });
         }
