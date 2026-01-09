@@ -1,3 +1,5 @@
+export const prerender = false;
+
 // Вспомогательная функция для получения ключей с датами
 function getKeys() {
   const now = new Date();
