@@ -5,7 +5,7 @@
         <canvas id="mini-game-canvas" width="600" height="600"></canvas>
         <div id="game-overlay" class="overlay">
             <div class="message">Нажми, чтобы играть</div>
-            <div class="sub-message">Поймай точку! У тебя 1 минута.</div>
+            <div class="sub-message">Поймай точку! У тебя 30 секунд.</div>
         </div>
         
         <!-- Экран Game Over -->
@@ -50,6 +50,12 @@
         <!-- Glitch Overlay -->
         <div id="glitch-overlay" class="overlay hidden glitch">
             <div class="message" data-text="Жаль">Жаль</div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="overlay hidden">
+            <div class="message">Связь с сервером...</div>
+            <div class="sub-message">Сверяем результаты</div>
         </div>
     </div>
 
@@ -335,6 +341,7 @@
         const preSubmitOverlay = document.getElementById('pre-submit-overlay');
         const postSubmitOverlay = document.getElementById('post-submit-overlay');
         const glitchOverlay = document.getElementById('glitch-overlay');
+        const loadingOverlay = document.getElementById('loading-overlay');
         const preSubmitMessage = document.getElementById('pre-submit-message');
         const postSubmitMessage = document.getElementById('post-submit-message');
         const postSubmitSubMessage = document.getElementById('post-submit-sub-message');
@@ -385,35 +392,105 @@
         const ctx = canvas.getContext('2d')!;
         let isPlaying = false;
         let score = 0;
-        let timeLeft = 60;
+        let timeLeft = 30;
+        let maxTime = 30;
         let lastTime = 0;
         let lastTeleportTime = 0;
-        let teleportInterval = 2000;
+        let teleportInterval = 4000;
         let clicks: {x: number, y: number, radius: number, alpha: number}[] = [];
-        let hits: {x: number, y: number, size: number, alpha: number}[] = [];
+        let hits: {x: number, y: number, size: number, alpha: number, color?: string}[] = [];
+        let decoys: {x: number, y: number, size: number}[] = [];
+        let nextPhantomTime = 0;
         
         // Цель теперь золотая, под стиль сайта
         const target = { x: 100, y: 100, size: 10, color: '#ffd700' };
+        
+        let mouseX = 0;
+        let mouseY = 0;
+
+        function startGame() {
+            if (isPlaying) return;
+            
+            isPlaying = true;
+            score = 0;
+            timeLeft = 30 * difficultyMultiplier;
+            maxTime = timeLeft;
+            lastTime = performance.now();
+            lastTeleportTime = performance.now();
+            clicks = []; // Сброс старых кликов
+            hits = [];   // Сброс старых попаданий
+            decoys = []; // Сброс ловушек
+            nextPhantomTime = performance.now() + getRandomPhantomInterval();
+            
+            overlay!.classList.add('hidden');
+            gameOverOverlay?.classList.add('hidden');
+            postSubmitOverlay?.classList.add('hidden');
+            glitchOverlay?.classList.add('hidden');
+            loadingOverlay?.classList.add('hidden');
+            
+            spawnTarget();
+            requestAnimationFrame(draw);
+        }
+
+        function getRandomPhantomInterval() {
+            if (difficultyMultiplier < 4) return 99999999;
+            
+            const levels = Math.log2(difficultyMultiplier) - 2; // x4->0, x8->1
+            const divisor = Math.pow(2, levels);
+            
+            let min = 5000 / divisor;
+            let max = 15000 / divisor;
+            
+            if (min < 500) min = 500;
+            if (max < 1000) max = 1000;
+            
+            return Math.random() * (max - min) + min;
+        }
 
         function spawnTarget() {
             // Размер зависит от фазы игры (времени)
             let minSize, maxSize;
-            if (timeLeft > 30 * difficultyMultiplier) {
-                minSize = 30; maxSize = 40; // Первые 30 сек: Легко
+            if (timeLeft > 20 * difficultyMultiplier) {
+                minSize = 50; maxSize = 100;
             } else if (timeLeft > 10 * difficultyMultiplier) {
-                minSize = 20; maxSize = 30; // Следующие 20 сек: Нормально
+                minSize = 30; maxSize = 50;
             } else {
-                minSize = 3; maxSize = 10;  // Последние 10 сек: Хардкор
+                minSize = 20; maxSize = 30;
             }
+
+            // Уменьшаем размер в 1.3 раза за каждый уровень сложности
+            const sizeDivisor = Math.pow(1.2, Math.log2(difficultyMultiplier));
+            minSize = Math.max(3, Math.floor(minSize / sizeDivisor));
+            maxSize = Math.max(5, Math.floor(maxSize / sizeDivisor));
+
             target.size = Math.floor(Math.random() * (maxSize - minSize + 1)) + minSize;
             // Позиция с учетом размера, чтобы не вылезала за край
             target.x = Math.random() * (canvas.width - target.size * 2) + target.size;
             target.y = Math.random() * (canvas.height - target.size * 2) + target.size;
+
+            // Ловушки (Decoys) появляются с x2 сложности
+            decoys = [];
+            if (difficultyMultiplier >= 2) {
+                const decoyCount = Math.floor(Math.log2(difficultyMultiplier)); // x2=1, x4=2, x8=3
+                for (let i = 0; i < decoyCount; i++) {
+                    decoys.push({
+                        x: Math.random() * (canvas.width - target.size * 2) + target.size,
+                        y: Math.random() * (canvas.height - target.size * 2) + target.size,
+                        size: target.size
+                    });
+                }
+            }
         }
 
-        function gameOver() {
+        async function gameOver() {
+            if (!isPlaying) return; // Защита от двойного вызова
             isPlaying = false;
             if (finalScoreSpan) finalScoreSpan.textContent = score.toString();
+
+            // Показываем загрузку перед проверкой
+            loadingOverlay?.classList.remove('hidden');
+            await fetchScores(); // Ждем свежие данные с сервера
+            loadingOverlay?.classList.add('hidden');
             
             // Проверка на топ-5
             const minDaily = dailyData.length < 5 ? 0 : dailyData[dailyData.length - 1].score;
@@ -423,12 +500,16 @@
             const isWeeklyTop = score > minWeekly;
             
             if (isDailyTop || isWeeklyTop) {
-                const period = isDailyTop ? "дня" : "недели";
-                if (preSubmitMessage) preSubmitMessage.textContent = `Вы попали в топ 5 ${period}!`;
+                let text = "Вы попали в топ 5";
+                if (isDailyTop && isWeeklyTop) text += " дня и недели!";
+                else if (isDailyTop) text += " дня!";
+                else text += " недели!";
+
+                if (preSubmitMessage) preSubmitMessage.textContent = text;
                 preSubmitOverlay?.classList.remove('hidden');
             } else {
                 if (postSubmitMessage) postSubmitMessage.textContent = "Увы, вы не побили рекорд";
-                if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Играть ещё раз?";
+                if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Начать заново?";
                 postSubmitOverlay?.classList.remove('hidden');
             }
         }
@@ -454,15 +535,20 @@
             // Последние 10 сек (10-0): 0.2 сек
             let isBonusPhase = false;
             
-            if (timeLeft > 40 * difficultyMultiplier) {
-                teleportInterval = 2000 / difficultyMultiplier;
-            } else if (timeLeft > 20 * difficultyMultiplier) {
-                teleportInterval = 1000 / difficultyMultiplier;
+            // Уменьшаем интервал в 1.5 раза за каждый уровень сложности
+            const intervalDivisor = Math.pow(1.4, Math.log2(difficultyMultiplier));
+            
+            if (timeLeft > 20 * difficultyMultiplier) {
+                teleportInterval = 4000 / intervalDivisor;
             } else if (timeLeft > 10 * difficultyMultiplier) {
-                teleportInterval = 600 / difficultyMultiplier;
+                teleportInterval = 3000 / intervalDivisor;
             } else {
-                teleportInterval = 300 / difficultyMultiplier;
                 isBonusPhase = true; // Двойные очки
+                if (timeLeft > 5 * difficultyMultiplier) {
+                    teleportInterval = 2000 / intervalDivisor;
+                } else {
+                    teleportInterval = 1500 / intervalDivisor;
+                }
             }
 
             // Автоматическое перемещение точки
@@ -471,11 +557,27 @@
                 lastTeleportTime = now;
             }
 
+            // Фантомные нажатия (пугалки) для x4 и выше
+            if (difficultyMultiplier >= 4 && now > nextPhantomTime) {
+                const px = Math.random() * (canvas.width - 60) + 30;
+                const py = Math.random() * (canvas.height - 60) + 30;
+                // Добавляем визуальный эффект "попадания в ловушку" (красный), но без штрафа
+                hits.push({ x: px, y: py, size: target.size, alpha: 1.0, color: '#ef4444' });
+                
+                nextPhantomTime = now + getRandomPhantomInterval();
+            }
+
             // Отрисовка фона
-            ctx.fillStyle = '#0a0a0a'; // Темный фон сайта
+            if (difficultyMultiplier >= 16) {
+                // На x16 оставляем шлейф (Motion Blur), не стирая фон полностью
+                ctx.fillStyle = 'rgba(10, 10, 10, 0.25)';
+            } else {
+                ctx.fillStyle = '#0a0a0a'; // Темный фон сайта
+            }
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Отрисовка эффектов клика (расходящиеся круги)
+            // Рисуем их ДО гличей и ловушек, чтобы они были на заднем плане
             ctx.lineWidth = 2;
             for (let i = clicks.length - 1; i >= 0; i--) {
                 const click = clicks[i];
@@ -484,10 +586,72 @@
                 ctx.strokeStyle = `rgba(255, 215, 0, ${click.alpha})`; // Золотой цвет
                 ctx.stroke();
                 
-                click.radius += 2;   // Круг расширяется
-                click.alpha -= 0.05; // И исчезает
+                click.radius += 4;   // Ускорили расширение (было 2)
+                click.alpha -= 0.1;  // Ускорили исчезновение (было 0.05)
                 
                 if (click.alpha <= 0) clicks.splice(i, 1);
+            }
+
+            // Эффект помех (Glitch) для сложности x4 и выше
+            const glitchChance = difficultyMultiplier >= 8 ? 0.15 : 0.05;
+            if (difficultyMultiplier >= 4 && Math.random() < glitchChance) {
+                const h = Math.random() * (difficultyMultiplier >= 8 ? 60 : 20) + 5;
+                const y = Math.random() * canvas.height;
+                
+                // На x8 помехи агрессивнее и разнообразнее
+                if (difficultyMultiplier >= 8 && Math.random() > 0.5) {
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Матричный шум
+                } else {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)'; // Красный шум
+                }
+                ctx.fillRect(0, y, canvas.width, h);
+
+                // Дополнительные полосы для x8 (сбой синхронизации)
+                if (difficultyMultiplier >= 8 && Math.random() < 0.3) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                    ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 10);
+                }
+                
+                // x16: Дополнительные визуальные искажения (белый шум)
+                if (difficultyMultiplier >= 16 && Math.random() < 0.1) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+
+            // Отрисовка ловушек (Зеленые со смайликом)
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#22c55e';
+            ctx.lineWidth = 2;
+            
+            for (const d of decoys) {
+                // Тело (зеленое)
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Смайлик
+                ctx.strokeStyle = '#000';
+                
+                // Глаза
+                const eyeOffset = d.size * 0.3;
+                const eyeSize = d.size * 0.15;
+                
+                ctx.fillStyle = '#a020f0'; // Левый глаз - Красный
+                ctx.beginPath();
+                ctx.arc(d.x - eyeOffset, d.y - eyeOffset, eyeSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ef4444'; // Правый глаз - Фиолетовый
+                ctx.beginPath();
+                ctx.arc(d.x + eyeOffset, d.y - eyeOffset, eyeSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Улыбка
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.size * 0.5, 0.2 * Math.PI, 0.8 * Math.PI);
+                ctx.stroke();
             }
 
             // Отрисовка попаданий (фиолетовая точка с волнами)
@@ -495,15 +659,16 @@
                 const hit = hits[i];
                 ctx.save();
                 ctx.globalAlpha = hit.alpha;
+                const hitColor = hit.color || '#a020f0';
                 
                 // Фиолетовая точка (остается на месте и мешает)
-                ctx.fillStyle = '#a020f0'; // Energy purple
+                ctx.fillStyle = hitColor; 
                 ctx.beginPath();
                 ctx.arc(hit.x, hit.y, hit.size, 0, Math.PI * 2);
                 ctx.fill();
                 
                 // Волны и лучи для отвлечения
-                ctx.strokeStyle = '#a020f0';
+                ctx.strokeStyle = hitColor;
                 ctx.lineWidth = 2;
                 const progress = 1.0 - hit.alpha; // Насколько давно попали (0..1)
 
@@ -534,7 +699,7 @@
                 }
                 ctx.restore();
                 
-                hit.alpha -= 0.001; // Очень медленное исчезновение (около 3 сек)
+                hit.alpha -= 0.010; // Очень медленное исчезновение (около 3 сек)
                 if (hit.alpha <= 0) hits.splice(i, 1);
             }
 
@@ -547,65 +712,96 @@
             ctx.fill();
             ctx.shadowBlur = 0; // Сброс свечения
 
-            // Счет
-            ctx.fillStyle = '#e0e0e0';
-            ctx.font = 'bold 24px "Exo 2", sans-serif';
-            ctx.fillText(`Счет: ${score}`, 20, 40);
+            // Круговой таймер (справа сверху)
+            const timerX = canvas.width - 40;
+            const timerY = 40;
+            const timerRadius = 20;
 
-            // Таймер
-            ctx.fillStyle = timeLeft <= 10 ? '#ef4444' : '#ffd700';
-            ctx.fillText(`Время: ${timeLeft}`, canvas.width - 140, 40);
+            // Фон таймера (тусклое кольцо)
+            ctx.beginPath();
+            ctx.arc(timerX, timerY, timerRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Прогресс таймера (зеленый исчезающий)
+            const progress = Math.max(0, timeLeft / maxTime);
+            ctx.beginPath();
+            ctx.arc(timerX, timerY, timerRadius, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
+            ctx.strokeStyle = timeLeft <= 10 * difficultyMultiplier ? '#ef4444' : '#22c55e';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Инфо внизу (мелким шрифтом)
+            ctx.fillStyle = '#888';
+            ctx.font = '12px "Exo 2", sans-serif';
+            ctx.fillText(`Счет: ${score}   |   Время: ${timeLeft}   |   Сложность: x${difficultyMultiplier}`, 20, canvas.height - 15);
 
             requestAnimationFrame(draw);
         }
 
-        // Обработка клика (вместо движения мыши)
-        canvas.addEventListener('mousedown', (e) => {
-            if (!isPlaying) return;
+        // Общая функция обработки выстрела
+        function processClick(x: number, y: number) {
+            clicks.push({ x: x, y: y, radius: 5, alpha: 1.0 });
+
+            // Проверка попадания в ловушки (Decoys)
+            for (const d of decoys) {
+                const dx = x - d.x;
+                const dy = y - d.y;
+                if (Math.sqrt(dx*dx + dy*dy) < d.size + 5) {
+                    // Штраф!
+                    score -= 2 * difficultyMultiplier;
+                    hits.push({ x: d.x, y: d.y, size: d.size, alpha: 1.0, color: '#ef4444' }); // Красный взрыв
+                    return; // Не проверяем цель, если попали в ловушку
+                }
+            }
+
+            const dx = x - target.x;
+            const dy = y - target.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
             
+            if (distance < target.size + 5) {
+                hits.push({ x: target.x, y: target.y, size: target.size, alpha: 1.0, color: '#a020f0' });
+                score += (timeLeft <= 10 * difficultyMultiplier ? 2 : 1) * difficultyMultiplier;
+                spawnTarget();
+                lastTeleportTime = performance.now();
+            }
+        }
+
+        // Отслеживание движения мыши
+        canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            
+            mouseX = (e.clientX - rect.left) * scaleX;
+            mouseY = (e.clientY - rect.top) * scaleY;
+        });
+
+        // Обработка клика
+        canvas.addEventListener('mousedown', (e) => {
+            if (!isPlaying) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
             const clickX = (e.clientX - rect.left) * scaleX;
             const clickY = (e.clientY - rect.top) * scaleY;
-
-            // Добавляем визуальный эффект клика
-            clicks.push({ x: clickX, y: clickY, radius: 5, alpha: 1.0 });
-
-            // Проверка попадания (расстояние между кликом и центром точки)
-            const dx = clickX - target.x;
-            const dy = clickY - target.y;
-            const distance = Math.sqrt(dx*dx + dy*dy);
-            
-            // Даем небольшой допуск (target.size + 5px), иначе в 3px попасть нереально
-            if (distance < target.size + 5) {
-                // Добавляем эффект попадания
-                hits.push({ x: target.x, y: target.y, size: target.size, alpha: 1.0 });
-                
-                score += (timeLeft <= 10 * difficultyMultiplier ? 2 : 1) * difficultyMultiplier; // Двойные очки в последние 10 сек + множитель сложности
-                spawnTarget();
-                lastTeleportTime = performance.now(); // Сброс таймера телепортации при попадании
-            }
+            processClick(clickX, clickY);
         });
 
-        overlay.addEventListener('click', () => {
-            if (!isPlaying) {
-                isPlaying = true;
-                score = 0;
-                timeLeft = 60 * difficultyMultiplier;
-                lastTime = performance.now();
-                lastTeleportTime = performance.now();
-                clicks = []; // Сброс старых кликов
-                hits = [];   // Сброс старых попаданий
-                overlay.classList.add('hidden');
-                gameOverOverlay?.classList.add('hidden');
-                postSubmitOverlay?.classList.add('hidden');
-                glitchOverlay?.classList.add('hidden');
-                spawnTarget();
-                requestAnimationFrame(draw);
+        // Обработка пробела
+        const handleKeydown = (e: KeyboardEvent) => {
+            if (!document.body.contains(canvas)) {
+                window.removeEventListener('keydown', handleKeydown);
+                return;
             }
-        });
+            if (e.code === 'Space' && isPlaying) {
+                e.preventDefault();
+                processClick(mouseX, mouseY);
+            }
+        };
+        window.addEventListener('keydown', handleKeydown);
+
+        overlay.addEventListener('click', startGame);
 
         // Рестарт
         // Логика кнопок
@@ -619,16 +815,22 @@
         // Pre-Submit: Нет (не хочу)
         document.getElementById('pre-submit-no-btn')?.addEventListener('click', () => {
             preSubmitOverlay?.classList.add('hidden');
-            if (postSubmitMessage) postSubmitMessage.textContent = "Хотите сыграть еще?";
-            if (postSubmitSubMessage) postSubmitSubMessage.textContent = "";
+            if (postSubmitMessage) postSubmitMessage.textContent = "Рекорд не сохранен";
+            if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Начать заново?";
             postSubmitOverlay?.classList.remove('hidden');
         });
 
         // Post-Submit: Да (играть снова)
         document.getElementById('post-submit-yes-btn')?.addEventListener('click', () => {
             postSubmitOverlay?.classList.add('hidden');
-            // Сразу старт
-            overlay.click();
+            // Сброс сложности и возвращение в меню (пауза)
+            difficultyMultiplier = 1;
+            
+            // Возвращаем текст на место
+            const subMsg = overlay!.querySelector('.sub-message');
+            if (subMsg) subMsg.textContent = "Поймай точку! У тебя 30 секунд.";
+            
+            overlay!.classList.remove('hidden');
         });
 
         // Post-Submit: Нет (не играть -> Глич -> Хардкор)
@@ -641,7 +843,7 @@
         glitchOverlay?.addEventListener('click', () => {
             difficultyMultiplier *= 2;
             glitchOverlay.classList.add('hidden');
-            overlay.click(); // Старт
+            startGame(); // Прямой запуск
         });
 
         // Отправка формы
@@ -674,7 +876,7 @@
                     await fetchScores(); // Обновить таблицу
                     gameOverOverlay?.classList.add('hidden');
                     if (postSubmitMessage) postSubmitMessage.textContent = "Вы молодцы!";
-                    if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Ваш рекорд записан. Играть снова?";
+                    if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Ваш рекорд записан. Начать заново?";
                     postSubmitOverlay?.classList.remove('hidden');
                 } else {
                     alert("Ошибка: " + (result.error || res.statusText));
