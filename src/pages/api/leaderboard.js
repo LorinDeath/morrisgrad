@@ -55,14 +55,10 @@ export const POST = async ({ request, locals }) => {
     }
 
     // Проверяем для дня и недели
-    const isDaily = await updateTop(dailyKey);
-    const isWeekly = await updateTop(weeklyKey);
+    await updateTop(dailyKey);
+    await updateTop(weeklyKey);
 
-    if (isDaily || isWeekly) {
-      return new Response(JSON.stringify({ status: 'new_record', message: 'Новый рекорд!' }));
-    } else {
-      return new Response(JSON.stringify({ status: 'game_over', message: 'Попробуйте еще раз' }));
-    }
+    return new Response(JSON.stringify({ success: true }));
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }

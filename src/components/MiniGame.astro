@@ -9,9 +9,9 @@
         </div>
         
         <!-- Экран Game Over -->
-        <div id="game-over-overlay" class="overlay hidden">
+        <div id="input-overlay" class="overlay hidden">
             <div class="game-over-content">
-                <div class="message">Время вышло!</div>
+                <div class="message">Новый рекорд!</div>
                 <div class="final-score">Твой счет: <span id="final-score-val">0</span></div>
                 
                 <div class="input-group">
@@ -20,8 +20,36 @@
                 </div>
                 
                 <button id="submit-score-btn" class="action-btn">Отправить рекорд</button>
-                <button id="restart-btn" class="restart-btn">Играть снова</button>
             </div>
+        </div>
+
+        <!-- Pre-Submit: Спросить, хочет ли игрок сохранить рекорд -->
+        <div id="pre-submit-overlay" class="overlay hidden">
+            <div class="dialog-box">
+                <div id="pre-submit-message" class="message">Вы попали в топ-5!</div>
+                <div class="sub-message">Хотите записать свой рекорд?</div>
+                <div class="button-group">
+                    <button id="pre-submit-yes-btn" class="action-btn">Да</button>
+                    <button id="pre-submit-no-btn" class="restart-btn">Нет</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post-Submit: Спросить, хочет ли игрок играть снова -->
+        <div id="post-submit-overlay" class="overlay hidden">
+            <div class="dialog-box">
+                <div id="post-submit-message" class="message">Вы молодец!</div>
+                <div id="post-submit-sub-message" class="sub-message">Ваш рекорд записан. Играть снова?</div>
+                <div class="button-group">
+                    <button id="post-submit-yes-btn" class="action-btn">Да</button>
+                    <button id="post-submit-no-btn" class="restart-btn">Нет</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Glitch Overlay -->
+        <div id="glitch-overlay" class="overlay hidden glitch">
+            <div class="message" data-text="Жаль">Жаль</div>
         </div>
     </div>
 
@@ -118,7 +146,7 @@
         font-size: 1rem;
     }
 
-    .game-over-content {
+    .game-over-content, .dialog-box {
         background: rgba(10, 10, 10, 0.9);
         padding: 2rem;
         border-radius: 12px;
@@ -181,6 +209,57 @@
         font-size: 0.9rem;
     }
     .restart-btn:hover { border-color: #fff; }
+    
+    .button-group {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    /* Glitch Effect */
+    .glitch .message {
+        position: relative;
+        text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em 0 0 rgba(0, 255, 0, 0.75), 0 0.05em 0 rgba(0, 0, 255, 0.75);
+        animation: glitch 500ms infinite;
+    }
+    .glitch .message::before, .glitch .message::after {
+        content: attr(data-text);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(10, 10, 10, 0.9);
+        overflow: hidden;
+        animation: glitch-move 2s infinite ease-out;
+    }
+    .glitch .message::before {
+        clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+        transform: translate(-0.05em, -0.025em);
+        color: red;
+    }
+    .glitch .message::after {
+        clip-path: polygon(0 60%, 100% 60%, 100% 100%, 0 100%);
+        transform: translate(0.05em, 0.025em);
+        color: blue;
+    }
+    @keyframes glitch {
+        0% { text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em 0 0 rgba(0, 255, 0, 0.75), 0 0.05em 0 rgba(0, 0, 255, 0.75); }
+        14% { text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em 0 0 rgba(0, 255, 0, 0.75), 0 0.05em 0 rgba(0, 0, 255, 0.75); }
+        15% { text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.025em 0.025em 0 rgba(0, 255, 0, 0.75), -0.05em -0.05em 0 rgba(0, 0, 255, 0.75); }
+        49% { text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.025em 0.025em 0 rgba(0, 255, 0, 0.75), -0.05em -0.05em 0 rgba(0, 0, 255, 0.75); }
+        50% { text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em 0 0 rgba(0, 255, 0, 0.75), 0 -0.05em 0 rgba(0, 0, 255, 0.75); }
+        99% { text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em 0 0 rgba(0, 255, 0, 0.75), 0 -0.05em 0 rgba(0, 0, 255, 0.75); }
+        100% { text-shadow: -0.025em 0 0 rgba(255, 0, 0, 0.75), -0.025em -0.025em 0 rgba(0, 255, 0, 0.75), -0.025em -0.05em 0 rgba(0, 0, 255, 0.75); }
+    }
+     @keyframes glitch-move {
+        2% { transform: translate(0.05em, -0.05em); }
+        4% { transform: translate(-0.05em, 0.05em); }
+        6% { transform: translate(0.05em, 0.05em); }
+        8% { transform: translate(-0.05em, -0.05em); }
+        10% { transform: translate(0, 0); }
+    }
 
     /* Стили таблицы рекордов */
     .leaderboard-section {
@@ -245,22 +324,35 @@
         if (!canvas) return;
 
         const overlay = document.getElementById('game-overlay');
-        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const gameOverOverlay = document.getElementById('input-overlay');
         const finalScoreSpan = document.getElementById('final-score-val');
         const nameInput = document.getElementById('player-name') as HTMLInputElement;
         const submitBtn = document.getElementById('submit-score-btn') as HTMLButtonElement;
-        const restartBtn = document.getElementById('restart-btn');
         const dailyList = document.getElementById('daily-list');
         const weeklyList = document.getElementById('weekly-list');
+        
+        // Новые элементы
+        const preSubmitOverlay = document.getElementById('pre-submit-overlay');
+        const postSubmitOverlay = document.getElementById('post-submit-overlay');
+        const glitchOverlay = document.getElementById('glitch-overlay');
+        const preSubmitMessage = document.getElementById('pre-submit-message');
+        const postSubmitMessage = document.getElementById('post-submit-message');
+        const postSubmitSubMessage = document.getElementById('post-submit-sub-message');
+        
+        let dailyData: any[] = [];
+        let weeklyData: any[] = [];
+        let difficultyMultiplier = 1;
 
     // Загрузка рекордов
     async function fetchScores() {
         try {
-            const res = await fetch('/api/leaderboard');
+            const res = await fetch('/api/scores');
             if (!res.ok) {
                 throw new Error(`Ошибка ${res.status}`);
             }
             const data = await res.json();
+            dailyData = data.daily || [];
+            weeklyData = data.weekly || [];
             renderList(dailyList, data.daily);
             renderList(weeklyList, data.weekly);
         } catch (e) {
@@ -293,7 +385,7 @@
         const ctx = canvas.getContext('2d')!;
         let isPlaying = false;
         let score = 0;
-        let timeLeft = 60; // 60 секунд на игру
+        let timeLeft = 60;
         let lastTime = 0;
         let lastTeleportTime = 0;
         let teleportInterval = 2000;
@@ -306,9 +398,9 @@
         function spawnTarget() {
             // Размер зависит от фазы игры (времени)
             let minSize, maxSize;
-            if (timeLeft > 30) {
+            if (timeLeft > 30 * difficultyMultiplier) {
                 minSize = 30; maxSize = 40; // Первые 30 сек: Легко
-            } else if (timeLeft > 10) {
+            } else if (timeLeft > 10 * difficultyMultiplier) {
                 minSize = 20; maxSize = 30; // Следующие 20 сек: Нормально
             } else {
                 minSize = 3; maxSize = 10;  // Последние 10 сек: Хардкор
@@ -322,7 +414,23 @@
         function gameOver() {
             isPlaying = false;
             if (finalScoreSpan) finalScoreSpan.textContent = score.toString();
-            gameOverOverlay?.classList.remove('hidden');
+            
+            // Проверка на топ-5
+            const minDaily = dailyData.length < 5 ? 0 : dailyData[dailyData.length - 1].score;
+            const minWeekly = weeklyData.length < 5 ? 0 : weeklyData[weeklyData.length - 1].score;
+            
+            const isDailyTop = score > minDaily;
+            const isWeeklyTop = score > minWeekly;
+            
+            if (isDailyTop || isWeeklyTop) {
+                const period = isDailyTop ? "дня" : "недели";
+                if (preSubmitMessage) preSubmitMessage.textContent = `Вы попали в топ 5 ${period}!`;
+                preSubmitOverlay?.classList.remove('hidden');
+            } else {
+                if (postSubmitMessage) postSubmitMessage.textContent = "Увы, вы не побили рекорд";
+                if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Играть ещё раз?";
+                postSubmitOverlay?.classList.remove('hidden');
+            }
         }
 
         function draw(timestamp: number) {
@@ -345,15 +453,15 @@
             // Следующие 10 сек (20-10): 0.5 сек
             // Последние 10 сек (10-0): 0.2 сек
             let isBonusPhase = false;
-
-            if (timeLeft > 40) {
-                teleportInterval = 2000;
-            } else if (timeLeft > 20) {
-                teleportInterval = 1000;
-            } else if (timeLeft > 10) {
-                teleportInterval = 600;
+            
+            if (timeLeft > 40 * difficultyMultiplier) {
+                teleportInterval = 2000 / difficultyMultiplier;
+            } else if (timeLeft > 20 * difficultyMultiplier) {
+                teleportInterval = 1000 / difficultyMultiplier;
+            } else if (timeLeft > 10 * difficultyMultiplier) {
+                teleportInterval = 600 / difficultyMultiplier;
             } else {
-                teleportInterval = 300;
+                teleportInterval = 300 / difficultyMultiplier;
                 isBonusPhase = true; // Двойные очки
             }
 
@@ -475,7 +583,7 @@
                 // Добавляем эффект попадания
                 hits.push({ x: target.x, y: target.y, size: target.size, alpha: 1.0 });
                 
-                score += (timeLeft <= 10 ? 2 : 1); // Двойные очки в последние 10 сек
+                score += (timeLeft <= 10 * difficultyMultiplier ? 2 : 1) * difficultyMultiplier; // Двойные очки в последние 10 сек + множитель сложности
                 spawnTarget();
                 lastTeleportTime = performance.now(); // Сброс таймера телепортации при попадании
             }
@@ -485,25 +593,55 @@
             if (!isPlaying) {
                 isPlaying = true;
                 score = 0;
-                timeLeft = 60;
+                timeLeft = 60 * difficultyMultiplier;
                 lastTime = performance.now();
                 lastTeleportTime = performance.now();
                 clicks = []; // Сброс старых кликов
                 hits = [];   // Сброс старых попаданий
                 overlay.classList.add('hidden');
                 gameOverOverlay?.classList.add('hidden');
+                postSubmitOverlay?.classList.add('hidden');
+                glitchOverlay?.classList.add('hidden');
                 spawnTarget();
                 requestAnimationFrame(draw);
             }
         });
 
         // Рестарт
-        restartBtn?.addEventListener('click', () => {
-            gameOverOverlay?.classList.add('hidden');
-            overlay?.classList.remove('hidden');
-            // Очистим канвас
-            ctx.fillStyle = '#0a0a0a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Логика кнопок
+        
+        // Pre-Submit: Да (хочу записать)
+        document.getElementById('pre-submit-yes-btn')?.addEventListener('click', () => {
+            preSubmitOverlay?.classList.add('hidden');
+            gameOverOverlay?.classList.remove('hidden'); // Показываем ввод имени (теперь это input-overlay)
+        });
+
+        // Pre-Submit: Нет (не хочу)
+        document.getElementById('pre-submit-no-btn')?.addEventListener('click', () => {
+            preSubmitOverlay?.classList.add('hidden');
+            if (postSubmitMessage) postSubmitMessage.textContent = "Хотите сыграть еще?";
+            if (postSubmitSubMessage) postSubmitSubMessage.textContent = "";
+            postSubmitOverlay?.classList.remove('hidden');
+        });
+
+        // Post-Submit: Да (играть снова)
+        document.getElementById('post-submit-yes-btn')?.addEventListener('click', () => {
+            postSubmitOverlay?.classList.add('hidden');
+            // Сразу старт
+            overlay.click();
+        });
+
+        // Post-Submit: Нет (не играть -> Глич -> Хардкор)
+        document.getElementById('post-submit-no-btn')?.addEventListener('click', () => {
+            postSubmitOverlay?.classList.add('hidden');
+            glitchOverlay?.classList.remove('hidden');
+        });
+
+        // Glitch Click -> Hardcore Start
+        glitchOverlay?.addEventListener('click', () => {
+            difficultyMultiplier *= 2;
+            glitchOverlay.classList.add('hidden');
+            overlay.click(); // Старт
         });
 
         // Отправка формы
@@ -524,7 +662,7 @@
             submitBtn.textContent = "Отправка...";
 
             try {
-                const res = await fetch('/api/leaderboard', {
+                const res = await fetch('/api/scores', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, score })
@@ -533,13 +671,11 @@
                 const result = await res.json();
 
                 if (res.ok) {
-                    if (result.status === 'new_record') {
-                        await fetchScores(); // Обновить таблицу
-                        alert("Поздравляем! Вы попали в Топ-5!");
-                    } else {
-                        alert("Вы проиграли. Ваш результат не попал в топ. Ещё раз?");
-                    }
-                    restartBtn?.click(); // Вернуться в начало
+                    await fetchScores(); // Обновить таблицу
+                    gameOverOverlay?.classList.add('hidden');
+                    if (postSubmitMessage) postSubmitMessage.textContent = "Вы молодцы!";
+                    if (postSubmitSubMessage) postSubmitSubMessage.textContent = "Ваш рекорд записан. Играть снова?";
+                    postSubmitOverlay?.classList.remove('hidden');
                 } else {
                     alert("Ошибка: " + (result.error || res.statusText));
                 }
