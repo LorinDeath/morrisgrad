@@ -15,8 +15,8 @@
                 <div class="final-score">Твой счет: <span id="final-score-val">0</span></div>
                 
                 <div class="input-group">
-                    <input type="text" id="player-name" maxlength="6" placeholder="ABCDEF" />
-                    <div class="hint">Введите 6 латинских букв</div>
+                    <input type="text" id="player-name" minlength="2" maxlength="6" placeholder="NAME" />
+                    <div class="hint">2-6 латинских букв</div>
                 </div>
                 
                 <button id="submit-score-btn" class="action-btn">Отправить рекорд</button>
@@ -511,8 +511,8 @@
             const name = nameInput.value.toUpperCase();
             
             // Валидация
-            if (name.length !== 6) {
-                alert("Имя должно быть ровно 6 символов!");
+            if (name.length < 2 || name.length > 6) {
+                alert("Имя должно содержать от 2 до 6 символов!");
                 return;
             }
             if (!/^[A-Z]+$/.test(name)) {
