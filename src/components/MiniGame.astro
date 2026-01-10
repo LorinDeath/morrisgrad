@@ -47,6 +47,60 @@
             </div>
         </div>
 
+        <!-- Death Overlay (Отрицательный счет) -->
+        <div id="death-overlay" class="overlay hidden">
+            <div class="dialog-box" style="border-color: #ef4444;">
+                <div class="message" style="color: #ef4444;">Ты умер? Неужели!</div>
+                <div class="sub-message">Ну тогда заново!</div>
+                <button id="death-ok-btn" class="action-btn" style="background: #ef4444; color: white; margin-top: 1rem;">ОК</button>
+            </div>
+        </div>
+
+        <!-- Don't Rush Overlay -->
+        <div id="dont-rush-overlay" class="overlay hidden">
+            <div class="message">Не торопись</div>
+            <div class="sub-message">Сейчас будет важный выбор</div>
+        </div>
+
+        <!-- Final Dialog Overlay -->
+        <div id="final-dialog-overlay" class="overlay hidden">
+            <div class="dialog-box" style="border-color: #ffd700;">
+                <div class="message" style="color: #ffd700; font-size: 1.2rem;">Ты молодец! Я горжусь тобой.</div>
+                <div class="sub-message">Ты справился. Я хочу запомнить тебя раз и навсегда!</div>
+                <div class="sub-message">Скажи мне своё полное имя!</div>
+                <button id="final-name-btn" class="action-btn" style="margin-top: 1rem;">Моё имя</button>
+            </div>
+        </div>
+
+        <!-- Final Input Overlay -->
+        <div id="final-input-overlay" class="overlay hidden">
+            <div class="dialog-box">
+                <div class="message">Введи имя</div>
+                <input type="text" id="final-player-name" placeholder="Name" maxlength="20" style="width: 200px;" />
+                <button id="final-submit-btn" class="action-btn" style="margin-top: 1rem;">Подтвердить</button>
+            </div>
+        </div>
+
+        <!-- Final Success Overlay -->
+        <div id="final-success-overlay" class="overlay hidden">
+            <div class="dialog-box">
+                <div class="message" id="final-success-msg">Я тебя запомнила!</div>
+                <div class="sub-message">Хочешь повысить сложность?</div>
+                <div class="button-group">
+                    <button id="final-yes-btn" class="action-btn">Да</button>
+                    <button id="final-no-btn" class="restart-btn">Нет</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rest Overlay -->
+        <div id="rest-overlay" class="overlay hidden">
+            <div class="dialog-box">
+                <div class="message">Отдохни</div>
+                <button id="rest-ok-btn" class="action-btn" style="margin-top: 1rem;">Хорошо</button>
+            </div>
+        </div>
+
         <!-- Glitch Overlay -->
         <div id="glitch-overlay" class="overlay hidden glitch">
             <div class="message" data-text="Жаль">Жаль</div>
@@ -73,6 +127,12 @@
 
     <!-- Таблица рекордов -->
     <div class="leaderboard-section">
+        <!-- Бегущая строка Glush -->
+        <div class="marquee-container">
+            <div class="marquee-content" id="glush-marquee">
+                Никто не прошёл игру
+            </div>
+        </div>
         <div class="lb-column">
             <h3>Топ за день</h3>
             <table class="score-table">
@@ -96,6 +156,13 @@
                 </thead>
                 <tbody id="weekly-list"><tr><td colspan="2">Загрузка...</td></tr></tbody>
             </table>
+        </div>
+        <!-- DEBUG BUTTONS -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+            <button class="debug-btn action-btn" data-mult="4" style="background: #ff00ff; color: white; font-size: 0.8rem;">DEBUG x4</button>
+            <button class="debug-btn action-btn" data-mult="8" style="background: #ff00ff; color: white; font-size: 0.8rem;">DEBUG x8</button>
+            <button class="debug-btn action-btn" data-mult="16" style="background: #ff00ff; color: white; font-size: 0.8rem;">DEBUG x16</button>
+            <button class="debug-btn action-btn" data-mult="32" style="background: #ff00ff; color: white; font-size: 0.8rem;">DEBUG x32</button>
         </div>
     </div>
 </div>
@@ -279,6 +346,30 @@
         10% { transform: translate(0, 0); }
     }
 
+    /* Marquee Styles */
+    .marquee-container {
+        width: 100%;
+        background: #000;
+        border: 1px solid #333;
+        overflow: hidden;
+        white-space: nowrap;
+        padding: 5px 0;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    .marquee-content {
+        display: inline-block;
+        padding-left: 100%;
+        animation: marquee 20s linear infinite;
+        color: #ffd700;
+        font-family: monospace;
+        font-size: 0.9rem;
+    }
+    @keyframes marquee {
+        0% { transform: translate(0, 0); }
+        100% { transform: translate(-100%, 0); }
+    }
+
     /* Стили таблицы рекордов */
     .leaderboard-section {
         display: flex;
@@ -348,6 +439,7 @@
         const submitBtn = document.getElementById('submit-score-btn') as HTMLButtonElement;
         const dailyList = document.getElementById('daily-list');
         const weeklyList = document.getElementById('weekly-list');
+        const glushMarquee = document.getElementById('glush-marquee');
         
         // Новые элементы
         const preSubmitOverlay = document.getElementById('pre-submit-overlay');
@@ -357,9 +449,21 @@
         const fakeErrorOverlay = document.getElementById('fake-error-overlay');
         const fakeErrorYesBtn = document.getElementById('fake-error-yes-btn');
         const fakeErrorNoBtn = document.getElementById('fake-error-no-btn');
+        const deathOverlay = document.getElementById('death-overlay');
+        const deathOkBtn = document.getElementById('death-ok-btn');
+        const dontRushOverlay = document.getElementById('dont-rush-overlay');
         const preSubmitMessage = document.getElementById('pre-submit-message');
         const postSubmitMessage = document.getElementById('post-submit-message');
         const postSubmitSubMessage = document.getElementById('post-submit-sub-message');
+
+        // Финальные элементы
+        const finalDialogOverlay = document.getElementById('final-dialog-overlay');
+        const finalInputOverlay = document.getElementById('final-input-overlay');
+        const finalSuccessOverlay = document.getElementById('final-success-overlay');
+        const restOverlay = document.getElementById('rest-overlay');
+        const finalNameBtn = document.getElementById('final-name-btn');
+        const finalSubmitBtn = document.getElementById('final-submit-btn') as HTMLButtonElement;
+        const finalNameInput = document.getElementById('final-player-name') as HTMLInputElement;
         
         let dailyData: any[] = [];
         let weeklyData: any[] = [];
@@ -377,6 +481,16 @@
             weeklyData = data.weekly || [];
             renderList(dailyList, data.daily);
             renderList(weeklyList, data.weekly);
+
+            // Рендер бегущей строки
+            if (data.glush && data.glush.length > 0 && glushMarquee) {
+                const text = data.glush.map((g: any) => `[${g.name} - x${g.difficulty}]`).join('  ***  ');
+                glushMarquee.textContent = text;
+                // Перезапуск анимации
+                glushMarquee.style.animation = 'none';
+                glushMarquee.offsetHeight; /* trigger reflow */
+                glushMarquee.style.animation = 'marquee ' + (data.glush.length * 5 + 10) + 's linear infinite';
+            }
         } catch (e) {
             console.error("Не удалось загрузить рекорды", e);
             // Показываем сообщение в таблице, если API недоступно
@@ -415,19 +529,41 @@
         let clicks: {x: number, y: number, radius: number, alpha: number}[] = [];
         let hits: {x: number, y: number, size: number, alpha: number, color?: string}[] = [];
         let decoys: {x: number, y: number, size: number}[] = [];
+        let timeTraps: {x: number, y: number, size: number}[] = []; // Новые ловушки времени
+        let misses: {x: number, y: number, createdAt: number, duration: number, rotation: number}[] = []; // Промахи теперь локальные
         let nextPhantomTime = 0;
+        let gameStartTime = 0; // Для задержки ввода
+        let missProtectionCount = 0; // Защита от промахов
+        let corruptedZones: {x: number, y: number, w: number, h: number, state: 'warning' | 'active', nextStateTime: number, id: number}[] = [];
+
+        // Переменные для Финала
+        let isEndingSequence = false;
+        let endingPhase: 'text' | 'credits' | 'countdown' | 'finish' = 'text';
+        let endingStartTime = 0;
+        let creditsY = 0;
+
+        // Новые переменные для Врага (x4+)
+        let targets: { x: number, y: number, size: number, color: string }[] = [];
+        let forceState: 'idle' | 'warning' | 'attacking' = 'idle';
+        let forceNextActionTime = 0;
+        // Данные текущей атаки врага
+        let forceAttackData: { startX: number, startY: number, endX: number, endY: number, progress: number, speed: number, width: number } | null = null;
+        let damageTexts: { x: number, y: number, text: string, alpha: number, life: number, color: string }[] = [];
+        let screenShakeOffset = 0;
         
-        // Цель теперь золотая, под стиль сайта
-        const target = { x: 100, y: 100, size: 10, color: '#ffd700' };
         
         let mouseX = 0;
         let mouseY = 0;
 
-        function startGame() {
+        function startGame(keepScore: boolean | any = false) {
             if (isPlaying) return;
             
             isPlaying = true;
-            score = 0;
+            if (keepScore !== true) {
+                score = 0;
+            }
+            missProtectionCount = 3; // Сброс защиты (3 попытки) при каждом старте/переходе
+            gameStartTime = performance.now();
             timeLeft = 30 * difficultyMultiplier;
             maxTime = timeLeft;
             lastTime = performance.now();
@@ -435,6 +571,15 @@
             clicks = []; // Сброс старых кликов
             hits = [];   // Сброс старых попаданий
             decoys = []; // Сброс ловушек
+            timeTraps = []; // Сброс ловушек времени
+            misses = []; // Сброс промахов
+            targets = []; // Сброс целей
+            corruptedZones = []; // Сброс битых секторов
+            isEndingSequence = false; // Сброс финала
+            forceState = 'idle';
+            forceAttackData = null;
+            damageTexts = [];
+            screenShakeOffset = 0;
             nextPhantomTime = performance.now() + getRandomPhantomInterval();
             
             overlay!.classList.add('hidden');
@@ -443,6 +588,11 @@
             glitchOverlay?.classList.add('hidden');
             loadingOverlay?.classList.add('hidden');
             fakeErrorOverlay?.classList.add('hidden');
+            deathOverlay?.classList.add('hidden');
+            finalDialogOverlay?.classList.add('hidden');
+            finalInputOverlay?.classList.add('hidden');
+            finalSuccessOverlay?.classList.add('hidden');
+            restOverlay?.classList.add('hidden');
             
             spawnTarget();
             requestAnimationFrame(draw);
@@ -479,28 +629,44 @@
             minSize = Math.max(3, Math.floor(minSize / sizeDivisor));
             maxSize = Math.max(5, Math.floor(maxSize / sizeDivisor));
 
-            target.size = Math.floor(Math.random() * (maxSize - minSize + 1)) + minSize;
-            // Позиция с учетом размера, чтобы не вылезала за край
-            target.x = Math.random() * (canvas.width - target.size * 2) + target.size;
-            target.y = Math.random() * (canvas.height - target.size * 2) + target.size;
+            targets = [];
+            
+            let count = 1;
+            if (difficultyMultiplier >= 8) {
+                count = Math.floor(Math.random() * 2) + 2; // 2-3 цели
+                if (difficultyMultiplier >= 16) count += 2; 
+            }
+
+            for (let i = 0; i < count; i++) {
+                const size = Math.floor(Math.random() * (maxSize - minSize + 1)) + minSize;
+                const x = Math.random() * (canvas.width - size * 2) + size;
+                const y = Math.random() * (canvas.height - size * 2) + size;
+                targets.push({ x, y, size, color: '#ffd700' });
+            }
 
             // Ловушки (Decoys) появляются с x2 сложности
             decoys = [];
             if (difficultyMultiplier >= 2) {
                 const decoyCount = Math.floor(Math.log2(difficultyMultiplier)); // x2=1, x4=2, x8=3
-                const safeDist = target.size * 2.2 + 15; // Безопасное расстояние (диаметры + отступ)
+                
+                const avgSize = targets.length > 0 ? targets[0].size : 20;
+                const safeDist = avgSize * 2.2 + 15;
 
                 for (let i = 0; i < decoyCount; i++) {
                     let attempts = 0;
                     while (attempts < 15) {
-                        const dx = Math.random() * (canvas.width - target.size * 2) + target.size;
-                        const dy = Math.random() * (canvas.height - target.size * 2) + target.size;
+                        const dx = Math.random() * (canvas.width - avgSize * 2) + avgSize;
+                        const dy = Math.random() * (canvas.height - avgSize * 2) + avgSize;
                         
-                        // Проверка: не накладывается ли на цель
-                        if (Math.hypot(dx - target.x, dy - target.y) < safeDist) {
-                            attempts++;
-                            continue;
+                        // Проверка: не накладывается ли на цели
+                        let overlap = false;
+                        for (const t of targets) {
+                            if (Math.hypot(dx - t.x, dy - t.y) < safeDist) {
+                                overlap = true;
+                                break;
+                            }
                         }
+                        if (overlap) { attempts++; continue; }
 
                         // Проверка: не накладывается ли на другие ловушки
                         if (decoys.some(d => Math.hypot(dx - d.x, dy - d.y) < safeDist)) {
@@ -508,8 +674,35 @@
                             continue;
                         }
 
-                        decoys.push({ x: dx, y: dy, size: target.size });
+                        decoys.push({ x: dx, y: dy, size: avgSize });
                         break; // Успешно разместили, выходим из цикла попыток
+                    }
+                }
+            }
+
+            // Ловушки Времени (Time Traps) появляются с x4 сложности
+            timeTraps = [];
+            if (difficultyMultiplier >= 4) {
+                const trapCount = Math.floor(difficultyMultiplier / 4); // x4=1, x8=2, x16=4
+                const avgSize = targets.length > 0 ? targets[0].size : 20;
+                const safeDist = avgSize * 2.5;
+
+                for (let i = 0; i < trapCount; i++) {
+                    let attempts = 0;
+                    while (attempts < 15) {
+                        const dx = Math.random() * (canvas.width - avgSize * 2) + avgSize;
+                        const dy = Math.random() * (canvas.height - avgSize * 2) + avgSize;
+                        
+                        // Проверка наложения на цели, ловушки и другие тайм-ловушки
+                        const allObjects = [...targets, ...decoys, ...timeTraps];
+                        let overlap = false;
+                        for (const obj of allObjects) {
+                            if (Math.hypot(dx - obj.x, dy - obj.y) < safeDist) { overlap = true; break; }
+                        }
+                        if (overlap) { attempts++; continue; }
+
+                        timeTraps.push({ x: dx, y: dy, size: avgSize });
+                        break;
                     }
                 }
             }
@@ -520,15 +713,154 @@
             isPlaying = false;
             if (finalScoreSpan) finalScoreSpan.textContent = score.toString();
             
-            // Сразу показываем "Ошибку"
-            fakeErrorOverlay?.classList.remove('hidden');
+            // Показываем "Не торопись" на 2 секунды
+            dontRushOverlay?.classList.remove('hidden');
+            
+            setTimeout(() => {
+                dontRushOverlay?.classList.add('hidden');
+                fakeErrorOverlay?.classList.remove('hidden');
+            }, 2000);
+        }
+
+        function showDeathScreen() {
+            if (!isPlaying) return;
+            isPlaying = false;
+            // Показываем экран смерти
+            deathOverlay?.classList.remove('hidden');
+        }
+
+        // Функция запуска финала
+        function startEndingSequence() {
+            isEndingSequence = true;
+            endingPhase = 'text';
+            endingStartTime = performance.now();
+            
+            // Фиксируем время на 3 секундах (или добавляем, если меньше)
+            timeLeft = 3;
+            
+            // Очищаем поле
+            targets = [];
+            decoys = [];
+            timeTraps = [];
+            hits = [];
+            clicks = [];
+            misses = [];
+            forceState = 'idle';
+            forceAttackData = null;
+            damageTexts = [];
+            screenShakeOffset = 0;
         }
 
         function draw(timestamp: number) {
             if (!isPlaying) return;
 
             const now = performance.now();
-            // Таймер
+
+            // --- ЛОГИКА ФИНАЛА (КАТСЦЕНА) ---
+            if (isEndingSequence) {
+                // Фон темнеет/краснеет
+                ctx.fillStyle = '#1a0505'; // Темно-красный/черный
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const elapsed = now - endingStartTime;
+
+                if (endingPhase === 'text') {
+                    // Текстовая последовательность (по 3 сек на фразу)
+                    const phrases = [
+                        "Я лишь хотела...",
+                        "Хотела защитить тебя!",
+                        "Твоя решимость",
+                        "Ты сильный",
+                        "Алзор не должен знать об этом",
+                        "Я должна хранить тебя!"
+                    ];
+                    
+                    const phraseIndex = Math.floor(elapsed / 3000);
+                    
+                    if (phraseIndex < phrases.length) {
+                        ctx.fillStyle = '#ff0000';
+                        ctx.font = 'bold 24px "Exo 2", sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        
+                        // Эффект появления/затухания
+                        const phaseTime = elapsed % 3000;
+                        let alpha = 1.0;
+                        if (phaseTime < 500) alpha = phaseTime / 500;
+                        if (phaseTime > 2500) alpha = (3000 - phaseTime) / 500;
+                        
+                        ctx.globalAlpha = alpha;
+                        ctx.fillText(phrases[phraseIndex], canvas.width / 2, canvas.height / 2);
+                        ctx.globalAlpha = 1.0;
+                    } else {
+                        endingPhase = 'credits';
+                        endingStartTime = now; // Сброс таймера для титров
+                        creditsY = canvas.height + 50;
+                    }
+                } else if (endingPhase === 'credits') {
+                    // Титры
+                    const credits = [
+                        "Автор сценария:", "Алекс Сэйлор", "",
+                        "Программист разработчик:", "Gemini (Mel)", "Алекс Сэйлор", "",
+                        "Тестировщики:", "Милое место", "",
+                        "Спасибо бустерам:", "Kavega", "No4d", "Yuri", "Филин", "Petr591", "Позывной кот", "Слава Трусов", "Данил Зубов", "WathBug", "",
+                        "И всем кто был рядом", "всё это время!", "",
+                        "Я рада, если тебе", "понравилась игра"
+                    ];
+
+                    ctx.textAlign = 'center';
+                    ctx.font = '18px "Exo 2", sans-serif';
+                    
+                    creditsY -= 0.7; // Скорость прокрутки
+
+                    credits.forEach((line, i) => {
+                        const y = creditsY + (i * 30);
+                        if (y > -50 && y < canvas.height + 50) {
+                            ctx.fillStyle = '#ffd700'; // Золотой
+                            ctx.fillText(line, canvas.width / 2, y);
+                        }
+                    });
+
+                    // Если титры уехали вверх
+                    if (creditsY + (credits.length * 30) < canvas.height / 2 - 100) {
+                        endingPhase = 'countdown';
+                        endingStartTime = now;
+                    }
+                } else if (endingPhase === 'countdown') {
+                    // Игрок появляется, тишина, 3..2..1
+                    // Рисуем игрока
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.beginPath();
+                    ctx.arc(mouseX, mouseY, 3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    const countElapsed = now - endingStartTime;
+                    const secondsLeft = 3 - Math.floor(countElapsed / 1000);
+
+                    if (secondsLeft > 0) {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 20px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(secondsLeft.toString(), mouseX, mouseY - 20);
+                    } else {
+                        endingPhase = 'finish';
+                    }
+                } else if (endingPhase === 'finish') {
+                    isPlaying = false;
+                    finalDialogOverlay?.classList.remove('hidden');
+                }
+
+                requestAnimationFrame(draw);
+                return; // ПРЕРЫВАЕМ ОБЫЧНЫЙ ЦИКЛ
+            }
+            // --- КОНЕЦ ЛОГИКИ ФИНАЛА ---
+
+            // Проверка на запуск финала (x16+, время <= 5 сек)
+            if (difficultyMultiplier >= 16 && timeLeft <= 5 && !isEndingSequence) {
+                startEndingSequence();
+            }
+
+            // Обычный Таймер
             if (timestamp - lastTime >= 1000) {
                 timeLeft--;
                 lastTime = timestamp;
@@ -572,10 +904,15 @@
                 const px = Math.random() * (canvas.width - 60) + 30;
                 const py = Math.random() * (canvas.height - 60) + 30;
                 // Добавляем визуальный эффект "попадания в ловушку" (красный), но без штрафа
-                hits.push({ x: px, y: py, size: target.size, alpha: 1.0, color: '#ef4444' });
+                const size = targets.length > 0 ? targets[0].size : 20;
+                hits.push({ x: px, y: py, size: size, alpha: 1.0, color: '#ef4444' });
                 
                 nextPhantomTime = now + getRandomPhantomInterval();
             }
+
+            // Применяем тряску экрана (сдвиг контекста)
+            ctx.save();
+            ctx.translate(0, screenShakeOffset);
 
             // Отрисовка фона
             if (difficultyMultiplier >= 16) {
@@ -586,86 +923,185 @@
             }
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // Отрисовка Хитбокса игрока (Оранжевая точка 3px)
+            // Рисуем с учетом тряски экрана, чтобы хитбокс визуально был там, где курсор
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(mouseX, mouseY - screenShakeOffset, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Неведомая сила (Враг) - x4+
+            if (difficultyMultiplier >= 4) {
+                // Частота появления: 20 сек база, делится на (multiplier / 2).
+                // x4 -> 20 / 2 = 10 сек. x8 -> 20 / 4 = 5 сек.
+                const spawnInterval = 20000 / (difficultyMultiplier / 2);
+                
+                if (forceState === 'idle' && now > forceNextActionTime) {
+                    forceState = 'warning';
+                    forceNextActionTime = now + 1500; // 1.5 сек на предупреждение
+                    
+                    // Генерируем атаку (разрез через весь экран)
+                    // Выбираем случайную точку на границе экрана для старта и конца
+                    const isHorizontal = Math.random() > 0.5;
+                    const startX = isHorizontal ? (Math.random() > 0.5 ? -50 : canvas.width + 50) : Math.random() * canvas.width;
+                    const startY = isHorizontal ? Math.random() * canvas.height : (Math.random() > 0.5 ? -50 : canvas.height + 50);
+                    
+                    // Рассчитываем вектор атаки ЧЕРЕЗ игрока (Охота)
+                    // Целимся в текущее положение мыши
+                    const targetX = mouseX;
+                    const targetY = mouseY - screenShakeOffset;
+                    
+                    const dirX = targetX - startX;
+                    const dirY = targetY - startY;
+                    const len = Math.hypot(dirX, dirY);
+                    
+                    // Продлеваем линию далеко за пределы экрана (на 3000px), чтобы разрез был полным
+                    const endX = startX + (dirX / len) * 3000;
+                    const endY = startY + (dirY / len) * 3000;
+                    
+                    // Скорость растет с мультиплаером
+                    const speed = 0.01 + (difficultyMultiplier * 0.002); 
+
+                    forceAttackData = {
+                        startX, startY, endX, endY,
+                        progress: 0,
+                        speed: speed,
+                        width: 80 // Ширина снаряда
+                    };
+
+                } else if (forceState === 'warning') {
+                    // Рисуем линию предупреждения (траекторию)
+                    if (forceAttackData) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(forceAttackData.startX, forceAttackData.startY);
+                        ctx.lineTo(forceAttackData.endX, forceAttackData.endY);
+                        ctx.strokeStyle = `rgba(255, 0, 0, ${Math.random() * 0.5 + 0.2})`; // Мерцает
+                        ctx.lineWidth = 2;
+                        ctx.setLineDash([10, 10]);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+
+                    if (now > forceNextActionTime) {
+                        forceState = 'attacking';
+                    }
+                } else if (forceState === 'attacking') {
+                    if (forceAttackData) {
+                        forceAttackData.progress += forceAttackData.speed;
+                        
+                        // Текущая позиция снаряда
+                        const curX = forceAttackData.startX + (forceAttackData.endX - forceAttackData.startX) * forceAttackData.progress;
+                        const curY = forceAttackData.startY + (forceAttackData.endY - forceAttackData.startY) * forceAttackData.progress;
+                        
+                        // Рисуем снаряд (разрез)
+                        ctx.save();
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = '#ff0000';
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(curX, curY, forceAttackData.width / 2, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                        
+                        // Проверка коллизии с мышью
+                        const dist = Math.hypot(curX - mouseX, curY - (mouseY - screenShakeOffset));
+                        // Хитбокс атаки (половина ширины) + Хитбокс игрока (3px)
+                        if (dist < forceAttackData.width / 2 + 3) {
+                            // Попадание!
+                            const dmg = Math.floor(Math.random() * 500) + 1; // Урон 1-500
+                            score -= dmg;
+                            damageTexts.push({
+                                x: mouseX, y: mouseY - 50,
+                                text: `-${dmg}`, alpha: 1.0, life: 1.0, color: '#ff0000'
+                            });
+                            
+                            // Сброс атаки после попадания
+                            forceState = 'idle';
+                            forceNextActionTime = now + spawnInterval;
+                            
+                            if (score < 0) showDeathScreen();
+                        }
+
+                        if (forceAttackData.progress >= 1) {
+                            forceState = 'idle';
+                            forceNextActionTime = now + spawnInterval;
+                        }
+                    }
+                }
+            }
+
+            // --- БИТЫЕ СЕКТОРА (Corrupted Sectors) x8+ ---
+            if (difficultyMultiplier >= 8) {
+                // Количество зон: x8 -> 4, x16 -> 8, x32 -> 16
+                const targetCount = difficultyMultiplier / 2;
+
+                // Поддерживаем фиксированное количество зон
+                if (corruptedZones.length < targetCount && Math.random() < 0.1) {
+                    const size = difficultyMultiplier; // x8 -> 8px, x16 -> 16px, x32 -> 32px
+                    const x = Math.random() * (canvas.width - size);
+                    const y = Math.random() * (canvas.height - size);
+                    
+                    corruptedZones.push({
+                        x, y, w: size, h: size,
+                        state: 'warning',
+                        nextStateTime: now + 1000, // 1 сек на предупреждение
+                        id: Math.random()
+                    });
+                }
+
+                for (let i = corruptedZones.length - 1; i >= 0; i--) {
+                    const z = corruptedZones[i];
+                    
+                    if (z.state === 'warning') {
+                        // ПРЕДУПРЕЖДЕНИЕ: Мерцающий желтый
+                        const flicker = Math.sin(now / 50) * 0.5 + 0.5;
+                        ctx.fillStyle = `rgba(255, ${Math.floor(flicker * 255)}, 0, 0.6)`;
+                        ctx.fillRect(z.x, z.y, z.w, z.h);
+
+                        if (now > z.nextStateTime) {
+                            z.state = 'active';
+                            z.nextStateTime = now + (Math.random() * 2000 + 1000);
+                        }
+                    } else if (z.state === 'active') {
+                        // АКТИВНАЯ ФАЗА: Серый шум
+                        const gray = Math.floor(Math.random() * 256);
+                        ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+                        ctx.fillRect(z.x, z.y, z.w, z.h);
+
+                        // Проверка урона
+                        const logicMouseY = mouseY - screenShakeOffset;
+                        if (mouseX >= z.x && mouseX <= z.x + z.w && logicMouseY >= z.y && logicMouseY <= z.y + z.h) {
+                            score -= 5; 
+                            if (score < 0) showDeathScreen();
+                        }
+
+                        if (now > z.nextStateTime) {
+                            corruptedZones.splice(i, 1);
+                        }
+                    }
+                }
+            }
+
             // Отрисовка эффектов клика (расходящиеся круги)
             // Рисуем их ДО гличей и ловушек, чтобы они были на заднем плане
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#ffd700';
+
             for (let i = clicks.length - 1; i >= 0; i--) {
                 const click = clicks[i];
+                
+                ctx.globalAlpha = click.alpha;
                 ctx.beginPath();
                 ctx.arc(click.x, click.y, click.radius, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(255, 215, 0, ${click.alpha})`; // Золотой цвет
                 ctx.stroke();
                 
-                click.radius += 4;   // Ускорили расширение (было 2)
-                click.alpha -= 0.1;  // Ускорили исчезновение (было 0.05)
+                click.radius += 1;
+                click.alpha -= 0.1;
                 
                 if (click.alpha <= 0) clicks.splice(i, 1);
             }
-
-           // Отрисовка ловушек (Зеленые со смайликом)
-            ctx.shadowBlur = 5;
-            ctx.shadowColor = '#22c55e';
-            ctx.lineWidth = 2;
-            
-            for (const d of decoys) {
-                // Тело (зеленое)
-                ctx.fillStyle = '#22c55e';
-                ctx.beginPath();
-                ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Смайлик
-                ctx.strokeStyle = '#000';
-                
-                // Глаза
-                const eyeOffset = d.size * 0.3;
-                const eyeSize = d.size * 0.15;
-                
-                ctx.fillStyle = '#a020f0'; // Левый глаз - Красный
-                ctx.beginPath();
-                ctx.arc(d.x - eyeOffset, d.y - eyeOffset, eyeSize, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = '#ef4444'; // Правый глаз - Фиолетовый
-                ctx.beginPath();
-                ctx.arc(d.x + eyeOffset, d.y - eyeOffset, eyeSize, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Улыбка
-                ctx.beginPath();
-                ctx.arc(d.x, d.y, d.size * 0.5, 0.2 * Math.PI, 0.8 * Math.PI);
-                ctx.stroke();
-            }
-
-
-
-
-            // Эффект помех (Glitch) для сложности x4 и выше
-            const glitchChance = difficultyMultiplier >= 8 ? 0.15 : 0.05;
-            if (difficultyMultiplier >= 4 && Math.random() < glitchChance) {
-                const h = Math.random() * (difficultyMultiplier >= 8 ? 60 : 20) + 5;
-                const y = Math.random() * canvas.height;
-                
-                // На x8 помехи агрессивнее и разнообразнее
-                if (difficultyMultiplier >= 8 && Math.random() > 0.5) {
-                    ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Матричный шум
-                } else {
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)'; // Красный шум
-                }
-                ctx.fillRect(0, y, canvas.width, h);
-
-                // Дополнительные полосы для x8 (сбой синхронизации)
-                if (difficultyMultiplier >= 8 && Math.random() < 0.3) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                    ctx.fillRect(0, Math.random() * canvas.height, canvas.width, 10);
-                }
-                
-                // x16: Дополнительные визуальные искажения (белый шум)
-                if (difficultyMultiplier >= 16 && Math.random() < 0.1) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                }
-            }
+            ctx.globalAlpha = 1.0;
 
             for (let i = hits.length - 1; i >= 0; i--) {
                 const hit = hits[i];
@@ -715,15 +1151,164 @@
                 if (hit.alpha <= 0) hits.splice(i, 1);
             }
 
+            // Отрисовка промахов (Misses) - Локальные крестики
+            for (let i = misses.length - 1; i >= 0; i--) {
+                const miss = misses[i];
+                const age = now - miss.createdAt;
+                
+                if (age > miss.duration) {
+                    misses.splice(i, 1);
+                    continue;
+                }
+
+                // Плавное исчезновение только во второй половине жизни, чтобы дольше висел ярко
+                let alpha = 1.0;
+                if (age > miss.duration * 0.6) {
+                    alpha = 1.0 - ((age - miss.duration * 0.6) / (miss.duration * 0.4));
+                }
+
+                ctx.save();
+                ctx.translate(miss.x, miss.y);
+                ctx.rotate(miss.rotation); // Случайный поворот
+
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 5; // Жирный
+                const size = 30;   // Большой (было 15)
+                ctx.beginPath();
+                ctx.moveTo(-size, -size);
+                ctx.lineTo(size, size);
+                ctx.moveTo(size, -size);
+                ctx.lineTo(-size, size);
+                ctx.stroke();
+                ctx.restore();
+            }
+
            // Отрисовка попаданий (фиолетовая точка с волнами)
-            // Цель
-            ctx.fillStyle = isBonusPhase ? '#ff4500' : target.color; // Краснеет в конце
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = ctx.fillStyle;
-            ctx.beginPath();
-            ctx.arc(target.x, target.y, target.size, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0; // Сброс свечения
+            // Цели (теперь массив)
+            for (const t of targets) {
+                ctx.fillStyle = isBonusPhase ? '#ff4500' : t.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+           // Отрисовка ловушек (Зеленые со смайликом) - ТЕПЕРЬ ПОВЕРХ ЦЕЛИ
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#22c55e';
+            ctx.lineWidth = 2;
+            
+            for (const d of decoys) {
+                // Тело (зеленое)
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Смайлик
+                ctx.strokeStyle = '#000';
+                
+                // Глаза
+                const eyeOffset = d.size * 0.3;
+                const eyeSize = d.size * 0.15;
+                
+                ctx.fillStyle = '#a020f0'; // Левый глаз - Красный
+                ctx.beginPath();
+                ctx.arc(d.x - eyeOffset, d.y - eyeOffset, eyeSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ef4444'; // Правый глаз - Фиолетовый
+                ctx.beginPath();
+                ctx.arc(d.x + eyeOffset, d.y - eyeOffset, eyeSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Улыбка
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.size * 0.5, 0.2 * Math.PI, 0.8 * Math.PI);
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0; // Сброс свечения после ловушек
+
+            // Отрисовка Ловушек Времени (Time Traps) - Зеленые с часами
+            for (const t of timeTraps) {
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Символ часов
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.size * 0.6, 0, Math.PI * 2); // Циферблат
+                ctx.moveTo(t.x, t.y);
+                ctx.lineTo(t.x, t.y - t.size * 0.4); // Стрелка
+                ctx.stroke();
+            }
+
+            // Эффект помех (Glitch) - ПОВЕРХ ВСЕГО
+            if (difficultyMultiplier >= 4) {
+                // Рассчитываем интенсивность: x4 -> 1, x8 -> 2, x16 -> 3...
+                const intensity = Math.log2(difficultyMultiplier) - 1; 
+                const glitchChance = 0.05 + (intensity * 0.05); // Шанс срабатывания растет
+
+                if (Math.random() < glitchChance) {
+                    // 1. Эффект "Разрыв экрана" (Slicing)
+                    // Копируем кусок экрана и рисуем его со сдвигом. Это создает реальное ощущение поломки.
+                    const numSlices = Math.floor(Math.random() * intensity * 3) + 1;
+                    
+                    for (let k = 0; k < numSlices; k++) {
+                        const sliceHeight = Math.random() * 50 + 5;
+                        const sliceY = Math.random() * canvas.height;
+                        // Чем выше сложность, тем сильнее сдвиг
+                        const offset = (Math.random() - 0.5) * (30 * intensity); 
+                        
+                        // Рисуем кусок канваса сам на себя со сдвигом
+                        ctx.drawImage(canvas, 
+                            0, sliceY, canvas.width, sliceHeight, 
+                            offset, sliceY, canvas.width, sliceHeight
+                        );
+                    }
+
+                    // 2. Цветовые блоки (Digital Artifacts) - Cyan/Magenta
+                    const numBlocks = Math.floor(Math.random() * intensity * 4);
+                    for (let k = 0; k < numBlocks; k++) {
+                        const w = Math.random() * 150 + 20;
+                        const h = Math.random() * 40 + 2;
+                        const x = Math.random() * canvas.width;
+                        const y = Math.random() * canvas.height;
+                        
+                        // Эффект наложения цвета
+                        ctx.fillStyle = Math.random() > 0.5 
+                            ? `rgba(0, 255, 255, ${Math.random() * 0.3})`  // Cyan
+                            : `rgba(255, 0, 255, ${Math.random() * 0.3})`; // Magenta
+                        
+                        ctx.fillRect(x, y, w, h);
+
+                        // Иногда добавляем белую полосу (битые пиксели)
+                        if (Math.random() < 0.3) {
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                            ctx.fillRect(x, y + Math.random() * h, w, 2);
+                        }
+                    }
+                }
+            }
+
+            // Отрисовка всплывающего урона
+            for (let i = damageTexts.length - 1; i >= 0; i--) {
+                const dt = damageTexts[i];
+                ctx.fillStyle = dt.color;
+                ctx.font = 'bold 24px monospace';
+                ctx.globalAlpha = dt.alpha;
+                ctx.fillText(dt.text, dt.x, dt.y);
+                
+                dt.y -= 1; // Всплывает
+                dt.alpha -= 0.02;
+                if (dt.alpha <= 0) damageTexts.splice(i, 1);
+            }
 
             // Круговой таймер (справа сверху)
             const timerX = canvas.width - 40;
@@ -750,34 +1335,101 @@
             ctx.font = '12px "Exo 2", sans-serif';
             ctx.fillText(`Счет: ${score}   |   Время: ${timeLeft}   |   Сложность: x${difficultyMultiplier}`, 20, canvas.height - 15);
 
+            ctx.restore(); // Возврат после screenShake
             requestAnimationFrame(draw);
         }
 
         // Общая функция обработки выстрела
         function processClick(x: number, y: number) {
-            clicks.push({ x: x, y: y, radius: 5, alpha: 1.0 });
+            // Корректируем Y с учетом тряски экрана, чтобы клик попадал куда надо
+            const logicY = y - screenShakeOffset;
+            
+            clicks.push({ x: x, y: y, radius: 2, alpha: 1.0 });
 
             // Проверка попадания в ловушки (Decoys)
             for (const d of decoys) {
                 const dx = x - d.x;
-                const dy = y - d.y;
+                const dy = logicY - d.y;
                 if (Math.sqrt(dx*dx + dy*dy) < d.size + 5) {
                     // Штраф!
                     score -= 2 * difficultyMultiplier;
                     hits.push({ x: d.x, y: d.y, size: d.size, alpha: 1.0, color: '#ef4444' }); // Красный взрыв
+                    if (score < 0) {
+                        showDeathScreen();
+                    }
                     return; // Не проверяем цель, если попали в ловушку
                 }
             }
 
-            const dx = x - target.x;
-            const dy = y - target.y;
-            const distance = Math.sqrt(dx*dx + dy*dy);
-            
-            if (distance < target.size + 5) {
-                hits.push({ x: target.x, y: target.y, size: target.size, alpha: 1.0, color: '#a020f0' });
-                score += (timeLeft <= 10 * difficultyMultiplier ? 2 : 1) * difficultyMultiplier;
-                spawnTarget();
-                lastTeleportTime = performance.now();
+            // Проверка попадания в Ловушки Времени (Time Traps)
+            for (let i = 0; i < timeTraps.length; i++) {
+                const t = timeTraps[i];
+                const dx = x - t.x;
+                const dy = logicY - t.y;
+                if (Math.sqrt(dx*dx + dy*dy) < t.size + 5) {
+                    // Уменьшаем время
+                    timeLeft -= 5;
+                    hits.push({ x: t.x, y: t.y, size: t.size, alpha: 1.0, color: '#22c55e' });
+                    damageTexts.push({ x: t.x, y: t.y - 20, text: "-5 sec", alpha: 1.0, life: 1.0, color: '#22c55e' });
+                    timeTraps.splice(i, 1); // Исчезает
+                    
+                    if (timeLeft <= 0) {
+                        timeLeft = 0;
+                        gameOver();
+                    }
+                    return;
+                }
+            }
+
+            // Проверка попадания в цели (Targets)
+            let hitIndex = -1;
+            for (let i = 0; i < targets.length; i++) {
+                const t = targets[i];
+                const dx = x - t.x;
+                const dy = logicY - t.y;
+                if (Math.sqrt(dx*dx + dy*dy) < t.size + 5) {
+                    hitIndex = i;
+                    hits.push({ x: t.x, y: t.y, size: t.size, alpha: 1.0, color: '#a020f0' });
+                    score += (timeLeft <= 10 * difficultyMultiplier ? 2 : 1) * difficultyMultiplier;
+                    break; // Один клик - одна цель
+                }
+            }
+
+            if (hitIndex !== -1) {
+                targets.splice(hitIndex, 1);
+                if (targets.length === 0) {
+                    spawnTarget();
+                    lastTeleportTime = performance.now();
+                }
+            } else if (difficultyMultiplier >= 2) {
+                // Промах (x2+)
+                
+                // Проверка защиты от промахов
+                if (missProtectionCount > 0) {
+                    let msg = "";
+                    if (missProtectionCount === 3) msg = "Хэй!";
+                    else if (missProtectionCount === 2) msg = "Хэй! Ты чего?";
+                    else if (missProtectionCount === 1) msg = "Не торопись!!!";
+                    
+                    missProtectionCount--;
+                    // Показываем предупреждение (белым цветом, чтобы отличалось от урона)
+                    damageTexts.push({ x: x, y: logicY - 50, text: msg, alpha: 1.0, life: 1.0, color: '#ffffff' });
+                    
+                    // Очки НЕ отнимаем, но крестик рисуем ниже
+                } else {
+                    const penalty = 1 * difficultyMultiplier;
+                    score -= penalty;
+                    if (score < 0) {
+                        showDeathScreen();
+                    }
+                }
+
+                misses.push({
+                    x: x, y: logicY,
+                    createdAt: performance.now(),
+                    duration: Math.random() * 2000 + 3000, // Висит от 3 до 5 секунд (бесит!)
+                    rotation: Math.random() * Math.PI // Случайный угол поворота
+                });
             }
         }
 
@@ -793,6 +1445,7 @@
         // Обработка клика
         canvas.addEventListener('mousedown', (e) => {
             if (!isPlaying) return;
+            if (performance.now() - gameStartTime < 500) return; // Задержка 0.5с чтобы не было случайных кликов при старте
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
@@ -808,6 +1461,7 @@
                 return;
             }
             if (e.code === 'Space' && isPlaying) {
+                if (performance.now() - gameStartTime < 500) return;
                 e.preventDefault();
                 processClick(mouseX, mouseY);
             }
@@ -917,7 +1571,94 @@
         glitchOverlay?.addEventListener('click', () => {
             difficultyMultiplier *= 2;
             glitchOverlay.classList.add('hidden');
-            startGame(); // Прямой запуск
+            startGame(true); // Прямой запуск с сохранением очков
+        });
+
+        // Death Screen -> OK
+        deathOkBtn?.addEventListener('click', () => {
+            deathOverlay?.classList.add('hidden');
+            difficultyMultiplier = 1; // Сброс сложности
+            startGame(false); // Заново с 0 очков
+        });
+
+        // DEBUG BUTTONS HANDLER
+        document.querySelectorAll('.debug-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLElement;
+                const mult = parseInt(target.getAttribute('data-mult') || '4');
+                console.log(`Debug: Jumping to x${mult}...`);
+                
+                // Скрываем все оверлеи
+                const overlays = document.querySelectorAll('.overlay');
+                overlays.forEach(el => el.classList.add('hidden'));
+
+                difficultyMultiplier = mult;
+                
+                if (!isPlaying) {
+                    // Запускаем игру, если она стоит
+                    startGame(true);
+                }
+
+                // Принудительно устанавливаем параметры
+                score = 10000;
+                timeLeft = 30; 
+                spawnTarget(); // Обновляем цели под сложность
+            });
+        });
+
+        // --- FINAL FLOW HANDLERS ---
+        
+        // 1. "Моё имя" -> Input
+        finalNameBtn?.addEventListener('click', () => {
+            finalDialogOverlay?.classList.add('hidden');
+            finalInputOverlay?.classList.remove('hidden');
+        });
+
+        // 2. Submit Name -> API -> Success
+        finalSubmitBtn?.addEventListener('click', async () => {
+            const name = finalNameInput.value.trim();
+            if (!name) return;
+
+            finalSubmitBtn.disabled = true;
+            try {
+                await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, score: 0, type: 'glush', difficulty: difficultyMultiplier })
+                });
+                
+                finalInputOverlay?.classList.add('hidden');
+                const msg = document.getElementById('final-success-msg');
+                if (msg) msg.textContent = `Я тебя запомнила! ${name}!`;
+                finalSuccessOverlay?.classList.remove('hidden');
+                fetchScores(); // Обновить бегущую строку
+            } catch (e) {
+                alert("Ошибка сети");
+            } finally {
+                finalSubmitBtn.disabled = false;
+            }
+        });
+
+        // 3. Yes -> Increase Difficulty
+        document.getElementById('final-yes-btn')?.addEventListener('click', () => {
+            finalSuccessOverlay?.classList.add('hidden');
+            difficultyMultiplier *= 2; // Повышаем сложность
+            startGame(true); // Сохраняем очки (хотя в финале они не важны, но для механики)
+        });
+
+        // 4. No -> Rest
+        document.getElementById('final-no-btn')?.addEventListener('click', () => {
+            finalSuccessOverlay?.classList.add('hidden');
+            restOverlay?.classList.remove('hidden');
+        });
+
+        // 5. Rest -> OK (Reset game)
+        document.getElementById('rest-ok-btn')?.addEventListener('click', () => {
+            restOverlay?.classList.add('hidden');
+            difficultyMultiplier = 1;
+            const subMsg = overlay!.querySelector('.sub-message');
+            if (subMsg) subMsg.textContent = "Поймай точку! У тебя 30 секунд.";
+            overlay!.classList.remove('hidden');
         });
 
         // Отправка формы

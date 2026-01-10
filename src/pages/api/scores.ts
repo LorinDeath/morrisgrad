@@ -8,6 +8,7 @@ interface ScoreRecord {
     name: string;
     score: number;
     date: number; // timestamp
+    difficulty?: number; // Для Glush записей
 }
 
 // Вспомогательная функция для получения ключей с датами (как в leaderboard.js)
@@ -44,8 +45,10 @@ export const GET: APIRoute = async ({ locals }) => {
     const { daily: dailyKey, weekly: weeklyKey } = getKeys();
     const daily = await kv.get(dailyKey, { type: 'json' }) || [];
     const weekly = await kv.get(weeklyKey, { type: 'json' }) || [];
+    // Получаем список прошедших игру
+    const glush = await kv.get('glush_records', { type: 'json' }) || [];
 
-    return new Response(JSON.stringify({ daily, weekly }), {
+    return new Response(JSON.stringify({ daily, weekly, glush }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
     });
@@ -55,17 +58,35 @@ export const GET: APIRoute = async ({ locals }) => {
 export const POST: APIRoute = async ({ request, locals }) => {
     try {
         const body = await request.json();
-        const { name, score } = body;
+        const { name, score, type, difficulty } = body;
 
-        // Валидация на сервере
-        if (!name || typeof name !== 'string' || name.length < 2 || name.length > 6) {
-            return new Response(JSON.stringify({ error: "Имя должно состоять от 2 до 6 символов" }), { status: 400 });
-        }
-        
-        // Проверка на латиницу
-        const latinRegex = /^[a-zA-Z]+$/;
-        if (!latinRegex.test(name)) {
-             return new Response(JSON.stringify({ error: "Только латинские буквы" }), { status: 400 });
+        // Логика для "Glush" (Финал игры)
+        if (type === 'glush') {
+            // Валидация для финала (помягче)
+            if (!name || typeof name !== 'string' || name.length < 1 || name.length > 20) {
+                return new Response(JSON.stringify({ error: "Некорректное имя" }), { status: 400 });
+            }
+            // Разрешаем кириллицу, латиницу, цифры и базовые символы
+            const safeName = name.replace(/[<>]/g, '').trim(); 
+
+            const kv = getKV(locals);
+            if (kv) {
+                const key = 'glush_records';
+                let list: ScoreRecord[] = (await kv.get(key, { type: 'json' })) || [];
+                list.push({ name: safeName, score: 0, difficulty: Number(difficulty), date: Date.now() });
+                // Храним последние 50 героев
+                if (list.length > 50) list = list.slice(list.length - 50);
+                await kv.put(key, JSON.stringify(list));
+                return new Response(JSON.stringify({ success: true }), { status: 200 });
+            }
+        } else {
+            // Стандартная валидация для рекордов
+            if (!name || typeof name !== 'string' || name.length < 2 || name.length > 6) {
+                return new Response(JSON.stringify({ error: "Имя должно состоять от 2 до 6 символов" }), { status: 400 });
+            }
+            if (!/^[a-zA-Z]+$/.test(name)) {
+                 return new Response(JSON.stringify({ error: "Только латинские буквы" }), { status: 400 });
+            }
         }
 
         const newRecord: ScoreRecord = {
