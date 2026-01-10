@@ -1,0 +1,218 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { Image } from 'astro:assets';
+import lorinImg from '../assets/lorin.png';
+
+// --- СПИСОК ИЗМЕНЕНИЙ ---
+// Добавляй новые версии сюда (сверху - новые)
+const updates = [
+    {
+        version: "v0.2",
+        date: "10.01.2026",
+        title: "Цель: ВЫЖИТЬ",
+        description: "Кто-то хочет помешать тебе. Игра теперь проходима, но цена ошибки — смерть.",
+        changes: [
+            "Добавлен ФИНАЛ игры! Теперь её можно пройти.",
+            "Сложность x16 — это не предел.",
+            "Взломанные поля (Corrupted Zones) теперь пытаются вас убить.",
+            "Новые точки: ВРЕМЯ (отнимает секунды) и ЛОВУШКИ (урон по очкам).",
+            "Смерть при падении очков ниже нуля.",
+            "Промахи теперь наносят урон.",
+            "Основная цель: ВЫЖИТЬ!"
+        ]
+    },
+    {
+        version: "v0.1.9",
+        date: "09.01.2026",
+        title: "Эскалация Сложности",
+        description: "Игра больше не будет дружелюбной. Гличи, обман и хардкор.",
+        changes: [
+            "Динамическая сложность: каждые 10 сек игра усложняется.",
+            "Последние 5 секунд: x2 очков и адская скорость.",
+            "Сложность x2: Появляются фейковые кнопки.",
+            "Сложность x4: Гличи и фантомные нажатия.",
+            "Сложность x8: Больше гличей, больше хаоса.",
+            "Имя игрока: теперь от 2 до 6 символов.",
+            "Обновленные диалоговые окна."
+        ]
+    },
+    {
+        version: "v0.1.5",
+        date: "08.01.2026",
+        title: "Механика рекордов",
+        description: "Теперь ваши старания не пропадают зря.",
+        changes: [
+            "Добавлена таблица лидеров (Daily & Weekly).",
+            "Реализована защита от накрутки (базовая).",
+            "Добавлен ввод имени при новом рекорде."
+        ]
+    },
+    {
+        version: "v0.1.0",
+        date: "08.01.2026",
+        title: "Первый запуск",
+        description: "Начало положено. Точка должна быть поймана.",
+        changes: [
+            "Создана базовая механика 'Поймай точку'.",
+            "Добавлен таймер и счетчик очков.",
+            "Интеграция с базовым макетом сайта."
+        ]
+    }
+];
+---
+
+<Layout title="История обновлений | Моррис Град">
+    <main class="container">
+        <div class="header-section">
+            <a href="/games" class="back-btn">← Назад к играм</a>
+            <h1 class="comic-title">ХРОНИКИ ОБНОВЛЕНИЙ 'ЗАГЛУШКА'</h1>
+        </div>
+
+        <div class="comic-grid">
+            {updates.map((update, index) => (
+                <div class="comic-panel">
+                    <!-- Плашка с версией и датой -->
+                    <div class="caption-box">
+                        <span class="version">{update.version}</span>
+                        <span class="sep">|</span>
+                        <span class="date">{update.date}</span>
+                    </div>
+
+                    <div class="panel-content">
+                        <h2 class="update-title">{update.title}</h2>
+                        <p class="update-desc">{update.description}</p>
+                        
+                        <div class="divider"></div>
+
+                        <ul class="changes-list">
+                            {update.changes.map(change => (
+                                <li>{change}</li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    <!-- Лорин комментирует (только для последнего обновления) -->
+                    {index === 0 && (
+                        <div class="lorin-stamp">
+                            <Image src={lorinImg} alt="Lorin" class="stamp-img" />
+                            <div class="stamp-text">NEW!</div>
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    </main>
+</Layout>
+
+<style>
+    .header-section {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 2rem 0 3rem 0;
+        border-bottom: 4px solid var(--accent-gold);
+        padding-bottom: 1rem;
+    }
+
+    .comic-title {
+        font-size: 2.5rem;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        text-shadow: 4px 4px 0 #a020f0;
+        margin: 0;
+    }
+
+    .back-btn {
+        color: var(--accent-gold);
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 1.2rem;
+        transition: transform 0.2s;
+    }
+    .back-btn:hover { transform: translateX(-5px); }
+
+    .comic-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 3rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .comic-panel {
+        background: #151515;
+        border: 3px solid #fff;
+        box-shadow: 10px 10px 0 rgba(160, 32, 240, 0.5); /* Жесткая тень */
+        position: relative;
+        padding: 2rem;
+        transition: transform 0.3s;
+    }
+    .comic-panel:hover { transform: scale(1.01); }
+
+    .caption-box {
+        position: absolute;
+        top: -15px;
+        left: 20px;
+        background: var(--accent-gold);
+        color: #000;
+        padding: 5px 15px;
+        font-weight: 900;
+        font-family: monospace;
+        transform: rotate(-2deg);
+        border: 2px solid #fff;
+        box-shadow: 3px 3px 0 #000;
+        z-index: 2;
+    }
+
+    .update-title { margin: 0.5rem 0; color: #fff; font-size: 1.8rem; }
+    .update-desc { color: #aaa; font-style: italic; margin-bottom: 1rem; }
+    
+    .divider { height: 2px; background: #333; margin: 1rem 0; border-bottom: 1px dashed #555; }
+
+    .changes-list { list-style: none; padding: 0; margin: 0; }
+    .changes-list li {
+        position: relative;
+        padding-left: 1.5rem;
+        margin-bottom: 0.5rem;
+        color: #e0e0e0;
+        line-height: 1.4;
+    }
+    .changes-list li::before {
+        content: '>';
+        position: absolute;
+        left: 0;
+        color: var(--accent-gold);
+        font-weight: bold;
+    }
+
+    .lorin-stamp {
+        position: absolute;
+        bottom: -20px;
+        right: -20px;
+        width: 80px;
+        height: 80px;
+        transform: rotate(10deg);
+    }
+    .stamp-img {
+        width: 100%; height: 100%;
+        border-radius: 50%;
+        border: 3px solid var(--accent-gold);
+        object-fit: cover;
+    }
+    .stamp-text {
+        position: absolute;
+        bottom: 0; right: 0;
+        background: #ff0000;
+        color: #fff;
+        font-size: 0.8rem;
+        padding: 2px 6px;
+        font-weight: bold;
+        border: 1px solid #fff;
+    }
+
+    @media (max-width: 600px) {
+        .comic-title { font-size: 1.8rem; }
+        .comic-panel { margin: 0 1rem; }
+    }
+</style>

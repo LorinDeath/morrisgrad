@@ -30,7 +30,7 @@ const { title } = Astro.props;
                 <button id="back-btn" class="nav-btn" aria-label="Назад" title="Вернуться назад">←</button>
                 <a href="/" class="logo-area">
                     <div class="logo-placeholder">M</div>
-                    <span class="site-name">МоррисГрад v0.003</span>
+                    <span class="site-name">МоррисГрад v0.005</span>
                 </a>
             </div>
         </header>
@@ -47,6 +47,7 @@ const { title } = Astro.props;
   </div>
 
   <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
+  <a href="/changelog-site" class="site-version-link">Список обновлений МоррисГрада v0.005</a>
 </footer>
 
 <!-- Глобальный Лайтбокс -->
@@ -275,6 +276,18 @@ const showImage = (index: number) => {
     box-shadow: 0 100vh 0 100vh #050505;
 	
 }
+
+  .site-version-link {
+    display: block;
+    margin-top: 0.5rem;
+    color: #444;
+    font-size: 0.8rem;
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+  .site-version-link:hover {
+    color: var(--accent-gold);
+  }
 
   .socials { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; }
   .socials a { color: var(--accent-gold); text-decoration: none; }
