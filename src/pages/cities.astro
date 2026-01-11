@@ -1,14 +1,53 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Notes from '../components/Notes.astro';
----
-<Layout title="Рассказы | Моррис Град">
-    <main class="container">
-        <h1>Рассказы</h1>
 
-        <div class="shimmer-line"></div>
-        
-        <Notes />
-    </main>
-  
+const cities = [
+  { name: "Центральный Район", type: "Мегаполис", desc: "Сердце МоррисГрада, где небоскребы пронзают облака." },
+  { name: "Старый Порт", type: "Промышленный", desc: "Ржавые краны и запах моря, смешанный с машинным маслом." },
+  { name: "Сады Эдема", type: "Жилой", desc: "Элитный район под куполом." },
+];
+---
+
+<Layout title="Города и Локации | MorrisGrad">
+  <div class="container">
+    <h1>География</h1>
+    
+    <div class="cities-list">
+      {cities.map((city, index) => (
+        <div class="city-row">
+          <div class="city-index">0{index + 1}</div>
+          <div class="city-info">
+            <div class="city-header">
+              <h2>{city.name}</h2>
+              <span class="city-type">{city.type}</span>
+            </div>
+            <p>{city.desc}</p>
+          </div>
+          <div class="city-arrow">&rarr;</div>
+        </div>
+      ))}
+    </div>
+  </div>
 </Layout>
+
+<style>
+  .container { max-width: 800px; margin: 0 auto; padding: 3rem 1rem; }
+  h1 { margin-bottom: 3rem; color: #fff; border-bottom: 2px solid #333; padding-bottom: 1rem; }
+
+  .cities-list { display: flex; flex-direction: column; gap: 1rem; }
+
+  .city-row { display: flex; align-items: center; background: #111; padding: 2rem; border-radius: 8px; transition: background 0.2s; cursor: pointer; border: 1px solid transparent; }
+  .city-row:hover { background: #1a1a1a; border-color: #333; }
+
+  .city-index { font-size: 3rem; font-weight: bold; color: #333; margin-right: 2rem; font-family: monospace; }
+  
+  .city-info { flex: 1; }
+  .city-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem; }
+  .city-header h2 { margin: 0; color: #fff; font-size: 1.5rem; }
+  .city-type { color: #4f46e5; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; border: 1px solid #4f46e5; padding: 2px 6px; border-radius: 4px; }
+  
+  .city-info p { margin: 0; color: #999; }
+
+  .city-arrow { color: #444; font-size: 1.5rem; transition: transform 0.2s; }
+  .city-row:hover .city-arrow { transform: translateX(5px); color: #fff; }
+</style>

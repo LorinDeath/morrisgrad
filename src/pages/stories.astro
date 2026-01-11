@@ -1,14 +1,65 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Notes from '../components/Notes.astro';
----
-<Layout title="Рассказы | Моррис Град">
-    <main class="container">
-        <h1>Рассказы</h1>
 
-        <div class="shimmer-line"></div>
-        
-        <Notes />
-    </main>
-  
+const stories = [
+  {
+    title: "Случай в таверне",
+    chars: "15,000 знаков",
+    desc: "Короткая зарисовка о буднях наемников.",
+    link: "/read/story-1"
+  },
+  {
+    title: "Забытый код",
+    chars: "20,000 знаков",
+    desc: "История одного программиста, нашедшего то, что не следовало.",
+    link: "/read/story-2"
+  },
+  {
+    title: "Первый снег",
+    chars: "10,000 знаков",
+    desc: "Лирическое отступление о погоде в МоррисГраде.",
+    link: "/read/story-3"
+  }
+];
+---
+
+<Layout title="Рассказы | MorrisGrad">
+  <div class="container">
+    <h1>Короткие истории</h1>
+    <p class="subtitle">Фрагменты жизни города</p>
+
+    <div class="stories-grid">
+      {stories.map((story) => (
+        <article class="story-card">
+          <div class="story-content">
+            <h2>{story.title}</h2>
+            <span class="meta">{story.chars}</span>
+            <p>{story.desc}</p>
+          </div>
+          <div class="story-action">
+            <a href={story.link} class="read-link">Читать &rarr;</a>
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
 </Layout>
+
+<style>
+  .container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+  h1 { color: #fff; margin-bottom: 0.5rem; }
+  .subtitle { color: #888; margin-bottom: 2rem; }
+
+  .stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+
+  .story-card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; height: 100%; transition: border-color 0.2s; }
+  .story-card:hover { border-color: #666; }
+
+  .story-content h2 { margin: 0 0 0.5rem 0; font-size: 1.3rem; color: #eee; }
+  .meta { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+  .story-content p { color: #ccc; font-size: 0.95rem; line-height: 1.5; margin: 1rem 0; }
+
+  .story-action { margin-top: 1rem; text-align: right; }
+  .read-link { color: #4f46e5; text-decoration: none; font-weight: bold; }
+  .read-link:hover { text-decoration: underline; }
+</style>

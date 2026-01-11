@@ -1,14 +1,79 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Notes from '../components/Notes.astro';
----
-<Layout title="Рассказы | Моррис Град">
-    <main class="container">
-        <h1>Рассказы</h1>
 
-        <div class="shimmer-line"></div>
-        
-        <Notes />
-    </main>
-  
+const books = [
+  {
+    id: 1,
+    title: "Хроники МоррисГрада: Начало",
+    chars: "450,000 знаков",
+    description: "Первая книга погружает читателя в туманные улицы города, где магия переплетается с технологиями. Узнайте историю возникновения Барьера и первых героев.",
+    cover: "/images/book_cover_1.jpg", // Замените на реальный путь
+    link: "/read/book-1"
+  },
+  {
+    id: 2,
+    title: "Тени Старого Города",
+    chars: "380,000 знаков",
+    description: "Детективная история о том, что скрывается в заброшенных кварталах. Кто управляет марионетками из тени?",
+    cover: "/images/book_cover_2.jpg",
+    link: "/read/book-2"
+  },
+  {
+    id: 3,
+    title: "Эхо Глуши",
+    chars: "520,000 знаков",
+    description: "Эпическое завершение трилогии. Путешествие за пределы известного мира и столкновение с неизведанным.",
+    cover: "/images/book_cover_3.jpg",
+    link: "/read/book-3"
+  }
+];
+---
+
+<Layout title="Книги | MorrisGrad">
+  <div class="container">
+    <h1>Библиотека</h1>
+    <p class="subtitle">Основные произведения вселенной</p>
+
+    <div class="books-list">
+      {books.map((book) => (
+        <article class="book-card">
+          <div class="book-cover">
+            <img src={book.cover} alt={`Обложка ${book.title}`} />
+          </div>
+          <div class="book-info">
+            <h2>{book.title}</h2>
+            <span class="meta-chars">{book.chars}</span>
+            <p class="description">{book.description}</p>
+            <a href={book.link} class="read-btn">Читать книгу</a>
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
 </Layout>
+
+<style>
+  .container { max-width: 1000px; margin: 0 auto; padding: 2rem 1rem; }
+  h1 { font-size: 2.5rem; margin-bottom: 0.5rem; color: #fff; }
+  .subtitle { color: #aaa; margin-bottom: 3rem; }
+  
+  .books-list { display: flex; flex-direction: column; gap: 3rem; }
+  
+  .book-card { display: flex; gap: 2rem; background: rgba(255, 255, 255, 0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); }
+  
+  .book-cover { flex-shrink: 0; width: 200px; height: 300px; background: #222; border-radius: 8px; overflow: hidden; }
+  .book-cover img { width: 100%; height: 100%; object-fit: cover; }
+  
+  .book-info { display: flex; flex-direction: column; justify-content: center; }
+  .book-info h2 { margin: 0 0 0.5rem 0; font-size: 1.8rem; color: #fff; }
+  .meta-chars { font-size: 0.9rem; color: #888; margin-bottom: 1rem; display: block; }
+  .description { line-height: 1.6; color: #ddd; margin-bottom: 1.5rem; }
+  
+  .read-btn { display: inline-block; padding: 0.8rem 1.5rem; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s; align-self: flex-start; }
+  .read-btn:hover { background: #4338ca; }
+
+  @media (max-width: 768px) {
+    .book-card { flex-direction: column; align-items: center; text-align: center; }
+    .read-btn { align-self: center; }
+  }
+</style>

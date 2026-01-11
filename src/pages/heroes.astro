@@ -1,14 +1,104 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Notes from '../components/Notes.astro';
----
-<Layout title="Рассказы | Моррис Град">
-    <main class="container">
-        <h1>Рассказы</h1>
 
-        <div class="shimmer-line"></div>
-        
-        <Notes />
-    </main>
-  
+const mainHeroes = [
+  { name: "Алекс", world: "МоррисГрад", bio: "Главный протагонист, ищущий истину.", img: "/images/hero1.jpg" },
+  { name: "Елена", world: "Земля-2", bio: "Маг высшего уровня, специализация - лед.", img: "/images/hero2.jpg" },
+];
+
+const secondaryHeroes = [
+  { name: "Бармен Джо", world: "Нижний город", bio: "Знает все слухи в округе.", img: "/images/hero3.jpg" },
+  { name: "Капитан Вэнс", world: "Полиция", bio: "Честный коп в нечестном городе.", img: "/images/hero4.jpg" },
+];
+
+const otherHeroes = [
+  { name: "Тень", world: "?", bio: "Неизвестная сущность.", img: "/images/hero5.jpg" },
+];
+
+---
+
+<Layout title="Герои | MorrisGrad">
+  <div class="container">
+    <h1>Персонажи</h1>
+    
+    <section class="hero-section">
+      <h2 class="section-title">Главные герои</h2>
+      <div class="heroes-grid">
+        {mainHeroes.map(hero => (
+          <div class="hero-card main">
+            <div class="card-image" style={`background-image: url(${hero.img});`}></div>
+            <div class="card-content">
+              <h3>{hero.name}</h3>
+              <span class="world-badge">{hero.world}</span>
+              <p class="bio">{hero.bio}</p>
+              <div class="card-footer">
+                <a href={`/arts?hero=${hero.name}`} class="arts-link">Смотреть арты</a>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="hero-section">
+      <h2 class="section-title">Второстепенные персонажи</h2>
+      <div class="heroes-grid compact">
+        {secondaryHeroes.map(hero => (
+          <div class="hero-card">
+            <div class="card-content">
+              <h3>{hero.name}</h3>
+              <span class="world-badge small">{hero.world}</span>
+              <p class="bio">{hero.bio}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="hero-section">
+      <h2 class="section-title">Другие</h2>
+      <div class="heroes-grid compact">
+        {otherHeroes.map(hero => (
+          <div class="hero-card simple">
+            <h3>{hero.name}</h3>
+            <p>{hero.bio}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
+  h1 { text-align: center; margin-bottom: 3rem; color: #fff; }
+  
+  .hero-section { margin-bottom: 4rem; }
+  .section-title { border-left: 4px solid #4f46e5; padding-left: 1rem; color: #eee; margin-bottom: 1.5rem; }
+
+  .heroes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2rem; }
+  .heroes-grid.compact { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+
+  .hero-card { background: #1e1e1e; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s; }
+  .hero-card:hover { transform: translateY(-5px); }
+  
+  .hero-card.main { border: 1px solid #4f46e5; }
+
+  .card-image { height: 200px; background-color: #333; background-size: cover; background-position: center; }
+  
+  .card-content { padding: 1.5rem; }
+  .hero-card h3 { margin: 0 0 0.5rem 0; color: #fff; font-size: 1.4rem; }
+  
+  .world-badge { display: inline-block; background: #333; color: #aaa; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.8rem; margin-bottom: 1rem; }
+  .world-badge.small { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
+
+  .bio { color: #ccc; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.5rem; }
+
+  .card-footer { border-top: 1px solid #333; padding-top: 1rem; text-align: center; }
+  .arts-link { color: #4f46e5; text-decoration: none; font-size: 0.9rem; font-weight: bold; }
+
+  /* Стили для простых карточек */
+  .hero-card.simple { padding: 1rem; background: #151515; border: 1px solid #333; }
+  .hero-card.simple h3 { font-size: 1.1rem; }
+  .hero-card.simple p { font-size: 0.85rem; color: #888; margin: 0; }
+</style>

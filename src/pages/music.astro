@@ -1,14 +1,96 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Notes from '../components/Notes.astro';
----
-<Layout title="Рассказы | Моррис Град">
-    <main class="container">
-        <h1>Рассказы</h1>
 
-        <div class="shimmer-line"></div>
-        
-        <Notes />
-    </main>
-  
+const albums = [
+  { title: "Neon Nights", year: "2024", cover: "/images/album1.jpg", link: "#" },
+  { title: "City Echoes", year: "2025", cover: "/images/album2.jpg", link: "#" },
+];
+
+const playlists = [
+  { title: "Для чтения", desc: "Спокойный эмбиент", link: "#" },
+  { title: "Боевая магия", desc: "Энергичные ритмы", link: "#" },
+];
+
+const songs = [
+  { title: "Theme of MorrisGrad", artist: "Composer X", duration: "3:45" },
+  { title: "Lost in the Glush", artist: "Band Y", duration: "4:20" },
+  { title: "Cyber Tavern", artist: "DJ Z", duration: "2:55" },
+];
+---
+
+<Layout title="Музыка | MorrisGrad">
+  <div class="container">
+    <h1>Музыкальный зал</h1>
+    
+    <section class="section">
+      <h2>Альбомы</h2>
+      <div class="grid albums-grid">
+        {albums.map(album => (
+          <a href={album.link} class="card album-card">
+            <div class="cover-placeholder"></div>
+            <div class="info">
+              <h3>{album.title}</h3>
+              <span>{album.year}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Подборки</h2>
+      <div class="grid playlists-grid">
+        {playlists.map(pl => (
+          <a href={pl.link} class="card playlist-card">
+            <h3>{pl.title}</h3>
+            <p>{pl.desc}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Интересные треки</h2>
+      <ul class="songs-list">
+        {songs.map(song => (
+          <li class="song-item">
+            <div class="song-info">
+              <span class="song-title">{song.title}</span>
+              <span class="song-artist">{song.artist}</span>
+            </div>
+            <span class="song-time">{song.duration}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  .container { max-width: 1000px; margin: 0 auto; padding: 2rem 1rem; }
+  h1 { margin-bottom: 2rem; color: #fff; }
+  h2 { margin-bottom: 1rem; color: #ddd; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
+  .section { margin-bottom: 4rem; }
+  
+  .grid { display: grid; gap: 1.5rem; }
+  .albums-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .playlists-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+
+  .card { display: block; background: rgba(255,255,255,0.05); border-radius: 8px; overflow: hidden; text-decoration: none; color: inherit; transition: transform 0.2s; }
+  .card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.1); }
+  
+  .album-card .cover-placeholder { height: 200px; background: #333; }
+  .album-card .info { padding: 1rem; }
+  .album-card h3 { margin: 0; font-size: 1.1rem; }
+  .album-card span { font-size: 0.9rem; color: #888; }
+
+  .playlist-card { padding: 1.5rem; border: 1px solid #444; }
+  .playlist-card h3 { margin-top: 0; color: #4f46e5; }
+
+  .songs-list { list-style: none; padding: 0; }
+  .song-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #333; }
+  .song-item:last-child { border-bottom: none; }
+  .song-title { font-weight: bold; color: #fff; display: block; }
+  .song-artist { font-size: 0.9rem; color: #888; }
+  .song-time { font-family: monospace; color: #666; }
+</style>

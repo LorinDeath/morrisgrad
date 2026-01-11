@@ -1,0 +1,3308 @@
+---
+---
+<div id="echo-game-wrapper">
+    <style>
+        #echo-game-wrapper {
+            position: relative;
+            width: 100%;
+            height: 700px;
+            background-color: #050505;
+            color: #cfcfcf;
+            font-family: 'Menlo', 'Consolas', monospace;
+            user-select: none;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            grid-template-rows: 60px 1fr 80px;
+            grid-template-areas: 
+                "header header"
+                "game sidebar"
+                "tools sidebar";
+        }
+        /* Areas */
+        .area-header { grid-area: header; background: #0a0a0c; border-bottom: 1px solid #333; display: flex; align-items: center; padding: 0 20px; justify-content: space-between; }
+        .area-game { grid-area: game; position: relative; overflow: hidden; background: #000; }
+        .area-sidebar { grid-area: sidebar; background: #0e0e10; border-left: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
+        .area-tools { grid-area: tools; background: #0a0a0c; border-top: 1px solid #333; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 5px 10px; flex-wrap: wrap; }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+        }
+
+        /* Header Stats */
+        .stat-group {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9rem;
+        }
+        .stat-item { display: flex; flex-direction: column; align-items: center; }
+        .stat-label { font-size: 0.7rem; color: #666; text-transform: uppercase; }
+        .stat-value { font-weight: bold; font-size: 1.1rem; }
+
+        h1 {
+            margin: 0;
+            font-size: 1rem;
+            color: #ffd700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Tools */
+        button {
+            background: #1a1a1a;
+            color: #aaa;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 70px;
+        }
+        button span.cost {
+            font-size: 0.6rem;
+            font-weight: normal;
+            margin-top: 2px;
+            color: #666;
+        }
+        button:hover {
+            background: #333;
+            color: #fff;
+            border-color: #666;
+        }
+        button.active {
+            background: #ffd700;
+            border-color: #ffd700;
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #333;
+        }
+        #narrator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            text-align: right;
+            pointer-events: none;
+        }
+        .message {
+            background: rgba(10, 10, 10, 0.9);
+            color: #e0e0e0;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-right: 3px solid #ffd700;
+            border-left: 1px solid #333;
+            animation: fadein 0.5s ease-out;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        @keyframes fadein {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Sidebar: Upgrades */
+        #upgrades {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        #upgrades h2 {
+            font-size: 0.9rem;
+            color: #ffd700;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+            margin-top: 0;
+        }
+        .upgrade-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 10px;
+            background: #151518;
+            border-bottom: 1px solid #333;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+        .upgrade-header { display: flex; justify-content: space-between; align-items: center; }
+        .upgrade-info h4 { margin: 0 0 5px 0; color: #ffd700; }
+        .upgrade-info p { margin: 0; font-size: 0.8rem; color: #aaa; }
+        
+        /* Log Panel */
+        #world-logs {
+            height: 150px;
+            height: 150px;
+            overflow-y: auto;
+            background: #000;
+            border-top: 1px solid #333;
+            padding: 10px;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column-reverse; /* Newest at bottom visually, but we prepend */
+        }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #222; padding-bottom: 2px; }
+        .log-time { color: #666; margin-right: 5px; }
+        .log-war { color: #ff6b6b; }
+        .log-build { color: #ffd700; }
+        .log-birth { color: #87ceeb; }
+        .log-danger { color: #ff00ff; font-weight: bold; }
+
+        /* Inspector Panel */
+        #inspector {
+            display: none;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 220px;
+            background: rgba(10, 10, 12, 0.9);
+            border: 1px solid #444;
+            border-right: 3px solid #ff6b6b;
+            padding: 15px;
+            border-radius: 4px;
+            pointer-events: auto;
+            z-index: 20;
+            box-shadow: -5px 5px 20px rgba(0,0,0,0.5);
+        }
+        #inspector h3 { margin: 0 0 10px 0; color: #fff; font-size: 1rem; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .insp-row { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; }
+        .insp-val { color: #ffd700; }
+        .trait-tag { 
+            display: inline-block; 
+            padding: 2px 6px; 
+            background: #222; 
+            border: 1px solid #444; 
+            border-radius: 3px; 
+            font-size: 0.7rem; 
+            margin: 2px;
+            color: #aaa;
+        }
+
+        /* Day/Night Cycle Indicator */
+        #cycle-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #333;
+            background: rgba(0,0,0,0.5);
+            overflow: hidden;
+            position: relative;
+            margin-left: 20px;
+        }
+
+        /* Perk Book Modal */
+        #perk-book-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 12, 16, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            box-sizing: border-box;
+            padding: 40px;
+            align-items: center;
+            justify-content: center;
+        }
+        #perk-book-modal.open { display: flex !important; }
+        
+        .book-container {
+            width: 90%;
+            height: 90%;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            display: flex;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        .book-sidebar {
+            width: 200px;
+            background: #0a0a0a;
+            border-right: 1px solid #333;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .book-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: radial-gradient(circle at top right, #1a1a20 0%, #0e0e10 100%);
+        }
+
+        .perk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+            padding-bottom: 20px;
+        }
+        .perk-card {
+            background: linear-gradient(145deg, #1a1a1a, #0d0d0d);
+            border: 1px solid #333;
+            padding: 8px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            text-align: center;
+            transition: all 0.2s;
+            position: relative;
+            aspect-ratio: 1;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .perk-card:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.5);
+            z-index: 2;
+        }
+        .perk-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.2));
+        }
+        /* Rarities */
+        .perk-card.common { border: 1px solid #555; }
+        .perk-card.rare { border: 1px solid #4488ff; box-shadow: inset 0 0 10px rgba(68, 136, 255, 0.1); }
+        .perk-card.epic { border: 1px solid #aa00ff; box-shadow: inset 0 0 10px rgba(170, 0, 255, 0.15); }
+        .perk-card.legendary { border: 1px solid #ffaa00; background: radial-gradient(circle at center, rgba(255,170,0,0.15) 0%, transparent 70%); box-shadow: 0 0 10px rgba(255, 170, 0, 0.2); }
+        .perk-card.divine { 
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.4), inset 0 0 20px rgba(0, 255, 255, 0.1); 
+            background: linear-gradient(135deg, #0a0a0a, #001a1a);
+            animation: divine-pulse 2s infinite alternate;
+        }
+        @keyframes divine-pulse { from { box-shadow: 0 0 10px #00ffff; } to { box-shadow: 0 0 20px #00ffff; } }
+
+        .perk-card.locked {
+            opacity: 0.3;
+            background: #050505;
+            border: 1px dashed #444;
+            cursor: help;
+        }
+        
+        .perk-card h4 { margin: 0; font-size: 0.7rem; color: #666; width: 100%; overflow: hidden; text-overflow: ellipsis; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        .perk-card.unlocked.common h4 { color: #aaa; }
+        .perk-card.unlocked.rare h4 { color: #4488ff; }
+        .perk-card.unlocked.epic h4 { color: #d055ff; }
+        .perk-card.unlocked.legendary h4 { color: #ffaa00; }
+        .perk-card.unlocked.divine h4 { color: #00ffff; text-shadow: 0 0 5px #00ffff; }
+
+        .perk-card p { margin: 5px 0 0 0; font-size: 0.6rem; color: #555; line-height: 1.2; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
+        .perk-card.unlocked p { color: #888; }
+
+        /* Filters */
+        .filter-btn { 
+            background: transparent; border: none; color: #666; 
+            padding: 10px; font-size: 0.9rem; cursor: pointer; 
+            text-align: left; text-transform: uppercase; letter-spacing: 1px;
+            border-left: 2px solid transparent; transition: all 0.2s;
+        }
+        .filter-btn.active { color: #ffd700; border-left-color: #ffd700; background: rgba(255, 215, 0, 0.05); }
+        .filter-btn:hover { color: #fff; }
+        
+        .book-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px;
+        }
+        .world-level-badge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); border: 1px solid #ffd700; color: #ffd700; padding: 2px 8px; font-size: 0.7rem; border-radius: 4px; z-index: 10; }
+    </style>
+    
+    <!-- Header -->
+    <div class="area-header">
+        <div style="display:flex; align-items:center;">
+            <h1>ЭТО МЫ С ТОБОЙ</h1>
+            <div id="cycle-indicator">
+                <div id="cycle-sky" style="width:100%; height:100%; background: linear-gradient(180deg, #87ceeb 0%, #ffd700 50%, #050510 100%); transition: transform 1s linear;"></div>
+                <div style="position:absolute; bottom:0; width:100%; height:50%; background:rgba(20,20,20,0.8); border-top:1px solid #ffd700;"></div>
+            </div>
+            <div style="margin-left: 15px; font-size: 0.8rem; color: #666;">LVL: <span id="world-level" style="color: #fff; font-weight: bold;">1</span> <span id="world-era" style="color: #ffd700; font-size: 0.7rem; margin-left: 5px;">(Эра Начала)</span></div>
+        </div>
+        <div class="stat-group">
+            <div class="stat-item"><span class="stat-label">Энергия</span><span class="stat-value" id="energy" style="color: #ffd700">0</span></div>
+            <div class="stat-item"><span class="stat-label">Биомасса</span><span class="stat-value" id="biomass" style="color: #d87093">0</span></div>
+            <div class="stat-item"><span class="stat-label">Популяция</span><span class="stat-value" id="creatures-count" style="color: #87ceeb">0</span></div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button id="btn-book" style="color: #fff; border-color: #ffd700; height: 30px; min-width: 40px;" title="Книга Перков">📖</button>
+            <button id="btn-reset" style="color: #ff6b6b; border-color: #522; height: 30px; min-width: 40px;" title="Сброс Мира">☠</button>
+        </div>
+    </div>
+
+    <!-- Perk Book Modal -->
+    <div id="perk-book-modal">
+        <div class="book-container">
+            <div class="book-sidebar" id="book-filters">
+                <!-- Filters generated by JS -->
+            </div>
+            <div class="book-content">
+                <div class="book-header">
+                    <h2 style="margin:0; color:#ffd700;">КОДЕКС ЭВОЛЮЦИИ</h2>
+                    <div style="text-align:right;">
+                        <div style="color:#aaa; font-size:0.8rem;">Прогресс: <span id="perks-count" style="color:#fff; font-weight:bold;">0/0</span></div>
+                        <div style="font-size:0.6rem; color:#666;" id="perks-rarity-breakdown"></div>
+                    </div>
+                    <button id="btn-close-book" style="height:30px; margin-left:20px;">ЗАКРЫТЬ</button>
+                </div>
+                <div class="perk-grid" id="perk-grid-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Area -->
+    <div class="area-game">
+        <canvas id="echo-world"></canvas>
+        <div id="narrator"></div>
+        
+        <div id="inspector">
+            <h3 id="insp-name">Существо</h3>
+            <div class="insp-row">Вид: <span id="insp-species" class="insp-val">Unknown</span></div>
+            <div class="insp-row">Профессия: <span id="insp-profession" class="insp-val">Нет</span></div>
+            <div class="insp-row">Уровень: <span id="insp-level" class="insp-val">1</span></div>
+            <div class="insp-row">Возраст: <span id="insp-age" class="insp-val">0</span></div>
+            <div class="insp-row">Энергия: <span id="insp-energy" class="insp-val">0</span></div>
+            <div class="insp-row">Здоровье: <span id="insp-hp" class="insp-val" style="color:#ff4444">0/0</span></div>
+            <div class="insp-row">Оружие: <span id="insp-weapon" class="insp-val" style="color:#aaffaa">Нет</span></div>
+            <div class="insp-row">Партнер: <span id="insp-partner" class="insp-val">Нет</span></div>
+            <div class="insp-row">Настроение: <span id="insp-mood" class="insp-val">Норма</span></div>
+            <div class="insp-row">Атака/Защ: <span id="insp-stats" class="insp-val">0/0</span></div>
+            <div class="insp-row">Статус: <span id="insp-state" class="insp-val">Idle</span></div>
+            <div style="margin-top:10px; border-top:1px solid #333; padding-top:5px; font-size:0.8rem; color:#888;">Гены:</div>
+            <div id="insp-traits" style="display:flex; flex-wrap:wrap;"></div>
+            <div style="margin-top:5px; border-top:1px solid #333; padding-top:5px; font-size:0.8rem; color:#888;">Перки:</div>
+            <div id="insp-perks" style="display:flex; flex-wrap:wrap; gap:2px;"></div>
+            <button id="insp-kill" style="width:100%; margin-top:10px; border-color:#ff4444; color:#ff4444; font-size:0.7rem;">УНИЧТОЖИТЬ</button>
+        </div>
+    </div>
+
+    <div id="event-banner" style="display:none; position:absolute; top:80px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); border:1px solid #fff; color:#fff; padding:10px 20px; border-radius:4px; font-weight:bold; text-transform:uppercase; letter-spacing:2px; cursor:pointer; text-shadow:0 0 10px #fff; z-index: 50; text-align: center; transition: all 0.2s;">
+        КРОВАВАЯ ЛУНА
+    </div>
+
+    <!-- Sidebar -->
+    <div class="area-sidebar">
+        <div id="upgrades">
+            <h2>ЛАБОРАТОРИЯ ЭВОЛЮЦИИ</h2>
+            <div id="upgrade-list"></div>
+        </div>
+        <div id="world-logs"></div>
+    </div>
+
+    <!-- Tools -->
+    <div class="area-tools">
+        <button class="tool active" data-tool="seed">🌱 СЕМЯ <span class="cost">5 E</span></button>
+        <button class="tool" data-tool="tree">🌳 ДЕРЕВО <span class="cost">30 E</span></button>
+        <button class="tool" data-tool="pond">💧 ПРУД <span class="cost">50 E</span></button>
+        <button class="tool" data-tool="life">🧬 ЖИЗНЬ <span class="cost">80 E</span></button>
+        <button class="tool" data-tool="rain">🌧 ДОЖДЬ <span class="cost">100 E</span></button>
+        <button class="tool" data-tool="shield" id="btn-shield" style="display:none">🛡 ЩИТ <span class="cost">150 E</span></button>
+        <button class="tool" data-tool="res_stone" id="btn-stone" style="color:#aaa; border-color:#666;">🪨 КАМЕНЬ <span class="cost">10 E</span></button>
+        <button class="tool" data-tool="res_silver" id="btn-silver" style="color:#e0e0e0; border-color:#ccc;">🪙 СЕРЕБРО <span class="cost">40 E</span></button>
+        <button class="tool" data-tool="res_gold" id="btn-gold" style="color:#ffd700; border-color:#aa8800;">💰 ЗОЛОТО <span class="cost">80 E</span></button>
+        <button class="tool" data-tool="lighthouse" id="btn-lighthouse" style="display:none; color:#ffff00; border-color:#aa8800;">💡 МАЯК <span class="cost">100 E</span></button>
+        <button class="tool" data-tool="meteor" id="btn-meteor" style="display:none; color:#ff6b6b; border-color:#522;">☄ УДАР <span class="cost">200 E</span></button>
+    </div>
+
+    <script>
+        const container = document.querySelector('.area-game') as HTMLElement;
+        const canvas = document.getElementById('echo-world') as HTMLCanvasElement;
+        const ctx = canvas.getContext('2d')!;
+        
+        let width: number, height: number;
+        
+        // --- CONFIGURATION ---
+        const SAVE_KEY = 'echo_world_save_v8_auto';
+        const META_SAVE_KEY = 'echo_world_meta_v1';
+        const AUTO_SAVE_INTERVAL = 10000; // 10 sec
+        
+        function resize() {
+            if (!container) return;
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- TYPES ---
+        type EntityType = 'plant' | 'creature' | 'structure' | 'pond' | 'tree' | 'blob' | 'projectile' | 'loot' | 'chat' | 'resource';
+        type ResourceType = 'stone' | 'silver' | 'gold';
+        type DietType = 'herbivore' | 'carnivore' | 'omnivore';
+        type ProfessionType = 'none' | 'warrior' | 'builder' | 'farmer' | 'explorer';
+        type StructureType = 'nest' | 'wall' | 'turret' | 'castle' | 'bonfire' | 'lighthouse' | 'feeder';
+
+        interface Traits {
+            nocturnal: boolean; // Better at night
+            spiky: boolean; // Damages attacker
+            camouflaged: boolean; // Harder to see
+            photosynthetic: boolean; // Gains energy in sun
+            aggressive: boolean; // Attacks even if not hungry
+            industrious: boolean; // Builds structures
+            fecundity: boolean; // Higher birth rate
+        }
+
+        interface PerkInstance {
+            id: string;
+            level: number; // 1 to 10
+        }
+
+        interface Genes {
+            speciesName: string;
+            diet: DietType;
+            speed: number;
+            size: number;
+            sense: number; // Radius of vision
+            dominance: number; // 0-100, determines leadership
+            color: string;
+            reproductionRate: number; // 0.5 to 1.5
+            attack: number;
+            defense: number;
+            traits: Traits;
+            perks: PerkInstance[];
+        }
+
+        interface Ability {
+            name: string;
+            damage: number;
+            range: number;
+            cooldown: number;
+            color: string;
+            speed: number;
+            type: 'projectile' | 'melee_effect';
+            cost: number; // energy cost
+        }
+
+        interface Weapon {
+            name: string;
+            slots: number;
+            abilities: Ability[];
+            cooldownTimer: number;
+        }
+
+        // Classes
+        class Entity {
+            id: number;
+            x: number;
+            y: number;
+            dead: boolean;
+            age: number;
+            type: EntityType;
+
+            constructor(x: number, y: number) {
+                this.id = Math.random();
+                this.x = x;
+                this.y = y;
+                this.dead = false;
+                this.age = 0;
+                this.type = 'plant'; // Default
+            }
+            update(dt: number) { this.age += dt; }
+            draw(ctx: CanvasRenderingContext2D) {}
+        }
+
+        class ChatBubble extends Entity {
+            text: string;
+            life: number;
+            constructor(x: number, y: number, text: string) {
+                super(x, y);
+                this.type = 'chat';
+                this.text = text;
+                this.life = 2.0;
+            }
+            update(dt: number) { this.y -= 10 * dt; this.life -= dt; if(this.life <= 0) this.dead = true; }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.fillStyle = `rgba(255,255,255,${this.life})`;
+                ctx.font = '12px monospace';
+                ctx.fillText(this.text, this.x, this.y);
+            }
+        }
+
+        class Projectile extends Entity {
+            vx: number;
+            vy: number;
+            damage: number;
+            color: string;
+            ownerId: number;
+            factionId: string;
+            life: number;
+
+            constructor(x: number, y: number, vx: number, vy: number, damage: number, color: string, ownerId: number, factionId: string) {
+                super(x, y);
+                this.type = 'projectile';
+                this.vx = vx;
+                this.vy = vy;
+                this.damage = damage;
+                this.color = color;
+                this.ownerId = ownerId;
+                this.factionId = factionId;
+                this.life = 2.0; // 2 seconds max life
+            }
+            update(dt: number) {
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.life -= dt;
+                if (this.life <= 0) this.dead = true;
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                // Trail
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 0.05, this.y - this.vy * 0.05);
+                ctx.strokeStyle = this.color;
+                ctx.stroke();
+            }
+        }
+
+        class Resource extends Entity {
+            resourceType: ResourceType;
+            constructor(x: number, y: number, type: ResourceType) {
+                super(x, y);
+                this.type = 'resource';
+                this.resourceType = type;
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
+                if (this.resourceType === 'stone') ctx.fillStyle = '#888';
+                else if (this.resourceType === 'silver') ctx.fillStyle = '#e0e0e0';
+                else if (this.resourceType === 'gold') ctx.fillStyle = '#ffd700';
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        class Loot extends Entity {
+            weapon: Weapon | null = null;
+            resourceAmount: number = 0;
+            resourceType: 'biomass' | 'energy' = 'biomass';
+            radius: number = 5;
+
+            constructor(x: number, y: number) {
+                super(x, y);
+                this.type = 'loot';
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                if (this.weapon) {
+                    // Draw stick/wand
+                    ctx.rotate(Date.now() / 500);
+                    ctx.fillStyle = '#8d6e63';
+                    ctx.fillRect(-2, -8, 4, 16);
+                    ctx.fillStyle = '#ffd700'; // Glow
+                    ctx.beginPath(); ctx.arc(0, -8, 3, 0, Math.PI*2); ctx.fill();
+                } else {
+                    // Draw essence
+                    const pulse = 1 + Math.sin(Date.now() / 200) * 0.2;
+                    ctx.scale(pulse, pulse);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = this.resourceType === 'biomass' ? '#d87093' : '#ffd700';
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        class Pond extends Entity {
+            radius: number;
+            constructor(x: number, y: number) {
+                super(x, y);
+                this.type = 'pond';
+                this.radius = 20 + Math.random() * 15;
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(60, 150, 255, 0.4)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)';
+                ctx.stroke();
+            }
+        }
+
+        class Tree extends Entity {
+            radius: number;
+            hp: number;
+            constructor(x: number, y: number) {
+                super(x, y);
+                this.type = 'tree';
+                this.radius = 10 + Math.random() * 5;
+                this.hp = 50;
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#2e7d32';
+                ctx.fill();
+                // Trunk
+                ctx.fillStyle = '#5d4037';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.3, 0, Math.PI*2); ctx.fill();
+                
+                // HP Bar if damaged
+                if (this.hp < 50) {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x - 10, this.y - 15, 20, 3);
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(this.x - 10, this.y - 15, 20 * (this.hp / 50), 3);
+                }
+
+                // Regen
+                if (this.hp < 50 && Math.random() < 0.01) this.hp += 1;
+            }
+        }
+
+        class Plant extends Entity {
+            radius: number;
+            maxRadius: number;
+            growthRate: number;
+
+            constructor(x: number, y: number) {
+                super(x, y);
+                this.type = 'plant';
+                this.radius = 0;
+                this.maxRadius = 5 + Math.random() * 8;
+                this.growthRate = 0.5 + Math.random() * 1; // Slower growth
+            }
+            update(dt: number) {
+                super.update(dt);
+                
+                // Grow only during day
+                const isDay = state.timeOfDay > 0.2 && state.timeOfDay < 0.8;
+                let growthMult = isDay ? 1 : 0.2; // Plants grow slowly at night now
+                if (state.raining) growthMult *= 3;
+                
+                // Check for nearby ponds
+                const nearPond = state.entities.some(e => e.type === 'pond' && Math.hypot(e.x - this.x, e.y - this.y) < 60);
+                if (nearPond) growthMult *= 2;
+
+                if (this.radius < this.maxRadius) {
+                    this.radius += this.growthRate * dt * growthMult;
+                }
+
+                // Generate energy (Small amount, boosted by upgrade)
+                if (this.radius > 5 && Math.random() < 0.005) {
+                    const photoUpgrade = upgrades.find(u => u.id === 'photosynthesis_plus');
+                    const bonus = photoUpgrade ? photoUpgrade.level * 0.1 : 0;
+                    state.energy += 0.05 + bonus;
+                }
+                
+                // Spreading
+                if (this.age > 20 && this.radius > this.maxRadius * 0.9 && Math.random() < 0.0001) { // Much slower spread
+                    // Spread seed nearby
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 20 + Math.random() * 40;
+                    const nx = this.x + Math.cos(angle) * dist;
+                    const ny = this.y + Math.sin(angle) * dist;
+                    if (nx > 0 && nx < width && ny > 0 && ny < height) {
+                        state.entities.push(new Plant(nx, ny));
+                        spawnParticle(this.x, this.y, '#81c784');
+                    }
+                }
+
+                // Death by old age
+                if (this.age > 300) { // Longer life
+                    this.dead = true;
+                    state.biomass += 1;
+                }
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                // Color changes based on health/age
+                const green = Math.floor(100 + (this.radius/this.maxRadius)*100);
+                ctx.fillStyle = `rgba(50, ${green}, 50, 0.8)`;
+                ctx.fill();
+                
+                // Center dot
+                ctx.fillStyle = '#a5d6a7';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- ANOMALY & GENERATION SYSTEM ---
+        const ANOMALY_PREFIXES = ['Гравитационный', 'Магнитный', 'Псионический', 'Токсичный', 'Солнечный', 'Временной', 'Эфирный', 'Хаотичный'];
+        const ANOMALY_TYPES = ['Шторм', 'Сдвиг', 'Импульс', 'Всплеск', 'Туман', 'Резонанс', 'Катаклизм'];
+
+        interface Anomaly {
+            name: string;
+            desc: string;
+            color: string;
+            duration: number;
+            modifiers: {
+                speed?: number;
+                damage?: number; // per second
+                healing?: number; // per second
+                growth?: number;
+                aggro?: boolean;
+                energyCost?: number; // multiplier
+                meteorRain?: boolean; // spawns meteors
+            };
+            dispelCost: number;
+        }
+
+        // Procedural Perk Generation
+        const PROC_PREFIXES = ['Нео-', 'Ультра-', 'Ксено-', 'Мета-', 'Прото-', 'Омега-', 'Гипер-'];
+        const PROC_ROOTS = ['Дерма', 'Плазма', 'Нейро', 'Остео', 'Мио', 'Хромо'];
+        const PROC_SUFFIXES = ['цит', 'бласт', 'ген', 'форм', 'ид', 'завр'];
+
+        function generateProceduralPerk(): PerkDef {
+            const name = 
+                PROC_PREFIXES[Math.floor(Math.random() * PROC_PREFIXES.length)] + 
+                PROC_ROOTS[Math.floor(Math.random() * PROC_ROOTS.length)] + 
+                PROC_SUFFIXES[Math.floor(Math.random() * PROC_SUFFIXES.length)];
+            
+            const statKeys = ['speed', 'size', 'attack', 'defense', 'sense', 'dominance', 'reproductionRate'];
+            const targetStat = statKeys[Math.floor(Math.random() * statKeys.length)];
+            const val = Math.floor(Math.random() * 5) + 3; // 3 to 8 base
+            
+            // Chance for dual stats
+            const stats: any = { [targetStat]: val };
+            let desc = `Мутация: ${targetStat} +${val}`;
+            
+            if (Math.random() < 0.3) {
+                const secondStat = statKeys[Math.floor(Math.random() * statKeys.length)];
+                stats[secondStat] = Math.floor(val / 2);
+                desc += `, ${secondStat} +${Math.floor(val/2)}`;
+            }
+            
+            return {
+                id: `proc_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+                name: name,
+                desc: desc,
+                rarity: Math.random() > 0.8 ? 'legendary' : Math.random() > 0.5 ? 'epic' : 'rare',
+                category: 'stats',
+                statMod: stats
+            };
+        }
+
+        class Structure extends Entity {
+            color: string;
+            structureType: StructureType | 'feeder';
+            hp: number;
+            maxHp: number;
+            turretCooldown: number = 0;
+            constructionProgress: number = 0; // 0 to 1
+            
+            constructor(x: number, y: number, color: string, structType: StructureType | 'feeder' = 'nest') {
+                super(x, y);
+                this.type = 'structure';
+                this.color = color;
+                this.structureType = structType;
+                
+                if (structType === 'wall') { this.maxHp = 200; }
+                else if (structType === 'turret') { this.maxHp = 100; }
+                else if (structType === 'castle') { this.maxHp = 1000; this.constructionProgress = 0.05; } // Castles need building
+                else if (structType === 'bonfire') { this.maxHp = 50; this.constructionProgress = 0.5; }
+                else if (structType === 'lighthouse') { this.maxHp = 150; this.constructionProgress = 0.2; }
+                else if (structType === 'feeder') { this.maxHp = 80; this.constructionProgress = 0.1; }
+                else { this.maxHp = 50; this.constructionProgress = 1; }
+                
+                this.hp = this.maxHp * this.constructionProgress;
+            }
+            update(dt: number) {
+                super.update(dt);
+                
+                if (this.structureType === 'turret' && this.constructionProgress >= 1) {
+                    this.turretCooldown -= dt;
+                    if (this.turretCooldown <= 0) {
+                        // Shoot nearest enemy
+                        const target = state.entities.find(e => (e.type === 'blob' || (e.type === 'creature' && (e as Creature).factionId === 'NIGHT_STALKER')) && Math.hypot(e.x - this.x, e.y - this.y) < 150);
+                        if (target) {
+                            const angle = Math.atan2(target.y - this.y, target.x - this.x);
+                            state.entities.push(new Projectile(this.x, this.y, Math.cos(angle)*150, Math.sin(angle)*150, 10, '#ffff00', this.id, 'TURRET'));
+                            this.turretCooldown = 1.5;
+                        }
+                    }
+                }
+
+                // Bonfire Healing
+                if (this.structureType === 'bonfire' && this.constructionProgress >= 1) {
+                    // Heal nearby allies
+                    if (Math.random() < 0.05) {
+                        spawnParticle(this.x, this.y + Math.random()*-10, '#ffaa00'); // Fire effect
+                        const allies = state.entities.filter(e => e.type === 'creature' && Math.hypot(e.x - this.x, e.y - this.y) < 80) as Creature[];
+                        allies.forEach(c => c.hp = Math.min(c.maxHp, c.hp + 1));
+                    }
+                }
+
+                // Feeder Logic (Altar)
+                if (this.structureType === 'feeder' && this.constructionProgress >= 1) {
+                    if (Math.random() < 0.02) {
+                        spawnParticle(this.x, this.y, '#00ff00');
+                        const hungry = state.entities.filter(e => e.type === 'creature' && (e as Creature).energy < 80 && Math.hypot(e.x - this.x, e.y - this.y) < 60) as Creature[];
+                        hungry.forEach(c => c.energy = Math.min(100, c.energy + 5));
+                    }
+                }
+
+                // Lighthouse Effect (Visual)
+                if (this.structureType === 'lighthouse' && this.constructionProgress >= 1) {
+                    // Rotating light beam
+                    const angle = (Date.now() / 1000) % (Math.PI * 2);
+                    const lx = this.x + Math.cos(angle) * 100;
+                    const ly = this.y + Math.sin(angle) * 100;
+                    // We'll draw it in draw()
+                }
+
+                if (this.hp <= 0) {
+                    this.dead = true;
+                    spawnParticle(this.x, this.y, '#888');
+                }
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.globalAlpha = this.constructionProgress < 1 ? 0.3 + (this.constructionProgress * 0.7) : 1.0;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - 6, this.y - 6, 12, 12);
+                ctx.strokeStyle = '#fff';
+                ctx.strokeRect(this.x - 6, this.y - 6, 12, 12);
+                
+                // Type indicator
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px monospace';
+                const label = this.structureType === 'castle' ? '🏰' : this.structureType === 'turret' ? '🔫' : this.structureType === 'wall' ? '🧱' : this.structureType === 'bonfire' ? '🔥' : this.structureType === 'lighthouse' ? '💡' : this.structureType === 'feeder' ? '🍏' : '🏠';
+                ctx.fillText(label, this.x - 4, this.y + 4);
+                ctx.globalAlpha = 1.0;
+
+                // Construction Bar
+                if (this.constructionProgress < 1) {
+                    ctx.fillStyle = '#ffd700';
+                    ctx.fillRect(this.x - 8, this.y - 12, 16 * this.constructionProgress, 2);
+                }
+
+                // HP Bar
+                if (this.hp < this.maxHp) {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x - 8, this.y - 10, 16, 2);
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(this.x - 8, this.y - 10, 16 * (this.hp / this.maxHp), 2);
+                }
+
+                // Lighthouse Beam
+                if (this.structureType === 'lighthouse' && this.constructionProgress >= 1) {
+                    const angle = (Date.now() / 2000) % (Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 200, 0.1)';
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.arc(this.x, this.y, 150, angle - 0.2, angle + 0.2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // --- PERKS SYSTEM ---
+        type PerkRarity = 'common' | 'rare' | 'epic' | 'legendary' | 'divine';
+        type PerkCategory = 'stats' | 'combat' | 'survival' | 'behavior' | 'divine' | 'resource' | 'skill';
+
+        interface PerkDef {
+            id: string;
+            name: string;
+            desc: string;
+            rarity: PerkRarity;
+            icon?: string;
+            category: PerkCategory;
+            statMod?: { [key: string]: number };
+            isPersonality?: boolean;
+        }
+
+        const PERK_DEFINITIONS: PerkDef[] = [];
+        
+        // Generate 100+ Perks
+        const STAT_TYPES = [
+            { id: 'spd', name: 'Скорость', prop: 'speed', val: 10 },
+            { id: 'siz', name: 'Размер', prop: 'size', val: 2 },
+            { id: 'atk', name: 'Сила', prop: 'attack', val: 5 },
+            { id: 'def', name: 'Броня', prop: 'defense', val: 3 },
+            { id: 'vis', name: 'Зрение', prop: 'sense', val: 30 },
+            { id: 'dom', name: 'Воля', prop: 'dominance', val: 15 }
+        ];
+        
+        const TIERS = [
+            { s: 'I', m: 1 }, { s: 'II', m: 2 }, { s: 'III', m: 3 }, { s: 'IV', m: 4 }, { s: 'V', m: 5 }
+        ];
+
+        // 1. STATS (Common - Rare)
+        STAT_TYPES.forEach(stat => {
+            PERK_DEFINITIONS.push({
+                id: `stat_${stat.id}`,
+                name: `Ген: ${stat.name}`,
+                desc: `Увеличивает ${stat.name} с каждым уровнем`,
+                icon: '🧬',
+                rarity: 'common',
+                category: 'stats',
+                statMod: { [stat.prop]: stat.val } // Base value per level
+            });
+        });
+
+        // 2. FLAVOR / COMBAT / SURVIVAL (Rare - Epic - Legendary)
+        const FLAVOR_ADJECTIVES = ['Дикий', 'Древний', 'Космический', 'Ядовитый', 'Ледяной', 'Огненный', 'Призрачный', 'Стальной', 'Золотой', 'Темный', 'Мистический', 'Кровавый', 'Эфирный', 'Хаотичный'];
+        const FLAVOR_NOUNS = ['Клык', 'Глаз', 'Хвост', 'Панцирь', 'Дух', 'Разум', 'Коготь', 'Шип', 'Голос', 'Шаг', 'Крыло', 'Сердце', 'Череп', 'Аура', 'Мозг', 'Хребет'];
+        
+        FLAVOR_ADJECTIVES.forEach((adj, i) => {
+            FLAVOR_NOUNS.forEach((noun, j) => {
+                const hash = (i + 13) * (j + 7);
+                const atk = hash % 5;
+                const def = (hash * 3) % 5;
+                const spd = (hash * 7) % 8;
+                
+                // Determine Rarity based on stats sum
+                const totalStats = atk + def + spd;
+                let rarity: PerkRarity = 'common';
+                if (totalStats > 5) rarity = 'rare';
+                if (totalStats > 10) rarity = 'epic';
+                if (totalStats > 14) rarity = 'legendary';
+
+                // Determine Category
+                let cat: PerkCategory = 'survival';
+                if (atk > def) cat = 'combat';
+
+                // Icons
+                let icon = '🦠';
+                if (noun === 'Клык' || noun === 'Коготь') icon = '⚔️';
+                if (noun === 'Панцирь' || noun === 'Шип') icon = '🛡️';
+                if (noun === 'Глаз' || noun === 'Разум') icon = '👁️';
+                if (noun === 'Крыло' || noun === 'Шаг') icon = '🦶';
+                
+                const parts = [];
+                if (atk > 0) parts.push(`Атк +${atk}`);
+                if (def > 0) parts.push(`Защ +${def}`);
+                if (spd > 0) parts.push(`Скор +${spd}`);
+                const desc = parts.length > 0 ? parts.join(', ') : 'Косметическая мутация';
+
+                PERK_DEFINITIONS.push({
+                    id: `flv_${i}_${j}`,
+                    name: `${adj} ${noun}`,
+                    desc: desc,
+                    icon: icon,
+                    rarity: rarity,
+                    category: cat,
+                    statMod: { 
+                        attack: atk,
+                        defense: def,
+                        speed: spd
+                    }
+                });
+            });
+        });
+
+        // 3. PERSONALITIES (Behavior - Epic)
+        const PERSONALITIES = [
+            { id: 'pers_coward', name: 'Трус', desc: 'Убегает при малейшей опасности', icon: '🏃' },
+            { id: 'pers_berserk', name: 'Берсерк', desc: 'Никогда не отступает, +Атака', icon: '😡' },
+            { id: 'pers_leader', name: 'Лидер', desc: 'Собирает вокруг себя стаю', icon: '👑' },
+            { id: 'pers_loner', name: 'Одиночка', desc: 'Избегает всех, +Скорость', icon: '👤' },
+            { id: 'pers_psycho', name: 'Психопат', desc: 'Атакует даже своих', icon: '🔪' },
+            { id: 'pers_glutton', name: 'Обжора', desc: 'Ест всё подряд, быстро растет', icon: '🍖' },
+            { id: 'pers_lazy', name: 'Ленивец', desc: 'Меньше двигается, меньше тратит энергии', icon: '🦥' },
+            { id: 'pers_builder', name: 'Архитектор', desc: 'Чаще строит сооружения', icon: '🏗️' },
+            { id: 'pers_vampire', name: 'Вампир', desc: 'Восстанавливает здоровье при атаке', icon: '🧛' },
+            { id: 'pers_tank', name: 'Танк', desc: 'Медленный, но очень живучий', icon: '🐢' },
+            { id: 'pers_genius', name: 'Гений', desc: 'Быстрее получает опыт', icon: '🧠' },
+            { id: 'pers_scavenger', name: 'Падальщик', desc: 'Питается трупами', icon: '🦴' }
+        ];
+        PERSONALITIES.forEach(p => PERK_DEFINITIONS.push({ ...p, rarity: 'epic', category: 'behavior', isPersonality: true }));
+        
+        // Add Fecundity Perk
+        PERK_DEFINITIONS.push({ id: 'trait_fecundity', name: 'Плодовитость', desc: 'Рождает больше детей', icon: '🥚', rarity: 'rare', category: 'survival', statMod: { reproductionRate: 0.2 } });
+        PERK_DEFINITIONS.push({ id: 'trait_regeneration', name: 'Регенерация', desc: 'Быстрое восстановление HP', icon: '❤️', rarity: 'epic', category: 'survival', statMod: { defense: 2 } });
+        
+        // Standard Traits (Genes)
+        PERK_DEFINITIONS.push({ id: 'trait_nocturnal', name: 'Ночной', desc: 'Активен ночью, спит днем.', icon: '🌙', rarity: 'common', category: 'behavior' });
+        PERK_DEFINITIONS.push({ id: 'trait_spiky', name: 'Шипы', desc: 'Наносит урон атакующим.', icon: '🌵', rarity: 'rare', category: 'combat' });
+        PERK_DEFINITIONS.push({ id: 'trait_camouflaged', name: 'Камуфляж', desc: 'Труднее заметить хищникам.', icon: '🍃', rarity: 'rare', category: 'survival' });
+        PERK_DEFINITIONS.push({ id: 'trait_photosynthetic', name: 'Фотосинтез', desc: 'Получает энергию от солнца.', icon: '☀️', rarity: 'epic', category: 'survival' });
+        PERK_DEFINITIONS.push({ id: 'trait_aggressive', name: 'Агрессор', desc: 'Атакует других существ.', icon: '😠', rarity: 'common', category: 'behavior' });
+        PERK_DEFINITIONS.push({ id: 'trait_industrious', name: 'Трудяга', desc: 'Любит строить сооружения.', icon: '🔨', rarity: 'rare', category: 'behavior' });
+
+        // Resources
+        PERK_DEFINITIONS.push({ id: 'res_stone', name: 'Камень', desc: 'Материал для каменных мечей.', icon: '🪨', rarity: 'common', category: 'resource' });
+        PERK_DEFINITIONS.push({ id: 'res_silver', name: 'Серебро', desc: 'Материал для серебряных мечей.', icon: '🪙', rarity: 'rare', category: 'resource' });
+        PERK_DEFINITIONS.push({ id: 'res_gold', name: 'Золото', desc: 'Материал для золотых мечей.', icon: '💰', rarity: 'epic', category: 'resource' });
+
+        // 4. DIVINE PERKS (God Tier)
+        const DIVINE_PERKS: { id: string; name: string; desc: string; statMod: { [key: string]: number } }[] = [
+            { id: 'div_immortal', name: 'Дар Бессмертия', desc: 'Существо не стареет и имеет x5 HP', statMod: { defense: 50, size: 5 } },
+            { id: 'div_death', name: 'Касание Смерти', desc: 'Колоссальный урон, убивает с удара', statMod: { attack: 100 } },
+            { id: 'div_speed', name: 'Скорость Света', desc: 'Невероятная скорость передвижения', statMod: { speed: 100 } },
+            { id: 'div_sight', name: 'Всевидящее Око', desc: 'Видит всю карту', statMod: { sense: 500 } },
+            { id: 'div_king', name: 'Король Королей', desc: 'Абсолютная доминация', statMod: { dominance: 1000, size: 10 } }
+        ];
+        DIVINE_PERKS.forEach(p => PERK_DEFINITIONS.push({ ...p, icon: '🌟', rarity: 'divine', category: 'divine' }));
+
+        // --- WEAPON GENERATOR ---
+        const ABILITY_ELEMENTS = ['Огненный', 'Водный', 'Эфирный', 'Био', 'Темный'];
+        const ABILITY_FORMS = ['Шар', 'Луч', 'Волна', 'Взрыв'];
+        
+        const MELEE_ABILITIES = [
+            { name: 'Критический удар', damage: 20, color: '#ff0000' },
+            { name: 'Вампиризм', damage: 5, color: '#aa0000' }, // Logic handled in hit
+            { name: 'Оглушение', damage: 2, color: '#ffff00' },
+            { name: 'Яд', damage: 3, color: '#00ff00' },
+            { name: 'Ледяной клинок', damage: 5, color: '#00ffff' },
+            { name: 'Ожог', damage: 5, color: '#ff4400' },
+            { name: 'Пробитие брони', damage: 10, color: '#888888' },
+            { name: 'Двойной удар', damage: 15, color: '#ffffff' },
+            { name: 'Казнь', damage: 50, color: '#000000' }, // High dmg
+            { name: 'Отбрасывание', damage: 5, color: '#0000ff' },
+            { name: 'Ярость', damage: 8, color: '#ff00ff' },
+            { name: 'Святой удар', damage: 15, color: '#ffffaa' },
+            { name: 'Кровотечение', damage: 4, color: '#aa0000' },
+            { name: 'Ослабление', damage: 2, color: '#555555' },
+            { name: 'Вихрь', damage: 10, color: '#cccccc' },
+            { name: 'Молния', damage: 12, color: '#aaaaff' },
+            { name: 'Разрушитель', damage: 25, color: '#8b4513' },
+            { name: 'Тьма', damage: 15, color: '#330033' },
+            { name: 'Свет', damage: 15, color: '#ffffcc' },
+            { name: 'Хаос', damage: 10, color: '#ff00ff' }
+        ];
+        
+        // Register Skills in Book
+        MELEE_ABILITIES.forEach(ab => {
+            PERK_DEFINITIONS.push({
+                id: `skill_${ab.name}`,
+                name: ab.name,
+                desc: `Боевой навык. Урон: ${ab.damage}`,
+                icon: '⚔️',
+                rarity: ab.damage > 20 ? 'legendary' : ab.damage > 10 ? 'epic' : 'rare',
+                category: 'skill'
+            });
+        });
+
+        function generateAbility(): Ability {
+            const el = ABILITY_ELEMENTS[Math.floor(Math.random() * ABILITY_ELEMENTS.length)];
+            const form = ABILITY_FORMS[Math.floor(Math.random() * ABILITY_FORMS.length)];
+            
+            let color = '#fff';
+            if (el === 'Огненный') color = '#ff4400';
+            if (el === 'Водный') color = '#0088ff';
+            if (el === 'Эфирный') color = '#cc00ff';
+            if (el === 'Био') color = '#00ff00';
+            if (el === 'Темный') color = '#444';
+
+            return {
+                name: `${el} ${form}`,
+                damage: 5 + Math.floor(Math.random() * 15),
+                range: 100 + Math.floor(Math.random() * 100),
+                cooldown: 0.5 + Math.random() * 2,
+                color: color,
+                speed: 100 + Math.random() * 100,
+                type: 'projectile',
+                cost: 2 + Math.random() * 5
+            };
+        }
+
+        function generateMeleeAbility(): Ability {
+            const base = MELEE_ABILITIES[Math.floor(Math.random() * MELEE_ABILITIES.length)];
+            return {
+                name: base.name,
+                damage: base.damage + Math.floor(Math.random() * 10),
+                range: 20, // Melee range
+                cooldown: 0.5 + Math.random() * 1.0,
+                color: base.color,
+                speed: 0,
+                type: 'melee_effect',
+                cost: 2 + Math.random() * 3
+            };
+        }
+
+        function generateWeapon(material: 'wood' | 'stone' | 'silver' | 'gold' = 'wood'): Weapon {
+            const slots = 1 + Math.floor(Math.random() * 5); // 1-5 slots for now
+            const abilities: Ability[] = [];
+            
+            let name = 'Древесный Посох';
+            if (material === 'wood') { abilities.push(generateAbility()); }
+            else {
+                if (material === 'stone') name = 'Каменный Меч';
+                if (material === 'silver') name = 'Серебряный Меч';
+                if (material === 'gold') name = 'Золотой Меч';
+                // Fill slots with melee abilities
+                for(let i=0; i<Math.max(1, Math.floor(slots/2) + 1); i++) abilities.push(generateMeleeAbility());
+            }
+            
+            // Unlock skills in book
+            abilities.forEach(ab => {
+                const id = `skill_${ab.name}`;
+                if (!state.discoveredPerks.has(id)) {
+                    state.discoveredPerks.add(id);
+                    saveMeta();
+                    logEvent(`📖 Открыт навык: ${ab.name}`, 'info');
+                }
+            });
+
+            return { name, slots, abilities, cooldownTimer: 0 };
+        }
+
+        class CorruptedBlob extends Entity {
+            radius: number;
+            hp: number;
+            maxHp: number;
+            target: Entity | null = null;
+            
+            constructor(x: number, y: number) {
+                super(x, y);
+                this.type = 'blob';
+                // Scale with World Level
+                const lvl = state.worldLevel || 1;
+                this.radius = 10 + (lvl * 1.5);
+                this.maxHp = 30 * lvl;
+                this.hp = this.maxHp;
+            }
+            update(dt: number) {
+                super.update(dt);
+                // Blobs grow by eating biomass (passive) or creatures
+                if (Math.random() < 0.01) this.radius += 0.1;
+                
+                // Move randomly but slowly
+                this.x += (Math.random() - 0.5) * 20 * dt;
+                this.y += (Math.random() - 0.5) * 20 * dt;
+
+                // Repelled by Lighthouse
+                const lighthouse = state.entities.find(e => e.type === 'structure' && (e as Structure).structureType === 'lighthouse' && (e as Structure).constructionProgress >= 1 && Math.hypot(e.x - this.x, e.y - this.y) < 200);
+                if (lighthouse) {
+                    const dx = this.x - lighthouse.x;
+                    const dy = this.y - lighthouse.y;
+                    const dist = Math.hypot(dx, dy);
+                    this.x += (dx/dist) * 30 * dt;
+                    this.y += (dy/dist) * 30 * dt;
+                }
+                
+                if (this.hp <= 0) {
+                    this.dead = true;
+                    spawnParticle(this.x, this.y, '#ff00ff');
+                    logEvent("Порча уничтожена!", "info");
+                }
+            }
+            draw(ctx: CanvasRenderingContext2D) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff00ff';
+                ctx.fill();
+                ctx.strokeStyle = '#500050';
+                ctx.stroke();
+                
+                // HP Bar
+                if (this.hp < this.maxHp) {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x - 10, this.y - this.radius - 5, 20, 3);
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.fillRect(this.x - 10, this.y - this.radius - 5, 20 * (this.hp / this.maxHp), 3);
+                }
+            }
+        }
+
+        // Name Generator
+        const SYLLABLES = ['Xor', 'Zul', 'Ka', 'Ri', 'Tex', 'Omm', 'Pla', 'Dra', 'Vex', 'Nox', 'Lu', 'Cy'];
+        const SUFFIXES = ['-9', '-Alpha', 'oid', 'us', 'ix', 'or', ' Prime'];
+
+        function generateSpeciesName() {
+            const s1 = SYLLABLES[Math.floor(Math.random() * SYLLABLES.length)];
+            const s2 = SYLLABLES[Math.floor(Math.random() * SYLLABLES.length)];
+            const suf = SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+            return s1 + s2.toLowerCase() + suf;
+        }
+
+        interface Stats {
+            speed: number;
+            size: number;
+            sense: number;
+            dominance: number;
+            reproductionRate: number;
+            attack: number;
+            defense: number;
+        }
+
+        class Creature extends Entity {
+            vx: number;
+            vy: number;
+            energy: number;
+            hp: number;
+            maxHp: number;
+            xp: number;
+            level: number;
+            genes: Genes;
+            baseStats: Stats;
+            weapon: Weapon | null = null;
+            attackCooldown: number = 0;
+            target: Entity | null = null;
+            leader: Creature | null = null; // For pack logic
+            partnerId: number | null = null; // For reproduction
+            reproductionTimer: number = 0;
+            mood: 'normal' | 'happy' | 'broken' | 'rage' = 'normal';
+            state: 'wandering' | 'hunting' | 'fleeing' | 'sleeping' | 'building' | 'following' | 'seeking_mate' | 'socializing' = 'wandering';
+            actionTimer: number = 0;
+            factionId: string;
+            profession: ProfessionType = 'none';
+
+            constructor(x: number, y: number, parentGenes?: Genes, isLoading: boolean = false) {
+                super(x, y);
+                this.type = 'creature';
+                this.xp = 0;
+                this.level = 1;
+                
+                if (isLoading) {
+                    // Dummy init for loading state to prevent crashes before overwrite
+                    this.genes = {
+                        speciesName: 'Loading', diet: 'herbivore', speed: 0, size: 0, sense: 0, dominance: 0, color: '#000', reproductionRate: 0, attack: 0, defense: 0, traits: {} as any, perks: []
+                    };
+                    this.baseStats = { speed: 0, size: 0, sense: 0, dominance: 0, reproductionRate: 0, attack: 0, defense: 0 };
+                    this.factionId = '';
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.energy = 0;
+                    this.hp = 0;
+                    this.maxHp = 0;
+                    return;
+                }
+
+                // Genetics with mutation
+                if (parentGenes) {
+                    this.genes = {
+                        speciesName: parentGenes.speciesName,
+                        diet: parentGenes.diet,
+                        speed: parentGenes.speed * (0.9 + Math.random() * 0.2),
+                        size: parentGenes.size * (0.9 + Math.random() * 0.2),
+                        sense: parentGenes.sense * (0.9 + Math.random() * 0.2),
+                        dominance: parentGenes.dominance * (0.9 + Math.random() * 0.2),
+                        color: parentGenes.color,
+                        reproductionRate: parentGenes.reproductionRate * (0.95 + Math.random() * 0.1),
+                        attack: parentGenes.attack * (0.9 + Math.random() * 0.2),
+                        defense: parentGenes.defense * (0.9 + Math.random() * 0.2),
+                        traits: { ...parentGenes.traits },
+                        perks: (parentGenes.perks || []).map(p => ({...p})) // Deep copy perks, safe check
+                    };
+                    
+                    // Small chance to mutate a trait
+                    if (Math.random() < 0.1) {
+                        const keys = Object.keys(this.genes.traits) as (keyof Traits)[];
+                        const k = keys[Math.floor(Math.random() * keys.length)];
+                        this.genes.traits[k] = !this.genes.traits[k];
+                        // Color shift on mutation
+                        this.genes.color = adjustColor(this.genes.color, 20);
+                    }
+
+                    // Chance to gain new perk on birth
+                    if (Math.random() < 0.4) {
+                        // Weighted Random for Rarity
+                        const roll = Math.random();
+                        let targetRarity: PerkRarity = 'common';
+                        if (roll > 0.6) targetRarity = 'rare';
+                        if (roll > 0.85) targetRarity = 'epic';
+                        if (roll > 0.98) targetRarity = 'legendary';
+                        if (roll > 0.999) targetRarity = 'divine'; // 0.1% chance
+
+                        const pool = PERK_DEFINITIONS.filter(p => p.rarity === targetRarity);
+                        if (pool.length > 0) {
+                            const newPerk = pool[Math.floor(Math.random() * pool.length)];
+                            const existing = this.genes.perks.find(p => p.id === newPerk.id);
+                            if (!existing) {
+                                this.genes.perks.push({ id: newPerk.id, level: 1 });
+                                if (targetRarity === 'divine') logEvent(`✨ РОДИЛОСЬ БОЖЕСТВЕННОЕ СУЩЕСТВО! (${newPerk.name})`, 'birth');
+                                else if (targetRarity === 'legendary') logEvent(`🌟 Легендарная мутация: ${newPerk.name}`, 'info');
+                            }
+                        }
+                    }
+
+                } else {
+                    // Random Generation for "Life" tool
+                    const dietRoll = Math.random();
+                    const diet: DietType = dietRoll > 0.7 ? 'carnivore' : 'herbivore';
+                    
+                    this.genes = {
+                        speciesName: generateSpeciesName(),
+                        diet: diet,
+                        speed: 30 + Math.random() * 40,
+                        size: 4 + Math.random() * 6,
+                        sense: 60 + Math.random() * 100,
+                        dominance: Math.random() * 100,
+                        color: diet === 'carnivore' ? '#ff6b6b' : '#87ceeb',
+                        reproductionRate: 0.8 + Math.random() * 0.4,
+                        attack: diet === 'carnivore' ? 10 : 2,
+                        defense: 5,
+                        traits: {
+                            nocturnal: Math.random() < 0.2,
+                            spiky: Math.random() < 0.1,
+                            camouflaged: Math.random() < 0.1,
+                            photosynthetic: diet === 'herbivore' && Math.random() < 0.3,
+                            aggressive: diet === 'carnivore' && Math.random() < 0.3,
+                            industrious: Math.random() < 0.15,
+                            fecundity: Math.random() < 0.1
+                        },
+                        perks: []
+                    };
+
+                    // Initial Perks (1 to 2, mostly common)
+                    const numPerks = Math.floor(Math.random() * 2) + 1;
+                    for(let i=0; i<numPerks; i++) {
+                        const pool = PERK_DEFINITIONS.filter(p => p.rarity === 'common' || p.rarity === 'rare');
+                        const perk = pool[Math.floor(Math.random() * pool.length)];
+                        if(perk && !this.genes.perks.find(p => p.id === perk.id)) this.genes.perks.push({ id: perk.id, level: 1 });
+                    }
+                    
+                    // Adjust color based on traits
+                    if (this.genes.traits.nocturnal) this.genes.color = '#a29bfe';
+                    if (this.genes.traits.spiky) this.genes.color = '#e17055';
+                    if (this.genes.traits.photosynthetic) this.genes.color = '#55efc4';
+
+                    // SCALING FOR MANUAL SPAWN
+                    // If created manually (no parents), scale to current world day
+                    const targetLevel = Math.max(1, Math.floor(state.day / 2));
+                    if (targetLevel > 1) {
+                        this.level = targetLevel;
+                        this.genes.size += (targetLevel - 1) * 0.2;
+                        this.genes.speed += (targetLevel - 1) * 0.5;
+                        this.genes.attack += (targetLevel - 1) * 1;
+                    }
+                }
+                
+                this.baseStats = {
+                    speed: this.genes.speed,
+                    size: this.genes.size,
+                    sense: this.genes.sense,
+                    dominance: this.genes.dominance,
+                    reproductionRate: this.genes.reproductionRate,
+                    attack: this.genes.attack,
+                    defense: this.genes.defense
+                };
+
+                this.maxHp = this.genes.size * 10;
+                this.hp = this.maxHp;
+                this.applyPerks();
+                this.checkTraitsUnlock();
+                this.factionId = this.genes.speciesName;
+
+                this.vx = (Math.random() - 0.5) * this.genes.speed;
+                this.vy = (Math.random() - 0.5) * this.genes.speed;
+                this.energy = 60;
+                this.state = 'wandering';
+            }
+
+            checkTraitsUnlock() {
+                if (this.genes.traits.nocturnal && !state.discoveredPerks.has('trait_nocturnal')) { state.discoveredPerks.add('trait_nocturnal'); saveMeta(); }
+                if (this.genes.traits.spiky && !state.discoveredPerks.has('trait_spiky')) { state.discoveredPerks.add('trait_spiky'); saveMeta(); }
+                if (this.genes.traits.camouflaged && !state.discoveredPerks.has('trait_camouflaged')) { state.discoveredPerks.add('trait_camouflaged'); saveMeta(); }
+                if (this.genes.traits.photosynthetic && !state.discoveredPerks.has('trait_photosynthetic')) { state.discoveredPerks.add('trait_photosynthetic'); saveMeta(); }
+                if (this.genes.traits.aggressive && !state.discoveredPerks.has('trait_aggressive')) { state.discoveredPerks.add('trait_aggressive'); saveMeta(); }
+                if (this.genes.traits.industrious && !state.discoveredPerks.has('trait_industrious')) { state.discoveredPerks.add('trait_industrious'); saveMeta(); }
+                if (this.genes.traits.fecundity && !state.discoveredPerks.has('trait_fecundity')) { state.discoveredPerks.add('trait_fecundity'); saveMeta(); }
+            }
+
+            applyPerks() {
+                // Reset to base stats to avoid infinite stacking
+                this.genes.speed = this.baseStats.speed;
+                this.genes.size = this.baseStats.size;
+                this.genes.sense = this.baseStats.sense;
+                this.genes.dominance = this.baseStats.dominance;
+                this.genes.reproductionRate = this.baseStats.reproductionRate;
+                this.genes.attack = this.baseStats.attack;
+                this.genes.defense = this.baseStats.defense;
+                
+                (this.genes.perks || []).forEach(inst => {
+                    const def = PERK_DEFINITIONS.find(p => p.id === inst.id);
+                    if (def && def.statMod) {
+                        // Stats scale with perk level
+                        const mult = inst.level;
+                        if (def.statMod.speed) this.genes.speed += def.statMod.speed * 0.5 * mult;
+                        if (def.statMod.size) this.genes.size += def.statMod.size * 0.2 * mult;
+                        if (def.statMod.attack) this.genes.attack += def.statMod.attack * mult;
+                        if (def.statMod.defense) this.genes.defense += def.statMod.defense * mult;
+                        if (def.statMod.sense) this.genes.sense += def.statMod.sense * 2 * mult;
+                        if (def.statMod.dominance) this.genes.dominance += def.statMod.dominance * mult;
+                        if (def.statMod.reproductionRate) this.genes.reproductionRate += def.statMod.reproductionRate * mult;
+                    }
+                    // Mark as discovered
+                    if (!state.discoveredPerks.has(inst.id)) {
+                        state.discoveredPerks.add(inst.id);
+                        saveMeta();
+                    }
+                });
+                
+                // Recalculate Max HP based on new size/stats
+                const oldMax = this.maxHp;
+                this.maxHp = this.genes.size * 10 + (this.genes.defense * 2);
+                this.hp = this.hp + (this.maxHp - oldMax); // Heal the difference
+            }
+
+            update(dt: number) {
+                super.update(dt);
+                
+                // XP Gain
+                this.xp += dt;
+                if (this.xp > this.level * 20) {
+                    this.levelUp();
+                }
+
+                // Profession Assignment at Level 5
+                if (this.level >= 5 && this.profession === 'none') {
+                    this.assignProfession();
+                }
+
+                // Farmer Profession Logic: Plant seeds
+                if (this.profession === 'farmer' && this.energy > 80 && Math.random() < 0.002) {
+                    // Plant nearby
+                    state.entities.push(new Plant(this.x + (Math.random()-0.5)*40, this.y + (Math.random()-0.5)*40));
+                    this.energy -= 10;
+                    spawnParticle(this.x, this.y, '#4caf50');
+                }
+
+                // Reproduction Timer
+                if (this.reproductionTimer > 0) this.reproductionTimer -= dt;
+
+                // Cooldowns
+                if (this.attackCooldown > 0) this.attackCooldown -= dt;
+                if (this.weapon && this.weapon.cooldownTimer > 0) {
+                    this.weapon.cooldownTimer -= dt;
+                }
+                
+                // Check Partner Status (Mourning)
+                if (this.partnerId && Math.random() < 0.01) {
+                    const partner = state.entities.find(e => e.id === this.partnerId);
+                    if (!partner || partner.dead) {
+                        this.partnerId = null;
+                        this.mood = Math.random() > 0.5 ? 'broken' : 'rage';
+                        state.entities.push(new ChatBubble(this.x, this.y - 10, this.mood === 'broken' ? '💔' : '😡'));
+                        logEvent(`${this.genes.speciesName} потерял партнера и впал в ${this.mood === 'broken' ? 'депрессию' : 'ярость'}!`, 'info');
+                    }
+                }
+                if (this.mood === 'broken') this.vx *= 0.5; // Slow down
+
+                // Building Logic (Passive for builders)
+                if (this.hasPerk('pers_builder') || this.genes.traits.industrious) {
+                    // Find nearby unfinished structure
+                    const site = state.entities.find(e => e.type === 'structure' && (e as Structure).constructionProgress < 1 && Math.hypot(e.x - this.x, e.y - this.y) < 30) as Structure;
+                    if (site) {
+                        this.state = 'building';
+                        site.constructionProgress += 0.05 * dt;
+                        site.hp = site.maxHp * site.constructionProgress;
+                        if (site.constructionProgress >= 1) logEvent(`🏗 ${this.genes.speciesName} завершил строительство!`, 'build');
+                        return; // Busy building
+                    }
+                }
+
+                const isNight = (state.timeOfDay < 0.2 || state.timeOfDay > 0.8) && state.globalEvent !== 'blood_moon'; // Blood moon = no sleep
+                const isDay = !isNight;
+                
+                // Dragging override
+                if (state.draggingEntity === this) {
+                    this.state = 'wandering'; // Reset state
+                    return; // Don't move or consume energy while dragged
+                }
+
+                // Energy consumption (bigger & faster = more hunger)
+                const metabolism = (this.genes.size * this.genes.speed) / 300; // Reduced metabolism
+                this.energy -= metabolism * dt;
+                
+                // Player gains energy from creature metabolism (1 per 5 lost)
+                // We add it continuously
+                state.energy += (metabolism * dt) / 5;
+
+                // Anomaly Modifiers
+                if (state.activeAnomaly) {
+                    if (state.activeAnomaly.modifiers.energyCost) this.energy -= metabolism * (state.activeAnomaly.modifiers.energyCost - 1) * dt;
+                    if (state.activeAnomaly.modifiers.damage) this.hp -= state.activeAnomaly.modifiers.damage * dt;
+                    if (state.activeAnomaly.modifiers.healing) this.hp = Math.min(this.maxHp, this.hp + state.activeAnomaly.modifiers.healing * dt);
+                }
+
+                // Global Event Effects
+                if (state.globalEvent === 'golden_age') {
+                    this.hp = Math.min(this.maxHp, this.hp + dt); // Regen
+                }
+
+                // Photosynthesis trait
+                if (this.genes.traits.photosynthetic && isDay) {
+                    this.energy += 0.5 * dt;
+                }
+
+                // Movement Logic
+                if (isNight && !this.genes.traits.nocturnal) {
+                    this.state = 'sleeping';
+                    this.vx *= 0.9;
+                    this.vy *= 0.9;
+                } else {
+                    this.behavior(dt);
+                }
+
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+
+                // Bounce
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+
+                // Death
+                if (this.energy <= 0 || this.hp <= 0) {
+                    this.dead = true;
+                    state.biomass += this.genes.size; // Body becomes biomass
+                    spawnParticle(this.x, this.y, '#555');
+                }
+                
+                // Construction Logic (Instead of asexual reproduction)
+                if (this.energy > 150 && (this.hasPerk('pers_builder') || (this.genes.traits.industrious && Math.random() < 0.01))) {
+                    this.energy -= 50;
+                    let buildType: StructureType | 'feeder' = 'nest';
+                    const roll = Math.random();
+                    if (roll > 0.5) buildType = 'feeder'; // Common
+                    if (roll > 0.7) buildType = 'wall';
+                    if (roll > 0.85) buildType = 'bonfire';
+                    if (roll > 0.92) buildType = 'turret';
+                    if (roll > 0.99) buildType = 'castle';
+                    state.entities.push(new Structure(this.x, this.y, this.genes.color, buildType));
+                    logEvent(`🏗 ${this.genes.speciesName} начал строить ${buildType}!`, 'build');
+                    spawnParticle(this.x, this.y, '#ffd700');
+                    state.entities.push(new ChatBubble(this.x, this.y - 10, '🔨'));
+                }
+            }
+
+            assignProfession() {
+                // Determine profession based on traits and stats
+                if (this.genes.attack > 12 || this.genes.traits.aggressive || this.hasPerk('pers_berserk') || this.hasPerk('pers_psycho')) {
+                    this.profession = 'warrior';
+                    this.genes.attack += 5;
+                    this.genes.defense += 2;
+                    logEvent(`⚔️ ${this.genes.speciesName} выбрал путь Воина!`, 'info');
+                } else if (this.genes.traits.industrious || this.hasPerk('pers_builder')) {
+                    this.profession = 'builder';
+                    this.genes.size += 2; // Stronger for carrying
+                    logEvent(`🔨 ${this.genes.speciesName} стал Строителем!`, 'info');
+                } else if (this.genes.diet === 'herbivore' || this.genes.traits.photosynthetic || this.hasPerk('trait_fecundity')) {
+                    this.profession = 'farmer';
+                    this.genes.reproductionRate += 0.2;
+                    logEvent(`🌾 ${this.genes.speciesName} стал Фермером!`, 'info');
+                } else {
+                    this.profession = 'explorer';
+                    this.genes.speed += 15;
+                    this.genes.sense += 50;
+                    logEvent(`🧭 ${this.genes.speciesName} стал Исследователем!`, 'info');
+                }
+                state.entities.push(new ChatBubble(this.x, this.y - 20, '⭐ PROF UP!'));
+            }
+
+            levelUp() {
+                this.level++;
+                this.xp = 0;
+                this.hp = this.maxHp; // Heal on level up
+                spawnParticle(this.x, this.y, '#ffd700');
+                
+                // Upgrade existing perk or add new one
+                if (this.genes.perks.length > 0 && Math.random() < 0.7) {
+                    const p = this.genes.perks[Math.floor(Math.random() * this.genes.perks.length)];
+                    // Divine perks level up slower or have higher cap? Let's keep standard for now
+                    if (p.level < 20) {
+                        p.level++;
+                        // Re-apply stats (simplified: just adding base again)
+                        this.applyPerks(); 
+                    }
+                } else {
+                    // Gain new perk on level up (usually common/rare)
+                    const pool = PERK_DEFINITIONS.filter(p => p.rarity !== 'divine'); // Divine only at birth
+                    const newPerk = pool[Math.floor(Math.random() * pool.length)];
+                    if (newPerk && !this.genes.perks.find(p => p.id === newPerk.id)) {
+                        this.genes.perks.push({ id: newPerk.id, level: 1 });
+                        this.applyPerks();
+                    }
+                }
+            }
+
+            hasPerk(id: string): boolean {
+                return this.genes.perks.some(p => p.id === id);
+            }
+
+            behavior(dt: number) {
+                this.actionTimer -= dt;
+                
+                // --- 0. RANDOM CHATTER ---
+                if (Math.random() < 0.001) {
+                    state.entities.push(new ChatBubble(this.x, this.y - 10, ['👋', '🎵', '👀', '🍖', '❓'][Math.floor(Math.random()*5)]));
+                }
+
+                // --- 1. DECISION MAKING (Brain) ---
+                // Only rethink if idle, finished task, or timer expired
+                if (this.actionTimer <= 0 || !this.target || this.target.dead) {
+                    this.target = null;
+                    this.state = 'wandering';
+                    
+                    // Priorities (High to Low)
+                    const isHungry = this.energy < 40;
+                    const isCritical = this.hp < this.maxHp * 0.3;
+                    const isHorny = !isHungry && !isCritical && this.reproductionTimer <= 0 && this.energy > 80 && this.age > 10;
+                    const wantsLoot = !this.weapon;
+                    const isBuilder = this.hasPerk('pers_builder') || (this.genes.traits.industrious && Math.random() < 0.3);
+
+                    // A. Survival (Food/Health)
+                    if (isHungry) {
+                        // Desperation: Increase sense range to find food globally
+                        const originalSense = this.genes.sense;
+                        this.genes.sense = Math.max(this.genes.sense * 2, 500); 
+                        this.target = this.findTarget();
+                        this.genes.sense = originalSense; // Restore
+                        if (this.target) this.state = 'hunting';
+                    }
+
+                    // A2. Hunger -> Feeder
+                    if (isHungry && this.state !== 'hunting') {
+                        const feeder = state.entities.find(e => e.type === 'structure' && (e as Structure).structureType === 'feeder' && (e as Structure).constructionProgress >= 1 && Math.hypot(e.x - this.x, e.y - this.y) < 300);
+                        if (feeder) {
+                            this.target = feeder;
+                            this.state = 'following'; // Go to eat
+                        }
+                    }
+
+                    // B. Self-Preservation (Loot/Weapon)
+                    if (this.state === 'wandering' && wantsLoot) {
+                         const loot = state.entities.find(e => e.type === 'loot' && (e as Loot).weapon && Math.hypot(e.x - this.x, e.y - this.y) < 200);
+                         if (loot) {
+                             this.target = loot;
+                             this.state = 'following';
+                         }
+                         
+                         // Also look for resources to craft
+                         const res = state.entities.find(e => e.type === 'resource' && Math.hypot(e.x - this.x, e.y - this.y) < 200);
+                         if (res && !loot) { // Prioritize loot if exists, else resource
+                             this.target = res;
+                             this.state = 'following';
+                         }
+                    }
+
+                    // C. Reproduction
+                    if (this.state === 'wandering' && isHorny) {
+                        const mate = this.findMate();
+                        if (mate) {
+                            this.target = mate;
+                            this.state = 'seeking_mate';
+                        }
+                    }
+
+                    // D. Aggression (Rage/Territorial)
+                    if (this.state === 'wandering' && (this.mood === 'rage' || this.genes.traits.aggressive)) {
+                        if (!isCritical) { // Don't fight if dying
+                            this.target = this.findTarget(this.mood === 'rage');
+                            if (this.target) this.state = 'hunting';
+                        }
+                    }
+
+                    // E. Work (Building)
+                    if (this.state === 'wandering' && isBuilder && !isHungry) {
+                         const site = state.entities.find(e => e.type === 'structure' && (e as Structure).constructionProgress < 1 && Math.hypot(e.x - this.x, e.y - this.y) < 150);
+                         if (site) {
+                             this.target = site;
+                             this.state = 'building';
+                         }
+                    }
+
+                    // G. Socializing (Chatting/Trading)
+                    if (this.state === 'wandering' && !isHungry && !isCritical && !isHorny && !this.hasPerk('pers_loner')) {
+                        const friend = state.entities.find(e => 
+                            e !== this && e.type === 'creature' && !e.dead &&
+                            (e as Creature).factionId === this.factionId &&
+                            (e as Creature).state === 'wandering' &&
+                            Math.hypot(e.x - this.x, e.y - this.y) < 100
+                        );
+                        if (friend) {
+                            this.target = friend;
+                            this.state = 'socializing';
+                            this.actionTimer = 3.0; // Socialize for 3 seconds
+                        }
+                    }
+
+                    // F. Social / Faction Logic
+                    if (this.state === 'wandering' && !this.hasPerk('pers_loner')) {
+                        // Follow Leader
+                        if (!this.leader || this.leader.dead) {
+                             const nearby = state.entities.filter(e => 
+                                e !== this && e.type === 'creature' && 
+                                (e as Creature).factionId === this.factionId &&
+                                Math.hypot(e.x - this.x, e.y - this.y) < 150
+                            ) as Creature[];
+                            for (const friend of nearby) {
+                                if (friend.genes.dominance > this.genes.dominance + 10 || friend.hasPerk('pers_leader')) {
+                                    this.leader = friend;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Lost target confusion (Visual polish)
+                    if ((!this.target || this.target.dead) && this.state !== 'wandering' && Math.random() < 0.3) {
+                        state.entities.push(new ChatBubble(this.x, this.y - 10, '❓'));
+                    }
+                    
+                    this.actionTimer = 0.5 + Math.random() * 0.5; // Decision tick
+                }
+
+                // --- 2. EXECUTION (Movement & Action) ---
+
+                if (this.state === 'fleeing') {
+                    this.vx += (Math.random() - 0.5) * 100 * dt;
+                    this.vy += (Math.random() - 0.5) * 100 * dt;
+                }
+                else if (this.state === 'hunting' && this.target) {
+                    this.moveToTarget(this.target, dt, true);
+                }
+                else if (this.state === 'seeking_mate' && this.target) {
+                    this.moveToTarget(this.target, dt, false);
+                    if (Math.hypot(this.target.x - this.x, this.target.y - this.y) < this.genes.size + (this.target as Creature).genes.size + 5) {
+                        this.mate(this.target as Creature);
+                    }
+                }
+                else if (this.state === 'following' && this.target) {
+                    this.moveToTarget(this.target, dt, false);
+                    if (this.target.type === 'loot' && Math.hypot(this.target.x - this.x, this.target.y - this.y) < 10) {
+                        this.pickUp(this.target as Loot);
+                        this.target = null;
+                        this.state = 'wandering';
+                        return;
+                    }
+                    if (this.target.type === 'resource' && Math.hypot(this.target.x - this.x, this.target.y - this.y) < 10) {
+                        this.pickUpResource(this.target as Resource);
+                        this.target = null;
+                        this.state = 'wandering';
+                        return;
+                    }
+                    // Eating at Feeder
+                    if (this.target && this.target.type === 'structure' && (this.target as Structure).structureType === 'feeder' && Math.hypot(this.target.x - this.x, this.target.y - this.y) < 20) {
+                        // Just stay there, feeder logic handles energy
+                        this.vx *= 0.1; this.vy *= 0.1;
+                    }
+                }
+                else if (this.state === 'building' && this.target) {
+                    this.moveToTarget(this.target, dt, false);
+                    if (Math.hypot(this.target.x - this.x, this.target.y - this.y) < 30) {
+                        const s = this.target as Structure;
+                        s.constructionProgress += 0.1 * dt;
+                        s.hp = s.maxHp * s.constructionProgress;
+                        if (s.constructionProgress >= 1) {
+                            logEvent(`🏗 ${this.genes.speciesName} завершил строительство!`, 'build');
+                            this.target = null;
+                            this.state = 'wandering';
+                        }
+                    }
+                }
+                else if (this.state === 'socializing' && this.target) {
+                    this.moveToTarget(this.target, dt, false);
+                    if (Math.hypot(this.target.x - this.x, this.target.y - this.y) < 30) {
+                        this.vx *= 0.1; this.vy *= 0.1; // Stop to chat
+                        if (Math.random() < 0.05) {
+                             state.entities.push(new ChatBubble(this.x, this.y - 15, ['💬', '👋', '😂', '🤝'][Math.floor(Math.random()*4)]));
+                             // Share energy if friend is lower
+                             const friend = this.target as Creature;
+                             if (this.energy > friend.energy && this.energy > 50) {
+                                 this.energy -= 5;
+                                 friend.energy += 5;
+                             }
+                             this.mood = 'happy';
+                        }
+                    }
+                    // End socializing when timer runs out (handled by behavior loop)
+                    if (this.actionTimer <= 0) {
+                        this.state = 'wandering';
+                        this.target = null;
+                    }
+                }
+                else if (this.state === 'wandering') {
+                    // Social Follow
+                    if (this.leader && !this.leader.dead) {
+                         const dx = this.leader.x - this.x;
+                         const dy = this.leader.y - this.y;
+                         const dist = Math.hypot(dx, dy);
+                         if (dist > 40) {
+                             this.vx += (dx/dist) * this.genes.speed * 0.8 * dt;
+                             this.vy += (dy/dist) * this.genes.speed * 0.8 * dt;
+                         }
+                    }
+                    
+                    // Night Stalker Water Logic
+                    if (this.factionId === 'NIGHT_STALKER') {
+                         const ponds = state.entities.filter(e => e.type === 'pond');
+                         if (ponds.length > 0) {
+                             let nearest = ponds[0];
+                             let minDist = Math.hypot(nearest.x - this.x, nearest.y - this.y);
+                             ponds.forEach(p => {
+                                 const d = Math.hypot(p.x - this.x, p.y - this.y);
+                                 if (d < minDist) { minDist = d; nearest = p; }
+                             });
+                             if (minDist > 100) {
+                                 const dx = nearest.x - this.x;
+                                 const dy = nearest.y - this.y;
+                                 this.vx += (dx/minDist) * this.genes.speed * dt;
+                                 this.vy += (dy/minDist) * this.genes.speed * dt;
+                             }
+                         }
+                    }
+
+                    this.vx += (Math.random() - 0.5) * 100 * dt;
+                    this.vy += (Math.random() - 0.5) * 100 * dt;
+                }
+
+                // Cap speed
+                const speed = Math.hypot(this.vx, this.vy);
+                if (speed > this.genes.speed) {
+                    this.vx = (this.vx / speed) * this.genes.speed;
+                    this.vy = (this.vy / speed) * this.genes.speed;
+                }
+
+                // Lighthouse Logic
+                const lighthouse = state.entities.find(e => e.type === 'structure' && (e as Structure).structureType === 'lighthouse' && (e as Structure).constructionProgress >= 1 && Math.hypot(e.x - this.x, e.y - this.y) < 200);
+                if (lighthouse) {
+                    const dx = lighthouse.x - this.x;
+                    const dy = lighthouse.y - this.y;
+                    const dist = Math.hypot(dx, dy);
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    if (this.genes.diet === 'carnivore' || this.factionId === 'NIGHT_STALKER' || this.hasPerk('pers_psycho')) {
+                        // Repel enemies
+                        this.vx -= nx * 50 * dt;
+                        this.vy -= ny * 50 * dt;
+                    } else if (this.state === 'wandering') {
+                        // Attract peaceful
+                        this.vx += nx * 30 * dt;
+                        this.vy += ny * 30 * dt;
+                    }
+                }
+            }
+
+            moveToTarget(target: Entity, dt: number, attackBehavior: boolean) {
+                const dx = target.x - this.x;
+                const dy = target.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 0.001) return; // Avoid NaN division
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                if (attackBehavior) {
+                    let attackRange = 10 + this.genes.size;
+                    // Only use weapon range if target is NOT a plant (food)
+                    if (this.weapon && this.weapon.abilities.length > 0 && target.type !== 'plant') {
+                        attackRange = this.weapon.abilities[0].range;
+                    }
+
+                    if (dist < attackRange) {
+                        this.vx *= 0.5;
+                        this.vy *= 0.5;
+                        this.performAttack(target);
+                    } else {
+                        this.vx += nx * this.genes.speed * 2 * dt;
+                        this.vy += ny * this.genes.speed * 2 * dt;
+                    }
+                    
+                    // Tree chopping special case
+                    if (target.type === 'tree' && !this.weapon && dist < 20) {
+                        this.performAttack(target);
+                    }
+                } else {
+                    // Just move to it
+                    this.vx += nx * this.genes.speed * dt;
+                    this.vy += ny * this.genes.speed * dt;
+                }
+            }
+
+            findMate(): Creature | null {
+                // Prioritize existing partner
+                if (this.partnerId) {
+                    const partner = state.entities.find(e => e.id === this.partnerId && !e.dead) as Creature;
+                    if (partner && partner.reproductionTimer <= 0) return partner;
+                }
+
+                // Find new partner
+                const candidates = state.entities.filter(e => 
+                    e !== this && e.type === 'creature' && !e.dead &&
+                    (e as Creature).factionId === this.factionId &&
+                    (e as Creature).reproductionTimer <= 0 &&
+                    Math.hypot(e.x - this.x, e.y - this.y) < this.genes.sense
+                ) as Creature[];
+
+                if (candidates.length > 0) return candidates[Math.floor(Math.random() * candidates.length)];
+                return null;
+            }
+
+            mate(partner: Creature) {
+                // Check for betrayal
+                if (this.partnerId && this.partnerId !== partner.id) {
+                    const ex = state.entities.find(e => e.id === this.partnerId) as Creature;
+                    if (ex && Math.hypot(ex.x - this.x, ex.y - this.y) < ex.genes.sense) {
+                        ex.target = this; // Attack cheater
+                        ex.state = 'hunting';
+                        ex.genes.traits.aggressive = true;
+                        logEvent(`💔 ИЗМЕНА! ${ex.genes.speciesName} в ярости!`, 'war');
+                    }
+                }
+
+                // Bond
+                this.partnerId = partner.id;
+                partner.partnerId = this.id;
+
+                // Cost & Cooldown
+                this.energy -= 30;
+                partner.energy -= 30;
+                const cooldown = 10 + Math.random() * 170; // 10s to 3m
+                this.reproductionTimer = cooldown;
+                partner.reproductionTimer = cooldown;
+
+                // Spawn Children
+                const count = (this.genes.traits.fecundity || this.hasPerk('trait_fecundity')) ? 2 : 1;
+                for(let i=0; i<count; i++) {
+                    const baby = new Creature(this.x, this.y, this.genes);
+                    state.entities.push(baby);
+                }
+                logEvent(`💕 ${this.genes.speciesName} и ${partner.genes.speciesName} создали потомство (${count})`, 'birth');
+                spawnParticle(this.x, this.y, '#ff69b4'); // Pink hearts
+                this.target = null;
+                this.state = 'wandering';
+            }
+
+            findTarget(forceAggro: boolean = false): Entity | null {
+                let best: Entity | null = null;
+                let minDst = this.genes.sense;
+
+                for (const e of state.entities) {
+                    if (e === this || e.dead) continue;
+                    
+                    let isFood = false;
+                    if (forceAggro && e.type === 'creature') isFood = true;
+                    if (this.genes.diet === 'herbivore' && e.type === 'plant') isFood = true;
+                    
+                    // If no weapon, trees are targets to get wood
+                    if (!this.weapon && e.type === 'tree') {
+                        isFood = true;
+                    }
+                    
+                    // Omnivores eat plants and small creatures
+                    if (this.genes.diet === 'omnivore' && (e.type === 'plant' || e.type === 'creature')) {
+                        if (e.type === 'creature') {
+                            const prey = e as Creature;
+                            if (prey.factionId !== this.factionId) isFood = true;
+                        } else {
+                            isFood = true;
+                        }
+                    }
+
+                    if (this.genes.diet === 'carnivore' && e.type === 'creature') {
+                        // Carnivores don't eat own species usually
+                        const prey = e as Creature;
+                        if (this.hasPerk('pers_psycho')) {
+                            isFood = true; // Psychos eat everyone
+                        }
+                        if (this.factionId === 'NIGHT_STALKER' || state.globalEvent === 'blood_moon' || (state.activeAnomaly?.modifiers.aggro)) {
+                            if (prey.factionId !== this.factionId) isFood = true; // Don't eat own faction unless psycho
+                        }
+                        if (forceAggro) isFood = true; // Rage attacks everyone
+                        else if (prey.factionId !== this.factionId) isFood = true;
+                    }
+                    if (e.type === 'blob') {
+                        isFood = true; // Everyone hates blobs
+                    }
+
+                    // Camouflage check
+                    let detectionRange = minDst;
+                    if (e.type === 'creature' && (e as Creature).genes.traits.camouflaged) {
+                        detectionRange *= 0.5;
+                    }
+
+                    if (isFood) {
+                        const d = Math.hypot(e.x - this.x, e.y - this.y);
+                        if (d < detectionRange) {
+                            minDst = d;
+                            best = e;
+                        }
+                    }
+                }
+                return best;
+            }
+
+            pickUp(loot: Loot) {
+                if (loot.weapon) {
+                    this.weapon = loot.weapon;
+                    logEvent(`${this.genes.speciesName} подобрал ${this.weapon.name}`, 'info');
+                } else {
+                    // Essence
+                    this.xp += 50;
+                    this.energy += 50;
+                    this.hp = Math.min(this.maxHp, this.hp + 20);
+                }
+                loot.dead = true;
+            }
+
+            pickUpResource(res: Resource) {
+                this.weapon = generateWeapon(res.resourceType);
+                logEvent(`${this.genes.speciesName} создал ${this.weapon.name}`, 'build');
+                
+                // Unlock resource in book
+                const resId = `res_${res.resourceType}`;
+                if (!state.discoveredPerks.has(resId)) {
+                    state.discoveredPerks.add(resId);
+                    saveMeta();
+                }
+                res.dead = true;
+            }
+
+            performAttack(target: Entity) {
+                // Weapon Attack (Skip if target is plant - eat it instead)
+                if (this.weapon && this.weapon.cooldownTimer <= 0 && target.type !== 'plant') {
+                    const ability = this.weapon.abilities[0]; // Use first ability for now
+                    if (ability.type === 'projectile') {
+                        const angle = Math.atan2(target.y - this.y, target.x - this.x);
+                        const vx = Math.cos(angle) * ability.speed;
+                        const vy = Math.sin(angle) * ability.speed;
+                        state.entities.push(new Projectile(this.x, this.y, vx, vy, ability.damage + this.genes.attack, ability.color, this.id, this.factionId));
+                        this.weapon.cooldownTimer = ability.cooldown;
+                        this.energy -= ability.cost;
+                        
+                        // Call to Arms (Alert nearby allies)
+                        this.alertAllies(target);
+                        return;
+                    }
+                }
+
+                // Melee Attack
+                if (this.attackCooldown <= 0) {
+                    const dist = Math.hypot(target.x - this.x, target.y - this.y);
+                    if (dist < this.genes.size + 15) {
+                        this.meleeHit(target);
+                        this.attackCooldown = 1.0;
+                    }
+                }
+            }
+
+            alertAllies(target: Entity) {
+                // Nearby faction members join the fight
+                const allies = state.entities.filter(e => 
+                    e !== this && e.type === 'creature' && 
+                    (e as Creature).factionId === this.factionId &&
+                    (e as Creature).state === 'wandering' &&
+                    Math.hypot(e.x - this.x, e.y - this.y) < 200
+                ) as Creature[];
+                
+                allies.forEach(ally => {
+                    ally.target = target;
+                    ally.state = 'hunting';
+                    state.entities.push(new ChatBubble(ally.x, ally.y - 15, '⚔️'));
+                });
+            }
+
+            meleeHit(target: Entity) {
+                if (target.type === 'plant') {
+                    const p = target as Plant;
+                    p.radius -= 5;
+                    this.energy += 30;
+                    this.xp += 5; // Gain XP from eating
+                    p.dead = true; // Eat instantly
+                } else if (target.type === 'tree') {
+                    const t = target as Tree;
+                    t.hp -= 10;
+                    if (t.hp <= 0) {
+                        t.dead = true;
+                        // Drop Weapon
+                        const loot = new Loot(t.x, t.y);
+                        loot.weapon = generateWeapon();
+                        state.entities.push(loot);
+                    }
+                } else {
+                    // Combat / Eating prey
+                    let dmg = this.genes.attack;
+                    let effects: string[] = [];
+
+                    // Apply Weapon Melee Abilities
+                    if (this.weapon) {
+                        this.weapon.abilities.forEach(ab => {
+                            if (ab.type === 'melee_effect') {
+                                dmg += ab.damage;
+                                if (ab.name === 'Вампиризм') this.hp = Math.min(this.maxHp, this.hp + ab.damage);
+                                if (ab.name === 'Казнь' && (target as any).hp < (target as any).maxHp * 0.2) dmg += 100;
+                                effects.push(ab.color);
+                                state.entities.push(new ChatBubble(target.x, target.y - 20, ab.name)); // Visual skill name
+                            }
+                        });
+                    }
+                    
+                    // Call to Arms
+                    this.alertAllies(target);
+
+                    if (target.type === 'creature') {
+                        const prey = target as Creature;
+                        
+                        // Defense calculation
+                        const actualDmg = Math.max(1, dmg - prey.genes.defense);
+                        prey.takeDamage(actualDmg, this);
+                        
+                        effects.forEach(color => {
+                            spawnParticle(prey.x, prey.y, color);
+                        });
+                        
+                        // Spiky defense
+                        if (prey.genes.traits.spiky) {
+                            this.energy -= 10;
+                            spawnParticle(this.x, this.y, '#fff');
+                        }
+
+                        if (prey.hp <= 0) {
+                            prey.dead = true;
+                            this.energy += 60;
+                            state.biomass += 5;
+                            logEvent(`⚔️ ${this.genes.speciesName} уничтожил ${prey.genes.speciesName}`, 'war');
+                            spawnParticle(target.x, target.y, '#8b0000');
+                            
+                            if (this.hasPerk('pers_vampire')) {
+                                this.hp = Math.min(this.maxHp, this.hp + 20);
+                            }
+                            
+                            // Drop Essence if Night Stalker
+                            if (prey.factionId === 'NIGHT_STALKER') {
+                                const loot = new Loot(prey.x, prey.y);
+                                loot.resourceAmount = 50;
+                                state.entities.push(loot);
+                            }
+
+                        } else {
+                            spawnParticle(target.x, target.y, '#ff0000');
+                        }
+                    } else if (target.type === 'blob') {
+                        const b = target as CorruptedBlob;
+                        b.hp -= dmg;
+                        spawnParticle(b.x, b.y, '#ff00ff');
+                        if (b.hp <= 0) this.energy += 40;
+                    } else if (target.type === 'structure') {
+                        const s = target as Structure;
+                        s.hp -= dmg;
+                        spawnParticle(s.x, s.y, '#aaa');
+                    }
+                }
+                this.target = null;
+            }
+
+            takeDamage(amount: number, attacker?: Entity) {
+                this.hp -= amount;
+                
+                // Retaliation Logic (Self-Defense)
+                if (attacker && this.target !== attacker && this.state !== 'fleeing') {
+                    // If not already fleeing, fight back!
+                    if (this.state === 'sleeping' || this.state === 'wandering' || this.state === 'building' || this.state === 'following' || this.state === 'seeking_mate') {
+                        const wasSleeping = this.state === 'sleeping';
+                        this.state = 'hunting';
+                        this.target = attacker;
+                        const msg = wasSleeping ? '!!' : '⚔️';
+                        state.entities.push(new ChatBubble(this.x, this.y - 15, msg));
+                    }
+                }
+            }
+
+            draw(ctx: CanvasRenderingContext2D) {
+                // Size grows with level
+                const displaySize = this.genes.size + (this.level * 0.5);
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, displaySize, 0, Math.PI * 2);
+                ctx.fillStyle = this.genes.color;
+                ctx.fill();
+                
+                // Visual Traits
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                if (this.genes.traits.spiky) {
+                    ctx.strokeStyle = '#aaa';
+                    ctx.beginPath();
+                    for(let i=0; i<4; i++) {
+                        const a = (Date.now()/500) + (i * Math.PI/2);
+                        ctx.moveTo(this.x + Math.cos(a)*displaySize, this.y + Math.sin(a)*displaySize);
+                        ctx.lineTo(this.x + Math.cos(a)*(displaySize+3), this.y + Math.sin(a)*(displaySize+3));
+                    }
+                    ctx.stroke();
+                }
+
+                // Draw Weapon
+                if (this.weapon) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    
+                    let angle = 0;
+                    if (this.target && this.state === 'hunting') {
+                        angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                    } else {
+                        // Idle check animation (rarely rotates)
+                        angle = Math.sin(Date.now() / 2000) * 0.5 - 1.5; 
+                    }
+                    
+                    ctx.rotate(angle);
+
+                    if (this.weapon.name.includes('Меч')) {
+                        // Sword Visuals
+                        ctx.fillStyle = '#444'; // Handle
+                        ctx.fillRect(displaySize, -2, 4, 4);
+                        ctx.fillStyle = '#888'; // Guard
+                        ctx.fillRect(displaySize + 4, -6, 2, 12);
+                        
+                        // Blade color
+                        if (this.weapon.name.includes('Золотой')) ctx.fillStyle = '#ffd700';
+                        else if (this.weapon.name.includes('Серебряный')) ctx.fillStyle = '#e0e0e0';
+                        else if (this.weapon.name.includes('Каменный')) ctx.fillStyle = '#999';
+                        else ctx.fillStyle = '#ccc';
+
+                        ctx.fillRect(displaySize + 6, -2, 14, 4); // Blade
+                        // Tip
+                        ctx.beginPath(); ctx.moveTo(displaySize + 20, -2); ctx.lineTo(displaySize + 24, 0); ctx.lineTo(displaySize + 20, 2); ctx.fill();
+                    } else {
+                        // Staff Visuals
+                        ctx.fillStyle = '#8d6e63';
+                        ctx.fillRect(displaySize, -2, 16, 4); // Stick
+                        // Gem
+                        ctx.fillStyle = this.weapon.abilities[0]?.color || '#fff';
+                        ctx.beginPath(); ctx.arc(displaySize + 16, 0, 4, 0, Math.PI*2); ctx.fill();
+                        ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(displaySize + 16, 0, 6, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0;
+                    }
+
+                    ctx.restore();
+                }
+
+                // Draw eyes if hunting
+                if (this.target) {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(this.x - 2, this.y - 2, 4, 4);
+                }
+
+                // Draw Zzz if sleeping
+                if (this.state === 'sleeping') {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '10px monospace';
+                    ctx.fillText('Zzz', this.x + 5, this.y - 5);
+                }
+
+                // Selection Ring
+                if (state.selectedEntity === this) {
+                    ctx.strokeStyle = '#ffd700';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, displaySize + 5, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // Union type for all entities
+        type AnyEntity = Plant | Creature | Structure | Pond | Tree | CorruptedBlob | Projectile | Loot | ChatBubble | Resource;
+
+        function adjustColor(color: string, amount: number) {
+            return color; // Simplified for now, would need hex parsing
+        }
+
+        interface Particle {
+            x: number; y: number; color: string; life: number; vx: number; vy: number;
+        }
+
+        interface Upgrade {
+            id: string;
+            name: string;
+            desc: string;
+            costType: 'energy' | 'biomass';
+            baseCost: number;
+            level: number;
+            maxLevel: number;
+            unlocks?: string; // ID of tool to unlock
+            effect: () => void;
+        }
+
+        // Game State
+        const state = {
+            energy: 200,
+            biomass: 0,
+            day: 1,
+            timeOfDay: 0.5, // 0 to 1 (0.5 is noon)
+            raining: false,
+            entities: [] as AnyEntity[],
+            particles: [] as Particle[],
+            tool: 'seed',
+            selectedEntity: null as Entity | null,
+            draggingEntity: null as Creature | null,
+            lastUpdate: 0,
+            lastSave: 0,
+            messagesShown: new Set<string>(),
+            discoveredPerks: new Set<string>(),
+            customPerks: [] as PerkDef[],
+            globalEvent: 'none' as 'none' | 'blood_moon' | 'plague' | 'golden_age',
+            activeAnomaly: null as Anomaly | null,
+            eventTimer: 0,
+            worldLevel: 1,
+            worldXp: 0,
+            paused: false
+        };
+
+        // Upgrades System
+        const upgrades: Upgrade[] = [
+            { 
+                id: 'max_energy', name: 'Накопители Энергии', desc: 'Увеличивает эффективность сбора.',
+                costType: 'biomass', baseCost: 50, level: 0, maxLevel: 10,
+                effect: () => { addMessage("Энергоемкость повышена."); }
+            },
+            {
+                id: 'photosynthesis_plus', name: 'Эффективный хлорофилл', desc: 'Растения дают больше энергии.',
+                costType: 'biomass', baseCost: 100, level: 0, maxLevel: 10,
+                effect: () => { /* Logic handled in Plant class */ }
+            },
+            {
+                id: 'rain_dance', name: 'Танец дождя', desc: 'Дождь длится дольше и эффективнее.',
+                costType: 'energy', baseCost: 500, level: 0, maxLevel: 10,
+                effect: () => { /* Logic handled in rain tool */ }
+            },
+            {
+                id: 'hardened_skin', name: 'Хитиновая кожа', desc: 'Все новые существа получают +5 к защите.',
+                costType: 'biomass', baseCost: 200, level: 0, maxLevel: 10,
+                effect: () => { addMessage("Кожа существ стала тверже."); }
+            },
+            {
+                id: 'sharp_claws', name: 'Острые когти', desc: 'Все новые существа получают +5 к атаке.',
+                costType: 'biomass', baseCost: 250, level: 0, maxLevel: 10,
+                effect: () => { addMessage("Оружие эволюции заточено."); }
+            },
+            {
+                id: 'terraforming', name: 'Терраформинг', desc: 'Снижает стоимость деревьев и прудов на 50%.',
+                costType: 'energy', baseCost: 1000, level: 0, maxLevel: 5,
+                effect: () => { addMessage("Технологии изменения ландшафта освоены."); }
+            },
+            {
+                id: 'unlock_tech', name: 'Военные технологии', desc: 'Открывает доступ к Щиту, Маяку и Метеору.',
+                costType: 'biomass', baseCost: 2000, level: 0, maxLevel: 1,
+                unlocks: 'tech_tier_2',
+                effect: () => { addMessage("Доступно новое вооружение."); }
+            },
+            {
+                id: 'auto_spawn', name: 'Авто-инкубатор', desc: 'Каждую минуту рождается случайное существо.',
+                costType: 'energy', baseCost: 2000, level: 0, maxLevel: 5,
+                effect: () => { 
+                    setInterval(() => {
+                        if (state.energy >= 50) {
+                            state.energy -= 50;
+                            state.entities.push(new Creature(Math.random()*width, Math.random()*height));
+                        }
+                    }, 60000);
+                }
+            }
+        ];
+
+        // Narrator
+        const messages = [
+            { id: 'start', cond: () => true, text: "Это мы с тобой. Создай жизнь и наблюдай." },
+            { id: 'first_life', cond: () => state.entities.some(e => e.type === 'creature'), text: "Первое дыхание. Генетический код начал свой путь." },
+            { id: 'overpopulation', cond: () => state.entities.filter(e => e.type === 'creature').length > 20, text: "Перенаселение. Ресурсы истощаются." },
+            { id: 'night', cond: () => state.timeOfDay > 0.8, text: "Наступает ночь. Растения спят, мир замирает." },
+            { id: 'biomass', cond: () => state.biomass > 10, text: "Смерть приносит плоды. Биомасса позволит эволюционировать." },
+            { id: 'structure', cond: () => state.entities.some(e => e.type === 'structure'), text: "Они начали строить! Это начало цивилизации." },
+            { id: 'corruption', cond: () => state.entities.some(e => e.type === 'blob'), text: "Внимание! Высокий уровень биомассы породил Порчу!" }
+        ];
+
+        function logEvent(text: string, type: 'war'|'build'|'birth'|'info'|'danger' = 'info') {
+            const logPanel = document.getElementById('world-logs');
+            if (!logPanel) return;
+            
+            const div = document.createElement('div');
+            div.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            div.innerHTML = `<span class="log-time">[${time}]</span> ${text}`;
+            logPanel.prepend(div);
+            if (logPanel.children.length > 20) logPanel.lastElementChild?.remove();
+        }
+
+        function addMessage(text: string) {
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.textContent = text;
+            const narrator = document.getElementById('narrator');
+            if (narrator) {
+                narrator.appendChild(div);
+                if (narrator.children.length > 3) narrator.removeChild(narrator.children[0]);
+            }
+            setTimeout(() => {
+                div.style.opacity = '0';
+                setTimeout(() => div.remove(), 1000);
+            }, 8000);
+        }
+
+        function checkNarrator() {
+            for (const msg of messages) {
+                if (!state.messagesShown.has(msg.id) && msg.cond()) {
+                    state.messagesShown.add(msg.id);
+                    addMessage(msg.text);
+                }
+            }
+        }
+
+        function spawnParticle(x: number, y: number, color: string) {
+            if (state.particles.length > 100) state.particles.shift(); // Limit particles
+            state.particles.push({ x, y, color, life: 1.0, vx: (Math.random()-0.5)*20, vy: (Math.random()-0.5)*20 });
+        }
+
+        // --- META SAVE SYSTEM ---
+        function saveMeta() {
+            const data = {
+                discoveredPerks: Array.from(state.discoveredPerks)
+            };
+            localStorage.setItem(META_SAVE_KEY, JSON.stringify(data));
+        }
+
+        function loadMeta() {
+            const raw = localStorage.getItem(META_SAVE_KEY);
+            if (raw) {
+                try {
+                    const data = JSON.parse(raw);
+                    if (data.discoveredPerks) {
+                        data.discoveredPerks.forEach((id: string) => state.discoveredPerks.add(id));
+                    }
+                } catch (e) { console.error("Meta save corrupted", e); }
+            }
+        }
+
+        // --- SAVE SYSTEM ---
+        function saveGame() {
+            const data = {
+                energy: state.energy,
+                biomass: state.biomass,
+                day: state.day,
+                worldLevel: state.worldLevel,
+                worldXp: state.worldXp,
+                customPerks: state.customPerks, // Save generated perks
+                upgrades: upgrades.map(u => ({ id: u.id, level: u.level })),
+                // We don't save entities perfectly to save space, just counts or simplified
+                // For this demo, let's try to save entities but limit count
+                entities: state.entities.map(e => ({
+                    id: e.id, // Save ID to prevent duplicates logic if needed
+                    type: e.type, x: Math.round(e.x), y: Math.round(e.y), 
+                    age: Math.round(e.age), 
+                    // Creature specific
+                    genes: e.type === 'creature' ? (e as Creature).genes : undefined,
+                    baseStats: e.type === 'creature' ? (e as Creature).baseStats : undefined,
+                    creatureEnergy: e.type === 'creature' ? (e as Creature).energy : undefined,
+                    hp: e.type === 'creature' ? (e as Creature).hp : 
+                        e.type === 'structure' ? (e as Structure).hp :
+                        e.type === 'tree' ? (e as Tree).hp :
+                        e.type === 'blob' ? (e as CorruptedBlob).hp : undefined,
+                    maxHp: e.type === 'creature' ? (e as Creature).maxHp : undefined,
+                    xp: e.type === 'creature' ? (e as Creature).xp : undefined,
+                    level: e.type === 'creature' ? (e as Creature).level : undefined,
+                    weapon: e.type === 'creature' ? (e as Creature).weapon : undefined,
+                    factionId: e.type === 'creature' ? (e as Creature).factionId : undefined,
+                    partnerId: e.type === 'creature' ? (e as Creature).partnerId : undefined,
+                    profession: e.type === 'creature' ? (e as Creature).profession : undefined,
+                    mood: e.type === 'creature' ? (e as Creature).mood : undefined,
+                    reproductionTimer: e.type === 'creature' ? (e as Creature).reproductionTimer : undefined,
+                    // Structure specific
+                    color: e.type === 'structure' ? (e as Structure).color : undefined,
+                    structureType: e.type === 'structure' ? (e as Structure).structureType : undefined,
+                    constructionProgress: e.type === 'structure' ? (e as Structure).constructionProgress : undefined,
+                    // Loot specific
+                    lootWeapon: e.type === 'loot' ? (e as Loot).weapon : undefined,
+                    resourceAmount: e.type === 'loot' ? (e as Loot).resourceAmount : undefined,
+                    resourceType: e.type === 'loot' ? (e as Loot).resourceType : undefined
+                })).filter(e => e.type !== 'projectile' && e.type !== 'chat') // Don't save projectiles or chat
+            };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+            state.lastSave = Date.now();
+            console.log('Game Saved');
+        }
+
+        function loadGame() {
+            loadMeta(); // Load discovered perks first
+            
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) return;
+            try {
+                const data = JSON.parse(raw);
+                state.energy = data.energy;
+                state.biomass = data.biomass || 0;
+                state.day = data.day || 1;
+                state.worldLevel = data.worldLevel || 1;
+                state.worldXp = data.worldXp || 0;
+
+                // Restore Custom Perks
+                if (data.customPerks) {
+                    state.customPerks = data.customPerks;
+                    // Add to global definitions if not exists
+                    state.customPerks.forEach(p => {
+                        if (!PERK_DEFINITIONS.find(def => def.id === p.id)) PERK_DEFINITIONS.push(p);
+                    });
+                }
+                
+                // Restore discovered perks by scanning loaded entities + any saved list if we had one (we don't save the list explicitly to save space, but we can infer from entities)
+                // Actually let's just infer from entities for now to keep save small, or add it.
+                // Better: Iterate entities and add their perks to discovered.
+                // Note: If all creatures with a perk die, it might be "forgotten" if we don't save the set. 
+                // For this implementation, we'll just rebuild from living creatures + assume some persistence if we wanted, but let's keep it simple.
+                
+                // Restore upgrades
+                if (data.upgrades) {
+                    data.upgrades.forEach((savedU: any) => {
+                        const u = upgrades.find(x => x.id === savedU.id);
+                        if (u && savedU.level > 0) {
+                            u.level = savedU.level;
+                            u.effect();
+                        }
+                    });
+                }
+
+                // Restore entities
+                state.entities = [];
+                data.entities.forEach((e: any) => {
+                    if (e.type === 'plant') {
+                        const p = new Plant(e.x, e.y);
+                        p.age = e.age;
+                        state.entities.push(p);
+                    } else {
+                        if (e.type === 'pond') {
+                            state.entities.push(new Pond(e.x, e.y));
+                            return;
+                        }
+                        if (e.type === 'tree') {
+                            const t = new Tree(e.x, e.y);
+                            if (e.hp !== undefined) t.hp = e.hp;
+                            state.entities.push(t);
+                            return;
+                        }
+                        if (e.type === 'structure') {
+                            const s = new Structure(e.x, e.y, e.color || '#ffd700', (e.structureType || 'nest') as any);
+                            if (e.constructionProgress !== undefined) s.constructionProgress = e.constructionProgress;
+                            // Restore HP if saved, otherwise calc from progress
+                            if (e.hp !== undefined) s.hp = e.hp;
+                            else s.hp = s.maxHp * s.constructionProgress;
+                            state.entities.push(s);
+                            return;
+                        }
+                        if (e.type === 'loot') {
+                            const l = new Loot(e.x, e.y);
+                            l.weapon = e.lootWeapon || null;
+                            l.resourceAmount = e.resourceAmount || 0;
+                            l.resourceType = e.resourceType || 'biomass';
+                            state.entities.push(l);
+                            return;
+                        }
+                        if (e.type === 'resource') {
+                            // Don't save resources for now or add logic
+                            return;
+                        }
+                        if (e.type === 'blob') {
+                            const b = new CorruptedBlob(e.x, e.y);
+                            if (e.hp !== undefined) b.hp = e.hp;
+                            state.entities.push(b);
+                            return;
+                        }
+                        
+                        // Восстанавливаем существо полностью
+                        // Создаем "пустое" существо (без родителей), чтобы не сработала мутация
+                        const c = new Creature(e.x, e.y, undefined, true);
+                        // Перезаписываем данные сохраненными
+                        if (e.genes) {
+                            c.genes = e.genes;
+                            if (!c.genes.perks) c.genes.perks = []; // Fix for old saves
+                        }
+                        if (e.baseStats) c.baseStats = e.baseStats;
+                        if (e.creatureEnergy !== undefined) c.energy = e.creatureEnergy;
+                        else c.energy = 60; // Default for old saves
+                        if (e.hp !== undefined) c.hp = e.hp;
+                        else c.hp = c.genes.size * 10;
+                        if (e.maxHp !== undefined) c.maxHp = e.maxHp;
+                        else c.maxHp = c.genes.size * 10;
+                        if (e.xp !== undefined) c.xp = e.xp;
+                        if (e.level !== undefined) c.level = e.level;
+                        if (e.weapon) c.weapon = e.weapon;
+                        if (e.factionId) c.factionId = e.factionId;
+                        if (e.partnerId) c.partnerId = e.partnerId;
+                        if (e.mood) c.mood = e.mood;
+                        if (e.profession) c.profession = e.profession;
+                        if (e.reproductionTimer) c.reproductionTimer = e.reproductionTimer;
+                        
+                        // Восстанавливаем открытые перки в книге
+                        if (c.genes.perks) c.genes.perks.forEach(p => { state.discoveredPerks.add(p.id); });
+
+                        c.age = e.age;
+                        state.entities.push(c);
+                    }
+                });
+                addMessage("Мир восстановлен из памяти.");
+            } catch (e) {
+                console.error("Save file corrupted", e);
+            }
+        }
+
+        // --- UI UPDATES ---
+        function updateUI() {
+            const elEnergy = document.getElementById('energy');
+            if (elEnergy) elEnergy.innerText = Math.floor(state.energy).toString();
+            
+            const elBiomass = document.getElementById('biomass');
+            if (elBiomass) elBiomass.innerText = Math.floor(state.biomass).toString();
+
+            const elPlants = document.getElementById('plants');
+            if (elPlants) elPlants.innerText = state.entities.filter(e => e.type === 'plant').length.toString();
+            
+            const elCreatures = document.getElementById('creatures-count');
+            if (elCreatures) elCreatures.innerText = state.entities.filter(e => e.type === 'creature').length.toString();
+        }
+
+        // --- UI & INPUT ---
+        function renderShop() {
+            const list = document.getElementById('upgrade-list');
+            if (!list) return;
+            list.innerHTML = '';
+            
+            upgrades.forEach(u => {
+                if (u.level >= u.maxLevel) return; // Hide maxed out
+                
+                // Exponential cost: Base * (1.5 ^ Level)
+                const currentCost = Math.floor(u.baseCost * Math.pow(1.5, u.level));
+                
+                const div = document.createElement('div');
+                div.className = 'upgrade-item';
+                const canAfford = (u.costType === 'energy' && state.energy >= currentCost) || (u.costType === 'biomass' && state.biomass >= currentCost);
+                
+                div.innerHTML = `
+                    <div class="upgrade-header">
+                        <h4 style="margin:0; color:#ffd700;">${u.name} <span style="font-size:0.7em; color:#666">Lvl ${u.level}/${u.maxLevel}</span></h4>
+                        <span style="font-size:0.8rem; color:${canAfford ? '#fff' : '#555'}">${currentCost} ${u.costType === 'energy' ? 'E' : 'B'}</span>
+                    </div>
+                    <p style="margin:5px 0; font-size:0.75rem; color:#aaa;">${u.desc}</p>
+                    <button ${canAfford ? '' : 'disabled'} data-cost="${currentCost}" data-type="${u.costType}">
+                        УЛУЧШИТЬ
+                    </button>
+                `;
+                
+                div.querySelector('button')?.addEventListener('click', () => {
+                    if (u.costType === 'energy') state.energy -= currentCost;
+                    else state.biomass -= currentCost;
+                    
+                    u.level++;
+                    u.effect();
+                    
+                    // Check unlocks
+                    if (u.unlocks === 'tech_tier_2') {
+                        document.getElementById('btn-shield')!.style.display = 'flex';
+                        document.getElementById('btn-lighthouse')!.style.display = 'flex';
+                        document.getElementById('btn-meteor')!.style.display = 'flex';
+                    }
+
+                    renderShop();
+                });
+                
+                list.appendChild(div);
+            });
+            
+            if (list.children.length === 0) {
+                list.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">Все улучшения изучены</div>';
+            }
+        }
+
+        function updateShopButtons() {
+            // Self-healing: If list is empty but upgrades exist, re-render
+            const list = document.getElementById('upgrade-list');
+            if (list && list.children.length === 0 && upgrades.some(u => u.level < u.maxLevel)) {
+                renderShop();
+                return;
+            }
+
+            const buttons = document.querySelectorAll('#upgrade-list button');
+            buttons.forEach(btn => {
+                const b = btn as HTMLButtonElement;
+                const cost = parseInt(b.dataset.cost || '0');
+                const type = b.dataset.type;
+                const canAfford = (type === 'energy' && state.energy >= cost) || (type === 'biomass' && state.biomass >= cost);
+                b.disabled = !canAfford;
+            });
+        }
+
+        // Check unlocks on load
+        if (upgrades.find(u => u.id === 'unlock_tech' && u.level > 0)) {
+            document.getElementById('btn-shield')!.style.display = 'flex';
+            document.getElementById('btn-lighthouse')!.style.display = 'flex';
+            document.getElementById('btn-meteor')!.style.display = 'flex';
+        }
+
+        // --- BOOK UI ---
+        let currentBookFilter: PerkCategory | 'all' = 'all';
+
+        function openBook() {
+            state.paused = true;
+            const modal = document.getElementById('perk-book-modal');
+            const grid = document.getElementById('perk-grid-content');
+            const count = document.getElementById('perks-count');
+            const filters = document.getElementById('book-filters');
+            const breakdown = document.getElementById('perks-rarity-breakdown');
+            if (!modal || !grid || !count || !filters || !breakdown) return;
+
+            // Setup Filters
+            const categories: {id: PerkCategory | 'all', name: string}[] = [
+                {id: 'all', name: 'ВСЕ'},
+                {id: 'stats', name: 'Гены'},
+                {id: 'combat', name: 'Бой'},
+                {id: 'skill', name: 'Навыки'},
+                {id: 'survival', name: 'Выживание'},
+                {id: 'behavior', name: 'Психика'},
+                {id: 'resource', name: 'Ресурсы'},
+                {id: 'divine', name: 'БОЖЕСТВЕННОЕ'}
+            ];
+
+            filters.innerHTML = '';
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `filter-btn ${currentBookFilter === cat.id ? 'active' : ''}`;
+                btn.innerText = cat.name;
+                btn.onclick = () => {
+                    currentBookFilter = cat.id;
+                    openBook(); // Re-render
+                };
+                filters.appendChild(btn);
+            });
+
+            grid.innerHTML = '';
+            let unlockedCount = 0;
+            const rarityCounts = { common: 0, rare: 0, epic: 0, legendary: 0, divine: 0 };
+
+            PERK_DEFINITIONS.forEach(perk => {
+                const isUnlocked = state.discoveredPerks.has(perk.id);
+                if (isUnlocked) {
+                    unlockedCount++;
+                    rarityCounts[perk.rarity]++;
+                }
+
+                // Filter logic
+                if (currentBookFilter !== 'all' && perk.category !== currentBookFilter) return;
+                
+                const card = document.createElement('div');
+                card.className = `perk-card ${perk.rarity} ${isUnlocked ? 'unlocked' : 'locked'}`;
+                card.innerHTML = `
+                    <div class="perk-icon">${perk.icon || '🧬'}</div>
+                    <h4>${isUnlocked ? perk.name : '???'}</h4>
+                    <p>${isUnlocked ? perk.desc : 'Исследуйте мир, чтобы открыть'}</p>
+                `;
+                grid.appendChild(card);
+            });
+
+            count.innerText = `${unlockedCount}/${PERK_DEFINITIONS.length}`;
+            breakdown.innerHTML = `
+                <span style="color:#aaa">C:${rarityCounts.common}</span> 
+                <span style="color:#4488ff">R:${rarityCounts.rare}</span> 
+                <span style="color:#aa00ff">E:${rarityCounts.epic}</span> 
+                <span style="color:#ffaa00">L:${rarityCounts.legendary}</span> 
+                <span style="color:#00ffff">D:${rarityCounts.divine}</span>
+            `;
+            modal.classList.add('open');
+        }
+
+        const LOCALE = {
+            diet: { herbivore: 'Травоядное', carnivore: 'Хищник', omnivore: 'Всеядное' },
+            state: { 
+                wandering: 'Бродит', hunting: 'Охота', fleeing: 'Бегство', seeking_mate: 'Ищет пару',
+                sleeping: 'Сон', building: 'Строит', following: 'Следование', socializing: 'Общение'
+            },
+            profession: { none: 'Нет', warrior: 'Воин', builder: 'Строитель', farmer: 'Фермер', explorer: 'Исследователь' }
+        };
+
+        function updateInspector() {
+            const panel = document.getElementById('inspector');
+            if (!panel) return;
+
+            if (!state.selectedEntity || state.selectedEntity.dead) {
+                panel.style.display = 'none';
+                state.selectedEntity = null;
+                return;
+            }
+
+            panel.style.display = 'block';
+            const e = state.selectedEntity;
+
+            if (e.type === 'creature') {
+                const c = e as Creature;
+                document.getElementById('insp-name')!.innerText = c.genes.speciesName;
+                document.getElementById('insp-level')!.innerText = c.level.toString();
+                document.getElementById('insp-profession')!.innerText = (LOCALE.profession[c.profession] || c.profession).toUpperCase();
+                document.getElementById('insp-species')!.innerText = (LOCALE.diet[c.genes.diet] || c.genes.diet).toUpperCase();
+                document.getElementById('insp-age')!.innerText = Math.floor(c.age) + 's';
+                document.getElementById('insp-energy')!.innerText = Math.floor(c.energy).toString();
+                document.getElementById('insp-hp')!.innerText = `${Math.floor(c.hp)}/${Math.floor(c.maxHp)}`;
+                document.getElementById('insp-weapon')!.innerText = c.weapon ? c.weapon.name : 'Нет';
+                document.getElementById('insp-partner')!.innerText = c.partnerId ? `ID:${Math.floor(c.partnerId).toString().substr(0,4)}` : 'Нет';
+                document.getElementById('insp-mood')!.innerText = c.mood === 'normal' ? 'Норма' : c.mood === 'happy' ? 'Счастлив' : c.mood === 'broken' ? 'Сломлен' : 'ЯРОСТЬ';
+                document.getElementById('insp-energy')!.innerText += ` (Dom: ${Math.floor(c.genes.dominance)})`;
+                document.getElementById('insp-stats')!.innerText = `${Math.floor(c.genes.attack)} / ${Math.floor(c.genes.defense)}`;
+                document.getElementById('insp-state')!.innerText = LOCALE.state[c.state] || c.state;
+                
+                const traitsDiv = document.getElementById('insp-traits')!;
+                traitsDiv.innerHTML = '';
+                if (c.genes.traits.nocturnal) traitsDiv.innerHTML += '<span class="trait-tag">Ночной</span>';
+                if (c.genes.traits.spiky) traitsDiv.innerHTML += '<span class="trait-tag">Шипы</span>';
+                if (c.genes.traits.camouflaged) traitsDiv.innerHTML += '<span class="trait-tag">Камуфляж</span>';
+                if (c.genes.traits.photosynthetic) traitsDiv.innerHTML += '<span class="trait-tag">Фотосинтез</span>';
+                if (c.genes.traits.industrious) traitsDiv.innerHTML += '<span class="trait-tag" style="color:#ffd700">Трудяга</span>';
+                if (c.genes.traits.aggressive) traitsDiv.innerHTML += '<span class="trait-tag" style="color:#ff6b6b">Агрессор</span>';
+                if (c.genes.traits.fecundity) traitsDiv.innerHTML += '<span class="trait-tag" style="color:#ff69b4">Плодовитый</span>';
+
+                const perksDiv = document.getElementById('insp-perks')!;
+                perksDiv.innerHTML = '';
+                c.genes.perks.forEach(inst => {
+                    const def = PERK_DEFINITIONS.find(p => p.id === inst.id);
+                    let color = '#aaa';
+                    if (def?.rarity === 'rare') color = '#4488ff';
+                    if (def?.rarity === 'epic') color = '#aa00ff';
+                    if (def?.rarity === 'legendary') color = '#ffaa00';
+                    if (def?.rarity === 'divine') color = '#00ffff';
+                    
+                    perksDiv.innerHTML += `<div style="width:8px; height:8px; background:${color}; border-radius:50%; margin:1px; border:1px solid #000; box-shadow:0 0 2px ${color}" title="${def?.name} (Lvl ${inst.level})"></div>`;
+                });
+            } else if (e.type === 'plant') {
+                const p = e as Plant;
+                document.getElementById('insp-name')!.innerText = "Растение";
+                document.getElementById('insp-species')!.innerText = "Flora";
+                document.getElementById('insp-profession')!.innerText = "-";
+                document.getElementById('insp-level')!.innerText = "-";
+                document.getElementById('insp-age')!.innerText = Math.floor(p.age) + 's';
+                document.getElementById('insp-energy')!.innerText = "N/A";
+                document.getElementById('insp-hp')!.innerText = "-";
+                document.getElementById('insp-weapon')!.innerText = "-";
+                document.getElementById('insp-partner')!.innerText = "-";
+                document.getElementById('insp-mood')!.innerText = "-";
+                document.getElementById('insp-state')!.innerText = "Growing";
+                document.getElementById('insp-traits')!.innerHTML = '';
+                document.getElementById('insp-perks')!.innerHTML = '';
+            } else if (e.type === 'blob') {
+                document.getElementById('insp-name')!.innerText = "ПОРЧА";
+                document.getElementById('insp-species')!.innerText = "ENEMY";
+                document.getElementById('insp-profession')!.innerText = "-";
+                document.getElementById('insp-level')!.innerText = Math.floor(state.worldLevel).toString();
+                document.getElementById('insp-age')!.innerText = "-";
+                document.getElementById('insp-energy')!.innerText = "∞";
+                document.getElementById('insp-hp')!.innerText = "∞";
+                document.getElementById('insp-weapon')!.innerText = "-";
+                document.getElementById('insp-partner')!.innerText = "-";
+                document.getElementById('insp-mood')!.innerText = "-";
+                document.getElementById('insp-stats')!.innerText = "10 / 0";
+                document.getElementById('insp-state')!.innerText = "Consuming";
+                document.getElementById('insp-traits')!.innerHTML = '';
+                document.getElementById('insp-perks')!.innerHTML = '';
+            } else {
+                // Generic for Tree, Pond, Structure
+                document.getElementById('insp-name')!.innerText = e.type.toUpperCase();
+                document.getElementById('insp-species')!.innerText = "Object";
+                document.getElementById('insp-profession')!.innerText = "-";
+                document.getElementById('insp-level')!.innerText = "-";
+                document.getElementById('insp-age')!.innerText = Math.floor(e.age) + 's';
+                document.getElementById('insp-energy')!.innerText = "-";
+                document.getElementById('insp-hp')!.innerText = "-";
+                document.getElementById('insp-weapon')!.innerText = "-";
+                document.getElementById('insp-partner')!.innerText = "-";
+                document.getElementById('insp-mood')!.innerText = "-";
+                document.getElementById('insp-state')!.innerText = "Static";
+                document.getElementById('insp-traits')!.innerHTML = '';
+                document.getElementById('insp-perks')!.innerHTML = '';
+            }
+        }
+
+        document.getElementById('insp-kill')?.addEventListener('click', () => {
+            if (state.selectedEntity) {
+                state.selectedEntity.dead = true;
+                spawnParticle(state.selectedEntity.x, state.selectedEntity.y, '#ff0000');
+                state.selectedEntity = null;
+                updateInspector();
+            }
+        });
+
+        document.getElementById('btn-reset')?.addEventListener('click', () => {
+            if(confirm('Уничтожить этот мир и начать заново?')) {
+                localStorage.removeItem(SAVE_KEY);
+                // Note: META_SAVE_KEY is NOT removed, preserving the book
+                location.reload();
+            }
+        });
+
+        document.getElementById('btn-book')?.addEventListener('click', openBook);
+        
+        document.getElementById('btn-close-book')?.addEventListener('click', () => {
+            document.getElementById('perk-book-modal')?.classList.remove('open');
+            state.paused = false;
+            // Resume loop if needed, but loop checks paused state
+            requestAnimationFrame(loop);
+        });
+
+        // Input
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Selection Logic
+            let clickedEntity = null;
+            for (const ent of state.entities) {
+                const dist = Math.hypot(ent.x - x, ent.y - y);
+                let radius = 10;
+                if (ent.type === 'plant') radius = (ent as Plant).radius;
+                else if (ent.type === 'creature') radius = (ent as Creature).genes.size + (ent as Creature).level;
+                else if (ent.type === 'pond') radius = (ent as Pond).radius;
+                else if (ent.type === 'tree') radius = (ent as Tree).radius;
+                else if (ent.type === 'blob') radius = (ent as CorruptedBlob).radius;
+                else if (ent.type === 'structure') radius = 10;
+                
+                if (dist < radius + 5) {
+                    clickedEntity = ent;
+                    break;
+                }
+            }
+
+            // Dragging Logic
+            if (clickedEntity) {
+                state.selectedEntity = clickedEntity;
+                if (clickedEntity.type === 'creature') {
+                    state.draggingEntity = clickedEntity as Creature;
+                }
+                updateInspector();
+                return; // Don't use tool if selected
+            } else {
+                state.selectedEntity = null;
+                updateInspector();
+            }
+
+            // Tool Logic
+            if (state.tool === 'seed' && state.energy >= 5) {
+                state.energy -= 5;
+                state.entities.push(new Plant(x, y));
+                spawnParticle(x, y, '#fff');
+            } else if (state.tool === 'tree' && state.energy >= 30) {
+                const cost = upgrades.find(u => u.id === 'terraforming')?.level ? 15 : 30;
+                if (state.energy < cost) return;
+                state.energy -= cost;
+                state.entities.push(new Tree(x, y));
+                spawnParticle(x, y, '#2e7d32');
+                logEvent("Посажено дерево", "build");
+            } else if (state.tool === 'pond' && state.energy >= 50) {
+                const cost = upgrades.find(u => u.id === 'terraforming')?.level ? 25 : 50;
+                if (state.energy < cost) return;
+                state.energy -= cost;
+                state.entities.push(new Pond(x, y));
+                spawnParticle(x, y, '#87ceeb');
+                logEvent("Создан пруд", "build");
+            } else if (state.tool === 'life' && state.energy >= 80) {
+                state.energy -= 80;
+                state.entities.push(new Creature(x, y)); // Random creature
+                logEvent("Создана новая жизнь", "birth");
+            } else if (state.tool === 'rain' && state.energy >= 100) {
+                state.energy -= 100;
+                state.raining = true;
+                setTimeout(() => state.raining = false, 5000);
+            } else if (state.tool === 'shield' && state.energy >= 150) {
+                state.energy -= 150;
+                // Simple visual shield effect for now, could implement logic later
+                for(let i=0; i<20; i++) spawnParticle(x + Math.cos(i)*20, y + Math.sin(i)*20, '#00ffff');
+                logEvent("Установлен щит", "build");
+            } else if (state.tool === 'lighthouse' && state.energy >= 100) {
+                state.energy -= 100;
+                state.entities.push(new Structure(x, y, '#ffff00', 'lighthouse'));
+                logEvent("Маяк установлен", "build");
+                spawnParticle(x, y, '#ffff00');
+            } else if (state.tool === 'res_stone' && state.energy >= 10) {
+                state.energy -= 10;
+                state.entities.push(new Resource(x, y, 'stone'));
+                spawnParticle(x, y, '#888');
+                if (!state.discoveredPerks.has('res_stone')) { state.discoveredPerks.add('res_stone'); saveMeta(); }
+            } else if (state.tool === 'res_silver' && state.energy >= 40) {
+                state.energy -= 40;
+                state.entities.push(new Resource(x, y, 'silver'));
+                spawnParticle(x, y, '#eee');
+                if (!state.discoveredPerks.has('res_silver')) { state.discoveredPerks.add('res_silver'); saveMeta(); }
+            } else if (state.tool === 'res_gold' && state.energy >= 80) {
+                state.energy -= 80;
+                state.entities.push(new Resource(x, y, 'gold'));
+                spawnParticle(x, y, '#ffd700');
+                if (!state.discoveredPerks.has('res_gold')) { state.discoveredPerks.add('res_gold'); saveMeta(); }
+            } else if (state.tool === 'meteor' && state.energy >= 200) {
+                state.energy -= 200;
+                // Kill area
+                state.entities.forEach(ent => {
+                    if (Math.hypot(ent.x - x, ent.y - y) < 100) {
+                        ent.dead = true;
+                        spawnParticle(ent.x, ent.y, '#ff4444');
+                    }
+                });
+                logEvent("МЕТЕОРИТНЫЙ УДАР!", "war");
+                // Visual boom
+                for(let i=0; i<20; i++) spawnParticle(x, y, '#ffaa00');
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (state.draggingEntity) {
+                const rect = canvas.getBoundingClientRect();
+                state.draggingEntity.x = e.clientX - rect.left;
+                state.draggingEntity.y = e.clientY - rect.top;
+                state.draggingEntity.vx = 0;
+                state.draggingEntity.vy = 0;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            state.draggingEntity = null;
+        });
+
+        document.querySelectorAll<HTMLButtonElement>('.tool').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (btn.dataset.tool) state.tool = btn.dataset.tool;
+            });
+        });
+
+        // Init
+        loadGame();
+        renderShop(); // Render immediately after load
+        updateUI(); // Force UI update immediately so we don't see 0s
+
+        // Visibility Optimization
+        let isVisible = false; // Start false, let observer enable it
+        const gameWrapper = document.getElementById('echo-game-wrapper');
+        if (gameWrapper) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        if (!isVisible) {
+                            isVisible = true;
+                            state.lastUpdate = performance.now();
+                            if (!state.paused) requestAnimationFrame(loop);
+                        }
+                    } else {
+                        if (isVisible) {
+                            isVisible = false;
+                            saveGame();
+                        }
+                    }
+                });
+            }, { threshold: 0 });
+            observer.observe(gameWrapper);
+        }
+
+        // Loop
+        function loop(timestamp: number) {
+            if (state.paused || !isVisible) return; // Stop updates when paused or hidden
+
+            let dt = (timestamp - state.lastUpdate) / 1000;
+            if (dt > 0.1) dt = 0.1; // Cap dt to prevent explosions/freezes on lag
+            state.lastUpdate = timestamp;
+
+            // Time Cycle
+            // Day: 5 mins (300s) for 0.5 cycle (0.25-0.75). Speed = 0.5/300
+            // Night: 2.5 mins (150s) for 0.5 cycle. Speed = 0.5/150
+            const isDayTime = state.timeOfDay > 0.25 && state.timeOfDay < 0.75;
+            const timeSpeed = isDayTime ? (0.5 / 300) : (0.5 / 150);
+            
+            state.timeOfDay += dt * timeSpeed;
+            if (state.timeOfDay >= 1) {
+                state.timeOfDay = 0;
+                state.day++;
+            }
+
+            // Auto Save
+            if (Date.now() - state.lastSave > AUTO_SAVE_INTERVAL) {
+                saveGame();
+            }
+
+            // Update
+            state.entities.forEach(e => e.update(dt));
+            state.entities = state.entities.filter(e => !e.dead);
+
+            // Projectile Collisions
+            const projectiles = state.entities.filter(e => e.type === 'projectile') as Projectile[];
+            const targets = state.entities.filter(e => e.type === 'creature' || e.type === 'blob' || e.type === 'structure');
+            
+            projectiles.forEach(p => {
+                if (p.dead) return;
+                for (const t of targets) {
+                    if (t.id === p.ownerId || t.dead) continue; // Don't hit self
+                    // Faction check: Don't hit same faction
+                    if (t.type === 'creature' && (t as Creature).factionId === p.factionId) continue;
+
+                    if (Math.hypot(t.x - p.x, t.y - p.y) < 10) { // Hit
+                        p.dead = true;
+                        if (t.type === 'creature') (t as Creature).hp -= p.damage;
+                        if (t.type === 'structure') (t as Structure).hp -= p.damage;
+                        if (t.type === 'blob') (t as CorruptedBlob).hp -= p.damage;
+                        spawnParticle(p.x, p.y, p.color);
+                        break;
+                    }
+                }
+            });
+            
+            if (state.selectedEntity && state.selectedEntity.dead) {
+                state.selectedEntity = null;
+                updateInspector();
+            } else if (state.selectedEntity) {
+                // Live update inspector values
+                if (Math.random() < 0.1) updateInspector();
+            }
+
+            state.particles.forEach(p => {
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt;
+            });
+            state.particles = state.particles.filter(p => p.life > 0);
+
+            // Passive energy gain
+            state.energy += 1 * dt;
+
+            // Update UI states
+            updateShopButtons();
+
+            // Global Events Logic
+            if (state.eventTimer > 0) {
+                state.eventTimer -= dt;
+                if (state.eventTimer <= 0) {
+                    state.globalEvent = 'none';
+                    document.getElementById('event-banner')!.style.display = 'none';
+                    logEvent("Событие завершилось.", "info");
+                }
+            } else {
+                // Chance to start event
+                if (Math.random() < 0.0005) {
+                    const roll = Math.random();
+                    if (roll < 0.4) {
+                        state.globalEvent = 'blood_moon';
+                        document.getElementById('event-banner')!.innerText = "КРОВАВАЯ ЛУНА";
+                        document.getElementById('event-banner')!.style.display = 'block';
+                        logEvent("КРОВАВАЯ ЛУНА ВЗОШЛА!", "danger");
+                    } else {
+                        state.globalEvent = 'golden_age';
+                        document.getElementById('event-banner')!.innerText = "ЗОЛОТОЙ ВЕК";
+                        document.getElementById('event-banner')!.style.display = 'block';
+                        logEvent("Наступил Золотой Век процветания.", "birth");
+                    }
+                    state.eventTimer = 60; // 1 minute event
+                }
+            }
+
+            // Night Stalkers Spawn (Утопцы)
+            if ((state.timeOfDay < 0.15 || state.timeOfDay > 0.85) && Math.random() < 0.005) {
+                const ponds = state.entities.filter(e => e.type === 'pond');
+                if (ponds.length > 0) {
+                    const pond = ponds[Math.floor(Math.random() * ponds.length)];
+                    const stalker = new Creature(pond.x, pond.y);
+                    stalker.genes.speciesName = "Утопец";
+                    stalker.genes.color = "#00bcd4"; // Cyan glow
+                    stalker.genes.diet = "carnivore";
+                    stalker.genes.traits.nocturnal = true;
+                    stalker.genes.traits.aggressive = true;
+                    stalker.factionId = "NIGHT_STALKER";
+                    // Boost stats
+                    stalker.maxHp = 200; stalker.hp = 200;
+                    stalker.genes.attack += 5;
+                    if (state.globalEvent === 'blood_moon') stalker.genes.attack += 10; // Buff during event
+                    stalker.genes.speed += 20;
+                    stalker.applyPerks();
+                    state.entities.push(stalker);
+                    logEvent("Из глубин пруда вылезло нечто...", "danger");
+                }
+            }
+
+            // Biomass Threat (Corruption)
+            if (state.biomass > 100 && Math.random() < 0.0005) {
+                state.entities.push(new CorruptedBlob(Math.random() * width, Math.random() * height));
+                logEvent("ПОРЧА ПРОНИКЛА В МИР!", "danger");
+                state.biomass -= 20; // Consumes biomass to spawn
+            }
+
+            checkNarrator();
+
+            // UI Updates
+            updateUI();
+
+            // Draw
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Stars (Night only)
+            if (state.timeOfDay < 0.2 || state.timeOfDay > 0.8) {
+                ctx.fillStyle = '#fff';
+                for(let i=0; i<50; i++) {
+                    // Simple pseudo-random stars based on position
+                    const sx = (i * 137) % width;
+                    const sy = (i * 53) % height;
+                    ctx.globalAlpha = Math.abs(Math.sin(timestamp/1000 + i)) * 0.5;
+                    ctx.fillRect(sx, sy, 1, 1);
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            // Draw Rain
+            if (state.raining) {
+                ctx.strokeStyle = 'rgba(100, 150, 255, 0.3)';
+                ctx.beginPath();
+                for(let i=0; i<100; i++) {
+                    const rx = Math.random() * width;
+                    const ry = Math.random() * height;
+                    ctx.moveTo(rx, ry);
+                    ctx.lineTo(rx - 2, ry + 10);
+                }
+                ctx.stroke();
+            }
+
+            // Draw Plants first (background)
+            state.entities.forEach(e => { if(e.type === 'plant') e.draw(ctx); });
+            
+            // Draw everything else
+            state.entities.forEach(e => { if(e.type !== 'plant') e.draw(ctx); });
+            
+            state.particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 2, 2);
+                ctx.globalAlpha = 1.0;
+            });
+
+            // Night Overlay
+            if (state.timeOfDay < 0.25 || state.timeOfDay > 0.75) {
+                let darkness = 0;
+                
+                if (state.globalEvent === 'blood_moon') {
+                    ctx.fillStyle = `rgba(50, 0, 0, 0.3)`; // Red tint
+                    ctx.fillRect(0, 0, width, height);
+                }
+                
+                if (state.activeAnomaly) {
+                    ctx.fillStyle = state.activeAnomaly.color;
+                    ctx.globalAlpha = 0.1;
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.globalAlpha = 1.0;
+                }
+
+                if (state.timeOfDay < 0.25) darkness = 1 - (state.timeOfDay / 0.25);
+                if (state.timeOfDay > 0.75) darkness = (state.timeOfDay - 0.75) / 0.25;
+                
+                ctx.fillStyle = `rgba(0, 5, 20, ${darkness * 0.6})`;
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+    </script>
+</div>

@@ -2,9 +2,11 @@
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
 import MiniGame from '../components/MiniGame.astro';
+import FireEmblemGame from '../components/FireEmblemGame.astro';
 import { Image } from 'astro:assets';
 // ВАЖНО: Положи картинку в src/assets/lorin.png, иначе сайт выдаст ошибку
 import lorinImg from '../assets/lorin.png';
+import lorin1Img from '../assets/lorin1.png';
 ---
 <Layout title="МиниИгры | Моррис Град">
     <main class="container">
@@ -30,6 +32,23 @@ import lorinImg from '../assets/lorin.png';
         </div>
         
         <MiniGame />
+
+        <div class="shimmer-line"></div>
+
+        <h2 class="center-title">Это мы с тобой!</h2>
+
+        <div class="character-section">
+            <div class="lorin-wrapper">
+                <Image src={lorin1Img} alt="Lorin" class="lorin-img" />
+                <div class="glitch-overlay"></div>
+            </div>
+            <div class="comic-bubble">
+                <p>Я никогда не думала, что скажу это... Но мы лишь точки в этом мире, Алзор может в любой момент убить нас, вернуть к жизни, сделать всё что угодно. Но я верю что у него есть сердце, но он просто исчез. Ты же не исчезнешь, Элфдид?</p>
+                <a href="/changelog-echo" class="changelog-link">Список изменений ></a>
+            </div>
+        </div>
+
+        <FireEmblemGame />
 
         <div class="shimmer-line"></div>
         

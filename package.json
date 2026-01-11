@@ -6,12 +6,16 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "check": "astro check",
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/check": "^0.9.6",
     "@astrojs/cloudflare": "^12.6.12",
     "@astrojs/node": "^9.5.1",
-    "astro": "^5.16.6"
+    "@astrojs/ts-plugin": "^1.10.6",
+    "astro": "^5.16.6",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^25.0.3"
