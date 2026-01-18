@@ -1,5 +1,6 @@
 ---
 import { ViewTransitions } from 'astro:transitions';
+import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/astro/components";
 import RadioPlayer from '../components/RadioPlayer.astro';
 
 interface Props {
@@ -30,8 +31,16 @@ const { title } = Astro.props;
                 <button id="back-btn" class="nav-btn" aria-label="Назад" title="Вернуться назад">←</button>
                 <a href="/" class="logo-area">
                     <div class="logo-placeholder">M</div>
-                    <span class="site-name">МоррисГрад v0.005</span>
+                    <span class="site-name">МоррисГрад v0.007</span>
                 </a>
+            </div>
+            <div class="auth-controls">
+                <SignedOut>
+                    <SignInButton mode="modal" class="login-btn">Войти</SignInButton>
+                </SignedOut>
+                <SignedIn>
+                    <UserButton />
+                </SignedIn>
             </div>
         </header>
         <div style="flex: 1;"> <slot />
@@ -47,7 +56,7 @@ const { title } = Astro.props;
   </div>
 
   <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
-  <a href="/changelog-site" class="site-version-link">Список обновлений МоррисГрада v0.005</a>
+  <a href="/changelog-site" class="site-version-link">Список обновлений МоррисГрада</a>
 </footer>
 
 <!-- Глобальный Лайтбокс -->
@@ -193,9 +202,11 @@ const showImage = (index: number) => {
     padding: 1.5rem 3rem;
     background: rgba(0,0,0,0.8);
     border-bottom: 1px solid #222;
+    align-items: center;
   }
 
   .header-controls { display: flex; align-items: center; gap: 1.5rem; }
+  .auth-controls { display: flex; align-items: center; gap: 1rem; }
 
   .logo-area { display: flex; align-items: center; gap: 1rem; text-decoration: none; color: inherit; transition: opacity 0.3s; }
   .logo-area:hover { opacity: 0.8; }
@@ -223,6 +234,27 @@ const showImage = (index: number) => {
     color: var(--accent-gold);
     transform: translateX(-3px);
   }
+
+  .login-btn {
+    background: transparent;
+    border: 1px solid var(--energy-purple);
+    color: var(--text-light);
+    padding: 0.5rem 1.2rem;
+    border-radius: 6px;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+  }
+  .login-btn:hover {
+    background: var(--energy-purple);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(160, 32, 240, 0.5);
+    border-color: var(--accent-gold);
+  }
+
   .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
 
   .banner {

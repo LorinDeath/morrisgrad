@@ -1,12 +1,19 @@
-// @ts-check
 import { defineConfig } from 'astro/config';
-import cloudflare from '@astrojs/cloudflare';
+import cloudflare from '@astrojs/cloudflare'; // Оставляем этот!
+import clerk from '@clerk/astro';
 
 export default defineConfig({
-  // ... ваши текущие настройки
-  output: 'server',
+  // 1. Устанавливаем режим сервера (как просит инструкция)
+  output: 'server', 
+
+  // 2. Используем ТВОЙ адаптер Cloudflare, а не Node
   adapter: cloudflare({
-    // Добавьте эту опцию, чтобы исправить ошибку с sharp
     imageService: 'compile',
+    platformProxy: {
+      enabled: true,
+    },
   }),
+
+  // 3. Добавляем интеграцию Clerk
+  integrations: [clerk()],
 });

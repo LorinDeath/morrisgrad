@@ -1,72 +1,168 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Notes from '../components/Notes.astro';
 
+// Данные главных героев
+// color - это лидирующий цвет для градиента
 const mainHeroes = [
-  { name: "Алекс", world: "МоррисГрад", bio: "Главный протагонист, ищущий истину.", img: "/images/hero1.jpg" },
-  { name: "Елена", world: "Земля-2", bio: "Маг высшего уровня, специализация - лед.", img: "/images/hero2.jpg" },
+  { 
+    name: "Лорелин Сэйлор", 
+    world: "Конкурейс", 
+    city: "Альказак", 
+    job: "Лекарь", 
+    faction: "Обитель тьмы", 
+    img: "/images/chars/lorelin.webp", 
+    color: "#2E0B36", // Темно-фиолетовый
+    link: "/heroes/lorelin-seylor"
+  },
+  { 
+    name: "Лорин Дэс", 
+    world: "Конкурейс", 
+    city: "Альказак", 
+    job: "Смерть", 
+    faction: "Адское пламя", 
+    img: "/images/chars/lorin.webp", 
+    color: "#360B0B", // Темно-красный
+    link: "/heroes/lorin-death"
+  },
+  { 
+    name: "Велес", 
+    world: "Конкурейс", 
+    city: "Альказак", 
+    job: "Главный Страж", 
+    faction: "Модераторы", 
+    img: "/images/chars/veles.webp", 
+    color: "#0B1836", // Темно-синий
+    link: "/heroes/veles"
+  },
+  { 
+    name: "Листаф Элфдид", 
+    world: "Эзернис", 
+    city: "Вайт Эзер", 
+    job: "Губитель", 
+    faction: "Ядовитый эфир", 
+    img: "/images/chars/listaf.webp", 
+    color: "#0B3616", // Темно-зеленый
+    link: "/heroes/listaf-elfdid"
+  },
+  { 
+    name: "Хронос", 
+    world: "Конкурейс", 
+    city: "Альказак", 
+    job: "Библиотекарь", 
+    faction: "ДаргСирром", 
+    img: "/images/chars/chronos.webp", 
+    color: "#36290B", // Темно-золотой
+    link: "/heroes/chronos"
+  },
 ];
 
+// Второстепенные герои
 const secondaryHeroes = [
-  { name: "Бармен Джо", world: "Нижний город", bio: "Знает все слухи в округе.", img: "/images/hero3.jpg" },
-  { name: "Капитан Вэнс", world: "Полиция", bio: "Честный коп в нечестном городе.", img: "/images/hero4.jpg" },
+  { 
+    name: "Вайт Фокс", 
+    world: "Конкурейс", 
+    city: "Альказак", 
+    img: "/images/chars/white-fox.webp",
+    link: "/heroes/white-fox"
+  },
+  { 
+    name: "Айтрейн", 
+    world: "Конкурейс", 
+    city: "Альказак", 
+    img: "/images/chars/itrain.webp",
+    link: "/heroes/itrain"
+  },
 ];
 
+// Другие
 const otherHeroes = [
-  { name: "Тень", world: "?", bio: "Неизвестная сущность.", img: "/images/hero5.jpg" },
+  { 
+    name: "Поехавший Алекс Сэйлор", 
+    world: "Конкурейс", 
+    img: "/images/chars/crazy-alex.webp",
+    link: "/heroes/crazy-alex-seylor"
+  },
 ];
-
 ---
 
 <Layout title="Герои | MorrisGrad">
   <div class="container">
+
+     <div class="shimmer-line"></div>
+
     <h1>Персонажи</h1>
     
+    <!-- Главные герои -->
     <section class="hero-section">
       <h2 class="section-title">Главные герои</h2>
-      <div class="heroes-grid">
+      <div class="heroes-grid main-grid">
         {mainHeroes.map(hero => (
-          <div class="hero-card main">
-            <div class="card-image" style={`background-image: url(${hero.img});`}></div>
-            <div class="card-content">
-              <h3>{hero.name}</h3>
-              <span class="world-badge">{hero.world}</span>
-              <p class="bio">{hero.bio}</p>
-              <div class="card-footer">
-                <a href={`/arts?hero=${hero.name}`} class="arts-link">Смотреть арты</a>
-              </div>
+          <a 
+            href={hero.link} 
+            class="hero-card main"
+            data-color={hero.color}
+          >
+            <div class="card-image-wrapper">
+                <!-- Используем img тег для лучшего контроля, или div с background -->
+                <div class="card-image" style={`background-image: url(${hero.img});`}></div>
             </div>
-          </div>
+            <div class="card-content" style={`background: linear-gradient(to top, ${hero.color} 0%, rgba(10,10,10,0.9) 100%);`}>
+              <h3>{hero.name}</h3>
+              <div class="info-row"><span>Мир:</span> {hero.world}</div>
+              <div class="info-row"><span>Город:</span> {hero.city}</div>
+              <div class="info-row"><span>Профессия:</span> {hero.job}</div>
+              <div class="info-row"><span>Фракция:</span> {hero.faction}</div>
+            </div>
+          </a>
         ))}
       </div>
     </section>
 
+     <div class="shimmer-line"></div>
+
+    <!-- Второстепенные персонажи -->
     <section class="hero-section">
       <h2 class="section-title">Второстепенные персонажи</h2>
-      <div class="heroes-grid compact">
+      <div class="heroes-grid secondary-grid">
         {secondaryHeroes.map(hero => (
-          <div class="hero-card">
-            <div class="card-content">
+          <a href={hero.link} class="hero-card secondary">
+            <div class="card-image-square" style={`background-image: url(${hero.img});`}></div>
+            <div class="card-content-side">
               <h3>{hero.name}</h3>
-              <span class="world-badge small">{hero.world}</span>
-              <p class="bio">{hero.bio}</p>
+              <div class="mini-info">
+                <span class="badge">{hero.world}</span>
+                <span class="badge-city">{hero.city}</span>
+              </div>
             </div>
-          </div>
+          </a>
         ))}
       </div>
     </section>
 
+     <div class="shimmer-line"></div>
+
+    <!-- Другие -->
     <section class="hero-section">
       <h2 class="section-title">Другие</h2>
-      <div class="heroes-grid compact">
+      <div class="heroes-grid other-grid">
         {otherHeroes.map(hero => (
-          <div class="hero-card simple">
-            <h3>{hero.name}</h3>
-            <p>{hero.bio}</p>
-          </div>
+          <a href={hero.link} class="hero-card other">
+            <div class="card-image-small" style={`background-image: url(${hero.img});`}></div>
+            <div class="card-content-simple">
+              <h3>{hero.name}</h3>
+              <span class="text-muted">{hero.world}</span>
+            </div>
+          </a>
         ))}
       </div>
     </section>
+    
+    <div class="shimmer-line"></div>
+
+      <Notes />
   </div>
+
 </Layout>
 
 <style>
@@ -74,31 +170,170 @@ const otherHeroes = [
   h1 { text-align: center; margin-bottom: 3rem; color: #fff; }
   
   .hero-section { margin-bottom: 4rem; }
-  .section-title { border-left: 4px solid #4f46e5; padding-left: 1rem; color: #eee; margin-bottom: 1.5rem; }
+  .section-title { border-left: 4px solid var(--accent-gold); padding-left: 1rem; color: #eee; margin-bottom: 1.5rem; }
 
-  .heroes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2rem; }
-  .heroes-grid.compact { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  /* Общие стили карточек */
+  .hero-card {
+      text-decoration: none;
+      color: inherit;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+      display: block;
+  }
+  .hero-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--accent-gold);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  }
 
-  .hero-card { background: #1e1e1e; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.2s; }
-  .hero-card:hover { transform: translateY(-5px); }
-  
-  .hero-card.main { border: 1px solid #4f46e5; }
+  /* --- ГЛАВНЫЕ ГЕРОИ (Вертикальные) --- */
+  .main-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 2rem;
+  }
 
-  .card-image { height: 200px; background-color: #333; background-size: cover; background-position: center; }
-  
-  .card-content { padding: 1.5rem; }
-  .hero-card h3 { margin: 0 0 0.5rem 0; color: #fff; font-size: 1.4rem; }
-  
-  .world-badge { display: inline-block; background: #333; color: #aaa; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.8rem; margin-bottom: 1rem; }
-  .world-badge.small { font-size: 0.7rem; padding: 0.1rem 0.4rem; }
+  .hero-card.main {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+  }
 
-  .bio { color: #ccc; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.5rem; }
+  .card-image-wrapper {
+      width: 100%;
+      height: 200px; /* Горизонтальная картинка внутри вертикальной карточки */
+      overflow: hidden;
+  }
 
-  .card-footer { border-top: 1px solid #333; padding-top: 1rem; text-align: center; }
-  .arts-link { color: #4f46e5; text-decoration: none; font-size: 0.9rem; font-weight: bold; }
+  .card-image {
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      transition: transform 0.5s;
+  }
 
-  /* Стили для простых карточек */
-  .hero-card.simple { padding: 1rem; background: #151515; border: 1px solid #333; }
-  .hero-card.simple h3 { font-size: 1.1rem; }
-  .hero-card.simple p { font-size: 0.85rem; color: #888; margin: 0; }
+  .hero-card.main:hover .card-image {
+      transform: scale(1.1);
+  }
+
+  .card-content {
+      padding: 1.5rem;
+      flex: 1;
+      /* Фон задается инлайново через JS/Astro для градиента */
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+  }
+
+  .hero-card.main h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.4rem;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  .info-row {
+      font-size: 0.9rem;
+      color: #ddd;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 4px;
+  }
+  .info-row span {
+      color: rgba(255,255,255,0.6);
+      font-size: 0.8rem;
+  }
+
+  /* --- ВТОРОСТЕПЕННЫЕ (Горизонтальные) --- */
+  .secondary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 1.5rem;
+  }
+
+  .hero-card.secondary {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      padding: 10px;
+  }
+
+  .card-image-square {
+      width: 100px;
+      height: 100px;
+      border-radius: 8px;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+      border: 1px solid #444;
+  }
+
+  .card-content-side {
+      padding-left: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+  }
+
+  .hero-card.secondary h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.2rem;
+      color: var(--accent-gold);
+  }
+
+  .mini-info {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+  }
+
+  .badge, .badge-city {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #222;
+      color: #aaa;
+      border: 1px solid #444;
+  }
+
+  /* --- ДРУГИЕ (Маленькие) --- */
+  .other-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+  }
+
+  .hero-card.other {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      background: #0a0a0a;
+  }
+
+  .card-image-small {
+      width: 50px;
+      height: 50px;
+      border-radius: 4px;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+      margin-right: 1rem;
+      border: 1px solid #333;
+  }
+
+  .card-content-simple h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: #eee;
+  }
+  .text-muted {
+      font-size: 0.8rem;
+      color: #666;
+  }
+
 </style>
