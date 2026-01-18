@@ -6,10 +6,24 @@
     "nodejs_compat",
     "global_fetch_strictly_public"
   ],
- "kv_namespaces": [
+  // 1. Добавляем переменные здесь, чтобы они не стирались при деплое
+  "vars": {
+    "PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bWlnaHR5LXN0YXJsaW5nLTY4LmNsZXJrLmFjY291bnRzLmRldiQ"
+  },
+
+  "kv_namespaces": [
     {
-      "binding": "MORRISGRAD_DB",
-      "id": "e49e4b6d81ff4560be9f75ef2efba84e" // ID с твоего скриншота
+      "binding": "MORRISGRAD_DB", // Старое имя из кода игры
+      "id": "e49e4b6d81ff4560be9f75ef2efba84e"
+    }
+  ],
+
+  // 2. Переносим твой ID из KV в D1 (настоящая база данных)
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "morrisgrad_db",
+      "database_id": "76aa36d3-74b2-4b1c-bdfb-88100666317c" 
     }
   ],
   "assets": {
