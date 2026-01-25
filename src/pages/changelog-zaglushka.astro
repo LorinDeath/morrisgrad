@@ -1,7 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { Image } from 'astro:assets';
-import lorinImg from '../assets/lorin.png';
 
 // --- СПИСОК ИЗМЕНЕНИЙ ---
 // Добавляй новые версии сюда (сверху - новые)
@@ -94,7 +92,7 @@ const updates = [
                     <!-- Лорин комментирует (только для последнего обновления) -->
                     {index === 0 && (
                         <div class="lorin-stamp">
-                            <Image src={lorinImg} alt="Lorin" class="stamp-img" />
+                            <img src="/images/lorin.png" alt="Lorin" class="stamp-img" />
                             <div class="stamp-text">NEW!</div>
                         </div>
                     )}

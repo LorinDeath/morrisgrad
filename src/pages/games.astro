@@ -1,10 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
-import { Image } from 'astro:assets';
-// ВАЖНО: Положи картинку в src/assets/lorin.png, иначе сайт выдаст ошибку
-import lorinImg from '../assets/lorin.png';
-import lorin1Img from '../assets/lorin1.png';
 ---
 <Layout title="МиниИгры | Моррис Град">
     <main class="container">
@@ -22,7 +18,7 @@ import lorin1Img from '../assets/lorin1.png';
                  data-desc="Это всего лишь временная заглушка, чтобы удержать внимание пользователя на странице. Когда нибудь Алзор подлючит энергоблок к данной мини игре и игроки будут вырабатывать энергию для развития своего мини городка. Но это не точно." 
                  data-game-url="/games/zaglushka" 
                  data-changelog-url="/changelog-zaglushka">
-                <Image src={lorinImg} alt="Заглушка v0.2" class="game-icon" />
+                <img src="/images/lorin.png" alt="Заглушка v0.2" class="game-icon" />
                 <span class="game-title">Заглушка v0.2</span>
             </div>
             
@@ -31,7 +27,7 @@ import lorin1Img from '../assets/lorin1.png';
                  data-desc="Я никогда не думала, что скажу это... Но мы лишь точки в этом мире, Алзор может в любой момент убить нас, вернуть к жизни, сделать всё что угодно. Но я верю что у него есть сердце, но он просто исчез. Ты же не исчезнешь, Элфдид?" 
                  data-game-url="/games/echo" 
                  data-changelog-url="/changelog-echo">
-                <Image src={lorin1Img} alt="Это мы с тобой!" class="game-icon" />
+                <img src="/images/lorin1.png" alt="Это мы с тобой!" class="game-icon" />
                 <span class="game-title">Это мы с тобой!</span>
             </div>
 
@@ -40,7 +36,7 @@ import lorin1Img from '../assets/lorin1.png';
                  data-desc="Тест." 
                  data-game-url="/games/roguelike" 
                  data-changelog-url="#">
-                <Image src={lorinImg} alt="Рогалик" class="game-icon" />
+                <img src="/images/lorin.png" alt="Рогалик" class="game-icon" />
                 <span class="game-title">Рогалик</span>
             </div>
         </div>
