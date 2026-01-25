@@ -1,8 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
-import MiniGame from '../components/MiniGame.astro';
-import FireEmblemGame from '../components/FireEmblemGame.astro';
 import { Image } from 'astro:assets';
 // ВАЖНО: Положи картинку в src/assets/lorin.png, иначе сайт выдаст ошибку
 import lorinImg from '../assets/lorin.png';
@@ -18,37 +16,34 @@ import lorin1Img from '../assets/lorin1.png';
 
         <div class="shimmer-line"></div>
 
-        <h2 class="center-title">ЗАГЛУШКА v0.2</h2>
-
-        <div class="character-section">
-            <div class="lorin-wrapper">
-                <Image src={lorinImg} alt="Lorin" class="lorin-img" />
-                <div class="glitch-overlay"></div>
+        <div class="games-grid">
+            <div class="game-card" 
+                 data-title="Заглушка v0.2" 
+                 data-desc="Это всего лишь временная заглушка, чтобы удержать внимание пользователя на странице. Когда нибудь Алзор подлючит энергоблок к данной мини игре и игроки будут вырабатывать энергию для развития своего мини городка. Но это не точно." 
+                 data-game-url="/games/zaglushka" 
+                 data-changelog-url="/changelog-zaglushka">
+                <Image src={lorinImg} alt="Заглушка v0.2" class="game-icon" />
+                <span class="game-title">Заглушка v0.2</span>
             </div>
-            <div class="comic-bubble">
-                <p>Это всего лишь временная заглушка, чтобы удержать внимание пользователя на странице. Когда нибудь Алзор подлючит энергоблок к данной мини игре и игроки будут вырабатывать энергию для развития своего мини городка. Но это не точно.</p>
-                <a href="/changelog-zaglushka" class="changelog-link">Список изменений ></a>
+            
+            <div class="game-card" 
+                 data-title="Это мы с тобой!" 
+                 data-desc="Я никогда не думала, что скажу это... Но мы лишь точки в этом мире, Алзор может в любой момент убить нас, вернуть к жизни, сделать всё что угодно. Но я верю что у него есть сердце, но он просто исчез. Ты же не исчезнешь, Элфдид?" 
+                 data-game-url="/games/echo" 
+                 data-changelog-url="/changelog-echo">
+                <Image src={lorin1Img} alt="Это мы с тобой!" class="game-icon" />
+                <span class="game-title">Это мы с тобой!</span>
+            </div>
+
+            <div class="game-card" 
+                 data-title="Рогалик" 
+                 data-desc="Тест." 
+                 data-game-url="/games/roguelike" 
+                 data-changelog-url="#">
+                <Image src={lorinImg} alt="Рогалик" class="game-icon" />
+                <span class="game-title">Рогалик</span>
             </div>
         </div>
-        
-        <MiniGame />
-
-        <div class="shimmer-line"></div>
-
-        <h2 class="center-title">Это мы с тобой!</h2>
-
-        <div class="character-section">
-            <div class="lorin-wrapper">
-                <Image src={lorin1Img} alt="Lorin" class="lorin-img" />
-                <div class="glitch-overlay"></div>
-            </div>
-            <div class="comic-bubble">
-                <p>Я никогда не думала, что скажу это... Но мы лишь точки в этом мире, Алзор может в любой момент убить нас, вернуть к жизни, сделать всё что угодно. Но я верю что у него есть сердце, но он просто исчез. Ты же не исчезнешь, Элфдид?</p>
-                <a href="/changelog-echo" class="changelog-link">Список изменений ></a>
-            </div>
-        </div>
-
-        <FireEmblemGame />
 
         <div class="shimmer-line"></div>
         
@@ -58,10 +53,75 @@ import lorin1Img from '../assets/lorin1.png';
 
         <Notes />
     </main>
+
+    <!-- Модальное окно для игр -->
+    <div id="game-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <img id="modal-img" src="" alt="Game Icon" class="modal-icon" />
+            <h2 id="modal-title">Название игры</h2>
+            <p id="modal-desc">Описание игры...</p>
+            <div class="modal-actions">
+                <a id="modal-start-btn" href="#" class="start-btn">Начать играть</a>
+                <a id="modal-changelog-link" href="#" class="changelog-link">Список изменений ></a>
+            </div>
+        </div>
+    </div>
   
 </Layout>
 
 <style>
+    .games-grid {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin: 3rem 0;
+    }
+
+    .game-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        color: #e0e0e0;
+        background-color: rgba(20, 20, 25, 0.8);
+        border: 2px solid #444;
+        border-radius: 15px;
+        padding: 1.5rem;
+        width: 250px;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .game-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5), 0 0 25px var(--accent-gold, #ffd700);
+        border-color: var(--accent-gold, #ffd700);
+    }
+
+    .game-icon {
+        width: 150px;
+        height: 150px;
+        border-radius: 10px;
+        object-fit: cover;
+        margin-bottom: 1rem;
+        border: 3px solid #555;
+        transition: border-color 0.3s ease;
+    }
+
+    .game-card:hover .game-icon {
+        border-color: var(--accent-gold, #ffd700);
+    }
+
+    .game-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+
     .title-wrapper {
         display: flex;
         align-items: center;
@@ -104,112 +164,6 @@ import lorin1Img from '../assets/lorin1.png';
         color: var(--accent-gold, #ffd700);
     }
 
-    .character-section {
-        display: flex;
-        align-items: flex-start;
-        gap: 2rem;
-        margin-bottom: 2rem;
-        max-width: 900px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    /* Стили для Лорин (Слева) */
-    .lorin-wrapper {
-        position: relative;
-        flex-shrink: 0;
-        width: 150px;
-        height: 150px;
-        padding: 3px; /* Толщина градиентной рамки */
-        background: linear-gradient(135deg, #a020f0, #ff0000); /* Фиолетово-красный градиент */
-        border-radius: 12px;
-        box-shadow: 0 0 20px rgba(160, 32, 240, 0.6), 0 0 40px rgba(255, 0, 0, 0.3); /* Свечение */
-        overflow: hidden;
-    }
-
-    .lorin-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 9px; /* Чуть меньше внешнего радиуса */
-        display: block;
-        position: relative;
-        z-index: 1;
-    }
-
-    /* Лёгкий глитч поверх картинки (сканлайн) */
-    .glitch-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(transparent 90%, rgba(255, 0, 255, 0.2) 95%, transparent 100%);
-        background-size: 100% 200%;
-        z-index: 2;
-        pointer-events: none;
-        animation: scanline 3s linear infinite;
-        mix-blend-mode: overlay;
-    }
-
-    @keyframes scanline {
-        0% { background-position: 0% 0%; }
-        100% { background-position: 0% 200%; }
-    }
-
-    /* Диалоговое окно (Справа) */
-    .comic-bubble {
-        flex: 1;
-        background: rgba(20, 20, 25, 0.9);
-        border: 2px solid #444;
-        border-radius: 15px;
-        padding: 1.5rem;
-        position: relative;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    }
-
-    /* Хвостик облачка */
-    .comic-bubble::before {
-        content: '';
-        position: absolute;
-        left: -12px;
-        top: 30px;
-        width: 0;
-        height: 0;
-        border-top: 12px solid transparent;
-        border-bottom: 12px solid transparent;
-        border-right: 12px solid #444; /* Цвет рамки */
-    }
-    
-    .comic-bubble::after {
-        content: '';
-        position: absolute;
-        left: -9px;
-        top: 30px;
-        width: 0;
-        height: 0;
-        border-top: 12px solid transparent;
-        border-bottom: 12px solid transparent;
-        border-right: 12px solid rgba(20, 20, 25, 0.9); /* Цвет фона */
-    }
-
-    .comic-bubble p {
-        margin: 0;
-        line-height: 1.6;
-        font-size: 1.1rem;
-        color: #e0e0e0;
-    }
-
-    .changelog-link {
-        display: inline-block;
-        margin-top: 1rem;
-        color: var(--accent-gold, #ffd700);
-        font-weight: bold;
-        text-decoration: none;
-        border-bottom: 1px dashed var(--accent-gold, #ffd700);
-    }
-    .changelog-link:hover { color: #fff; border-color: #fff; }
-
     .glitch-container {
         text-align: center;
         margin: 3rem 0;
@@ -236,18 +190,133 @@ import lorin1Img from '../assets/lorin1.png';
     }
 
     @media (max-width: 600px) {
-        .character-section {
-            flex-direction: column;
-            align-items: center;
-        }
-        .comic-bubble::before, .comic-bubble::after {
-            /* Поворачиваем хвостик вверх для мобилок */
-            left: 50%;
-            top: -24px;
-            transform: translateX(-50%) rotate(90deg);
-        }
-        .lorin-wrapper {
-            margin-bottom: 1rem;
-        }
+        /* Можно добавить стили для мобильных устройств, если нужно */
+    }
+
+    /* Стили модального окна */
+    .modal {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        display: flex; justify-content: center; align-items: center;
+        z-index: 2000;
+        opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        backdrop-filter: blur(5px);
+    }
+    .modal.active { opacity: 1; pointer-events: auto; }
+    
+    .modal-content {
+        background: #151515;
+        border: 2px solid var(--accent-gold, #ffd700);
+        padding: 2rem;
+        border-radius: 15px;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        position: relative;
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+        display: flex; flex-direction: column; align-items: center;
+    }
+    
+    .modal-icon {
+        width: 120px; height: 120px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 3px solid #555;
+        margin-bottom: 1rem;
+        box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+    
+    .close-modal {
+        position: absolute; top: 10px; right: 15px;
+        font-size: 2rem; color: #aaa; cursor: pointer;
+        line-height: 1;
+    }
+    .close-modal:hover { color: #fff; }
+    
+    .modal-actions {
+        display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; width: 100%; align-items: center;
+    }
+    
+    .start-btn {
+        background: var(--accent-gold, #ffd700);
+        color: #000;
+        padding: 10px 30px;
+        border-radius: 30px;
+        font-weight: bold;
+        text-decoration: none;
+        font-size: 1.2rem;
+        transition: transform 0.2s;
+    }
+    .start-btn:hover { transform: scale(1.05); box-shadow: 0 0 15px var(--accent-gold, #ffd700); }
+    
+    .changelog-link {
+        color: var(--accent-gold, #ffd700);
+        text-decoration: none;
+        border-bottom: 1px dashed var(--accent-gold, #ffd700);
+        font-size: 0.9rem;
+    }
+    .changelog-link:hover { color: #fff; border-color: #fff; }
+    
+    #modal-desc {
+        color: #ccc;
+        line-height: 1.5;
+        margin-bottom: 1rem;
+    }
+    #modal-title {
+        color: #fff;
+        margin-bottom: 0.5rem;
     }
 </style>
+
+<script>
+    // Используем astro:page-load, чтобы скрипт работал при переходах между страницами
+    document.addEventListener('astro:page-load', () => {
+        const modal = document.getElementById('game-modal');
+        const modalImg = document.getElementById('modal-img') as HTMLImageElement;
+        const modalTitle = document.getElementById('modal-title');
+        const modalDesc = document.getElementById('modal-desc');
+        const startBtn = document.getElementById('modal-start-btn');
+        const changelogLink = document.getElementById('modal-changelog-link');
+        const closeBtn = document.querySelector('.close-modal');
+
+        if (!modal) return;
+
+        document.querySelectorAll('.game-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                const img = card.querySelector('.game-icon');
+                const src = img ? img.getAttribute('src') : '';
+                const title = card.getAttribute('data-title');
+                const desc = card.getAttribute('data-desc');
+                const gameUrl = card.getAttribute('data-game-url');
+                const changelogUrl = card.getAttribute('data-changelog-url');
+
+                if (modalImg && src) modalImg.src = src;
+                if (modalTitle && title) modalTitle.textContent = title;
+                if (modalDesc && desc) modalDesc.textContent = desc;
+                if (startBtn && gameUrl) startBtn.setAttribute('href', gameUrl);
+                if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
+
+                modal.classList.add('active');
+            });
+        });
+
+        const closeModal = () => {
+            modal.classList.remove('active');
+        };
+
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('active')) {
+                closeModal();
+            }
+        });
+    });
+</script>

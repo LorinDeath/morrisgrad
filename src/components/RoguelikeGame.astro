@@ -1,0 +1,2282 @@
+---
+---
+<div id="roguelike-wrapper" class="roguelike-wrapper">
+    <!-- Канвас с фиксированным внутренним разрешением 1920x1080 -->
+    <canvas id="roguelike-canvas" width="1920" height="1080"></canvas>
+    
+    <!-- Слой интерфейса (UI) -->
+    <div id="roguelike-ui" class="roguelike-ui">
+        <!-- Кнопка фуллскрина в левом верхнем углу -->
+        <button id="btn-fullscreen" class="ui-btn icon-btn" title="На весь экран">
+            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+        </button>
+        
+        <!-- HUD Игрока -->
+        <div class="player-hud">
+            <div class="floor-indicator">FLOOR <span id="floor-val">1</span></div>
+            <div class="bar-container">
+                <div class="bar-bg">
+                    <div id="hp-bar" class="bar-fill hp"></div>
+                </div>
+                <div class="bar-overlay-text"><span class="bar-icon">♥</span> <span id="hp-text">100/100</span></div>
+            </div>
+            <div class="bar-container">
+                <div class="bar-bg">
+                    <div id="stamina-bar" class="bar-fill stamina"></div>
+                </div>
+                <div class="bar-overlay-text"><span class="bar-icon">⚡</span></div>
+            </div>
+
+            <!-- Панель навыков -->
+            <div class="skills-panel">
+                <div class="skill-slot" id="skill-k">
+                    <div class="key-hint">K</div>
+                    <div class="skill-icon attack">⚔️</div>
+                    <div class="skill-level">Lvl 1</div>
+                    <div class="cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" id="skill-l">
+                    <div class="key-hint">L</div>
+                    <div class="skill-icon dash">💨</div>
+                    <div class="skill-level">Lvl 1</div>
+                    <div class="cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" id="skill-i">
+                    <div class="key-hint">I</div>
+                    <div class="skill-icon buff">🛡️</div>
+                    <div class="skill-level">Lvl 1</div>
+                    <div class="cooldown-overlay"></div>
+                </div>
+                <div class="skill-slot" id="skill-o">
+                    <div class="key-hint">O</div>
+                    <div class="skill-icon aoe">💥</div>
+                    <div class="skill-level">Lvl 1</div>
+                    <div class="cooldown-overlay"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Экран смерти -->
+        <div id="death-screen" class="death-screen hidden">
+            <h1>ВЫ ПОГИБЛИ</h1>
+            <p>Ваша душа растворилась в эфире...</p>
+            <div class="death-actions">
+                <button id="btn-restart" class="ui-btn">Начать заново</button>
+                <button id="btn-hub" class="ui-btn">В Хаб</button>
+            </div>
+        </div>
+
+        <!-- Всплывающие подсказки -->
+        <div id="interaction-prompt" class="interaction-prompt hidden">
+            <span class="key">F</span> <span id="prompt-text">Подобрать</span>
+        </div>
+
+        <!-- Книга знаний -->
+        <div id="info-book" class="info-book hidden">
+            <div class="book-container">
+                <div class="book-sidebar">
+                    <div class="book-tabs">
+                        <button class="tab active" data-tab="weapons">⚔️ Оружие</button>
+                        <button class="tab" data-tab="enemies">💀 Враги</button>
+                        <button class="tab" data-tab="skills">✨ Навыки</button>
+                    </div>
+                    <div id="book-list" class="book-list">
+                        <!-- JS populates this -->
+                    </div>
+                </div>
+                <div class="book-details">
+                    <div id="book-details-content" class="details-content">
+                        <div class="placeholder-text">Выберите элемент из списка</div>
+                    </div>
+                    <button id="close-book" class="ui-btn close-book-btn">ЗАКРЫТЬ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Обертка игры */
+    .roguelike-wrapper {
+        position: relative;
+        width: 100%;
+        /* Сохраняем пропорции 16:9 в обычном режиме, но не превышаем высоту экрана */
+        aspect-ratio: 16 / 9; 
+        max-height: 80vh; 
+        background-color: #050505;
+        overflow: hidden;
+        border: 1px solid #333;
+        border-radius: 12px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    /* Стили для полноэкранного режима */
+    .roguelike-wrapper:fullscreen {
+        width: 100vw;
+        height: 100vh;
+        max-height: none;
+        border: none;
+        border-radius: 0;
+        background-color: #000;
+    }
+
+    /* Канвас */
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        /* object-fit: contain гарантирует, что 1920x1080 впишется в любой экран без искажений */
+        object-fit: contain; 
+        image-rendering: pixelated; /* Для пиксель-арта, если нужно */
+    }
+
+    /* Слой UI поверх канваса */
+    .roguelike-ui {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Пропускаем клики сквозь пустые места */
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Кнопки UI */
+    .ui-btn {
+        pointer-events: auto;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #ccc;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        backdrop-filter: blur(4px);
+    }
+    .ui-btn:hover {
+        background: rgba(255, 215, 0, 0.2);
+        border-color: #ffd700;
+        color: #ffd700;
+        transform: scale(1.05);
+    }
+
+    #btn-fullscreen {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: 50px;
+        height: 50px;
+        z-index: 1000;
+    }
+    
+    .floor-indicator {
+        color: #ffd700; 
+        font-size: 1.5rem; 
+        font-weight: 900;
+        margin-bottom: 10px; 
+        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+
+    /* HUD */
+    .player-hud {
+        position: absolute;
+        top: 30px;
+        left: 90px; /* Отступ от кнопки фуллскрина */
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 320px;
+    }
+
+    .bar-container {
+        position: relative;
+        width: 100%;
+        height: 24px;
+        background: rgba(20, 20, 20, 0.9);
+        border: 1px solid #444;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+
+    .bar-bg {
+        width: 100%;
+        height: 100%;
+        position: relative;
+    }
+
+    .bar-fill {
+        height: 100%;
+        width: 100%;
+        transition: width 0.1s linear, background-color 0.2s;
+        box-shadow: inset 0 -2px 5px rgba(0,0,0,0.3), inset 0 2px 5px rgba(255,255,255,0.2);
+    }
+
+    .bar-fill.hp { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+    .bar-fill.hp.critical { background-color: #8b0000; } /* Темно-красный для отрицательного ХП */
+    .bar-fill.stamina { background: linear-gradient(90deg, #d35400, #f39c12); }
+
+    .bar-overlay-text {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        color: #fff;
+        font-size: 12px;
+        font-weight: bold;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        z-index: 2;
+        justify-content: space-between;
+    }
+    .bar-icon { margin-right: 5px; font-size: 14px; }
+
+    /* Skills Panel */
+    .skills-panel {
+        display: flex;
+        gap: 12px;
+        margin-top: 15px;
+    }
+    .skill-slot {
+        width: 64px; height: 64px;
+        background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+        border: 1px solid #555;
+        border-radius: 10px;
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        transition: transform 0.1s, border-color 0.2s;
+    }
+    .skill-slot.active { border-color: #ffd700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+    .key-hint {
+        position: absolute; top: 4px; left: 6px;
+        font-size: 11px; color: #888; font-weight: bold;
+    }
+    .skill-icon { font-size: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+    .skill-level {
+        position: absolute; bottom: 2px; right: 5px;
+        font-size: 10px; color: #ffd700; font-weight: bold;
+    }
+    .cooldown-overlay {
+        position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+        background: rgba(0, 0, 0, 0.8);
+        transition: height 0.1s linear;
+    }
+
+    .interaction-prompt {
+        position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 20px; border: 1px solid #ffd700; color: #fff; font-family: monospace;
+    }
+    .interaction-prompt.hidden { display: none; }
+    .interaction-prompt .key { color: #000; background: #ffd700; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 5px; }
+
+    /* Экран смерти */
+    .death-screen {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(20, 0, 0, 0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        pointer-events: auto;
+    }
+    .death-screen.hidden { display: none; }
+    
+    .death-screen h1 { color: #ff4444; font-size: 4rem; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 5px; }
+    .death-screen p { color: #aaa; font-size: 1.5rem; margin-bottom: 2rem; }
+    
+    .death-actions { display: flex; gap: 20px; }
+    .death-actions .ui-btn { padding: 15px 30px; font-size: 1.2rem; }
+    .death-actions .disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+    /* Книга */
+    .info-book {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.95); z-index: 1500;
+        display: flex; justify-content: center; align-items: center;
+        backdrop-filter: blur(5px);
+    }
+    .info-book.hidden { display: none; }
+    
+    .book-container {
+        width: 90%; height: 85%;
+        background: #111;
+        border: 1px solid #444;
+        box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        display: flex;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .book-sidebar {
+        width: 300px;
+        background: #0a0a0a;
+        border-right: 1px solid #333;
+        display: flex; flex-direction: column;
+    }
+
+    .book-tabs { display: flex; border-bottom: 1px solid #333; }
+    .book-tabs .tab { 
+        flex: 1; background: #151515; border: none; color: #666; 
+        padding: 15px 0; cursor: pointer; font-weight: bold; transition: all 0.2s;
+        border-bottom: 2px solid transparent;
+    }
+    .book-tabs .tab:hover { color: #ccc; background: #222; }
+    .book-tabs .tab.active { color: #ffd700; background: #0a0a0a; border-bottom-color: #ffd700; }
+
+    .book-list { flex: 1; overflow-y: auto; padding: 10px; }
+    .book-list-item {
+        padding: 10px; margin-bottom: 5px; background: #1a1a1a; border-radius: 4px;
+        cursor: pointer; display: flex; align-items: center; gap: 10px; border: 1px solid transparent;
+    }
+    .book-list-item:hover { background: #252525; border-color: #444; }
+    .book-list-item.active { background: #2a2a2a; border-color: #ffd700; }
+    .book-list-item.locked { opacity: 0.5; filter: grayscale(1); }
+
+    .book-details { flex: 1; padding: 40px; display: flex; flex-direction: column; position: relative; background: radial-gradient(circle at top right, #1a1a1a, #0e0e0e); }
+    .details-content { flex: 1; overflow-y: auto; }
+    .details-header { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 20px; }
+    .details-icon { width: 80px; height: 80px; background: #222; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 40px; border: 2px solid #444; }
+    .details-title h2 { margin: 0; color: #ffd700; font-size: 2rem; }
+    .details-title .subtitle { color: #666; font-family: monospace; }
+    .details-body { color: #ccc; line-height: 1.6; font-size: 1.1rem; }
+    .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+    .stat-label { color: #888; }
+    .stat-val { color: #fff; font-weight: bold; font-family: monospace; }
+    
+    .close-book-btn { position: absolute; bottom: 20px; right: 20px; padding: 10px 30px; background: #333; border: 1px solid #555; color: #fff; }
+    .close-book-btn:hover { background: #444; border-color: #fff; }
+    .placeholder-text { color: #444; text-align: center; margin-top: 100px; font-size: 1.5rem; }
+</style>
+
+<script>
+    let animationFrameId: number | null = null;
+    let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+    let keyupHandler: ((e: KeyboardEvent) => void) | null = null;
+    let isMouseOver = false;
+    
+    // Camera & View
+    let currentZoom = 1;
+    let cameraX = 1920 / 2;
+    let cameraY = 1080 / 2;
+    
+    // Offscreen canvas for Fog of War
+    let fogCanvas: HTMLCanvasElement | null = null;
+    let fogCtx: CanvasRenderingContext2D | null = null;
+
+    document.addEventListener('astro:page-load', () => {
+        const wrapper = document.getElementById('roguelike-wrapper');
+        const canvas = document.getElementById('roguelike-canvas') as HTMLCanvasElement;
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        
+        // UI Elements
+        const hpBar = document.getElementById('hp-bar');
+        const hpText = document.getElementById('hp-text');
+        const staminaBar = document.getElementById('stamina-bar');
+        const deathScreen = document.getElementById('death-screen');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnHub = document.getElementById('btn-hub');
+        const prompt = document.getElementById('interaction-prompt');
+        const promptText = document.getElementById('prompt-text');
+
+        if (!wrapper || !canvas) return;
+
+        const ctx = canvas.getContext('2d')!;
+        if (!ctx) return;
+
+        // Initialize Fog Canvas
+        fogCanvas = document.createElement('canvas');
+        fogCanvas.width = 1920;
+        fogCanvas.height = 1080;
+        fogCtx = fogCanvas.getContext('2d');
+
+        // Отслеживаем мышь для блокировки прокрутки
+        wrapper.addEventListener('mouseenter', () => isMouseOver = true);
+        wrapper.addEventListener('mouseleave', () => isMouseOver = false);
+
+        // --- DATA DEFINITIONS ---
+        const WEAPONS = [
+            { id: 'sword', name: 'Меч Забвения', color: '#ccc', range: 80, speed: 1.0, dmg: 12, desc: 'Сбалансированное оружие. Идеально для новичков.', lore: 'Выковано в кузницах забытого города.', skills: ['slash', 'dash', 'parry', 'spin'] },
+            { id: 'axe', name: 'Топор Палача', color: '#8b4513', range: 70, speed: 0.7, dmg: 20, desc: 'Медленный, но вызывает кровотечение.', lore: 'Этим топором вершили правосудие.', skills: ['chop', 'leap', 'rage', 'cleave'] },
+            { id: 'spear', name: 'Копье Судьбы', color: '#aaa', range: 130, speed: 1.1, dmg: 10, desc: 'Держит врагов на дистанции. Пробивает броню.', lore: 'Говорят, оно никогда не промахивается.', skills: ['thrust', 'vault', 'focus', 'pierce'] },
+            { id: 'dagger', name: 'Кинжал Тени', color: '#555', range: 50, speed: 1.6, dmg: 7, desc: 'Критические удары и яд.', lore: 'Любимое оружие ассасинов гильдии.', skills: ['stab', 'blink', 'poison_coat', 'fan_knives'] },
+            { id: 'hammer', name: 'Молот Титана', color: '#444', range: 60, speed: 0.5, dmg: 25, desc: 'Оглушает врагов. Очень медленный.', lore: 'Тяжесть этого молота способна расколоть землю.', skills: ['smash', 'charge', 'stone_skin', 'earthquake'] },
+            { id: 'katana', name: 'Катана Ветра', color: '#fff', range: 90, speed: 1.4, dmg: 11, desc: 'Невероятная скорость и рывки.', lore: 'Лезвие, острое как сам ветер.', skills: ['cut', 'dash_cut', 'meditation', 'wind_slash'] },
+            { id: 'mace', name: 'Булава Хаоса', color: '#666', range: 65, speed: 0.8, dmg: 16, desc: 'Игнорирует защиту. Оглушает.', lore: 'Несет в себе нестабильную энергию.', skills: ['bash', 'roll', 'holy_light', 'smite'] },
+            { id: 'scythe', name: 'Коса Жнеца', color: '#222', range: 110, speed: 0.8, dmg: 18, desc: 'Вампиризм и урон по площади.', lore: 'Холодная сталь, жаждущая душ.', skills: ['reap', 'glide', 'soul_harvest', 'death_circle'] },
+            { id: 'rapier', name: 'Рапира Дуэлянта', color: '#ddd', range: 85, speed: 1.5, dmg: 9, desc: 'Контратаки и уклонение.', lore: 'Оружие для тех, кто ценит точность.', skills: ['poke', 'lunge', 'riposte', 'flurry'] },
+            { id: 'fists', name: 'Кулаки Ярости', color: '#d2b48c', range: 40, speed: 2.0, dmg: 6, desc: 'Серии ударов и отбрасывание.', lore: 'Твое тело - твое лучшее оружие.', skills: ['punch', 'uppercut', 'inner_fire', 'shockwave'] }
+        ];
+
+        const SKILLS = [
+            // Sword
+            { id: 'slash', type: 'K', name: 'Удар', cost: 10, cd: 0.5, effect: 'melee', range: 1.0, dmgMult: 1.0, desc: 'Базовый удар.' },
+            { id: 'dash', type: 'L', name: 'Рывок', cost: 15, cd: 1.5, effect: 'dash', dist: 250, desc: 'Рывок вперед (неуязвимость).' },
+            { id: 'parry', type: 'I', name: 'Парирование', cost: 20, cd: 4.0, effect: 'buff_parry', dur: 1.5, desc: 'Отражает урон и оглушает.' },
+            { id: 'spin', type: 'O', name: 'Вихрь', cost: 40, cd: 5.0, effect: 'aoe_circle', rad: 120, dmgMult: 1.5, knockback: 50, desc: 'Круговая атака с отбрасыванием.' },
+
+            // Axe
+            { id: 'chop', type: 'K', name: 'Рубящий удар', cost: 15, cd: 0.9, effect: 'melee', range: 1.0, dmgMult: 1.3, status: {type:'bleed', val:3, timer:3}, desc: 'Вызывает кровотечение.' },
+            { id: 'leap', type: 'L', name: 'Прыжок', cost: 30, cd: 3.0, effect: 'dash_dmg', dist: 300, dmgMult: 2.0, desc: 'Мощный прыжок с ударом.' },
+            { id: 'rage', type: 'I', name: 'Ярость', cost: 40, cd: 12.0, effect: 'buff_dmg', dur: 6.0, val: 2.0, desc: 'Удваивает урон, но снижает защиту.' },
+            { id: 'cleave', type: 'O', name: 'Рассечение', cost: 35, cd: 4.0, effect: 'aoe_cone', rad: 180, dmgMult: 1.2, knockback: 30, desc: 'Широкий удар перед собой.' },
+
+            // Spear
+            { id: 'thrust', type: 'K', name: 'Выпад', cost: 8, cd: 0.4, effect: 'melee', range: 1.5, dmgMult: 0.9, desc: 'Дальний выпад.' },
+            { id: 'vault', type: 'L', name: 'Отскок', cost: 15, cd: 2.0, effect: 'dash', dist: -200, desc: 'Отскок назад.' },
+            { id: 'focus', type: 'I', name: 'Фокус', cost: 20, cd: 8.0, effect: 'buff_crit', dur: 4.0, desc: 'Следующие удары критические.' },
+            { id: 'pierce', type: 'O', name: 'Пронзание', cost: 35, cd: 5.0, effect: 'projectile', dist: 500, dmgMult: 2.0, color: '#aaa', speed: 900, pierce: true, desc: 'Копье пробивает врагов насквозь.' },
+
+            // Dagger
+            { id: 'stab', type: 'K', name: 'Укол', cost: 5, cd: 0.2, effect: 'melee', range: 0.7, dmgMult: 0.8, desc: 'Молниеносный удар.' },
+            { id: 'blink', type: 'L', name: 'Блинк', cost: 25, cd: 3.0, effect: 'teleport', dist: 300, desc: 'Телепорт за спину врага.' },
+            { id: 'poison_coat', type: 'I', name: 'Яд', cost: 25, cd: 10.0, effect: 'buff_poison', dur: 5.0, val: 5, desc: 'Оружие отравляет врагов.' },
+            { id: 'fan_knives', type: 'O', name: 'Веер клинков', cost: 40, cd: 6.0, effect: 'aoe_circle', rad: 150, dmgMult: 0.5, status: {type:'bleed', val:2, timer:3}, desc: 'Кровотечение по площади.' },
+
+            // Hammer
+            { id: 'smash', type: 'K', name: 'Сокрушение', cost: 25, cd: 1.5, effect: 'melee', range: 1.0, dmgMult: 1.8, knockback: 40, desc: 'Мощный удар с отбрасыванием.' },
+            { id: 'charge', type: 'L', name: 'Таран', cost: 30, cd: 4.0, effect: 'dash_dmg', dist: 250, dmgMult: 1.5, status: {type:'stun', timer:1.0}, desc: 'Сбивает врагов с ног.' },
+            { id: 'stone_skin', type: 'I', name: 'Каменная кожа', cost: 40, cd: 15.0, effect: 'buff_def', dur: 8.0, val: 0.8, desc: 'Снижает урон на 80%.' },
+            { id: 'earthquake', type: 'O', name: 'Землетрясение', cost: 60, cd: 8.0, effect: 'aoe_circle', rad: 200, dmgMult: 1.0, status: {type:'stun', timer:2.0}, desc: 'Массовое оглушение.' },
+
+            // Katana
+            { id: 'cut', type: 'K', name: 'Разрез', cost: 10, cd: 0.3, effect: 'melee', range: 1.2, dmgMult: 1.0, desc: 'Быстрый разрез.' },
+            { id: 'dash_cut', type: 'L', name: 'Мгновенный разрез', cost: 20, cd: 2.0, effect: 'dash_dmg', dist: 300, dmgMult: 1.5, desc: 'Проходит сквозь врагов.' },
+            { id: 'meditation', type: 'I', name: 'Медитация', cost: 0, cd: 20.0, effect: 'heal', val: 30, desc: 'Концентрация духа (лечение).' },
+            { id: 'wind_slash', type: 'O', name: 'Ветряной шрам', cost: 35, cd: 4.0, effect: 'projectile', dist: 600, dmgMult: 1.5, color: '#fff', speed: 1200, pierce: true, desc: 'Дальнобойная волна.' },
+
+            // Mace
+            { id: 'bash', type: 'K', name: 'Удар булавой', cost: 15, cd: 0.8, effect: 'melee', range: 1.0, dmgMult: 1.2, ignoreDef: true, desc: 'Игнорирует броню.' },
+            { id: 'roll', type: 'L', name: 'Кувырок', cost: 15, cd: 1.0, effect: 'dash', dist: 150, desc: 'Короткое уклонение.' },
+            { id: 'holy_light', type: 'I', name: 'Свет', cost: 50, cd: 25.0, effect: 'heal', val: 40, desc: 'Мощное исцеление.' },
+            { id: 'smite', type: 'O', name: 'Кара', cost: 40, cd: 6.0, effect: 'aoe_circle', rad: 150, dmgMult: 2.0, status: {type:'stun', timer:1.5}, desc: 'Святой взрыв с оглушением.' },
+
+            // Scythe
+            { id: 'reap', type: 'K', name: 'Жатва', cost: 20, cd: 1.0, effect: 'melee', range: 1.4, dmgMult: 1.1, lifesteal: 0.1, desc: 'Восстанавливает здоровье при ударе.' },
+            { id: 'glide', type: 'L', name: 'Скольжение', cost: 20, cd: 2.0, effect: 'dash', dist: 250, desc: 'Призрачный рывок.' },
+            { id: 'soul_harvest', type: 'I', name: 'Сбор душ', cost: 40, cd: 15.0, effect: 'buff_lifesteal', dur: 6.0, val: 0.3, desc: '30% вампиризма на время.' },
+            { id: 'death_circle', type: 'O', name: 'Круг смерти', cost: 60, cd: 8.0, effect: 'aoe_circle', rad: 200, dmgMult: 1.5, status: {type:'bleed', val:5, timer:5}, desc: 'Массовое кровотечение.' },
+
+            // Rapier
+            { id: 'poke', type: 'K', name: 'Тычок', cost: 5, cd: 0.25, effect: 'melee', range: 1.3, dmgMult: 0.9, critChance: 0.3, desc: 'Высокий шанс крита.' },
+            { id: 'lunge', type: 'L', name: 'Выпад', cost: 15, cd: 1.5, effect: 'dash_dmg', dist: 200, dmgMult: 1.2, desc: 'Точный выпад.' },
+            { id: 'riposte', type: 'I', name: 'Рипост', cost: 20, cd: 5.0, effect: 'buff_parry', dur: 1.0, desc: 'Мгновенная контратака при блоке.' },
+            { id: 'flurry', type: 'O', name: 'Шквал', cost: 35, cd: 3.0, effect: 'melee_multi', count: 5, range: 1.2, dmgMult: 0.4, desc: '5 быстрых ударов подряд.' },
+
+            // Fists
+            { id: 'punch', type: 'K', name: 'Удар', cost: 5, cd: 0.2, effect: 'melee', range: 0.6, dmgMult: 0.7, knockback: 10, desc: 'Быстрые удары.' },
+            { id: 'uppercut', type: 'L', name: 'Апперкот', cost: 20, cd: 2.0, effect: 'dash_dmg', dist: 100, dmgMult: 1.5, knockback: 50, desc: 'Подбрасывает врага.' },
+            { id: 'inner_fire', type: 'I', name: 'Внутренний огонь', cost: 30, cd: 10.0, effect: 'buff_spd', dur: 5.0, val: 1.5, desc: 'Ускорение атаки и бега.' },
+            { id: 'shockwave', type: 'O', name: 'Ударная волна', cost: 45, cd: 5.0, effect: 'aoe_cone', rad: 200, dmgMult: 1.2, knockback: 100, desc: 'Мощное отбрасывание.' },
+            
+            // Enemy Skills
+            { id: 'fireball', type: 'K', name: 'Огненный шар', cost: 15, cd: 0.8, effect: 'projectile', dist: 400, dmgMult: 1.2, color: '#ff4500', speed: 600, desc: 'Сгусток пламени, летящий во врага.' },
+            { id: 'ice_shard', type: 'K', name: 'Ледяной осколок', cost: 10, cd: 0.4, effect: 'projectile', dist: 500, dmgMult: 0.8, color: '#00ffff', speed: 800, desc: 'Быстрый ледяной снаряд.' },
+            { id: 'void_bolt', type: 'K', name: 'Стрела Пустоты', cost: 25, cd: 1.2, effect: 'projectile', dist: 600, dmgMult: 1.5, color: '#800080', speed: 500, desc: 'Снаряд из чистой темной энергии.' }
+        ];
+
+        const ENEMIES = [
+            { id: 'grunt', name: 'Падший Воин', shape: 'square', color: '#ef4444', hp: 30, spd: 200, behavior: 'chase', lore: 'Бывшие защитники замка, сошедшие с ума.' },
+            { id: 'dasher', name: 'Тень', shape: 'triangle', color: '#eab308', hp: 20, spd: 350, behavior: 'dash_hit', lore: 'Быстрые и смертоносные убийцы из темноты.' },
+            { id: 'tank', name: 'Голем', shape: 'pentagon', color: '#3b82f6', hp: 80, spd: 100, behavior: 'slow_aoe', lore: 'Магическая конструкция, созданная для охраны.' },
+            { id: 'shooter', name: 'Скелет-лучник', shape: 'star', color: '#a855f7', hp: 25, spd: 180, behavior: 'range', lore: 'Останки лучников, поднятые некромантией.' },
+            { id: 'mage', name: 'Культист', shape: 'diamond', color: '#ec4899', hp: 40, spd: 150, behavior: 'zone', lore: 'Поклонники темных богов, владеющие магией.' }
+        ];
+
+        // --- GAME STATE ---
+        type GameState = 'HUB' | 'PLAYING' | 'GAMEOVER' | 'PAUSE';
+        let currentState: GameState = 'HUB';
+        let floor = 1;
+        
+        const keys: { [key: string]: boolean } = {};
+        
+        interface Entity {
+            id: number;
+            x: number; y: number; w: number; h: number;
+            color: string;
+            dead: boolean;
+            type: 'player' | 'enemy' | 'weapon_drop' | 'projectile' | 'vfx' | 'wall' | 'door' | 'trap' | 'secret_wall' | 'decor';
+            data?: any;
+        }
+
+        interface Actor extends Entity {
+            hp: number; maxHp: number;
+            speed: number;
+            angle: number;
+            attackCooldown: number;
+            isAttacking: boolean;
+            attackTimer: number;
+            weapon: typeof WEAPONS[0];
+            skills: { [key: string]: any }; // Active skills
+            buffs: { type: string, timer: number }[];
+            currentSkill?: any; // Skill currently being used
+            hitFlash: number; // Timer for white flash on hit
+            level: number; // Level for scaling
+            statuses: { type: 'burn' | 'bleed' | 'poison' | 'stun' | 'freeze', timer: number, val?: number }[];
+        }
+
+        interface Player extends Actor {
+            stamina: number; maxStamina: number;
+            isDodging: boolean;
+            isParrying: boolean;
+            xpHistory: { skillId: string, time: number }[];
+            skillLevels: { [key: string]: number }; // Skill ID -> Level
+        }
+
+        let player: Player = {
+            id: 0,
+            x: 1920 / 2, y: 1080 / 2, w: 60, h: 60,
+            color: '#3b82f6',
+            dead: false,
+            type: 'player',
+            hp: 100, maxHp: 100,
+            stamina: 100, maxStamina: 100,
+            speed: 400,
+            level: 1,
+            angle: 0,
+            attackCooldown: 0,
+            isAttacking: false,
+            attackTimer: 0,
+            weapon: WEAPONS[9], // Fists default
+            skills: {
+                'K': SKILLS.find(s => s.id === 'punch'),
+                'L': SKILLS.find(s => s.id === 'dash_punch'),
+                'I': SKILLS.find(s => s.id === 'inner_fire'),
+                'O': SKILLS.find(s => s.id === 'shockwave')
+            },
+            buffs: [],
+            isDodging: false,
+            hitFlash: 0,
+            isParrying: false,
+            xpHistory: [],
+            skillLevels: {},
+            statuses: []
+        };
+
+        // Init skill levels
+        SKILLS.forEach(s => player.skillLevels[s.id] = 1);
+
+        let entities: Entity[] = [];
+        let discovered: Set<string> = new Set(); // Bestiary progress
+        let damageNumbers: {x: number, y: number, text: string, color: string, life: number, vy: number}[] = [];
+        let screenShake = 0;
+        
+        let rooms: { x: number, y: number, w: number, h: number, cleared: boolean, spawned: boolean, visited: boolean, isBoss?: boolean }[] = [];
+        let corridors: { x: number, y: number, w: number, h: number }[] = [];
+        let currentRoomIndex = -1;
+
+        // Textures
+        let floorPattern: CanvasPattern | null = null;
+        let wallPattern: CanvasPattern | null = null;
+        let secretWallPattern: CanvasPattern | null = null;
+
+        let lastTime = performance.now();
+        const META_KEY = 'roguelike_meta_v1';
+
+        function loadMeta() {
+            const raw = localStorage.getItem(META_KEY);
+            if (raw) {
+                try {
+                    const data = JSON.parse(raw);
+                    if (data.discovered) data.discovered.forEach((id: string) => discovered.add(id));
+                } catch (e) { console.error(e); }
+            }
+        }
+
+        function saveMeta() {
+            localStorage.setItem(META_KEY, JSON.stringify({ discovered: Array.from(discovered) }));
+        }
+
+        // Helper for collision
+        function isValidPos(x: number, y: number): boolean {
+            // Check rooms
+            for (const r of rooms) {
+                if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return true;
+            }
+            // Check corridors
+            for (const c of corridors) {
+                if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) return true;
+            }
+            return false;
+        }
+
+        // Check overlap between two rects
+        function checkOverlap(r1: {x: number, y: number, w: number, h: number}, r2: {x: number, y: number, w: number, h: number}, padding: number = 0): boolean {
+            return (r1.x - padding < r2.x + r2.w &&
+                    r1.x + r1.w + padding > r2.x &&
+                    r1.y - padding < r2.y + r2.h &&
+                    r1.y + r1.h + padding > r2.y);
+        }
+        
+        function enterRoom(idx: number) {
+            if (idx < 0 || idx >= rooms.length) return;
+            currentRoomIndex = idx;
+            const r = rooms[idx];
+            spawnRoomEnemies(r);
+            r.visited = true;
+        }
+
+        // --- TEXTURE GENERATION ---
+        function generateTextures() {
+            // 1. Floor Pattern (Stone Tiles)
+            const fCanvas = document.createElement('canvas');
+            fCanvas.width = 64; fCanvas.height = 64;
+            const fCtx = fCanvas.getContext('2d')!;
+            
+            // Base
+            fCtx.fillStyle = '#222';
+            fCtx.fillRect(0, 0, 64, 64);
+            
+            // Tiles
+            fCtx.fillStyle = '#2a2a2a';
+            fCtx.fillRect(1, 1, 30, 30);
+            fCtx.fillRect(33, 1, 30, 30);
+            fCtx.fillRect(1, 33, 30, 30);
+            fCtx.fillRect(33, 33, 30, 30);
+            
+            // Noise/Grit
+            for(let i=0; i<20; i++) {
+                fCtx.fillStyle = Math.random() > 0.5 ? '#333' : '#1a1a1a';
+                fCtx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
+            }
+
+            floorPattern = ctx.createPattern(fCanvas, 'repeat');
+
+            // 2. Wall Pattern
+            const wCanvas = document.createElement('canvas');
+            wCanvas.width = 32; wCanvas.height = 32;
+            const wCtx = wCanvas.getContext('2d')!;
+            wCtx.fillStyle = '#111'; wCtx.fillRect(0,0,32,32);
+            wCtx.strokeStyle = '#333'; wCtx.lineWidth = 2;
+            wCtx.strokeRect(0,0,32,32);
+            wallPattern = ctx.createPattern(wCanvas, 'repeat');
+
+            // 3. Secret Wall Pattern (Cracked)
+            const sCanvas = document.createElement('canvas');
+            sCanvas.width = 32; sCanvas.height = 32;
+            const sCtx = sCanvas.getContext('2d')!;
+            sCtx.fillStyle = '#151515'; sCtx.fillRect(0,0,32,32);
+            sCtx.strokeStyle = '#222'; sCtx.lineWidth = 1;
+            sCtx.beginPath(); sCtx.moveTo(5,5); sCtx.lineTo(15,15); sCtx.lineTo(10,25); sCtx.stroke();
+            secretWallPattern = ctx.createPattern(sCanvas, 'repeat');
+        }
+
+        // --- GENERATION ---
+
+        function generateHub() {
+            entities = [];
+            rooms = [{ x: 0, y: 0, w: 2000, h: 1500, cleared: true, spawned: true, visited: true }];
+            corridors = [];
+            currentRoomIndex = 0;
+            
+            player.x = 1000;
+            player.y = 1200;
+            player.hp = player.maxHp;
+            player.dead = false;
+            currentState = 'HUB';
+            floor = 1;
+
+            // Spawn Weapons
+            for(let i=0; i<8; i++) {
+                const w = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
+                entities.push({
+                    id: Math.random(),
+                    x: 400 + (i % 4) * 400,
+                    y: 400 + Math.floor(i / 4) * 300,
+                    w: 40, h: 40,
+                    color: w.color,
+                    dead: false,
+                    type: 'weapon_drop',
+                    data: w // Custom prop
+                } as any);
+            }
+
+            // Door to dungeon
+            entities.push({
+                id: Math.random(),
+                x: 1000, y: 100, w: 200, h: 50,
+                color: '#fff', dead: false, type: 'door',
+                target: 'dungeon'
+            } as any);
+
+            // Book
+            entities.push({
+                id: Math.random(),
+                x: 1800, y: 800, w: 60, h: 80,
+                color: '#ffd700', dead: false, type: 'door', // Reuse door logic for interaction
+                target: 'book'
+            } as any);
+        }
+
+        function generateDungeon() {
+            entities = [];
+            rooms = [];
+            corridors = [];
+            currentState = 'PLAYING';
+            
+            // Improved Generation: Random placement with overlap check
+            const roomCount = 8 + Math.floor(Math.random() * 4);
+            const mapRadius = 3000; // Area to spawn
+            
+            // 1. Place Rooms
+            for(let i=0; i<roomCount + 10; i++) { // Try more times than needed
+                if (rooms.length >= roomCount) break;
+
+                const w = Math.floor(800 + Math.random() * 800);
+                const h = Math.floor(800 + Math.random() * 800);
+                
+                // Random pos in circle
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * mapRadius;
+                const x = Math.floor(Math.cos(angle) * dist);
+                const y = Math.floor(Math.sin(angle) * dist);
+                
+                const newRoom = { x, y, w, h, cleared: false, spawned: false, visited: false };
+                
+                // Check overlap
+                let overlap = false;
+                for(const r of rooms) {
+                    if (checkOverlap(newRoom, r, 100)) { // 100px padding
+                        overlap = true;
+                        break;
+                    }
+                }
+                
+                if (!overlap) {
+                    rooms.push(newRoom);
+                }
+            }
+
+            // 2. Connect Rooms (Linear chain for simplicity, but using L-corridors)
+            // Sort rooms by distance to make cleaner paths? No, random is fine for chaos.
+            // Let's just link 0->1->2...
+            for(let i=0; i<rooms.length - 1; i++) {
+                const r1 = rooms[i];
+                const r2 = rooms[i+1];
+                
+                const c1 = { x: r1.x + r1.w/2, y: r1.y + r1.h/2 };
+                const c2 = { x: r2.x + r2.w/2, y: r2.y + r2.h/2 };
+                
+                // Create L-shape corridor
+                const w = 150;
+                
+                // Horizontal segment
+                const xStart = Math.min(c1.x, c2.x) - w/2;
+                const xEnd = Math.max(c1.x, c2.x) + w/2;
+                corridors.push({
+                    x: xStart,
+                    y: c1.y - w/2,
+                    w: xEnd - xStart,
+                    h: w
+                });
+                
+                // Vertical segment
+                const yStart = Math.min(c1.y, c2.y) - w/2;
+                const yEnd = Math.max(c1.y, c2.y) + w/2;
+                corridors.push({
+                    x: c2.x - w/2,
+                    y: yStart,
+                    w: w,
+                    h: yEnd - yStart
+                });
+            }
+
+            // 3. Generate Secret Rooms
+            // Try to find a spot near a corridor that doesn't overlap with rooms
+            for(let i=0; i<2; i++) {
+                const baseRoom = rooms[Math.floor(Math.random() * rooms.length)];
+                // Try to place a secret room adjacent
+                const sx = baseRoom.x + baseRoom.w + 20; // Right side
+                const sy = baseRoom.y + baseRoom.h / 2 - 100;
+                const sw = 200; const sh = 200;
+                
+                // Add Secret Wall Entity
+                entities.push({
+                    id: Math.random(),
+                    x: baseRoom.x + baseRoom.w, y: baseRoom.y + baseRoom.h/2 - 40,
+                    w: 20, h: 80,
+                    color: '#333', dead: false, type: 'secret_wall',
+                    data: { hp: 30 }
+                } as any);
+
+                // Add the secret room to rooms list so it renders, but mark as secret
+                // Actually, just add it as a room but don't connect it with corridor
+                rooms.push({ x: sx, y: sy, w: sw, h: sh, cleared: true, spawned: false, visited: false });
+            }
+
+            // Boss Room (Last one)
+            if (rooms.length > 0) {
+                rooms[rooms.length - 1].isBoss = true;
+                rooms[rooms.length - 1].w += 400;
+                rooms[rooms.length - 1].h += 400;
+            }
+
+            // Place player in first room
+            currentRoomIndex = 0;
+            player.x = rooms[0].x + rooms[0].w / 2;
+            player.y = rooms[0].y + rooms[0].h - 150;
+            enterRoom(0);
+        }
+
+        function spawnRoomEnemies(r: any) {
+            if (!r.cleared && !r.spawned) {
+                const count = r.isBoss ? 1 : 2 + Math.floor(floor * 0.5) + Math.floor(Math.random() * 2);
+                
+                // Spawn Loot (1-2 items per room)
+                const lootCount = 1 + Math.floor(Math.random() * 2);
+                for(let i=0; i<lootCount; i++) {
+                    const w = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
+                    entities.push({
+                        id: Math.random(),
+                        x: r.x + 50 + Math.random() * (r.w - 100),
+                        y: r.y + 50 + Math.random() * (r.h - 100),
+                        w: 40, h: 40, color: w.color, dead: false, type: 'weapon_drop',
+                        data: w
+                    } as any);
+                }
+                
+                // Spawn Traps (More traps on higher floors)
+                const trapCount = Math.floor(Math.random() * 3) + floor;
+                for(let i=0; i<trapCount; i++) {
+                    const isSpike = Math.random() > 0.3;
+                    entities.push({
+                        id: Math.random(),
+                        x: r.x + 100 + Math.random() * (r.w - 200),
+                        y: r.y + 100 + Math.random() * (r.h - 200),
+                        w: 50, h: 50,
+                        color: isSpike ? '#555' : '#a00',
+                        dead: false,
+                        type: 'trap',
+                        data: { 
+                            subtype: isSpike ? 'spikes' : 'mine',
+                            timer: Math.random() * 2, // Offset
+                            state: 'idle' 
+                        }
+                    } as any);
+                }
+
+                // Decor (Torches)
+                entities.push({
+                    id: Math.random(),
+                    x: r.x + 20, y: r.y + r.h/2,
+                    w: 10, h: 10,
+                    color: '#fa0', dead: false, type: 'decor',
+                    data: { subtype: 'torch' }
+                } as any);
+
+                for(let i=0; i<count; i++) {
+                    if ((r as any).isBoss) {
+                        spawnEnemy(r.x + r.w/2, r.y + r.h/2, true);
+                    } else {
+                        spawnEnemy(
+                            r.x + 100 + Math.random() * (r.w - 200),
+                            r.y + 100 + Math.random() * (r.h - 200),
+                            false
+                        );
+                    }
+                }
+                r.spawned = true;
+            }
+        }
+        
+        function spawnEnemy(x: number, y: number, isBoss: boolean) {
+            const type = ENEMIES[Math.floor(Math.random() * ENEMIES.length)];
+            const weapon = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
+            
+            // Random skills (Give enemies projectiles or melee skills)
+            // Map weapon skills to enemy
+            const weaponSkills = weapon.skills.map(id => SKILLS.find(s => s.id === id)).filter(s => s);
+            
+            const skills = {
+                'K': weaponSkills.find(s => s.type === 'K') || weaponSkills[0],
+                'O': weaponSkills.find(s => s.type === 'O') || weaponSkills[3]
+            };
+
+            // Enemy Level scales with floor
+            const enemyLevel = floor + (isBoss ? 2 : 0);
+            
+            const hpMult = isBoss ? 10 + floor : 1 + (floor * 0.3);
+            const sizeMult = isBoss ? 3 : 1;
+
+            // Unlock in bestiary
+            discovered.add('enemy_' + type.id);
+            saveMeta();
+
+            entities.push({
+                id: Math.random(),
+                type: 'enemy',
+                x, y, w: 60 * sizeMult, h: 60 * sizeMult,
+                level: enemyLevel,
+                color: type.color,
+                dead: false,
+                hp: type.hp * hpMult, maxHp: type.hp * hpMult,
+                speed: type.spd * (isBoss ? 1.2 : 1) * (1 + floor * 0.05),
+                angle: 0,
+                attackCooldown: 0, isAttacking: false, attackTimer: 0,
+                weapon: weapon,
+                hitFlash: 0,
+                skills: skills,
+                buffs: [],
+                statuses: [],
+                data: { ...type, isBoss } // Store type data
+            } as any);
+        }
+
+        function initGame() {
+            generateTextures();
+            loadMeta();
+            generateHub();
+            deathScreen?.classList.add('hidden');
+            lastTime = performance.now();
+            currentZoom = 1;
+            // Мгновенно центрируем камеру на игроке при старте
+            cameraX = player.x;
+            cameraY = player.y;
+        }
+
+        // --- MAIN LOOP ---
+
+        function loop() {
+            const now = performance.now();
+            const dt = Math.min((now - lastTime) / 1000, 0.1); // Cap dt
+            lastTime = now;
+
+            if (currentState !== 'PAUSE') {
+                update(dt, now);
+            }
+            draw(now);
+
+            if (!player.dead) {
+                animationFrameId = requestAnimationFrame(loop);
+            }
+        }
+        
+        // --- UPDATE ---
+
+        function update(dt: number, now: number) {
+            if (player.dead) return;
+
+            // Interaction Prompt Check
+            let promptVisible = false;
+            const interactables = entities.filter(e => (e.type === 'weapon_drop' || e.type === 'door') && Math.hypot(e.x - player.x, e.y - player.y) < 100);
+            if (interactables.length > 0) {
+                const target = interactables[0];
+                promptVisible = true;
+                if (promptText) {
+                    if (target.type === 'weapon_drop') {
+                        const w = (target as any).data;
+                        // Show stats in prompt
+                        const skillsDesc = w.skills.map((id: string) => {
+                            const s = SKILLS.find(sk => sk.id === id);
+                            return s ? `<br><span style="font-size:0.7em; color:#ccc">${s.type}: ${s.name}</span>` : '';
+                        }).join('');
+                        promptText.innerHTML = `<span style="color:${w.color}">${w.name}</span> <span style="font-size:0.8em; color:#aaa">DMG:${w.dmg} SPD:${w.speed}</span>${skillsDesc}`;
+                    }
+                    else if ((target as any).target === 'dungeon') promptText.textContent = `Войти в Бездну`;
+                    else if ((target as any).target === 'book') promptText.textContent = `Открыть Книгу`;
+                    else if ((target as any).target === 'next_floor') promptText.textContent = `Следующий этаж`;
+                    else if ((target as any).target === 'teleport_next') promptText.textContent = `Следующая комната`;
+                }
+                
+                const secretWalls = entities.filter(e => e.type === 'secret_wall' && Math.hypot(e.x - player.x, e.y - player.y) < 60);
+                if (secretWalls.length > 0) {
+                    promptVisible = true;
+                    promptText.textContent = "Странная стена...";
+                }
+                
+                if (keys['KeyF']) {
+                    keys['KeyF'] = false; // One shot
+                    if (target.type === 'weapon_drop') {
+                        player.weapon = (target as any).data;
+                        target.dead = true; // Picked up
+                        
+                        // Unlock weapon
+                        discovered.add('weapon_' + player.weapon.id);
+                        saveMeta();
+                        
+                        // Assign skills from weapon
+                        player.skills = {
+                            'K': SKILLS.find(s => s.id === player.weapon.skills[0]),
+                            'L': SKILLS.find(s => s.id === player.weapon.skills[1]),
+                            'I': SKILLS.find(s => s.id === player.weapon.skills[2]),
+                            'O': SKILLS.find(s => s.id === player.weapon.skills[3])
+                        };
+                        
+                        // Unlock skills
+                        Object.values(player.skills).forEach(s => { if(s) {
+                            discovered.add('skill_' + s.id);
+                        }});
+                        saveMeta();
+                    } else if ((target as any).target === 'teleport_next') {
+                        // Teleport to next room
+                        enterRoom(currentRoomIndex + 1);
+                        const r = rooms[currentRoomIndex];
+                        player.x = r.x + r.w / 2;
+                        player.y = r.y + r.h - 150;
+                        target.dead = true; // Use door once
+                    } else if ((target as any).target === 'dungeon') {
+                        generateDungeon();
+                    } else if ((target as any).target === 'book') {
+                        // Open book UI
+                        document.getElementById('info-book')?.classList.remove('hidden');
+                        // Force refresh content
+                        const activeTab = document.querySelector('.book-tabs .tab.active') as HTMLElement;
+                        if (activeTab) activeTab.click();
+                        
+                        currentState = 'PAUSE';
+                    } else if ((target as any).target === 'next_floor') {
+                        floor++;
+                        generateDungeon();
+                    }
+                }
+            }
+            if (prompt) prompt.classList.toggle('hidden', !promptVisible);
+
+            // --- PLAYER LOGIC ---
+            
+            // Negative HP Logic (Bleeding Out)
+            if (player.hp < 0) {
+                // Восстановление к 0 (смерть)
+                // Скорость: 1 хп за 0.5 сек => 2 хп в сек
+                player.hp += 2 * dt;
+                
+                if (player.hp >= 0) {
+                    player.hp = 0;
+                    player.dead = true;
+                    deathScreen?.classList.remove('hidden');
+                    return;
+                }
+            } else if (player.hp < player.maxHp && player.hp > 0) {
+                // Normal regen? (Optional, not requested, but let's leave it out for now)
+            }
+
+            // Stamina Regen
+            if (!player.isDodging && player.stamina < player.maxStamina) {
+                player.stamina += 30 * dt;
+                if (player.stamina > player.maxStamina) player.stamina = player.maxStamina;
+            }
+
+            // Movement (WASD)
+            let dx = 0;
+            let dy = 0;
+            if (keys['KeyW']) dy -= 1;
+            if (keys['KeyS']) dy += 1;
+            if (keys['KeyA']) dx -= 1;
+            if (keys['KeyD']) dx += 1;
+
+            // Normalize vector
+            if (dx !== 0 || dy !== 0) {
+                const len = Math.hypot(dx, dy);
+                dx /= len;
+                dy /= len;
+                
+                // Update facing angle if moving
+                player.angle = Math.atan2(dy, dx);
+            }
+
+            // Dodge (Space)
+            if (keys['Space'] && !player.isDodging && player.dodgeCooldown <= 0 && player.stamina >= 30) {
+                player.isDodging = true;
+                player.isParrying = false; // Cancel parry on dodge
+                player.dodgeTimer = 0.3; // 300ms dodge
+                player.dodgeCooldown = 1.0;
+                player.stamina -= 30;
+            }
+
+            if (player.isDodging) {
+                player.dodgeTimer -= dt;
+                if (player.dodgeTimer <= 0) player.isDodging = false;
+                // Dodge movement (faster)
+                player.x += Math.cos(player.angle) * player.speed * 2 * dt;
+                player.y += Math.sin(player.angle) * player.speed * 2 * dt;
+            } else {
+                // Normal movement
+                player.x += dx * player.speed * dt;
+                player.y += dy * player.speed * dt;
+            }
+            
+            if (player.isParrying) {
+                player.parryTimer -= dt;
+                if (player.parryTimer <= 0) player.isParrying = false;
+            }
+
+            if (player.dodgeCooldown > 0) player.dodgeCooldown -= dt;
+
+            // Skills Input
+            ['K', 'L', 'I', 'O'].forEach(key => {
+                if (keys[`Key${key}`]) {
+                    useSkill(player, key as any, now);
+                }
+            });
+
+            // Room Bounds Collision
+            // Check if player is inside ANY room or corridor
+            if (currentState === 'PLAYING' || currentState === 'HUB') {
+                let inBounds = false;
+                let activeRoomIndex = -1;
+
+                // Check Rooms
+                for (let i = 0; i < rooms.length; i++) {
+                    const r = rooms[i];
+                    if (player.x >= r.x && player.x <= r.x + r.w &&
+                        player.y >= r.y && player.y <= r.y + r.h) {
+                        inBounds = true;
+                        activeRoomIndex = i;
+                        break;
+                    }
+                }
+
+                // Check Corridors
+                if (!inBounds) {
+                    for (const c of corridors) {
+                        if (player.x >= c.x && player.x <= c.x + c.w &&
+                            player.y >= c.y && player.y <= c.y + c.h) {
+                            inBounds = true;
+                            break;
+                        }
+                    }
+                    // Check Secret Rooms (added to rooms array)
+                    for (let i = 0; i < rooms.length; i++) {
+                        const c = rooms[i];
+                        if (player.x >= c.x && player.x <= c.x + c.w &&
+                            player.y >= c.y && player.y <= c.y + c.h) {
+                            inBounds = true;
+                            break;
+                        }
+                    }
+                }
+
+                // If inside a room, trigger spawn
+                if (activeRoomIndex !== -1) {
+                    spawnRoomEnemies(rooms[activeRoomIndex]);
+                    currentRoomIndex = activeRoomIndex;
+                    rooms[activeRoomIndex].visited = true;
+                }
+
+                // Simple wall collision (push back if not in bounds)
+                // This is a bit tricky with complex shapes. 
+                // Simplified: If moving into void, undo move.
+                // We do this by checking position AFTER move. If invalid, revert.
+                // Better: Check isValidPos
+                if (!isValidPos(player.x, player.y)) {
+                     // Revert
+                     player.x -= dx * player.speed * dt;
+                     player.y -= dy * player.speed * dt;
+                }
+                // Since we already moved, let's check validity.
+                if (!inBounds) {
+                    // Revert X
+                    player.x -= dx * player.speed * dt;
+                    // Check again
+                    let stillOut = true;
+                    // ... (Full AABB check is expensive here, let's just clamp to current room if we were in one)
+                    // Better approach: Clamp to the union of rects.
+                    // Fallback: Just push player towards center of current room if out
+                    if (currentRoomIndex !== -1) {
+                        const r = rooms[currentRoomIndex];
+                        player.x = Math.max(r.x + 30, Math.min(r.x + r.w - 30, player.x));
+                        player.y = Math.max(r.y + 30, Math.min(r.y + r.h - 30, player.y));
+                    }
+                }
+
+                // Secret Wall Collision
+                entities.forEach(e => {
+                    if (e.type === 'secret_wall' && !e.dead) {
+                        if (player.x > e.x - 30 && player.x < e.x + e.w + 30 && player.y > e.y - 30 && player.y < e.y + e.h + 30) {
+                            // Push back simple
+                            player.x -= dx * player.speed * dt;
+                            player.y -= dy * player.speed * dt;
+                        }
+                    }
+                });
+                
+                // Check clear condition for doors/boss
+                const r = rooms[currentRoomIndex];
+                if (r && r.spawned && !r.cleared) {
+                    const enemiesInRoom = entities.filter(e => e.type === 'enemy' && !e.dead && 
+                        e.x > r.x && e.x < r.x + r.w && e.y > r.y && e.y < r.y + r.h).length;
+                    
+                    if (enemiesInRoom === 0) {
+                        r.cleared = true;
+                        // Spawn door to next room/floor
+                    if (currentRoomIndex < rooms.length - 1 || r.isBoss) {
+                            spawnDoor();
+                        }
+                    }
+                }
+            }
+
+            if (player.isAttacking) {
+                player.attackTimer -= dt;
+                if (player.attackTimer <= 0) player.isAttacking = false;
+            }
+            if (player.attackCooldown > 0) player.attackCooldown -= dt;
+
+            // --- ENEMY LOGIC ---
+            // Process Status Effects
+            entities.forEach(e => {
+                if (e.type === 'enemy' && !e.dead) {
+                    const en = e as Actor;
+                    for (let i = en.statuses.length - 1; i >= 0; i--) {
+                        const s = en.statuses[i];
+                        s.timer -= dt;
+                        
+                        if (s.type === 'bleed' || s.type === 'poison' || s.type === 'burn') {
+                            // DoT tick
+                            en.hp -= (s.val || 1) * dt;
+                            if (en.hp <= 0) { en.dead = true; giveXP(10); }
+                        }
+                        
+                        if (s.timer <= 0) en.statuses.splice(i, 1);
+                    }
+                }
+            });
+
+            entities.forEach(e => {
+                if (e.type !== 'enemy' || e.dead) return;
+                const enemy = e as Actor;
+                const behavior = (enemy as any).data.behavior || 'chase';
+
+                const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                
+                // AI Behavior
+                // 1. Decide Action
+                
+                // Stun check
+                if (enemy.statuses.some(s => s.type === 'stun' || s.type === 'freeze')) return;
+
+                let action = 'chase';
+                const lowHp = enemy.hp < enemy.maxHp * 0.3;
+                
+                if (lowHp && !(enemy as any).data.isBoss) {
+                    action = 'flee';
+                } else if (behavior === 'range' || behavior === 'zone') {
+                    action = 'kite';
+                }
+
+                // 2. Execute Movement
+                if (dist < 1000) { // Aggro range
+                    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                    enemy.angle = angle;
+                    
+                    if (!enemy.isAttacking) {
+                        if (action === 'flee') {
+                            // Run away (check collision)
+                            const nextX = enemy.x - Math.cos(angle) * enemy.speed * 1.2 * dt;
+                            const nextY = enemy.y - Math.sin(angle) * enemy.speed * 1.2 * dt;
+                            if (isValidPos(nextX, nextY)) {
+                                enemy.x = nextX; enemy.y = nextY;
+                            }
+                        } else if (action === 'kite') {
+                            const preferredDist = 400;
+                            let moveX = 0, moveY = 0;
+                            if (dist < preferredDist - 50) {
+                                // Too close, back off
+                                moveX = -Math.cos(angle) * enemy.speed * dt;
+                                moveY = -Math.sin(angle) * enemy.speed * dt;
+                            } else if (dist > preferredDist + 50) {
+                                // Too far, chase
+                                moveX = Math.cos(angle) * enemy.speed * dt;
+                                moveY = Math.sin(angle) * enemy.speed * dt;
+                            }
+                            
+                            if (isValidPos(enemy.x + moveX, enemy.y + moveY)) {
+                                enemy.x += moveX; enemy.y += moveY;
+                            }
+                            // Strafe?
+                        } else {
+                            // Chase
+                            if (dist > enemy.weapon.range) {
+                                const nextX = enemy.x + Math.cos(angle) * enemy.speed * dt;
+                                const nextY = enemy.y + Math.sin(angle) * enemy.speed * dt;
+                                if (isValidPos(nextX, nextY)) {
+                                    enemy.x = nextX; enemy.y = nextY;
+                                }
+                            }
+                        }
+                    }
+
+                    // Attack
+                    // Use Skills if available
+                    if (enemy.attackCooldown <= 0) {
+                        // Chance to use skill if in range
+                        // AI Logic: If far, use projectile. If close, use melee/AoE.
+                        const skillK = enemy.skills['K'];
+                        const skillO = enemy.skills['O'];
+                        
+                        if (skillK && skillK.effect === 'projectile' && dist < skillK.dist) {
+                             useSkill(enemy, 'K', now);
+                        } else if (skillO && skillO.effect === 'aoe_circle' && dist < skillO.rad) {
+                             useSkill(enemy, 'O', now);
+                        } else if (Math.random() < 0.02 && skillO) {
+                             // Random buff/dash
+                             useSkill(enemy, 'O', now);
+                        } else if (dist <= enemy.weapon.range + 50) {
+                            // Normal Attack
+                            enemy.isAttacking = true;
+                            enemy.attackTimer = 0.5;
+                            enemy.attackCooldown = 2.0;
+                            
+                            // Telegraphing (Visual warning)
+                            // Logic handled in draw
+                            
+                            // Hit check delayed? For simplicity, check mid-animation
+                            setTimeout(() => {
+                                if (!enemy.dead && Math.hypot(player.x - enemy.x, player.y - enemy.y) < enemy.weapon.range + 40) {
+                                    takeDamage(enemy.weapon.dmg);
+                                }
+                            }, 250);
+                        }
+                    }
+                }
+
+                if (enemy.isAttacking) {
+                    enemy.attackTimer -= dt;
+                    if (enemy.attackTimer <= 0) enemy.isAttacking = false;
+                } else {
+                    enemy.attackCooldown -= dt;
+                }
+            });
+            
+            // Traps Logic
+            entities.forEach(e => {
+                if (e.type === 'trap') {
+                    const trap = e.data;
+                    if (trap.subtype === 'spikes') {
+                        // Cycle: Idle (2s) -> Warning (0.5s) -> Active (1s)
+                        trap.timer += dt;
+                        if (trap.state === 'idle' && trap.timer > 2.0) {
+                            trap.state = 'warning'; trap.timer = 0;
+                        } else if (trap.state === 'warning' && trap.timer > 0.5) {
+                            trap.state = 'active'; trap.timer = 0;
+                        } else if (trap.state === 'active' && trap.timer > 1.0) {
+                            trap.state = 'idle'; trap.timer = 0;
+                        }
+
+                        if (trap.state === 'active' && Math.hypot(player.x - e.x, player.y - e.y) < 30) {
+                            takeDamage(10);
+                        }
+                    } else if (trap.subtype === 'mine') {
+                        if (trap.state !== 'exploded' && Math.hypot(player.x - e.x, player.y - e.y) < 40) {
+                            trap.state = 'exploded';
+                            takeDamage(25);
+                            // Explosion VFX
+                            entities.push({ id: Math.random(), type: 'vfx', x: e.x, y: e.y, w: 100, h: 100, color: '#f50', dead: false, life: 0.5, data: {vx:0, vy:0} } as any);
+                            e.dead = true;
+                        }
+                    }
+                }
+            });
+
+            // Projectiles Logic
+            entities.forEach(e => {
+                if (e.type === 'projectile') {
+                    e.x += Math.cos(e.angle) * (e.data.speed || 500) * dt;
+                    e.y += Math.sin(e.angle) * (e.data.speed || 500) * dt;
+                    if (!isValidPos(e.x, e.y)) e.dead = true; // Hit wall
+                    
+                    // Hit Secret Walls
+                    entities.forEach(w => {
+                        if (w.type === 'secret_wall' && !w.dead && Math.hypot(e.x - w.x, e.y - w.y) < 40) {
+                            e.dead = true;
+                            w.data.hp -= e.data.dmg;
+                            if (w.data.hp <= 0) {
+                                w.dead = true;
+                                entities.push({ id: Math.random(), type: 'vfx', x: w.x, y: w.y, w: 50, h: 50, color: '#555', dead: false, life: 1.0, data: {vx:0, vy:0} } as any);
+                            }
+                        }
+                    });
+
+                    checkProjectileHit(e);
+                }
+            });
+            
+            // VFX Update (Particles)
+            entities.forEach(e => {
+                if (e.type === 'vfx' && e.data && e.data.vx) {
+                    e.x += e.data.vx * dt;
+                    e.y += e.data.vy * dt;
+                    e.data.vy += 500 * dt; // Gravity
+                    (e as any).life -= dt;
+                    if ((e as any).life <= 0) e.dead = true;
+                }
+            });
+            
+            // Damage Numbers Update
+            for (let i = damageNumbers.length - 1; i >= 0; i--) {
+                const dn = damageNumbers[i];
+                dn.x += (Math.random() - 0.5) * 20 * dt; // Jitter
+                dn.y += dn.vy * dt;
+                dn.vy += 100 * dt; // Gravity drag
+                dn.life -= dt * 1.5;
+                if (dn.life <= 0) damageNumbers.splice(i, 1);
+            }
+
+            // Cleanup dead
+            entities = entities.filter(e => !e.dead);
+
+            updateUI();
+        }
+
+        function spawnDoor() {
+            // Only spawn exit door in boss room
+            const r = rooms[currentRoomIndex];
+            const target = r.isBoss ? 'next_floor' : 'teleport_next';
+            
+            entities.push({
+                id: Math.random(),
+                x: r.x + r.w / 2, y: r.y + 50, // Top of room
+                w: 100, h: 50,
+                color: '#0f0', dead: false, type: 'door',
+                target: target
+            } as any);
+        }
+
+        function useSkill(actor: Actor, key: 'K' | 'L' | 'I' | 'O', now: number) {
+            const skill = actor.skills[key];
+            if (!skill) return;
+            
+            actor.currentSkill = skill;
+            // Cooldown check
+            if (actor.attackCooldown > 0 && key === 'K') return;
+            
+            // Stamina check (only for player)
+            if (actor.type === 'player') {
+                if ((actor as Player).stamina < skill.cost) return;
+                (actor as Player).stamina -= skill.cost;
+                (actor as Player).xpHistory.push({ skillId: skill.id, time: now });
+                
+                // Trigger UI cooldown animation
+                const slot = document.getElementById(`skill-${key.toLowerCase()}`);
+                const overlay = slot?.querySelector('.cooldown-overlay') as HTMLElement;
+                if (overlay) {
+                    overlay.style.height = '100%';
+                    overlay.style.transition = `height ${skill.cd}s linear`;
+                    void overlay.offsetWidth;
+                    overlay.style.height = '0%';
+                }
+            } else {
+                // Enemy cooldown
+                actor.attackCooldown = skill.cd;
+            }
+
+            // Determine Skill Level
+            let level = 1;
+            if (actor.type === 'player') {
+                level = (actor as Player).skillLevels[skill.id] || 1;
+            } else {
+                level = actor.level; // Enemies use their level
+            }
+
+            // Logic based on effect
+            if (skill.effect === 'melee' || skill.effect === 'melee_multi') {
+                actor.isAttacking = true;
+                actor.attackTimer = 0.2;
+                actor.attackCooldown = skill.cd;
+                if (actor.type === 'player') checkPlayerHit(skill);
+            } else if (skill.effect === 'dash' || skill.effect === 'teleport' || skill.effect === 'dash_dmg') {
+                const dist = skill.dist * (1 + level * 0.1); // Scale distance
+                const dx = Math.cos(actor.angle) * dist;
+                const dy = Math.sin(actor.angle) * dist;
+                
+                if (skill.effect === 'teleport') {
+                    // Teleport logic: just move
+                    actor.x += dx; actor.y += dy;
+                } else {
+                    // Dash logic: check collision
+                    if (isValidPos(actor.x + dx, actor.y + dy)) {
+                        actor.x += dx; actor.y += dy;
+                    }
+                }
+
+                if (actor.type === 'player') {
+                    (actor as Player).isDodging = true;
+                    (actor as Player).dodgeTimer = 0.2;
+                }
+                
+                if (skill.effect === 'dash_dmg') {
+                    // Damage enemies on path
+                    entities.forEach(e => {
+                        if (e.type === 'enemy' && !e.dead && Math.hypot(e.x - actor.x, e.y - actor.y) < 80) hitEnemy(e as Actor, skill.dmgMult || 1, skill);
+                    });
+                }
+            } else if (skill.effect === 'aoe_circle' || skill.effect === 'aoe_cone') {
+                const rad = skill.rad * (1 + level * 0.1);
+                // Hit all around
+                entities.forEach(e => {
+                    if (e !== actor && !e.dead && Math.hypot(e.x - actor.x, e.y - actor.y) < rad) {
+                        if (actor.type === 'player' && e.type === 'enemy') hitEnemy(e as Actor, skill.dmgMult || 1, skill);
+                        if (actor.type === 'enemy' && e.type === 'player') takeDamage(10 * (skill.dmgMult || 1));
+                    }
+                });
+                // VFX
+                entities.push({ 
+                    id: Math.random(), type: 'vfx', 
+                    x: actor.x, y: actor.y, 
+                    w: rad*2, h: rad*2, 
+                    color: '#ff0', dead: false, life: 0.2,
+                    data: { vx: 0, vy: 0 } // Static VFX
+                } as any);
+            } else if (skill.effect === 'projectile') {
+                // Multi-shot based on level
+                const count = 1 + Math.floor(level / 3); // 1 at lvl 1, 2 at lvl 3, 3 at lvl 6
+                const spread = 0.2; // Radians
+                
+                for(let i=0; i<count; i++) {
+                    const angleOffset = (i - (count-1)/2) * spread;
+                    entities.push({
+                        id: Math.random(), type: 'projectile',
+                        x: actor.x, y: actor.y, w: 10, h: 10,
+                        color: skill.color, dead: false,
+                        angle: actor.angle + angleOffset,
+                        data: { speed: skill.speed, dmg: 10 * (skill.dmgMult || 1) * (1 + level * 0.1), owner: actor.type, pierce: skill.pierce }
+                    } as any);
+                }
+            } else if (skill.effect === 'buff_parry' && actor.type === 'player') {
+                (actor as Player).isParrying = true;
+                (actor as Player).parryTimer = skill.dur; // Parry window
+            } else if (skill.effect === 'buff_dmg') {
+                actor.buffs.push({ type: 'dmg', timer: skill.dur, val: skill.val || 2 });
+            } else if (skill.effect === 'buff_def') {
+                actor.buffs.push({ type: 'def', timer: skill.dur, val: skill.val || 0.5 });
+            } else if (skill.effect === 'buff_spd') {
+                actor.buffs.push({ type: 'spd', timer: skill.dur, val: skill.val || 1.5 });
+                actor.speed *= (skill.val || 1.5); // Apply immediately
+            } else if (skill.effect === 'buff_lifesteal') {
+                actor.buffs.push({ type: 'lifesteal', timer: skill.dur, val: skill.val || 0.2 });
+            } else if (skill.effect === 'buff_poison') {
+                actor.buffs.push({ type: 'poison_weapon', timer: skill.dur, val: skill.val || 5 });
+            } else if (skill.effect === 'heal') {
+                actor.hp = Math.min(actor.maxHp, actor.hp + skill.val * (1 + level * 0.2));
+                entities.push({ id: Math.random(), type: 'vfx', x: actor.x, y: actor.y, w: 50, h: 50, color: '#0f0', dead: false, life: 0.5, data: {vx:0, vy:-50} } as any);
+            }
+        }
+
+        function checkPlayerHit(skill: any) {
+            const hitX = player.x + Math.cos(player.angle) * (skill.range * 50 || 50);
+            const hitY = player.y + Math.sin(player.angle) * (skill.range * 50 || 50);
+
+            entities.forEach(e => {
+                if (e.type !== 'enemy' || e.dead) return;
+                const d = Math.hypot(e.x - hitX, e.y - hitY);
+                if (d < 80) {
+                    hitEnemy(e as Actor, skill.dmgMult || 1, skill);
+                }
+            });
+
+            // Hit Secret Walls
+            entities.forEach(w => {
+                if (w.type === 'secret_wall' && !w.dead && Math.hypot(w.x - hitX, w.y - hitY) < 60) {
+                    w.data.hp -= player.weapon.dmg;
+                    if (w.data.hp <= 0) {
+                        w.dead = true;
+                        entities.push({ id: Math.random(), type: 'vfx', x: w.x, y: w.y, w: 50, h: 50, color: '#555', dead: false, life: 1.0, data: {vx:0, vy:0} } as any);
+                    }
+                }
+            });
+        }
+
+        function checkProjectileHit(proj: any) {
+            if (proj.data.owner === 'player') {
+                entities.forEach(e => {
+                    if (e.type === 'enemy' && !e.dead && Math.hypot(e.x - proj.x, e.y - proj.y) < 20) {
+                        hitEnemy(e as Actor, 1, { dmgMult: 1 }); // Base dmg in data
+                        if (!proj.data.pierce) proj.dead = true;
+                    }
+                });
+            } else {
+                if (Math.hypot(player.x - proj.x, player.y - proj.y) < 20) {
+                    takeDamage(proj.data.dmg);
+                    if (!proj.data.pierce) proj.dead = true;
+                }
+            }
+        }
+
+        function hitEnemy(enemy: Actor, mult: number, skill?: any) {
+            // Calc Damage
+            let dmg = player.weapon.dmg * mult;
+            
+            // Apply Buffs
+            const dmgBuff = player.buffs.find(b => b.type === 'dmg');
+            if (dmgBuff) dmg *= (dmgBuff.val || 2);
+            
+            // Crit check
+            if (skill && skill.critChance && Math.random() < skill.critChance) {
+                dmg *= 2;
+                // Crit VFX
+            }
+            
+            // Apply Statuses from Skill
+            if (skill && skill.status) {
+                enemy.statuses.push({ ...skill.status });
+            }
+            
+            // Apply Statuses from Buffs (e.g. Poison Weapon)
+            const poisonBuff = player.buffs.find(b => b.type === 'poison_weapon');
+            if (poisonBuff) {
+                enemy.statuses.push({ type: 'poison', val: poisonBuff.val, timer: 3.0 });
+            }
+
+            // Knockback
+            if (skill && skill.knockback) {
+                const angle = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+                enemy.x += Math.cos(angle) * skill.knockback;
+                enemy.y += Math.sin(angle) * skill.knockback;
+            }
+            
+            // Apply Skill Levels (Affixes)
+            // Find which skill triggered this? Simplified: just use base level
+            // Real logic: pass skill ID
+            
+            enemy.hp -= dmg;
+            
+            // --- JUICE ---
+            screenShake = 3 * mult;
+            enemy.hitFlash = 0.15;
+            damageNumbers.push({x: enemy.x, y: enemy.y - 30, text: Math.floor(dmg).toString(), color: '#fff', life: 1.0, vy: -100});
+            
+            // Blood particles
+            for(let i=0; i<5; i++) {
+                entities.push({
+                    id: Math.random(), type: 'vfx', x: enemy.x, y: enemy.y, 
+                    w: Math.random()*4+2, h: Math.random()*4+2, 
+                    color: enemy.color, 
+                    dead: false, life: 0.5 + Math.random()*0.3, 
+                    data: { vx: (Math.random()-0.5)*300, vy: (Math.random()-0.5)*300 } 
+                } as any);
+            }
+            
+            // Vampirism check (if skill has it)
+            const lifestealBuff = player.buffs.find(b => b.type === 'lifesteal');
+            if (skill && skill.lifesteal) player.hp = Math.min(player.maxHp, player.hp + dmg * skill.lifesteal);
+            if (lifestealBuff) player.hp = Math.min(player.maxHp, player.hp + dmg * (lifestealBuff.val || 0.2));
+
+            if (enemy.hp <= 0) {
+                enemy.dead = true;
+                giveXP(20); // Flat XP
+            }
+        }
+
+        function giveXP(amount: number) {
+            const now = performance.now();
+            // Find skills used in last 1s
+            // Clean up history to prevent memory leak
+            player.xpHistory = player.xpHistory.filter(h => now - h.time < 1000);
+            
+            const recent = player.xpHistory;
+            if (recent.length === 0) return;
+            
+            const share = amount / recent.length;
+            recent.forEach(h => {
+                player.skillLevels[h.skillId] = (player.skillLevels[h.skillId] || 1) + (share * 0.01); // Slow leveling
+            });
+        }
+
+        function takeDamage(amount: number, attacker?: Actor) {
+            if (player.isDodging) return;
+            
+            // Parry Logic
+            if (player.isParrying) {
+                if (attacker) attacker.statuses.push({ type: 'stun', timer: 2.0 }); // Stun attacker
+                player.isParrying = false; // Parry used
+                entities.push({ id: Math.random(), type: 'vfx', x: player.x, y: player.y, w: 100, h: 100, color: '#0ff', dead: false, life: 0.3, data: {vx:0, vy:0} } as any);
+                return; // No damage
+            }
+            
+            // Defense buff
+            const defBuff = player.buffs.find(b => b.type === 'def');
+            if (defBuff) amount *= (1 - (defBuff.val || 0.5));
+            
+            // Balance: Reduce enemy damage significantly for early game
+            amount = Math.ceil(amount * 0.2); 
+
+            if (player.hp < 0) {
+                // Big shake on death/critical hit
+                screenShake = 20;
+                player.hitFlash = 0.5;
+                
+                player.hp = 0;
+                player.dead = true;
+                deathScreen?.classList.remove('hidden');
+                return;
+            }
+
+            player.hp -= amount;
+            
+            // Player hit effects
+            screenShake = 10;
+            player.hitFlash = 0.2;
+        }
+
+        function updateUI() {
+            if (hpBar && hpText) {
+                const percent = Math.min(100, Math.max(0, (Math.abs(player.hp) / player.maxHp) * 100));
+                hpBar.style.width = `${percent}%`;
+                hpText.textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+                
+                if (player.hp < 0) {
+                    hpBar.classList.add('critical');
+                    hpBar.classList.remove('hp');
+                } else {
+                    hpBar.classList.add('hp');
+                    hpBar.classList.remove('critical');
+                }
+            }
+            if (staminaBar) {
+                const percent = (player.stamina / player.maxStamina) * 100;
+                staminaBar.style.width = `${percent}%`;
+            }
+            
+            const floorEl = document.getElementById('floor-val');
+            if (floorEl) floorEl.textContent = floor.toString();
+
+            // Update Skill Levels in UI
+            ['K', 'L', 'I', 'O'].forEach(key => {
+                const skill = player.skills[key];
+                const el = document.querySelector(`#skill-${key.toLowerCase()} .skill-level`);
+                if (el && skill) {
+                    const lvl = Math.floor(player.skillLevels[skill.id] || 1);
+                    el.textContent = `Lvl ${lvl}`;
+                }
+            });
+        }
+
+        function drawWeapon(ctx: CanvasRenderingContext2D, weapon: any, isAttacking: boolean, attackTimer: number, skill?: any) {
+            ctx.save();
+            
+            let scale = 1.0;
+            if (skill && isAttacking) {
+                if (['heavy', 'smash', 'chop', 'slam'].includes(skill.id)) scale = 1.5;
+                if (['quick', 'stab', 'poke', 'flurry'].includes(skill.id)) scale = 0.8;
+                if (['spin', 'death_circle'].includes(skill.id)) scale = 1.2;
+            }
+            ctx.scale(scale, scale);
+
+            // Animation
+            if (isAttacking) {
+                // Swing: -45 to +45
+                const duration = 0.2; 
+                const progress = 1 - (Math.max(0, attackTimer) / duration); 
+                const swing = (progress - 0.5) * Math.PI * 1.5; 
+                ctx.rotate(swing);
+                
+                // Trail Effect
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, weapon.range * 1.1, swing - 0.8, swing);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 * (1-progress)})`;
+                ctx.lineWidth = 15;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, weapon.range * 1.0, swing - 0.6, swing);
+                ctx.strokeStyle = weapon.color;
+                ctx.globalAlpha = 0.5 * (1-progress);
+                ctx.lineWidth = 8;
+                ctx.stroke();
+                ctx.restore();
+            } else {
+                ctx.rotate(0);
+            }
+
+            ctx.fillStyle = weapon.color;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+
+            if (['sword', 'katana', 'rapier'].includes(weapon.id)) {
+                // Blade
+                ctx.fillRect(0, -4, weapon.range * 0.8, 8);
+                // Hilt
+                ctx.fillStyle = '#555';
+                ctx.fillRect(-10, -5, 10, 10);
+                // Guard
+                ctx.fillRect(0, -10, 4, 20);
+            } else if (['axe', 'hammer'].includes(weapon.id)) {
+                // Handle
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(0, -3, weapon.range * 0.8, 6);
+                // Head
+                ctx.fillStyle = weapon.color;
+                const headSize = weapon.id === 'axe' ? 30 : 40;
+                ctx.fillRect(weapon.range * 0.7, -headSize/2, 15, headSize);
+            } else if (weapon.id === 'spear') {
+                // Shaft
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(-10, -2, weapon.range, 4);
+                // Tip
+                ctx.fillStyle = weapon.color;
+                ctx.beginPath(); ctx.moveTo(weapon.range, -2); ctx.lineTo(weapon.range + 20, 0); ctx.lineTo(weapon.range, 2); ctx.fill();
+            } else {
+                ctx.fillRect(0, -5, weapon.range * 0.6, 10);
+            }
+            ctx.restore();
+        }
+
+        // --- DRAW ---
+
+        function draw(now: number) {
+            const isCritical = player.hp <= 0;
+            const zoomPulse = isCritical ? Math.sin(now / 100) * 0.05 : 0;
+            const finalZoom = currentZoom + zoomPulse;
+
+            // Camera Follow
+            cameraX += (player.x - cameraX) * 0.1;
+            cameraY += (player.y - cameraY) * 0.1;
+
+            // Очистка (черный фон - пустота)
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // --- LAYER 1: WORLD (Floor, Walls, Enemies, Loot) ---
+            ctx.save(); // Start Camera Transform
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(finalZoom, finalZoom);
+            ctx.translate(-cameraX, -cameraY);
+
+            // Draw Rooms (Floor)
+            rooms.forEach(r => {
+                // Floor
+                ctx.fillStyle = floorPattern || '#1a1a1a';
+                ctx.fillRect(r.x, r.y, r.w, r.h);
+                
+                // Wall Borders (Pseudo 3D)
+                ctx.lineWidth = 10;
+                ctx.strokeStyle = wallPattern || '#111'; // Wall base
+                ctx.strokeRect(r.x - 5, r.y - 5, r.w + 10, r.h + 10);
+                
+                // Wall Top Highlight
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#444';
+                ctx.strokeRect(r.x - 10, r.y - 10, r.w + 20, r.h + 20);
+            });
+            
+            // Draw Corridors
+            corridors.forEach(c => {
+                ctx.fillStyle = floorPattern || '#1a1a1a';
+                ctx.fillRect(c.x, c.y, c.w, c.h);
+                
+                // Corridor Walls
+                ctx.fillStyle = wallPattern || '#111';
+                // Left/Right walls for vertical corridors
+                if (c.h > c.w) {
+                    ctx.fillRect(c.x - 10, c.y, 10, c.h);
+                    ctx.fillRect(c.x + c.w, c.y, 10, c.h);
+                } else {
+                    // Top/Bottom walls for horizontal
+                    ctx.fillRect(c.x, c.y - 10, c.w, 10);
+                    ctx.fillRect(c.x, c.y + c.h, c.w, 10);
+                }
+            });
+            
+            // Draw Secret Walls
+            entities.forEach(e => {
+                if (e.type === 'secret_wall' && !e.dead) {
+                    ctx.fillStyle = secretWallPattern || '#333';
+                    ctx.fillRect(e.x, e.y, e.w, e.h);
+                    // Cracks
+                    ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+e.w, e.y+e.h); ctx.stroke();
+                }
+            });
+
+            // Draw Entities
+            entities.forEach(e => {
+                if (e.dead) return;
+
+                if (e.type === 'weapon_drop') {
+                    ctx.fillStyle = e.color;
+                    ctx.beginPath(); ctx.arc(e.x, e.y, 10, 0, Math.PI*2); ctx.fill();
+                    // Glow
+                    ctx.shadowColor = e.color; ctx.shadowBlur = 10;
+                    ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.shadowBlur = 0;
+                } else if (e.type === 'trap') {
+                    const t = e.data;
+                    if (t.subtype === 'spikes') {
+                        ctx.fillStyle = '#222';
+                        ctx.fillRect(e.x - 20, e.y - 20, 40, 40); // Base
+                        if (t.state === 'warning') {
+                            ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                            ctx.fillRect(e.x - 18, e.y - 18, 36, 36);
+                        } else if (t.state === 'active') {
+                            ctx.fillStyle = '#ccc';
+                            // Draw spikes
+                            ctx.beginPath(); ctx.moveTo(e.x-15, e.y+15); ctx.lineTo(e.x-15, e.y-15); ctx.lineTo(e.x-5, e.y+15); ctx.fill();
+                            ctx.beginPath(); ctx.moveTo(e.x+5, e.y+15); ctx.lineTo(e.x+5, e.y-15); ctx.lineTo(e.x+15, e.y+15); ctx.fill();
+                        }
+                    } else if (t.subtype === 'mine') {
+                        ctx.fillStyle = '#333';
+                        ctx.beginPath(); ctx.arc(e.x, e.y, 15, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#f00';
+                        ctx.beginPath(); ctx.arc(e.x, e.y, 5 + Math.sin(performance.now()/200)*2, 0, Math.PI*2); ctx.fill(); // Blinking light
+                    }
+                } else if (e.type === 'decor') {
+                    if (e.data.subtype === 'torch') {
+                        ctx.fillStyle = '#654321';
+                        ctx.fillRect(e.x-2, e.y-5, 4, 10);
+                        ctx.fillStyle = '#fa0';
+                        ctx.beginPath(); ctx.arc(e.x, e.y-8, 4 + Math.random()*2, 0, Math.PI*2); ctx.fill();
+                        // Light glow
+                        ctx.shadowColor = '#fa0'; ctx.shadowBlur = 20; ctx.fill(); ctx.shadowBlur = 0;
+                    }
+                } else if (e.type === 'door') {
+                    ctx.fillStyle = e.color;
+                    ctx.fillRect(e.x - e.w/2, e.y - e.h/2, e.w, e.h);
+                    ctx.fillStyle = '#000';
+                    ctx.font = '12px monospace';
+                    ctx.fillText("EXIT", e.x - 15, e.y);
+                    
+                    // Add glow if it's the next floor door
+                    if ((e as any).target === 'next_floor') {
+                        ctx.shadowColor = '#0f0';
+                        ctx.shadowBlur = 20;
+                        ctx.fillRect(e.x - e.w/2, e.y - e.h/2, e.w, e.h);
+                        ctx.shadowBlur = 0;
+                    }
+                    // Glow for next room door
+                    if ((e as any).target === 'teleport_next') {
+                        ctx.shadowColor = '#00ffff';
+                        ctx.shadowBlur = 20;
+                        ctx.fillRect(e.x - e.w/2, e.y - e.h/2, e.w, e.h);
+                        ctx.shadowBlur = 0;
+                    }
+                } else if (e.type === 'projectile') {
+                    ctx.fillStyle = e.color;
+                    ctx.beginPath(); ctx.arc(e.x, e.y, 5, 0, Math.PI*2); ctx.fill();
+                    // Trail
+                    ctx.shadowBlur = 10; ctx.shadowColor = e.color;
+                    ctx.fill(); ctx.shadowBlur = 0;
+                } else if (e.type === 'enemy') {
+                    const en = e as Actor;
+                    ctx.save();
+                    ctx.translate(en.x, en.y);
+                    ctx.rotate(en.angle);
+                    
+                    // Shadow
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.beginPath(); ctx.ellipse(0, 0, 25, 10, 0, 0, Math.PI*2); ctx.fill();
+
+                    // Telegraph
+                    if (en.isAttacking && en.attackTimer > 0.2 && !en.skills['K']?.effect.includes('projectile')) {
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, en.weapon.range, -0.5, 0.5); // Cone
+                        ctx.lineTo(0,0);
+                        ctx.fill();
+                    }
+
+                    // Body Gradient
+                    const grad = ctx.createRadialGradient(0, 0, 5, 0, 0, 20);
+                    grad.addColorStop(0, '#fff');
+                    grad.addColorStop(1, en.color);
+                    ctx.fillStyle = grad;
+                    // Shape based on ID
+                    const shape = (en as any).data.shape;
+                    ctx.beginPath();
+                    if (shape === 'square') ctx.fillRect(-20, -20, 40, 40);
+                    else if (shape === 'triangle') { ctx.moveTo(20,0); ctx.lineTo(-20, 20); ctx.lineTo(-20, -20); ctx.fill(); }
+                    else { ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); }
+                    
+                    // Draw Enemy Weapon
+                    ctx.save();
+                    ctx.translate(20, 10); // Hand pos
+                    drawWeapon(ctx, en.weapon, en.isAttacking, en.attackTimer);
+                    ctx.restore();
+
+                    ctx.restore();
+
+                    // HP Bar
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(en.x - 20, en.y - 40, 40, 5);
+                    // Level Badge
+                    ctx.fillStyle = '#000'; ctx.fillRect(en.x - 35, en.y - 42, 12, 12);
+                    ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText(en.level.toString(), en.x - 33, en.y - 33);
+                    
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(en.x - 20, en.y - 40, 40 * (en.hp / en.maxHp), 5);
+                } else if (e.type === 'vfx') {
+                    ctx.fillStyle = e.color;
+                    ctx.globalAlpha = (e as any).life * 2;
+                    ctx.beginPath(); ctx.arc(e.x, e.y, e.w/2, 0, Math.PI*2); ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                    (e as any).life -= 0.016;
+                    if ((e as any).life <= 0) e.dead = true;
+                }
+            });
+
+            ctx.restore(); // END LAYER 1 (Back to Screen Space)
+
+            // --- LAYER 2: FOG OF WAR ---
+            if (fogCtx && fogCanvas) {
+                // 1. Clear Fog Buffer
+                fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+                
+                // 2. Fill with Pitch Black
+                fogCtx.fillStyle = '#000';
+                fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+                
+                // 3. Cut Holes (Erase fog)
+                fogCtx.globalCompositeOperation = 'destination-out';
+                fogCtx.fillStyle = '#fff';
+                
+                fogCtx.save();
+                // Apply same camera transform to cuts
+                fogCtx.translate(canvas.width / 2, canvas.height / 2);
+                fogCtx.scale(finalZoom, finalZoom);
+                fogCtx.translate(-cameraX, -cameraY);
+                
+                fogCtx.beginPath();
+                rooms.forEach(r => {
+                    if (r.visited) fogCtx!.rect(r.x, r.y, r.w, r.h);
+                });
+                corridors.forEach(c => fogCtx!.rect(c.x, c.y, c.w, c.h));
+                
+                // Vision Circle
+                fogCtx.moveTo(player.x, player.y);
+                fogCtx.arc(player.x, player.y, 300, 0, Math.PI*2);
+                
+                fogCtx.fill();
+                fogCtx.restore();
+                
+                // 4. Draw Fog onto Main Canvas (Screen Space)
+                // Since we restored ctx, we are drawing at 0,0 of screen
+                ctx.drawImage(fogCanvas, 0, 0);
+            }
+
+            // --- LAYER 3: PLAYER & LIGHT ---
+            ctx.save(); // Start Camera Transform Again
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(finalZoom, finalZoom);
+            ctx.translate(-cameraX, -cameraY);
+
+            // Draw Player
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle);
+            
+            // Player Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.beginPath(); ctx.ellipse(0, 0, 25, 12, 0, 0, Math.PI*2); ctx.fill();
+
+            // Body
+            ctx.fillStyle = player.isDodging ? '#888' : player.color;
+            ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+            
+            // Parry Shield Visual
+            if (player.isParrying) {
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(0, 0, player.w/2 + 5, 0, Math.PI*2); ctx.stroke();
+            }
+            
+            // Hands
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.arc(20, 20, 8, 0, Math.PI*2); ctx.fill(); // Right
+            ctx.beginPath(); ctx.arc(20, -20, 8, 0, Math.PI*2); ctx.fill(); // Left
+            
+            // Weapon
+            ctx.save();
+            ctx.translate(20, 20); // Right hand
+            drawWeapon(ctx, player.weapon, player.isAttacking, player.attackTimer, player.currentSkill);
+            ctx.restore();
+            ctx.restore(); // End Player Transform
+            
+            // Lantern Light
+            ctx.save();
+            const lantern = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 400);
+            lantern.addColorStop(0, 'rgba(255, 220, 150, 0.15)'); // Мягкий свет в центре
+            lantern.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.globalCompositeOperation = 'screen'; // Режим наложения "Экран" для свечения
+            ctx.fillStyle = lantern;
+            // Draw light rect covering enough area
+            ctx.fillRect(player.x - 400, player.y - 400, 800, 800);
+
+            // Torch lights
+            entities.forEach(e => {
+                if (e.type === 'decor' && e.data.subtype === 'torch') {
+                    const tLight = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, 100);
+                    tLight.addColorStop(0, 'rgba(255, 150, 50, 0.2)');
+                    tLight.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = tLight;
+                    ctx.fillRect(e.x - 100, e.y - 100, 200, 200);
+                }
+            });
+
+            ctx.restore();
+
+            ctx.restore(); // END LAYER 3 (Back to Screen Space)
+
+            // --- POST PROCESSING (Эффекты поверх экрана) ---
+            if (isCritical) {
+                // 1. Красная виньетка
+                const screenX = (player.x - cameraX) * finalZoom + canvas.width / 2;
+                const screenY = (player.y - cameraY) * finalZoom + canvas.height / 2;
+                
+                const grad = ctx.createRadialGradient(screenX, screenY, 150 * finalZoom, screenX, screenY, 1200 * finalZoom);
+                grad.addColorStop(0, 'rgba(0,0,0,0)'); // Центр прозрачный
+                grad.addColorStop(0.4, 'rgba(50, 0, 0, 0.4)'); // Переход в красный
+                grad.addColorStop(1, 'rgba(20, 0, 0, 0.98)'); // Края почти черные
+                
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 2. Глитч-эффект (Сдвиг полос)
+                if (Math.random() < 0.2) {
+                    const h = Math.random() * 100 + 20;
+                    const y = Math.random() * canvas.height;
+                    const o = (Math.random() - 0.5) * 50; // Сдвиг по X
+                    
+                    // Рисуем кусок экрана поверх самого себя со сдвигом
+                    ctx.drawImage(canvas, 0, y, canvas.width, h, o, y, canvas.width, h);
+                    
+                    // Цветовой шум
+                    ctx.fillStyle = `rgba(255, 0, 0, ${Math.random() * 0.15})`;
+                    ctx.fillRect(0, y, canvas.width, h);
+                }
+            }
+        }
+
+        // Запуск
+        loop();
+
+        // Обработчик фуллскрина
+        if (btnFullscreen) {
+            btnFullscreen.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    wrapper.requestFullscreen().catch(err => {
+                        console.error(`Ошибка полноэкранного режима: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+        }
+
+        // Input Handlers
+        keydownHandler = (e) => { 
+            // Блокируем прокрутку браузера, если мы в игре
+            if (document.fullscreenElement || isMouseOver) {
+                if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                    e.preventDefault();
+                }
+            }
+            keys[e.code] = true; 
+        };
+        keyupHandler = (e) => { keys[e.code] = false; };
+        window.addEventListener('keydown', keydownHandler);
+        window.addEventListener('keyup', keyupHandler);
+
+        // Restart
+        if (btnRestart) {
+            btnRestart.addEventListener('click', () => {
+                initGame();
+                loop();
+            });
+        }
+
+        if (btnHub) {
+            btnHub.addEventListener('click', () => {
+                initGame();
+                loop();
+            });
+        }
+
+        // Book Logic
+        document.getElementById('close-book')?.addEventListener('click', () => {
+            document.getElementById('info-book')?.classList.add('hidden');
+            currentState = 'HUB';
+        });
+
+        // New Book Logic
+        let currentBookTab = 'weapons';
+        
+        function renderBookList() {
+            const list = document.getElementById('book-list');
+            if (!list) return;
+            list.innerHTML = '';
+            
+            let items: any[] = [];
+            if (currentBookTab === 'weapons') items = WEAPONS;
+            else if (currentBookTab === 'enemies') items = ENEMIES;
+            else items = SKILLS;
+            
+            items.forEach(item => {
+                const prefix = currentBookTab === 'weapons' ? 'weapon_' : currentBookTab === 'enemies' ? 'enemy_' : 'skill_';
+                const isKnown = discovered.has(prefix + item.id);
+                
+                const div = document.createElement('div');
+                div.className = `book-list-item ${isKnown ? '' : 'locked'}`;
+                div.innerHTML = `<span>${isKnown ? item.name : '???'}</span>`;
+                div.onclick = () => renderBookDetails(item, isKnown);
+                list.appendChild(div);
+            });
+        }
+
+        function renderBookDetails(item: any, isKnown: boolean) {
+            const content = document.getElementById('book-details-content');
+            if (!content) return;
+            
+            if (!isKnown) {
+                content.innerHTML = `<div class="placeholder-text">Вы еще не открыли это знание.</div>`;
+                return;
+            }
+            
+            content.innerHTML = `
+                <div class="details-header">
+                    <div class="details-icon" style="color:${item.color || '#fff'}">★</div>
+                    <div class="details-title">
+                        <h2>${item.name}</h2>
+                        <div class="subtitle">${item.type || 'Unknown'}</div>
+                    </div>
+                </div>
+                <div class="details-body">
+                    <p><em>"${item.lore || item.desc}"</em></p>
+                    <div class="stat-row"><span class="stat-label">Описание</span><span class="stat-val">${item.desc}</span></div>
+                    ${item.dmg ? `<div class="stat-row"><span class="stat-label">Урон</span><span class="stat-val">${item.dmg}</span></div>` : ''}
+                    ${item.speed ? `<div class="stat-row"><span class="stat-label">Скорость</span><span class="stat-val">${item.speed}</span></div>` : ''}
+                    ${item.hp ? `<div class="stat-row"><span class="stat-label">Здоровье</span><span class="stat-val">${item.hp}</span></div>` : ''}
+                </div>
+            `;
+        }
+
+        document.querySelectorAll('.tab').forEach(t => {
+            t.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+                (e.target as HTMLElement).classList.add('active');
+                currentBookTab = (e.target as HTMLElement).dataset.tab || 'weapons';
+                renderBookList();
+            });
+        });
+
+        // Start
+        initGame();
+    });
+
+    // Очистка при уходе со страницы
+    document.addEventListener('astro:before-swap', () => {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        if (keydownHandler) window.removeEventListener('keydown', keydownHandler);
+        if (keyupHandler) window.removeEventListener('keyup', keyupHandler);
+        keydownHandler = null;
+        keyupHandler = null;
+    });
+</script>

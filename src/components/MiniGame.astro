@@ -427,6 +427,9 @@
 </style>
 
 <script>
+    // Переменная для хранения обработчика, чтобы его можно было удалить
+  let keydownHandlerInstance: any = null;
+
     // Оборачиваем код в astro:page-load, чтобы он запускался при каждом переходе
     document.addEventListener('astro:page-load', () => {
         const canvas = document.getElementById('mini-game-canvas') as HTMLCanvasElement;
@@ -1457,17 +1460,14 @@
 
         // Обработка пробела
         const handleKeydown = (e: KeyboardEvent) => {
-            if (!document.body.contains(canvas)) {
-                window.removeEventListener('keydown', handleKeydown);
-                return;
-            }
             if (e.code === 'Space' && isPlaying) {
                 if (performance.now() - gameStartTime < 500) return;
                 e.preventDefault();
                 processClick(mouseX, mouseY);
             }
         };
-        window.addEventListener('keydown', handleKeydown);
+        keydownHandlerInstance = handleKeydown;
+        window.addEventListener('keydown', keydownHandlerInstance);
 
         overlay.addEventListener('click', startGame);
 
@@ -1710,5 +1710,13 @@
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    });
+
+    // Очистка перед сменой страницы
+    document.addEventListener('astro:before-swap', () => {
+        if (keydownHandlerInstance) {
+            window.removeEventListener('keydown', keydownHandlerInstance);
+            keydownHandlerInstance = null;
+        }
     });
 </script>

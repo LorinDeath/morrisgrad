@@ -426,26 +426,32 @@
     </div>
 
     <script>
-        const container = document.querySelector('.area-game') as HTMLElement;
-        const canvas = document.getElementById('echo-world') as HTMLCanvasElement;
-        const ctx = canvas.getContext('2d')!;
-        
-        let width: number, height: number;
-        
-        // --- CONFIGURATION ---
-        const SAVE_KEY = 'echo_world_save_v8_auto';
-        const META_SAVE_KEY = 'echo_world_meta_v1';
-        const AUTO_SAVE_INTERVAL = 10000; // 10 sec
-        
-        function resize() {
-            if (!container) return;
-            width = container.clientWidth;
-            height = container.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-        }
-        window.addEventListener('resize', resize);
-        resize();
+       let resizeHandlerInstance: any = null;
+       let gameObserver: any = null;
+
+        document.addEventListener('astro:page-load', () => {
+            const container = document.querySelector('.area-game') as HTMLElement;
+            const canvas = document.getElementById('echo-world') as HTMLCanvasElement;
+            if (!canvas) return; // Выходим, если это не страница с игрой
+            const ctx = canvas.getContext('2d')!;
+            
+            let width: number, height: number;
+            
+            // --- CONFIGURATION ---
+            const SAVE_KEY = 'echo_world_save_v8_auto';
+            const META_SAVE_KEY = 'echo_world_meta_v1';
+            const AUTO_SAVE_INTERVAL = 10000; // 10 sec
+            
+            function resize() {
+                if (!container) return;
+                width = container.clientWidth;
+                height = container.clientHeight;
+                canvas.width = width;
+                canvas.height = height;
+            }
+            resizeHandlerInstance = resize;
+            window.addEventListener('resize', resizeHandlerInstance);
+            resize();
 
         // --- TYPES ---
         type EntityType = 'plant' | 'creature' | 'structure' | 'pond' | 'tree' | 'blob' | 'projectile' | 'loot' | 'chat' | 'resource';
@@ -3082,7 +3088,7 @@
         let isVisible = false; // Start false, let observer enable it
         const gameWrapper = document.getElementById('echo-game-wrapper');
         if (gameWrapper) {
-            const observer = new IntersectionObserver((entries) => {
+            gameObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         if (!isVisible) {
@@ -3098,12 +3104,20 @@
                     }
                 });
             }, { threshold: 0 });
-            observer.observe(gameWrapper);
+            gameObserver.observe(gameWrapper);
         }
 
         // Loop
         function loop(timestamp: number) {
             if (state.paused || !isVisible) return; // Stop updates when paused or hidden
+
+            // Проверка, что игра все еще на странице, чтобы остановить цикл
+            if (!document.body.contains(canvas)) {
+                if (gameObserver) gameObserver.disconnect();
+                if (resizeHandlerInstance) window.removeEventListener('resize', resizeHandlerInstance);
+                console.log("Echo Game loop stopped, canvas removed.");
+                return;
+            }
 
             let dt = (timestamp - state.lastUpdate) / 1000;
             if (dt > 0.1) dt = 0.1; // Cap dt to prevent explosions/freezes on lag
@@ -3303,6 +3317,16 @@
 
             requestAnimationFrame(loop);
         }
+
+        });
+
+        // Очистка перед сменой страницы
+        document.addEventListener('astro:before-swap', () => {
+            if (resizeHandlerInstance) window.removeEventListener('resize', resizeHandlerInstance);
+            if (gameObserver) gameObserver.disconnect();
+            resizeHandlerInstance = null;
+            gameObserver = null;
+        });
 
     </script>
 </div>

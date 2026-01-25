@@ -1,0 +1,45 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import RoguelikeGame from '../../components/RoguelikeGame.astro';
+---
+<Layout title="Рогалик | Моррис Град">
+    <div id="game-container" class="game-container">
+        <RoguelikeGame />
+    </div>
+</Layout>
+
+<style>
+    /* Убираем отступы у body и html для полноэкранного режима */
+    :global(body), :global(html) {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+    }
+    .game-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        min-height: 80vh; /* Занимает большую часть экрана, но оставляет место для хедера/футера */
+    }
+
+    /* Стили для полноэкранного режима */
+    .game-container:fullscreen {
+        min-height: 100vh;
+        background-color: #0f0f12; /* Фон на случай, если игра не 100% */
+    }
+</style>
+
+<script>
+    document.addEventListener('astro:page-load', () => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('fullscreen') === 'true') {
+            const gameContainer = document.getElementById('game-container');
+            if (gameContainer && gameContainer.requestFullscreen) {
+                gameContainer.requestFullscreen().catch(err => {
+                    console.error(`Ошибка при попытке включить полноэкранный режим: ${err.message} (${err.name})`);
+                });
+            }
+        }
+    });
+</script>
