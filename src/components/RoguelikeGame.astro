@@ -40,7 +40,6 @@
             <button id="btn-inventory" class="btn-secondary text-gold">ИНВЕНТАРЬ [NEW]</button>
             <button id="btn-raids" class="btn-secondary text-red">РЕЙДЫ [BOSS]</button>
             <button id="btn-leaderboard" class="btn-secondary text-purple">РЕЙТИНГ</button>
-            <button id="btn-debug-cores" class="btn-secondary" style="color: #ff00ff; border-color: #ff00ff;">DEBUG: +100 ЯДЕР</button>
         </div>
 
         <div class="menu-columns">
@@ -4079,13 +4078,6 @@
       document.getElementById('btn-merchant-close')?.addEventListener('click', () => {
           this.setScreen('hud-screen');
           this.state = 'PLAYING';
-      });
-      
-      // Debug Button
-      document.getElementById('btn-debug-cores')?.addEventListener('click', () => {
-          meta.bossCurrency += 100;
-          saveMeta();
-          updateMenuStats();
       });
       
       // Score Submit
