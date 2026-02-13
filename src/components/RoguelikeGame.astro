@@ -171,8 +171,9 @@
       <div id="hud-screen" class="screen hidden">
         <!-- Top Right: Wave & Level -->
         <div class="hud-top-right">
-          <div class="wave-display" style="color: #ff3333; text-shadow: 0 0 10px #f00;">ВОЛНА <span id="hud-wave">1</span></div>
+          <div class="wave-display">ВОЛНА <span id="hud-wave">1</span></div>
           <div class="level-display">УР. <span id="hud-level">1</span></div>
+          <div class="enemy-count">ВРАГИ: <span id="hud-enemies">0</span></div>
         </div>
         
         <!-- Bottom Center: HP & XP -->
@@ -225,7 +226,10 @@
         <div id="obs-face" class="obs-face">😐</div>
         <div class="obs-info">
           <div id="obs-mood" class="obs-mood">НЕЙТРАЛЬНЫЙ</div>
-          <div id="obs-influence" class="obs-influence">ВЛИЯНИЕ: 0</div>
+          <div id="obs-influence" class="obs-stat">ВЛИЯНИЕ: 0</div>
+          <div id="obs-tactic" class="obs-stat">ТАКТИКА: -</div>
+          <div id="obs-weather" class="obs-stat">ПОГОДА: ЯСНО</div>
+          <div id="obs-anomaly" class="obs-stat">АНОМАЛИЯ: НЕТ</div>
         </div>
       </div>
 
@@ -609,13 +613,18 @@
   .hud-top-right {
     position: absolute; top: 10px; right: 10px;
     text-align: right;
-    font-size: 1.5rem; color: #fff; text-shadow: 0 1px 2px #000;
+    color: #fff; text-shadow: 0 1px 2px #000;
+    display: flex; flex-direction: column; align-items: flex-end;
   }
   
   .hud-bottom-left {
     position: absolute; bottom: 10px; left: 10px;
     font-size: 1.5rem; color: #fff; text-shadow: 0 1px 2px #000;
   }
+
+  .wave-display { font-size: 1.5rem; color: #ff3333; text-shadow: 0 0 10px #f00; }
+  .level-display { font-size: 1.2rem; }
+  .enemy-count { font-size: 0.8rem; color: #aaa; margin-top: 5px; }
 
   .hud-bottom-center {
     position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
@@ -703,7 +712,7 @@
     font-size: 1.2rem; font-weight: bold; color: #fff;
     text-shadow: 0 0 5px #fff;
   }
-  .obs-influence { font-size: 0.9rem; color: #aaa; }
+  .obs-stat { font-size: 0.75rem; color: #aaa; margin-top: 2px; font-family: monospace; }
 
   /* High Score Input */
   .highscore-input {
@@ -1447,7 +1456,7 @@
       if (this.pos.x < -100 || this.pos.x > CANVAS_W + 100 || this.pos.y < -100 || this.pos.y > CANVAS_H + 100) this.dead = true;
       
       // Weather: Wind
-      if (game.director.weather === 'wind') this.pos.x += 100 * dt;
+      if (game.director.weather === 'wind') this.pos.x += 300 * dt; // Stronger wind
     }
     draw(ctx: CanvasRenderingContext2D) {
       ctx.fillStyle = this.color;
@@ -1520,6 +1529,8 @@
     healTimer = 0;
     specialTimer = 0;
     isStealthed = false;
+    flankOffset = Math.random() * 100; // Unique movement pattern
+    offScreenTimer = 0;
 
     constructor(pos: Vector, typeId: string, level: number, public elite: boolean) {
       super(pos, 15, '#f00');
@@ -1541,26 +1552,44 @@
 
     update(dt: number) {
       if (!game.player.dead) {
-        const dir = game.player.pos.sub(this.pos).normalize();
+        let dir = game.player.pos.sub(this.pos).normalize();
         let speed = this.config.speed;
         
         // Weather: Rain slows enemies
-        if (game.director.weather === 'rain') speed *= 0.8;
+        if (game.director.weather === 'rain') speed *= 0.6;
+        
+        // Weather: Wind pushes enemies
+        if (game.director.weather === 'wind') this.pos.x += 150 * dt;
         
         // Anomaly: Turbo
         if (game.director.activeAnomaly?.type === 'turbo') speed *= 1.5;
         
+        // Flanking Logic (Fast units & Ninja)
+        if (this.config.id.includes('fast') || this.config.id.includes('ninja') || this.config.id.includes('vampire')) {
+             const toPlayer = game.player.pos.sub(this.pos);
+             const dist = toPlayer.mag();
+             if (dist > 100) { // Only flank when approaching
+                 const perp = new Vector(-toPlayer.y, toPlayer.x).normalize();
+                 // Sine wave flanking based on time and unique offset
+                 const flankFactor = Math.sin(performance.now() / 400 + this.flankOffset); 
+                 dir = toPlayer.normalize().add(perp.mult(flankFactor * 0.6)).normalize();
+             }
+        }
+
         // Ranged Logic
         if (this.config.type === 'ranged') {
             const dist = game.player.pos.sub(this.pos).mag();
-            if (dist < 300) speed = -50; // Kite
+            if (dist < 300) speed = -100; // Kite faster
             else if (dist < 500) speed = 0; // Stand and shoot
             
             this.shootTimer -= dt;
             if (this.shootTimer <= 0 && dist < 600) {
                 this.shootTimer = 2.0;
                 // Actual projectile
-                const shotDir = game.player.pos.sub(this.pos).normalize();
+                // Predictive Aiming
+                const timeToHit = dist / 300;
+                const predictedPos = game.player.pos.add(game.player.vel.mult(timeToHit * 0.5)); // 50% prediction accuracy
+                const shotDir = predictedPos.sub(this.pos).normalize();
                 game.projectiles.push(new Projectile(this.pos, shotDir.mult(300), this.damage, 'bullet', 'enemy'));
             }
         }
@@ -1805,6 +1834,10 @@
       }
       
       ctx.restore();
+    }
+
+    isVisible() {
+        return this.pos.x >= 0 && this.pos.x <= CANVAS_W && this.pos.y >= 0 && this.pos.y <= CANVAS_H;
     }
   }
 
@@ -2067,7 +2100,7 @@
       this.vel = this.vel.mult(0.90); // Friction
       
       // Weather: Rain slows player
-      if (game.director.weather === 'rain') this.vel = this.vel.mult(0.95);
+      if (game.director.weather === 'rain') this.vel = this.vel.mult(0.85); // More slippery/slow
       
       this.pos = this.pos.add(this.vel.mult(dt));
 
@@ -2427,9 +2460,16 @@
     bossSpawnedThisWave = false;
     raidBossActive = false;
     chatTimer = 0;
+    nextChatInterval = 5;
     holidayTimer = 0;
     holidayPickups = 0;
     spawnTickTimer = 0;
+    formationCooldown = 0;
+    
+    tactic: 'neutral' | 'swarm' | 'siege' | 'blitz' | 'ambush' | 'encircle' = 'neutral';
+    tacticTimer = 0;
+    analyzeTimer = 0;
+    playerPositions: Vector[] = [];
     
     activeQuest: { type: 'kill'|'collect'|'combo'|'survive', desc: string, target: number, current: number, reward: number } | null = null;
     weather: 'clear' | 'rain' | 'wind' | 'fog' = 'clear';
@@ -2496,15 +2536,30 @@
     update(dt: number) {
       // Fake Chat Simulation
       this.chatTimer += dt;
-      if (this.chatTimer > 0.5 + Math.random() * 5.5) {
+      if (this.chatTimer >= this.nextChatInterval) {
           this.game.addChatMessage();
           this.chatTimer = 0;
+          this.nextChatInterval = 4 + Math.random() * 26;
       }
 
       // Raid Logic
       if (this.game.mode === 'raid') {
           this.processSpawning(dt); // Spawn minions to annoy player
           return; // Skip wave cycling and mood logic for raids
+      }
+      
+      // Tactic Timer
+      if (this.tacticTimer > 0) {
+          this.tacticTimer -= dt;
+      }
+      
+      // Analyze Player Behavior
+      this.analyzeTimer += dt;
+      if (this.analyzeTimer >= 1.0) {
+          this.analyzeTimer = 0;
+          this.playerPositions.push(this.game.player.pos);
+          if (this.playerPositions.length > 5) this.playerPositions.shift(); // Keep last 5 seconds
+          this.analyzePlayer();
       }
 
       // 1. Mood Logic (Dynamic based on kills)
@@ -2609,7 +2664,7 @@
 
       // 3. Wave Cycling Logic
       // "Ran out of energy? ... begins next wave"
-      if (this.currentInfluence < 10 && this.game.enemies.length === 0) { // Wait for clear
+      if (this.currentInfluence < 10 && !this.game.enemies.some(e => e.isVisible())) { // Wait for clear (visible only)
           this.nextWaveTimer += dt;
           if (this.nextWaveTimer > 2.0) { // 2 seconds delay between waves
               this.wave++;
@@ -2619,6 +2674,43 @@
       } else {
           this.nextWaveTimer = 0;
       }
+    }
+    
+    analyzePlayer() {
+        if (this.playerPositions.length < 2) return;
+        
+        // Calc average movement speed (pixels per second approx)
+        let totalDist = 0;
+        for(let i=1; i<this.playerPositions.length; i++) {
+            totalDist += this.playerPositions[i].sub(this.playerPositions[i-1]).mag();
+        }
+        const avgSpeed = totalDist / this.playerPositions.length; 
+        
+        // Only switch tactic if timer expired
+        if (this.tacticTimer > 0) return;
+        
+        // Logic: Choose Tactic
+        let newTactic: any = 'neutral';
+        
+        if (avgSpeed < 50) {
+            newTactic = Math.random() > 0.5 ? 'siege' : 'encircle'; // Camper -> Artillery or Encircle
+        } else if (avgSpeed > 250) {
+            newTactic = Math.random() > 0.5 ? 'blitz' : 'ambush'; // Runner -> Intercept or Ambush
+        } else if (this.recentKills.length > 15) {
+            newTactic = 'swarm'; // High DPS -> Overwhelm
+        } else {
+            // Random variation even in neutral
+            const roll = Math.random();
+            if (roll < 0.15) newTactic = 'encircle';
+            else if (roll < 0.3) newTactic = 'ambush';
+            else newTactic = 'neutral';
+        }
+        
+        if (this.tactic !== newTactic && newTactic !== 'neutral') {
+            this.game.texts.push(new FloatingText(this.game.player.pos, `ТАКТИКА: ${newTactic.toUpperCase()}`, "#ff00ff"));
+        }
+        this.tactic = newTactic;
+        this.tacticTimer = 15 + Math.random() * 15; // Tactic lasts 15-30 seconds
     }
     
     triggerAnomaly() {
@@ -2658,7 +2750,7 @@
       
       const moodBonus = Math.floor(this.baseWaveInfluence * moodMult);
       this.currentInfluence += moodBonus;
-      if (this.currentInfluence < 0) this.currentInfluence = 0; // Prevent negative influence
+      if (this.currentInfluence < 0 || isNaN(this.currentInfluence)) this.currentInfluence = 0; // Prevent negative/NaN influence
       
       if (moodBonus !== 0) {
          const color = moodBonus > 0 ? "#f00" : "#0f0";
@@ -2678,6 +2770,15 @@
         this.spawnTickTimer += dt;
         if (this.spawnTickTimer < 0.5) return; // Tick every 0.5s
         this.spawnTickTimer = 0;
+
+        // 0. Formation Attack (Smart Move)
+        this.formationCooldown -= dt;
+        if (this.formationCooldown <= 0 && this.currentInfluence > 150) {
+            if (this.trySpawnFormation()) {
+                this.formationCooldown = 8 + Math.random() * 5; // Cooldown 8-13s
+                return; // Skip regular spawn to save influence for next big move
+            }
+        }
 
         // 1. Idle Check (Thinking) - Director takes pauses
         let idleChance = 0.3; 
@@ -2752,21 +2853,117 @@
                 const pool = available.slice(0, topCount);
                 enemy = pool[Math.floor(Math.random() * pool.length)];
             } else {
-                enemy = available[Math.floor(Math.random() * available.length)];
+                // Tactic Bias
+                let pool = available;
+                if (this.tactic === 'siege') {
+                    const siegeUnits = available.filter(e => ['ranged', 'tank', 'exploder', 'boss_sniper'].includes(e.type));
+                    if (siegeUnits.length > 0) pool = siegeUnits;
+                } else if (this.tactic === 'blitz') {
+                    const blitzUnits = available.filter(e => ['fast', 'charger', 'vampire', 'boss_charger'].includes(e.type) || e.speed > 200);
+                    if (blitzUnits.length > 0) pool = blitzUnits;
+                } else if (this.tactic === 'ambush') {
+                    const ambushUnits = available.filter(e => ['stealth', 'fast', 'ninja'].includes(e.type));
+                    if (ambushUnits.length > 0) pool = ambushUnits;
+                } else if (this.tactic === 'encircle') {
+                    const blitzUnits = available.filter(e => ['fast', 'charger', 'vampire', 'boss_charger'].includes(e.type) || e.speed > 200);
+                    if (blitzUnits.length > 0) pool = blitzUnits;
+                } else if (this.tactic === 'swarm') {
+                    const swarmUnits = available.filter(e => e.cost < 20);
+                    if (swarmUnits.length > 0) pool = swarmUnits;
+                }
+                
+                enemy = pool[Math.floor(Math.random() * pool.length)];
             }
 
-            this.payAndSpawn(enemy);
+            this.payAndSpawn(enemy, undefined);
             
             if (forceExpensive) break; // Only one expensive purchase per tick
         }
     }
     
-    spawnRandom(available: EnemyConfig[]) {
-        const enemy = available[Math.floor(Math.random() * available.length)];
-        this.payAndSpawn(enemy);
+    trySpawnFormation() {
+        let type: 'circle' | 'line' | 'wedge' = 'circle';
+        let enemyId = 'basic_weak';
+        let count = 5;
+        
+        // Choose formation based on tactic
+        if (this.tactic === 'siege') {
+            type = 'line';
+            enemyId = Math.random() > 0.5 ? 'tank_norm' : 'ranged_norm';
+            count = 4;
+        } else if (this.tactic === 'blitz') {
+            type = 'wedge';
+            enemyId = 'fast_norm';
+            count = 6;
+        } else if (this.tactic === 'ambush') {
+            type = 'circle'; // Ambush uses circle logic but offset (see below)
+            enemyId = 'ninja';
+            count = 3;
+        } else if (this.tactic === 'swarm' || this.tactic === 'encircle') {
+            type = 'circle';
+            enemyId = 'basic_weak';
+            count = 10;
+        } else {
+            // Neutral - random small formation
+            if (Math.random() > 0.7) return false;
+            type = 'wedge';
+            enemyId = 'basic_norm';
+            count = 3;
+        }
+        
+        const config = ENEMIES[enemyId];
+        if (!config || this.currentInfluence < config.cost * count) return false;
+        
+        // Execute Formation
+        const playerPos = this.game.player.pos;
+        const playerVel = this.game.player.vel;
+        const leadDist = 500;
+        
+        // Calculate Center
+        let center = playerPos;
+        if (type === 'wedge' || type === 'line') {
+            // Predict movement
+            const moveDir = playerVel.mag() > 10 ? playerVel.normalize() : new Vector(Math.random()-0.5, Math.random()-0.5).normalize();
+            center = playerPos.add(moveDir.mult(leadDist));
+        } else if (this.tactic === 'ambush') {
+            // Spawn BEHIND player
+            const moveDir = playerVel.mag() > 10 ? playerVel.normalize() : new Vector(1,0);
+            center = playerPos.sub(moveDir.mult(300)); // Behind
+            type = 'wedge'; // Use wedge formation for ambush
+        }
+        
+        // Clamp bounds
+        center.x = Math.max(50, Math.min(CANVAS_W - 50, center.x));
+        center.y = Math.max(50, Math.min(CANVAS_H - 50, center.y));
+        
+        for(let i=0; i<count; i++) {
+            let pos = new Vector(0,0);
+            if (type === 'circle' || this.tactic === 'encircle') {
+                const angle = (Math.PI * 2 / count) * i;
+                pos = playerPos.add(new Vector(Math.cos(angle), Math.sin(angle)).mult(300));
+            } else if (type === 'line') {
+                const perp = new Vector(-playerVel.y, playerVel.x).normalize();
+                pos = center.add(perp.mult((i - (count-1)/2) * 60));
+            } else if (type === 'wedge') {
+                const dir = playerVel.mag() > 0 ? playerVel.normalize() : new Vector(1,0);
+                const right = new Vector(-dir.y, dir.x);
+                const row = Math.floor(i/2);
+                const side = i%2===0 ? 1 : -1;
+                pos = center.add(dir.mult(-row * 40)).add(right.mult(side * row * 40));
+            }
+            this.payAndSpawn(config, pos);
+        }
+        
+        this.game.texts.push(new FloatingText(center, `ФОРМАЦИЯ: ${type.toUpperCase()}`, "#ff00ff"));
+        return true;
     }
     
-    payAndSpawn(config: EnemyConfig) {
+    spawnRandom(available: EnemyConfig[]) {
+        const enemy = available[Math.floor(Math.random() * available.length)];
+        this.payAndSpawn(enemy, undefined);
+    }
+    
+    payAndSpawn(config: EnemyConfig, pos?: Vector) {
         let cost = config.cost;
         let elite = false;
         
@@ -2777,7 +2974,7 @@
         }
         
         this.currentInfluence -= cost;
-        this.game.spawnEnemy(config.id, elite);
+        this.game.spawnEnemy(config.id, elite, pos);
         this.updateUI();
     }
 
@@ -2797,8 +2994,40 @@
       faceEl.innerText = c.face;
       moodEl.innerText = c.text;
       moodEl.style.color = c.color;
+      
       document.getElementById('obs-influence')!.innerText = `ВЛИЯНИЕ: ${Math.floor(this.currentInfluence)}`;
-      if (this.activeAnomaly) document.getElementById('obs-influence')!.innerText = `АНОМАЛИЯ: ${this.activeAnomaly.name}`;
+      
+      // Show Tactic
+      let tacticText = "НЕТ";
+      let tacticColor = "#666";
+      if (this.tactic === 'siege') { tacticText = "ОСАДА"; tacticColor = "#ff8800"; }
+      else if (this.tactic === 'blitz') { tacticText = "ПЕРЕХВАТ"; tacticColor = "#0ff"; }
+      else if (this.tactic === 'swarm') { tacticText = "РОЙ"; tacticColor = "#f0f"; }
+      else if (this.tactic === 'ambush') { tacticText = "ЗАСАДА"; tacticColor = "#ff0000"; }
+      else if (this.tactic === 'encircle') { tacticText = "ОКРУЖЕНИЕ"; tacticColor = "#aa00aa"; }
+      
+      const tacticEl = document.getElementById('obs-tactic');
+      if (tacticEl) tacticEl.innerHTML = `ТАКТИКА: <span style="color:${tacticColor}">${tacticText}</span>`;
+
+      // Show Weather
+      const weatherMap: Record<string, string> = { 'clear': 'ЯСНО', 'rain': 'ДОЖДЬ', 'wind': 'ВЕТЕР', 'fog': 'ТУМАН' };
+      const weatherEl = document.getElementById('obs-weather');
+      if (weatherEl) {
+          const wText = weatherMap[this.weather] || 'ЯСНО';
+          const wColor = this.weather === 'clear' ? '#666' : '#0ff';
+          weatherEl.innerHTML = `ПОГОДА: <span style="color:${wColor}">${wText}</span>`;
+      }
+
+      // Show Anomaly
+      const anomalyEl = document.getElementById('obs-anomaly');
+      if (anomalyEl) {
+          if (this.activeAnomaly) {
+              anomalyEl.innerHTML = `АНОМАЛИЯ: <span style="color:#ff00ff" class="blink">${this.activeAnomaly.name}</span>`;
+          } else {
+              anomalyEl.innerHTML = `АНОМАЛИЯ: <span style="color:#444">НЕТ</span>`;
+          }
+      }
+
       if (this.activeQuest) document.getElementById('hud-quest-text')!.innerText = `${this.activeQuest.desc} (${this.activeQuest.current}/${this.activeQuest.target})`;
     }
   }
@@ -3006,7 +3235,8 @@
                   if (p.type === 'xp') {
                     this.player.gainXp(10 * p.value);
                     const comboMult = 1 + (this.combo * 0.01); // 1% per combo
-                    this.score += Math.floor(10 * selectedDifficulty * p.value * comboMult);
+                    const waveMult = 1 + (this.director.wave * 0.02); // 2% per wave
+                    this.score += Math.floor(10 * selectedDifficulty * p.value * comboMult * waveMult);
                     this.currencyCollected += Math.floor(1 * selectedDifficulty * p.value);
                   } else if (p.type === 'core') {
                     this.coresCollected += 1 * selectedDifficulty;
@@ -3256,7 +3486,10 @@
           if (this.projectiles[i].dead) this.projectiles.splice(i, 1);
       }
       for (let i = this.enemies.length - 1; i >= 0; i--) {
-          if (this.enemies[i].hp <= 0) this.enemies[i].dead = true; // Safety net for immortal mobs
+          const e = this.enemies[i];
+          // Safety net for immortal/glitched mobs (NaN check)
+          if (e.hp <= 0 || isNaN(e.hp) || isNaN(e.pos.x) || isNaN(e.pos.y)) e.dead = true;
+          
           if (this.enemies[i].dead) this.enemies.splice(i, 1);
       }
       for (let i = this.turrets.length - 1; i >= 0; i--) if (this.turrets[i].dead) this.turrets.splice(i, 1);
@@ -3307,10 +3540,10 @@
       
       // Weather Overlay
       if (this.director.weather === 'rain') {
-          this.ctx.fillStyle = 'rgba(0,0,50,0.2)';
+          this.ctx.fillStyle = 'rgba(0,0,80,0.3)'; // Darker rain
           this.ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
       } else if (this.director.weather === 'fog') {
-          this.ctx.fillStyle = 'rgba(200,200,200,0.1)';
+          this.ctx.fillStyle = 'rgba(200,200,200,0.3)'; // Thicker fog
           this.ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
       }
 
@@ -3404,15 +3637,17 @@
         }
     }
 
-    spawnEnemy(typeId: string, elite: boolean) {
-      // Random edge position
-      let pos = new Vector(0,0);
-      if (Math.random() > 0.5) {
-        pos.x = Math.random() > 0.5 ? -50 : CANVAS_W + 50;
-        pos.y = Math.random() * CANVAS_H;
-      } else {
-        pos.x = Math.random() * CANVAS_W;
-        pos.y = Math.random() > 0.5 ? -50 : CANVAS_H + 50;
+    spawnEnemy(typeId: string, elite: boolean, pos?: Vector) {
+      if (!pos) {
+          // Random edge position
+          pos = new Vector(0,0);
+          if (Math.random() > 0.5) {
+            pos.x = Math.random() > 0.5 ? -50 : CANVAS_W + 50;
+            pos.y = Math.random() * CANVAS_H;
+          } else {
+            pos.x = Math.random() * CANVAS_W;
+            pos.y = Math.random() > 0.5 ? -50 : CANVAS_H + 50;
+          }
       }
       
       const enemy = new Enemy(pos, typeId, this.director.wave, elite);
@@ -3646,6 +3881,7 @@
       document.getElementById('hud-score')!.innerText = this.score.toString();
       document.getElementById('hud-level')!.innerText = this.player.level.toString();
       document.getElementById('hud-wave')!.innerText = this.director.wave.toString();
+      document.getElementById('hud-enemies')!.innerText = this.enemies.length.toString();
       
       const hpPct = (this.player.hp / this.player.maxHp) * 100;
       document.getElementById('hud-hp-bar')!.style.width = `${Math.max(0, hpPct)}%`;
