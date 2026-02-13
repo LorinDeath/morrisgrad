@@ -40,6 +40,7 @@
             <button id="btn-inventory" class="btn-secondary text-gold">ИНВЕНТАРЬ [NEW]</button>
             <button id="btn-raids" class="btn-secondary text-red">РЕЙДЫ [BOSS]</button>
             <button id="btn-leaderboard" class="btn-secondary text-purple">РЕЙТИНГ</button>
+            <button id="btn-debug-cores" class="btn-secondary" style="color: #ff00ff; border-color: #ff00ff;">DEBUG: +100 ЯДЕР</button>
         </div>
 
         <div class="menu-columns">
@@ -108,6 +109,16 @@
         <button id="btn-vic-menu" class="btn-secondary">В ГЛАВНОЕ МЕНЮ</button>
       </div>
 
+      <!-- Merchant Screen -->
+      <div id="merchant-screen" class="screen hidden">
+        <h2 class="text-gold">ТОРГОВЕЦ</h2>
+        <p>ОБМЕНЯЙ ОСКОЛКИ НА УСИЛЕНИЯ</p>
+        <div id="merchant-items" class="merchant-grid">
+           <!-- Items injected via JS -->
+        </div>
+        <button id="btn-merchant-close" class="btn-secondary">УЙТИ</button>
+      </div>
+
       <!-- Leaderboard Screen -->
       <div id="leaderboard-screen" class="screen hidden">
         <h2>ГЛОБАЛЬНЫЙ РЕЙТИНГ</h2>
@@ -127,6 +138,10 @@
       <!-- Difficulty Selection -->
       <div id="difficulty-screen" class="screen hidden">
         <h2>ВЫБЕРИТЕ УРОВЕНЬ УГРОЗЫ</h2>
+        <div id="class-selector-container" class="class-selector"></div>
+        <div id="class-desc" class="diff-info" style="color: #0ff; margin-bottom: 10px; font-size: 0.9rem;">
+            МОРПЕХ: Сбалансированный боец
+        </div>
         <div class="diff-grid">
           <!-- Buttons injected via JS -->
         </div>
@@ -165,6 +180,19 @@
           <div class="hp-bar-wrap">
             <div id="hud-hp-bar" class="hp-bar-fill"></div>
             <span id="hud-hp-text">100/100</span>
+          </div>
+          <div class="heat-bar-wrap">
+            <div id="hud-heat-bar" class="heat-bar-fill"></div>
+          </div>
+          <div class="skills-hud">
+             <div id="skill-q" class="skill-box">Q <div id="cd-q" class="cd-overlay"></div></div>
+             <div id="skill-e" class="skill-box">E <div id="cd-e" class="cd-overlay"></div></div>
+          </div>
+          <div id="hud-combo-container" class="combo-container hidden">
+             <div id="hud-combo-count" class="combo-count">x0</div>
+          </div>
+          <div id="hud-quest-container" class="quest-container hidden">
+             <div id="hud-quest-text" class="quest-text">ЗАДАНИЕ: УБИТЬ 10 ВРАГОВ</div>
           </div>
           <div class="xp-bar-wrap">
             <div id="hud-xp-bar" class="xp-bar-fill"></div>
@@ -337,7 +365,7 @@
   .text-red { color: #ff3333; text-shadow: 0 0 10px #f00; }
   
   h1.title {
-    font-size: 5rem;
+    font-size: 4rem;
     color: #fff;
     text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
     margin-bottom: 2rem;
@@ -396,8 +424,13 @@
   .stat-box .value { font-size: 2rem; font-weight: 900; }
 
   .menu-columns { display: flex; gap: 20px; }
-  .menu-buttons-row { display: flex; gap: 20px; margin-bottom: 20px; }
-  .menu-buttons-row button { min-width: 200px; }
+  
+  .menu-buttons-row { 
+    display: grid; 
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 15px; 
+    margin-bottom: 30px; 
+  }
   
   /* Inventory Styles */
   .inv-layout { display: flex; gap: 40px; margin-bottom: 20px; }
@@ -508,6 +541,13 @@
   .shop-scroll::-webkit-scrollbar { width: 6px; }
   .shop-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
   .shop-scroll::-webkit-scrollbar-thumb:hover { background: #0ff; }
+  
+  /* Class Selector */
+  .class-selector { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; max-width: 800px; }
+  .class-btn { padding: 10px 20px; border: 1px solid #444; cursor: pointer; color: #888; transition: all 0.2s; }
+  .class-btn:hover { border-color: #fff; color: #fff; }
+  .class-btn.selected { background: #0ff; color: #000; border-color: #0ff; font-weight: bold; }
+  
 
   /* Difficulty Screen */
   .diff-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
@@ -585,6 +625,28 @@
   .hp-bar-wrap { width: 300px; height: 20px; background: #333; border: 1px solid #555; position: relative; }
   .hp-bar-fill { width: 100%; height: 100%; background: #ff3333; transition: width 0.1s; box-shadow: 0 0 10px #ff0000; }
   #hud-hp-text { position: absolute; top: 0; left: 0; width: 100%; text-align: center; font-size: 12px; line-height: 18px; color: #fff; }
+  
+  .heat-bar-wrap { width: 300px; height: 4px; background: #222; margin-top: 2px; position: relative; overflow: hidden; }
+  .heat-bar-fill { width: 0%; height: 100%; background: #ffaa00; transition: width 0.1s; }
+  .heat-bar-fill.overheated { background: #ff0000; box-shadow: 0 0 5px #f00; }
+  
+  .skills-hud { display: flex; gap: 10px; margin-top: 5px; }
+  .skill-box { width: 30px; height: 30px; background: #333; border: 1px solid #666; color: #fff; display: flex; justify-content: center; align-items: center; font-size: 0.8rem; position: relative; font-weight: bold; }
+  .cd-overlay { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.7); height: 0%; transition: height 0.1s; }
+  
+  .combo-container { margin-top: 5px; text-align: center; height: 30px; }
+  .combo-container.hidden { opacity: 0; }
+  .combo-count { 
+    font-size: 1.5rem; font-weight: 900; color: #ffd700; 
+    text-shadow: 0 0 10px #ff8800; transform: scale(1); transition: transform 0.1s;
+  }
+  .combo-count.pulse { transform: scale(1.3); color: #fff; }
+  
+  .quest-container { margin-top: 5px; background: rgba(0,0,0,0.5); padding: 5px 10px; border: 1px solid #ffd700; border-radius: 4px; }
+  .quest-container.hidden { display: none; }
+  .quest-text { font-size: 0.8rem; color: #ffd700; font-weight: bold; }
+  
+  .merchant-grid { display: flex; gap: 20px; margin-bottom: 20px; }
   
   .xp-bar-wrap { width: 300px; height: 6px; background: #111; }
   .xp-bar-fill { width: 0%; height: 100%; background: #0ff; transition: width 0.2s; box-shadow: 0 0 5px #0ff; }
@@ -684,11 +746,26 @@
   let gameInstance: Game | null = null;
   let animationFrameId: number;
   let selectedDifficulty = 1;
+  let selectedClass = 'marine';
 
   // --- RPG CONSTANTS ---
   const ITEM_TYPES = ['weapon', 'armor', 'chip'];
   const RARITIES = ['common', 'rare', 'epic', 'legendary'];
   
+  const CLASSES = [
+    { id: 'marine', name: 'МОРПЕХ', desc: 'Сбалансированный боец', unlock: null },
+    { id: 'engineer', name: 'ИНЖЕНЕР', desc: 'Старт с боевым дроном, -20% Урона', unlock: null },
+    { id: 'psycho', name: 'ПСИХ', desc: 'Навыки [Q] Мина и [E] Турель, +50% Урона, -30% HP', unlock: null },
+    { id: 'sniper', name: 'СНАЙПЕР', desc: 'Урон x2, Крит +20%, [E] Точный выстрел', unlock: 'class_sniper' },
+    { id: 'tank', name: 'ТАНК', desc: 'HP x2, Шипы, [E] Щит', unlock: 'class_tank' },
+    { id: 'scout', name: 'РАЗВЕДЧИК', desc: 'Скорость, Уклонение, [E] Рывок', unlock: 'class_scout' },
+    { id: 'mage', name: 'МАГ', desc: 'Магия стихий, [E] Кольцо огня', unlock: 'class_mage' },
+    { id: 'summoner', name: 'ПРИЗЫВАТЕЛЬ', desc: 'Армия дронов, [E] Призыв', unlock: 'class_summoner' },
+    { id: 'gambler', name: 'ИГРОК', desc: 'Удача +50, Крит урон x3, [E] Ставка', unlock: 'class_gambler' },
+    { id: 'ninja', name: 'НИНДЗЯ', desc: 'Стелс, Ближний бой, [E] Дым', unlock: 'class_ninja' },
+    { id: 'cyborg', name: 'КИБОРГ', desc: 'Регенерация, Лазеры, [E] Перегрузка', unlock: 'class_cyborg' }
+  ];
+
   let chatHistory: {name: string, msg: string, type: 'user'|'system'}[] = [];
 
   // --- RAID CONFIG ---
@@ -867,6 +944,10 @@
             }
         }
     });
+    
+    if (gameInstance) {
+        gameInstance.renderClassSelector();
+    }
   }
 
   // --- SKILLS ---
@@ -906,7 +987,12 @@
       { name: "ЛАЗЕР", desc: "Разблок: Лазер", cost: 30, type: 'unlock', id: 'w_laser', effect: () => { if(!meta.unlocks.includes('w_laser')) meta.unlocks.push('w_laser'); } },
       { name: "ПЕРЕГРУЗКА", desc: "+30% Урона, -10% HP", cost: 20, type: 'mechanic', effect: p => { p.damage *= 1.3; p.maxHp *= 0.9; } },
       { name: "УСИЛЕНИЕ III", desc: "+20% Урона", cost: 25, type: 'stat', effect: p => p.damage *= 1.2 },
+      { name: "КЛАСС: СНАЙПЕР", desc: "Разблок: Снайпер", cost: 40, type: 'unlock', id: 'class_sniper', effect: () => { if(!meta.unlocks.includes('class_sniper')) meta.unlocks.push('class_sniper'); } },
+      { name: "КЛАСС: НИНДЗЯ", desc: "Разблок: Ниндзя", cost: 60, type: 'unlock', id: 'class_ninja', effect: () => { if(!meta.unlocks.includes('class_ninja')) meta.unlocks.push('class_ninja'); } },
+      { name: "ДРОН: АТАКА", desc: "+1 Дрон", cost: 30, type: 'passive', effect: p => p.droneCount += 1 },
+      { name: "ТЕРМО-УРОН", desc: "+20% Бонус перегрева", cost: 35, type: 'passive', effect: p => p.heatDmgBonus += 0.2 },
       { name: "ПЛАЗМА", desc: "Разблок: Плазма-ган", cost: 40, type: 'unlock', id: 'w_plasma', effect: () => { if(!meta.unlocks.includes('w_plasma')) meta.unlocks.push('w_plasma'); } },
+      { name: "УРОН IV", desc: "+25% Урона", cost: 45, type: 'stat', effect: p => p.damage *= 1.25 },
       { name: "КРИТ. МАСТЕР", desc: "+15% Шанс крита", cost: 45, type: 'passive', effect: p => p.critChance += 0.15 },
       { name: "МУЛЬТИВЫСТРЕЛ I", desc: "+1 Снаряд", cost: 50, type: 'passive', effect: p => p.multishot += 1 }
     ],
@@ -916,6 +1002,9 @@
       { name: "РЕГЕНЕРАЦИЯ I", desc: "+1 HP/сек", cost: 5, type: 'passive', effect: p => p.regen += 1 },
       { name: "ШИПЫ I", desc: "Возврат 10 урона", cost: 5, type: 'passive', effect: p => p.thorns += 10 },
       { name: "ОБШИВКА II", desc: "+50 Макс. HP", cost: 5, type: 'stat', effect: p => p.maxHp += 50 },
+      { name: "КЛАСС: ТАНК", desc: "Разблок: Танк", cost: 40, type: 'unlock', id: 'class_tank', effect: () => { if(!meta.unlocks.includes('class_tank')) meta.unlocks.push('class_tank'); } },
+      { name: "КЛАСС: КИБОРГ", desc: "Разблок: Киборг", cost: 60, type: 'unlock', id: 'class_cyborg', effect: () => { if(!meta.unlocks.includes('class_cyborg')) meta.unlocks.push('class_cyborg'); } },
+      { name: "РУНЫ: ВРЕМЯ", desc: "+50% Длительность рун", cost: 20, type: 'passive', effect: p => p.runeDurationMult += 0.5 },
       { name: "ВАМПИРИЗМ I", desc: "1% Кража жизни", cost: 15, type: 'mechanic', effect: p => p.lifesteal += 0.01 },
       { name: "РЕГЕНЕРАЦИЯ II", desc: "+2 HP/сек", cost: 10, type: 'passive', effect: p => p.regen += 2 },
       { name: "ТИТАН", desc: "+100 HP, -10% Скор.", cost: 20, type: 'stat', effect: p => { p.maxHp += 100; p.speed *= 0.9; } },
@@ -926,24 +1015,30 @@
     ],
     // 2: XENOLOGY (Down-Left) - Unlock Enemies & Get Buffs
     2: [
-      { name: "БЕГУНЫ", desc: "Враг: Быстрые. НАГРАДА: +10% Скор.", cost: 5, type: 'unlock', id: 'enemy_fast', effect: p => { if(!meta.unlocks.includes('enemy_fast')) meta.unlocks.push('enemy_fast'); p.speed *= 1.1; } },
-      { name: "ТАНКИ", desc: "Враг: Броня. НАГРАДА: +20 HP", cost: 10, type: 'unlock', id: 'enemy_tank', effect: p => { if(!meta.unlocks.includes('enemy_tank')) meta.unlocks.push('enemy_tank'); p.maxHp += 20; } },
-      { name: "СНАЙПЕРЫ", desc: "Враг: Стрелки. НАГРАДА: +5% Крит", cost: 15, type: 'unlock', id: 'enemy_sniper', effect: p => { if(!meta.unlocks.includes('enemy_sniper')) meta.unlocks.push('enemy_sniper'); p.critChance += 0.05; } },
-      { name: "ХИЛЕРЫ", desc: "Враг: Лекари. НАГРАДА: +1 Реген", cost: 20, type: 'unlock', id: 'enemy_healer', effect: p => { if(!meta.unlocks.includes('enemy_healer')) meta.unlocks.push('enemy_healer'); p.regen += 1; } },
-      { name: "ВАМПИРЫ", desc: "Враг: Вампиры. НАГРАДА: +1% Вампиризм", cost: 25, type: 'unlock', id: 'enemy_vampire', effect: p => { if(!meta.unlocks.includes('enemy_vampire')) meta.unlocks.push('enemy_vampire'); p.lifesteal += 0.01; } },
-      { name: "КАМИКАДЗЕ", desc: "Враг: Взрыв. НАГРАДА: +20% Радиус", cost: 30, type: 'unlock', id: 'enemy_exploder', effect: p => { if(!meta.unlocks.includes('enemy_exploder')) meta.unlocks.push('enemy_exploder'); p.aoeRadius *= 1.2; } },
-      { name: "ПРИЗЫВАТЕЛИ", desc: "Враг: Спавн. НАГРАДА: +20% XP", cost: 35, type: 'unlock', id: 'enemy_summoner', effect: p => { if(!meta.unlocks.includes('enemy_summoner')) meta.unlocks.push('enemy_summoner'); p.xpMult += 0.2; } },
-      { name: "ПРИЗРАКИ", desc: "Враг: Стелс. НАГРАДА: +10% Уклонение", cost: 40, type: 'unlock', id: 'enemy_ghost', effect: p => { if(!meta.unlocks.includes('enemy_ghost')) meta.unlocks.push('enemy_ghost'); p.dodge += 0.1; } },
+      { name: "БЕГУНЫ", desc: "Враг: Быстрые. НАГРАДА: +10% Скор.", cost: 5, type: 'unlock', id: 'enemy_fast', effect: p => { if(!meta.unlocks.includes('enemy_fast')) meta.unlocks.push('enemy_fast'); if(p) p.speed *= 1.1; } },
+      { name: "ТАНКИ", desc: "Враг: Броня. НАГРАДА: +20 HP", cost: 10, type: 'unlock', id: 'enemy_tank', effect: p => { if(!meta.unlocks.includes('enemy_tank')) meta.unlocks.push('enemy_tank'); if(p) p.maxHp += 20; } },
+      { name: "СНАЙПЕРЫ", desc: "Враг: Стрелки. НАГРАДА: +5% Крит", cost: 15, type: 'unlock', id: 'enemy_sniper', effect: p => { if(!meta.unlocks.includes('enemy_sniper')) meta.unlocks.push('enemy_sniper'); if(p) p.critChance += 0.05; } },
+      { name: "ХИЛЕРЫ", desc: "Враг: Лекари. НАГРАДА: +1 Реген", cost: 20, type: 'unlock', id: 'enemy_healer', effect: p => { if(!meta.unlocks.includes('enemy_healer')) meta.unlocks.push('enemy_healer'); if(p) p.regen += 1; } },
+      { name: "КЛАСС: ПРИЗЫВАТЕЛЬ", desc: "Разблок: Призыватель", cost: 50, type: 'unlock', id: 'class_summoner', effect: () => { if(!meta.unlocks.includes('class_summoner')) meta.unlocks.push('class_summoner'); } },
+      { name: "ИЗУЧЕНИЕ I", desc: "+10% Урона по элите", cost: 25, type: 'passive', effect: p => p.eliteDmgMult += 0.1 },
+      { name: "ВАМПИРЫ", desc: "Враг: Вампиры. НАГРАДА: +1% Вампиризм", cost: 25, type: 'unlock', id: 'enemy_vampire', effect: p => { if(!meta.unlocks.includes('enemy_vampire')) meta.unlocks.push('enemy_vampire'); if(p) p.lifesteal += 0.01; } },
+      { name: "КАМИКАДЗЕ", desc: "Враг: Взрыв. НАГРАДА: +20% Радиус", cost: 30, type: 'unlock', id: 'enemy_exploder', effect: p => { if(!meta.unlocks.includes('enemy_exploder')) meta.unlocks.push('enemy_exploder'); if(p) p.aoeRadius *= 1.2; } },
+      { name: "ПРИЗЫВАТЕЛИ", desc: "Враг: Спавн. НАГРАДА: +20% XP", cost: 35, type: 'unlock', id: 'enemy_summoner', effect: p => { if(!meta.unlocks.includes('enemy_summoner')) meta.unlocks.push('enemy_summoner'); if(p) p.xpMult += 0.2; } },
+      { name: "ПРИЗРАКИ", desc: "Враг: Стелс. НАГРАДА: +10% Уклонение", cost: 40, type: 'unlock', id: 'enemy_ghost', effect: p => { if(!meta.unlocks.includes('enemy_ghost')) meta.unlocks.push('enemy_ghost'); if(p) p.dodge += 0.1; } },
       { name: "УБИЙЦА БОССОВ", desc: "+30% Урона по боссам", cost: 50, type: 'passive', effect: p => p.bossDmgMult += 0.3 }
     ],
     // 3: THREAT (Left-Up) - Difficulty & Loot
     3: [
       { name: "УГРОЗА x2", desc: "Разблок: Сложность x2", cost: 10, type: 'unlock', id: 'diff_x2', effect: () => { if(!meta.unlocks.includes('diff_x2')) meta.unlocks.push('diff_x2'); } },
-      { name: "МАГНИТ I", desc: "+30% Радиус сбора", cost: 5, type: 'passive', effect: p => meta.upgrades.magnet += 3 },
+      { name: "КОНТРАКТЫ", desc: "+50% Наград за квесты", cost: 15, type: 'passive', effect: p => p.questRewardMult += 0.5 },
+      { name: "МАГНИТ I", desc: "+30% Радиус сбора", cost: 5, type: 'passive', effect: p => p.magnet += 3 },
+      { name: "КЛАСС: ИГРОК", desc: "Разблок: Игрок", cost: 45, type: 'unlock', id: 'class_gambler', effect: () => { if(!meta.unlocks.includes('class_gambler')) meta.unlocks.push('class_gambler'); } },
       { name: "УГРОЗА x4", desc: "Разблок: Сложность x4", cost: 20, type: 'unlock', id: 'diff_x4', effect: () => { if(!meta.unlocks.includes('diff_x4')) meta.unlocks.push('diff_x4'); } },
+      { name: "ТОРГОВЕЦ", desc: "-20% Цены торговца", cost: 30, type: 'passive', effect: p => p.merchantDiscount += 0.2 },
       { name: "ОПЫТНЫЙ", desc: "+20% Получения XP", cost: 15, type: 'passive', effect: p => p.xpMult += 0.2 },
       { name: "УГРОЗА x8", desc: "Разблок: Сложность x8", cost: 40, type: 'unlock', id: 'diff_x8', effect: () => { if(!meta.unlocks.includes('diff_x8')) meta.unlocks.push('diff_x8'); } },
-      { name: "МАГНИТ II", desc: "Макс. радиус сбора", cost: 30, type: 'passive', effect: p => meta.upgrades.magnet += 10 },
+      { name: "МАГНИТ II", desc: "Макс. радиус сбора", cost: 30, type: 'passive', effect: p => p.magnet += 10 },
+      { name: "МАГНАТ", desc: "+20% Осколков", cost: 50, type: 'passive', effect: p => { /* handled in drop logic or just placeholder for now */ } },
       { name: "УГРОЗА x16", desc: "Разблок: Сложность x16", cost: 80, type: 'unlock', id: 'diff_x16', effect: () => { if(!meta.unlocks.includes('diff_x16')) meta.unlocks.push('diff_x16'); } },
       { name: "УГРОЗА x32", desc: "Разблок: Сложность x32", cost: 150, type: 'unlock', id: 'diff_x32', effect: () => { if(!meta.unlocks.includes('diff_x32')) meta.unlocks.push('diff_x32'); } },
       { name: "УГРОЗА x64", desc: "Разблок: Сложность x64", cost: 300, type: 'unlock', id: 'diff_x64', effect: () => { if(!meta.unlocks.includes('diff_x64')) meta.unlocks.push('diff_x64'); } }
@@ -951,8 +1046,13 @@
     // 4: ARSENAL (Up) - Ultimates & Expensive Tech
     4: [
       { name: "РЫВОК", desc: "ПРОБЕЛ: Рывок (100 ядер)", cost: 100, type: 'unlock', id: 'ult_dash', effect: () => { if(!meta.unlocks.includes('ult_dash')) meta.unlocks.push('ult_dash'); } },
+      { name: "КЛАСС: РАЗВЕДЧИК", desc: "Разблок: Разведчик", cost: 40, type: 'unlock', id: 'class_scout', effect: () => { if(!meta.unlocks.includes('class_scout')) meta.unlocks.push('class_scout'); } },
+      { name: "КЛАСС: МАГ", desc: "Разблок: Маг", cost: 60, type: 'unlock', id: 'class_mage', effect: () => { if(!meta.unlocks.includes('class_mage')) meta.unlocks.push('class_mage'); } },
+      { name: "РАДИАТОР", desc: "+30% Охлаждение", cost: 30, type: 'passive', effect: p => p.heatCooling *= 1.3 },
+      { name: "ИНЖЕНЕР", desc: "+1 Дрон, +10% Скор.Стр.", cost: 60, type: 'passive', effect: p => { p.droneCount += 1; p.fireRate *= 0.9; } },
       { name: "ЦИКЛЕР", desc: "+15% Скорострельности", cost: 50, type: 'stat', effect: p => p.fireRate *= 0.85 },
       { name: "РИКОШЕТ", desc: "Снаряды отскакивают", cost: 150, type: 'mechanic', id: 'ricochet', effect: p => p.ricochet = true },
+      { name: "ФОРСАЖ", desc: "Нагрев +20%, Урон +10%", cost: 180, type: 'mechanic', effect: p => { p.heatGenMult *= 1.2; p.damage *= 1.1; } },
       { name: "ЯДЕРНЫЙ УДАР", desc: "F: Уничтожить всех (200 ядер)", cost: 200, type: 'unlock', id: 'ult_nuke', effect: () => { if(!meta.unlocks.includes('ult_nuke')) meta.unlocks.push('ult_nuke'); } },
       { name: "САМОНАВЕДЕНИЕ", desc: "Умные снаряды", cost: 250, type: 'mechanic', id: 'homing', effect: p => p.homing = true },
       { name: "ЦЕПНАЯ МОЛНИЯ", desc: "Шанс удара молнией", cost: 300, type: 'mechanic', id: 'lightning', effect: p => p.lightning = true },
@@ -1004,7 +1104,7 @@
               { name: 'АТОМ', desc: '+3 Урона', effect: (p:Player) => p.damage += 3 }, // Branch 0 (Attack)
               { name: 'ПЛАСТИНА', desc: '+15 HP', effect: (p:Player) => p.maxHp += 15 }, // Branch 1 (Defense)
               { name: 'ДАННЫЕ', desc: '+5% XP', effect: (p:Player) => p.xpMult += 0.05 }, // Branch 2 (Xenology)
-              { name: 'УДАЧА', desc: '+1 Удачa', effect: (p:Player) => meta.upgrades.luck += 1 }, // Branch 3 (Threat)
+              { name: 'УДАЧА', desc: '+1 Удачa', effect: (p:Player) => p.luck += 1 }, // Branch 3 (Threat)
               { name: 'СМАЗКА', desc: '-2% Кулдаун', effect: (p:Player) => p.cooldownMult *= 0.98 } // Branch 4 (Arsenal)
           ];
           
@@ -1053,6 +1153,9 @@
       // Events
       const container = document.getElementById('tree-canvas-container')!;
       container.addEventListener('mousedown', e => {
+        // Ignore clicks inside tooltip to prevent deselection
+        if ((e.target as HTMLElement).closest('#tree-tooltip')) return;
+
         this.isDragging = true;
         this.lastMouse = {x: e.clientX, y: e.clientY};
         this.selectedNode = null;
@@ -1264,15 +1367,17 @@
   class Particle extends Entity {
     life = 1.0;
     age = 0;
-    constructor(pos: Vector, public vel: Vector, color: string, public size: number, public type: 'vfx' | 'xp' | 'core' | 'fake_hp' | 'fake_shield' | 'fake_xp' | 'loot' = 'vfx') {
+    value = 1;
+    constructor(pos: Vector, public vel: Vector, color: string, public size: number, public type: 'vfx' | 'xp' | 'core' | 'fake_hp' | 'fake_shield' | 'fake_xp' | 'loot' | 'merchant_signal' | 'rune' = 'vfx', value: number = 1) {
       super(pos, size, color);
+      this.value = value;
     }
     update(dt: number) {
       if (this.type === 'xp' || this.type === 'core') {
           // Magnet logic
           const dir = game.player.pos.sub(this.pos);
           const dist = dir.mag();
-          let range = 150 + (meta.upgrades.magnet * 50);
+          let range = 150 + (game.player.magnet * 50);
           if (this.type === 'core') range = 300; // Cores have bigger magnet
           
           if (dist < range) {
@@ -1312,6 +1417,18 @@
          ctx.fillText('📦', this.pos.x - 10, this.pos.y + 5);
          return;
       }
+      if (this.type === 'merchant_signal') {
+         ctx.font = '24px Arial';
+         ctx.shadowBlur = 15; ctx.shadowColor = '#0f0';
+         ctx.fillText('💲', this.pos.x - 12, this.pos.y + 8);
+         return;
+      }
+      if (this.type === 'rune') {
+         ctx.font = '20px Arial';
+         ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
+         ctx.fillText('ᛟ', this.pos.x - 10, this.pos.y + 5);
+         return;
+      }
       ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1.0;
     }
@@ -1328,6 +1445,9 @@
       this.pos = this.pos.add(this.vel.mult(dt));
       // Bounds check (despawn if too far)
       if (this.pos.x < -100 || this.pos.x > CANVAS_W + 100 || this.pos.y < -100 || this.pos.y > CANVAS_H + 100) this.dead = true;
+      
+      // Weather: Wind
+      if (game.director.weather === 'wind') this.pos.x += 100 * dt;
     }
     draw(ctx: CanvasRenderingContext2D) {
       ctx.fillStyle = this.color;
@@ -1354,36 +1474,36 @@
 
   const ENEMIES: Record<string, EnemyConfig> = {
     // Basic
-    'basic_weak': { id: 'basic_weak', hp: 15, speed: 140, cost: 10, type: 'melee', color: '#ff5555', radius: 15 },
-    'basic_norm': { id: 'basic_norm', hp: 30, speed: 150, cost: 12, type: 'melee', color: '#ff3333', radius: 16 },
-    'basic_strong': { id: 'basic_strong', hp: 60, speed: 160, cost: 15, type: 'melee', color: '#aa0000', radius: 18 },
+    'basic_weak': { id: 'basic_weak', hp: 15, speed: 140, cost: 5, type: 'melee', color: '#ff5555', radius: 15 },
+    'basic_norm': { id: 'basic_norm', hp: 30, speed: 150, cost: 10, type: 'melee', color: '#ff3333', radius: 16 },
+    'basic_strong': { id: 'basic_strong', hp: 60, speed: 160, cost: 25, type: 'melee', color: '#aa0000', radius: 18 },
     // Fast
-    'fast_weak': { id: 'fast_weak', hp: 10, speed: 220, cost: 10, type: 'melee', color: '#ffaa00', radius: 12 },
-    'fast_norm': { id: 'fast_norm', hp: 20, speed: 250, cost: 15, type: 'melee', color: '#ff8800', radius: 13, unlockReq: 'enemy_fast' },
+    'fast_weak': { id: 'fast_weak', hp: 10, speed: 220, cost: 8, type: 'melee', color: '#ffaa00', radius: 12 },
+    'fast_norm': { id: 'fast_norm', hp: 20, speed: 250, cost: 20, type: 'melee', color: '#ff8800', radius: 13, unlockReq: 'enemy_fast' },
     // Tank
-    'tank_weak': { id: 'tank_weak', hp: 80, speed: 80, cost: 20, type: 'melee', color: '#3388ff', radius: 22 },
-    'tank_norm': { id: 'tank_norm', hp: 150, speed: 90, cost: 25, type: 'melee', color: '#0044aa', radius: 25, unlockReq: 'enemy_tank' },
-    'tank_heavy': { id: 'tank_heavy', hp: 300, speed: 70, cost: 40, type: 'melee', color: '#002266', radius: 30, unlockReq: 'enemy_tank' },
+    'tank_weak': { id: 'tank_weak', hp: 80, speed: 80, cost: 30, type: 'melee', color: '#3388ff', radius: 22 },
+    'tank_norm': { id: 'tank_norm', hp: 150, speed: 90, cost: 50, type: 'melee', color: '#0044aa', radius: 25, unlockReq: 'enemy_tank' },
+    'tank_heavy': { id: 'tank_heavy', hp: 300, speed: 70, cost: 100, type: 'melee', color: '#002266', radius: 30, unlockReq: 'enemy_tank' },
     // Ranged
     'ranged_weak': { id: 'ranged_weak', hp: 15, speed: 100, cost: 15, type: 'ranged', color: '#00ff00', radius: 14 }, // Now shoots
-    'ranged_norm': { id: 'ranged_norm', hp: 30, speed: 110, cost: 20, type: 'ranged', color: '#00aa00', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
-    'sniper': { id: 'sniper', hp: 20, speed: 80, cost: 25, type: 'ranged', color: '#a020f0', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
+    'ranged_norm': { id: 'ranged_norm', hp: 30, speed: 110, cost: 30, type: 'ranged', color: '#00aa00', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
+    'sniper': { id: 'sniper', hp: 20, speed: 80, cost: 40, type: 'ranged', color: '#a020f0', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
     // Charger
-    'charger_weak': { id: 'charger_weak', hp: 25, speed: 100, cost: 15, type: 'charger', color: '#ffffff', radius: 15 },
-    'charger_norm': { id: 'charger_norm', hp: 50, speed: 120, cost: 20, type: 'charger', color: '#cccccc', radius: 18, unlockReq: 'enemy_tank' },
+    'charger_weak': { id: 'charger_weak', hp: 25, speed: 100, cost: 20, type: 'charger', color: '#ffffff', radius: 15 },
+    'charger_norm': { id: 'charger_norm', hp: 50, speed: 120, cost: 45, type: 'charger', color: '#cccccc', radius: 18, unlockReq: 'enemy_tank' },
     // Support
-    'healer': { id: 'healer', hp: 40, speed: 130, cost: 18, type: 'healer', color: '#00ffff', radius: 15, unlockReq: 'enemy_healer' },
-    'vampire': { id: 'vampire', hp: 50, speed: 160, cost: 22, type: 'vampire', color: '#880088', radius: 16, unlockReq: 'enemy_vampire' },
+    'healer': { id: 'healer', hp: 40, speed: 130, cost: 35, type: 'healer', color: '#00ffff', radius: 15, unlockReq: 'enemy_healer' },
+    'vampire': { id: 'vampire', hp: 50, speed: 160, cost: 40, type: 'vampire', color: '#880088', radius: 16, unlockReq: 'enemy_vampire' },
     // Special
-    'exploder': { id: 'exploder', hp: 20, speed: 220, cost: 15, type: 'exploder', color: '#ff8800', radius: 14, unlockReq: 'enemy_exploder' },
-    'summoner': { id: 'summoner', hp: 40, speed: 80, cost: 30, type: 'summoner', color: '#aa00aa', radius: 20, unlockReq: 'enemy_summoner' },
-    'ghost': { id: 'ghost', hp: 25, speed: 120, cost: 20, type: 'stealth', color: '#888888', radius: 15, unlockReq: 'enemy_ghost' },
+    'exploder': { id: 'exploder', hp: 20, speed: 220, cost: 25, type: 'exploder', color: '#ff8800', radius: 14, unlockReq: 'enemy_exploder' },
+    'summoner': { id: 'summoner', hp: 40, speed: 80, cost: 60, type: 'summoner', color: '#aa00aa', radius: 20, unlockReq: 'enemy_summoner' },
+    'ghost': { id: 'ghost', hp: 25, speed: 120, cost: 35, type: 'stealth', color: '#888888', radius: 15, unlockReq: 'enemy_ghost' },
     // Bosses
-    'boss1': { id: 'boss1', hp: 1500, speed: 60, cost: 300, type: 'boss_summoner', color: '#ff0000', radius: 60 },
-    'boss2': { id: 'boss2', hp: 1200, speed: 70, cost: 350, type: 'boss_sniper', color: '#aa00aa', radius: 55, unlockReq: 'boss2' },
-    'boss3': { id: 'boss3', hp: 3000, speed: 40, cost: 400, type: 'boss_tank', color: '#0000aa', radius: 70 },
-    'boss4': { id: 'boss4', hp: 1000, speed: 250, cost: 350, type: 'boss_charger', color: '#ffff00', radius: 50 },
-    'boss5': { id: 'boss5', hp: 5000, speed: 30, cost: 500, type: 'boss_hell', color: '#000000', radius: 80 }
+    'boss1': { id: 'boss1', hp: 1500, speed: 60, cost: 500, type: 'boss_summoner', color: '#ff0000', radius: 60 },
+    'boss2': { id: 'boss2', hp: 1200, speed: 70, cost: 600, type: 'boss_sniper', color: '#aa00aa', radius: 55, unlockReq: 'boss2' },
+    'boss3': { id: 'boss3', hp: 3000, speed: 40, cost: 800, type: 'boss_tank', color: '#0000aa', radius: 70 },
+    'boss4': { id: 'boss4', hp: 1000, speed: 250, cost: 700, type: 'boss_charger', color: '#ffff00', radius: 50 },
+    'boss5': { id: 'boss5', hp: 5000, speed: 30, cost: 1000, type: 'boss_hell', color: '#000000', radius: 80 }
   };
 
   class Enemy extends Entity {
@@ -1424,6 +1544,12 @@
         const dir = game.player.pos.sub(this.pos).normalize();
         let speed = this.config.speed;
         
+        // Weather: Rain slows enemies
+        if (game.director.weather === 'rain') speed *= 0.8;
+        
+        // Anomaly: Turbo
+        if (game.director.activeAnomaly?.type === 'turbo') speed *= 1.5;
+        
         // Ranged Logic
         if (this.config.type === 'ranged') {
             const dist = game.player.pos.sub(this.pos).mag();
@@ -1449,6 +1575,15 @@
             }
             if (this.dashTimer > 2.5) speed = 600; // Dash for 0.5s
             else this.isDashing = false;
+            
+            // Charger Norm: Fire Trail (Mini Boss 4)
+            if (this.config.id === 'charger_norm' && this.isDashing) {
+                 if (Math.random() < 0.2) {
+                     // Leave a slow moving hazard
+                     const trailDir = dir.mult(-1);
+                     game.projectiles.push(new Projectile(this.pos, trailDir.mult(20), 5, 'bullet', 'enemy'));
+                 }
+            }
         }
         
         // Healer Logic
@@ -1473,6 +1608,46 @@
                  game.screenShake = 20;
                  game.spawnParticles(this.pos, '#ff8800', 20);
                  game.texts.push(new FloatingText(this.pos, "BOOM!", "#f00"));
+                 this.dead = true; // Fix: Explicitly kill to prevent immortality
+            }
+        }
+        
+        // Tank Heavy: Ground Slam (Mini Boss 3)
+        if (this.config.id === 'tank_heavy') {
+            const dist = game.player.pos.sub(this.pos).mag();
+            if (dist < 150) {
+                speed = 0; // Stop to slam
+                this.specialTimer -= dt;
+                if (this.specialTimer <= 0) {
+                    this.specialTimer = 3.0; // Cooldown
+                    game.screenShake = 10;
+                    game.spawnParticles(this.pos, '#fff', 20);
+                    // AOE Damage
+                    if (dist < 100) {
+                        game.player.hp -= 25;
+                        game.texts.push(new FloatingText(game.player.pos, "CRUSH!", "#f00"));
+                        game.updateHud();
+                        if (game.player.hp <= 0) game.gameOver();
+                    }
+                }
+            } else {
+                // Reset timer if player runs away so it's ready next time
+                if (this.specialTimer < 1.0) this.specialTimer = 1.0; 
+            }
+        }
+        
+        // Vampire: Bat Swarm (Mini Boss 5)
+        if (this.config.id === 'vampire') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.specialTimer = 3.0;
+                // Shoot 3 projectiles spread
+                const baseAngle = Math.atan2(dir.y, dir.x);
+                for(let i=-1; i<=1; i++) {
+                    const a = baseAngle + i * 0.4;
+                    const v = new Vector(Math.cos(a), Math.sin(a)).mult(300);
+                    game.projectiles.push(new Projectile(this.pos, v, 8, 'bullet', 'enemy'));
+                }
             }
         }
 
@@ -1605,8 +1780,21 @@
           ctx.translate(this.pos.x, this.pos.y); // Restore for bars
       }
       
+      // Regular Sniper Laser Warning (Mini Boss 2)
+      if (this.config.id === 'sniper' && this.shootTimer < 0.5 && this.shootTimer > 0) {
+          ctx.restore(); ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(this.pos.x, this.pos.y);
+          ctx.lineTo(game.player.pos.x, game.player.pos.y);
+          ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
+          ctx.stroke();
+          ctx.translate(this.pos.x, this.pos.y);
+      }
+      
       // HP Bar under enemy
-      const hpPct = this.hp / this.maxHp;
+      const hpPct = Math.max(0, this.hp / this.maxHp);
       ctx.fillStyle = '#333'; ctx.fillRect(-20, 25, 40, 4);
       ctx.fillStyle = '#f00'; ctx.fillRect(-20, 25, 40 * hpPct, 4);
       
@@ -1618,6 +1806,92 @@
       
       ctx.restore();
     }
+  }
+
+  // --- NEW ENTITIES ---
+  class Drone extends Entity {
+      angle = 0;
+      shootTimer = 0;
+      constructor(public owner: Player, public offset: number) {
+          super(owner.pos, 8, '#00ff00');
+      }
+      update(dt: number) {
+          this.angle += 2 * dt;
+          this.pos.x = this.owner.pos.x + Math.cos(this.angle + this.offset) * 60;
+          this.pos.y = this.owner.pos.y + Math.sin(this.angle + this.offset) * 60;
+          
+          this.shootTimer -= dt;
+          if (this.shootTimer <= 0) {
+              // Find nearest target
+              let target = null;
+              let minD = 300;
+              for(const e of game.enemies) {
+                  const d = e.pos.sub(this.pos).mag();
+                  if (d < minD) { minD = d; target = e; }
+              }
+              if (target) {
+                   const dir = target.pos.sub(this.pos).normalize();
+                   game.projectiles.push(new Projectile(this.pos, dir.mult(600), 5, 'bullet', 'player'));
+                   this.shootTimer = 1.0;
+              }
+          }
+      }
+      draw(ctx: CanvasRenderingContext2D) {
+          ctx.fillStyle = this.color;
+          ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI*2); ctx.fill();
+      }
+  }
+
+  class Turret extends Entity {
+      life = 20;
+      shootTimer = 0;
+      constructor(pos: Vector) { super(pos, 15, '#aaa'); }
+      update(dt: number) {
+          this.life -= dt;
+          if (this.life <= 0) this.dead = true;
+          this.shootTimer -= dt;
+          if (this.shootTimer <= 0) {
+              // Shoot nearest
+              let target = null; let minD = 400;
+              for(const e of game.enemies) {
+                  const d = e.pos.sub(this.pos).mag();
+                  if (d < minD) { minD = d; target = e; }
+              }
+              if (target) {
+                  const dir = target.pos.sub(this.pos).normalize();
+                  game.projectiles.push(new Projectile(this.pos, dir.mult(700), 8, 'bullet', 'player'));
+                  this.shootTimer = 0.5;
+              }
+          }
+      }
+      draw(ctx: CanvasRenderingContext2D) {
+          ctx.fillStyle = '#444'; ctx.fillRect(this.pos.x-10, this.pos.y-10, 20, 20);
+          ctx.fillStyle = '#0f0'; ctx.fillRect(this.pos.x-5, this.pos.y-15, 10, 10); // Head
+      }
+  }
+
+  class Mine extends Entity {
+      constructor(pos: Vector) { super(pos, 10, '#ff0000'); }
+      update(dt: number) {
+          for(const e of game.enemies) {
+              if (e.pos.sub(this.pos).mag() < 30) {
+                  this.dead = true;
+                  e.hp -= 50;
+                  game.spawnParticles(this.pos, '#ff0000', 10);
+                  game.screenShake = 10;
+                  game.texts.push(new FloatingText(this.pos, "BOOM", "#f00"));
+              }
+          }
+      }
+      draw(ctx: CanvasRenderingContext2D) {
+          ctx.fillStyle = '#f00';
+          ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI*2); ctx.fill();
+          // Blink
+          if (Math.floor(Date.now() / 200) % 2 === 0) {
+              ctx.fillStyle = '#fff';
+              ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, 3, 0, Math.PI*2); ctx.fill();
+          }
+      }
   }
 
   // --- PLAYER ---
@@ -1643,6 +1917,7 @@
     critMult = 1.5;
     aoeRadius = 1.0;
     bossDmgMult = 1.0;
+    eliteDmgMult = 1.0;
     lifesteal = 0;
     thorns = 0;
     thornsPct = 0;
@@ -1653,6 +1928,32 @@
     homing = false;
     lightning = false;
     execute = false;
+    magnet = 0;
+    luck = 0;
+    
+    heat = 0;
+    maxHeat = 100;
+    isOverheated = false;
+    overheatTimer = 0;
+    heatDmgBonus = 0.5; // 50% max bonus by default
+    heatCooling = 80;
+    heatGenMult = 1.0;
+    
+    // New Mechanics
+    drones: Drone[] = [];
+    turretCooldown = 0;
+    mineCooldown = 0;
+    synergyBonus = 0;
+    droneCount = 0;
+    turretDuration = 20;
+    runeDurationMult = 1.0;
+    questRewardMult = 1.0;
+    merchantDiscount = 0.0;
+    activeRunes: { type: string, timer: number }[] = [];
+    
+    // Class Specific
+    sniperShot = false;
+    isStealthed = false;
     
     dashCooldownMax = 3.0;
     cooldownMult = 1.0;
@@ -1671,6 +1972,51 @@
       this.speed = 300 + (meta.upgrades.moveSpeed * 10);
       this.fireRate = 0.2 * Math.pow(0.95, meta.upgrades.fireRate);
       this.knockback = meta.upgrades.knockback * 50;
+      this.magnet = meta.upgrades.magnet;
+      this.luck = meta.upgrades.luck;
+      
+      // Class Bonuses
+      if (selectedClass === 'engineer') {
+          this.droneCount += 1;
+          this.damage *= 0.8;
+      } else if (selectedClass === 'psycho') {
+          this.damage *= 1.5;
+          this.maxHp *= 0.7;
+          this.speed *= 1.2;
+      } else if (selectedClass === 'sniper') {
+          this.damage *= 2.0;
+          this.fireRate *= 0.5; // Slower
+          this.critChance += 0.2;
+      } else if (selectedClass === 'tank') {
+          this.maxHp *= 2.0;
+          this.speed *= 0.8;
+          this.thorns += 20;
+      } else if (selectedClass === 'scout') {
+          this.speed *= 1.3;
+          this.dodge += 0.2;
+          this.maxHp *= 0.7;
+      } else if (selectedClass === 'mage') {
+          this.damage *= 1.2;
+          this.maxHp *= 0.8;
+      } else if (selectedClass === 'summoner') {
+          this.damage *= 0.5;
+          this.droneCount += 2;
+      } else if (selectedClass === 'gambler') {
+          this.luck += 50;
+          this.critMult += 1.5; // x3 total
+          this.critChance += 0.1;
+          this.damage *= 0.8;
+      } else if (selectedClass === 'ninja') {
+          this.speed *= 1.2;
+          this.dodge += 0.1;
+          this.damage *= 1.2; // Melee focus implied
+      } else if (selectedClass === 'cyborg') {
+          this.regen += 5;
+          if (meta.unlocks.includes('w_laser')) {
+              this.weapon = 'laser'; // Starts with laser if unlocked
+          }
+      }
+      // Marine is default
       
       // Apply Tree Upgrades
       meta.skillTree.forEach(id => {
@@ -1682,14 +2028,26 @@
       
       // Apply Equipment Stats (RPG)
       const equip = meta.equipment;
+      let setCounts: Record<string, number> = {};
+      
       [equip.weapon, equip.armor, equip.chip].forEach(item => {
           if (item && item.stats) {
               if (item.stats.hp) this.maxHp += item.stats.hp;
               if (item.stats.dmg) this.damage += item.stats.dmg;
               if (item.stats.spd) this.speed += item.stats.spd;
               if (item.stats.crit) this.critChance += item.stats.crit;
+              
+              // Synergy Check
+              setCounts[item.rarity] = (setCounts[item.rarity] || 0) + 1;
           }
       });
+      
+      // Synergy Bonus (3 items of same rarity)
+      Object.values(setCounts).forEach(count => {
+          if (count >= 3) this.synergyBonus = 0.5; // +50% Damage
+      });
+      this.damage *= (1 + this.synergyBonus);
+      
       this.hp = this.maxHp; // Heal to full with new max
     }
 
@@ -1708,9 +2066,13 @@
       this.vel = this.vel.add(input.mult(2000 * dt)); // Acceleration
       this.vel = this.vel.mult(0.90); // Friction
       
+      // Weather: Rain slows player
+      if (game.director.weather === 'rain') this.vel = this.vel.mult(0.95);
+      
       this.pos = this.pos.add(this.vel.mult(dt));
 
       // Bounds
+      // Anomaly: Zero G (Bouncy walls?) - No, just keep bounds
       this.pos.x = Math.max(20, Math.min(CANVAS_W - 20, this.pos.x));
       this.pos.y = Math.max(20, Math.min(CANVAS_H - 20, this.pos.y));
 
@@ -1730,27 +2092,183 @@
           game.triggerNuke();
       }
       
+      // Turret (E)
+      if (this.turretCooldown > 0) this.turretCooldown -= dt;
+      if (keys['KeyE'] && this.turretCooldown <= 0 && selectedClass === 'psycho') {
+          this.turretCooldown = 15.0 * this.cooldownMult; // Cooldown
+          game.turrets.push(new Turret(this.pos));
+          game.texts.push(new FloatingText(this.pos, "ТУРЕЛЬ", "#0f0"));
+      }
+
+      // Mine (Q)
+      if (this.mineCooldown > 0) this.mineCooldown -= dt;
+      if (keys['KeyQ'] && this.mineCooldown <= 0 && selectedClass === 'psycho') {
+          this.mineCooldown = 5.0 * this.cooldownMult;
+          game.mines.push(new Mine(this.pos));
+          game.texts.push(new FloatingText(this.pos, "МИНА", "#f00"));
+      }
+      
+      // Class Skills (E)
+      if (keys['KeyE'] && this.turretCooldown <= 0) {
+          if (selectedClass === 'sniper') {
+              this.turretCooldown = 10.0 * this.cooldownMult;
+              this.sniperShot = true;
+              game.texts.push(new FloatingText(this.pos, "ТОЧНЫЙ ВЫСТРЕЛ", "#f00"));
+          } else if (selectedClass === 'tank') {
+              this.turretCooldown = 20.0 * this.cooldownMult;
+              this.hp += 100; // Temp heal/shield
+              game.texts.push(new FloatingText(this.pos, "ЩИТ", "#00f"));
+          } else if (selectedClass === 'scout') {
+              this.turretCooldown = 5.0 * this.cooldownMult;
+              const dashDir = this.vel.mag() > 0 ? this.vel.normalize() : new Vector(1,0);
+              this.pos = this.pos.add(dashDir.mult(250)); // Super dash
+              game.spawnParticles(this.pos, '#ff0', 10);
+          } else if (selectedClass === 'mage') {
+              this.turretCooldown = 10.0 * this.cooldownMult;
+              // Nova
+              for(let i=0; i<20; i++) {
+                  const a = (Math.PI*2/20)*i;
+                  const v = new Vector(Math.cos(a), Math.sin(a)).mult(500);
+                  game.projectiles.push(new Projectile(this.pos, v, this.damage*2, 'bullet', 'player'));
+              }
+              game.texts.push(new FloatingText(this.pos, "КОЛЬЦО ОГНЯ", "#f00"));
+          } else if (selectedClass === 'summoner') {
+              this.turretCooldown = 15.0 * this.cooldownMult;
+              game.turrets.push(new Turret(this.pos)); // Reuse turret
+              game.texts.push(new FloatingText(this.pos, "ПОДКРЕПЛЕНИЕ", "#0f0"));
+          } else if (selectedClass === 'gambler') {
+              this.turretCooldown = 15.0 * this.cooldownMult;
+              const roll = Math.random();
+              if (roll < 0.33) {
+                  this.damage *= 2; setTimeout(() => this.damage /= 2, 10000);
+                  game.texts.push(new FloatingText(this.pos, "УРОН x2", "#ffd700"));
+              } else if (roll < 0.66) {
+                  this.speed *= 1.5; setTimeout(() => this.speed /= 1.5, 10000);
+                  game.texts.push(new FloatingText(this.pos, "СКОРОСТЬ x1.5", "#0ff"));
+              } else {
+                  game.texts.push(new FloatingText(this.pos, "ПУСТО...", "#888"));
+              }
+          } else if (selectedClass === 'ninja') {
+              this.turretCooldown = 15.0 * this.cooldownMult;
+              this.isStealthed = true;
+              game.texts.push(new FloatingText(this.pos, "ИСЧЕЗНОВЕНИЕ", "#fff"));
+              setTimeout(() => this.isStealthed = false, 3000);
+          } else if (selectedClass === 'cyborg') {
+              this.turretCooldown = 20.0 * this.cooldownMult;
+              const oldRate = this.fireRate;
+              this.fireRate *= 0.2; // Super fast
+              game.texts.push(new FloatingText(this.pos, "ОВЕРДРАЙВ", "#f00"));
+              setTimeout(() => {
+                  this.fireRate = oldRate;
+                  this.isOverheated = true;
+                  this.overheatTimer = 3.0;
+                  this.heat = this.maxHeat;
+                  game.texts.push(new FloatingText(this.pos, "ПЕРЕГРЕВ", "#f00"));
+              }, 5000);
+          }
+      }
+      
       // Regen
       if (this.regen > 0 && this.hp < this.maxHp) {
           this.hp += this.regen * dt;
+      }
+      
+      // Rune: Regen
+      if (this.activeRunes.some(r => r.type === 'regen')) this.hp = Math.min(this.maxHp, this.hp + 10 * dt);
+
+      // Heat Logic
+      if (this.isOverheated) {
+          this.overheatTimer -= dt;
+          if (this.overheatTimer <= 0) {
+              this.isOverheated = false;
+              this.heat = 0;
+              game.texts.push(new FloatingText(this.pos, "ОСТЫЛ", "#0f0"));
+          }
+      } else {
+          // Decay heat when not shooting
+          if (this.heat > 0 && this.shootTimer <= 0) {
+              let cooling = this.heatCooling;
+              // Anomaly: Cryo
+              if (game.director.activeAnomaly?.type === 'cryo') cooling *= 5;
+              
+              this.heat = Math.max(0, this.heat - cooling * dt);
+          }
       }
 
       // Shooting
       this.shootTimer -= dt;
       if (mouse.down && this.shootTimer <= 0) {
-        this.shoot();
-        this.shootTimer = this.fireRate;
+        if (!this.isOverheated) {
+            this.shoot();
+            let rate = this.fireRate;
+            // Rune: Haste
+            if (this.activeRunes.some(r => r.type === 'haste')) rate *= 0.5;
+            this.shootTimer = rate;
+        } else {
+            // Jammed effect (optional visual feedback)
+            if (Math.random() < 0.1) game.texts.push(new FloatingText(this.pos, "КЛИН!", "#888"));
+            this.shootTimer = 0.2; // Rate limit jam messages
+        }
+      }
+      
+      // Drones
+      this.drones.forEach(d => d.update(dt));
+      // Sync drones count
+      if (this.drones.length < this.droneCount) {
+          this.drones.push(new Drone(this, (Math.PI * 2 / (this.droneCount || 1)) * this.drones.length));
+      } else if (this.drones.length > this.droneCount) {
+          this.drones.pop();
+      }
+      
+      // Runes
+      for (let i = this.activeRunes.length - 1; i >= 0; i--) {
+          this.activeRunes[i].timer -= dt;
+          if (this.activeRunes[i].timer <= 0) {
+              this.activeRunes.splice(i, 1);
+          }
       }
     }
 
     shoot() {
       const dir = mouse.pos.sub(this.pos).normalize();
       
+      // Anomaly: Cryo (No Heat Gen)
+      let heatMult = this.heatGenMult;
+      if (game.director.activeAnomaly?.type === 'cryo') heatMult = 0;
+      
+      // Heat & Damage Bonus
+      let heatAdd = 2; // Base heat
+      if (this.weapon === 'shotgun') heatAdd = 5;
+      if (this.weapon === 'rocket') heatAdd = 8;
+      if (this.weapon === 'laser') heatAdd = 1;
+      if (this.weapon === 'plasma') heatAdd = 1.5;
+      this.heat += heatAdd * heatMult;
+
+      const heatBonus = 1 + (this.heat / this.maxHeat) * this.heatDmgBonus;
+      const dmg = this.damage * heatBonus;
+
+      // Sniper Shot
+      if (this.sniperShot) {
+          this.sniperShot = false;
+          // Logic handled in projectile creation (crit/pierce)
+      }
+
+      if (this.heat >= this.maxHeat) {
+          this.isOverheated = true;
+          this.overheatTimer = 2.0; // 2 seconds jam
+          game.texts.push(new FloatingText(this.pos, "ПЕРЕГРЕВ!", "#f00"));
+          game.screenShake = 5;
+      }
+      
+      // Combo Overload Bonus (Fire Rate handled in update, here maybe visual?)
+      let speedMult = 1.0;
+      if (game.combo >= 50) speedMult = 1.5; // Faster projectiles in overload
+      
       if (this.weapon === 'blaster') {
           for(let i=0; i<this.multishot; i++) {
             const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.1;
-            const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(800);
-            const p = new Projectile(this.pos, vel, this.damage);
+            const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(800 * speedMult);
+            const p = new Projectile(this.pos, vel, dmg);
             if (this.homing) p.homing = true;
             if (this.ricochet) p.bounces = 1;
             game.projectiles.push(p);
@@ -1758,28 +2276,28 @@
       } else if (this.weapon === 'shotgun') {
           for(let i=0; i<this.multishot + 4; i++) {
             const angle = Math.atan2(dir.y, dir.x) + (Math.random()-0.5) * 0.5;
-            const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(700 + Math.random()*200);
-            const p = new Projectile(this.pos, vel, this.damage * 0.6);
+            const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult((700 + Math.random()*200) * speedMult);
+            const p = new Projectile(this.pos, vel, dmg * 0.6);
             if (this.ricochet) p.bounces = 1;
             game.projectiles.push(p);
           }
       } else if (this.weapon === 'rocket') {
-          const vel = dir.mult(500);
-          const p = new Projectile(this.pos, vel, this.damage * 3 * this.aoeRadius, 'rocket');
+          const vel = dir.mult(500 * speedMult);
+          const p = new Projectile(this.pos, vel, dmg * 3 * this.aoeRadius, 'rocket');
           if (this.homing) p.homing = true;
           game.projectiles.push(p);
       } else if (this.weapon === 'laser') {
           // Laser is fast and pierces (handled in collision)
           for(let i=0; i<this.multishot; i++) {
              const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.05;
-             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(1500);
-             game.projectiles.push(new Projectile(this.pos, vel, this.damage * 0.8, 'laser'));
+             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(1500 * speedMult);
+             game.projectiles.push(new Projectile(this.pos, vel, dmg * 0.8, 'laser'));
           }
       } else if (this.weapon === 'plasma') {
           for(let i=0; i<this.multishot; i++) {
              const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.08 + (Math.random()-0.5)*0.1;
-             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(900);
-             const p = new Projectile(this.pos, vel, this.damage * 0.7, 'bullet'); // Re-use bullet visual but purple
+             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(900 * speedMult);
+             const p = new Projectile(this.pos, vel, dmg * 0.7, 'bullet'); // Re-use bullet visual but purple
              p.color = '#a020f0';
              if (this.homing) p.homing = true;
              if (this.ricochet) p.bounces = 1;
@@ -1796,6 +2314,14 @@
       if (this.xp >= this.maxXp) {
         this.xp -= this.maxXp;
         this.level++;
+        
+        // Evolution at Level 10
+        if (this.level === 10) {
+            game.texts.push(new FloatingText(this.pos, "ЭВОЛЮЦИЯ ОРУЖИЯ!", "#ffd700"));
+            this.damage *= 1.5;
+            this.multishot += 1;
+        }
+        
         this.maxXp *= 1.2;
         game.triggerLevelUp();
       }
@@ -1825,6 +2351,60 @@
       ctx.stroke();
 
       ctx.restore();
+      
+      // Combo Overload Aura
+      if (game.combo >= 50) {
+          ctx.shadowBlur = 20; ctx.shadowColor = '#0ff';
+          ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, 25, 0, Math.PI*2); ctx.strokeStyle = `rgba(0,255,255,${Math.random()})`; ctx.stroke();
+      }
+      
+      // Heat Bar under player
+      if (this.heat > 0 || this.isOverheated) {
+          ctx.save();
+          ctx.translate(this.pos.x, this.pos.y);
+          
+          const w = 40;
+          const h = 4;
+          const y = 30;
+          
+          // Background
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(-w/2, y, w, h);
+          
+          // Fill
+          let pct = this.heat / this.maxHeat;
+          let color = '#ffaa00';
+          
+          if (this.isOverheated) {
+              color = '#f00';
+              // Show cooldown progress (shrinking bar)
+              pct = this.overheatTimer / 2.0; 
+          }
+          
+          ctx.fillStyle = color;
+          ctx.fillRect(-w/2, y, w * pct, h);
+          
+          // Border
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(-w/2, y, w, h);
+          
+          ctx.restore();
+      }
+      
+      // Draw Drones
+      this.drones.forEach(d => d.draw(ctx));
+      
+      // Draw Evolution Aura (Level 10+)
+      if (this.level >= 10) {
+          ctx.strokeStyle = `hsl(${Date.now()/10 % 360}, 100%, 50%)`;
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, 25, 0, Math.PI*2); ctx.stroke();
+      }
+      if (this.isStealthed) {
+          ctx.globalAlpha = 0.5;
+          ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, 25, 0, Math.PI*2); ctx.stroke();
+      }
     }
   }
 
@@ -1850,6 +2430,13 @@
     holidayTimer = 0;
     holidayPickups = 0;
     spawnTickTimer = 0;
+    
+    activeQuest: { type: 'kill'|'collect'|'combo'|'survive', desc: string, target: number, current: number, reward: number } | null = null;
+    weather: 'clear' | 'rain' | 'wind' | 'fog' = 'clear';
+    weatherTimer = 0;
+    
+    activeAnomaly: { type: string, name: string, duration: number } | null = null;
+    anomalyCooldown = 30; // First anomaly after 30s
     
     recentKills: number[] = []; // Timestamps of kills
     
@@ -1880,6 +2467,17 @@
 
     reportKill() {
         this.recentKills.push(Date.now());
+        if (this.activeQuest && this.activeQuest.type === 'kill') {
+            this.activeQuest.current++;
+            this.updateUI();
+        }
+    }
+    
+    reportCollect() {
+        if (this.activeQuest && this.activeQuest.type === 'collect') {
+            this.activeQuest.current++;
+            this.updateUI();
+        }
     }
 
     startRaid() {
@@ -1911,17 +2509,17 @@
 
       // 1. Mood Logic (Dynamic based on kills)
       const now = Date.now();
-      // Keep kills within 0.3s window
+      // Keep kills within 1.0s window (increased from 0.3s to make combos possible)
       // Optimization: Remove old kills without creating new array
-      while (this.recentKills.length > 0 && now - this.recentKills[0] >= 300) {
+      while (this.recentKills.length > 0 && now - this.recentKills[0] >= 1000) {
           this.recentKills.shift();
       }
       const burstCount = this.recentKills.length;
 
       // Determine target mood based on burst
-      if (burstCount >= 5) {
+      if (burstCount >= 21) {
           this.setMood('insane', 5.0); // Stay insane for 5s
-      } else if (burstCount >= 3) {
+      } else if (burstCount >= 11) {
           this.setMood('angry', 4.0);
       } else if (burstCount >= 2) {
           this.setMood('neutral', 3.0);
@@ -1933,6 +2531,67 @@
           if (this.moodResetTimer <= 0) {
               this.mood = 'kind'; // Default fallback
               this.updateUI();
+          }
+      }
+
+      // Quest Logic
+      if (!this.activeQuest && Math.random() < 0.001) { // Rare chance for quest
+          const types = ['kill', 'collect', 'combo', 'survive'];
+          const type = types[Math.floor(Math.random() * types.length)];
+          let count = 10;
+          let desc = "";
+          
+          if (type === 'kill') { count = 10 + Math.floor(Math.random() * 10); desc = `УБИТЬ ${count} ВРАГОВ`; }
+          else if (type === 'collect') { count = 5 + Math.floor(Math.random() * 5); desc = `СОБРАТЬ ${count} ЯДЕР`; }
+          else if (type === 'combo') { count = 20 + Math.floor(Math.random() * 30); desc = `КОМБО x${count}`; }
+          else if (type === 'survive') { count = 30; desc = `ВЫЖИТЬ ${count} СЕК`; }
+          
+          this.activeQuest = { type: type as any, desc, target: count, current: 0, reward: 100 * this.game.player.questRewardMult };
+          this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 100), "НОВЫЙ КОНТРАКТ", "#ffd700"));
+          this.updateUI();
+      }
+      
+      if (this.activeQuest) {
+          if (this.activeQuest.type === 'survive') {
+              this.activeQuest.current += dt;
+          } else if (this.activeQuest.type === 'combo') {
+              this.activeQuest.current = this.game.combo;
+          }
+          this.updateUI();
+      }
+      
+      if (this.activeQuest && this.activeQuest.current >= this.activeQuest.target) {
+          this.game.score += Math.floor(this.activeQuest.reward);
+          this.game.currencyCollected += 50;
+          this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 100), "КОНТРАКТ ВЫПОЛНЕН", "#0f0"));
+          this.activeQuest = null;
+          this.updateUI();
+      }
+
+      // Weather Logic
+      this.weatherTimer -= dt;
+      if (this.weatherTimer <= 0) {
+          this.weatherTimer = 30 + Math.random() * 60;
+          const weathers: any[] = ['clear', 'rain', 'wind', 'fog'];
+          this.weather = weathers[Math.floor(Math.random() * weathers.length)];
+          if (this.weather !== 'clear') {
+              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 150), `ПОГОДА: ${this.weather.toUpperCase()}`, "#0ff"));
+          }
+      }
+
+      // Anomaly Logic
+      // Note: Raid mode returns early above, so we are always in endless mode here.
+      this.anomalyCooldown -= dt;
+      if (this.anomalyCooldown <= 0) {
+         this.triggerAnomaly();
+         this.anomalyCooldown = 45 + Math.random() * 30; // Next in 45-75s
+      }
+      
+      if (this.activeAnomaly) {
+          this.activeAnomaly.duration -= dt;
+          if (this.activeAnomaly.duration <= 0) {
+              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 250), "СИСТЕМА В НОРМЕ", "#0f0"));
+              this.activeAnomaly = null;
           }
       }
 
@@ -1960,6 +2619,18 @@
       } else {
           this.nextWaveTimer = 0;
       }
+    }
+    
+    triggerAnomaly() {
+        const types = [
+            { type: 'turbo', name: 'ТУРБО РЕЖИМ', duration: 15 },
+            { type: 'zero_g', name: 'СБОЙ ГРАВИТАЦИИ', duration: 15 },
+            { type: 'berserk', name: 'ПРОТОКОЛ: БЕРСЕРК', duration: 10 },
+            { type: 'cryo', name: 'КРИО-ОХЛАЖДЕНИЕ', duration: 10 }
+        ];
+        this.activeAnomaly = types[Math.floor(Math.random()*types.length)];
+        this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 200), `АНОМАЛИЯ: ${this.activeAnomaly.name}`, "#ff00ff"));
+        this.game.screenShake = 20;
     }
     
     setMood(newMood: 'kind' | 'neutral' | 'angry' | 'insane', duration: number) {
@@ -2008,21 +2679,49 @@
         if (this.spawnTickTimer < 0.5) return; // Tick every 0.5s
         this.spawnTickTimer = 0;
 
+        // 1. Idle Check (Thinking) - Director takes pauses
+        let idleChance = 0.3; 
+        if (this.mood === 'kind') idleChance = 0.6;
+        if (this.mood === 'neutral') idleChance = 0.4;
+        if (this.mood === 'angry') idleChance = 0.2;
+        if (this.mood === 'insane') idleChance = 0.05;
+
+        if (Math.random() < idleChance) return;
+
         // Determine batch size (1-10) based on mood
-        let maxBatch = 3;
-        if (this.mood === 'angry') maxBatch = 6;
+        let maxBatch = 2;
+        if (this.mood === 'neutral') maxBatch = 4;
+        if (this.mood === 'angry') maxBatch = 7;
         if (this.mood === 'insane') maxBatch = 10;
         
+        let isSurge = false;
         // Chance for a "Surge" (Dump) - small chance to spawn more
-        if (Math.random() < 0.05 && this.currentInfluence > 500) {
+        if (Math.random() < 0.02 && this.currentInfluence > 500) {
+             isSurge = true;
              maxBatch = 15;
              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 150), "SURGE DETECTED", "#f00"));
         }
 
-        const count = Math.floor(Math.random() * maxBatch) + 1;
+        // Chance to force an expensive buy (High Roller)
+        // If mood is Insane, he likes spending more.
+        let expensiveChance = 0.1;
+        if (this.mood === 'angry') expensiveChance = 0.2;
+        if (this.mood === 'insane') expensiveChance = 0.4;
+        
+        const forceExpensive = Math.random() < expensiveChance;
+
+        let count = Math.floor(Math.random() * maxBatch) + 1;
+        if (forceExpensive) count = 1; // Buy one big thing
+        if (isSurge) count = 15; // Override
+        
+        // Spending Cap: Don't spend more than ~15% of current influence per tick
+        // This ensures the wave lasts longer and intensity scales with budget.
+        const startInfluence = this.currentInfluence;
+        const spendCap = Math.max(20, this.currentInfluence * 0.15);
 
         for(let i=0; i<count; i++) {
-             if (this.currentInfluence <= 10) break; // Keep a small buffer or break if empty
+             // If not a surge AND not forcing expensive, respect the spending cap
+             if (!isSurge && !forceExpensive && startInfluence - this.currentInfluence >= spendCap) break;
 
              const available = Object.values(ENEMIES).filter(e => {
                 // Boss logic: allow after wave 10 with low chance
@@ -2044,9 +2743,21 @@
                 break;
             }
 
-            // Pick random
-            const enemy = available[Math.floor(Math.random() * available.length)];
+            // Logic for picking enemy
+            let enemy;
+            if (forceExpensive) {
+                // Filter for expensive ones (top 30% of affordable)
+                available.sort((a, b) => b.cost - a.cost);
+                const topCount = Math.max(1, Math.floor(available.length * 0.3));
+                const pool = available.slice(0, topCount);
+                enemy = pool[Math.floor(Math.random() * pool.length)];
+            } else {
+                enemy = available[Math.floor(Math.random() * available.length)];
+            }
+
             this.payAndSpawn(enemy);
+            
+            if (forceExpensive) break; // Only one expensive purchase per tick
         }
     }
     
@@ -2087,6 +2798,8 @@
       moodEl.innerText = c.text;
       moodEl.style.color = c.color;
       document.getElementById('obs-influence')!.innerText = `ВЛИЯНИЕ: ${Math.floor(this.currentInfluence)}`;
+      if (this.activeAnomaly) document.getElementById('obs-influence')!.innerText = `АНОМАЛИЯ: ${this.activeAnomaly.name}`;
+      if (this.activeQuest) document.getElementById('hud-quest-text')!.innerText = `${this.activeQuest.desc} (${this.activeQuest.current}/${this.activeQuest.target})`;
     }
   }
 
@@ -2152,6 +2865,8 @@
     
     player: Player;
     enemies: Enemy[] = [];
+    turrets: Turret[] = [];
+    mines: Mine[] = [];
     projectiles: Projectile[] = [];
     particles: Particle[] = [];
     texts: FloatingText[] = [];
@@ -2174,6 +2889,10 @@
     lastMode: 'endless' | 'raid' = 'endless';
     lastRaidId?: string;
     
+    // Combo System
+    combo = 0;
+    comboTimer = 0;
+    
     private boundMouseMove: (e: MouseEvent) => void;
     private boundMouseDown: (e: MouseEvent) => void;
 
@@ -2190,6 +2909,7 @@
       this.boundMouseDown = () => { mouse.down = true; };
       
       this.setupInputs();
+      this.renderClassSelector();
       
       // Start Loop
       lastTime = performance.now();
@@ -2202,6 +2922,8 @@
       this.lastRaidId = raidId;
       this.player = new Player();
       this.enemies = [];
+      this.turrets = [];
+      this.mines = [];
       this.projectiles = [];
       this.particles = [];
       this.texts = [];
@@ -2210,6 +2932,8 @@
       this.coresCollected = 0;
       this.lootFound = [];
       this.pendingUpgrades = 0;
+      this.combo = 0;
+      this.comboTimer = 0;
       this.activeUpgradeChoices = [];
       this.state = 'PLAYING';
       
@@ -2235,8 +2959,19 @@
       if (this.state !== 'PLAYING') return;
 
       this.director.update(dt);
+      
+      // Combo Decay
+      if (this.combo > 0) {
+          this.comboTimer -= dt;
+          if (this.comboTimer <= 0) {
+              this.combo = 0;
+              this.updateHud();
+          }
+      }
 
       this.player.update(dt);
+      this.turrets.forEach(t => t.update(dt));
+      this.mines.forEach(m => m.update(dt));
       
       // Update Entities
       this.projectiles.forEach(p => {
@@ -2265,16 +3000,18 @@
 
       // XP Pickup
       this.particles.forEach(p => {
-          if (!p.dead && (p.type === 'xp' || p.type === 'core' || p.type.startsWith('fake') || p.type === 'loot')) {
+          if (!p.dead && (p.type === 'xp' || p.type === 'core' || p.type.startsWith('fake') || p.type === 'loot' || p.type === 'merchant_signal' || p.type === 'rune')) {
               if (p.pos.sub(this.player.pos).mag() < 30) {
                   p.dead = true;
                   if (p.type === 'xp') {
-                    this.player.gainXp(10);
-                    this.score += 10 * selectedDifficulty;
-                    this.currencyCollected += 1 * selectedDifficulty;
+                    this.player.gainXp(10 * p.value);
+                    const comboMult = 1 + (this.combo * 0.01); // 1% per combo
+                    this.score += Math.floor(10 * selectedDifficulty * p.value * comboMult);
+                    this.currencyCollected += Math.floor(1 * selectedDifficulty * p.value);
                   } else if (p.type === 'core') {
                     this.coresCollected += 1 * selectedDifficulty;
                     this.texts.push(new FloatingText(this.player.pos, "+1 ЯДРО", "#ffd700"));
+                    this.director.reportCollect();
                   } else if (p.type === 'loot') {
                     const item = this.generateLoot();
                     this.lootFound.push(item);
@@ -2289,6 +3026,15 @@
                         const msgs = ["ВКУСНО?", "ЕЩЕ?", "МАЛО?"];
                         this.texts.push(new FloatingText(this.player.pos, msgs[Math.floor(Math.random()*msgs.length)], "#ff00ff"));
                     }
+                  } else if (p.type === 'merchant_signal') {
+                      this.state = 'MENU'; // Pause
+                      this.setScreen('merchant-screen');
+                      this.generateMerchantItems();
+                  } else if (p.type === 'rune') {
+                      const types = ['power', 'haste', 'regen'];
+                      const rType = types[Math.floor(Math.random()*types.length)];
+                      this.player.activeRunes.push({ type: rType, timer: 30 * this.player.runeDurationMult });
+                      this.texts.push(new FloatingText(this.player.pos, `РУНА: ${rType.toUpperCase()}`, "#0ff"));
                   }
               }
           }
@@ -2351,6 +3097,11 @@
                     if (other !== e && !other.dead && count < 3 && other.pos.sub(e.pos).mag() < 200) {
                         other.hp -= dmg * 0.5;
                         this.spawnParticles(other.pos, '#0ff', 2); // Zap visual
+                        if (other.hp <= 0 && !other.dead) {
+                            other.dead = true;
+                            this.spawnParticles(other.pos, '#0f0', 1, 'xp');
+                            this.director.reportKill();
+                        }
                         count++;
                     }
                 });
@@ -2363,6 +3114,17 @@
               e.dead = true;
               // Spawn XP
               this.director.reportKill(); // Report kill for mood logic
+              
+              // Combo Logic
+              this.combo++;
+              this.comboTimer = 2.5;
+              const comboEl = document.getElementById('hud-combo-count');
+              if (comboEl) {
+                  comboEl.classList.remove('pulse');
+                  void comboEl.offsetWidth; // trigger reflow
+                  comboEl.classList.add('pulse');
+              }
+              
               const dropCount = e.config.id.includes('boss') ? 50 : (e.elite ? 5 : 1);
               this.spawnParticles(e.pos, '#0f0', dropCount, 'xp');
               // Boss Drop
@@ -2379,6 +3141,11 @@
                 }
               } else if (e.elite && Math.random() < 0.3) {
                 this.spawnParticles(e.pos, '#fff', 1, 'loot');
+              }
+              
+              // Rune Drop (Elite)
+              if (e.elite && Math.random() < 0.2) {
+                  this.spawnParticles(e.pos, '#00ffff', 1, 'rune');
               }
               this.screenShake = 5;
             }
@@ -2439,6 +3206,9 @@
             }
           
             this.player.hp -= 10; // Flat dmg
+            // Anomaly: Berserk (Enemy dmg x2)
+            if (this.director.activeAnomaly?.type === 'berserk') this.player.hp -= 10;
+            
             this.screenShake = 15;
             this.spawnParticles(this.player.pos, '#fff', 10);
             
@@ -2451,11 +3221,19 @@
                 const thornDmg = this.player.thorns + (10 * this.player.thornsPct);
                 e.hp -= thornDmg;
                 this.texts.push(new FloatingText(e.pos, `-${Math.floor(thornDmg)}`, "#888"));
+                if (e.hp <= 0 && !e.dead) {
+                    e.dead = true;
+                    this.spawnParticles(e.pos, '#0f0', 1, 'xp');
+                    this.director.reportKill();
+                }
             }
             
             // Knockback Enemy (if no shield)
             if (e.shield <= 0) {
-                e.pos = e.pos.sub(pushDir.mult(this.player.knockback + 10));
+                let kb = this.player.knockback + 10;
+                // Anomaly: Zero G
+                if (this.director.activeAnomaly?.type === 'zero_g') kb *= 3;
+                e.pos = e.pos.sub(pushDir.mult(kb));
             }
             
             // Vampire Heal
@@ -2478,8 +3256,11 @@
           if (this.projectiles[i].dead) this.projectiles.splice(i, 1);
       }
       for (let i = this.enemies.length - 1; i >= 0; i--) {
+          if (this.enemies[i].hp <= 0) this.enemies[i].dead = true; // Safety net for immortal mobs
           if (this.enemies[i].dead) this.enemies.splice(i, 1);
       }
+      for (let i = this.turrets.length - 1; i >= 0; i--) if (this.turrets[i].dead) this.turrets.splice(i, 1);
+      for (let i = this.mines.length - 1; i >= 0; i--) if (this.mines[i].dead) this.mines.splice(i, 1);
       for (let i = this.particles.length - 1; i >= 0; i--) {
           if (this.particles[i].dead) this.particles.splice(i, 1);
       }
@@ -2519,8 +3300,19 @@
       this.particles.forEach(p => p.draw(this.ctx));
       this.projectiles.forEach(p => p.draw(this.ctx));
       this.enemies.forEach(e => e.draw(this.ctx));
+      this.turrets.forEach(t => t.draw(this.ctx));
+      this.mines.forEach(m => m.draw(this.ctx));
       this.texts.forEach(t => t.draw(this.ctx));
       if (!this.player.dead && this.state === 'PLAYING') this.player.draw(this.ctx);
+      
+      // Weather Overlay
+      if (this.director.weather === 'rain') {
+          this.ctx.fillStyle = 'rgba(0,0,50,0.2)';
+          this.ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+      } else if (this.director.weather === 'fog') {
+          this.ctx.fillStyle = 'rgba(200,200,200,0.1)';
+          this.ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+      }
 
       this.ctx.restore();
 
@@ -2537,7 +3329,7 @@
     // --- RPG SYSTEMS ---
     generateLoot(): Item {
         const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)] as any;
-        const rarityRoll = Math.random();
+        const rarityRoll = Math.random() + (this.player.luck * 0.01); // Luck bonus
         let rarity: any = 'common';
         if (rarityRoll > 0.95) rarity = 'legendary';
         else if (rarityRoll > 0.8) rarity = 'epic';
@@ -2571,6 +3363,28 @@
         }
         
         return { id: Math.random().toString(36).substr(2,9), name, desc, type, rarity, stats, icon: icons[type] };
+    }
+
+    generateMerchantItems() {
+        const container = document.getElementById('merchant-items');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        for(let i=0; i<3; i++) {
+            const item = this.generateLoot();
+            const price = Math.floor(100 * (1 - this.player.merchantDiscount));
+            const el = document.createElement('div');
+            el.className = 'mini-card';
+            el.innerHTML = `<div class="icon">${item.icon}</div><div class="name">${item.name}</div><div class="desc">Цена: ${price}</div>`;
+            el.onclick = () => {
+                if (this.currencyCollected >= price) {
+                    this.currencyCollected -= price;
+                    meta.inventory.push(item);
+                    el.remove();
+                }
+            };
+            container.appendChild(el);
+        }
     }
 
     addChatMessage(name?: string, msg?: string, type: 'user'|'system' = 'user') {
@@ -2608,6 +3422,11 @@
          this.screenShake = 30;
       }
 
+      // Merchant Spawn (Rare)
+      if (this.director.wave > 5 && Math.random() < 0.01) {
+          this.spawnParticles(pos, '#0f0', 1, 'merchant_signal');
+      }
+
       this.enemies.push(enemy);
     }
 
@@ -2626,12 +3445,29 @@
         this.particles.push(new Particle(this.player.pos.add(offset), new Vector(0,0), '#fff', 10, type));
     }
 
-    spawnParticles(pos: Vector, color: string, count: number, type: 'vfx' | 'xp' | 'core' | 'loot' = 'vfx') {
-      for(let i=0; i<count; i++) {
+    spawnParticles(pos: Vector, color: string, count: number, type: 'vfx' | 'xp' | 'core' | 'fake_hp' | 'fake_shield' | 'fake_xp' | 'loot' | 'merchant_signal' | 'rune' = 'vfx') {
+      let particleCount = count;
+      let particleValue = 1;
+      let particleSize = type === 'xp' ? 6 : Math.random() * 3 + 1;
+
+      // XP Optimization
+      if (type === 'xp') {
+          if (count >= 50) { // Boss
+              particleCount = 5;
+              particleValue = 10;
+              particleSize = 12;
+          } else if (count >= 5) { // Elite
+              particleCount = 1;
+              particleValue = 5;
+              particleSize = 9;
+          }
+      }
+
+      for(let i=0; i<particleCount; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 200 + 50;
         const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(speed);
-        this.particles.push(new Particle(pos, vel, color, type === 'xp' ? 6 : Math.random() * 3 + 1, type));
+        this.particles.push(new Particle(pos, vel, color, particleSize, type, particleValue));
       }
     }
 
@@ -2660,10 +3496,37 @@
       ];
       
       // Add Weapon Upgrades if unlocked
-      if (meta.unlocks.includes('w_shotgun')) upgrades.push({ id: 'w_shot', name: 'ДРОБОВИК', desc: 'Сменить оружие', icon: '🧨', action: () => { this.player.weapon = 'shotgun'; this.player.fireRate = 0.8; } });
-      if (meta.unlocks.includes('w_rocket')) upgrades.push({ id: 'w_rock', name: 'РАКЕТНИЦА', desc: 'Сменить оружие', icon: '🚀', action: () => { this.player.weapon = 'rocket'; this.player.fireRate = 1.0; } });
-      if (meta.unlocks.includes('w_laser')) upgrades.push({ id: 'w_las', name: 'ЛАЗЕР', desc: 'Сменить оружие', icon: '🔦', action: () => { this.player.weapon = 'laser'; this.player.fireRate = 0.4; } });
-      if (meta.unlocks.includes('w_plasma')) upgrades.push({ id: 'w_plas', name: 'ПЛАЗМА', desc: 'Сменить оружие', icon: '🟣', action: () => { this.player.weapon = 'plasma'; this.player.fireRate = 0.15; } });
+      if (meta.unlocks.includes('w_shotgun')) {
+          if (this.player.weapon === 'shotgun') {
+              upgrades.push({ id: 'w_shot_up', name: 'ТЮНИНГ: ДРОБОВИК', desc: '+1 Дробь, +10% Урона', icon: '🧨', action: () => { this.player.multishot += 1; this.player.damage *= 1.1; } });
+          } else {
+              upgrades.push({ id: 'w_shot', name: 'ДРОБОВИК', desc: 'Сменить оружие', icon: '🧨', action: () => { this.player.weapon = 'shotgun'; this.player.fireRate = 0.8; } });
+          }
+      }
+      
+      if (meta.unlocks.includes('w_rocket')) {
+          if (this.player.weapon === 'rocket') {
+              upgrades.push({ id: 'w_rock_up', name: 'ТЮНИНГ: РАКЕТЫ', desc: '+20% Радиус, +10% Урона', icon: '🚀', action: () => { this.player.aoeRadius *= 1.2; this.player.damage *= 1.1; } });
+          } else {
+              upgrades.push({ id: 'w_rock', name: 'РАКЕТНИЦА', desc: 'Сменить оружие', icon: '🚀', action: () => { this.player.weapon = 'rocket'; this.player.fireRate = 1.0; } });
+          }
+      }
+      
+      if (meta.unlocks.includes('w_laser')) {
+          if (this.player.weapon === 'laser') {
+              upgrades.push({ id: 'w_las_up', name: 'ТЮНИНГ: ЛАЗЕР', desc: '+15% Скорострельности', icon: '🔦', action: () => { this.player.fireRate *= 0.85; } });
+          } else {
+              upgrades.push({ id: 'w_las', name: 'ЛАЗЕР', desc: 'Сменить оружие', icon: '🔦', action: () => { this.player.weapon = 'laser'; this.player.fireRate = 0.4; } });
+          }
+      }
+      
+      if (meta.unlocks.includes('w_plasma')) {
+          if (this.player.weapon === 'plasma') {
+              upgrades.push({ id: 'w_plas_up', name: 'ТЮНИНГ: ПЛАЗМА', desc: '+1 Снаряд, +5% Урона', icon: '🟣', action: () => { this.player.multishot += 1; this.player.damage *= 1.05; } });
+          } else {
+              upgrades.push({ id: 'w_plas', name: 'ПЛАЗМА', desc: 'Сменить оружие', icon: '🟣', action: () => { this.player.weapon = 'plasma'; this.player.fireRate = 0.15; } });
+          }
+      }
 
       // Pick 3 random
       for(let i=0; i<3; i++) {
@@ -2788,8 +3651,87 @@
       document.getElementById('hud-hp-bar')!.style.width = `${Math.max(0, hpPct)}%`;
       document.getElementById('hud-hp-text')!.innerText = `${Math.max(0, Math.ceil(this.player.hp))}/${Math.ceil(this.player.maxHp)}`;
       
+      const heatPct = (this.player.heat / this.player.maxHeat) * 100;
+      const heatBar = document.getElementById('hud-heat-bar');
+      if (heatBar) {
+          heatBar.style.width = `${Math.min(100, heatPct)}%`;
+          if (this.player.isOverheated) heatBar.classList.add('overheated');
+          else heatBar.classList.remove('overheated');
+      }
+      
+      // Toggle Skills HUD based on class
+      const skillsHud = document.querySelector('.skills-hud') as HTMLElement;
+      // Always show skills HUD now as all classes have skills
+      if (skillsHud) skillsHud.style.display = 'flex';
+      
+      // Skills CD
+      const qPct = Math.max(0, this.player.mineCooldown / (5.0 * this.player.cooldownMult)) * 100;
+      const ePct = Math.max(0, this.player.turretCooldown / (15.0 * this.player.cooldownMult)) * 100;
+      document.getElementById('cd-q')!.style.height = `${qPct}%`;
+      document.getElementById('cd-e')!.style.height = `${ePct}%`;
+      
       const xpPct = (this.player.xp / this.player.maxXp) * 100;
       document.getElementById('hud-xp-bar')!.style.width = `${xpPct}%`;
+      
+      // Combo UI
+      const comboContainer = document.getElementById('hud-combo-container');
+      const comboCount = document.getElementById('hud-combo-count');
+      if (comboContainer && comboCount) {
+          if (this.combo > 1) comboContainer.classList.remove('hidden');
+          else comboContainer.classList.add('hidden');
+          comboCount.innerText = `x${this.combo}` + (this.combo >= 50 ? ' ПЕРЕГРУЗКА!' : '');
+          if (this.combo >= 50) comboCount.style.color = '#0ff';
+          else comboCount.style.color = '#ffd700';
+      }
+      
+      const questContainer = document.getElementById('hud-quest-container');
+      if (questContainer) {
+          if (this.director.activeQuest) {
+              questContainer.classList.remove('hidden');
+              const q = this.director.activeQuest;
+              document.getElementById('hud-quest-text')!.innerText = `${q.desc} (${Math.floor(q.current)}/${q.target})`;
+          }
+          else questContainer.classList.add('hidden');
+      }
+    }
+
+    renderClassSelector() {
+        const classContainer = document.getElementById('class-selector-container');
+        if (!classContainer) return;
+        
+        classContainer.innerHTML = '';
+        
+        CLASSES.forEach(cls => {
+            const btn = document.createElement('div');
+            btn.className = 'class-btn';
+            
+            // Check if this class is currently selected
+            if (cls.id === selectedClass) {
+                btn.classList.add('selected');
+                // Update description text just in case
+                const descEl = document.getElementById('class-desc');
+                if (descEl) descEl.innerText = `${cls.name}: ${cls.desc}`;
+            }
+            
+            const isUnlocked = !cls.unlock || meta.unlocks.includes(cls.unlock);
+            btn.innerText = isUnlocked ? cls.name : 'ЗАКРЫТО';
+            
+            if (!isUnlocked) {
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            } else {
+                btn.dataset.class = cls.id;
+                btn.dataset.desc = cls.desc;
+                btn.onclick = (e) => {
+                    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    selectedClass = cls.id;
+                    const descEl = document.getElementById('class-desc');
+                    if (descEl) descEl.innerText = `${cls.name}: ${cls.desc}`;
+                };
+            }
+            classContainer.appendChild(btn);
+        });
     }
 
     setScreen(id: string) {
@@ -2817,6 +3759,12 @@
 
       // UI Buttons
       document.getElementById('btn-start')?.addEventListener('click', () => {
+          // Auto-fullscreen on start
+          const el = document.getElementById('app-window');
+          if (el && !document.fullscreenElement) {
+              el.requestFullscreen().catch(() => {});
+          }
+
           this.setScreen('difficulty-screen');
           const grid = document.querySelector('.diff-grid')!;
           grid.innerHTML = '';
@@ -2854,6 +3802,12 @@
       
       // Raid UI
       document.getElementById('btn-raids')?.addEventListener('click', () => {
+          // Auto-fullscreen on raid menu
+          const el = document.getElementById('app-window');
+          if (el && !document.fullscreenElement) {
+              el.requestFullscreen().catch(() => {});
+          }
+
           this.setScreen('raid-screen');
           const list = document.getElementById('raid-list')!;
           list.innerHTML = '';
@@ -2883,6 +3837,19 @@
       });
       document.getElementById('btn-lb-back')?.addEventListener('click', () => {
           this.setScreen('menu-screen');
+      });
+      
+      // Merchant
+      document.getElementById('btn-merchant-close')?.addEventListener('click', () => {
+          this.setScreen('hud-screen');
+          this.state = 'PLAYING';
+      });
+      
+      // Debug Button
+      document.getElementById('btn-debug-cores')?.addEventListener('click', () => {
+          meta.bossCurrency += 100;
+          saveMeta();
+          updateMenuStats();
       });
       
       // Score Submit
