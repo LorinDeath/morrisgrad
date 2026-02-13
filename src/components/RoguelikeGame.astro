@@ -246,6 +246,21 @@
     font-family: 'Orbitron', sans-serif;
   }
 
+  /* Fullscreen Fixes */
+  :global(:fullscreen) #app-window {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: none;
+    border-radius: 0;
+  }
+  :global(:fullscreen) canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* Preserves aspect ratio */
+  }
+
   .window-header {
     height: 36px;
     background: #111;
@@ -531,7 +546,7 @@
     border: 1px solid #ffd700;
     padding: 10px;
     border-radius: 4px;
-    pointer-events: none;
+    pointer-events: auto;
     z-index: 20;
     max-width: 250px;
   }
@@ -640,6 +655,22 @@
     padding: 10px; font-family: 'Orbitron', sans-serif; text-align: center; text-transform: uppercase;
   }
 
+  /* Mobile Adaptive */
+  @media (max-width: 768px) {
+    h1.title { font-size: 2.5rem; letter-spacing: 2px; }
+    .meta-stats { gap: 15px; }
+    .stat-box .value { font-size: 1.2rem; }
+    .btn-primary { padding: 10px 20px; font-size: 1rem; }
+    .menu-buttons-row { flex-direction: column; gap: 10px; }
+    .menu-buttons-row button { width: 100%; }
+    
+    .hud-top-right, .hud-bottom-left { font-size: 1rem; }
+    .hp-bar-wrap, .xp-bar-wrap { width: 200px; }
+    .upgrades-shop, .tree-access { width: 100%; max-width: 300px; }
+    
+    .lb-columns { flex-direction: column; width: 100%; }
+  }
+
 </style>
 
 <script>
@@ -722,6 +753,7 @@
   interface Item {
     id: string;
     name: string;
+    desc?: string;
     type: 'weapon' | 'armor' | 'chip';
     rarity: 'common' | 'rare' | 'epic' | 'legendary';
     stats: { hp?: number, dmg?: number, spd?: number, crit?: number };
@@ -859,75 +891,73 @@
   // Unique Upgrade Definitions per Branch
   interface NodeDef { name: string; desc: string; cost: number; type: 'stat'|'passive'|'mechanic'|'unlock'; effect: (p:Player)=>void; id?: string; }
   
+  // 5 Branches: 0:Attack, 1:Defense, 2:Xenology(Enemies), 3:Threat(Diff), 4:Arsenal(Ultimates)
   const BRANCH_DEFS: Record<number, NodeDef[]> = {
-    // 0: ATTACK (Right) - Damage, Crits, Weapons
+    // 0: ATTACK (Right) - Basic Stats & Weapons
     0: [
       { name: "КАЛИБРОВКА", desc: "+10% Урона", cost: 1, type: 'stat', effect: p => p.damage *= 1.1 },
       { name: "ДРОБОВИК", desc: "Разблок: Дробовик", cost: 5, type: 'unlock', id: 'w_shotgun', effect: () => { if(!meta.unlocks.includes('w_shotgun')) meta.unlocks.push('w_shotgun'); } },
       { name: "ФОКУСИРОВКА", desc: "+15% Урона", cost: 2, type: 'stat', effect: p => p.damage *= 1.15 },
       { name: "КРИТ. ШАНС I", desc: "+5% Шанс крита", cost: 5, type: 'passive', effect: p => p.critChance += 0.05 },
-      { name: "УГРОЗА x2", desc: "Разблок: Сложность x2", cost: 10, type: 'unlock', id: 'diff_x2', effect: () => { if(!meta.unlocks.includes('diff_x2')) meta.unlocks.push('diff_x2'); } },
       { name: "КРИТ. УРОН I", desc: "+50% Сила крита", cost: 5, type: 'passive', effect: p => p.critMult += 0.5 },
       { name: "РАКЕТНИЦА", desc: "Разблок: Ракетница", cost: 15, type: 'unlock', id: 'w_rocket', effect: () => { if(!meta.unlocks.includes('w_rocket')) meta.unlocks.push('w_rocket'); } },
       { name: "БОЕГОЛОВКИ", desc: "+20% Радиус взрыва", cost: 10, type: 'passive', effect: p => p.aoeRadius *= 1.2 },
-      { name: "УБИЙЦА", desc: "+20% Урона по боссам", cost: 10, type: 'passive', effect: p => p.bossDmgMult += 0.2 },
       { name: "КРИТ. ШАНС II", desc: "+10% Шанс крита", cost: 15, type: 'passive', effect: p => p.critChance += 0.10 },
       { name: "ЛАЗЕР", desc: "Разблок: Лазер", cost: 30, type: 'unlock', id: 'w_laser', effect: () => { if(!meta.unlocks.includes('w_laser')) meta.unlocks.push('w_laser'); } },
       { name: "ПЕРЕГРУЗКА", desc: "+30% Урона, -10% HP", cost: 20, type: 'mechanic', effect: p => { p.damage *= 1.3; p.maxHp *= 0.9; } },
-      { name: "КАЗНЬ", desc: "Враги с <20% HP умирают", cost: 50, type: 'mechanic', id: 'execute', effect: p => p.execute = true },
-      { name: "УГРОЗА x32", desc: "Разблок: Сложность x32", cost: 100, type: 'unlock', id: 'diff_x32', effect: () => { if(!meta.unlocks.includes('diff_x32')) meta.unlocks.push('diff_x32'); } },
       { name: "УСИЛЕНИЕ III", desc: "+20% Урона", cost: 25, type: 'stat', effect: p => p.damage *= 1.2 },
-      { name: "КРИТ. МАСТЕР", desc: "+15% Шанс крита", cost: 40, type: 'passive', effect: p => p.critChance += 0.15 }
+      { name: "ПЛАЗМА", desc: "Разблок: Плазма-ган", cost: 40, type: 'unlock', id: 'w_plasma', effect: () => { if(!meta.unlocks.includes('w_plasma')) meta.unlocks.push('w_plasma'); } },
+      { name: "КРИТ. МАСТЕР", desc: "+15% Шанс крита", cost: 45, type: 'passive', effect: p => p.critChance += 0.15 },
+      { name: "МУЛЬТИВЫСТРЕЛ I", desc: "+1 Снаряд", cost: 50, type: 'passive', effect: p => p.multishot += 1 }
     ],
-    // 1: DEFENSE (Down) - HP, Regen, Armor, Thorns
+    // 1: DEFENSE (Down-Right) - HP, Regen, Armor
     1: [
       { name: "ОБШИВКА I", desc: "+20 Макс. HP", cost: 1, type: 'stat', effect: p => p.maxHp += 20 },
       { name: "РЕГЕНЕРАЦИЯ I", desc: "+1 HP/сек", cost: 5, type: 'passive', effect: p => p.regen += 1 },
-      { name: "УГРОЗА x4", desc: "Разблок: Сложность x4", cost: 15, type: 'unlock', id: 'diff_x4', effect: () => { if(!meta.unlocks.includes('diff_x4')) meta.unlocks.push('diff_x4'); } },
       { name: "ШИПЫ I", desc: "Возврат 10 урона", cost: 5, type: 'passive', effect: p => p.thorns += 10 },
-      { name: "ТЯЖЕЛЫЕ ТАНКИ", desc: "Враги: Бронированные", cost: 10, type: 'unlock', id: 'tank_heavy', effect: () => { if(!meta.unlocks.includes('tank_heavy')) meta.unlocks.push('tank_heavy'); } },
       { name: "ОБШИВКА II", desc: "+50 Макс. HP", cost: 5, type: 'stat', effect: p => p.maxHp += 50 },
       { name: "ВАМПИРИЗМ I", desc: "1% Кража жизни", cost: 15, type: 'mechanic', effect: p => p.lifesteal += 0.01 },
-      { name: "ВАМПИРЫ", desc: "Враги: Вампиры", cost: 15, type: 'unlock', id: 'vampire', effect: () => { if(!meta.unlocks.includes('vampire')) meta.unlocks.push('vampire'); } },
       { name: "РЕГЕНЕРАЦИЯ II", desc: "+2 HP/сек", cost: 10, type: 'passive', effect: p => p.regen += 2 },
       { name: "ТИТАН", desc: "+100 HP, -10% Скор.", cost: 20, type: 'stat', effect: p => { p.maxHp += 100; p.speed *= 0.9; } },
       { name: "ШИПЫ II", desc: "Возврат 50% урона", cost: 25, type: 'passive', effect: p => p.thornsPct += 0.5 },
-      { name: "ВТОРОЕ ДЫХАНИЕ", desc: "Воскрешение (1 раз)", cost: 60, type: 'mechanic', id: 'revive', effect: p => p.extraLives += 1 },
       { name: "ОБШИВКА III", desc: "+100 Макс. HP", cost: 30, type: 'stat', effect: p => p.maxHp += 100 },
-      { name: "РЕГЕНЕРАЦИЯ III", desc: "+3 HP/сек", cost: 40, type: 'passive', effect: p => p.regen += 3 }
+      { name: "РЕГЕНЕРАЦИЯ III", desc: "+3 HP/сек", cost: 40, type: 'passive', effect: p => p.regen += 3 },
+      { name: "ВТОРОЕ ДЫХАНИЕ", desc: "Воскрешение (1 раз)", cost: 100, type: 'mechanic', id: 'revive', effect: p => p.extraLives += 1 }
     ],
-    // 2: UTILITY (Left) - Speed, Dash, Magnet, Luck
+    // 2: XENOLOGY (Down-Left) - Unlock Enemies & Get Buffs
     2: [
-      { name: "ПРИВОДЫ I", desc: "+10% Скорости", cost: 1, type: 'stat', effect: p => p.speed *= 1.1 },
-      { name: "РЫВОК", desc: "ПРОБЕЛ: Рывок", cost: 10, type: 'unlock', id: 'ult_dash', effect: () => { if(!meta.unlocks.includes('ult_dash')) meta.unlocks.push('ult_dash'); } },
-      { name: "УГРОЗА x8", desc: "Разблок: Сложность x8", cost: 20, type: 'unlock', id: 'diff_x8', effect: () => { if(!meta.unlocks.includes('diff_x8')) meta.unlocks.push('diff_x8'); } },
-      { name: "МАГНИТ I", desc: "+30% Радиус сбора", cost: 3, type: 'passive', effect: p => meta.upgrades.magnet += 3 },
-      { name: "СНАЙПЕРЫ", desc: "Враги: Снайперы", cost: 10, type: 'unlock', id: 'sniper', effect: () => { if(!meta.unlocks.includes('sniper')) meta.unlocks.push('sniper'); } },
-      { name: "УКЛОНЕНИЕ I", desc: "10% Шанс уклонения", cost: 10, type: 'passive', effect: p => p.dodge += 0.1 },
-      { name: "ХИЛЕРЫ", desc: "Враги: Целители", cost: 15, type: 'unlock', id: 'healer', effect: () => { if(!meta.unlocks.includes('healer')) meta.unlocks.push('healer'); } },
-      { name: "ОПЫТНЫЙ", desc: "+20% Получения XP", cost: 10, type: 'passive', effect: p => p.xpMult += 0.2 },
-      { name: "ПРИВОДЫ II", desc: "+20% Скорости", cost: 10, type: 'stat', effect: p => p.speed *= 1.2 },
-      { name: "РЫВОК II", desc: "-1 сек. Кулдаун рывка", cost: 20, type: 'mechanic', effect: p => p.dashCooldownMax -= 1.0 },
-      { name: "МАГНИТ II", desc: "Макс. радиус сбора", cost: 25, type: 'passive', effect: p => meta.upgrades.magnet += 10 },
-      { name: "УКЛОНЕНИЕ II", desc: "+15% Шанс уклонения", cost: 30, type: 'passive', effect: p => p.dodge += 0.15 },
-      { name: "СКОРОСТЬ III", desc: "+30% Скорости", cost: 30, type: 'stat', effect: p => p.speed *= 1.3 },
-      { name: "МАГНИТ III", desc: "Глобальный сбор", cost: 50, type: 'passive', effect: p => meta.upgrades.magnet += 50 }
+      { name: "БЕГУНЫ", desc: "Враг: Быстрые. НАГРАДА: +10% Скор.", cost: 5, type: 'unlock', id: 'enemy_fast', effect: p => { if(!meta.unlocks.includes('enemy_fast')) meta.unlocks.push('enemy_fast'); p.speed *= 1.1; } },
+      { name: "ТАНКИ", desc: "Враг: Броня. НАГРАДА: +20 HP", cost: 10, type: 'unlock', id: 'enemy_tank', effect: p => { if(!meta.unlocks.includes('enemy_tank')) meta.unlocks.push('enemy_tank'); p.maxHp += 20; } },
+      { name: "СНАЙПЕРЫ", desc: "Враг: Стрелки. НАГРАДА: +5% Крит", cost: 15, type: 'unlock', id: 'enemy_sniper', effect: p => { if(!meta.unlocks.includes('enemy_sniper')) meta.unlocks.push('enemy_sniper'); p.critChance += 0.05; } },
+      { name: "ХИЛЕРЫ", desc: "Враг: Лекари. НАГРАДА: +1 Реген", cost: 20, type: 'unlock', id: 'enemy_healer', effect: p => { if(!meta.unlocks.includes('enemy_healer')) meta.unlocks.push('enemy_healer'); p.regen += 1; } },
+      { name: "ВАМПИРЫ", desc: "Враг: Вампиры. НАГРАДА: +1% Вампиризм", cost: 25, type: 'unlock', id: 'enemy_vampire', effect: p => { if(!meta.unlocks.includes('enemy_vampire')) meta.unlocks.push('enemy_vampire'); p.lifesteal += 0.01; } },
+      { name: "КАМИКАДЗЕ", desc: "Враг: Взрыв. НАГРАДА: +20% Радиус", cost: 30, type: 'unlock', id: 'enemy_exploder', effect: p => { if(!meta.unlocks.includes('enemy_exploder')) meta.unlocks.push('enemy_exploder'); p.aoeRadius *= 1.2; } },
+      { name: "ПРИЗЫВАТЕЛИ", desc: "Враг: Спавн. НАГРАДА: +20% XP", cost: 35, type: 'unlock', id: 'enemy_summoner', effect: p => { if(!meta.unlocks.includes('enemy_summoner')) meta.unlocks.push('enemy_summoner'); p.xpMult += 0.2; } },
+      { name: "ПРИЗРАКИ", desc: "Враг: Стелс. НАГРАДА: +10% Уклонение", cost: 40, type: 'unlock', id: 'enemy_ghost', effect: p => { if(!meta.unlocks.includes('enemy_ghost')) meta.unlocks.push('enemy_ghost'); p.dodge += 0.1; } },
+      { name: "УБИЙЦА БОССОВ", desc: "+30% Урона по боссам", cost: 50, type: 'passive', effect: p => p.bossDmgMult += 0.3 }
     ],
-    // 3: TECH (Up) - Fire Rate, Multishot, Specials
+    // 3: THREAT (Left-Up) - Difficulty & Loot
     3: [
-      { name: "ЦИКЛЕР I", desc: "+10% Скорострельности", cost: 2, type: 'stat', effect: p => p.fireRate *= 0.9 },
-      { name: "УГРОЗА x16", desc: "Разблок: Сложность x16", cost: 25, type: 'unlock', id: 'diff_x16', effect: () => { if(!meta.unlocks.includes('diff_x16')) meta.unlocks.push('diff_x16'); } },
-      { name: "МУЛЬТИВЫСТРЕЛ I", desc: "+1 Снаряд", cost: 15, type: 'passive', effect: p => p.multishot += 1 },
-      { name: "ЯДЕРНЫЙ УДАР", desc: "F: Уничтожить всех", cost: 40, type: 'unlock', id: 'ult_nuke', effect: () => { if(!meta.unlocks.includes('ult_nuke')) meta.unlocks.push('ult_nuke'); } },
-      { name: "РИКОШЕТ", desc: "Снаряды отскакивают", cost: 25, type: 'mechanic', id: 'ricochet', effect: p => p.ricochet = true },
-      { name: "ЦИКЛЕР II", desc: "+20% Скорострельности", cost: 10, type: 'stat', effect: p => p.fireRate *= 0.8 },
-      { name: "САМОНАВЕДЕНИЕ", desc: "Умные снаряды", cost: 40, type: 'mechanic', id: 'homing', effect: p => p.homing = true },
-      { name: "МУЛЬТИВЫСТРЕЛ II", desc: "+1 Снаряд", cost: 30, type: 'passive', effect: p => p.multishot += 1 },
-      { name: "ПЕРЕЗАРЯДКА", desc: "-20% Кулдаун ульты", cost: 20, type: 'passive', effect: p => p.cooldownMult *= 0.8 },
-      { name: "ЦЕПНАЯ МОЛНИЯ", desc: "Шанс удара молнией", cost: 50, type: 'mechanic', id: 'lightning', effect: p => p.lightning = true },
-      { name: "УГРОЗА x64", desc: "Разблок: Сложность x64", cost: 200, type: 'unlock', id: 'diff_x64', effect: () => { if(!meta.unlocks.includes('diff_x64')) meta.unlocks.push('diff_x64'); } },
-      { name: "РАЗГОН III", desc: "+25% Скорострельности", cost: 40, type: 'stat', effect: p => p.fireRate *= 0.75 },
-      { name: "МУЛЬТИВЫСТРЕЛ III", desc: "+1 Снаряд", cost: 60, type: 'passive', effect: p => p.multishot += 1 }
+      { name: "УГРОЗА x2", desc: "Разблок: Сложность x2", cost: 10, type: 'unlock', id: 'diff_x2', effect: () => { if(!meta.unlocks.includes('diff_x2')) meta.unlocks.push('diff_x2'); } },
+      { name: "МАГНИТ I", desc: "+30% Радиус сбора", cost: 5, type: 'passive', effect: p => meta.upgrades.magnet += 3 },
+      { name: "УГРОЗА x4", desc: "Разблок: Сложность x4", cost: 20, type: 'unlock', id: 'diff_x4', effect: () => { if(!meta.unlocks.includes('diff_x4')) meta.unlocks.push('diff_x4'); } },
+      { name: "ОПЫТНЫЙ", desc: "+20% Получения XP", cost: 15, type: 'passive', effect: p => p.xpMult += 0.2 },
+      { name: "УГРОЗА x8", desc: "Разблок: Сложность x8", cost: 40, type: 'unlock', id: 'diff_x8', effect: () => { if(!meta.unlocks.includes('diff_x8')) meta.unlocks.push('diff_x8'); } },
+      { name: "МАГНИТ II", desc: "Макс. радиус сбора", cost: 30, type: 'passive', effect: p => meta.upgrades.magnet += 10 },
+      { name: "УГРОЗА x16", desc: "Разблок: Сложность x16", cost: 80, type: 'unlock', id: 'diff_x16', effect: () => { if(!meta.unlocks.includes('diff_x16')) meta.unlocks.push('diff_x16'); } },
+      { name: "УГРОЗА x32", desc: "Разблок: Сложность x32", cost: 150, type: 'unlock', id: 'diff_x32', effect: () => { if(!meta.unlocks.includes('diff_x32')) meta.unlocks.push('diff_x32'); } },
+      { name: "УГРОЗА x64", desc: "Разблок: Сложность x64", cost: 300, type: 'unlock', id: 'diff_x64', effect: () => { if(!meta.unlocks.includes('diff_x64')) meta.unlocks.push('diff_x64'); } }
+    ],
+    // 4: ARSENAL (Up) - Ultimates & Expensive Tech
+    4: [
+      { name: "РЫВОК", desc: "ПРОБЕЛ: Рывок (100 ядер)", cost: 100, type: 'unlock', id: 'ult_dash', effect: () => { if(!meta.unlocks.includes('ult_dash')) meta.unlocks.push('ult_dash'); } },
+      { name: "ЦИКЛЕР", desc: "+15% Скорострельности", cost: 50, type: 'stat', effect: p => p.fireRate *= 0.85 },
+      { name: "РИКОШЕТ", desc: "Снаряды отскакивают", cost: 150, type: 'mechanic', id: 'ricochet', effect: p => p.ricochet = true },
+      { name: "ЯДЕРНЫЙ УДАР", desc: "F: Уничтожить всех (200 ядер)", cost: 200, type: 'unlock', id: 'ult_nuke', effect: () => { if(!meta.unlocks.includes('ult_nuke')) meta.unlocks.push('ult_nuke'); } },
+      { name: "САМОНАВЕДЕНИЕ", desc: "Умные снаряды", cost: 250, type: 'mechanic', id: 'homing', effect: p => p.homing = true },
+      { name: "ЦЕПНАЯ МОЛНИЯ", desc: "Шанс удара молнией", cost: 300, type: 'mechanic', id: 'lightning', effect: p => p.lightning = true },
+      { name: "КАЗНЬ", desc: "Враги с <20% HP умирают", cost: 400, type: 'mechanic', id: 'execute', effect: p => p.execute = true },
+      { name: "ПЕРЕЗАРЯДКА", desc: "-30% Кулдаун ульты", cost: 500, type: 'passive', effect: p => p.cooldownMult *= 0.7 }
     ]
   };
   
@@ -936,20 +966,23 @@
       TREE_NODES.length = 0; // Clear
       TREE_NODES.push({ id: 'root', x: 0, y: 0, name: 'ЯДРО', desc: 'Начало.', cost: 0, parents: [], effect: () => {}, type: 'mechanic' });
 
-      const angles = [0, Math.PI/2, Math.PI, -Math.PI/2]; // Right, Down, Left, Up
-
-      for (let b = 0; b < 4; b++) {
+      const branchCount = 5;
+      
+      for (let b = 0; b < branchCount; b++) {
           const defs = BRANCH_DEFS[b];
+          if (!defs) continue;
+
           let parentId = 'root';
-          let currentAngle = angles[b];
+          // Spread 5 branches evenly starting from -90deg (Up)
+          const baseAngle = (b * (Math.PI * 2) / branchCount) - (Math.PI / 2);
           
           defs.forEach((def, i) => {
               const id = def.id || `node_${b}_${i}`;
-              const dist = 70; // Fixed distance
+              const dist = 90; // Increased distance for better spacing
               
-              // Organic Wiggle
-              const wiggle = (i % 2 === 0 ? 0.15 : -0.15);
-              const nodeAngle = currentAngle + wiggle;
+              // Organic Zig-Zag Wiggle
+              const wiggle = (i % 2 === 0 ? 0.3 : -0.3);
+              const nodeAngle = baseAngle + wiggle;
               
               const pNode = TREE_NODES.find(n => n.id === parentId)!;
               const x = pNode.x + Math.cos(nodeAngle) * dist;
@@ -965,6 +998,36 @@
               
               parentId = id;
           });
+          
+          // --- SIDE BRANCHES (4 per branch = 20 total) ---
+          const sideStats = [
+              { name: 'АТОМ', desc: '+3 Урона', effect: (p:Player) => p.damage += 3 }, // Branch 0 (Attack)
+              { name: 'ПЛАСТИНА', desc: '+15 HP', effect: (p:Player) => p.maxHp += 15 }, // Branch 1 (Defense)
+              { name: 'ДАННЫЕ', desc: '+5% XP', effect: (p:Player) => p.xpMult += 0.05 }, // Branch 2 (Xenology)
+              { name: 'УДАЧА', desc: '+1 Удачa', effect: (p:Player) => meta.upgrades.luck += 1 }, // Branch 3 (Threat)
+              { name: 'СМАЗКА', desc: '-2% Кулдаун', effect: (p:Player) => p.cooldownMult *= 0.98 } // Branch 4 (Arsenal)
+          ];
+          
+          const mainNodes = TREE_NODES.filter(n => n.id.startsWith(`node_${b}_`));
+          const stat = sideStats[b];
+          
+          // Attach to every 2nd node starting from index 1
+          for(let k=0; k<4; k++) {
+              const parentIdx = 1 + k*2;
+              if (parentIdx < mainNodes.length) {
+                  const parent = mainNodes[parentIdx];
+                  const sideAngle = baseAngle + (k % 2 === 0 ? 0.6 : -0.6); // Branch out
+                  const dist = 60;
+                  
+                  TREE_NODES.push({
+                      id: `side_${b}_${k}`,
+                      x: parent.x + Math.cos(sideAngle) * dist,
+                      y: parent.y + Math.sin(sideAngle) * dist,
+                      name: `${stat.name} ${k+1}`, desc: stat.desc, cost: 10 * (k+1),
+                      parents: [parent.id], effect: stat.effect, type: 'stat'
+                  });
+              }
+          }
       }
   }
   
@@ -976,7 +1039,7 @@
     offsetX = 0; offsetY = 0;
     isDragging = false;
     lastMouse = {x:0, y:0};
-    hoveredNode: TreeNode | null = null;
+    selectedNode: TreeNode | null = null;
 
     constructor() {
       this.canvas = document.getElementById('tree-canvas') as HTMLCanvasElement;
@@ -992,10 +1055,23 @@
       container.addEventListener('mousedown', e => {
         this.isDragging = true;
         this.lastMouse = {x: e.clientX, y: e.clientY};
+        this.selectedNode = null;
         
-        // Click logic
-        if (this.hoveredNode) this.tryUnlock(this.hoveredNode);
+        // Check click on node
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left - this.offsetX;
+        const my = e.clientY - rect.top - this.offsetY;
+        
+        for(const n of TREE_NODES) {
+          if (Math.hypot(n.x - mx, n.y - my) < 20) {
+            this.selectedNode = n;
+            this.isDragging = false; // Stop dragging if clicked node
+            break;
+          }
+        }
+        this.updateTooltip();
       });
+      
       window.addEventListener('mouseup', () => this.isDragging = false);
       window.addEventListener('mousemove', e => {
         if (this.isDragging) {
@@ -1003,20 +1079,8 @@
           this.offsetY += e.clientY - this.lastMouse.y;
           this.lastMouse = {x: e.clientX, y: e.clientY};
         }
-        
-        // Hover check
-        const rect = this.canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left - this.offsetX;
-        const my = e.clientY - rect.top - this.offsetY;
-        
-        this.hoveredNode = null;
-        for(const n of TREE_NODES) {
-          if (Math.hypot(n.x - mx, n.y - my) < 15) {
-            this.hoveredNode = n;
-            break;
-          }
-        }
-        this.updateTooltip(e.clientX, e.clientY);
+        // Hide tooltip on drag
+        if (this.isDragging) this.updateTooltip();
       });
     }
 
@@ -1046,27 +1110,42 @@
       }
     }
 
-    updateTooltip(mx: number, my: number) {
+    updateTooltip() {
       const el = document.getElementById('tree-tooltip');
       if (!el) return;
       
-      if (this.hoveredNode) {
-        const n = this.hoveredNode;
+      if (this.selectedNode && !this.isDragging) {
+        const n = this.selectedNode;
         const unlocked = meta.skillTree.includes(n.id);
         const reachable = n.parents.some(pid => meta.skillTree.includes(pid));
+        const canAfford = meta.bossCurrency >= n.cost;
         
-        let status = unlocked ? '<span style="color:#0f0">ИЗУЧЕНО</span>' : 
-                     reachable ? '<span style="color:#ffd700">ДОСТУПНО</span>' : 
-                     '<span style="color:#f00">ЗАКРЫТО</span>';
+        let actionBtn = '';
+        if (unlocked) {
+            actionBtn = '<button class="btn-small" disabled style="width:100%; color:#0f0; border-color:#0f0">ИЗУЧЕНО</button>';
+        } else if (reachable) {
+            if (canAfford) {
+                actionBtn = `<button id="btn-unlock-node" class="btn-small" style="width:100%; background:#ffd700; color:#000; font-weight:bold">ИЗУЧИТЬ</button>`;
+            } else {
+                actionBtn = '<button class="btn-small" disabled style="width:100%; opacity:0.5">НЕДОСТАТОЧНО ЯДЕР</button>';
+            }
+        } else {
+            actionBtn = '<button class="btn-small" disabled style="width:100%; opacity:0.5">НЕДОСТУПНО</button>';
+        }
 
         el.innerHTML = `
           <h4>${n.name}</h4>
           <p>${n.desc}</p>
           <div class="cost">СТОИМОСТЬ: ${n.cost} ЯДЕР</div>
-          <div style="margin-top:5px; font-size:0.7rem">${status}</div>
+          <div style="margin-top:10px;">${actionBtn}</div>
         `;
-        el.style.left = mx + 15 + 'px';
-        el.style.top = my + 15 + 'px';
+        
+        // Position relative to node (projected to screen)
+        const screenX = n.x + this.offsetX;
+        const screenY = n.y + this.offsetY;
+        
+        el.style.left = (screenX + 20) + 'px';
+        el.style.top = screenY + 'px';
         el.classList.remove('hidden');
       } else {
         el.classList.add('hidden');
@@ -1119,7 +1198,7 @@
         
         this.ctx.beginPath();
         const size = n.type === 'mechanic' || n.type === 'unlock' ? 12 : n.type === 'passive' ? 8 : 5;
-        this.ctx.arc(n.x, n.y, size, 0, Math.PI*2);
+        this.ctx.arc(n.x, n.y, this.selectedNode === n ? size + 3 : size, 0, Math.PI*2);
         
         if (unlocked) {
           this.ctx.fillStyle = '#ffd700';
@@ -1137,6 +1216,12 @@
         
         if (n.type === 'unlock') {
              this.ctx.strokeStyle = '#a020f0';
+             this.ctx.lineWidth = 2;
+             this.ctx.stroke();
+        }
+        
+        if (this.selectedNode === n) {
+             this.ctx.strokeStyle = '#fff';
              this.ctx.lineWidth = 2;
              this.ctx.stroke();
         }
@@ -1261,7 +1346,7 @@
     hp: number;
     speed: number;
     cost: number;
-    type: 'melee' | 'ranged' | 'charger' | 'healer' | 'vampire';
+    type: 'melee' | 'ranged' | 'charger' | 'healer' | 'vampire' | 'exploder' | 'summoner' | 'stealth' | 'boss_summoner' | 'boss_sniper' | 'boss_tank' | 'boss_charger' | 'boss_hell';
     color: string;
     radius: number;
     unlockReq?: string;
@@ -1274,27 +1359,31 @@
     'basic_strong': { id: 'basic_strong', hp: 60, speed: 160, cost: 15, type: 'melee', color: '#aa0000', radius: 18 },
     // Fast
     'fast_weak': { id: 'fast_weak', hp: 10, speed: 220, cost: 10, type: 'melee', color: '#ffaa00', radius: 12 },
-    'fast_norm': { id: 'fast_norm', hp: 20, speed: 250, cost: 15, type: 'melee', color: '#ff8800', radius: 13, unlockReq: 'sniper' }, // Re-using sniper unlock for mid-tier fast
+    'fast_norm': { id: 'fast_norm', hp: 20, speed: 250, cost: 15, type: 'melee', color: '#ff8800', radius: 13, unlockReq: 'enemy_fast' },
     // Tank
     'tank_weak': { id: 'tank_weak', hp: 80, speed: 80, cost: 20, type: 'melee', color: '#3388ff', radius: 22 },
-    'tank_norm': { id: 'tank_norm', hp: 150, speed: 90, cost: 25, type: 'melee', color: '#0044aa', radius: 25, unlockReq: 'tank_heavy' },
-    'tank_heavy': { id: 'tank_heavy', hp: 300, speed: 70, cost: 40, type: 'melee', color: '#002266', radius: 30, unlockReq: 'tank_heavy' },
+    'tank_norm': { id: 'tank_norm', hp: 150, speed: 90, cost: 25, type: 'melee', color: '#0044aa', radius: 25, unlockReq: 'enemy_tank' },
+    'tank_heavy': { id: 'tank_heavy', hp: 300, speed: 70, cost: 40, type: 'melee', color: '#002266', radius: 30, unlockReq: 'enemy_tank' },
     // Ranged
     'ranged_weak': { id: 'ranged_weak', hp: 15, speed: 100, cost: 15, type: 'ranged', color: '#00ff00', radius: 14 }, // Now shoots
-    'ranged_norm': { id: 'ranged_norm', hp: 30, speed: 110, cost: 20, type: 'ranged', color: '#00aa00', radius: 15, unlockReq: 'sniper' }, // Now shoots
-    'sniper': { id: 'sniper', hp: 20, speed: 80, cost: 25, type: 'ranged', color: '#a020f0', radius: 15, unlockReq: 'sniper' }, // Now shoots
+    'ranged_norm': { id: 'ranged_norm', hp: 30, speed: 110, cost: 20, type: 'ranged', color: '#00aa00', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
+    'sniper': { id: 'sniper', hp: 20, speed: 80, cost: 25, type: 'ranged', color: '#a020f0', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
     // Charger
     'charger_weak': { id: 'charger_weak', hp: 25, speed: 100, cost: 15, type: 'charger', color: '#ffffff', radius: 15 },
-    'charger_norm': { id: 'charger_norm', hp: 50, speed: 120, cost: 20, type: 'charger', color: '#cccccc', radius: 18, unlockReq: 'tank_heavy' },
+    'charger_norm': { id: 'charger_norm', hp: 50, speed: 120, cost: 20, type: 'charger', color: '#cccccc', radius: 18, unlockReq: 'enemy_tank' },
     // Support
-    'healer': { id: 'healer', hp: 40, speed: 130, cost: 18, type: 'healer', color: '#00ffff', radius: 15, unlockReq: 'healer' },
-    'vampire': { id: 'vampire', hp: 50, speed: 160, cost: 22, type: 'vampire', color: '#880088', radius: 16, unlockReq: 'vampire' },
+    'healer': { id: 'healer', hp: 40, speed: 130, cost: 18, type: 'healer', color: '#00ffff', radius: 15, unlockReq: 'enemy_healer' },
+    'vampire': { id: 'vampire', hp: 50, speed: 160, cost: 22, type: 'vampire', color: '#880088', radius: 16, unlockReq: 'enemy_vampire' },
+    // Special
+    'exploder': { id: 'exploder', hp: 20, speed: 220, cost: 15, type: 'exploder', color: '#ff8800', radius: 14, unlockReq: 'enemy_exploder' },
+    'summoner': { id: 'summoner', hp: 40, speed: 80, cost: 30, type: 'summoner', color: '#aa00aa', radius: 20, unlockReq: 'enemy_summoner' },
+    'ghost': { id: 'ghost', hp: 25, speed: 120, cost: 20, type: 'stealth', color: '#888888', radius: 15, unlockReq: 'enemy_ghost' },
     // Bosses
-    'boss1': { id: 'boss1', hp: 1000, speed: 100, cost: 200, type: 'melee', color: '#ff0000', radius: 60 },
-    'boss2': { id: 'boss2', hp: 1500, speed: 80, cost: 250, type: 'ranged', color: '#aa00aa', radius: 65, unlockReq: 'boss2' },
-    'boss3': { id: 'boss3', hp: 2500, speed: 60, cost: 300, type: 'melee', color: '#0000aa', radius: 70 },
-    'boss4': { id: 'boss4', hp: 800, speed: 200, cost: 250, type: 'charger', color: '#ffff00', radius: 50 },
-    'boss5': { id: 'boss5', hp: 5000, speed: 50, cost: 400, type: 'melee', color: '#000000', radius: 80 }
+    'boss1': { id: 'boss1', hp: 1500, speed: 60, cost: 300, type: 'boss_summoner', color: '#ff0000', radius: 60 },
+    'boss2': { id: 'boss2', hp: 1200, speed: 70, cost: 350, type: 'boss_sniper', color: '#aa00aa', radius: 55, unlockReq: 'boss2' },
+    'boss3': { id: 'boss3', hp: 3000, speed: 40, cost: 400, type: 'boss_tank', color: '#0000aa', radius: 70 },
+    'boss4': { id: 'boss4', hp: 1000, speed: 250, cost: 350, type: 'boss_charger', color: '#ffff00', radius: 50 },
+    'boss5': { id: 'boss5', hp: 5000, speed: 30, cost: 500, type: 'boss_hell', color: '#000000', radius: 80 }
   };
 
   class Enemy extends Entity {
@@ -1309,6 +1398,8 @@
     dashTimer = 0;
     isDashing = false;
     healTimer = 0;
+    specialTimer = 0;
+    isStealthed = false;
 
     constructor(pos: Vector, typeId: string, level: number, public elite: boolean) {
       super(pos, 15, '#f00');
@@ -1373,6 +1464,85 @@
                 }
             }
         }
+        
+        // Exploder Logic
+        if (this.config.type === 'exploder') {
+            if (this.pos.sub(game.player.pos).mag() < this.radius + game.player.radius + 10) {
+                 this.hp = 0; // Die
+                 game.player.hp -= 30;
+                 game.screenShake = 20;
+                 game.spawnParticles(this.pos, '#ff8800', 20);
+                 game.texts.push(new FloatingText(this.pos, "BOOM!", "#f00"));
+            }
+        }
+
+        // Summoner Logic (Regular & Boss)
+        if (this.config.type === 'summoner' || this.config.type === 'boss_summoner') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.specialTimer = this.config.type === 'boss_summoner' ? 3.0 : 6.0;
+                const type = this.config.type === 'boss_summoner' ? 'basic_norm' : 'basic_weak';
+                // Spawn minion nearby
+                const offset = new Vector(Math.random()*60-30, Math.random()*60-30);
+                const minion = new Enemy(this.pos.add(offset), type, game.director.wave, false);
+                game.enemies.push(minion);
+                game.spawnParticles(this.pos, '#a020f0', 10);
+            }
+        }
+
+        // Stealth Logic
+        if (this.config.type === 'stealth') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.isStealthed = !this.isStealthed;
+                this.specialTimer = this.isStealthed ? 2.0 : 3.0; // 2s hidden, 3s visible
+            }
+        }
+
+        // Boss Sniper Logic
+        if (this.config.type === 'boss_sniper') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) this.specialTimer = 4.0;
+            
+            // Shoot at specific timing (e.g. at 1.0s remaining)
+            if (this.specialTimer <= 1.0 && this.specialTimer > 0.9) {
+                 const shotDir = game.player.pos.sub(this.pos).normalize();
+                 game.projectiles.push(new Projectile(this.pos, shotDir.mult(1200), this.damage * 3, 'laser', 'enemy'));
+                 this.specialTimer = 0.9; // Prevent multi-shot
+                 game.screenShake = 10;
+            }
+        }
+
+        // Boss Tank Logic (Shield Regen)
+        if (this.config.type === 'boss_tank') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.specialTimer = 10.0;
+                this.shield = Math.min(this.maxShield, this.shield + this.maxShield * 0.3);
+                game.texts.push(new FloatingText(this.pos, "SHIELD UP", "#00f"));
+            }
+        }
+
+        // Boss Charger Logic (Fire Trail)
+        if (this.config.type === 'boss_charger') {
+            this.dashTimer -= dt;
+            if (this.dashTimer <= 0) { this.isDashing = true; this.dashTimer = 2.5; speed = 700; }
+            if (this.dashTimer > 2.0) { speed = 700; game.spawnParticles(this.pos, '#ff5500', 1); } // Trail
+            else this.isDashing = false;
+        }
+
+        // Boss Hell Logic (Spiral)
+        if (this.config.type === 'boss_hell') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.specialTimer = 0.15;
+                const angle = performance.now() / 150;
+                const vel1 = new Vector(Math.cos(angle), Math.sin(angle)).mult(300);
+                const vel2 = new Vector(Math.cos(angle + Math.PI), Math.sin(angle + Math.PI)).mult(300);
+                game.projectiles.push(new Projectile(this.pos, vel1, this.damage, 'bullet', 'enemy'));
+                game.projectiles.push(new Projectile(this.pos, vel2, this.damage, 'bullet', 'enemy'));
+            }
+        }
 
         this.pos = this.pos.add(dir.mult(speed * dt));
       }
@@ -1391,6 +1561,11 @@
     draw(ctx: CanvasRenderingContext2D) {
       ctx.save();
       ctx.translate(this.pos.x, this.pos.y);
+      
+      if (this.isStealthed) {
+          ctx.globalAlpha = 0.2;
+      }
+
       ctx.fillStyle = this.color;
       ctx.shadowBlur = 10; ctx.shadowColor = this.color;
       
@@ -1400,6 +1575,11 @@
         ctx.beginPath(); ctx.moveTo(0, -this.radius); ctx.lineTo(this.radius, this.radius); ctx.lineTo(-this.radius, this.radius); ctx.fill();
       } else if (this.config.type === 'healer') {
         ctx.font = '20px Arial'; ctx.fillStyle='#fff'; ctx.fillText('+', -5, 5);
+      } else if (this.config.type === 'exploder') {
+        // Pulsing
+        const s = 1 + Math.sin(performance.now()/100)*0.2;
+        ctx.scale(s, s);
+        ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
       } else if (this.config.id.includes('boss')) {
         ctx.beginPath(); 
         const spikes = 8;
@@ -1411,6 +1591,18 @@
         ctx.fill();
       } else {
         ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+      }
+
+      // Boss Sniper Laser Warning
+      if (this.config.type === 'boss_sniper' && this.specialTimer > 1.0 && this.specialTimer < 2.5) {
+          ctx.restore(); ctx.save(); // Reset transform to draw line in world space
+          ctx.beginPath();
+          ctx.moveTo(this.pos.x, this.pos.y);
+          ctx.lineTo(game.player.pos.x, game.player.pos.y);
+          ctx.strokeStyle = `rgba(255, 0, 0, ${Math.random()})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.translate(this.pos.x, this.pos.y); // Restore for bars
       }
       
       // HP Bar under enemy
@@ -1444,7 +1636,7 @@
     multishot = 1;
     regen = 0;
     knockback = 0;
-    weapon: 'blaster' | 'shotgun' | 'laser' | 'rocket' = 'blaster';
+    weapon: 'blaster' | 'shotgun' | 'laser' | 'rocket' | 'plasma' = 'blaster';
     
     // Tree Stats
     critChance = 0;
@@ -1583,6 +1775,16 @@
              const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(1500);
              game.projectiles.push(new Projectile(this.pos, vel, this.damage * 0.8, 'laser'));
           }
+      } else if (this.weapon === 'plasma') {
+          for(let i=0; i<this.multishot; i++) {
+             const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.08 + (Math.random()-0.5)*0.1;
+             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(900);
+             const p = new Projectile(this.pos, vel, this.damage * 0.7, 'bullet'); // Re-use bullet visual but purple
+             p.color = '#a020f0';
+             if (this.homing) p.homing = true;
+             if (this.ricochet) p.bounces = 1;
+             game.projectiles.push(p);
+          }
       }
       
       // Recoil
@@ -1638,6 +1840,7 @@
     // Mood System
     mood: 'kind' | 'neutral' | 'angry' | 'insane' = 'neutral';
     moodTimer = 0;
+    moodResetTimer = 0; // Timer to reset mood back to kind
     
     // State
     nextWaveTimer = 0;
@@ -1646,6 +1849,9 @@
     chatTimer = 0;
     holidayTimer = 0;
     holidayPickups = 0;
+    spawnTickTimer = 0;
+    
+    recentKills: number[] = []; // Timestamps of kills
     
     constructor(private game: Game) {}
 
@@ -1670,6 +1876,10 @@
       
       this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, CANVAS_H/2), `ВОЛНА ${this.wave}`, "#fff"));
       this.updateUI();
+    }
+
+    reportKill() {
+        this.recentKills.push(Date.now());
     }
 
     startRaid() {
@@ -1699,10 +1909,37 @@
           return; // Skip wave cycling and mood logic for raids
       }
 
-      // 1. Mood Logic (Every 5s)
+      // 1. Mood Logic (Dynamic based on kills)
+      const now = Date.now();
+      // Keep kills within 0.3s window
+      // Optimization: Remove old kills without creating new array
+      while (this.recentKills.length > 0 && now - this.recentKills[0] >= 300) {
+          this.recentKills.shift();
+      }
+      const burstCount = this.recentKills.length;
+
+      // Determine target mood based on burst
+      if (burstCount >= 5) {
+          this.setMood('insane', 5.0); // Stay insane for 5s
+      } else if (burstCount >= 3) {
+          this.setMood('angry', 4.0);
+      } else if (burstCount >= 2) {
+          this.setMood('neutral', 3.0);
+      }
+
+      // Mood Decay
+      if (this.moodResetTimer > 0) {
+          this.moodResetTimer -= dt;
+          if (this.moodResetTimer <= 0) {
+              this.mood = 'kind'; // Default fallback
+              this.updateUI();
+          }
+      }
+
+      // Resource Gain (Every 5s)
       this.moodTimer += dt;
       if (this.moodTimer >= 5) {
-        this.checkMood();
+        this.distributeInfluence();
         this.moodTimer = 0;
       }
 
@@ -1725,56 +1962,38 @@
       }
     }
     
-    checkMood() {
-      const count = this.game.enemies.length;
-      let newMood: 'kind' | 'neutral' | 'angry' | 'insane' = 'neutral';
-      
-      // Determine Mood based on enemy count (Pressure)
-      if (count <= 2) newMood = 'insane';      // Empty board -> Insane
-      else if (count <= 5) newMood = 'angry';  // Low enemies -> Angry
-      else if (count <= 12) newMood = 'neutral';
-      else newMood = 'kind';                   // Too many enemies -> Kind
-
-      // Mood Tiers for calculation
+    setMood(newMood: 'kind' | 'neutral' | 'angry' | 'insane', duration: number) {
       const tiers = { kind: 0, neutral: 1, angry: 2, insane: 3 };
-      const oldTier = tiers[this.mood];
-      const newTier = tiers[newMood];
+      // Only upgrade mood or refresh timer if same tier
+      if (tiers[newMood] >= tiers[this.mood]) {
+          this.mood = newMood;
+          this.moodResetTimer = duration;
+          this.updateUI();
+      }
+    }
+    
+    distributeInfluence() {
+      // "Mood gives/takes influence % of points received in this wave"
+      // This runs every 5 seconds
+      
+      const tiers = { kind: 0, neutral: 1, angry: 2, insane: 3 };
       
       // "Mood gives/takes influence % of points received in this wave"
       let moodMult = 0;
-      if (newMood === 'kind') moodMult = -0.05;    // Lose 5%
-      if (newMood === 'neutral') moodMult = 0;
-      if (newMood === 'angry') moodMult = 0.10;    // Gain 10%
-      if (newMood === 'insane') moodMult = 0.20;   // Gain 20%
+      if (this.mood === 'kind') moodMult = -0.05;    // Lose 5%
+      if (this.mood === 'neutral') moodMult = 0;
+      if (this.mood === 'angry') moodMult = 0.80;    // Gain 80%
+      if (this.mood === 'insane') moodMult = 1.50;   // Gain 150%
       
       const moodBonus = Math.floor(this.baseWaveInfluence * moodMult);
-
-      if (newMood !== this.mood) {
-          // Transition Logic
-          // "If Angry -> Insane, receive Angry AND Insane"
-          if (oldTier === 2 && newTier === 3) {
-              const angryBonus = Math.floor(this.baseWaveInfluence * 0.10);
-              this.currentInfluence += angryBonus;
-              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 100), `RAGE ESCALATION! +${angryBonus}`, "#f00"));
-          }
-          
-          this.currentInfluence += moodBonus;
-          if (moodBonus !== 0) {
-             const color = moodBonus > 0 ? "#f00" : "#0f0";
-             this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 120), `MOOD SWING: ${moodBonus}`, color));
-          }
-      } else {
-          // "If 1 tick no change, receives MORE points"
-          const stabilityBonus = Math.floor(this.baseWaveInfluence * 0.05); // Extra 5%
-          const totalBonus = stabilityBonus + moodBonus;
-          this.currentInfluence += totalBonus;
-          
-          if (totalBonus !== 0) {
-             this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 100), `STABLE +${totalBonus}`, "#ffd700"));
-          }
+      this.currentInfluence += moodBonus;
+      if (this.currentInfluence < 0) this.currentInfluence = 0; // Prevent negative influence
+      
+      if (moodBonus !== 0) {
+         const color = moodBonus > 0 ? "#f00" : "#0f0";
+         this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 120), `MOOD: ${moodBonus}`, color));
       }
       
-      this.mood = newMood;
       this.updateUI();
     }
     
@@ -1785,57 +2004,55 @@
             return;
         }
 
-        const available = Object.values(ENEMIES).filter(e => {
-            if (e.id.includes('boss')) return false; 
-            
-            // Limit boss spawns via random influence to 1 active
-            if (e.id.includes('boss') && this.game.enemies.some(ex => ex.config.id.includes('boss'))) return false;
-            
-            if (e.unlockReq && !meta.unlocks.includes(e.unlockReq)) return false;
-            return e.cost <= this.currentInfluence;
-        });
+        this.spawnTickTimer += dt;
+        if (this.spawnTickTimer < 0.5) return; // Tick every 0.5s
+        this.spawnTickTimer = 0;
 
-        if (available.length === 0) {
-            // If we have influence but can't afford anything (and influence is low-ish), 
-            // dump it to 0 to trigger next wave.
-            if (this.currentInfluence < 50) this.currentInfluence = 0;
-            return;
+        // Determine batch size (1-10) based on mood
+        let maxBatch = 3;
+        if (this.mood === 'angry') maxBatch = 6;
+        if (this.mood === 'insane') maxBatch = 10;
+        
+        // Chance for a "Surge" (Dump) - small chance to spawn more
+        if (Math.random() < 0.05 && this.currentInfluence > 500) {
+             maxBatch = 15;
+             this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 150), "SURGE DETECTED", "#f00"));
         }
 
-        // "Spend all points at random moment"
-        // Chance to dump (0.1% per frame)
-        if (Math.random() < 0.001) { 
-            this.dumpSpawn(available);
-            return;
-        }
-        
-        // Regular Spawning
-        let spawnChance = 0.02 + (this.wave * 0.005); // Scale spawn rate with wave to prevent infinite waves
-        if (this.mood === 'angry') spawnChance = 0.05;
-        if (this.mood === 'insane') spawnChance = 0.10;
-        if (this.mood === 'kind') spawnChance = 0.005;
-        
-        if (Math.random() < spawnChance) {
-            this.spawnRandom(available);
+        const count = Math.floor(Math.random() * maxBatch) + 1;
+
+        for(let i=0; i<count; i++) {
+             if (this.currentInfluence <= 10) break; // Keep a small buffer or break if empty
+
+             const available = Object.values(ENEMIES).filter(e => {
+                // Boss logic: allow after wave 10 with low chance
+                if (e.id.includes('boss')) {
+                    if (this.wave <= 10) return false;
+                    if (Math.random() > 0.02) return false; // 2% chance to consider boss
+                    // Limit active bosses
+                    if (this.game.enemies.some(ex => ex.config.id.includes('boss'))) return false;
+                }
+                
+                if (e.unlockReq && !meta.unlocks.includes(e.unlockReq)) return false;
+                return e.cost <= this.currentInfluence;
+            });
+
+            if (available.length === 0) {
+                // If we have influence but can't afford anything (and influence is low-ish), 
+                // dump it to 0 to trigger next wave.
+                if (this.currentInfluence < 50) this.currentInfluence = 0;
+                break;
+            }
+
+            // Pick random
+            const enemy = available[Math.floor(Math.random() * available.length)];
+            this.payAndSpawn(enemy);
         }
     }
     
     spawnRandom(available: EnemyConfig[]) {
         const enemy = available[Math.floor(Math.random() * available.length)];
         this.payAndSpawn(enemy);
-    }
-    
-    dumpSpawn(available: EnemyConfig[]) {
-        this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 150), "SURGE DETECTED", "#f00"));
-        let safety = 100;
-        while (this.currentInfluence > 10 && safety > 0) {
-            const affordable = available.filter(e => e.cost <= this.currentInfluence);
-            if (affordable.length === 0) break;
-            
-            const enemy = affordable[Math.floor(Math.random() * affordable.length)];
-            this.payAndSpawn(enemy);
-            safety--;
-        }
     }
     
     payAndSpawn(config: EnemyConfig) {
@@ -1956,6 +2173,9 @@
     activeRaid: RaidMission | null = null;
     lastMode: 'endless' | 'raid' = 'endless';
     lastRaidId?: string;
+    
+    private boundMouseMove: (e: MouseEvent) => void;
+    private boundMouseDown: (e: MouseEvent) => void;
 
     constructor() {
       gameInstance = this; // Set singleton
@@ -1964,6 +2184,10 @@
       this.ctx = this.canvas.getContext('2d')!;
       this.director = new Director(this);
       this.player = new Player(); // Temp init
+      
+      // Bind handlers for cleanup
+      this.boundMouseMove = this.handleMouseMove.bind(this);
+      this.boundMouseDown = () => { mouse.down = true; };
       
       this.setupInputs();
       
@@ -2055,7 +2279,7 @@
                     const item = this.generateLoot();
                     this.lootFound.push(item);
                     this.texts.push(new FloatingText(this.player.pos, `ЛУТ: ${item.name}`, "#0ff"));
-                    this.addChatMessage("System", `You found [${item.name}]`, "system");
+                    this.addChatMessage("System", `Получено: [${item.name}] (${item.desc})`, "system");
                   } else if (p.type.startsWith('fake')) {
                     // Holiday Trap
                     this.director.holidayPickups++;
@@ -2138,6 +2362,7 @@
             if (e.hp <= 0) {
               e.dead = true;
               // Spawn XP
+              this.director.reportKill(); // Report kill for mood logic
               const dropCount = e.config.id.includes('boss') ? 50 : (e.elite ? 5 : 1);
               this.spawnParticles(e.pos, '#0f0', dropCount, 'xp');
               // Boss Drop
@@ -2195,6 +2420,10 @@
                   this.player.hp -= p.dmg;
                   p.dead = true;
                   this.screenShake = 5;
+                  if (this.player.hp <= 0) {
+                      this.gameOver();
+                  }
+                  this.updateHud();
               }
           }
       });
@@ -2244,10 +2473,19 @@
       }
 
       // Cleanup
-      this.projectiles = this.projectiles.filter(e => !e.dead);
-      this.enemies = this.enemies.filter(e => !e.dead);
-      this.particles = this.particles.filter(e => !e.dead);
-      this.texts = this.texts.filter(e => e.life > 0);
+      // Optimization: Use reverse loop splice instead of filter to reduce GC
+      for (let i = this.projectiles.length - 1; i >= 0; i--) {
+          if (this.projectiles[i].dead) this.projectiles.splice(i, 1);
+      }
+      for (let i = this.enemies.length - 1; i >= 0; i--) {
+          if (this.enemies[i].dead) this.enemies.splice(i, 1);
+      }
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+          if (this.particles[i].dead) this.particles.splice(i, 1);
+      }
+      for (let i = this.texts.length - 1; i >= 0; i--) {
+          if (this.texts[i].life <= 0) this.texts.splice(i, 1);
+      }
 
       // Shake decay
       if (this.screenShake > 0) this.screenShake -= dt * 30;
@@ -2306,7 +2544,7 @@
         else if (rarityRoll > 0.6) rarity = 'rare';
         
         const icons = { weapon: '⚔️', armor: '🛡️', chip: '💾' };
-        const names = { weapon: ['Blade', 'Gun', 'Laser'], armor: ['Plate', 'Shield', 'Suit'], chip: ['CPU', 'RAM', 'Drive'] };
+        const names = { weapon: ['Rifle', 'Repeater', 'Cannon'], armor: ['Plate', 'Shield', 'Suit'], chip: ['CPU', 'RAM', 'Drive'] };
         const suffixes = { common: 'v1', rare: 'Pro', epic: 'Elite', legendary: 'GOD' };
         
         const name = `${names[type][Math.floor(Math.random()*3)]} ${suffixes[rarity]}`;
@@ -2314,12 +2552,25 @@
         const mult = { common: 1, rare: 2, epic: 4, legendary: 8 };
         const m = mult[rarity];
         
+        let desc = "";
         const stats: any = {};
-        if (type === 'weapon') { stats.dmg = Math.floor(Math.random() * 5 * m) + 1; stats.crit = Math.random() * 0.05 * m; }
-        if (type === 'armor') { stats.hp = Math.floor(Math.random() * 20 * m) + 10; stats.spd = Math.floor(Math.random() * 10 * m); }
-        if (type === 'chip') { stats.spd = Math.floor(Math.random() * 20 * m); stats.crit = Math.random() * 0.05 * m; }
+        if (type === 'weapon') { 
+            stats.dmg = Math.floor(Math.random() * 5 * m) + 1; 
+            stats.crit = Math.random() * 0.05 * m; 
+            desc = `Урон +${stats.dmg}` + (stats.crit > 0 ? `, Крит +${(stats.crit*100).toFixed(0)}%` : '');
+        }
+        if (type === 'armor') { 
+            stats.hp = Math.floor(Math.random() * 20 * m) + 10; 
+            stats.spd = Math.floor(Math.random() * 10 * m); 
+            desc = `HP +${stats.hp}` + (stats.spd > 0 ? `, Скор +${stats.spd}` : '');
+        }
+        if (type === 'chip') { 
+            stats.spd = Math.floor(Math.random() * 20 * m); 
+            stats.crit = Math.random() * 0.05 * m; 
+            desc = `Скор +${stats.spd}` + (stats.crit > 0 ? `, Крит +${(stats.crit*100).toFixed(0)}%` : '');
+        }
         
-        return { id: Math.random().toString(36).substr(2,9), name, type, rarity, stats, icon: icons[type] };
+        return { id: Math.random().toString(36).substr(2,9), name, desc, type, rarity, stats, icon: icons[type] };
     }
 
     addChatMessage(name?: string, msg?: string, type: 'user'|'system' = 'user') {
@@ -2412,6 +2663,7 @@
       if (meta.unlocks.includes('w_shotgun')) upgrades.push({ id: 'w_shot', name: 'ДРОБОВИК', desc: 'Сменить оружие', icon: '🧨', action: () => { this.player.weapon = 'shotgun'; this.player.fireRate = 0.8; } });
       if (meta.unlocks.includes('w_rocket')) upgrades.push({ id: 'w_rock', name: 'РАКЕТНИЦА', desc: 'Сменить оружие', icon: '🚀', action: () => { this.player.weapon = 'rocket'; this.player.fireRate = 1.0; } });
       if (meta.unlocks.includes('w_laser')) upgrades.push({ id: 'w_las', name: 'ЛАЗЕР', desc: 'Сменить оружие', icon: '🔦', action: () => { this.player.weapon = 'laser'; this.player.fireRate = 0.4; } });
+      if (meta.unlocks.includes('w_plasma')) upgrades.push({ id: 'w_plas', name: 'ПЛАЗМА', desc: 'Сменить оружие', icon: '🟣', action: () => { this.player.weapon = 'plasma'; this.player.fireRate = 0.15; } });
 
       // Pick 3 random
       for(let i=0; i<3; i++) {
@@ -2534,7 +2786,7 @@
       
       const hpPct = (this.player.hp / this.player.maxHp) * 100;
       document.getElementById('hud-hp-bar')!.style.width = `${Math.max(0, hpPct)}%`;
-      document.getElementById('hud-hp-text')!.innerText = `${Math.ceil(this.player.hp)}/${Math.ceil(this.player.maxHp)}`;
+      document.getElementById('hud-hp-text')!.innerText = `${Math.max(0, Math.ceil(this.player.hp))}/${Math.ceil(this.player.maxHp)}`;
       
       const xpPct = (this.player.xp / this.player.maxXp) * 100;
       document.getElementById('hud-xp-bar')!.style.width = `${xpPct}%`;
@@ -2559,16 +2811,9 @@
       // Note: Keyboard listeners are now global (see top of script)
       // We only attach canvas-specific mouse tracking here
       
-      // Mouse tracking relative to canvas scaling
-      this.canvas.addEventListener('mousemove', e => {
-        const rect = this.canvas.getBoundingClientRect();
-        const scaleX = CANVAS_W / rect.width;
-        const scaleY = CANVAS_H / rect.height;
-        mouse.pos.x = (e.clientX - rect.left) * scaleX;
-        mouse.pos.y = (e.clientY - rect.top) * scaleY;
-      });
-      
-      this.canvas.addEventListener('mousedown', () => mouse.down = true);
+      // Mouse tracking relative to canvas scaling (Moved to window to prevent freezing over UI)
+      window.addEventListener('mousemove', this.boundMouseMove);
+      window.addEventListener('mousedown', this.boundMouseDown);
 
       // UI Buttons
       document.getElementById('btn-start')?.addEventListener('click', () => {
@@ -2706,6 +2951,14 @@
         if (!this.treeRenderer) {
           this.treeRenderer = new SkillTreeRenderer();
           this.treeRenderer.draw();
+          
+          // Delegate click for dynamic button
+          document.getElementById('tree-tooltip')?.addEventListener('click', (e) => {
+              if ((e.target as HTMLElement).id === 'btn-unlock-node' && this.treeRenderer?.selectedNode) {
+                  this.treeRenderer.tryUnlock(this.treeRenderer.selectedNode);
+                  this.treeRenderer.updateTooltip(); // Refresh UI
+              }
+          });
         }
       });
       document.getElementById('btn-tree-back')?.addEventListener('click', () => {
@@ -2713,6 +2966,31 @@
         this.setScreen('menu-screen');
         updateMenuStats();
       });
+    }
+
+    handleMouseMove(e: MouseEvent) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = CANVAS_W / rect.width;
+        const scaleY = CANVAS_H / rect.height;
+        mouse.pos.x = (e.clientX - rect.left) * scaleX;
+        mouse.pos.y = (e.clientY - rect.top) * scaleY;
+    }
+
+    destroy() {
+        window.removeEventListener('mousemove', this.boundMouseMove);
+        window.removeEventListener('mousedown', this.boundMouseDown);
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        gameInstance = null;
+    }
+
+    getItemDesc(item: Item) {
+        if (item.desc) return item.desc;
+        const parts = [];
+        if (item.stats.dmg) parts.push(`Урон +${item.stats.dmg}`);
+        if (item.stats.hp) parts.push(`HP +${item.stats.hp}`);
+        if (item.stats.spd) parts.push(`Скор +${item.stats.spd}`);
+        if (item.stats.crit) parts.push(`Крит +${(item.stats.crit*100).toFixed(1)}%`);
+        return parts.join(', ');
     }
 
     renderInventory() {
@@ -2726,7 +3004,8 @@
             if (!el) return;
             const item = meta.equipment[slot as keyof typeof meta.equipment];
             if (item) {
-                el.innerHTML = `${item.icon} ${item.name}<br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>`;
+                const desc = item.desc || this.getItemDesc(item);
+                el.innerHTML = `${item.icon} ${item.name}<br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span><br><span style="font-size:0.55rem; color:#aaa">${desc}</span>`;
                 el.classList.add('filled');
                 el.onclick = () => {
                     meta.inventory.push(item);
@@ -2746,6 +3025,9 @@
             div.className = `inv-item rarity-${item.rarity}`;
             div.innerHTML = `<div style="font-size:1.5rem">${item.icon}</div><div>${item.name}</div>`;
             div.style.color = this.getItemColor(item.rarity);
+            
+            const desc = item.desc || this.getItemDesc(item);
+            div.title = `${item.name}\n${item.rarity.toUpperCase()}\n\n${desc}`;
             
             div.onclick = () => {
                 // Equip
@@ -2785,6 +3067,9 @@
 
   document.addEventListener('astro:page-load', () => {
     loadMeta();
+    if (gameInstance) {
+        gameInstance.destroy();
+    }
     new Game();
   });
 
