@@ -39,6 +39,7 @@
             <button id="btn-tree" class="btn-secondary">НЕЙРОСЕТЬ</button>
             <button id="btn-inventory" class="btn-secondary text-gold">ИНВЕНТАРЬ [NEW]</button>
             <button id="btn-raids" class="btn-secondary text-red">РЕЙДЫ [BOSS]</button>
+            <button id="btn-profile" class="btn-secondary text-blue">ПРОФИЛЬ</button>
             <button id="btn-leaderboard" class="btn-secondary text-purple">РЕЙТИНГ</button>
         </div>
 
@@ -91,6 +92,27 @@
         <button id="btn-inv-back" class="btn-secondary">НАЗАД</button>
       </div>
 
+      <!-- Profile Screen -->
+      <div id="profile-screen" class="screen hidden">
+        <h2>ПРОФИЛЬ ОПЕРАТОРА</h2>
+        <div id="profile-stats" class="profile-stats-grid"></div>
+        <button id="btn-profile-back" class="btn-secondary">НАЗАД</button>
+      </div>
+
+      <!-- Character Selection Screen -->
+      <div id="character-screen" class="screen hidden">
+        <h2>ВЫБЕРИТЕ ОПЕРАТОРА</h2>
+        <div class="char-layout">
+            <div id="char-list" class="char-list"></div>
+            <div class="char-info-panel">
+                <h3 id="char-name-display" class="text-gold" style="font-size: 2rem; margin-bottom: 10px;">МОРПЕХ</h3>
+                <div id="char-desc-display" class="char-desc" style="color: #ccc; margin-bottom: 20px; line-height: 1.5;">Описание...</div>
+                <button id="btn-char-confirm" class="btn-primary">ВЫБРАТЬ</button>
+            </div>
+        </div>
+        <button id="btn-char-back" class="btn-secondary">НАЗАД</button>
+      </div>
+
       <!-- Raid Selection Screen -->
       <div id="raid-screen" class="screen hidden">
         <h2>ДОСТУПНЫЕ МИССИИ</h2>
@@ -137,10 +159,6 @@
       <!-- Difficulty Selection -->
       <div id="difficulty-screen" class="screen hidden">
         <h2>ВЫБЕРИТЕ УРОВЕНЬ УГРОЗЫ</h2>
-        <div id="class-selector-container" class="class-selector"></div>
-        <div id="class-desc" class="diff-info" style="color: #0ff; margin-bottom: 10px; font-size: 0.9rem;">
-            МОРПЕХ: Сбалансированный боец
-        </div>
         <div class="diff-grid">
           <!-- Buttons injected via JS -->
         </div>
@@ -383,6 +401,7 @@
   .text-gold { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
   .red-glow { color: #ff3333; text-shadow: 0 0 20px #ff0000; }
   .text-red { color: #ff3333; text-shadow: 0 0 10px #f00; }
+  .text-blue { color: #0088ff; text-shadow: 0 0 10px #0088ff; }
   
   h1.title {
     font-size: 4rem;
@@ -488,6 +507,26 @@
   .inv-item.rarity-mythic { border-color: #ff3333; box-shadow: inset 0 0 10px #ff3333; animation: glow 1.5s infinite; }
   .inv-item.rarity-divine { border-color: #00ffff; box-shadow: inset 0 0 15px #00ffff; animation: glow 1s infinite alternate; }
   
+  /* Profile Styles */
+  .profile-stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+    width: 600px; max-height: 400px; overflow-y: auto;
+    background: rgba(0,0,0,0.5); padding: 20px; border: 1px solid #333;
+  }
+  .stat-row { display: flex; align-items: flex-end; padding: 4px 0; }
+  .stat-name { color: #aaa; font-size: 0.85rem; white-space: nowrap; }
+  .stat-dots { flex-grow: 1; border-bottom: 1px dotted #444; margin: 0 8px 5px 8px; opacity: 0.5; }
+  .stat-val { color: #0ff; font-weight: bold; font-size: 0.9rem; text-shadow: 0 0 5px rgba(0,255,255,0.3); }
+
+  /* Character Select Styles */
+  .char-layout { display: flex; gap: 30px; width: 900px; height: 500px; align-items: stretch; }
+  .char-list { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; overflow-y: auto; align-content: start; padding-right: 10px; }
+  .char-info-panel { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid #333; padding: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border-radius: 8px; }
+  .char-btn { padding: 15px; border: 1px solid #444; cursor: pointer; text-align: left; transition: all 0.2s; background: #111; display: flex; flex-direction: column; }
+  .char-btn:hover { border-color: #fff; background: #222; transform: translateX(5px); }
+  .char-btn.selected { border-color: #0ff; background: rgba(0, 255, 255, 0.1); box-shadow: 0 0 15px rgba(0,255,255,0.2); }
+  .char-btn.locked { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
   /* Modal Styles */
   .modal-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -587,13 +626,6 @@
   .shop-scroll::-webkit-scrollbar { width: 6px; }
   .shop-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
   .shop-scroll::-webkit-scrollbar-thumb:hover { background: #0ff; }
-  
-  /* Class Selector */
-  .class-selector { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; max-width: 800px; }
-  .class-btn { padding: 10px 20px; border: 1px solid #444; cursor: pointer; color: #888; transition: all 0.2s; }
-  .class-btn:hover { border-color: #fff; color: #fff; }
-  .class-btn.selected { background: #0ff; color: #000; border-color: #0ff; font-weight: bold; }
-  
 
   /* Difficulty Screen */
   .diff-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
@@ -820,7 +852,13 @@
     cooldown: 'КД',
     area: 'Обл.',
     regen: 'Реген',
-    luck: 'Удача'
+    luck: 'Удача',
+    lifesteal: 'Вамп.',
+    dodge: 'Уклон.',
+    thorns: 'Шипы',
+    knockback: 'Отталк.',
+    magnet: 'Магнит',
+    multishot: 'Мульти'
   };
 
   const CLASSES = [
@@ -1064,6 +1102,8 @@
     0: [
       { name: "КАЛИБРОВКА", desc: "+10% Урона", cost: 1, type: 'stat', effect: p => p.damage *= 1.1 },
       { name: "ДРОБОВИК", desc: "Разблок: Дробовик", cost: 5, type: 'unlock', id: 'w_shotgun', effect: () => { if(!meta.unlocks.includes('w_shotgun')) meta.unlocks.push('w_shotgun'); } },
+      { name: "МОРПЕХ: ВЕТЕРАН", desc: "+10% Урона, +10% HP", cost: 15, type: 'passive', effect: p => { p.damage *= 1.1; p.maxHp *= 1.1; } },
+      { name: "ПСИХ: МАНЬЯК", desc: "Мина КД -1с, Урон +20%", cost: 20, type: 'passive', effect: p => { p.mineCdReduction += 1; p.damage *= 1.2; } },
       { name: "ФОКУСИРОВКА", desc: "+15% Урона", cost: 2, type: 'stat', effect: p => p.damage *= 1.15 },
       { name: "КРИТ. ШАНС I", desc: "+5% Шанс крита", cost: 5, type: 'passive', effect: p => p.critChance += 0.05 },
       { name: "КРИТ. УРОН I", desc: "+50% Сила крита", cost: 5, type: 'passive', effect: p => p.critMult += 0.5 },
@@ -1074,7 +1114,9 @@
       { name: "ПЕРЕГРУЗКА", desc: "+30% Урона, -10% HP", cost: 20, type: 'mechanic', effect: p => { p.damage *= 1.3; p.maxHp *= 0.9; } },
       { name: "УСИЛЕНИЕ III", desc: "+20% Урона", cost: 25, type: 'stat', effect: p => p.damage *= 1.2 },
       { name: "КЛАСС: СНАЙПЕР", desc: "Разблок: Снайпер", cost: 40, type: 'unlock', id: 'class_sniper', effect: () => { if(!meta.unlocks.includes('class_sniper')) meta.unlocks.push('class_sniper'); } },
+      { name: "СНАЙПЕР: ПРИЦЕЛ", desc: "Выстрел КД -2с, Крит +10%", cost: 60, type: 'passive', effect: p => { p.classSkillCdReduction += 2; p.critChance += 0.1; } },
       { name: "КЛАСС: НИНДЗЯ", desc: "Разблок: Ниндзя", cost: 60, type: 'unlock', id: 'class_ninja', effect: () => { if(!meta.unlocks.includes('class_ninja')) meta.unlocks.push('class_ninja'); } },
+      { name: "НИНДЗЯ: ТЕНЬ", desc: "Стелс КД -2с, Уклон +10%", cost: 80, type: 'passive', effect: p => { p.classSkillCdReduction += 2; p.dodge += 0.1; } },
       { name: "ДРОН: АТАКА", desc: "+1 Дрон", cost: 30, type: 'passive', effect: p => p.droneCount += 1 },
       { name: "ТЕРМО-УРОН", desc: "+20% Бонус перегрева", cost: 35, type: 'passive', effect: p => p.heatDmgBonus += 0.2 },
       { name: "ПЛАЗМА", desc: "Разблок: Плазма-ган", cost: 40, type: 'unlock', id: 'w_plasma', effect: () => { if(!meta.unlocks.includes('w_plasma')) meta.unlocks.push('w_plasma'); } },
@@ -1089,7 +1131,9 @@
       { name: "ШИПЫ I", desc: "Возврат 10 урона", cost: 5, type: 'passive', effect: p => p.thorns += 10 },
       { name: "ОБШИВКА II", desc: "+50 Макс. HP", cost: 5, type: 'stat', effect: p => p.maxHp += 50 },
       { name: "КЛАСС: ТАНК", desc: "Разблок: Танк", cost: 40, type: 'unlock', id: 'class_tank', effect: () => { if(!meta.unlocks.includes('class_tank')) meta.unlocks.push('class_tank'); } },
+      { name: "ТАНК: БРОНЯ", desc: "Щит КД -3с, HP +50", cost: 60, type: 'passive', effect: p => { p.classSkillCdReduction += 3; p.maxHp += 50; } },
       { name: "КЛАСС: КИБОРГ", desc: "Разблок: Киборг", cost: 60, type: 'unlock', id: 'class_cyborg', effect: () => { if(!meta.unlocks.includes('class_cyborg')) meta.unlocks.push('class_cyborg'); } },
+      { name: "КИБОРГ: ЯДРО", desc: "Овердрайв КД -3с, Реген +2", cost: 80, type: 'passive', effect: p => { p.classSkillCdReduction += 3; p.regen += 2; } },
       { name: "РУНЫ: ВРЕМЯ", desc: "+50% Длительность рун", cost: 20, type: 'passive', effect: p => p.runeDurationMult += 0.5 },
       { name: "ВАМПИРИЗМ I", desc: "1% Кража жизни", cost: 15, type: 'mechanic', effect: p => p.lifesteal += 0.01 },
       { name: "РЕГЕНЕРАЦИЯ II", desc: "+2 HP/сек", cost: 10, type: 'passive', effect: p => p.regen += 2 },
@@ -1106,6 +1150,7 @@
       { name: "СНАЙПЕРЫ", desc: "Враг: Стрелки. НАГРАДА: +5% Крит", cost: 15, type: 'unlock', id: 'enemy_sniper', effect: p => { if(!meta.unlocks.includes('enemy_sniper')) meta.unlocks.push('enemy_sniper'); if(p) p.critChance += 0.05; } },
       { name: "ХИЛЕРЫ", desc: "Враг: Лекари. НАГРАДА: +1 Реген", cost: 20, type: 'unlock', id: 'enemy_healer', effect: p => { if(!meta.unlocks.includes('enemy_healer')) meta.unlocks.push('enemy_healer'); if(p) p.regen += 1; } },
       { name: "КЛАСС: ПРИЗЫВАТЕЛЬ", desc: "Разблок: Призыватель", cost: 50, type: 'unlock', id: 'class_summoner', effect: () => { if(!meta.unlocks.includes('class_summoner')) meta.unlocks.push('class_summoner'); } },
+      { name: "ПРИЗЫВАТЕЛЬ: РОЙ", desc: "+1 Дрон, Турели живут дольше", cost: 70, type: 'passive', effect: p => { p.droneCount += 1; p.turretDuration += 5; } },
       { name: "ИЗУЧЕНИЕ I", desc: "+10% Урона по элите", cost: 25, type: 'passive', effect: p => p.eliteDmgMult += 0.1 },
       { name: "ВАМПИРЫ", desc: "Враг: Вампиры. НАГРАДА: +1% Вампиризм", cost: 25, type: 'unlock', id: 'enemy_vampire', effect: p => { if(!meta.unlocks.includes('enemy_vampire')) meta.unlocks.push('enemy_vampire'); if(p) p.lifesteal += 0.01; } },
       { name: "КАМИКАДЗЕ", desc: "Враг: Взрыв. НАГРАДА: +20% Радиус", cost: 30, type: 'unlock', id: 'enemy_exploder', effect: p => { if(!meta.unlocks.includes('enemy_exploder')) meta.unlocks.push('enemy_exploder'); if(p) p.aoeRadius *= 1.2; } },
@@ -1119,6 +1164,7 @@
       { name: "КОНТРАКТЫ", desc: "+50% Наград за квесты", cost: 15, type: 'passive', effect: p => p.questRewardMult += 0.5 },
       { name: "МАГНИТ I", desc: "+30% Радиус сбора", cost: 5, type: 'passive', effect: p => p.magnet += 3 },
       { name: "КЛАСС: ИГРОК", desc: "Разблок: Игрок", cost: 45, type: 'unlock', id: 'class_gambler', effect: () => { if(!meta.unlocks.includes('class_gambler')) meta.unlocks.push('class_gambler'); } },
+      { name: "ИГРОК: КОСТИ", desc: "+30 Удача, +50% Крит Урон", cost: 60, type: 'passive', effect: p => { p.luck += 30; p.critMult += 0.5; } },
       { name: "УГРОЗА x4", desc: "Разблок: Сложность x4", cost: 20, type: 'unlock', id: 'diff_x4', effect: () => { if(!meta.unlocks.includes('diff_x4')) meta.unlocks.push('diff_x4'); } },
       { name: "ТОРГОВЕЦ", desc: "-20% Цены торговца", cost: 30, type: 'passive', effect: p => p.merchantDiscount += 0.2 },
       { name: "ОПЫТНЫЙ", desc: "+20% Получения XP", cost: 15, type: 'passive', effect: p => p.xpMult += 0.2 },
@@ -1132,8 +1178,11 @@
     // 4: ARSENAL (Up) - Ultimates & Expensive Tech
     4: [
       { name: "РЫВОК", desc: "ПРОБЕЛ: Рывок (100 ядер)", cost: 100, type: 'unlock', id: 'ult_dash', effect: () => { if(!meta.unlocks.includes('ult_dash')) meta.unlocks.push('ult_dash'); } },
+      { name: "ИНЖЕНЕР: ТЕХНО", desc: "Турель КД -2с, Урон дронов x1.5", cost: 20, type: 'passive', effect: p => { p.classSkillCdReduction += 2; p.droneDmgMult *= 1.5; } },
       { name: "КЛАСС: РАЗВЕДЧИК", desc: "Разблок: Разведчик", cost: 40, type: 'unlock', id: 'class_scout', effect: () => { if(!meta.unlocks.includes('class_scout')) meta.unlocks.push('class_scout'); } },
+      { name: "РАЗВЕДЧИК: РИТМ", desc: "Рывок КД -1с, Скорость +20", cost: 60, type: 'passive', effect: p => { p.classSkillCdReduction += 1; p.speed += 20; } },
       { name: "КЛАСС: МАГ", desc: "Разблок: Маг", cost: 60, type: 'unlock', id: 'class_mage', effect: () => { if(!meta.unlocks.includes('class_mage')) meta.unlocks.push('class_mage'); } },
+      { name: "МАГ: МУДРОСТЬ", desc: "Кольцо КД -2с, Область +20%", cost: 80, type: 'passive', effect: p => { p.classSkillCdReduction += 2; p.aoeRadius *= 1.2; } },
       { name: "РАДИАТОР", desc: "+30% Охлаждение", cost: 30, type: 'passive', effect: p => p.heatCooling *= 1.3 },
       { name: "ИНЖЕНЕР", desc: "+1 Дрон, +10% Скор.Стр.", cost: 60, type: 'passive', effect: p => { p.droneCount += 1; p.fireRate *= 0.9; } },
       { name: "ЦИКЛЕР", desc: "+15% Скорострельности", cost: 50, type: 'stat', effect: p => p.fireRate *= 0.85 },
@@ -2142,7 +2191,7 @@
               }
               if (target) {
                    const dir = target.pos.sub(this.pos).normalize();
-                   game.projectiles.push(new Projectile(this.pos, dir.mult(600), 5, 'bullet', 'player'));
+                   game.projectiles.push(new Projectile(this.pos, dir.mult(600), 5 * this.owner.droneDmgMult, 'bullet', 'player'));
                    this.shootTimer = 1.0;
               }
           }
@@ -2250,6 +2299,10 @@
     heatCooling = 80;
     heatGenMult = 1.0;
     
+    droneDmgMult = 1.0;
+    classSkillCdReduction = 0;
+    mineCdReduction = 0;
+    
     // New Mechanics
     drones: Drone[] = [];
     turretCooldown = 0;
@@ -2351,6 +2404,12 @@
               if (item.stats.area) this.aoeRadius += item.stats.area;
               if (item.stats.regen) this.regen += item.stats.regen;
               if (item.stats.luck) this.luck += item.stats.luck;
+              if (item.stats.lifesteal) this.lifesteal += item.stats.lifesteal;
+              if (item.stats.dodge) this.dodge += item.stats.dodge;
+              if (item.stats.thorns) this.thorns += item.stats.thorns;
+              if (item.stats.knockback) this.knockback += item.stats.knockback;
+              if (item.stats.magnet) this.magnet += item.stats.magnet;
+              if (item.stats.multishot) this.multishot += item.stats.multishot;
               
               // Synergy Check
               setCounts[item.rarity] = (setCounts[item.rarity] || 0) + 1;
@@ -2424,7 +2483,7 @@
       // Mine (Q)
       if (this.mineCooldown > 0) this.mineCooldown -= dt;
       if (keys['KeyQ'] && this.mineCooldown <= 0 && selectedClass === 'psycho') {
-          this.mineCooldown = 5.0 * this.cooldownMult;
+          this.mineCooldown = Math.max(1.0, 5.0 - this.mineCdReduction) * this.cooldownMult;
           game.mines.push(new Mine(this.pos));
           game.texts.push(new FloatingText(this.pos, "МИНА", "#f00"));
       }
@@ -2432,20 +2491,20 @@
       // Class Skills (E)
       if (keys['KeyE'] && this.turretCooldown <= 0) {
           if (selectedClass === 'sniper') {
-              this.turretCooldown = 10.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(2.0, 10.0 - this.classSkillCdReduction) * this.cooldownMult;
               this.sniperShot = true;
               game.texts.push(new FloatingText(this.pos, "ТОЧНЫЙ ВЫСТРЕЛ", "#f00"));
           } else if (selectedClass === 'tank') {
-              this.turretCooldown = 20.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(5.0, 20.0 - this.classSkillCdReduction) * this.cooldownMult;
               this.hp += 100; // Temp heal/shield
               game.texts.push(new FloatingText(this.pos, "ЩИТ", "#00f"));
           } else if (selectedClass === 'scout') {
-              this.turretCooldown = 5.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(1.0, 5.0 - this.classSkillCdReduction) * this.cooldownMult;
               const dashDir = this.vel.mag() > 0 ? this.vel.normalize() : new Vector(1,0);
               this.pos = this.pos.add(dashDir.mult(250)); // Super dash
               game.spawnParticles(this.pos, '#ff0', 10);
           } else if (selectedClass === 'mage') {
-              this.turretCooldown = 10.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(3.0, 10.0 - this.classSkillCdReduction) * this.cooldownMult;
               // Nova
               for(let i=0; i<20; i++) {
                   const a = (Math.PI*2/20)*i;
@@ -2454,11 +2513,11 @@
               }
               game.texts.push(new FloatingText(this.pos, "КОЛЬЦО ОГНЯ", "#f00"));
           } else if (selectedClass === 'summoner') {
-              this.turretCooldown = 15.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(5.0, 15.0 - this.classSkillCdReduction) * this.cooldownMult;
               game.turrets.push(new Turret(this.pos)); // Reuse turret
               game.texts.push(new FloatingText(this.pos, "ПОДКРЕПЛЕНИЕ", "#0f0"));
           } else if (selectedClass === 'gambler') {
-              this.turretCooldown = 15.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(5.0, 15.0 - this.classSkillCdReduction) * this.cooldownMult;
               const roll = Math.random();
               if (roll < 0.33) {
                   this.damage *= 2; setTimeout(() => this.damage /= 2, 10000);
@@ -2470,12 +2529,12 @@
                   game.texts.push(new FloatingText(this.pos, "ПУСТО...", "#888"));
               }
           } else if (selectedClass === 'ninja') {
-              this.turretCooldown = 15.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(5.0, 15.0 - this.classSkillCdReduction) * this.cooldownMult;
               this.isStealthed = true;
               game.texts.push(new FloatingText(this.pos, "ИСЧЕЗНОВЕНИЕ", "#fff"));
               setTimeout(() => this.isStealthed = false, 3000);
           } else if (selectedClass === 'cyborg') {
-              this.turretCooldown = 20.0 * this.cooldownMult;
+              this.turretCooldown = Math.max(5.0, 20.0 - this.classSkillCdReduction) * this.cooldownMult;
               const oldRate = this.fireRate;
               this.fireRate *= 0.2; // Super fast
               game.texts.push(new FloatingText(this.pos, "ОВЕРДРАЙВ", "#f00"));
@@ -3950,10 +4009,28 @@
             // Crit logic
             let dmg = p.dmg;
             if (e.config.id.includes('boss')) dmg *= this.player.bossDmgMult;
+
+            // --- CRIT SYSTEM (Multi-Tier) ---
+            const totalCritChance = this.player.critChance;
+            let critTier = Math.floor(totalCritChance);
+            const remainder = totalCritChance - critTier;
+            if (Math.random() < remainder) critTier++;
+
+            let isCrit = critTier > 0;
+            let critColor = '#fff';
             
-            let isCrit = Math.random() < this.player.critChance;
-            if (isCrit) dmg *= this.player.critMult;
-            
+            if (isCrit) {
+                // Tier 1: x1, Tier 2: x4, Tier 3: x16...
+                const tierMult = Math.pow(4, Math.max(0, critTier - 1));
+                dmg *= this.player.critMult * tierMult;
+                
+                // Visuals
+                if (critTier === 1) { critColor = '#ff0'; } // Yellow
+                else if (critTier === 2) { critColor = '#f00'; this.screenShake = 2; } // Red (Super)
+                else if (critTier === 3) { critColor = '#a020f0'; this.screenShake = 5; } // Purple (Mega)
+                else { critColor = '#0ff'; this.screenShake = 10; } // Cyan (Giga)
+            }
+
             // Shield Logic
             if (e.shield > 0) {
                 e.shield -= dmg;
@@ -4011,7 +4088,12 @@
                 });
             }
             
-            this.texts.push(new FloatingText(e.pos, Math.floor(dmg).toString(), isCrit ? '#ff0' : '#fff'));
+            let dmgText = Math.floor(dmg).toString();
+            if (critTier >= 2) dmgText += "!";
+            if (critTier >= 3) dmgText += "!";
+            
+            this.texts.push(new FloatingText(e.pos, dmgText, critColor));
+            
             hit = true;
             this.spawnParticles(e.pos, e.color, 3);
             if (e.hp <= 0) {
@@ -4292,26 +4374,38 @@
         };
 
         if (type === 'weapon') { 
-            addStat('dmg', 5);
-            if (Math.random() > 0.5) addStat('crit', 0.05, true);
-            if (Math.random() > 0.7) addStat('cooldown', 0.05, true);
-            if (Math.random() > 0.8) addStat('area', 0.2, true);
+            addStat('dmg', 3);
+            // Nerfed crit: 0.5% base -> 4% at legendary (x8)
+            if (Math.random() > 0.5) addStat('crit', 0.005, true); 
+            if (Math.random() > 0.7) addStat('cooldown', 0.02, true);
+            if (Math.random() > 0.8) addStat('area', 0.1, true);
+            if (Math.random() > 0.85) addStat('knockback', 10);
+            if (Math.random() > 0.9) addStat('lifesteal', 0.005, true);
+            if (Math.random() > 0.95) addStat('multishot', 0.5); // Rare multishot
         }
         if (type === 'armor') { 
-            addStat('hp', 20);
+            addStat('hp', 15);
             if (Math.random() > 0.5) addStat('regen', 1);
-            if (Math.random() > 0.7) addStat('spd', 10);
+            if (Math.random() > 0.7) addStat('spd', 5);
             if (Math.random() > 0.8) addStat('luck', 5);
+            if (Math.random() > 0.8) addStat('dodge', 0.02, true);
+            if (Math.random() > 0.8) addStat('thorns', 5);
         }
         if (type === 'chip') { 
             // Chips are versatile
-            const keys = ['spd', 'crit', 'cooldown', 'luck', 'area'];
+            const keys = ['spd', 'crit', 'cooldown', 'luck', 'area', 'magnet', 'dodge', 'lifesteal'];
             const k1 = keys[Math.floor(Math.random()*keys.length)];
-            addStat(k1, k1 === 'spd' || k1 === 'luck' ? 10 : 0.05, k1 !== 'spd' && k1 !== 'luck');
+            
+            const isPct = !['spd', 'luck', 'magnet'].includes(k1);
+            const baseVal = isPct ? (k1 === 'crit' ? 0.005 : 0.02) : 5;
+            
+            addStat(k1, baseVal, isPct);
             
             if (Math.random() > 0.5) {
                  const k2 = keys[Math.floor(Math.random()*keys.length)];
-                 if (k2 !== k1) addStat(k2, k2 === 'spd' || k2 === 'luck' ? 10 : 0.05, k2 !== 'spd' && k2 !== 'luck');
+                 const isPct2 = !['spd', 'luck', 'magnet'].includes(k2);
+                 const baseVal2 = isPct2 ? (k2 === 'crit' ? 0.005 : 0.02) : 5;
+                 if (k2 !== k1) addStat(k2, baseVal2, isPct2);
             }
         }
         
@@ -4662,41 +4756,46 @@
     }
 
     renderClassSelector() {
-        const classContainer = document.getElementById('class-selector-container');
-        if (!classContainer) return;
+        const list = document.getElementById('char-list');
+        const nameDisplay = document.getElementById('char-name-display');
+        const descDisplay = document.getElementById('char-desc-display');
+        const confirmBtn = document.getElementById('btn-char-confirm') as HTMLButtonElement;
         
-        classContainer.innerHTML = '';
+        if (!list || !nameDisplay || !descDisplay) return;
+        
+        list.innerHTML = '';
         
         CLASSES.forEach(cls => {
             const btn = document.createElement('div');
-            btn.className = 'class-btn';
+            btn.className = 'char-btn';
+            const isUnlocked = !cls.unlock || meta.unlocks.includes(cls.unlock);
             
             // Check if this class is currently selected
             if (cls.id === selectedClass) {
                 btn.classList.add('selected');
-                // Update description text just in case
-                const descEl = document.getElementById('class-desc');
-                if (descEl) descEl.innerText = `${cls.name}: ${cls.desc}`;
+                nameDisplay.innerText = cls.name;
+                descDisplay.innerText = cls.desc;
+                if (confirmBtn) confirmBtn.disabled = !isUnlocked;
             }
             
-            const isUnlocked = !cls.unlock || meta.unlocks.includes(cls.unlock);
-            btn.innerText = isUnlocked ? cls.name : 'ЗАКРЫТО';
+            btn.innerHTML = `
+                <div style="font-weight:bold; color:${isUnlocked ? '#fff' : '#666'}">${isUnlocked ? cls.name : 'ЗАКРЫТО'}</div>
+                <div style="font-size:0.7rem; color:#888">${isUnlocked ? 'ОПЕРАТОР' : 'ТРЕБУЕТСЯ РАЗБЛОКИРОВКА'}</div>
+            `;
             
             if (!isUnlocked) {
-                btn.style.opacity = '0.5';
-                btn.style.cursor = 'not-allowed';
+                btn.classList.add('locked');
             } else {
-                btn.dataset.class = cls.id;
-                btn.dataset.desc = cls.desc;
                 btn.onclick = (e) => {
-                    document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
+                    document.querySelectorAll('.char-btn').forEach(b => b.classList.remove('selected'));
                     btn.classList.add('selected');
                     selectedClass = cls.id;
-                    const descEl = document.getElementById('class-desc');
-                    if (descEl) descEl.innerText = `${cls.name}: ${cls.desc}`;
+                    nameDisplay.innerText = cls.name;
+                    descDisplay.innerText = cls.desc;
+                    if (confirmBtn) confirmBtn.disabled = false;
                 };
             }
-            classContainer.appendChild(btn);
+            list.appendChild(btn);
         });
     }
 
@@ -4731,6 +4830,11 @@
               el.requestFullscreen().catch(() => {});
           }
 
+          this.setScreen('character-screen');
+          this.renderClassSelector();
+      });
+
+      document.getElementById('btn-char-confirm')?.addEventListener('click', () => {
           this.setScreen('difficulty-screen');
           const grid = document.querySelector('.diff-grid')!;
           grid.innerHTML = '';
@@ -4758,7 +4862,8 @@
           });
       });
       
-      document.getElementById('btn-diff-back')?.addEventListener('click', () => this.setScreen('menu-screen'));
+      document.getElementById('btn-char-back')?.addEventListener('click', () => this.setScreen('menu-screen'));
+      document.getElementById('btn-diff-back')?.addEventListener('click', () => this.setScreen('character-screen'));
       document.getElementById('btn-restart')?.addEventListener('click', () => this.start(this.lastMode, this.lastRaidId));
       document.getElementById('btn-menu')?.addEventListener('click', () => {
         this.state = 'MENU';
@@ -4872,6 +4977,15 @@
           saveMeta();
       });
       
+      // Profile Logic
+      document.getElementById('btn-profile')?.addEventListener('click', () => {
+          this.setScreen('profile-screen');
+          this.renderProfile();
+      });
+      document.getElementById('btn-profile-back')?.addEventListener('click', () => {
+          this.setScreen('menu-screen');
+      });
+      
       // Modal Buttons
       document.getElementById('btn-modal-yes')?.addEventListener('click', () => this.confirmUpgrade());
       document.getElementById('btn-modal-no')?.addEventListener('click', () => this.hideConfirmModal());
@@ -4927,6 +5041,47 @@
             parts.push(`${name} ${fmtVal}`);
         }
         return parts.join(', ');
+    }
+    
+    renderProfile() {
+        const container = document.getElementById('profile-stats');
+        if (!container) return;
+        
+        // Create a dummy player to calculate stats
+        const p = new Player();
+
+        let critDisplay = `${(p.critChance * 100).toFixed(1)}%`;
+        if (p.critChance > 1) {
+            const tier = Math.floor(p.critChance);
+            const tierNames = ['', 'СВЕРХ', 'МЕГА', 'ГИГА', 'ТЕРРА', 'ПЕТА', 'ЭКСА'];
+            const name = tierNames[Math.min(tier, tierNames.length-1)] || `TIER ${tier}`;
+            critDisplay += ` (${name}-КРИТ)`;
+        }
+        
+        const stats = [
+            { name: 'Здоровье (HP)', val: Math.round(p.maxHp) },
+            { name: 'Урон', val: Math.round(p.damage) },
+            { name: 'Скорость', val: Math.round(p.speed) },
+            { name: 'Шанс Крита', val: critDisplay },
+            { name: 'Сила Крита', val: `x${p.critMult.toFixed(1)}` },
+            { name: 'Скорострельность', val: `${(1/p.fireRate).toFixed(1)}/сек` },
+            { name: 'Мультивыстрел', val: `x${p.multishot}` },
+            { name: 'Регенерация', val: `${p.regen.toFixed(1)}/сек` },
+            { name: 'Вампиризм', val: `${(p.lifesteal * 100).toFixed(1)}%` },
+            { name: 'Уклонение', val: `${(p.dodge * 100).toFixed(1)}%` },
+            { name: 'Шипы', val: `${p.thorns} + ${(p.thornsPct*100).toFixed(0)}%` },
+            { name: 'Магнит', val: `${p.magnet}%` },
+            { name: 'Удача', val: p.luck },
+            { name: 'Отталкивание', val: p.knockback },
+            { name: 'Бонус XP', val: `x${p.xpMult.toFixed(2)}` },
+            { name: 'Урон по Боссам', val: `x${p.bossDmgMult.toFixed(2)}` },
+            { name: 'Урон по Элите', val: `x${p.eliteDmgMult.toFixed(2)}` },
+            { name: 'Дроны', val: p.droneCount }
+        ];
+        
+        container.innerHTML = stats.map(s => 
+            `<div class="stat-row"><span class="stat-name">${s.name}</span><div class="stat-dots"></div><span class="stat-val">${s.val}</span></div>`
+        ).join('');
     }
 
     renderInventory() {
