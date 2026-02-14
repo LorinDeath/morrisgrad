@@ -3056,6 +3056,15 @@
 
     startRaid() {
         this.wave = 1;
+        
+        // Если это Boss Rush с числовым ID (например "111"), устанавливаем волну равной ID
+        if (this.game.activeRaid && this.game.activeRaid.type === 'boss_rush') {
+            const waveNum = parseInt(this.game.activeRaid.id);
+            if (!isNaN(waveNum)) {
+                this.wave = waveNum;
+            }
+        }
+
         this.currentInfluence = 0;
         this.nextWaveSalary = 0;
         
