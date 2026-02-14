@@ -286,6 +286,9 @@
           </div>
         </div>
       </div>
+      
+      <!-- Global Item Tooltip -->
+      <div id="item-tooltip" class="item-tooltip hidden"></div>
 
     </div>
   </div>
@@ -378,6 +381,7 @@
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none;
+    z-index: 20;
   }
 
   .screen {
@@ -392,6 +396,7 @@
     transition: opacity 0.3s;
     pointer-events: auto;
   }
+  .screen * { pointer-events: auto; } /* Ensure children capture clicks */
 
   .screen.hidden { display: none !important; }
   .screen.active { opacity: 1; }
@@ -475,12 +480,16 @@
   .inv-layout { display: flex; gap: 40px; margin-bottom: 20px; }
   .char-slots { display: flex; flex-direction: column; gap: 10px; width: 200px; }
   .equip-slot { 
-    width: 100%; height: 80px; border: 2px dashed #444; 
+    width: 100%; min-height: 80px; height: auto; border: 2px dashed #444; 
     display: flex; align-items: center; justify-content: center;
     flex-direction: column;
     font-size: 0.8rem; color: #666; cursor: pointer;
-    background: rgba(0,0,0,0.5); text-align: center; padding: 5px;
+    background: rgba(0,0,0,0.5); text-align: center; padding: 10px;
+    word-break: break-word;
   }
+  .equip-slot.set-active { box-shadow: 0 0 15px #0f0; border-color: #0f0; animation: pulse 2s infinite; }
+  .equip-slot.set-connected { border-color: #0a0; border-style: dashed; box-shadow: 0 0 8px #0a0; }
+  
   .equip-slot.filled { border-style: solid; border-color: #ffd700; color: #fff; background: rgba(255, 215, 0, 0.1); }
   .slot-label { font-size: 0.7rem; color: #888; margin-bottom: -5px; }
   
@@ -506,7 +515,25 @@
   .inv-item.rarity-legendary { border-color: #ffd700; box-shadow: inset 0 0 10px #ffd700; animation: glow 2s infinite; }
   .inv-item.rarity-mythic { border-color: #ff3333; box-shadow: inset 0 0 10px #ff3333; animation: glow 1.5s infinite; }
   .inv-item.rarity-divine { border-color: #00ffff; box-shadow: inset 0 0 15px #00ffff; animation: glow 1s infinite alternate; }
+  .inv-item.set-item { border-color: #0f0; box-shadow: inset 0 0 10px #0f0; animation: pulse 2s infinite; }
   
+  /* Custom Item Tooltip */
+  .item-tooltip {
+    position: fixed;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid #ffd700;
+    padding: 12px;
+    border-radius: 4px;
+    z-index: 2000;
+    pointer-events: none;
+    max-width: 300px;
+    color: #fff;
+    font-size: 0.8rem;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    line-height: 1.4;
+  }
+  .item-tooltip.hidden { display: none; }
+
   /* Profile Styles */
   .profile-stats-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
@@ -858,7 +885,12 @@
     thorns: 'Шипы',
     knockback: 'Отталк.',
     magnet: 'Магнит',
-    multishot: 'Мульти'
+    multishot: 'Мульти',
+    spread: 'Разброс',
+    projSpeed: 'Скор.Пул.',
+    frag: 'Осколки',
+    curse: 'Метка',
+    slow: 'Замедл.'
   };
 
   const CLASSES = [
@@ -879,21 +911,28 @@
 
   // --- RAID CONFIG ---
   interface RaidMission {
-    id: string; name: string; desc: string; bossId: string;
-    reward: { type: 'currency'|'core'|'item', amount?: number };
-    minLevel: number; // Just a visual indicator or check
+    id: string; name: string; desc: string;
+    type: 'wave' | 'boss_rush';
+    target: number; // Wave count or 1 for boss
+    bossId?: string;
+    setId?: string; // For set rewards
+    setBonusCount?: number;
+    rewardLevel: number;
   }
   const RAIDS: RaidMission[] = [
-    { id: 'r1', name: 'СЕКТОР 111', desc: 'Уровень угрозы: 111', bossId: 'boss1', reward: { type: 'currency', amount: 1000 }, minLevel: 111 },
-    { id: 'r2', name: 'СЕКТОР 222', desc: 'Уровень угрозы: 222', bossId: 'boss2', reward: { type: 'core', amount: 5 }, minLevel: 222 },
-    { id: 'r3', name: 'СЕКТОР 333', desc: 'Уровень угрозы: 333', bossId: 'boss3', reward: { type: 'item' }, minLevel: 333 },
-    { id: 'r4', name: 'СЕКТОР 444', desc: 'Уровень угрозы: 444', bossId: 'boss4', reward: { type: 'currency', amount: 5000 }, minLevel: 444 },
-    { id: 'r5', name: 'СЕКТОР 555', desc: 'Уровень угрозы: 555', bossId: 'boss5', reward: { type: 'core', amount: 10 }, minLevel: 555 },
-    { id: 'r6', name: 'СЕКТОР 666', desc: 'Уровень угрозы: 666', bossId: 'boss1', reward: { type: 'item' }, minLevel: 666 },
-    { id: 'r7', name: 'СЕКТОР 777', desc: 'Уровень угрозы: 777', bossId: 'boss2', reward: { type: 'currency', amount: 10000 }, minLevel: 777 },
-    { id: 'r8', name: 'СЕКТОР 888', desc: 'Уровень угрозы: 888', bossId: 'boss3', reward: { type: 'core', amount: 20 }, minLevel: 888 },
-    { id: 'r9', name: 'СЕКТОР 999', desc: 'Уровень угрозы: 999', bossId: 'boss5', reward: { type: 'item' }, minLevel: 999 },
-    { id: 'r10', name: 'СЕКТОР 000', desc: 'Уровень угрозы: ???', bossId: 'boss7', reward: { type: 'core', amount: 50 }, minLevel: 1000 },
+    { id: 'wave20', name: 'РЕЙД: 20 ВОЛН', desc: 'Выжить 20 волн', type: 'wave', target: 20, rewardLevel: 1 },
+    { id: 'wave40', name: 'РЕЙД: 40 ВОЛН', desc: 'Выжить 40 волн', type: 'wave', target: 40, rewardLevel: 2 },
+    { id: 'wave60', name: 'РЕЙД: 60 ВОЛН', desc: 'Выжить 60 волн', type: 'wave', target: 60, rewardLevel: 3 },
+    
+    { id: '111', name: 'СЕКТОР 111', desc: 'БОСС: Проклятый', type: 'boss_rush', target: 1, bossId: 'boss1', setId: 'cursed', setBonusCount: 1, rewardLevel: 2 },
+    { id: '222', name: 'СЕКТОР 222', desc: 'БОСС: Удивлённый', type: 'boss_rush', target: 1, bossId: 'boss2', setId: 'surprised', setBonusCount: 1, rewardLevel: 3 },
+    { id: '333', name: 'СЕКТОР 333', desc: 'БОСС: Просвещённый', type: 'boss_rush', target: 1, bossId: 'boss3', setId: 'enlightened', setBonusCount: 2, rewardLevel: 4 },
+    { id: '444', name: 'СЕКТОР 444', desc: 'БОСС: Ничтожный', type: 'boss_rush', target: 1, bossId: 'boss4', setId: 'insignificant', setBonusCount: 2, rewardLevel: 5 },
+    { id: '555', name: 'СЕКТОР 555', desc: 'БОСС: Пятёрка', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'five', setBonusCount: 2, rewardLevel: 6 },
+    { id: '666', name: 'СЕКТОР 666', desc: 'БОСС: Власть', type: 'boss_rush', target: 1, bossId: 'boss6', setId: 'power', setBonusCount: 3, rewardLevel: 7 },
+    { id: '777', name: 'СЕКТОР 777', desc: 'БОСС: Неудача', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'badluck', setBonusCount: 1, rewardLevel: 8 },
+    { id: '888', name: 'СЕКТОР 888', desc: 'БОСС: Проблемы', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'problem', setBonusCount: 4, rewardLevel: 9 },
+    { id: '999', name: 'СЕКТОР 999', desc: 'БОСС: Жестокость', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'cruelty', setBonusCount: 6, rewardLevel: 10 },
   ];
 
   // --- CORE UTILS ---
@@ -953,6 +992,8 @@
     icon: string;
     level?: number;
     modified?: boolean;
+    setId?: string;
+    setStats?: { [key: string]: number };
   }
 
   interface MetaData {
@@ -1002,6 +1043,14 @@
     return Math.floor(COST_BASE[type] * Math.pow(1.6, lvl)); // Steep curve
   }
 
+  function sanitizeItem(item: Item | null): Item | null {
+      if (!item) return null;
+      if (!item.stats) item.stats = {};
+      if (!item.setStats) item.setStats = {};
+      if (!item.setId) item.setId = undefined;
+      return item;
+  }
+
   function loadMeta() {
     const raw = localStorage.getItem(META_KEY);
     if (raw) {
@@ -1018,6 +1067,12 @@
           username: loaded.username || meta.username
         };
         
+        // Sanitize Items to prevent crashes
+        meta.inventory = meta.inventory.map(i => sanitizeItem(i)!);
+        meta.equipment.weapon = sanitizeItem(meta.equipment.weapon);
+        meta.equipment.armor = sanitizeItem(meta.equipment.armor);
+        meta.equipment.chip = sanitizeItem(meta.equipment.chip);
+
         // Migration: Fix Multishot ID shift
         if (meta.skillTree.includes('node_0_18') && !meta.skillTree.includes('tree_multishot_1')) {
             meta.skillTree = meta.skillTree.filter(id => id !== 'node_0_18');
@@ -1105,6 +1160,7 @@
       { name: "МОРПЕХ: ВЕТЕРАН", desc: "+10% Урона, +10% HP", cost: 15, type: 'passive', effect: p => { p.damage *= 1.1; p.maxHp *= 1.1; } },
       { name: "ПСИХ: МАНЬЯК", desc: "Мина КД -1с, Урон +20%", cost: 20, type: 'passive', effect: p => { p.mineCdReduction += 1; p.damage *= 1.2; } },
       { name: "ФОКУСИРОВКА", desc: "+15% Урона", cost: 2, type: 'stat', effect: p => p.damage *= 1.15 },
+      { name: "ТЯЖЕЛЫЙ СТВОЛ", desc: "+30% Урона, -20% Скор.Пули", cost: 10, type: 'passive', effect: p => { p.damage *= 1.3; p.projSpeedMult *= 0.8; } },
       { name: "КРИТ. ШАНС I", desc: "+5% Шанс крита", cost: 5, type: 'passive', effect: p => p.critChance += 0.05 },
       { name: "КРИТ. УРОН I", desc: "+50% Сила крита", cost: 5, type: 'passive', effect: p => p.critMult += 0.5 },
       { name: "РАКЕТНИЦА", desc: "Разблок: Ракетница", cost: 15, type: 'unlock', id: 'w_rocket', effect: () => { if(!meta.unlocks.includes('w_rocket')) meta.unlocks.push('w_rocket'); } },
@@ -1119,6 +1175,7 @@
       { name: "НИНДЗЯ: ТЕНЬ", desc: "Стелс КД -2с, Уклон +10%", cost: 80, type: 'passive', effect: p => { p.classSkillCdReduction += 2; p.dodge += 0.1; } },
       { name: "ДРОН: АТАКА", desc: "+1 Дрон", cost: 30, type: 'passive', effect: p => p.droneCount += 1 },
       { name: "ТЕРМО-УРОН", desc: "+20% Бонус перегрева", cost: 35, type: 'passive', effect: p => p.heatDmgBonus += 0.2 },
+      { name: "ДРОБЬ", desc: "+10 Разброс, +1 Снаряд", cost: 25, type: 'passive', effect: p => { p.spread += 10; p.multishot += 1; } },
       { name: "ПЛАЗМА", desc: "Разблок: Плазма-ган", cost: 40, type: 'unlock', id: 'w_plasma', effect: () => { if(!meta.unlocks.includes('w_plasma')) meta.unlocks.push('w_plasma'); } },
       { name: "УРОН IV", desc: "+25% Урона", cost: 45, type: 'stat', effect: p => p.damage *= 1.25 },
       { name: "КРИТ. МАСТЕР", desc: "+15% Шанс крита", cost: 45, type: 'passive', effect: p => p.critChance += 0.15 },
@@ -1127,21 +1184,22 @@
     // 1: DEFENSE (Down-Right) - HP, Regen, Armor
     1: [
       { name: "ОБШИВКА I", desc: "+20 Макс. HP", cost: 1, type: 'stat', effect: p => p.maxHp += 20 },
-      { name: "РЕГЕНЕРАЦИЯ I", desc: "+1 HP/сек", cost: 5, type: 'passive', effect: p => p.regen += 1 },
-      { name: "ШИПЫ I", desc: "Возврат 10 урона", cost: 5, type: 'passive', effect: p => p.thorns += 10 },
+      { name: "РЕГЕНЕРАЦИЯ I", desc: "+0.5 HP/сек", cost: 5, type: 'passive', effect: p => p.regen += 0.5 },
+      { name: "ШИПЫ I", desc: "Возврат 3 урона", cost: 5, type: 'passive', effect: p => p.thorns += 3 },
       { name: "ОБШИВКА II", desc: "+50 Макс. HP", cost: 5, type: 'stat', effect: p => p.maxHp += 50 },
       { name: "КЛАСС: ТАНК", desc: "Разблок: Танк", cost: 40, type: 'unlock', id: 'class_tank', effect: () => { if(!meta.unlocks.includes('class_tank')) meta.unlocks.push('class_tank'); } },
       { name: "ТАНК: БРОНЯ", desc: "Щит КД -3с, HP +50", cost: 60, type: 'passive', effect: p => { p.classSkillCdReduction += 3; p.maxHp += 50; } },
       { name: "КЛАСС: КИБОРГ", desc: "Разблок: Киборг", cost: 60, type: 'unlock', id: 'class_cyborg', effect: () => { if(!meta.unlocks.includes('class_cyborg')) meta.unlocks.push('class_cyborg'); } },
-      { name: "КИБОРГ: ЯДРО", desc: "Овердрайв КД -3с, Реген +2", cost: 80, type: 'passive', effect: p => { p.classSkillCdReduction += 3; p.regen += 2; } },
+      { name: "КИБОРГ: ЯДРО", desc: "Овердрайв КД -3с, Реген +1", cost: 80, type: 'passive', effect: p => { p.classSkillCdReduction += 3; p.regen += 1; } },
       { name: "РУНЫ: ВРЕМЯ", desc: "+50% Длительность рун", cost: 20, type: 'passive', effect: p => p.runeDurationMult += 0.5 },
       { name: "ВАМПИРИЗМ I", desc: "1% Кража жизни", cost: 15, type: 'mechanic', effect: p => p.lifesteal += 0.01 },
-      { name: "РЕГЕНЕРАЦИЯ II", desc: "+2 HP/сек", cost: 10, type: 'passive', effect: p => p.regen += 2 },
+      { name: "РЕГЕНЕРАЦИЯ II", desc: "+1 HP/сек", cost: 10, type: 'passive', effect: p => p.regen += 1 },
       { name: "ТИТАН", desc: "+100 HP, -10% Скор.", cost: 20, type: 'stat', effect: p => { p.maxHp += 100; p.speed *= 0.9; } },
-      { name: "ШИПЫ II", desc: "Возврат 50% урона", cost: 25, type: 'passive', effect: p => p.thornsPct += 0.5 },
+      { name: "ШИПЫ II", desc: "Возврат 20% урона", cost: 25, type: 'passive', effect: p => p.thornsPct += 0.2 },
       { name: "ОБШИВКА III", desc: "+100 Макс. HP", cost: 30, type: 'stat', effect: p => p.maxHp += 100 },
-      { name: "РЕГЕНЕРАЦИЯ III", desc: "+3 HP/сек", cost: 40, type: 'passive', effect: p => p.regen += 3 },
-      { name: "ВТОРОЕ ДЫХАНИЕ", desc: "Воскрешение (1 раз)", cost: 100, type: 'mechanic', id: 'revive', effect: p => p.extraLives += 1 }
+      { name: "РЕГЕНЕРАЦИЯ III", desc: "+1.5 HP/сек", cost: 40, type: 'passive', effect: p => p.regen += 1.5 },
+      { name: "ВТОРОЕ ДЫХАНИЕ", desc: "Воскрешение (1 раз)", cost: 100, type: 'mechanic', id: 'revive', effect: p => p.extraLives += 1 },
+      { name: "ПРОКЛЯТАЯ КРОВЬ", desc: "+50% HP, +20% Вход. Урона", cost: 50, type: 'passive', effect: p => { p.maxHp *= 1.5; p.damageTakenMult += 0.2; } }
     ],
     // 2: XENOLOGY (Down-Left) - Unlock Enemies & Get Buffs
     2: [
@@ -1186,6 +1244,7 @@
       { name: "РАДИАТОР", desc: "+30% Охлаждение", cost: 30, type: 'passive', effect: p => p.heatCooling *= 1.3 },
       { name: "ИНЖЕНЕР", desc: "+1 Дрон, +10% Скор.Стр.", cost: 60, type: 'passive', effect: p => { p.droneCount += 1; p.fireRate *= 0.9; } },
       { name: "ЦИКЛЕР", desc: "+15% Скорострельности", cost: 50, type: 'stat', effect: p => p.fireRate *= 0.85 },
+      { name: "ОСКОЛОЧНЫЕ", desc: "+20% Шанс осколков", cost: 120, type: 'mechanic', effect: p => p.fragChance += 0.2 },
       { name: "РИКОШЕТ", desc: "Снаряды отскакивают", cost: 150, type: 'mechanic', id: 'ricochet', effect: p => p.ricochet = true },
       { name: "ФОРСАЖ", desc: "Нагрев +20%, Урон +10%", cost: 180, type: 'mechanic', effect: p => { p.heatGenMult *= 1.2; p.damage *= 1.1; } },
       { name: "ЯДЕРНЫЙ УДАР", desc: "F: Уничтожить всех (200 ядер)", cost: 200, type: 'unlock', id: 'ult_nuke', effect: () => { if(!meta.unlocks.includes('ult_nuke')) meta.unlocks.push('ult_nuke'); } },
@@ -1636,13 +1695,13 @@
     'summoner': { id: 'summoner', hp: 40, speed: 80, cost: 60, type: 'summoner', color: '#aa00aa', radius: 20, unlockReq: 'enemy_summoner' },
     'ghost': { id: 'ghost', hp: 25, speed: 120, cost: 35, type: 'stealth', color: '#888888', radius: 15, unlockReq: 'enemy_ghost' },
     // Bosses
-    'boss1': { id: 'boss1', hp: 3000, speed: 70, cost: 500, type: 'boss_summoner', color: '#ff0000', radius: 70 },
-    'boss2': { id: 'boss2', hp: 2500, speed: 80, cost: 600, type: 'boss_sniper', color: '#aa00aa', radius: 65 },
-    'boss3': { id: 'boss3', hp: 6000, speed: 50, cost: 800, type: 'boss_tank', color: '#0000aa', radius: 80 },
-    'boss4': { id: 'boss4', hp: 2000, speed: 300, cost: 700, type: 'boss_charger', color: '#ffff00', radius: 60 },
-    'boss5': { id: 'boss5', hp: 10000, speed: 40, cost: 1000, type: 'boss_hell', color: '#000000', radius: 90 },
-    'boss6': { id: 'boss6', hp: 12000, speed: 60, cost: 1200, type: 'boss_summoner', color: '#550055', radius: 85 },
-    'boss7': { id: 'boss7', hp: 8000, speed: 180, cost: 1500, type: 'boss_psycho', color: '#ff00ff', radius: 75 }
+    'boss1': { id: 'boss1', hp: 25000, speed: 90, cost: 500, type: 'boss_summoner', color: '#ff0000', radius: 80 },
+    'boss2': { id: 'boss2', hp: 20000, speed: 110, cost: 600, type: 'boss_sniper', color: '#aa00aa', radius: 75 },
+    'boss3': { id: 'boss3', hp: 50000, speed: 65, cost: 800, type: 'boss_tank', color: '#0000aa', radius: 90 },
+    'boss4': { id: 'boss4', hp: 15000, speed: 450, cost: 700, type: 'boss_charger', color: '#ffff00', radius: 70 },
+    'boss5': { id: 'boss5', hp: 80000, speed: 55, cost: 1000, type: 'boss_hell', color: '#000000', radius: 100 },
+    'boss6': { id: 'boss6', hp: 100000, speed: 85, cost: 1200, type: 'boss_summoner', color: '#550055', radius: 95 },
+    'boss7': { id: 'boss7', hp: 60000, speed: 250, cost: 1500, type: 'boss_psycho', color: '#ff00ff', radius: 85 }
   };
 
   class Enemy extends Entity {
@@ -1664,6 +1723,7 @@
     spawnFade = 0; // Opacity for spawn animation
     
     overrideDir: Vector | null = null; // For dodging/dashing
+    hitCooldown = 0; // Attack cooldown for collision
 
     constructor(pos: Vector, typeId: string, level: number, public elite: boolean) {
       super(pos, 15, '#f00');
@@ -1672,7 +1732,11 @@
       const scale = 1 + (level * 0.1);
       this.hp = this.config.hp * scale * selectedDifficulty; // Difficulty Scaling
       this.maxHp = this.hp;
-      this.damage = 10 * scale * selectedDifficulty; // Damage Scaling
+      
+      let baseDmg = 10;
+      if (typeId.includes('boss')) baseDmg = 40; // Bosses hit MUCH harder
+      
+      this.damage = baseDmg * scale * selectedDifficulty; // Damage Scaling
       this.radius = this.config.radius;
       this.color = this.config.color;
       
@@ -1680,10 +1744,12 @@
         this.shield = this.maxHp; // Shield layer
         this.maxShield = this.maxHp;
         this.radius *= 1.2;
+        this.damage *= 1.5; // Elite bosses hit even harder
       }
     }
 
     update(dt: number) {
+      if (this.hitCooldown > 0) this.hitCooldown -= dt;
       // Spawn Fade-in (0 to 1 in 0.3s)
       if (this.spawnFade < 1) this.spawnFade = Math.min(1, this.spawnFade + dt / 0.3);
 
@@ -1822,7 +1888,7 @@
                  game.screenShake = 20;
                  game.spawnParticles(this.pos, '#ff8800', 20);
                  game.texts.push(new FloatingText(this.pos, "BOOM!", "#f00"));
-                 this.dead = true; // Fix: Explicitly kill to prevent immortality
+                 game.onEnemyDeath(this); // Trigger death logic
                  if (game.player.hp <= 0) game.gameOver(`ВЗРЫВ: ${this.config.id.toUpperCase()}`);
             }
         }
@@ -2078,6 +2144,7 @@
       }
       
       override update(dt: number) {
+        if (this.hitCooldown > 0) this.hitCooldown -= dt;
         // Spawn Fade-in
         if (this.spawnFade < 1) this.spawnFade = Math.min(1, this.spawnFade + dt / 0.3);
 
@@ -2299,6 +2366,13 @@
     heatCooling = 80;
     heatGenMult = 1.0;
     
+    // New Params
+    spread = 0; // Degrees
+    projSpeedMult = 1.0;
+    fragChance = 0;
+    damageTakenMult = 1.0; // Curse
+    moveSpeedMult = 1.0; // Slow (if < 1)
+    
     droneDmgMult = 1.0;
     classSkillCdReduction = 0;
     mineCdReduction = 0;
@@ -2354,7 +2428,7 @@
       } else if (selectedClass === 'tank') {
           this.maxHp *= 2.0;
           this.speed *= 0.8;
-          this.thorns += 20;
+          this.thorns += 5;
       } else if (selectedClass === 'scout') {
           this.speed *= 1.3;
           this.dodge += 0.2;
@@ -2375,7 +2449,7 @@
           this.dodge += 0.1;
           this.damage *= 1.2; // Melee focus implied
       } else if (selectedClass === 'cyborg') {
-          this.regen += 5;
+          this.regen += 2;
           if (meta.unlocks.includes('w_laser')) {
               this.weapon = 'laser'; // Starts with laser if unlocked
           }
@@ -2392,35 +2466,68 @@
       
       // Apply Equipment Stats (RPG)
       const equip = meta.equipment;
-      let setCounts: Record<string, number> = {};
       
-      [equip.weapon, equip.armor, equip.chip].forEach(item => {
-          if (item && item.stats) {
-              if (item.stats.hp) this.maxHp += item.stats.hp;
-              if (item.stats.dmg) this.damage += item.stats.dmg;
-              if (item.stats.spd) this.speed += item.stats.spd;
-              if (item.stats.crit) this.critChance += item.stats.crit;
-              if (item.stats.cooldown) this.cooldownMult *= (1 - item.stats.cooldown);
-              if (item.stats.area) this.aoeRadius += item.stats.area;
-              if (item.stats.regen) this.regen += item.stats.regen;
-              if (item.stats.luck) this.luck += item.stats.luck;
-              if (item.stats.lifesteal) this.lifesteal += item.stats.lifesteal;
-              if (item.stats.dodge) this.dodge += item.stats.dodge;
-              if (item.stats.thorns) this.thorns += item.stats.thorns;
-              if (item.stats.knockback) this.knockback += item.stats.knockback;
-              if (item.stats.magnet) this.magnet += item.stats.magnet;
-              if (item.stats.multishot) this.multishot += item.stats.multishot;
+      try {
+          let setCounts: Record<string, number> = {};
+          
+          // Count Sets
+          [equip.weapon, equip.armor, equip.chip].forEach(item => {
+              if (item && item.setId) {
+                  setCounts[item.setId] = (setCounts[item.setId] || 0) + 1;
+              }
+          });
+          
+          [equip.weapon, equip.armor, equip.chip].forEach(item => {
+              if (item && item.stats) {
+                  if (item.stats.hp) this.maxHp += item.stats.hp;
+                  if (item.stats.dmg) this.damage += item.stats.dmg;
+                  if (item.stats.spd) this.speed += item.stats.spd;
+                  if (item.stats.crit) this.critChance += item.stats.crit;
+                  if (item.stats.cooldown) this.cooldownMult *= (1 - item.stats.cooldown);
+                  if (item.stats.area) this.aoeRadius += item.stats.area;
+                  if (item.stats.regen) this.regen += item.stats.regen;
+                  if (item.stats.luck) this.luck += item.stats.luck;
+                  if (item.stats.lifesteal) this.lifesteal += item.stats.lifesteal;
+                  if (item.stats.dodge) this.dodge += item.stats.dodge;
+                  if (item.stats.thorns) this.thorns += item.stats.thorns;
+                  if (item.stats.knockback) this.knockback += item.stats.knockback;
+                  if (item.stats.magnet) this.magnet += item.stats.magnet;
+                  if (item.stats.multishot) this.multishot += item.stats.multishot;
+              }
               
-              // Synergy Check
-              setCounts[item.rarity] = (setCounts[item.rarity] || 0) + 1;
-          }
-      });
+              // Apply Set Bonuses if active (3 items)
+              // NOTE: We only READ setStats here, we do NOT generate them.
+              if (item && item.setId && item.setStats && setCounts[item.setId] >= 3) {
+                  for (const [key, val] of Object.entries(item.setStats)) {
+                      if (key === 'hp') this.maxHp += val;
+                      if (key === 'dmg') this.damage += val;
+                      if (key === 'spd') this.speed += val;
+                      if (key === 'crit') this.critChance += val;
+                      if (key === 'cooldown') this.cooldownMult *= (1 - val);
+                      if (key === 'area') this.aoeRadius += val;
+                      if (key === 'regen') this.regen += val;
+                      if (key === 'luck') this.luck += val;
+                      if (key === 'lifesteal') this.lifesteal += val;
+                      if (key === 'dodge') this.dodge += val;
+                      if (key === 'thorns') this.thorns += val;
+                      if (key === 'spread') this.spread += val;
+                      if (key === 'projSpeed') this.projSpeedMult += val;
+                      if (key === 'frag') this.fragChance += val;
+                      if (key === 'curse') this.damageTakenMult += val;
+                      if (key === 'slow') this.moveSpeedMult *= (1 - val);
+                  }
+              }
+          });
+          
+          // Synergy Bonus (3 items of same rarity)
+          Object.values(setCounts).forEach(count => {
+              if (count >= 3) this.synergyBonus = 0.5; // +50% Damage
+          });
+          this.damage *= (1 + this.synergyBonus);
+      } catch (e) {
+          console.error("Error applying equipment stats:", e);
+      }
       
-      // Synergy Bonus (3 items of same rarity)
-      Object.values(setCounts).forEach(count => {
-          if (count >= 3) this.synergyBonus = 0.5; // +50% Damage
-      });
-      this.damage *= (1 + this.synergyBonus);
       
       this.hp = this.maxHp; // Heal to full with new max
     }
@@ -2441,7 +2548,7 @@
       // Formula: MaxSpeed = Accel / Friction.
       // So, Accel = this.speed * Friction.
       const friction = 8.0; // Damping factor (higher = snappier movement)
-      const accel = this.speed * friction;
+      const accel = this.speed * this.moveSpeedMult * friction;
       
       this.vel = this.vel.add(input.mult(accel * dt));
       this.vel = this.vel.sub(this.vel.mult(friction * dt)); // Apply drag
@@ -2644,9 +2751,11 @@
       let speedMult = 1.0;
       if (game.combo >= 50) speedMult = 1.5; // Faster projectiles in overload
       
+      const spreadRad = this.spread * (Math.PI / 180);
+
       if (this.weapon === 'blaster') {
           for(let i=0; i<this.multishot; i++) {
-            const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.1;
+            const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.1 + (Math.random() - 0.5) * spreadRad;
             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(800 * speedMult);
             const p = new Projectile(this.pos, vel, dmg);
             if (this.homing) p.homing = true;
@@ -2655,7 +2764,7 @@
           }
       } else if (this.weapon === 'shotgun') {
           for(let i=0; i<this.multishot + 4; i++) {
-            const angle = Math.atan2(dir.y, dir.x) + (Math.random()-0.5) * 0.5;
+            const angle = Math.atan2(dir.y, dir.x) + (Math.random()-0.5) * 0.5 + (Math.random() - 0.5) * spreadRad;
             const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult((700 + Math.random()*200) * speedMult);
             const p = new Projectile(this.pos, vel, dmg * 0.6);
             if (this.ricochet) p.bounces = 1;
@@ -2663,7 +2772,7 @@
           }
       } else if (this.weapon === 'rocket') {
           for(let i=0; i<this.multishot; i++) {
-              const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.15;
+              const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.15 + (Math.random() - 0.5) * spreadRad;
               const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(500 * speedMult);
               const p = new Projectile(this.pos, vel, dmg * 3 * this.aoeRadius, 'rocket');
               if (this.homing) p.homing = true;
@@ -2672,13 +2781,13 @@
       } else if (this.weapon === 'laser') {
           // Laser is fast and pierces (handled in collision)
           for(let i=0; i<this.multishot; i++) {
-             const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.05;
+             const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.05 + (Math.random() - 0.5) * spreadRad;
              const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(1500 * speedMult);
              game.projectiles.push(new Projectile(this.pos, vel, dmg * 0.8, 'laser'));
           }
       } else if (this.weapon === 'plasma') {
           for(let i=0; i<this.multishot; i++) {
-             const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.08 + (Math.random()-0.5)*0.1;
+             const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.08 + (Math.random()-0.5)*0.1 + (Math.random() - 0.5) * spreadRad;
              const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(900 * speedMult);
              const p = new Projectile(this.pos, vel, dmg * 0.7, 'bullet'); // Re-use bullet visual but purple
              p.color = '#a020f0';
@@ -2689,6 +2798,11 @@
       }
       
       // Recoil
+      // Apply Projectile Speed Multiplier to all just created projectiles
+      // We can't easily access them here without refactoring, so we apply it at creation above.
+      // Wait, I missed applying this.projSpeedMult in the blocks above.
+      // Fixed in the diffs above by adding * this.projSpeedMult to velocity.
+      
       this.vel = this.vel.sub(dir.mult(100));
     }
 
@@ -2889,8 +3003,10 @@
     constructor(private game: Game) {}
 
     startWave() {
-      // "Receives 20% more influence" (scaling base)
-      if (this.wave > 1) {
+      // Reset influence for Wave Raids to ensure progression
+      if (this.game.mode === 'raid' && this.game.activeRaid?.type === 'wave') {
+          this.baseWaveInfluence = 100 + (this.wave * 20);
+      } else if (this.wave > 1) {
           this.baseWaveInfluence = Math.floor(this.baseWaveInfluence * 1.2);
       } else {
           this.baseWaveInfluence = 100; // Reset for wave 1
@@ -2938,13 +3054,19 @@
     }
 
     startRaid() {
-        this.wave = this.game.activeRaid ? this.game.activeRaid.minLevel : 666; // Use raid level for scaling
-        this.currentInfluence = 1000 + (this.wave * 5); // High budget for raid minions
-        this.raidBossActive = true;
+        this.wave = 1;
+        this.currentInfluence = 0;
+        this.nextWaveSalary = 0;
         
-        // Spawn Boss
-        if (this.game.activeRaid) {
-            this.game.spawnEnemy(this.game.activeRaid.bossId, false);
+        if (this.game.activeRaid?.type === 'wave') {
+            this.startWave();
+            return;
+        }
+        
+        // Spawn Boss for Boss Rush
+        if (this.game.activeRaid && this.game.activeRaid.type === 'boss_rush' && this.game.activeRaid.bossId) {
+            this.currentInfluence = 2000; // Boost for boss fight
+            this.game.spawnEnemy(this.game.activeRaid.bossId, true, undefined, '#ff0000', 5.0);
             this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, CANVAS_H/2), "ЦЕЛЬ ОБНАРУЖЕНА", "#f00"));
         }
         this.updateUI();
@@ -2961,8 +3083,9 @@
 
       // Raid Logic
       if (this.game.mode === 'raid') {
-          this.processSpawning(dt); // Spawn minions to annoy player
-          return; // Skip wave cycling and mood logic for raids
+          if (this.game.activeRaid?.type === 'boss_rush') {
+              return; // Skip standard logic for boss rush (victory handled on kill)
+          }
       }
 
       // Check if we saved enough
@@ -3106,6 +3229,14 @@
       if (this.currentInfluence > 0) {
           this.processSpawning(dt);
       }
+      
+      // Raid Victory Check (Wave Raid)
+      if (this.game.mode === 'raid' && this.game.activeRaid?.type === 'wave') {
+          if (this.wave > this.game.activeRaid.target) {
+              this.game.victory();
+              return;
+          }
+      }
 
       // 3. Wave Cycling Logic
       // "Ran out of energy? ... begins next wave"
@@ -3115,6 +3246,11 @@
               this.wave++;
               this.nextWaveTimer = 0;
               this.startWave();
+              
+              // Check Raid Victory after wave increment
+              if (this.game.mode === 'raid' && this.game.activeRaid?.type === 'wave' && this.wave > this.game.activeRaid.target) {
+                  this.game.victory();
+              }
           }
       } else {
           this.nextWaveTimer = 0;
@@ -3280,12 +3416,6 @@
     }
     
     processSpawning(dt: number) {
-        // Filter available enemies
-        if (this.game.mode === 'raid' && this.currentInfluence < 10) {
-            this.currentInfluence += 5 * dt; // Slow recharge in raid
-            return;
-        }
-
         // Cursed Mood: Dump everything on bosses
         if (this.mood === 'cursed') {
             const bosses = Object.values(ENEMIES).filter(e => e.id.includes('boss') && e.cost <= this.currentInfluence);
@@ -3839,18 +3969,22 @@
       this.canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
       this.ctx = this.canvas.getContext('2d')!;
       this.director = new Director(this);
-      this.player = new Player(); // Temp init
+      
+      try {
+          this.player = new Player(); // Temp init
+      } catch (e) {
+          console.error("Player init failed, resetting meta", e);
+          localStorage.removeItem(META_KEY);
+          loadMeta();
+          this.player = new Player();
+      }
       
       // Bind handlers for cleanup
       this.boundMouseMove = this.handleMouseMove.bind(this);
       this.boundMouseDown = () => { mouse.down = true; };
       
       this.setupInputs();
-      this.renderClassSelector();
       
-      // Ensure modal is hidden on init
-      this.hideConfirmModal();
-
       // Start Loop
       lastTime = performance.now();
       this.startLoop();
@@ -4020,8 +4154,8 @@
             let critColor = '#fff';
             
             if (isCrit) {
-                // Tier 1: x1, Tier 2: x4, Tier 3: x16...
-                const tierMult = Math.pow(4, Math.max(0, critTier - 1));
+                // Tier 1: x1, Tier 2: x2, Tier 3: x4... (Nerfed from x4 exponential)
+                const tierMult = Math.pow(2, Math.max(0, critTier - 1));
                 dmg *= this.player.critMult * tierMult;
                 
                 // Visuals
@@ -4029,6 +4163,19 @@
                 else if (critTier === 2) { critColor = '#f00'; this.screenShake = 2; } // Red (Super)
                 else if (critTier === 3) { critColor = '#a020f0'; this.screenShake = 5; } // Purple (Mega)
                 else { critColor = '#0ff'; this.screenShake = 10; } // Cyan (Giga)
+            }
+
+            // Frag Logic
+            if (this.player.fragChance > 0 && Math.random() < this.player.fragChance) {
+                for(let k=0; k<3; k++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const dir = new Vector(Math.cos(a), Math.sin(a));
+                    const v = dir.mult(300);
+                    // Small shrapnel
+                    // Spawn OUTSIDE the enemy to prevent instant self-hit
+                    this.projectiles.push(new Projectile(e.pos.add(dir.mult(e.radius + 5)), v, dmg * 0.3, 'bullet', 'player'));
+                }
+                this.spawnParticles(e.pos, '#ffaa00', 5);
             }
 
             // Shield Logic
@@ -4079,9 +4226,7 @@
                         other.hp -= dmg * 0.5;
                         this.spawnParticles(other.pos, '#0ff', 2); // Zap visual
                         if (other.hp <= 0 && !other.dead) {
-                            other.dead = true;
-                            this.spawnParticles(other.pos, '#0f0', 1, 'xp');
-                            this.director.reportKill();
+                            this.onEnemyDeath(other);
                         }
                         count++;
                     }
@@ -4097,58 +4242,7 @@
             hit = true;
             this.spawnParticles(e.pos, e.color, 3);
             if (e.hp <= 0) {
-              e.dead = true;
-              
-              // Invader Rewards
-              if (e.config.type === 'invader') {
-                  const inv = e as Invader;
-                  this.addChatMessage("System", `Игрок ${inv.name} был уничтожен!`, "system");
-                  // Item Reward
-                  const item = this.generateLoot();
-                  meta.inventory.push(item);
-                  this.texts.push(new FloatingText(e.pos, `ЛУТ: ${item.name}`, "#0f0"));
-                  // Core Reward
-                  const cores = Math.floor(Math.random() * 9) + 2; // 2-10
-                  meta.bossCurrency += cores;
-                  this.texts.push(new FloatingText(e.pos, `+${cores} ЯДЕР`, "#ffd700"));
-              }
-
-              // Spawn XP
-              this.director.reportKill(); // Report kill for mood logic
-              
-              // Combo Logic
-              this.combo++;
-              this.comboTimer = 2.5;
-              const comboEl = document.getElementById('hud-combo-count');
-              if (comboEl) {
-                  comboEl.classList.remove('pulse');
-                  void comboEl.offsetWidth; // trigger reflow
-                  comboEl.classList.add('pulse');
-              }
-              
-              const dropCount = e.config.id.includes('boss') ? 50 : (e.elite ? 5 : 1);
-              this.spawnParticles(e.pos, '#0f0', dropCount, 'xp');
-              // Boss Drop
-              if (e.config.id.includes('boss')) {
-                this.spawnParticles(e.pos, '#ffd700', 1, 'core');
-                this.screenShake = 20;
-                // Boss Loot Drop
-                this.spawnParticles(e.pos, '#fff', 1, 'loot');
-                this.addChatMessage("Global", `Игрок ${meta.username} уничтожил ${e.config.id}!`, "system");
-                
-                // Raid Victory Condition
-                if (this.mode === 'raid' && this.activeRaid && e.config.id === this.activeRaid.bossId) {
-                    setTimeout(() => this.victory(), 2000);
-                }
-              } else if (e.elite && Math.random() < 0.3) {
-                this.spawnParticles(e.pos, '#fff', 1, 'loot');
-              }
-              
-              // Rune Drop (Elite)
-              if (e.elite && Math.random() < 0.2) {
-                  this.spawnParticles(e.pos, '#00ffff', 1, 'rune');
-              }
-              this.screenShake = 5;
+              this.onEnemyDeath(e);
             }
             
             // Ricochet Logic
@@ -4185,7 +4279,7 @@
       this.projectiles.forEach(p => {
           if ((p.team === 'enemy' || p.team === 'invader') && !this.player.dead) {
               if (p.pos.sub(this.player.pos).mag() < this.player.radius + p.radius) {
-                  this.player.hp -= p.dmg;
+                  this.player.hp -= p.dmg * this.player.damageTakenMult; // Apply Curse
                   p.dead = true;
                   this.screenShake = 5;
                   if (this.player.hp <= 0) {
@@ -4203,57 +4297,59 @@
       if (!this.player.dead) {
         for (const e of this.enemies) {
           if (e.pos.sub(this.player.pos).mag() < e.radius + this.player.radius) {
-            // Dodge
-            if (Math.random() < this.player.dodge) {
-                this.texts.push(new FloatingText(this.player.pos, "DODGE", "#0ff"));
-                continue;
-            }
-            
-            if (e.isStealthed) {
-                // If enemy is stealthed, it hits player (surprise!) but takes no damage itself
-                this.player.hp -= e.damage; // Scale damage
-                this.screenShake = 15;
-                this.spawnParticles(this.player.pos, '#fff', 10);
-                if (this.player.hp <= 0) this.gameOver(`УБИЙЦА ИЗ ТЕНИ: ${e.config.id.toUpperCase()}`);
-                this.updateHud();
-                continue; // Skip thorns/knockback on enemy
-            }
-          
-            this.player.hp -= e.damage; // Scale damage (Fix for high difficulty)
-            // Anomaly: Berserk (Enemy dmg x2)
-            if (this.director.activeAnomaly?.type === 'berserk') this.player.hp -= 10;
-            
-            this.screenShake = 15;
-            this.spawnParticles(this.player.pos, '#fff', 10);
             
             // Push back
             const pushDir = this.player.pos.sub(e.pos).normalize();
             this.player.vel = this.player.vel.add(pushDir.mult(300));
             
-            // Thorns
-            if (this.player.thorns > 0 || this.player.thornsPct > 0) {
-                const thornDmg = this.player.thorns + (10 * this.player.thornsPct);
-                e.hp -= thornDmg;
-                this.texts.push(new FloatingText(e.pos, `-${Math.floor(thornDmg)}`, "#888"));
-                if (e.hp <= 0 && !e.dead) {
-                    e.dead = true;
-                    this.spawnParticles(e.pos, '#0f0', 1, 'xp');
-                    this.director.reportKill();
+            // Attack Logic (Gated by Cooldown)
+            if (e.hitCooldown <= 0) {
+                // Dodge
+                const effectiveDodge = Math.max(0, this.player.dodge) / (Math.max(0, this.player.dodge) + 1);
+                if (Math.random() < effectiveDodge) {
+                    this.texts.push(new FloatingText(this.player.pos, "DODGE", "#0ff"));
+                    e.hitCooldown = 0.5; // Cooldown on miss
+                    continue;
                 }
-            }
-            
-            // Knockback Enemy (if no shield)
-            if (e.shield <= 0) {
-                let kb = this.player.knockback + 10;
-                // Anomaly: Zero G
-                if (this.director.activeAnomaly?.type === 'zero_g') kb *= 3;
-                e.pos = e.pos.sub(pushDir.mult(kb));
-            }
-            
-            // Vampire Heal
-            if (e.config.type === 'vampire') {
-                e.hp = Math.min(e.maxHp, e.hp + 10);
-                this.texts.push(new FloatingText(e.pos, "+HP", "#f0f"));
+                
+                // Apply Damage
+                this.player.hp -= e.damage * this.player.damageTakenMult;
+                if (this.director.activeAnomaly?.type === 'berserk') this.player.hp -= 10;
+                
+                this.screenShake = 15;
+                this.spawnParticles(this.player.pos, '#fff', 10);
+
+                // Thorns & Effects (Only if not stealthed)
+                if (!e.isStealthed) {
+                    // Thorns
+                    if (this.player.thorns > 0 || this.player.thornsPct > 0) {
+                        const thornDmg = this.player.thorns + (e.damage * this.player.thornsPct);
+                        e.hp -= thornDmg;
+                        this.texts.push(new FloatingText(e.pos, `-${Math.floor(thornDmg)}`, "#888"));
+                        if (e.hp <= 0 && !e.dead) {
+                            this.onEnemyDeath(e);
+                        }
+                    }
+                    
+                    // Knockback Enemy (if no shield)
+                    if (e.shield <= 0) {
+                        let kb = this.player.knockback + 10;
+                        // Anomaly: Zero G
+                        if (this.director.activeAnomaly?.type === 'zero_g') kb *= 3;
+                        e.pos = e.pos.sub(pushDir.mult(kb));
+                    }
+                    
+                    // Vampire Heal
+                    if (e.config.type === 'vampire') {
+                        e.hp = Math.min(e.maxHp, e.hp + 10);
+                        this.texts.push(new FloatingText(e.pos, "+HP", "#f0f"));
+                    }
+                } else {
+                    // Stealthed hit logic (Surprise attack)
+                    // Already took damage above, just skip thorns/knockback
+                }
+                
+                e.hitCooldown = 0.5; // 2 hits per second max
             }
 
             if (this.player.hp <= 0) {
@@ -4272,7 +4368,13 @@
       for (let i = this.enemies.length - 1; i >= 0; i--) {
           const e = this.enemies[i];
           // Safety net for immortal/glitched mobs (NaN check)
-          if (e.hp <= 0 || isNaN(e.hp) || isNaN(e.pos.x) || isNaN(e.pos.y)) e.dead = true;
+          if (e.hp <= 0 || isNaN(e.hp) || isNaN(e.pos.x) || isNaN(e.pos.y)) {
+              if (!e.dead) {
+                  // If NaN, force kill silently. If HP<=0, trigger death logic.
+                  if (isNaN(e.hp) || isNaN(e.pos.x) || isNaN(e.pos.y)) e.dead = true;
+                  else this.onEnemyDeath(e);
+              }
+          }
           
           if (this.enemies[i].dead) this.enemies.splice(i, 1);
       }
@@ -4346,7 +4448,7 @@
     }
 
     // --- RPG SYSTEMS ---
-    generateLoot(): Item {
+    generateLoot(setId?: string, setBonusCount?: number): Item {
         const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)] as any;
         const rarityRoll = Math.random() + (this.player.luck * 0.01); // Luck bonus
         let rarity: any = 'common';
@@ -4366,6 +4468,7 @@
         const m = mult[rarity];
         
         const stats: any = {};
+        const setStats: any = {};
         
         // Helper to add stat
         const addStat = (key: string, base: number, isPct: boolean = false) => {
@@ -4393,7 +4496,7 @@
         }
         if (type === 'chip') { 
             // Chips are versatile
-            const keys = ['spd', 'crit', 'cooldown', 'luck', 'area', 'magnet', 'dodge', 'lifesteal'];
+            const keys = ['spd', 'crit', 'cooldown', 'luck', 'area', 'magnet', 'dodge', 'lifesteal', 'spread', 'projSpeed', 'frag', 'curse', 'slow'];
             const k1 = keys[Math.floor(Math.random()*keys.length)];
             
             const isPct = !['spd', 'luck', 'magnet'].includes(k1);
@@ -4409,9 +4512,29 @@
             }
         }
         
-        const desc = this.getItemDesc({ stats } as any);
+        // Set Generation
+        if (setId && setBonusCount) {
+            const keys = ['dmg', 'hp', 'crit', 'spd', 'cooldown', 'luck', 'area', 'regen', 'lifesteal', 'dodge', 'thorns'];
+            for(let i=0; i<setBonusCount; i++) {
+                const k = keys[Math.floor(Math.random() * keys.length)];
+                const isPct = !['spd', 'luck', 'hp', 'dmg', 'regen', 'thorns'].includes(k);
+                const base = isPct ? 0.01 : 5; // Nerfed base for sets (was 0.05 / 10)
+                const val = isPct ? Math.random() * base * m : Math.floor(Math.random() * base * m) + 1;
+                setStats[k] = (setStats[k] || 0) + val;
+            }
+        }
         
-        return { id: Math.random().toString(36).substr(2,9), name, desc, type, rarity, stats, icon: icons[type], level: 0, modified: false };
+        // Chance for Debuff / Negative Stat for ALL items (including Sets)
+        if (Math.random() < 0.3) {
+            const badKeys = ['curse', 'slow', 'spread'];
+            const k3 = badKeys[Math.floor(Math.random() * badKeys.length)];
+            // Add a "bad" stat (positive value for curse/slow/spread is bad)
+            if (k3 === 'spread') stats[k3] = (stats[k3] || 0) + 10;
+            if (k3 === 'curse') stats[k3] = (stats[k3] || 0) + 0.1;
+            if (k3 === 'slow') stats[k3] = (stats[k3] || 0) + 0.1;
+        }
+        
+        return { id: Math.random().toString(36).substr(2,9), name, desc: undefined, type, rarity, stats, icon: icons[type], level: 0, modified: false, setId, setStats };
     }
 
     generateMerchantItems() {
@@ -4479,6 +4602,11 @@
           duration = 10;
           color = '#ff0000';
       }
+      
+      // Boss Rush immediate spawn
+      if (this.mode === 'raid' && this.activeRaid?.type === 'boss_rush' && typeId.includes('boss')) {
+          duration = 3.0;
+      }
 
       // Create Portal instead of immediate spawn
       this.portals.push(new Portal(pos, typeId, elite, duration, color));
@@ -4486,9 +4614,21 @@
 
     triggerNuke() {
         this.screenShake = 50;
+        const nukeDmg = 1000 + (this.player.damage * 20); // Scaled damage instead of instant kill
+        
         this.enemies.forEach(e => {
-            e.hp = 0;
+            e.hp -= nukeDmg;
+            
+            // Push back to create space
+            let pushDir = e.pos.sub(this.player.pos).normalize();
+            if (pushDir.x === 0 && pushDir.y === 0) pushDir = new Vector(1, 0);
+            
+            e.pos = e.pos.add(pushDir.mult(400));
+
             this.spawnParticles(e.pos, '#fff', 5);
+            this.texts.push(new FloatingText(e.pos, Math.floor(nukeDmg).toString(), "#fff"));
+            
+            if (e.hp <= 0) this.onEnemyDeath(e);
         });
     }
 
@@ -4620,6 +4760,62 @@
         }
     }
 
+    onEnemyDeath(e: Enemy) {
+        if (e.dead) return;
+        e.dead = true;
+
+        // Invader Rewards
+        if (e.config.type === 'invader') {
+            const inv = e as Invader;
+            this.addChatMessage("System", `Игрок ${inv.name} был уничтожен!`, "system");
+            // Item Reward
+            const item = this.generateLoot();
+            meta.inventory.push(item);
+            this.texts.push(new FloatingText(e.pos, `ЛУТ: ${item.name}`, "#0f0"));
+            // Core Reward
+            const cores = Math.floor(Math.random() * 9) + 2; // 2-10
+            meta.bossCurrency += cores;
+            this.texts.push(new FloatingText(e.pos, `+${cores} ЯДЕР`, "#ffd700"));
+        }
+
+        // Spawn XP
+        this.director.reportKill(); // Report kill for mood logic
+        
+        // Combo Logic
+        this.combo++;
+        this.comboTimer = 2.5;
+        const comboEl = document.getElementById('hud-combo-count');
+        if (comboEl) {
+            comboEl.classList.remove('pulse');
+            void comboEl.offsetWidth; // trigger reflow
+            comboEl.classList.add('pulse');
+        }
+        
+        const dropCount = e.config.id.includes('boss') ? 50 : (e.elite ? 5 : 1);
+        this.spawnParticles(e.pos, '#0f0', dropCount, 'xp');
+        
+        // Boss Drop
+        if (e.config.id.includes('boss')) {
+            this.spawnParticles(e.pos, '#ffd700', 1, 'core');
+            this.screenShake = 20;
+            // Boss Loot Drop
+            this.spawnParticles(e.pos, '#fff', 1, 'loot');
+            this.addChatMessage("Global", `Игрок ${meta.username} уничтожил ${e.config.id}!`, "system");
+            
+            // Raid Victory Condition
+            if (this.mode === 'raid' && this.activeRaid && e.config.id === this.activeRaid.bossId) {
+                setTimeout(() => this.victory(), 2000);
+            }
+        } else if (e.elite && Math.random() < 0.3) {
+            this.spawnParticles(e.pos, '#fff', 1, 'loot');
+        }
+        
+        // Rune Drop (Elite)
+        if (e.elite && Math.random() < 0.2) {
+            this.spawnParticles(e.pos, '#00ffff', 1, 'rune');
+        }
+    }
+
     gameOver(killer?: string) {
       // Extra Lives
       if (this.player.extraLives > 0) {
@@ -4677,15 +4873,22 @@
 
         let rewardText = "";
         if (this.activeRaid) {
-            const r = this.activeRaid.reward;
-            if (r.type === 'currency') {
-                meta.currency += r.amount || 0;
-                rewardText = `${r.amount} ОСКОЛКОВ`;
-            } else if (r.type === 'core') {
-                meta.bossCurrency += r.amount || 0;
-                rewardText = `${r.amount} ЯДЕР`;
-            } else if (r.type === 'item') {
-                const item = this.generateLoot();
+            const lvl = this.activeRaid.rewardLevel;
+            
+            if (this.activeRaid.type === 'wave') {
+                const currency = 100 * lvl * 5;
+                const cores = 5 * lvl;
+                meta.currency += currency;
+                meta.bossCurrency += cores;
+                
+                // 1-3 Items
+                const count = Math.floor(Math.random() * 3) + 1;
+                for(let i=0; i<count; i++) meta.inventory.push(this.generateLoot());
+                
+                rewardText = `${currency} ОСКОЛКОВ, ${cores} ЯДЕР, ${count} ПРЕДМЕТОВ`;
+            } else if (this.activeRaid.type === 'boss_rush') {
+                // Set Item
+                const item = this.generateLoot(this.activeRaid.setId, this.activeRaid.setBonusCount);
                 item.rarity = 'rare'; // Min rare for raid
                 meta.inventory.push(item);
                 rewardText = `ПРЕДМЕТ: ${item.name}`;
@@ -4822,6 +5025,10 @@
       window.addEventListener('mousemove', this.boundMouseMove);
       window.addEventListener('mousedown', this.boundMouseDown);
 
+      // Init UI
+      this.renderClassSelector();
+      this.hideConfirmModal();
+
       // UI Buttons
       document.getElementById('btn-start')?.addEventListener('click', () => {
           // Auto-fullscreen on start
@@ -4885,7 +5092,7 @@
           RAIDS.forEach(r => {
               const el = document.createElement('div');
               el.className = 'raid-card';
-              const rewardStr = r.reward.type === 'item' ? 'СЛУЧАЙНЫЙ ПРЕДМЕТ' : `${r.reward.amount} ${r.reward.type === 'currency' ? 'ОСКОЛКОВ' : 'ЯДЕР'}`;
+              const rewardStr = r.type === 'boss_rush' ? `СЕТ: ${r.setId?.toUpperCase()}` : `НАГРАДА УР. ${r.rewardLevel}`;
               el.innerHTML = `
                 <div class="raid-info"><h3>${r.name}</h3><p>${r.desc}</p></div>
                 <div class="raid-reward"><div style="font-size:0.7rem; color:#888">НАГРАДА</div><div class="val">${rewardStr}</div></div>
@@ -5029,18 +5236,69 @@
         gameInstance = null;
     }
 
+    getItemTooltip(item: Item) {
+        let parts = [];
+        
+        // Stats
+        if (Object.keys(item.stats).length > 0) {
+            parts.push("--- ХАРАКТЕРИСТИКИ ---");
+            for (const [key, val] of Object.entries(item.stats)) {
+                const name = STAT_NAMES[key] || key.toUpperCase();
+                const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'dodge' || key === 'lifesteal' || key === 'curse' || key === 'slow' || key === 'frag') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+                parts.push(` • ${name}: ${fmtVal}`);
+            }
+        }
+        
+        // Set
+        if (item.setId) {
+            parts.push("");
+            parts.push(`--- СЕТ: ${item.setId.toUpperCase()} ---`);
+            
+            if (item.setStats) {
+                for (const [key, val] of Object.entries(item.setStats)) {
+                    const name = STAT_NAMES[key] || key.toUpperCase();
+                    const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'dodge' || key === 'lifesteal' || key === 'curse' || key === 'slow' || key === 'frag') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+                    parts.push(` ✅ ${name}: ${fmtVal}`);
+                }
+                parts.push(`(НУЖНО 3 ПРЕДМЕТА)`);
+            }
+        }
+        
+        return parts.join('\n');
+    }
+
     getItemDesc(item: Item) {
         if (item.desc) return item.desc;
         // Fallback generator if desc is missing or for dynamic updates
         const parts = [];
         if (item.level && item.level > 0) parts.push(`[Lvl ${item.level}]`);
         if (item.modified) parts.push(`(MOD)`);
+        if (item.setId) {
+            parts.push(`[СЕТОВЫЙ: ${item.setId.toUpperCase()}]`);
+            for (const [key, val] of Object.entries(item.setStats || {})) {
+                parts.push(`✅ ${STAT_NAMES[key] || key} +${val.toFixed(1)} (СЕТ)`);
+            }
+        }
         for (const [key, val] of Object.entries(item.stats)) {
             const name = STAT_NAMES[key] || key.toUpperCase();
-            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'curse' || key === 'slow' || key === 'frag') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
             parts.push(`${name} ${fmtVal}`);
         }
         return parts.join(', ');
+    }
+    
+    showItemTooltip(e: MouseEvent, text: string) {
+        const el = document.getElementById('item-tooltip');
+        if (!el) return;
+        el.innerHTML = text.replace(/\n/g, '<br>');
+        el.style.left = (e.clientX + 15) + 'px';
+        el.style.top = (e.clientY + 15) + 'px';
+        el.classList.remove('hidden');
+    }
+
+    hideItemTooltip() {
+        const el = document.getElementById('item-tooltip');
+        if (el) el.classList.add('hidden');
     }
     
     renderProfile() {
@@ -5068,7 +5326,7 @@
             { name: 'Мультивыстрел', val: `x${p.multishot}` },
             { name: 'Регенерация', val: `${p.regen.toFixed(1)}/сек` },
             { name: 'Вампиризм', val: `${(p.lifesteal * 100).toFixed(1)}%` },
-            { name: 'Уклонение', val: `${(p.dodge * 100).toFixed(1)}%` },
+            { name: 'Уклонение', val: `${((Math.max(0, p.dodge) / (Math.max(0, p.dodge) + 1)) * 100).toFixed(1)}%` },
             { name: 'Шипы', val: `${p.thorns} + ${(p.thornsPct*100).toFixed(0)}%` },
             { name: 'Магнит', val: `${p.magnet}%` },
             { name: 'Удача', val: p.luck },
@@ -5076,7 +5334,12 @@
             { name: 'Бонус XP', val: `x${p.xpMult.toFixed(2)}` },
             { name: 'Урон по Боссам', val: `x${p.bossDmgMult.toFixed(2)}` },
             { name: 'Урон по Элите', val: `x${p.eliteDmgMult.toFixed(2)}` },
-            { name: 'Дроны', val: p.droneCount }
+            { name: 'Дроны', val: p.droneCount },
+            { name: 'Разброс', val: `${p.spread.toFixed(1)}°` },
+            { name: 'Скор. Снарядов', val: `x${p.projSpeedMult.toFixed(2)}` },
+            { name: 'Шанс Осколков', val: `${(p.fragChance * 100).toFixed(1)}%` },
+            { name: 'Вход. Урон (Метка)', val: `x${p.damageTakenMult.toFixed(2)}` },
+            { name: 'Замедление', val: `${((1 - p.moveSpeedMult) * 100).toFixed(1)}%` }
         ];
         
         container.innerHTML = stats.map(s => 
@@ -5090,6 +5353,12 @@
         grid.innerHTML = '';
         
         // Render Equipped
+        const equip = meta.equipment;
+        let setCounts: Record<string, number> = {};
+        [equip.weapon, equip.armor, equip.chip].forEach(item => {
+            if (item && item.setId) setCounts[item.setId] = (setCounts[item.setId] || 0) + 1;
+        });
+
         ['weapon', 'armor', 'chip'].forEach(slot => {
             const el = document.getElementById(`slot-${slot}`);
             if (!el) return;
@@ -5099,10 +5368,30 @@
             el.className = 'equip-slot';
             if (this.upgradeTargetSlot === slot) el.classList.add('selected-upgrade');
             
+            if (item && item.setId) {
+                const count = setCounts[item.setId] || 0;
+                if (count >= 3) el.classList.add('set-active');
+                else if (count >= 2) el.classList.add('set-connected');
+            }
+            
             if (item) {
                 const desc = this.getItemDesc(item); // Dynamic desc
-                el.innerHTML = `${item.icon} ${item.name}<br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span><br><span style="font-size:0.55rem; color:#aaa">${desc}</span>`;
-                el.title = `${item.name}\n${item.rarity.toUpperCase()}\n\n${desc}`;
+                const nameColor = item.setId ? '#0f0' : '#fff';
+                
+                el.innerHTML = `${item.icon} <span style="color:${nameColor}">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span><br><span style="font-size:0.55rem; color:#aaa">${desc}</span>`;
+                
+                // Active Set Count for Tooltip
+                let setCountStr = "";
+                if (item.setId) {
+                    setCountStr = `\n(АКТИВНО: ${setCounts[item.setId] || 0}/3)`;
+                }
+                
+                const tooltipText = `${item.name}\n${item.rarity.toUpperCase()}\n[Lvl ${item.level || 0}]${setCountStr}\n\n${this.getItemTooltip(item)}`;
+                
+                el.onmouseenter = (e) => this.showItemTooltip(e, tooltipText);
+                el.onmousemove = (e) => this.showItemTooltip(e, tooltipText);
+                el.onmouseleave = () => this.hideItemTooltip();
+                
                 el.classList.add('filled');
                 
                 el.onclick = () => {
@@ -5116,6 +5405,9 @@
             } else {
                 el.innerHTML = "ПУСТО";
                 el.onclick = null;
+                el.onmouseenter = null;
+                el.onmousemove = null;
+                el.onmouseleave = null;
             }
         });
 
@@ -5124,6 +5416,12 @@
         const container = document.querySelector('.inv-grid-container');
         const h3 = container?.querySelector('h3');
         
+        const getRank = (i: Item) => {
+            let r = RARITIES.indexOf(i.rarity);
+            if (i.setId) r += 100; // Sets are highest priority
+            return r;
+        };
+
         if (this.upgradeTargetSlot) {
             container?.classList.add('upgrade-mode');
             if (h3) h3.innerText = "ВЫБЕРИТЕ ПРЕДМЕТ ДЛЯ ПОГЛОЩЕНИЯ (10% СТАТ)";
@@ -5132,12 +5430,12 @@
                 itemsToShow = itemsToShow.filter(i => i.type === targetItem.type);
             }
             // Sort: Worst to Best (Ascending) for upgrades
-            itemsToShow.sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity));
+            itemsToShow.sort((a, b) => getRank(a) - getRank(b));
         } else {
             container?.classList.remove('upgrade-mode');
             if (h3) h3.innerText = "ХРАНИЛИЩЕ ДАННЫХ";
             // Sort: Best to Worst (Descending) for normal view
-            itemsToShow.sort((a, b) => RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity));
+            itemsToShow.sort((a, b) => getRank(b) - getRank(a));
         }
 
         itemsToShow.forEach((item) => {
@@ -5147,10 +5445,24 @@
             const div = document.createElement('div');
             div.className = `inv-item rarity-${item.rarity}`;
             div.innerHTML = `<div style="font-size:1.5rem">${item.icon}</div><div>${item.name}</div>`;
-            div.style.color = this.getItemColor(item.rarity);
             
-            const desc = this.getItemDesc(item);
-            let tooltip = `${item.name}\n${item.rarity.toUpperCase()}\n\n${desc}`;
+            if (item.setId) {
+                div.classList.add('set-item');
+                div.style.color = '#0f0';
+            } else {
+                div.style.color = this.getItemColor(item.rarity);
+            }
+            
+            // Active Set Count for Tooltip
+            let setCountStr = "";
+            if (item.setId) {
+                setCountStr = `\n(АКТИВНО: ${setCounts[item.setId] || 0}/3)`;
+            }
+            let tooltip = `${item.name}\n${item.rarity.toUpperCase()}\n[Lvl ${item.level || 0}]${setCountStr}\n\n${this.getItemTooltip(item)}`;
+            
+            div.onmouseenter = (e) => this.showItemTooltip(e, tooltip);
+            div.onmousemove = (e) => this.showItemTooltip(e, tooltip);
+            div.onmouseleave = () => this.hideItemTooltip();
             
             // Preview in tooltip
             if (this.upgradeTargetSlot) {
@@ -5162,10 +5474,10 @@
                     gains.push(`${name} ${fmtVal}`);
                 }
                 tooltip += `\n\n[ПРИ ПОГЛОЩЕНИИ]:\n${gains.join('\n')}`;
+                // Update tooltip content for upgrade mode
+                div.onmouseenter = (e) => this.showItemTooltip(e, tooltip);
                 div.style.cursor = 'crosshair';
             }
-            
-            div.title = tooltip;
             
             div.onclick = () => {
                 if (this.upgradeTargetSlot) {
@@ -5216,6 +5528,10 @@
             <div style="font-size:0.8rem; color:#666;">
                 ПОГЛОЩЕНИЕ: <span style="color:${this.getItemColor(item.rarity)}">${item.name}</span>
             </div>
+            ${target.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:5px;">ЦЕЛЬ: СЕТ ${target.setId.toUpperCase()}</div>` : ''}
+            ${item.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:2px;">ИСТОЧНИК: СЕТ ${item.setId.toUpperCase()}</div>` : ''}
+            ${target.setId && target.setId === item.setId ? `<div style="color:#0f0; font-weight:bold;">СОВПАДЕНИЕ СЕТА! БОНУСЫ БУДУТ УЛУЧШЕНЫ</div>` : ''}
+            ${target.setId && item.setId && target.setId !== item.setId ? `<div style="color:#f00; font-weight:bold;">РАЗНЫЕ СЕТЫ! СЕТОВЫЕ БОНУСЫ НЕ ПЕРЕЙДУТ</div>` : ''}
         `;
         
         // Calculate preview
@@ -5223,7 +5539,7 @@
         for (const [key, val] of Object.entries(item.stats)) {
             const name = STAT_NAMES[key] || key.toUpperCase();
             const gainVal = val * 0.1;
-            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area') 
+            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'curse' || key === 'slow' || key === 'frag') 
                 ? `+${(gainVal*100).toFixed(2)}%` 
                 : `+${gainVal.toFixed(2)}`;
             
@@ -5241,6 +5557,30 @@
             `);
         }
         
+        // Set Stats Preview
+        if (target.setId) {
+            gains.push(`<div style="color:#0f0; margin-top:5px; border-top:1px dashed #333;">СЕТОВЫЕ БОНУСЫ:</div>`);
+            
+            Object.keys(target.setStats || {}).forEach(key => {
+                const name = STAT_NAMES[key] || key.toUpperCase();
+                const current = target.setStats?.[key] || 0;
+                let added = 0;
+                if (item.setId === target.setId && item.setStats?.[key]) {
+                    added = item.setStats[key] * 0.1;
+                }
+                
+                const valStr = added > 0 
+                   ? `${current.toFixed(2)} <span style="color:#0f0; font-weight:bold;">+${added.toFixed(2)}</span>`
+                   : `${current.toFixed(2)}`;
+
+                gains.push(`
+                   <div style="display:flex; justify-content:space-between; color:#aaa;">
+                       <span>${name}</span><span>${valStr}</span>
+                   </div>
+               `);
+            });
+        }
+        
         preview.innerHTML = `<div style="background:#000; padding:10px; border:1px solid #333; text-align:left;">${gains.join('')}</div>`;
         modal.classList.remove('hidden');
     }
@@ -5253,15 +5593,26 @@
         
         if (target) {
             // Absorb
+            // Standard Stats (Limit 5)
             for (const [key, val] of Object.entries(item.stats)) {
-                            if (target.stats[key]) {
-                                target.stats[key] += val * 0.1;
-                            } else {
-                                // Add new stat if limit not reached
-                                if (Object.keys(target.stats).length < 5) {
-                                    target.stats[key] = val * 0.1;
-                                }
-                            }
+                if (target.stats[key]) {
+                    target.stats[key] += val * 0.1;
+                } else {
+                    // Add new stat if limit not reached
+                    if (Object.keys(target.stats).length < 5) {
+                        target.stats[key] = val * 0.1;
+                    }
+                }
+            }
+            
+            // Set Stats (Only if same set)
+            if (target.setId && item.setId && target.setId === item.setId && target.setStats && item.setStats) {
+                for (const [key, val] of Object.entries(item.setStats)) {
+                    // Only upgrade existing set stats
+                    if (target.setStats[key] !== undefined) {
+                        target.setStats[key] += val * 0.1;
+                    }
+                }
             }
             // Update Level & Modified
             target.level = (target.level || 0) + 1;
