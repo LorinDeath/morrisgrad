@@ -184,6 +184,7 @@
           <div class="heat-bar-wrap">
             <div id="hud-heat-bar" class="heat-bar-fill"></div>
           </div>
+          <div id="hud-proj-count" style="font-size: 0.8rem; color: #0ff; margin-top: 2px;">x1 СНАРЯДОВ</div>
           <div class="skills-hud">
              <div id="skill-q" class="skill-box">Q <div id="cd-q" class="cd-overlay"></div></div>
              <div id="skill-e" class="skill-box">E <div id="cd-e" class="cd-overlay"></div></div>
@@ -225,6 +226,8 @@
         <div id="obs-face" class="obs-face">😐</div>
         <div class="obs-info">
           <div id="obs-mood" class="obs-mood">НЕЙТРАЛЬНЫЙ</div>
+          <div id="obs-thought" class="obs-stat" style="color: #fff; font-style: italic;">МЫСЛИ: -</div>
+          <div id="obs-goal" class="obs-stat">ЦЕЛЬ: -</div>
           <div id="obs-influence" class="obs-stat">ВЛИЯНИЕ: 0</div>
           <div id="obs-tactic" class="obs-stat">ТАКТИКА: -</div>
           <div id="obs-weather" class="obs-stat">ПОГОДА: ЯСНО</div>
@@ -235,6 +238,7 @@
       <!-- Game Over -->
       <div id="gameover-screen" class="screen hidden">
         <h1 class="red-glow">КРИТИЧЕСКИЙ СБОЙ</h1>
+        <p id="go-reason" style="color: #ff3333; margin-bottom: 20px; font-size: 1.2rem; text-transform: uppercase; text-shadow: 0 0 5px #f00;">ПРИЧИНА: НЕИЗВЕСТНО</p>
         <div class="final-stats">
           <p>СЧЕТ: <span id="go-score">0</span></p>
           <p>СОБРАНО ОСКОЛКОВ: <span id="go-currency" class="text-purple">0</span></p>
@@ -250,6 +254,19 @@
         </div>
 
         <button id="btn-menu" class="btn-secondary">В ГЛАВНОЕ МЕНЮ</button>
+      </div>
+
+      <!-- Confirmation Modal -->
+      <div id="modal-confirm" class="modal-overlay hidden">
+        <div class="modal-box">
+          <h3 class="text-gold">ПОГЛОЩЕНИЕ</h3>
+          <p id="modal-msg">Вы уверены?</p>
+          <div class="modal-preview" id="modal-preview"></div>
+          <div class="modal-buttons">
+            <button id="btn-modal-yes" class="btn-small" style="border-color:#0f0; color:#0f0;">ПОДТВЕРДИТЬ</button>
+            <button id="btn-modal-no" class="btn-small" style="border-color:#f00; color:#f00;">ОТМЕНА</button>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -358,7 +375,7 @@
     pointer-events: auto;
   }
 
-  .screen.hidden { opacity: 0; pointer-events: none; }
+  .screen.hidden { display: none !important; }
   .screen.active { opacity: 1; }
 
   /* Typography & Colors */
@@ -441,6 +458,7 @@
   .equip-slot { 
     width: 100%; height: 80px; border: 2px dashed #444; 
     display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
     font-size: 0.8rem; color: #666; cursor: pointer;
     background: rgba(0,0,0,0.5); text-align: center; padding: 5px;
   }
@@ -448,6 +466,11 @@
   .slot-label { font-size: 0.7rem; color: #888; margin-bottom: -5px; }
   
   .inv-grid-container { width: 400px; }
+  .inv-grid-container h3 { color: #0ff; font-size: 1rem; margin-bottom: 10px; }
+  .inv-grid-container.upgrade-mode h3 { color: #ffd700; animation: pulse 1s infinite; }
+  
+  .equip-slot.selected-upgrade { border-color: #0f0; box-shadow: 0 0 15px #0f0; animation: pulse 1s infinite; }
+  
   .inv-grid { 
     display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; 
     max-height: 300px; overflow-y: auto;
@@ -462,6 +485,26 @@
   .inv-item.rarity-rare { border-color: #00f; box-shadow: inset 0 0 10px #00f; }
   .inv-item.rarity-epic { border-color: #a020f0; box-shadow: inset 0 0 10px #a020f0; }
   .inv-item.rarity-legendary { border-color: #ffd700; box-shadow: inset 0 0 10px #ffd700; animation: glow 2s infinite; }
+  .inv-item.rarity-mythic { border-color: #ff3333; box-shadow: inset 0 0 10px #ff3333; animation: glow 1.5s infinite; }
+  .inv-item.rarity-divine { border-color: #00ffff; box-shadow: inset 0 0 15px #00ffff; animation: glow 1s infinite alternate; }
+  
+  /* Modal Styles */
+  .modal-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 200;
+    display: flex; justify-content: center; align-items: center;
+    pointer-events: auto;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: #111; border: 2px solid #ffd700; padding: 20px;
+    width: 320px; text-align: center;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+  }
+  .modal-preview { margin: 15px 0; color: #0f0; font-size: 0.85rem; line-height: 1.4; text-align: left; background: #000; padding: 10px; border: 1px solid #333; }
+  .modal-buttons { display: flex; justify-content: center; gap: 20px; margin-top: 15px; }
+
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
   
   /* Chat Styles */
   .hud-chat {
@@ -593,6 +636,7 @@
     z-index: 20;
     max-width: 250px;
   }
+  .tree-tooltip.hidden { display: none; }
   .tree-tooltip h4 { margin: 0 0 5px 0; color: #ffd700; }
   .tree-tooltip p { margin: 0; font-size: 0.8rem; color: #ccc; }
   .tree-tooltip .cost { margin-top: 5px; font-size: 0.7rem; color: #888; }
@@ -679,13 +723,21 @@
   .ingame-cards { display: flex; gap: 10px; }
   
   :global(.mini-card) {
-    width: 120px; height: 140px;
+    width: 100px; height: 120px;
     background: rgba(0,0,0,0.9);
     border: 1px solid #0ff;
     padding: 10px;
     display: flex; flex-direction: column; align-items: center; text-align: center;
     cursor: pointer;
     transition: transform 0.2s;
+    position: relative;
+  }
+  :global(.mini-card .key-hint) {
+    position: absolute; top: -8px; left: -8px;
+    background: #ffd700; color: #000;
+    width: 20px; height: 20px; border-radius: 50%;
+    font-weight: bold; font-size: 0.8rem;
+    display: flex; justify-content: center; align-items: center;
   }
   :global(.mini-card:hover) { transform: scale(1.1); background: #111; box-shadow: 0 0 15px rgba(0,255,255,0.3); }
   :global(.mini-card .icon) { font-size: 2rem; margin-bottom: 5px; }
@@ -758,8 +810,19 @@
 
   // --- RPG CONSTANTS ---
   const ITEM_TYPES = ['weapon', 'armor', 'chip'];
-  const RARITIES = ['common', 'rare', 'epic', 'legendary'];
+  const RARITIES = ['common', 'rare', 'epic', 'legendary', 'mythic', 'divine'];
   
+  const STAT_NAMES: Record<string, string> = {
+    hp: 'HP',
+    dmg: 'Урон',
+    spd: 'Скор.',
+    crit: 'Крит',
+    cooldown: 'КД',
+    area: 'Обл.',
+    regen: 'Реген',
+    luck: 'Удача'
+  };
+
   const CLASSES = [
     { id: 'marine', name: 'МОРПЕХ', desc: 'Сбалансированный боец', unlock: null },
     { id: 'engineer', name: 'ИНЖЕНЕР', desc: 'Старт с боевым дроном, -20% Урона', unlock: null },
@@ -792,6 +855,7 @@
     { id: 'r7', name: 'СЕКТОР 777', desc: 'Уровень угрозы: 777', bossId: 'boss2', reward: { type: 'currency', amount: 10000 }, minLevel: 777 },
     { id: 'r8', name: 'СЕКТОР 888', desc: 'Уровень угрозы: 888', bossId: 'boss3', reward: { type: 'core', amount: 20 }, minLevel: 888 },
     { id: 'r9', name: 'СЕКТОР 999', desc: 'Уровень угрозы: 999', bossId: 'boss5', reward: { type: 'item' }, minLevel: 999 },
+    { id: 'r10', name: 'СЕКТОР 000', desc: 'Уровень угрозы: ???', bossId: 'boss7', reward: { type: 'core', amount: 50 }, minLevel: 1000 },
   ];
 
   // --- CORE UTILS ---
@@ -801,6 +865,7 @@
     sub(v: Vector) { return new Vector(this.x - v.x, this.y - v.y); }
     mult(n: number) { return new Vector(this.x * n, this.y * n); }
     mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+    dot(v: Vector) { return this.x * v.x + this.y * v.y; }
     normalize() {
       const m = this.mag();
       return m === 0 ? new Vector(0, 0) : new Vector(this.x / m, this.y / m);
@@ -824,6 +889,11 @@
         if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
            e.preventDefault();
         }
+        if (gameInstance.activeUpgradeChoices.length > 0) {
+            if (e.code === 'Digit1') gameInstance.selectUpgrade(0);
+            if (e.code === 'Digit2') gameInstance.selectUpgrade(1);
+            if (e.code === 'Digit3') gameInstance.selectUpgrade(2);
+        }
       }
     });
     window.addEventListener('keyup', e => keys[e.code] = false);
@@ -840,9 +910,11 @@
     name: string;
     desc?: string;
     type: 'weapon' | 'armor' | 'chip';
-    rarity: 'common' | 'rare' | 'epic' | 'legendary';
-    stats: { hp?: number, dmg?: number, spd?: number, crit?: number };
+    rarity: 'common' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'divine';
+    stats: { [key: string]: number };
     icon: string;
+    level?: number;
+    modified?: boolean;
   }
 
   interface MetaData {
@@ -907,6 +979,12 @@
           equipment: loaded.equipment || { weapon: null, armor: null, chip: null },
           username: loaded.username || meta.username
         };
+        
+        // Migration: Fix Multishot ID shift
+        if (meta.skillTree.includes('node_0_18') && !meta.skillTree.includes('tree_multishot_1')) {
+            meta.skillTree = meta.skillTree.filter(id => id !== 'node_0_18');
+            meta.skillTree.push('tree_multishot_1');
+        }
     }
     updateMenuStats();
   }
@@ -1002,7 +1080,7 @@
       { name: "ПЛАЗМА", desc: "Разблок: Плазма-ган", cost: 40, type: 'unlock', id: 'w_plasma', effect: () => { if(!meta.unlocks.includes('w_plasma')) meta.unlocks.push('w_plasma'); } },
       { name: "УРОН IV", desc: "+25% Урона", cost: 45, type: 'stat', effect: p => p.damage *= 1.25 },
       { name: "КРИТ. МАСТЕР", desc: "+15% Шанс крита", cost: 45, type: 'passive', effect: p => p.critChance += 0.15 },
-      { name: "МУЛЬТИВЫСТРЕЛ I", desc: "+1 Снаряд", cost: 50, type: 'passive', effect: p => p.multishot += 1 }
+      { name: "МУЛЬТИВЫСТРЕЛ I", desc: "+1 Снаряд", cost: 50, type: 'passive', id: 'tree_multishot_1', effect: p => p.multishot += 1 }
     ],
     // 1: DEFENSE (Down-Right) - HP, Regen, Armor
     1: [
@@ -1446,7 +1524,7 @@
   class Projectile extends Entity {
     homing = false;
     bounces = 0;
-    constructor(pos: Vector, public vel: Vector, public dmg: number, public type: 'bullet'|'rocket'|'laser' = 'bullet', public team: 'player'|'enemy' = 'player') {
+    constructor(pos: Vector, public vel: Vector, public dmg: number, public type: 'bullet'|'rocket'|'laser' = 'bullet', public team: 'player'|'enemy'|'invader' = 'player', public owner?: Entity) {
       super(pos, type === 'rocket' ? 8 : 4, team === 'player' ? '#0ff' : '#f00');
     }
     update(dt: number) {
@@ -1474,7 +1552,7 @@
     hp: number;
     speed: number;
     cost: number;
-    type: 'melee' | 'ranged' | 'charger' | 'healer' | 'vampire' | 'exploder' | 'summoner' | 'stealth' | 'boss_summoner' | 'boss_sniper' | 'boss_tank' | 'boss_charger' | 'boss_hell';
+    type: 'melee' | 'ranged' | 'charger' | 'healer' | 'vampire' | 'exploder' | 'summoner' | 'stealth' | 'boss_summoner' | 'boss_sniper' | 'boss_tank' | 'boss_charger' | 'boss_hell' | 'boss_psycho' | 'invader';
     color: string;
     radius: number;
     unlockReq?: string;
@@ -1501,17 +1579,21 @@
     'charger_norm': { id: 'charger_norm', hp: 50, speed: 120, cost: 45, type: 'charger', color: '#cccccc', radius: 18, unlockReq: 'enemy_tank' },
     // Support
     'healer': { id: 'healer', hp: 40, speed: 130, cost: 35, type: 'healer', color: '#00ffff', radius: 15, unlockReq: 'enemy_healer' },
+    // Special Units
+    'ninja': { id: 'ninja', hp: 40, speed: 190, cost: 45, type: 'stealth', color: '#333333', radius: 15 },
     'vampire': { id: 'vampire', hp: 50, speed: 160, cost: 40, type: 'vampire', color: '#880088', radius: 16, unlockReq: 'enemy_vampire' },
     // Special
     'exploder': { id: 'exploder', hp: 20, speed: 220, cost: 25, type: 'exploder', color: '#ff8800', radius: 14, unlockReq: 'enemy_exploder' },
     'summoner': { id: 'summoner', hp: 40, speed: 80, cost: 60, type: 'summoner', color: '#aa00aa', radius: 20, unlockReq: 'enemy_summoner' },
     'ghost': { id: 'ghost', hp: 25, speed: 120, cost: 35, type: 'stealth', color: '#888888', radius: 15, unlockReq: 'enemy_ghost' },
     // Bosses
-    'boss1': { id: 'boss1', hp: 1500, speed: 60, cost: 500, type: 'boss_summoner', color: '#ff0000', radius: 60 },
-    'boss2': { id: 'boss2', hp: 1200, speed: 70, cost: 600, type: 'boss_sniper', color: '#aa00aa', radius: 55, unlockReq: 'boss2' },
-    'boss3': { id: 'boss3', hp: 3000, speed: 40, cost: 800, type: 'boss_tank', color: '#0000aa', radius: 70 },
-    'boss4': { id: 'boss4', hp: 1000, speed: 250, cost: 700, type: 'boss_charger', color: '#ffff00', radius: 50 },
-    'boss5': { id: 'boss5', hp: 5000, speed: 30, cost: 1000, type: 'boss_hell', color: '#000000', radius: 80 }
+    'boss1': { id: 'boss1', hp: 3000, speed: 70, cost: 500, type: 'boss_summoner', color: '#ff0000', radius: 70 },
+    'boss2': { id: 'boss2', hp: 2500, speed: 80, cost: 600, type: 'boss_sniper', color: '#aa00aa', radius: 65 },
+    'boss3': { id: 'boss3', hp: 6000, speed: 50, cost: 800, type: 'boss_tank', color: '#0000aa', radius: 80 },
+    'boss4': { id: 'boss4', hp: 2000, speed: 300, cost: 700, type: 'boss_charger', color: '#ffff00', radius: 60 },
+    'boss5': { id: 'boss5', hp: 10000, speed: 40, cost: 1000, type: 'boss_hell', color: '#000000', radius: 90 },
+    'boss6': { id: 'boss6', hp: 12000, speed: 60, cost: 1200, type: 'boss_summoner', color: '#550055', radius: 85 },
+    'boss7': { id: 'boss7', hp: 8000, speed: 180, cost: 1500, type: 'boss_psycho', color: '#ff00ff', radius: 75 }
   };
 
   class Enemy extends Entity {
@@ -1530,6 +1612,9 @@
     isStealthed = false;
     flankOffset = Math.random() * 100; // Unique movement pattern
     offScreenTimer = 0;
+    spawnFade = 0; // Opacity for spawn animation
+    
+    overrideDir: Vector | null = null; // For dodging/dashing
 
     constructor(pos: Vector, typeId: string, level: number, public elite: boolean) {
       super(pos, 15, '#f00');
@@ -1550,10 +1635,18 @@
     }
 
     update(dt: number) {
+      // Spawn Fade-in (0 to 1 in 0.3s)
+      if (this.spawnFade < 1) this.spawnFade = Math.min(1, this.spawnFade + dt / 0.3);
+
       if (!game.player.dead) {
         let dir = game.player.pos.sub(this.pos).normalize();
         let speed = this.config.speed;
         
+        // Override direction if dodging or controlled
+        if (this.overrideDir) {
+            dir = this.overrideDir;
+        }
+
         // Weather: Rain slows enemies
         if (game.director.weather === 'rain') speed *= 0.6;
         
@@ -1594,23 +1687,67 @@
         }
         
         // Charger Logic
-        if (this.config.type === 'charger') {
+        if (this.config.type === 'charger' || this.config.type === 'boss_psycho') {
             this.dashTimer -= dt;
+            
+            // 1. Dodge Logic (Smart AI)
+            if (!this.isDashing && this.dashTimer <= 0) {
+                for(const p of game.projectiles) {
+                    if (p.team === 'player' && p.pos.sub(this.pos).mag() < 150) {
+                        // Check if bullet is moving towards us
+                        const toMe = this.pos.sub(p.pos).normalize();
+                        if (p.vel.normalize().dot(toMe) > 0.7) {
+                            // DODGE!
+                            this.isDashing = true;
+                            this.dashTimer = 1.5; // Cooldown
+                            // Dash perpendicular to bullet
+                            const perp = new Vector(-p.vel.y, p.vel.x).normalize();
+                            // Pick side away from player or random
+                            const side = Math.random() > 0.5 ? 1 : -1;
+                            this.overrideDir = perp.mult(side);
+                            speed = 800; // Fast dodge
+                            game.texts.push(new FloatingText(this.pos, "DODGE!", "#0ff"));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Ram Attack
             if (this.dashTimer <= 0) {
                 this.isDashing = true;
-                this.dashTimer = 3.0;
-                speed = 600;
+                this.dashTimer = this.config.type === 'boss_psycho' ? 2.0 : 4.0;
+                speed = this.config.type === 'boss_psycho' ? 900 : 700;
+                this.overrideDir = game.player.pos.sub(this.pos).normalize(); // Lock direction
+                game.spawnParticles(this.pos, '#fff', 5);
             }
-            if (this.dashTimer > 2.5) speed = 600; // Dash for 0.5s
-            else this.isDashing = false;
             
-            // Charger Norm: Fire Trail (Mini Boss 4)
-            if (this.config.id === 'charger_norm' && this.isDashing) {
-                 if (Math.random() < 0.2) {
-                     // Leave a slow moving hazard
-                     const trailDir = dir.mult(-1);
-                     game.projectiles.push(new Projectile(this.pos, trailDir.mult(20), 5, 'bullet', 'enemy'));
-                 }
+            // Dash Duration
+            if (this.isDashing) {
+                if (this.dashTimer > (this.config.type === 'boss_psycho' ? 1.5 : 3.5)) {
+                    // Dashing phase (0.5s)
+                    speed = this.config.type === 'boss_psycho' ? 900 : 700;
+                } else {
+                    this.isDashing = false;
+                    this.overrideDir = null; // Release control
+                }
+            }
+
+            // 3. Stealth & Shooting (The "Scumbag" part)
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                if (Math.random() > 0.5) {
+                    // Stealth Mode
+                    this.isStealthed = true;
+                    this.specialTimer = 2.0; // Stay hidden
+                    game.texts.push(new FloatingText(this.pos, "STEALTH", "#888"));
+                } else {
+                    // Shoot
+                    this.isStealthed = false;
+                    this.specialTimer = 3.0;
+                    const shotDir = game.player.pos.sub(this.pos).normalize();
+                    game.projectiles.push(new Projectile(this.pos, shotDir.mult(400), this.damage, 'bullet', 'enemy'));
+                }
             }
         }
         
@@ -1632,11 +1769,12 @@
         if (this.config.type === 'exploder') {
             if (this.pos.sub(game.player.pos).mag() < this.radius + game.player.radius + 10) {
                  this.hp = 0; // Die
-                 game.player.hp -= 30;
+                 game.player.hp -= this.damage * 2; // Scale with difficulty
                  game.screenShake = 20;
                  game.spawnParticles(this.pos, '#ff8800', 20);
                  game.texts.push(new FloatingText(this.pos, "BOOM!", "#f00"));
                  this.dead = true; // Fix: Explicitly kill to prevent immortality
+                 if (game.player.hp <= 0) game.gameOver(`ВЗРЫВ: ${this.config.id.toUpperCase()}`);
             }
         }
         
@@ -1652,10 +1790,10 @@
                     game.spawnParticles(this.pos, '#fff', 20);
                     // AOE Damage
                     if (dist < 100) {
-                        game.player.hp -= 25;
+                        game.player.hp -= this.damage * 1.5;
                         game.texts.push(new FloatingText(game.player.pos, "CRUSH!", "#f00"));
                         game.updateHud();
-                        if (game.player.hp <= 0) game.gameOver();
+                        if (game.player.hp <= 0) game.gameOver(`РАЗДАВЛЕН: ${this.config.id.toUpperCase()}`);
                     }
                 }
             } else {
@@ -1746,8 +1884,36 @@
                 game.projectiles.push(new Projectile(this.pos, vel2, this.damage, 'bullet', 'enemy'));
             }
         }
+        
+        // Boss 7: Psycho Triangle
+        if (this.config.type === 'boss_psycho') {
+            // Bullet Hell Spiral
+            this.shootTimer -= dt;
+            if (this.shootTimer <= 0) {
+                this.shootTimer = 0.1;
+                const angle = performance.now() / 100;
+                const v = new Vector(Math.cos(angle), Math.sin(angle)).mult(400);
+                game.projectiles.push(new Projectile(this.pos, v, this.damage, 'bullet', 'enemy'));
+                const v2 = new Vector(Math.cos(angle+Math.PI), Math.sin(angle+Math.PI)).mult(400);
+                game.projectiles.push(new Projectile(this.pos, v2, this.damage, 'bullet', 'enemy'));
+            }
+            
+            // Random Teleport/Stealth
+            if (Math.random() < 0.01 && !this.isStealthed) {
+                this.isStealthed = true;
+                setTimeout(() => { this.isStealthed = false; }, 1500);
+                // Teleport near player
+                const offset = new Vector((Math.random()-0.5)*400, (Math.random()-0.5)*400);
+                this.pos = game.player.pos.add(offset);
+                game.spawnParticles(this.pos, '#ff00ff', 20);
+            }
+        }
 
         this.pos = this.pos.add(dir.mult(speed * dt));
+
+        // Boundary Check (Keep inside map)
+        this.pos.x = Math.max(this.radius, Math.min(CANVAS_W - this.radius, this.pos.x));
+        this.pos.y = Math.max(this.radius, Math.min(CANVAS_H - this.radius, this.pos.y));
       }
       
       // Separation (prevent stacking)
@@ -1765,9 +1931,7 @@
       ctx.save();
       ctx.translate(this.pos.x, this.pos.y);
       
-      if (this.isStealthed) {
-          ctx.globalAlpha = 0.2;
-      }
+      ctx.globalAlpha = this.spawnFade * (this.isStealthed ? 0.2 : 1.0);
 
       ctx.fillStyle = this.color;
       ctx.shadowBlur = 10; ctx.shadowColor = this.color;
@@ -1838,6 +2002,121 @@
     isVisible() {
         return this.pos.x >= 0 && this.pos.x <= CANVAS_W && this.pos.y >= 0 && this.pos.y <= CANVAS_H;
     }
+  }
+
+  class Invader extends Enemy {
+      name: string;
+      className: string;
+      abilityTimer = 0;
+      
+      constructor(pos: Vector, level: number) {
+          super(pos, 'basic_norm', level, true); // Base config
+          this.config = { ...this.config, type: 'invader', speed: 200 + Math.random() * 100, color: '#ff0000', id: 'invader' };
+          
+          this.name = CHAT_USERNAMES[Math.floor(Math.random() * CHAT_USERNAMES.length)];
+          const cls = CLASSES[Math.floor(Math.random() * CLASSES.length)];
+          this.className = cls.name;
+          
+          // Stats scaling (Max 2x player)
+          const p = game.player;
+          const mult = 0.5 + Math.random() * 1.5;
+          this.hp = p.maxHp * mult;
+          this.maxHp = this.hp;
+          this.damage = p.damage * mult;
+          this.shield = this.maxHp; // Invaders always have shield equal to HP
+          this.maxShield = this.maxHp;
+          this.radius = 20;
+      }
+      
+      override update(dt: number) {
+        // Spawn Fade-in
+        if (this.spawnFade < 1) this.spawnFade = Math.min(1, this.spawnFade + dt / 0.3);
+
+        // Find Target (Player or other Enemy)
+        let target: Entity = game.player;
+        let minD = this.pos.sub(game.player.pos).mag();
+        
+        // Check for other enemies to attack
+        for (const e of game.enemies) {
+            if (e === this) continue;
+            const d = this.pos.sub(e.pos).mag();
+            if (d < minD) {
+                minD = d;
+                target = e;
+            }
+        }
+        
+        const dist = minD;
+        const dir = target.pos.sub(this.pos).normalize();
+        
+        // Movement AI
+        let moveDir = dir;
+        if (dist < 150) moveDir = dir.mult(-1); // Kite
+        else if (dist > 300) moveDir = dir; // Chase
+        else moveDir = new Vector(dir.y, -dir.x); // Strafe
+        
+        // Bounds
+        this.pos = this.pos.add(moveDir.mult(this.config.speed * dt));
+        this.pos.x = Math.max(20, Math.min(CANVAS_W - 20, this.pos.x));
+        this.pos.y = Math.max(20, Math.min(CANVAS_H - 20, this.pos.y));
+        
+        // Shooting
+        this.shootTimer -= dt;
+        if (this.shootTimer <= 0 && dist < 600) {
+            this.shootTimer = 0.5; // Fire rate
+            const shotDir = target.pos.sub(this.pos).normalize();
+            // Add spread
+            const angle = Math.atan2(shotDir.y, shotDir.x) + (Math.random()-0.5)*0.2;
+            const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(500);
+            
+            game.projectiles.push(new Projectile(this.pos, vel, this.damage, 'bullet', 'invader', this));
+        }
+        
+        // Ability Usage
+        this.abilityTimer -= dt;
+        if (this.abilityTimer <= 0) {
+            this.abilityTimer = 5 + Math.random() * 10;
+            this.useAbility();
+        }
+
+        // Separation (prevent stacking)
+        game.enemies.forEach(other => {
+            if (other === this) return;
+            const d = other.pos.sub(this.pos).mag();
+            if (d < this.radius + other.radius) {
+                const push = this.pos.sub(other.pos).normalize().mult(50 * dt);
+                this.pos = this.pos.add(push);
+            }
+        });
+      }
+      
+      useAbility() {
+        game.texts.push(new FloatingText(this.pos, "ABILITY!", "#ff0"));
+        game.spawnParticles(this.pos, '#ff0', 10);
+        const roll = Math.random();
+        if (roll < 0.33) {
+            this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.3); // Heal
+        } else if (roll < 0.66) {
+            // Dash
+            const dir = new Vector(Math.random()-0.5, Math.random()-0.5).normalize();
+            this.pos = this.pos.add(dir.mult(200));
+        } else {
+            // AoE
+            game.projectiles.push(new Projectile(this.pos, new Vector(0,0), this.damage*2, 'rocket', 'invader', this));
+        }
+      }
+      
+      override draw(ctx: CanvasRenderingContext2D) {
+          super.draw(ctx);
+          // Draw Name
+          ctx.fillStyle = '#f00';
+          ctx.font = '10px Orbitron';
+          ctx.textAlign = 'center';
+          ctx.fillText(this.name, this.pos.x, this.pos.y - 30);
+          ctx.fillStyle = '#fff';
+          ctx.font = '8px Arial';
+          ctx.fillText(`[${this.className}]`, this.pos.x, this.pos.y - 40);
+      }
   }
 
   // --- NEW ENTITIES ---
@@ -2068,6 +2347,10 @@
               if (item.stats.dmg) this.damage += item.stats.dmg;
               if (item.stats.spd) this.speed += item.stats.spd;
               if (item.stats.crit) this.critChance += item.stats.crit;
+              if (item.stats.cooldown) this.cooldownMult *= (1 - item.stats.cooldown);
+              if (item.stats.area) this.aoeRadius += item.stats.area;
+              if (item.stats.regen) this.regen += item.stats.regen;
+              if (item.stats.luck) this.luck += item.stats.luck;
               
               // Synergy Check
               setCounts[item.rarity] = (setCounts[item.rarity] || 0) + 1;
@@ -2094,10 +2377,16 @@
       
       if (input.mag() > 0) input = input.normalize();
       
-      // Smooth acceleration
-      this.vel = this.vel.add(input.mult(2000 * dt)); // Acceleration
-      this.vel = this.vel.mult(0.90); // Friction
+      // Physics: Acceleration & Friction based on Stats
+      // We want MaxSpeed to equal this.speed.
+      // Formula: MaxSpeed = Accel / Friction.
+      // So, Accel = this.speed * Friction.
+      const friction = 8.0; // Damping factor (higher = snappier movement)
+      const accel = this.speed * friction;
       
+      this.vel = this.vel.add(input.mult(accel * dt));
+      this.vel = this.vel.sub(this.vel.mult(friction * dt)); // Apply drag
+
       // Weather: Rain slows player
       if (game.director.weather === 'rain') this.vel = this.vel.mult(0.85); // More slippery/slow
       
@@ -2314,10 +2603,13 @@
             game.projectiles.push(p);
           }
       } else if (this.weapon === 'rocket') {
-          const vel = dir.mult(500 * speedMult);
-          const p = new Projectile(this.pos, vel, dmg * 3 * this.aoeRadius, 'rocket');
-          if (this.homing) p.homing = true;
-          game.projectiles.push(p);
+          for(let i=0; i<this.multishot; i++) {
+              const angle = Math.atan2(dir.y, dir.x) + (i - (this.multishot-1)/2) * 0.15;
+              const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(500 * speedMult);
+              const p = new Projectile(this.pos, vel, dmg * 3 * this.aoeRadius, 'rocket');
+              if (this.homing) p.homing = true;
+              game.projectiles.push(p);
+          }
       } else if (this.weapon === 'laser') {
           // Laser is fast and pierces (handled in collision)
           for(let i=0; i<this.multishot; i++) {
@@ -2440,6 +2732,58 @@
     }
   }
 
+  // --- PORTAL SYSTEM ---
+  class Portal extends Entity {
+      maxTime: number;
+      timer: number;
+      isBoss: boolean;
+
+      constructor(pos: Vector, public enemyId: string, public elite: boolean, duration: number, color: string) {
+          super(pos, 5, color);
+          this.maxTime = duration;
+          this.timer = duration;
+          this.isBoss = enemyId.includes('boss');
+      }
+
+      update(dt: number) {
+          // Boss Logic: Speed up if map is clear and observer is broke
+          if (this.isBoss) {
+              if (game.enemies.length === 0) {
+                  this.timer -= dt * 10; // Speed up significantly if map is clear
+              }
+          }
+
+          this.timer -= dt;
+          if (this.timer <= 0) {
+              this.dead = true;
+              // Spawn the actual enemy
+              if (this.enemyId === 'invader') {
+                  const inv = new Invader(this.pos, game.director.wave);
+                  game.enemies.push(inv);
+              } else {
+                  const e = new Enemy(this.pos, this.enemyId, game.director.wave, this.elite);
+                  game.enemies.push(e);
+              }
+          }
+      }
+
+      draw(ctx: CanvasRenderingContext2D) {
+          const progress = 1 - (Math.max(0, this.timer) / this.maxTime);
+          const size = 10 + (30 * progress);
+          ctx.strokeStyle = this.color;
+          ctx.lineWidth = 3 + Math.sin(performance.now() / 100) * 1;
+          ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, size, 0, Math.PI*2); ctx.stroke();
+          
+          // Rotating inner ring
+          ctx.save();
+          ctx.translate(this.pos.x, this.pos.y);
+          ctx.rotate(performance.now() / 200);
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath(); ctx.arc(0, 0, size * 0.7, 0, Math.PI*2); ctx.stroke();
+          ctx.restore();
+      }
+  }
+
   // --- OBSERVER ---
   // --- DIRECTOR (OBSERVER) SYSTEM ---
   class Director {
@@ -2448,9 +2792,10 @@
     // Resource System
     currentInfluence = 0;
     baseWaveInfluence = 100; // Starting budget
+    nextWaveSalary = 0; // Accumulates for next wave
     
     // Mood System
-    mood: 'kind' | 'neutral' | 'angry' | 'insane' = 'neutral';
+    mood: 'kind' | 'neutral' | 'angry' | 'insane' | 'cursed' = 'neutral';
     moodTimer = 0;
     moodResetTimer = 0; // Timer to reset mood back to kind
     
@@ -2465,7 +2810,9 @@
     spawnTickTimer = 0;
     formationCooldown = 0;
     
-    tactic: 'neutral' | 'swarm' | 'siege' | 'blitz' | 'ambush' | 'encircle' = 'neutral';
+    tactic: 'neutral' | 'swarm' | 'siege' | 'blitz' | 'ambush' | 'encircle' | 'pincer' | 'cross' | 'box' | 'column' | 'vanguard' | 'flank' | 'grid' | 'boss_rush' | 'elite_squad' | 'sniper_line' = 'neutral';
+    isSaving = false; // Flag to skip turn and save influence
+    thought = "НАБЛЮДАЮ...";
     tacticTimer = 0;
     analyzeTimer = 0;
     playerPositions: Vector[] = [];
@@ -2473,6 +2820,7 @@
     activeQuest: { type: 'kill'|'collect'|'combo'|'survive', desc: string, target: number, current: number, reward: number } | null = null;
     weather: 'clear' | 'rain' | 'wind' | 'fog' = 'clear';
     weatherTimer = 0;
+    invasionTimer = 0;
     
     activeAnomaly: { type: string, name: string, duration: number } | null = null;
     anomalyCooldown = 30; // First anomaly after 30s
@@ -2490,17 +2838,28 @@
       }
       
       // Refill
-      this.currentInfluence += this.baseWaveInfluence;
+      this.currentInfluence += this.baseWaveInfluence + this.nextWaveSalary;
+      this.nextWaveSalary = 0;
       this.bossSpawnedThisWave = false;
+      
+      // MANDATORY SPAWN: 5 Mobs at start of wave
+      const basics = Object.values(ENEMIES).filter(e => e.cost <= 25 && !e.id.includes('boss') && !e.id.includes('invader'));
+      if (basics.length > 0) {
+          for(let i=0; i<5; i++) {
+              const mob = basics[Math.floor(Math.random() * basics.length)];
+              this.payAndSpawn(mob, undefined);
+          }
+      }
       
       // Boss Wave Check (Every 5th wave) - Free Spawn
       if (this.wave % 5 === 0) {
-          const bossId = `boss${Math.min(5, Math.ceil(this.wave/5))}`;
-          this.game.spawnEnemy(bossId, false);
+          const bossId = `boss${Math.min(7, Math.ceil(this.wave/5))}`; // Updated to include boss7
+          this.game.spawnEnemy(bossId, false, undefined, undefined, 5.0); // Fixed 5s spawn for guaranteed boss
           this.bossSpawnedThisWave = true;
       }
       
       this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, CANVAS_H/2), `ВОЛНА ${this.wave}`, "#fff"));
+      this.thought = "НОВАЯ ВОЛНА...";
       this.updateUI();
     }
 
@@ -2546,6 +2905,18 @@
           this.processSpawning(dt); // Spawn minions to annoy player
           return; // Skip wave cycling and mood logic for raids
       }
+
+      // Check if we saved enough
+      if (this.isSaving) {
+          const target = this.tactic === 'boss_rush' ? 800 : 400;
+          if (this.currentInfluence >= target) {
+              this.isSaving = false;
+              this.game.texts.push(new FloatingText(this.game.player.pos, "ПОЛНАЯ МОЩНОСТЬ!", "#f00"));
+              this.thought = "АТАКА!";
+              this.game.screenShake = 20;
+              this.formationCooldown = 0; // Attack immediately
+          }
+      }
       
       // Tactic Timer
       if (this.tacticTimer > 0) {
@@ -2558,6 +2929,7 @@
           this.analyzeTimer = 0;
           this.playerPositions.push(this.game.player.pos);
           if (this.playerPositions.length > 5) this.playerPositions.shift(); // Keep last 5 seconds
+          this.thought = "АНАЛИЗ ПОВЕДЕНИЯ...";
           this.analyzePlayer();
       }
 
@@ -2571,7 +2943,9 @@
       const burstCount = this.recentKills.length;
 
       // Determine target mood based on burst
-      if (burstCount >= 21) {
+      if (burstCount >= 50) {
+          this.setMood('cursed', 10.0);
+      } else if (burstCount >= 21) {
           this.setMood('insane', 5.0); // Stay insane for 5s
       } else if (burstCount >= 11) {
           this.setMood('angry', 4.0);
@@ -2633,6 +3007,19 @@
           }
       }
 
+      // Invasion Logic (1% chance every 5s)
+      this.invasionTimer += dt;
+      if (this.invasionTimer >= 5.0) {
+          this.invasionTimer = 0;
+          if (Math.random() < 0.005) {
+              const count = Math.floor(Math.random() * 4) + 1;
+              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 100), "ВТОРЖЕНИЕ ИГРОКОВ!", "#f00"));
+              for(let i=0; i<count; i++) {
+                  this.game.spawnEnemy('invader', true, undefined, '#ff0000');
+              }
+          }
+      }
+
       // Anomaly Logic
       // Note: Raid mode returns early above, so we are always in endless mode here.
       this.anomalyCooldown -= dt;
@@ -2663,7 +3050,7 @@
 
       // 3. Wave Cycling Logic
       // "Ran out of energy? ... begins next wave"
-      if (this.currentInfluence < 10 && !this.game.enemies.some(e => e.isVisible())) { // Wait for clear (visible only)
+      if ((this.currentInfluence < 10 || this.isSaving) && !this.game.enemies.some(e => e.isVisible() && e.config.type !== 'invader')) { // Wait for clear (ignoring invaders)
           this.nextWaveTimer += dt;
           if (this.nextWaveTimer > 2.0) { // 2 seconds delay between waves
               this.wave++;
@@ -2692,24 +3079,63 @@
         let newTactic: any = 'neutral';
         
         if (avgSpeed < 50) {
-            newTactic = Math.random() > 0.5 ? 'siege' : 'encircle'; // Camper -> Artillery or Encircle
+            // Camper: Surround or bombard
+            const opts = ['siege', 'encircle', 'box', 'grid'];
+            newTactic = opts[Math.floor(Math.random() * opts.length)];
         } else if (avgSpeed > 250) {
-            newTactic = Math.random() > 0.5 ? 'blitz' : 'ambush'; // Runner -> Intercept or Ambush
+            // Runner: Intercept or Flank
+            const opts = ['blitz', 'ambush', 'flank', 'pincer', 'vanguard'];
+            newTactic = opts[Math.floor(Math.random() * opts.length)];
         } else if (this.recentKills.length > 15) {
-            newTactic = 'swarm'; // High DPS -> Overwhelm
+            // High DPS: Overwhelm or Spread out
+            const opts = ['swarm', 'cross', 'column'];
+            newTactic = opts[Math.floor(Math.random() * opts.length)];
+        } else if (avgSpeed < 150 && Math.random() < 0.3) {
+            // Moderate speed -> Snipers
+            newTactic = 'sniper_line';
+        } else if (this.wave >= 5 && Math.random() < 0.15) {
+            // Advanced Tactics
+            newTactic = 'boss_rush';
+        } else if (this.wave >= 3 && Math.random() < 0.2) {
+            // Elite Squad
+            newTactic = 'elite_squad';
         } else {
             // Random variation even in neutral
             const roll = Math.random();
-            if (roll < 0.15) newTactic = 'encircle';
-            else if (roll < 0.3) newTactic = 'ambush';
+            if (roll < 0.1) newTactic = 'pincer';
+            else if (roll < 0.2) newTactic = 'cross';
+            else if (roll < 0.3) newTactic = 'vanguard';
             else newTactic = 'neutral';
         }
         
+        // --- ADAPTATION: Don't pick tactics we can't afford anytime soon ---
+        let cost = this.getTacticCost(newTactic);
+        // If cost is significantly higher than what we have (e.g. > 300 deficit), 
+        // and we aren't in a "rich" mood (Insane/Cursed), downgrade.
+        if (cost > this.currentInfluence + 300 && this.mood !== 'insane' && this.mood !== 'cursed') {
+            // Try to pick a cheaper alternative
+            if (newTactic === 'boss_rush') newTactic = 'elite_squad';
+            else if (newTactic === 'elite_squad') newTactic = 'swarm';
+            else if (['siege', 'blitz', 'ambush'].includes(newTactic)) newTactic = 'neutral';
+        }
+
         if (this.tactic !== newTactic && newTactic !== 'neutral') {
             this.game.texts.push(new FloatingText(this.game.player.pos, `ТАКТИКА: ${newTactic.toUpperCase()}`, "#ff00ff"));
         }
         this.tactic = newTactic;
         this.tacticTimer = 15 + Math.random() * 15; // Tactic lasts 15-30 seconds
+        
+        // Check Saving
+        cost = this.getTacticCost(this.tactic);
+        this.isSaving = false;
+        
+        // Only save if we are reasonably close (e.g. have 50% of funds) or it's cheap enough to wait
+        // If we are very poor, just play neutral/harass instead of saving for a long time.
+        if (this.currentInfluence < cost && this.currentInfluence > cost * 0.5) {
+            this.isSaving = true;
+            this.thought = "КОПЛЮ РЕСУРСЫ...";
+            this.game.texts.push(new FloatingText(this.game.player.pos, "НАКОПЛЕНИЕ СИЛ...", "#f00"));
+        }
     }
     
     triggerAnomaly() {
@@ -2724,10 +3150,19 @@
         this.game.screenShake = 20;
     }
     
-    setMood(newMood: 'kind' | 'neutral' | 'angry' | 'insane', duration: number) {
-      const tiers = { kind: 0, neutral: 1, angry: 2, insane: 3 };
+    setMood(newMood: 'kind' | 'neutral' | 'angry' | 'insane' | 'cursed', duration: number) {
+      const tiers = { kind: 0, neutral: 1, angry: 2, insane: 3, cursed: 4 };
       // Only upgrade mood or refresh timer if same tier
       if (tiers[newMood] >= tiers[this.mood]) {
+          // Cursed Trigger Effect
+          if (newMood === 'cursed' && this.mood !== 'cursed') {
+              const penalty = this.baseWaveInfluence * 3;
+              this.game.score -= penalty;
+              this.currentInfluence += penalty;
+              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, CANVAS_H/2), "НАКАЗАНИЕ!", "#f00"));
+              this.game.screenShake = 30;
+          }
+          
           this.mood = newMood;
           this.moodResetTimer = duration;
           this.updateUI();
@@ -2735,25 +3170,51 @@
     }
     
     distributeInfluence() {
-      // "Mood gives/takes influence % of points received in this wave"
-      // This runs every 5 seconds
+      // BUDGET CALCULATION (Every 5 seconds)
       
-      const tiers = { kind: 0, neutral: 1, angry: 2, insane: 3 };
+      // 1. Base Income (25% of wave base influence)
+      const baseIncome = Math.floor(this.baseWaveInfluence * 0.25);
       
-      // "Mood gives/takes influence % of points received in this wave"
-      let moodMult = 0;
-      if (this.mood === 'kind') moodMult = -0.05;    // Lose 5%
-      if (this.mood === 'neutral') moodMult = 0;
-      if (this.mood === 'angry') moodMult = 0.80;    // Gain 80%
-      if (this.mood === 'insane') moodMult = 1.50;   // Gain 150%
+      // 2. Mood Multiplier
+      let moodMult = 1.0;
+      if (this.mood === 'kind') moodMult = 0.5;      // 50% Income
+      if (this.mood === 'neutral') moodMult = 1.0;   // 100% Income
+      if (this.mood === 'angry') moodMult = 1.5;     // 150% Income
+      if (this.mood === 'insane') moodMult = 2.0;    // 200% Income
+      if (this.mood === 'cursed') moodMult = 3.0;    // 300% Income
       
-      const moodBonus = Math.floor(this.baseWaveInfluence * moodMult);
-      this.currentInfluence += moodBonus;
-      if (this.currentInfluence < 0 || isNaN(this.currentInfluence)) this.currentInfluence = 0; // Prevent negative/NaN influence
+      const totalIncome = Math.floor(baseIncome * moodMult);
+      this.nextWaveSalary += totalIncome;
       
-      if (moodBonus !== 0) {
-         const color = moodBonus > 0 ? "#f00" : "#0f0";
-         this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 120), `MOOD: ${moodBonus}`, color));
+      // Visuals
+      const color = totalIncome >= baseIncome ? "#f00" : "#0f0";
+      this.thought = `БЮДЖЕТ: +${totalIncome}`;
+      this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 120), `ЗАРПЛАТА: +${totalIncome}`, color));
+
+      // --- AI DEVELOPMENT & SAVING CHECK ---
+      
+      // 1. React to losing points in Kind mood
+      // If income is too low to sustain operations
+      if (this.mood === 'kind' && totalIncome < 20) {
+          if (this.currentInfluence < 50) {
+              // Not enough resources to be kind
+              this.setMood('neutral', 15.0);
+              this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, 150), "ДОБРОТА НЕ ОКУПАЕТСЯ...", "#fff"));
+          }
+      }
+
+      // 2. Check if Saving is viable (Character Check)
+      if (this.isSaving) {
+          const target = this.getTacticCost(this.tactic);
+          // If we are far from target and income is low/negative
+          if (this.currentInfluence + this.nextWaveSalary < target * 0.8) {
+              if (totalIncome <= 0 || (target - (this.currentInfluence + this.nextWaveSalary)) / Math.max(1, totalIncome) > 4) { 
+                  this.isSaving = false;
+                  this.tactic = 'neutral';
+                  this.game.texts.push(new FloatingText(this.game.player.pos, "СЛИШКОМ ДОРОГО...", "#888"));
+                  this.thought = "ОТМЕНА ПЛАНА...";
+              }
+          }
       }
       
       this.updateUI();
@@ -2766,15 +3227,49 @@
             return;
         }
 
+        // Cursed Mood: Dump everything on bosses
+        if (this.mood === 'cursed') {
+            const bosses = Object.values(ENEMIES).filter(e => e.id.includes('boss') && e.cost <= this.currentInfluence);
+            if (bosses.length > 0) {
+                const boss = bosses[Math.floor(Math.random() * bosses.length)];
+                this.payAndSpawn(boss, undefined, '#ff0000');
+                return;
+            } else {
+                // If can't afford boss, spawn elites
+                const elites = Object.values(ENEMIES).filter(e => e.cost * 2 <= this.currentInfluence);
+                if (elites.length > 0) {
+                    this.payAndSpawn(elites[Math.floor(Math.random() * elites.length)], undefined, '#ff0000');
+                    return;
+                }
+            }
+        }
+
+        // If saving for a big attack, stop spawning to end wave faster
+        if (this.isSaving) {
+            this.thought = "ПРОПУСКАЮ ХОД (КОПЛЮ)...";
+            return;
+        }
+
         this.spawnTickTimer += dt;
         if (this.spawnTickTimer < 0.5) return; // Tick every 0.5s
         this.spawnTickTimer = 0;
+        
+        const isTactical = this.tactic !== 'neutral';
 
         // 0. Formation Attack (Smart Move)
         this.formationCooldown -= dt;
-        if (this.formationCooldown <= 0 && this.currentInfluence > 150) {
+        
+        // AGGRESSION: If rich, cooldown faster to spend resources immediately
+        if (this.currentInfluence > 600) {
+            this.formationCooldown -= dt * 2; // 3x speed total
+        }
+
+        const formationThreshold = isTactical ? 50 : 150; // Lower threshold if tactical to execute faster
+        
+        if (this.formationCooldown <= 0 && this.currentInfluence > formationThreshold) {
             if (this.trySpawnFormation()) {
-                this.formationCooldown = 8 + Math.random() * 5; // Cooldown 8-13s
+                this.formationCooldown = isTactical ? 5 + Math.random() * 3 : 8 + Math.random() * 5; // Faster cooldown if tactical
+                this.thought = "РЕАЛИЗАЦИЯ ТАКТИКИ...";
                 return; // Skip regular spawn to save influence for next big move
             }
         }
@@ -2787,6 +3282,8 @@
         if (this.mood === 'insane') idleChance = 0.05;
 
         if (Math.random() < idleChance) return;
+        
+        this.thought = "БЕСПОКОЯЩИЙ ОГОНЬ...";
 
         // Determine batch size (1-10) based on mood
         let maxBatch = 2;
@@ -2815,9 +3312,15 @@
         if (isSurge) count = 15; // Override
         
         // Spending Cap: Don't spend more than ~15% of current influence per tick
-        // This ensures the wave lasts longer and intensity scales with budget.
         const startInfluence = this.currentInfluence;
-        const spendCap = Math.max(20, this.currentInfluence * 0.15);
+        // Reduced to 5% to prevent rapid draining
+        const spendCap = Math.max(20, this.currentInfluence * 0.05);
+
+        // Reserve funds for tactic if active
+        let reserve = 0;
+        if (isTactical) reserve = 300;
+        // Allow spending if we are above reserve OR if the spend is very small (harassment)
+        const canSpend = this.currentInfluence > reserve;
 
         for(let i=0; i<count; i++) {
              // If not a surge AND not forcing expensive, respect the spending cap
@@ -2836,7 +3339,7 @@
                 return e.cost <= this.currentInfluence;
             });
 
-            if (available.length === 0) {
+            if (available.length === 0 || (!canSpend && !forceExpensive)) {
                 // If we have influence but can't afford anything (and influence is low-ish), 
                 // dump it to 0 to trigger next wave.
                 if (this.currentInfluence < 50) this.currentInfluence = 0;
@@ -2881,7 +3384,7 @@
     }
     
     trySpawnFormation() {
-        let type: 'circle' | 'line' | 'wedge' = 'circle';
+        let type: 'circle' | 'line' | 'wedge' | 'pincer' | 'cross' | 'box' | 'column' | 'vanguard' | 'flank' | 'grid' | 'boss' | 'sniper_line' = 'circle';
         let enemyId = 'basic_weak';
         let count = 5;
         
@@ -2901,17 +3404,77 @@
         } else if (this.tactic === 'swarm' || this.tactic === 'encircle') {
             type = 'circle';
             enemyId = 'basic_weak';
-            count = 10;
+            count = 12;
+        } else if (this.tactic === 'pincer') {
+            type = 'pincer'; enemyId = 'fast_weak'; count = 8;
+        } else if (this.tactic === 'cross') {
+            type = 'cross'; enemyId = 'ranged_weak'; count = 4;
+        } else if (this.tactic === 'box') {
+            type = 'box'; enemyId = 'tank_weak'; count = 4;
+        } else if (this.tactic === 'column') {
+            type = 'column'; enemyId = 'charger_weak'; count = 5;
+        } else if (this.tactic === 'vanguard') {
+            type = 'vanguard'; enemyId = 'tank_norm'; count = 3;
+        } else if (this.tactic === 'flank') {
+            type = 'flank'; enemyId = 'vampire'; count = 6;
+        } else if (this.tactic === 'grid') {
+            type = 'grid'; enemyId = 'exploder'; count = 9;
         } else {
+            // Special Tactics
+            if (this.tactic === 'boss_rush') {
+                const bosses = Object.values(ENEMIES).filter(e => e.id.includes('boss'));
+                // Try to find affordable boss, otherwise random
+                const affordable = bosses.filter(b => b.cost <= this.currentInfluence);
+                const pool = affordable.length > 0 ? affordable : bosses;
+                const boss = pool[Math.floor(Math.random() * pool.length)];
+                this.payAndSpawn(boss, undefined, '#ffd700');
+                return true;
+            } else if (this.tactic === 'elite_squad') {
+                type = 'wedge'; enemyId = 'tank_heavy'; count = 3;
+            } else if (this.tactic === 'sniper_line') {
+                type = 'line'; enemyId = 'sniper'; count = 3;
+            }
+            
             // Neutral - random small formation
             if (Math.random() > 0.7) return false;
             type = 'wedge';
             enemyId = 'basic_norm';
             count = 3;
         }
+
+        // --- ADAPTIVE COST LOGIC ---
+        let config = ENEMIES[enemyId];
+        if (!config) return false;
         
-        const config = ENEMIES[enemyId];
-        if (!config || this.currentInfluence < config.cost * count) return false;
+        // 1. Downgrade Unit if too expensive
+        if (this.currentInfluence < config.cost * count) {
+             const downgrades: Record<string, string> = {
+                'tank_heavy': 'tank_norm', 'tank_norm': 'tank_weak',
+                'fast_norm': 'fast_weak',
+                'ranged_norm': 'ranged_weak',
+                'charger_norm': 'charger_weak',
+                'basic_strong': 'basic_norm', 'basic_norm': 'basic_weak',
+                'ninja': 'fast_norm', 'vampire': 'fast_norm'
+            };
+            if (downgrades[enemyId]) {
+                const cheaperId = downgrades[enemyId];
+                if (ENEMIES[cheaperId] && this.currentInfluence >= ENEMIES[cheaperId].cost * count) {
+                    enemyId = cheaperId;
+                    config = ENEMIES[enemyId];
+                }
+            }
+        }
+        
+        // 2. Reduce Count if still too expensive (min 3)
+        if (this.currentInfluence < config.cost * count) {
+            const affordable = Math.floor(this.currentInfluence / config.cost);
+            if (affordable >= 3) {
+                count = affordable;
+            } else {
+                return false; // Can't afford even minimal tactic
+            }
+        }
+        // ---------------------------
         
         // Execute Formation
         const playerPos = this.game.player.pos;
@@ -2919,8 +3482,8 @@
         const leadDist = 500;
         
         // Calculate Center
-        let center = playerPos;
-        if (type === 'wedge' || type === 'line') {
+        let center = playerPos.add(new Vector(0,0)); // Clone
+        if (['wedge', 'line', 'column', 'vanguard', 'pincer', 'flank'].includes(type)) {
             // Predict movement
             const moveDir = playerVel.mag() > 10 ? playerVel.normalize() : new Vector(Math.random()-0.5, Math.random()-0.5).normalize();
             center = playerPos.add(moveDir.mult(leadDist));
@@ -2949,8 +3512,45 @@
                 const row = Math.floor(i/2);
                 const side = i%2===0 ? 1 : -1;
                 pos = center.add(dir.mult(-row * 40)).add(right.mult(side * row * 40));
+            } else if (type === 'pincer') {
+                const dir = playerVel.mag() > 0 ? playerVel.normalize() : new Vector(1,0);
+                const right = new Vector(-dir.y, dir.x);
+                const side = i % 2 === 0 ? 1 : -1;
+                // Two parallel lines on sides
+                pos = center.add(right.mult(side * 250)).add(dir.mult((Math.floor(i/2) - 1) * 50));
+            } else if (type === 'cross') {
+                const angle = (Math.PI * 2 / 4) * i;
+                pos = playerPos.add(new Vector(Math.cos(angle), Math.sin(angle)).mult(200));
+            } else if (type === 'box') {
+                const angle = (Math.PI * 2 / 4) * i + Math.PI/4; // Corners
+                pos = playerPos.add(new Vector(Math.cos(angle), Math.sin(angle)).mult(250));
+            } else if (type === 'column') {
+                const dir = playerVel.mag() > 0 ? playerVel.normalize() : new Vector(1,0);
+                // Line along movement direction
+                pos = center.add(dir.mult((i - (count-1)/2) * 80));
+            } else if (type === 'vanguard') {
+                const dir = playerVel.mag() > 0 ? playerVel.normalize() : new Vector(1,0);
+                const right = new Vector(-dir.y, dir.x);
+                // Inverted wedge in front
+                pos = center.add(dir.mult(100)).add(right.mult((i - (count-1)/2) * 60));
+            } else if (type === 'flank') {
+                const dir = playerVel.mag() > 0 ? playerVel.normalize() : new Vector(1,0);
+                const right = new Vector(-dir.y, dir.x);
+                const side = i % 2 === 0 ? 1 : -1;
+                // Behind and to the sides
+                pos = playerPos.sub(dir.mult(100)).add(right.mult(side * (150 + Math.floor(i/2)*50)));
+            } else if (type === 'grid') {
+                const gridSize = 3;
+                const spacing = 80;
+                const x = (i % gridSize - 1) * spacing;
+                const y = (Math.floor(i / gridSize) - 1) * spacing;
+                pos = playerPos.add(new Vector(x, y));
+            } else if (type === 'sniper_line') {
+                // Line far away
+                const dir = playerVel.mag() > 0 ? playerVel.normalize() : new Vector(1,0);
+                pos = playerPos.add(dir.mult(400)).add(new Vector(-dir.y, dir.x).mult((i-1)*100));
             }
-            this.payAndSpawn(config, pos);
+            this.payAndSpawn(config, pos, '#ffd700'); // Yellow Portal for Tactics
         }
         
         this.game.texts.push(new FloatingText(center, `ФОРМАЦИЯ: ${type.toUpperCase()}`, "#ff00ff"));
@@ -2962,7 +3562,7 @@
         this.payAndSpawn(enemy, undefined);
     }
     
-    payAndSpawn(config: EnemyConfig, pos?: Vector) {
+    payAndSpawn(config: EnemyConfig, pos?: Vector, portalColor?: string) {
         let cost = config.cost;
         let elite = false;
         
@@ -2973,8 +3573,16 @@
         }
         
         this.currentInfluence -= cost;
-        this.game.spawnEnemy(config.id, elite, pos);
+        this.game.spawnEnemy(config.id, elite, pos, portalColor);
         this.updateUI();
+    }
+
+    getTacticCost(t: string) {
+        if (t === 'boss_rush') return 800;
+        if (t === 'elite_squad') return 400;
+        if (t === 'swarm' || t === 'encircle') return 100;
+        if (t === 'blitz') return 150;
+        return 300; // Default buffer for complex tactics
     }
 
     updateUI() {
@@ -2986,7 +3594,8 @@
         kind: { face: '😇', text: 'ДОБРЫЙ', color: '#0f0' },
         neutral: { face: '😐', text: 'НЕЙТРАЛЬНЫЙ', color: '#fff' },
         angry: { face: '😠', text: 'ЗЛОЙ', color: '#ff8800' },
-        insane: { face: '👿', text: 'БЕЗУМНЫЙ', color: '#f00' }
+        insane: { face: '👿', text: 'БЕЗУМНЫЙ', color: '#f00' },
+        cursed: { face: '☠️', text: 'ПРОКЛЯТЫЙ', color: '#800080' }
       };
       
       const c = config[this.mood];
@@ -2994,16 +3603,41 @@
       moodEl.innerText = c.text;
       moodEl.style.color = c.color;
       
-      document.getElementById('obs-influence')!.innerText = `ВЛИЯНИЕ: ${Math.floor(this.currentInfluence)}`;
+      const salaryText = this.nextWaveSalary > 0 ? ` (+${this.nextWaveSalary})` : '';
+      document.getElementById('obs-influence')!.innerText = `ВЛИЯНИЕ: ${Math.floor(this.currentInfluence)}${salaryText}`;
+      
+      // Show Thought
+      const thoughtEl = document.getElementById('obs-thought');
+      if (thoughtEl) thoughtEl.innerText = `МЫСЛИ: ${this.thought}`;
+
+      // Show Goal
+      const goalEl = document.getElementById('obs-goal');
+      if (goalEl) {
+          if (this.isSaving) {
+              const target = this.getTacticCost(this.tactic);
+              goalEl.innerText = `ЦЕЛЬ: ${this.getTacticName(this.tactic)} (${Math.floor(this.currentInfluence)}/${target})`;
+              goalEl.style.color = '#ffd700';
+          } else if (this.tactic !== 'neutral') {
+              goalEl.innerText = `ЦЕЛЬ: ИСПОЛНЕНИЕ`;
+              goalEl.style.color = '#0f0';
+          } else {
+              goalEl.innerText = `ЦЕЛЬ: ДАВЛЕНИЕ`;
+              goalEl.style.color = '#aaa';
+          }
+      }
       
       // Show Tactic
       let tacticText = "НЕТ";
       let tacticColor = "#666";
-      if (this.tactic === 'siege') { tacticText = "ОСАДА"; tacticColor = "#ff8800"; }
-      else if (this.tactic === 'blitz') { tacticText = "ПЕРЕХВАТ"; tacticColor = "#0ff"; }
-      else if (this.tactic === 'swarm') { tacticText = "РОЙ"; tacticColor = "#f0f"; }
-      else if (this.tactic === 'ambush') { tacticText = "ЗАСАДА"; tacticColor = "#ff0000"; }
-      else if (this.tactic === 'encircle') { tacticText = "ОКРУЖЕНИЕ"; tacticColor = "#aa00aa"; }
+      
+      // Only show tactic if we are NOT saving (meaning we are executing or ready to execute)
+      if (!this.isSaving && this.tactic !== 'neutral') {
+          tacticText = this.getTacticName(this.tactic);
+          tacticColor = "#0f0"; // Active
+      } else if (this.isSaving) {
+          tacticText = "ПОДГОТОВКА...";
+          tacticColor = "#888";
+      }
       
       const tacticEl = document.getElementById('obs-tactic');
       if (tacticEl) tacticEl.innerHTML = `ТАКТИКА: <span style="color:${tacticColor}">${tacticText}</span>`;
@@ -3028,6 +3662,18 @@
       }
 
       if (this.activeQuest) document.getElementById('hud-quest-text')!.innerText = `${this.activeQuest.desc} (${this.activeQuest.current}/${this.activeQuest.target})`;
+    }
+
+    getTacticName(t: string) {
+        const map: Record<string, string> = {
+            'siege': 'ОСАДА', 'blitz': 'ПЕРЕХВАТ', 'swarm': 'РОЙ',
+            'ambush': 'ЗАСАДА', 'encircle': 'ОКРУЖЕНИЕ', 'pincer': 'КЛЕЩИ',
+            'cross': 'КРЕСТ', 'box': 'КОРОБКА', 'column': 'КОЛОННА',
+            'vanguard': 'АВАНГАРД', 'flank': 'ФЛАНГ', 'grid': 'РЕШЕТКА',
+            'boss_rush': 'БОСС', 'elite_squad': 'ЭЛИТА', 'sniper_line': 'СНАЙПЕРЫ',
+            'neutral': 'НЕТ'
+        };
+        return map[t] || 'НЕТ';
     }
   }
 
@@ -3093,6 +3739,7 @@
     
     player: Player;
     enemies: Enemy[] = [];
+    portals: Portal[] = [];
     turrets: Turret[] = [];
     mines: Mine[] = [];
     projectiles: Projectile[] = [];
@@ -3116,6 +3763,9 @@
     activeRaid: RaidMission | null = null;
     lastMode: 'endless' | 'raid' = 'endless';
     lastRaidId?: string;
+    upgradeTargetSlot: string | null = null;
+    pendingUpgradeItem: Item | null = null;
+    pendingUpgradeIdx: number = -1;
     
     // Combo System
     combo = 0;
@@ -3139,6 +3789,9 @@
       this.setupInputs();
       this.renderClassSelector();
       
+      // Ensure modal is hidden on init
+      this.hideConfirmModal();
+
       // Start Loop
       lastTime = performance.now();
       this.startLoop();
@@ -3149,6 +3802,7 @@
       this.lastMode = mode;
       this.lastRaidId = raidId;
       this.player = new Player();
+      this.portals = [];
       this.enemies = [];
       this.turrets = [];
       this.mines = [];
@@ -3160,6 +3814,9 @@
       this.coresCollected = 0;
       this.lootFound = [];
       this.pendingUpgrades = 0;
+      this.upgradeTargetSlot = null;
+      this.pendingUpgradeItem = null;
+      this.pendingUpgradeIdx = -1;
       this.combo = 0;
       this.comboTimer = 0;
       this.activeUpgradeChoices = [];
@@ -3181,6 +3838,9 @@
       this.updateHud();
       this.addChatMessage("System", "Welcome to Server NEON_01. PvP is disabled.", "system");
       this.updateUpgradeUI();
+      
+      // Remove focus from UI buttons so Spacebar doesn't trigger them
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     }
 
     update(dt: number) {
@@ -3198,6 +3858,7 @@
       }
 
       this.player.update(dt);
+      this.portals.forEach(p => p.update(dt));
       this.turrets.forEach(t => t.update(dt));
       this.mines.forEach(m => m.update(dt));
       
@@ -3274,8 +3935,16 @@
         const p = this.projectiles[i];
         let hit = false;
         for (const e of this.enemies) {
-          // Player bullets hit enemies
-          if (p.team !== 'player') continue;
+          // Collision Logic
+          let canHit = false;
+          if (p.team === 'player') canHit = true;
+          else if (p.team === 'invader' && p.owner !== e) canHit = true;
+          else if (p.team === 'enemy' && e.config.type === 'invader') canHit = true;
+          
+          if (!canHit) continue;
+          
+          // TRUE INVULNERABILITY CHECK
+          if (e.isStealthed) continue;
           
           if (p.pos.sub(e.pos).mag() < e.radius + p.radius) {
             // Crit logic
@@ -3305,6 +3974,12 @@
                     }
                 });
                 this.screenShake = 10;
+            }
+
+            // Knockback (Projectile Impact)
+            if (this.player.knockback > 0 && e.shield <= 0 && !e.config.id.includes('boss')) {
+                const push = p.vel.normalize().mult(this.player.knockback * 0.05); // Apply knockback force
+                e.pos = e.pos.add(push);
             }
             
             // Lifesteal
@@ -3341,6 +4016,21 @@
             this.spawnParticles(e.pos, e.color, 3);
             if (e.hp <= 0) {
               e.dead = true;
+              
+              // Invader Rewards
+              if (e.config.type === 'invader') {
+                  const inv = e as Invader;
+                  this.addChatMessage("System", `Игрок ${inv.name} был уничтожен!`, "system");
+                  // Item Reward
+                  const item = this.generateLoot();
+                  meta.inventory.push(item);
+                  this.texts.push(new FloatingText(e.pos, `ЛУТ: ${item.name}`, "#0f0"));
+                  // Core Reward
+                  const cores = Math.floor(Math.random() * 9) + 2; // 2-10
+                  meta.bossCurrency += cores;
+                  this.texts.push(new FloatingText(e.pos, `+${cores} ЯДЕР`, "#ffd700"));
+              }
+
               // Spawn XP
               this.director.reportKill(); // Report kill for mood logic
               
@@ -3411,13 +4101,16 @@
 
       // Collisions: Enemy Projectiles vs Player
       this.projectiles.forEach(p => {
-          if (p.team === 'enemy' && !this.player.dead) {
+          if ((p.team === 'enemy' || p.team === 'invader') && !this.player.dead) {
               if (p.pos.sub(this.player.pos).mag() < this.player.radius + p.radius) {
                   this.player.hp -= p.dmg;
                   p.dead = true;
                   this.screenShake = 5;
                   if (this.player.hp <= 0) {
-                      this.gameOver();
+                      let killer = "ВРАЖЕСКИЙ СНАРЯД";
+                      if (p.team === 'invader') killer = "ИГРОК-ЗАХВАТЧИК";
+                      if (p.type === 'laser') killer = "ЛАЗЕРНЫЙ ЛУЧ";
+                      this.gameOver(killer);
                   }
                   this.updateHud();
               }
@@ -3433,8 +4126,18 @@
                 this.texts.push(new FloatingText(this.player.pos, "DODGE", "#0ff"));
                 continue;
             }
+            
+            if (e.isStealthed) {
+                // If enemy is stealthed, it hits player (surprise!) but takes no damage itself
+                this.player.hp -= e.damage; // Scale damage
+                this.screenShake = 15;
+                this.spawnParticles(this.player.pos, '#fff', 10);
+                if (this.player.hp <= 0) this.gameOver(`УБИЙЦА ИЗ ТЕНИ: ${e.config.id.toUpperCase()}`);
+                this.updateHud();
+                continue; // Skip thorns/knockback on enemy
+            }
           
-            this.player.hp -= 10; // Flat dmg
+            this.player.hp -= e.damage; // Scale damage (Fix for high difficulty)
             // Anomaly: Berserk (Enemy dmg x2)
             if (this.director.activeAnomaly?.type === 'berserk') this.player.hp -= 10;
             
@@ -3472,7 +4175,7 @@
             }
 
             if (this.player.hp <= 0) {
-              this.gameOver();
+              this.gameOver(`УБИТ: ${e.config.id.toUpperCase()}`);
             }
             this.updateHud();
           }
@@ -3491,6 +4194,7 @@
           
           if (this.enemies[i].dead) this.enemies.splice(i, 1);
       }
+      for (let i = this.portals.length - 1; i >= 0; i--) if (this.portals[i].dead) this.portals.splice(i, 1);
       for (let i = this.turrets.length - 1; i >= 0; i--) if (this.turrets[i].dead) this.turrets.splice(i, 1);
       for (let i = this.mines.length - 1; i >= 0; i--) if (this.mines[i].dead) this.mines.splice(i, 1);
       for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -3529,6 +4233,7 @@
         this.ctx.translate(dx, dy);
       }
 
+      this.portals.forEach(p => p.draw(this.ctx));
       this.particles.forEach(p => p.draw(this.ctx));
       this.projectiles.forEach(p => p.draw(this.ctx));
       this.enemies.forEach(e => e.draw(this.ctx));
@@ -3563,38 +4268,56 @@
         const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)] as any;
         const rarityRoll = Math.random() + (this.player.luck * 0.01); // Luck bonus
         let rarity: any = 'common';
-        if (rarityRoll > 0.95) rarity = 'legendary';
-        else if (rarityRoll > 0.8) rarity = 'epic';
-        else if (rarityRoll > 0.6) rarity = 'rare';
+        if (rarityRoll > 0.99) rarity = 'divine';
+        else if (rarityRoll > 0.97) rarity = 'mythic';
+        else if (rarityRoll > 0.90) rarity = 'legendary';
+        else if (rarityRoll > 0.75) rarity = 'epic';
+        else if (rarityRoll > 0.5) rarity = 'rare';
         
         const icons = { weapon: '⚔️', armor: '🛡️', chip: '💾' };
         const names = { weapon: ['Rifle', 'Repeater', 'Cannon'], armor: ['Plate', 'Shield', 'Suit'], chip: ['CPU', 'RAM', 'Drive'] };
-        const suffixes = { common: 'v1', rare: 'Pro', epic: 'Elite', legendary: 'GOD' };
+        const suffixes = { common: 'v1', rare: 'Pro', epic: 'Elite', legendary: 'GOD', mythic: 'OMEGA', divine: 'ZERO' };
         
-        const name = `${names[type][Math.floor(Math.random()*3)]} ${suffixes[rarity]}`;
+        const name = `${names[type][Math.floor(Math.random()*3)]} ${suffixes[rarity] || 'v1'}`;
         
-        const mult = { common: 1, rare: 2, epic: 4, legendary: 8 };
+        const mult = { common: 1, rare: 2, epic: 4, legendary: 8, mythic: 16, divine: 32 };
         const m = mult[rarity];
         
-        let desc = "";
         const stats: any = {};
+        
+        // Helper to add stat
+        const addStat = (key: string, base: number, isPct: boolean = false) => {
+            const val = isPct ? Math.random() * base * m : Math.floor(Math.random() * base * m) + 1;
+            stats[key] = val;
+        };
+
         if (type === 'weapon') { 
-            stats.dmg = Math.floor(Math.random() * 5 * m) + 1; 
-            stats.crit = Math.random() * 0.05 * m; 
-            desc = `Урон +${stats.dmg}` + (stats.crit > 0 ? `, Крит +${(stats.crit*100).toFixed(0)}%` : '');
+            addStat('dmg', 5);
+            if (Math.random() > 0.5) addStat('crit', 0.05, true);
+            if (Math.random() > 0.7) addStat('cooldown', 0.05, true);
+            if (Math.random() > 0.8) addStat('area', 0.2, true);
         }
         if (type === 'armor') { 
-            stats.hp = Math.floor(Math.random() * 20 * m) + 10; 
-            stats.spd = Math.floor(Math.random() * 10 * m); 
-            desc = `HP +${stats.hp}` + (stats.spd > 0 ? `, Скор +${stats.spd}` : '');
+            addStat('hp', 20);
+            if (Math.random() > 0.5) addStat('regen', 1);
+            if (Math.random() > 0.7) addStat('spd', 10);
+            if (Math.random() > 0.8) addStat('luck', 5);
         }
         if (type === 'chip') { 
-            stats.spd = Math.floor(Math.random() * 20 * m); 
-            stats.crit = Math.random() * 0.05 * m; 
-            desc = `Скор +${stats.spd}` + (stats.crit > 0 ? `, Крит +${(stats.crit*100).toFixed(0)}%` : '');
+            // Chips are versatile
+            const keys = ['spd', 'crit', 'cooldown', 'luck', 'area'];
+            const k1 = keys[Math.floor(Math.random()*keys.length)];
+            addStat(k1, k1 === 'spd' || k1 === 'luck' ? 10 : 0.05, k1 !== 'spd' && k1 !== 'luck');
+            
+            if (Math.random() > 0.5) {
+                 const k2 = keys[Math.floor(Math.random()*keys.length)];
+                 if (k2 !== k1) addStat(k2, k2 === 'spd' || k2 === 'luck' ? 10 : 0.05, k2 !== 'spd' && k2 !== 'luck');
+            }
         }
         
-        return { id: Math.random().toString(36).substr(2,9), name, desc, type, rarity, stats, icon: icons[type] };
+        const desc = this.getItemDesc({ stats } as any);
+        
+        return { id: Math.random().toString(36).substr(2,9), name, desc, type, rarity, stats, icon: icons[type], level: 0, modified: false };
     }
 
     generateMerchantItems() {
@@ -3636,32 +4359,35 @@
         }
     }
 
-    spawnEnemy(typeId: string, elite: boolean, pos?: Vector) {
+    spawnEnemy(typeId: string, elite: boolean, pos?: Vector, portalColor?: string, durationOverride?: number) {
       if (!pos) {
           // Random edge position
-          pos = new Vector(0,0);
+          // Spawn strictly at edges (with padding for radius)
+          const padding = 40;
           if (Math.random() > 0.5) {
-            pos.x = Math.random() > 0.5 ? -50 : CANVAS_W + 50;
-            pos.y = Math.random() * CANVAS_H;
+            pos = new Vector(Math.random() > 0.5 ? padding : CANVAS_W - padding, Math.random() * (CANVAS_H - padding*2) + padding);
           } else {
-            pos.x = Math.random() * CANVAS_W;
-            pos.y = Math.random() > 0.5 ? -50 : CANVAS_H + 50;
+            pos = new Vector(Math.random() * (CANVAS_W - padding*2) + padding, Math.random() > 0.5 ? padding : CANVAS_H - padding);
           }
       }
       
-      const enemy = new Enemy(pos, typeId, this.director.wave, elite);
+      let duration = durationOverride || (1 + Math.random() * 2); // 1-3 seconds for normal mobs
+      let color = portalColor || '#0ff';
       
-      if (typeId.includes('boss')) {
+      if ((typeId.includes('boss') || typeId === 'invader') && !durationOverride) {
+         duration = 10 + Math.random() * 50; // 10-60 seconds for bosses
+         color = '#a020f0'; // Purple
          this.texts.push(new FloatingText(new Vector(CANVAS_W/2, 200), "ВНИМАНИЕ: БОСС", "#f00"));
          this.screenShake = 30;
       }
-
-      // Merchant Spawn (Rare)
-      if (this.director.wave > 5 && Math.random() < 0.01) {
-          this.spawnParticles(pos, '#0f0', 1, 'merchant_signal');
+      
+      if (typeId === 'invader') {
+          duration = 10;
+          color = '#ff0000';
       }
 
-      this.enemies.push(enemy);
+      // Create Portal instead of immediate spawn
+      this.portals.push(new Portal(pos, typeId, elite, duration, color));
     }
 
     triggerNuke() {
@@ -3769,18 +4495,22 @@
         
         const card = document.createElement('div');
         card.className = 'mini-card';
-        card.innerHTML = `<div class="icon">${u.icon}</div><div class="name">${u.name}</div><div class="desc">${u.desc}</div>`;
-        card.onclick = () => {
-          u.action();
-          this.pendingUpgrades--;
-          this.activeUpgradeChoices = []; // Clear current
-          if (this.pendingUpgrades > 0) {
-              this.generateUpgradeChoices();
-          }
-          this.updateUpgradeUI();
-        };
+        card.innerHTML = `<div class="key-hint">${i+1}</div><div class="icon">${u.icon}</div><div class="name">${u.name}</div><div class="desc">${u.desc}</div>`;
+        card.onclick = () => this.selectUpgrade(i);
         container.appendChild(card);
       }
+    }
+
+    selectUpgrade(index: number) {
+        if (index < 0 || index >= this.activeUpgradeChoices.length) return;
+        const u = this.activeUpgradeChoices[index];
+        u.action();
+        this.pendingUpgrades--;
+        this.activeUpgradeChoices = []; // Clear current
+        if (this.pendingUpgrades > 0) {
+            this.generateUpgradeChoices();
+        }
+        this.updateUpgradeUI();
     }
     
     updateUpgradeUI() {
@@ -3796,7 +4526,7 @@
         }
     }
 
-    gameOver(reason?: string) {
+    gameOver(killer?: string) {
       // Extra Lives
       if (this.player.extraLives > 0) {
           this.player.extraLives--;
@@ -3817,12 +4547,9 @@
       const inputDiv = document.getElementById('highscore-input');
       if (inputDiv) inputDiv.classList.add('hidden');
       
-      if (reason) {
-          const h1 = document.querySelector('#gameover-screen h1');
-          if (h1) h1.innerHTML = reason;
-      } else {
-          const h1 = document.querySelector('#gameover-screen h1');
-          if (h1) h1.innerHTML = "КРИТИЧЕСКИЙ СБОЙ";
+      const reasonEl = document.getElementById('go-reason');
+      if (reasonEl) {
+          reasonEl.innerText = killer ? `ПРИЧИНА: ${killer}` : "ПРИЧИНА: НЕИЗВЕСТНО";
       }
       
       // Save Meta
@@ -3885,6 +4612,10 @@
       const hpPct = (this.player.hp / this.player.maxHp) * 100;
       document.getElementById('hud-hp-bar')!.style.width = `${Math.max(0, hpPct)}%`;
       document.getElementById('hud-hp-text')!.innerText = `${Math.max(0, Math.ceil(this.player.hp))}/${Math.ceil(this.player.maxHp)}`;
+      
+      // Projectile Count
+      const projEl = document.getElementById('hud-proj-count');
+      if (projEl) projEl.innerText = `x${this.player.multishot} СНАРЯДОВ`;
       
       const heatPct = (this.player.heat / this.player.maxHeat) * 100;
       const heatBar = document.getElementById('hud-heat-bar');
@@ -4136,8 +4867,14 @@
       });
       document.getElementById('btn-inv-back')?.addEventListener('click', () => {
           this.setScreen('menu-screen');
+          this.hideConfirmModal();
+          this.upgradeTargetSlot = null;
           saveMeta();
       });
+      
+      // Modal Buttons
+      document.getElementById('btn-modal-yes')?.addEventListener('click', () => this.confirmUpgrade());
+      document.getElementById('btn-modal-no')?.addEventListener('click', () => this.hideConfirmModal());
 
       // Tree Logic
       document.getElementById('btn-tree')?.addEventListener('click', () => {
@@ -4180,11 +4917,15 @@
 
     getItemDesc(item: Item) {
         if (item.desc) return item.desc;
+        // Fallback generator if desc is missing or for dynamic updates
         const parts = [];
-        if (item.stats.dmg) parts.push(`Урон +${item.stats.dmg}`);
-        if (item.stats.hp) parts.push(`HP +${item.stats.hp}`);
-        if (item.stats.spd) parts.push(`Скор +${item.stats.spd}`);
-        if (item.stats.crit) parts.push(`Крит +${(item.stats.crit*100).toFixed(1)}%`);
+        if (item.level && item.level > 0) parts.push(`[Lvl ${item.level}]`);
+        if (item.modified) parts.push(`(MOD)`);
+        for (const [key, val] of Object.entries(item.stats)) {
+            const name = STAT_NAMES[key] || key.toUpperCase();
+            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+            parts.push(`${name} ${fmtVal}`);
+        }
         return parts.join(', ');
     }
 
@@ -4198,46 +4939,208 @@
             const el = document.getElementById(`slot-${slot}`);
             if (!el) return;
             const item = meta.equipment[slot as keyof typeof meta.equipment];
+            
+            // Reset classes
+            el.className = 'equip-slot';
+            if (this.upgradeTargetSlot === slot) el.classList.add('selected-upgrade');
+            
             if (item) {
-                const desc = item.desc || this.getItemDesc(item);
+                const desc = this.getItemDesc(item); // Dynamic desc
                 el.innerHTML = `${item.icon} ${item.name}<br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span><br><span style="font-size:0.55rem; color:#aaa">${desc}</span>`;
+                el.title = `${item.name}\n${item.rarity.toUpperCase()}\n\n${desc}`;
                 el.classList.add('filled');
+                
                 el.onclick = () => {
-                    meta.inventory.push(item);
-                    meta.equipment[slot as any] = null;
+                    if (this.upgradeTargetSlot === slot) {
+                        this.upgradeTargetSlot = null; // Deselect
+                    } else {
+                        this.upgradeTargetSlot = slot; // Select for upgrade
+                    }
                     this.renderInventory();
                 };
             } else {
                 el.innerHTML = "ПУСТО";
-                el.classList.remove('filled');
                 el.onclick = null;
             }
         });
 
         // Render Bag
-        meta.inventory.forEach((item, idx) => {
+        let itemsToShow = [...meta.inventory]; // Copy for sorting
+        const container = document.querySelector('.inv-grid-container');
+        const h3 = container?.querySelector('h3');
+        
+        if (this.upgradeTargetSlot) {
+            container?.classList.add('upgrade-mode');
+            if (h3) h3.innerText = "ВЫБЕРИТЕ ПРЕДМЕТ ДЛЯ ПОГЛОЩЕНИЯ (10% СТАТ)";
+            const targetItem = meta.equipment[this.upgradeTargetSlot as keyof typeof meta.equipment];
+            if (targetItem) {
+                itemsToShow = itemsToShow.filter(i => i.type === targetItem.type);
+            }
+            // Sort: Worst to Best (Ascending) for upgrades
+            itemsToShow.sort((a, b) => RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity));
+        } else {
+            container?.classList.remove('upgrade-mode');
+            if (h3) h3.innerText = "ХРАНИЛИЩЕ ДАННЫХ";
+            // Sort: Best to Worst (Descending) for normal view
+            itemsToShow.sort((a, b) => RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity));
+        }
+
+        itemsToShow.forEach((item) => {
+            // Find original index in meta.inventory to splice correctly
+            const realIdx = meta.inventory.indexOf(item);
+            
             const div = document.createElement('div');
             div.className = `inv-item rarity-${item.rarity}`;
             div.innerHTML = `<div style="font-size:1.5rem">${item.icon}</div><div>${item.name}</div>`;
             div.style.color = this.getItemColor(item.rarity);
             
-            const desc = item.desc || this.getItemDesc(item);
-            div.title = `${item.name}\n${item.rarity.toUpperCase()}\n\n${desc}`;
+            const desc = this.getItemDesc(item);
+            let tooltip = `${item.name}\n${item.rarity.toUpperCase()}\n\n${desc}`;
+            
+            // Preview in tooltip
+            if (this.upgradeTargetSlot) {
+                const gains: string[] = [];
+                for (const [key, val] of Object.entries(item.stats)) {
+                    const name = STAT_NAMES[key] || key.toUpperCase();
+                    const gainVal = val * 0.1;
+                    const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area') ? `+${(gainVal*100).toFixed(2)}%` : `+${gainVal.toFixed(2)}`;
+                    gains.push(`${name} ${fmtVal}`);
+                }
+                tooltip += `\n\n[ПРИ ПОГЛОЩЕНИИ]:\n${gains.join('\n')}`;
+                div.style.cursor = 'crosshair';
+            }
+            
+            div.title = tooltip;
             
             div.onclick = () => {
-                // Equip
-                const current = meta.equipment[item.type];
-                if (current) meta.inventory.push(current);
-                meta.equipment[item.type] = item;
-                meta.inventory.splice(idx, 1);
-                this.renderInventory();
+                if (this.upgradeTargetSlot) {
+                    // UPGRADE LOGIC
+                    this.showConfirmModal(item, realIdx);
+                } else {
+                    // EQUIP LOGIC
+                    const current = meta.equipment[item.type];
+                    if (current) meta.inventory.push(current);
+                    meta.equipment[item.type] = item;
+                    meta.inventory.splice(realIdx, 1);
+                    this.renderInventory();
+                }
             };
             grid.appendChild(div);
         });
     }
 
+    showConfirmModal(item: Item, idx: number) {
+        const modal = document.getElementById('modal-confirm');
+        const msg = document.getElementById('modal-msg');
+        const preview = document.getElementById('modal-preview');
+        if (!modal || !msg || !preview) return;
+
+        // Get target item
+        const targetSlot = this.upgradeTargetSlot;
+        if (!targetSlot) return;
+        const target = meta.equipment[targetSlot as keyof typeof meta.equipment];
+        if (!target) return;
+
+        this.pendingUpgradeItem = item;
+        this.pendingUpgradeIdx = idx;
+
+        // Visual comparison UI
+        msg.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:center; gap:15px; margin-bottom:10px;">
+                <div class="inv-item rarity-${target.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px;">
+                    <div style="font-size:1.5rem">${target.icon}</div>
+                </div>
+                <div style="font-size:2rem; color:#0f0; animation:pulse 1s infinite;">⬅</div>
+                <div class="inv-item rarity-${item.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px;">
+                    <div style="font-size:1.5rem">${item.icon}</div>
+                </div>
+            </div>
+            <div style="font-size:0.9rem; color:#ccc; margin-bottom:5px;">
+                УЛУЧШЕНИЕ: <span style="color:${this.getItemColor(target.rarity)}">${target.name}</span>
+            </div>
+            <div style="font-size:0.8rem; color:#666;">
+                ПОГЛОЩЕНИЕ: <span style="color:${this.getItemColor(item.rarity)}">${item.name}</span>
+            </div>
+        `;
+        
+        // Calculate preview
+        const gains: string[] = [];
+        for (const [key, val] of Object.entries(item.stats)) {
+            const name = STAT_NAMES[key] || key.toUpperCase();
+            const gainVal = val * 0.1;
+            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area') 
+                ? `+${(gainVal*100).toFixed(2)}%` 
+                : `+${gainVal.toFixed(2)}`;
+            
+            // Current val
+            const currentVal = target.stats[key] || 0;
+            const fmtCurrent = (key === 'crit' || key === 'cooldown' || key === 'area')
+                ? `${(currentVal*100).toFixed(1)}%`
+                : `${currentVal.toFixed(1)}`;
+
+            gains.push(`
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; padding:2px 0;">
+                    <span style="color:#aaa">${name}</span>
+                    <span>${fmtCurrent} <span style="color:#0f0; font-weight:bold;">${fmtVal}</span></span>
+                </div>
+            `);
+        }
+        
+        preview.innerHTML = `<div style="background:#000; padding:10px; border:1px solid #333; text-align:left;">${gains.join('')}</div>`;
+        modal.classList.remove('hidden');
+    }
+
+    confirmUpgrade() {
+        if (!this.pendingUpgradeItem || this.pendingUpgradeIdx === -1 || !this.upgradeTargetSlot) return;
+        
+        const target = meta.equipment[this.upgradeTargetSlot as keyof typeof meta.equipment];
+        const item = this.pendingUpgradeItem;
+        
+        if (target) {
+            // Absorb
+            for (const [key, val] of Object.entries(item.stats)) {
+                            if (target.stats[key]) {
+                                target.stats[key] += val * 0.1;
+                            } else {
+                                // Add new stat if limit not reached
+                                if (Object.keys(target.stats).length < 5) {
+                                    target.stats[key] = val * 0.1;
+                                }
+                            }
+            }
+            // Update Level & Modified
+            target.level = (target.level || 0) + 1;
+            target.modified = true;
+            target.desc = undefined; // Force description regeneration
+            
+            // Consume
+            meta.inventory.splice(this.pendingUpgradeIdx, 1);
+            
+            // Save & Render
+            saveMeta();
+            this.renderInventory();
+        }
+        
+        this.hideConfirmModal();
+    }
+
+    hideConfirmModal() {
+        const modal = document.getElementById('modal-confirm');
+        if (modal) modal.classList.add('hidden');
+        this.pendingUpgradeItem = null;
+        this.pendingUpgradeIdx = -1;
+    }
+
     getItemColor(rarity: string) {
-        return rarity === 'legendary' ? '#ffd700' : rarity === 'epic' ? '#a020f0' : rarity === 'rare' ? '#00f' : '#fff';
+        const colors: Record<string, string> = {
+            common: '#fff',
+            rare: '#00f',
+            epic: '#a020f0',
+            legendary: '#ffd700',
+            mythic: '#ff3333',
+            divine: '#00ffff'
+        };
+        return colors[rarity] || '#fff';
     }
 
     startLoop() {
