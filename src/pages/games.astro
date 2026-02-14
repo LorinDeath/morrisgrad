@@ -1,8 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
-import lorinImg from '../assets/lorin.png';
-import lorin1Img from '../assets/lorin1.png';
+import zaglushImg from '../assets/Zaglush.png';
+import etoMiImg from '../assets/Eto_mi_s_toboy.png';
+import rogalikImg from '../assets/Rogalik.png';
 ---
 <Layout title="МиниИгры | Моррис Град">
     <main class="container">
@@ -20,8 +21,12 @@ import lorin1Img from '../assets/lorin1.png';
                  data-desc="Это всего лишь временная заглушка, чтобы удержать внимание пользователя на странице. Когда нибудь Алзор подлючит энергоблок к данной мини игре и игроки будут вырабатывать энергию для развития своего мини городка. Но это не точно." 
                  data-game-url="/games/zaglushka" 
                  data-changelog-url="/changelog-zaglushka">
-                <img src={lorinImg.src} alt="Заглушка v0.2" class="game-icon" />
+                <img src={zaglushImg.src} alt="Заглушка v0.2" class="game-icon" />
                 <span class="game-title">Заглушка v0.2</span>
+                <div class="platforms">
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                </div>
             </div>
             
             <div class="game-card" 
@@ -29,17 +34,23 @@ import lorin1Img from '../assets/lorin1.png';
                  data-desc="Я никогда не думала, что скажу это... Но мы лишь точки в этом мире, Алзор может в любой момент убить нас, вернуть к жизни, сделать всё что угодно. Но я верю что у него есть сердце, но он просто исчез. Ты же не исчезнешь, Элфдид?" 
                  data-game-url="/games/echo" 
                  data-changelog-url="/changelog-echo">
-                <img src={lorin1Img.src} alt="Это мы с тобой!" class="game-icon" />
+                <img src={etoMiImg.src} alt="Это мы с тобой!" class="game-icon" />
                 <span class="game-title">Это мы с тобой!</span>
+                <div class="platforms">
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                </div>
             </div>
 
-            <div class="game-card" 
-                 data-title="Рогалик" 
-                 data-desc="Тест." 
+            <div class="game-card neon-card" 
+                 data-title="Неоновый протокол" 
+                 data-desc="Каждый раз ты начинаешь заново этот проклятый день, но у всего есть предел. Знаешь, я всегда думала, почему я решила убить себя... Когда умер он..." 
                  data-game-url="/games/roguelike" 
-                 data-changelog-url="#">
-                <img src={lorinImg.src} alt="Рогалик" class="game-icon" />
-                <span class="game-title">Рогалик</span>
+                 data-changelog-url="/changelog-roguelike">
+                <img src={rogalikImg.src} alt="Неоновый протокол" class="game-icon" />
+                <span class="game-title">Неоновый протокол</span>
+                <div class="platforms">
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                </div>
             </div>
         </div>
 
@@ -113,6 +124,44 @@ import lorin1Img from '../assets/lorin1.png';
 
     .game-card:hover .game-icon {
         border-color: var(--accent-gold, #ffd700);
+    }
+
+    .platforms {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        font-size: 0.8rem;
+        opacity: 0.8;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .platform-tag {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(255,255,255,0.1);
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+
+    /* Neon Protocol Special Style */
+    .neon-card {
+        border-color: #0ff;
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.15);
+        background: linear-gradient(180deg, rgba(20, 20, 25, 0.9) 0%, rgba(10, 0, 20, 0.95) 100%);
+    }
+    .neon-card:hover {
+        border-color: #ffd700;
+        box-shadow: 0 0 25px #0ff, 0 0 10px #a020f0;
+    }
+    .neon-card .game-title {
+        color: #0ff;
+        text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    }
+    .neon-card:hover .game-icon {
+        border-color: #0ff;
+        box-shadow: 0 0 15px #0ff;
     }
 
     .game-title {
@@ -204,7 +253,7 @@ import lorin1Img from '../assets/lorin1.png';
     .modal.active { opacity: 1; pointer-events: auto; }
     
     .modal-content {
-        background: #151515;
+        background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
         border: 2px solid var(--accent-gold, #ffd700);
         padding: 2rem;
         border-radius: 15px;
@@ -212,8 +261,9 @@ import lorin1Img from '../assets/lorin1.png';
         width: 90%;
         text-align: center;
         position: relative;
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+        box-shadow: 0 0 40px rgba(255, 215, 0, 0.15), inset 0 0 20px rgba(0,0,0,0.8);
         display: flex; flex-direction: column; align-items: center;
+        transition: all 0.3s ease;
     }
     
     .modal-icon {
@@ -237,8 +287,9 @@ import lorin1Img from '../assets/lorin1.png';
     }
     
     .start-btn {
-        background: var(--accent-gold, #ffd700);
-        color: #000;
+        background: transparent;
+        border: 2px solid var(--accent-gold, #ffd700);
+        color: var(--accent-gold, #ffd700);
         padding: 10px 30px;
         border-radius: 30px;
         font-weight: bold;
@@ -246,7 +297,12 @@ import lorin1Img from '../assets/lorin1.png';
         font-size: 1.2rem;
         transition: transform 0.2s;
     }
-    .start-btn:hover { transform: scale(1.05); box-shadow: 0 0 15px var(--accent-gold, #ffd700); }
+    .start-btn:hover { 
+        transform: scale(1.05); 
+        background: var(--accent-gold, #ffd700);
+        color: #000;
+        box-shadow: 0 0 25px var(--accent-gold, #ffd700); 
+    }
     
     .changelog-link {
         color: var(--accent-gold, #ffd700);
@@ -264,6 +320,45 @@ import lorin1Img from '../assets/lorin1.png';
     #modal-title {
         color: #fff;
         margin-bottom: 0.5rem;
+        font-size: 1.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* --- NEON THEME OVERRIDE --- */
+    .modal-content.neon-theme {
+        border-color: #0ff;
+        background: linear-gradient(180deg, rgba(10, 20, 30, 0.95) 0%, rgba(5, 10, 15, 0.98) 100%);
+        box-shadow: 0 0 50px rgba(0, 255, 255, 0.2), inset 0 0 30px rgba(0, 255, 255, 0.05);
+    }
+    
+    .modal-content.neon-theme #modal-title {
+        color: #0ff;
+        text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+    }
+    
+    .modal-content.neon-theme .start-btn {
+        border-color: #0ff;
+        color: #0ff;
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+    }
+    
+    .modal-content.neon-theme .start-btn:hover {
+        background: #0ff;
+        color: #000;
+        box-shadow: 0 0 30px rgba(0, 255, 255, 0.6);
+    }
+    
+    .modal-content.neon-theme .changelog-link {
+        color: #0ff;
+        border-color: #0ff;
+    }
+    .modal-content.neon-theme .changelog-link:hover {
+        color: #fff;
+        border-color: #fff;
+    }
+    .modal-content.neon-theme .close-modal:hover {
+        color: #0ff;
     }
 </style>
 
@@ -277,6 +372,7 @@ import lorin1Img from '../assets/lorin1.png';
         const startBtn = document.getElementById('modal-start-btn');
         const changelogLink = document.getElementById('modal-changelog-link');
         const closeBtn = document.querySelector('.close-modal');
+        const modalContent = document.querySelector('.modal-content');
 
         if (!modal) return;
 
@@ -296,6 +392,13 @@ import lorin1Img from '../assets/lorin1.png';
                 if (modalDesc && desc) modalDesc.textContent = desc;
                 if (startBtn && gameUrl) startBtn.setAttribute('href', gameUrl);
                 if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
+
+                // Apply Theme based on card class
+                if (card.classList.contains('neon-card') && modalContent) {
+                    modalContent.classList.add('neon-theme');
+                } else if (modalContent) {
+                    modalContent.classList.remove('neon-theme');
+                }
 
                 modal.classList.add('active');
             });

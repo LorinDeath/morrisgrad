@@ -1,0 +1,149 @@
+---
+import Layout from '../layouts/Layout.astro';
+import lorinImg from '../assets/lorin.png';
+
+// --- СПИСОК ИЗМЕНЕНИЙ (РОГАЛИК) ---
+const updates = [
+    {
+        version: "v0.5.5",
+        date: "14.02.2026",
+        title: "ЭРА ВОЙНЫ И ИНТЕЛЛЕКТА",
+        description: "Наблюдатель больше не рандомный скрипт. Он думает. Он планирует. Он ненавидит вас.",
+        changes: [
+            "🧠 НАБЛЮДАТЕЛЬ 2.0: Теперь у него есть ТАКТИКИ. Осада, Рой, Клещи, Засада, Элитный Отряд. Он анализирует, как вы двигаетесь, и подбирает контр-меры.",
+            "🏗 СТРОИТЕЛИ: Враги научились держать молоток. Они строят ТУРЕЛИ (стреляют больно) и ЛАГЕРЯ (спавнят мелочь). С лагерей с шансом 1% может вылезти БОСС. Ломайте их немедленно!",
+            "🛡 ЩИТОВИКИ: Теперь их щит — это физический объект. Он блокирует снаряды только спереди. Хватит стрелять им в лицо, обходите!",
+            "🕸 МАСТЕР КЛЕТКИ: Новый душный моб. Запирает вас в арене 1 на 1. Выйти нельзя, пока он жив. (Да, мы добавили коллизию, не благодарите).",
+            "🧱 СТЕНОБЕГ: Носится по карте и ставит стены. Просто чтобы испортить вам жизнь.",
+            "🌧 ПОГОДА: Дождь (вы скользите), Ветер (снаряды сдувает), Туман (ничего не видно). Атмосфера 10/10.",
+            "🔧 БАГФИКСЫ: Починили полоски ХП у турелей (они больше не улетают в бесконечность). Починили спавн строителей (они теперь убегают, а не лезут в драку).",
+            "💀 ТОРГОВЕЦ: Был уволен. Мы его убрали из меню. Теперь он появляется только как редкий ивент в игре. Халявы не будет."
+        ]
+    },
+    {
+        version: "v0.4.5",
+        date: "13.02.2026",
+        title: "РЕЙДЫ И ПОГЛОЩЕНИЕ",
+        description: "Масштабное обновление прогрессии. Теперь мусор в инвентаре — это ресурс.",
+        changes: [
+            "⚔️ РЕЙДЫ [BOSS RUSH]: Сектора 111-999. Запускаете рейд — сразу босс. Скалирование работает корректно (да, мы проверили 111-ю волну).",
+            "🎒 ИНВЕНТАРЬ 2.0: Механика 'ПОГЛОЩЕНИЯ'. Скармливайте ненужные предметы надетым. 10% статов переносятся НАВСЕГДА. Можно сделать монстра.",
+            "✨ СЕТЫ: Соберите 3 предмета одного типа (Cursed, Divine, Mythic) для активации мощных бонусов.",
+            "📊 ПРОФИЛЬ: Теперь отображается всё. Вампиризм (работает от урона!), Удача, Шанс крита (вплоть до МЕГА-КРИТА).",
+            "🏆 ЛИДЕРБОРДЫ: Глобальный рейтинг. Топ дня и Топ недели. Покажите, кто тут папа.",
+            "🤖 НОВЫЕ КЛАССЫ: Ниндзя (инвиз), Киборг (перегрев), Игрок (рандом)."
+        ]
+    },
+    {
+        version: "v0.3.0",
+        date: "12.02.2026",
+        title: "СИСТЕМНОЕ ЯДРО",
+        description: "База, фундамент, основа.",
+        changes: [
+            "🧠 НЕЙРОСЕТЬ: Древо талантов. Тратьте Ядра с умом.",
+            "🌪 АНОМАЛИИ: Гравитация, Турбо-режим, Берсерк. Если экран трясется — это нормально.",
+            "👾 ВТОРЖЕНИЯ: Фейковые игроки-боты. Они пишут в чат гадости и пытаются вас убить.",
+            "💬 ЧАТ: Симуляция живого MMO-чата. 'Продам гараж', 'Где хил?', 'Админ лох'.",
+            "💥 УЛЬТИМЕЙТЫ: Ядерный удар (F) и Рывок (Space). Используйте с умом."
+        ]
+    }
+];
+---
+
+<Layout title="История обновлений | Рогалик">
+    <main class="container">
+        <div class="header-section">
+            <a href="/games" class="back-btn">← Назад к играм</a>
+            <h1 class="comic-title">ПАТЧНОУТ: НЕОНОВЫЙ ПРОТОКОЛ</h1>
+        </div>
+
+        <div class="comic-grid">
+            {updates.map((update, index) => (
+                <div class="comic-panel">
+                    <!-- Плашка с версией и датой -->
+                    <div class="caption-box">
+                        <span class="version">{update.version}</span>
+                        <span class="sep">|</span>
+                        <span class="date">{update.date}</span>
+                    </div>
+
+                    <div class="panel-content">
+                        <h2 class="update-title">{update.title}</h2>
+                        <p class="update-desc">{update.description}</p>
+                        
+                        <div class="divider"></div>
+
+                        <ul class="changes-list">
+                            {update.changes.map(change => (
+                                <li>{change}</li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {index === 0 && (
+                        <div class="lorin-stamp">
+                            <img src={lorinImg.src} alt="Lorin" class="stamp-img" />
+                            <div class="stamp-text">HOT!</div>
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    </main>
+</Layout>
+
+<style>
+    .header-section {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 2rem 0 3rem 0;
+        border-bottom: 4px solid var(--accent-gold);
+        padding-bottom: 1rem;
+    }
+
+    .comic-title {
+        font-size: 2.5rem;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        text-shadow: 4px 4px 0 #00ffff;
+        margin: 0;
+    }
+
+    .back-btn {
+        color: var(--accent-gold);
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 1.2rem;
+        transition: transform 0.2s;
+    }
+    .back-btn:hover { transform: translateX(-5px); }
+
+    .comic-grid { display: flex; flex-direction: column; gap: 3rem; max-width: 800px; margin: 0 auto; }
+
+    .comic-panel {
+        background: #0a0a0a; border: 2px solid #0ff;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+        position: relative; padding: 2rem; transition: transform 0.3s;
+    }
+    .comic-panel:hover { transform: scale(1.01); border-color: #fff; }
+
+    .caption-box {
+        position: absolute; top: -15px; left: 20px;
+        background: #000; color: #0ff; border: 1px solid #0ff;
+        padding: 5px 15px; font-weight: 900; font-family: monospace;
+        transform: rotate(-2deg); z-index: 2;
+    }
+
+    .update-title { margin: 0.5rem 0; color: #fff; font-size: 1.8rem; text-shadow: 0 0 10px rgba(0,255,255,0.5); }
+    .update-desc { color: #aaa; font-style: italic; margin-bottom: 1rem; }
+    .divider { height: 1px; background: #333; margin: 1rem 0; }
+    .changes-list { list-style: none; padding: 0; margin: 0; }
+    .changes-list li { position: relative; padding-left: 1.5rem; margin-bottom: 0.5rem; color: #e0e0e0; line-height: 1.4; }
+    .changes-list li::before { content: '>'; position: absolute; left: 0; color: #0ff; font-weight: bold; }
+
+    .lorin-stamp { position: absolute; bottom: -20px; right: -20px; width: 80px; height: 80px; transform: rotate(10deg); }
+    .stamp-img { width: 100%; height: 100%; border-radius: 50%; border: 3px solid #0ff; object-fit: cover; }
+    .stamp-text { position: absolute; bottom: 0; right: 0; background: #f00; color: #fff; font-size: 0.8rem; padding: 2px 6px; font-weight: bold; border: 1px solid #fff; }
+</style>

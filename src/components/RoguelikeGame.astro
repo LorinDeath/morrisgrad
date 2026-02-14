@@ -41,6 +41,7 @@
             <button id="btn-raids" class="btn-secondary text-red">РЕЙДЫ [BOSS]</button>
             <button id="btn-profile" class="btn-secondary text-blue">ПРОФИЛЬ</button>
             <button id="btn-leaderboard" class="btn-secondary text-purple">РЕЙТИНГ</button>
+            <button id="btn-help" class="btn-secondary text-gold">СПРАВКА</button>
         </div>
 
         <div class="menu-columns">
@@ -156,6 +157,67 @@
         <button id="btn-lb-back" class="btn-secondary">НАЗАД</button>
       </div>
 
+      <!-- Help Screen -->
+      <div id="help-screen" class="screen hidden">
+        <h2>БАЗА ЗНАНИЙ</h2>
+        <div class="help-content" style="max-width: 800px; width: 90%; text-align: left; overflow-y: auto; max-height: 60vh; padding: 20px; background: rgba(0,0,0,0.8); border: 1px solid #333; font-size: 0.9rem; line-height: 1.6;">
+            <h3 class="text-gold">УПРАВЛЕНИЕ</h3>
+            <p>• <b>WASD / Стрелки</b>: Перемещение персонажа.</p>
+            <p>• <b>Мышь</b>: Прицеливание. <b>ЛКМ</b>: Стрельба (Зажать, но следите за перегревом!).</p>
+            <p>• <b>SPACE</b>: Рывок (Требуется разблокировка в Нейросети).</p>
+            <p>• <b>E</b>: Активный навык класса (Турель, Щит, Невидимость и др.).</p>
+            <p>• <b>F</b>: Ультимативная способность (Ядерный удар - требует разблокировки).</p>
+            
+            <h3 class="text-purple" style="margin-top: 20px;">РЕСУРСЫ</h3>
+            <p>• <span style="color:#a020f0">ОСКОЛКИ</span>: Начисляются автоматически при уничтожении врагов. Используются для улучшения характеристик в "Системном Ядре".</p>
+            <p>• <span style="color:#ffd700">ЯДРА (Золотые)</span>: Редкий ресурс с Боссов. Нужны для изучения талантов в "Нейросети".</p>
+            
+            <h3 class="text-blue" style="margin-top: 20px;">ПОГОДА И УСЛОВИЯ</h3>
+            <p>• <b>ДОЖДЬ</b>: Поверхность становится скользкой, скорость передвижения снижается.</p>
+            <p>• <b>ВЕТЕР</b>: Сильные порывы сносят персонажа и снаряды в сторону.</p>
+            <p>• <b>ТУМАН</b>: Ухудшает видимость, скрывая врагов вдалеке.</p>
+            <p>• <b>АНОМАЛИИ</b>: Случайные события (Гравитация, Турбо-режим, Берсерк), временно меняющие физику игры.</p>
+
+            <h3 class="text-gold" style="margin-top: 20px;">ХАРАКТЕРИСТИКИ</h3>
+            <p>• <b>УДАЧА</b>: Влияет на шанс выпадения редких предметов и критических ударов.</p>
+            <p>• <b>ВАМПИРИЗМ</b>: Восстанавливает здоровье в % от нанесенного урона.</p>
+            <p>• <b>ШИПЫ</b>: Возвращают часть полученного урона обратно врагу.</p>
+            <p>• <b>МАГНИТ</b>: Увеличивает радиус сбора опыта и предметов.</p>
+            <p>• <b>ПРОКЛЯТИЕ (Метка)</b>: Увеличивает входящий по вам урон (будьте осторожны с предметами, дающими этот стат).</p>
+
+            <h3 class="text-blue" style="margin-top: 20px;">МЕХАНИКИ</h3>
+            <p>• <b>ПЕРЕГРЕВ</b>: Оружие нагревается при стрельбе. Если шкала заполнится, оружие заклинит на несколько секунд. Делайте паузы!</p>
+            <p>• <b>КОМБО</b>: Быстрое уничтожение врагов заполняет шкалу комбо. Высокое комбо (x50+) включает режим "ПЕРЕГРУЗКА" (ускорение стрельбы).</p>
+            <p>• <b>ПОГЛОЩЕНИЕ (Инвентарь)</b>: Вы можете "скормить" ненужный предмет другому предмету того же типа. При этом 10% характеристик уничтожаемого предмета перейдут к основному навсегда.</p>
+            <p>• <b>СЕТЫ</b>: Соберите 3 предмета с одинаковым названием сета (например, "CURSED"), чтобы активировать мощные бонусы.</p>
+
+            <h3 class="text-red" style="margin-top: 20px;">БЕСТИАРИЙ (ВРАГИ)</h3>
+            <p>• <b>БЕГУНЫ (Оранжевые)</b>: Слабые, но очень быстрые.</p>
+            <p>• <b>ТАНКИ (Синие)</b>: Медленные, много здоровья.</p>
+            <p>• <b>СТРЕЛКИ (Зеленые)</b>: Стреляют обычными снарядами издалека.</p>
+            <p>• <b>СНАЙПЕРЫ (Фиолетовые)</b>: Бьют редко, но больно. Следите за лазерным прицелом!</p>
+            <p>• <b>ЩИТОВИКИ (Голубой щит)</b>: Неуязвимы спереди. Заходите им в спину.</p>
+            <p>• <b>СТРОИТЕЛИ (Фиолетовые)</b>: Строят турели или лагеря спавна. Уничтожайте их первыми!</p>
+            <p>• <b>КАМИКАДЗЕ (Мигающие)</b>: Взрываются при приближении.</p>
+            <p>• <b>ХИЛЕРЫ (Голубые)</b>: Лечат других врагов.</p>
+            <p>• <b>ПРИЗРАКИ (Серые)</b>: Периодически становятся невидимыми.</p>
+            <p>• <b>ВАМПИРЫ (Темные)</b>: Восстанавливают свое здоровье при атаке по вам.</p>
+            <p>• <b>ЗАХВАТЧИКИ (Красные)</b>: "Игроки" с уникальными способностями (Рывок, Хил, Ракеты).</p>
+            <p>• <b>МАСТЕР КЛЕТКИ (Синий)</b>: Создает купол-ловушку. Убейте его, чтобы выйти.</p>
+            <p>• <b>СТЕНОБЕГ (Зеленый)</b>: Быстро бегает и ставит тонкие защитные стены.</p>
+
+            <h3 class="text-red" style="margin-top: 20px;">БОССЫ</h3>
+            <p>• <b>БОСС 1 (Красный)</b>: Призывает толпы миньонов.</p>
+            <p>• <b>БОСС 2 (Снайпер)</b>: Стреляет мощным лазером. Следите за линией прицела.</p>
+            <p>• <b>БОСС 3 (Танк)</b>: Огромный запас здоровья и щит. Бьет по площади.</p>
+            <p>• <b>БОСС 4 (Чарджер)</b>: Очень быстрый, таранит игрока.</p>
+            <p>• <b>БОСС 5 (Ад)</b>: Стреляет спиралями снарядов.</p>
+            <p>• <b>БОСС 6 (Власть)</b>: Призывает элитных врагов и миньонов.</p>
+            <p>• <b>БОСС 7 (Псих)</b>: Телепортируется и создает хаос.</p>
+        </div>
+        <button id="btn-help-back" class="btn-secondary">НАЗАД</button>
+      </div>
+
       <!-- Difficulty Selection -->
       <div id="difficulty-screen" class="screen hidden">
         <h2>ВЫБЕРИТЕ УРОВЕНЬ УГРОЗЫ</h2>
@@ -201,6 +263,7 @@
           </div>
           <div class="heat-bar-wrap">
             <div id="hud-heat-bar" class="heat-bar-fill"></div>
+            <span style="position:absolute; width:100%; text-align:center; font-size:10px; top:-1px; color:rgba(255,255,255,0.7); pointer-events:none;">НАГРЕВ</span>
           </div>
           <div id="hud-proj-count" style="font-size: 0.8rem; color: #0ff; margin-top: 2px;">x1 СНАРЯДОВ</div>
           <div class="skills-hud">
@@ -215,6 +278,7 @@
           </div>
           <div class="xp-bar-wrap">
             <div id="hud-xp-bar" class="xp-bar-fill"></div>
+            <span id="hud-xp-text" style="position:absolute; width:100%; text-align:center; font-size:10px; top:-2px; color:#000; font-weight:bold; pointer-events:none;">XP</span>
           </div>
           
           <!-- In-Game Upgrade UI (No Pause) -->
@@ -276,7 +340,7 @@
 
       <!-- Confirmation Modal -->
       <div id="modal-confirm" class="modal-overlay hidden">
-        <div class="modal-box">
+        <div class="modal-box" style="width: 500px;">
           <h3 class="text-gold">ПОГЛОЩЕНИЕ</h3>
           <p id="modal-msg">Вы уверены?</p>
           <div class="modal-preview" id="modal-preview"></div>
@@ -501,7 +565,7 @@
   
   .inv-grid { 
     display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; 
-    max-height: 300px; overflow-y: auto;
+    max-height: 450px; overflow-y: auto; padding-right: 5px;
   }
   .inv-item {
     width: 70px; height: 70px; border: 1px solid #333; background: #111;
@@ -759,7 +823,7 @@
   
   .merchant-grid { display: flex; gap: 20px; margin-bottom: 20px; }
   
-  .xp-bar-wrap { width: 300px; height: 6px; background: #111; }
+  .xp-bar-wrap { width: 300px; height: 10px; background: #111; position: relative; border: 1px solid #333; }
   .xp-bar-fill { width: 0%; height: 100%; background: #0ff; transition: width 0.2s; box-shadow: 0 0 5px #0ff; }
 
   /* In-Game Upgrades */
@@ -872,23 +936,23 @@
   const RARITIES = ['common', 'rare', 'epic', 'legendary', 'mythic', 'divine'];
   
   const STAT_NAMES: Record<string, string> = {
-    hp: 'HP',
+    hp: 'Здоровье',
     dmg: 'Урон',
-    spd: 'Скор.',
-    crit: 'Крит',
-    cooldown: 'КД',
-    area: 'Обл.',
-    regen: 'Реген',
+    spd: 'Скорость',
+    crit: 'Шанс Крита',
+    cooldown: 'Перезарядка',
+    area: 'Область',
+    regen: 'Регенерация',
     luck: 'Удача',
-    lifesteal: 'Вамп.',
-    dodge: 'Уклон.',
+    lifesteal: 'Вампиризм',
+    dodge: 'Уклонение',
     thorns: 'Шипы',
-    knockback: 'Отталк.',
+    knockback: 'Отталкивание',
     magnet: 'Магнит',
-    multishot: 'Мульти',
+    multishot: 'Мультивыстрел',
     spread: 'Разброс',
-    projSpeed: 'Скор.Пул.',
-    frag: 'Осколки',
+    projSpeed: 'Скор. Снаряда',
+    frag: 'Шанс Осколков',
     curse: 'Метка',
     slow: 'Замедл.'
   };
@@ -1628,6 +1692,75 @@
     }
   }
 
+  // --- ENEMY STRUCTURES ---
+  class EnemyStructure extends Entity {
+      hp: number;
+      maxHp: number;
+      timer = 0;
+      
+      constructor(pos: Vector, public type: 'turret' | 'camp') {
+          super(pos, 20, type === 'turret' ? '#f00' : '#a020f0');
+          this.hp = type === 'turret' ? 200 : 300;
+          this.maxHp = this.hp;
+          // Scale HP with wave
+          const scale = 1 + (game.director.wave * 0.1);
+          this.hp *= scale * selectedDifficulty;
+          this.maxHp *= scale;
+      }
+
+      update(dt: number) {
+          this.timer -= dt;
+          if (this.type === 'turret') {
+              if (this.timer <= 0) {
+                  this.timer = 2.0;
+                  const dir = game.player.pos.sub(this.pos).normalize();
+                  const scale = 1 + (game.director.wave * 0.1);
+                  const dmg = 15 * scale * selectedDifficulty;
+                  game.projectiles.push(new Projectile(this.pos, dir.mult(400), dmg, 'bullet', 'enemy'));
+              }
+          } else if (this.type === 'camp') {
+              if (this.timer <= 0) {
+                  this.timer = 3.0;
+                  
+                  // 1% Chance for Boss
+                  if (Math.random() < 0.01) {
+                      const bosses = ['boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss6', 'boss7'];
+                      const bossId = bosses[Math.floor(Math.random() * bosses.length)];
+                      game.spawnEnemy(bossId, false, this.pos, '#ff0000', 3.0);
+                      game.texts.push(new FloatingText(this.pos, "АНОМАЛИЯ В ЛАГЕРЕ!", "#f00"));
+                  } else {
+                      // Spawn critter
+                      const critter = new Enemy(this.pos.add(new Vector(Math.random()*20-10, Math.random()*20-10)), 'critter', game.director.wave, false);
+                      game.enemies.push(critter);
+                  }
+              }
+          }
+      }
+
+      draw(ctx: CanvasRenderingContext2D) {
+          ctx.fillStyle = this.color;
+          if (this.type === 'turret') {
+              ctx.fillRect(this.pos.x-15, this.pos.y-15, 30, 30);
+              // Gun barrel
+              const dir = game.player.pos.sub(this.pos).normalize();
+              ctx.beginPath(); ctx.moveTo(this.pos.x, this.pos.y); 
+              ctx.lineTo(this.pos.x + dir.x*25, this.pos.y + dir.y*25);
+              ctx.lineWidth = 4; ctx.strokeStyle = '#500'; ctx.stroke();
+          } else {
+              // Camp (Triangle/Tent)
+              ctx.beginPath();
+              ctx.moveTo(this.pos.x, this.pos.y - 20);
+              ctx.lineTo(this.pos.x + 20, this.pos.y + 20);
+              ctx.lineTo(this.pos.x - 20, this.pos.y + 20);
+              ctx.fill();
+          }
+          // HP Bar
+          const pct = Math.max(0, Math.min(1, this.hp / this.maxHp));
+          ctx.fillStyle = '#333'; ctx.fillRect(this.pos.x-15, this.pos.y-25, 30, 4);
+          ctx.fillStyle = '#f00'; ctx.fillRect(this.pos.x-15, this.pos.y-25, 30*pct, 4);
+      }
+  }
+
   // --- PROJECTILES ---
   class Projectile extends Entity {
     homing = false;
@@ -1641,7 +1774,7 @@
       if (this.pos.x < -100 || this.pos.x > CANVAS_W + 100 || this.pos.y < -100 || this.pos.y > CANVAS_H + 100) this.dead = true;
       
       // Weather: Wind
-      if (game.director.weather === 'wind') this.pos.x += 300 * dt; // Stronger wind
+      if (game.director.weather === 'wind') this.pos.x += 100 * dt; // Reduced wind effect on projectiles
     }
     draw(ctx: CanvasRenderingContext2D) {
       ctx.fillStyle = this.color;
@@ -1660,7 +1793,7 @@
     hp: number;
     speed: number;
     cost: number;
-    type: 'melee' | 'ranged' | 'charger' | 'healer' | 'vampire' | 'exploder' | 'summoner' | 'stealth' | 'boss_summoner' | 'boss_sniper' | 'boss_tank' | 'boss_charger' | 'boss_hell' | 'boss_psycho' | 'invader';
+    type: 'melee' | 'ranged' | 'charger' | 'healer' | 'vampire' | 'exploder' | 'summoner' | 'stealth' | 'shielder' | 'builder' | 'cage_master' | 'wall_runner' | 'boss_summoner' | 'boss_sniper' | 'boss_tank' | 'boss_charger' | 'boss_hell' | 'boss_psycho' | 'invader';
     color: string;
     radius: number;
     unlockReq?: string;
@@ -1673,6 +1806,7 @@
     'basic_strong': { id: 'basic_strong', hp: 60, speed: 160, cost: 25, type: 'melee', color: '#aa0000', radius: 18 },
     // Fast
     'fast_weak': { id: 'fast_weak', hp: 10, speed: 220, cost: 8, type: 'melee', color: '#ffaa00', radius: 12 },
+    'critter': { id: 'critter', hp: 5, speed: 280, cost: 5, type: 'melee', color: '#aa5500', radius: 8 }, // For camps & swarm
     'fast_norm': { id: 'fast_norm', hp: 20, speed: 250, cost: 20, type: 'melee', color: '#ff8800', radius: 13, unlockReq: 'enemy_fast' },
     // Tank
     'tank_weak': { id: 'tank_weak', hp: 80, speed: 80, cost: 30, type: 'melee', color: '#3388ff', radius: 22 },
@@ -1692,6 +1826,14 @@
     'vampire': { id: 'vampire', hp: 50, speed: 160, cost: 40, type: 'vampire', color: '#880088', radius: 16, unlockReq: 'enemy_vampire' },
     // Special
     'exploder': { id: 'exploder', hp: 20, speed: 220, cost: 25, type: 'exploder', color: '#ff8800', radius: 14, unlockReq: 'enemy_exploder' },
+    'shielder': { id: 'shielder', hp: 40, speed: 80, cost: 60, type: 'shielder', color: '#0088ff', radius: 20 },
+    'builder_turret': { id: 'builder_turret', hp: 50, speed: 100, cost: 70, type: 'builder', color: '#a020f0', radius: 18 },
+    'builder_camp': { id: 'builder_camp', hp: 60, speed: 90, cost: 80, type: 'builder', color: '#a020f0', radius: 20 },
+    
+    // New High-Value Enemies
+    'cage_master': { id: 'cage_master', hp: 1200, speed: 450, cost: 350, type: 'cage_master', color: '#0000ff', radius: 30 },
+    'wall_runner': { id: 'wall_runner', hp: 600, speed: 550, cost: 280, type: 'wall_runner', color: '#00ff88', radius: 20 },
+    
     'summoner': { id: 'summoner', hp: 40, speed: 80, cost: 60, type: 'summoner', color: '#aa00aa', radius: 20, unlockReq: 'enemy_summoner' },
     'ghost': { id: 'ghost', hp: 25, speed: 120, cost: 35, type: 'stealth', color: '#888888', radius: 15, unlockReq: 'enemy_ghost' },
     // Bosses
@@ -1721,9 +1863,15 @@
     flankOffset = Math.random() * 100; // Unique movement pattern
     offScreenTimer = 0;
     spawnFade = 0; // Opacity for spawn animation
+    angle = 0; // Facing angle
     
     overrideDir: Vector | null = null; // For dodging/dashing
     hitCooldown = 0; // Attack cooldown for collision
+    
+    // Special Props
+    cageActive = false;
+    cageRadius = 300;
+    walls: { pos: Vector, size: Vector, angle: number }[] = [];
 
     constructor(pos: Vector, typeId: string, level: number, public elite: boolean) {
       super(pos, 15, '#f00');
@@ -1763,14 +1911,26 @@
         }
 
         // Weather: Rain slows enemies
-        if (game.director.weather === 'rain') speed *= 0.6;
+        if (game.director.weather === 'rain') speed *= 0.8; // Less slow than before
         
         // Weather: Wind pushes enemies
-        if (game.director.weather === 'wind') this.pos.x += 150 * dt;
+        if (game.director.weather === 'wind') this.pos.x += 50 * dt; // Reduced wind push
         
         // Anomaly: Turbo
         if (game.director.activeAnomaly?.type === 'turbo') speed *= 1.5;
         
+        // Builder Behavior: Keep distance and hide
+        if (this.config.type === 'builder') {
+             const dist = game.player.pos.sub(this.pos).mag();
+             if (dist < 500) {
+                 // Run away from player (Kiting)
+                 dir = this.pos.sub(game.player.pos).normalize();
+             } else {
+                 // Stay put (Behind the lines)
+                 speed = 0;
+             }
+        }
+
         // Flanking Logic (Fast units & Ninja)
         if (this.config.id.includes('fast') || this.config.id.includes('ninja') || this.config.id.includes('vampire')) {
              const toPlayer = game.player.pos.sub(this.pos);
@@ -1781,6 +1941,67 @@
                  const flankFactor = Math.sin(performance.now() / 400 + this.flankOffset); 
                  dir = toPlayer.normalize().add(perp.mult(flankFactor * 0.6)).normalize();
              }
+        }
+
+        // Cage Master Logic
+        if (this.config.type === 'cage_master') {
+            const dist = game.player.pos.sub(this.pos).mag();
+            if (!this.cageActive) {
+                // Chase mode: Fast & Invulnerable
+                speed = this.config.speed; // 450
+                if (dist < 150) {
+                    this.cageActive = true;
+                    game.texts.push(new FloatingText(this.pos, "КЛЕТКА!", "#00f"));
+                    game.screenShake = 10;
+                    game.spawnParticles(this.pos, '#00f', 20);
+                }
+            } else {
+                // Active mode: Slow & Vulnerable
+                speed = 50;
+                // Chaotic movement
+                this.angle += (Math.random() - 0.5) * 0.5;
+                dir = new Vector(Math.cos(this.angle), Math.sin(this.angle));
+                
+                // Deactivate if player escapes
+                if (dist > this.cageRadius + 50) {
+                    this.cageActive = false;
+                    game.texts.push(new FloatingText(this.pos, "СБРОС!", "#fff"));
+                }
+            }
+        }
+
+        // Wall Runner Logic
+        if (this.config.type === 'wall_runner') {
+            // Erratic movement
+            if (Math.random() < 0.05) {
+                const a = Math.random() * Math.PI * 2;
+                this.overrideDir = new Vector(Math.cos(a), Math.sin(a));
+            }
+            if (this.overrideDir) dir = this.overrideDir;
+            
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.specialTimer = 3.0;
+                // Place wall
+                const wallDist = 40;
+                const wallPos = this.pos.add(dir.mult(wallDist));
+                // Wall perpendicular to look dir
+                const wallAngle = Math.atan2(dir.y, dir.x) + Math.PI/2;
+                this.walls.push({ pos: wallPos, size: new Vector(80, 6), angle: wallAngle });
+                game.spawnParticles(wallPos, '#00ff88', 5);
+            }
+        }
+
+        // Rotation Logic
+        const targetAngle = Math.atan2(dir.y, dir.x);
+        if (this.config.type === 'shielder') {
+            // Slow rotation for shielder
+            const diff = targetAngle - this.angle;
+            // Normalize angle diff
+            const d = Math.atan2(Math.sin(diff), Math.cos(diff));
+            this.angle += Math.sign(d) * Math.min(Math.abs(d), 0.8 * dt); // Slower turn speed
+        } else {
+            this.angle = targetAngle;
         }
 
         // Ranged Logic
@@ -1945,6 +2166,25 @@
                 game.spawnParticles(this.pos, '#a020f0', 10);
             }
         }
+        
+        // Builder Logic
+        if (this.config.type === 'builder') {
+            this.specialTimer -= dt;
+            if (this.specialTimer <= 0) {
+                this.specialTimer = 15.0; // Build every 15s
+                // Stop to build
+                speed = 0;
+                setTimeout(() => {
+                    if (this.dead) return;
+                    const type = this.config.id === 'builder_turret' ? 'turret' : 'camp';
+                    game.enemyStructures.push(new EnemyStructure(this.pos, type));
+                    game.texts.push(new FloatingText(this.pos, "BUILDING!", "#fff"));
+                    game.spawnParticles(this.pos, '#fff', 10);
+                }, 1000); // 1s delay
+            }
+            // Enforce stop during build animation
+            if (this.specialTimer > 14.0) speed = 0;
+        }
 
         // Stealth Logic
         if (this.config.type === 'stealth') {
@@ -2046,6 +2286,10 @@
       ctx.save();
       ctx.translate(this.pos.x, this.pos.y);
       
+      // Body Rotation Scope
+      ctx.save();
+      if (this.config.type !== 'shielder') ctx.rotate(this.angle); // Shielder rotates in update logic, others visual only
+      
       ctx.globalAlpha = this.spawnFade * (this.isStealthed ? 0.2 : 1.0);
 
       ctx.fillStyle = this.color;
@@ -2073,6 +2317,56 @@
         ctx.fill();
       } else {
         ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+      }
+      
+      ctx.restore(); // End Body Rotation
+
+      // Shielder Shield
+      if (this.config.type === 'shielder') {
+          ctx.rotate(this.angle); // Apply rotation for shield drawing
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius + 8, -Math.PI/3, Math.PI/3); // 120 degree arc
+          ctx.strokeStyle = '#00ffff';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+          ctx.rotate(-this.angle); // Reset for bars
+      }
+      
+      // Cage Master Visuals
+      if (this.config.type === 'cage_master') {
+          if (this.cageActive) {
+              ctx.beginPath();
+              ctx.arc(0, 0, this.cageRadius, 0, Math.PI*2);
+              ctx.strokeStyle = `rgba(0, 0, 255, ${0.5 + Math.sin(performance.now()/200)*0.2})`;
+              ctx.lineWidth = 5;
+              ctx.stroke();
+              // Floor effect
+              ctx.fillStyle = 'rgba(0, 0, 255, 0.05)';
+              ctx.fill();
+          } else {
+              // Shield icon when invulnerable
+              ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+              ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
+          }
+      }
+
+      // Wall Runner Walls
+      if (this.config.type === 'wall_runner') {
+          ctx.restore(); // Go to world space
+          ctx.save(); // Save again for walls
+          this.walls.forEach(w => {
+              ctx.translate(w.pos.x, w.pos.y);
+              ctx.rotate(w.angle);
+              ctx.fillStyle = 'rgba(0, 255, 136, 0.6)';
+              ctx.shadowBlur = 10; ctx.shadowColor = '#00ff88';
+              ctx.fillRect(-w.size.x/2, -w.size.y/2, w.size.x, w.size.y);
+              ctx.shadowBlur = 0;
+              ctx.rotate(-w.angle);
+              ctx.translate(-w.pos.x, -w.pos.y);
+          });
+          ctx.restore(); // Back to world space
+          ctx.save(); // Back to enemy local space for bars
+          ctx.translate(this.pos.x, this.pos.y);
       }
 
       // Boss Sniper Laser Warning
@@ -2562,6 +2856,19 @@
       // Anomaly: Zero G (Bouncy walls?) - No, just keep bounds
       this.pos.x = Math.max(20, Math.min(CANVAS_W - 20, this.pos.x));
       this.pos.y = Math.max(20, Math.min(CANVAS_H - 20, this.pos.y));
+
+      // Cage Constraint (Cage Master)
+      game.enemies.forEach(e => {
+          if (e.config.type === 'cage_master' && e.cageActive) {
+              const dist = this.pos.sub(e.pos).mag();
+              const limit = e.cageRadius - this.radius;
+              if (dist > limit) {
+                  // Clamp position inside
+                  const dir = this.pos.sub(e.pos).normalize();
+                  this.pos = e.pos.add(dir.mult(limit));
+              }
+          }
+      });
 
       // Dash Ultimate
       if (this.dashCooldown > 0) this.dashCooldown -= dt;
@@ -3295,7 +3602,14 @@
         // Logic: Choose Tactic
         let newTactic: any = 'neutral';
         
-        if (avgSpeed < 50) {
+        // 30% Chance to pick random tactic regardless of player behavior (Chaos factor)
+        if (Math.random() < 0.3) {
+             const allTactics = ['siege', 'blitz', 'swarm', 'ambush', 'pincer', 'flank', 'grid', 'elite_squad'];
+             // Filter out expensive ones if poor
+             const affordable = allTactics.filter(t => this.getTacticCost(t) <= this.currentInfluence + 200);
+             if (affordable.length > 0) newTactic = affordable[Math.floor(Math.random() * affordable.length)];
+        } 
+        else if (avgSpeed < 50) {
             // Camper: Surround or bombard
             const opts = ['siege', 'encircle', 'box', 'grid'];
             newTactic = opts[Math.floor(Math.random() * opts.length)];
@@ -3544,6 +3858,9 @@
                     if (this.game.enemies.some(ex => ex.config.id.includes('boss'))) return false;
                 }
                 
+                // Critters only allowed in Swarm tactic
+                if (e.id === 'critter' && this.tactic !== 'swarm') return false;
+                
                 if (e.unlockReq && !meta.unlocks.includes(e.unlockReq)) return false;
                 return e.cost <= this.currentInfluence;
             });
@@ -3610,9 +3927,23 @@
             type = 'circle'; // Ambush uses circle logic but offset (see below)
             enemyId = 'ninja';
             count = 3;
-        } else if (this.tactic === 'swarm' || this.tactic === 'encircle') {
+        } else if (this.tactic === 'swarm') {
             type = 'circle';
-            enemyId = 'basic_weak';
+            // If rich, dump critters
+            if (this.currentInfluence > 200) {
+                 enemyId = 'critter';
+                 count = Math.min(40, Math.floor(this.currentInfluence / 5)); // Zerg Rush
+                 // Add Cage Master to swarm
+                 if (Math.random() < 0.3 && this.currentInfluence > 350) {
+                     this.payAndSpawn(ENEMIES['cage_master'], undefined, '#00f');
+                 }
+            } else {
+                 enemyId = 'basic_weak';
+                 count = 12;
+            }
+        } else if (this.tactic === 'encircle') {
+            type = 'circle';
+            enemyId = 'fast_weak';
             count = 12;
         } else if (this.tactic === 'pincer') {
             type = 'pincer'; enemyId = 'fast_weak'; count = 8;
@@ -3781,8 +4112,27 @@
             cost *= 2;
         }
         
+        if (!pos) {
+             const padding = 40;
+             if (Math.random() > 0.5) {
+                pos = new Vector(Math.random() > 0.5 ? padding : CANVAS_W - padding, Math.random() * (CANVAS_H - padding*2) + padding);
+             } else {
+                pos = new Vector(Math.random() * (CANVAS_W - padding*2) + padding, Math.random() > 0.5 ? padding : CANVAS_H - padding);
+             }
+        }
+
         this.currentInfluence -= cost;
         this.game.spawnEnemy(config.id, elite, pos, portalColor);
+        
+        if (config.type === 'builder') {
+             const count = 4 + Math.floor(Math.random() * 2);
+             for(let i=0; i<count; i++) {
+                 const angle = (Math.PI * 2 / count) * i;
+                 const offset = new Vector(Math.cos(angle), Math.sin(angle)).mult(40);
+                 this.game.spawnEnemy('shielder', false, pos.add(offset), '#0088ff');
+             }
+        }
+
         this.updateUI();
     }
 
@@ -3949,6 +4299,7 @@
     
     player: Player;
     enemies: Enemy[] = [];
+    enemyStructures: EnemyStructure[] = [];
     portals: Portal[] = [];
     turrets: Turret[] = [];
     mines: Mine[] = [];
@@ -4018,6 +4369,7 @@
       this.player = new Player();
       this.portals = [];
       this.enemies = [];
+      this.enemyStructures = [];
       this.turrets = [];
       this.mines = [];
       this.projectiles = [];
@@ -4098,6 +4450,7 @@
       });
       
       this.enemies.forEach(e => e.update(dt));
+      this.enemyStructures.forEach(s => s.update(dt));
       this.particles.forEach(p => p.update(dt));
       this.texts.forEach(t => t.update(dt));
 
@@ -4156,6 +4509,65 @@
           else if (p.team === 'enemy' && e.config.type === 'invader') canHit = true;
           
           if (!canHit) continue;
+          
+          // CAGE MASTER LOGIC
+          if (e.config.type === 'cage_master') {
+              if (!e.cageActive) {
+                  // Invulnerable when running
+                  if (p.pos.sub(e.pos).mag() < e.radius + p.radius) {
+                      p.dead = true;
+                      this.texts.push(new FloatingText(p.pos, "IMMUNE", "#888"));
+                      hit = true;
+                      break;
+                  }
+                  continue;
+              }
+              // Check Cage Rim Collision (Blocks projectiles entering/exiting)
+              const distToCenter = p.pos.sub(e.pos).mag();
+              if (Math.abs(distToCenter - e.cageRadius) < 15) {
+                  p.dead = true;
+                  this.spawnParticles(p.pos, '#00f', 3);
+                  hit = true;
+                  break;
+              }
+          }
+
+          // WALL RUNNER LOGIC
+          if (e.config.type === 'wall_runner') {
+              for (const w of e.walls) {
+                  // Simple distance check to wall center (approximate)
+                  if (p.pos.sub(w.pos).mag() < 40) { // 40 is approx half width
+                      p.dead = true;
+                      this.spawnParticles(p.pos, '#00ff88', 3);
+                      hit = true;
+                      break;
+                  }
+              }
+              if (hit) break;
+          }
+          
+          // SHIELD CHECK
+          if (e.config.type === 'shielder') {
+              const dist = p.pos.sub(e.pos).mag();
+              // Check collision with shield (radius + visual offset)
+              if (dist < e.radius + 15 + p.radius) {
+                  // Vector from enemy to projectile
+                  const toProj = p.pos.sub(e.pos).normalize();
+                  // Enemy facing vector
+                  const facing = new Vector(Math.cos(e.angle), Math.sin(e.angle));
+                  // Dot product: 1 = front, -1 = back
+                  const dot = toProj.dot(facing);
+                  
+                  // If hitting from front (approx 120 degrees cone)
+                  if (dot > 0.5) {
+                      p.dead = true;
+                      this.spawnParticles(p.pos, '#00ffff', 3);
+                      this.texts.push(new FloatingText(p.pos, "BLOCKED", "#0ff"));
+                      hit = true;
+                      break; // Stop processing this projectile
+                  }
+              }
+          }
           
           // TRUE INVULNERABILITY CHECK
           if (e.isStealthed) continue;
@@ -4297,6 +4709,26 @@
         }
       }
 
+      // Collisions: Projectile vs Enemy Structure
+      for (let i = this.projectiles.length - 1; i >= 0; i--) {
+          const p = this.projectiles[i];
+          if (p.dead || p.team !== 'player') continue;
+          
+          for (const s of this.enemyStructures) {
+              if (p.pos.sub(s.pos).mag() < 25) {
+                  s.hp -= p.dmg;
+                  p.dead = true;
+                  this.spawnParticles(s.pos, '#fff', 2);
+                  if (s.hp <= 0) {
+                      s.dead = true;
+                      this.spawnParticles(s.pos, '#ff0000', 10);
+                      this.texts.push(new FloatingText(s.pos, "DESTROYED", "#f00"));
+                  }
+                  break;
+              }
+          }
+      }
+
       // Collisions: Enemy Projectiles vs Player
       this.projectiles.forEach(p => {
           if ((p.team === 'enemy' || p.team === 'invader') && !this.player.dead) {
@@ -4400,6 +4832,7 @@
           
           if (this.enemies[i].dead) this.enemies.splice(i, 1);
       }
+      for (let i = this.enemyStructures.length - 1; i >= 0; i--) if (this.enemyStructures[i].dead) this.enemyStructures.splice(i, 1);
       for (let i = this.portals.length - 1; i >= 0; i--) if (this.portals[i].dead) this.portals.splice(i, 1);
       for (let i = this.turrets.length - 1; i >= 0; i--) if (this.turrets[i].dead) this.turrets.splice(i, 1);
       for (let i = this.mines.length - 1; i >= 0; i--) if (this.mines[i].dead) this.mines.splice(i, 1);
@@ -4443,6 +4876,7 @@
       this.particles.forEach(p => p.draw(this.ctx));
       this.projectiles.forEach(p => p.draw(this.ctx));
       this.enemies.forEach(e => e.draw(this.ctx));
+      this.enemyStructures.forEach(s => s.draw(this.ctx));
       this.turrets.forEach(t => t.draw(this.ctx));
       this.mines.forEach(m => m.draw(this.ctx));
       this.texts.forEach(t => t.draw(this.ctx));
@@ -4450,8 +4884,19 @@
       
       // Weather Overlay
       if (this.director.weather === 'rain') {
-          this.ctx.fillStyle = 'rgba(0,0,80,0.3)'; // Darker rain
-          this.ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+          this.ctx.strokeStyle = 'rgba(100, 100, 255, 0.4)';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          // Draw 100 random rain drops
+          for(let i=0; i<100; i++) {
+              const x = Math.random() * CANVAS_W;
+              const y = Math.random() * CANVAS_H;
+              const len = 15 + Math.random() * 20;
+              const angle = Math.PI / 2 + (Math.random() - 0.5) * 0.4; // Slight angle variation
+              this.ctx.moveTo(x, y);
+              this.ctx.lineTo(x + Math.cos(angle)*len, y + Math.sin(angle)*len);
+          }
+          this.ctx.stroke();
       } else if (this.director.weather === 'fog') {
           this.ctx.fillStyle = 'rgba(200,200,200,0.3)'; // Thicker fog
           this.ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
@@ -4957,6 +5402,7 @@
       
       const xpPct = (this.player.xp / this.player.maxXp) * 100;
       document.getElementById('hud-xp-bar')!.style.width = `${xpPct}%`;
+      document.getElementById('hud-xp-text')!.innerText = `XP: УРОВЕНЬ ${this.player.level}`;
       
       // Combo UI
       const comboContainer = document.getElementById('hud-combo-container');
@@ -5138,6 +5584,10 @@
       document.getElementById('btn-lb-back')?.addEventListener('click', () => {
           this.setScreen('menu-screen');
       });
+
+      // Help UI
+      document.getElementById('btn-help')?.addEventListener('click', () => this.setScreen('help-screen'));
+      document.getElementById('btn-help-back')?.addEventListener('click', () => this.setScreen('menu-screen'));
       
       // Merchant
       document.getElementById('btn-merchant-close')?.addEventListener('click', () => {
@@ -5266,7 +5716,12 @@
             parts.push("--- ХАРАКТЕРИСТИКИ ---");
             for (const [key, val] of Object.entries(item.stats)) {
                 const name = STAT_NAMES[key] || key.toUpperCase();
-                const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'dodge' || key === 'lifesteal' || key === 'curse' || key === 'slow' || key === 'frag') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+                let fmtVal = `+${val.toFixed(1)}`;
+                if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                    fmtVal = `+${(val*100).toFixed(1)}%`;
+                } else if (key === 'dodge') {
+                    fmtVal = `+${(val*100).toFixed(1)}`;
+                }
                 parts.push(` • ${name}: ${fmtVal}`);
             }
         }
@@ -5279,7 +5734,12 @@
             if (item.setStats) {
                 for (const [key, val] of Object.entries(item.setStats)) {
                     const name = STAT_NAMES[key] || key.toUpperCase();
-                    const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'dodge' || key === 'lifesteal' || key === 'curse' || key === 'slow' || key === 'frag') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+                    let fmtVal = `+${val.toFixed(1)}`;
+                    if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                        fmtVal = `+${(val*100).toFixed(1)}%`;
+                    } else if (key === 'dodge') {
+                        fmtVal = `+${(val*100).toFixed(1)}`;
+                    }
                     parts.push(` ✅ ${name}: ${fmtVal}`);
                 }
                 parts.push(`(НУЖНО 3 ПРЕДМЕТА)`);
@@ -5298,12 +5758,23 @@
         if (item.setId) {
             parts.push(`[СЕТОВЫЙ: ${item.setId.toUpperCase()}]`);
             for (const [key, val] of Object.entries(item.setStats || {})) {
-                parts.push(`✅ ${STAT_NAMES[key] || key} +${val.toFixed(1)} (СЕТ)`);
+                let fmtVal = `+${val.toFixed(1)}`;
+                if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                    fmtVal = `+${(val*100).toFixed(1)}%`;
+                } else if (key === 'dodge') {
+                    fmtVal = `+${(val*100).toFixed(1)}`;
+                }
+                parts.push(`✅ ${STAT_NAMES[key] || key} ${fmtVal} (СЕТ)`);
             }
         }
         for (const [key, val] of Object.entries(item.stats)) {
             const name = STAT_NAMES[key] || key.toUpperCase();
-            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'curse' || key === 'slow' || key === 'frag') ? `+${(val*100).toFixed(1)}%` : `+${val.toFixed(1)}`;
+            let fmtVal = `+${val.toFixed(1)}`;
+            if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                fmtVal = `+${(val*100).toFixed(1)}%`;
+            } else if (key === 'dodge') {
+                fmtVal = `+${(val*100).toFixed(1)}`;
+            }
             parts.push(`${name} ${fmtVal}`);
         }
         return parts.join(', ');
@@ -5339,26 +5810,26 @@
         }
         
         const stats = [
-            { name: 'Здоровье (HP)', val: Math.round(p.maxHp) },
+            { name: 'Здоровье (HP)', val: `${Math.round(p.hp)} / ${Math.round(p.maxHp)}` },
             { name: 'Урон', val: Math.round(p.damage) },
             { name: 'Скорость', val: Math.round(p.speed) },
             { name: 'Шанс Крита', val: critDisplay },
             { name: 'Сила Крита', val: `x${p.critMult.toFixed(1)}` },
-            { name: 'Скорострельность', val: `${(1/p.fireRate).toFixed(1)}/сек` },
+            { name: 'Скорострельность', val: `${(1/p.fireRate).toFixed(1)} выстр/сек` },
             { name: 'Мультивыстрел', val: `x${p.multishot}` },
-            { name: 'Регенерация', val: `${p.regen.toFixed(1)}/сек` },
-            { name: 'Вампиризм', val: `${(p.lifesteal * 100).toFixed(1)}%` },
-            { name: 'Уклонение', val: `${((Math.max(0, p.dodge) / (Math.max(0, p.dodge) + 1)) * 100).toFixed(1)}%` },
-            { name: 'Шипы', val: `${p.thorns} + ${(p.thornsPct*100).toFixed(0)}%` },
-            { name: 'Магнит', val: `${p.magnet}%` },
+            { name: 'Регенерация', val: `${p.regen.toFixed(1)} HP/сек` },
+            { name: 'Вампиризм', val: `${(p.lifesteal * 100).toFixed(1)}% от урона` },
+            { name: 'Шанс Уклонения', val: `${((Math.max(0, p.dodge) / (Math.max(0, p.dodge) + 1)) * 100).toFixed(1)}%` },
+            { name: 'Шипы (Возврат)', val: `${p.thorns.toFixed(1)} + ${(p.thornsPct*100).toFixed(0)}%` },
+            { name: 'Магнит (Радиус)', val: `${p.magnet}%` },
             { name: 'Удача', val: p.luck },
             { name: 'Отталкивание', val: p.knockback },
             { name: 'Бонус XP', val: `x${p.xpMult.toFixed(2)}` },
             { name: 'Урон по Боссам', val: `x${p.bossDmgMult.toFixed(2)}` },
             { name: 'Урон по Элите', val: `x${p.eliteDmgMult.toFixed(2)}` },
             { name: 'Дроны', val: p.droneCount },
-            { name: 'Разброс', val: `${p.spread.toFixed(1)}°` },
-            { name: 'Скор. Снарядов', val: `x${p.projSpeedMult.toFixed(2)}` },
+            { name: 'Разброс пуль', val: `${p.spread.toFixed(1)}°` },
+            { name: 'Скорость пуль', val: `x${p.projSpeedMult.toFixed(2)}` },
             { name: 'Шанс Осколков', val: `${(p.fragChance * 100).toFixed(1)}%` },
             { name: 'Вход. Урон (Метка)', val: `x${p.damageTakenMult.toFixed(2)}` },
             { name: 'Замедление', val: `${((1 - p.moveSpeedMult) * 100).toFixed(1)}%` }
@@ -5492,7 +5963,12 @@
                 for (const [key, val] of Object.entries(item.stats)) {
                     const name = STAT_NAMES[key] || key.toUpperCase();
                     const gainVal = val * 0.1;
-                    const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area') ? `+${(gainVal*100).toFixed(2)}%` : `+${gainVal.toFixed(2)}`;
+                    let fmtVal = `+${gainVal.toFixed(2)}`;
+                    if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                        fmtVal = `+${(gainVal*100).toFixed(2)}%`;
+                    } else if (key === 'dodge') {
+                        fmtVal = `+${(gainVal*100).toFixed(2)}`;
+                    }
                     gains.push(`${name} ${fmtVal}`);
                 }
                 tooltip += `\n\n[ПРИ ПОГЛОЩЕНИИ]:\n${gains.join('\n')}`;
@@ -5545,10 +6021,10 @@
                 </div>
             </div>
             <div style="font-size:0.9rem; color:#ccc; margin-bottom:5px;">
-                УЛУЧШЕНИЕ: <span style="color:${this.getItemColor(target.rarity)}">${target.name}</span>
+                ПРИЕМНИК (Получит статы): <span style="color:${this.getItemColor(target.rarity)}">${target.name}</span>
             </div>
             <div style="font-size:0.8rem; color:#666;">
-                ПОГЛОЩЕНИЕ: <span style="color:${this.getItemColor(item.rarity)}">${item.name}</span>
+                ДОНОР (Будет уничтожен): <span style="color:${this.getItemColor(item.rarity)}">${item.name}</span>
             </div>
             ${target.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:5px;">ЦЕЛЬ: СЕТ ${target.setId.toUpperCase()}</div>` : ''}
             ${item.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:2px;">ИСТОЧНИК: СЕТ ${item.setId.toUpperCase()}</div>` : ''}
@@ -5561,15 +6037,21 @@
         for (const [key, val] of Object.entries(item.stats)) {
             const name = STAT_NAMES[key] || key.toUpperCase();
             const gainVal = val * 0.1;
-            const fmtVal = (key === 'crit' || key === 'cooldown' || key === 'area' || key === 'curse' || key === 'slow' || key === 'frag') 
-                ? `+${(gainVal*100).toFixed(2)}%` 
-                : `+${gainVal.toFixed(2)}`;
+            let fmtVal = `+${gainVal.toFixed(2)}`;
+            if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                fmtVal = `+${(gainVal*100).toFixed(2)}%`;
+            } else if (key === 'dodge') {
+                fmtVal = `+${(gainVal*100).toFixed(2)}`;
+            }
             
             // Current val
             const currentVal = target.stats[key] || 0;
-            const fmtCurrent = (key === 'crit' || key === 'cooldown' || key === 'area')
-                ? `${(currentVal*100).toFixed(1)}%`
-                : `${currentVal.toFixed(1)}`;
+            let fmtCurrent = `${currentVal.toFixed(1)}`;
+            if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
+                fmtCurrent = `${(currentVal*100).toFixed(1)}%`;
+            } else if (key === 'dodge') {
+                fmtCurrent = `${(currentVal*100).toFixed(1)}`;
+            }
 
             gains.push(`
                 <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; padding:2px 0;">
