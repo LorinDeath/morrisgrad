@@ -2101,7 +2101,7 @@
       }
       
       // HP Bar under enemy
-      const hpPct = Math.max(0, this.hp / this.maxHp);
+      const hpPct = Math.min(1, Math.max(0, this.hp / this.maxHp));
       ctx.fillStyle = '#333'; ctx.fillRect(-20, 25, 40, 4);
       ctx.fillStyle = '#f00'; ctx.fillRect(-20, 25, 40 * hpPct, 4);
       
@@ -2732,7 +2732,7 @@
       this.heat += heatAdd * heatMult;
 
       const heatBonus = 1 + (this.heat / this.maxHeat) * this.heatDmgBonus;
-      const dmg = this.damage * heatBonus;
+      const dmg = Math.max(1, this.damage * heatBonus); // Ensure positive damage
 
       // Sniper Shot
       if (this.sniperShot) {
@@ -2985,6 +2985,7 @@
     
     tactic: 'neutral' | 'swarm' | 'siege' | 'blitz' | 'ambush' | 'encircle' | 'pincer' | 'cross' | 'box' | 'column' | 'vanguard' | 'flank' | 'grid' | 'boss_rush' | 'elite_squad' | 'sniper_line' = 'neutral';
     isSaving = false; // Flag to skip turn and save influence
+    savingTimer = 0; // Failsafe timer
     thought = "НАБЛЮДАЮ...";
     tacticTimer = 0;
     analyzeTimer = 0;
@@ -3090,13 +3091,24 @@
 
       // Check if we saved enough
       if (this.isSaving) {
-          const target = this.tactic === 'boss_rush' ? 800 : 400;
-          if (this.currentInfluence >= target) {
+          this.savingTimer += dt;
+          const target = this.getTacticCost(this.tactic);
+          
+          // Credit Mechanic: Allow going into debt up to -200 if close
+          const creditLimit = 200;
+          
+          if (this.currentInfluence >= target - creditLimit) {
               this.isSaving = false;
+              this.savingTimer = 0;
               this.game.texts.push(new FloatingText(this.game.player.pos, "ПОЛНАЯ МОЩНОСТЬ!", "#f00"));
               this.thought = "АТАКА!";
               this.game.screenShake = 20;
               this.formationCooldown = 0; // Attack immediately
+          } else if (this.savingTimer > 30) {
+              // Failsafe: Stuck saving for too long
+              this.isSaving = false;
+              this.tactic = 'neutral';
+              this.thought = "СЛИШКОМ ДОЛГО...";
           }
       }
       
@@ -3242,7 +3254,8 @@
       // "Ran out of energy? ... begins next wave"
       if ((this.currentInfluence < 10 || this.isSaving) && !this.game.enemies.some(e => e.isVisible() && e.config.type !== 'invader')) { // Wait for clear (ignoring invaders)
           this.nextWaveTimer += dt;
-          if (this.nextWaveTimer > 2.0) { // 2 seconds delay between waves
+          const delay = this.isSaving ? 0.5 : 2.0; // Fast skip if saving
+          if (this.nextWaveTimer > delay) {
               this.wave++;
               this.nextWaveTimer = 0;
               this.startWave();
@@ -3323,10 +3336,11 @@
         // Check Saving
         cost = this.getTacticCost(this.tactic);
         this.isSaving = false;
-        
-        // Only save if we are reasonably close (e.g. have 50% of funds) or it's cheap enough to wait
-        // If we are very poor, just play neutral/harass instead of saving for a long time.
-        if (this.currentInfluence < cost && this.currentInfluence > cost * 0.5) {
+        this.savingTimer = 0;
+        const totalFunds = this.currentInfluence + this.nextWaveSalary;
+
+        // Save if we can afford it next wave (with salary) OR if we are close (>50%)
+        if (cost > 0 && this.currentInfluence < cost && (totalFunds >= cost || this.currentInfluence > cost * 0.5)) {
             this.isSaving = true;
             this.thought = "КОПЛЮ РЕСУРСЫ...";
             this.game.texts.push(new FloatingText(this.game.player.pos, "НАКОПЛЕНИЕ СИЛ...", "#f00"));
@@ -3504,12 +3518,9 @@
         const startInfluence = this.currentInfluence;
         // Reduced to 5% to prevent rapid draining
         const spendCap = Math.max(20, this.currentInfluence * 0.05);
-
-        // Reserve funds for tactic if active
-        let reserve = 0;
-        if (isTactical) reserve = 300;
-        // Allow spending if we are above reserve OR if the spend is very small (harassment)
-        const canSpend = this.currentInfluence > reserve;
+        
+        // If we are NOT saving, we spend freely. No reserves.
+        const canSpend = true;
 
         for(let i=0; i<count; i++) {
              // If not a surge AND not forcing expensive, respect the spending cap
@@ -3771,7 +3782,8 @@
         if (t === 'elite_squad') return 400;
         if (t === 'swarm' || t === 'encircle') return 100;
         if (t === 'blitz') return 150;
-        return 300; // Default buffer for complex tactics
+        if (t === 'neutral') return 0; // Never save for neutral
+        return 300; // Default for others
     }
 
     updateUI() {
@@ -4142,6 +4154,7 @@
           if (p.pos.sub(e.pos).mag() < e.radius + p.radius) {
             // Crit logic
             let dmg = p.dmg;
+            dmg = Math.max(0, dmg); // Safety clamp against healing
             if (e.config.id.includes('boss')) dmg *= this.player.bossDmgMult;
 
             // --- CRIT SYSTEM (Multi-Tier) ---
