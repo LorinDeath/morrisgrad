@@ -45,14 +45,16 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
         // Ensure tables exist / Migration
         try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_id TEXT").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_stats JSON").run(); } catch (e) {}
         
         // Calculate Hellfire (1 per 100k score)
         const hellfireAmount = Math.floor(score / 100000);
 
-        // Save Item
+        // Save Item (WITH SET DATA)
         await db.prepare(`
-            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, created_at, set_id, set_stats)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             crypto.randomUUID(),
             userId,
@@ -64,7 +66,9 @@ export const POST: APIRoute = async ({ locals, request }) => {
             'divine', // Ascended items are Divine rarity
             JSON.stringify(item.stats || {}),
             iconUrl,
-            Date.now()
+            Date.now(),
+            item.setId || null,
+            JSON.stringify(item.setStats || {})
         ).run();
 
         // Update User Hellfire

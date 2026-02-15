@@ -28,7 +28,9 @@ if (!user) {
 const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
 const inventory = (invRes?.results || []).map((item: any) => ({
     ...item,
-    stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {})
+    stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {}),
+    setId: item.set_id,
+    setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {})
 }));
 ---
 
@@ -232,7 +234,12 @@ document.addEventListener('astro:page-load', () => {
             rarityEl.style.borderColor = getColor(item.rarity);
             rarityEl.style.background = 'rgba(0,0,0,0.5)';
         }
-        if (sourceEl) sourceEl.innerText = `Источник: ${item.source || 'Неизвестно'}`;
+        if (sourceEl) {
+            sourceEl.innerHTML = `Источник: ${item.source || 'Неизвестно'}`;
+            if (item.setId) {
+                sourceEl.innerHTML += `<br><span style="color:#0f0; font-weight:bold; text-shadow: 0 0 5px #0f0;">СЕТ: ${item.setId.toUpperCase()}</span>`;
+            }
+        }
         if (descEl) descEl.innerText = item.description || "Нет описания";
         
         if (statsEl) {

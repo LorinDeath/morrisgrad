@@ -6018,7 +6018,19 @@
         // Set
         if (item.setId) {
             parts.push("");
-            parts.push(`--- СЕТ: ${item.setId.toUpperCase()} ---`);
+            
+            // Check active count based on currently equipped items
+            const equip = meta.equipment;
+            let count = 0;
+            [equip.weapon, equip.armor, equip.chip].forEach(eq => {
+                if (eq && eq.setId === item.setId) count++;
+            });
+            
+            const isActive = count >= 3;
+            const statusIcon = isActive ? "✅" : "🔒";
+            const statusText = isActive ? "АКТИВНО" : "НЕАКТИВНО";
+            
+            parts.push(`--- СЕТ: ${item.setId.toUpperCase()} (${count}/3) ---`);
             
             if (item.setStats) {
                 for (const [key, val] of Object.entries(item.setStats)) {
@@ -6029,9 +6041,8 @@
                     } else if (key === 'dodge') {
                         fmtVal = `+${(val*100).toFixed(1)}`;
                     }
-                    parts.push(` ✅ ${name}: ${fmtVal}`);
+                    parts.push(` ${statusIcon} ${name}: ${fmtVal}`);
                 }
-                parts.push(`(НУЖНО 3 ПРЕДМЕТА)`);
             }
         }
         

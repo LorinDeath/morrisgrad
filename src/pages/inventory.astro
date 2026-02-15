@@ -245,7 +245,12 @@ if (!userId) return Astro.redirect('/');
             rarityEl.style.borderColor = getColor(item.rarity);
             rarityEl.style.background = 'rgba(0,0,0,0.5)';
         }
-        if (sourceEl) sourceEl.innerText = `Источник: ${item.source}`;
+        if (sourceEl) {
+            sourceEl.innerHTML = `Источник: ${item.source || 'Неизвестно'}`;
+            if (item.setId) {
+                sourceEl.innerHTML += `<br><span style="color:#0f0; font-weight:bold; text-shadow: 0 0 5px #0f0;">СЕТ: ${item.setId.toUpperCase()}</span>`;
+            }
+        }
         if (descEl) descEl.innerText = item.description || "Нет описания";
         
         if (statsEl) {
