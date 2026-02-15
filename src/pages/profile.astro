@@ -31,6 +31,30 @@ let user = null;
 let inventory = [];
 
 try {
+    // 0. АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ТАБЛИЦ (Self-healing)
+    // Если таблиц нет, этот код их создаст и ошибка исчезнет.
+    await db.prepare(`
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT,
+            description TEXT,
+            last_seen INTEGER,
+            created_at INTEGER,
+            avatar_url TEXT,
+            last_username_update INTEGER,
+            last_avatar_update INTEGER
+        )
+    `).run();
+
+    await db.prepare(`
+        CREATE TABLE IF NOT EXISTS inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            item_id TEXT,
+            amount INTEGER
+        )
+    `).run();
+
     // 3. Логика получения данных (аналогично API)
     user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
 
