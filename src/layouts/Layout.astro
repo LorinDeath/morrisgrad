@@ -39,6 +39,7 @@ const { title } = Astro.props;
                     <SignInButton mode="modal" class="login-btn">Войти</SignInButton>
                 </SignedOut>
                 <SignedIn>
+                    <a href="/profile" class="profile-link">Профиль</a>
                     <UserButton />
                 </SignedIn>
             </div>
@@ -254,6 +255,15 @@ const showImage = (index: number) => {
     box-shadow: 0 0 15px rgba(160, 32, 240, 0.5);
     border-color: var(--accent-gold);
   }
+
+  .profile-link {
+    color: var(--text-light);
+    text-decoration: none;
+    font-weight: 600;
+    margin-right: 15px;
+    transition: color 0.3s;
+  }
+  .profile-link:hover { color: var(--accent-gold); }
 
   .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
 

@@ -21,11 +21,20 @@
   // 2. Переносим твой ID из KV в D1 (настоящая база данных)
   "d1_databases": [
     {
-      "binding": "DB",
+      "binding": "PROFILES_DB",
       "database_name": "morrisgrad_db",
       "database_id": "76aa36d3-74b2-4b1c-bdfb-88100666317c" 
     }
   ],
+
+  // 3. Добавляем R2 для хранения аватарок
+  "r2_buckets": [
+    {
+      "binding": "AVATARS_BUCKET",
+      "bucket_name": "morrisgrad-avatars"
+    }
+  ],
+
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist"

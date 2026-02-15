@@ -1,0 +1,316 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// 1. Получаем доступ к базе данных Cloudflare D1
+const cfRuntime = (Astro.locals as any)?.runtime;
+const env = cfRuntime?.env as any;
+const db = env?.PROFILES_DB;
+const bucket = env?.AVATARS_BUCKET;
+
+// ВАЖНО: Вставьте сюда ваш публичный домен R2 (из настроек бакета в Cloudflare)
+const R2_PUBLIC_DOMAIN = "https://pub-c6960920bfb44496a89753f220db1147.r2.dev"; 
+
+// 2. Получаем ID пользователя через Clerk
+// Если middleware настроен, auth() вернет объект с userId
+const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : { userId: null };
+
+// Если не авторизован — редирект на главную (или на вход)
+if (!userId) {
+    return Astro.redirect('/');
+}
+
+// Если база не подключена (например, локально без wrangler)
+if (!db) {
+    return new Response("Database not connected. Run with 'wrangler dev'", { status: 500 });
+}
+
+// 3. Логика получения данных (аналогично API)
+let user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+
+// Если профиля нет в базе — создаем на лету
+if (!user) {
+    const now = Date.now();
+    await db.prepare(
+        'INSERT INTO users (id, username, description, last_seen, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(userId, 'Новичок', 'Житель МоррисГрада', now, now).run();
+    user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+}
+
+// Переменные для сообщений пользователю
+let message = "";
+let messageType = ""; // 'success' | 'error'
+
+// 4. Обработка формы (Сохранение профиля)
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+        const newDesc = formData.get("description") as string;
+        let newName = formData.get("username") as string;
+        newName = newName ? newName.trim() : user.username;
+        
+        // Обработка загрузки файла
+        const avatarFile = formData.get("avatar_file") as File;
+        
+        // Текущие данные
+        let newAvatar = user.avatar_url; // Оставляем старый, если новый не загружен
+        let lastUserUpdate = user.last_username_update || 0;
+        let lastAvatarUpdate = user.last_avatar_update || 0;
+        
+        const NOW = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const FIFTEEN_DAYS = 15 * ONE_DAY;
+        
+        // Список запрещенных слов (пример)
+        const BAD_WORDS = ['admin', 'mod', 'support', 'fuck', 'bitch', 'shit', 'админ', 'модер', 'сука', 'бля', 'хер'];
+        
+        // --- ПРОВЕРКА НИКНЕЙМА ---
+        if (newName !== user.username) {
+            // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка времени (15 дней)
+            // if (NOW - lastUserUpdate < FIFTEEN_DAYS) {
+            //    const daysLeft = Math.ceil((FIFTEEN_DAYS - (NOW - lastUserUpdate)) / ONE_DAY);
+            //    message = `Никнейм можно менять раз в 15 дней. Осталось дней: ${daysLeft}`;
+            //    messageType = "error";
+            // } else 
+            if (BAD_WORDS.some(w => newName.toLowerCase().includes(w))) {
+                message = "Никнейм содержит недопустимые слова.";
+                messageType = "error";
+            } else if (newName.length < 3 || newName.length > 20) {
+                message = "Никнейм должен быть от 3 до 20 символов.";
+                messageType = "error";
+            } else {
+                // Разрешаем смену
+                lastUserUpdate = NOW;
+            }
+        }
+
+        // --- ПРОВЕРКА АВАТАРА ---
+        if (messageType !== "error" && avatarFile && avatarFile.size > 0) {
+            console.log(`[Profile] Попытка загрузки аватара. Размер: ${avatarFile.size} байт`);
+            
+            // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка времени (24 часа)
+            // if (NOW - lastAvatarUpdate < ONE_DAY) {
+            //    message = "Аватар можно менять не чаще 1 раза в сутки.";
+            //    messageType = "error";
+            // } else 
+            if (avatarFile.size > 5 * 1024 * 1024) {
+                message = "Файл слишком большой (макс 5МБ).";
+                messageType = "error";
+            } else {
+                // Загрузка в R2
+                if (bucket) {
+                    try {
+                        const key = `${userId}-${Date.now()}`;
+                        await bucket.put(key, await avatarFile.arrayBuffer(), {
+                            httpMetadata: { contentType: avatarFile.type }
+                        });
+
+                        // Удаляем старый аватар из R2, если он там есть, чтобы не занимать место
+                        if (user.avatar_url && user.avatar_url.startsWith(R2_PUBLIC_DOMAIN)) {
+                            const oldKey = user.avatar_url.slice(R2_PUBLIC_DOMAIN.length + 1);
+                            if (oldKey) {
+                                await bucket.delete(oldKey);
+                                console.log(`[Profile] Старый аватар удален: ${oldKey}`);
+                            }
+                        }
+
+                        newAvatar = `${R2_PUBLIC_DOMAIN}/${key}`;
+                        lastAvatarUpdate = NOW;
+                        console.log(`[Profile] Аватар успешно загружен: ${newAvatar}`);
+                    } catch (err) {
+                        console.error("[Profile] Ошибка R2:", err);
+                        message = "Ошибка загрузки файла в хранилище.";
+                        messageType = "error";
+                    }
+                } else {
+                    console.error("[Profile] Ошибка: R2 Bucket не найден в env.");
+                    // Вывод доступных ключей для отладки
+                    console.log("[Profile] Доступные ключи env:", env ? Object.keys(env) : "env is undefined");
+                    
+                    message = "Ошибка сервера: Хранилище файлов (R2) не подключено. Попробуйте 'wrangler dev --remote'";
+                    messageType = "error";
+                }
+            }
+        }
+
+        // Если нет ошибок, сохраняем в БД
+        if (messageType !== "error") {
+            await db.prepare(`
+                UPDATE users SET description = ?, username = ?, avatar_url = ?, last_username_update = ?, last_avatar_update = ? WHERE id = ?
+            `).bind(newDesc, newName, newAvatar, lastUserUpdate, lastAvatarUpdate, userId).run();
+
+            // Обновляем локальные данные для отображения
+            user.description = newDesc;
+            user.username = newName;
+            user.avatar_url = newAvatar;
+            
+            message = "Профиль успешно обновлен!";
+            messageType = "success";
+        }
+        
+    } catch (e) {
+        console.error("Error saving profile:", e);
+        message = "Ошибка сохранения. Попробуйте позже.";
+        messageType = "error";
+    }
+}
+
+// 5. Загружаем инвентарь
+const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE user_id = ?').bind(userId).all();
+---
+
+<Layout title="Профиль Оператора">
+    <main class="container profile-page">
+        
+        <!-- Шапка профиля -->
+        <div class="profile-header">
+            <div class="avatar-section">
+                <!-- Генерируем аватар по ID, если нет своего -->
+                <img src={user.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${userId}`} alt="Avatar" class="profile-avatar" />
+            </div>
+            
+            <div class="info-section">
+                <h1 class="username">{user.username || 'Без имени'}</h1>
+                <p class="user-id">ID: <span class="code">{userId.slice(0, 10)}...</span></p>
+                
+                {message && (
+                    <div class={`alert ${messageType}`}>
+                        {message}
+                    </div>
+                )}
+                
+                <form method="POST" class="desc-form" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="username">Позывной (Никнейм):</label>
+                        <input type="text" id="username" name="username" value={user.username} placeholder="Введите имя" required maxlength="20" />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="avatar_file">Загрузить аватар (Макс 5МБ):</label>
+                        <input type="file" id="avatar_file" name="avatar_file" accept="image/png, image/jpeg" />
+                        <small>Рекомендуется квадратное изображение (1000x1000)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Личное дело:</label>
+                        <textarea id="description" name="description" rows="3" placeholder="Напишите что-нибудь о себе...">{user.description}</textarea>
+                    </div>
+
+                    <button type="submit" class="save-btn">СОХРАНИТЬ ДАННЫЕ</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="shimmer-line"></div>
+
+        <!-- Секция инвентаря -->
+        <div class="inventory-section">
+            <h2>Хранилище предметов</h2>
+            <div class="inventory-grid">
+                {inventory && inventory.length > 0 ? (
+                    inventory.map((item: any) => (
+                        <div class="inv-card">
+                            <div class="inv-icon">📦</div>
+                            <div class="inv-name">{item.item_id}</div>
+                            <div class="inv-count">x{item.amount}</div>
+                        </div>
+                    ))
+                ) : (
+                    <div class="empty-state">Инвентарь пуст. Посетите магазин или сыграйте в игру.</div>
+                )}
+            </div>
+        </div>
+
+        <a href="/" class="back-link">← Вернуться в город</a>
+    </main>
+</Layout>
+
+<style>
+    .profile-page { padding-top: 40px; color: #fff; }
+    
+    .profile-header {
+        display: flex; gap: 30px; background: rgba(255, 255, 255, 0.03);
+        padding: 30px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+    }
+    
+    .profile-avatar {
+        width: 150px; height: 150px; border-radius: 12px;
+        border: 2px solid #0ff; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+        object-fit: cover; /* Чтобы картинка не сплющивалась */
+    }
+    
+    .info-section { flex: 1; min-width: 300px; }
+    .username { margin: 0; font-size: 2.5rem; color: #0ff; text-transform: uppercase; letter-spacing: 2px; }
+    .user-id { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+    .code { font-family: monospace; background: #222; padding: 2px 6px; border-radius: 4px; }
+    
+    .desc-form { display: flex; flex-direction: column; gap: 15px; }
+    
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { color: #aaa; font-size: 0.9rem; }
+    .form-group small { color: #555; font-size: 0.75rem; }
+    
+    .desc-form input, .desc-form textarea {
+        background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff;
+        padding: 12px; border-radius: 8px; resize: vertical; font-family: inherit;
+        font-size: 1rem;
+    }
+    .desc-form input:focus, .desc-form textarea:focus { 
+        outline: none; border-color: #0ff; box-shadow: 0 0 10px rgba(0, 255, 255, 0.1); 
+    }
+    
+    .save-btn {
+        align-self: flex-start; background: #0ff; color: #000; border: none;
+        padding: 10px 25px; border-radius: 6px; font-weight: bold; cursor: pointer;
+        text-transform: uppercase; transition: all 0.2s;
+    }
+    .save-btn:hover { background: #fff; box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
+
+    .inventory-section { margin-top: 40px; }
+    .inventory-section h2 { color: #ffd700; margin-bottom: 20px; }
+    
+    .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; }
+    .inv-card {
+        background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px;
+        padding: 20px; text-align: center; transition: transform 0.2s;
+    }
+    .inv-card:hover { transform: translateY(-5px); border-color: #0ff; }
+    .inv-icon { font-size: 2rem; margin-bottom: 10px; }
+    .inv-name { font-weight: bold; font-size: 0.9rem; }
+    .inv-count { color: #888; font-size: 0.8rem; margin-top: 5px; }
+    .empty-state { color: #666; font-style: italic; grid-column: 1 / -1; text-align: center; padding: 40px; }
+    
+    .back-link { display: inline-block; margin-top: 40px; color: #666; text-decoration: none; }
+    .back-link:hover { color: #fff; }
+    
+    .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; }
+    .alert.success { background: rgba(0, 255, 0, 0.2); border: 1px solid #0f0; color: #0f0; }
+    .alert.error { background: rgba(255, 0, 0, 0.2); border: 1px solid #f00; color: #f00; }
+</style>
+
+<script>
+    // Проверка размера файла на клиенте
+    const fileInput = document.getElementById('avatar_file') as HTMLInputElement;
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0] && this.files[0].size > 5 * 1024 * 1024) {
+                alert("Файл слишком большой! Максимальный размер 5 МБ.");
+                this.value = ''; // Сброс выбора
+            }
+        });
+    }
+
+    // Индикатор загрузки при отправке формы
+    const form = document.querySelector('.desc-form') as HTMLFormElement;
+    const saveBtn = document.querySelector('.save-btn') as HTMLButtonElement;
+    
+    if (form && saveBtn) {
+        form.addEventListener('submit', () => {
+            // Меняем текст кнопки и блокируем её, чтобы было видно процесс
+            saveBtn.textContent = 'ЗАГРУЗКА...';
+            saveBtn.disabled = true;
+            saveBtn.style.opacity = '0.7';
+            saveBtn.style.cursor = 'wait';
+        });
+    }
+</script>
