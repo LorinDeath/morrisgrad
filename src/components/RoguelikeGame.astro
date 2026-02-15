@@ -5785,10 +5785,10 @@
           item.id = `asc_${Date.now()}_${Math.floor(Math.random()*1000)}`;
           
           // Apply Transformations
-          // 1. Set Stats +20%
+          // 1. Set Stats +200%
           if (item.setStats) {
               for (const key in item.setStats) {
-                  item.setStats[key] *= 1.2;
+                  item.setStats[key] *= 3.0;
                   item.setStats[key] = roundStat(key, item.setStats[key]);
               }
           }
@@ -5966,12 +5966,12 @@
         
         // Set
         if (item.setId) {
-            html += `<div style="margin-top:10px; color:#0f0;">СЕТОВЫЕ БОНУСЫ (+20%):</div>`;
+            html += `<div style="margin-top:10px; color:#0f0;">СЕТОВЫЕ БОНУСЫ (+200%):</div>`;
             html += `<div style="color:#a020f0; font-style:italic;">СЕТ ИЗМЕНИТСЯ НА СЛУЧАЙНЫЙ ИЗ 9 ВЫСШИХ</div>`;
             if (item.setStats) {
                 for (const [key, val] of Object.entries(item.setStats)) {
                     const name = STAT_NAMES[key] || key.toUpperCase();
-                    const newVal = val * 1.2; // +20%
+                    const newVal = val * 3.0; // +200%
                     html += `<div style="display:flex; justify-content:space-between; color:#0f0;"><span>${name}</span> <span>${val.toFixed(1)} ➝ <span style="color:#0f0; font-weight:bold;">${newVal.toFixed(1)}</span></span></div>`;
                 }
             }

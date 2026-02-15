@@ -293,6 +293,14 @@ if (!userId) return Astro.redirect('/');
     document.getElementById('btn-transfer-confirm')?.addEventListener('click', async () => {
         if (!selectedItemForTransfer) return;
         
+        const META_KEY = 'neon_protocol_save_v1';
+        const raw = localStorage.getItem(META_KEY);
+
+        if (!raw) {
+            alert("Ошибка: Сохранение игры не найдено. Зайдите в игру хотя бы раз, чтобы создать профиль.");
+            return;
+        }
+
         const btn = document.getElementById('btn-transfer-confirm') as HTMLButtonElement;
         btn.disabled = true;
         btn.innerText = "ОТПРАВКА...";
@@ -304,18 +312,11 @@ if (!userId) return Astro.redirect('/');
                 const gameItem = data.item;
                 
                 // Add to LocalStorage for Neon Protocol
-                const META_KEY = 'neon_protocol_save_v1';
-                const raw = localStorage.getItem(META_KEY);
-                if (raw) {
-                    const meta = JSON.parse(raw);
-                    if (!meta.inventory) meta.inventory = [];
-                    meta.inventory.push(gameItem);
-                    localStorage.setItem(META_KEY, JSON.stringify(meta));
-                    alert("Предмет успешно отправлен в Неоновый Протокол!");
-                } else {
-                    alert("Ошибка: Сохранение игры не найдено. Зайдите в игру хотя бы раз, чтобы создать профиль.");
-                    // TODO: Можно создать дефолтный профиль, но лучше попросить зайти
-                }
+                const meta = JSON.parse(raw);
+                if (!meta.inventory) meta.inventory = [];
+                meta.inventory.push(gameItem);
+                localStorage.setItem(META_KEY, JSON.stringify(meta));
+                alert("Предмет успешно отправлен в Неоновый Протокол!");
                 
                 transferModal?.classList.add('hidden');
                 loadInventory(); // Refresh UI
