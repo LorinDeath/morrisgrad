@@ -14,6 +14,10 @@ export const GET: APIRoute = async ({ locals, request }) => {
     if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     if (!db) return new Response(JSON.stringify({ error: "DB error" }), { status: 500 });
 
+    // МИГРАЦИЯ: Добавляем поддержку сетов
+    try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_id TEXT").run(); } catch (e) {}
+    try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_stats JSON").run(); } catch (e) {}
+
     // 1. Создание таблицы для сложных предметов (если нет)
     await db.prepare(`
         CREATE TABLE IF NOT EXISTS user_items (
@@ -28,6 +32,8 @@ export const GET: APIRoute = async ({ locals, request }) => {
             stats JSON,         -- Все характеристики предмета
             icon TEXT,          -- Эмодзи или URL
             is_transferred INTEGER DEFAULT 0, -- 1 если перенесен в игру
+            set_id TEXT,
+            set_stats JSON,
             created_at INTEGER
         )
     `).run();
@@ -56,7 +62,9 @@ export const GET: APIRoute = async ({ locals, request }) => {
     // Парсим JSON статов обратно в объект
     const items = results.map((item: any) => ({
         ...item,
-        stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : item.stats
+        stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : item.stats,
+        setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : item.set_stats,
+        setId: item.set_id
     }));
 
     return new Response(JSON.stringify({ items }), { status: 200 });
@@ -84,6 +92,8 @@ export const POST: APIRoute = async ({ locals, request }) => {
                 stats JSON,
                 icon TEXT,
                 is_transferred INTEGER DEFAULT 0,
+                set_id TEXT,
+                set_stats JSON,
                 created_at INTEGER
             )
         `).run();
@@ -96,8 +106,8 @@ export const POST: APIRoute = async ({ locals, request }) => {
         }
 
         const stmt = db.prepare(`
-            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, created_at, set_id, set_stats)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const batch = items.map((item: any) => {
@@ -112,7 +122,9 @@ export const POST: APIRoute = async ({ locals, request }) => {
                 item.rarity,
                 JSON.stringify(item.stats || {}),
                 item.icon || '📦',
-                Date.now()
+                Date.now(),
+                item.setId || null,
+                JSON.stringify(item.setStats || {})
             );
         });
 
@@ -123,4 +135,35 @@ export const POST: APIRoute = async ({ locals, request }) => {
         console.error("Inventory Save Error:", e);
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
     }
+};
+
+export const DELETE: APIRoute = async ({ locals, request }) => {
+    const env = (locals as any)?.runtime?.env as Env;
+    const db = env?.PROFILES_DB;
+    const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
+
+    if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+
+    const url = new URL(request.url);
+    const uuid = url.searchParams.get('uuid');
+    
+    if (!uuid) return new Response(JSON.stringify({ error: "No UUID" }), { status: 400 });
+
+    // Получаем предмет перед удалением, чтобы вернуть его клиенту
+    const item = await db.prepare('SELECT * FROM user_items WHERE uuid = ? AND user_id = ?').bind(uuid, userId).first();
+    if (!item) return new Response(JSON.stringify({ error: "Item not found" }), { status: 404 });
+
+    // Удаляем из базы (перенос в игру)
+    await db.prepare('DELETE FROM user_items WHERE uuid = ?').bind(uuid).run();
+
+    // Форматируем для игры
+    const formattedItem = {
+        ...item,
+        id: item.item_id, // Возвращаем ID игры
+        stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : item.stats,
+        setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : item.set_stats,
+        setId: item.set_id
+    };
+
+    return new Response(JSON.stringify({ success: true, item: formattedItem }), { status: 200 });
 };
