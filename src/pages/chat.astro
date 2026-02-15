@@ -203,7 +203,7 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
 
 <script>
     // Глобальная переменная для интервала, чтобы очищать её при навигации
-    let chatInterval: number | undefined;
+    let pollTimeout: number | undefined;
     let isLoadingHistory = false;
 
     // Функция форматирования даты
@@ -231,7 +231,13 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
         const onlineCountEl = document.getElementById('online-count');
         
         let lastMsgTime = 0;
+        let lastSentTime = 0;
         let isSending = false;
+        
+        // Адаптивный поллинг (Умная задержка)
+        let currentDelay = 3000;
+        const MIN_DELAY = 2000;  // Активная переписка
+        const MAX_DELAY = 15000; // Тишина (экономия запросов)
 
         // Функция создания HTML элемента сообщения
         const createMessageElement = (m: any) => {
@@ -317,6 +323,8 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
 
                 const res = await fetch(url);
                 if (!res.ok) {
+                    // Если ошибка сети, пробуем снова, но не ломаем цикл
+                    if (mode === 'poll') scheduleNextPoll();
                     return;
                 }
                 
@@ -334,6 +342,9 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                     if (loading) loading.remove();
 
                     if (mode === 'poll') {
+                        // Если пришли новые сообщения — ускоряем чат (активная фаза)
+                        currentDelay = MIN_DELAY;
+                        
                         const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 100;
                         
                         messages.forEach((m: any) => {
@@ -381,7 +392,17 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                 }
             } catch (e) {
                 console.error("Chat error:", e);
+            } finally {
+                // Планируем следующий запрос только после завершения текущего
+                if (mode === 'poll') {
+                    scheduleNextPoll();
+                }
             }
+        };
+
+        const scheduleNextPoll = () => {
+            if (pollTimeout) clearTimeout(pollTimeout);
+            pollTimeout = setTimeout(() => fetchChat('poll'), currentDelay) as unknown as number;
         };
 
         // Счетчик символов
@@ -428,7 +449,10 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                     if (res.ok) {
                         msgInput.value = '';
                         if (charCount) charCount.innerText = '0/500';
-                        // lastMsgTime = Date.now(); // Don't update manually, let poll handle it to ensure sync
+                        lastSentTime = Date.now();
+                        
+                        // Сброс задержки на минимум при отправке
+                        currentDelay = MIN_DELAY;
                         await fetchChat('poll'); // Сразу обновляем
                         if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight; // Скролл вниз
                     } else {
@@ -441,7 +465,7 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                     isSending = false;
                     sendBtn.innerText = "ОТПРАВИТЬ";
                     // Кнопка разблокируется таймером выше или сразу, если прошло больше 1 сек
-                    if (Date.now() - lastMsgTime >= 1000) {
+                    if (Date.now() - lastSentTime >= 1000) {
                         sendBtn.disabled = false;
                     }
                     msgInput.focus();
@@ -465,17 +489,15 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
             fetchChat('poll'); // Poll for new since local
         }
         
-        // Очищаем старый интервал, если он был (на всякий случай)
-        if (chatInterval) clearInterval(chatInterval);
-        // Автообновление каждые 3 секунды
-        chatInterval = setInterval(() => fetchChat('poll'), 3000) as unknown as number;
+        // Запускаем цикл опроса
+        scheduleNextPoll();
     });
 
     // Очистка интервала при уходе со страницы (View Transitions)
     document.addEventListener('astro:before-swap', () => {
-        if (chatInterval) {
-            clearInterval(chatInterval);
-            chatInterval = undefined;
+        if (pollTimeout) {
+            clearTimeout(pollTimeout);
+            pollTimeout = undefined;
         }
     });
 </script>
