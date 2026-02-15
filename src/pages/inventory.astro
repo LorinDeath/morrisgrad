@@ -88,6 +88,7 @@ if (!userId) return Astro.redirect('/');
     .inv-item:hover { transform: translateY(-5px); z-index: 2; }
     .inv-item .icon { font-size: 2.5rem; margin-bottom: 5px; }
     .inv-item .name { font-size: 0.7rem; text-align: center; padding: 0 5px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inv-item .type { color: #666; font-size: 0.7rem; margin-top: 5px; }
     
     /* Rarities */
     .rarity-common { border-color: #fff; }
@@ -95,8 +96,9 @@ if (!userId) return Astro.redirect('/');
     .rarity-epic { border-color: #a020f0; box-shadow: inset 0 0 10px rgba(160,32,240,0.2); }
     .rarity-legendary { border-color: #ffd700; box-shadow: inset 0 0 10px rgba(255,215,0,0.2); animation: glow 2s infinite; }
     .rarity-mythic { border-color: #ff3333; box-shadow: inset 0 0 15px rgba(255,51,51,0.3); }
+    .rarity-divine { border-color: #00ffff; box-shadow: inset 0 0 15px #00ffff; animation: glow 1s infinite alternate; }
 
-    @keyframes glow { 0% { box-shadow: inset 0 0 5px #ffd700; } 50% { box-shadow: inset 0 0 20px #ffd700; } 100% { box-shadow: inset 0 0 5px #ffd700; } }
+    @keyframes glow { 0% { box-shadow: inset 0 0 5px currentColor; } 50% { box-shadow: inset 0 0 20px currentColor; } 100% { box-shadow: inset 0 0 5px currentColor; } }
 
     .loading { text-align: center; color: #666; margin-top: 50px; }
 
@@ -167,6 +169,7 @@ if (!userId) return Astro.redirect('/');
             el.innerHTML = `
                 <div class="icon">${item.icon}</div>
                 <div class="name" style="color:${getColor(item.rarity)}">${item.name}</div>
+                <div class="type">${item.type ? item.type.toUpperCase() : 'ITEM'}</div>
             `;
             el.onclick = () => openModal(item);
             grid.appendChild(el);
@@ -174,7 +177,7 @@ if (!userId) return Astro.redirect('/');
     }
 
     function getColor(rarity: string) {
-        const colors: any = { common: '#fff', rare: '#00f', epic: '#a020f0', legendary: '#ffd700', mythic: '#ff3333' };
+        const colors: any = { common: '#fff', rare: '#00f', epic: '#a020f0', legendary: '#ffd700', mythic: '#ff3333', divine: '#00ffff' };
         return colors[rarity] || '#fff';
     }
 
@@ -192,6 +195,7 @@ if (!userId) return Astro.redirect('/');
             iconEl.innerText = item.icon;
             iconEl.className = `item-icon-large rarity-${item.rarity}`;
             iconEl.style.borderColor = getColor(item.rarity);
+            iconEl.style.boxShadow = `0 0 15px ${getColor(item.rarity)}`;
         }
         if (nameEl) {
             nameEl.innerText = item.name;
@@ -201,6 +205,7 @@ if (!userId) return Astro.redirect('/');
             rarityEl.innerText = item.rarity;
             rarityEl.style.color = getColor(item.rarity);
             rarityEl.style.borderColor = getColor(item.rarity);
+            rarityEl.style.background = 'rgba(0,0,0,0.5)';
         }
         if (sourceEl) sourceEl.innerText = `Источник: ${item.source}`;
         if (descEl) descEl.innerText = item.description || "Нет описания";
@@ -213,6 +218,17 @@ if (!userId) return Astro.redirect('/');
                     row.className = 'stat-row';
                     row.innerHTML = `<span class="stat-key">${key.toUpperCase()}</span><span class="stat-val">+${val}</span>`;
                     statsEl.appendChild(row);
+                }
+            }
+            if (item.setStats) {
+                const row = document.createElement('div');
+                row.innerHTML = `<div style="color:#0f0; margin-top:5px; border-top:1px dashed #333;">СЕТОВЫЕ БОНУСЫ:</div>`;
+                statsEl.appendChild(row);
+                for (const [key, val] of Object.entries(item.setStats)) {
+                    const r = document.createElement('div');
+                    r.className = 'stat-row';
+                    r.innerHTML = `<span class="stat-key" style="color:#0f0">${key.toUpperCase()}</span><span class="stat-val" style="color:#0f0">+${val}</span>`;
+                    statsEl.appendChild(r);
                 }
             }
         }

@@ -180,6 +180,9 @@
                 <div id="asc-upload-section" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
                     <label style="display: block; color: #fff; margin-bottom: 5px; font-size: 0.8rem;">Своя иконка (Макс 5МБ):</label>
                     <input type="file" id="asc-icon-input" accept="image/png, image/jpeg" style="font-size: 0.8rem; color: #888;" />
+                    
+                    <label style="display: block; color: #fff; margin-bottom: 5px; margin-top: 10px; font-size: 0.8rem;">Имя предмета (Макс 15):</label>
+                    <input type="text" id="asc-name-input" maxlength="15" placeholder="Название..." style="width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 5px; font-size: 0.8rem;" />
                 </div>
             </div>
         </div>
@@ -1212,7 +1215,7 @@
 
     const btnAsc = document.getElementById('btn-ascension');
     if (btnAsc) {
-        btnAsc.style.display = meta.bossCurrency >= 1 ? 'block' : 'none';
+        btnAsc.style.display = meta.unlocks.includes('unlock_ascension') ? 'block' : 'none';
     }
 
     // Update Shop Buttons
@@ -1334,6 +1337,7 @@
     // 3: THREAT (Left-Up) - Difficulty & Loot
     3: [
       { name: "УГРОЗА x2", desc: "Разблок: Сложность x2", cost: 10, type: 'unlock', id: 'diff_x2', effect: () => { if(!meta.unlocks.includes('diff_x2')) meta.unlocks.push('diff_x2'); } },
+      { name: "ВОЗВЫШЕНИЕ", desc: "Разблок: Меню Возвышения", cost: 50, type: 'unlock', id: 'unlock_ascension', effect: () => { if(!meta.unlocks.includes('unlock_ascension')) meta.unlocks.push('unlock_ascension'); } },
       { name: "КОНТРАКТЫ", desc: "+50% Наград за квесты", cost: 15, type: 'passive', effect: p => p.questRewardMult += 0.5 },
       { name: "МАГНИТ I", desc: "+30% Радиус сбора", cost: 5, type: 'passive', effect: p => p.magnet += 3 },
       { name: "КЛАСС: ИГРОК", desc: "Разблок: Игрок", cost: 45, type: 'unlock', id: 'class_gambler', effect: () => { if(!meta.unlocks.includes('class_gambler')) meta.unlocks.push('class_gambler'); } },
@@ -5732,6 +5736,7 @@
           this.selectedAscensionItem = null;
           this.ascensionIconFile = null;
           (document.getElementById('asc-icon-input') as HTMLInputElement).value = '';
+          (document.getElementById('asc-name-input') as HTMLInputElement).value = '';
       });
       
       document.getElementById('asc-icon-input')?.addEventListener('change', async (e) => {
@@ -5762,12 +5767,22 @@
           
           if (!confirm("Вы уверены? Весь прогресс будет сброшен, а предмет перенесен в профиль.")) return;
           
+          const nameInput = document.getElementById('asc-name-input') as HTMLInputElement;
+          const customName = nameInput.value.trim();
+          
+          if (customName && !/^[a-zA-Zа-яА-Я0-9\s]+$/.test(customName)) {
+              alert("Имя: только буквы, цифры и пробелы!");
+              return;
+          }
+
           const btn = document.getElementById('btn-ascension-confirm') as HTMLButtonElement;
           btn.disabled = true;
           btn.innerText = "ВОЗВЫШЕНИЕ...";
           
           // Prepare Item
           const item = JSON.parse(JSON.stringify(this.selectedAscensionItem)); // Clone
+          if (customName) item.name = customName;
+          item.id = `asc_${Date.now()}_${Math.floor(Math.random()*1000)}`;
           
           // Apply Transformations
           // 1. Set Stats +20%
@@ -5807,7 +5822,7 @@
               
               if (res.ok) {
                   const data = await res.json();
-                  alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПолучено Адского Огня: ${data.hellfire}`);
+                  alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${item.name}" сохранен в профиль.\nПолучено Адского Огня: ${data.hellfire}`);
                   // RESET GAME
                   localStorage.removeItem(META_KEY);
                   window.location.reload();

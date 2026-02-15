@@ -277,7 +277,7 @@ try {
             <div class="inventory-grid">
                 {inventory && inventory.length > 0 ? (
                     inventory.map((item: any) => (
-                        <div class={`inv-card rarity-${item.rarity || 'common'}`}>
+                        <div class={`inv-card rarity-${item.rarity || 'common'}`} data-json={JSON.stringify(item)}>
                             <div class="inv-icon">{item.icon || '📦'}</div>
                             <div class="inv-name" style={item.rarity === 'legendary' ? 'color: #ffd700' : item.rarity === 'mythic' ? 'color: #ff3333' : item.rarity === 'divine' ? 'color: #00ffff' : item.rarity === 'epic' ? 'color: #a020f0' : item.rarity === 'rare' ? 'color: #00f' : 'color: #fff'}>{item.name}</div>
                             <div class="inv-count">{item.type ? item.type.toUpperCase() : 'ITEM'}</div>
@@ -291,6 +291,26 @@ try {
 
         <a href="/" class="back-link">← Вернуться в город</a>
     </main>
+
+    <!-- Модальное окно предмета (Только просмотр) -->
+    <div id="item-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div class="item-header">
+                <div id="modal-icon" class="item-icon-large"></div>
+                <div class="item-title-block">
+                    <h2 id="modal-name">Название</h2>
+                    <div id="modal-rarity" class="item-rarity-badge">RARITY</div>
+                </div>
+            </div>
+            <div class="item-body">
+                <p id="modal-source" class="item-source">Источник: ...</p>
+                <p id="modal-desc" class="item-desc">Описание...</p>
+                <div class="shimmer-line"></div>
+                <div id="modal-stats" class="item-stats-list"></div>
+            </div>
+        </div>
+    </div>
 </Layout>
 
 <style>
@@ -350,14 +370,14 @@ try {
     
     .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; }
     .inv-card {
-        background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px;
-        padding: 15px; text-align: center; transition: transform 0.2s;
+        background: rgba(0,0,0,0.6); border: 1px solid #333; border-radius: 8px;
+        aspect-ratio: 1; padding: 5px; text-align: center; transition: transform 0.2s, box-shadow 0.2s;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        aspect-ratio: 1;
+        cursor: pointer; position: relative; overflow: hidden;
     }
-    .inv-card:hover { transform: translateY(-5px); }
+    .inv-card:hover { transform: translateY(-5px); z-index: 2; }
     .inv-icon { font-size: 2.5rem; margin-bottom: 5px; }
-    .inv-name { font-weight: bold; font-size: 0.8rem; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inv-name { font-weight: bold; font-size: 0.7rem; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
     .inv-count { color: #666; font-size: 0.7rem; margin-top: 5px; }
 
     /* Rarities */
@@ -378,6 +398,26 @@ try {
     .alert { padding: 10px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; }
     .alert.success { background: rgba(0, 255, 0, 0.2); border: 1px solid #0f0; color: #0f0; }
     .alert.error { background: rgba(255, 0, 0, 0.2); border: 1px solid #f00; color: #f00; }
+
+    /* Modal Styles */
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(5px); }
+    .modal.hidden { display: none; }
+    .modal-content { background: #111; border: 1px solid #444; width: 400px; max-width: 90%; padding: 30px; border-radius: 12px; position: relative; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+    .close-modal { position: absolute; top: 10px; right: 20px; font-size: 2rem; cursor: pointer; color: #666; }
+    .close-modal:hover { color: #fff; }
+
+    .item-header { display: flex; gap: 20px; align-items: center; margin-bottom: 20px; }
+    .item-icon-large { font-size: 4rem; background: rgba(255,255,255,0.05); width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #333; }
+    .item-title-block h2 { margin: 0; font-size: 1.5rem; color: #fff; }
+    .item-rarity-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-top: 5px; text-transform: uppercase; background: #333; }
+    
+    .item-source { color: #888; font-size: 0.8rem; font-style: italic; margin-bottom: 10px; }
+    .item-desc { color: #ccc; line-height: 1.4; margin-bottom: 20px; }
+    
+    .item-stats-list { display: flex; flex-direction: column; gap: 8px; }
+    :global(.stat-row) { display: flex; justify-content: space-between; border-bottom: 1px solid #222; padding-bottom: 4px; }
+    :global(.stat-key) { color: #aaa; }
+    :global(.stat-val) { color: #0ff; font-weight: bold; }
 </style>
 
 <script>
@@ -468,4 +508,83 @@ try {
             saveBtn.style.cursor = 'wait';
         });
     }
+
+    // Modal Logic
+    const modal = document.getElementById('item-modal');
+    const closeBtn = document.querySelector('.close-modal');
+
+    function getColor(rarity: string) {
+        const colors: any = { common: '#fff', rare: '#00f', epic: '#a020f0', legendary: '#ffd700', mythic: '#ff3333', divine: '#00ffff' };
+        return colors[rarity] || '#fff';
+    }
+
+    document.querySelectorAll('.inv-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const json = card.getAttribute('data-json');
+            if (json) {
+                const item = JSON.parse(json);
+                openModal(item);
+            }
+        });
+    });
+
+    function openModal(item: any) {
+        if (!modal) return;
+        
+        const iconEl = document.getElementById('modal-icon');
+        const nameEl = document.getElementById('modal-name');
+        const rarityEl = document.getElementById('modal-rarity');
+        const sourceEl = document.getElementById('modal-source');
+        const descEl = document.getElementById('modal-desc');
+        const statsEl = document.getElementById('modal-stats');
+        
+        if (iconEl) {
+            iconEl.innerText = item.icon || '📦';
+            iconEl.className = `item-icon-large rarity-${item.rarity}`;
+            iconEl.style.borderColor = getColor(item.rarity);
+            iconEl.style.boxShadow = `0 0 15px ${getColor(item.rarity)}`;
+        }
+        if (nameEl) {
+            nameEl.innerText = item.name;
+            nameEl.style.color = getColor(item.rarity);
+        }
+        if (rarityEl) {
+            rarityEl.innerText = item.rarity;
+            rarityEl.style.color = getColor(item.rarity);
+            rarityEl.style.borderColor = getColor(item.rarity);
+            rarityEl.style.background = 'rgba(0,0,0,0.5)';
+        }
+        if (sourceEl) sourceEl.innerText = `Источник: ${item.source || 'Неизвестно'}`;
+        if (descEl) descEl.innerText = item.description || "Нет описания";
+        
+        if (statsEl) {
+            statsEl.innerHTML = '';
+            if (item.stats) {
+                for (const [key, val] of Object.entries(item.stats)) {
+                    const row = document.createElement('div');
+                    row.className = 'stat-row';
+                    row.innerHTML = `<span class="stat-key">${key.toUpperCase()}</span><span class="stat-val">+${val}</span>`;
+                    statsEl.appendChild(row);
+                }
+            }
+            if (item.setStats) {
+                const row = document.createElement('div');
+                row.innerHTML = `<div style="color:#0f0; margin-top:5px; border-top:1px dashed #333;">СЕТОВЫЕ БОНУСЫ:</div>`;
+                statsEl.appendChild(row);
+                for (const [key, val] of Object.entries(item.setStats)) {
+                    const r = document.createElement('div');
+                    r.className = 'stat-row';
+                    r.innerHTML = `<span class="stat-key" style="color:#0f0">${key.toUpperCase()}</span><span class="stat-val" style="color:#0f0">+${val}</span>`;
+                    statsEl.appendChild(r);
+                }
+            }
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', () => modal?.classList.add('hidden'));
+    if (modal) modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+    });
 </script>
