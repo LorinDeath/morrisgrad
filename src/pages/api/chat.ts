@@ -50,6 +50,11 @@ export const GET: APIRoute = async ({ locals }) => {
         try { await db.prepare("ALTER TABLE users ADD COLUMN last_username_update INTEGER").run(); } catch (e) {}
         try { await db.prepare("ALTER TABLE users ADD COLUMN last_avatar_update INTEGER").run(); } catch (e) {}
 
+        // МИГРАЦИЯ ДЛЯ ЧАТА: Лечим таблицу сообщений, если она сломана (нет колонок)
+        try { await db.prepare("ALTER TABLE chat_messages ADD COLUMN message TEXT").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE chat_messages ADD COLUMN user_id TEXT").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE chat_messages ADD COLUMN created_at INTEGER").run(); } catch (e) {}
+
         const now = Date.now();
         const oneMinuteAgo = now - 60 * 1000; // 1 минута для статуса "Онлайн"
 
