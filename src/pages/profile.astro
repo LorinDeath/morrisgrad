@@ -211,7 +211,10 @@ try {
 
     // 5. Загружаем инвентарь
     const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(userId).all();
-    inventory = invRes?.results || [];
+    inventory = (invRes?.results || []).map((item: any) => ({
+        ...item,
+        stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {})
+    }));
 
 } catch (e: any) {
     console.error("Profile Error:", e);
@@ -421,8 +424,9 @@ try {
 </style>
 
 <script>
+document.addEventListener('astro:page-load', () => {
     // Проверка размера файла на клиенте
-    const fileInput = document.getElementById('avatar_file') as HTMLInputElement;
+    const fileInput = document.getElementById('avatar_file') as HTMLInputElement | null;
     
     // Функция сжатия изображения (Client-side compression)
     const compressImage = async (file: File): Promise<File> => {
@@ -496,8 +500,8 @@ try {
     }
 
     // Индикатор загрузки при отправке формы
-    const form = document.querySelector('.desc-form') as HTMLFormElement;
-    const saveBtn = document.querySelector('.save-btn') as HTMLButtonElement;
+    const form = document.querySelector('.desc-form') as HTMLFormElement | null;
+    const saveBtn = document.querySelector('.save-btn') as HTMLButtonElement | null;
     
     if (form && saveBtn) {
         form.addEventListener('submit', () => {
@@ -587,4 +591,5 @@ try {
     if (modal) modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.classList.add('hidden');
     });
+});
 </script>

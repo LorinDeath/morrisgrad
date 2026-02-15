@@ -25,7 +25,11 @@ if (!user) {
 }
 
 // 3. Загрузка инвентаря (Последние 10)
-const { results: inventory } = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
+const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
+const inventory = (invRes?.results || []).map((item: any) => ({
+    ...item,
+    stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {})
+}));
 ---
 
 <Layout title={`Профиль: ${user.username}`}>
@@ -183,6 +187,7 @@ const { results: inventory } = await db.prepare('SELECT * FROM user_items WHERE 
 </style>
 
 <script>
+document.addEventListener('astro:page-load', () => {
     const modal = document.getElementById('item-modal');
     const closeBtn = document.querySelector('.close-modal');
 
@@ -260,4 +265,5 @@ const { results: inventory } = await db.prepare('SELECT * FROM user_items WHERE 
     if (modal) modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.classList.add('hidden');
     });
+});
 </script>
