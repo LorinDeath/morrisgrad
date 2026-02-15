@@ -6,7 +6,7 @@ interface Env {
     PROFILES_DB: any;
 }
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ locals, request }) => {
     const env = (locals as any)?.runtime?.env as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
@@ -55,8 +55,16 @@ export const GET: APIRoute = async ({ locals }) => {
         try { await db.prepare("ALTER TABLE chat_messages ADD COLUMN user_id TEXT").run(); } catch (e) {}
         try { await db.prepare("ALTER TABLE chat_messages ADD COLUMN created_at INTEGER").run(); } catch (e) {}
 
+        // INDEX: Optimizes read operations for polling
+        try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_messages(created_at)").run(); } catch (e) {}
+
         const now = Date.now();
         const oneMinuteAgo = now - 60 * 1000; // 1 минута для статуса "Онлайн"
+        
+        // Parse Query Params
+        const url = new URL(request.url);
+        const after = url.searchParams.get('after');
+        const before = url.searchParams.get('before');
 
         // 1. УМНАЯ ЧИСТКА (Раз в 24 часа)
         try {
@@ -82,22 +90,39 @@ export const GET: APIRoute = async ({ locals }) => {
             await db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').bind(now, userId).run();
         }
 
-        // 3. Загружаем последние 50 сообщений
+        // 3. Загружаем сообщения (Optimized)
         // Присоединяем таблицу users, чтобы получить ник и аватарку
-        const messages = await db.prepare(`
+        let query = `
             SELECT m.id, m.message, m.created_at, m.user_id, u.username, u.avatar_url, u.last_seen
             FROM chat_messages m
             LEFT JOIN users u ON m.user_id = u.id
-            ORDER BY m.created_at DESC
-            LIMIT 50
-        `).all();
+        `;
+        
+        let results: any[] = [];
+        
+        if (after) {
+            // Polling: Get only NEW messages
+            query += ` WHERE m.created_at > ? ORDER BY m.created_at ASC`;
+            const res = await db.prepare(query).bind(Number(after)).all();
+            results = res.results || [];
+        } else if (before) {
+            // History: Get OLDER messages (Pagination)
+            query += ` WHERE m.created_at < ? ORDER BY m.created_at DESC LIMIT 10`;
+            const res = await db.prepare(query).bind(Number(before)).all();
+            results = (res.results || []).reverse(); // Flip to chronological
+        } else {
+            // Default: Initial Load (Last 10)
+            query += ` ORDER BY m.created_at DESC LIMIT 10`;
+            const res = await db.prepare(query).all();
+            results = (res.results || []).reverse();
+        }
 
         // 4. Считаем онлайн (кто был активен за последнюю минуту)
         const onlineRes = await db.prepare('SELECT COUNT(*) as count FROM users WHERE last_seen > ?').bind(oneMinuteAgo).first();
         const onlineCount = onlineRes?.count || 0;
 
         return new Response(JSON.stringify({ 
-            messages: (messages.results || []).reverse(), // Разворачиваем, чтобы новые были внизу
+            messages: results,
             onlineCount 
         }), { status: 200 });
     } catch (e: any) {

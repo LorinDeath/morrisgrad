@@ -204,6 +204,7 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
 <script>
     // Глобальная переменная для интервала, чтобы очищать её при навигации
     let chatInterval: number | undefined;
+    let isLoadingHistory = false;
 
     // Функция форматирования даты
     const formatDate = (ts: number) => {
@@ -256,17 +257,66 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
             return div;
         };
 
-        // Загрузка сообщений
-        const fetchChat = async () => {
+        let firstMsgTime = 0;
+
+        // LocalStorage Logic
+        const loadLocalHistory = () => {
             try {
-                const res = await fetch('/api/chat');
-                if (!res.ok) {
-                    try {
-                        const errData = await res.json();
-                        console.error("Ошибка загрузки чата:", res.status, errData);
-                    } catch (e) {
-                        console.error("Ошибка загрузки чата (не JSON):", res.status);
+                const raw = localStorage.getItem('morrisgrad_chat_history');
+                if (raw) {
+                    const history = JSON.parse(raw);
+                    if (Array.isArray(history) && history.length > 0) {
+                        history.forEach(m => {
+                            const el = createMessageElement(m);
+                            chatWindow.appendChild(el);
+                        });
+                        lastMsgTime = history[history.length - 1].created_at;
+                        firstMsgTime = history[0].created_at;
+                        chatWindow.scrollTop = chatWindow.scrollHeight;
+                        
+                        // Remove loading msg immediately if we have cache
+                        const loading = chatWindow.querySelector('.loading-msg');
+                        if (loading) loading.remove();
+                        return true;
                     }
+                }
+            } catch (e) { console.error("LS Error", e); }
+            return false;
+        };
+
+        const saveToLocal = (newMsgs: any[], append: boolean) => {
+            try {
+                let history: any[] = [];
+                const raw = localStorage.getItem('morrisgrad_chat_history');
+                if (raw) history = JSON.parse(raw);
+                
+                const ids = new Set(history.map((m:any) => m.id));
+                const uniqueNew = newMsgs.filter(m => !ids.has(m.id));
+
+                if (append) {
+                    history = [...history, ...uniqueNew];
+                } else {
+                    history = [...uniqueNew, ...history];
+                }
+                
+                // Keep last 50 messages in cache to save space
+                if (history.length > 50) {
+                    history = history.slice(history.length - 50);
+                }
+                
+                localStorage.setItem('morrisgrad_chat_history', JSON.stringify(history));
+            } catch (e) {}
+        };
+
+        // Загрузка сообщений
+        const fetchChat = async (mode: 'poll' | 'history' = 'poll') => {
+            try {
+                let url = '/api/chat';
+                if (mode === 'poll' && lastMsgTime > 0) url += `?after=${lastMsgTime}`;
+                if (mode === 'history' && firstMsgTime > 0) url += `?before=${firstMsgTime}`;
+
+                const res = await fetch(url);
+                if (!res.ok) {
                     return;
                 }
                 
@@ -276,53 +326,57 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                     onlineCountEl.innerText = data.onlineCount;
                 }
                 
-                if (chatWindow && data.messages && Array.isArray(data.messages)) {
-                    // Сохраняем позицию скролла
-                    const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 100;
-                    
+                const messages = data.messages || [];
+                
+                if (chatWindow && messages.length > 0) {
                     // Убираем сообщение "Загрузка...", если оно есть
                     const loading = chatWindow.querySelector('.loading-msg');
                     if (loading) loading.remove();
 
-                    const messages = data.messages;
-                    const currentIds = new Set();
-
-                    // 1. Проходим по новым данным
-                    messages.forEach((m: any) => {
-                        currentIds.add(String(m.id));
-                        const existingEl = chatWindow.querySelector(`.msg-row[data-id="${m.id}"]`);
-
-                        if (existingEl) {
-                            // Если сообщение уже есть — обновляем только статус онлайна
-                            const isOnline = (Date.now() - m.last_seen) < 60000;
-                            const statusDot = existingEl.querySelector('.msg-status');
-                            if (statusDot) {
-                                statusDot.className = `msg-status ${isOnline ? 'online' : 'offline'}`;
+                    if (mode === 'poll') {
+                        const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 100;
+                        
+                        messages.forEach((m: any) => {
+                            // Avoid duplicates
+                            if (!chatWindow.querySelector(`.msg-row[data-id="${m.id}"]`)) {
+                                const el = createMessageElement(m);
+                                chatWindow.appendChild(el);
                             }
-                        } else {
-                            // Если сообщения нет — создаем и добавляем
-                            const newEl = createMessageElement(m);
-                            chatWindow.appendChild(newEl);
+                        });
+
+                        lastMsgTime = messages[messages.length - 1].created_at;
+                        if (firstMsgTime === 0) firstMsgTime = messages[0].created_at;
+                        
+                        saveToLocal(messages, true);
+
+                        if (isAtBottom) {
+                            chatWindow.scrollTop = chatWindow.scrollHeight;
                         }
-                    });
-
-                    // 2. Удаляем сообщения, которых больше нет в списке (например, старые удалились)
-                    chatWindow.querySelectorAll('.msg-row').forEach(el => {
-                        const id = el.getAttribute('data-id');
-                        if (id && !currentIds.has(id)) {
-                            el.remove();
-                        }
-                    });
-
-                    // Если были внизу, скроллим к новым сообщениям
-                    if (isAtBottom) {
-                        chatWindow.scrollTop = chatWindow.scrollHeight;
-                    }
-
-                    // Обновляем метку прочтения
-                    if (messages.length > 0) {
-                        const lastMsg = messages[messages.length - 1];
-                        localStorage.setItem('chat_last_read', lastMsg.created_at);
+                        
+                        // Mark as read
+                        localStorage.setItem('chat_last_read', lastMsgTime.toString());
+                    } else {
+                        // History Mode (Prepend)
+                        const oldHeight = chatWindow.scrollHeight;
+                        // Messages come Oldest -> Newest. We want to insert them at top.
+                        // Iterate and insert before first child.
+                        let refNode = chatWindow.firstElementChild;
+                        
+                        messages.forEach((m: any) => {
+                            if (!chatWindow.querySelector(`.msg-row[data-id="${m.id}"]`)) {
+                                const el = createMessageElement(m);
+                                chatWindow.insertBefore(el, refNode);
+                                // Update refNode to keep order? No, insertBefore puts it before refNode.
+                                // If we have [1, 2] and insert 1 before ref, then 2 before ref, we get [1, 2, ref].
+                                // Correct.
+                            }
+                        });
+                        
+                        firstMsgTime = messages[0].created_at;
+                        saveToLocal(messages, false);
+                        
+                        // Restore scroll
+                        chatWindow.scrollTop = chatWindow.scrollHeight - oldHeight;
                     }
                 }
             } catch (e) {
@@ -374,8 +428,8 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                     if (res.ok) {
                         msgInput.value = '';
                         if (charCount) charCount.innerText = '0/500';
-                        lastMsgTime = Date.now();
-                        await fetchChat(); // Сразу обновляем
+                        // lastMsgTime = Date.now(); // Don't update manually, let poll handle it to ensure sync
+                        await fetchChat('poll'); // Сразу обновляем
                         if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight; // Скролл вниз
                     } else {
                         const err = await res.json();
@@ -395,13 +449,26 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
             });
         }
 
-        // Запуск
-        fetchChat();
+        // Scroll Event for History
+        chatWindow.addEventListener('scroll', () => {
+            if (chatWindow.scrollTop === 0 && !isLoadingHistory && firstMsgTime > 0) {
+                isLoadingHistory = true;
+                fetchChat('history').then(() => isLoadingHistory = false);
+            }
+        });
+
+        // Init
+        const hasLocal = loadLocalHistory();
+        if (!hasLocal) {
+            fetchChat('poll'); // Initial load (default 10)
+        } else {
+            fetchChat('poll'); // Poll for new since local
+        }
         
         // Очищаем старый интервал, если он был (на всякий случай)
         if (chatInterval) clearInterval(chatInterval);
         // Автообновление каждые 3 секунды
-        chatInterval = setInterval(fetchChat, 3000) as unknown as number;
+        chatInterval = setInterval(() => fetchChat('poll'), 3000) as unknown as number;
     });
 
     // Очистка интервала при уходе со страницы (View Transitions)
