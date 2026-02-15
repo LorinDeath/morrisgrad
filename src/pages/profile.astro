@@ -43,6 +43,7 @@ try {
             avatar_url TEXT,
             last_username_update INTEGER,
             last_avatar_update INTEGER
+            hellfire INTEGER DEFAULT 0
         )
     `).run();
 
@@ -54,6 +55,9 @@ try {
             amount INTEGER
         )
     `).run();
+
+    // МИГРАЦИЯ: Добавляем hellfire для старых пользователей
+    try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
     // 3. Логика получения данных (аналогично API)
     user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
@@ -215,7 +219,12 @@ try {
                 <!-- Отображение описания текстом -->
                 <p class="user-bio">{user.description || "Нет описания"}</p>
 
+                {user.hellfire > 0 && (
+                    <div style="color: #a020f0; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #a020f0;">🔥 АДСКИЙ ОГОНЬ: {user.hellfire}</div>
+                )}
+
                 <a href={`/u/${userId}`} class="public-btn" target="_blank">👁️ Посмотреть как видят другие</a>
+                <a href="/inventory" class="public-btn" style="border-color: #ffd700; color: #ffd700; margin-left: 10px;">📦 Полный Инвентарь</a>
                 
                 {message && (
                     <div class={`alert ${messageType}`}>

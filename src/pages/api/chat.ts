@@ -49,6 +49,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
         try { await db.prepare("ALTER TABLE users ADD COLUMN avatar_url TEXT").run(); } catch (e) {}
         try { await db.prepare("ALTER TABLE users ADD COLUMN last_username_update INTEGER").run(); } catch (e) {}
         try { await db.prepare("ALTER TABLE users ADD COLUMN last_avatar_update INTEGER").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
         // МИГРАЦИЯ ДЛЯ ЧАТА: Лечим таблицу сообщений, если она сломана (нет колонок)
         try { await db.prepare("ALTER TABLE chat_messages ADD COLUMN message TEXT").run(); } catch (e) {}

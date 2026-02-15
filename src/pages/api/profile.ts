@@ -25,6 +25,9 @@ export const GET: APIRoute = async ({ locals, request }) => {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
+    // МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует
+    try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
+
     // 1. Ищем пользователя
     let user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
 
