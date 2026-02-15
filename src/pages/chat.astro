@@ -223,6 +223,30 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
         return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ${time}`;
     };
 
+    // Функция создания HTML элемента сообщения
+    const createMessageElement = (m: any) => {
+        const isOnline = (Date.now() - m.last_seen) < 60000;
+        const statusClass = isOnline ? 'online' : 'offline';
+        const avatar = m.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.user_id}`;
+        
+        const div = document.createElement('div');
+        div.className = 'msg-row';
+        div.setAttribute('data-id', m.id); // Важно для поиска
+        
+        div.innerHTML = `
+            <img src="${avatar}" class="msg-avatar" alt="Ava">
+            <div class="msg-content">
+                <div class="msg-header">
+                    <a href="/u/${m.user_id}" target="_blank" class="msg-nick">${m.username || 'Без имени'}</a>
+                    <span class="msg-status ${statusClass}" title="${isOnline ? 'В сети' : 'Офлайн'}"></span>
+                    <span class="msg-date">${formatDate(m.created_at)}</span>
+                </div>
+                <div class="msg-text">${m.message}</div>
+            </div>
+        `;
+        return div;
+    };
+
     // Загрузка сообщений
     const fetchChat = async () => {
         try {
@@ -246,28 +270,41 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
             
             if (chatWindow && data.messages && Array.isArray(data.messages)) {
                 // Сохраняем позицию скролла
-                const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 50;
+                const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 100;
                 
-                chatWindow.innerHTML = data.messages.map((m: any) => {
-                    // Проверка онлайна (1 минута = 60000 мс)
-                    const isOnline = (Date.now() - m.last_seen) < 60000;
-                    const statusClass = isOnline ? 'online' : 'offline';
-                    const avatar = m.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.user_id}`;
-                    
-                    return `
-                        <div class="msg-row">
-                            <img src="${avatar}" class="msg-avatar" alt="Ava">
-                            <div class="msg-content">
-                                <div class="msg-header">
-                                    <a href="/u/${m.user_id}" target="_blank" class="msg-nick">${m.username || 'Без имени'}</a>
-                                    <span class="msg-status ${statusClass}" title="${isOnline ? 'В сети' : 'Офлайн'}"></span>
-                                    <span class="msg-date">${formatDate(m.created_at)}</span>
-                                </div>
-                                <div class="msg-text">${m.message}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                // Убираем сообщение "Загрузка...", если оно есть
+                const loading = chatWindow.querySelector('.loading-msg');
+                if (loading) loading.remove();
+
+                const messages = data.messages;
+                const currentIds = new Set();
+
+                // 1. Проходим по новым данным
+                messages.forEach((m: any) => {
+                    currentIds.add(String(m.id));
+                    const existingEl = chatWindow.querySelector(`.msg-row[data-id="${m.id}"]`);
+
+                    if (existingEl) {
+                        // Если сообщение уже есть — обновляем только статус онлайна
+                        const isOnline = (Date.now() - m.last_seen) < 60000;
+                        const statusDot = existingEl.querySelector('.msg-status');
+                        if (statusDot) {
+                            statusDot.className = `msg-status ${isOnline ? 'online' : 'offline'}`;
+                        }
+                    } else {
+                        // Если сообщения нет — создаем и добавляем
+                        const newEl = createMessageElement(m);
+                        chatWindow.appendChild(newEl);
+                    }
+                });
+
+                // 2. Удаляем сообщения, которых больше нет в списке (например, старые удалились)
+                chatWindow.querySelectorAll('.msg-row').forEach(el => {
+                    const id = el.getAttribute('data-id');
+                    if (id && !currentIds.has(id)) {
+                        el.remove();
+                    }
+                });
 
                 // Если были внизу, скроллим к новым сообщениям
                 if (isAtBottom) {
@@ -305,6 +342,13 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
             isSending = true;
             sendBtn.disabled = true;
             sendBtn.innerText = "...";
+            
+            // Визуальная блокировка на 1 секунду
+            setTimeout(() => {
+                if (!isSending) { // Если отправка уже прошла
+                    sendBtn.disabled = false;
+                }
+            }, 1000);
 
             try {
                 const res = await fetch('/api/chat', {
@@ -327,8 +371,11 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
                 console.error(e);
             } finally {
                 isSending = false;
-                sendBtn.disabled = false;
                 sendBtn.innerText = "ОТПРАВИТЬ";
+                // Кнопка разблокируется таймером выше или сразу, если прошло больше 1 сек
+                if (Date.now() - lastMsgTime >= 1000) {
+                    sendBtn.disabled = false;
+                }
                 msgInput.focus();
             }
         });

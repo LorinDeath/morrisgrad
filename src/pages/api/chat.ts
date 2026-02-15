@@ -134,7 +134,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
         // Анти-спам: Проверяем время последнего сообщения пользователя
         const lastMsg = await db.prepare('SELECT created_at FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(userId).first();
         
-        if (lastMsg && (now - (lastMsg.created_at as number)) < 1000) {
+        if (lastMsg && lastMsg.created_at && (now - Number(lastMsg.created_at)) < 1000) {
             return new Response(JSON.stringify({ error: "Слишком быстро! Подождите." }), { status: 429 });
         }
 
