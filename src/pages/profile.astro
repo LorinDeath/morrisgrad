@@ -71,7 +71,7 @@ try {
     if (Astro.request.method === "POST") {
         try {
             const formData = await Astro.request.formData();
-            const newDesc = formData.get("description") as string;
+            const newDesc = (formData.get("description") as string)?.slice(0, 50) || '';
             let newName = formData.get("username") as string;
             newName = newName ? newName.trim() : user.username;
             
@@ -105,8 +105,15 @@ try {
                     message = "Никнейм должен быть от 3 до 20 символов.";
                     messageType = "error";
                 } else {
-                    // Разрешаем смену
-                    lastUserUpdate = NOW;
+                    // Проверка на уникальность (игнорируем регистр)
+                    const existing = await db.prepare('SELECT id FROM users WHERE lower(username) = lower(?) AND id != ?').bind(newName, userId).first();
+                    if (existing) {
+                        message = "Этот позывной уже занят.";
+                        messageType = "error";
+                    } else {
+                        // Разрешаем смену
+                        lastUserUpdate = NOW;
+                    }
                 }
             }
 
@@ -216,16 +223,16 @@ try {
                         <label for="username">Позывной (Никнейм):</label>
                         <input type="text" id="username" name="username" value={user.username} placeholder="Введите имя" required maxlength="20" />
                     </div>
+
+                    <div class="form-group">
+                        <label for="description">Личное дело (макс 50):</label>
+                        <input type="text" id="description" name="description" value={user.description || ''} placeholder="Краткий статус..." maxlength="50" />
+                    </div>
                     
                     <div class="form-group">
                         <label for="avatar_file">Загрузить аватар (Макс 5МБ):</label>
                         <input type="file" id="avatar_file" name="avatar_file" accept="image/png, image/jpeg" />
                         <small>Рекомендуется квадратное изображение (1000x1000)</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="description">Личное дело:</label>
-                        <textarea id="description" name="description" rows="3" placeholder="Напишите что-нибудь о себе...">{user.description}</textarea>
                     </div>
 
                     <button type="submit" class="save-btn">СОХРАНИТЬ ДАННЫЕ</button>
@@ -324,11 +331,74 @@ try {
 <script>
     // Проверка размера файла на клиенте
     const fileInput = document.getElementById('avatar_file') as HTMLInputElement;
+    
+    // Функция сжатия изображения (Client-side compression)
+    const compressImage = async (file: File): Promise<File> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 500;
+                    const MAX_HEIGHT = 500;
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Сохраняем пропорции
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob((blob) => {
+                        if (!blob) return reject(new Error('Canvas error'));
+                        // Создаем новый файл (всегда JPG для экономии)
+                        const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                            type: 'image/jpeg',
+                            lastModified: Date.now(),
+                        });
+                        resolve(newFile);
+                    }, 'image/jpeg', 0.8); // Качество 80%
+                };
+            };
+            reader.onerror = (err) => reject(err);
+        });
+    };
+
     if (fileInput) {
-        fileInput.addEventListener('change', function() {
-            if (this.files && this.files[0] && this.files[0].size > 5 * 1024 * 1024) {
-                alert("Файл слишком большой! Максимальный размер 5 МБ.");
-                this.value = ''; // Сброс выбора
+        fileInput.addEventListener('change', async function() {
+            if (this.files && this.files[0]) {
+                const file = this.files[0];
+                
+                // Если файл гигантский (>10МБ), лучше сразу отказать, браузер может зависнуть при сжатии
+                if (file.size > 10 * 1024 * 1024) {
+                    alert("Файл слишком большой! Максимум 10 МБ.");
+                    this.value = ''; 
+                    return;
+                }
+
+                try {
+                    // Сжимаем
+                    const compressed = await compressImage(file);
+                    
+                    // Подменяем файл в инпуте через DataTransfer
+                    const dt = new DataTransfer();
+                    dt.items.add(compressed);
+                    this.files = dt.files;
+                    
+                    console.log(`Сжатие аватара: ${(file.size/1024).toFixed(1)}KB -> ${(compressed.size/1024).toFixed(1)}KB`);
+                } catch (e) {
+                    console.error("Ошибка сжатия:", e);
+                }
             }
         });
     }
