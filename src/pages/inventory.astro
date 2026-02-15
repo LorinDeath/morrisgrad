@@ -207,8 +207,22 @@ if (!userId) return Astro.redirect('/');
                 <div class="icon">${item.icon}</div>
                 <div class="name" style="color:${getColor(item.rarity)}">${item.name}</div>
                 <div class="type">${item.type ? item.type.toUpperCase() : 'ITEM'}</div>
+                <div class="source source-click" title="Фильтровать по игре" style="font-size: 0.55rem; color: #888; margin-top: auto; padding-top: 4px; cursor: pointer; text-decoration: underline;">${item.source || 'Unknown'}</div>
             `;
-            el.onclick = () => openModal(item);
+            el.onclick = (e) => {
+                // Если кликнули по названию игры — фильтруем
+                if ((e.target as HTMLElement).classList.contains('source-click')) {
+                    e.stopPropagation();
+                    filters.source = item.source || 'Unknown';
+                    // Обновляем состояние кнопок фильтров
+                    document.querySelectorAll('.filter-btn[data-filter="source"]').forEach(b => {
+                        b.classList.toggle('active', (b as HTMLElement).dataset.val === filters.source);
+                    });
+                    loadInventory();
+                } else {
+                    openModal(item);
+                }
+            };
             grid.appendChild(el);
         });
     }
