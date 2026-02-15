@@ -44,6 +44,12 @@ export const GET: APIRoute = async ({ locals }) => {
             )
         `).run();
 
+        // 0.1. МИГРАЦИЯ: Принудительно добавляем колонки, если таблица users старая
+        // Оборачиваем в try-catch, так как если колонка есть, SQLite выдаст ошибку (мы её игнорируем)
+        try { await db.prepare("ALTER TABLE users ADD COLUMN avatar_url TEXT").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE users ADD COLUMN last_username_update INTEGER").run(); } catch (e) {}
+        try { await db.prepare("ALTER TABLE users ADD COLUMN last_avatar_update INTEGER").run(); } catch (e) {}
+
         const now = Date.now();
         const oneMinuteAgo = now - 60 * 1000; // 1 минута для статуса "Онлайн"
 

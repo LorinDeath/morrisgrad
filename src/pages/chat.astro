@@ -228,7 +228,13 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
         try {
             const res = await fetch('/api/chat');
             if (!res.ok) {
-                console.error("Ошибка загрузки чата, статус:", res.status);
+                // Пытаемся прочитать текст ошибки от сервера
+                try {
+                    const errData = await res.json();
+                    console.error("Ошибка загрузки чата:", res.status, errData);
+                } catch (e) {
+                    console.error("Ошибка загрузки чата (не JSON):", res.status);
+                }
                 return;
             }
             
