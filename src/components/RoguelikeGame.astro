@@ -1092,6 +1092,7 @@
     modified?: boolean;
     setId?: string;
     setStats?: { [key: string]: number };
+    source?: string;
   }
 
   interface MetaData {
@@ -1139,6 +1140,17 @@
 
   function getCost(type: keyof typeof COST_BASE, lvl: number) {
     return Math.floor(COST_BASE[type] * Math.pow(1.6, lvl)); // Steep curve
+  }
+
+  // Helper to round stats
+  function roundStat(key: string, val: number): number {
+      // Percentage stats need more precision (e.g. 0.05 is 5%)
+      // We want 2 decimal places for the displayed percentage (0.0543 -> 5.43% -> 0.0543)
+      // So we round to 4 decimal places for raw value.
+      if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed', 'dodge'].includes(key)) {
+          return Math.floor(val * 10000) / 10000;
+      }
+      return Math.floor(val * 100) / 100;
   }
 
   function sanitizeItem(item: Item | null): Item | null {
@@ -4983,7 +4995,8 @@
         // Helper to add stat
         const addStat = (key: string, base: number, isPct: boolean = false) => {
             const val = isPct ? Math.random() * base * m : Math.floor(Math.random() * base * m) + 1;
-            stats[key] = val;
+            const rounded = roundStat(key, val);
+            if (rounded > 0) stats[key] = rounded;
         };
 
         if (type === 'weapon') { 
@@ -5030,7 +5043,8 @@
                 const isPct = !['spd', 'luck', 'hp', 'dmg', 'regen', 'thorns'].includes(k);
                 const base = isPct ? 0.01 : 5; // Nerfed base for sets (was 0.05 / 10)
                 const val = isPct ? Math.random() * base * m : Math.floor(Math.random() * base * m) + 1;
-                setStats[k] = (setStats[k] || 0) + val;
+                const current = setStats[k] || 0;
+                setStats[k] = roundStat(k, current + val);
             }
         }
         
@@ -5039,12 +5053,12 @@
             const badKeys = ['curse', 'slow', 'spread'];
             const k3 = badKeys[Math.floor(Math.random() * badKeys.length)];
             // Add a "bad" stat (positive value for curse/slow/spread is bad)
-            if (k3 === 'spread') stats[k3] = (stats[k3] || 0) + 10;
-            if (k3 === 'curse') stats[k3] = (stats[k3] || 0) + 0.1;
-            if (k3 === 'slow') stats[k3] = (stats[k3] || 0) + 0.1;
+            if (k3 === 'spread') stats[k3] = roundStat(k3, (stats[k3] || 0) + 10);
+            if (k3 === 'curse') stats[k3] = roundStat(k3, (stats[k3] || 0) + 0.1);
+            if (k3 === 'slow') stats[k3] = roundStat(k3, (stats[k3] || 0) + 0.1);
         }
         
-        return { id: Math.random().toString(36).substr(2,9), name, desc: undefined, type, rarity, stats, icon: icons[type], level: 0, modified: false, setId, setStats };
+        return { id: Math.random().toString(36).substr(2,9), name, desc: undefined, type, rarity, stats, icon: icons[type], level: 0, modified: false, setId, setStats, source: "Neon Protocol" };
     }
 
     generateMerchantItems() {
@@ -5760,12 +5774,15 @@
           if (item.setStats) {
               for (const key in item.setStats) {
                   item.setStats[key] *= 1.2;
+                  item.setStats[key] = roundStat(key, item.setStats[key]);
               }
           }
           // 2. Standard Stats -90%
           if (item.stats) {
               for (const key in item.stats) {
                   item.stats[key] *= 0.1;
+                  item.stats[key] = roundStat(key, item.stats[key]);
+                  if (item.stats[key] <= 0) delete item.stats[key];
               }
           }
           // 3. Change Set ID
@@ -6357,11 +6374,12 @@
             // Standard Stats (Limit 5)
             for (const [key, val] of Object.entries(item.stats)) {
                 if (target.stats[key]) {
-                    target.stats[key] += val * 0.1;
+                    target.stats[key] = roundStat(key, target.stats[key] + val * 0.1);
                 } else {
                     // Add new stat if limit not reached
                     if (Object.keys(target.stats).length < 5) {
-                        target.stats[key] = val * 0.1;
+                        const newVal = roundStat(key, val * 0.1);
+                        if (newVal > 0) target.stats[key] = newVal;
                     }
                 }
             }
@@ -6371,7 +6389,7 @@
                 for (const [key, val] of Object.entries(item.setStats)) {
                     // Only upgrade existing set stats
                     if (target.setStats[key] !== undefined) {
-                        target.setStats[key] += val * 0.1;
+                        target.setStats[key] = roundStat(key, target.setStats[key] + val * 0.1);
                     }
                 }
             }

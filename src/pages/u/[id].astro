@@ -14,6 +14,9 @@ if (!db) {
     return new Response("Database error", { status: 500 });
 }
 
+// МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует (для старых баз)
+try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
+
 // 2. Загрузка данных (Только чтение)
 const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
 
@@ -21,8 +24,8 @@ if (!user) {
     return new Response("Пользователь не найден", { status: 404 });
 }
 
-// 3. Загрузка инвентаря
-const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE user_id = ?').bind(id).all();
+// 3. Загрузка инвентаря (Последние 10)
+const { results: inventory } = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
 ---
 
 <Layout title={`Профиль: ${user.username}`}>
@@ -43,6 +46,8 @@ const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE u
                     <p class="user-bio">{user.description || "Информация засекречена."}</p>
                 </div>
 
+                <div style="color: #a020f0; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #a020f0;">🔥 АДСКИЙ ОГОНЬ: {user.hellfire || 0}</div>
+
                 <div class="stats-row">
                     <div class="stat">
                         <span class="label">В городе с:</span>
@@ -60,14 +65,14 @@ const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE u
 
         <!-- Инвентарь (Только просмотр) -->
         <div class="inventory-section">
-            <h2>Инвентарь Оператора</h2>
+            <h2>Инвентарь Оператора (Последние 10)</h2>
             <div class="inventory-grid">
                 {inventory && inventory.length > 0 ? (
                     inventory.map((item: any) => (
-                        <div class="inv-card">
-                            <div class="inv-icon">📦</div>
-                            <div class="inv-name">{item.item_id}</div>
-                            <div class="inv-count">x{item.amount}</div>
+                        <div class={`inv-card rarity-${item.rarity || 'common'}`}>
+                            <div class="inv-icon">{item.icon || '📦'}</div>
+                            <div class="inv-name" style={item.rarity === 'legendary' ? 'color: #ffd700' : item.rarity === 'mythic' ? 'color: #ff3333' : item.rarity === 'divine' ? 'color: #00ffff' : item.rarity === 'epic' ? 'color: #a020f0' : item.rarity === 'rare' ? 'color: #00f' : 'color: #fff'}>{item.name}</div>
+                            <div class="inv-count">{item.type ? item.type.toUpperCase() : 'ITEM'}</div>
                         </div>
                     ))
                 ) : (
@@ -113,27 +118,26 @@ const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE u
     .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; }
     .inv-card {
         background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px;
-        padding: 20px; text-align: center; transition: transform 0.2s;
+        padding: 15px; text-align: center; transition: transform 0.2s;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        aspect-ratio: 1;
     }
     .inv-card:hover { transform: translateY(-5px); border-color: #ffd700; }
-    .inv-icon { font-size: 2rem; margin-bottom: 10px; }
-    .inv-name { font-weight: bold; font-size: 0.9rem; }
-    .inv-count { color: #888; font-size: 0.8rem; margin-top: 5px; }
+    .inv-icon { font-size: 2.5rem; margin-bottom: 5px; }
+    .inv-name { font-weight: bold; font-size: 0.8rem; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inv-count { color: #666; font-size: 0.7rem; margin-top: 5px; }
     .empty-state { color: #666; font-style: italic; grid-column: 1 / -1; text-align: center; padding: 40px; }
     
     .back-link { display: inline-block; margin-top: 40px; color: #666; text-decoration: none; }
     .back-link:hover { color: #fff; }
+
+    /* Rarities */
+    .rarity-common { border-color: #fff; }
+    .rarity-rare { border-color: #00f; box-shadow: inset 0 0 10px rgba(0,0,255,0.2); }
+    .rarity-epic { border-color: #a020f0; box-shadow: inset 0 0 10px rgba(160,32,240,0.2); }
+    .rarity-legendary { border-color: #ffd700; box-shadow: inset 0 0 10px rgba(255,215,0,0.2); animation: glow 2s infinite; }
+    .rarity-mythic { border-color: #ff3333; box-shadow: inset 0 0 15px rgba(255,51,51,0.3); }
+    .rarity-divine { border-color: #00ffff; box-shadow: inset 0 0 15px #00ffff; animation: glow 1s infinite alternate; }
+    
+    @keyframes glow { 0% { box-shadow: inset 0 0 5px currentColor; } 50% { box-shadow: inset 0 0 20px currentColor; } 100% { box-shadow: inset 0 0 5px currentColor; } }
 </style>
-```
-
-### Как это работает:
-1.  **Личный кабинет (`/profile`)**:
-   *   Ты видишь своё описание текстом (как оно выглядит для других).
-   *   Ниже есть форма, где его можно поменять.
-   *   Появилась кнопка **"👁️ Посмотреть как видят другие"**.
-2.  **Публичный профиль (`/u/user_123...`)**:
-   *   Открывается по кнопке или прямой ссылке.
-   *   Показывает аватар, ник, описание, дату регистрации и инвентарь.
-   *   **Нет кнопок редактирования**. Даже если ты хозяин профиля, на этой странице ты просто зритель.
-
-Теперь у каждого пользователя есть своя уникальная ссылка, которую можно скинуть другу!
