@@ -24,138 +24,147 @@ if (!db) {
     return new Response("Database not connected. Run with 'wrangler dev'", { status: 500 });
 }
 
-// 3. Логика получения данных (аналогично API)
-let user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-
-// Если профиля нет в базе — создаем на лету
-if (!user) {
-    const now = Date.now();
-    await db.prepare(
-        'INSERT INTO users (id, username, description, last_seen, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(userId, 'Новичок', 'Житель МоррисГрада', now, now).run();
-    user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-}
-
 // Переменные для сообщений пользователю
 let message = "";
 let messageType = ""; // 'success' | 'error'
+let user = null;
+let inventory = [];
 
-// 4. Обработка формы (Сохранение профиля)
-if (Astro.request.method === "POST") {
-    try {
-        const formData = await Astro.request.formData();
-        const newDesc = formData.get("description") as string;
-        let newName = formData.get("username") as string;
-        newName = newName ? newName.trim() : user.username;
-        
-        // Обработка загрузки файла
-        const avatarFile = formData.get("avatar_file") as File;
-        
-        // Текущие данные
-        let newAvatar = user.avatar_url; // Оставляем старый, если новый не загружен
-        let lastUserUpdate = user.last_username_update || 0;
-        let lastAvatarUpdate = user.last_avatar_update || 0;
-        
-        const NOW = Date.now();
-        const ONE_DAY = 24 * 60 * 60 * 1000;
-        const FIFTEEN_DAYS = 15 * ONE_DAY;
-        
-        // Список запрещенных слов (пример)
-        const BAD_WORDS = ['admin', 'mod', 'support', 'fuck', 'bitch', 'shit', 'админ', 'модер', 'сука', 'бля', 'хер'];
-        
-        // --- ПРОВЕРКА НИКНЕЙМА ---
-        if (newName !== user.username) {
-            // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка времени (15 дней)
-            // if (NOW - lastUserUpdate < FIFTEEN_DAYS) {
-            //    const daysLeft = Math.ceil((FIFTEEN_DAYS - (NOW - lastUserUpdate)) / ONE_DAY);
-            //    message = `Никнейм можно менять раз в 15 дней. Осталось дней: ${daysLeft}`;
-            //    messageType = "error";
-            // } else 
-            if (BAD_WORDS.some(w => newName.toLowerCase().includes(w))) {
-                message = "Никнейм содержит недопустимые слова.";
-                messageType = "error";
-            } else if (newName.length < 3 || newName.length > 20) {
-                message = "Никнейм должен быть от 3 до 20 символов.";
-                messageType = "error";
-            } else {
-                // Разрешаем смену
-                lastUserUpdate = NOW;
-            }
-        }
+try {
+    // 3. Логика получения данных (аналогично API)
+    user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
 
-        // --- ПРОВЕРКА АВАТАРА ---
-        if (messageType !== "error" && avatarFile && avatarFile.size > 0) {
-            console.log(`[Profile] Попытка загрузки аватара. Размер: ${avatarFile.size} байт`);
+    // Если профиля нет в базе — создаем на лету
+    if (!user) {
+        const now = Date.now();
+        await db.prepare(
+            'INSERT INTO users (id, username, description, last_seen, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(userId, 'Новичок', 'Житель МоррисГрада', now, now).run();
+        user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+    }
+
+    // 4. Обработка формы (Сохранение профиля)
+    if (Astro.request.method === "POST") {
+        try {
+            const formData = await Astro.request.formData();
+            const newDesc = formData.get("description") as string;
+            let newName = formData.get("username") as string;
+            newName = newName ? newName.trim() : user.username;
             
-            // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка времени (24 часа)
-            // if (NOW - lastAvatarUpdate < ONE_DAY) {
-            //    message = "Аватар можно менять не чаще 1 раза в сутки.";
-            //    messageType = "error";
-            // } else 
-            if (avatarFile.size > 5 * 1024 * 1024) {
-                message = "Файл слишком большой (макс 5МБ).";
-                messageType = "error";
-            } else {
-                // Загрузка в R2
-                if (bucket) {
-                    try {
-                        const key = `${userId}-${Date.now()}`;
-                        await bucket.put(key, await avatarFile.arrayBuffer(), {
-                            httpMetadata: { contentType: avatarFile.type }
-                        });
-
-                        // Удаляем старый аватар из R2, если он там есть, чтобы не занимать место
-                        if (user.avatar_url && user.avatar_url.startsWith(R2_PUBLIC_DOMAIN)) {
-                            const oldKey = user.avatar_url.slice(R2_PUBLIC_DOMAIN.length + 1);
-                            if (oldKey) {
-                                await bucket.delete(oldKey);
-                                console.log(`[Profile] Старый аватар удален: ${oldKey}`);
-                            }
-                        }
-
-                        newAvatar = `${R2_PUBLIC_DOMAIN}/${key}`;
-                        lastAvatarUpdate = NOW;
-                        console.log(`[Profile] Аватар успешно загружен: ${newAvatar}`);
-                    } catch (err) {
-                        console.error("[Profile] Ошибка R2:", err);
-                        message = "Ошибка загрузки файла в хранилище.";
-                        messageType = "error";
-                    }
-                } else {
-                    console.error("[Profile] Ошибка: R2 Bucket не найден в env.");
-                    // Вывод доступных ключей для отладки
-                    console.log("[Profile] Доступные ключи env:", env ? Object.keys(env) : "env is undefined");
-                    
-                    message = "Ошибка сервера: Хранилище файлов (R2) не подключено. Попробуйте 'wrangler dev --remote'";
+            // Обработка загрузки файла
+            const avatarFile = formData.get("avatar_file") as File;
+            
+            // Текущие данные
+            let newAvatar = user.avatar_url; // Оставляем старый, если новый не загружен
+            let lastUserUpdate = user.last_username_update || 0;
+            let lastAvatarUpdate = user.last_avatar_update || 0;
+            
+            const NOW = Date.now();
+            const ONE_DAY = 24 * 60 * 60 * 1000;
+            const FIFTEEN_DAYS = 15 * ONE_DAY;
+            
+            // Список запрещенных слов (пример)
+            const BAD_WORDS = ['admin', 'mod', 'support', 'fuck', 'bitch', 'shit', 'админ', 'модер', 'сука', 'бля', 'хер'];
+            
+            // --- ПРОВЕРКА НИКНЕЙМА ---
+            if (newName !== user.username) {
+                // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка времени (15 дней)
+                // if (NOW - lastUserUpdate < FIFTEEN_DAYS) {
+                //    const daysLeft = Math.ceil((FIFTEEN_DAYS - (NOW - lastUserUpdate)) / ONE_DAY);
+                //    message = `Никнейм можно менять раз в 15 дней. Осталось дней: ${daysLeft}`;
+                //    messageType = "error";
+                // } else 
+                if (BAD_WORDS.some(w => newName.toLowerCase().includes(w))) {
+                    message = "Никнейм содержит недопустимые слова.";
                     messageType = "error";
+                } else if (newName.length < 3 || newName.length > 20) {
+                    message = "Никнейм должен быть от 3 до 20 символов.";
+                    messageType = "error";
+                } else {
+                    // Разрешаем смену
+                    lastUserUpdate = NOW;
                 }
             }
-        }
 
-        // Если нет ошибок, сохраняем в БД
-        if (messageType !== "error") {
-            await db.prepare(`
-                UPDATE users SET description = ?, username = ?, avatar_url = ?, last_username_update = ?, last_avatar_update = ? WHERE id = ?
-            `).bind(newDesc, newName, newAvatar, lastUserUpdate, lastAvatarUpdate, userId).run();
+            // --- ПРОВЕРКА АВАТАРА ---
+            if (messageType !== "error" && avatarFile && avatarFile.size > 0) {
+                console.log(`[Profile] Попытка загрузки аватара. Размер: ${avatarFile.size} байт`);
+                
+                // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка времени (24 часа)
+                // if (NOW - lastAvatarUpdate < ONE_DAY) {
+                //    message = "Аватар можно менять не чаще 1 раза в сутки.";
+                //    messageType = "error";
+                // } else 
+                if (avatarFile.size > 5 * 1024 * 1024) {
+                    message = "Файл слишком большой (макс 5МБ).";
+                    messageType = "error";
+                } else {
+                    // Загрузка в R2
+                    if (bucket) {
+                        try {
+                            const key = `${userId}-${Date.now()}`;
+                            await bucket.put(key, await avatarFile.arrayBuffer(), {
+                                httpMetadata: { contentType: avatarFile.type }
+                            });
 
-            // Обновляем локальные данные для отображения
-            user.description = newDesc;
-            user.username = newName;
-            user.avatar_url = newAvatar;
+                            // Удаляем старый аватар из R2, если он там есть, чтобы не занимать место
+                            if (user.avatar_url && user.avatar_url.startsWith(R2_PUBLIC_DOMAIN)) {
+                                const oldKey = user.avatar_url.slice(R2_PUBLIC_DOMAIN.length + 1);
+                                if (oldKey) {
+                                    await bucket.delete(oldKey);
+                                    console.log(`[Profile] Старый аватар удален: ${oldKey}`);
+                                }
+                            }
+
+                            newAvatar = `${R2_PUBLIC_DOMAIN}/${key}`;
+                            lastAvatarUpdate = NOW;
+                            console.log(`[Profile] Аватар успешно загружен: ${newAvatar}`);
+                        } catch (err) {
+                            console.error("[Profile] Ошибка R2:", err);
+                            message = "Ошибка загрузки файла в хранилище.";
+                            messageType = "error";
+                        }
+                    } else {
+                        console.error("[Profile] Ошибка: R2 Bucket не найден в env.");
+                        // Вывод доступных ключей для отладки
+                        console.log("[Profile] Доступные ключи env:", env ? Object.keys(env) : "env is undefined");
+                        
+                        message = "Ошибка сервера: Хранилище файлов (R2) не подключено. Попробуйте 'wrangler dev --remote'";
+                        messageType = "error";
+                    }
+                }
+            }
+
+            // Если нет ошибок, сохраняем в БД
+            if (messageType !== "error") {
+                await db.prepare(`
+                    UPDATE users SET description = ?, username = ?, avatar_url = ?, last_username_update = ?, last_avatar_update = ? WHERE id = ?
+                `).bind(newDesc, newName, newAvatar, lastUserUpdate, lastAvatarUpdate, userId).run();
+
+                // Обновляем локальные данные для отображения
+                user.description = newDesc;
+                user.username = newName;
+                user.avatar_url = newAvatar;
+                
+                message = "Профиль успешно обновлен!";
+                messageType = "success";
+            }
             
-            message = "Профиль успешно обновлен!";
-            messageType = "success";
+        } catch (e) {
+            console.error("Error saving profile:", e);
+            message = "Ошибка сохранения. Попробуйте позже.";
+            messageType = "error";
         }
-        
-    } catch (e) {
-        console.error("Error saving profile:", e);
-        message = "Ошибка сохранения. Попробуйте позже.";
-        messageType = "error";
     }
-}
 
-// 5. Загружаем инвентарь
-const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE user_id = ?').bind(userId).all();
+    // 5. Загружаем инвентарь
+    const invRes = await db.prepare('SELECT * FROM inventory WHERE user_id = ?').bind(userId).all();
+    inventory = invRes?.results || [];
+
+} catch (e: any) {
+    console.error("Profile Error:", e);
+    return new Response(`Ошибка загрузки профиля: ${e.message || e}. \n\nВозможно, не созданы таблицы в базе данных. Попробуйте выполнить команды создания таблиц (users, inventory).`, { status: 500 });
+}
 ---
 
 <Layout title="Профиль Оператора">
