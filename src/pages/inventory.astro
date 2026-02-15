@@ -314,6 +314,7 @@ if (!userId) return Astro.redirect('/');
                 // Add to LocalStorage for Neon Protocol
                 const meta = JSON.parse(raw);
                 if (!meta.inventory) meta.inventory = [];
+                gameItem.isCorrupted = true; // Mark as Corrupted on transfer
                 meta.inventory.push(gameItem);
                 localStorage.setItem(META_KEY, JSON.stringify(meta));
                 alert("Предмет успешно отправлен в Неоновый Протокол!");

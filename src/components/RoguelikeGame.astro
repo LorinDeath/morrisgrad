@@ -614,6 +614,7 @@
   .inv-item.rarity-mythic { border-color: #ff3333; box-shadow: inset 0 0 10px #ff3333; animation: glow 1.5s infinite; }
   .inv-item.rarity-divine { border-color: #00ffff; box-shadow: inset 0 0 15px #00ffff; animation: glow 1s infinite alternate; }
   .inv-item.set-item { border-color: #0f0; box-shadow: inset 0 0 10px #0f0; animation: pulse 2s infinite; }
+  .inv-item.corrupted { border-style: dashed; box-shadow: inset 0 0 10px #ff00ff; }
   
   /* Custom Item Tooltip */
   .item-tooltip {
@@ -1096,6 +1097,7 @@
     setId?: string;
     setStats?: { [key: string]: number };
     source?: string;
+    isCorrupted?: boolean;
   }
 
   interface MetaData {
@@ -5764,6 +5766,19 @@
               alert("Недостаточно Ядер!");
               return;
           }
+
+          // Logic for Corrupted Item Ascension
+          const isCorrupted = this.selectedAscensionItem.isCorrupted;
+          let setMult = 3.0; // Default +200%
+          let baseMult = 0.1; // Default -90%
+
+          if (isCorrupted) {
+              if (!confirm("ВНИМАНИЕ: Вы пытаетесь возвысить ЗАРАЖЁННЫЙ предмет.\nЕго сетовые улучшения будут уменьшены в 2 раза (100% вместо 200%), а базовые параметры снижены сильнее.\nВы уверены?")) {
+                  return;
+              }
+              setMult = 2.0; // +100%
+              baseMult = 0.05; // -95% (Two times lower than 0.1)
+          }
           
           if (!confirm("Вы уверены? Весь прогресс будет сброшен, а предмет перенесен в профиль.")) return;
           
@@ -5783,19 +5798,21 @@
           const item = JSON.parse(JSON.stringify(this.selectedAscensionItem)); // Clone
           if (customName) item.name = customName;
           item.id = `asc_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+          // Remove corruption flag from the ascended result (it becomes a clean site item)
+          delete item.isCorrupted;
           
           // Apply Transformations
-          // 1. Set Stats +200%
+          // 1. Set Stats
           if (item.setStats) {
               for (const key in item.setStats) {
-                  item.setStats[key] *= 3.0;
+                  item.setStats[key] *= setMult;
                   item.setStats[key] = roundStat(key, item.setStats[key]);
               }
           }
-          // 2. Standard Stats -90%
+          // 2. Standard Stats
           if (item.stats) {
               for (const key in item.stats) {
-                  item.stats[key] *= 0.1;
+                  item.stats[key] *= baseMult;
                   item.stats[key] = roundStat(key, item.stats[key]);
                   if (item.stats[key] <= 0) delete item.stats[key];
               }
@@ -5806,9 +5823,25 @@
               item.setId = newSet;
           }
           
+          // Collect ALL other Corrupted items to return them
+          const returnedItems: Item[] = [];
+          const allItems = [...meta.inventory, meta.equipment.weapon, meta.equipment.armor, meta.equipment.chip];
+          allItems.forEach(i => {
+              if (i && i.isCorrupted && i !== this.selectedAscensionItem) {
+                  // Return as is, just remove flag if needed or keep it. 
+                  // Usually returning to site means it's just an item again.
+                  const rescue = JSON.parse(JSON.stringify(i));
+                  // rescue.isCorrupted = false; // Optional: clean them or keep them corrupted on site? Request says "returns to user as they became".
+                  returnedItems.push(rescue);
+              }
+          });
+
           // Prepare FormData
           const formData = new FormData();
           formData.append('item', JSON.stringify(item));
+          if (returnedItems.length > 0) {
+              formData.append('returned_items', JSON.stringify(returnedItems));
+          }
           formData.append('score', meta.bestScore.toString());
           if (this.ascensionIconFile) {
               formData.append('icon_file', this.ascensionIconFile);
@@ -5822,7 +5855,8 @@
               
               if (res.ok) {
                   const data = await res.json();
-                  alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${item.name}" сохранен в профиль.\nПолучено Адского Огня: ${data.hellfire}`);
+                  const returnMsg = returnedItems.length > 0 ? `\nТакже возвращено заражённых предметов: ${returnedItems.length}` : '';
+                  alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${item.name}" сохранен в профиль.\nПолучено Адского Огня: ${data.hellfire}${returnMsg}`);
                   // RESET GAME
                   localStorage.removeItem(META_KEY);
                   window.location.reload();
@@ -5927,6 +5961,10 @@
             
             if (item) {
                 el.innerHTML = `${item.icon} <span style="color:#fff">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>`;
+                if (item.isCorrupted) {
+                    el.innerHTML += `<br><span style="color:#ff00ff; font-size:0.6rem;">[ЗАРАЖЁН]</span>`;
+                    el.style.borderColor = '#ff00ff';
+                }
                 el.classList.add('filled');
                 el.onclick = () => {
                     this.selectedAscensionItem = item;
@@ -5951,27 +5989,36 @@
         
         if (!preview) return;
         
+        const isCorrupted = item.isCorrupted;
+        const setMult = isCorrupted ? 2.0 : 3.0; // 100% vs 200%
+        const baseMult = isCorrupted ? 0.05 : 0.1; // -95% vs -90%
+        
         let html = `<div style="color:${this.getItemColor(item.rarity)}; font-size:1.2rem; margin-bottom:10px;">${item.name}</div>`;
         
+        if (isCorrupted) {
+            html += `<div style="color:#ff00ff; font-weight:bold; margin-bottom:10px; border:1px solid #ff00ff; padding:5px;">⚠️ ЗАРАЖЁННЫЙ ПРЕДМЕТ ⚠️<br><span style="font-size:0.7rem; color:#fff;">ШТРАФ ВОЗВЫШЕНИЯ: СТАТЫ СНИЖЕНЫ, БОНУС СЕТА УМЕНЬШЕН</span></div>`;
+        }
+
         html += `<div style="color:#f00; font-weight:bold; margin-bottom:5px;">ИЗМЕНЕНИЯ:</div>`;
         
         // Stats
         if (item.stats) {
             for (const [key, val] of Object.entries(item.stats)) {
                 const name = STAT_NAMES[key] || key.toUpperCase();
-                const newVal = val * 0.1; // -90%
+                const newVal = val * baseMult;
                 html += `<div style="display:flex; justify-content:space-between; color:#888;"><span>${name}</span> <span>${val.toFixed(1)} ➝ <span style="color:#f00">${newVal.toFixed(1)}</span></span></div>`;
             }
         }
         
         // Set
         if (item.setId) {
-            html += `<div style="margin-top:10px; color:#0f0;">СЕТОВЫЕ БОНУСЫ (+200%):</div>`;
+            const pct = isCorrupted ? "+100%" : "+200%";
+            html += `<div style="margin-top:10px; color:#0f0;">СЕТОВЫЕ БОНУСЫ (${pct}):</div>`;
             html += `<div style="color:#a020f0; font-style:italic;">СЕТ ИЗМЕНИТСЯ НА СЛУЧАЙНЫЙ ИЗ 9 ВЫСШИХ</div>`;
             if (item.setStats) {
                 for (const [key, val] of Object.entries(item.setStats)) {
                     const name = STAT_NAMES[key] || key.toUpperCase();
-                    const newVal = val * 3.0; // +200%
+                    const newVal = val * setMult;
                     html += `<div style="display:flex; justify-content:space-between; color:#0f0;"><span>${name}</span> <span>${val.toFixed(1)} ➝ <span style="color:#0f0; font-weight:bold;">${newVal.toFixed(1)}</span></span></div>`;
                 }
             }
@@ -6055,6 +6102,7 @@
         const parts = [];
         if (item.level && item.level > 0) parts.push(`[Lvl ${item.level}]`);
         if (item.modified) parts.push(`(MOD)`);
+        if (item.isCorrupted) parts.push(`[ЗАРАЖЁН]`);
         if (item.setId) {
             parts.push(`[СЕТОВЫЙ: ${item.setId.toUpperCase()}]`);
             for (const [key, val] of Object.entries(item.setStats || {})) {
@@ -6242,6 +6290,9 @@
             if (item.setId) {
                 div.classList.add('set-item');
                 div.style.color = '#0f0';
+            } else if (item.isCorrupted) {
+                div.classList.add('corrupted');
+                div.style.color = '#ff00ff';
             } else {
                 div.style.color = this.getItemColor(item.rarity);
             }
