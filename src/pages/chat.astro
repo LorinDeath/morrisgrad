@@ -202,15 +202,8 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
 </style>
 
 <script>
-    const chatWindow = document.getElementById('chat-window');
-    const chatForm = document.getElementById('chat-form');
-    const msgInput = document.getElementById('msg-input') as HTMLInputElement;
-    const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
-    const charCount = document.getElementById('char-count');
-    const onlineCountEl = document.getElementById('online-count');
-    
-    let lastMsgTime = 0;
-    let isSending = false;
+    // Глобальная переменная для интервала, чтобы очищать её при навигации
+    let chatInterval: number | undefined;
 
     // Функция форматирования даты
     const formatDate = (ts: number) => {
@@ -223,166 +216,199 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
         return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ${time}`;
     };
 
-    // Функция создания HTML элемента сообщения
-    const createMessageElement = (m: any) => {
-        const isOnline = (Date.now() - m.last_seen) < 60000;
-        const statusClass = isOnline ? 'online' : 'offline';
-        const avatar = m.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.user_id}`;
+    // Основная логика инициализации при загрузке страницы
+    document.addEventListener('astro:page-load', () => {
+        const chatWindow = document.getElementById('chat-window');
         
-        const div = document.createElement('div');
-        div.className = 'msg-row';
-        div.setAttribute('data-id', m.id); // Важно для поиска
+        // Если на странице нет окна чата, значит мы не в чате — выходим
+        if (!chatWindow) return;
+
+        const chatForm = document.getElementById('chat-form');
+        const msgInput = document.getElementById('msg-input') as HTMLInputElement;
+        const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
+        const charCount = document.getElementById('char-count');
+        const onlineCountEl = document.getElementById('online-count');
         
-        div.innerHTML = `
-            <img src="${avatar}" class="msg-avatar" alt="Ava">
-            <div class="msg-content">
-                <div class="msg-header">
-                    <a href="/u/${m.user_id}" target="_blank" class="msg-nick">${m.username || 'Без имени'}</a>
-                    <span class="msg-status ${statusClass}" title="${isOnline ? 'В сети' : 'Офлайн'}"></span>
-                    <span class="msg-date">${formatDate(m.created_at)}</span>
+        let lastMsgTime = 0;
+        let isSending = false;
+
+        // Функция создания HTML элемента сообщения
+        const createMessageElement = (m: any) => {
+            const isOnline = (Date.now() - m.last_seen) < 60000;
+            const statusClass = isOnline ? 'online' : 'offline';
+            const avatar = m.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.user_id}`;
+            
+            const div = document.createElement('div');
+            div.className = 'msg-row';
+            div.setAttribute('data-id', m.id); // Важно для поиска
+            
+            div.innerHTML = `
+                <img src="${avatar}" class="msg-avatar" alt="Ava">
+                <div class="msg-content">
+                    <div class="msg-header">
+                        <a href="/u/${m.user_id}" target="_blank" class="msg-nick">${m.username || 'Без имени'}</a>
+                        <span class="msg-status ${statusClass}" title="${isOnline ? 'В сети' : 'Офлайн'}"></span>
+                        <span class="msg-date">${formatDate(m.created_at)}</span>
+                    </div>
+                    <div class="msg-text">${m.message}</div>
                 </div>
-                <div class="msg-text">${m.message}</div>
-            </div>
-        `;
-        return div;
-    };
+            `;
+            return div;
+        };
 
-    // Загрузка сообщений
-    const fetchChat = async () => {
-        try {
-            const res = await fetch('/api/chat');
-            if (!res.ok) {
-                // Пытаемся прочитать текст ошибки от сервера
-                try {
-                    const errData = await res.json();
-                    console.error("Ошибка загрузки чата:", res.status, errData);
-                } catch (e) {
-                    console.error("Ошибка загрузки чата (не JSON):", res.status);
-                }
-                return;
-            }
-            
-            const data = await res.json();
-            
-            if (onlineCountEl && data.onlineCount !== undefined) {
-                onlineCountEl.innerText = data.onlineCount;
-            }
-            
-            if (chatWindow && data.messages && Array.isArray(data.messages)) {
-                // Сохраняем позицию скролла
-                const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 100;
-                
-                // Убираем сообщение "Загрузка...", если оно есть
-                const loading = chatWindow.querySelector('.loading-msg');
-                if (loading) loading.remove();
-
-                const messages = data.messages;
-                const currentIds = new Set();
-
-                // 1. Проходим по новым данным
-                messages.forEach((m: any) => {
-                    currentIds.add(String(m.id));
-                    const existingEl = chatWindow.querySelector(`.msg-row[data-id="${m.id}"]`);
-
-                    if (existingEl) {
-                        // Если сообщение уже есть — обновляем только статус онлайна
-                        const isOnline = (Date.now() - m.last_seen) < 60000;
-                        const statusDot = existingEl.querySelector('.msg-status');
-                        if (statusDot) {
-                            statusDot.className = `msg-status ${isOnline ? 'online' : 'offline'}`;
-                        }
-                    } else {
-                        // Если сообщения нет — создаем и добавляем
-                        const newEl = createMessageElement(m);
-                        chatWindow.appendChild(newEl);
-                    }
-                });
-
-                // 2. Удаляем сообщения, которых больше нет в списке (например, старые удалились)
-                chatWindow.querySelectorAll('.msg-row').forEach(el => {
-                    const id = el.getAttribute('data-id');
-                    if (id && !currentIds.has(id)) {
-                        el.remove();
-                    }
-                });
-
-                // Если были внизу, скроллим к новым сообщениям
-                if (isAtBottom) {
-                    chatWindow.scrollTop = chatWindow.scrollHeight;
-                }
-            }
-        } catch (e) {
-            console.error("Chat error:", e);
-        }
-    };
-
-    // Счетчик символов
-    if (msgInput && charCount) {
-        msgInput.addEventListener('input', () => {
-            charCount.innerText = `${msgInput.value.length}/500`;
-        });
-    }
-
-    // Отправка сообщения
-    if (chatForm) {
-        chatForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (isSending) return;
-            
-            const text = msgInput.value.trim();
-            if (!text) return;
-            
-            // Клиентский Rate Limit (1 сек)
-            const now = Date.now();
-            if (now - lastMsgTime < 1000) {
-                alert("Подождите секунду перед отправкой.");
-                return;
-            }
-
-            isSending = true;
-            sendBtn.disabled = true;
-            sendBtn.innerText = "...";
-            
-            // Визуальная блокировка на 1 секунду
-            setTimeout(() => {
-                if (!isSending) { // Если отправка уже прошла
-                    sendBtn.disabled = false;
-                }
-            }, 1000);
-
+        // Загрузка сообщений
+        const fetchChat = async () => {
             try {
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                });
+                const res = await fetch('/api/chat');
+                if (!res.ok) {
+                    try {
+                        const errData = await res.json();
+                        console.error("Ошибка загрузки чата:", res.status, errData);
+                    } catch (e) {
+                        console.error("Ошибка загрузки чата (не JSON):", res.status);
+                    }
+                    return;
+                }
                 
-                if (res.ok) {
-                    msgInput.value = '';
-                    if (charCount) charCount.innerText = '0/500';
-                    lastMsgTime = Date.now();
-                    await fetchChat(); // Сразу обновляем
-                    if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight; // Скролл вниз
-                } else {
-                    const err = await res.json();
-                    alert(err.error || "Ошибка отправки");
+                const data = await res.json();
+                
+                if (onlineCountEl && data.onlineCount !== undefined) {
+                    onlineCountEl.innerText = data.onlineCount;
+                }
+                
+                if (chatWindow && data.messages && Array.isArray(data.messages)) {
+                    // Сохраняем позицию скролла
+                    const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 100;
+                    
+                    // Убираем сообщение "Загрузка...", если оно есть
+                    const loading = chatWindow.querySelector('.loading-msg');
+                    if (loading) loading.remove();
+
+                    const messages = data.messages;
+                    const currentIds = new Set();
+
+                    // 1. Проходим по новым данным
+                    messages.forEach((m: any) => {
+                        currentIds.add(String(m.id));
+                        const existingEl = chatWindow.querySelector(`.msg-row[data-id="${m.id}"]`);
+
+                        if (existingEl) {
+                            // Если сообщение уже есть — обновляем только статус онлайна
+                            const isOnline = (Date.now() - m.last_seen) < 60000;
+                            const statusDot = existingEl.querySelector('.msg-status');
+                            if (statusDot) {
+                                statusDot.className = `msg-status ${isOnline ? 'online' : 'offline'}`;
+                            }
+                        } else {
+                            // Если сообщения нет — создаем и добавляем
+                            const newEl = createMessageElement(m);
+                            chatWindow.appendChild(newEl);
+                        }
+                    });
+
+                    // 2. Удаляем сообщения, которых больше нет в списке (например, старые удалились)
+                    chatWindow.querySelectorAll('.msg-row').forEach(el => {
+                        const id = el.getAttribute('data-id');
+                        if (id && !currentIds.has(id)) {
+                            el.remove();
+                        }
+                    });
+
+                    // Если были внизу, скроллим к новым сообщениям
+                    if (isAtBottom) {
+                        chatWindow.scrollTop = chatWindow.scrollHeight;
+                    }
+
+                    // Обновляем метку прочтения
+                    if (messages.length > 0) {
+                        const lastMsg = messages[messages.length - 1];
+                        localStorage.setItem('chat_last_read', lastMsg.created_at);
+                    }
                 }
             } catch (e) {
-                console.error(e);
-            } finally {
-                isSending = false;
-                sendBtn.innerText = "ОТПРАВИТЬ";
-                // Кнопка разблокируется таймером выше или сразу, если прошло больше 1 сек
-                if (Date.now() - lastMsgTime >= 1000) {
-                    sendBtn.disabled = false;
-                }
-                msgInput.focus();
+                console.error("Chat error:", e);
             }
-        });
-    }
+        };
 
-    // Запуск
-    fetchChat();
-    // Автообновление каждые 3 секунды
-    setInterval(fetchChat, 3000);
+        // Счетчик символов
+        if (msgInput && charCount) {
+            msgInput.addEventListener('input', () => {
+                charCount.innerText = `${msgInput.value.length}/500`;
+            });
+        }
+
+        // Отправка сообщения
+        if (chatForm) {
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (isSending) return;
+                
+                const text = msgInput.value.trim();
+                if (!text) return;
+                
+                // Клиентский Rate Limit (1 сек)
+                const now = Date.now();
+                if (now - lastMsgTime < 1000) {
+                    alert("Подождите секунду перед отправкой.");
+                    return;
+                }
+
+                isSending = true;
+                sendBtn.disabled = true;
+                sendBtn.innerText = "...";
+                
+                // Визуальная блокировка на 1 секунду
+                setTimeout(() => {
+                    if (!isSending) { // Если отправка уже прошла
+                        sendBtn.disabled = false;
+                    }
+                }, 1000);
+
+                try {
+                    const res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text })
+                    });
+                    
+                    if (res.ok) {
+                        msgInput.value = '';
+                        if (charCount) charCount.innerText = '0/500';
+                        lastMsgTime = Date.now();
+                        await fetchChat(); // Сразу обновляем
+                        if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight; // Скролл вниз
+                    } else {
+                        const err = await res.json();
+                        alert(err.error || "Ошибка отправки");
+                    }
+                } catch (e) {
+                    console.error(e);
+                } finally {
+                    isSending = false;
+                    sendBtn.innerText = "ОТПРАВИТЬ";
+                    // Кнопка разблокируется таймером выше или сразу, если прошло больше 1 сек
+                    if (Date.now() - lastMsgTime >= 1000) {
+                        sendBtn.disabled = false;
+                    }
+                    msgInput.focus();
+                }
+            });
+        }
+
+        // Запуск
+        fetchChat();
+        
+        // Очищаем старый интервал, если он был (на всякий случай)
+        if (chatInterval) clearInterval(chatInterval);
+        // Автообновление каждые 3 секунды
+        chatInterval = setInterval(fetchChat, 3000) as unknown as number;
+    });
+
+    // Очистка интервала при уходе со страницы (View Transitions)
+    document.addEventListener('astro:before-swap', () => {
+        if (chatInterval) {
+            clearInterval(chatInterval);
+            chatInterval = undefined;
+        }
+    });
 </script>

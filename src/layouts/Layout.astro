@@ -35,6 +35,9 @@ const { title } = Astro.props;
                 </a>
             </div>
             <div class="auth-controls">
+                <a href="/chat" class="header-chat-link">
+                    💬 Чат <span id="chat-notify-dot" class="notify-dot hidden"></span>
+                </a>
                 <SignedOut>
                     <SignInButton mode="modal" class="login-btn">Войти</SignInButton>
                 </SignedOut>
@@ -56,7 +59,6 @@ const { title } = Astro.props;
     <a href="https://boosty.to/alexseylormusic" target="_blank" rel="noopener noreferrer">Boosty</a>
   </div>
 
-  <a href="/chat" class="chat-link">💬 Канал связи "Моррис"</a>
   <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
   <a href="/changelog-site" class="site-version-link">Список обновлений МоррисГрада</a>
 </footer>
@@ -145,6 +147,24 @@ const showImage = (index: number) => {
                 }
             });
         }
+
+        // Проверка новых сообщений в чате
+        const checkChat = async () => {
+            if (window.location.pathname === '/chat') return; // Не проверяем, если мы уже в чате
+            try {
+                const res = await fetch('/api/chat');
+                const data = await res.json();
+                if (data.messages && data.messages.length > 0) {
+                    const latestMsg = data.messages[data.messages.length - 1];
+                    const lastRead = localStorage.getItem('chat_last_read') || 0;
+                    const dot = document.getElementById('chat-notify-dot');
+                    if (dot && latestMsg.created_at > Number(lastRead)) {
+                        dot.classList.remove('hidden');
+                    }
+                }
+            } catch (e) { console.error(e); }
+        };
+        checkChat();
     });
 </script>
     </body>
@@ -224,10 +244,10 @@ const showImage = (index: number) => {
     background: transparent;
     border: 1px solid var(--btn-gray);
     color: var(--text-light);
-    width: 40px; height: 40px;
+    width: 32px; height: 32px;
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem;
+    font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s;
   }
@@ -241,14 +261,14 @@ const showImage = (index: number) => {
     background: transparent;
     border: 1px solid var(--energy-purple);
     color: var(--text-light);
-    padding: 0.5rem 1.2rem;
+    padding: 0.4rem 1rem;
     border-radius: 6px;
     font-family: 'Exo 2', sans-serif;
     font-weight: 600;
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
   .login-btn:hover {
     background: var(--energy-purple);
@@ -260,11 +280,31 @@ const showImage = (index: number) => {
   .profile-link {
     color: var(--text-light);
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 500;
+    font-size: 0.9rem;
     margin-right: 15px;
     transition: color 0.3s;
   }
   .profile-link:hover { color: var(--accent-gold); }
+
+  .header-chat-link {
+    color: var(--text-light);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin-right: 15px;
+    transition: color 0.3s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .header-chat-link:hover { color: var(--accent-gold); }
+
+  .notify-dot {
+    width: 8px; height: 8px; background: #0f0; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px #0f0;
+  }
+  .notify-dot.hidden { display: none; }
 
   .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
 
@@ -319,23 +359,6 @@ const showImage = (index: number) => {
     box-shadow: 0 100vh 0 100vh #050505;
 	
 }
-
-  .chat-link {
-    display: inline-block;
-    margin-bottom: 1rem;
-    color: var(--text-light);
-    text-decoration: none;
-    font-weight: bold;
-    border: 1px solid #333;
-    padding: 8px 15px;
-    border-radius: 20px;
-    transition: all 0.3s;
-  }
-  .chat-link:hover {
-    background: var(--btn-gray);
-    border-color: var(--accent-gold);
-    color: var(--accent-gold);
-  }
 
   .site-version-link {
     display: block;
