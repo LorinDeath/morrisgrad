@@ -15,6 +15,20 @@ if (db) {
             created_at INTEGER
         )
     `).run();
+
+    // Добавляем создание таблицы users, так как чат зависит от неё (JOIN)
+    await db.prepare(`
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT,
+            description TEXT,
+            last_seen INTEGER,
+            created_at INTEGER,
+            avatar_url TEXT,
+            last_username_update INTEGER,
+            last_avatar_update INTEGER
+        )
+    `).run();
 }
 
 const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : { userId: null };
