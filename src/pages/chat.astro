@@ -1,0 +1,310 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Подключение к БД для создания таблицы при первом запуске
+const cfRuntime = (Astro.locals as any)?.runtime;
+const env = cfRuntime?.env as any;
+const db = env?.PROFILES_DB;
+
+if (db) {
+    await db.prepare(`
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            message TEXT,
+            created_at INTEGER
+        )
+    `).run();
+}
+
+const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : { userId: null };
+---
+
+<Layout title="Общий канал связи">
+    <main class="container chat-page">
+        <h1 class="chat-title">КАНАЛ СВЯЗИ "МОРРИС"</h1>
+        
+        <div class="chat-container">
+            <!-- Окно сообщений -->
+            <div id="chat-window" class="chat-window">
+                <div class="loading-msg">Установка соединения...</div>
+            </div>
+
+            <!-- Панель ввода -->
+            <div class="chat-controls">
+                <div class="online-status">
+                    <span class="status-dot green"></span>
+                    <span id="online-count">0</span> в сети
+                </div>
+                
+                {userId ? (
+                    <form id="chat-form" class="chat-form">
+                        <div class="input-wrapper">
+                            <input type="text" id="msg-input" placeholder="Введите сообщение..." autocomplete="off" maxlength="500" />
+                            <span id="char-count">0/500</span>
+                        </div>
+                        <button type="submit" id="send-btn">ОТПРАВИТЬ</button>
+                    </form>
+                ) : (
+                    <div class="login-hint"><a href="/">Войдите</a>, чтобы писать в канал.</div>
+                )}
+            </div>
+        </div>
+        
+        <a href="/" class="back-link">← Вернуться в город</a>
+    </main>
+</Layout>
+
+<style>
+    .chat-page { padding-top: 40px; color: #fff; max-width: 900px; }
+    .chat-title { text-align: center; color: #ffd700; margin-bottom: 20px; letter-spacing: 2px; }
+
+    .chat-container {
+        background: rgba(10, 10, 10, 0.9);
+        border: 1px solid #333;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        display: flex;
+        flex-direction: column;
+        height: 70vh;
+        min-height: 500px;
+    }
+
+    .chat-window {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        scroll-behavior: smooth;
+    }
+
+    /* Скроллбар */
+    .chat-window::-webkit-scrollbar { width: 8px; }
+    .chat-window::-webkit-scrollbar-track { background: #111; }
+    .chat-window::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    .chat-window::-webkit-scrollbar-thumb:hover { background: #ffd700; }
+
+    .chat-controls {
+        background: #151515;
+        padding: 15px 20px;
+        border-top: 1px solid #333;
+    }
+
+    .online-status {
+        font-size: 0.8rem; color: #888; margin-bottom: 10px;
+        display: flex; align-items: center; gap: 5px;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .status-dot.green { background: #0f0; box-shadow: 0 0 5px #0f0; }
+    .status-dot.gray { background: #555; }
+
+    .chat-form { display: flex; gap: 10px; }
+    
+    .input-wrapper {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    
+    #msg-input {
+        width: 100%;
+        background: #000;
+        border: 1px solid #444;
+        color: #fff;
+        padding: 12px;
+        padding-right: 60px; /* Место для счетчика */
+        border-radius: 6px;
+        font-family: 'Exo 2', sans-serif;
+    }
+    #msg-input:focus { outline: none; border-color: #ffd700; }
+    
+    #char-count {
+        position: absolute;
+        right: 10px;
+        color: #666;
+        font-size: 0.75rem;
+        pointer-events: none;
+    }
+
+    #send-btn {
+        background: #ffd700;
+        color: #000;
+        border: none;
+        padding: 0 25px;
+        font-weight: bold;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    #send-btn:hover { background: #fff; }
+    #send-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    .login-hint { text-align: center; color: #666; padding: 10px; }
+    .login-hint a { color: #ffd700; }
+
+    .back-link { display: inline-block; margin-top: 20px; color: #666; text-decoration: none; }
+    .back-link:hover { color: #fff; }
+    
+    .loading-msg { text-align: center; color: #666; margin-top: 50px; font-style: italic; }
+</style>
+
+<!-- Глобальные стили для сообщений, создаваемых через JS -->
+<style is:global>
+    .msg-row { display: flex; gap: 15px; align-items: flex-start; animation: fadeIn 0.3s ease; }
+    .msg-avatar { 
+        width: 40px; height: 40px; border-radius: 8px; object-fit: cover; 
+        border: 1px solid #333; flex-shrink: 0;
+    }
+    .msg-content { flex: 1; min-width: 0; }
+    
+    .msg-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .msg-nick { 
+        font-weight: bold; color: #ffd700; text-decoration: none; font-size: 0.95rem; 
+        transition: color 0.2s;
+    }
+    .msg-nick:hover { color: #fff; text-decoration: underline; }
+    
+    .msg-status { width: 6px; height: 6px; border-radius: 50%; }
+    .msg-status.online { background: #0f0; box-shadow: 0 0 4px #0f0; }
+    .msg-status.offline { background: #555; }
+    
+    .msg-date { font-size: 0.7rem; color: #555; margin-left: auto; }
+    
+    .msg-text { 
+        color: #ddd; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; 
+        background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 0 8px 8px 8px;
+        display: inline-block;
+    }
+    
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+<script>
+    const chatWindow = document.getElementById('chat-window');
+    const chatForm = document.getElementById('chat-form');
+    const msgInput = document.getElementById('msg-input') as HTMLInputElement;
+    const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
+    const charCount = document.getElementById('char-count');
+    const onlineCountEl = document.getElementById('online-count');
+    
+    let lastMsgTime = 0;
+    let isSending = false;
+
+    // Функция форматирования даты
+    const formatDate = (ts: number) => {
+        const d = new Date(ts);
+        const today = new Date();
+        const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth();
+        
+        const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        if (isToday) return time;
+        return `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} ${time}`;
+    };
+
+    // Загрузка сообщений
+    const fetchChat = async () => {
+        try {
+            const res = await fetch('/api/chat');
+            const data = await res.json();
+            
+            if (onlineCountEl) onlineCountEl.innerText = data.onlineCount;
+            
+            if (chatWindow) {
+                // Сохраняем позицию скролла
+                const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 50;
+                
+                chatWindow.innerHTML = data.messages.map((m: any) => {
+                    // Проверка онлайна (1 минута = 60000 мс)
+                    const isOnline = (Date.now() - m.last_seen) < 60000;
+                    const statusClass = isOnline ? 'online' : 'offline';
+                    const avatar = m.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${m.user_id}`;
+                    
+                    return `
+                        <div class="msg-row">
+                            <img src="${avatar}" class="msg-avatar" alt="Ava">
+                            <div class="msg-content">
+                                <div class="msg-header">
+                                    <a href="/u/${m.user_id}" target="_blank" class="msg-nick">${m.username || 'Без имени'}</a>
+                                    <span class="msg-status ${statusClass}" title="${isOnline ? 'В сети' : 'Офлайн'}"></span>
+                                    <span class="msg-date">${formatDate(m.created_at)}</span>
+                                </div>
+                                <div class="msg-text">${m.message}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Если были внизу, скроллим к новым сообщениям
+                if (isAtBottom) {
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                }
+            }
+        } catch (e) {
+            console.error("Chat error:", e);
+        }
+    };
+
+    // Счетчик символов
+    if (msgInput && charCount) {
+        msgInput.addEventListener('input', () => {
+            charCount.innerText = `${msgInput.value.length}/500`;
+        });
+    }
+
+    // Отправка сообщения
+    if (chatForm) {
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (isSending) return;
+            
+            const text = msgInput.value.trim();
+            if (!text) return;
+            
+            // Клиентский Rate Limit (1 сек)
+            const now = Date.now();
+            if (now - lastMsgTime < 1000) {
+                alert("Подождите секунду перед отправкой.");
+                return;
+            }
+
+            isSending = true;
+            sendBtn.disabled = true;
+            sendBtn.innerText = "...";
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                
+                if (res.ok) {
+                    msgInput.value = '';
+                    if (charCount) charCount.innerText = '0/500';
+                    lastMsgTime = Date.now();
+                    await fetchChat(); // Сразу обновляем
+                    if (chatWindow) chatWindow.scrollTop = chatWindow.scrollHeight; // Скролл вниз
+                } else {
+                    const err = await res.json();
+                    alert(err.error || "Ошибка отправки");
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                isSending = false;
+                sendBtn.disabled = false;
+                sendBtn.innerText = "ОТПРАВИТЬ";
+                msgInput.focus();
+            }
+        });
+    }
+
+    // Запуск
+    fetchChat();
+    // Автообновление каждые 3 секунды
+    setInterval(fetchChat, 3000);
+</script>
