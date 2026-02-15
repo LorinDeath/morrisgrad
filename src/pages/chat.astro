@@ -7,28 +7,32 @@ const env = cfRuntime?.env as any;
 const db = env?.PROFILES_DB;
 
 if (db) {
-    await db.prepare(`
-        CREATE TABLE IF NOT EXISTS chat_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            message TEXT,
-            created_at INTEGER
-        )
-    `).run();
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                message TEXT,
+                created_at INTEGER
+            )
+        `).run();
 
-    // Добавляем создание таблицы users, так как чат зависит от неё (JOIN)
-    await db.prepare(`
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT,
-            description TEXT,
-            last_seen INTEGER,
-            created_at INTEGER,
-            avatar_url TEXT,
-            last_username_update INTEGER,
-            last_avatar_update INTEGER
-        )
-    `).run();
+        // Добавляем создание таблицы users, так как чат зависит от неё (JOIN)
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT,
+                description TEXT,
+                last_seen INTEGER,
+                created_at INTEGER,
+                avatar_url TEXT,
+                last_username_update INTEGER,
+                last_avatar_update INTEGER
+            )
+        `).run();
+    } catch (e) {
+        console.error("Ошибка создания таблиц при загрузке страницы:", e);
+    }
 }
 
 const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : { userId: null };
@@ -223,11 +227,18 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
     const fetchChat = async () => {
         try {
             const res = await fetch('/api/chat');
+            if (!res.ok) {
+                console.error("Ошибка загрузки чата, статус:", res.status);
+                return;
+            }
+            
             const data = await res.json();
             
-            if (onlineCountEl) onlineCountEl.innerText = data.onlineCount;
+            if (onlineCountEl && data.onlineCount !== undefined) {
+                onlineCountEl.innerText = data.onlineCount;
+            }
             
-            if (chatWindow) {
+            if (chatWindow && data.messages && Array.isArray(data.messages)) {
                 // Сохраняем позицию скролла
                 const isAtBottom = chatWindow.scrollHeight - chatWindow.scrollTop <= chatWindow.clientHeight + 50;
                 

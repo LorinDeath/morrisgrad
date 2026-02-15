@@ -14,6 +14,29 @@ export const GET: APIRoute = async ({ locals }) => {
     if (!db) return new Response(JSON.stringify({ error: "DB not connected" }), { status: 500 });
 
     try {
+        // 0. САМОЛЕЧЕНИЕ: Создаем таблицы, если их нет (чтобы API не падал с 500)
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                message TEXT,
+                created_at INTEGER
+            )
+        `).run();
+
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT,
+                description TEXT,
+                last_seen INTEGER,
+                created_at INTEGER,
+                avatar_url TEXT,
+                last_username_update INTEGER,
+                last_avatar_update INTEGER
+            )
+        `).run();
+
         const now = Date.now();
         const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000; // 7 дней
         const oneMinuteAgo = now - 60 * 1000; // 1 минута для статуса "Онлайн"
