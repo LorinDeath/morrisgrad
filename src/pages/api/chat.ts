@@ -14,7 +14,7 @@ export const GET: APIRoute = async ({ locals }) => {
     if (!db) return new Response(JSON.stringify({ error: "DB not connected" }), { status: 500 });
 
     try {
-        // 0. САМОЛЕЧЕНИЕ: Создаем таблицы, если их нет (чтобы API не падал с 500)
+        // 0. САМОЛЕЧЕНИЕ: Создаем таблицы (включая новую system_meta для таймеров)
         await db.prepare(`
             CREATE TABLE IF NOT EXISTS chat_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,13 +37,34 @@ export const GET: APIRoute = async ({ locals }) => {
             )
         `).run();
 
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS system_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        `).run();
+
         const now = Date.now();
-        const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000; // 7 дней
         const oneMinuteAgo = now - 60 * 1000; // 1 минута для статуса "Онлайн"
 
-        // 1. Чистка старых сообщений (старше недели)
-        // Удаляем всё, что старше 7 дней
-        await db.prepare('DELETE FROM chat_messages WHERE created_at < ?').bind(oneWeekAgo).run();
+        // 1. УМНАЯ ЧИСТКА (Раз в 24 часа)
+        try {
+            const lastCleanupRes = await db.prepare("SELECT value FROM system_meta WHERE key = 'last_chat_cleanup'").first();
+            const lastCleanup = lastCleanupRes ? parseInt(lastCleanupRes.value as string) : 0;
+            const ONE_DAY = 24 * 60 * 60 * 1000;
+
+            if (now - lastCleanup > ONE_DAY) {
+                const oneWeekAgo = now - 7 * ONE_DAY;
+                // Удаляем сообщения старше 7 дней
+                await db.prepare('DELETE FROM chat_messages WHERE created_at < ?').bind(oneWeekAgo).run();
+                // Обновляем время последней чистки
+                await db.prepare("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('last_chat_cleanup', ?)").bind(now.toString()).run();
+                console.log("Chat cleanup executed");
+            }
+        } catch (cleanupError) {
+            console.error("Cleanup failed (non-critical):", cleanupError);
+            // Не роняем весь чат из-за ошибки очистки
+        }
 
         // 2. Обновляем статус "В сети" для текущего пользователя
         if (userId) {
