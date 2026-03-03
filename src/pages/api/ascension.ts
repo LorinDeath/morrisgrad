@@ -13,7 +13,8 @@ export const POST: APIRoute = async ({ locals, request }) => {
     const env = cfRuntime?.env as Env;
     const db = env?.PROFILES_DB;
     const bucket = env?.ITEMICONS_BUCKET;
-    const R2_PUBLIC_DOMAIN = env?.ITEMICONS_R2_PUBLIC_DOMAIN;
+    // Публичный домен для иконок предметов (отдельный от аватарок)
+    const R2_PUBLIC_DOMAIN = "https://pub-d8e6445004d840e3a681ccd3b2941e20.r2.dev";
 
     // 1. Проверка авторизации и подключения к БД/R2
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
