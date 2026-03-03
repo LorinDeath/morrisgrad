@@ -287,7 +287,11 @@ try {
                 {inventory && inventory.length > 0 ? (
                     inventory.map((item: any) => (
                         <div class={`inv-card rarity-${item.rarity || 'common'}`} data-json={JSON.stringify(item)}>
-                            <div class="inv-icon">{item.icon || '📦'}</div>
+                            <div class="inv-icon">
+                                {item.icon && item.icon.startsWith('http') ? 
+                                    <img src={item.icon} alt={item.name} style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;" /> 
+                                    : (item.icon || '📦')}
+                            </div>
                             <div class="inv-name" style={item.rarity === 'legendary' ? 'color: #ffd700' : item.rarity === 'mythic' ? 'color: #ff3333' : item.rarity === 'divine' ? 'color: #00ffff' : item.rarity === 'epic' ? 'color: #a020f0' : item.rarity === 'rare' ? 'color: #00f' : 'color: #fff'}>{item.name}</div>
                             <div class="inv-count">{item.type ? item.type.toUpperCase() : 'ITEM'}</div>
                         </div>
@@ -549,7 +553,11 @@ document.addEventListener('astro:page-load', () => {
         const statsEl = document.getElementById('modal-stats');
         
         if (iconEl) {
-            iconEl.innerText = item.icon || '📦';
+            if (item.icon && item.icon.startsWith('http')) {
+                iconEl.innerHTML = `<img src="${item.icon}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
+            } else {
+                iconEl.innerText = item.icon || '📦';
+            }
             iconEl.className = `item-icon-large rarity-${item.rarity}`;
             iconEl.style.borderColor = getColor(item.rarity);
             iconEl.style.boxShadow = `0 0 15px ${getColor(item.rarity)}`;

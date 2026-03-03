@@ -5077,7 +5077,9 @@
             const price = Math.floor(100 * (1 - this.player.merchantDiscount));
             const el = document.createElement('div');
             el.className = 'mini-card';
-            el.innerHTML = `<div class="icon">${item.icon}</div><div class="name">${item.name}</div><div class="desc">Цена: ${price}</div>`;
+            const iconHtml = (item.icon && item.icon.startsWith('http')) ? `<img src="${item.icon}" style="width: 40px; height: 40px; object-fit: cover;">` : item.icon;
+            
+            el.innerHTML = `<div class="icon">${iconHtml}</div><div class="name">${item.name}</div><div class="desc">Цена: ${price}</div>`;
             el.onclick = () => {
                 if (this.currencyCollected >= price) {
                     this.currencyCollected -= price;
@@ -5984,7 +5986,10 @@
             if (this.selectedAscensionItem === item && item) el.classList.add('selected-upgrade');
             
             if (item) {
-                el.innerHTML = `${item.icon} <span style="color:#fff">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>`;
+                const iconHtml = (item.icon && item.icon.startsWith('http')) 
+                    ? `<img src="${item.icon}" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px; display:inline-block; vertical-align:middle; margin-right:5px;">` 
+                    : item.icon;
+                el.innerHTML = `${iconHtml} <span style="color:#fff">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>`;
                 if (item.isCorrupted) {
                     el.innerHTML += `<br><span style="color:#ff00ff; font-size:0.6rem;">[ЗАРАЖЁН]</span>`;
                     el.style.borderColor = '#ff00ff';
@@ -6309,7 +6314,11 @@
             
             const div = document.createElement('div');
             div.className = `inv-item rarity-${item.rarity}`;
-            div.innerHTML = `<div style="font-size:1.5rem">${item.icon}</div><div>${item.name}</div>`;
+            
+            const iconHtml = (item.icon && item.icon.startsWith('http')) 
+                ? `<img src="${item.icon}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` 
+                : `<div style="font-size:1.5rem">${item.icon}</div>`;
+            div.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:45px;">${iconHtml}</div><div>${item.name}</div>`;
             
             if (item.setId) {
                 div.classList.add('set-item');
@@ -6384,15 +6393,18 @@
         this.pendingUpgradeItem = item;
         this.pendingUpgradeIdx = idx;
 
+        const targetIcon = (target.icon && target.icon.startsWith('http')) ? `<img src="${target.icon}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size:1.5rem">${target.icon}</div>`;
+        const itemIcon = (item.icon && item.icon.startsWith('http')) ? `<img src="${item.icon}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size:1.5rem">${item.icon}</div>`;
+
         // Visual comparison UI
         msg.innerHTML = `
             <div style="display:flex; align-items:center; justify-content:center; gap:15px; margin-bottom:10px;">
-                <div class="inv-item rarity-${target.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px;">
-                    <div style="font-size:1.5rem">${target.icon}</div>
+                <div class="inv-item rarity-${target.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                    ${targetIcon}
                 </div>
                 <div style="font-size:2rem; color:#0f0; animation:pulse 1s infinite;">⬅</div>
-                <div class="inv-item rarity-${item.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px;">
-                    <div style="font-size:1.5rem">${item.icon}</div>
+                <div class="inv-item rarity-${item.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                    ${itemIcon}
                 </div>
             </div>
             <div style="font-size:0.9rem; color:#ccc; margin-bottom:5px;">
