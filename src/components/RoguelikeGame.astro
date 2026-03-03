@@ -360,6 +360,7 @@
           <p>СОБРАНО ОСКОЛКОВ: <span id="go-currency" class="text-purple">0</span></p>
           <p>СОБРАНО ЯДЕР: <span id="go-cores" class="text-gold">0</span></p>
         </div>
+        <div id="go-loot-list" class="loot-list" style="margin-bottom: 20px; max-height: 150px; overflow-y: auto; width: 100%; text-align: center; font-size: 0.8rem; color: #aaa;"></div>
         <button id="btn-restart" class="btn-primary">ПЕРЕЗАГРУЗКА</button>
         
         <!-- High Score Input -->
@@ -616,6 +617,14 @@
   .inv-item.set-item { border-color: #0f0; box-shadow: inset 0 0 10px #0f0; animation: pulse 2s infinite; }
   .inv-item.corrupted { border-style: dashed; box-shadow: inset 0 0 10px #ff00ff; }
   
+  /* New combined style for Corrupted Set Items */
+  .inv-item.set-item.corrupted { 
+      border-color: #a020f0; 
+      box-shadow: inset 0 0 15px #a020f0, 0 0 10px #a020f0; 
+      animation: pulse-purple 2s infinite; 
+  }
+  @keyframes pulse-purple { 0% { opacity: 1; box-shadow: inset 0 0 15px #a020f0; } 50% { opacity: 0.8; box-shadow: inset 0 0 25px #a020f0; } 100% { opacity: 1; box-shadow: inset 0 0 15px #a020f0; } }
+
   /* Custom Item Tooltip */
   .item-tooltip {
     position: fixed;
@@ -972,6 +981,33 @@
   
   // Sets for Ascension
   const ASCENDED_SETS = ['cruel', 'vile', 'wicked', 'sinister', 'malicious', 'nefarious', 'diabolic', 'infernal', 'wretched'];
+  const IMMUTABLE_SETS = ['t1', 't2', 't3', 't4', 't34'];
+
+  const SET_TRANSLATIONS: Record<string, string> = {
+    'cursed': 'ПРОКЛЯТЫЙ',
+    'surprised': 'УДИВЛЁННЫЙ',
+    'enlightened': 'ПРОСВЕЩЁННЫЙ',
+    'insignificant': 'НИЧТОЖНЫЙ',
+    'five': 'ПЯТЁРКА',
+    'power': 'ВЛАСТЬ',
+    'badluck': 'НЕУДАЧА',
+    'problem': 'ПРОБЛЕМА',
+    'cruelty': 'ЖЕСТОКОСТЬ',
+    'cruel': 'ЖЕСТОКИЙ',
+    'vile': 'ПОДЛЫЙ',
+    'wicked': 'ЗЛОЙ',
+    'sinister': 'ЗЛОВЕЩИЙ',
+    'malicious': 'ЗЛОБНЫЙ',
+    'nefarious': 'ГНУСНЫЙ',
+    'diabolic': 'ДЬЯВОЛЬСКИЙ',
+    'infernal': 'АДСКИЙ',
+    'wretched': 'ЖАЛКИЙ',
+    't1': 'Т-1 (БРАК)',
+    't2': 'Т-2 (ОШИБКА)',
+    't3': 'Т-3 (СБОЙ)',
+    't4': 'Т-4 (МУСОР)',
+    't34': 'Т-34 (ЛЕГЕНДА)'
+  };
 
   const STAT_NAMES: Record<string, string> = {
     hp: 'Здоровье',
@@ -1026,15 +1062,15 @@
     { id: 'wave40', name: 'РЕЙД: 40 ВОЛН', desc: 'Выжить 40 волн', type: 'wave', target: 40, rewardLevel: 2 },
     { id: 'wave60', name: 'РЕЙД: 60 ВОЛН', desc: 'Выжить 60 волн', type: 'wave', target: 60, rewardLevel: 3 },
     
-    { id: '111', name: 'СЕКТОР 111', desc: 'БОСС: Проклятый', type: 'boss_rush', target: 1, bossId: 'boss1', setId: 'cursed', setBonusCount: 1, rewardLevel: 2 },
-    { id: '222', name: 'СЕКТОР 222', desc: 'БОСС: Удивлённый', type: 'boss_rush', target: 1, bossId: 'boss2', setId: 'surprised', setBonusCount: 1, rewardLevel: 3 },
-    { id: '333', name: 'СЕКТОР 333', desc: 'БОСС: Просвещённый', type: 'boss_rush', target: 1, bossId: 'boss3', setId: 'enlightened', setBonusCount: 2, rewardLevel: 4 },
-    { id: '444', name: 'СЕКТОР 444', desc: 'БОСС: Ничтожный', type: 'boss_rush', target: 1, bossId: 'boss4', setId: 'insignificant', setBonusCount: 2, rewardLevel: 5 },
-    { id: '555', name: 'СЕКТОР 555', desc: 'БОСС: Пятёрка', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'five', setBonusCount: 2, rewardLevel: 6 },
-    { id: '666', name: 'СЕКТОР 666', desc: 'БОСС: Власть', type: 'boss_rush', target: 1, bossId: 'boss6', setId: 'power', setBonusCount: 3, rewardLevel: 7 },
-    { id: '777', name: 'СЕКТОР 777', desc: 'БОСС: Неудача', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'badluck', setBonusCount: 1, rewardLevel: 8 },
-    { id: '888', name: 'СЕКТОР 888', desc: 'БОСС: Проблемы', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'problem', setBonusCount: 4, rewardLevel: 9 },
-    { id: '999', name: 'СЕКТОР 999', desc: 'БОСС: Жестокость', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'cruelty', setBonusCount: 6, rewardLevel: 10 },
+    { id: '111', name: 'СЕКТОР 111', desc: 'БОСС: Проклятый', type: 'boss_rush', target: 1, bossId: 'boss1', setId: 'cursed', setBonusCount: 2, rewardLevel: 2 },
+    { id: '222', name: 'СЕКТОР 222', desc: 'БОСС: Удивлённый', type: 'boss_rush', target: 1, bossId: 'boss2', setId: 'surprised', setBonusCount: 2, rewardLevel: 3 },
+    { id: '333', name: 'СЕКТОР 333', desc: 'БОСС: Просвещённый', type: 'boss_rush', target: 1, bossId: 'boss3', setId: 'enlightened', setBonusCount: 3, rewardLevel: 4 },
+    { id: '444', name: 'СЕКТОР 444', desc: 'БОСС: Ничтожный', type: 'boss_rush', target: 1, bossId: 'boss4', setId: 'insignificant', setBonusCount: 3, rewardLevel: 5 },
+    { id: '555', name: 'СЕКТОР 555', desc: 'БОСС: Пятёрка', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'five', setBonusCount: 5, rewardLevel: 6 },
+    { id: '666', name: 'СЕКТОР 666', desc: 'БОСС: Власть', type: 'boss_rush', target: 1, bossId: 'boss6', setId: 'power', setBonusCount: 4, rewardLevel: 7 },
+    { id: '777', name: 'СЕКТОР 777', desc: 'БОСС: Неудача', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'badluck', setBonusCount: 5, rewardLevel: 8 },
+    { id: '888', name: 'СЕКТОР 888', desc: 'БОСС: Проблемы', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'problem', setBonusCount: 6, rewardLevel: 9 },
+    { id: '999', name: 'СЕКТОР 999', desc: 'БОСС: Жестокость', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'cruelty', setBonusCount: 7, rewardLevel: 10 },
   ];
 
   // --- CORE UTILS ---
@@ -1683,17 +1719,19 @@
     life = 1.0;
     age = 0;
     value = 1;
+    lootData?: { setId: string, bonusCount: number }; // New field for specific loot
     constructor(pos: Vector, public vel: Vector, color: string, public size: number, public type: 'vfx' | 'xp' | 'core' | 'fake_hp' | 'fake_shield' | 'fake_xp' | 'loot' | 'merchant_signal' | 'rune' = 'vfx', value: number = 1) {
       super(pos, size, color);
       this.value = value;
     }
     update(dt: number) {
-      if (this.type === 'xp' || this.type === 'core') {
+      if (this.type === 'xp' || this.type === 'core' || this.type === 'loot') {
           // Magnet logic
           const dir = game.player.pos.sub(this.pos);
           const dist = dir.mag();
           let range = 150 + (game.player.magnet * 50);
           if (this.type === 'core') range = 300; // Cores have bigger magnet
+          if (this.type === 'loot') range = 400; // Loot has huge magnet
           
           if (dist < range) {
               this.vel = this.vel.add(dir.normalize().mult(1500 * dt));
@@ -1860,15 +1898,15 @@
     // Basic
     'basic_weak': { id: 'basic_weak', hp: 15, speed: 140, cost: 5, type: 'melee', color: '#ff5555', radius: 15 },
     'basic_norm': { id: 'basic_norm', hp: 30, speed: 150, cost: 10, type: 'melee', color: '#ff3333', radius: 16 },
-    'basic_strong': { id: 'basic_strong', hp: 60, speed: 160, cost: 25, type: 'melee', color: '#aa0000', radius: 18 },
+    'basic_strong': { id: 'basic_strong', hp: 2000, speed: 20, cost: 500, type: 'melee', color: '#aa0000', radius: 100 },
     // Fast
     'fast_weak': { id: 'fast_weak', hp: 10, speed: 220, cost: 8, type: 'melee', color: '#ffaa00', radius: 12 },
-    'critter': { id: 'critter', hp: 5, speed: 280, cost: 5, type: 'melee', color: '#aa5500', radius: 8 }, // For camps & swarm
+    'critter': { id: 'critter', hp: 5, speed: 480, cost: 5, type: 'melee', color: '#aa5500', radius: 3 }, // For camps & swarm
     'fast_norm': { id: 'fast_norm', hp: 20, speed: 250, cost: 20, type: 'melee', color: '#ff8800', radius: 13, unlockReq: 'enemy_fast' },
     // Tank
     'tank_weak': { id: 'tank_weak', hp: 80, speed: 80, cost: 30, type: 'melee', color: '#3388ff', radius: 22 },
     'tank_norm': { id: 'tank_norm', hp: 150, speed: 90, cost: 50, type: 'melee', color: '#0044aa', radius: 25, unlockReq: 'enemy_tank' },
-    'tank_heavy': { id: 'tank_heavy', hp: 300, speed: 70, cost: 100, type: 'melee', color: '#002266', radius: 30, unlockReq: 'enemy_tank' },
+    'tank_heavy': { id: 'tank_heavy', hp: 4000, speed: 10, cost: 100, type: 'melee', color: '#002266', radius: 200, unlockReq: 'enemy_tank' },
     // Ranged
     'ranged_weak': { id: 'ranged_weak', hp: 15, speed: 100, cost: 15, type: 'ranged', color: '#00ff00', radius: 14 }, // Now shoots
     'ranged_norm': { id: 'ranged_norm', hp: 30, speed: 110, cost: 30, type: 'ranged', color: '#00aa00', radius: 15, unlockReq: 'enemy_sniper' }, // Now shoots
@@ -1934,8 +1972,9 @@
       super(pos, 15, '#f00');
       this.config = ENEMIES[typeId] || ENEMIES['basic_weak'];
       
-      const scale = 1 + (level * 0.1);
-      this.hp = this.config.hp * scale * selectedDifficulty; // Difficulty Scaling
+      // Exponential Scaling: +20% per wave (1.2^N)
+      const scale = Math.pow(1.2, Math.max(0, level - 1));
+      this.hp = this.config.hp * scale * selectedDifficulty;
       this.maxHp = this.hp;
       
       let baseDmg = 10;
@@ -2849,23 +2888,27 @@
               // Apply Set Bonuses if active (3 items)
               // NOTE: We only READ setStats here, we do NOT generate them.
               if (item && item.setId && item.setStats && setCounts[item.setId] >= 3) {
+                  const isCorrupted = item.isCorrupted; // Check corruption for x2 bonus
                   for (const [key, val] of Object.entries(item.setStats)) {
-                      if (key === 'hp') this.maxHp += val;
-                      if (key === 'dmg') this.damage += val;
-                      if (key === 'spd') this.speed += val;
-                      if (key === 'crit') this.critChance += val;
-                      if (key === 'cooldown') this.cooldownMult *= (1 - val);
-                      if (key === 'area') this.aoeRadius += val;
-                      if (key === 'regen') this.regen += val;
-                      if (key === 'luck') this.luck += val;
-                      if (key === 'lifesteal') this.lifesteal += val;
-                      if (key === 'dodge') this.dodge += val;
-                      if (key === 'thorns') this.thorns += val;
-                      if (key === 'spread') this.spread += val;
-                      if (key === 'projSpeed') this.projSpeedMult += val;
-                      if (key === 'frag') this.fragChance += val;
-                      if (key === 'curse') this.damageTakenMult += val;
-                      if (key === 'slow') this.moveSpeedMult *= (1 - val);
+                      let bonus = val;
+                      if (isCorrupted) bonus *= 2; // Double bonus for corrupted item
+
+                      if (key === 'hp') this.maxHp += bonus;
+                      if (key === 'dmg') this.damage += bonus;
+                      if (key === 'spd') this.speed += bonus;
+                      if (key === 'crit') this.critChance += bonus;
+                      if (key === 'cooldown') this.cooldownMult *= (1 - bonus);
+                      if (key === 'area') this.aoeRadius += bonus;
+                      if (key === 'regen') this.regen += bonus;
+                      if (key === 'luck') this.luck += bonus;
+                      if (key === 'lifesteal') this.lifesteal += bonus;
+                      if (key === 'dodge') this.dodge += bonus;
+                      if (key === 'thorns') this.thorns += bonus;
+                      if (key === 'spread') this.spread += bonus;
+                      if (key === 'projSpeed') this.projSpeedMult += bonus;
+                      if (key === 'frag') this.fragChance += bonus;
+                      if (key === 'curse') this.damageTakenMult += bonus;
+                      if (key === 'slow') this.moveSpeedMult *= (1 - bonus);
                   }
               }
           });
@@ -4527,11 +4570,12 @@
                     this.score += Math.floor(10 * selectedDifficulty * p.value * comboMult * waveMult);
                     this.currencyCollected += Math.floor(1 * selectedDifficulty * p.value);
                   } else if (p.type === 'core') {
-                    this.coresCollected += 1 * selectedDifficulty;
-                    this.texts.push(new FloatingText(this.player.pos, "+1 ЯДРО", "#ffd700"));
+                    const amount = p.value * selectedDifficulty;
+                    this.coresCollected += amount;
+                    this.texts.push(new FloatingText(this.player.pos, `+${amount} ЯДЕР`, "#ffd700"));
                     this.director.reportCollect();
                   } else if (p.type === 'loot') {
-                    const item = this.generateLoot();
+                    const item = this.generateLoot(p.lootData?.setId, p.lootData?.bonusCount);
                     this.lootFound.push(item);
                     this.texts.push(new FloatingText(this.player.pos, `ЛУТ: ${item.name}`, "#0ff"));
                     this.addChatMessage("System", `Получено: [${item.name}] (${item.desc})`, "system");
@@ -4995,6 +5039,7 @@
         const mult = { common: 1, rare: 2, epic: 4, legendary: 8, mythic: 16, divine: 32 };
         const m = mult[rarity];
         
+        const isWeakSet = setId && IMMUTABLE_SETS.includes(setId);
         const stats: any = {};
         const setStats: any = {};
         
@@ -5047,7 +5092,8 @@
             for(let i=0; i<setBonusCount; i++) {
                 const k = keys[Math.floor(Math.random() * keys.length)];
                 const isPct = !['spd', 'luck', 'hp', 'dmg', 'regen', 'thorns'].includes(k);
-                const base = isPct ? 0.01 : 5; // Nerfed base for sets (was 0.05 / 10)
+                let base = isPct ? 0.01 : 5; // Nerfed base for sets (was 0.05 / 10)
+                if (isWeakSet) base *= 0.5; // Weak sets have lower values
                 const val = isPct ? Math.random() * base * m : Math.floor(Math.random() * base * m) + 1;
                 const current = setStats[k] || 0;
                 setStats[k] = roundStat(k, current + val);
@@ -5055,7 +5101,10 @@
         }
         
         // Chance for Debuff / Negative Stat for ALL items (including Sets)
-        if (Math.random() < 0.3) {
+        let debuffChance = 0.3;
+        if (isWeakSet) debuffChance = 0.7; // Higher chance for weak sets
+        
+        if (Math.random() < debuffChance) {
             const badKeys = ['curse', 'slow', 'spread'];
             const k3 = badKeys[Math.floor(Math.random() * badKeys.length)];
             // Add a "bad" stat (positive value for curse/slow/spread is bad)
@@ -5171,9 +5220,9 @@
         this.particles.push(new Particle(this.player.pos.add(offset), new Vector(0,0), '#fff', 10, type));
     }
 
-    spawnParticles(pos: Vector, color: string, count: number, type: 'vfx' | 'xp' | 'core' | 'fake_hp' | 'fake_shield' | 'fake_xp' | 'loot' | 'merchant_signal' | 'rune' = 'vfx') {
+    spawnParticles(pos: Vector, color: string, count: number, type: 'vfx' | 'xp' | 'core' | 'fake_hp' | 'fake_shield' | 'fake_xp' | 'loot' | 'merchant_signal' | 'rune' = 'vfx', value: number = 1, lootData?: {setId: string, bonusCount: number}) {
       let particleCount = count;
-      let particleValue = 1;
+      let particleValue = value;
       let particleSize = type === 'xp' ? 6 : Math.random() * 3 + 1;
 
       // XP Optimization
@@ -5193,7 +5242,9 @@
         const angle = Math.random() * Math.PI * 2;
         const speed = Math.random() * 200 + 50;
         const vel = new Vector(Math.cos(angle), Math.sin(angle)).mult(speed);
-        this.particles.push(new Particle(pos, vel, color, particleSize, type, particleValue));
+        const p = new Particle(pos, vel, color, particleSize, type, particleValue);
+        if (lootData) p.lootData = lootData;
+        this.particles.push(p);
       }
     }
 
@@ -5328,7 +5379,8 @@
         
         // Boss Drop
         if (e.config.id.includes('boss')) {
-            this.spawnParticles(e.pos, '#ffd700', 1, 'core');
+            // Boss drops cores equal to wave number
+            this.spawnParticles(e.pos, '#ffd700', 1, 'core', this.director.wave);
             this.screenShake = 20;
             // Boss Loot Drop
             this.spawnParticles(e.pos, '#fff', 1, 'loot');
@@ -5338,8 +5390,27 @@
             if (this.mode === 'raid' && this.activeRaid && e.config.id === this.activeRaid.bossId) {
                 setTimeout(() => this.victory(), 2000);
             }
-        } else if (e.elite && Math.random() < 0.3) {
-            this.spawnParticles(e.pos, '#fff', 1, 'loot');
+        } else {
+            // 1% Chance for Core from regular mobs
+            if (Math.random() < 0.01) {
+                this.spawnParticles(e.pos, '#ffd700', 1, 'core', 1);
+            }
+            if (e.elite && Math.random() < 0.3) {
+                this.spawnParticles(e.pos, '#fff', 1, 'loot');
+            }
+
+            // T-Series Drops (Weak Sets)
+            const roll = Math.random();
+            // T34: 0.0001% (0.000001)
+            if (roll < 0.000001) this.spawnParticles(e.pos, '#00ffff', 1, 'loot', 1, { setId: 't34', bonusCount: 34 });
+            // T4: 0.1% (0.001)
+            else if (roll < 0.001) this.spawnParticles(e.pos, '#ff3333', 1, 'loot', 1, { setId: 't4', bonusCount: 4 });
+            // T3: 0.5% (0.005)
+            else if (roll < 0.005) this.spawnParticles(e.pos, '#ffd700', 1, 'loot', 1, { setId: 't3', bonusCount: 3 });
+            // T2: 1% (0.01)
+            else if (roll < 0.01) this.spawnParticles(e.pos, '#a020f0', 1, 'loot', 1, { setId: 't2', bonusCount: 2 });
+            // T1: 2% (0.02)
+            else if (roll < 0.02) this.spawnParticles(e.pos, '#fff', 1, 'loot', 1, { setId: 't1', bonusCount: 1 });
         }
         
         // Rune Drop (Elite)
@@ -5358,6 +5429,9 @@
           return;
       }
     
+      // Auto-collect everything on screen before ending
+      this.autoCollectAll();
+
       this.state = 'GAMEOVER';
       this.player.dead = true;
       
@@ -5391,10 +5465,20 @@
       document.getElementById('go-score')!.innerText = this.score.toString();
       document.getElementById('go-currency')!.innerText = this.currencyCollected.toString();
       document.getElementById('go-cores')!.innerText = this.coresCollected.toString();
+      
+      // Show Loot List
+      const lootList = document.getElementById('go-loot-list');
+      if (lootList) {
+          lootList.innerHTML = this.lootFound.length > 0 
+            ? this.lootFound.map(i => `<div style="color:${this.getItemColor(i.rarity)}">${i.name}</div>`).join('')
+            : "НЕТ ПРЕДМЕТОВ";
+      }
+
       this.setScreen('gameover-screen');
     }
 
     victory() {
+        this.autoCollectAll(); // Collect pending drops
         this.state = 'GAMEOVER'; // Stop updates
         
         // Save Loot collected during run
@@ -5402,6 +5486,10 @@
             meta.inventory.push(...this.lootFound);
             this.texts.push(new FloatingText(this.player.pos, `SAVED ${this.lootFound.length} ITEMS`, "#fff"));
         }
+
+        // Save collected currency/cores (Fix: previously ignored on victory)
+        meta.currency += this.currencyCollected;
+        meta.bossCurrency += this.coresCollected;
 
         let rewardText = "";
         if (this.activeRaid) {
@@ -5430,6 +5518,36 @@
         
         document.getElementById('vic-reward')!.innerText = rewardText;
         this.setScreen('victory-screen');
+    }
+
+    autoCollectAll() {
+        this.particles.forEach(p => {
+            if (!p.dead && (p.type === 'xp' || p.type === 'core' || p.type === 'loot')) {
+                p.dead = true;
+                if (p.type === 'xp') {
+                    this.player.gainXp(10 * p.value);
+                    const comboMult = 1 + (this.combo * 0.01);
+                    const waveMult = 1 + (this.director.wave * 0.02);
+                    this.score += Math.floor(10 * selectedDifficulty * p.value * comboMult * waveMult);
+                    this.currencyCollected += Math.floor(1 * selectedDifficulty * p.value);
+                } else if (p.type === 'core') {
+                    this.coresCollected += p.value * selectedDifficulty;
+                } else if (p.type === 'loot') {
+                    const item = this.generateLoot();
+                    this.lootFound.push(item);
+                }
+            }
+        });
+        
+        // Also collect from active portals if boss rush (instant kill reward logic fallback)
+        // But usually boss death handles spawn.
+        // If boss died but particles were flying, the loop above catches them.
+        
+        // Update stats one last time
+        if (this.director.activeQuest && this.director.activeQuest.type === 'collect') {
+            // Force complete if close? No, fair play.
+            this.director.updateUI();
+        }
     }
 
     updateHud() {
@@ -5625,7 +5743,8 @@
           RAIDS.forEach(r => {
               const el = document.createElement('div');
               el.className = 'raid-card';
-              const rewardStr = r.type === 'boss_rush' ? `СЕТ: ${r.setId?.toUpperCase()}` : `НАГРАДА УР. ${r.rewardLevel}`;
+              const setName = r.setId ? (SET_TRANSLATIONS[r.setId] || r.setId.toUpperCase()) : '';
+              const rewardStr = r.type === 'boss_rush' ? `СЕТ: ${setName}` : `НАГРАДА УР. ${r.rewardLevel}`;
               el.innerHTML = `
                 <div class="raid-info"><h3>${r.name}</h3><p>${r.desc}</p></div>
                 <div class="raid-reward"><div style="font-size:0.7rem; color:#888">НАГРАДА</div><div class="val">${rewardStr}</div></div>
@@ -5820,6 +5939,9 @@
           btn.disabled = true;
           btn.innerText = "ВОЗВЫШЕНИЕ...";
           
+          // Check if Immutable Set (T1-T34)
+          const isImmutable = this.selectedAscensionItem.setId && IMMUTABLE_SETS.includes(this.selectedAscensionItem.setId);
+          
           // Prepare Item
           const item = JSON.parse(JSON.stringify(this.selectedAscensionItem)); // Clone
           if (customName) item.name = customName;
@@ -5828,25 +5950,35 @@
           delete item.isCorrupted;
           
           // Apply Transformations
-          // 1. Set Stats
-          if (item.setStats) {
-              for (const key in item.setStats) {
-                  item.setStats[key] *= setMult;
-                  item.setStats[key] = roundStat(key, item.setStats[key]);
+          if (isImmutable) {
+              // T1-T34: Never change stats or set name. But they get infected (saved as corrupted).
+              // Since we deleted isCorrupted above, we need to add it back to stats or handle it.
+              // We'll mark it in stats so it persists visually as "Corrupted" logic if needed, 
+              // or just rely on the fact that we won't change the ID.
+              // Re-add corruption flag for the saved item if it's immutable
+              item.isCorrupted = true; 
+          } else {
+              // Normal Ascension Logic
+              // 1. Set Stats
+              if (item.setStats) {
+                  for (const key in item.setStats) {
+                      item.setStats[key] *= setMult;
+                      item.setStats[key] = roundStat(key, item.setStats[key]);
+                  }
               }
-          }
-          // 2. Standard Stats
-          if (item.stats) {
-              for (const key in item.stats) {
-                  item.stats[key] *= baseMult;
-                  item.stats[key] = roundStat(key, item.stats[key]);
-                  if (item.stats[key] <= 0) delete item.stats[key];
+              // 2. Standard Stats
+              if (item.stats) {
+                  for (const key in item.stats) {
+                      item.stats[key] *= baseMult;
+                      item.stats[key] = roundStat(key, item.stats[key]);
+                      if (item.stats[key] <= 0) delete item.stats[key];
+                  }
               }
-          }
-          // 3. Change Set ID
-          if (item.setId) {
-              const newSet = ASCENDED_SETS[Math.floor(Math.random() * ASCENDED_SETS.length)];
-              item.setId = newSet;
+              // 3. Change Set ID
+              if (item.setId) {
+                  const newSet = ASCENDED_SETS[Math.floor(Math.random() * ASCENDED_SETS.length)];
+                  item.setId = newSet;
+              }
           }
           
           // Collect ALL other Corrupted items to return them
@@ -6045,7 +6177,7 @@
         
         // Set
         if (item.setId) {
-            const pct = isCorrupted ? "+100%" : "+200%";
+            const pct = isCorrupted ? "+100% (x2)" : "+200%";
             html += `<div style="margin-top:10px; color:#0f0;">СЕТОВЫЕ БОНУСЫ (${pct}):</div>`;
             html += `<div style="color:#a020f0; font-style:italic;">СЕТ ИЗМЕНИТСЯ НА СЛУЧАЙНЫЙ ИЗ 9 ВЫСШИХ</div>`;
             if (item.setStats) {
@@ -6109,17 +6241,22 @@
             const isActive = count >= 3;
             const statusIcon = isActive ? "✅" : "🔒";
             const statusText = isActive ? "АКТИВНО" : "НЕАКТИВНО";
+            const setName = SET_TRANSLATIONS[item.setId] || item.setId.toUpperCase();
             
-            parts.push(`--- СЕТ: ${item.setId.toUpperCase()} (${count}/3) ---`);
+            parts.push(`--- СЕТ: ${setName} (${count}/3) ---`);
+            if (isActive && item.isCorrupted) parts.push(`(ЗАРАЖЁННЫЙ БОНУС x2)`);
             
             if (item.setStats) {
                 for (const [key, val] of Object.entries(item.setStats)) {
                     const name = STAT_NAMES[key] || key.toUpperCase();
-                    let fmtVal = `+${val.toFixed(1)}`;
+                    let effectiveVal = val;
+                    if (isActive && item.isCorrupted) effectiveVal *= 2;
+
+                    let fmtVal = `+${effectiveVal.toFixed(1)}`;
                     if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
-                        fmtVal = `+${(val*100).toFixed(1)}%`;
+                        fmtVal = `+${(effectiveVal*100).toFixed(1)}%`;
                     } else if (key === 'dodge') {
-                        fmtVal = `+${(val*100).toFixed(1)}`;
+                        fmtVal = `+${(effectiveVal*100).toFixed(1)}`;
                     }
                     parts.push(` ${statusIcon} ${name}: ${fmtVal}`);
                 }
@@ -6137,7 +6274,8 @@
         if (item.modified) parts.push(`(MOD)`);
         if (item.isCorrupted) parts.push(`[ЗАРАЖЁН]`);
         if (item.setId) {
-            parts.push(`[СЕТОВЫЙ: ${item.setId.toUpperCase()}]`);
+            const setName = SET_TRANSLATIONS[item.setId] || item.setId.toUpperCase();
+            parts.push(`[СЕТОВЫЙ: ${setName}]`);
             for (const [key, val] of Object.entries(item.setStats || {})) {
                 let fmtVal = `+${val.toFixed(1)}`;
                 if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed'].includes(key)) {
@@ -6330,6 +6468,7 @@
             
             if (item.setId) {
                 div.classList.add('set-item');
+                if (item.isCorrupted) div.classList.add('corrupted'); // Add corrupted class to set items too
                 div.style.color = '#0f0';
             } else if (item.isCorrupted) {
                 div.classList.add('corrupted');
@@ -6421,8 +6560,8 @@
             <div style="font-size:0.8rem; color:#666;">
                 ДОНОР (Будет уничтожен): <span style="color:${this.getItemColor(item.rarity)}">${item.name}</span>
             </div>
-            ${target.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:5px;">ЦЕЛЬ: СЕТ ${target.setId.toUpperCase()}</div>` : ''}
-            ${item.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:2px;">ИСТОЧНИК: СЕТ ${item.setId.toUpperCase()}</div>` : ''}
+            ${target.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:5px;">ЦЕЛЬ: СЕТ ${(SET_TRANSLATIONS[target.setId] || target.setId).toUpperCase()}</div>` : ''}
+            ${item.setId ? `<div style="color:#0f0; font-size:0.7rem; margin-top:2px;">ИСТОЧНИК: СЕТ ${(SET_TRANSLATIONS[item.setId] || item.setId).toUpperCase()}</div>` : ''}
             ${target.setId && target.setId === item.setId ? `<div style="color:#0f0; font-weight:bold;">СОВПАДЕНИЕ СЕТА! БОНУСЫ БУДУТ УЛУЧШЕНЫ</div>` : ''}
             ${target.setId && item.setId && target.setId !== item.setId ? `<div style="color:#f00; font-weight:bold;">РАЗНЫЕ СЕТЫ! СЕТОВЫЕ БОНУСЫ НЕ ПЕРЕЙДУТ</div>` : ''}
         `;

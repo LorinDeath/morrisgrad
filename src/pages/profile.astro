@@ -78,6 +78,7 @@ try {
     // МИГРАЦИЯ: Добавляем поля для сетов предметов
     try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_id TEXT").run(); } catch (e) {}
     try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_stats JSON").run(); } catch (e) {}
+    try { await db.prepare("ALTER TABLE user_items ADD COLUMN is_corrupted INTEGER DEFAULT 0").run(); } catch (e) {}
 
 
     // 3. Логика получения данных (аналогично API)
@@ -219,7 +220,8 @@ try {
         ...item,
         stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {}),
         setId: item.set_id,
-        setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {})
+        setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {}),
+        isCorrupted: !!item.is_corrupted
     }));
 
 } catch (e: any) {

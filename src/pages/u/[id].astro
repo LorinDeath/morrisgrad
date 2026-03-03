@@ -30,7 +30,8 @@ const inventory = (invRes?.results || []).map((item: any) => ({
     ...item,
     stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {}),
     setId: item.set_id,
-    setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {})
+    setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {}),
+    isCorrupted: !!item.is_corrupted
 }));
 ---
 

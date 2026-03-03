@@ -64,8 +64,8 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
         // 3. Сохранение вознесенного предмета в таблицу user_items
         await db.prepare(`
-            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, is_corrupted, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             item.id,
             userId,
@@ -79,20 +79,21 @@ export const POST: APIRoute = async ({ locals, request }) => {
             item.icon, // URL или эмодзи
             item.setId,
             JSON.stringify(item.setStats || {}),
+            item.isCorrupted ? 1 : 0,
             Date.now()
         ).run();
 
         // 4. Сохранение возвращенных зараженных предметов
         if (returnedItems.length > 0) {
             const stmt = db.prepare(`
-                INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, is_corrupted, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             const batch = returnedItems.map((retItem: any) => stmt.bind(
                 retItem.id, userId, retItem.name, retItem.name,
                 retItem.desc || 'Возвращенный предмет', 'Возврат после Возвышения',
                 retItem.type, retItem.rarity, JSON.stringify(retItem.stats || {}),
-                retItem.icon, retItem.setId, JSON.stringify(retItem.setStats || {}), Date.now()
+                retItem.icon, retItem.setId, JSON.stringify(retItem.setStats || {}), retItem.isCorrupted ? 1 : 0, Date.now()
             ));
             await db.batch(batch);
         }
