@@ -32,6 +32,10 @@
     {
       "binding": "AVATARS_BUCKET",
       "bucket_name": "morrisgrad-avatars"
+    },
+    {
+      "binding": "ITEMICONS_BUCKET",
+      "bucket_name": "itemicons"
     }
   ],
 
