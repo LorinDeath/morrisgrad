@@ -1062,15 +1062,15 @@
     { id: 'wave40', name: 'РЕЙД: 40 ВОЛН', desc: 'Выжить 40 волн', type: 'wave', target: 40, rewardLevel: 2 },
     { id: 'wave60', name: 'РЕЙД: 60 ВОЛН', desc: 'Выжить 60 волн', type: 'wave', target: 60, rewardLevel: 3 },
     
-    { id: '111', name: 'СЕКТОР 111', desc: 'БОСС: Проклятый', type: 'boss_rush', target: 1, bossId: 'boss1', setId: 'cursed', setBonusCount: 2, rewardLevel: 2 },
-    { id: '222', name: 'СЕКТОР 222', desc: 'БОСС: Удивлённый', type: 'boss_rush', target: 1, bossId: 'boss2', setId: 'surprised', setBonusCount: 2, rewardLevel: 3 },
-    { id: '333', name: 'СЕКТОР 333', desc: 'БОСС: Просвещённый', type: 'boss_rush', target: 1, bossId: 'boss3', setId: 'enlightened', setBonusCount: 3, rewardLevel: 4 },
-    { id: '444', name: 'СЕКТОР 444', desc: 'БОСС: Ничтожный', type: 'boss_rush', target: 1, bossId: 'boss4', setId: 'insignificant', setBonusCount: 3, rewardLevel: 5 },
-    { id: '555', name: 'СЕКТОР 555', desc: 'БОСС: Пятёрка', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'five', setBonusCount: 5, rewardLevel: 6 },
-    { id: '666', name: 'СЕКТОР 666', desc: 'БОСС: Власть', type: 'boss_rush', target: 1, bossId: 'boss6', setId: 'power', setBonusCount: 4, rewardLevel: 7 },
-    { id: '777', name: 'СЕКТОР 777', desc: 'БОСС: Неудача', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'badluck', setBonusCount: 5, rewardLevel: 8 },
-    { id: '888', name: 'СЕКТОР 888', desc: 'БОСС: Проблемы', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'problem', setBonusCount: 6, rewardLevel: 9 },
-    { id: '999', name: 'СЕКТОР 999', desc: 'БОСС: Жестокость', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'cruelty', setBonusCount: 7, rewardLevel: 10 },
+    { id: '111', name: 'СЕКТОР 111', desc: 'БОСС: Проклятый', type: 'boss_rush', target: 1, bossId: 'boss1', setId: 'cursed', setBonusCount: 7, rewardLevel: 2 },
+    { id: '222', name: 'СЕКТОР 222', desc: 'БОСС: Удивлённый', type: 'boss_rush', target: 1, bossId: 'boss2', setId: 'surprised', setBonusCount: 7, rewardLevel: 3 },
+    { id: '333', name: 'СЕКТОР 333', desc: 'БОСС: Просвещённый', type: 'boss_rush', target: 1, bossId: 'boss3', setId: 'enlightened', setBonusCount: 8, rewardLevel: 4 },
+    { id: '444', name: 'СЕКТОР 444', desc: 'БОСС: Ничтожный', type: 'boss_rush', target: 1, bossId: 'boss4', setId: 'insignificant', setBonusCount: 8, rewardLevel: 5 },
+    { id: '555', name: 'СЕКТОР 555', desc: 'БОСС: Пятёрка', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'five', setBonusCount: 10, rewardLevel: 6 },
+    { id: '666', name: 'СЕКТОР 666', desc: 'БОСС: Власть', type: 'boss_rush', target: 1, bossId: 'boss6', setId: 'power', setBonusCount: 9, rewardLevel: 7 },
+    { id: '777', name: 'СЕКТОР 777', desc: 'БОСС: Неудача', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'badluck', setBonusCount: 10, rewardLevel: 8 },
+    { id: '888', name: 'СЕКТОР 888', desc: 'БОСС: Проблемы', type: 'boss_rush', target: 1, bossId: 'boss5', setId: 'problem', setBonusCount: 11, rewardLevel: 9 },
+    { id: '999', name: 'СЕКТОР 999', desc: 'БОСС: Жестокость', type: 'boss_rush', target: 1, bossId: 'boss7', setId: 'cruelty', setBonusCount: 12, rewardLevel: 10 },
   ];
 
   // --- CORE UTILS ---
@@ -5113,8 +5113,11 @@
             if (k3 === 'curse') stats[k3] = roundStat(k3, (stats[k3] || 0) + 0.1);
             if (k3 === 'slow') stats[k3] = roundStat(k3, (stats[k3] || 0) + 0.1);
         }
+
+        // 10% Global Chance for Corruption
+        const isCorrupted = Math.random() < 0.1;
         
-        return { id: Math.random().toString(36).substr(2,9), name, desc: undefined, type, rarity, stats, icon: icons[type], level: 0, modified: false, setId, setStats, source: "Neon Protocol" };
+        return { id: Math.random().toString(36).substr(2,9), name, desc: undefined, type, rarity, stats, icon: icons[type], level: 0, modified: false, setId, setStats, source: "Neon Protocol", isCorrupted };
     }
 
     generateMerchantItems() {
@@ -5511,6 +5514,13 @@
                 // Set Item
                 const item = this.generateLoot(this.activeRaid.setId, this.activeRaid.setBonusCount);
                 item.rarity = 'rare'; // Min rare for raid
+                
+                // Если предмет выпал зараженным (10% шанс), он становится Возвышенным (меняет сет)
+                if (item.isCorrupted && item.setId && !IMMUTABLE_SETS.includes(item.setId)) {
+                    const newSet = ASCENDED_SETS[Math.floor(Math.random() * ASCENDED_SETS.length)];
+                    item.setId = newSet;
+                }
+
                 meta.inventory.push(item);
                 rewardText = `ПРЕДМЕТ: ${item.name}`;
             }
