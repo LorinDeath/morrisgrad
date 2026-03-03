@@ -4,82 +4,111 @@ export const prerender = false;
 
 interface Env {
     PROFILES_DB: any;
-    AVATARS_BUCKET: any;
+    ITEMICONS_BUCKET: any;
+    ITEMICONS_R2_PUBLIC_DOMAIN: string;
 }
 
-const R2_PUBLIC_DOMAIN = "https://pub-c6960920bfb44496a89753f220db1147.r2.dev"; 
-
 export const POST: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const cfRuntime = (locals as any)?.runtime;
+    const env = cfRuntime?.env as Env;
     const db = env?.PROFILES_DB;
-    const bucket = env?.AVATARS_BUCKET;
+    const bucket = env?.ITEMICONS_BUCKET;
+    const R2_PUBLIC_DOMAIN = env?.ITEMICONS_R2_PUBLIC_DOMAIN;
+
+    // 1. Проверка авторизации и подключения к БД/R2
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
-    if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-    if (!db) return new Response(JSON.stringify({ error: "DB error" }), { status: 500 });
+    if (!userId) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    if (!db || !bucket || !R2_PUBLIC_DOMAIN) {
+        console.error("[Ascension API] Server configuration error: DB or R2 Bucket not connected.");
+        console.log(`DB: ${!!db}, Bucket: ${!!bucket}, Domain: ${!!R2_PUBLIC_DOMAIN}`);
+        return new Response(JSON.stringify({ error: "Server configuration error: DB or R2 Bucket not connected." }), { status: 500 });
+    }
 
     try {
         const formData = await request.formData();
-        const itemJson = formData.get('item') as string;
-        const score = Number(formData.get('score') || 0);
-        const iconFile = formData.get('icon_file') as File | null;
+        const itemString = formData.get("item") as string;
+        const returnedItemsString = formData.get("returned_items") as string | null;
+        const score = Number(formData.get("score") as string);
+        const iconFile = formData.get("icon_file") as File | null;
 
-        if (!itemJson) return new Response(JSON.stringify({ error: "No item data" }), { status: 400 });
-
-        const item = JSON.parse(itemJson);
-        
-        // Handle Icon Upload
-        let iconUrl = item.icon; // Default to existing icon (emoji)
-        if (iconFile && iconFile.size > 0 && bucket) {
-             // Validate size again on server
-             if (iconFile.size > 5 * 1024 * 1024) {
-                 return new Response(JSON.stringify({ error: "File too large" }), { status: 400 });
-             }
-             
-             const key = `item-${userId}-${Date.now()}`;
-             await bucket.put(key, await iconFile.arrayBuffer(), {
-                httpMetadata: { contentType: iconFile.type }
-             });
-             iconUrl = `${R2_PUBLIC_DOMAIN}/${key}`;
+        if (!itemString || isNaN(score)) {
+            return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 });
         }
 
-        // Ensure tables exist / Migration
-        try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
-        try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_id TEXT").run(); } catch (e) {}
-        try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_stats JSON").run(); } catch (e) {}
-        
-        // Calculate Hellfire (1 per 100k score)
-        const hellfireAmount = Math.floor(score / 100000);
+        const item = JSON.parse(itemString);
+        const returnedItems = returnedItemsString ? JSON.parse(returnedItemsString) : [];
 
-        // Save Item (WITH SET DATA)
+        // 2. Обработка загрузки иконки
+        if (iconFile && iconFile.size > 0) {
+            // Безопасная проверка на стороне сервера
+            if (iconFile.size > 2 * 1024 * 1024) {
+                 return new Response(JSON.stringify({ error: "File is too large (max 2MB)." }), { status: 400 });
+            }
+            
+            try {
+                const key = `item-${userId}-${Date.now()}`;
+                await bucket.put(key, await iconFile.arrayBuffer(), {
+                    httpMetadata: { contentType: iconFile.type }
+                });
+                // Заменяем иконку-эмодзи на URL
+                item.icon = `${R2_PUBLIC_DOMAIN}/${key}`;
+            } catch (err) {
+                console.error("[Ascension API] R2 Upload Error:", err);
+                return new Response(JSON.stringify({ error: "Failed to upload icon." }), { status: 500 });
+            }
+        }
+
+        // 3. Сохранение вознесенного предмета в таблицу user_items
         await db.prepare(`
-            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, created_at, set_id, set_stats)
+            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-            crypto.randomUUID(),
+            item.id,
             userId,
-            item.id || 'ascended',
-            item.name,
-            item.desc || '',
-            'Ascension', // Source
+            item.name, // item_id для группировки
+            item.name, // name для отображения
+            item.desc || 'Вознесенный предмет',
+            item.source || 'Возвышение',
             item.type,
-            'divine', // Ascended items are Divine rarity
+            item.rarity,
             JSON.stringify(item.stats || {}),
-            iconUrl,
-            Date.now(),
-            item.setId || null,
-            JSON.stringify(item.setStats || {})
+            item.icon, // URL или эмодзи
+            item.setId,
+            JSON.stringify(item.setStats || {}),
+            Date.now()
         ).run();
 
-        // Update User Hellfire
-        if (hellfireAmount > 0) {
-            await db.prepare("UPDATE users SET hellfire = COALESCE(hellfire, 0) + ? WHERE id = ?").bind(hellfireAmount, userId).run();
+        // 4. Сохранение возвращенных зараженных предметов
+        if (returnedItems.length > 0) {
+            const stmt = db.prepare(`
+                INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            const batch = returnedItems.map((retItem: any) => stmt.bind(
+                retItem.id, userId, retItem.name, retItem.name,
+                retItem.desc || 'Возвращенный предмет', 'Возврат после Возвышения',
+                retItem.type, retItem.rarity, JSON.stringify(retItem.stats || {}),
+                retItem.icon, retItem.setId, JSON.stringify(retItem.setStats || {}), Date.now()
+            ));
+            await db.batch(batch);
         }
 
-        return new Response(JSON.stringify({ success: true, hellfire: hellfireAmount }), { status: 200 });
+        // 5. Расчет и добавление Адского Огня
+        const hellfireGained = Math.floor(score / 10000);
+        if (hellfireGained > 0) {
+            await db.prepare("UPDATE users SET hellfire = hellfire + ? WHERE id = ?")
+              .bind(hellfireGained, userId)
+              .run();
+        }
+
+        // 6. Успешный ответ
+        return new Response(JSON.stringify({ success: true, hellfire: hellfireGained }), { status: 200 });
 
     } catch (e: any) {
-        console.error("Ascension Error:", e);
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        console.error("[Ascension API] Error:", e);
+        return new Response(JSON.stringify({ error: "Server error processing ascension.", details: e.message }), { status: 500 });
     }
 };

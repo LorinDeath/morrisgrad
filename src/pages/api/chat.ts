@@ -176,3 +176,27 @@ export const POST: APIRoute = async ({ locals, request }) => {
         return new Response(JSON.stringify({ error: "Failed to send", details: e.message }), { status: 500 });
     }
 };
+
+export const DELETE: APIRoute = async ({ locals }) => {
+    const env = (locals as any)?.runtime?.env as Env;
+    const db = env?.PROFILES_DB;
+    const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
+
+    if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    if (!db) return new Response(JSON.stringify({ error: "DB error" }), { status: 500 });
+
+    try {
+        // Удаляем все сообщения текущего пользователя
+        const { success, meta } = await db.prepare('DELETE FROM chat_messages WHERE user_id = ?').bind(userId).run();
+
+        if (success) {
+            return new Response(JSON.stringify({ success: true, deleted: meta.changes }), { status: 200 });
+        } else {
+            return new Response(JSON.stringify({ error: "Failed to delete messages" }), { status: 500 });
+        }
+
+    } catch (e: any) {
+        console.error("Chat Delete Error:", e);
+        return new Response(JSON.stringify({ error: "Failed to delete messages", details: e.message }), { status: 500 });
+    }
+};

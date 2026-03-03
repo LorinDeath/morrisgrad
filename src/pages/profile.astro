@@ -75,6 +75,10 @@ try {
 
     // МИГРАЦИЯ: Добавляем hellfire для старых пользователей
     try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
+    // МИГРАЦИЯ: Добавляем поля для сетов предметов
+    try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_id TEXT").run(); } catch (e) {}
+    try { await db.prepare("ALTER TABLE user_items ADD COLUMN set_stats JSON").run(); } catch (e) {}
+
 
     // 3. Логика получения данных (аналогично API)
     user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();

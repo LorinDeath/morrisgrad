@@ -178,8 +178,8 @@
                 <div id="asc-preview-content" style="font-size: 0.8rem; color: #aaa; min-height: 150px;">Выберите предмет...</div>
                 
                 <div id="asc-upload-section" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
-                    <label style="display: block; color: #fff; margin-bottom: 5px; font-size: 0.8rem;">Своя иконка (Макс 5МБ):</label>
-                    <input type="file" id="asc-icon-input" accept="image/png, image/jpeg" style="font-size: 0.8rem; color: #888;" />
+                    <label style="display: block; color: #fff; margin-bottom: 5px; font-size: 0.8rem;">Своя иконка (Квадрат, макс 2МБ, 3000x3000):</label>
+                    <input type="file" id="asc-icon-input" accept="image/png, image/jpeg, image/webp" style="font-size: 0.8rem; color: #888;" />
                     
                     <label style="display: block; color: #fff; margin-bottom: 5px; margin-top: 10px; font-size: 0.8rem;">Имя предмета (Макс 15):</label>
                     <input type="text" id="asc-name-input" maxlength="15" placeholder="Название..." style="width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 5px; font-size: 0.8rem;" />
@@ -5744,19 +5744,43 @@
       document.getElementById('asc-icon-input')?.addEventListener('change', async (e) => {
           const input = e.target as HTMLInputElement;
           if (input.files && input.files[0]) {
-              const file = input.files[0];
-              if (file.size > 5 * 1024 * 1024) {
-                  alert("Файл слишком большой! Максимум 5 МБ.");
-                  input.value = '';
-                  return;
-              }
-              // Compress
-              try {
-                  this.ascensionIconFile = await this.compressImage(file);
-              } catch (err) {
-                  console.error("Compression failed", err);
-                  this.ascensionIconFile = file; // Fallback
-              }
+                const file = input.files[0];
+
+                // 1. Проверка размера файла
+                if (file.size > 2 * 1024 * 1024) {
+                    alert("Файл слишком большой! Максимум 2 МБ.");
+                    input.value = '';
+                    return;
+                }
+
+                // 2. Проверка пропорций и разрешения
+                const objectUrl = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = async () => {
+                    if (img.width > 3000 || img.height > 3000) {
+                        alert("Изображение слишком большое! Максимальный размер 3000x3000 пикселей.");
+                        input.value = '';
+                        URL.revokeObjectURL(objectUrl);
+                        return;
+                    }
+                    if (img.width !== img.height) {
+                        alert("Изображение должно быть квадратным (пропорции 1:1).");
+                        input.value = '';
+                        URL.revokeObjectURL(objectUrl);
+                        return;
+                    }
+
+                    // Если все проверки пройдены, сжимаем и сохраняем
+                    try {
+                        this.ascensionIconFile = await this.compressImage(file);
+                    } catch (err) {
+                        console.error("Ошибка сжатия изображения:", err);
+                        this.ascensionIconFile = file; // Используем оригинал в случае ошибки
+                    } finally {
+                        URL.revokeObjectURL(objectUrl);
+                    }
+                };
+                img.src = objectUrl;
           }
       });
 
@@ -5912,8 +5936,8 @@
                 img.src = event.target?.result as string;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 1000;
-                    const MAX_HEIGHT = 1000;
+                    const MAX_WIDTH = 3000;
+                    const MAX_HEIGHT = 3000;
                     let width = img.width;
                     let height = img.height;
 
