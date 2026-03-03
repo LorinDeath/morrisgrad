@@ -1798,7 +1798,7 @@
           this.hp = type === 'turret' ? 200 : 300;
           this.maxHp = this.hp;
           // Scale HP with wave
-          const scale = 1 + (game.director.wave * 0.1);
+          const scale = 1 + Math.pow(game.director.wave, 2.2) * 0.02;
           this.hp *= scale * selectedDifficulty;
           this.maxHp *= scale;
       }
@@ -1809,7 +1809,7 @@
               if (this.timer <= 0) {
                   this.timer = 2.0;
                   const dir = game.player.pos.sub(this.pos).normalize();
-                  const scale = 1 + (game.director.wave * 0.1);
+                  const scale = 1 + Math.pow(game.director.wave, 2.2) * 0.02;
                   const dmg = 15 * scale * selectedDifficulty;
                   game.projectiles.push(new Projectile(this.pos, dir.mult(400), dmg, 'bullet', 'enemy'));
               }
@@ -1972,8 +1972,9 @@
       super(pos, 15, '#f00');
       this.config = ENEMIES[typeId] || ENEMIES['basic_weak'];
       
-      // Exponential Scaling: +20% per wave (1.2^N)
-      const scale = Math.pow(1.2, Math.max(0, level - 1));
+      // Rebalance Scaling: Polynomial instead of Exponential to fix Wave 111+
+      // Old: 1.2^111 = 600,000,000x (Impossible) -> New: 111^2.2 * 0.02 = ~640x
+      const scale = 1 + Math.pow(level, 2.2) * 0.02;
       this.hp = this.config.hp * scale * selectedDifficulty;
       this.maxHp = this.hp;
       
