@@ -87,7 +87,10 @@
                 <div id="slot-chip" class="equip-slot" data-type="chip">ПУСТО</div>
             </div>
             <div class="inv-grid-container">
-                <h3>ХРАНИЛИЩЕ ДАННЫХ</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="margin:0;">ХРАНИЛИЩЕ</h3>
+                    <button id="btn-upload-mode" class="btn-small" style="font-size:0.7rem; border-color:#a020f0; color:#a020f0;">ОТПРАВКА: ВЫКЛ</button>
+                </div>
                 <div id="inv-grid" class="inv-grid"></div>
             </div>
         </div>
@@ -4428,6 +4431,7 @@
     upgradeTargetSlot: string | null = null;
     pendingUpgradeItem: Item | null = null;
     pendingUpgradeIdx: number = -1;
+    inventoryMode: 'equip' | 'upload' = 'equip';
     
     // Ascension State
     selectedAscensionItem: Item | null = null;
@@ -5844,6 +5848,16 @@
           this.setScreen('inventory-screen');
           this.renderInventory();
       });
+      document.getElementById('btn-upload-mode')?.addEventListener('click', () => {
+          this.inventoryMode = this.inventoryMode === 'equip' ? 'upload' : 'equip';
+          const btn = document.getElementById('btn-upload-mode');
+          if (btn) {
+              btn.innerText = this.inventoryMode === 'equip' ? 'ОТПРАВКА: ВЫКЛ' : 'ОТПРАВКА: ВКЛ';
+              btn.style.color = this.inventoryMode === 'equip' ? '#a020f0' : '#0f0';
+              btn.style.borderColor = this.inventoryMode === 'equip' ? '#a020f0' : '#0f0';
+          }
+          this.renderInventory();
+      });
       document.getElementById('btn-inv-back')?.addEventListener('click', () => {
           this.setScreen('menu-screen');
           this.hideConfirmModal();
@@ -5957,17 +5971,12 @@
           const item = JSON.parse(JSON.stringify(this.selectedAscensionItem)); // Clone
           if (customName) item.name = customName;
           item.id = `asc_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-          // Remove corruption flag from the ascended result (it becomes a clean site item)
-          delete item.isCorrupted;
+          // Mark as corrupted locally so it can be identified for later upload
+          item.isCorrupted = true;
           
           // Apply Transformations
           if (isImmutable) {
               // T1-T34: Never change stats or set name. But they get infected (saved as corrupted).
-              // Since we deleted isCorrupted above, we need to add it back to stats or handle it.
-              // We'll mark it in stats so it persists visually as "Corrupted" logic if needed, 
-              // or just rely on the fact that we won't change the ID.
-              // Re-add corruption flag for the saved item if it's immutable
-              item.isCorrupted = true; 
           } else {
               // Normal Ascension Logic
               // 1. Set Stats
@@ -6005,39 +6014,38 @@
               }
           });
 
-          // Prepare FormData
-          const formData = new FormData();
-          formData.append('item', JSON.stringify(item));
-          if (returnedItems.length > 0) {
-              formData.append('returned_items', JSON.stringify(returnedItems));
-          }
-          formData.append('score', meta.bestScore.toString());
-          if (this.ascensionIconFile) {
-              formData.append('icon_file', this.ascensionIconFile);
-          }
-          
           try {
-              const res = await fetch('/api/ascension', {
-                  method: 'POST',
-                  body: formData
-              });
+              // Create fresh meta state (Reset Game)
+              const newMeta: MetaData = { 
+                bestScore: meta.bestScore, // Preserve High Score
+                currency: 0, 
+                bossCurrency: 0,
+                upgrades: { startHp: 0, baseDmg: 0, moveSpeed: 0, fireRate: 0, magnet: 0, luck: 0, knockback: 0 },
+                skillTree: ['root'],
+                unlocks: [], 
+                inventory: [],
+                equipment: { weapon: null, armor: null, chip: null },
+                username: meta.username
+              };
+
+              // Add Ascended Item
+              newMeta.inventory.push(item);
               
-              if (res.ok) {
-                  const data = await res.json();
-                  const returnMsg = returnedItems.length > 0 ? `\nТакже возвращено заражённых предметов: ${returnedItems.length}` : '';
-                  alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${item.name}" сохранен в профиль.\nПолучено Адского Огня: ${data.hellfire}${returnMsg}`);
-                  // RESET GAME
-                  localStorage.removeItem(META_KEY);
-                  window.location.reload();
-              } else {
-                  const err = await res.json();
-                  alert("Ошибка: " + (err.error || "Unknown"));
-                  btn.disabled = false;
-                  btn.innerText = "ВОЗВЫСИТЬ (1 ЯДРО)";
+              // Add Returned Items
+              if (returnedItems.length > 0) {
+                  newMeta.inventory.push(...returnedItems);
               }
+
+              // Save to LocalStorage
+              localStorage.setItem(META_KEY, JSON.stringify(newMeta));
+              
+              const returnMsg = returnedItems.length > 0 ? `\nТакже сохранено заражённых предметов: ${returnedItems.length}` : '';
+              alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${item.name}" сохранен в инвентарь (Заражённый).\nМир будет перезагружен.${returnMsg}`);
+              
+              window.location.reload();
           } catch (e) {
               console.error(e);
-              alert("Ошибка сети");
+              alert("Ошибка при сохранении данных возвышения.");
               btn.disabled = false;
               btn.innerText = "ВОЗВЫСИТЬ (1 ЯДРО)";
           }
@@ -6452,6 +6460,16 @@
         if (this.upgradeTargetSlot) {
             container?.classList.add('upgrade-mode');
             if (h3) h3.innerText = "ВЫБЕРИТЕ ПРЕДМЕТ ДЛЯ ПОГЛОЩЕНИЯ (10% СТАТ)";
+        } else if (this.inventoryMode === 'upload') {
+            container?.classList.add('upgrade-mode');
+            if (h3) h3.innerText = "ВЫБЕРИТЕ ЗАРАЖЁННЫЙ ПРЕДМЕТ";
+        } else {
+            container?.classList.remove('upgrade-mode');
+            if (h3) h3.innerText = "ХРАНИЛИЩЕ";
+        }
+
+        // Filter logic
+        if (this.upgradeTargetSlot) {
             const targetItem = meta.equipment[this.upgradeTargetSlot as keyof typeof meta.equipment];
             if (targetItem) {
                 itemsToShow = itemsToShow.filter(i => i.type === targetItem.type);
@@ -6523,6 +6541,13 @@
                 if (this.upgradeTargetSlot) {
                     // UPGRADE LOGIC
                     this.showConfirmModal(item, realIdx);
+                } else if (this.inventoryMode === 'upload') {
+                    // UPLOAD LOGIC
+                    if (item.isCorrupted) {
+                        this.showUploadModal(item, realIdx);
+                    } else {
+                        alert("Можно отправлять только заражённые предметы!");
+                    }
                 } else {
                     // EQUIP LOGIC
                     const current = meta.equipment[item.type];
@@ -6534,6 +6559,41 @@
             };
             grid.appendChild(div);
         });
+    }
+
+    showUploadModal(item: Item, idx: number) {
+        const modal = document.getElementById('modal-confirm');
+        const msg = document.getElementById('modal-msg');
+        const preview = document.getElementById('modal-preview');
+        if (!modal || !msg || !preview) return;
+
+        // Setup for Upload
+        this.pendingUpgradeItem = item;
+        this.pendingUpgradeIdx = idx;
+        
+        msg.innerHTML = `<h3 style="color:#0f0">ОТПРАВКА В БАЗУ</h3>Вы хотите перенести этот предмет в глобальную базу данных?<br>Он будет удален из локального сохранения.`;
+        
+        const iconHtml = (item.icon && item.icon.startsWith('http')) ? `<img src="${item.icon}" style="width:60px; height:60px; object-fit:cover;">` : `<div style="font-size:2rem">${item.icon}</div>`;
+        
+        let statsHtml = '';
+        for (const [key, val] of Object.entries(item.stats)) {
+             statsHtml += `<div>${STAT_NAMES[key]||key}: ${val}</div>`;
+        }
+        if (item.setId) statsHtml += `<div style="color:#0f0">СЕТ: ${SET_TRANSLATIONS[item.setId]||item.setId}</div>`;
+
+        preview.innerHTML = `
+            <div style="display:flex; gap:15px; align-items:center;">
+                <div class="inv-item rarity-${item.rarity}" style="width:80px; height:80px; display:flex; align-items:center; justify-content:center;">
+                    ${iconHtml}
+                </div>
+                <div style="text-align:left;">
+                    <div style="color:${this.getItemColor(item.rarity)}; font-weight:bold;">${item.name}</div>
+                    <div style="font-size:0.8rem; color:#aaa;">${statsHtml}</div>
+                </div>
+            </div>
+        `;
+        
+        modal.classList.remove('hidden');
     }
 
     showConfirmModal(item: Item, idx: number) {
@@ -6636,6 +6696,37 @@
 
     confirmUpgrade() {
         if (!this.pendingUpgradeItem || this.pendingUpgradeIdx === -1 || !this.upgradeTargetSlot) return;
+        
+        // Handle Upload Mode
+        if (this.inventoryMode === 'upload') {
+            const item = this.pendingUpgradeItem;
+            const idx = this.pendingUpgradeIdx;
+            
+            // Send to API
+            fetch('/api/inventory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: [item] })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert("Предмет успешно отправлен!");
+                    meta.inventory.splice(idx, 1);
+                    saveMeta();
+                    this.renderInventory();
+                } else {
+                    alert("Ошибка отправки: " + (data.error || "Unknown"));
+                }
+            })
+            .catch(err => alert("Ошибка сети"));
+            
+            this.hideConfirmModal();
+            return;
+        }
+
+        // Handle Upgrade Mode
+        if (!this.upgradeTargetSlot) return;
         
         const target = meta.equipment[this.upgradeTargetSlot as keyof typeof meta.equipment];
         const item = this.pendingUpgradeItem;
