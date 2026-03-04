@@ -6695,7 +6695,7 @@
     }
 
     confirmUpgrade() {
-        if (!this.pendingUpgradeItem || this.pendingUpgradeIdx === -1 || !this.upgradeTargetSlot) return;
+        if (!this.pendingUpgradeItem || this.pendingUpgradeIdx === -1) return;
         
         // Handle Upload Mode
         if (this.inventoryMode === 'upload') {
