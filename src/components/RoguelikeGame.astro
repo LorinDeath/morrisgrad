@@ -1210,7 +1210,7 @@
       // We want 2 decimal places for the displayed percentage (0.0543 -> 5.43% -> 0.0543)
       // So we round to 4 decimal places for raw value.
       if (['crit', 'cooldown', 'area', 'lifesteal', 'curse', 'slow', 'frag', 'projSpeed', 'dodge'].includes(key)) {
-          return Math.floor(val * 10000) / 10000;
+          return Math.floor(val * 100000) / 100000;
       }
       return Math.floor(val * 100) / 100;
   }
@@ -1372,7 +1372,7 @@
       { name: "ВАМПИРИЗМ I", desc: "1% Кража жизни", cost: 15, type: 'mechanic', effect: p => p.lifesteal += 0.01 },
       { name: "РЕГЕНЕРАЦИЯ II", desc: "+1 HP/сек", cost: 10, type: 'passive', effect: p => p.regen += 1 },
       { name: "ТИТАН", desc: "+100 HP, -10% Скор.", cost: 20, type: 'stat', effect: p => { p.maxHp += 100; p.speed *= 0.9; } },
-      { name: "ШИПЫ II", desc: "Возврат 20% урона", cost: 25, type: 'passive', effect: p => p.thornsPct += 0.2 },
+      { name: "ШИПЫ II", desc: "Возврат 10% урона", cost: 25, type: 'passive', effect: p => p.thornsPct += 0.1 },
       { name: "ОБШИВКА III", desc: "+100 Макс. HP", cost: 30, type: 'stat', effect: p => p.maxHp += 100 },
       { name: "РЕГЕНЕРАЦИЯ III", desc: "+1.5 HP/сек", cost: 40, type: 'passive', effect: p => p.regen += 1.5 },
       { name: "ВТОРОЕ ДЫХАНИЕ", desc: "Воскрешение (1 раз)", cost: 100, type: 'mechanic', id: 'revive', effect: p => p.extraLives += 1 },
@@ -1820,7 +1820,7 @@
           this.hp = type === 'turret' ? 200 : 300;
           this.maxHp = this.hp;
           // Scale HP with wave
-          const scale = 1 + Math.pow(game.director.wave, 2.2) * 0.02;
+          const scale = 1 + game.director.wave * 0.5;
           this.hp *= scale * selectedDifficulty;
           this.maxHp *= scale;
       }
@@ -1831,7 +1831,7 @@
               if (this.timer <= 0) {
                   this.timer = 2.0;
                   const dir = game.player.pos.sub(this.pos).normalize();
-                  const scale = 1 + Math.pow(game.director.wave, 2.2) * 0.02;
+                  const scale = 1 + game.director.wave * 0.5;
                   const dmg = 15 * scale * selectedDifficulty;
                   game.projectiles.push(new Projectile(this.pos, dir.mult(400), dmg, 'bullet', 'enemy'));
               }
@@ -1994,9 +1994,8 @@
       super(pos, 15, '#f00');
       this.config = ENEMIES[typeId] || ENEMIES['basic_weak'];
       
-      // Rebalance Scaling: Polynomial instead of Exponential to fix Wave 111+
-      // Old: 1.2^111 = 600,000,000x (Impossible) -> New: 111^2.2 * 0.02 = ~640x
-      const scale = 1 + Math.pow(level, 2.2) * 0.02;
+      // Scaling: Linear 50% per wave
+      const scale = 1 + level * 0.5;
       this.hp = this.config.hp * scale * selectedDifficulty;
       this.maxHp = this.hp;
       
@@ -2839,7 +2838,6 @@
           this.fireRate *= 0.5; // Slower
           this.critChance += 0.2;
       } else if (selectedClass === 'tank') {
-          this.maxHp *= 2.0;
           this.speed *= 0.8;
           this.thorns += 5;
       } else if (selectedClass === 'scout') {
@@ -2945,6 +2943,13 @@
           console.error("Error applying equipment stats:", e);
       }
       
+      // Apply Tank Bonus last to scale with gear
+      if (selectedClass === 'tank') {
+          this.maxHp *= 2.0;
+      }
+      
+      // Округляем мультивыстрел до ближайшего целого в начале забега
+      this.multishot = Math.round(this.multishot);
       
       this.hp = this.maxHp; // Heal to full with new max
     }
@@ -3438,7 +3443,7 @@
       if (this.game.mode === 'raid' && this.game.activeRaid?.type === 'wave') {
           this.baseWaveInfluence = 100 + (this.wave * 20);
       } else if (this.wave > 1) {
-          this.baseWaveInfluence = Math.floor(this.baseWaveInfluence * 1.2);
+          this.baseWaveInfluence = Math.floor(this.baseWaveInfluence * 1.4);
       } else {
           this.baseWaveInfluence = 100; // Reset for wave 1
       }
@@ -3828,7 +3833,7 @@
       // BUDGET CALCULATION (Every 5 seconds)
       
       // 1. Base Income (25% of wave base influence)
-      const baseIncome = Math.floor(this.baseWaveInfluence * 0.25);
+      const baseIncome = Math.floor(this.baseWaveInfluence * 0.40);
       
       // 2. Mood Multiplier
       let moodMult = 1.0;
@@ -4920,7 +4925,7 @@
                     if (this.player.thorns > 0 || this.player.thornsPct > 0) {
                         const thornDmg = this.player.thorns + (e.damage * this.player.thornsPct);
                         e.hp -= thornDmg;
-                        this.texts.push(new FloatingText(e.pos, `-${Math.floor(thornDmg)}`, "#888"));
+                        this.texts.push(new FloatingText(e.pos, `🛡️${Math.floor(thornDmg)}`, "#888"));
                         if (e.hp <= 0 && !e.dead) {
                             this.onEnemyDeath(e);
                         }
@@ -5102,7 +5107,7 @@
             if (Math.random() > 0.7) addStat('spd', 5);
             if (Math.random() > 0.8) addStat('luck', 5);
             if (Math.random() > 0.8) addStat('dodge', 0.02, true);
-            if (Math.random() > 0.8) addStat('thorns', 5);
+            if (Math.random() > 0.8) addStat('thorns', 1);
         }
         if (type === 'chip') { 
             // Chips are versatile
