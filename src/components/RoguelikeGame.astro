@@ -643,6 +643,14 @@
     box-shadow: 0 0 20px rgba(0,0,0,0.8);
     line-height: 1.4;
   }
+  /* Fix for huge tooltips */
+  .item-tooltip {
+      max-height: 400px;
+      overflow-y: auto;
+      /* Allow scrolling if mouse is over it, though usually tooltips move. 
+         We keep pointer-events: none usually, but if we want scrollable, we need a different approach.
+         For now, max-height prevents screen overflow. */
+  }
   .item-tooltip.hidden { display: none; }
 
   /* Profile Styles */
@@ -4444,6 +4452,18 @@
     private boundMouseMove: (e: MouseEvent) => void;
     private boundMouseDown: (e: MouseEvent) => void;
 
+    // Helper to render icons safely (prevents huge Base64 text)
+    renderIconHtml(icon: string, size: number = 30) {
+        if (!icon) return '';
+        // Check for URL or Data URI
+        if (icon.startsWith('http') || icon.startsWith('data:image')) {
+            return `<img src="${icon}" style="width: ${size}px; height: ${size}px; object-fit: cover; border-radius: 4px; display:inline-block; vertical-align:middle; margin-right:5px;">`;
+        }
+        // If text is too long (likely raw base64 or garbage), show placeholder
+        if (icon.length > 20) return `<span style="font-size:${size}px; line-height:1">📦</span>`;
+        return `<span style="font-size:${size}px; line-height:1">${icon}</span>`;
+    }
+
     constructor() {
       gameInstance = this; // Set singleton
       game = this;
@@ -5134,9 +5154,7 @@
             const price = Math.floor(100 * (1 - this.player.merchantDiscount));
             const el = document.createElement('div');
             el.className = 'mini-card';
-            const iconHtml = (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:image'))) ? `<img src="${item.icon}" style="width: 40px; height: 40px; object-fit: cover;">` : item.icon;
-            
-            el.innerHTML = `<div class="icon">${iconHtml}</div><div class="name">${item.name}</div><div class="desc">Цена: ${price}</div>`;
+            el.innerHTML = `<div class="icon">${this.renderIconHtml(item.icon, 40)}</div><div class="name">${item.name}</div><div class="desc">Цена: ${price}</div>`;
             el.onclick = () => {
                 if (this.currencyCollected >= price) {
                     this.currencyCollected -= price;
@@ -5971,21 +5989,6 @@
           const item = JSON.parse(JSON.stringify(this.selectedAscensionItem)); // Clone
           if (customName) item.name = customName;
           
-          // Handle Custom Icon (Convert File to Base64 for storage)
-          if (this.ascensionIconFile) {
-              try {
-                  const base64 = await new Promise<string>((resolve, reject) => {
-                      const reader = new FileReader();
-                      reader.onload = () => resolve(reader.result as string);
-                      reader.onerror = reject;
-                      reader.readAsDataURL(this.ascensionIconFile!);
-                  });
-                  item.icon = base64;
-              } catch (e) {
-                  console.error("Icon conversion failed", e);
-              }
-          }
-
           item.id = `asc_${Date.now()}_${Math.floor(Math.random()*1000)}`;
           // Mark as corrupted locally so it can be identified for later upload
           item.isCorrupted = true;
@@ -6031,6 +6034,23 @@
           });
 
           try {
+              // ОТПРАВКА НА СЕРВЕР (R2 Upload)
+              const formData = new FormData();
+              formData.append('item', JSON.stringify(item));
+              formData.append('score', this.score.toString());
+              formData.append('returned_items', JSON.stringify(returnedItems));
+              if (this.ascensionIconFile) {
+                  formData.append('icon_file', this.ascensionIconFile);
+              }
+
+              const res = await fetch('/api/ascension', { method: 'POST', body: formData });
+              const data = await res.json();
+
+              if (!data.success) throw new Error(data.error || "Ошибка сервера");
+
+              // Используем предмет с сервера (у него теперь правильная ссылка на иконку в R2)
+              const finalItem = data.item || item;
+
               // Create fresh meta state (Reset Game)
               const newMeta: MetaData = { 
                 bestScore: meta.bestScore, // Preserve High Score
@@ -6045,7 +6065,7 @@
               };
 
               // Add Ascended Item
-              newMeta.inventory.push(item);
+              newMeta.inventory.push(finalItem);
               
               // Add Returned Items
               if (returnedItems.length > 0) {
@@ -6056,12 +6076,12 @@
               localStorage.setItem(META_KEY, JSON.stringify(newMeta));
               
               const returnMsg = returnedItems.length > 0 ? `\nТакже сохранено заражённых предметов: ${returnedItems.length}` : '';
-              alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${item.name}" сохранен в инвентарь (Заражённый).\nМир будет перезагружен.${returnMsg}`);
+              alert(`ВОЗВЫШЕНИЕ ЗАВЕРШЕНО!\nПредмет "${finalItem.name}" сохранен в облако и инвентарь.\nМир будет перезагружен.${returnMsg}`);
               
               window.location.reload();
           } catch (e) {
               console.error(e);
-              alert("Ошибка при сохранении данных возвышения.");
+              alert("Ошибка синхронизации с сервером: " + (e as any).message);
               btn.disabled = false;
               btn.innerText = "ВОЗВЫСИТЬ (1 ЯДРО)";
           }
@@ -6153,10 +6173,7 @@
             if (this.selectedAscensionItem === item && item) el.classList.add('selected-upgrade');
             
             if (item) {
-                const iconHtml = (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:image'))) 
-                    ? `<img src="${item.icon}" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px; display:inline-block; vertical-align:middle; margin-right:5px;">` 
-                    : item.icon;
-                el.innerHTML = `${iconHtml} <span style="color:#fff">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>`;
+                el.innerHTML = `${this.renderIconHtml(item.icon, 30)} <span style="color:#fff">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>`;
                 if (item.isCorrupted) {
                     el.innerHTML += `<br><span style="color:#ff00ff; font-size:0.6rem;">[ЗАРАЖЁН]</span>`;
                     el.style.borderColor = '#ff00ff';
@@ -6189,11 +6206,7 @@
         const setMult = isCorrupted ? 2.0 : 3.0; // 100% vs 200%
         const baseMult = isCorrupted ? 0.05 : 0.1; // -95% vs -90%
         
-        const iconHtml = (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:image'))) 
-            ? `<img src="${item.icon}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto 10px auto; border: 1px solid ${this.getItemColor(item.rarity)}">` 
-            : `<div style="font-size: 3rem; margin-bottom: 10px;">${item.icon}</div>`;
-
-        let html = `<div style="text-align:center;">${iconHtml}</div><div style="color:${this.getItemColor(item.rarity)}; font-size:1.2rem; margin-bottom:10px;">${item.name}</div>`;
+        let html = `<div style="text-align:center;">${this.renderIconHtml(item.icon, 60)}</div><div style="color:${this.getItemColor(item.rarity)}; font-size:1.2rem; margin-bottom:10px;">${item.name}</div>`;
         
         if (isCorrupted) {
             html += `<div style="color:#ff00ff; font-weight:bold; margin-bottom:10px; border:1px solid #ff00ff; padding:5px;">⚠️ ЗАРАЖЁННЫЙ ПРЕДМЕТ ⚠️<br><span style="font-size:0.7rem; color:#fff;">ШТРАФ ВОЗВЫШЕНИЯ: СТАТЫ СНИЖЕНЫ, БОНУС СЕТА УМЕНЬШЕН</span></div>`;
@@ -6339,7 +6352,13 @@
         if (!el) return;
         el.innerHTML = text.replace(/\n/g, '<br>');
         el.style.left = (e.clientX + 15) + 'px';
-        el.style.top = (e.clientY + 15) + 'px';
+        // Prevent going off bottom screen
+        const rect = el.getBoundingClientRect();
+        if (e.clientY + 15 + rect.height > window.innerHeight) {
+            el.style.top = (e.clientY - rect.height - 10) + 'px';
+        } else {
+            el.style.top = (e.clientY + 15) + 'px';
+        }
         el.classList.remove('hidden');
     }
 
@@ -6425,11 +6444,10 @@
                 const desc = this.getItemDesc(item); // Dynamic desc
                 const nameColor = item.setId ? '#0f0' : '#fff';
                 
-                const iconHtml = (item.icon && item.icon.startsWith('http')) 
-                    ? `<img src="${item.icon}" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px; display:inline-block; vertical-align:middle; margin-right:5px;">` 
-                    : item.icon;
+                // Scrollable description container
+                const descHtml = `<div class="slot-desc-scroll" style="max-height:60px; overflow-y:auto; margin-top:4px; padding-right:2px; pointer-events:auto;" onmousedown="event.stopPropagation()">${desc}</div>`;
 
-                el.innerHTML = `${iconHtml} <span style="color:${nameColor}">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span><br><span style="font-size:0.55rem; color:#aaa">${desc}</span>`;
+                el.innerHTML = `${this.renderIconHtml(item.icon, 30)} <span style="color:${nameColor}">${item.name}</span><br><span style="font-size:0.6rem; color:${this.getItemColor(item.rarity)}">${item.rarity.toUpperCase()}</span>${descHtml}`;
                 
                 // Active Set Count for Tooltip
                 let setCountStr = "";
@@ -6506,10 +6524,7 @@
             const div = document.createElement('div');
             div.className = `inv-item rarity-${item.rarity}`;
             
-            const iconHtml = (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:image'))) 
-                ? `<img src="${item.icon}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` 
-                : `<div style="font-size:1.5rem">${item.icon}</div>`;
-            div.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:45px;">${iconHtml}</div><div>${item.name}</div>`;
+            div.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:45px;">${this.renderIconHtml(item.icon, 40)}</div><div>${item.name}</div>`;
             
             if (item.setId) {
                 div.classList.add('set-item');
@@ -6589,8 +6604,6 @@
         
         msg.innerHTML = `<h3 style="color:#0f0">ОТПРАВКА В БАЗУ</h3>Вы хотите перенести этот предмет в глобальную базу данных?<br>Он будет удален из локального сохранения.`;
         
-        const iconHtml = (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:image'))) ? `<img src="${item.icon}" style="width:60px; height:60px; object-fit:cover;">` : `<div style="font-size:2rem">${item.icon}</div>`;
-        
         let statsHtml = '';
         for (const [key, val] of Object.entries(item.stats)) {
              statsHtml += `<div>${STAT_NAMES[key]||key}: ${val}</div>`;
@@ -6600,7 +6613,7 @@
         preview.innerHTML = `
             <div style="display:flex; gap:15px; align-items:center;">
                 <div class="inv-item rarity-${item.rarity}" style="width:80px; height:80px; display:flex; align-items:center; justify-content:center;">
-                    ${iconHtml}
+                    ${this.renderIconHtml(item.icon, 60)}
                 </div>
                 <div style="text-align:left;">
                     <div style="color:${this.getItemColor(item.rarity)}; font-weight:bold;">${item.name}</div>
@@ -6627,18 +6640,15 @@
         this.pendingUpgradeItem = item;
         this.pendingUpgradeIdx = idx;
 
-        const targetIcon = (target.icon && (target.icon.startsWith('http') || target.icon.startsWith('data:image'))) ? `<img src="${target.icon}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size:1.5rem">${target.icon}</div>`;
-        const itemIcon = (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:image'))) ? `<img src="${item.icon}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size:1.5rem">${item.icon}</div>`;
-
         // Visual comparison UI
         msg.innerHTML = `
             <div style="display:flex; align-items:center; justify-content:center; gap:15px; margin-bottom:10px;">
                 <div class="inv-item rarity-${target.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                    ${targetIcon}
+                    ${this.renderIconHtml(target.icon, 50)}
                 </div>
                 <div style="font-size:2rem; color:#0f0; animation:pulse 1s infinite;">⬅</div>
                 <div class="inv-item rarity-${item.rarity}" style="width:60px; height:60px; pointer-events:none; border-width:2px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                    ${itemIcon}
+                    ${this.renderIconHtml(item.icon, 50)}
                 </div>
             </div>
             <div style="font-size:0.9rem; color:#ccc; margin-bottom:5px;">

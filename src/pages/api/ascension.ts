@@ -87,8 +87,10 @@ export const POST: APIRoute = async ({ locals, request }) => {
                     item.icon = `${R2_PUBLIC_DOMAIN}/${key}`;
                 }
             } catch (err) {
-                console.error("[Ascension API] Base64 Upload Error:", err);
-                // Не прерываем процесс, но логируем ошибку. Иконка останется base64 или битой, но предмет создастся.
+                // Если не получилось загрузить base64, ставим иконку по умолчанию (чтобы не сломать предмет)
+                console.error("[Ascension API] Base64 Upload Error, setting default icon:", err);
+                item.icon = '📦'; // Иконка по умолчанию
+
             }
         }
 
@@ -137,7 +139,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
         }
 
         // 6. Успешный ответ
-        return new Response(JSON.stringify({ success: true, hellfire: hellfireGained }), { status: 200 });
+        return new Response(JSON.stringify({ success: true, hellfire: hellfireGained, item: item }), { status: 200 });
 
     } catch (e: any) {
         console.error("[Ascension API] Error:", e);
