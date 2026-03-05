@@ -28,9 +28,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
         return new Response(JSON.stringify({ error: "Server configuration error: DB or R2 Bucket not connected." }), { status: 500 });
     }
 
-    // МИГРАЦИЯ: Убеждаемся, что колонка is_corrupted существует (критично для этого эндпоинта)
-    try { await db.prepare("ALTER TABLE user_items ADD COLUMN is_corrupted INTEGER DEFAULT 0").run(); } catch (e) {}
-    // МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует в users
     try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
     try {
@@ -96,41 +93,9 @@ export const POST: APIRoute = async ({ locals, request }) => {
             }
         }
 
-        // 3. Сохранение вознесенного предмета в таблицу user_items
-        await db.prepare(`
-            INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, is_corrupted, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-            item.id,
-            userId,
-            item.name, // item_id для группировки
-            item.name, // name для отображения
-            item.desc || 'Вознесенный предмет',
-            item.source || 'Возвышение',
-            item.type,
-            item.rarity,
-            JSON.stringify(item.stats || {}),
-            item.icon, // URL или эмодзи
-            item.setId,
-            JSON.stringify(item.setStats || {}),
-            item.isCorrupted ? 1 : 0,
-            Date.now()
-        ).run();
-
-        // 4. Сохранение возвращенных зараженных предметов
-        if (returnedItems.length > 0) {
-            const stmt = db.prepare(`
-                INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, set_id, set_stats, is_corrupted, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
-            const batch = returnedItems.map((retItem: any) => stmt.bind(
-                retItem.id, userId, retItem.name, retItem.name,
-                retItem.desc || 'Возвращенный предмет', 'Возврат после Возвышения',
-                retItem.type, retItem.rarity, JSON.stringify(retItem.stats || {}),
-                retItem.icon, retItem.setId, JSON.stringify(retItem.setStats || {}), retItem.isCorrupted ? 1 : 0, Date.now()
-            ));
-            await db.batch(batch);
-        }
+        // 3. (УДАЛЕНО) Автоматическое сохранение в БД отключено.
+        // Предмет возвращается клиенту с обновленной ссылкой на иконку.
+        // Клиент сохраняет его локально, а загрузка в БД происходит вручную через инвентарь.
 
         // 5. Расчет и добавление Адского Огня
         const hellfireGained = Math.floor(score / 10000);
