@@ -30,6 +30,8 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
     // МИГРАЦИЯ: Убеждаемся, что колонка is_corrupted существует (критично для этого эндпоинта)
     try { await db.prepare("ALTER TABLE user_items ADD COLUMN is_corrupted INTEGER DEFAULT 0").run(); } catch (e) {}
+    // МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует в users
+    try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
     try {
         const formData = await request.formData();
@@ -133,9 +135,13 @@ export const POST: APIRoute = async ({ locals, request }) => {
         // 5. Расчет и добавление Адского Огня
         const hellfireGained = Math.floor(score / 10000);
         if (hellfireGained > 0) {
-            await db.prepare("UPDATE users SET hellfire = hellfire + ? WHERE id = ?")
-              .bind(hellfireGained, userId)
-              .run();
+            try {
+                await db.prepare("UPDATE users SET hellfire = hellfire + ? WHERE id = ?")
+                  .bind(hellfireGained, userId)
+                  .run();
+            } catch (err) {
+                console.error("[Ascension API] Failed to update hellfire:", err);
+            }
         }
 
         // 6. Успешный ответ
