@@ -273,6 +273,7 @@
           <h2>НЕЙРОСЕТЬ</h2>
           <div class="tree-stats">
             <span>ЯДРА: <span id="tree-currency" class="text-gold">0</span></span>
+            <button id="btn-tree-buy-all" class="btn-small" style="margin-left: 10px; border-color: #0f0; color: #0f0;">КУПИТЬ ВСЕ</button>
             <button id="btn-tree-back" class="btn-small">НАЗАД</button>
           </div>
         </div>
@@ -386,6 +387,15 @@
             <button id="btn-modal-yes" class="btn-small" style="border-color:#0f0; color:#0f0;">ПОДТВЕРДИТЬ</button>
             <button id="btn-modal-no" class="btn-small" style="border-color:#f00; color:#f00;">ОТМЕНА</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Alert Modal -->
+      <div id="modal-alert" class="modal-overlay hidden">
+        <div class="modal-box" style="width: 400px; border-color: #f00;">
+          <h3 id="modal-alert-title" class="text-gold">ВНИМАНИЕ</h3>
+          <p id="modal-alert-msg" style="margin: 20px 0; color: #fff;">Сообщение</p>
+          <button id="btn-modal-ok" class="btn-small" style="border-color:#fff; color:#fff;">ХОРОШО</button>
         </div>
       </div>
       
@@ -1572,6 +1582,7 @@
         }
         
         saveMeta();
+        if (gameInstance) gameInstance.updateTreeBuyAllButton();
       }
     }
 
@@ -6095,6 +6106,7 @@
       document.getElementById('btn-tree')?.addEventListener('click', () => {
         this.state = 'TREE';
         this.setScreen('tree-screen');
+        this.updateTreeBuyAllButton();
         if (!this.treeRenderer) {
           this.treeRenderer = new SkillTreeRenderer();
           this.treeRenderer.draw();
@@ -6113,6 +6125,66 @@
         this.setScreen('menu-screen');
         updateMenuStats();
       });
+
+      // Tree Buy All Logic
+      document.getElementById('btn-tree-buy-all')?.addEventListener('click', () => {
+          const unbought = TREE_NODES.filter(n => !meta.skillTree.includes(n.id));
+          if (unbought.length === 0) {
+              this.showAlert("ВСЕ УЛУЧШЕНИЯ УЖЕ ИЗУЧЕНЫ!", "ИНФО");
+              return;
+          }
+          
+          const totalCost = unbought.reduce((sum, n) => sum + n.cost, 0);
+          
+          if (meta.bossCurrency >= totalCost) {
+              if (confirm(`Купить все доступные улучшения (${unbought.length}) за ${totalCost} ЯДЕР?`)) {
+                   meta.bossCurrency -= totalCost;
+                   unbought.forEach(n => {
+                       meta.skillTree.push(n.id);
+                       if (n.type === 'unlock') n.effect(null as any);
+                   });
+                   saveMeta();
+                   updateMenuStats();
+                   this.updateTreeBuyAllButton();
+              }
+          } else {
+              this.showAlert("У вас недостаточно ядер", "ОШИБКА");
+          }
+      });
+
+      // Alert Modal Logic
+      document.getElementById('btn-modal-ok')?.addEventListener('click', () => {
+          document.getElementById('modal-alert')?.classList.add('hidden');
+      });
+    }
+
+    updateTreeBuyAllButton() {
+        const btn = document.getElementById('btn-tree-buy-all');
+        if (!btn) return;
+        
+        const unbought = TREE_NODES.filter(n => !meta.skillTree.includes(n.id));
+        if (unbought.length === 0) {
+            btn.innerText = "ВСЕ ИЗУЧЕНО";
+            btn.style.opacity = "0.5";
+            (btn as HTMLButtonElement).disabled = true;
+            return;
+        }
+        
+        const totalCost = unbought.reduce((sum, n) => sum + n.cost, 0);
+        btn.innerText = `КУПИТЬ ВСЕ (${totalCost})`;
+        btn.style.opacity = "1";
+        (btn as HTMLButtonElement).disabled = false;
+    }
+
+    showAlert(msg: string, title: string = "ВНИМАНИЕ") {
+        const modal = document.getElementById('modal-alert');
+        const titleEl = document.getElementById('modal-alert-title');
+        const msgEl = document.getElementById('modal-alert-msg');
+        if (modal && titleEl && msgEl) {
+            titleEl.innerText = title;
+            msgEl.innerText = msg;
+            modal.classList.remove('hidden');
+        }
     }
 
     // Helper for compression
