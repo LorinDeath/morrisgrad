@@ -1820,7 +1820,7 @@
           this.hp = type === 'turret' ? 200 : 300;
           this.maxHp = this.hp;
           // Scale HP with wave
-          const scale = 1 + Math.pow(game.director.wave, 1.5) * 0.5;
+          const scale = 1 + Math.pow(game.director.wave, 2.0) * 0.5;
           this.hp *= scale * selectedDifficulty;
           this.maxHp *= scale;
       }
@@ -1831,7 +1831,7 @@
               if (this.timer <= 0) {
                   this.timer = 2.0;
                   const dir = game.player.pos.sub(this.pos).normalize();
-                  const scale = 1 + Math.pow(game.director.wave, 1.5) * 0.5;
+                  const scale = 1 + Math.pow(game.director.wave, 2.0) * 0.5;
                   const dmg = 15 * scale * selectedDifficulty;
                   game.projectiles.push(new Projectile(this.pos, dir.mult(400), dmg, 'bullet', 'enemy'));
               }
@@ -1994,8 +1994,8 @@
       super(pos, 15, '#f00');
       this.config = ENEMIES[typeId] || ENEMIES['basic_weak'];
       
-      // Scaling: Polynomial 50% (Power 1.5)
-      const scale = 1 + Math.pow(level, 1.5) * 0.5;
+      // Scaling: Quadratic 50% (Power 2.0) - Much harder late game
+      const scale = 1 + Math.pow(level, 2.0) * 0.5;
       this.hp = this.config.hp * scale * selectedDifficulty;
       this.maxHp = this.hp;
       
@@ -2006,6 +2006,13 @@
       this.radius = this.config.radius;
       this.color = this.config.color;
       
+      // Boss Specific Buffs
+      if (typeId.includes('boss')) {
+          this.hp *= 10; // 10x HP for Raid Boss feel
+          this.maxHp = this.hp;
+          this.damage *= 2; // 2x Damage
+      }
+
       if (elite) {
         this.shield = this.maxHp; // Shield layer
         this.maxShield = this.maxHp;
@@ -3441,7 +3448,7 @@
     startWave() {
       // Reset influence for Wave Raids to ensure progression
       if (this.game.mode === 'raid' && this.game.activeRaid?.type === 'wave') {
-          this.baseWaveInfluence = 100 + (this.wave * 20);
+          this.baseWaveInfluence = Math.floor(300 * Math.pow(1.25, this.wave));
       } else if (this.wave > 1) {
           this.baseWaveInfluence = Math.floor(this.baseWaveInfluence * 1.4);
       } else {
@@ -3510,7 +3517,8 @@
         
         // Spawn Boss for Boss Rush
         if (this.game.activeRaid && this.game.activeRaid.type === 'boss_rush' && this.game.activeRaid.bossId) {
-            this.currentInfluence = 2000; // Boost for boss fight
+            this.baseWaveInfluence = Math.floor(2000 + this.wave * 100);
+            this.currentInfluence = this.baseWaveInfluence;
             this.game.spawnEnemy(this.game.activeRaid.bossId, true, undefined, '#ff0000', 5.0);
             this.game.texts.push(new FloatingText(new Vector(CANVAS_W/2, CANVAS_H/2), "ЦЕЛЬ ОБНАРУЖЕНА", "#f00"));
         }
@@ -3524,13 +3532,6 @@
           this.game.addChatMessage();
           this.chatTimer = 0;
           this.nextChatInterval = 4 + Math.random() * 26;
-      }
-
-      // Raid Logic
-      if (this.game.mode === 'raid') {
-          if (this.game.activeRaid?.type === 'boss_rush') {
-              return; // Skip standard logic for boss rush (victory handled on kill)
-          }
       }
 
       // Check if we saved enough
@@ -3696,7 +3697,8 @@
 
       // 3. Wave Cycling Logic
       // "Ran out of energy? ... begins next wave"
-      if ((this.currentInfluence < 10 || this.isSaving) && !this.game.enemies.some(e => e.isVisible() && e.config.type !== 'invader')) { // Wait for clear (ignoring invaders)
+      // Disable wave cycling in Boss Rush (it ends on kill)
+      if (this.game.activeRaid?.type !== 'boss_rush' && (this.currentInfluence < 10 || this.isSaving) && !this.game.enemies.some(e => e.isVisible() && e.config.type !== 'invader')) { 
           this.nextWaveTimer += dt;
           const delay = this.isSaving ? 0.5 : 2.0; // Fast skip if saving
           if (this.nextWaveTimer > delay) {
