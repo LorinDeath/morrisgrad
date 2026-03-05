@@ -28,6 +28,9 @@ export const POST: APIRoute = async ({ locals, request }) => {
         return new Response(JSON.stringify({ error: "Server configuration error: DB or R2 Bucket not connected." }), { status: 500 });
     }
 
+    // МИГРАЦИЯ: Убеждаемся, что колонка is_corrupted существует (критично для этого эндпоинта)
+    try { await db.prepare("ALTER TABLE user_items ADD COLUMN is_corrupted INTEGER DEFAULT 0").run(); } catch (e) {}
+
     try {
         const formData = await request.formData();
         const itemString = formData.get("item") as string;
@@ -42,7 +45,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
         const item = JSON.parse(itemString);
         const returnedItems = returnedItemsString ? JSON.parse(returnedItemsString) : [];
 
-        // 2. Обработка загрузки иконки
+        // 2. Обработка загрузки иконки (Приоритет 1: Файл из FormData)
         if (iconFile && iconFile.size > 0) {
             // Безопасная проверка на стороне сервера
             if (iconFile.size > 2 * 1024 * 1024) {
@@ -59,6 +62,33 @@ export const POST: APIRoute = async ({ locals, request }) => {
             } catch (err) {
                 console.error("[Ascension API] R2 Upload Error:", err);
                 return new Response(JSON.stringify({ error: "Failed to upload icon." }), { status: 500 });
+            }
+        } 
+        // 2.1 Обработка Base64 (Приоритет 2: Если иконка пришла строкой data:image/...)
+        else if (item.icon && typeof item.icon === 'string' && item.icon.startsWith('data:image')) {
+            try {
+                // Парсим Base64
+                const matches = item.icon.match(/^data:(.+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    const contentType = matches[1];
+                    const base64Data = matches[2];
+                    const binaryString = atob(base64Data);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+
+                    const key = `item-${userId}-${Date.now()}-b64`;
+                    await bucket.put(key, bytes.buffer, {
+                        httpMetadata: { contentType: contentType }
+                    });
+                    
+                    // Обновляем иконку на URL
+                    item.icon = `${R2_PUBLIC_DOMAIN}/${key}`;
+                }
+            } catch (err) {
+                console.error("[Ascension API] Base64 Upload Error:", err);
+                // Не прерываем процесс, но логируем ошибку. Иконка останется base64 или битой, но предмет создастся.
             }
         }
 
