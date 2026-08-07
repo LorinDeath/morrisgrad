@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивная Википедия Вселенной «Обитель Смерти»</title>
+    <style>
+        :root {
+            --bg-main: #0a090e;
+            --bg-card: #13111a;
+            --bg-header: #181424;
+            --accent-purple: #8a2be2;
+            --accent-purple-glow: rgba(138, 43, 226, 0.5);
+            --accent-red: #e62e4d;
+            --accent-red-glow: rgba(230, 46, 77, 0.5);
+            --accent-cyan: #00f0ff;
+            --accent-cyan-glow: rgba(0, 240, 255, 0.4);
+            --text-main: #e6e2ed;
+            --text-muted: #9790a6;
+            --border-color: #282238;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.65;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* HEADER */
+        header {
+            background: linear-gradient(180deg, #1b1429 0%, var(--bg-main) 100%);
+            border-bottom: 2px solid var(--accent-purple);
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 4px 25px var(--accent-purple-glow);
+        }
+
+        header h1 {
+            font-size: 2.6rem;
+            letter-spacing: 4px;
+            color: #fff;
+            text-transform: uppercase;
+            text-shadow: 0 0 12px var(--accent-purple-glow), 0 0 25px var(--accent-purple);
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 1.05rem;
+            margin-top: 6px;
+        }
+
+        /* CONTROLS BAR */
+        .controls-bar {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 25px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 280px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 18px;
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 12px var(--accent-purple-glow);
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .tab-btn {
+            background: var(--bg-main);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 9px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .tab-btn:hover, .tab-btn.active {
+            color: #fff;
+            background: var(--accent-purple);
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 12px var(--accent-purple-glow);
+        }
+
+        /* MAIN LAYOUT */
+        .container {
+            max-width: 1300px;
+            margin: 30px auto;
+            padding: 0 20px;
+            flex: 1;
+            width: 100%;
+        }
+
+        .section-content {
+            display: none;
+            animation: fadeIn 0.4s ease-in-out forwards;
+        }
+
+        .section-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* CARDS GRID */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 22px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 22px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--accent-purple);
+            transition: width 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 15px var(--accent-purple-glow);
+        }
+
+        .card:hover::before { width: 6px; }
+
+        .card.red-theme::before { background: var(--accent-red); }
+        .card.red-theme:hover { border-color: var(--accent-red); box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 15px var(--accent-red-glow); }
+
+        .card.cyan-theme::before { background: var(--accent-cyan); }
+        .card.cyan-theme:hover { border-color: var(--accent-cyan); box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 15px var(--accent-cyan-glow); }
+
+        .card h3 {
+            font-size: 1.35rem;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .card .subtitle {
+            font-size: 0.85rem;
+            color: var(--accent-purple);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .card.red-theme .subtitle { color: var(--accent-red); }
+        .card.cyan-theme .subtitle { color: var(--accent-cyan); }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            margin-bottom: 16px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card .tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: var(--text-muted);
+        }
+
+        /* TEXT BLOCKS */
+        .text-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 35px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .text-block h2 {
+            color: #fff;
+            border-bottom: 2px solid var(--accent-purple);
+            padding-bottom: 12px;
+            margin-bottom: 22px;
+            font-size: 1.9rem;
+        }
+
+        .text-block h3 {
+            color: var(--accent-purple);
+            margin: 24px 0 12px 0;
+            font-size: 1.35rem;
+        }
+
+        .text-block p {
+            margin-bottom: 16px;
+            color: var(--text-main);
+            font-size: 1rem;
+        }
+
+        .text-block ul {
+            margin-left: 22px;
+            margin-bottom: 18px;
+        }
+
+        .text-block li {
+            margin-bottom: 10px;
+            color: var(--text-muted);
+        }
+
+        .text-block li strong { color: #fff; }
+
+        /* SEARCH RESULTS SECTION */
+        #searchResultsView {
+            display: none;
+        }
+
+        .search-info {
+            color: var(--accent-cyan);
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        /* RELATIONS NET */
+        .relations-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+
+        .node-group {
+            border: 1px dashed var(--border-color);
+            padding: 18px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .node-group-title {
+            color: var(--accent-purple);
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9rem;
+        }
+
+        .nodes-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .node-btn {
+            background: var(--bg-main);
+            border: 1px solid var(--accent-purple);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            font-size: 0.88rem;
+        }
+
+        .node-btn:hover {
+            background: var(--accent-purple);
+            box-shadow: 0 0 12px var(--accent-purple-glow);
+        }
+
+        .relation-details {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            padding: 25px;
+            border-radius: 8px;
+            margin-top: 10px;
+            min-height: 140px;
+        }
+
+        /* MODAL WINDOW */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.88);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+            backdrop-filter: blur(6px);
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 2px solid var(--accent-purple);
+            border-radius: 10px;
+            max-width: 850px;
+            width: 100%;
+            max-height: 88vh;
+            overflow-y: auto;
+            padding: 35px;
+            position: relative;
+            box-shadow: 0 0 35px var(--accent-purple-glow);
+            animation: modalUp 0.3s ease-out;
+        }
+
+        @keyframes modalUp {
+            from { transform: scale(0.92); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.3s;
+            line-height: 1;
+        }
+
+        .modal-close:hover { color: var(--accent-red); }
+
+        .modal-header h2 {
+            color: #fff;
+            font-size: 2.1rem;
+            margin-bottom: 6px;
+        }
+
+        .modal-header .modal-subtitle {
+            color: var(--accent-purple);
+            font-weight: bold;
+            margin-bottom: 22px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        .modal-body p {
+            margin-bottom: 16px;
+            color: var(--text-main);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .modal-body strong { color: #fff; }
+
+        .quote-box {
+            border-left: 3px solid var(--accent-purple);
+            padding: 12px 18px;
+            margin: 18px 0;
+            font-style: italic;
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.02);
+            border-radius: 0 6px 6px 0;
+        }
+
+        /* FOOTER */
+        footer {
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            padding: 25px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 50px;
+        }
+
+        @media (max-width: 768px) {
+            header h1 { font-size: 1.8rem; }
+            .controls-bar { flex-direction: column; align-items: stretch; }
+            .search-box { width: 100%; }
+            .text-block, .modal-content { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>МоррисГрад: Летопись</h1>
+        <p>Полная Полновесная Интерактивная Википедия «Обитель Смерти»</p>
+    </header>
+
+    <div class="controls-bar">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Введите имя, локацию, артефакт или событие для поиска..." oninput="handleGlobalSearch()">
+        </div>
+        <div class="nav-tabs" id="navTabs">
+            <button class="tab-btn active" data-tab="lore" onclick="switchTab('lore')">Законы и Мир</button>
+            <button class="tab-btn" data-tab="characters" onclick="switchTab('characters')">Персонажи</button>
+            <button class="tab-btn" data-tab="factions" onclick="switchTab('factions')">Государства и Кланы</button>
+            <button class="tab-btn" data-tab="events" onclick="switchTab('events')">Хроника Событий</button>
+            <button class="tab-btn" data-tab="anomalies" onclick="switchTab('anomalies')">Артефакты и Глитчи</button>
+            <button class="tab-btn" data-tab="relations" onclick="switchTab('relations')">Древо Связей</button>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <div id="searchResultsView">
+            <div class="search-info" id="searchInfoText">Результаты поиска:</div>
+            <div class="cards-grid" id="searchResultsGrid"></div>
+        </div>
+
+        <div id="lore" class="section-content active">
+            <div class="text-block">
+                <h2>Архитектура и Фундаментальные Законы МоррисГрада</h2>
+                <p>Мир <strong>МоррисГрада</strong> представляет собой строгую, бескомпромиссную систему, стоящую на стыке древней магии и ломающегося цифрового кода. Здесь государства не могут быть основаны простыми людьми — это священное право даровано исключительно тем воинам и магам, кто заслужил наивысший ранг <strong>«Хранитель Черной Короны пятого порядка»</strong>.</p>
+
+                <h3>Три Каноничных Пути Развития</h3>
+                <p>Ранги и авторитет в этом мире вырываются непрерывным трудом, стратегическим разумом и преодолением собственных пределов. Добиться признания можно лишь тремя путями:</p>
+                <ul>
+                    <li><strong>Упорные Тренировки:</strong> Физическое, духовное и магическое совершенствование через боль и лишения.</li>
+                    <li><strong>Идеальное Исполнение:</strong> Безукоризненное выполнение долга, контрактов и сложнейших поручений.</li>
+                    <li><strong>Экономика:</strong> Накопление капиталов, контроль над глобальными торговыми артериями и ресурсами.</li>
+                </ul>
+
+                <h3>Чёрная Корона и Семь Элементов Силы</h3>
+                <p>На вершине мировой иерархии покоится <strong>Черная Корона</strong> — величайший артефакт мироздания. Прикоснуться к ней может лишь Высший Маг, сумевший познать и подчинить все доступные стихии МоррисГрада.</p>
+
+                <h3>Характеристики и Взаимосвязь Стихий:</h3>
+                <ul>
+                    <li><strong>Скорость:</strong> Порождается стихией Ветра.</li>
+                    <li><strong>Исцеление:</strong> Даруется Природой (Листвой).</li>
+                    <li><strong>Интеллект:</strong> Питается всепоглощающим Адским Пламенем.</li>
+                    <li><strong>Сила:</strong> Питается чистым Огнем.</li>
+                    <li><strong>Разрушение:</strong> Выплеск чистой, сгущенной Энергии.</li>
+                    <li><strong>Ловкость:</strong> Течет из Тьмы и Воды.</li>
+                    <li><strong>Защита:</strong> Несокрушима как фундаментальная Земля.</li>
+                </ul>
+
+                <h3>Природа Виртуальности, Бессмертия и Системных Глитчей</h3>
+                <p>МоррисГрад является цифровой тюрьмой разума (симуляцией), запертой под пульсирующим фиолетовым куполом. Жители и Игроки привыкли возрождаться через цифровые голографические окна с таймером. Однако матрица дает системные сбои: древняя черная магия, Адское пламя и воля высших сущностей способны прямо разрушать цифровой код воскрешения, отправляя души в окончательное небытие.</p>
+            </div>
+        </div>
+
+        <div id="characters" class="section-content">
+            <div class="cards-grid" id="charactersGrid"></div>
+        </div>
+
+        <div id="factions" class="section-content">
+            <div class="cards-grid" id="factionsGrid"></div>
+        </div>
+
+        <div id="events" class="section-content">
+            <div class="cards-grid" id="eventsGrid"></div>
+        </div>
+
+        <div id="anomalies" class="section-content">
+            <div class="cards-grid" id="anomaliesGrid"></div>
+        </div>
+
+        <div id="relations" class="section-content">
+            <div class="text-block">
+                <h2>Интерактивная Карта Связей и Тайных Конфликтов</h2>
+                <p>Выберите любого персонажа, чтобы мгновенно отобразить его семейные узы, тайны прошлого, союзы и скрытые вражеские нити.</p>
+            </div>
+            <div class="relations-container">
+                <div class="node-group">
+                    <div class="node-group-title">Обитель Смерти & Дэмиурги</div>
+                    <div class="nodes-list">
+                        <button class="node-btn" onclick="showRelation('lorin')">Лорин Дэт / Мариэль</button>
+                        <button class="node-btn" onclick="showRelation('kavega')">Кавега («Пламя Нулевого Дня»)</button>
+                        <button class="node-btn" onclick="showRelation('nofourd')">Нофорд («Детектив Смерти»)</button>
+                        <button class="node-btn" onclick="showRelation('morris')">Лидер Моррис</button>
+                        <button class="node-btn" onclick="showRelation('yfrite')">YFrite (Йфрайт)</button>
+                        <button class="node-btn" onclick="showRelation('cute')">Служанка Кьют</button>
+                        <button class="node-btn" onclick="showRelation('petr')">Пётр (Рыцарь смерти V)</button>
+                    </div>
+                </div>
+                <div class="node-group">
+                    <div class="node-group-title">Альказак & «Праведные Коты» & Боги</div>
+                    <div class="nodes-list">
+                        <button class="node-btn" onclick="showRelation('mel')">Королева Мэл</button>
+                        <button class="node-btn" onclick="showRelation('liker')">Ликёр Владолларс</button>
+                        <button class="node-btn" onclick="showRelation('veles')">Бог Велес (Бог Нави)</button>
+                    </div>
+                </div>
+                <div id="relationResult" class="relation-details">
+                    <p style="color: var(--text-muted);">Нажмите на любую кнопку выше, чтобы загрузить подробное описание связей...</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div class="modal-header">
+                <h2 id="modalTitle">Заголовок статьи</h2>
+                <div class="modal-subtitle" id="modalSubtitle">Категория / Подзаголовок</div>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Архив Вселенной «Обитель смерти» | Создано для Хранителей, Инквизиторов и Исследователей МоррисГрада</p>
+    </footer>
+
+    <script>
+        // FULL DATABASE OF ARTICLES
+        const ALL_ARTICLES = [
+            // CHARACTERS
+            {
+                id: "lorin",
+                category: "characters",
+                name: "Лорин Дэт (Lorin Death) / Мариэль",
+                subtitle: "Принцесса Клана, Дочь Дэмиургов, Сосуд Разума",
+                short: "Принцесса «Обители смерти». Несет в своем теле древний разум Мариэль. Способна голыми руками стирать цифровой код воскрешения.",
+                full: `
+                    <p><strong>Статус и Титул:</strong> Принцесса клана «Обитель смерти», Хранительница Летописи, Дочь Высших Дэмиургов.</p>
+                    <p><strong>Двойственная Природа (Лорин и Мариэль):</strong> Тело принадлежит юной Принцессе Лорин (гетерохромия глаз, белая академическая форма). Однако в её подсознании живёт Мариэль — древний разум и мать. Когда Мариэль берет контроль над Сосудом, радужка глаз вспыхивает глубоким насыщенно-красным цветом, а волосы наливаются багрянцем с фиолетовыми кончиками.</p>
+                    <p><strong>Одежда и Облик:</strong> Предпочитает строгую белую академическую форму Дэмиургов с фиолетовой окантовкой или чёрный пиджак с красным галстуком. На стене её покоев висит уникальная рапира с эфесом из обсидиана и нефрита, сплавленных Адским пламенем.</p>
+                    <p><strong>Способности и Глитчи:</strong> Обладает истинным контролем над Адским Пламенем и Черным пламенем пустоты. В Церкви на глазах у всех сжала кулак и раздавила цифровое окно таймера воскрешения Тифани, безвозвратно стерев ее душу из кода.</p>
+                    <p><strong>Главная Тайна:</strong> Лорин знает, что является родной сестрой королевы Мэл по биологическому отцу, но держит это в тайне, дабы не разрушить хрупкий рассудок сестры.</p>
+                    <div class="quote-box">«Оставьте меня на время в душе... — тихо просит Лорин, засыпая, чтобы дать Мариэль занять Сосуд.»</div>
+                `,
+                tags: ["Обитель смерти", "Адское пламя", "Дэмиурги", "Аномалия", "Летописец"]
+            },
+            {
+                id: "liker",
+                category: "characters",
+                name: "Ликёр Владолларс",
+                subtitle: "Безумец с Глитчным Кинжалом, «НПС»",
+                short: "Хладнокровный аналитик-психопат. Осознал фальшь своей памяти, считая мир театром, а себя — бракованной куклой.",
+                full: `
+                    <p><strong>Внешность:</strong> Бледная кожа, растрепанные голубо-зеленые волосы, сузившиеся до точек зрачки. Взгляд исследователя-хищника.</p>
+                    <p><strong>Психология и Безумие:</strong> Ликёр осознал, что его воспоминания о прошлом, матери и детстве — это лишь залитые в череп готовые неизменяемые скрипты. Он понял, что МоррисГрад — это грандиозная сцена Режиссера (Божества). Когда инквизиторы назвали его «НПС» (декорацией без награды), его рассудок окончательно раскололся.</p>
+                    <p><strong>Первая Смерть и Глитч:</strong> В возобновленной первой жизни всадил осколок зеркала с вирусным кодом под броню инквизитора и одной командой «Убить!» заставил воина замертво пасть, после чего второй воин размозжил молотом череп Ликёра.</p>
+                    <p><strong>Одержимость:</strong> Во время допроса в Церкви увидел, как Лорин уничтожает код воскрешения, и проникся к ней абсолютным восторгающим поклонением. Владеет Глитчным Ледяным Кинжалом.</p>
+                    <div class="quote-box">«НПС... Декорация... Ты хотел увидеть истинное безумие, Режиссер? Я разорву Твой сценарий!»</div>
+                `,
+                theme: "red",
+                tags: ["Праведные коты", "Глитч", "Безумие", "НПС", "Ледяной кинжал"]
+            },
+            {
+                id: "kavega",
+                category: "characters",
+                name: "Кавега (Kavega)",
+                subtitle: "Высший Инквизитор «Пламя Нулевого Дня»",
+                short: "Суровый и перекачанный воин Обители Смерти. Мастер меча и молота, первым заметил Адское пламя Королевы Мэл.",
+                full: `
+                    <p><strong>Статус:</strong> Высший Инквизитор клана «Обитель смерти», прозвище — «Пламя нулевого дня».</p>
+                    <p><strong>Характер и Экипировка:</strong> Огромный воин в тяжелых темных латах. Носит тяжелый полуторный меч и боевой молот. Предан Дэмиургам, но тяготится бессмысленным фармом ресурсов в диких зонах.</p>
+                    <p><strong>Сюжетная Ветка с Мэл:</strong> Провел с «Детьми Ночи» тайный рейд в Ледяной Данж. У костра заметил, как в обычном красном огне плачущей Мэл от боли и ненависти вспыхивают фиолетовые искры истинного Адского пламени.</p>
+                `,
+                tags: ["Обитель смерти", "Инквизитор", "Адское пламя", "Пламя Нулевого Дня"]
+            },
+            {
+                id: "nofourd",
+                category: "characters",
+                name: "Нофорд (NoFourD)",
+                subtitle: "Инквизитор «Детектив Смерти»",
+                short: "Жизнерадостный инквизитор и детектив. Сын легендарного Листафа, искренне влюбленный в служанку Кьют.",
+                full: `
+                    <p><strong>Статус:</strong> Инквизитор клана «Обитель смерти», прозвище — «Детектив Смерти».</p>
+                    <p><strong>Характер:</strong> В отличие от мрачного Кавеги, Нофорд открыт, остроумен и жизнерадостен. Постоянно разряжает обстановку, кокетничает с Лорин/Мариэль и громко кричит по замку, когда скучает.</p>
+                    <p><strong>Происхождение и Любовь:</strong> Сын Листафа Элфдида — легендарного воина, вырезавшего магов Аезера. Неистово влюблен в готическую служанку Кьют и с гордостью говорит о планах жениться на ней.</p>
+                `,
+                tags: ["Обитель смерти", "Инквизитор", "Детектив Смерти", "Листаф"]
+            },
+            {
+                id: "mel",
+                category: "characters",
+                name: "Королева Мэл",
+                subtitle: "Правительница Альказака, Лидер «Детей Ночи»",
+                short: "19-летняя королева, рожденная как «системный баг». Одержима ненавистью к Лорин, не зная, что они родные сестры.",
+                full: `
+                    <p><strong>Внешность:</strong> 19 лет, растрепанные короткие черные волосы, рубиново-красные глаза с искрой Адского пламени.</p>
+                    <p><strong>Трагедия:</strong> Рождена внутри МоррисГрада как «дитя системного бага» из-за исчезновения бога Алзора. Уверена, что Лорин была любовницей ее отца и погубила его. На самом деле Лорин — ее родная сестра по отцу.</p>
+                `,
+                theme: "red",
+                tags: ["Альказак", "Дети Ночи", "Адское пламя", "Сестра", "Системный баг"]
+            },
+            {
+                id: "yfrite",
+                category: "characters",
+                name: "YFrite (Йфрайт)",
+                subtitle: "Член Совета Стражей Альказака, Приёмный Отец Лорин",
+                short: "Бывший лидер «Обители Тьмы». Единственный воин, чей клановый ранг напрямую равен его статусу в государстве.",
+                full: `
+                    <p><strong>Значение:</strong> Истинный духовный отец и наставник Лорин. Завещал Принцессе вести Летопись в магическом свитке, чтобы его следующее воплощение смогло быстро вернуть силу Адского пламени.</p>
+                `,
+                tags: ["Обитель Тьмы", "Альказак", "Страж", "Летопись"]
+            },
+            {
+                id: "veles",
+                category: "characters",
+                name: "Бог Велес",
+                subtitle: "Бог Нави, Магии и Мертвых, Страж V Порядка",
+                short: "Древнее божество и арбитр. Расследует появление Черных Пистолетов и разрушение цифрового кода.",
+                full: `
+                    <p><strong>Внешность:</strong> Исполинский старец в рогатом шлеме, шкурах и доспехах с рунами. Глаза светятся сине-зеленым светом магии Нави. Привел Лорин в Церковь для уничтожения кода Тифани.</p>
+                `,
+                tags: ["Божество", "Навь", "Страж V Порядка", "Церковь"]
+            },
+            {
+                id: "cute",
+                category: "characters",
+                name: "Служанка Кьют (Cute)",
+                subtitle: "Горничная Замка, Игрок-Аномалия",
+                short: "Готическая горничная, вызвавшая системный интерфейс прямо во время боя и забаффавшая огромный двуручник.",
+                full: `
+                    <p><strong>Описание:</strong> Аниме-девушка в черно-белой униформе готической горничной. В бою внезапно открыла голографический системный интерфейс и молотом забаффала гигантский меч. Возлюбленная Нофорда.</p>
+                `,
+                tags: ["Обитель смерти", "Аномалия", "Интерфейс", "Горничная"]
+            },
+
+            // FACTIONS & STATES
+            {
+                id: "obitel_smerti",
+                category: "factions",
+                name: "Клан «Обитель Смерти»",
+                subtitle: "Оплот Инквизиторов и Дэмиургов",
+                short: "Клан чистильщиков и хранителей знаний. Базируется в запущенном каменном замке на холме окраины Альказака.",
+                full: `
+                    <p><strong>Замок Крана:</strong> Старинный замок с 2 угловыми башнями, купленный Лидером Моррисом на последние клановые средства. Имеет библиотеку, кухню, 3 жилые комнаты и 5 заброшенных залов.</p>
+                    <p><strong>Состав:</strong> Morris (Лидер), Dar (Заместитель), Kavega (Высший Инквизитор), NoFourD (Детектив), Lorin Death (Принцесса), Petr (Рыцарь V), Rejuv & Yuri (Инквизиторы IV-V).</p>
+                    <p><strong>Правило:</strong> Ранг внутри клана НЕ равен репутации в государстве (исключение — YFrite).</p>
+                `
+            },
+            {
+                id: "alkazak",
+                category: "factions",
+                name: "Государство Альказак",
+                subtitle: "Оплот Огня, Силы и Запрета Магии",
+                short: "Суровое государство за фиолетовым куполом, омываемое океаном. Магия строго запрещена после Дня Появления Стихий.",
+                full: `
+                    <p><strong>Закон:</strong> В День Появления Стихий горожане устроили геноцид магов. Накрыто пульсирующим фиолетовым барьером. Правительница — Королева Мэл.</p>
+                `,
+                theme: "red"
+            },
+            {
+                id: "other_states",
+                category: "factions",
+                name: "Шесть Великих Держав МоррисГрада",
+                subtitle: "Ирсельнот, Аезер, Дарктерий, Драгонгард, Дэстри, Гринпойс",
+                short: "Государства, основанные Хранителями Черной Короны 5-го Порядка.",
+                full: `
+                    <ul>
+                        <li><strong>Ирсельнот:</strong> Магия Листвы (Скорость + Исцеление).</li>
+                        <li><strong>Аезер:</strong> Эфирное государство (Разрушение + Свет). Вырезано Листафом.</li>
+                        <li><strong>Дарктерий:</strong> Мир Теней (Ловкость + Тьма).</li>
+                        <li><strong>Драгонгард:</strong> Повелители Стихий (Скорость, Лечение, Разрушение, Защита).</li>
+                        <li><strong>Дэстри:</strong> Государство Разрушителей (Защита + Сила Огня).</li>
+                        <li><strong>Гринпойс:</strong> Истребление (Разрушение, Сила, Интеллект, Ловкость).</li>
+                    </ul>
+                `
+            },
+
+            // EVENTS
+            {
+                id: "day_elements",
+                category: "events",
+                name: "День Появления Стихий",
+                subtitle: "Великая Кровавая Катастрофа",
+                short: "День, когда выплеск стихий разорвал мир из-за безумия отца Лорин. В Альказаке начался геноцид магов.",
+                full: `<p>Биологический отец Лорин и Мэл надел Черную Корону и сошел с ума. Выплеск магии привёл к резне магов в Альказаке. В этот день впервые погиб Ликёр Владолларс.</p>`
+            },
+            {
+                id: "ice_dungeon",
+                category: "events",
+                name: "Рейд в Ледяной Данж (Дракон Харебра)",
+                subtitle: "Зачистка Кавеги и Королевы Мэл",
+                short: "Зачистка 11 ледяных боссов. Обнажение сгнивших костей дракона Харебры и проявление искр Адского пламени у Мэл.",
+                full: `<p>Кавега и Мэл прошли 11 ледяных боссов и разгромили древнего дракона Харебру, обнажив его замученные кости под пеплом. На привале у костра Кавега увидел искры Адского пламени у Мэл.</p>`
+            },
+            {
+                id: "church_inquiry",
+                category: "events",
+                name: "Допрос в Церкви Нави и Стирание Кода",
+                subtitle: "Казнь Тифани и Триумф Лорин",
+                short: "Лорин раздавила голографический таймер воскрешения голыми руками, влюбив в себя Ликёра.",
+                full: `<p>Бог Велес привел Лорин в Церковь. Когда Тифани обезглавили и над ней зажегся таймер воскрешения, Лорин сжала кулак и уничтожила интерфейс, безвозвратно стерев её душу.</p>`
+            },
+
+            // ANOMALIES & ARTIFACTS
+            {
+                id: "black_crown",
+                category: "anomalies",
+                name: "Чёрная Корона",
+                subtitle: "Высший Артефакт Мироздания",
+                short: "Дарует абсолютную власть над 7 стихиями. Доступна лишь Хранителю V Порядка.",
+                full: `<p>Высший реликварный предмет. Лишь маг, подчинивший все 7 стихий, может прикоснуться к ней. Свела с ума отца Лорин и Мэл.</p>`
+            },
+            {
+                id: "glitch_dagger",
+                category: "anomalies",
+                name: "Глитчный Ледяной Кинжал",
+                subtitle: "Оружие Ликёра Владолларса",
+                short: "Клинок из льда, покрытый пульсирующими черными цифровыми аномалиями. Ломает код игры.",
+                full: `<p>Артефакт, полученный Ликёром. Змеится цифровым вирусом, способным ломать таймеры воскрешения.</p>`,
+                theme: "cyan"
+            },
+            {
+                id: "black_guns",
+                category: "anomalies",
+                name: "Три Чёрных Пистолета",
+                subtitle: "Оружие из «Фрактала Бабочки»",
+                short: "Всего 3 единицы в мире. Пули убивают не только аватар в МоррисГраде, но и человека в реальном мире.",
+                full: `<p>Огнестрельное оружие из другого мира. 1-й пистолет изъят в Гринпойсе, 2-й был у отца Лорин, 3-й спрятан самой Лорин.</p>`
+            },
+            {
+                id: "drone_letter",
+                category: "anomalies",
+                name: "Бумажное Письмо из Реальности",
+                subtitle: "Послание Сына Мариэль",
+                short: "Настоящая физическая бумага, доставленная дроном сквозь купол с реального острова Альказак в Тихом океане.",
+                full: `<p>Доказывает, что реальный физический остров Альказак и цифровая матрица МоррисГрада слились.</p>`
+            }
+        ];
+
+        // CURRENT ACTIVE TAB
+        let currentTab = 'lore';
+
+        // RENDER SECTION CARDS
+        function renderCategoryCards() {
+            const categories = ['characters', 'factions', 'events', 'anomalies'];
+            categories.forEach(cat => {
+                const grid = document.getElementById(cat + 'Grid');
+                if (!grid) return;
+                const items = ALL_ARTICLES.filter(x => x.category === cat);
+                grid.innerHTML = items.map(item => createCardHTML(item)).join('');
+            });
+        }
+
+        function createCardHTML(item) {
+            return `
+                <div class="card ${item.theme === 'red' ? 'red-theme' : item.theme === 'cyan' ? 'cyan-theme' : ''}" onclick="openModal('${item.id}')">
+                    <div>
+                        <h3>${item.name}</h3>
+                        <div class="subtitle">${item.subtitle}</div>
+                        <p>${item.short}</p>
+                    </div>
+                    <div class="tags">
+                        ${item.tags ? item.tags.map(t => `<span class="tag">${t}</span>`).join('') : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // TAB SWITCHING
+        function switchTab(tabId) {
+            currentTab = tabId;
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResultsView').style.display = 'none';
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId);
+            });
+
+            document.querySelectorAll('.section-content').forEach(sec => {
+                sec.classList.toggle('active', sec.id === tabId);
+            });
+        }
+
+        // GLOBAL SEARCH ENGINE (FIXED & 100% RELIABLE)
+        function handleGlobalSearch() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const resultsView = document.getElementById('searchResultsView');
+            const resultsGrid = document.getElementById('searchResultsGrid');
+            const infoText = document.getElementById('searchInfoText');
+
+            if (!query) {
+                resultsView.style.display = 'none';
+                document.getElementById(currentTab).classList.add('active');
+                return;
+            }
+
+            // Hide all tab sections while search is active
+            document.querySelectorAll('.section-content').forEach(sec => sec.classList.remove('active'));
+            resultsView.style.display = 'block';
+
+            // Filter all articles in database
+            const matches = ALL_ARTICLES.filter(item => {
+                const searchCorpus = (item.name + ' ' + item.subtitle + ' ' + item.short + ' ' + item.full + ' ' + (item.tags ? item.tags.join(' ') : '')).toLowerCase();
+                return searchCorpus.includes(query);
+            });
+
+            if (matches.length > 0) {
+                infoText.innerText = `Найдено материалов: ${matches.length}`;
+                resultsGrid.innerHTML = matches.map(item => createCardHTML(item)).join('');
+            } else {
+                infoText.innerText = `По запросу «${query}» ничего не найдено.`;
+                resultsGrid.innerHTML = '<p style="color: var(--text-muted); grid-column: 1/-1;">Попробуйте изменить поисковый запрос (например: Лорин, Кинжал, Альказак, Велес).</p>';
+            }
+        }
+
+        // MODALS
+        function openModal(id) {
+            const item = ALL_ARTICLES.find(x => x.id === id);
+            if (!item) return;
+
+            document.getElementById('modalTitle').innerText = item.name;
+            document.getElementById('modalSubtitle').innerText = item.subtitle;
+            document.getElementById('modalBody').innerHTML = item.full;
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        // RELATIONS MAP
+        const relationsMap = {
+            lorin: `
+                <h3>Лорин Дэт / Мариэль — Карта Связей</h3>
+                <p><strong>Королева Мэл:</strong> Родная сестра по биологическому отцу. Мэл искренне ненавидит Лорин, считая её причиной безумия отца, а Лорин бережет сестру и скрывает истинное родство.</p>
+                <p><strong>Ликёр Владолларс:</strong> Преклоняется перед её способностью стирать цифровой код. Считает её единственным божеством в этом «театре».</p>
+                <p><strong>YFrite:</strong> Приёмный отец, передавший ей обязанность вести Летопись.</p>
+                <p><strong>Бог Велес:</strong> Древний союзник и арбитр, привлекающий её к ликвидации системных сбоев.</p>
+            `,
+            liker: `
+                <h3>Ликёр Владолларс — Карта Связей</h3>
+                <p><strong>Лорин Дэт:</strong> Объект его маньякального поклонения и исследований.</p>
+                <p><strong>Инквизиция:</strong> Презирает их как «актеров и фармеров». Убил инквизитора вирусным кодом с одного слова «Убить!».</p>
+            `,
+            kavega: `
+                <h3>Кавега («Пламя Нулевого Дня») — Карта Связей</h3>
+                <p><strong>Королева Мэл:</strong> Провел с ней рейд в Ледяной Данж и заметил фиолетовые искры Адского пламени в её душе.</p>
+                <p><strong>Нофорд:</strong> Близкий напарник, постоянно выслушивающий его шутки.</p>
+            `,
+            nofourd: `
+                <h3>Нофорд («Детектив Смерти») — Карта Связей</h3>
+                <p><strong>Служанка Кьют:</strong> Влюблен без памяти, планирует свадьбу.</p>
+                <p><strong>Листаф Элфдид:</strong> Гордится отцом, вырезавшим Аезер.</p>
+            `,
+            mel: `
+                <h3>Королева Мэл — Карта Связей</h3>
+                <p><strong>Лорин Дэт:</strong> Считает её врагом №1, не подозревая об их родстве.</p>
+                <p><strong>Кавега:</strong> Уважает его за молчаливую поддержку в походе.</p>
+            `,
+            yfrite: `
+                <h3>YFrite (Йфрайт) — Карта Связей</h3>
+                <p><strong>Лорин:</strong> Завещал ей собирать хроники в магический свиток.</p>
+            `,
+            cute: `
+                <h3>Служанка Кьют — Карта Связей</h3>
+                <p><strong>Нофорд:</strong> Принимает его ухаживания, вопреки диссонансу между замковой службой и историей Аезера.</p>
+            `,
+            petr: `
+                <h3>Пётр — Карта Связей</h3>
+                <p><strong>Клан «Обитель Смерти»:</strong> Могучая боевая опора, Рыцарь смерти V Порядка.</p>
+            `,
+            morris: `
+                <h3>Лидер Моррис — Карта Связей</h3>
+                <p><strong>Дар Дэмиург и Лорин:</strong> Руководит покупкой замка и финансовыми делами.</p>
+            `,
+            veles: `
+                <h3>Бог Велес — Карта Связей</h3>
+                <p><strong>Лорин & Ликёр:</strong> Контролирует баланс Нави и следит за системными аномалиями.</p>
+            `
+        };
+
+        function showRelation(id) {
+            document.getElementById('relationResult').innerHTML = relationsMap[id] || '<p>Данные о связях отсутствуют...</p>';
+        }
+
+        // INITIALIZATION
+        renderCategoryCards();
+    </script>
+</body>
+</html>
