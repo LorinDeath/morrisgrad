@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lorin Death — Line Realm</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@300;400;600;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #030206;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #ffffff;
+      touch-action: none;
+    }
+
+    #webgl-container, #css3d-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    #webgl-container {
+      z-index: 1;
+    }
+
+    #css3d-container {
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Защитный слой во время свайпа для 100% считывания движения над iframe */
+    #drag-shield {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 999;
+      display: none;
+      background: transparent;
+    }
+
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+
+    header {
+      pointer-events: auto;
+      background: rgba(10, 8, 20, 0.75);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      padding: 10px 20px;
+      border-radius: 14px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(168, 85, 247, 0.1);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-symbol {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+      font-family: 'Cinzel', serif;
+      font-weight: 800;
+      font-size: 14px;
+      color: #fff;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      background: linear-gradient(135deg, #ffffff 0%, #e9d5ff 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+    }
+
+    p.subtitle {
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 300;
+    }
+
+    .channel-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(99, 102, 241, 0.25) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #f3e8ff;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .channel-link:hover {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.45) 0%, rgba(99, 102, 241, 0.45) 100%);
+      border-color: #c084fc;
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+      color: #ffffff;
+    }
+
+    .controls-panel {
+      pointer-events: auto;
+      align-self: center;
+      background: rgba(10, 8, 22, 0.75);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      border-radius: 24px;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 50px rgba(168, 85, 247, 0.2);
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 18px;
+    }
+
+    .btn:hover {
+      background: #a855f7;
+      border-color: #d8b4fe;
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.7);
+      transform: scale(1.1);
+    }
+
+    .song-info {
+      text-align: center;
+      min-width: 240px;
+    }
+
+    .track-counter {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #c084fc;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .song-title {
+      font-family: 'Cinzel', serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 300px;
+    }
+
+    .song-meta {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .hints {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(10, 8, 20, 0.55);
+      backdrop-filter: blur(12px);
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 11px;
+      color: #94a3b8;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hint-badge {
+      background: rgba(168, 85, 247, 0.2);
+      color: #d8b4fe;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 10px;
+    }
+
+    /* 3D CARD STYLES */
+    .card-3d-element {
+      width: 384px;
+      height: 216px;
+      border-radius: 20px;
+      position: relative;
+      background: #090614;
+      border: 2px solid rgba(168, 85, 247, 0.5);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.3);
+      overflow: hidden;
+      transition: border-color 0.4s ease, box-shadow 0.4s ease;
+      cursor: grab;
+      pointer-events: auto !important;
+    }
+
+    .card-3d-element:active {
+      cursor: grabbing;
+    }
+
+    .card-3d-element.playing {
+      border-color: #00f0ff !important;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 50px rgba(0, 240, 255, 0.7) !important;
+      cursor: default;
+    }
+
+    .card-cover-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      pointer-events: none;
+    }
+
+    .card-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(5,3,15,0.85) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .card-title-badge {
+      font-family: 'Cinzel', serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+      background: rgba(10, 8, 20, 0.65);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      align-self: flex-start;
+    }
+
+    .card-play-center {
+      align-self: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(168, 85, 247, 0.85);
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.8);
+      transition: all 0.3s ease;
+    }
+
+    .card-play-center svg {
+      width: 26px;
+      height: 26px;
+      fill: #ffffff;
+      margin-left: 4px;
+    }
+
+    .card-footer-info {
+      font-size: 12px;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-iframe-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: none;
+      background: #000;
+      z-index: 5;
+      pointer-events: auto !important;
+    }
+
+    .card-iframe-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      pointer-events: auto !important;
+    }
+
+    .card-fallback-link {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      text-decoration: none;
+      z-index: 20;
+      border: 1px solid rgba(255,255,255,0.2);
+      pointer-events: auto;
+    }
+
+    @media (max-width: 768px) {
+      .ui-layer { padding: 12px; }
+      header { flex-wrap: wrap; gap: 8px; justify-content: center; text-align: center; }
+      p.subtitle { display: none; }
+      .controls-panel { width: 100%; justify-content: space-between; gap: 10px; padding: 10px 14px; }
+      .song-info { min-width: auto; }
+      .hints { display: none; }
+      .card-3d-element { width: 288px; height: 162px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="drag-shield"></div>
+  <div id="webgl-container"></div>
+  <div id="css3d-container"></div>
+
+  <div class="ui-layer">
+    <header>
+      <div class="brand">
+        <div class="brand-symbol">LD</div>
+        <h1>Lorin Death</h1>
+      </div>
+      <p class="subtitle">Листайте треки свайпом мышкой или кнопками. Нажмите на центральную карточку, чтобы включить трек.</p>
+      <a href="https://www.youtube.com/@Lorin_Death" target="_blank" class="channel-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 0 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        Открыть YouTube Канал
+      </a>
+    </header>
+
+    <div class="controls-panel">
+      <button class="btn" id="prev-btn" title="Предыдущая">‹</button>
+
+      <div class="song-info">
+        <div class="track-counter" id="track-num">ТРЕК 01 / 10</div>
+        <div class="song-title" id="active-title">Ты такой</div>
+        <div class="song-meta" id="active-meta">Lorin Death • 2025</div>
+      </div>
+
+      <button class="btn" id="next-btn" title="Следующая">›</button>
+    </div>
+
+    <div class="hints">
+      <span><span class="hint-badge">Свайп / Колесико</span> Прокрутка</span>
+      <span><span class="hint-badge">Клик</span> Воспроизвести</span>
+    </div>
+  </div>
+
+  <script>
+    const SONGS = [
+      { title: "Ты такой", id: "GCaYAiAq7Hw", meta: "Lorin Death • 2025", accent: "#a855f7" },
+      { title: "У смерти выходной", id: "TPhEdfIOPKE", meta: "Lorin Death • 2026", accent: "#ec4899" },
+      { title: "Почему?", id: "oeJR_RFcmR0", meta: "Lorin Death • 2026", accent: "#3b82f6" },
+      { title: "Альбом: DEATH", id: "RQWYtv_BD84", meta: "Lorin Death • Альбом", accent: "#ef4444" },
+      { title: "Нам нужна тишина", id: "zhpB5DJKfYY", meta: "Lorin Death • 2025", accent: "#10b981" },
+      { title: "Тяжело дышать", id: "AV2kay5V4ic", meta: "Lorin Death • Save and Load", accent: "#f59e0b" },
+      { title: "Я не жалею", id: "imvaNNDoKMk", meta: "Lorin Death / Мэл", accent: "#8b5cf6" },
+      { title: "Сойди с ума", id: "UPfNvj7cEzo", meta: "Lorin Death • 2026", accent: "#06b6d4" },
+      { title: "Жеводанский зверь", id: "_6AU7TAPEMc", meta: "Lorin Death ft. Yuki Renard", accent: "#d946ef" },
+      { title: "Save me, save yourself", id: "t_qgNKLXs9g", meta: "Lorin Death • 2025", accent: "#6366f1" }
+    ];
+
+    let currentIndex = 0;
+    let scene, camera, renderer, cssRenderer;
+    let cardsGroup = new THREE.Group();
+    const css3dObjects = [];
+    const hitPlanes = [];
+    const ytPlayers = {};
+
+    let emberPoints, lightPillarsGroup;
+
+    let isDragging = false;
+    let startX = 0;
+    let dragDistance = 0;
+    let startTargetX = 0;
+    let targetX = 0;
+    
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const CARD_SPACING = 3.2; 
+    let playingSongIndex = null;
+    const shield = document.getElementById('drag-shield');
+
+    function init() {
+      const webglContainer = document.getElementById('webgl-container');
+      const css3dContainer = document.getElementById('css3d-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x030206);
+      scene.fog = new THREE.FogExp2(0x05030a, 0.018);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 250);
+      camera.position.set(0, 0, 3.1);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.25;
+      webglContainer.appendChild(renderer.domElement);
+
+      cssRenderer = new THREE.CSS3DRenderer();
+      cssRenderer.setSize(window.innerWidth, window.innerHeight);
+      css3dContainer.appendChild(cssRenderer.domElement);
+
+      setupLighting();
+      createConcreteFloor();
+      createSpaceAtmosphere();
+
+      createSongCards3D();
+
+      scene.add(cardsGroup);
+
+      setupInteraction();
+
+      window.addEventListener('resize', onWindowResize);
+      setupUIEvents();
+
+      focusSong(0, false);
+
+      animate();
+    }
+
+    function setupLighting() {
+      const ambientLight = new THREE.AmbientLight(0x2a1b4e, 1.4);
+      scene.add(ambientLight);
+
+      const moonLight = new THREE.DirectionalLight(0xd8b4fe, 1.5);
+      moonLight.position.set(0, 20, 0);
+      scene.add(moonLight);
+
+      lightPillarsGroup = new THREE.Group();
+      const pillarGeo = new THREE.CylinderGeometry(0.1, 1.2, 28, 16, 1, true);
+
+      for (let i = 0; i < 8; i++) {
+        const pAngle = (i / 8) * Math.PI * 2;
+        const pRadius = 18;
+        const pillarMat = new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0xa855f7 : 0x3b82f6,
+          transparent: true,
+          opacity: 0.12,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide
+        });
+
+        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar.position.set(Math.sin(pAngle) * pRadius, 8, Math.cos(pAngle) * pRadius);
+        lightPillarsGroup.add(pillar);
+      }
+      scene.add(lightPillarsGroup);
+    }
+
+    function createConcreteFloor() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#14151b';
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      const imgData = ctx.getImageData(0, 0, 1024, 1024);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 35;
+        data[i] = Math.min(255, Math.max(0, data[i] + noise));
+        data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise));
+        data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise + 5));
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      ctx.strokeStyle = 'rgba(5, 5, 10, 0.75)';
+      ctx.lineWidth = 6;
+      const tileSize = 256;
+      for (let x = 0; x <= 1024; x += tileSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke();
+      }
+      for (let y = 0; y <= 1024; y += tileSize) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1024, y); ctx.stroke();
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(14, 14);
+
+      const floorGeo = new THREE.PlaneGeometry(140, 140);
+      const floorMat = new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.45,
+        metalness: 0.3,
+        bumpMap: texture,
+        bumpScale: 0.05
+      });
+
+      const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+      floorMesh.rotation.x = -Math.PI / 2;
+      floorMesh.position.y = -3.2;
+      scene.add(floorMesh);
+    }
+
+    function createSpaceAtmosphere() {
+      const starsGeo = new THREE.BufferGeometry();
+      const starsCount = 3500;
+      const pos = new Float32Array(starsCount * 3);
+      const colors = new Float32Array(starsCount * 3);
+
+      for (let i = 0; i < starsCount * 3; i += 3) {
+        pos[i] = (Math.random() - 0.5) * 220;
+        pos[i + 1] = Math.random() * 100 - 15;
+        pos[i + 2] = (Math.random() - 0.5) * 220;
+
+        const color = new THREE.Color().setHSL(0.7 + Math.random() * 0.2, 0.8, 0.7);
+        colors[i] = color.r;
+        colors[i+1] = color.g;
+        colors[i+2] = color.b;
+      }
+
+      starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      starsGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const starsMat = new THREE.PointsMaterial({
+        size: 0.25,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9
+      });
+
+      scene.add(new THREE.Points(starsGeo, starsMat));
+
+      const emberGeo = new THREE.BufferGeometry();
+      const emberCount = 600;
+      const emberPos = new Float32Array(emberCount * 3);
+      const emberVel = [];
+
+      for (let i = 0; i < emberCount * 3; i += 3) {
+        emberPos[i] = (Math.random() - 0.5) * 50;
+        emberPos[i + 1] = Math.random() * 14 - 3;
+        emberPos[i + 2] = (Math.random() - 0.5) * 30;
+
+        emberVel.push({
+          x: (Math.random() - 0.5) * 0.008,
+          y: 0.006 + Math.random() * 0.012,
+          z: (Math.random() - 0.5) * 0.008
+        });
+      }
+
+      emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
+      const emberMat = new THREE.PointsMaterial({
+        color: 0xc084fc,
+        size: 0.16,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending
+      });
+
+      emberPoints = new THREE.Points(emberGeo, emberMat);
+      emberPoints.userData = { velocities: emberVel };
+      scene.add(emberPoints);
+    }
+
+    function hexToRgba(hex, alpha) {
+      const c = new THREE.Color(hex);
+      return `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${alpha})`;
+    }
+
+    function createSongCards3D() {
+      const planeGeo = new THREE.PlaneGeometry(2.688, 1.512);
+
+      SONGS.forEach((song, index) => {
+        const x = index * CARD_SPACING;
+
+        const cardElem = document.createElement('div');
+        cardElem.className = 'card-3d-element';
+        cardElem.id = `card-elem-${index}`;
+
+        const accentHex = song.accent;
+        cardElem.style.borderColor = hexToRgba(accentHex, 0.6);
+        cardElem.style.boxShadow = `0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px ${hexToRgba(accentHex, 0.4)}`;
+
+        cardElem.innerHTML = `
+          <img class="card-cover-img" src="https://img.youtube.com/vi/${song.id}/hqdefault.jpg" alt="${song.title}" />
+          <div class="card-overlay" id="card-overlay-${index}">
+            <div class="card-title-badge">${song.title}</div>
+            <div class="card-play-center" style="background:${hexToRgba(accentHex, 0.85)}; box-shadow:0 0 25px ${hexToRgba(accentHex, 0.8)}">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <div class="card-footer-info">
+              <span>${song.meta}</span>
+              <span style="color:${accentHex}; font-weight:600;">Lorin Death</span>
+            </div>
+          </div>
+          <div class="card-iframe-container" id="iframe-box-${index}">
+            <a href="https://www.youtube.com/watch?v=${song.id}" target="_blank" class="card-fallback-link">YouTube ↗</a>
+            <div id="yt-player-${index}"></div>
+          </div>
+        `;
+
+        const cssObject = new THREE.CSS3DObject(cardElem);
+        cssObject.position.set(x, 0, 0);
+        cssObject.scale.set(0.007, 0.007, 0.007);
+
+        const hitMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
+        const hitMesh = new THREE.Mesh(planeGeo, hitMat);
+        hitMesh.position.set(x, 0, 0);
+        hitMesh.userData = { index: index };
+
+        cssObject.userData = {
+          song: song,
+          index: index,
+          baseX: x,
+          hitMesh: hitMesh
+        };
+
+        cardsGroup.add(cssObject);
+        cardsGroup.add(hitMesh);
+
+        css3dObjects.push(cssObject);
+        hitPlanes.push(hitMesh);
+      });
+    }
+
+    function setupInteraction() {
+      const onPointerDown = (e) => {
+        // Пропускаем взаимодействия с UI-панелью
+        if (e.target.closest('header') || e.target.closest('.controls-panel')) return;
+
+        isDragging = true;
+        dragDistance = 0;
+        startX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+        startTargetX = targetX;
+
+        // Включаем защитный щит, чтобы свайп не "ломался" об iframe
+        shield.style.display = 'block';
+      };
+
+      const onPointerMove = (e) => {
+        if (!isDragging) return;
+        const currentX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+        const deltaX = currentX - startX;
+        dragDistance = Math.abs(deltaX);
+
+        targetX = startTargetX + deltaX * 0.007;
+
+        const estimatedIndex = Math.min(Math.max(Math.round(-targetX / CARD_SPACING), 0), SONGS.length - 1);
+        if (estimatedIndex !== currentIndex) {
+          currentIndex = estimatedIndex;
+          updateUIInfo(currentIndex);
+        }
+      };
+
+      const onPointerUp = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        // Отключаем защитный щит
+        shield.style.display = 'none';
+
+        if (dragDistance < 8) {
+          checkCardClick(e);
+        } else {
+          const nearestIndex = Math.min(Math.max(Math.round(-targetX / CARD_SPACING), 0), SONGS.length - 1);
+          focusSong(nearestIndex, true);
+        }
+      };
+
+      window.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+
+      window.addEventListener('wheel', (e) => {
+        if (e.target.closest('header') || e.target.closest('.controls-panel')) return;
+        
+        const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (delta > 15) {
+          focusSong(currentIndex + 1);
+        } else if (delta < -15) {
+          focusSong(currentIndex - 1);
+        }
+      }, { passive: true });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') focusSong(currentIndex + 1);
+        if (e.key === 'ArrowLeft') focusSong(currentIndex - 1);
+      });
+    }
+
+    function checkCardClick(e) {
+      const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+      const clientY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+
+      if (!clientX || !clientY) return;
+
+      mouse.x = (clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(hitPlanes);
+
+      if (intersects.length > 0) {
+        const hitIndex = intersects[0].object.userData.index;
+        selectAndPlaySong(hitIndex);
+      }
+    }
+
+    function selectAndPlaySong(index) {
+      focusSong(index, true);
+
+      if (playingSongIndex !== null && playingSongIndex !== index) {
+        stopSong(playingSongIndex);
+      }
+
+      playSong(index);
+    }
+
+    function playSong(index) {
+      playingSongIndex = index;
+      const cardElem = document.getElementById(`card-elem-${index}`);
+      const overlay = document.getElementById(`card-overlay-${index}`);
+      const iframeBox = document.getElementById(`iframe-box-${index}`);
+
+      cardElem.classList.add('playing');
+      overlay.style.opacity = '0';
+      iframeBox.style.display = 'block';
+
+      if (!ytPlayers[index]) {
+        ytPlayers[index] = new YT.Player(`yt-player-${index}`, {
+          height: '100%',
+          width: '100%',
+          videoId: SONGS[index].id,
+          playerVars: {
+            'autoplay': 1,
+            'enablejsapi': 1,
+            'color': 'white',
+            'rel': 0,
+            'origin': window.location.origin
+          },
+          events: {
+            'onStateChange': (event) => onPlayerStateChange(event, index)
+          }
+        });
+      } else {
+        ytPlayers[index].playVideo();
+      }
+    }
+
+    function stopSong(index) {
+      if (ytPlayers[index] && typeof ytPlayers[index].stopVideo === 'function') {
+        ytPlayers[index].stopVideo();
+      }
+
+      const cardElem = document.getElementById(`card-elem-${index}`);
+      const overlay = document.getElementById(`card-overlay-${index}`);
+      const iframeBox = document.getElementById(`iframe-box-${index}`);
+
+      if (cardElem) cardElem.classList.remove('playing');
+      if (overlay) overlay.style.opacity = '1';
+      if (iframeBox) iframeBox.style.display = 'none';
+
+      if (playingSongIndex === index) playingSongIndex = null;
+    }
+
+    function onPlayerStateChange(event, index) {
+      if (event.data === YT.PlayerState.ENDED) {
+        stopSong(index);
+        const nextIndex = (index + 1) % SONGS.length;
+        selectAndPlaySong(nextIndex);
+      }
+    }
+
+    function focusSong(index, animateScene = true) {
+      currentIndex = Math.min(Math.max(index, 0), SONGS.length - 1);
+      updateUIInfo(currentIndex);
+
+      targetX = -currentIndex * CARD_SPACING;
+    }
+
+    function updateUIInfo(index) {
+      const song = SONGS[index];
+      document.getElementById('track-num').innerText = `ТРЕК ${String(index + 1).padStart(2, '0')} / ${SONGS.length}`;
+      document.getElementById('active-title').innerText = song.title;
+      document.getElementById('active-meta').innerText = song.meta;
+    }
+
+    function setupUIEvents() {
+      document.getElementById('prev-btn').addEventListener('click', () => {
+        if (currentIndex > 0) selectAndPlaySong(currentIndex - 1);
+      });
+
+      document.getElementById('next-btn').addEventListener('click', () => {
+        if (currentIndex < SONGS.length - 1) selectAndPlaySong(currentIndex + 1);
+      });
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      cssRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate(time) {
+      requestAnimationFrame(animate);
+
+      TWEEN.update();
+      const timeSec = time * 0.001;
+
+      cardsGroup.position.x += (targetX - cardsGroup.position.x) * 0.12;
+
+      css3dObjects.forEach((obj) => {
+        const worldX = obj.position.x + cardsGroup.position.x;
+        const distFromCenter = Math.abs(worldX);
+        
+        const scale = Math.max(0.007, 0.009 - distFromCenter * 0.0008);
+        obj.scale.set(scale, scale, scale);
+        
+        const zPos = Math.max(-2, -distFromCenter * 0.3);
+        obj.position.z = zPos;
+        if (obj.userData.hitMesh) obj.userData.hitMesh.position.z = zPos;
+
+        const rotY = -worldX * 0.04;
+        obj.rotation.y = rotY;
+        if (obj.userData.hitMesh) obj.userData.hitMesh.rotation.y = rotY;
+      });
+
+      if (emberPoints) {
+        const positions = emberPoints.geometry.attributes.position.array;
+        const vels = emberPoints.userData.velocities;
+
+        for (let i = 0; i < vels.length; i++) {
+          const idx = i * 3;
+          positions[idx] += vels[i].x;
+          positions[idx + 1] += vels[i].y;
+          positions[idx + 2] += vels[i].z;
+
+          if (positions[idx + 1] > 12) {
+            positions[idx + 1] = -3.2;
+            positions[idx] = (Math.random() - 0.5) * 50;
+            positions[idx + 2] = (Math.random() - 0.5) * 30;
+          }
+        }
+        emberPoints.geometry.attributes.position.needsUpdate = true;
+      }
+
+      if (lightPillarsGroup) {
+        lightPillarsGroup.rotation.y = timeSec * 0.03;
+      }
+
+      renderer.render(scene, camera);
+      cssRenderer.render(scene, camera);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
