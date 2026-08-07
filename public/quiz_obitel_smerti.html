@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Викторина: Вселенная «Обитель смерти» & МоррисГрад</title>
+    <style>
+        :root {
+            --bg-color: #0b0914;
+            --card-bg: rgba(22, 19, 34, 0.88);
+            --card-border: rgba(157, 78, 221, 0.3);
+            --text-main: #f1f1f8;
+            --text-muted: #a0a0ba;
+            --accent-crimson: #ff2a5f;
+            --accent-purple: #9d4edd;
+            --accent-gold: #ffc857;
+            --accent-cyan: #00f5d4;
+            --correct-bg: rgba(0, 245, 212, 0.15);
+            --correct-border: #00f5d4;
+            --incorrect-bg: rgba(255, 42, 95, 0.15);
+            --incorrect-border: #ff2a5f;
+            --font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(157, 78, 221, 0.18) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(255, 42, 95, 0.15) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(11, 9, 20, 0.85) 0%, #0b0914 100%);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            z-index: 10;
+            position: relative;
+        }
+
+        .quiz-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7),
+                        0 0 35px rgba(157, 78, 221, 0.2);
+            transition: all 0.4s ease;
+        }
+
+        .screen {
+            display: none;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .screen.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(157, 78, 221, 0.15);
+            border: 1px solid rgba(157, 78, 221, 0.4);
+            border-radius: 30px;
+            font-size: 0.85rem;
+            color: var(--accent-purple);
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .brand-badge::before {
+            content: '✦';
+            color: var(--accent-gold);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #ffffff 0%, #d8b4fe 50%, var(--accent-crimson) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.description {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .quiz-modes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+
+        .mode-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 22px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-card:hover {
+            background: rgba(157, 78, 221, 0.12);
+            border-color: var(--accent-purple);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(157, 78, 221, 0.25);
+        }
+
+        .mode-card.marathon-card {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(157, 78, 221, 0.2) 0%, rgba(255, 42, 95, 0.2) 100%);
+            border: 1px solid rgba(255, 42, 95, 0.4);
+        }
+
+        .mode-card.marathon-card:hover {
+            background: linear-gradient(135deg, rgba(157, 78, 221, 0.35) 0%, rgba(255, 42, 95, 0.35) 100%);
+            box-shadow: 0 12px 30px rgba(255, 42, 95, 0.35);
+        }
+
+        .mode-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .mode-icon {
+            font-size: 1.8rem;
+        }
+
+        .mode-count {
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            background: rgba(255, 200, 87, 0.15);
+            border: 1px solid rgba(255, 200, 87, 0.3);
+            color: var(--accent-gold);
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .mode-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .mode-desc {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 16px 32px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-crimson) 100%);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(255, 42, 95, 0.35);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(255, 42, 95, 0.5);
+            filter: brightness(1.1);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .quiz-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-purple), var(--accent-crimson), var(--accent-gold));
+            transition: width 0.4s ease;
+            border-radius: 10px;
+        }
+
+        .category-tag {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-gold);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .question-text {
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1.45;
+            margin-bottom: 25px;
+            color: #fff;
+        }
+
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .option-btn {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+
+        .option-btn:hover:not(.disabled) {
+            background: rgba(157, 78, 221, 0.15);
+            border-color: rgba(157, 78, 221, 0.5);
+            transform: translateX(4px);
+        }
+
+        .option-letter {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: var(--accent-purple);
+            flex-shrink: 0;
+            transition: all 0.25s ease;
+        }
+
+        .option-btn:hover:not(.disabled) .option-letter {
+            background: var(--accent-purple);
+            color: #fff;
+        }
+
+        .option-btn.correct {
+            background: var(--correct-bg) !important;
+            border-color: var(--correct-border) !important;
+            color: #fff;
+        }
+
+        .option-btn.correct .option-letter {
+            background: var(--correct-border);
+            color: #000;
+        }
+
+        .option-btn.incorrect {
+            background: var(--incorrect-bg) !important;
+            border-color: var(--incorrect-border) !important;
+            color: #fff;
+            opacity: 0.85;
+        }
+
+        .option-btn.incorrect .option-letter {
+            background: var(--incorrect-border);
+            color: #fff;
+        }
+
+        .option-btn.disabled {
+            cursor: default;
+        }
+
+        .explanation-box {
+            display: none;
+            background: rgba(0, 0, 0, 0.45);
+            border-left: 4px solid var(--accent-purple);
+            border-radius: 0 12px 12px 0;
+            padding: 20px;
+            margin-bottom: 25px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .explanation-box.correct-box {
+            border-left-color: var(--correct-border);
+        }
+
+        .explanation-box.incorrect-box {
+            border-left-color: var(--incorrect-border);
+        }
+
+        .explanation-header {
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .explanation-box.correct-box .explanation-header { color: var(--correct-border); }
+        .explanation-box.incorrect-box .explanation-header { color: var(--incorrect-border); }
+
+        .explanation-text {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+
+        .results-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .score-circle-container {
+            width: 170px;
+            height: 170px;
+            margin: 0 auto 20px auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score-circle-svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .score-circle-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.08);
+            stroke-width: 10;
+        }
+
+        .score-circle-progress {
+            fill: none;
+            stroke: url(#scoreGradient);
+            stroke-width: 10;
+            stroke-linecap: round;
+            stroke-dasharray: 440;
+            stroke-dashoffset: 440;
+            transition: stroke-dashoffset 1.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        .score-number {
+            position: absolute;
+            font-size: 2.3rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .rank-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-gold);
+            margin-bottom: 8px;
+        }
+
+        .rank-subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .review-section {
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+
+        .review-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .review-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .review-list::-webkit-scrollbar { width: 6px; }
+        .review-list::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+        .review-list::-webkit-scrollbar-thumb { background: rgba(157, 78, 221, 0.4); border-radius: 10px; }
+
+        .review-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 14px 18px;
+            font-size: 0.9rem;
+        }
+
+        .review-item.is-correct { border-left: 4px solid var(--correct-border); }
+        .review-item.is-incorrect { border-left: 4px solid var(--accent-crimson); }
+
+        .review-q-title {
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .review-ans {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .review-ans span { font-weight: 600; }
+        .text-correct { color: var(--correct-border); }
+        .text-incorrect { color: var(--accent-crimson); }
+
+        .results-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 600px) {
+            .quiz-card { padding: 25px 20px; }
+            h1 { font-size: 1.8rem; }
+            .question-text { font-size: 1.15rem; }
+            .quiz-modes-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="container">
+        <div class="quiz-card">
+
+            <div id="start-screen" class="screen active">
+                <div class="brand-badge">Летопись «Обитель смерти»</div>
+                <h1>Испытание МоррисГрада</h1>
+                <p class="description">
+                    Выберите раздел викторины для проверки ваших знаний об Альказаке, легендарных персонажах, мироустройстве и сломанном коде системы:
+                </p>
+
+                <div class="quiz-modes-grid">
+                    <div class="mode-card" onclick="selectQuizMode('world')">
+                        <div>
+                            <div class="mode-header">
+                                <span class="mode-icon">📜</span>
+                                <span class="mode-count">15 вопросов</span>
+                            </div>
+                            <div class="mode-title">Мироустройство</div>
+                            <div class="mode-desc">Законы МоррисГрада, структура государств, свойства стихий и тайны квантового купола.</div>
+                        </div>
+                    </div>
+
+                    <div class="mode-card" onclick="selectQuizMode('history')">
+                        <div>
+                            <div class="mode-header">
+                                <span class="mode-icon">⚔️</span>
+                                <span class="mode-count">30 вопросов</span>
+                            </div>
+                            <div class="mode-title">События и история</div>
+                            <div class="mode-desc">Ключевые сражения, аномалии системы, исторические драмы и поворотные моменты.</div>
+                        </div>
+                    </div>
+
+                    <div class="mode-card" onclick="selectQuizMode('characters')">
+                        <div>
+                            <div class="mode-header">
+                                <span class="mode-icon">👑</span>
+                                <span class="mode-count">30 вопросов</span>
+                            </div>
+                            <div class="mode-title">Персонажи</div>
+                            <div class="mode-desc">Герои, Боги, Инквизиторы и жители МоррисГрада. Внешность, оружие и их роли.</div>
+                        </div>
+                    </div>
+
+                    <div class="mode-card marathon-card" onclick="selectQuizMode('all')">
+                        <div>
+                            <div class="mode-header">
+                                <span class="mode-icon">🔥</span>
+                                <span class="mode-count">75 вопросов</span>
+                            </div>
+                            <div class="mode-title">Полный Марафон (Все категории)</div>
+                            <div class="mode-desc">Пройдите все 75 вопросов подряд и докажите статус Хранителя Черной Короны V Порядка!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="quiz-screen" class="screen">
+                <div class="quiz-meta">
+                    <button class="btn-secondary" onclick="returnToStart()">← Меню</button>
+                    <span id="question-counter">Вопрос 1 из 15</span>
+                    <span id="score-counter">Счет: 0</span>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+
+                <div id="category-tag" class="category-tag">Категория</div>
+                <div id="question-text" class="question-text">Текст вопроса...</div>
+
+                <div id="options-container" class="options-list"></div>
+
+                <div id="explanation-box" class="explanation-box">
+                    <div id="explanation-header" class="explanation-header">
+                        <span id="explanation-icon">✓</span>
+                        <span id="explanation-title">Правильно!</span>
+                    </div>
+                    <div id="explanation-text" class="explanation-text">Пояснение лора...</div>
+                </div>
+
+                <button id="next-btn" class="btn-primary" style="display: none;">
+                    <span>Следующий вопрос</span>
+                    <span>→</span>
+                </button>
+            </div>
+
+            <div id="results-screen" class="screen">
+                <div class="brand-badge">Результаты Летописи</div>
+
+                <div class="results-header">
+                    <div class="score-circle-container">
+                        <svg class="score-circle-svg" viewBox="0 0 160 160">
+                            <defs>
+                                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#9d4edd" />
+                                    <stop offset="50%" stop-color="#ff2a5f" />
+                                    <stop offset="100%" stop-color="#ffc857" />
+                                </linearGradient>
+                            </defs>
+                            <circle class="score-circle-bg" cx="80" cy="80" r="70" />
+                            <circle id="score-circle-progress" class="score-circle-progress" cx="80" cy="80" r="70" />
+                        </svg>
+                        <div id="score-number" class="score-number">0%</div>
+                    </div>
+
+                    <div id="rank-title" class="rank-title">Высший Инквизитор</div>
+                    <div id="rank-subtitle" class="rank-subtitle">Вы верно ответили на 0 вопросов</div>
+                </div>
+
+                <div class="review-section">
+                    <div class="review-title">
+                        <span>📋</span>
+                        <span>Разбор ответов:</span>
+                    </div>
+                    <div id="review-list" class="review-list"></div>
+                </div>
+
+                <div class="results-actions">
+                    <button id="restart-btn" class="btn-primary" style="flex: 1;">
+                        <span>Пройти заново</span>
+                        <span>↻</span>
+                    </button>
+                    <button class="btn-secondary" onclick="returnToStart()" style="flex: 1;">
+                        <span>В главное меню</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const quizzesData = {"world": {"title": "📜 Мироустройство", "description": "Законы МоррисГрада, структура государств, свойства стихий и тайны квантового купола.", "icon": "📜", "questions": [{"question": "Какого ранга необходимо достичь, чтобы получить официальное право основывать собственное государство в МоррисГраде?", "options": ["Высший Дэмиург четвертого ранга", "Хранитель Черной Короны пятого порядка", "Повелитель Эфира шестого порядка", "Инквизитор Смерти первого ранга"], "correct": 1, "explanation": "Согласно законам МоррисГрада, создавать государства позволено лишь тем, кто достиг вершины власти и заслужил статус «Хранитель Черной Короны пятого порядка»."}, {"question": "Какими тремя путями можно заработать репутацию и ранги в мире МоррисГрада?", "options": ["Упорные тренировки, идеальное исполнение или экономика", "Магические ритуалы, системные глиф-коды или арена", "Поклонение Черной Короне, фарм боссов или дипломатия", "Убийство хранителей, алхимия или прохождение данжей"], "correct": 0, "explanation": "Летописи гласят, что ранги репутации в государстве и мире даются за три пути достижения: через упорные тренировки, идеальное исполнение или развитую экономику."}, {"question": "Кто из магов имеет право дотронуться до Черной Короны и познать тайны мироздания?", "options": ["Лишь тот, кто уничтожил хотя бы одного бессмертного босса", "Лишь высший маг, подчинивший себе абсолютно все стихии МоррисГрада", "Лидер клана с высшим экономическим рейтингом", "Рожденный в реальности человек с кодом Первоисточника"], "correct": 1, "explanation": "Лишь высший маг, преодолевший свои пределы и подчинивший все стихии мира, способен притронуться к Черной Короне."}, {"question": "Какое государство МоррисГрада является оплотом Лиственной магии, где ценятся скорость и исцеление?", "options": ["Аезер", "Ирсельнот", "Дарктерий", "Дэстри"], "correct": 1, "explanation": "Ирсельнот — государство Лиственной магии, дарующее небывалую скорость и глубокое исцеление."}, {"question": "Какими фундаментальными свойствами обладают маги Эфира из государства Аезер?", "options": ["Скорость и исцеление", "Защита и сила", "Разрушение и свет", "Ловкость и скрытность"], "correct": 2, "explanation": "Аезер — родина магов Эфира, несущих разрушение и свет."}, {"question": "Какое государство МоррисГрада считается обителью Мира теней, скрывающего в ночи ловкость?", "options": ["Дарктерий", "Драгонгард", "Альказак", "Ирсельнот"], "correct": 0, "explanation": "Дарктерий — государство Мира теней, где главной характеристикой воинов является ловкость."}, {"question": "Какое единственное государство объединило в себе сразу четыре свойства: скорость, лечение, разрушение и защиту?", "options": ["Дэстри", "Драгонгард", "Аезер", "Альказак"], "correct": 1, "explanation": "Драгонгард — оплот Повелителей стихий, сочетающий скорость, лечение, разрушение и защиту."}, {"question": "Какая характеристика и стихия питают магов Альказака?", "options": ["Адское пламя, питающее интеллект и проницательность", "Лиственная магия, питающая ловкость", "Эфир, питающий физическую силу", "Теневая аура, питающая скорость"], "correct": 0, "explanation": "Альказак — оплот Адского пламени, где пламя питает интеллект и проницательность своего носителя."}, {"question": "Сколько всего уникальных черных пистолетов из другого мира существует в МоррисГраде?", "options": ["1 пистолет", "3 пистолета", "5 пистолетов", "10 пистолетов"], "correct": 1, "explanation": "В мире МоррисГрада существует ровно 3 черных пистолета, попавших из реального мира через разрыв «Фрактал бабочки»."}, {"question": "Чем смертельно опасны пули из черных пистолетов «Фрактала бабочки»?", "options": ["Они обнуляют уровень игрока до нуля", "Наделены Черной магией и убивают человека даже в реальном мире", "Блокируют использование системного интерфейса на месяц", "Замораживают цифровой код в лед"], "correct": 1, "explanation": "Пули из этих пистолетов наделены эффектом Черной магии — при попадании они убивают игрока и в физической реальности."}, {"question": "Какое ключевое правило действует в отношении ранга персонажа внутри клана?", "options": ["Ранг в клане автоматически равен репутации в государстве", "Ранг в клане не равен репутации в государстве", "Ранг в клане определяет количество жизней", "Ранг в клане дается только за покупки в магазине"], "correct": 1, "explanation": "Важное системное уточение летописи: ранг внутри клана НЕ равен репутации в государстве (единственным исключением был YFrite)."}, {"question": "Чем является физический остров Альказак в реальном мире Земли?", "options": ["Секретной военной базой в Тихом океане под квантовым куполом", "Затонувшим материком Атлантиды", "Космической станцией на орбите", "Мифическим фантомом, существующим только на сервере"], "correct": 0, "explanation": "Остров Альказак физически существует в Тихом океане на Земле, накрытый непроницаемым для людей квантовым куполом."}, {"question": "Каким уникальным проницаемым свойством обладает купол Альказака?", "options": ["Он пропускает звуковые волны, но задерживает свет", "Он может физически пропускать дронов и мелкие предметы из реальности в игру", "Он растворяет любое оружие из металла", "Он телепортирует игроков в Аезер"], "correct": 1, "explanation": "Купол проницаем для техники: дрон из реальности смог сбросить капсулу с реальным бумажным письмом прямо в руки Мариэль."}, {"question": "Какая особенность памяти отличает обычных людей от системных аватаров в представлении Ликёра?", "options": ["Память обычных людей стирается каждый день", "Память людей тускнеет с каждым воспоминанием, а у аватар зашит неизменяемый код-слепок", "Аватары помнят все свои прошлые 100 жизней", "Люди могут читать мысли друг друга"], "correct": 1, "explanation": "Человеческая память тускнеет и затирается, а в голову аватара Божество швыряет сухой, мертвый, неизменяемый код-слепок прошлого."}, {"question": "Какое государство в МоррисГраде славится магами Разрушителями, полагающимися на защиту и силу?", "options": ["Дэстри", "Дарктерий", "Ирсельнот", "Аезер"], "correct": 0, "explanation": "Дэстри — оплот Разрушителей, чья магия опирается на сокрушительную силу и непробиваемую защиту."}]}, "history": {"title": "⚔️ События и история", "description": "Ключевые сражения, аномалии системы, исторические драмы и поворотные моменты летописи.", "icon": "⚔️", "questions": [{"question": "Сколько времени потребовалось, чтобы полностью обнулить и стереть из кода древнего бессмертного босса Харебру?", "options": ["5 минут", "2 часа", "3 дня", "Ровно 12 секунд"], "correct": 0, "explanation": "Битва с легендарным ледяным драконом Хареброй продлилась всего 5 минут: Черная магия вскрыла кости под пеплом и полностью обнулила босса."}, {"question": "Какое потрясающее действие совершила Лорин (Мариэль) в Церкви на глазах у Велеса и стражей?", "options": ["Призвала армию теневых рыцарей", "Голыми руками раздавила цифровой код системы воскрешения", "Запечатала ворота Альказака навечно", "Уничтожила Черную Корону"], "correct": 1, "explanation": "Лорин подошла к алтарю и просто раздавила цифровой код системы голыми руками, вызвав шок у всех присутствующих."}, {"question": "Зачем Ликёр Владолларс убил своего сопартийца Тифани в данже ледяным кинжалом?", "options": ["Ради украшения из ее инвентаря", "Чтобы проверить, как система отреагирует на урон глитчным вирусом", "По приказу Высшего Инквизитора Кавеги", "Это была случайная ошибка в бою"], "correct": 1, "explanation": "Ликёр совершил это изощренное убийство с одной целью — проведать, как механический код мира переварит вирусный урон глитча."}, {"question": "Чем служанка Кьют шокировала Инквизиторов Кавегу и Нофорда во время внезапной атаки?", "options": ["Она открыла системное окно интерфейса и забаффала двуручник кузнечным молотом", "Она превратилась в огненного феникса", "Она сбежала сквозь текстуры стены", "Она применила магию Эфира V порядка"], "correct": 0, "explanation": "Служанка Кьют внезапно вызвала системное окно и применила кузнечный молот для усиления своего огромного меча, нарушив привычный баланс."}, {"question": "Какой предмет доказал Мариэль, что граница между виртуальным МоррисГрадом и реальностью физически проницаема?", "options": ["Настоящее бумажное письмо от 25-летнего сына, доставленное дроном", "Флешка с исходным кодом игры", "Обломок мобильного телефона", "Печатная газета из Нью-Йорка"], "correct": 0, "explanation": "Мариэль получила физическое бумажное письмо от своего сына из реального мира, которое дрон смог сбросить через купол Альказака."}, {"question": "Как Ликёр убил тяжело бронированного воина-инквизитора в своем доме?", "options": ["Вогнал осколок зеркала под броню и выкрикнул системную команду «Убить!»", "Застрелил его из черного пистолета", "Сжег его Адским пламенем", "Сбросил на него каменную плиту"], "correct": 0, "explanation": "Оставив искаженный код зеркала в теле воина, Ликёр указал на него пальцем и выкрикнул команду «Убить!», вызвав мгновенный цифровой скрежет и смерть."}, {"question": "Какими словами инквизиторы отказались добивать раненого Ликёра, вызвав у него приступ дикого хохота?", "options": ["«Этот не маг. Он больше похож на НПС. Награды за него не будет»", "«Он слишком слаб, оставь его крысам»", "«Его душа принадлежит Черной Короне»", "«У нас закончились патроны»"], "correct": 0, "explanation": "Слова «Он похож на НПС, награды не будет» окончательно убедили Ликёра в том, что он лишь безликая декорация в чужом спектакле."}, {"question": "Каким образом жестокий инквизитор расправился с Ликёром в конце первой истории?", "options": ["Нанес сокрушительный удар боевым молотом по голове Ликёра", "Застрелил его из черного пистолета", "Запечатал его код в куполе Альказака", "Отравил его ядом Аезера"], "correct": 0, "explanation": "Второй воин ворвался в комнату и сокрушительным ударом боевым молотом проломил череп Ликёра, повторив предсказание из зеркала."}, {"question": "Какую страшную трагедию совершил отец Нофорда (Листаф Элфдид) в прошлом?", "options": ["Полностью вырезал клан Эзэра и залил государство Аезер ядом", "Разрушил Замок Обители смерти", "Украл все три черных пистолета", "Запечатал бога Велеса в Нави"], "correct": 0, "explanation": "Листаф Элфдид прославился тем, что жестоко вырезал клан Эзэра и затопил Аезер смертоносным ядом."}, {"question": "Что произошло с финансовым состоянием клана «Обитель смерти» после приобретения собственного Замка?", "options": ["Казна клана полностью опустела, вынудив всех непрерывно фармить", "Клан стал самым богатым в МоррисГраде", "Велес подарил им золото из Нави", "Они получили налоговые льготы от Альказака"], "correct": 0, "explanation": "Покупка Замка опустошила казну до нуля, из-за чего члены клана были вынуждены постоянно искать ресурсы и фармить данжи."}, {"question": "Откуда был изъят самый первый черный пистолет из «Фрактала бабочки»?", "options": ["Забран у преступника из Гринпойса во время атаки на арену", "Найден на дне океана у Альказака", "Выбит из бессмертного босса Харебры", "Куплен на аукционе в Аезере"], "correct": 0, "explanation": "Первый черный пистолет изъяли у опасного преступника из Гринпойса при нападении на арену."}, {"question": "Кому был передан второй из трех черных пистолетов?", "options": ["Отцу Лорин (YFrite)", "Высшему Инквизитору Кавеге", "Королеве Мэл", "Богу Велесу"], "correct": 0, "explanation": "Второй пистолет был передан воину YFrite — приемному отцу Принцессы Лорин."}, {"question": "Какую организацию в реальном мире упоминает сын Мариэль в своем письме?", "options": ["«Светлое будущее»", "«Черная Корона»", "«Дети Ночи»", "«Авангард Земли»"], "correct": 0, "explanation": "Сын Мариэль работает в юридической организации «Светлое будущее», помогающей жертвам виртуального инцидента."}, {"question": "Какое трагическое событие произошло в День Появления стихий?", "options": ["Магический выплеск унес жизни новорожденных, а младенцев с магией уничтожала Инквизиция", "Купол Альказака полностью схлопнулся", "Все боссы вышли из данжей на улицы", "Исчезли все запасы золота"], "correct": 0, "explanation": "День Появления стихий запомнился кровавой хаотичной святой охотой, когда новорожденных носителей магии жестоко уничтожали."}, {"question": "Как Велес отреагировал на то, что Лорин разрушила код системы в Церкви?", "options": ["Низко поклонился ей вслед, а затем объявленный допрос завершил", "Атаковал её заклинанием Нави", "Приказал стражам запереть её в темнице", "Засмеялся и поздравил с победой"], "correct": 0, "explanation": "Велес проявил глубочайшее уважение, низко поклонившись Принцессе, после чего жестко рявкнул стражам: «Допрос окончен!»."}, {"question": "Что увидели воины под слоем пепла после гибели ледяного дракона Харебры?", "options": ["Изломанные кости, доказавшие многократные пытки босса в прошлых зачистках", "Сундук с золотыми монетами", "Яйцо нового дракона", "Пустой цифровой воздух"], "correct": 0, "explanation": "Под обгоревшей чешуей обнажились изломанные кости монстра, раскрывшие ужас бесконечных мучений боссов в фарм-данжах."}, {"question": "Какое чувство охватило Кавегу при столкновении с реальным военным у границы купола Альказака?", "options": ["Парализующий первобытный ужас из-за внезапного отключения Адского пламени", "Безудержная ярость и жажда боя", "Равнодушие и скука", "Желание забрать его оружие"], "correct": 0, "explanation": "У границы купола магия Кавеги перестала работать, и Высший Инквизитор впервые почувствовал леденящий беспомощный страх."}, {"question": "Как Нофорд представил служанку Кьют членам клана в Замке?", "options": ["Объявил её своей невестой, на которой собирается жениться", "Назвал её новой пленницей Обители", "Представил её как личного телохранителя Мориса", "Сказал, что она лазутчик из Аезера"], "correct": 0, "explanation": "Жизнерадостный Нофорд гордо привел Кьют и во всеуслышание заявил о своем намерении жениться на ней."}, {"question": "Какое угощение предложила Дар шокированной служанке Кьют в Замке?", "options": ["Горячую свежеиспеченную лепешку", "Кубок с ядом Аезера", "Эликсир маны", "Жареное мясо дракона"], "correct": 0, "explanation": "Дар тепло встретила горничную и протянула ей горячую лепешку, разрядив напряженную обстановку."}, {"question": "Какую тайну о своем происхождении скрывает Лорин от своей сестры Мэл?", "options": ["Что они родные сестры по отцу, а не враги", "Что она на самом деле является богиней Нави", "Что она лично создала купол Альказака", "Что ее рапира принадлежала Королеве Мэл"], "correct": 0, "explanation": "Лорин знает, что они с Мэл — сестры, но молчит, чтобы не сломать окончательно хрупкую психику правительницы Альказака."}, {"question": "Почему Ликёр Владолларс называет память людей и аватаров «дешевой фальшивкой»?", "options": ["Потому что понял, что его воспоминания — готовый сухой скрипт, загруженный в череп", "Потому что прочитал об этом в газете", "Потому что ему об этом рассказал Нофорд", "Потому что забыл свое имя"], "correct": 0, "explanation": "Ликёр осознал, что его воспоминания идеальны и неизменны, как мертвая программа, а не естественный человеческий опыт."}, {"question": "Какое оружие использовала Охотница в белой броне Нерскиллы против Харебры?", "options": ["Черное пламя пустоты", "Ледяной кинжал Ликёра", "Двуручный молот Инквизиции", "Рапиру с нефритовым эфесом"], "correct": 0, "explanation": "Загадочная Охотница призвала Черное пламя пустоты, чтобы вскрыть непробиваемую чешую дракона."}, {"question": "Что случилось с безумным магом, надевшим Черную корону в древности?", "options": ["Он окончательно сошел с ума, а его гибель разорвала ткань реальности", "Он стал вечным правителем Ирсельнота", "Он превратился в ледяного дракона", "Он телепортировался на Землю"], "correct": 0, "explanation": "Маг сошел с ума от колоссальной силы, а его смерть спровоцировала катастрофический День Появления стихий."}, {"question": "Какую песню тихо напевал Ликёр, лежа на холодном полу каморки под шум дождя?", "options": ["«Грустно улыбаться смерти в лицо... Говорить о любви...»", "«Песня Черной Королевы»", "«Гимн Альказака»", "«Пламя нулевого дня»"], "correct": 0, "explanation": "Ликёр тихо пропел строчки «Грустно улыбаться смерти в лицо... Говорить о любви...», почувствовав тепло системного бага тоски."}, {"question": "Какая аномалия осталась под броней воина-инквизитора после удара стекляшкой?", "options": ["Пульсирующий черный глитч (вирусный код зеркала)", "Кристалл Эфира", "Огненная печать Кавеги", "Светящаяся руна Нави"], "correct": 0, "explanation": "Под доспехом воина извивалась и пульсировала черная цифровая аномалия глитча, внедренная Ликёром."}, {"question": "С каким расчетом Ликёр принял решение умереть под молотом инквизитора?", "options": ["С интересом ученого-маньяка, желающего узнать предсказание зазеркалья", "От трусости и отчаяния", "Чтобы спасти свою материнскую фигуру", "Потому что надеялся на помощь Кавеги"], "correct": 0, "explanation": "Ликёр встретил смерть с маниакальным восторгом исследователя, проверяющего сценарий своего Создателя."}, {"question": "Что произошло с королевой Мэл во время разговора с Высшим Инквизитором Кавегой?", "options": ["Она проявила смущение и румянец под его пристальным взглядом", "Она вызвала его на дуэль на рапирах", "Она запела песню Черной Королевы", "Она приказала казнить его на месте"], "correct": 0, "explanation": "Суровая «железная королева» Мэл неожиданно смутилась под пытливым взглядом Кавеги, выдавая свои истинные эмоции."}, {"question": "Почему Принцесса Лорин обмакивает перо в чернила и ведет магический свиток летописи?", "options": ["Это последняя воля её отца YFrite — собирать знания для его будущего воплощения", "Ей за это платит Бог Велес", "Она пытается продать свиток в Аезере", "Ей скучно в покоях Замка"], "correct": 0, "explanation": "Запись летописи — священный долг Лорин перед умершим отцом, чтобы его новое воплощение быстрее обрело силу."}, {"question": "Каким образом Кьют смогла использовать тяжелый кузнечный молот в бою?", "options": ["Забаффала свое оружие через вызванное окно системного интерфейса", "Ей помог Инквизитор Нофорд", "Она выпила зелье силы Дэстри", "Кузнечный молот был сделан из легкого дерева"], "correct": 0, "explanation": "Кьют применила интерфейс прямо в бою, наложив усиление кузнечным молотом на свой огромный меч."}, {"question": "Какая атмосфера царила в каморке Инквизиторов, когда туда впервые привели Кьют?", "options": ["Очаровательный хаос: суровые мужчины в доспехах спокойно ели шаурму и лепешки", "Мрачный траур и молчание", "Пыточная камера с кандалами", "Праздничный бал с танцами"], "correct": 0, "explanation": "Каморка встретила Кьют уютным хаосом, где грозные воины клана с аппетитом уплетали шаурму."}]}, "characters": {"title": "👑 Персонажи", "description": "Герои, Боги, Инквизиторы и жители МоррисГрада. Внешность, характер, оружие и роли.", "icon": "👑", "questions": [{"question": "Какой титул и роль занимает Morris Demiurge в клане «Обитель Смерти»?", "options": ["Лидер и Владыка клана", "Высший Инквизитор", "Рыцарь смерти пятого порядка", "Хранитель библиотеки"], "correct": 0, "explanation": "Morris Demiurge — основатель, Лидер и бессменный Владыка клана «Обитель Смерти»."}, {"question": "Кем приходится Dar Demiurge лидеру клана Моррису?", "options": ["Заместителем лидера и правой рукой", "Младшей сестрой", "Главным врагом из Альказака", "Служанкой в Замке"], "correct": 0, "explanation": "Dar Demiurge — Правая рука Лидера и Заместитель Владыки клана."}, {"question": "Какое известное прозвище носит Высший Инквизитор Кавега?", "options": ["«Пламя нулевого дня»", "«Детектив смерти»", "«Рыцарь Нави»", "«Тень Альказака»"], "correct": 0, "explanation": "Кавега прозван «Пламенем нулевого дня» благодаря виртуозному владению Адским пламенем."}, {"question": "Какое прозвище закрепилось за Инквизитором Нофордом?", "options": ["«Детектив смерти»", "«Пламя нулевого дня»", "«Разрушитель Эфира»", "«Черный Клинок»"], "correct": 0, "explanation": "Инквизитор NoFourD носит гордое прозвище «Детектив смерти»."}, {"question": "Кем является Lorin Death в иерархии клана «Обитель Смерти»?", "options": ["Принцессой клана, дочерью Дэмиургов", "Главным лекарем Ирсельнота", "Королевой Альказака", "Служанкой Кавеги"], "correct": 0, "explanation": "Lorin Death — Принцесса клана «Обитель Смерти» и родная дочь Дэмиургов."}, {"question": "Как изменяются внешность и цвет волос Принцессы, когда контролем над телом овладевает Мариэль?", "options": ["Глаза вспыхивают красным, волосы становятся багровыми с фиолетовыми кончиками", "Волосы чернеют, глаза становятся синими", "Волосы становятся седыми, глаза светятся золотом", "Внешность вообще не меняется"], "correct": 0, "explanation": "При пробуждении Мариэль радужка глаз вспыхивает красным, волосы наливаются багрянцем, а кончики становятся фиолетовыми."}, {"question": "В какую одежду предпочитает переодеваться Мариэль после принятия контроля над телом?", "options": ["В строгую белую академическую форму Дэмиургов", "В тяжелый стальной доспех Рыцаря смерти", "В черное платье с вуалью", "В кожаную броню теневого охотника"], "correct": 0, "explanation": "Мариэль с удовольствием облачается в строгий белоснежный академический костюм Дэмиургов."}, {"question": "Из каких невероятных сплавленных Адским пламенем материалов выкован эфес любимой рапиры Лорин?", "options": ["Обсидиан и нефрит", "Золото и серебро", "Алмаз и рубин", "Кость дракона и сталь"], "correct": 0, "explanation": "Эфес рапиры Лорин выкован из невозможного сплава обсидиана и нефрита, скрепленных жаром Адского пламени."}, {"question": "Сколько лет Королеве Мэл и какова природа её появления в МоррисГраде?", "options": ["19 лет, она рождена внутри игры как «системный баг» и не знает реальности", "40 лет, она бывший профессор программирования", "100 лет, она древнее божество Нави", "15 лет, она приехала из Аезера"], "correct": 0, "explanation": "Юной правительнице Альказака Мэл 19 лет, она родилась внутри игрового мира как дитя системного бага."}, {"question": "Какая уникальная особенность горит в глубине красных рубиновых глаз Мэл?", "options": ["Крошечные фиолетовые огоньки — искра Адского пламени отца", "Золотые системные символы", "Черные глитчи", "Светящиеся руны Лиственной магии"], "correct": 0, "explanation": "В ее рубиновых глазах таятся фиолетовые искорки — унаследованный отблеск Адского пламени."}, {"question": "Как описывается привычный облик безумца Ликёра Владолларса?", "options": ["Бледная кожа, растрепанные голубо-зеленые волосы, сузившиеся до точек маниакальные зрачки", "Высокий блондин с карими глазами в золотых доспехах", "Седой старец в черной мантии с посохом", "Мускулистый брюнет с длинной бородой"], "correct": 0, "explanation": "Облик Ликёра запоминается бледной кожей, растрепанной голубо-зеленой шевелюрой и безумными зрачками-иголками."}, {"question": "Какое опасное аномальное оружие держит в руках Ликёр?", "options": ["Ледяной кинжал с черными пульсирующими глитчами", "Огненный двуручный меч", "Арбалет магов Эфира", "Копье Инквизитора"], "correct": 0, "explanation": "Ликёр орудует кинжалом из изогнутого льда, лезвие которого искажено черными глитчами."}, {"question": "Кем является Велес в сакральном пантеоне МоррисГрада?", "options": ["Бог Нави, Магии и Мертвых, Хранитель Черной Короны пятого порядка", "Создатель государства Дэстри", "Первый Высший Инквизитор Аезера", "Лидер клана «Дети ночи»"], "correct": 0, "explanation": "Велес — почитаемый Бог Нави, Магии и Мертвых, наделенный статусом Хранителя пятого порядка."}, {"question": "В какой одежде ходит служанка Кьют по Замку Обители смерти?", "options": ["В черно-белой готической униформе горничной", "В боевых латах Инквизиции", "В белом академическом костюме", "В шелковом платье магов Ирсельнота"], "correct": 0, "explanation": "Кьют выделяется своей аккуратной готической черно-белой униформой горничной."}, {"question": "Какое звание носит Petr в клане «Обитель Смерти»?", "options": ["Рыцарь смерти пятого порядка", "Высший Инквизитор четвертого порядка", "Страж Альказака", "Заместитель лидера"], "correct": 0, "explanation": "Пётр занимает почтенный пост Рыцаря смерти пятого порядка."}, {"question": "Какая характерная деталь доспехов отличает Рыцаря смерти Петра?", "options": ["Отсутствие массивных наплечников на тяжелой темной броне", "Золотые крылья за спиной", "Шлем с рогами быка", "Плащ из меха белого волка"], "correct": 0, "explanation": "Отличительной чертой тяжелой брони Петра является отсутствие традиционных громоздких наплечников."}, {"question": "Кто такой YFrite и какова его роль в судьбе Лорин?", "options": ["Бывший лидер клана «Обитель Тьмы», член совета Стражей Альказака и приемный отец Лорин", "Высший Бог Аезера", "Главный кузнец Драгонгарда", "Второй брат Мориса"], "correct": 0, "explanation": "YFrite — легендарный воин, бывший лидер «Обители Тьмы» и заботливый приемный отец Принцессы."}, {"question": "Кто такой Листаф Элфдид?", "options": ["Отец Нофорда, жестокий Инквизитор, вырезавший клан Эзэра", "Лекарь из Ирсельнота", "Младший сын Мариэль", "Страж купола Альказака"], "correct": 0, "explanation": "Листаф Элфдид — грозный отец Нофорда, прославившийся своей беспощадностью."}, {"question": "Какое звание занимает Rejuv в клане «Обитель Смерти»?", "options": ["Инквизитор смерти пятого порядка", "Заместитель лидера", "Рыцарь смерти второго порядка", "Хранитель Арены"], "correct": 0, "explanation": "Rejuv носит титул Инквизитора смерти пятого порядка."}, {"question": "Какое звание принадлежит Yuri в составе Обители?", "options": ["Инквизитор смерти четвёртого порядка", "Высший Дэмиург", "Страж Альказака", "Рыцарь Нави"], "correct": 0, "explanation": "Yuri является Инквизитором смерти четвёртого порядка."}, {"question": "Как выглядит фантомная девушка, стоящая за спиной отражения Ликёра в зеркале?", "options": ["Короткие черные волосы с кроваво-красными кончиками и печальные фиолетовые глаза", "Длинные золотые волосы и зеленые глаза", "Рыжие волосы и красные глаза", "Белые волосы с синими кончиками"], "correct": 0, "explanation": "Таинственная девушка в зеркале обладает черными волосами с красными кончиками и фиолетовыми глазами."}, {"question": "Сколько лет сыну Мариэль, проживающему за пределами цифрового мира?", "options": ["25 лет", "18 лет", "10 лет", "30 лет"], "correct": 0, "explanation": "Сын Мариэль — взрослый 25-летний юноша, оставшийся в реальном мире."}, {"question": "Кто такие Алзи и Лэйр?", "options": ["Влюбленные из личного виртуального мира Мэлвелдил", "Двое инквизиторов из Аезера", "Боги Лиственной магии", "Стражи ворот Альказака"], "correct": 0, "explanation": "Алзи и Лэйр — герои романтической истории в созданном мире Мэлвелдил."}, {"question": "Какое физическое увечье имеет Лэйр в реальном мире?", "options": ["Она прикована к инвалидному креслу и не чувствует ног", "Она полностью слепа", "У нее нет правой руки", "Она лишена слуха"], "correct": 0, "explanation": "В реальности Лэйр прикована к инвалидному креслу-каталке, ощущая радость движения лишь в Мэлвелдиле."}, {"question": "Кто был главой погибшего клана из государства Аезер?", "options": ["Езэр (Ezær)", "Листаф", "Велес", "Кавега"], "correct": 0, "explanation": "Езэр (Ezær) возглавлял клан Аезера до трагического уничтожения."}, {"question": "Куда сбежала выжившая возлюбленная Езэра после геноцида в Аезере?", "options": ["В Дарктерий", "В Альказак", "В Ирсельнот", "На Землю"], "correct": 0, "explanation": "Девушке удалось укрыться во тьме теневого государства Дарктерий."}, {"question": "В какую броню облачена загадочная Охотница, стиравшая Харебру?", "options": ["В белую броню монстра Нерскиллы", "В доспехи магов Эфира", "В манчатый саван Нави", "В золотую броню Дэстри"], "correct": 0, "explanation": "Охотница была облачена в экзотический белоснежный доспех монстра Нерскиллы."}, {"question": "Каким характером обладает Инквизитор NoFourD в повседневной жизни?", "options": ["Жизнерадостный, громкий, кокетливый, обожающий пошутить", "Угрюмый, молчаливый и жестокий", "Холодный и трусливый", "Застенчивый молчун"], "correct": 0, "explanation": "Нофорд отличается жизнерадостным и кокетливым нравом, оживляющим Замок Обители."}, {"question": "Какое отношение демонстрирует Мариэль к постоянному кокетству Нофорда?", "options": ["Строгое, вежливое, но холодное требование соблюдать границы", "Влюбленность и отвесы смешками", "Ярость и приказы о казни", "Полное игнорирование"], "correct": 0, "explanation": "Мариэль вежливо, но твердо просит Нофорда покинуть покои, сохраняя дистанцию."}, {"question": "Каким словом Ликёр охарактеризовал Божество, написавшее для него судьбу маньяка?", "options": ["«Бездарный графоман, создающий дешевое кино»", "«Великий гений литературы»", "«Мудрый создатель»", "«Справедливый судья»"], "correct": 0, "explanation": "Ликёр с садистской иронией возмущается безвкусием Создателя, называя его бездарным графоманом."}]}};
+
+        let currentQuizData = [];
+        let currentQuizModeKey = '';
+        let currentQuestionIdx = 0;
+        let score = 0;
+        let userAnswers = [];
+
+        const startScreen = document.getElementById('start-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultsScreen = document.getElementById('results-screen');
+
+        const nextBtn = document.getElementById('next-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        const questionCounter = document.getElementById('question-counter');
+        const scoreCounter = document.getElementById('score-counter');
+        const progressBar = document.getElementById('progress-bar');
+        const categoryTag = document.getElementById('category-tag');
+        const questionText = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+
+        const explanationBox = document.getElementById('explanation-box');
+        const explanationIcon = document.getElementById('explanation-icon');
+        const explanationTitle = document.getElementById('explanation-title');
+        const explanationText = document.getElementById('explanation-text');
+
+        const scoreNumber = document.getElementById('score-number');
+        const scoreCircleProgress = document.getElementById('score-circle-progress');
+        const rankTitle = document.getElementById('rank-title');
+        const rankSubtitle = document.getElementById('rank-subtitle');
+        const reviewList = document.getElementById('review-list');
+
+        // Sound FX Synthesizer
+        class SoundFX {
+            constructor() { this.ctx = null; }
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playClick() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.05);
+            }
+            playCorrect() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime, osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.1);
+                osc.frequency.setValueAtTime(783.99, now + 0.2);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(now + 0.4);
+            }
+            playIncorrect() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime, osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(110, now + 0.25);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(now + 0.25);
+            }
+        }
+
+        const audio = new SoundFX();
+
+        // Fisher-Yates shuffle helper
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function showScreen(screen) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            setTimeout(() => screen.classList.add('active'), 50);
+        }
+
+        function selectQuizMode(modeKey) {
+            audio.init();
+            audio.playClick();
+            currentQuizModeKey = modeKey;
+            currentQuizData = [];
+
+            let rawQuestions = [];
+            if (modeKey === 'all') {
+                for (let k in quizzesData) {
+                    quizzesData[k].questions.forEach(q => {
+                        rawQuestions.push({...q, categoryName: quizzesData[k].title});
+                    });
+                }
+            } else {
+                quizzesData[modeKey].questions.forEach(q => {
+                    rawQuestions.push({...q, categoryName: quizzesData[modeKey].title});
+                });
+            }
+
+            // Тасовка порядка вопросов
+            shuffleArray(rawQuestions);
+
+            // Тасовка вариантов ответов внутри каждого вопроса
+            currentQuizData = rawQuestions.map(q => {
+                const shuffledOpts = [...q.options];
+                const correctAnswerText = shuffledOpts[q.correct];
+                
+                shuffleArray(shuffledOpts);
+                const newCorrectIdx = shuffledOpts.indexOf(correctAnswerText);
+
+                return {
+                    ...q,
+                    options: shuffledOpts,
+                    correct: newCorrectIdx
+                };
+            });
+
+            currentQuestionIdx = 0;
+            score = 0;
+            userAnswers = [];
+            showScreen(quizScreen);
+            loadQuestion();
+        }
+
+        function returnToStart() {
+            audio.playClick();
+            scoreCircleProgress.style.strokeDashoffset = 440;
+            showScreen(startScreen);
+        }
+
+        function loadQuestion() {
+            const q = currentQuizData[currentQuestionIdx];
+            
+            questionCounter.innerText = `Вопрос ${currentQuestionIdx + 1} из ${currentQuizData.length}`;
+            scoreCounter.innerText = `Счет: ${score}`;
+            const progressPercent = ((currentQuestionIdx) / currentQuizData.length) * 100;
+            progressBar.style.width = `${progressPercent}%`;
+
+            categoryTag.innerText = q.categoryName;
+            questionText.innerText = q.question;
+
+            explanationBox.style.display = 'none';
+            nextBtn.style.display = 'none';
+
+            optionsContainer.innerHTML = '';
+            const letters = ['A', 'B', 'C', 'D'];
+
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerHTML = `
+                    <span class="option-letter">${letters[idx]}</span>
+                    <span>${opt}</span>
+                `;
+                btn.addEventListener('click', () => handleAnswer(idx));
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selectedIdx) {
+            const q = currentQuizData[currentQuestionIdx];
+            const allBtns = optionsContainer.querySelectorAll('.option-btn');
+
+            allBtns.forEach(btn => btn.classList.add('disabled'));
+
+            const isCorrect = (selectedIdx === q.correct);
+            userAnswers.push({
+                questionIdx: currentQuestionIdx,
+                selected: selectedIdx,
+                isCorrect: isCorrect
+            });
+
+            if (isCorrect) {
+                score++;
+                audio.playCorrect();
+                allBtns[selectedIdx].classList.add('correct');
+                explanationBox.className = 'explanation-box correct-box';
+                explanationIcon.innerText = '✓';
+                explanationTitle.innerText = 'Правильно!';
+            } else {
+                audio.playIncorrect();
+                allBtns[selectedIdx].classList.add('incorrect');
+                allBtns[q.correct].classList.add('correct');
+                explanationBox.className = 'explanation-box incorrect-box';
+                explanationIcon.innerText = '✕';
+                explanationTitle.innerText = 'Неверно!';
+            }
+
+            scoreCounter.innerText = `Счет: ${score}`;
+            explanationText.innerText = q.explanation;
+            explanationBox.style.display = 'block';
+
+            nextBtn.style.display = 'inline-flex';
+        }
+
+        function nextQuestion() {
+            audio.playClick();
+            currentQuestionIdx++;
+            if (currentQuestionIdx < currentQuizData.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            showScreen(resultsScreen);
+
+            const percentage = Math.round((score / currentQuizData.length) * 100);
+            scoreNumber.innerText = `${percentage}%`;
+
+            const circumference = 440;
+            const offset = circumference - (percentage / 100) * circumference;
+            setTimeout(() => {
+                scoreCircleProgress.style.strokeDashoffset = offset;
+            }, 100);
+
+            rankSubtitle.innerText = `Вы верно ответили на ${score} из ${currentQuizData.length} вопросов`;
+
+            if (percentage === 100) {
+                rankTitle.innerText = "👑 Хранитель Черной Короны V Порядка";
+                rankTitle.style.color = "#ffc857";
+            } else if (percentage >= 75) {
+                rankTitle.innerText = "🔥 Высший Инквизитор Обители Смерти";
+                rankTitle.style.color = "#ff2a5f";
+            } else if (percentage >= 50) {
+                rankTitle.innerText = "🛡️ Хранитель Купола Альказака";
+                rankTitle.style.color = "#9d4edd";
+            } else {
+                rankTitle.innerText = "⚙️ Сломанный НПС Системы";
+                rankTitle.style.color = "#a0a0ba";
+            }
+
+            reviewList.innerHTML = '';
+            userAnswers.forEach((ans, i) => {
+                const q = currentQuizData[ans.questionIdx];
+                const item = document.createElement('div');
+                item.className = `review-item ${ans.isCorrect ? 'is-correct' : 'is-incorrect'}`;
+
+                item.innerHTML = `
+                    <div class="review-q-title">${i + 1}. ${q.question}</div>
+                    <div class="review-ans">
+                        Ваш ответ: <span class="${ans.isCorrect ? 'text-correct' : 'text-incorrect'}">${q.options[ans.selected]}</span>
+                        ${!ans.isCorrect ? `<br>Правильный ответ: <span class="text-correct">${q.options[q.correct]}</span>` : ''}
+                    </div>
+                `;
+                reviewList.appendChild(item);
+            });
+        }
+
+        nextBtn.addEventListener('click', nextQuestion);
+        restartBtn.addEventListener('click', () => {
+            selectQuizMode(currentQuizModeKey);
+        });
+
+        // Background Particles
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = (Math.random() - 0.5) * 0.4;
+                this.speedY = -Math.random() * 0.6 - 0.2;
+                this.alpha = Math.random() * 0.5 + 0.2;
+                this.color = Math.random() > 0.5 ? '#9d4edd' : '#ff2a5f';
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.y < 0 || this.x < 0 || this.x > canvas.width) {
+                    this.reset();
+                    this.y = canvas.height + 10;
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        for (let i = 0; i < 50; i++) particles.push(new Particle());
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animateParticles);
+        }
+
+        animateParticles();
+    </script>
+</body>
+</html>
