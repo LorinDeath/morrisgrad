@@ -1,12 +1,16 @@
 import { defineConfig } from 'astro/config';
-import cloudflare from '@astrojs/cloudflare'; // Оставляем этот!
+import cloudflare from '@astrojs/cloudflare';
 import clerk from '@clerk/astro';
+import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  // 1. Устанавливаем режим сервера (как просит инструкция)
-  output: 'server', 
+  // Указываем домен для sitemap
+  site: 'https://morrisgrad.com/',
 
-  // 2. Используем ТВОЙ адаптер Cloudflare, а не Node
+  // Указываем режим сервера
+  output: 'server',
+
+  // Адаптер Cloudflare
   adapter: cloudflare({
     imageService: 'compile',
     platformProxy: {
@@ -14,6 +18,9 @@ export default defineConfig({
     },
   }),
 
-  // 3. Добавляем интеграцию Clerk
-  integrations: [clerk()],
+  // Все интеграции в одном массиве
+  integrations: [
+    clerk(),
+    sitemap(),
+  ],
 });
