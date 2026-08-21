@@ -36,9 +36,8 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
   body { background: var(--bg-dark); color: var(--text); padding: 12px; display: flex; justify-content: center; min-height: 100vh; }
-  #app { width: 100%; max-width: 800px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 0 45px rgba(0,0,0,0.9); display: flex; flex-direction: column; }
+  #app { width: 100%; max-width: 820px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 0 45px rgba(0,0,0,0.9); display: flex; flex-direction: column; }
 
-  /* Header */
   header { background: #0a0714; padding: 12px 16px; border-bottom: 2px solid var(--accent); display: flex; justify-content: space-between; align-items: center; }
   .logo { font-size: 16px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; }
   .logo span { color: var(--accent); }
@@ -47,17 +46,14 @@
   .gold-badge { color: var(--gold); border-color: rgba(245, 158, 11, 0.4); }
   .talent-badge { color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
 
-  /* Navigation Bar */
   nav { display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border); overflow-x: auto; }
   nav button { flex: 1; min-width: 70px; padding: 11px 4px; background: none; border: none; color: var(--text-muted); font-size: 11px; font-weight: 700; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; }
   nav button:hover { color: #fff; background: rgba(255,255,255,0.02); }
   nav button.active { color: #fff; border-bottom-color: var(--accent); background: rgba(157, 92, 246, 0.12); }
 
-  /* Views */
   .view { padding: 14px; display: none; }
   .view.active { display: block; }
 
-  /* Typography & Grids */
   h2 { font-size: 13px; margin-bottom: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
@@ -66,7 +62,6 @@
   .stat-card .label { color: var(--text-muted); margin-bottom: 2px; font-size: 10px; text-transform: uppercase; }
   .stat-card .value { font-size: 13px; font-weight: 800; color: #fff; }
 
-  /* Bars */
   .progress-wrap { width: 100%; height: 8px; background: #130e1f; border-radius: 4px; overflow: hidden; border: 1px solid #261c38; position: relative; margin-top: 3px; }
   .progress-fill { height: 100%; width: 100%; transition: width 0.1s linear; }
   .fill-hp { background: linear-gradient(90deg, #b91c1c, var(--hp)); }
@@ -97,7 +92,6 @@
   .bg-q-7 { background: rgba(6, 182, 212, 0.2); color: var(--q7); }
   .bg-q-8 { background: rgba(225, 29, 72, 0.25); color: var(--q8); }
 
-  /* Cards */
   .gear-card, .item-card, .shop-card { background: var(--bg-panel); border: 1px solid var(--border); border-left-width: 4px; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; }
   .gear-card.empty { border-style: dashed; opacity: 0.5; border-left-width: 1px; }
   .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
@@ -108,7 +102,13 @@
   .affix-chip { background: var(--bg-panel-light); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; color: #cbd5e1; }
   .affix-chip.negative { color: #f87171; border-color: rgba(239,68,68,0.4); }
 
-  /* Buttons */
+  /* Extended Item Tooltip with Gear Comparison */
+  #item-tooltip { position: fixed; background: var(--bg-panel); border: 1px solid var(--border-highlight); padding: 10px; border-radius: 8px; z-index: 999; display: none; pointer-events: none; font-size: 11px; max-width: 320px; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+  .compare-delta { font-weight: bold; margin-left: 3px; }
+  .compare-pos { color: #34d399; }
+  .compare-neg { color: #f87171; }
+  .compare-eq { color: var(--text-muted); }
+
   .btn { padding: 7px 11px; background: var(--accent); color: #fff; border: none; border-radius: 5px; font-weight: 700; cursor: pointer; font-size: 11px; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
   .btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
   .btn:disabled { background: #20182d !important; color: #4e4660 !important; cursor: not-allowed; transform: none !important; filter: none !important; }
@@ -125,7 +125,6 @@
 
   select { width: 100%; padding: 7px; background: var(--bg-panel); border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 8px; }
 
-  /* Talents */
   .tree-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
   .tree-branch { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
   .tree-branch h4 { font-size: 11px; color: #fff; margin-bottom: 6px; text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 4px; text-transform: uppercase; }
@@ -134,18 +133,17 @@
   .skill-manager-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
   .skill-equipped-badge { font-size: 9px; background: #059669; color: #fff; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
 
-  /* Multi-Enemy Combat Arena */
-  .enemies-arena { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin-bottom: 8px; }
-  .combat-enemy-box { background: var(--bg-panel); border: 2px solid var(--border); border-radius: 8px; padding: 8px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; }
+  .enemies-arena { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
+  .combat-enemy-box { background: var(--bg-panel); border: 2px solid var(--border); border-radius: 8px; padding: 6px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; }
   .combat-enemy-box:hover { border-color: var(--border-highlight); }
   .combat-enemy-box.selected-target { border-color: #ec4899; box-shadow: 0 0 12px rgba(236, 72, 153, 0.5); background: rgba(236, 72, 153, 0.06); }
-  .combat-enemy-box.dead { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+  .combat-enemy-box.dead { opacity: 0.25; filter: grayscale(1); pointer-events: none; }
   
-  .target-indicator { position: absolute; top: 4px; right: 4px; font-size: 9px; font-weight: 900; background: #ec4899; color: #fff; padding: 1px 4px; border-radius: 3px; display: none; }
+  .target-indicator { position: absolute; top: 4px; right: 4px; font-size: 8px; font-weight: 900; background: #ec4899; color: #fff; padding: 1px 3px; border-radius: 3px; display: none; }
   .combat-enemy-box.selected-target .target-indicator { display: block; }
 
-  .combatant-avatar { width: 44px; height: 44px; border-radius: 50%; background: #0b0716; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin: 0 auto 4px; }
-  .combatant-avatar svg { width: 28px; height: 28px; }
+  .combatant-avatar { width: 38px; height: 38px; border-radius: 50%; background: #0b0716; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin: 0 auto 3px; }
+  .combatant-avatar svg { width: 24px; height: 24px; }
 
   .charge-panel { background: #090612; border: 1px solid var(--border-highlight); border-radius: 8px; padding: 8px; text-align: center; margin-bottom: 8px; }
   .combat-log { background: #030206; border: 1px solid var(--border); border-radius: 6px; padding: 8px; height: 110px; overflow-y: auto; font-family: monospace; font-size: 10px; display: flex; flex-direction: column; gap: 3px; }
@@ -156,13 +154,8 @@
   .log-enemy { color: #f87171; }
   .log-aoe { color: #c084fc; font-weight: bold; }
 
-  /* Bestiary Modal & Loot Stats Preview Card */
   .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100; padding: 15px; }
-  .modal-content { background: var(--bg-card); border: 1px solid var(--border-highlight); border-radius: 8px; width: 100%; max-width: 580px; max-height: 85vh; overflow-y: auto; padding: 14px; box-shadow: 0 0 35px rgba(0,0,0,0.95); }
-  
-  .loot-preview-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
-  .loot-preview-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; margin-bottom: 4px; }
-  .loot-stats-row { display: flex; flex-wrap: wrap; gap: 4px; font-size: 10px; }
+  .modal-content { background: var(--bg-card); border: 1px solid var(--border-highlight); border-radius: 8px; width: 100%; max-width: 600px; max-height: 85vh; overflow-y: auto; padding: 14px; box-shadow: 0 0 35px rgba(0,0,0,0.95); }
 </style>
 </head>
 <body>
@@ -175,7 +168,7 @@
     </div>
     <div class="header-badges">
       <div class="badge">Ур. <span id="hdr-lvl">1</span></div>
-      <div class="badge talent-badge">✨ Очки: <span id="hdr-tp">0</span> TP</div>
+      <div class="badge talent-badge">✨ TP: <span id="hdr-tp">0</span></div>
       <div class="badge gold-badge">🪙 <span id="hdr-gold">0</span></div>
     </div>
   </header>
@@ -190,11 +183,13 @@
     <button data-tab="combat" onclick="switchTab('combat')" id="nav-combat-btn" style="display:none; color:#f87171;">⚔ БОЙ!</button>
   </nav>
 
-  <!-- ==================== TAB 1: PROFILE ==================== -->
   <div id="view-profile" class="view active">
     <h2>
       <span>Характеристики Героя</span>
-      <button class="btn btn-sm btn-heal" onclick="usePotion()">🌿 Настойка (<span id="potions-count">3</span>)</button>
+      <div>
+        <button class="btn btn-sm btn-heal" onclick="usePotion()">🌿 Настойка (<span id="potions-count">3</span>)</button>
+        <button class="btn btn-sm btn-danger" onclick="resetSaveData()" title="Полный сброс сохранения">💾 Сброс</button>
+      </div>
     </h2>
 
     <div class="grid-2" style="margin-bottom: 8px;">
@@ -204,8 +199,8 @@
         <div class="progress-wrap"><div id="profile-hp-bar" class="progress-fill fill-hp"></div></div>
       </div>
       <div class="stat-card">
-        <div class="label">Опыт</div>
-        <div class="value"><span id="profile-exp-txt">0</span> / <span id="profile-exp-next">80</span> XP</div>
+        <div class="label">Опыт (Экспонента)</div>
+        <div class="value"><span id="profile-exp-txt">0</span> / <span id="profile-exp-next">100</span> XP</div>
         <div class="progress-wrap"><div id="profile-exp-bar" class="progress-fill charge-tier-opt" style="width:0%;"></div></div>
       </div>
     </div>
@@ -219,14 +214,12 @@
       <div class="stat-card"><div class="label">Вампиризм</div><div class="value" id="stat-vamp">0%</div></div>
       <div class="stat-card"><div class="label">Пробитие брони</div><div class="value" id="stat-pierce">0 ед.</div></div>
       <div class="stat-card"><div class="label">Оптимум замаха</div><div class="value" id="stat-charge-opt">7.0s</div></div>
-      <div class="stat-card"><div class="label">Сверхзамах</div><div class="value" id="stat-charge-over">15.0s+</div></div>
     </div>
 
     <h2>Экипировка героя</h2>
     <div id="gear-list"></div>
   </div>
 
-  <!-- ==================== TAB 2: INVENTORY ==================== -->
   <div id="view-inventory" class="view">
     <h2>
       <span>Инвентарь</span>
@@ -235,7 +228,6 @@
     <div id="inventory-list"></div>
   </div>
 
-  <!-- ==================== TAB 3: TALENTS ==================== -->
   <div id="view-talents" class="view">
     <h2>
       <span>Древо Талантов (Свободно: <b style="color:#38bdf8;" id="tree-tp-val">0</b> TP)</span>
@@ -298,17 +290,16 @@
     <div id="skills-manager-list"></div>
   </div>
 
-  <!-- ==================== TAB 4: SHOP (МАГАЗИН) ==================== -->
   <div id="view-shop" class="view">
     <h2>🏪 Лавка Алхимика и Знахаря</h2>
-    <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Здесь вы можете приобрести целебные снадобья, а также тайные свитки просветления у торговцев Обители.</p>
+    <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Приобретайте целебные настойки и свитки прозрения у купцов Обители.</p>
 
     <div class="shop-card" style="border-left-color: #10b981;">
       <div class="item-header">
         <b style="font-size:12px; color:#fff;">🌿 Целебная настойка (1 шт.)</b>
         <span style="font-size:11px; color:var(--gold); font-weight:bold;">🪙 30 Золота</span>
       </div>
-      <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">Мгновенно восстанавливает 50% от максимального запаса здоровья героя.</div>
+      <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">Мгновенно восстанавливает 50% от максимального запаса здоровья.</div>
       <button class="btn btn-sm btn-heal" onclick="buyPotion(1, 30)">Купить (30 Зл.)</button>
     </div>
 
@@ -323,15 +314,14 @@
 
     <div class="shop-card" style="border-left-color: #38bdf8;">
       <div class="item-header">
-        <b style="font-size:12px; color:#38bdf8;">✨ Свиток Просветления (+1 Очко Талантов)</b>
+        <b style="font-size:12px; color:#38bdf8;">✨ Свиток Просветления (+1 TP)</b>
         <span style="font-size:11px; color:var(--gold); font-weight:bold;">🪙 100,000 Золота</span>
       </div>
-      <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">Древняя реликвия мастеров Нави. Дарует 1 дополнительное Очко Талантов (TP) для прокачки древ и умений.</div>
+      <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">Дарует 1 дополнительное Очко Талантов (TP).</div>
       <button class="btn btn-sm btn-gold" onclick="buyTalentPoint()">Купить 1 TP (100,000 Зл.)</button>
     </div>
   </div>
 
-  <!-- ==================== TAB 5: DUNGEONS ==================== -->
   <div id="view-dungeons" class="view">
     <h2>Сложность экспедиций</h2>
     <select id="diff-select" onchange="renderDungeons()">
@@ -343,7 +333,6 @@
     <div id="dungeon-list"></div>
   </div>
 
-  <!-- ==================== TAB 6: QUESTS ==================== -->
   <div id="view-quests" class="view">
     <h2>📜 Великая летопись (Сюжетные главы)</h2>
     <div id="story-quests-list" style="margin-bottom:14px;"></div>
@@ -355,7 +344,6 @@
     <div id="quests-list"></div>
   </div>
 
-  <!-- ==================== TAB 7: COMBAT ==================== -->
   <div id="view-combat" class="view">
     <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
       <div style="font-weight:bold; font-size:12px;">Герой (Ур. <span id="c-player-lvl">1</span>)</div>
@@ -372,7 +360,7 @@
       </div>
     </div>
 
-    <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">Кликните по врагу для смены цели 🎯:</div>
+    <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">Выберите цель для фокус-удары 🎯:</div>
     <div class="enemies-arena" id="enemies-arena"></div>
 
     <div class="charge-panel">
@@ -394,7 +382,8 @@
   </div>
 </div>
 
-<!-- MODAL: BESTIARY & LOOT STATS PREVIEW WITH DIFFICULTY SELECTOR -->
+<div id="item-tooltip"></div>
+
 <div class="modal-backdrop" id="bestiary-modal" onclick="closeBestiary(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -415,21 +404,19 @@
 </div>
 
 <script>
-/* ==================== CONFIG & DATA ==================== */
 const QUALITIES = {
   1: { name: 'Обычное',     cls: 'q-1', bg: 'bg-q-1', maxAffixes: 1, mult: 1.0,  dropRate: [60, 20,  5,  0] },
-  2: { name: 'Необычное',   cls: 'q-2', bg: 'bg-q-2', maxAffixes: 2, mult: 1.5,  dropRate: [30, 40, 20,  5] },
-  3: { name: 'Редкое',      cls: 'q-3', bg: 'bg-q-3', maxAffixes: 3, mult: 2.3,  dropRate: [10, 25, 35, 15] },
-  4: { name: 'Эпическое',   cls: 'q-4', bg: 'bg-q-4', maxAffixes: 4, mult: 3.6,  dropRate: [0,  12, 25, 30] },
-  5: { name: 'Легендарное', cls: 'q-5', bg: 'bg-q-5', maxAffixes: 5, mult: 5.5,  dropRate: [0,   3, 12, 25] },
-  6: { name: 'Мифическое',  cls: 'q-6', bg: 'bg-q-6', maxAffixes: 6, mult: 8.5,  dropRate: [0,   0,  3, 15] },
-  7: { name: 'Божественное',cls: 'q-7', bg: 'bg-q-7', maxAffixes: 7, mult: 14.0, dropRate: [0,   0,  0,  8] },
-  8: { name: 'Глитч-Аномалия', cls: 'q-8', bg: 'bg-q-8', maxAffixes: 8, mult: 24.0, dropRate: [0, 0, 0,  2] }
+  2: { name: 'Необычное',   cls: 'q-2', bg: 'bg-q-2', maxAffixes: 2, mult: 1.3,  dropRate: [30, 40, 20,  5] },
+  3: { name: 'Редкое',      cls: 'q-3', bg: 'bg-q-3', maxAffixes: 3, mult: 1.8,  dropRate: [10, 25, 35, 15] },
+  4: { name: 'Эпическое',   cls: 'q-4', bg: 'bg-q-4', maxAffixes: 4, mult: 2.5,  dropRate: [0,  12, 25, 30] },
+  5: { name: 'Легендарное', cls: 'q-5', bg: 'bg-q-5', maxAffixes: 5, mult: 3.8,  dropRate: [0,   3, 12, 25] },
+  6: { name: 'Мифическое',  cls: 'q-6', bg: 'bg-q-6', maxAffixes: 6, mult: 5.5,  dropRate: [0,   0,  3, 15] },
+  7: { name: 'Божественное',cls: 'q-7', bg: 'bg-q-7', maxAffixes: 7, mult: 8.0, dropRate: [0,   0,  0,  8] },
+  8: { name: 'Глитч-Аномалия', cls: 'q-8', bg: 'bg-q-8', maxAffixes: 8, mult: 12.0, dropRate: [0, 0, 0,  2] }
 };
 
 const SLOTS = { weapon: 'Оружие', armor: 'Доспех', helm: 'Шлем', boots: 'Сапоги', amulet: 'Амулет' };
 
-// Affixes
 const AFFIX_POOL = [
   { name: 'Ярости', stat: 'atk', val: [5, 10], label: '⚔ +Атк' },
   { name: 'Титана', stat: 'hp', val: [40, 90], label: '❤️ +HP' },
@@ -446,37 +433,36 @@ const AFFIX_POOL = [
 
 const PREFIX_NAMES = ['Тёмный', 'Искажённый', 'Первозданный', 'Фрактальный', 'Древний', 'Пламенный', 'Сингулярный', 'Абсолютный', 'Тяжёлый', 'Колоссальный'];
 
-/* ==================== 5 ACTIVE SKILLS ==================== */
+// Rebalanced Skills (Slightly nerfed as requested)
 const SKILLS_DB = {
   fireball: {
     id: 'fireball', name: 'Огненный Шар', icon: '🔥', baseCd: 8.0, targetType: 'single',
-    desc: 'Сгусток огня по выбранной цели (урон масштабируется от замаха).',
-    calcDmg: (lvl, atk, mult) => Math.round(atk * (2.2 + (lvl - 1) * 0.55) * mult)
+    desc: 'Сгусток огня по выбранной цели (урон от замаха).',
+    calcDmg: (lvl, atk, mult) => Math.round(atk * (1.8 + (lvl - 1) * 0.40) * mult)
   },
   hellfire: {
-    id: 'hellfire', name: 'Взрыв Адского Пламени', icon: '🌋', baseCd: 12.0, targetType: 'aoe',
-    desc: 'Огненный взрыв по ВСЕМ врагам на арене (масштаб от замаха).',
-    calcDmg: (lvl, atk, mult) => Math.round(atk * (1.6 + (lvl - 1) * 0.40) * mult)
+    id: 'hellfire', name: 'Адское Пламя', icon: '🌋', baseCd: 12.0, targetType: 'aoe',
+    desc: 'Огненный взрыв по ВСЕМ врагам на арене.',
+    calcDmg: (lvl, atk, mult) => Math.round(atk * (1.2 + (lvl - 1) * 0.30) * mult)
   },
   harvest: {
     id: 'harvest', name: 'Кровавая Жатва', icon: '🩸', baseCd: 13.0, targetType: 'single',
-    desc: 'Атака цели с исцелением на 100% от нанесенного урона.',
-    calcDmg: (lvl, atk, mult) => Math.round(atk * (1.5 + (lvl - 1) * 0.35) * mult)
+    desc: 'Атака цели с исцелением на 80% от нанесенного урона.',
+    calcDmg: (lvl, atk, mult) => Math.round(atk * (1.3 + (lvl - 1) * 0.28) * mult)
   },
   shield: {
     id: 'shield', name: 'Барьер Пустоты', icon: '🛡', baseCd: 15.0, targetType: 'buff',
-    desc: 'Поглощающий щит от макс. HP (усиливается от концентрации замаха).',
+    desc: 'Поглощающий щит от макс. HP.',
     calcDmg: () => 0,
-    calcEffect: (lvl, maxHp, mult) => Math.round(maxHp * (0.35 + (lvl - 1) * 0.10) * Math.min(2.5, Math.max(0.6, mult)))
+    calcEffect: (lvl, maxHp, mult) => Math.round(maxHp * (0.25 + (lvl - 1) * 0.08) * Math.min(2.2, Math.max(0.5, mult)))
   },
   cleave: {
     id: 'cleave', name: 'Адский Рассекатель', icon: '🗡', baseCd: 10.0, targetType: 'single',
-    desc: 'Сокрушительный удар, игнорирующий 60% брони.',
-    calcDmg: (lvl, atk, mult) => Math.round(atk * (2.6 + (lvl - 1) * 0.60) * mult)
+    desc: 'Сокрушительный удар, игнорирующий 50% брони.',
+    calcDmg: (lvl, atk, mult) => Math.round(atk * (2.0 + (lvl - 1) * 0.45) * mult)
   }
 };
 
-/* ==================== SVG AVATARS ==================== */
 const AVATARS = {
   dummy: `<svg viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="18"></line><line x1="5" y1="12" x2="19" y2="12"></line><line x1="8" y1="21" x2="16" y2="21"></line></svg>`,
   shadow_guard: `<svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M12 2L3 7v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7l-9-5z"></path><circle cx="12" cy="11" r="2.5"></circle></svg>`,
@@ -495,30 +481,34 @@ const AVATARS = {
   matrix: `<svg viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="4"></rect><path d="M7 7l10 10M17 7L7 17"></path></svg>`
 };
 
-/* ==================== 8 EXPONENTIAL DUNGEONS ==================== */
+// 10 Expanded Dungeons with 3-5 enemies per stage & 0s cooldown for first 2
 const DUNGEONS = [
   {
     id: 'dungeon_intro_1',
     name: 'Подвалы Старого Замка',
-    desc: 'Заброшенные тренировочные залы замка Обители. Идеальное место для первых боев.',
+    desc: 'Тренировочные подвалы замка. КД отсутствуют!',
     minLvl: 1,
-    cooldownSec: 60,
+    cooldownSec: 0, // NO COOLDOWN!
     stages: [
       {
-        name: 'Тренировочный сектор',
+        name: 'Сектор Мишеней',
         enemies: [
-          { id: 'm_dummy_1', name: 'Оживший Манекен', hp: 35, atk: 7, def: 1, xp: 12, gold: 10, isBoss: false, avatar: 'dummy', attackSpeed: 3.4, desc: 'Деревянный манекен с примитивными ударами.' }
+          { id: 'm_dummy_1', name: 'Манекен I', hp: 30, atk: 6, def: 1, xp: 10, gold: 8, isBoss: false, avatar: 'dummy', attackSpeed: 3.5, desc: 'Деревянная мишень.' },
+          { id: 'm_dummy_2', name: 'Манекен II', hp: 35, atk: 7, def: 1, xp: 12, gold: 9, isBoss: false, avatar: 'dummy', attackSpeed: 3.4, desc: 'Усиленный манекен.' },
+          { id: 'm_dummy_3', name: 'Старый Истукан', hp: 40, atk: 8, def: 2, xp: 14, gold: 10, isBoss: false, avatar: 'dummy', attackSpeed: 3.2, desc: 'Тяжелый манекен.' }
         ]
       },
       {
-        name: 'Оружейный тупик',
+        name: 'Оружейный зал',
         enemies: [
-          { id: 'b_shadow_guard', name: 'Теневой Страж Обители [БОСС]', hp: 95, atk: 13, def: 3, xp: 45, gold: 35, isBoss: true, avatar: 'shadow_guard', attackSpeed: 3.0, desc: 'Старый теневой доспех, охраняющий подвал.' }
+          { id: 'm_dummy_boss', name: 'Железная Кукла', hp: 60, atk: 10, def: 3, xp: 20, gold: 15, isBoss: false, avatar: 'dummy', attackSpeed: 3.0, desc: 'Обитатель подвала.' },
+          { id: 'b_shadow_guard', name: 'Теневой Страж [БОСС]', hp: 120, atk: 14, def: 4, xp: 50, gold: 40, isBoss: true, avatar: 'shadow_guard', attackSpeed: 2.9, desc: 'Старый страж замка.' },
+          { id: 'm_dummy_guard', name: 'Оруженосец Праха', hp: 45, atk: 9, def: 2, xp: 15, gold: 12, isBoss: false, avatar: 'dummy', attackSpeed: 3.3, desc: 'Помощник стража.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Тренировочный Клинок', slot: 'weapon', baseAtk: 6, baseDef: 0, baseHp: 0, baseAspd: 5, pierce: 0 },
+      { name: 'Учебный Меч', slot: 'weapon', baseAtk: 6, baseDef: 0, baseHp: 0, baseAspd: 5, pierce: 0 },
       { name: 'Холщовая Туника', slot: 'armor', baseAtk: 0, baseDef: 4, baseHp: 20, baseAspd: 0, pierce: 0 },
       { name: 'Кожаный Подшлемник', slot: 'helm', baseAtk: 1, baseDef: 2, baseHp: 10, baseAspd: 2, pierce: 0 },
       { name: 'Простые Обмотки', slot: 'boots', baseAtk: 0, baseDef: 2, baseHp: 15, baseAspd: 5, pierce: 0 },
@@ -528,28 +518,31 @@ const DUNGEONS = [
   {
     id: 'dungeon_intro_2',
     name: 'Заброшенный Тракт Альказака',
-    desc: 'Разбитые караванные пути, где рыщут стаи диких зверей и мародёры.',
+    desc: 'Дикие тракты мародёров. Без перезарядки!',
     minLvl: 2,
-    cooldownSec: 90,
+    cooldownSec: 0, // NO COOLDOWN!
     stages: [
       {
-        name: 'Лесная опушка',
+        name: 'Лесная Засада',
         enemies: [
-          { id: 'm_wolf_1', name: 'Пепельный Волк', hp: 42, atk: 9, def: 2, xp: 18, gold: 14, isBoss: false, avatar: 'wolf', attackSpeed: 2.9, desc: 'Быстрый зверь с колющими клыками.' },
-          { id: 'm_wolf_2', name: 'Теневая Гончая', hp: 38, atk: 11, def: 1, xp: 18, gold: 14, isBoss: false, avatar: 'wolf', attackSpeed: 2.7, desc: 'Нападает из засады.' }
+          { id: 'm_wolf_1', name: 'Пепельный Волк', hp: 45, atk: 10, def: 2, xp: 18, gold: 14, isBoss: false, avatar: 'wolf', attackSpeed: 2.9, desc: 'Быстрый хищник.' },
+          { id: 'm_wolf_2', name: 'Теневая Гончая', hp: 42, atk: 11, def: 1, xp: 18, gold: 14, isBoss: false, avatar: 'wolf', attackSpeed: 2.7, desc: 'Опасный зверь.' },
+          { id: 'm_bandit_1', name: 'Лесной Грабитель', hp: 50, atk: 12, def: 3, xp: 22, gold: 18, isBoss: false, avatar: 'bandit', attackSpeed: 3.0, desc: 'Засадчик.' }
         ]
       },
       {
-        name: 'Лагерь Мародёров',
+        name: 'Лагерь Атамана',
         enemies: [
-          { id: 'b_bandit_leader', name: 'Атаман Мародёров [БОСС]', hp: 150, atk: 17, def: 4, xp: 70, gold: 55, isBoss: true, avatar: 'bandit', attackSpeed: 2.8, desc: 'Главарь разбойников с кривым ятаганом.' }
+          { id: 'm_bandit_2', name: 'Головорез', hp: 65, atk: 14, def: 3, xp: 28, gold: 22, isBoss: false, avatar: 'bandit', attackSpeed: 2.8, desc: 'Опытный налетчик.' },
+          { id: 'b_bandit_leader', name: 'Атаман Мародёров [БОСС]', hp: 180, atk: 18, def: 5, xp: 80, gold: 65, isBoss: true, avatar: 'bandit', attackSpeed: 2.7, desc: 'Главарь шайки.' },
+          { id: 'm_bandit_3', name: 'Метатель Кинжалов', hp: 45, atk: 16, def: 1, xp: 25, gold: 20, isBoss: false, avatar: 'bandit', attackSpeed: 2.5, desc: 'Критический урон.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Кривой Тесак Тракта', slot: 'weapon', baseAtk: 9, baseDef: 0, baseHp: 0, baseAspd: 8, pierce: 2 },
-      { name: 'Кожаная Куртка Разбойника', slot: 'armor', baseAtk: 0, baseDef: 6, baseHp: 30, baseAspd: 0, pierce: 0 },
-      { name: 'Бандана Следопыта', slot: 'helm', baseAtk: 2, baseDef: 3, baseHp: 20, baseAspd: 4, pierce: 0 },
+      { name: 'Кривой Тесак Тракта', slot: 'weapon', baseAtk: 10, baseDef: 0, baseHp: 0, baseAspd: 8, pierce: 2 },
+      { name: 'Кожанка Разбойника', slot: 'armor', baseAtk: 0, baseDef: 7, baseHp: 35, baseAspd: 0, pierce: 0 },
+      { name: 'Бандана Следопыта', slot: 'helm', baseAtk: 2, baseDef: 4, baseHp: 20, baseAspd: 4, pierce: 0 },
       { name: 'Сапоги Бродяги', slot: 'boots', baseAtk: 1, baseDef: 3, baseHp: 25, baseAspd: 10, pierce: 0 },
       { name: 'Амулет Дорог', slot: 'amulet', baseAtk: 4, baseDef: 2, baseHp: 25, baseAspd: 3, pierce: 1 }
     ]
@@ -557,220 +550,280 @@ const DUNGEONS = [
   {
     id: 'dungeon_intro_3',
     name: 'Чёрные Чумные Топи',
-    desc: 'Заболоченная низина, отравленная ядовитыми испарениями скверны.',
-    minLvl: 3,
+    desc: 'Заболоченная низина, отравленная ядовитой скверной.',
+    minLvl: 4,
     cooldownSec: 120,
     stages: [
       {
-        name: 'Трясина',
+        name: 'Трясина Скверны',
         enemies: [
-          { id: 'm_slime_1', name: 'Чумной Слизень', hp: 55, atk: 11, def: 3, xp: 22, gold: 18, isBoss: false, avatar: 'slime', attackSpeed: 3.3, desc: 'Устойчив к физическим атакам.' },
-          { id: 'm_slime_2', name: 'Болотная Пиявка', hp: 45, atk: 13, def: 1, xp: 22, gold: 18, isBoss: false, avatar: 'slime', attackSpeed: 2.6, desc: 'Быстро вытягивает здоровье.' }
+          { id: 'm_slime_1', name: 'Чумной Слизень A', hp: 65, atk: 12, def: 3, xp: 25, gold: 20, isBoss: false, avatar: 'slime', attackSpeed: 3.2, desc: 'Ядовитый сгусток.' },
+          { id: 'm_slime_2', name: 'Чумной Слизень B', hp: 65, atk: 12, def: 3, xp: 25, gold: 20, isBoss: false, avatar: 'slime', attackSpeed: 3.2, desc: 'Ядовитый сгусток.' },
+          { id: 'm_leech_1', name: 'Болотная Пиявка', hp: 55, atk: 15, def: 1, xp: 28, gold: 22, isBoss: false, avatar: 'slime', attackSpeed: 2.5, desc: 'Вампиризм.' }
         ]
       },
       {
-        name: 'Ведьмины Кочки',
+        name: 'Гнилая Топь',
         enemies: [
-          { id: 'm_witch', name: 'Болотная Ведьма', hp: 70, atk: 16, def: 2, xp: 35, gold: 28, isBoss: false, avatar: 'bandit', attackSpeed: 2.7, desc: 'Атакует ядовитыми сферами.' },
-          { id: 'm_drowned', name: 'Гнилой Утопленник', hp: 85, atk: 13, def: 4, xp: 35, gold: 28, isBoss: false, avatar: 'skeleton', attackSpeed: 3.2, desc: 'Медлительный, но выносливый мертвец.' }
-        ]
-      },
-      {
-        name: 'Обитель Скверны',
-        enemies: [
-          { id: 'b_swamp_horror', name: 'Болотный Ужас Нави [БОСС]', hp: 220, atk: 23, def: 6, xp: 120, gold: 95, isBoss: true, avatar: 'slime', attackSpeed: 2.9, desc: 'Огромный пульсирующий сгусток яда и тины.' }
+          { id: 'm_witch', name: 'Болотная Ведьма', hp: 90, atk: 18, def: 2, xp: 40, gold: 30, isBoss: false, avatar: 'bandit', attackSpeed: 2.6, desc: 'Сферы яда.' },
+          { id: 'b_swamp_horror', name: 'Болотный Ужас [БОСС]', hp: 280, atk: 25, def: 7, xp: 150, gold: 120, isBoss: true, avatar: 'slime', attackSpeed: 2.8, desc: 'Владыка топей.' },
+          { id: 'm_drowned', name: 'Гнилой Утопленник', hp: 110, atk: 14, def: 5, xp: 42, gold: 32, isBoss: false, avatar: 'skeleton', attackSpeed: 3.3, desc: 'Выносливый мертвец.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Чумной Кинжал Топей', slot: 'weapon', baseAtk: 12, baseDef: 0, baseHp: 15, baseAspd: 12, pierce: 3 },
-      { name: 'Панцирь Ильного Ползуна', slot: 'armor', baseAtk: 0, baseDef: 9, baseHp: 45, baseAspd: 0, pierce: 0 },
-      { name: 'Маска Чумного Знахаря', slot: 'helm', baseAtk: 3, baseDef: 5, baseHp: 30, baseAspd: 5, pierce: 0 },
-      { name: 'Болотоступы Скверны', slot: 'boots', baseAtk: 1, baseDef: 5, baseHp: 35, baseAspd: 12, pierce: 0 },
-      { name: 'Амулет Ядовитой Споры', slot: 'amulet', baseAtk: 6, baseDef: 3, baseHp: 40, baseAspd: 5, pierce: 2 }
+      { name: 'Чумной Кинжал', slot: 'weapon', baseAtk: 14, baseDef: 0, baseHp: 15, baseAspd: 12, pierce: 3 },
+      { name: 'Панцирь Ползуна', slot: 'armor', baseAtk: 0, baseDef: 10, baseHp: 50, baseAspd: 0, pierce: 0 },
+      { name: 'Маска Знахаря', slot: 'helm', baseAtk: 3, baseDef: 6, baseHp: 35, baseAspd: 5, pierce: 0 },
+      { name: 'Болотоступы', slot: 'boots', baseAtk: 1, baseDef: 6, baseHp: 40, baseAspd: 12, pierce: 0 },
+      { name: 'Амулет Споры', slot: 'amulet', baseAtk: 7, baseDef: 3, baseHp: 45, baseAspd: 5, pierce: 2 }
     ]
   },
   {
     id: 'dungeon_1',
     name: 'Катакомбы Скорби',
-    desc: 'Заброшенные склепы, кишащие мертвецами и слугами Тени.',
-    minLvl: 5,
+    desc: 'Заброшенные склепы, кишащие ордами мертвецов.',
+    minLvl: 7,
     cooldownSec: 180,
     stages: [
       {
-        name: 'Аванпост нежити',
+        name: 'Склеп Павших',
         enemies: [
-          { id: 'm_skel_1', name: 'Скелет-Мечник', hp: 70, atk: 15, def: 3, xp: 35, gold: 28, isBoss: false, avatar: 'skeleton', attackSpeed: 3.2, desc: 'Быстрые колющие выпады.' },
-          { id: 'm_skel_2', name: 'Скелет-Лучник', hp: 55, atk: 20, def: 2, xp: 35, gold: 28, isBoss: false, avatar: 'skeleton', attackSpeed: 2.8, desc: 'Слабое здоровье, высокий урон издали.' }
+          { id: 'm_skel_1', name: 'Скелет-Мечник A', hp: 110, atk: 22, def: 5, xp: 50, gold: 40, isBoss: false, avatar: 'skeleton', attackSpeed: 3.1, desc: 'Колющий удар.' },
+          { id: 'm_skel_2', name: 'Скелет-Мечник B', hp: 110, atk: 22, def: 5, xp: 50, gold: 40, isBoss: false, avatar: 'skeleton', attackSpeed: 3.1, desc: 'Колющий удар.' },
+          { id: 'm_skel_3', name: 'Скелет-Лучник', hp: 85, atk: 28, def: 2, xp: 55, gold: 45, isBoss: false, avatar: 'skeleton', attackSpeed: 2.6, desc: 'Дальний урон.' },
+          { id: 'm_skel_4', name: 'Восставший Страж', hp: 140, atk: 20, def: 8, xp: 60, gold: 50, isBoss: false, avatar: 'skeleton', attackSpeed: 3.3, desc: 'Защитник склепа.' }
         ]
       },
       {
-        name: 'Казематы Тюремщика',
+        name: 'Трон Праха',
         enemies: [
-          { id: 'b_jailer', name: 'Тюремщик Склепа [БОСС]', hp: 240, atk: 28, def: 7, xp: 140, gold: 110, isBoss: true, avatar: 'jailer', attackSpeed: 3.0, desc: 'Броня и кандалы.' }
-        ]
-      },
-      {
-        name: 'Тронный зал Праха',
-        enemies: [
-          { id: 'b_reaper', name: 'Чёрный Жнец [БОСС]', hp: 420, atk: 42, def: 11, xp: 260, gold: 210, isBoss: true, avatar: 'reaper', attackSpeed: 2.7, desc: 'Повышенный крит.' },
-          { id: 'm_skel_guard', name: 'Гвардеец Праха', hp: 100, atk: 18, def: 6, xp: 50, gold: 35, isBoss: false, avatar: 'skeleton', attackSpeed: 3.4, desc: 'Прикрывает Жнеца.' }
+          { id: 'b_jailer', name: 'Тюремщик Склепа', hp: 350, atk: 35, def: 10, xp: 180, gold: 140, isBoss: false, avatar: 'jailer', attackSpeed: 2.9, desc: 'Броня казематов.' },
+          { id: 'b_reaper', name: 'Чёрный Жнец [БОСС]', hp: 550, atk: 50, def: 14, xp: 320, gold: 260, isBoss: true, avatar: 'reaper', attackSpeed: 2.6, desc: 'Владыка костей.' },
+          { id: 'm_skel_guard', name: 'Гвардеец Праха A', hp: 160, atk: 25, def: 9, xp: 70, gold: 55, isBoss: false, avatar: 'skeleton', attackSpeed: 3.2, desc: 'Телохранитель.' },
+          { id: 'm_skel_guard2', name: 'Гвардеец Праха B', hp: 160, atk: 25, def: 9, xp: 70, gold: 55, isBoss: false, avatar: 'skeleton', attackSpeed: 3.2, desc: 'Телохранитель.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Костяной Тесак', slot: 'weapon', baseAtk: 18, baseDef: 0, baseHp: 0, baseAspd: 10, pierce: 4 },
-      { name: 'Мантия Теней', slot: 'armor', baseAtk: 0, baseDef: 14, baseHp: 65, baseAspd: 0, pierce: 0 },
-      { name: 'Капюшон Мученика', slot: 'helm', baseAtk: 5, baseDef: 8, baseHp: 45, baseAspd: 5, pierce: 0 },
-      { name: 'Сапоги Могильщика', slot: 'boots', baseAtk: 2, baseDef: 8, baseHp: 50, baseAspd: 15, pierce: 0 },
-      { name: 'Амулет Праха', slot: 'amulet', baseAtk: 9, baseDef: 5, baseHp: 60, baseAspd: 5, pierce: 3 }
+      { name: 'Костяной Тесак', slot: 'weapon', baseAtk: 22, baseDef: 0, baseHp: 0, baseAspd: 10, pierce: 5 },
+      { name: 'Мантия Теней', slot: 'armor', baseAtk: 0, baseDef: 16, baseHp: 80, baseAspd: 0, pierce: 0 },
+      { name: 'Капюшон Мученика', slot: 'helm', baseAtk: 6, baseDef: 10, baseHp: 55, baseAspd: 5, pierce: 0 },
+      { name: 'Сапоги Могильщика', slot: 'boots', baseAtk: 3, baseDef: 9, baseHp: 60, baseAspd: 15, pierce: 0 },
+      { name: 'Амулет Праха', slot: 'amulet', baseAtk: 11, baseDef: 6, baseHp: 70, baseAspd: 5, pierce: 4 }
+    ]
+  },
+  {
+    id: 'dungeon_mines',
+    name: 'Забытые Шахты Гномов',
+    desc: 'Затопленные рудники, занятые безумными гоблинами и големами.',
+    minLvl: 11,
+    cooldownSec: 200,
+    stages: [
+      {
+        name: 'Штрек Рудокопов',
+        enemies: [
+          { id: 'm_goblin_1', name: 'Гоблин-Шахтер', hp: 180, atk: 35, def: 8, xp: 90, gold: 75, isBoss: false, avatar: 'bandit', attackSpeed: 2.7, desc: 'Быстрые удары киркой.' },
+          { id: 'm_goblin_2', name: 'Гоблин-Подрывник', hp: 150, atk: 45, def: 4, xp: 100, gold: 85, isBoss: false, avatar: 'bandit', attackSpeed: 2.4, desc: 'Взрывы динамита.' },
+          { id: 'm_goblin_3', name: 'Гоблин-Застрельщик', hp: 160, atk: 38, def: 6, xp: 95, gold: 80, isBoss: false, avatar: 'bandit', attackSpeed: 2.6, desc: 'Пращник.' }
+        ]
+      },
+      {
+        name: 'Ядро Рудника',
+        enemies: [
+          { id: 'b_golem_mine', name: 'Рудоносный Голем [БОСС]', hp: 850, atk: 65, def: 25, xp: 550, gold: 420, isBoss: true, avatar: 'frost_golem', attackSpeed: 3.0, desc: 'Каменная броня.' },
+          { id: 'm_goblin_chief', name: 'Вожак Рудника', hp: 260, atk: 48, def: 12, xp: 140, gold: 110, isBoss: false, avatar: 'bandit', attackSpeed: 2.6, desc: 'Начальник над гоблинами.' },
+          { id: 'm_goblin_4', name: 'Гоблин-Шахтер B', hp: 180, atk: 35, def: 8, xp: 90, gold: 75, isBoss: false, avatar: 'bandit', attackSpeed: 2.7, desc: 'Работяга.' }
+        ]
+      }
+    ],
+    itemPool: [
+      { name: 'Кирка Шахтера', slot: 'weapon', baseAtk: 36, baseDef: 5, baseHp: 40, baseAspd: 12, pierce: 10 },
+      { name: 'Панцирь Рудокопа', slot: 'armor', baseAtk: 0, baseDef: 28, baseHp: 140, baseAspd: 0, pierce: 0 },
+      { name: 'Шахтерский Шлем', slot: 'helm', baseAtk: 10, baseDef: 16, baseHp: 90, baseAspd: 6, pierce: 0 },
+      { name: 'Тяжелые Поножи', slot: 'boots', baseAtk: 5, baseDef: 15, baseHp: 95, baseAspd: 10, pierce: 0 },
+      { name: 'Самородок Гномов', slot: 'amulet', baseAtk: 18, baseDef: 10, baseHp: 110, baseAspd: 8, pierce: 6 }
     ]
   },
   {
     id: 'dungeon_2',
-    name: 'Ледяной Разлом',
-    desc: 'Вечная мерзлота, где дремлет первозданный ледяной дракон.',
-    minLvl: 8,
+    name: 'Ледяной Разлом Харебры',
+    desc: 'Вечная мерзлота, где дремлет ледяной дракон.',
+    minLvl: 16,
     cooldownSec: 240,
     stages: [
       {
-        name: 'Ледяные торосы',
+        name: 'Ледяные Торосы',
         enemies: [
-          { id: 'm_ice_1', name: 'Ледяной Дух', hp: 180, atk: 42, def: 12, xp: 95, gold: 75, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.8, desc: 'Ледяные стрелы.' },
-          { id: 'm_ice_2', name: 'Морозный Сталкер', hp: 220, atk: 48, def: 14, xp: 110, gold: 90, isBoss: false, avatar: 'frost_elem', attackSpeed: 3.0, desc: 'Пробивает защиту.' }
+          { id: 'm_ice_1', name: 'Ледяной Дух A', hp: 280, atk: 55, def: 15, xp: 160, gold: 130, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.7, desc: 'Заморозка.' },
+          { id: 'm_ice_2', name: 'Ледяной Дух B', hp: 280, atk: 55, def: 15, xp: 160, gold: 130, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.7, desc: 'Заморозка.' },
+          { id: 'm_ice_3', name: 'Морозный Сталкер', hp: 320, atk: 62, def: 18, xp: 180, gold: 150, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.9, desc: 'Пробой брони.' }
         ]
       },
       {
-        name: 'Сердце Снегов',
+        name: 'Логово Харебры',
         enemies: [
-          { id: 'b_golem', name: 'Морозный Голем [БОСС]', hp: 680, atk: 72, def: 30, xp: 450, gold: 340, isBoss: true, avatar: 'frost_golem', attackSpeed: 3.1, desc: 'Сверхвысокая защита.' }
-        ]
-      },
-      {
-        name: 'Логово Дракона',
-        enemies: [
-          { id: 'b_dragon', name: 'Дракон Харебра [БОСС]', hp: 1200, atk: 105, def: 40, xp: 900, gold: 700, isBoss: true, avatar: 'dragon', attackSpeed: 2.5, desc: 'Первозданный владыка мерзлоты.' }
+          { id: 'b_golem_frost', name: 'Морозный Голем', hp: 900, atk: 85, def: 35, xp: 600, gold: 480, isBoss: false, avatar: 'frost_golem', attackSpeed: 3.0, desc: 'Страж пещеры.' },
+          { id: 'b_dragon', name: 'Дракон Харебра [БОСС]', hp: 1600, atk: 125, def: 45, xp: 1200, gold: 950, isBoss: true, avatar: 'dragon', attackSpeed: 2.4, desc: 'Владыка мерзлоты.' },
+          { id: 'm_ice_stalker2', name: 'Ледяной Страж', hp: 380, atk: 68, def: 22, xp: 210, gold: 170, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.8, desc: 'Прикрывает дракона.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Ледяной Клинок', slot: 'weapon', baseAtk: 45, baseDef: 0, baseHp: 80, baseAspd: 15, pierce: 8 },
-      { name: 'Кираса Вечной Мерзлоты', slot: 'armor', baseAtk: 0, baseDef: 42, baseHp: 220, baseAspd: 0, pierce: 0 },
-      { name: 'Ледяной Венец', slot: 'helm', baseAtk: 16, baseDef: 24, baseHp: 120, baseAspd: 8, pierce: 0 },
-      { name: 'Снегоступы Харебры', slot: 'boots', baseAtk: 11, baseDef: 22, baseHp: 120, baseAspd: 20, pierce: 0 },
-      { name: 'Осколок Абсолютного Льда', slot: 'amulet', baseAtk: 32, baseDef: 16, baseHp: 160, baseAspd: 10, pierce: 8 }
+      { name: 'Ледяной Клинок', slot: 'weapon', baseAtk: 60, baseDef: 0, baseHp: 100, baseAspd: 15, pierce: 12 },
+      { name: 'Кираса Мерзлоты', slot: 'armor', baseAtk: 0, baseDef: 55, baseHp: 280, baseAspd: 0, pierce: 0 },
+      { name: 'Ледяной Венец', slot: 'helm', baseAtk: 22, baseDef: 30, baseHp: 160, baseAspd: 8, pierce: 0 },
+      { name: 'Снегоступы Харебры', slot: 'boots', baseAtk: 15, baseDef: 28, baseHp: 150, baseAspd: 20, pierce: 0 },
+      { name: 'Осколок Льда', slot: 'amulet', baseAtk: 42, baseDef: 20, baseHp: 210, baseAspd: 10, pierce: 10 }
     ]
   },
   {
     id: 'dungeon_3',
     name: 'Пепельные Чертоги Нави',
-    desc: 'Святилище фанатиков, искажающее время церковным звоном.',
-    minLvl: 12,
-    cooldownSec: 240,
+    desc: 'Святилище фанатиков, искажающее пространство.',
+    minLvl: 22,
+    cooldownSec: 270,
     stages: [
       {
-        name: 'Притвор культа',
+        name: 'Притвор Культа',
         enemies: [
-          { id: 'm_fanatic_1', name: 'Аколит Нави', hp: 380, atk: 80, def: 24, xp: 210, gold: 160, isBoss: false, avatar: 'skeleton', attackSpeed: 2.5, desc: 'Фанатичные удары.' },
-          { id: 'm_fanatic_2', name: 'Тёмный Истязатель', hp: 460, atk: 92, def: 28, xp: 250, gold: 190, isBoss: false, avatar: 'skeleton', attackSpeed: 2.7, desc: 'Вытягивание жизни.' }
+          { id: 'm_fanatic_1', name: 'Аколит Нави A', hp: 500, atk: 95, def: 28, xp: 280, gold: 220, isBoss: false, avatar: 'skeleton', attackSpeed: 2.5, desc: 'Фанатичный удар.' },
+          { id: 'm_fanatic_2', name: 'Аколит Нави B', hp: 500, atk: 95, def: 28, xp: 280, gold: 220, isBoss: false, avatar: 'skeleton', attackSpeed: 2.5, desc: 'Фанатичный удар.' },
+          { id: 'm_fanatic_3', name: 'Тёмный Истязатель', hp: 600, atk: 110, def: 32, xp: 340, gold: 270, isBoss: false, avatar: 'skeleton', attackSpeed: 2.7, desc: 'Высасывание жизни.' }
         ]
       },
       {
-        name: 'Алтарь Суда',
+        name: 'Алтать Суда',
         enemies: [
-          { id: 'b_priest', name: 'Тёмный Жрец Нави [БОСС]', hp: 1900, atk: 165, def: 60, xp: 1400, gold: 1100, isBoss: true, avatar: 'priest', attackSpeed: 2.3, desc: 'Проклятия и иссушение.' }
+          { id: 'm_fanatic_4', name: 'Палач Культа', hp: 750, atk: 130, def: 40, xp: 420, gold: 330, isBoss: false, avatar: 'skeleton', attackSpeed: 2.8, desc: 'Тяжелый топор.' },
+          { id: 'b_priest', name: 'Тёмный Жрец Нави [БОСС]', hp: 2600, atk: 185, def: 65, xp: 1800, gold: 1400, isBoss: true, avatar: 'priest', attackSpeed: 2.3, desc: 'Проклятия Нави.' },
+          { id: 'm_fanatic_guard', name: 'Страж Алтаря', hp: 680, atk: 115, def: 38, xp: 380, gold: 300, isBoss: false, avatar: 'skeleton', attackSpeed: 2.6, desc: 'Защитник Жреца.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Кадило Инквизиции', slot: 'weapon', baseAtk: 95, baseDef: 18, baseHp: 180, baseAspd: 20, pierce: 18 },
-      { name: 'Одеяния Жреца Нави', slot: 'armor', baseAtk: 25, baseDef: 85, baseHp: 460, baseAspd: 10, pierce: 0 },
-      { name: 'Митра Безмолвия', slot: 'helm', baseAtk: 35, baseDef: 48, baseHp: 270, baseAspd: 12, pierce: 0 },
-      { name: 'Сандалии Паломника', slot: 'boots', baseAtk: 25, baseDef: 44, baseHp: 270, baseAspd: 30, pierce: 0 },
-      { name: 'Чёрные Чётки Пустоты', slot: 'amulet', baseAtk: 62, baseDef: 32, baseHp: 340, baseAspd: 15, pierce: 15 }
+      { name: 'Кадило Инквизиции', slot: 'weapon', baseAtk: 110, baseDef: 20, baseHp: 220, baseAspd: 20, pierce: 20 },
+      { name: 'Одеяния Жреца', slot: 'armor', baseAtk: 30, baseDef: 100, baseHp: 550, baseAspd: 10, pierce: 0 },
+      { name: 'Митра Безмолвия', slot: 'helm', baseAtk: 42, baseDef: 58, baseHp: 320, baseAspd: 12, pierce: 0 },
+      { name: 'Сандалии Паломника', slot: 'boots', baseAtk: 30, baseDef: 52, baseHp: 310, baseAspd: 30, pierce: 0 },
+      { name: 'Чёрные Чётки', slot: 'amulet', baseAtk: 75, baseDef: 38, baseHp: 400, baseAspd: 15, pierce: 18 }
     ]
   },
   {
     id: 'dungeon_4',
     name: 'Цитадель Адского Пламени',
     desc: 'Обитель Архидемона МоррисГрада.',
-    minLvl: 18,
+    minLvl: 30,
     cooldownSec: 300,
     stages: [
       {
         name: 'Врата Инферно',
         enemies: [
-          { id: 'm_demon_1', name: 'Огненный Демон', hp: 950, atk: 160, def: 50, xp: 600, gold: 460, isBoss: false, avatar: 'demon', attackSpeed: 2.6, desc: 'Адский огонь.' },
-          { id: 'm_demon_2', name: 'Палач Преисподней', hp: 1200, atk: 195, def: 56, xp: 750, gold: 560, isBoss: false, avatar: 'demon', attackSpeed: 2.8, desc: 'Сокрушительный топор.' }
+          { id: 'm_demon_1', name: 'Огненный Демон A', hp: 1100, atk: 180, def: 55, xp: 700, gold: 550, isBoss: false, avatar: 'demon', attackSpeed: 2.5, desc: 'Адский пламень.' },
+          { id: 'm_demon_2', name: 'Огненный Демон B', hp: 1100, atk: 180, def: 55, xp: 700, gold: 550, isBoss: false, avatar: 'demon', attackSpeed: 2.5, desc: 'Адский пламень.' },
+          { id: 'm_demon_3', name: 'Палач Преисподней', hp: 1400, atk: 220, def: 65, xp: 880, gold: 700, isBoss: false, avatar: 'demon', attackSpeed: 2.7, desc: 'Сокрушение.' }
         ]
       },
       {
-        name: 'Трон Преисподней',
+        name: 'Трон Бездны',
         enemies: [
-          { id: 'b_archdemon', name: 'Архидемон МоррисГрада [БОСС]', hp: 4400, atk: 330, def: 110, xp: 3800, gold: 2900, isBoss: true, avatar: 'archdemon', attackSpeed: 2.2, desc: 'Владыка бездны.' }
+          { id: 'm_demon_guard', name: 'Гвардеец Демонов', hp: 1600, atk: 240, def: 75, xp: 1000, gold: 800, isBoss: false, avatar: 'demon', attackSpeed: 2.6, desc: 'Охрана трона.' },
+          { id: 'b_archdemon', name: 'Архидемон [БОСС]', hp: 5800, atk: 380, def: 125, xp: 4500, gold: 3500, isBoss: true, avatar: 'archdemon', attackSpeed: 2.2, desc: 'Владыка инферно.' },
+          { id: 'm_demon_guard2', name: 'Гвардеец Демонов B', hp: 1600, atk: 240, def: 75, xp: 1000, gold: 800, isBoss: false, avatar: 'demon', attackSpeed: 2.6, desc: 'Охрана трона.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Клинок Адского Пламени', slot: 'weapon', baseAtk: 210, baseDef: 32, baseHp: 380, baseAspd: 25, pierce: 40 },
-      { name: 'Латы Пепельного Лорда', slot: 'armor', baseAtk: 45, baseDef: 185, baseHp: 980, baseAspd: 5, pierce: 0 },
-      { name: 'Рогатый Шлем Разрушителя', slot: 'helm', baseAtk: 75, baseDef: 100, baseHp: 560, baseAspd: 15, pierce: 0 },
-      { name: 'Поножи Пустоты', slot: 'boots', baseAtk: 52, baseDef: 88, baseHp: 520, baseAspd: 35, pierce: 0 },
-      { name: 'Печать Архидемона', slot: 'amulet', baseAtk: 140, baseDef: 70, baseHp: 720, baseAspd: 20, pierce: 30 }
+      { name: 'Клинок Адского Пламени', slot: 'weapon', baseAtk: 240, baseDef: 35, baseHp: 450, baseAspd: 25, pierce: 45 },
+      { name: 'Латы Пепельного Лорда', slot: 'armor', baseAtk: 50, baseDef: 210, baseHp: 1100, baseAspd: 5, pierce: 0 },
+      { name: 'Рогатый Шлем', slot: 'helm', baseAtk: 85, baseDef: 115, baseHp: 650, baseAspd: 15, pierce: 0 },
+      { name: 'Поножи Пустоты', slot: 'boots', baseAtk: 60, baseDef: 100, baseHp: 600, baseAspd: 35, pierce: 0 },
+      { name: 'Печать Архидемона', slot: 'amulet', baseAtk: 160, baseDef: 80, baseHp: 800, baseAspd: 20, pierce: 35 }
+    ]
+  },
+  {
+    id: 'dungeon_abyss',
+    name: 'Затонувший Храм Бездны',
+    desc: 'Подводное святилище древних сирен и глубинных ужасов.',
+    minLvl: 40,
+    cooldownSec: 330,
+    stages: [
+      {
+        name: 'Подводный Грот',
+        enemies: [
+          { id: 'm_abyss_1', name: 'Глубинный Охотник A', hp: 2200, atk: 350, def: 100, xp: 1800, gold: 1400, isBoss: false, avatar: 'slime', attackSpeed: 2.3, desc: 'Штормовые выпады.' },
+          { id: 'm_abyss_2', name: 'Глубинный Охотник B', hp: 2200, atk: 350, def: 100, xp: 1800, gold: 1400, isBoss: false, avatar: 'slime', attackSpeed: 2.3, desc: 'Штормовые выпады.' },
+          { id: 'm_abyss_3', name: 'Тёмная Сирена', hp: 1900, atk: 410, def: 85, xp: 2000, gold: 1600, isBoss: false, avatar: 'priest', attackSpeed: 2.1, desc: 'Психический урон.' }
+        ]
+      },
+      {
+        name: 'Святилище Левиафана',
+        enemies: [
+          { id: 'm_abyss_guard', name: 'Титанический Страж', hp: 3200, atk: 440, def: 140, xp: 2800, gold: 2200, isBoss: false, avatar: 'frost_golem', attackSpeed: 2.8, desc: 'Огромный панцирь.' },
+          { id: 'b_kraken', name: 'Кракеноподобный Левиафан [БОСС]', hp: 11000, atk: 620, def: 210, xp: 12000, gold: 9500, isBoss: true, avatar: 'dragon', attackSpeed: 2.0, desc: 'Хозяин бездны.' },
+          { id: 'm_abyss_siren2', name: 'Жрица Штормов', hp: 2400, atk: 480, def: 110, xp: 2500, gold: 2000, isBoss: false, avatar: 'priest', attackSpeed: 2.2, desc: 'Поддержка Левиафана.' }
+        ]
+      }
+    ],
+    itemPool: [
+      { name: 'Трезубец Бездны', slot: 'weapon', baseAtk: 420, baseDef: 60, baseHp: 800, baseAspd: 40, pierce: 80 },
+      { name: 'Чешуйчатый Доспех', slot: 'armor', baseAtk: 80, baseDef: 350, baseHp: 1900, baseAspd: 15, pierce: 0 },
+      { name: 'Корона Океана', slot: 'helm', baseAtk: 140, baseDef: 180, baseHp: 1050, baseAspd: 25, pierce: 0 },
+      { name: 'Волноступы', slot: 'boots', baseAtk: 100, baseDef: 160, baseHp: 950, baseAspd: 50, pierce: 0 },
+      { name: 'Жемчужина Глубин', slot: 'amulet', baseAtk: 270, baseDef: 140, baseHp: 1400, baseAspd: 30, pierce: 60 }
     ]
   },
   {
     id: 'dungeon_5',
     name: 'Разрыв Антиматрицы',
-    desc: 'Изнанка кода мира, где законы реальности стёрты.',
-    minLvl: 26,
-    cooldownSec: 300,
+    desc: 'Изнанка цифрового кода мира, где стёрты законы физики.',
+    minLvl: 50,
+    cooldownSec: 360,
     stages: [
       {
-        name: 'Глитч-прорыв',
+        name: 'Глитч-Сегмент',
         enemies: [
-          { id: 'm_glitch_1', name: 'Фантомная Аномалия', hp: 2200, atk: 340, def: 95, xp: 1800, gold: 1400, isBoss: false, avatar: 'skeleton', attackSpeed: 2.2, desc: 'Критический сбой.' },
-          { id: 'm_glitch_2', name: 'Фазовый Разрушитель', hp: 2700, atk: 390, def: 115, xp: 2200, gold: 1650, isBoss: false, avatar: 'demon', attackSpeed: 2.4, desc: 'Искажение ткани.' }
+          { id: 'm_glitch_1', name: 'Фантомная Аномалия A', hp: 4500, atk: 680, def: 180, xp: 3800, gold: 3000, isBoss: false, avatar: 'skeleton', attackSpeed: 2.1, desc: 'Критический сбой.' },
+          { id: 'm_glitch_2', name: 'Фантомная Аномалия B', hp: 4500, atk: 680, def: 180, xp: 3800, gold: 3000, isBoss: false, avatar: 'skeleton', attackSpeed: 2.1, desc: 'Критический сбой.' },
+          { id: 'm_glitch_3', name: 'Фазовый Разрушитель', hp: 5200, atk: 780, def: 210, xp: 4500, gold: 3500, isBoss: false, avatar: 'demon', attackSpeed: 2.3, desc: 'Искажение ткани.' }
         ]
       },
       {
-        name: 'Зазеркалье Фрактала',
+        name: 'Фрактальный Трон',
         enemies: [
-          { id: 'b_hunter', name: 'Охотница Фрактала [БОСС]', hp: 8200, atk: 580, def: 190, xp: 8500, gold: 6500, isBoss: true, avatar: 'dragon', attackSpeed: 2.1, desc: 'Меч Кезу и паралич.' }
-        ]
-      },
-      {
-        name: 'Ядро Нулевого Дня',
-        enemies: [
-          { id: 'b_matrix', name: 'Творец Искажения [БОСС]', hp: 15000, atk: 880, def: 280, xp: 18000, gold: 14000, isBoss: true, avatar: 'matrix', attackSpeed: 1.9, desc: 'Первородный баг матрицы.' }
+          { id: 'b_hunter', name: 'Охотница Фрактала', hp: 12000, atk: 1100, def: 320, xp: 12000, gold: 9500, isBoss: false, avatar: 'dragon', attackSpeed: 2.0, desc: 'Паралич матрицы.' },
+          { id: 'b_matrix', name: 'Творец Искажения [БОСС]', hp: 28000, atk: 1650, def: 480, xp: 35000, gold: 28000, isBoss: true, avatar: 'matrix', attackSpeed: 1.8, desc: 'Первородный баг.' },
+          { id: 'm_glitch_guard', name: 'Аномальный Нуль-Вектор', hp: 6000, atk: 880, def: 250, xp: 5500, gold: 4200, isBoss: false, avatar: 'matrix', attackSpeed: 2.2, desc: 'Поддержка ядра.' }
         ]
       }
     ],
     itemPool: [
-      { name: 'Кинжал Нулевого Дня', slot: 'weapon', baseAtk: 460, baseDef: 65, baseHp: 750, baseAspd: 50, pierce: 90 },
-      { name: 'Сингулярная Мантия', slot: 'armor', baseAtk: 90, baseDef: 380, baseHp: 2000, baseAspd: 25, pierce: 0 },
-      { name: 'Корона Искажения', slot: 'helm', baseAtk: 160, baseDef: 200, baseHp: 1100, baseAspd: 35, pierce: 0 },
-      { name: 'Фазовые Ступы', slot: 'boots', baseAtk: 115, baseDef: 185, baseHp: 1000, baseAspd: 60, pierce: 0 },
-      { name: 'Око Демиурга', slot: 'amulet', baseAtk: 300, baseDef: 160, baseHp: 1500, baseAspd: 40, pierce: 70 }
+      { name: 'Кинжал Нулевого Дня', slot: 'weapon', baseAtk: 850, baseDef: 120, baseHp: 1500, baseAspd: 65, pierce: 150 },
+      { name: 'Сингулярная Мантия', slot: 'armor', baseAtk: 180, baseDef: 700, baseHp: 3800, baseAspd: 30, pierce: 0 },
+      { name: 'Корона Искажения', slot: 'helm', baseAtk: 300, baseDef: 380, baseHp: 2200, baseAspd: 45, pierce: 0 },
+      { name: 'Фазовые Ступы', slot: 'boots', baseAtk: 220, baseDef: 350, baseHp: 2000, baseAspd: 80, pierce: 0 },
+      { name: 'Око Демиурга', slot: 'amulet', baseAtk: 580, baseDef: 300, baseHp: 2800, baseAspd: 50, pierce: 120 }
     ]
   }
 ];
 
-/* ==================== STORY QUESTS ==================== */
 const STORY_QUESTS = [
-  { id: 'sq_0', title: 'Пролог: Испытание Замка', desc: 'Победите Теневого Стража в Подвалах Старого Замка.', targetId: 'b_shadow_guard', total: 1, xp: 80, gold: 80, tp: 1, rewardQ: 2 },
-  { id: 'sq_0b', title: 'Глава I: Безопасный Тракт', desc: 'Одолейте Атамана Мародёров на Заброшенном Тракте.', targetId: 'b_bandit_leader', total: 1, xp: 140, gold: 120, tp: 1, rewardQ: 3 },
-  { id: 'sq_0c', title: 'Глава II: Очищение Топей', desc: 'Уничтожьте Болотный Ужас Нави в Чёрных Топях.', targetId: 'b_swamp_horror', total: 1, xp: 220, gold: 200, tp: 1, rewardQ: 3 },
-  { id: 'sq_1', title: 'Глава III: Эхо Катакомб', desc: 'Сразите Тюремщика Склепа в глубинах Катакомб Скорби.', targetId: 'b_jailer', total: 1, xp: 380, gold: 350, tp: 1, rewardQ: 4 },
-  { id: 'sq_2', title: 'Глава IV: Древний Ледяной Дракон', desc: 'Победите первозданного Дракона Харебру в Ледяном Разломе.', targetId: 'b_dragon', total: 1, xp: 1000, gold: 900, tp: 2, rewardQ: 5 },
-  { id: 'sq_3', title: 'Глава V: Искоренение Скверны', desc: 'Уничтожьте Тёмного Жреца Нави в Пепельных Чертогах.', targetId: 'b_priest', total: 1, xp: 2200, gold: 1800, tp: 2, rewardQ: 6 },
-  { id: 'sq_4', title: 'Глава VI: Владыка Инферно', desc: 'Сразите Архидемона МоррисГрада в Цитадели Адского Пламени.', targetId: 'b_archdemon', total: 1, xp: 5000, gold: 4500, tp: 3, rewardQ: 7 },
-  { id: 'sq_5', title: 'Финал: Сбой Антиматрицы', desc: 'Уничтожьте Творца Искажения в Разрыве Антиматрицы!', targetId: 'b_matrix', total: 1, xp: 15000, gold: 12000, tp: 5, rewardQ: 8 }
+  { id: 'sq_0', title: 'Пролог: Испытание Замка', desc: 'Победите Теневого Стража в Подвалах Старого Замка.', targetId: 'b_shadow_guard', total: 1, xp: 100, gold: 90, tp: 1, rewardQ: 2 },
+  { id: 'sq_0b', title: 'Глава I: Безопасный Тракт', desc: 'Одолейте Атамана Мародёров на Заброшенном Тракте.', targetId: 'b_bandit_leader', total: 1, xp: 180, gold: 150, tp: 1, rewardQ: 3 },
+  { id: 'sq_0c', title: 'Глава II: Очищение Топей', desc: 'Уничтожьте Болотный Ужас Нави в Чёрных Топях.', targetId: 'b_swamp_horror', total: 1, xp: 320, gold: 260, tp: 1, rewardQ: 3 },
+  { id: 'sq_1', title: 'Глава III: Эхо Катакомб', desc: 'Сразите Чёрного Жнеца в глубинах Катакомб Скорби.', targetId: 'b_reaper', total: 1, xp: 600, gold: 500, tp: 1, rewardQ: 4 },
+  { id: 'sq_mines', title: 'Глава IV: Тайны Шахт Гномов', desc: 'Разбейте Рудоносного Голема в Забытых Шахтах.', targetId: 'b_golem_mine', total: 1, xp: 1100, gold: 900, tp: 2, rewardQ: 4 },
+  { id: 'sq_2', title: 'Глава V: Ледяной Дракон', desc: 'Победите Дракона Харебру в Ледяном Разломе.', targetId: 'b_dragon', total: 1, xp: 2200, gold: 1800, tp: 2, rewardQ: 5 },
+  { id: 'sq_3', title: 'Глава VI: Искоренение Скверны', desc: 'Уничтожьте Тёмного Жреца Нави в Пепельных Чертогах.', targetId: 'b_priest', total: 1, xp: 4500, gold: 3500, tp: 2, rewardQ: 6 },
+  { id: 'sq_4', title: 'Глава VII: Владыка Инферно', desc: 'Сразите Архидемона в Цитадели Адского Пламени.', targetId: 'b_archdemon', total: 1, xp: 9000, gold: 7500, tp: 3, rewardQ: 7 },
+  { id: 'sq_abyss', title: 'Глава VIII: Левиафан Бездны', desc: 'Победите Левиафана в Затонувшем Храме.', targetId: 'b_kraken', total: 1, xp: 20000, gold: 16000, tp: 4, rewardQ: 7 },
+  { id: 'sq_5', title: 'Финал: Сбой Антиматрицы', desc: 'Уничтожьте Творца Искажения в Разрыве Антиматрицы!', targetId: 'b_matrix', total: 1, xp: 50000, gold: 40000, tp: 5, rewardQ: 8 }
 ];
 
-/* ==================== STATE ==================== */
+const SAVE_KEY = 'shadows_world_save_v1';
+
 let player = {
-  lvl: 1, exp: 0, expNext: 80,
+  lvl: 1, exp: 0, expNext: 100,
   talentPoints: 0,
   hp: 120, baseMaxHp: 120,
   baseAtk: 12, baseDef: 4, baseAspd: 0,
@@ -813,7 +866,41 @@ let combat = {
   skillCooldowns: {}
 };
 
-/* ==================== STAT CALCULATIONS ==================== */
+function saveGame() {
+  try {
+    const data = {
+      player,
+      dungeonCooldowns,
+      dailyQuests
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch(e) {
+    console.error("Save error:", e);
+  }
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.player) Object.assign(player, data.player);
+    if (data.dungeonCooldowns) dungeonCooldowns = data.dungeonCooldowns;
+    if (data.dailyQuests) dailyQuests = data.dailyQuests;
+    return true;
+  } catch(e) {
+    console.error("Load error:", e);
+    return false;
+  }
+}
+
+function resetSaveData() {
+  if (confirm("Вы уверены, что хотите полностью сбросить весь игровой прогресс?")) {
+    localStorage.removeItem(SAVE_KEY);
+    location.reload();
+  }
+}
+
 function getPlayerMaxHp() {
   let extra = player.talents.hp * 50;
   for (let s in player.equipment) if (player.equipment[s]) extra += (player.equipment[s].hp || 0);
@@ -830,6 +917,13 @@ function getPlayerDef() {
   let extra = player.talents.def * 6;
   for (let s in player.equipment) if (player.equipment[s]) extra += (player.equipment[s].def || 0);
   return player.baseDef + extra;
+}
+
+function getPlayerDR() {
+  const def = getPlayerDef();
+  if (def <= 0) return 0;
+  const k = 400 + (player.lvl * 25);
+  return def / (def + k);
 }
 
 function getPlayerAspd() {
@@ -870,7 +964,6 @@ function getOverchargeTalentBonus() {
   return 1 + (player.talents.over * 0.25);
 }
 
-/* ==================== CHARGE TIMINGS & MULTIPLIERS ==================== */
 function getOptimalChargeSec() {
   const aspd = getPlayerAspd();
   if (aspd < 0) {
@@ -928,22 +1021,36 @@ function calculateChargeData() {
   return { time: t, tOpt, tOverStart, tMin, mult, tier, label };
 }
 
-/* ==================== EXPONENTIAL ITEM GENERATOR ==================== */
-function generateLoot(dungeon, diff) {
-  const diffIndex = diff - 1;
-  const rand = Math.random() * 100;
-  let cumulative = 0;
-  let chosenQ = 1;
+function generateLoot(dungeon, diff, forceQuality = null) {
+  let dIndex = DUNGEONS.findIndex(d => d.id === dungeon.id);
+  if (dIndex < 0) dIndex = 0;
+  const pickedDungeonIndex = Math.floor(Math.random() * (dIndex + 1));
+  const pickedDungeon = DUNGEONS[pickedDungeonIndex];
+  const baseItem = pickedDungeon.itemPool[Math.floor(Math.random() * pickedDungeon.itemPool.length)];
 
-  for (let q = 1; q <= 8; q++) {
-    cumulative += QUALITIES[q].dropRate[diffIndex];
-    if (rand <= cumulative) { chosenQ = q; break; }
+  const effectiveDiff = Math.floor(Math.random() * diff) + 1;
+  const diffIndex = effectiveDiff - 1;
+
+  let chosenQ = forceQuality;
+  if (!chosenQ) {
+    const rand = Math.random() * 100;
+    let cumulative = 0;
+    chosenQ = 1;
+    for (let q = 1; q <= 8; q++) {
+      cumulative += QUALITIES[q].dropRate[diffIndex];
+      if (rand <= cumulative) { chosenQ = q; break; }
+    }
   }
 
-  const baseItem = dungeon.itemPool[Math.floor(Math.random() * dungeon.itemPool.length)];
-  const qData = QUALITIES[chosenQ];
-  const diffMult = Math.pow(1.65, diff - 1);
+  const qData = QUALITIES[chosenQ] || QUALITIES[1];
+  const diffMult = Math.pow(1.85, effectiveDiff - 1);
   const totalMult = qData.mult * diffMult;
+
+  const baseAtkVal = Math.round((baseItem.baseAtk || 0) * totalMult);
+  const baseDefVal = Math.round((baseItem.baseDef || 0) * totalMult);
+  const baseHpVal = Math.round((baseItem.baseHp || 0) * totalMult);
+  const baseAspdVal = Math.round((baseItem.baseAspd || 0) * (1 + (effectiveDiff - 1) * 0.2));
+  const basePierceVal = baseItem.pierce || 0;
 
   const targetAffixes = qData.maxAffixes;
   let stackedStats = { atk: 0, def: 0, hp: 0, aspd: 0, crit: 0, vamp: 0, pierce: 0, regen: 0 };
@@ -951,17 +1058,19 @@ function generateLoot(dungeon, diff) {
 
   for (let i = 0; i < targetAffixes; i++) {
     const template = AFFIX_POOL[Math.floor(Math.random() * AFFIX_POOL.length)];
-    const val = Math.round((template.val[0] + Math.random() * (template.val[1] - template.val[0])) * totalMult * 0.45);
+    const val = Math.round((template.val[0] + Math.random() * (template.val[1] - template.val[0])) * totalMult * 0.40);
     const finalVal = Math.max(1, val);
 
     stackedStats[template.stat] += finalVal;
-    rolledAffixNames.push(`${template.label} +${finalVal}`);
+    let affixDesc = `${template.label} +${finalVal}`;
 
     if (template.negStat) {
-      const nVal = Math.round((template.negVal[0] + Math.random() * (template.negVal[1] - template.negVal[0])) * (1 + (diff-1)*0.25));
+      const nVal = Math.round((template.negVal[0] + Math.random() * (template.negVal[1] - template.negVal[0])) * (1 + (effectiveDiff - 1) * 0.25));
       stackedStats[template.negStat] += nVal;
-      rolledAffixNames.push(`${template.negLabel} ${nVal}%`);
+      affixDesc += `, ${template.negLabel} ${nVal}%`;
     }
+    
+    rolledAffixNames.push(`${affixDesc} (${template.name})`);
   }
 
   const prefix = PREFIX_NAMES[Math.floor(Math.random() * PREFIX_NAMES.length)];
@@ -971,136 +1080,118 @@ function generateLoot(dungeon, diff) {
     fullName,
     slot: baseItem.slot,
     quality: chosenQ,
+    dropDiff: effectiveDiff,
     affixes: rolledAffixNames,
-    atk: Math.round(baseItem.baseAtk * totalMult) + stackedStats.atk,
-    def: Math.round(baseItem.baseDef * totalMult) + stackedStats.def,
-    hp: Math.round(baseItem.baseHp * totalMult) + stackedStats.hp,
-    aspd: Math.round((baseItem.baseAspd || 0) * (1 + (diff - 1)*0.2)) + stackedStats.aspd,
+    baseStats: {
+      atk: baseAtkVal,
+      def: baseDefVal,
+      hp: baseHpVal,
+      aspd: baseAspdVal,
+      pierce: basePierceVal
+    },
+    atk: baseAtkVal + stackedStats.atk,
+    def: baseDefVal + stackedStats.def,
+    hp: baseHpVal + stackedStats.hp,
+    aspd: baseAspdVal + stackedStats.aspd,
     crit: stackedStats.crit,
     vamp: stackedStats.vamp,
-    pierce: (baseItem.pierce || 0) + stackedStats.pierce,
+    pierce: basePierceVal + stackedStats.pierce,
     regen: stackedStats.regen,
-    price: Math.round(25 * totalMult * diff)
+    price: Math.round(25 * totalMult * effectiveDiff)
   };
 }
 
-/* ==================== SHOP ACTIONS ==================== */
-function buyPotion(count, cost) {
-  if (player.gold < cost) return alert('Недостаточно золота для покупки настоек!');
-  player.gold -= cost;
-  player.potions += count;
-  updateUI();
-  alert(`Куплено настоек: +${count} шт.`);
-}
+function showItemTooltip(e, item) {
+  const q = QUALITIES[item.quality] || QUALITIES[1];
+  const slotName = SLOTS[item.slot] || item.slot;
+  const tip = document.getElementById('item-tooltip');
+  if (!tip) return;
 
-function buyTalentPoint() {
-  const cost = 100000;
-  if (player.gold < cost) return alert('Недостаточно золота! Требуется 100,000 Золота за 1 Очко Талантов.');
-  player.gold -= cost;
-  player.talentPoints += 1;
-  updateUI();
-  alert('🎉 Вы приобрели Свиток Просветления! Получено +1 Очко Талантов (TP).');
-}
+  const equipped = player.equipment[item.slot];
 
-/* ==================== TALENTS & SKILLS ==================== */
-function upgradeTalent(nodeKey) {
-  if (player.talentPoints <= 0) return alert('Нет свободных очков талантов (TP)!');
-  if (player.talents[nodeKey] >= 5) return alert('Талант уже максимального уровня!');
-  player.talentPoints--;
-  player.talents[nodeKey]++;
-  updateUI();
-}
+  let compareHtml = '';
+  if (equipped && equipped !== item) {
+    const statsToCheck = [
+      { key: 'atk', label: '⚔ Атк' },
+      { key: 'def', label: '🛡 Защ' },
+      { key: 'hp', label: '❤️ HP' },
+      { key: 'aspd', label: '⚡ ASPD', isPct: true },
+      { key: 'crit', label: '🎯 Крит', isPct: true },
+      { key: 'vamp', label: '🩸 Вампир', isPct: true },
+      { key: 'pierce', label: '🗡 Пробой' },
+      { key: 'regen', label: '💚 Реген' }
+    ];
 
-function upgradeSkill(skillId) {
-  if (player.talentPoints <= 0) return alert('Нет свободных очков талантов (TP)!');
-  if (player.skills[skillId].lvl >= 5) return alert('Способность уже 5 уровня!');
-  player.talentPoints--;
-  player.skills[skillId].lvl++;
-  updateUI();
-}
+    let lines = [];
+    statsToCheck.forEach(st => {
+      const itemVal = item[st.key] || 0;
+      const eqVal = equipped[st.key] || 0;
+      const diff = itemVal - eqVal;
+      if (diff !== 0) {
+        const cls = diff > 0 ? 'compare-pos' : 'compare-neg';
+        const sign = diff > 0 ? '+' : '';
+        lines.push(`<span style="font-size:9px;">${st.label}: <b class="${cls}">${sign}${diff}${st.isPct ? '%' : ''}</b></span>`);
+      }
+    });
 
-function toggleEquipSkill(skillId) {
-  const idx = player.equippedSkills.indexOf(skillId);
-  if (idx !== -1) {
-    if (player.equippedSkills.length <= 1) return alert('Оставьте хотя бы 1 способность!');
-    player.equippedSkills.splice(idx, 1);
-  } else {
-    if (player.equippedSkills.length >= 3) return alert('Максимум 3 способности!');
-    player.equippedSkills.push(skillId);
-  }
-  updateUI();
-}
-
-function resetTalents() {
-  if (player.gold < 100) return alert('Нужно 100 Золота для сброса!');
-  player.gold -= 100;
-  let refunded = 0;
-  for (let k in player.talents) { refunded += player.talents[k]; player.talents[k] = 0; }
-  for (let s in player.skills) { refunded += (player.skills[s].lvl - 1); player.skills[s].lvl = 1; }
-  player.talentPoints += refunded;
-  alert(`Сброс завершен! Возвращено ${refunded} TP.`);
-  updateUI();
-}
-
-/* ==================== UI RENDERING ==================== */
-function setSafeText(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.innerText = text;
-}
-
-function setSafeHTML(id, html) {
-  const el = document.getElementById(id);
-  if (el) el.innerHTML = html;
-}
-
-function updateUI() {
-  const maxHp = getPlayerMaxHp();
-  if (player.hp > maxHp) player.hp = maxHp;
-
-  setSafeText('hdr-lvl', player.lvl);
-  setSafeText('hdr-tp', player.talentPoints);
-  setSafeText('hdr-gold', player.gold.toLocaleString());
-  setSafeText('tree-tp-val', player.talentPoints);
-  setSafeText('tab-inv-cnt', player.inventory.length);
-
-  setSafeText('profile-hp-txt', `${Math.round(player.hp)} / ${maxHp} HP`);
-  const profileHpBar = document.getElementById('profile-hp-bar');
-  if (profileHpBar) profileHpBar.style.width = `${Math.max(0, (player.hp / maxHp) * 100)}%`;
-
-  setSafeText('profile-exp-txt', player.exp);
-  setSafeText('profile-exp-next', player.expNext);
-  const profileExpBar = document.getElementById('profile-exp-bar');
-  if (profileExpBar) profileExpBar.style.width = `${Math.min(100, (player.exp / player.expNext) * 100)}%`;
-
-  const aspd = getPlayerAspd();
-  const reg = getPlayerRegen();
-  setSafeText('stat-atk', getPlayerAtk());
-  setSafeText('stat-def', getPlayerDef());
-  setSafeText('stat-regen', `+${reg}/с (Хаб: +${reg*10}/с)`);
-  
-  const aspdEl = document.getElementById('stat-aspd');
-  if (aspdEl) {
-    aspdEl.innerText = `${aspd >= 0 ? '+' : ''}${aspd}%`;
-    aspdEl.style.color = aspd < 0 ? '#f87171' : 'var(--accent)';
+    compareHtml = `
+      <div style="border-top:1px dashed var(--border-highlight); margin-top:6px; padding-top:4px;">
+        <div style="font-size:9px; font-weight:bold; color:var(--gold);">⚖ Надето сейчас: <span class="${QUALITIES[equipped.quality].cls}">${equipped.fullName}</span></div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
+          ${lines.length > 0 ? lines.join(' | ') : '<span style="font-size:9px; color:var(--text-muted);">Параметры равны</span>'}
+        </div>
+      </div>
+    `;
+  } else if (equipped === item) {
+    compareHtml = `<div style="border-top:1px dashed var(--border); margin-top:4px; padding-top:2px; font-size:9px; color:#34d399; font-weight:bold;">✓ Предмет экипирован</div>`;
   }
 
-  setSafeText('stat-crit', `${getPlayerCrit()}%`);
-  setSafeText('stat-vamp', `${getPlayerVamp()}%`);
-  setSafeText('stat-pierce', `${getPlayerPierce()} ед.`);
-  setSafeText('stat-charge-opt', `${getOptimalChargeSec().toFixed(1)}s`);
-  setSafeText('stat-charge-over', `${getOverchargeStartSec().toFixed(1)}s+`);
-  setSafeText('potions-count', player.potions);
-
-  for (let k in player.talents) {
-    const el = document.getElementById(`t-lvl-${k}`);
-    if (el) el.innerText = `${player.talents[k]}/5`;
+  let baseHtml = '';
+  if (item.baseStats) {
+    if (item.baseStats.atk) baseHtml += `<div>⚔ Урон: +${item.baseStats.atk}</div>`;
+    if (item.baseStats.def) baseHtml += `<div>🛡 Защита: +${item.baseStats.def}</div>`;
+    if (item.baseStats.hp) baseHtml += `<div>❤️ HP: +${item.baseStats.hp}</div>`;
+    if (item.baseStats.aspd) baseHtml += `<div>⚡ ASPD: +${item.baseStats.aspd}%</div>`;
+    if (item.baseStats.pierce) baseHtml += `<div>🗡 Пробой: +${item.baseStats.pierce}</div>`;
   }
 
-  renderEquipment();
-  renderInventory();
-  renderSkillsManager();
-  renderDungeons();
-  renderQuests();
+  let affixesHtml = (item.affixes && item.affixes.length > 0)
+    ? item.affixes.map(a => `<div style="color:#d8b4fe; font-size:9px;">• ${a}</div>`).join('')
+    : '<div style="color:var(--text-muted); font-style:italic; font-size:9px;">Нет аффиксов</div>';
+
+  tip.innerHTML = `
+    <div style="font-weight:800; font-size:12px; margin-bottom:2px;" class="${q.cls}">${item.fullName}</div>
+    <div style="font-size:9px; color:var(--text-muted); margin-bottom:4px; display:flex; justify-content:space-between;">
+      <span>${q.name}</span><span>[${slotName}]</span>
+    </div>
+    ${baseHtml ? `<div style="border-top:1px solid var(--border); padding-top:3px; margin-bottom:3px; font-size:9px;"><b>Базовые параметры:</b>${baseHtml}</div>` : ''}
+    <div style="border-top:1px solid var(--border); padding-top:3px; margin-bottom:3px; font-size:9px;">
+      <b style="color:var(--accent);">Аффиксы (${item.affixes ? item.affixes.length : 0}/${q.maxAffixes}):</b><br>
+      ${affixesHtml}
+    </div>
+    ${compareHtml}
+    <div style="border-top:1px solid var(--border); padding-top:3px; margin-top:4px; font-size:9px; color:var(--gold);">
+      🪙 Ценность: ${item.price} Зл.
+    </div>
+  `;
+  tip.style.display = 'block';
+  moveItemTooltip(e);
+}
+
+function moveItemTooltip(e) {
+  const tip = document.getElementById('item-tooltip');
+  if (!tip || tip.style.display === 'none') return;
+  let x = e.clientX + 12;
+  let y = e.clientY + 12;
+  if (x + 280 > window.innerWidth) x = e.clientX - 285;
+  if (y + 220 > window.innerHeight) y = e.clientY - 225;
+  tip.style.left = `${Math.max(5, x)}px`;
+  tip.style.top = `${Math.max(5, y)}px`;
+}
+
+function hideItemTooltip() {
+  const tip = document.getElementById('item-tooltip');
+  if (tip) tip.style.display = 'none';
 }
 
 function renderEquipment() {
@@ -1112,8 +1203,16 @@ function renderEquipment() {
     const card = document.createElement('div');
 
     if (item) {
-      const q = QUALITIES[item.quality];
+      const q = QUALITIES[item.quality] || QUALITIES[1];
       card.className = `gear-card ${q.cls}`;
+      card.onmouseenter = (e) => showItemTooltip(e, item);
+      card.onmousemove = (e) => moveItemTooltip(e);
+      card.onmouseleave = () => hideItemTooltip();
+
+      const affixesHtml = (item.affixes && item.affixes.length > 0)
+        ? item.affixes.map(a => `<span class="affix-chip" style="background:rgba(157,92,246,0.1); border-color:rgba(157,92,246,0.3); color:#d8b4fe;">${a}</span>`).join('')
+        : '<span style="font-size:9px; color:var(--text-muted);">Без аффиксов</span>';
+
       card.innerHTML = `
         <div class="item-header">
           <span class="item-title ${q.cls}">${item.fullName}</span>
@@ -1122,14 +1221,16 @@ function renderEquipment() {
         <div class="affix-container">
           ${item.atk ? `<span class="affix-chip">⚔ +${item.atk} Атк</span>` : ''}
           ${item.def ? `<span class="affix-chip">🛡 +${item.def} Защ</span>` : ''}
-          ${item.aspd ? `<span class="affix-chip ${item.aspd < 0 ? 'negative' : ''}">⚡ ${item.aspd > 0 ? '+' : ''}${item.aspd}% ASPD</span>` : ''}
+          ${item.aspd ? `<span class="affix-chip ${item.aspd < 0 ? 'negative' : ''}">⚡ ${item.aspd > 0 ? '+' : ''}${item.aspd}%</span>` : ''}
           ${item.hp ? `<span class="affix-chip">❤️ +${item.hp} HP</span>` : ''}
           ${item.crit ? `<span class="affix-chip">🎯 +${item.crit}%</span>` : ''}
           ${item.vamp ? `<span class="affix-chip">🩸 +${item.vamp}%</span>` : ''}
-          ${item.pierce ? `<span class="affix-chip">🗡 +${item.pierce} Пробой</span>` : ''}
-          ${item.regen ? `<span class="affix-chip">💚 +${item.regen} Реген</span>` : ''}
+          ${item.pierce ? `<span class="affix-chip">🗡 +${item.pierce}</span>` : ''}
+          ${item.regen ? `<span class="affix-chip">💚 +${item.regen}</span>` : ''}
         </div>
-        <button class="btn btn-sm btn-danger" onclick="unequipItem('${s}')">Снять</button>
+        <div style="margin-top:4px;">
+          <button class="btn btn-sm btn-danger" onclick="unequipItem('${s}')">Снять</button>
+        </div>
       `;
     } else {
       card.className = 'gear-card empty';
@@ -1149,9 +1250,13 @@ function renderInventory() {
   }
 
   player.inventory.forEach((item, idx) => {
-    const q = QUALITIES[item.quality];
+    const q = QUALITIES[item.quality] || QUALITIES[1];
     const card = document.createElement('div');
     card.className = `item-card ${q.cls}`;
+    card.onmouseenter = (e) => showItemTooltip(e, item);
+    card.onmousemove = (e) => moveItemTooltip(e);
+    card.onmouseleave = () => hideItemTooltip();
+
     card.innerHTML = `
       <div class="item-header">
         <span class="item-title ${q.cls}">${item.fullName}</span>
@@ -1160,14 +1265,14 @@ function renderInventory() {
       <div class="affix-container">
         ${item.atk ? `<span class="affix-chip">⚔ +${item.atk} Атк</span>` : ''}
         ${item.def ? `<span class="affix-chip">🛡 +${item.def} Защ</span>` : ''}
-        ${item.aspd ? `<span class="affix-chip ${item.aspd < 0 ? 'negative' : ''}">⚡ ${item.aspd > 0 ? '+' : ''}${item.aspd}% ASPD</span>` : ''}
+        ${item.aspd ? `<span class="affix-chip ${item.aspd < 0 ? 'negative' : ''}">⚡ ${item.aspd > 0 ? '+' : ''}${item.aspd}%</span>` : ''}
         ${item.hp ? `<span class="affix-chip">❤️ +${item.hp} HP</span>` : ''}
         ${item.crit ? `<span class="affix-chip">🎯 +${item.crit}%</span>` : ''}
         ${item.vamp ? `<span class="affix-chip">🩸 +${item.vamp}%</span>` : ''}
-        ${item.pierce ? `<span class="affix-chip">🗡 +${item.pierce} Пробой</span>` : ''}
-        ${item.regen ? `<span class="affix-chip">💚 +${item.regen} Реген</span>` : ''}
+        ${item.pierce ? `<span class="affix-chip">🗡 +${item.pierce}</span>` : ''}
+        ${item.regen ? `<span class="affix-chip">💚 +${item.regen}</span>` : ''}
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; border-top:1px solid rgba(255,255,255,0.05); padding-top:3px;">
         <span style="font-size:10px; color:var(--gold);">🪙 ${item.price} Зл.</span>
         <div style="display:flex; gap:4px;">
           <button class="btn btn-sm" onclick="equipItem(${idx})">Надеть</button>
@@ -1202,7 +1307,7 @@ function renderSkillsManager() {
           ${isEquipped ? `<span class="skill-equipped-badge">В БОЮ</span>` : ''}
         </div>
         <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">
-          ${sk.desc} ${dmgVal > 0 ? `| Баз. Урон: <b>${dmgVal}</b> ед.` : ''} | Перезарядка: <b>${cd}s</b>
+          ${sk.desc} ${dmgVal > 0 ? `| Баз. Урон: <b>${dmgVal}</b>` : ''} | КД: <b>${cd}s</b>
         </div>
       </div>
       <div style="display:flex; gap:4px;">
@@ -1224,7 +1329,7 @@ function renderDungeons() {
   DUNGEONS.forEach(d => {
     const isUnlocked = player.lvl >= d.minLvl;
     const cdEnd = dungeonCooldowns[d.id] || 0;
-    const isOnCooldown = now < cdEnd;
+    const isOnCooldown = d.cooldownSec > 0 && now < cdEnd;
     const remainingSec = Math.max(0, Math.ceil((cdEnd - now) / 1000));
 
     const card = document.createElement('div');
@@ -1234,7 +1339,7 @@ function renderDungeons() {
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <b style="font-size:13px; color:#fff;">${d.name}</b>
         <span id="cd-txt-${d.id}" style="font-size:11px; font-weight:bold; color:${isOnCooldown ? '#f87171' : '#34d399'};">
-          ${isOnCooldown ? `⏳ КД: ${Math.floor(remainingSec/60)}м ${remainingSec%60}с` : '✓ Готово к походу'}
+          ${d.cooldownSec === 0 ? '⚡ Без перезарядки!' : isOnCooldown ? `⏳ КД: ${Math.floor(remainingSec/60)}м ${remainingSec%60}с` : '✓ Готово к походу'}
         </span>
       </div>
       <p style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">${d.desc}</p>
@@ -1261,7 +1366,6 @@ function switchTab(tab) {
   if (target) target.classList.add('active');
 }
 
-/* ==================== BESTIARY MODAL WITH DIFFICULTY MULTIPLIERS ==================== */
 function openBestiary(dungeonId) {
   currentBestiaryDungeonId = dungeonId;
   const dungeon = DUNGEONS.find(d => d.id === dungeonId);
@@ -1281,7 +1385,7 @@ function refreshBestiaryView() {
   if (!dungeon) return;
 
   const diff = parseInt(document.getElementById('modal-diff-select').value);
-  const diffMult = Math.pow(1.85, diff - 1);
+  const diffMult = Math.pow(2.3, diff - 1);
   const body = document.getElementById('modal-dungeon-body');
   
   let stagesHtml = dungeon.stages.map((st, i) => {
@@ -1291,40 +1395,33 @@ function refreshBestiaryView() {
       const scaledDef = Math.round(e.def * diffMult);
 
       return `
-        <div style="font-size:11px; margin-top:3px; color:${e.isBoss ? '#ec4899' : '#cbd5e1'}; background:var(--bg-panel-light); padding:4px 6px; border-radius:4px;">
-          • <b>${e.name}</b> <span style="color:#38bdf8;">(${scaledHp.toLocaleString()} HP | ${scaledAtk} Атк | ${scaledDef} Защ | каст ${e.attackSpeed}s)</span> — <i>${e.desc}</i>
+        <div style="font-size:10px; margin-top:3px; color:${e.isBoss ? '#ec4899' : '#cbd5e1'}; background:var(--bg-panel-light); padding:4px 6px; border-radius:4px;">
+          • <b>${e.name}</b> <span style="color:#38bdf8;">(${scaledHp.toLocaleString()} HP | ${scaledAtk} Атк | ${scaledDef} Защ)</span> — <i>${e.desc}</i>
         </div>
       `;
     }).join('');
 
     return `
-      <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:6px;">
-        <b style="font-size:11px; color:var(--accent);">Этап ${i+1}: ${st.name}</b>
+      <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:6px; margin-bottom:6px;">
+        <b style="font-size:11px; color:var(--accent);">Этап ${i+1}: ${st.name} (${st.enemies.length} врагов)</b>
         ${enemiesList}
       </div>
     `;
   }).join('');
 
   let lootCardsHtml = dungeon.itemPool.map(it => `
-    <div class="loot-preview-card">
-      <div class="loot-preview-header">
+    <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:4px; padding:6px; margin-bottom:4px;">
+      <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:10px;">
         <span style="color:#fff;">${it.name}</span>
         <span style="color:var(--accent);">[${SLOTS[it.slot]}]</span>
-      </div>
-      <div class="loot-stats-row">
-        ${it.baseAtk ? `<span class="affix-chip">⚔ Баз. Атк: +${it.baseAtk}</span>` : ''}
-        ${it.baseDef ? `<span class="affix-chip">🛡 Баз. Защ: +${it.baseDef}</span>` : ''}
-        ${it.baseHp ? `<span class="affix-chip">❤️ Баз. HP: +${it.baseHp}</span>` : ''}
-        ${it.baseAspd ? `<span class="affix-chip">⚡ Баз. ASPD: +${it.baseAspd}%</span>` : ''}
-        ${it.pierce ? `<span class="affix-chip">🗡 Пробой: +${it.pierce}</span>` : ''}
       </div>
     </div>
   `).join('');
 
   body.innerHTML = `
-    <h4 style="font-size:12px; color:#fff; margin-bottom:6px;">Враги под выбранную сложность (x${diffMult.toFixed(2)}):</h4>
+    <h4 style="font-size:11px; color:#fff; margin-bottom:4px;">Враги под выбранную сложность (x${diffMult.toFixed(2)}):</h4>
     ${stagesHtml}
-    <h4 style="font-size:12px; color:#fff; margin:10px 0 6px;">Пул снаряжения (Базовые параметры):</h4>
+    <h4 style="font-size:11px; color:#fff; margin:8px 0 4px;">Пул наград подземелья:</h4>
     <div>${lootCardsHtml}</div>
   `;
 }
@@ -1333,13 +1430,13 @@ function closeBestiary(e) {
   if (e.target.id === 'bestiary-modal') document.getElementById('bestiary-modal').style.display = 'none';
 }
 
-/* ==================== INVENTORY ACTIONS ==================== */
 function equipItem(index) {
   const item = player.inventory[index];
   const current = player.equipment[item.slot];
   player.inventory.splice(index, 1);
   if (current) player.inventory.push(current);
   player.equipment[item.slot] = item;
+  saveGame();
   updateUI();
 }
 
@@ -1348,6 +1445,7 @@ function unequipItem(slot) {
   if (!item) return;
   player.equipment[slot] = null;
   player.inventory.push(item);
+  saveGame();
   updateUI();
 }
 
@@ -1355,6 +1453,7 @@ function sellItem(index) {
   const item = player.inventory[index];
   player.gold += item.price;
   player.inventory.splice(index, 1);
+  saveGame();
   updateUI();
 }
 
@@ -1369,6 +1468,7 @@ function sellJunk() {
     }
   }
   player.gold += goldSum;
+  saveGame();
   updateUI();
   if (sold > 0) alert(`Продано ${sold} обычных вещей за ${goldSum} Зл.`);
   else alert('В инвентаре нет обычного хлама (серого качества).');
@@ -1378,20 +1478,82 @@ function usePotion() {
   if (player.potions <= 0) return alert('Нет настоек!');
   const maxHp = getPlayerMaxHp();
   if (player.hp >= maxHp) {
-    player.hp = maxHp; // Корректировка на случай оверхила
+    player.hp = maxHp;
     updateUI();
     return alert('Здоровье полно!');
   }
   player.potions--;
   player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * 0.5));
+  saveGame();
   updateUI();
 }
 
-/* ==================== COMBAT ENGINE ==================== */
+function buyPotion(count, cost) {
+  if (player.gold < cost) return alert('Недостаточно золота для покупки настоек!');
+  player.gold -= cost;
+  player.potions += count;
+  saveGame();
+  updateUI();
+  alert(`Куплено настоек: +${count} шт.`);
+}
+
+function buyTalentPoint() {
+  const cost = 100000;
+  if (player.gold < cost) return alert('Недостаточно золота! Требуется 100,000 Золота за 1 TP.');
+  player.gold -= cost;
+  player.talentPoints += 1;
+  saveGame();
+  updateUI();
+  alert('🎉 Вы приобрели Свиток Просветления! Получено +1 TP.');
+}
+
+function upgradeTalent(nodeKey) {
+  if (player.talentPoints <= 0) return alert('Нет свободных очков талантов (TP)!');
+  if (player.talents[nodeKey] >= 5) return alert('Талант уже максимального уровня!');
+  player.talentPoints--;
+  player.talents[nodeKey]++;
+  saveGame();
+  updateUI();
+}
+
+function upgradeSkill(skillId) {
+  if (player.talentPoints <= 0) return alert('Нет свободных очков талантов (TP)!');
+  if (player.skills[skillId].lvl >= 5) return alert('Способность уже 5 уровня!');
+  player.talentPoints--;
+  player.skills[skillId].lvl++;
+  saveGame();
+  updateUI();
+}
+
+function toggleEquipSkill(skillId) {
+  const idx = player.equippedSkills.indexOf(skillId);
+  if (idx !== -1) {
+    if (player.equippedSkills.length <= 1) return alert('Оставьте хотя бы 1 способность!');
+    player.equippedSkills.splice(idx, 1);
+  } else {
+    if (player.equippedSkills.length >= 3) return alert('Максимум 3 способности!');
+    player.equippedSkills.push(skillId);
+  }
+  saveGame();
+  updateUI();
+}
+
+function resetTalents() {
+  if (player.gold < 100) return alert('Нужно 100 Золота для сброса!');
+  player.gold -= 100;
+  let refunded = 0;
+  for (let k in player.talents) { refunded += player.talents[k]; player.talents[k] = 0; }
+  for (let s in player.skills) { refunded += (player.skills[s].lvl - 1); player.skills[s].lvl = 1; }
+  player.talentPoints += refunded;
+  saveGame();
+  alert(`Сброс завершен! Возвращено ${refunded} TP.`);
+  updateUI();
+}
+
 function startDungeon(dungeonId) {
   const dungeon = DUNGEONS.find(d => d.id === dungeonId);
   const now = Date.now();
-  if (dungeonCooldowns[dungeonId] && now < dungeonCooldowns[dungeonId]) return;
+  if (dungeon.cooldownSec > 0 && dungeonCooldowns[dungeonId] && now < dungeonCooldowns[dungeonId]) return;
 
   const diff = parseInt(document.getElementById('diff-select').value);
 
@@ -1408,7 +1570,7 @@ function startDungeon(dungeonId) {
 
 function loadCombatStage() {
   const stage = combat.dungeon.stages[combat.stageIndex];
-  const diffMult = Math.pow(1.85, combat.diff - 1);
+  const diffMult = Math.pow(2.3, combat.diff - 1);
 
   combat.enemies = stage.enemies.map(e => ({
     id: e.id,
@@ -1430,7 +1592,6 @@ function loadCombatStage() {
 
   addLog(`⚔ <b>Этап ${combat.stageIndex + 1}/${combat.dungeon.stages.length}: ${stage.name}</b> (${combat.enemies.length} врагов)!`, 'log-aoe');
   
-  // Build arena DOM only once per stage!
   buildCombatArenaDOM();
   buildCombatSkillsDOM();
   updateCombatUI();
@@ -1458,9 +1619,9 @@ function buildCombatArenaDOM() {
       <div class="combatant-avatar" style="${e.isBoss ? 'border-color:#ec4899;' : ''}">
         ${AVATARS[e.avatar] || AVATARS.skeleton}
       </div>
-      <div style="font-size:11px; font-weight:bold; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.name}</div>
+      <div style="font-size:10px; font-weight:bold; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.name}</div>
       <div class="progress-wrap"><div id="enemy-hp-bar-${idx}" class="progress-fill fill-hp" style="width:100%;"></div></div>
-      <div id="enemy-hp-txt-${idx}" style="font-size:9px; margin-top:2px;">${e.hp} / ${e.maxHp} HP</div>
+      <div id="enemy-hp-txt-${idx}" style="font-size:8px; margin-top:2px;">${e.hp} / ${e.maxHp} HP</div>
       <div class="progress-wrap" style="height:3px; margin-top:2px;">
         <div id="enemy-cast-bar-${idx}" class="progress-fill fill-enemy-cast" style="width:0%;"></div>
       </div>
@@ -1549,7 +1710,6 @@ function updateCombatUI() {
     setSafeText('btn-dmg-preview', '0');
   }
 
-  // Smoothly update enemies bars and values
   combat.enemies.forEach((e, idx) => {
     const hpBar = document.getElementById(`enemy-hp-bar-${idx}`);
     const hpTxt = document.getElementById(`enemy-hp-txt-${idx}`);
@@ -1561,7 +1721,6 @@ function updateCombatUI() {
     }
   });
 
-  // Smoothly update skill buttons
   player.equippedSkills.forEach(sId => {
     const btn = document.getElementById(`combat-skill-btn-${sId}`);
     const cdTxt = document.getElementById(`cd-txt-${sId}`);
@@ -1577,6 +1736,7 @@ function updateCombatUI() {
 
 function addLog(msg, css = '') {
   const log = document.getElementById('combat-log');
+  if (!log) return;
   const d = document.createElement('div');
   d.className = `log-row ${css}`;
   d.innerHTML = msg;
@@ -1584,7 +1744,6 @@ function addLog(msg, css = '') {
   log.scrollTop = log.scrollHeight;
 }
 
-/* ==================== COMBAT ACTIONS ==================== */
 function executePlayerAttack() {
   if (!combat.active || player.hp <= 0) return;
 
@@ -1636,18 +1795,19 @@ function useCombatSkill(skillId) {
   if (sk.targetType === 'single') {
     if (!target || target.hp <= 0) return;
     let effDef = Math.max(0, target.def - getPlayerPierce());
-    if (skillId === 'cleave') effDef = Math.round(effDef * 0.4);
+    if (skillId === 'cleave') effDef = Math.round(effDef * 0.5);
 
     const dmg = Math.max(1, sk.calcDmg(sData.lvl, getPlayerAtk(), cData.mult) - effDef);
     target.hp = Math.max(0, target.hp - dmg);
     addLog(`✨ <b>«${sk.name}» (x${cData.mult.toFixed(2)})</b> поражает ${target.name} на <b>${dmg.toLocaleString()}</b> урона!`, 'log-crit');
 
     if (skillId === 'harvest') {
-      player.hp = Math.min(getPlayerMaxHp(), player.hp + dmg);
-      addLog(`🩸 Кровавая жатва исцелила вас на <b>+${dmg.toLocaleString()} HP</b>!`, 'log-hit');
+      const healed = Math.round(dmg * 0.8);
+      player.hp = Math.min(getPlayerMaxHp(), player.hp + healed);
+      addLog(`🩸 Кровавая жатва исцелила вас на <b>+${healed.toLocaleString()} HP</b>!`, 'log-hit');
     }
   } else if (sk.targetType === 'aoe') {
-    addLog(`🌋 <b>«${sk.name}» (x${cData.mult.toFixed(2)})</b> сотрясает всё поле боя!`, 'log-aoe');
+    addLog(`🌋 <b>«${sk.name}» (x${cData.mult.toFixed(2)})</b> сотрясает поле боя!`, 'log-aoe');
     combat.enemies.forEach(e => {
       if (e.hp > 0) {
         const effDef = Math.max(0, e.def - getPlayerPierce());
@@ -1662,7 +1822,6 @@ function useCombatSkill(skillId) {
     addLog(`🛡 <b>«${sk.name}» (x${cData.mult.toFixed(2)})</b> окружает вас барьером на <b>+${shieldVal.toLocaleString()} HP</b>!`, 'log-hit');
   }
 
-  // Skills also consume / reset weapon charge
   combat.lastAttackTimestamp = Date.now();
 
   checkStageEnemiesState();
@@ -1682,7 +1841,9 @@ function checkStageEnemiesState() {
 function enemyAttackTick(enemy) {
   if (!combat.active || enemy.hp <= 0 || player.hp <= 0) return;
 
-  let incomingDmg = Math.max(1, enemy.atk - getPlayerDef());
+  const dr = getPlayerDR();
+  let rawDmg = enemy.atk;
+  let incomingDmg = Math.max(1, Math.round(rawDmg * (1 - dr)));
 
   if (player.shield > 0) {
     if (player.shield >= incomingDmg) {
@@ -1706,7 +1867,7 @@ function enemyAttackTick(enemy) {
 }
 
 function handleStageCleared() {
-  addLog(`🏆 Отряд врагов повержен!`, 'log-over');
+  addLog(`🏆 Группа врагов повержена!`, 'log-over');
 
   let stageXp = 0, stageGold = 0;
   combat.enemies.forEach(e => {
@@ -1724,18 +1885,22 @@ function handleStageCleared() {
   const q = QUALITIES[loot.quality];
   addLog(`🎁 Найдено: <span class="${q.cls}">[${q.name}] ${loot.fullName}</span>!`, 'log-aoe');
 
+  saveGame();
   updateUI();
 
   combat.stageIndex++;
   if (combat.stageIndex < combat.dungeon.stages.length) {
     setTimeout(() => {
-      addLog(`🚪 Переход к следующему залу подземелья...`);
+      addLog(`🚪 Переход к следующему залу...`);
       setTimeout(loadCombatStage, 1000);
     }, 1200);
   } else {
-    dungeonCooldowns[combat.dungeon.id] = Date.now() + combat.dungeon.cooldownSec * 1000;
+    if (combat.dungeon.cooldownSec > 0) {
+      dungeonCooldowns[combat.dungeon.id] = Date.now() + combat.dungeon.cooldownSec * 1000;
+    }
+    saveGame();
     setTimeout(() => {
-      alert(`🎉 Подземелье «${combat.dungeon.name}» зачищено!\nОно уходит на перезарядку на ${combat.dungeon.cooldownSec/60} мин.`);
+      alert(`🎉 Подземелье «${combat.dungeon.name}» успешно зачищено!`);
       endCombat();
     }, 1400);
   }
@@ -1743,12 +1908,15 @@ function handleStageCleared() {
 
 function handlePlayerDeath() {
   addLog(`☠ Вы погибли в подземелье...`, 'log-enemy');
-  dungeonCooldowns[combat.dungeon.id] = Date.now() + 60 * 1000;
+  if (combat.dungeon.cooldownSec > 0) {
+    dungeonCooldowns[combat.dungeon.id] = Date.now() + 60 * 1000;
+  }
   setTimeout(() => {
     alert('Герой пал в бою! Воскрешение в лагере (-20% золота).');
     player.gold = Math.round(player.gold * 0.8);
     player.hp = getPlayerMaxHp();
     player.shield = 0;
+    saveGame();
     endCombat();
   }, 1000);
 }
@@ -1761,13 +1929,17 @@ function usePotionCombat() {
   const healed = Math.round(maxHp * 0.5);
   player.hp = Math.min(maxHp, player.hp + healed);
   addLog(`🌿 Восстановлено <b>+${healed} HP</b>!`, 'log-hit');
+  saveGame();
   updateCombatUI();
 }
 
 function fleeCombat() {
   addLog('🏃 Вы покинули подземелье.', 'log-hit');
-  dungeonCooldowns[combat.dungeon.id] = Date.now() + 60 * 1000;
+  if (combat.dungeon.cooldownSec > 0) {
+    dungeonCooldowns[combat.dungeon.id] = Date.now() + 60 * 1000;
+  }
   player.shield = 0;
+  saveGame();
   endCombat();
 }
 
@@ -1785,23 +1957,25 @@ function addExp(amount) {
     player.exp -= player.expNext;
     player.lvl++;
     player.talentPoints++;
-    player.expNext = Math.round(player.expNext * 1.55);
+    // Exponential formula for XP: 100 * 1.45^(lvl-1)
+    player.expNext = Math.round(100 * Math.pow(1.45, player.lvl - 1));
     player.baseMaxHp += 25;
     player.baseAtk += 4;
     player.baseDef += 2;
     player.hp = getPlayerMaxHp();
-    alert(`⚡ УРОВЕНЬ ПОВЫШЕН! Теперь вы ${player.lvl} уровня!\nПолучено +1 Очко Талантов (TP)!`);
+    alert(`⚡ УРОВЕНЬ ПОВЫШЕН! Вы достигли ${player.lvl} уровня!\nПолучено +1 Очко Талантов (TP)!`);
   }
+  saveGame();
 }
 
-/* ==================== STORY & DAILY QUESTS ==================== */
 function generateNewQuests() {
   dailyQuests = [
-    { id: 'q1', targetId: 'm_dummy_1', targetName: 'Оживших Манекенов', current: 0, total: 3, xp: 60, gold: 50, rewardQ: 2, claimed: false },
+    { id: 'q1', targetId: 'm_dummy_1', targetName: 'Манекенов', current: 0, total: 3, xp: 60, gold: 50, rewardQ: 2, claimed: false },
     { id: 'q2', targetId: 'b_bandit_leader', targetName: 'Атаманов Мародёров', current: 0, total: 1, xp: 120, gold: 100, rewardQ: 3, claimed: false },
     { id: 'q3', targetId: 'b_swamp_horror', targetName: 'Болотных Ужасов', current: 0, total: 1, xp: 200, gold: 160, rewardQ: 3, claimed: false },
-    { id: 'q4', targetId: 'b_dragon', targetName: 'Дракона Харебру', current: 0, total: 1, xp: 900, gold: 750, rewardQ: 5, claimed: false }
+    { id: 'q4', targetId: 'b_dragon', targetName: 'Драконов Харебра', current: 0, total: 1, xp: 900, gold: 750, rewardQ: 5, claimed: false }
   ];
+  saveGame();
   renderQuests();
 }
 
@@ -1815,6 +1989,7 @@ function updateQuestProgress(enemyId) {
     player.storyProgress++;
   }
 
+  saveGame();
   renderQuests();
 }
 
@@ -1835,6 +2010,7 @@ function claimStoryQuest() {
 
   player.storyIndex++;
   player.storyProgress = 0;
+  saveGame();
   updateUI();
 }
 
@@ -1848,11 +2024,13 @@ function claimDailyQuest(idx) {
   rewardItem.quality = q.rewardQ;
   player.inventory.push(rewardItem);
   alert(`🎉 Награда за контракт: +${q.xp} XP, +${q.gold} Зл. и [${QUALITIES[q.rewardQ].name}] ${rewardItem.fullName}!`);
+  saveGame();
   updateUI();
 }
 
 function renderQuests() {
   const storyContainer = document.getElementById('story-quests-list');
+  if (!storyContainer) return;
   storyContainer.innerHTML = '';
   const curStory = STORY_QUESTS[player.storyIndex];
 
@@ -1867,17 +2045,18 @@ function renderQuests() {
         <span style="font-size:11px; color:${isDone ? '#34d399' : 'var(--text-muted)'};">${player.storyProgress} / ${curStory.total}</span>
       </div>
       <p style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">${curStory.desc}</p>
-      <div style="font-size:10px; color:var(--accent); margin-bottom:6px;">Награда: +${curStory.xp} XP, +${curStory.gold} Зл., +${curStory.tp} TP, реликвия [${QUALITIES[curStory.rewardQ].name}]</div>
+      <div style="font-size:10px; color:var(--accent); margin-bottom:6px;">Награда: +${curStory.xp} XP, +${curStory.gold} Зл., +${curStory.tp} TP</div>
       <button class="btn btn-sm" ${isDone ? '' : 'disabled'} onclick="claimStoryQuest()">
-        ${isDone ? 'Завершить главу сюжета 🎁' : 'Выполняется...'}
+        ${isDone ? 'Завершить главу 🎁' : 'В процессе...'}
       </button>
     `;
     storyContainer.appendChild(card);
   } else {
-    storyContainer.innerHTML = '<div style="color:#34d399; font-size:11px; font-weight:bold;">🎉 Вся сюжетная летопись МоррисГрада пройдена!</div>';
+    storyContainer.innerHTML = '<div style="color:#34d399; font-size:11px; font-weight:bold;">🎉 Вся сюжетная летопись пройдена!</div>';
   }
 
   const dailyContainer = document.getElementById('quests-list');
+  if (!dailyContainer) return;
   dailyContainer.innerHTML = '';
   let activeCount = 0;
 
@@ -1900,31 +2079,90 @@ function renderQuests() {
     dailyContainer.appendChild(card);
   });
 
-  document.getElementById('tab-quest-cnt').innerText = activeCount + (curStory ? 1 : 0);
+  const tabCnt = document.getElementById('tab-quest-cnt');
+  if (tabCnt) tabCnt.innerText = activeCount + (curStory ? 1 : 0);
 }
 
-/* ==================== REAL-TIME TICKER & HP REGEN ==================== */
+function setSafeText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.innerText = text;
+}
+
+function setSafeHTML(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+function updateUI() {
+  const maxHp = getPlayerMaxHp();
+  if (player.hp > maxHp) player.hp = maxHp;
+
+  setSafeText('hdr-lvl', player.lvl);
+  setSafeText('hdr-tp', player.talentPoints);
+  setSafeText('hdr-gold', player.gold.toLocaleString());
+  setSafeText('tree-tp-val', player.talentPoints);
+  setSafeText('tab-inv-cnt', player.inventory.length);
+
+  setSafeText('profile-hp-txt', `${Math.round(player.hp)} / ${maxHp} HP`);
+  const profileHpBar = document.getElementById('profile-hp-bar');
+  if (profileHpBar) profileHpBar.style.width = `${Math.max(0, (player.hp / maxHp) * 100)}%`;
+
+  setSafeText('profile-exp-txt', player.exp);
+  setSafeText('profile-exp-next', player.expNext);
+  const profileExpBar = document.getElementById('profile-exp-bar');
+  if (profileExpBar) profileExpBar.style.width = `${Math.min(100, (player.exp / player.expNext) * 100)}%`;
+
+  const aspd = getPlayerAspd();
+  const reg = getPlayerRegen();
+  const dr = (getPlayerDR() * 100).toFixed(1);
+  setSafeText('stat-atk', getPlayerAtk());
+  setSafeText('stat-def', `${getPlayerDef()} (${dr}%)`);
+  setSafeText('stat-regen', `+${reg}/с (Хаб: +${reg*10}/с)`);
+  
+  const aspdEl = document.getElementById('stat-aspd');
+  if (aspdEl) {
+    aspdEl.innerText = `${aspd >= 0 ? '+' : ''}${aspd}%`;
+    aspdEl.style.color = aspd < 0 ? '#f87171' : 'var(--accent)';
+  }
+
+  setSafeText('stat-crit', `${getPlayerCrit()}%`);
+  setSafeText('stat-vamp', `${getPlayerVamp()}%`);
+  setSafeText('stat-pierce', `${getPlayerPierce()} ед.`);
+  setSafeText('stat-charge-opt', `${getOptimalChargeSec().toFixed(1)}s`);
+  setSafeText('potions-count', player.potions);
+
+  for (let k in player.talents) {
+    const el = document.getElementById(`t-lvl-${k}`);
+    if (el) el.innerText = `${player.talents[k]}/5`;
+  }
+
+  renderEquipment();
+  renderInventory();
+  renderSkillsManager();
+  renderDungeons();
+  renderQuests();
+}
+
 setInterval(() => {
   const now = Date.now();
   const dt = 0.06;
   const maxHp = getPlayerMaxHp();
   const baseReg = getPlayerRegen();
 
-  // 1. Passive HP Regeneration (Hub x10 / Combat x1)
   if (player.hp < maxHp) {
     if (combat.active) {
       player.hp = Math.min(maxHp, player.hp + baseReg * dt);
     } else {
       player.hp = Math.min(maxHp, player.hp + (baseReg * 10) * dt);
     }
-    // Update profile HP display when not in combat
     if (!combat.active) {
-      document.getElementById('profile-hp-txt').innerText = `${Math.round(player.hp)} / ${maxHp} HP`;
-      document.getElementById('profile-hp-bar').style.width = `${(player.hp / maxHp) * 100}%`;
+      const txt = document.getElementById('profile-hp-txt');
+      const bar = document.getElementById('profile-hp-bar');
+      if (txt) txt.innerText = `${Math.round(player.hp)} / ${maxHp} HP`;
+      if (bar) bar.style.width = `${(player.hp / maxHp) * 100}%`;
     }
   }
 
-  // 2. Tick Combat
   if (combat.active && player.hp > 0) {
     for (let sId in combat.skillCooldowns) {
       if (combat.skillCooldowns[sId] > 0) {
@@ -1945,17 +2183,16 @@ setInterval(() => {
     updateCombatUI();
   }
 
-  // 3. Update Dungeon Cooldowns
   DUNGEONS.forEach(d => {
     const cdEnd = dungeonCooldowns[d.id] || 0;
     const txtEl = document.getElementById(`cd-txt-${d.id}`);
     const btnEl = document.getElementById(`btn-enter-${d.id}`);
     if (txtEl && btnEl) {
-      const isOnCooldown = now < cdEnd;
+      const isOnCooldown = d.cooldownSec > 0 && now < cdEnd;
       const remainingSec = Math.max(0, Math.ceil((cdEnd - now) / 1000));
       const isUnlocked = player.lvl >= d.minLvl;
 
-      txtEl.innerText = isOnCooldown ? `⏳ КД: ${Math.floor(remainingSec/60)}м ${remainingSec%60}с` : '✓ Готово к походу';
+      txtEl.innerText = d.cooldownSec === 0 ? '⚡ Без перезарядки!' : isOnCooldown ? `⏳ КД: ${Math.floor(remainingSec/60)}м ${remainingSec%60}с` : '✓ Готово к походу';
       txtEl.style.color = isOnCooldown ? '#f87171' : '#34d399';
       btnEl.disabled = !(isUnlocked && !isOnCooldown);
       btnEl.innerText = !isUnlocked ? `Требуется Ур. ${d.minLvl}+` : isOnCooldown ? 'Перезарядка' : 'Войти в данж';
@@ -1963,8 +2200,16 @@ setInterval(() => {
   });
 }, 60);
 
+// Auto-save game state every 10 seconds
+setInterval(() => {
+  saveGame();
+}, 10000);
+
 window.onload = function() {
-  if (dailyQuests.length === 0) generateNewQuests();
+  const loaded = loadGame();
+  if (!loaded || dailyQuests.length === 0) {
+    generateNewQuests();
+  }
   updateUI();
   switchTab('profile');
 };
