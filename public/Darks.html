@@ -238,7 +238,8 @@
 
     <h2>10 Слотов Экипировки Героя (С блокировкой по уровню)</h2>
     <div class="desc-text" style="margin-bottom:6px;">
-      ⚠️ <b>ВНИМАНИЕ:</b> Предметы не дадут никаких бонусов, если ваш уровень ниже требуемого уровня предмета! Это гарантирует честное развитие после Возвышения.
+      ⚠️ <b>ВНИМАНИЕ:</b> Если уровень героя ниже требуемого, предмет <b>НЕ ДАЁТ НИКАКИХ БОНУСОВ</b> (базовые характеристики, аффиксы, руны и бонусы от звёзд равны 0)! <br>
+      ⭐ Каждая закалка звездой увеличивает требуемый уровень предмета на <b>+4 Ур.</b>!
     </div>
     <div class="gear-grid" id="gear-list"></div>
   </div>
@@ -264,7 +265,7 @@
         <span style="font-size:9px; color:#ec4899; font-weight:bold;">Ур. <span id="transcend-lvl-badge">0</span> (+<span id="transcend-pct-badge">0</span>% ко всем статам)</span>
       </div>
       <p style="font-size:9px; color:#cbd5e1; margin-bottom:6px;">
-        Сброс уровня и базовых талантов персонажа до 1 уровня. Предметы экипировки сохраняются, но их бонусы временно блокируются, пока вы снова не достигнете их уровня! Каждый ранг престижа даёт постоянный бонус +25% ко всем параметрам!
+        Сброс уровня и базовых талантов персонажа до 1 уровня. Предметы экипировки сохраняются, но их бонусы временно блокируются! Каждый ранг престижа даёт постоянный бонус +25% ко всем параметрам!
       </p>
       <button class="btn btn-charge-attack ready-over" style="width:100%; font-size:10px; margin-bottom:6px;" onclick="transcendHero()">
         🌌 СОВЕРШИТЬ ВОЗВЫШЕНИЕ (+<span id="transcend-gain-spheres">1</span> Сфер Пустоты)
@@ -272,7 +273,7 @@
 
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
         <div class="talent-node">
-          <div><b>💥 Мульти-Криты</b><br><span style="color:var(--text-muted);">Разрешает критам переваливать за 100%</span><br><span id="vp-lvl-supercrit" style="color:#ec4899;">0/10</span></div>
+          <div><b>💥 Мульти-Криты</b><br><span style="color:var(--text-muted);">Криты переваливают за 100%</span><br><span id="vp-lvl-supercrit" style="color:#ec4899;">0/10</span></div>
           <button class="btn btn-sm btn-rune" onclick="upgradeVoidPerk('supercrit')">+1 (1 🌌)</button>
         </div>
         <div class="talent-node">
@@ -286,6 +287,54 @@
         <div class="talent-node">
           <div><b>🗡 Чистый Разлом</b><br><span style="color:var(--text-muted);">Игнорирует % истинной брони</span><br><span id="vp-lvl-truepierce" style="color:#ec4899;">0/10</span></div>
           <button class="btn btn-sm btn-rune" onclick="upgradeVoidPerk('truepierce')">+1 (1 🌌)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- НОВАЯ МЕХАНИКА: ГРИМУАР НАСЛЕДИЯ ПУСТОТЫ -->
+    <div class="gear-card" style="border: 1px solid #38bdf8; background: rgba(56, 189, 248, 0.08); margin-bottom: 8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <b style="font-size:11px; color:#fff;">📜 ГРИМУАР НАСЛЕДИЯ ПУСТОТЫ (Печати Престижа)</b>
+        <span style="font-size:9px; color:#38bdf8; font-weight:bold;">Печати: <span id="heritage-seals-cnt">0/5</span></span>
+      </div>
+      <div class="desc-text" style="margin-bottom:6px;">
+        Печати открываются автоматически при достижении определённых рангов Возвышения и действуют ПОСТОЯННО!
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <div class="talent-node">
+          <div>
+            <b>1. Связь Времен (Ур. 1+)</b><br>
+            <span style="color:var(--text-muted);">Слот, полностью игнорирующий требования уровня:</span>
+            <select id="heritage-slot-select" onchange="setHeritageSlot(this.value)" style="margin:2px 0 0; font-size:9px; padding:2px; background:var(--bg-panel); border:1px solid var(--border); color:#fff; border-radius:3px;">
+              <option value="weapon">⚔ Оружие</option>
+              <option value="armor">🛡 Доспех</option>
+              <option value="helm">🪖 Шлем</option>
+              <option value="boots">🥾 Сапоги</option>
+              <option value="amulet">📿 Амулет</option>
+              <option value="ring">💍 Кольцо</option>
+              <option value="belt">🥋 Пояс</option>
+              <option value="cloak">🧥 Плащ</option>
+              <option value="bracers">🥊 Наручи</option>
+              <option value="relic">🔮 Реликвия</option>
+            </select>
+          </div>
+          <span class="quest-badge" id="heritage-badge-1">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>2. Авто-Эликсир (Ур. 2+)</b><br><span style="color:var(--text-muted);">Автоматически пьёт настойку здоровья при HP &lt; 30%</span></div>
+          <span class="quest-badge" id="heritage-badge-2">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>3. Жатва Аномалий (Ур. 3+)</b><br><span style="color:var(--text-muted);">+100% Золота и Опыта за убийство элитных мутантов</span></div>
+          <span class="quest-badge" id="heritage-badge-3">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>4. Казнь Бездны (Ур. 4+)</b><br><span style="color:var(--text-muted);">15% шанс мгновенно выбить обычного врага в Сверхзамахе</span></div>
+          <span class="quest-badge" id="heritage-badge-4">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>5. Эфирный Щит (Ур. 5+)</b><br><span style="color:var(--text-muted);">Каждый бой начинается со щитом, равным 100% от Max HP</span></div>
+          <span class="quest-badge" id="heritage-badge-5">ЗАКРЫТО</span>
         </div>
       </div>
     </div>
@@ -664,6 +713,7 @@ function generateTowerStages(count, theme, mobTemplates, bossTemplate) {
   return stages;
 }
 
+
 // 17 ПОДЗЕМЕЛИЙ
 const DUNGEONS = [
   { id: 'dungeon_intro_1', name: 'Подвалы Старого Замка', desc: 'Тренировочные подвалы замка.', minLvl: 1, cooldownSec: 0, stages: [{ name: 'Сектор Мишеней', enemies: [{ id: 'm_dummy_1', name: 'Манекен I', hp: 30, atk: 6, def: 1, xp: 10, gold: 8, isBoss: false, avatar: 'dummy', attackSpeed: 3.5, desc: 'Учебный манекен.' }] }, { name: 'Оружейный зал', enemies: [{ id: 'b_shadow_guard', name: 'Теневой Страж [БОСС]', hp: 120, atk: 14, def: 4, xp: 50, gold: 40, isBoss: true, avatar: 'shadow_guard', attackSpeed: 2.9, desc: 'Призрачный хранитель замка.' }] }], itemPool: [{ name: 'Учебный Меч', slot: 'weapon', baseAtk: 6, baseDef: 0, baseHp: 0, baseAspd: 5, pierce: 0 }, { name: 'Медный Амулет', slot: 'amulet', baseAtk: 2, baseDef: 1, baseHp: 15, baseAspd: 0, pierce: 0 }] },
@@ -729,6 +779,8 @@ let player = {
   gold: 80, potions: 3, shield: 0,
   
   transcendLevel: 0, voidSpheres: 0, voidPerks: { supercrit: 0, overheal: 0, echo: 0, truepierce: 0 },
+  heritageBypassSlot: 'weapon', // Печать 1: Выбранный слот, игнорирующий reqLvl
+  
   abyssRecord: 0, currentAbyssFloor: 1, synthDust: 0, storedRunes: [],
   anomalyTier: 0, darkMatter: 0, matrixPerks: { damage: 0, charge: 0 },
   awakenedSkills: {}, astrolabe: { midas: false, chronophase: false, supernova: false, chaoslord: false },
@@ -760,10 +812,17 @@ let combat = {
 };
 
 
-// ПРОВЕРКА: ГОДЕН ЛИ ПРЕДМЕТ ПО УРОВНЮ ИГРОКА
+// ПРОВЕРКА: ГОДЕН ЛИ ПРЕДМЕТ ПО УРОВНЮ ИГРОКА (ИЛИ ПО ПЕЧАТИ НАСЛЕДИЯ #1)
 function isItemUsable(item) {
   if (!item) return false;
+  // Печать 1 наследия: Если престиж >= 1 и слот совпадает с выбранным, игнорируем требования уровня!
+  if (player.transcendLevel >= 1 && player.heritageBypassSlot === item.slot) return true;
   return player.lvl >= (item.reqLvl || 1);
+}
+
+function setHeritageSlot(slotKey) {
+  player.heritageBypassSlot = slotKey;
+  saveGame(); updateUI();
 }
 
 function checkMechanicQuest(type, amount = 1) {
@@ -928,14 +987,19 @@ function loadGame() {
       if (player.equipment[s] === undefined) player.equipment[s] = null;
     }
 
-    // Восстановление/Расчет уровней для старых предметов
     for (let s in player.equipment) {
-      if (player.equipment[s] && !player.equipment[s].reqLvl) {
+      if (player.equipment[s]) {
+        if (!player.equipment[s].baseReqLvl) {
+          player.equipment[s].baseReqLvl = Math.max(1, (player.equipment[s].reqLvl || 1) - ((player.equipment[s].quality || 1) - 1) * 5 - ((player.equipment[s].dropDiff || 1) - 1) * 3 - (player.equipment[s].stars || 0) * 4);
+        }
         player.equipment[s].reqLvl = calcItemReqLvl(player.equipment[s]);
       }
     }
     player.inventory.forEach(it => {
-      if (!it.reqLvl) it.reqLvl = calcItemReqLvl(it);
+      if (!it.baseReqLvl) {
+        it.baseReqLvl = Math.max(1, (it.reqLvl || 1) - ((it.quality || 1) - 1) * 5 - ((it.dropDiff || 1) - 1) * 3 - (it.stars || 0) * 4);
+      }
+      it.reqLvl = calcItemReqLvl(it);
     });
 
     return true;
@@ -943,11 +1007,12 @@ function loadGame() {
 }
 
 function calcItemReqLvl(item) {
-  if (item.reqLvl) return item.reqLvl;
+  if (!item) return 1;
+  const baseLvl = item.baseReqLvl || 1;
   const qBonus = ((item.quality || 1) - 1) * 5;
   const diffBonus = ((item.dropDiff || 1) - 1) * 3;
   const starBonus = (item.stars || 0) * 4;
-  return Math.max(1, Math.round(1 + qBonus + diffBonus + starBonus));
+  return Math.max(1, Math.round(baseLvl + qBonus + diffBonus + starBonus));
 }
 
 function resetSaveData() {
@@ -1184,24 +1249,81 @@ function getPactBonusMultiplier() {
   return b;
 }
 
+
+function getForgeChances(item) {
+  const stars = item.stars || 0;
+  if (stars === 0) return { success: 100, fail: 0, break: 0 };
+  if (stars === 1) return { success: 85, fail: 15, break: 0 };
+  if (stars === 2) return { success: 70, fail: 20, break: 10 };
+  if (stars === 3) return { success: 55, fail: 25, break: 20 };
+  if (stars === 4) return { success: 40, fail: 30, break: 30 };
+  const succ = Math.max(10, 40 - (stars - 4) * 5);
+  const brk = Math.min(60, 30 + (stars - 4) * 5);
+  const fail = Math.max(0, 100 - succ - brk);
+  return { success: succ, fail, break: brk };
+}
+
 function getForgeCost(item) {
   return Math.round(15000 * Math.pow(1.35, item.stars || 0) * Math.pow(1.6, item.quality));
 }
 
-function forgeItem(item) {
+function forgeItem(item, isEquippedSlot = null) {
   const cost = getForgeCost(item);
   if (player.gold < cost) return alert(`Требуется: ${cost.toLocaleString()} Зл.`);
+  
+  const chances = getForgeChances(item);
+  const stars = item.stars || 0;
+  
+  const msg = `⭐ Закалка предмета "${item.fullName}" [★x${stars}]\n` +
+              `Стоимость: ${cost.toLocaleString()} Зл.\n\n` +
+              `Шансы:\n` +
+              `• Успех [★x${stars + 1}]: ${chances.success}%\n` +
+              `• Неудача [-1 ★]: ${chances.fail}%\n` +
+              `• Поломка [Уничтожение]: ${chances.break}%\n\n` +
+              `⚠️ Внимание: Требуемый уровень предмета вырастет на +4 Ур.! Продолжить?`;
+  
+  if (!confirm(msg)) return;
+  
   player.gold -= cost;
-  item.stars = (item.stars || 0) + 1;
-  const factor = 1.15;
-  ['atk','def','hp','pierce','skillPower','curseChance','baseCurseChance','critDmg','goldBonus','expBonus'].forEach(k => {
-    if (item[k]) item[k] = Math.round(item[k] * factor);
-  });
-  if (item.regen) item.regen = Math.max(1, Math.round(item.regen * factor));
-  item.price = Math.round(item.price * factor);
-  item.reqLvl = calcItemReqLvl(item);
-  checkMechanicQuest('forge');
-  alert(`⭐ Предмет [★x${item.stars}] закален! (Ур. Треб: ${item.reqLvl})`);
+  const roll = Math.random() * 100;
+  
+  if (roll < chances.success) {
+    item.stars = stars + 1;
+    const factor = 1.15;
+    ['atk','def','hp','pierce','skillPower','curseChance','baseCurseChance','critDmg','goldBonus','expBonus'].forEach(k => {
+      if (item[k]) item[k] = Math.round(item[k] * factor);
+    });
+    if (item.regen) item.regen = Math.max(1, Math.round(item.regen * factor));
+    item.price = Math.round(item.price * factor);
+    item.reqLvl = calcItemReqLvl(item);
+    checkMechanicQuest('forge');
+    alert(`🎉 УСПЕХ! Предмет закален до [★x${item.stars}]! Требуемый уровень вырос до Ур. ${item.reqLvl}!`);
+  } else if (roll < chances.success + chances.fail) {
+    if (stars > 0) {
+      item.stars = Math.max(0, stars - 1);
+      const factor = 1 / 1.15;
+      ['atk','def','hp','pierce','skillPower','curseChance','baseCurseChance','critDmg','goldBonus','expBonus'].forEach(k => {
+        if (item[k]) item[k] = Math.max(1, Math.round(item[k] * factor));
+      });
+      if (item.regen) item.regen = Math.max(1, Math.round(item.regen * factor));
+      item.price = Math.max(10, Math.round(item.price * factor));
+      item.reqLvl = calcItemReqLvl(item);
+    }
+    alert(`⚠️ НЕУДАЧА! Уровень закалки сорвался до [★x${item.stars || 0}]. Требуемый уровень: Ур. ${item.reqLvl}.`);
+  } else {
+    const dustGain = (item.quality || 1) * 4 + stars * 3;
+    player.synthDust = (player.synthDust || 0) + dustGain;
+    
+    if (isEquippedSlot) {
+      player.equipment[isEquippedSlot] = null;
+    } else {
+      const idx = player.inventory.indexOf(item);
+      if (idx !== -1) player.inventory.splice(idx, 1);
+    }
+    
+    alert(`💥 ПОЛОМКА! Предмет уничтожен при закалке и распался на ${dustGain} Пыли Синтеза ✨!`);
+  }
+  
   saveGame(); updateUI();
 }
 
@@ -1251,7 +1373,7 @@ function transcendHero() {
   const cost = getTranscendCost();
   if (player.gold < cost || player.lvl < 25) return alert(`Требуется 25+ Уровень и ${cost.toLocaleString()} Золота!`);
   const gainSpheres = (player.transcendLevel + 2) + Math.floor((player.abyssRecord || 0) / 10);
-  if (!confirm(`Возвышение Пустоты? Все статы увеличатся на +25% навсегда, +${gainSpheres} Сфер Пустоты! Важно: высокоуровневая экипировка перейдет в режим ожидания (не даёт статов, пока не поднимете уровень снова!).`)) return;
+  if (!confirm(`Возвышение Пустоты? Постоянный бонус +25% ко всем статам, +${gainSpheres} Сфер Пустоты и активация Печатей Наследия!`)) return;
 
   player.gold -= cost;
   player.transcendLevel++;
@@ -1260,7 +1382,7 @@ function transcendHero() {
   player.baseMaxHp = 120; player.baseAtk = 12; player.baseDef = 4; player.talentPoints = 0;
   for (let k in player.talents) player.talents[k] = 0;
   checkMechanicQuest('transcend');
-  alert(`🌌 ВОЗВЫШЕНИЕ УСПЕШНО! (+${gainSpheres} Сфер)`);
+  alert(`🌌 ВОЗВЫШЕНИЕ УСПЕШНО! (+${gainSpheres} Сфер). Открыты новые Печати Наследия!`);
   saveGame(); updateUI();
 }
 
@@ -1360,16 +1482,17 @@ function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1, bo
   const bonusTag = statMultiplier > 1 ? ` [x${statMultiplier}]` : '';
   const fullName = `${chosenQ >= 4 ? prefix + ' ' : ''}${baseItem.name}${bonusTag}`;
 
-  // РАСЧЕТ ТРЕБУЕМОГО УРОВНЯ
   const baseDungeonMin = pickedDungeon.minLvl || 1;
+  const baseReqLvl = Math.max(1, Math.round(baseDungeonMin * 0.75));
   const qLvlBonus = (chosenQ - 1) * 5;
   const diffLvlBonus = (effectiveDiff - 1) * 3;
   const starLvlBonus = bonusStars * 4;
-  const calculatedReqLvl = Math.max(1, Math.round(baseDungeonMin * 0.75 + qLvlBonus + diffLvlBonus + starLvlBonus));
+  const calculatedReqLvl = Math.max(1, Math.round(baseReqLvl + qLvlBonus + diffLvlBonus + starLvlBonus));
 
   const finalItem = {
     fullName, slot: pickedSlot, quality: chosenQ, dropDiff: effectiveDiff,
     baseCurseChance: baseCurseVal, stars: bonusStars, runes: [], affixes: rolledAffixNames,
+    baseReqLvl: baseReqLvl,
     reqLvl: calculatedReqLvl,
     baseStats: { atk: baseAtkVal, def: baseDefVal, hp: baseHpVal, aspd: baseAspdVal, pierce: basePierceVal },
     atk: baseAtkVal + stackedStats.atk, def: baseDefVal + stackedStats.def, hp: baseHpVal + stackedStats.hp,
@@ -1394,6 +1517,7 @@ function showItemTooltip(e, item) {
   if (!tip) return;
 
   const usable = isItemUsable(item);
+  const isBypassed = player.transcendLevel >= 1 && player.heritageBypassSlot === item.slot;
   const equipped = player.equipment[item.slot];
   let compareHtml = '';
   if (equipped && equipped !== item) {
@@ -1421,7 +1545,7 @@ function showItemTooltip(e, item) {
         lines.push(`<span style="font-size:8.5px;">${st.label}: <b class="${diff>0?'compare-pos':'compare-neg'}">${diff>0?'+':''}${diff}${st.isPct?'%':''}</b></span>`);
       }
     });
-    compareHtml = `<div style="border-top:1px dashed var(--border-highlight); margin-top:4px; padding-top:2px;"><div style="font-size:8.5px; color:var(--gold);">⚖ Сравнение с надетой: ${equipped.fullName}</div><div style="display:flex; flex-wrap:wrap; gap:3px;">${lines.join(' | ')}</div></div>`;
+    compareHtml = `<div style="border-top:1px dashed var(--border-highlight); margin-top:4px; padding-top:2px;"><div style="font-size:8.5px; color:var(--gold);">⚖ Сравнение: ${equipped.fullName}</div><div style="display:flex; flex-wrap:wrap; gap:3px;">${lines.join(' | ')}</div></div>`;
   }
 
   let runesHtml = (item.runes && item.runes.length > 0)
@@ -1430,17 +1554,22 @@ function showItemTooltip(e, item) {
   let affixesHtml = (item.affixes && item.affixes.length > 0)
     ? item.affixes.map(a => `<div style="color:#d8b4fe; font-size:8px;">• ${a}</div>`).join('') : '<div style="color:var(--text-muted); font-size:8px;">Нет аффиксов</div>';
 
+  const chances = getForgeChances(item);
+
   tip.innerHTML = `
     <div style="font-weight:800; font-size:11px;" class="${q.cls}">${item.fullName} ${item.stars ? `[★x${item.stars}]` : ''}</div>
     <div style="font-size:8.5px; color:var(--text-muted); display:flex; justify-content:space-between;"><span>${q.name}</span><span>[${slotName}]</span></div>
     <div style="font-size:9.5px; font-weight:bold; margin-top:2px; color:${usable ? '#34d399' : '#f87171'};">
-      🔒 Мин. уровень: Ур. ${item.reqLvl || 1} ${!usable ? '❌ (БЛОКИРОВАНО!)' : '✓ (ГОДНО)'}
+      🔒 Треб. уровень: Ур. ${item.reqLvl || 1} ${isBypassed ? '📜 (Связь Времен ✓)' : (!usable ? '❌ (БЛОКИРОВАНО)' : '✓')}
     </div>
     <div style="font-size:9px; font-weight:bold; color:${item.baseCurseChance>=0?'#f43f5e':'#38bdf8'};">🔮 Проклятье: ${item.baseCurseChance>=0?'+':''}${item.baseCurseChance}%</div>
     ${runesHtml}
     <div style="border-top:1px solid var(--border); padding-top:2px; margin-top:2px;">${affixesHtml}</div>
     ${compareHtml}
-    <div style="border-top:1px solid var(--border); padding-top:2px; margin-top:3px; font-size:8.5px; color:var(--gold);">🪙 Продажа: ${item.price.toLocaleString()} Зл. | ⭐ Закалка: ${getForgeCost(item).toLocaleString()} Зл.</div>
+    <div style="border-top:1px solid var(--border); padding-top:2px; margin-top:3px; font-size:8.5px; color:var(--gold);">
+      🪙 ${item.price.toLocaleString()} Зл. | ⭐ Закалка: ${getForgeCost(item).toLocaleString()} Зл.<br>
+      <span style="color:#cbd5e1;">Шансы: <b style="color:#34d399;">✓ ${chances.success}%</b> ${chances.fail ? `| <b style="color:#f59e0b;">⚠ ${chances.fail}%</b>` : ''} ${chances.break ? `| <b style="color:#f87171;">💥 ${chances.break}%</b>` : ''}</span>
+    </div>
   `;
   tip.style.display = 'block';
   moveItemTooltip(e);
@@ -1456,6 +1585,7 @@ function moveItemTooltip(e) {
 }
 
 function hideItemTooltip() { document.getElementById('item-tooltip').style.display = 'none'; }
+
 
 function renderEquipment() {
   const container = document.getElementById('gear-list');
@@ -1483,11 +1613,10 @@ function renderEquipment() {
           ${item.atk ? `<span class="affix-chip">⚔ +${item.atk.toLocaleString()}</span>` : ''}
           ${item.def ? `<span class="affix-chip">🛡 +${item.def.toLocaleString()}</span>` : ''}
           ${item.hp ? `<span class="affix-chip">❤️ +${item.hp.toLocaleString()}</span>` : ''}
-          ${item.crit ? `<span class="affix-chip">🎯 +${item.crit}%</span>` : ''}
         </div>
         ${!usable ? `<div class="item-disabled-badge">⚠️ [УРОВЕНЬ МАЛ: 0 БОНУСОВ]</div>` : ''}
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-          <button class="btn btn-sm btn-forge" onclick="forgeItem(player.equipment['${s}'])">⭐ Закалить</button>
+          <button class="btn btn-sm btn-forge" onclick="forgeItem(player.equipment['${s}'], '${s}')">⭐ Закалить</button>
           <button class="btn btn-sm btn-danger" onclick="unequipItem('${s}')">Снять</button>
         </div>
       `;
@@ -1608,7 +1737,7 @@ function switchTab(tab) {
 
 function equipItem(index) {
   const item = player.inventory[index];
-  if (!isItemUsable(item)) return alert(`Нельзя надеть вещь! Требуется Уровень ${item.reqLvl || 1}, а у вас только Ур. ${player.lvl}!`);
+  if (!isItemUsable(item)) return alert(`Нельзя надеть вещь! Требуется Уровень ${item.reqLvl || 1}!`);
   const current = player.equipment[item.slot];
   player.inventory.splice(index, 1);
   if (current) player.inventory.push(current);
@@ -1698,14 +1827,22 @@ function resetTalents() {
 function assignEnemySkills(enemy, tierIndex) {
   enemy.skills = [];
   const skillKeys = Object.keys(player.skills);
-  const count = Math.min(tierIndex + 1, skillKeys.length);
+  const count = Math.min(tierIndex + 2, skillKeys.length);
   const shuffled = [...skillKeys].sort(() => 0.5 - Math.random());
   for (let i = 0; i < count; i++) {
     const sId = shuffled[i];
-    enemy.skills.push({ id: sId, cd: 1.5 + Math.random() * 2.0, maxCd: Math.max(3.5, SKILLS_DB[sId].baseCd * 0.45) });
+    enemy.skills.push({ id: sId, cd: 2.0 + Math.random() * 2.0, maxCd: Math.max(4.0, SKILLS_DB[sId].baseCd * 0.5) });
   }
 }
 
+
+function applyEtherShieldIfUnlocked() {
+  if (player.transcendLevel >= 5) {
+    const shieldVal = getPlayerMaxHp();
+    player.shield = Math.max(player.shield || 0, shieldVal);
+    addLog(`🛡 <b>Эфирный Щит Наследия:</b> +${shieldVal.toLocaleString()} Щита в начале боя!`, 'log-over');
+  }
+}
 
 function startDungeon(dungeonId) {
   const dungeon = DUNGEONS.find(d => d.id === dungeonId);
@@ -1716,6 +1853,7 @@ function startDungeon(dungeonId) {
   combat.playerDodges = 0; combat.hasteTimer = 0; combat.deathGameTimer = 0; combat.hitCounter = 0; combat.mutatedEnemiesKilledCount = 0;
 
   if (player.activeBuffs.titan > 0) player.shield = getPlayerMaxHp() * 2.0;
+  applyEtherShieldIfUnlocked();
 
   document.getElementById('nav-combat-btn').style.display = 'block';
   switchTab('combat');
@@ -1730,6 +1868,8 @@ function startArena() {
   combat.diff = diff; combat.stageIndex = 0; combat.skillCooldowns = {};
   combat.arenaTimer = 30; combat.waveSpawning = false;
   combat.playerDodges = 0; combat.hasteTimer = 0; combat.deathGameTimer = 0; combat.hitCounter = 0; combat.mutatedEnemiesKilledCount = 0;
+
+  applyEtherShieldIfUnlocked();
   document.getElementById('nav-combat-btn').style.display = 'block';
   switchTab('combat');
   addLog(`🌌 <b>Арена Испытаний начата!</b>`, 'log-over');
@@ -1742,6 +1882,8 @@ function startDuelArena() {
   combat.dungeon = { id: 'arena_duel', name: 'Дуэль 1v1', cooldownSec: 0 };
   combat.diff = 1; combat.stageIndex = 0; combat.skillCooldowns = {};
   combat.playerDodges = 0; combat.hasteTimer = 0; combat.deathGameTimer = 0; combat.hitCounter = 0; combat.mutatedEnemiesKilledCount = 0;
+
+  applyEtherShieldIfUnlocked();
   document.getElementById('nav-combat-btn').style.display = 'block';
   switchTab('combat');
   addLog(`🤺 <b>Дуэль 1 на 1 против Теневого Двойника!</b>`, 'log-over');
@@ -1754,6 +1896,8 @@ function startRaidDemiurge() {
   combat.dungeon = { id: 'raid_demiurge', name: 'Рейд: Демиург', cooldownSec: 0 };
   combat.diff = 7; combat.stageIndex = 0; combat.skillCooldowns = {};
   combat.playerDodges = 0; combat.hasteTimer = 0; combat.deathGameTimer = 0; combat.raidEnrageTimer = 45.0; combat.hitCounter = 0; combat.mutatedEnemiesKilledCount = 0;
+
+  applyEtherShieldIfUnlocked();
 
   const pMaxHp = getPlayerMaxHp(), pAtk = getPlayerAtk(), pPierce = getPlayerPierce(), pDef = getPlayerDef();
   const raidHp = Math.max(500000, pMaxHp * 120 + pAtk * 800);
@@ -1824,6 +1968,7 @@ function generateArenaEnemy() {
     attackSpeed: Math.max(1.1, baseEnemy.attackSpeed * (eliteTier ? 0.85 : 1.0)), maxHp: hpVal, hp: hpVal, castProgress: 0, isDeadHandled: false, skills: []
   };
   if (eliteTier) assignEnemySkills(enemyObj, tierIdx);
+  else if (baseEnemy.isBoss) assignEnemySkills(enemyObj, 2);
   return enemyObj;
 }
 
@@ -1864,6 +2009,7 @@ function checkCurseMutation(target) {
   }
 }
 
+
 function handleEnemyKilled(enemy) {
   if (enemy.isDeadHandled) return;
   enemy.isDeadHandled = true;
@@ -1877,8 +2023,11 @@ function handleEnemyKilled(enemy) {
 
   if (enemy.isMutated) combat.mutatedEnemiesKilledCount++;
 
-  const goldGain = Math.round(enemy.gold * (1 + getPlayerGoldBonus() / 100));
-  const expGain = Math.round(enemy.xp * (1 + getPlayerExpBonus() / 100));
+  let multAnomalyHarvest = (player.transcendLevel >= 3 && enemy.isMutated) ? 2.0 : 1.0;
+  if (multAnomalyHarvest > 1.0) addLog(`📜 <b>Жатва Аномалий:</b> Утроенная награда за элиту!`, 'log-over');
+
+  const goldGain = Math.round(enemy.gold * (1 + getPlayerGoldBonus() / 100) * multAnomalyHarvest);
+  const expGain = Math.round(enemy.xp * (1 + getPlayerExpBonus() / 100) * multAnomalyHarvest);
   addExp(expGain);
   player.gold += goldGain;
 
@@ -1968,6 +2117,7 @@ function loadCombatStage() {
       maxHp: hpVal, hp: hpVal, castProgress: 0, isDeadHandled: false, skills: []
     };
     if (eliteTier) assignEnemySkills(enemyObj, tierIdx);
+    else if (e.isBoss) assignEnemySkills(enemyObj, 2);
     return enemyObj;
   });
 
@@ -2126,6 +2276,7 @@ function addLog(msg, css = '') {
   log.appendChild(d); log.scrollTop = log.scrollHeight;
 }
 
+
 function executePlayerAttack() {
   if (!combat.active || player.hp <= 0) return;
   const cData = calculateChargeData();
@@ -2133,6 +2284,17 @@ function executePlayerAttack() {
 
   const target = combat.enemies[combat.targetIndex];
   if (!target || target.hp <= 0) return;
+
+  // Печать 4 наследия: 15% шанс мгновенно казнить обычного врага в Сверхзамахе!
+  if (player.transcendLevel >= 4 && cData.tier === 'over' && !target.isBoss && Math.random() < 0.15) {
+    target.hp = 0;
+    combat.lastAttackTimestamp = Date.now();
+    addLog(`🌌☠ <b>КАЗНЬ БЕЗДНЫ!</b> ${target.name} мгновенно уничтожен Сверхзамахом!`, 'log-over');
+    checkMechanicQuest('overcharge');
+    handleEnemyKilled(target);
+    checkStageEnemiesState(); updateCombatUI();
+    return;
+  }
 
   let effDef = Math.max(0, target.def - getPlayerPierce());
   if (player.voidPerks && player.voidPerks.truepierce) effDef = Math.round(effDef * (1 - player.voidPerks.truepierce * 0.05));
@@ -2262,12 +2424,35 @@ function checkStageEnemiesState() {
   }
 }
 
+
 function executeEnemySkill(enemy, skillObj) {
   if (!combat.active || enemy.hp <= 0 || player.hp <= 0) return;
   const sId = skillObj.id;
-  if (['fireball','cleave','leap'].includes(sId)) dealDamageToPlayer(Math.round(enemy.atk * 1.5), enemy.name, enemy);
-  else if (sId === 'hellfire') dealDamageToPlayer(Math.round(enemy.atk * 1.3), enemy.name, enemy);
-  else if (sId === 'shield') { enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.round(enemy.maxHp * 0.25)); }
+  const sk = SKILLS_DB[sId];
+  const skName = sk ? sk.name : 'Спецприем';
+
+  if (sId === 'fireball' || sId === 'cleave' || sId === 'leap') {
+    const raw = Math.round(enemy.atk * 1.5);
+    addLog(`🔥 <b>${enemy.name}</b> кастует «${skName}»!`, 'log-enemy');
+    dealDamageToPlayer(raw, enemy.name, enemy);
+  } else if (sId === 'hellfire') {
+    const raw = Math.round(enemy.atk * 1.3);
+    addLog(`🌋 <b>${enemy.name}</b> обрушивает «${skName}»!`, 'log-enemy');
+    dealDamageToPlayer(raw, enemy.name, enemy);
+  } else if (sId === 'harvest') {
+    const raw = Math.round(enemy.atk * 1.4);
+    addLog(`🩸 <b>${enemy.name}</b> применяет «${skName}»!`, 'log-enemy');
+    dealDamageToPlayer(raw, enemy.name, enemy);
+    enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.round(raw * 0.5));
+  } else if (sId === 'shield') {
+    const healVal = Math.round(enemy.maxHp * 0.20);
+    enemy.hp = Math.min(enemy.maxHp, enemy.hp + healVal);
+    addLog(`🛡 <b>${enemy.name}</b> активирует «Барьер» (+${healVal.toLocaleString()} HP)!`, 'log-enemy');
+  } else {
+    const raw = Math.round(enemy.atk * 1.2);
+    addLog(`⚡ <b>${enemy.name}</b> использует «${skName}»!`, 'log-enemy');
+    dealDamageToPlayer(raw, enemy.name, enemy);
+  }
 }
 
 function dealDamageToPlayer(rawDmg, attackerName, enemyObj = null) {
@@ -2285,6 +2470,12 @@ function dealDamageToPlayer(rawDmg, attackerName, enemyObj = null) {
     if (player.pacts.vamp && enemyObj && enemyObj.hp > 0) {
       enemyObj.hp = Math.min(enemyObj.maxHp, enemyObj.hp + Math.round(incomingDmg * 0.30));
     }
+  }
+
+  // Печать 2 наследия: Авто-Испитие Настойки при HP < 30%!
+  if (player.transcendLevel >= 2 && (player.hp / getPlayerMaxHp()) < 0.30 && player.potions > 0 && player.hp > 0) {
+    usePotionCombat();
+    addLog(`🌿 <b>АВТО-НАСТОЙКА:</b> Выпита настойка при падении здоровья!`, 'log-hit');
   }
 
   if (player.hp <= 0 && player.astrolabe.chronophase && (combat.chronophaseCd || 0) <= 0) {
@@ -2410,6 +2601,28 @@ function updateUI() {
   setSafeText('transcend-gain-spheres', player.transcendLevel + 2);
   setSafeText('abyss-btn-floor', player.currentAbyssFloor || 1);
   setSafeText('anomaly-tier-txt', player.anomalyTier);
+
+  // Обновление Печатей Наследия
+  const heritageCnt = Math.min(5, player.transcendLevel || 0);
+  setSafeText('heritage-seals-cnt', `${heritageCnt}/5`);
+  for (let i = 1; i <= 5; i++) {
+    const badge = document.getElementById(`heritage-badge-${i}`);
+    if (badge) {
+      if ((player.transcendLevel || 0) >= i) {
+        badge.className = 'quest-badge done';
+        badge.innerText = 'ОТКРЫТО ✓';
+      } else {
+        badge.className = 'quest-badge';
+        badge.innerText = 'ЗАКРЫТО';
+      }
+    }
+  }
+
+  const slotSel = document.getElementById('heritage-slot-select');
+  if (slotSel) {
+    slotSel.value = player.heritageBypassSlot || 'weapon';
+    slotSel.disabled = (player.transcendLevel || 0) < 1;
+  }
 
   let astroCount = 0;
   for (let k in player.astrolabe) {
