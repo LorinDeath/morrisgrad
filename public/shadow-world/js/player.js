@@ -1,7 +1,14 @@
 const DEFAULT_ITEM_POOL = [
-  { name: 'Меч Теней', slot: 'weapon', baseAtk: 10, baseDef: 0, baseHp: 20, baseAspd: 5, pierce: 2 },
-  { name: 'Теневой Доспех', slot: 'armor', baseAtk: 0, baseDef: 8, baseHp: 50, baseAspd: 0, pierce: 0 },
-  { name: 'Амулет Пустоты', slot: 'amulet', baseAtk: 4, baseDef: 2, baseHp: 30, baseAspd: 0, pierce: 1 }
+  { name: 'Клинок Теней', slot: 'weapon', baseAtk: 12, baseDef: 0, baseHp: 15, baseAspd: 5, pierce: 3 },
+  { name: 'Теневой Доспех', slot: 'armor', baseAtk: 0, baseDef: 10, baseHp: 60, baseAspd: 0, pierce: 0 },
+  { name: 'Шлем Пустоты', slot: 'helm', baseAtk: 4, baseDef: 6, baseHp: 40, baseAspd: 0, pierce: 0 },
+  { name: 'Сапоги Странника', slot: 'boots', baseAtk: 2, baseDef: 4, baseHp: 30, baseAspd: 8, pierce: 0 },
+  { name: 'Амулет Пустоты', slot: 'amulet', baseAtk: 5, baseDef: 3, baseHp: 35, baseAspd: 0, pierce: 2 },
+  { name: 'Кольцо Разлома', slot: 'ring', baseAtk: 6, baseDef: 1, baseHp: 25, baseAspd: 4, pierce: 2 },
+  { name: 'Пояс Стойкости', slot: 'belt', baseAtk: 2, baseDef: 7, baseHp: 50, baseAspd: 0, pierce: 0 },
+  { name: 'Плащ Мрака', slot: 'cloak', baseAtk: 3, baseDef: 5, baseHp: 45, baseAspd: 5, pierce: 1 },
+  { name: 'Наручи Ярости', slot: 'bracers', baseAtk: 7, baseDef: 4, baseHp: 30, baseAspd: 6, pierce: 2 },
+  { name: 'Древняя Реликвия', slot: 'relic', baseAtk: 8, baseDef: 5, baseHp: 55, baseAspd: 3, pierce: 4 }
 ];
 
 function isItemUsable(item) {
@@ -463,16 +470,12 @@ function awakenSkill(skillId) {
 }
 
 function getTranscendCost() {
-  // Базовая стоимость первого престижа — 100,000 золота. 
-  // Каждый следующий уровень умножает стоимость примерно в 2.5 раза.
   return Math.round(100000 * Math.pow(2.5, player.transcendLevel));
 }
 
 function transcendHero() {
   if (typeof Sound !== 'undefined') Sound.play('overcharge');
   const cost = getTranscendCost();
-  
-  // Требуемый уровень: 15 для первого престижа, далее +5 за каждый ранг
   const reqLvl = 15 + (player.transcendLevel * 5);
 
   if (player.gold < cost || player.lvl < reqLvl) {
@@ -682,31 +685,31 @@ function inlayRune(runeIndex) {
   renderSynthesisUI();
 }
 
-// ГЕНЕРАЦИЯ ЛУТА С ФИЛЬТРАЦИЕЙ АФФИКСОВ ПО ПРЕСТИЖУ
+// ГЕНЕРАЦИЯ ЛУТА С ПОЛНЫМ ОХВАТОМ ВСЕХ РАЗБЛОКИРОВАННЫХ СЛОТОВ
 function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1, bonusStars = 0) {
-  let pool = DEFAULT_ITEM_POOL;
-  let dMinLvl = 1;
+  let pool = [];
+  let dMinLvl = dungeon?.minLvl || 1;
 
+  const allUnlockedDefault = DEFAULT_ITEM_POOL.filter(item => isSlotUnlocked(item.slot));
+  
   if (dungeon && dungeon.itemPool && dungeon.itemPool.length > 0) {
-    pool = dungeon.itemPool;
-    dMinLvl = dungeon.minLvl || 1;
-  } else if (typeof DUNGEONS !== 'undefined' && DUNGEONS.length > 0) {
-    let dIndex = DUNGEONS.findIndex(d => d.id === (dungeon ? dungeon.id : ''));
-    if (dIndex < 0) dIndex = 0;
-    const pickedDungeon = DUNGEONS[Math.floor(Math.random() * (dIndex + 1))] || DUNGEONS[0];
-    if (pickedDungeon && pickedDungeon.itemPool) {
-      pool = pickedDungeon.itemPool;
-      dMinLvl = pickedDungeon.minLvl || 1;
+    const dungeonUnlocked = dungeon.itemPool.filter(item => isSlotUnlocked(item.slot));
+    // С шансом 60% берем уникальный предмет данжа, с шансом 40% — любой разблокированный слот
+    if (dungeonUnlocked.length > 0 && Math.random() < 0.60) {
+      pool = dungeonUnlocked;
+    } else {
+      pool = allUnlockedDefault;
     }
+  } else {
+    pool = allUnlockedDefault;
   }
 
-  // === СТРОГО ФИЛЬТРУЕМ ПУЛ ПО РАЗБЛОКИРОВАННЫМ СЛОТАМ ПРЕСТИЖА ===
-  const unlockedPool = pool.filter(item => !item.slot || isSlotUnlocked(item.slot));
-  const safePool = unlockedPool.length > 0 ? unlockedPool : DEFAULT_ITEM_POOL.filter(item => !item.slot || isSlotUnlocked(item.slot));
+  if (pool.length === 0) {
+    pool = DEFAULT_ITEM_POOL.filter(item => item.slot === 'weapon');
+  }
   
-  const baseItem = safePool[Math.floor(Math.random() * safePool.length)] || DEFAULT_ITEM_POOL[0];
+  const baseItem = pool[Math.floor(Math.random() * pool.length)] || DEFAULT_ITEM_POOL[0];
   const pickedSlot = baseItem.slot || 'weapon';
-  // ================================================================
 
   const effectiveDiff = Math.floor(Math.random() * (diff || 1)) + 1;
   const diffIndex = Math.min(4, effectiveDiff - 1);
@@ -819,7 +822,6 @@ function equipItem(index) {
   if (typeof Sound !== 'undefined') Sound.play('click');
   const item = player.inventory[index];
   
-  // Проверяем, разблокирован ли слот престижем
   if (!isSlotUnlocked(item.slot)) {
     const reqP = SLOT_UNLOCK_PRESTIGE[item.slot];
     return alert(`🔒 Слот «${SLOTS[item.slot]}» заблокирован! Требуется Возвышение (Престиж) ур. ${reqP}.`);
