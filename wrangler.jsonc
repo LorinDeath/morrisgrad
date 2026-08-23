@@ -37,6 +37,10 @@
       "binding": "ITEMICONS_BUCKET",
       "bucket_name": "itemicons"
     }
+    {
+      "binding": "konkursbook",
+      "bucket_name": "konkursbook"
+    }
   ],
 
   "assets": {
