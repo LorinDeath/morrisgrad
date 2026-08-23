@@ -36,7 +36,7 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
   body { background: var(--bg-dark); color: var(--text); padding: 12px; display: flex; justify-content: center; min-height: 100vh; }
-  #app { width: 100%; max-width: 820px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 0 45px rgba(0,0,0,0.9); display: flex; flex-direction: column; }
+  #app { width: 100%; max-width: 840px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 0 45px rgba(0,0,0,0.9); display: flex; flex-direction: column; }
 
   header { background: #0a0714; padding: 12px 16px; border-bottom: 2px solid var(--accent); display: flex; justify-content: space-between; align-items: center; }
   .logo { font-size: 16px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; }
@@ -73,7 +73,6 @@
 
   @keyframes pulseOver { from { filter: brightness(1); } to { filter: brightness(1.4); } }
 
-  /* 8 Quality Colors */
   .q-1 { border-left-color: var(--q1) !important; color: var(--q1); }
   .q-2 { border-left-color: var(--q2) !important; color: var(--q2); }
   .q-3 { border-left-color: var(--q3) !important; color: var(--q3); }
@@ -101,13 +100,13 @@
   .affix-container { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0; }
   .affix-chip { background: var(--bg-panel-light); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; color: #cbd5e1; }
   .affix-chip.negative { color: #f87171; border-color: rgba(239,68,68,0.4); }
+  .affix-chip.curse-pos { color: #f43f5e; border-color: rgba(244,63,94,0.4); }
+  .affix-chip.curse-neg { color: #38bdf8; border-color: rgba(56,189,248,0.4); }
 
-  /* Extended Item Tooltip with Gear Comparison */
   #item-tooltip { position: fixed; background: var(--bg-panel); border: 1px solid var(--border-highlight); padding: 10px; border-radius: 8px; z-index: 999; display: none; pointer-events: none; font-size: 11px; max-width: 320px; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
   .compare-delta { font-weight: bold; margin-left: 3px; }
   .compare-pos { color: #34d399; }
   .compare-neg { color: #f87171; }
-  .compare-eq { color: var(--text-muted); }
 
   .btn { padding: 7px 11px; background: var(--accent); color: #fff; border: none; border-radius: 5px; font-weight: 700; cursor: pointer; font-size: 11px; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
   .btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
@@ -215,9 +214,8 @@
       <div class="stat-card"><div class="label">Вампиризм</div><div class="value" id="stat-vamp">0%</div></div>
       <div class="stat-card"><div class="label">Пробитие брони</div><div class="value" id="stat-pierce">0 ед.</div></div>
       <div class="stat-card"><div class="label">Оптимум замаха</div><div class="value" id="stat-charge-opt">7.0s</div></div>
-      <!-- Новые параметры -->
-      <div class="stat-card"><div class="label">Сила умений</div><div class="value" id="stat-sp" style="color:#38bdf8;">+1%</div></div>
-      <div class="stat-card"><div class="label">Шанс проклятья</div><div class="value" id="stat-curse" style="color:#f43f5e;">0%</div></div>
+      <div class="stat-card"><div class="label">Сила умений</div><div class="value" id="stat-sp" style="color:#38bdf8;">+2%</div></div>
+      <div class="stat-card"><div class="label">Шанс проклятья</div><div class="value" id="stat-curse" style="color:#f43f5e;">1%</div></div>
     </div>
 
     <h2>Экипировка героя</h2>
@@ -329,33 +327,42 @@
   <div id="view-dungeons" class="view">
     <h2>Сложность экспедиций</h2>
     <select id="diff-select" onchange="renderDungeons()">
-      <option value="1">Обычная (Базовый множитель x1.0, Качество I–II)</option>
-      <option value="2">Сложная (Множитель x2.2, Качество III–IV, мощные аффиксы)</option>
-      <option value="3">Героическая (Множитель x5.0, Качество V–VI, до 6 аффиксов)</option>
-      <option value="4">Кошмар (Множитель x12.0, Божественное и Глитч-реликвии, до 8 аффиксов!)</option>
+      <option value="1">Обычная (Множитель x1.0, Качество I–II)</option>
+      <option value="2">Сложная (Множитель x2.2, Качество III–IV)</option>
+      <option value="3">Героическая (Множитель x5.0, Качество V–VI)</option>
+      <option value="4">Кошмар (Множитель x12.0, Божественное и Глитч)</option>
+      <option value="5" style="color:#e11d48; font-weight:bold;">☠ АБСОЛЮТНЫЙ ХАОС (x360.0, ТОЛЬКО АБСОЛЮТНЫЕ МОНСТРЫ!)</option>
     </select>
 
-    <!-- АРЕНА ИСПЫТАНИЙ -->
-    <div id="arena-card" class="gear-card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, rgba(157, 92, 246, 0.15), rgba(236, 72, 153, 0.12)); margin-bottom: 12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-        <b style="font-size:13px; color:#fff; display:flex; align-items:center; gap:6px;">
-          🌌 АРЕНА ИСПЫТАНИЙ (БЕСКОНЕЧНЫЙ РАЗЛОМ)
-        </b>
-        <span style="font-size:9px; font-weight:bold; color:var(--charge-over); background:rgba(236,72,153,0.25); padding:2px 6px; border-radius:4px; border:1px solid rgba(236,72,153,0.4);">
-          ∞ БЕСКОНЕЧНЫЙ ФАРМ
-        </span>
+    <!-- АРЕНЫ -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+      <!-- АРЕНА ИСПЫТАНИЙ -->
+      <div class="gear-card" style="border: 2px solid var(--accent); background: linear-gradient(135deg, rgba(157, 92, 246, 0.15), rgba(236, 72, 153, 0.12)); margin-bottom: 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <b style="font-size:12px; color:#fff;">🌌 АРЕНА ИСПЫТАНИЙ</b>
+          <span style="font-size:8px; font-weight:bold; color:var(--charge-over); background:rgba(236,72,153,0.25); padding:2px 4px; border-radius:3px;">БЕСКОНЕЧНАЯ</span>
+        </div>
+        <p style="font-size:10px; color:#cbd5e1; margin-bottom:6px;">
+          Опыт за каждого моба. Вещи падают только с усиленных боссов (x3 статы)! Спавн каждые 30с или 1-4 моба при зачистке.
+        </p>
+        <button class="btn btn-charge-attack ready-opt" style="width:100%; font-size:11px;" onclick="startArena()">
+          ⚔ ВОЙТИ В РАЗЛОМ
+        </button>
       </div>
-      <p style="font-size:11px; color:#cbd5e1; margin-bottom:6px;">
-        Особая локация над всеми подземельями. Опыт даётся <b>только за убийство мобов</b>. Вещи падают <b>только с усиленных монстров</b> с качеством босса и <b>утроенными характеристиками (x3)</b>!
-      </p>
-      <div style="font-size:10px; color:var(--text-muted); margin-bottom:8px; line-height:1.4;">
-        • Пул врагов формируется из всех открытых вами подземелий под выбранную сложность.<br>
-        • Доступно видов усиленных боссов на текущей сложности: <b id="arena-unlocked-elites-txt" style="color:#38bdf8;">2 вида</b>.<br>
-        • Автоспавн подкрепления каждые <b>30 сек</b> (если никто не убит) или волна из <b>1–4 монстров</b> при зачистке!
+
+      <!-- ДУЭЛЬНАЯ АРЕНА 1 на 1 -->
+      <div class="gear-card" style="border: 2px solid var(--gold); background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(225, 29, 72, 0.12)); margin-bottom: 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <b style="font-size:12px; color:#fff;">🤺 ДУЭЛЬ 1 НА 1</b>
+          <span style="font-size:8px; font-weight:bold; color:var(--gold); background:rgba(245,158,11,0.25); padding:2px 4px; border-radius:3px;">ЧИСТОЕ ЗОЛОТО</span>
+        </div>
+        <p style="font-size:10px; color:#cbd5e1; margin-bottom:6px;">
+          Битва с Теневым Двойником (копирует ваши статы ±10% и 3 навыка). За победу дается огромное количество золота!
+        </p>
+        <button class="btn btn-gold" style="width:100%; font-size:11px;" onclick="startDuelArena()">
+          🪙 НАЧАТЬ ДУЭЛЬ
+        </button>
       </div>
-      <button class="btn btn-charge-attack ready-opt" style="width:100%; font-size:12px;" onclick="startArena()">
-        ⚔ ВОЙТИ НА АРЕНУ ИСПЫТАНИЙ
-      </button>
     </div>
 
     <h2>Список Подземелий</h2>
@@ -375,7 +382,7 @@
 
   <div id="view-combat" class="view">
     <div id="combat-arena-header" style="display:none; background:rgba(157,92,246,0.15); border:1px solid var(--accent); border-radius:6px; padding:6px 10px; margin-bottom:8px; justify-content:space-between; align-items:center; font-size:11px;">
-      <span style="color:var(--accent); font-weight:bold;">🌌 Арена Испытаний (Бесконечная битва)</span>
+      <span id="arena-header-title" style="color:var(--accent); font-weight:bold;">🌌 Арена Испытаний (Бесконечная битва)</span>
       <span id="arena-timer-txt" style="color:#38bdf8; font-weight:bold;">⏱ Подкрепление через: 30с</span>
     </div>
 
@@ -432,6 +439,7 @@
       <option value="2">Сложная (x2.2)</option>
       <option value="3">Героическая (x5.0)</option>
       <option value="4">Кошмар (x12.0)</option>
+      <option value="5">Абсолютный Хаос (x360.0)</option>
     </select>
 
     <div id="modal-dungeon-body"></div>
@@ -440,29 +448,28 @@
 
 <script>
 const QUALITIES = {
-  1: { name: 'Обычное',       cls: 'q-1', bg: 'bg-q-1', maxAffixes: 1, mult: 1.0,  dropRate: [60, 20,  5,  0] },
-  2: { name: 'Необычное',     cls: 'q-2', bg: 'bg-q-2', maxAffixes: 2, mult: 1.3,  dropRate: [30, 40, 20,  5] },
-  3: { name: 'Редкое',        cls: 'q-3', bg: 'bg-q-3', maxAffixes: 3, mult: 1.8,  dropRate: [10, 25, 35, 15] },
-  4: { name: 'Эпическое',     cls: 'q-4', bg: 'bg-q-4', maxAffixes: 4, mult: 2.5,  dropRate: [0,  12, 25, 30] },
-  5: { name: 'Легендарное',   cls: 'q-5', bg: 'bg-q-5', maxAffixes: 5, mult: 3.8,  dropRate: [0,   3, 12, 25] },
-  6: { name: 'Мифическое',    cls: 'q-6', bg: 'bg-q-6', maxAffixes: 6, mult: 5.5,  dropRate: [0,   0,  3, 15] },
-  7: { name: 'Божественное',  cls: 'q-7', bg: 'bg-q-7', maxAffixes: 7, mult: 8.0,  dropRate: [0,   0,  0,  8] },
-  8: { name: 'Глитч-Аномалия', cls: 'q-8', bg: 'bg-q-8', maxAffixes: 8, mult: 12.0, dropRate: [0,   0,  0,  2] }
+  1: { name: 'Обычное',       cls: 'q-1', bg: 'bg-q-1', maxAffixes: 1, mult: 1.0,  dropRate: [60, 20,  5,  0, 0] },
+  2: { name: 'Необычное',     cls: 'q-2', bg: 'bg-q-2', maxAffixes: 2, mult: 1.3,  dropRate: [30, 40, 20,  5, 0] },
+  3: { name: 'Редкое',        cls: 'q-3', bg: 'bg-q-3', maxAffixes: 3, mult: 1.8,  dropRate: [10, 25, 35, 15, 0] },
+  4: { name: 'Эпическое',     cls: 'q-4', bg: 'bg-q-4', maxAffixes: 4, mult: 2.5,  dropRate: [0,  12, 25, 30, 0] },
+  5: { name: 'Легендарное',   cls: 'q-5', bg: 'bg-q-5', maxAffixes: 5, mult: 3.8,  dropRate: [0,   3, 12, 25, 0] },
+  6: { name: 'Мифическое',    cls: 'q-6', bg: 'bg-q-6', maxAffixes: 6, mult: 5.5,  dropRate: [0,   0,  3, 15, 0] },
+  7: { name: 'Божественное',  cls: 'q-7', bg: 'bg-q-7', maxAffixes: 7, mult: 8.0,  dropRate: [0,   0,  0,  8, 20] },
+  8: { name: 'Глитч-Аномалия', cls: 'q-8', bg: 'bg-q-8', maxAffixes: 8, mult: 12.0, dropRate: [0,   0,  0,  2, 80] }
 };
 
-// 6 видов усиленных мобов
+// 6 градаций усиленных монстров с новыми множителями
 const ELITE_TIERS = [
-  { id: 'strong',   name: 'Сильный',      mult: 2,  quality: 2, color: 'var(--q2)' },
-  { id: 'dreadful', name: 'Ужасный',      mult: 4,  quality: 3, color: 'var(--q3)' },
-  { id: 'danger',   name: 'Опасный',      mult: 8,  quality: 4, color: 'var(--q4)' },
-  { id: 'incred',   name: 'Невероятный',  mult: 16, quality: 5, color: 'var(--q5)' },
-  { id: 'divine',   name: 'Божественный', mult: 32, quality: 7, color: 'var(--q7)' },
-  { id: 'absolute', name: 'Абсолютный',   mult: 64, quality: 8, color: 'var(--q8)' }
+  { id: 'strong',   name: 'Сильный',      mult: 4,   quality: 2, color: 'var(--q2)' },
+  { id: 'dreadful', name: 'Ужасный',      mult: 8,   quality: 3, color: 'var(--q3)' },
+  { id: 'danger',   name: 'Опасный',      mult: 16,  quality: 4, color: 'var(--q4)' },
+  { id: 'incred',   name: 'Невероятный',  mult: 32,  quality: 5, color: 'var(--q5)' },
+  { id: 'divine',   name: 'Божественный', mult: 64,  quality: 7, color: 'var(--q7)' },
+  { id: 'absolute', name: 'Абсолютный',   mult: 360, quality: 8, color: 'var(--q8)' }
 ];
 
 const SLOTS = { weapon: 'Оружие', armor: 'Доспех', helm: 'Шлем', boots: 'Сапоги', amulet: 'Амулет' };
 
-// Добавлены новые аффиксы: Проклятье и Сила умений
 const AFFIX_POOL = [
   { name: 'Ярости', stat: 'atk', val: [5, 10], label: '⚔ +Атк' },
   { name: 'Титана', stat: 'hp', val: [40, 90], label: '❤️ +HP' },
@@ -472,16 +479,15 @@ const AFFIX_POOL = [
   { name: 'Вампира', stat: 'vamp', val: [2, 5], label: '🩸 +Вампир' },
   { name: 'Разлома', stat: 'pierce', val: [5, 12], label: '🗡 +Пробой' },
   { name: 'Исцеления', stat: 'regen', val: [1, 3], label: '💚 +Реген/с' },
-  { name: 'Проклятия', stat: 'curseChance', val: [4, 12], label: '🔮 +Проклятье' },
-  { name: 'Чародея', stat: 'skillPower', val: [6, 16], label: '✨ +Сила умений' },
+  { name: 'Проклятия', stat: 'curseChance', val: [5, 15], label: '🔮 +Проклятье' },
+  { name: 'Чародея', stat: 'skillPower', val: [6, 18], label: '✨ +Сила умений' },
   { name: 'Тяжёлый', stat: 'atk', val: [14, 28], label: '⚔ +Урон', negStat: 'aspd', negVal: [-10, -20], negLabel: '⚡ -ASPD' },
   { name: 'Колоссальный', stat: 'hp', val: [100, 220], label: '❤️ +HP', negStat: 'aspd', negVal: [-15, -30], negLabel: '⚡ -ASPD' },
   { name: 'Левиафана', stat: 'def', val: [12, 24], label: '🛡 +Защ', negStat: 'aspd', negVal: [-12, -25], negLabel: '⚡ -ASPD' }
 ];
 
-const PREFIX_NAMES = ['Тёмный', 'Искажённый', 'Первозданный', 'Фрактальный', 'Древний', 'Пламенный', 'Сингулярный', 'Абсолютный', 'Тяжёлый', 'Колоссальный'];
+const PREFIX_NAMES = ['Тёмный', 'Искажённый', 'Первозданный', 'Фрактальный', 'Древний', 'Пламенный', 'Сингулярный', 'Абсолютный', 'Тяжёлый', 'Колоссальный', 'Грозовой', 'Инфернальный'];
 
-// Расширенный список скилов (5 старых + 3 новых)
 const SKILLS_DB = {
   fireball: {
     id: 'fireball', name: 'Огненный Шар', icon: '🔥', baseCd: 8.0, targetType: 'single',
@@ -509,7 +515,6 @@ const SKILLS_DB = {
     desc: 'Сокрушительный удар, игнорирующий 50% брони.',
     calcDmg: (lvl, atk, mult, sp) => Math.round(atk * (2.0 + (lvl - 1) * 0.45) * mult * (1 + sp / 100))
   },
-  // 3 Новых навыка
   haste: {
     id: 'haste', name: 'Скорость', icon: '⚡', baseCd: 14.0, targetType: 'buff',
     desc: 'Дарует всплеск энергии: +100% к скорости атаки на 6 сек.',
@@ -547,6 +552,49 @@ const AVATARS = {
   matrix: `<svg viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="4"></rect><path d="M7 7l10 10M17 7L7 17"></path></svg>`
 };
 
+// Функция генерации этажей для масштабных данжей (10-15 этажей)
+function generateTowerStages(count, theme, mobTemplates, bossTemplate) {
+  const stages = [];
+  for (let f = 1; f <= count; f++) {
+    const isBoss = (f === count);
+    const isSwarm = (!isBoss && (f === 4 || f === 8 || f === 12));
+    const stageName = isBoss ? `👑 Чертог Владыки (Этаж ${f})` : isSwarm ? `🔥 Шквал Орды (Этаж ${f})` : `Ярус ${f}: ${theme}`;
+    
+    let enemies = [];
+    if (isBoss) {
+      enemies.push(bossTemplate);
+      // Прислуга босса
+      enemies.push({ ...mobTemplates[0], id: `${mobTemplates[0].id}_bguard_1`, name: `Страж Трона A` });
+      enemies.push({ ...mobTemplates[1], id: `${mobTemplates[1].id}_bguard_2`, name: `Страж Трона B` });
+    } else if (isSwarm) {
+      const swarmCount = Math.floor(Math.random() * 6) + 5; // 5-10 мобов
+      for (let i = 0; i < swarmCount; i++) {
+        const base = mobTemplates[Math.floor(Math.random() * mobTemplates.length)];
+        enemies.push({
+          ...base,
+          id: `${base.id}_swarm_${f}_${i}`,
+          name: `${base.name} #${i + 1}`,
+          hp: Math.round(base.hp * 0.75),
+          atk: Math.round(base.atk * 0.75)
+        });
+      }
+    } else {
+      const mobCount = Math.floor(Math.random() * 2) + 1; // 1-2 моба
+      for (let i = 0; i < mobCount; i++) {
+        const base = mobTemplates[Math.floor(Math.random() * mobTemplates.length)];
+        enemies.push({
+          ...base,
+          id: `${base.id}_f${f}_${i}`,
+          name: `${base.name}`
+        });
+      }
+    }
+    stages.push({ name: stageName, enemies });
+  }
+  return stages;
+}
+
+// Список подземелий, включая 3 новых масштабных
 const DUNGEONS = [
   {
     id: 'dungeon_intro_1',
@@ -559,16 +607,14 @@ const DUNGEONS = [
         name: 'Сектор Мишеней',
         enemies: [
           { id: 'm_dummy_1', name: 'Манекен I', hp: 30, atk: 6, def: 1, xp: 10, gold: 8, isBoss: false, avatar: 'dummy', attackSpeed: 3.5, desc: 'Деревянная мишень.' },
-          { id: 'm_dummy_2', name: 'Манекен II', hp: 35, atk: 7, def: 1, xp: 12, gold: 9, isBoss: false, avatar: 'dummy', attackSpeed: 3.4, desc: 'Усиленный манекен.' },
-          { id: 'm_dummy_3', name: 'Старый Истукан', hp: 40, atk: 8, def: 2, xp: 14, gold: 10, isBoss: false, avatar: 'dummy', attackSpeed: 3.2, desc: 'Тяжелый манекен.' }
+          { id: 'm_dummy_2', name: 'Манекен II', hp: 35, atk: 7, def: 1, xp: 12, gold: 9, isBoss: false, avatar: 'dummy', attackSpeed: 3.4, desc: 'Усиленный манекен.' }
         ]
       },
       {
         name: 'Оружейный зал',
         enemies: [
           { id: 'm_dummy_boss', name: 'Железная Кукла', hp: 60, atk: 10, def: 3, xp: 20, gold: 15, isBoss: false, avatar: 'dummy', attackSpeed: 3.0, desc: 'Обитатель подвала.' },
-          { id: 'b_shadow_guard', name: 'Теневой Страж [БОСС]', hp: 120, atk: 14, def: 4, xp: 50, gold: 40, isBoss: true, avatar: 'shadow_guard', attackSpeed: 2.9, desc: 'Старый страж замка.' },
-          { id: 'm_dummy_guard', name: 'Оруженосец Праха', hp: 45, atk: 9, def: 2, xp: 15, gold: 12, isBoss: false, avatar: 'dummy', attackSpeed: 3.3, desc: 'Помощник стража.' }
+          { id: 'b_shadow_guard', name: 'Теневой Страж [БОСС]', hp: 120, atk: 14, def: 4, xp: 50, gold: 40, isBoss: true, avatar: 'shadow_guard', attackSpeed: 2.9, desc: 'Старый страж замка.' }
         ]
       }
     ],
@@ -591,7 +637,6 @@ const DUNGEONS = [
         name: 'Лесная Засада',
         enemies: [
           { id: 'm_wolf_1', name: 'Пепельный Волк', hp: 45, atk: 10, def: 2, xp: 18, gold: 14, isBoss: false, avatar: 'wolf', attackSpeed: 2.9, desc: 'Быстрый хищник.' },
-          { id: 'm_wolf_2', name: 'Теневая Гончая', hp: 42, atk: 11, def: 1, xp: 18, gold: 14, isBoss: false, avatar: 'wolf', attackSpeed: 2.7, desc: 'Опасный зверь.' },
           { id: 'm_bandit_1', name: 'Лесной Грабитель', hp: 50, atk: 12, def: 3, xp: 22, gold: 18, isBoss: false, avatar: 'bandit', attackSpeed: 3.0, desc: 'Засадчик.' }
         ]
       },
@@ -599,8 +644,7 @@ const DUNGEONS = [
         name: 'Лагерь Атамана',
         enemies: [
           { id: 'm_bandit_2', name: 'Головорез', hp: 65, atk: 14, def: 3, xp: 28, gold: 22, isBoss: false, avatar: 'bandit', attackSpeed: 2.8, desc: 'Опытный налетчик.' },
-          { id: 'b_bandit_leader', name: 'Атаман Мародёров [БОСС]', hp: 180, atk: 18, def: 5, xp: 80, gold: 65, isBoss: true, avatar: 'bandit', attackSpeed: 2.7, desc: 'Главарь шайки.' },
-          { id: 'm_bandit_3', name: 'Метатель Кинжалов', hp: 45, atk: 16, def: 1, xp: 25, gold: 20, isBoss: false, avatar: 'bandit', attackSpeed: 2.5, desc: 'Критический урон.' }
+          { id: 'b_bandit_leader', name: 'Атаман Мародёров [БОСС]', hp: 180, atk: 18, def: 5, xp: 80, gold: 65, isBoss: true, avatar: 'bandit', attackSpeed: 2.7, desc: 'Главарь шайки.' }
         ]
       }
     ],
@@ -622,17 +666,14 @@ const DUNGEONS = [
       {
         name: 'Трясина Скверны',
         enemies: [
-          { id: 'm_slime_1', name: 'Чумной Слизень A', hp: 65, atk: 12, def: 3, xp: 25, gold: 20, isBoss: false, avatar: 'slime', attackSpeed: 3.2, desc: 'Ядовитый сгусток.' },
-          { id: 'm_slime_2', name: 'Чумной Слизень B', hp: 65, atk: 12, def: 3, xp: 25, gold: 20, isBoss: false, avatar: 'slime', attackSpeed: 3.2, desc: 'Ядовитый сгусток.' },
+          { id: 'm_slime_1', name: 'Чумной Слизень', hp: 65, atk: 12, def: 3, xp: 25, gold: 20, isBoss: false, avatar: 'slime', attackSpeed: 3.2, desc: 'Ядовитый сгусток.' },
           { id: 'm_leech_1', name: 'Болотная Пиявка', hp: 55, atk: 15, def: 1, xp: 28, gold: 22, isBoss: false, avatar: 'slime', attackSpeed: 2.5, desc: 'Вампиризм.' }
         ]
       },
       {
         name: 'Гнилая Топь',
         enemies: [
-          { id: 'm_witch', name: 'Болотная Ведьма', hp: 90, atk: 18, def: 2, xp: 40, gold: 30, isBoss: false, avatar: 'bandit', attackSpeed: 2.6, desc: 'Сферы яда.' },
-          { id: 'b_swamp_horror', name: 'Болотный Ужас [БОСС]', hp: 280, atk: 25, def: 7, xp: 150, gold: 120, isBoss: true, avatar: 'slime', attackSpeed: 2.8, desc: 'Владыка топей.' },
-          { id: 'm_drowned', name: 'Гнилой Утопленник', hp: 110, atk: 14, def: 5, xp: 42, gold: 32, isBoss: false, avatar: 'skeleton', attackSpeed: 3.3, desc: 'Выносливый мертвец.' }
+          { id: 'b_swamp_horror', name: 'Болотный Ужас [БОСС]', hp: 280, atk: 25, def: 7, xp: 150, gold: 120, isBoss: true, avatar: 'slime', attackSpeed: 2.8, desc: 'Владыка топей.' }
         ]
       }
     ],
@@ -654,19 +695,14 @@ const DUNGEONS = [
       {
         name: 'Склеп Павших',
         enemies: [
-          { id: 'm_skel_1', name: 'Скелет-Мечник A', hp: 110, atk: 22, def: 5, xp: 50, gold: 40, isBoss: false, avatar: 'skeleton', attackSpeed: 3.1, desc: 'Колющий удар.' },
-          { id: 'm_skel_2', name: 'Скелет-Мечник B', hp: 110, atk: 22, def: 5, xp: 50, gold: 40, isBoss: false, avatar: 'skeleton', attackSpeed: 3.1, desc: 'Колющий удар.' },
-          { id: 'm_skel_3', name: 'Скелет-Лучник', hp: 85, atk: 28, def: 2, xp: 55, gold: 45, isBoss: false, avatar: 'skeleton', attackSpeed: 2.6, desc: 'Дальний урон.' },
-          { id: 'm_skel_4', name: 'Восставший Страж', hp: 140, atk: 20, def: 8, xp: 60, gold: 50, isBoss: false, avatar: 'skeleton', attackSpeed: 3.3, desc: 'Защитник склепа.' }
+          { id: 'm_skel_1', name: 'Скелет-Мечник', hp: 110, atk: 22, def: 5, xp: 50, gold: 40, isBoss: false, avatar: 'skeleton', attackSpeed: 3.1, desc: 'Колющий удар.' },
+          { id: 'm_skel_3', name: 'Скелет-Лучник', hp: 85, atk: 28, def: 2, xp: 55, gold: 45, isBoss: false, avatar: 'skeleton', attackSpeed: 2.6, desc: 'Дальний урон.' }
         ]
       },
       {
         name: 'Трон Праха',
         enemies: [
-          { id: 'b_jailer', name: 'Тюремщик Склепа', hp: 350, atk: 35, def: 10, xp: 180, gold: 140, isBoss: false, avatar: 'jailer', attackSpeed: 2.9, desc: 'Броня казематов.' },
-          { id: 'b_reaper', name: 'Чёрный Жнец [БОСС]', hp: 550, atk: 50, def: 14, xp: 320, gold: 260, isBoss: true, avatar: 'reaper', attackSpeed: 2.6, desc: 'Владыка костей.' },
-          { id: 'm_skel_guard', name: 'Гвардеец Праха A', hp: 160, atk: 25, def: 9, xp: 70, gold: 55, isBoss: false, avatar: 'skeleton', attackSpeed: 3.2, desc: 'Телохранитель.' },
-          { id: 'm_skel_guard2', name: 'Гвардеец Праха B', hp: 160, atk: 25, def: 9, xp: 70, gold: 55, isBoss: false, avatar: 'skeleton', attackSpeed: 3.2, desc: 'Телохранитель.' }
+          { id: 'b_reaper', name: 'Чёрный Жнец [БОСС]', hp: 550, atk: 50, def: 14, xp: 320, gold: 260, isBoss: true, avatar: 'reaper', attackSpeed: 2.6, desc: 'Владыка костей.' }
         ]
       }
     ],
@@ -678,132 +714,75 @@ const DUNGEONS = [
       { name: 'Амулет Праха', slot: 'amulet', baseAtk: 11, baseDef: 6, baseHp: 70, baseAspd: 5, pierce: 4 }
     ]
   },
+
+  // --- 3 НОВЫХ МАСШТАБНЫХ ДАНЖА (Уровни 10, 20, 30) ---
   {
-    id: 'dungeon_mines',
-    name: 'Забытые Шахты Гномов',
-    desc: 'Затопленные рудники, занятые безумными гоблинами и големами.',
-    minLvl: 11,
-    cooldownSec: 200,
-    stages: [
-      {
-        name: 'Штрек Рудокопов',
-        enemies: [
-          { id: 'm_goblin_1', name: 'Гоблин-Шахтер', hp: 180, atk: 35, def: 8, xp: 90, gold: 75, isBoss: false, avatar: 'bandit', attackSpeed: 2.7, desc: 'Быстрые удары киркой.' },
-          { id: 'm_goblin_2', name: 'Гоблин-Подрывник', hp: 150, atk: 45, def: 4, xp: 100, gold: 85, isBoss: false, avatar: 'bandit', attackSpeed: 2.4, desc: 'Взрывы динамита.' },
-          { id: 'm_goblin_3', name: 'Гоблин-Застрельщик', hp: 160, atk: 38, def: 6, xp: 95, gold: 80, isBoss: false, avatar: 'bandit', attackSpeed: 2.6, desc: 'Пращник.' }
-        ]
-      },
-      {
-        name: 'Ядро Рудника',
-        enemies: [
-          { id: 'b_golem_mine', name: 'Рудоносный Голем [БОСС]', hp: 850, atk: 65, def: 25, xp: 550, gold: 420, isBoss: true, avatar: 'frost_golem', attackSpeed: 3.0, desc: 'Каменная броня.' },
-          { id: 'm_goblin_chief', name: 'Вожак Рудника', hp: 260, atk: 48, def: 12, xp: 140, gold: 110, isBoss: false, avatar: 'bandit', attackSpeed: 2.6, desc: 'Начальник над гоблинами.' },
-          { id: 'm_goblin_4', name: 'Гоблин-Шахтер B', hp: 180, atk: 35, def: 8, xp: 90, gold: 75, isBoss: false, avatar: 'bandit', attackSpeed: 2.7, desc: 'Работяга.' }
-        ]
-      }
-    ],
+    id: 'dungeon_storm_tower',
+    name: '⚡ Башня Бесконечного Шторма (12 Этажей)',
+    desc: 'Огромный шпиль бури. На 4 и 8 этажах — сокрушительные волны врагов!',
+    minLvl: 10,
+    cooldownSec: 210,
+    stages: generateTowerStages(
+      12, 'Штормовой Шпиль',
+      [
+        { id: 'm_storm_1', name: 'Грозовой Дух', hp: 160, atk: 32, def: 8, xp: 85, gold: 70, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.5, desc: 'Цепная молния.' },
+        { id: 'm_storm_2', name: 'Ветрокрылый Сталкер', hp: 140, atk: 40, def: 6, xp: 95, gold: 80, isBoss: false, avatar: 'bandit', attackSpeed: 2.2, desc: 'Быстрые выпады.' },
+        { id: 'm_storm_3', name: 'Громовой Страж', hp: 220, atk: 30, def: 14, xp: 110, gold: 90, isBoss: false, avatar: 'frost_golem', attackSpeed: 2.8, desc: 'Каменная защита.' }
+      ],
+      { id: 'b_raijin', name: 'Повелитель Бурь Райдзин [БОСС]', hp: 1100, atk: 75, def: 28, xp: 750, gold: 600, isBoss: true, avatar: 'dragon', attackSpeed: 2.2, desc: 'Владыка тысячи гроз.' }
+    ),
     itemPool: [
-      { name: 'Кирка Шахтера', slot: 'weapon', baseAtk: 36, baseDef: 5, baseHp: 40, baseAspd: 12, pierce: 10 },
-      { name: 'Панцирь Рудокопа', slot: 'armor', baseAtk: 0, baseDef: 28, baseHp: 140, baseAspd: 0, pierce: 0 },
-      { name: 'Шахтерский Шлем', slot: 'helm', baseAtk: 10, baseDef: 16, baseHp: 90, baseAspd: 6, pierce: 0 },
-      { name: 'Тяжелые Поножи', slot: 'boots', baseAtk: 5, baseDef: 15, baseHp: 95, baseAspd: 10, pierce: 0 },
-      { name: 'Самородок Гномов', slot: 'amulet', baseAtk: 18, baseDef: 10, baseHp: 110, baseAspd: 8, pierce: 6 }
+      { name: 'Громовой Клинок Бури', slot: 'weapon', baseAtk: 40, baseDef: 0, baseHp: 50, baseAspd: 20, pierce: 12 },
+      { name: 'Доспех Повелителя Бурь', slot: 'armor', baseAtk: 10, baseDef: 35, baseHp: 160, baseAspd: 5, pierce: 0 },
+      { name: 'Шлем Громовержца', slot: 'helm', baseAtk: 14, baseDef: 20, baseHp: 110, baseAspd: 10, pierce: 0 },
+      { name: 'Штормовые Сапоги', slot: 'boots', baseAtk: 8, baseDef: 18, baseHp: 100, baseAspd: 25, pierce: 0 },
+      { name: 'Око Бури', slot: 'amulet', baseAtk: 24, baseDef: 14, baseHp: 130, baseAspd: 12, pierce: 8 }
     ]
   },
   {
-    id: 'dungeon_2',
-    name: 'Ледяной Разлом Харебры',
-    desc: 'Вечная мерзлота, где дремлет ледяной дракон.',
-    minLvl: 16,
-    cooldownSec: 240,
-    stages: [
-      {
-        name: 'Ледяные Торосы',
-        enemies: [
-          { id: 'm_ice_1', name: 'Ледяной Дух A', hp: 280, atk: 55, def: 15, xp: 160, gold: 130, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.7, desc: 'Заморозка.' },
-          { id: 'm_ice_2', name: 'Ледяной Дух B', hp: 280, atk: 55, def: 15, xp: 160, gold: 130, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.7, desc: 'Заморозка.' },
-          { id: 'm_ice_3', name: 'Морозный Сталкер', hp: 320, atk: 62, def: 18, xp: 180, gold: 150, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.9, desc: 'Пробой брони.' }
-        ]
-      },
-      {
-        name: 'Логово Харебры',
-        enemies: [
-          { id: 'b_golem_frost', name: 'Морозный Голем', hp: 900, atk: 85, def: 35, xp: 600, gold: 480, isBoss: false, avatar: 'frost_golem', attackSpeed: 3.0, desc: 'Страж пещеры.' },
-          { id: 'b_dragon', name: 'Дракон Харебра [БОСС]', hp: 1600, atk: 125, def: 45, xp: 1200, gold: 950, isBoss: true, avatar: 'dragon', attackSpeed: 2.4, desc: 'Владыка мерзлоты.' },
-          { id: 'm_ice_stalker2', name: 'Ледяной Страж', hp: 380, atk: 68, def: 22, xp: 210, gold: 170, isBoss: false, avatar: 'frost_elem', attackSpeed: 2.8, desc: 'Прикрывает дракона.' }
-        ]
-      }
-    ],
+    id: 'dungeon_soul_labyrinth',
+    name: '👻 Лабиринт Забытых Душ (14 Этажей)',
+    desc: 'Заблудшие души и призрачные орды на 4, 8 и 12 этажах!',
+    minLvl: 20,
+    cooldownSec: 260,
+    stages: generateTowerStages(
+      14, 'Призрачные Коридоры',
+      [
+        { id: 'm_soul_1', name: 'Блуждающий Призрак', hp: 380, atk: 72, def: 18, xp: 210, gold: 170, isBoss: false, avatar: 'skeleton', attackSpeed: 2.4, desc: 'Игнорирует броню.' },
+        { id: 'm_soul_2', name: 'Истязатель Теней', hp: 440, atk: 85, def: 22, xp: 250, gold: 200, isBoss: false, avatar: 'jailer', attackSpeed: 2.6, desc: 'Тёмные цепи.' },
+        { id: 'm_soul_3', name: 'Фантом Палача', hp: 520, atk: 98, def: 26, xp: 300, gold: 240, isBoss: false, avatar: 'priest', attackSpeed: 2.5, desc: 'Проклятие увядания.' }
+      ],
+      { id: 'b_thanatos', name: 'Владыка Забвения Танатос [БОСС]', hp: 2800, atk: 180, def: 60, xp: 2200, gold: 1700, isBoss: true, avatar: 'reaper', attackSpeed: 2.1, desc: 'Пожинатель душ.' }
+    ),
     itemPool: [
-      { name: 'Ледяной Клинок', slot: 'weapon', baseAtk: 60, baseDef: 0, baseHp: 100, baseAspd: 15, pierce: 12 },
-      { name: 'Кираса Мерзлоты', slot: 'armor', baseAtk: 0, baseDef: 55, baseHp: 280, baseAspd: 0, pierce: 0 },
-      { name: 'Ледяной Венец', slot: 'helm', baseAtk: 22, baseDef: 30, baseHp: 160, baseAspd: 8, pierce: 0 },
-      { name: 'Снегоступы Харебры', slot: 'boots', baseAtk: 15, baseDef: 28, baseHp: 150, baseAspd: 20, pierce: 0 },
-      { name: 'Осколок Льда', slot: 'amulet', baseAtk: 42, baseDef: 20, baseHp: 210, baseAspd: 10, pierce: 10 }
+      { name: 'Эфирная Коса Забвения', slot: 'weapon', baseAtk: 95, baseDef: 15, baseHp: 180, baseAspd: 18, pierce: 25 },
+      { name: 'Саван Мученика', slot: 'armor', baseAtk: 25, baseDef: 85, baseHp: 480, baseAspd: 10, pierce: 0 },
+      { name: 'Венец Забытых Душ', slot: 'helm', baseAtk: 35, baseDef: 50, baseHp: 280, baseAspd: 12, pierce: 0 },
+      { name: 'Эфирные Полозья', slot: 'boots', baseAtk: 25, baseDef: 45, baseHp: 260, baseAspd: 30, pierce: 0 },
+      { name: 'Амулет Забвения', slot: 'amulet', baseAtk: 65, baseDef: 32, baseHp: 350, baseAspd: 15, pierce: 15 }
     ]
   },
   {
-    id: 'dungeon_3',
-    name: 'Пепельные Чертоги Нави',
-    desc: 'Святилище фанатиков, искажающее пространство.',
-    minLvl: 22,
-    cooldownSec: 270,
-    stages: [
-      {
-        name: 'Притвор Культа',
-        enemies: [
-          { id: 'm_fanatic_1', name: 'Аколит Нави A', hp: 500, atk: 95, def: 28, xp: 280, gold: 220, isBoss: false, avatar: 'skeleton', attackSpeed: 2.5, desc: 'Фанатичный удар.' },
-          { id: 'm_fanatic_2', name: 'Аколит Нави B', hp: 500, atk: 95, def: 28, xp: 280, gold: 220, isBoss: false, avatar: 'skeleton', attackSpeed: 2.5, desc: 'Фанатичный удар.' },
-          { id: 'm_fanatic_3', name: 'Тёмный Истязатель', hp: 600, atk: 110, def: 32, xp: 340, gold: 270, isBoss: false, avatar: 'skeleton', attackSpeed: 2.7, desc: 'Высасывание жизни.' }
-        ]
-      },
-      {
-        name: 'Алтать Суда',
-        enemies: [
-          { id: 'm_fanatic_4', name: 'Палач Культа', hp: 750, atk: 130, def: 40, xp: 420, gold: 330, isBoss: false, avatar: 'skeleton', attackSpeed: 2.8, desc: 'Тяжелый топор.' },
-          { id: 'b_priest', name: 'Тёмный Жрец Нави [БОСС]', hp: 2600, atk: 185, def: 65, xp: 1800, gold: 1400, isBoss: true, avatar: 'priest', attackSpeed: 2.3, desc: 'Проклятия Нави.' },
-          { id: 'm_fanatic_guard', name: 'Страж Алтаря', hp: 680, atk: 115, def: 38, xp: 380, gold: 300, isBoss: false, avatar: 'skeleton', attackSpeed: 2.6, desc: 'Защитник Жреца.' }
-        ]
-      }
-    ],
-    itemPool: [
-      { name: 'Кадило Инквизиции', slot: 'weapon', baseAtk: 110, baseDef: 20, baseHp: 220, baseAspd: 20, pierce: 20 },
-      { name: 'Одеяния Жреца', slot: 'armor', baseAtk: 30, baseDef: 100, baseHp: 550, baseAspd: 10, pierce: 0 },
-      { name: 'Митра Безмолвия', slot: 'helm', baseAtk: 42, baseDef: 58, baseHp: 320, baseAspd: 12, pierce: 0 },
-      { name: 'Сандалии Паломника', slot: 'boots', baseAtk: 30, baseDef: 52, baseHp: 310, baseAspd: 30, pierce: 0 },
-      { name: 'Чёрные Чётки', slot: 'amulet', baseAtk: 75, baseDef: 38, baseHp: 400, baseAspd: 15, pierce: 18 }
-    ]
-  },
-  {
-    id: 'dungeon_4',
-    name: 'Цитадель Адского Пламени',
-    desc: 'Обитель Архидемона МоррисГрада.',
+    id: 'dungeon_chaos_inferno',
+    name: '🌋 Пекло Первородного Хаоса (15 Этажей)',
+    desc: 'Глубины преисподней! Масштабные наплывы лавовых демонов на 4, 8 и 12 этажах!',
     minLvl: 30,
-    cooldownSec: 300,
-    stages: [
-      {
-        name: 'Врата Инферно',
-        enemies: [
-          { id: 'm_demon_1', name: 'Огненный Демон A', hp: 1100, atk: 180, def: 55, xp: 700, gold: 550, isBoss: false, avatar: 'demon', attackSpeed: 2.5, desc: 'Адский пламень.' },
-          { id: 'm_demon_2', name: 'Огненный Демон B', hp: 1100, atk: 180, def: 55, xp: 700, gold: 550, isBoss: false, avatar: 'demon', attackSpeed: 2.5, desc: 'Адский пламень.' },
-          { id: 'm_demon_3', name: 'Палач Преисподней', hp: 1400, atk: 220, def: 65, xp: 880, gold: 700, isBoss: false, avatar: 'demon', attackSpeed: 2.7, desc: 'Сокрушение.' }
-        ]
-      },
-      {
-        name: 'Трон Бездны',
-        enemies: [
-          { id: 'm_demon_guard', name: 'Гвардеец Демонов', hp: 1600, atk: 240, def: 75, xp: 1000, gold: 800, isBoss: false, avatar: 'demon', attackSpeed: 2.6, desc: 'Охрана трона.' },
-          { id: 'b_archdemon', name: 'Архидемон [БОСС]', hp: 5800, atk: 380, def: 125, xp: 4500, gold: 3500, isBoss: true, avatar: 'archdemon', attackSpeed: 2.2, desc: 'Владыка инферно.' },
-          { id: 'm_demon_guard2', name: 'Гвардеец Демонов B', hp: 1600, atk: 240, def: 75, xp: 1000, gold: 800, isBoss: false, avatar: 'demon', attackSpeed: 2.6, desc: 'Охрана трона.' }
-        ]
-      }
-    ],
+    cooldownSec: 320,
+    stages: generateTowerStages(
+      15, 'Огненные Чертоги',
+      [
+        { id: 'm_chaos_1', name: 'Лавовый Скорпион', hp: 950, atk: 160, def: 45, xp: 620, gold: 500, isBoss: false, avatar: 'demon', attackSpeed: 2.3, desc: 'Огненный укол.' },
+        { id: 'm_chaos_2', name: 'Инфернальный Разрушитель', hp: 1300, atk: 205, def: 58, xp: 820, gold: 650, isBoss: false, avatar: 'demon', attackSpeed: 2.5, desc: 'Сокрушение.' },
+        { id: 'm_chaos_3', name: 'Магматический Титан', hp: 1800, atk: 230, def: 80, xp: 1100, gold: 880, isBoss: false, avatar: 'frost_golem', attackSpeed: 2.7, desc: 'Лавовая броня.' }
+      ],
+      { id: 'b_surtur', name: 'Владыка Хаоса Суртур [БОСС]', hp: 6500, atk: 420, def: 135, xp: 5200, gold: 4200, isBoss: true, avatar: 'archdemon', attackSpeed: 2.0, desc: 'Истинный владыка огня.' }
+    ),
     itemPool: [
-      { name: 'Клинок Адского Пламени', slot: 'weapon', baseAtk: 240, baseDef: 35, baseHp: 450, baseAspd: 25, pierce: 45 },
-      { name: 'Латы Пепельного Лорда', slot: 'armor', baseAtk: 50, baseDef: 210, baseHp: 1100, baseAspd: 5, pierce: 0 },
-      { name: 'Рогатый Шлем', slot: 'helm', baseAtk: 85, baseDef: 115, baseHp: 650, baseAspd: 15, pierce: 0 },
-      { name: 'Поножи Пустоты', slot: 'boots', baseAtk: 60, baseDef: 100, baseHp: 600, baseAspd: 35, pierce: 0 },
-      { name: 'Печать Архидемона', slot: 'amulet', baseAtk: 160, baseDef: 80, baseHp: 800, baseAspd: 20, pierce: 35 }
+      { name: 'Меч Первородного Пламени', slot: 'weapon', baseAtk: 260, baseDef: 40, baseHp: 500, baseAspd: 30, pierce: 50 },
+      { name: 'Панцирь Магматического Лорда', slot: 'armor', baseAtk: 60, baseDef: 230, baseHp: 1200, baseAspd: 5, pierce: 0 },
+      { name: 'Корона Инферно', slot: 'helm', baseAtk: 95, baseDef: 125, baseHp: 720, baseAspd: 15, pierce: 0 },
+      { name: 'Лавоступы Хаоса', slot: 'boots', baseAtk: 70, baseDef: 110, baseHp: 680, baseAspd: 40, pierce: 0 },
+      { name: 'Сердце Суртура', slot: 'amulet', baseAtk: 180, baseDef: 90, baseHp: 900, baseAspd: 25, pierce: 40 }
     ]
   },
   {
@@ -816,17 +795,13 @@ const DUNGEONS = [
       {
         name: 'Подводный Грот',
         enemies: [
-          { id: 'm_abyss_1', name: 'Глубинный Охотник A', hp: 2200, atk: 350, def: 100, xp: 1800, gold: 1400, isBoss: false, avatar: 'slime', attackSpeed: 2.3, desc: 'Штормовые выпады.' },
-          { id: 'm_abyss_2', name: 'Глубинный Охотник B', hp: 2200, atk: 350, def: 100, xp: 1800, gold: 1400, isBoss: false, avatar: 'slime', attackSpeed: 2.3, desc: 'Штормовые выпады.' },
-          { id: 'm_abyss_3', name: 'Тёмная Сирена', hp: 1900, atk: 410, def: 85, xp: 2000, gold: 1600, isBoss: false, avatar: 'priest', attackSpeed: 2.1, desc: 'Психический урон.' }
+          { id: 'm_abyss_1', name: 'Глубинный Охотник', hp: 2200, atk: 350, def: 100, xp: 1800, gold: 1400, isBoss: false, avatar: 'slime', attackSpeed: 2.3, desc: 'Штормовые выпады.' }
         ]
       },
       {
         name: 'Святилище Левиафана',
         enemies: [
-          { id: 'm_abyss_guard', name: 'Титанический Страж', hp: 3200, atk: 440, def: 140, xp: 2800, gold: 2200, isBoss: false, avatar: 'frost_golem', attackSpeed: 2.8, desc: 'Огромный панцирь.' },
-          { id: 'b_kraken', name: 'Кракеноподобный Левиафан [БОСС]', hp: 11000, atk: 620, def: 210, xp: 12000, gold: 9500, isBoss: true, avatar: 'dragon', attackSpeed: 2.0, desc: 'Хозяин бездны.' },
-          { id: 'm_abyss_siren2', name: 'Жрица Штормов', hp: 2400, atk: 480, def: 110, xp: 2500, gold: 2000, isBoss: false, avatar: 'priest', attackSpeed: 2.2, desc: 'Поддержка Левиафана.' }
+          { id: 'b_kraken', name: 'Кракеноподобный Левиафан [БОСС]', hp: 11000, atk: 620, def: 210, xp: 12000, gold: 9500, isBoss: true, avatar: 'dragon', attackSpeed: 2.0, desc: 'Хозяин бездны.' }
         ]
       }
     ],
@@ -848,17 +823,13 @@ const DUNGEONS = [
       {
         name: 'Глитч-Сегмент',
         enemies: [
-          { id: 'm_glitch_1', name: 'Фантомная Аномалия A', hp: 4500, atk: 680, def: 180, xp: 3800, gold: 3000, isBoss: false, avatar: 'skeleton', attackSpeed: 2.1, desc: 'Критический сбой.' },
-          { id: 'm_glitch_2', name: 'Фантомная Аномалия B', hp: 4500, atk: 680, def: 180, xp: 3800, gold: 3000, isBoss: false, avatar: 'skeleton', attackSpeed: 2.1, desc: 'Критический сбой.' },
-          { id: 'm_glitch_3', name: 'Фазовый Разрушитель', hp: 5200, atk: 780, def: 210, xp: 4500, gold: 3500, isBoss: false, avatar: 'demon', attackSpeed: 2.3, desc: 'Искажение ткани.' }
+          { id: 'm_glitch_1', name: 'Фантомная Аномалия', hp: 4500, atk: 680, def: 180, xp: 3800, gold: 3000, isBoss: false, avatar: 'skeleton', attackSpeed: 2.1, desc: 'Критический сбой.' }
         ]
       },
       {
         name: 'Фрактальный Трон',
         enemies: [
-          { id: 'b_hunter', name: 'Охотница Фрактала', hp: 12000, atk: 1100, def: 320, xp: 12000, gold: 9500, isBoss: false, avatar: 'dragon', attackSpeed: 2.0, desc: 'Паралич матрицы.' },
-          { id: 'b_matrix', name: 'Творец Искажения [БОСС]', hp: 28000, atk: 1650, def: 480, xp: 35000, gold: 28000, isBoss: true, avatar: 'matrix', attackSpeed: 1.8, desc: 'Первородный баг.' },
-          { id: 'm_glitch_guard', name: 'Аномальный Нуль-Вектор', hp: 6000, atk: 880, def: 250, xp: 5500, gold: 4200, isBoss: false, avatar: 'matrix', attackSpeed: 2.2, desc: 'Поддержка ядра.' }
+          { id: 'b_matrix', name: 'Творец Искажения [БОСС]', hp: 28000, atk: 1650, def: 480, xp: 35000, gold: 28000, isBoss: true, avatar: 'matrix', attackSpeed: 1.8, desc: 'Первородный баг.' }
         ]
       }
     ],
@@ -877,11 +848,10 @@ const STORY_QUESTS = [
   { id: 'sq_0b', title: 'Глава I: Безопасный Тракт', desc: 'Одолейте Атамана Мародёров на Заброшенном Тракте.', targetId: 'b_bandit_leader', total: 1, xp: 180, gold: 150, tp: 1, rewardQ: 3 },
   { id: 'sq_0c', title: 'Глава II: Очищение Топей', desc: 'Уничтожьте Болотный Ужас Нави в Чёрных Топях.', targetId: 'b_swamp_horror', total: 1, xp: 320, gold: 260, tp: 1, rewardQ: 3 },
   { id: 'sq_1', title: 'Глава III: Эхо Катакомб', desc: 'Сразите Чёрного Жнеца в глубинах Катакомб Скорби.', targetId: 'b_reaper', total: 1, xp: 600, gold: 500, tp: 1, rewardQ: 4 },
-  { id: 'sq_mines', title: 'Глава IV: Тайны Шахт Гномов', desc: 'Разбейте Рудоносного Голема в Забытых Шахтах.', targetId: 'b_golem_mine', total: 1, xp: 1100, gold: 900, tp: 2, rewardQ: 4 },
-  { id: 'sq_2', title: 'Глава V: Ледяной Дракон', desc: 'Победите Дракона Харебру в Ледяном Разломе.', targetId: 'b_dragon', total: 1, xp: 2200, gold: 1800, tp: 2, rewardQ: 5 },
-  { id: 'sq_3', title: 'Глава VI: Искоренение Скверны', desc: 'Уничтожьте Тёмного Жреца Нави в Пепельных Чертогах.', targetId: 'b_priest', total: 1, xp: 4500, gold: 3500, tp: 2, rewardQ: 6 },
-  { id: 'sq_4', title: 'Глава VII: Владыка Инферно', desc: 'Сразите Архидемона в Цитадели Адского Пламени.', targetId: 'b_archdemon', total: 1, xp: 9000, gold: 7500, tp: 3, rewardQ: 7 },
-  { id: 'sq_abyss', title: 'Глава VIII: Левиафан Бездны', desc: 'Победите Левиафана в Затонувшем Храме.', targetId: 'b_kraken', total: 1, xp: 20000, gold: 16000, tp: 4, rewardQ: 7 },
+  { id: 'sq_storm', title: 'Глава IV: Владыка Бурь', desc: 'Покорите Башню Шторма и одолейте Райдзина.', targetId: 'b_raijin', total: 1, xp: 1200, gold: 950, tp: 2, rewardQ: 4 },
+  { id: 'sq_soul', title: 'Глава V: Забвение Душ', desc: 'Сразите Танатоса в Лабиринте Забытых Душ.', targetId: 'b_thanatos', total: 1, xp: 2600, gold: 2000, tp: 2, rewardQ: 5 },
+  { id: 'sq_chaos', title: 'Глава VI: Пламя Хаоса', desc: 'Победите Суртура в Пекле Первородного Хаоса.', targetId: 'b_surtur', total: 1, xp: 6000, gold: 4800, tp: 3, rewardQ: 6 },
+  { id: 'sq_abyss', title: 'Глава VII: Левиафан Бездны', desc: 'Победите Левиафана в Затонувшем Храме.', targetId: 'b_kraken', total: 1, xp: 20000, gold: 16000, tp: 4, rewardQ: 7 },
   { id: 'sq_5', title: 'Финал: Сбой Антиматрицы', desc: 'Уничтожьте Творца Искажения в Разрыве Антиматрицы!', targetId: 'b_matrix', total: 1, xp: 50000, gold: 40000, tp: 5, rewardQ: 8 }
 ];
 
@@ -893,7 +863,6 @@ let player = {
   hp: 120, baseMaxHp: 120,
   baseAtk: 12, baseDef: 4, baseAspd: 0,
   baseCrit: 5, baseVamp: 0, basePierce: 0, baseRegen: 1,
-  baseCurseChance: 0, baseSkillPower: 1, // Новые параметры
   gold: 80, potions: 3, shield: 0,
   
   talents: {
@@ -927,6 +896,7 @@ let currentBestiaryDungeonId = null;
 let combat = {
   active: false,
   isArena: false,
+  isDuel: false,
   dungeon: null,
   diff: 1,
   stageIndex: 0,
@@ -936,7 +906,6 @@ let combat = {
   skillCooldowns: {},
   arenaTimer: 30,
   waveSpawning: false,
-  // Баффы и уклонения в бою
   playerDodges: 0,
   hasteTimer: 0,
   deathGameTimer: 0
@@ -964,26 +933,10 @@ function loadGame() {
     if (data.dungeonCooldowns) dungeonCooldowns = data.dungeonCooldowns;
     if (data.dailyQuests) dailyQuests = data.dailyQuests;
 
-    // Автоматическая миграция старых сохранений
-    let migrated = false;
-    if (player.baseCurseChance === undefined || player.baseSkillPower === undefined) {
-      player.baseCurseChance = player.lvl; // 0 + 1 за уровень
-      player.baseSkillPower = 1 + player.lvl; // 1% + 1% за уровень
-      migrated = true;
-    }
-
-    // Добавление новых скилов если их не было
+    // Гарантируем наличие всех новых навыков
     ['haste', 'leap', 'deathgame'].forEach(sId => {
-      if (!player.skills[sId]) {
-        player.skills[sId] = { lvl: 1 };
-        migrated = true;
-      }
+      if (!player.skills[sId]) player.skills[sId] = { lvl: 1 };
     });
-
-    if (migrated) {
-      alert(`✨ Сохранение обновлено под новую версию!\n• Добавлены параметры: Сила умений (+${player.baseSkillPower}%) и Шанс проклятья (+${player.baseCurseChance}%).\n• Добавлены новые навыки: Скорость, Атака с прыжка, Смертельная игра!`);
-      saveGame();
-    }
 
     return true;
   } catch(e) {
@@ -1031,7 +984,7 @@ function getPlayerDR() {
 function getPlayerAspd() {
   let extra = player.talents.aspd * 8;
   for (let s in player.equipment) if (player.equipment[s]) extra += (player.equipment[s].aspd || 0);
-  if (combat.hasteTimer > 0) extra += 100; // Навык «Скорость»
+  if (combat.hasteTimer > 0) extra += 100;
   return player.baseAspd + extra;
 }
 
@@ -1059,16 +1012,25 @@ function getPlayerRegen() {
   return player.baseRegen + extra;
 }
 
+// Расчет: базовое 0% + 1% за каждый уровень игрока + бонусы со снаряжения
 function getPlayerCurseChance() {
   let extra = 0;
-  for (let s in player.equipment) if (player.equipment[s]) extra += (player.equipment[s].curseChance || 0);
-  return (player.baseCurseChance || 0) + extra;
+  for (let s in player.equipment) {
+    if (player.equipment[s]) {
+      extra += (player.equipment[s].curseChance || 0);
+      extra += (player.equipment[s].baseCurseChance || 0);
+    }
+  }
+  return Math.max(0, player.lvl + extra);
 }
 
+// Расчет: базовое 1% + 1% за каждый уровень игрока + бонусы со снаряжения
 function getPlayerSkillPower() {
   let extra = 0;
-  for (let s in player.equipment) if (player.equipment[s]) extra += (player.equipment[s].skillPower || 0);
-  return (player.baseSkillPower || 1) + extra;
+  for (let s in player.equipment) {
+    if (player.equipment[s]) extra += (player.equipment[s].skillPower || 0);
+  }
+  return (1 + player.lvl) + extra;
 }
 
 function getPlayerCdReduction() {
@@ -1136,7 +1098,12 @@ function calculateChargeData() {
   return { time: t, tOpt, tOverStart, tMin, mult, tier, label };
 }
 
-// Генерация предмета с поддержкой множителя характеристик (например, x3 для боссов)
+function getDiffMultiplier(diff) {
+  if (diff === 5) return 360.0;
+  return Math.pow(2.3, diff - 1);
+}
+
+// Генерация предмета со встроенным шансом проклятья (положительным или отрицательным)
 function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1) {
   let dIndex = DUNGEONS.findIndex(d => d.id === (dungeon ? dungeon.id : ''));
   if (dIndex < 0) dIndex = 0;
@@ -1145,7 +1112,7 @@ function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1) {
   const baseItem = pickedDungeon.itemPool[Math.floor(Math.random() * pickedDungeon.itemPool.length)];
 
   const effectiveDiff = Math.floor(Math.random() * diff) + 1;
-  const diffIndex = effectiveDiff - 1;
+  const diffIndex = Math.min(4, effectiveDiff - 1);
 
   let chosenQ = forceQuality;
   if (!chosenQ) {
@@ -1159,7 +1126,7 @@ function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1) {
   }
 
   const qData = QUALITIES[chosenQ] || QUALITIES[1];
-  const diffMult = Math.pow(1.85, effectiveDiff - 1);
+  const diffMult = effectiveDiff === 5 ? 15.0 : Math.pow(1.85, effectiveDiff - 1);
   const totalMult = qData.mult * diffMult * statMultiplier;
 
   const baseAtkVal = Math.round((baseItem.baseAtk || 0) * totalMult);
@@ -1168,13 +1135,22 @@ function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1) {
   const baseAspdVal = Math.round((baseItem.baseAspd || 0) * (1 + (effectiveDiff - 1) * 0.2));
   const basePierceVal = Math.round((baseItem.pierce || 0) * (statMultiplier > 1 ? statMultiplier : 1));
 
+  // Встроенный (интринсический) шанс проклятья на каждом предмете
+  const isPosCurse = Math.random() > 0.35;
+  let baseCurseVal = 0;
+  if (isPosCurse) {
+    baseCurseVal = Math.round((3 + Math.random() * 8) * (1 + chosenQ * 0.4));
+  } else {
+    baseCurseVal = -Math.round((2 + Math.random() * 6) * (1 + effectiveDiff * 0.3));
+  }
+
   const targetAffixes = qData.maxAffixes;
   let stackedStats = { atk: 0, def: 0, hp: 0, aspd: 0, crit: 0, vamp: 0, pierce: 0, regen: 0, curseChance: 0, skillPower: 0 };
   let rolledAffixNames = [];
 
   for (let i = 0; i < targetAffixes; i++) {
     const template = AFFIX_POOL[Math.floor(Math.random() * AFFIX_POOL.length)];
-    const val = Math.round((template.val[0] + Math.random() * (template.val[1] - template.val[0])) * totalMult * 0.40);
+    const val = Math.round((template.val[0] + Math.random() * (template.val[1] - template.val[0])) * totalMult * 0.35);
     const finalVal = Math.max(1, val);
 
     stackedStats[template.stat] += finalVal;
@@ -1201,6 +1177,7 @@ function generateLoot(dungeon, diff, forceQuality = null, statMultiplier = 1) {
     slot: baseItem.slot,
     quality: chosenQ,
     dropDiff: effectiveDiff,
+    baseCurseChance: baseCurseVal,
     affixes: rolledAffixNames,
     baseStats: {
       atk: baseAtkVal,
@@ -1233,23 +1210,26 @@ function showItemTooltip(e, item) {
 
   let compareHtml = '';
   if (equipped && equipped !== item) {
+    const totalItemCurse = (item.curseChance || 0) + (item.baseCurseChance || 0);
+    const totalEqCurse = (equipped.curseChance || 0) + (equipped.baseCurseChance || 0);
+
     const statsToCheck = [
-      { key: 'atk', label: '⚔ Атк' },
-      { key: 'def', label: '🛡 Защ' },
-      { key: 'hp', label: '❤️ HP' },
-      { key: 'aspd', label: '⚡ ASPD', isPct: true },
-      { key: 'crit', label: '🎯 Крит', isPct: true },
-      { key: 'vamp', label: '🩸 Вампир', isPct: true },
-      { key: 'pierce', label: '🗡 Пробой' },
-      { key: 'regen', label: '💚 Реген' },
-      { key: 'skillPower', label: '✨ Сила умений', isPct: true },
-      { key: 'curseChance', label: '🔮 Проклятье', isPct: true }
+      { key: 'atk', label: '⚔ Атк', valA: item.atk, valB: equipped.atk },
+      { key: 'def', label: '🛡 Защ', valA: item.def, valB: equipped.def },
+      { key: 'hp', label: '❤️ HP', valA: item.hp, valB: equipped.hp },
+      { key: 'aspd', label: '⚡ ASPD', isPct: true, valA: item.aspd, valB: equipped.aspd },
+      { key: 'crit', label: '🎯 Крит', isPct: true, valA: item.crit, valB: equipped.crit },
+      { key: 'vamp', label: '🩸 Вампир', isPct: true, valA: item.vamp, valB: equipped.vamp },
+      { key: 'pierce', label: '🗡 Пробой', valA: item.pierce, valB: equipped.pierce },
+      { key: 'regen', label: '💚 Реген', valA: item.regen, valB: equipped.regen },
+      { key: 'skillPower', label: '✨ Сила умений', isPct: true, valA: item.skillPower, valB: equipped.skillPower },
+      { key: 'curse', label: '🔮 Проклятье', isPct: true, valA: totalItemCurse, valB: totalEqCurse }
     ];
 
     let lines = [];
     statsToCheck.forEach(st => {
-      const itemVal = item[st.key] || 0;
-      const eqVal = equipped[st.key] || 0;
+      const itemVal = st.valA || 0;
+      const eqVal = st.valB || 0;
       const diff = itemVal - eqVal;
       if (diff !== 0) {
         const cls = diff > 0 ? 'compare-pos' : 'compare-neg';
@@ -1260,7 +1240,7 @@ function showItemTooltip(e, item) {
 
     compareHtml = `
       <div style="border-top:1px dashed var(--border-highlight); margin-top:6px; padding-top:4px;">
-        <div style="font-size:9px; font-weight:bold; color:var(--gold);">⚖ Надето сейчас: <span class="${QUALITIES[equipped.quality].cls}">${equipped.fullName}</span></div>
+        <div style="font-size:9px; font-weight:bold; color:var(--gold);">⚖ Надето: <span class="${QUALITIES[equipped.quality].cls}">${equipped.fullName}</span></div>
         <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
           ${lines.length > 0 ? lines.join(' | ') : '<span style="font-size:9px; color:var(--text-muted);">Параметры равны</span>'}
         </div>
@@ -1279,6 +1259,9 @@ function showItemTooltip(e, item) {
     if (item.baseStats.pierce) baseHtml += `<div>🗡 Пробой: +${item.baseStats.pierce}</div>`;
   }
 
+  const baseCurseSign = item.baseCurseChance >= 0 ? `+${item.baseCurseChance}%` : `${item.baseCurseChance}%`;
+  const baseCurseColor = item.baseCurseChance >= 0 ? '#f43f5e' : '#38bdf8';
+
   let affixesHtml = (item.affixes && item.affixes.length > 0)
     ? item.affixes.map(a => `<div style="color:#d8b4fe; font-size:9px;">• ${a}</div>`).join('')
     : '<div style="color:var(--text-muted); font-style:italic; font-size:9px;">Нет аффиксов</div>';
@@ -1287,6 +1270,9 @@ function showItemTooltip(e, item) {
     <div style="font-weight:800; font-size:12px; margin-bottom:2px;" class="${q.cls}">${item.fullName}</div>
     <div style="font-size:9px; color:var(--text-muted); margin-bottom:4px; display:flex; justify-content:space-between;">
       <span>${q.name}</span><span>[${slotName}]</span>
+    </div>
+    <div style="font-size:10px; font-weight:bold; color:${baseCurseColor}; margin-bottom:4px;">
+      🔮 Проклятье предмета: ${baseCurseSign}
     </div>
     ${baseHtml ? `<div style="border-top:1px solid var(--border); padding-top:3px; margin-bottom:3px; font-size:9px;"><b>Базовые параметры:</b>${baseHtml}</div>` : ''}
     <div style="border-top:1px solid var(--border); padding-top:3px; margin-bottom:3px; font-size:9px;">
@@ -1333,12 +1319,17 @@ function renderEquipment() {
       card.onmousemove = (e) => moveItemTooltip(e);
       card.onmouseleave = () => hideItemTooltip();
 
+      const curseChip = item.baseCurseChance !== undefined
+        ? `<span class="affix-chip ${item.baseCurseChance >= 0 ? 'curse-pos' : 'curse-neg'}">🔮 ${item.baseCurseChance >= 0 ? '+' : ''}${item.baseCurseChance}%</span>`
+        : '';
+
       card.innerHTML = `
         <div class="item-header">
           <span class="item-title ${q.cls}">${item.fullName}</span>
           <span class="item-rarity-pill ${q.bg}">${q.name} [${SLOTS[s]}]</span>
         </div>
         <div class="affix-container">
+          ${curseChip}
           ${item.atk ? `<span class="affix-chip">⚔ +${item.atk} Атк</span>` : ''}
           ${item.def ? `<span class="affix-chip">🛡 +${item.def} Защ</span>` : ''}
           ${item.aspd ? `<span class="affix-chip ${item.aspd < 0 ? 'negative' : ''}">⚡ ${item.aspd > 0 ? '+' : ''}${item.aspd}%</span>` : ''}
@@ -1348,7 +1339,7 @@ function renderEquipment() {
           ${item.pierce ? `<span class="affix-chip">🗡 +${item.pierce}</span>` : ''}
           ${item.regen ? `<span class="affix-chip">💚 +${item.regen}</span>` : ''}
           ${item.skillPower ? `<span class="affix-chip">✨ +${item.skillPower}% Умения</span>` : ''}
-          ${item.curseChance ? `<span class="affix-chip">🔮 +${item.curseChance}% Проклятье</span>` : ''}
+          ${item.curseChance ? `<span class="affix-chip">🔮 +${item.curseChance}%</span>` : ''}
         </div>
         <div style="margin-top:4px;">
           <button class="btn btn-sm btn-danger" onclick="unequipItem('${s}')">Снять</button>
@@ -1379,12 +1370,17 @@ function renderInventory() {
     card.onmousemove = (e) => moveItemTooltip(e);
     card.onmouseleave = () => hideItemTooltip();
 
+    const curseChip = item.baseCurseChance !== undefined
+      ? `<span class="affix-chip ${item.baseCurseChance >= 0 ? 'curse-pos' : 'curse-neg'}">🔮 ${item.baseCurseChance >= 0 ? '+' : ''}${item.baseCurseChance}%</span>`
+      : '';
+
     card.innerHTML = `
       <div class="item-header">
         <span class="item-title ${q.cls}">${item.fullName}</span>
         <span class="item-rarity-pill ${q.bg}">${q.name} [${SLOTS[item.slot]}]</span>
       </div>
       <div class="affix-container">
+        ${curseChip}
         ${item.atk ? `<span class="affix-chip">⚔ +${item.atk} Атк</span>` : ''}
         ${item.def ? `<span class="affix-chip">🛡 +${item.def} Защ</span>` : ''}
         ${item.aspd ? `<span class="affix-chip ${item.aspd < 0 ? 'negative' : ''}">⚡ ${item.aspd > 0 ? '+' : ''}${item.aspd}%</span>` : ''}
@@ -1394,7 +1390,7 @@ function renderInventory() {
         ${item.pierce ? `<span class="affix-chip">🗡 +${item.pierce}</span>` : ''}
         ${item.regen ? `<span class="affix-chip">💚 +${item.regen}</span>` : ''}
         ${item.skillPower ? `<span class="affix-chip">✨ +${item.skillPower}% Умения</span>` : ''}
-        ${item.curseChance ? `<span class="affix-chip">🔮 +${item.curseChance}% Проклятье</span>` : ''}
+        ${item.curseChance ? `<span class="affix-chip">🔮 +${item.curseChance}%</span>` : ''}
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; border-top:1px solid rgba(255,255,255,0.05); padding-top:3px;">
         <span style="font-size:10px; color:var(--gold);">🪙 ${item.price} Зл.</span>
@@ -1450,15 +1446,6 @@ function renderDungeons() {
   const container = document.getElementById('dungeon-list');
   container.innerHTML = '';
   const now = Date.now();
-
-  const diffSelect = document.getElementById('diff-select');
-  const curDiff = diffSelect ? parseInt(diffSelect.value) : 1;
-  const eliteCountUnlocked = Math.min(ELITE_TIERS.length, curDiff * 2);
-  const eliteTxtEl = document.getElementById('arena-unlocked-elites-txt');
-  if (eliteTxtEl) {
-    const tierNames = ELITE_TIERS.slice(0, eliteCountUnlocked).map(t => t.name).join(', ');
-    eliteTxtEl.innerText = `${eliteCountUnlocked} вида (${tierNames})`;
-  }
 
   DUNGEONS.forEach(d => {
     const isUnlocked = player.lvl >= d.minLvl;
@@ -1519,10 +1506,10 @@ function refreshBestiaryView() {
   if (!dungeon) return;
 
   const diff = parseInt(document.getElementById('modal-diff-select').value);
-  const diffMult = Math.pow(2.3, diff - 1);
+  const diffMult = getDiffMultiplier(diff);
   const body = document.getElementById('modal-dungeon-body');
   
-  let stagesHtml = dungeon.stages.map((st, i) => {
+  let stagesHtml = dungeon.stages.slice(0, 6).map((st, i) => {
     let enemiesList = st.enemies.map(e => {
       const scaledHp = Math.round(e.hp * diffMult);
       const scaledAtk = Math.round(e.atk * diffMult);
@@ -1530,14 +1517,14 @@ function refreshBestiaryView() {
 
       return `
         <div style="font-size:10px; margin-top:3px; color:${e.isBoss ? '#ec4899' : '#cbd5e1'}; background:var(--bg-panel-light); padding:4px 6px; border-radius:4px;">
-          • <b>${e.name}</b> <span style="color:#38bdf8;">(${scaledHp.toLocaleString()} HP | ${scaledAtk} Атк | ${scaledDef} Защ)</span> — <i>${e.desc}</i>
+          • <b>${e.name}</b> <span style="color:#38bdf8;">(${scaledHp.toLocaleString()} HP | ${scaledAtk} Атк | ${scaledDef} Защ)</span>
         </div>
       `;
     }).join('');
 
     return `
       <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:6px; margin-bottom:6px;">
-        <b style="font-size:11px; color:var(--accent);">Этап ${i+1}: ${st.name} (${st.enemies.length} врагов)</b>
+        <b style="font-size:11px; color:var(--accent);">Этап ${i+1}: ${st.name}</b>
         ${enemiesList}
       </div>
     `;
@@ -1553,8 +1540,9 @@ function refreshBestiaryView() {
   `).join('');
 
   body.innerHTML = `
-    <h4 style="font-size:11px; color:#fff; margin-bottom:4px;">Враги под выбранную сложность (x${diffMult.toFixed(2)}):</h4>
+    <h4 style="font-size:11px; color:#fff; margin-bottom:4px;">Враги под выбранную сложность (x${diffMult.toFixed(1)}):</h4>
     ${stagesHtml}
+    ${dungeon.stages.length > 6 ? `<div style="font-size:10px; color:var(--text-muted); text-align:center;">... и еще ${dungeon.stages.length - 6} этажей</div>` : ''}
     <h4 style="font-size:11px; color:#fff; margin:8px 0 4px;">Пул наград подземелья:</h4>
     <div>${lootCardsHtml}</div>
   `;
@@ -1684,7 +1672,7 @@ function resetTalents() {
   updateUI();
 }
 
-// Назначение навыков элитному монстру (+1 навык за каждый уровень усиления)
+// Прикрепление способностей монстрам с быстрым кулдауном
 function assignEnemySkills(enemy, tierIndex) {
   enemy.skills = [];
   const skillKeys = Object.keys(player.skills);
@@ -1695,8 +1683,8 @@ function assignEnemySkills(enemy, tierIndex) {
     const sId = shuffled[i];
     enemy.skills.push({
       id: sId,
-      cd: 3.0 + Math.random() * 4.0, // первоначальная задержка
-      maxCd: SKILLS_DB[sId].baseCd
+      cd: 1.5 + Math.random() * 2.0,
+      maxCd: Math.max(3.5, SKILLS_DB[sId].baseCd * 0.45)
     });
   }
 }
@@ -1710,6 +1698,7 @@ function startDungeon(dungeonId) {
 
   combat.active = true;
   combat.isArena = false;
+  combat.isDuel = false;
   combat.dungeon = dungeon;
   combat.diff = diff;
   combat.stageIndex = 0;
@@ -1728,6 +1717,7 @@ function startArena() {
 
   combat.active = true;
   combat.isArena = true;
+  combat.isDuel = false;
   combat.dungeon = { id: 'arena_rift', name: 'Арена Испытаний', cooldownSec: 0 };
   combat.diff = diff;
   combat.stageIndex = 0;
@@ -1742,12 +1732,74 @@ function startArena() {
   switchTab('combat');
 
   addLog(`🌌 <b>Вы вступили на Арену Испытаний (Сложность: ${diff})!</b>`, 'log-over');
-  addLog(`ℹ️ Опыт начисляется за убийства мобов, а вещи падают только с усиленных боссов!`, 'log-aoe');
+  addLog(`ℹ️ Опыт за убийства, а вещи качества босса с x3 статами падают только с усиленных врагов!`, 'log-aoe');
 
   spawnArenaWave();
   buildCombatArenaDOM();
   buildCombatSkillsDOM();
   updateCombatUI();
+}
+
+// ДУЭЛЬ 1 НА 1
+function startDuelArena() {
+  combat.active = true;
+  combat.isArena = false;
+  combat.isDuel = true;
+  combat.dungeon = { id: 'arena_duel', name: 'Дуэльная Арена 1v1', cooldownSec: 0 };
+  combat.diff = 1;
+  combat.stageIndex = 0;
+  combat.skillCooldowns = {};
+  combat.playerDodges = 0;
+  combat.hasteTimer = 0;
+  combat.deathGameTimer = 0;
+
+  document.getElementById('nav-combat-btn').style.display = 'block';
+  switchTab('combat');
+
+  addLog(`🤺 <b>Вы вышли на Арену 1 на 1 против своего Теневого Двойника!</b>`, 'log-over');
+  spawnDuelOpponent();
+  buildCombatArenaDOM();
+  buildCombatSkillsDOM();
+  updateCombatUI();
+}
+
+function spawnDuelOpponent() {
+  const spread = () => 0.9 + Math.random() * 0.2; // 90% - 110% статов игрока
+  const cloneHp = Math.round(getPlayerMaxHp() * spread());
+  const cloneAtk = Math.round(getPlayerAtk() * spread());
+  const cloneDef = Math.round(getPlayerDef() * spread());
+  const rewardGold = Math.round((player.lvl * 350 + 150) * spread());
+
+  const skillKeys = Object.keys(player.skills).sort(() => 0.5 - Math.random()).slice(0, 3);
+  const cloneSkills = skillKeys.map(sId => ({
+    id: sId,
+    cd: 2.0 + Math.random() * 2.0,
+    maxCd: Math.max(3.5, SKILLS_DB[sId].baseCd * 0.45)
+  }));
+
+  combat.enemies = [{
+    id: `m_clone_${Date.now()}`,
+    originDungeonId: 'dungeon_intro_1',
+    name: `🪞 Теневой Двойник [Ур. ${player.lvl}]`,
+    isBoss: true,
+    eliteTier: { id: 'clone', name: 'Двойник', mult: 1, quality: 4, color: 'var(--gold)' },
+    isMutated: true,
+    atk: cloneAtk,
+    def: cloneDef,
+    xp: 0,
+    gold: rewardGold,
+    avatar: 'shadow_guard',
+    attackSpeed: Math.max(1.5, getOptimalChargeSec() * 0.6),
+    maxHp: cloneHp,
+    hp: cloneHp,
+    castProgress: 0,
+    isDeadHandled: false,
+    skills: cloneSkills
+  }];
+
+  combat.targetIndex = 0;
+  combat.lastAttackTimestamp = Date.now();
+  addLog(`⚔ <b>Появился новый Двойник! Награда за победу: ${rewardGold} Золота!</b>`, 'log-hit');
 }
 
 function generateArenaEnemy() {
@@ -1758,21 +1810,28 @@ function generateArenaEnemy() {
   pickedDungeon.stages.forEach(st => st.enemies.forEach(e => allEnemies.push(e)));
   const baseEnemy = allEnemies[Math.floor(Math.random() * allEnemies.length)];
 
-  const diffMult = Math.pow(2.3, combat.diff - 1);
-  const maxTierIdx = Math.min(ELITE_TIERS.length, combat.diff * 2);
-  const eliteChance = 0.28 + (combat.diff * 0.05);
-  const isElite = Math.random() < eliteChance;
+  const diffMult = getDiffMultiplier(combat.diff);
+  const isDiff5 = (combat.diff === 5);
 
   let eliteTier = null;
   let mult = 1;
   let titlePrefix = '';
   let tierIdx = -1;
 
-  if (isElite) {
-    tierIdx = Math.floor(Math.random() * maxTierIdx);
+  if (isDiff5) {
+    tierIdx = 5; // Абсолютный
     eliteTier = ELITE_TIERS[tierIdx];
     mult = eliteTier.mult;
     titlePrefix = `👑 [${eliteTier.name}] `;
+  } else {
+    const maxTierIdx = Math.min(ELITE_TIERS.length, combat.diff * 2);
+    const eliteChance = 0.28 + (combat.diff * 0.06);
+    if (Math.random() < eliteChance) {
+      tierIdx = Math.floor(Math.random() * maxTierIdx);
+      eliteTier = ELITE_TIERS[tierIdx];
+      mult = eliteTier.mult;
+      titlePrefix = `👑 [${eliteTier.name}] `;
+    }
   }
 
   const hpVal = Math.round(baseEnemy.hp * diffMult * mult);
@@ -1787,13 +1846,13 @@ function generateArenaEnemy() {
     name: `${titlePrefix}${baseEnemy.name}`,
     isBoss: baseEnemy.isBoss || !!eliteTier,
     eliteTier: eliteTier,
-    isMutated: !!eliteTier, // Отметка: уже усилен и не может мутировать повторно
+    isMutated: !!eliteTier,
     atk: atkVal,
     def: defVal,
     xp: xpVal,
     gold: goldVal,
     avatar: baseEnemy.avatar,
-    attackSpeed: Math.max(1.4, baseEnemy.attackSpeed * (eliteTier ? 0.9 : 1.0)),
+    attackSpeed: Math.max(1.3, baseEnemy.attackSpeed * (eliteTier ? 0.85 : 1.0)),
     maxHp: hpVal,
     hp: hpVal,
     castProgress: 0,
@@ -1806,7 +1865,7 @@ function generateArenaEnemy() {
 }
 
 function spawnArenaWave() {
-  const count = Math.floor(Math.random() * 4) + 1; // 1 to 4 monsters
+  const count = Math.floor(Math.random() * 4) + 1;
   combat.enemies = [];
   for (let i = 0; i < count; i++) {
     combat.enemies.push(generateArenaEnemy());
@@ -1828,14 +1887,12 @@ function spawnArenaReinforcement() {
   updateCombatUI();
 }
 
-// Механика Проклятья (Мутация монстра после атаки игрока)
 function checkCurseMutation(target) {
   if (!combat.active || target.hp <= 0 || target.isMutated) return;
 
   const curseVal = getPlayerCurseChance();
   if (curseVal <= 0) return;
 
-  // Расчет уровня проклятья (например: 101% -> гарантирован 1-й тир + 1% шанс на 2-й тир)
   let guaranteedTier = Math.floor(curseVal / 100);
   let remainder = curseVal % 100;
   let finalTierIndex = guaranteedTier;
@@ -1844,16 +1901,14 @@ function checkCurseMutation(target) {
     finalTierIndex += 1;
   }
 
-  // Если шанс сработал (tier >= 1)
   if (finalTierIndex >= 1) {
     const tierIdx = Math.min(finalTierIndex - 1, ELITE_TIERS.length - 1);
     const chosenTier = ELITE_TIERS[tierIdx];
 
-    target.isMutated = true; // Запрещаем повторную мутацию
+    target.isMutated = true;
     target.eliteTier = chosenTier;
     target.isBoss = true;
 
-    // Скалирование характеристик
     target.maxHp *= chosenTier.mult;
     target.hp *= chosenTier.mult;
     target.atk *= chosenTier.mult;
@@ -1864,7 +1919,7 @@ function checkCurseMutation(target) {
 
     assignEnemySkills(target, tierIdx);
 
-    addLog(`🔮 <b>ПРОКЛЯТИЕ СРАБОТАЛО!</b> ${target.name} превратился в монстра ранга <b>${chosenTier.name} (x${chosenTier.mult})</b>!`, 'log-curse');
+    addLog(`🔮 <b>ПРОКЛЯТИЕ!</b> ${target.name} мутировал в ранг <b>${chosenTier.name} (x${chosenTier.mult})</b>!`, 'log-curse');
     buildCombatArenaDOM();
   }
 }
@@ -1873,6 +1928,21 @@ function handleEnemyKilled(enemy) {
   if (enemy.isDeadHandled) return;
   enemy.isDeadHandled = true;
   updateQuestProgress(enemy.id);
+
+  if (combat.isDuel) {
+    player.gold += enemy.gold;
+    addLog(`🪙 <b>Двойник повержен!</b> Получено: <b>+${enemy.gold} Золота!</b>`, 'log-over');
+    saveGame();
+    updateUI();
+    setTimeout(() => {
+      if (combat.active && combat.isDuel) {
+        spawnDuelOpponent();
+        buildCombatArenaDOM();
+        updateCombatUI();
+      }
+    }, 1200);
+    return;
+  }
 
   if (combat.isArena) {
     addExp(enemy.xp);
@@ -1884,17 +1954,16 @@ function handleEnemyKilled(enemy) {
       const loot = generateLoot(originDungeon, combat.diff, enemy.eliteTier.quality, 3);
       player.inventory.push(loot);
       const q = QUALITIES[loot.quality] || QUALITIES[1];
-      addLog(`👑 <b>УСИЛЕННЫЙ МОНСТР [${enemy.eliteTier.name}]!</b> Трофей <b>${q.name} (x3 статы)</b>: <span class="${q.cls}">[${loot.fullName}]</span>!`, 'log-over');
+      addLog(`👑 <b>УСИЛЕННЫЙ БОСС [${enemy.eliteTier.name}]!</b> Выпал трофей <b>${q.name} (x3)</b>: <span class="${q.cls}">[${loot.fullName}]</span>!`, 'log-over');
       saveGame();
       updateUI();
     }
   } else {
-    // В обычном данже, если моб был проклят, даем с него гарантированный x3 лут
     if (enemy.eliteTier) {
       const loot = generateLoot(combat.dungeon, combat.diff, enemy.eliteTier.quality, 3);
       player.inventory.push(loot);
       const q = QUALITIES[loot.quality] || QUALITIES[1];
-      addLog(`👑 <b>ПРОКЛЯТЫЙ БОСС ПОВЕРЖЕН!</b> Выпал трофей <b>${q.name} (x3 статы)</b>: <span class="${q.cls}">[${loot.fullName}]</span>!`, 'log-over');
+      addLog(`👑 <b>УСИЛЕННЫЙ МОНСТР ПОВЕРЖЕН!</b> Выпал трофей <b>${q.name} (x3)</b>: <span class="${q.cls}">[${loot.fullName}]</span>!`, 'log-over');
       saveGame();
       updateUI();
     }
@@ -1902,7 +1971,7 @@ function handleEnemyKilled(enemy) {
 }
 
 function handleArenaWaveCleared() {
-  addLog(`🔥 <b>Все враги на Арене повержены!</b> Подготовка новой волны...`, 'log-over');
+  addLog(`🔥 <b>Все враги на Арене повержены!</b> Новая группа спешит в бой...`, 'log-over');
   combat.waveSpawning = true;
   setTimeout(() => {
     if (!combat.active || !combat.isArena) return;
@@ -1916,27 +1985,53 @@ function handleArenaWaveCleared() {
 
 function loadCombatStage() {
   const stage = combat.dungeon.stages[combat.stageIndex];
-  const diffMult = Math.pow(2.3, combat.diff - 1);
+  const diffMult = getDiffMultiplier(combat.diff);
+  const isDiff5 = (combat.diff === 5);
 
-  combat.enemies = stage.enemies.map(e => ({
-    id: e.id,
-    originDungeonId: combat.dungeon.id,
-    name: e.name,
-    isBoss: e.isBoss,
-    eliteTier: null,
-    isMutated: false,
-    atk: Math.round(e.atk * diffMult),
-    def: Math.round(e.def * diffMult),
-    xp: Math.round(e.xp * diffMult),
-    gold: Math.round(e.gold * diffMult),
-    avatar: e.avatar,
-    attackSpeed: e.attackSpeed,
-    maxHp: Math.round(e.hp * diffMult),
-    hp: Math.round(e.hp * diffMult),
-    castProgress: 0,
-    isDeadHandled: false,
-    skills: []
-  }));
+  combat.enemies = stage.enemies.map(e => {
+    let eliteTier = null;
+    let mult = 1;
+    let titlePrefix = '';
+    let tierIdx = -1;
+
+    // На сложности 5 все мобы становятся Абсолютными
+    if (isDiff5) {
+      tierIdx = 5;
+      eliteTier = ELITE_TIERS[tierIdx];
+      mult = eliteTier.mult;
+      titlePrefix = `👑 [${eliteTier.name}] `;
+    } else if (combat.diff > 1 && !e.isBoss && Math.random() < 0.25) {
+      // Случайное появление 1-2 элитных мобов от сложности
+      const maxTierIdx = Math.min(ELITE_TIERS.length, combat.diff * 2);
+      tierIdx = Math.floor(Math.random() * maxTierIdx);
+      eliteTier = ELITE_TIERS[tierIdx];
+      mult = eliteTier.mult;
+      titlePrefix = `👑 [${eliteTier.name}] `;
+    }
+
+    const enemyObj = {
+      id: e.id,
+      originDungeonId: combat.dungeon.id,
+      name: `${titlePrefix}${e.name}`,
+      isBoss: e.isBoss || !!eliteTier,
+      eliteTier: eliteTier,
+      isMutated: !!eliteTier,
+      atk: Math.round(e.atk * diffMult * mult),
+      def: Math.round(e.def * diffMult * mult),
+      xp: Math.round(e.xp * diffMult * mult),
+      gold: Math.round(e.gold * diffMult * mult),
+      avatar: e.avatar,
+      attackSpeed: Math.max(1.3, e.attackSpeed * (eliteTier ? 0.85 : 1.0)),
+      maxHp: Math.round(e.hp * diffMult * mult),
+      hp: Math.round(e.hp * diffMult * mult),
+      castProgress: 0,
+      isDeadHandled: false,
+      skills: []
+    };
+
+    if (eliteTier) assignEnemySkills(enemyObj, tierIdx);
+    return enemyObj;
+  });
 
   combat.targetIndex = 0;
   combat.lastAttackTimestamp = Date.now();
@@ -1969,7 +2064,7 @@ function buildCombatArenaDOM() {
     if (e.eliteTier) avatarBorder = `border-color:${e.eliteTier.color}; box-shadow:0 0 8px ${e.eliteTier.color};`;
 
     let skillsBadge = (e.skills && e.skills.length > 0)
-      ? `<div style="font-size:8px; color:var(--accent); margin-top:2px;">Скилы: ${e.skills.map(s => SKILLS_DB[s.id].icon).join(' ')}</div>`
+      ? `<div style="font-size:8px; color:var(--accent); margin-top:2px;">Навыки: ${e.skills.map(s => SKILLS_DB[s.id].icon).join(' ')}</div>`
       : '';
 
     box.innerHTML = `
@@ -2043,8 +2138,12 @@ function updateCombatUI() {
   if (arenaHdr) {
     if (combat.isArena) {
       arenaHdr.style.display = 'flex';
-      const timerTxt = document.getElementById('arena-timer-txt');
-      if (timerTxt) timerTxt.innerText = `⏱ Подкрепление через: ${Math.max(0, Math.ceil(combat.arenaTimer || 0))}с`;
+      setSafeText('arena-header-title', '🌌 Арена Испытаний (Бесконечная битва)');
+      setSafeText('arena-timer-txt', `⏱ Подкрепление через: ${Math.max(0, Math.ceil(combat.arenaTimer || 0))}с`);
+    } else if (combat.isDuel) {
+      arenaHdr.style.display = 'flex';
+      setSafeText('arena-header-title', '🤺 Дуэль 1 на 1 против Теневого Двойника');
+      setSafeText('arena-timer-txt', '🪙 Битва за золото');
     } else {
       arenaHdr.style.display = 'none';
     }
@@ -2155,7 +2254,7 @@ function executePlayerAttack() {
   if (target.hp <= 0) {
     handleEnemyKilled(target);
   } else {
-    checkCurseMutation(target); // Проверка шанса проклятья после не фатального удара
+    checkCurseMutation(target);
   }
 
   checkStageEnemiesState();
@@ -2182,7 +2281,7 @@ function useCombatSkill(skillId) {
     addLog(`⚡ <b>«Скорость»</b> активирована! Ваша скорость атаки повышена на +100% на 6 сек!`, 'log-aoe');
   } else if (skillId === 'deathgame') {
     combat.deathGameTimer = 10.0;
-    addLog(`🕸 <b>«Смертельная игра»</b>! Враги замедлены на 50%, а ваш урон увеличен на +20% на 10 сек!`, 'log-over');
+    addLog(`🕸 <b>«Смертельная игра»</b>! Враги бьют на 50% реже, а ваш урон увеличен на +20% на 10 сек!`, 'log-over');
   } else if (skillId === 'leap') {
     if (!target || target.hp <= 0) return;
     combat.playerDodges += 3;
@@ -2242,13 +2341,12 @@ function checkStageEnemiesState() {
   if (allDead) {
     if (combat.isArena) {
       handleArenaWaveCleared();
-    } else {
+    } else if (!combat.isDuel) {
       handleStageCleared();
     }
   }
 }
 
-// Применение навыка элитным монстром
 function executeEnemySkill(enemy, skillObj) {
   if (!combat.active || enemy.hp <= 0 || player.hp <= 0) return;
   const sId = skillObj.id;
@@ -2261,7 +2359,7 @@ function executeEnemySkill(enemy, skillObj) {
     dealDamageToPlayer(rawDmg, enemy.name);
   } else if (sId === 'hellfire') {
     let rawDmg = Math.round(enemy.atk * 1.3);
-    addLog(`🌋 <b>${enemy.name}</b> кастует <b>«Адское Пламя»</b> по вам!`, 'log-enemy');
+    addLog(`🌋 <b>${enemy.name}</b> кастует <b>«Адское Пламя»</b>!`, 'log-enemy');
     dealDamageToPlayer(rawDmg, enemy.name);
   } else if (sId === 'harvest') {
     let rawDmg = Math.round(enemy.atk * 1.4);
@@ -2359,7 +2457,7 @@ function handleStageCleared() {
 
 function handlePlayerDeath() {
   addLog(`☠ Вы погибли...`, 'log-enemy');
-  if (!combat.isArena && combat.dungeon && combat.dungeon.cooldownSec > 0) {
+  if (!combat.isArena && !combat.isDuel && combat.dungeon && combat.dungeon.cooldownSec > 0) {
     dungeonCooldowns[combat.dungeon.id] = Date.now() + 60 * 1000;
   }
   setTimeout(() => {
@@ -2386,7 +2484,7 @@ function usePotionCombat() {
 
 function fleeCombat() {
   addLog('🏃 Вы покинули поле боя.', 'log-hit');
-  if (!combat.isArena && combat.dungeon && combat.dungeon.cooldownSec > 0) {
+  if (!combat.isArena && !combat.isDuel && combat.dungeon && combat.dungeon.cooldownSec > 0) {
     dungeonCooldowns[combat.dungeon.id] = Date.now() + 60 * 1000;
   }
   player.shield = 0;
@@ -2397,6 +2495,7 @@ function fleeCombat() {
 function endCombat() {
   combat.active = false;
   combat.isArena = false;
+  combat.isDuel = false;
   combat.playerDodges = 0;
   combat.hasteTimer = 0;
   combat.deathGameTimer = 0;
@@ -2416,9 +2515,6 @@ function addExp(amount) {
     player.baseMaxHp += 25;
     player.baseAtk += 4;
     player.baseDef += 2;
-    // Рост новых характеристик за уровень
-    player.baseSkillPower = (player.baseSkillPower || 1) + 1;
-    player.baseCurseChance = (player.baseCurseChance || 0) + 1;
     player.hp = getPlayerMaxHp();
     alert(`⚡ УРОВЕНЬ ПОВЫШЕН! Вы достигли ${player.lvl} уровня!\nПолучено +1 TP, +1% Силы умений, +1% Шанса проклятья!`);
   }
@@ -2430,7 +2526,7 @@ function generateNewQuests() {
     { id: 'q1', targetId: 'm_dummy_1', targetName: 'Манекенов', current: 0, total: 3, xp: 60, gold: 50, rewardQ: 2, claimed: false },
     { id: 'q2', targetId: 'b_bandit_leader', targetName: 'Атаманов Мародёров', current: 0, total: 1, xp: 120, gold: 100, rewardQ: 3, claimed: false },
     { id: 'q3', targetId: 'b_swamp_horror', targetName: 'Болотных Ужасов', current: 0, total: 1, xp: 200, gold: 160, rewardQ: 3, claimed: false },
-    { id: 'q4', targetId: 'b_dragon', targetName: 'Драконов Харебра', current: 0, total: 1, xp: 900, gold: 750, rewardQ: 5, claimed: false }
+    { id: 'q4', targetId: 'b_raijin', targetName: 'Повелителей Бурь Райдзинов', current: 0, total: 1, xp: 900, gold: 750, rewardQ: 5, claimed: false }
   ];
   saveGame();
   renderQuests();
@@ -2588,7 +2684,7 @@ function updateUI() {
   setSafeText('stat-charge-opt', `${getOptimalChargeSec().toFixed(1)}s`);
   setSafeText('potions-count', player.potions);
 
-  // Отображение новых параметров в профиле
+  // Отображение новых параметров от уровня и экипировки
   setSafeText('stat-sp', `+${getPlayerSkillPower()}%`);
   setSafeText('stat-curse', `${getPlayerCurseChance()}%`);
 
@@ -2625,11 +2721,9 @@ setInterval(() => {
   }
 
   if (combat.active && player.hp > 0) {
-    // Таймеры баффов
     if (combat.hasteTimer > 0) combat.hasteTimer = Math.max(0, combat.hasteTimer - dt);
     if (combat.deathGameTimer > 0) combat.deathGameTimer = Math.max(0, combat.deathGameTimer - dt);
 
-    // Таймер подкрепления на Арене
     if (combat.isArena && !combat.waveSpawning) {
       combat.arenaTimer -= dt;
       if (combat.arenaTimer <= 0) {
@@ -2646,7 +2740,7 @@ setInterval(() => {
 
     combat.enemies.forEach(e => {
       if (e.hp > 0) {
-        // Каст способностей элитными врагами
+        // Каст способностей монстрами
         if (e.skills && e.skills.length > 0) {
           e.skills.forEach(s => {
             s.cd -= dt;
@@ -2657,7 +2751,6 @@ setInterval(() => {
           });
         }
 
-        // Автоатака врагов (замедляется на 50% при активной Смертельной игре)
         const speedMod = combat.deathGameTimer > 0 ? 2.0 : 1.0;
         e.castProgress += dt / (e.attackSpeed * speedMod);
         if (e.castProgress >= 1.0) {
@@ -2687,7 +2780,6 @@ setInterval(() => {
   });
 }, 60);
 
-// Auto-save game state every 10 seconds
 setInterval(() => {
   saveGame();
 }, 10000);
