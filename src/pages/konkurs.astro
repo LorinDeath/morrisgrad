@@ -92,12 +92,16 @@ import Notes from '../components/Notes.astro';
         <div class="book-entry book-entry-reverse">
             <div>
                 <h3>Сроки и участие</h3>
-                <p>Начало события 16 августа! Тут появится кнопка "Участвовать" и форма для заполнения истории и персонажа. Все ваши персонажи и истории будут находиться на сайте в открытом доступе в специальном разделе "Конкурсные работы". Ваши работы могут лайкать и комментировать. Вы можете начать писать историю уже сейчас.</p>
+                <p>Начало события 16 августа! Все ваши персонажи и истории будут находиться на сайте в открытом доступе в специальном разделе "Конкурсные работы". Ваши работы могут лайкать и комментировать.</p>
                 <p>Окончание события 16 сентября.</p>
-                <button class="btn-disabled" disabled>
-                    <span>Участвовать</span>
-                    <span class="subtext">(доступно 23 августа)</span>
-                </button>
+                <div class="contest-actions">
+                    <a href="/zayavka" class="btn-contest btn-primary">
+                        <span>Участвовать</span>
+                    </a>
+                    <a href="/allkonrass" class="btn-contest btn-secondary">
+                        <span>Конкурсные работы</span>
+                    </a>
+                </div>
             </div>
             <figure>
                 <img src="/images/7.jpeg" alt="Сроки" class="contest-image">
@@ -264,29 +268,59 @@ import Notes from '../components/Notes.astro';
     .book-entry h3 {
         margin-top: 0;
     }
-    .btn-disabled {
+
+    /* Стили для кнопок участия и работ */
+    .contest-actions {
         display: flex;
         flex-direction: column;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        width: 100%;
+        max-width: 420px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .btn-contest {
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 100%;
-        max-width: 400px;
-        margin: 1.5rem auto 0;
-        padding: 0.8rem 2rem;
-        font-weight: bold;
         text-align: center;
-        background-color: #333;
-        color: #666;
-        border: 2px solid #444;
+        padding: 1rem 1.5rem;
         border-radius: 10px;
-        cursor: not-allowed;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        transition: all 0.3s ease;
+        text-decoration: none !important;
+        box-sizing: border-box;
     }
-    .btn-disabled span {
-        font-size: 2rem;
-        line-height: 1.1;
+
+    .btn-primary {
+        background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+        color: #111 !important;
+        font-size: 1.6rem;
+        border: 2px solid #ffe600;
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
     }
-    .btn-disabled .subtext {
-        font-size: 0.9rem;
-        font-weight: normal;
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+        filter: brightness(1.1);
+    }
+
+    .btn-secondary {
+        background: rgba(0, 0, 0, 0.7);
+        color: var(--accent-cyan, #00ffff) !important;
+        font-size: 1.2rem;
+        border: 2px solid var(--accent-cyan, #00ffff);
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+        transform: translateY(-2px);
+        background: rgba(0, 255, 255, 0.15);
+        box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
     }
 </style>

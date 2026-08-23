@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Мир Теней: Хроники Пустоты — Перерождение</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="logo">Мир <span>Теней</span></div>
+    <div class="header-badges">
+      <button class="btn btn-sm" id="btn-sound-toggle" onclick="Sound.toggle()" style="padding: 2px 7px;">🔊 ЗВУК</button>
+      <div class="badge" title="Текущий уровень героя">Ур. <span id="hdr-lvl">1</span></div>
+      <div class="badge matter-badge" title="Тёмная материя из аномалий">⚛️ <span id="hdr-dark-matter">0</span></div>
+      <div class="badge void-badge" title="Сферы Пустоты за возвышения">🌌 <span id="hdr-void-spheres">0</span></div>
+      <div class="badge talent-badge" title="Очки талантов">✨ TP: <span id="hdr-tp">0</span></div>
+      <div class="badge gold-badge" title="Золото">🪙 <span id="hdr-gold">0</span></div>
+    </div>
+  </header>
+
+  <nav id="main-nav">
+    <button class="active" data-tab="profile" onclick="switchTab('profile')">Герой</button>
+    <button data-tab="inventory" onclick="switchTab('inventory')">Рюкзак (<span id="tab-inv-cnt">0</span>)</button>
+    <button data-tab="talents" onclick="switchTab('talents')">Таланты & Пустота</button>
+    <button data-tab="shop" onclick="switchTab('shop')">🏪 Лавка</button>
+    <button data-tab="training" onclick="switchTab('training')">⛺ Полигон</button>
+    <button data-tab="dungeons" onclick="switchTab('dungeons')">Подземелья</button>
+    <button data-tab="quests" onclick="switchTab('quests')">Квесты (<span id="tab-quest-cnt">0</span>)</button>
+    <button data-tab="combat" onclick="switchTab('combat')" id="nav-combat-btn" style="display:none; color:#f87171;">⚔ БОЙ!</button>
+  </nav>
+
+  <!-- VIEW: PROFILE -->
+  <div id="view-profile" class="view active">
+    <h2>
+      <span>Параметры и Экипировка Героя</span>
+      <div>
+        <button class="btn btn-sm btn-heal" onclick="usePotion()" title="Восстанавливает 50% от максимального HP">🌿 Настойка (<span id="potions-count">3</span>)</button>
+        <button class="btn btn-sm btn-danger" onclick="resetSaveData()">💾 Сброс</button>
+      </div>
+    </h2>
+
+    <div class="grid-2" style="margin-bottom: 6px;">
+      <div class="stat-card">
+        <div class="label">Здоровье героя</div>
+        <div class="value" id="profile-hp-txt">120 / 120</div>
+        <div class="progress-wrap"><div id="profile-hp-bar" class="progress-fill fill-hp"></div></div>
+        <div class="sub-desc">Текущий и максимальный запас жизней. При падении до 0 поражение.</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Опыт Героя</div>
+        <div class="value"><span id="profile-exp-txt">0</span> / <span id="profile-exp-next">100</span> XP</div>
+        <div class="progress-wrap"><div id="profile-exp-bar" class="progress-fill charge-tier-opt" style="width:0%;"></div></div>
+        <div class="sub-desc">Каждый уровень повышает базовые характеристики и даёт 1 TP.</div>
+      </div>
+    </div>
+
+    <!-- 14 СТАТОВ -->
+    <div class="grid-4" style="margin-bottom: 8px;">
+      <div class="stat-card"><div class="label">Атака</div><div class="value" id="stat-atk">12</div><div class="sub-desc">Базовый урон удара и скилов.</div></div>
+      <div class="stat-card"><div class="label">Защита</div><div class="value" id="stat-def">4</div><div class="sub-desc">Уменьшает получаемый урон.</div></div>
+      <div class="stat-card"><div class="label">Регенерация</div><div class="value" id="stat-regen" style="color:#34d399;">+1/с</div><div class="sub-desc">Пассивное восстановление HP в секунду.</div></div>
+      <div class="stat-card"><div class="label">Скорость атаки</div><div class="value" id="stat-aspd" style="color:var(--accent);">+0%</div><div class="sub-desc">Ускоряет замах и снижает КД клика.</div></div>
+      <div class="stat-card"><div class="label">Крит. шанс</div><div class="value" id="stat-crit">5%</div><div class="sub-desc">Шанс нанести критический удар.</div></div>
+      <div class="stat-card"><div class="label">Крит. урон</div><div class="value" id="stat-crit-dmg" style="color:var(--gold);">+180%</div><div class="sub-desc">Множитель урона при крит. попадании.</div></div>
+      <div class="stat-card"><div class="label">Вампиризм</div><div class="value" id="stat-vamp">0%</div><div class="sub-desc">Лечит героя на % от нанесённого урона.</div></div>
+      <div class="stat-card"><div class="label">Пробитие брони</div><div class="value" id="stat-pierce">0 ед.</div><div class="sub-desc">Игнорирует прямую защиту противника.</div></div>
+      <div class="stat-card"><div class="label">Срез урона</div><div class="value" id="stat-dmg-red" style="color:#38bdf8;">0%</div><div class="sub-desc">Процентное снижение любых входящих атак.</div></div>
+      <div class="stat-card"><div class="label">Сила умений</div><div class="value" id="stat-sp" style="color:#38bdf8;">+2%</div><div class="sub-desc">Увеличивает урон и эффективность скилов.</div></div>
+      <div class="stat-card"><div class="label">Проклятье</div><div class="value" id="stat-curse" style="color:#f43f5e;">1%</div><div class="sub-desc">Шанс превратить врага в элитного мутанта.</div></div>
+      <div class="stat-card"><div class="label">Бонус золота</div><div class="value" id="stat-gold-bonus" style="color:var(--gold);">+0%</div><div class="sub-desc">Увеличивает прирост золота за монстров.</div></div>
+      <div class="stat-card"><div class="label">Бонус опыта</div><div class="value" id="stat-exp-bonus" style="color:#10b981;">+0%</div><div class="sub-desc">Ускоряет получение опыта персонажем.</div></div>
+      <div class="stat-card"><div class="label">Оптимум замаха</div><div class="value" id="stat-charge-opt">7.0s</div><div class="sub-desc">Время замаха для оптимального удара.</div></div>
+    </div>
+
+    <!-- АСТРОЛЯБИЯ -->
+    <div class="gear-card" style="border: 1px solid var(--gold); background: rgba(245, 158, 11, 0.05); margin-bottom: 8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <b style="font-size:11px; color:#fff;">🌟 АСТРОЛЯБИЯ СОЗВЕЗДИЙ (Пассивные Древа)</b>
+        <span style="font-size:9px; color:var(--gold); font-weight:bold;"><span id="astrolabe-cnt-txt">0/4</span></span>
+      </div>
+      <div class="desc-text" style="margin-top:2px; margin-bottom:4px;">Активируйте великие созвездия за золото для получения колоссальных пассивных усилений.</div>
+      <div class="astrolabe-grid">
+        <div class="astrolabe-node" id="astro-node-midas">
+          <div><b>🪙 Созвездие Мидаса</b><br><span style="color:var(--text-muted);">+1 Атк за каждые 50k золота в казне!</span></div>
+          <button class="btn btn-sm btn-gold" id="btn-astro-midas" onclick="unlockAstrolabe('midas')">100k Зл.</button>
+        </div>
+        <div class="astrolabe-node" id="astro-node-chronophase">
+          <div><b>⏳ Хроно-Фаза</b><br><span style="color:var(--text-muted);">Смертельный удар спасает, исцеляя на 100% + 4с бессмертия!</span></div>
+          <button class="btn btn-sm btn-gold" id="btn-astro-chronophase" onclick="unlockAstrolabe('chronophase')">250k Зл.</button>
+        </div>
+        <div class="astrolabe-node" id="astro-node-supernova">
+          <div><b>💥 Сверхновая</b><br><span style="color:var(--text-muted);">Каждый 8-й удар взрывает всех врагов на +500% урона!</span></div>
+          <button class="btn btn-sm btn-gold" id="btn-astro-supernova" onclick="unlockAstrolabe('supernova')">500k Зл.</button>
+        </div>
+        <div class="astrolabe-node" id="astro-node-chaoslord">
+          <div><b>🔮 Повелитель Хаоса</b><br><span style="color:var(--text-muted);">+30% урона герой наносит за каждого мутанта в бою!</span></div>
+          <button class="btn btn-sm btn-gold" id="btn-astro-chaoslord" onclick="unlockAstrolabe('chaoslord')">1M Зл.</button>
+        </div>
+      </div>
+    </div>
+
+    <h2>10 Слотов Экипировки Героя (С блокировкой по уровню)</h2>
+    <div class="desc-text" style="margin-bottom:6px;">
+      ⚠️ <b>ВНИМАНИЕ:</b> Если уровень героя ниже требуемого, предмет <b>НЕ ДАЁТ БОНУСОВ</b>! <br>
+      ⭐ Закалка звездой мягко повышает требуемый уровень предмета (+1..+3 Ур. за звезду).
+    </div>
+    <div class="gear-grid" id="gear-list"></div>
+  </div>
+
+  <!-- VIEW: INVENTORY -->
+  <div id="view-inventory" class="view">
+    <h2>
+      <span>Рюкзак Героя</span>
+      <div>
+        <button class="btn btn-sm btn-rune" onclick="openSynthesisModal()" title="Синтез рун и распыление предметов V+">🧪 Алтарь Синтеза</button>
+        <button class="btn btn-sm btn-danger" onclick="sellJunk()" title="Автоматом продает обычное снаряжение I ранга">Продать хлам</button>
+      </div>
+    </h2>
+    <div class="desc-text" style="margin-bottom:6px;">Чтобы надеть вещь, ваш уровень должен соответствовать минимальному уровню предмета (`Ур. Треб.`).</div>
+    <div id="inventory-list"></div>
+  </div>
+
+<!-- VIEW: TALENTS & VOID -->
+  <div id="view-talents" class="view">
+    <!-- 1. БАЗОВЫЕ ТАЛАНТЫ (ТЕПЕРЬ ВВЕРХУ) -->
+    <h2>
+      <span>Базовые Таланты (TP: <b style="color:#38bdf8;" id="tree-tp-val">0</b>)</span>
+      <button class="btn btn-sm btn-danger" onclick="resetTalents()">Сброс (100 Зл.)</button>
+    </h2>
+
+    <div class="tree-container" style="margin-bottom: 10px;">
+      <div class="tree-branch">
+        <h4>⚔ Ярость</h4>
+        <div class="talent-node"><div><b>Сила</b> (+3% Атаки)<br><span id="t-lvl-atk">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('atk')">+</button></div>
+        <div class="talent-node"><div><b>Пробой</b> (+4% Пробоя)<br><span id="t-lvl-pierce">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('pierce')">+</button></div>
+        <div class="talent-node"><div><b>Сверхмощь</b> (+25% Overcharge)<br><span id="t-lvl-over">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('over')">+</button></div>
+      </div>
+      <div class="tree-branch">
+        <h4>🛡 Стойкость</h4>
+        <div class="talent-node"><div><b>Живучесть</b> (+4% Макс. HP)<br><span id="t-lvl-hp">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('hp')">+</button></div>
+        <div class="talent-node"><div><b>Бастион</b> (+4% Защиты)<br><span id="t-lvl-def">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('def')">+</button></div>
+        <div class="talent-node"><div><b>Кровопийца</b> (+2% Вампир)<br><span id="t-lvl-vamp">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('vamp')">+</button></div>
+      </div>
+      <div class="tree-branch">
+        <h4>⚡ Пустота</h4>
+        <div class="talent-node"><div><b>Ветер</b> (+8% ASPD)<br><span id="t-lvl-aspd">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('aspd')">+</button></div>
+        <div class="talent-node"><div><b>Точность</b> (+3% Крит)<br><span id="t-lvl-crit">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('crit')">+</button></div>
+        <div class="talent-node"><div><b>Медитация</b> (-7% КД)<br><span id="t-lvl-cd">0/5</span></div><button class="btn btn-sm" onclick="upgradeTalent('cd')">+</button></div>
+      </div>
+    </div>
+
+    <h2>Способности Героя (Экипировано: <b id="equipped-skills-count">3/3</b>)</h2>
+    <div id="skills-manager-list" style="margin-bottom: 10px;"></div>
+
+    <!-- 2. МАТРИЦА СИНГУЛЯРНОСТИ (ЗАБЛОКИРОВАНА ДО ПРЕСТИЖА 1) -->
+    <div class="gear-card" style="border: 1px solid #c084fc; background: rgba(192, 132, 252, 0.08); margin-bottom: 8px;" id="matrix-card-block">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <b style="font-size:11px; color:#fff;">⚛️ МАТРИЦА СИНГУЛЯРНОСТИ <span id="matrix-lock-label" style="color:#f87171; font-size:9px;"></span></b>
+        <span style="font-size:9px; color:#c084fc; font-weight:bold;">⚛️ <span id="matrix-matter-val">0</span> Материи</span>
+      </div>
+      <div class="desc-text" style="margin-bottom:4px;">Добывается с аномальных монстров. Позволяет усиливать атаки и снижать кд замаха.</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+        <div class="talent-node">
+          <div><b>🌌 Плотность (+8% Урон/Пробой)</b><br><span id="dm-lvl-damage" style="color:#c084fc;">0/20</span></div>
+          <button class="btn btn-sm btn-rune matrix-btn" onclick="upgradeMatrixPerk('damage')">+1 (5 ⚛️)</button>
+        </div>
+        <div class="talent-node">
+          <div><b>⚡ Грави-Замах (-5% Мин. КД)</b><br><span id="dm-lvl-charge" style="color:#c084fc;">0/20</span></div>
+          <button class="btn btn-sm btn-rune matrix-btn" onclick="upgradeMatrixPerk('charge')">+1 (5 ⚛️)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. ГРИМУАР НАСЛЕДИЯ -->
+    <div class="gear-card" style="border: 1px solid #38bdf8; background: rgba(56, 189, 248, 0.08); margin-bottom: 8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <b style="font-size:11px; color:#fff;">📜 ГРИМУАР НАСЛЕДИЯ ПУСТОТЫ (Печати Престижа)</b>
+        <span style="font-size:9px; color:#38bdf8; font-weight:bold;">Печати: <span id="heritage-seals-cnt">0/5</span></span>
+      </div>
+      <div class="desc-text" style="margin-bottom:6px;">
+        Печати открываются автоматически при достижении определённых рангов Возвышения и действуют ПОСТОЯННО!
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <div class="talent-node">
+          <div>
+            <b>1. Связь Времен (Ур. 1+)</b><br>
+            <span style="color:var(--text-muted);">Слот, полностью игнорирующий требования уровня:</span>
+            <select id="heritage-slot-select" onchange="setHeritageSlot(this.value)" style="margin:2px 0 0; font-size:9px; padding:2px; background:var(--bg-panel); border:1px solid var(--border); color:#fff; border-radius:3px;">
+              <option value="weapon">⚔ Оружие</option>
+              <option value="armor">🛡 Доспех</option>
+              <option value="helm">🪖 Шлем</option>
+              <option value="boots">🥾 Сапоги</option>
+              <option value="amulet">📿 Амулет</option>
+              <option value="ring">💍 Кольцо</option>
+              <option value="belt">🥋 Пояс</option>
+              <option value="cloak">🧥 Плащ</option>
+              <option value="bracers">🥊 Наручи</option>
+              <option value="relic">🔮 Реликвия</option>
+            </select>
+          </div>
+          <span class="quest-badge" id="heritage-badge-1">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>2. Авто-Эликсир (Ур. 2+)</b><br><span style="color:var(--text-muted);">Автоматически пьёт настойку здоровья при HP &lt; 30%</span></div>
+          <span class="quest-badge" id="heritage-badge-2">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>3. Жатва Аномалий (Ур. 3+)</b><br><span style="color:var(--text-muted);">+100% Золота и Опыта за убийство элитных мутантов</span></div>
+          <span class="quest-badge" id="heritage-badge-3">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>4. Казнь Бездны (Ур. 4+)</b><br><span style="color:var(--text-muted);">15% шанс мгновенно выбить обычного врага в Сверхзамахе</span></div>
+          <span class="quest-badge" id="heritage-badge-4">ЗАКРЫТО</span>
+        </div>
+        <div class="talent-node">
+          <div><b>5. Эфирный Щит (Ур. 5+)</b><br><span style="color:var(--text-muted);">Каждый бой начинается со щитом, равным 100% от Max HP</span></div>
+          <span class="quest-badge" id="heritage-badge-5">ЗАКРЫТО</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. ВОЗВЫШЕНИЕ ПУСТОТЫ (ПРЕСТИЖ) В САМОМ НИЗУ -->
+    <div class="gear-card" style="border: 1px solid #ec4899; background: rgba(236, 72, 153, 0.08); margin-bottom: 8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <b style="font-size:11px; color:#fff;">🌌 ВОЗВЫШЕНИЕ ПУСТОТЫ (ПРЕСТИЖ)</b>
+        <span style="font-size:9px; color:#ec4899; font-weight:bold;">Ур. <span id="transcend-lvl-badge">0</span> (+<span id="transcend-pct-badge">0</span>% ко всем статам)</span>
+      </div>
+      <p style="font-size:9px; color:#cbd5e1; margin-bottom:6px;">
+        Сброс уровня и базовых талантов персонажа до 1 уровня. Предметы экипировки сохраняются, но их бонусы временно блокируются! Каждый ранг престижа даёт постоянный бонус +25% ко всем параметрам!
+      </p>
+      <button class="btn btn-charge-attack ready-over" style="width:100%; font-size:10px; margin-bottom:6px;" onclick="transcendHero()">
+        🌌 СОВЕРШИТЬ ВОЗВЫШЕНИЕ (+<span id="transcend-gain-spheres">1</span> Сфер Пустоты)
+      </button>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+        <div class="talent-node">
+          <div><b>💥 Мульти-Криты</b><br><span style="color:var(--text-muted);">Криты переваливают за 100%</span><br><span id="vp-lvl-supercrit" style="color:#ec4899;">0/10</span></div>
+          <button class="btn btn-sm btn-rune" onclick="upgradeVoidPerk('supercrit')">+1 (1 🌌)</button>
+        </div>
+        <div class="talent-node">
+          <div><b>🛡 Оверхил в щит</b><br><span style="color:var(--text-muted);">Превращает избыток исцеления в Щит</span><br><span id="vp-lvl-overheal" style="color:#ec4899;">0/10</span></div>
+          <button class="btn btn-sm btn-rune" onclick="upgradeVoidPerk('overheal')">+1 (1 🌌)</button>
+        </div>
+        <div class="talent-node">
+          <div><b>⚡ Эхо Пустоты</b><br><span style="color:var(--text-muted);">Шанс мгновенно дублировать скил</span><br><span id="vp-lvl-echo" style="color:#ec4899;">0/10</span></div>
+          <button class="btn btn-sm btn-rune" onclick="upgradeVoidPerk('echo')">+1 (1 🌌)</button>
+        </div>
+        <div class="talent-node">
+          <div><b>🗡 Чистый Разлом</b><br><span style="color:var(--text-muted);">Игнорирует % истинной брони</span><br><span id="vp-lvl-truepierce" style="color:#ec4899;">0/10</span></div>
+          <button class="btn btn-sm btn-rune" onclick="upgradeVoidPerk('truepierce')">+1 (1 🌌)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW: SHOP -->
+  <div id="view-shop" class="view">
+    <h2>🏪 Лавка Алхимика и Архимага</h2>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:8px;">
+  <div class="shop-card" style="border-left-color: #10b981;">
+        <div class="item-header"><b>🌿 Настойка HP (Макс. 5)</b><span style="color:var(--gold);">🪙 30</span></div>
+        <div class="desc-text">Восстанавливает 50% здоровья. У вас в сумке: <span id="potions-count">3</span>/10.</div>
+        <button class="btn btn-sm btn-heal" style="margin-top:4px;" onclick="buyPotion(1, 30)">Купить 1 шт.</button>
+      </div>
+      <div class="shop-card" style="border-left-color: #10b981;">
+        <div class="item-header"><b>🌿 Набор Настоек (5 шт)</b><span style="color:var(--gold);">🪙 135</span></div>
+        <div class="desc-text">Выгодная упаковка лечебных настоек со скидкой.</div>
+        <button class="btn btn-sm btn-heal" style="margin-top:4px;" onclick="buyPotion(5, 135)">Купить пак</button>
+      </div>
+      <div class="shop-card" style="border-left-color: #f43f5e;">
+        <div class="item-header"><b style="color:#f43f5e;">🧪 Эликсир Безумия</b><span style="color:var(--gold);">🪙 5,000</span></div>
+        <div class="desc-text">+50% Атаки и Скорости атаки на 3 следующих боя.</div>
+        <button class="btn btn-sm btn-danger" style="margin-top:4px;" onclick="buyBuff('frenzy', 5000)">Купить</button>
+      </div>
+      <div class="shop-card" style="border-left-color: #06b6d4;">
+        <div class="item-header"><b style="color:#06b6d4;">🛡 Эликсир Титана</b><span style="color:var(--gold);">🪙 8,000</span></div>
+        <div class="desc-text">Даёт щит равный 200% от максимального HP на 3 боя.</div>
+        <button class="btn btn-sm btn-info" style="margin-top:4px;" onclick="buyBuff('titan', 8000)">Купить</button>
+      </div>
+    </div>
+
+    <h2>Реликвии и Эндгейм-Материалы</h2>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+      <div class="shop-card" style="border-left-color: #38bdf8;">
+        <div class="item-header"><b style="color:#38bdf8;">✨ Свиток TP (+1)</b><span style="color:var(--gold);">🪙 50k</span></div>
+        <div class="desc-text">Мгновенно дарует 1 очко талантов.</div>
+        <button class="btn btn-sm btn-gold" style="margin-top:4px;" onclick="buyTalentPoint()">Купить 1 TP</button>
+      </div>
+      <div class="shop-card" style="border-left-color: #ec4899;">
+        <div class="item-header"><b style="color:#ec4899;">🌌 Сфера Пустоты (+1)</b><span style="color:var(--gold);">🪙 2.5M</span></div>
+        <div class="desc-text">Используется для прокачки древних перков Пустоты.</div>
+        <button class="btn btn-sm btn-charge-attack ready-over" style="margin-top:4px;" onclick="buyVoidSphereShop()">Купить Сферу</button>
+      </div>
+      <div class="shop-card" style="border-left-color: #c084fc;">
+        <div class="item-header"><b style="color:#c084fc;">⚛️ Тёмная Материя (+10)</b><span style="color:var(--gold);">🪙 500k</span></div>
+        <div class="desc-text">Топливо для прорыва Матрицы Сингулярности.</div>
+        <button class="btn btn-sm btn-rune" style="margin-top:4px;" onclick="buyDarkMatterShop()">Купить +10</button>
+      </div>
+      <div class="shop-card" style="border-left-color: #e11d48;">
+        <div class="item-header"><b style="color:#e11d48;">🎁 Сундук Пандоры</b><span style="color:var(--gold);">🪙 1M</span></div>
+        <div class="desc-text">Гарантирует предмет Сингулярного качества [★x3].</div>
+        <button class="btn btn-sm btn-danger" style="margin-top:4px;" onclick="buyPandoraChest()">Открыть [★x3]</button>
+      </div>
+    </div>
+  </div>
+
+<!-- VIEW: TRAINING -->
+  <div id="view-training" class="view">
+    <h2>⛺ Тренировочный Лагерь (Пассивный Полигон)</h2>
+    <div class="desc-text" style="margin-bottom: 8px;">
+      Здесь бойцы автоматически качают статы со временем («жмак и пошёл»). Вкладывайте золото в улучшение лагеря: каждый новый уровень здания увеличивает прирост характеристик, но требует больше времени на цикл. При престиже накопленные статы сбрасываются, но <b>уровни зданий остаются навсегда!</b>
+    </div>
+
+    <!-- Контейнер для пассивных зданий и статов -->
+    <div id="training-tracks-list" style="margin-bottom: 10px;"></div>
+  </div>
+
+    <!-- В ЭТОТ КОНТЕЙНЕР JS АВТОМАТИЧЕСКИ ВСТАВИТ КАРТОЧКИ ПРОКАЧКИ ЗДАНИЙ -->
+    <div id="training-tracks-list" style="margin-bottom: 10px;"></div>
+
+  <!-- VIEW: DUNGEONS -->
+  <div id="view-dungeons" class="view">
+    <h2>Сложность Экспедиций</h2>
+    <select id="diff-select" onchange="renderDungeons()">
+      <option value="1">1. Обычная (x1.0, Качество I–II, Мин. Ур. 1)</option>
+      <option value="2">2. Сложная (x2.2, Качество III–IV, Треб. Ур. 10+)</option>
+      <option value="3">3. Героическая (x5.0, Качество V–VI, Треб. Ур. 30+)</option>
+      <option value="4">4. Кошмар (x12.0, Божественное и Глитч, Треб. Ур. 60+)</option>
+      <option value="5">5. Инферно (x35.0, Титаны и Древние, Треб. Ур. 100+)</option>
+      <option value="6">6. Сингулярность (x100.0, Аномалии Разлома, Треб. Ур. 150+)</option>
+      <option value="7" style="color:#e11d48; font-weight:bold;">7. ☠ АБСОЛЮТНЫЙ ХАОС (x360.0, ТОЛЬКО АБСОЛЮТНЫЕ МОНСТРЫ!)</option>
+    </select>
+
+<!-- КАЛИБРАТОР АНОМАЛИЙ -->
+    <div id="anomaly-calibrator-card" class="gear-card" style="border: 1px solid #c084fc; background: rgba(192, 132, 252, 0.05); margin-bottom: 8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+        <b style="font-size:11px; color:#fff;">⚛️ КАЛИБРАТОР АНОМАЛИЙ</b>
+        <span id="anomaly-lock-badge" style="font-size:9.5px; color:#c084fc; font-weight:bold;">Уровень: <span id="anomaly-tier-txt">0</span></span>
+      </div>
+      <div class="desc-text" style="margin-bottom:6px;">Повышает силу врагов на +50% за ранг, но увеличивает шанс добычи Тёмной Материи в бою.</div>
+      
+      <div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:4px;">
+        <button class="btn btn-sm btn-danger" onclick="changeAnomalyTier(-100)">-100</button>
+        <button class="btn btn-sm btn-danger" onclick="changeAnomalyTier(-5)">-5</button>
+        <button class="btn btn-sm btn-danger" onclick="changeAnomalyTier(-1)">-1</button>
+        <button class="btn btn-sm btn-rune" onclick="changeAnomalyTier(1)">+1</button>
+        <button class="btn btn-sm btn-rune" onclick="changeAnomalyTier(5)">+5</button>
+        <button class="btn btn-sm btn-charge-attack ready-over" onclick="changeAnomalyTier(100)">+100</button>
+      </div>
+    </div>
+
+<!-- 3 ОСОБЫХ РЕЖИМА ИСПЫТАНИЙ -->
+    <h2>🔥 Особые Режимы Испытаний</h2>
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; margin-bottom:8px;">
+      <div class="special-mode-card" style="border-color: #ef4444; background: rgba(239, 68, 68, 0.05);">
+        <div>
+          <div class="mode-title" style="color:#ef4444;">🛡 ОРДА БЕЗДНЫ</div>
+          <div class="mode-desc" style="margin-top:3px;">Бесконечное выживание против волн. Награды в Сферах каждую минуту!</div>
+        </div>
+        <button class="btn btn-danger btn-sm" id="btn-mode-horde" onclick="startHordeMode()">ВЫЖИВАНИЕ</button>
+      </div>
+
+      <div class="special-mode-card" style="border-color: var(--gold); background: rgba(245, 158, 11, 0.05);">
+        <div>
+          <div class="mode-title" style="color:var(--gold);">👑 БОСС-РАШ</div>
+          <div class="mode-desc" style="margin-top:3px;">Марафон всех боссов подряд с нарастающими наградами!</div>
+        </div>
+        <button class="btn btn-gold btn-sm" id="btn-mode-bossrush" onclick="startBossRushMode()">БОСС-РАШ</button>
+      </div>
+
+      <div class="special-mode-card" style="border-color: #38bdf8; background: rgba(56, 189, 248, 0.05);">
+        <div>
+          <div class="mode-title" style="color:#38bdf8;">🏛 ЧИСТИЛИЩЕ</div>
+          <div class="mode-desc" style="margin-top:3px;">-30% урона персонажа и +100% брони врагов, но утроенный лут!</div>
+        </div>
+        <button class="btn btn-info btn-sm" id="btn-mode-purgatory" onclick="startPurgatoryMode()">ЧИСТИЛИЩЕ</button>
+      </div>
+    </div>
+
+    <!-- БЫСТРЫЕ АРЕНЫ -->
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px;">
+      <div class="special-mode-card" style="border-color: var(--accent); padding:8px;">
+        <div class="mode-title" style="color:#fff; text-align:center;">🌌 АРЕНА</div>
+        <button class="btn btn-sm" id="btn-mode-arena" onclick="startArena()">РАЗЛОМ</button>
+      </div>
+      <div class="special-mode-card" style="border-color: var(--gold); padding:8px;">
+        <div class="mode-title" style="color:#fff; text-align:center;">🤺 ДУЭЛЬ</div>
+        <button class="btn btn-gold btn-sm" id="btn-mode-duel" onclick="startDuelArena()">1 на 1</button>
+      </div>
+      <div class="special-mode-card" style="border-color: #f43f5e; padding:8px;">
+        <div class="mode-title" style="color:#fff; text-align:center;">👁 ДЕМИУРГ</div>
+        <button class="btn btn-danger btn-sm" id="btn-mode-demiurge" onclick="startRaidDemiurge()">РЕЙД</button>
+      </div>
+      <div class="special-mode-card" style="border-color: #ec4899; padding:8px;">
+        <div class="mode-title" style="color:#fff; text-align:center;">🌀 БЕЗДНА</div>
+        <button class="btn btn-rune btn-sm" id="btn-mode-abyss" onclick="startAbyss()">ЭТАЖ <span id="abyss-btn-floor">1</span></button>
+      </div>
+    </div>
+
+    <h2>Список Подземелий (17 Локаций)</h2>
+    <div id="dungeon-list"></div>
+  </div>
+
+  <!-- VIEW: QUESTS -->
+  <div id="view-quests" class="view">
+    <h2>🏆 Список игровых достижений (Все механики)</h2>
+    <div id="mechanic-quests-list" style="margin-bottom:12px;"></div>
+
+    <h2>📜 Великая летопись (Сюжетные главы)</h2>
+    <div id="story-quests-list" style="margin-bottom:10px;"></div>
+
+    <h2>⚔ Случайные контракты охотника</h2>
+    <div id="quests-list"></div>
+  </div>
+
+  <!-- VIEW: COMBAT -->
+  <div id="view-combat" class="view">
+    <div id="combat-arena-header" style="display:none; background:rgba(157,92,246,0.15); border:1px solid var(--accent); border-radius:6px; padding:5px 8px; margin-bottom:6px; justify-content:space-between; align-items:center; font-size:10px;">
+      <span id="arena-header-title" style="color:var(--accent); font-weight:bold;">Бой</span>
+      <span id="arena-timer-txt" style="color:#38bdf8; font-weight:bold;">⏱ 0с</span>
+    </div>
+
+    <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:6px 10px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-weight:bold; font-size:11px;">Герой (Ур. <span id="c-player-lvl">1</span>)</div>
+      <div style="width:55%;">
+        <div class="progress-wrap"><div id="c-player-hp-bar" class="progress-fill fill-hp"></div></div>
+        <div style="font-size:9px; font-weight:bold; text-align:right; margin-top:1px;" id="c-player-hp-txt">120/120 HP</div>
+        <div id="c-player-shield-wrap" class="progress-wrap" style="height:4px; display:none; margin-top:1px;">
+          <div id="c-player-shield-bar" class="progress-fill fill-shield"></div>
+        </div>
+        <div id="c-player-shield-txt" style="font-size:8px; font-weight:bold; text-align:right; color:var(--shield); display:none;">0 Shield</div>
+      </div>
+      <div>
+        <button class="btn btn-heal btn-sm" onclick="usePotionCombat()">🌿 (<span id="c-potions-txt">3</span>)</button>
+        <button class="btn btn-danger btn-sm" onclick="fleeCombat()">🏃</button>
+      </div>
+    </div>
+
+    <div class="enemies-arena" id="enemies-arena"></div>
+
+    <div class="charge-panel">
+      <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:bold; margin-bottom:3px;">
+        <span id="charge-status-label">Замах: 0.0s</span>
+        <span id="charge-mult-label" style="color:var(--charge-low);">x0.05</span>
+      </div>
+      <div class="progress-wrap" style="height:8px; margin-bottom:5px;">
+        <div id="charge-bar" class="progress-fill charge-tier-low" style="width:0%;"></div>
+      </div>
+      <button class="btn btn-charge-attack" id="btn-main-attack" style="width:100%;" onclick="executePlayerAttack()">
+        ⚔ НАНЕСТИ УДАР (<span id="btn-dmg-preview">0</span>)
+      </button>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 3px; margin-top: 5px;" id="combat-active-skills-row"></div>
+    </div>
+
+    <div class="combat-log" id="combat-log"></div>
+  </div>
+</div>
+
+<div id="item-tooltip"></div>
+
+<!-- MODAL: SYNTHESIS -->
+<div class="modal-backdrop" id="synthesis-modal" onclick="closeSynthesisModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h3 style="color:#ec4899; font-size:12px;">🧪 Алтарь Синтеза & Инкрустации Рун</h3>
+      <button class="btn btn-sm btn-danger" onclick="document.getElementById('synthesis-modal').style.display='none'">✕</button>
+    </div>
+    <div style="background:var(--bg-panel); border:1px solid var(--border); border-radius:5px; padding:6px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:10px; font-weight:bold; color:#a855f7;">✨ Пыль: <span id="synth-dust-val">0</span> шт.</span>
+      <button class="btn btn-sm btn-rune" onclick="craftRune()">Сковать Руну (50 Пыли)</button>
+    </div>
+    <h4 style="font-size:10px; color:#fff; margin-bottom:3px;">Руны в хранилище (Кликните для инкрустации в оружие):</h4>
+    <div id="runes-storage-list" style="display:flex; flex-wrap:wrap; gap:3px; margin-bottom:8px;"></div>
+    <h4 style="font-size:10px; color:#fff; margin-bottom:3px;">Растворить предметы V+ на пыль:</h4>
+    <div id="salvage-items-list" style="max-height:140px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- MODAL: BESTIARY -->
+<div class="modal-backdrop" id="bestiary-modal" onclick="closeBestiary(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h3 style="color:var(--accent); font-size:12px;" id="modal-dungeon-name">Разведка</h3>
+      <button class="btn btn-sm btn-danger" onclick="document.getElementById('bestiary-modal').style.display='none'">✕</button>
+    </div>
+    <select id="modal-diff-select" onchange="refreshBestiaryView()">
+      <option value="1">1. Обычная (x1.0)</option><option value="2">2. Сложная (x2.2)</option>
+      <option value="3">3. Героическая (x5.0)</option><option value="4">4. Кошмар (x12.0)</option>
+      <option value="5">5. Инферно (x35.0)</option><option value="6">6. Сингулярность (x100.0)</option>
+      <option value="7">7. Абсолютный Хаос (x360.0)</option>
+    </select>
+    <div id="modal-dungeon-body"></div>
+  </div>
+</div>
+
+<script src="js/sound.js"></script>
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/player.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/training.js"></script>
+<script src="js/main.js"></script>
+
+<!-- Данжи -->
+<script src="js/dungeons/01_intro_castle.js"></script>
+<script src="js/dungeons/02_intro_road.js"></script>
+<script src="js/dungeons/03_intro_swamp.js"></script>
+<script src="js/dungeons/04_catacombs.js"></script>
+<script src="js/dungeons/05_storm_tower.js"></script>
+<script src="js/dungeons/06_soul_labyrinth.js"></script>
+<script src="js/dungeons/07_chaos_inferno.js"></script>
+<script src="js/dungeons/08_abyss_temple.js"></script>
+<script src="js/dungeons/09_antimatrix.js"></script>
+<script src="js/dungeons/10_void_rift.js"></script>
+<script src="js/dungeons/11_blood_citadel.js"></script>
+<script src="js/dungeons/12_spectral_cathedral.js"></script>
+<script src="js/dungeons/13_titan_cradle.js"></script>
+<script src="js/dungeons/14_astral_sanctuary.js"></script>
+<script src="js/dungeons/15_oblivion_depths.js"></script>
+<script src="js/dungeons/16_chronos_engine.js"></script>
+<script src="js/dungeons/17_null_dimension.js"></script>
+
+</body>
+</html>
