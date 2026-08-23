@@ -4,15 +4,16 @@ import Layout from '../../layouts/Layout.astro';
 export const prerender = false;
 
 const { id } = Astro.params;
-const runtime = (Astro.locals as any).runtime?.env || (Astro.locals as any).env;
-const db = runtime?.DB;
-const bucket = runtime?.konkursbook;
+const localsAny = Astro.locals as any;
+const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+
+const db = env.PROFILES_DB;
+const bucket = env.konkursbook;
 
 if (!db || !bucket || !id) {
   return Astro.redirect('/allkonrass');
 }
 
-// 1. Получаем запись из SQLite D1
 interface KonkursRow {
   rowid: number;
   author: string;
@@ -21,6 +22,7 @@ interface KonkursRow {
   created_at: string;
 }
 
+// Запрашиваем метаданные из PROFILES_DB
 const storyMeta = (await db.prepare(
   'SELECT rowid, author, name, urlrasskaz, created_at FROM konkurs WHERE rowid = ?'
 ).bind(id).first()) as KonkursRow | null;
@@ -29,7 +31,7 @@ if (!storyMeta) {
   return Astro.redirect('/404');
 }
 
-// 2. Читаем JSON файл из R2
+// Забираем JSON текста из бакета konkursbook
 let storyText = '';
 
 try {

@@ -1,14 +1,18 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
+// Отключаем статический пререндер для работы Clerk на сервере
+export const prerender = false;
+
 // Получение пользователя из Clerk (SSR)
 let userFullName = '';
 let isUserLoggedIn = false;
 
-if (Astro.locals?.auth) {
-  const auth = Astro.locals.auth();
-  if (auth?.userId && Astro.locals?.currentUser) {
-    const user = await Astro.locals.currentUser();
+const localsAny = Astro.locals as any;
+if (typeof localsAny.auth === 'function') {
+  const auth = localsAny.auth();
+  if (auth?.userId && typeof localsAny.currentUser === 'function') {
+    const user = await localsAny.currentUser();
     userFullName = user?.username || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || '';
     isUserLoggedIn = true;
   }
@@ -119,7 +123,8 @@ const contestInfo = {
   modalCloseBtn?.addEventListener('click', () => {
     modal.close();
     if (isSuccessState) {
-      window.location.href = '/rasskazy'; // Переход к списку работ после успеха
+      // Исправлено: перенаправляем на актуальный список рассказов
+      window.location.href = '/allkonrass';
     }
   });
 
@@ -134,7 +139,7 @@ const contestInfo = {
     const name = (formData.get('name') as string)?.trim();
     const text = (formData.get('text') as string)?.trim();
 
-    // Клиентские проверки без сброса полей
+    // Валидация без потери данных
     if (!author || !name || !text) {
       showModal('Ошибка заполнения', 'Все поля должны быть заполнены перед отправкой.');
       return;
@@ -169,12 +174,12 @@ const contestInfo = {
       } else {
         showModal(
           'Заявка принята!',
-          'Ваша работа успешно сохранена и отправлена в список работ конкурса.',
+          'Ваша работа успешно сохранена и отправлена в список рассказов конкурса.',
           true
         );
       }
     } catch (err) {
-      showModal('Сетевой сбой', 'Не удалось связаться с сервером. Ваши данные сохранены в форме, попробуйте отправить снова.');
+      showModal('Сетевой сбой', 'Не удалось связаться с сервером. Данные сохранены в форме, попробуйте снова.');
     } finally {
       submitBtn.disabled = false;
       btnText.style.display = 'inline';
