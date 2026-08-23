@@ -75,21 +75,25 @@ function updatePassiveTrainingTick(dt) {
     
     player.trainingProgress[key] += dt;
     
+    // Если накоплено на 1 или более полных циклов
     if (player.trainingProgress[key] >= totalSecNeeded) {
-      player.trainingProgress[key] = 0;
-      const gain = conf.statPerLevel * (player.trainingLevels[key] || 1);
+      const completedCycles = Math.floor(player.trainingProgress[key] / totalSecNeeded);
+      player.trainingProgress[key] = player.trainingProgress[key] % totalSecNeeded; // Сохраняем остаток секунд
+
+      const gainPerCycle = conf.statPerLevel * (player.trainingLevels[key] || 1);
+      const totalGain = gainPerCycle * completedCycles;
       
       if (conf.type === 'resource') {
         if (conf.resource === 'gold') {
-          player.gold += gain;
-          addLog(`⛺ <b>Полигон:</b> Сбор золота завершен! Получено: <b>+${gain.toLocaleString()} 🪙</b>`, 'log-over');
+          player.gold += totalGain;
+          addLog(`⛺ <b>Полигон:</b> Сбор завершен (x${completedCycles})! Получено: <b>+${totalGain.toLocaleString()} 🪙</b>`, 'log-over');
         } else if (conf.resource === 'exp') {
-          addExp(gain);
-          addLog(`⛺ <b>Полигон:</b> Занятие по опыту завершено! Получено: <b>+${gain.toLocaleString()} XP 📜</b>`, 'log-over');
+          addExp(totalGain);
+          addLog(`⛺ <b>Полигон:</b> Занятие завершено (x${completedCycles})! Получено: <b>+${totalGain.toLocaleString()} XP 📜</b>`, 'log-over');
         }
       } else {
-        player.trainingBonuses[key] = +(player.trainingBonuses[key] + gain).toFixed(1);
-        addLog(`⛺ <b>Полигон:</b> Тренировка завершена! Накоплено: <b>+${gain} к ${conf.name}</b>`, 'log-over');
+        player.trainingBonuses[key] = +(player.trainingBonuses[key] + totalGain).toFixed(1);
+        addLog(`⛺ <b>Полигон:</b> Тренировка завершена (x${completedCycles})! Накоплено: <b>+${totalGain} к ${conf.name}</b>`, 'log-over');
       }
       
       saveGame();
@@ -97,7 +101,6 @@ function updatePassiveTrainingTick(dt) {
     }
   }
 }
-
 function updateTrainingView() {
   if (typeof player === 'undefined') return;
   initTrainingData();

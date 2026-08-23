@@ -54,6 +54,16 @@ setInterval(saveGame, 10000);
 
 window.onload = function() {
   loadGame();
+  initTrainingData();
+  
+  // Расчет прогресса тренировок за время отсутствия
+  if (player.lastSaveTimestamp) {
+    const offlineSeconds = Math.floor((Date.now() - player.lastSaveTimestamp) / 1000);
+    if (offlineSeconds > 0) {
+      updatePassiveTrainingTick(offlineSeconds);
+    }
+  }
+
   if (dailyQuests.length === 0) generateNewQuests();
   updateUI();
   switchTab('profile');

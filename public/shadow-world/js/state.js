@@ -4,6 +4,12 @@ let player = {
   baseCrit: 5, baseVamp: 0, basePierce: 0, baseRegen: 1,
   gold: 80, potions: 3, shield: 0,
   
+  lastSaveTimestamp: Date.now(),
+  trainingLevels: { atk: 1, def: 1, hp: 1, crit: 1, pierce: 1, goldTrack: 1, expTrack: 1, aspd: 1, vamp: 1 },
+  trainingBonuses: { atk: 0, def: 0, hp: 0, crit: 0, pierce: 0, aspd: 0, vamp: 0 },
+  trainingProgress: { atk: 0, def: 0, hp: 0, crit: 0, pierce: 0, goldTrack: 0, expTrack: 0, aspd: 0, vamp: 0 },
+  // ...
+
   transcendLevel: 0, voidSpheres: 0, voidPerks: { supercrit: 0, overheal: 0, echo: 0, truepierce: 0 },
   heritageBypassSlot: 'weapon',
   
@@ -38,6 +44,7 @@ let combat = {
 };
 
 function saveGame() {
+  player.lastSaveTimestamp = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify({ player, dungeonCooldowns, dailyQuests })); } catch(e) {}
 }
 

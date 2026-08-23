@@ -768,8 +768,9 @@ function updateUI() {
 
   renderEquipment(); renderInventory(); renderSkillsManager(); renderDungeons(); renderQuests();
 
-  // === ВЫЗЫВАЕМ БЛОКИРОВКУ В САМОМ КОНЦЕ, ЧТОБЫ ЕЁ НЕ ПЕРЕЗАПИСАЛО ===
+  // === ВЫЗЫВАЕМ БЛОКИРОВКИ В САМОМ КОНЦЕ, ЧТОБЫ ИХ НЕ ПЕРЕЗАПИСАЛО ===
   updateStatLocksUI();
+  updateAnomalyCalibratorUI();
 }
 
 // СКРЫТИЕ И ЗАМЕНА КАРТОЧЕК ЗАКРЫТЫХ ПРОЦЕНТНЫХ И СПЕЦИАЛЬНЫХ СТАТОВ
@@ -811,22 +812,24 @@ function updateStatLocksUI() {
 }
 
 // Блокировка Калибратора Аномалий (19+ Ур.)
-const isAnomalyUnlocked = player.lvl >= 19;
-const anomalyBadge = document.getElementById('anomaly-lock-badge');
-const anomalyCard = document.getElementById('anomaly-calibrator-card');
+function updateAnomalyCalibratorUI() {
+  const isAnomalyUnlocked = player.lvl >= 19;
+  const anomalyBadge = document.getElementById('anomaly-lock-badge');
+  const anomalyCard = document.getElementById('anomaly-calibrator-card');
 
-if (anomalyBadge) {
-  if (isAnomalyUnlocked) {
-    anomalyBadge.innerHTML = `Уровень: <span id="anomaly-tier-txt">${player.anomalyTier}</span>`;
-  } else {
-    anomalyBadge.innerHTML = `<span class="dungeon-status locked">🔒 Открывается на 19 ур.</span>`;
+  if (anomalyBadge) {
+    if (isAnomalyUnlocked) {
+      anomalyBadge.innerHTML = `Уровень: <span id="anomaly-tier-txt">${player.anomalyTier}</span>`;
+    } else {
+      anomalyBadge.innerHTML = `<span class="dungeon-status locked">🔒 Открывается на 19 ур.</span>`;
+    }
   }
-}
 
-if (anomalyCard) {
-  anomalyCard.classList.toggle('dungeon-locked', !isAnomalyUnlocked);
-  const btns = anomalyCard.querySelectorAll('button');
-  btns.forEach(btn => {
-    btn.disabled = !isAnomalyUnlocked;
-  });
+  if (anomalyCard) {
+    anomalyCard.classList.toggle('dungeon-locked', !isAnomalyUnlocked);
+    const btns = anomalyCard.querySelectorAll('button');
+    btns.forEach(btn => {
+      btn.disabled = !isAnomalyUnlocked;
+    });
+  }
 }
