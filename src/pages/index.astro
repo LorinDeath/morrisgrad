@@ -1,24 +1,26 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import NavCard from '../components/NavCard.astro';
-import SecondaryBtn from '../components/SecondaryBtn.astro';
 import Notes from '../components/Notes.astro';
 
-// Массив для основных кнопок (Книги, Музыка и т.д.)
+// Массив категорий
 const mainCategories = [
   { title: "Книги", img: "/images/books.jpg", url: "/books" },
   { title: "Музыка", img: "/images/music.jpg", url: "/music" },
   { title: "Мини-игры", img: "/images/games.jpg", url: "/games" },
   { title: "Арты", img: "/images/arts.jpg", url: "/arts" },
   { title: "Рассказы", img: "/images/stories.jpg", url: "/stories" },
+  { title: "Заявка", url: "/zayavka" },
+  { title: "Рассказы", url: "/allkonrass" },
 ];
 
-// Массив для горизонтальных кнопок (Герои, Миры и т.д.)
-const secondaryLinks = [
-  { title: "Профиль", url: "/profile" },
-  { title: "Герои", url: "/heroes" },
-  { title: "Миры", url: "/worlds" },
-  { title: "Города", url: "/cities" },
+// Массив кнопок для удобного рендера списком
+const actionButtons = [
+  { title: "КОНКУРС", url: "/konkurs" },
+  { title: "ВИКТОРИНА", url: "/quiz_obitel_smerti.html" },
+  { title: "БИБЛИОТЕКА ЗНАНИЙ", url: "/gemini-code-1786123660299.html" },
+  { title: "МУЗЫКАЛЬНАЯ КАРУСЕЛЬ", url: "/lorin_death_carousel_final.html" },
+  { title: "ТЁМНЫЙ МИР", url: "/darks.html" },
 ];
 ---
 
@@ -26,41 +28,37 @@ const secondaryLinks = [
 
   <main class="container">
     <section class="music-banner-container">
-      <!-- ЛЕВАЯ ЧАСТЬ: Картинка -->
       <div class="banner-left">
-        <!-- Замените src на путь к вашей картинке -->
-        <img src="https://via.placeholder.com/400x400.png?text=New+Track" alt="Когда то тут была надпись (Обложка трека), но решила убрать чтобы люди не путались)" class="album-cover">
+        <img 
+          src="https://via.placeholder.com/400x400.png?text=New+Track" 
+          alt="Обложка трека" 
+          class="album-cover" 
+          loading="lazy"
+        />
       </div>
 
-      <!-- ПРАВАЯ ЧАСТЬ: YouTube плеер -->
       <div class="banner-right">
         <div class="video-responsive">
-          <iframe width="560" height="315" src="https://www.youtube.com/embed?listType=playlist&list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" title="YouTube video player" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          <iframe 
+            width="560" 
+            height="315" 
+            src="https://www.youtube.com/embed?listType=playlist&list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" 
+            title="YouTube video player" 
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
         </div>
       </div>
     </section>
 
     <h1 class="welcome-text">Добро пожаловать, Элфдид!</h1>
 
-    <a href="/konkurs" class="quiz-button">
-      КОНКУРС
-    </a>
-
-    <a href="/quiz_obitel_smerti.html" class="quiz-button">
-      ВИКТОРИНА
-    </a>
-    
-    <a href="/gemini-code-1786123660299.html" class="quiz-button">
-      БИБЛИОТЕКА ЗНАНИЙ
-    </a>
-
-    <a href="/lorin_death_carousel_final.html" class="quiz-button">
-      МУЗЫКАЛЬНАЯ КАРУСЕЛЬ
-    </a>
-
-    <a href="/Darks.html" class="quiz-button">
-    ТЁМНЫЙ МИР
-    </a>
+    <!-- Рендер кнопок через map для чистоты кода -->
+    {actionButtons.map((btn) => (
+      <a href={btn.url} class="quiz-button">
+        {btn.title}
+      </a>
+    ))}
 
     <div class="main-grid">
       {mainCategories.map((item) => (
@@ -68,14 +66,12 @@ const secondaryLinks = [
       ))}
     </div>
 
-    <!-- Компонент со случайными заметками -->
     <Notes transition:persist />
   </main>
 
 </Layout>
 
 <style>
-  /* Стили для нового баннера */
   .music-banner-container {
     display: flex;
     flex-wrap: wrap;
@@ -98,7 +94,7 @@ const secondaryLinks = [
     aspect-ratio: 16 / 9;
     object-fit: cover;
     border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
 
   .banner-right {
@@ -108,11 +104,11 @@ const secondaryLinks = [
 
   .video-responsive {
     position: relative;
-    padding-bottom: 56.25%; /* 16:9 */
+    padding-bottom: 56.25%;
     height: 0;
     overflow: hidden;
     border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
 
   .video-responsive iframe {
@@ -132,8 +128,8 @@ const secondaryLinks = [
 
   .quiz-button {
     display: block;
-    max-width: 600px; /* Максимальная ширина */
-    width: 80%;       /* Ширина относительно родителя */
+    max-width: 600px;
+    width: 80%;
     margin: 40px auto;
     padding: 20px 40px;
     font-size: 1.8rem;
@@ -141,7 +137,6 @@ const secondaryLinks = [
     text-align: center;
     text-decoration: none;
     color: #fff;
-    /* Убираем фон и ставим картинку */
     background-image: url('/images/4242424.png');
     background-size: cover;
     background-position: center;
@@ -151,10 +146,9 @@ const secondaryLinks = [
     overflow: hidden;
     transition: all 0.3s ease;
     box-shadow: 0 0 20px rgba(160, 32, 240, 0.5);
-    z-index: 1; /* Для корректной работы псевдо-элемента */
+    z-index: 1;
   }
 
-  /* Псевдо-элемент для фиолетового фильтра */
   .quiz-button::before {
     content: '';
     position: absolute;
@@ -162,23 +156,21 @@ const secondaryLinks = [
     left: 0;
     width: 100%;
     height: 100%;
-    /* Темно-фиолетовый с прозрачностью для затемнения */
     background-color: rgba(46, 9, 78, 0.75);
-    opacity: 0; /* Изначально фильтр прозрачный */
-    transition: opacity 0.5s ease; /* Плавный переход */
-    backdrop-filter: blur(3px); /* Размытие фона под фильтром */
-    z-index: -1; /* Размещаем под текстом, но над фоновой картинкой */
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    backdrop-filter: blur(3px);
+    z-index: -1;
   }
 
   .quiz-button:hover {
     transform: translateY(-3px);
     box-shadow: 0 0 30px rgba(160, 32, 240, 0.8), 0 0 50px rgba(160, 32, 240, 0.6);
     border-color: var(--accent-gold);
-    color: #fff; /* Убедимся, что текст всегда белый */
+    color: #fff;
   }
 
   .quiz-button:hover::before {
-    opacity: 1; /* При наведении делаем фильтр полностью видимым */
+    opacity: 1;
   }
-
 </style>

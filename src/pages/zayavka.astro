@@ -1,0 +1,355 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Получение пользователя из Clerk (SSR)
+let userFullName = '';
+let isUserLoggedIn = false;
+
+if (Astro.locals?.auth) {
+  const auth = Astro.locals.auth();
+  if (auth?.userId && Astro.locals?.currentUser) {
+    const user = await Astro.locals.currentUser();
+    userFullName = user?.username || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || '';
+    isUserLoggedIn = true;
+  }
+}
+
+const contestInfo = {
+  title: 'Литературный Конкурс МоррисГрада: «Тени и Шестерни»',
+  description: 'Прием авторских рассказов в сеттинге темного городского фэнтези. Ограничений по стилю нет, главное — передать атмосферу и сохранить уникальный сюжет.'
+};
+---
+
+<Layout title="Подача заявки | Моррис Град">
+  <main class="container form-page">
+    <header class="contest-header">
+      <span class="badge">Прием заявок открыт</span>
+      <h1>{contestInfo.title}</h1>
+      <p class="description">{contestInfo.description}</p>
+      <div class="shimmer-line"></div>
+    </header>
+
+    <form id="zayavka-form" class="contest-form" novalidate>
+      <div class="field-group">
+        <label for="author-input">Автор (Псевдоним)</label>
+        <input
+          type="text"
+          id="author-input"
+          name="author"
+          value={userFullName}
+          readonly={isUserLoggedIn}
+          class={isUserLoggedIn ? 'locked' : ''}
+          placeholder="Ваше имя или никнейм"
+          required
+        />
+        {isUserLoggedIn && <small class="hint">🔒 Имя привязано к вашему профилю Clerk</small>}
+      </div>
+
+      <div class="field-group">
+        <label for="name-input">Название рассказа</label>
+        <input
+          type="text"
+          id="name-input"
+          name="name"
+          placeholder="Введите название произведения"
+          maxlength="150"
+          required
+        />
+      </div>
+
+      <div class="field-group">
+        <label for="text-input">Текст рассказа</label>
+        <textarea
+          id="text-input"
+          name="text"
+          rows="14"
+          placeholder="Вставьте или напишите ваш рассказ здесь..."
+          required
+        ></textarea>
+        <div class="char-count"><span id="counter">0</span> знаков</div>
+      </div>
+
+      <button type="submit" id="submit-btn" class="submit-button">
+        <span class="btn-text">Отправить заявку</span>
+        <span class="btn-loader" style="display: none;">Отправка...</span>
+      </button>
+    </form>
+
+    <!-- Всплывающее модальное окно -->
+    <dialog id="status-modal" class="modal">
+      <div class="modal-box">
+        <h3 id="modal-title">Статус</h3>
+        <p id="modal-message"></p>
+        <div class="modal-actions">
+          <button type="button" id="modal-close-btn" class="modal-btn">Понятно</button>
+        </div>
+      </div>
+    </dialog>
+  </main>
+</Layout>
+
+<script>
+  const form = document.getElementById('zayavka-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const btnText = submitBtn.querySelector('.btn-text') as HTMLElement;
+  const btnLoader = submitBtn.querySelector('.btn-loader') as HTMLElement;
+  const textArea = document.getElementById('text-input') as HTMLTextAreaElement;
+  const counter = document.getElementById('counter') as HTMLElement;
+
+  const modal = document.getElementById('status-modal') as HTMLDialogElement;
+  const modalTitle = document.getElementById('modal-title') as HTMLElement;
+  const modalMessage = document.getElementById('modal-message') as HTMLElement;
+  const modalCloseBtn = document.getElementById('modal-close-btn') as HTMLButtonElement;
+
+  let isSuccessState = false;
+
+  // Счетчик символов
+  textArea?.addEventListener('input', () => {
+    counter.textContent = String(textArea.value.length);
+  });
+
+  function showModal(title: string, message: string, isSuccess = false) {
+    isSuccessState = isSuccess;
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    modalTitle.style.color = isSuccess ? '#4ade80' : '#f87171';
+    modal.showModal();
+  }
+
+  modalCloseBtn?.addEventListener('click', () => {
+    modal.close();
+    if (isSuccessState) {
+      window.location.href = '/rasskazy'; // Переход к списку работ после успеха
+    }
+  });
+
+  // Локальный фильтр плохих слов для быстрой обратной связи
+  const PROFANITY_PATTERN = /(?:ху[йиеяю]|пизд|бля[дт]|еба[тьнл]|ёб|муда[кч]|говн|дроч)/i;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const author = (formData.get('author') as string)?.trim();
+    const name = (formData.get('name') as string)?.trim();
+    const text = (formData.get('text') as string)?.trim();
+
+    // Клиентские проверки без сброса полей
+    if (!author || !name || !text) {
+      showModal('Ошибка заполнения', 'Все поля должны быть заполнены перед отправкой.');
+      return;
+    }
+
+    if (text.length < 100) {
+      showModal('Текст слишком короткий', 'Минимальный объем рассказа для заявки — 100 символов.');
+      return;
+    }
+
+    if (PROFANITY_PATTERN.test(name) || PROFANITY_PATTERN.test(text) || PROFANITY_PATTERN.test(author)) {
+      showModal('Недопустимый контент', 'Обнаружена ненормативная лексика. Пожалуйста, отредактируйте текст перед отправкой.');
+      return;
+    }
+
+    // Состояние загрузки
+    submitBtn.disabled = true;
+    btnText.style.display = 'none';
+    btnLoader.style.display = 'inline';
+
+    try {
+      const response = await fetch('/api/konkurs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author, name, text })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        showModal('Ошибка отправки', result.error || 'Произошла ошибка при сохранении заявки.');
+      } else {
+        showModal(
+          'Заявка принята!',
+          'Ваша работа успешно сохранена и отправлена в список работ конкурса.',
+          true
+        );
+      }
+    } catch (err) {
+      showModal('Сетевой сбой', 'Не удалось связаться с сервером. Ваши данные сохранены в форме, попробуйте отправить снова.');
+    } finally {
+      submitBtn.disabled = false;
+      btnText.style.display = 'inline';
+      btnLoader.style.display = 'none';
+    }
+  });
+</script>
+
+<style>
+  .form-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  .contest-header {
+    margin-bottom: 2.5rem;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(220, 38, 38, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(220, 38, 38, 0.4);
+    border-radius: 9999px;
+    margin-bottom: 0.75rem;
+  }
+
+  .description {
+    color: #a1a1aa;
+    line-height: 1.6;
+    margin: 0.75rem 0 1.5rem;
+  }
+
+  .contest-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #e4e4e7;
+  }
+
+  input, textarea {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    color: #fafafa;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+  }
+
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+  }
+
+  input.locked {
+    background: #141416;
+    color: #71717a;
+    border-color: #27272a;
+    cursor: not-allowed;
+  }
+
+  textarea {
+    resize: vertical;
+    line-height: 1.6;
+  }
+
+  .hint {
+    color: #71717a;
+    font-size: 0.8rem;
+  }
+
+  .char-count {
+    font-size: 0.8rem;
+    color: #71717a;
+    text-align: right;
+  }
+
+  .submit-button {
+    margin-top: 1rem;
+    padding: 1rem 1.5rem;
+    background: #dc2626;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .submit-button:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+
+  .submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Modal Dialog */
+  .modal {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    background: transparent;
+    max-width: 440px;
+    width: 90%;
+  }
+
+  .modal::backdrop {
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-box {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    padding: 1.75rem;
+    color: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .modal-box h3 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .modal-box p {
+    margin: 0;
+    color: #a1a1aa;
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+
+  .modal-btn {
+    padding: 0.5rem 1.25rem;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    color: #ffffff;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+
+  .modal-btn:hover {
+    background: #3f3f46;
+  }
+</style>
