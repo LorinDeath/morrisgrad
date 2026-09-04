@@ -13,16 +13,20 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let isKicked = false;
   let kickReason = '';
 
+  // Состояние встроенного чата
+  let isTyping = false;
+  let chatText = '';
+
   const player = {
     x: WORLD_SIZE / 2,
     y: WORLD_SIZE / 2,
     width: 16,
     height: 16,
-    stats: { moveSpeed: 175 }
+    stats: { moveSpeed: 175 },
+    bubble: { text: '', expireAt: 0 }
   };
 
   let myNetworkId = null;
-  // Хранилище: ключ — нижний регистр ника (чтобы дубли физически не могли существовать)
   const otherPlayers = new Map();
 
   const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
@@ -53,18 +57,25 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         myNetworkId = data.myId;
       }
 
-      // --- СТРОГАЯ ФИЛЬТРАЦИЯ ПО НИКУ ---
+      // Приём реплик над головой
+      if (data.type === 'chat_bubble') {
+        const targetNick = (data.username || '').trim().toLowerCase();
+        const myNick = (username || '').trim().toLowerCase();
+
+        if (targetNick === myNick) {
+          player.bubble = { text: data.text, expireAt: Date.now() + 5000 };
+        } else if (otherPlayers.has(targetNick)) {
+          otherPlayers.get(targetNick).bubble = { text: data.text, expireAt: Date.now() + 5000 };
+        }
+      }
+
       if (data.type === 'players_state') {
         const activeNicks = new Set();
         const myNameLower = (username || '').trim().toLowerCase();
 
         data.players.forEach((p) => {
           const pNameLower = (p.username || '').trim().toLowerCase();
-
-          // Игнорируем себя: по сетевому ID или по совпадению ника
-          if (p.id === myNetworkId || pNameLower === myNameLower) {
-            return;
-          }
+          if (p.id === myNetworkId || pNameLower === myNameLower) return;
 
           activeNicks.add(pNameLower);
 
@@ -74,7 +85,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
             cur.targetY = p.y;
             cur.username = p.username;
           } else {
-            // Новый уникальный игрок
             otherPlayers.set(pNameLower, {
               x: p.x,
               y: p.y,
@@ -82,16 +92,14 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
               targetY: p.y,
               username: p.username || 'Странник',
               width: 16,
-              height: 16
+              height: 16,
+              bubble: { text: '', expireAt: 0 }
             });
           }
         });
 
-        // Удаляем игроков, которых больше нет в рассылке сервера
         for (const nick of otherPlayers.keys()) {
-          if (!activeNicks.has(nick)) {
-            otherPlayers.delete(nick);
-          }
+          if (!activeNicks.has(nick)) otherPlayers.delete(nick);
         }
       }
     } catch (e) {}
@@ -125,8 +133,53 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const keys = { w: false, a: false, s: false, d: false };
 
+  // Обработка клавиатуры: ходьба + встроенный ввод
   window.addEventListener('keydown', (e) => {
     if (isKicked) return;
+
+    // Переключение режима чата по нажатию Enter
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      if (!isTyping) {
+        isTyping = true;
+        chatText = '';
+        keys.w = keys.a = keys.s = keys.d = false; // Глушим ходьбу при открытии
+      } else {
+        const msg = chatText.trim();
+        if (msg.length > 0 && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'chat', text: msg }));
+        }
+        isTyping = false;
+        chatText = '';
+      }
+      return;
+    }
+
+    // Если чат открыт — перехватываем все клавиши в строку текста
+    if (isTyping) {
+      if (e.key === 'Escape') {
+        isTyping = false;
+        chatText = '';
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'Backspace') {
+        chatText = chatText.slice(0, -1);
+        e.preventDefault();
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (chatText.length < 35) {
+          chatText += e.key;
+        }
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
+
+    // Управление ходьбой
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'ц') keys.w = true;
     if (k === 'a' || k === 'ф') keys.a = true;
@@ -142,6 +195,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   });
 
   window.addEventListener('keyup', (e) => {
+    if (isTyping) return;
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'ц') keys.w = false;
     if (k === 'a' || k === 'ф') keys.a = false;
@@ -155,13 +209,43 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
   }, { passive: false });
 
+  // Функция отрисовки облачка над головой
+  function drawBubble(text, x, y, isSelf) {
+    ctx.font = 'bold 12px monospace';
+    const textWidth = ctx.measureText(text).width;
+    const boxW = textWidth + 16;
+    const boxH = 22;
+    const boxX = Math.round(x - boxW / 2);
+    const boxY = Math.round(y - boxH);
+
+    ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
+    ctx.strokeStyle = isSelf ? '#ffd700' : '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    // Стрелочка
+    ctx.beginPath();
+    ctx.moveTo(x - 3, boxY + boxH);
+    ctx.lineTo(x, boxY + boxH + 4);
+    ctx.lineTo(x + 3, boxY + boxH);
+    ctx.fillStyle = isSelf ? '#ffd700' : '#38bdf8';
+    ctx.fill();
+
+    // Текст реплики
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, Math.round(x), boxY + 15);
+  }
+
   let lastTime = performance.now();
 
   function loop(currentTime) {
     const dt = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
+    const now = Date.now();
 
-    if (!isKicked) {
+    if (!isKicked && !isTyping) {
       let dx = 0;
       let dy = 0;
       if (keys.w) dy -= 1;
@@ -193,7 +277,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.x = Math.max(halfViewW, Math.min(WORLD_SIZE - halfViewW, camera.x));
     camera.y = Math.max(halfViewH, Math.min(WORLD_SIZE - halfViewH, camera.y));
 
-    // Отрисовка мира
+    // Мир
     ctx.fillStyle = '#050408';
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
@@ -218,7 +302,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const halfW = player.width / 2;
     const halfH = player.height / 2;
 
-    // Отрисовка других игроков (гарантированно без дублей)
+    // Другие игроки
     otherPlayers.forEach((p) => {
       p.x += (p.targetX - p.x) * Math.min(1, 15 * dt);
       p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
@@ -233,9 +317,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
       ctx.fillStyle = '#38bdf8';
       ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
+
+      if (p.bubble && p.bubble.expireAt > now) {
+        drawBubble(p.bubble.text, p.x, p.y - halfH - 34, false);
+      }
     });
 
-    // Отрисовка своего персонажа
+    // Свой персонаж
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
 
@@ -247,9 +335,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#ffd700';
     ctx.fillText(username, Math.round(player.x), Math.round(player.y - halfH - 8));
 
+    if (player.bubble && player.bubble.expireAt > now) {
+      drawBubble(player.bubble.text, player.x, player.y - halfH - 34, true);
+    }
+
     ctx.restore();
 
-    // UI плашка
+    // Верхний UI
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
     ctx.fillRect(8, 8, 140, 62);
     ctx.strokeStyle = '#332742';
@@ -263,7 +355,31 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
 
-    // Оверлей отключения
+    // Встроенная строка ввода при активном чате
+    if (isTyping) {
+      const isCursorVisible = Math.floor(now / 500) % 2 === 0;
+
+      ctx.fillStyle = 'rgba(10, 8, 18, 0.9)';
+      ctx.fillRect(8, VIEW_HEIGHT - 34, VIEW_WIDTH - 16, 26);
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(8, VIEW_HEIGHT - 34, VIEW_WIDTH - 16, 26);
+
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('>', 14, VIEW_HEIGHT - 17);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(chatText + (isCursorVisible ? '_' : ''), 28, VIEW_HEIGHT - 17);
+    } else {
+      // Аккуратная подсказка в углу
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.fillText('[Enter] Сказать', VIEW_WIDTH - 10, VIEW_HEIGHT - 10);
+    }
+
     if (isKicked) {
       ctx.fillStyle = 'rgba(5, 4, 8, 0.85)';
       ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
