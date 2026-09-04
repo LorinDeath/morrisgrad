@@ -1,12 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
 
 export class GameRoom extends DurableObject {
-  constructor(ctx, env) {
+  sessions: Map<WebSocket, any>;
+
+  constructor(ctx: any, env: any) {
     super(ctx, env);
     this.sessions = new Map(); // ws -> { id, username, x, y }
   }
 
-  async fetch(request) {
+  async fetch(request: Request) {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Ожидался WebSocket", { status: 426 });
     }
@@ -18,7 +20,7 @@ export class GameRoom extends DurableObject {
 
     server.addEventListener("message", (event) => {
       try {
-        const msg = JSON.parse(event.data);
+        const msg = JSON.parse(event.data as string);
 
         if (msg.type === "join") {
           const cleanName = (msg.username || "Странник").trim();
@@ -54,23 +56,24 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
-        // Пересылка реплики всем подключенным игрокам
+        // Рассылка реплики всем подключенным игрокам
         if (msg.type === "chat") {
           const session = this.sessions.get(server);
           if (session && msg.text) {
-            const cleanText = String(msg.text).trim().slice(0, 35);
+            const cleanText = String(msg.text).trim().slice(0, 45);
             if (cleanText.length > 0) {
               const chatPayload = JSON.stringify({
                 type: "chat_bubble",
+                playerId: session.id,
                 username: session.username,
                 text: cleanText,
               });
 
               for (const ws of this.sessions.keys()) {
-                if (ws.readyState === WebSocket.OPEN) {
-                  try {
-                    ws.send(chatPayload);
-                  } catch (_) {}
+                try {
+                  ws.send(chatPayload);
+                } catch (_) {
+                  this.sessions.delete(ws);
                 }
               }
             }
@@ -96,15 +99,13 @@ export class GameRoom extends DurableObject {
     const uniquePlayers = new Map();
 
     for (const [ws, session] of this.sessions.entries()) {
-      if (ws.readyState === WebSocket.OPEN && session.username) {
+      if (session.username) {
         uniquePlayers.set(session.username.toLowerCase(), {
           id: session.id,
           username: session.username,
           x: session.x,
           y: session.y,
         });
-      } else {
-        this.sessions.delete(ws);
       }
     }
 
@@ -114,19 +115,17 @@ export class GameRoom extends DurableObject {
     });
 
     for (const ws of this.sessions.keys()) {
-      if (ws.readyState === WebSocket.OPEN) {
-        try {
-          ws.send(payload);
-        } catch (_) {
-          this.sessions.delete(ws);
-        }
+      try {
+        ws.send(payload);
+      } catch (_) {
+        this.sessions.delete(ws);
       }
     }
   }
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: any) {
     const roomId = env.GAME_ROOM.idFromName("alkazak_v2");
     const room = env.GAME_ROOM.get(roomId);
     return room.fetch(request);
