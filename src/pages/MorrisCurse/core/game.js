@@ -56,15 +56,29 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         myNetworkId = data.myId;
       }
 
-      // Приём сообщения от любого игрока
+      // Приём реплики: гарантированный поиск адресата
       if (data.type === 'chat_bubble') {
         const targetNick = (data.username || '').trim().toLowerCase();
         const myNick = (username || '').trim().toLowerCase();
 
-        if (targetNick === myNick) {
+        if (targetNick === myNick || (data.playerId && data.playerId === myNetworkId)) {
           player.bubble = { text: data.text, expireAt: Date.now() + 5000 };
-        } else if (otherPlayers.has(targetNick)) {
+          return;
+        }
+
+        let assigned = false;
+        if (otherPlayers.has(targetNick)) {
           otherPlayers.get(targetNick).bubble = { text: data.text, expireAt: Date.now() + 5000 };
+          assigned = true;
+        }
+
+        if (!assigned) {
+          for (const other of otherPlayers.values()) {
+            if (other.username && other.username.trim().toLowerCase() === targetNick) {
+              other.bubble = { text: data.text, expireAt: Date.now() + 5000 };
+              break;
+            }
+          }
         }
       }
 
@@ -85,6 +99,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
             cur.username = p.username;
           } else {
             otherPlayers.set(pNameLower, {
+              id: p.id,
               x: p.x,
               y: p.y,
               targetX: p.x,
@@ -145,13 +160,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       } else {
         const msg = chatText.trim();
         if (msg.length > 0) {
-          // 1. Показываем над своей головой немедленно
           player.bubble = { text: msg, expireAt: Date.now() + 5000 };
-
-          // 2. Отправляем в сокет остальным
-          if (socket.readyState === WebSocket.OPEN) {
+          try {
             socket.send(JSON.stringify({ type: 'chat', text: msg }));
-          }
+          } catch (_) {}
         }
         isTyping = false;
         chatText = '';
@@ -210,30 +222,43 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
   }, { passive: false });
 
+  // Масштабируемое и контрастное облачко
   function drawBubble(text, x, y, isSelf) {
-    ctx.font = 'bold 12px monospace';
-    const textWidth = ctx.measureText(text).width;
-    const boxW = textWidth + 16;
-    const boxH = 22;
+    ctx.save();
+    ctx.font = 'bold 18px monospace';
+    const textMetrics = ctx.measureText(text);
+    const textWidth = textMetrics.width;
+    const padX = 12;
+    const boxW = Math.round(textWidth + padX * 2);
+    const boxH = 28;
     const boxX = Math.round(x - boxW / 2);
     const boxY = Math.round(y - boxH);
 
+    // Подложка и рамка
     ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
     ctx.strokeStyle = isSelf ? '#ffd700' : '#38bdf8';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.fillRect(boxX, boxY, boxW, boxH);
     ctx.strokeRect(boxX, boxY, boxW, boxH);
 
+    // Хвостик
     ctx.beginPath();
-    ctx.moveTo(x - 3, boxY + boxH);
-    ctx.lineTo(x, boxY + boxH + 4);
-    ctx.lineTo(x + 3, boxY + boxH);
+    ctx.moveTo(x - 5, boxY + boxH);
+    ctx.lineTo(x, boxY + boxH + 6);
+    ctx.lineTo(x + 5, boxY + boxH);
     ctx.fillStyle = isSelf ? '#ffd700' : '#38bdf8';
     ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
+    // Текст с обводкой против размытия
     ctx.textAlign = 'center';
-    ctx.fillText(text, Math.round(x), boxY + 15);
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#050408';
+    ctx.lineWidth = 3;
+    ctx.strokeText(text, Math.round(x), boxY + boxH / 2);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, Math.round(x), boxY + boxH / 2);
+    ctx.restore();
   }
 
   let lastTime = performance.now();
@@ -275,7 +300,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.x = Math.max(halfViewW, Math.min(WORLD_SIZE - halfViewW, camera.x));
     camera.y = Math.max(halfViewH, Math.min(WORLD_SIZE - halfViewH, camera.y));
 
-    // Фон
+    // Фон мира
     ctx.fillStyle = '#050408';
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
@@ -300,7 +325,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const halfW = player.width / 2;
     const halfH = player.height / 2;
 
-    // Чужие персонажи
+    // Отрисовка других игроков
     otherPlayers.forEach((p) => {
       p.x += (p.targetX - p.x) * Math.min(1, 15 * dt);
       p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
@@ -308,25 +333,29 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
 
+      // Никнейм
       ctx.font = 'bold 20px monospace';
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
       ctx.strokeStyle = '#050408';
       ctx.lineWidth = 3;
       ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
       ctx.fillStyle = '#38bdf8';
       ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
 
+      // Облачко сообщения
       if (p.bubble && p.bubble.expireAt > now) {
         drawBubble(p.bubble.text, p.x, p.y - halfH - 34, false);
       }
     });
 
-    // Свой персонаж
+    // Отрисовка своего персонажа
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
 
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
     ctx.strokeStyle = '#050408';
     ctx.lineWidth = 3;
     ctx.strokeText(username, Math.round(player.x), Math.round(player.y - halfH - 8));
@@ -339,13 +368,14 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     ctx.restore();
 
-    // UI
+    // Статичный UI поверх мира
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
     ctx.fillRect(8, 8, 140, 62);
     ctx.strokeStyle = '#332742';
     ctx.strokeRect(8, 8, 140, 62);
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#a855f7';
     ctx.fillText(`Онлайн: ${otherPlayers.size + 1}`, 14, 24);
     ctx.fillStyle = '#ffd700';
@@ -353,27 +383,29 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
 
-    // Встроенная строка ввода
+    // Поле ввода при нажатии Enter
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 
-      ctx.fillStyle = 'rgba(10, 8, 18, 0.9)';
-      ctx.fillRect(8, VIEW_HEIGHT - 34, VIEW_WIDTH - 16, 26);
+      ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
+      ctx.fillRect(8, VIEW_HEIGHT - 36, VIEW_WIDTH - 16, 28);
       ctx.strokeStyle = '#ffd700';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(8, VIEW_HEIGHT - 34, VIEW_WIDTH - 16, 26);
+      ctx.strokeRect(8, VIEW_HEIGHT - 36, VIEW_WIDTH - 16, 28);
 
-      ctx.font = '12px monospace';
+      ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffd700';
-      ctx.fillText('>', 14, VIEW_HEIGHT - 17);
+      ctx.fillText('>', 14, VIEW_HEIGHT - 22);
 
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(chatText + (isCursorVisible ? '_' : ''), 28, VIEW_HEIGHT - 17);
+      ctx.fillText(chatText + (isCursorVisible ? '_' : ''), 30, VIEW_HEIGHT - 22);
     } else {
       ctx.font = '10px monospace';
       ctx.textAlign = 'right';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.fillText('[Enter] Сказать', VIEW_WIDTH - 10, VIEW_HEIGHT - 10);
     }
 
@@ -383,6 +415,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.font = 'bold 13px monospace';
       ctx.fillStyle = '#ef4444';
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.fillText('СВЯЗЬ РАЗОРВАНА', VIEW_WIDTH / 2, VIEW_HEIGHT / 2 - 10);
       ctx.font = '11px monospace';
       ctx.fillStyle = '#94a3b8';
