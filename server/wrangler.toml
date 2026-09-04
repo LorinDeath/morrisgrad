@@ -1,12 +1,20 @@
-name = "morris-multiplayer"
-main = "src/index.ts"
-compatibility_date = "2024-04-05"
-
-[durable_objects]
-bindings = [
-  { name = "GAME_ROOM", class_name = "GameRoom" }
-]
-
-[[migrations]]
-tag = "v1"
-new_classes = ["GameRoom"]
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "morris-multiplayer",
+  "main": "index.js",
+  "compatibility_date": "2024-04-05",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MY_DURABLE_OBJECT",
+        "class_name": "MyDurableObject"
+      }
+    ]
+  },
+  "exports": {
+    "MyDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
+}

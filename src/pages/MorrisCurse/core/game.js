@@ -10,17 +10,95 @@ export function initGame(canvasId, username = 'Игрок') {
   canvas.width = VIEW_WIDTH;
   canvas.height = VIEW_HEIGHT;
 
-  // Игрок со строгим размером 16x16 и отдельными характеристиками
+  // Игрок
   const player = {
     x: WORLD_SIZE / 2,
     y: WORLD_SIZE / 2,
     width: 16,
     height: 16,
     stats: {
-      moveSpeed: 175 // Скорость как отдельный параметр
+      moveSpeed: 175
     }
   };
 
+  // --- СЕТЕВОЙ МОДУЛЬ ---
+  let myNetworkId = null;
+  const otherPlayers = new Map(); // id -> { x, y, targetX, targetY, username }
+
+  const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
+  const socket = new WebSocket(WS_URL);
+
+  socket.onopen = () => {
+    // 1. Отправляем серверу своё имя при входе
+    socket.send(JSON.stringify({
+      type: 'join',
+      username: username,
+      x: Math.round(player.x),
+      y: Math.round(player.y)
+    }));
+  };
+
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'welcome') {
+        myNetworkId = data.myId;
+      }
+
+      // 2. Получаем актуальный список всех игроков с их никами
+      if (data.type === 'players_state') {
+        const activeIds = new Set();
+
+        data.players.forEach((p) => {
+          if (p.id === myNetworkId) return; // Себя игнорируем
+          activeIds.add(p.id);
+
+          if (otherPlayers.has(p.id)) {
+            const current = otherPlayers.get(p.id);
+            current.targetX = p.x;
+            current.targetY = p.y;
+            current.username = p.username;
+          } else {
+            // Новый игрок на карте
+            otherPlayers.set(p.id, {
+              x: p.x,
+              y: p.y,
+              targetX: p.x,
+              targetY: p.y,
+              username: p.username || 'Странник',
+              width: 16,
+              height: 16
+            });
+          }
+        });
+
+        // Удаляем отключившихся
+        for (const id of otherPlayers.keys()) {
+          if (!activeIds.has(id)) otherPlayers.delete(id);
+        }
+      }
+    } catch (e) {}
+  };
+
+  // Отправка своих координат 15 раз в секунду
+  let lastSentX = player.x;
+  let lastSentY = player.y;
+
+  setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN) {
+      const curX = Math.round(player.x);
+      const curY = Math.round(player.y);
+
+      if (curX !== lastSentX || curY !== lastSentY) {
+        lastSentX = curX;
+        lastSentY = curY;
+        socket.send(JSON.stringify({ type: 'move', x: curX, y: curY }));
+      }
+    }
+  }, 66);
+
+  // --- КАМЕРА И УПРАВЛЕНИЕ ---
   const camera = {
     x: player.x,
     y: player.y,
@@ -68,7 +146,6 @@ export function initGame(canvasId, username = 'Игрок') {
     const dt = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
 
-    // Расчет вектора движения через характеристику скорости
     let dx = 0;
     let dy = 0;
     if (keys.w) dy -= 1;
@@ -84,7 +161,7 @@ export function initGame(canvasId, username = 'Игрок') {
     player.x += dx * player.stats.moveSpeed * dt;
     player.y += dy * player.stats.moveSpeed * dt;
 
-    // Границы мира под персонажа 16x16
+    // Границы мира
     const halfW = player.width / 2;
     const halfH = player.height / 2;
     player.x = Math.max(halfW + 4, Math.min(WORLD_SIZE - halfW - 4, player.x));
@@ -136,7 +213,31 @@ export function initGame(canvasId, username = 'Игрок') {
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
 
-    // Персонаж ровно 16x16
+    // 3. Отрисовка чужих игроков (Бирюзовые с их никами)
+    otherPlayers.forEach((p) => {
+      // Плавная интерполяция чужого движения
+      p.x += (p.targetX - p.x) * Math.min(1, 15 * dt);
+      p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(
+        Math.round(p.x - halfW),
+        Math.round(p.y - halfH),
+        p.width,
+        p.height
+      );
+
+      // Ник чужого игрока
+      ctx.font = 'bold 20px monospace';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#050408';
+      ctx.lineWidth = 3;
+      ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
+    });
+
+    // 4. Отрисовка своего персонажа (Белый с золотым ником)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(
       Math.round(player.x - halfW),
@@ -145,32 +246,30 @@ export function initGame(canvasId, username = 'Игрок') {
       player.height
     );
 
-    // Никнейм над головой: крупный шрифт с обводкой
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
-    
-    // Тёмная обводка ника для контраста
     ctx.strokeStyle = '#050408';
     ctx.lineWidth = 3;
     ctx.strokeText(username, Math.round(player.x), Math.round(player.y - halfH - 8));
-    
     ctx.fillStyle = '#ffd700';
     ctx.fillText(username, Math.round(player.x), Math.round(player.y - halfH - 8));
 
     ctx.restore();
 
-    // --- UI ЭКРАНА (статичный, не зависит от зума) ---
+    // --- UI ЭКРАНА ---
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
-    ctx.fillRect(8, 8, 140, 48);
+    ctx.fillRect(8, 8, 140, 62);
     ctx.strokeStyle = '#332742';
-    ctx.strokeRect(8, 8, 140, 48);
+    ctx.strokeRect(8, 8, 140, 62);
 
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
+    ctx.fillStyle = '#a855f7';
+    ctx.fillText(`Онлайн: ${otherPlayers.size + 1}`, 14, 24);
     ctx.fillStyle = '#ffd700';
-    ctx.fillText(`Зум: x${camera.zoom.toFixed(1)} [+/-]`, 14, 26);
+    ctx.fillText(`Зум: x${camera.zoom.toFixed(1)} [+/-]`, 14, 40);
     ctx.fillStyle = '#cbd5e1';
-    ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 44);
+    ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
 
     requestAnimationFrame(loop);
   }

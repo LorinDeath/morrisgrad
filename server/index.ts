@@ -1,26 +1,13 @@
-export interface Env {
-  GAME_ROOM: DurableObjectNamespace;
-}
+import { DurableObject } from "cloudflare:workers";
 
-interface PlayerSession {
-  id: string;
-  username: string;
-  x: number;
-  y: number;
-}
-
-export class GameRoom {
-  state: DurableObjectState;
-  sessions: Map<WebSocket, PlayerSession>;
-
-  constructor(state: DurableObjectState) {
-    this.state = state;
+export class MyDurableObject extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
     this.sessions = new Map();
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const upgradeHeader = request.headers.get("Upgrade");
-    if (!upgradeHeader || upgradeHeader !== "websocket") {
+  async fetch(request) {
+    if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Ожидался WebSocket", { status: 426 });
     }
 
@@ -28,12 +15,11 @@ export class GameRoom {
     const [client, server] = Object.values(pair);
 
     server.accept();
-
     const playerId = crypto.randomUUID();
 
     server.addEventListener("message", (event) => {
       try {
-        const msg = JSON.parse(event.data as string);
+        const msg = JSON.parse(event.data);
 
         if (msg.type === "join") {
           this.sessions.set(server, {
@@ -43,7 +29,6 @@ export class GameRoom {
             y: msg.y || 600,
           });
 
-          // Отправляем игроку его сетевой ID
           server.send(JSON.stringify({ type: "welcome", myId: playerId }));
           this.broadcast();
         }
@@ -82,12 +67,9 @@ export class GameRoom {
   }
 }
 
-// Главный входной эндпоинт воркера
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    // Подключаемся к глобальной комнате 'alkazak_hub'
-    const roomId = env.GAME_ROOM.idFromName("alkazak_hub");
-    const room = env.GAME_ROOM.get(roomId);
-    return room.fetch(request);
+  async fetch(request, env, ctx) {
+    const stub = env.MY_DURABLE_OBJECT.getByName("alkazak_hub");
+    return stub.fetch(request);
   },
 };
