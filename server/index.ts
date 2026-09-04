@@ -54,7 +54,7 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
-        // Пересылка реплики всем игрокам
+        // Пересылка реплики всем подключенным игрокам
         if (msg.type === "chat") {
           const session = this.sessions.get(server);
           if (session && msg.text) {
@@ -66,15 +66,19 @@ export class GameRoom extends DurableObject {
                 text: cleanText,
               });
 
-              for (const [ws] of this.sessions.keys()) {
+              for (const ws of this.sessions.keys()) {
                 if (ws.readyState === WebSocket.OPEN) {
-                  ws.send(chatPayload);
+                  try {
+                    ws.send(chatPayload);
+                  } catch (_) {}
                 }
               }
             }
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Ошибка обработки сокета:", e);
+      }
     });
 
     const closeHandler = () => {
@@ -109,7 +113,7 @@ export class GameRoom extends DurableObject {
       players: Array.from(uniquePlayers.values()),
     });
 
-    for (const [ws] of this.sessions.keys()) {
+    for (const ws of this.sessions.keys()) {
       if (ws.readyState === WebSocket.OPEN) {
         try {
           ws.send(payload);
