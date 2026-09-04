@@ -1,45 +1,62 @@
 import type { APIRoute } from 'astro';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    // Получаем текущего авторизованного пользователя Clerk
-    const auth = (locals as any).auth?.();
-    const userId = auth?.userId;
+    const url = new URL(request.url);
+    
+    // 1. Берем ID: сначала из параметра запроса, если пусто — из серверного auth()
+    let userId = url.searchParams.get('userId');
 
     if (!userId) {
-      return new Response(JSON.stringify({ username: 'Гость' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      try {
+        const auth = (locals as any).auth?.();
+        userId = auth?.userId || null;
+      } catch (e) {}
     }
 
-    // Подключение к D1 (binding morrisgrad_db или DB)
-    const env = (locals as any).runtime?.env;
-    const db = env?.morrisgrad_db || env?.DB;
+    if (!userId) {
+      return new Response(JSON.stringify({ 
+        username: 'Странник', 
+        error: 'ID пользователя не передан' 
+      }), { status: 200 });
+    }
+
+    // 2. Ищем базу Cloudflare D1 в окружении
+    const runtime = (locals as any).runtime;
+    const env = runtime?.env || {};
+    const db = env.morrisgrad_db || env.DB || Object.values(env).find((val: any) => typeof val?.prepare === 'function');
 
     if (!db) {
-      return new Response(JSON.stringify({ username: 'Странник' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new Response(JSON.stringify({ 
+        username: 'Странник (Без DB)', 
+        error: 'D1 binding не найден в Cloudflare Pages' 
+      }), { status: 200 });
     }
 
-    // Запрос в таблицу users
-    const record = await db
-      .prepare('SELECT username FROM users WHERE id = ?')
+    // 3. Достаем ник из таблицы users
+    const user = await db
+      .prepare('SELECT username FROM users WHERE id = ? LIMIT 1')
       .bind(userId)
       .first();
 
-    const username = record?.username || 'Безымянный';
+    if (!user || !user.username) {
+      return new Response(JSON.stringify({ 
+        username: 'Безымянный', 
+        error: 'Пользователь не найден в таблице users' 
+      }), { status: 200 });
+    }
 
-    return new Response(JSON.stringify({ username }), {
+    return new Response(JSON.stringify({ 
+      username: user.username 
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ username: 'Странник' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+
+  } catch (err: any) {
+    return new Response(JSON.stringify({ 
+      username: 'Странник', 
+      error: err?.message 
+    }), { status: 500 });
   }
 };
