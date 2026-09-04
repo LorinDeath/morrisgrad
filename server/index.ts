@@ -3,7 +3,7 @@ import { DurableObject } from "cloudflare:workers";
 export class GameRoom extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.sessions = new Map(); // ws -> { id, userId, username, x, y }
+    this.sessions = new Map(); // ws -> { id, username, x, y }
   }
 
   async fetch(request) {
@@ -21,15 +21,17 @@ export class GameRoom extends DurableObject {
         const msg = JSON.parse(event.data);
 
         if (msg.type === "join") {
-          const effectiveUserId = msg.userId || msg.username || crypto.randomUUID();
+          const rawName = msg.username || "Странник";
+          const cleanName = rawName.trim();
+          const lowerName = cleanName.toLowerCase();
 
-          // Выбиваем старую вкладку этого же пользователя
+          // Выбиваем любую другую вкладку с таким же ником
           for (const [oldWs, session] of this.sessions.entries()) {
-            if (session.userId === effectiveUserId && oldWs !== server) {
+            if (oldWs !== server && session.username && session.username.toLowerCase() === lowerName) {
               try {
                 oldWs.send(JSON.stringify({ 
                   type: "kicked", 
-                  reason: "Сессия открыта в другой вкладке" 
+                  reason: "Вход с другой вкладки под этим ником" 
                 }));
                 oldWs.close();
               } catch (_) {}
@@ -39,8 +41,7 @@ export class GameRoom extends DurableObject {
 
           this.sessions.set(server, {
             id: crypto.randomUUID(),
-            userId: effectiveUserId,
-            username: msg.username || "Странник",
+            username: cleanName,
             x: msg.x || 600,
             y: msg.y || 600,
           });
@@ -75,18 +76,35 @@ export class GameRoom extends DurableObject {
   }
 
   broadcast() {
-    const players = Array.from(this.sessions.values()).map(p => ({
-      id: p.id,
-      username: p.username,
-      x: p.x,
-      y: p.y
-    }));
+    // 1. Убираем мертвые сокеты
+    // 2. Гарантируем уникальность ника через Map (дубли исключены математически)
+    const uniquePlayers = new Map();
 
-    const payload = JSON.stringify({ type: "players_state", players });
+    for (const [ws, session] of this.sessions.entries()) {
+      if (ws.readyState === WebSocket.OPEN && session.username) {
+        uniquePlayers.set(session.username.toLowerCase(), {
+          id: session.id,
+          username: session.username,
+          x: session.x,
+          y: session.y,
+        });
+      } else {
+        this.sessions.delete(ws);
+      }
+    }
+
+    const payload = JSON.stringify({ 
+      type: "players_state", 
+      players: Array.from(uniquePlayers.values()) 
+    });
 
     for (const [ws] of this.sessions.keys()) {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(payload);
+        try {
+          ws.send(payload);
+        } catch (_) {
+          this.sessions.delete(ws);
+        }
       }
     }
   }
@@ -94,7 +112,7 @@ export class GameRoom extends DurableObject {
 
 export default {
   async fetch(request, env) {
-    const roomId = env.GAME_ROOM.idFromName("alkazak_hub");
+    const roomId = env.GAME_ROOM.idFromName("alkazak_v2");
     const room = env.GAME_ROOM.get(roomId);
     return room.fetch(request);
   },

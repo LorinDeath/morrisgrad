@@ -1,4 +1,4 @@
-export function initGame(canvasId, username = 'Игрок', userId = null) {
+export function initGame(canvasId, username = 'Игрок', userId = '') {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -22,13 +22,13 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
   };
 
   let myNetworkId = null;
+  // Хранилище: ключ — нижний регистр ника (чтобы дубли физически не могли существовать)
   const otherPlayers = new Map();
 
   const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
   const socket = new WebSocket(WS_URL);
 
   socket.onopen = () => {
-    // Отправляем уникальный ID (или ник, если ID отсутствует)
     socket.send(JSON.stringify({
       type: 'join',
       userId: userId || username,
@@ -53,20 +53,29 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
         myNetworkId = data.myId;
       }
 
+      // --- СТРОГАЯ ФИЛЬТРАЦИЯ ПО НИКУ ---
       if (data.type === 'players_state') {
-        const activeIds = new Set();
+        const activeNicks = new Set();
+        const myNameLower = (username || '').trim().toLowerCase();
 
         data.players.forEach((p) => {
-          if (p.id === myNetworkId) return;
-          activeIds.add(p.id);
+          const pNameLower = (p.username || '').trim().toLowerCase();
 
-          if (otherPlayers.has(p.id)) {
-            const cur = otherPlayers.get(p.id);
+          // Игнорируем себя: по сетевому ID или по совпадению ника
+          if (p.id === myNetworkId || pNameLower === myNameLower) {
+            return;
+          }
+
+          activeNicks.add(pNameLower);
+
+          if (otherPlayers.has(pNameLower)) {
+            const cur = otherPlayers.get(pNameLower);
             cur.targetX = p.x;
             cur.targetY = p.y;
             cur.username = p.username;
           } else {
-            otherPlayers.set(p.id, {
+            // Новый уникальный игрок
+            otherPlayers.set(pNameLower, {
               x: p.x,
               y: p.y,
               targetX: p.x,
@@ -78,8 +87,11 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
           }
         });
 
-        for (const id of otherPlayers.keys()) {
-          if (!activeIds.has(id)) otherPlayers.delete(id);
+        // Удаляем игроков, которых больше нет в рассылке сервера
+        for (const nick of otherPlayers.keys()) {
+          if (!activeNicks.has(nick)) {
+            otherPlayers.delete(nick);
+          }
         }
       }
     } catch (e) {}
@@ -206,7 +218,7 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
     const halfW = player.width / 2;
     const halfH = player.height / 2;
 
-    // Другие игроки
+    // Отрисовка других игроков (гарантированно без дублей)
     otherPlayers.forEach((p) => {
       p.x += (p.targetX - p.x) * Math.min(1, 15 * dt);
       p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
@@ -223,7 +235,7 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
       ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
     });
 
-    // Свой персонаж
+    // Отрисовка своего персонажа
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
 
@@ -237,7 +249,7 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
 
     ctx.restore();
 
-    // Плашка UI
+    // UI плашка
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
     ctx.fillRect(8, 8, 140, 62);
     ctx.strokeStyle = '#332742';
@@ -251,7 +263,7 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
 
-    // Оверлей отключения, если игрока кикнуло
+    // Оверлей отключения
     if (isKicked) {
       ctx.fillStyle = 'rgba(5, 4, 8, 0.85)';
       ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
@@ -262,7 +274,7 @@ export function initGame(canvasId, username = 'Игрок', userId = null) {
       ctx.font = '11px monospace';
       ctx.fillStyle = '#94a3b8';
       ctx.fillText(kickReason, VIEW_WIDTH / 2, VIEW_HEIGHT / 2 + 12);
-      return; // Останавливаем цикл
+      return;
     }
 
     requestAnimationFrame(loop);
