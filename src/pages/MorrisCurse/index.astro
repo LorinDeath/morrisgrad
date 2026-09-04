@@ -48,18 +48,23 @@ import Layout from '../../layouts/Layout.astro';
       gameStarted = true;
 
       let username = 'Странник';
+      let userId: string | null = null;
+
       try {
         const res = await fetch('/api/get-user');
         if (res.ok) {
           const data = await res.json();
           if (data.username) username = data.username;
+          // Берём уникальный ID профиля (userId или id)
+          userId = data.userId || data.id || null;
         }
       } catch (err) {
-        console.warn('Не удалось загрузить ник, ставим дефолтный');
+        console.warn('Не удалось загрузить пользователя, ставим дефолтные');
       }
 
       const { initGame } = await import('./core/game.js');
-      initGame('game-canvas', username);
+      // Передаём третьим параметром уникальный ID для защиты от мультибоксинга
+      (initGame as any)('game-canvas', username, userId);
     }
   });
 
