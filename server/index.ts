@@ -5,7 +5,7 @@ export class GameRoom extends DurableObject {
 
   constructor(ctx: any, env: any) {
     super(ctx, env);
-    this.sessions = new Map(); // ws -> { id, username, x, y }
+    this.sessions = new Map();
   }
 
   async fetch(request: Request) {
@@ -29,8 +29,8 @@ export class GameRoom extends DurableObject {
           for (const [oldWs, session] of this.sessions.entries()) {
             if (oldWs !== server && session.username && session.username.toLowerCase() === lowerName) {
               try {
-                oldWs.send(JSON.stringify({ type: "kicked", reason: "Вход с другой вкладки" }));
-                oldWs.close();
+                oldWs.send(JSON.stringify({ type: "kicked", reason: "Вход с другой вкладки под этим ником" }));
+                oldWs.close(1000, "Duplicate session");
               } catch (_) {}
               this.sessions.delete(oldWs);
             }
@@ -43,7 +43,10 @@ export class GameRoom extends DurableObject {
             y: msg.y || 600,
           });
 
-          server.send(JSON.stringify({ type: "welcome", myId: this.sessions.get(server).id }));
+          try {
+            server.send(JSON.stringify({ type: "welcome", myId: this.sessions.get(server).id }));
+          } catch (_) {}
+
           this.broadcast();
         }
 
@@ -56,7 +59,6 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
-        // Рассылка реплики всем подключенным игрокам
         if (msg.type === "chat") {
           const session = this.sessions.get(server);
           if (session && msg.text) {
@@ -69,7 +71,7 @@ export class GameRoom extends DurableObject {
                 text: cleanText,
               });
 
-              for (const ws of this.sessions.keys()) {
+              for (const ws of [...this.sessions.keys()]) {
                 try {
                   ws.send(chatPayload);
                 } catch (_) {
@@ -79,14 +81,16 @@ export class GameRoom extends DurableObject {
             }
           }
         }
-      } catch (e) {
-        console.error("Ошибка обработки сокета:", e);
+      } catch (err) {
+        console.error("Ошибка сокета:", err);
       }
     });
 
     const closeHandler = () => {
-      this.sessions.delete(server);
-      this.broadcast();
+      try {
+        this.sessions.delete(server);
+        this.broadcast();
+      } catch (_) {}
     };
 
     server.addEventListener("close", closeHandler);
@@ -96,38 +100,47 @@ export class GameRoom extends DurableObject {
   }
 
   broadcast() {
-    const uniquePlayers = new Map();
+    try {
+      const uniquePlayers = new Map();
 
-    for (const [ws, session] of this.sessions.entries()) {
-      if (session.username) {
-        uniquePlayers.set(session.username.toLowerCase(), {
-          id: session.id,
-          username: session.username,
-          x: session.x,
-          y: session.y,
-        });
+      for (const [ws, session] of this.sessions.entries()) {
+        if (session && session.username) {
+          uniquePlayers.set(session.username.toLowerCase(), {
+            id: session.id,
+            username: session.username,
+            x: session.x,
+            y: session.y,
+          });
+        }
       }
-    }
 
-    const payload = JSON.stringify({
-      type: "players_state",
-      players: Array.from(uniquePlayers.values()),
-    });
+      const payload = JSON.stringify({
+        type: "players_state",
+        players: Array.from(uniquePlayers.values()),
+      });
 
-    for (const ws of this.sessions.keys()) {
-      try {
-        ws.send(payload);
-      } catch (_) {
-        this.sessions.delete(ws);
+      for (const ws of [...this.sessions.keys()]) {
+        try {
+          ws.send(payload);
+        } catch (_) {
+          this.sessions.delete(ws);
+        }
       }
+    } catch (err) {
+      console.error("Ошибка в broadcast:", err);
     }
   }
 }
 
 export default {
   async fetch(request: Request, env: any) {
-    const roomId = env.GAME_ROOM.idFromName("alkazak_v2");
-    const room = env.GAME_ROOM.get(roomId);
-    return room.fetch(request);
+    try {
+      const roomId = env.GAME_ROOM.idFromName("alkazak_v2");
+      const room = env.GAME_ROOM.get(roomId);
+      return room.fetch(request);
+    } catch (err) {
+      console.error("Ошибка роутинга DO:", err);
+      return new Response("Внутренняя ошибка сервера", { status: 500 });
+    }
   },
 };
