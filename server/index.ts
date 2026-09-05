@@ -1,5 +1,33 @@
 import { DurableObject } from "cloudflare:workers";
 
+// 1. Координаты портала и список доступных мини-игр
+const WORLD_PORTALS = [
+  {
+    id: "portal_arcade",
+    name: "Разлом Мини-игр",
+    x: 12,
+    y: 1188,
+    width: 32,
+    height: 32,
+    color: "#a855f7",
+  },
+];
+
+const MINI_GAMES = [
+  {
+    id: "shadow_world",
+    title: "Мир Теней",
+    desc: "Хроники Пустоты",
+    url: "/shadow-world/index.html",
+  },
+  {
+    id: "quiz",
+    title: "Обитель Смерти",
+    desc: "Текстовое испытание",
+    url: "/quiz_obiter_smerti.html",
+  },
+];
+
 export class GameRoom extends DurableObject {
   sessions: Map<WebSocket, any>;
 
@@ -22,6 +50,7 @@ export class GameRoom extends DurableObject {
       try {
         const msg = JSON.parse(event.data as string);
 
+        // 1. Вход игрока
         if (msg.type === "join") {
           const cleanName = (msg.username || "Странник").trim();
           const lowerName = cleanName.toLowerCase();
@@ -36,20 +65,29 @@ export class GameRoom extends DurableObject {
             }
           }
 
+          const myId = crypto.randomUUID();
           this.sessions.set(server, {
-            id: crypto.randomUUID(),
+            id: myId,
             username: cleanName,
             x: msg.x || 600,
             y: msg.y || 600,
           });
 
+          // Отправляем игроку его ID и список порталов на карте
           try {
-            server.send(JSON.stringify({ type: "welcome", myId: this.sessions.get(server).id }));
+            server.send(
+              JSON.stringify({
+                type: "welcome",
+                myId: myId,
+                portals: WORLD_PORTALS,
+              })
+            );
           } catch (_) {}
 
           this.broadcast();
         }
 
+        // 2. Движение
         if (msg.type === "move") {
           const session = this.sessions.get(server);
           if (session) {
@@ -59,6 +97,7 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
+        // 3. Чат
         if (msg.type === "chat") {
           const session = this.sessions.get(server);
           if (session && msg.text) {
@@ -78,6 +117,28 @@ export class GameRoom extends DurableObject {
                   this.sessions.delete(ws);
                 }
               }
+            }
+          }
+        }
+
+        // 4. Взаимодействие с порталом
+        if (msg.type === "use_portal") {
+          const session = this.sessions.get(server);
+          const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId);
+
+          if (session && portal) {
+            // Проверяем расстояние между игроком и порталом
+            const dist = Math.hypot(session.x - portal.x, session.y - portal.y);
+            if (dist <= 65) {
+              try {
+                server.send(
+                  JSON.stringify({
+                    type: "open_minigames_menu",
+                    portalName: portal.name,
+                    games: MINI_GAMES,
+                  })
+                );
+              } catch (_) {}
             }
           }
         }
@@ -135,7 +196,7 @@ export class GameRoom extends DurableObject {
 export default {
   async fetch(request: Request, env: any) {
     try {
-      const roomId = env.GAME_ROOM.idFromName("alkazak_v2");
+      const roomId = env.GAME_ROOM.idFromName("alkazak_v3");
       const room = env.GAME_ROOM.get(roomId);
       return room.fetch(request);
     } catch (err) {

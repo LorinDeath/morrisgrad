@@ -16,6 +16,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let isTyping = false;
   let chatText = '';
 
+  // Состояние порталов и модалки
+  let worldPortals = [];
+  let portalCooldown = false;
+  let isModalOpen = false;
+
   const player = {
     x: WORLD_SIZE / 2,
     y: WORLD_SIZE / 2,
@@ -28,6 +33,99 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let myNetworkId = null;
   const otherPlayers = new Map();
 
+  // --- ИНТЕРФЕЙС МИНИ-ИГР (ВСТРАИВАЕТСЯ АВТОМАТИЧЕСКИ) ---
+  function initArcadeDOM() {
+    if (document.getElementById('arcade-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'arcade-overlay';
+    overlay.style.cssText = `
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 3, 8, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+    `;
+
+    overlay.innerHTML = `
+      <div style="background: #0e0c18; border: 2px solid #8b5cf6; border-radius: 10px; width: 92%; max-width: 520px; padding: 20px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); color: #fff; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2e2642; padding-bottom: 12px; margin-bottom: 16px;">
+          <div id="arcade-title" style="font-weight: bold; font-size: 16px; color: #c084fc; letter-spacing: 1px;">РАЗЛОМ</div>
+          <button id="arcade-close-btn" style="background: transparent; border: none; color: #a1a1aa; font-size: 22px; cursor: pointer; line-height: 1; padding: 0 6px;">✕</button>
+        </div>
+        <div id="arcade-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <iframe id="arcade-frame" style="display: none; width: 100%; height: 380px; border: 1px solid #3b2d54; border-radius: 6px; background: #000;" src=""></iframe>
+        <button id="arcade-back-btn" style="display: none; margin-top: 12px; width: 100%; padding: 8px; background: #1f1a30; border: 1px solid #4c3875; color: #ddd; font-family: monospace; cursor: pointer; border-radius: 4px;">← К списку игр</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('arcade-close-btn').onclick = closeArcadeModal;
+    document.getElementById('arcade-back-btn').onclick = backToGameList;
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeArcadeModal();
+    });
+  }
+
+  function openArcadeModal(portalName, games) {
+    initArcadeDOM();
+    isModalOpen = true;
+    keys.w = keys.a = keys.s = keys.d = false;
+
+    const overlay = document.getElementById('arcade-overlay');
+    const title = document.getElementById('arcade-title');
+    const list = document.getElementById('arcade-list');
+
+    title.textContent = portalName || 'Разлом Мини-игр';
+    list.innerHTML = '';
+    backToGameList();
+
+    (games || []).forEach((game) => {
+      const item = document.createElement('div');
+      item.style.cssText = 'background: #171326; border: 1px solid #30264b; padding: 12px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;';
+      item.innerHTML = `
+        <div>
+          <div style="font-weight: bold; color: #facc15; font-size: 14px;">${game.title}</div>
+          <div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">${game.desc}</div>
+        </div>
+        <button style="background: #7c3aed; border: none; padding: 6px 14px; border-radius: 4px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer;">ВОЙТИ</button>
+      `;
+      item.querySelector('button').onclick = () => launchGame(game.url);
+      list.appendChild(item);
+    });
+
+    overlay.style.display = 'flex';
+  }
+
+  function launchGame(url) {
+    document.getElementById('arcade-list').style.display = 'none';
+    const frame = document.getElementById('arcade-frame');
+    frame.src = url;
+    frame.style.display = 'block';
+    document.getElementById('arcade-back-btn').style.display = 'block';
+  }
+
+  function backToGameList() {
+    const frame = document.getElementById('arcade-frame');
+    frame.src = '';
+    frame.style.display = 'none';
+    document.getElementById('arcade-back-btn').style.display = 'none';
+    document.getElementById('arcade-list').style.display = 'flex';
+  }
+
+  function closeArcadeModal() {
+    backToGameList();
+    const overlay = document.getElementById('arcade-overlay');
+    if (overlay) overlay.style.display = 'none';
+    isModalOpen = false;
+  }
+
+  // --- WEBSOCKET ПОДКЛЮЧЕНИЕ ---
   const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
   const socket = new WebSocket(WS_URL);
 
@@ -54,9 +152,17 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
       if (data.type === 'welcome') {
         myNetworkId = data.myId;
+        if (data.portals) {
+          worldPortals = data.portals;
+        }
       }
 
-      // Приём реплики: гарантированный поиск адресата
+      // Открытие меню мини-игр от сервера
+      if (data.type === 'open_minigames_menu') {
+        openArcadeModal(data.portalName, data.games);
+      }
+
+      // Чат
       if (data.type === 'chat_bubble') {
         const targetNick = (data.username || '').trim().toLowerCase();
         const myNick = (username || '').trim().toLowerCase();
@@ -150,6 +256,22 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   window.addEventListener('keydown', (e) => {
     if (isKicked) return;
 
+    if (e.key === 'Escape') {
+      if (isModalOpen) {
+        closeArcadeModal();
+        e.preventDefault();
+        return;
+      }
+      if (isTyping) {
+        isTyping = false;
+        chatText = '';
+        e.preventDefault();
+        return;
+      }
+    }
+
+    if (isModalOpen) return;
+
     if (e.key === 'Enter') {
       e.preventDefault();
 
@@ -172,12 +294,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
 
     if (isTyping) {
-      if (e.key === 'Escape') {
-        isTyping = false;
-        chatText = '';
-        e.preventDefault();
-        return;
-      }
       if (e.key === 'Backspace') {
         chatText = chatText.slice(0, -1);
         e.preventDefault();
@@ -208,7 +324,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   });
 
   window.addEventListener('keyup', (e) => {
-    if (isTyping) return;
+    if (isTyping || isModalOpen) return;
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'ц') keys.w = false;
     if (k === 'a' || k === 'ф') keys.a = false;
@@ -222,7 +338,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
   }, { passive: false });
 
-  // Масштабируемое и контрастное облачко
   function drawBubble(text, x, y, isSelf) {
     ctx.save();
     ctx.font = 'bold 18px monospace';
@@ -234,14 +349,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const boxX = Math.round(x - boxW / 2);
     const boxY = Math.round(y - boxH);
 
-    // Подложка и рамка
     ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
     ctx.strokeStyle = isSelf ? '#ffd700' : '#38bdf8';
     ctx.lineWidth = 2;
     ctx.fillRect(boxX, boxY, boxW, boxH);
     ctx.strokeRect(boxX, boxY, boxW, boxH);
 
-    // Хвостик
     ctx.beginPath();
     ctx.moveTo(x - 5, boxY + boxH);
     ctx.lineTo(x, boxY + boxH + 6);
@@ -249,7 +362,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = isSelf ? '#ffd700' : '#38bdf8';
     ctx.fill();
 
-    // Текст с обводкой против размытия
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.strokeStyle = '#050408';
@@ -268,7 +380,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     lastTime = currentTime;
     const now = Date.now();
 
-    if (!isKicked && !isTyping) {
+    if (!isKicked && !isTyping && !isModalOpen) {
       let dx = 0;
       let dy = 0;
       if (keys.w) dy -= 1;
@@ -288,6 +400,23 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       const halfH = player.height / 2;
       player.x = Math.max(halfW + 4, Math.min(WORLD_SIZE - halfW - 4, player.x));
       player.y = Math.max(halfH + 28, Math.min(WORLD_SIZE - halfH - 4, player.y));
+
+      // Проверка дистанции до порталов
+      let nearAnyPortal = false;
+      worldPortals.forEach((portal) => {
+        const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
+        if (dist <= 48) {
+          nearAnyPortal = true;
+          if (!portalCooldown && socket.readyState === WebSocket.OPEN) {
+            portalCooldown = true;
+            socket.send(JSON.stringify({ type: 'use_portal', portalId: portal.id }));
+          }
+        }
+      });
+
+      if (!nearAnyPortal) {
+        portalCooldown = false;
+      }
     }
 
     camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, 10 * dt);
@@ -317,10 +446,43 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     for (let y = 0; y <= WORLD_SIZE; y += 40) { ctx.moveTo(0, y); ctx.lineTo(WORLD_SIZE, y); }
     ctx.stroke();
 
-    // Стены
+    // Внешние стены
     ctx.strokeStyle = '#a020f0';
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
+
+    // --- ОТРИСОВКА ПОРТАЛОВ ---
+    worldPortals.forEach((portal) => {
+      const pw = portal.width || 32;
+      const ph = portal.height || 32;
+      const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
+      const drawY = Math.max(6, Math.min(WORLD_SIZE - ph - 6, portal.y - ph / 2));
+      const pulse = Math.sin(now / 200) * 3;
+
+      ctx.save();
+      ctx.shadowColor = portal.color || '#a855f7';
+      ctx.shadowBlur = 12 + Math.abs(pulse);
+
+      // Внешняя пульсирующая рамка
+      ctx.strokeStyle = portal.color || '#a855f7';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(drawX - pulse / 2, drawY - pulse / 2, pw + pulse, ph + pulse);
+
+      // Заливка ядра портала
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.65)';
+      ctx.fillRect(drawX, drawY, pw, ph);
+
+      // Подпись портала
+      ctx.shadowBlur = 0;
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#050408';
+      ctx.lineWidth = 3;
+      ctx.strokeText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8);
+      ctx.fillStyle = '#e9d5ff';
+      ctx.fillText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8);
+      ctx.restore();
+    });
 
     const halfW = player.width / 2;
     const halfH = player.height / 2;
@@ -333,7 +495,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
 
-      // Никнейм
       ctx.font = 'bold 20px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
@@ -343,7 +504,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillStyle = '#38bdf8';
       ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
 
-      // Облачко сообщения
       if (p.bubble && p.bubble.expireAt > now) {
         drawBubble(p.bubble.text, p.x, p.y - halfH - 34, false);
       }
@@ -368,7 +528,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     ctx.restore();
 
-    // Статичный UI поверх мира
+    // Статичный UI
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
     ctx.fillRect(8, 8, 140, 62);
     ctx.strokeStyle = '#332742';
@@ -383,7 +543,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
 
-    // Поле ввода при нажатии Enter
+    // Поле ввода чата
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 
