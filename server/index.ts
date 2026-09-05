@@ -16,15 +16,45 @@ const WORLD_PORTALS = [
 const MINI_GAMES = [
   {
     id: "shadow_world",
-    title: "Мир Теней",
-    desc: "Хроники Пустоты",
+    title: "Тёмный мир BETA",
+    desc: "Игровые механики этой игры будут в Проклятых",
     url: "/shadow-world/index.html",
   },
   {
     id: "quiz",
-    title: "Обитель Смерти",
-    desc: "Текстовое испытание",
-    url: "/quiz_obiter_smerti.html",
+    title: "Викторина",
+    desc: "Тесты по лору",
+    url: "/quiz_obitel_smerti.html",
+  },
+    {
+    id: "musicc",
+    title: "Музыкальная карусель",
+    desc: "Просто интересный плеер",
+    url: "/lorin_death_carousel_final.html",
+  },
+    {
+    id: "Darkestt",
+    title: "Тёмный мир ALFA",
+    desc: "Можешь сломать если хочешь",
+    url: "/Darks.html",
+  },
+    {
+    id: "World",
+    title: "Это мы с тобой",
+    desc: "Развивай свой мирок",
+    url: "/games/echo",
+  },
+     {
+    id: "protokol",
+    title: "Неоновый протокол",
+    desc: "Механики этой игры частично будут встроены в Проклятые",
+    url: "/games/roguelike",
+  },
+     {
+    id: "Zaglush",
+    title: "Заглушка",
+    desc: "Это была первая моя мини игра",
+    url: "/games/zaglushka",
   },
 ];
 

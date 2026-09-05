@@ -1,45 +1,37 @@
 ---
-import Layout from '../../layouts/Layout.astro';
 import FireEmblemGame from '../../components/FireEmblemGame.astro';
 ---
-<Layout title="Это мы с тобой! | Моррис Град">
-    <div id="game-container" class="game-container">
-        <FireEmblemGame />
-    </div>
-</Layout>
 
-<style>
-    /* Убираем отступы у body и html для полноэкранного режима */
-    :global(body), :global(html) {
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Это мы с тобой!</title>
+    <style>
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      html, body {
         margin: 0;
         padding: 0;
+        width: 100%;
         height: 100%;
-    }
-    .game-container {
+        overflow: hidden;
+        background-color: #0f0f12;
+      }
+      #game-container {
+        width: 100%;
+        height: 100%;
         display: flex;
         justify-content: center;
         align-items: center;
-        width: 100%;
-        min-height: 80vh; /* Занимает большую часть экрана, но оставляет место для хедера/футера */
-    }
-
-    /* Стили для полноэкранного режима */
-    .game-container:fullscreen {
-        min-height: 100vh;
-        background-color: #0f0f12; /* Фон на случай, если игра не 100% */
-    }
-</style>
-
-<script>
-    document.addEventListener('astro:page-load', () => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('fullscreen') === 'true') {
-            const gameContainer = document.getElementById('game-container');
-            if (gameContainer && gameContainer.requestFullscreen) {
-                gameContainer.requestFullscreen().catch(err => {
-                    console.error(`Ошибка при попытке включить полноэкранный режим: ${err.message} (${err.name})`);
-                });
-            }
-        }
-    });
-</script>
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <FireEmblemGame />
+    </div>
+  </body>
+</html>

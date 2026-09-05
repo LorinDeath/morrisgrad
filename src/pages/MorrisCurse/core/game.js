@@ -22,6 +22,19 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let isModalOpen = false;
   let isGameRunning = false;
 
+  // Параметры рывка (Dash)
+  const dash = {
+    active: false,
+    timer: 0,
+    duration: 0.22,       // Длительность рывка
+    speed: 620,           // Высокая скорость для хорошей дистанции (~140px)
+    cooldown: 0.9,        // Перезарядка
+    cooldownTimer: 0,
+    dirX: 0,
+    dirY: 1
+  };
+  let lastFaceDir = { x: 0, y: 1 };
+
   const player = {
     x: WORLD_SIZE / 2,
     y: WORLD_SIZE / 2,
@@ -68,7 +81,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       `;
 
       overlay.innerHTML = `
-        <!-- Кнопка быстрого выхода из игры в полном экране -->
         <button id="arcade-quick-exit" style="display: none; position: absolute; top: 12px; right: 12px; z-index: 100000; background: #dc2626; border: 1px solid #f87171; color: #fff; padding: 6px 14px; font-family: monospace; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.8);">✕ ВЫЙТИ [Esc]</button>
 
         <div id="arcade-card" style="background: #0e0c18; border: 2px solid #8b5cf6; border-radius: 10px; width: 92%; max-width: 520px; max-height: 90%; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); color: #fff; box-sizing: border-box;">
@@ -131,7 +143,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const frame = document.getElementById('arcade-frame');
     const exitBtn = document.getElementById('arcade-quick-exit');
 
-    // Растягиваем на весь экран под мини-игру
     card.style.width = '100%';
     card.style.height = '100%';
     card.style.maxWidth = '100%';
@@ -141,7 +152,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     card.style.border = 'none';
 
     list.style.display = 'none';
-    card.firstElementChild.style.display = 'none'; // скрыть заголовок
+    card.firstElementChild.style.display = 'none';
 
     frame.src = url;
     frame.style.display = 'block';
@@ -155,7 +166,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const frame = document.getElementById('arcade-frame');
     const exitBtn = document.getElementById('arcade-quick-exit');
 
-    // Возвращаем аккуратную карточку списка
     card.style.width = '92%';
     card.style.maxWidth = '520px';
     card.style.height = 'auto';
@@ -330,6 +340,34 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     if (isModalOpen) return;
 
+    // Активация рывка (Пробел или Shift)
+    if ((e.code === 'Space' || e.key === ' ' || e.key === 'Shift') && !isTyping) {
+      e.preventDefault();
+      if (dash.cooldownTimer <= 0 && !dash.active) {
+        dash.active = true;
+        dash.timer = dash.duration;
+        dash.cooldownTimer = dash.cooldown;
+
+        // Направление рывка: текущее движение или направление взгляда
+        let mx = 0;
+        let my = 0;
+        if (keys.w) my -= 1;
+        if (keys.s) my += 1;
+        if (keys.a) mx -= 1;
+        if (keys.d) mx += 1;
+
+        if (mx !== 0 || my !== 0) {
+          const len = Math.hypot(mx, my);
+          dash.dirX = mx / len;
+          dash.dirY = my / len;
+        } else {
+          dash.dirX = lastFaceDir.x;
+          dash.dirY = lastFaceDir.y;
+        }
+      }
+      return;
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
 
@@ -396,38 +434,43 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
   }, { passive: false });
 
+  // Фиксированное отображение чата независимо от зума (Billboard UI)
   function drawBubble(text, x, y, isSelf) {
     ctx.save();
-    ctx.font = 'bold 18px monospace';
+
+    const targetFontPx = 13;
+    const fontInWorld = targetFontPx / camera.zoom;
+    ctx.font = `bold ${fontInWorld}px monospace`;
+
     const textMetrics = ctx.measureText(text);
-    const textWidth = textMetrics.width;
-    const padX = 12;
-    const boxW = Math.round(textWidth + padX * 2);
-    const boxH = 28;
-    const boxX = Math.round(x - boxW / 2);
-    const boxY = Math.round(y - boxH);
+    const padX = 10 / camera.zoom;
+    const boxW = textMetrics.width + padX * 2;
+    const boxH = 22 / camera.zoom;
+    const boxX = x - boxW / 2;
+    const boxY = y - boxH;
 
     ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
     ctx.strokeStyle = isSelf ? '#ffd700' : '#38bdf8';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5 / camera.zoom;
     ctx.fillRect(boxX, boxY, boxW, boxH);
     ctx.strokeRect(boxX, boxY, boxW, boxH);
 
+    const tailH = 5 / camera.zoom;
     ctx.beginPath();
-    ctx.moveTo(x - 5, boxY + boxH);
-    ctx.lineTo(x, boxY + boxH + 6);
-    ctx.lineTo(x + 5, boxY + boxH);
+    ctx.moveTo(x - 4 / camera.zoom, boxY + boxH);
+    ctx.lineTo(x, boxY + boxH + tailH);
+    ctx.lineTo(x + 4 / camera.zoom, boxY + boxH);
     ctx.fillStyle = isSelf ? '#ffd700' : '#38bdf8';
     ctx.fill();
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.strokeStyle = '#050408';
-    ctx.lineWidth = 3;
-    ctx.strokeText(text, Math.round(x), boxY + boxH / 2);
+    ctx.lineWidth = 2.5 / camera.zoom;
+    ctx.strokeText(text, x, boxY + boxH / 2);
 
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, Math.round(x), boxY + boxH / 2);
+    ctx.fillText(text, x, boxY + boxH / 2);
     ctx.restore();
   }
 
@@ -438,28 +481,49 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     lastTime = currentTime;
     const now = Date.now();
 
+    if (dash.cooldownTimer > 0) {
+      dash.cooldownTimer = Math.max(0, dash.cooldownTimer - dt);
+    }
+
     if (!isKicked && !isTyping && !isModalOpen) {
-      let dx = 0;
-      let dy = 0;
-      if (keys.w) dy -= 1;
-      if (keys.s) dy += 1;
-      if (keys.a) dx -= 1;
-      if (keys.d) dx += 1;
+      if (dash.active) {
+        // Движение во время рывка
+        player.x += dash.dirX * dash.speed * dt;
+        player.y += dash.dirY * dash.speed * dt;
 
-      if (dx !== 0 && dy !== 0) {
-        dx *= 0.7071;
-        dy *= 0.7071;
+        dash.timer -= dt;
+        if (dash.timer <= 0) {
+          dash.active = false;
+        }
+      } else {
+        // Обычное движение
+        let dx = 0;
+        let dy = 0;
+        if (keys.w) dy -= 1;
+        if (keys.s) dy += 1;
+        if (keys.a) dx -= 1;
+        if (keys.d) dx += 1;
+
+        if (dx !== 0 && dy !== 0) {
+          dx *= 0.7071;
+          dy *= 0.7071;
+        }
+
+        if (dx !== 0 || dy !== 0) {
+          lastFaceDir.x = dx;
+          lastFaceDir.y = dy;
+        }
+
+        player.x += dx * player.stats.moveSpeed * dt;
+        player.y += dy * player.stats.moveSpeed * dt;
       }
-
-      player.x += dx * player.stats.moveSpeed * dt;
-      player.y += dy * player.stats.moveSpeed * dt;
 
       const halfW = player.width / 2;
       const halfH = player.height / 2;
       player.x = Math.max(halfW + 4, Math.min(WORLD_SIZE - halfW - 4, player.x));
       player.y = Math.max(halfH + 28, Math.min(WORLD_SIZE - halfH - 4, player.y));
 
-      // Проверка порталов
+      // Проверка дистанции до порталов
       let nearAnyPortal = false;
       worldPortals.forEach((portal) => {
         const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
@@ -487,7 +551,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.x = Math.max(halfViewW, Math.min(WORLD_SIZE - halfViewW, camera.x));
     camera.y = Math.max(halfViewH, Math.min(WORLD_SIZE - halfViewH, camera.y));
 
-    // Очистка и фон
+    // Фон
     ctx.fillStyle = '#050408';
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
@@ -529,70 +593,85 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillRect(drawX, drawY, pw, ph);
 
       ctx.shadowBlur = 0;
-      ctx.font = 'bold 12px monospace';
+      const pFontSize = 12 / camera.zoom;
+      ctx.font = `bold ${pFontSize}px monospace`;
       ctx.textAlign = 'center';
       ctx.strokeStyle = '#050408';
-      ctx.lineWidth = 3;
-      ctx.strokeText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8);
+      ctx.lineWidth = 2.5 / camera.zoom;
+      ctx.strokeText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
       ctx.fillStyle = '#e9d5ff';
-      ctx.fillText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8);
+      ctx.fillText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
       ctx.restore();
     });
 
     const halfW = player.width / 2;
     const halfH = player.height / 2;
 
-    // Интерполяция движения других игроков
     otherPlayers.forEach((p) => {
       p.x += (p.targetX - p.x) * Math.min(1, 15 * dt);
       p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
     });
 
-    // --- СЛОЙ 2: ТЕЛА ПЕРСОНАЖЕЙ (КВАДРАТЫ) ---
+    // --- СЛОЙ 2: ТЕЛА ПЕРСОНАЖЕЙ ---
     otherPlayers.forEach((p) => {
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
     });
 
+    // След рывка вокруг своего персонажа
+    if (dash.active) {
+      ctx.save();
+      ctx.shadowColor = '#eab308';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(Math.round(player.x - halfW - 2), Math.round(player.y - halfH - 2), player.width + 4, player.height + 4);
+      ctx.restore();
+    }
+
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
 
-    // --- СЛОЙ 3: НИКИ ПЕРСОНАЖЕЙ ---
-    ctx.font = 'bold 20px monospace';
+    // --- СЛОЙ 3: НИКИ ПЕРСОНАЖЕЙ (КОМПЕНСАЦИЯ ЗУМА) ---
+    const nickFontSize = 12 / camera.zoom;
+    ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5 / camera.zoom;
+
+    const nickOffsetY = halfH + (6 / camera.zoom);
 
     otherPlayers.forEach((p) => {
       ctx.strokeStyle = '#050408';
-      ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
+      ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
       ctx.fillStyle = '#38bdf8';
-      ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - halfH - 8));
+      ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
     });
 
     ctx.strokeStyle = '#050408';
-    ctx.strokeText(username, Math.round(player.x), Math.round(player.y - halfH - 8));
+    ctx.strokeText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
     ctx.fillStyle = '#ffd700';
-    ctx.fillText(username, Math.round(player.x), Math.round(player.y - halfH - 8));
+    ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
 
-    // --- СЛОЙ 4: СООБЩЕНИЯ ЧАТА (САМЫЙ ВЕРХНИЙ СЛОЙ В МИРЕ) ---
+    // --- СЛОЙ 4: ЧАТ ---
+    const bubbleOffsetY = halfH + (20 / camera.zoom);
     otherPlayers.forEach((p) => {
       if (p.bubble && p.bubble.expireAt > now) {
-        drawBubble(p.bubble.text, p.x, p.y - halfH - 34, false);
+        drawBubble(p.bubble.text, p.x, p.y - bubbleOffsetY, false);
       }
     });
 
     if (player.bubble && player.bubble.expireAt > now) {
-      drawBubble(player.bubble.text, player.x, player.y - halfH - 34, true);
+      drawBubble(player.bubble.text, player.x, player.y - bubbleOffsetY, true);
     }
 
     ctx.restore();
 
     // Статичный HUD
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
-    ctx.fillRect(8, 8, 140, 62);
+    ctx.fillRect(8, 8, 148, 76);
     ctx.strokeStyle = '#332742';
-    ctx.strokeRect(8, 8, 140, 62);
+    ctx.strokeRect(8, 8, 148, 76);
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
@@ -602,6 +681,15 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillText(`Зум: x${camera.zoom.toFixed(1)} [+/-]`, 14, 40);
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
+
+    // Статус перезарядки рывка
+    if (dash.cooldownTimer <= 0) {
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText(`Рывок: [Пробел]`, 14, 72);
+    } else {
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`Рывок: ${dash.cooldownTimer.toFixed(1)}c`, 14, 72);
+    }
 
     // Ввод чата
     if (isTyping) {
@@ -626,7 +714,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.fillText('[Enter] Сказать', VIEW_WIDTH - 10, VIEW_HEIGHT - 10);
+      ctx.fillText('[Enter] Чат', VIEW_WIDTH - 10, VIEW_HEIGHT - 10);
     }
 
     if (isKicked) {
