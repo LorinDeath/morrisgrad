@@ -19,42 +19,49 @@ const MINI_GAMES = [
     title: "Тёмный мир BETA",
     desc: "Игровые механики этой игры будут в Проклятых",
     url: "/shadow-world/index.html",
+    disabled: false,
   },
   {
     id: "quiz",
     title: "Викторина",
     desc: "Тесты по лору",
     url: "/quiz_obitel_smerti.html",
+    disabled: false,
   },
-    {
+  {
     id: "musicc",
     title: "Музыкальная карусель",
     desc: "Просто интересный плеер",
     url: "/lorin_death_carousel_final.html",
+    disabled: false,
   },
-    {
+  {
     id: "Darkestt",
     title: "Тёмный мир ALFA",
     desc: "Можешь сломать если хочешь",
     url: "/Darks.html",
+    disabled: false,
   },
-    {
+  {
     id: "World",
-    title: "Это мы с тобой",
-    desc: "Развивай свой мирок",
-    url: "/games/echo",
+    title: "Это мы с тобой (Скоро)",
+    desc: "На техобслуживании",
+    url: "",
+    disabled: true,
   },
-     {
+  {
     id: "protokol",
-    title: "Неоновый протокол",
-    desc: "Механики этой игры частично будут встроены в Проклятые",
-    url: "/games/roguelike",
+    title: "Неоновый протокол (Скоро)",
+    desc: "На техобслуживании",
+    url: "",
+    disabled: true,
   },
-     {
+  {
     id: "Zaglush",
-    title: "Заглушка",
-    desc: "Это была первая моя мини игра",
-    url: "/games/zaglushka",
+    title: "Заглушка (Скоро)",
+    desc: "На техобслуживании",
+    url: "",
+    disabled: true,
   },
 ];
 

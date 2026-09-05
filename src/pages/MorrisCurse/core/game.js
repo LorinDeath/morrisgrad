@@ -105,7 +105,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
   }
 
-  function openArcadeModal(portalName, games) {
+function openArcadeModal(portalName, games) {
     initArcadeDOM();
     isModalOpen = true;
     isGameRunning = false;
@@ -120,16 +120,47 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     backToGameList();
 
     (games || []).forEach((game) => {
+      const isDisabled = Boolean(game.disabled);
       const item = document.createElement('div');
-      item.style.cssText = 'background: #171326; border: 1px solid #30264b; padding: 12px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;';
+
+      item.style.cssText = `
+        background: ${isDisabled ? '#12101b' : '#171326'};
+        border: 1px solid ${isDisabled ? '#241e33' : '#30264b'};
+        padding: 12px 14px;
+        border-radius: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        ${isDisabled ? 'opacity: 0.4; filter: grayscale(100%);' : ''}
+      `;
+
       item.innerHTML = `
         <div>
-          <div style="font-weight: bold; color: #facc15; font-size: 14px;">${game.title}</div>
+          <div style="font-weight: bold; color: ${isDisabled ? '#9ca3af' : '#facc15'}; font-size: 14px;">${game.title}</div>
           <div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">${game.desc}</div>
         </div>
-        <button style="background: #7c3aed; border: none; padding: 6px 14px; border-radius: 4px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer;">ВОЙТИ</button>
+        <button 
+          ${isDisabled ? 'disabled' : ''} 
+          style="
+            background: ${isDisabled ? '#374151' : '#7c3aed'};
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            color: ${isDisabled ? '#9ca3af' : '#fff'};
+            font-family: monospace;
+            font-weight: bold;
+            cursor: ${isDisabled ? 'not-allowed' : 'pointer'};
+            pointer-events: ${isDisabled ? 'none' : 'auto'};
+          "
+        >
+          ${isDisabled ? 'СКОРО' : 'ВОЙТИ'}
+        </button>
       `;
-      item.querySelector('button').onclick = () => launchGame(game.url);
+
+      if (!isDisabled) {
+        item.querySelector('button').onclick = () => launchGame(game.url);
+      }
+
       list.appendChild(item);
     });
 
