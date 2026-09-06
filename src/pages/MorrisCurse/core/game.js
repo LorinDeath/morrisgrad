@@ -1,3 +1,5 @@
+import { DEFAULT_STATS, StatsUI } from './playerStats.js';
+
 export function initGame(canvasId, username = 'Игрок', userId = '') {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
@@ -26,34 +28,38 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   const dash = {
     active: false,
     timer: 0,
-    duration: 0.22,       // Длительность рывка
-    speed: 620,           // Высокая скорость для хорошей дистанции (~140px)
-    cooldown: 0.9,        // Перезарядка
+    duration: 0.22,
+    speed: 620,
+    cooldown: 0.9,
     cooldownTimer: 0,
     dirX: 0,
     dirY: 1
   };
   let lastFaceDir = { x: 0, y: 1 };
 
+  // Характеристики игрока
   const player = {
     x: WORLD_SIZE / 2,
     y: WORLD_SIZE / 2,
     width: 16,
     height: 16,
-    stats: { moveSpeed: 175 },
+    stats: { ...DEFAULT_STATS, moveSpeed: 175 },
     bubble: { text: '', expireAt: 0 }
   };
 
   let myNetworkId = null;
   const otherPlayers = new Map();
 
-  // --- ИНТЕРФЕЙС МИНИ-ИГР (ВСТРАИВАЕТСЯ ВНУТРЬ КОНТЕЙНЕРА ИГРЫ) ---
   function getGameContainer() {
     return document.fullscreenElement && document.fullscreenElement !== canvas
       ? document.fullscreenElement
       : (canvas.parentElement || document.body);
   }
 
+  // Инициализация модуля характеристик и окна «Душа»
+  const statsUI = new StatsUI(getGameContainer());
+
+  // --- ИНТЕРФЕЙС МИНИ-ИГР ---
   function initArcadeDOM() {
     let overlay = document.getElementById('arcade-overlay');
     const container = getGameContainer();
@@ -105,7 +111,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
   }
 
-function openArcadeModal(portalName, games) {
+  function openArcadeModal(portalName, games) {
     initArcadeDOM();
     isModalOpen = true;
     isGameRunning = false;
@@ -231,7 +237,13 @@ function openArcadeModal(portalName, games) {
       userId: userId || username,
       username: username,
       x: Math.round(player.x),
-      y: Math.round(player.y)
+      y: Math.round(player.y),
+      stats: {
+        hp: player.stats.hp,
+        maxHp: player.stats.maxHp,
+        armor: player.stats.armor,
+        attack: player.stats.attack,
+      }
     }));
   };
 
@@ -297,6 +309,7 @@ function openArcadeModal(portalName, games) {
             cur.targetX = p.x;
             cur.targetY = p.y;
             cur.username = p.username;
+            cur.stats = p.stats || DEFAULT_STATS;
           } else {
             otherPlayers.set(pNameLower, {
               id: p.id,
@@ -305,6 +318,7 @@ function openArcadeModal(portalName, games) {
               targetX: p.x,
               targetY: p.y,
               username: p.username || 'Странник',
+              stats: p.stats || DEFAULT_STATS,
               width: 16,
               height: 16,
               bubble: { text: '', expireAt: 0 }
@@ -347,10 +361,50 @@ function openArcadeModal(portalName, games) {
 
   const keys = { w: false, a: false, s: false, d: false };
 
+  // --- ОБРАБОТКА МЫШИ (ХОВЕР И СТАТЫ) ---
+  canvas.addEventListener('mousemove', (e) => {
+    if (isModalOpen || statsUI.isSoulOpen) {
+      statsUI.hideTooltip();
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const screenY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const mouseWorldX = (screenX - VIEW_WIDTH / 2) / camera.zoom + camera.x;
+    const mouseWorldY = (screenY - VIEW_HEIGHT / 2) / camera.zoom + camera.y;
+
+    let hovered = null;
+
+    for (const p of otherPlayers.values()) {
+      if (
+        Math.abs(mouseWorldX - p.x) <= p.width &&
+        Math.abs(mouseWorldY - p.y) <= p.height + 8
+      ) {
+        hovered = p;
+        break;
+      }
+    }
+
+    if (hovered) {
+      statsUI.showTooltip(e.clientX - rect.left, e.clientY - rect.top, hovered);
+    } else {
+      statsUI.hideTooltip();
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => statsUI.hideTooltip());
+
   window.addEventListener('keydown', (e) => {
     if (isKicked) return;
 
     if (e.key === 'Escape') {
+      if (statsUI.isSoulOpen) {
+        statsUI.toggleSoulModal(false);
+        e.preventDefault();
+        return;
+      }
       if (isGameRunning) {
         backToGameList();
         e.preventDefault();
@@ -369,7 +423,14 @@ function openArcadeModal(portalName, games) {
       }
     }
 
-    if (isModalOpen) return;
+    // Клавиша [C] / [С] — Обитель Души
+    if ((e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') && !isTyping && !isModalOpen) {
+      statsUI.toggleSoulModal(undefined, player.stats, username);
+      e.preventDefault();
+      return;
+    }
+
+    if (isModalOpen || statsUI.isSoulOpen) return;
 
     // Активация рывка (Пробел или Shift)
     if ((e.code === 'Space' || e.key === ' ' || e.key === 'Shift') && !isTyping) {
@@ -379,7 +440,6 @@ function openArcadeModal(portalName, games) {
         dash.timer = dash.duration;
         dash.cooldownTimer = dash.cooldown;
 
-        // Направление рывка: текущее движение или направление взгляда
         let mx = 0;
         let my = 0;
         if (keys.w) my -= 1;
@@ -451,7 +511,7 @@ function openArcadeModal(portalName, games) {
   });
 
   window.addEventListener('keyup', (e) => {
-    if (isTyping || isModalOpen) return;
+    if (isTyping || isModalOpen || statsUI.isSoulOpen) return;
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'ц') keys.w = false;
     if (k === 'a' || k === 'ф') keys.a = false;
@@ -465,7 +525,6 @@ function openArcadeModal(portalName, games) {
     camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
   }, { passive: false });
 
-  // Фиксированное отображение чата независимо от зума (Billboard UI)
   function drawBubble(text, x, y, isSelf) {
     ctx.save();
 
@@ -516,9 +575,8 @@ function openArcadeModal(portalName, games) {
       dash.cooldownTimer = Math.max(0, dash.cooldownTimer - dt);
     }
 
-    if (!isKicked && !isTyping && !isModalOpen) {
+    if (!isKicked && !isTyping && !isModalOpen && !statsUI.isSoulOpen) {
       if (dash.active) {
-        // Движение во время рывка
         player.x += dash.dirX * dash.speed * dt;
         player.y += dash.dirY * dash.speed * dt;
 
@@ -527,7 +585,6 @@ function openArcadeModal(portalName, games) {
           dash.active = false;
         }
       } else {
-        // Обычное движение
         let dx = 0;
         let dy = 0;
         if (keys.w) dy -= 1;
@@ -554,7 +611,6 @@ function openArcadeModal(portalName, games) {
       player.x = Math.max(halfW + 4, Math.min(WORLD_SIZE - halfW - 4, player.x));
       player.y = Math.max(halfH + 28, Math.min(WORLD_SIZE - halfH - 4, player.y));
 
-      // Проверка дистанции до порталов
       let nearAnyPortal = false;
       worldPortals.forEach((portal) => {
         const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
@@ -649,7 +705,6 @@ function openArcadeModal(portalName, games) {
       ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
     });
 
-    // След рывка вокруг своего персонажа
     if (dash.active) {
       ctx.save();
       ctx.shadowColor = '#eab308';
@@ -663,7 +718,7 @@ function openArcadeModal(portalName, games) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
 
-    // --- СЛОЙ 3: НИКИ ПЕРСОНАЖЕЙ (КОМПЕНСАЦИЯ ЗУМА) ---
+    // --- СЛОЙ 3: НИКИ ПЕРСОНАЖЕЙ ---
     const nickFontSize = 12 / camera.zoom;
     ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
@@ -700,9 +755,9 @@ function openArcadeModal(portalName, games) {
 
     // Статичный HUD
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
-    ctx.fillRect(8, 8, 148, 76);
+    ctx.fillRect(8, 8, 148, 92);
     ctx.strokeStyle = '#332742';
-    ctx.strokeRect(8, 8, 148, 76);
+    ctx.strokeRect(8, 8, 148, 92);
     ctx.font = '12px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
@@ -713,7 +768,6 @@ function openArcadeModal(portalName, games) {
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
 
-    // Статус перезарядки рывка
     if (dash.cooldownTimer <= 0) {
       ctx.fillStyle = '#4ade80';
       ctx.fillText(`Рывок: [Пробел]`, 14, 72);
@@ -721,6 +775,10 @@ function openArcadeModal(portalName, games) {
       ctx.fillStyle = '#94a3b8';
       ctx.fillText(`Рывок: ${dash.cooldownTimer.toFixed(1)}c`, 14, 72);
     }
+
+    // Подсказка вызова Души
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText(`Душа: [C]`, 14, 88);
 
     // Ввод чата
     if (isTyping) {

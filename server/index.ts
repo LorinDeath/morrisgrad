@@ -108,6 +108,7 @@ export class GameRoom extends DurableObject {
             username: cleanName,
             x: msg.x || 600,
             y: msg.y || 600,
+            stats: msg.stats || { hp: 1, maxHp: 1, armor: 1, attack: 1 },
           });
 
           // Отправляем игроку его ID и список порталов на карте
@@ -164,7 +165,6 @@ export class GameRoom extends DurableObject {
           const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId);
 
           if (session && portal) {
-            // Проверяем расстояние между игроком и порталом
             const dist = Math.hypot(session.x - portal.x, session.y - portal.y);
             if (dist <= 65) {
               try {
@@ -208,6 +208,7 @@ export class GameRoom extends DurableObject {
             username: session.username,
             x: session.x,
             y: session.y,
+            stats: session.stats || { hp: 1, maxHp: 1, armor: 1, attack: 1 },
           });
         }
       }
