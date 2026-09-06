@@ -8,11 +8,20 @@ export class DuelManager {
     this.currentDuel = null;
     this.chargeTimer = 0;
     this.abilityCooldown = 0;
+    this.attackCooldown = 0; // Антиспам таймер (2 сек)
     this.chargeInterval = null;
+
+    // Флаги открытых окон для предотвращения залипания клавиш
+    this.isClassSelectOpen = false;
+    this.isInviteOpen = false;
 
     this.initClassSelectDOM();
     this.initInviteDOM();
     this.initWapArenaDOM();
+  }
+
+  isAnyModalOpen() {
+    return this.isClassSelectOpen || this.isInviteOpen || Boolean(this.currentDuel);
   }
 
   // 1. Меню выбора тела (Портал)
@@ -33,10 +42,10 @@ export class DuelManager {
       </div>
     `;
     this.container.appendChild(this.classModal);
-    this.classModal.querySelector('#close-class-btn').onclick = () => this.classModal.style.display = 'none';
+    this.classModal.querySelector('#close-class-btn').onclick = () => this.closeClassSelect();
 
     const list = this.classModal.querySelector('#class-cards-list');
-    Object.values(CLASSES).forEach(c => {
+    Object.values(CLASSES).forEach((c) => {
       const red = (getArmorReduction(c.armor) * 100).toFixed(1);
       const card = document.createElement('div');
       card.style.cssText = `background: #151222; border: 1px solid ${c.color}; border-radius: 6px; padding: 10px; cursor: pointer; transition: 0.2s;`;
@@ -49,14 +58,20 @@ export class DuelManager {
       `;
       card.onclick = () => {
         this.send({ type: 'select_class', classId: c.id });
-        this.classModal.style.display = 'none';
+        this.closeClassSelect();
       };
       list.appendChild(card);
     });
   }
 
   openClassSelect() {
+    this.isClassSelectOpen = true;
     this.classModal.style.display = 'flex';
+  }
+
+  closeClassSelect() {
+    this.isClassSelectOpen = false;
+    this.classModal.style.display = 'none';
   }
 
   // 2. Окно вызова на дуэль
@@ -80,16 +95,19 @@ export class DuelManager {
   }
 
   showInvite(fromNick, fromId) {
+    this.isInviteOpen = true;
     const txt = this.inviteModal.querySelector('#duel-invite-text');
     txt.textContent = `Игрок ${fromNick} бросил вам вызов!`;
     this.inviteModal.style.display = 'flex';
 
     this.inviteModal.querySelector('#duel-accept-btn').onclick = () => {
+      this.isInviteOpen = false;
       this.inviteModal.style.display = 'none';
       this.send({ type: 'duel_accept', targetId: fromId });
     };
 
     this.inviteModal.querySelector('#duel-decline-btn').onclick = () => {
+      this.isInviteOpen = false;
       this.inviteModal.style.display = 'none';
       this.send({ type: 'duel_decline', targetId: fromId });
     };
@@ -131,7 +149,7 @@ export class DuelManager {
         <!-- Кнопки действий -->
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <button id="wap-attack-btn" style="background: #374151; border: 1px solid #4b5563; padding: 10px; border-radius: 6px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer; text-align: center; transition: 0.1s;">
-            <span id="wap-atk-label">Атака (x0.2)</span>
+            <span id="wap-atk-label">Атака</span>
             <div id="wap-charge-bar" style="background: #eab308; height: 3px; width: 0%; margin-top: 4px;"></div>
           </button>
           
@@ -145,10 +163,11 @@ export class DuelManager {
 
     const atkBtn = this.arenaModal.querySelector('#wap-attack-btn');
     atkBtn.onclick = () => {
-      if (!this.currentDuel || this.currentDuel.locked) return;
+      if (!this.currentDuel || this.currentDuel.locked || this.attackCooldown > 0) return;
       const charge = getChargeInfo(this.chargeTimer);
       this.send({ type: 'duel_action', action: 'attack', chargeMult: charge.mult });
-      this.chargeTimer = 0; // Сброс замаха после удара
+      this.chargeTimer = 0;
+      this.attackCooldown = 2.0; // 2 секунды антиспам
     };
 
     const abBtn = this.arenaModal.querySelector('#wap-ability-btn');
@@ -156,7 +175,8 @@ export class DuelManager {
       if (!this.currentDuel || this.currentDuel.locked || this.abilityCooldown > 0) return;
       const charge = getChargeInfo(this.chargeTimer);
       this.send({ type: 'duel_action', action: 'ability', chargeMult: charge.mult });
-      this.abilityCooldown = 14; // Старт кд 14 сек
+      this.abilityCooldown = 14;
+      this.attackCooldown = 2.0; // Запускаем откат и на атаку
       this.chargeTimer = 0;
     };
   }
@@ -166,6 +186,7 @@ export class DuelManager {
     this.currentDuel.locked = true;
     this.chargeTimer = 0;
     this.abilityCooldown = 0;
+    this.attackCooldown = 0;
 
     const isPlayer1 = data.p1.id === myId;
     this.me = isPlayer1 ? data.p1 : data.p2;
@@ -204,18 +225,35 @@ export class DuelManager {
       if (!this.currentDuel || this.currentDuel.locked) return;
 
       this.chargeTimer = Math.min(16, this.chargeTimer + 0.1);
+
       if (this.abilityCooldown > 0) {
         this.abilityCooldown = Math.max(0, this.abilityCooldown - 0.1);
       }
 
-      // Обновление кнопки атаки и замаха
+      if (this.attackCooldown > 0) {
+        this.attackCooldown = Math.max(0, this.attackCooldown - 0.1);
+      }
+
+      // Обновление кнопки атаки и антиспама
       const charge = getChargeInfo(this.chargeTimer);
       const atkBtn = this.arenaModal.querySelector('#wap-attack-btn');
       const atkLabel = this.arenaModal.querySelector('#wap-atk-label');
       const chargeBar = this.arenaModal.querySelector('#wap-charge-bar');
 
-      atkBtn.style.borderColor = charge.color;
-      atkLabel.innerHTML = `АТАКОВАТЬ <span style="color:${charge.color}">[${charge.label} x${charge.mult}]</span>`;
+      if (this.attackCooldown > 0) {
+        atkBtn.disabled = true;
+        atkBtn.style.opacity = '0.55';
+        atkBtn.style.cursor = 'not-allowed';
+        atkBtn.style.borderColor = '#4b5563';
+        atkLabel.innerHTML = `ПЕРЕЗАРЯДКА <span style="color:#ef4444">(${this.attackCooldown.toFixed(1)}с)</span>`;
+      } else {
+        atkBtn.disabled = false;
+        atkBtn.style.opacity = '1';
+        atkBtn.style.cursor = 'pointer';
+        atkBtn.style.borderColor = charge.color;
+        atkLabel.innerHTML = `АТАКОВАТЬ <span style="color:${charge.color}">[${charge.label} x${charge.mult}]</span>`;
+      }
+
       chargeBar.style.backgroundColor = charge.color;
       chargeBar.style.width = `${Math.min(100, (this.chargeTimer / 15) * 100)}%`;
 
@@ -225,10 +263,12 @@ export class DuelManager {
       if (this.abilityCooldown > 0) {
         abBtn.disabled = true;
         abBtn.style.opacity = '0.5';
+        abBtn.style.cursor = 'not-allowed';
         abBtn.textContent = `${myClass.ability.name} (${this.abilityCooldown.toFixed(1)}c)`;
       } else {
         abBtn.disabled = false;
         abBtn.style.opacity = '1';
+        abBtn.style.cursor = 'pointer';
         abBtn.textContent = `${myClass.ability.name} [Готово]`;
       }
     }, 100);

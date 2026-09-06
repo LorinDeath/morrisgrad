@@ -3,11 +3,11 @@ export const CLASSES = {
     id: 'warrior',
     name: 'Воин',
     color: '#38bdf8', // Голубой
-    hp: 20,
-    maxHp: 20,
-    armor: 10,
+    hp: 200,
+    maxHp: 200,
+    armor: 50,
     minAtk: 1,
-    maxAtk: 2,
+    maxAtk: 4,
     ability: {
       name: 'Удар в спину',
       cooldown: 14,
@@ -21,10 +21,10 @@ export const CLASSES = {
     id: 'spearman',
     name: 'Копейщик',
     color: '#ef4444', // Красный
-    hp: 10,
-    maxHp: 10,
-    armor: 2,
-    minAtk: 4,
+    hp: 50,
+    maxHp: 50,
+    armor: 5,
+    minAtk: 5,
     maxAtk: 10,
     ability: {
       name: 'Колющий удар',
@@ -39,9 +39,9 @@ export const CLASSES = {
     id: 'rogue',
     name: 'Разбойник',
     color: '#22c55e', // Зелёный
-    hp: 13,
-    maxHp: 13,
-    armor: 5,
+    hp: 150,
+    maxHp: 150,
+    armor: 8,
     minAtk: 1,
     maxAtk: 15,
     ability: {
