@@ -317,6 +317,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       // Старт дуэли
       if (data.type === 'duel_start') {
         player.inDuel = true;
+        statsUI.hideTarget();
         duelManager.startDuel(data.duel, myNetworkId);
       }
 
@@ -406,7 +407,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         });
 
         for (const nick of otherPlayers.keys()) {
-          if (!activeNicks.has(nick)) otherPlayers.delete(nick);
+          if (!activeNicks.has(nick)) {
+            if (statsUI.currentTarget && statsUI.currentTarget.username && statsUI.currentTarget.username.toLowerCase() === nick) {
+              statsUI.hideTarget();
+            }
+            otherPlayers.delete(nick);
+          }
         }
       }
     } catch (e) {}
@@ -416,7 +422,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let lastSentY = player.y;
 
   setInterval(() => {
-    // Во время дуэли координаты не шлём — игрок зафиксирован на месте
     if (!isKicked && socket.readyState === WebSocket.OPEN && !player.inDuel) {
       const curX = Math.round(player.x);
       const curY = Math.round(player.y);
@@ -441,7 +446,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const keys = { w: false, a: false, s: false, d: false };
 
-  // --- ОБРАБОТКА МЫШИ (ХОВЕР, СТАТЫ И КНОПКА ДУЭЛИ) ---
+  // --- ОБРАБОТКА МЫШИ (ХОВЕР И КЛИК ПО ИГРОКУ ДЛЯ ВЫБОРА ЦЕЛИ) ---
   canvas.addEventListener('mousemove', (e) => {
     if (isModalOpen || statsUI.isSoulOpen || player.inDuel) {
       statsUI.hideTooltip();
@@ -459,8 +464,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     for (const p of otherPlayers.values()) {
       if (
-        Math.abs(mouseWorldX - p.x) <= p.width &&
-        Math.abs(mouseWorldY - p.y) <= p.height + 8
+        Math.abs(mouseWorldX - p.x) <= p.width + 4 &&
+        mouseWorldY >= p.y - p.height - 18 / camera.zoom &&
+        mouseWorldY <= p.y + p.height / 2
       ) {
         hovered = p;
         break;
@@ -468,7 +474,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
 
     if (hovered) {
-      statsUI.showTooltip(e.clientX - rect.left, e.clientY - rect.top, hovered, player);
+      statsUI.showTooltip(e.clientX - rect.left, e.clientY - rect.top, hovered);
     } else {
       statsUI.hideTooltip();
     }
@@ -476,10 +482,43 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   canvas.addEventListener('mouseleave', () => statsUI.hideTooltip());
 
+  // Клик по игроку или нику открывает статичную панель цели с кнопкой Дуэли
+  canvas.addEventListener('click', (e) => {
+    if (isModalOpen || statsUI.isSoulOpen || player.inDuel) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const screenY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    const mouseWorldX = (screenX - VIEW_WIDTH / 2) / camera.zoom + camera.x;
+    const mouseWorldY = (screenY - VIEW_HEIGHT / 2) / camera.zoom + camera.y;
+
+    let clicked = null;
+    for (const p of otherPlayers.values()) {
+      if (
+        Math.abs(mouseWorldX - p.x) <= p.width + 6 &&
+        mouseWorldY >= p.y - p.height - 20 / camera.zoom &&
+        mouseWorldY <= p.y + p.height / 2
+      ) {
+        clicked = p;
+        break;
+      }
+    }
+
+    if (clicked) {
+      statsUI.showTarget(clicked, player);
+    }
+  });
+
   window.addEventListener('keydown', (e) => {
     if (isKicked) return;
 
     if (e.key === 'Escape') {
+      if (statsUI.isTargetOpen) {
+        statsUI.hideTarget();
+        e.preventDefault();
+        return;
+      }
       if (statsUI.isSoulOpen) {
         statsUI.toggleSoulModal(false);
         e.preventDefault();
@@ -510,7 +549,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       return;
     }
 
-    // Во время модалок или дуэли блокируем движение
+    // Во время модалок или дуэли блокируем управление движением
     if (isModalOpen || statsUI.isSoulOpen || player.inDuel) return;
 
     // Активация рывка (Пробел или Shift)
