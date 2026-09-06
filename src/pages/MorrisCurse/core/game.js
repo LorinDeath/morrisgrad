@@ -1,4 +1,5 @@
 import { DEFAULT_STATS, StatsUI } from './playerStats.js';
+import { DuelManager } from './duelManager.js';
 
 export function initGame(canvasId, username = 'Игрок', userId = '') {
   const canvas = document.getElementById(canvasId);
@@ -43,6 +44,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     y: WORLD_SIZE / 2,
     width: 16,
     height: 16,
+    color: '#ffffff', // Белый по умолчанию (Дух)
+    inDuel: false,    // Флаг нахождения в битве
     stats: { ...DEFAULT_STATS, moveSpeed: 175 },
     bubble: { text: '', expireAt: 0 }
   };
@@ -56,8 +59,32 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       : (canvas.parentElement || document.body);
   }
 
-  // Инициализация модуля характеристик и окна «Душа»
-  const statsUI = new StatsUI(getGameContainer());
+  // Всплывающее уведомление (тост)
+  function showToast(text) {
+    const t = document.createElement('div');
+    t.style.cssText = `
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      background: #ef4444; color: #fff; padding: 6px 14px; border-radius: 4px;
+      font-family: monospace; font-size: 12px; z-index: 10020; box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    `;
+    t.textContent = text;
+    getGameContainer().appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  // Менеджер дуэлей и WAP-сражений
+  const duelManager = new DuelManager(getGameContainer(), (data) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(data));
+    }
+  });
+
+  // Модуль характеристик (передаём колбэк отправки приглашения на дуэль)
+  const statsUI = new StatsUI(getGameContainer(), (targetId) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'duel_invite', targetId }));
+    }
+  });
 
   // --- ИНТЕРФЕЙС МИНИ-ИГР ---
   function initArcadeDOM() {
@@ -239,6 +266,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       x: Math.round(player.x),
       y: Math.round(player.y),
       stats: {
+        classId: player.stats.classId,
         hp: player.stats.hp,
         maxHp: player.stats.maxHp,
         armor: player.stats.armor,
@@ -263,6 +291,49 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (data.portals) {
           worldPortals = data.portals;
         }
+      }
+
+      // Открытие меню выбора класса (Синий портал 565, 600)
+      if (data.type === 'open_class_selection') {
+        duelManager.openClassSelect();
+      }
+
+      // Обновление статов после выбора класса
+      if (data.type === 'class_updated') {
+        player.stats = { ...player.stats, ...data.stats };
+        player.color = data.color;
+      }
+
+      // Входящий вызов на дуэль
+      if (data.type === 'duel_incoming') {
+        duelManager.showInvite(data.fromUsername, data.fromId);
+      }
+
+      // Уведомление об отказе от дуэли
+      if (data.type === 'duel_declined_notify') {
+        showToast(`${data.targetNick} отклонил вызов на дуэль.`);
+      }
+
+      // Старт дуэли
+      if (data.type === 'duel_start') {
+        player.inDuel = true;
+        duelManager.startDuel(data.duel, myNetworkId);
+      }
+
+      // Обновление полосок HP и боевого лога WAP
+      if (data.type === 'duel_update') {
+        if (duelManager.currentDuel) {
+          duelManager.me.hp = duelManager.me.id === duelManager.currentDuel.p1.id ? data.p1Hp : data.p2Hp;
+          duelManager.opp.hp = duelManager.opp.id === duelManager.currentDuel.p1.id ? data.p1Hp : data.p2Hp;
+          duelManager.updateDuelUI();
+        }
+        duelManager.addLog(data.log);
+      }
+
+      // Завершение боя
+      if (data.type === 'duel_end') {
+        player.inDuel = false;
+        duelManager.endDuel(data.winnerName);
       }
 
       if (data.type === 'open_minigames_menu') {
@@ -300,7 +371,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
         data.players.forEach((p) => {
           const pNameLower = (p.username || '').trim().toLowerCase();
-          if (p.id === myNetworkId || pNameLower === myNameLower) return;
+          if (p.id === myNetworkId || pNameLower === myNameLower) {
+            player.inDuel = Boolean(p.inDuel);
+            if (p.color) player.color = p.color;
+            return;
+          }
 
           activeNicks.add(pNameLower);
 
@@ -309,6 +384,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
             cur.targetX = p.x;
             cur.targetY = p.y;
             cur.username = p.username;
+            cur.color = p.color || '#38bdf8';
+            cur.inDuel = Boolean(p.inDuel);
             cur.stats = p.stats || DEFAULT_STATS;
           } else {
             otherPlayers.set(pNameLower, {
@@ -318,6 +395,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
               targetX: p.x,
               targetY: p.y,
               username: p.username || 'Странник',
+              color: p.color || '#38bdf8',
+              inDuel: Boolean(p.inDuel),
               stats: p.stats || DEFAULT_STATS,
               width: 16,
               height: 16,
@@ -337,7 +416,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let lastSentY = player.y;
 
   setInterval(() => {
-    if (!isKicked && socket.readyState === WebSocket.OPEN) {
+    // Во время дуэли координаты не шлём — игрок зафиксирован на месте
+    if (!isKicked && socket.readyState === WebSocket.OPEN && !player.inDuel) {
       const curX = Math.round(player.x);
       const curY = Math.round(player.y);
 
@@ -361,9 +441,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const keys = { w: false, a: false, s: false, d: false };
 
-  // --- ОБРАБОТКА МЫШИ (ХОВЕР И СТАТЫ) ---
+  // --- ОБРАБОТКА МЫШИ (ХОВЕР, СТАТЫ И КНОПКА ДУЭЛИ) ---
   canvas.addEventListener('mousemove', (e) => {
-    if (isModalOpen || statsUI.isSoulOpen) {
+    if (isModalOpen || statsUI.isSoulOpen || player.inDuel) {
       statsUI.hideTooltip();
       return;
     }
@@ -388,7 +468,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
 
     if (hovered) {
-      statsUI.showTooltip(e.clientX - rect.left, e.clientY - rect.top, hovered);
+      statsUI.showTooltip(e.clientX - rect.left, e.clientY - rect.top, hovered, player);
     } else {
       statsUI.hideTooltip();
     }
@@ -423,14 +503,15 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     }
 
-    // Клавиша [C] / [С] — Обитель Души
-    if ((e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') && !isTyping && !isModalOpen) {
+    // Клавиша [C] / [С] — Обитель Души / Меню Персонажа
+    if ((e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') && !isTyping && !isModalOpen && !player.inDuel) {
       statsUI.toggleSoulModal(undefined, player.stats, username);
       e.preventDefault();
       return;
     }
 
-    if (isModalOpen || statsUI.isSoulOpen) return;
+    // Во время модалок или дуэли блокируем движение
+    if (isModalOpen || statsUI.isSoulOpen || player.inDuel) return;
 
     // Активация рывка (Пробел или Shift)
     if ((e.code === 'Space' || e.key === ' ' || e.key === 'Shift') && !isTyping) {
@@ -445,7 +526,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (keys.w) my -= 1;
         if (keys.s) my += 1;
         if (keys.a) mx -= 1;
-        if (keys.d) mx += 1;
+        if (keys.d) mx -= 1;
 
         if (mx !== 0 || my !== 0) {
           const len = Math.hypot(mx, my);
@@ -511,7 +592,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   });
 
   window.addEventListener('keyup', (e) => {
-    if (isTyping || isModalOpen || statsUI.isSoulOpen) return;
+    if (isTyping || isModalOpen || statsUI.isSoulOpen || player.inDuel) return;
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'ц') keys.w = false;
     if (k === 'a' || k === 'ф') keys.a = false;
@@ -575,7 +656,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       dash.cooldownTimer = Math.max(0, dash.cooldownTimer - dt);
     }
 
-    if (!isKicked && !isTyping && !isModalOpen && !statsUI.isSoulOpen) {
+    // Движение (блокируется во время дуэли)
+    if (!isKicked && !isTyping && !isModalOpen && !statsUI.isSoulOpen && !player.inDuel) {
       if (dash.active) {
         player.x += dash.dirX * dash.speed * dt;
         player.y += dash.dirY * dash.speed * dt;
@@ -676,7 +758,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.lineWidth = 2;
       ctx.strokeRect(drawX - pulse / 2, drawY - pulse / 2, pw + pulse, ph + pulse);
 
-      ctx.fillStyle = 'rgba(168, 85, 247, 0.65)';
+      ctx.fillStyle = portal.color ? `${portal.color}99` : 'rgba(168, 85, 247, 0.65)';
       ctx.fillRect(drawX, drawY, pw, ph);
 
       ctx.shadowBlur = 0;
@@ -699,12 +781,20 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
     });
 
-    // --- СЛОЙ 2: ТЕЛА ПЕРСОНАЖЕЙ ---
+    // --- СЛОЙ 2: ТЕЛА ДРУГИХ ПЕРСОНАЖЕЙ (ЦВЕТ КЛАССА) ---
     otherPlayers.forEach((p) => {
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = p.color || '#38bdf8';
       ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
+
+      // Значок дуэли над головой противника
+      if (p.inDuel) {
+        ctx.font = `bold ${14 / camera.zoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('⚔️', Math.round(p.x), Math.round(p.y - halfH - 18 / camera.zoom));
+      }
     });
 
+    // Свой персонаж
     if (dash.active) {
       ctx.save();
       ctx.shadowColor = '#eab308';
@@ -715,8 +805,15 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.restore();
     }
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = player.color || '#ffffff';
     ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
+
+    // Значок дуэли над своей головой
+    if (player.inDuel) {
+      ctx.font = `bold ${14 / camera.zoom}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 18 / camera.zoom));
+    }
 
     // --- СЛОЙ 3: НИКИ ПЕРСОНАЖЕЙ ---
     const nickFontSize = 12 / camera.zoom;
@@ -730,7 +827,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     otherPlayers.forEach((p) => {
       ctx.strokeStyle = '#050408';
       ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = p.color || '#38bdf8';
       ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
     });
 
@@ -754,6 +851,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.restore();
 
     // Статичный HUD
+    const isBody = Boolean(player.stats && player.stats.classId);
+
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
     ctx.fillRect(8, 8, 148, 92);
     ctx.strokeStyle = '#332742';
@@ -776,9 +875,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillText(`Рывок: ${dash.cooldownTimer.toFixed(1)}c`, 14, 72);
     }
 
-    // Подсказка вызова Души
-    ctx.fillStyle = '#38bdf8';
-    ctx.fillText(`Душа: [C]`, 14, 88);
+    // Динамическая смена Душа [C] -> Персонаж [C] с цветом выбранного тела
+    ctx.fillStyle = isBody ? (player.color || '#38bdf8') : '#38bdf8';
+    ctx.fillText(isBody ? `Персонаж: [C]` : `Душа: [C]`, 14, 88);
 
     // Ввод чата
     if (isTyping) {
