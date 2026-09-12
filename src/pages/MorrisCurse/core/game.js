@@ -54,7 +54,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     maxHp: 100,
     armor: 10,
     attack: 5,
-    inDuel: false
+    inDuel: false,
+    bubble: { text: '', expireAt: 0 }
   };
 
   const dash = {
@@ -328,20 +329,17 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         showToast(`${data.targetNick} отклонил вызов на дуэль.`);
       }
 
-      // 1. Старт дуэли или битвы с боссом
       if (data.type === 'duel_start') {
         player.inDuel = true;
         resetKeys();
         hud.clearTarget();
-        duelManager.startDuel(data, myNetworkId || userId || username);
+        duelManager.startDuel(data, myNetworkId, username);
       }
 
-      // 2. Обновление HP и лога битвы через менеджер
       if (data.type === 'duel_update') {
         duelManager.updateDuel(data);
       }
 
-      // 3. Завершение боя
       if (data.type === 'duel_end') {
         player.inDuel = false;
         duelManager.endDuel(data.winnerName);
@@ -354,6 +352,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       if (data.type === 'chat_bubble') {
         const targetNick = (data.username || '').trim().toLowerCase();
         const myNick = (username || '').trim().toLowerCase();
+
+        // Облачко фраз Кейт
+        if (data.playerId === 'boss_keyt' || targetNick === 'кейт') {
+          boss.bubble = { text: data.text, expireAt: Date.now() + 4500 };
+          return;
+        }
 
         if (targetNick === myNick || (data.playerId && data.playerId === myNetworkId)) {
           player.bubble = { text: data.text, expireAt: Date.now() + 5000 };
@@ -682,7 +686,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
   }, { passive: false });
 
-  function drawBubble(text, x, y, isSelf) {
+  function drawBubble(text, x, y, isSelf, strokeColor) {
     ctx.save();
     const targetFontPx = 13;
     const fontInWorld = targetFontPx / camera.zoom;
@@ -695,8 +699,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const boxX = x - boxW / 2;
     const boxY = y - boxH;
 
+    const borderColor = strokeColor || (isSelf ? '#ffd700' : '#38bdf8');
+
     ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
-    ctx.strokeStyle = isSelf ? '#ffd700' : '#38bdf8';
+    ctx.strokeStyle = borderColor;
     ctx.lineWidth = 1.5 / camera.zoom;
     ctx.fillRect(boxX, boxY, boxW, boxH);
     ctx.strokeRect(boxX, boxY, boxW, boxH);
@@ -706,7 +712,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.moveTo(x - 4 / camera.zoom, boxY + boxH);
     ctx.lineTo(x, boxY + boxH + tailH);
     ctx.lineTo(x + 4 / camera.zoom, boxY + boxH);
-    ctx.fillStyle = isSelf ? '#ffd700' : '#38bdf8';
+    ctx.fillStyle = borderColor;
     ctx.fill();
 
     ctx.textAlign = 'center';
@@ -1094,6 +1100,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
 
     const bubbleOffsetY = halfH + (26 / camera.zoom);
+
+    // Отрисовка облачка Кейт с розовой подсветкой
+    if (boss.bubble && boss.bubble.expireAt > now && boss.state !== 'dead') {
+      drawBubble(boss.bubble.text, boss.x, boss.y - bubbleOffsetY, false, '#f472b6');
+    }
+
     otherPlayers.forEach((p) => {
       if (p.bubble && p.bubble.expireAt > now) {
         drawBubble(p.bubble.text, p.x, p.y - bubbleOffsetY, false);

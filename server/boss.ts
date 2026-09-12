@@ -1,6 +1,15 @@
 import type { Session, DuelState, BossState } from "./types";
 import { calcArmorReduction } from "./combat";
 
+const WANDER_QUOTES = [
+  "А где Нофорд?",
+  "Мне хочется спать...",
+  "Не ходите по помытому, мря)",
+  "Не хочу чтобы Мэл злилась(",
+  "Кьют хорошая...",
+  "Китти плохая...",
+];
+
 export class KeytBoss {
   id = "boss_keyt";
   name = "Кейт";
@@ -33,10 +42,13 @@ export class KeytBoss {
   wanderTargetX = 700;
   wanderTargetY = 700;
 
-  // Радиусы: агр в упор (4.5м = 90px), контакт хитбоксов = 35px
+  // Таймеры диалогов
+  nextWanderSayTime = Date.now() + 4000;
+  nextCombatSayTime = 0;
+
   AGGRO_RADIUS = 90;
   HITBOX_RADIUS = 35;
-  SPEED = 185; // Быстрый рывок при обнаружении
+  SPEED = 185;
 
   getState(): BossState {
     return {
@@ -100,11 +112,12 @@ export class KeytBoss {
     activeDuels: Map<string, DuelState>,
     onTriggerCombat: (targetSession: Session, ws: WebSocket) => void,
     onDuelUpdate: (duel: DuelState, log: string) => void,
-    onDuelEnd: (duel: DuelState, winnerName: string) => void
+    onDuelEnd: (duel: DuelState, winnerName: string) => void,
+    onBossSay: (text: string) => void
   ) {
     const now = Date.now();
 
-    // 1. Возрождение через 5 секунд
+    // 1. Возрождение
     if (this.state === "dead") {
       if (now - this.deathTime >= 5000) {
         this.state = "wander";
@@ -116,17 +129,24 @@ export class KeytBoss {
         this.attack = this.baseAtk;
         this.inDuel = false;
         this.duelId = null;
+        this.nextWanderSayTime = now + 5000;
       }
       return;
     }
 
-    // 2. В бою: стоит неподвижно и атакует по таймеру
+    // 2. В бою
     if (this.state === "combat") {
       if (!this.duelId || !activeDuels.has(this.duelId)) {
         this.state = "wander";
         this.inDuel = false;
         this.duelId = null;
         return;
+      }
+
+      // Периодический крик о помощи в мир во время битвы
+      if (now >= this.nextCombatSayTime) {
+        this.nextCombatSayTime = now + (4000 + Math.random() * 4000);
+        onBossSay("ПОМОГИТЕ!");
       }
 
       const duel = activeDuels.get(this.duelId)!;
@@ -170,8 +190,14 @@ export class KeytBoss {
       return;
     }
 
-    // 3. Блуждание на спокойной скорости (0.35x)
+    // 3. Блуждание (периодические фразы в облачко)
     if (this.state === "wander") {
+      if (now >= this.nextWanderSayTime) {
+        this.nextWanderSayTime = now + (9000 + Math.random() * 8000);
+        const quote = WANDER_QUOTES[Math.floor(Math.random() * WANDER_QUOTES.length)];
+        onBossSay(quote);
+      }
+
       if (now >= this.nextWanderTime) {
         this.nextWanderTime = now + (2500 + Math.random() * 3000);
         this.wanderTargetX = Math.max(100, Math.min(1100, this.x + (Math.random() * 260 - 130)));
@@ -189,13 +215,15 @@ export class KeytBoss {
         this.y += this.dirY * (this.SPEED * 0.35) * dt;
       }
 
-      // Сканирование: среагирует, только если подойти ближе 90 px (~4.5 метра)
+      // Поиск цели в радиусе агра
       for (const [ws, s] of sessions.entries()) {
         if (!s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil)) {
           const dist = Math.hypot(s.x - this.x, s.y - this.y);
           if (dist <= this.AGGRO_RADIUS) {
             this.state = "chase";
             this.targetPlayerId = s.id;
+            this.nextCombatSayTime = now + 2500;
+            onBossSay("ЖЕРТВА!");
             break;
           }
         }
@@ -203,7 +231,7 @@ export class KeytBoss {
       return;
     }
 
-    // 4. Внезапный скример-рывок
+    // 4. Погоня
     if (this.state === "chase") {
       let targetSession: Session | null = null;
       let targetWs: WebSocket | null = null;
@@ -216,20 +244,21 @@ export class KeytBoss {
         }
       }
 
-      if (!targetSession || targetSession.inDuel || !targetSession.stats.classId || (targetSession.escapedUntil && now < targetSession.escapedUntil)) {
-        this.state = "wander";
-        this.targetPlayerId = null;
-        return;
-      }
+      const isTargetInvalid =
+        !targetSession ||
+        targetSession.inDuel ||
+        !targetSession.stats.classId ||
+        (targetSession.escapedUntil && now < targetSession.escapedUntil);
 
-      const cdx = targetSession.x - this.x;
-      const cdy = targetSession.y - this.y;
+      const cdx = targetSession ? targetSession.x - this.x : 0;
+      const cdy = targetSession ? targetSession.y - this.y : 0;
       const dist = Math.hypot(cdx, cdy);
 
-      // Если игрок вовремя сделал рывок/убежал дальше 180 px — погоня прекращается
-      if (dist > this.AGGRO_RADIUS + 90) {
+      if (isTargetInvalid || dist > this.AGGRO_RADIUS + 90) {
         this.state = "wander";
         this.targetPlayerId = null;
+        this.nextWanderSayTime = now + 4000;
+        onBossSay("Убежал(");
         return;
       }
 
@@ -242,6 +271,7 @@ export class KeytBoss {
         this.state = "combat";
         this.targetPlayerId = null;
         this.nextAttackTime = now + (1500 + Math.random() * 2500);
+        this.nextCombatSayTime = now + 2500;
         onTriggerCombat(targetSession, targetWs);
       }
     }

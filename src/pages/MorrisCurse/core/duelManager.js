@@ -118,7 +118,6 @@ export class DuelManager {
     };
   }
 
-  // WAP-Арена: полностью динамические карточки врагов и союзников
   initWapArenaDOM() {
     this.arenaModal = document.createElement('div');
     this.arenaModal.style.cssText = `
@@ -133,15 +132,15 @@ export class DuelManager {
         <div style="background: #110d1c; border: 1px solid #2e2042; border-radius: 6px; padding: 8px;">
           <div style="font-size: 10px; color: #f87171; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between;">
             <span>ПРОТИВНИКИ (КЛИК ДЛЯ ВЫБОРА ЦЕЛИ):</span>
-            <span style="color: #ffd700;">🎯 Выбор цели</span>
+            <span style="color: #ffd700;">🎯 Цель выбрана</span>
           </div>
           <div id="arena-enemies-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
         </div>
 
         <!-- 2. ЛОГ СРАЖЕНИЯ (В ЦЕНТРЕ) -->
-        <div id="wap-combat-log" style="background: #05040a; border: 1px solid #1f1930; height: 120px; border-radius: 4px; padding: 8px; overflow-y: auto; font-size: 11px; display: flex; flex-direction: column; gap: 4px;"></div>
+        <div id="wap-combat-log" style="background: #05040a; border: 1px solid #1f1930; height: 115px; border-radius: 4px; padding: 8px; overflow-y: auto; font-size: 11px; display: flex; flex-direction: column; gap: 4px;"></div>
 
-        <!-- 3. СОЮЗНИКИ И ВЫ (СНИЗУ, НАД КНОПКАМИ) -->
+        <!-- 3. СОЮЗНИКИ И ВЫ (СНИЗУ, СТРОГО НАД КНОПКАМИ) -->
         <div style="background: #0d1322; border: 1px solid #1e293b; border-radius: 6px; padding: 8px;">
           <div style="font-size: 10px; color: #4ade80; font-weight: bold; margin-bottom: 6px;">ВАША КОМАНДА:</div>
           <div id="arena-allies-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
@@ -264,42 +263,58 @@ export class DuelManager {
   }
 
   parseTeams(duel) {
+    // Сохраняем флаг боя с боссом
+    const isBoss = Boolean(this.currentDuel?.isBossFight || duel?.isBossFight);
+    if (this.currentDuel) {
+      this.currentDuel.isBossFight = isBoss;
+    }
+
     const hunters = duel.hunters || (duel.p1 ? [duel.p1] : []);
     const allies = duel.allies || (duel.p2 ? [duel.p2] : []);
 
     const isMatch = (p) => {
       if (!p) return false;
-      const pid = String(p.id || '').toLowerCase();
-      const pName = String(p.username || '').toLowerCase();
+      const pid = String(p.id || '').toLowerCase().trim();
+      const pName = String(p.username || '').toLowerCase().trim();
       return (this.myId && pid === this.myId) || (this.myNick && pName === this.myNick);
     };
 
     const inHunters = hunters.some(isMatch);
     const inAllies = allies.some(isMatch);
 
-    if (inHunters) {
-      this.me = hunters.find(isMatch);
-      this.allies = hunters;
-      this.enemies = allies;
-    } else if (inAllies) {
-      this.me = allies.find(isMatch);
-      this.allies = allies;
-      this.enemies = hunters;
-    } else {
-      // Fallback
-      if (duel.p1 && isMatch(duel.p1)) {
-        this.me = duel.p1;
-        this.allies = [duel.p1];
-        this.enemies = duel.p2 ? [duel.p2] : [];
+    if (isBoss) {
+      if (inHunters) {
+        this.me = hunters.find(isMatch) || hunters[0];
+        this.allies = hunters;
+        this.enemies = allies;
+      } else if (inAllies) {
+        this.me = allies.find(isMatch) || allies[0];
+        this.allies = allies;
+        this.enemies = hunters;
       } else {
-        this.me = duel.p2 || { id: this.myId, username: this.myNick || 'Вы', hp: 100, maxHp: 100 };
+        this.me = hunters[0] || { id: this.myId, username: this.myNick || 'Вы', hp: 100, maxHp: 100 };
+        this.allies = hunters;
+        this.enemies = allies;
+      }
+    } else {
+      const p1 = hunters[0] || duel.p1;
+      const p2 = allies[0] || duel.p2;
+
+      if (isMatch(p1)) {
+        this.me = p1;
+        this.allies = [p1];
+        this.enemies = p2 ? [p2] : [];
+      } else {
+        this.me = p2 || { id: this.myId, username: this.myNick || 'Вы', hp: 100, maxHp: 100 };
         this.allies = [this.me];
-        this.enemies = duel.p1 ? [duel.p1] : [];
+        this.enemies = p1 ? [p1] : [];
       }
     }
 
-    if (!this.selectedTargetId || !this.enemies.some(e => e.id === this.selectedTargetId && e.hp > 0)) {
-      const living = this.enemies.find(e => e.hp > 0);
+    // Сохраняем выбранную цель, если она жива, иначе берём первого живого врага
+    const hasTarget = this.enemies.some((e) => e.id === this.selectedTargetId && e.hp > 0);
+    if (!hasTarget) {
+      const living = this.enemies.find((e) => e.hp > 0);
       this.selectedTargetId = living ? living.id : (this.enemies[0]?.id || null);
     }
   }
@@ -322,7 +337,8 @@ export class DuelManager {
         opacity: ${isDead ? '0.35' : '1'}; transition: all 0.15s;
       `;
 
-      const pct = Math.max(0, Math.min(100, (enemy.hp / (enemy.maxHp || 100)) * 100));
+      const maxHpVal = enemy.maxHp || 100;
+      const pct = Math.max(0, Math.min(100, (enemy.hp / maxHpVal) * 100));
       const displayName = enemy.isBoss ? 'Кейт [БОСС]' : enemy.username;
 
       card.innerHTML = `
@@ -333,7 +349,7 @@ export class DuelManager {
         <div style="background: #241a36; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
           <div style="background: #ef4444; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
         </div>
-        <div style="font-size: 10px; color: #cbd5e1; text-align: right;">${Math.max(0, enemy.hp)} / ${enemy.maxHp || 100} HP</div>
+        <div style="font-size: 10px; color: #cbd5e1; text-align: right;">${Math.max(0, enemy.hp)} / ${maxHpVal} HP</div>
       `;
 
       if (!isDead) {
@@ -354,55 +370,40 @@ export class DuelManager {
       card.style.cssText = `
         flex: 1; min-width: 135px;
         background: ${isMe ? '#0f2419' : '#0e172a'};
-        border: 2px solid ${isMe ? '#22c55e' : '#38bdf8'};
+        border: 2px solid ${isMe ? '#22c55e' : (ally.isBoss ? '#f472b6' : '#38bdf8')};
         border-radius: 6px; padding: 6px 8px;
         opacity: ${isDead ? '0.35' : '1'};
       `;
 
-      const pct = Math.max(0, Math.min(100, (ally.hp / (ally.maxHp || 100)) * 100));
+      const maxHpVal = ally.maxHp || 100;
+      const pct = Math.max(0, Math.min(100, (ally.hp / maxHpVal) * 100));
       const displayName = isMe
         ? `Вы (${ally.username})`
         : (ally.isBoss ? 'Кейт [СОЮЗНИК]' : ally.username);
 
       card.innerHTML = `
-        <div style="font-size: 11px; font-weight: bold; color: ${isMe ? '#4ade80' : '#38bdf8'};">
+        <div style="font-size: 11px; font-weight: bold; color: ${isMe ? '#4ade80' : (ally.isBoss ? '#f472b6' : '#38bdf8')};">
           ${displayName}
         </div>
         <div style="background: #172554; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
-          <div style="background: ${isMe ? '#22c55e' : '#38bdf8'}; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
+          <div style="background: ${isMe ? '#22c55e' : (ally.isBoss ? '#f472b6' : '#38bdf8')}; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
         </div>
-        <div style="font-size: 10px; color: #94a3b8; text-align: right;">${Math.max(0, ally.hp)} / ${ally.maxHp || 100} HP</div>
+        <div style="font-size: 10px; color: #94a3b8; text-align: right;">${Math.max(0, ally.hp)} / ${maxHpVal} HP</div>
       `;
 
       alliesBox.appendChild(card);
     });
   }
 
+  // Обновление состояния: динамически перестраивает команды при входе новых игроков
   updateDuel(data) {
     if (!this.currentDuel) return;
 
-    const updateList = (sourceList) => {
-      sourceList?.forEach((src) => {
-        const found = [...this.allies, ...this.enemies].find(p => p.id === src.id);
-        if (found) {
-          found.hp = src.hp;
-          found.maxHp = src.maxHp;
-        }
-      });
-    };
-
-    if (data.hunters || data.allies) {
-      updateList(data.hunters);
-      updateList(data.allies);
+    if (data.hunters && data.allies) {
+      this.parseTeams(data);
     } else if (this.me && this.enemies[0]) {
       this.me.hp = data.p1Hp !== undefined ? data.p1Hp : this.me.hp;
       this.enemies[0].hp = data.p2Hp !== undefined ? data.p2Hp : this.enemies[0].hp;
-    }
-
-    const curTarget = this.enemies.find(e => e.id === this.selectedTargetId);
-    if (!curTarget || curTarget.hp <= 0) {
-      const nextLiving = this.enemies.find(e => e.hp > 0);
-      if (nextLiving) this.selectedTargetId = nextLiving.id;
     }
 
     this.renderDynamicCards();

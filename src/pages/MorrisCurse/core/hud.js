@@ -245,7 +245,7 @@ export class GameHUD {
       if (this.currentTarget.isBoss || this.currentTarget.id === 'boss_keyt') {
         const b = boss || this.currentTarget;
         if (tName) {
-          tName.textContent = 'Кейт [БОСС]';
+          tName.textContent = 'Кейт';
           tName.style.color = '#f472b6';
         }
         if (tClass) tClass.textContent = 'Рыцарь смерти';
@@ -307,7 +307,7 @@ export class GameHUD {
         if (bDistPx <= 500) {
           nearbyList.push({
             isBoss: true,
-            title: 'Кейт [БОСС]',
+            title: 'Кейт',
             color: '#f472b6',
             meters: (bDistPx / 20).toFixed(1),
             distPx: bDistPx,

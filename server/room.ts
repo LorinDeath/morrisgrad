@@ -27,11 +27,24 @@ export class GameRoom extends DurableObject {
         this.activeDuels,
         (targetSession, ws) => this.startBossBattle(targetSession, ws),
         (duel, log) => this.broadcastDuelUpdate(duel, log),
-        (duel, winner) => this.endBossBattle(duel, winner)
+        (duel, winner) => this.endBossBattle(duel, winner),
+        (quote) => this.broadcastBossSay(quote)
       );
 
       this.broadcast();
     }, 100);
+  }
+
+  broadcastBossSay(text: string) {
+    const payload = JSON.stringify({
+      type: "chat_bubble",
+      playerId: "boss_keyt",
+      username: "Кейт",
+      text,
+    });
+    for (const ws of [...this.sessions.keys()]) {
+      try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    }
   }
 
   startBossBattle(initialPlayer: Session, initialWs: WebSocket) {
@@ -97,6 +110,7 @@ export class GameRoom extends DurableObject {
   broadcastDuelUpdate(duel: DuelState, log: string) {
     const payload = JSON.stringify({
       type: "duel_update",
+      isBossFight: Boolean(duel.isBossFight),
       hunters: duel.hunters.map((h) => ({ id: h.id, username: h.username, hp: h.hp, maxHp: h.maxHp, armor: h.armor, classId: h.classId })),
       allies: duel.allies.map((a) => ({ id: a.id, username: a.username, hp: a.hp, maxHp: a.maxHp, armor: a.armor, classId: a.classId, isBoss: a.isBoss })),
       p1Hp: duel.hunters[0]?.hp || 0,
@@ -134,6 +148,7 @@ export class GameRoom extends DurableObject {
       if (this.boss.state !== "dead") {
         this.boss.state = "wander";
         this.boss.nextWanderTime = Date.now() + 3000;
+        this.boss.nextWanderSayTime = Date.now() + 4000;
       }
     }
 
@@ -299,7 +314,6 @@ export class GameRoom extends DurableObject {
         }
 
         // 8. Присоединение к бою Кейт
-// 8. Присоединение к бою Кейт (выбор стороны)
         if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && this.boss.inDuel && this.boss.duelId) {
           const duel = this.activeDuels.get(this.boss.duelId);
           if (duel) {
@@ -328,7 +342,6 @@ export class GameRoom extends DurableObject {
               yellLog = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Какое мерзкое создание!»</span> — <b>${session.username}</b> присоединился к охоте на Кейт!`;
             }
 
-            // Отправляем подключившемуся полный состав обеих команд
             const payload = JSON.stringify({
               type: "duel_start",
               isBossFight: true,
@@ -343,7 +356,6 @@ export class GameRoom extends DurableObject {
             });
             server.send(payload);
 
-            // Оповещаем остальных и передаём актуальный состав команд
             this.broadcastDuelUpdate(duel, yellLog);
             this.broadcast();
           }
@@ -357,8 +369,12 @@ export class GameRoom extends DurableObject {
           const now = Date.now();
 
           if (msg.action === "escape") {
-            const { logText } = processCombatAction("escape", 1, session, duel, this.boss);
+            const { logText } = processCombatAction("escape", 1, session, duel, this.boss, msg.targetId);
             this.broadcastDuelUpdate(duel, logText);
+
+            if (duel.isBossFight) {
+              this.broadcastBossSay("Убежал(");
+            }
 
             if (!duel.isBossFight) {
               const winner = duel.p1.id === session.id ? duel.p2.username : duel.p1.username;
@@ -383,7 +399,6 @@ export class GameRoom extends DurableObject {
           if (now - session.lastActionTime < 1900) return;
           session.lastActionTime = now;
 
-          // Расчёт действия с учётом выбранного таргета
           const { logText, isDead } = processCombatAction(
             msg.action,
             msg.chargeMult,
