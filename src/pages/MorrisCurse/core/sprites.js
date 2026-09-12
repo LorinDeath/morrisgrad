@@ -3,6 +3,7 @@ import soulSrc from '../../../assets/character_1_frame16x20.png';
 import rogueSrc from '../../../assets/character_1_frame16x20 2.png';
 import warriorSrc from '../../../assets/character_8_frame16x20.png';
 import spearmanSrc from '../../../assets/character_9_frame16x20.png';
+import keytSrc from '../../../assets/Keyt.png';
 
 function createImg(src) {
   const img = new Image();
@@ -29,6 +30,7 @@ export const SPRITE_CONFIG = {
 };
 
 export const campfireImg = createImg(campfireSrc);
+export const keytImg = createImg(keytSrc);
 
 export const SPRITES = {
   soul: createImg(soulSrc),
@@ -63,7 +65,8 @@ export function createArtDecoPattern(ctx) {
 
   t.fillStyle = '#171126';
   t.beginPath();
-  t.moveTo(32, 0); t.lineTo(64, 32); t.lineTo(32, 64); t.lineTo(0, 32);
+  t.moveTo(32, 0); t.lineTo(64, 32);
+  t.lineTo(32, 64); t.lineTo(0, 32);
   t.closePath();
   t.fill();
   t.strokeStyle = 'rgba(212, 175, 55, 0.6)';
@@ -73,13 +76,15 @@ export function createArtDecoPattern(ctx) {
   t.strokeStyle = '#432d5c';
   t.lineWidth = 1;
   t.beginPath();
-  t.moveTo(32, 7); t.lineTo(57, 32); t.lineTo(32, 57); t.lineTo(7, 32);
+  t.moveTo(32, 7); t.lineTo(57, 32);
+  t.lineTo(32, 57); t.lineTo(7, 32);
   t.closePath();
   t.stroke();
 
   t.fillStyle = '#07050d';
   t.beginPath();
-  t.moveTo(32, 13); t.lineTo(51, 32); t.lineTo(32, 51); t.lineTo(13, 32);
+  t.moveTo(32, 13); t.lineTo(51, 32);
+  t.lineTo(32, 51); t.lineTo(13, 32);
   t.closePath();
   t.fill();
   t.strokeStyle = 'rgba(197, 155, 39, 0.5)';
@@ -89,13 +94,15 @@ export function createArtDecoPattern(ctx) {
   t.strokeStyle = 'rgba(245, 215, 127, 0.55)';
   t.lineWidth = 1;
   t.beginPath();
-  t.moveTo(32, 21); t.lineTo(43, 32); t.lineTo(32, 43); t.lineTo(21, 32);
+  t.moveTo(32, 21); t.lineTo(43, 32);
+  t.lineTo(32, 43); t.lineTo(21, 32);
   t.closePath();
   t.stroke();
 
   t.fillStyle = 'rgba(212, 175, 55, 0.7)';
   t.beginPath();
-  t.moveTo(32, 27); t.lineTo(37, 32); t.lineTo(32, 37); t.lineTo(27, 32);
+  t.moveTo(32, 27); t.lineTo(37, 32);
+  t.lineTo(32, 37); t.lineTo(27, 32);
   t.closePath();
   t.fill();
 
@@ -128,7 +135,7 @@ export function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, f
 
   if (!img || !img.complete || img.naturalWidth === 0) {
     ctx.fillStyle = fallbackColor || '#ffffff';
-    ctx.fillRect(Math.round(x - dw / 2), Math.round(y - dh / 2), dw, dh);
+    ctx.fillRect(x - dw / 2, y - dh / 2, dw, dh);
     return;
   }
 
@@ -143,9 +150,40 @@ export function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, f
 
   const sx = col * frameW;
   const sy = row * frameH;
+  // Без Math.round — спрайт плавно следует за камерой без вибрации
+  const dx = x - dw / 2;
+  const dy = y - dh / 2 - 4;
 
-  const dx = Math.round(x - dw / 2);
-  const dy = Math.round(y - dh / 2 - 4);
+  ctx.drawImage(img, sx, sy, frameW, frameH, dx, dy, dw, dh);
+}
+
+export function drawBossSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
+  const dw = 38;
+  const dh = 46;
+
+  if (!img || !img.complete || img.naturalWidth === 0) {
+    ctx.fillStyle = '#f472b6';
+    ctx.fillRect(x - dw / 2, y - dh / 2, dw, dh);
+    return;
+  }
+
+  ctx.imageSmoothingEnabled = false;
+
+  const isFullSheet = img.naturalWidth > 200;
+  const totalCols = isFullSheet ? 12 : 3;
+  const totalRows = isFullSheet ? 8 : 4;
+
+  const frameW = img.naturalWidth / totalCols;
+  const frameH = img.naturalHeight / totalRows;
+  const row = getDirectionRow(dirX, dirY);
+
+  const WALK_SEQUENCE = [0, 1, 2, 1];
+  const col = isMoving ? WALK_SEQUENCE[Math.floor(now / 130) % 4] : 1;
+
+  const sx = col * frameW;
+  const sy = row * frameH;
+  const dx = x - dw / 2;
+  const dy = y - dh / 2 - 6;
 
   ctx.drawImage(img, sx, sy, frameW, frameH, dx, dy, dw, dh);
 }

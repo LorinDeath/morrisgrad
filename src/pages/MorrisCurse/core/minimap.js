@@ -41,7 +41,6 @@ export class Minimap {
     this.canvas = this.container.querySelector('#mm-canvas');
     this.ctx = this.canvas.getContext('2d');
 
-    // Кнопки зума
     const minusBtn = this.container.querySelector('#mm-btn-minus');
     const plusBtn = this.container.querySelector('#mm-btn-plus');
     const zoomText = this.container.querySelector('#mm-zoom-text');
@@ -60,7 +59,6 @@ export class Minimap {
       }
     };
 
-    // Переключатели меток
     const playersBtn = this.container.querySelector('#mm-toggle-players');
     const portalsBtn = this.container.querySelector('#mm-toggle-portals');
 
@@ -128,7 +126,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 } }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 } }) {
     if (!this.ctx || !this.canvas) return;
 
     const ctx = this.ctx;
@@ -141,16 +139,15 @@ export class Minimap {
     ctx.save();
     ctx.clearRect(0, 0, w, h);
 
-    // Ограничение области карты рамкой канваса
     ctx.beginPath();
     ctx.rect(0, 0, w, h);
     ctx.clip();
 
-    // 1. Внешнее пространство за стенами
+    // 1. Космос за стенами
     ctx.fillStyle = '#05030a';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Игровой мир (координаты 0..worldSize)
+    // 2. Игровой мир
     const mapWorldX = cx + (0 - player.x) * scale;
     const mapWorldY = cy + (0 - player.y) * scale;
     const mapWorldSize = worldSize * scale;
@@ -158,7 +155,6 @@ export class Minimap {
     ctx.fillStyle = '#0f0b1a';
     ctx.fillRect(mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
 
-    // Сетка зала
     ctx.strokeStyle = 'rgba(212, 175, 55, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -174,19 +170,17 @@ export class Minimap {
     }
     ctx.stroke();
 
-    // Золотой бордюр мира
     ctx.strokeStyle = '#c59b27';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
 
-    // 3. Порталы и Алтарь (если включен фильтр)
+    // 3. Порталы
     if (this.filters.portals && worldPortals) {
       worldPortals.forEach((portal) => {
         const px = cx + (portal.x - player.x) * scale;
         const py = cy + (portal.y - player.y) * scale;
 
         if (portal.id === 'portal_class_select') {
-          // Алтарь (фиолетовый ромб с аурой)
           ctx.fillStyle = '#a855f7';
           ctx.beginPath();
           ctx.moveTo(px, py - 4);
@@ -200,7 +194,6 @@ export class Minimap {
           ctx.lineWidth = 1;
           ctx.stroke();
         } else {
-          // Порталы мини-игр
           ctx.fillStyle = '#38bdf8';
           ctx.beginPath();
           ctx.arc(px, py, 3, 0, Math.PI * 2);
@@ -209,13 +202,27 @@ export class Minimap {
       });
     }
 
-    // 4. Другие игроки (если включен фильтр)
+    // 4. Метка Кейт (Неоново-розовый босс-маркер)
+    if (boss && boss.state !== 'dead') {
+      const bx = cx + (boss.x - player.x) * scale;
+      const by = cy + (boss.y - player.y) * scale;
+
+      ctx.fillStyle = '#f472b6';
+      ctx.beginPath();
+      ctx.arc(bx, by, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // 5. Другие игроки
     if (this.filters.players && otherPlayers) {
       otherPlayers.forEach((p) => {
         const ox = cx + (p.x - player.x) * scale;
         const oy = cy + (p.y - player.y) * scale;
 
-        // Точка игрока
         ctx.fillStyle = p.color || '#38bdf8';
         ctx.beginPath();
         ctx.arc(ox, oy, 3, 0, Math.PI * 2);
@@ -227,13 +234,12 @@ export class Minimap {
       });
     }
 
-    // 5. Сам игрок (по центру карты)
+    // 6. Игрок
     ctx.fillStyle = '#ffd700';
     ctx.beginPath();
     ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Вектор направления взгляда
     const dirLen = 8;
     const nx = lastFaceDir.x || 0;
     const ny = lastFaceDir.y || 1;

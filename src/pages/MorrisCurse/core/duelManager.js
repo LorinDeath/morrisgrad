@@ -8,10 +8,10 @@ export class DuelManager {
     this.currentDuel = null;
     this.chargeTimer = 0;
     this.abilityCooldown = 0;
-    this.attackCooldown = 0; // Антиспам таймер (2 сек)
+    this.attackCooldown = 0;
     this.chargeInterval = null;
+    this.closeTimeout = null;
 
-    // Флаги открытых окон для предотвращения залипания клавиш
     this.isClassSelectOpen = false;
     this.isInviteOpen = false;
 
@@ -24,7 +24,6 @@ export class DuelManager {
     return this.isClassSelectOpen || this.isInviteOpen || Boolean(this.currentDuel);
   }
 
-  // 1. Меню выбора тела (Портал)
   initClassSelectDOM() {
     this.classModal = document.createElement('div');
     this.classModal.id = 'class-select-modal';
@@ -74,7 +73,6 @@ export class DuelManager {
     this.classModal.style.display = 'none';
   }
 
-  // 2. Окно вызова на дуэль
   initInviteDOM() {
     this.inviteModal = document.createElement('div');
     this.inviteModal.style.cssText = `
@@ -113,7 +111,6 @@ export class DuelManager {
     };
   }
 
-  // 3. WAP Арена
   initWapArenaDOM() {
     this.arenaModal = document.createElement('div');
     this.arenaModal.style.cssText = `
@@ -124,7 +121,6 @@ export class DuelManager {
       <div style="background: #0d0b16; border: 2px solid #a855f7; border-radius: 8px; width: 94%; max-width: 480px; padding: 14px; color: #fff; display: flex; flex-direction: column; gap: 10px; position: relative;">
         <div id="arena-countdown" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 20; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: #ffd700;"></div>
         
-        <!-- Шапка с полосками HP -->
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #231b38; padding-bottom: 8px;">
           <div style="width: 45%;">
             <div id="wap-my-name" style="font-weight: bold; font-size: 13px;">Вы</div>
@@ -143,19 +139,22 @@ export class DuelManager {
           </div>
         </div>
 
-        <!-- Текстовый WAP-лог сражения -->
         <div id="wap-combat-log" style="background: #05040a; border: 1px solid #1f1930; height: 140px; border-radius: 4px; padding: 8px; overflow-y: auto; font-size: 11px; display: flex; flex-direction: column; gap: 4px;"></div>
 
-        <!-- Кнопки действий -->
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <button id="wap-attack-btn" style="background: #374151; border: 1px solid #4b5563; padding: 10px; border-radius: 6px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer; text-align: center; transition: 0.1s;">
             <span id="wap-atk-label">Атака</span>
             <div id="wap-charge-bar" style="background: #eab308; height: 3px; width: 0%; margin-top: 4px;"></div>
           </button>
           
-          <button id="wap-ability-btn" style="background: #581c87; border: 1px solid #a855f7; padding: 8px; border-radius: 6px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer;">
-            Способность
-          </button>
+          <div style="display: flex; gap: 8px;">
+            <button id="wap-ability-btn" style="flex: 2; background: #581c87; border: 1px solid #a855f7; padding: 8px; border-radius: 6px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer;">
+              Способность
+            </button>
+            <button id="wap-escape-btn" style="flex: 1; background: #dc2626; border: 1px solid #f87171; padding: 8px; border-radius: 6px; color: #fff; font-family: monospace; font-weight: bold; cursor: pointer;">
+              Сбежать
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -167,7 +166,7 @@ export class DuelManager {
       const charge = getChargeInfo(this.chargeTimer);
       this.send({ type: 'duel_action', action: 'attack', chargeMult: charge.mult });
       this.chargeTimer = 0;
-      this.attackCooldown = 2.0; // 2 секунды антиспам
+      this.attackCooldown = 2.0;
     };
 
     const abBtn = this.arenaModal.querySelector('#wap-ability-btn');
@@ -176,47 +175,104 @@ export class DuelManager {
       const charge = getChargeInfo(this.chargeTimer);
       this.send({ type: 'duel_action', action: 'ability', chargeMult: charge.mult });
       this.abilityCooldown = 14;
-      this.attackCooldown = 2.0; // Запускаем откат и на атаку
+      this.attackCooldown = 2.0;
       this.chargeTimer = 0;
+    };
+
+    const escBtn = this.arenaModal.querySelector('#wap-escape-btn');
+    escBtn.onclick = () => {
+      if (!this.currentDuel) return;
+      this.send({ type: 'duel_action', action: 'escape' });
+      this.escapeBattle();
     };
   }
 
+  escapeBattle() {
+    if (this.chargeInterval) clearInterval(this.chargeInterval);
+    if (this.closeTimeout) clearTimeout(this.closeTimeout);
+    this.arenaModal.style.display = 'none';
+    this.currentDuel = null;
+  }
+
   startDuel(data, myId) {
-    this.currentDuel = data;
-    this.currentDuel.locked = true;
+    if (this.closeTimeout) {
+      clearTimeout(this.closeTimeout);
+      this.closeTimeout = null;
+    }
+
+    const d = data.duel || data;
+    this.currentDuel = d;
+    this.currentDuel.isBossFight = Boolean(data.isBossFight || d.isBossFight);
+
     this.chargeTimer = 0;
     this.abilityCooldown = 0;
     this.attackCooldown = 0;
 
-    const isPlayer1 = data.p1.id === myId;
-    this.me = isPlayer1 ? data.p1 : data.p2;
-    this.opp = isPlayer1 ? data.p2 : data.p1;
+    const isBossFight = this.currentDuel.isBossFight;
+
+    if (isBossFight && d.hunters && d.allies) {
+      const amIHunter = d.hunters.some(h => h.id === myId);
+      if (amIHunter) {
+        this.me = d.hunters.find(h => h.id === myId) || d.p1;
+        this.opp = d.allies.find(a => a.isBoss) || d.p2;
+      } else {
+        this.me = d.allies.find(a => a.id === myId) || d.p2;
+        this.opp = d.hunters[0] || d.p1;
+      }
+    } else {
+      const isPlayer1 = d.p1?.id === myId;
+      this.me = isPlayer1 ? d.p1 : d.p2;
+      this.opp = isPlayer1 ? d.p2 : d.p1;
+    }
 
     this.arenaModal.style.display = 'flex';
     this.updateDuelUI();
 
     const log = this.arenaModal.querySelector('#wap-combat-log');
-    log.innerHTML = `<div style="color: #ffd700;">Дуэль началась! Приготовьтесь к битве.</div>`;
-
-    // Обратный отсчёт: 3, 2, 1, Бой!
     const cdBox = this.arenaModal.querySelector('#arena-countdown');
-    cdBox.style.display = 'flex';
-    let count = 3;
-    cdBox.textContent = count;
 
-    const cdInt = setInterval(() => {
-      count--;
-      if (count > 0) {
-        cdBox.textContent = count;
-      } else if (count === 0) {
-        cdBox.textContent = 'БОЙ!';
-      } else {
-        clearInterval(cdInt);
-        cdBox.style.display = 'none';
-        this.currentDuel.locked = false;
-        this.startTimers();
-      }
-    }, 1000);
+    if (isBossFight) {
+      cdBox.style.display = 'none';
+      this.currentDuel.locked = false;
+      log.innerHTML = `<div style="color: #f472b6; font-weight: bold;">⚔️ Кейт атаковала вас! Защищайтесь!</div>`;
+      this.startTimers();
+    } else {
+      this.currentDuel.locked = true;
+      log.innerHTML = `<div style="color: #ffd700;">Дуэль началась! Приготовьтесь к бою.</div>`;
+      cdBox.style.display = 'flex';
+      let count = 3;
+      cdBox.textContent = count;
+
+      const cdInt = setInterval(() => {
+        count--;
+        if (count > 0) {
+          cdBox.textContent = count;
+        } else if (count === 0) {
+          cdBox.textContent = 'БОЙ!';
+        } else {
+          clearInterval(cdInt);
+          cdBox.style.display = 'none';
+          if (this.currentDuel) this.currentDuel.locked = false;
+          this.startTimers();
+        }
+      }, 1000);
+    }
+  }
+
+  // Обновление состояния боя из пакета duel_update
+  updateDuel(data) {
+    if (!this.currentDuel) return;
+
+    if (this.me && this.opp) {
+      const isP1 = this.me.id === (this.currentDuel.p1?.id || this.currentDuel.hunters?.[0]?.id);
+      this.me.hp = isP1 ? data.p1Hp : data.p2Hp;
+      this.opp.hp = isP1 ? data.p2Hp : data.p1Hp;
+      this.updateDuelUI();
+    }
+
+    if (data.log) {
+      this.addLog(data.log);
+    }
   }
 
   startTimers() {
@@ -234,7 +290,6 @@ export class DuelManager {
         this.attackCooldown = Math.max(0, this.attackCooldown - 0.1);
       }
 
-      // Обновление кнопки атаки и антиспама
       const charge = getChargeInfo(this.chargeTimer);
       const atkBtn = this.arenaModal.querySelector('#wap-attack-btn');
       const atkLabel = this.arenaModal.querySelector('#wap-atk-label');
@@ -257,9 +312,8 @@ export class DuelManager {
       chargeBar.style.backgroundColor = charge.color;
       chargeBar.style.width = `${Math.min(100, (this.chargeTimer / 15) * 100)}%`;
 
-      // Кнопка способности
       const abBtn = this.arenaModal.querySelector('#wap-ability-btn');
-      const myClass = CLASSES[this.me.classId];
+      const myClass = (this.me?.classId && CLASSES[this.me.classId]) ? CLASSES[this.me.classId] : CLASSES.warrior;
       if (this.abilityCooldown > 0) {
         abBtn.disabled = true;
         abBtn.style.opacity = '0.5';
@@ -283,7 +337,8 @@ export class DuelManager {
   }
 
   updateDuelUI() {
-    if (!this.currentDuel) return;
+    if (!this.currentDuel || !this.me || !this.opp) return;
+
     this.arenaModal.querySelector('#wap-my-name').textContent = this.me.username;
     this.arenaModal.querySelector('#wap-my-hp-text').textContent = `${Math.max(0, this.me.hp)}/${this.me.maxHp}`;
     this.arenaModal.querySelector('#wap-my-hp-bar').style.width = `${Math.max(0, (this.me.hp / this.me.maxHp) * 100)}%`;
@@ -295,10 +350,10 @@ export class DuelManager {
 
   endDuel(winnerName) {
     if (this.chargeInterval) clearInterval(this.chargeInterval);
-    this.addLog(`<div style="color: #ffd700; font-weight: bold; margin-top: 4px;">Победитель дуэли: ${winnerName}!</div>`);
-    this.currentDuel.locked = true;
+    this.addLog(`<div style="color: #ffd700; font-weight: bold; margin-top: 4px;">Победитель: ${winnerName}!</div>`);
+    if (this.currentDuel) this.currentDuel.locked = true;
 
-    setTimeout(() => {
+    this.closeTimeout = setTimeout(() => {
       this.arenaModal.style.display = 'none';
       this.currentDuel = null;
     }, 3500);
