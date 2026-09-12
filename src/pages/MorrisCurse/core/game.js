@@ -1,20 +1,69 @@
 import { DEFAULT_STATS, StatsUI } from './playerStats.js';
 import { DuelManager } from './duelManager.js';
 import campfireSrc from '../../../assets/free_campfire.png';
+import soulSrc from '../../../assets/character_1_frame16x20.png';
 
-// Настройки нарезки: 3 кадра анимации в 1 обрезанном ряду
+// 1. Настройки костра
 const CAMPFIRE_CONFIG = {
-  cols: 3,        // 3 кадра огня по горизонтали
-  rows: 1,        // 1 ряд
-  activeRow: 0,   // Единственный рабочий ряд (индекс 0)
-  frameSpeed: 140,// Скорость анимации мерцания (мс)
-  drawWidth: 36   // Базовая ширина костра на карте
+  cols: 3,
+  rows: 1,
+  activeRow: 0,
+  frameSpeed: 140,
+  drawWidth: 36
 };
 
 const campfireImg = new Image();
 campfireImg.src = typeof campfireSrc === 'object' && campfireSrc !== null
   ? (campfireSrc.src || campfireSrc.default?.src || campfireSrc.default || '')
   : campfireSrc;
+
+// 2. Настройки спрайта души (16x20 пикселей на кадр, 3 колонки, 4 направления)
+const SOUL_CONFIG = {
+  cols: 3,
+  rows: 4,
+  frameSpeed: 130, // Скорость шага (мс)
+  drawWidth: 16,
+  drawHeight: 20
+};
+
+const soulImg = new Image();
+soulImg.src = typeof soulSrc === 'object' && soulSrc !== null
+  ? (soulSrc.src || soulSrc.default?.src || soulSrc.default || '')
+  : soulSrc;
+
+// Функция определения ряда направления (0: вниз, 1: влево, 2: вправо, 3: вверх)
+function getDirectionRow(dirX, dirY) {
+  if (Math.abs(dirX) > Math.abs(dirY)) {
+    return dirX < 0 ? 1 : 2;
+  }
+  return dirY < 0 ? 3 : 0;
+}
+
+// Отрисовка духа с анимацией ходьбы
+function drawSoulSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
+  if (!img.complete || img.naturalWidth === 0) return false;
+
+  ctx.imageSmoothingEnabled = false;
+
+  const frameW = img.naturalWidth / SOUL_CONFIG.cols;
+  const frameH = img.naturalHeight / SOUL_CONFIG.rows;
+  const row = getDirectionRow(dirX, dirY);
+
+  // Кадр 1 — спокойная стойка, [0, 1, 2, 1] — шаги в движении
+  const WALK_SEQUENCE = [0, 1, 2, 1];
+  const col = isMoving ? WALK_SEQUENCE[Math.floor(now / SOUL_CONFIG.frameSpeed) % 4] : 1;
+
+  const sx = col * frameW;
+  const sy = row * frameH;
+
+  const dw = SOUL_CONFIG.drawWidth;
+  const dh = SOUL_CONFIG.drawHeight;
+  const dx = Math.round(x - dw / 2);
+  const dy = Math.round(y - dh / 2 - 2);
+
+  ctx.drawImage(img, sx, sy, frameW, frameH, dx, dy, dw, dh);
+  return true;
+}
 
 export function initGame(canvasId, username = 'Игрок', userId = '') {
   const canvas = document.getElementById(canvasId);
@@ -417,6 +466,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
               y: p.y,
               targetX: p.x,
               targetY: p.y,
+              dirX: 0,
+              dirY: 1,
               username: p.username || 'Странник',
               color: p.color || '#38bdf8',
               inDuel: Boolean(p.inDuel),
@@ -587,7 +638,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (keys.w) my -= 1;
         if (keys.s) my += 1;
         if (keys.a) mx -= 1;
-        if (keys.d) mx -= 1;
+        if (keys.d) mx += 1;
 
         if (mx !== 0 || my !== 0) {
           const len = Math.hypot(mx, my);
@@ -725,10 +776,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       dash.cooldownTimer = Math.max(0, dash.cooldownTimer - dt);
     }
 
+    let isMoving = false;
+
     if (canMove()) {
       if (dash.active) {
         player.x += dash.dirX * dash.speed * dt;
         player.y += dash.dirY * dash.speed * dt;
+        isMoving = true;
 
         dash.timer -= dt;
         if (dash.timer <= 0) {
@@ -742,12 +796,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (keys.a) dx -= 1;
         if (keys.d) dx += 1;
 
-        if (dx !== 0 && dy !== 0) {
-          dx *= 0.7071;
-          dy *= 0.7071;
-        }
-
         if (dx !== 0 || dy !== 0) {
+          isMoving = true;
+          if (dx !== 0 && dy !== 0) {
+            dx *= 0.7071;
+            dy *= 0.7071;
+          }
           lastFaceDir.x = dx;
           lastFaceDir.y = dy;
         }
@@ -812,11 +866,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     // --- СЛОЙ 1: ПОРТАЛЫ И КОСТЁР ---
     worldPortals.forEach((portal) => {
-      // 1. Анимированный костёр перевоплощения (1 ряд x 3 кадра)
+      // 1. Анимированный костёр перевоплощения
       if (portal.id === 'portal_class_select') {
         ctx.save();
 
-        // Мягкий пульсирующий свет костра на земле
         const lightPulse = Math.sin(now / 180) * 4;
         const glow = ctx.createRadialGradient(portal.x, portal.y + 4, 3, portal.x, portal.y + 4, 46 + lightPulse);
         glow.addColorStop(0, 'rgba(249, 115, 22, 0.45)');
@@ -827,7 +880,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         ctx.arc(portal.x, portal.y + 4, 50 + lightPulse, 0, Math.PI * 2);
         ctx.fill();
 
-        // Отрисовка пламени без аварийного оранжевого квадрата
         if (campfireImg.complete && campfireImg.naturalWidth > 0) {
           ctx.imageSmoothingEnabled = false;
 
@@ -835,7 +887,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           const frameH = campfireImg.naturalHeight / CAMPFIRE_CONFIG.rows;
           const currentFrame = Math.floor(now / CAMPFIRE_CONFIG.frameSpeed) % CAMPFIRE_CONFIG.cols;
 
-          // Пропорциональная высота
           const drawW = CAMPFIRE_CONFIG.drawWidth;
           const drawH = Math.round(drawW * (frameH / frameW));
 
@@ -843,11 +894,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           const drawY = portal.y - drawH + 12;
 
           const sx = currentFrame * frameW;
-          const sy = 0; // Первый и единственный ряд
+          const sy = 0;
 
           ctx.drawImage(campfireImg, sx, sy, frameW, frameH, drawX, drawY, drawW, drawH);
 
-          // Подпись прямо над верхушкой пламени
           const pFontSize = 12 / camera.zoom;
           ctx.font = `bold ${pFontSize}px monospace`;
           ctx.textAlign = 'center';
@@ -862,7 +912,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         return;
       }
 
-      // 2. Обычные порталы (Разлом мини-игр)
+      // 2. Обычные порталы
       const pw = portal.width || 32;
       const ph = portal.height || 32;
       const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
@@ -895,15 +945,34 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const halfW = player.width / 2;
     const halfH = player.height / 2;
 
+    // --- СЛОЙ 2: ДРУГИЕ ИГРОКИ ---
     otherPlayers.forEach((p) => {
-      p.x += (p.targetX - p.x) * Math.min(1, 15 * dt);
-      p.y += (p.targetY - p.y) * Math.min(1, 15 * dt);
-    });
+      const pDx = p.targetX - p.x;
+      const pDy = p.targetY - p.y;
+      const isOtherMoving = Math.hypot(pDx, pDy) > 0.6;
 
-    // Тела других игроков
-    otherPlayers.forEach((p) => {
-      ctx.fillStyle = p.color || '#38bdf8';
-      ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
+      if (isOtherMoving) {
+        p.dirX = pDx;
+        p.dirY = pDy;
+      }
+
+      p.x += pDx * Math.min(1, 15 * dt);
+      p.y += pDy * Math.min(1, 15 * dt);
+
+      const isOtherBody = Boolean(p.stats && p.stats.classId);
+
+      if (!isOtherBody) {
+        // Другой игрок в форме души
+        const drawn = drawSoulSprite(ctx, soulImg, p.x, p.y, p.dirX || 0, p.dirY || 1, isOtherMoving, now);
+        if (!drawn) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
+        }
+      } else {
+        // Другой игрок в теле класса
+        ctx.fillStyle = p.color || '#38bdf8';
+        ctx.fillRect(Math.round(p.x - halfW), Math.round(p.y - halfH), p.width, p.height);
+      }
 
       if (p.inDuel) {
         ctx.font = `bold ${14 / camera.zoom}px monospace`;
@@ -912,7 +981,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    // Свой персонаж
+    // --- СЛОЙ 3: СВОЙ ПЕРСОНАЖ ---
+    const isMyBody = Boolean(player.stats && player.stats.classId);
+
     if (dash.active) {
       ctx.save();
       ctx.shadowColor = '#eab308';
@@ -923,8 +994,18 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.restore();
     }
 
-    ctx.fillStyle = player.color || '#ffffff';
-    ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
+    if (!isMyBody) {
+      // Свой персонаж в форме души — анимированный дух
+      const drawn = drawSoulSprite(ctx, soulImg, player.x, player.y, lastFaceDir.x, lastFaceDir.y, isMoving, now);
+      if (!drawn) {
+        ctx.fillStyle = player.color || '#ffffff';
+        ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
+      }
+    } else {
+      // Свой персонаж после выбора тела
+      ctx.fillStyle = player.color || '#ffffff';
+      ctx.fillRect(Math.round(player.x - halfW), Math.round(player.y - halfH), player.width, player.height);
+    }
 
     if (player.inDuel) {
       ctx.font = `bold ${14 / camera.zoom}px monospace`;
@@ -932,14 +1013,14 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 18 / camera.zoom));
     }
 
-    // Ники
+    // --- СЛОЙ 4: НИКИ ПЕРСОНАЖЕЙ ---
     const nickFontSize = 12 / camera.zoom;
     ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.lineWidth = 2.5 / camera.zoom;
 
-    const nickOffsetY = halfH + (6 / camera.zoom);
+    const nickOffsetY = halfH + (8 / camera.zoom);
 
     otherPlayers.forEach((p) => {
       ctx.strokeStyle = '#050408';
@@ -953,8 +1034,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#ffd700';
     ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
 
-    // Чат
-    const bubbleOffsetY = halfH + (20 / camera.zoom);
+    // --- СЛОЙ 5: ЧАТ ---
+    const bubbleOffsetY = halfH + (22 / camera.zoom);
     otherPlayers.forEach((p) => {
       if (p.bubble && p.bubble.expireAt > now) {
         drawBubble(p.bubble.text, p.x, p.y - bubbleOffsetY, false);
@@ -968,8 +1049,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.restore();
 
     // HUD
-    const isBody = Boolean(player.stats && player.stats.classId);
-
     ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
     ctx.fillRect(8, 8, 148, 92);
     ctx.strokeStyle = '#332742';
@@ -992,8 +1071,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillText(`Рывок: ${dash.cooldownTimer.toFixed(1)}c`, 14, 72);
     }
 
-    ctx.fillStyle = isBody ? (player.color || '#38bdf8') : '#38bdf8';
-    ctx.fillText(isBody ? `Персонаж: [C]` : `Душа: [C]`, 14, 88);
+    ctx.fillStyle = isMyBody ? (player.color || '#38bdf8') : '#38bdf8';
+    ctx.fillText(isMyBody ? `Персонаж: [C]` : `Душа: [C]`, 14, 88);
 
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
