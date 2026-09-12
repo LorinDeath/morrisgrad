@@ -7,6 +7,7 @@ export class DuelManager {
 
     this.currentDuel = null;
     this.myId = null;
+    this.myNick = null;
     this.me = null;
     this.allies = [];
     this.enemies = [];
@@ -117,7 +118,7 @@ export class DuelManager {
     };
   }
 
-  // WAP Арена с карточками целей и нижним HP игрока
+  // WAP-Арена: полностью динамические карточки врагов и союзников
   initWapArenaDOM() {
     this.arenaModal = document.createElement('div');
     this.arenaModal.style.cssText = `
@@ -125,39 +126,25 @@ export class DuelManager {
       background: rgba(5, 4, 10, 0.95); z-index: 10010; font-family: monospace;
     `;
     this.arenaModal.innerHTML = `
-      <div style="background: #0d0b16; border: 2px solid #a855f7; border-radius: 8px; width: 94%; max-width: 490px; padding: 14px; color: #fff; display: flex; flex-direction: column; gap: 10px; position: relative;">
+      <div style="background: #0d0b16; border: 2px solid #a855f7; border-radius: 8px; width: 94%; max-width: 500px; padding: 14px; color: #fff; display: flex; flex-direction: column; gap: 10px; position: relative;">
         <div id="arena-countdown" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 20; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; color: #ffd700;"></div>
         
-        <!-- 1. ПОЛЕ БОЯ: КАРТОЧКИ ВРАГОВ И СОЮЗНИКОВ -->
-        <div id="arena-battlefield" style="display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid #231b38; padding-bottom: 10px;">
-          <!-- Враги -->
-          <div>
-            <div style="font-size: 10px; color: #f87171; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between;">
-              <span>ВРАГИ (ВЫБЕРИТЕ ЦЕЛЬ ДЛЯ УДАРА):</span>
-              <span id="arena-target-selected-hint" style="color: #ffd700;">🎯 Цель выбрана</span>
-            </div>
-            <div id="arena-enemies-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+        <!-- 1. ПРОТИВНИКИ (СВЕРХУ) -->
+        <div style="background: #110d1c; border: 1px solid #2e2042; border-radius: 6px; padding: 8px;">
+          <div style="font-size: 10px; color: #f87171; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between;">
+            <span>ПРОТИВНИКИ (КЛИК ДЛЯ ВЫБОРА ЦЕЛИ):</span>
+            <span style="color: #ffd700;">🎯 Выбор цели</span>
           </div>
-
-          <!-- Союзники (скрыто, если нет) -->
-          <div id="arena-allies-section" style="display: none;">
-            <div style="font-size: 10px; color: #38bdf8; font-weight: bold; margin-bottom: 4px;">СОЮЗНИКИ:</div>
-            <div id="arena-allies-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
-          </div>
+          <div id="arena-enemies-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
         </div>
 
-        <!-- 2. ЛОГ СРАЖЕНИЯ -->
+        <!-- 2. ЛОГ СРАЖЕНИЯ (В ЦЕНТРЕ) -->
         <div id="wap-combat-log" style="background: #05040a; border: 1px solid #1f1930; height: 120px; border-radius: 4px; padding: 8px; overflow-y: auto; font-size: 11px; display: flex; flex-direction: column; gap: 4px;"></div>
 
-        <!-- 3. СТАТУС СВОЕГО ЗДОРОВЬЯ (НАД КНОПКАМИ) -->
-        <div id="arena-my-status-box" style="background: #110d22; border: 1px solid #3b2c52; border-radius: 6px; padding: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 4px;">
-            <span><b id="wap-my-name" style="color: #4ade80;">Вы</b> [Ваше Здоровье]:</span>
-            <b id="wap-my-hp-val" style="color: #4ade80;">100 / 100 HP</b>
-          </div>
-          <div style="background: #241e33; height: 10px; border-radius: 4px; overflow: hidden;">
-            <div id="wap-my-hp-bar" style="background: #22c55e; width: 100%; height: 100%; transition: width 0.2s ease-out;"></div>
-          </div>
+        <!-- 3. СОЮЗНИКИ И ВЫ (СНИЗУ, НАД КНОПКАМИ) -->
+        <div style="background: #0d1322; border: 1px solid #1e293b; border-radius: 6px; padding: 8px;">
+          <div style="font-size: 10px; color: #4ade80; font-weight: bold; margin-bottom: 6px;">ВАША КОМАНДА:</div>
+          <div id="arena-allies-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
         </div>
 
         <!-- 4. КНОПКИ ДЕЙСТВИЙ -->
@@ -224,7 +211,7 @@ export class DuelManager {
     this.currentDuel = null;
   }
 
-  startDuel(data, myId) {
+  startDuel(data, myId, username) {
     if (this.closeTimeout) {
       clearTimeout(this.closeTimeout);
       this.closeTimeout = null;
@@ -234,6 +221,7 @@ export class DuelManager {
     this.currentDuel = d;
     this.currentDuel.isBossFight = Boolean(data.isBossFight || d.isBossFight);
     this.myId = String(myId || '').trim().toLowerCase();
+    this.myNick = String(username || '').trim().toLowerCase();
 
     this.chargeTimer = 0;
     this.abilityCooldown = 0;
@@ -242,8 +230,7 @@ export class DuelManager {
     this.parseTeams(d);
 
     this.arenaModal.style.display = 'flex';
-    this.renderBattlefield();
-    this.updateMyHpUI();
+    this.renderDynamicCards();
 
     const log = this.arenaModal.querySelector('#wap-combat-log');
     const cdBox = this.arenaModal.querySelector('#arena-countdown');
@@ -251,7 +238,7 @@ export class DuelManager {
     if (this.currentDuel.isBossFight) {
       cdBox.style.display = 'none';
       this.currentDuel.locked = false;
-      log.innerHTML = `<div style="color: #f472b6; font-weight: bold;">⚔️ Битва началась! Выберите врага и атакуйте!</div>`;
+      log.innerHTML = `<div style="color: #f472b6; font-weight: bold;">⚔️ Битва началась! Выберите цель и атакуйте!</div>`;
       this.startTimers();
     } else {
       this.currentDuel.locked = true;
@@ -277,79 +264,73 @@ export class DuelManager {
   }
 
   parseTeams(duel) {
-    const isBossFight = Boolean(duel.isBossFight);
     const hunters = duel.hunters || (duel.p1 ? [duel.p1] : []);
     const allies = duel.allies || (duel.p2 ? [duel.p2] : []);
 
     const isMatch = (p) => {
+      if (!p) return false;
       const pid = String(p.id || '').toLowerCase();
       const pName = String(p.username || '').toLowerCase();
-      return pid === this.myId || pName === this.myId;
+      return (this.myId && pid === this.myId) || (this.myNick && pName === this.myNick);
     };
 
     const inHunters = hunters.some(isMatch);
+    const inAllies = allies.some(isMatch);
 
-    if (isBossFight) {
-      if (inHunters) {
-        this.me = hunters.find(isMatch) || hunters[0];
-        this.allies = hunters.filter(h => h !== this.me);
-        this.enemies = allies;
-      } else {
-        this.me = allies.find(isMatch) || allies[0];
-        this.allies = allies.filter(a => a !== this.me);
-        this.enemies = hunters;
-      }
+    if (inHunters) {
+      this.me = hunters.find(isMatch);
+      this.allies = hunters;
+      this.enemies = allies;
+    } else if (inAllies) {
+      this.me = allies.find(isMatch);
+      this.allies = allies;
+      this.enemies = hunters;
     } else {
-      const p1 = hunters[0] || duel.p1;
-      const p2 = allies[0] || duel.p2;
-
-      if (isMatch(p1)) {
-        this.me = p1;
-        this.allies = [];
-        this.enemies = p2 ? [p2] : [];
+      // Fallback
+      if (duel.p1 && isMatch(duel.p1)) {
+        this.me = duel.p1;
+        this.allies = [duel.p1];
+        this.enemies = duel.p2 ? [duel.p2] : [];
       } else {
-        this.me = p2;
-        this.allies = [];
-        this.enemies = p1 ? [p1] : [];
+        this.me = duel.p2 || { id: this.myId, username: this.myNick || 'Вы', hp: 100, maxHp: 100 };
+        this.allies = [this.me];
+        this.enemies = duel.p1 ? [duel.p1] : [];
       }
     }
 
-    // Автоматический выбор первого живого врага
     if (!this.selectedTargetId || !this.enemies.some(e => e.id === this.selectedTargetId && e.hp > 0)) {
       const living = this.enemies.find(e => e.hp > 0);
       this.selectedTargetId = living ? living.id : (this.enemies[0]?.id || null);
     }
   }
 
-  renderBattlefield() {
+  renderDynamicCards() {
     const enemiesBox = this.arenaModal.querySelector('#arena-enemies-list');
     const alliesBox = this.arenaModal.querySelector('#arena-allies-list');
-    const alliesSection = this.arenaModal.querySelector('#arena-allies-section');
 
-    // Отрисовка карточек врагов
+    // 1. ВРАГИ (СВЕРХУ)
     enemiesBox.innerHTML = '';
     this.enemies.forEach((enemy) => {
       const isSelected = enemy.id === this.selectedTargetId;
       const isDead = enemy.hp <= 0;
       const card = document.createElement('div');
-      card.className = `arena-combatant-card ${isSelected ? 'target-selected' : ''}`;
       card.style.cssText = `
-        flex: 1; min-width: 130px; background: ${isSelected ? '#20121d' : '#120d1c'};
-        border: 2px solid ${isSelected ? '#ef4444' : '#3b2c52'};
+        flex: 1; min-width: 135px; background: ${isSelected ? '#271120' : '#140e1f'};
+        border: 2px solid ${isSelected ? '#ef4444' : '#3e2c56'};
         box-shadow: ${isSelected ? '0 0 10px rgba(239, 68, 68, 0.6)' : 'none'};
         border-radius: 6px; padding: 6px 8px; cursor: ${isDead ? 'not-allowed' : 'pointer'};
-        opacity: ${isDead ? '0.4' : '1'}; transition: all 0.15s;
+        opacity: ${isDead ? '0.35' : '1'}; transition: all 0.15s;
       `;
 
       const pct = Math.max(0, Math.min(100, (enemy.hp / (enemy.maxHp || 100)) * 100));
       const displayName = enemy.isBoss ? 'Кейт [БОСС]' : enemy.username;
 
       card.innerHTML = `
-        <div style="font-size: 11px; font-weight: bold; color: ${isSelected ? '#ef4444' : '#f87171'}; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 11px; font-weight: bold; color: ${isSelected ? '#ef4444' : '#f87171'}; display: flex; justify-content: space-between;">
           <span>${displayName}</span>
           ${isSelected ? '<span>🎯</span>' : ''}
         </div>
-        <div style="background: #231b33; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
+        <div style="background: #241a36; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
           <div style="background: #ef4444; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
         </div>
         <div style="font-size: 10px; color: #cbd5e1; text-align: right;">${Math.max(0, enemy.hp)} / ${enemy.maxHp || 100} HP</div>
@@ -358,83 +339,73 @@ export class DuelManager {
       if (!isDead) {
         card.onclick = () => {
           this.selectedTargetId = enemy.id;
-          this.renderBattlefield();
+          this.renderDynamicCards();
         };
       }
-
       enemiesBox.appendChild(card);
     });
 
-    // Отрисовка карточек союзников
-    if (this.allies.length > 0) {
-      alliesSection.style.display = 'block';
-      alliesBox.innerHTML = '';
-      this.allies.forEach((ally) => {
-        const card = document.createElement('div');
-        card.style.cssText = `
-          flex: 1; min-width: 120px; background: #0c1424; border: 1px solid #1e3a8a;
-          border-radius: 6px; padding: 6px 8px;
-        `;
-        const pct = Math.max(0, Math.min(100, (ally.hp / (ally.maxHp || 100)) * 100));
-        card.innerHTML = `
-          <div style="font-size: 11px; font-weight: bold; color: #38bdf8;">${ally.username}</div>
-          <div style="background: #172554; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
-            <div style="background: #38bdf8; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
-          </div>
-          <div style="font-size: 10px; color: #94a3b8; text-align: right;">${Math.max(0, ally.hp)} / ${ally.maxHp || 100} HP</div>
-        `;
-        alliesBox.appendChild(card);
-      });
-    } else {
-      alliesSection.style.display = 'none';
-    }
-  }
+    // 2. СОЮЗНИКИ И ВЫ (СНИЗУ)
+    alliesBox.innerHTML = '';
+    this.allies.forEach((ally) => {
+      const isMe = this.me && (ally.id === this.me.id || ally.username === this.me.username);
+      const isDead = ally.hp <= 0;
+      const card = document.createElement('div');
+      card.style.cssText = `
+        flex: 1; min-width: 135px;
+        background: ${isMe ? '#0f2419' : '#0e172a'};
+        border: 2px solid ${isMe ? '#22c55e' : '#38bdf8'};
+        border-radius: 6px; padding: 6px 8px;
+        opacity: ${isDead ? '0.35' : '1'};
+      `;
 
-  updateMyHpUI() {
-    if (!this.me) return;
-    const nameEl = this.arenaModal.querySelector('#wap-my-name');
-    const valEl = this.arenaModal.querySelector('#wap-my-hp-val');
-    const barEl = this.arenaModal.querySelector('#wap-my-hp-bar');
+      const pct = Math.max(0, Math.min(100, (ally.hp / (ally.maxHp || 100)) * 100));
+      const displayName = isMe
+        ? `Вы (${ally.username})`
+        : (ally.isBoss ? 'Кейт [СОЮЗНИК]' : ally.username);
 
-    if (nameEl) nameEl.textContent = this.me.username || 'Вы';
-    const cur = Math.max(0, this.me.hp);
-    const max = this.me.maxHp || 100;
-    if (valEl) valEl.textContent = `${cur} / ${max} HP`;
-    if (barEl) barEl.style.width = `${Math.max(0, Math.min(100, (cur / max) * 100))}%`;
+      card.innerHTML = `
+        <div style="font-size: 11px; font-weight: bold; color: ${isMe ? '#4ade80' : '#38bdf8'};">
+          ${displayName}
+        </div>
+        <div style="background: #172554; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
+          <div style="background: ${isMe ? '#22c55e' : '#38bdf8'}; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
+        </div>
+        <div style="font-size: 10px; color: #94a3b8; text-align: right;">${Math.max(0, ally.hp)} / ${ally.maxHp || 100} HP</div>
+      `;
+
+      alliesBox.appendChild(card);
+    });
   }
 
   updateDuel(data) {
     if (!this.currentDuel) return;
 
-    // Синхронизация списков участников
+    const updateList = (sourceList) => {
+      sourceList?.forEach((src) => {
+        const found = [...this.allies, ...this.enemies].find(p => p.id === src.id);
+        if (found) {
+          found.hp = src.hp;
+          found.maxHp = src.maxHp;
+        }
+      });
+    };
+
     if (data.hunters || data.allies) {
-      if (data.hunters) {
-        data.hunters.forEach(h => {
-          const m = [this.me, ...this.allies, ...this.enemies].find(p => p && p.id === h.id);
-          if (m) { m.hp = h.hp; m.maxHp = h.maxHp; }
-        });
-      }
-      if (data.allies) {
-        data.allies.forEach(a => {
-          const m = [this.me, ...this.allies, ...this.enemies].find(p => p && p.id === a.id);
-          if (m) { m.hp = a.hp; m.maxHp = a.maxHp; }
-        });
-      }
+      updateList(data.hunters);
+      updateList(data.allies);
     } else if (this.me && this.enemies[0]) {
-      // Совместимость с 1v1 дуэлями
       this.me.hp = data.p1Hp !== undefined ? data.p1Hp : this.me.hp;
       this.enemies[0].hp = data.p2Hp !== undefined ? data.p2Hp : this.enemies[0].hp;
     }
 
-    // Если текущая выбранная цель погибла — переключаем на живого врага
     const curTarget = this.enemies.find(e => e.id === this.selectedTargetId);
     if (!curTarget || curTarget.hp <= 0) {
       const nextLiving = this.enemies.find(e => e.hp > 0);
       if (nextLiving) this.selectedTargetId = nextLiving.id;
     }
 
-    this.renderBattlefield();
-    this.updateMyHpUI();
+    this.renderDynamicCards();
 
     if (data.log) {
       this.addLog(data.log);

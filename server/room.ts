@@ -299,6 +299,7 @@ export class GameRoom extends DurableObject {
         }
 
         // 8. Присоединение к бою Кейт
+// 8. Присоединение к бою Кейт (выбор стороны)
         if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && this.boss.inDuel && this.boss.duelId) {
           const duel = this.activeDuels.get(this.boss.duelId);
           if (duel) {
@@ -316,22 +317,34 @@ export class GameRoom extends DurableObject {
               ws: server,
             };
 
+            let yellLog = "";
             if (msg.side === "kate") {
               duel.allies.push(participant);
               this.boss.recalcPassives(duel);
-              this.broadcastDuelUpdate(duel, `<span style="color:#f472b6; font-weight:bold;">Кейт: «Мой прекрасный друг!»</span> — <b>${session.username}</b> встал на сторону Кейт!`);
+              yellLog = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Мой прекрасный друг!»</span> — <b>${session.username}</b> встал на сторону Кейт!`;
             } else {
               duel.hunters.push(participant);
               this.boss.recalcPassives(duel);
-              this.broadcastDuelUpdate(duel, `<span style="color:#f472b6; font-weight:bold;">Кейт: «Какое мерзкое создание!»</span> — <b>${session.username}</b> присоединился к охоте на Кейт!`);
+              yellLog = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Какое мерзкое создание!»</span> — <b>${session.username}</b> присоединился к охоте на Кейт!`;
             }
 
-            server.send(JSON.stringify({
+            // Отправляем подключившемуся полный состав обеих команд
+            const payload = JSON.stringify({
               type: "duel_start",
               isBossFight: true,
-              duel: { id: duel.id, p1: duel.p1, p2: duel.p2 },
-            }));
+              duel: {
+                id: duel.id,
+                isBossFight: true,
+                hunters: duel.hunters.map((h) => ({ id: h.id, username: h.username, hp: h.hp, maxHp: h.maxHp, armor: h.armor, classId: h.classId })),
+                allies: duel.allies.map((a) => ({ id: a.id, username: a.username, hp: a.hp, maxHp: a.maxHp, armor: a.armor, classId: a.classId, isBoss: a.isBoss })),
+                p1: duel.p1,
+                p2: duel.p2,
+              },
+            });
+            server.send(payload);
 
+            // Оповещаем остальных и передаём актуальный состав команд
+            this.broadcastDuelUpdate(duel, yellLog);
             this.broadcast();
           }
         }
