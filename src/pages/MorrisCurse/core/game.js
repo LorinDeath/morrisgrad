@@ -50,6 +50,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     dirX: 0,
     dirY: 1,
     state: 'wander',
+    isMoving: false,
     hp: 100,
     maxHp: 100,
     armor: 10,
@@ -353,7 +354,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         const targetNick = (data.username || '').trim().toLowerCase();
         const myNick = (username || '').trim().toLowerCase();
 
-        // Облачко фраз Кейт
         if (data.playerId === 'boss_keyt' || targetNick === 'кейт') {
           boss.bubble = { text: data.text, expireAt: Date.now() + 4500 };
           return;
@@ -785,11 +785,24 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       });
     }
 
+    // Проверка реального движения Кейт по дельте координат
     if (boss.state !== 'dead') {
       const bDx = boss.targetX - boss.x;
       const bDy = boss.targetY - boss.y;
+      const dist = Math.hypot(bDx, bDy);
+
+      // Шагает ТОЛЬКО если есть физическое смещение > 0.8px и она не в бою
+      boss.isMoving = dist > 0.8 && boss.state !== 'combat';
+
+      if (dist > 0.5) {
+        boss.dirX = bDx;
+        boss.dirY = bDy;
+      }
+
       boss.x += bDx * Math.min(1, 14 * dt);
       boss.y += bDy * Math.min(1, 14 * dt);
+    } else {
+      boss.isMoving = false;
     }
 
     hud.update({
@@ -945,10 +958,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         return;
       }
 
+      // Отрисовка Кейт с передачей честного флага движения boss.isMoving
       if (ent.type === 'boss') {
         const b = ent.item;
-        const isBossMoving = b.state === 'chase' || b.state === 'wander';
-        drawBossSprite(ctx, keytImg, b.x, b.y, b.dirX || 0, b.dirY || 1, isBossMoving, now);
+        drawBossSprite(ctx, keytImg, b.x, b.y, b.dirX || 0, b.dirY || 1, Boolean(boss.isMoving), now);
         return;
       }
 
@@ -1055,9 +1068,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.textAlign = 'center';
       ctx.strokeStyle = '#050408';
       ctx.lineWidth = 2.5 / camera.zoom;
-      ctx.strokeText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
+      ctx.strokeText('Кейт [БОСС]', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
       ctx.fillStyle = '#f472b6';
-      ctx.fillText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
+      ctx.fillText('Кейт [БОСС]', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
 
       if (boss.inDuel) {
         ctx.font = `bold ${15 / camera.zoom}px monospace`;
@@ -1101,7 +1114,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     const bubbleOffsetY = halfH + (26 / camera.zoom);
 
-    // Отрисовка облачка Кейт с розовой подсветкой
     if (boss.bubble && boss.bubble.expireAt > now && boss.state !== 'dead') {
       drawBubble(boss.bubble.text, boss.x, boss.y - bubbleOffsetY, false, '#f472b6');
     }

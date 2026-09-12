@@ -42,7 +42,6 @@ export class KeytBoss {
   wanderTargetX = 700;
   wanderTargetY = 700;
 
-  // Таймеры диалогов
   nextWanderSayTime = Date.now() + 4000;
   nextCombatSayTime = 0;
 
@@ -134,7 +133,7 @@ export class KeytBoss {
       return;
     }
 
-    // 2. В бою
+    // 2. В бою: стоит на месте
     if (this.state === "combat") {
       if (!this.duelId || !activeDuels.has(this.duelId)) {
         this.state = "wander";
@@ -143,7 +142,6 @@ export class KeytBoss {
         return;
       }
 
-      // Периодический крик о помощи в мир во время битвы
       if (now >= this.nextCombatSayTime) {
         this.nextCombatSayTime = now + (4000 + Math.random() * 4000);
         onBossSay("ПОМОГИТЕ!");
@@ -190,7 +188,7 @@ export class KeytBoss {
       return;
     }
 
-    // 3. Блуждание (периодические фразы в облачко)
+    // 3. Блуждание: доходит до точки и отдыхает
     if (this.state === "wander") {
       if (now >= this.nextWanderSayTime) {
         this.nextWanderSayTime = now + (9000 + Math.random() * 8000);
@@ -198,8 +196,9 @@ export class KeytBoss {
         onBossSay(quote);
       }
 
+      // Если время следующего шага пришло — выбираем новую точку
       if (now >= this.nextWanderTime) {
-        this.nextWanderTime = now + (2500 + Math.random() * 3000);
+        this.nextWanderTime = now + (3500 + Math.random() * 4000); // 3.5–7.5 сек между перемещениями
         this.wanderTargetX = Math.max(100, Math.min(1100, this.x + (Math.random() * 260 - 130)));
         this.wanderTargetY = Math.max(100, Math.min(1100, this.y + (Math.random() * 260 - 130)));
       }
@@ -208,14 +207,14 @@ export class KeytBoss {
       const wdy = this.wanderTargetY - this.y;
       const wDist = Math.hypot(wdx, wdy);
 
-      if (wDist > 5) {
+      // Идём, пока не дойдём до точки (порог 6px). Дойдя — замираем на месте
+      if (wDist > 6) {
         this.dirX = wdx / wDist;
         this.dirY = wdy / wDist;
         this.x += this.dirX * (this.SPEED * 0.35) * dt;
         this.y += this.dirY * (this.SPEED * 0.35) * dt;
       }
 
-      // Поиск цели в радиусе агра
       for (const [ws, s] of sessions.entries()) {
         if (!s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil)) {
           const dist = Math.hypot(s.x - this.x, s.y - this.y);
