@@ -35,7 +35,6 @@ export class GameRoom extends DurableObject {
   }
 
   startBossBattle(initialPlayer: Session, initialWs: WebSocket) {
-    // Духи без тела не могут воевать
     if (!initialPlayer.stats.classId) return;
 
     const duelId = "boss_duel_" + crypto.randomUUID();
@@ -78,7 +77,6 @@ export class GameRoom extends DurableObject {
     this.activeDuels.set(duelId, duelState);
     this.boss.recalcPassives(duelState);
 
-    // Отправляем клиенту только сериализуемые поля (без объекта WebSocket)
     const payload = JSON.stringify({
       type: "duel_start",
       isBossFight: true,
@@ -97,13 +95,12 @@ export class GameRoom extends DurableObject {
   }
 
   broadcastDuelUpdate(duel: DuelState, log: string) {
-    const p1Hp = duel.hunters[0]?.hp || 0;
-    const p2Hp = duel.allies[0]?.hp || 0;
-
     const payload = JSON.stringify({
       type: "duel_update",
-      p1Hp,
-      p2Hp,
+      hunters: duel.hunters.map((h) => ({ id: h.id, username: h.username, hp: h.hp, maxHp: h.maxHp, armor: h.armor, classId: h.classId })),
+      allies: duel.allies.map((a) => ({ id: a.id, username: a.username, hp: a.hp, maxHp: a.maxHp, armor: a.armor, classId: a.classId, isBoss: a.isBoss })),
+      p1Hp: duel.hunters[0]?.hp || 0,
+      p2Hp: duel.allies[0]?.hp || 0,
       log,
     });
 
@@ -124,7 +121,6 @@ export class GameRoom extends DurableObject {
         if (s.id === p.id) {
           s.inDuel = false;
           s.stats.hp = s.stats.maxHp;
-          // Защита от повторного авто-нападения на 5 секунд
           s.escapedUntil = Date.now() + 5000;
         }
       }
@@ -340,7 +336,7 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 9. Действия боя
+        // 9. Действия боя (Атака / Навык / Побег)
         if (msg.type === "duel_action" && session && session.inDuel && session.duelId) {
           const duel = this.activeDuels.get(session.duelId);
           if (!duel) return;
@@ -374,7 +370,15 @@ export class GameRoom extends DurableObject {
           if (now - session.lastActionTime < 1900) return;
           session.lastActionTime = now;
 
-          const { logText, isDead } = processCombatAction(msg.action, msg.chargeMult, session, duel, this.boss);
+          // Расчёт действия с учётом выбранного таргета
+          const { logText, isDead } = processCombatAction(
+            msg.action,
+            msg.chargeMult,
+            session,
+            duel,
+            this.boss,
+            msg.targetId
+          );
           this.broadcastDuelUpdate(duel, logText);
 
           if (isDead) {
