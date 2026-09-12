@@ -40,8 +40,10 @@ export class GameHUD {
       </div>
 
       <div class="hud-card">
-        <div class="hud-header">МИР</div>
+        <div class="hud-header">МИР И СВЯЗЬ</div>
         <div class="hud-row"><span>В сети:</span><b id="ghud-online">1</b></div>
+        <div class="hud-row"><span>Пинг:</span><b id="ghud-ping" style="color: #4ade80;">-- ms</b></div>
+        <div class="hud-row"><span>Качество:</span><b id="ghud-net-quality" style="color: #4ade80;">📶 Отличное</b></div>
         <div class="hud-row"><span>Зум:</span><b id="ghud-zoom">x0.5</b></div>
         <div class="hud-row"><span>Координаты:</span><b id="ghud-coords">X: 0 | Y: 0</b></div>
       </div>
@@ -61,7 +63,6 @@ export class GameHUD {
     rightSidebar.className = 'game-hud-panel hud-right';
     rightSidebar.style.order = '3';
     rightSidebar.innerHTML = `
-      <!-- Контейнер мини-карты -->
       <div id="ghud-minimap-slot"></div>
 
       <div class="hud-card" id="ghud-target-card">
@@ -103,7 +104,6 @@ export class GameHUD {
       this.container.appendChild(rightSidebar);
     }
 
-    // Инициализируем мини-карту в слоте
     const mmSlot = rightSidebar.querySelector('#ghud-minimap-slot');
     this.minimap = new Minimap(mmSlot);
 
@@ -126,10 +126,10 @@ export class GameHUD {
   }
 
   update(data) {
-    const { player, otherPlayers, worldPortals, activeNearPortal, camera, dash, username, lastFaceDir } = data;
+    const { player, otherPlayers, worldPortals, activeNearPortal, camera, dash, username, lastFaceDir, ping = 0 } = data;
     const isMyBody = Boolean(player.stats && player.stats.classId);
 
-    // 0. Обновляем мини-карту
+    // 0. Мини-карта
     if (this.minimap) {
       this.minimap.update({
         player,
@@ -173,13 +173,33 @@ export class GameHUD {
       }
     }
 
-    // 3. Мир
+    // 3. Мир и качество связи
     const online = document.getElementById('ghud-online');
     const zoom = document.getElementById('ghud-zoom');
     const coords = document.getElementById('ghud-coords');
+    const pingEl = document.getElementById('ghud-ping');
+    const qualityEl = document.getElementById('ghud-net-quality');
+
     if (online) online.textContent = `${otherPlayers.size + 1}`;
     if (zoom) zoom.textContent = `x${camera.zoom.toFixed(1)}`;
     if (coords) coords.textContent = `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`;
+
+    if (pingEl && qualityEl) {
+      pingEl.textContent = `${ping} ms`;
+      if (ping <= 60) {
+        pingEl.style.color = '#4ade80';
+        qualityEl.style.color = '#4ade80';
+        qualityEl.textContent = '📶 Отличное';
+      } else if (ping <= 140) {
+        pingEl.style.color = '#facc15';
+        qualityEl.style.color = '#facc15';
+        qualityEl.textContent = '📶 Хорошее';
+      } else {
+        pingEl.style.color = '#f87171';
+        qualityEl.style.color = '#f87171';
+        qualityEl.textContent = '📶 Нестабильное';
+      }
+    }
 
     // 4. Цель
     const targetEmpty = document.getElementById('ghud-target-empty');
@@ -224,18 +244,19 @@ export class GameHUD {
       if (targetDetails) targetDetails.style.display = 'none';
     }
 
-    // 5. Радар
+    // 5. Радар игроков поблизости (перевод в метры: 20px = 1м)
     const nearbyBox = document.getElementById('ghud-nearby-list');
     if (nearbyBox) {
       const nearbyPlayers = [];
       otherPlayers.forEach(p => {
-        const dist = Math.round(Math.hypot(player.x - p.x, player.y - p.y));
-        if (dist <= 350) {
-          nearbyPlayers.push({ player: p, dist });
+        const distPx = Math.hypot(player.x - p.x, player.y - p.y);
+        if (distPx <= 400) {
+          const meters = (distPx / 20).toFixed(1);
+          nearbyPlayers.push({ player: p, meters, distPx });
         }
       });
 
-      nearbyPlayers.sort((a, b) => a.dist - b.dist);
+      nearbyPlayers.sort((a, b) => a.distPx - b.distPx);
 
       if (nearbyPlayers.length === 0) {
         nearbyBox.innerHTML = `<span class="hud-empty">Никого нет поблизости</span>`;
@@ -243,7 +264,7 @@ export class GameHUD {
         nearbyBox.innerHTML = nearbyPlayers.map(item => `
           <div class="hud-nearby-item" data-id="${item.player.username}">
             <span>${item.player.username}</span>
-            <b>${item.dist}px</b>
+            <b>${item.meters} м</b>
           </div>
         `).join('');
 

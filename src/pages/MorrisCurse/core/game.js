@@ -29,6 +29,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let isTyping = false;
   let chatText = '';
 
+  // Замер пинга
+  let currentPing = 0;
+  let lastPingTimestamp = 0;
+
   const floorPattern = createArtDecoPattern(ctx);
 
   let worldPortals = [];
@@ -88,7 +92,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const statsUI = new StatsUI(getGameContainer(), () => {});
 
-  // Инициализация HUD с колбэком дуэли
   const hud = new GameHUD(canvas.parentElement || document.body, (targetId, targetNick) => {
     if (!player.stats.classId) {
       showToast('Для дуэли нужно выбрать тело у алтаря!');
@@ -256,9 +259,24 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }));
   };
 
+  // Пинг-таймер (раз в 2 сек)
+  setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN && !isKicked) {
+      lastPingTimestamp = performance.now();
+      socket.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, 2000);
+
   socket.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
+
+      if (data.type === 'pong') {
+        if (lastPingTimestamp > 0) {
+          currentPing = Math.max(1, Math.round(performance.now() - lastPingTimestamp));
+        }
+        return;
+      }
 
       if (data.type === 'kicked') {
         isKicked = true;
@@ -707,7 +725,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       });
     }
 
-    // Синхронизация данных с боковым дашбордом и миникартой
+    // Синхронизация данных с боковым дашбордом, миникартой и передача пинга
     hud.update({
       player,
       otherPlayers,
@@ -716,7 +734,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       camera,
       dash,
       username,
-      lastFaceDir
+      lastFaceDir,
+      ping: currentPing
     });
 
     camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, 10 * dt);
