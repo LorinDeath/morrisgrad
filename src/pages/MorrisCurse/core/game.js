@@ -1055,9 +1055,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.textAlign = 'center';
       ctx.strokeStyle = '#050408';
       ctx.lineWidth = 2.5 / camera.zoom;
-      ctx.strokeText('Кейт [БОСС]', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
+      ctx.strokeText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
       ctx.fillStyle = '#f472b6';
-      ctx.fillText('Кейт [БОСС]', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
+      ctx.fillText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
 
       if (boss.inDuel) {
         ctx.font = `bold ${15 / camera.zoom}px monospace`;
