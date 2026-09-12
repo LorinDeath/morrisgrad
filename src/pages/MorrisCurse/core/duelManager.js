@@ -339,7 +339,7 @@ export class DuelManager {
 
       const maxHpVal = enemy.maxHp || 100;
       const pct = Math.max(0, Math.min(100, (enemy.hp / maxHpVal) * 100));
-      const displayName = enemy.isBoss ? 'Кейт [БОСС]' : enemy.username;
+      const displayName = enemy.isBoss ? 'Кейт' : enemy.username;
 
       card.innerHTML = `
         <div style="font-size: 11px; font-weight: bold; color: ${isSelected ? '#ef4444' : '#f87171'}; display: flex; justify-content: space-between;">
