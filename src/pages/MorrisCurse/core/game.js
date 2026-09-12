@@ -1,5 +1,20 @@
 import { DEFAULT_STATS, StatsUI } from './playerStats.js';
 import { DuelManager } from './duelManager.js';
+import campfireSrc from '../../../assets/free_campfire.png';
+
+// Настройки нарезки: 3 кадра анимации в 1 обрезанном ряду
+const CAMPFIRE_CONFIG = {
+  cols: 3,        // 3 кадра огня по горизонтали
+  rows: 1,        // 1 ряд
+  activeRow: 0,   // Единственный рабочий ряд (индекс 0)
+  frameSpeed: 140,// Скорость анимации мерцания (мс)
+  drawWidth: 36   // Базовая ширина костра на карте
+};
+
+const campfireImg = new Image();
+campfireImg.src = typeof campfireSrc === 'object' && campfireSrc !== null
+  ? (campfireSrc.src || campfireSrc.default?.src || campfireSrc.default || '')
+  : campfireSrc;
 
 export function initGame(canvasId, username = 'Игрок', userId = '') {
   const canvas = document.getElementById(canvasId);
@@ -83,7 +98,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
   });
 
-  // Единая проверка: можно ли персонажу двигаться и применять способности
   function canMove() {
     return !isKicked &&
            !isTyping &&
@@ -93,7 +107,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
            !(duelManager && duelManager.isAnyModalOpen());
   }
 
-  // Сброс залипания всех кнопок
   function resetKeys() {
     keys.w = keys.a = keys.s = keys.d = false;
     dash.active = false;
@@ -306,7 +319,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         }
       }
 
-      // Открытие меню выбора класса (блокируем движение и сбрасываем залипания)
       if (data.type === 'open_class_selection') {
         resetKeys();
         duelManager.openClassSelect();
@@ -456,7 +468,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const keys = { w: false, a: false, s: false, d: false };
 
-  // Потеря фокуса вкладки сбрасывает залипшие клавиши
   window.addEventListener('blur', resetKeys);
 
   // --- ОБРАБОТКА МЫШИ ---
@@ -561,7 +572,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     }
 
-    // Клавиша [C] / [С]
     if ((e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') && !isTyping && canMove()) {
       resetKeys();
       statsUI.toggleSoulModal(undefined, player.stats, username);
@@ -569,7 +579,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       return;
     }
 
-    // Активация рывка (Space или Shift)
     if ((e.code === 'Space' || e.key === ' ' || e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.key === 'Shift') && canMove()) {
       e.preventDefault();
       if (dash.cooldownTimer <= 0 && !dash.active) {
@@ -578,7 +587,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (keys.w) my -= 1;
         if (keys.s) my += 1;
         if (keys.a) mx -= 1;
-        if (keys.d) mx += 1;
+        if (keys.d) mx -= 1;
 
         if (mx !== 0 || my !== 0) {
           const len = Math.hypot(mx, my);
@@ -636,7 +645,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       return;
     }
 
-    // Если управление заблокировано, нажатия движения игнорируются
     if (!canMove()) return;
 
     const k = e.key.toLowerCase();
@@ -653,7 +661,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
   });
 
-  // Отпускание клавиши ВСЕГДА снимает флаг, не блокируясь модалками
   window.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'ц' || e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = false;
@@ -803,8 +810,59 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.lineWidth = 4;
     ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
 
-    // Порталы
+    // --- СЛОЙ 1: ПОРТАЛЫ И КОСТЁР ---
     worldPortals.forEach((portal) => {
+      // 1. Анимированный костёр перевоплощения (1 ряд x 3 кадра)
+      if (portal.id === 'portal_class_select') {
+        ctx.save();
+
+        // Мягкий пульсирующий свет костра на земле
+        const lightPulse = Math.sin(now / 180) * 4;
+        const glow = ctx.createRadialGradient(portal.x, portal.y + 4, 3, portal.x, portal.y + 4, 46 + lightPulse);
+        glow.addColorStop(0, 'rgba(249, 115, 22, 0.45)');
+        glow.addColorStop(0.5, 'rgba(234, 88, 12, 0.15)');
+        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(portal.x, portal.y + 4, 50 + lightPulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Отрисовка пламени без аварийного оранжевого квадрата
+        if (campfireImg.complete && campfireImg.naturalWidth > 0) {
+          ctx.imageSmoothingEnabled = false;
+
+          const frameW = campfireImg.naturalWidth / CAMPFIRE_CONFIG.cols;
+          const frameH = campfireImg.naturalHeight / CAMPFIRE_CONFIG.rows;
+          const currentFrame = Math.floor(now / CAMPFIRE_CONFIG.frameSpeed) % CAMPFIRE_CONFIG.cols;
+
+          // Пропорциональная высота
+          const drawW = CAMPFIRE_CONFIG.drawWidth;
+          const drawH = Math.round(drawW * (frameH / frameW));
+
+          const drawX = portal.x - drawW / 2;
+          const drawY = portal.y - drawH + 12;
+
+          const sx = currentFrame * frameW;
+          const sy = 0; // Первый и единственный ряд
+
+          ctx.drawImage(campfireImg, sx, sy, frameW, frameH, drawX, drawY, drawW, drawH);
+
+          // Подпись прямо над верхушкой пламени
+          const pFontSize = 12 / camera.zoom;
+          ctx.font = `bold ${pFontSize}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.strokeStyle = '#050408';
+          ctx.lineWidth = 2.5 / camera.zoom;
+          ctx.strokeText(`[ Костёр ]`, portal.x, drawY - 6 / camera.zoom);
+          ctx.fillStyle = '#fed7aa';
+          ctx.fillText(`[ Костёр ]`, portal.x, drawY - 6 / camera.zoom);
+        }
+
+        ctx.restore();
+        return;
+      }
+
+      // 2. Обычные порталы (Разлом мини-игр)
       const pw = portal.width || 32;
       const ph = portal.height || 32;
       const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));

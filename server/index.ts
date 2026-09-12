@@ -17,7 +17,7 @@ const WORLD_PORTALS = [
     y: 600,
     width: 32,
     height: 32,
-    color: "#38bdf8", // Синий портал
+    color: "#38bdf8",
   },
 ];
 
@@ -32,9 +32,33 @@ const MINI_GAMES = [
 ];
 
 const CLASSES_CONFIG: Record<string, any> = {
-  warrior: { name: "Воин", color: "#38bdf8", hp: 20, maxHp: 20, armor: 10, minAtk: 1, maxAtk: 2 },
-  spearman: { name: "Копейщик", color: "#ef4444", hp: 10, maxHp: 10, armor: 2, minAtk: 4, maxAtk: 10 },
-  rogue: { name: "Разбойник", color: "#22c55e", hp: 13, maxHp: 13, armor: 5, minAtk: 1, maxAtk: 15 },
+  warrior: { 
+    name: "Воин", 
+    color: "#38bdf8", 
+    hp: 200, 
+    maxHp: 200, 
+    armor: 50, 
+    minAtk: 1, 
+    maxAtk: 4 
+  },
+  spearman: { 
+    name: "Копейщик", 
+    color: "#ef4444", 
+    hp: 50, 
+    maxHp: 50, 
+    armor: 5, 
+    minAtk: 5, 
+    maxAtk: 10 
+  },
+  rogue: { 
+    name: "Разбойник", 
+    color: "#22c55e", 
+    hp: 150, 
+    maxHp: 150, 
+    armor: 8, 
+    minAtk: 1, 
+    maxAtk: 15 
+  },
 };
 
 function calcArmorReduction(armor: number) {
@@ -92,6 +116,7 @@ export class GameRoom extends DurableObject {
             y: msg.y || 600,
             color: "#ffffff",
             inDuel: false,
+            lastActionTime: 0,
             stats: { classId: null, hp: 1, maxHp: 1, armor: 1, attack: 1 },
           });
 
@@ -99,7 +124,7 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
-        // 2. Движение (блокируется во время дуэли)
+        // 2. Движение
         if (msg.type === "move" && session && !session.inDuel) {
           session.x = msg.x;
           session.y = msg.y;
@@ -173,10 +198,12 @@ export class GameRoom extends DurableObject {
             const duelId = crypto.randomUUID();
             session.inDuel = true;
             session.duelId = duelId;
+            session.lastActionTime = 0;
+
             opponentSession.inDuel = true;
             opponentSession.duelId = duelId;
+            opponentSession.lastActionTime = 0;
 
-            // Восстанавливаем HP перед дуэлью
             session.stats.hp = session.stats.maxHp;
             opponentSession.stats.hp = opponentSession.stats.maxHp;
 
@@ -203,10 +230,19 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 8. Дуэли: Действия боя (Атака / Навык)
+        // 8. Дуэли: Действия боя (Атака / Навык) с антиспамом
         if (msg.type === "duel_action" && session && session.inDuel) {
           const duel = this.activeDuels.get(session.duelId);
           if (!duel) return;
+
+          const now = Date.now();
+          session.lastActionTime = session.lastActionTime || 0;
+
+          // Антиспам: отсекаем пакеты чаще чем раз в 1.9 сек
+          if (now - session.lastActionTime < 1900) {
+            return;
+          }
+          session.lastActionTime = now;
 
           const isP1 = duel.p1.id === session.id;
           const attacker = isP1 ? duel.p1 : duel.p2;
@@ -232,7 +268,7 @@ export class GameRoom extends DurableObject {
               finalDmg = Math.max(1, Math.round(rawDmg * (1 - reduction)));
               logText = `⚔️ <b>${attacker.username}</b> применил <i>Удар в спину</i> на <span style="color:#ef4444">${finalDmg}</span> урона!`;
             } else if (attacker.classId === "spearman") {
-              finalDmg = Math.max(1, Math.round(baseDmg * chargeMult * 1.2)); // Игнорирует броню!
+              finalDmg = Math.max(1, Math.round(baseDmg * chargeMult * 1.2));
               logText = `🗡️ <b>${attacker.username}</b> вонзил <i>Колющий удар</i> (сквозь броню!) на <span style="color:#ef4444">${finalDmg}</span> урона!`;
             } else if (attacker.classId === "rogue") {
               const rawDmg = baseDmg * chargeMult * 1.1;
@@ -258,7 +294,6 @@ export class GameRoom extends DurableObject {
           duel.p1.ws.send(updatePayload);
           duel.p2.ws.send(updatePayload);
 
-          // Проверка победы/поражения
           if (defender.hp <= 0) {
             const endPayload = JSON.stringify({ type: "duel_end", winnerName: attacker.username });
             duel.p1.ws.send(endPayload);
