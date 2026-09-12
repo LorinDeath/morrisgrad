@@ -1,159 +1,15 @@
 import { DEFAULT_STATS, StatsUI } from './playerStats.js';
 import { DuelManager } from './duelManager.js';
-import campfireSrc from '../../../assets/free_campfire.png';
-import soulSrc from '../../../assets/character_1_frame16x20.png';
-import rogueSrc from '../../../assets/character_1_frame16x20 2.png';
-import warriorSrc from '../../../assets/character_8_frame16x20.png';
-import spearmanSrc from '../../../assets/character_9_frame16x20.png';
-
-// Хелпер загрузки изображений с поддержкой Astro ImageMetadata
-function createImg(src) {
-  const img = new Image();
-  img.src = typeof src === 'object' && src !== null
-    ? (src.src || src.default?.src || src.default || '')
-    : src;
-  return img;
-}
-
-// 1. Генератор бесшовного тайла Art Deco 64x64
-function createArtDecoPattern(ctx) {
-  const tile = document.createElement('canvas');
-  tile.width = 64;
-  tile.height = 64;
-  const t = tile.getContext('2d');
-
-  t.fillStyle = '#0a0812';
-  t.fillRect(0, 0, 64, 64);
-
-  t.fillStyle = '#120d1f';
-  t.beginPath(); t.moveTo(0, 0); t.lineTo(24, 0); t.lineTo(0, 24); t.fill();
-  t.beginPath(); t.moveTo(64, 0); t.lineTo(40, 0); t.lineTo(64, 24); t.fill();
-  t.beginPath(); t.moveTo(64, 64); t.lineTo(40, 64); t.lineTo(64, 40); t.fill();
-  t.beginPath(); t.moveTo(0, 64); t.lineTo(24, 64); t.lineTo(0, 40); t.fill();
-
-  t.strokeStyle = 'rgba(197, 155, 39, 0.45)';
-  t.lineWidth = 1;
-  t.beginPath();
-  t.moveTo(14, 0); t.lineTo(0, 14);
-  t.moveTo(50, 0); t.lineTo(64, 14);
-  t.moveTo(50, 64); t.lineTo(64, 50);
-  t.moveTo(14, 64); t.lineTo(0, 50);
-  t.stroke();
-
-  t.fillStyle = '#171126';
-  t.beginPath();
-  t.moveTo(32, 0); t.lineTo(64, 32); t.lineTo(32, 64); t.lineTo(0, 32);
-  t.closePath();
-  t.fill();
-  t.strokeStyle = 'rgba(212, 175, 55, 0.6)';
-  t.lineWidth = 1.2;
-  t.stroke();
-
-  t.strokeStyle = '#432d5c';
-  t.lineWidth = 1;
-  t.beginPath();
-  t.moveTo(32, 7); t.lineTo(57, 32); t.lineTo(32, 57); t.lineTo(7, 32);
-  t.closePath();
-  t.stroke();
-
-  t.fillStyle = '#07050d';
-  t.beginPath();
-  t.moveTo(32, 13); t.lineTo(51, 32); t.lineTo(32, 51); t.lineTo(13, 32);
-  t.closePath();
-  t.fill();
-  t.strokeStyle = 'rgba(197, 155, 39, 0.5)';
-  t.lineWidth = 1;
-  t.stroke();
-
-  t.strokeStyle = 'rgba(245, 215, 127, 0.55)';
-  t.lineWidth = 1;
-  t.beginPath();
-  t.moveTo(32, 21); t.lineTo(43, 32); t.lineTo(32, 43); t.lineTo(21, 32);
-  t.closePath();
-  t.stroke();
-
-  t.fillStyle = 'rgba(212, 175, 55, 0.7)';
-  t.beginPath();
-  t.moveTo(32, 27); t.lineTo(37, 32); t.lineTo(32, 37); t.lineTo(27, 32);
-  t.closePath();
-  t.fill();
-
-  t.strokeStyle = 'rgba(212, 175, 55, 0.15)';
-  t.lineWidth = 1;
-  t.strokeRect(0.5, 0.5, 63, 63);
-
-  return ctx.createPattern(tile, 'repeat');
-}
-
-// 2. Настройки алтаря-костра
-const CAMPFIRE_CONFIG = {
-  cols: 3,
-  rows: 1,
-  activeRow: 0,
-  frameSpeed: 140,
-  drawWidth: 36
-};
-const campfireImg = createImg(campfireSrc);
-
-// 3. Настройки спрайтов персонажей (32x40)
-const SPRITE_CONFIG = {
-  cols: 3,
-  rows: 4,
-  frameSpeed: 130,
-  drawWidth: 32,
-  drawHeight: 40
-};
-
-const SPRITES = {
-  soul: createImg(soulSrc),
-  warrior: createImg(warriorSrc),
-  spearman: createImg(spearmanSrc),
-  rogue: createImg(rogueSrc)
-};
-
-function getDirectionRow(dirX, dirY) {
-  if (Math.abs(dirX) > Math.abs(dirY)) {
-    return dirX < 0 ? 1 : 2;
-  }
-  return dirY < 0 ? 3 : 0;
-}
-
-function drawCharacterShadow(ctx, x, y, scale = 1) {
-  ctx.save();
-  ctx.fillStyle = 'rgba(2, 1, 6, 0.55)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + 13, 11 * scale, 4.5 * scale, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, fallbackColor) {
-  const dw = SPRITE_CONFIG.drawWidth;
-  const dh = SPRITE_CONFIG.drawHeight;
-
-  if (!img || !img.complete || img.naturalWidth === 0) {
-    ctx.fillStyle = fallbackColor || '#ffffff';
-    ctx.fillRect(Math.round(x - dw / 2), Math.round(y - dh / 2), dw, dh);
-    return;
-  }
-
-  ctx.imageSmoothingEnabled = false;
-
-  const frameW = img.naturalWidth / SPRITE_CONFIG.cols;
-  const frameH = img.naturalHeight / SPRITE_CONFIG.rows;
-  const row = getDirectionRow(dirX, dirY);
-
-  const WALK_SEQUENCE = [0, 1, 2, 1];
-  const col = isMoving ? WALK_SEQUENCE[Math.floor(now / SPRITE_CONFIG.frameSpeed) % 4] : 1;
-
-  const sx = col * frameW;
-  const sy = row * frameH;
-
-  const dx = Math.round(x - dw / 2);
-  const dy = Math.round(y - dh / 2 - 4);
-
-  ctx.drawImage(img, sx, sy, frameW, frameH, dx, dy, dw, dh);
-}
+import { GameHUD } from './hud.js';
+import {
+  CAMPFIRE_CONFIG,
+  SPRITE_CONFIG,
+  SPRITES,
+  campfireImg,
+  createArtDecoPattern,
+  drawCharacterShadow,
+  drawCharacterSprite
+} from './sprites.js';
 
 export function initGame(canvasId, username = 'Игрок', userId = '') {
   const canvas = document.getElementById(canvasId);
@@ -205,7 +61,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   let myNetworkId = null;
   const otherPlayers = new Map();
-  let currentTargetPlayer = null;
 
   function getGameContainer() {
     return document.fullscreenElement && document.fullscreenElement !== canvas
@@ -231,21 +86,19 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
   });
 
-  const statsUI = new StatsUI(getGameContainer(), (targetId) => {
+  const statsUI = new StatsUI(getGameContainer(), () => {});
+
+  // Инициализация HUD с колбэком дуэли
+  const hud = new GameHUD(canvas.parentElement || document.body, (targetId, targetNick) => {
+    if (!player.stats.classId) {
+      showToast('Для дуэли нужно выбрать тело у алтаря!');
+      return;
+    }
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'duel_invite', targetId }));
+      showToast(`Вызов на дуэль отправлен ${targetNick}`);
     }
   });
-
-  const sideDuelBtn = document.getElementById('btn-side-duel');
-  if (sideDuelBtn) {
-    sideDuelBtn.onclick = () => {
-      if (currentTargetPlayer && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'duel_invite', targetId: currentTargetPlayer.id }));
-        showToast(`Вызов на дуэль отправлен ${currentTargetPlayer.username}`);
-      }
-    };
-  }
 
   function canMove() {
     return !isKicked &&
@@ -261,7 +114,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     dash.active = false;
   }
 
-  // --- ИНТЕРФЕЙС МИНИ-ИГР ---
   function initArcadeDOM() {
     let overlay = document.getElementById('arcade-overlay');
     const container = getGameContainer();
@@ -274,23 +126,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       overlay = document.createElement('div');
       overlay.id = 'arcade-overlay';
       overlay.style.cssText = `
-        display: none;
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(5, 4, 10, 0.92);
-        backdrop-filter: blur(8px);
-        z-index: 99999;
-        align-items: center;
-        justify-content: center;
-        font-family: monospace;
-        box-sizing: border-box;
+        display: none; position: absolute; inset: 0; width: 100%; height: 100%;
+        background: rgba(5, 4, 10, 0.92); backdrop-filter: blur(8px); z-index: 99999;
+        align-items: center; justify-content: center; font-family: monospace; box-sizing: border-box;
       `;
 
       overlay.innerHTML = `
         <button id="arcade-quick-exit" style="display: none; position: absolute; top: 12px; right: 12px; z-index: 100000; background: #dc2626; border: 1px solid #f87171; color: #fff; padding: 6px 14px; font-family: monospace; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.8);">✕ ВЫЙТИ [Esc]</button>
-
         <div id="arcade-card" style="background: #0e0c18; border: 2px solid #8b5cf6; border-radius: 10px; width: 92%; max-width: 520px; max-height: 90%; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); color: #fff; box-sizing: border-box;">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2e2642; padding-bottom: 12px; margin-bottom: 16px;">
             <div id="arcade-title" style="font-weight: bold; font-size: 16px; color: #c084fc; letter-spacing: 1px;">РАЗЛОМ</div>
@@ -330,15 +172,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     (games || []).forEach((game) => {
       const isDisabled = Boolean(game.disabled);
       const item = document.createElement('div');
-
       item.style.cssText = `
-        background: ${isDisabled ? '#12101b' : '#171326'};
-        border: 1px solid ${isDisabled ? '#241e33' : '#30264b'};
-        padding: 12px 14px;
-        border-radius: 6px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        background: ${isDisabled ? '#12101b' : '#171326'}; border: 1px solid ${isDisabled ? '#241e33' : '#30264b'};
+        padding: 12px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
         ${isDisabled ? 'opacity: 0.4; filter: grayscale(100%);' : ''}
       `;
 
@@ -347,20 +183,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           <div style="font-weight: bold; color: ${isDisabled ? '#9ca3af' : '#facc15'}; font-size: 14px;">${game.title}</div>
           <div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">${game.desc}</div>
         </div>
-        <button 
-          ${isDisabled ? 'disabled' : ''} 
-          style="
-            background: ${isDisabled ? '#374151' : '#7c3aed'};
-            border: none;
-            padding: 6px 14px;
-            border-radius: 4px;
-            color: ${isDisabled ? '#9ca3af' : '#fff'};
-            font-family: monospace;
-            font-weight: bold;
-            cursor: ${isDisabled ? 'not-allowed' : 'pointer'};
-            pointer-events: ${isDisabled ? 'none' : 'auto'};
-          "
-        >
+        <button ${isDisabled ? 'disabled' : ''} style="background: ${isDisabled ? '#374151' : '#7c3aed'}; border: none; padding: 6px 14px; border-radius: 4px; color: ${isDisabled ? '#9ca3af' : '#fff'}; font-family: monospace; font-weight: bold; cursor: ${isDisabled ? 'not-allowed' : 'pointer'};">
           ${isDisabled ? 'СКОРО' : 'ВОЙТИ'}
         </button>
       `;
@@ -368,7 +191,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       if (!isDisabled) {
         item.querySelector('button').onclick = () => launchGame(game.url);
       }
-
       list.appendChild(item);
     });
 
@@ -382,17 +204,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const frame = document.getElementById('arcade-frame');
     const exitBtn = document.getElementById('arcade-quick-exit');
 
-    card.style.width = '100%';
-    card.style.height = '100%';
-    card.style.maxWidth = '100%';
-    card.style.maxHeight = '100%';
-    card.style.borderRadius = '0';
-    card.style.padding = '0';
-    card.style.border = 'none';
-
+    card.style.cssText = 'width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; padding: 0; border: none;';
     list.style.display = 'none';
     card.firstElementChild.style.display = 'none';
-
     frame.src = url;
     frame.style.display = 'block';
     exitBtn.style.display = 'block';
@@ -405,18 +219,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const frame = document.getElementById('arcade-frame');
     const exitBtn = document.getElementById('arcade-quick-exit');
 
-    card.style.width = '92%';
-    card.style.maxWidth = '520px';
-    card.style.height = 'auto';
-    card.style.maxHeight = '90%';
-    card.style.borderRadius = '10px';
-    card.style.padding = '20px';
-    card.style.border = '2px solid #8b5cf6';
-
+    card.style.cssText = 'background: #0e0c18; border: 2px solid #8b5cf6; border-radius: 10px; width: 92%; max-width: 520px; height: auto; max-height: 90%; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); color: #fff; box-sizing: border-box;';
     frame.src = '';
     frame.style.display = 'none';
     exitBtn.style.display = 'none';
-
     card.firstElementChild.style.display = 'flex';
     list.style.display = 'flex';
   }
@@ -429,7 +235,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     isGameRunning = false;
   }
 
-  // --- WEBSOCKET ПОДКЛЮЧЕНИЕ ---
+  // WebSocket
   const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
   const socket = new WebSocket(WS_URL);
 
@@ -460,40 +266,31 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         socket.close();
         return;
       }
-
       if (data.type === 'welcome') {
         myNetworkId = data.myId;
-        if (data.portals) {
-          worldPortals = data.portals;
-        }
+        if (data.portals) worldPortals = data.portals;
       }
-
       if (data.type === 'open_class_selection') {
         resetKeys();
         duelManager.openClassSelect();
       }
-
       if (data.type === 'class_updated') {
         player.stats = { ...player.stats, ...data.stats };
         player.color = data.color;
       }
-
       if (data.type === 'duel_incoming') {
         resetKeys();
         duelManager.showInvite(data.fromUsername, data.fromId);
       }
-
       if (data.type === 'duel_declined_notify') {
         showToast(`${data.targetNick} отклонил вызов на дуэль.`);
       }
-
       if (data.type === 'duel_start') {
         player.inDuel = true;
         resetKeys();
-        statsUI.hideTarget();
+        hud.clearTarget();
         duelManager.startDuel(data.duel, myNetworkId);
       }
-
       if (data.type === 'duel_update') {
         if (duelManager.currentDuel) {
           duelManager.me.hp = duelManager.me.id === duelManager.currentDuel.p1.id ? data.p1Hp : data.p2Hp;
@@ -502,16 +299,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         }
         duelManager.addLog(data.log);
       }
-
       if (data.type === 'duel_end') {
         player.inDuel = false;
         duelManager.endDuel(data.winnerName);
       }
-
       if (data.type === 'open_minigames_menu') {
         openArcadeModal(data.portalName, data.games);
       }
-
       if (data.type === 'chat_bubble') {
         const targetNick = (data.username || '').trim().toLowerCase();
         const myNick = (username || '').trim().toLowerCase();
@@ -581,11 +375,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
         for (const nick of otherPlayers.keys()) {
           if (!activeNicks.has(nick)) {
-            if (currentTargetPlayer && currentTargetPlayer.username && currentTargetPlayer.username.toLowerCase() === nick) {
-              currentTargetPlayer = null;
-            }
-            if (statsUI.currentTarget && statsUI.currentTarget.username && statsUI.currentTarget.username.toLowerCase() === nick) {
-              statsUI.hideTarget();
+            if (hud.currentTarget && hud.currentTarget.username && hud.currentTarget.username.toLowerCase() === nick) {
+              hud.clearTarget();
             }
             otherPlayers.delete(nick);
           }
@@ -621,47 +412,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   };
 
   const keys = { w: false, a: false, s: false, d: false };
-
   window.addEventListener('blur', resetKeys);
 
-  // --- ОБРАБОТКА МЫШИ (ХОВЕР И КЛИК) ---
-  canvas.addEventListener('mousemove', (e) => {
-    if (!canMove() || statsUI.isSoulOpen) {
-      statsUI.hideTooltip();
-      return;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const screenY = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-    const mouseWorldX = (screenX - VIEW_WIDTH / 2) / camera.zoom + camera.x;
-    const mouseWorldY = (screenY - VIEW_HEIGHT / 2) / camera.zoom + camera.y;
-
-    let hovered = null;
-
-    for (const p of otherPlayers.values()) {
-      if (
-        Math.abs(mouseWorldX - p.x) <= SPRITE_CONFIG.drawWidth / 2 + 4 &&
-        mouseWorldY >= p.y - SPRITE_CONFIG.drawHeight / 2 - 20 / camera.zoom &&
-        mouseWorldY <= p.y + SPRITE_CONFIG.drawHeight / 2
-      ) {
-        hovered = p;
-        break;
-      }
-    }
-
-    if (hovered) {
-      statsUI.showTooltip(e.clientX - rect.left, e.clientY - rect.top, hovered);
-    } else {
-      statsUI.hideTooltip();
-    }
-  });
-
-  canvas.addEventListener('mouseleave', () => statsUI.hideTooltip());
-
+  // Клик по миру
   canvas.addEventListener('click', (e) => {
-    if (!canMove() || statsUI.isSoulOpen) return;
+    if (!canMove()) return;
 
     const rect = canvas.getBoundingClientRect();
     const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -701,10 +456,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
 
     if (clicked) {
-      currentTargetPlayer = clicked;
-      statsUI.showTarget(clicked, player);
+      hud.setTarget(clicked);
     } else {
-      currentTargetPlayer = null;
+      hud.clearTarget();
     }
   });
 
@@ -718,15 +472,14 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         e.preventDefault();
         return;
       }
-      if (statsUI.isTargetOpen) {
-        statsUI.hideTarget();
-        currentTargetPlayer = null;
+      if (statsUI && statsUI.isSoulOpen) {
+        statsUI.toggleSoulModal(false);
+        resetKeys();
         e.preventDefault();
         return;
       }
-      if (statsUI.isSoulOpen) {
-        statsUI.toggleSoulModal(false);
-        resetKeys();
+      if (hud && hud.currentTarget) {
+        hud.clearTarget();
         e.preventDefault();
         return;
       }
@@ -820,9 +573,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         return;
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (chatText.length < 35) {
-          chatText += e.key;
-        }
+        if (chatText.length < 35) chatText += e.key;
         e.preventDefault();
         return;
       }
@@ -861,7 +612,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   function drawBubble(text, x, y, isSelf) {
     ctx.save();
-
     const targetFontPx = 13;
     const fontInWorld = targetFontPx / camera.zoom;
     ctx.font = `bold ${fontInWorld}px monospace`;
@@ -898,91 +648,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.restore();
   }
 
-  // Обновление HTML-интерфейса в боковых колонках
-  function updateSidebarsDOM() {
-    const isMyBody = Boolean(player.stats && player.stats.classId);
-
-    // Левая панель
-    const myNameEl = document.getElementById('hud-my-name');
-    const myClassEl = document.getElementById('hud-my-class');
-    const hpBarEl = document.getElementById('hud-hp-bar');
-    const hpTextEl = document.getElementById('hud-hp-text');
-    const dashStatusEl = document.getElementById('hud-dash-status');
-    const dashBarEl = document.getElementById('hud-dash-bar');
-    const onlineEl = document.getElementById('hud-online');
-    const zoomEl = document.getElementById('hud-zoom');
-    const coordsEl = document.getElementById('hud-coords');
-
-    if (myNameEl) myNameEl.textContent = username;
-    if (myClassEl) {
-      const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик' };
-      myClassEl.textContent = isMyBody ? (classMap[player.stats.classId] || 'Воин') : 'Душа [C]';
-    }
-
-    const curHp = player.stats?.hp || 100;
-    const maxHp = player.stats?.maxHp || 100;
-    if (hpBarEl) hpBarEl.style.width = `${Math.max(0, Math.min(100, (curHp / maxHp) * 100))}%`;
-    if (hpTextEl) hpTextEl.textContent = `${curHp} / ${maxHp} HP`;
-
-    if (dashStatusEl && dashBarEl) {
-      if (dash.cooldownTimer <= 0) {
-        dashStatusEl.textContent = 'ГОТОВ';
-        dashStatusEl.className = 'status-ready';
-        dashBarEl.style.width = '100%';
-      } else {
-        dashStatusEl.textContent = `${dash.cooldownTimer.toFixed(1)}c`;
-        dashStatusEl.className = 'status-cd';
-        const pct = ((dash.cooldown - dash.cooldownTimer) / dash.cooldown) * 100;
-        dashBarEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-      }
-    }
-
-    if (onlineEl) onlineEl.textContent = `${otherPlayers.size + 1}`;
-    if (zoomEl) zoomEl.textContent = `x${camera.zoom.toFixed(1)}`;
-    if (coordsEl) coordsEl.textContent = `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`;
-
-    // Правая панель: Цель
-    const targetEmpty = document.getElementById('hud-target-empty');
-    const targetContent = document.getElementById('hud-target-content');
-    const targetNameEl = document.getElementById('hud-target-name');
-    const targetClassEl = document.getElementById('hud-target-class');
-    const targetHpEl = document.getElementById('hud-target-hp');
-    const targetArmorEl = document.getElementById('hud-target-armor');
-
-    if (currentTargetPlayer && otherPlayers.has(currentTargetPlayer.username.toLowerCase())) {
-      const p = otherPlayers.get(currentTargetPlayer.username.toLowerCase());
-      if (targetEmpty) targetEmpty.style.display = 'none';
-      if (targetContent) targetContent.style.display = 'block';
-
-      if (targetNameEl) targetNameEl.textContent = p.username;
-      if (targetClassEl) {
-        const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик' };
-        targetClassEl.textContent = p.stats?.classId ? (classMap[p.stats.classId] || 'Герой') : 'Душа';
-      }
-      if (targetHpEl) targetHpEl.textContent = `${p.stats?.hp || 100} / ${p.stats?.maxHp || 100}`;
-      if (targetArmorEl) targetArmorEl.textContent = `${p.stats?.armor || 0}`;
-    } else {
-      if (targetEmpty) targetEmpty.style.display = 'block';
-      if (targetContent) targetContent.style.display = 'none';
-    }
-
-    // Правая панель: Окружение
-    const nearEmpty = document.getElementById('hud-near-empty');
-    const nearContent = document.getElementById('hud-near-content');
-    const nearNameEl = document.getElementById('hud-near-name');
-
-    if (activeNearPortal) {
-      if (nearEmpty) nearEmpty.style.display = 'none';
-      if (nearContent) nearContent.style.display = 'block';
-      if (nearNameEl) {
-        nearNameEl.textContent = activeNearPortal.id === 'portal_class_select' ? 'Алтарь Перевоплощения' : activeNearPortal.name;
-      }
-    } else {
-      if (nearEmpty) nearEmpty.style.display = 'block';
-      if (nearContent) nearContent.style.display = 'none';
-    }
-  }
-
   let lastTime = performance.now();
 
   function loop(currentTime) {
@@ -1003,9 +668,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         isMoving = true;
 
         dash.timer -= dt;
-        if (dash.timer <= 0) {
-          dash.active = false;
-        }
+        if (dash.timer <= 0) dash.active = false;
       } else {
         let dx = 0;
         let dy = 0;
@@ -1044,8 +707,17 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       });
     }
 
-    // Синхронизация данных со стильными HTML-боковыми панелями
-    updateSidebarsDOM();
+    // Синхронизация данных с боковым дашбордом и миникартой
+    hud.update({
+      player,
+      otherPlayers,
+      worldPortals,
+      activeNearPortal,
+      camera,
+      dash,
+      username,
+      lastFaceDir
+    });
 
     camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, 10 * dt);
     camera.x += (player.x - camera.x) * Math.min(1, camera.smoothSpeed * dt);
@@ -1065,7 +737,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // ПОЛ ART DECO + ЗАТЕМНЯЮЩИЙ ШЕЙДЕР
+    // ПОЛ ART DECO
     if (floorPattern) {
       ctx.fillStyle = floorPattern;
       ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
@@ -1106,23 +778,18 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    otherPlayers.forEach((p) => {
-      drawCharacterShadow(ctx, p.x, p.y);
-    });
-
+    otherPlayers.forEach((p) => drawCharacterShadow(ctx, p.x, p.y));
     drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
 
-    // Y-СОРТИРОВКА СУЩНОСТЕЙ
+    // СОРТИРОВКА ПО Y
     otherPlayers.forEach((p) => {
       const pDx = p.targetX - p.x;
       const pDy = p.targetY - p.y;
       const isOtherMoving = Math.hypot(pDx, pDy) > 0.6;
-
       if (isOtherMoving) {
         p.dirX = pDx;
         p.dirY = pDy;
       }
-
       p.x += pDx * Math.min(1, 15 * dt);
       p.y += pDy * Math.min(1, 15 * dt);
     });
@@ -1140,7 +807,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
         if (portal.id === 'portal_class_select') {
           ctx.save();
-
           const lightPulse = Math.sin(now / 180) * 5;
           const glow = ctx.createRadialGradient(portal.x, portal.y + 4, 3, portal.x, portal.y + 4, 52 + lightPulse);
           glow.addColorStop(0, 'rgba(168, 85, 247, 0.55)');
@@ -1158,11 +824,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
           if (campfireImg.complete && campfireImg.naturalWidth > 0) {
             ctx.imageSmoothingEnabled = false;
-
             const frameW = campfireImg.naturalWidth / CAMPFIRE_CONFIG.cols;
             const frameH = campfireImg.naturalHeight / CAMPFIRE_CONFIG.rows;
             const currentFrame = Math.floor(now / CAMPFIRE_CONFIG.frameSpeed) % CAMPFIRE_CONFIG.cols;
-
             const sx = currentFrame * frameW;
             const sy = 0;
 
@@ -1170,7 +834,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
             ctx.drawImage(campfireImg, sx, sy, frameW, frameH, drawX, drawY, drawW, drawH);
             ctx.filter = 'none';
           }
-
           ctx.restore();
           return;
         }
@@ -1184,11 +847,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         ctx.save();
         ctx.shadowColor = portal.color || '#a855f7';
         ctx.shadowBlur = 12 + Math.abs(pulse);
-
         ctx.strokeStyle = portal.color || '#a855f7';
         ctx.lineWidth = 2;
         ctx.strokeRect(drawX - pulse / 2, drawY - pulse / 2, pw + pulse, ph + pulse);
-
         ctx.fillStyle = portal.color ? `${portal.color}99` : 'rgba(168, 85, 247, 0.65)';
         ctx.fillRect(drawX, drawY, pw, ph);
         ctx.restore();
@@ -1201,17 +862,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         const classId = p.stats?.classId;
         const targetSprite = (classId && SPRITES[classId]) ? SPRITES[classId] : SPRITES.soul;
 
-        drawCharacterSprite(
-          ctx,
-          targetSprite,
-          p.x,
-          p.y,
-          p.dirX || 0,
-          p.dirY || 1,
-          isOtherMoving,
-          now,
-          p.color || '#38bdf8'
-        );
+        drawCharacterSprite(ctx, targetSprite, p.x, p.y, p.dirX || 0, p.dirY || 1, isOtherMoving, now, p.color || '#38bdf8');
         return;
       }
 
@@ -1232,21 +883,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         const myClassId = player.stats?.classId;
         const mySprite = (myClassId && SPRITES[myClassId]) ? SPRITES[myClassId] : SPRITES.soul;
 
-        drawCharacterSprite(
-          ctx,
-          mySprite,
-          player.x,
-          player.y,
-          lastFaceDir.x,
-          lastFaceDir.y,
-          isMoving,
-          now,
-          player.color || '#ffffff'
-        );
+        drawCharacterSprite(ctx, mySprite, player.x, player.y, lastFaceDir.x, lastFaceDir.y, isMoving, now, player.color || '#ffffff');
       }
     });
 
-    // НАДПИСИ И ПОДСКАЗКИ
     const halfH = player.height / 2;
 
     worldPortals.forEach((portal) => {
@@ -1271,7 +911,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           const bh = 18 / camera.zoom;
           ctx.fillRect(portal.x - bw / 2, badgeY - bh / 2, bw, bh);
           ctx.strokeRect(portal.x - bw / 2, badgeY - bh / 2, bw, bh);
-
           ctx.font = `bold ${10 / camera.zoom}px monospace`;
           ctx.fillStyle = '#facc15';
           ctx.fillText(`[E] или Клик: Тело`, portal.x, badgeY + 3 / camera.zoom);
@@ -1295,7 +934,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           const bh = 18 / camera.zoom;
           ctx.fillRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
           ctx.strokeRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
-
           ctx.font = `bold ${10 / camera.zoom}px monospace`;
           ctx.fillStyle = '#38bdf8';
           ctx.fillText(`[E] Войти`, drawX + pw / 2, badgeY + 3 / camera.zoom);
@@ -1350,7 +988,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     ctx.restore();
 
-    // СТАТИЧЕСКИЙ ЭКРАННЫЙ ЧАТ
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 

@@ -24,75 +24,7 @@ import Layout from '../../layouts/Layout.astro';
             <span class="hint">Управление: WASD / Зум: +/-</span>
           </div>
 
-          <!-- Левая панель интерфейса (видна только в Fullscreen) -->
-          <aside class="fs-sidebar fs-sidebar-left" id="fs-sidebar-left">
-            <div class="sidebar-box">
-              <div class="sidebar-header">СУЩНОСТЬ</div>
-              <div class="player-profile">
-                <div class="player-name" id="hud-my-name">Странник</div>
-                <div class="player-class" id="hud-my-class">Душа [C]</div>
-                <div class="bar-container">
-                  <div class="bar-fill bar-hp" id="hud-hp-bar" style="width: 100%;"></div>
-                </div>
-                <div class="bar-text" id="hud-hp-text">100 / 100 HP</div>
-              </div>
-            </div>
-
-            <div class="sidebar-box">
-              <div class="sidebar-header">СПОСОБНОСТИ</div>
-              <div class="stat-row">
-                <span>Рывок [Space]</span>
-                <span id="hud-dash-status" class="status-ready">ГОТОВ</span>
-              </div>
-              <div class="bar-container">
-                <div class="bar-fill bar-dash" id="hud-dash-bar" style="width: 100%;"></div>
-              </div>
-            </div>
-
-            <div class="sidebar-box">
-              <div class="sidebar-header">МИР</div>
-              <div class="stat-row"><span>В сети:</span><b id="hud-online">1</b></div>
-              <div class="stat-row"><span>Зум:</span><b id="hud-zoom">x0.5</b></div>
-              <div class="stat-row"><span>Координаты:</span><b id="hud-coords">X: 600 | Y: 600</b></div>
-            </div>
-
-            <div class="sidebar-box sidebar-help">
-              <div class="sidebar-header">УПРАВЛЕНИЕ</div>
-              <div class="help-item"><span>[W][A][S][D]</span> Перемещение</div>
-              <div class="help-item"><span>[Space/Shift]</span> Рывок</div>
-              <div class="help-item"><span>[E]</span> Действие / Алтарь</div>
-              <div class="help-item"><span>[C]</span> Меню души/характеристики</div>
-              <div class="help-item"><span>[Enter]</span> Чат</div>
-              <div class="help-item"><span>[+/-]</span> Зум камеры</div>
-            </div>
-          </aside>
-
-          <!-- Игровое поле -->
           <canvas id="game-canvas" width="300" height="300" tabindex="0"></canvas>
-
-          <!-- Правая панель интерфейса (видна только в Fullscreen) -->
-          <aside class="fs-sidebar fs-sidebar-right" id="fs-sidebar-right">
-            <div class="sidebar-box" id="hud-target-box">
-              <div class="sidebar-header">ЦЕЛЬ</div>
-              <div id="hud-target-empty" class="empty-hint">Нажмите на игрока для выбора цели</div>
-              <div id="hud-target-content" style="display: none;">
-                <div class="target-name" id="hud-target-name">Игрок</div>
-                <div class="stat-row"><span>Класс:</span><b id="hud-target-class">-</b></div>
-                <div class="stat-row"><span>Здоровье:</span><b id="hud-target-hp">-</b></div>
-                <div class="stat-row"><span>Броня:</span><b id="hud-target-armor">-</b></div>
-                <button class="btn-side-duel" id="btn-side-duel">⚔️ ВЫЗВАТЬ НА ДУЭЛЬ</button>
-              </div>
-            </div>
-
-            <div class="sidebar-box">
-              <div class="sidebar-header">ОКРУЖЕНИЕ</div>
-              <div id="hud-near-empty" class="empty-hint">Поблизости нет объектов</div>
-              <div id="hud-near-content" style="display: none;">
-                <div class="near-title" id="hud-near-name">Алтарь Перевоплощения</div>
-                <div class="near-desc">Нажмите <b>[E]</b> или кликните мышкой для взаимодействия.</div>
-              </div>
-            </div>
-          </aside>
         </div>
       </div>
     </div>
@@ -112,10 +44,9 @@ import Layout from '../../layouts/Layout.astro';
     if (overlay) overlay.style.display = 'none';
     canvas?.focus();
 
-    // Автоматический вход в Fullscreen при старте игры
     if (!document.fullscreenElement && gameWindow) {
       gameWindow.requestFullscreen().catch((err) => {
-        console.warn('Fullscreen не запустился автоматически:', err);
+        console.warn('Fullscreen отклонен:', err);
       });
     }
 
@@ -133,7 +64,7 @@ import Layout from '../../layouts/Layout.astro';
           userId = data.userId || data.id || null;
         }
       } catch (err) {
-        console.warn('Не удалось загрузить пользователя, ставим дефолтные');
+        console.warn('Не удалось загрузить пользователя');
       }
 
       const { initGame } = await import('./core/game.js');
@@ -141,9 +72,7 @@ import Layout from '../../layouts/Layout.astro';
     }
   });
 
-  canvas?.addEventListener('click', () => {
-    canvas.focus();
-  });
+  canvas?.addEventListener('click', () => canvas.focus());
 
   window.addEventListener('keydown', (e) => {
     if (document.activeElement === canvas) {
@@ -168,7 +97,7 @@ import Layout from '../../layouts/Layout.astro';
   });
 </script>
 
-<style>
+<style is:global>
   .shimmer-line {
     height: 2px;
     background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.5), transparent);
@@ -248,14 +177,11 @@ import Layout from '../../layouts/Layout.astro';
     outline: none;
   }
 
-  /* Боковые панели по умолчанию скрыты в окне */
-  .fs-sidebar {
+  .game-hud-panel {
     display: none;
   }
 
-  /* ==============================================
-     ПОЛНОЭКРАННЫЙ РЕЖИМ (ART DECO RPG DASHBOARD)
-     ============================================== */
+  /* Fullscreen: адаптивная разметка дашборда */
   .game-window:fullscreen {
     width: 100vw;
     height: 100vh;
@@ -277,7 +203,6 @@ import Layout from '../../layouts/Layout.astro';
     overflow: hidden;
   }
 
-  /* Центральный канвас сохраняет ровные пропорции */
   .game-window:fullscreen #game-canvas {
     width: auto;
     height: 100%;
@@ -289,8 +214,7 @@ import Layout from '../../layouts/Layout.astro';
     box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
   }
 
-  /* Показ боковых панелей в полноэкранном режиме */
-  .game-window:fullscreen .fs-sidebar {
+  .game-window:fullscreen .game-hud-panel {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -305,16 +229,10 @@ import Layout from '../../layouts/Layout.astro';
     z-index: 2;
   }
 
-  .game-window:fullscreen .fs-sidebar-left {
-    border-right: 1px solid #231b33;
-  }
+  .game-window:fullscreen .hud-left { border-right: 1px solid #231b33; }
+  .game-window:fullscreen .hud-right { border-left: 1px solid #231b33; }
 
-  .game-window:fullscreen .fs-sidebar-right {
-    border-left: 1px solid #231b33;
-  }
-
-  /* Карточки внутри панелей */
-  .sidebar-box {
+  .hud-card {
     background: #120d20;
     border: 1px solid #2d2242;
     border-radius: 6px;
@@ -325,7 +243,7 @@ import Layout from '../../layouts/Layout.astro';
     box-shadow: 0 4px 10px rgba(0,0,0,0.5);
   }
 
-  .sidebar-header {
+  .hud-header {
     font-size: 11px;
     font-weight: bold;
     color: #c59b27;
@@ -334,18 +252,18 @@ import Layout from '../../layouts/Layout.astro';
     padding-bottom: 4px;
   }
 
-  .player-name, .target-name {
+  .hud-player-name, .hud-target-title {
     font-size: 14px;
     font-weight: bold;
     color: #ffd700;
   }
 
-  .player-class {
+  .hud-player-class {
     font-size: 11px;
     color: #c084fc;
   }
 
-  .bar-container {
+  .hud-bar-bg {
     width: 100%;
     height: 8px;
     background: #090610;
@@ -354,69 +272,48 @@ import Layout from '../../layouts/Layout.astro';
     overflow: hidden;
   }
 
-  .bar-fill {
+  .hud-bar-fill {
     height: 100%;
     transition: width 0.2s ease-out;
   }
 
-  .bar-hp {
-    background: linear-gradient(90deg, #ef4444, #f87171);
-  }
+  .hud-hp-fill { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .hud-dash-fill { background: linear-gradient(90deg, #38bdf8, #818cf8); }
 
-  .bar-dash {
-    background: linear-gradient(90deg, #38bdf8, #818cf8);
-  }
-
-  .bar-text {
+  .hud-bar-val {
     font-size: 11px;
     color: #cbd5e1;
     text-align: right;
   }
 
-  .stat-row {
+  .hud-row {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
     color: #94a3b8;
   }
 
-  .stat-row b {
-    color: #f1f5f9;
-  }
+  .hud-row b { color: #f1f5f9; }
+  .hud-ready { color: #4ade80 !important; font-weight: bold; }
+  .hud-cd { color: #f59e0b !important; font-weight: bold; }
 
-  .status-ready {
-    color: #4ade80 !important;
-    font-weight: bold;
-  }
-
-  .status-cd {
-    color: #f59e0b !important;
-    font-weight: bold;
-  }
-
-  .sidebar-help {
-    margin-top: auto;
-  }
-
-  .help-item {
+  .hud-controls { margin-top: auto; }
+  .hud-ctrl-item {
     font-size: 10px;
     color: #a1a1aa;
     display: flex;
     justify-content: space-between;
   }
+  .hud-ctrl-item span { color: #e9d5ff; }
 
-  .help-item span {
-    color: #e9d5ff;
-  }
-
-  .empty-hint {
+  .hud-empty {
     font-size: 11px;
     color: #64748b;
     font-style: italic;
     line-height: 1.4;
   }
 
-  .btn-side-duel {
+  .hud-duel-btn {
     background: #7c3aed;
     border: 1px solid #a855f7;
     color: #fff;
@@ -430,22 +327,48 @@ import Layout from '../../layouts/Layout.astro';
     transition: all 0.2s;
   }
 
-  .btn-side-duel:hover {
+  .hud-duel-btn:hover {
     background: #9333ea;
     box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
   }
 
-  .near-title {
-    font-size: 12px;
-    font-weight: bold;
-    color: #e9d5ff;
+  .hud-btn-disabled {
+    background: #374151 !important;
+    border-color: #4b5563 !important;
+    color: #9ca3af !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
   }
 
-  .near-desc {
-    font-size: 11px;
-    color: #94a3b8;
-    line-height: 1.3;
+  .hud-nearby-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 120px;
+    overflow-y: auto;
   }
+
+  .hud-nearby-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 8px;
+    background: #171129;
+    border: 1px solid #281d3d;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .hud-nearby-item:hover {
+    border-color: #ffd700;
+    background: #201738;
+  }
+
+  .hud-nearby-item span { color: #38bdf8; font-weight: bold; }
+  .hud-nearby-item b { color: #f5d77f; font-weight: normal; }
+
+  .hud-near-name { font-size: 12px; font-weight: bold; color: #e9d5ff; }
+  .hud-near-hint { font-size: 11px; color: #94a3b8; line-height: 1.3; }
 
   .launcher-overlay {
     position: absolute;
