@@ -15,7 +15,77 @@ function createImg(src) {
   return img;
 }
 
-// 1. Настройки алтаря-костра
+// 1. Генератор бесшовного тайла Art Deco 64x64
+function createArtDecoPattern(ctx) {
+  const tile = document.createElement('canvas');
+  tile.width = 64;
+  tile.height = 64;
+  const t = tile.getContext('2d');
+
+  t.fillStyle = '#0a0812';
+  t.fillRect(0, 0, 64, 64);
+
+  t.fillStyle = '#120d1f';
+  t.beginPath(); t.moveTo(0, 0); t.lineTo(24, 0); t.lineTo(0, 24); t.fill();
+  t.beginPath(); t.moveTo(64, 0); t.lineTo(40, 0); t.lineTo(64, 24); t.fill();
+  t.beginPath(); t.moveTo(64, 64); t.lineTo(40, 64); t.lineTo(64, 40); t.fill();
+  t.beginPath(); t.moveTo(0, 64); t.lineTo(24, 64); t.lineTo(0, 40); t.fill();
+
+  t.strokeStyle = 'rgba(197, 155, 39, 0.45)';
+  t.lineWidth = 1;
+  t.beginPath();
+  t.moveTo(14, 0); t.lineTo(0, 14);
+  t.moveTo(50, 0); t.lineTo(64, 14);
+  t.moveTo(50, 64); t.lineTo(64, 50);
+  t.moveTo(14, 64); t.lineTo(0, 50);
+  t.stroke();
+
+  t.fillStyle = '#171126';
+  t.beginPath();
+  t.moveTo(32, 0); t.lineTo(64, 32); t.lineTo(32, 64); t.lineTo(0, 32);
+  t.closePath();
+  t.fill();
+  t.strokeStyle = 'rgba(212, 175, 55, 0.6)';
+  t.lineWidth = 1.2;
+  t.stroke();
+
+  t.strokeStyle = '#432d5c';
+  t.lineWidth = 1;
+  t.beginPath();
+  t.moveTo(32, 7); t.lineTo(57, 32); t.lineTo(32, 57); t.lineTo(7, 32);
+  t.closePath();
+  t.stroke();
+
+  t.fillStyle = '#07050d';
+  t.beginPath();
+  t.moveTo(32, 13); t.lineTo(51, 32); t.lineTo(32, 51); t.lineTo(13, 32);
+  t.closePath();
+  t.fill();
+  t.strokeStyle = 'rgba(197, 155, 39, 0.5)';
+  t.lineWidth = 1;
+  t.stroke();
+
+  t.strokeStyle = 'rgba(245, 215, 127, 0.55)';
+  t.lineWidth = 1;
+  t.beginPath();
+  t.moveTo(32, 21); t.lineTo(43, 32); t.lineTo(32, 43); t.lineTo(21, 32);
+  t.closePath();
+  t.stroke();
+
+  t.fillStyle = 'rgba(212, 175, 55, 0.7)';
+  t.beginPath();
+  t.moveTo(32, 27); t.lineTo(37, 32); t.lineTo(32, 37); t.lineTo(27, 32);
+  t.closePath();
+  t.fill();
+
+  t.strokeStyle = 'rgba(212, 175, 55, 0.15)';
+  t.lineWidth = 1;
+  t.strokeRect(0.5, 0.5, 63, 63);
+
+  return ctx.createPattern(tile, 'repeat');
+}
+
+// 2. Настройки алтаря-костра
 const CAMPFIRE_CONFIG = {
   cols: 3,
   rows: 1,
@@ -25,7 +95,7 @@ const CAMPFIRE_CONFIG = {
 };
 const campfireImg = createImg(campfireSrc);
 
-// 2. Настройки спрайтов персонажей (увеличены в 2 раза: 32x40)
+// 3. Настройки спрайтов персонажей (32x40)
 const SPRITE_CONFIG = {
   cols: 3,
   rows: 4,
@@ -41,7 +111,6 @@ const SPRITES = {
   rogue: createImg(rogueSrc)
 };
 
-// Определение ряда направления (0: вниз, 1: влево, 2: вправо, 3: вверх)
 function getDirectionRow(dirX, dirY) {
   if (Math.abs(dirX) > Math.abs(dirY)) {
     return dirX < 0 ? 1 : 2;
@@ -49,7 +118,15 @@ function getDirectionRow(dirX, dirY) {
   return dirY < 0 ? 3 : 0;
 }
 
-// Универсальная отрисовка анимированного спрайта
+function drawCharacterShadow(ctx, x, y, scale = 1) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(2, 1, 6, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 13, 11 * scale, 4.5 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, fallbackColor) {
   const dw = SPRITE_CONFIG.drawWidth;
   const dh = SPRITE_CONFIG.drawHeight;
@@ -96,13 +173,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let isTyping = false;
   let chatText = '';
 
-  // Состояние порталов и интерактивности
+  const floorPattern = createArtDecoPattern(ctx);
+
   let worldPortals = [];
   let isModalOpen = false;
   let isGameRunning = false;
-  let activeNearPortal = null; // Ближайший объект для взаимодействия на [E]
+  let activeNearPortal = null;
 
-  // Параметры рывка (Dash)
   const dash = {
     active: false,
     timer: 0,
@@ -115,7 +192,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   };
   let lastFaceDir = { x: 0, y: 1 };
 
-  // Характеристики игрока
   const player = {
     x: WORLD_SIZE / 2,
     y: WORLD_SIZE / 2,
@@ -129,6 +205,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   let myNetworkId = null;
   const otherPlayers = new Map();
+  let currentTargetPlayer = null;
 
   function getGameContainer() {
     return document.fullscreenElement && document.fullscreenElement !== canvas
@@ -159,6 +236,16 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       socket.send(JSON.stringify({ type: 'duel_invite', targetId }));
     }
   });
+
+  const sideDuelBtn = document.getElementById('btn-side-duel');
+  if (sideDuelBtn) {
+    sideDuelBtn.onclick = () => {
+      if (currentTargetPlayer && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'duel_invite', targetId: currentTargetPlayer.id }));
+        showToast(`Вызов на дуэль отправлен ${currentTargetPlayer.username}`);
+      }
+    };
+  }
 
   function canMove() {
     return !isKicked &&
@@ -494,6 +581,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
         for (const nick of otherPlayers.keys()) {
           if (!activeNicks.has(nick)) {
+            if (currentTargetPlayer && currentTargetPlayer.username && currentTargetPlayer.username.toLowerCase() === nick) {
+              currentTargetPlayer = null;
+            }
             if (statsUI.currentTarget && statsUI.currentTarget.username && statsUI.currentTarget.username.toLowerCase() === nick) {
               statsUI.hideTarget();
             }
@@ -580,7 +670,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const mouseWorldX = (screenX - VIEW_WIDTH / 2) / camera.zoom + camera.x;
     const mouseWorldY = (screenY - VIEW_HEIGHT / 2) / camera.zoom + camera.y;
 
-    // 1. Клик по костру/алтарю или порталам
     for (const portal of worldPortals) {
       const pw = portal.width || 36;
       const ph = portal.height || 36;
@@ -599,7 +688,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     }
 
-    // 2. Клик по другому игроку для вызова меню цели
     let clicked = null;
     for (const p of otherPlayers.values()) {
       if (
@@ -613,7 +701,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     }
 
     if (clicked) {
+      currentTargetPlayer = clicked;
       statsUI.showTarget(clicked, player);
+    } else {
+      currentTargetPlayer = null;
     }
   });
 
@@ -629,6 +720,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
       if (statsUI.isTargetOpen) {
         statsUI.hideTarget();
+        currentTargetPlayer = null;
         e.preventDefault();
         return;
       }
@@ -656,7 +748,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     }
 
-    // Клавиша [E] / [У] — взаимодействие с алтарём или порталами
     if ((e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') && !isTyping && canMove()) {
       if (activeNearPortal && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'use_portal', portalId: activeNearPortal.id }));
@@ -672,7 +763,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       return;
     }
 
-    // Рывок: исправлен знак для keys.d (mx += 1 вместо mx -= 1)
     if ((e.code === 'Space' || e.key === ' ' || e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.key === 'Shift') && canMove()) {
       e.preventDefault();
       if (dash.cooldownTimer <= 0 && !dash.active) {
@@ -681,7 +771,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (keys.w) my -= 1;
         if (keys.s) my += 1;
         if (keys.a) mx -= 1;
-        if (keys.d) mx += 1; // ИСПРАВЛЕНО: теперь вправо даёт +1, а не -1!
+        if (keys.d) mx += 1;
 
         if (mx !== 0 || my !== 0) {
           const len = Math.hypot(mx, my);
@@ -808,6 +898,91 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.restore();
   }
 
+  // Обновление HTML-интерфейса в боковых колонках
+  function updateSidebarsDOM() {
+    const isMyBody = Boolean(player.stats && player.stats.classId);
+
+    // Левая панель
+    const myNameEl = document.getElementById('hud-my-name');
+    const myClassEl = document.getElementById('hud-my-class');
+    const hpBarEl = document.getElementById('hud-hp-bar');
+    const hpTextEl = document.getElementById('hud-hp-text');
+    const dashStatusEl = document.getElementById('hud-dash-status');
+    const dashBarEl = document.getElementById('hud-dash-bar');
+    const onlineEl = document.getElementById('hud-online');
+    const zoomEl = document.getElementById('hud-zoom');
+    const coordsEl = document.getElementById('hud-coords');
+
+    if (myNameEl) myNameEl.textContent = username;
+    if (myClassEl) {
+      const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик' };
+      myClassEl.textContent = isMyBody ? (classMap[player.stats.classId] || 'Воин') : 'Душа [C]';
+    }
+
+    const curHp = player.stats?.hp || 100;
+    const maxHp = player.stats?.maxHp || 100;
+    if (hpBarEl) hpBarEl.style.width = `${Math.max(0, Math.min(100, (curHp / maxHp) * 100))}%`;
+    if (hpTextEl) hpTextEl.textContent = `${curHp} / ${maxHp} HP`;
+
+    if (dashStatusEl && dashBarEl) {
+      if (dash.cooldownTimer <= 0) {
+        dashStatusEl.textContent = 'ГОТОВ';
+        dashStatusEl.className = 'status-ready';
+        dashBarEl.style.width = '100%';
+      } else {
+        dashStatusEl.textContent = `${dash.cooldownTimer.toFixed(1)}c`;
+        dashStatusEl.className = 'status-cd';
+        const pct = ((dash.cooldown - dash.cooldownTimer) / dash.cooldown) * 100;
+        dashBarEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      }
+    }
+
+    if (onlineEl) onlineEl.textContent = `${otherPlayers.size + 1}`;
+    if (zoomEl) zoomEl.textContent = `x${camera.zoom.toFixed(1)}`;
+    if (coordsEl) coordsEl.textContent = `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`;
+
+    // Правая панель: Цель
+    const targetEmpty = document.getElementById('hud-target-empty');
+    const targetContent = document.getElementById('hud-target-content');
+    const targetNameEl = document.getElementById('hud-target-name');
+    const targetClassEl = document.getElementById('hud-target-class');
+    const targetHpEl = document.getElementById('hud-target-hp');
+    const targetArmorEl = document.getElementById('hud-target-armor');
+
+    if (currentTargetPlayer && otherPlayers.has(currentTargetPlayer.username.toLowerCase())) {
+      const p = otherPlayers.get(currentTargetPlayer.username.toLowerCase());
+      if (targetEmpty) targetEmpty.style.display = 'none';
+      if (targetContent) targetContent.style.display = 'block';
+
+      if (targetNameEl) targetNameEl.textContent = p.username;
+      if (targetClassEl) {
+        const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик' };
+        targetClassEl.textContent = p.stats?.classId ? (classMap[p.stats.classId] || 'Герой') : 'Душа';
+      }
+      if (targetHpEl) targetHpEl.textContent = `${p.stats?.hp || 100} / ${p.stats?.maxHp || 100}`;
+      if (targetArmorEl) targetArmorEl.textContent = `${p.stats?.armor || 0}`;
+    } else {
+      if (targetEmpty) targetEmpty.style.display = 'block';
+      if (targetContent) targetContent.style.display = 'none';
+    }
+
+    // Правая панель: Окружение
+    const nearEmpty = document.getElementById('hud-near-empty');
+    const nearContent = document.getElementById('hud-near-content');
+    const nearNameEl = document.getElementById('hud-near-name');
+
+    if (activeNearPortal) {
+      if (nearEmpty) nearEmpty.style.display = 'none';
+      if (nearContent) nearContent.style.display = 'block';
+      if (nearNameEl) {
+        nearNameEl.textContent = activeNearPortal.id === 'portal_class_select' ? 'Алтарь Перевоплощения' : activeNearPortal.name;
+      }
+    } else {
+      if (nearEmpty) nearEmpty.style.display = 'block';
+      if (nearContent) nearContent.style.display = 'none';
+    }
+  }
+
   let lastTime = performance.now();
 
   function loop(currentTime) {
@@ -858,7 +1033,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       player.x = Math.max(halfW + 4, Math.min(WORLD_SIZE - halfW - 4, player.x));
       player.y = Math.max(halfH + 28, Math.min(WORLD_SIZE - halfH - 4, player.y));
 
-      // Проверка приближения: теперь только находим ближайший объект, БЕЗ автоматического открытия
       activeNearPortal = null;
       let minPortalDist = Infinity;
       worldPortals.forEach((portal) => {
@@ -870,6 +1044,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       });
     }
 
+    // Синхронизация данных со стильными HTML-боковыми панелями
+    updateSidebarsDOM();
+
     camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, 10 * dt);
     camera.x += (player.x - camera.x) * Math.min(1, camera.smoothSpeed * dt);
     camera.y += (player.y - camera.y) * Math.min(1, camera.smoothSpeed * dt);
@@ -880,7 +1057,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.x = Math.max(halfViewW, Math.min(WORLD_SIZE - halfViewW, camera.x));
     camera.y = Math.max(halfViewH, Math.min(WORLD_SIZE - halfViewH, camera.y));
 
-    // Фон
     ctx.fillStyle = '#050408';
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
@@ -889,68 +1065,203 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // Сетка
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = 0; x <= WORLD_SIZE; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); }
-    for (let y = 0; y <= WORLD_SIZE; y += 40) { ctx.moveTo(0, y); ctx.lineTo(WORLD_SIZE, y); }
-    ctx.stroke();
+    // ПОЛ ART DECO + ЗАТЕМНЯЮЩИЙ ШЕЙДЕР
+    if (floorPattern) {
+      ctx.fillStyle = floorPattern;
+      ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+    } else {
+      ctx.fillStyle = '#0c0a14';
+      ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+    }
 
-    // Стены
-    ctx.strokeStyle = '#a020f0';
-    ctx.lineWidth = 4;
+    ctx.fillStyle = 'rgba(12, 8, 24, 0.62)';
+    ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+
+    const edgeGradient = ctx.createRadialGradient(
+      WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.28,
+      WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.72
+    );
+    edgeGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    edgeGradient.addColorStop(1, 'rgba(4, 2, 8, 0.85)');
+    ctx.fillStyle = edgeGradient;
+    ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+
+    ctx.strokeStyle = '#c59b27';
+    ctx.lineWidth = 3;
     ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
 
-    // --- СЛОЙ 1: ПОРТАЛЫ И АЛТАРЬ-КОСТЁР ---
-    worldPortals.forEach((portal) => {
-      // 1. Анимированный Алтарь Перевоплощения (Фиолетовое адское пламя)
-      if (portal.id === 'portal_class_select') {
+    ctx.strokeStyle = 'rgba(245, 215, 127, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(8, 8, WORLD_SIZE - 16, WORLD_SIZE - 16);
+
+    // ТЕНИ
+    worldPortals.forEach((p) => {
+      if (p.id === 'portal_class_select') {
         ctx.save();
-
-        // Мистический фиолетовый свет
-        const lightPulse = Math.sin(now / 180) * 5;
-        const glow = ctx.createRadialGradient(portal.x, portal.y + 4, 3, portal.x, portal.y + 4, 50 + lightPulse);
-        glow.addColorStop(0, 'rgba(168, 85, 247, 0.55)');
-        glow.addColorStop(0.5, 'rgba(139, 92, 246, 0.2)');
-        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = glow;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
         ctx.beginPath();
-        ctx.arc(portal.x, portal.y + 4, 55 + lightPulse, 0, Math.PI * 2);
+        ctx.ellipse(p.x, p.y + 11, 16, 6, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+      }
+    });
 
-        const drawW = CAMPFIRE_CONFIG.drawWidth;
-        const drawH = 40;
-        const drawX = portal.x - drawW / 2;
-        const drawY = portal.y - drawH + 12;
+    otherPlayers.forEach((p) => {
+      drawCharacterShadow(ctx, p.x, p.y);
+    });
 
-        if (campfireImg.complete && campfireImg.naturalWidth > 0) {
-          ctx.imageSmoothingEnabled = false;
+    drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
 
-          const frameW = campfireImg.naturalWidth / CAMPFIRE_CONFIG.cols;
-          const frameH = campfireImg.naturalHeight / CAMPFIRE_CONFIG.rows;
-          const currentFrame = Math.floor(now / CAMPFIRE_CONFIG.frameSpeed) % CAMPFIRE_CONFIG.cols;
+    // Y-СОРТИРОВКА СУЩНОСТЕЙ
+    otherPlayers.forEach((p) => {
+      const pDx = p.targetX - p.x;
+      const pDy = p.targetY - p.y;
+      const isOtherMoving = Math.hypot(pDx, pDy) > 0.6;
 
-          const sx = currentFrame * frameW;
-          const sy = 0;
+      if (isOtherMoving) {
+        p.dirX = pDx;
+        p.dirY = pDy;
+      }
 
-          // Фильтр фиолетового адского пламени
-          ctx.filter = 'hue-rotate(240deg) saturate(1.8) brightness(1.1)';
-          ctx.drawImage(campfireImg, sx, sy, frameW, frameH, drawX, drawY, drawW, drawH);
-          ctx.filter = 'none';
+      p.x += pDx * Math.min(1, 15 * dt);
+      p.y += pDy * Math.min(1, 15 * dt);
+    });
+
+    const entities = [];
+    worldPortals.forEach((portal) => entities.push({ type: 'portal', y: portal.y, item: portal }));
+    otherPlayers.forEach((p) => entities.push({ type: 'other_player', y: p.y, item: p }));
+    entities.push({ type: 'self_player', y: player.y, item: player });
+
+    entities.sort((a, b) => a.y - b.y);
+
+    entities.forEach((ent) => {
+      if (ent.type === 'portal') {
+        const portal = ent.item;
+
+        if (portal.id === 'portal_class_select') {
+          ctx.save();
+
+          const lightPulse = Math.sin(now / 180) * 5;
+          const glow = ctx.createRadialGradient(portal.x, portal.y + 4, 3, portal.x, portal.y + 4, 52 + lightPulse);
+          glow.addColorStop(0, 'rgba(168, 85, 247, 0.55)');
+          glow.addColorStop(0.5, 'rgba(139, 92, 246, 0.18)');
+          glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(portal.x, portal.y + 4, 55 + lightPulse, 0, Math.PI * 2);
+          ctx.fill();
+
+          const drawW = CAMPFIRE_CONFIG.drawWidth;
+          const drawH = 40;
+          const drawX = portal.x - drawW / 2;
+          const drawY = portal.y - drawH + 12;
+
+          if (campfireImg.complete && campfireImg.naturalWidth > 0) {
+            ctx.imageSmoothingEnabled = false;
+
+            const frameW = campfireImg.naturalWidth / CAMPFIRE_CONFIG.cols;
+            const frameH = campfireImg.naturalHeight / CAMPFIRE_CONFIG.rows;
+            const currentFrame = Math.floor(now / CAMPFIRE_CONFIG.frameSpeed) % CAMPFIRE_CONFIG.cols;
+
+            const sx = currentFrame * frameW;
+            const sy = 0;
+
+            ctx.filter = 'hue-rotate(240deg) saturate(1.8) brightness(1.1)';
+            ctx.drawImage(campfireImg, sx, sy, frameW, frameH, drawX, drawY, drawW, drawH);
+            ctx.filter = 'none';
+          }
+
+          ctx.restore();
+          return;
         }
 
-        // Подпись
-        const pFontSize = 12 / camera.zoom;
-        ctx.font = `bold ${pFontSize}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#050408';
-        ctx.lineWidth = 2.5 / camera.zoom;
+        const pw = portal.width || 32;
+        const ph = portal.height || 32;
+        const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
+        const drawY = Math.max(6, Math.min(WORLD_SIZE - ph - 6, portal.y - ph / 2));
+        const pulse = Math.sin(now / 200) * 3;
+
+        ctx.save();
+        ctx.shadowColor = portal.color || '#a855f7';
+        ctx.shadowBlur = 12 + Math.abs(pulse);
+
+        ctx.strokeStyle = portal.color || '#a855f7';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(drawX - pulse / 2, drawY - pulse / 2, pw + pulse, ph + pulse);
+
+        ctx.fillStyle = portal.color ? `${portal.color}99` : 'rgba(168, 85, 247, 0.65)';
+        ctx.fillRect(drawX, drawY, pw, ph);
+        ctx.restore();
+        return;
+      }
+
+      if (ent.type === 'other_player') {
+        const p = ent.item;
+        const isOtherMoving = Math.hypot(p.targetX - p.x, p.targetY - p.y) > 0.6;
+        const classId = p.stats?.classId;
+        const targetSprite = (classId && SPRITES[classId]) ? SPRITES[classId] : SPRITES.soul;
+
+        drawCharacterSprite(
+          ctx,
+          targetSprite,
+          p.x,
+          p.y,
+          p.dirX || 0,
+          p.dirY || 1,
+          isOtherMoving,
+          now,
+          p.color || '#38bdf8'
+        );
+        return;
+      }
+
+      if (ent.type === 'self_player') {
+        const halfW = player.width / 2;
+        const halfH = player.height / 2;
+
+        if (dash.active) {
+          ctx.save();
+          ctx.shadowColor = '#eab308';
+          ctx.shadowBlur = 12;
+          ctx.strokeStyle = '#fef08a';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(Math.round(player.x - halfW - 2), Math.round(player.y - halfH - 2), player.width + 4, player.height + 4);
+          ctx.restore();
+        }
+
+        const myClassId = player.stats?.classId;
+        const mySprite = (myClassId && SPRITES[myClassId]) ? SPRITES[myClassId] : SPRITES.soul;
+
+        drawCharacterSprite(
+          ctx,
+          mySprite,
+          player.x,
+          player.y,
+          lastFaceDir.x,
+          lastFaceDir.y,
+          isMoving,
+          now,
+          player.color || '#ffffff'
+        );
+      }
+    });
+
+    // НАДПИСИ И ПОДСКАЗКИ
+    const halfH = player.height / 2;
+
+    worldPortals.forEach((portal) => {
+      const pFontSize = 12 / camera.zoom;
+      ctx.font = `bold ${pFontSize}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#050408';
+      ctx.lineWidth = 2.5 / camera.zoom;
+
+      if (portal.id === 'portal_class_select') {
+        const drawY = portal.y - 40 + 12;
         ctx.strokeText(`[ Алтарь Перевоплощения ]`, portal.x, drawY - 6 / camera.zoom);
         ctx.fillStyle = '#e9d5ff';
         ctx.fillText(`[ Алтарь Перевоплощения ]`, portal.x, drawY - 6 / camera.zoom);
 
-        // Интерактивная плашка-подсказка [E]
         if (activeNearPortal && activeNearPortal.id === portal.id) {
           const badgeY = drawY - 22 / camera.zoom;
           ctx.fillStyle = 'rgba(13, 10, 24, 0.92)';
@@ -965,90 +1276,34 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           ctx.fillStyle = '#facc15';
           ctx.fillText(`[E] или Клик: Тело`, portal.x, badgeY + 3 / camera.zoom);
         }
+      } else {
+        const pw = portal.width || 32;
+        const ph = portal.height || 32;
+        const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
+        const drawY = Math.max(6, Math.min(WORLD_SIZE - ph - 6, portal.y - ph / 2));
 
-        ctx.restore();
-        return;
+        ctx.strokeText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
+        ctx.fillStyle = '#e9d5ff';
+        ctx.fillText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
+
+        if (activeNearPortal && activeNearPortal.id === portal.id) {
+          const badgeY = drawY - 24 / camera.zoom;
+          ctx.fillStyle = 'rgba(13, 10, 24, 0.92)';
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.5 / camera.zoom;
+          const bw = 100 / camera.zoom;
+          const bh = 18 / camera.zoom;
+          ctx.fillRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
+          ctx.strokeRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
+
+          ctx.font = `bold ${10 / camera.zoom}px monospace`;
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillText(`[E] Войти`, drawX + pw / 2, badgeY + 3 / camera.zoom);
+        }
       }
-
-      // 2. Обычные порталы (Разлом)
-      const pw = portal.width || 32;
-      const ph = portal.height || 32;
-      const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
-      const drawY = Math.max(6, Math.min(WORLD_SIZE - ph - 6, portal.y - ph / 2));
-      const pulse = Math.sin(now / 200) * 3;
-
-      ctx.save();
-      ctx.shadowColor = portal.color || '#a855f7';
-      ctx.shadowBlur = 12 + Math.abs(pulse);
-
-      ctx.strokeStyle = portal.color || '#a855f7';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(drawX - pulse / 2, drawY - pulse / 2, pw + pulse, ph + pulse);
-
-      ctx.fillStyle = portal.color ? `${portal.color}99` : 'rgba(168, 85, 247, 0.65)';
-      ctx.fillRect(drawX, drawY, pw, ph);
-
-      ctx.shadowBlur = 0;
-      const pFontSize = 12 / camera.zoom;
-      ctx.font = `bold ${pFontSize}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.strokeStyle = '#050408';
-      ctx.lineWidth = 2.5 / camera.zoom;
-      ctx.strokeText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
-      ctx.fillStyle = '#e9d5ff';
-      ctx.fillText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
-
-      // Интерактивная плашка-подсказка [E]
-      if (activeNearPortal && activeNearPortal.id === portal.id) {
-        const badgeY = drawY - 24 / camera.zoom;
-        ctx.fillStyle = 'rgba(13, 10, 24, 0.92)';
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 1.5 / camera.zoom;
-        const bw = 100 / camera.zoom;
-        const bh = 18 / camera.zoom;
-        ctx.fillRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
-        ctx.strokeRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
-
-        ctx.font = `bold ${10 / camera.zoom}px monospace`;
-        ctx.fillStyle = '#38bdf8';
-        ctx.fillText(`[E] Войти`, drawX + pw / 2, badgeY + 3 / camera.zoom);
-      }
-
-      ctx.restore();
     });
 
-    const halfW = player.width / 2;
-    const halfH = player.height / 2;
-
-    // --- СЛОЙ 2: ДРУГИЕ ИГРОКИ ---
     otherPlayers.forEach((p) => {
-      const pDx = p.targetX - p.x;
-      const pDy = p.targetY - p.y;
-      const isOtherMoving = Math.hypot(pDx, pDy) > 0.6;
-
-      if (isOtherMoving) {
-        p.dirX = pDx;
-        p.dirY = pDy;
-      }
-
-      p.x += pDx * Math.min(1, 15 * dt);
-      p.y += pDy * Math.min(1, 15 * dt);
-
-      const classId = p.stats?.classId;
-      const targetSprite = (classId && SPRITES[classId]) ? SPRITES[classId] : SPRITES.soul;
-
-      drawCharacterSprite(
-        ctx,
-        targetSprite,
-        p.x,
-        p.y,
-        p.dirX || 0,
-        p.dirY || 1,
-        isOtherMoving,
-        now,
-        p.color || '#38bdf8'
-      );
-
       if (p.inDuel) {
         ctx.font = `bold ${15 / camera.zoom}px monospace`;
         ctx.textAlign = 'center';
@@ -1056,39 +1311,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    // --- СЛОЙ 3: СВОЙ ПЕРСОНАЖ ---
-    if (dash.active) {
-      ctx.save();
-      ctx.shadowColor = '#eab308';
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = '#fef08a';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(Math.round(player.x - halfW - 2), Math.round(player.y - halfH - 2), player.width + 4, player.height + 4);
-      ctx.restore();
-    }
-
-    const myClassId = player.stats?.classId;
-    const mySprite = (myClassId && SPRITES[myClassId]) ? SPRITES[myClassId] : SPRITES.soul;
-
-    drawCharacterSprite(
-      ctx,
-      mySprite,
-      player.x,
-      player.y,
-      lastFaceDir.x,
-      lastFaceDir.y,
-      isMoving,
-      now,
-      player.color || '#ffffff'
-    );
-
     if (player.inDuel) {
       ctx.font = `bold ${15 / camera.zoom}px monospace`;
       ctx.textAlign = 'center';
       ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 24 / camera.zoom));
     }
 
-    // --- СЛОЙ 4: НИКИ ПЕРСОНАЖЕЙ ---
     const nickFontSize = 12 / camera.zoom;
     ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
@@ -1109,7 +1337,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#ffd700';
     ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
 
-    // --- СЛОЙ 5: ЧАТ ---
     const bubbleOffsetY = halfH + (26 / camera.zoom);
     otherPlayers.forEach((p) => {
       if (p.bubble && p.bubble.expireAt > now) {
@@ -1123,34 +1350,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     ctx.restore();
 
-    // HUD
-    const isMyBody = Boolean(player.stats && player.stats.classId);
-
-    ctx.fillStyle = 'rgba(13, 10, 20, 0.75)';
-    ctx.fillRect(8, 8, 148, 92);
-    ctx.strokeStyle = '#332742';
-    ctx.strokeRect(8, 8, 148, 92);
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#a855f7';
-    ctx.fillText(`Онлайн: ${otherPlayers.size + 1}`, 14, 24);
-    ctx.fillStyle = '#ffd700';
-    ctx.fillText(`Зум: x${camera.zoom.toFixed(1)} [+/-]`, 14, 40);
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText(`X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`, 14, 56);
-
-    if (dash.cooldownTimer <= 0) {
-      ctx.fillStyle = '#4ade80';
-      ctx.fillText(`Рывок: [Пробел]`, 14, 72);
-    } else {
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`Рывок: ${dash.cooldownTimer.toFixed(1)}c`, 14, 72);
-    }
-
-    ctx.fillStyle = isMyBody ? (player.color || '#38bdf8') : '#38bdf8';
-    ctx.fillText(isMyBody ? `Персонаж: [C]` : `Душа: [C]`, 14, 88);
-
+    // СТАТИЧЕСКИЙ ЭКРАННЫЙ ЧАТ
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 

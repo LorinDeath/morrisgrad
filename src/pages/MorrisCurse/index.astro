@@ -23,8 +23,76 @@ import Layout from '../../layouts/Layout.astro';
             <button class="btn-start" id="btn-start">Начать игру</button>
             <span class="hint">Управление: WASD / Зум: +/-</span>
           </div>
-          
+
+          <!-- Левая панель интерфейса (видна только в Fullscreen) -->
+          <aside class="fs-sidebar fs-sidebar-left" id="fs-sidebar-left">
+            <div class="sidebar-box">
+              <div class="sidebar-header">СУЩНОСТЬ</div>
+              <div class="player-profile">
+                <div class="player-name" id="hud-my-name">Странник</div>
+                <div class="player-class" id="hud-my-class">Душа [C]</div>
+                <div class="bar-container">
+                  <div class="bar-fill bar-hp" id="hud-hp-bar" style="width: 100%;"></div>
+                </div>
+                <div class="bar-text" id="hud-hp-text">100 / 100 HP</div>
+              </div>
+            </div>
+
+            <div class="sidebar-box">
+              <div class="sidebar-header">СПОСОБНОСТИ</div>
+              <div class="stat-row">
+                <span>Рывок [Space]</span>
+                <span id="hud-dash-status" class="status-ready">ГОТОВ</span>
+              </div>
+              <div class="bar-container">
+                <div class="bar-fill bar-dash" id="hud-dash-bar" style="width: 100%;"></div>
+              </div>
+            </div>
+
+            <div class="sidebar-box">
+              <div class="sidebar-header">МИР</div>
+              <div class="stat-row"><span>В сети:</span><b id="hud-online">1</b></div>
+              <div class="stat-row"><span>Зум:</span><b id="hud-zoom">x0.5</b></div>
+              <div class="stat-row"><span>Координаты:</span><b id="hud-coords">X: 600 | Y: 600</b></div>
+            </div>
+
+            <div class="sidebar-box sidebar-help">
+              <div class="sidebar-header">УПРАВЛЕНИЕ</div>
+              <div class="help-item"><span>[W][A][S][D]</span> Перемещение</div>
+              <div class="help-item"><span>[Space/Shift]</span> Рывок</div>
+              <div class="help-item"><span>[E]</span> Действие / Алтарь</div>
+              <div class="help-item"><span>[C]</span> Меню души/характеристики</div>
+              <div class="help-item"><span>[Enter]</span> Чат</div>
+              <div class="help-item"><span>[+/-]</span> Зум камеры</div>
+            </div>
+          </aside>
+
+          <!-- Игровое поле -->
           <canvas id="game-canvas" width="300" height="300" tabindex="0"></canvas>
+
+          <!-- Правая панель интерфейса (видна только в Fullscreen) -->
+          <aside class="fs-sidebar fs-sidebar-right" id="fs-sidebar-right">
+            <div class="sidebar-box" id="hud-target-box">
+              <div class="sidebar-header">ЦЕЛЬ</div>
+              <div id="hud-target-empty" class="empty-hint">Нажмите на игрока для выбора цели</div>
+              <div id="hud-target-content" style="display: none;">
+                <div class="target-name" id="hud-target-name">Игрок</div>
+                <div class="stat-row"><span>Класс:</span><b id="hud-target-class">-</b></div>
+                <div class="stat-row"><span>Здоровье:</span><b id="hud-target-hp">-</b></div>
+                <div class="stat-row"><span>Броня:</span><b id="hud-target-armor">-</b></div>
+                <button class="btn-side-duel" id="btn-side-duel">⚔️ ВЫЗВАТЬ НА ДУЭЛЬ</button>
+              </div>
+            </div>
+
+            <div class="sidebar-box">
+              <div class="sidebar-header">ОКРУЖЕНИЕ</div>
+              <div id="hud-near-empty" class="empty-hint">Поблизости нет объектов</div>
+              <div id="hud-near-content" style="display: none;">
+                <div class="near-title" id="hud-near-name">Алтарь Перевоплощения</div>
+                <div class="near-desc">Нажмите <b>[E]</b> или кликните мышкой для взаимодействия.</div>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -44,6 +112,13 @@ import Layout from '../../layouts/Layout.astro';
     if (overlay) overlay.style.display = 'none';
     canvas?.focus();
 
+    // Автоматический вход в Fullscreen при старте игры
+    if (!document.fullscreenElement && gameWindow) {
+      gameWindow.requestFullscreen().catch((err) => {
+        console.warn('Fullscreen не запустился автоматически:', err);
+      });
+    }
+
     if (!gameStarted) {
       gameStarted = true;
 
@@ -55,7 +130,6 @@ import Layout from '../../layouts/Layout.astro';
         if (res.ok) {
           const data = await res.json();
           if (data.username) username = data.username;
-          // Берём уникальный ID профиля (userId или id)
           userId = data.userId || data.id || null;
         }
       } catch (err) {
@@ -63,7 +137,6 @@ import Layout from '../../layouts/Layout.astro';
       }
 
       const { initGame } = await import('./core/game.js');
-      // Передаём третьим параметром уникальный ID для защиты от мультибоксинга
       (initGame as any)('game-canvas', username, userId);
     }
   });
@@ -175,13 +248,20 @@ import Layout from '../../layouts/Layout.astro';
     outline: none;
   }
 
-  /* Режим Fullscreen (строго 100vw/100vh) */
+  /* Боковые панели по умолчанию скрыты в окне */
+  .fs-sidebar {
+    display: none;
+  }
+
+  /* ==============================================
+     ПОЛНОЭКРАННЫЙ РЕЖИМ (ART DECO RPG DASHBOARD)
+     ============================================== */
   .game-window:fullscreen {
     width: 100vw;
     height: 100vh;
     border-radius: 0;
     border: none;
-    background: #050408;
+    background: #06050b;
   }
 
   .game-window:fullscreen .game-screen {
@@ -189,13 +269,182 @@ import Layout from '../../layouts/Layout.astro';
     height: calc(100vh - 46px);
     margin: 0;
     border: none;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: stretch;
+    background: #07050d;
+    overflow: hidden;
   }
 
+  /* Центральный канвас сохраняет ровные пропорции */
   .game-window:fullscreen #game-canvas {
     width: auto;
     height: 100%;
-    max-width: 100vw;
+    max-width: calc(100vw - 520px);
     aspect-ratio: 1 / 1;
+    z-index: 1;
+    border-left: 2px solid #c59b27;
+    border-right: 2px solid #c59b27;
+    box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
+  }
+
+  /* Показ боковых панелей в полноэкранном режиме */
+  .game-window:fullscreen .fs-sidebar {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 250px;
+    max-width: 320px;
+    background: #0c0915;
+    padding: 16px 14px;
+    box-sizing: border-box;
+    gap: 14px;
+    overflow-y: auto;
+    font-family: monospace;
+    z-index: 2;
+  }
+
+  .game-window:fullscreen .fs-sidebar-left {
+    border-right: 1px solid #231b33;
+  }
+
+  .game-window:fullscreen .fs-sidebar-right {
+    border-left: 1px solid #231b33;
+  }
+
+  /* Карточки внутри панелей */
+  .sidebar-box {
+    background: #120d20;
+    border: 1px solid #2d2242;
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+
+  .sidebar-header {
+    font-size: 11px;
+    font-weight: bold;
+    color: #c59b27;
+    letter-spacing: 1.5px;
+    border-bottom: 1px solid #261c38;
+    padding-bottom: 4px;
+  }
+
+  .player-name, .target-name {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffd700;
+  }
+
+  .player-class {
+    font-size: 11px;
+    color: #c084fc;
+  }
+
+  .bar-container {
+    width: 100%;
+    height: 8px;
+    background: #090610;
+    border: 1px solid #3b2c52;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    transition: width 0.2s ease-out;
+  }
+
+  .bar-hp {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+  }
+
+  .bar-dash {
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+  }
+
+  .bar-text {
+    font-size: 11px;
+    color: #cbd5e1;
+    text-align: right;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  .stat-row b {
+    color: #f1f5f9;
+  }
+
+  .status-ready {
+    color: #4ade80 !important;
+    font-weight: bold;
+  }
+
+  .status-cd {
+    color: #f59e0b !important;
+    font-weight: bold;
+  }
+
+  .sidebar-help {
+    margin-top: auto;
+  }
+
+  .help-item {
+    font-size: 10px;
+    color: #a1a1aa;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .help-item span {
+    color: #e9d5ff;
+  }
+
+  .empty-hint {
+    font-size: 11px;
+    color: #64748b;
+    font-style: italic;
+    line-height: 1.4;
+  }
+
+  .btn-side-duel {
+    background: #7c3aed;
+    border: 1px solid #a855f7;
+    color: #fff;
+    padding: 8px 10px;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: all 0.2s;
+  }
+
+  .btn-side-duel:hover {
+    background: #9333ea;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  }
+
+  .near-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #e9d5ff;
+  }
+
+  .near-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.3;
   }
 
   .launcher-overlay {
