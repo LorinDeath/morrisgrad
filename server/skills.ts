@@ -63,6 +63,25 @@ export const SKILLS: Record<string, SkillDefinition> = {
       };
     },
   },
+  
+  fireball: {
+    id: "fireball",
+    name: "Огненный шар",
+    description: "Взрыв пламени, наносящий 2.0x урона.",
+    cooldown: 14,
+    execute: ({ attacker, target, baseDmg, chargeMult }) => {
+      const targetName = target.isBoss ? "Кейт" : target.username;
+      const rawDmg = baseDmg * chargeMult * 2.0;
+      const reduction = calcArmorReduction(target.armor);
+      const damage = Math.max(1, Math.round(rawDmg * (1 - reduction)));
+
+      return {
+        damage,
+        heal: 0,
+        logText: `🔥 <b>${attacker.username}</b> запулил <i>Огненный шар</i> в <b>${targetName}</b> на <span style="color:#ef4444">${damage}</span> урона!`,
+      };
+    },
+  },
 
   // 3. Коварный удар (Разбойник)
   trick_strike: {

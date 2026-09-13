@@ -36,11 +36,11 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
     color: "#ef4444",
     abilityId: "pierce",
     stats: {
-      hp: 50,
-      maxHp: 50,
-      armor: 5,
-      minAtk: 5,
-      maxAtk: 10,
+      hp: 80,
+      maxHp: 80,
+      armor: 15,
+      minAtk: 10,
+      maxAtk: 20,
     },
   },
   rogue: {
@@ -55,6 +55,13 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
       minAtk: 1,
       maxAtk: 15,
     },
+  },
+  mage: {
+    id: "mage",
+    name: "Маг",
+    color: "#a855f7",
+    abilityId: "fireball",
+    stats: { hp: 40, maxHp: 40, armor: 3, minAtk: 20, maxAtk: 48 },
   },
 };
 

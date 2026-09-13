@@ -199,7 +199,7 @@ export class GameHUD {
 
     if (myName) myName.textContent = username;
     if (myClass) {
-      const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик' };
+     const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
       myClass.textContent = isMyBody ? (classMap[player.stats.classId] || 'Герой') : 'Душа [C]';
     }
 

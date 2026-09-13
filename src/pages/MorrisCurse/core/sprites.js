@@ -4,6 +4,7 @@ import rogueSrc from '../../../assets/character_1_frame16x20 2.png';
 import warriorSrc from '../../../assets/character_8_frame16x20.png';
 import spearmanSrc from '../../../assets/character_9_frame16x20.png';
 import keytSrc from '../../../assets/Keyt.png';
+import mageSrc from '../../../assets/mage.png';
 
 function createImg(src) {
   const img = new Image();
@@ -36,7 +37,8 @@ export const SPRITES = {
   soul: createImg(soulSrc),
   warrior: createImg(warriorSrc),
   spearman: createImg(spearmanSrc),
-  rogue: createImg(rogueSrc)
+  rogue: createImg(rogueSrc),
+  mage: createImg(mageSrc)
 };
 
 export function createArtDecoPattern(ctx) {
@@ -130,10 +132,9 @@ export function drawCharacterShadow(ctx, x, y, scale = 1) {
 }
 
 export function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, fallbackColor) {
-  const dw = SPRITE_CONFIG.drawWidth;
-  const dh = SPRITE_CONFIG.drawHeight;
-
   if (!img || !img.complete || img.naturalWidth === 0) {
+    const dw = SPRITE_CONFIG.drawWidth;
+    const dh = SPRITE_CONFIG.drawHeight;
     ctx.fillStyle = fallbackColor || '#ffffff';
     ctx.fillRect(x - dw / 2, y - dh / 2, dw, dh);
     return;
@@ -141,37 +142,14 @@ export function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, f
 
   ctx.imageSmoothingEnabled = false;
 
-  const frameW = img.naturalWidth / SPRITE_CONFIG.cols;
-  const frameH = img.naturalHeight / SPRITE_CONFIG.rows;
-  const row = getDirectionRow(dirX, dirY);
-
-  const WALK_SEQUENCE = [0, 1, 2, 1];
-  const col = isMoving ? WALK_SEQUENCE[Math.floor(now / SPRITE_CONFIG.frameSpeed) % 4] : 1;
-
-  const sx = col * frameW;
-  const sy = row * frameH;
-  // Без Math.round — спрайт плавно следует за камерой без вибрации
-  const dx = x - dw / 2;
-  const dy = y - dh / 2 - 4;
-
-  ctx.drawImage(img, sx, sy, frameW, frameH, dx, dy, dw, dh);
-}
-
-export function drawBossSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
-  const dw = 38;
-  const dh = 46;
-
-  if (!img || !img.complete || img.naturalWidth === 0) {
-    ctx.fillStyle = '#f472b6';
-    ctx.fillRect(x - dw / 2, y - dh / 2, dw, dh);
-    return;
-  }
-
-  ctx.imageSmoothingEnabled = false;
-
+  // Метод босса: лист больше 200px парсится как 12 колонок и 8 рядов
   const isFullSheet = img.naturalWidth > 200;
   const totalCols = isFullSheet ? 12 : 3;
   const totalRows = isFullSheet ? 8 : 4;
+
+  const dw = isFullSheet ? 38 : SPRITE_CONFIG.drawWidth;
+  const dh = isFullSheet ? 46 : SPRITE_CONFIG.drawHeight;
+  const yOffset = isFullSheet ? 6 : 4;
 
   const frameW = img.naturalWidth / totalCols;
   const frameH = img.naturalHeight / totalRows;
@@ -183,7 +161,11 @@ export function drawBossSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
   const sx = col * frameW;
   const sy = row * frameH;
   const dx = x - dw / 2;
-  const dy = y - dh / 2 - 6;
+  const dy = y - dh / 2 - yOffset;
 
   ctx.drawImage(img, sx, sy, frameW, frameH, dx, dy, dw, dh);
+}
+
+export function drawBossSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
+  drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, '#f472b6');
 }
