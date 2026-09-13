@@ -1,5 +1,5 @@
 import { CLASSES_CONFIG } from "./config";
-import type { Session, DuelState } from "./types";
+import type { Session, DuelState, DuelParticipant } from "./types";
 import type { KeytBoss } from "./boss";
 
 export function calcArmorReduction(armor: number): number {
@@ -16,7 +16,7 @@ export function processCombatAction(
   duel: DuelState,
   boss?: KeytBoss,
   targetId?: string
-): { finalDmg: number; logText: string; isDead: boolean; isEscaped?: boolean } {
+): { finalDmg: number; logText: string; isDead: boolean; isEscaped?: boolean; target?: DuelParticipant } {
   if (action === "escape") {
     session.inDuel = false;
     session.escapedUntil = Date.now() + 5000;
@@ -33,11 +33,9 @@ export function processCombatAction(
   const baseDmg = Math.floor(Math.random() * (attackerClass.maxAtk - attackerClass.minAtk + 1)) + attackerClass.minAtk;
   const chargeMult = Math.min(3.0, Math.max(0.2, Number(chargeMultRaw || 1)));
 
-  // Определение списка врагов
   const isHunter = duel.hunters.some((h) => h.id === session.id);
   const targetList = isHunter ? duel.allies : duel.hunters;
 
-  // Если игрок кликнул конкретную карточку — бьём её, иначе берём первого живого
   let target = (targetId ? targetList.find((t) => t.id === targetId && t.hp > 0) : null) || targetList.find((t) => t.hp > 0);
 
   if (!target) {
@@ -83,5 +81,6 @@ export function processCombatAction(
     finalDmg,
     logText,
     isDead: target.hp <= 0,
+    target,
   };
 }

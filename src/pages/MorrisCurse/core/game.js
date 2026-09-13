@@ -345,6 +345,18 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         player.inDuel = false;
         duelManager.endDuel(data.winnerName);
       }
+      // 4. Событие гибели игрока в бою
+      if (data.type === 'combat_death') {
+        player.inDuel = false;
+        player.deathLockUntil = Date.now() + (data.lockDuration || 30) * 1000;
+        showToast(`Вы пали в бою! Восстановление сил: ${data.lockDuration || 30} сек.`);
+        duelManager.escapeBattle();
+      }
+
+      // 5. Тост с ошибкой от сервера
+      if (data.type === 'toast_error') {
+        showToast(data.message);
+      }
 
       if (data.type === 'open_minigames_menu') {
         openArcadeModal(data.portalName, data.games);
@@ -815,7 +827,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       dash,
       username,
       lastFaceDir,
-      ping: currentPing
+      ping: currentPing,
+      deathLockUntil: player.deathLockUntil || 0
     });
 
     camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, 10 * dt);

@@ -8,6 +8,7 @@ const WANDER_QUOTES = [
   "Не хочу чтобы Мэл злилась(",
   "Кьют хорошая...",
   "Китти плохая...",
+  "Милое местечко...",
 ];
 
 export class KeytBoss {
@@ -42,8 +43,14 @@ export class KeytBoss {
   wanderTargetX = 700;
   wanderTargetY = 700;
 
-  nextWanderSayTime = Date.now() + 4000;
+  // Таймеры диалогов и событий
+  nextWanderSayTime = Date.now() + 5000;
   nextCombatSayTime = 0;
+  lastAltarSayTime = 0;
+  lastGreetLorinTime = 0;
+  lastGreetNo4dTime = 0;
+  lastDuelCommentTime = 0;
+  intervenedDuels = new Set<string>();
 
   AGGRO_RADIUS = 90;
   HITBOX_RADIUS = 35;
@@ -79,18 +86,10 @@ export class KeytBoss {
     const livingAllies = duel.allies.filter((a) => !a.isBoss && a.hp > 0).length;
     const livingEnemies = duel.hunters.filter((h) => h.hp > 0).length;
 
-    const allyBonusAtk = livingAllies * 10;
-    const allyBonusHp = livingAllies * 100;
-    const allyBonusArmor = livingAllies * 30;
-
-    const enemyBonusAtk = livingEnemies * 3;
-    const enemyBonusHp = livingEnemies * 20;
-    const enemyBonusArmor = livingEnemies * 10;
-
     const oldMaxHp = this.maxHp;
-    this.attack = this.baseAtk + allyBonusAtk + enemyBonusAtk;
-    this.armor = this.baseArmor + allyBonusArmor + enemyBonusArmor;
-    this.maxHp = this.baseMaxHp + allyBonusHp + enemyBonusHp;
+    this.attack = this.baseAtk + livingAllies * 10 + livingEnemies * 3;
+    this.armor = this.baseArmor + livingAllies * 30 + livingEnemies * 10;
+    this.maxHp = this.baseMaxHp + livingAllies * 100 + livingEnemies * 20;
 
     if (this.maxHp > oldMaxHp) {
       this.hp += this.maxHp - oldMaxHp;
@@ -105,6 +104,16 @@ export class KeytBoss {
     return `<span style="color:#f472b6; font-weight:bold;">Кейт: «Ням!»</span> — восстановила себе <b style="color:#4ade80">30 HP</b>!`;
   }
 
+  // Реакция на финал дуэли игроков
+  onPlayerDuelFinished(winnerName: string, onBossSay: (text: string) => void) {
+    const isNo4d = (winnerName || "").trim().toLowerCase() === "no4d";
+    if (isNo4d) {
+      onBossSay("О! Мой любимый Нофорд!");
+    } else {
+      onBossSay("А Нофорд бы победил!");
+    }
+  }
+
   update(
     dt: number,
     sessions: Map<WebSocket, Session>,
@@ -112,7 +121,8 @@ export class KeytBoss {
     onTriggerCombat: (targetSession: Session, ws: WebSocket) => void,
     onDuelUpdate: (duel: DuelState, log: string) => void,
     onDuelEnd: (duel: DuelState, winnerName: string) => void,
-    onBossSay: (text: string) => void
+    onBossSay: (text: string) => void,
+    onBossIntervene: (duel: DuelState, action: "join" | "kiss") => void
   ) {
     const now = Date.now();
 
@@ -128,12 +138,12 @@ export class KeytBoss {
         this.attack = this.baseAtk;
         this.inDuel = false;
         this.duelId = null;
-        this.nextWanderSayTime = now + 5000;
+        this.nextWanderSayTime = now + 4000;
       }
       return;
     }
 
-    // 2. В бою: стоит на месте
+    // 2. В бою
     if (this.state === "combat") {
       if (!this.duelId || !activeDuels.has(this.duelId)) {
         this.state = "wander";
@@ -143,7 +153,7 @@ export class KeytBoss {
       }
 
       if (now >= this.nextCombatSayTime) {
-        this.nextCombatSayTime = now + (4000 + Math.random() * 4000);
+        this.nextCombatSayTime = now + (4500 + Math.random() * 4500);
         onBossSay("ПОМОГИТЕ!");
       }
 
@@ -156,9 +166,12 @@ export class KeytBoss {
         if (livingHunters.length > 0) {
           const target = livingHunters[Math.floor(Math.random() * livingHunters.length)];
           let targetSession: Session | null = null;
-          for (const s of sessions.values()) {
+          let targetWs: WebSocket | null = null;
+
+          for (const [ws, s] of sessions.entries()) {
             if (s.id === target.id) {
               targetSession = s;
+              targetWs = ws;
               break;
             }
           }
@@ -173,13 +186,25 @@ export class KeytBoss {
 
             let logText = `<span style="color:#f472b6">Кейт</span> атаковала <b>${target.username}</b> на <span style="color:#ef4444">${finalDmg}</span> урона!`;
 
+            // Обработка гибели игрока от удара Кейт
             if (target.hp <= 0) {
               logText += `<br>${this.onEnemyKilled()}`;
+              targetSession.inDuel = false;
+              targetSession.stats.hp = targetSession.stats.maxHp;
+              targetSession.rejoinBlockedUntil = Date.now() + 30000;
+
+              if (targetWs) {
+                try {
+                  targetWs.send(JSON.stringify({ type: "combat_death", lockDuration: 30, winnerName: "Кейт" }));
+                } catch (_) {}
+              }
+
+              duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
             }
 
             onDuelUpdate(duel, logText);
 
-            if (duel.hunters.every((h) => h.hp <= 0)) {
+            if (duel.hunters.length === 0) {
               onDuelEnd(duel, "Кейт и её союзники");
             }
           }
@@ -188,17 +213,86 @@ export class KeytBoss {
       return;
     }
 
-    // 3. Блуждание: доходит до точки и отдыхает
+    // 3. Блуждание
     if (this.state === "wander") {
+      // 3.1. Проверка Алтаря (x: 565, y: 600, радиус ~70px)
+      const distToAltar = Math.hypot(this.x - 565, this.y - 600);
+      if (distToAltar <= 70 && now - this.lastAltarSayTime > 25000) {
+        this.lastAltarSayTime = now;
+        onBossSay("Адское пламя?");
+      }
+
+      // 3.2. Проверка персонажей рядом (4 метра = 80 px)
+      let nearbyLorin = false;
+      let nearbyNo4d = false;
+
+      for (const s of sessions.values()) {
+        const d = Math.hypot(s.x - this.x, s.y - this.y);
+        if (d <= 80) {
+          const lower = (s.username || "").trim().toLowerCase();
+          if (lower === "lorin death") nearbyLorin = true;
+          if (lower === "no4d") nearbyNo4d = true;
+        }
+      }
+
+      // Приоритет приветствия Lorin Death
+      if (nearbyLorin && now - this.lastGreetLorinTime > 40000) {
+        this.lastGreetLorinTime = now;
+        onBossSay("Приветствую Госпожа!");
+      } else if (nearbyNo4d && now - this.lastGreetNo4dTime > 40000) {
+        this.lastGreetNo4dTime = now;
+        onBossSay("Привет, дорогой!");
+      }
+
+      // 3.3. Проверка дерущихся дуэлянтов рядом (в пределах 4 метров / 80 px)
+      for (const duel of activeDuels.values()) {
+        if (!duel.isBossFight && duel.p1 && duel.p2) {
+          let p1Dist = 999;
+          let p2Dist = 999;
+
+          for (const s of sessions.values()) {
+            if (s.id === duel.p1.id) p1Dist = Math.hypot(s.x - this.x, s.y - this.y);
+            if (s.id === duel.p2.id) p2Dist = Math.hypot(s.x - this.x, s.y - this.y);
+          }
+
+          if (p1Dist <= 80 || p2Dist <= 80) {
+            // Шанс вмешательства (только 1 раз за дуэль)
+            if (!this.intervenedDuels.has(duel.id)) {
+              this.intervenedDuels.add(duel.id);
+              const roll = Math.random();
+
+              if (roll < 0.20) {
+                // 20% шанс: врыв в битву
+                onBossSay("Пора кромсать!!!");
+                onBossIntervene(duel, "join");
+                return;
+              } else if (roll < 0.40) {
+                // 20% шанс: поцелуй и исцеление на 30%
+                onBossSay("Чмок!");
+                onBossIntervene(duel, "kiss");
+                return;
+              }
+            }
+
+            // Фраза «Дурачки», если Кейт подошла к драке
+            if (now - this.lastDuelCommentTime > 15000) {
+              this.lastDuelCommentTime = now;
+              onBossSay("Дурачки");
+            }
+          }
+        }
+      }
+
+      // 3.4. Обычные случайные фразы блуждания
       if (now >= this.nextWanderSayTime) {
-        this.nextWanderSayTime = now + (9000 + Math.random() * 8000);
+        this.nextWanderSayTime = now + (10000 + Math.random() * 8000);
         const quote = WANDER_QUOTES[Math.floor(Math.random() * WANDER_QUOTES.length)];
         onBossSay(quote);
       }
 
-      // Если время следующего шага пришло — выбираем новую точку
+      // 3.5. Передвижение
       if (now >= this.nextWanderTime) {
-        this.nextWanderTime = now + (3500 + Math.random() * 4000); // 3.5–7.5 сек между перемещениями
+        this.nextWanderTime = now + (3500 + Math.random() * 4000);
         this.wanderTargetX = Math.max(100, Math.min(1100, this.x + (Math.random() * 260 - 130)));
         this.wanderTargetY = Math.max(100, Math.min(1100, this.y + (Math.random() * 260 - 130)));
       }
@@ -207,7 +301,6 @@ export class KeytBoss {
       const wdy = this.wanderTargetY - this.y;
       const wDist = Math.hypot(wdx, wdy);
 
-      // Идём, пока не дойдём до точки (порог 6px). Дойдя — замираем на месте
       if (wDist > 6) {
         this.dirX = wdx / wDist;
         this.dirY = wdy / wDist;
@@ -215,8 +308,9 @@ export class KeytBoss {
         this.y += this.dirY * (this.SPEED * 0.35) * dt;
       }
 
+      // Проверка агра на живых игроков с телом
       for (const [ws, s] of sessions.entries()) {
-        if (!s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil)) {
+        if (!s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
           const dist = Math.hypot(s.x - this.x, s.y - this.y);
           if (dist <= this.AGGRO_RADIUS) {
             this.state = "chase";
@@ -247,7 +341,8 @@ export class KeytBoss {
         !targetSession ||
         targetSession.inDuel ||
         !targetSession.stats.classId ||
-        (targetSession.escapedUntil && now < targetSession.escapedUntil);
+        (targetSession.escapedUntil && now < targetSession.escapedUntil) ||
+        (targetSession.rejoinBlockedUntil && now < targetSession.rejoinBlockedUntil);
 
       const cdx = targetSession ? targetSession.x - this.x : 0;
       const cdy = targetSession ? targetSession.y - this.y : 0;

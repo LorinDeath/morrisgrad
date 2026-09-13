@@ -11,7 +11,7 @@ export class GameHUD {
   }
 
   mount() {
-    this.container.querySelectorAll('.game-hud-panel').forEach(el => el.remove());
+    this.container.querySelectorAll('.game-hud-panel').forEach((el) => el.remove());
 
     const canvas = this.container.querySelector('canvas') || this.container.querySelector('#game-canvas');
 
@@ -139,7 +139,6 @@ export class GameHUD {
   }
 
   update(data) {
-    // ВАЖНО: деструктурируем boss, чтобы не ловить ReferenceError
     const {
       player,
       otherPlayers,
@@ -150,12 +149,14 @@ export class GameHUD {
       dash,
       username,
       lastFaceDir,
-      ping = 0
+      ping = 0,
+      deathLockUntil = 0
     } = data;
 
     const isMyBody = Boolean(player.stats && player.stats.classId);
+    const isLocked = deathLockUntil > Date.now();
+    const lockSec = Math.ceil((deathLockUntil - Date.now()) / 1000);
 
-    // 0. Миникарта
     if (this.minimap) {
       this.minimap.update({
         player,
@@ -167,7 +168,7 @@ export class GameHUD {
       });
     }
 
-    // 1. Статус игрока
+    // 1. Статус
     const myName = document.getElementById('ghud-my-name');
     const myClass = document.getElementById('ghud-my-class');
     const hpBar = document.getElementById('ghud-my-hp-bar');
@@ -200,7 +201,7 @@ export class GameHUD {
       }
     }
 
-    // 3. Сеть и координаты
+    // 3. Сеть
     const online = document.getElementById('ghud-online');
     const zoom = document.getElementById('ghud-zoom');
     const coords = document.getElementById('ghud-coords');
@@ -237,6 +238,8 @@ export class GameHUD {
     const tArmor = document.getElementById('ghud-target-armor');
     const tAtk = document.getElementById('ghud-target-atk');
     const bossJoinBtns = document.getElementById('ghud-boss-join-buttons');
+    const joinHuntersBtn = document.getElementById('ghud-join-hunters-btn');
+    const joinKateBtn = document.getElementById('ghud-join-kate-btn');
 
     if (this.currentTarget) {
       if (targetEmpty) targetEmpty.style.display = 'none';
@@ -257,6 +260,30 @@ export class GameHUD {
         if (this.duelBtn) this.duelBtn.style.display = 'none';
         if (bossJoinBtns) {
           bossJoinBtns.style.display = (b.inDuel && !player.inDuel) ? 'flex' : 'none';
+
+          if (isLocked) {
+            if (joinHuntersBtn) {
+              joinHuntersBtn.disabled = true;
+              joinHuntersBtn.style.opacity = '0.5';
+              joinHuntersBtn.textContent = `Восстановление (${lockSec}с)`;
+            }
+            if (joinKateBtn) {
+              joinKateBtn.disabled = true;
+              joinKateBtn.style.opacity = '0.5';
+              joinKateBtn.textContent = `Восстановление (${lockSec}с)`;
+            }
+          } else {
+            if (joinHuntersBtn) {
+              joinHuntersBtn.disabled = false;
+              joinHuntersBtn.style.opacity = '1';
+              joinHuntersBtn.textContent = '⚔️ Охотиться на Кейт';
+            }
+            if (joinKateBtn) {
+              joinKateBtn.disabled = false;
+              joinKateBtn.style.opacity = '1';
+              joinKateBtn.textContent = '💖 Защитить Кейт';
+            }
+          }
         }
       } else if (otherPlayers.has(this.currentTarget.username?.toLowerCase())) {
         const p = otherPlayers.get(this.currentTarget.username.toLowerCase());
@@ -282,7 +309,10 @@ export class GameHUD {
         if (tAtk) tAtk.textContent = `${minA} - ${maxA}`;
 
         if (this.duelBtn) {
-          if (!tClassId || !isMyBody) {
+          if (isLocked) {
+            this.duelBtn.textContent = `Восстановление (${lockSec}с)`;
+            this.duelBtn.className = 'hud-duel-btn hud-btn-disabled';
+          } else if (!tClassId || !isMyBody) {
             this.duelBtn.textContent = 'Нужно тело';
             this.duelBtn.className = 'hud-duel-btn hud-btn-disabled';
           } else {
@@ -311,12 +341,12 @@ export class GameHUD {
             color: '#f472b6',
             meters: (bDistPx / 20).toFixed(1),
             distPx: bDistPx,
-            raw: boss
+            raw: boss,
           });
         }
       }
 
-      otherPlayers.forEach(p => {
+      otherPlayers.forEach((p) => {
         const distPx = Math.hypot(player.x - p.x, player.y - p.y);
         if (distPx <= 400) {
           nearbyList.push({
@@ -325,7 +355,7 @@ export class GameHUD {
             color: p.color || '#38bdf8',
             meters: (distPx / 20).toFixed(1),
             distPx,
-            raw: p
+            raw: p,
           });
         }
       });
@@ -335,14 +365,14 @@ export class GameHUD {
       if (nearbyList.length === 0) {
         nearbyBox.innerHTML = `<span class="hud-empty">Никого нет поблизости</span>`;
       } else {
-        nearbyBox.innerHTML = nearbyList.map(item => `
+        nearbyBox.innerHTML = nearbyList.map((item) => `
           <div class="hud-nearby-item" data-type="${item.isBoss ? 'boss' : 'player'}" data-id="${item.title}">
             <span style="color: ${item.color}">${item.title}</span>
             <b>${item.meters} м</b>
           </div>
         `).join('');
 
-        nearbyBox.querySelectorAll('.hud-nearby-item').forEach(el => {
+        nearbyBox.querySelectorAll('.hud-nearby-item').forEach((el) => {
           el.onclick = () => {
             const isB = el.getAttribute('data-type') === 'boss';
             if (isB && boss) {

@@ -28,7 +28,8 @@ export class GameRoom extends DurableObject {
         (targetSession, ws) => this.startBossBattle(targetSession, ws),
         (duel, log) => this.broadcastDuelUpdate(duel, log),
         (duel, winner) => this.endBossBattle(duel, winner),
-        (quote) => this.broadcastBossSay(quote)
+        (quote) => this.broadcastBossSay(quote),
+        (duel, action) => this.handleBossIntervention(duel, action)
       );
 
       this.broadcast();
@@ -44,6 +45,51 @@ export class GameRoom extends DurableObject {
     });
     for (const ws of [...this.sessions.keys()]) {
       try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    }
+  }
+
+  handleBossIntervention(duel: DuelState, action: "join" | "kiss") {
+    if (action === "join") {
+      duel.isBossFight = true;
+      this.boss.inDuel = true;
+      this.boss.duelId = duel.id;
+      this.boss.state = "combat";
+
+      const bossParticipant = {
+        id: this.boss.id,
+        username: this.boss.name,
+        classId: "boss",
+        hp: this.boss.hp,
+        maxHp: this.boss.maxHp,
+        armor: this.boss.armor,
+        isBoss: true,
+      };
+
+      // Случайный выбор стороны (к p1 или к p2)
+      if (Math.random() < 0.5) {
+        duel.allies.push(bossParticipant);
+      } else {
+        duel.hunters.push(bossParticipant);
+      }
+
+      this.boss.recalcPassives(duel);
+
+      const log = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Пора кромсать!!!»</span> — ворвалась в дуэль!`;
+      this.broadcastDuelUpdate(duel, log);
+    } else if (action === "kiss") {
+      // Поцелуй: исцеление случайного участника на 30% от maxHp
+      const lucky = Math.random() < 0.5 ? duel.hunters[0] : duel.allies[0];
+      if (lucky) {
+        const healAmt = Math.round((lucky.maxHp || 100) * 0.3);
+        lucky.hp = Math.min(lucky.maxHp, lucky.hp + healAmt);
+
+        for (const s of this.sessions.values()) {
+          if (s.id === lucky.id) s.stats.hp = lucky.hp;
+        }
+
+        const log = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Хи-хи»</span> — поцеловала <b>${lucky.username}</b> и восстановила <b style="color:#4ade80">+${healAmt} HP</b>!`;
+        this.broadcastDuelUpdate(duel, log);
+      }
     }
   }
 
@@ -244,8 +290,14 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 5. Дуэль: вызов
+        // 5. Дуэль: вызов (проверка блокировки после смерти)
         if (msg.type === "duel_invite" && session && session.stats.classId && !session.inDuel) {
+          if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
+            const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
+            server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
+            return;
+          }
+
           for (const [targetWs, s] of this.sessions.entries()) {
             if (s.id === msg.targetId && s.stats.classId && !s.inDuel) {
               targetWs.send(JSON.stringify({ type: "duel_incoming", fromId: session.id, fromUsername: session.username }));
@@ -266,6 +318,12 @@ export class GameRoom extends DurableObject {
 
         // 7. Дуэль: принятие
         if (msg.type === "duel_accept" && session && !session.inDuel) {
+          if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
+            const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
+            server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
+            return;
+          }
+
           let opponentWs: WebSocket | null = null;
           let opponentSession: Session | null = null;
 
@@ -304,7 +362,14 @@ export class GameRoom extends DurableObject {
             const payload = JSON.stringify({
               type: "duel_start",
               isBossFight: false,
-              duel: { id: duelId, p1, p2 },
+              duel: {
+                id: duelId,
+                isBossFight: false,
+                hunters: [p1],
+                allies: [p2],
+                p1,
+                p2,
+              },
             });
 
             server.send(payload);
@@ -315,6 +380,12 @@ export class GameRoom extends DurableObject {
 
         // 8. Присоединение к бою Кейт
         if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && this.boss.inDuel && this.boss.duelId) {
+          if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
+            const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
+            server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
+            return;
+          }
+
           const duel = this.activeDuels.get(this.boss.duelId);
           if (duel) {
             session.inDuel = true;
@@ -368,21 +439,31 @@ export class GameRoom extends DurableObject {
 
           const now = Date.now();
 
+          // 9.1. ПОБЕГ
           if (msg.action === "escape") {
             const { logText } = processCombatAction("escape", 1, session, duel, this.boss, msg.targetId);
             this.broadcastDuelUpdate(duel, logText);
 
-            if (duel.isBossFight) {
-              this.broadcastBossSay("Убежал(");
-            }
-
             if (!duel.isBossFight) {
-              const winner = duel.p1.id === session.id ? duel.p2.username : duel.p1.username;
-              const endPayload = JSON.stringify({ type: "duel_end", winnerName: winner });
+              // Освобождаем обоих игроков без зависания
+              const isP1 = duel.p1.id === session.id;
+              const otherParticipant = isP1 ? duel.p2 : duel.p1;
+              const otherSession = [...this.sessions.values()].find((s) => s.id === otherParticipant.id);
+
+              session.inDuel = false;
+              if (otherSession) {
+                otherSession.inDuel = false;
+                otherSession.stats.hp = otherSession.stats.maxHp;
+              }
+
+              const endPayload = JSON.stringify({ type: "duel_end", winnerName: otherParticipant.username });
               if (duel.p1.ws) duel.p1.ws.send(endPayload);
               if (duel.p2.ws) duel.p2.ws.send(endPayload);
+
               this.activeDuels.delete(duel.id);
+              this.boss.onPlayerDuelFinished(otherParticipant.username, (q) => this.broadcastBossSay(q));
             } else {
+              this.broadcastBossSay("Убежал(");
               duel.hunters = duel.hunters.filter((h) => h.id !== session.id);
               duel.allies = duel.allies.filter((a) => a.id !== session.id);
               this.boss.recalcPassives(duel);
@@ -399,7 +480,7 @@ export class GameRoom extends DurableObject {
           if (now - session.lastActionTime < 1900) return;
           session.lastActionTime = now;
 
-          const { logText, isDead } = processCombatAction(
+          const { logText, isDead, target } = processCombatAction(
             msg.action,
             msg.chargeMult,
             session,
@@ -409,20 +490,60 @@ export class GameRoom extends DurableObject {
           );
           this.broadcastDuelUpdate(duel, logText);
 
-          if (isDead) {
+          // 9.2. СМЕРТЬ ЦЕЛИ В БОЮ
+          if (isDead && target) {
+            let targetSession: Session | null = null;
+            let targetWs: WebSocket | null = null;
+
+            for (const [ws, s] of this.sessions.entries()) {
+              if (s.id === target.id) {
+                targetSession = s;
+                targetWs = ws;
+                break;
+              }
+            }
+
+            // Блокировка умершего на 30 секунд
+            if (targetSession) {
+              targetSession.inDuel = false;
+              targetSession.stats.hp = targetSession.stats.maxHp;
+              targetSession.rejoinBlockedUntil = Date.now() + 30000;
+            }
+
+            if (targetWs) {
+              try {
+                targetWs.send(JSON.stringify({ type: "combat_death", lockDuration: 30, winnerName: session.username }));
+              } catch (_) {}
+            }
+
             if (!duel.isBossFight) {
+              // Победитель в обычной дуэли
+              session.inDuel = false;
+              session.stats.hp = session.stats.maxHp;
+
               const endPayload = JSON.stringify({ type: "duel_end", winnerName: session.username });
               if (duel.p1.ws) duel.p1.ws.send(endPayload);
               if (duel.p2.ws) duel.p2.ws.send(endPayload);
-              session.inDuel = false;
+
               this.activeDuels.delete(duel.id);
+              this.boss.onPlayerDuelFinished(session.username, (q) => this.broadcastBossSay(q));
             } else {
-              if (this.boss.hp <= 0) {
+              // Бой с Кейт
+              if (target.isBoss) {
                 this.boss.state = "dead";
                 this.boss.deathTime = Date.now();
                 this.endBossBattle(duel, "Охотники");
+              } else {
+                duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
+                duel.allies = duel.allies.filter((a) => a.id !== target.id);
+                this.boss.recalcPassives(duel);
+
+                if (duel.hunters.length === 0) {
+                  this.endBossBattle(duel, "Кейт и её союзники");
+                }
               }
             }
+            this.broadcast();
           }
         }
 
@@ -446,12 +567,28 @@ export class GameRoom extends DurableObject {
       }
     });
 
+    // Обработчик разрыва связи (освобождение второго игрока)
     const closeHandler = () => {
       try {
         const session = this.sessions.get(server);
         if (session && session.inDuel && session.duelId) {
           const duel = this.activeDuels.get(session.duelId);
           if (duel) {
+            if (!duel.isBossFight) {
+              const isP1 = duel.p1.id === session.id;
+              const remainingPart = isP1 ? duel.p2 : duel.p1;
+              const remSession = [...this.sessions.values()].find((s) => s.id === remainingPart.id);
+
+              if (remSession) {
+                remSession.inDuel = false;
+                remSession.stats.hp = remSession.stats.maxHp;
+              }
+
+              const endPayload = JSON.stringify({ type: "duel_end", winnerName: "Противник отключился" });
+              if (remainingPart.ws) {
+                try { remainingPart.ws.send(endPayload); } catch (_) {}
+              }
+            }
             this.activeDuels.delete(session.duelId);
           }
         }
@@ -479,6 +616,7 @@ export class GameRoom extends DurableObject {
             color: s.color || "#ffffff",
             inDuel: Boolean(s.inDuel),
             escapedUntil: s.escapedUntil || 0,
+            rejoinBlockedUntil: s.rejoinBlockedUntil || 0,
             stats: s.stats,
           });
         }

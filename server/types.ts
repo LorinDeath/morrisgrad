@@ -17,7 +17,8 @@ export interface Session {
   inDuel: boolean;
   duelId?: string;
   lastActionTime: number;
-  escapedUntil?: number; // Время неуязвимости после побега (мс)
+  escapedUntil?: number;
+  rejoinBlockedUntil?: number; // 30 секунд блокировки после гибели
   stats: PlayerStats;
 }
 
@@ -35,9 +36,8 @@ export interface DuelParticipant {
 export interface DuelState {
   id: string;
   isBossFight?: boolean;
-  hunters: DuelParticipant[]; // Противники Кейт / Игрок 1
-  allies: DuelParticipant[];  // Кейт + её союзники / Игрок 2
-  // Совместимость со старыми дуэлями 1v1
+  hunters: DuelParticipant[];
+  allies: DuelParticipant[];
   p1: DuelParticipant & { ws?: WebSocket };
   p2: DuelParticipant & { ws?: WebSocket };
 }
@@ -56,9 +56,4 @@ export interface BossState {
   attack: number;
   inDuel: boolean;
   duelId?: string;
-  respawnTime?: number;
-}
-
-export interface Env {
-  GAME_ROOM: DurableObjectNamespace;
 }
