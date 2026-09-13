@@ -329,7 +329,6 @@ export class DuelManager {
     const enemiesBox = this.arenaModal.querySelector('#arena-enemies-list');
     const alliesBox = this.arenaModal.querySelector('#arena-allies-list');
 
-    // 1. ВРАГИ (СВЕРХУ)
     enemiesBox.innerHTML = '';
     this.enemies.forEach((enemy) => {
       const isSelected = enemy.id === this.selectedTargetId;
@@ -372,7 +371,6 @@ export class DuelManager {
       enemiesBox.appendChild(card);
     });
 
-    // 2. СОЮЗНИКИ И ВЫ (СНИЗУ)
     alliesBox.innerHTML = '';
     this.allies.forEach((ally) => {
       const isMe = this.me && (ally.id === this.me.id || ally.username === this.me.username);
@@ -433,7 +431,11 @@ export class DuelManager {
     this.chargeInterval = setInterval(() => {
       if (!this.currentDuel || this.currentDuel.locked) return;
 
-      this.chargeTimer = Math.min(16, this.chargeTimer + 0.1);
+      // Проверка эффекта заморозки от морозного цветка
+      const isFrozen = this.me?.frostUntil && Date.now() < this.me.frostUntil;
+      const chargeStep = isFrozen ? 0.05 : 0.1; // Накопление вдвое медленнее при заморозке
+
+      this.chargeTimer = Math.min(16, this.chargeTimer + chargeStep);
 
       if (this.abilityCooldown > 0) {
         this.abilityCooldown = Math.max(0, this.abilityCooldown - 0.1);
@@ -459,10 +461,12 @@ export class DuelManager {
         atkBtn.style.opacity = '1';
         atkBtn.style.cursor = 'pointer';
         atkBtn.style.borderColor = charge.color;
-        atkLabel.innerHTML = `АТАКОВАТЬ <span style="color:${charge.color}">[${charge.label} x${charge.mult}]</span>`;
+        atkLabel.innerHTML = isFrozen
+          ? `❄️ ЗАМОРОЖЕН [x${charge.mult}]`
+          : `АТАКОВАТЬ <span style="color:${charge.color}">[${charge.label} x${charge.mult}]</span>`;
       }
 
-      chargeBar.style.backgroundColor = charge.color;
+      chargeBar.style.backgroundColor = isFrozen ? '#38bdf8' : charge.color;
       chargeBar.style.width = `${Math.min(100, (this.chargeTimer / 15) * 100)}%`;
 
       const abBtn = this.arenaModal.querySelector('#wap-ability-btn');

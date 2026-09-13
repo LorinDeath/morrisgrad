@@ -10,6 +10,8 @@ import {
   campfireImg,
   keytImg,
   darImg,
+  flowerImg,
+  drawFlowerSprite,
   createArtDecoPattern,
   drawCharacterShadow,
   drawCharacterSprite,
@@ -107,7 +109,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     bubble: { text: '', expireAt: 0 }
   };
 
+  const worldFlowers = new Map();
+
   let surpriseFlashTimer = 0;
+  let damageFlashTimer = 0;
   const floatingTexts = [];
 
   const dash = {
@@ -131,6 +136,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     inDuel: false,
     escapedUntil: 0,
     dismoraleUntil: 0,
+    shield: 0,
     stats: { ...DEFAULT_STATS, moveSpeed: 175 },
     bubble: { text: '', expireAt: 0 }
   };
@@ -179,6 +185,16 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     (side) => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'join_boss_fight', side }));
+      }
+    },
+    (flowerId) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'touch_flower', flowerId }));
+      }
+    },
+    (flowerId) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'pick_flower', flowerId }));
       }
     }
   );
@@ -447,13 +463,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         duelManager.escapeBattle();
       }
 
-      // Сюрприз-атака Дар: вспышка и всплывающий урон
       if (data.type === 'dar_surprise_hit') {
         let hitX = player.x;
         let hitY = player.y;
 
         if (data.targetId === myNetworkId) {
-          surpriseFlashTimer = 0.45; // Яркая вспышка на весь экран
+          surpriseFlashTimer = 0.45;
           if (data.hp !== undefined) player.stats.hp = data.hp;
           hitX = player.x;
           hitY = player.y;
@@ -476,6 +491,50 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           color: '#ef4444',
           expireAt: Date.now() + 1600
         });
+      }
+
+      if (data.type === 'flower_touched_notify') {
+        let hitX = player.x;
+        let hitY = player.y;
+
+        if (data.targetId === myNetworkId) {
+          damageFlashTimer = 0.25;
+          if (data.hp !== undefined) player.stats.hp = data.hp;
+        } else {
+          for (const other of otherPlayers.values()) {
+            if (other.id === data.targetId) {
+              hitX = other.x;
+              hitY = other.y;
+              if (data.hp !== undefined && other.stats) other.stats.hp = data.hp;
+              break;
+            }
+          }
+        }
+
+        floatingTexts.push({
+          text: `-1 HP`,
+          x: hitX,
+          y: hitY - 45,
+          vy: -20,
+          color: '#ef4444',
+          expireAt: Date.now() + 1200
+        });
+      }
+
+      if (data.type === 'flower_picked_notify') {
+        worldFlowers.delete(data.flowerId);
+        if (data.playerId === myNetworkId) {
+          player.shield = data.shield;
+          showToast('Вы сорвали цветок и получили синий щит +20 HP!');
+          floatingTexts.push({
+            text: `+20 🛡️ ЩИТ`,
+            x: player.x,
+            y: player.y - 45,
+            vy: -25,
+            color: '#38bdf8',
+            expireAt: Date.now() + 1500
+          });
+        }
       }
 
       if (data.type === 'toast_error') {
@@ -550,19 +609,34 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           dar.duelId = data.dar.duelId;
         }
 
+        if (data.flowers) {
+          const activeFlowerIds = new Set();
+          data.flowers.forEach((fl) => {
+            activeFlowerIds.add(fl.id);
+            worldFlowers.set(fl.id, fl);
+          });
+          for (const id of worldFlowers.keys()) {
+            if (!activeFlowerIds.has(id)) {
+              if (hud.currentTarget && hud.currentTarget.id === id) {
+                hud.clearTarget();
+              }
+              worldFlowers.delete(id);
+            }
+          }
+        }
+
         const activeNicks = new Set();
         const myNameLower = (username || '').trim().toLowerCase();
 
         data.players.forEach((p) => {
           const pNameLower = (p.username || '').trim().toLowerCase();
 
-          // Синхронизация своего персонажа
           if (p.id === myNetworkId || pNameLower === myNameLower) {
             player.inDuel = Boolean(p.inDuel);
             if (p.escapedUntil) player.escapedUntil = p.escapedUntil;
             if (p.color) player.color = p.color;
+            if (p.shield !== undefined) player.shield = p.shield;
 
-            // Отслеживание наложения дебафа Дизмораль
             if (p.dismoraleUntil) {
               if (!player.dismoraleUntil || player.dismoraleUntil <= Date.now()) {
                 showToast('Дар наложила на вас «Дизмораль»! (-35% урона)');
@@ -570,7 +644,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
               player.dismoraleUntil = p.dismoraleUntil;
             }
 
-            // Синхронизация здоровья и визуальный отклик лечения у Алтаря
             if (p.stats) {
               if (player.stats && p.stats.hp > player.stats.hp && !player.inDuel) {
                 const healAmt = p.stats.hp - player.stats.hp;
@@ -599,6 +672,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
             cur.inDuel = Boolean(p.inDuel);
             cur.escapedUntil = p.escapedUntil || 0;
             cur.dismoraleUntil = p.dismoraleUntil || 0;
+            cur.shield = p.shield || 0;
             cur.stats = p.stats || DEFAULT_STATS;
           } else {
             otherPlayers.set(pNameLower, {
@@ -614,6 +688,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
               inDuel: Boolean(p.inDuel),
               escapedUntil: p.escapedUntil || 0,
               dismoraleUntil: p.dismoraleUntil || 0,
+              shield: p.shield || 0,
               stats: p.stats || DEFAULT_STATS,
               width: 32,
               height: 40,
@@ -683,6 +758,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     if (dar.state !== 'dead') {
       if (Math.abs(mouseWorldX - dar.x) <= 24 && Math.abs(mouseWorldY - dar.y) <= 28) {
         hud.setTarget({ ...dar, isDar: true });
+        return;
+      }
+    }
+
+    for (const fl of worldFlowers.values()) {
+      if (Math.abs(mouseWorldX - fl.x) <= 24 && Math.abs(mouseWorldY - fl.y) <= 28) {
+        hud.setTarget({ ...fl, isFlowerEntity: true });
         return;
       }
     }
@@ -1051,6 +1133,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       otherPlayers,
       boss,
       dar,
+      worldFlowers,
       worldPortals,
       activeNearPortal,
       camera,
@@ -1114,6 +1197,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     if (dar.state !== 'dead') {
       drawCharacterShadow(ctx, dar.x, dar.y, 1.2);
     }
+    worldFlowers.forEach((fl) => drawCharacterShadow(ctx, fl.x, fl.y, 0.8));
     drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
 
     otherPlayers.forEach((p) => {
@@ -1131,6 +1215,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const entities = [];
     worldPortals.forEach((portal) => entities.push({ type: 'portal', y: portal.y, item: portal }));
     otherPlayers.forEach((p) => entities.push({ type: 'other_player', y: p.y, item: p }));
+    worldFlowers.forEach((fl) => entities.push({ type: 'flower', y: fl.y, item: fl }));
     if (boss.state !== 'dead') {
       entities.push({ type: 'boss', y: boss.y, item: boss });
     }
@@ -1205,6 +1290,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       if (ent.type === 'dar') {
         const d = ent.item;
         drawBossSprite(ctx, darImg, d.x, d.y, d.dirX || 0, d.dirY || 1, Boolean(dar.isMoving), now);
+        return;
+      }
+
+      if (ent.type === 'flower') {
+        const fl = ent.item;
+        drawFlowerSprite(ctx, fl, now);
         return;
       }
 
@@ -1361,7 +1452,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     const nickOffsetY = halfH + (10 / camera.zoom);
 
-    // Отрисовка имен других игроков и их бейджей Дизморали
     otherPlayers.forEach((p) => {
       ctx.strokeStyle = '#050408';
       ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
@@ -1374,7 +1464,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    // Отрисовка своего имени и бейджа Дизморали
     ctx.strokeStyle = '#050408';
     ctx.strokeText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
     ctx.fillStyle = '#ffd700';
@@ -1405,7 +1494,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       drawBubble(player.bubble.text, player.x, player.y - bubbleOffsetY, true);
     }
 
-    // Отрисовка всплывающего урона и лечения ("Тыдыщ!", "+1 HP")
+    // Отрисовка всплывающего урона и лечения
     for (let i = floatingTexts.length - 1; i >= 0; i--) {
       const ft = floatingTexts[i];
       if (now > ft.expireAt) {
@@ -1413,7 +1502,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         continue;
       }
 
-      ft.y += (ft.vy || -30) * dt; // Плавное всплывание вверх
+      ft.y += (ft.vy || -30) * dt;
       const progress = (ft.expireAt - now) / 1400;
       const alpha = Math.min(1, Math.max(0, progress * 1.5));
 
@@ -1436,6 +1525,15 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       surpriseFlashTimer -= dt;
       ctx.save();
       ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, surpriseFlashTimer * 2.5)})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+
+    // Красная вспышка при уколе бутона (-1 HP)
+    if (damageFlashTimer > 0) {
+      damageFlashTimer -= dt;
+      ctx.save();
+      ctx.fillStyle = `rgba(239, 68, 68, ${Math.min(0.35, damageFlashTimer * 1.4)})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
     }

@@ -6,8 +6,10 @@ import spearmanSrc from '../../../assets/character_9_frame16x20.png';
 import keytSrc from '../../../assets/Keyt.png';
 import mageSrc from '../../../assets/mage.png';
 import darSrc from '../../../assets/Dar.png';
+import flowerSrc from '../../../assets/Vampire Tulip 1A[anim].png'; // Импорт спрайтшита цветка
 
 export const darImg = createImg(darSrc);
+export const flowerImg = createImg(flowerSrc); // Экспорт картинки цветка
 
 function createImg(src) {
   const img = new Image();
@@ -31,6 +33,15 @@ export const SPRITE_CONFIG = {
   frameSpeed: 130,
   drawWidth: 32,
   drawHeight: 40
+};
+
+// Конфигурация сетки анимаций цветка (4 колонки, 14 рядов)
+export const FLOWER_SPRITE_CONFIG = {
+  cols: 4,
+  rows: 14,
+  frameSpeed: 150,
+  drawWidth: 64,  // Увеличенной в 2 раза ширина (было 32)
+  drawHeight: 64  // Увеличенная в 2 раза высота (было 32)
 };
 
 export const campfireImg = createImg(campfireSrc);
@@ -145,7 +156,6 @@ export function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, f
 
   ctx.imageSmoothingEnabled = false;
 
-  // Метод босса: лист больше 200px парсится как 12 колонок и 8 рядов
   const isFullSheet = img.naturalWidth > 200;
   const totalCols = isFullSheet ? 12 : 3;
   const totalRows = isFullSheet ? 8 : 4;
@@ -171,4 +181,49 @@ export function drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, f
 
 export function drawBossSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
   drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, '#f472b6');
+}
+
+// Отрисовка цветка-вампира с учетом стадий и цветовых шейдеров
+export function drawFlowerSprite(ctx, flower, now) {
+  if (!flowerImg.complete || flowerImg.naturalWidth === 0) {
+    ctx.fillStyle = '#f43f5e';
+    ctx.fillRect(flower.x - 12, flower.y - 12, 24, 24);
+    return;
+  }
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+
+  // Выбор ряда в зависимости от стадии
+  let targetRow = 1; // Ряд 2 (спящий бутон)
+  if (flower.stage === 'mature') {
+    targetRow = 6; // Ряд 7 (созревший спиральный стебель)
+  } else if (flower.stage === 'active') {
+    targetRow = 0; // Ряд 1 (активный монстр с пастью)
+  }
+
+  const frameW = flowerImg.naturalWidth / FLOWER_SPRITE_CONFIG.cols;
+  const frameH = flowerImg.naturalHeight / FLOWER_SPRITE_CONFIG.rows;
+  const col = Math.floor(now / FLOWER_SPRITE_CONFIG.frameSpeed) % FLOWER_SPRITE_CONFIG.cols;
+
+  const sx = col * frameW;
+  const sy = targetRow * frameH;
+  const dw = FLOWER_SPRITE_CONFIG.drawWidth;
+  const dh = FLOWER_SPRITE_CONFIG.drawHeight;
+  const dx = flower.x - dw / 2;
+  const dy = flower.y - dh / 2;
+
+  // Применение стихийных шейдеров (Canvas Filters)
+  if (flower.stage === 'active') {
+    if (flower.flowerType === 'fire') {
+      ctx.filter = 'hue-rotate(-20deg) saturate(2.5) brightness(1.2)';
+    } else if (flower.flowerType === 'frost') {
+      ctx.filter = 'hue-rotate(180deg) saturate(2.2) brightness(1.1)';
+    } else if (flower.flowerType === 'hell') {
+      ctx.filter = 'hue-rotate(270deg) contrast(1.5) brightness(0.7)';
+    }
+  }
+
+  ctx.drawImage(flowerImg, sx, sy, frameW, frameH, dx, dy, dw, dh);
+  ctx.restore();
 }

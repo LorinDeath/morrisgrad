@@ -46,7 +46,6 @@ export class KeytBoss {
   wanderTargetX = 700;
   wanderTargetY = 700;
 
-  // Таймеры диалогов и событий
   nextWanderSayTime = Date.now() + 5000;
   nextCombatSayTime = 0;
   lastAltarSayTime = 0;
@@ -88,11 +87,17 @@ export class KeytBoss {
       this.maxHp = this.baseMaxHp;
       this.armor = this.baseArmor;
       this.attack = this.baseAtk;
+      this.hp = Math.min(this.hp, this.maxHp);
       return yells;
     }
 
-    const livingAllies = duel.allies.filter((a) => !a.isBoss && a.hp > 0).length;
-    const livingEnemies = duel.hunters.filter((h) => h.hp > 0).length;
+    // Динамическое определение сторон
+    const isKateInAllies = duel.allies.some((a) => a.id === this.id);
+    const myTeam = isKateInAllies ? duel.allies : duel.hunters;
+    const enemyTeam = isKateInAllies ? duel.hunters : duel.allies;
+
+    const livingAllies = myTeam.filter((a) => a.id !== this.id && a.hp > 0).length;
+    const livingEnemies = enemyTeam.filter((e) => e.hp > 0).length;
 
     const oldMaxHp = this.maxHp;
     this.attack = this.baseAtk + livingAllies * 10 + livingEnemies * 3;
@@ -103,6 +108,14 @@ export class KeytBoss {
       this.hp += this.maxHp - oldMaxHp;
     }
     this.hp = Math.min(this.hp, this.maxHp);
+
+    // Прямая синхронизация объекта Кейт в дуэли
+    const bossParticipant = myTeam.find((p) => p.id === this.id);
+    if (bossParticipant) {
+      bossParticipant.maxHp = this.maxHp;
+      bossParticipant.hp = this.hp;
+      bossParticipant.armor = this.armor;
+    }
 
     return yells;
   }
@@ -157,7 +170,19 @@ export class KeytBoss {
         this.state = "wander";
         this.inDuel = false;
         this.duelId = null;
+        this.recalcPassives(null);
         return;
+      }
+
+      const duel = activeDuels.get(this.duelId)!;
+
+      // Синхронизируем здоровье Кейт с дуэлью (если её ударил игрок или Дар)
+      const isKateInAllies = duel.allies.some((a) => a.id === this.id);
+      const myTeam = isKateInAllies ? duel.allies : duel.hunters;
+      const enemyTeam = isKateInAllies ? duel.hunters : duel.allies;
+      const bossPart = myTeam.find((p) => p.id === this.id);
+      if (bossPart) {
+        this.hp = bossPart.hp;
       }
 
       if (now >= this.nextCombatSayTime) {
@@ -165,14 +190,12 @@ export class KeytBoss {
         onBossSay("ПОМОГИТЕ!");
       }
 
-      const duel = activeDuels.get(this.duelId)!;
-
       if (now >= this.nextAttackTime) {
         this.nextAttackTime = now + (1500 + Math.random() * 3500);
 
-        const livingHunters = duel.hunters.filter((h) => h.hp > 0);
-        if (livingHunters.length > 0) {
-          const target = livingHunters[Math.floor(Math.random() * livingHunters.length)];
+        const livingEnemies = enemyTeam.filter((e) => e.hp > 0);
+        if (livingEnemies.length > 0) {
+          const target = livingEnemies[Math.floor(Math.random() * livingEnemies.length)];
           let targetSession: Session | null = null;
           let targetWs: WebSocket | null = null;
 
@@ -206,12 +229,18 @@ export class KeytBoss {
                 } catch (_) {}
               }
 
-              duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
+              if (isKateInAllies) {
+                duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
+              } else {
+                duel.allies = duel.allies.filter((a) => a.id !== target.id);
+              }
+              this.recalcPassives(duel);
             }
 
             onDuelUpdate(duel, logText);
 
-            if (duel.hunters.length === 0) {
+            const aliveLeft = (isKateInAllies ? duel.hunters : duel.allies).filter((e) => e.hp > 0).length;
+            if (aliveLeft === 0) {
               onDuelEnd(duel, "Кейт и её союзники");
             }
           }

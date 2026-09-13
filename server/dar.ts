@@ -1,4 +1,4 @@
-import type { Session, DuelState, BossState, DuelParticipant } from "./types";
+import type { Session, DuelState, BossState, DuelParticipant, FlowerState, FlowerType } from "./types";
 import { calcArmorReduction } from "./combat";
 
 const SIMPLE_QUOTES = [
@@ -25,8 +25,9 @@ export class DarBoss {
   dirX = 0;
   dirY = 1;
 
-  state: "wander" | "stalk" | "chase" | "flee" | "rush_combat" | "combat" | "dead" = "wander";
+  state: "wander" | "stalk" | "chase" | "flee" | "rush_combat" | "water_flower" | "combat" | "dead" = "wander";
   targetPlayerId: string | null = null;
+  targetFlowerId: string | null = null;
   rushTargetDuelId: string | null = null;
   rushSide: "npc" | "random" = "random";
 
@@ -54,6 +55,7 @@ export class DarBoss {
   cdHouse = 0;
   cdHorror = 0;
 
+  lastPlantTime = 0; // Кулдаун посадки 40 секунд
   fleeUntil = 0;
   wanderTargetX = 300;
   wanderTargetY = 300;
@@ -83,6 +85,7 @@ export class DarBoss {
     this.inDuel = false;
     this.duelId = null;
     this.targetPlayerId = null;
+    this.targetFlowerId = null;
   }
 
   onPlayerEscaped(onSay: (text: string) => void) {
@@ -111,11 +114,14 @@ export class DarBoss {
     dt: number,
     sessions: Map<WebSocket, Session>,
     activeDuels: Map<string, DuelState>,
+    flowers: Map<string, FlowerState>,
     onSay: (text: string) => void,
     onSurpriseHit: (targetSession: Session, dmg: number) => void,
     onJoinDuel: (duel: DuelState, side: "hunters" | "allies", yell: string) => void,
     onDuelUpdate: (duel: DuelState, log: string) => void,
-    onDuelEnd: (duel: DuelState, winner: string) => void
+    onDuelEnd: (duel: DuelState, winner: string) => void,
+    onPlantFlower: (x: number, y: number) => void,
+    onWaterFlower: (flower: FlowerState) => void
   ) {
     const now = Date.now();
 
@@ -134,7 +140,58 @@ export class DarBoss {
       return;
     }
 
-    // 3. Рывок к чужой драке ("СПАРТААА" / "Наших бьют!")
+    // 3. Приоритет: Дар бежит поливать созревший цветок ("Манюня!!!")
+    if (this.state === "water_flower") {
+      const targetFl = this.targetFlowerId ? flowers.get(this.targetFlowerId) : null;
+      if (!targetFl || targetFl.stage !== "mature") {
+        this.state = "wander";
+        this.targetFlowerId = null;
+        return;
+      }
+
+      const fdx = targetFl.x - this.x;
+      const fdy = targetFl.y - this.y;
+      const fDist = Math.hypot(fdx, fdy);
+
+      if (fDist > 35) {
+        this.dirX = fdx / fDist;
+        this.dirY = fdy / fDist;
+        this.x += this.dirX * this.SPEED_FAST * dt;
+        this.y += this.dirY * this.SPEED_FAST * dt;
+        this.clampPosition();
+      } else {
+        onSay("Поливашки");
+        onWaterFlower(targetFl);
+        this.state = "wander";
+        this.targetFlowerId = null;
+      }
+      return;
+    }
+
+    // Сканирование созревших цветков в радиусе 30 метров (600px)
+    if (this.state !== "flee" && this.state !== "rush_combat") {
+      let nearestMature: FlowerState | null = null;
+      let minMatureDist = Infinity;
+
+      for (const fl of flowers.values()) {
+        if (fl.stage === "mature") {
+          const d = Math.hypot(fl.x - this.x, fl.y - this.y);
+          if (d <= 600 && d < minMatureDist) {
+            minMatureDist = d;
+            nearestMature = fl;
+          }
+        }
+      }
+
+      if (nearestMature) {
+        this.state = "water_flower";
+        this.targetFlowerId = nearestMature.id;
+        onSay("Манюня!!!");
+        return;
+      }
+    }
+
+    // 4. Рывок к чужой драке ("СПАРТААА" / "Наших бьют!")
     if (this.state === "rush_combat") {
       const duel = this.rushTargetDuelId ? activeDuels.get(this.rushTargetDuelId) : null;
       if (!duel) {
@@ -164,7 +221,7 @@ export class DarBoss {
         this.nextAttackTime = now + 2000;
 
         const side = this.rushSide === "npc"
-          ? (duel.allies.some((a) => a.isBoss) ? "allies" : "hunters")
+          ? (duel.allies.some((a) => a.isBoss || a.isFlower) ? "allies" : "hunters")
           : (Math.random() < 0.5 ? "hunters" : "allies");
 
         const yell = this.rushSide === "npc"
@@ -176,7 +233,7 @@ export class DarBoss {
       return;
     }
 
-    // 4. Бегство
+    // 5. Бегство
     if (this.state === "flee") {
       if (now >= this.fleeUntil) {
         this.state = "wander";
@@ -188,21 +245,21 @@ export class DarBoss {
       return;
     }
 
-    // 5. Мирные циклы (каждую 1 секунду)
+    // 6. Мирные циклы (каждую 1 секунду)
     this.oneSecTimer += dt;
     if (this.oneSecTimer >= 1.0) {
       this.oneSecTimer = 0;
-      this.handleOneSecondEvents(now, sessions, activeDuels, onSay, onSurpriseHit);
+      this.handleOneSecondEvents(now, sessions, activeDuels, flowers, onSay, onSurpriseHit, onPlantFlower);
     }
 
-    // 6. Выбор поведения каждые 4 тика (секунды)
+    // 7. Выбор поведения каждые 4 тика (секунды)
     this.decisionTick += dt;
     if (this.decisionTick >= 4.0) {
       this.decisionTick = 0;
       this.makeBehaviorChoice(sessions, onSay);
     }
 
-    // 7. Физическое перемещение
+    // 8. Физическое перемещение
     this.movePeaceful(dt, sessions);
   }
 
@@ -210,15 +267,27 @@ export class DarBoss {
     now: number,
     sessions: Map<WebSocket, Session>,
     activeDuels: Map<string, DuelState>,
+    flowers: Map<string, FlowerState>,
     onSay: (text: string) => void,
-    onSurpriseHit: (targetSession: Session, dmg: number) => void
+    onSurpriseHit: (targetSession: Session, dmg: number) => void,
+    onPlantFlower: (x: number, y: number) => void
   ) {
+    // 6.1. Посадка цветка Дар (каждые 40 сек, шанс 5%, макс 22 цветка на карте)
+    if (now - this.lastPlantTime >= 40000 && flowers.size < 22) {
+      if (Math.random() < 0.05) {
+        this.lastPlantTime = now;
+        onSay("И так сойдёт");
+        onPlantFlower(Math.round(this.x), Math.round(this.y));
+      }
+    }
+
+    // 6.2. Вмешательство в чужие драки в радиусе 50 метров (1000 px)
     if (activeDuels.size > 0 && Math.random() < 0.10) {
       for (const [dId, duel] of activeDuels.entries()) {
         const p1 = duel.hunters[0];
         const s1 = [...sessions.values()].find((s) => s.id === p1?.id);
         if (s1 && Math.hypot(s1.x - this.x, s1.y - this.y) <= 1000) {
-          const hasNPC = duel.hunters.some((h) => h.isBoss) || duel.allies.some((a) => a.isBoss);
+          const hasNPC = duel.hunters.some((h) => h.isBoss || h.isFlower) || duel.allies.some((a) => a.isBoss || a.isFlower);
           this.state = "rush_combat";
           this.rushTargetDuelId = dId;
           this.rushSide = hasNPC ? "npc" : "random";
@@ -228,6 +297,7 @@ export class DarBoss {
       }
     }
 
+    // 6.3. Дебаф "Дизмораль" на игрока в радиусе 10 метров (200 px)
     const playersIn10m: Session[] = [];
     for (const s of sessions.values()) {
       if (s.stats.classId && Math.hypot(s.x - this.x, s.y - this.y) <= 200) {
@@ -242,6 +312,7 @@ export class DarBoss {
       onSay(quote);
     }
 
+    // 6.4. Сюрприз во время преследования
     if (this.state === "chase" && this.targetPlayerId) {
       const target = [...sessions.values()].find((s) => s.id === this.targetPlayerId);
       if (target && Math.hypot(target.x - this.x, target.y - this.y) <= 80) {
@@ -400,7 +471,7 @@ export class DarBoss {
         return;
       }
 
-      // 1. "Вселенская любовь" (КД 20с)
+      // 1. "Вселенская любовь"
       if (this.cdLove <= 0 && Math.random() < 0.35) {
         this.cdLove = 20;
         this.loveBuffUntil = now + 10000;
@@ -410,7 +481,7 @@ export class DarBoss {
         return;
       }
 
-      // 2. "Я в домике" (КД 24с) - НАКЛАДЫВАЕТ ЩИТ НА УЧАСТНИКОВ
+      // 2. "Я в домике"
       if (this.cdHouse <= 0 && Math.random() < 0.35) {
         this.cdHouse = 24;
         onSay("Я в домике!");
@@ -428,7 +499,7 @@ export class DarBoss {
         return;
       }
 
-      // 3. "Я ужас летящий на крыльях ночи" (двойной удар) или обычный удар
+      // 3. "Я ужас летящий на крыльях ночи"
       const isHorror = this.cdHorror <= 0 && Math.random() < 0.4;
       const hitsCount = isHorror ? 2 : 1;
       if (isHorror) {
@@ -447,7 +518,6 @@ export class DarBoss {
         totalDmgDone += dmg;
       }
 
-      // Поглощение входящего урона щитом цели
       const targetShield = target.shield || 0;
       let hpDmg = totalDmgDone;
       let shieldAbsorbed = 0;

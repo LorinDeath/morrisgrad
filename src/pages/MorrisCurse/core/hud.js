@@ -2,10 +2,12 @@ import { getArmorReduction } from './classes.js';
 import { Minimap } from './minimap.js';
 
 export class GameHUD {
-  constructor(container, onDuelInvite, onJoinBossFight) {
+  constructor(container, onDuelInvite, onJoinBossFight, onTouchFlower, onPickFlower) {
     this.container = container;
     this.onDuelInvite = onDuelInvite;
     this.onJoinBossFight = onJoinBossFight;
+    this.onTouchFlower = onTouchFlower;
+    this.onPickFlower = onPickFlower;
     this.currentTarget = null;
     this.mount();
   }
@@ -100,16 +102,18 @@ export class GameHUD {
 
       <div class="hud-card" id="ghud-target-card">
         <div class="hud-header">ЦЕЛЬ</div>
-        <div id="ghud-target-empty" class="hud-empty">Кликните по игроку, Кейт или Дар</div>
+        <div id="ghud-target-empty" class="hud-empty">Кликните по объекту</div>
         <div id="ghud-target-details" style="display: none;">
           <div class="hud-target-title" id="ghud-target-name">Цель</div>
-          <div class="hud-row"><span>Класс:</span><b id="ghud-target-class">-</b></div>
+          <div class="hud-row"><span>Класс / Тип:</span><b id="ghud-target-class">-</b></div>
           <div class="hud-row"><span>❤️ HP:</span><b id="ghud-target-hp">-</b></div>
           <div class="hud-row"><span>🛡️ Защита:</span><b id="ghud-target-armor">-</b></div>
           <div class="hud-row"><span>⚔️ Урон:</span><b id="ghud-target-atk">-</b></div>
           
           <button class="hud-duel-btn" id="ghud-duel-btn">⚔️ ВЫЗВАТЬ НА ДУЭЛЬ</button>
-          
+          <button class="hud-duel-btn" id="ghud-flower-touch-btn" style="display: none; background: #b91c1c; border-color: #f87171;">🖐️ ТРОНУТЬ БУТОН (-1 HP)</button>
+          <button class="hud-duel-btn" id="ghud-flower-pick-btn" style="display: none; background: #0284c7; border-color: #38bdf8;">🌸 СОРВАТЬ (+20 🛡️ ЩИТ)</button>
+
           <div id="ghud-boss-join-buttons" style="display: none; flex-direction: column; gap: 6px; margin-top: 6px;">
             <button class="hud-duel-btn" id="ghud-join-hunters-btn" style="background: #dc2626; border-color: #f87171;">⚔️ Охотиться</button>
             <button class="hud-duel-btn" id="ghud-join-kate-btn" style="background: #ec4899; border-color: #f472b6;">💖 Защитить</button>
@@ -147,11 +151,31 @@ export class GameHUD {
     this.minimap = new Minimap(mmSlot);
 
     this.duelBtn = rightSidebar.querySelector('#ghud-duel-btn');
+    this.touchBtn = rightSidebar.querySelector('#ghud-flower-touch-btn');
+    this.pickBtn = rightSidebar.querySelector('#ghud-flower-pick-btn');
+
     if (this.duelBtn) {
       this.duelBtn.onclick = () => {
         if (this.currentTarget && typeof this.onDuelInvite === 'function') {
           const targetId = this.currentTarget.isDar ? 'boss_dar' : this.currentTarget.id;
           this.onDuelInvite(targetId, this.currentTarget.name || this.currentTarget.username);
+        }
+      };
+    }
+
+    if (this.touchBtn) {
+      this.touchBtn.onclick = () => {
+        if (this.currentTarget && typeof this.onTouchFlower === 'function') {
+          this.onTouchFlower(this.currentTarget.id);
+        }
+      };
+    }
+
+    if (this.pickBtn) {
+      this.pickBtn.onclick = () => {
+        if (this.currentTarget && typeof this.onPickFlower === 'function') {
+          this.onPickFlower(this.currentTarget.id);
+          this.clearTarget();
         }
       };
     }
@@ -177,6 +201,7 @@ export class GameHUD {
       otherPlayers,
       boss = null,
       dar = null,
+      worldFlowers = new Map(),
       worldPortals,
       activeNearPortal,
       camera,
@@ -202,7 +227,7 @@ export class GameHUD {
       });
     }
 
-    // 1. Статус
+    // 1. Статус своего персонажа
     const myName = document.getElementById('ghud-my-name');
     const myClass = document.getElementById('ghud-my-class');
     const hpBar = document.getElementById('ghud-my-hp-bar');
@@ -217,9 +242,8 @@ export class GameHUD {
     const curHp = player.stats?.hp || 100;
     const maxHp = player.stats?.maxHp || 100;
     if (hpBar) hpBar.style.width = `${Math.max(0, Math.min(100, (curHp / maxHp) * 100))}%`;
-    if (hpVal) hpVal.textContent = `${curHp} / ${maxHp} HP`;
+    if (hpVal) hpVal.textContent = `${curHp} / ${maxHp} HP ${player.shield ? `(+${player.shield} 🛡️)` : ''}`;
 
-    // Индикатор дебафа Дизмораль в боковой панели
     const debuffBox = document.getElementById('ghud-debuff-box');
     const debuffTimer = document.getElementById('ghud-debuff-timer');
     if (debuffBox && debuffTimer) {
@@ -291,7 +315,53 @@ export class GameHUD {
       if (targetEmpty) targetEmpty.style.display = 'none';
       if (targetDetails) targetDetails.style.display = 'block';
 
-      // Кейт
+      if (this.duelBtn) this.duelBtn.style.display = 'none';
+      if (this.touchBtn) this.touchBtn.style.display = 'none';
+      if (this.pickBtn) this.pickBtn.style.display = 'none';
+      if (bossJoinBtns) bossJoinBtns.style.display = 'none';
+
+      // ЦВЕТКИ-ВАМПИРЫ
+      if (this.currentTarget.isFlowerEntity || worldFlowers.has(this.currentTarget.id)) {
+        const fl = worldFlowers.get(this.currentTarget.id) || this.currentTarget;
+
+        if (fl.stage === 'bud') {
+          if (tName) { tName.textContent = 'Спящий бутон'; tName.style.color = '#f87171'; }
+          if (tClass) tClass.textContent = 'Растение-вампир';
+          if (tHp) tHp.textContent = '10 / 10 HP';
+          if (tArmor) tArmor.textContent = '0 (0%)';
+          if (tAtk) tAtk.textContent = '1 (Шипы)';
+          if (this.touchBtn) this.touchBtn.style.display = 'block';
+        } else if (fl.stage === 'mature') {
+          if (tName) { tName.textContent = 'Созревший вампирский стебель'; tName.style.color = '#38bdf8'; }
+          if (tClass) tClass.textContent = 'Созревшее растение';
+          if (tHp) tHp.textContent = 'HP: ?';
+          if (tArmor) tArmor.textContent = 'Def: ?';
+          if (tAtk) tAtk.textContent = 'Atk: ?';
+          if (this.pickBtn) this.pickBtn.style.display = 'block';
+        } else if (fl.stage === 'active') {
+          const typeNames = { normal: 'Обычный', fire: 'Огненный', frost: 'Морозный', hell: 'Адский' };
+          const typeColors = { normal: '#f43f5e', fire: '#f97316', frost: '#38bdf8', hell: '#c084fc' };
+
+          if (tName) {
+            tName.textContent = `${typeNames[fl.flowerType] || 'Хищный'} Тюльпан`;
+            tName.style.color = typeColors[fl.flowerType] || '#f43f5e';
+          }
+          if (tClass) tClass.textContent = `Монстр (${typeNames[fl.flowerType] || 'Хищник'})`;
+          if (tHp) tHp.textContent = `${fl.stats.hp} / ${fl.stats.maxHp} HP`;
+          const redPct = (getArmorReduction(fl.stats.armor) * 100).toFixed(1);
+          if (tArmor) tArmor.textContent = `${fl.stats.armor} (${redPct}%)`;
+          if (tAtk) tAtk.textContent = `${fl.stats.atk}`;
+
+          if (this.duelBtn) {
+            this.duelBtn.style.display = 'block';
+            this.duelBtn.textContent = '⚔️ НАПАСТЬ НА ТЮЛЬПАН';
+            this.duelBtn.className = isLocked ? 'hud-duel-btn hud-btn-disabled' : 'hud-duel-btn';
+          }
+        }
+        return;
+      }
+
+      // КЕЙТ
       if (this.currentTarget.isBoss || this.currentTarget.id === 'boss_keyt') {
         const b = boss || this.currentTarget;
         if (tName) {
@@ -304,10 +374,9 @@ export class GameHUD {
         if (tArmor) tArmor.textContent = `${b.armor} (${redPct}%)`;
         if (tAtk) tAtk.textContent = `${b.attack}`;
 
-        if (this.duelBtn) this.duelBtn.style.display = 'none';
         if (bossJoinBtns) bossJoinBtns.style.display = (b.inDuel && !player.inDuel) ? 'flex' : 'none';
       }
-      // Дар
+      // ДАР
       else if (this.currentTarget.isDar || this.currentTarget.id === 'boss_dar') {
         const d = dar || this.currentTarget;
         if (tName) {
@@ -327,10 +396,9 @@ export class GameHUD {
         }
         if (bossJoinBtns) bossJoinBtns.style.display = (d.inDuel && !player.inDuel) ? 'flex' : 'none';
       }
-      // Другие игроки
+      // ДРУГИЕ ИГРОКИ
       else if (otherPlayers.has(this.currentTarget.username?.toLowerCase())) {
         const p = otherPlayers.get(this.currentTarget.username.toLowerCase());
-        if (bossJoinBtns) bossJoinBtns.style.display = 'none';
         if (this.duelBtn) this.duelBtn.style.display = 'block';
 
         if (tName) {
@@ -367,7 +435,6 @@ export class GameHUD {
     } else {
       if (targetEmpty) targetEmpty.style.display = 'block';
       if (targetDetails) targetDetails.style.display = 'none';
-      if (bossJoinBtns) bossJoinBtns.style.display = 'none';
     }
 
     // 5. Радар
@@ -411,7 +478,7 @@ export class GameHUD {
             title: p.username,
             color: p.color || '#38bdf8',
             meters: (distPx / 20).toFixed(1),
-            distPx,
+            distPx: p,
             raw: p,
           });
         }

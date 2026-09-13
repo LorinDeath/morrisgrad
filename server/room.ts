@@ -2,16 +2,27 @@ import { DurableObject } from "cloudflare:workers";
 import { WORLD_PORTALS, MINI_GAMES, CLASSES_CONFIG } from "./config";
 import { processCombatAction } from "./combat";
 import { KeytBoss } from "./boss";
-import type { Session, DuelState } from "./types";
+import type { Session, DuelState, FlowerState, FlowerType } from "./types";
 import { CHARACTER_CLASSES } from "./classes";
 import { getSkill } from "./skills";
 import { DarBoss } from "./dar";
+
+export function getFlowerName(flower: FlowerState): string {
+  switch (flower.flowerType) {
+    case "fire": return "Огненный тюльпан";
+    case "frost": return "Морозный тюльпан";
+    case "hell": return "Адский тюльпан";
+    default: return "Тюльпан-вампир";
+  }
+}
 
 export class GameRoom extends DurableObject {
   sessions: Map<WebSocket, Session>;
   activeDuels: Map<string, DuelState>;
   boss: KeytBoss;
   dar: DarBoss;
+  flowers: Map<string, FlowerState>;
+
   lastTick = Date.now();
   lastHealTick = Date.now();
 
@@ -21,13 +32,14 @@ export class GameRoom extends DurableObject {
     this.activeDuels = new Map();
     this.boss = new KeytBoss();
     this.dar = new DarBoss();
+    this.flowers = new Map();
 
     setInterval(() => {
       const now = Date.now();
       const dt = (now - this.lastTick) / 1000;
       this.lastTick = now;
 
-      // 1. Пассивное лечение у Алтаря Перевоплощения (x: 565, y: 600, радиус 80px)
+      // 1. Пассивное лечение у Алтаря Перевоплощения
       if (now - this.lastHealTick >= 1000) {
         this.lastHealTick = now;
         let anyHealed = false;
@@ -57,7 +69,6 @@ export class GameRoom extends DurableObject {
         (duel, winner) => this.endBossBattle(duel, winner),
         (quote) => this.broadcastBossSay(quote),
         (duel, action) => {
-          // Если Кейт вмешивается в бой, где есть Дар, она ВСЕГДА выбирает команду игроков!
           const hasDar = duel.hunters.some((h) => h.id === "boss_dar") || duel.allies.some((a) => a.id === "boss_dar");
           if (hasDar) {
             const darSide = duel.allies.some((a) => a.id === "boss_dar") ? duel.allies : duel.hunters;
@@ -74,6 +85,7 @@ export class GameRoom extends DurableObject {
             this.boss.inDuel = true;
             this.boss.duelId = duel.id;
             this.boss.state = "combat";
+            this.boss.recalcPassives(duel);
             this.broadcastDuelUpdate(duel, `<span style="color:#f472b6; font-weight:bold;">Кейт: «Я с вами против этой козявки!»</span> — присоединилась к игрокам!`);
             return;
           }
@@ -81,11 +93,12 @@ export class GameRoom extends DurableObject {
         }
       );
 
-      // 3. Обновление Дар
+      // 3. Обновление Дар (с цветками и поливом)
       this.dar.update(
         dt,
         this.sessions,
         this.activeDuels,
+        this.flowers,
         (quote) => this.broadcastDarSay(quote),
         (targetSession, dmg) => this.triggerDarSurpriseHit(targetSession, dmg),
         (duel, side, yell) => {
@@ -102,11 +115,277 @@ export class GameRoom extends DurableObject {
           this.broadcastDuelUpdate(duel, yell);
         },
         (duel, log) => this.broadcastDuelUpdate(duel, log),
-        (duel, winner) => this.endBossBattle(duel, winner)
+        (duel, winner) => this.endBossBattle(duel, winner),
+        (x, y) => this.plantFlower(x, y),
+        (flower) => this.waterFlower(flower)
       );
+
+      // 4. Жизненный цикл и ИИ цветков-вампиров
+      this.updateFlowers(dt, now);
 
       this.broadcast();
     }, 100);
+  }
+
+  plantFlower(x: number, y: number) {
+    if (this.flowers.size >= 22) return;
+    const fId = "flower_" + crypto.randomUUID();
+
+    const flower: FlowerState = {
+      id: fId,
+      x: Math.max(40, Math.min(1160, x)),
+      y: Math.max(40, Math.min(1160, y)),
+      stage: "bud",
+      flowerType: "normal",
+      plantedAt: Date.now(),
+      stats: { hp: 10, maxHp: 10, armor: 0, atk: 0 },
+      fearDistance: Math.round(180 + Math.random() * 180),
+      inDuel: false,
+    };
+
+    this.flowers.set(fId, flower);
+  }
+
+  waterFlower(flower: FlowerState) {
+    const randHp = Math.floor(Math.random() * (400 - 5 + 1)) + 5;
+    const randAtk = Math.floor(Math.random() * (50 - 1 + 1)) + 1;
+    const randDef = Math.floor(Math.random() * (15 - 1 + 1)) + 1;
+
+    let fType: FlowerType = "normal";
+    const roll = Math.random();
+    if (roll < 0.50) {
+      fType = "fire";
+    } else if (roll < 0.80) {
+      fType = "frost";
+    } else if (roll < 0.90) {
+      fType = "hell";
+    } else {
+      fType = "normal";
+    }
+
+    flower.stage = "active";
+    flower.flowerType = fType;
+    flower.stats = {
+      hp: randHp,
+      maxHp: randHp,
+      atk: randAtk,
+      armor: randDef,
+    };
+  }
+
+  updateFlowers(dt: number, now: number) {
+    const ALTAR_X = 565;
+    const ALTAR_Y = 600;
+
+    for (const flower of this.flowers.values()) {
+      if (flower.stage === "bud") {
+        if (now - flower.plantedAt >= 180000) {
+          flower.stage = "mature";
+        }
+        continue;
+      }
+
+      if (flower.stage === "mature") {
+        continue;
+      }
+
+      if (flower.stage === "active") {
+        if (flower.inDuel) {
+          if (flower.duelId && !this.activeDuels.has(flower.duelId)) {
+            flower.inDuel = false;
+            flower.duelId = undefined;
+          }
+          continue;
+        }
+
+        // 1. Страх огня Алтаря
+        const distToAltar = Math.hypot(flower.x - ALTAR_X, flower.y - ALTAR_Y);
+        if (distToAltar < flower.fearDistance) {
+          const awayX = flower.x - ALTAR_X || (Math.random() - 0.5);
+          const awayY = flower.y - ALTAR_Y || (Math.random() - 0.5);
+          const awayLen = Math.hypot(awayX, awayY) || 1;
+
+          flower.dirX = awayX / awayLen;
+          flower.dirY = awayY / awayLen;
+          flower.x += flower.dirX * 120 * dt;
+          flower.y += flower.dirY * 120 * dt;
+          this.clampEntity(flower);
+
+          if (!flower.nextScreamTime || now >= flower.nextScreamTime) {
+            flower.nextScreamTime = now + (10000 + Math.random() * 8000);
+            this.broadcastFlowerSay(flower.id, getFlowerName(flower), "РРРР");
+          }
+          continue;
+        }
+
+        // 2. Помощь союзникам (Дар или другим цветкам) в пределах 10м (200px)
+        let helped = false;
+        for (const duel of this.activeDuels.values()) {
+          const hasDar = duel.hunters.some((h) => h.id === this.dar.id) || duel.allies.some((a) => a.id === this.dar.id);
+          const hasOtherFlower = duel.hunters.some((h) => h.isFlower) || duel.allies.some((a) => a.isFlower);
+
+          if (hasDar || hasOtherFlower) {
+            let inRange = false;
+            for (const p of [...duel.hunters, ...duel.allies]) {
+              const s = [...this.sessions.values()].find((sess) => sess.id === p.id);
+              if (s && Math.hypot(s.x - flower.x, s.y - flower.y) <= 200) {
+                inRange = true;
+                break;
+              }
+            }
+            if (!inRange && Math.hypot(this.dar.x - flower.x, this.dar.y - flower.y) <= 200) {
+              inRange = true;
+            }
+
+            if (inRange) {
+              const isDarOrFlowerInAllies = duel.allies.some((a) => a.id === this.dar.id || a.isFlower);
+              const side = isDarOrFlowerInAllies ? "allies" : "hunters";
+              this.addFlowerToDuel(flower, duel, side);
+              helped = true;
+              break;
+            }
+          }
+        }
+        if (helped) continue;
+
+        // 3. Агр на игроков в радиусе 3 метров (60px)
+        let targetSession: Session | null = null;
+        let targetWs: WebSocket | null = null;
+        let minDist = 60;
+
+        for (const [ws, s] of this.sessions.entries()) {
+          if (s.stats.classId && !s.inDuel && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
+            const d = Math.hypot(s.x - flower.x, s.y - flower.y);
+            if (d <= minDist) {
+              minDist = d;
+              targetSession = s;
+              targetWs = ws;
+            }
+          }
+        }
+
+        if (targetSession && targetWs) {
+          const pdx = targetSession.x - flower.x;
+          const pdy = targetSession.y - flower.y;
+          const pDist = Math.hypot(pdx, pdy) || 1;
+
+          if (pDist > 35) {
+            flower.dirX = pdx / pDist;
+            flower.dirY = pdy / pDist;
+            flower.x += flower.dirX * 135 * dt;
+            flower.y += flower.dirY * 135 * dt;
+            this.clampEntity(flower);
+          } else {
+            this.startFlowerBattle(targetSession, targetWs, flower);
+          }
+          continue;
+        }
+
+        // 4. Блуждание цветка
+        if (!flower.wanderTargetX || now >= (flower.nextWanderTime || 0)) {
+          flower.nextWanderTime = now + (3500 + Math.random() * 4000);
+          flower.wanderTargetX = Math.max(40, Math.min(1160, flower.x + (Math.random() * 200 - 100)));
+          flower.wanderTargetY = Math.max(40, Math.min(1160, flower.y + (Math.random() * 200 - 100)));
+        }
+
+        const wdx = (flower.wanderTargetX || flower.x) - flower.x;
+        const wdy = (flower.wanderTargetY || flower.y) - flower.y;
+        const wDist = Math.hypot(wdx, wdy);
+        if (wDist > 8) {
+          flower.dirX = wdx / wDist;
+          flower.dirY = wdy / wDist;
+          flower.x += flower.dirX * 55 * dt;
+          flower.y += flower.dirY * 55 * dt;
+          this.clampEntity(flower);
+        }
+      }
+    }
+  }
+
+  addFlowerToDuel(flower: FlowerState, duel: DuelState, side: "hunters" | "allies") {
+    flower.inDuel = true;
+    flower.duelId = duel.id;
+
+    const p = {
+      id: flower.id,
+      username: getFlowerName(flower),
+      classId: "flower_" + flower.flowerType,
+      hp: flower.stats.hp,
+      maxHp: flower.stats.maxHp,
+      armor: flower.stats.armor,
+      attack: flower.stats.atk,
+      isBoss: true,
+      isFlower: true,
+      flowerType: flower.flowerType,
+    };
+
+    duel[side].push(p);
+    this.broadcastDuelUpdate(duel, `🌸 <b>${p.username}</b> присоединился к сражению!`);
+  }
+
+  startFlowerBattle(initialPlayer: Session, initialWs: WebSocket, flower: FlowerState) {
+    if (!initialPlayer.stats.classId) return;
+
+    const duelId = "flower_duel_" + crypto.randomUUID();
+    initialPlayer.inDuel = true;
+    initialPlayer.duelId = duelId;
+    flower.inDuel = true;
+    flower.duelId = duelId;
+
+    const p1Data = {
+      id: initialPlayer.id,
+      username: initialPlayer.username,
+      classId: initialPlayer.stats.classId,
+      hp: initialPlayer.stats.hp,
+      maxHp: initialPlayer.stats.maxHp,
+      armor: initialPlayer.stats.armor,
+      ws: initialWs,
+    };
+
+    const p2Data = {
+      id: flower.id,
+      username: getFlowerName(flower),
+      classId: "flower_" + flower.flowerType,
+      hp: flower.stats.hp,
+      maxHp: flower.stats.maxHp,
+      armor: flower.stats.armor,
+      attack: flower.stats.atk,
+      isBoss: true,
+      isFlower: true,
+      flowerType: flower.flowerType,
+    };
+
+    const duelState: DuelState = {
+      id: duelId,
+      isBossFight: true,
+      hunters: [p1Data],
+      allies: [p2Data],
+      p1: p1Data,
+      p2: p2Data,
+    };
+
+    this.activeDuels.set(duelId, duelState);
+
+    const payload = JSON.stringify({
+      type: "duel_start",
+      isBossFight: true,
+      duel: {
+        id: duelId,
+        isBossFight: true,
+        p1: { id: p1Data.id, username: p1Data.username, classId: p1Data.classId, hp: p1Data.hp, maxHp: p1Data.maxHp, armor: p1Data.armor },
+        p2: { id: p2Data.id, username: p2Data.username, classId: p2Data.classId, hp: p2Data.hp, maxHp: p2Data.maxHp, armor: p2Data.armor, isBoss: true },
+        hunters: [{ id: p1Data.id, username: p1Data.username, classId: p1Data.classId, hp: p1Data.hp, maxHp: p1Data.maxHp }],
+        allies: [{ id: p2Data.id, username: p2Data.username, classId: p2Data.classId, hp: p2Data.hp, maxHp: p2Data.maxHp, isBoss: true }],
+      },
+    });
+
+    initialWs.send(payload);
+    this.broadcast();
+  }
+
+  private clampEntity(ent: { x: number; y: number }) {
+    ent.x = Math.max(40, Math.min(1160, ent.x));
+    ent.y = Math.max(40, Math.min(1160, ent.y));
   }
 
   broadcastBossSay(text: string) {
@@ -126,6 +405,18 @@ export class GameRoom extends DurableObject {
       type: "chat_bubble",
       playerId: "boss_dar",
       username: "Дар",
+      text,
+    });
+    for (const ws of [...this.sessions.keys()]) {
+      try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    }
+  }
+
+  broadcastFlowerSay(flowerId: string, name: string, text: string) {
+    const payload = JSON.stringify({
+      type: "chat_bubble",
+      playerId: flowerId,
+      username: name,
       text,
     });
     for (const ws of [...this.sessions.keys()]) {
@@ -216,9 +507,9 @@ export class GameRoom extends DurableObject {
       id: this.boss.id,
       username: this.boss.name,
       classId: "boss",
-      hp: this.boss.hp,
-      maxHp: this.boss.maxHp,
-      armor: this.boss.armor,
+      hp: this.boss.baseMaxHp,
+      maxHp: this.boss.baseMaxHp,
+      armor: this.boss.baseArmor,
       isBoss: true,
     };
 
@@ -242,8 +533,8 @@ export class GameRoom extends DurableObject {
         isBossFight: true,
         p1: { id: p1Data.id, username: p1Data.username, classId: p1Data.classId, hp: p1Data.hp, maxHp: p1Data.maxHp, armor: p1Data.armor },
         p2: { id: p2Data.id, username: p2Data.username, classId: p2Data.classId, hp: p2Data.hp, maxHp: p2Data.maxHp, armor: p2Data.armor, isBoss: true },
-        hunters: [{ id: p1Data.id, username: p1Data.username, classId: p1Data.classId, hp: p1Data.hp, maxHp: p1Data.maxHp }],
-        allies: [{ id: p2Data.id, username: p2Data.username, classId: p2Data.classId, hp: p2Data.hp, maxHp: p2Data.maxHp, isBoss: true }],
+        hunters: duelState.hunters.map((h) => ({ id: h.id, username: h.username, classId: h.classId, hp: h.hp, maxHp: h.maxHp, armor: h.armor })),
+        allies: duelState.allies.map((a) => ({ id: a.id, username: a.username, classId: a.classId, hp: a.hp, maxHp: a.maxHp, armor: a.armor, isBoss: a.isBoss })),
       },
     });
 
@@ -310,7 +601,7 @@ export class GameRoom extends DurableObject {
     this.broadcast();
   }
 
-broadcastDuelUpdate(duel: DuelState, log: string) {
+  broadcastDuelUpdate(duel: DuelState, log: string) {
     const payload = JSON.stringify({
       type: "duel_update",
       isBossFight: Boolean(duel.isBossFight),
@@ -353,6 +644,7 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
         this.boss.nextWanderTime = Date.now() + 3000;
         this.boss.nextWanderSayTime = Date.now() + 4000;
       }
+      this.boss.recalcPassives(null);
     }
 
     if (this.dar.duelId === duel.id) {
@@ -360,6 +652,13 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
       this.dar.duelId = null;
       if (this.dar.state !== "dead") {
         this.dar.state = "wander";
+      }
+    }
+
+    for (const flower of this.flowers.values()) {
+      if (flower.duelId === duel.id) {
+        flower.inDuel = false;
+        flower.duelId = undefined;
       }
     }
 
@@ -483,7 +782,53 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
           }
         }
 
-        // 5. Дуэль: вызов
+        // 5. Взаимодействие с цветком: Тронуть (Стадия 1 - Бутон)
+        if (msg.type === "touch_flower" && session && !session.inDuel) {
+          const flower = this.flowers.get(msg.flowerId);
+          if (flower && flower.stage === "bud") {
+            const dist = Math.hypot(session.x - flower.x, session.y - flower.y);
+            if (dist <= 120) {
+              session.stats.hp = Math.max(1, session.stats.hp - 1);
+              const touchPayload = JSON.stringify({
+                type: "flower_touched_notify",
+                targetId: session.id,
+                damage: 1,
+                hp: session.stats.hp,
+                maxHp: session.stats.maxHp
+              });
+              for (const ws of [...this.sessions.keys()]) {
+                try { ws.send(touchPayload); } catch (_) {}
+              }
+              this.broadcast();
+            }
+          }
+          return;
+        }
+
+        // 6. Взаимодействие с цветком: Сорвать (Стадия 2 - Созревший стебель)
+        if (msg.type === "pick_flower" && session && !session.inDuel) {
+          const flower = this.flowers.get(msg.flowerId);
+          if (flower && flower.stage === "mature") {
+            const dist = Math.hypot(session.x - flower.x, session.y - flower.y);
+            if (dist <= 120) {
+              this.flowers.delete(flower.id);
+              session.shield = (session.shield || 0) + 20;
+              const pickPayload = JSON.stringify({
+                type: "flower_picked_notify",
+                playerId: session.id,
+                flowerId: flower.id,
+                shield: session.shield
+              });
+              for (const ws of [...this.sessions.keys()]) {
+                try { ws.send(pickPayload); } catch (_) {}
+              }
+              this.broadcast();
+            }
+          }
+          return;
+        }
+
+        // 7. Дуэль: вызов
         if (msg.type === "duel_invite" && session && session.stats.classId && !session.inDuel) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
@@ -504,6 +849,14 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
             return;
           }
 
+          if (msg.targetId && this.flowers.has(msg.targetId)) {
+            const flower = this.flowers.get(msg.targetId)!;
+            if (flower.stage === "active" && !flower.inDuel) {
+              this.startFlowerBattle(session, server, flower);
+            }
+            return;
+          }
+
           for (const [targetWs, s] of this.sessions.entries()) {
             if (s.id === msg.targetId && s.stats.classId && !s.inDuel) {
               targetWs.send(JSON.stringify({ type: "duel_incoming", fromId: session.id, fromUsername: session.username }));
@@ -512,7 +865,7 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
           }
         }
 
-        // 6. Дуэль: отказ
+        // 8. Дуэль: отказ
         if (msg.type === "duel_decline") {
           for (const [targetWs, s] of this.sessions.entries()) {
             if (s.id === msg.targetId) {
@@ -522,7 +875,7 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
           }
         }
 
-        // 7. Дуэль: принятие
+        // 9. Дуэль: принятие
         if (msg.type === "duel_accept" && session && !session.inDuel) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
@@ -584,7 +937,7 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
           }
         }
 
-        // 8. Присоединение к бою босса
+        // 10. Присоединение к бою босса
         if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
@@ -639,19 +992,17 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
           }
         }
 
-        // 9. Действия боя
+        // 11. Действия боя
         if (msg.type === "duel_action" && session && session.inDuel && session.duelId) {
           const duel = this.activeDuels.get(session.duelId);
           if (!duel) return;
 
           const now = Date.now();
 
-          // 9.1. ПОБЕГ
           if (msg.action === "escape") {
             const { logText } = processCombatAction("escape", 1, session, duel, this.boss, msg.targetId);
             this.broadcastDuelUpdate(duel, logText);
 
-            // Проверка присутствия Дар в бою -> кричит "ТРУС!"
             const hasDar = duel.hunters.some((h) => h.id === this.dar.id) || duel.allies.some((a) => a.id === this.dar.id);
             if (hasDar) {
               this.dar.onPlayerEscaped((q) => this.broadcastDarSay(q));
@@ -746,6 +1097,16 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
                 this.dar.state = "dead";
                 this.dar.deathTime = Date.now();
                 this.endBossBattle(duel, "Охотники");
+              } else if (target.isFlower) {
+                this.flowers.delete(target.id);
+                this.broadcastDarSay("Вы мои умнички!");
+
+                duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
+                duel.allies = duel.allies.filter((a) => a.id !== target.id);
+
+                if (duel.allies.length === 0 || duel.hunters.length === 0) {
+                  this.endBossBattle(duel, "Победители");
+                }
               } else {
                 duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
                 duel.allies = duel.allies.filter((a) => a.id !== target.id);
@@ -760,7 +1121,7 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
           }
         }
 
-        // 10. Чат
+        // 12. Чат
         if (msg.type === "chat" && session && msg.text) {
           const cleanText = String(msg.text).trim().slice(0, 45);
           if (cleanText.length > 0) {
@@ -829,6 +1190,8 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
             inDuel: Boolean(s.inDuel),
             escapedUntil: s.escapedUntil || 0,
             rejoinBlockedUntil: s.rejoinBlockedUntil || 0,
+            dismoraleUntil: s.dismoraleUntil || 0,
+            shield: s.shield || 0,
             stats: s.stats,
           });
         }
@@ -839,6 +1202,7 @@ broadcastDuelUpdate(duel: DuelState, log: string) {
         players: Array.from(uniquePlayers.values()),
         boss: this.boss.getState(),
         dar: this.dar.getState(),
+        flowers: Array.from(this.flowers.values()),
       });
 
       for (const ws of [...this.sessions.keys()]) {

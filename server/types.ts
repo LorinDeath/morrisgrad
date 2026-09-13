@@ -1,3 +1,33 @@
+export type FlowerStage = "bud" | "mature" | "active";
+export type FlowerType = "normal" | "fire" | "frost" | "hell";
+
+export interface FlowerStats {
+  hp: number;
+  maxHp: number;
+  armor: number;
+  atk: number;
+}
+
+export interface FlowerState {
+  id: string;
+  x: number;
+  y: number;
+  stage: FlowerStage;
+  flowerType: FlowerType;
+  plantedAt: number;
+  stats: FlowerStats;
+  fearDistance: number; // 40–120м от Алтаря
+  inDuel: boolean;
+  duelId?: string;
+  dirX?: number;
+  dirY?: number;
+  targetPlayerId?: string | null;
+  wanderTargetX?: number;
+  wanderTargetY?: number;
+  nextWanderTime?: number;
+  nextScreamTime?: number;
+}
+
 export interface PlayerStats {
   classId: string | null;
   hp: number;
@@ -30,8 +60,19 @@ export interface DuelParticipant {
   hp: number;
   maxHp: number;
   armor: number;
+  attack?: number;
   shield?: number; // Прочность щита
   isBoss?: boolean;
+  isFlower?: boolean;
+  flowerType?: FlowerType;
+  burnTicks?: number; // Тики периодического урона от огня
+  burnDmg?: number;
+  frostUntil?: number; // Замедление замаха от мороза
+  atkSpeedBuffUntil?: number; // Бафф "Вселенская любовь"
+  atkBuffUntil?: number; // Бафф урона (Адский цветок)
+  atkBuffPct?: number;
+  dmgDebuffUntil?: number; // Дебафф урона цели (Пространственный разрез)
+  dmgDebuffPct?: number;
   ws?: WebSocket;
 }
 
