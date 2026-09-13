@@ -50,6 +50,15 @@ export class GameHUD {
           <div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width: 100%;"></div>
         </div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
+        
+        <!-- Индикатор дебафа Дизмораль -->
+        <div id="ghud-debuff-box" style="display: none; margin-top: 8px; padding: 6px 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 4px; font-size: 11px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #fca5a5; font-weight: bold;">💔 Дизмораль</span>
+            <b id="ghud-debuff-timer" style="color: #ef4444;">60c</b>
+          </div>
+          <div style="font-size: 10px; color: #fecaca; margin-top: 2px;">Урон снижен на 35%</div>
+        </div>
       </div>
 
       <div class="hud-card">
@@ -91,7 +100,7 @@ export class GameHUD {
 
       <div class="hud-card" id="ghud-target-card">
         <div class="hud-header">ЦЕЛЬ</div>
-        <div id="ghud-target-empty" class="hud-empty">Кликните по игроку или Кейт</div>
+        <div id="ghud-target-empty" class="hud-empty">Кликните по игроку, Кейт или Дар</div>
         <div id="ghud-target-details" style="display: none;">
           <div class="hud-target-title" id="ghud-target-name">Цель</div>
           <div class="hud-row"><span>Класс:</span><b id="ghud-target-class">-</b></div>
@@ -102,8 +111,8 @@ export class GameHUD {
           <button class="hud-duel-btn" id="ghud-duel-btn">⚔️ ВЫЗВАТЬ НА ДУЭЛЬ</button>
           
           <div id="ghud-boss-join-buttons" style="display: none; flex-direction: column; gap: 6px; margin-top: 6px;">
-            <button class="hud-duel-btn" id="ghud-join-hunters-btn" style="background: #dc2626; border-color: #f87171;">⚔️ Охотиться на Кейт</button>
-            <button class="hud-duel-btn" id="ghud-join-kate-btn" style="background: #ec4899; border-color: #f472b6;">💖 Защитить Кейт</button>
+            <button class="hud-duel-btn" id="ghud-join-hunters-btn" style="background: #dc2626; border-color: #f87171;">⚔️ Охотиться</button>
+            <button class="hud-duel-btn" id="ghud-join-kate-btn" style="background: #ec4899; border-color: #f472b6;">💖 Защитить</button>
           </div>
         </div>
       </div>
@@ -141,7 +150,8 @@ export class GameHUD {
     if (this.duelBtn) {
       this.duelBtn.onclick = () => {
         if (this.currentTarget && typeof this.onDuelInvite === 'function') {
-          this.onDuelInvite(this.currentTarget.id, this.currentTarget.username);
+          const targetId = this.currentTarget.isDar ? 'boss_dar' : this.currentTarget.id;
+          this.onDuelInvite(targetId, this.currentTarget.name || this.currentTarget.username);
         }
       };
     }
@@ -150,7 +160,7 @@ export class GameHUD {
     const kateBtn = rightSidebar.querySelector('#ghud-join-kate-btn');
 
     if (huntersBtn) huntersBtn.onclick = () => this.onJoinBossFight?.('hunters');
-    if (kateBtn) kateBtn.onclick = () => this.onJoinBossFight?.('kate');
+    if (kateBtn) kateBtn.onclick = () => this.onJoinBossFight?.('allies');
   }
 
   setTarget(target) {
@@ -166,6 +176,7 @@ export class GameHUD {
       player,
       otherPlayers,
       boss = null,
+      dar = null,
       worldPortals,
       activeNearPortal,
       camera,
@@ -199,7 +210,7 @@ export class GameHUD {
 
     if (myName) myName.textContent = username;
     if (myClass) {
-     const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
+      const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
       myClass.textContent = isMyBody ? (classMap[player.stats.classId] || 'Герой') : 'Душа [C]';
     }
 
@@ -207,6 +218,20 @@ export class GameHUD {
     const maxHp = player.stats?.maxHp || 100;
     if (hpBar) hpBar.style.width = `${Math.max(0, Math.min(100, (curHp / maxHp) * 100))}%`;
     if (hpVal) hpVal.textContent = `${curHp} / ${maxHp} HP`;
+
+    // Индикатор дебафа Дизмораль в боковой панели
+    const debuffBox = document.getElementById('ghud-debuff-box');
+    const debuffTimer = document.getElementById('ghud-debuff-timer');
+    if (debuffBox && debuffTimer) {
+      const now = Date.now();
+      if (player.dismoraleUntil && player.dismoraleUntil > now) {
+        debuffBox.style.display = 'block';
+        const leftSec = Math.ceil((player.dismoraleUntil - now) / 1000);
+        debuffTimer.textContent = `${leftSec}c`;
+      } else {
+        debuffBox.style.display = 'none';
+      }
+    }
 
     // 2. Рывок
     const dashStatus = document.getElementById('ghud-dash-status');
@@ -261,13 +286,12 @@ export class GameHUD {
     const tArmor = document.getElementById('ghud-target-armor');
     const tAtk = document.getElementById('ghud-target-atk');
     const bossJoinBtns = document.getElementById('ghud-boss-join-buttons');
-    const joinHuntersBtn = document.getElementById('ghud-join-hunters-btn');
-    const joinKateBtn = document.getElementById('ghud-join-kate-btn');
 
     if (this.currentTarget) {
       if (targetEmpty) targetEmpty.style.display = 'none';
       if (targetDetails) targetDetails.style.display = 'block';
 
+      // Кейт
       if (this.currentTarget.isBoss || this.currentTarget.id === 'boss_keyt') {
         const b = boss || this.currentTarget;
         if (tName) {
@@ -281,34 +305,30 @@ export class GameHUD {
         if (tAtk) tAtk.textContent = `${b.attack}`;
 
         if (this.duelBtn) this.duelBtn.style.display = 'none';
-        if (bossJoinBtns) {
-          bossJoinBtns.style.display = (b.inDuel && !player.inDuel) ? 'flex' : 'none';
-
-          if (isLocked) {
-            if (joinHuntersBtn) {
-              joinHuntersBtn.disabled = true;
-              joinHuntersBtn.style.opacity = '0.5';
-              joinHuntersBtn.textContent = `Восстановление (${lockSec}с)`;
-            }
-            if (joinKateBtn) {
-              joinKateBtn.disabled = true;
-              joinKateBtn.style.opacity = '0.5';
-              joinKateBtn.textContent = `Восстановление (${lockSec}с)`;
-            }
-          } else {
-            if (joinHuntersBtn) {
-              joinHuntersBtn.disabled = false;
-              joinHuntersBtn.style.opacity = '1';
-              joinHuntersBtn.textContent = '⚔️ Охотиться на Кейт';
-            }
-            if (joinKateBtn) {
-              joinKateBtn.disabled = false;
-              joinKateBtn.style.opacity = '1';
-              joinKateBtn.textContent = '💖 Защитить Кейт';
-            }
-          }
+        if (bossJoinBtns) bossJoinBtns.style.display = (b.inDuel && !player.inDuel) ? 'flex' : 'none';
+      }
+      // Дар
+      else if (this.currentTarget.isDar || this.currentTarget.id === 'boss_dar') {
+        const d = dar || this.currentTarget;
+        if (tName) {
+          tName.textContent = 'Дар';
+          tName.style.color = '#34d399';
         }
-      } else if (otherPlayers.has(this.currentTarget.username?.toLowerCase())) {
+        if (tClass) tClass.textContent = 'Трикстер';
+        if (tHp) tHp.textContent = `${d.hp} / ${d.maxHp}`;
+        const redPct = (getArmorReduction(d.armor) * 100).toFixed(1);
+        if (tArmor) tArmor.textContent = `${d.armor} (${redPct}%)`;
+        if (tAtk) tAtk.textContent = `5 - 25`;
+
+        if (this.duelBtn) {
+          this.duelBtn.style.display = 'block';
+          this.duelBtn.textContent = '⚔️ ВЫЗВАТЬ ДАР';
+          this.duelBtn.className = 'hud-duel-btn';
+        }
+        if (bossJoinBtns) bossJoinBtns.style.display = (d.inDuel && !player.inDuel) ? 'flex' : 'none';
+      }
+      // Другие игроки
+      else if (otherPlayers.has(this.currentTarget.username?.toLowerCase())) {
         const p = otherPlayers.get(this.currentTarget.username.toLowerCase());
         if (bossJoinBtns) bossJoinBtns.style.display = 'none';
         if (this.duelBtn) this.duelBtn.style.display = 'block';
@@ -318,7 +338,7 @@ export class GameHUD {
           tName.style.color = '#ffd700';
         }
 
-        const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик' };
+        const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
         const tClassId = p.stats?.classId;
         if (tClass) tClass.textContent = tClassId ? (classMap[tClassId] || tClassId) : 'Душа (нет тела)';
         if (tHp) tHp.textContent = `${p.stats?.hp || 100} / ${p.stats?.maxHp || 100}`;
@@ -359,7 +379,7 @@ export class GameHUD {
         const bDistPx = Math.hypot(player.x - boss.x, player.y - boss.y);
         if (bDistPx <= 500) {
           nearbyList.push({
-            isBoss: true,
+            type: 'boss',
             title: 'Кейт',
             color: '#f472b6',
             meters: (bDistPx / 20).toFixed(1),
@@ -369,11 +389,25 @@ export class GameHUD {
         }
       }
 
+      if (dar && dar.state !== 'dead') {
+        const dDistPx = Math.hypot(player.x - dar.x, player.y - dar.y);
+        if (dDistPx <= 500) {
+          nearbyList.push({
+            type: 'dar',
+            title: 'Дар',
+            color: '#34d399',
+            meters: (dDistPx / 20).toFixed(1),
+            distPx: dDistPx,
+            raw: dar,
+          });
+        }
+      }
+
       otherPlayers.forEach((p) => {
         const distPx = Math.hypot(player.x - p.x, player.y - p.y);
         if (distPx <= 400) {
           nearbyList.push({
-            isBoss: false,
+            type: 'player',
             title: p.username,
             color: p.color || '#38bdf8',
             meters: (distPx / 20).toFixed(1),
@@ -389,7 +423,7 @@ export class GameHUD {
         nearbyBox.innerHTML = `<span class="hud-empty">Никого нет поблизости</span>`;
       } else {
         nearbyBox.innerHTML = nearbyList.map((item) => `
-          <div class="hud-nearby-item" data-type="${item.isBoss ? 'boss' : 'player'}" data-id="${item.title}">
+          <div class="hud-nearby-item" data-type="${item.type}" data-id="${item.title}">
             <span style="color: ${item.color}">${item.title}</span>
             <b>${item.meters} м</b>
           </div>
@@ -397,9 +431,11 @@ export class GameHUD {
 
         nearbyBox.querySelectorAll('.hud-nearby-item').forEach((el) => {
           el.onclick = () => {
-            const isB = el.getAttribute('data-type') === 'boss';
-            if (isB && boss) {
+            const t = el.getAttribute('data-type');
+            if (t === 'boss' && boss) {
               this.setTarget({ ...boss, isBoss: true });
+            } else if (t === 'dar' && dar) {
+              this.setTarget({ ...dar, isDar: true });
             } else {
               const nick = el.getAttribute('data-id')?.toLowerCase();
               if (nick && otherPlayers.has(nick)) {

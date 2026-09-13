@@ -50,7 +50,6 @@ export class DuelManager {
     this.container.appendChild(this.classModal);
     this.classModal.querySelector('#close-class-btn').onclick = () => this.closeClassSelect();
 
-    // Рендерим карточки динамически из общего объекта CLASSES
     this.renderClassCards();
   }
 
@@ -79,7 +78,7 @@ export class DuelManager {
   }
 
   openClassSelect() {
-    this.renderClassCards(); // Гарантирует актуальность данных при открытии алтаря
+    this.renderClassCards();
     this.isClassSelectOpen = true;
     this.classModal.style.display = 'flex';
   }
@@ -330,6 +329,7 @@ export class DuelManager {
     const enemiesBox = this.arenaModal.querySelector('#arena-enemies-list');
     const alliesBox = this.arenaModal.querySelector('#arena-allies-list');
 
+    // 1. ВРАГИ (СВЕРХУ)
     enemiesBox.innerHTML = '';
     this.enemies.forEach((enemy) => {
       const isSelected = enemy.id === this.selectedTargetId;
@@ -344,18 +344,23 @@ export class DuelManager {
       `;
 
       const maxHpVal = enemy.maxHp || 100;
-      const pct = Math.max(0, Math.min(100, (enemy.hp / maxHpVal) * 100));
-      const displayName = enemy.isBoss ? 'Кейт' : enemy.username;
+      const hpPct = Math.max(0, Math.min(100, (enemy.hp / maxHpVal) * 100));
+      const shieldVal = enemy.shield || 0;
+      const shieldPct = Math.min(100, (shieldVal / maxHpVal) * 100);
+      const displayName = enemy.isBoss ? (enemy.id === 'boss_dar' ? 'Дар' : 'Кейт') : enemy.username;
 
       card.innerHTML = `
         <div style="font-size: 11px; font-weight: bold; color: ${isSelected ? '#ef4444' : '#f87171'}; display: flex; justify-content: space-between;">
           <span>${displayName}</span>
           ${isSelected ? '<span>🎯</span>' : ''}
         </div>
-        <div style="background: #241a36; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
-          <div style="background: #ef4444; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
+        <div style="background: #241a36; height: 7px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0; position: relative;">
+          <div style="background: #ef4444; width: ${hpPct}%; height: 100%; transition: width 0.2s;"></div>
+          ${shieldVal > 0 ? `<div style="position: absolute; top: 0; left: 0; background: #38bdf8; width: ${shieldPct}%; height: 100%; box-shadow: 0 0 8px #38bdf8; opacity: 0.9; transition: width 0.2s;"></div>` : ''}
         </div>
-        <div style="font-size: 10px; color: #cbd5e1; text-align: right;">${Math.max(0, enemy.hp)} / ${maxHpVal} HP</div>
+        <div style="font-size: 10px; color: #cbd5e1; text-align: right;">
+          ${Math.max(0, enemy.hp)} / ${maxHpVal} HP ${shieldVal > 0 ? `<span style="color:#38bdf8; font-weight:bold;">(+${shieldVal} 🛡️)</span>` : ''}
+        </div>
       `;
 
       if (!isDead) {
@@ -367,6 +372,7 @@ export class DuelManager {
       enemiesBox.appendChild(card);
     });
 
+    // 2. СОЮЗНИКИ И ВЫ (СНИЗУ)
     alliesBox.innerHTML = '';
     this.allies.forEach((ally) => {
       const isMe = this.me && (ally.id === this.me.id || ally.username === this.me.username);
@@ -375,25 +381,30 @@ export class DuelManager {
       card.style.cssText = `
         flex: 1; min-width: 135px;
         background: ${isMe ? '#0f2419' : '#0e172a'};
-        border: 2px solid ${isMe ? '#22c55e' : (ally.isBoss ? '#f472b6' : '#38bdf8')};
+        border: 2px solid ${isMe ? '#22c55e' : (ally.isBoss ? (ally.id === 'boss_dar' ? '#34d399' : '#f472b6') : '#38bdf8')};
         border-radius: 6px; padding: 6px 8px;
         opacity: ${isDead ? '0.35' : '1'};
       `;
 
       const maxHpVal = ally.maxHp || 100;
-      const pct = Math.max(0, Math.min(100, (ally.hp / maxHpVal) * 100));
+      const hpPct = Math.max(0, Math.min(100, (ally.hp / maxHpVal) * 100));
+      const shieldVal = ally.shield || 0;
+      const shieldPct = Math.min(100, (shieldVal / maxHpVal) * 100);
       const displayName = isMe
         ? `Вы (${ally.username})`
-        : (ally.isBoss ? 'Кейт [СОЮЗНИК]' : ally.username);
+        : (ally.isBoss ? (ally.id === 'boss_dar' ? 'Дар [СОЮЗНИК]' : 'Кейт [СОЮЗНИК]') : ally.username);
 
       card.innerHTML = `
-        <div style="font-size: 11px; font-weight: bold; color: ${isMe ? '#4ade80' : (ally.isBoss ? '#f472b6' : '#38bdf8')};">
+        <div style="font-size: 11px; font-weight: bold; color: ${isMe ? '#4ade80' : (ally.isBoss ? (ally.id === 'boss_dar' ? '#34d399' : '#f472b6') : '#38bdf8')};">
           ${displayName}
         </div>
-        <div style="background: #172554; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0;">
-          <div style="background: ${isMe ? '#22c55e' : (ally.isBoss ? '#f472b6' : '#38bdf8')}; width: ${pct}%; height: 100%; transition: width 0.2s;"></div>
+        <div style="background: #172554; height: 7px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px 0; position: relative;">
+          <div style="background: ${isMe ? '#22c55e' : (ally.isBoss ? (ally.id === 'boss_dar' ? '#34d399' : '#f472b6') : '#38bdf8')}; width: ${hpPct}%; height: 100%; transition: width 0.2s;"></div>
+          ${shieldVal > 0 ? `<div style="position: absolute; top: 0; left: 0; background: #38bdf8; width: ${shieldPct}%; height: 100%; box-shadow: 0 0 8px #38bdf8; opacity: 0.9; transition: width 0.2s;"></div>` : ''}
         </div>
-        <div style="font-size: 10px; color: #94a3b8; text-align: right;">${Math.max(0, ally.hp)} / ${maxHpVal} HP</div>
+        <div style="font-size: 10px; color: #94a3b8; text-align: right;">
+          ${Math.max(0, ally.hp)} / ${maxHpVal} HP ${shieldVal > 0 ? `<span style="color:#38bdf8; font-weight:bold;">(+${shieldVal} 🛡️)</span>` : ''}
+        </div>
       `;
 
       alliesBox.appendChild(card);
@@ -460,12 +471,12 @@ export class DuelManager {
         abBtn.disabled = true;
         abBtn.style.opacity = '0.5';
         abBtn.style.cursor = 'not-allowed';
-        abBtn.textContent = `${myClass.ability.name} (${this.abilityCooldown.toFixed(1)}c)`;
+        abBtn.textContent = `${myClass.ability?.name || 'Способность'} (${this.abilityCooldown.toFixed(1)}c)`;
       } else {
         abBtn.disabled = false;
         abBtn.style.opacity = '1';
         abBtn.style.cursor = 'pointer';
-        abBtn.textContent = `${myClass.ability.name} [Готово]`;
+        abBtn.textContent = `${myClass.ability?.name || 'Способность'} [Готово]`;
       }
     }, 100);
   }

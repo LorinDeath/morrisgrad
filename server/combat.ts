@@ -32,9 +32,14 @@ export function processCombatAction(
 
   const classConfig = getClassConfig(session.stats.classId);
   const { minAtk, maxAtk } = classConfig.stats;
-  const baseDmg = Math.floor(Math.random() * (maxAtk - minAtk + 1)) + minAtk;
-  const chargeMult = Math.min(3.0, Math.max(0.2, Number(chargeMultRaw || 1)));
+  let baseDmg = Math.floor(Math.random() * (maxAtk - minAtk + 1)) + minAtk;
 
+  const isDismoraled = Boolean(session.dismoraleUntil && Date.now() < session.dismoraleUntil);
+  if (isDismoraled) {
+    baseDmg = Math.max(1, Math.round(baseDmg * 0.65));
+  }
+
+  const chargeMult = Math.min(3.0, Math.max(0.2, Number(chargeMultRaw || 1)));
   const isHunter = duel.hunters.some((h) => h.id === session.id);
   const targetList = isHunter ? duel.allies : duel.hunters;
 
@@ -44,15 +49,15 @@ export function processCombatAction(
     return { finalDmg: 0, logText: "Нет доступных целей", isDead: false };
   }
 
-  const targetName = target.isBoss ? "Кейт" : target.username;
-  let finalDmg = 0;
+  const targetName = target.isBoss ? target.username : target.username;
+  let rawIncomingDmg = 0;
   let logText = "";
 
   if (action === "attack") {
     const rawDmg = baseDmg * chargeMult;
     const reduction = calcArmorReduction(target.armor);
-    finalDmg = Math.max(1, Math.round(rawDmg * (1 - reduction)));
-    logText = `<b>${session.username}</b> нанёс <span style="color:#ef4444">${finalDmg}</span> урона по <b>${targetName}</b> [x${chargeMult}]!`;
+    rawIncomingDmg = Math.max(1, Math.round(rawDmg * (1 - reduction)));
+    logText = `<b>${session.username}</b> нанёс <span style="color:#ef4444">${rawIncomingDmg}</span> урона по <b>${targetName}</b> [x${chargeMult}]!`;
   } else if (action === "ability") {
     const skill = getSkill(classConfig.abilityId);
     const result = skill.execute({
@@ -64,7 +69,7 @@ export function processCombatAction(
       boss,
     });
 
-    finalDmg = result.damage;
+    rawIncomingDmg = result.damage;
     logText = result.logText;
 
     if (result.heal > 0) {
@@ -72,14 +77,32 @@ export function processCombatAction(
     }
   }
 
-  target.hp = Math.max(0, target.hp - finalDmg);
+  // Механика поглощения щитом
+  const targetShield = target.shield || 0;
+  let hpDmg = rawIncomingDmg;
+  let shieldAbsorbed = 0;
 
-  if (target.isBoss && boss) {
+  if (targetShield > 0) {
+    if (targetShield >= hpDmg) {
+      shieldAbsorbed = hpDmg;
+      target.shield = targetShield - hpDmg;
+      hpDmg = 0;
+    } else {
+      shieldAbsorbed = targetShield;
+      hpDmg -= targetShield;
+      target.shield = 0;
+    }
+    logText += ` <span style="color:#38bdf8; font-weight:bold;">[🛡️ Щит поглотил: ${shieldAbsorbed}]</span>`;
+  }
+
+  target.hp = Math.max(0, target.hp - hpDmg);
+
+  if (target.isBoss && boss && target.id === boss.id) {
     boss.hp = target.hp;
   }
 
   return {
-    finalDmg,
+    finalDmg: hpDmg,
     logText,
     isDead: target.hp <= 0,
     target,

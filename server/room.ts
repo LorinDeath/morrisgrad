@@ -5,24 +5,49 @@ import { KeytBoss } from "./boss";
 import type { Session, DuelState } from "./types";
 import { CHARACTER_CLASSES } from "./classes";
 import { getSkill } from "./skills";
+import { DarBoss } from "./dar";
 
 export class GameRoom extends DurableObject {
   sessions: Map<WebSocket, Session>;
   activeDuels: Map<string, DuelState>;
   boss: KeytBoss;
+  dar: DarBoss;
   lastTick = Date.now();
+  lastHealTick = Date.now();
 
   constructor(ctx: any, env: any) {
     super(ctx, env);
     this.sessions = new Map();
     this.activeDuels = new Map();
     this.boss = new KeytBoss();
+    this.dar = new DarBoss();
 
     setInterval(() => {
       const now = Date.now();
       const dt = (now - this.lastTick) / 1000;
       this.lastTick = now;
 
+      // 1. Пассивное лечение у Алтаря Перевоплощения (x: 565, y: 600, радиус 80px)
+      if (now - this.lastHealTick >= 1000) {
+        this.lastHealTick = now;
+        let anyHealed = false;
+
+        for (const s of this.sessions.values()) {
+          if (s.stats.classId && !s.inDuel) {
+            const dist = Math.hypot(s.x - 565, s.y - 600);
+            if (dist <= 80 && s.stats.hp < s.stats.maxHp) {
+              s.stats.hp = Math.min(s.stats.maxHp, s.stats.hp + 1);
+              anyHealed = true;
+            }
+          }
+        }
+
+        if (anyHealed) {
+          this.broadcast();
+        }
+      }
+
+      // 2. Обновление Кейт
       this.boss.update(
         dt,
         this.sessions,
@@ -31,7 +56,53 @@ export class GameRoom extends DurableObject {
         (duel, log) => this.broadcastDuelUpdate(duel, log),
         (duel, winner) => this.endBossBattle(duel, winner),
         (quote) => this.broadcastBossSay(quote),
-        (duel, action) => this.handleBossIntervention(duel, action)
+        (duel, action) => {
+          // Если Кейт вмешивается в бой, где есть Дар, она ВСЕГДА выбирает команду игроков!
+          const hasDar = duel.hunters.some((h) => h.id === "boss_dar") || duel.allies.some((a) => a.id === "boss_dar");
+          if (hasDar) {
+            const darSide = duel.allies.some((a) => a.id === "boss_dar") ? duel.allies : duel.hunters;
+            const playerSide = darSide === duel.allies ? duel.hunters : duel.allies;
+            playerSide.push({
+              id: this.boss.id,
+              username: this.boss.name,
+              classId: "boss",
+              hp: this.boss.hp,
+              maxHp: this.boss.maxHp,
+              armor: this.boss.armor,
+              isBoss: true,
+            });
+            this.boss.inDuel = true;
+            this.boss.duelId = duel.id;
+            this.boss.state = "combat";
+            this.broadcastDuelUpdate(duel, `<span style="color:#f472b6; font-weight:bold;">Кейт: «Я с вами против этой козявки!»</span> — присоединилась к игрокам!`);
+            return;
+          }
+          this.handleBossIntervention(duel, action);
+        }
+      );
+
+      // 3. Обновление Дар
+      this.dar.update(
+        dt,
+        this.sessions,
+        this.activeDuels,
+        (quote) => this.broadcastDarSay(quote),
+        (targetSession, dmg) => this.triggerDarSurpriseHit(targetSession, dmg),
+        (duel, side, yell) => {
+          const p = {
+            id: this.dar.id,
+            username: this.dar.name,
+            classId: "boss_dar",
+            hp: this.dar.hp,
+            maxHp: this.dar.maxHp,
+            armor: this.dar.armor,
+            isBoss: true,
+          };
+          duel[side].push(p);
+          this.broadcastDuelUpdate(duel, yell);
+        },
+        (duel, log) => this.broadcastDuelUpdate(duel, log),
+        (duel, winner) => this.endBossBattle(duel, winner)
       );
 
       this.broadcast();
@@ -48,6 +119,33 @@ export class GameRoom extends DurableObject {
     for (const ws of [...this.sessions.keys()]) {
       try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
     }
+  }
+
+  broadcastDarSay(text: string) {
+    const payload = JSON.stringify({
+      type: "chat_bubble",
+      playerId: "boss_dar",
+      username: "Дар",
+      text,
+    });
+    for (const ws of [...this.sessions.keys()]) {
+      try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    }
+  }
+
+  triggerDarSurpriseHit(targetSession: Session, dmg: number) {
+    targetSession.stats.hp = Math.max(1, targetSession.stats.hp - dmg);
+    const payload = JSON.stringify({
+      type: "dar_surprise_hit",
+      targetId: targetSession.id,
+      damage: dmg,
+      hp: targetSession.stats.hp,
+      maxHp: targetSession.stats.maxHp,
+    });
+    for (const ws of [...this.sessions.keys()]) {
+      try { ws.send(payload); } catch (_) {}
+    }
+    this.broadcast();
   }
 
   handleBossIntervention(duel: DuelState, action: "join" | "kiss") {
@@ -153,12 +251,71 @@ export class GameRoom extends DurableObject {
     this.broadcast();
   }
 
-  broadcastDuelUpdate(duel: DuelState, log: string) {
+  startDarDuel(initialPlayer: Session, initialWs: WebSocket) {
+    if (!initialPlayer.stats.classId) return;
+
+    const duelId = "dar_duel_" + crypto.randomUUID();
+    initialPlayer.inDuel = true;
+    initialPlayer.duelId = duelId;
+
+    this.dar.inDuel = true;
+    this.dar.duelId = duelId;
+    this.dar.state = "combat";
+
+    const p1Data = {
+      id: initialPlayer.id,
+      username: initialPlayer.username,
+      classId: initialPlayer.stats.classId,
+      hp: initialPlayer.stats.hp,
+      maxHp: initialPlayer.stats.maxHp,
+      armor: initialPlayer.stats.armor,
+      ws: initialWs,
+    };
+
+    const p2Data = {
+      id: this.dar.id,
+      username: this.dar.name,
+      classId: "boss_dar",
+      hp: this.dar.hp,
+      maxHp: this.dar.maxHp,
+      armor: this.dar.armor,
+      isBoss: true,
+    };
+
+    const duelState: DuelState = {
+      id: duelId,
+      isBossFight: true,
+      hunters: [p1Data],
+      allies: [p2Data],
+      p1: p1Data,
+      p2: p2Data,
+    };
+
+    this.activeDuels.set(duelId, duelState);
+
+    const payload = JSON.stringify({
+      type: "duel_start",
+      isBossFight: true,
+      duel: {
+        id: duelId,
+        isBossFight: true,
+        p1: { id: p1Data.id, username: p1Data.username, classId: p1Data.classId, hp: p1Data.hp, maxHp: p1Data.maxHp, armor: p1Data.armor },
+        p2: { id: p2Data.id, username: p2Data.username, classId: p2Data.classId, hp: p2Data.hp, maxHp: p2Data.maxHp, armor: p2Data.armor, isBoss: true },
+        hunters: [{ id: p1Data.id, username: p1Data.username, classId: p1Data.classId, hp: p1Data.hp, maxHp: p1Data.maxHp }],
+        allies: [{ id: p2Data.id, username: p2Data.username, classId: p2Data.classId, hp: p2Data.hp, maxHp: p2Data.maxHp, isBoss: true }],
+      },
+    });
+
+    initialWs.send(payload);
+    this.broadcast();
+  }
+
+broadcastDuelUpdate(duel: DuelState, log: string) {
     const payload = JSON.stringify({
       type: "duel_update",
       isBossFight: Boolean(duel.isBossFight),
-      hunters: duel.hunters.map((h) => ({ id: h.id, username: h.username, hp: h.hp, maxHp: h.maxHp, armor: h.armor, classId: h.classId })),
-      allies: duel.allies.map((a) => ({ id: a.id, username: a.username, hp: a.hp, maxHp: a.maxHp, armor: a.armor, classId: a.classId, isBoss: a.isBoss })),
+      hunters: duel.hunters.map((h) => ({ id: h.id, username: h.username, hp: h.hp, maxHp: h.maxHp, armor: h.armor, classId: h.classId, shield: h.shield || 0 })),
+      allies: duel.allies.map((a) => ({ id: a.id, username: a.username, hp: a.hp, maxHp: a.maxHp, armor: a.armor, classId: a.classId, isBoss: a.isBoss, shield: a.shield || 0 })),
       p1Hp: duel.hunters[0]?.hp || 0,
       p2Hp: duel.allies[0]?.hp || 0,
       log,
@@ -195,6 +352,14 @@ export class GameRoom extends DurableObject {
         this.boss.state = "wander";
         this.boss.nextWanderTime = Date.now() + 3000;
         this.boss.nextWanderSayTime = Date.now() + 4000;
+      }
+    }
+
+    if (this.dar.duelId === duel.id) {
+      this.dar.inDuel = false;
+      this.dar.duelId = null;
+      if (this.dar.state !== "dead") {
+        this.dar.state = "wander";
       }
     }
 
@@ -326,6 +491,19 @@ export class GameRoom extends DurableObject {
             return;
           }
 
+          if (msg.targetId === "boss_dar") {
+            const roll = Math.random();
+            if (roll < 0.2) {
+              this.broadcastDarSay("Ладно уговорил");
+              this.startDarDuel(session, server);
+            } else {
+              const declineQuotes = ["Я пацифист", "Идите нафиг"];
+              this.broadcastDarSay(declineQuotes[Math.floor(Math.random() * declineQuotes.length)]);
+              server.send(JSON.stringify({ type: "duel_declined_notify", targetNick: "Дар" }));
+            }
+            return;
+          }
+
           for (const [targetWs, s] of this.sessions.entries()) {
             if (s.id === msg.targetId && s.stats.classId && !s.inDuel) {
               targetWs.send(JSON.stringify({ type: "duel_incoming", fromId: session.id, fromUsername: session.username }));
@@ -406,15 +584,16 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 8. Присоединение к бою Кейт
-        if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && this.boss.inDuel && this.boss.duelId) {
+        // 8. Присоединение к бою босса
+        if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
             server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
             return;
           }
 
-          const duel = this.activeDuels.get(this.boss.duelId);
+          const targetDuelId = this.boss.duelId || this.dar.duelId;
+          const duel = targetDuelId ? this.activeDuels.get(targetDuelId) : null;
           if (duel) {
             session.inDuel = true;
             session.duelId = duel.id;
@@ -431,14 +610,14 @@ export class GameRoom extends DurableObject {
             };
 
             let yellLog = "";
-            if (msg.side === "kate") {
+            if (msg.side === "kate" || msg.side === "allies") {
               duel.allies.push(participant);
               this.boss.recalcPassives(duel);
-              yellLog = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Мой прекрасный друг!»</span> — <b>${session.username}</b> встал на сторону Кейт!`;
+              yellLog = `<b>${session.username}</b> встал на сторону защитников!`;
             } else {
               duel.hunters.push(participant);
               this.boss.recalcPassives(duel);
-              yellLog = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Какое мерзкое создание!»</span> — <b>${session.username}</b> присоединился к охоте на Кейт!`;
+              yellLog = `<b>${session.username}</b> присоединился к охотникам!`;
             }
 
             const payload = JSON.stringify({
@@ -467,9 +646,18 @@ export class GameRoom extends DurableObject {
 
           const now = Date.now();
 
+          // 9.1. ПОБЕГ
           if (msg.action === "escape") {
             const { logText } = processCombatAction("escape", 1, session, duel, this.boss, msg.targetId);
             this.broadcastDuelUpdate(duel, logText);
+
+            // Проверка присутствия Дар в бою -> кричит "ТРУС!"
+            const hasDar = duel.hunters.some((h) => h.id === this.dar.id) || duel.allies.some((a) => a.id === this.dar.id);
+            if (hasDar) {
+              this.dar.onPlayerEscaped((q) => this.broadcastDarSay(q));
+            } else if (duel.isBossFight) {
+              this.broadcastBossSay("Убежал(");
+            }
 
             if (!duel.isBossFight) {
               const isP1 = duel.p1.id === session.id;
@@ -489,13 +677,12 @@ export class GameRoom extends DurableObject {
               this.activeDuels.delete(duel.id);
               this.boss.onPlayerDuelFinished(otherParticipant.username, (q) => this.broadcastBossSay(q));
             } else {
-              this.broadcastBossSay("Убежал(");
               duel.hunters = duel.hunters.filter((h) => h.id !== session.id);
               duel.allies = duel.allies.filter((a) => a.id !== session.id);
               this.boss.recalcPassives(duel);
 
               if (duel.hunters.length === 0) {
-                this.endBossBattle(duel, "Кейт");
+                this.endBossBattle(duel, "Защитники");
               }
             }
 
@@ -551,9 +738,13 @@ export class GameRoom extends DurableObject {
               this.activeDuels.delete(duel.id);
               this.boss.onPlayerDuelFinished(session.username, (q) => this.broadcastBossSay(q));
             } else {
-              if (target.isBoss) {
+              if (target.id === this.boss.id) {
                 this.boss.state = "dead";
                 this.boss.deathTime = Date.now();
+                this.endBossBattle(duel, "Охотники");
+              } else if (target.id === this.dar.id) {
+                this.dar.state = "dead";
+                this.dar.deathTime = Date.now();
                 this.endBossBattle(duel, "Охотники");
               } else {
                 duel.hunters = duel.hunters.filter((h) => h.id !== target.id);
@@ -561,7 +752,7 @@ export class GameRoom extends DurableObject {
                 this.boss.recalcPassives(duel);
 
                 if (duel.hunters.length === 0) {
-                  this.endBossBattle(duel, "Кейт и её союзники");
+                  this.endBossBattle(duel, "Защитники");
                 }
               }
             }
@@ -647,6 +838,7 @@ export class GameRoom extends DurableObject {
         type: "players_state",
         players: Array.from(uniquePlayers.values()),
         boss: this.boss.getState(),
+        dar: this.dar.getState(),
       });
 
       for (const ws of [...this.sessions.keys()]) {

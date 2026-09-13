@@ -9,6 +9,7 @@ import {
   SPRITES,
   campfireImg,
   keytImg,
+  darImg,
   createArtDecoPattern,
   drawCharacterShadow,
   drawCharacterSprite,
@@ -23,7 +24,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   const WORLD_SIZE = 1200;
   let floorPattern = null;
 
-function updateCanvasResolution() {
+  function updateCanvasResolution() {
     const isMobile = isMobileDevice();
 
     if (isMobile) {
@@ -89,6 +90,26 @@ function updateCanvasResolution() {
     bubble: { text: '', expireAt: 0 }
   };
 
+  const dar = {
+    x: 300,
+    y: 300,
+    targetX: 300,
+    targetY: 300,
+    dirX: 0,
+    dirY: 1,
+    state: 'wander',
+    isMoving: false,
+    hp: 400,
+    maxHp: 400,
+    armor: 20,
+    attack: 15,
+    inDuel: false,
+    bubble: { text: '', expireAt: 0 }
+  };
+
+  let surpriseFlashTimer = 0;
+  const floatingTexts = [];
+
   const dash = {
     active: false,
     timer: 0,
@@ -109,6 +130,7 @@ function updateCanvasResolution() {
     color: '#ffffff',
     inDuel: false,
     escapedUntil: 0,
+    dismoraleUntil: 0,
     stats: { ...DEFAULT_STATS, moveSpeed: 175 },
     bubble: { text: '', expireAt: 0 }
   };
@@ -151,7 +173,7 @@ function updateCanvasResolution() {
       }
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'duel_invite', targetId }));
-        showToast(`Вызов на дуэль отправлен ${targetNick}`);
+        showToast(`Вызов на дуэль отправлен: ${targetNick}`);
       }
     },
     (side) => {
@@ -376,7 +398,8 @@ function updateCanvasResolution() {
         socket.close();
         return;
       }
-if (data.type === 'welcome') {
+
+      if (data.type === 'welcome') {
         myNetworkId = data.myId;
         if (data.portals) worldPortals = data.portals;
         if (data.classes) {
@@ -384,6 +407,7 @@ if (data.type === 'welcome') {
           duelManager.renderClassCards();
         }
       }
+
       if (data.type === 'open_class_selection') {
         resetKeys();
         duelManager.openClassSelect();
@@ -423,6 +447,37 @@ if (data.type === 'welcome') {
         duelManager.escapeBattle();
       }
 
+      // Сюрприз-атака Дар: вспышка и всплывающий урон
+      if (data.type === 'dar_surprise_hit') {
+        let hitX = player.x;
+        let hitY = player.y;
+
+        if (data.targetId === myNetworkId) {
+          surpriseFlashTimer = 0.45; // Яркая вспышка на весь экран
+          if (data.hp !== undefined) player.stats.hp = data.hp;
+          hitX = player.x;
+          hitY = player.y;
+        } else {
+          for (const other of otherPlayers.values()) {
+            if (other.id === data.targetId) {
+              hitX = other.x;
+              hitY = other.y;
+              if (data.hp !== undefined && other.stats) other.stats.hp = data.hp;
+              break;
+            }
+          }
+        }
+
+        floatingTexts.push({
+          text: `💥 Тыдыщ! -${data.damage}`,
+          x: hitX,
+          y: hitY - 45,
+          vy: -32,
+          color: '#ef4444',
+          expireAt: Date.now() + 1600
+        });
+      }
+
       if (data.type === 'toast_error') {
         showToast(data.message);
       }
@@ -437,6 +492,11 @@ if (data.type === 'welcome') {
 
         if (data.playerId === 'boss_keyt' || targetNick === 'кейт') {
           boss.bubble = { text: data.text, expireAt: Date.now() + 4500 };
+          return;
+        }
+
+        if (data.playerId === 'boss_dar' || targetNick === 'дар') {
+          dar.bubble = { text: data.text, expireAt: Date.now() + 4500 };
           return;
         }
 
@@ -476,15 +536,55 @@ if (data.type === 'welcome') {
           boss.duelId = data.boss.duelId;
         }
 
+        if (data.dar) {
+          dar.targetX = data.dar.x;
+          dar.targetY = data.dar.y;
+          dar.dirX = data.dar.dirX;
+          dar.dirY = data.dar.dirY;
+          dar.state = data.dar.state;
+          dar.hp = data.dar.hp;
+          dar.maxHp = data.dar.maxHp;
+          dar.armor = data.dar.armor;
+          dar.attack = data.dar.attack;
+          dar.inDuel = data.dar.inDuel;
+          dar.duelId = data.dar.duelId;
+        }
+
         const activeNicks = new Set();
         const myNameLower = (username || '').trim().toLowerCase();
 
         data.players.forEach((p) => {
           const pNameLower = (p.username || '').trim().toLowerCase();
+
+          // Синхронизация своего персонажа
           if (p.id === myNetworkId || pNameLower === myNameLower) {
             player.inDuel = Boolean(p.inDuel);
             if (p.escapedUntil) player.escapedUntil = p.escapedUntil;
             if (p.color) player.color = p.color;
+
+            // Отслеживание наложения дебафа Дизмораль
+            if (p.dismoraleUntil) {
+              if (!player.dismoraleUntil || player.dismoraleUntil <= Date.now()) {
+                showToast('Дар наложила на вас «Дизмораль»! (-35% урона)');
+              }
+              player.dismoraleUntil = p.dismoraleUntil;
+            }
+
+            // Синхронизация здоровья и визуальный отклик лечения у Алтаря
+            if (p.stats) {
+              if (player.stats && p.stats.hp > player.stats.hp && !player.inDuel) {
+                const healAmt = p.stats.hp - player.stats.hp;
+                floatingTexts.push({
+                  text: `+${healAmt} HP`,
+                  x: player.x,
+                  y: player.y - 45,
+                  vy: -25,
+                  color: '#4ade80',
+                  expireAt: Date.now() + 1300
+                });
+              }
+              player.stats = { ...player.stats, ...p.stats };
+            }
             return;
           }
 
@@ -498,6 +598,7 @@ if (data.type === 'welcome') {
             cur.color = p.color || '#38bdf8';
             cur.inDuel = Boolean(p.inDuel);
             cur.escapedUntil = p.escapedUntil || 0;
+            cur.dismoraleUntil = p.dismoraleUntil || 0;
             cur.stats = p.stats || DEFAULT_STATS;
           } else {
             otherPlayers.set(pNameLower, {
@@ -512,6 +613,7 @@ if (data.type === 'welcome') {
               color: p.color || '#38bdf8',
               inDuel: Boolean(p.inDuel),
               escapedUntil: p.escapedUntil || 0,
+              dismoraleUntil: p.dismoraleUntil || 0,
               stats: p.stats || DEFAULT_STATS,
               width: 32,
               height: 40,
@@ -574,6 +676,13 @@ if (data.type === 'welcome') {
     if (boss.state !== 'dead') {
       if (Math.abs(mouseWorldX - boss.x) <= 24 && Math.abs(mouseWorldY - boss.y) <= 28) {
         hud.setTarget({ ...boss, isBoss: true });
+        return;
+      }
+    }
+
+    if (dar.state !== 'dead') {
+      if (Math.abs(mouseWorldX - dar.x) <= 24 && Math.abs(mouseWorldY - dar.y) <= 28) {
+        hud.setTarget({ ...dar, isDar: true });
         return;
       }
     }
@@ -807,6 +916,29 @@ if (data.type === 'welcome') {
     ctx.restore();
   }
 
+  function drawDebuffBadge(ctx, x, y, text) {
+    ctx.save();
+    const fontSize = 9.5 / camera.zoom;
+    ctx.font = `bold ${fontSize}px monospace`;
+    const textMetrics = ctx.measureText(text);
+    const w = textMetrics.width + 8 / camera.zoom;
+    const h = 15 / camera.zoom;
+    const bx = x - w / 2;
+    const by = y - h / 2;
+
+    ctx.fillStyle = 'rgba(30, 8, 16, 0.92)';
+    ctx.strokeStyle = '#f87171';
+    ctx.lineWidth = 1.2 / camera.zoom;
+    ctx.fillRect(bx, by, w, h);
+    ctx.strokeRect(bx, by, w, h);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fca5a5';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
   let lastTime = performance.now();
 
   function loop(currentTime) {
@@ -876,6 +1008,7 @@ if (data.type === 'welcome') {
       touchControls.setInteractHighlight(Boolean(activeNearPortal));
     }
 
+    // Движение Кейт
     if (boss.state !== 'dead') {
       const bDx = boss.targetX - boss.x;
       const bDy = boss.targetY - boss.y;
@@ -894,10 +1027,30 @@ if (data.type === 'welcome') {
       boss.isMoving = false;
     }
 
+    // Движение Дар
+    if (dar.state !== 'dead') {
+      const dDx = dar.targetX - dar.x;
+      const dDy = dar.targetY - dar.y;
+      const dDist = Math.hypot(dDx, dDy);
+
+      dar.isMoving = dDist > 0.8 && dar.state !== 'combat';
+
+      if (dDist > 0.5) {
+        dar.dirX = dDx;
+        dar.dirY = dDy;
+      }
+
+      dar.x += dDx * Math.min(1, 14 * dt);
+      dar.y += dDy * Math.min(1, 14 * dt);
+    } else {
+      dar.isMoving = false;
+    }
+
     hud.update({
       player,
       otherPlayers,
       boss,
+      dar,
       worldPortals,
       activeNearPortal,
       camera,
@@ -958,6 +1111,9 @@ if (data.type === 'welcome') {
     if (boss.state !== 'dead') {
       drawCharacterShadow(ctx, boss.x, boss.y, 1.2);
     }
+    if (dar.state !== 'dead') {
+      drawCharacterShadow(ctx, dar.x, dar.y, 1.2);
+    }
     drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
 
     otherPlayers.forEach((p) => {
@@ -972,12 +1128,14 @@ if (data.type === 'welcome') {
       p.y += pDy * Math.min(1, 14 * dt);
     });
 
-    // Отрисовка всех объектов и персонажей в Y-глубине
     const entities = [];
     worldPortals.forEach((portal) => entities.push({ type: 'portal', y: portal.y, item: portal }));
     otherPlayers.forEach((p) => entities.push({ type: 'other_player', y: p.y, item: p }));
     if (boss.state !== 'dead') {
       entities.push({ type: 'boss', y: boss.y, item: boss });
+    }
+    if (dar.state !== 'dead') {
+      entities.push({ type: 'dar', y: dar.y, item: dar });
     }
     entities.push({ type: 'self_player', y: player.y, item: player });
 
@@ -1041,6 +1199,12 @@ if (data.type === 'welcome') {
       if (ent.type === 'boss') {
         const b = ent.item;
         drawBossSprite(ctx, keytImg, b.x, b.y, b.dirX || 0, b.dirY || 1, Boolean(boss.isMoving), now);
+        return;
+      }
+
+      if (ent.type === 'dar') {
+        const d = ent.item;
+        drawBossSprite(ctx, darImg, d.x, d.y, d.dirX || 0, d.dirY || 1, Boolean(dar.isMoving), now);
         return;
       }
 
@@ -1141,6 +1305,7 @@ if (data.type === 'welcome') {
       }
     });
 
+    // Ник Кейт
     if (boss.state !== 'dead') {
       const bossNickOffsetY = halfH + (12 / camera.zoom);
       ctx.font = `bold ${12 / camera.zoom}px monospace`;
@@ -1154,6 +1319,23 @@ if (data.type === 'welcome') {
       if (boss.inDuel) {
         ctx.font = `bold ${15 / camera.zoom}px monospace`;
         ctx.fillText('⚔️', Math.round(boss.x), Math.round(boss.y - halfH - 26 / camera.zoom));
+      }
+    }
+
+    // Ник Дар
+    if (dar.state !== 'dead') {
+      const darNickOffsetY = halfH + (12 / camera.zoom);
+      ctx.font = `bold ${12 / camera.zoom}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#050408';
+      ctx.lineWidth = 2.5 / camera.zoom;
+      ctx.strokeText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
+
+      if (dar.inDuel) {
+        ctx.font = `bold ${15 / camera.zoom}px monospace`;
+        ctx.fillText('⚔️', Math.round(dar.x), Math.round(dar.y - halfH - 26 / camera.zoom));
       }
     }
 
@@ -1179,22 +1361,38 @@ if (data.type === 'welcome') {
 
     const nickOffsetY = halfH + (10 / camera.zoom);
 
+    // Отрисовка имен других игроков и их бейджей Дизморали
     otherPlayers.forEach((p) => {
       ctx.strokeStyle = '#050408';
       ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
       ctx.fillStyle = p.color || '#38bdf8';
       ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
+
+      if (p.dismoraleUntil && p.dismoraleUntil > now) {
+        const leftSec = Math.ceil((p.dismoraleUntil - now) / 1000);
+        drawDebuffBadge(ctx, p.x, p.y - halfH - (22 / camera.zoom), `💔 ДИЗМОРАЛЬ ${leftSec}с`);
+      }
     });
 
+    // Отрисовка своего имени и бейджа Дизморали
     ctx.strokeStyle = '#050408';
     ctx.strokeText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
     ctx.fillStyle = '#ffd700';
     ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
 
-    const bubbleOffsetY = halfH + (26 / camera.zoom);
+    if (player.dismoraleUntil && player.dismoraleUntil > now) {
+      const leftSec = Math.ceil((player.dismoraleUntil - now) / 1000);
+      drawDebuffBadge(ctx, player.x, player.y - halfH - (22 / camera.zoom), `💔 ДИЗМОРАЛЬ ${leftSec}с`);
+    }
+
+    const bubbleOffsetY = halfH + (34 / camera.zoom);
 
     if (boss.bubble && boss.bubble.expireAt > now && boss.state !== 'dead') {
       drawBubble(boss.bubble.text, boss.x, boss.y - bubbleOffsetY, false, '#f472b6');
+    }
+
+    if (dar.bubble && dar.bubble.expireAt > now && dar.state !== 'dead') {
+      drawBubble(dar.bubble.text, dar.x, dar.y - bubbleOffsetY, false, '#34d399');
     }
 
     otherPlayers.forEach((p) => {
@@ -1207,7 +1405,40 @@ if (data.type === 'welcome') {
       drawBubble(player.bubble.text, player.x, player.y - bubbleOffsetY, true);
     }
 
+    // Отрисовка всплывающего урона и лечения ("Тыдыщ!", "+1 HP")
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+      const ft = floatingTexts[i];
+      if (now > ft.expireAt) {
+        floatingTexts.splice(i, 1);
+        continue;
+      }
+
+      ft.y += (ft.vy || -30) * dt; // Плавное всплывание вверх
+      const progress = (ft.expireAt - now) / 1400;
+      const alpha = Math.min(1, Math.max(0, progress * 1.5));
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = `bold ${16 / camera.zoom}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = ft.color;
+      ctx.strokeStyle = '#050408';
+      ctx.lineWidth = 3 / camera.zoom;
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    }
+
     ctx.restore();
+
+    // Белая вспышка на весь экран при сюрприз-ударе Дар
+    if (surpriseFlashTimer > 0) {
+      surpriseFlashTimer -= dt;
+      ctx.save();
+      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, surpriseFlashTimer * 2.5)})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
 
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;

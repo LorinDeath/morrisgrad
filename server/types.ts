@@ -18,7 +18,8 @@ export interface Session {
   duelId?: string;
   lastActionTime: number;
   escapedUntil?: number;
-  rejoinBlockedUntil?: number; // 30 секунд блокировки после гибели
+  rejoinBlockedUntil?: number;
+  dismoraleUntil?: number;
   stats: PlayerStats;
 }
 
@@ -29,6 +30,7 @@ export interface DuelParticipant {
   hp: number;
   maxHp: number;
   armor: number;
+  shield?: number; // Прочность щита
   isBoss?: boolean;
   ws?: WebSocket;
 }

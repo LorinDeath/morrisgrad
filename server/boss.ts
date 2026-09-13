@@ -59,6 +59,11 @@ export class KeytBoss {
   HITBOX_RADIUS = 35;
   SPEED = 185;
 
+  private clampPosition() {
+    this.x = Math.max(40, Math.min(1160, this.x));
+    this.y = Math.max(40, Math.min(1160, this.y));
+  }
+
   getState(): BossState {
     return {
       id: this.id,
@@ -107,7 +112,6 @@ export class KeytBoss {
     return `<span style="color:#f472b6; font-weight:bold;">Кейт: «Ням!»</span> — восстановила себе <b style="color:#4ade80">30 HP</b>!`;
   }
 
-  // Реакция на финал дуэли игроков
   onPlayerDuelFinished(winnerName: string, onBossSay: (text: string) => void) {
     const isNo4d = (winnerName || "").trim().toLowerCase() === "no4d";
     if (isNo4d) {
@@ -135,6 +139,7 @@ export class KeytBoss {
         this.state = "wander";
         this.x = this.spawnX;
         this.y = this.spawnY;
+        this.clampPosition();
         this.hp = this.baseMaxHp;
         this.maxHp = this.baseMaxHp;
         this.armor = this.baseArmor;
@@ -189,7 +194,6 @@ export class KeytBoss {
 
             let logText = `<span style="color:#f472b6">Кейт</span> атаковала <b>${target.username}</b> на <span style="color:#ef4444">${finalDmg}</span> урона!`;
 
-            // Обработка гибели игрока от удара Кейт
             if (target.hp <= 0) {
               logText += `<br>${this.onEnemyKilled()}`;
               targetSession.inDuel = false;
@@ -218,14 +222,12 @@ export class KeytBoss {
 
     // 3. Блуждание
     if (this.state === "wander") {
-      // 3.1. Проверка Алтаря (x: 565, y: 600, радиус ~70px)
       const distToAltar = Math.hypot(this.x - 565, this.y - 600);
       if (distToAltar <= 70 && now - this.lastAltarSayTime > 25000) {
         this.lastAltarSayTime = now;
         onBossSay("Адское пламя?");
       }
 
-      // 3.2. Проверка персонажей рядом (4 метра = 80 px)
       let nearbyLorin = false;
       let nearbyNo4d = false;
 
@@ -238,7 +240,6 @@ export class KeytBoss {
         }
       }
 
-      // Приоритет приветствия Lorin Death
       if (nearbyLorin && now - this.lastGreetLorinTime > 40000) {
         this.lastGreetLorinTime = now;
         onBossSay("Приветствую Госпожа!");
@@ -247,7 +248,6 @@ export class KeytBoss {
         onBossSay("Привет, дорогой!");
       }
 
-      // 3.3. Проверка дерущихся дуэлянтов рядом (в пределах 4 метров / 80 px)
       for (const duel of activeDuels.values()) {
         if (!duel.isBossFight && duel.p1 && duel.p2) {
           let p1Dist = 999;
@@ -259,25 +259,21 @@ export class KeytBoss {
           }
 
           if (p1Dist <= 80 || p2Dist <= 80) {
-            // Шанс вмешательства (только 1 раз за дуэль)
             if (!this.intervenedDuels.has(duel.id)) {
               this.intervenedDuels.add(duel.id);
               const roll = Math.random();
 
               if (roll < 0.20) {
-                // 20% шанс: врыв в битву
                 onBossSay("Пора кромсать!!!");
                 onBossIntervene(duel, "join");
                 return;
               } else if (roll < 0.40) {
-                // 20% шанс: поцелуй и исцеление на 30%
                 onBossSay("Чмок!");
                 onBossIntervene(duel, "kiss");
                 return;
               }
             }
 
-            // Фраза «Дурачки», если Кейт подошла к драке
             if (now - this.lastDuelCommentTime > 15000) {
               this.lastDuelCommentTime = now;
               onBossSay("Дурачки");
@@ -286,18 +282,16 @@ export class KeytBoss {
         }
       }
 
-      // 3.4. Обычные случайные фразы блуждания
       if (now >= this.nextWanderSayTime) {
         this.nextWanderSayTime = now + (10000 + Math.random() * 8000);
         const quote = WANDER_QUOTES[Math.floor(Math.random() * WANDER_QUOTES.length)];
         onBossSay(quote);
       }
 
-      // 3.5. Передвижение
       if (now >= this.nextWanderTime) {
         this.nextWanderTime = now + (3500 + Math.random() * 4000);
-        this.wanderTargetX = Math.max(100, Math.min(1100, this.x + (Math.random() * 260 - 130)));
-        this.wanderTargetY = Math.max(100, Math.min(1100, this.y + (Math.random() * 260 - 130)));
+        this.wanderTargetX = Math.max(40, Math.min(1160, this.x + (Math.random() * 260 - 130)));
+        this.wanderTargetY = Math.max(40, Math.min(1160, this.y + (Math.random() * 260 - 130)));
       }
 
       const wdx = this.wanderTargetX - this.x;
@@ -309,25 +303,24 @@ export class KeytBoss {
         this.dirY = wdy / wDist;
         this.x += this.dirX * (this.SPEED * 0.35) * dt;
         this.y += this.dirY * (this.SPEED * 0.35) * dt;
+        this.clampPosition();
       }
 
-      // Проверка агра на живых игроков с телом
-// Сканирование игроков: не агриться на Госпожу и Нофорда
-for (const [ws, s] of sessions.entries()) {
-  const lower = (s.username || "").trim().toLowerCase();
-  const isImmune = lower === "lorin death" || lower === "no4d";
+      for (const [ws, s] of sessions.entries()) {
+        const lower = (s.username || "").trim().toLowerCase();
+        const isImmune = lower === "lorin death" || lower === "no4d";
 
-  if (!isImmune && !s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
-    const dist = Math.hypot(s.x - this.x, s.y - this.y);
-    if (dist <= this.AGGRO_RADIUS) {
-      this.state = "chase";
-      this.targetPlayerId = s.id;
-      this.nextCombatSayTime = now + 2500;
-      onBossSay("ЖЕРТВА!");
-      break;
-    }
-  }
-}
+        if (!isImmune && !s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
+          const dist = Math.hypot(s.x - this.x, s.y - this.y);
+          if (dist <= this.AGGRO_RADIUS) {
+            this.state = "chase";
+            this.targetPlayerId = s.id;
+            this.nextCombatSayTime = now + 2500;
+            onBossSay("ЖЕРТВА!");
+            break;
+          }
+        }
+      }
       return;
     }
 
@@ -367,8 +360,9 @@ for (const [ws, s] of sessions.entries()) {
       this.dirY = cdy / dist;
       this.x += this.dirX * this.SPEED * dt;
       this.y += this.dirY * this.SPEED * dt;
+      this.clampPosition();
 
-      if (dist <= this.HITBOX_RADIUS && targetWs) {
+      if (dist <= this.HITBOX_RADIUS && targetWs && targetSession) {
         this.state = "combat";
         this.targetPlayerId = null;
         this.nextAttackTime = now + (1500 + Math.random() * 2500);

@@ -5,6 +5,9 @@ import warriorSrc from '../../../assets/character_8_frame16x20.png';
 import spearmanSrc from '../../../assets/character_9_frame16x20.png';
 import keytSrc from '../../../assets/Keyt.png';
 import mageSrc from '../../../assets/mage.png';
+import darSrc from '../../../assets/Dar.png';
+
+export const darImg = createImg(darSrc);
 
 function createImg(src) {
   const img = new Image();
