@@ -346,7 +346,9 @@ export class DuelManager {
       const hpPct = Math.max(0, Math.min(100, (enemy.hp / maxHpVal) * 100));
       const shieldVal = enemy.shield || 0;
       const shieldPct = Math.min(100, (shieldVal / maxHpVal) * 100);
-      const displayName = enemy.isBoss ? (enemy.id === 'boss_dar' ? 'Дар' : 'Кейт') : enemy.username;
+      
+      // Динамическое отображение имени врага (убран захардкоженный дубликат «Кейт»)[cite: 27]
+      const displayName = enemy.isBoss ? (enemy.id === 'boss_dar' ? 'Дар' : (enemy.username || 'Кейт')) : enemy.username;
 
       card.innerHTML = `
         <div style="font-size: 11px; font-weight: bold; color: ${isSelected ? '#ef4444' : '#f87171'}; display: flex; justify-content: space-between;">
@@ -390,7 +392,7 @@ export class DuelManager {
       const shieldPct = Math.min(100, (shieldVal / maxHpVal) * 100);
       const displayName = isMe
         ? `Вы (${ally.username})`
-        : (ally.isBoss ? (ally.id === 'boss_dar' ? 'Дар [СОЮЗНИК]' : 'Кейт [СОЮЗНИК]') : ally.username);
+        : (ally.isBoss ? (ally.id === 'boss_dar' ? 'Дар [СОЮЗНИК]' : (ally.username || 'Кейт [СОЮЗНИК]')) : ally.username);
 
       card.innerHTML = `
         <div style="font-size: 11px; font-weight: bold; color: ${isMe ? '#4ade80' : (ally.isBoss ? (ally.id === 'boss_dar' ? '#34d399' : '#f472b6') : '#38bdf8')};">
@@ -431,9 +433,8 @@ export class DuelManager {
     this.chargeInterval = setInterval(() => {
       if (!this.currentDuel || this.currentDuel.locked) return;
 
-      // Проверка эффекта заморозки от морозного цветка
       const isFrozen = this.me?.frostUntil && Date.now() < this.me.frostUntil;
-      const chargeStep = isFrozen ? 0.05 : 0.1; // Накопление вдвое медленнее при заморозке
+      const chargeStep = isFrozen ? 0.05 : 0.1;
 
       this.chargeTimer = Math.min(16, this.chargeTimer + chargeStep);
 

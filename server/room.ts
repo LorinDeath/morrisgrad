@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { WORLD_PORTALS, MINI_GAMES, CLASSES_CONFIG } from "./config";
-import { processCombatAction } from "./combat";
+import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType } from "./types";
 import { CHARACTER_CLASSES } from "./classes";
@@ -123,6 +123,71 @@ export class GameRoom extends DurableObject {
       // 4. Жизненный цикл и ИИ цветков-вампиров
       this.updateFlowers(dt, now);
 
+      // 5. Автоматические атаки цветков в активных дуэлях
+      for (const flower of this.flowers.values()) {
+        if (flower.inDuel && flower.duelId) {
+          const duel = this.activeDuels.get(flower.duelId);
+          if (!duel) {
+            flower.inDuel = false;
+            flower.duelId = undefined;
+            continue;
+          }
+
+          if (!flower.nextActionTime) flower.nextActionTime = now + 3000;
+
+          if (now >= flower.nextActionTime) {
+            flower.nextActionTime = now + 3500;
+
+            const mySide = duel.allies.some((a) => a.id === flower.id) ? duel.allies : duel.hunters;
+            const enemySide = mySide === duel.allies ? duel.hunters : duel.allies;
+            const livingEnemies = enemySide.filter((e) => e.hp > 0);
+
+            if (livingEnemies.length === 0) continue;
+
+            const target = livingEnemies[Math.floor(Math.random() * livingEnemies.length)];
+            const targetSession = [...this.sessions.values()].find((s) => s.id === target.id);
+
+            const baseAtk = flower.stats.atk || 15;
+            const ignoreArmor = flower.flowerType === "hell";
+            const reduction = ignoreArmor ? 0 : calcArmorReduction(target.armor);
+            const dmg = Math.max(1, Math.round(baseAtk * (1 - reduction)));
+
+            let log = `🌸 <b>${getFlowerName(flower)}</b> атаковал <b>${target.username}</b> на <span style="color:#ef4444">${dmg}</span> урона!`;
+
+            if (flower.flowerType === "fire") {
+              target.burnTicks = 10;
+              target.burnDmg = 10;
+              target.armor = Math.max(0, Math.round(target.armor * 0.9));
+              log = `🔥 <b>${getFlowerName(flower)}</b> опалил <b>${target.username}</b> на <span style="color:#f97316">${dmg}</span> урона!`;
+            } else if (flower.flowerType === "frost") {
+              target.frostUntil = now + 8000;
+              log = `❄️ <b>${getFlowerName(flower)}</b> заморозил <b>${target.username}</b> на <span style="color:#38bdf8">${dmg}</span> урона!`;
+            } else if (flower.flowerType === "hell") {
+              log = `🌌 <b>${getFlowerName(flower)}</b> провёл тёмный удар сквозь броню <b>${target.username}</b> на <span style="color:#c084fc">${dmg}</span> урона!`;
+            }
+
+            target.hp = Math.max(0, target.hp - dmg);
+            if (targetSession) targetSession.stats.hp = target.hp;
+
+            if (target.hp <= 0) {
+              log += `<br><b>${target.username}</b> повержен цветком!`;
+              if (targetSession) {
+                targetSession.inDuel = false;
+                targetSession.stats.hp = targetSession.stats.maxHp;
+                targetSession.rejoinBlockedUntil = now + 30000;
+              }
+            }
+
+            this.broadcastDuelUpdate(duel, log);
+
+            const aliveLeft = enemySide.filter((e) => e.hp > 0).length;
+            if (aliveLeft === 0) {
+              this.endBossBattle(duel, `${getFlowerName(flower)} и союзники`);
+            }
+          }
+        }
+      }
+
       this.broadcast();
     }, 100);
   }
@@ -147,9 +212,9 @@ export class GameRoom extends DurableObject {
   }
 
   waterFlower(flower: FlowerState) {
-    const randHp = Math.floor(Math.random() * (400 - 5 + 1)) + 5;
-    const randAtk = Math.floor(Math.random() * (50 - 1 + 1)) + 1;
-    const randDef = Math.floor(Math.random() * (15 - 1 + 1)) + 1;
+    const randHp = Math.floor(Math.random() * (100 - 5 + 1)) + 5;
+    const randAtk = Math.floor(Math.random() * (20 - 1 + 1)) + 1;
+    const randDef = Math.floor(Math.random() * (10 - 1 + 1)) + 1;
 
     let fType: FlowerType = "normal";
     const roll = Math.random();
@@ -218,7 +283,7 @@ export class GameRoom extends DurableObject {
           continue;
         }
 
-        // 2. Помощь союзникам (Дар или другим цветкам) в пределах 10м (200px)
+        // 2. Помощь союзникам в пределах 10м (200px)
         let helped = false;
         for (const duel of this.activeDuels.values()) {
           const hasDar = duel.hunters.some((h) => h.id === this.dar.id) || duel.allies.some((a) => a.id === this.dar.id);
