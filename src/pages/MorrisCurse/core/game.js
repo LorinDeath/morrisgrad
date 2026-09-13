@@ -2,6 +2,7 @@ import { DEFAULT_STATS, StatsUI } from './playerStats.js';
 import { DuelManager } from './duelManager.js';
 import { GameHUD } from './hud.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
+import { syncClassesFromServer } from './classes.js';
 import {
   CAMPFIRE_CONFIG,
   SPRITE_CONFIG,
@@ -375,9 +376,13 @@ function updateCanvasResolution() {
         socket.close();
         return;
       }
-      if (data.type === 'welcome') {
+if (data.type === 'welcome') {
         myNetworkId = data.myId;
         if (data.portals) worldPortals = data.portals;
+        if (data.classes) {
+          syncClassesFromServer(data.classes);
+          duelManager.renderClassCards();
+        }
       }
       if (data.type === 'open_class_selection') {
         resetKeys();

@@ -231,7 +231,7 @@ export class KeytBoss {
 
       for (const s of sessions.values()) {
         const d = Math.hypot(s.x - this.x, s.y - this.y);
-        if (d <= 80) {
+        if (d <= 160) {
           const lower = (s.username || "").trim().toLowerCase();
           if (lower === "lorin death") nearbyLorin = true;
           if (lower === "no4d") nearbyNo4d = true;
@@ -312,18 +312,22 @@ export class KeytBoss {
       }
 
       // Проверка агра на живых игроков с телом
-      for (const [ws, s] of sessions.entries()) {
-        if (!s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
-          const dist = Math.hypot(s.x - this.x, s.y - this.y);
-          if (dist <= this.AGGRO_RADIUS) {
-            this.state = "chase";
-            this.targetPlayerId = s.id;
-            this.nextCombatSayTime = now + 2500;
-            onBossSay("ЖЕРТВА!");
-            break;
-          }
-        }
-      }
+// Сканирование игроков: не агриться на Госпожу и Нофорда
+for (const [ws, s] of sessions.entries()) {
+  const lower = (s.username || "").trim().toLowerCase();
+  const isImmune = lower === "lorin death" || lower === "no4d";
+
+  if (!isImmune && !s.inDuel && s.stats.classId && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
+    const dist = Math.hypot(s.x - this.x, s.y - this.y);
+    if (dist <= this.AGGRO_RADIUS) {
+      this.state = "chase";
+      this.targetPlayerId = s.id;
+      this.nextCombatSayTime = now + 2500;
+      onBossSay("ЖЕРТВА!");
+      break;
+    }
+  }
+}
       return;
     }
 

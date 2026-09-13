@@ -1,3 +1,5 @@
+import { CHARACTER_CLASSES } from "./classes";
+
 export const WORLD_PORTALS = [
   {
     id: "portal_arcade",
@@ -29,6 +31,7 @@ export const MINI_GAMES = [
   { id: "Zaglush", title: "Заглушка (Скоро)", desc: "На техобслуживании", url: "", disabled: true },
 ];
 
+// Совместимый маппинг для room.ts
 export const CLASSES_CONFIG: Record<string, {
   name: string;
   color: string;
@@ -37,32 +40,13 @@ export const CLASSES_CONFIG: Record<string, {
   armor: number;
   minAtk: number;
   maxAtk: number;
-}> = {
-  warrior: {
-    name: "Воин",
-    color: "#38bdf8",
-    hp: 200,
-    maxHp: 200,
-    armor: 50,
-    minAtk: 1,
-    maxAtk: 4,
-  },
-  spearman: {
-    name: "Копейщик",
-    color: "#ef4444",
-    hp: 50,
-    maxHp: 50,
-    armor: 5,
-    minAtk: 5,
-    maxAtk: 10,
-  },
-  rogue: {
-    name: "Разбойник",
-    color: "#22c55e",
-    hp: 150,
-    maxHp: 150,
-    armor: 8,
-    minAtk: 1,
-    maxAtk: 15,
-  },
-};
+}> = Object.fromEntries(
+  Object.values(CHARACTER_CLASSES).map((c) => [
+    c.id,
+    {
+      name: c.name,
+      color: c.color,
+      ...c.stats,
+    },
+  ])
+);

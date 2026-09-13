@@ -3,6 +3,8 @@ import { WORLD_PORTALS, MINI_GAMES, CLASSES_CONFIG } from "./config";
 import { processCombatAction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState } from "./types";
+import { CHARACTER_CLASSES } from "./classes";
+import { getSkill } from "./skills";
 
 export class GameRoom extends DurableObject {
   sessions: Map<WebSocket, Session>;
@@ -65,7 +67,6 @@ export class GameRoom extends DurableObject {
         isBoss: true,
       };
 
-      // Случайный выбор стороны (к p1 или к p2)
       if (Math.random() < 0.5) {
         duel.allies.push(bossParticipant);
       } else {
@@ -77,7 +78,6 @@ export class GameRoom extends DurableObject {
       const log = `<span style="color:#f472b6; font-weight:bold;">Кейт: «Пора кромсать!!!»</span> — ворвалась в дуэль!`;
       this.broadcastDuelUpdate(duel, log);
     } else if (action === "kiss") {
-      // Поцелуй: исцеление случайного участника на 30% от maxHp
       const lucky = Math.random() < 0.5 ? duel.hunters[0] : duel.allies[0];
       if (lucky) {
         const healAmt = Math.round((lucky.maxHp || 100) * 0.3);
@@ -249,7 +249,35 @@ export class GameRoom extends DurableObject {
             stats: { classId: null, hp: 1, maxHp: 1, armor: 1, attack: 1 },
           });
 
-          server.send(JSON.stringify({ type: "welcome", myId, portals: WORLD_PORTALS }));
+          const classesPayload = Object.fromEntries(
+            Object.values(CHARACTER_CLASSES).map((c) => {
+              const skill = getSkill(c.abilityId);
+              return [
+                c.id,
+                {
+                  id: c.id,
+                  name: c.name,
+                  color: c.color,
+                  ...c.stats,
+                  ability: {
+                    id: skill.id,
+                    name: skill.name,
+                    desc: skill.description,
+                    cooldown: skill.cooldown,
+                  },
+                },
+              ];
+            })
+          );
+
+          server.send(
+            JSON.stringify({
+              type: "welcome",
+              myId,
+              portals: WORLD_PORTALS,
+              classes: classesPayload,
+            })
+          );
           this.broadcast();
         }
 
@@ -290,7 +318,7 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 5. Дуэль: вызов (проверка блокировки после смерти)
+        // 5. Дуэль: вызов
         if (msg.type === "duel_invite" && session && session.stats.classId && !session.inDuel) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
@@ -432,20 +460,18 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 9. Действия боя (Атака / Навык / Побег)
+        // 9. Действия боя
         if (msg.type === "duel_action" && session && session.inDuel && session.duelId) {
           const duel = this.activeDuels.get(session.duelId);
           if (!duel) return;
 
           const now = Date.now();
 
-          // 9.1. ПОБЕГ
           if (msg.action === "escape") {
             const { logText } = processCombatAction("escape", 1, session, duel, this.boss, msg.targetId);
             this.broadcastDuelUpdate(duel, logText);
 
             if (!duel.isBossFight) {
-              // Освобождаем обоих игроков без зависания
               const isP1 = duel.p1.id === session.id;
               const otherParticipant = isP1 ? duel.p2 : duel.p1;
               const otherSession = [...this.sessions.values()].find((s) => s.id === otherParticipant.id);
@@ -490,7 +516,6 @@ export class GameRoom extends DurableObject {
           );
           this.broadcastDuelUpdate(duel, logText);
 
-          // 9.2. СМЕРТЬ ЦЕЛИ В БОЮ
           if (isDead && target) {
             let targetSession: Session | null = null;
             let targetWs: WebSocket | null = null;
@@ -503,7 +528,6 @@ export class GameRoom extends DurableObject {
               }
             }
 
-            // Блокировка умершего на 30 секунд
             if (targetSession) {
               targetSession.inDuel = false;
               targetSession.stats.hp = targetSession.stats.maxHp;
@@ -517,7 +541,6 @@ export class GameRoom extends DurableObject {
             }
 
             if (!duel.isBossFight) {
-              // Победитель в обычной дуэли
               session.inDuel = false;
               session.stats.hp = session.stats.maxHp;
 
@@ -528,7 +551,6 @@ export class GameRoom extends DurableObject {
               this.activeDuels.delete(duel.id);
               this.boss.onPlayerDuelFinished(session.username, (q) => this.broadcastBossSay(q));
             } else {
-              // Бой с Кейт
               if (target.isBoss) {
                 this.boss.state = "dead";
                 this.boss.deathTime = Date.now();
@@ -567,7 +589,6 @@ export class GameRoom extends DurableObject {
       }
     });
 
-    // Обработчик разрыва связи (освобождение второго игрока)
     const closeHandler = () => {
       try {
         const session = this.sessions.get(server);

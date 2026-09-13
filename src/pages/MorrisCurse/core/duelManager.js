@@ -50,7 +50,15 @@ export class DuelManager {
     this.container.appendChild(this.classModal);
     this.classModal.querySelector('#close-class-btn').onclick = () => this.closeClassSelect();
 
-    const list = this.classModal.querySelector('#class-cards-list');
+    // Рендерим карточки динамически из общего объекта CLASSES
+    this.renderClassCards();
+  }
+
+  renderClassCards() {
+    const list = this.classModal?.querySelector('#class-cards-list');
+    if (!list) return;
+    list.innerHTML = '';
+
     Object.values(CLASSES).forEach((c) => {
       const red = (getArmorReduction(c.armor) * 100).toFixed(1);
       const card = document.createElement('div');
@@ -60,7 +68,7 @@ export class DuelManager {
         <div style="font-size: 11px; color: #cbd5e1; margin-top: 4px;">
           ❤️ HP: ${c.hp} | 🛡️ Броня: ${c.armor} (${red}%) | ⚔️ Атака: ${c.minAtk}-${c.maxAtk}
         </div>
-        <div style="font-size: 11px; color: #a855f7; margin-top: 2px;">Навык: ${c.ability.name} (${c.ability.desc})</div>
+        <div style="font-size: 11px; color: #a855f7; margin-top: 2px;">Навык: ${c.ability?.name || 'Удар'} (${c.ability?.desc || ''})</div>
       `;
       card.onclick = () => {
         this.send({ type: 'select_class', classId: c.id });
@@ -71,6 +79,7 @@ export class DuelManager {
   }
 
   openClassSelect() {
+    this.renderClassCards(); // Гарантирует актуальность данных при открытии алтаря
     this.isClassSelectOpen = true;
     this.classModal.style.display = 'flex';
   }
@@ -263,7 +272,6 @@ export class DuelManager {
   }
 
   parseTeams(duel) {
-    // Сохраняем флаг боя с боссом
     const isBoss = Boolean(this.currentDuel?.isBossFight || duel?.isBossFight);
     if (this.currentDuel) {
       this.currentDuel.isBossFight = isBoss;
@@ -311,7 +319,6 @@ export class DuelManager {
       }
     }
 
-    // Сохраняем выбранную цель, если она жива, иначе берём первого живого врага
     const hasTarget = this.enemies.some((e) => e.id === this.selectedTargetId && e.hp > 0);
     if (!hasTarget) {
       const living = this.enemies.find((e) => e.hp > 0);
@@ -323,7 +330,6 @@ export class DuelManager {
     const enemiesBox = this.arenaModal.querySelector('#arena-enemies-list');
     const alliesBox = this.arenaModal.querySelector('#arena-allies-list');
 
-    // 1. ВРАГИ (СВЕРХУ)
     enemiesBox.innerHTML = '';
     this.enemies.forEach((enemy) => {
       const isSelected = enemy.id === this.selectedTargetId;
@@ -361,7 +367,6 @@ export class DuelManager {
       enemiesBox.appendChild(card);
     });
 
-    // 2. СОЮЗНИКИ И ВЫ (СНИЗУ)
     alliesBox.innerHTML = '';
     this.allies.forEach((ally) => {
       const isMe = this.me && (ally.id === this.me.id || ally.username === this.me.username);
@@ -395,7 +400,6 @@ export class DuelManager {
     });
   }
 
-  // Обновление состояния: динамически перестраивает команды при входе новых игроков
   updateDuel(data) {
     if (!this.currentDuel) return;
 
