@@ -32,49 +32,76 @@ import Layout from '../../layouts/Layout.astro';
 </Layout>
 
 <script>
-  const startBtn = document.getElementById('btn-start');
-  const overlay = document.getElementById('launcher-overlay');
-  const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-  const gameWindow = document.getElementById('game-window');
-  const fsBtn = document.getElementById('btn-fullscreen');
+  function initLauncher() {
+    const startBtn = document.getElementById('btn-start');
+    const overlay = document.getElementById('launcher-overlay');
+    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const gameWindow = document.getElementById('game-window');
+    const fsBtn = document.getElementById('btn-fullscreen');
 
-  let gameStarted = false;
+    if (!startBtn || !canvas) return;
 
-  startBtn?.addEventListener('click', async () => {
-    if (overlay) overlay.style.display = 'none';
-    canvas?.focus();
+    let gameStarted = false;
 
-    if (!document.fullscreenElement && gameWindow) {
-      gameWindow.requestFullscreen().catch((err) => {
-        console.warn('Fullscreen отклонен:', err);
-      });
-    }
+    // Заменяем обычный addEventListener на проверку, чтобы избежать дублирования
+    const handleStart = async () => {
+      if (overlay) overlay.style.display = 'none';
+      canvas?.focus();
 
-    if (!gameStarted) {
-      gameStarted = true;
-
-      let username = 'Странник';
-      let userId: string | null = null;
-
-      try {
-        const res = await fetch('/api/get-user');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.username) username = data.username;
-          userId = data.userId || data.id || null;
-        }
-      } catch (err) {
-        console.warn('Не удалось загрузить пользователя');
+      if (!document.fullscreenElement && gameWindow) {
+        gameWindow.requestFullscreen().catch((err) => {
+          console.warn('Fullscreen отклонен:', err);
+        });
       }
 
-      const { initGame } = await import('./core/game.js');
-      (initGame as any)('game-canvas', username, userId);
-    }
-  });
+      if (!gameStarted) {
+        gameStarted = true;
 
-  canvas?.addEventListener('click', () => canvas.focus());
+        let username = 'Странник';
+        let userId: string | null = null;
+
+        try {
+          const res = await fetch('/api/get-user');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.username) username = data.username;
+            userId = data.userId || data.id || null;
+          }
+        } catch (err) {
+          console.warn('Не удалось загрузить пользователя');
+        }
+
+        const { initGame } = await import('./core/game.js');
+        (initGame as any)('game-canvas', username, userId);
+      }
+    };
+
+    // Удаляем старые листенеры через клонирование, если они были, и вешаем новые
+    const newStartBtn = startBtn.cloneNode(true);
+    startBtn.parentNode?.replaceChild(newStartBtn, startBtn);
+    newStartBtn.addEventListener('click', handleStart);
+
+    canvas?.addEventListener('click', () => canvas.focus());
+
+    const newFsBtn = fsBtn?.cloneNode(true);
+    if (fsBtn && newFsBtn) {
+      fsBtn.parentNode?.replaceChild(newFsBtn, fsBtn);
+      newFsBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          gameWindow?.requestFullscreen().catch(err => console.error(err));
+        } else {
+          document.exitFullscreen();
+        }
+      });
+    }
+  }
+
+  // Поддержка стандартной загрузки и переходов View Transitions в Astro
+  document.addEventListener('DOMContentLoaded', initLauncher);
+  document.addEventListener('astro:page-load', initLauncher);
 
   window.addEventListener('keydown', (e) => {
+    const canvas = document.getElementById('game-canvas');
     if (document.activeElement === canvas) {
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) || e.key === ' ') {
         e.preventDefault();
@@ -82,15 +109,8 @@ import Layout from '../../layouts/Layout.astro';
     }
   }, { passive: false });
 
-  fsBtn?.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      gameWindow?.requestFullscreen().catch(err => console.error(err));
-    } else {
-      document.exitFullscreen();
-    }
-  });
-
   document.addEventListener('fullscreenchange', () => {
+    const canvas = document.getElementById('game-canvas');
     if (document.fullscreenElement) {
       canvas?.focus();
     }
