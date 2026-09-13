@@ -146,16 +146,16 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: "dar_house",
     name: "Я в домике",
     description: "Накладывает щит 10–100% от текущего HP, распределяя его поровну между союзниками.",
-    cooldown: 24,
+    cooldown: 44,
     execute: ({ attacker, duel }) => {
       const isAllies = duel.allies.some((a) => a.id === attacker.id);
       const myTeam = isAllies ? duel.allies : duel.hunters;
       const livingAllies = myTeam.filter((a) => a.hp > 0);
 
       const curHp = attacker.hp ?? attacker.stats?.hp ?? 400;
-      const shieldPct = (10 + Math.random() * 90) / 100;
+      const shieldPct = (1 + Math.random() * 90) / 10;
       const totalShield = Math.round(curHp * shieldPct);
-      const perAlly = Math.max(10, Math.round(totalShield / Math.max(1, livingAllies.length)));
+      const perAlly = Math.max(1, Math.round(totalShield / Math.max(1, livingAllies.length)));
 
       livingAllies.forEach((a) => {
         a.shield = (a.shield || 0) + perAlly;

@@ -31,14 +31,14 @@ export class DarBoss {
   rushTargetDuelId: string | null = null;
   rushSide: "npc" | "random" = "random";
 
-  baseHp = 400;
-  baseMaxHp = 400;
+  baseHp = 200;
+  baseMaxHp = 200;
   baseArmor = 20;
-  minAtk = 5;
-  maxAtk = 25;
+  minAtk = 2;
+  maxAtk = 15;
 
-  hp = 400;
-  maxHp = 400;
+  hp = 200;
+  maxHp = 200;
   armor = 20;
 
   inDuel = false;
@@ -272,8 +272,8 @@ export class DarBoss {
     onSurpriseHit: (targetSession: Session, dmg: number) => void,
     onPlantFlower: (x: number, y: number) => void
   ) {
-    // 6.1. Посадка цветка Дар (каждые 40 сек, шанс 5%, макс 22 цветка на карте)
-    if (now - this.lastPlantTime >= 40000 && flowers.size < 22) {
+    // 6.1. Посадка цветка Дар (каждые 40 сек, шанс 5%, макс 8 цветка на карте)
+    if (now - this.lastPlantTime >= 40000 && flowers.size < 8) {
       if (Math.random() < 0.05) {
         this.lastPlantTime = now;
         onSay("И так сойдёт");

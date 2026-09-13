@@ -212,9 +212,9 @@ export class GameRoom extends DurableObject {
   }
 
   waterFlower(flower: FlowerState) {
-    const randHp = Math.floor(Math.random() * (100 - 5 + 1)) + 5;
-    const randAtk = Math.floor(Math.random() * (20 - 1 + 1)) + 1;
-    const randDef = Math.floor(Math.random() * (10 - 1 + 1)) + 1;
+    const randHp = Math.floor(Math.random() * (40 - 5 + 1)) + 5;
+    const randAtk = Math.floor(Math.random() * (10 - 1 + 1)) + 1;
+    const randDef = Math.floor(Math.random() * (4 - 1 + 1)) + 1;
 
     let fType: FlowerType = "normal";
     const roll = Math.random();
@@ -244,7 +244,7 @@ export class GameRoom extends DurableObject {
 
     for (const flower of this.flowers.values()) {
       if (flower.stage === "bud") {
-        if (now - flower.plantedAt >= 180000) {
+        if (now - flower.plantedAt >= 900000) {
           flower.stage = "mature";
         }
         continue;
