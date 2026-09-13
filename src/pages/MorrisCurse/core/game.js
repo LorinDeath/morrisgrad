@@ -1,6 +1,7 @@
 import { DEFAULT_STATS, StatsUI } from './playerStats.js';
 import { DuelManager } from './duelManager.js';
 import { GameHUD } from './hud.js';
+import { TouchControls, isMobileDevice } from './touchControls.js';
 import {
   CAMPFIRE_CONFIG,
   SPRITE_CONFIG,
@@ -18,12 +19,43 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  const VIEW_WIDTH = 300;
-  const VIEW_HEIGHT = 300;
   const WORLD_SIZE = 1200;
+  let floorPattern = null;
 
-  canvas.width = VIEW_WIDTH;
-  canvas.height = VIEW_HEIGHT;
+function updateCanvasResolution() {
+    const isMobile = isMobileDevice();
+
+    if (isMobile) {
+      document.body.classList.add('mobile-game-mode');
+      const rect = canvas.getBoundingClientRect();
+      const w = (rect.width && rect.width > 50) ? rect.width : window.innerWidth;
+      const h = (rect.height && rect.height > 50) ? rect.height : window.innerHeight;
+      const aspect = h > 0 ? (w / h) : (window.innerWidth / window.innerHeight);
+
+      if (aspect >= 1) {
+        canvas.height = 300;
+        canvas.width = Math.round(300 * aspect);
+      } else {
+        canvas.width = 300;
+        canvas.height = Math.round(300 / aspect);
+      }
+
+      if (canvas.parentElement) {
+        canvas.parentElement.style.padding = '0';
+        canvas.parentElement.style.margin = '0';
+      }
+    } else {
+      document.body.classList.remove('mobile-game-mode');
+      canvas.width = 300;
+      canvas.height = 300;
+    }
+
+    floorPattern = createArtDecoPattern(ctx);
+  }
+
+  updateCanvasResolution();
+  window.addEventListener('resize', updateCanvasResolution);
+  window.addEventListener('orientationchange', () => setTimeout(updateCanvasResolution, 150));
 
   let isKicked = false;
   let kickReason = '';
@@ -34,14 +66,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let currentPing = 0;
   let lastPingTimestamp = 0;
 
-  const floorPattern = createArtDecoPattern(ctx);
-
   let worldPortals = [];
   let isModalOpen = false;
   let isGameRunning = false;
   let activeNearPortal = null;
 
-  // Плавный интерполированный объект Кейт
   const boss = {
     x: 700,
     y: 700,
@@ -130,6 +159,42 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     }
   );
+
+  const touchControls = new TouchControls(getGameContainer(), {
+    onDash: () => {
+      if (!canMove() || dash.cooldownTimer > 0 || dash.active) return;
+      dash.dirX = lastFaceDir.x || 0;
+      dash.dirY = lastFaceDir.y || 1;
+      dash.active = true;
+      dash.timer = dash.duration;
+      dash.cooldownTimer = dash.cooldown;
+    },
+    onInteract: () => {
+      if (activeNearPortal && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'use_portal', portalId: activeNearPortal.id }));
+      }
+    },
+    onSoul: () => {
+      if (canMove()) {
+        resetKeys();
+        statsUI.toggleSoulModal(undefined, player.stats, username);
+      }
+    },
+    onToggleMap: (isOpen, slotElement) => {
+      if (isOpen && slotElement && hud.minimap?.container) {
+        slotElement.appendChild(hud.minimap.container);
+      } else if (hud.minimap?.container) {
+        const desktopSlot = document.getElementById('ghud-minimap-slot');
+        if (desktopSlot) desktopSlot.appendChild(hud.minimap.container);
+      }
+    },
+    onSendChat: (msgText) => {
+      player.bubble = { text: msgText, expireAt: Date.now() + 5000 };
+      try {
+        socket.send(JSON.stringify({ type: 'chat', text: msgText }));
+      } catch (_) {}
+    }
+  });
 
   function canMove() {
     return !isKicked &&
@@ -345,7 +410,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         player.inDuel = false;
         duelManager.endDuel(data.winnerName);
       }
-      // 4. Событие гибели игрока в бою
+
       if (data.type === 'combat_death') {
         player.inDuel = false;
         player.deathLockUntil = Date.now() + (data.lockDuration || 30) * 1000;
@@ -353,7 +418,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         duelManager.escapeBattle();
       }
 
-      // 5. Тост с ошибкой от сервера
       if (data.type === 'toast_error') {
         showToast(data.message);
       }
@@ -499,8 +563,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
     const screenY = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    const mouseWorldX = (screenX - VIEW_WIDTH / 2) / camera.zoom + camera.x;
-    const mouseWorldY = (screenY - VIEW_HEIGHT / 2) / camera.zoom + camera.y;
+    const mouseWorldX = (screenX - canvas.width / 2) / camera.zoom + camera.x;
+    const mouseWorldY = (screenY - canvas.height / 2) / camera.zoom + camera.y;
 
     if (boss.state !== 'dead') {
       if (Math.abs(mouseWorldX - boss.x) <= 24 && Math.abs(mouseWorldY - boss.y) <= 28) {
@@ -767,11 +831,19 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         if (keys.a) dx -= 1;
         if (keys.d) dx += 1;
 
+        const stick = touchControls.getMoveVector();
+        if (stick.x !== 0 || stick.y !== 0) {
+          dx = stick.x;
+          dy = stick.y;
+        }
+
         if (dx !== 0 || dy !== 0) {
           isMoving = true;
-          if (dx !== 0 && dy !== 0) {
-            dx *= 0.7071;
-            dy *= 0.7071;
+          if (keys.w || keys.s || keys.a || keys.d) {
+            if (dx !== 0 && dy !== 0) {
+              dx *= 0.7071;
+              dy *= 0.7071;
+            }
           }
           lastFaceDir.x = dx;
           lastFaceDir.y = dy;
@@ -795,15 +867,15 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           activeNearPortal = portal;
         }
       });
+
+      touchControls.setInteractHighlight(Boolean(activeNearPortal));
     }
 
-    // Проверка реального движения Кейт по дельте координат
     if (boss.state !== 'dead') {
       const bDx = boss.targetX - boss.x;
       const bDy = boss.targetY - boss.y;
       const dist = Math.hypot(bDx, bDy);
 
-      // Шагает ТОЛЬКО если есть физическое смещение > 0.8px и она не в бою
       boss.isMoving = dist > 0.8 && boss.state !== 'combat';
 
       if (dist > 0.5) {
@@ -835,17 +907,17 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     camera.x += (player.x - camera.x) * Math.min(1, camera.smoothSpeed * dt);
     camera.y += (player.y - camera.y) * Math.min(1, camera.smoothSpeed * dt);
 
-    const halfViewW = (VIEW_WIDTH / 2) / camera.zoom;
-    const halfViewH = (VIEW_HEIGHT / 2) / camera.zoom;
+    const halfViewW = (canvas.width / 2) / camera.zoom;
+    const halfViewH = (canvas.height / 2) / camera.zoom;
 
     camera.x = Math.max(halfViewW, Math.min(WORLD_SIZE - halfViewW, camera.x));
     camera.y = Math.max(halfViewH, Math.min(WORLD_SIZE - halfViewH, camera.y));
 
     ctx.fillStyle = '#050408';
-    ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    ctx.translate(VIEW_WIDTH / 2, VIEW_HEIGHT / 2);
+    ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
@@ -877,17 +949,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.lineWidth = 1;
     ctx.strokeRect(8, 8, WORLD_SIZE - 16, WORLD_SIZE - 16);
 
-    worldPortals.forEach((p) => {
-      if (p.id === 'portal_class_select') {
-        ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-        ctx.beginPath();
-        ctx.ellipse(p.x, p.y + 11, 16, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    });
-
     otherPlayers.forEach((p) => drawCharacterShadow(ctx, p.x, p.y));
     if (boss.state !== 'dead') {
       drawCharacterShadow(ctx, boss.x, boss.y, 1.2);
@@ -906,6 +967,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       p.y += pDy * Math.min(1, 14 * dt);
     });
 
+    // Отрисовка всех объектов и персонажей в Y-глубине
     const entities = [];
     worldPortals.forEach((portal) => entities.push({ type: 'portal', y: portal.y, item: portal }));
     otherPlayers.forEach((p) => entities.push({ type: 'other_player', y: p.y, item: p }));
@@ -971,7 +1033,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         return;
       }
 
-      // Отрисовка Кейт с передачей честного флага движения boss.isMoving
       if (ent.type === 'boss') {
         const b = ent.item;
         drawBossSprite(ctx, keytImg, b.x, b.y, b.dirX || 0, b.dirY || 1, Boolean(boss.isMoving), now);
@@ -1147,38 +1208,38 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 
       ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
-      ctx.fillRect(8, VIEW_HEIGHT - 36, VIEW_WIDTH - 16, 28);
+      ctx.fillRect(8, canvas.height - 36, canvas.width - 16, 28);
       ctx.strokeStyle = '#ffd700';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(8, VIEW_HEIGHT - 36, VIEW_WIDTH - 16, 28);
+      ctx.strokeRect(8, canvas.height - 36, canvas.width - 16, 28);
 
       ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffd700';
-      ctx.fillText('>', 14, VIEW_HEIGHT - 22);
+      ctx.fillText('>', 14, canvas.height - 22);
 
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(chatText + (isCursorVisible ? '_' : ''), 30, VIEW_HEIGHT - 22);
+      ctx.fillText(chatText + (isCursorVisible ? '_' : ''), 30, canvas.height - 22);
     } else {
       ctx.font = '10px monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.fillText('[Enter] Чат', VIEW_WIDTH - 10, VIEW_HEIGHT - 10);
+      ctx.fillText('[Enter] Чат', canvas.width - 10, canvas.height - 10);
     }
 
     if (isKicked) {
       ctx.fillStyle = 'rgba(5, 4, 8, 0.85)';
-      ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.font = 'bold 13px monospace';
       ctx.fillStyle = '#ef4444';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('СВЯЗЬ РАЗОРВАНА', VIEW_WIDTH / 2, VIEW_HEIGHT / 2 - 10);
+      ctx.fillText('СВЯЗЬ РАЗОРВАНА', canvas.width / 2, canvas.height / 2 - 10);
       ctx.font = '11px monospace';
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText(kickReason, VIEW_WIDTH / 2, VIEW_HEIGHT / 2 + 12);
+      ctx.fillText(kickReason, canvas.width / 2, canvas.height / 2 + 12);
       return;
     }
 

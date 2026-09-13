@@ -13,6 +13,29 @@ export class GameHUD {
   mount() {
     this.container.querySelectorAll('.game-hud-panel').forEach((el) => el.remove());
 
+    if (!document.getElementById('hud-mobile-hide-css')) {
+      const style = document.createElement('style');
+      style.id = 'hud-mobile-hide-css';
+      style.textContent = `
+        @media (pointer: coarse) and ((max-width: 1024px) or (max-height: 550px)) {
+          .game-hud-panel.hud-left,
+          .game-hud-panel.hud-right {
+            display: none !important;
+          }
+          #game-canvas {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: fill !important;
+            display: block !important;
+            flex: 1 1 auto !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     const canvas = this.container.querySelector('canvas') || this.container.querySelector('#game-canvas');
 
     const leftSidebar = document.createElement('aside');
