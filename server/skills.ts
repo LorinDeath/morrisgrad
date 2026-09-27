@@ -102,7 +102,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: "trick_strike",
     name: "Коварный удар",
     description: "Урон 1.1x от замаха. Восстанавливает 10% от нанесённого урона.",
-    cooldown: 14,
+    cooldown: 30,
     execute: ({ attacker, target, baseDmg, chargeMult }) => {
       const targetName = target.username;
       const rawDmg = baseDmg * chargeMult * 1.1;
@@ -124,7 +124,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: "dar_love",
     name: "Вселенская любовь",
     description: "Ускоряет автоатаки команды в 1.5 раза на 10 секунд.",
-    cooldown: 20,
+    cooldown: 40,
     execute: ({ attacker, duel }) => {
       const isAllies = duel.allies.some((a) => a.id === attacker.id);
       const myTeam = isAllies ? duel.allies : duel.hunters;
