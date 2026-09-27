@@ -198,7 +198,11 @@ export class DuelManager {
         chargeMult: charge.mult,
         targetId: this.selectedTargetId
       });
-      this.abilityCooldown = 14;
+ 
+      // Динамический кулдаун из конфига класса, присланного сервером
+      const myClass = (this.me?.classId && CLASSES[this.me.classId]) ? CLASSES[this.me.classId] : null;
+      this.abilityCooldown = myClass?.ability?.cooldown ?? 14;
+
       this.attackCooldown = 2.0;
       this.chargeTimer = 0;
     };

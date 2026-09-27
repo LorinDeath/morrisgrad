@@ -1,33 +1,17 @@
-// Базовый дефолт до получения ответа от сервера
-export const CLASSES = {
-  warrior: {
-    id: 'warrior',
-    name: 'Воин',
-    color: '#38bdf8',
-    hp: 200,
-    maxHp: 200,
-    armor: 50,
-    minAtk: 1,
-    maxAtk: 4,
-    ability: {
-      name: 'Удар в спину',
-      cooldown: 14,
-      desc: 'Урон 1.5x от замаха.'
-    }
-  }
-};
+// Динамический реестр классов, наполняемый сервером
+export const CLASSES = {};
 
-// Функция синхронизации данных от сервера
+// Синхронизация данных от сервера (вызывается при получении пакета welcome)
 export function syncClassesFromServer(serverClasses) {
   if (!serverClasses || typeof serverClasses !== 'object') return;
-  // Очищаем и наполняем объект данными с сервера
+  
   for (const key of Object.keys(CLASSES)) {
     delete CLASSES[key];
   }
   Object.assign(CLASSES, serverClasses);
 }
 
-// Расчёт процента защиты брони (1 брони = 1%, 10 брони = 5%, максимум 90%)
+// Расчёт процента защиты брони
 export function getArmorReduction(armor) {
   if (!armor || armor <= 0) return 0;
   if (armor === 1) return 0.01;
@@ -35,7 +19,7 @@ export function getArmorReduction(armor) {
   return Math.min(0.90, pct / 100);
 }
 
-// Расчёт замаха атаки по времени (сек)
+// Расчёт множителя замаха атаки по времени (сек)
 export function getChargeInfo(seconds) {
   let mult = 0.2;
   let tier = 'weak';

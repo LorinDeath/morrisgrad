@@ -830,17 +830,18 @@ export class GameRoom extends DurableObject {
         }
 
         // 4. Выбор класса
+// 4. Выбор класса — читаем строго из CHARACTER_CLASSES (server/classes.ts)
         if (msg.type === "select_class" && session) {
-          const c = CLASSES_CONFIG[msg.classId];
+          const c = CHARACTER_CLASSES[msg.classId];
           if (c) {
             session.color = c.color;
             session.stats = {
               classId: msg.classId,
-              hp: c.hp,
-              maxHp: c.maxHp,
-              armor: c.armor,
-              minAtk: c.minAtk,
-              maxAtk: c.maxAtk,
+              hp: c.stats.hp,
+              maxHp: c.stats.maxHp,
+              armor: c.stats.armor,
+              minAtk: c.stats.minAtk,
+              maxAtk: c.stats.maxAtk,
             };
             server.send(JSON.stringify({ type: "class_updated", stats: session.stats, color: session.color }));
             this.broadcast();
