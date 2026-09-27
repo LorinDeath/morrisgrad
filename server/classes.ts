@@ -26,8 +26,8 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
       hp: 200,
       maxHp: 200,
       armor: 50,
-      minAtk: 1,
-      maxAtk: 4,
+      minAtk: 2,
+      maxAtk: 5,
     },
   },
   spearman: {
@@ -39,8 +39,8 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
       hp: 80,
       maxHp: 80,
       armor: 15,
-      minAtk: 10,
-      maxAtk: 20,
+      minAtk: 5,
+      maxAtk: 10,
     },
   },
   rogue: {
@@ -53,7 +53,7 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
       maxHp: 150,
       armor: 8,
       minAtk: 1,
-      maxAtk: 15,
+      maxAtk: 7,
     },
   },
   mage: {
@@ -61,7 +61,7 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
     name: "Маг",
     color: "#a855f7",
     abilityId: "fireball",
-    stats: { hp: 40, maxHp: 40, armor: 3, minAtk: 20, maxAtk: 48 },
+    stats: { hp: 30, maxHp: 30, armor: 1, minAtk: 1, maxAtk: 2 },
   },
 };
 

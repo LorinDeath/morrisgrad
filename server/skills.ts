@@ -47,7 +47,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: "backstab",
     name: "Удар в спину",
     description: "Урон 1.5x от текущего замаха. Не игнорирует броню.",
-    cooldown: 14,
+    cooldown: 30,
     execute: ({ attacker, target, baseDmg, chargeMult }) => {
       const targetName = target.username;
       const rawDmg = baseDmg * chargeMult * 1.5;
@@ -66,7 +66,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
     id: "pierce",
     name: "Колющий удар",
     description: "Урон 1.2x от замаха. Полностью игнорирует броню!",
-    cooldown: 14,
+    cooldown: 20,
     execute: ({ attacker, target, baseDmg, chargeMult }) => {
       const targetName = target.username;
       const damage = Math.max(1, Math.round(baseDmg * chargeMult * 1.2));
@@ -82,11 +82,11 @@ export const SKILLS: Record<string, SkillDefinition> = {
   fireball: {
     id: "fireball",
     name: "Огненный шар",
-    description: "Взрыв пламени, наносящий 2.0x урона.",
-    cooldown: 14,
+    description: "Взрыв пламени, наносящий 10.0x урона.",
+    cooldown: 40,
     execute: ({ attacker, target, baseDmg, chargeMult }) => {
       const targetName = target.username;
-      const rawDmg = baseDmg * chargeMult * 2.0;
+      const rawDmg = baseDmg * chargeMult * 10.0;
       const reduction = calcArmorReduction(target.armor);
       const damage = Math.max(1, Math.round(rawDmg * (1 - reduction)));
 
