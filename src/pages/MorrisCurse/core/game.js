@@ -436,6 +436,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         player.y = data.y;
         lastSentX = data.x;
         lastSentY = data.y;
+
+        // Полный сброс дебаффов, временных эффектов и цветков
+        player.dismoraleUntil = 0;
+        player.escapedUntil = 0;
+        worldFlowers.clear();
+
         hud.clearTarget();
         resetKeys();
 
@@ -618,6 +624,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           boss.attack = data.boss.attack;
           boss.inDuel = data.boss.inDuel;
           boss.duelId = data.boss.duelId;
+        } else {
+          // Изоляция: в Аринаре босс удаляется с экрана и радара
+          boss.state = 'dead';
+          boss.x = -9999;
+          boss.y = -9999;
+          boss.targetX = -9999;
+          boss.targetY = -9999;
         }
 
         if (data.dar) {
@@ -632,6 +645,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           dar.attack = data.dar.attack;
           dar.inDuel = data.dar.inDuel;
           dar.duelId = data.dar.duelId;
+        } else {
+          // Изоляция: в Аринаре Дар удаляется с экрана и радара
+          dar.state = 'dead';
+          dar.x = -9999;
+          dar.y = -9999;
+          dar.targetX = -9999;
+          dar.targetY = -9999;
         }
 
         if (data.flowers) {
@@ -648,6 +668,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
               worldFlowers.delete(id);
             }
           }
+        } else {
+          worldFlowers.clear();
         }
 
         const activeNicks = new Set();
@@ -1166,13 +1188,27 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       dar.isMoving = false;
     }
 
+    // Полная изоляция данных для HUD и радара
+    const isArinar = currentWorld === 'arinar';
+    const hudBoss = isArinar ? { ...boss, state: 'dead', x: -9999, y: -9999 } : boss;
+    const hudDar = isArinar ? { ...dar, state: 'dead', x: -9999, y: -9999 } : dar;
+    const hudFlowers = isArinar ? new Map() : worldFlowers;
+    const hudPortals = worldPortals.filter((p) => (p.world || 'hellfire') === currentWorld);
+
+    const hudOtherPlayers = new Map();
+    otherPlayers.forEach((p, key) => {
+      if ((p.world || 'hellfire') === currentWorld) {
+        hudOtherPlayers.set(key, p);
+      }
+    });
+
     hud.update({
       player,
-      otherPlayers,
-      boss,
-      dar,
-      worldFlowers,
-      worldPortals,
+      otherPlayers: hudOtherPlayers,
+      boss: hudBoss,
+      dar: hudDar,
+      worldFlowers: hudFlowers,
+      worldPortals: hudPortals,
       activeNearPortal,
       camera,
       dash,
@@ -1381,7 +1417,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         const p = ent.item;
 
         if (currentWorld === 'arinar') {
-          // В Аринаре аватары без скинов — светящиеся круги
           arinarCosmos.drawCircleAvatar(ctx, p.x, p.y, p.color || '#818cf8', p.dirX || 0, p.dirY || 1, false, now);
         } else {
           const isOtherMoving = Math.hypot(p.targetX - p.x, p.targetY - p.y) > 0.6;
@@ -1401,7 +1436,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
       if (ent.type === 'self_player') {
         if (currentWorld === 'arinar') {
-          // В Аринаре аватар игрока — светящийся круг
           arinarCosmos.drawCircleAvatar(ctx, player.x, player.y, player.color || '#ffffff', lastFaceDir.x, lastFaceDir.y, true, now);
         } else {
           const halfW = player.width / 2;
@@ -1433,7 +1467,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     const halfH = player.height / 2;
 
-    // Надписи над порталами текущего мира
     worldPortals.forEach((portal) => {
       if ((portal.world || 'hellfire') !== currentWorld) return;
 

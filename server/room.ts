@@ -842,10 +842,15 @@ export class GameRoom extends DurableObject {
 
           if (portal && Math.hypot(session.x - portal.x, session.y - portal.y) <= 85) {
             // Переход между мирами
+// Переход между мирами
             if (portal.targetWorld) {
               session.world = portal.targetWorld;
               session.x = portal.targetX || 300;
               session.y = portal.targetY || 600;
+
+              // Полное снятие временных дебаффов и блокировок прошлого мира
+              session.dismoraleUntil = 0;
+              session.escapedUntil = 0;
 
               server.send(JSON.stringify({
                 type: "world_switched",

@@ -126,7 +126,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 } }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire' }) {
     if (!this.ctx || !this.canvas) return;
 
     const ctx = this.ctx;
@@ -135,6 +135,7 @@ export class Minimap {
     const cx = w / 2;
     const cy = h / 2;
     const scale = this.zoomLevels[this.zoomIndex];
+    const isArinar = currentWorld === 'arinar';
 
     ctx.save();
     ctx.clearRect(0, 0, w, h);
@@ -144,7 +145,7 @@ export class Minimap {
     ctx.clip();
 
     // 1. Космос за стенами
-    ctx.fillStyle = '#05030a';
+    ctx.fillStyle = isArinar ? '#020108' : '#05030a';
     ctx.fillRect(0, 0, w, h);
 
     // 2. Игровой мир
@@ -152,10 +153,11 @@ export class Minimap {
     const mapWorldY = cy + (0 - player.y) * scale;
     const mapWorldSize = worldSize * scale;
 
-    ctx.fillStyle = '#0f0b1a';
+    ctx.fillStyle = isArinar ? '#08051a' : '#0f0b1a';
     ctx.fillRect(mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
 
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.08)';
+    // Сетка локации
+    ctx.strokeStyle = isArinar ? 'rgba(129, 140, 248, 0.12)' : 'rgba(212, 175, 55, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let gx = 0; gx <= worldSize; gx += 128) {
@@ -170,13 +172,16 @@ export class Minimap {
     }
     ctx.stroke();
 
-    ctx.strokeStyle = '#c59b27';
+    // Граница мира
+    ctx.strokeStyle = isArinar ? '#818cf8' : '#c59b27';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
 
-    // 3. Порталы
+    // 3. Порталы (СТРОГО текущего мира)
     if (this.filters.portals && worldPortals) {
       worldPortals.forEach((portal) => {
+        if ((portal.world || 'hellfire') !== currentWorld) return;
+
         const px = cx + (portal.x - player.x) * scale;
         const py = cy + (portal.y - player.y) * scale;
 
@@ -193,8 +198,26 @@ export class Minimap {
           ctx.strokeStyle = '#f5d77f';
           ctx.lineWidth = 1;
           ctx.stroke();
+        } else if (portal.id === 'portal_arinar') {
+          // Иконка бабочки/портала в Аринар
+          ctx.fillStyle = '#818cf8';
+          ctx.beginPath();
+          ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#c084fc';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else if (portal.id === 'portal_hellfire') {
+          // Иконка возврата в Ад
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         } else {
-          ctx.fillStyle = '#38bdf8';
+          ctx.fillStyle = portal.color || '#38bdf8';
           ctx.beginPath();
           ctx.arc(px, py, 3, 0, Math.PI * 2);
           ctx.fill();
@@ -202,8 +225,8 @@ export class Minimap {
       });
     }
 
-    // 4. Метка Кейт (Неоново-розовый босс-маркер)
-    if (boss && boss.state !== 'dead') {
+    // 4. Метка Кейт (ТОЛЬКО в Аду)
+    if (!isArinar && boss && boss.state !== 'dead' && boss.x > 0) {
       const bx = cx + (boss.x - player.x) * scale;
       const by = cy + (boss.y - player.y) * scale;
 
@@ -217,9 +240,11 @@ export class Minimap {
       ctx.stroke();
     }
 
-    // 5. Другие игроки
+    // 5. Другие игроки (ТОЛЬКО текущего мира)
     if (this.filters.players && otherPlayers) {
       otherPlayers.forEach((p) => {
+        if ((p.world || 'hellfire') !== currentWorld) return;
+
         const ox = cx + (p.x - player.x) * scale;
         const oy = cy + (p.y - player.y) * scale;
 
@@ -245,7 +270,7 @@ export class Minimap {
     const ny = lastFaceDir.y || 1;
     const norm = Math.hypot(nx, ny) || 1;
 
-    ctx.strokeStyle = '#ffd700';
+    ctx.strokeStyle = isArinar ? '#38bdf8' : '#ffd700';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
