@@ -1,3 +1,5 @@
+export type GameWorldId = "hellfire" | "arinar";
+
 export type FlowerStage = "bud" | "mature" | "active";
 export type FlowerType = "normal" | "fire" | "frost" | "hell";
 
@@ -16,7 +18,7 @@ export interface FlowerState {
   flowerType: FlowerType;
   plantedAt: number;
   stats: FlowerStats;
-  fearDistance: number; // 40–120м от Алтаря
+  fearDistance: number;
   inDuel: boolean;
   duelId?: string;
   dirX?: number;
@@ -41,6 +43,7 @@ export interface PlayerStats {
 export interface Session {
   id: string;
   username: string;
+  world: GameWorldId; // Текущий мир игрока
   x: number;
   y: number;
   color: string;
@@ -53,6 +56,20 @@ export interface Session {
   stats: PlayerStats;
 }
 
+export interface WorldPortalDef {
+  id: string;
+  name: string;
+  world: GameWorldId;
+  targetWorld?: GameWorldId;
+  targetX?: number;
+  targetY?: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  color?: string;
+}
+
 export interface DuelParticipant {
   id: string;
   username: string;
@@ -61,17 +78,17 @@ export interface DuelParticipant {
   maxHp: number;
   armor: number;
   attack?: number;
-  shield?: number; // Прочность щита
+  shield?: number;
   isBoss?: boolean;
   isFlower?: boolean;
   flowerType?: FlowerType;
-  burnTicks?: number; // Тики периодического урона от огня
+  burnTicks?: number;
   burnDmg?: number;
-  frostUntil?: number; // Замедление замаха от мороза
-  atkSpeedBuffUntil?: number; // Бафф "Вселенская любовь"
-  atkBuffUntil?: number; // Бафф урона (Адский цветок)
+  frostUntil?: number;
+  atkSpeedBuffUntil?: number;
+  atkBuffUntil?: number;
   atkBuffPct?: number;
-  dmgDebuffUntil?: number; // Дебафф урона цели (Пространственный разрез)
+  dmgDebuffUntil?: number;
   dmgDebuffPct?: number;
   ws?: WebSocket;
 }

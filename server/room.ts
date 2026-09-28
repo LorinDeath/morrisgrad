@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
-import { WORLD_PORTALS, MINI_GAMES, CLASSES_CONFIG } from "./config";
+import { WORLD_PORTALS, MINI_GAMES } from "./config";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
-import type { Session, DuelState, FlowerState, FlowerType } from "./types";
+import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
 import { CHARACTER_CLASSES } from "./classes";
 import { getSkill } from "./skills";
 import { DarBoss } from "./dar";
@@ -39,12 +39,20 @@ export class GameRoom extends DurableObject {
       const dt = (now - this.lastTick) / 1000;
       this.lastTick = now;
 
-      // 1. Пассивное лечение у Алтаря Перевоплощения
+      // Выделяем сессии только Адского Мира для ИИ боссов и костра
+      const hellfireSessions = new Map<WebSocket, Session>();
+      for (const [ws, s] of this.sessions.entries()) {
+        if ((s.world || "hellfire") === "hellfire") {
+          hellfireSessions.set(ws, s);
+        }
+      }
+
+      // 1. Пассивное лечение у Алтаря Перевоплощения (только для Адского Мира)
       if (now - this.lastHealTick >= 1000) {
         this.lastHealTick = now;
         let anyHealed = false;
 
-        for (const s of this.sessions.values()) {
+        for (const s of hellfireSessions.values()) {
           if (s.stats.classId && !s.inDuel) {
             const dist = Math.hypot(s.x - 565, s.y - 600);
             if (dist <= 80 && s.stats.hp < s.stats.maxHp) {
@@ -59,10 +67,10 @@ export class GameRoom extends DurableObject {
         }
       }
 
-      // 2. Обновление Кейт
+      // 2. Обновление Кейт (видит только hellfireSessions)
       this.boss.update(
         dt,
-        this.sessions,
+        hellfireSessions,
         this.activeDuels,
         (targetSession, ws) => this.startBossBattle(targetSession, ws),
         (duel, log) => this.broadcastDuelUpdate(duel, log),
@@ -93,10 +101,10 @@ export class GameRoom extends DurableObject {
         }
       );
 
-      // 3. Обновление Дар (с цветками и поливом)
+      // 3. Обновление Дар (видит только hellfireSessions)
       this.dar.update(
         dt,
-        this.sessions,
+        hellfireSessions,
         this.activeDuels,
         this.flowers,
         (quote) => this.broadcastDarSay(quote),
@@ -121,7 +129,7 @@ export class GameRoom extends DurableObject {
       );
 
       // 4. Жизненный цикл и ИИ цветков-вампиров
-      this.updateFlowers(dt, now);
+      this.updateFlowers(dt, now, hellfireSessions);
 
       // 5. Автоматические атаки цветков в активных дуэлях
       for (const flower of this.flowers.values()) {
@@ -238,7 +246,7 @@ export class GameRoom extends DurableObject {
     };
   }
 
-  updateFlowers(dt: number, now: number) {
+  updateFlowers(dt: number, now: number, hellfireSessions: Map<WebSocket, Session>) {
     const ALTAR_X = 565;
     const ALTAR_Y = 600;
 
@@ -283,7 +291,7 @@ export class GameRoom extends DurableObject {
           continue;
         }
 
-        // 2. Помощь союзникам в пределах 10м (200px)
+        // 2. Помощь союзникам (только внутри сессий Ада)
         let helped = false;
         for (const duel of this.activeDuels.values()) {
           const hasDar = duel.hunters.some((h) => h.id === this.dar.id) || duel.allies.some((a) => a.id === this.dar.id);
@@ -292,7 +300,7 @@ export class GameRoom extends DurableObject {
           if (hasDar || hasOtherFlower) {
             let inRange = false;
             for (const p of [...duel.hunters, ...duel.allies]) {
-              const s = [...this.sessions.values()].find((sess) => sess.id === p.id);
+              const s = [...hellfireSessions.values()].find((sess) => sess.id === p.id);
               if (s && Math.hypot(s.x - flower.x, s.y - flower.y) <= 200) {
                 inRange = true;
                 break;
@@ -313,12 +321,12 @@ export class GameRoom extends DurableObject {
         }
         if (helped) continue;
 
-        // 3. Агр на игроков в радиусе 3 метров (60px)
+        // 3. Агр строго на игроков в Мире Адского Пламени
         let targetSession: Session | null = null;
         let targetWs: WebSocket | null = null;
         let minDist = 60;
 
-        for (const [ws, s] of this.sessions.entries()) {
+        for (const [ws, s] of hellfireSessions.entries()) {
           if (s.stats.classId && !s.inDuel && (!s.escapedUntil || now >= s.escapedUntil) && (!s.rejoinBlockedUntil || now >= s.rejoinBlockedUntil)) {
             const d = Math.hypot(s.x - flower.x, s.y - flower.y);
             if (d <= minDist) {
@@ -460,8 +468,10 @@ export class GameRoom extends DurableObject {
       username: "Кейт",
       text,
     });
-    for (const ws of [...this.sessions.keys()]) {
-      try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    for (const [ws, s] of this.sessions.entries()) {
+      if ((s.world || "hellfire") === "hellfire") {
+        try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+      }
     }
   }
 
@@ -472,8 +482,10 @@ export class GameRoom extends DurableObject {
       username: "Дар",
       text,
     });
-    for (const ws of [...this.sessions.keys()]) {
-      try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    for (const [ws, s] of this.sessions.entries()) {
+      if ((s.world || "hellfire") === "hellfire") {
+        try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+      }
     }
   }
 
@@ -484,8 +496,10 @@ export class GameRoom extends DurableObject {
       username: name,
       text,
     });
-    for (const ws of [...this.sessions.keys()]) {
-      try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+    for (const [ws, s] of this.sessions.entries()) {
+      if ((s.world || "hellfire") === "hellfire") {
+        try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+      }
     }
   }
 
@@ -498,8 +512,10 @@ export class GameRoom extends DurableObject {
       hp: targetSession.stats.hp,
       maxHp: targetSession.stats.maxHp,
     });
-    for (const ws of [...this.sessions.keys()]) {
-      try { ws.send(payload); } catch (_) {}
+    for (const [ws, s] of this.sessions.entries()) {
+      if ((s.world || "hellfire") === "hellfire") {
+        try { ws.send(payload); } catch (_) {}
+      }
     }
     this.broadcast();
   }
@@ -751,7 +767,7 @@ export class GameRoom extends DurableObject {
 
         const session = this.sessions.get(server);
 
-        // 1. Вход
+        // 1. Вход игрока в игру
         if (msg.type === "join") {
           const cleanName = (msg.username || "Странник").trim();
           const lowerName = cleanName.toLowerCase();
@@ -770,6 +786,7 @@ export class GameRoom extends DurableObject {
           this.sessions.set(server, {
             id: myId,
             username: cleanName,
+            world: "hellfire",
             x: msg.x || 600,
             y: msg.y || 600,
             color: "#ffffff",
@@ -803,6 +820,7 @@ export class GameRoom extends DurableObject {
             JSON.stringify({
               type: "welcome",
               myId,
+              world: "hellfire",
               portals: WORLD_PORTALS,
               classes: classesPayload,
             })
@@ -817,10 +835,28 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
-        // 3. Порталы
+        // 3. Порталы (переходы между комнатами и мирами)
         if (msg.type === "use_portal" && session && !session.inDuel) {
-          const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId);
-          if (portal && Math.hypot(session.x - portal.x, session.y - portal.y) <= 65) {
+          const curWorld = session.world || "hellfire";
+          const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId && (p.world || "hellfire") === curWorld);
+
+          if (portal && Math.hypot(session.x - portal.x, session.y - portal.y) <= 85) {
+            // Переход между мирами
+            if (portal.targetWorld) {
+              session.world = portal.targetWorld;
+              session.x = portal.targetX || 300;
+              session.y = portal.targetY || 600;
+
+              server.send(JSON.stringify({
+                type: "world_switched",
+                world: session.world,
+                x: session.x,
+                y: session.y,
+              }));
+              this.broadcast();
+              return;
+            }
+
             if (portal.id === "portal_class_select") {
               server.send(JSON.stringify({ type: "open_class_selection" }));
             } else if (portal.id === "portal_arcade") {
@@ -830,7 +866,6 @@ export class GameRoom extends DurableObject {
         }
 
         // 4. Выбор класса
-// 4. Выбор класса — читаем строго из CHARACTER_CLASSES (server/classes.ts)
         if (msg.type === "select_class" && session) {
           const c = CHARACTER_CLASSES[msg.classId];
           if (c) {
@@ -848,8 +883,8 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 5. Взаимодействие с цветком: Тронуть (Стадия 1 - Бутон)
-        if (msg.type === "touch_flower" && session && !session.inDuel) {
+        // 5. Взаимодействие с цветком: Тронуть
+        if (msg.type === "touch_flower" && session && !session.inDuel && (session.world || "hellfire") === "hellfire") {
           const flower = this.flowers.get(msg.flowerId);
           if (flower && flower.stage === "bud") {
             const dist = Math.hypot(session.x - flower.x, session.y - flower.y);
@@ -862,8 +897,10 @@ export class GameRoom extends DurableObject {
                 hp: session.stats.hp,
                 maxHp: session.stats.maxHp
               });
-              for (const ws of [...this.sessions.keys()]) {
-                try { ws.send(touchPayload); } catch (_) {}
+              for (const [ws, s] of this.sessions.entries()) {
+                if ((s.world || "hellfire") === "hellfire") {
+                  try { ws.send(touchPayload); } catch (_) {}
+                }
               }
               this.broadcast();
             }
@@ -871,8 +908,8 @@ export class GameRoom extends DurableObject {
           return;
         }
 
-        // 6. Взаимодействие с цветком: Сорвать (Стадия 2 - Созревший стебель)
-        if (msg.type === "pick_flower" && session && !session.inDuel) {
+        // 6. Взаимодействие с цветком: Сорвать
+        if (msg.type === "pick_flower" && session && !session.inDuel && (session.world || "hellfire") === "hellfire") {
           const flower = this.flowers.get(msg.flowerId);
           if (flower && flower.stage === "mature") {
             const dist = Math.hypot(session.x - flower.x, session.y - flower.y);
@@ -885,8 +922,10 @@ export class GameRoom extends DurableObject {
                 flowerId: flower.id,
                 shield: session.shield
               });
-              for (const ws of [...this.sessions.keys()]) {
-                try { ws.send(pickPayload); } catch (_) {}
+              for (const [ws, s] of this.sessions.entries()) {
+                if ((s.world || "hellfire") === "hellfire") {
+                  try { ws.send(pickPayload); } catch (_) {}
+                }
               }
               this.broadcast();
             }
@@ -894,7 +933,7 @@ export class GameRoom extends DurableObject {
           return;
         }
 
-        // 7. Дуэль: вызов
+        // 7. Дуэль: вызов (только внутри одного мира)
         if (msg.type === "duel_invite" && session && session.stats.classId && !session.inDuel) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
@@ -902,29 +941,31 @@ export class GameRoom extends DurableObject {
             return;
           }
 
-          if (msg.targetId === "boss_dar") {
-            const roll = Math.random();
-            if (roll < 0.2) {
-              this.broadcastDarSay("Ладно уговорил");
-              this.startDarDuel(session, server);
-            } else {
-              const declineQuotes = ["Я пацифист", "Идите нафиг"];
-              this.broadcastDarSay(declineQuotes[Math.floor(Math.random() * declineQuotes.length)]);
-              server.send(JSON.stringify({ type: "duel_declined_notify", targetNick: "Дар" }));
+          if ((session.world || "hellfire") === "hellfire") {
+            if (msg.targetId === "boss_dar") {
+              const roll = Math.random();
+              if (roll < 0.2) {
+                this.broadcastDarSay("Ладно уговорил");
+                this.startDarDuel(session, server);
+              } else {
+                const declineQuotes = ["Я пацифист", "Идите нафиг"];
+                this.broadcastDarSay(declineQuotes[Math.floor(Math.random() * declineQuotes.length)]);
+                server.send(JSON.stringify({ type: "duel_declined_notify", targetNick: "Дар" }));
+              }
+              return;
             }
-            return;
-          }
 
-          if (msg.targetId && this.flowers.has(msg.targetId)) {
-            const flower = this.flowers.get(msg.targetId)!;
-            if (flower.stage === "active" && !flower.inDuel) {
-              this.startFlowerBattle(session, server, flower);
+            if (msg.targetId && this.flowers.has(msg.targetId)) {
+              const flower = this.flowers.get(msg.targetId)!;
+              if (flower.stage === "active" && !flower.inDuel) {
+                this.startFlowerBattle(session, server, flower);
+              }
+              return;
             }
-            return;
           }
 
           for (const [targetWs, s] of this.sessions.entries()) {
-            if (s.id === msg.targetId && s.stats.classId && !s.inDuel) {
+            if (s.id === msg.targetId && s.stats.classId && !s.inDuel && (s.world || "hellfire") === (session.world || "hellfire")) {
               targetWs.send(JSON.stringify({ type: "duel_incoming", fromId: session.id, fromUsername: session.username }));
               break;
             }
@@ -953,7 +994,7 @@ export class GameRoom extends DurableObject {
           let opponentSession: Session | null = null;
 
           for (const [ws, s] of this.sessions.entries()) {
-            if (s.id === msg.targetId && !s.inDuel) {
+            if (s.id === msg.targetId && !s.inDuel && (s.world || "hellfire") === (session.world || "hellfire")) {
               opponentWs = ws;
               opponentSession = s;
               break;
@@ -1003,8 +1044,8 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 10. Присоединение к бою босса
-        if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel) {
+        // 10. Присоединение к бою босса (только в Аду)
+        if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && (session.world || "hellfire") === "hellfire") {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
             server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
@@ -1187,7 +1228,7 @@ export class GameRoom extends DurableObject {
           }
         }
 
-        // 12. Чат
+        // 12. Локальный чат (только игрокам того же мира)
         if (msg.type === "chat" && session && msg.text) {
           const cleanText = String(msg.text).trim().slice(0, 45);
           if (cleanText.length > 0) {
@@ -1197,8 +1238,10 @@ export class GameRoom extends DurableObject {
               username: session.username,
               text: cleanText,
             });
-            for (const ws of [...this.sessions.keys()]) {
-              try { ws.send(chatPayload); } catch (_) { this.sessions.delete(ws); }
+            for (const [ws, s] of this.sessions.entries()) {
+              if ((s.world || "hellfire") === (session.world || "hellfire")) {
+                try { ws.send(chatPayload); } catch (_) { this.sessions.delete(ws); }
+              }
             }
           }
         }
@@ -1244,34 +1287,62 @@ export class GameRoom extends DurableObject {
 
   broadcast() {
     try {
-      const uniquePlayers = new Map();
-      for (const [_, s] of this.sessions.entries()) {
-        if (s && s.username) {
-          uniquePlayers.set(s.username.toLowerCase(), {
-            id: s.id,
-            username: s.username,
-            x: s.x,
-            y: s.y,
-            color: s.color || "#ffffff",
-            inDuel: Boolean(s.inDuel),
-            escapedUntil: s.escapedUntil || 0,
-            rejoinBlockedUntil: s.rejoinBlockedUntil || 0,
-            dismoraleUntil: s.dismoraleUntil || 0,
-            shield: s.shield || 0,
-            stats: s.stats,
-          });
+      const hellfirePlayers: any[] = [];
+      const arinarPlayers: any[] = [];
+      const seenHellfire = new Set<string>();
+      const seenArinar = new Set<string>();
+
+      for (const s of this.sessions.values()) {
+        if (!s || !s.username) continue;
+        const w = s.world || "hellfire";
+        const key = s.username.toLowerCase();
+
+        const pData = {
+          id: s.id,
+          world: w,
+          username: s.username,
+          x: s.x,
+          y: s.y,
+          color: s.color || "#ffffff",
+          inDuel: Boolean(s.inDuel),
+          escapedUntil: s.escapedUntil || 0,
+          rejoinBlockedUntil: s.rejoinBlockedUntil || 0,
+          dismoraleUntil: s.dismoraleUntil || 0,
+          shield: s.shield || 0,
+          stats: s.stats,
+        };
+
+        if (w === "hellfire" && !seenHellfire.has(key)) {
+          seenHellfire.add(key);
+          hellfirePlayers.push(pData);
+        } else if (w === "arinar" && !seenArinar.has(key)) {
+          seenArinar.add(key);
+          arinarPlayers.push(pData);
         }
       }
 
-      const payload = JSON.stringify({
+      // Пакет для Мира Адского Пламени
+      const hellfirePayload = JSON.stringify({
         type: "players_state",
-        players: Array.from(uniquePlayers.values()),
+        world: "hellfire",
+        players: hellfirePlayers,
         boss: this.boss.getState(),
         dar: this.dar.getState(),
         flowers: Array.from(this.flowers.values()),
       });
 
-      for (const ws of [...this.sessions.keys()]) {
+      // Пакет для Аринара (полная изоляция: боссы и цветы отсутствуют)
+      const arinarPayload = JSON.stringify({
+        type: "players_state",
+        world: "arinar",
+        players: arinarPlayers,
+        boss: null,
+        dar: null,
+        flowers: [],
+      });
+
+      for (const [ws, s] of this.sessions.entries()) {
+        const payload = (s.world || "hellfire") === "arinar" ? arinarPayload : hellfirePayload;
         try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
       }
     } catch (err) {

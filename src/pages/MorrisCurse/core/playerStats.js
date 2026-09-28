@@ -21,7 +21,6 @@ export class StatsUI {
   }
 
   initDOM() {
-    // 1. Быстрый тултип при наведении (сквозной для мыши)
     this.tooltip = document.createElement('div');
     this.tooltip.id = 'player-hover-tooltip';
     this.tooltip.style.cssText = `
@@ -33,7 +32,6 @@ export class StatsUI {
     `;
     this.container.appendChild(this.tooltip);
 
-    // 2. Закреплённое окно цели с правого края экрана
     this.targetPanel = document.createElement('div');
     this.targetPanel.id = 'target-inspect-panel';
     this.targetPanel.style.cssText = `
@@ -64,7 +62,6 @@ export class StatsUI {
       }
     };
 
-    // 3. Окно «Душа / Персонаж» [C]
     this.soulModal = document.createElement('div');
     this.soulModal.id = 'soul-modal';
     this.soulModal.style.cssText = `
@@ -72,23 +69,22 @@ export class StatsUI {
       background: rgba(4, 3, 8, 0.85); backdrop-filter: blur(6px); z-index: 10001; font-family: monospace;
     `;
     this.soulModal.innerHTML = `
-      <div style="background: #0d0b16; border: 2px solid #38bdf8; border-radius: 8px; width: 310px; padding: 18px; box-shadow: 0 0 25px rgba(56, 189, 248, 0.25); color: #fff; position: relative;">
+      <div style="background: #0d0b16; border: 2px solid #818cf8; border-radius: 8px; width: 340px; padding: 18px; box-shadow: 0 0 25px rgba(129, 140, 248, 0.25); color: #fff; position: relative;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e1b2e; padding-bottom: 8px; margin-bottom: 12px;">
-          <span id="soul-modal-title" style="font-weight: bold; color: #38bdf8; font-size: 14px;">ОБИТЕЛЬ ДУШИ</span>
+          <span id="soul-modal-title" style="font-weight: bold; color: #818cf8; font-size: 13px;"></span>
           <button id="close-soul-btn" style="background: transparent; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; line-height: 1;">✕</button>
         </div>
-        <div id="soul-content" style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;"></div>
+        <div id="soul-content" style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;"></div>
       </div>
     `;
     this.container.appendChild(this.soulModal);
     this.soulModal.querySelector('#close-soul-btn').onclick = () => this.toggleSoulModal();
   }
 
-  // Быстрый ховер-тултип (только инфо, без кнопок)
   showTooltip(screenX, screenY, targetPlayer) {
     const stats = targetPlayer.stats || DEFAULT_STATS;
     const isTargetBody = Boolean(stats.classId);
-    const className = isTargetBody ? CLASSES[stats.classId].name : 'Дух';
+    const className = isTargetBody && CLASSES[stats.classId] ? CLASSES[stats.classId].name : 'Дух';
     const redPct = (getArmorReduction(stats.armor) * 100).toFixed(1);
 
     this.tooltip.innerHTML = `
@@ -105,7 +101,6 @@ export class StatsUI {
     this.tooltip.style.display = 'none';
   }
 
-  // Открытие закреплённой панели цели по клику
   showTarget(targetPlayer, myPlayer) {
     this.currentTarget = targetPlayer;
     this.isTargetOpen = true;
@@ -113,7 +108,7 @@ export class StatsUI {
     const stats = targetPlayer.stats || DEFAULT_STATS;
     const isTargetBody = Boolean(stats.classId);
     const isMyBody = Boolean(myPlayer.stats && myPlayer.stats.classId);
-    const className = isTargetBody ? CLASSES[stats.classId].name : 'Бестелесный дух';
+    const className = isTargetBody && CLASSES[stats.classId] ? CLASSES[stats.classId].name : 'Бестелесный дух';
     const redPct = (getArmorReduction(stats.armor) * 100).toFixed(1);
 
     const infoBox = this.targetPanel.querySelector('#target-body-info');
@@ -147,39 +142,65 @@ export class StatsUI {
     this.currentTarget = null;
   }
 
-  toggleSoulModal(forceState, myStats, myName) {
+  toggleSoulModal(forceState, myStats, myName, currentWorld = 'hellfire') {
     this.isSoulOpen = forceState !== undefined ? forceState : !this.isSoulOpen;
     if (this.isSoulOpen && myStats) {
-      const isBody = Boolean(myStats.classId);
       const title = this.soulModal.querySelector('#soul-modal-title');
       const content = this.soulModal.querySelector('#soul-content');
+      const isBody = Boolean(myStats.classId);
+      const isArinar = currentWorld === 'arinar';
 
       if (!isBody) {
-        title.textContent = 'ОБИТЕЛЬ ДУШИ';
+        title.textContent = isArinar ? 'АРИНАР // БЕСТЕЛОСНЫЙ ДУХ' : 'ОБИТЕЛЬ ДУШИ';
         title.style.color = '#38bdf8';
         content.innerHTML = `
           <div style="color: #ffd700; font-weight: bold;">${myName}</div>
-          <div style="color: #94a3b8; font-size: 11px;">Статус: Бестелесный дух</div>
-          <div style="color: #64748b; font-size: 11px; margin-top: 10px;">
-            Подойдите к синему порталу (565, 600), чтобы выбрать тело.
+          <div style="color: #94a3b8;">Статус: Бестелесный дух</div>
+          <div style="color: #64748b; margin-top: 8px;">
+            ${isArinar ? 'В Аринаре дух сохраняет базовую форму.' : 'Подойдите к Алтарю Перевоплощения, чтобы обрести тело.'}
           </div>
         `;
       } else {
-        const c = CLASSES[myStats.classId];
+        const c = CLASSES[myStats.classId] || { name: 'Неизвестно', minAtk: 1, maxAtk: 1, color: '#fff' };
         const redPct = (getArmorReduction(myStats.armor) * 100).toFixed(1);
-        title.textContent = `ПЕРСОНАЖ: ${c.name.toUpperCase()}`;
-        title.style.color = c.color;
 
-        content.innerHTML = `
-          <div style="color: #ffd700; font-weight: bold;">${myName}</div>
-          <div style="display: flex; justify-content: space-between;"><span>❤️ Здоровье:</span> <span>${myStats.hp} / ${myStats.maxHp}</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>🛡️ Броня:</span> <span>${myStats.armor} (${redPct}%)</span></div>
-          <div style="display: flex; justify-content: space-between;"><span>⚔️ Базовый урон:</span> <span>${c.minAtk} - ${c.maxAtk}</span></div>
-          <div style="margin-top: 8px; font-size: 11px; color: #a855f7;">
-            <b>Способность:</b> ${c.ability.name}<br/>
-            <span style="color: #94a3b8;">${c.ability.desc}</span>
-          </div>
-        `;
+        if (isArinar) {
+          // Специальный дашборд Аринара: все параметры динамические, способности отключены
+          title.textContent = `ФРАКТАЛ БАБОЧКИ: АРИНАР`;
+          title.style.color = '#818cf8';
+
+          content.innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #201a33; padding-bottom: 4px;">
+              <span style="color: #ffd700; font-weight: bold;">${myName}</span>
+              <span style="color: #c084fc;">[Форма: ${c.name}]</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;"><span>❤️ Здоровье:</span> <b>${myStats.hp} / ${myStats.maxHp}</b></div>
+            <div style="display: flex; justify-content: space-between;"><span>🛡️ Защита:</span> <b>${myStats.armor} (${redPct}% поглощения)</b></div>
+            <div style="display: flex; justify-content: space-between;"><span>⚔️ Базовый урон:</span> <b>${c.minAtk} - ${c.maxAtk}</b></div>
+            <div style="display: flex; justify-content: space-between;"><span>⚡ Скорость бега:</span> <b>175 px/s</b></div>
+            <div style="margin-top: 8px; padding: 8px; background: rgba(30, 20, 50, 0.7); border: 1px solid #4338ca; border-radius: 4px;">
+              <div style="color: #f87171; font-weight: bold;">🚫 СПОСОБНОСТИ ПОДАВЛЕНЫ</div>
+              <div style="color: #94a3b8; font-size: 11px; margin-top: 2px;">
+                В пространстве Фрактала Бабочки классовые навыки заблокированы. Действуют только чистые атрибуты формы. Валюты не переносятся.
+              </div>
+            </div>
+          `;
+        } else {
+          // Стандартный дашборд Мира Адского Пламени
+          title.textContent = `ПЕРСОНАЖ: ${c.name.toUpperCase()}`;
+          title.style.color = c.color;
+
+          content.innerHTML = `
+            <div style="color: #ffd700; font-weight: bold;">${myName}</div>
+            <div style="display: flex; justify-content: space-between;"><span>❤️ Здоровье:</span> <span>${myStats.hp} / ${myStats.maxHp}</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>🛡️ Броня:</span> <span>${myStats.armor} (${redPct}%)</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>⚔️ Базовый урон:</span> <span>${c.minAtk} - ${c.maxAtk}</span></div>
+            <div style="margin-top: 8px; font-size: 11px; color: #a855f7;">
+              <b>Способность:</b> ${c.ability?.name || 'Нет'}<br/>
+              <span style="color: #94a3b8;">${c.ability?.desc || ''}</span>
+            </div>
+          `;
+        }
       }
       this.soulModal.style.display = 'flex';
     } else {

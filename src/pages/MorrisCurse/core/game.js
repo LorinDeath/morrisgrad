@@ -3,6 +3,7 @@ import { DuelManager } from './duelManager.js';
 import { GameHUD } from './hud.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
 import { syncClassesFromServer } from './classes.js';
+import { ArinarSpaceEnvironment } from './worlds/arinarSpace.js';
 import {
   CAMPFIRE_CONFIG,
   SPRITE_CONFIG,
@@ -25,6 +26,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const WORLD_SIZE = 1200;
   let floorPattern = null;
+
+  // Инициализация миров
+  let currentWorld = 'hellfire';
+  const arinarCosmos = new ArinarSpaceEnvironment(WORLD_SIZE);
 
   function updateCanvasResolution() {
     const isMobile = isMobileDevice();
@@ -216,7 +221,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     onSoul: () => {
       if (canMove()) {
         resetKeys();
-        statsUI.toggleSoulModal(undefined, player.stats, username);
+        statsUI.toggleSoulModal(undefined, player.stats, username, currentWorld);
       }
     },
     onToggleMap: (isOpen, slotElement) => {
@@ -417,11 +422,27 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
       if (data.type === 'welcome') {
         myNetworkId = data.myId;
+        if (data.world) currentWorld = data.world;
         if (data.portals) worldPortals = data.portals;
         if (data.classes) {
           syncClassesFromServer(data.classes);
           duelManager.renderClassCards();
         }
+      }
+
+      if (data.type === 'world_switched') {
+        currentWorld = data.world;
+        player.x = data.x;
+        player.y = data.y;
+        lastSentX = data.x;
+        lastSentY = data.y;
+        hud.clearTarget();
+        resetKeys();
+
+        const toastMsg = currentWorld === 'arinar'
+          ? '🌌 Вы вошли во Фрактал Бабочки: «Аринар»'
+          : '🔥 Вы вернулись в Мир Адского Пламени';
+        showToast(toastMsg);
       }
 
       if (data.type === 'open_class_selection') {
@@ -550,12 +571,16 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         const myNick = (username || '').trim().toLowerCase();
 
         if (data.playerId === 'boss_keyt' || targetNick === 'кейт') {
-          boss.bubble = { text: data.text, expireAt: Date.now() + 4500 };
+          if (currentWorld === 'hellfire') {
+            boss.bubble = { text: data.text, expireAt: Date.now() + 4500 };
+          }
           return;
         }
 
         if (data.playerId === 'boss_dar' || targetNick === 'дар') {
-          dar.bubble = { text: data.text, expireAt: Date.now() + 4500 };
+          if (currentWorld === 'hellfire') {
+            dar.bubble = { text: data.text, expireAt: Date.now() + 4500 };
+          }
           return;
         }
 
@@ -632,6 +657,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           const pNameLower = (p.username || '').trim().toLowerCase();
 
           if (p.id === myNetworkId || pNameLower === myNameLower) {
+            if (p.world && p.world !== currentWorld) {
+              currentWorld = p.world;
+            }
             player.inDuel = Boolean(p.inDuel);
             if (p.escapedUntil) player.escapedUntil = p.escapedUntil;
             if (p.color) player.color = p.color;
@@ -665,6 +693,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
           if (otherPlayers.has(pNameLower)) {
             const cur = otherPlayers.get(pNameLower);
+            cur.world = p.world || 'hellfire';
             cur.targetX = p.x;
             cur.targetY = p.y;
             cur.username = p.username;
@@ -677,6 +706,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           } else {
             otherPlayers.set(pNameLower, {
               id: p.id,
+              world: p.world || 'hellfire',
               x: p.x,
               y: p.y,
               targetX: p.x,
@@ -748,33 +778,37 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const mouseWorldX = (screenX - canvas.width / 2) / camera.zoom + camera.x;
     const mouseWorldY = (screenY - canvas.height / 2) / camera.zoom + camera.y;
 
-    if (boss.state !== 'dead') {
-      if (Math.abs(mouseWorldX - boss.x) <= 24 && Math.abs(mouseWorldY - boss.y) <= 28) {
-        hud.setTarget({ ...boss, isBoss: true });
-        return;
+    if (currentWorld === 'hellfire') {
+      if (boss.state !== 'dead') {
+        if (Math.abs(mouseWorldX - boss.x) <= 24 && Math.abs(mouseWorldY - boss.y) <= 28) {
+          hud.setTarget({ ...boss, isBoss: true });
+          return;
+        }
       }
-    }
 
-    if (dar.state !== 'dead') {
-      if (Math.abs(mouseWorldX - dar.x) <= 24 && Math.abs(mouseWorldY - dar.y) <= 28) {
-        hud.setTarget({ ...dar, isDar: true });
-        return;
+      if (dar.state !== 'dead') {
+        if (Math.abs(mouseWorldX - dar.x) <= 24 && Math.abs(mouseWorldY - dar.y) <= 28) {
+          hud.setTarget({ ...dar, isDar: true });
+          return;
+        }
       }
-    }
 
-    for (const fl of worldFlowers.values()) {
-      if (Math.abs(mouseWorldX - fl.x) <= 24 && Math.abs(mouseWorldY - fl.y) <= 28) {
-        hud.setTarget({ ...fl, isFlowerEntity: true });
-        return;
+      for (const fl of worldFlowers.values()) {
+        if (Math.abs(mouseWorldX - fl.x) <= 24 && Math.abs(mouseWorldY - fl.y) <= 28) {
+          hud.setTarget({ ...fl, isFlowerEntity: true });
+          return;
+        }
       }
     }
 
     for (const portal of worldPortals) {
+      if ((portal.world || 'hellfire') !== currentWorld) continue;
+
       const pw = portal.width || 36;
       const ph = portal.height || 36;
       if (
-        Math.abs(mouseWorldX - portal.x) <= pw / 2 + 10 &&
-        Math.abs(mouseWorldY - portal.y) <= ph / 2 + 10
+        Math.abs(mouseWorldX - portal.x) <= pw / 2 + 12 &&
+        Math.abs(mouseWorldY - portal.y) <= ph / 2 + 12
       ) {
         const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
         if (dist <= 75 && socket.readyState === WebSocket.OPEN) {
@@ -789,6 +823,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     let clicked = null;
     for (const p of otherPlayers.values()) {
+      if ((p.world || 'hellfire') !== currentWorld) continue;
+
       if (
         Math.abs(mouseWorldX - p.x) <= SPRITE_CONFIG.drawWidth / 2 + 6 &&
         mouseWorldY >= p.y - SPRITE_CONFIG.drawHeight / 2 - 24 / camera.zoom &&
@@ -859,7 +895,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     if ((e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') && !isTyping && canMove()) {
       resetKeys();
-      statsUI.toggleSoulModal(undefined, player.stats, username);
+      statsUI.toggleSoulModal(undefined, player.stats, username, currentWorld);
       e.preventDefault();
       return;
     }
@@ -1080,6 +1116,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       activeNearPortal = null;
       let minPortalDist = Infinity;
       worldPortals.forEach((portal) => {
+        if ((portal.world || 'hellfire') !== currentWorld) return;
+
         const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
         if (dist <= 60 && dist < minPortalDist) {
           minPortalDist = dist;
@@ -1090,8 +1128,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       touchControls.setInteractHighlight(Boolean(activeNearPortal));
     }
 
-    // Движение Кейт
-    if (boss.state !== 'dead') {
+    // Движение Кейт (только в Аду)
+    if (currentWorld === 'hellfire' && boss.state !== 'dead') {
       const bDx = boss.targetX - boss.x;
       const bDy = boss.targetY - boss.y;
       const dist = Math.hypot(bDx, bDy);
@@ -1109,8 +1147,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       boss.isMoving = false;
     }
 
-    // Движение Дар
-    if (dar.state !== 'dead') {
+    // Движение Дар (только в Аду)
+    if (currentWorld === 'hellfire' && dar.state !== 'dead') {
       const dDx = dar.targetX - dar.x;
       const dDy = dar.targetY - dar.y;
       const dDist = Math.hypot(dDx, dDy);
@@ -1140,6 +1178,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       dash,
       username,
       lastFaceDir,
+      currentWorld,
       ping: currentPing,
       deathLockUntil: player.deathLockUntil || 0
     });
@@ -1162,44 +1201,58 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    if (floorPattern) {
-      ctx.fillStyle = floorPattern;
-      ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+    // ==========================================
+    // 1. ОТРИСОВКА ФОНА ПО МИРАМ
+    // ==========================================
+    if (currentWorld === 'arinar') {
+      arinarCosmos.update(dt);
+      arinarCosmos.renderBackground(ctx, now);
     } else {
-      ctx.fillStyle = '#0c0a14';
+      if (floorPattern) {
+        ctx.fillStyle = floorPattern;
+        ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+      } else {
+        ctx.fillStyle = '#0c0a14';
+        ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+      }
+
+      ctx.fillStyle = 'rgba(12, 8, 24, 0.62)';
       ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+
+      const edgeGradient = ctx.createRadialGradient(
+        WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.28,
+        WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.72
+      );
+      edgeGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      edgeGradient.addColorStop(1, 'rgba(4, 2, 8, 0.85)');
+      ctx.fillStyle = edgeGradient;
+      ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
+
+      ctx.strokeStyle = 'rgba(245, 215, 127, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(8, 8, WORLD_SIZE - 16, WORLD_SIZE - 16);
+
+      // Тени рисуются только в Адском мире
+      otherPlayers.forEach((p) => {
+        if ((p.world || 'hellfire') === 'hellfire') {
+          drawCharacterShadow(ctx, p.x, p.y);
+        }
+      });
+      if (boss.state !== 'dead') {
+        drawCharacterShadow(ctx, boss.x, boss.y, 1.2);
+      }
+      if (dar.state !== 'dead') {
+        drawCharacterShadow(ctx, dar.x, dar.y, 1.2);
+      }
+      worldFlowers.forEach((fl) => drawCharacterShadow(ctx, fl.x, fl.y, 0.8));
+      drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
     }
 
-    ctx.fillStyle = 'rgba(12, 8, 24, 0.62)';
-    ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
-
-    const edgeGradient = ctx.createRadialGradient(
-      WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.28,
-      WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.72
-    );
-    edgeGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    edgeGradient.addColorStop(1, 'rgba(4, 2, 8, 0.85)');
-    ctx.fillStyle = edgeGradient;
-    ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
-
-    ctx.strokeStyle = '#c59b27';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
-
-    ctx.strokeStyle = 'rgba(245, 215, 127, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(8, 8, WORLD_SIZE - 16, WORLD_SIZE - 16);
-
-    otherPlayers.forEach((p) => drawCharacterShadow(ctx, p.x, p.y));
-    if (boss.state !== 'dead') {
-      drawCharacterShadow(ctx, boss.x, boss.y, 1.2);
-    }
-    if (dar.state !== 'dead') {
-      drawCharacterShadow(ctx, dar.x, dar.y, 1.2);
-    }
-    worldFlowers.forEach((fl) => drawCharacterShadow(ctx, fl.x, fl.y, 0.8));
-    drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
-
+    // Движение других игроков
     otherPlayers.forEach((p) => {
       const pDx = p.targetX - p.x;
       const pDy = p.targetY - p.y;
@@ -1212,23 +1265,48 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       p.y += pDy * Math.min(1, 14 * dt);
     });
 
+    // ==========================================
+    // 2. СБОР СУЩНОСТЕЙ ПО Y-ГЛУБИНЕ
+    // ==========================================
     const entities = [];
-    worldPortals.forEach((portal) => entities.push({ type: 'portal', y: portal.y, item: portal }));
-    otherPlayers.forEach((p) => entities.push({ type: 'other_player', y: p.y, item: p }));
-    worldFlowers.forEach((fl) => entities.push({ type: 'flower', y: fl.y, item: fl }));
-    if (boss.state !== 'dead') {
-      entities.push({ type: 'boss', y: boss.y, item: boss });
-    }
-    if (dar.state !== 'dead') {
-      entities.push({ type: 'dar', y: dar.y, item: dar });
-    }
-    entities.push({ type: 'self_player', y: player.y, item: player });
 
+    worldPortals.forEach((portal) => {
+      if ((portal.world || 'hellfire') === currentWorld) {
+        entities.push({ type: 'portal', y: portal.y, item: portal });
+      }
+    });
+
+    otherPlayers.forEach((p) => {
+      if ((p.world || 'hellfire') === currentWorld) {
+        entities.push({ type: 'other_player', y: p.y, item: p });
+      }
+    });
+
+    if (currentWorld === 'hellfire') {
+      worldFlowers.forEach((fl) => entities.push({ type: 'flower', y: fl.y, item: fl }));
+      if (boss.state !== 'dead') {
+        entities.push({ type: 'boss', y: boss.y, item: boss });
+      }
+      if (dar.state !== 'dead') {
+        entities.push({ type: 'dar', y: dar.y, item: dar });
+      }
+    }
+
+    entities.push({ type: 'self_player', y: player.y, item: player });
     entities.sort((a, b) => a.y - b.y);
 
+    // ==========================================
+    // 3. ОТРИСОВКА СУЩНОСТЕЙ
+    // ==========================================
     entities.forEach((ent) => {
       if (ent.type === 'portal') {
         const portal = ent.item;
+
+        // Портал Бабочки: «Аринар» или обратный портал
+        if (portal.id === 'portal_arinar' || portal.id === 'portal_hellfire') {
+          arinarCosmos.drawButterflyPortal(ctx, portal, now);
+          return;
+        }
 
         if (portal.id === 'portal_class_select') {
           ctx.save();
@@ -1301,50 +1379,64 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
       if (ent.type === 'other_player') {
         const p = ent.item;
-        const isOtherMoving = Math.hypot(p.targetX - p.x, p.targetY - p.y) > 0.6;
-        const classId = p.stats?.classId;
-        const targetSprite = (classId && SPRITES[classId]) ? SPRITES[classId] : SPRITES.soul;
 
-        ctx.save();
-        if (p.escapedUntil && now < p.escapedUntil) {
-          ctx.globalAlpha = Math.floor(now / 150) % 2 === 0 ? 0.3 : 1.0;
+        if (currentWorld === 'arinar') {
+          // В Аринаре аватары без скинов — светящиеся круги
+          arinarCosmos.drawCircleAvatar(ctx, p.x, p.y, p.color || '#818cf8', p.dirX || 0, p.dirY || 1, false, now);
+        } else {
+          const isOtherMoving = Math.hypot(p.targetX - p.x, p.targetY - p.y) > 0.6;
+          const classId = p.stats?.classId;
+          const targetSprite = (classId && SPRITES[classId]) ? SPRITES[classId] : SPRITES.soul;
+
+          ctx.save();
+          if (p.escapedUntil && now < p.escapedUntil) {
+            ctx.globalAlpha = Math.floor(now / 150) % 2 === 0 ? 0.3 : 1.0;
+          }
+
+          drawCharacterSprite(ctx, targetSprite, p.x, p.y, p.dirX || 0, p.dirY || 1, isOtherMoving, now, p.color || '#38bdf8');
+          ctx.restore();
         }
-
-        drawCharacterSprite(ctx, targetSprite, p.x, p.y, p.dirX || 0, p.dirY || 1, isOtherMoving, now, p.color || '#38bdf8');
-        ctx.restore();
         return;
       }
 
       if (ent.type === 'self_player') {
-        const halfW = player.width / 2;
-        const halfH = player.height / 2;
+        if (currentWorld === 'arinar') {
+          // В Аринаре аватар игрока — светящийся круг
+          arinarCosmos.drawCircleAvatar(ctx, player.x, player.y, player.color || '#ffffff', lastFaceDir.x, lastFaceDir.y, true, now);
+        } else {
+          const halfW = player.width / 2;
+          const halfH = player.height / 2;
 
-        if (dash.active) {
+          if (dash.active) {
+            ctx.save();
+            ctx.shadowColor = '#eab308';
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = '#fef08a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(player.x - halfW - 2, player.y - halfH - 2, player.width + 4, player.height + 4);
+            ctx.restore();
+          }
+
+          const myClassId = player.stats?.classId;
+          const mySprite = (myClassId && SPRITES[myClassId]) ? SPRITES[myClassId] : SPRITES.soul;
+
           ctx.save();
-          ctx.shadowColor = '#eab308';
-          ctx.shadowBlur = 12;
-          ctx.strokeStyle = '#fef08a';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(player.x - halfW - 2, player.y - halfH - 2, player.width + 4, player.height + 4);
+          if (player.escapedUntil && now < player.escapedUntil) {
+            ctx.globalAlpha = Math.floor(now / 150) % 2 === 0 ? 0.3 : 1.0;
+          }
+
+          drawCharacterSprite(ctx, mySprite, player.x, player.y, lastFaceDir.x, lastFaceDir.y, isMoving, now, player.color || '#ffffff');
           ctx.restore();
         }
-
-        const myClassId = player.stats?.classId;
-        const mySprite = (myClassId && SPRITES[myClassId]) ? SPRITES[myClassId] : SPRITES.soul;
-
-        ctx.save();
-        if (player.escapedUntil && now < player.escapedUntil) {
-          ctx.globalAlpha = Math.floor(now / 150) % 2 === 0 ? 0.3 : 1.0;
-        }
-
-        drawCharacterSprite(ctx, mySprite, player.x, player.y, lastFaceDir.x, lastFaceDir.y, isMoving, now, player.color || '#ffffff');
-        ctx.restore();
       }
     });
 
     const halfH = player.height / 2;
 
+    // Надписи над порталами текущего мира
     worldPortals.forEach((portal) => {
+      if ((portal.world || 'hellfire') !== currentWorld) return;
+
       const pFontSize = 12 / camera.zoom;
       ctx.font = `bold ${pFontSize}px monospace`;
       ctx.textAlign = 'center';
@@ -1373,65 +1465,66 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       } else {
         const pw = portal.width || 32;
         const ph = portal.height || 32;
-        const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
-        const drawY = Math.max(6, Math.min(WORLD_SIZE - ph - 6, portal.y - ph / 2));
+        const drawX = portal.x;
+        const drawY = portal.y - ph / 2;
 
-        ctx.strokeText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
-        ctx.fillStyle = '#e9d5ff';
-        ctx.fillText(`[ ${portal.name} ]`, drawX + pw / 2, drawY - 8 / camera.zoom);
+        ctx.strokeText(`[ ${portal.name} ]`, drawX, drawY - 8 / camera.zoom);
+        ctx.fillStyle = portal.color || '#e9d5ff';
+        ctx.fillText(`[ ${portal.name} ]`, drawX, drawY - 8 / camera.zoom);
 
         if (activeNearPortal && activeNearPortal.id === portal.id) {
           const badgeY = drawY - 24 / camera.zoom;
           ctx.fillStyle = 'rgba(13, 10, 24, 0.92)';
-          ctx.strokeStyle = '#38bdf8';
+          ctx.strokeStyle = portal.color || '#38bdf8';
           ctx.lineWidth = 1.5 / camera.zoom;
-          const bw = 100 / camera.zoom;
+          const bw = 110 / camera.zoom;
           const bh = 18 / camera.zoom;
-          ctx.fillRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
-          ctx.strokeRect(drawX + pw / 2 - bw / 2, badgeY - bh / 2, bw, bh);
+          ctx.fillRect(drawX - bw / 2, badgeY - bh / 2, bw, bh);
+          ctx.strokeRect(drawX - bw / 2, badgeY - bh / 2, bw, bh);
           ctx.font = `bold ${10 / camera.zoom}px monospace`;
-          ctx.fillStyle = '#38bdf8';
-          ctx.fillText(`[E] Войти`, drawX + pw / 2, badgeY + 3 / camera.zoom);
+          ctx.fillStyle = '#facc15';
+          ctx.fillText(`[E] Войти`, drawX, badgeY + 3 / camera.zoom);
         }
       }
     });
 
-    // Ник Кейт
-    if (boss.state !== 'dead') {
-      const bossNickOffsetY = halfH + (12 / camera.zoom);
-      ctx.font = `bold ${12 / camera.zoom}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.strokeStyle = '#050408';
-      ctx.lineWidth = 2.5 / camera.zoom;
-      ctx.strokeText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
-      ctx.fillStyle = '#f472b6';
-      ctx.fillText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
+    if (currentWorld === 'hellfire') {
+      if (boss.state !== 'dead') {
+        const bossNickOffsetY = halfH + (12 / camera.zoom);
+        ctx.font = `bold ${12 / camera.zoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#050408';
+        ctx.lineWidth = 2.5 / camera.zoom;
+        ctx.strokeText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
+        ctx.fillStyle = '#f472b6';
+        ctx.fillText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
 
-      if (boss.inDuel) {
-        ctx.font = `bold ${15 / camera.zoom}px monospace`;
-        ctx.fillText('⚔️', Math.round(boss.x), Math.round(boss.y - halfH - 26 / camera.zoom));
+        if (boss.inDuel) {
+          ctx.font = `bold ${15 / camera.zoom}px monospace`;
+          ctx.fillText('⚔️', Math.round(boss.x), Math.round(boss.y - halfH - 26 / camera.zoom));
+        }
+      }
+
+      if (dar.state !== 'dead') {
+        const darNickOffsetY = halfH + (12 / camera.zoom);
+        ctx.font = `bold ${12 / camera.zoom}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#050408';
+        ctx.lineWidth = 2.5 / camera.zoom;
+        ctx.strokeText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
+        ctx.fillStyle = '#34d399';
+        ctx.fillText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
+
+        if (dar.inDuel) {
+          ctx.font = `bold ${15 / camera.zoom}px monospace`;
+          ctx.fillText('⚔️', Math.round(dar.x), Math.round(dar.y - halfH - 26 / camera.zoom));
+        }
       }
     }
 
-    // Ник Дар
-    if (dar.state !== 'dead') {
-      const darNickOffsetY = halfH + (12 / camera.zoom);
-      ctx.font = `bold ${12 / camera.zoom}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.strokeStyle = '#050408';
-      ctx.lineWidth = 2.5 / camera.zoom;
-      ctx.strokeText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
-      ctx.fillStyle = '#34d399';
-      ctx.fillText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
-
-      if (dar.inDuel) {
-        ctx.font = `bold ${15 / camera.zoom}px monospace`;
-        ctx.fillText('⚔️', Math.round(dar.x), Math.round(dar.y - halfH - 26 / camera.zoom));
-      }
-    }
-
+    // Иконки дуэлей
     otherPlayers.forEach((p) => {
-      if (p.inDuel) {
+      if ((p.world || 'hellfire') === currentWorld && p.inDuel) {
         ctx.font = `bold ${15 / camera.zoom}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText('⚔️', Math.round(p.x), Math.round(p.y - halfH - 24 / camera.zoom));
@@ -1444,15 +1537,18 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 24 / camera.zoom));
     }
 
+    // Ники игроков текущего мира
     const nickFontSize = 12 / camera.zoom;
     ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.lineWidth = 2.5 / camera.zoom;
 
-    const nickOffsetY = halfH + (10 / camera.zoom);
+    const nickOffsetY = currentWorld === 'arinar' ? (22 / camera.zoom) : (halfH + 10 / camera.zoom);
 
     otherPlayers.forEach((p) => {
+      if ((p.world || 'hellfire') !== currentWorld) return;
+
       ctx.strokeStyle = '#050408';
       ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
       ctx.fillStyle = p.color || '#38bdf8';
@@ -1474,18 +1570,20 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       drawDebuffBadge(ctx, player.x, player.y - halfH - (22 / camera.zoom), `💔 ДИЗМОРАЛЬ ${leftSec}с`);
     }
 
-    const bubbleOffsetY = halfH + (34 / camera.zoom);
+    const bubbleOffsetY = currentWorld === 'arinar' ? (36 / camera.zoom) : (halfH + 34 / camera.zoom);
 
-    if (boss.bubble && boss.bubble.expireAt > now && boss.state !== 'dead') {
-      drawBubble(boss.bubble.text, boss.x, boss.y - bubbleOffsetY, false, '#f472b6');
-    }
+    if (currentWorld === 'hellfire') {
+      if (boss.bubble && boss.bubble.expireAt > now && boss.state !== 'dead') {
+        drawBubble(boss.bubble.text, boss.x, boss.y - bubbleOffsetY, false, '#f472b6');
+      }
 
-    if (dar.bubble && dar.bubble.expireAt > now && dar.state !== 'dead') {
-      drawBubble(dar.bubble.text, dar.x, dar.y - bubbleOffsetY, false, '#34d399');
+      if (dar.bubble && dar.bubble.expireAt > now && dar.state !== 'dead') {
+        drawBubble(dar.bubble.text, dar.x, dar.y - bubbleOffsetY, false, '#34d399');
+      }
     }
 
     otherPlayers.forEach((p) => {
-      if (p.bubble && p.bubble.expireAt > now) {
+      if ((p.world || 'hellfire') === currentWorld && p.bubble && p.bubble.expireAt > now) {
         drawBubble(p.bubble.text, p.x, p.y - bubbleOffsetY, false);
       }
     });
@@ -1494,7 +1592,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       drawBubble(player.bubble.text, player.x, player.y - bubbleOffsetY, true);
     }
 
-    // Отрисовка всплывающего урона и лечения
+    // Всплывающие цифры урона
     for (let i = floatingTexts.length - 1; i >= 0; i--) {
       const ft = floatingTexts[i];
       if (now > ft.expireAt) {
@@ -1520,7 +1618,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     ctx.restore();
 
-    // Белая вспышка на весь экран при сюрприз-ударе Дар
+    // Экранные вспышки
     if (surpriseFlashTimer > 0) {
       surpriseFlashTimer -= dt;
       ctx.save();
@@ -1529,7 +1627,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.restore();
     }
 
-    // Красная вспышка при уколе бутона (-1 HP)
     if (damageFlashTimer > 0) {
       damageFlashTimer -= dt;
       ctx.save();
@@ -1538,6 +1635,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.restore();
     }
 
+    // Чат-строка
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 
