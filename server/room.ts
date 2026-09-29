@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { WORLD_PORTALS, MINI_GAMES } from "./config";
+import { WORLD_PORTALS, MINI_GAMES, ADMIN_USER_IDS } from "./config";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -782,19 +782,10 @@ export class GameRoom extends DurableObject {
             }
           }
 
-          const isAdmin = Boolean(msg.userId && ADMIN_USER_IDS.includes(msg.userId));
-server.send(JSON.stringify({
-  type: "welcome",
-  myId,
-  isAdmin, // Клиент узнает, показывать ли кнопку управления
-  world: "hellfire",
-  portals: WORLD_PORTALS,
-  classes: classesPayload,
-}));
-
           const myId = crypto.randomUUID();
           this.sessions.set(server, {
             id: myId,
+            userId: msg.userId || "",
             username: cleanName,
             world: "hellfire",
             x: msg.x || 600,
@@ -826,10 +817,14 @@ server.send(JSON.stringify({
             })
           );
 
+          // Проверка администратора по переданному userId из базы
+          const isAdmin = Boolean(msg.userId && ADMIN_USER_IDS.includes(msg.userId));
+
           server.send(
             JSON.stringify({
               type: "welcome",
               myId,
+              isAdmin,
               world: "hellfire",
               portals: WORLD_PORTALS,
               classes: classesPayload,
@@ -852,7 +847,6 @@ server.send(JSON.stringify({
 
           if (portal && Math.hypot(session.x - portal.x, session.y - portal.y) <= 85) {
             // Переход между мирами
-// Переход между мирами
             if (portal.targetWorld) {
               session.world = portal.targetWorld;
               session.x = portal.targetX || 300;
@@ -1314,6 +1308,7 @@ server.send(JSON.stringify({
 
         const pData = {
           id: s.id,
+          userId: s.userId || "",
           world: w,
           username: s.username,
           x: s.x,

@@ -2,12 +2,13 @@ import { getArmorReduction } from './classes.js';
 import { Minimap } from './minimap.js';
 
 export class GameHUD {
-  constructor(container, onDuelInvite, onJoinBossFight, onTouchFlower, onPickFlower) {
+  constructor(container, onDuelInvite, onJoinBossFight, onTouchFlower, onPickFlower, onOpenAdmin = null) {
     this.container = container;
     this.onDuelInvite = onDuelInvite;
     this.onJoinBossFight = onJoinBossFight;
     this.onTouchFlower = onTouchFlower;
     this.onPickFlower = onPickFlower;
+    this.onOpenAdmin = onOpenAdmin;
     this.currentTarget = null;
     this.mount();
   }
@@ -34,6 +35,31 @@ export class GameHUD {
             flex: 1 1 auto !important;
           }
         }
+        .hud-admin-btn {
+          width: 100%;
+          background: rgba(49, 46, 129, 0.4);
+          border: 1.5px solid #818cf8;
+          color: #c7d2fe;
+          font-family: monospace;
+          font-size: 11px;
+          font-weight: bold;
+          padding: 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          margin-top: 10px;
+          box-shadow: 0 0 12px rgba(129, 140, 248, 0.25);
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .hud-admin-btn:hover {
+          background: #4338ca;
+          color: #ffffff;
+          box-shadow: 0 0 18px rgba(129, 140, 248, 0.5);
+          border-color: #a5b4fc;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -53,6 +79,11 @@ export class GameHUD {
         </div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
         
+        <!-- Кнопка Администратора (появляется только для тебя) -->
+        <button id="ghud-admin-btn" class="hud-admin-btn" style="display: none;">
+          ⚡ МАППИНГ // АДМИН [F2]
+        </button>
+
         <!-- Индикатор дебафа Дизмораль -->
         <div id="ghud-debuff-box" style="display: none; margin-top: 8px; padding: 6px 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 4px; font-size: 11px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -150,6 +181,15 @@ export class GameHUD {
     const mmSlot = rightSidebar.querySelector('#ghud-minimap-slot');
     this.minimap = new Minimap(mmSlot);
 
+    this.adminBtn = leftSidebar.querySelector('#ghud-admin-btn');
+    if (this.adminBtn) {
+      this.adminBtn.onclick = () => {
+        if (typeof this.onOpenAdmin === 'function') {
+          this.onOpenAdmin();
+        }
+      };
+    }
+
     this.duelBtn = rightSidebar.querySelector('#ghud-duel-btn');
     this.touchBtn = rightSidebar.querySelector('#ghud-flower-touch-btn');
     this.pickBtn = rightSidebar.querySelector('#ghud-flower-pick-btn');
@@ -208,6 +248,8 @@ export class GameHUD {
       dash,
       username,
       lastFaceDir,
+      currentWorld = 'hellfire',
+      isAdmin = false,
       ping = 0,
       deathLockUntil = 0
     } = data;
@@ -223,7 +265,8 @@ export class GameHUD {
         boss,
         worldPortals,
         worldSize: 1200,
-        lastFaceDir
+        lastFaceDir,
+        currentWorld
       });
     }
 
@@ -237,6 +280,11 @@ export class GameHUD {
     if (myClass) {
       const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
       myClass.textContent = isMyBody ? (classMap[player.stats.classId] || 'Герой') : 'Душа [C]';
+    }
+
+    // Кнопка Администратора в HUD
+    if (this.adminBtn) {
+      this.adminBtn.style.display = isAdmin ? 'flex' : 'none';
     }
 
     const curHp = player.stats?.hp || 100;
@@ -478,7 +526,7 @@ export class GameHUD {
             title: p.username,
             color: p.color || '#38bdf8',
             meters: (distPx / 20).toFixed(1),
-            distPx: p,
+            distPx: distPx,
             raw: p,
           });
         }

@@ -209,6 +209,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'pick_flower', flowerId }));
       }
+    },
+    () => {
+      if (adminPanel && adminPanel.editor) {
+        adminPanel.editor.toggle();
+      }
     }
   );
 
@@ -1285,6 +1290,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       username,
       lastFaceDir,
       currentWorld,
+      isAdmin: isCurrentUserAdmin,
       ping: currentPing,
       deathLockUntil: player.deathLockUntil || 0
     });
