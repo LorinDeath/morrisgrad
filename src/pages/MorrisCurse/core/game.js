@@ -1148,31 +1148,35 @@ socket.onopen = () => {
     ctx.restore();
   }
 
- function drawAdminNameplate(ctx, nickText, x, y, now) {
+function drawAdminNameplate(ctx, nickText, x, y, now) {
     ctx.save();
-    // Фиксированный размер в мировых координатах (без деления на zoom!)
-    const fontSize = 9;
+    // Увеличили размер никнейма с 9 до 14 пикселей
+    const fontSize = 22;
     ctx.font = `bold ${fontSize}px monospace`;
     const metrics = ctx.measureText(nickText);
     const badgeText = 'ADMIN';
-    ctx.font = `bold 7px monospace`;
+    
+    // Увеличили размер плашки ADMIN с 7 до 10 пикселей
+    const badgeFontSize = 16;
+    ctx.font = `bold ${badgeFontSize}px monospace`;
     const badgeMetrics = ctx.measureText(badgeText);
 
-    const padX = 4;
-    const h = 13;
+    // Увеличили отступы (padX) и общую высоту рамки (h) под новые шрифты
+    const padX = 8;
+    const h = 40;
     const totalW = metrics.width + badgeMetrics.width + (padX * 3);
     const bx = x - totalW / 2;
-    const by = y - h - 4;
+    const by = y - h - 6;
 
     // Фон рамки
     ctx.fillStyle = 'rgba(10, 8, 18, 0.9)';
     ctx.fillRect(bx, by, totalW, h);
 
-    // Золотая окантовка с мягким свечением
+    // Золотая окантовка со свечением (немного усилили толщину и размытие)
     ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     ctx.shadowColor = '#eab308';
-    ctx.shadowBlur = 4;
+    ctx.shadowBlur = 6;
     ctx.strokeRect(bx, by, totalW, h);
     ctx.shadowBlur = 0;
 
@@ -1180,7 +1184,7 @@ socket.onopen = () => {
     const badgeX = bx + padX + badgeMetrics.width / 2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold 7px monospace`;
+    ctx.font = `bold ${badgeFontSize}px monospace`;
     ctx.fillStyle = '#ef4444';
     ctx.fillText(badgeText, badgeX, by + h / 2);
 
@@ -1191,7 +1195,7 @@ socket.onopen = () => {
     ctx.fillText(nickText, nickX, by + h / 2);
 
     ctx.restore();
-  }
+}
 
   let lastTime = performance.now();
 
@@ -1602,7 +1606,7 @@ socket.onopen = () => {
     worldPortals.forEach((portal) => {
       if ((portal.world || 'hellfire') !== currentWorld) return;
 
-      const pFontSize = 12 / camera.zoom;
+      const pFontSize = 24 / camera.zoom;
       ctx.font = `bold ${pFontSize}px monospace`;
       ctx.textAlign = 'center';
       ctx.strokeStyle = '#050408';
@@ -1681,7 +1685,7 @@ socket.onopen = () => {
         ctx.fillText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
 
         if (dar.inDuel) {
-          ctx.font = `bold ${15 / camera.zoom}px monospace`;
+          ctx.font = `bold ${24 / camera.zoom}px monospace`;
           ctx.fillText('⚔️', Math.round(dar.x), Math.round(dar.y - halfH - 26 / camera.zoom));
         }
       }
@@ -1689,19 +1693,19 @@ socket.onopen = () => {
 
     otherPlayers.forEach((p) => {
       if ((p.world || 'hellfire') === currentWorld && p.inDuel) {
-        ctx.font = `bold ${15 / camera.zoom}px monospace`;
+        ctx.font = `bold ${24 / camera.zoom}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText('⚔️', Math.round(p.x), Math.round(p.y - halfH - 24 / camera.zoom));
       }
     });
 
     if (player.inDuel) {
-      ctx.font = `bold ${15 / camera.zoom}px monospace`;
+      ctx.font = `bold ${24 / camera.zoom}px monospace`;
       ctx.textAlign = 'center';
       ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 24 / camera.zoom));
     }
 
-    const nickFontSize = 12 / camera.zoom;
+    const nickFontSize = 24 / camera.zoom;
     ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -1720,7 +1724,7 @@ const isOtherAdmin = Boolean(
         drawAdminNameplate(ctx, p.username, Math.round(p.x), Math.round(p.y - nickOffsetY), now);
       } else {
         // Обычные игроки рисуются простым текстом без рамки ADMIN
-        ctx.font = `bold 10px monospace`;
+        ctx.font = `bold 24px monospace`;
         ctx.textAlign = 'center';
         ctx.strokeStyle = '#050408';
         ctx.lineWidth = 2;
