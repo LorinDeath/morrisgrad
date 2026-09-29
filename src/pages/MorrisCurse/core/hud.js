@@ -16,53 +16,6 @@ export class GameHUD {
   mount() {
     this.container.querySelectorAll('.game-hud-panel').forEach((el) => el.remove());
 
-    if (!document.getElementById('hud-mobile-hide-css')) {
-      const style = document.createElement('style');
-      style.id = 'hud-mobile-hide-css';
-      style.textContent = `
-        @media (pointer: coarse) and ((max-width: 1024px) or (max-height: 550px)) {
-          .game-hud-panel.hud-left,
-          .game-hud-panel.hud-right {
-            display: none !important;
-          }
-          #game-canvas {
-            width: 100% !important;
-            height: 100% !important;
-            max-width: 100% !important;
-            max-height: 100% !important;
-            object-fit: fill !important;
-            display: block !important;
-            flex: 1 1 auto !important;
-          }
-        }
-        .hud-admin-btn {
-          width: 100%;
-          background: rgba(49, 46, 129, 0.5);
-          border: 1.5px solid #818cf8;
-          color: #c7d2fe;
-          font-family: monospace;
-          font-size: 11px;
-          font-weight: bold;
-          padding: 8px 4px;
-          border-radius: 4px;
-          cursor: pointer;
-          margin-top: 10px;
-          box-shadow: 0 0 12px rgba(129, 140, 248, 0.3);
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .hud-admin-btn:hover {
-          background: #4338ca;
-          color: #ffffff;
-          box-shadow: 0 0 18px rgba(129, 140, 248, 0.6);
-          border-color: #a5b4fc;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
     const canvas = this.container.querySelector('canvas') || this.container.querySelector('#game-canvas');
 
     const leftSidebar = document.createElement('aside');
@@ -78,12 +31,12 @@ export class GameHUD {
         </div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
 
-        <!-- Кнопка вызова админ-панели -->
-        <button id="ghud-admin-btn" class="hud-admin-btn" style="display: none;">
+        <!-- Кнопка маппинга использует класс из game-theme.css -->
+        <button id="ghud-admin-btn" class="mc-hud-admin-btn" style="display: none;">
           ⚡ МАППИНГ // АДМИН [F2]
         </button>
 
-        <div id="ghud-debuff-box" style="display: none; margin-top: 8px; padding: 6px 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 4px; font-size: 11px;">
+        <div id="ghud-debuff-box" style="display: none; margin-top: 8px; padding: 6px 8px; background: var(--mc-danger-bg); border: 1px solid var(--mc-danger-border); border-radius: 4px; font-size: 11px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: #fca5a5; font-weight: bold;">💔 Дизмораль</span>
             <b id="ghud-debuff-timer" style="color: #ef4444;">60c</b>

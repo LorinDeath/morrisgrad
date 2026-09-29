@@ -1,0 +1,96 @@
+/* ============================================================
+   ДИЗАЙН-СИСТЕМА: MORRIS CURSE (HUD, АДМИНКА, МОДАЛКИ)
+   ============================================================ */
+
+:root {
+  /* Основная палитра */
+  --mc-bg-main: #06050b;
+  --mc-bg-card: #120d20;
+  --mc-bg-card-hover: #201738;
+  --mc-border-card: #2d2242;
+  --mc-border-light: #443755;
+  --mc-text-gold: #ffd700;
+  --mc-text-purple: #c084fc;
+  --mc-text-muted: #94a3b8;
+  --mc-text-main: #f1f5f9;
+
+  /* Акценты администратора */
+  --mc-admin-accent: #818cf8;
+  --mc-admin-bg: rgba(14, 11, 26, 0.96);
+  --mc-admin-hover: #4338ca;
+  --mc-admin-glow: rgba(129, 140, 248, 0.4);
+
+  /* Цвета состояний */
+  --mc-hp-grad: linear-gradient(90deg, #ef4444, #f87171);
+  --mc-dash-grad: linear-gradient(90deg, #38bdf8, #818cf8);
+  --mc-shield-color: #38bdf8;
+  --mc-danger-bg: rgba(239, 68, 68, 0.15);
+  --mc-danger-border: #ef4444;
+}
+
+/* --- КНОПКА АДМИНИСТРАТОРА В HUD --- */
+.mc-hud-admin-btn {
+  width: 100%;
+  background: var(--mc-admin-bg);
+  border: 1.5px solid var(--mc-admin-accent);
+  color: var(--mc-admin-accent);
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 8px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+  box-shadow: 0 0 12px var(--mc-admin-glow);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-hud-admin-btn:hover {
+  background: var(--mc-admin-hover);
+  color: #ffffff;
+  border-color: #a5b4fc;
+  box-shadow: 0 0 18px var(--mc-admin-glow);
+}
+
+/* --- ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (TOAST) --- */
+.mc-toast-msg {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ef4444;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 10020;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  animation: mcToastFade 0.2s ease-out;
+}
+
+@keyframes mcToastFade {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* --- АДАПТИВНОСТЬ HUD НА ТЕЛЕФОНАХ --- */
+@media (pointer: coarse) and ((max-width: 1024px) or (max-height: 550px)) {
+  .game-hud-panel.hud-left,
+  .game-hud-panel.hud-right {
+    display: none !important;
+  }
+  #game-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: fill !important;
+    display: block !important;
+    flex: 1 1 auto !important;
+  }
+}
