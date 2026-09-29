@@ -1,11 +1,12 @@
 import { MapEditor } from './mapEditor.js';
 
 export class AdminPanel {
-  constructor(canvas, container, currentUserId, getWorldCallback) {
+  constructor(canvas, container, currentUserId, getWorldCallback, onSwitchWorldCallback = null) {
     this.canvas = canvas;
     this.container = container;
     this.currentUserId = currentUserId;
     this.getWorld = getWorldCallback;
+    this.onSwitchWorld = onSwitchWorldCallback;
 
     this.adminIds = [
       '76aa36d3-74b2-4b1c-bdfb-88100666317c',
@@ -15,9 +16,8 @@ export class AdminPanel {
     const isTargetUser = this.adminIds.includes(this.currentUserId);
     const isTargetNick = (window.__CURRENT_USERNAME__ && window.__CURRENT_USERNAME__.trim().toLowerCase() === 'lorin death');
 
-    this.editor = new MapEditor(this.canvas, this.container, this.getWorld);
+    this.editor = new MapEditor(this.canvas, this.container, this.getWorld, this.onSwitchWorld);
 
-    // Горячая клавиша F2 всегда доступна администратору
     if (isTargetUser || isTargetNick) {
       window.addEventListener('keydown', (e) => {
         if (e.key === 'F2') {

@@ -840,6 +840,20 @@ export class GameRoom extends DurableObject {
           this.broadcast();
         }
 
+        if (msg.type === "admin_switch_world" && session && ADMIN_USER_IDS.includes(session.userId)) {
+          session.world = msg.world || "sandbox";
+          session.x = 600;
+          session.y = 600;
+          server.send(JSON.stringify({
+            type: "world_switched",
+            world: session.world,
+            x: session.x,
+            y: session.y,
+          }));
+          this.broadcast();
+          return;
+        }
+
         // 3. Порталы (переходы между комнатами и мирами)
         if (msg.type === "use_portal" && session && !session.inDuel) {
           const curWorld = session.world || "hellfire";

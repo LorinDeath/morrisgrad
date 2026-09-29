@@ -201,7 +201,23 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   const statsUI = new StatsUI(getGameContainer(), () => {});
 
   // Инициализация модуля админки
-  const adminPanel = new AdminPanel(canvas, getGameContainer(), userId, () => currentWorld);
+const adminPanel = new AdminPanel(
+  canvas,
+  getGameContainer(),
+  userId,
+  () => currentWorld,
+  (nextWorld) => {
+    currentWorld = nextWorld;
+    worldMap.switchWorld(currentWorld);
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'admin_switch_world', world: nextWorld }));
+    }
+  }
+);
+
+if (adminPanel.editor && worldMap.maps[currentWorld]) {
+    adminPanel.editor.loadTilesArray(worldMap.maps[currentWorld]);
+  }
 
   const hud = new GameHUD(
     canvas.parentElement || document.body,
@@ -274,14 +290,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   });
 
   function canMove() {
-    return !isKicked &&
-           !isTyping &&
-           !isModalOpen &&
-           !statsUI.isSoulOpen &&
-           !player.inDuel &&
-           !(adminPanel && adminPanel.editor && adminPanel.editor.isActive) &&
-           !(duelManager && duelManager.isAnyModalOpen());
-  }
+  return !isKicked &&
+         !isTyping &&
+         !isModalOpen &&
+         !statsUI.isSoulOpen &&
+         !player.inDuel &&
+         !(duelManager && duelManager.isAnyModalOpen());
+}
 
   function resetKeys() {
     keys.w = keys.a = keys.s = keys.d = false;
@@ -476,6 +491,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         currentWorld = data.world;
         worldMap.switchWorld(currentWorld); // Мгновенно подгружаем коллизии нового мира
 
+        if (adminPanel.editor && worldMap.maps[currentWorld]) {
+          adminPanel.editor.loadTilesArray(worldMap.maps[currentWorld]);
+        }
+        
         player.x = data.x;
         player.y = data.y;
         lastSentX = data.x;
