@@ -30,13 +30,14 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let floorPattern = null;
 
   // Идентификаторы Главного Администратора (D1 UUID и Clerk ID)
+// Строгая проверка: только непустой ID из белого списка
   const ADMIN_IDS = [
     'user_38QeREOr606p1c96P4f14YFsLp7'
   ];
 
   window.__CURRENT_USERNAME__ = username;
-  let isCurrentUserAdmin = (
-    ADMIN_IDS.includes(userId) ||
+  let isCurrentUserAdmin = Boolean(
+    (userId && ADMIN_IDS.includes(userId)) ||
     (username && username.trim().toLowerCase() === 'lorin death')
   );
 
@@ -426,10 +427,10 @@ if (adminPanel.editor && worldMap.maps[currentWorld]) {
   const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
   const socket = new WebSocket(WS_URL);
 
-  socket.onopen = () => {
+socket.onopen = () => {
     socket.send(JSON.stringify({
       type: 'join',
-      userId: userId || 'user_38QeREOr606p1c96P4f14YFsLp7',
+      userId: userId || '', // Передаем только РЕАЛЬНЫЙ userId игрока (без подстановки твоего UUID!)
       username: username,
       x: Math.round(player.x),
       y: Math.round(player.y),
@@ -1147,42 +1148,43 @@ if (adminPanel.editor && worldMap.maps[currentWorld]) {
     ctx.restore();
   }
 
-  function drawAdminNameplate(ctx, nickText, x, y, now) {
+ function drawAdminNameplate(ctx, nickText, x, y, now) {
     ctx.save();
-    const fontSize = 12 / camera.zoom;
+    // Фиксированный размер в мировых координатах (без деления на zoom!)
+    const fontSize = 9;
     ctx.font = `bold ${fontSize}px monospace`;
     const metrics = ctx.measureText(nickText);
     const badgeText = 'ADMIN';
+    ctx.font = `bold 7px monospace`;
     const badgeMetrics = ctx.measureText(badgeText);
 
-    const padX = 8 / camera.zoom;
-    const h = 20 / camera.zoom;
+    const padX = 4;
+    const h = 13;
     const totalW = metrics.width + badgeMetrics.width + (padX * 3);
     const bx = x - totalW / 2;
-    const by = y - h / 2 - 2 / camera.zoom;
+    const by = y - h - 4;
 
-    const pulse = Math.sin(now / 220) * 4;
-    ctx.shadowColor = '#eab308';
-    ctx.shadowBlur = 10 + Math.abs(pulse);
-
-    ctx.fillStyle = 'rgba(18, 12, 28, 0.95)';
+    // Фон рамки
+    ctx.fillStyle = 'rgba(10, 8, 18, 0.9)';
     ctx.fillRect(bx, by, totalW, h);
 
+    // Золотая окантовка с мягким свечением
     ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 1.8 / camera.zoom;
+    ctx.lineWidth = 1;
+    ctx.shadowColor = '#eab308';
+    ctx.shadowBlur = 4;
     ctx.strokeRect(bx, by, totalW, h);
+    ctx.shadowBlur = 0;
 
-    ctx.strokeStyle = 'rgba(253, 224, 71, 0.4)';
-    ctx.lineWidth = 1 / camera.zoom;
-    ctx.strokeRect(bx + 2 / camera.zoom, by + 2 / camera.zoom, totalW - 4 / camera.zoom, h - 4 / camera.zoom);
-
+    // Бейдж ADMIN (красный)
     const badgeX = bx + padX + badgeMetrics.width / 2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold ${9 / camera.zoom}px monospace`;
+    ctx.font = `bold 7px monospace`;
     ctx.fillStyle = '#ef4444';
     ctx.fillText(badgeText, badgeX, by + h / 2);
 
+    // Никнейм (золотой)
     const nickX = bx + (padX * 2) + badgeMetrics.width + (metrics.width / 2);
     ctx.font = `bold ${fontSize}px monospace`;
     ctx.fillStyle = '#ffd700';
@@ -1710,11 +1712,18 @@ if (adminPanel.editor && worldMap.maps[currentWorld]) {
     otherPlayers.forEach((p) => {
       if ((p.world || 'hellfire') !== currentWorld) return;
 
-      const isOtherAdmin = (ADMIN_IDS.includes(p.userId) || (p.username && p.username.toLowerCase() === 'lorin death'));
+const isOtherAdmin = Boolean(
+        (p.userId && ADMIN_IDS.includes(p.userId)) || 
+        (p.username && p.username.trim().toLowerCase() === 'lorin death')
+      );
       if (isOtherAdmin) {
         drawAdminNameplate(ctx, p.username, Math.round(p.x), Math.round(p.y - nickOffsetY), now);
       } else {
+        // Обычные игроки рисуются простым текстом без рамки ADMIN
+        ctx.font = `bold 10px monospace`;
+        ctx.textAlign = 'center';
         ctx.strokeStyle = '#050408';
+        ctx.lineWidth = 2;
         ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
         ctx.fillStyle = p.color || '#38bdf8';
         ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
