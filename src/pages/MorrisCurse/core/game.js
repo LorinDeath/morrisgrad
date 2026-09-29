@@ -31,7 +31,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   // Идентификаторы Главного Администратора (D1 UUID и Clerk ID)
   const ADMIN_IDS = [
-    '76aa36d3-74b2-4b1c-bdfb-88100666317c',
     'user_38QeREOr606p1c96P4f14YFsLp7'
   ];
 
@@ -430,7 +429,7 @@ if (adminPanel.editor && worldMap.maps[currentWorld]) {
   socket.onopen = () => {
     socket.send(JSON.stringify({
       type: 'join',
-      userId: userId || '76aa36d3-74b2-4b1c-bdfb-88100666317c',
+      userId: userId || 'user_38QeREOr606p1c96P4f14YFsLp7',
       username: username,
       x: Math.round(player.x),
       y: Math.round(player.y),
@@ -494,7 +493,7 @@ if (adminPanel.editor && worldMap.maps[currentWorld]) {
         if (adminPanel.editor && worldMap.maps[currentWorld]) {
           adminPanel.editor.loadTilesArray(worldMap.maps[currentWorld]);
         }
-        
+
         player.x = data.x;
         player.y = data.y;
         lastSentX = data.x;
