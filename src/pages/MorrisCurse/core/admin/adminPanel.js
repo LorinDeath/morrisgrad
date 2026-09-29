@@ -7,12 +7,16 @@ export class AdminPanel {
     this.currentUserId = currentUserId;
     this.getWorld = getWorldCallback;
 
-    // Авторизованный Clerk ID
+    // Авторизованный UUID из базы данных
     this.targetAdminId = 'user_38QeREOr606p1c96P4f14YFsLp7';
+    
+    // Двойная проверка прав
+    const isTargetUser = (this.currentUserId === this.targetAdminId);
+    const isUsernameMatch = (window.__CURRENT_USERNAME__ === 'Lorin Death');
 
     this.editor = new MapEditor(this.canvas, this.container, this.getWorld);
 
-    if (this.currentUserId === this.targetAdminId) {
+    if (isTargetUser || isUsernameMatch) {
       this.initAdminButton();
     }
   }
@@ -36,7 +40,6 @@ export class AdminPanel {
     btn.onclick = () => this.editor.toggle();
     this.container.appendChild(btn);
 
-    // Горячая клавиша F2
     window.addEventListener('keydown', (e) => {
       if (e.key === 'F2') {
         e.preventDefault();

@@ -58,21 +58,22 @@ import Layout from '../../layouts/Layout.astro';
         gameStarted = true;
 
         let username = 'Странник';
-        let userId: string | null = null;
+        let userId = null;
 
         try {
           const res = await fetch('/api/get-user');
           if (res.ok) {
             const data = await res.json();
             if (data.username) username = data.username;
-            userId = data.userId || data.id || null;
+            userId = data.userId || data.id || null; // <--- Получение ID из базы
           }
         } catch (err) {
           console.warn('Не удалось загрузить пользователя');
         }
 
         const { initGame } = await import('./core/game.js');
-        (initGame as any)('game-canvas', username, userId);
+        // Передача userId третьим аргументом обязательна!
+        (initGame)(canvas.id, username, userId);
       }
     };
 

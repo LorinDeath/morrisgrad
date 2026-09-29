@@ -1,60 +1,11 @@
 import { CHARACTER_CLASSES } from "./classes";
-import type { WorldPortalDef } from "./types";
+import { WORLD_PORTALS } from "./worlds/portals";
 
 export const ADMIN_USER_IDS = [
-  "user_38QeREOr606p1c96P4f14YFsLp7",
+  "user_38QeREOr606p1c96P4f14YFsLp7" 
 ];
 
-export const WORLD_PORTALS: WorldPortalDef[] = [
-  {
-    id: "portal_arcade",
-    name: "Разлом Мини-игр",
-    world: "hellfire",
-    x: 12,
-    y: 1188,
-    width: 32,
-    height: 32,
-    color: "#a855f7",
-  },
-  {
-    id: "portal_class_select",
-    name: "Алтарь Перевоплощения",
-    world: "hellfire",
-    x: 565,
-    y: 600,
-    width: 32,
-    height: 32,
-    color: "#38bdf8",
-  },
-  // Портал в Аринар (слева от Адского костра)
-  {
-    id: "portal_arinar",
-    name: "Фрактал Бабочки: «Аринар»",
-    world: "hellfire",
-    targetWorld: "arinar",
-    targetX: 300,
-    targetY: 600,
-    x: 240,
-    y: 600,
-    width: 36,
-    height: 36,
-    color: "#818cf8",
-  },
-  // Обратный портал из Аринара в Мир Адского Пламени
-  {
-    id: "portal_hellfire",
-    name: "Разлом: «Мир Адского Пламени»",
-    world: "arinar",
-    targetWorld: "hellfire",
-    targetX: 300,
-    targetY: 600,
-    x: 240,
-    y: 600,
-    width: 36,
-    height: 36,
-    color: "#f97316",
-  },
-];
+export { WORLD_PORTALS };
 
 export const MINI_GAMES = [
   { id: "shadow_world", title: "Тёмный мир BETA", desc: "Игровые механики этой игры будут в Проклятых", url: "/shadow-world/index.html", disabled: false },
