@@ -5,6 +5,7 @@ import { GameHUD } from './hud.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
 import { syncClassesFromServer } from './classes.js';
 import { ArinarSpaceEnvironment } from './worlds/arinarSpace.js';
+import { WorldMapManager } from './mapRenderer.js';
 import {
   CAMPFIRE_CONFIG,
   SPRITE_CONFIG,
@@ -51,6 +52,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let currentWorld = 'hellfire';
   const arinarCosmos = new ArinarSpaceEnvironment(WORLD_SIZE);
   let worldPortals = [...DEFAULT_PORTALS];
+
+  // Инициализация мультимирного менеджера карт (Hellfire & Arinar)
+  const worldMap = new WorldMapManager(32);
+  worldMap.switchWorld(currentWorld);
 
   function updateCanvasResolution() {
     const isMobile = isMobileDevice();
@@ -451,7 +456,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
       if (data.type === 'welcome') {
         myNetworkId = data.myId;
-        if (data.world) currentWorld = data.world;
+        if (data.world) {
+          currentWorld = data.world;
+          worldMap.switchWorld(currentWorld);
+        }
         if (data.portals && data.portals.length > 0) {
           worldPortals = data.portals;
         }
@@ -466,6 +474,8 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
       if (data.type === 'world_switched') {
         currentWorld = data.world;
+        worldMap.switchWorld(currentWorld); // Мгновенно подгружаем коллизии нового мира
+
         player.x = data.x;
         player.y = data.y;
         lastSentX = data.x;
@@ -710,6 +720,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           if (p.id === myNetworkId || pNameLower === myNameLower) {
             if (p.world && p.world !== currentWorld) {
               currentWorld = p.world;
+              worldMap.switchWorld(currentWorld);
             }
             player.inDuel = Boolean(p.inDuel);
             if (p.escapedUntil) player.escapedUntil = p.escapedUntil;
@@ -1118,7 +1129,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.restore();
   }
 
-  // Отрисовка золотой рамки Администратора
   function drawAdminNameplate(ctx, nickText, x, y, now) {
     ctx.save();
     const fontSize = 12 / camera.zoom;
@@ -1177,9 +1187,14 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     let isMoving = false;
 
     if (canMove()) {
+      let moveSpeed = player.stats.moveSpeed;
+      let moveDirX = 0;
+      let moveDirY = 0;
+
       if (dash.active) {
-        player.x += dash.dirX * dash.speed * dt;
-        player.y += dash.dirY * dash.speed * dt;
+        moveSpeed = dash.speed;
+        moveDirX = dash.dirX;
+        moveDirY = dash.dirY;
         isMoving = true;
 
         dash.timer -= dt;
@@ -1210,8 +1225,21 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           lastFaceDir.y = dy;
         }
 
-        player.x += dx * player.stats.moveSpeed * dt;
-        player.y += dy * player.stats.moveSpeed * dt;
+        moveDirX = dx;
+        moveDirY = dy;
+      }
+
+      // Физика столкновений со стенами и препятствиями текущего мира
+      const deltaX = moveDirX * moveSpeed * dt;
+      const deltaY = moveDirY * moveSpeed * dt;
+      const targetX = player.x + deltaX;
+      const targetY = player.y + deltaY;
+
+      if (!worldMap.isBlocked(targetX, player.y)) {
+        player.x = targetX;
+      }
+      if (!worldMap.isBlocked(player.x, targetY)) {
+        player.y = targetY;
       }
 
       const halfW = player.width / 2;
@@ -1366,6 +1394,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       worldFlowers.forEach((fl) => drawCharacterShadow(ctx, fl.x, fl.y, 0.8));
       drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
     }
+
+    // Отрисовка пола текущего мира
+    worldMap.renderFloor(ctx);
+
+    // Отрисовка декораций и стен текущего мира
+    worldMap.renderObjects(ctx, now);
 
     // Отрисовка наложения сетки редактора карт
     if (adminPanel) {
@@ -1674,7 +1708,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    // Отрисовка своего ника: для админа с золотой рамкой [ADMIN]
     if (isCurrentUserAdmin) {
       drawAdminNameplate(ctx, username, Math.round(player.x), Math.round(player.y - nickOffsetY), now);
     } else {
