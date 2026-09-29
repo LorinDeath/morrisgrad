@@ -1,6 +1,10 @@
 import { CHARACTER_CLASSES } from "./classes";
 import type { WorldPortalDef } from "./types";
 
+export const ADMIN_USER_IDS = [
+  "user_38QeREOr606p1c96P4f14YFsLp7",
+];
+
 export const WORLD_PORTALS: WorldPortalDef[] = [
   {
     id: "portal_arcade",

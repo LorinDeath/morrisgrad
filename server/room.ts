@@ -782,6 +782,16 @@ export class GameRoom extends DurableObject {
             }
           }
 
+          const isAdmin = Boolean(msg.userId && ADMIN_USER_IDS.includes(msg.userId));
+server.send(JSON.stringify({
+  type: "welcome",
+  myId,
+  isAdmin, // Клиент узнает, показывать ли кнопку управления
+  world: "hellfire",
+  portals: WORLD_PORTALS,
+  classes: classesPayload,
+}));
+
           const myId = crypto.randomUUID();
           this.sessions.set(server, {
             id: myId,

@@ -1,4 +1,5 @@
 import { DEFAULT_STATS, StatsUI } from './playerStats.js';
+import { AdminPanel } from './admin/adminPanel.js';
 import { DuelManager } from './duelManager.js';
 import { GameHUD } from './hud.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
@@ -26,6 +27,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const WORLD_SIZE = 1200;
   let floorPattern = null;
+
+  // Идентификатор Главного Администратора
+  const TARGET_ADMIN_ID = 'user_38QeREOr606p1c96P4f14YFsLp7';
+  const isCurrentUserAdmin = (userId === TARGET_ADMIN_ID);
 
   // Инициализация миров
   let currentWorld = 'hellfire';
@@ -175,6 +180,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const statsUI = new StatsUI(getGameContainer(), () => {});
 
+  // Инициализация Админ-панели и редактора карт
+  const adminPanel = new AdminPanel(canvas, getGameContainer(), userId, () => currentWorld);
+
   const hud = new GameHUD(
     canvas.parentElement || document.body,
     (targetId, targetNick) => {
@@ -246,6 +254,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
            !isModalOpen &&
            !statsUI.isSoulOpen &&
            !player.inDuel &&
+           !(adminPanel && adminPanel.editor && adminPanel.editor.isActive) &&
            !(duelManager && duelManager.isAnyModalOpen());
   }
 
@@ -719,6 +728,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
             cur.targetX = p.x;
             cur.targetY = p.y;
             cur.username = p.username;
+            cur.userId = p.userId || '';
             cur.color = p.color || '#38bdf8';
             cur.inDuel = Boolean(p.inDuel);
             cur.escapedUntil = p.escapedUntil || 0;
@@ -728,6 +738,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           } else {
             otherPlayers.set(pNameLower, {
               id: p.id,
+              userId: p.userId || '',
               world: p.world || 'hellfire',
               x: p.x,
               y: p.y,
@@ -786,6 +797,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     maxZoom: 1.5,
     smoothSpeed: 14
   };
+
+  // Передаём ссылку на глобальную камеру для расчётов кликов редактора
+  window.__GAME_CAMERA__ = camera;
 
   const keys = { w: false, a: false, s: false, d: false };
   window.addEventListener('blur', resetKeys);
@@ -872,6 +886,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     if (isKicked) return;
 
     if (e.key === 'Escape') {
+      if (adminPanel && adminPanel.editor && adminPanel.editor.isActive) {
+        adminPanel.editor.toggle(false);
+        resetKeys();
+        e.preventDefault();
+        return;
+      }
       if (duelManager && duelManager.isClassSelectOpen) {
         duelManager.closeClassSelect();
         resetKeys();
@@ -1076,6 +1096,56 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fca5a5';
     ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  // Отрисовка специальной золотой рамки Администратора вокруг ника
+  function drawAdminNameplate(ctx, nickText, x, y, now) {
+    ctx.save();
+    const fontSize = 12 / camera.zoom;
+    ctx.font = `bold ${fontSize}px monospace`;
+    const metrics = ctx.measureText(nickText);
+    const badgeText = 'ADMIN';
+    const badgeMetrics = ctx.measureText(badgeText);
+
+    const padX = 8 / camera.zoom;
+    const h = 20 / camera.zoom;
+    const totalW = metrics.width + badgeMetrics.width + (padX * 3);
+    const bx = x - totalW / 2;
+    const by = y - h / 2 - 2 / camera.zoom;
+
+    // Пульсация золотого свечения
+    const pulse = Math.sin(now / 220) * 4;
+    ctx.shadowColor = '#eab308';
+    ctx.shadowBlur = 10 + Math.abs(pulse);
+
+    // Фоновая плашка
+    ctx.fillStyle = 'rgba(18, 12, 28, 0.95)';
+    ctx.fillRect(bx, by, totalW, h);
+
+    // Двойная золотая окантовка
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.8 / camera.zoom;
+    ctx.strokeRect(bx, by, totalW, h);
+
+    ctx.strokeStyle = 'rgba(253, 224, 71, 0.4)';
+    ctx.lineWidth = 1 / camera.zoom;
+    ctx.strokeRect(bx + 2 / camera.zoom, by + 2 / camera.zoom, totalW - 4 / camera.zoom, h - 4 / camera.zoom);
+
+    // Бейдж [ADMIN]
+    const badgeX = bx + padX + badgeMetrics.width / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${9 / camera.zoom}px monospace`;
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText(badgeText, badgeX, by + h / 2);
+
+    // Никнейм
+    const nickX = bx + (padX * 2) + badgeMetrics.width + (metrics.width / 2);
+    ctx.font = `bold ${fontSize}px monospace`;
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(nickText, nickX, by + h / 2);
+
     ctx.restore();
   }
 
@@ -1286,6 +1356,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
       worldFlowers.forEach((fl) => drawCharacterShadow(ctx, fl.x, fl.y, 0.8));
       drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
+    }
+
+    // Отрисовка сетки и элементов карты из MapEditor (поверх фона)
+    if (adminPanel) {
+      adminPanel.render(ctx, camera);
     }
 
     // Движение других игроков
@@ -1579,13 +1654,19 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     const nickOffsetY = currentWorld === 'arinar' ? (22 / camera.zoom) : (halfH + 10 / camera.zoom);
 
+    // Отрисовка других игроков
     otherPlayers.forEach((p) => {
       if ((p.world || 'hellfire') !== currentWorld) return;
 
-      ctx.strokeStyle = '#050408';
-      ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
-      ctx.fillStyle = p.color || '#38bdf8';
-      ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
+      const isOtherAdmin = (p.userId === TARGET_ADMIN_ID);
+      if (isOtherAdmin) {
+        drawAdminNameplate(ctx, p.username, Math.round(p.x), Math.round(p.y - nickOffsetY), now);
+      } else {
+        ctx.strokeStyle = '#050408';
+        ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
+        ctx.fillStyle = p.color || '#38bdf8';
+        ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
+      }
 
       if (p.dismoraleUntil && p.dismoraleUntil > now) {
         const leftSec = Math.ceil((p.dismoraleUntil - now) / 1000);
@@ -1593,10 +1674,15 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    ctx.strokeStyle = '#050408';
-    ctx.strokeText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
-    ctx.fillStyle = '#ffd700';
-    ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
+    // Отрисовка своего ника (с золотой неоновой рамкой Администратора)
+    if (isCurrentUserAdmin) {
+      drawAdminNameplate(ctx, username, Math.round(player.x), Math.round(player.y - nickOffsetY), now);
+    } else {
+      ctx.strokeStyle = '#050408';
+      ctx.strokeText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
+    }
 
     if (player.dismoraleUntil && player.dismoraleUntil > now) {
       const leftSec = Math.ceil((player.dismoraleUntil - now) / 1000);
