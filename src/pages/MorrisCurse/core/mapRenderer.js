@@ -6,9 +6,11 @@ export class WorldMapManager {
     this.cellSize = cellSize;
     this.currentWorld = 'hellfire';
     
+    // Регистрируем карты всех доступных миров
     this.maps = {
       hellfire: HELLFIRE_MAP_TILES || [],
-      arinar: ARINAR_MAP_TILES || []
+      arinar: ARINAR_MAP_TILES || [],
+      sandbox: ARINAR_MAP_TILES || [] // В песочнице можно использовать базу Аринара
     };
 
     this.solidGrid = new Set();
@@ -18,6 +20,14 @@ export class WorldMapManager {
   switchWorld(worldName) {
     this.currentWorld = worldName || 'hellfire';
     this.rebuildCollisions();
+  }
+
+  // Обновление карты на лету прямо из редактора (без перезагрузки)
+  updateWorldTiles(worldName, tiles) {
+    this.maps[worldName] = tiles || [];
+    if (this.currentWorld === worldName) {
+      this.rebuildCollisions();
+    }
   }
 
   rebuildCollisions() {
@@ -46,7 +56,6 @@ export class WorldMapManager {
     return false;
   }
 
-  // Отрисовка пола (Слой 0) для текущего мира
   renderFloor(ctx) {
     const activeTiles = this.maps[this.currentWorld] || [];
     const floorTiles = activeTiles.filter((t) => t.layer === 0);
@@ -56,9 +65,9 @@ export class WorldMapManager {
       const ry = t.y * this.cellSize;
 
       if (t.tileId === 'floor_star' || t.tileId === 'platform_star') {
-        ctx.fillStyle = this.currentWorld === 'arinar' ? '#181b36' : '#221533';
+        ctx.fillStyle = this.currentWorld === 'hellfire' ? '#221533' : '#181b36';
         ctx.fillRect(rx, ry, this.cellSize, this.cellSize);
-        ctx.strokeStyle = this.currentWorld === 'arinar' ? 'rgba(129, 140, 248, 0.4)' : 'rgba(245, 158, 11, 0.3)';
+        ctx.strokeStyle = this.currentWorld === 'hellfire' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(129, 140, 248, 0.45)';
         ctx.lineWidth = 1;
         ctx.strokeRect(rx + 1, ry + 1, this.cellSize - 2, this.cellSize - 2);
       } else if (t.tileId === 'floor_void') {
@@ -67,7 +76,7 @@ export class WorldMapManager {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
         ctx.fillRect(rx + 2, ry + 2, this.cellSize - 4, this.cellSize - 4);
       } else if (t.tileId === 'floor_crystal') {
-        ctx.fillStyle = '#102a45';
+        ctx.fillStyle = '#0f243d';
         ctx.fillRect(rx, ry, this.cellSize, this.cellSize);
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 1;
@@ -79,7 +88,6 @@ export class WorldMapManager {
     });
   }
 
-  // Отрисовка декораций и препятствий (Слой 1)
   renderObjects(ctx, now) {
     const activeTiles = this.maps[this.currentWorld] || [];
     const objTiles = activeTiles.filter((t) => t.layer === 1);
