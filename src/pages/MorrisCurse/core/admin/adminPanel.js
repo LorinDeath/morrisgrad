@@ -7,45 +7,25 @@ export class AdminPanel {
     this.currentUserId = currentUserId;
     this.getWorld = getWorldCallback;
 
-    // Авторизованный UUID из базы данных
-    this.targetAdminId = 'user_38QeREOr606p1c96P4f14YFsLp7';
-    
-    // Двойная проверка прав
-    const isTargetUser = (this.currentUserId === this.targetAdminId);
-    const isUsernameMatch = (window.__CURRENT_USERNAME__ === 'Lorin Death');
+    this.adminIds = [
+      '76aa36d3-74b2-4b1c-bdfb-88100666317c',
+      'user_38QeREOr606p1c96P4f14YFsLp7'
+    ];
+
+    const isTargetUser = this.adminIds.includes(this.currentUserId);
+    const isTargetNick = (window.__CURRENT_USERNAME__ && window.__CURRENT_USERNAME__.trim().toLowerCase() === 'lorin death');
 
     this.editor = new MapEditor(this.canvas, this.container, this.getWorld);
 
-    if (isTargetUser || isUsernameMatch) {
-      this.initAdminButton();
+    // Горячая клавиша F2 всегда доступна администратору
+    if (isTargetUser || isTargetNick) {
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'F2') {
+          e.preventDefault();
+          this.editor.toggle();
+        }
+      });
     }
-  }
-
-  initAdminButton() {
-    const btn = document.createElement('button');
-    btn.id = 'admin-main-trigger-btn';
-    btn.innerHTML = '⚡ АДМИН-ПАНЕЛЬ [F2]';
-    btn.style.cssText = `
-      position: absolute; top: 12px; left: 12px; z-index: 100005;
-      background: rgba(14, 11, 26, 0.94); border: 1.5px solid #818cf8;
-      box-shadow: 0 0 15px rgba(129, 140, 248, 0.4); color: #818cf8;
-      font-family: monospace; font-size: 11px; font-weight: bold;
-      padding: 6px 12px; border-radius: 6px; cursor: pointer;
-      transition: all 0.2s ease;
-    `;
-
-    btn.onmouseover = () => { btn.style.background = '#4338ca'; btn.style.color = '#fff'; };
-    btn.onmouseout = () => { btn.style.background = 'rgba(14, 11, 26, 0.94)'; btn.style.color = '#818cf8'; };
-
-    btn.onclick = () => this.editor.toggle();
-    this.container.appendChild(btn);
-
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'F2') {
-        e.preventDefault();
-        this.editor.toggle();
-      }
-    });
   }
 
   render(ctx, camera) {

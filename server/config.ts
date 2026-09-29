@@ -2,7 +2,8 @@ import { CHARACTER_CLASSES } from "./classes";
 import { WORLD_PORTALS } from "./worlds/portals";
 
 export const ADMIN_USER_IDS = [
-  "user_38QeREOr606p1c96P4f14YFsLp7" 
+  "76aa36d3-74b2-4b1c-bdfb-88100666317c",
+  "user_38QeREOr606p1c96P4f14YFsLp7"
 ];
 
 export { WORLD_PORTALS };

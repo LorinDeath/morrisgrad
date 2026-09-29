@@ -37,27 +37,26 @@ export class GameHUD {
         }
         .hud-admin-btn {
           width: 100%;
-          background: rgba(49, 46, 129, 0.4);
+          background: rgba(49, 46, 129, 0.5);
           border: 1.5px solid #818cf8;
           color: #c7d2fe;
           font-family: monospace;
           font-size: 11px;
           font-weight: bold;
-          padding: 8px;
+          padding: 8px 4px;
           border-radius: 4px;
           cursor: pointer;
           margin-top: 10px;
-          box-shadow: 0 0 12px rgba(129, 140, 248, 0.25);
+          box-shadow: 0 0 12px rgba(129, 140, 248, 0.3);
           transition: all 0.2s ease;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
         }
         .hud-admin-btn:hover {
           background: #4338ca;
           color: #ffffff;
-          box-shadow: 0 0 18px rgba(129, 140, 248, 0.5);
+          box-shadow: 0 0 18px rgba(129, 140, 248, 0.6);
           border-color: #a5b4fc;
         }
       `;
@@ -78,13 +77,12 @@ export class GameHUD {
           <div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width: 100%;"></div>
         </div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
-        
-        <!-- Кнопка Администратора (появляется только для тебя) -->
+
+        <!-- Кнопка вызова админ-панели -->
         <button id="ghud-admin-btn" class="hud-admin-btn" style="display: none;">
           ⚡ МАППИНГ // АДМИН [F2]
         </button>
 
-        <!-- Индикатор дебафа Дизмораль -->
         <div id="ghud-debuff-box" style="display: none; margin-top: 8px; padding: 6px 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 4px; font-size: 11px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: #fca5a5; font-weight: bold;">💔 Дизмораль</span>
@@ -270,7 +268,6 @@ export class GameHUD {
       });
     }
 
-    // 1. Статус своего персонажа
     const myName = document.getElementById('ghud-my-name');
     const myClass = document.getElementById('ghud-my-class');
     const hpBar = document.getElementById('ghud-my-hp-bar');
@@ -282,7 +279,6 @@ export class GameHUD {
       myClass.textContent = isMyBody ? (classMap[player.stats.classId] || 'Герой') : 'Душа [C]';
     }
 
-    // Кнопка Администратора в HUD
     if (this.adminBtn) {
       this.adminBtn.style.display = isAdmin ? 'flex' : 'none';
     }
@@ -305,7 +301,6 @@ export class GameHUD {
       }
     }
 
-    // 2. Рывок
     const dashStatus = document.getElementById('ghud-dash-status');
     const dashBar = document.getElementById('ghud-dash-bar');
     if (dashStatus && dashBar) {
@@ -321,7 +316,6 @@ export class GameHUD {
       }
     }
 
-    // 3. Сеть
     const online = document.getElementById('ghud-online');
     const zoom = document.getElementById('ghud-zoom');
     const coords = document.getElementById('ghud-coords');
@@ -349,7 +343,6 @@ export class GameHUD {
       }
     }
 
-    // 4. Окно цели
     const targetEmpty = document.getElementById('ghud-target-empty');
     const targetDetails = document.getElementById('ghud-target-details');
     const tName = document.getElementById('ghud-target-name');
@@ -368,7 +361,6 @@ export class GameHUD {
       if (this.pickBtn) this.pickBtn.style.display = 'none';
       if (bossJoinBtns) bossJoinBtns.style.display = 'none';
 
-      // ЦВЕТКИ-ВАМПИРЫ
       if (this.currentTarget.isFlowerEntity || worldFlowers.has(this.currentTarget.id)) {
         const fl = worldFlowers.get(this.currentTarget.id) || this.currentTarget;
 
@@ -409,13 +401,9 @@ export class GameHUD {
         return;
       }
 
-      // КЕЙТ
       if (this.currentTarget.isBoss || this.currentTarget.id === 'boss_keyt') {
         const b = boss || this.currentTarget;
-        if (tName) {
-          tName.textContent = 'Кейт';
-          tName.style.color = '#f472b6';
-        }
+        if (tName) { tName.textContent = 'Кейт'; tName.style.color = '#f472b6'; }
         if (tClass) tClass.textContent = 'Рыцарь смерти';
         if (tHp) tHp.textContent = `${b.hp} / ${b.maxHp}`;
         const redPct = (getArmorReduction(b.armor) * 100).toFixed(1);
@@ -424,13 +412,9 @@ export class GameHUD {
 
         if (bossJoinBtns) bossJoinBtns.style.display = (b.inDuel && !player.inDuel) ? 'flex' : 'none';
       }
-      // ДАР
       else if (this.currentTarget.isDar || this.currentTarget.id === 'boss_dar') {
         const d = dar || this.currentTarget;
-        if (tName) {
-          tName.textContent = 'Дар';
-          tName.style.color = '#34d399';
-        }
+        if (tName) { tName.textContent = 'Дар'; tName.style.color = '#34d399'; }
         if (tClass) tClass.textContent = 'Трикстер';
         if (tHp) tHp.textContent = `${d.hp} / ${d.maxHp}`;
         const redPct = (getArmorReduction(d.armor) * 100).toFixed(1);
@@ -444,7 +428,6 @@ export class GameHUD {
         }
         if (bossJoinBtns) bossJoinBtns.style.display = (d.inDuel && !player.inDuel) ? 'flex' : 'none';
       }
-      // ДРУГИЕ ИГРОКИ
       else if (otherPlayers.has(this.currentTarget.username?.toLowerCase())) {
         const p = otherPlayers.get(this.currentTarget.username.toLowerCase());
         if (this.duelBtn) this.duelBtn.style.display = 'block';
@@ -485,7 +468,6 @@ export class GameHUD {
       if (targetDetails) targetDetails.style.display = 'none';
     }
 
-    // 5. Радар
     const nearbyBox = document.getElementById('ghud-nearby-list');
     if (nearbyBox) {
       const nearbyList = [];
@@ -562,7 +544,6 @@ export class GameHUD {
       }
     }
 
-    // 6. Окружение
     const nearEmpty = document.getElementById('ghud-near-obj-empty');
     const nearDetails = document.getElementById('ghud-near-obj-details');
     const nearName = document.getElementById('ghud-near-obj-name');

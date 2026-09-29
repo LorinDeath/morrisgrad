@@ -28,13 +28,29 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   const WORLD_SIZE = 1200;
   let floorPattern = null;
 
-  // Идентификатор Главного Администратора
-  const TARGET_ADMIN_ID = 'user_38QeREOr606p1c96P4f14YFsLp7';
-  const isCurrentUserAdmin = (userId === TARGET_ADMIN_ID);
+  // Идентификаторы Главного Администратора (D1 UUID и Clerk ID)
+  const ADMIN_IDS = [
+    '76aa36d3-74b2-4b1c-bdfb-88100666317c',
+    'user_38QeREOr606p1c96P4f14YFsLp7'
+  ];
 
-  // Инициализация миров
+  window.__CURRENT_USERNAME__ = username;
+  let isCurrentUserAdmin = (
+    ADMIN_IDS.includes(userId) ||
+    (username && username.trim().toLowerCase() === 'lorin death')
+  );
+
+  // Резервные порталы по умолчанию
+  const DEFAULT_PORTALS = [
+    { id: "portal_class_select", name: "Алтарь Перевоплощения", world: "hellfire", x: 565, y: 600, width: 32, height: 32, color: "#38bdf8" },
+    { id: "portal_arinar", name: "Фрактал Бабочки: «Аринар»", world: "hellfire", targetWorld: "arinar", targetX: 300, targetY: 600, x: 240, y: 600, width: 36, height: 36, color: "#818cf8" },
+    { id: "portal_hellfire", name: "Разлом: «Мир Адского Пламени»", world: "arinar", targetWorld: "hellfire", targetX: 300, targetY: 600, x: 240, y: 600, width: 36, height: 36, color: "#f97316" },
+    { id: "portal_arcade", name: "Разлом Мини-игр", world: "hellfire", x: 12, y: 1188, width: 32, height: 32, color: "#a855f7" }
+  ];
+
   let currentWorld = 'hellfire';
   const arinarCosmos = new ArinarSpaceEnvironment(WORLD_SIZE);
+  let worldPortals = [...DEFAULT_PORTALS];
 
   function updateCanvasResolution() {
     const isMobile = isMobileDevice();
@@ -80,7 +96,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   let currentPing = 0;
   let lastPingTimestamp = 0;
 
-  let worldPortals = [];
   let isModalOpen = false;
   let isGameRunning = false;
   let activeNearPortal = null;
@@ -180,7 +195,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
   const statsUI = new StatsUI(getGameContainer(), () => {});
 
-  // Инициализация Админ-панели и редактора карт
+  // Инициализация модуля админки
   const adminPanel = new AdminPanel(canvas, getGameContainer(), userId, () => currentWorld);
 
   const hud = new GameHUD(
@@ -395,7 +410,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   socket.onopen = () => {
     socket.send(JSON.stringify({
       type: 'join',
-      userId: userId || username,
+      userId: userId || '76aa36d3-74b2-4b1c-bdfb-88100666317c',
       username: username,
       x: Math.round(player.x),
       y: Math.round(player.y),
@@ -437,7 +452,12 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       if (data.type === 'welcome') {
         myNetworkId = data.myId;
         if (data.world) currentWorld = data.world;
-        if (data.portals) worldPortals = data.portals;
+        if (data.portals && data.portals.length > 0) {
+          worldPortals = data.portals;
+        }
+        if (data.isAdmin) {
+          isCurrentUserAdmin = true;
+        }
         if (data.classes) {
           syncClassesFromServer(data.classes);
           duelManager.renderClassCards();
@@ -450,12 +470,9 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
         player.y = data.y;
         lastSentX = data.x;
         lastSentY = data.y;
-
-        // Полный сброс дебаффов, временных эффектов и цветков
         player.dismoraleUntil = 0;
         player.escapedUntil = 0;
         worldFlowers.clear();
-
         hud.clearTarget();
         resetKeys();
 
@@ -639,7 +656,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           boss.inDuel = data.boss.inDuel;
           boss.duelId = data.boss.duelId;
         } else {
-          // Изоляция: в Аринаре босс удаляется с экрана и радара
           boss.state = 'dead';
           boss.x = -9999;
           boss.y = -9999;
@@ -660,7 +676,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
           dar.inDuel = data.dar.inDuel;
           dar.duelId = data.dar.duelId;
         } else {
-          // Изоляция: в Аринаре Дар удаляется с экрана и радара
           dar.state = 'dead';
           dar.x = -9999;
           dar.y = -9999;
@@ -803,7 +818,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     smoothSpeed: 14
   };
 
-  // Передаём ссылку на глобальную камеру для расчётов кликов редактора
   window.__GAME_CAMERA__ = camera;
 
   const keys = { w: false, a: false, s: false, d: false };
@@ -1104,7 +1118,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.restore();
   }
 
-  // Отрисовка специальной золотой рамки Администратора вокруг ника
+  // Отрисовка золотой рамки Администратора
   function drawAdminNameplate(ctx, nickText, x, y, now) {
     ctx.save();
     const fontSize = 12 / camera.zoom;
@@ -1119,16 +1133,13 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     const bx = x - totalW / 2;
     const by = y - h / 2 - 2 / camera.zoom;
 
-    // Пульсация золотого свечения
     const pulse = Math.sin(now / 220) * 4;
     ctx.shadowColor = '#eab308';
     ctx.shadowBlur = 10 + Math.abs(pulse);
 
-    // Фоновая плашка
     ctx.fillStyle = 'rgba(18, 12, 28, 0.95)';
     ctx.fillRect(bx, by, totalW, h);
 
-    // Двойная золотая окантовка
     ctx.strokeStyle = '#ffd700';
     ctx.lineWidth = 1.8 / camera.zoom;
     ctx.strokeRect(bx, by, totalW, h);
@@ -1137,7 +1148,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.lineWidth = 1 / camera.zoom;
     ctx.strokeRect(bx + 2 / camera.zoom, by + 2 / camera.zoom, totalW - 4 / camera.zoom, h - 4 / camera.zoom);
 
-    // Бейдж [ADMIN]
     const badgeX = bx + padX + badgeMetrics.width / 2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1145,7 +1155,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.fillStyle = '#ef4444';
     ctx.fillText(badgeText, badgeX, by + h / 2);
 
-    // Никнейм
     const nickX = bx + (padX * 2) + badgeMetrics.width + (metrics.width / 2);
     ctx.font = `bold ${fontSize}px monospace`;
     ctx.fillStyle = '#ffd700';
@@ -1225,7 +1234,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       touchControls.setInteractHighlight(Boolean(activeNearPortal));
     }
 
-    // Движение Кейт (только в Аду)
     if (currentWorld === 'hellfire' && boss.state !== 'dead') {
       const bDx = boss.targetX - boss.x;
       const bDy = boss.targetY - boss.y;
@@ -1244,7 +1252,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       boss.isMoving = false;
     }
 
-    // Движение Дар (только в Аду)
     if (currentWorld === 'hellfire' && dar.state !== 'dead') {
       const dDx = dar.targetX - dar.x;
       const dDy = dar.targetY - dar.y;
@@ -1263,7 +1270,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       dar.isMoving = false;
     }
 
-    // Полная изоляция данных для HUD и радара
     const isArinar = currentWorld === 'arinar';
     const hudBoss = isArinar ? { ...boss, state: 'dead', x: -9999, y: -9999 } : boss;
     const hudDar = isArinar ? { ...dar, state: 'dead', x: -9999, y: -9999 } : dar;
@@ -1313,9 +1319,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // ==========================================
-    // 1. ОТРИСОВКА ФОНА ПО МИРАМ
-    // ==========================================
+    // 1. Фон
     if (currentWorld === 'arinar') {
       arinarCosmos.update(dt);
       arinarCosmos.renderBackground(ctx, now);
@@ -1348,7 +1352,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.lineWidth = 1;
       ctx.strokeRect(8, 8, WORLD_SIZE - 16, WORLD_SIZE - 16);
 
-      // Тени рисуются только в Адском мире
       otherPlayers.forEach((p) => {
         if ((p.world || 'hellfire') === 'hellfire') {
           drawCharacterShadow(ctx, p.x, p.y);
@@ -1364,12 +1367,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
     }
 
-    // Отрисовка сетки и элементов карты из MapEditor (поверх фона)
+    // Отрисовка наложения сетки редактора карт
     if (adminPanel) {
       adminPanel.render(ctx, camera);
     }
 
-    // Движение других игроков
     otherPlayers.forEach((p) => {
       const pDx = p.targetX - p.x;
       const pDy = p.targetY - p.y;
@@ -1382,9 +1384,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       p.y += pDy * Math.min(1, 14 * dt);
     });
 
-    // ==========================================
-    // 2. СБОР СУЩНОСТЕЙ ПО Y-ГЛУБИНЕ
-    // ==========================================
+    // 2. Сбор сущностей по глубине
     const entities = [];
 
     worldPortals.forEach((portal) => {
@@ -1412,14 +1412,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
     entities.push({ type: 'self_player', y: player.y, item: player });
     entities.sort((a, b) => a.y - b.y);
 
-    // ==========================================
-    // 3. ОТРИСОВКА СУЩНОСТЕЙ
-    // ==========================================
+    // 3. Отрисовка сущностей
     entities.forEach((ent) => {
       if (ent.type === 'portal') {
         const portal = ent.item;
 
-        // Портал Бабочки: «Аринар» или обратный портал
         if (portal.id === 'portal_arinar' || portal.id === 'portal_hellfire') {
           arinarCosmos.drawButterflyPortal(ctx, portal, now);
           return;
@@ -1636,7 +1633,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     }
 
-    // Иконки дуэлей
     otherPlayers.forEach((p) => {
       if ((p.world || 'hellfire') === currentWorld && p.inDuel) {
         ctx.font = `bold ${15 / camera.zoom}px monospace`;
@@ -1651,7 +1647,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 24 / camera.zoom));
     }
 
-    // Ники игроков текущего мира
     const nickFontSize = 12 / camera.zoom;
     ctx.font = `bold ${nickFontSize}px monospace`;
     ctx.textAlign = 'center';
@@ -1660,11 +1655,10 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     const nickOffsetY = currentWorld === 'arinar' ? (22 / camera.zoom) : (halfH + 10 / camera.zoom);
 
-    // Отрисовка других игроков
     otherPlayers.forEach((p) => {
       if ((p.world || 'hellfire') !== currentWorld) return;
 
-      const isOtherAdmin = (p.userId === TARGET_ADMIN_ID);
+      const isOtherAdmin = (ADMIN_IDS.includes(p.userId) || (p.username && p.username.toLowerCase() === 'lorin death'));
       if (isOtherAdmin) {
         drawAdminNameplate(ctx, p.username, Math.round(p.x), Math.round(p.y - nickOffsetY), now);
       } else {
@@ -1680,7 +1674,7 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       }
     });
 
-    // Отрисовка своего ника (с золотой неоновой рамкой Администратора)
+    // Отрисовка своего ника: для админа с золотой рамкой [ADMIN]
     if (isCurrentUserAdmin) {
       drawAdminNameplate(ctx, username, Math.round(player.x), Math.round(player.y - nickOffsetY), now);
     } else {
@@ -1717,7 +1711,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       drawBubble(player.bubble.text, player.x, player.y - bubbleOffsetY, true);
     }
 
-    // Всплывающие цифры урона
     for (let i = floatingTexts.length - 1; i >= 0; i--) {
       const ft = floatingTexts[i];
       if (now > ft.expireAt) {
@@ -1743,7 +1736,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
 
     ctx.restore();
 
-    // Экранные вспышки
     if (surpriseFlashTimer > 0) {
       surpriseFlashTimer -= dt;
       ctx.save();
@@ -1760,7 +1752,6 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
       ctx.restore();
     }
 
-    // Чат-строка
     if (isTyping) {
       const isCursorVisible = Math.floor(now / 500) % 2 === 0;
 
