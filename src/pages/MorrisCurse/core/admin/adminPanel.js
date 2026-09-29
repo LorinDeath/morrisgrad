@@ -9,7 +9,6 @@ export class AdminPanel {
     this.onSwitchWorld = onSwitchWorldCallback;
 
     this.adminIds = [
-      '76aa36d3-74b2-4b1c-bdfb-88100666317c',
       'user_38QeREOr606p1c96P4f14YFsLp7'
     ];
 
