@@ -131,13 +131,7 @@ const { title } = Astro.props;
       </div>
     </footer>
 
-    <!-- Глобальный Лайтбокс -->
-    <div id="lightbox" class="lightbox">
-      <span class="close-btn" title="Закрыть">&times;</span>
-      <button id="prev-btn" class="lightbox-nav prev-btn" title="Назад">&#10094;</button>
-      <img class="lightbox-content" id="lightbox-img" alt="Просмотр" />
-      <button id="next-btn" class="lightbox-nav next-btn" title="Вперед">&#10095;</button>
-    </div>
+
 
     <script>
       // Инициализация кнопки "Назад", лайтбокса и проверки чата
@@ -150,56 +144,6 @@ const { title } = Astro.props;
             backBtn.style.display = 'inline-flex';
           }
           backBtn.onclick = () => window.history.back();
-        }
-
-        // Лайтбокс
-        const lightbox = document.getElementById('lightbox');
-        const lightboxImg = document.getElementById('lightbox-img') as HTMLImageElement | null;
-        const closeBtn = document.querySelector('.close-btn');
-        const prevBtn = document.getElementById('prev-btn');
-        const nextBtn = document.getElementById('next-btn');
-        
-        const galleryImages = Array.from(document.querySelectorAll('.gallery-item img'));
-        let currentIndex = 0;
-
-        const showImage = (index: number) => {
-          if (index < 0) index = galleryImages.length - 1;
-          if (index >= galleryImages.length) index = 0;
-          currentIndex = index;
-          if (lightboxImg && galleryImages[currentIndex]) {
-            lightboxImg.src = (galleryImages[currentIndex] as HTMLImageElement).src;
-          }
-        };
-
-        if (lightbox && lightboxImg && closeBtn && prevBtn && nextBtn) {
-          galleryImages.forEach((img, index) => {
-            if (img instanceof HTMLElement) {
-              img.style.cursor = 'zoom-in';
-            }
-            img.addEventListener('click', (e) => {
-              lightbox.classList.add('active');
-              currentIndex = index;
-              if (e.target instanceof HTMLImageElement) {
-                lightboxImg.src = e.target.src;
-              }
-            });
-          });
-
-          closeBtn.addEventListener('click', () => lightbox.classList.remove('active'));
-          lightbox.addEventListener('click', (e) => {
-            if (e.target === lightbox) lightbox.classList.remove('active');
-          });
-
-          prevBtn.addEventListener('click', (e) => { e.stopPropagation(); showImage(currentIndex - 1); });
-          nextBtn.addEventListener('click', (e) => { e.stopPropagation(); showImage(currentIndex + 1); });
-
-          document.addEventListener('keydown', (e) => {
-            if (lightbox.classList.contains('active')) {
-              if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
-              if (e.key === 'ArrowRight') showImage(currentIndex + 1);
-              if (e.key === 'Escape') lightbox.classList.remove('active');
-            }
-          });
         }
 
         // Проверка непрочитанных сообщений в чате
@@ -814,82 +758,6 @@ const { title } = Astro.props;
     border-color: var(--accent-gold);
     box-shadow: 0 8px 25px var(--purple-glow);
   }
-
-  /* Лайтбокс */
-  .lightbox {
-    display: flex;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    position: fixed;
-    z-index: 10000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(5, 3, 8, 0.92);
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    backdrop-filter: blur(10px);
-  }
-  .lightbox.active {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-  }
-  .lightbox-content {
-    max-width: 90%;
-    max-height: 85%;
-    border: 2px solid var(--accent-gold);
-    border-radius: 12px;
-    box-shadow: 0 0 50px rgba(0, 0, 0, 0.9), 0 0 35px var(--gold-glow);
-    object-fit: contain;
-  }
-  .close-btn {
-    position: absolute;
-    top: 24px;
-    right: 36px;
-    color: #fff;
-    font-size: 42px;
-    font-weight: 300;
-    cursor: pointer;
-    transition: color 0.25s, transform 0.2s;
-    line-height: 1;
-    z-index: 10001;
-  }
-  .close-btn:hover {
-    color: var(--accent-gold);
-    transform: scale(1.15);
-  }
-  .lightbox-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(22, 13, 38, 0.6);
-    border: 1px solid var(--gold-border-soft);
-    border-radius: 50%;
-    color: var(--accent-gold);
-    font-size: 2rem;
-    cursor: pointer;
-    width: 56px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.25s ease;
-    z-index: 10002;
-  }
-  .lightbox-nav:hover {
-    background: var(--energy-purple);
-    color: #fff;
-    border-color: var(--accent-gold);
-    box-shadow: 0 0 20px var(--purple-glow);
-    transform: translateY(-50%) scale(1.1);
-  }
-  .prev-btn { left: 20px; }
-  .next-btn { right: 20px; }
 
   /* Скроллбар */
   ::-webkit-scrollbar { width: 9px; }
