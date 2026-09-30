@@ -16,7 +16,7 @@ interface ArtItem {
 const galleryItems: ArtItem[] = galleryData.map((item) => ({
   name: item.name,
   filename: item.filename,
-  url: `${R2_BASE}/${encodeURIComponent(item.filename)}`,
+  url: `${R2_BASE}/artcollection/art/${encodeURIComponent(item.filename)}`,
   category: item.category,
   tag: item.tag,
 }));
@@ -68,6 +68,8 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
               alt={item.name} 
               class="art-real-img" 
               loading="lazy" 
+              data-filename={encodeURIComponent(item.filename)}
+              onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev/art/'+this.dataset.filename;}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev/'+this.dataset.filename;}"
             />
             <div class="art-overlay-sheen"></div>
             <div class="art-zoom-cue">

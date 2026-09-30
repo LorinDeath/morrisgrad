@@ -40,6 +40,10 @@
     {
       "binding": "konkursbook",
       "bucket_name": "konkursbook"
+    },
+    {
+      "binding": "ARTCOLLECTION_BUCKET",
+      "bucket_name": "artcollection"
     }
   ],
 
