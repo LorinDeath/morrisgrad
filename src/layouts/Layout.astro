@@ -4,7 +4,7 @@ import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/astro/comp
 import RadioPlayer from '../components/RadioPlayer.astro';
 
 interface Props {
-    title: string;
+  title: string;
 }
 
 const { title } = Astro.props;
@@ -12,172 +12,245 @@ const { title } = Astro.props;
 
 <!doctype html>
 <html lang="ru">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="description" content="МоррисГрад" />
-        <meta name="viewport" content="width=device-width" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <meta name="generator" content={Astro.generator} />
-        <title>{title}</title>
-        <ViewTransitions />
-        <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Exo+2:wght@300;600&display=swap" rel="stylesheet">
-    </head>
-    <body>
-        <div class="top-radio-bar">
-            <RadioPlayer />
-        </div>
-        <header class="header">
-            <div class="header-controls">
-                <button id="back-btn" class="nav-btn" aria-label="Назад" title="Вернуться назад">←</button>
-                <a href="/" class="logo-area">
-                    <div class="logo-placeholder">M</div>
-                    <span class="site-name">МоррисГрад v0.007</span>
-                </a>
-            </div>
-            <div class="auth-controls">
-                <a href="/chat" class="header-chat-link">
-                    💬 Чат <span id="chat-notify-dot" class="notify-dot hidden"></span>
-                </a>
-                <SignedOut>
-                    <SignInButton mode="modal" class="login-btn">Войти</SignInButton>
-                </SignedOut>
-                <SignedIn>
-                    <a href="/profile" class="profile-link">Профиль</a>
-                    <UserButton />
-                </SignedIn>
-            </div>
-        </header>
-        <div style="flex: 1;"> <slot />
-		
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="МоррисГрад — интерактивная вселенная тёмного фэнтези" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <ViewTransitions />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <!-- Фоновые мистические свечения -->
+    <div class="ambient-glow ambient-glow-top" aria-hidden="true"></div>
+    <div class="ambient-glow ambient-glow-bottom" aria-hidden="true"></div>
+
+    <div class="top-radio-bar">
+      <RadioPlayer />
     </div>
 
-      <footer class="footer">
-  <div class="socials">
-    <a href="https://author.today/u/alex_seylor/works/" target="_blank" rel="noopener noreferrer">Author.Today</a>
-    <a href="https://t.me/LorinDeath" target="_blank" rel="noopener noreferrer">Telegram</a>
-    <a href="https://www.youtube.com/@Lorin_Death" target="_blank" rel="noopener noreferrer">YouTube</a>
-    <a href="https://boosty.to/alexseylormusic" target="_blank" rel="noopener noreferrer">Boosty</a>
-  </div>
+    <header class="header">
+      <div class="header-controls">
+        <button id="back-btn" class="nav-btn" aria-label="Назад" title="Вернуться назад">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
 
-  <p class="copy">&copy; 2026 Lorin Death. Alex Seylor production .</p>
-  <a href="/changelog-site" class="site-version-link">Список обновлений МоррисГрада</a>
-</footer>
+        <a href="/" class="logo-area" title="На главную МоррисГрад">
+          <div class="logo-crest">
+            <svg viewBox="0 0 40 40" width="34" height="34" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 2L36 9V21C36 30 29 36.5 20 39C11 36.5 4 30 4 21V9L20 2Z" fill="url(#crest-grad)" stroke="#ffd700" stroke-width="1.5" stroke-opacity="0.8"/>
+              <path d="M12 28V15L20 23L28 15V28" stroke="#ffd700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="20" cy="11" r="2" fill="#ffd700" filter="drop-shadow(0 0 4px #ffd700)"/>
+              <defs>
+                <linearGradient id="crest-grad" x1="4" y1="2" x2="36" y2="39" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#2d124d"/>
+                  <stop offset="0.6" stop-color="#140824"/>
+                  <stop offset="1" stop-color="#07030d"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="site-name">МоррисГрад</span>
+            <span class="version-chip">v0.007</span>
+          </div>
+        </a>
+      </div>
 
-<!-- Глобальный Лайтбокс -->
-<div id="lightbox" class="lightbox">
-    <span class="close-btn">&times;</span>
-    <button id="prev-btn" class="lightbox-nav prev-btn">&#10094;</button>
-    <img class="lightbox-content" id="lightbox-img" alt="Просмотр">
-    <button id="next-btn" class="lightbox-nav next-btn">&#10095;</button>
-</div>
+      <div class="auth-controls">
+        <a href="/chat" class="header-chat-link" title="Открыть чат жителей">
+          <span class="chat-icon">💬</span>
+          <span class="chat-text">Чат</span>
+          <span id="chat-notify-dot" class="notify-dot hidden" aria-label="Новые сообщения"></span>
+        </a>
 
-<script>
-    // Логика кнопки "Назад"
-    document.addEventListener('astro:page-load', () => {
+        <SignedOut>
+          <SignInButton mode="modal" class="login-btn">
+            <span class="btn-rune">✦</span> Войти
+          </SignInButton>
+        </SignedOut>
+
+        <SignedIn>
+          <a href="/profile" class="profile-link">
+            <span class="profile-icon">⚜</span> Профиль
+          </a>
+          <div class="user-btn-wrapper">
+            <UserButton />
+          </div>
+        </SignedIn>
+      </div>
+    </header>
+
+    <div class="main-content-slot">
+      <slot />
+    </div>
+
+    <footer class="footer">
+      <div class="footer-ornament">
+        <div class="ornament-line"></div>
+        <div class="ornament-gem">✦ ⚜ ✦</div>
+        <div class="ornament-line"></div>
+      </div>
+
+      <div class="socials">
+        <a href="https://author.today/u/alex_seylor/works/" target="_blank" rel="noopener noreferrer" class="social-badge">
+          <span class="social-icon">📖</span> Author.Today
+        </a>
+        <a href="https://t.me/LorinDeath" target="_blank" rel="noopener noreferrer" class="social-badge">
+          <span class="social-icon">✈️</span> Telegram
+        </a>
+        <a href="https://www.youtube.com/@Lorin_Death" target="_blank" rel="noopener noreferrer" class="social-badge">
+          <span class="social-icon">▶</span> YouTube
+        </a>
+        <a href="https://boosty.to/alexseylormusic" target="_blank" rel="noopener noreferrer" class="social-badge">
+          <span class="social-icon">⚡</span> Boosty
+        </a>
+      </div>
+
+      <p class="copy">&copy; 2026 Lorin Death • Alex Seylor production</p>
+      <div class="footer-links">
+        <a href="/changelog-site" class="site-version-link">
+          <span class="link-bullet">❖</span> Хроники обновлений МоррисГрада
+        </a>
+      </div>
+    </footer>
+
+    <!-- Глобальный Лайтбокс -->
+    <div id="lightbox" class="lightbox">
+      <span class="close-btn" title="Закрыть">&times;</span>
+      <button id="prev-btn" class="lightbox-nav prev-btn" title="Назад">&#10094;</button>
+      <img class="lightbox-content" id="lightbox-img" alt="Просмотр" />
+      <button id="next-btn" class="lightbox-nav next-btn" title="Вперед">&#10095;</button>
+    </div>
+
+    <script>
+      // Инициализация кнопки "Назад", лайтбокса и проверки чата
+      document.addEventListener('astro:page-load', () => {
         const backBtn = document.getElementById('back-btn');
         if (backBtn) {
-            // Если мы на главной, скрываем кнопку "Назад"
-            if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-                backBtn.style.display = 'none';
-            } else {
-                backBtn.style.display = 'flex';
-            }
-            
-            backBtn.onclick = () => window.history.back();
+          if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+            backBtn.style.display = 'none';
+          } else {
+            backBtn.style.display = 'inline-flex';
+          }
+          backBtn.onclick = () => window.history.back();
         }
 
-        // Логика Лайтбокса (Всплывающего окна)
+        // Лайтбокс
         const lightbox = document.getElementById('lightbox');
-        const lightboxImg = document.getElementById('lightbox-img');
+        const lightboxImg = document.getElementById('lightbox-img') as HTMLImageElement | null;
         const closeBtn = document.querySelector('.close-btn');
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
         
-        // Ищем все картинки внутри блоков .gallery-item на любой странице
         const galleryImages = Array.from(document.querySelectorAll('.gallery-item img'));
         let currentIndex = 0;
 
-     // Добавляем : number для параметра index
-const showImage = (index: number) => {
-    if (index < 0) index = galleryImages.length - 1;
-    if (index >= galleryImages.length) index = 0;
-    
-    currentIndex = index;
-    
-    // Вместо @ts-ignore лучше использовать приведение типа для безопасности
-    if (lightboxImg) {
-        (lightboxImg as HTMLImageElement).src = (galleryImages[currentIndex] as HTMLImageElement).src;
-    }
-};
+        const showImage = (index: number) => {
+          if (index < 0) index = galleryImages.length - 1;
+          if (index >= galleryImages.length) index = 0;
+          currentIndex = index;
+          if (lightboxImg && galleryImages[currentIndex]) {
+            lightboxImg.src = (galleryImages[currentIndex] as HTMLImageElement).src;
+          }
+        };
 
         if (lightbox && lightboxImg && closeBtn && prevBtn && nextBtn) {
-            // Открытие
-            galleryImages.forEach((img, index) => {
-                if (img instanceof HTMLElement) {
-                    img.style.cursor = 'zoom-in';
-                }
-                img.addEventListener('click', (e) => {
-                    lightbox.classList.add('active');
-                    currentIndex = index;
-                    // @ts-ignore
-                    lightboxImg.src = e.target.src;
-                });
+          galleryImages.forEach((img, index) => {
+            if (img instanceof HTMLElement) {
+              img.style.cursor = 'zoom-in';
+            }
+            img.addEventListener('click', (e) => {
+              lightbox.classList.add('active');
+              currentIndex = index;
+              if (e.target instanceof HTMLImageElement) {
+                lightboxImg.src = e.target.src;
+              }
             });
+          });
 
-            // Закрытие по крестику
-            closeBtn.addEventListener('click', () => {
-                lightbox.classList.remove('active');
-            });
+          closeBtn.addEventListener('click', () => lightbox.classList.remove('active'));
+          lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) lightbox.classList.remove('active');
+          });
 
-            // Закрытие по клику на фон
-            lightbox.addEventListener('click', (e) => {
-                if (e.target === lightbox) lightbox.classList.remove('active');
-            });
+          prevBtn.addEventListener('click', (e) => { e.stopPropagation(); showImage(currentIndex - 1); });
+          nextBtn.addEventListener('click', (e) => { e.stopPropagation(); showImage(currentIndex + 1); });
 
-            // Навигация
-            prevBtn.addEventListener('click', (e) => { e.stopPropagation(); showImage(currentIndex - 1); });
-            nextBtn.addEventListener('click', (e) => { e.stopPropagation(); showImage(currentIndex + 1); });
-
-            // Клавиатура
-            document.addEventListener('keydown', (e) => {
-                if (lightbox.classList.contains('active')) {
-                    if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
-                    if (e.key === 'ArrowRight') showImage(currentIndex + 1);
-                    if (e.key === 'Escape') lightbox.classList.remove('active');
-                }
-            });
+          document.addEventListener('keydown', (e) => {
+            if (lightbox.classList.contains('active')) {
+              if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
+              if (e.key === 'ArrowRight') showImage(currentIndex + 1);
+              if (e.key === 'Escape') lightbox.classList.remove('active');
+            }
+          });
         }
 
-        // Проверка новых сообщений в чате
+        // Проверка непрочитанных сообщений в чате
         const checkChat = async () => {
-            if (window.location.pathname === '/chat') return; // Не проверяем, если мы уже в чате
-            try {
-                const res = await fetch('/api/chat');
-                const data = await res.json();
-                if (data.messages && data.messages.length > 0) {
-                    const latestMsg = data.messages[data.messages.length - 1];
-                    const lastRead = localStorage.getItem('chat_last_read') || 0;
-                    const dot = document.getElementById('chat-notify-dot');
-                    if (dot && latestMsg.created_at > Number(lastRead)) {
-                        dot.classList.remove('hidden');
-                    }
-                }
-            } catch (e) { console.error(e); }
+          if (window.location.pathname === '/chat') return;
+          try {
+            const res = await fetch('/api/chat');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.messages && data.messages.length > 0) {
+              const latestMsg = data.messages[data.messages.length - 1];
+              const lastRead = localStorage.getItem('chat_last_read') || '0';
+              const dot = document.getElementById('chat-notify-dot');
+              if (dot && latestMsg.created_at > Number(lastRead)) {
+                dot.classList.remove('hidden');
+              }
+            }
+          } catch (_) {}
         };
         checkChat();
-    });
-</script>
-    </body>
+      });
+    </script>
+  </body>
 </html>
 
 <style is:global>
+  /* ==========================================================================
+     ДИЗАЙН-ТОКЕНЫ МОРРИСГРАД: DARK FANTASY (PURPLE & GOLD)
+     ========================================================================== */
   :root {
-    --bg-dark: #0a0a0a;
-    --bg-purple: #1a0b2e;
-    --accent-gold: #ffd700;
-    --energy-purple: #a020f0;
-    --btn-gray: #333333;
-    --text-light: #e0e0e0;
+    --bg-dark: #06040a;
+    --bg-dark-rgb: 6, 4, 10;
+    --bg-purple: #130822;
+    --bg-surface: #0e0817;
+    --bg-surface-elevated: #170d26;
+    --bg-surface-card: rgba(22, 13, 38, 0.72);
+    
+    --accent-gold: #f5d061;
+    --accent-gold-bright: #ffd700;
+    --accent-gold-dark: #b8912c;
+    --gold-glow: rgba(245, 208, 97, 0.35);
+    --gold-border: rgba(245, 208, 97, 0.3);
+    --gold-border-soft: rgba(245, 208, 97, 0.15);
+
+    --energy-purple: #a855f7;
+    --energy-purple-bright: #c084fc;
+    --purple-deep: #250943;
+    --purple-glow: rgba(168, 85, 247, 0.4);
+    --purple-border: rgba(168, 85, 247, 0.35);
+
+    --btn-gray: #1a1424;
+    --border-subtle: #291c3d;
+    --border-card: rgba(168, 85, 247, 0.2);
+
+    --text-light: #f5f2fb;
+    --text-main: #e2daf0;
+    --text-muted: #9f91b8;
+    --text-dim: #73648a;
+
+    --font-heading: 'Shket', 'Cinzel', serif;
+    --font-body: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   @font-face {
@@ -188,492 +261,619 @@ const showImage = (index: number) => {
     font-display: swap;
   }
 
-  h1, h2, h3, .site-name, .welcome-text {
-    font-family: 'Shket', sans-serif !important;
+  /* Базовый сброс и типографика */
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
 
   html {
     height: 100%;
-    font-family: 'Exo 2', sans-serif;
-    background: var(--bg-dark);
+    font-family: var(--font-body);
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    color-scheme: dark;
+    scroll-behavior: smooth;
   }
 
   body {
     margin: 0;
     padding: 0;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    color: var(--text-light);
-    
+    overflow-x: hidden;
+    position: relative;
+    background-color: var(--bg-dark);
     background-image: 
-      linear-gradient(rgba(0, 0, 0, 0.8), rgba(26, 11, 46, 0.7)), 
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(120, 35, 200, 0.22), transparent 75%),
+      radial-gradient(ellipse 70% 50% at 50% 100%, rgba(65, 15, 120, 0.25), transparent 80%),
+      linear-gradient(rgba(6, 4, 10, 0.88), rgba(12, 6, 22, 0.92)),
       url('/images/main-bg.webp');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
-  main {
-    flex: 1; 
+
+  /* Декоративные световые ореолы */
+  .ambient-glow {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(140px);
+    opacity: 0.18;
+  }
+  .ambient-glow-top {
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, var(--energy-purple) 0%, transparent 70%);
+  }
+  .ambient-glow-bottom {
+    bottom: -200px;
+    right: 5%;
+    background: radial-gradient(circle, var(--accent-gold-dark) 0%, transparent 70%);
+    opacity: 0.12;
+  }
+
+  h1, h2, h3, .site-name, .welcome-text {
+    font-family: var(--font-heading) !important;
+    letter-spacing: 1px;
+    color: var(--text-light);
+  }
+
+  .main-content-slot {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ==========================================================================
+     ШАПКА (HEADER)
+     ========================================================================== */
+  .top-radio-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    width: 100%;
   }
 
   .header {
     display: flex;
     justify-content: space-between;
-    padding: 1.5rem 3rem;
-    background: rgba(0,0,0,0.8);
-    border-bottom: 1px solid #222;
     align-items: center;
+    padding: 0.9rem 2.2rem;
+    background: rgba(10, 6, 18, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--gold-border-soft);
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(168, 85, 247, 0.15);
+    position: relative;
+    z-index: 900;
   }
 
-  .header-controls { display: flex; align-items: center; gap: 1.5rem; }
-  .auth-controls { display: flex; align-items: center; gap: 1rem; }
-
-  .logo-area { display: flex; align-items: center; gap: 1rem; text-decoration: none; color: inherit; transition: opacity 0.3s; }
-  .logo-area:hover { opacity: 0.8; }
-
-  .logo-placeholder { 
-    width: 40px; height: 40px; border-radius: 50%; 
-    background: var(--btn-gray); border: 1px solid var(--energy-purple);
-    display: flex; align-items: center; justify-content: center;
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
   }
-  .site-name { font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
 
   .nav-btn {
-    background: transparent;
-    border: 1px solid var(--btn-gray);
-    color: var(--text-light);
-    width: 32px; height: 32px;
+    background: rgba(26, 17, 43, 0.6);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.25s ease;
   }
   .nav-btn:hover {
     border-color: var(--accent-gold);
     color: var(--accent-gold);
     transform: translateX(-3px);
+    box-shadow: 0 0 12px var(--gold-glow);
+    background: rgba(45, 25, 75, 0.7);
   }
 
-  .login-btn {
-    background: transparent;
-    border: 1px solid var(--energy-purple);
-    color: var(--text-light);
-    padding: 0.4rem 1rem;
-    border-radius: 6px;
-    font-family: 'Exo 2', sans-serif;
-    font-weight: 600;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.8rem;
+  .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.25s ease;
   }
-  .login-btn:hover {
-    background: var(--energy-purple);
-    color: #fff;
-    box-shadow: 0 0 15px rgba(160, 32, 240, 0.5);
+  .logo-area:hover {
+    transform: scale(1.02);
+  }
+  .logo-area:hover .logo-crest {
+    box-shadow: 0 0 20px var(--gold-glow), 0 0 12px var(--purple-glow);
     border-color: var(--accent-gold);
   }
 
-  .profile-link {
-    color: var(--text-light);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.9rem;
-    margin-right: 15px;
-    transition: color 0.3s;
-  }
-  .profile-link:hover { color: var(--accent-gold); }
-
-  .header-chat-link {
-    color: var(--text-light);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.9rem;
-    margin-right: 15px;
-    transition: color 0.3s;
-    position: relative;
+  .logo-crest {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1c0d30 0%, #0d0617 100%);
+    border: 1px solid var(--gold-border);
     display: flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+    transition: all 0.3s ease;
   }
-  .header-chat-link:hover { color: var(--accent-gold); }
+
+  .brand-text {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .site-name {
+    font-size: 1.35rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(245, 208, 97, 0.25);
+  }
+
+  .version-chip {
+    font-size: 0.68rem;
+    font-family: monospace;
+    color: var(--accent-gold);
+    background: rgba(245, 208, 97, 0.1);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    padding: 2px 7px;
+    border-radius: 999px;
+    letter-spacing: 0.5px;
+  }
+
+  .auth-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+  }
+
+  .header-chat-link {
+    color: var(--text-main);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: rgba(26, 17, 43, 0.6);
+    border: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    position: relative;
+    transition: all 0.25s ease;
+  }
+  .header-chat-link:hover {
+    color: var(--accent-gold);
+    border-color: var(--energy-purple);
+    background: rgba(45, 25, 75, 0.65);
+    box-shadow: 0 0 14px var(--purple-glow);
+  }
 
   .notify-dot {
-    width: 8px; height: 8px; background: #0f0; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px #0f0;
+    width: 8px;
+    height: 8px;
+    background: #4ade80;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 8px #4ade80;
+    animation: pulse-dot 1.8s infinite;
   }
   .notify-dot.hidden { display: none; }
 
-  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
-
-  .banner {
-    width: 100%; height: 350px;
-    background: linear-gradient(45deg, #1a0b2e, #000);
-    border-radius: 12px; margin-bottom: 2rem;
-    border: 1px solid #333;
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
   }
 
-  .welcome-text { text-align: center; font-size: 2.5rem; margin-bottom: 3rem; color: #fff; }
-
- .main-grid {
-  display: flex;           /* Меняем grid на flex */
-  flex-wrap: wrap;         /* Разрешаем карточкам переноситься на новую строку */
-  justify-content: center; /* Центрируем блоки в каждом ряду */
-  gap: 2rem;               /* Сохраняем твои отступы */
-  width: 100%;
-  max-width: 1200px;
-  margin: 3rem auto;
-}
-
-/* Чтобы сами карточки не меняли размер, добавь это (если нет в NavCard): */
-.main-grid > * {
-  flex: 0 0 250px;         /* Запрещаем растягиваться, фиксируем ширину 250px */
-}
-
-  .shimmer-line {
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
-    margin: 3rem 0;
-    box-shadow: 0 0 10px var(--accent-gold);
-  }
-
-    .secondary-list {
-  display: flex;
-  justify-content: center; /* Центрирует кнопки относительно экрана */
-  flex-wrap: wrap;         /* Если не влезут в ряд, перенесутся и тоже будут по центру */
-  gap: 2rem;
-  margin-bottom: 5rem;
-}
-
- .footer {
-    text-align: center;
-    padding: 3rem 1rem;
-    background: #050505; /* Твой черный фон */
-    border-top: 1px solid #222; /* Та самая линия */
-    position: relative;
-    width: 100%;
-    
-    /* Эта штука создаст бесконечную черную заливку вниз */
-    box-shadow: 0 100vh 0 100vh #050505;
-	
-}
-
-  .site-version-link {
-    display: block;
-    margin-top: 0.5rem;
-    color: #444;
+  .login-btn {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.3) 0%, rgba(88, 28, 135, 0.5) 100%);
+    border: 1px solid var(--energy-purple);
+    color: var(--text-light);
+    padding: 0.45rem 1.2rem;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    text-transform: uppercase;
     font-size: 0.8rem;
-    text-decoration: none;
-    transition: color 0.3s;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
   }
-  .site-version-link:hover {
+  .login-btn:hover {
+    background: linear-gradient(135deg, var(--energy-purple) 0%, #7e22ce 100%);
+    color: #fff;
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 20px var(--purple-glow), 0 0 8px var(--gold-glow);
+    transform: translateY(-2px);
+  }
+  .btn-rune {
     color: var(--accent-gold);
   }
 
-  .socials { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; }
-  .socials a { color: var(--accent-gold); text-decoration: none; }
-  .disabled { cursor: not-allowed; opacity: 0.6; background: var(--btn-gray); color: #fff; border: none; padding: 0.5rem 1rem; }
-
-  button, a {
-    cursor: pointer;
-    font-family: inherit;
+  .profile-link {
+    color: var(--text-main);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: rgba(26, 17, 43, 0.6);
+    border: 1px solid var(--border-subtle);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s;
+  }
+  .profile-link:hover {
+    color: var(--accent-gold);
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 12px var(--gold-glow);
+  }
+  .profile-icon {
+    color: var(--accent-gold);
   }
 
-  ::-webkit-scrollbar { width: 8px; }
-  ::-webkit-scrollbar-track { background: var(--bg-dark); }
-  ::-webkit-scrollbar-thumb { background: var(--btn-gray); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--energy-purple); }
-
-  @media (max-width: 600px) {
-    .container { padding: 1rem; }
-    .welcome-text { font-size: 1.8rem; }
+  /* ==========================================================================
+     КОНТЕЙНЕРЫ И ОБЩИЕ ЭЛЕМЕНТЫ
+     ========================================================================== */
+  .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem;
   }
 
-  @media (min-width: 1600px) {
-    html { font-size: 110%; }
+  .shimmer-line {
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, rgba(168, 85, 247, 0.4) 20%, var(--accent-gold) 50%, rgba(168, 85, 247, 0.4) 80%, transparent 100%);
+    margin: 2.5rem 0;
+    box-shadow: 0 0 12px var(--gold-glow);
+    width: 100%;
+    position: relative;
   }
 
-  @media (min-width: 1800px) {
-    body { zoom: 1.1; }
+  .section-title {
+    color: var(--accent-gold);
+    font-size: 1.9rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-title::before {
+    content: "❖";
+    color: var(--energy-purple-bright);
+    font-size: 1.3rem;
   }
 
-  body {
-	margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh; /* Растягивает страницу на всё окно */
-  margin: 0;
-}
+  /* ==========================================================================
+     ФУТЕР (FOOTER)
+     ========================================================================== */
+  .footer {
+    text-align: center;
+    padding: 3.5rem 1.5rem 3rem;
+    background: #040307;
+    border-top: 1px solid var(--gold-border-soft);
+    position: relative;
+    width: 100%;
+    z-index: 10;
+    box-shadow: 0 100vh 0 100vh #040307;
+  }
 
-.top-radio-bar {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  width: 100%;
-}
+  .footer-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    max-width: 450px;
+    margin: 0 auto 2rem;
+  }
+  .ornament-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-border), transparent);
+  }
+  .ornament-gem {
+    color: var(--accent-gold);
+    font-size: 0.85rem;
+    letter-spacing: 3px;
+    text-shadow: 0 0 8px var(--gold-glow);
+  }
 
-/* Стили для заметок (восстановленные) */
-.notes-container {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  margin-top: 40px;
-  margin-bottom: 40px;
-}
+  .socials {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    margin-bottom: 1.8rem;
+  }
 
-.note-card {
-  background: linear-gradient(135deg, #2a1b3d 0%, #1a0b2e 100%); /* Фиолетовый фон */
-  border: 1px solid rgba(255, 215, 0, 0.3);
-  border-radius: 12px;
-  padding: 15px 25px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.1); /* Легкое золотое свечение */
-  transition: box-shadow 0.3s ease;
-  cursor: default; /* Не кликабельная */
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
+  .social-badge {
+    background: rgba(22, 13, 38, 0.8);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-main);
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+  }
+  .social-badge:hover {
+    color: var(--accent-gold);
+    border-color: var(--accent-gold);
+    background: rgba(45, 25, 75, 0.7);
+    box-shadow: 0 0 16px var(--gold-glow);
+    transform: translateY(-2px);
+  }
+  .social-icon {
+    font-size: 0.95rem;
+  }
 
+  .copy {
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    margin: 0.5rem 0 0.8rem;
+    letter-spacing: 0.5px;
+  }
 
-.note-divider {
-  width: 2px;
-  height: 40px;
-  background: linear-gradient(180deg, transparent, #ffd700, transparent);
-  margin: 0;
-  opacity: 0.8;
-  flex-shrink: 0;
-}
+  .site-version-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    text-decoration: none;
+    transition: color 0.25s ease;
+    border-bottom: 1px dotted rgba(245, 208, 97, 0.3);
+    padding-bottom: 2px;
+  }
+  .site-version-link:hover {
+    color: var(--accent-gold);
+    border-color: var(--accent-gold);
+  }
+  .link-bullet {
+    color: var(--energy-purple);
+    font-size: 0.75rem;
+  }
 
-.note-card p {
-  color: #e0d0ff;
-  line-height: 1.5;
-  font-size: 0.95rem;
-  margin: 0;
-}
+  /* ==========================================================================
+     СТИЛИ ДЛЯ ЗАМЕТОК, КАРТОЧЕК И ЛАЙТБОКСА
+     ========================================================================== */
+  .notes-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+  }
 
-/* Анимации при наведении */
-.note-card:hover {
-  box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
-  animation: sway 0.5s ease-in-out; /* Покачивание */
-}
+  .note-card {
+    background: linear-gradient(135deg, rgba(32, 17, 56, 0.75) 0%, rgba(14, 8, 26, 0.85) 100%);
+    border: 1px solid var(--gold-border-soft);
+    border-radius: 12px;
+    padding: 18px 24px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(168, 85, 247, 0.05);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    backdrop-filter: blur(8px);
+  }
+  .note-card:hover {
+    border-color: var(--accent-gold);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px var(--gold-glow);
+    transform: translateY(-2px);
+  }
 
-/* Эффект блика (переливающийся свет) */
-.note-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.5), transparent);
-  transform: skewX(-45deg);
-  pointer-events: none;
-}
+  .note-divider {
+    width: 3px;
+    height: 44px;
+    background: linear-gradient(180deg, transparent, var(--accent-gold), transparent);
+    flex-shrink: 0;
+    box-shadow: 0 0 8px var(--accent-gold);
+  }
 
-.note-card:hover::before {
-  animation: shine 0.75s; /* Проигрывается один раз */
-}
+  .note-card p {
+    color: #ede5f8;
+    line-height: 1.6;
+    font-size: 0.96rem;
+    margin: 0;
+  }
 
-@keyframes sway {
-  0% { transform: rotate(0deg); }
-  25% { transform: rotate(1deg); }
-  50% { transform: rotate(-1deg); }
-  75% { transform: rotate(0.5deg); }
-  100% { transform: rotate(0deg); }
-}
+  /* Персонажи и галереи */
+  .chars-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
+    margin-bottom: 2.5rem;
+  }
 
-@keyframes shine {
-  100% { left: 200%; }
-}
+  .char-card {
+    position: relative;
+    display: block;
+    aspect-ratio: 2 / 3;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--gold-border-soft);
+    background: var(--bg-surface-elevated);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+    transition: all 0.35s ease;
+    text-decoration: none;
+  }
+  .char-card:hover {
+    transform: translateY(-8px);
+    border-color: var(--accent-gold);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-glow);
+  }
+  .char-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s ease;
+  }
+  .char-card:hover .char-img {
+    transform: scale(1.06);
+  }
+  .char-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: linear-gradient(to top, rgba(6, 4, 10, 0.95) 0%, rgba(6, 4, 10, 0.7) 60%, transparent 100%);
+    color: #fff;
+    text-align: center;
+    padding: 18px 10px 12px;
+    font-weight: bold;
+    font-size: 1.15rem;
+    letter-spacing: 0.5px;
+  }
 
-/* Стили для Лайтбокса */
-.lightbox {
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  .gallery-item img {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    transition: all 0.3s ease;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  }
+  .gallery-item img:hover {
+    transform: scale(1.03);
+    border-color: var(--accent-gold);
+    box-shadow: 0 8px 25px var(--purple-glow);
+  }
+
+  /* Лайтбокс */
+  .lightbox {
     display: flex;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition: opacity 0.3s ease, visibility 0.3s ease;
     position: fixed;
-    z-index: 10000; /* Самый высокий слой, поверх всего */
+    z-index: 10000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.85); /* Затемнение */
+    background-color: rgba(5, 3, 8, 0.92);
     justify-content: center;
     align-items: center;
     flex-direction: column;
-    backdrop-filter: blur(5px); /* Размытие фона сайта */
-}
-
-.lightbox.active {
+    backdrop-filter: blur(10px);
+  }
+  .lightbox.active {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-}
-
-.lightbox-content {
+  }
+  .lightbox-content {
     max-width: 90%;
     max-height: 85%;
     border: 2px solid var(--accent-gold);
-    border-radius: 8px;
-    box-shadow: 0 0 40px rgba(255, 215, 0, 0.2);
+    border-radius: 12px;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.9), 0 0 35px var(--gold-glow);
     object-fit: contain;
-}
-
-.close-btn {
+  }
+  .close-btn {
     position: absolute;
-    top: 20px;
-    right: 40px;
+    top: 24px;
+    right: 36px;
     color: #fff;
-    font-size: 50px;
-    font-weight: bold;
+    font-size: 42px;
+    font-weight: 300;
     cursor: pointer;
-    transition: color 0.3s;
+    transition: color 0.25s, transform 0.2s;
+    line-height: 1;
     z-index: 10001;
-}
-.close-btn:hover { color: var(--accent-gold); }
-
-.lightbox-nav {
+  }
+  .close-btn:hover {
+    color: var(--accent-gold);
+    transform: scale(1.15);
+  }
+  .lightbox-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 3rem;
+    background: rgba(22, 13, 38, 0.6);
+    border: 1px solid var(--gold-border-soft);
+    border-radius: 50%;
+    color: var(--accent-gold);
+    font-size: 2rem;
     cursor: pointer;
-    padding: 20px;
-    transition: color 0.3s, transform 0.2s;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
     z-index: 10002;
-}
-.lightbox-nav:hover { color: var(--accent-gold); transform: translateY(-50%) scale(1.1); }
-.prev-btn { left: 10px; }
-.next-btn { right: 10px; }
+  }
+  .lightbox-nav:hover {
+    background: var(--energy-purple);
+    color: #fff;
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 20px var(--purple-glow);
+    transform: translateY(-50%) scale(1.1);
+  }
+  .prev-btn { left: 20px; }
+  .next-btn { right: 20px; }
 
-   .shimmer-line {
-        height: 2px;
-        background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
-        margin: 2rem 0;
-        box-shadow: 0 0 10px var(--accent-gold);
-        width: 100%;
-    }
+  /* Скроллбар */
+  ::-webkit-scrollbar { width: 9px; }
+  ::-webkit-scrollbar-track { background: #06040a; }
+  ::-webkit-scrollbar-thumb {
+    background: #231638;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3c1e63;
+    border-color: var(--accent-gold);
+  }
 
-    .section-title {
-        text-align: left;
-        color: var(--accent-gold);
-        margin-bottom: 1.5rem;
-        font-size: 1.8rem;
-    }
+  ::selection {
+    background: #6b21a8;
+    color: #ffd700;
+  }
 
-    /* Сетка персонажей */
-    .chars-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 20px;
-        margin-bottom: 2rem;
-    }
-
-    /* Карточка персонажа */
-    .char-card {
-        position: relative;
-        display: block;
-        aspect-ratio: 2 / 3; /* Вертикальная карточка */
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 215, 0, 0.3);
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
-        transition: all 0.3s ease;
-        text-decoration: none;
-    }
-
-    .char-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: transform 0.5s;
-    }
-
-    .char-name {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        color: #fff;
-        text-align: center;
-        padding: 10px;
-        font-weight: bold;
-        font-size: 1.2rem;
-        backdrop-filter: blur(2px);
-    }
-
-    /* Анимации (дрыганье и переливание как в Notes) */
-    .char-card:hover {
-        box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
-        animation: sway 0.5s ease-in-out;
-        border-color: var(--accent-gold);
-    }
-
-    .char-card:hover .char-img {
-        transform: scale(1.05);
-    }
-
-    /* Блик */
-    .char-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 50%;
-        height: 100%;
-        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
-        transform: skewX(-45deg);
-        pointer-events: none;
-        z-index: 2;
-    }
-
-    .char-card:hover::before {
-        animation: shine 0.75s;
-    }
-
-    /* Сетка для "Разное" */
-    .gallery-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-        gap: 15px;
-    }
-
-    .gallery-item img {
-        width: 100%;
-        height: auto;
-        border-radius: 8px;
-        border: 1px solid #333;
-        transition: transform 0.3s;
-    }
-
-    .gallery-item img:hover {
-        transform: scale(1.02);
-        border-color: var(--energy-purple);
-    }
-
-    /* Кейфреймы анимаций (те же, что в Notes) */
-    @keyframes sway {
-        0% { transform: rotate(0deg); }
-        25% { transform: rotate(1deg); }
-        50% { transform: rotate(-1deg); }
-        75% { transform: rotate(0.5deg); }
-        100% { transform: rotate(0deg); }
-    }
-
-    @keyframes shine {
-        100% { left: 200%; }
-    }
-    
+  /* Адаптивность для мобильных */
+  @media (max-width: 768px) {
+    .header { padding: 0.8rem 1rem; }
+    .site-name { font-size: 1.1rem; }
+    .version-chip { display: none; }
+    .header-chat-link .chat-text { display: none; }
+    .socials { gap: 0.8rem; }
+    .container { padding: 1.5rem 1rem; }
+  }
 </style>

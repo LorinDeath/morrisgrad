@@ -3,105 +3,386 @@ import Layout from '../layouts/Layout.astro';
 import NavCard from '../components/NavCard.astro';
 import Notes from '../components/Notes.astro';
 
-// Массив категорий
+// Основные разделы вселенной
 const mainCategories = [
-  { title: "Книги", img: "/images/books.jpg", url: "/books" },
-  { title: "Музыка", img: "/images/music.jpg", url: "/music" },
-  { title: "Мини-игры", img: "/images/games.jpg", url: "/games" },
-  { title: "Арты", img: "/images/arts.jpg", url: "/arts" },
-  { title: "Рассказы", img: "/images/stories.jpg", url: "/stories" },
-  { title: "Заявка", url: "/zayavka" },
-  { title: "Рассказы", url: "/allkonrass"},
+  { title: "Книги", img: "/images/1.jpg", url: "/books" },
+  { title: "Музыка", img: "/images/2.jpg", url: "/music" },
+  { title: "Мини-игры", img: "/images/3.jpg", url: "/games" },
+  { title: "Арты", img: "/images/4.jpeg", url: "/arts" },
+  { title: "Рассказы", img: "/images/5.jpeg", url: "/stories" },
+  { title: "Заявка", img: "/images/6.jpeg", url: "/zayavka" },
+  { title: "Архив", img: "/images/7.jpeg", url: "/allkonrass" },
 ];
 
-// Массив кнопок для удобного рендера списком
-const actionButtons = [
-  { title: "КОНКУРС", url: "/konkurs" },
-  { title: "ВИКТОРИНА", url: "/quiz_obitel_smerti.html" },
-  { title: "БИБЛИОТЕКА ЗНАНИЙ", url: "/gemini-code-1786123660299.html" },
-  { title: "МУЗЫКАЛЬНАЯ КАРУСЕЛЬ", url: "/lorin_death_carousel_final.html" },
-  { title: "ТЁМНЫЙ МИР", url: "/Darks.html" },
-  { title: "ТЁМНЫЙ МИР 2", url: "/shadow-world/index.html" },
-  { title: "ПРОКЛЯТЫЕ", url: "/MorrisCurse" },
+// Активности и интерактивные модули
+const activities = [
+  { 
+    title: "КОНКУРС", 
+    desc: "Творческие состязания и награды жителей", 
+    tag: "Событие", 
+    icon: "🏆", 
+    url: "/konkurs" 
+  },
+  { 
+    title: "ВИКТОРИНА", 
+    desc: "Проверь знание тайн Обители Смерти", 
+    tag: "Испытание", 
+    icon: "🔮", 
+    url: "/quiz_obitel_smerti.html" 
+  },
+  { 
+    title: "БИБЛИОТЕКА ЗНАНИЙ", 
+    desc: "Лор, хроники и древние рукописи мира", 
+    tag: "Архив", 
+    icon: "📜", 
+    url: "/gemini-code-1786123660299.html" 
+  },
+  { 
+    title: "МУЗЫКАЛЬНАЯ КАРУСЕЛЬ", 
+    desc: "Интерактивный плеер песен Lorin Death", 
+    tag: "Аудио", 
+    icon: "🎵", 
+    url: "/lorin_death_carousel_final.html" 
+  },
+  { 
+    title: "ТЁМНЫЙ МИР", 
+    desc: "Классическая текстовая альфа-версия", 
+    tag: "Alfa", 
+    icon: "⚔️", 
+    url: "/Darks.html" 
+  },
+  { 
+    title: "ТЁМНЫЙ МИР 2", 
+    desc: "Испытательный полигон механик", 
+    tag: "Beta", 
+    icon: "🌌", 
+    url: "/shadow-world/index.html" 
+  },
 ];
 ---
 
-<Layout title="Моррис Град - Время движется лишь вперёд">
-
+<Layout title="Моррис Град — Время движется лишь вперёд">
   <main class="container">
-    <section class="music-banner-container">
-      <div class="banner-left">
-        <img 
-          src="https://via.placeholder.com/400x400.png?text=New+Track" 
-          alt="Обложка трека" 
-          class="album-cover" 
-          loading="lazy"
-        />
+    
+    <!-- Hero / Медиа-секция -->
+    <section class="hero-section">
+      <div class="hero-header">
+        <span class="hero-badge">✦ ХРОНИКИ МОРРИСГРАДА // ПРЯМОЙ ЭФИР ✦</span>
+        <h1 class="welcome-text">Добро пожаловать, Элфдид!</h1>
+        <p class="hero-subtitle">«Время движется лишь вперёд, а тени прошлого обретают плоть»</p>
       </div>
 
-      <div class="banner-right">
-        <div class="video-responsive">
-          <iframe 
-            width="560" 
-            height="315" 
-            src="https://www.youtube.com/embed?listType=playlist&list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" 
-            title="YouTube video player" 
-            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowfullscreen>
-          </iframe>
+      <div class="music-banner-container">
+        <!-- Медиа-карточка с песней/альбомом -->
+        <div class="banner-left">
+          <div class="music-card-glass">
+            <div class="music-card-cover">
+              <img 
+                src="/images/4242424.png" 
+                alt="Lorin Death — Официальный трек" 
+                class="album-cover" 
+                loading="lazy"
+              />
+              <div class="cover-gradient"></div>
+              <div class="live-pill">
+                <span class="live-dot"></span> Lorin Death
+              </div>
+            </div>
+            <div class="music-card-info">
+              <span class="track-genre">✦ Dark Fantasy / Synth-Gothic</span>
+              <h3 class="track-title">Обитель Смерти</h3>
+              <p class="track-author">Слушайте избранные саундтреки мира МоррисГрад в высоком качестве</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Видеоплеер плейлиста YouTube -->
+        <div class="banner-right">
+          <div class="video-card-frame">
+            <div class="video-responsive">
+              <iframe 
+                width="560" 
+                height="315" 
+                src="https://www.youtube.com/embed/listType=playlist&list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" 
+                title="Lorin Death Music Player" 
+                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowfullscreen>
+              </iframe>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <h1 class="welcome-text">Добро пожаловать, Элфдид!</h1>
+    <!-- Разделительная руническая линия -->
+    <div class="shimmer-line"></div>
 
-    <!-- Рендер кнопок через map для чистоты кода -->
-    {actionButtons.map((btn) => (
-      <a href={btn.url} class="quiz-button">
-        {btn.title}
+    <!-- ФЛАГМАНСКИЙ БЛОК: «ПРОКЛЯТЫЕ» -->
+    <section class="flagship-section">
+      <a href="/MorrisCurse" class="flagship-card" title="Запустить игру ПРОКЛЯТЫЕ">
+        <div class="flagship-corners top-l"></div>
+        <div class="flagship-corners top-r"></div>
+        <div class="flagship-corners bot-l"></div>
+        <div class="flagship-corners bot-r"></div>
+
+        <div class="flagship-aura"></div>
+
+        <div class="flagship-content">
+          <div class="flagship-badge">
+            <span class="badge-dot"></span> ОНЛАЙН РПГ // СЕРВЕР АКТИВЕН
+          </div>
+
+          <h2 class="flagship-title">ПРОКЛЯТЫЕ</h2>
+          <p class="flagship-desc">
+            Многопользовательское 2D-приключение в пустошах Адского Пламени. Выбирайте класс, сражайтесь в дуэлях, бросайте вызов Кейт и Дару, исследуйте порталы неизведанных миров в реальном времени.
+          </p>
+
+          <div class="flagship-meta">
+            <span class="meta-tag">⚔️ 4 Боевых Класса</span>
+            <span class="meta-tag">⚡ Real-Time WebSocket</span>
+            <span class="meta-tag">👑 Боссы и Дуэли</span>
+            <span class="meta-tag">🌐 Cloudflare Durable Objects</span>
+          </div>
+        </div>
+
+        <div class="flagship-cta">
+          <div class="btn-play">
+            <span class="btn-text">ВОЙТИ В ИГРУ</span>
+            <span class="btn-arrow">→</span>
+          </div>
+          <span class="cta-hint">Запуск на весь экран • WASD управление</span>
+        </div>
       </a>
-    ))}
+    </section>
 
-    <div class="main-grid">
-      {mainCategories.map((item) => (
-        <NavCard title={item.title} img={item.img} url={item.url} />
-      ))}
-    </div>
+    <div class="shimmer-line"></div>
 
-    <Notes transition:persist />
+    <!-- Сетка активностей и мини-игр -->
+    <section class="activities-section">
+      <div class="section-header-block">
+        <h2 class="block-title">Испытания и Хроники</h2>
+        <span class="block-subtitle">Интерактивные порталы и знания Обители Смерти</span>
+      </div>
+
+      <div class="activities-grid">
+        {activities.map((item) => (
+          <a href={item.url} class="activity-card">
+            <div class="act-card-top">
+              <span class="act-icon">{item.icon}</span>
+              <span class="act-tag">{item.tag}</span>
+            </div>
+            <h3 class="act-title">{item.title}</h3>
+            <p class="act-desc">{item.desc}</p>
+            <div class="act-footer">
+              <span class="act-link-label">Перейти</span>
+              <span class="act-arrow">→</span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <div class="shimmer-line"></div>
+
+    <!-- Основные разделы вселенной -->
+    <section class="categories-section">
+      <div class="section-header-block">
+        <h2 class="block-title">Архивы Вселенной</h2>
+        <span class="block-subtitle">Литература, галереи, музыка и летописи</span>
+      </div>
+
+      <div class="main-grid">
+        {mainCategories.map((item) => (
+          <NavCard title={item.title} img={item.img} url={item.url} />
+        ))}
+      </div>
+    </section>
+
+    <div class="shimmer-line"></div>
+
+    <!-- Заметки создателя мира -->
+    <section class="notes-section">
+      <div class="section-header-block">
+        <h2 class="block-title">Эхо Мыслей</h2>
+        <span class="block-subtitle">Случайные заметки и фрагменты хроник Lorin Death</span>
+      </div>
+      <Notes transition:persist />
+    </section>
+
   </main>
-
 </Layout>
 
 <style>
+  /* ==========================================================================
+     HERO СЕКЦИЯ
+     ========================================================================== */
+  .hero-section {
+    padding-top: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .hero-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    color: var(--accent-gold);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    background: rgba(245, 208, 97, 0.08);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    padding: 4px 14px;
+    border-radius: 999px;
+    margin-bottom: 1.2rem;
+    text-shadow: 0 0 10px var(--gold-glow);
+  }
+
+  .welcome-text {
+    font-size: 2.8rem;
+    margin: 0.2rem 0 0.8rem;
+    color: #fff;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 90%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 30px rgba(245, 208, 97, 0.25);
+  }
+
+  .hero-subtitle {
+    font-size: 1.05rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0 auto;
+    max-width: 600px;
+    letter-spacing: 0.3px;
+  }
+
   .music-banner-container {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
-    gap: 30px;
-    padding: 20px 0;
-    width: 100%;
+    align-items: stretch;
+    gap: 28px;
+    margin-top: 2rem;
   }
 
-  .banner-left {
+  .banner-left, .banner-right {
     flex: 1;
-    min-width: 300px;
+    min-width: 320px;
     display: flex;
-    justify-content: center;
+  }
+
+  /* Стеклянная карточка музыки */
+  .music-card-glass {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(28, 16, 48, 0.75) 0%, rgba(12, 7, 22, 0.85) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(168, 85, 247, 0.08);
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease, border-color 0.3s ease;
+  }
+  .music-card-glass:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent-gold);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-glow);
+  }
+
+  .music-card-cover {
+    position: relative;
+    width: 100%;
+    height: 190px;
+    overflow: hidden;
   }
 
   .album-cover {
     width: 100%;
-    aspect-ratio: 16 / 9;
+    height: 100%;
     object-fit: cover;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transition: transform 0.6s ease;
+  }
+  .music-card-glass:hover .album-cover {
+    transform: scale(1.05);
   }
 
-  .banner-right {
+  .cover-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(14, 8, 26, 0.95) 0%, transparent 60%);
+  }
+
+  .live-pill {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    background: rgba(14, 8, 26, 0.85);
+    border: 1px solid var(--gold-border);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+  }
+
+  .music-card-info {
+    padding: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     flex: 1;
-    min-width: 300px;
+    justify-content: center;
+  }
+  .track-genre {
+    color: var(--energy-purple-bright);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .track-title {
+    margin: 0;
+    font-size: 1.45rem;
+    color: #fff;
+  }
+  .track-author {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* Каркас для видео */
+  .video-card-frame {
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: #08040f;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: transform 0.3s ease, border-color 0.3s ease;
+  }
+  .video-card-frame:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent-gold);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--purple-glow);
   }
 
   .video-responsive {
@@ -109,10 +390,7 @@ const actionButtons = [
     padding-bottom: 56.25%;
     height: 0;
     overflow: hidden;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
-
   .video-responsive iframe {
     position: absolute;
     top: 0;
@@ -122,57 +400,331 @@ const actionButtons = [
     border: 0;
   }
 
-  @media (max-width: 768px) {
-    .music-banner-container {
-      flex-direction: column;
-    }
+  /* ==========================================================================
+     ФЛАГМАНСКАЯ КАРТОЧКА: «ПРОКЛЯТЫЕ»
+     ========================================================================== */
+  .flagship-section {
+    margin: 2.5rem 0;
   }
 
-  .quiz-button {
-    display: block;
-    max-width: 600px;
-    width: 80%;
-    margin: 40px auto;
-    padding: 20px 40px;
-    font-size: 1.8rem;
-    font-weight: 700;
-    text-align: center;
-    text-decoration: none;
-    color: #fff;
-    background-image: url('/images/4242424.png');
-    background-size: cover;
-    background-position: center;
-    border: 2px solid rgba(160, 32, 240, 0.5);
-    border-radius: 15px;
+  .flagship-card {
     position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 30px;
+    padding: 2.5rem 3rem;
+    background: linear-gradient(135deg, rgba(38, 16, 68, 0.88) 0%, rgba(18, 9, 34, 0.94) 60%, rgba(10, 5, 18, 0.98) 100%);
+    border: 2px solid var(--accent-gold);
+    border-radius: 20px;
+    text-decoration: none;
+    color: inherit;
     overflow: hidden;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 20px rgba(160, 32, 240, 0.5);
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.8), 0 0 35px rgba(245, 208, 97, 0.25), inset 0 0 30px rgba(168, 85, 247, 0.15);
+    transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .flagship-card:hover {
+    transform: translateY(-6px);
+    border-color: #ffe600;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 50px rgba(245, 208, 97, 0.4), 0 0 30px rgba(168, 85, 247, 0.5);
+  }
+
+  .flagship-aura {
+    position: absolute;
+    top: -50%;
+    left: -20%;
+    width: 140%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 50%, rgba(168, 85, 247, 0.22) 0%, transparent 60%);
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  .flagship-card:hover .flagship-aura {
+    opacity: 1;
+  }
+
+  /* Угловые орнаменты */
+  .flagship-corners {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--accent-gold);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .top-l { top: 10px; left: 10px; border-width: 3px 0 0 3px; }
+  .top-r { top: 10px; right: 10px; border-width: 3px 3px 0 0; }
+  .bot-l { bottom: 10px; left: 10px; border-width: 0 0 3px 3px; }
+  .bot-r { bottom: 10px; right: 10px; border-width: 0 3px 3px 0; }
+
+  .flagship-content {
+    flex: 1;
     z-index: 1;
   }
 
-  .quiz-button::before {
+  .flagship-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--accent-gold);
+    background: rgba(245, 208, 97, 0.12);
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 1rem;
+    font-family: monospace;
+  }
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    background: #22c55e;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #22c55e;
+  }
+
+  .flagship-title {
+    font-size: 2.6rem;
+    margin: 0 0 0.8rem;
+    color: #fff;
+    letter-spacing: 2px;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.4);
+  }
+
+  .flagship-desc {
+    color: #ded6ed;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    max-width: 620px;
+    margin: 0 0 1.5rem;
+  }
+
+  .flagship-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .meta-tag {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f3e8ff;
+    background: rgba(36, 17, 62, 0.7);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    padding: 5px 12px;
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+  }
+
+  .flagship-cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  .btn-play {
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+    color: #0c0617;
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: 1.2px;
+    padding: 18px 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 25px rgba(245, 208, 97, 0.45);
+    transition: all 0.3s ease;
+  }
+  .flagship-card:hover .btn-play {
+    transform: scale(1.05);
+    box-shadow: 0 10px 35px rgba(245, 208, 97, 0.75);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+  }
+
+  .btn-arrow {
+    font-size: 1.3rem;
+    transition: transform 0.3s ease;
+  }
+  .flagship-card:hover .btn-arrow {
+    transform: translateX(4px);
+  }
+
+  .cta-hint {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-family: monospace;
+    letter-spacing: 0.3px;
+  }
+
+  /* ==========================================================================
+     СЕТКА АКТИВНОСТЕЙ (ACTIVITIES GRID)
+     ========================================================================== */
+  .section-header-block {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .block-title {
+    font-size: 1.85rem;
+    color: var(--accent-gold);
+    margin: 0 0 0.4rem;
+  }
+  .block-subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+
+  .activities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    margin: 1.5rem 0;
+  }
+
+  .activity-card {
+    background: linear-gradient(135deg, rgba(28, 17, 46, 0.8) 0%, rgba(13, 8, 22, 0.9) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 14px;
+    padding: 1.5rem 1.6rem;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .activity-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(46, 9, 78, 0.75);
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(168, 85, 247, 0.15) 0%, transparent 70%);
     opacity: 0;
-    transition: opacity 0.5s ease;
-    backdrop-filter: blur(3px);
-    z-index: -1;
+    transition: opacity 0.3s ease;
   }
-
-  .quiz-button:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 0 30px rgba(160, 32, 240, 0.8), 0 0 50px rgba(160, 32, 240, 0.6);
+  .activity-card:hover {
+    transform: translateY(-5px);
     border-color: var(--accent-gold);
-    color: #fff;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 20px var(--gold-glow);
+  }
+  .activity-card:hover::before {
+    opacity: 1;
   }
 
-  .quiz-button:hover::before {
-    opacity: 1;
+  .act-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .act-icon {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 0 6px var(--energy-purple));
+  }
+  .act-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-gold);
+    background: rgba(245, 208, 97, 0.1);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .act-title {
+    font-size: 1.3rem;
+    margin: 0;
+    color: #fff;
+    letter-spacing: 1px;
+    transition: color 0.25s ease;
+  }
+  .activity-card:hover .act-title {
+    color: var(--accent-gold);
+  }
+
+  .act-desc {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    margin: 0;
+    flex: 1;
+  }
+
+  .act-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid rgba(168, 85, 247, 0.15);
+    padding-top: 10px;
+    margin-top: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--energy-purple-bright);
+    transition: color 0.25s ease;
+  }
+  .activity-card:hover .act-footer {
+    color: var(--accent-gold);
+  }
+  .act-arrow {
+    transition: transform 0.25s ease;
+  }
+  .activity-card:hover .act-arrow {
+    transform: translateX(4px);
+  }
+
+  /* ==========================================================================
+     ОСНОВНАЯ СЕТКА КАТЕГОРИЙ (NAVCARD GRID)
+     ========================================================================== */
+  .main-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+    margin: 2rem 0;
+  }
+
+  /* Адаптивность для мобильных */
+  @media (max-width: 900px) {
+    .flagship-card {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 2rem;
+    }
+    .flagship-cta {
+      width: 100%;
+      align-items: stretch;
+    }
+    .btn-play {
+      justify-content: center;
+    }
+    .cta-hint {
+      text-align: center;
+    }
+    .welcome-text {
+      font-size: 2.1rem;
+    }
+    .flagship-title {
+      font-size: 2rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .activities-grid {
+      grid-template-columns: 1fr;
+    }
+    .main-grid {
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1rem;
+    }
   }
 </style>

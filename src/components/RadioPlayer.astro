@@ -1,145 +1,172 @@
 ---
-
 // Используем import.meta.glob для создания списка песен при сборке.
-// Это работает в SSR и не требует сканирования диска (fs).
-// ВАЖНО: Переместите папку music из public в src (должно быть src/music)
 const musicFiles = import.meta.glob('/src/music/*.mp3', { eager: true });
 
 const songs = Object.entries(musicFiles).map(([filePath, module]) => {
-  // @ts-ignore - Vite возвращает модуль, где default — это URL файла
+  // @ts-ignore
   const url = module.default;
-  // Извлекаем имя файла из пути
   const name = filePath.split('/').pop()?.replace('.mp3', '') || 'Неизвестный трек';
   return { name, url };
 });
 
-// Если музыки нет, добавим заглушку, чтобы не ломалось
 if (songs.length === 0) {
   songs.push({ name: "Тишина (добавьте файлы в src/music)", url: "" });
 }
 ---
 
-<!-- 
-  transition:persist="radio-player" — это магия. 
-  Astro запомнит этот элемент и не будет его перезагружать при переходе между страницами.
-  Атрибут transition:name позволяет плавно перемещать его визуально.
--->
 <div class="radio-player-wrapper" transition:persist="radio-player" transition:name="radio-morph">
   <div class="radio-interface">
     <div class="track-info">
-      <span class="label">ON AIR:</span>
+      <div class="radio-badge">
+        <span class="pulse-indicator"></span>
+        <span class="label">ON AIR</span>
+      </div>
       <div class="marquee-container">
-        <span id="track-name" class="marquee-content">Нажмите play чтобы включить местное радио</span>
+        <span id="track-name" class="marquee-content">МоррисГрад Радио // Нажмите Play для погружения в эфир</span>
       </div>
     </div>
     
     <div class="controls">
-      <button id="play-btn" class="control-btn">▶</button>
-      <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5">
+      <button id="play-btn" class="control-btn" aria-label="Воспроизведение/Пауза" title="Включить / Пауза">
+        <span class="play-icon">▶</span>
+      </button>
+      <div class="volume-box">
+        <span class="vol-icon">🔉</span>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" aria-label="Громкость" title="Громкость" />
+      </div>
     </div>
   </div>
 
   <audio id="audio-element"></audio>
 
-<script define:vars={{ songs }}>
-  // Логика плеера
-  const audio = document.getElementById('audio-element');
-  const playBtn = document.getElementById('play-btn');
-  const trackName = document.getElementById('track-name');
-  const volumeSlider = document.getElementById('volume-slider');
+  <script define:vars={{ songs }} is:inline>
+    const audio = document.getElementById('audio-element');
+    const playBtn = document.getElementById('play-btn');
+    const trackName = document.getElementById('track-name');
+    const volumeSlider = document.getElementById('volume-slider');
 
-  let isPlaying = false;
-  let currentPlaylist = [...songs]; // Копия для перемешивания
+    let isPlaying = false;
+    let currentPlaylist = Array.isArray(songs) ? [...songs] : [];
 
-  // Функция перемешивания (Fisher-Yates shuffle)
-  function shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-  }
-
-  function playNextRandom() {
-    // Если список пуст или содержит только заглушку
-    if (songs.length === 0 || (songs.length === 1 && songs[0].url === "")) {
-      alert("Радио не нашло музыку. Убедитесь, что файлы лежат в src/music.");
-      return;
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
     }
 
-    // Если плейлист кончился, мешаем заново
-    if (currentPlaylist.length === 0) {
-      currentPlaylist = shuffle([...songs]);
+    function playNextRandom() {
+      if (!songs || songs.length === 0 || (songs.length === 1 && songs[0].url === "")) {
+        return;
+      }
+
+      if (currentPlaylist.length === 0) {
+        currentPlaylist = shuffle([...songs]);
+      }
+      
+      const song = currentPlaylist.pop();
+      if (!song || !song.url) return;
+
+      if (trackName) trackName.textContent = song.name;
+      if (audio) {
+        audio.src = song.url;
+        audio.play().then(() => {
+          isPlaying = true;
+          if (playBtn) playBtn.innerHTML = '<span class="pause-icon">❚❚</span>';
+        }).catch(e => console.log("Автовоспроизведение заблокировано браузером", e));
+      }
     }
-    
-    const song = currentPlaylist.pop();
-    if (!song.url) return; // Защита от пустых
 
-    trackName.textContent = song.name;
-    audio.src = song.url;
-    audio.play().then(() => {
-      isPlaying = true;
-      playBtn.textContent = "❚❚";
-    }).catch(e => console.log("Автовоспроизведение заблокировано браузером", e));
-  }
-
-  // Обработчики событий
-  playBtn.addEventListener('click', () => {
-    if (!audio.src) {
-      playNextRandom();
-    } else if (audio.paused) {
-      audio.play();
-      playBtn.textContent = "❚❚";
-    } else {
-      audio.pause();
-      playBtn.textContent = "▶";
+    if (playBtn && audio) {
+      playBtn.addEventListener('click', () => {
+        if (!audio.src) {
+          playNextRandom();
+        } else if (audio.paused) {
+          audio.play();
+          playBtn.innerHTML = '<span class="pause-icon">❚❚</span>';
+        } else {
+          audio.pause();
+          playBtn.innerHTML = '<span class="play-icon">▶</span>';
+        }
+      });
     }
-  });
 
-  volumeSlider.addEventListener('input', (e) => {
-    audio.volume = e.target.value;
-  });
+    if (volumeSlider && audio) {
+      volumeSlider.addEventListener('input', (e) => {
+        audio.volume = Number(e.target.value);
+      });
+    }
 
-  // Когда песня закончилась — включаем следующую
-  audio.addEventListener('ended', playNextRandom);
+    if (audio) {
+      audio.addEventListener('ended', playNextRandom);
+    }
 
-  // Инициализация (первый запуск перемешивания)
-  currentPlaylist = shuffle([...songs]);
-</script>
+    currentPlaylist = shuffle([...songs]);
+  </script>
 </div>
 
 <style>
   .radio-player-wrapper {
-    background: rgba(26, 11, 46, 0.95);
-    border: 1px solid var(--accent-gold);
-    border-radius: 8px;
-    padding: 10px 20px;
-    box-shadow: 0 0 15px rgba(160, 32, 240, 0.3);
-    backdrop-filter: blur(5px);
+    background: rgba(14, 8, 24, 0.88);
+    border-bottom: 1px solid rgba(245, 208, 97, 0.25);
+    padding: 7px 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(168, 85, 247, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     width: 100%;
     box-sizing: border-box;
+    z-index: 1001;
   }
 
   .radio-interface {
+    max-width: 1180px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 15px;
+    gap: 20px;
   }
 
   .track-info {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
     overflow: hidden;
     flex: 1;
   }
 
+  .radio-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245, 208, 97, 0.1);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    padding: 3px 9px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .pulse-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffd700;
+    box-shadow: 0 0 8px #ffd700;
+    animation: radio-blink 1.5s infinite;
+  }
+
+  @keyframes radio-blink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
+  }
+
   .label {
     color: var(--accent-gold);
-    font-weight: bold;
-    font-size: 0.8rem;
-    white-space: nowrap;
+    font-weight: 700;
+    font-size: 0.74rem;
+    letter-spacing: 1px;
+    font-family: monospace;
   }
 
   .marquee-container {
@@ -147,14 +174,18 @@ if (songs.length === 0) {
     overflow: hidden;
     white-space: nowrap;
     position: relative;
-    mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
-    -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+    mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
   }
 
   .marquee-content {
     display: inline-block;
     padding-left: 100%;
-    animation: marquee 15s linear infinite;
+    animation: marquee 24s linear infinite;
+    font-size: 0.86rem;
+    color: #ded6ed;
+    font-weight: 500;
+    letter-spacing: 0.3px;
   }
 
   @keyframes marquee {
@@ -162,38 +193,67 @@ if (songs.length === 0) {
     100% { transform: translate3d(-100%, 0, 0); }
   }
 
-  #track-name {
-    color: #fff;
-    font-family: 'Exo 2', sans-serif;
-  }
-
   .controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
+    flex-shrink: 0;
   }
 
   .control-btn {
-    background: none;
-    border: 1px solid var(--energy-purple);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(107, 33, 168, 0.45) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.4);
     color: var(--accent-gold);
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s;
+    transition: all 0.25s ease;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   }
 
   .control-btn:hover {
-    background: var(--energy-purple);
+    background: linear-gradient(135deg, var(--energy-purple) 0%, #7e22ce 100%);
     color: #fff;
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 15px var(--gold-glow);
+    transform: scale(1.08);
+  }
+
+  .play-icon {
+    font-size: 0.75rem;
+    margin-left: 2px;
+  }
+  .pause-icon {
+    font-size: 0.75rem;
+    letter-spacing: -1px;
+  }
+
+  .volume-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .vol-icon {
+    font-size: 0.8rem;
+    opacity: 0.75;
   }
 
   input[type=range] {
-    width: 80px;
+    width: 75px;
+    height: 4px;
     accent-color: var(--accent-gold);
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+  }
+
+  @media (max-width: 600px) {
+    .radio-player-wrapper { padding: 6px 12px; }
+    .vol-icon, input[type=range] { display: none; }
   }
 </style>

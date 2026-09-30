@@ -2,53 +2,139 @@
 const { title, img, url } = Astro.props;
 ---
 <a href={url} class="nav-card">
+  <div class="card-frame-corner top-left"></div>
+  <div class="card-frame-corner top-right"></div>
+  <div class="card-frame-corner bottom-left"></div>
+  <div class="card-frame-corner bottom-right"></div>
+
   <div class="energy-glow"></div>
-  <img src={img} alt={title} class="card-bg" />
-  <span>{title}</span>
+  {img && <img src={img} alt={title} class="card-bg" loading="lazy" />}
+  <div class="card-overlay"></div>
+  
+  <div class="card-content">
+    <span class="rune-icon">❖</span>
+    <span class="card-title">{title}</span>
+  </div>
 </a>
 
 <style>
   .nav-card {
     position: relative;
     height: 140px;
-    background: #333;
-    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(28, 16, 48, 0.9) 0%, rgba(12, 7, 22, 0.95) 100%);
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     text-decoration: none;
-    color: white;
-    font-weight: bold;
-    text-transform: uppercase;
+    color: var(--text-light, #f5f2fb);
     overflow: hidden;
-    transition: all 0.4s ease;
-    border: 1px solid transparent;
+    transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 0 15px rgba(168, 85, 247, 0.08);
   }
 
   .card-bg {
     position: absolute;
-    width: 100%; height: 100%;
-    object-fit: cover; opacity: 0.3;
-    transition: opacity 0.3s;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.25;
+    transition: all 0.5s ease;
+    filter: saturate(0.8) contrast(1.1);
+  }
+
+  .card-overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 30%, rgba(8, 4, 15, 0.75) 100%);
+    pointer-events: none;
   }
 
   .energy-glow {
     position: absolute;
-    width: 150%; height: 150%;
-    background: radial-gradient(circle, var(--energy-purple) 0%, transparent 70%);
+    width: 160%;
+    height: 160%;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 65%);
     opacity: 0;
-    transition: opacity 0.4s;
+    transition: opacity 0.4s ease;
     pointer-events: none;
   }
 
-  .nav-card:hover {
-    background: var(--accent-gold);
-    color: black;
-    transform: translateY(-5px);
-    box-shadow: 0 0 20px var(--energy-purple);
+  .card-content {
+    z-index: 2;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px;
+    text-align: center;
   }
 
-  .nav-card:hover .energy-glow { opacity: 0.4; }
-  .nav-card:hover .card-bg { opacity: 0.1; }
-  .nav-card span { z-index: 2; position: relative; }
+  .rune-icon {
+    font-size: 0.85rem;
+    color: var(--accent-gold, #ffd700);
+    opacity: 0.7;
+    transition: all 0.3s ease;
+    text-shadow: 0 0 6px var(--accent-gold, #ffd700);
+  }
+
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-family: var(--font-heading, 'Shket', 'Cinzel', serif);
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    transition: color 0.3s ease;
+  }
+
+  /* Декоративные углы в готическом стиле */
+  .card-frame-corner {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-color: rgba(245, 208, 97, 0.3);
+    border-style: solid;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .top-left { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
+  .top-right { top: 6px; right: 6px; border-width: 2px 2px 0 0; }
+  .bottom-left { bottom: 6px; left: 6px; border-width: 0 0 2px 2px; }
+  .bottom-right { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
+
+  /* Состояние Hover */
+  .nav-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--accent-gold, #ffd700);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 22px rgba(245, 208, 97, 0.3), 0 0 12px rgba(168, 85, 247, 0.4);
+  }
+
+  .nav-card:hover .card-bg {
+    opacity: 0.45;
+    transform: scale(1.08);
+  }
+
+  .nav-card:hover .energy-glow {
+    opacity: 0.6;
+  }
+
+  .nav-card:hover .card-frame-corner {
+    border-color: var(--accent-gold, #ffd700);
+    box-shadow: 0 0 6px var(--accent-gold, #ffd700);
+  }
+
+  .nav-card:hover .card-title {
+    color: var(--accent-gold, #ffd700);
+    text-shadow: 0 0 14px rgba(245, 208, 97, 0.5);
+  }
+
+  .nav-card:hover .rune-icon {
+    opacity: 1;
+    transform: rotate(45deg);
+  }
 </style>
