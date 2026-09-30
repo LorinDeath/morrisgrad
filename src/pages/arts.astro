@@ -1,86 +1,25 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
+import galleryData from '../data/gallery.json';
 
-// Динамическое считывание картинок из папки characters
+const R2_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+
 interface ArtItem {
   name: string;
   url: string;
   category: string;
   tag: string;
+  filename: string;
 }
 
-let galleryItems: ArtItem[] = [];
-
-try {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const dir = path.resolve('public/images/all/characters');
-  
-  if (fs.existsSync(dir)) {
-    const rawFiles = fs.readdirSync(dir);
-    const validFiles = rawFiles.filter(f => 
-      /\.(jpe?g|png|webp)$/i.test(f) && 
-      !f.includes('frame16x20') && 
-      !f.includes('_preview_') && 
-      !f.includes('Code_Generated') &&
-      !f.endsWith('.gif') &&
-      !f.startsWith('.')
-    );
-
-    galleryItems = validFiles.map(filename => {
-      // Формируем понятное название из имени файла
-      const cleanName = filename
-        .replace(/\.[^.]+$/, '')
-        .replace(/_\d{8,14}.*$/, '')
-        .replace(/_2K.*$/, '')
-        .replace(/[-_]/g, ' ')
-        .trim();
-
-      // Категоризация
-      let category = 'all';
-      let tag = 'Хроники';
-
-      const lower = filename.toLowerCase();
-      if (lower.includes('lorin') || lower.includes('girl')) {
-        category = 'lorin';
-        tag = 'Лорин';
-      } else if (lower.includes('veles') || lower.includes('man') || lower.includes('guy')) {
-        category = 'veles';
-        tag = 'Велес & Стражи';
-      } else if (lower.includes('deco') || lower.includes('noir') || lower.includes('dark')) {
-        category = 'artdeco';
-        tag = 'Тёмное Арт-деко';
-      } else if (lower.includes('sword') || lower.includes('combat') || lower.includes('scythe') || lower.includes('bat') || lower.includes('monsters')) {
-        category = 'combat';
-        tag = 'Боевые Арены';
-      }
-
-      return {
-        name: cleanName || 'Хроника Вселенной',
-        url: `/images/all/characters/${filename}`,
-        category,
-        tag,
-      };
-    });
-  }
-} catch {
-  // Edge runtime fallback
-}
-
-// Если директория не прочитана (например, в edge), используем базовый список
-if (galleryItems.length === 0) {
-  galleryItems = [
-    { name: "Тёмный арт-деко силуэт", url: "/images/all/characters/Girl_posing_art_deco_minimalism_2K_202609071805.jpeg", category: "artdeco", tag: "Арт-деко" },
-    { name: "Агрессивный нуар троицы", url: "/images/all/characters/Aggressive_noir_three_characters_202607232016.jpeg", category: "artdeco", tag: "Нуар" },
-    { name: "Лорин на крыше с косой", url: "/images/all/characters/Woman_holding_scythe_on_roof_20260922192654.jpeg", category: "combat", tag: "Обитель Смерти" },
-    { name: "Минимал аниме дарк арт", url: "/images/all/characters/Dark_art_minimal_anime_style_202609021820.jpeg", category: "artdeco", tag: "Дарк Арт" },
-    { name: "Велес и Лорин в городе", url: "/images/all/characters/Veles_and_Lorin_walking_street_202607212140.jpeg", category: "veles", tag: "Велес" },
-    { name: "Девушка в фиолетовом сиянии", url: "/images/all/characters/Girl_standing_in_purple_light_2K_20260926123035.jpg", category: "lorin", tag: "Лорин" },
-    { name: "Танец в баре Обители", url: "/images/all/characters/Lorine_dancing_with_singer_2K_202608132046.jpeg", category: "lorin", tag: "Хроники" },
-    { name: "Три персонажа с розой", url: "/images/all/characters/Three_characters_posing_with_rose_2K_20260910204518.jpeg", category: "artdeco", tag: "Хроники" },
-  ];
-}
+const galleryItems: ArtItem[] = galleryData.map((item) => ({
+  name: item.name,
+  filename: item.filename,
+  url: `${R2_BASE}/${encodeURIComponent(item.filename)}`,
+  category: item.category,
+  tag: item.tag,
+}));
 ---
 
 <Layout title="Галерея Персонажей | МоррисГрад">

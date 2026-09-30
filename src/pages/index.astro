@@ -18,6 +18,8 @@ const mainCategories = [
   { title: "Архив", img: "/images/7.jpeg", url: "/allkonrass" },
 ];
 
+const R2_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+
 // Активности и интерактивные модули с фоновыми артами персонажей
 const activities = [
   { 
@@ -26,7 +28,7 @@ const activities = [
     tag: "Beta", 
     icon: "🌌", 
     url: "/shadow-world/index.html",
-    bg: "/images/all/characters/Girl_standing_in_purple_light_2K_20260926123035.jpg"
+    bg: `${R2_BASE}/Girl_standing_in_purple_light_2K_20260926123035.jpg`
   },
   { 
     title: "МУЗЫКАЛЬНАЯ КАРУСЕЛЬ", 
@@ -34,7 +36,7 @@ const activities = [
     tag: "Аудио", 
     icon: "🎵", 
     url: "/lorin_death_carousel_final.html",
-    bg: "/images/all/characters/Lorine_dancing_with_singer_2K_202608132046.jpeg"
+    bg: `${R2_BASE}/Lorine_dancing_with_singer_2K_202608132046.jpeg`
   },
 ];
 ---
@@ -73,7 +75,7 @@ const activities = [
             <!-- Фоновый мистический арт персонажа для глубины -->
             <div class="book-ambient-art-layer" aria-hidden="true">
               <img 
-                src="/images/all/characters/Dark_art_minimal_anime_style_202609021820.jpeg" 
+                src={`${R2_BASE}/Dark_art_minimal_anime_style_202609021820.jpeg`} 
                 alt="" 
                 class="book-ambient-img" 
                 loading="lazy"
@@ -146,9 +148,10 @@ const activities = [
               <iframe 
                 width="560" 
                 height="315" 
-                src="https://www.youtube.com/embed/listType=playlist&list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" 
+                src="https://www.youtube.com/embed/videoseries?list=PL8dSqpGZDZjYy2by-U3dQvZr_7ho7-fmA" 
                 title="Lorin Death Music Player" 
-                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                referrerpolicy="strict-origin-when-cross-origin"
                 allowfullscreen>
               </iframe>
             </div>
@@ -217,7 +220,7 @@ const activities = [
 
         <!-- Фоновый атмосферный арт персонажей -->
         <div class="konkurs-bg-layer" aria-hidden="true">
-          <img src="/images/all/characters/Three_characters_posing_with_rose_2K_20260910204518.jpeg" alt="" class="konkurs-bg-img" loading="lazy" />
+          <img src={`${R2_BASE}/Three_characters_posing_with_rose_2K_20260910204518.jpeg`} alt="" class="konkurs-bg-img" loading="lazy" />
           <div class="konkurs-bg-vignette"></div>
         </div>
 
