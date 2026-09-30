@@ -1,79 +1,647 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import BookReader from '../components/BookReader.astro';
+import { getAllBooks } from '../utils/fb2';
 
-const books = [
-  {
-    id: 1,
-    title: "Хроники МоррисГрада: Начало",
-    chars: "450,000 знаков",
-    description: "Первая книга погружает читателя в туманные улицы города, где магия переплетается с технологиями. Узнайте историю возникновения Барьера и первых героев.",
-    cover: "/images/book_cover_1.jpg", // Замените на реальный путь
-    link: "/read/book-1"
-  },
-  {
-    id: 2,
-    title: "Тени Старого Города",
-    chars: "380,000 знаков",
-    description: "Детективная история о том, что скрывается в заброшенных кварталах. Кто управляет марионетками из тени?",
-    cover: "/images/book_cover_2.jpg",
-    link: "/read/book-2"
-  },
-  {
-    id: 3,
-    title: "Эхо Глуши",
-    chars: "520,000 знаков",
-    description: "Эпическое завершение трилогии. Путешествие за пределы известного мира и столкновение с неизведанным.",
-    cover: "/images/book_cover_3.jpg",
-    link: "/read/book-3"
-  }
-];
+const allBooks = await getAllBooks();
+const leadBook = allBooks[0];
+const otherCycleBooks = allBooks.slice(1);
 ---
 
-<Layout title="Книги | MorrisGrad">
+<Layout title="Библиотека и Летописи | МоррисГрад">
   <div class="container">
-    <h1>Библиотека</h1>
-    <p class="subtitle">Основные произведения вселенной</p>
+    
+    <!-- Заголовок Библиотеки -->
+    <header class="library-header">
+      <div class="artdeco-filigree" aria-hidden="true">
+        <span class="filigree-line"></span>
+        <span class="filigree-glyph">❖ ⚜ ❖</span>
+        <span class="filigree-line"></span>
+      </div>
+      <h1 class="library-title">Библиотека Обители</h1>
+      <p class="library-subtitle">Священные хроники, манускрипты и летописи вселенной МоррисГрад</p>
+      
+      <div class="cycle-banner-pill">
+        <span class="cycle-pill-dot"></span>
+        Цstream: <strong>Альказак: «Ледяной клинок»</strong>
+      </div>
+    </header>
 
-    <div class="books-list">
-      {books.map((book) => (
-        <article class="book-card">
-          <div class="book-cover">
-            <img src={book.cover} alt={`Обложка ${book.title}`} />
+    <div class="shimmer-line"></div>
+
+    <!-- Книга 1 (Флагман): Летопись «Обитель смерти» -->
+    {leadBook && (
+      <section class="featured-book-section">
+        <div class="section-label-chip">
+          <span class="chip-dot"></span> ТОМ I // ОСНОВНАЯ ЛЕТОПИСЬ
+        </div>
+
+        <article class="featured-book-card">
+          <div class="deco-bracket br-top-left"></div>
+          <div class="deco-bracket br-top-right"></div>
+          <div class="deco-bracket br-bot-left"></div>
+          <div class="deco-bracket br-bot-right"></div>
+
+          <div class="book-cover-col">
+            <div class="book-3d-wrap" data-open-book data-book-id={leadBook.id} data-book-mode="read" title="Нажмите, чтобы читать">
+              <img 
+                src={leadBook.coverImage} 
+                alt={leadBook.title} 
+                class="featured-cover-img" 
+                loading="lazy" 
+              />
+              <div class="featured-cover-spine"></div>
+              <div class="featured-cover-frame">
+                <span class="crest-icon">⚜</span>
+              </div>
+            </div>
           </div>
-          <div class="book-info">
-            <h2>{book.title}</h2>
-            <span class="meta-chars">{book.chars}</span>
-            <p class="description">{book.description}</p>
-            <a href={book.link} class="read-btn">Читать книгу</a>
+
+          <div class="book-details-col">
+            <div class="series-badge">✦ {leadBook.series} // Книга {leadBook.seriesNumber}</div>
+            <h2 class="featured-book-title">{leadBook.title}</h2>
+            <p class="book-author">Летописец: <strong>{leadBook.author}</strong></p>
+
+            <div class="book-meta-pills">
+              <span class="pill-item">📜 {leadBook.totalChapters} глав</span>
+              <span class="pill-item">🖋 {leadBook.totalWords.toLocaleString('ru-RU')} слов</span>
+              <span class="pill-item">⏱ ~{leadBook.totalReadingTimeMinutes} минут чтения</span>
+              <span class="pill-item pill-highlight">🔥 Адское пламя</span>
+            </div>
+
+            <p class="featured-annotation">
+              {leadBook.annotation}
+            </p>
+
+            <div class="featured-actions">
+              <button class="btn-primary-read" data-open-book data-book-id={leadBook.id} data-book-mode="read" data-target-chapter="0">
+                <span class="btn-icon">📖</span> Читать летопись
+              </button>
+              <button class="btn-secondary-toc" data-open-book data-book-id={leadBook.id} data-book-mode="toc">
+                <span class="btn-icon">📜</span> Содержание ({leadBook.totalChapters} глав)
+              </button>
+            </div>
           </div>
         </article>
-      ))}
-    </div>
+      </section>
+    )}
+
+    <div class="shimmer-line"></div>
+
+    <!-- Другие книги цикла: Праведные коты и KILL -->
+    <section class="other-cycle-section">
+      <div class="section-title-wrap">
+        <h2 class="sub-heading">Продолжение цикла: «Ледяной клинок»</h2>
+        <span class="sub-caption">Хроники и боевые арены других томов</span>
+      </div>
+
+      <div class="cycle-books-grid">
+        {otherCycleBooks.map((item, idx) => (
+          <article class="cycle-book-card">
+            <div class="deco-bracket br-top-left"></div>
+            <div class="deco-bracket br-top-right"></div>
+            <div class="deco-bracket br-bot-left"></div>
+            <div class="deco-bracket br-bot-right"></div>
+
+            <div class="cycle-cover-box" data-open-book data-book-id={item.id} data-book-mode="read">
+              <img src={item.coverImage} alt={item.title} class="cycle-book-img" loading="lazy" />
+              <div class="cycle-cover-spine"></div>
+              <div class="cycle-cover-sheen"></div>
+            </div>
+
+            <div class="cycle-info-box">
+              <div class="cycle-tom-chip">ТОМ {idx + 2} // {item.series}</div>
+              <h3 class="cycle-book-title">{item.title}</h3>
+              <p class="cycle-author">Летописец: <strong>{item.author}</strong></p>
+
+              <div class="cycle-mini-meta">
+                <span>📜 {item.totalChapters} глав</span>
+                <span>·</span>
+                <span>⏱ ~{item.totalReadingTimeMinutes} мин</span>
+                <span>·</span>
+                <span>🖋 {item.totalWords.toLocaleString('ru-RU')} слов</span>
+              </div>
+
+              <p class="cycle-desc">{item.annotation.substring(0, 160)}...</p>
+
+              <div class="cycle-btn-row">
+                <button class="btn-cycle-read" data-open-book data-book-id={item.id} data-book-mode="read" data-target-chapter="0">
+                  <span>📖</span> Читать
+                </button>
+                <button class="btn-cycle-toc" data-open-book data-book-id={item.id} data-book-mode="toc">
+                  <span>📜</span> Оглавление
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <!-- Ридер со всеми книгами цикла -->
+    <BookReader books={allBooks} />
+
   </div>
 </Layout>
 
 <style>
-  .container { max-width: 1000px; margin: 0 auto; padding: 2rem 1rem; }
-  h1 { font-size: 2.5rem; margin-bottom: 0.5rem; color: #fff; }
-  .subtitle { color: #aaa; margin-bottom: 3rem; }
-  
-  .books-list { display: flex; flex-direction: column; gap: 3rem; }
-  
-  .book-card { display: flex; gap: 2rem; background: rgba(255, 255, 255, 0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); }
-  
-  .book-cover { flex-shrink: 0; width: 200px; height: 300px; background: #222; border-radius: 8px; overflow: hidden; }
-  .book-cover img { width: 100%; height: 100%; object-fit: cover; }
-  
-  .book-info { display: flex; flex-direction: column; justify-content: center; }
-  .book-info h2 { margin: 0 0 0.5rem 0; font-size: 1.8rem; color: #fff; }
-  .meta-chars { font-size: 0.9rem; color: #888; margin-bottom: 1rem; display: block; }
-  .description { line-height: 1.6; color: #ddd; margin-bottom: 1.5rem; }
-  
-  .read-btn { display: inline-block; padding: 0.8rem 1.5rem; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s; align-self: flex-start; }
-  .read-btn:hover { background: #4338ca; }
+  .container { 
+    max-width: 1100px; 
+    margin: 0 auto; 
+    padding: 2.5rem 1.5rem; 
+  }
 
-  @media (max-width: 768px) {
-    .book-card { flex-direction: column; align-items: center; text-align: center; }
-    .read-btn { align-self: center; }
+  .library-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .artdeco-filigree {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 0.8rem;
+  }
+  .filigree-line {
+    flex: 1;
+    max-width: 140px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  }
+  .filigree-glyph {
+    color: var(--accent-gold);
+    font-size: 0.9rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--gold-glow);
+  }
+
+  .library-title { 
+    font-size: 2.9rem; 
+    margin-bottom: 0.4rem; 
+    color: #fff;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.3);
+  }
+  .library-subtitle { 
+    color: var(--text-muted); 
+    font-size: 1.05rem;
+    font-style: italic;
+    margin: 0 0 1rem;
+  }
+
+  .cycle-banner-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(26, 13, 42, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    padding: 5px 16px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: #e5def0;
+  }
+  .cycle-banner-pill strong {
+    color: var(--accent-gold);
+  }
+  .cycle-pill-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+  }
+
+  /* Флагманская карточка книги */
+  .featured-book-section {
+    margin: 2rem 0;
+  }
+
+  .section-label-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--accent-gold);
+    background: rgba(245, 208, 97, 0.1);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 1.2rem;
+    font-family: monospace;
+  }
+  .chip-dot {
+    width: 6px;
+    height: 6px;
+    background: #f59e0b;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #f59e0b;
+  }
+
+  .featured-book-card {
+    position: relative;
+    display: flex;
+    gap: 32px;
+    background: linear-gradient(135deg, rgba(28, 14, 46, 0.92) 0%, rgba(13, 7, 22, 0.97) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    border-radius: 18px;
+    padding: 2.2rem 2.5rem;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.8), 0 0 35px rgba(168, 85, 247, 0.15);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Угловые арт-деко скобы */
+  .deco-bracket {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--accent-gold);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .br-top-left { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+  .br-top-right { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+  .br-bot-left { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+  .br-bot-right { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+  .book-cover-col {
+    flex-shrink: 0;
+  }
+
+  .book-3d-wrap {
+    position: relative;
+    width: 175px;
+    height: 255px;
+    border-radius: 8px 12px 12px 8px;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: -6px 8px 25px rgba(0,0,0,0.9), 0 0 20px rgba(245, 208, 97, 0.25);
+    border: 1px solid rgba(245, 208, 97, 0.5);
+    transform: perspective(700px) rotateY(-8deg);
+    transition: all 0.4s ease;
+  }
+  .book-3d-wrap:hover {
+    transform: perspective(700px) rotateY(0deg) scale(1.04);
+    border-color: var(--accent-gold);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.9), 0 0 30px var(--gold-glow);
+  }
+
+  .featured-cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .featured-cover-spine {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 10px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(245,208,97,0.4) 50%, rgba(0,0,0,0.6) 100%);
+  }
+
+  .featured-cover-frame {
+    position: absolute;
+    inset: 8px;
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    pointer-events: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 8px;
+  }
+  .crest-icon {
+    color: var(--accent-gold);
+    font-size: 1rem;
+    text-shadow: 0 0 8px var(--accent-gold);
+  }
+
+  .book-details-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .series-badge {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--energy-purple-bright);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .featured-book-title {
+    font-size: 2.2rem;
+    color: #fff;
+    margin: 0 0 6px;
+    font-family: var(--font-heading);
+    letter-spacing: 1px;
+  }
+
+  .book-author {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    margin: 0 0 14px;
+  }
+  .book-author strong {
+    color: var(--accent-gold);
+  }
+
+  .book-meta-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .pill-item {
+    font-size: 0.78rem;
+    color: #ded6ed;
+    background: rgba(36, 17, 62, 0.7);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: monospace;
+  }
+  .pill-highlight {
+    color: var(--accent-gold);
+    border-color: rgba(245, 208, 97, 0.4);
+    background: rgba(245, 208, 97, 0.1);
+  }
+
+  .featured-annotation {
+    color: #cdc4dc;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 22px;
+  }
+
+  .featured-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary-read {
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+    color: #0c0617;
+    font-weight: 800;
+    font-size: 0.95rem;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(245, 208, 97, 0.45);
+    transition: all 0.25s ease;
+  }
+  .btn-primary-read:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(245, 208, 97, 0.7);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+  }
+
+  .btn-secondary-toc {
+    background: rgba(36, 17, 62, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+  }
+  .btn-secondary-toc:hover {
+    background: rgba(50, 24, 85, 0.9);
+    border-color: var(--accent-gold);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 0 14px var(--gold-glow);
+  }
+
+  /* Секция остальных книг цикла */
+  .other-cycle-section {
+    margin: 3.5rem 0 2rem;
+  }
+
+  .section-title-wrap {
+    margin-bottom: 1.8rem;
+  }
+  .sub-heading {
+    font-size: 1.8rem;
+    color: var(--accent-gold);
+    margin: 0 0 4px;
+    font-family: var(--font-heading);
+  }
+  .sub-caption {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .cycle-books-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+    gap: 24px;
+  }
+
+  .cycle-book-card {
+    position: relative;
+    display: flex;
+    gap: 20px;
+    background: linear-gradient(135deg, rgba(28, 14, 46, 0.85) 0%, rgba(13, 7, 22, 0.95) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.25);
+    border-radius: 14px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7);
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .cycle-book-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent-gold);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.85), 0 0 20px var(--gold-glow);
+  }
+
+  .cycle-cover-box {
+    position: relative;
+    width: 125px;
+    height: 180px;
+    border-radius: 6px 10px 10px 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    box-shadow: -4px 6px 16px rgba(0, 0, 0, 0.8), 0 0 12px rgba(245, 208, 97, 0.2);
+    transition: transform 0.3s ease;
+  }
+  .cycle-book-card:hover .cycle-cover-box {
+    transform: scale(1.04);
+    border-color: var(--accent-gold);
+  }
+
+  .cycle-book-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .cycle-cover-spine {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 7px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(245,208,97,0.35) 50%, rgba(0,0,0,0.5) 100%);
+  }
+
+  .cycle-cover-sheen {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .cycle-info-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .cycle-tom-chip {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--energy-purple-bright);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .cycle-book-title {
+    font-size: 1.35rem;
+    color: #fff;
+    margin: 0 0 4px;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+  }
+
+  .cycle-author {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+  }
+  .cycle-author strong {
+    color: var(--accent-gold);
+  }
+
+  .cycle-mini-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-family: monospace;
+    margin-bottom: 8px;
+  }
+
+  .cycle-desc {
+    font-size: 0.86rem;
+    color: #ded6ed;
+    line-height: 1.45;
+    margin: 0 0 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .cycle-btn-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn-cycle-read {
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+    color: #0c0617;
+    font-weight: 800;
+    font-size: 0.85rem;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 3px 12px rgba(245, 208, 97, 0.35);
+    transition: all 0.2s ease;
+  }
+  .btn-cycle-read:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+    box-shadow: 0 5px 18px rgba(245, 208, 97, 0.6);
+  }
+
+  .btn-cycle-toc {
+    background: rgba(36, 17, 62, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+  .btn-cycle-toc:hover {
+    border-color: var(--accent-gold);
+    color: #fff;
+    background: rgba(50, 24, 85, 0.9);
+  }
+
+  @media (max-width: 900px) {
+    .featured-book-card {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 1.8rem;
+    }
+    .book-meta-pills {
+      justify-content: center;
+    }
+    .featured-actions {
+      justify-content: center;
+    }
+    .cycle-books-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .cycle-book-card {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .cycle-btn-row {
+      justify-content: center;
+    }
   }
 </style>

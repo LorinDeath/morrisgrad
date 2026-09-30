@@ -1,0 +1,1418 @@
+---
+import type { BookData, Chapter } from '../utils/fb2';
+
+interface Props {
+  book?: BookData;
+  books?: BookData[];
+}
+
+const { book, books = [] } = Astro.props;
+const allBooks = books.length > 0 ? books : (book ? [book] : []);
+const initialBook = book || allBooks[0];
+---
+
+<!-- Модальный Art Deco ридер книг вселенной -->
+<div id="morris-book-modal" class="book-modal-backdrop" aria-hidden="true">
+  <div class="book-modal-window" role="dialog" aria-label="Читалка книг МоррисГрад">
+    
+    <!-- Декоративная арт-деко рама -->
+    <div class="deco-frame-corner top-left"></div>
+    <div class="deco-frame-corner top-right"></div>
+    <div class="deco-frame-corner bottom-left"></div>
+    <div class="deco-frame-corner bottom-right"></div>
+
+    <!-- Верхняя панель управления ридером -->
+    <header class="reader-toolbar">
+      <div class="toolbar-left">
+        <!-- Выбор книги (если доступно несколько) -->
+        {allBooks.length > 1 && (
+          <div class="book-selector-wrap">
+            <select id="book-select-dropdown" class="book-select-dropdown" aria-label="Выберите книгу">
+              {allBooks.map((b, idx) => (
+                <option value={b.id}>{b.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <button id="book-btn-toc" class="toolbar-btn active" title="Открыть оглавление">
+          <span class="btn-icon">📜</span>
+          <span class="btn-label">Содержание</span>
+        </button>
+        <span class="toolbar-divider"></span>
+        <button id="book-btn-read" class="toolbar-btn" title="Вернуться к чтению">
+          <span class="btn-icon">📖</span>
+          <span class="btn-label">Книга</span>
+        </button>
+      </div>
+
+      <div class="toolbar-center">
+        <span id="reader-top-book-title" class="book-mini-title">{initialBook?.title}</span>
+        <span id="current-chapter-chip" class="chapter-chip hidden">Пролог</span>
+      </div>
+
+      <div class="toolbar-right">
+        <!-- Размер шрифта -->
+        <div class="font-controls" title="Размер шрифта">
+          <button id="font-decrease" class="font-btn" aria-label="Уменьшить шрифт">A-</button>
+          <button id="font-increase" class="font-btn" aria-label="Увеличить шрифт">A+</button>
+        </div>
+        <span class="toolbar-divider"></span>
+        <!-- Закрыть ридер -->
+        <button id="book-close-btn" class="close-reader-btn" aria-label="Закрыть книгу" title="Закрыть (Esc)">
+          ✕
+        </button>
+      </div>
+    </header>
+
+    <!-- Индикатор прогресса чтения -->
+    <div class="reading-progress-track">
+      <div id="reading-progress-bar" class="reading-progress-bar"></div>
+    </div>
+
+    <!-- Основная область контента ридера -->
+    <div class="reader-viewport" id="reader-viewport">
+      
+      <!-- ===================================================================
+           ВИД 1: ОГЛАВЛЕНИЕ (TABLE OF CONTENTS)
+           =================================================================== -->
+      <section id="view-toc" class="reader-view toc-view active">
+        <div class="toc-header-art">
+          <div class="artdeco-filigree">
+            <span class="filigree-line"></span>
+            <span class="filigree-glyph">❖ ⚜ ❖</span>
+            <span class="filigree-line"></span>
+          </div>
+
+          <h2 id="toc-main-title" class="toc-main-title">{initialBook?.title}</h2>
+          <p id="toc-series-tag" class="toc-series-tag">✦ {initialBook?.series} // Том {initialBook?.seriesNumber} ✦</p>
+          <p id="toc-author" class="toc-author">Автор: <strong id="toc-author-name">{initialBook?.author}</strong></p>
+
+          <!-- Быстрый выбор книги цикла -->
+          {allBooks.length > 1 && (
+            <div class="cycle-tabs-bar">
+              <span class="cycle-label">Книги цикла:</span>
+              <div class="cycle-tabs">
+                {allBooks.map((b, idx) => (
+                  <button 
+                    class={`cycle-tab-btn ${idx === 0 ? 'active' : ''}`} 
+                    data-book-id={b.id}
+                  >
+                    {b.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div class="book-quick-stats">
+            <span id="stat-chapters" class="stat-pill"><span class="stat-icon">📜</span> {initialBook?.totalChapters} глав</span>
+            <span id="stat-words" class="stat-pill"><span class="stat-icon">🖋</span> {initialBook?.totalWords?.toLocaleString('ru-RU')} слов</span>
+            <span id="stat-time" class="stat-pill"><span class="stat-icon">⏱</span> ~{initialBook?.totalReadingTimeMinutes} мин чтения</span>
+          </div>
+        </div>
+
+        <!-- Краткое описание книги с обложкой из FB2 -->
+        <div class="toc-annotation-card">
+          <div class="annotation-cover">
+            <img id="toc-cover-img" src={initialBook?.coverImage} alt={initialBook?.title} class="annotation-img" loading="lazy" />
+            <div class="annotation-cover-glow"></div>
+            <div class="annotation-spine"></div>
+          </div>
+          <div class="annotation-body">
+            <h3 class="annotation-heading">Аннотация летописи</h3>
+            <div id="toc-annotation-content" class="annotation-text" set:html={initialBook?.annotationHtml || initialBook?.annotation} />
+            <div class="annotation-cta">
+              <button id="btn-start-reading-lead" class="btn-start-reading" data-chapter="0">
+                <span class="btn-rune">✦</span> Читать с первой главы →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="toc-section-divider">
+          <span class="divider-line"></span>
+          <span class="divider-text">СОДЕРЖАНИЕ И ХРОНИКИ</span>
+          <span class="divider-line"></span>
+        </div>
+
+        <!-- Контейнер глав (наполняется динамически) -->
+        <div id="chapters-list-container" class="chapters-grid">
+          {initialBook?.chapters.map((ch, idx) => (
+            <article class="chapter-card" data-chapter={idx}>
+              <div class="ch-badge-num">
+                <span class="ch-num-val">{String(idx + 1).padStart(2, '0')}</span>
+              </div>
+              <div class="ch-main-info">
+                <h4 class="ch-title">{ch.title}</h4>
+                <p class="ch-snippet">{ch.snippet}</p>
+                <div class="ch-meta">
+                  <span class="ch-meta-item">⏱ ~{ch.readingTimeMinutes} мин</span>
+                  <span class="ch-meta-item">·</span>
+                  <span class="ch-meta-item">{ch.paragraphsCount} абзацев</span>
+                </div>
+              </div>
+              <div class="ch-action">
+                <span class="ch-arrow">→</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           ВИД 2: ЧТЕНИЕ ГЛАВЫ (BOOK READER CHAPTER VIEW)
+           =================================================================== -->
+      <section id="view-chapter" class="reader-view chapter-view">
+        <article class="book-page-parchment">
+          
+          <!-- Заголовок главы в стиле Арт-Деко -->
+          <div class="chapter-page-header">
+            <div class="deco-ornament-top">
+              <span class="orn-line"></span>
+              <span class="orn-diamond">◆</span>
+              <span class="orn-symbol">❖</span>
+              <span class="orn-diamond">◆</span>
+              <span class="orn-line"></span>
+            </div>
+            
+            <span id="current-chapter-num-display" class="chapter-num-label">ГЛАВА I</span>
+            <h1 id="current-chapter-title-display" class="chapter-page-title">Пролог</h1>
+            
+            <div class="chapter-meta-line">
+              <span id="current-chapter-time-display">~5 мин чтения</span>
+              <span class="meta-sep">✦</span>
+              <span id="current-chapter-book-display" class="meta-author">{initialBook?.title} // {initialBook?.author}</span>
+            </div>
+
+            <div class="deco-ornament-bot">
+              <span class="orn-line"></span>
+              <span class="orn-glyph">⚜</span>
+              <span class="orn-line"></span>
+            </div>
+          </div>
+
+          <!-- Текст главы -->
+          <div id="chapter-text-container" class="book-body-content">
+            <!-- Динамически наполняется клиентским скриптом -->
+          </div>
+
+          <!-- Нижняя навигация между главами -->
+          <nav class="chapter-navigation-footer">
+            <button id="btn-prev-chapter" class="chapter-nav-btn prev-btn" disabled>
+              <span class="nav-arrow">←</span>
+              <span class="nav-text">Предыдущая</span>
+            </button>
+
+            <button id="btn-back-to-toc" class="chapter-nav-btn toc-btn">
+              <span class="nav-icon">📜</span>
+              <span class="nav-text">Оглавление</span>
+            </button>
+
+            <button id="btn-next-chapter" class="chapter-nav-btn next-btn">
+              <span class="nav-text">Следующая</span>
+              <span class="nav-arrow">→</span>
+            </button>
+          </nav>
+
+          <div class="book-page-end-mark">
+            <span>❖ ❖ ❖</span>
+          </div>
+
+        </article>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ allBooksJson: allBooks }}>
+  // Клиентский модуль управления арт-деко читалкой для нескольких книг
+  (function initMultiBookReader() {
+    const books = allBooksJson || [];
+    if (!books.length) return;
+
+    let activeBookIndex = 0;
+    let currentChapterIndex = 0;
+    let currentFontSize = 1.05; // rem
+    const minFont = 0.85;
+    const maxFont = 1.35;
+
+    const modal = document.getElementById('morris-book-modal');
+    const viewport = document.getElementById('reader-viewport');
+    const viewToc = document.getElementById('view-toc');
+    const viewChapter = document.getElementById('view-chapter');
+    const btnToc = document.getElementById('book-btn-toc');
+    const btnRead = document.getElementById('book-btn-read');
+    const closeBtn = document.getElementById('book-close-btn');
+    const chip = document.getElementById('current-chapter-chip');
+    const progressBar = document.getElementById('reading-progress-bar');
+    const dropdown = document.getElementById('book-select-dropdown');
+    const topBookTitle = document.getElementById('reader-top-book-title');
+
+    // Элементы оглавления
+    const tocMainTitle = document.getElementById('toc-main-title');
+    const tocSeriesTag = document.getElementById('toc-series-tag');
+    const tocAuthorName = document.getElementById('toc-author-name');
+    const tocCoverImg = document.getElementById('toc-cover-img');
+    const tocAnnotationContent = document.getElementById('toc-annotation-content');
+    const statChapters = document.getElementById('stat-chapters');
+    const statWords = document.getElementById('stat-words');
+    const statTime = document.getElementById('stat-time');
+    const chaptersContainer = document.getElementById('chapters-list-container');
+    const btnStartReadingLead = document.getElementById('btn-start-reading-lead');
+
+    // Элементы чтения
+    const chNumDisplay = document.getElementById('current-chapter-num-display');
+    const chTitleDisplay = document.getElementById('current-chapter-title-display');
+    const chTimeDisplay = document.getElementById('current-chapter-time-display');
+    const chBookDisplay = document.getElementById('current-chapter-book-display');
+    const textContainer = document.getElementById('chapter-text-container');
+    const btnPrev = document.getElementById('btn-prev-chapter');
+    const btnNext = document.getElementById('btn-next-chapter');
+    const btnBackToToc = document.getElementById('btn-back-to-toc');
+
+    const fontDec = document.getElementById('font-decrease');
+    const fontInc = document.getElementById('font-increase');
+
+    function getActiveBook() {
+      return books[activeBookIndex] || books[0];
+    }
+
+    function openModal() {
+      if (!modal) return;
+      modal.classList.add('active');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      if (!modal) return;
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      if (window.location.hash.startsWith('#book') || window.location.hash.startsWith('#chapter')) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+
+    function switchToView(viewName) {
+      if (!viewToc || !viewChapter || !btnToc || !btnRead) return;
+
+      if (viewName === 'toc') {
+        viewToc.classList.add('active');
+        viewChapter.classList.remove('active');
+        btnToc.classList.add('active');
+        btnRead.classList.remove('active');
+        if (chip) chip.classList.add('hidden');
+        if (progressBar) progressBar.style.width = '0%';
+        if (viewport) viewport.scrollTop = 0;
+      } else {
+        viewToc.classList.remove('active');
+        viewChapter.classList.add('active');
+        btnToc.classList.remove('active');
+        btnRead.classList.add('active');
+        if (chip) chip.classList.remove('hidden');
+        if (viewport) viewport.scrollTop = 0;
+      }
+    }
+
+    function renderTocForBook(book) {
+      if (!book) return;
+
+      if (topBookTitle) topBookTitle.textContent = book.title;
+      if (tocMainTitle) tocMainTitle.textContent = book.title;
+      if (tocSeriesTag) tocSeriesTag.textContent = `✦ ${book.series} // Том ${book.seriesNumber} ✦`;
+      if (tocAuthorName) tocAuthorName.textContent = book.author;
+      if (tocCoverImg) {
+        tocCoverImg.src = book.coverImage;
+        tocCoverImg.alt = book.title;
+      }
+      if (tocAnnotationContent) {
+        tocAnnotationContent.innerHTML = book.annotationHtml || `<p>${book.annotation}</p>`;
+      }
+      if (statChapters) statChapters.innerHTML = `<span class="stat-icon">📜</span> ${book.totalChapters} глав`;
+      if (statWords) statWords.innerHTML = `<span class="stat-icon">🖋</span> ${book.totalWords.toLocaleString('ru-RU')} слов`;
+      if (statTime) statTime.innerHTML = `<span class="stat-icon">⏱</span> ~${book.totalReadingTimeMinutes} мин чтения`;
+
+      // Обновление селектора и табов
+      if (dropdown) dropdown.value = book.id;
+      document.querySelectorAll('.cycle-tab-btn').forEach((tab) => {
+        if (tab.getAttribute('data-book-id') === book.id) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+
+      // Перерисовка списка глав
+      if (chaptersContainer) {
+        let chHtml = '';
+        book.chapters.forEach((ch, idx) => {
+          chHtml += `
+            <article class="chapter-card" data-chapter="${idx}">
+              <div class="ch-badge-num">
+                <span class="ch-num-val">${String(idx + 1).padStart(2, '0')}</span>
+              </div>
+              <div class="ch-main-info">
+                <h4 class="ch-title">${ch.title}</h4>
+                <p class="ch-snippet">${ch.snippet || ''}</p>
+                <div class="ch-meta">
+                  <span class="ch-meta-item">⏱ ~${ch.readingTimeMinutes} мин</span>
+                  <span class="ch-meta-item">·</span>
+                  <span class="ch-meta-item">${ch.paragraphsCount} абзацев</span>
+                </div>
+              </div>
+              <div class="ch-action">
+                <span class="ch-arrow">→</span>
+              </div>
+            </article>
+          `;
+        });
+        chaptersContainer.innerHTML = chHtml;
+
+        // Повторное привязывание кликов
+        chaptersContainer.querySelectorAll('.chapter-card').forEach((el) => {
+          el.addEventListener('click', (e) => {
+            const idx = parseInt(e.currentTarget.getAttribute('data-chapter') || '0', 10);
+            loadChapter(idx);
+          });
+        });
+      }
+    }
+
+    function switchBook(bookIdOrIndex, targetChapter = 0, openToc = false) {
+      if (typeof bookIdOrIndex === 'string') {
+        const foundIdx = books.findIndex(b => b.id === bookIdOrIndex);
+        activeBookIndex = foundIdx !== -1 ? foundIdx : 0;
+      } else if (typeof bookIdOrIndex === 'number') {
+        activeBookIndex = Math.max(0, Math.min(bookIdOrIndex, books.length - 1));
+      }
+
+      const book = getActiveBook();
+      renderTocForBook(book);
+
+      if (openToc) {
+        switchToView('toc');
+      } else {
+        loadChapter(targetChapter);
+      }
+    }
+
+    function loadChapter(index) {
+      const book = getActiveBook();
+      if (!book || !book.chapters.length) return;
+
+      currentChapterIndex = Math.max(0, Math.min(index, book.chapters.length - 1));
+      const ch = book.chapters[currentChapterIndex];
+
+      if (chNumDisplay) {
+        chNumDisplay.textContent = `ЛЕТОПИСЬ #${currentChapterIndex + 1} ИЗ ${book.totalChapters}`;
+      }
+      if (chTitleDisplay) {
+        chTitleDisplay.textContent = ch.title;
+      }
+      if (chTimeDisplay) {
+        chTimeDisplay.textContent = `~${ch.readingTimeMinutes} мин чтения • ${ch.paragraphsCount} абзацев`;
+      }
+      if (chBookDisplay) {
+        chBookDisplay.textContent = `${book.title} // ${book.author}`;
+      }
+      if (chip) {
+        chip.textContent = ch.title.length > 25 ? ch.title.substring(0, 22) + '...' : ch.title;
+      }
+
+      if (textContainer) {
+        let html = '';
+        let dropCapApplied = false;
+
+        ch.paragraphs.forEach((p) => {
+          if (!dropCapApplied && p.startsWith('<p>') && !p.includes('book-divider') && !p.includes('book-epigraph')) {
+            const rawContent = p.replace(/^<p>/i, '').replace(/<\/p>$/i, '').trim();
+            const firstChar = rawContent.charAt(0);
+            const remaining = rawContent.slice(1);
+            html += `<p class="has-drop-cap"><span class="drop-cap">${firstChar}</span>${remaining}</p>`;
+            dropCapApplied = true;
+          } else {
+            html += p;
+          }
+        });
+
+        textContainer.innerHTML = html;
+        textContainer.style.fontSize = `${currentFontSize}rem`;
+      }
+
+      if (btnPrev) btnPrev.disabled = currentChapterIndex === 0;
+      if (btnNext) btnNext.disabled = currentChapterIndex === book.chapters.length - 1;
+
+      if (progressBar) {
+        const pct = Math.round(((currentChapterIndex + 1) / book.totalChapters) * 100);
+        progressBar.style.width = `${pct}%`;
+      }
+
+      switchToView('chapter');
+      history.replaceState(null, '', `#book-${book.id}-chapter-${currentChapterIndex + 1}`);
+    }
+
+    // Слушатель выбора книги из селектора
+    if (dropdown) {
+      dropdown.addEventListener('change', (e) => {
+        switchBook(e.target.value, 0, true);
+      });
+    }
+
+    // Слушатели табов цикла
+    document.querySelectorAll('.cycle-tab-btn').forEach((tab) => {
+      tab.addEventListener('click', (e) => {
+        const bId = e.currentTarget.getAttribute('data-book-id');
+        switchBook(bId, 0, true);
+      });
+    });
+
+    if (btnStartReadingLead) {
+      btnStartReadingLead.addEventListener('click', () => loadChapter(0));
+    }
+
+    // Привязываем клики по карточкам глав при первой инициализации
+    if (chaptersContainer) {
+      chaptersContainer.querySelectorAll('.chapter-card').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute('data-chapter') || '0', 10);
+          loadChapter(idx);
+        });
+      });
+    }
+
+    // Тулбар навигации
+    if (btnToc) btnToc.addEventListener('click', () => switchToView('toc'));
+    if (btnRead) btnRead.addEventListener('click', () => switchToView('chapter'));
+    if (btnBackToToc) btnBackToToc.addEventListener('click', () => switchToView('toc'));
+
+    if (btnPrev) {
+      btnPrev.addEventListener('click', () => {
+        if (currentChapterIndex > 0) loadChapter(currentChapterIndex - 1);
+      });
+    }
+
+    if (btnNext) {
+      btnNext.addEventListener('click', () => {
+        const book = getActiveBook();
+        if (currentChapterIndex < book.chapters.length - 1) loadChapter(currentChapterIndex + 1);
+      });
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+    }
+
+    // Клавиатура
+    document.addEventListener('keydown', (e) => {
+      if (!modal || !modal.classList.contains('active')) return;
+      if (e.key === 'Escape') closeModal();
+      if (viewChapter && viewChapter.classList.contains('active')) {
+        if (e.key === 'ArrowLeft' && currentChapterIndex > 0) {
+          loadChapter(currentChapterIndex - 1);
+        } else if (e.key === 'ArrowRight') {
+          const book = getActiveBook();
+          if (currentChapterIndex < book.chapters.length - 1) {
+            loadChapter(currentChapterIndex + 1);
+          }
+        }
+      }
+    });
+
+    // Шрифт
+    if (fontInc) {
+      fontInc.addEventListener('click', () => {
+        if (currentFontSize < maxFont) {
+          currentFontSize += 0.08;
+          if (textContainer) textContainer.style.fontSize = `${currentFontSize}rem`;
+        }
+      });
+    }
+    if (fontDec) {
+      fontDec.addEventListener('click', () => {
+        if (currentFontSize > minFont) {
+          currentFontSize -= 0.08;
+          if (textContainer) textContainer.style.fontSize = `${currentFontSize}rem`;
+        }
+      });
+    }
+
+    // Глобальная функция для открытия из любой точки страницы
+    window.openMorrisBook = function(bookId = 'obitel-smerti', targetChapter = 0, openToc = false) {
+      openModal();
+      switchBook(bookId, targetChapter, openToc);
+    };
+
+    // Привязка всех data-open-book на странице
+    document.querySelectorAll('[data-open-book]').forEach((trigger) => {
+      trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        const bId = trigger.getAttribute('data-book-id') || 'obitel-smerti';
+        const mode = trigger.getAttribute('data-book-mode') || 'read';
+        const ch = parseInt(trigger.getAttribute('data-target-chapter') || '0', 10);
+        openModal();
+        switchBook(bId, ch, mode === 'toc');
+      });
+    });
+
+    // Обработка прямого хэша в URL
+    function checkUrlHash() {
+      const hash = window.location.hash;
+      if (!hash) return;
+
+      if (hash === '#book' || hash === '#book-toc') {
+        openModal();
+        switchBook('obitel-smerti', 0, true);
+        return;
+      }
+
+      // Проверка хэша формата #book-[id] или #book-[id]-chapter-[N]
+      for (const b of books) {
+        if (hash.startsWith(`#book-${b.id}`)) {
+          openModal();
+          const matchChapter = hash.match(new RegExp(`#book-${b.id}-chapter-(\\d+)`));
+          if (matchChapter) {
+            const chNum = parseInt(matchChapter[1], 10) - 1;
+            switchBook(b.id, Math.max(0, chNum), false);
+          } else {
+            switchBook(b.id, 0, true);
+          }
+          return;
+        }
+      }
+
+      // Простой хэш #chapter-N для книги по умолчанию
+      if (hash.startsWith('#chapter-')) {
+        const chNum = parseInt(hash.replace('#chapter-', ''), 10) - 1;
+        if (!isNaN(chNum) && chNum >= 0) {
+          openModal();
+          switchBook('obitel-smerti', chNum, false);
+        }
+      }
+    }
+
+    checkUrlHash();
+    window.addEventListener('hashchange', checkUrlHash);
+  })();
+</script>
+
+<style>
+  /* =========================================================================
+     МОДАЛЬНОЕ ОКНО И АРТ-ДЕКО ОФОРМЛЕНИЕ МУЛЬТИ-РИДЕРА КНИГ
+     ========================================================================= */
+  .book-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(4, 2, 8, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0.35s ease;
+    padding: 1.5rem;
+  }
+
+  .book-modal-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .book-modal-window {
+    position: relative;
+    width: 100%;
+    max-width: 960px;
+    height: 92vh;
+    background: linear-gradient(180deg, #0e0717 0%, #07030d 100%);
+    border: 1px solid var(--accent-gold);
+    border-radius: 16px;
+    box-shadow: 
+      0 0 0 1px rgba(245, 208, 97, 0.35),
+      0 0 50px rgba(0, 0, 0, 0.95),
+      0 0 40px rgba(168, 85, 247, 0.25),
+      inset 0 0 35px rgba(245, 208, 97, 0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: scale(0.96) translateY(10px);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .book-modal-backdrop.active .book-modal-window {
+    transform: scale(1) translateY(0);
+  }
+
+  /* Угловые арт-деко орнаменты */
+  .deco-frame-corner {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-color: var(--accent-gold);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 100;
+    filter: drop-shadow(0 0 5px var(--accent-gold));
+  }
+  .top-left { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+  .top-right { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+  .bottom-left { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+  .bottom-right { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+  /* Верхний тулбар */
+  .reader-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1.6rem;
+    background: rgba(16, 8, 28, 0.92);
+    border-bottom: 1px solid rgba(245, 208, 97, 0.25);
+    z-index: 10;
+    gap: 12px;
+  }
+
+  .toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .book-select-dropdown {
+    background: rgba(28, 14, 46, 0.9);
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+    max-width: 170px;
+  }
+  .book-select-dropdown:hover {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 8px var(--gold-glow);
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(245, 208, 97, 0.2);
+  }
+
+  .toolbar-btn {
+    background: rgba(28, 14, 46, 0.8);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: var(--text-main);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s ease;
+  }
+  .toolbar-btn:hover {
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    background: rgba(45, 22, 75, 0.9);
+    box-shadow: 0 0 10px var(--gold-glow);
+  }
+  .toolbar-btn.active {
+    background: linear-gradient(135deg, rgba(245, 208, 97, 0.15) 0%, rgba(168, 85, 247, 0.25) 100%);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    box-shadow: 0 0 12px var(--gold-glow);
+  }
+
+  .toolbar-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    overflow: hidden;
+  }
+  .book-mini-title {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--accent-gold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chapter-chip {
+    font-size: 0.75rem;
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    color: var(--energy-purple-bright);
+    padding: 2px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .chapter-chip.hidden { display: none; }
+
+  /* Кнопки управления шрифтом */
+  .font-controls {
+    display: flex;
+    align-items: center;
+    background: rgba(28, 14, 46, 0.8);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .font-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .font-btn:hover {
+    color: var(--accent-gold);
+    background: rgba(168, 85, 247, 0.2);
+  }
+
+  .close-reader-btn {
+    background: rgba(28, 14, 46, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    color: var(--text-muted);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.25s ease;
+  }
+  .close-reader-btn:hover {
+    color: #fff;
+    background: #dc2626;
+    border-color: #ef4444;
+    transform: rotate(90deg);
+  }
+
+  /* Прогресс чтения */
+  .reading-progress-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+  .reading-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--energy-purple) 0%, var(--accent-gold) 100%);
+    box-shadow: 0 0 8px var(--accent-gold);
+    transition: width 0.3s ease;
+  }
+
+  /* Область прокрутки */
+  .reader-viewport {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2.2rem 2.8rem;
+    scroll-behavior: smooth;
+    background: radial-gradient(ellipse at 50% 10%, rgba(37, 16, 68, 0.35) 0%, transparent 70%);
+  }
+
+  .reader-view {
+    display: none;
+    max-width: 820px;
+    margin: 0 auto;
+  }
+  .reader-view.active {
+    display: block;
+    animation: fadeInView 0.35s ease;
+  }
+
+  @keyframes fadeInView {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* =========================================================================
+     СТИЛИ ОГЛАВЛЕНИЯ (TOC)
+     ========================================================================= */
+  .toc-header-art {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .artdeco-filigree {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 0.8rem;
+  }
+  .filigree-line {
+    flex: 1;
+    max-width: 160px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  }
+  .filigree-glyph {
+    color: var(--accent-gold);
+    font-size: 0.9rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--gold-glow);
+  }
+
+  .toc-main-title {
+    font-size: 2.2rem;
+    color: #fff;
+    margin: 0 0 0.4rem;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.3);
+  }
+
+  .toc-series-tag {
+    color: var(--energy-purple-bright);
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin: 0 0 0.4rem;
+  }
+
+  .toc-author {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin: 0 0 1rem;
+  }
+  .toc-author strong {
+    color: var(--accent-gold);
+  }
+
+  /* Табы цикла книг */
+  .cycle-tabs-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 1rem 0 1.2rem;
+    flex-wrap: wrap;
+  }
+  .cycle-label {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-family: monospace;
+    text-transform: uppercase;
+  }
+  .cycle-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .cycle-tab-btn {
+    background: rgba(28, 14, 46, 0.8);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: var(--text-muted);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .cycle-tab-btn:hover {
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+  }
+  .cycle-tab-btn.active {
+    background: linear-gradient(135deg, rgba(245, 208, 97, 0.2) 0%, rgba(168, 85, 247, 0.3) 100%);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    box-shadow: 0 0 12px var(--gold-glow);
+  }
+
+  .book-quick-stats {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 0.6rem;
+  }
+  .stat-pill {
+    background: rgba(28, 14, 46, 0.7);
+    border: 1px solid rgba(245, 208, 97, 0.25);
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: #ede5f8;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .stat-icon {
+    color: var(--accent-gold);
+  }
+
+  /* Аннотация книги с обложкой */
+  .toc-annotation-card {
+    display: flex;
+    gap: 24px;
+    background: linear-gradient(135deg, rgba(32, 17, 56, 0.6) 0%, rgba(14, 7, 24, 0.8) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 14px;
+    padding: 1.8rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  }
+
+  .annotation-cover {
+    position: relative;
+    width: 140px;
+    height: 195px;
+    flex-shrink: 0;
+    border-radius: 6px 10px 10px 6px;
+    overflow: hidden;
+    border: 1px solid var(--accent-gold);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 15px var(--gold-glow);
+  }
+  .annotation-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .annotation-spine {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 8px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(245,208,97,0.3) 50%, rgba(0,0,0,0.5) 100%);
+  }
+
+  .annotation-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .annotation-heading {
+    font-size: 1.2rem;
+    color: var(--accent-gold);
+    margin: 0 0 0.6rem;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+  }
+  .annotation-text {
+    font-size: 0.92rem;
+    color: #ded6ed;
+    line-height: 1.6;
+    margin: 0 0 1.2rem;
+  }
+  .annotation-text p {
+    margin: 0 0 0.6rem;
+  }
+
+  .btn-start-reading {
+    align-self: flex-start;
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+    color: #0c0617;
+    font-weight: 800;
+    font-size: 0.95rem;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 18px rgba(245, 208, 97, 0.4);
+    transition: all 0.25s ease;
+  }
+  .btn-start-reading:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(245, 208, 97, 0.65);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+  }
+
+  .toc-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 2rem 0 1.5rem;
+  }
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245, 208, 97, 0.3), transparent);
+  }
+  .divider-text {
+    color: var(--accent-gold);
+    font-family: var(--font-heading);
+    font-size: 0.88rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Сетка глав */
+  .chapters-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chapter-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: linear-gradient(135deg, rgba(28, 14, 46, 0.65) 0%, rgba(13, 7, 22, 0.8) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 12px;
+    padding: 1.1rem 1.4rem;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .chapter-card:hover {
+    transform: translateX(6px);
+    border-color: var(--accent-gold);
+    background: linear-gradient(135deg, rgba(45, 22, 75, 0.8) 0%, rgba(20, 10, 35, 0.9) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 20px var(--gold-glow);
+  }
+
+  .ch-badge-num {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: rgba(14, 7, 24, 0.85);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.25s ease;
+  }
+  .ch-num-val {
+    font-family: monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+  }
+  .chapter-card:hover .ch-badge-num {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 10px var(--gold-glow);
+    background: rgba(45, 25, 75, 0.9);
+  }
+
+  .ch-main-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .ch-title {
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+    color: #fff;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+    transition: color 0.2s ease;
+  }
+  .chapter-card:hover .ch-title {
+    color: var(--accent-gold);
+  }
+  .ch-snippet {
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+  .ch-meta {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .ch-meta-item {
+    font-family: monospace;
+  }
+
+  .ch-action {
+    color: var(--energy-purple-bright);
+    font-size: 1.4rem;
+    transition: all 0.25s ease;
+  }
+  .chapter-card:hover .ch-action {
+    color: var(--accent-gold);
+    transform: translateX(4px);
+  }
+
+  /* =========================================================================
+     СТИЛИ ЧТЕНИЯ ГЛАВЫ (BOOK BODY)
+     ========================================================================= */
+  .book-page-parchment {
+    background: rgba(12, 6, 20, 0.7);
+    border: 1px solid rgba(245, 208, 97, 0.18);
+    border-radius: 14px;
+    padding: 2.5rem 3rem;
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.7);
+    position: relative;
+  }
+
+  .chapter-page-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .deco-ornament-top, .deco-ornament-bot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 0.8rem 0;
+  }
+  .orn-line {
+    flex: 1;
+    max-width: 140px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245, 208, 97, 0.35), transparent);
+  }
+  .orn-diamond {
+    color: var(--accent-gold);
+    font-size: 0.6rem;
+    opacity: 0.7;
+  }
+  .orn-symbol {
+    color: var(--accent-gold);
+    font-size: 0.95rem;
+    text-shadow: 0 0 8px var(--gold-glow);
+  }
+  .orn-glyph {
+    color: var(--accent-gold);
+    font-size: 0.85rem;
+    text-shadow: 0 0 8px var(--gold-glow);
+  }
+
+  .chapter-num-label {
+    display: inline-block;
+    color: var(--energy-purple-bright);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+
+  .chapter-page-title {
+    font-size: 2rem;
+    color: #fff;
+    margin: 0.2rem 0 0.6rem;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.3);
+    line-height: 1.3;
+  }
+
+  .chapter-meta-line {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-style: italic;
+  }
+  .meta-sep {
+    color: var(--accent-gold);
+    font-size: 0.6rem;
+  }
+
+  /* Текст книги */
+  .book-body-content {
+    font-family: 'Exo 2', Georgia, 'Times New Roman', serif;
+    font-size: 1.05rem;
+    line-height: 1.8;
+    color: #e5def0;
+    text-align: justify;
+    word-break: break-word;
+    hyphens: auto;
+  }
+
+  .book-body-content p {
+    margin: 0 0 1.3rem;
+    text-indent: 1.6em;
+  }
+
+  .book-body-content p.poem-line {
+    text-indent: 0;
+    text-align: center;
+    font-style: italic;
+    color: var(--accent-gold);
+    margin: 0 0 0.4rem;
+  }
+
+  .book-body-content .book-epigraph {
+    margin: 1.5rem auto 2rem;
+    max-width: 550px;
+    padding: 1rem 1.4rem;
+    background: rgba(36, 17, 62, 0.4);
+    border-left: 3px solid var(--accent-gold);
+    color: #ded6ed;
+    font-style: italic;
+    border-radius: 0 8px 8px 0;
+    text-align: left;
+  }
+
+  .book-body-content .book-subtitle {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    color: var(--accent-gold);
+    text-align: center;
+    margin: 2rem 0 1rem;
+    letter-spacing: 1px;
+  }
+
+  .book-body-content .book-divider {
+    text-align: center;
+    margin: 2rem 0;
+    color: var(--accent-gold);
+    font-size: 0.9rem;
+    letter-spacing: 6px;
+    opacity: 0.8;
+  }
+
+  /* Буквица (Drop Cap) */
+  .book-body-content p.has-drop-cap {
+    text-indent: 0;
+  }
+  .book-body-content .drop-cap {
+    float: left;
+    font-family: var(--font-heading);
+    font-size: 3.6rem;
+    line-height: 0.85;
+    padding-top: 4px;
+    padding-right: 12px;
+    padding-bottom: 2px;
+    color: var(--accent-gold);
+    text-shadow: 0 0 14px rgba(245, 208, 97, 0.4);
+  }
+
+  .book-body-content em {
+    color: #f3e8ff;
+    font-style: italic;
+  }
+  .book-body-content strong {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  /* Навигация в конце главы */
+  .chapter-navigation-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 3.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(245, 208, 97, 0.2);
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .chapter-nav-btn {
+    background: linear-gradient(135deg, rgba(32, 16, 54, 0.8) 0%, rgba(16, 8, 28, 0.9) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    color: var(--text-light);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+  }
+  .chapter-nav-btn:hover:not(:disabled) {
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    box-shadow: 0 0 16px var(--gold-glow);
+    transform: translateY(-2px);
+  }
+  .chapter-nav-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .book-page-end-mark {
+    text-align: center;
+    margin-top: 2.5rem;
+    color: var(--accent-gold);
+    font-size: 0.85rem;
+    letter-spacing: 8px;
+    opacity: 0.6;
+  }
+
+  @media (max-width: 768px) {
+    .book-modal-backdrop {
+      padding: 0.5rem;
+    }
+    .book-modal-window {
+      height: 98vh;
+      border-radius: 10px;
+    }
+    .reader-toolbar {
+      padding: 0.6rem 0.8rem;
+    }
+    .book-select-dropdown {
+      max-width: 120px;
+      font-size: 0.75rem;
+    }
+    .reader-viewport {
+      padding: 1.2rem 1rem;
+    }
+    .book-page-parchment {
+      padding: 1.5rem 1.2rem;
+    }
+    .toc-annotation-card {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .btn-start-reading {
+      align-self: center;
+    }
+    .book-body-content {
+      font-size: 0.98rem;
+      text-align: left;
+    }
+    .chapter-navigation-footer {
+      flex-direction: column;
+      width: 100%;
+    }
+    .chapter-nav-btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>

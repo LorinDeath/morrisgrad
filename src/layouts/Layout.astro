@@ -61,6 +61,16 @@ const { title } = Astro.props;
             <span class="version-chip">v0.007</span>
           </div>
         </a>
+
+        <!-- Быстрые навигационные кнопки: Книги и Галерея -->
+        <nav class="header-nav-links">
+          <a href="/books" class="header-nav-btn" title="Летописи и книги вселенной">
+            <span class="nav-icon">📖</span> <span class="nav-btn-text">Книги</span>
+          </a>
+          <a href="/arts" class="header-nav-btn" title="Галерея персонажей">
+            <span class="nav-icon">🖼</span> <span class="nav-btn-text">Галерея</span>
+          </a>
+        </nav>
       </div>
 
       <div class="auth-controls">
@@ -359,6 +369,38 @@ const { title } = Astro.props;
     display: flex;
     align-items: center;
     gap: 1.2rem;
+  }
+
+  .header-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 0.5rem;
+  }
+
+  .header-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    background: rgba(28, 14, 46, 0.6);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.25s ease;
+  }
+  .header-nav-btn:hover {
+    color: var(--accent-gold);
+    border-color: var(--accent-gold);
+    background: rgba(45, 25, 75, 0.7);
+    box-shadow: 0 0 10px var(--gold-glow);
+    transform: translateY(-2px);
+  }
+  .header-nav-btn .nav-icon {
+    font-size: 0.95rem;
   }
 
   .nav-btn {
@@ -873,6 +915,8 @@ const { title } = Astro.props;
     .site-name { font-size: 1.1rem; }
     .version-chip { display: none; }
     .header-chat-link .chat-text { display: none; }
+    .header-nav-btn .nav-btn-text { display: none; }
+    .header-nav-btn { padding: 5px 8px; }
     .socials { gap: 0.8rem; }
     .container { padding: 1.5rem 1rem; }
   }

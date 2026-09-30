@@ -2,10 +2,14 @@
 const { title, img, url } = Astro.props;
 ---
 <a href={url} class="nav-card">
+  <!-- Угловые арт-деко засечки -->
   <div class="card-frame-corner top-left"></div>
   <div class="card-frame-corner top-right"></div>
   <div class="card-frame-corner bottom-left"></div>
   <div class="card-frame-corner bottom-right"></div>
+
+  <!-- Внутренняя тонкая золотая арт-деко рамка -->
+  <div class="card-deco-inner-border"></div>
 
   <div class="energy-glow"></div>
   {img && <img src={img} alt={title} class="card-bg" loading="lazy" />}
@@ -14,14 +18,15 @@ const { title, img, url } = Astro.props;
   <div class="card-content">
     <span class="rune-icon">❖</span>
     <span class="card-title">{title}</span>
+    <span class="card-deco-filigree">◈ ⚜ ◈</span>
   </div>
 </a>
 
 <style>
   .nav-card {
     position: relative;
-    height: 140px;
-    background: linear-gradient(135deg, rgba(28, 16, 48, 0.9) 0%, rgba(12, 7, 22, 0.95) 100%);
+    height: 145px;
+    background: linear-gradient(135deg, rgba(28, 14, 46, 0.92) 0%, rgba(12, 6, 22, 0.97) 100%);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -30,8 +35,18 @@ const { title, img, url } = Astro.props;
     color: var(--text-light, #f5f2fb);
     overflow: hidden;
     transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-    border: 1px solid rgba(168, 85, 247, 0.25);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 0 15px rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(245, 208, 97, 0.25);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(168, 85, 247, 0.08);
+  }
+
+  /* Внутренняя арт-деко рамка */
+  .card-deco-inner-border {
+    position: absolute;
+    inset: 5px;
+    border: 1px solid rgba(245, 208, 97, 0.12);
+    border-radius: 8px;
+    pointer-events: none;
+    transition: border-color 0.3s ease;
   }
 
   .card-bg {
@@ -40,15 +55,15 @@ const { title, img, url } = Astro.props;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.25;
+    opacity: 0.22;
     transition: all 0.5s ease;
-    filter: saturate(0.8) contrast(1.1);
+    filter: saturate(0.8) contrast(1.15);
   }
 
   .card-overlay {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at center, transparent 30%, rgba(8, 4, 15, 0.75) 100%);
+    background: radial-gradient(circle at center, rgba(14, 7, 24, 0.3) 20%, rgba(6, 3, 12, 0.88) 100%);
     pointer-events: none;
   }
 
@@ -68,7 +83,7 @@ const { title, img, url } = Astro.props;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     padding: 0 16px;
     text-align: center;
   }
@@ -76,27 +91,35 @@ const { title, img, url } = Astro.props;
   .rune-icon {
     font-size: 0.85rem;
     color: var(--accent-gold, #ffd700);
-    opacity: 0.7;
+    opacity: 0.75;
     transition: all 0.3s ease;
-    text-shadow: 0 0 6px var(--accent-gold, #ffd700);
+    text-shadow: 0 0 8px var(--accent-gold, #ffd700);
   }
 
   .card-title {
     font-size: 1.15rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.4px;
     font-family: var(--font-heading, 'Shket', 'Cinzel', serif);
-    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
     transition: color 0.3s ease;
   }
 
-  /* Декоративные углы в готическом стиле */
+  .card-deco-filigree {
+    font-size: 0.65rem;
+    color: var(--accent-gold);
+    letter-spacing: 3px;
+    opacity: 0.4;
+    transition: all 0.3s ease;
+  }
+
+  /* Декоративные углы в готическом стиле арт-деко */
   .card-frame-corner {
     position: absolute;
-    width: 8px;
-    height: 8px;
-    border-color: rgba(245, 208, 97, 0.3);
+    width: 10px;
+    height: 10px;
+    border-color: rgba(245, 208, 97, 0.35);
     border-style: solid;
     transition: all 0.3s ease;
     pointer-events: none;
@@ -111,11 +134,15 @@ const { title, img, url } = Astro.props;
   .nav-card:hover {
     transform: translateY(-6px);
     border-color: var(--accent-gold, #ffd700);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 22px rgba(245, 208, 97, 0.3), 0 0 12px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.85), 0 0 25px rgba(245, 208, 97, 0.35), 0 0 15px rgba(168, 85, 247, 0.45);
+  }
+
+  .nav-card:hover .card-deco-inner-border {
+    border-color: rgba(245, 208, 97, 0.4);
   }
 
   .nav-card:hover .card-bg {
-    opacity: 0.45;
+    opacity: 0.42;
     transform: scale(1.08);
   }
 
@@ -125,16 +152,21 @@ const { title, img, url } = Astro.props;
 
   .nav-card:hover .card-frame-corner {
     border-color: var(--accent-gold, #ffd700);
-    box-shadow: 0 0 6px var(--accent-gold, #ffd700);
+    box-shadow: 0 0 8px var(--accent-gold, #ffd700);
   }
 
   .nav-card:hover .card-title {
     color: var(--accent-gold, #ffd700);
-    text-shadow: 0 0 14px rgba(245, 208, 97, 0.5);
+    text-shadow: 0 0 16px rgba(245, 208, 97, 0.6);
   }
 
   .nav-card:hover .rune-icon {
     opacity: 1;
     transform: rotate(45deg);
+  }
+
+  .nav-card:hover .card-deco-filigree {
+    opacity: 0.85;
+    text-shadow: 0 0 6px var(--accent-gold);
   }
 </style>

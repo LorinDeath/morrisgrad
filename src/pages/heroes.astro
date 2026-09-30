@@ -3,7 +3,6 @@ import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
 
 // Данные главных героев
-// color - это лидирующий цвет для градиента
 const mainHeroes = [
   { 
     name: "Лорелин Сэйлор", 
@@ -12,7 +11,7 @@ const mainHeroes = [
     job: "Лекарь", 
     faction: "Обитель тьмы", 
     img: "/images/chars/lorelin.webp", 
-    color: "#2E0B36", // Темно-фиолетовый
+    color: "#2E0B36",
     link: "/heroes/lorelin-seylor"
   },
   { 
@@ -22,7 +21,7 @@ const mainHeroes = [
     job: "Смерть", 
     faction: "Адское пламя", 
     img: "/images/chars/lorin.webp", 
-    color: "#360B0B", // Темно-красный
+    color: "#360B0B",
     link: "/heroes/lorin-death"
   },
   { 
@@ -32,7 +31,7 @@ const mainHeroes = [
     job: "Главный Страж", 
     faction: "Модераторы", 
     img: "/images/chars/veles.webp", 
-    color: "#0B1836", // Темно-синий
+    color: "#0B1836",
     link: "/heroes/veles"
   },
   { 
@@ -42,7 +41,7 @@ const mainHeroes = [
     job: "Губитель", 
     faction: "Ядовитый эфир", 
     img: "/images/chars/listaf.webp", 
-    color: "#0B3616", // Темно-зеленый
+    color: "#0B3616",
     link: "/heroes/listaf-elfdid"
   },
   { 
@@ -52,7 +51,7 @@ const mainHeroes = [
     job: "Библиотекарь", 
     faction: "ДаргСирром", 
     img: "/images/chars/chronos.webp", 
-    color: "#36290B", // Темно-золотой
+    color: "#36290B",
     link: "/heroes/chronos"
   },
 ];
@@ -86,16 +85,24 @@ const otherHeroes = [
 ];
 ---
 
-<Layout title="Герои | MorrisGrad">
+<Layout title="Персонажи и Герои | МоррисГрад">
   <div class="container">
 
-     <div class="shimmer-line"></div>
+    <header class="heroes-page-header">
+      <div class="artdeco-filigree" aria-hidden="true">
+        <span class="filigree-line"></span>
+        <span class="filigree-glyph">❖ ⚜ ❖</span>
+        <span class="filigree-line"></span>
+      </div>
+      <h1 class="heroes-title">Герои и Жители</h1>
+      <p class="heroes-subtitle">Личности, формирующие судьбу расколотого мира МоррисГрад</p>
+    </header>
 
-    <h1>Персонажи</h1>
+    <div class="shimmer-line"></div>
     
     <!-- Главные герои -->
     <section class="hero-section">
-      <h2 class="section-title">Главные герои</h2>
+      <h2 class="section-title">Главные герои Обители</h2>
       <div class="heroes-grid main-grid">
         {mainHeroes.map(hero => (
           <a 
@@ -103,23 +110,28 @@ const otherHeroes = [
             class="hero-card main"
             data-color={hero.color}
           >
+            <!-- Арт-деко уголки -->
+            <div class="deco-bracket br-top-left"></div>
+            <div class="deco-bracket br-top-right"></div>
+            <div class="deco-bracket br-bot-left"></div>
+            <div class="deco-bracket br-bot-right"></div>
+
             <div class="card-image-wrapper">
-                <!-- Используем img тег для лучшего контроля, или div с background -->
                 <div class="card-image" style={`background-image: url(${hero.img});`}></div>
             </div>
-            <div class="card-content" style={`background: linear-gradient(to top, ${hero.color} 0%, rgba(10,10,10,0.9) 100%);`}>
+            <div class="card-content" style={`background: linear-gradient(to top, ${hero.color} 0%, rgba(12,6,22,0.95) 100%);`}>
               <h3>{hero.name}</h3>
-              <div class="info-row"><span>Мир:</span> {hero.world}</div>
-              <div class="info-row"><span>Город:</span> {hero.city}</div>
-              <div class="info-row"><span>Профессия:</span> {hero.job}</div>
-              <div class="info-row"><span>Фракция:</span> {hero.faction}</div>
+              <div class="info-row"><span>Мир:</span> <b>{hero.world}</b></div>
+              <div class="info-row"><span>Город:</span> <b>{hero.city}</b></div>
+              <div class="info-row"><span>Профессия:</span> <b>{hero.job}</b></div>
+              <div class="info-row"><span>Фракция:</span> <b>{hero.faction}</b></div>
             </div>
           </a>
         ))}
       </div>
     </section>
 
-     <div class="shimmer-line"></div>
+    <div class="shimmer-line"></div>
 
     <!-- Второстепенные персонажи -->
     <section class="hero-section">
@@ -127,6 +139,11 @@ const otherHeroes = [
       <div class="heroes-grid secondary-grid">
         {secondaryHeroes.map(hero => (
           <a href={hero.link} class="hero-card secondary">
+            <div class="deco-bracket br-top-left"></div>
+            <div class="deco-bracket br-top-right"></div>
+            <div class="deco-bracket br-bot-left"></div>
+            <div class="deco-bracket br-bot-right"></div>
+
             <div class="card-image-square" style={`background-image: url(${hero.img});`}></div>
             <div class="card-content-side">
               <h3>{hero.name}</h3>
@@ -140,11 +157,11 @@ const otherHeroes = [
       </div>
     </section>
 
-     <div class="shimmer-line"></div>
+    <div class="shimmer-line"></div>
 
     <!-- Другие -->
     <section class="hero-section">
-      <h2 class="section-title">Другие</h2>
+      <h2 class="section-title">Другие жители</h2>
       <div class="heroes-grid other-grid">
         {otherHeroes.map(hero => (
           <a href={hero.link} class="hero-card other">
@@ -160,180 +177,257 @@ const otherHeroes = [
     
     <div class="shimmer-line"></div>
 
-      <Notes />
+    <Notes />
   </div>
 
 </Layout>
 
 <style>
-  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
-  h1 { text-align: center; margin-bottom: 3rem; color: #fff; }
+  .container { max-width: 1120px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+  .heroes-page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .artdeco-filigree {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 0.8rem;
+  }
+  .filigree-line {
+    flex: 1;
+    max-width: 140px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  }
+  .filigree-glyph {
+    color: var(--accent-gold);
+    font-size: 0.9rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--gold-glow);
+  }
+
+  .heroes-title { 
+    font-size: 2.8rem; 
+    margin-bottom: 0.4rem; 
+    color: #fff;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.3);
+  }
+  .heroes-subtitle { 
+    color: var(--text-muted); 
+    font-size: 1.05rem; 
+    font-style: italic;
+  }
   
-  .hero-section { margin-bottom: 4rem; }
-  .section-title { border-left: 4px solid var(--accent-gold); padding-left: 1rem; color: #eee; margin-bottom: 1.5rem; }
+  .hero-section { margin-bottom: 3.5rem; }
+  .section-title { 
+    border-left: 4px solid var(--accent-gold); 
+    padding-left: 1rem; 
+    color: var(--accent-gold); 
+    margin-bottom: 1.8rem; 
+    font-size: 1.6rem;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+  }
+
+  /* Арт-деко уголки */
+  .deco-bracket {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(245, 208, 97, 0.4);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 5;
+    transition: all 0.25s ease;
+  }
+  .br-top-left { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
+  .br-top-right { top: 6px; right: 6px; border-width: 2px 2px 0 0; }
+  .br-bot-left { bottom: 6px; left: 6px; border-width: 0 0 2px 2px; }
+  .br-bot-right { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
 
   /* Общие стили карточек */
   .hero-card {
-      text-decoration: none;
-      color: inherit;
-      background: #111;
-      border: 1px solid #333;
-      border-radius: 12px;
-      overflow: hidden;
-      transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
-      display: block;
+    text-decoration: none;
+    color: inherit;
+    background: linear-gradient(135deg, rgba(26, 12, 44, 0.88) 0%, rgba(12, 6, 22, 0.95) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.25);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: block;
   }
   .hero-card:hover {
-      transform: translateY(-5px);
-      border-color: var(--accent-gold);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    transform: translateY(-6px);
+    border-color: var(--accent-gold);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, 0.85), 0 0 25px var(--gold-glow);
+  }
+  .hero-card:hover .deco-bracket {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 6px var(--accent-gold);
   }
 
   /* --- ГЛАВНЫЕ ГЕРОИ (Вертикальные) --- */
   .main-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 2rem;
   }
 
   .hero-card.main {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
   .card-image-wrapper {
-      width: 100%;
-      height: 200px; /* Горизонтальная картинка внутри вертикальной карточки */
-      overflow: hidden;
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+    background: #08040f;
   }
 
   .card-image {
-      width: 100%;
-      height: 100%;
-      background-size: cover;
-      background-position: center;
-      transition: transform 0.5s;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    transition: transform 0.5s ease;
   }
 
   .hero-card.main:hover .card-image {
-      transform: scale(1.1);
+    transform: scale(1.08);
   }
 
   .card-content {
-      padding: 1.5rem;
-      flex: 1;
-      /* Фон задается инлайново через JS/Astro для градиента */
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
+    padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
   }
 
   .hero-card.main h3 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1.4rem;
-      color: #fff;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    margin: 0 0 0.4rem 0;
+    font-size: 1.45rem;
+    color: #fff;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
   }
 
   .info-row {
-      font-size: 0.9rem;
-      color: #ddd;
-      display: flex;
-      justify-content: space-between;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      padding-bottom: 4px;
+    font-size: 0.88rem;
+    color: #ded6ed;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(245, 208, 97, 0.15);
+    padding-bottom: 4px;
   }
   .info-row span {
-      color: rgba(255,255,255,0.6);
-      font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+  }
+  .info-row b {
+    color: #fff;
+    font-weight: 600;
   }
 
   /* --- ВТОРОСТЕПЕННЫЕ (Горизонтальные) --- */
   .secondary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 1.5rem;
   }
 
   .hero-card.secondary {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      padding: 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 14px;
   }
 
   .card-image-square {
-      width: 100px;
-      height: 100px;
-      border-radius: 8px;
-      background-size: cover;
-      background-position: center;
-      flex-shrink: 0;
-      border: 1px solid #444;
+    width: 90px;
+    height: 90px;
+    border-radius: 8px;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(245, 208, 97, 0.3);
   }
 
   .card-content-side {
-      padding-left: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+    padding-left: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   .hero-card.secondary h3 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1.2rem;
-      color: var(--accent-gold);
+    margin: 0 0 0.4rem 0;
+    font-size: 1.25rem;
+    color: var(--accent-gold);
+    font-family: var(--font-heading);
   }
 
   .mini-info {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .badge, .badge-city {
-      font-size: 0.75rem;
-      padding: 2px 8px;
-      border-radius: 4px;
-      background: #222;
-      color: #aaa;
-      border: 1px solid #444;
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(36, 17, 62, 0.7);
+    color: #ded6ed;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    font-family: monospace;
   }
 
   /* --- ДРУГИЕ (Маленькие) --- */
   .other-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
   }
 
   .hero-card.other {
-      display: flex;
-      align-items: center;
-      padding: 8px;
-      background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: rgba(22, 11, 36, 0.7);
   }
 
   .card-image-small {
-      width: 50px;
-      height: 50px;
-      border-radius: 4px;
-      background-size: cover;
-      background-position: center;
-      flex-shrink: 0;
-      margin-right: 1rem;
-      border: 1px solid #333;
+    width: 52px;
+    height: 52px;
+    border-radius: 6px;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    margin-right: 1rem;
+    border: 1px solid rgba(245, 208, 97, 0.3);
   }
 
   .card-content-simple h3 {
-      margin: 0;
-      font-size: 1rem;
-      color: #eee;
+    margin: 0;
+    font-size: 1.05rem;
+    color: #fff;
+    font-family: var(--font-heading);
   }
   .text-muted {
-      font-size: 0.8rem;
-      color: #666;
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
-
 </style>

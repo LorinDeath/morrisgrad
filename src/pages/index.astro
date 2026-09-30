@@ -2,61 +2,73 @@
 import Layout from '../layouts/Layout.astro';
 import NavCard from '../components/NavCard.astro';
 import Notes from '../components/Notes.astro';
+import BookReader from '../components/BookReader.astro';
+import { getAllBooks } from '../utils/fb2';
+
+// Динамическая загрузка всех книг цикла из FB2
+const allBooks = await getAllBooks();
+const book = allBooks[0];
 
 // Основные разделы вселенной
 const mainCategories = [
   { title: "Книги", img: "/images/1.jpg", url: "/books" },
   { title: "Музыка", img: "/images/2.jpg", url: "/music" },
   { title: "Мини-игры", img: "/images/3.jpg", url: "/games" },
-  { title: "Арты", img: "/images/4.jpeg", url: "/arts" },
+  { title: "Галерея", img: "/images/4.jpeg", url: "/arts" },
   { title: "Рассказы", img: "/images/5.jpeg", url: "/stories" },
   { title: "Заявка", img: "/images/6.jpeg", url: "/zayavka" },
   { title: "Архив", img: "/images/7.jpeg", url: "/allkonrass" },
 ];
 
-// Активности и интерактивные модули
+// Активности и интерактивные модули с фоновыми артами персонажей
 const activities = [
   { 
     title: "КОНКУРС", 
     desc: "Творческие состязания и награды жителей", 
     tag: "Событие", 
     icon: "🏆", 
-    url: "/konkurs" 
+    url: "/konkurs",
+    bg: "/images/all/characters/Three_characters_posing_with_rose_2K_20260910204518.jpeg"
   },
   { 
     title: "ВИКТОРИНА", 
     desc: "Проверь знание тайн Обители Смерти", 
     tag: "Испытание", 
     icon: "🔮", 
-    url: "/quiz_obitel_smerti.html" 
+    url: "/quiz_obitel_smerti.html",
+    bg: "/images/all/characters/Girl_with_black_hair_crown_202607142104.jpeg"
   },
   { 
     title: "БИБЛИОТЕКА ЗНАНИЙ", 
     desc: "Лор, хроники и древние рукописи мира", 
     tag: "Архив", 
     icon: "📜", 
-    url: "/gemini-code-1786123660299.html" 
+    url: "/gemini-code-1786123660299.html",
+    bg: "/images/all/characters/Girl_and_Veles_standing_together_202608182105.jpeg"
   },
   { 
     title: "МУЗЫКАЛЬНАЯ КАРУСЕЛЬ", 
     desc: "Интерактивный плеер песен Lorin Death", 
     tag: "Аудио", 
     icon: "🎵", 
-    url: "/lorin_death_carousel_final.html" 
+    url: "/lorin_death_carousel_final.html",
+    bg: "/images/all/characters/Lorine_dancing_with_singer_2K_202608132046.jpeg"
   },
   { 
     title: "ТЁМНЫЙ МИР", 
     desc: "Классическая текстовая альфа-версия", 
     tag: "Alfa", 
     icon: "⚔️", 
-    url: "/Darks.html" 
+    url: "/Darks.html",
+    bg: "/images/all/characters/Aggressive_noir_three_characters_202607232016.jpeg"
   },
   { 
     title: "ТЁМНЫЙ МИР 2", 
     desc: "Испытательный полигон механик", 
     tag: "Beta", 
     icon: "🌌", 
-    url: "/shadow-world/index.html" 
+    url: "/shadow-world/index.html",
+    bg: "/images/all/characters/Girl_standing_in_purple_light_2K_20260926123035.jpg"
   },
 ];
 ---
@@ -69,36 +81,101 @@ const activities = [
       <div class="hero-header">
         <span class="hero-badge">✦ ХРОНИКИ МОРРИСГРАДА // ПРЯМОЙ ЭФИР ✦</span>
         <h1 class="welcome-text">Добро пожаловать, Элфдид!</h1>
+        
+        <!-- Арт-деко орнаментальная линия -->
+        <div class="hero-artdeco-ornament" aria-hidden="true">
+          <span class="artdeco-line"></span>
+          <span class="artdeco-diamond">◆</span>
+          <span class="artdeco-symbol">❖ ⚜ ❖</span>
+          <span class="artdeco-diamond">◆</span>
+          <span class="artdeco-line"></span>
+        </div>
+
         <p class="hero-subtitle">«Время движется лишь вперёд, а тени прошлого обретают плоть»</p>
       </div>
 
       <div class="music-banner-container">
-        <!-- Медиа-карточка с песней/альбомом -->
+        <!-- Медиа-карточка слева: Интерактивная Книга (Летопись «Обитель Смерти») -->
         <div class="banner-left">
-          <div class="music-card-glass">
-            <div class="music-card-cover">
+          <article class="book-card-artdeco" id="main-book-card">
+            <!-- Угловые орнаменты в стиле Арт-Деко -->
+            <div class="deco-bracket br-top-left"></div>
+            <div class="deco-bracket br-top-right"></div>
+            <div class="deco-bracket br-bot-left"></div>
+            <div class="deco-bracket br-bot-right"></div>
+
+            <!-- Фоновый мистический арт персонажа для глубины -->
+            <div class="book-ambient-art-layer" aria-hidden="true">
               <img 
-                src="/images/4242424.png" 
-                alt="Lorin Death — Официальный трек" 
-                class="album-cover" 
+                src="/images/all/characters/Dark_art_minimal_anime_style_202609021820.jpeg" 
+                alt="" 
+                class="book-ambient-img" 
                 loading="lazy"
               />
-              <div class="cover-gradient"></div>
-              <div class="live-pill">
-                <span class="live-dot"></span> Lorin Death
+              <div class="book-ambient-vignette"></div>
+            </div>
+
+            <!-- 3D Обложка книги с золотым арт-деко тиснением -->
+            <div class="book-spine-wrapper" data-open-book data-book-mode="read" title="Нажмите, чтобы открыть летопись">
+              <div class="book-cover-3d">
+                <img 
+                  src={book.coverImage} 
+                  alt={book.title} 
+                  class="book-cover-img" 
+                  loading="lazy"
+                />
+                <div class="book-cover-gilded-frame">
+                  <span class="cover-gold-crest">⚜</span>
+                </div>
+                <div class="book-spine-strip"></div>
+                <div class="cover-shine-sheen"></div>
               </div>
             </div>
-            <div class="music-card-info">
-              <span class="track-genre">✦ Dark Fantasy / Synth-Gothic</span>
-              <h3 class="track-title">Обитель Смерти</h3>
-              <p class="track-author">Слушайте избранные саундтреки мира МоррисГрад в высоком качестве</p>
+
+            <!-- Информационная часть книги -->
+            <div class="book-card-info">
+              <div class="book-card-top-row">
+                <span class="book-pill-flame">
+                  <span class="flame-dot"></span> ЛЕТОПИСЬ // ТОМ I
+                </span>
+                <span class="book-chapters-pill">📜 {book.totalChapters} глав</span>
+              </div>
+
+              <span class="book-series-sub">✦ {book.series}</span>
+              <h3 class="book-title-heading">{book.title}</h3>
+              <p class="book-author-txt">Летописец: <strong>{book.author}</strong></p>
+
+              <p class="book-excerpt-txt">
+                «В ледяных пустошах Альказака больше не действуют старые законы. Привычный фарм оборачивается столкновением с Черной магией, а мертвый интерфейс неожиданно начинает откликаться на команды...»
+              </p>
+
+              <!-- Кнопки действий -->
+              <div class="book-actions-row">
+                <button class="btn-book-action btn-read-action" data-open-book data-book-mode="read" data-target-chapter="0" title="Начать чтение с первой главы">
+                  <span class="btn-action-icon">📖</span> Читать книгу
+                </button>
+                <button class="btn-book-action btn-toc-action" data-open-book data-book-mode="toc" title="Открыть оглавление со списком всех глав">
+                  <span class="btn-action-icon">📜</span> Содержание
+                </button>
+              </div>
             </div>
-          </div>
+          </article>
         </div>
 
-        <!-- Видеоплеер плейлиста YouTube -->
+        <!-- Видеоплеер плейлиста YouTube справа с арт-деко оформлением -->
         <div class="banner-right">
           <div class="video-card-frame">
+            <!-- Угловые орнаменты в стиле Арт-Деко -->
+            <div class="deco-bracket br-top-left"></div>
+            <div class="deco-bracket br-top-right"></div>
+            <div class="deco-bracket br-bot-left"></div>
+            <div class="deco-bracket br-bot-right"></div>
+
+            <div class="video-top-bar">
+              <span class="video-status-dot"></span>
+              <span class="video-bar-title">LORIN DEATH // ВИДЕОХРОНИКИ</span>
+            </div>
+
             <div class="video-responsive">
               <iframe 
                 width="560" 
@@ -167,6 +244,20 @@ const activities = [
       <div class="activities-grid">
         {activities.map((item) => (
           <a href={item.url} class="activity-card">
+            <!-- Фоновый атмосферный арт персонажа -->
+            {item.bg && (
+              <div class="act-card-bg-layer" aria-hidden="true">
+                <img src={item.bg} alt="" class="act-card-bg-img" loading="lazy" />
+                <div class="act-card-bg-vignette"></div>
+              </div>
+            )}
+
+            <!-- Угловые арт-деко засечки -->
+            <div class="card-deco-corner c-tl"></div>
+            <div class="card-deco-corner c-tr"></div>
+            <div class="card-deco-corner c-bl"></div>
+            <div class="card-deco-corner c-br"></div>
+
             <div class="act-card-top">
               <span class="act-icon">{item.icon}</span>
               <span class="act-tag">{item.tag}</span>
@@ -174,7 +265,7 @@ const activities = [
             <h3 class="act-title">{item.title}</h3>
             <p class="act-desc">{item.desc}</p>
             <div class="act-footer">
-              <span class="act-link-label">Перейти</span>
+              <span class="act-link-label">Перейти в архив</span>
               <span class="act-arrow">→</span>
             </div>
           </a>
@@ -209,13 +300,14 @@ const activities = [
       <Notes transition:persist />
     </section>
 
+    <!-- Арт-Деко Модальный Ридер Книг Цикла -->
+    <BookReader books={allBooks} />
+
   </main>
 </Layout>
 
 <style>
-  /* ==========================================================================
-     HERO СЕКЦИЯ
-     ========================================================================== */
+  /* ==========================================================================\n     HERO СЕКЦИЯ С АРТ-ДЕКО ЭСТЕТИКОЙ\n     ========================================================================== */
   .hero-section {
     padding-top: 1rem;
     margin-bottom: 2rem;
@@ -224,6 +316,7 @@ const activities = [
   .hero-header {
     text-align: center;
     margin-bottom: 2.5rem;
+    position: relative;
   }
 
   .hero-badge {
@@ -241,13 +334,40 @@ const activities = [
   }
 
   .welcome-text {
-    font-size: 2.8rem;
-    margin: 0.2rem 0 0.8rem;
+    font-size: 2.9rem;
+    margin: 0.2rem 0 0.5rem;
     color: #fff;
-    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 90%);
+    background: linear-gradient(135deg, #ffffff 30%, var(--accent-gold) 90%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 30px rgba(245, 208, 97, 0.25);
+    text-shadow: 0 0 35px rgba(245, 208, 97, 0.3);
+    letter-spacing: 1.5px;
+  }
+
+  /* Арт-деко орнамент под заголовком */
+  .hero-artdeco-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 0.8rem auto 1.2rem;
+    max-width: 480px;
+  }
+  .artdeco-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245, 208, 97, 0.5), transparent);
+  }
+  .artdeco-diamond {
+    color: var(--accent-gold);
+    font-size: 0.55rem;
+    opacity: 0.8;
+  }
+  .artdeco-symbol {
+    color: var(--accent-gold);
+    font-size: 0.95rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--gold-glow);
   }
 
   .hero-subtitle {
@@ -255,8 +375,9 @@ const activities = [
     color: var(--text-muted);
     font-style: italic;
     margin: 0 auto;
-    max-width: 600px;
-    letter-spacing: 0.3px;
+    max-width: 640px;
+    letter-spacing: 0.4px;
+    line-height: 1.6;
   }
 
   .music-banner-container {
@@ -274,115 +395,338 @@ const activities = [
     display: flex;
   }
 
-  /* Стеклянная карточка музыки */
-  .music-card-glass {
+  /* ==========================================================================\n     АРТ-ДЕКО КАРТОЧКА КНИГИ (ЛЕВАЯ КАРТОЧКА)\n     ========================================================================== */
+  .book-card-artdeco {
     width: 100%;
-    background: linear-gradient(135deg, rgba(28, 16, 48, 0.75) 0%, rgba(12, 7, 22, 0.85) 100%);
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    border-radius: 16px;
-    overflow: hidden;
+    background: linear-gradient(135deg, rgba(26, 12, 44, 0.92) 0%, rgba(12, 6, 22, 0.96) 60%, rgba(6, 3, 12, 0.98) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    border-radius: 18px;
+    padding: 1.8rem;
     display: flex;
-    flex-direction: column;
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(168, 85, 247, 0.08);
-    backdrop-filter: blur(10px);
-    transition: transform 0.3s ease, border-color 0.3s ease;
-  }
-  .music-card-glass:hover {
-    transform: translateY(-4px);
-    border-color: var(--accent-gold);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-glow);
-  }
-
-  .music-card-cover {
+    align-items: center;
+    gap: 24px;
     position: relative;
-    width: 100%;
-    height: 190px;
     overflow: hidden;
+    box-shadow: 
+      0 14px 40px rgba(0, 0, 0, 0.8),
+      0 0 30px rgba(168, 85, 247, 0.15),
+      inset 0 0 30px rgba(245, 208, 97, 0.05);
+    backdrop-filter: blur(14px);
+    transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
-  .album-cover {
+  .book-card-artdeco:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-gold);
+    box-shadow: 
+      0 18px 50px rgba(0, 0, 0, 0.9),
+      0 0 35px var(--gold-glow),
+      inset 0 0 25px rgba(168, 85, 247, 0.15);
+  }
+
+  /* Угловые арт-деко скобы */
+  .deco-bracket {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--accent-gold);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 5;
+    transition: all 0.3s ease;
+  }
+  .br-top-left { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+  .br-top-right { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+  .br-bot-left { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+  .br-bot-right { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+  .book-card-artdeco:hover .deco-bracket {
+    box-shadow: 0 0 8px var(--accent-gold);
+  }
+
+  /* Фоновый слой арта персонажа */
+  .book-ambient-art-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .book-ambient-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.6s ease;
+    opacity: 0.15;
+    filter: contrast(1.2) brightness(0.9);
+    transition: opacity 0.5s ease, transform 0.6s ease;
   }
-  .music-card-glass:hover .album-cover {
+  .book-card-artdeco:hover .book-ambient-img {
+    opacity: 0.28;
     transform: scale(1.05);
   }
-
-  .cover-gradient {
+  .book-ambient-vignette {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(14, 8, 26, 0.95) 0%, transparent 60%);
+    background: radial-gradient(circle at 70% 50%, rgba(14, 7, 24, 0.5) 0%, rgba(6, 3, 12, 0.95) 100%);
   }
 
-  .live-pill {
+  /* 3D Обложка книги */
+  .book-spine-wrapper {
+    flex-shrink: 0;
+    cursor: pointer;
+    perspective: 800px;
+    z-index: 2;
+  }
+
+  .book-cover-3d {
+    position: relative;
+    width: 135px;
+    height: 195px;
+    border-radius: 6px 10px 10px 6px;
+    overflow: hidden;
+    box-shadow: 
+      -5px 5px 20px rgba(0, 0, 0, 0.9),
+      5px 8px 25px rgba(0, 0, 0, 0.7),
+      0 0 15px rgba(245, 208, 97, 0.3);
+    border: 1px solid rgba(245, 208, 97, 0.5);
+    transform: rotateY(-8deg);
+    transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .book-card-artdeco:hover .book-cover-3d {
+    transform: rotateY(0deg) scale(1.04);
+    box-shadow: 
+      0 12px 30px rgba(0, 0, 0, 0.9),
+      0 0 25px var(--gold-glow);
+    border-color: var(--accent-gold);
+  }
+
+  .book-cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .book-spine-strip {
     position: absolute;
-    top: 14px;
-    left: 14px;
-    background: rgba(14, 8, 26, 0.85);
-    border: 1px solid var(--gold-border);
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 700;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 8px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(245,208,97,0.3) 50%, rgba(0,0,0,0.5) 100%);
+    box-shadow: 1px 0 3px rgba(0,0,0,0.6);
+  }
+
+  .book-cover-gilded-frame {
+    position: absolute;
+    inset: 6px;
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    pointer-events: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 8px;
+  }
+  .cover-gold-crest {
     color: var(--accent-gold);
+    font-size: 0.9rem;
+    text-shadow: 0 0 6px var(--accent-gold);
+  }
+
+  .cover-shine-sheen {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 45%, rgba(0, 0, 0, 0.6) 100%);
+    pointer-events: none;
+  }
+
+  /* Информация о книге */
+  .book-card-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 2;
+  }
+
+  .book-card-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .book-pill-flame {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--accent-gold);
+    background: rgba(245, 208, 97, 0.1);
+    border: 1px solid rgba(245, 208, 97, 0.35);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: monospace;
+    letter-spacing: 1px;
   }
-  .live-dot {
+  .flame-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 6px #4ade80;
+    background: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+    animation: flamePulse 1.8s infinite;
+  }
+  @keyframes flamePulse {
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
   }
 
-  .music-card-info {
-    padding: 1.3rem;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-    justify-content: center;
-  }
-  .track-genre {
+  .book-chapters-pill {
+    font-size: 0.75rem;
     color: var(--energy-purple-bright);
-    font-size: 0.78rem;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 3px 9px;
+    border-radius: 999px;
     font-weight: 600;
+  }
+
+  .book-series-title, .book-series-sub {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--energy-purple-bright);
     text-transform: uppercase;
     letter-spacing: 1px;
   }
-  .track-title {
-    margin: 0;
-    font-size: 1.45rem;
+
+  .book-main-title {
+    margin: 2px 0 0;
+    font-size: 1.55rem;
     color: #fff;
-  }
-  .track-author {
-    margin: 0;
-    font-size: 0.88rem;
-    color: var(--text-muted);
-    line-height: 1.5;
+    font-family: var(--font-heading);
+    letter-spacing: 0.8px;
+    line-height: 1.25;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
   }
 
-  /* Каркас для видео */
+  .book-author-txt {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .book-author-txt strong {
+    color: var(--accent-gold);
+  }
+
+  .book-excerpt-txt {
+    margin: 4px 0 10px;
+    font-size: 0.84rem;
+    color: #cdc4dc;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .book-actions-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  .btn-book-action {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s ease;
+  }
+
+  .btn-read-action {
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+    color: #0c0617;
+    border: none;
+    box-shadow: 0 4px 15px rgba(245, 208, 97, 0.4);
+  }
+  .btn-read-action:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+    box-shadow: 0 6px 20px rgba(245, 208, 97, 0.65);
+  }
+
+  .btn-toc-action {
+    background: rgba(32, 16, 54, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    color: var(--accent-gold);
+  }
+  .btn-toc-action:hover {
+    background: rgba(45, 22, 75, 0.9);
+    border-color: var(--accent-gold);
+    color: #fff;
+    box-shadow: 0 0 12px var(--gold-glow);
+    transform: translateY(-2px);
+  }
+
+  .btn-action-icon {
+    font-size: 0.95rem;
+  }
+
+  /* ==========================================================================\n     КАРКАС ДЛЯ ВИДЕО (ПРАВАЯ КАРТОЧКА)\n     ========================================================================== */
   .video-card-frame {
     width: 100%;
-    border-radius: 16px;
+    border-radius: 18px;
     overflow: hidden;
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    border: 1px solid rgba(245, 208, 97, 0.35);
     background: #08040f;
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.15);
     display: flex;
     flex-direction: column;
     justify-content: center;
-    transition: transform 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    transition: all 0.35s ease;
   }
   .video-card-frame:hover {
-    transform: translateY(-4px);
+    transform: translateY(-5px);
     border-color: var(--accent-gold);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--purple-glow);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.9), 0 0 25px var(--purple-glow);
+  }
+
+  .video-card-frame:hover .deco-bracket {
+    box-shadow: 0 0 8px var(--accent-gold);
+  }
+
+  .video-top-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(14, 7, 24, 0.85);
+    border-bottom: 1px solid rgba(245, 208, 97, 0.2);
+    z-index: 2;
+  }
+  .video-status-dot {
+    width: 7px;
+    height: 7px;
+    background: #ef4444;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #ef4444;
+  }
+  .video-bar-title {
+    font-size: 0.74rem;
+    font-family: monospace;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--accent-gold);
   }
 
   .video-responsive {
@@ -390,6 +734,7 @@ const activities = [
     padding-bottom: 56.25%;
     height: 0;
     overflow: hidden;
+    flex: 1;
   }
   .video-responsive iframe {
     position: absolute;
@@ -400,9 +745,7 @@ const activities = [
     border: 0;
   }
 
-  /* ==========================================================================
-     ФЛАГМАНСКАЯ КАРТОЧКА: «ПРОКЛЯТЫЕ»
-     ========================================================================== */
+  /* ==========================================================================\n     ФЛАГМАНСКАЯ КАРТОЧКА: «ПРОКЛЯТЫЕ»\n     ========================================================================== */
   .flagship-section {
     margin: 2.5rem 0;
   }
@@ -445,11 +788,10 @@ const activities = [
     opacity: 1;
   }
 
-  /* Угловые орнаменты */
   .flagship-corners {
     position: absolute;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-color: var(--accent-gold);
     border-style: solid;
     pointer-events: none;
@@ -564,9 +906,7 @@ const activities = [
     letter-spacing: 0.3px;
   }
 
-  /* ==========================================================================
-     СЕТКА АКТИВНОСТЕЙ (ACTIVITIES GRID)
-     ========================================================================== */
+  /* ==========================================================================\n     СЕТКА АКТИВНОСТЕЙ (ACTIVITIES GRID) С ФОНАМИ ПЕРСОНАЖЕЙ\n     ========================================================================== */
   .section-header-block {
     text-align: center;
     margin-bottom: 2rem;
@@ -589,8 +929,8 @@ const activities = [
   }
 
   .activity-card {
-    background: linear-gradient(135deg, rgba(28, 17, 46, 0.8) 0%, rgba(13, 8, 22, 0.9) 100%);
-    border: 1px solid rgba(168, 85, 247, 0.25);
+    background: linear-gradient(135deg, rgba(28, 17, 46, 0.85) 0%, rgba(13, 8, 22, 0.95) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.25);
     border-radius: 14px;
     padding: 1.5rem 1.6rem;
     text-decoration: none;
@@ -600,30 +940,68 @@ const activities = [
     gap: 10px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
     transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .activity-card::before {
-    content: '';
+
+  /* Фоновые персонажи для карточек */
+  .act-card-bg-layer {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at top right, rgba(168, 85, 247, 0.15) 0%, transparent 70%);
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
   }
+  .act-card-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.14;
+    filter: saturate(0.7) contrast(1.15);
+    transition: opacity 0.4s ease, transform 0.6s ease;
+  }
+  .activity-card:hover .act-card-bg-img {
+    opacity: 0.32;
+    transform: scale(1.08);
+  }
+  .act-card-bg-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(14, 8, 24, 0.4) 0%, rgba(10, 5, 18, 0.92) 80%);
+  }
+
+  /* Угловые засечки арт-деко */
+  .card-deco-corner {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-color: rgba(245, 208, 97, 0.3);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 2;
+    transition: all 0.25s ease;
+  }
+  .c-tl { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
+  .c-tr { top: 6px; right: 6px; border-width: 2px 2px 0 0; }
+  .c-bl { bottom: 6px; left: 6px; border-width: 0 0 2px 2px; }
+  .c-br { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
+
   .activity-card:hover {
     transform: translateY(-5px);
     border-color: var(--accent-gold);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 20px var(--gold-glow);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8), 0 0 22px var(--gold-glow);
   }
-  .activity-card:hover::before {
-    opacity: 1;
+  .activity-card:hover .card-deco-corner {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 6px var(--accent-gold);
   }
 
   .act-card-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: relative;
+    z-index: 1;
   }
   .act-icon {
     font-size: 1.6rem;
@@ -636,7 +1014,7 @@ const activities = [
     letter-spacing: 1px;
     color: var(--accent-gold);
     background: rgba(245, 208, 97, 0.1);
-    border: 1px solid rgba(245, 208, 97, 0.3);
+    border: 1px solid rgba(245, 208, 97, 0.35);
     padding: 2px 8px;
     border-radius: 999px;
   }
@@ -646,6 +1024,8 @@ const activities = [
     margin: 0;
     color: #fff;
     letter-spacing: 1px;
+    position: relative;
+    z-index: 1;
     transition: color 0.25s ease;
   }
   .activity-card:hover .act-title {
@@ -658,18 +1038,22 @@ const activities = [
     line-height: 1.5;
     margin: 0;
     flex: 1;
+    position: relative;
+    z-index: 1;
   }
 
   .act-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-top: 1px solid rgba(168, 85, 247, 0.15);
+    border-top: 1px solid rgba(168, 85, 247, 0.2);
     padding-top: 10px;
     margin-top: 4px;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--energy-purple-bright);
+    position: relative;
+    z-index: 1;
     transition: color 0.25s ease;
   }
   .activity-card:hover .act-footer {
@@ -682,9 +1066,7 @@ const activities = [
     transform: translateX(4px);
   }
 
-  /* ==========================================================================
-     ОСНОВНАЯ СЕТКА КАТЕГОРИЙ (NAVCARD GRID)
-     ========================================================================== */
+  /* ==========================================================================\n     ОСНОВНАЯ СЕТКА КАТЕГОРИЙ (NAVCARD GRID)\n     ========================================================================== */
   .main-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -695,6 +1077,18 @@ const activities = [
 
   /* Адаптивность для мобильных */
   @media (max-width: 900px) {
+    .book-card-artdeco {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 1.5rem;
+    }
+    .book-card-top-row {
+      justify-content: center;
+    }
+    .book-actions-row {
+      justify-content: center;
+    }
     .flagship-card {
       flex-direction: column;
       align-items: flex-start;

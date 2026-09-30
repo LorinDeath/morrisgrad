@@ -2,70 +2,401 @@
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
 
-// 1. Список персонажей (8 карточек).
-// Меняй тут ссылки (url), имена и картинки.
-const characters = [
-  { name: "Lorin Death", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Elfdid", url: "/art hero/elfdid" },
-  { name: "Лорелин", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+2", url: "/art hero/char2" },
-  { name: "Мариэль", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+3", url: "/art hero/char3" },
-  { name: "Алекс Сэйлор", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+4", url: "/art hero/char4" },
-  { name: "Листаф Элфдид", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+5", url: "/art hero/char5" },
-  { name: "Лист", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+6", url: "/art hero/char6" },
-  { name: "Дар", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+7", url: "/art hero/char7" },
-  { name: "Гарри", img: "https://via.placeholder.com/300x500/2a1b3d/ffd700?text=Char+8", url: "/art hero/char8" },
-];
+// Динамическое считывание картинок из папки characters
+interface ArtItem {
+  name: string;
+  url: string;
+  category: string;
+  tag: string;
+}
 
-// 2. Список "Разное". Просто кидай сюда ссылки на картинки через запятую.
-const miscArts = [
-  "https://i.ytimg.com/vi/rCgUL82RO_w/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGkgQChyMA8=&amp;rs=AOn4CLBMqLjxQgxuzKBbTnJWL5R2XTsKog",
-  "https://i.ytimg.com/vi/427_rXElPoU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGHIgQShqMA8=&amp;rs=AOn4CLAHRv8bZtPBVGEJBQJX0ZxgI5ID7g",
-  "https://i.ytimg.com/vi/bt8JeKf8ZVk/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgSShlMA8=&amp;rs=AOn4CLDUc-hYnYzejutKMA3wwmE7q8--tw",
-  "https://i.ytimg.com/vi/49f9aJTCFUU/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGEQgOih_MA8=&amp;rs=AOn4CLAQ595ix38Ub7v_dfPFcOdv0VbrnQ",
-];
----
-<Layout title="Арты | Моррис Град">
-    <main class="container">
-        <h1>Арты</h1>
+let galleryItems: ArtItem[] = [];
 
-        <!-- Желтая линия -->
-        <div class="shimmer-line"></div>
-
-        <!-- Секция Персонажи -->
-        <h2 class="section-title">Персонажи</h2>
-        
-        <div class="chars-grid">
-            {characters.map((char) => (
-                <a href={char.url} class="char-card">
-                    <img src={char.img} alt={char.name} class="char-img" />
-                    <div class="char-name">{char.name}</div>
-                    <!-- Эффект блика -->
-                    <div class="shine-effect"></div>
-                </a>
-            ))}
-        </div>
-
-        <!-- Желтая линия -->
-        <div class="shimmer-line"></div>
-
-        <!-- Секция Разное -->
-        <h2 class="section-title">Разное</h2>
-
-        <div class="gallery-grid">
-            {miscArts.map((artUrl) => (
-                <div class="gallery-item">
-                    <img src={artUrl} alt="Арт" loading="lazy" />
-                </div>
-            ))}
-        </div>
-
-        <!-- Желтая линия (закрывающая) -->
-        <div class="shimmer-line"></div>
-
-      <Notes />
-    </main>
+try {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const dir = path.resolve('public/images/all/characters');
   
+  if (fs.existsSync(dir)) {
+    const rawFiles = fs.readdirSync(dir);
+    const validFiles = rawFiles.filter(f => 
+      /\.(jpe?g|png|webp)$/i.test(f) && 
+      !f.includes('frame16x20') && 
+      !f.includes('_preview_') && 
+      !f.includes('Code_Generated') &&
+      !f.endsWith('.gif') &&
+      !f.startsWith('.')
+    );
+
+    galleryItems = validFiles.map(filename => {
+      // Формируем понятное название из имени файла
+      const cleanName = filename
+        .replace(/\.[^.]+$/, '')
+        .replace(/_\d{8,14}.*$/, '')
+        .replace(/_2K.*$/, '')
+        .replace(/[-_]/g, ' ')
+        .trim();
+
+      // Категоризация
+      let category = 'all';
+      let tag = 'Хроники';
+
+      const lower = filename.toLowerCase();
+      if (lower.includes('lorin') || lower.includes('girl')) {
+        category = 'lorin';
+        tag = 'Лорин';
+      } else if (lower.includes('veles') || lower.includes('man') || lower.includes('guy')) {
+        category = 'veles';
+        tag = 'Велес & Стражи';
+      } else if (lower.includes('deco') || lower.includes('noir') || lower.includes('dark')) {
+        category = 'artdeco';
+        tag = 'Тёмное Арт-деко';
+      } else if (lower.includes('sword') || lower.includes('combat') || lower.includes('scythe') || lower.includes('bat') || lower.includes('monsters')) {
+        category = 'combat';
+        tag = 'Боевые Арены';
+      }
+
+      return {
+        name: cleanName || 'Хроника Вселенной',
+        url: `/images/all/characters/${filename}`,
+        category,
+        tag,
+      };
+    });
+  }
+} catch {
+  // Edge runtime fallback
+}
+
+// Если директория не прочитана (например, в edge), используем базовый список
+if (galleryItems.length === 0) {
+  galleryItems = [
+    { name: "Тёмный арт-деко силуэт", url: "/images/all/characters/Girl_posing_art_deco_minimalism_2K_202609071805.jpeg", category: "artdeco", tag: "Арт-деко" },
+    { name: "Агрессивный нуар троицы", url: "/images/all/characters/Aggressive_noir_three_characters_202607232016.jpeg", category: "artdeco", tag: "Нуар" },
+    { name: "Лорин на крыше с косой", url: "/images/all/characters/Woman_holding_scythe_on_roof_20260922192654.jpeg", category: "combat", tag: "Обитель Смерти" },
+    { name: "Минимал аниме дарк арт", url: "/images/all/characters/Dark_art_minimal_anime_style_202609021820.jpeg", category: "artdeco", tag: "Дарк Арт" },
+    { name: "Велес и Лорин в городе", url: "/images/all/characters/Veles_and_Lorin_walking_street_202607212140.jpeg", category: "veles", tag: "Велес" },
+    { name: "Девушка в фиолетовом сиянии", url: "/images/all/characters/Girl_standing_in_purple_light_2K_20260926123035.jpg", category: "lorin", tag: "Лорин" },
+    { name: "Танец в баре Обители", url: "/images/all/characters/Lorine_dancing_with_singer_2K_202608132046.jpeg", category: "lorin", tag: "Хроники" },
+    { name: "Три персонажа с розой", url: "/images/all/characters/Three_characters_posing_with_rose_2K_20260910204518.jpeg", category: "artdeco", tag: "Хроники" },
+  ];
+}
+---
+
+<Layout title="Галерея Персонажей | МоррисГрад">
+  <main class="container">
+    
+    <!-- Шапка галереи в стиле Арт-Деко -->
+    <header class="gallery-page-header">
+      <div class="artdeco-filigree" aria-hidden="true">
+        <span class="filigree-line"></span>
+        <span class="filigree-glyph">❖ ⚜ ❖</span>
+        <span class="filigree-line"></span>
+      </div>
+
+      <h1 class="gallery-main-title">Галерея Персонажей</h1>
+      <p class="gallery-subtitle">Визуальные архивы и хроники жителей Обители Смерти</p>
+      
+      <div class="gallery-count-badge">
+        <span class="badge-dot"></span> Найдено работ: <strong>{galleryItems.length}</strong>
+      </div>
+    </header>
+
+    <!-- Фильтры категорий в стиле Арт-Деко -->
+    <nav class="gallery-filters-nav" aria-label="Фильтры галереи">
+      <button class="filter-tab active" data-filter="all">Все арты ({galleryItems.length})</button>
+      <button class="filter-tab" data-filter="lorin">Лорин Дэс</button>
+      <button class="filter-tab" data-filter="veles">Велес & Стражи</button>
+      <button class="filter-tab" data-filter="artdeco">Тёмное Арт-Деко</button>
+      <button class="filter-tab" data-filter="combat">Боевые Арены</button>
+    </nav>
+
+    <div class="shimmer-line"></div>
+
+    <!-- Сетка артов галереи -->
+    <section class="gallery-masonry-grid" id="gallery-grid">
+      {galleryItems.map((item, idx) => (
+        <article class="gallery-art-card" data-category={item.category}>
+          <!-- Арт-деко уголки -->
+          <div class="deco-bracket br-top-left"></div>
+          <div class="deco-bracket br-top-right"></div>
+          <div class="deco-bracket br-bot-left"></div>
+          <div class="deco-bracket br-bot-right"></div>
+
+          <div class="art-img-box gallery-item">
+            <img 
+              src={item.url} 
+              alt={item.name} 
+              class="art-real-img" 
+              loading="lazy" 
+            />
+            <div class="art-overlay-sheen"></div>
+            <div class="art-zoom-cue">
+              <span class="zoom-icon">🔍</span>
+            </div>
+          </div>
+
+          <div class="art-card-info">
+            <span class="art-card-tag">{item.tag}</span>
+            <h3 class="art-card-name">{item.name}</h3>
+          </div>
+        </article>
+      ))}
+    </section>
+
+    <div class="shimmer-line"></div>
+
+    <Notes />
+  </main>
 </Layout>
 
+<script>
+  // Клиентская фильтрация карточек галереи
+  document.addEventListener('astro:page-load', () => {
+    const filterButtons = document.querySelectorAll('.filter-tab');
+    const cards = document.querySelectorAll('.gallery-art-card');
+
+    filterButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        filterButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const filter = btn.getAttribute('data-filter') || 'all';
+
+        cards.forEach((card) => {
+          const cardCat = card.getAttribute('data-category');
+          if (filter === 'all' || cardCat === filter) {
+            (card as HTMLElement).style.display = 'flex';
+          } else {
+            (card as HTMLElement).style.display = 'none';
+          }
+        });
+      });
+    });
+  });
+</script>
+
 <style>
-    /* Линия разделитель (как на главной) */
+  .gallery-page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .artdeco-filigree {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 0.8rem;
+  }
+  .filigree-line {
+    flex: 1;
+    max-width: 140px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  }
+  .filigree-glyph {
+    color: var(--accent-gold);
+    font-size: 0.9rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px var(--gold-glow);
+  }
+
+  .gallery-main-title {
+    font-size: 2.8rem;
+    margin-bottom: 0.4rem;
+    color: #fff;
+    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.3);
+  }
+
+  .gallery-subtitle {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    font-style: italic;
+    margin: 0 0 1.2rem;
+  }
+
+  .gallery-count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(28, 14, 46, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    padding: 5px 16px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    color: #e5def0;
+    font-family: monospace;
+  }
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 6px #22c55e;
+  }
+  .gallery-count-badge strong {
+    color: var(--accent-gold);
+  }
+
+  /* Фильтры */
+  .gallery-filters-nav {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 1.5rem 0 2rem;
+  }
+
+  .filter-tab {
+    background: rgba(28, 14, 46, 0.85);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: var(--text-muted);
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .filter-tab:hover {
+    color: var(--accent-gold);
+    border-color: var(--accent-gold);
+    transform: translateY(-2px);
+  }
+  .filter-tab.active {
+    background: linear-gradient(135deg, rgba(245, 208, 97, 0.18) 0%, rgba(168, 85, 247, 0.25) 100%);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    box-shadow: 0 0 15px var(--gold-glow);
+  }
+
+  /* Сетка галереи */
+  .gallery-masonry-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+    margin: 2rem 0;
+  }
+
+  .gallery-art-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, rgba(26, 12, 44, 0.88) 0%, rgba(12, 6, 22, 0.95) 100%);
+    border: 1px solid rgba(245, 208, 97, 0.25);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .gallery-art-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--accent-gold);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 25px var(--gold-glow);
+  }
+
+  /* Угловые арт-деко скобы */
+  .deco-bracket {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(245, 208, 97, 0.4);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 5;
+    transition: all 0.25s ease;
+  }
+  .br-top-left { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
+  .br-top-right { top: 6px; right: 6px; border-width: 2px 2px 0 0; }
+  .br-bot-left { bottom: 6px; left: 6px; border-width: 0 0 2px 2px; }
+  .br-bot-right { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
+
+  .gallery-art-card:hover .deco-bracket {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 8px var(--accent-gold);
+  }
+
+  .art-img-box {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    cursor: zoom-in;
+    background: #090511;
+  }
+  .art-real-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+  .gallery-art-card:hover .art-real-img {
+    transform: scale(1.06);
+  }
+
+  .art-overlay-sheen {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(12, 6, 22, 0.95) 0%, transparent 40%);
+    pointer-events: none;
+  }
+
+  .art-zoom-cue {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(12, 6, 22, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.25s ease;
+    pointer-events: none;
+  }
+  .gallery-art-card:hover .art-zoom-cue {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .art-card-info {
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    z-index: 2;
+  }
+  .art-card-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--energy-purple-bright);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .art-card-name {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #fff;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (max-width: 600px) {
+    .gallery-masonry-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

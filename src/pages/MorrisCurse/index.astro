@@ -1,8 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import './core/styles/game-theme.css';
-import './core/styles/editor-ui.css';
-import './core/styles/game-modals.css';
+import './_core/styles/game-theme.css';
+import './_core/styles/editor-ui.css';
+import './_core/styles/game-modals.css';
 ---
 
 <Layout title="Проклятые | Моррис Град">
@@ -74,7 +74,7 @@ import './core/styles/game-modals.css';
           console.warn('Не удалось загрузить пользователя');
         }
 
-        const { initGame } = await import('./core/game.js');
+        const { initGame } = await import('./_core/game.js');
         // Передача userId третьим аргументом обязательна!
         (initGame)(canvas.id, username, userId);
       }
