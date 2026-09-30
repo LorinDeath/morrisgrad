@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#141a2e" />
+      <stop offset="100%" stop-color="#06070a" />
+    </radialGradient>
+    <filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="glow-magenta" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <linearGradient id="grad-poly" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffcc" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="grad-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="300" height="300" rx="24" fill="url(#bg)" stroke="#00ffcc" stroke-width="3" />
+
+  <!-- Grid lines -->
+  <line x1="0" y1="150" x2="300" y2="150" stroke="rgba(0, 255, 204, 0.12)" stroke-width="2" />
+  <line x1="150" y1="0" x2="150" y2="300" stroke="rgba(0, 255, 204, 0.12)" stroke-width="2" />
+  <circle cx="150" cy="150" r="110" fill="none" stroke="rgba(56, 189, 248, 0.15)" stroke-width="1.5" stroke-dasharray="8,6" />
+
+  <!-- Outer Hexagon -->
+  <polygon points="150,45 240,97 240,203 150,255 60,203 60,97" 
+           fill="none" stroke="url(#grad-ring)" stroke-width="5" filter="url(#glow-magenta)" />
+
+  <!-- Inner Diamond Square -->
+  <polygon points="150,75 210,150 150,225 90,150" 
+           fill="rgba(168, 85, 247, 0.15)" stroke="#a855f7" stroke-width="3" />
+
+  <!-- Center Delta Triangle -->
+  <polygon points="150,85 205,195 95,195" 
+           fill="rgba(0, 255, 204, 0.2)" stroke="url(#grad-poly)" stroke-width="6" filter="url(#glow-cyan)" />
+
+  <!-- Quantum Core Core -->
+  <circle cx="150" cy="155" r="14" fill="#ffffff" filter="url(#glow-cyan)" />
+
+  <!-- Orbiting particles -->
+  <circle cx="150" cy="45" r="6" fill="#00ffcc" filter="url(#glow-cyan)" />
+  <circle cx="240" cy="203" r="5" fill="#ffd700" filter="url(#glow-cyan)" />
+  <circle cx="60" cy="97" r="5" fill="#ec4899" filter="url(#glow-magenta)" />
+
+  <!-- Title banner text -->
+  <rect x="35" y="240" width="230" height="34" rx="17" fill="rgba(6, 7, 10, 0.9)" stroke="#00ffcc" stroke-width="1.5" />
+  <text x="150" y="262" font-family="system-ui, sans-serif" font-size="13" font-weight="900" letter-spacing="3" fill="#00ffcc" text-anchor="middle">ГЕОМЕТРИЯ ХАОСА</text>
+</svg>

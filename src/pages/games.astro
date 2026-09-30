@@ -4,6 +4,7 @@ import Notes from '../components/Notes.astro';
 import zaglushImg from '../assets/Zaglush.png';
 import etoMiImg from '../assets/Eto_mi_s_toboy.png';
 import rogalikImg from '../assets/Rogalik.png';
+import geometriaImg from '../assets/geometria.png';
 ---
 <Layout title="МиниИгры | Моррис Град">
     <main class="container">
@@ -24,8 +25,38 @@ import rogalikImg from '../assets/Rogalik.png';
                 <img src="https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev/art/0_0%20(1).png" alt="Конкурс персонажей" class="game-icon" />
                 <span class="game-title" style="color: var(--accent-gold, #ffd700);">Квест: Конкурс Героев</span>
                 <div class="platforms">
-                    <span class="platform-tag" style="background: rgba(245, 208, 97, 0.2); color: #ffd700; border: 1px solid rgba(245,208,97,0.4);">🏆 Ролевой Квест</span>
+                    <span class="platform-tag" style="background: rgba(245, 208, 97, 0.2); color: #ffd700; border: 1px solid rgba(245,208,97,0.4);\">🏆 Ролевой Квест</span>
                     <span class="platform-tag" style="background: rgba(168, 85, 247, 0.2); color: #c084fc;">🎁 Награды</span>
+                </div>
+            </div>
+
+            <div class="game-card ascetic-card" 
+                 data-title="Путь Аскетов: Осада Цитадели" 
+                 data-desc="Грандиозная средневековая RTS и Action-RPG стратегия на ассетах Tiny Swords! Рубите вековые деревья, добывайте сверкающее золото и разводите овец. Возводите цитадель, казармы, стрельбища и башни. Обучайте послушников, лучников, копейщиков и монахов-целителей. Управляйте Архистратигом Аскетов и отбейте ночные штурмы Черного Легиона!" 
+                 data-game-url="/games/tiny-swords" 
+                 data-changelog-url="/games/ascetics">
+                <img src="/Tiny Swords/UI Elements/UI Elements/Human Avatars/Avatars_01.png" alt="Путь Аскетов" class="game-icon" />
+                <span class="game-title" style="color: #ffd700;">Путь Аскетов</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(212, 175, 55, 0.2); color: #ffd700; border: 1px solid rgba(212,175,55,0.4);">⚔️ RTS & Action RPG</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                    <span class="platform-tag" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4);">🏰 Осада Цитадели</span>
+                </div>
+            </div>
+
+            <div class="game-card geometry-card" 
+                 data-title="Геометрия Хаоса" 
+                 data-desc="Ультимативный экшен-роглайт на чистой неоновой SVG-графике! Выбирайте боевое ядро (Дельта, Тетра, Гекса, Окта), настраивайте множитель сложности от x1 до x64^ с безумными модификаторами, эволюционируйте геометрическое оружие в сверхновые, уклоняйтесь от фрактального Danmaku и прокачивайте ядро в Лаборатории!" 
+                 data-game-url="/games/geometry-rogue" 
+                 data-changelog-url="/changelog-geometria">
+                <img src={geometriaImg.src} alt="Геометрия Хаоса" class="game-icon" />
+                <span class="game-title">Геометрия Хаоса</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(0, 255, 204, 0.2); color: #00ffcc; border: 1px solid rgba(0,255,204,0.4);">⚡ Экшен Роглайт</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                    <span class="platform-tag" style="background: rgba(236, 72, 153, 0.2); color: #ec4899; border: 1px solid rgba(236,72,153,0.4);">🔥 Сложность x1..x64^</span>
                 </div>
             </div>
 
@@ -156,6 +187,76 @@ import rogalikImg from '../assets/Rogalik.png';
         background: rgba(255,255,255,0.1);
         padding: 4px 8px;
         border-radius: 4px;
+    }
+
+    /* Ascetic Card Style */
+    .ascetic-card {
+        border-color: #d4af37;
+        box-shadow: 0 0 18px rgba(212, 175, 55, 0.25);
+        background: linear-gradient(180deg, rgba(22, 28, 44, 0.94) 0%, rgba(10, 14, 22, 0.98) 100%);
+    }
+    .ascetic-card:hover {
+        border-color: #ffd700;
+        box-shadow: 0 0 30px #ffd700, 0 0 15px #f59e0b;
+    }
+    .ascetic-card .game-title {
+        color: #ffd700;
+        text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    }
+    .ascetic-card:hover .game-icon {
+        border-color: #ffd700;
+        box-shadow: 0 0 20px #ffd700;
+    }
+
+    /* --- ASCETIC THEME OVERRIDE --- */
+    .modal-content.ascetic-theme {
+        border-color: #ffd700;
+        background: linear-gradient(180deg, rgba(22, 28, 44, 0.97) 0%, rgba(10, 14, 22, 0.99) 100%);
+        box-shadow: 0 0 50px rgba(255, 215, 0, 0.35), inset 0 0 30px rgba(212, 175, 55, 0.12);
+    }
+    .modal-content.ascetic-theme #modal-title {
+        color: #ffd700;
+        text-shadow: 0 0 14px rgba(255, 215, 0, 0.7);
+    }
+    .modal-content.ascetic-theme .start-btn {
+        border-color: #ffd700;
+        color: #ffd700;
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.25);
+    }
+    .modal-content.ascetic-theme .start-btn:hover {
+        background: #ffd700;
+        color: #000;
+        box-shadow: 0 0 35px rgba(255, 215, 0, 0.8);
+    }
+    .modal-content.ascetic-theme .changelog-link {
+        color: #ffd700;
+        border-color: #ffd700;
+    }
+    .modal-content.ascetic-theme .changelog-link:hover {
+        color: #fff;
+        border-color: #fff;
+    }
+    .modal-content.ascetic-theme .close-modal:hover {
+        color: #ffd700;
+    }
+
+    /* Geometry Card Style */
+    .geometry-card {
+        border-color: #00ffcc;
+        box-shadow: 0 0 18px rgba(0, 255, 204, 0.25);
+        background: linear-gradient(180deg, rgba(8, 24, 30, 0.92) 0%, rgba(4, 10, 16, 0.98) 100%);
+    }
+    .geometry-card:hover {
+        border-color: #00ffcc;
+        box-shadow: 0 0 30px #00ffcc, 0 0 15px #38bdf8;
+    }
+    .geometry-card .game-title {
+        color: #00ffcc;
+        text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
+    }
+    .geometry-card:hover .game-icon {
+        border-color: #00ffcc;
+        box-shadow: 0 0 20px #00ffcc;
     }
 
     /* Neon Protocol Special Style */
@@ -338,6 +439,38 @@ import rogalikImg from '../assets/Rogalik.png';
         letter-spacing: 1px;
     }
 
+    /* --- GEOMETRY THEME OVERRIDE --- */
+    .modal-content.geometry-theme {
+        border-color: #00ffcc;
+        background: linear-gradient(180deg, rgba(8, 20, 28, 0.97) 0%, rgba(4, 8, 14, 0.99) 100%);
+        box-shadow: 0 0 50px rgba(0, 255, 204, 0.3), inset 0 0 30px rgba(0, 255, 204, 0.08);
+    }
+    .modal-content.geometry-theme #modal-title {
+        color: #00ffcc;
+        text-shadow: 0 0 12px rgba(0, 255, 204, 0.7);
+    }
+    .modal-content.geometry-theme .start-btn {
+        border-color: #00ffcc;
+        color: #00ffcc;
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+    }
+    .modal-content.geometry-theme .start-btn:hover {
+        background: #00ffcc;
+        color: #000;
+        box-shadow: 0 0 35px rgba(0, 255, 204, 0.7);
+    }
+    .modal-content.geometry-theme .changelog-link {
+        color: #00ffcc;
+        border-color: #00ffcc;
+    }
+    .modal-content.geometry-theme .changelog-link:hover {
+        color: #fff;
+        border-color: #fff;
+    }
+    .modal-content.geometry-theme .close-modal:hover {
+        color: #00ffcc;
+    }
+
     /* --- NEON THEME OVERRIDE --- */
     .modal-content.neon-theme {
         border-color: #0ff;
@@ -407,10 +540,18 @@ import rogalikImg from '../assets/Rogalik.png';
                 if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
 
                 // Apply Theme based on card class
-                if (card.classList.contains('neon-card') && modalContent) {
+                if (card.classList.contains('ascetic-card') && modalContent) {
+                    modalContent.classList.remove('neon-theme', 'geometry-theme');
+                    modalContent.classList.add('ascetic-theme');
+                } else if (card.classList.contains('geometry-card') && modalContent) {
+                    modalContent.classList.remove('neon-theme');
+                    modalContent.classList.add('geometry-theme');
+                } else if (card.classList.contains('neon-card') && modalContent) {
+                    modalContent.classList.remove('geometry-theme');
                     modalContent.classList.add('neon-theme');
                 } else if (modalContent) {
                     modalContent.classList.remove('neon-theme');
+                    modalContent.classList.remove('geometry-theme');
                 }
 
                 modal.classList.add('active');

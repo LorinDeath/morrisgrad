@@ -1,0 +1,2402 @@
+---
+// GeometryGame.astro - Pure Neon SVG Action Roguelite Game
+---
+
+<div id="geometria-wrapper" class="geometria-container">
+  <!-- START / MENU SCREEN -->
+  <div id="screen-menu" class="screen active">
+    <div class="menu-backdrop">
+      <div class="neon-grid"></div>
+    </div>
+
+    <div class="menu-content">
+      <div class="game-logo">
+        <svg viewBox="0 0 800 140" class="logo-svg">
+          <defs>
+            <filter id="logo-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00ffcc" />
+              <stop offset="50%" stop-color="#38bdf8" />
+              <stop offset="100%" stop-color="#ec4899" />
+            </linearGradient>
+          </defs>
+          <text x="50%" y="70" text-anchor="middle" class="logo-title" fill="url(#logo-grad)" filter="url(#logo-glow)">ГЕОМЕТРИЯ ХАОСА</text>
+          <text x="50%" y="115" text-anchor="middle" class="logo-subtitle">SVG ACTION ROGUELITE • 20 ОРУЖИЙ • 10 ЭВОЛЮЦИЙ • 20 ПАССИВОВ</text>
+        </svg>
+      </div>
+
+      <!-- Currency bar -->
+      <div class="currency-bar">
+        <div class="shard-counter">
+          <span class="shard-icon">💎</span>
+          <span class="shard-label">Квантовые Осколки:</span>
+          <span id="menu-shards-amount" class="shard-val">0</span>
+        </div>
+        <button id="btn-open-meta" class="meta-shop-btn">
+          <span>⚙️ Лаборатория и Реактор</span>
+        </button>
+      </div>
+
+      <!-- Core Selection -->
+      <div class="section-title">ВЫБЕРИТЕ БОЕВОЕ ЯДРО</div>
+      <div class="core-grid">
+        <div class="core-card active" data-core="delta">
+          <div class="core-preview">
+            <svg viewBox="0 0 100 100" class="core-shape-svg">
+              <polygon points="50,15 85,80 15,80" fill="none" stroke="#00ffcc" stroke-width="4" filter="url(#glow-cyan)" />
+              <circle cx="50" cy="50" r="8" fill="#00ffcc" />
+            </svg>
+          </div>
+          <div class="core-name" style="color: #00ffcc;">ДЕЛЬТА-3</div>
+          <div class="core-role">Быстрый Клинок</div>
+          <div class="core-stats">Скорость: +20% | Крит: 30%</div>
+          <div class="core-ability">Ульта: <b>Гипер-Рассечение</b></div>
+        </div>
+
+        <div class="core-card" data-core="tetra">
+          <div class="core-preview">
+            <svg viewBox="0 0 100 100" class="core-shape-svg">
+              <polygon points="50,15 85,50 50,85 15,50" fill="none" stroke="#38bdf8" stroke-width="4" filter="url(#glow-blue)" />
+              <rect x="42" y="42" width="16" height="16" fill="#38bdf8" />
+            </svg>
+          </div>
+          <div class="core-name" style="color: #38bdf8;">ТЕТРА-4</div>
+          <div class="core-role">Монолитный Страж</div>
+          <div class="core-stats">HP: 150 | Броня: -20%</div>
+          <div class="core-ability">Ульта: <b>ЭМИ-Бастион</b></div>
+        </div>
+
+        <div class="core-card" data-core="hexa">
+          <div class="core-preview">
+            <svg viewBox="0 0 100 100" class="core-shape-svg">
+              <polygon points="50,15 80,32 80,68 50,85 20,68 20,32" fill="none" stroke="#a855f7" stroke-width="4" filter="url(#glow-magenta)" />
+              <circle cx="50" cy="50" r="10" fill="#a855f7" />
+            </svg>
+          </div>
+          <div class="core-name" style="color: #a855f7;">ГЕКСА-6</div>
+          <div class="core-role">Синтезатор Роя</div>
+          <div class="core-stats">Орбитальные дроны со старта</div>
+          <div class="core-ability">Ульта: <b>Фотонные Турели</b></div>
+        </div>
+
+        <div class="core-card" data-core="octa">
+          <div class="core-preview">
+            <svg viewBox="0 0 100 100" class="core-shape-svg">
+              <polygon points="38,15 62,15 85,38 85,62 62,85 38,85 15,62 15,38" fill="none" stroke="#f59e0b" stroke-width="4" filter="url(#glow-gold)" />
+              <circle cx="50" cy="50" r="12" fill="#f59e0b" />
+            </svg>
+          </div>
+          <div class="core-name" style="color: #f59e0b;">ОКТА-8</div>
+          <div class="core-role">Ядро Сингулярности</div>
+          <div class="core-stats">Магнетизм: +100% | Осколки: x2</div>
+          <div class="core-ability">Ульта: <b>Луч Судного Дня</b></div>
+        </div>
+      </div>
+
+      <!-- Difficulty Selector: x1 - x2 - x4 - x8 - x16 - x32 - x64^ -->
+      <div class="section-title">МНОЖИТЕЛЬ СЛОЖНОСТИ ИЗМЕРЕНИЯ</div>
+      <div class="diff-selector">
+        <button class="diff-btn active" data-diff="1" style="--c: #00ffcc;">x1 Норма</button>
+        <button class="diff-btn" data-diff="2" style="--c: #38bdf8;">x2 Опасно</button>
+        <button class="diff-btn" data-diff="4" style="--c: #a855f7;">x4 Разлом</button>
+        <button class="diff-btn" data-diff="8" style="--c: #f59e0b;">x8 Энтропия</button>
+        <button class="diff-btn" data-diff="16" style="--c: #ef4444;">x16 Коллапс</button>
+        <button class="diff-btn" data-diff="32" style="--c: #ec4899;">x32 Хаос</button>
+        <button class="diff-btn ultra-diff" data-diff="64" style="--c: #ffd700;">x64 Апофеоз ^</button>
+      </div>
+
+      <div id="diff-info-box" class="diff-info-box">
+        <div class="diff-info-header">
+          <span id="diff-title" class="diff-info-title">Стабильная Геометрия (x1)</span>
+          <span id="diff-shard-badge" class="diff-badge">Осколки: x1.0</span>
+          <span id="diff-record-badge" class="diff-record">Рекорд: 0 очков</span>
+        </div>
+        <p id="diff-desc" class="diff-desc">Идеальный баланс евклидовой геометрии. Отлично подходит для изучения синергий.</p>
+        <ul id="diff-mechanics" class="diff-list">
+          <li>Стандартный спавн врагов</li>
+          <li>Элиты появляются редко (5%)</li>
+        </ul>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="menu-actions">
+        <button id="btn-start-run" class="start-run-btn">
+          <span class="btn-text">ЗАПУСТИТЬ ПРОТОКОЛ</span>
+          <span class="btn-sub">ВХОД В ИЗМЕРЕНИЕ</span>
+        </button>
+      </div>
+
+      <div class="audio-controls">
+        <button id="btn-toggle-music" class="icon-toggle active">🎵 Музыка: ВКЛ</button>
+        <button id="btn-toggle-sfx" class="icon-toggle active">🔊 Звуки: ВКЛ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="screen-game" class="screen">
+    <!-- Top HUD -->
+    <div class="game-hud">
+      <div class="hud-top-left">
+        <div class="hud-bar-container hp-bar">
+          <div class="hud-bar-label">HP <span id="hud-hp-text">100 / 100</span></div>
+          <div class="hud-bar-track">
+            <div id="hud-hp-fill" class="hud-bar-fill" style="width: 100%;"></div>
+            <div id="hud-shield-fill" class="hud-shield-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="hud-bar-container xp-bar">
+          <div class="hud-bar-label">УРОВЕНЬ <span id="hud-level-text">1</span> (<span id="hud-xp-text">0/30</span>)</div>
+          <div class="hud-bar-track">
+            <div id="hud-xp-fill" class="hud-bar-fill xp-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-top-center">
+        <div class="wave-display">
+          <span class="wave-title">ВОЛНА <span id="hud-wave-val">1</span></span>
+          <span class="wave-timer"><span id="hud-wave-time">00:35</span></span>
+        </div>
+        <div id="hud-boss-bar-wrap" class="boss-bar-wrap" style="display: none;">
+          <div class="boss-name" id="hud-boss-name">БОСС: ПЕНТА-КОЛОСС</div>
+          <div class="boss-track">
+            <div id="hud-boss-fill" class="boss-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+        <!-- 1st New Mechanic HUD: Hyper Resonance Indicator -->
+        <div id="hud-overdrive-wrap" class="overdrive-wrap" style="display: none;">
+          🔥 ГИПЕР-РЕЗОНАНС: СКОРОСТРЕЛЬНОСТЬ x2 🔥
+        </div>
+      </div>
+
+      <div class="hud-top-right">
+        <div class="stat-pill shards-pill">💎 <span id="hud-shards-val">0</span></div>
+        <div class="stat-pill kills-pill">💀 <span id="hud-kills-val">0</span></div>
+        <div id="hud-combo-pill" class="stat-pill combo-pill" style="display: none;">🔥 COMBO x<span id="hud-combo-val">0</span></div>
+        <button id="btn-pause-game" class="hud-btn">⏸️</button>
+      </div>
+    </div>
+
+    <!-- Active Weapons & Passives Bar (Vampire Survivors Style 6+6 Slots) -->
+    <div class="inventory-hud" id="hud-inventory">
+      <div class="inv-group">
+        <span class="inv-label">ОРУЖИЕ (до 6):</span>
+        <div class="inv-slots" id="inv-weapons"></div>
+      </div>
+      <div class="inv-group">
+        <span class="inv-label">МОДУЛИ (до 6):</span>
+        <div class="inv-slots" id="inv-passives"></div>
+      </div>
+    </div>
+
+    <!-- Ability & Dash cooldown HUD -->
+    <div class="abilities-hud">
+      <div class="ability-slot" id="slot-dash">
+        <div class="ability-key">ПРОБЕЛ</div>
+        <div class="ability-icon">⚡</div>
+        <div class="ability-name">РЫВОК</div>
+        <div class="ability-cooldown-overlay" id="dash-cooldown-overlay"></div>
+      </div>
+      <div class="ability-slot" id="slot-special">
+        <div class="ability-key">E / Q</div>
+        <div class="ability-icon">💥</div>
+        <div class="ability-name" id="special-ability-name">УЛЬТА</div>
+        <div class="ability-cooldown-overlay" id="special-cooldown-overlay"></div>
+      </div>
+    </div>
+
+    <!-- SVG Game Arena -->
+    <div class="svg-arena-container" id="arena-container">
+      <svg id="game-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <!-- Neon Glow Filters -->
+          <filter id="glow-cyan" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="glow-blue" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="glow-magenta" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="glow-gold" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="glow-red" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <!-- Grid Background Pattern -->
+          <pattern id="arena-grid" width="80" height="80" patternUnits="userSpaceOnUse">
+            <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.5" />
+            <circle cx="80" cy="80" r="1.5" fill="rgba(0, 255, 204, 0.2)" />
+          </pattern>
+        </defs>
+
+        <!-- Dynamic Background -->
+        <rect width="1600" height="900" fill="#090a10" />
+        <rect width="1600" height="900" fill="url(#arena-grid)" />
+        <rect x="0" y="0" width="1600" height="900" fill="none" stroke="rgba(0, 255, 204, 0.3)" stroke-width="4" />
+
+        <!-- Shockwaves, Vortices & Mines layer -->
+        <g id="layer-shockwaves"></g>
+
+        <!-- Drops (XP / Shards) layer -->
+        <g id="layer-gems"></g>
+
+        <!-- Projectiles layer -->
+        <g id="layer-projectiles"></g>
+
+        <!-- Enemies layer -->
+        <g id="layer-enemies"></g>
+
+        <!-- Player & Orbitals layer -->
+        <g id="layer-player"></g>
+
+        <!-- Particles layer -->
+        <g id="layer-particles"></g>
+
+        <!-- Floating damage text layer -->
+        <g id="layer-floating-texts"></g>
+      </svg>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="touch-controls" class="touch-controls">
+      <div id="touch-joystick-zone" class="joystick-zone">
+        <div id="touch-joystick-knob" class="joystick-knob"></div>
+      </div>
+      <div class="touch-action-buttons">
+        <button id="touch-btn-dash" class="touch-btn touch-dash">⚡ РЫВОК</button>
+        <button id="touch-btn-special" class="touch-btn touch-special">💥 УЛЬТА</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEVEL UP MODAL (With 2nd New Mechanic: Banish System) -->
+  <div id="modal-level-up" class="modal-overlay">
+    <div class="level-up-dialog">
+      <div class="dialog-header">
+        <h2 class="dialog-title">СИНТЕЗ МОДУЛЕЙ И СИСТЕМ</h2>
+        <p class="dialog-sub">Выберите геометрический протокол или изгоните нежелательные модули</p>
+      </div>
+
+      <div id="cards-container" class="cards-grid">
+        <!-- Rendered via JS -->
+      </div>
+
+      <div class="dialog-footer">
+        <button id="btn-reroll" class="reroll-btn">
+          <span>🎲 Переброс (Осталось: <span id="reroll-count">1</span>)</span>
+        </button>
+        <span class="banish-info">🚫 Заряды Изгнания: <b id="banish-count">1</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3rd New Mechanic: BOSS DIMENSION PACT MODAL -->
+  <div id="modal-boss-pact" class="modal-overlay">
+    <div class="level-up-dialog pact-dialog">
+      <div class="dialog-header">
+        <h2 class="dialog-title" style="color: #ffd700;">ПАКТ ИЗМЕРЕНИЙ</h2>
+        <p class="dialog-sub">Босс повержен! Выберите квантовую мутацию для своего ядра</p>
+      </div>
+
+      <div id="pacts-container" class="cards-grid">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div id="modal-pause" class="modal-overlay">
+    <div class="pause-dialog">
+      <h2 class="pause-title">ПРОТОКОЛ ПРИОСТАНОВЛЕН</h2>
+      <div class="pause-stats-grid">
+        <div class="pause-stat"><span>Время:</span> <b id="pause-time">00:00</b></div>
+        <div class="pause-stat"><span>Волна:</span> <b id="pause-wave">1</b></div>
+        <div class="pause-stat"><span>Уничтожено:</span> <b id="pause-kills">0</b></div>
+        <div class="pause-stat"><span>Урон:</span> <b id="pause-dmg">0</b></div>
+      </div>
+      <div class="pause-actions">
+        <button id="btn-resume" class="btn-action primary">ПРОДОЛЖИТЬ БОЙ</button>
+        <button id="btn-restart" class="btn-action warning">ПЕРЕЗАПУСТИТЬ</button>
+        <button id="btn-quit" class="btn-action danger">ВЫЙТИ В МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER / RUN SUMMARY MODAL -->
+  <div id="modal-gameover" class="modal-overlay">
+    <div class="summary-dialog">
+      <h2 id="summary-title" class="summary-title">СИНГУЛЯРНЫЙ КОЛЛАПС</h2>
+      <p id="summary-subtitle" class="summary-sub">Ядро дезинтегрировано. Извлечение квантовой матрицы...</p>
+
+      <div class="summary-stats-box">
+        <div class="stat-row">
+          <span>Сложность:</span>
+          <b id="sum-diff" style="color: #00ffcc;">x1 Норма</b>
+        </div>
+        <div class="stat-row">
+          <span>Пройдено волн:</span>
+          <b id="sum-wave">0</b>
+        </div>
+        <div class="stat-row">
+          <span>Уничтожено форм:</span>
+          <b id="sum-kills">0</b>
+        </div>
+        <div class="stat-row">
+          <span>Максимальное комбо:</span>
+          <b id="sum-combo">0</b>
+        </div>
+        <div class="stat-row">
+          <span>Суммарный урон:</span>
+          <b id="sum-dmg">0</b>
+        </div>
+        <div class="stat-row highlight">
+          <span>Квантовые осколки:</span>
+          <b id="sum-shards" style="color: #ffd700;">+0 💎</b>
+        </div>
+        <div class="stat-row total-score">
+          <span>ИТОГОВЫЙ СЧЕТ:</span>
+          <b id="sum-score">0</b>
+        </div>
+      </div>
+
+      <div class="summary-actions">
+        <button id="btn-sum-retry" class="btn-action primary">ПОВТОРИТЬ ЗАБЕГ</button>
+        <button id="btn-sum-shop" class="btn-action meta">В ЛАБОРАТОРИЮ ⚙️</button>
+        <button id="btn-sum-menu" class="btn-action secondary">ГЛАВНОЕ МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- META SHOP & QUANTUM REACTOR MODAL (4th New Mechanic: Quantum Reactor Mastery Tree) -->
+  <div id="modal-meta" class="modal-overlay">
+    <div class="meta-dialog">
+      <div class="meta-header">
+        <div>
+          <h2>ЛАБОРАТОРИЯ И КВАНТОВЫЙ РЕАКТОР</h2>
+          <p>Постоянные модификации и Древо Мастерства между забегами</p>
+        </div>
+        <div class="meta-balance">
+          💎 <span id="meta-balance-val">0</span>
+        </div>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div class="meta-tabs">
+        <button class="meta-tab active" id="tab-btn-upgrades">Базовые Апгрейды</button>
+        <button class="meta-tab" id="tab-btn-reactor">Древо Реактора ⚛️</button>
+      </div>
+
+      <div id="meta-upgrades-grid" class="meta-upgrades-grid tab-content active">
+        <!-- Rendered via JS -->
+      </div>
+
+      <div id="meta-reactor-grid" class="meta-reactor-grid tab-content">
+        <!-- Rendered via JS -->
+      </div>
+
+      <div class="meta-footer">
+        <button id="btn-close-meta" class="btn-action primary">ЗАКРЫТЬ ЛАБОРАТОРИЮ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  .geometria-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: #06070a;
+    color: #e2e8f0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .screen.active {
+    display: flex;
+  }
+
+  /* MENU SCREEN */
+  #screen-menu {
+    justify-content: center;
+    align-items: center;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+  }
+
+  .menu-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, #111424 0%, #06070a 100%);
+    z-index: 1;
+  }
+
+  .neon-grid {
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(to right, rgba(0, 255, 204, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 255, 204, 0.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(circle, black 40%, transparent 80%);
+  }
+
+  .menu-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 950px;
+    width: 100%;
+    margin: auto;
+  }
+
+  .game-logo {
+    width: 100%;
+    max-width: 680px;
+    margin-bottom: 0.5rem;
+  }
+  .logo-svg {
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(0 0 15px rgba(0, 255, 204, 0.4));
+  }
+  .logo-title {
+    font-size: 52px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-shadow: 0 0 20px rgba(0, 255, 204, 0.8);
+  }
+  .logo-subtitle {
+    font-size: 14px;
+    fill: #94a3b8;
+    letter-spacing: 3px;
+    font-weight: 700;
+  }
+
+  .currency-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.2rem;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(0, 255, 204, 0.3);
+    border-radius: 40px;
+    padding: 0.4rem 1.4rem;
+    box-shadow: 0 0 20px rgba(0, 255, 204, 0.15);
+  }
+  .shard-counter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .shard-val {
+    font-weight: 800;
+    color: #ffd700;
+    font-size: 1.2rem;
+  }
+  .meta-shop-btn {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.2));
+    border: 1px solid #a855f7;
+    color: #e2e8f0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+  }
+  .meta-shop-btn:hover {
+    background: #a855f7;
+    color: #000;
+    box-shadow: 0 0 15px #a855f7;
+  }
+
+  .section-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #94a3b8;
+    margin: 0.8rem 0 0.5rem 0;
+    text-transform: uppercase;
+  }
+
+  /* Core selection */
+  .core-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+  .core-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 2px solid #334155;
+    border-radius: 12px;
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .core-card:hover {
+    border-color: #64748b;
+    transform: translateY(-3px);
+  }
+  .core-card.active {
+    border-color: #00ffcc;
+    background: rgba(0, 255, 204, 0.08);
+    box-shadow: 0 0 25px rgba(0, 255, 204, 0.3);
+  }
+  .core-preview {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 0.4rem;
+  }
+  .core-shape-svg {
+    width: 100%;
+    height: 100%;
+  }
+  .core-name {
+    font-weight: 800;
+    font-size: 1.05rem;
+    margin-bottom: 2px;
+  }
+  .core-role {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 4px;
+  }
+  .core-stats {
+    font-size: 0.7rem;
+    color: #cbd5e1;
+    margin-bottom: 4px;
+  }
+  .core-ability {
+    font-size: 0.7rem;
+    color: #f1f5f9;
+  }
+
+  /* Difficulty Selector */
+  .diff-selector {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 0.8rem;
+  }
+  .diff-btn {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1.5px solid var(--c);
+    color: var(--c);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .diff-btn:hover {
+    background: var(--c);
+    color: #000;
+    box-shadow: 0 0 15px var(--c);
+  }
+  .diff-btn.active {
+    background: var(--c);
+    color: #000;
+    box-shadow: 0 0 20px var(--c);
+  }
+  .diff-btn.ultra-diff {
+    animation: pulse-gold-btn 1.5s infinite alternate;
+  }
+  @keyframes pulse-gold-btn {
+    0% { transform: scale(1); filter: drop-shadow(0 0 4px #ffd700); }
+    100% { transform: scale(1.05); filter: drop-shadow(0 0 16px #ffd700); }
+  }
+
+  .diff-info-box {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 0.8rem 1.2rem;
+    width: 100%;
+    margin-bottom: 1.2rem;
+    font-size: 0.85rem;
+  }
+  .diff-info-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.4rem;
+  }
+  .diff-info-title {
+    font-weight: 800;
+    font-size: 1rem;
+    color: #f8fafc;
+  }
+  .diff-badge {
+    background: rgba(245, 158, 11, 0.2);
+    color: #ffd700;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+  }
+  .diff-record {
+    margin-left: auto;
+    color: #94a3b8;
+    font-size: 0.8rem;
+  }
+  .diff-desc {
+    color: #cbd5e1;
+    margin: 0 0 0.4rem 0;
+  }
+  .diff-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #94a3b8;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 1rem;
+  }
+
+  .menu-actions {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+  .start-run-btn {
+    background: linear-gradient(135deg, #00ffcc 0%, #38bdf8 100%);
+    border: none;
+    color: #06070a;
+    padding: 14px 45px;
+    border-radius: 40px;
+    cursor: pointer;
+    font-weight: 900;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    box-shadow: 0 0 35px rgba(0, 255, 204, 0.5);
+    transition: all 0.2s;
+  }
+  .start-run-btn:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 50px rgba(0, 255, 204, 0.8);
+  }
+  .btn-text {
+    font-size: 1.3rem;
+    letter-spacing: 2px;
+  }
+  .btn-sub {
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    opacity: 0.8;
+  }
+
+  .audio-controls {
+    display: flex;
+    gap: 1rem;
+  }
+  .icon-toggle {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .icon-toggle.active {
+    color: #00ffcc;
+    border-color: #00ffcc;
+  }
+
+  /* GAME SCREEN */
+  #screen-game {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+
+  .svg-arena-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #game-svg {
+    width: 100%;
+    height: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
+  }
+
+  .game-hud {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .game-hud * {
+    pointer-events: auto;
+  }
+
+  .hud-top-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 260px;
+  }
+  .hud-bar-container {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 4px 8px;
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+  }
+  .hud-bar-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .hud-bar-track {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .hud-bar-fill {
+    height: 100%;
+    background: #ef4444;
+    transition: width 0.15s ease-out;
+  }
+  .hud-shield-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #38bdf8;
+    opacity: 0.8;
+  }
+  .xp-fill {
+    background: #00ffcc;
+  }
+
+  .hud-top-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .wave-display {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(0, 255, 204, 0.4);
+    padding: 4px 16px;
+    border-radius: 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+  }
+  .wave-title {
+    font-weight: 800;
+    color: #ffd700;
+    font-size: 1rem;
+  }
+  .wave-timer {
+    font-family: monospace;
+    font-weight: 700;
+    color: #94a3b8;
+  }
+
+  .overdrive-wrap {
+    background: linear-gradient(90deg, #ec4899, #00ffff);
+    color: #000;
+    padding: 3px 14px;
+    border-radius: 12px;
+    font-weight: 900;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    animation: pulse-overdrive 0.5s infinite alternate;
+  }
+  @keyframes pulse-overdrive {
+    0% { transform: scale(1); filter: drop-shadow(0 0 5px #00ffff); }
+    100% { transform: scale(1.05); filter: drop-shadow(0 0 15px #ec4899); }
+  }
+
+  .boss-bar-wrap {
+    width: 320px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1.5px solid #ff0055;
+    border-radius: 6px;
+    padding: 4px 8px;
+    text-align: center;
+  }
+  .boss-name {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #ff0055;
+    margin-bottom: 2px;
+  }
+  .boss-track {
+    width: 100%;
+    height: 8px;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .boss-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff0055, #ffd700);
+    transition: width 0.1s;
+  }
+
+  .hud-top-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .stat-pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+  .shards-pill { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); }
+  .kills-pill { color: #f87171; }
+  .combo-pill { color: #ec4899; border-color: #ec4899; animation: pulse-combo 0.6s infinite alternate; }
+  @keyframes pulse-combo {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.08); }
+  }
+  .hud-btn {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #64748b;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Vampire Survivors Style 6 Weapons + 6 Passives Inventory Bar */
+  .inventory-hud {
+    position: absolute;
+    top: 85px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .inv-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.65);
+    padding: 3px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .inv-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #94a3b8;
+    width: 75px;
+  }
+  .inv-slots {
+    display: flex;
+    gap: 4px;
+  }
+  .inv-slot {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #334155;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .inv-slot.occupied {
+    border-color: #00ffcc;
+  }
+  .inv-slot.is-evo {
+    border-color: #ffd700;
+    box-shadow: 0 0 8px #ffd700;
+  }
+  .inv-badge {
+    position: absolute;
+    bottom: 1px;
+    right: 2px;
+    font-size: 0.6rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 3px #000;
+  }
+
+  .abilities-hud {
+    position: absolute;
+    bottom: 20px;
+    right: 25px;
+    display: flex;
+    gap: 15px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .ability-slot {
+    position: relative;
+    width: 65px;
+    height: 65px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 2px solid #00ffcc;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+  }
+  .ability-key {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #94a3b8;
+  }
+  .ability-icon {
+    font-size: 1.3rem;
+  }
+  .ability-name {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #cbd5e1;
+  }
+  .ability-cooldown-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 0%;
+    background: rgba(0, 0, 0, 0.7);
+    transition: height 0.05s linear;
+  }
+
+  /* MODALS */
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.85);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.active {
+    display: flex;
+  }
+
+  /* Level Up Dialog */
+  .level-up-dialog {
+    background: linear-gradient(135deg, #0b0f19 0%, #030712 100%);
+    border: 2px solid #00ffcc;
+    border-radius: 20px;
+    max-width: 950px;
+    width: 92%;
+    padding: 2rem;
+    box-shadow: 0 0 50px rgba(0, 255, 204, 0.3);
+    text-align: center;
+  }
+  .dialog-title {
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: #00ffcc;
+    margin: 0 0 4px 0;
+    letter-spacing: 2px;
+    text-shadow: 0 0 15px rgba(0, 255, 204, 0.6);
+  }
+  .dialog-sub {
+    color: #94a3b8;
+    margin: 0 0 1.5rem 0;
+    font-size: 0.95rem;
+  }
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .upgrade-card-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .upgrade-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 2px solid #334155;
+    border-radius: 14px;
+    padding: 1.2rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    flex: 1;
+  }
+  .upgrade-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  }
+  .upgrade-card.rarity-common { border-color: #38bdf8; }
+  .upgrade-card.rarity-rare { border-color: #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.2); }
+  .upgrade-card.rarity-epic { border-color: #a855f7; box-shadow: 0 0 20px rgba(168, 85, 247, 0.3); }
+  .upgrade-card.rarity-legendary { border-color: #ffd700; box-shadow: 0 0 25px rgba(255, 215, 0, 0.4); }
+  .upgrade-card.rarity-evolution {
+    border-color: #ff0055;
+    background: linear-gradient(180deg, rgba(255, 0, 85, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%);
+    box-shadow: 0 0 30px rgba(255, 0, 85, 0.5);
+    animation: pulse-evo 1.5s infinite alternate;
+  }
+  @keyframes pulse-evo {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.03); }
+  }
+  .card-banish-btn {
+    margin-top: 6px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .card-banish-btn:hover:not(:disabled) {
+    background: #ef4444;
+    color: #000;
+  }
+  .card-banish-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .card-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 0.8rem;
+  }
+  .card-title {
+    font-weight: 800;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+  }
+  .card-desc {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.3;
+  }
+  .dialog-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+  }
+  .reroll-btn {
+    background: transparent;
+    border: 1px solid #ffd700;
+    color: #ffd700;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .reroll-btn:hover {
+    background: #ffd700;
+    color: #000;
+  }
+  .banish-info {
+    font-size: 0.85rem;
+    color: #ef4444;
+    font-weight: 700;
+  }
+
+  /* Dimension Pact Dialog */
+  .pact-dialog {
+    border-color: #ffd700;
+    box-shadow: 0 0 50px rgba(255, 215, 0, 0.35);
+  }
+  .pact-card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 2px solid #ffd700;
+    border-radius: 14px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .pact-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+  }
+  .pact-icon {
+    font-size: 2.2rem;
+    margin-bottom: 0.5rem;
+  }
+  .pact-title {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: #ffd700;
+    margin-bottom: 0.4rem;
+  }
+  .pact-boon {
+    color: #00ffcc;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+  }
+  .pact-curse {
+    color: #ef4444;
+    font-size: 0.8rem;
+  }
+
+  /* Summary & Pause Dialogs */
+  .pause-dialog, .summary-dialog, .meta-dialog {
+    background: #0b0f19;
+    border: 2px solid #334155;
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+  }
+  .summary-dialog {
+    border-color: #ffd700;
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.2);
+  }
+  .summary-title {
+    color: #ffd700;
+    font-size: 1.8rem;
+    margin: 0 0 4px 0;
+  }
+  .summary-sub {
+    color: #94a3b8;
+    margin: 0 0 1.5rem 0;
+    font-size: 0.85rem;
+  }
+  .summary-stats-box {
+    background: rgba(15, 23, 42, 0.7);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.9rem;
+  }
+  .stat-row.highlight {
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+  .stat-row.total-score {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #00ffcc;
+    border-bottom: none;
+    padding-top: 10px;
+  }
+  .summary-actions, .pause-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .btn-action {
+    padding: 12px 20px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-action.primary {
+    background: #00ffcc;
+    color: #000;
+  }
+  .btn-action.meta {
+    background: #a855f7;
+    color: #fff;
+  }
+  .btn-action.secondary {
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+  .btn-action.warning {
+    background: #f59e0b;
+    color: #000;
+  }
+  .btn-action.danger {
+    background: #ef4444;
+    color: #fff;
+  }
+
+  /* META UPGRADES & REACTOR DIALOG */
+  .meta-dialog {
+    max-width: 880px;
+    text-align: left;
+    border-color: #a855f7;
+    box-shadow: 0 0 50px rgba(168, 85, 247, 0.3);
+  }
+  .meta-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+  .meta-header h2 {
+    margin: 0;
+    color: #a855f7;
+  }
+  .meta-balance {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: #ffd700;
+  }
+
+  .meta-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 1rem;
+  }
+  .meta-tab {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 8px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+  }
+  .meta-tab.active {
+    background: #a855f7;
+    color: #fff;
+    border-color: #a855f7;
+  }
+
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: grid;
+  }
+
+  .meta-upgrades-grid, .meta-reactor-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    max-height: 420px;
+    overflow-y: auto;
+    margin-bottom: 1.2rem;
+    padding-right: 6px;
+  }
+  .meta-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .meta-card-title {
+    font-weight: 800;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .meta-card-desc {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .meta-card-progress {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .meta-buy-btn {
+    background: #a855f7;
+    border: none;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .meta-buy-btn:hover:not(:disabled) {
+    background: #c084fc;
+    box-shadow: 0 0 10px #c084fc;
+  }
+  .meta-buy-btn:disabled {
+    background: #334155;
+    color: #64748b;
+    cursor: not-allowed;
+  }
+
+  /* Reactor Node Cards */
+  .reactor-card {
+    border-color: #ffd700;
+    background: rgba(15, 23, 42, 0.9);
+  }
+  .reactor-card.unlocked {
+    border-color: #00ffcc;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+  }
+
+  /* TOUCH CONTROLS (Mobile) */
+  .touch-controls {
+    display: none;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 20;
+  }
+  @media (pointer: coarse) {
+    .touch-controls {
+      display: block;
+    }
+  }
+  .joystick-zone {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(0, 255, 204, 0.3);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .joystick-knob {
+    position: absolute;
+    top: 35px;
+    left: 35px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #00ffcc;
+    box-shadow: 0 0 15px #00ffcc;
+  }
+  .touch-action-buttons {
+    position: absolute;
+    bottom: 35px;
+    right: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: auto;
+  }
+  .touch-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid #00ffcc;
+    background: rgba(15, 23, 42, 0.85);
+    color: #00ffcc;
+    font-weight: 800;
+    font-size: 0.75rem;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+  }
+  .touch-special {
+    border-color: #f59e0b;
+    color: #f59e0b;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    .core-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .diff-list {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  import { GameEngine, getPolygonPoints } from './geometria/engine';
+  import { DIFFICULTY_CONFIGS, META_UPGRADES_LIST, REACTOR_NODES, ALL_WEAPONS_LIST, ALL_PASSIVES_LIST, EVOLUTION_RECIPES } from './geometria/constants';
+  import { sound } from './geometria/audio';
+  import type { DifficultyMultiplier, PlayerCoreType, GameSaveData, DimensionPact } from './geometria/types';
+
+  // Load / initialize save data
+  function getSaveData(): GameSaveData {
+    try {
+      const raw = localStorage.getItem('geometria_save_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (!parsed.reactorTree) parsed.reactorTree = {};
+        return parsed;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return {
+      quantumShards: 0,
+      unlockedCores: ['delta', 'tetra', 'hexa', 'octa'],
+      metaUpgrades: {},
+      reactorTree: {},
+      highScores: { 1: 0, 2: 0, 4: 0, 8: 0, 16: 0, 32: 0, 64: 0 },
+      bestWaves: { 1: 0, 2: 0, 4: 0, 8: 0, 16: 0, 32: 0, 64: 0 },
+      totalRuns: 0,
+      totalKills: 0
+    };
+  }
+
+  function saveGameData(data: GameSaveData) {
+    try {
+      localStorage.setItem('geometria_save_v1', JSON.stringify(data));
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initGeometriaApp();
+  });
+
+  function initGeometriaApp() {
+    let saveData = getSaveData();
+    let selectedCore: PlayerCoreType = 'delta';
+    let selectedDiff: DifficultyMultiplier = 1;
+    let engine: GameEngine | null = null;
+    let animFrameId: number | null = null;
+    let lastTime = 0;
+
+    // Screens
+    const screenMenu = document.getElementById('screen-menu');
+    const screenGame = document.getElementById('screen-game');
+    const modalLevelUp = document.getElementById('modal-level-up');
+    const modalBossPact = document.getElementById('modal-boss-pact');
+    const modalPause = document.getElementById('modal-pause');
+    const modalGameOver = document.getElementById('modal-gameover');
+    const modalMeta = document.getElementById('modal-meta');
+
+    // Menu elements
+    const menuShardsAmount = document.getElementById('menu-shards-amount');
+    const diffTitle = document.getElementById('diff-title');
+    const diffShardBadge = document.getElementById('diff-shard-badge');
+    const diffRecordBadge = document.getElementById('diff-record-badge');
+    const diffDesc = document.getElementById('diff-desc');
+    const diffMechanics = document.getElementById('diff-mechanics');
+
+    // HUD Elements
+    const hudHpText = document.getElementById('hud-hp-text');
+    const hudHpFill = document.getElementById('hud-hp-fill');
+    const hudShieldFill = document.getElementById('hud-shield-fill');
+    const hudLevelText = document.getElementById('hud-level-text');
+    const hudXpText = document.getElementById('hud-xp-text');
+    const hudXpFill = document.getElementById('hud-xp-fill');
+    const hudWaveVal = document.getElementById('hud-wave-val');
+    const hudWaveTime = document.getElementById('hud-wave-time');
+    const hudBossBarWrap = document.getElementById('hud-boss-bar-wrap');
+    const hudBossName = document.getElementById('hud-boss-name');
+    const hudBossFill = document.getElementById('hud-boss-fill');
+    const hudOverdriveWrap = document.getElementById('hud-overdrive-wrap');
+    const hudShardsVal = document.getElementById('hud-shards-val');
+    const hudKillsVal = document.getElementById('hud-kills-val');
+    const hudComboPill = document.getElementById('hud-combo-pill');
+    const hudComboVal = document.getElementById('hud-combo-val');
+    const specialAbilityName = document.getElementById('special-ability-name');
+    const dashCooldownOverlay = document.getElementById('dash-cooldown-overlay');
+    const specialCooldownOverlay = document.getElementById('special-cooldown-overlay');
+    const invWeapons = document.getElementById('inv-weapons');
+    const invPassives = document.getElementById('inv-passives');
+
+    // SVG Layers
+    const layerShockwaves = document.getElementById('layer-shockwaves');
+    const layerGems = document.getElementById('layer-gems');
+    const layerProjectiles = document.getElementById('layer-projectiles');
+    const layerEnemies = document.getElementById('layer-enemies');
+    const layerPlayer = document.getElementById('layer-player');
+    const layerParticles = document.getElementById('layer-particles');
+    const layerFloatingTexts = document.getElementById('layer-floating-texts');
+
+    function updateMenuUi() {
+      if (menuShardsAmount) menuShardsAmount.textContent = saveData.quantumShards.toLocaleString();
+
+      const conf = DIFFICULTY_CONFIGS[selectedDiff];
+      if (diffTitle) diffTitle.textContent = `${conf.name} (x${conf.multiplier})`;
+      if (diffShardBadge) diffShardBadge.textContent = `Осколки: x${conf.shardMultiplier.toFixed(1)}`;
+      if (diffRecordBadge) {
+        const hs = saveData.highScores[selectedDiff] || 0;
+        const bw = saveData.bestWaves[selectedDiff] || 0;
+        diffRecordBadge.textContent = `Рекорд: ${hs.toLocaleString()} очк. (Волна ${bw})`;
+      }
+      if (diffDesc) diffDesc.textContent = conf.description;
+      if (diffMechanics) {
+        diffMechanics.innerHTML = conf.mechanics.map(m => `<li>${m}</li>`).join('');
+      }
+    }
+
+    updateMenuUi();
+
+    // Core selection buttons
+    document.querySelectorAll('.core-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.core-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        selectedCore = card.getAttribute('data-core') as PlayerCoreType;
+        sound.playButtonClick();
+      });
+    });
+
+    // Difficulty buttons
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDiff = Number(btn.getAttribute('data-diff')) as DifficultyMultiplier;
+        sound.playButtonClick();
+        updateMenuUi();
+      });
+    });
+
+    // Audio Toggles
+    const btnMusic = document.getElementById('btn-toggle-music');
+    if (btnMusic) {
+      btnMusic.addEventListener('click', () => {
+        const state = sound.toggleMusic();
+        btnMusic.textContent = `🎵 Музыка: ${state ? 'ВКЛ' : 'ВЫКЛ'}`;
+        btnMusic.classList.toggle('active', state);
+      });
+    }
+
+    const btnSfx = document.getElementById('btn-toggle-sfx');
+    if (btnSfx) {
+      btnSfx.addEventListener('click', () => {
+        const state = sound.toggleSfx();
+        btnSfx.textContent = `🔊 Звуки: ${state ? 'ВКЛ' : 'ВЫКЛ'}`;
+        btnSfx.classList.toggle('active', state);
+      });
+    }
+
+    // Start Run
+    const btnStart = document.getElementById('btn-start-run');
+    if (btnStart) {
+      btnStart.addEventListener('click', () => {
+        sound.init();
+        sound.startBgm();
+        startRun();
+      });
+    }
+
+    function startRun() {
+      saveData = getSaveData();
+      engine = new GameEngine(selectedDiff, selectedCore, saveData);
+
+      if (specialAbilityName) {
+        specialAbilityName.textContent = engine.core.specialAbility.toUpperCase();
+      }
+
+      screenMenu?.classList.remove('active');
+      modalGameOver?.classList.remove('active');
+      modalPause?.classList.remove('active');
+      modalLevelUp?.classList.remove('active');
+      modalBossPact?.classList.remove('active');
+      screenGame?.classList.add('active');
+
+      lastTime = performance.now();
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      animFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    // Input handlers
+    window.addEventListener('keydown', (e) => {
+      if (!engine) return;
+      engine.keys[e.code] = true;
+
+      if (e.code === 'Space') {
+        engine.triggerDash();
+      }
+      if (e.code === 'KeyE' || e.code === 'KeyQ') {
+        engine.triggerSpecialAbility();
+      }
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        togglePause();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (!engine) return;
+      engine.keys[e.code] = false;
+    });
+
+    // Mouse aiming & firing
+    const svgEl = document.getElementById('game-svg');
+    if (svgEl) {
+      svgEl.addEventListener('mousemove', (e) => {
+        if (!engine) return;
+        const rect = svgEl.getBoundingClientRect();
+        const scaleX = 1600 / rect.width;
+        const scaleY = 900 / rect.height;
+        engine.targetAimX = (e.clientX - rect.left) * scaleX;
+        engine.targetAimY = (e.clientY - rect.top) * scaleY;
+      });
+
+      svgEl.addEventListener('mousedown', (e) => {
+        if (!engine) return;
+        if (e.button === 2) {
+          engine.triggerDash();
+        }
+      });
+      svgEl.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    // Mobile buttons
+    const touchBtnDash = document.getElementById('touch-btn-dash');
+    if (touchBtnDash) {
+      touchBtnDash.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        engine?.triggerDash();
+      });
+    }
+    const touchBtnSpecial = document.getElementById('touch-btn-special');
+    if (touchBtnSpecial) {
+      touchBtnSpecial.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        engine?.triggerSpecialAbility();
+      });
+    }
+
+    // Pause button & Modal
+    const btnPause = document.getElementById('btn-pause-game');
+    if (btnPause) {
+      btnPause.addEventListener('click', togglePause);
+    }
+
+    function togglePause() {
+      if (!engine || engine.isGameOver || engine.awaitingLevelUp || engine.awaitingBossPact) return;
+      engine.isPaused = !engine.isPaused;
+      if (engine.isPaused) {
+        modalPause?.classList.add('active');
+        const m = Math.floor(engine.runDuration / 60);
+        const s = Math.floor(engine.runDuration % 60);
+        const pt = document.getElementById('pause-time');
+        const pw = document.getElementById('pause-wave');
+        const pk = document.getElementById('pause-kills');
+        const pd = document.getElementById('pause-dmg');
+        if (pt) pt.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        if (pw) pw.textContent = engine.wave.toString();
+        if (pk) pk.textContent = engine.totalKills.toString();
+        if (pd) pd.textContent = Math.round(engine.totalDamageDealt).toLocaleString();
+      } else {
+        modalPause?.classList.remove('active');
+        lastTime = performance.now();
+      }
+    }
+
+    document.getElementById('btn-resume')?.addEventListener('click', togglePause);
+    document.getElementById('btn-restart')?.addEventListener('click', () => {
+      modalPause?.classList.remove('active');
+      startRun();
+    });
+    document.getElementById('btn-quit')?.addEventListener('click', () => {
+      modalPause?.classList.remove('active');
+      endRunToMenu();
+    });
+
+    // CRITICAL BUGFIX: endRunToMenu must completely cancel animation frame and reset state
+    function endRunToMenu() {
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      if (engine) {
+        engine.isGameOver = false;
+        engine = null;
+      }
+      modalGameOver?.classList.remove('active');
+      modalPause?.classList.remove('active');
+      modalLevelUp?.classList.remove('active');
+      modalBossPact?.classList.remove('active');
+      sound.stopBgm();
+      screenGame?.classList.remove('active');
+      screenMenu?.classList.add('active');
+      updateMenuUi();
+    }
+
+    // Level up Reroll & Banish
+    document.getElementById('btn-reroll')?.addEventListener('click', () => {
+      if (!engine) return;
+      if (engine.rerollUpgrades()) {
+        renderLevelUpCards();
+        const rc = document.getElementById('reroll-count');
+        if (rc) rc.textContent = engine.rerollsLeft.toString();
+      }
+    });
+
+    function renderLevelUpCards() {
+      const container = document.getElementById('cards-container');
+      if (!container || !engine) return;
+      container.innerHTML = '';
+
+      const rc = document.getElementById('reroll-count');
+      if (rc) rc.textContent = engine.rerollsLeft.toString();
+
+      const bc = document.getElementById('banish-count');
+      if (bc) bc.textContent = engine.banishesLeft.toString();
+
+      engine.availableLevelUpCards.forEach(card => {
+        const wrap = document.createElement('div');
+        wrap.className = 'upgrade-card-wrap';
+
+        const el = document.createElement('div');
+        el.className = `upgrade-card rarity-${card.rarity}`;
+        el.innerHTML = `
+          <div class="card-icon">
+            <svg viewBox="0 0 40 40" style="width:100%; height:100%;">
+              <polygon points="${card.iconSvg}" fill="none" stroke="${card.color}" stroke-width="2" />
+            </svg>
+          </div>
+          <div class="card-title" style="color:${card.color};">${card.titleRu}</div>
+          <div class="card-desc">${card.description}</div>
+        `;
+
+        el.addEventListener('click', () => {
+          engine?.selectUpgrade(card);
+          modalLevelUp?.classList.remove('active');
+          sound.playButtonClick();
+          lastTime = performance.now();
+        });
+
+        // 2nd New Mechanic: Banish Button on each card
+        const banishBtn = document.createElement('button');
+        banishBtn.className = 'card-banish-btn';
+        banishBtn.textContent = '🚫 Изгнать модуль';
+        if (engine.banishesLeft <= 0 || card.type === 'evolution') {
+          banishBtn.disabled = true;
+        }
+        banishBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (engine?.banishCard(card)) {
+            renderLevelUpCards();
+          }
+        });
+
+        wrap.appendChild(el);
+        wrap.appendChild(banishBtn);
+        container.appendChild(wrap);
+      });
+    }
+
+    // 3rd New Mechanic: Boss Dimension Pact Render
+    function renderBossPacts() {
+      const container = document.getElementById('pacts-container');
+      if (!container || !engine) return;
+      container.innerHTML = '';
+
+      engine.availableBossPacts.forEach(pact => {
+        const card = document.createElement('div');
+        card.className = 'pact-card';
+        card.innerHTML = `
+          <div class="pact-icon">${pact.icon}</div>
+          <div class="pact-title">${pact.title}</div>
+          <div class="card-desc" style="margin-bottom:8px;">${pact.description}</div>
+          <div class="pact-boon">Благословение: ${pact.boon}</div>
+          <div class="pact-curse">Проклятие: ${pact.curse}</div>
+        `;
+        card.addEventListener('click', () => {
+          engine?.selectDimensionPact(pact);
+          modalBossPact?.classList.remove('active');
+          lastTime = performance.now();
+        });
+        container.appendChild(card);
+      });
+    }
+
+    // Summary screen buttons (Directly call endRunToMenu to prevent death modal from sticking)
+    document.getElementById('btn-sum-retry')?.addEventListener('click', () => {
+      modalGameOver?.classList.remove('active');
+      startRun();
+    });
+    document.getElementById('btn-sum-shop')?.addEventListener('click', () => {
+      endRunToMenu();
+      openMetaModal();
+    });
+    document.getElementById('btn-sum-menu')?.addEventListener('click', () => {
+      endRunToMenu();
+    });
+
+    // Meta Shop & Reactor Modal
+    document.getElementById('btn-open-meta')?.addEventListener('click', openMetaModal);
+    document.getElementById('btn-close-meta')?.addEventListener('click', () => {
+      modalMeta?.classList.remove('active');
+      updateMenuUi();
+    });
+
+    const tabBtnBase = document.getElementById('tab-btn-upgrades');
+    const tabBtnReactor = document.getElementById('tab-btn-reactor');
+    const tabGridBase = document.getElementById('meta-upgrades-grid');
+    const tabGridReactor = document.getElementById('meta-reactor-grid');
+
+    tabBtnBase?.addEventListener('click', () => {
+      tabBtnBase.classList.add('active');
+      tabBtnReactor?.classList.remove('active');
+      tabGridBase?.classList.add('active');
+      tabGridReactor?.classList.remove('active');
+    });
+
+    tabBtnReactor?.addEventListener('click', () => {
+      tabBtnReactor.classList.add('active');
+      tabBtnBase?.classList.remove('active');
+      tabGridReactor?.classList.add('active');
+      tabGridBase?.classList.remove('active');
+    });
+
+    function openMetaModal() {
+      modalMeta?.classList.add('active');
+      renderMetaShop();
+      renderReactorTree();
+    }
+
+    function renderMetaShop() {
+      saveData = getSaveData();
+      const balEl = document.getElementById('meta-balance-val');
+      if (balEl) balEl.textContent = saveData.quantumShards.toLocaleString();
+
+      const grid = document.getElementById('meta-upgrades-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      META_UPGRADES_LIST.forEach(item => {
+        const curLvl = saveData.metaUpgrades[item.id] || 0;
+        const isMax = curLvl >= item.maxLevel;
+        const cost = Math.round(item.costBase * Math.pow(item.costMultiplier, curLvl));
+        const canAfford = saveData.quantumShards >= cost && !isMax;
+
+        const card = document.createElement('div');
+        card.className = 'meta-card';
+        card.innerHTML = `
+          <div>
+            <div class="meta-card-title">${item.icon} ${item.name}</div>
+            <div class="meta-card-desc">${item.desc}</div>
+          </div>
+          <div>
+            <div class="meta-card-progress">
+              <span>Уровень: <b>${curLvl} / ${item.maxLevel}</b></span>
+              <span style="color:#00ffcc;">${item.formatValue(curLvl)}</span>
+            </div>
+            <button class="meta-buy-btn" ${canAfford ? '' : 'disabled'}>
+              ${isMax ? 'МАКСИМУМ' : `Купить за ${cost} 💎`}
+            </button>
+          </div>
+        `;
+
+        const buyBtn = card.querySelector('.meta-buy-btn');
+        if (buyBtn && canAfford) {
+          buyBtn.addEventListener('click', () => {
+            saveData.quantumShards -= cost;
+            saveData.metaUpgrades[item.id] = curLvl + 1;
+            saveGameData(saveData);
+            sound.playSpecialAbility();
+            renderMetaShop();
+            renderReactorTree();
+            updateMenuUi();
+          });
+        }
+
+        grid.appendChild(card);
+      });
+    }
+
+    // 4th New Mechanic: Quantum Reactor Mastery Tree Render
+    function renderReactorTree() {
+      saveData = getSaveData();
+      const grid = document.getElementById('meta-reactor-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      REACTOR_NODES.forEach(node => {
+        const isUnlocked = !!saveData.reactorTree[node.id];
+        const canAfford = saveData.quantumShards >= node.cost && !isUnlocked;
+
+        const card = document.createElement('div');
+        card.className = `meta-card reactor-card ${isUnlocked ? 'unlocked' : ''}`;
+        card.innerHTML = `
+          <div>
+            <div class="meta-card-title">${node.icon} ${node.name}</div>
+            <div class="meta-card-desc">${node.desc}</div>
+          </div>
+          <div>
+            <div class="meta-card-progress">
+              <span>Ветка: <b>${node.branch.toUpperCase()}</b></span>
+              <span style="color:${isUnlocked ? '#00ffcc' : '#ffd700'};">${isUnlocked ? 'АКТИВЕН' : `${node.cost} 💎`}</span>
+            </div>
+            <button class="meta-buy-btn" ${canAfford ? '' : 'disabled'}>
+              ${isUnlocked ? '✓ РАЗБЛОКИРОВАНО' : `Активировать за ${node.cost} 💎`}
+            </button>
+          </div>
+        `;
+
+        const buyBtn = card.querySelector('.meta-buy-btn');
+        if (buyBtn && canAfford) {
+          buyBtn.addEventListener('click', () => {
+            saveData.quantumShards -= node.cost;
+            saveData.reactorTree[node.id] = true;
+            saveGameData(saveData);
+            sound.playSpecialAbility();
+            renderMetaShop();
+            renderReactorTree();
+            updateMenuUi();
+          });
+        }
+
+        grid.appendChild(card);
+      });
+    }
+
+    // MAIN GAME LOOP
+    function gameLoop(now: number) {
+      if (!engine) return;
+      const dt = Math.min(0.08, (now - lastTime) / 1000);
+      lastTime = now;
+
+      engine.update(dt);
+
+      // Check level up modal
+      if (engine.awaitingLevelUp && !modalLevelUp?.classList.contains('active')) {
+        modalLevelUp?.classList.add('active');
+        renderLevelUpCards();
+      }
+
+      // Check Boss Pact modal (3rd New Mechanic)
+      if (engine.awaitingBossPact && !modalBossPact?.classList.contains('active')) {
+        modalBossPact?.classList.add('active');
+        renderBossPacts();
+      }
+
+      // Check Game Over
+      if (engine.isGameOver && !modalGameOver?.classList.contains('active')) {
+        showGameOverSummary();
+      }
+
+      // Render all layers
+      renderSvgLayers(engine);
+      updateHudUi(engine);
+
+      if (!engine.isGameOver) {
+        animFrameId = requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function showGameOverSummary() {
+      if (!engine) return;
+      modalGameOver?.classList.add('active');
+      const score = engine.calculateScore();
+
+      const sumDiff = document.getElementById('sum-diff');
+      const sumWave = document.getElementById('sum-wave');
+      const sumKills = document.getElementById('sum-kills');
+      const sumCombo = document.getElementById('sum-combo');
+      const sumDmg = document.getElementById('sum-dmg');
+      const sumShards = document.getElementById('sum-shards');
+      const sumScore = document.getElementById('sum-score');
+
+      if (sumDiff) sumDiff.textContent = `${engine.difficulty.name} (x${engine.difficulty.multiplier})`;
+      if (sumWave) sumWave.textContent = engine.wave.toString();
+      if (sumKills) sumKills.textContent = engine.totalKills.toString();
+      if (sumCombo) sumCombo.textContent = `x${engine.highestCombo}`;
+      if (sumDmg) sumDmg.textContent = Math.round(engine.totalDamageDealt).toLocaleString();
+      if (sumShards) sumShards.textContent = `+${engine.shardsEarned.toLocaleString()} 💎`;
+      if (sumScore) sumScore.textContent = score.toLocaleString();
+    }
+
+    function updateHudUi(eng: GameEngine) {
+      // HP
+      const hpPct = Math.max(0, (eng.stats.currentHp / eng.stats.maxHp) * 100);
+      if (hudHpFill) hudHpFill.style.width = `${hpPct}%`;
+      if (hudHpText) hudHpText.textContent = `${Math.ceil(eng.stats.currentHp)} / ${eng.stats.maxHp}`;
+
+      // Shield
+      if (hudShieldFill) {
+        const shieldPct = eng.stats.maxShield > 0 ? (eng.stats.shield / eng.stats.maxShield) * 100 : 0;
+        hudShieldFill.style.width = `${shieldPct}%`;
+      }
+
+      // XP
+      const xpPct = Math.min(100, (eng.currentXp / eng.xpToNext) * 100);
+      if (hudXpFill) hudXpFill.style.width = `${xpPct}%`;
+      if (hudLevelText) hudLevelText.textContent = eng.level.toString();
+      if (hudXpText) hudXpText.textContent = `${eng.currentXp}/${eng.xpToNext}`;
+
+      // Wave & Timer
+      if (hudWaveVal) hudWaveVal.textContent = eng.wave.toString();
+      const timeLeft = Math.max(0, Math.ceil(eng.waveDuration - eng.waveTime));
+      const m = Math.floor(timeLeft / 60);
+      const s = timeLeft % 60;
+      if (hudWaveTime) hudWaveTime.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+      // Hyper-Resonance Overdrive HUD
+      if (hudOverdriveWrap) {
+        hudOverdriveWrap.style.display = eng.isHyperResonance ? 'block' : 'none';
+      }
+
+      // Boss Bar
+      if (eng.bossActive && eng.bossEntityId !== null) {
+        const boss = eng.enemies.find(e => e.id === eng.bossEntityId);
+        if (boss && hudBossBarWrap && hudBossFill) {
+          hudBossBarWrap.style.display = 'block';
+          if (hudBossName) {
+            const bTitle = boss.bossType === 'penta_colossus' ? 'ПЕНТА-КОЛОСС' : boss.bossType === 'octa_leviathan' ? 'ОКТА-ЛЕВИАФАН' : boss.bossType === 'void_icosahedron' ? 'ИКОСАЭДР ПУСТОТЫ' : 'ФРАКТАЛЬНЫЙ ПРАЙМ';
+            hudBossName.textContent = `БОСС: ${bTitle}`;
+          }
+          const bossPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
+          hudBossFill.style.width = `${bossPct}%`;
+        }
+      } else if (hudBossBarWrap) {
+        hudBossBarWrap.style.display = 'none';
+      }
+
+      // Shards & Kills
+      if (hudShardsVal) hudShardsVal.textContent = eng.shardsEarned.toString();
+      if (hudKillsVal) hudKillsVal.textContent = eng.totalKills.toString();
+
+      // Combo
+      if (hudComboPill && hudComboVal) {
+        if (eng.currentCombo >= 5) {
+          hudComboPill.style.display = 'flex';
+          hudComboVal.textContent = eng.currentCombo.toString();
+        } else {
+          hudComboPill.style.display = 'none';
+        }
+      }
+
+      // Cooldown overlays
+      if (dashCooldownOverlay) {
+        const pct = eng.dashCooldownTimer > 0 ? (eng.dashCooldownTimer / 1.6) * 100 : 0;
+        dashCooldownOverlay.style.height = `${pct}%`;
+      }
+      if (specialCooldownOverlay) {
+        const totalCd = eng.core.abilityCooldown * (1 - eng.stats.abilityCooldownReduction);
+        const pct = eng.abilityCooldownTimer > 0 ? (eng.abilityCooldownTimer / totalCd) * 100 : 0;
+        specialCooldownOverlay.style.height = `${pct}%`;
+      }
+
+      // Vampire Survivors Style Inventory Rendering (6 Weapons + 6 Passives)
+      if (invWeapons) {
+        let wHtml = '';
+        for (let i = 0; i < 6; i++) {
+          const wEntries = Array.from(eng.weapons.entries());
+          if (i < wEntries.length) {
+            const [wId, lvl] = wEntries[i];
+            const isEvo = wId in EVOLUTION_RECIPES;
+            const wDef = ALL_WEAPONS_LIST.find(w => w.id === wId) || (EVOLUTION_RECIPES as any)[wId];
+            const col = wDef?.color || '#00ffcc';
+            wHtml += `
+              <div class="inv-slot occupied ${isEvo ? 'is-evo' : ''}" title="${wDef?.name || wId}">
+                <div style="width:18px;height:18px;">
+                  <svg viewBox="0 0 40 40" style="width:100%;height:100%;">
+                    <polygon points="${getPolygonPoints(wDef?.iconSides || 4, 14, 20, 20)}" fill="${col}" />
+                  </svg>
+                </div>
+                <span class="inv-badge">${isEvo ? 'EVO' : lvl}</span>
+              </div>
+            `;
+          } else {
+            wHtml += `<div class="inv-slot"></div>`;
+          }
+        }
+        invWeapons.innerHTML = wHtml;
+      }
+
+      if (invPassives) {
+        let pHtml = '';
+        for (let j = 0; j < 6; j++) {
+          const pEntries = Array.from(eng.passives.entries());
+          if (j < pEntries.length) {
+            const [pId, lvl] = pEntries[j];
+            const pDef = ALL_PASSIVES_LIST.find(p => p.id === pId);
+            const col = pDef?.color || '#ffd700';
+            pHtml += `
+              <div class="inv-slot occupied" title="${pDef?.name || pId}">
+                <div style="width:18px;height:18px;">
+                  <svg viewBox="0 0 40 40" style="width:100%;height:100%;">
+                    <polygon points="${getPolygonPoints(5, 14, 20, 20)}" fill="${col}" />
+                  </svg>
+                </div>
+                <span class="inv-badge">${lvl}</span>
+              </div>
+            `;
+          } else {
+            pHtml += `<div class="inv-slot"></div>`;
+          }
+        }
+        invPassives.innerHTML = pHtml;
+      }
+    }
+
+    function renderSvgLayers(eng: GameEngine) {
+      // 1. Shockwaves, Vortices, Mines & Toxic Puddles
+      if (layerShockwaves) {
+        let swHtml = '';
+        eng.particles.filter(p => p.shape === 'ring').forEach(p => {
+          const r = p.radius * (1 - p.life / p.maxLife);
+          const op = p.life / p.maxLife;
+          swHtml += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="none" stroke="${p.color}" stroke-width="4" opacity="${op.toFixed(2)}" />`;
+        });
+        eng.mines.forEach(m => {
+          swHtml += `
+            <g transform="translate(${m.x.toFixed(1)}, ${m.y.toFixed(1)})">
+              <circle r="14" fill="rgba(245, 158, 11, 0.2)" stroke="#f59e0b" stroke-width="2" />
+              <polygon points="0,-10 9,6 -9,6" fill="#f59e0b" />
+            </g>
+          `;
+        });
+        eng.vortices.forEach(v => {
+          swHtml += `
+            <g transform="translate(${v.x.toFixed(1)}, ${v.y.toFixed(1)})">
+              <circle r="${v.radius.toFixed(1)}" fill="rgba(139, 92, 246, 0.15)" stroke="#8b5cf6" stroke-width="3" stroke-dasharray="10,6" />
+              <circle r="${(v.radius * 0.4).toFixed(1)}" fill="#000" stroke="#c084fc" stroke-width="2" />
+            </g>
+          `;
+        });
+        eng.toxicPuddles.forEach(tp => {
+          swHtml += `
+            <circle cx="${tp.x.toFixed(1)}" cy="${tp.y.toFixed(1)}" r="${tp.radius.toFixed(1)}" fill="rgba(132, 204, 22, 0.2)" stroke="#84cc16" stroke-width="2" />
+          `;
+        });
+        layerShockwaves.innerHTML = swHtml;
+      }
+
+      // 2. Gems
+      if (layerGems) {
+        let gemHtml = '';
+        eng.gems.forEach(g => {
+          const pts = getPolygonPoints(g.sides, g.radius, g.x, g.y, g.rotation);
+          gemHtml += `<polygon points="${pts}" fill="${g.color}" stroke="#fff" stroke-width="1.5" filter="url(#glow-cyan)" />`;
+        });
+        layerGems.innerHTML = gemHtml;
+      }
+
+      // 3. Projectiles
+      if (layerProjectiles) {
+        let projHtml = '';
+        eng.projectiles.forEach(p => {
+          if (p.shape === 'laser') {
+            projHtml += `
+              <line x1="${(p.x - p.vx * 0.03).toFixed(1)}" y1="${(p.y - p.vy * 0.03).toFixed(1)}" 
+                    x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" 
+                    stroke="${p.color}" stroke-width="${p.radius}" stroke-linecap="round" />
+            `;
+          } else if (p.shape === 'saw') {
+            const pts = getPolygonPoints(8, p.radius, p.x, p.y, p.rotation || 0);
+            projHtml += `<polygon points="${pts}" fill="${p.color}" stroke="#ffffff" stroke-width="3" filter="url(#glow-red)" />`;
+          } else if (p.shape === 'polygon') {
+            const pts = getPolygonPoints(4, p.radius, p.x, p.y, p.rotation || 0);
+            projHtml += `<polygon points="${pts}" fill="${p.color}" stroke="#ffffff" stroke-width="2" />`;
+          } else {
+            projHtml += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.radius.toFixed(1)}" fill="${p.color}" filter="url(#glow-magenta)" />`;
+          }
+        });
+        layerProjectiles.innerHTML = projHtml;
+      }
+
+      // 4. Enemies
+      if (layerEnemies) {
+        let enemyHtml = '';
+        eng.enemies.forEach(e => {
+          const pts = e.sides > 0 ? getPolygonPoints(e.sides, e.radius, 0, 0, e.rotation) : '';
+          let eliteAura = '';
+          if (e.isElite) {
+            eliteAura = `<circle r="${(e.radius * 1.3).toFixed(1)}" fill="none" stroke="${e.color}" stroke-width="2" stroke-dasharray="6,4" />`;
+          }
+
+          enemyHtml += `
+            <g transform="translate(${e.x.toFixed(1)}, ${e.y.toFixed(1)})">
+              ${eliteAura}
+              ${e.sides === 0 
+                ? `<circle r="${e.radius}" fill="${e.color}" stroke="${e.strokeColor}" stroke-width="2" />` 
+                : `<polygon points="${pts}" fill="${e.color}" stroke="${e.strokeColor}" stroke-width="3" />`
+              }
+              ${e.type === 'boss' ? `<circle r="20" fill="#ffd700" filter="url(#glow-gold)" />` : ''}
+            </g>
+          `;
+        });
+        layerEnemies.innerHTML = enemyHtml;
+      }
+
+      // 5. Player
+      if (layerPlayer) {
+        const pRot = (eng.playerRotation * 180) / Math.PI;
+        const playerPts = getPolygonPoints(eng.core.sides, 22, 0, 0, 0);
+
+        let shieldCircle = '';
+        if (eng.stats.shield > 0) {
+          shieldCircle = `<circle r="34" fill="none" stroke="#38bdf8" stroke-width="2.5" opacity="0.8" filter="url(#glow-blue)" />`;
+        }
+
+        // Orbitals
+        let orbitalsHtml = '';
+        if (eng.weapons.has('orbital_gliders') || eng.weapons.has('event_horizon')) {
+          const isEvo = eng.weapons.has('event_horizon');
+          const count = isEvo ? 8 : 2 + (eng.weapons.get('orbital_gliders') || 1);
+          const orbitR = isEvo ? 130 : 85;
+          for (let k = 0; k < count; k++) {
+            const angle = (k * Math.PI * 2) / count + eng.orbitalAngle;
+            const ox = Math.cos(angle) * orbitR;
+            const oy = Math.sin(angle) * orbitR;
+            orbitalsHtml += `
+              <g transform="translate(${ox.toFixed(1)}, ${oy.toFixed(1)})">
+                <polygon points="0,-12 10,8 -10,8" fill="${isEvo ? '#ffd700' : '#a855f7'}" stroke="#fff" stroke-width="1.5" />
+              </g>
+            `;
+          }
+        }
+
+        // Satellite
+        if (eng.weapons.has('orbital_laser_satellite')) {
+          const satAngle = eng.orbitalAngle * 1.5;
+          const sx = Math.cos(satAngle) * 160;
+          const sy = Math.sin(satAngle) * 160;
+          orbitalsHtml += `
+            <g transform="translate(${sx.toFixed(1)}, ${sy.toFixed(1)})">
+              <polygon points="0,-8 8,0 0,8 -8,0" fill="#00ffcc" stroke="#fff" stroke-width="1.5" filter="url(#glow-cyan)" />
+            </g>
+          `;
+        }
+
+        layerPlayer.innerHTML = `
+          <g transform="translate(${eng.px.toFixed(1)}, ${eng.py.toFixed(1)})">
+            ${shieldCircle}
+            ${orbitalsHtml}
+            <g transform="rotate(${pRot.toFixed(1)})">
+              <polygon points="${playerPts}" fill="${eng.isHyperResonance ? '#ffd700' : eng.core.color}" stroke="#ffffff" stroke-width="3" filter="url(#glow-cyan)" />
+              <circle cx="6" cy="0" r="4" fill="#ffffff" />
+            </g>
+          </g>
+        `;
+      }
+
+      // 6. Particles
+      if (layerParticles) {
+        let partHtml = '';
+        eng.particles.filter(p => p.shape !== 'ring').forEach(p => {
+          const op = (p.life / p.maxLife).toFixed(2);
+          if (p.shape === 'polygon' && p.sides) {
+            const pts = getPolygonPoints(p.sides, p.radius, p.x, p.y, p.rotation || 0);
+            partHtml += `<polygon points="${pts}" fill="${p.color}" opacity="${op}" />`;
+          } else {
+            partHtml += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.radius.toFixed(1)}" fill="${p.color}" opacity="${op}" />`;
+          }
+        });
+        layerParticles.innerHTML = partHtml;
+      }
+
+      // 7. Floating Texts
+      if (layerFloatingTexts) {
+        let ftHtml = '';
+        eng.floatingTexts.forEach(ft => {
+          ftHtml += `
+            <text x="${ft.x.toFixed(1)}" y="${ft.y.toFixed(1)}" 
+                  fill="${ft.color}" font-size="${ft.fontSize}px" font-weight="900" 
+                  text-anchor="middle" opacity="${ft.opacity.toFixed(2)}"
+                  style="filter: drop-shadow(0 0 3px #000);">
+              ${ft.text}
+            </text>
+          `;
+        });
+        layerFloatingTexts.innerHTML = ftHtml;
+      }
+    }
+  }
+</script>

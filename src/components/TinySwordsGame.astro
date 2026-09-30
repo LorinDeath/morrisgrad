@@ -1,0 +1,1296 @@
+---
+// TinySwordsGame.astro - "Путь Аскетов: Осада МоррисГрад"
+// Полная RTS / Action-RPG стратегия с защитой цитадели на базе ассетов Tiny Swords
+---
+
+<div id="ascetic-game-container" class="ascetic-game-root">
+  <!-- START / MENU SCREEN -->
+  <div id="screen-menu" class="game-screen active">
+    <div class="menu-overlay">
+      <div class="menu-card">
+        <div class="menu-badge">ОРДЕН АСКЕТОВ • МОРРИСГРАД</div>
+        <h1 class="game-title">ПУТЬ АСКЕТОВ</h1>
+        <div class="game-subtitle">ОСАДА ЦИТАДЕЛИ: ДРЕВНИЙ ОСТРОВ</div>
+        
+        <div class="menu-intro">
+          В суровых землях МоррисГрада орден Аскетов охраняет древний Источник Света.
+          Черный Легион идет войной. Возводите крепость, добывайте дерево и золото, 
+          нанимайте верных послушников, лучников и монахов, и встаньте плечом к плечу 
+          с верными воинами на защиту цитадели!
+        </div>
+
+        <div class="mode-select-box">
+          <div class="mode-btn active" data-mode="campaign">
+            <span class="mode-icon">🛡️</span>
+            <div class="mode-text">
+              <span class="mode-name">Священная Кампания</span>
+              <span class="mode-desc">10 волн испытаний с финальным Владыкой Тьмы</span>
+            </div>
+          </div>
+          <div class="mode-btn" data-mode="endless">
+            <span class="mode-icon">⚔️</span>
+            <div class="mode-text">
+              <span class="mode-name">Бесконечная Осада</span>
+              <span class="mode-desc">Выживайте против нарастающих полчищ Черного Легиона</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="difficulty-box">
+          <span class="diff-label">Сложность:</span>
+          <button class="diff-chip" data-diff="easy">Послушник (Легко)</button>
+          <button class="diff-chip active" data-diff="normal">Рыцарь (Норма)</button>
+          <button class="diff-chip" data-diff="hard">Аскет (Хардкор)</button>
+        </div>
+
+        <div class="menu-actions">
+          <button id="btn-start-game" class="btn-primary-action">
+            <span class="btn-main-text">ВСТУПИТЬ В БОЙ</span>
+            <span class="btn-sub-text">ПРИНЯТЬ ОБЕТ АСКЕТА</span>
+          </button>
+        </div>
+
+        <div class="menu-quick-stats">
+          <span>🏆 Рекорд волн: <b id="stat-high-wave">0</b></span>
+          <span>💀 Уничтожено врагов: <b id="stat-high-kills">0</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GAME CANVAS & WORLD -->
+  <div id="screen-game" class="game-screen">
+    <!-- Top HUD Bar -->
+    <header class="hud-header">
+      <div class="hud-left">
+        <!-- Hero Status -->
+        <div class="hero-status-pill">
+          <img src="/Tiny Swords/UI Elements/UI Elements/Human Avatars/Avatars_01.png" alt="Hero Avatar" class="hero-avatar" />
+          <div class="hero-bars">
+            <div class="hero-name-row">
+              <span class="hero-title">Архистратиг Аскетов</span>
+              <span class="hero-lvl">Ур. <b id="hud-hero-lvl">1</b></span>
+            </div>
+            <div class="bar-track hp-track">
+              <div id="hud-hero-hp" class="bar-fill hp-fill" style="width: 100%;"></div>
+              <span id="hud-hero-hp-text" class="bar-text">100 / 100</span>
+            </div>
+            <div class="bar-track xp-track">
+              <div id="hud-hero-xp" class="bar-fill xp-fill" style="width: 0%;"></div>
+              <span id="hud-hero-xp-text" class="bar-text">0 / 100 XP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Castle Health -->
+        <div class="castle-status-pill">
+          <span class="castle-icon">🏰</span>
+          <div class="castle-info">
+            <div class="castle-label">Цитадель Аскетов</div>
+            <div class="bar-track castle-track">
+              <div id="hud-castle-hp" class="bar-fill castle-fill" style="width: 100%;"></div>
+              <span id="hud-castle-hp-text" class="bar-text">2000 / 2000</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time & Wave Center Indicator -->
+      <div class="hud-center">
+        <div class="wave-box">
+          <div id="hud-phase-indicator" class="phase-badge day">☀️ ДЕНЬ (СБОР)</div>
+          <div class="time-countdown">
+            <span id="hud-timer-label">До атаки:</span>
+            <span id="hud-countdown" class="timer-digits">00:45</span>
+          </div>
+          <div class="wave-count">Волна <span id="hud-current-wave">1</span> / <span id="hud-max-wave">10</span></div>
+        </div>
+        
+        <!-- Boss Bar (Hidden until boss arrives) -->
+        <div id="hud-boss-wrap" class="boss-hud-bar" style="display: none;">
+          <div class="boss-title">ВЛАДЫКА ПУСТОТЫ: ВЕЛИКИЙ ЕРЕТИК</div>
+          <div class="bar-track boss-track">
+            <div id="hud-boss-hp" class="bar-fill boss-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resources & Controls Right -->
+      <div class="hud-right">
+        <div class="resources-row">
+          <div class="res-item wood" title="Древесина">
+            <img src="/Tiny Swords/Terrain/Resources/Wood/Wood Resource/Wood Resource.png" alt="Wood" class="res-icon" />
+            <span id="res-wood-val">120</span>
+          </div>
+          <div class="res-item gold" title="Золото">
+            <img src="/Tiny Swords/Terrain/Resources/Gold/Gold Stones/Gold Stone 1.png" alt="Gold" class="res-icon" />
+            <span id="res-gold-val">150</span>
+          </div>
+          <div class="res-item food" title="Провизия">
+            <img src="/Tiny Swords/Terrain/Resources/Meat/Meat Resource/Meat Resource.png" alt="Food" class="res-icon" />
+            <span id="res-food-val">40</span>
+          </div>
+          <div class="res-item pop" title="Население">
+            <span class="res-icon-text">👥</span>
+            <span id="res-pop-val">3/10</span>
+          </div>
+        </div>
+
+        <div class="hud-controls-btns">
+          <button id="btn-toggle-sound" class="hud-mini-btn" title="Звук">🔊</button>
+          <button id="btn-pause" class="hud-mini-btn" title="Пауза">⏸️</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Canvas Playfield -->
+    <div id="canvas-wrapper" class="canvas-wrapper">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Mini-map Radar -->
+      <div class="minimap-container">
+        <canvas id="minimap-canvas" width="160" height="120"></canvas>
+        <div class="minimap-title">КАРТА ЗЕМЕЛЬ</div>
+      </div>
+
+      <!-- Quick Command Buttons -->
+      <div class="army-command-bar">
+        <button id="cmd-follow" class="cmd-btn active" title="Приказ: Все солдаты следуют за Архистратигом">
+          🛡️ ЗА МНОЙ! (F)
+        </button>
+        <button id="cmd-defend" class="cmd-btn" title="Приказ: Оборонять Цитадель">
+          🏰 ОБОРОНА (G)
+        </button>
+        <button id="cmd-attack" class="cmd-btn" title="Приказ: Свободная охота на врагов">
+          ⚔️ В АТАКУ! (T)
+        </button>
+        <button id="cmd-hire-pawn" class="cmd-btn recruit-pawn" title="Нанять послушника (30 Золота, 10 Еды)">
+          ➕ ПОСЛУШНИК (1)
+        </button>
+      </div>
+
+      <!-- Action Hero Skills Toolbar -->
+      <div class="hero-skills-bar">
+        <div id="skill-attack" class="skill-slot">
+          <div class="skill-key">ЛКМ / ПРОБЕЛ</div>
+          <div class="skill-icon">🗡️</div>
+          <div class="skill-name">УДАР МЕЧОМ</div>
+        </div>
+        <div id="skill-guard" class="skill-slot">
+          <div class="skill-key">ПКМ / SHIFT</div>
+          <div class="skill-icon">🛡️</div>
+          <div class="skill-name">БЛОК ЩИТОМ</div>
+        </div>
+        <div id="skill-whirl" class="skill-slot">
+          <div class="skill-key">Q</div>
+          <div class="skill-icon">🌪️</div>
+          <div class="skill-name">ВИХРЬ АСКЕТА</div>
+          <div id="cd-whirl" class="skill-cd-mask"></div>
+        </div>
+        <div id="skill-dash" class="skill-slot">
+          <div class="skill-key">SPACE / E</div>
+          <div class="skill-icon">⚡</div>
+          <div class="skill-name">РЫВОК ВЕРЫ</div>
+          <div id="cd-dash" class="skill-cd-mask"></div>
+        </div>
+        <div id="skill-rally" class="skill-slot">
+          <div class="skill-key">R</div>
+          <div class="skill-icon">🎺</div>
+          <div class="skill-name">КЛИЧ ПОБЕДЫ</div>
+          <div id="cd-rally" class="skill-cd-mask"></div>
+        </div>
+      </div>
+
+      <!-- Construction / Recruitment Building Panel -->
+      <div class="building-bar">
+        <div class="build-bar-header">СТРОИТЕЛЬСТВО И НАЙМ (КЛИК ДЛЯ РАЗМЕЩЕНИЯ):</div>
+        <div class="build-slots">
+          <button class="build-card" data-build="barracks">
+            <img src="/Tiny Swords/Buildings/Blue Buildings/Barracks.png" alt="Barracks" />
+            <div class="build-card-info">
+              <span class="build-name">Казармы</span>
+              <span class="build-cost">🪵 80 🪙 50</span>
+            </div>
+          </button>
+
+          <button class="build-card" data-build="archery">
+            <img src="/Tiny Swords/Buildings/Blue Buildings/Archery.png" alt="Archery" />
+            <div class="build-card-info">
+              <span class="build-name">Стрельбище</span>
+              <span class="build-cost">🪵 70 🪙 60</span>
+            </div>
+          </button>
+
+          <button class="build-card" data-build="monastery">
+            <img src="/Tiny Swords/Buildings/Blue Buildings/Monastery.png" alt="Monastery" />
+            <div class="build-card-info">
+              <span class="build-name">Монастырь</span>
+              <span class="build-cost">🪵 100 🪙 90</span>
+            </div>
+          </button>
+
+          <button class="build-card" data-build="tower">
+            <img src="/Tiny Swords/Buildings/Blue Buildings/Tower.png" alt="Tower" />
+            <div class="build-card-info">
+              <span class="build-name">Башня Лучников</span>
+              <span class="build-cost">🪵 60 🪙 40</span>
+            </div>
+          </button>
+
+          <button class="build-card" data-build="house">
+            <img src="/Tiny Swords/Buildings/Blue Buildings/House1.png" alt="House" />
+            <div class="build-card-info">
+              <span class="build-name">Хижина (+5 Поп.)</span>
+              <span class="build-cost">🪵 40 🪙 20</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile Touch Controls -->
+      <div id="mobile-touch-controls" class="mobile-controls">
+        <div id="virtual-joystick" class="joystick-base">
+          <div id="joystick-knob" class="joystick-thumb"></div>
+        </div>
+        <div class="mobile-actions">
+          <button id="touch-btn-attack" class="touch-action-btn btn-atk">⚔️ Удар</button>
+          <button id="touch-btn-guard" class="touch-action-btn btn-def">🛡️ Блок</button>
+          <button id="touch-btn-dash" class="touch-action-btn btn-dash">⚡ Рывок</button>
+          <button id="touch-btn-whirl" class="touch-action-btn btn-whirl">🌪️ Вихрь</button>
+        </div>
+      </div>
+
+      <!-- Interactive Tooltip Overlay -->
+      <div id="hud-interaction-tip" class="interaction-tip">
+        Кликните, чтобы разместить здание (ESC — отмена)
+      </div>
+    </div>
+  </div>
+
+  <!-- UPGRADE / PERK MODAL (Between waves) -->
+  <div id="modal-upgrade" class="game-modal-overlay">
+    <div class="modal-box upgrade-box">
+      <div class="modal-ribbon">СВЯЩЕННЫЙ КОДЕКС АСКЕТОВ</div>
+      <h2 class="modal-heading">ВОЛНА ВЫДЕРЖАНА! ВЫБЕРИТЕ БЛАГОСЛОВЕНИЕ</h2>
+      <p class="modal-sub">Укрепите свою армию и королевство силой молитв и ратного мастерства</p>
+      
+      <div id="upgrade-cards-list" class="upgrade-cards-grid">
+        <!-- Populated via script -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div id="modal-pause" class="game-modal-overlay">
+    <div class="modal-box">
+      <h2 class="modal-heading">СВЯЩЕННАЯ ПАУЗА</h2>
+      <p class="modal-sub">Битва приостановлена. Время составить тактический план.</p>
+      
+      <div class="modal-actions-column">
+        <button id="btn-resume" class="btn-action primary">ПРОДОЛЖИТЬ СРАЖЕНИЕ</button>
+        <button id="btn-restart" class="btn-action warning">НАЧАТЬ ЗАНОВО</button>
+        <button id="btn-to-menu" class="btn-action secondary">ВЫЙТИ В МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER / VICTORY MODAL -->
+  <div id="modal-gameover" class="game-modal-overlay">
+    <div class="modal-box gameover-box">
+      <div id="gameover-ribbon" class="modal-ribbon">ПАДЕНИЕ ЦИТАДЕЛИ</div>
+      <h2 id="gameover-title" class="modal-heading text-defeat">ТЬМА ПОГЛОТИЛА МОРРИСГРАД</h2>
+      <p id="gameover-desc" class="modal-sub">Цитадель Аскетов пала под натиском Черного Легиона...</p>
+
+      <div class="gameover-stats-grid">
+        <div class="go-stat">
+          <span class="go-label">Выдержано волн:</span>
+          <b id="go-wave-val">0</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Уничтожено врагов:</span>
+          <b id="go-kills-val">0</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Собрано древесины:</span>
+          <b id="go-wood-val">0</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Добыто золота:</span>
+          <b id="go-gold-val">0</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Обучено воинов:</span>
+          <b id="go-recruits-val">0</b>
+        </div>
+        <div class="go-stat highlight">
+          <span class="go-label">ИТОГОВЫЙ СЧЕТ:</span>
+          <b id="go-score-val">0</b>
+        </div>
+      </div>
+
+      <div class="modal-actions-column">
+        <button id="btn-try-again" class="btn-action primary">ПОПРОБОВАТЬ СНОВА</button>
+        <button id="btn-go-menu" class="btn-action secondary">В ГЛАВНОЕ МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  .ascetic-game-root {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: #0a0b10;
+    color: #f1f5f9;
+    font-family: 'Cinzel', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .game-screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .game-screen.active {
+    display: flex;
+  }
+
+  /* MENU SCREEN */
+  #screen-menu {
+    background: radial-gradient(circle at center, #1b2030 0%, #07090e 100%);
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem;
+  }
+
+  .menu-overlay {
+    width: 100%;
+    max-width: 680px;
+    background: rgba(15, 20, 32, 0.95);
+    border: 3px solid #d4af37;
+    border-radius: 16px;
+    padding: 2.2rem 2rem;
+    box-shadow: 0 0 50px rgba(212, 175, 55, 0.25), inset 0 0 30px rgba(0, 0, 0, 0.8);
+    text-align: center;
+    position: relative;
+    backdrop-filter: blur(8px);
+  }
+
+  .menu-badge {
+    display: inline-block;
+    background: rgba(212, 175, 55, 0.15);
+    color: #ffd700;
+    border: 1px solid #d4af37;
+    padding: 4px 16px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    margin-bottom: 0.8rem;
+  }
+
+  .game-title {
+    font-size: 2.6rem;
+    font-weight: 900;
+    color: #ffd700;
+    margin: 0;
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 2px 4px #000;
+  }
+
+  .game-subtitle {
+    font-size: 0.95rem;
+    color: #94a3b8;
+    letter-spacing: 3px;
+    margin-top: 0.3rem;
+    margin-bottom: 1.2rem;
+    font-weight: 700;
+  }
+
+  .menu-intro {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+    margin-bottom: 1.6rem;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    border-left: 3px solid #d4af37;
+    text-align: left;
+  }
+
+  .mode-select-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 2px solid #475569;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+  }
+
+  .mode-btn:hover {
+    border-color: #ffd700;
+    background: rgba(212, 175, 55, 0.1);
+  }
+
+  .mode-btn.active {
+    border-color: #ffd700;
+    background: rgba(212, 175, 55, 0.2);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+  }
+
+  .mode-icon {
+    font-size: 1.6rem;
+  }
+
+  .mode-name {
+    display: block;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: #f8fafc;
+  }
+
+  .mode-desc {
+    display: block;
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+
+  .difficulty-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .diff-label {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-weight: 700;
+  }
+
+  .diff-chip {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid #475569;
+    color: #cbd5e1;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .diff-chip:hover {
+    border-color: #ffd700;
+    color: #ffd700;
+  }
+
+  .diff-chip.active {
+    background: #d4af37;
+    color: #07090e;
+    border-color: #ffd700;
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.4);
+  }
+
+  .btn-primary-action {
+    background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+    color: #000;
+    border: none;
+    padding: 14px 40px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 900;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+    transition: all 0.25s ease;
+  }
+
+  .btn-primary-action:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 45px rgba(212, 175, 55, 0.8);
+    background: linear-gradient(135deg, #ffd700 0%, #d4af37 100%);
+  }
+
+  .btn-main-text {
+    font-size: 1.25rem;
+    letter-spacing: 2px;
+  }
+
+  .btn-sub-text {
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    opacity: 0.85;
+  }
+
+  .menu-quick-stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+    color: #94a3b8;
+  }
+
+  .menu-quick-stats b {
+    color: #ffd700;
+  }
+
+  /* HUD HEADER */
+  .hud-header {
+    position: absolute;
+    top: 10px;
+    left: 15px;
+    right: 15px;
+    height: 70px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .hud-left, .hud-center, .hud-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
+  }
+
+  .hero-status-pill, .castle-status-pill {
+    background: rgba(15, 23, 42, 0.88);
+    border: 2px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+  }
+
+  .hero-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    border: 2px solid #ffd700;
+    background: #000;
+    object-fit: cover;
+    image-rendering: pixelated;
+  }
+
+  .hero-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 150px;
+  }
+
+  .hero-name-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ffd700;
+  }
+
+  .bar-track {
+    position: relative;
+    width: 100%;
+    height: 10px;
+    background: #090d16;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .bar-fill {
+    height: 100%;
+    transition: width 0.15s ease-out;
+  }
+
+  .hp-fill { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .xp-fill { background: linear-gradient(90deg, #06b6d4, #3b82f6); }
+  .castle-fill { background: linear-gradient(90deg, #10b981, #34d399); }
+  .boss-fill { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+
+  .bar-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .castle-icon {
+    font-size: 1.8rem;
+  }
+
+  .castle-info {
+    width: 140px;
+  }
+
+  .castle-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #34d399;
+    margin-bottom: 2px;
+  }
+
+  /* Center Wave Display */
+  .wave-box {
+    background: rgba(15, 23, 42, 0.92);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    padding: 6px 18px;
+    text-align: center;
+    box-shadow: 0 0 25px rgba(212, 175, 55, 0.35);
+  }
+
+  .phase-badge {
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+
+  .phase-badge.day { color: #f59e0b; }
+  .phase-badge.night { color: #ef4444; text-shadow: 0 0 8px #ef4444; }
+
+  .time-countdown {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+
+  .timer-digits {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #fff;
+    font-family: monospace;
+  }
+
+  .wave-count {
+    font-size: 0.72rem;
+    color: #ffd700;
+    font-weight: 800;
+  }
+
+  .boss-hud-bar {
+    width: 260px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #a855f7;
+    border-radius: 8px;
+    padding: 4px 8px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+  }
+
+  .boss-title {
+    font-size: 0.68rem;
+    font-weight: 900;
+    color: #d8b4fe;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+
+  /* Resources */
+  .resources-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 2px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 6px 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+  }
+
+  .res-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 800;
+    font-size: 0.9rem;
+  }
+
+  .res-item.wood { color: #86efac; }
+  .res-item.gold { color: #fde047; }
+  .res-item.food { color: #fca5a5; }
+  .res-item.pop { color: #93c5fd; }
+
+  .res-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+
+  .res-icon-text {
+    font-size: 1.1rem;
+  }
+
+  .hud-mini-btn {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1.5px solid #475569;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .hud-mini-btn:hover {
+    border-color: #ffd700;
+    transform: scale(1.05);
+  }
+
+  /* CANVAS PLAYFIELD */
+  .canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  #game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  /* Minimap */
+  .minimap-container {
+    position: absolute;
+    top: 90px;
+    right: 15px;
+    background: rgba(10, 15, 25, 0.85);
+    border: 2px solid #d4af37;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    pointer-events: auto;
+  }
+
+  #minimap-canvas {
+    display: block;
+    background: #0f172a;
+  }
+
+  .minimap-title {
+    font-size: 0.65rem;
+    text-align: center;
+    background: #000;
+    color: #ffd700;
+    font-weight: 800;
+    padding: 2px 0;
+    letter-spacing: 1px;
+  }
+
+  /* Army Command Bar */
+  .army-command-bar {
+    position: absolute;
+    top: 90px;
+    left: 15px;
+    display: flex;
+    gap: 8px;
+    z-index: 50;
+    pointer-events: auto;
+  }
+
+  .cmd-btn {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1.5px solid #475569;
+    color: #e2e8f0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cmd-btn:hover {
+    border-color: #ffd700;
+    color: #ffd700;
+  }
+
+  .cmd-btn.active {
+    background: rgba(212, 175, 55, 0.25);
+    border-color: #ffd700;
+    color: #ffd700;
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.35);
+  }
+
+  .cmd-btn.recruit-pawn {
+    border-color: #10b981;
+    color: #34d399;
+  }
+
+  .cmd-btn.recruit-pawn:hover {
+    background: rgba(16, 185, 129, 0.2);
+  }
+
+  /* Hero Skills Bar */
+  .hero-skills-bar {
+    position: absolute;
+    bottom: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 2px solid rgba(212, 175, 55, 0.5);
+    padding: 6px 14px;
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    z-index: 50;
+    pointer-events: auto;
+  }
+
+  .skill-slot {
+    position: relative;
+    width: 65px;
+    height: 65px;
+    background: #090d16;
+    border: 2px solid #334155;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .skill-slot:hover {
+    border-color: #ffd700;
+  }
+
+  .skill-key {
+    font-size: 0.55rem;
+    color: #94a3b8;
+    font-weight: 800;
+  }
+
+  .skill-icon {
+    font-size: 1.4rem;
+    margin: 2px 0;
+  }
+
+  .skill-name {
+    font-size: 0.52rem;
+    color: #cbd5e1;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .skill-cd-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    height: 0%;
+    bottom: 0;
+    top: auto;
+    pointer-events: none;
+    transition: height 0.1s linear;
+  }
+
+  /* Construction Bar */
+  .building-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #d4af37;
+    border-radius: 12px;
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+    z-index: 50;
+    pointer-events: auto;
+  }
+
+  .build-bar-header {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #d4af37;
+    letter-spacing: 1px;
+  }
+
+  .build-slots {
+    display: flex;
+    gap: 8px;
+  }
+
+  .build-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1.5px solid #475569;
+    border-radius: 8px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .build-card:hover {
+    border-color: #ffd700;
+    background: rgba(212, 175, 55, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .build-card.selected {
+    border-color: #ffd700;
+    background: rgba(212, 175, 55, 0.3);
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.5);
+  }
+
+  .build-card img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+
+  .build-card-info {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  .build-name {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #f8fafc;
+  }
+
+  .build-cost {
+    font-size: 0.65rem;
+    color: #ffd700;
+    font-weight: 700;
+  }
+
+  /* Interaction Tooltip */
+  .interaction-tip {
+    position: absolute;
+    bottom: 95px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #ffd700;
+    color: #ffd700;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: none;
+    pointer-events: none;
+    z-index: 60;
+  }
+
+  /* Mobile Touch Controls */
+  .mobile-controls {
+    display: none;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  .joystick-base {
+    position: absolute;
+    bottom: 25px;
+    left: 25px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .joystick-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #ffd700;
+    box-shadow: 0 0 10px #ffd700;
+  }
+
+  .mobile-actions {
+    position: absolute;
+    bottom: 25px;
+    right: 25px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    pointer-events: auto;
+  }
+
+  .touch-action-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.85);
+    border: 2px solid #ffd700;
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  @media (max-width: 900px) {
+    .mobile-controls { display: block; }
+    .hero-skills-bar { bottom: 100px; }
+    .building-bar { bottom: 5px; }
+  }
+
+  /* MODALS */
+  .game-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
+  }
+
+  .game-modal-overlay.active {
+    display: flex;
+  }
+
+  .modal-box {
+    background: linear-gradient(135deg, #161b26 0%, #0b0e14 100%);
+    border: 3px solid #d4af37;
+    border-radius: 16px;
+    padding: 2.2rem;
+    max-width: 580px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(212, 175, 55, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.8);
+    position: relative;
+  }
+
+  .modal-ribbon {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #d4af37;
+    color: #000;
+    font-weight: 900;
+    font-size: 0.8rem;
+    padding: 4px 20px;
+    border-radius: 20px;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-heading {
+    color: #ffd700;
+    font-size: 1.6rem;
+    margin: 0.5rem 0;
+    letter-spacing: 1px;
+  }
+
+  .modal-heading.text-defeat {
+    color: #ef4444;
+  }
+
+  .modal-sub {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Upgrade Cards Grid */
+  .upgrade-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .upgrade-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 2px solid #475569;
+    border-radius: 12px;
+    padding: 1rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.25s;
+    text-align: center;
+  }
+
+  .upgrade-card:hover {
+    border-color: #ffd700;
+    background: rgba(212, 175, 55, 0.15);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.25);
+  }
+
+  .upgrade-icon {
+    font-size: 2rem;
+  }
+
+  .upgrade-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #f8fafc;
+  }
+
+  .upgrade-desc {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.3;
+  }
+
+  /* Game Over Stats */
+  .gameover-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1rem 1.4rem;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+
+  .go-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+  }
+
+  .go-stat.highlight {
+    grid-column: span 2;
+    border-top: 1px solid rgba(212, 175, 55, 0.4);
+    padding-top: 6px;
+    margin-top: 4px;
+    color: #ffd700;
+    font-size: 1rem;
+    font-weight: 800;
+  }
+
+  .modal-actions-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn-action {
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+
+  .btn-action.primary {
+    background: #d4af37;
+    color: #000;
+  }
+
+  .btn-action.primary:hover {
+    background: #ffd700;
+    box-shadow: 0 0 20px #ffd700;
+    transform: scale(1.03);
+  }
+
+  .btn-action.warning {
+    background: #f59e0b;
+    color: #000;
+  }
+
+  .btn-action.warning:hover {
+    background: #fbbf24;
+  }
+
+  .btn-action.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    border: 1px solid #475569;
+  }
+
+  .btn-action.secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #ffd700;
+  }
+</style>
+
+<script>
+  import { TinySwordsEngine } from './tinyswords/engine';
+
+  let engineInstance: TinySwordsEngine | null = null;
+
+  document.addEventListener('astro:page-load', () => {
+    const root = document.getElementById('ascetic-game-container');
+    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const minimapCanvas = document.getElementById('minimap-canvas') as HTMLCanvasElement;
+    if (!root || !canvas || !minimapCanvas) return;
+
+    if (engineInstance) {
+      engineInstance.destroy();
+      engineInstance = null;
+    }
+
+    engineInstance = new TinySwordsEngine(canvas, minimapCanvas, root);
+  });
+</script>
