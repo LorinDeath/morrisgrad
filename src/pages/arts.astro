@@ -1,25 +1,103 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
-import galleryData from '../data/gallery.json';
 
-const R2_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+export const prerender = false;
 
-interface ArtItem {
+const R2_PUBLIC_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+
+export interface ArtItem {
+  id: string;
   name: string;
+  filename: string;
   url: string;
   category: string;
   tag: string;
-  filename: string;
+  size: number;
+  uploaded: string;
 }
 
-const galleryItems: ArtItem[] = galleryData.map((item) => ({
-  name: item.name,
-  filename: item.filename,
-  url: `${R2_BASE}/artcollection/art/${encodeURIComponent(item.filename)}`,
-  category: item.category,
-  tag: item.tag,
-}));
+let galleryItems: ArtItem[] = [];
+
+// Динамическое получение актуального списка артов из Cloudflare R2 на сервере
+try {
+  const localsAny = Astro.locals as any;
+  const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+  const bucket = env.ARTCOLLECTION_BUCKET;
+
+  if (bucket) {
+    let truncated = true;
+    let cursor: string | undefined = undefined;
+    const allObjects: any[] = [];
+
+    while (truncated) {
+      const res = await bucket.list({
+        prefix: 'art/',
+        limit: 1000,
+        cursor,
+      });
+
+      if (res?.objects) {
+        allObjects.push(...res.objects);
+      }
+
+      truncated = !!res.truncated;
+      cursor = res.cursor;
+    }
+
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'];
+    const validObjects = allObjects.filter((obj) => {
+      if (!obj.key || obj.key.endsWith('/') || obj.size === 0) return false;
+      const lower = obj.key.toLowerCase();
+      return imageExtensions.some((ext) => lower.endsWith(ext));
+    });
+
+    galleryItems = validObjects.map((obj, index) => {
+      const filename = obj.key.replace(/^art\//, '');
+      const rawName = filename.replace(/\.[^/.]+$/, '');
+      const cleanName = rawName.replace(/_/g, ' ').trim();
+
+      let category = 'all';
+      let tag = 'Архив';
+
+      const lower = filename.toLowerCase();
+      if (lower.includes('lorin') || lower.includes('лорин') || lower.includes('girl')) {
+        category = 'lorin';
+        tag = 'Лорин';
+      } else if (lower.includes('veles') || lower.includes('велес') || lower.includes('man') || lower.includes('guy')) {
+        category = 'veles';
+        tag = 'Велес & Стражи';
+      } else if (lower.includes('noir') || lower.includes('dark') || lower.includes('арт-деко')) {
+        category = 'artdeco';
+        tag = 'Тёмное Арт-деко';
+      } else if (lower.includes('combat') || lower.includes('sword') || lower.includes('арен')) {
+        category = 'combat';
+        tag = 'Боевые Арены';
+      }
+
+      const encodedKey = obj.key
+        .split('/')
+        .map((segment: string) => encodeURIComponent(segment))
+        .join('/');
+
+      return {
+        id: `art-${index + 1}`,
+        name: cleanName || `Экспонат #${index + 1}`,
+        filename,
+        url: `${R2_PUBLIC_BASE}/${encodedKey}`,
+        category,
+        tag,
+        size: obj.size,
+        uploaded: obj.uploaded ? new Date(obj.uploaded).toISOString() : new Date().toISOString(),
+      };
+    });
+
+    // Сортировка: новые загрузки вверху
+    galleryItems.sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime());
+  }
+} catch (err) {
+  console.error('Ошибка прямого SSR чтения R2 бакета artcollection:', err);
+}
 ---
 
 <Layout title="Галерея Персонажей | МоррисГрад">
@@ -37,13 +115,14 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
       <p class="gallery-subtitle">Визуальные архивы и хроники жителей Обители Смерти</p>
       
       <div class="gallery-count-badge">
-        <span class="badge-dot"></span> Найдено работ: <strong>{galleryItems.length}</strong>
+        <span class="badge-dot"></span> 
+        <span>Найдено работ: <strong id="gallery-total-count">{galleryItems.length}</strong></span>
       </div>
     </header>
 
     <!-- Фильтры категорий в стиле Арт-Деко -->
     <nav class="gallery-filters-nav" aria-label="Фильтры галереи">
-      <button class="filter-tab active" data-filter="all">Все арты ({galleryItems.length})</button>
+      <button class="filter-tab active" data-filter="all">Все арты (<span id="filter-all-count">{galleryItems.length}</span>)</button>
       <button class="filter-tab" data-filter="lorin">Лорин Дэс</button>
       <button class="filter-tab" data-filter="veles">Велес & Стражи</button>
       <button class="filter-tab" data-filter="artdeco">Тёмное Арт-Деко</button>
@@ -52,10 +131,16 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
 
     <div class="shimmer-line"></div>
 
+    <!-- Загрузочный спиннер (если данные подгружаются на клиенте) -->
+    <div id="gallery-loader" class="gallery-loader" style={galleryItems.length > 0 ? "display: none;" : "display: flex;"}>
+      <div class="spinner-core"></div>
+      <p>Синхронизация с хранилищем Cloudflare R2...</p>
+    </div>
+
     <!-- Сетка артов галереи -->
     <section class="gallery-masonry-grid" id="gallery-grid">
-      {galleryItems.map((item, idx) => (
-        <article class="gallery-art-card" data-category={item.category}>
+      {galleryItems.map((item) => (
+        <article class="gallery-art-card" data-category={item.category} data-src={item.url} data-name={item.name} data-tag={item.tag}>
           <!-- Арт-деко уголки -->
           <div class="deco-bracket br-top-left"></div>
           <div class="deco-bracket br-top-right"></div>
@@ -68,8 +153,6 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
               alt={item.name} 
               class="art-real-img" 
               loading="lazy" 
-              data-filename={encodeURIComponent(item.filename)}
-              onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev/art/'+this.dataset.filename;}else if(this.dataset.fallback==='1'){this.dataset.fallback='2';this.src='https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev/'+this.dataset.filename;}"
             />
             <div class="art-overlay-sheen"></div>
             <div class="art-zoom-cue">
@@ -79,30 +162,112 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
 
           <div class="art-card-info">
             <span class="art-card-tag">{item.tag}</span>
-            <h3 class="art-card-name">{item.name}</h3>
+            <h3 class="art-card-name" title={item.name}>{item.name}</h3>
           </div>
         </article>
       ))}
     </section>
 
+    <!-- Сообщение, если бакет пока пуст -->
+    <div id="gallery-empty-state" class="gallery-empty-state" style={galleryItems.length === 0 ? "display: none;" : "display: none;"}>
+      <div class="empty-icon">🎨</div>
+      <h3>Коллекция обновляется</h3>
+      <p>Новые иллюстрации появятся здесь сразу после загрузки в бакет Cloudflare R2.</p>
+    </div>
+
     <div class="shimmer-line"></div>
 
     <Notes />
   </main>
+
+  <!-- Модальное окно просмотра арта (Lightbox) -->
+  <div id="art-lightbox-modal" class="art-lightbox" aria-hidden="true" role="dialog">
+    <div class="lightbox-overlay"></div>
+    <div class="lightbox-content">
+      <button class="lightbox-close" id="lightbox-close-btn" aria-label="Закрыть">&times;</button>
+      <div class="lightbox-image-wrap">
+        <img id="lightbox-img" src="" alt="" />
+      </div>
+      <div class="lightbox-caption">
+        <span id="lightbox-tag" class="art-card-tag"></span>
+        <h2 id="lightbox-title" class="lightbox-title"></h2>
+        <a id="lightbox-download-link" href="#" target="_blank" rel="noopener noreferrer" class="lightbox-dl-btn">
+          Открыть оригинал ↗
+        </a>
+      </div>
+    </div>
+  </div>
 </Layout>
 
 <script>
-  // Клиентская фильтрация карточек галереи
+  // Клиентский скрипт: фильтрация, динамическая подгрузка из /api/arts и просмотрщик Lightbox
   document.addEventListener('astro:page-load', () => {
+    const grid = document.getElementById('gallery-grid');
+    const loader = document.getElementById('gallery-loader');
+    const emptyState = document.getElementById('gallery-empty-state');
+    const totalCountEl = document.getElementById('gallery-total-count');
+    const filterAllCountEl = document.getElementById('filter-all-count');
     const filterButtons = document.querySelectorAll('.filter-tab');
-    const cards = document.querySelectorAll('.gallery-art-card');
 
+    // Lightbox элементы
+    const lightbox = document.getElementById('art-lightbox-modal');
+    const lightboxImg = document.getElementById('lightbox-img') as HTMLImageElement;
+    const lightboxTitle = document.getElementById('lightbox-title');
+    const lightboxTag = document.getElementById('lightbox-tag');
+    const lightboxDl = document.getElementById('lightbox-download-link') as HTMLAnchorElement;
+    const closeBtn = document.getElementById('lightbox-close-btn');
+
+    // Функция привязки кликов на карточки для открытия Lightbox
+    const attachCardClickListeners = () => {
+      document.querySelectorAll('.gallery-art-card').forEach((card) => {
+        card.addEventListener('click', () => {
+          const url = card.getAttribute('data-src') || '';
+          const name = card.getAttribute('data-name') || '';
+          const tag = card.getAttribute('data-tag') || '';
+
+          if (lightbox && lightboxImg && url) {
+            lightboxImg.src = url;
+            if (lightboxTitle) lightboxTitle.textContent = name;
+            if (lightboxTag) lightboxTag.textContent = tag;
+            if (lightboxDl) lightboxDl.href = url;
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden';
+          }
+        });
+      });
+    };
+
+    // Закрытие Lightbox
+    const closeLightbox = () => {
+      if (lightbox) {
+        lightbox.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+    };
+
+    if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
+    if (lightbox) {
+      lightbox.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).classList.contains('lightbox-overlay')) {
+          closeLightbox();
+        }
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && lightbox?.classList.contains('active')) {
+        closeLightbox();
+      }
+    });
+
+    // Фильтрация
     filterButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
-        filterButtons.forEach(b => b.classList.remove('active'));
+        filterButtons.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
 
         const filter = btn.getAttribute('data-filter') || 'all';
+        const cards = document.querySelectorAll('.gallery-art-card');
 
         cards.forEach((card) => {
           const cardCat = card.getAttribute('data-category');
@@ -114,6 +279,62 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
         });
       });
     });
+
+    // Если на странице уже есть SSR карточки
+    const existingCards = document.querySelectorAll('.gallery-art-card');
+    if (existingCards.length > 0) {
+      if (loader) loader.style.display = 'none';
+      attachCardClickListeners();
+    } else {
+      // Если карточек нет (например, локальный dev без SSR байндинга) — делаем клиентский fetch к API
+      if (loader) loader.style.display = 'flex';
+      fetch('/api/arts')
+        .then((res) => res.json())
+        .then((data) => {
+          if (loader) loader.style.display = 'none';
+
+          if (data?.items && Array.isArray(data.items) && data.items.length > 0) {
+            if (totalCountEl) totalCountEl.textContent = data.items.length;
+            if (filterAllCountEl) filterAllCountEl.textContent = data.items.length;
+
+            if (grid) {
+              grid.innerHTML = data.items
+                .map(
+                  (item: any) => `
+                <article class="gallery-art-card" data-category="${item.category}" data-src="${item.url}" data-name="${item.name}" data-tag="${item.tag}">
+                  <div class="deco-bracket br-top-left"></div>
+                  <div class="deco-bracket br-top-right"></div>
+                  <div class="deco-bracket br-bot-left"></div>
+                  <div class="deco-bracket br-bot-right"></div>
+
+                  <div class="art-img-box gallery-item">
+                    <img src="${item.url}" alt="${item.name}" class="art-real-img" loading="lazy" />
+                    <div class="art-overlay-sheen"></div>
+                    <div class="art-zoom-cue">
+                      <span class="zoom-icon">🔍</span>
+                    </div>
+                  </div>
+
+                  <div class="art-card-info">
+                    <span class="art-card-tag">${item.tag}</span>
+                    <h3 class="art-card-name" title="${item.name}">${item.name}</h3>
+                  </div>
+                </article>
+              `
+                )
+                .join('');
+            }
+            attachCardClickListeners();
+          } else {
+            if (emptyState) emptyState.style.display = 'block';
+          }
+        })
+        .catch((err) => {
+          console.error('Ошибка загрузки артов из /api/arts:', err);
+          if (loader) loader.style.display = 'none';
+          if (emptyState) emptyState.style.display = 'block';
+        });
+    }
   });
 </script>
 
@@ -166,21 +387,28 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
     gap: 8px;
     background: rgba(28, 14, 46, 0.8);
     border: 1px solid rgba(245, 208, 97, 0.3);
-    padding: 5px 16px;
+    padding: 6px 18px;
     border-radius: 999px;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     color: #e5def0;
     font-family: monospace;
+    box-shadow: 0 0 15px rgba(245, 208, 97, 0.1);
   }
   .badge-dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: #22c55e;
-    box-shadow: 0 0 6px #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+    animation: live-pulse 2s infinite ease-in-out;
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
   }
   .gallery-count-badge strong {
     color: var(--accent-gold);
+    font-size: 0.95rem;
   }
 
   /* Фильтры */
@@ -215,6 +443,30 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
     box-shadow: 0 0 15px var(--gold-glow);
   }
 
+  /* Спинер загрузки */
+  .gallery-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem 1rem;
+    color: var(--accent-gold);
+    font-family: monospace;
+    font-size: 0.95rem;
+  }
+  .spinner-core {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(245, 208, 97, 0.2);
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    animation: spin-r2 1s linear infinite;
+  }
+  @keyframes spin-r2 {
+    to { transform: rotate(360deg); }
+  }
+
   /* Сетка галереи */
   .gallery-masonry-grid {
     display: grid;
@@ -233,6 +485,7 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
     transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    cursor: pointer;
   }
   .gallery-art-card:hover {
     transform: translateY(-6px);
@@ -266,7 +519,6 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
     width: 100%;
     aspect-ratio: 4 / 5;
     overflow: hidden;
-    cursor: zoom-in;
     background: #090511;
   }
   .art-real-img {
@@ -335,9 +587,120 @@ const galleryItems: ArtItem[] = galleryData.map((item) => ({
     text-overflow: ellipsis;
   }
 
+  .gallery-empty-state {
+    text-align: center;
+    padding: 4rem 1rem;
+    color: var(--text-muted);
+  }
+  .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Lightbox */
+  .art-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .art-lightbox.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .lightbox-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 2, 10, 0.92);
+    backdrop-filter: blur(10px);
+  }
+  .lightbox-content {
+    position: relative;
+    z-index: 10;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(28, 14, 46, 0.95) 0%, rgba(12, 6, 22, 0.98) 100%);
+    border: 1px solid var(--accent-gold);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 0 50px rgba(245, 208, 97, 0.25);
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 10px;
+    right: 16px;
+    background: transparent;
+    border: none;
+    color: var(--accent-gold);
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+    transition: transform 0.2s;
+  }
+  .lightbox-close:hover {
+    transform: scale(1.2);
+  }
+  .lightbox-image-wrap {
+    max-width: 80vw;
+    max-height: 70vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #000;
+  }
+  .lightbox-image-wrap img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+  .lightbox-caption {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+  .lightbox-title {
+    margin: 0;
+    color: #fff;
+    font-size: 1.3rem;
+    font-family: var(--font-heading);
+  }
+  .lightbox-dl-btn {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--accent-gold);
+    text-decoration: none;
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    padding: 5px 14px;
+    border-radius: 999px;
+    transition: all 0.2s;
+  }
+  .lightbox-dl-btn:hover {
+    background: var(--accent-gold);
+    color: #000;
+  }
+
   @media (max-width: 600px) {
     .gallery-masonry-grid {
       grid-template-columns: 1fr;
+    }
+    .lightbox-content {
+      padding: 1rem;
+      width: 95vw;
     }
   }
 </style>
