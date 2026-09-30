@@ -9,6 +9,13 @@ const updates = [
         date: "30.09.2026",
         title: "Золотой Век: Великий Редизайн и Облачный Архив",
         description: "Глобальное преображение МоррисГрада в стиль Тёмного Арт-Деко, интерактивная читалка FB2, живая R2-галерея и исправление плеера.",
+        quickSummary: [
+            "<strong>Великий Арт-Деко Редизайн:</strong> новый глубокий визуальный стиль (Dark Fantasy & Gold), фамильный герб МоррисГрада в шапке, радио в реальном времени и кинематографичная главная страница.",
+            "<strong>Интерактивная читалка FB2:</strong> запуск раздела «Книги» и ридера с выбором глав для произведений цикла «Ледяной клинок».",
+            "<strong>Живая Галерея Cloudflare R2:</strong> арты перенесены в облачный бакет и теперь подтягиваются и обновляются автоматически без правки кода.",
+            "<strong>Новый Lightbox со стрелочками:</strong> полноэкранный просмотрщик артов с навигацией по экранным кнопкам (← / →), клавиатуре, счётчиком и ссылкой на оригинал.",
+            "<strong>Атмосферный гейминг:</strong> обновление описания игры «ПРОКЛЯТЫЕ» с WAP-вайбом и чатом, исправление плейлиста YouTube на главной."
+        ],
         changes: [
             "Глобальный редизайн сайта в стиле Dark Art-Deco & Dark Fantasy: глубокая ночная палитра (#06040a / #130822), филигранные золотые узоры (❖ ⚜ ❖), благородные рамки, световые ореолы и атмосферная типографика (Shket, Cinzel, Exo 2).",
             "Премиальная шапка (Header): новый фамильный герб МоррисГрада в золотом градиенте, чип версии v0.01, быстрый переход к Книгам и Галерее, статус онлайна в чате и интеграция профиля Clerk.",
@@ -141,11 +148,36 @@ const updates = [
                         
                         <div class="divider"></div>
 
-                        <ul class="changes-list">
-                            {update.changes.map(change => (
-                                <li>{change}</li>
-                            ))}
-                        </ul>
+                        {update.quickSummary ? (
+                            <ul class="changes-list quick-list">
+                                {update.quickSummary.map(item => (
+                                    <li set:html={item}></li>
+                                ))}
+                            </ul>
+
+                            <details class="changelog-details">
+                                <summary class="details-summary">
+                                    <span class="summary-btn-text">
+                                        <span class="summary-icon">✦</span> Подробнее обо всех изменениях
+                                    </span>
+                                    <span class="summary-arrow">▾</span>
+                                </summary>
+                                <div class="details-body">
+                                    <p class="details-note">Полная хроника выполненных инженерных и визуальных работ:</p>
+                                    <ul class="changes-list detailed-list">
+                                        {update.changes.map(change => (
+                                            <li>{change}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </details>
+                        ) : (
+                            <ul class="changes-list">
+                                {update.changes.map(change => (
+                                    <li>{change}</li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
 
                     <!-- Лорин комментирует (только для последнего обновления) -->
@@ -266,6 +298,77 @@ const updates = [
         padding: 2px 6px;
         font-weight: bold;
         border: 1px solid #fff;
+    }
+
+        /* Краткий список и раскрывающийся блок «Подробнее» */
+    .quick-list li {
+        font-size: 0.98rem;
+        margin-bottom: 0.75rem;
+    }
+    .quick-list li strong {
+        color: var(--accent-gold);
+    }
+
+    .changelog-details {
+        margin-top: 1.4rem;
+        background: rgba(28, 14, 46, 0.45);
+        border: 1px dashed rgba(245, 208, 97, 0.4);
+        border-radius: 10px;
+        padding: 0.75rem 1.2rem;
+        transition: all 0.3s ease;
+    }
+    .changelog-details[open] {
+        background: rgba(22, 10, 38, 0.85);
+        border-style: solid;
+        border-color: var(--accent-gold);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(245, 208, 97, 0.05);
+    }
+    .details-summary {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--accent-gold);
+        font-weight: 700;
+        font-size: 0.95rem;
+        user-select: none;
+        list-style: none;
+        padding: 0.2rem 0;
+    }
+    .details-summary::-webkit-details-marker {
+        display: none;
+    }
+    .summary-btn-text {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .summary-icon {
+        color: var(--energy-purple-bright, #c084fc);
+    }
+    .summary-arrow {
+        font-size: 1.1rem;
+        transition: transform 0.25s ease;
+        color: var(--accent-gold);
+    }
+    .changelog-details[open] .summary-arrow {
+        transform: rotate(180deg);
+    }
+    .details-body {
+        margin-top: 1rem;
+        border-top: 1px dotted rgba(245, 208, 97, 0.25);
+        padding-top: 0.9rem;
+    }
+    .details-note {
+        font-size: 0.82rem;
+        color: var(--text-muted, #9f91b8);
+        font-style: italic;
+        margin: 0 0 0.8rem;
+    }
+    .detailed-list li {
+        font-size: 0.92rem;
+        color: #d6cee3;
+        margin-bottom: 0.6rem;
     }
 
     @media (max-width: 600px) {
