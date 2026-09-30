@@ -12,10 +12,8 @@ const book = allBooks[0];
 // Основные разделы вселенной
 const mainCategories = [
   { title: "Книги", img: "/images/1.jpg", url: "/books" },
-  { title: "Музыка", img: "/images/2.jpg", url: "/music" },
   { title: "Мини-игры", img: "/images/3.jpg", url: "/games" },
   { title: "Галерея", img: "/images/4.jpeg", url: "/arts" },
-  { title: "Рассказы", img: "/images/5.jpeg", url: "/stories" },
   { title: "Заявка", img: "/images/6.jpeg", url: "/zayavka" },
   { title: "Архив", img: "/images/7.jpeg", url: "/allkonrass" },
 ];
@@ -23,28 +21,12 @@ const mainCategories = [
 // Активности и интерактивные модули с фоновыми артами персонажей
 const activities = [
   { 
-    title: "КОНКУРС", 
-    desc: "Творческие состязания и награды жителей", 
-    tag: "Событие", 
-    icon: "🏆", 
-    url: "/konkurs",
-    bg: "/images/all/characters/Three_characters_posing_with_rose_2K_20260910204518.jpeg"
-  },
-  { 
-    title: "ВИКТОРИНА", 
-    desc: "Проверь знание тайн Обители Смерти", 
-    tag: "Испытание", 
-    icon: "🔮", 
-    url: "/quiz_obitel_smerti.html",
-    bg: "/images/all/characters/Girl_with_black_hair_crown_202607142104.jpeg"
-  },
-  { 
-    title: "БИБЛИОТЕКА ЗНАНИЙ", 
-    desc: "Лор, хроники и древние рукописи мира", 
-    tag: "Архив", 
-    icon: "📜", 
-    url: "/gemini-code-1786123660299.html",
-    bg: "/images/all/characters/Girl_and_Veles_standing_together_202608182105.jpeg"
+    title: "ТЁМНЫЙ МИР 2", 
+    desc: "Испытательный полигон механик", 
+    tag: "Beta", 
+    icon: "🌌", 
+    url: "/shadow-world/index.html",
+    bg: "/images/all/characters/Girl_standing_in_purple_light_2K_20260926123035.jpg"
   },
   { 
     title: "МУЗЫКАЛЬНАЯ КАРУСЕЛЬ", 
@@ -53,22 +35,6 @@ const activities = [
     icon: "🎵", 
     url: "/lorin_death_carousel_final.html",
     bg: "/images/all/characters/Lorine_dancing_with_singer_2K_202608132046.jpeg"
-  },
-  { 
-    title: "ТЁМНЫЙ МИР", 
-    desc: "Классическая текстовая альфа-версия", 
-    tag: "Alfa", 
-    icon: "⚔️", 
-    url: "/Darks.html",
-    bg: "/images/all/characters/Aggressive_noir_three_characters_202607232016.jpeg"
-  },
-  { 
-    title: "ТЁМНЫЙ МИР 2", 
-    desc: "Испытательный полигон механик", 
-    tag: "Beta", 
-    icon: "🌌", 
-    url: "/shadow-world/index.html",
-    bg: "/images/all/characters/Girl_standing_in_purple_light_2K_20260926123035.jpg"
   },
 ];
 ---
@@ -241,6 +207,73 @@ const activities = [
         <span class="block-subtitle">Интерактивные порталы и знания Обители Смерти</span>
       </div>
 
+      <!-- ВЫДЕЛЕННЫЙ БЛОК: СЮЖЕТНЫЙ КВЕСТ-КОНКУРС (ВЫДЕЛЕН КАК ИГРА) -->
+      <article class="konkurs-quest-banner">
+        <!-- Угловые арт-деко скобы -->
+        <div class="deco-bracket br-top-left"></div>
+        <div class="deco-bracket br-top-right"></div>
+        <div class="deco-bracket br-bot-left"></div>
+        <div class="deco-bracket br-bot-right"></div>
+
+        <!-- Фоновый атмосферный арт персонажей -->
+        <div class="konkurs-bg-layer" aria-hidden="true">
+          <img src="/images/all/characters/Three_characters_posing_with_rose_2K_20260910204518.jpeg" alt="" class="konkurs-bg-img" loading="lazy" />
+          <div class="konkurs-bg-vignette"></div>
+        </div>
+
+        <div class="konkurs-content">
+          <div class="konkurs-top-row">
+            <span class="konkurs-game-badge">
+              <span class="badge-gem">✦</span> 🎮 ИГРОВОЙ КВЕСТ // ГЛАВНОЕ СОБЫТИЕ
+            </span>
+            <span class="konkurs-timer-badge">⏳ До 26 октября 2026</span>
+          </div>
+
+          <h3 class="konkurs-title">КОНКУРС-КВЕСТ: ЛУЧШИЙ ПЕРСОНАЖ</h3>
+          <p class="konkurs-series-tag">✦ Интерактивное сюжетное состязание вселенной МоррисГрад</p>
+
+          <p class="konkurs-desc">
+            «Я хочу предложить тебе игру. А точнее даже конкурс!» Создайте персонажа для государства Альказак и клана «Праведные коты». Пропишите его характер и внешность, соблюдайте законы мира без магии, проведите героя через роковое предзнаменование в зеркале смерти и заберите реальные трофеи!
+          </p>
+
+          <div class="konkurs-prizes-grid">
+            <div class="prize-pill">
+              <span class="prize-trophy">👑</span>
+              <div class="prize-info">
+                <strong>1 МЕСТО</strong>
+                <span>3000 ₽ • Дакимакура с Lorin • 100🔥</span>
+              </div>
+            </div>
+            <div class="prize-pill">
+              <span class="prize-trophy">🥈</span>
+              <div class="prize-info">
+                <strong>2 МЕСТО</strong>
+                <span>2000 ₽ • Арт с Lorin • 50🔥</span>
+              </div>
+            </div>
+            <div class="prize-pill">
+              <span class="prize-trophy">🥉</span>
+              <div class="prize-info">
+                <strong>3 МЕСТО</strong>
+                <span>1000 ₽ • 10🔥 на аккаунт</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="konkurs-actions">
+            <a href="/konkurs" class="btn-konkurs-primary" title="Правила, механики и условия участия в квесте">
+              <span class="btn-rune">⚔️</span> ПРИНЯТЬ УЧАСТИЕ В ИГРЕ
+            </a>
+            <a href="/zayavka" class="btn-konkurs-secondary" title="Подать анкету персонажа">
+              <span>✍️</span> Подать анкету героя
+            </a>
+            <a href="/allkonrass" class="btn-konkurs-ghost" title="Читать работы жителей">
+              <span>📜</span> Летопись работ
+            </a>
+          </div>
+        </div>
+      </article>
+
       <div class="activities-grid">
         {activities.map((item) => (
           <a href={item.url} class="activity-card">
@@ -265,7 +298,7 @@ const activities = [
             <h3 class="act-title">{item.title}</h3>
             <p class="act-desc">{item.desc}</p>
             <div class="act-footer">
-              <span class="act-link-label">Перейти в архив</span>
+              <span class="act-link-label">Открыть портал</span>
               <span class="act-arrow">→</span>
             </div>
           </a>
@@ -1066,6 +1099,235 @@ const activities = [
     transform: translateX(4px);
   }
 
+  /* ==========================================================================
+     ВЫДЕЛЕННЫЙ БЛОК: СЮЖЕТНЫЙ КВЕСТ-КОНКУРС (ВЫДЕЛЕН КАК ИГРА)
+     ========================================================================== */
+  .konkurs-quest-banner {
+    width: 100%;
+    margin-bottom: 2rem;
+    position: relative;
+    border-radius: 18px;
+    border: 2px solid var(--accent-gold);
+    background: linear-gradient(135deg, rgba(34, 15, 60, 0.92) 0%, rgba(16, 8, 30, 0.96) 60%, rgba(8, 4, 16, 0.98) 100%);
+    overflow: hidden;
+    padding: 2.2rem 2.5rem;
+    box-shadow: 
+      0 16px 45px rgba(0, 0, 0, 0.85),
+      0 0 35px var(--gold-glow),
+      inset 0 0 30px rgba(168, 85, 247, 0.18);
+    transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .konkurs-quest-banner:hover {
+    transform: translateY(-4px);
+    border-color: #ffe600;
+    box-shadow: 
+      0 20px 55px rgba(0, 0, 0, 0.92),
+      0 0 45px rgba(245, 208, 97, 0.5),
+      inset 0 0 35px rgba(168, 85, 247, 0.25);
+  }
+
+  .konkurs-bg-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .konkurs-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.16;
+    filter: saturate(0.8) contrast(1.2);
+    transition: opacity 0.5s ease, transform 0.6s ease;
+  }
+  .konkurs-quest-banner:hover .konkurs-bg-img {
+    opacity: 0.32;
+    transform: scale(1.04);
+  }
+  .konkurs-bg-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 75% 50%, rgba(20, 9, 38, 0.45) 0%, rgba(8, 4, 16, 0.95) 85%);
+  }
+
+  .konkurs-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .konkurs-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .konkurs-game-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--accent-gold);
+    background: rgba(245, 208, 97, 0.15);
+    border: 1px solid rgba(245, 208, 97, 0.45);
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-family: monospace;
+    text-shadow: 0 0 10px var(--gold-glow);
+  }
+  .badge-gem {
+    color: var(--accent-gold);
+    animation: flamePulse 1.6s infinite;
+  }
+
+  .konkurs-timer-badge {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--energy-purple-bright);
+    background: rgba(168, 85, 247, 0.14);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+
+  .konkurs-title {
+    font-size: 2.1rem;
+    margin: 4px 0 0;
+    color: #fff;
+    letter-spacing: 1.2px;
+    text-shadow: 0 0 25px rgba(245, 208, 97, 0.35);
+  }
+
+  .konkurs-series-tag {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--energy-purple-bright);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin: 0;
+  }
+
+  .konkurs-desc {
+    color: #e2daf0;
+    font-size: 0.98rem;
+    line-height: 1.6;
+    max-width: 820px;
+    margin: 2px 0 8px;
+  }
+
+  .konkurs-prizes-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 4px 0 10px;
+  }
+
+  .prize-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(24, 12, 42, 0.85);
+    border: 1px solid rgba(245, 208, 97, 0.3);
+    border-radius: 10px;
+    padding: 8px 14px;
+    backdrop-filter: blur(6px);
+  }
+  .prize-trophy {
+    font-size: 1.4rem;
+  }
+  .prize-info {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.78rem;
+  }
+  .prize-info strong {
+    color: var(--accent-gold);
+    letter-spacing: 1px;
+  }
+  .prize-info span {
+    color: #f3e8ff;
+  }
+
+  .konkurs-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+
+  .btn-konkurs-primary {
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+    color: #0c0617;
+    font-weight: 800;
+    font-size: 0.98rem;
+    letter-spacing: 1px;
+    padding: 12px 26px;
+    border-radius: 10px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 6px 20px rgba(245, 208, 97, 0.4);
+    transition: all 0.3s ease;
+  }
+  .btn-konkurs-primary:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, #fff176 0%, #ffd700 100%);
+    box-shadow: 0 8px 25px rgba(245, 208, 97, 0.7);
+  }
+
+  .btn-konkurs-secondary {
+    background: rgba(36, 18, 62, 0.8);
+    border: 1px solid rgba(245, 208, 97, 0.4);
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 0.92rem;
+    padding: 11px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+  }
+  .btn-konkurs-secondary:hover {
+    background: rgba(50, 25, 85, 0.9);
+    border-color: var(--accent-gold);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 0 14px var(--gold-glow);
+  }
+
+  .btn-konkurs-ghost {
+    color: var(--energy-purple-bright);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    background: rgba(20, 10, 36, 0.6);
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 11px 18px;
+    border-radius: 10px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+  }
+  .btn-konkurs-ghost:hover {
+    border-color: var(--energy-purple-bright);
+    color: #fff;
+    background: rgba(35, 17, 60, 0.8);
+    transform: translateY(-2px);
+  }
+
   /* ==========================================================================\n     ОСНОВНАЯ СЕТКА КАТЕГОРИЙ (NAVCARD GRID)\n     ========================================================================== */
   .main-grid {
     display: grid;
@@ -1109,6 +1371,19 @@ const activities = [
     }
     .flagship-title {
       font-size: 2rem;
+    }
+    .konkurs-quest-banner {
+      padding: 1.6rem 1.4rem;
+    }
+    .konkurs-title {
+      font-size: 1.6rem;
+    }
+    .konkurs-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .btn-konkurs-primary, .btn-konkurs-secondary, .btn-konkurs-ghost {
+      justify-content: center;
     }
   }
 
