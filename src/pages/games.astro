@@ -60,6 +60,21 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+            <div class="game-card dungeon-card" 
+                 data-title="Dungeon Gathering: Катакомбы Склепа" 
+                 data-desc="Ультимативный процедурный экшен-роглайт на ассетах Dungeon Gathering! Спускайтесь в процедурно генерируемые подземелья, полные оживших мертвецов, древних алтарей и тайных сокровищниц. Разрушайте мерцающие вазы, собирайте золотые и синие монеты душ, выбирайте благословения при повышении уровня и сразите Колосса Склепа!" 
+                 data-game-url="/games/dungeon" 
+                 data-changelog-url="/changelog-dungeon">
+                <img src="/Dungeon%20Gathering%20Free%20Version/Zombies%201.1%20portraits%2016x16.png" alt="Dungeon Gathering" class="game-icon" style="image-rendering: pixelated; background: #000; padding: 10px;" />
+                <span class="game-title" style="color: #ffd700;">Dungeon Gathering</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.4);">💀 Экшен Роглайт</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                    <span class="platform-tag" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4);">🎲 Процедурные данжи</span>
+                </div>
+            </div>
+
             <div class="game-card geometry-card" 
                  data-title="Геометрия Хаоса" 
                  data-desc="Ультимативный экшен-роглайт на чистой неоновой SVG-графике! Выбирайте боевое ядро (Дельта, Тетра, Гекса, Окта), настраивайте множитель сложности от x1 до x64^ с безумными модификаторами, эволюционируйте геометрическое оружие в сверхновые, уклоняйтесь от фрактального Danmaku и прокачивайте ядро в Лаборатории!" 
@@ -323,6 +338,57 @@ import geometriaImg from '../assets/geometria.png';
     .geometry-card:hover .game-icon {
         border-color: #00ffcc;
         box-shadow: 0 0 20px #00ffcc;
+    }
+
+    /* Dungeon Card Style */
+    .dungeon-card {
+        border-color: #ffd700;
+        box-shadow: 0 0 18px rgba(255, 215, 0, 0.25);
+        background: linear-gradient(180deg, rgba(28, 20, 12, 0.94) 0%, rgba(14, 8, 6, 0.98) 100%);
+    }
+    .dungeon-card:hover {
+        border-color: #fde047;
+        box-shadow: 0 0 30px #ffd700, 0 0 15px #f97316;
+    }
+    .dungeon-card .game-title {
+        color: #ffd700;
+        text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    }
+    .dungeon-card:hover .game-icon {
+        border-color: #ffd700;
+        box-shadow: 0 0 20px #ffd700;
+    }
+
+    /* --- DUNGEON THEME OVERRIDE --- */
+    .modal-content.dungeon-theme {
+        border-color: #ffd700;
+        background: linear-gradient(180deg, rgba(24, 16, 12, 0.97) 0%, rgba(10, 6, 4, 0.99) 100%);
+        box-shadow: 0 0 50px rgba(255, 215, 0, 0.35), inset 0 0 30px rgba(249, 115, 22, 0.15);
+    }
+    .modal-content.dungeon-theme #modal-title {
+        color: #ffd700;
+        text-shadow: 0 0 14px rgba(255, 215, 0, 0.7);
+    }
+    .modal-content.dungeon-theme .start-btn {
+        border-color: #ffd700;
+        color: #ffd700;
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.25);
+    }
+    .modal-content.dungeon-theme .start-btn:hover {
+        background: #ffd700;
+        color: #000;
+        box-shadow: 0 0 35px rgba(255, 215, 0, 0.8);
+    }
+    .modal-content.dungeon-theme .changelog-link {
+        color: #ffd700;
+        border-color: #ffd700;
+    }
+    .modal-content.dungeon-theme .changelog-link:hover {
+        color: #fff;
+        border-color: #fff;
+    }
+    .modal-content.dungeon-theme .close-modal:hover {
+        color: #ffd700;
     }
 
     /* Neon Protocol Special Style */
@@ -606,7 +672,10 @@ import geometriaImg from '../assets/geometria.png';
                 if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
 
                 // Apply Theme based on card class
-                if (card.classList.contains('sanctuary-card') && modalContent) {
+                if (card.classList.contains('dungeon-card') && modalContent) {
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
+                    modalContent.classList.add('dungeon-theme');
+                } else if (card.classList.contains('sanctuary-card') && modalContent) {
                     modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme');
                     modalContent.classList.add('sanctuary-theme');
                 } else if (card.classList.contains('ascetic-card') && modalContent) {

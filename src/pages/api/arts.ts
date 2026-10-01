@@ -40,7 +40,7 @@ export const GET: APIRoute = async ({ locals }) => {
 
     // Получаем все объекты с префиксом art/
     while (truncated) {
-      const res = await bucket.list({
+      const res: any = await bucket.list({
         prefix: 'art/',
         limit: 1000,
         cursor,

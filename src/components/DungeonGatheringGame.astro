@@ -1,0 +1,3502 @@
+---
+// DungeonGatheringGame.astro - "Dungeon Gathering: Катакомбы Склепа v2.5"
+// Ультимативный Action-Роглайт с классами, режимами, мета-прогрессией и магазином
+---
+
+<div id="dungeon-game-root" class="dungeon-game-root">
+  <!-- START / MENU SCREEN -->
+  <div id="screen-menu" class="game-screen active">
+    <div class="menu-overlay">
+      <div class="menu-header-ribbon">
+        <span class="ribbon-text">DUNGEON GATHERING • МОРРИСГРАД</span>
+      </div>
+
+      <div class="title-emblem-wrap">
+        <img
+          src="/Dungeon%20Gathering%20Free%20Version/Zombies%201.1%20portraits%2016x16.png"
+          alt="Zombie Hero"
+          class="menu-hero-emblem"
+        />
+        <h1 class="game-title">КАТАКОМБЫ СКЛЕПА</h1>
+        <div class="game-subtitle">ПРОЦЕДУРНЫЙ ACTION-РОГЛАЙТ</div>
+      </div>
+
+      <!-- Mode Selection -->
+      <div class="mode-select-section">
+        <div class="section-label">РЕЖИМ ИГРЫ:</div>
+        <div class="mode-select-row">
+          <button class="mode-chip active" data-mode="campaign">
+            🏰 Кампания (12 этажей, 4 биома)
+          </button>
+          <button class="mode-chip" data-mode="boss_rush">
+            ⚔️ Босс-Раш (5 арен)
+          </button>
+          <button class="mode-chip" data-mode="endless">
+            ♾️ Бесконечный Спуск
+          </button>
+          <button class="mode-chip" data-mode="tutorial">
+            🎓 Обучение (Полигон)
+          </button>
+        </div>
+      </div>
+
+      <!-- Difficulty Selection -->
+      <div class="difficulty-select-section">
+        <div class="section-label">СЛОЖНОСТЬ СПУСКА:</div>
+        <div class="difficulty-select-row">
+          <button class="diff-chip" data-diff="easy">
+            🟢 Новичок (-25% урона, +зелья)
+          </button>
+          <button class="diff-chip active" data-diff="normal">
+            🟡 Нормально (Классика)
+          </button>
+          <button class="diff-chip" data-diff="nightmare">
+            🔴 Кошмар (+35% урона, +50% душ)
+          </button>
+          <button class="diff-chip" data-diff="inferno">
+            💀 Инферно (Смертельный, x2 душ!)
+          </button>
+        </div>
+      </div>
+
+      <!-- Class Selection -->
+      <div class="class-select-section">
+        <div class="section-label">ВЫБЕРИТЕ КЛАСС ГЕРОЯ:</div>
+        <div class="classes-grid">
+          <div class="class-card active" data-class="zombie">
+            <div class="class-icon">🧟</div>
+            <div class="class-name">Зомби-Ренегат</div>
+            <div class="class-perk">Вампиризм 20%, когти, «Чумной Взрыв»</div>
+          </div>
+          <div class="class-card" data-class="paladin">
+            <div class="class-icon">🛡️</div>
+            <div class="class-name">Паладин Пепла</div>
+            <div class="class-perk">+2 сердца (10 HP), святой меч, «Освященный Вихрь»</div>
+          </div>
+          <div class="class-card" data-class="sorcerer">
+            <div class="class-icon">🔮</div>
+            <div class="class-name">Теневой Адепт</div>
+            <div class="class-perk">Дальний бой сферами душ, «Вспышка Пустоты»</div>
+          </div>
+          <div class="class-card" data-class="berserker">
+            <div class="class-icon">🪓</div>
+            <div class="class-name">Кровавый Берсерк</div>
+            <div class="class-perk">Урон +12, двойные секиры, «Вихрь Безумия»</div>
+          </div>
+          <div class="class-card" data-class="assassin">
+            <div class="class-icon">🗡️</div>
+            <div class="class-name">Ассасин Тени</div>
+            <div class="class-perk">Скорость +30%, крит 35%, «Веер Клинков»</div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Starting Loadout (Gear & Pack) -->
+      <div class="loadout-select-section">
+        <div class="section-label">СТАРТОВОЕ СНАРЯЖЕНИЕ & НАБОР:</div>
+        <div class="loadout-row">
+          <div class="loadout-group">
+            <label for="select-start-weapon" class="loadout-label">⚔️ Оружие:</label>
+            <select id="select-start-weapon" class="loadout-select">
+              <option value="default">Классическое классовое</option>
+              <option value="plasma_wand">🔮 Плазменный Жезл (Сферы x2, взрыв)</option>
+              <option value="claymore">🗡️ Двуручный Клеймор (+14 Урона, Таран)</option>
+              <option value="daggers">🗡️ Кинжалы Вихря (+35% Скорость, Вампиризм)</option>
+              <option value="astral_blaster">🌌 Астральный Пульсар (Тройной залп, Легендарный)</option>
+            </select>
+          </div>
+
+          <div class="loadout-group">
+            <label for="select-start-pack" class="loadout-label">🎒 Припасы:</label>
+            <select id="select-start-pack" class="loadout-select">
+              <option value="none">Без набора (Хардкор)</option>
+              <option value="traveler_purse">🪙 Сумка Странника (+60 золота)</option>
+              <option value="medic_kit">🧪 Походная Аптечка (+2 ХП, +1 Скорость)</option>
+              <option value="sharpening_scroll">📜 Свиток Заточки (Оружие +1, +5 Урона)</option>
+              <option value="light_amulet">🕯️ Амулет Света (+70 px обзор)</option>
+              <option value="orb_resonator">🔮 Резонатор Энергии (+6 Урон сфер)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="menu-actions">
+        <button id="btn-start-game" class="btn-primary-action">
+          <span class="btn-main-text">СПУСТИТЬСЯ В СКЛЕП</span>
+          <span class="btn-sub-text">НАЧАТЬ ПОХОД</span>
+        </button>
+
+        <button id="btn-open-meta" class="btn-meta-action">
+          🏛️ АЛТАРЬ НАСЛЕДИЯ (<span id="meta-blue-coins-val">0</span> 💎)
+        </button>
+      </div>
+
+      <div class="menu-hotkeys-help">
+        <div class="hotkey-col"><b>WASD / Стрелки</b> — Движение</div>
+        <div class="hotkey-col"><b>ЛКМ</b> — Атака / 3-хит комбо</div>
+        <div class="hotkey-col"><b>ПКМ / Q</b> — Классовый спец-навык</div>
+        <div class="hotkey-col"><b>Пробел / Shift</b> — Рывок</div>
+        <div class="hotkey-col"><b>Tab</b> — Характеристики & Оружие</div>
+        <div class="hotkey-col"><b>1, 2, 3</b> — Зелья (ХП/Скорость/Мощь)</div>
+        <div class="hotkey-col"><b>E / F</b> — Взаимодействие (Торговец/Алтарь)</div>
+      </div>
+
+      <div class="menu-quick-stats">
+        <span>🏆 Лучший этаж: <b id="stat-high-floor">1</b></span>
+        <span>💀 Уничтожено монстров: <b id="stat-high-kills">0</b></span>
+        <span>🪙 Рекорд золота: <b id="stat-high-gold">0</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN GAME CANVAS & WORLD -->
+  <div id="screen-game" class="game-screen">
+    <!-- Top HUD Bar -->
+    <header class="hud-header">
+      <div class="hud-left">
+        <a href="/games" class="hud-exit-link" title="Выйти в меню всех мини-игр">← К играм</a>
+        <div class="hero-status-pill">
+          <img
+            id="hud-hero-avatar"
+            src="/Dungeon%20Gathering%20Free%20Version/Zombies%201.1%20portraits%2016x16.png"
+            alt="Hero Avatar"
+            class="hero-avatar"
+          />
+          <div class="hero-info-col">
+            <div class="hero-name-row">
+              <span id="hud-hero-name" class="hero-title">Пробуждённый</span>
+              <span class="hero-lvl">Ур. <b id="hud-hero-lvl">1</b></span>
+            </div>
+            <div id="hud-hearts-container" class="hearts-container"></div>
+            <div class="bar-track xp-track">
+              <div id="hud-hero-xp" class="bar-fill xp-fill" style="width: 0%;"></div>
+              <span id="hud-hero-xp-text" class="bar-text">0 / 30 XP</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Floor & Boss Display -->
+      <div class="hud-center">
+        <div class="floor-badge-box">
+          <div class="floor-title">
+            <span id="hud-mode-icon">🏰</span> ЭТАЖ <span id="hud-floor-num">1</span>
+            <span id="hud-diff-badge" class="diff-hud-badge">НОРМА</span>
+          </div>
+          <div id="hud-floor-desc" class="floor-desc">Темные Катакомбы</div>
+        </div>
+
+        <div id="hud-boss-wrap" class="boss-hud-bar" style="display: none;">
+          <div id="hud-boss-name" class="boss-title">ВЛАДЫКА СКЛЕПА</div>
+          <div class="bar-track boss-track">
+            <div id="hud-boss-hp" class="bar-fill boss-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resources & Controls Right -->
+      <div class="hud-right">
+        <div class="resources-row">
+          <div class="res-item gold" title="Золотые монеты">
+            <img
+              src="/Dungeon%20Gathering%20Free%20Version/Coin%20Gif.gif"
+              alt="Gold"
+              class="res-icon"
+            />
+            <span id="res-gold-val">0</span>
+          </div>
+          <div class="res-item blue-coin" title="Синие монеты душ">
+            <img
+              src="/Dungeon%20Gathering%20Free%20Version/BlueCoin%20Gif.gif"
+              alt="Blue Coin"
+              class="res-icon"
+            />
+            <span id="res-blue-val">0</span>
+          </div>
+        </div>
+
+        <button id="btn-show-charsheet" class="hud-mini-btn" title="Характеристики и оружие (Tab)">
+          📊
+        </button>
+        <button id="btn-show-relics" class="hud-mini-btn" title="Собранные реликвии (I)">
+          📜
+        </button>
+        <button id="btn-toggle-sound" class="hud-mini-btn" title="Звук">🔊</button>
+        <button id="btn-pause" class="hud-mini-btn" title="Пауза">⏸️</button>
+      </div>
+    </header>
+
+    <!-- Canvas Playfield -->
+    <div id="canvas-wrapper" class="canvas-wrapper">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Mini-map Radar -->
+      <div class="minimap-container">
+        <canvas id="minimap-canvas" width="130" height="130"></canvas>
+        <div class="minimap-title">КАРТА СКЛЕПА</div>
+      </div>
+
+      <!-- Interaction Prompt -->
+      <div id="hud-interaction-prompt" class="interaction-prompt" style="display: none;">
+        [E] ВЗАИМОДЕЙСТВИЕ
+      </div>
+
+      <!-- Potion Belt, Skill & Dash HUD Bottom -->
+      <div class="bottom-action-hud">
+        <div class="potion-slot" id="slot-pot-hp" title="Зелье Здоровья (Клавиша 1)">
+          <img
+            src="/Dungeon%20Gathering%20Free%20Version/Potion%201.png"
+            alt="HP Potion"
+            class="potion-img"
+          />
+          <span class="slot-key">1</span>
+          <span id="pot-hp-count" class="pot-badge">1</span>
+        </div>
+
+        <div class="potion-slot" id="slot-pot-speed" title="Зелье Скорости (Клавиша 2)">
+          <img
+            src="/Dungeon%20Gathering%20Free%20Version/Potion%203.png"
+            alt="Speed Potion"
+            class="potion-img"
+          />
+          <span class="slot-key">2</span>
+          <span id="pot-speed-count" class="pot-badge">1</span>
+        </div>
+
+        <div class="potion-slot" id="slot-pot-power" title="Зелье Мощи (Клавиша 3)">
+          <img
+            src="/Dungeon%20Gathering%20Free%20Version/Potion%206.png"
+            alt="Power Potion"
+            class="potion-img"
+          />
+          <span class="slot-key">3</span>
+          <span id="pot-power-count" class="pot-badge">0</span>
+        </div>
+
+        <!-- Special Skill Slot -->
+        <div class="skill-indicator" id="hud-skill-box" title="Классовое Умение (ПКМ / Q)">
+          <span id="skill-icon-display" class="skill-icon">⚡</span>
+          <span class="skill-text">НАВЫК (Q)</span>
+          <div id="skill-cooldown-overlay" class="skill-cd-mask"></div>
+        </div>
+
+
+        <!-- Relics Slots HUD -->
+        <div class="hud-relics-container" id="hud-relics-box" title="Активные реликвии спутника">
+          <span class="relics-bar-label">РЕЛИКВИИ:</span>
+          <div id="hud-relics-bar" class="hud-relics-bar"></div>
+        </div>
+
+        <!-- Ultimate Button Slot (Isaac style!) -->
+        <div class="ultimate-indicator" id="hud-ultimate-box" title="УЛЬТА: СУДНЫЙ ДЕНЬ (Нажмите R / Клик)">
+          <div class="ultimate-icon-wrap">
+            <span id="ultimate-icon-display" class="ultimate-icon">💥</span>
+          </div>
+          <div class="ultimate-text-col">
+            <span class="ultimate-title">УЛЬТА (R)</span>
+            <span id="ultimate-pct-display" class="ultimate-pct">0%</span>
+          </div>
+          <div id="ultimate-charge-bar" class="ultimate-charge-fill"></div>
+        </div>
+
+        <!-- Dash Slot -->
+        <div class="dash-indicator" id="hud-dash-box" title="Рывок (Пробел / Shift)">
+          <span class="dash-icon">💨</span>
+          <span class="dash-text">РЫВОК</span>
+          <div id="dash-cooldown-overlay" class="dash-cd-mask"></div>
+        </div>
+      </div>
+
+      <!-- Mobile Touch Controls -->
+      <div id="mobile-touch-controls" class="mobile-controls">
+        <div id="virtual-joystick" class="joystick-base">
+          <div id="joystick-knob" class="joystick-thumb"></div>
+        </div>
+        <div class="mobile-actions">
+          <button id="touch-btn-attack" class="touch-action-btn btn-atk">⚔️ Удар</button>
+          <button id="touch-btn-skill" class="touch-action-btn btn-skill">✨ Навык</button>
+          <button id="touch-btn-dash" class="touch-action-btn btn-dash">💨 Рывок</button>
+          <button id="touch-btn-potion" class="touch-action-btn btn-pot">🧪 ХП</button>
+        </div>
+      </div>
+
+      <!-- Notification Toast -->
+      <div id="hud-notification" class="notification-toast">
+        ЭТАЖ 1: ТЕМНЫЕ КАТАКОМБЫ
+      </div>
+    </div>
+  </div>
+
+  <!-- SHOP MODAL -->
+  <div id="modal-shop" class="game-modal-overlay">
+    <div class="modal-box shop-box">
+      <div class="modal-ribbon shop">ЛАВКА СПЕКТРАЛЬНОГО ТОРГОВЦА</div>
+      <h2 class="modal-heading">ЧЕМ ПОЖИВИТЕСЬ, ПУТНИК?</h2>
+      <p class="modal-sub">
+        Духи склепа ценят блестящее золото и сияющие синие души. Выберите товар:
+      </p>
+
+      <div id="shop-items-grid" class="shop-items-grid"></div>
+
+      <div class="modal-actions-column">
+        <button id="btn-close-shop" class="btn-action secondary">ЗАКРЫТЬ ЛАВКУ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RELIC INVENTORY MODAL -->
+  <div id="modal-relics" class="game-modal-overlay">
+    <div class="modal-box relics-box">
+      <div class="modal-ribbon">АРХИВ БЛАГОСЛОВЕНИЙ</div>
+      <h2 class="modal-heading">СОБРАННЫЕ РЕЛИКВИИ</h2>
+      <p class="modal-sub">Ваши текущие перки и пассивные усиления в этом спуске:</p>
+
+      <div id="relics-list-grid" class="relics-list-grid"></div>
+
+      <div class="modal-actions-column">
+        <button id="btn-close-relics" class="btn-action secondary">ВЕРНУТЬСЯ В БОЙ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARACTER & GEAR SHEET MODAL (TAB) -->
+  <div id="modal-character-sheet" class="game-modal-overlay">
+    <div class="modal-box charsheet-box">
+      <div class="modal-ribbon meta">ХАРАКТЕРИСТИКИ ГЕРОЯ & СНАРЯЖЕНИЕ [TAB]</div>
+      <div class="charsheet-content-layout">
+        <!-- Left Col: Stats -->
+        <div class="charsheet-stats-col">
+          <div class="charsheet-hero-header">
+            <img id="cs-hero-avatar" class="cs-avatar" src="/Dungeon%20Gathering%20Free%20Version/Zombies%201.1%20portraits%2016x16.png" alt="Hero" />
+            <div class="cs-hero-title-box">
+              <h3 id="cs-hero-name" class="cs-name">Пробуждённый</h3>
+              <div class="cs-lvl-badge">Уровень <b id="cs-hero-level">1</b></div>
+            </div>
+          </div>
+
+          <div class="charsheet-stats-grid">
+            <div class="cs-stat-item"><span class="cs-lbl">❤️ Здоровье:</span> <b id="cs-hp" class="cs-val text-green">10 / 10</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">⚔️ Урон оружия:</span> <b id="cs-damage" class="cs-val text-yellow">24</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">⚡ Скорость ударов:</span> <b id="cs-atk-speed" class="cs-val text-cyan">3.6 /с</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">🛡️ Броня (защита):</span> <b id="cs-armor" class="cs-val text-blue">1</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">🎯 Шанс крита:</span> <b id="cs-crit-chance" class="cs-val text-yellow">25%</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">💥 Сила крита:</span> <b id="cs-crit-mult" class="cs-val text-orange">2.4x</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">🩸 Вампиризм:</span> <b id="cs-lifesteal" class="cs-val text-red">12%</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">💨 Скорость бега:</span> <b id="cs-speed" class="cs-val text-cyan">140</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">🕯️ Радиус света:</span> <b id="cs-light" class="cs-val text-yellow">+50 px</b></div>
+            <div class="cs-stat-item"><span class="cs-lbl">💀 Врагов повержено:</span> <b id="cs-kills" class="cs-val text-purple">0</b></div>
+          </div>
+
+
+          <!-- Equipped Relics & Synergies in Tab Sheet -->
+          <div class="cs-relics-section">
+            <div class="cs-sec-title">ЭКИПИРОВАННЫЕ РЕЛИКВИИ:</div>
+            <div id="cs-relics-grid" class="cs-relics-grid"></div>
+            <div id="cs-synergy-badge" class="cs-synergy-badge" style="display: none;"></div>
+          </div>
+
+          <!-- Collected Perks list -->
+          <div class="cs-perks-section">
+            <div class="cs-sec-title">АКТИВНЫЕ БЛАГОСЛОВЕНИЯ & ПЕРКИ:</div>
+            <div id="cs-perks-list" class="cs-perks-list"></div>
+          </div>
+        </div>
+
+        <!-- Right Col: Currently Equipped Weapon -->
+        <div class="charsheet-weapon-col">
+          <div class="cs-sec-title">ТЕКУЩЕЕ ОРУЖИЕ:</div>
+          <div id="cs-weapon-card" class="cs-weapon-card">
+            <!-- Weapon details populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions-column">
+        <button id="btn-close-charsheet" class="btn-action primary">ВЕРНУТЬСЯ В БОЙ [TAB / ESC]</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- META-PROGRESSION ALTAR MODAL -->
+  <div id="modal-meta" class="game-modal-overlay">
+    <div class="modal-box meta-box">
+      <div class="modal-ribbon meta">СВЯТИЛИЩЕ ВЕЧНОЙ ПАМЯТИ</div>
+      <h2 class="modal-heading">АЛТАРЬ НАСЛЕДИЯ</h2>
+      <p class="modal-sub">
+        Потратьте сохраненные синие души (<b id="meta-modal-blue-val" style="color: #38bdf8;">0</b> 💎),
+        чтобы навсегда укрепить ваших героев для всех будущих походов:
+      </p>
+
+      <div id="meta-upgrades-grid" class="meta-upgrades-grid"></div>
+
+      <div class="modal-actions-column">
+        <button id="btn-close-meta" class="btn-action primary">НАЗАД В МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROGUELITE LEVEL-UP PERK MODAL -->
+  <div id="modal-perk" class="game-modal-overlay">
+    <div class="modal-box perk-box">
+      <div class="modal-ribbon">ТАЙНЫЙ АЛТАРЬ ВОЗВЫШЕНИЯ</div>
+      <h2 class="modal-heading">НОВЫЙ УРОВЕНЬ! ВЫБЕРИТЕ БЛАГОСЛОВЕНИЕ</h2>
+      <p class="modal-sub">
+        Катакомбы откликаются на вашу силу. Выберите постоянное улучшение для текущего похода:
+      </p>
+
+      <div id="perk-cards-grid" class="perk-cards-grid"></div>
+    </div>
+  </div>
+
+
+  <!-- RELIC SWAP MODAL (PAUSES GAME) -->
+  <div id="modal-relic-swap" class="game-modal-overlay">
+    <div class="modal-box relic-swap-box">
+      <div class="modal-ribbon legendary">АРТЕФАКТ ДРЕВНИХ</div>
+      <h2 class="modal-heading">НАЙДЕНА РЕЛИКВИЯ!</h2>
+      <p class="modal-sub">
+        Время в склепе замерло. Изучите свойства артефакта и выберите слот для экипировки:
+      </p>
+
+      <!-- Found Relic Card -->
+      <div id="swap-found-relic-card" class="found-relic-card"></div>
+
+      <!-- Slots to assign -->
+      <div class="relic-slots-assign-header">
+        ДОСТУПНЫЕ СЛОТЫ ВАШЕГО ГЕРОЯ (<span id="swap-hero-class-label"></span>):
+      </div>
+      <div id="swap-slots-grid" class="swap-slots-grid"></div>
+
+      <div class="modal-actions-column">
+        <button id="btn-leave-relic" class="btn-action secondary">ОСТАВИТЬ НА ЗЕМЛЕ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div id="modal-pause" class="game-modal-overlay">
+    <div class="modal-box">
+      <h2 class="modal-heading">ПАУЗА ПОХОДА</h2>
+      <p class="modal-sub">Спуск приостановлен. Время перевести дух.</p>
+
+      <div class="modal-actions-column">
+        <button id="btn-resume" class="btn-action primary">ПРОДОЛЖИТЬ</button>
+        <button id="btn-restart" class="btn-action warning">НАЧАТЬ ЗАНОВО</button>
+        <button id="btn-to-menu" class="btn-action secondary">ВЫЙТИ В МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="modal-gameover" class="game-modal-overlay">
+    <div class="modal-box gameover-box">
+      <div class="modal-ribbon defeat">СМЕРТЬ В КАТАКОМБАХ</div>
+      <h2 class="modal-heading text-defeat">ТЬМА ПОГЛОТИЛА ВАС</h2>
+      <p class="modal-sub">
+        Ваша плоть пала, но собранные синие души вернулись в Алтарь Наследия!
+      </p>
+
+      <div class="gameover-stats-grid">
+        <div class="go-stat">
+          <span class="go-label">Достигнутый этаж:</span>
+          <b id="go-floor-val">1</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Уничтожено монстров:</span>
+          <b id="go-kills-val">0</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Собрано золота:</span>
+          <b id="go-gold-val">0</b>
+        </div>
+        <div class="go-stat highlight">
+          <span class="go-label">Спасенные души:</span>
+          <b id="go-blue-val" style="color: #38bdf8;">+0 💎</b>
+        </div>
+      </div>
+
+      <div class="modal-actions-column">
+        <button id="btn-try-again" class="btn-action primary">ПОПРОБОВАТЬ СНОВА</button>
+        <button id="btn-go-menu" class="btn-action secondary">В ГЛАВНОЕ МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VICTORY MODAL -->
+  <div id="modal-victory" class="game-modal-overlay">
+    <div class="modal-box victory-box">
+      <div class="modal-ribbon victory">ВЕЛИКИЙ ТРИУМФ</div>
+      <h2 class="modal-heading text-victory">ВЛАДЫКА СКЛЕПА ПОВЕРЖЕН!</h2>
+      <p class="modal-sub">
+        Катакомбы очищены от скверны! Легенда о вашем подвиге разнеслась по всему МоррисГраду!
+      </p>
+
+      <div class="gameover-stats-grid">
+        <div class="go-stat">
+          <span class="go-label">Пройдено этажей:</span>
+          <b id="vic-floor-val">10</b>
+        </div>
+        <div class="go-stat">
+          <span class="go-label">Уничтожено монстров:</span>
+          <b id="vic-kills-val">0</b>
+        </div>
+        <div class="go-stat highlight">
+          <span class="go-label">Итоговое золото:</span>
+          <b id="vic-gold-val">0</b>
+        </div>
+        <div class="go-stat highlight">
+          <span class="go-label">Награда душами:</span>
+          <b id="vic-blue-val" style="color: #38bdf8;">+15 💎</b>
+        </div>
+      </div>
+
+      <div class="modal-actions-column">
+        <button id="btn-vic-restart" class="btn-action primary">НОВЫЙ ПОХОД</button>
+        <button id="btn-vic-menu" class="btn-action secondary">В ГЛАВНОЕ МЕНЮ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  .dungeon-game-root {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: #080b12;
+    color: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+
+
+  /* Starting Loadout in Menu */
+  .loadout-select-section {
+    margin: 0.6rem 0;
+    text-align: left;
+  }
+
+  .loadout-row {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+  }
+
+  .loadout-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1.5px solid #475569;
+    padding: 6px 12px;
+    border-radius: 10px;
+  }
+
+  .loadout-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ffd700;
+  }
+
+  .loadout-select {
+    background: #0f172a;
+    border: 1px solid #64748b;
+    color: #f1f5f9;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .loadout-select:focus {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+  }
+
+  /* Relics Bar in Bottom HUD */
+  .hud-relics-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1.5px solid #a855f7;
+    border-radius: 12px;
+    padding: 4px 10px;
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
+  }
+
+  .relics-bar-label {
+    font-size: 0.62rem;
+    font-weight: 900;
+    color: #c084fc;
+    letter-spacing: 1px;
+  }
+
+  .hud-relics-bar {
+    display: flex;
+    gap: 6px;
+  }
+
+  .hud-relic-slot {
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid #c084fc;
+    background: rgba(30, 27, 75, 0.7);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    pointer-events: auto;
+  }
+
+  .hud-relic-slot:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(192, 132, 252, 0.8);
+  }
+
+  .hud-relic-slot.empty {
+    border-style: dashed;
+    border-color: #475569;
+    background: rgba(15, 23, 42, 0.5);
+    opacity: 0.6;
+  }
+
+  /* Ultimate Button Slot */
+  .ultimate-indicator {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #0284c7;
+    border-radius: 12px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    overflow: hidden;
+    pointer-events: auto;
+    box-shadow: 0 4px 15px rgba(2, 132, 199, 0.3);
+  }
+
+  .ultimate-indicator.ready {
+    border-color: #facc15;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(113, 63, 18, 0.8));
+    animation: ultPulse 1s infinite alternate;
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.7);
+  }
+
+  @keyframes ultPulse {
+    0% { transform: scale(1.0); box-shadow: 0 0 15px rgba(250, 204, 21, 0.5); }
+    100% { transform: scale(1.06); box-shadow: 0 0 30px rgba(250, 204, 21, 0.9); }
+  }
+
+  .ultimate-icon { font-size: 1.4rem; }
+  .ultimate-text-col { display: flex; flex-direction: column; }
+  .ultimate-title { font-size: 0.68rem; font-weight: 900; color: #38bdf8; }
+  .ultimate-indicator.ready .ultimate-title { color: #facc15; }
+  .ultimate-pct { font-size: 0.75rem; font-weight: 900; color: #f8fafc; }
+
+  .ultimate-charge-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #38bdf8, #facc15);
+    width: 0%;
+    transition: width 0.2s;
+  }
+
+  /* Relic Swap Modal */
+  .relic-swap-box {
+    max-width: 620px;
+    border-color: #a855f7;
+    box-shadow: 0 0 45px rgba(168, 85, 247, 0.35);
+  }
+
+  .found-relic-card {
+    background: rgba(30, 27, 75, 0.7);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    padding: 1rem 1.4rem;
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    text-align: left;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.25);
+  }
+
+  .found-relic-icon {
+    font-size: 3rem;
+    filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.7));
+  }
+
+  .found-relic-info h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.15rem;
+    color: #ffd700;
+  }
+
+  .found-relic-rarity {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .found-relic-desc {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.35;
+  }
+
+  .relic-slots-assign-header {
+    font-size: 0.82rem;
+    font-weight: 900;
+    color: #c084fc;
+    letter-spacing: 1px;
+    margin: 1rem 0 0.5rem 0;
+    text-align: left;
+  }
+
+  .swap-slots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .swap-slot-card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 2px solid #475569;
+    border-radius: 10px;
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .swap-slot-header {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #94a3b8;
+  }
+
+  .swap-current-relic {
+    font-size: 0.78rem;
+    color: #f1f5f9;
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .btn-assign-slot {
+    background: #ffd700;
+    color: #000;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 900;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-assign-slot:hover {
+    background: #fde047;
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+  }
+
+  .cs-relics-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .cs-relic-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(30, 27, 75, 0.75);
+    border: 1.5px solid #c084fc;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: #f1f5f9;
+  }
+
+  .cs-synergy-badge {
+    background: linear-gradient(90deg, #7e22ce, #b91c1c);
+    border: 1.5px solid #facc15;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #fef08a;
+    box-shadow: 0 0 15px rgba(250, 204, 21, 0.35);
+  }
+
+  .game-screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .game-screen.active {
+    display: flex;
+  }
+
+  /* MENU SCREEN */
+  #screen-menu {
+    background: radial-gradient(circle at center, #1e1b4b 0%, #06080e 100%);
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem;
+    overflow-y: auto;
+  }
+
+  .menu-overlay {
+    width: 100%;
+    max-width: 780px;
+    background: linear-gradient(180deg, rgba(20, 24, 38, 0.98) 0%, rgba(10, 12, 20, 0.98) 100%);
+    border: 3px solid #ffd700;
+    border-radius: 16px;
+    padding: 1.8rem 2.2rem;
+    box-shadow: 0 0 50px rgba(255, 215, 0, 0.25), inset 0 0 30px rgba(0, 0, 0, 0.85);
+    text-align: center;
+    position: relative;
+    backdrop-filter: blur(8px);
+    margin: auto;
+    z-index: 10;
+  }
+
+  .menu-header-ribbon {
+    display: inline-block;
+    background: linear-gradient(90deg, #78350f, #b45309, #78350f);
+    padding: 5px 18px;
+    border-radius: 20px;
+    border: 1px solid #fde047;
+    margin-bottom: 0.6rem;
+  }
+
+  .ribbon-text {
+    color: #fde047;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+
+  .title-emblem-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 0.6rem;
+  }
+
+  .menu-hero-emblem {
+    width: 48px;
+    height: 48px;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.6));
+    margin-bottom: 4px;
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    background: #000;
+    padding: 5px;
+  }
+
+  .game-title {
+    font-size: 2.3rem;
+    font-weight: 900;
+    color: #ffd700;
+    margin: 0;
+    letter-spacing: 3px;
+    text-shadow: 0 0 25px rgba(255, 215, 0, 0.5), 0 2px 4px #000;
+  }
+
+  .game-subtitle {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    letter-spacing: 3px;
+    margin-top: 0.2rem;
+    font-weight: 800;
+  }
+
+  /* Mode selection */
+  .mode-select-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 0.8rem 0;
+  }
+
+  .mode-chip {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1.5px solid #475569;
+    color: #cbd5e1;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s;
+    pointer-events: auto;
+  }
+
+  .mode-chip:hover {
+    border-color: #ffd700;
+    color: #ffd700;
+  }
+
+  .mode-chip.active {
+    background: #ffd700;
+    color: #000;
+    border-color: #fef08a;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+  }
+
+  /* Classes Selection */
+  .class-select-section {
+    margin: 0.8rem 0;
+    text-align: left;
+  }
+
+  .section-label {
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #ffd700;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+    text-align: center;
+  }
+
+  .classes-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.6rem;
+  }
+
+  @media (max-width: 950px) {
+    .classes-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .classes-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .class-card {
+    background: rgba(30, 41, 59, 0.6);
+    border: 2px solid #475569;
+    border-radius: 12px;
+    padding: 0.8rem 0.6rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+  }
+
+  .class-card:hover {
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.1);
+  }
+
+  .class-card.active {
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.2);
+    box-shadow: 0 0 18px rgba(255, 215, 0, 0.35);
+  }
+
+  .class-icon { font-size: 1.8rem; margin-bottom: 4px; }
+  .class-name { font-size: 0.88rem; font-weight: 800; color: #fff; margin-bottom: 3px; }
+  .class-perk { font-size: 0.68rem; color: #94a3b8; line-height: 1.3; }
+
+  .menu-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.2rem;
+    margin-top: 1.2rem;
+    flex-wrap: wrap;
+    pointer-events: auto;
+  }
+
+  .btn-primary-action {
+    background: linear-gradient(135deg, #ffd700 0%, #d97706 100%);
+    color: #000;
+    border: 2px solid #fef08a;
+    padding: 12px 38px;
+    border-radius: 35px;
+    cursor: pointer;
+    font-weight: 900;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 6px 25px rgba(255, 215, 0, 0.45);
+    transition: all 0.15s ease;
+    pointer-events: auto;
+  }
+
+  .btn-primary-action:hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 8px 35px rgba(255, 215, 0, 0.7);
+  }
+
+  .btn-main-text { font-size: 1.25rem; letter-spacing: 2px; }
+  .btn-sub-text { font-size: 0.7rem; letter-spacing: 1.5px; opacity: 0.9; }
+
+  .btn-meta-action {
+    background: rgba(15, 23, 42, 0.9);
+    border: 2px solid #38bdf8;
+    color: #38bdf8;
+    padding: 12px 20px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.25);
+    pointer-events: auto;
+  }
+
+  .btn-meta-action:hover {
+    background: #38bdf8;
+    color: #000;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(56, 189, 248, 0.6);
+  }
+
+  .menu-hotkeys-help {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-top: 1.2rem;
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+
+  .hotkey-col b { color: #ffd700; }
+
+  .menu-quick-stats {
+    display: flex;
+    justify-content: center;
+    gap: 1.8rem;
+    margin-top: 1.2rem;
+    font-size: 0.82rem;
+    color: #94a3b8;
+  }
+
+  .menu-quick-stats b { color: #ffd700; }
+
+  /* HUD HEADER */
+  .hud-header {
+    position: absolute;
+    top: 10px;
+    left: 15px;
+    right: 15px;
+    height: 70px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .hud-left, .hud-center, .hud-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+  }
+
+  .hud-exit-link {
+    color: #ffd700;
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 800;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1.5px solid rgba(255, 215, 0, 0.5);
+    padding: 7px 12px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    pointer-events: auto;
+  }
+  .hud-exit-link:hover {
+    background: #ffd700;
+    color: #000;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    transform: translateY(-1px);
+  }
+
+  .hero-status-pill {
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+  }
+
+  .hero-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 2px solid #ffd700;
+    background: #000;
+    object-fit: cover;
+    image-rendering: pixelated;
+  }
+
+  .hero-info-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 140px;
+  }
+
+  .hero-name-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ffd700;
+  }
+
+  .hearts-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-items: center;
+    min-height: 18px;
+    max-height: 38px;
+    max-width: 140px;
+    overflow: hidden;
+  }
+
+  .heart-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+
+  .heart-icon.full {
+    filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.7));
+  }
+
+  .heart-icon.half {
+    filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.4));
+  }
+
+  .heart-icon.empty {
+    opacity: 0.35;
+  }
+
+  .bar-track {
+    position: relative;
+    width: 100%;
+    height: 7px;
+    background: #090d16;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .bar-fill {
+    height: 100%;
+    transition: width 0.15s ease-out;
+  }
+
+  .xp-fill { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+  .boss-fill { background: linear-gradient(90deg, #ec4899, #a855f7); }
+
+  .bar-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .floor-badge-box {
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    padding: 6px 18px;
+    text-align: center;
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.35);
+  }
+
+  .floor-title {
+    font-size: 0.92rem;
+    font-weight: 900;
+    color: #ffd700;
+  }
+
+  .floor-desc {
+    font-size: 0.65rem;
+    color: #94a3b8;
+  }
+
+  .boss-hud-bar {
+    width: 250px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #a855f7;
+    border-radius: 8px;
+    padding: 4px 8px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+  }
+
+  .boss-title {
+    font-size: 0.68rem;
+    font-weight: 900;
+    color: #f472b6;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+
+  .resources-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 2px solid rgba(255, 215, 0, 0.5);
+    border-radius: 12px;
+    padding: 6px 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+  }
+
+  .res-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 800;
+    font-size: 0.88rem;
+  }
+
+  .res-item.gold { color: #fde047; }
+  .res-item.blue-coin { color: #38bdf8; }
+
+  .res-icon {
+    width: 18px;
+    height: 18px;
+    image-rendering: pixelated;
+  }
+
+  .hud-mini-btn {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1.5px solid #475569;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    pointer-events: auto;
+  }
+
+  .hud-mini-btn:hover {
+    border-color: #ffd700;
+    transform: translateY(-2px);
+  }
+
+  /* CANVAS PLAYFIELD */
+  .canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  /* Mini-map */
+  .minimap-container {
+    position: absolute;
+    top: 85px;
+    right: 15px;
+    background: rgba(10, 15, 25, 0.92);
+    border: 2px solid #ffd700;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+    pointer-events: auto;
+  }
+
+  #minimap-canvas {
+    display: block;
+    background: #0f172a;
+    image-rendering: pixelated;
+  }
+
+  .minimap-title {
+    font-size: 0.62rem;
+    text-align: center;
+    background: #000;
+    color: #ffd700;
+    font-weight: 800;
+    padding: 2px 0;
+  }
+
+  /* Prompt */
+  .interaction-prompt {
+    position: absolute;
+    bottom: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #ffd700;
+    color: #ffd700;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+    z-index: 100;
+    letter-spacing: 0.5px;
+    animation: prompt-pulse 1.5s infinite;
+  }
+
+  @keyframes prompt-pulse {
+    0%, 100% { opacity: 0.9; transform: translateX(-50%) scale(1); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.04); }
+  }
+
+  /* Bottom HUD */
+  .bottom-action-hud {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+    pointer-events: auto;
+  }
+
+  .potion-slot {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+    transition: transform 0.15s;
+    pointer-events: auto;
+  }
+
+  .potion-slot:hover {
+    transform: translateY(-3px) scale(1.05);
+  }
+
+  .potion-img {
+    width: 26px;
+    height: 26px;
+    image-rendering: pixelated;
+  }
+
+  .slot-key {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 0.62rem;
+    font-weight: 900;
+    color: #94a3b8;
+  }
+
+  .pot-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    color: #ffd700;
+  }
+
+  .skill-indicator, .dash-indicator {
+    position: relative;
+    width: 62px;
+    height: 48px;
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #a855f7;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    pointer-events: auto;
+  }
+
+  .dash-indicator { border-color: #38bdf8; }
+
+  .skill-icon, .dash-icon { font-size: 1rem; }
+  .skill-text { font-size: 0.52rem; font-weight: 900; color: #c084fc; }
+  .dash-text { font-size: 0.52rem; font-weight: 900; color: #38bdf8; }
+
+  .skill-cd-mask, .dash-cd-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    height: 0%;
+    transition: height 0.1s linear;
+  }
+
+  .notification-toast {
+    position: absolute;
+    top: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #ffd700;
+    border-radius: 20px;
+    padding: 6px 20px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #ffd700;
+    pointer-events: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .notification-toast.show { opacity: 1; }
+
+  /* Mobile Touch Controls */
+  .mobile-controls {
+    display: none;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  @media (pointer: coarse), (max-width: 800px) {
+    .mobile-controls { display: block; }
+  }
+
+  .joystick-base {
+    position: absolute;
+    bottom: 25px;
+    left: 25px;
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    pointer-events: auto;
+  }
+
+  .joystick-thumb {
+    position: absolute;
+    top: 25px;
+    left: 25px;
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 215, 0, 0.6);
+    border-radius: 50%;
+    border: 2px solid #ffd700;
+    pointer-events: none;
+  }
+
+  .mobile-actions {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    pointer-events: auto;
+  }
+
+  .touch-action-btn {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    font-weight: 900;
+    font-size: 0.75rem;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .btn-atk { background: #ef4444; border: 2px solid #fca5a5; color: #fff; }
+  .btn-skill { background: #8b5cf6; border: 2px solid #d8b4fe; color: #fff; }
+  .btn-dash { background: #0284c7; border: 2px solid #7dd3fc; color: #fff; }
+  .btn-pot { background: #16a34a; border: 2px solid #86efac; color: #fff; }
+
+  /* MODALS - display: none when inactive completely removes click hijacking! */
+  .game-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(6px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .game-modal-overlay.active {
+    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .modal-box {
+    background: linear-gradient(180deg, #141824 0%, #090c14 100%);
+    border: 3px solid #ffd700;
+    border-radius: 16px;
+    padding: 1.8rem;
+    max-width: 760px;
+    width: 90%;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 0 50px rgba(255, 215, 0, 0.35);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-ribbon {
+    display: inline-block;
+    background: #d97706;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 900;
+    padding: 4px 16px;
+    border-radius: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-ribbon.shop { background: #7c3aed; }
+  .modal-ribbon.meta { background: #0284c7; }
+  .modal-ribbon.defeat { background: #b91c1c; }
+  .modal-ribbon.victory { background: #15803d; }
+
+  .modal-heading {
+    margin: 0 0 0.4rem 0;
+    color: #ffd700;
+    font-size: 1.5rem;
+    font-weight: 900;
+  }
+
+  .text-defeat { color: #ef4444; }
+  .text-victory { color: #4ade80; }
+
+  .modal-sub {
+    color: #94a3b8;
+    font-size: 0.82rem;
+    margin-bottom: 1.2rem;
+    line-height: 1.4;
+  }
+
+  .shop-items-grid, .meta-upgrades-grid, .relics-list-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    text-align: left;
+  }
+
+  @media (max-width: 650px) {
+    .shop-items-grid, .meta-upgrades-grid, .relics-list-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .shop-item-card, .meta-item-card, .relic-item-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1.5px solid #475569;
+    border-radius: 10px;
+    padding: 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .shop-item-card:hover, .meta-item-card:hover {
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.1);
+  }
+
+  .item-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .item-icon { font-size: 1.6rem; }
+  .item-title { font-size: 0.88rem; font-weight: 800; color: #f8fafc; }
+  .item-desc { font-size: 0.68rem; color: #94a3b8; margin-top: 2px; }
+
+  .btn-buy-item {
+    background: #ffd700;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 800;
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.15s;
+    pointer-events: auto;
+  }
+
+  .btn-buy-item:hover {
+    transform: scale(1.05);
+  }
+
+  .perk-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 650px) {
+    .perk-cards-grid { grid-template-columns: 1fr; }
+  }
+
+  .perk-card {
+    background: rgba(30, 41, 59, 0.7);
+    border: 2px solid #475569;
+    border-radius: 12px;
+    padding: 1.2rem 1rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto;
+  }
+
+  .perk-card:hover {
+    transform: translateY(-4px);
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.15);
+    box-shadow: 0 8px 25px rgba(255, 215, 0, 0.3);
+  }
+
+  .perk-card.rare { border-color: #38bdf8; }
+  .perk-card.epic { border-color: #c084fc; }
+  .perk-card.legendary { border-color: #f59e0b; }
+
+  .perk-icon { font-size: 2.4rem; margin-bottom: 0.5rem; }
+  .perk-title { font-size: 1rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.4rem; }
+  .perk-desc { font-size: 0.75rem; color: #cbd5e1; line-height: 1.4; }
+
+  .modal-actions-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    max-width: 280px;
+    margin: 1.2rem auto 0 auto;
+  }
+
+  .btn-action {
+    padding: 10px 22px;
+    border-radius: 25px;
+    font-weight: 800;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.15s;
+    border: 2px solid transparent;
+    pointer-events: auto;
+  }
+
+  .btn-action.primary {
+    background: #ffd700;
+    color: #000;
+    border-color: #fef08a;
+  }
+  .btn-action.primary:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+
+  .btn-action.warning {
+    background: #dc2626;
+    color: #fff;
+    border-color: #fca5a5;
+  }
+
+  .btn-action.secondary {
+    background: transparent;
+    border-color: #64748b;
+    color: #cbd5e1;
+  }
+  .btn-action.secondary:hover {
+    border-color: #ffd700;
+    color: #ffd700;
+  }
+
+  .gameover-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8rem;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    .gameover-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .go-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+
+  .go-stat b {
+    font-size: 1.15rem;
+    color: #ffd700;
+  }
+
+  /* Character & Gear Sheet Modal (Tab) */
+  .charsheet-box {
+    max-width: 860px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(8, 12, 22, 0.98) 100%);
+    border: 2px solid #ffd700;
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.35);
+  }
+
+  .charsheet-content-layout {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 1.2rem;
+    margin-top: 1rem;
+    text-align: left;
+  }
+
+  @media (max-width: 800px) {
+    .charsheet-content-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .charsheet-hero-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1.5px solid #475569;
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .cs-avatar {
+    width: 44px;
+    height: 44px;
+    border: 2px solid #ffd700;
+    border-radius: 10px;
+    background: #000;
+    image-rendering: pixelated;
+  }
+
+  .cs-name {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #ffd700;
+    font-weight: 800;
+  }
+
+  .cs-lvl-badge {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+  .cs-lvl-badge b { color: #38bdf8; font-size: 0.9rem; }
+
+  .charsheet-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 0.8rem;
+  }
+
+  .cs-stat-item {
+    font-size: 0.76rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  }
+
+  .cs-lbl { color: #94a3b8; font-weight: 600; }
+  .cs-val { font-family: monospace; font-weight: 800; font-size: 0.85rem; }
+  .text-green { color: #4ade80; }
+  .text-yellow { color: #facc15; }
+  .text-cyan { color: #38bdf8; }
+  .text-blue { color: #60a5fa; }
+  .text-orange { color: #fb923c; }
+  .text-red { color: #f87171; }
+  .text-purple { color: #c084fc; }
+
+  .cs-sec-title {
+    font-size: 0.76rem;
+    font-weight: 900;
+    color: #ffd700;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+  }
+
+  .cs-perks-section {
+    margin-top: 0.9rem;
+  }
+
+  .cs-perks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .cs-perk-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid #475569;
+    border-radius: 8px;
+    padding: 5px 8px;
+  }
+
+  .chip-icon { font-size: 1.2rem; }
+  .chip-text { display: flex; flex-direction: column; }
+  .chip-text b { font-size: 0.75rem; color: #f8fafc; }
+  .chip-text small { font-size: 0.65rem; color: #94a3b8; }
+
+  /* Weapon Card */
+  .cs-weapon-card {
+    background: rgba(15, 23, 42, 0.9);
+    border: 2px solid #ffd700;
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  }
+
+  .cs-wpn-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 0.8rem;
+    border-bottom: 1.5px solid;
+    margin-bottom: 0.8rem;
+    border-radius: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .cs-wpn-icon-wrap {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #090d16;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .cs-wpn-title-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .cs-wpn-name {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 900;
+  }
+
+  .cs-wpn-rarity-badge {
+    font-size: 0.65rem;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid;
+    display: inline-block;
+    width: fit-content;
+  }
+
+  .cs-wpn-stats-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 0.8rem;
+  }
+
+  .cs-wpn-stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.76rem;
+  }
+  .cs-wpn-stat-row span { color: #94a3b8; }
+  .cs-wpn-stat-row b { font-family: monospace; color: #f8fafc; }
+
+  .cs-wpn-affixes-box {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .cs-affixes-title {
+    font-size: 0.68rem;
+    color: #ffd700;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .cs-affix-row {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    background: rgba(30, 41, 59, 0.5);
+    border-left: 2.5px solid #38bdf8;
+    padding: 4px 8px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .cs-affix-name { color: #38bdf8; font-weight: 800; margin-right: 4px; }
+  .cs-affix-desc { color: #e2e8f0; }
+
+  .cs-no-affix {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-style: italic;
+    padding: 6px;
+  }
+
+
+  /* Difficulty and Mode Section Styles */
+  .mode-select-section, .difficulty-select-section {
+    margin: 0.5rem 0 0.8rem 0;
+  }
+
+  .mode-select-row, .difficulty-select-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 0.4rem;
+  }
+
+  .diff-chip {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1.5px solid #475569;
+    color: #cbd5e1;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s;
+    pointer-events: auto;
+  }
+
+  .diff-chip:hover {
+    border-color: #ffd700;
+    color: #ffd700;
+  }
+
+  .diff-chip.active {
+    background: #ffd700;
+    color: #000;
+    border-color: #fef08a;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+  }
+
+  .diff-chip[data-diff="nightmare"].active {
+    background: #ef4444;
+    color: #fff;
+    border-color: #fca5a5;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+  }
+
+  .diff-chip[data-diff="inferno"].active {
+    background: linear-gradient(135deg, #7c3aed 0%, #dc2626 100%);
+    color: #fff;
+    border-color: #f43f5e;
+    box-shadow: 0 0 18px rgba(220, 38, 38, 0.6);
+  }
+
+  .diff-hud-badge {
+    display: inline-block;
+    font-size: 0.55rem;
+    font-weight: 900;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #334155;
+    color: #facc15;
+    border: 1px solid #64748b;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+
+</style>
+
+<script>
+  import { loadDungeonAssets, type DungeonAssets } from './dungeon/assets';
+  import { DungeonAudio } from './dungeon/audio';
+  import { DungeonEngine } from './dungeon/engine';
+  import { getRandomPerks, applyPerk, ALL_PERKS } from './dungeon/perks';
+  import type { PlayerStats, Enemy, HeroClass, GameMode, DifficultyLevel, MetaUpgrades, ShopKeeper, StartingLoadoutWeapon, StartingPack, Relic, GroundRelic } from './dungeon/types';
+
+  let isInitialized = false;
+
+  function initGame() {
+    const root = document.getElementById('dungeon-game-root');
+    if (!root || isInitialized) return;
+    isInitialized = true;
+
+    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const minimapCanvas = document.getElementById('minimap-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    let loadedAssets: DungeonAssets | null = null;
+    loadDungeonAssets().then((res) => {
+      loadedAssets = res;
+      ensureEngine().catch(console.warn);
+    });
+
+    const audio = new DungeonAudio();
+
+    // Screens
+    const screenMenu = document.getElementById('screen-menu');
+    const screenGame = document.getElementById('screen-game');
+
+    // Modals
+    const modalPerk = document.getElementById('modal-perk');
+    const modalPause = document.getElementById('modal-pause');
+    const modalGameOver = document.getElementById('modal-gameover');
+    const modalVictory = document.getElementById('modal-victory');
+    const modalShop = document.getElementById('modal-shop');
+    const modalRelics = document.getElementById('modal-relics');
+    const modalMeta = document.getElementById('modal-meta');
+    const modalCharSheet = document.getElementById('modal-character-sheet');
+    const btnShowCharSheet = document.getElementById('btn-show-charsheet');
+    const btnCloseCharSheet = document.getElementById('btn-close-charsheet');
+
+    const perkCardsGrid = document.getElementById('perk-cards-grid');
+    const shopItemsGrid = document.getElementById('shop-items-grid');
+    const relicsListGrid = document.getElementById('relics-list-grid');
+    const metaUpgradesGrid = document.getElementById('meta-upgrades-grid');
+    const modalRelicSwap = document.getElementById('modal-relic-swap');
+    const swapFoundRelicCard = document.getElementById('swap-found-relic-card');
+    const swapHeroClassLabel = document.getElementById('swap-hero-class-label');
+    const swapSlotsGrid = document.getElementById('swap-slots-grid');
+    const btnLeaveRelic = document.getElementById('btn-leave-relic');
+
+    const hudRelicsBar = document.getElementById('hud-relics-bar');
+    const hudUltimateBox = document.getElementById('hud-ultimate-box');
+    const ultPctDisplay = document.getElementById('ultimate-pct-display');
+    const ultChargeBar = document.getElementById('ultimate-charge-bar');
+
+    // Starting Loadout selectors
+    const startWeaponStorageKey = 'dungeon_start_weapon';
+    const startPackStorageKey = 'dungeon_start_pack';
+
+    let selectedStartingWeapon: StartingLoadoutWeapon = (localStorage.getItem(startWeaponStorageKey) as StartingLoadoutWeapon) || 'default';
+    let selectedStartingPack: StartingPack = (localStorage.getItem(startPackStorageKey) as StartingPack) || 'none';
+
+    const selectStartWeapon = document.getElementById('select-start-weapon') as HTMLSelectElement | null;
+    if (selectStartWeapon) {
+      selectStartWeapon.value = selectedStartingWeapon;
+      selectStartWeapon.addEventListener('change', () => {
+        selectedStartingWeapon = selectStartWeapon.value as StartingLoadoutWeapon;
+        localStorage.setItem(startWeaponStorageKey, selectedStartingWeapon);
+      });
+    }
+
+    const selectStartPack = document.getElementById('select-start-pack') as HTMLSelectElement | null;
+    if (selectStartPack) {
+      selectStartPack.value = selectedStartingPack;
+      selectStartPack.addEventListener('change', () => {
+        selectedStartingPack = selectStartPack.value as StartingPack;
+        localStorage.setItem(startPackStorageKey, selectedStartingPack);
+      });
+    }
+
+    // HUD Elements
+    const hudLvl = document.getElementById('hud-hero-lvl');
+    const hudHeroName = document.getElementById('hud-hero-name');
+    const hudHeroAvatar = document.getElementById('hud-hero-avatar');
+    const hudHearts = document.getElementById('hud-hearts-container');
+    const hudXp = document.getElementById('hud-hero-xp');
+    const hudXpText = document.getElementById('hud-hero-xp-text');
+    const hudFloorNum = document.getElementById('hud-floor-num');
+    const hudFloorDesc = document.getElementById('hud-floor-desc');
+    const hudBossWrap = document.getElementById('hud-boss-wrap');
+    const hudBossHp = document.getElementById('hud-boss-hp');
+    const resGold = document.getElementById('res-gold-val');
+    const resBlue = document.getElementById('res-blue-val');
+    const potHpBadge = document.getElementById('pot-hp-count');
+    const potSpeedBadge = document.getElementById('pot-speed-count');
+    const potPowerBadge = document.getElementById('pot-power-count');
+    const dashCdOverlay = document.getElementById('dash-cooldown-overlay');
+    const skillCdOverlay = document.getElementById('skill-cooldown-overlay');
+    const skillIconDisplay = document.getElementById('skill-icon-display');
+    const notificationToast = document.getElementById('hud-notification');
+    const promptToast = document.getElementById('hud-interaction-prompt');
+
+    // LocalStorage keys
+    const statsStorageKey = 'dungeon_gathering_record';
+    const metaStorageKey = 'dungeon_gathering_meta';
+
+    let selectedClass: HeroClass = 'zombie';
+    let selectedMode: GameMode = 'campaign';
+    let selectedDifficulty: DifficultyLevel = 'normal';
+    let engine: DungeonEngine | null = null;
+
+    const loadMeta = (): { blueCoins: number; upgrades: MetaUpgrades } => {
+      try {
+        const raw = localStorage.getItem(metaStorageKey);
+        return raw
+          ? JSON.parse(raw)
+          : {
+              blueCoins: 0,
+              upgrades: {
+                extraHearts: 0,
+                extraDamage: 0,
+                extraGold: 0,
+                extraLight: 0,
+                extraPotions: 0,
+                vampireMastery: 0,
+                critMastery: 0,
+                greedMastery: 0,
+                spectralDiscount: 0,
+                soulMagnet: 0,
+              },
+            };
+      } catch {
+        return {
+          blueCoins: 0,
+          upgrades: {
+            extraHearts: 0,
+            extraDamage: 0,
+            extraGold: 0,
+            extraLight: 0,
+            extraPotions: 0,
+            vampireMastery: 0,
+            critMastery: 0,
+            greedMastery: 0,
+            spectralDiscount: 0,
+            soulMagnet: 0,
+          },
+        };
+      }
+    };
+
+    const saveMeta = (data: { blueCoins: number; upgrades: MetaUpgrades }) => {
+      try {
+        localStorage.setItem(metaStorageKey, JSON.stringify(data));
+        updateMetaDisplay();
+      } catch {}
+    };
+
+    const loadSavedStats = () => {
+      try {
+        const raw = localStorage.getItem(statsStorageKey);
+        return raw ? JSON.parse(raw) : { floor: 1, kills: 0, gold: 0 };
+      } catch {
+        return { floor: 1, kills: 0, gold: 0 };
+      }
+    };
+
+    const saveStats = (stats: { floor: number; kills: number; gold: number; blueCoins: number }) => {
+      try {
+        const prev = loadSavedStats();
+        const updated = {
+          floor: Math.max(prev.floor, stats.floor),
+          kills: prev.kills + stats.kills,
+          gold: Math.max(prev.gold, stats.gold),
+        };
+        localStorage.setItem(statsStorageKey, JSON.stringify(updated));
+
+        const meta = loadMeta();
+        meta.blueCoins += stats.blueCoins;
+        saveMeta(meta);
+
+        updateMenuStats();
+      } catch {}
+    };
+
+    const updateMenuStats = () => {
+      const s = loadSavedStats();
+      const elF = document.getElementById('stat-high-floor');
+      const elK = document.getElementById('stat-high-kills');
+      const elG = document.getElementById('stat-high-gold');
+      if (elF) elF.textContent = String(s.floor);
+      if (elK) elK.textContent = String(s.kills);
+      if (elG) elG.textContent = String(s.gold);
+    };
+
+    const updateMetaDisplay = () => {
+      const m = loadMeta();
+      const elB1 = document.getElementById('meta-blue-coins-val');
+      const elB2 = document.getElementById('meta-modal-blue-val');
+      if (elB1) elB1.textContent = String(m.blueCoins);
+      if (elB2) elB2.textContent = String(m.blueCoins);
+    };
+
+    updateMenuStats();
+    updateMetaDisplay();
+
+
+    const updateHudBadges = () => {
+      const modeIcon = document.getElementById('hud-mode-icon');
+      const diffBadge = document.getElementById('hud-diff-badge');
+
+      if (modeIcon) {
+        modeIcon.textContent =
+          selectedMode === 'tutorial'
+            ? '🎓'
+            : selectedMode === 'boss_rush'
+            ? '⚔️'
+            : selectedMode === 'endless'
+            ? '♾️'
+            : '🏰';
+      }
+
+      if (diffBadge) {
+        const diffLabels: Record<DifficultyLevel, { text: string; bg: string; color: string }> = {
+          easy: { text: 'НОВИЧОК', bg: '#064e3b', color: '#6ee7b7' },
+          normal: { text: 'НОРМА', bg: '#1e293b', color: '#facc15' },
+          nightmare: { text: 'КОШМАР', bg: '#7f1d1d', color: '#fca5a5' },
+          inferno: { text: 'ИНФЕРНО', bg: '#581c87', color: '#f43f5e' },
+        };
+        const d = diffLabels[selectedDifficulty] || diffLabels.normal;
+        diffBadge.textContent = d.text;
+        diffBadge.style.backgroundColor = d.bg;
+        diffBadge.style.color = d.color;
+      }
+    };
+
+    // Difficulty chips handlers
+    document.querySelectorAll('.diff-chip').forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.diff-chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        selectedDifficulty = (chip.getAttribute('data-diff') as DifficultyLevel) || 'normal';
+      });
+    });
+
+    // Mode chips handlers
+    document.querySelectorAll('.mode-chip').forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.mode-chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        selectedMode = (chip.getAttribute('data-mode') as GameMode) || 'campaign';
+      });
+    });
+
+    // Class selection handler with localStorage persistence
+    const classStorageKey = 'dungeon_gathering_selected_class';
+    const savedClass = localStorage.getItem(classStorageKey) as HeroClass;
+    if (savedClass && ['zombie', 'paladin', 'sorcerer', 'berserker', 'assassin'].includes(savedClass)) {
+      selectedClass = savedClass;
+    }
+
+    document.querySelectorAll('.class-card').forEach((card) => {
+      const cls = card.getAttribute('data-class');
+      if (cls === selectedClass) {
+        card.classList.add('active');
+      } else {
+        card.classList.remove('active');
+      }
+
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.class-card').forEach((c) => c.classList.remove('active'));
+        card.classList.add('active');
+        selectedClass = (card.getAttribute('data-class') as HeroClass) || 'zombie';
+        localStorage.setItem(classStorageKey, selectedClass);
+      });
+    });
+
+    let notifTimeout: any = null;
+    const showNotification = (text: string) => {
+      if (!notificationToast) return;
+      notificationToast.textContent = text;
+      notificationToast.classList.add('show');
+      if (notifTimeout) clearTimeout(notifTimeout);
+      notifTimeout = setTimeout(() => {
+        notificationToast.classList.remove('show');
+      }, 2500);
+    };
+
+    // Engine initialization helper
+    const ensureEngine = async () => {
+      if (!loadedAssets) {
+        loadedAssets = await loadDungeonAssets();
+      }
+
+      if (!engine) {
+        engine = new DungeonEngine(
+          canvas,
+          loadedAssets,
+          audio,
+          {
+            onStatsUpdate: (player: PlayerStats, boss?: Enemy | null) => {
+              if (hudLvl) hudLvl.textContent = String(player.level);
+              if (hudHeroName) {
+                const names: Record<HeroClass, string> = {
+                  zombie: 'Зомби-Ренегат',
+                  paladin: 'Паладин Пепла',
+                  sorcerer: 'Теневой Адепт',
+                  berserker: 'Кровавый Берсерк',
+                  assassin: 'Ассасин Тени',
+                };
+                hudHeroName.textContent = names[player.heroClass] || 'Герой';
+              }
+
+              if (skillIconDisplay) {
+                const icons: Record<HeroClass, string> = {
+                  zombie: '🧪',
+                  paladin: '🛡️',
+                  sorcerer: '🔮',
+                  berserker: '🪓',
+                  assassin: '🗡️',
+                };
+                skillIconDisplay.textContent = icons[player.heroClass] || '⚡';
+              }
+
+              if (hudHeroAvatar) {
+                if (player.heroClass === 'paladin') {
+                  hudHeroAvatar.style.filter = 'sepia(0.9) hue-rotate(5deg) saturate(3)';
+                } else if (player.heroClass === 'sorcerer') {
+                  hudHeroAvatar.style.filter = 'hue-rotate(240deg) saturate(2.4)';
+                } else if (player.heroClass === 'berserker') {
+                  hudHeroAvatar.style.filter = 'hue-rotate(320deg) saturate(3.5)';
+                } else if (player.heroClass === 'assassin') {
+                  hudHeroAvatar.style.filter = 'brightness(0.7) contrast(1.6) hue-rotate(160deg)';
+                } else {
+                  hudHeroAvatar.style.filter = 'none';
+                }
+              }
+
+              if (hudFloorNum) hudFloorNum.textContent = String(player.floor);
+              if (hudFloorDesc) {
+                hudFloorDesc.textContent =
+                  player.floor === 3
+                    ? 'Трон Нечестивого Колосса'
+                    : player.floor === 6
+                    ? 'Катакомбы Чумного Палача'
+                    : player.floor === 10
+                    ? 'Цитадель Архи-Лича'
+                    : 'Темные Катакомбы';
+              }
+              if (resGold) resGold.textContent = String(player.gold);
+              if (resBlue) resBlue.textContent = String(player.blueCoins);
+
+              if (potHpBadge) potHpBadge.textContent = String(player.potions.hp);
+              if (potSpeedBadge) potSpeedBadge.textContent = String(player.potions.speed);
+              if (potPowerBadge) potPowerBadge.textContent = String(player.potions.power);
+
+              if (hudXp && hudXpText) {
+                const pct = Math.min(100, (player.xp / player.nextLevelXp) * 100);
+                hudXp.style.width = `${pct}%`;
+                hudXpText.textContent = `${player.xp} / ${player.nextLevelXp} XP`;
+              }
+
+              if (dashCdOverlay) {
+                const cdPct = player.dashTimer > 0 ? (player.dashTimer / player.dashCooldown) * 100 : 0;
+                dashCdOverlay.style.height = `${cdPct}%`;
+              }
+
+              if (skillCdOverlay) {
+                const sPct =
+                  player.specialSkillTimer > 0
+                    ? (player.specialSkillTimer / player.specialSkillCooldown) * 100
+                    : 0;
+                skillCdOverlay.style.height = String(sPct) + '%';
+              }
+
+              // Update Relics Bar in HUD
+              if (hudRelicsBar) {
+                let rHtml = '';
+                for (let s = 0; s < player.relicSlotsCount; s++) {
+                  const r = player.relics[s];
+                  if (r) {
+                    rHtml += '<div class="hud-relic-slot" title="' + r.name + ': ' + r.desc + '">' + r.icon + '</div>';
+                  } else {
+                    rHtml += '<div class="hud-relic-slot empty" title="Свободный слот под реликвию">+</div>';
+                  }
+                }
+                hudRelicsBar.innerHTML = rHtml;
+              }
+
+              // Update Ultimate HUD Box
+              if (hudUltimateBox && ultPctDisplay && ultChargeBar) {
+                const uPct = Math.round(player.ultimateCharge);
+                ultPctDisplay.textContent = uPct + '%';
+                ultChargeBar.style.width = uPct + '%';
+                if (uPct >= 100 || player.isUltimateActive) {
+                  hudUltimateBox.classList.add('ready');
+                } else {
+                  hudUltimateBox.classList.remove('ready');
+                }
+              }
+
+    function getHeartSvg(state: 'full' | 'half' | 'empty'): string {
+      const bD = "M2,2h4v1h-4zM10,2h4v1h-4zM1,3h1v1h-1zM6,3h1v1h-1zM9,3h1v1h-1zM14,3h1v1h-1zM0,4h1v1h-1zM7,4h2v1h-2zM15,4h1v1h-1zM0,5h1v1h-1zM15,5h1v1h-1zM0,6h1v1h-1zM15,6h1v1h-1zM1,7h1v1h-1zM14,7h1v1h-1zM1,8h1v1h-1zM14,8h1v1h-1zM2,9h1v1h-1zM13,9h1v1h-1zM3,10h1v1h-1zM12,10h1v1h-1zM4,11h1v1h-1zM11,11h1v1h-1zM5,12h1v1h-1zM10,12h1v1h-1zM6,13h1v1h-1zM9,13h1v1h-1zM7,14h2v1h-2z";
+      if (state === 'full') {
+        return '<svg class="heart-icon full" viewBox="0 0 16 16" width="16" height="16">' +
+          '<path d="' + bD + '" fill="#450a0a"/>' +
+          '<path d="M4,3h2v1h-2zM10,3h4v1h-4zM1,4h1v1h-1zM4,4h3v1h-3zM9,4h6v1h-6zM1,5h14v1h-14zM1,6h14v1h-14zM2,7h12v1h-12zM2,8h12v1h-12zM3,9h10v1h-10zM4,10h8v1h-8zM5,11h6v1h-6zM6,12h4v1h-4zM7,13h2v1h-2z" fill="#ef4444"/>' +
+          '<path d="M2,3h2v1h-2zM2,4h2v1h-2z" fill="#fca5a5"/>' +
+        '</svg>';
+      } else if (state === 'half') {
+        return '<svg class="heart-icon half" viewBox="0 0 16 16" width="16" height="16">' +
+          '<path d="' + bD + '" fill="#1e1b4b"/>' +
+          '<path d="M4,3h2v1h-2zM1,4h1v1h-1zM4,4h3v1h-3zM1,5h7v1h-7zM1,6h7v1h-7zM2,7h6v1h-6zM2,8h6v1h-6zM3,9h5v1h-5zM4,10h4v1h-4zM5,11h3v1h-3zM6,12h2v1h-2zM7,13h1v1h-1z" fill="#ef4444"/>' +
+          '<path d="M2,3h2v1h-2zM2,4h2v1h-2z" fill="#fca5a5"/>' +
+          '<path d="M10,3h4v1h-4zM9,4h6v1h-6zM8,5h7v1h-7zM8,6h7v1h-7zM8,7h6v1h-6zM8,8h6v1h-6zM8,9h5v1h-5zM8,10h4v1h-4zM8,11h3v1h-3zM8,12h2v1h-2zM8,13h1v1h-1z" fill="#1e293b"/>' +
+        '</svg>';
+      } else {
+        return '<svg class="heart-icon empty" viewBox="0 0 16 16" width="16" height="16">' +
+          '<path d="' + bD + '" fill="#0f172a"/>' +
+          '<path d="M4,3h2v1h-2zM10,3h4v1h-4zM1,4h1v1h-1zM4,4h3v1h-3zM9,4h6v1h-6zM1,5h14v1h-14zM1,6h14v1h-14zM2,7h12v1h-12zM2,8h12v1h-12zM3,9h10v1h-10zM4,10h8v1h-8zM5,11h6v1h-6zM6,12h4v1h-4zM7,13h2v1h-2z" fill="#1e293b"/>' +
+        '</svg>';
+      }
+    }
+
+              if (hudHearts) {
+                let heartsHtml = '';
+                const totalHearts = Math.ceil(player.maxHp / 2);
+                for (let h = 0; h < totalHearts; h++) {
+                  const heartHp = player.hp - h * 2;
+                  if (heartHp >= 2) {
+                    heartsHtml += getHeartSvg('full');
+                  } else if (heartHp === 1) {
+                    heartsHtml += getHeartSvg('half');
+                  } else {
+                    heartsHtml += getHeartSvg('empty');
+                  }
+                }
+                hudHearts.innerHTML = heartsHtml;
+              }
+
+              if (hudBossWrap && hudBossHp) {
+                if (boss && !boss.isDead) {
+                  hudBossWrap.style.display = 'block';
+                  const bPct = Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100));
+                  hudBossHp.style.width = `${bPct}%`;
+                } else {
+                  hudBossWrap.style.display = 'none';
+                }
+              }
+            },
+
+            onLevelUp: () => {
+              if (!modalPerk || !perkCardsGrid || !engine) return;
+              perkCardsGrid.innerHTML = '';
+              const perks = getRandomPerks(3, engine.player);
+
+              perks.forEach((perk) => {
+                const card = document.createElement('div');
+                card.className = `perk-card ${perk.rarity}`;
+                card.innerHTML = `
+                  <div class="perk-icon">${perk.icon}</div>
+                  <div class="perk-title">${perk.name}</div>
+                  <div class="perk-desc">${perk.desc}</div>
+                `;
+                card.addEventListener('click', () => {
+                  if (engine) {
+                    applyPerk(perk, engine.player);
+                    modalPerk.classList.remove('active');
+                    engine.resume();
+                    showNotification(`БЛАГОСЛОВЕНИЕ: ${perk.name}!`);
+                  }
+                });
+                perkCardsGrid.appendChild(card);
+              });
+
+              modalPerk.classList.add('active');
+            },
+
+            onGameOver: (stats) => {
+              saveStats(stats);
+              if (modalGameOver) {
+                const f = document.getElementById('go-floor-val');
+                const k = document.getElementById('go-kills-val');
+                const g = document.getElementById('go-gold-val');
+                const b = document.getElementById('go-blue-val');
+                if (f) f.textContent = String(stats.floor);
+                if (k) k.textContent = String(stats.kills);
+                if (g) g.textContent = String(stats.gold);
+                if (b) b.textContent = `+${stats.blueCoins} 💎`;
+                modalGameOver.classList.add('active');
+              }
+            },
+
+            onVictory: (stats) => {
+              saveStats(stats);
+              if (modalVictory) {
+                const ribbon = modalVictory.querySelector('.modal-ribbon');
+                const heading = modalVictory.querySelector('.modal-heading');
+                const sub = modalVictory.querySelector('.modal-sub');
+
+                if (selectedMode === 'tutorial') {
+                  if (ribbon) ribbon.textContent = 'КУРС МОЛОДОГО БОЙЦА';
+                  if (heading) heading.textContent = 'ТРЕНИРОВКА ЗАВЕРШЕНА!';
+                  if (sub) sub.textContent = 'Вы изучили все основы движения, стрельбы сферами и магии! Катакомбы ждут вашего подвига!';
+                } else if (selectedMode === 'boss_rush') {
+                  if (ribbon) ribbon.textContent = 'ВЕЛИЧАЙШИЙ ТРИУМФ';
+                  if (heading) heading.textContent = 'БОСС-РАШ ПОКОРЁН!';
+                  if (sub) sub.textContent = 'Невероятно! Все 5 владык катакомб пали под натиском вашей мощи!';
+                } else {
+                  if (ribbon) ribbon.textContent = 'ВЕЛИКИЙ ТРИУМФ';
+                  if (heading) heading.textContent = 'ВЛАДЫКА СКЛЕПА ПОВЕРЖЕН!';
+                  if (sub) sub.textContent = 'Катакомбы очищены от скверны! Легенда о вашем подвиге разнеслась по всему МоррисГраду!';
+                }
+
+                const f = document.getElementById('vic-floor-val');
+                const k = document.getElementById('vic-kills-val');
+                const g = document.getElementById('vic-gold-val');
+                const b = document.getElementById('vic-blue-val');
+                if (f) f.textContent = String(stats.floor);
+                if (k) k.textContent = String(stats.kills);
+                if (g) g.textContent = String(stats.gold);
+                if (b) b.textContent = `+${stats.blueCoins} 💎`;
+                modalVictory.classList.add('active');
+              }
+            },
+
+            onNotify: (text: string) => {
+              showNotification(text);
+            },
+
+            
+            onRelicFound: (gr: GroundRelic) => {
+              if (engine) engine.pause();
+              if (!modalRelicSwap || !swapFoundRelicCard || !swapSlotsGrid || !engine) return;
+
+              const r = gr.relic;
+              const rColor = r.rarity === 'legendary' ? '#fb923c' : r.rarity === 'epic' ? '#c084fc' : '#38bdf8';
+
+              swapFoundRelicCard.innerHTML = `
+                <div class="found-relic-icon" style="color: ${rColor}">${r.icon}</div>
+                <div class="found-relic-info">
+                  <h3>${r.name}</h3>
+                  <span class="found-relic-rarity" style="background: ${rColor}33; color: ${rColor}; border: 1px solid ${rColor}">
+                    ${r.rarity.toUpperCase()} РЕЛИКВИЯ
+                  </span>
+                  <div class="found-relic-desc">${r.desc}</div>
+                </div>
+              `;
+
+              if (swapHeroClassLabel) {
+                const classSlotNames: Record<HeroClass, string> = {
+                  sorcerer: 'Маг (3 слота)',
+                  berserker: 'Берсерк (1 слот)',
+                  zombie: 'Зомби (2 слота)',
+                  paladin: 'Паладин (2 слота)',
+                  assassin: 'Ассасин (2 слота)',
+                };
+                swapHeroClassLabel.textContent = classSlotNames[engine.player.heroClass] || '2 слота';
+              }
+
+              swapSlotsGrid.innerHTML = '';
+              const slotsCount = engine.player.relicSlotsCount;
+
+              for (let s = 0; s < slotsCount; s++) {
+                const curRelic = engine.player.relics[s];
+                const slotCard = document.createElement('div');
+                slotCard.className = 'swap-slot-card';
+
+                if (curRelic) {
+                  slotCard.innerHTML = `
+                    <div class="swap-slot-header">СЛОТ ${s + 1} (ЗАНЯТ)</div>
+                    <div class="swap-current-relic">
+                      <span style="font-size: 1.5rem;">${curRelic.icon}</span>
+                      <b>${curRelic.name}</b>
+                      <small style="color: #94a3b8; font-size: 0.65rem;">${curRelic.desc.substring(0, 45)}...</small>
+                    </div>
+                    <button class="btn-assign-slot" style="background: #ef4444; color: #fff;">
+                      🔄 ЗАМЕНИТЬ
+                    </button>
+                  `;
+                } else {
+                  slotCard.innerHTML = `
+                    <div class="swap-slot-header">СЛОТ ${s + 1} (СВОБОДЕН)</div>
+                    <div class="swap-current-relic" style="opacity: 0.5;">
+                      <span style="font-size: 1.5rem;">➕</span>
+                      <i>Пустой слот</i>
+                    </div>
+                    <button class="btn-assign-slot">
+                      ⬇️ ПОМЕСТИТЬ
+                    </button>
+                  `;
+                }
+
+                const btn = slotCard.querySelector('.btn-assign-slot') as HTMLButtonElement;
+                btn.addEventListener('click', () => {
+                  if (engine) {
+                    engine.equipRelic(s, gr.relic, gr.id);
+                    modalRelicSwap.classList.remove('active');
+                    engine.resume();
+                  }
+                });
+
+                swapSlotsGrid.appendChild(slotCard);
+              }
+
+              modalRelicSwap.classList.add('active');
+            },
+
+            onUltimateTrigger: (name: string) => {
+              showNotification(name);
+            },
+
+            onPrompt: (text: string | null) => {
+              if (!promptToast) return;
+              if (text) {
+                promptToast.textContent = text;
+                promptToast.style.display = 'block';
+              } else {
+                promptToast.style.display = 'none';
+              }
+            },
+
+            onShopOpen: (shop: ShopKeeper) => {
+              if (engine) engine.pause();
+              if (!modalShop || !shopItemsGrid) return;
+              shopItemsGrid.innerHTML = '';
+
+              shop.items.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'shop-item-card';
+                card.innerHTML = `
+                  <div class="item-left">
+                    <span class="item-icon">${item.icon}</span>
+                    <div>
+                      <div class="item-title">${item.name}</div>
+                      <div class="item-desc">${item.desc}</div>
+                    </div>
+                  </div>
+                  <button class="btn-buy-item" data-cost="${item.cost}">${item.cost} 🪙</button>
+                `;
+
+                const btn = card.querySelector('.btn-buy-item') as HTMLButtonElement;
+                btn.addEventListener('click', () => {
+                  if (engine && engine.player.gold >= item.cost) {
+                    engine.player.gold -= item.cost;
+                    audio.playShopBuy();
+
+                    if (item.id === 'pot_hp') engine.player.potions.hp++;
+                    else if (item.id === 'pot_speed') engine.player.potions.speed++;
+                    else if (item.id === 'pot_power') engine.player.potions.power++;
+                    else if (item.id === 'stat_heart') {
+                      engine.player.maxHp += 2;
+                      engine.player.hp += 2;
+                    } else if (item.id === 'stat_blade') {
+                      engine.player.damage += 5;
+                    } else if (item.id === 'stat_boots') {
+                      engine.player.speed += 20;
+                    } else if (item.id === 'soul_pack') {
+                      engine.player.blueCoins += 2;
+                    }
+
+                    showNotification(`КУПЛЕНО: ${item.name}!`);
+                    btn.disabled = true;
+                    btn.textContent = 'КУПЛЕНО';
+                    btn.style.opacity = '0.5';
+                  } else {
+                    showNotification('НЕДОСТАТОЧНО ЗОЛОТА!');
+                  }
+                });
+
+                shopItemsGrid.appendChild(card);
+              });
+
+              modalShop.classList.add('active');
+            },
+          },
+          minimapCanvas
+        );
+      }
+    };
+
+    // Close Shop
+    const btnCloseShop = document.getElementById('btn-close-shop');
+    if (btnCloseShop) {
+      btnCloseShop.addEventListener('click', () => {
+        if (modalShop) modalShop.classList.remove('active');
+      if (modalRelicSwap) modalRelicSwap.classList.remove('active');
+        if (engine) engine.resume();
+      });
+    }
+
+    // Relic Inventory
+
+    
+    if (btnLeaveRelic) {
+      btnLeaveRelic.addEventListener('click', () => {
+        if (modalRelicSwap) modalRelicSwap.classList.remove('active');
+        if (engine) engine.resume();
+      });
+    }
+
+    if (hudUltimateBox) {
+      hudUltimateBox.addEventListener('click', () => {
+        if (engine) engine.triggerUltimate();
+      });
+    }
+
+    // Character Sheet (Tab) Logic
+    const updateCharacterSheet = () => {
+      if (!engine) return;
+      const p = engine.player;
+      const wpn = p.equippedWeapon;
+
+      const elLvl = document.getElementById('cs-hero-level');
+      if (elLvl) elLvl.textContent = String(p.level);
+
+      const elName = document.getElementById('cs-hero-name');
+      if (elName) {
+        const classNames: Record<HeroClass, string> = {
+          zombie: 'Зомби-Ренегат',
+          paladin: 'Паладин Пепла',
+          sorcerer: 'Теневой Адепт',
+          berserker: 'Кровавый Берсерк',
+          assassin: 'Ассасин Тени',
+        };
+        elName.textContent = classNames[p.heroClass] || 'Пробуждённый';
+      }
+
+      const elHp = document.getElementById('cs-hp');
+      if (elHp) elHp.textContent = `${p.hp} / ${p.maxHp}`;
+
+      const elDmg = document.getElementById('cs-damage');
+      if (elDmg) {
+        const dps = (p.damage / p.attackCooldown).toFixed(0);
+        elDmg.textContent = `${p.damage} (${dps} DPS)`;
+      }
+
+      const elAtkSpd = document.getElementById('cs-atk-speed');
+      if (elAtkSpd) elAtkSpd.textContent = `${(1 / p.attackCooldown).toFixed(1)} /сек (${p.attackCooldown.toFixed(2)}с)`;
+
+      const elArmor = document.getElementById('cs-armor');
+      if (elArmor) elArmor.textContent = `${p.armor} (снижение урона)`;
+
+      const elCrit = document.getElementById('cs-crit-chance');
+      if (elCrit) elCrit.textContent = `${Math.round(p.critChance * 100)}%`;
+
+      const elCritM = document.getElementById('cs-crit-mult');
+      if (elCritM) elCritM.textContent = `${p.critMult.toFixed(1)}x`;
+
+      const elVamp = document.getElementById('cs-lifesteal');
+      if (elVamp) elVamp.textContent = `${Math.round(p.lifestealChance * 100)}%`;
+
+      const elSpd = document.getElementById('cs-speed');
+      if (elSpd) elSpd.textContent = `${Math.round(p.speed)}`;
+
+      const elLight = document.getElementById('cs-light');
+      if (elLight) elLight.textContent = `+${Math.round(p.bonusLightRadius)} px`;
+
+      const elKills = document.getElementById('cs-kills');
+      if (elKills) elKills.textContent = `${engine.totalKills}`;
+
+      
+      // Active Relics list in Character Sheet
+      const relicsGrid = document.getElementById('cs-relics-grid');
+      const synBadge = document.getElementById('cs-synergy-badge');
+      if (relicsGrid) {
+        let rGridHtml = '';
+        for (let s = 0; s < p.relicSlotsCount; s++) {
+          const r = p.relics[s];
+          if (r) {
+            rGridHtml += `
+              <div class="cs-relic-chip" title="${r.desc}">
+                <span>${r.icon}</span>
+                <b>${r.name}</b>
+              </div>
+            `;
+          } else {
+            rGridHtml += `
+              <div class="cs-relic-chip" style="opacity: 0.4; border-style: dashed;">
+                <span>➕</span>
+                <i>Слот ${s + 1} свободен</i>
+              </div>
+            `;
+          }
+        }
+        relicsGrid.innerHTML = rGridHtml;
+      }
+
+      if (synBadge) {
+        if (p.activeSynergy) {
+          synBadge.style.display = 'block';
+          synBadge.textContent = p.activeSynergy;
+        } else {
+          synBadge.style.display = 'none';
+        }
+      }
+
+      // Equipped Weapon Card
+      const wpnCard = document.getElementById('cs-weapon-card');
+      if (wpnCard && wpn) {
+        const rarities: Record<string, { main: string; glow: string; label: string }> = {
+          common: { main: '#e2e8f0', glow: 'rgba(226, 232, 240, 0.4)', label: 'Обычное' },
+          magic: { main: '#38bdf8', glow: 'rgba(56, 189, 248, 0.6)', label: 'Магическое' },
+          rare: { main: '#facc15', glow: 'rgba(250, 204, 21, 0.7)', label: 'Редкое' },
+          legendary: { main: '#fb923c', glow: 'rgba(251, 146, 60, 0.9)', label: 'Легендарное' },
+        };
+        const rarityInfo = rarities[wpn.rarity] || rarities.common;
+
+        let affixesHtml = '';
+        if (wpn.affixes.length === 0) {
+          affixesHtml = '<div class="cs-no-affix">Обычное оружие без зачарований</div>';
+        } else {
+          affixesHtml = wpn.affixes
+            .map(
+              (a) =>
+                `<div class="cs-affix-row">
+                  <span class="cs-affix-name">• ${a.name}:</span>
+                  <span class="cs-affix-desc">${a.desc}</span>
+                </div>`
+            )
+            .join('');
+        }
+
+        const projDesc = wpn.projectile
+          ? `<div class="cs-wpn-stat-row">
+              <span>🔮 Снаряд:</span>
+              <b>${wpn.projectile.isMagicOrb ? 'Магическая Сфера' : 'Стрела'} (Пробивает ${wpn.projectile.pierce}${wpn.projectile.multishot ? ` x${wpn.projectile.multishot}` : ''})</b>
+            </div>`
+          : '';
+
+        wpnCard.innerHTML = `
+          <div class="cs-wpn-header" style="border-color: ${rarityInfo.main}; box-shadow: 0 0 15px ${rarityInfo.glow};">
+            <div class="cs-wpn-icon-wrap">${wpn.svgIcon}</div>
+            <div class="cs-wpn-title-col">
+              <h4 class="cs-wpn-name" style="color: ${rarityInfo.main}">${wpn.name} +${wpn.level}</h4>
+              <span class="cs-wpn-rarity-badge" style="background: ${rarityInfo.glow}; color: ${rarityInfo.main}; border-color: ${rarityInfo.main}">
+                ${rarityInfo.label.toUpperCase()} • ${wpn.type.toUpperCase()}
+              </span>
+            </div>
+          </div>
+          <div class="cs-wpn-stats-body">
+            <div class="cs-wpn-stat-row"><span>⚔️ Базовый урон:</span> <b>${wpn.bonusDamage}</b></div>
+            <div class="cs-wpn-stat-row"><span>⚡ Задержка атаки:</span> <b>${wpn.attackCooldown.toFixed(2)} с</b></div>
+            <div class="cs-wpn-stat-row"><span>📏 Радиус действия:</span> <b>${wpn.attackRange} px</b></div>
+            ${projDesc}
+          </div>
+          <div class="cs-wpn-affixes-box">
+            <div class="cs-affixes-title">МАГИЧЕСКИЕ АФФИКСЫ И МОДИФИКАТОРЫ:</div>
+            ${affixesHtml}
+          </div>
+        `;
+      }
+
+      // Perks list
+      const perksContainer = document.getElementById('cs-perks-list');
+      if (perksContainer) {
+        if (p.perks.length === 0) {
+          perksContainer.innerHTML = '<div class="cs-no-affix">Благословения ещё не получены. Повышайте уровень в бою!</div>';
+        } else {
+          perksContainer.innerHTML = p.perks
+            .map((perkId) => {
+              const perk = ALL_PERKS.find((item) => item.id === perkId);
+              if (!perk) return '';
+              return `
+                <div class="cs-perk-chip" title="${perk.desc}">
+                  <span class="chip-icon">${perk.icon}</span>
+                  <div class="chip-text">
+                    <b>${perk.name}</b>
+                    <small>${perk.desc}</small>
+                  </div>
+                </div>
+              `;
+            })
+            .join('');
+        }
+      }
+    };
+
+    const toggleCharacterSheet = () => {
+      if (!modalCharSheet || !engine) return;
+      const isOpen = modalCharSheet.classList.contains('active');
+      if (isOpen) {
+        modalCharSheet.classList.remove('active');
+        engine.resume();
+      } else {
+        engine.pause();
+        updateCharacterSheet();
+        modalCharSheet.classList.add('active');
+      }
+    };
+
+    if (btnShowCharSheet) btnShowCharSheet.addEventListener('click', toggleCharacterSheet);
+    if (btnCloseCharSheet) btnCloseCharSheet.addEventListener('click', toggleCharacterSheet);
+
+    const btnShowRelics = document.getElementById('btn-show-relics');
+    if (btnShowRelics) {
+      btnShowRelics.addEventListener('click', () => {
+        if (engine) engine.pause();
+        if (!modalRelics || !relicsListGrid) return;
+        relicsListGrid.innerHTML = '';
+
+        if (!engine || engine.player.perks.length === 0) {
+          relicsListGrid.innerHTML =
+            '<div style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 2rem;">Пока нет собранных благословений. Повышайте уровень в бою!</div>';
+        } else {
+          engine.player.perks.forEach((pid) => {
+            const p = ALL_PERKS.find((x) => x.id === pid);
+            if (p) {
+              const card = document.createElement('div');
+              card.className = 'relic-item-card';
+              card.innerHTML = `
+                <div class="item-left">
+                  <span class="item-icon">${p.icon}</span>
+                  <div>
+                    <div class="item-title">${p.name}</div>
+                    <div class="item-desc">${p.desc}</div>
+                  </div>
+                </div>
+              `;
+              relicsListGrid.appendChild(card);
+            }
+          });
+        }
+        modalRelics.classList.add('active');
+      });
+    }
+
+    const btnCloseRelics = document.getElementById('btn-close-relics');
+    if (btnCloseRelics) {
+      btnCloseRelics.addEventListener('click', () => {
+        if (modalRelics) modalRelics.classList.remove('active');
+        if (engine) engine.resume();
+      });
+    }
+
+    // Meta Altar
+    const btnOpenMeta = document.getElementById('btn-open-meta');
+    if (btnOpenMeta) {
+      btnOpenMeta.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!modalMeta || !metaUpgradesGrid) return;
+        renderMetaGrid();
+        modalMeta.classList.add('active');
+      });
+    }
+
+    const btnCloseMeta = document.getElementById('btn-close-meta');
+    if (btnCloseMeta) {
+      btnCloseMeta.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (modalMeta) modalMeta.classList.remove('active');
+      });
+    }
+
+    const renderMetaGrid = () => {
+      if (!metaUpgradesGrid) return;
+      metaUpgradesGrid.innerHTML = '';
+      const meta = loadMeta();
+
+      const upgradesList = [
+        {
+          key: 'extraHearts' as keyof MetaUpgrades,
+          name: 'Стойкость Духа',
+          desc: '+1 сердце (2 HP) на старте каждого похода.',
+          max: 3,
+          costs: [5, 10, 20],
+          icon: '💖',
+        },
+        {
+          key: 'extraDamage' as keyof MetaUpgrades,
+          name: 'Закалка Клинка',
+          desc: '+3 базового урона для всех атак.',
+          max: 3,
+          costs: [4, 9, 18],
+          icon: '🗡️',
+        },
+        {
+          key: 'extraGold' as keyof MetaUpgrades,
+          name: 'Тайник Грабителя',
+          desc: 'Старт с +35 золотыми монетами.',
+          max: 3,
+          costs: [3, 7, 15],
+          icon: '🪙',
+        },
+        {
+          key: 'extraLight' as keyof MetaUpgrades,
+          name: 'Глаз Бездны',
+          desc: '+25% к радиусу света фонаря и видимости.',
+          max: 2,
+          costs: [4, 12],
+          icon: '👁️',
+        },
+        {
+          key: 'extraPotions' as keyof MetaUpgrades,
+          name: 'Пояс Алхимика',
+          desc: 'Старт с +1 зельем здоровья и +1 зельем мощи.',
+          max: 2,
+          costs: [6, 16],
+          icon: '🧪',
+        },
+        {
+          key: 'vampireMastery' as keyof MetaUpgrades,
+          name: 'Кровавая Жатва',
+          desc: '+5% к шансу похищения здоровья при каждом ударе.',
+          max: 3,
+          costs: [5, 12, 25],
+          icon: '🩸',
+        },
+        {
+          key: 'critMastery' as keyof MetaUpgrades,
+          name: 'Интуиция Смерти',
+          desc: '+4% к шансу крита и увеличение критического множителя.',
+          max: 3,
+          costs: [4, 10, 22],
+          icon: '🎯',
+        },
+        {
+          key: 'spectralDiscount' as keyof MetaUpgrades,
+          name: 'Спектральная Скидка',
+          desc: 'Снижает цены на товары в лавке торговца на 15% за уровень.',
+          max: 2,
+          costs: [6, 18],
+          icon: '🏷️',
+        },
+        {
+          key: 'soulMagnet' as keyof MetaUpgrades,
+          name: 'Магнит Душ',
+          desc: 'Притягивает золотые монеты и синие души с увеличенной дистанции.',
+          max: 2,
+          costs: [5, 15],
+          icon: '🧲',
+        },
+
+      ];
+
+      upgradesList.forEach((upg) => {
+        const lvl = meta.upgrades[upg.key];
+        const cost = upg.costs[lvl];
+        const isMax = lvl >= upg.max;
+
+        const card = document.createElement('div');
+        card.className = 'meta-item-card';
+        card.innerHTML = `
+          <div class="item-left">
+            <span class="item-icon">${upg.icon}</span>
+            <div>
+              <div class="item-title">${upg.name} (${lvl}/${upg.max})</div>
+              <div class="item-desc">${upg.desc}</div>
+            </div>
+          </div>
+          <button class="btn-buy-item" ${isMax ? 'disabled' : ''}>
+            ${isMax ? 'МАКС.' : `${cost} 💎`}
+          </button>
+        `;
+
+        if (!isMax) {
+          const btn = card.querySelector('.btn-buy-item') as HTMLButtonElement;
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (meta.blueCoins >= cost) {
+              meta.blueCoins -= cost;
+              meta.upgrades[upg.key]++;
+              saveMeta(meta);
+              audio.playShopBuy();
+              renderMetaGrid();
+            } else {
+              showNotification('НЕДОСТАТОЧНО СИНИХ ДУШ!');
+            }
+          });
+        }
+
+        metaUpgradesGrid.appendChild(card);
+      });
+
+      updateMetaDisplay();
+    };
+
+    // Start Button
+    const btnStart = document.getElementById('btn-start-game') as HTMLButtonElement | null;
+    if (btnStart) {
+      btnStart.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (btnStart.disabled) return;
+        btnStart.disabled = true;
+        audio.init();
+
+        const btnMainText = btnStart.querySelector('.btn-main-text');
+        if (btnMainText) btnMainText.textContent = 'ВХОД В СКЛЕП...';
+
+        try {
+          await ensureEngine();
+
+          if (screenMenu) screenMenu.classList.remove('active');
+          if (screenGame) screenGame.classList.add('active');
+
+          if (engine) {
+            const meta = loadMeta();
+            engine.setHeroClass(selectedClass);
+            engine.setGameMode(selectedMode);
+            engine.setDifficulty(selectedDifficulty);
+            engine.setMetaUpgrades(meta.upgrades);
+            engine.setStartingLoadout(selectedStartingWeapon, selectedStartingPack);
+            engine.initFloor(1, true);
+            engine.start();
+            updateHudBadges();
+          }
+        } catch (err) {
+          console.error('Failed to launch game engine:', err);
+        } finally {
+          if (btnMainText) btnMainText.textContent = 'СПУСТИТЬСЯ В СКЛЕП';
+          btnStart.disabled = false;
+        }
+      });
+    }
+
+    // Sound toggle
+    const btnSound = document.getElementById('btn-toggle-sound');
+    if (btnSound) {
+      btnSound.addEventListener('click', () => {
+        const isMuted = audio.toggleMute();
+        btnSound.textContent = isMuted ? '🔇' : '🔊';
+      });
+    }
+
+    // Pause button
+    const btnPause = document.getElementById('btn-pause');
+    if (btnPause) {
+      btnPause.addEventListener('click', () => {
+        if (engine) engine.pause();
+        if (modalPause) modalPause.classList.add('active');
+      });
+    }
+
+    const btnResume = document.getElementById('btn-resume');
+    if (btnResume) {
+      btnResume.addEventListener('click', () => {
+        if (modalPause) modalPause.classList.remove('active');
+        if (engine) engine.resume();
+      });
+    }
+
+    const restartGame = () => {
+      if (modalPause) modalPause.classList.remove('active');
+      if (modalGameOver) modalGameOver.classList.remove('active');
+      if (modalVictory) modalVictory.classList.remove('active');
+      if (modalPerk) modalPerk.classList.remove('active');
+      if (modalShop) modalShop.classList.remove('active');
+      if (modalRelics) modalRelics.classList.remove('active');
+      if (modalCharSheet) modalCharSheet.classList.remove('active');
+      if (screenMenu) screenMenu.classList.remove('active');
+      if (screenGame) screenGame.classList.add('active');
+
+      if (engine) {
+        const meta = loadMeta();
+        engine.setHeroClass(selectedClass);
+        engine.setGameMode(selectedMode);
+        engine.setDifficulty(selectedDifficulty);
+        engine.setMetaUpgrades(meta.upgrades);
+        engine.setStartingLoadout(selectedStartingWeapon, selectedStartingPack);
+        engine.initFloor(1, true);
+        engine.resume();
+        updateHudBadges();
+      }
+    };
+
+    const btnRestart = document.getElementById('btn-restart');
+    if (btnRestart) btnRestart.addEventListener('click', restartGame);
+
+    const btnTryAgain = document.getElementById('btn-try-again');
+    if (btnTryAgain) btnTryAgain.addEventListener('click', restartGame);
+
+    const btnVicRestart = document.getElementById('btn-vic-restart');
+    if (btnVicRestart) btnVicRestart.addEventListener('click', restartGame);
+
+    const returnToMenu = () => {
+      if (engine) engine.stop();
+      if (modalPause) modalPause.classList.remove('active');
+      if (modalGameOver) modalGameOver.classList.remove('active');
+      if (modalVictory) modalVictory.classList.remove('active');
+      if (modalShop) modalShop.classList.remove('active');
+      if (modalRelics) modalRelics.classList.remove('active');
+      if (modalCharSheet) modalCharSheet.classList.remove('active');
+      if (screenGame) screenGame.classList.remove('active');
+      if (screenMenu) screenMenu.classList.add('active');
+      updateMenuStats();
+      updateMetaDisplay();
+    };
+
+    const btnToMenu = document.getElementById('btn-to-menu');
+    if (btnToMenu) btnToMenu.addEventListener('click', returnToMenu);
+
+    const btnGoMenu = document.getElementById('btn-go-menu');
+    if (btnGoMenu) btnGoMenu.addEventListener('click', returnToMenu);
+
+    const btnVicMenu = document.getElementById('btn-vic-menu');
+    if (btnVicMenu) btnVicMenu.addEventListener('click', returnToMenu);
+
+    // Potions & Skills Clicks
+    const slotHp = document.getElementById('slot-pot-hp');
+    if (slotHp) slotHp.addEventListener('click', () => engine?.usePotion('hp'));
+
+    const slotSpeed = document.getElementById('slot-pot-speed');
+    if (slotSpeed) slotSpeed.addEventListener('click', () => engine?.usePotion('speed'));
+
+    const slotPower = document.getElementById('slot-pot-power');
+    if (slotPower) slotPower.addEventListener('click', () => engine?.usePotion('power'));
+
+    const hudDash = document.getElementById('hud-dash-box');
+    if (hudDash) hudDash.addEventListener('click', () => engine?.performDash());
+
+    const hudSkill = document.getElementById('hud-skill-box');
+    if (hudSkill) hudSkill.addEventListener('click', () => engine?.performSpecialSkill());
+
+    window.addEventListener('resize', () => engine?.resizeCanvas());
+
+    // Input Listeners
+    window.addEventListener('keydown', (e) => {
+      if (!engine) return;
+      engine.keys.add(e.code);
+
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        toggleCharacterSheet();
+        return;
+      } else if (e.code === 'Escape') {
+        if (modalCharSheet?.classList.contains('active')) {
+          toggleCharacterSheet();
+          return;
+        }
+      }
+
+      if (e.code === 'KeyM') {
+        if (modalPause?.classList.contains('active')) {
+          modalPause.classList.remove('active');
+          engine.resume();
+        } else {
+          engine.pause();
+          modalPause?.classList.add('active');
+        }
+      } else if (e.code === 'KeyI') {
+        btnShowRelics?.click();
+      } else if (e.code === 'KeyR') {
+        engine.triggerUltimate();
+      } else if (e.code === 'KeyQ') {
+        engine.performSpecialSkill();
+      } else if (e.code === 'Digit1') {
+        engine.usePotion('hp');
+      } else if (e.code === 'Digit2') {
+        engine.usePotion('speed');
+      } else if (e.code === 'Digit3') {
+        engine.usePotion('power');
+      } else if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        engine.performDash();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (engine) engine.keys.delete(e.code);
+    });
+
+    const updateMousePos = (e: MouseEvent) => {
+      if (!engine) return;
+      const rect = canvas.getBoundingClientRect();
+      const zoom = engine.camera.zoom;
+      engine.mouse.x = e.clientX - rect.left;
+      engine.mouse.y = e.clientY - rect.top;
+
+      engine.mouse.worldX =
+        (engine.mouse.x - rect.width / 2) / zoom + engine.camera.x;
+      engine.mouse.worldY =
+        (engine.mouse.y - rect.height / 2) / zoom + engine.camera.y;
+    };
+
+    canvas.addEventListener('mousemove', updateMousePos);
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (!engine) return;
+      updateMousePos(e); // Sync aim coordinates immediately on click!
+
+      if (e.button === 0) {
+        engine.mouse.isDown = true;
+        engine.performAttack();
+      } else if (e.button === 2) {
+        e.preventDefault();
+        engine.performSpecialSkill();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (engine) engine.mouse.isDown = false;
+    });
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Mobile Virtual Joystick
+    const joystickBase = document.getElementById('virtual-joystick');
+    const joystickThumb = document.getElementById('joystick-knob');
+    if (joystickBase && joystickThumb) {
+      let touchId: number | null = null;
+      let startX = 0;
+      let startY = 0;
+
+      joystickBase.addEventListener('touchstart', (e) => {
+        if (!engine) return;
+        const touch = e.changedTouches[0];
+        touchId = touch.identifier;
+        const rect = joystickBase.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+        engine.touchMove.active = true;
+      });
+
+      const handleTouchMove = (e: TouchEvent) => {
+        if (touchId === null || !engine) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === touchId) {
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+            const dist = Math.hypot(dx, dy);
+            const maxDist = 35;
+            const clampedDist = Math.min(dist, maxDist);
+            const angle = Math.atan2(dy, dx);
+
+            const knobX = Math.cos(angle) * clampedDist;
+            const knobY = Math.sin(angle) * clampedDist;
+
+            joystickThumb.style.transform = `translate(${knobX}px, ${knobY}px)`;
+            engine.touchMove.dx = dx / (dist || 1);
+            engine.touchMove.dy = dy / (dist || 1);
+          }
+        }
+      };
+
+      const handleTouchEnd = (e: TouchEvent) => {
+        if (touchId === null || !engine) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchId) {
+            touchId = null;
+            engine.touchMove.active = false;
+            engine.touchMove.dx = 0;
+            engine.touchMove.dy = 0;
+            joystickThumb.style.transform = 'translate(0px, 0px)';
+          }
+        }
+      };
+
+      window.addEventListener('touchmove', handleTouchMove, { passive: true });
+      window.addEventListener('touchend', handleTouchEnd);
+      window.addEventListener('touchcancel', handleTouchEnd);
+    }
+
+    const touchAtk = document.getElementById('touch-btn-attack');
+    if (touchAtk) touchAtk.addEventListener('touchstart', () => engine?.performAttack());
+
+    const touchSkill = document.getElementById('touch-btn-skill');
+    if (touchSkill) touchSkill.addEventListener('touchstart', () => engine?.performSpecialSkill());
+
+    const touchDash = document.getElementById('touch-btn-dash');
+    if (touchDash) touchDash.addEventListener('touchstart', () => engine?.performDash());
+
+    const touchPot = document.getElementById('touch-btn-potion');
+    if (touchPot) touchPot.addEventListener('touchstart', () => engine?.usePotion('hp'));
+  }
+
+  // Support both DOMContentLoaded and astro:page-load seamlessly
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGame);
+  } else {
+    initGame();
+  }
+  document.addEventListener('astro:page-load', () => {
+    isInitialized = false;
+    initGame();
+  });
+</script>

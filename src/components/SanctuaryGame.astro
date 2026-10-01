@@ -3372,6 +3372,7 @@ function updateRelicCounters() {
       osc1.stop(t + 0.2);
       osc2.stop(t + 0.2);
     }
+let natureInterval: any = null;
 function startNatureAmbiance() {
       if (natureInterval) clearInterval(natureInterval);
       natureInterval = setInterval(() => {
@@ -3567,6 +3568,7 @@ function startNatureAmbiance() {
       group: any;
       colliders: WorldCollider[];
       npcs: ForestNPC[];
+      relicId?: string | null;
     }
     const activeChunks: Map<string, ChunkData> = new Map();
     let lastPlayerChunkX = 999999;
@@ -4542,7 +4544,7 @@ function startNatureAmbiance() {
           const fireLight = new THREE.PointLight(0xff7722, 1.6, 9);
           fireLight.position.set(fx - centerX, fy + 0.9, fz - centerZ);
           chunkGroup.add(fireLight);
-          campfiresList.push({ light: fireLight, baseIntensity: 1.6, timeOffset: cx + cz });
+          campfiresList.push({ sprite: null, light: fireLight, baseIntensity: 1.6, timeOffset: cx + cz, curFrame: 0 });
 
           // Stumps & Wood resource
           const stump = createTinySwordsProp(THREE, '/Tiny Swords/Terrain/Resources/Wood/Trees/Stump 1.png', 1.6, 1.6, 0.3, false);
@@ -5102,7 +5104,7 @@ function startNatureAmbiance() {
         }
 
         // 2. DUELING COMBAT STATE (Two bots fighting each other)
-        if (npc.state === 'DUEL') {
+        if ((npc.state as any) === 'DUEL') {
           const opponent = npc.duelOpponent;
           if (!opponent || !opponent.model || opponent.state !== 'DUEL') {
             setNPCState(npc, 'PATROL');
@@ -5226,7 +5228,7 @@ function startNatureAmbiance() {
               }
             }
           }
-          if (npc.state === 'DUEL') {
+          if ((npc.state as any) === 'DUEL') {
             if (npc.mixer) npc.mixer.update(delta);
             continue;
           }

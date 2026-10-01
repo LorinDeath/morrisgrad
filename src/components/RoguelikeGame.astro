@@ -5073,13 +5073,13 @@
         else if (rarityRoll > 0.75) rarity = 'epic';
         else if (rarityRoll > 0.5) rarity = 'rare';
         
-        const icons = { weapon: '⚔️', armor: '🛡️', chip: '💾' };
-        const names = { weapon: ['Rifle', 'Repeater', 'Cannon'], armor: ['Plate', 'Shield', 'Suit'], chip: ['CPU', 'RAM', 'Drive'] };
-        const suffixes = { common: 'v1', rare: 'Pro', epic: 'Elite', legendary: 'GOD', mythic: 'OMEGA', divine: 'ZERO' };
+        const icons: Record<string, string> = { weapon: '⚔️', armor: '🛡️', chip: '💾' };
+        const names: Record<string, string[]> = { weapon: ['Rifle', 'Repeater', 'Cannon'], armor: ['Plate', 'Shield', 'Suit'], chip: ['CPU', 'RAM', 'Drive'] };
+        const suffixes: Record<string, string> = { common: 'v1', rare: 'Pro', epic: 'Elite', legendary: 'GOD', mythic: 'OMEGA', divine: 'ZERO' };
         
         const name = `${names[type][Math.floor(Math.random()*3)]} ${suffixes[rarity] || 'v1'}`;
         
-        const mult = { common: 1, rare: 2, epic: 4, legendary: 8, mythic: 16, divine: 32 };
+        const mult: Record<string, number> = { common: 1, rare: 2, epic: 4, legendary: 8, mythic: 16, divine: 32 };
         const m = mult[rarity];
         
         const isWeakSet = setId && IMMUTABLE_SETS.includes(setId);

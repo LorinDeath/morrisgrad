@@ -1863,7 +1863,7 @@
         const banishBtn = document.createElement('button');
         banishBtn.className = 'card-banish-btn';
         banishBtn.textContent = '🚫 Изгнать модуль';
-        if (engine.banishesLeft <= 0 || card.type === 'evolution') {
+        if (!engine || engine.banishesLeft <= 0 || card.type === 'evolution') {
           banishBtn.disabled = true;
         }
         banishBtn.addEventListener('click', (e) => {

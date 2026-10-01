@@ -1,0 +1,44 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import DungeonGatheringGame from '../../components/DungeonGatheringGame.astro';
+---
+
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Dungeon Gathering: Катакомбы Склепа | Моррис Град</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <ClientRouter />
+    <style>
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #06080e;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      #game-wrapper {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-wrapper">
+      <DungeonGatheringGame />
+    </div>
+  </body>
+</html>
