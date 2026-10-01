@@ -20,6 +20,8 @@ export type RoomType =
   | 'rest'
   | 'tutorial_step';
 
+export type BiomeType = 'crypt' | 'sunken' | 'toxic' | 'magma' | 'abyss' | 'void' | 'sanctum';
+
 export interface Room {
   id: number;
   x: number;
@@ -27,6 +29,7 @@ export interface Room {
   w: number;
   h: number;
   type: RoomType;
+  biome: BiomeType;
   cx: number;
   cy: number;
   connected: number[];
@@ -230,10 +233,21 @@ export interface DungeonMap {
   shop?: ShopKeeper;
   challenge?: ChallengeEvent;
   decals: Decal[];
-  biome: 'crypt' | 'sunken' | 'abyss' | 'sanctum';
+  biome: BiomeType;
   groundWeapons: GroundWeapon[];
   groundScrolls: GroundScroll[];
   groundRelics: GroundRelic[];
+}
+
+export interface KillerInfo {
+  name: string;
+  attackName: string;
+  damage: number;
+  icon: string;
+  biomeName: string;
+  x: number;
+  y: number;
+  enemyId?: number;
 }
 
 export type EnemyType =
@@ -306,6 +320,7 @@ export interface Enemy {
   darkGlitchSeed?: number;
   isDarkInfused?: boolean;
   lodLevel?: 0 | 1 | 2;
+  biome?: BiomeType;
 }
 
 export interface Projectile {
@@ -510,4 +525,5 @@ export interface PlayerStats {
   tutorialStep?: number;
   bossRushWave?: number;
   bossRushTime?: number;
+  currentBiome?: BiomeType;
 }

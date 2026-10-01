@@ -14,6 +14,7 @@ import type {
   GameMode,
   StartingLoadoutWeapon,
   StartingPack,
+  BiomeType,
 } from './types';
 import { createStarterWeapon, createLoadoutWeapon } from './weapons';
 
@@ -202,9 +203,10 @@ export function createEnemyInstance(
   floor: number,
   roomIndex: number,
   isMiniBoss = false,
-  difficulty: DifficultyLevel = 'normal'
+  difficulty: DifficultyLevel = 'normal',
+  biome?: BiomeType
 ): Enemy {
-  let name = 'Чумной Зомби-Пехотинец';
+  let name = 'Зомби-Пехотинец';
   let baseHp = 42;
   let baseDmg = 1;
   let speed = 48 + Math.random() * 12;
@@ -217,107 +219,90 @@ export function createEnemyInstance(
 
   switch (type) {
     case 'zombie_walker':
-      name = 'Чумной Зомби-Пехотинец';
-      baseHp = 42;
+      name = 'Зомби-Пехотинец';
+      baseHp = 44;
       baseDmg = 1;
-      speed = 56 + Math.random() * 10;
+      speed = 52 + Math.random() * 10;
       radius = 9;
-      rangedAttack = {
-        name: 'Костяной шип',
-        cooldown: 2.2,
-        speed: 180,
-        damage: 1,
-        range: 170,
-        color: '#e2e8f0',
-        trailColor: '#94a3b8',
-        isOrb: false,
-        radius: 4,
-      };
+      // Рядовой зомби - атакует только вблизи когтями, без спама снарядами
+      rangedAttack = undefined;
       break;
 
     case 'zombie_spitter':
       name = 'Кислотный Зомби-Плевун';
       baseHp = 36;
       baseDmg = 1;
-      speed = 55 + Math.random() * 12;
+      speed = 50 + Math.random() * 10;
       radius = 9;
       tint = '#84cc16';
       preferredDistance = 140;
       rangedAttack = {
-        name: 'Кислотная Сфера',
-        cooldown: 1.8,
-        speed: 235,
+        name: 'Кислотный Плевок',
+        cooldown: 2.2,
+        speed: 135,
         damage: 1,
-        range: 240,
+        range: 210,
         color: '#84cc16',
         trailColor: '#4d7c0f',
         isOrb: true,
-        radius: 7,
+        radius: 4.5,
       };
       break;
 
     case 'zombie_runner':
-      name = 'Бешеный Чумник-Спринтер';
-      baseHp = 30;
+      name = 'Бешеный Зомби-Бегун';
+      baseHp = 28;
       baseDmg = 1;
-      speed = 106 + Math.random() * 16;
+      speed = 100 + Math.random() * 14;
       radius = 8;
       attackCooldown = 0.6;
       tint = '#38bdf8';
-      rangedAttack = {
-        name: 'Теневой Дротик',
-        cooldown: 1.5,
-        speed: 310,
-        damage: 1,
-        range: 190,
-        color: '#38bdf8',
-        trailColor: '#0284c7',
-        isOrb: false,
-        radius: 3.5,
-      };
+      // Быстрый спринтер - опасен скоростью сближения, без снарядов
+      rangedAttack = undefined;
       break;
 
     case 'zombie_brute':
-      name = 'Чумной Громила-Таран';
-      baseHp = 110;
-      baseDmg = 2;
-      speed = 38 + Math.random() * 8;
-      radius = 15;
-      scale = 1.45;
-      attackCooldown = 1.4;
+      name = 'Колоссальный Зомби-Громила';
+      baseHp = 120;
+      baseDmg = 3;
+      speed = 36 + Math.random() * 6;
+      radius = 16;
+      scale = 1.5;
+      attackCooldown = 1.5;
       tint = '#b91c1c';
-      preferredDistance = 80;
+      preferredDistance = 90;
+      // Крупный опасный моб: бросает тяжелый сокрушающий валун
       rangedAttack = {
         name: 'Сокрушительный Валун',
-        cooldown: 2.8,
-        speed: 180,
+        cooldown: 3.0,
+        speed: 150,
         damage: 3,
-        range: 220,
+        range: 230,
         color: '#78350f',
         trailColor: '#451a03',
         isOrb: true,
-        radius: 10,
+        radius: 8.5,
       };
       break;
 
     case 'zombie_witch':
       name = 'Некромантка Склепа';
-      baseHp = 46;
+      baseHp = 48;
       baseDmg = 1;
       speed = 46 + Math.random() * 8;
       radius = 9;
       tint = '#c084fc';
       preferredDistance = 160;
       rangedAttack = {
-        name: 'Аркановая Сфера Пустоты',
-        cooldown: 1.9,
-        speed: 190,
-        damage: 1,
-        range: 260,
+        name: 'Сфера Пустоты',
+        cooldown: 2.2,
+        speed: 125,
+        damage: 2,
+        range: 250,
         color: '#c084fc',
         trailColor: '#6b21a8',
         isOrb: true,
-        radius: 8,
+        radius: 5.5,
         homing: true,
       };
       break;
@@ -332,14 +317,14 @@ export function createEnemyInstance(
       preferredDistance = 130;
       rangedAttack = {
         name: 'Залп Огненных Сфер',
-        cooldown: 2.2,
-        speed: 220,
+        cooldown: 2.4,
+        speed: 155,
         damage: 1,
-        range: 230,
+        range: 220,
         color: '#f97316',
         trailColor: '#c2410c',
         isOrb: true,
-        radius: 7,
+        radius: 4.5,
         spreadCount: 3,
       };
       break;
@@ -356,13 +341,13 @@ export function createEnemyInstance(
       rangedAttack = {
         name: 'Плазменный Залп Владыки',
         cooldown: 2.0,
-        speed: 240,
+        speed: 190,
         damage: 2,
         range: 360,
         color: '#f43f5e',
         trailColor: '#881337',
         isOrb: true,
-        radius: 12,
+        radius: 8.5,
         spreadCount: 5,
       };
       break;
@@ -439,6 +424,28 @@ export function createEnemyInstance(
     name = `🛡️ [ЧЁРНЫЙ ЩИТ] ${name}`;
   }
 
+  if (biome) {
+    if (biome === 'toxic') {
+      name = `Чумной ${name}`;
+      if (!isElite && !isMiniBoss) tint = '#84cc16';
+    } else if (biome === 'magma' || biome === 'abyss') {
+      name = `Инфернальный ${name}`;
+      if (!isElite && !isMiniBoss) tint = '#ea580c';
+    } else if (biome === 'sunken') {
+      name = `Глубинный ${name}`;
+      if (!isElite && !isMiniBoss) tint = '#0284c7';
+    } else if (biome === 'void') {
+      name = `Пустотный ${name}`;
+      if (!isElite && !isMiniBoss) tint = '#9333ea';
+    } else if (biome === 'sanctum') {
+      name = `Осквернённый ${name}`;
+      if (!isElite && !isMiniBoss) tint = '#ca8a04';
+      armor += 1;
+    } else if (biome === 'crypt') {
+      if (!isElite && !isMiniBoss) tint = '#94a3b8';
+    }
+  }
+
   return {
     id: enemyIdCounter++,
     type,
@@ -480,6 +487,7 @@ export function createEnemyInstance(
     isEvolved: false,
     evolutionTier: 0,
     darkGlitchSeed: Math.random() * 100,
+    biome,
   };
 }
 
@@ -556,7 +564,7 @@ export function spawnEnemiesForRoom(
 
   // Boss Chamber
   if (room.type === 'boss') {
-    const boss = createEnemyInstance('zombie_boss', room.cx * 16 + 8, room.cy * 16 + 8, floor, room.id, false, difficulty);
+    const boss = createEnemyInstance('zombie_boss', room.cx * 16 + 8, room.cy * 16 + 8, floor, room.id, false, difficulty, room.biome);
     if (floor >= 12) {
       boss.name = '👑 ВЕРХОВНЫЙ ВЛАДЫКА АРХИЛИЧ';
       boss.scale = 2.8;
@@ -577,7 +585,7 @@ export function spawnEnemiesForRoom(
     for (let i = 0; i < minionCount; i++) {
       const mx = (room.cx - 3 + i * 3) * 16 + 8;
       const my = (room.cy + 3) * 16 + 8;
-      enemies.push(createEnemyInstance(minionTypes[i % minionTypes.length], mx, my, floor, room.id, false, difficulty));
+      enemies.push(createEnemyInstance(minionTypes[i % minionTypes.length], mx, my, floor, room.id, false, difficulty, room.biome));
     }
     return enemies;
   }
@@ -600,7 +608,7 @@ export function spawnEnemiesForRoom(
       const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));
       const chosenType = normalTypes[Math.floor(Math.random() * normalTypes.length)];
       enemies.push(
-        createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty)
+        createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty, room.biome)
       );
     }
     return enemies;
@@ -610,7 +618,7 @@ export function spawnEnemiesForRoom(
   if (room.type === 'elite') {
     const bossType: EnemyType = Math.random() < 0.5 ? 'zombie_brute' : 'zombie_pyro';
     enemies.push(
-      createEnemyInstance(bossType, room.cx * 16 + 8, room.cy * 16 + 8, floor, room.id, true, difficulty)
+      createEnemyInstance(bossType, room.cx * 16 + 8, room.cy * 16 + 8, floor, room.id, true, difficulty, room.biome)
     );
     const minionCount = Math.max(2, Math.round(5 * mobMultiplier));
     for (let i = 0; i < minionCount; i++) {
@@ -618,7 +626,7 @@ export function spawnEnemiesForRoom(
       const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));
       const chosenType = normalTypes[Math.floor(Math.random() * normalTypes.length)];
       enemies.push(
-        createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty)
+        createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty, room.biome)
       );
     }
     return enemies;
@@ -635,7 +643,7 @@ export function spawnEnemiesForRoom(
       const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));
       const chosenType = normalTypes[Math.floor(Math.random() * normalTypes.length)];
       enemies.push(
-        createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty)
+        createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty, room.biome)
       );
     }
     return enemies;
@@ -649,7 +657,7 @@ export function spawnEnemiesForRoom(
     const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));
     const chosenType = normalTypes[Math.floor(Math.random() * normalTypes.length)];
     enemies.push(
-      createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty)
+      createEnemyInstance(chosenType, rx * 16 + 8, ry * 16 + 8, floor, room.id, false, difficulty, room.biome)
     );
   }
 

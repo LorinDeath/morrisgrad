@@ -15,6 +15,7 @@ import type {
   DestructibleCrate,
   DifficultyLevel,
   DungeonMap,
+  Room,
   Enemy,
   EnemyType,
   FloatingText,
@@ -33,6 +34,7 @@ import type {
   BlackHoleEntity,
   StartingLoadoutWeapon,
   StartingPack,
+  KillerInfo,
 } from './types';
 import { evaluateSynergy, type SynergyInfo } from './relics';
 import { Tile } from './types';
@@ -65,7 +67,7 @@ import { DungeonComputeManager } from './dungeonWorker';
 export interface EngineCallbacks {
   onStatsUpdate: (player: PlayerStats, boss?: Enemy | null) => void;
   onLevelUp: () => void;
-  onGameOver: (stats: { floor: number; kills: number; gold: number; blueCoins: number }) => void;
+  onGameOver: (stats: { floor: number; kills: number; gold: number; blueCoins: number; killer?: KillerInfo }) => void;
   onVictory: (stats: { floor: number; kills: number; gold: number; blueCoins: number }) => void;
   onNotify: (text: string) => void;
   onShopOpen?: (shop: ShopKeeper) => void;
@@ -131,6 +133,11 @@ export class DungeonEngine {
   public keys = new Set<string>();
   public mouse = { x: 0, y: 0, worldX: 0, worldY: 0, isDown: false, rightDown: false };
   public touchMove = { active: false, dx: 0, dy: 0 };
+
+  public lastKillerInfo: KillerInfo | null = null;
+  public deathSequenceTimer = 0;
+  public isDying = false;
+  public currentRoom: Room | null = null;
 
   private isRunning = false;
   private isPaused = false;
@@ -465,6 +472,24 @@ export class DungeonEngine {
 
   // --- UPDATE LOGIC ---
   private update(dt: number) {
+    if (this.isDying) {
+      this.deathSequenceTimer -= dt;
+      const slowDt = dt * 0.25;
+      this.updateParticles(slowDt);
+      this.updateFloatingTexts(slowDt);
+
+      if (this.lastKillerInfo) {
+        this.camera.targetX = (this.playerPos.x + this.lastKillerInfo.x) / 2;
+        this.camera.targetY = (this.playerPos.y + this.lastKillerInfo.y) / 2;
+      }
+      this.updateCamera(dt);
+
+      if (this.deathSequenceTimer <= 0) {
+        this.handlePlayerDeath();
+      }
+      return;
+    }
+
     this.floorTimer += dt;
     this.enemyAiTick++;
 
@@ -510,7 +535,7 @@ export class DungeonEngine {
     }
     this.hoveredGroundWeapon = nearestGw;
 
-    // Exploration room discovery banner
+    // Exploration room discovery banner & biome tracking
     const pTileX = Math.floor(this.playerPos.x / 16);
     const pTileY = Math.floor(this.playerPos.y / 16);
     for (const r of this.map.rooms) {
@@ -520,12 +545,16 @@ export class DungeonEngine {
         pTileY >= r.y &&
         pTileY < r.y + r.h
       ) {
+        if (this.currentRoom !== r) {
+          this.currentRoom = r;
+          this.player.currentBiome = r.biome;
+          if (r.titleBanner) {
+            this.callbacks.onNotify(`📍 ${r.titleBanner}`);
+          }
+        }
         if (!r.visited) {
           r.visited = true;
-          if (r.titleBanner) {
-            this.callbacks.onNotify(r.titleBanner);
-            this.addScreenShake(0.25, 5);
-          }
+          this.addScreenShake(0.25, 4);
         }
         break;
       }
@@ -951,8 +980,8 @@ export class DungeonEngine {
       this.audio.playSpecialSkill();
       const projCfg = wpn?.projectile;
       const isOrb = projCfg?.isMagicOrb ?? (this.player.heroClass === 'sorcerer');
-      const pSpeed = projCfg?.speed || 290;
-      const pRadius = isOrb ? (projCfg?.radius || 9) : (projCfg?.radius || 5);
+      const pSpeed = projCfg?.speed || Math.round(180 * (1 + (wpn?.bonusProjSpeedPct || 0) / 100));
+      const pRadius = projCfg?.radius || Math.round((isOrb ? 4.5 : 3.0) * (1 + (wpn?.bonusProjSizePct || 0) / 100) * 10) / 10;
       const pColor = projCfg?.color || (this.player.heroClass === 'sorcerer' ? '#c084fc' : '#f8fafc');
       const pTrail = projCfg?.trailColor || (this.player.heroClass === 'sorcerer' ? '#ec4899' : '#38bdf8');
       const pPierce = projCfg?.pierce || 2;
@@ -983,7 +1012,7 @@ export class DungeonEngine {
           y: this.playerPos.y,
           vx: Math.cos(shootAngle) * pSpeed,
           vy: Math.sin(shootAngle) * pSpeed,
-          radius: hasSacredHeart ? 14 : pRadius,
+          radius: hasSacredHeart ? Math.round(pRadius * 1.5) : pRadius,
           damage: pDamage,
           fromPlayer: true,
           color: hasSacredHeart ? '#ffffff' : hasTriquetra ? '#a855f7' : isDarkProj ? '#c084fc' : pColor,
@@ -1960,7 +1989,14 @@ export class DungeonEngine {
         // 3. Ближняя атака (удар лапами/когтями)
         if (dist <= 26 && e.attackTimer <= 0) {
           e.attackTimer = e.attackCooldown;
-          this.damagePlayer(e.damage);
+          this.damagePlayer(e.damage, {
+            name: e.name,
+            type: 'enemy',
+            attackName: 'Удар в ближнем бою',
+            sourceX: e.x,
+            sourceY: e.y,
+            killerEnemy: e,
+          });
         }
 
         // 4. ОРУЖИЕ МОНСТРОВ: Использование уникальных дальнобойных атак и сфер
@@ -2020,9 +2056,13 @@ export class DungeonEngine {
     }
   }
 
-  public damagePlayer(damage: number) {
+  public damagePlayer(
+    damage: number,
+    killerInfo?: { name: string; type: string; attackName?: string; sourceX?: number; sourceY?: number; killerEnemy?: Enemy }
+  ) {
     if (this.player.invulnerableTimer > 0) return;
     if (this.player.isDashing) return;
+    if (this.isDying) return;
 
     if (this.player.hasAegisShield && this.player.aegisShieldTimer <= 0) {
       this.player.aegisShieldTimer = 14.0;
@@ -2046,19 +2086,35 @@ export class DungeonEngine {
       createFloatingText(this.playerPos.x, this.playerPos.y, `-${finalDamage} HP`, '#ef4444', 13)
     );
 
+    const biomeRu = this.currentRoom ? this.currentRoom.biome : this.map.biome;
+    this.lastKillerInfo = {
+      name: killerInfo?.name || 'Тьма Катакомб',
+      attackName: killerInfo?.attackName || 'Смертельный удар',
+      damage: finalDamage,
+      icon: killerInfo?.type === 'projectile' ? '🔮' : killerInfo?.type === 'trap' ? '⚙️' : '💀',
+      biomeName: this.currentRoom?.titleBanner || `Биом: ${biomeRu}`,
+      x: killerInfo?.sourceX ?? this.playerPos.x,
+      y: killerInfo?.sourceY ?? this.playerPos.y,
+      enemyId: killerInfo?.killerEnemy?.id,
+    };
+
     if (this.player.hp <= 0) {
-      this.handlePlayerDeath();
+      this.isDying = true;
+      this.deathSequenceTimer = 1.6;
+      this.audio.playBite();
+      this.addScreenShake(0.5, 12);
     }
   }
 
   private handlePlayerDeath() {
-    this.audio.playBite();
+    this.isDying = false;
     this.isPaused = true;
     this.callbacks.onGameOver({
       floor: this.player.floor,
       kills: this.totalKills,
       gold: this.player.gold,
       blueCoins: this.player.blueCoins,
+      killer: this.lastKillerInfo || undefined,
     });
   }
 
@@ -2213,7 +2269,13 @@ export class DungeonEngine {
         }
       } else {
         if (Math.hypot(this.playerPos.x - p.x, this.playerPos.y - p.y) < 10 + p.radius) {
-          this.damagePlayer(p.damage);
+          this.damagePlayer(p.damage, {
+            name: p.isMagicOrb ? 'Магическая Сфера Врага' : 'Вражеский Снаряд',
+            type: 'projectile',
+            attackName: 'Попадание дальнобойным снарядом',
+            sourceX: p.x,
+            sourceY: p.y,
+          });
           this.projectiles.splice(i, 1);
           continue;
         }
@@ -2529,7 +2591,13 @@ export class DungeonEngine {
         const px = Math.floor(this.playerPos.x / 16);
         const py = Math.floor(this.playerPos.y / 16);
         if (px === trap.tileX && py === trap.tileY && !this.player.isDashing) {
-          this.damagePlayer(1);
+          this.damagePlayer(1, {
+            name: 'Шипованная Ловушка',
+            type: 'trap',
+            attackName: 'Пронзающие шипы',
+            sourceX: trap.tileX * 16 + 8,
+            sourceY: trap.tileY * 16 + 8,
+          });
         }
 
         for (const e of this.enemies) {
@@ -3091,6 +3159,7 @@ export class DungeonEngine {
     this.ctx.translate(-this.camera.x, -this.camera.y);
 
     this.renderTiles();
+    this.renderRoomBiomeOverlays();
     this.renderDecals();
     this.renderProps();
     // Traps removed
@@ -3112,14 +3181,189 @@ export class DungeonEngine {
     this.renderHoveredWeaponTooltip();
     this.renderCrosshair();
 
+    if (this.isDying) {
+      this.renderDeathKillerHighlight();
+    }
+
     this.ctx.restore();
 
     this.renderLightingPass(w, h);
+
+    if (this.isDying) {
+      this.renderDeathScreenVignette(w, h);
+    }
 
     // Auto-render minimap every frame
     if (this.minimapCanvas) {
       this.renderMinimap(this.minimapCanvas);
     }
+  }
+
+  private renderRoomBiomeOverlays() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 64;
+    const halfH = (this.canvas.height / zoom) / 2 + 64;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+    const time = performance.now() * 0.002;
+
+    for (const r of this.map.rooms) {
+      const rx = r.x * 16;
+      const ry = r.y * 16;
+      const rw = r.w * 16;
+      const rh = r.h * 16;
+
+      if (rx + rw < minX || rx > maxX || ry + rh < minY || ry > maxY) continue;
+
+      this.ctx.save();
+
+      switch (r.biome) {
+        case 'sunken': {
+          this.ctx.fillStyle = '#0284c7';
+          this.ctx.globalAlpha = 0.16;
+          this.ctx.fillRect(rx, ry, rw, rh);
+
+          this.ctx.strokeStyle = '#38bdf8';
+          this.ctx.globalAlpha = 0.08 + Math.sin(time + r.id) * 0.03;
+          this.ctx.lineWidth = 1.5;
+          const rippleY = ry + ((time * 20 + r.id * 15) % rh);
+          this.ctx.beginPath();
+          this.ctx.moveTo(rx, rippleY);
+          this.ctx.bezierCurveTo(rx + rw * 0.3, rippleY - 6, rx + rw * 0.7, rippleY + 6, rx + rw, rippleY);
+          this.ctx.stroke();
+          break;
+        }
+        case 'toxic': {
+          this.ctx.fillStyle = '#65a30d';
+          this.ctx.globalAlpha = 0.18;
+          this.ctx.fillRect(rx, ry, rw, rh);
+
+          this.ctx.fillStyle = '#84cc16';
+          this.ctx.globalAlpha = 0.06 + Math.cos(time + r.id) * 0.03;
+          this.ctx.beginPath();
+          this.ctx.arc(r.cx * 16, r.cy * 16, Math.min(rw, rh) * 0.45, 0, Math.PI * 2);
+          this.ctx.fill();
+          break;
+        }
+        case 'magma':
+        case 'abyss': {
+          this.ctx.fillStyle = '#ea580c';
+          this.ctx.globalAlpha = 0.20;
+          this.ctx.fillRect(rx, ry, rw, rh);
+
+          this.ctx.fillStyle = '#dc2626';
+          this.ctx.globalAlpha = 0.08 + Math.sin(time * 1.5 + r.id) * 0.04;
+          this.ctx.fillRect(rx + 4, ry + 4, rw - 8, rh - 8);
+          break;
+        }
+        case 'void': {
+          this.ctx.fillStyle = '#9333ea';
+          this.ctx.globalAlpha = 0.20;
+          this.ctx.fillRect(rx, ry, rw, rh);
+
+          const voidGrad = this.ctx.createRadialGradient(r.cx * 16, r.cy * 16, 10, r.cx * 16, r.cy * 16, Math.min(rw, rh) * 0.5);
+          voidGrad.addColorStop(0, 'rgba(59, 7, 100, 0.35)');
+          voidGrad.addColorStop(1, 'rgba(147, 51, 234, 0)');
+          this.ctx.fillStyle = voidGrad;
+          this.ctx.globalAlpha = 0.4;
+          this.ctx.beginPath();
+          this.ctx.arc(r.cx * 16, r.cy * 16, Math.min(rw, rh) * 0.5, 0, Math.PI * 2);
+          this.ctx.fill();
+          break;
+        }
+        case 'sanctum': {
+          this.ctx.fillStyle = '#ca8a04';
+          this.ctx.globalAlpha = 0.15;
+          this.ctx.fillRect(rx, ry, rw, rh);
+
+          const sunGrad = this.ctx.createRadialGradient(r.cx * 16, r.cy * 16, 5, r.cx * 16, r.cy * 16, Math.min(rw, rh) * 0.6);
+          sunGrad.addColorStop(0, 'rgba(254, 240, 138, 0.25)');
+          sunGrad.addColorStop(1, 'rgba(202, 138, 4, 0)');
+          this.ctx.fillStyle = sunGrad;
+          this.ctx.globalAlpha = 0.3;
+          this.ctx.fillRect(rx, ry, rw, rh);
+          break;
+        }
+        case 'crypt':
+        default: {
+          this.ctx.fillStyle = '#475569';
+          this.ctx.globalAlpha = 0.08;
+          this.ctx.fillRect(rx, ry, rw, rh);
+          break;
+        }
+      }
+
+      this.ctx.restore();
+    }
+  }
+
+  private renderDeathKillerHighlight() {
+    if (!this.lastKillerInfo) return;
+    const k = this.lastKillerInfo;
+    const time = performance.now() * 0.005;
+
+    this.ctx.save();
+
+    const pulse = 18 + Math.sin(time * 4) * 6;
+    this.ctx.strokeStyle = '#ef4444';
+    this.ctx.lineWidth = 2.5;
+    this.ctx.beginPath();
+    this.ctx.arc(k.x, k.y, pulse, 0, Math.PI * 2);
+    this.ctx.stroke();
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(k.x - pulse - 6, k.y);
+    this.ctx.lineTo(k.x + pulse + 6, k.y);
+    this.ctx.moveTo(k.x, k.y - pulse - 6);
+    this.ctx.lineTo(k.x, k.y + pulse + 6);
+    this.ctx.stroke();
+
+    this.ctx.setLineDash([4, 4]);
+    this.ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+    this.ctx.lineWidth = 1.5;
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.playerPos.x, this.playerPos.y);
+    this.ctx.lineTo(k.x, k.y);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+
+    const titleText = `💀 УБИЙЦА: ${k.name}`;
+    const subText = `${k.attackName} • Смертельный урон -${k.damage} HP`;
+
+    this.ctx.font = 'bold 12px monospace';
+    const tw = Math.max(this.ctx.measureText(titleText).width, this.ctx.measureText(subText).width) + 20;
+    const th = 38;
+    const bx = k.x - tw / 2;
+    const by = k.y - pulse - th - 12;
+
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+    this.ctx.fillRect(bx, by, tw, th);
+    this.ctx.strokeStyle = '#ef4444';
+    this.ctx.lineWidth = 1.5;
+    this.ctx.strokeRect(bx, by, tw, th);
+
+    this.ctx.fillStyle = '#f87171';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(titleText, k.x, by + 16);
+
+    this.ctx.fillStyle = '#fca5a5';
+    this.ctx.font = '10px monospace';
+    this.ctx.fillText(subText, k.x, by + 30);
+
+    this.ctx.restore();
+  }
+
+  private renderDeathScreenVignette(w: number, h: number) {
+    this.ctx.save();
+    const grad = this.ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.75);
+    grad.addColorStop(0, 'rgba(127, 29, 29, 0)');
+    grad.addColorStop(0.7, 'rgba(153, 27, 27, 0.45)');
+    grad.addColorStop(1, 'rgba(45, 10, 10, 0.82)');
+    this.ctx.fillStyle = grad;
+    this.ctx.fillRect(0, 0, w, h);
+    this.ctx.restore();
   }
 
   private renderTiles() {

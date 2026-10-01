@@ -7,6 +7,7 @@ import {
   Tile,
   type DungeonMap,
   type Room,
+  type BiomeType,
   type Torch,
   type Vase,
   type DestructibleCrate,
@@ -27,22 +28,29 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
     return generateBossRushDungeon(floorNumber);
   }
 
-  // 4 Биома для 12+ этажей:
-  // 1-3: crypt (Древний Склеп)
-  // 4-6: sunken (Затопленные Катакомбы)
-  // 7-9: abyss (Раскаленная Бездна)
-  // 10-12+: sanctum (Святилище Архилича)
-  const biome: 'crypt' | 'sunken' | 'abyss' | 'sanctum' =
-    floorNumber <= 3
+  // 6 Биомов для 12+ этажей:
+  // 1-2: crypt (Древний Склеп)
+  // 3-4: sunken (Затопленные Катакомбы)
+  // 5-6: toxic (Чумные Топи)
+  // 7-8: magma (Инферно-Печи)
+  // 9-10: void (Залы Бездны)
+  // 11-12+: sanctum (Святилище Архилича)
+  const baseBiome: BiomeType =
+    floorNumber <= 2
       ? 'crypt'
-      : floorNumber <= 6
+      : floorNumber <= 4
       ? 'sunken'
-      : floorNumber <= 9
-      ? 'abyss'
+      : floorNumber <= 6
+      ? 'toxic'
+      : floorNumber <= 8
+      ? 'magma'
+      : floorNumber <= 10
+      ? 'void'
       : 'sanctum';
 
-  const mapWidth = 56 + Math.min(floorNumber * 4, 24);
-  const mapHeight = 56 + Math.min(floorNumber * 4, 24);
+  // Увеличенные просторные габариты подземелья для глубокого исследования
+  const mapWidth = 84 + Math.min(floorNumber * 4, 32);
+  const mapHeight = 84 + Math.min(floorNumber * 4, 32);
 
   const tiles: number[][] = Array.from({ length: mapHeight }, () =>
     Array(mapWidth).fill(Tile.VOID)
@@ -53,22 +61,31 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
   );
 
   const rooms: Room[] = [];
-  const targetRoomCount = 12 + Math.min(floorNumber * 2, 6);
+  const targetRoomCount = 16 + Math.min(floorNumber * 2, 8);
+
+  const biomePool: BiomeType[] = ['crypt', 'sunken', 'toxic', 'magma', 'void', 'sanctum'];
+  const baseIdx = biomePool.indexOf(baseBiome);
+  const adjacentBiomes: BiomeType[] = [
+    biomePool[(baseIdx + biomePool.length - 1) % biomePool.length],
+    biomePool[(baseIdx + 1) % biomePool.length],
+    biomePool[(baseIdx + 2) % biomePool.length],
+  ];
 
   let attempts = 0;
-  while (rooms.length < targetRoomCount && attempts < 600) {
+  while (rooms.length < targetRoomCount && attempts < 1200) {
     attempts++;
 
-    let rw = 7 + Math.floor(Math.random() * 6);
-    let rh = 7 + Math.floor(Math.random() * 6);
+    // Просторные залы и комнаты
+    let rw = 11 + Math.floor(Math.random() * 8);
+    let rh = 11 + Math.floor(Math.random() * 8);
 
     // Большие арены и залы орды
-    if (rooms.length === 2 || rooms.length === 5) {
-      rw = 18 + Math.floor(Math.random() * 5);
-      rh = 18 + Math.floor(Math.random() * 5);
-    } else if (rooms.length === 3 || rooms.length === 7) {
-      rw = 15 + Math.floor(Math.random() * 4);
-      rh = 15 + Math.floor(Math.random() * 4);
+    if (rooms.length === 2 || rooms.length === 6 || rooms.length === 11) {
+      rw = 22 + Math.floor(Math.random() * 7);
+      rh = 22 + Math.floor(Math.random() * 7);
+    } else if (rooms.length === 4 || rooms.length === 8 || rooms.length === 14) {
+      rw = 16 + Math.floor(Math.random() * 6);
+      rh = 16 + Math.floor(Math.random() * 6);
     }
 
     const rx = 3 + Math.floor(Math.random() * (mapWidth - rw - 6));
@@ -88,6 +105,14 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
     }
 
     if (!overlaps) {
+      // 60% шанс основного биома данжа, 40% шанс соседнего биома
+      const rBiome =
+        rooms.length === 0
+          ? baseBiome
+          : Math.random() < 0.60
+          ? baseBiome
+          : adjacentBiomes[Math.floor(Math.random() * adjacentBiomes.length)];
+
       const room: Room = {
         id: rooms.length,
         x: rx,
@@ -95,6 +120,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
         w: rw,
         h: rh,
         type: 'normal',
+        biome: rBiome,
         cx: Math.floor(rx + rw / 2),
         cy: Math.floor(ry + rh / 2),
         connected: [],
@@ -106,10 +132,14 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
       for (let y = ry; y < ry + rh; y++) {
         for (let x = rx; x < rx + rw; x++) {
           const rand = Math.random();
-          if (biome === 'sunken' && rand < 0.14 && x > rx + 1 && x < rx + rw - 2) {
+          if (rBiome === 'sunken' && rand < 0.16 && x > rx + 1 && x < rx + rw - 2) {
             tiles[y][x] = Tile.WATER;
-          } else if (biome === 'sanctum' && rand < 0.22) {
+          } else if (rBiome === 'toxic' && rand < 0.12 && x > rx + 1 && x < rx + rw - 2) {
+            tiles[y][x] = Tile.WATER;
+          } else if (rBiome === 'sanctum' && rand < 0.25) {
             tiles[y][x] = Tile.FLOOR_ALT;
+          } else if (rBiome === 'magma' && rand < 0.28) {
+            tiles[y][x] = Tile.FLOOR_CRACK;
           } else if (rand < 0.18) {
             tiles[y][x] = Tile.FLOOR_ALT;
           } else if (rand < 0.28) {
@@ -552,7 +582,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
       });
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.5 ? 'legendary' : 'epic', true),
+        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.5 ? 'legendary' : 'epic', true, 'normal', 0, r.biome),
         x: (r.cx - 2) * 16 + 8,
         y: r.cy * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -567,7 +597,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
     } else if (r.type === 'horde') {
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, undefined, 'rare', true),
+        weapon: generateRandomWeapon(floorNumber, undefined, 'rare', true, 'normal', 0, r.biome),
         x: r.cx * 16 + 8,
         y: (r.cy - 2) * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -591,7 +621,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
       }
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.4 ? 'legendary' : 'epic', true),
+        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.4 ? 'legendary' : 'epic', true, 'normal', 0, r.biome),
         x: r.cx * 16 + 8,
         y: r.cy * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -610,7 +640,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
       if (Math.random() < 0.06) {
         groundWeapons.push({
           id: groundIdCounter++,
-          weapon: generateRandomWeapon(floorNumber),
+          weapon: generateRandomWeapon(floorNumber, undefined, undefined, false, 'normal', 0, r.biome),
           x: (r.x + 2 + Math.floor(Math.random() * (r.w - 4))) * 16 + 8,
           y: (r.y + 2 + Math.floor(Math.random() * (r.h - 4))) * 16 + 8,
           bobTimer: Math.random() * Math.PI * 2,
@@ -646,7 +676,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
     shop,
     challenge,
     decals: [],
-    biome,
+    biome: baseBiome,
     groundWeapons,
     groundScrolls,
     groundRelics,
@@ -715,6 +745,7 @@ export function generateTutorialDungeon(): DungeonMap {
       w: cfg.w,
       h: cfg.h,
       type: i === 0 ? 'spawn' : i === stepConfigs.length - 1 ? 'exit' : 'tutorial_step',
+      biome: 'crypt',
       cx: Math.floor(rx + cfg.w / 2),
       cy: Math.floor(ry + cfg.h / 2),
       connected: i > 0 ? [i - 1] : [],
@@ -876,6 +907,7 @@ export function generateBossRushDungeon(waveNumber: number): DungeonMap {
     w: 12,
     h: 10,
     type: 'spawn',
+    biome,
     cx: 22,
     cy: 9,
     connected: [1],
@@ -891,6 +923,7 @@ export function generateBossRushDungeon(waveNumber: number): DungeonMap {
     w: 24,
     h: 22,
     type: 'boss',
+    biome,
     cx: 22,
     cy: 29,
     connected: [0],

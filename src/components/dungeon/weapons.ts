@@ -1,4 +1,4 @@
-import type { DifficultyLevel } from './types';
+import type { DifficultyLevel, BiomeType } from './types';
 // weapons.ts - Diablo-style Weapon & Scroll System for Dungeon Gathering Roguelite
 
 export type WeaponRarity = 'common' | 'uncommon' | 'magic' | 'rare' | 'epic' | 'legendary';
@@ -23,7 +23,9 @@ export type WeaponAffixType =
   | 'ricochet'
   | 'souls'
   | 'pull'
-  | 'darkMagic';
+  | 'darkMagic'
+  | 'projSize'
+  | 'projSpeed';
 
 export interface WeaponAffix {
   id: string;
@@ -92,6 +94,10 @@ export interface Weapon {
   bonusExecute: boolean;
   bonusSouls: boolean;
   bonusDarkMagicPct: number;
+  bonusProjSizePct: number;
+  bonusProjSpeedPct: number;
+  biome?: BiomeType;
+  isBiomeUnique?: boolean;
   element?: 'fire' | 'frost' | 'lightning' | 'arcane' | 'poison' | 'solar' | 'dark' | 'void';
 
   // SVG иконка
@@ -266,6 +272,10 @@ export const PREFIXES: {
   { name: 'Оккультный', type: 'darkMagic', desc: '+25% урона Чёрной Магией (пробивает Чёрный Щит монстров)', valRange: [20, 35] },
   { name: 'Бездненный', type: 'darkMagic', desc: '+35% чистого урона Чёрной Магией', valRange: [30, 45] },
   { name: 'Скверны Бездны', type: 'darkMagic', desc: '+50% сокрушительного урона Чёрной Магией', valRange: [45, 60] },
+  { name: 'Массивный', type: 'projSize', desc: '+к размеру магических сфер и стрел', valRange: [25, 55] },
+  { name: 'Колоссальный', type: 'projSize', desc: '+к гигантскому размеру и радиусу поражения снарядов', valRange: [45, 90] },
+  { name: 'Сверхзвуковой', type: 'projSpeed', desc: '+к скорости полета магических сфер и стрел', valRange: [30, 65] },
+  { name: 'Метеорный', type: 'projSpeed', desc: '+к стремительной скорости снарядов', valRange: [40, 85] },
 ];
 
 // Расширенный пул суффиксов в стиле Diablo
@@ -300,6 +310,10 @@ export const SUFFIXES: {
   { name: 'Хаоса', type: 'damage', desc: '+к сокрушающему стихийному урону', valRange: [10, 24] },
   { name: 'Скверны', type: 'darkMagic', desc: '+к урону Чёрной Магией скверны', valRange: [25, 42] },
   { name: 'Вечности', type: 'vitality', desc: '+к бессмертным жизненным силам', valRange: [4, 10] },
+  { name: 'Великана', type: 'projSize', desc: '+увеличенный размер магических сфер и стрел', valRange: [25, 55] },
+  { name: 'Сверхмассивности', type: 'projSize', desc: '+колоссальный радиус поражения снарядов', valRange: [45, 90] },
+  { name: 'Ветрокрыла', type: 'projSpeed', desc: '+молниеносная скорость стрел и сфер', valRange: [30, 65] },
+  { name: 'Метеора', type: 'projSpeed', desc: '+высокая скорость полета сфер', valRange: [40, 85] },
 ];
 
 export const WEAPON_BASE_NAMES: Record<WeaponType, string[]> = {
@@ -330,17 +344,21 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
   let bonusExecute = false;
   let bonusSouls = false;
   let bonusDarkMagicPct = 0;
+  let bonusProjSize = 0;
+  let bonusProjSpeed = 0;
   let pierce = weapon.projectile?.pierce || 1;
   let elem: Weapon['element'] = undefined;
 
   // 1. statDamage
   dmg += Math.round(weapon.statDamage * 0.9);
-  // 2. statSpeed снижает кулдаун
+  // 2. statSpeed снижает кулдаун и разгоняет снаряды
   const speedBonus = 1 + (weapon.statSpeed * 0.035);
   cd = Math.max(0.10, weapon.attackCooldown / speedBonus);
+  bonusProjSpeed += Math.floor(weapon.statSpeed * 0.8);
   // 3. statMagicVitality
   bonusMaxHp += Math.floor(weapon.statMagicVitality / 5) * 2;
   bonusLight += weapon.statMagicVitality * 2.5;
+  bonusProjSize += Math.floor(weapon.statMagicVitality * 0.8);
   if (weapon.projectile) {
     pierce += Math.floor(weapon.statMagicVitality / 8);
   }
@@ -365,6 +383,8 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
     } else if (affix.type === 'execute') bonusExecute = true;
     else if (affix.type === 'souls') bonusSouls = true;
     else if (affix.type === 'darkMagic') bonusDarkMagicPct += affix.value / 100;
+    else if (affix.type === 'projSize') bonusProjSize += affix.value;
+    else if (affix.type === 'projSpeed') bonusProjSpeed += affix.value;
     else if (affix.type === 'element') {
       dmg += affix.value;
       if (!elem) elem = affix.element || 'fire';
@@ -378,6 +398,8 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
   bonusLight = Math.round(bonusLight * starBonus);
   if (bonusArmor > 0) bonusArmor = Math.round(bonusArmor * starBonus);
   if (bonusMoveSpeed > 0) bonusMoveSpeed = Math.round(bonusMoveSpeed * starBonus);
+  if (bonusProjSize > 0) bonusProjSize = Math.round(bonusProjSize * starBonus);
+  if (bonusProjSpeed > 0) bonusProjSpeed = Math.round(bonusProjSpeed * starBonus);
 
   weapon.bonusDamage = dmg;
   weapon.attackCooldown = Math.round(cd * 100) / 100;
@@ -395,6 +417,8 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
   weapon.bonusExecute = bonusExecute;
   weapon.bonusSouls = bonusSouls;
   weapon.bonusDarkMagicPct = Math.min(1.0, bonusDarkMagicPct);
+  weapon.bonusProjSizePct = bonusProjSize;
+  weapon.bonusProjSpeedPct = bonusProjSpeed;
   weapon.element = elem;
 
   if (weapon.projectile) {
@@ -404,6 +428,12 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
     }
     if (bonusHoming) weapon.projectile.homing = true;
     if (bonusExplosive) weapon.projectile.explosive = true;
+
+    // Скейлинг базовой скорости и размера от аффиксов и характеристик
+    const baseSpeed = weapon.type === 'bow' ? 220 : 180;
+    const baseRadius = weapon.type === 'bow' ? 3.0 : (weapon.projectile.isMagicOrb ? 4.5 : 4.0);
+    weapon.projectile.speed = Math.round(baseSpeed * (1 + bonusProjSpeed / 100));
+    weapon.projectile.radius = Math.round(baseRadius * (1 + bonusProjSize / 100) * 10) / 10;
   }
 
   return weapon;
@@ -458,8 +488,12 @@ export function generateRandomWeapon(
   forcedRarity?: WeaponRarity,
   isEliteOrChest = false,
   difficulty: DifficultyLevel = 'normal',
-  lootLuck = 0
+  lootLuck = 0,
+  biome?: BiomeType
 ): Weapon {
+  if (biome && (isEliteOrChest || forcedRarity === 'legendary' || (forcedRarity === 'epic' && Math.random() < 0.5) || Math.random() < 0.20)) {
+    return generateBiomeUniqueWeapon(biome, floor);
+  }
   const typePool: WeaponType[] = ['wand', 'wand', 'wand', 'sword', 'dagger', 'bow', 'hammer'];
   const type = forcedType || typePool[Math.floor(Math.random() * typePool.length)];
 
@@ -532,12 +566,12 @@ export function generateRandomWeapon(
       rarity === 'legendary' ? (Math.random() < 0.6 ? 3 : 2) : rarity === 'epic' ? 2 : rarity === 'rare' ? 2 : 1;
 
     projConfig = {
-      speed: 290,
+      speed: 180,
       pierce: 2 + (rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 2 : 1),
       color: orbColor,
       glowColor: orbGlow,
       trailColor: orbTrail,
-      radius: 9,
+      radius: 4.5,
       isMagicOrb: true,
       orbType: chosenOrbType,
       multishot: multishotCount,
@@ -564,12 +598,12 @@ export function generateRandomWeapon(
     range = 250;
     statSpd += 6;
     projConfig = {
-      speed: 350,
+      speed: 210,
       pierce: 1 + (rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : 0),
       color: '#f8fafc',
       glowColor: '#38bdf8',
       trailColor: '#0284c7',
-      radius: 4.5,
+      radius: 3.0,
       multishot: rarity === 'legendary' ? 2 : 1,
     };
   }
@@ -758,10 +792,372 @@ export function generateRandomWeapon(
     bonusExecute: false,
     bonusSouls: false,
     bonusDarkMagicPct: 0,
+    bonusProjSizePct: 0,
+    bonusProjSpeedPct: 0,
+    biome,
     svgIcon: generateWeaponSvg(type, rarity, chosenOrbType),
   };
 
   return calculateWeaponStats(weapon);
+}
+
+// Генерация уникального оружия биома (Легендарные реликты локаций)
+export function generateBiomeUniqueWeapon(biome: BiomeType, floor: number): Weapon {
+  const itemLevel = Math.max(1, floor + 2);
+  const nowId = `unique_${biome}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  if (biome === 'sunken') {
+    // 1. Трезубец Левиафана
+    const wpn: Weapon = {
+      id: nowId,
+      name: `Трезубец Бездны Вод ${itemLevel} ур.`,
+      type: 'wand',
+      rarity: 'legendary',
+      level: 0,
+      itemLevel,
+      stars: 1,
+      starXp: 0,
+      starMaxXp: 120,
+      statDamage: 14 + itemLevel * 3,
+      statSpeed: 12 + itemLevel * 2,
+      statMagicVitality: 18 + itemLevel * 3,
+      baseDamage: 24 + itemLevel * 4,
+      attackCooldown: 0.24,
+      attackRange: 270,
+      biome: 'sunken',
+      isBiomeUnique: true,
+      projectile: {
+        speed: 240,
+        pierce: 4,
+        color: '#38bdf8',
+        glowColor: '#0284c7',
+        trailColor: '#0369a1',
+        radius: 6.5,
+        isMagicOrb: true,
+        orbType: 'frost',
+        multishot: 2,
+        explosive: true,
+      },
+      affixes: [
+        { id: 'aff_sunk_1', name: 'Глубинный Лед', desc: 'Замораживает врагов на 50% и наносит урон холодом', type: 'element', element: 'frost', value: 16 },
+        { id: 'aff_sunk_2', name: 'Водяной Вихрь', desc: '+50% к скорости полета снарядов', type: 'projSpeed', value: 50 },
+        { id: 'aff_sunk_3', name: 'Океаническая Волна', desc: '+60% к размеру водяных сфер', type: 'projSize', value: 60 },
+        { id: 'aff_sunk_4', name: 'Прилив Марины', desc: 'Сферы пронзают ряды врагов насквозь', type: 'pierce', value: 3 },
+      ],
+      bonusDamage: 24,
+      bonusSpeedPct: 0,
+      bonusMaxHp: 4,
+      bonusCritChance: 0.25,
+      bonusCritMult: 2.4,
+      bonusLifesteal: 0,
+      bonusMoveSpeed: 10,
+      bonusLightRadius: 50,
+      bonusKnockback: 70,
+      bonusArmor: 1,
+      bonusMultishot: 1,
+      bonusHoming: false,
+      bonusExplosive: true,
+      bonusExecute: false,
+      bonusSouls: false,
+      bonusDarkMagicPct: 0,
+      bonusProjSizePct: 60,
+      bonusProjSpeedPct: 50,
+      svgIcon: generateWeaponSvg('wand', 'legendary', 'frost'),
+    };
+    return calculateWeaponStats(wpn);
+  }
+
+  if (biome === 'toxic') {
+    // 2. Скипетр Чумного Могильника
+    const wpn: Weapon = {
+      id: nowId,
+      name: `Скипетр Чумного Могильника ${itemLevel} ур.`,
+      type: 'wand',
+      rarity: 'legendary',
+      level: 0,
+      itemLevel,
+      stars: 1,
+      starXp: 0,
+      starMaxXp: 120,
+      statDamage: 12 + itemLevel * 3,
+      statSpeed: 14 + itemLevel * 2,
+      statMagicVitality: 16 + itemLevel * 3,
+      baseDamage: 22 + itemLevel * 4,
+      attackCooldown: 0.22,
+      attackRange: 250,
+      biome: 'toxic',
+      isBiomeUnique: true,
+      projectile: {
+        speed: 210,
+        pierce: 3,
+        color: '#84cc16',
+        glowColor: '#4d7c0f',
+        trailColor: '#14532d',
+        radius: 7.0,
+        isMagicOrb: true,
+        orbType: 'void',
+        multishot: 2,
+        explosive: true,
+      },
+      affixes: [
+        { id: 'aff_tox_1', name: 'Чумные Споры', desc: 'Чумной яд разъедает плоть и броню', type: 'element', element: 'poison', value: 18 },
+        { id: 'aff_tox_2', name: 'Токсичный Взрыв', desc: 'Сферы взрываются облаком кислоты при ударе', type: 'explosive', value: 30 },
+        { id: 'aff_tox_3', name: 'Раздувшийся Пузырь', desc: '+70% к размеру ядовитых сфер', type: 'projSize', value: 70 },
+        { id: 'aff_tox_4', name: 'Стремительная Чокуто', desc: '+40% к скорости полета спор', type: 'projSpeed', value: 40 },
+      ],
+      bonusDamage: 22,
+      bonusSpeedPct: 0,
+      bonusMaxHp: 3,
+      bonusCritChance: 0.20,
+      bonusCritMult: 2.2,
+      bonusLifesteal: 0.08,
+      bonusMoveSpeed: 8,
+      bonusLightRadius: 40,
+      bonusKnockback: 50,
+      bonusArmor: 0,
+      bonusMultishot: 1,
+      bonusHoming: false,
+      bonusExplosive: true,
+      bonusExecute: true,
+      bonusSouls: false,
+      bonusDarkMagicPct: 0.25,
+      bonusProjSizePct: 70,
+      bonusProjSpeedPct: 40,
+      svgIcon: generateWeaponSvg('wand', 'legendary', 'void'),
+    };
+    return calculateWeaponStats(wpn);
+  }
+
+  if (biome === 'magma' || biome === 'abyss') {
+    // 3. Инфернальный Солнцепад
+    const wpn: Weapon = {
+      id: nowId,
+      name: `Инфернальный Солнцепад ${itemLevel} ур.`,
+      type: 'wand',
+      rarity: 'legendary',
+      level: 0,
+      itemLevel,
+      stars: 1,
+      starXp: 0,
+      starMaxXp: 120,
+      statDamage: 18 + itemLevel * 4,
+      statSpeed: 8 + itemLevel * 2,
+      statMagicVitality: 16 + itemLevel * 3,
+      baseDamage: 28 + itemLevel * 5,
+      attackCooldown: 0.32,
+      attackRange: 270,
+      biome: 'magma',
+      isBiomeUnique: true,
+      projectile: {
+        speed: 250,
+        pierce: 3,
+        color: '#f97316',
+        glowColor: '#ef4444',
+        trailColor: '#7f1d1d',
+        radius: 8.5,
+        isMagicOrb: true,
+        orbType: 'solar',
+        multishot: 2,
+        explosive: true,
+      },
+      affixes: [
+        { id: 'aff_mag_1', name: 'Пылающая Магма', desc: 'Огненный урон и периодический ожог', type: 'element', element: 'fire', value: 24 },
+        { id: 'aff_mag_2', name: 'Колоссальный Метеор', desc: '+80% к радиусу огненных шаров', type: 'projSize', value: 80 },
+        { id: 'aff_mag_3', name: 'Метеорный Залп', desc: '+55% к скорости полета лавы', type: 'projSpeed', value: 55 },
+        { id: 'aff_mag_4', name: 'Взрыв Сверхновой', desc: 'Сокрушительный взрыв по площади при контакте', type: 'explosive', value: 40 },
+      ],
+      bonusDamage: 28,
+      bonusSpeedPct: 0,
+      bonusMaxHp: 2,
+      bonusCritChance: 0.30,
+      bonusCritMult: 2.6,
+      bonusLifesteal: 0,
+      bonusMoveSpeed: 0,
+      bonusLightRadius: 80,
+      bonusKnockback: 100,
+      bonusArmor: 1,
+      bonusMultishot: 1,
+      bonusHoming: false,
+      bonusExplosive: true,
+      bonusExecute: true,
+      bonusSouls: false,
+      bonusDarkMagicPct: 0,
+      bonusProjSizePct: 80,
+      bonusProjSpeedPct: 55,
+      svgIcon: generateWeaponSvg('wand', 'legendary', 'solar'),
+    };
+    return calculateWeaponStats(wpn);
+  }
+
+  if (biome === 'void') {
+    // 4. Сингулярность Бездны
+    const wpn: Weapon = {
+      id: nowId,
+      name: `Сингулярность Бездны ${itemLevel} ур.`,
+      type: 'wand',
+      rarity: 'legendary',
+      level: 0,
+      itemLevel,
+      stars: 1,
+      starXp: 0,
+      starMaxXp: 120,
+      statDamage: 16 + itemLevel * 4,
+      statSpeed: 10 + itemLevel * 2,
+      statMagicVitality: 20 + itemLevel * 3,
+      baseDamage: 26 + itemLevel * 4,
+      attackCooldown: 0.28,
+      attackRange: 280,
+      biome: 'void',
+      isBiomeUnique: true,
+      projectile: {
+        speed: 220,
+        pierce: 5,
+        color: '#c084fc',
+        glowColor: '#9333ea',
+        trailColor: '#3b0764',
+        radius: 8.0,
+        isMagicOrb: true,
+        orbType: 'void',
+        multishot: 2,
+        homing: true,
+        explosive: true,
+      },
+      affixes: [
+        { id: 'aff_void_1', name: 'Чёрная Магия Пустоты', desc: '+50% урона Чёрной Магией сквозь щиты', type: 'darkMagic', value: 50 },
+        { id: 'aff_void_2', name: 'Космическая Сфера', desc: '+65% к размеру сфер пустоты', type: 'projSize', value: 65 },
+        { id: 'aff_void_3', name: 'Астральная Скорость', desc: '+45% к скорости полета снарядов', type: 'projSpeed', value: 45 },
+        { id: 'aff_void_4', name: 'Гравитационный Захват', desc: 'Сферы сами наводятся и притягивают врагов', type: 'homing', value: 1 },
+      ],
+      bonusDamage: 26,
+      bonusSpeedPct: 0,
+      bonusMaxHp: 2,
+      bonusCritChance: 0.25,
+      bonusCritMult: 2.5,
+      bonusLifesteal: 0.05,
+      bonusMoveSpeed: 12,
+      bonusLightRadius: 50,
+      bonusKnockback: 60,
+      bonusArmor: 0,
+      bonusMultishot: 1,
+      bonusHoming: true,
+      bonusExplosive: true,
+      bonusExecute: true,
+      bonusSouls: true,
+      bonusDarkMagicPct: 0.50,
+      bonusProjSizePct: 65,
+      bonusProjSpeedPct: 45,
+      svgIcon: generateWeaponSvg('wand', 'legendary', 'void'),
+    };
+    return calculateWeaponStats(wpn);
+  }
+
+  if (biome === 'sanctum') {
+    // 5. Длань Серафима
+    const wpn: Weapon = {
+      id: nowId,
+      name: `Длань Серафима ${itemLevel} ур.`,
+      type: 'wand',
+      rarity: 'legendary',
+      level: 0,
+      itemLevel,
+      stars: 1,
+      starXp: 0,
+      starMaxXp: 120,
+      statDamage: 18 + itemLevel * 4,
+      statSpeed: 14 + itemLevel * 2,
+      statMagicVitality: 18 + itemLevel * 3,
+      baseDamage: 28 + itemLevel * 5,
+      attackCooldown: 0.24,
+      attackRange: 280,
+      biome: 'sanctum',
+      isBiomeUnique: true,
+      projectile: {
+        speed: 260,
+        pierce: 3,
+        color: '#facc15',
+        glowColor: '#f59e0b',
+        trailColor: '#78350f',
+        radius: 7.0,
+        isMagicOrb: true,
+        orbType: 'solar',
+        multishot: 3,
+        homing: true,
+      },
+      affixes: [
+        { id: 'aff_sanc_1', name: 'Священный Свет', desc: 'Испепеляет нежить святым сиянием', type: 'element', element: 'solar', value: 24 },
+        { id: 'aff_sanc_2', name: 'Сияющий Залп', desc: '+50% к размеру святых сфер', type: 'projSize', value: 50 },
+        { id: 'aff_sanc_3', name: 'Стремительный Луч', desc: '+60% к скорости полета снарядов', type: 'projSpeed', value: 60 },
+        { id: 'aff_sanc_4', name: 'Тройной Веер Света', desc: 'Выпускает веер из 3 самонаводящихся сфер', type: 'multishot', value: 2 },
+      ],
+      bonusDamage: 28,
+      bonusSpeedPct: 0,
+      bonusMaxHp: 6,
+      bonusCritChance: 0.28,
+      bonusCritMult: 2.6,
+      bonusLifesteal: 0,
+      bonusMoveSpeed: 10,
+      bonusLightRadius: 90,
+      bonusKnockback: 70,
+      bonusArmor: 2,
+      bonusMultishot: 2,
+      bonusHoming: true,
+      bonusExplosive: false,
+      bonusExecute: true,
+      bonusSouls: true,
+      bonusDarkMagicPct: 0,
+      bonusProjSizePct: 50,
+      bonusProjSpeedPct: 60,
+      svgIcon: generateWeaponSvg('wand', 'legendary', 'solar'),
+    };
+    return calculateWeaponStats(wpn);
+  }
+
+  // Default: crypt - Костяной Жнец Склепа
+  const wpn: Weapon = {
+    id: nowId,
+    name: `Костяной Жнец Склепа ${itemLevel} ур.`,
+    type: 'sword',
+    rarity: 'legendary',
+    level: 0,
+    itemLevel,
+    stars: 1,
+    starXp: 0,
+    starMaxXp: 120,
+    statDamage: 20 + itemLevel * 4,
+    statSpeed: 12 + itemLevel * 2,
+    statMagicVitality: 10 + itemLevel * 2,
+    baseDamage: 30 + itemLevel * 5,
+    attackCooldown: 0.22,
+    attackRange: 60,
+    biome: 'crypt',
+    isBiomeUnique: true,
+    affixes: [
+      { id: 'aff_crypt_1', name: 'Жажда Праха', desc: '+18% похищение жизненных сил врагов', type: 'lifesteal', value: 18 },
+      { id: 'aff_crypt_2', name: 'Костяное Сокрушение', desc: '+22 к прямому физическому урону', type: 'damage', value: 22 },
+      { id: 'aff_crypt_3', name: 'Ярость Мясника', desc: '+28% шанс критического удара', type: 'crit', value: 28 },
+      { id: 'aff_crypt_4', name: 'Жнец Костей', desc: 'Убийственный палаческий урон по раненым монстрам', type: 'execute', value: 1 },
+    ],
+    bonusDamage: 30,
+    bonusSpeedPct: 0,
+    bonusMaxHp: 4,
+    bonusCritChance: 0.28,
+    bonusCritMult: 2.5,
+    bonusLifesteal: 0.18,
+    bonusMoveSpeed: 14,
+    bonusLightRadius: 40,
+    bonusKnockback: 90,
+    bonusArmor: 1,
+    bonusMultishot: 0,
+    bonusHoming: false,
+    bonusExplosive: false,
+    bonusExecute: true,
+    bonusSouls: true,
+    bonusDarkMagicPct: 0.20,
+    bonusProjSizePct: 40,
+    bonusProjSpeedPct: 40,
+    svgIcon: generateWeaponSvg('sword', 'legendary'),
+  };
+  return calculateWeaponStats(wpn);
 }
 
 // Генерация свитка в стиле Diablo
@@ -945,12 +1341,12 @@ export function createStarterWeapon(heroClass: string): Weapon {
       attackCooldown: 0.28,
       attackRange: 240,
       projectile: {
-        speed: 290,
-        pierce: 3, // Пробивает 3 врагов насквозь!
+        speed: 180,
+        pierce: 2, // Пробивает 2 врагов
         color: '#c084fc',
         glowColor: '#ec4899',
         trailColor: '#a855f7',
-        radius: 9,
+        radius: 4.5,
         isMagicOrb: true,
         orbType: 'plasma',
         multishot: 1,
@@ -961,7 +1357,7 @@ export function createStarterWeapon(heroClass: string): Weapon {
           name: 'Пронзающий',
           desc: 'Светящиеся магические сферы пробивают толпы врагов насквозь',
           type: 'pierce',
-          value: 3,
+          value: 2,
         },
         {
           id: 'starter_astral',
@@ -988,6 +1384,8 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 0,
+      bonusProjSpeedPct: 0,
       svgIcon: generateWeaponSvg('wand', 'magic', 'plasma'),
     };
   }
@@ -1034,6 +1432,8 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 0,
+      bonusProjSpeedPct: 0,
       svgIcon: generateWeaponSvg('dagger', 'magic'),
     };
   }
@@ -1087,6 +1487,8 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 0,
+      bonusProjSpeedPct: 0,
       svgIcon: generateWeaponSvg('sword', 'magic'),
     };
   }
@@ -1133,6 +1535,8 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 0,
+      bonusProjSpeedPct: 0,
       svgIcon: generateWeaponSvg('hammer', 'magic'),
     };
   }
@@ -1179,6 +1583,8 @@ export function createStarterWeapon(heroClass: string): Weapon {
     bonusExecute: false,
     bonusSouls: false,
     bonusDarkMagicPct: 0,
+    bonusProjSizePct: 0,
+    bonusProjSpeedPct: 0,
     svgIcon: generateWeaponSvg('sword', 'common'),
   };
 }
@@ -1202,12 +1608,12 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       attackCooldown: 0.26,
       attackRange: 260,
       projectile: {
-        speed: 310,
+        speed: 220,
         pierce: 3,
         color: '#fb923c',
         glowColor: '#f43f5e',
         trailColor: '#a855f7',
-        radius: 10,
+        radius: 6.0,
         isMagicOrb: true,
         orbType: 'plasma',
         multishot: 2,
@@ -1245,6 +1651,8 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 30,
+      bonusProjSpeedPct: 25,
       svgIcon: generateWeaponSvg('wand', 'rare', 'plasma'),
     };
   }
@@ -1298,6 +1706,8 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 0,
+      bonusProjSpeedPct: 0,
       svgIcon: generateWeaponSvg('sword', 'rare'),
     };
   }
@@ -1351,6 +1761,8 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExecute: false,
       bonusSouls: false,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 0,
+      bonusProjSpeedPct: 0,
       svgIcon: generateWeaponSvg('dagger', 'rare'),
     };
   }
@@ -1373,12 +1785,12 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       attackCooldown: 0.25,
       attackRange: 260,
       projectile: {
-        speed: 310,
+        speed: 210,
         pierce: 3,
         color: '#c084fc',
         glowColor: '#9333ea',
         trailColor: '#3b0764',
-        radius: 10,
+        radius: 5.5,
         isMagicOrb: true,
         orbType: 'void',
         multishot: 1,
@@ -1409,6 +1821,8 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExecute: false,
       bonusSouls: true,
       bonusDarkMagicPct: 0.40,
+      bonusProjSizePct: 20,
+      bonusProjSpeedPct: 20,
       svgIcon: generateWeaponSvg('wand', 'rare', 'void'),
     };
   }
@@ -1431,12 +1845,12 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       attackCooldown: 0.22,
       attackRange: 270,
       projectile: {
-        speed: 330,
+        speed: 240,
         pierce: 4,
         color: '#67e8f9',
         glowColor: '#3b82f6',
         trailColor: '#1d4ed8',
-        radius: 11,
+        radius: 6.5,
         isMagicOrb: true,
         orbType: 'storm',
         multishot: 3,
@@ -1475,6 +1889,8 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExecute: false,
       bonusSouls: true,
       bonusDarkMagicPct: 0,
+      bonusProjSizePct: 35,
+      bonusProjSpeedPct: 35,
       svgIcon: generateWeaponSvg('wand', 'legendary', 'storm'),
     };
   }
@@ -1544,6 +1960,8 @@ export function createBrokenFallbackWeapon(heroClass: string = 'zombie'): Weapon
     bonusExecute: false,
     bonusSouls: false,
     bonusDarkMagicPct: 0,
+    bonusProjSizePct: 0,
+    bonusProjSpeedPct: 0,
     svgIcon: generateWeaponSvg('sword', 'common'),
   };
 }
