@@ -272,6 +272,7 @@ export interface Enemy {
   maxHp: number;
   speed: number;
   damage: number;
+  armor?: number;
   attackRange: number;
   attackCooldown: number;
   attackTimer: number;
@@ -304,6 +305,7 @@ export interface Enemy {
   evolutionTier?: number;
   darkGlitchSeed?: number;
   isDarkInfused?: boolean;
+  lodLevel?: 0 | 1 | 2;
 }
 
 export interface Projectile {
@@ -406,6 +408,8 @@ export interface MetaUpgrades {
   greedMastery: number;
   spectralDiscount: number;
   soulMagnet: number;
+  lootLuck?: number;
+  starAffinity?: number;
 }
 
 export type StartingLoadoutWeapon =

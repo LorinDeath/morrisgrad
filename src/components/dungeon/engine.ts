@@ -16,6 +16,7 @@ import type {
   DifficultyLevel,
   DungeonMap,
   Enemy,
+  EnemyType,
   FloatingText,
   GameMode,
   HeroClass,
@@ -55,7 +56,11 @@ import {
   generateRandomWeapon,
   generateRandomScroll,
   applyScrollToWeapon,
+  infuseWeaponWithStarXp,
+  getStarRisks,
+  createBrokenFallbackWeapon,
 } from './weapons';
+import { DungeonComputeManager } from './dungeonWorker';
 
 export interface EngineCallbacks {
   onStatsUpdate: (player: PlayerStats, boss?: Enemy | null) => void;
@@ -70,6 +75,13 @@ export interface EngineCallbacks {
   onRelicFound?: (groundRelic: GroundRelic) => void;
   onUltimateTrigger?: (synergyName: string) => void;
   onEvolutionNotify?: (text: string) => void;
+  onPerformanceUpdate?: (info: {
+    multiCoreEnabled: boolean;
+    coreCount: number;
+    activeEnemies: number;
+    totalEnemies: number;
+    visibleEnemies: number;
+  }) => void;
 }
 
 export class DungeonEngine {
@@ -148,6 +160,15 @@ export class DungeonEngine {
   private lastEvolutionInterval = 0;
   private enemyAiTick = 0;
 
+  // Multi-Core Worker & Multi-Thread Simulation Manager (2nd CPU Core)
+  public workerManager: DungeonComputeManager;
+  private tintedSpriteCache: Map<string, HTMLCanvasElement> = new Map();
+  private minimapBaseCanvas: HTMLCanvasElement | null = null;
+  private minimapBaseCtx: CanvasRenderingContext2D | null = null;
+  private minimapDirty = true;
+  private lastMinimapUpdate = 0;
+  public lastVisibleEnemiesCount = 0;
+
   private currentHeroClass: HeroClass = 'zombie';
   private currentGameMode: GameMode = 'campaign';
   public currentDifficulty: DifficultyLevel = 'normal';
@@ -162,6 +183,8 @@ export class DungeonEngine {
     greedMastery: 0,
     spectralDiscount: 0,
     soulMagnet: 0,
+    lootLuck: 0,
+    starAffinity: 0,
   };
 
   constructor(
@@ -223,9 +246,63 @@ export class DungeonEngine {
     this.assets = assets;
     this.audio = audio;
     this.callbacks = callbacks;
+    this.workerManager = new DungeonComputeManager();
 
     this.resizeCanvas();
     this.initFloor(1, true);
+  }
+
+  private getTintedSprite(
+    sheet: HTMLImageElement,
+    type: EnemyType,
+    isHurt: boolean,
+    customTint?: string
+  ): HTMLCanvasElement | HTMLImageElement {
+    if (!sheet || !sheet.complete || (sheet.naturalWidth === 0 && sheet.width === 0)) {
+      return sheet;
+    }
+
+    const cacheKey = `${sheet.src || 'sheet'}_${type}_${isHurt ? 'hurt' : 'norm'}_${customTint || 'none'}`;
+    const cached = this.tintedSpriteCache.get(cacheKey);
+    if (cached) return cached;
+
+    let filterStr = 'none';
+    if (isHurt) {
+      filterStr = 'brightness(2.2) saturate(0.4)';
+    } else if (type === 'zombie_spitter') {
+      filterStr = 'hue-rotate(65deg) saturate(2.4) brightness(1.1)';
+    } else if (type === 'zombie_runner') {
+      filterStr = 'hue-rotate(160deg) saturate(2.2) brightness(1.1)';
+    } else if (type === 'zombie_brute') {
+      filterStr = 'hue-rotate(330deg) saturate(2.8) brightness(1.05)';
+    } else if (type === 'zombie_witch') {
+      filterStr = 'hue-rotate(240deg) saturate(2.5) brightness(1.15)';
+    } else if (type === 'zombie_pyro') {
+      filterStr = 'hue-rotate(25deg) saturate(3.2) brightness(1.2)';
+    } else if (customTint) {
+      filterStr = 'saturate(1.5)';
+    }
+
+    if (filterStr === 'none') {
+      return sheet;
+    }
+
+    try {
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = sheet.naturalWidth || sheet.width || 256;
+      offCanvas.height = sheet.naturalHeight || sheet.height || 128;
+      const offCtx = offCanvas.getContext('2d');
+      if (!offCtx) return sheet;
+
+      offCtx.imageSmoothingEnabled = false;
+      offCtx.filter = filterStr;
+      offCtx.drawImage(sheet, 0, 0);
+
+      this.tintedSpriteCache.set(cacheKey, offCanvas);
+      return offCanvas;
+    } catch {
+      return sheet;
+    }
   }
 
   public setHeroClass(cls: HeroClass) {
@@ -269,6 +346,8 @@ export class DungeonEngine {
   public initFloor(floorNum: number, resetPlayer = false) {
     this.floorTimer = 0;
     this.lastEvolutionInterval = 0;
+    this.minimapDirty = true;
+    this.tintedSpriteCache.clear();
     if (resetPlayer) {
       this.player = createInitialPlayer(
         this.currentHeroClass,
@@ -388,6 +467,18 @@ export class DungeonEngine {
   private update(dt: number) {
     this.floorTimer += dt;
     this.enemyAiTick++;
+
+    // Многопоточная диспетчеризация расчетов на 2-е ядро процессора (Web Worker)
+    if (this.enemyAiTick % 3 === 0 && this.enemies.length > 0) {
+      const projectileQueries: Array<{ id: number; x: number; y: number; radius: number }> = [];
+      for (const p of this.projectiles) {
+        if (p.homing && p.fromPlayer) {
+          projectileQueries.push({ id: p.id, x: p.x, y: p.y, radius: 240 });
+        }
+      }
+      this.workerManager.dispatch(this.playerPos, this.enemies, projectileQueries);
+    }
+
     const currentEvolutionInterval = Math.floor(this.floorTimer / 180);
     if (currentEvolutionInterval > this.lastEvolutionInterval && this.floorTimer >= 180) {
       this.lastEvolutionInterval = currentEvolutionInterval;
@@ -1306,6 +1397,23 @@ export class DungeonEngine {
       }
     }
 
+    // Броня моба: базовое сопротивление возрастает плавно с 5-го этажа,
+    // а аффиксы пробития (Pierce) и Чёрная Магия эффективно пробивают броню
+    let enemyArmor = enemy.armor || 0;
+    if (enemyArmor > 0) {
+      const wpnDarkPct = this.player.equippedWeapon?.bonusDarkMagicPct || 0;
+      const pierceBonus = this.player.equippedWeapon?.projectile?.pierce || 0;
+      if (isDarkMagic || wpnDarkPct >= 0.5) {
+        enemyArmor = 0; // Полное пробитие брони Чёрной Магией
+      } else if (wpnDarkPct > 0) {
+        enemyArmor = Math.max(0, Math.round(enemyArmor * (1 - wpnDarkPct)));
+      }
+      if (pierceBonus > 1) {
+        enemyArmor = Math.max(0, enemyArmor - (pierceBonus - 1) * 2);
+      }
+      finalDamage = Math.max(1, finalDamage - enemyArmor);
+    }
+
     enemy.hp -= finalDamage;
     enemy.hurtTimer = 0.2;
     enemy.state = 'hurt';
@@ -1414,14 +1522,18 @@ export class DungeonEngine {
       }
     }
 
-    const dropMultiplier = this.player.perks.includes('gravedigger_greed') ? 1.6 : 1.0;
+    const luckVal = this.currentMeta.lootLuck || 0;
+    const metaGreed = (this.currentMeta.greedMastery || 0) * 0.25;
+    const metaLootLuck = luckVal * 0.35;
+    const dropMultiplier = (this.player.perks.includes('gravedigger_greed') ? 1.6 : 1.0) * (1 + metaGreed);
     const coinCount = Math.round((enemy.isBoss ? 16 : 2 + Math.random() * 3) * dropMultiplier);
 
     for (let c = 0; c < coinCount; c++) {
       this.items.push(createDrop('coin', enemy.x, enemy.y, 5));
     }
 
-    if (enemy.isBoss || Math.random() < 0.28) {
+    const blueCoinChance = 0.28 + (this.currentMeta.greedMastery || 0) * 0.12 + (this.currentMeta.lootLuck || 0) * 0.08;
+    if (enemy.isBoss || Math.random() < blueCoinChance) {
       this.items.push(createDrop('blue_coin', enemy.x, enemy.y, 1));
     }
 
@@ -1454,7 +1566,7 @@ export class DungeonEngine {
     if (enemy.isBoss) {
       this.groundWeapons.push({
         id: Math.random(),
-        weapon: generateRandomWeapon(this.player.floor, 'wand', 'legendary'),
+        weapon: generateRandomWeapon(this.player.floor, 'wand', 'legendary', true, this.currentDifficulty, this.currentMeta.lootLuck || 0),
         x: enemy.x - 16,
         y: enemy.y,
         bobTimer: Math.random() * Math.PI * 2,
@@ -1470,7 +1582,14 @@ export class DungeonEngine {
       // Гарантированная награда за победу над Мини-Боссом!
       this.groundWeapons.push({
         id: Math.random(),
-        weapon: generateRandomWeapon(this.player.floor, undefined, Math.random() < 0.5 ? 'legendary' : 'rare'),
+        weapon: generateRandomWeapon(
+          this.player.floor,
+          undefined,
+          Math.random() < 0.5 ? 'legendary' : 'epic',
+          true,
+          this.currentDifficulty,
+          this.currentMeta.lootLuck || 0
+        ),
         x: enemy.x - 12,
         y: enemy.y,
         bobTimer: Math.random() * Math.PI * 2,
@@ -1482,16 +1601,24 @@ export class DungeonEngine {
         y: enemy.y,
         bobTimer: Math.random() * Math.PI * 2,
       });
-    } else if (enemy.isElite && dropRoll < 0.75) {
-      if (Math.random() < 0.6) {
+    } else if (enemy.isElite) {
+      // 55% шанс выпадения оружия с Элиты
+      if (dropRoll < 0.55) {
         this.groundWeapons.push({
           id: Math.random(),
-          weapon: generateRandomWeapon(this.player.floor, undefined, Math.random() < 0.4 ? 'rare' : 'magic'),
+          weapon: generateRandomWeapon(
+            this.player.floor,
+            undefined,
+            Math.random() < 0.35 ? 'epic' : 'rare',
+            true,
+            this.currentDifficulty,
+            luckVal
+          ),
           x: enemy.x,
           y: enemy.y,
           bobTimer: Math.random() * Math.PI * 2,
         });
-      } else {
+      } else if (dropRoll < 0.85) {
         this.groundScrolls.push({
           id: Math.random(),
           scroll: generateRandomScroll(),
@@ -1500,24 +1627,23 @@ export class DungeonEngine {
           bobTimer: Math.random() * Math.PI * 2,
         });
       }
-    } else if (dropRoll < 0.08) {
-      if (Math.random() < 0.5) {
-        this.groundWeapons.push({
-          id: Math.random(),
-          weapon: generateRandomWeapon(this.player.floor),
-          x: enemy.x,
-          y: enemy.y,
-          bobTimer: Math.random() * Math.PI * 2,
-        });
-      } else {
-        this.groundScrolls.push({
-          id: Math.random(),
-          scroll: generateRandomScroll(),
-          x: enemy.x,
-          y: enemy.y,
-          bobTimer: Math.random() * Math.PI * 2,
-        });
-      }
+    } else if (dropRoll < 0.020 * (1 + metaLootLuck)) {
+      // Обычные мобы: шанс всего ~2% (лут редкий, ценный и не захламляет коридоры)
+      this.groundWeapons.push({
+        id: Math.random(),
+        weapon: generateRandomWeapon(this.player.floor, undefined, undefined, false, this.currentDifficulty, luckVal),
+        x: enemy.x,
+        y: enemy.y,
+        bobTimer: Math.random() * Math.PI * 2,
+      });
+    } else if (dropRoll < 0.035 * (1 + metaLootLuck)) {
+      this.groundScrolls.push({
+        id: Math.random(),
+        scroll: generateRandomScroll(),
+        x: enemy.x,
+        y: enemy.y,
+        bobTimer: Math.random() * Math.PI * 2,
+      });
     }
 
     if (enemy.isBoss) {
@@ -1548,7 +1674,7 @@ export class DungeonEngine {
       } else if (rand < 0.85) {
         this.items.push(createDrop('potion_hp', crate.x, crate.y, 1));
       }
-      if (Math.random() < 0.12) {
+      if (Math.random() < 0.03) {
         if (Math.random() < 0.5) {
           this.groundWeapons.push({
             id: Math.random(),
@@ -1730,6 +1856,29 @@ export class DungeonEngine {
       const dx = this.playerPos.x - e.x;
       const dy = this.playerPos.y - e.y;
       const dist = Math.hypot(dx, dy);
+
+      // LOD 0 = Active (< 460px), 1 = Relaxed (460 - 820px), 2 = Sleeping (>= 820px)
+      const lod = this.workerManager.getEnemyLod(e.id, dist);
+      e.lodLevel = lod as 0 | 1 | 2;
+
+      // LOD 2: Спящий режим мобов в дальних комнатах огромного данжа (0% нагрузки на CPU!)
+      if (lod === 2 && !e.isBoss) {
+        continue;
+      }
+
+      // Корректировка отталкивания толпы со 2-го ядра (Web Worker)
+      const crowdVec = this.workerManager.getCrowdVector(e.id);
+      if (crowdVec) {
+        e.vx += crowdVec.vx;
+        e.vy += crowdVec.vy;
+      }
+
+      // LOD 1: Средняя дистанция (соседняя комната) - симуляция раз в 4 кадра
+      if (lod === 1 && !e.isBoss) {
+        if (this.enemyAiTick % 4 !== e.id % 4) {
+          continue;
+        }
+      }
 
       const detectRange = e.isBoss ? 480 : 250;
 
@@ -1921,12 +2070,19 @@ export class DungeonEngine {
       if (p.homing && p.fromPlayer) {
         let closest: Enemy | null = null;
         let cdist = 220;
-        for (const e of this.enemies) {
-          if (e.isDead) continue;
-          const d = Math.hypot(e.x - p.x, e.y - p.y);
-          if (d < cdist) {
-            cdist = d;
-            closest = e;
+        const targetId = this.workerManager.getNearestTarget(p.id);
+        if (targetId) {
+          closest = this.enemies.find((e) => e.id === targetId && !e.isDead) || null;
+        }
+        if (!closest) {
+          for (const e of this.enemies) {
+            if (e.isDead || e.lodLevel === 2) continue;
+            if (Math.abs(e.x - p.x) > cdist || Math.abs(e.y - p.y) > cdist) continue;
+            const d = Math.hypot(e.x - p.x, e.y - p.y);
+            if (d < cdist) {
+              cdist = d;
+              closest = e;
+            }
           }
         }
         if (closest) {
@@ -1980,6 +2136,7 @@ export class DungeonEngine {
         for (const enemy of this.enemies) {
           if (
             !enemy.isDead &&
+            enemy.lodLevel !== 2 &&
             !p.hitEnemyIds.has(enemy.id) &&
             Math.abs(enemy.x - p.x) < 32 &&
             Math.abs(enemy.y - p.y) < 32 &&
@@ -2491,7 +2648,10 @@ export class DungeonEngine {
         x++
       ) {
         if (Math.hypot(x - tileX, y - tileY) <= radius) {
-          this.map.discovered[y][x] = true;
+          if (!this.map.discovered[y][x]) {
+            this.map.discovered[y][x] = true;
+            this.minimapDirty = true;
+          }
         }
       }
     }
@@ -2520,18 +2680,24 @@ export class DungeonEngine {
     let hoveredWeapon: Weapon | null = null;
     let hoveredEquipped: Weapon | null = null;
 
-    // 1. Ground Weapons interaction (Diablo style!)
+    // 1. Ground Weapons interaction (Diablo style with Star Infusion!)
     for (let i = 0; i < this.groundWeapons.length; i++) {
       const gw = this.groundWeapons[i];
       const dist = Math.hypot(this.playerPos.x - gw.x, this.playerPos.y - gw.y);
       if (dist < 38) {
         hoveredWeapon = gw.weapon;
         hoveredEquipped = this.player.equippedWeapon;
-        prompt = `[E] ВЗЯТЬ: ${gw.weapon.name} [${RARITY_COLORS[gw.weapon.rarity].label}]`;
+        const risks = getStarRisks(this.player.equippedWeapon.stars || 0, this.currentMeta.starAffinity || 0);
+        let riskWarning = 'Безопасно 100%';
+        if ((this.player.equippedWeapon.stars || 0) > 0) {
+          riskWarning = `Сброс: ${Math.round(risks.resetChance * 100)}%, Поломка: ${(risks.breakChance * 100).toFixed(1)}%`;
+        }
+        const starGainText =
+          gw.weapon.rarity === 'legendary' ? '+2★' : gw.weapon.rarity === 'epic' ? '+1★' : '+XP';
+        prompt = `[E] ВЗЯТЬ: ${gw.weapon.name} | [F] В ЗВЁЗДЫ ⭐ (${starGainText} • ${riskWarning})`;
 
-        if (this.keys.has('KeyE') || this.keys.has('KeyF')) {
+        if (this.keys.has('KeyE')) {
           this.keys.delete('KeyE');
-          this.keys.delete('KeyF');
 
           const oldWpn = this.player.equippedWeapon;
           this.player.equippedWeapon = gw.weapon;
@@ -2541,10 +2707,92 @@ export class DungeonEngine {
           gw.weapon = oldWpn;
 
           this.audio.playVictory();
-          this.particles.push(...createSparkleParticles(this.playerPos.x, this.playerPos.y, RARITY_COLORS[this.player.equippedWeapon.rarity].main));
-          this.floatingTexts.push(
-            createFloatingText(this.playerPos.x, this.playerPos.y, `ЭКИПИРОВАНО: ${this.player.equippedWeapon.name}!`, RARITY_COLORS[this.player.equippedWeapon.rarity].main, 14)
+          this.particles.push(
+            ...createSparkleParticles(
+              this.playerPos.x,
+              this.playerPos.y,
+              RARITY_COLORS[this.player.equippedWeapon.rarity].main
+            )
           );
+          const starStr = this.player.equippedWeapon.stars > 0 ? ` [⭐x${this.player.equippedWeapon.stars}]` : '';
+          this.floatingTexts.push(
+            createFloatingText(
+              this.playerPos.x,
+              this.playerPos.y,
+              `ЭКИПИРОВАНО: ${this.player.equippedWeapon.name}${starStr}!`,
+              RARITY_COLORS[this.player.equippedWeapon.rarity].main,
+              14
+            )
+          );
+          break;
+        }
+
+        if (this.keys.has('KeyF')) {
+          this.keys.delete('KeyF');
+
+          const starAffinityBonus = (this.currentMeta.starAffinity || 0);
+          const res = infuseWeaponWithStarXp(
+            this.player.equippedWeapon,
+            gw.weapon,
+            starAffinityBonus,
+            this.currentHeroClass
+          );
+          this.groundWeapons.splice(i, 1);
+
+          if (res.outcome === 'broken') {
+            this.player.equippedWeapon = res.upgradedWeapon;
+            this.recalculatePlayerStats();
+            this.audio.playHit();
+            this.addScreenShake(0.35, 12);
+            this.particles.push(...createVaseShatterParticles(this.playerPos.x, this.playerPos.y));
+            this.floatingTexts.push(
+              createFloatingText(this.playerPos.x, this.playerPos.y, '💥 РАЗРУШЕНО В ПЫЛЬ!', '#ef4444', 16)
+            );
+            this.callbacks.onNotify(
+              '💥 КАТАСТРОФА! Оружие раскололось в пыль от звёздной энергии! В руках остался ржавый обломок!'
+            );
+          } else if (res.outcome === 'reset') {
+            this.recalculatePlayerStats();
+            this.audio.playHit();
+            this.addScreenShake(0.25, 8);
+            this.particles.push(...createBloodParticles(this.playerPos.x, this.playerPos.y, '#f59e0b'));
+            this.floatingTexts.push(
+              createFloatingText(this.playerPos.x, this.playerPos.y, '⚠️ СБРОС ДО 0 ЗВЁЗД!', '#f59e0b', 15)
+            );
+            this.callbacks.onNotify(
+              `⚠️ НЕУДАЧА ЗВЁЗДНОЙ КОВКИ! Энергия сорвалась, ${this.player.equippedWeapon.name} потеряло все звёзды!`
+            );
+          } else if (res.leveledUp) {
+            this.recalculatePlayerStats();
+            this.audio.playVictory();
+            this.addScreenShake(0.22, 6);
+            this.particles.push(...createSparkleParticles(this.playerPos.x, this.playerPos.y, '#facc15'));
+            this.floatingTexts.push(
+              createFloatingText(
+                this.playerPos.x,
+                this.playerPos.y,
+                `⭐ +${res.starsGained} ЗВЕЗДА! (+${this.player.equippedWeapon.stars * 10}% статов)`,
+                '#facc15',
+                15
+              )
+            );
+            this.callbacks.onNotify(
+              `⭐ ЗВЁЗДНЫЙ ТРИУМФ! ${this.player.equippedWeapon.name} закалено до [⭐x${this.player.equippedWeapon.stars}] (+${this.player.equippedWeapon.stars * 10}% ко всем параметрам)!`
+            );
+          } else {
+            this.recalculatePlayerStats();
+            this.particles.push(...createSparkleParticles(this.playerPos.x, this.playerPos.y, '#facc15'));
+            this.floatingTexts.push(
+              createFloatingText(
+                this.playerPos.x,
+                this.playerPos.y,
+                `⭐ +${res.xpGained} ЗВЁЗДНЫЙ EXP (${this.player.equippedWeapon.starXp}/${this.player.equippedWeapon.starMaxXp})`,
+                '#facc15',
+                12
+              )
+            );
+          }
+          break;
         }
         break;
       }
@@ -2619,7 +2867,7 @@ export class DungeonEngine {
           // Diablo weapon and scroll from chest!
           this.groundWeapons.push({
             id: Math.random(),
-            weapon: generateRandomWeapon(this.player.floor, undefined, Math.random() < 0.4 ? 'legendary' : 'rare'),
+            weapon: generateRandomWeapon(this.player.floor, undefined, Math.random() < 0.4 ? 'legendary' : 'epic', true, this.currentDifficulty),
             x: chest.x - 14,
             y: chest.y + 10,
             bobTimer: Math.random() * Math.PI * 2,
@@ -2876,10 +3124,13 @@ export class DungeonEngine {
 
   private renderTiles() {
     const tilesImg = this.assets.tiles;
-    const startX = Math.max(0, Math.floor((this.camera.x - 300) / 16));
-    const endX = Math.min(this.map.width, Math.ceil((this.camera.x + 300) / 16));
-    const startY = Math.max(0, Math.floor((this.camera.y - 250) / 16));
-    const endY = Math.min(this.map.height, Math.ceil((this.camera.y + 250) / 16));
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 32;
+    const halfH = (this.canvas.height / zoom) / 2 + 32;
+    const startX = Math.max(0, Math.floor((this.camera.x - halfW) / 16));
+    const endX = Math.min(this.map.width, Math.ceil((this.camera.x + halfW) / 16));
+    const startY = Math.max(0, Math.floor((this.camera.y - halfH) / 16));
+    const endY = Math.min(this.map.height, Math.ceil((this.camera.y + halfH) / 16));
 
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
@@ -2914,7 +3165,16 @@ export class DungeonEngine {
   }
 
   private renderDecals() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 40;
+    const halfH = (this.canvas.height / zoom) / 2 + 40;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     for (const d of this.map.decals) {
+      if (d.x < minX || d.x > maxX || d.y < minY || d.y > maxY) continue;
       this.ctx.save();
       this.ctx.translate(d.x, d.y);
       this.ctx.rotate(d.angle);
@@ -2932,8 +3192,17 @@ export class DungeonEngine {
   }
 
   private renderGroundWeapons() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 50;
+    const halfH = (this.canvas.height / zoom) / 2 + 50;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     const time = performance.now() * 0.003;
     for (const gw of this.groundWeapons) {
+      if (gw.x < minX || gw.x > maxX || gw.y < minY || gw.y > maxY) continue;
       const wpn = gw.weapon;
       const colorInfo = RARITY_COLORS[wpn.rarity] || RARITY_COLORS.common;
       const bob = Math.sin(gw.bobTimer + time) * 3.5;
@@ -2979,7 +3248,8 @@ export class DungeonEngine {
       this.renderWeaponCanvasIcon(px, py - 4, wpn);
 
       // 4. Compact floating nameplate
-      const nameText = `${wpn.name} +${wpn.level}`;
+      const starStr = wpn.stars > 0 ? ` ⭐x${wpn.stars}` : '';
+      const nameText = `${wpn.name}${wpn.level > 0 ? ` +${wpn.level}` : ''}${starStr}`;
       this.ctx.font = 'bold 9px monospace';
       const textW = this.ctx.measureText(nameText).width;
 
@@ -3000,7 +3270,7 @@ export class DungeonEngine {
       if (dist < 38) {
         this.ctx.fillStyle = '#ffd700';
         this.ctx.font = 'bold 9px sans-serif';
-        this.ctx.fillText('▼ [E] ВЗЯТЬ', px, py - 22);
+        this.ctx.fillText('▼ [E] ВЗЯТЬ • [F] В ЗВЁЗДЫ ⭐', px, py - 22);
       }
 
       this.ctx.restore();
@@ -3096,8 +3366,17 @@ export class DungeonEngine {
   }
 
   private renderGroundScrolls() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 50;
+    const halfH = (this.canvas.height / zoom) / 2 + 50;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     const time = performance.now() * 0.003;
     for (const gs of this.groundScrolls) {
+      if (gs.x < minX || gs.x > maxX || gs.y < minY || gs.y > maxY) continue;
       const scroll = gs.scroll;
       const bob = Math.sin(gs.bobTimer + time) * 3;
       const px = gs.x;
@@ -3174,10 +3453,19 @@ export class DungeonEngine {
   }
 
   private renderProps() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 50;
+    const halfH = (this.canvas.height / zoom) / 2 + 50;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     // Crates / Barricades
     if (this.map.crates) {
       for (const crate of this.map.crates) {
         if (crate.broken) continue;
+        if (crate.x < minX || crate.x > maxX || crate.y < minY || crate.y > maxY) continue;
         this.ctx.save();
         this.ctx.fillStyle = '#78350f';
         this.ctx.fillRect(crate.x - 7, crate.y - 7, 14, 14);
@@ -3197,6 +3485,7 @@ export class DungeonEngine {
     }
     // Chests
     for (const chest of this.map.chests) {
+      if (chest.x < minX || chest.x > maxX || chest.y < minY || chest.y > maxY) continue;
       this.ctx.save();
       if (!chest.opened) {
         this.ctx.shadowColor = '#ffd700';
@@ -3220,6 +3509,7 @@ export class DungeonEngine {
 
     // Shrines
     for (const shrine of this.map.shrines) {
+      if (shrine.x < minX || shrine.x > maxX || shrine.y < minY || shrine.y > maxY) continue;
       this.ctx.save();
       if (!shrine.used) {
         this.ctx.shadowColor = '#38bdf8';
@@ -3253,85 +3543,92 @@ export class DungeonEngine {
     // Challenge Totem
     if (this.map.challenge) {
       const ch = this.map.challenge;
-      this.ctx.save();
-      this.ctx.shadowColor = ch.active ? '#ef4444' : '#a855f7';
-      this.ctx.shadowBlur = ch.active ? 15 : 8;
-      this.ctx.drawImage(
-        this.assets.structure,
-        0,
-        0,
-        16,
-        32,
-        ch.totemX - 8,
-        ch.totemY - 24,
-        16,
-        32
-      );
-      this.ctx.restore();
+      if (ch.totemX >= minX && ch.totemX <= maxX && ch.totemY >= minY && ch.totemY <= maxY) {
+        this.ctx.save();
+        this.ctx.shadowColor = ch.active ? '#ef4444' : '#a855f7';
+        this.ctx.shadowBlur = ch.active ? 15 : 8;
+        this.ctx.drawImage(
+          this.assets.structure,
+          0,
+          0,
+          16,
+          32,
+          ch.totemX - 8,
+          ch.totemY - 24,
+          16,
+          32
+        );
+        this.ctx.restore();
+      }
     }
 
     // Shopkeeper NPC (Spectral Merchant)
     if (this.map.shop) {
       const shp = this.map.shop;
-      this.ctx.save();
-      
-      // Carpet under merchant
-      this.ctx.fillStyle = '#78350f';
-      this.ctx.beginPath();
-      this.ctx.ellipse(shp.x, shp.y + 4, 15, 8, 0, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.strokeStyle = '#ffd700';
-      this.ctx.lineWidth = 1;
-      this.ctx.stroke();
+      if (shp.x >= minX && shp.x <= maxX && shp.y >= minY && shp.y <= maxY) {
+        this.ctx.save();
+        
+        // Carpet under merchant
+        this.ctx.fillStyle = '#78350f';
+        this.ctx.beginPath();
+        this.ctx.ellipse(shp.x, shp.y + 4, 15, 8, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = '#ffd700';
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
 
-      // Spectral golden & purple aura
-      this.ctx.shadowColor = '#ffd700';
-      this.ctx.shadowBlur = 14;
+        // Spectral golden & purple aura
+        this.ctx.shadowColor = '#ffd700';
+        this.ctx.shadowBlur = 14;
 
-      // Animated idle standing merchant with spectral violet tint
-      const idleFrame = Math.floor(Date.now() / 250) % 4;
-      this.ctx.filter = 'hue-rotate(240deg) saturate(2.2) brightness(1.25)';
-      this.ctx.drawImage(
-        this.assets.zombieIdle,
-        idleFrame * 32,
-        0,
-        32,
-        32,
-        shp.x - 16,
-        shp.y - 20,
-        32,
-        32
-      );
-      this.ctx.restore();
+        // Animated idle standing merchant with pre-rendered spectral violet tint
+        const idleFrame = Math.floor(Date.now() / 250) % 4;
+        const merchantSheet = this.getTintedSprite(this.assets.zombieIdle, 'zombie_witch', false);
+        this.ctx.drawImage(
+          merchantSheet,
+          idleFrame * 32,
+          0,
+          32,
+          32,
+          shp.x - 16,
+          shp.y - 20,
+          32,
+          32
+        );
+        this.ctx.restore();
 
-      // Floating label above shopkeeper
-      this.ctx.save();
-      this.ctx.font = 'bold 8px monospace';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillStyle = '#ffd700';
-      this.ctx.shadowColor = '#000';
-      this.ctx.shadowBlur = 4;
-      this.ctx.fillText('ТОРГОВЕЦ [E]', shp.x, shp.y - 24);
-      this.ctx.restore();
+        // Floating label above shopkeeper
+        this.ctx.save();
+        this.ctx.font = 'bold 8px monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#ffd700';
+        this.ctx.shadowColor = '#000';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillText('ТОРГОВЕЦ [E]', shp.x, shp.y - 24);
+        this.ctx.restore();
+      }
     }
 
     // Stairs Down
     const sx = this.map.stairsPoint.x * 16;
     const sy = this.map.stairsPoint.y * 16;
-    this.ctx.drawImage(this.assets.tiles, 6 * 16, 5 * 16, 16, 16, sx, sy, 16, 16);
-    this.ctx.save();
-    this.ctx.font = 'bold 8px monospace';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillStyle = '#fde047';
-    this.ctx.shadowColor = '#000';
-    this.ctx.shadowBlur = 4;
-    this.ctx.fillText('СПУСК [E]', sx + 8, sy - 6);
-    this.ctx.restore();
+    if (sx >= minX - 16 && sx <= maxX + 16 && sy >= minY - 16 && sy <= maxY + 16) {
+      this.ctx.drawImage(this.assets.tiles, 6 * 16, 5 * 16, 16, 16, sx, sy, 16, 16);
+      this.ctx.save();
+      this.ctx.font = 'bold 8px monospace';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillStyle = '#fde047';
+      this.ctx.shadowColor = '#000';
+      this.ctx.shadowBlur = 4;
+      this.ctx.fillText('СПУСК [E]', sx + 8, sy - 6);
+      this.ctx.restore();
+    }
 
     // Torches
     for (const torch of this.map.torches) {
       const tx = torch.x * 16;
       const ty = torch.y * 16;
+      if (tx < minX || tx > maxX || ty < minY || ty > maxY) continue;
       const img =
         torch.type === 'left'
           ? this.assets.torchLeft
@@ -3343,8 +3640,10 @@ export class DungeonEngine {
     }
 
     // Vases
-    for (const vase of this.map.vases) {
-      if (!vase.broken) {
+    if (this.map.vases) {
+      for (const vase of this.map.vases) {
+        if (vase.broken) continue;
+        if (vase.x < minX || vase.x > maxX || vase.y < minY || vase.y > maxY) continue;
         this.ctx.drawImage(
           this.assets.vaseAnim,
           vase.frame * 16,
@@ -3361,7 +3660,16 @@ export class DungeonEngine {
   }
 
   private renderItems() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 50;
+    const halfH = (this.canvas.height / zoom) / 2 + 50;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     for (const item of this.items) {
+      if (item.x < minX || item.x > maxX || item.y < minY || item.y > maxY) continue;
       if (item.type === 'coin') {
         this.ctx.drawImage(
           this.assets.coins,
@@ -3414,8 +3722,12 @@ export class DungeonEngine {
     const minY = this.camera.y - halfH;
     const maxY = this.camera.y + halfH;
 
+    let visibleCount = 0;
+
     for (const e of this.enemies) {
       if (e.x < minX || e.x > maxX || e.y < minY || e.y > maxY) continue;
+      visibleCount++;
+
       this.ctx.save();
       this.ctx.translate(e.x, e.y);
 
@@ -3423,42 +3735,39 @@ export class DungeonEngine {
         this.ctx.scale(e.scale, e.scale);
       }
 
-      let sheet = this.assets.zombieIdle;
-      if (e.state === 'walk') sheet = this.assets.zombieRun;
-      else if (e.state === 'hurt') sheet = this.assets.zombieHurt;
-      else if (e.state === 'death') sheet = this.assets.zombieDeath;
+      let baseSheet = this.assets.zombieIdle;
+      if (e.state === 'walk') baseSheet = this.assets.zombieRun;
+      else if (e.state === 'hurt') baseSheet = this.assets.zombieHurt;
+      else if (e.state === 'death') baseSheet = this.assets.zombieDeath;
 
+      // Быстрая аппаратная аура элиты без тяжелого Gaussian shadowBlur
       if (e.isElite) {
-        this.ctx.shadowColor =
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, e.radius + 6, 0, Math.PI * 2);
+        this.ctx.fillStyle =
+          e.eliteAffix === 'fire'
+            ? 'rgba(249, 115, 22, 0.35)'
+            : e.eliteAffix === 'frost'
+            ? 'rgba(56, 189, 248, 0.35)'
+            : 'rgba(168, 85, 247, 0.35)';
+        this.ctx.fill();
+        this.ctx.strokeStyle =
           e.eliteAffix === 'fire'
             ? '#f97316'
             : e.eliteAffix === 'frost'
             ? '#38bdf8'
             : '#a855f7';
-        this.ctx.shadowBlur = 10;
-      } else if (e.tint) {
-        this.ctx.shadowColor = e.tint;
-        this.ctx.shadowBlur = 6;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
       }
 
-      // Color tint by enemy type
-      if (e.type === 'zombie_spitter') {
-        this.ctx.filter = 'hue-rotate(65deg) saturate(2.4) brightness(1.1)';
-      } else if (e.type === 'zombie_runner') {
-        this.ctx.filter = 'hue-rotate(160deg) saturate(2.2) brightness(1.1)';
-      } else if (e.type === 'zombie_brute') {
-        this.ctx.filter = 'hue-rotate(330deg) saturate(2.8) brightness(1.05)';
-      } else if (e.type === 'zombie_witch') {
-        this.ctx.filter = 'hue-rotate(240deg) saturate(2.5) brightness(1.15)';
-      } else if (e.type === 'zombie_pyro') {
-        this.ctx.filter = 'hue-rotate(25deg) saturate(3.2) brightness(1.2)';
-      } else if (e.tint) {
-        this.ctx.filter = 'saturate(1.5)';
-      }
-
-      if (e.hurtTimer > 0) {
-        this.ctx.filter = 'brightness(2.2) saturate(0.4)';
-      }
+      // Кэшированный оффскрин-спрайт без пересчета ctx.filter на CPU
+      const sheet = this.getTintedSprite(
+        baseSheet,
+        e.type,
+        e.hurtTimer > 0,
+        e.tint
+      );
 
       const frame = e.state === 'hurt' ? e.frame % 2 : e.frame % 8;
       const row = e.dir;
@@ -3539,6 +3848,7 @@ export class DungeonEngine {
         }
       }
     }
+    this.lastVisibleEnemiesCount = visibleCount;
   }
 
   private renderPlayer() {
@@ -3955,7 +4265,8 @@ export class DungeonEngine {
     this.ctx.font = 'bold 11px sans-serif';
     this.ctx.fillStyle = colorInfo.main;
     this.ctx.textAlign = 'left';
-    this.ctx.fillText(`${wpn.name} +${wpn.level}`, bx + pad, by + 16);
+    const starLabel = wpn.stars > 0 ? ` ⭐x${wpn.stars}` : '';
+    this.ctx.fillText(wpn.level > 0 ? `${wpn.name} +${wpn.level}${starLabel}` : `${wpn.name}${starLabel}`, bx + pad, by + 16);
 
     this.ctx.font = '9px sans-serif';
     this.ctx.fillStyle = '#94a3b8';
@@ -4023,43 +4334,78 @@ export class DungeonEngine {
     const mw = minimapCanvas.width;
     const mh = minimapCanvas.height;
 
-    mctx.fillStyle = '#0a0f1d';
-    mctx.fillRect(0, 0, mw, mh);
+    // Check if offscreen base canvas needs initialization
+    if (
+      !this.minimapBaseCanvas ||
+      this.minimapBaseCanvas.width !== mw ||
+      this.minimapBaseCanvas.height !== mh
+    ) {
+      this.minimapBaseCanvas = document.createElement('canvas');
+      this.minimapBaseCanvas.width = mw;
+      this.minimapBaseCanvas.height = mh;
+      this.minimapBaseCtx = this.minimapBaseCanvas.getContext('2d');
+      this.minimapDirty = true;
+    }
 
-    const scaleX = mw / this.map.width;
-    const scaleY = mh / this.map.height;
+    const now = performance.now();
+    // Only re-rasterize map tiles when new tiles were revealed and throttled to 4 FPS max
+    if (this.minimapDirty && this.minimapBaseCtx && now - this.lastMinimapUpdate > 250) {
+      this.minimapDirty = false;
+      this.lastMinimapUpdate = now;
 
-    for (let y = 0; y < this.map.height; y++) {
-      for (let x = 0; x < this.map.width; x++) {
-        if (!this.map.discovered[y][x]) continue;
+      const bmctx = this.minimapBaseCtx;
+      bmctx.fillStyle = '#0a0f1d';
+      bmctx.fillRect(0, 0, mw, mh);
 
-        const t = this.map.tiles[y][x];
-        if (t === Tile.STAIRS_DOWN) {
-          mctx.fillStyle = '#38bdf8';
-          mctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
-        } else if (t === Tile.CHEST) {
-          mctx.fillStyle = '#ffd700';
-          mctx.fillRect(x * scaleX - 1, y * scaleY - 1, 3, 3);
-        } else if (t === Tile.SHRINE) {
-          mctx.fillStyle = '#ffd700';
-          mctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
-        } else if (t === Tile.SHOP_CARPET) {
-          mctx.fillStyle = '#a855f7';
-          mctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
-        } else if (isWalkable(t)) {
-          mctx.fillStyle = '#334155';
-          mctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
+      const scaleX = mw / this.map.width;
+      const scaleY = mh / this.map.height;
+
+      for (let y = 0; y < this.map.height; y++) {
+        for (let x = 0; x < this.map.width; x++) {
+          if (!this.map.discovered[y][x]) continue;
+
+          const t = this.map.tiles[y][x];
+          if (t === Tile.STAIRS_DOWN) {
+            bmctx.fillStyle = '#38bdf8';
+            bmctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
+          } else if (t === Tile.CHEST) {
+            bmctx.fillStyle = '#ffd700';
+            bmctx.fillRect(x * scaleX - 1, y * scaleY - 1, 3, 3);
+          } else if (t === Tile.SHRINE) {
+            bmctx.fillStyle = '#ffd700';
+            bmctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
+          } else if (t === Tile.SHOP_CARPET) {
+            bmctx.fillStyle = '#a855f7';
+            bmctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
+          } else if (isWalkable(t)) {
+            bmctx.fillStyle = '#334155';
+            bmctx.fillRect(x * scaleX, y * scaleY, scaleX + 0.5, scaleY + 0.5);
+          }
         }
       }
     }
 
+    // Fast blit of pre-rendered minimap background
+    if (this.minimapBaseCanvas) {
+      mctx.drawImage(this.minimapBaseCanvas, 0, 0);
+    } else {
+      mctx.fillStyle = '#0a0f1d';
+      mctx.fillRect(0, 0, mw, mh);
+    }
+
+    const scaleX = mw / this.map.width;
+    const scaleY = mh / this.map.height;
+
+    // Draw only active/boss enemies on minimap
     for (const e of this.enemies) {
       if (e.isDead) continue;
-      const tx = Math.floor(e.x / 16);
-      const ty = Math.floor(e.y / 16);
-      if (this.map.discovered[ty]?.[tx]) {
-        mctx.fillStyle = e.isBoss ? '#ec4899' : '#ef4444';
-        mctx.fillRect(tx * scaleX - 1, ty * scaleY - 1, 3, 3);
+      if (e.isBoss || e.lodLevel !== 2) {
+        const tx = Math.floor(e.x / 16);
+        const ty = Math.floor(e.y / 16);
+        if (this.map.discovered[ty]?.[tx]) {
+          mctx.fillStyle = e.isBoss ? '#ec4899' : '#ef4444';
+          mctx.fillRect(tx * scaleX - 1, ty * scaleY - 1, 3, 3);
+        }
       }
     }
 
@@ -4073,10 +4419,21 @@ export class DungeonEngine {
 
   private syncStats() {
     this.callbacks.onStatsUpdate(this.player, this.currentBoss);
+    if (this.callbacks.onPerformanceUpdate && (this.enemyAiTick % 12 === 0)) {
+      this.callbacks.onPerformanceUpdate({
+        multiCoreEnabled: this.workerManager.multiCoreEnabled,
+        coreCount: this.workerManager.coreCount,
+        activeEnemies: this.workerManager.activeCount,
+        totalEnemies: this.enemies.filter((e) => !e.isDead).length,
+        visibleEnemies: this.lastVisibleEnemiesCount,
+      });
+    }
   }
 
   public destroy() {
     this.stop();
+    this.workerManager.destroy();
+    this.tintedSpriteCache.clear();
   }
 
   private renderGroundRelics() {

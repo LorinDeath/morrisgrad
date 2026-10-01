@@ -1,6 +1,7 @@
+import type { DifficultyLevel } from './types';
 // weapons.ts - Diablo-style Weapon & Scroll System for Dungeon Gathering Roguelite
 
-export type WeaponRarity = 'common' | 'magic' | 'rare' | 'legendary';
+export type WeaponRarity = 'common' | 'uncommon' | 'magic' | 'rare' | 'epic' | 'legendary';
 export type WeaponType = 'sword' | 'dagger' | 'wand' | 'bow' | 'hammer';
 
 export type WeaponAffixType =
@@ -53,6 +54,10 @@ export interface Weapon {
   type: WeaponType;
   rarity: WeaponRarity;
   level: number; // Уровень заточки свитками (+0, +1, +2...)
+  itemLevel: number; // Уровень предмета (Floor + 1...)
+  stars: number; // Звёздность оружия (+10% статов за каждую звезду)
+  starXp: number; // Текущий опыт звёздности
+  starMaxXp: number; // Необходимый опыт для следующей звезды
 
   // 3 Базовых параметра скейлинга
   statDamage: number;     // 1. Урон / Сила
@@ -122,9 +127,11 @@ export interface GroundScroll {
 
 // Цвета редкости в стиле Diablo
 export const RARITY_COLORS: Record<WeaponRarity, { main: string; glow: string; label: string }> = {
-  common: { main: '#e2e8f0', glow: 'rgba(226, 232, 240, 0.4)', label: 'Обычное' },
-  magic: { main: '#38bdf8', glow: 'rgba(56, 189, 248, 0.6)', label: 'Магическое' },
-  rare: { main: '#facc15', glow: 'rgba(250, 204, 21, 0.7)', label: 'Редкое' },
+  common: { main: '#94a3b8', glow: 'rgba(148, 163, 184, 0.4)', label: 'Обычное' },
+  uncommon: { main: '#22c55e', glow: 'rgba(34, 197, 94, 0.6)', label: 'Необычное' },
+  magic: { main: '#22c55e', glow: 'rgba(34, 197, 94, 0.6)', label: 'Необычное' },
+  rare: { main: '#38bdf8', glow: 'rgba(56, 189, 248, 0.7)', label: 'Редкое' },
+  epic: { main: '#c084fc', glow: 'rgba(192, 132, 252, 0.8)', label: 'Эпическое' },
   legendary: { main: '#fb923c', glow: 'rgba(251, 146, 60, 0.9)', label: 'Легендарное' },
 };
 
@@ -288,29 +295,22 @@ export const SUFFIXES: {
   { name: 'Вестника Рока', type: 'execute', desc: 'Убийственный палаческий урон по раненым монстрам', valRange: [1, 1] },
   { name: 'Чёрной Бездны', type: 'darkMagic', desc: '+30% урона Чёрной Магией и сокрушение щитов', valRange: [25, 40] },
   { name: 'Тёмной Магии', type: 'darkMagic', desc: '+35% чистого урона Чёрной Магией сквозь щиты', valRange: [30, 45] },
+  { name: 'Скорости', type: 'speed', desc: '+к скорости атаки оружия', valRange: [18, 36] },
+  { name: 'Титана', type: 'vitality', desc: '+к максимальному запасу здоровья', valRange: [4, 9] },
+  { name: 'Хаоса', type: 'damage', desc: '+к сокрушающему стихийному урону', valRange: [10, 24] },
+  { name: 'Скверны', type: 'darkMagic', desc: '+к урону Чёрной Магией скверны', valRange: [25, 42] },
+  { name: 'Вечности', type: 'vitality', desc: '+к бессмертным жизненным силам', valRange: [4, 10] },
 ];
 
 export const WEAPON_BASE_NAMES: Record<WeaponType, string[]> = {
-  wand: [
-    'Магический Жезл Сфер',
-    'Посох Плазменных Сфер',
-    'Скипетр Эфира',
-    'Орбоносец Катакомб',
-    'Аркановый Жезл',
-    'Плазменный Пульсар',
-    'Око Пустоты',
-    'Солнечная Сфера',
-    'Ледяной Хрусталь',
-    'Громовой Пульсар',
-    'Астральный Светоч',
-    'Сфероносец Грёз',
-    'Сингулярность Бездны',
-  ],
-  sword: ['Клинок Пепла', 'Меч Склепа', 'Палаш Тьмы', 'Эспадон Рыцаря', 'Клеймор Палача'],
-  dagger: ['Кинжал Тени', 'Стилет Погибели', 'Кортик Бездны', 'Шип Нечестивого', 'Теневой Зуб'],
-  bow: ['Композитный Лук', 'Самострел Пустоты', 'Длинный Лук Пепла', 'Арбалет Охотника', 'Звёздный Лук'],
-  hammer: ['Боевой Молот Титана', 'Секира Ярости', 'Булава Сокрушения', 'Дробитель Костей', 'Моргенштерн Хаоса'],
+  wand: ['Жезл', 'Посох', 'Скипетр', 'Орбоносец', 'Пульсар', 'Светоч'],
+  sword: ['Клинок', 'Меч', 'Палаш', 'Эспадон', 'Клеймор'],
+  dagger: ['Кинжал', 'Стилет', 'Кортик', 'Шип', 'Зуб'],
+  bow: ['Лук', 'Самострел', 'Арбалет'],
+  hammer: ['Молот', 'Секира', 'Булава', 'Дробитель', 'Моргенштерн'],
 };
+
+export const COMMON_PREFIXES = ['Ржавый', 'Простой', 'Старый', 'Грубый', 'Потертый', 'Закаленный', 'Кованый'];
 
 // Функция создания / пересчета оружия
 export function calculateWeaponStats(weapon: Weapon): Weapon {
@@ -371,6 +371,14 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
     }
   }
 
+  // Звёздность оружия: каждая звезда дает +10% ко всем характеристикам оружия!
+  const starBonus = 1 + ((weapon.stars || 0) * 0.10);
+  dmg = Math.round(dmg * starBonus);
+  bonusMaxHp = Math.round(bonusMaxHp * starBonus);
+  bonusLight = Math.round(bonusLight * starBonus);
+  if (bonusArmor > 0) bonusArmor = Math.round(bonusArmor * starBonus);
+  if (bonusMoveSpeed > 0) bonusMoveSpeed = Math.round(bonusMoveSpeed * starBonus);
+
   weapon.bonusDamage = dmg;
   weapon.attackCooldown = Math.round(cd * 100) / 100;
   weapon.bonusMaxHp = bonusMaxHp;
@@ -401,35 +409,84 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
   return weapon;
 }
 
-// Генерация процедурного оружия с богатыми аффиксами и упором на магические сферы
-export function generateRandomWeapon(floor: number, forcedType?: WeaponType, forcedRarity?: WeaponRarity): Weapon {
-  // Увеличиваем вероятность выпадения крутых магических жезлов со светящимися сферами!
+// 2. Ребаланс шансов выпадения лута и градация редкости
+export function rollWeaponRarity(
+  floor: number,
+  isEliteOrChest = false,
+  difficulty: DifficultyLevel = 'normal',
+  lootLuck = 0
+): WeaponRarity {
+  if (isEliteOrChest) {
+    const roll = Math.random();
+    if (roll < 0.20 + floor * 0.03 + lootLuck * 0.05) return 'legendary';
+    if (roll < 0.55 + floor * 0.02 + lootLuck * 0.08) return 'epic';
+    if (roll < 0.88) return 'rare';
+    return 'uncommon';
+  }
+
+  // Common: ~35% на 1 этаже -> 0% к 8-10 этажу
+  let commonWeight = floor >= 8 ? 0 : Math.max(0, 35 * (1 - (floor - 1) / 7));
+  let uncommonWeight = floor >= 10 ? 8 : Math.max(8, 35 - (floor - 1) * 3);
+  let rareWeight = 20 + (floor - 1) * 2.2 + lootLuck * 4;
+  let epicWeight = 8 + (floor - 1) * 2.2 + lootLuck * 3.5;
+  let legendaryWeight = 2 + (floor - 1) * 1.5 + lootLuck * 2.5;
+
+  if (difficulty === 'inferno') {
+    legendaryWeight += 4;
+    epicWeight += 6;
+    commonWeight = Math.max(0, commonWeight - 10);
+  } else if (difficulty === 'nightmare') {
+    legendaryWeight += 1.5;
+    epicWeight += 3;
+    commonWeight = Math.max(0, commonWeight - 5);
+  }
+
+  const total = commonWeight + uncommonWeight + rareWeight + epicWeight + legendaryWeight;
+  const roll = Math.random() * total;
+
+  if (roll < commonWeight) return 'common';
+  if (roll < commonWeight + uncommonWeight) return 'uncommon';
+  if (roll < commonWeight + uncommonWeight + rareWeight) return 'rare';
+  if (roll < commonWeight + uncommonWeight + rareWeight + epicWeight) return 'epic';
+  return 'legendary';
+}
+
+// 3. Догоняющая прогрессия уровней предметов и 4. Строгие правила генерации аффиксов
+export function generateRandomWeapon(
+  floor: number,
+  forcedType?: WeaponType,
+  forcedRarity?: WeaponRarity,
+  isEliteOrChest = false,
+  difficulty: DifficultyLevel = 'normal',
+  lootLuck = 0
+): Weapon {
   const typePool: WeaponType[] = ['wand', 'wand', 'wand', 'sword', 'dagger', 'bow', 'hammer'];
   const type = forcedType || typePool[Math.floor(Math.random() * typePool.length)];
 
   // Определение редкости
-  let rarity: WeaponRarity = forcedRarity || 'common';
-  if (!forcedRarity) {
-    const roll = Math.random();
-    if (roll < 0.15 + floor * 0.04) rarity = 'legendary';
-    else if (roll < 0.42 + floor * 0.05) rarity = 'rare';
-    else if (roll < 0.75) rarity = 'magic';
-    else rarity = 'common';
+  let rarity: WeaponRarity = forcedRarity || rollWeaponRarity(floor, isEliteOrChest, difficulty, lootLuck);
+  if (forcedRarity === 'magic') {
+    rarity = 'uncommon';
   }
 
-  let baseDamage = 18 + floor * 4;
+  // 3. Догоняющая прогрессия уровней предметов (Catch-Up Loot Scaling):
+  // Level_Drop = Floor + 1 (с шансом +2 для элиты и сундуков)
+  const bonusLevel = isEliteOrChest ? (Math.random() < 0.45 ? 2 : 1) : 1;
+  const itemLevel = Math.max(1, floor + bonusLevel);
+
+  // Базовые параметры скейлятся строго от itemLevel
+  let baseDamage = 14 + itemLevel * 4;
   let attackCooldown = 0.28;
   let range = 50;
   let projConfig: WeaponProjectileConfig | undefined = undefined;
 
-  let statDmg = 6 + Math.floor(Math.random() * 6) + floor * 2;
-  let statSpd = 6 + Math.floor(Math.random() * 6) + floor;
-  let statMag = 6 + Math.floor(Math.random() * 6) + floor * 2;
+  let statDmg = 4 + Math.floor(Math.random() * 4) + itemLevel * 2;
+  let statSpd = 5 + Math.floor(Math.random() * 4) + itemLevel;
+  let statMag = 5 + Math.floor(Math.random() * 4) + itemLevel * 2;
 
   let chosenOrbType: 'arcane' | 'plasma' | 'solar' | 'void' | 'frost' | 'storm' = 'plasma';
 
   if (type === 'wand') {
-    // Палочка с парящим магическим шаром энергии!
     const orbTypes: Array<'arcane' | 'plasma' | 'solar' | 'void' | 'frost' | 'storm'> = [
       'plasma',
       'arcane',
@@ -440,10 +497,10 @@ export function generateRandomWeapon(floor: number, forcedType?: WeaponType, for
     ];
     chosenOrbType = orbTypes[Math.floor(Math.random() * orbTypes.length)];
 
-    baseDamage = 20 + floor * 4;
+    baseDamage = 16 + itemLevel * 4;
     attackCooldown = 0.30;
     range = 240;
-    statMag += 10;
+    statMag += 8;
 
     let orbColor = '#c084fc';
     let orbGlow = '#ec4899';
@@ -471,11 +528,12 @@ export function generateRandomWeapon(floor: number, forcedType?: WeaponType, for
       orbTrail = '#1d4ed8';
     }
 
-    const multishotCount = rarity === 'legendary' ? (Math.random() < 0.6 ? 3 : 2) : rarity === 'rare' ? 2 : 1;
+    const multishotCount =
+      rarity === 'legendary' ? (Math.random() < 0.6 ? 3 : 2) : rarity === 'epic' ? 2 : rarity === 'rare' ? 2 : 1;
 
     projConfig = {
       speed: 290,
-      pierce: 2 + (rarity === 'legendary' ? 3 : rarity === 'rare' ? 2 : 1),
+      pierce: 2 + (rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 2 : 1),
       color: orbColor,
       glowColor: orbGlow,
       trailColor: orbTrail,
@@ -486,28 +544,28 @@ export function generateRandomWeapon(floor: number, forcedType?: WeaponType, for
       explosive: rarity === 'legendary',
     };
   } else if (type === 'dagger') {
-    baseDamage = 14 + floor * 3;
+    baseDamage = 10 + itemLevel * 3;
     attackCooldown = 0.16;
     range = 40;
-    statSpd += 12;
+    statSpd += 10;
   } else if (type === 'sword') {
-    baseDamage = 22 + floor * 4;
+    baseDamage = 18 + itemLevel * 4;
     attackCooldown = 0.26;
     range = 54;
-    statDmg += 8;
+    statDmg += 6;
   } else if (type === 'hammer') {
-    baseDamage = 32 + floor * 5;
+    baseDamage = 26 + itemLevel * 5;
     attackCooldown = 0.38;
     range = 64;
-    statDmg += 14;
+    statDmg += 12;
   } else if (type === 'bow') {
-    baseDamage = 18 + floor * 4;
+    baseDamage = 14 + itemLevel * 4;
     attackCooldown = 0.28;
     range = 250;
-    statSpd += 8;
+    statSpd += 6;
     projConfig = {
       speed: 350,
-      pierce: 1 + (rarity === 'legendary' ? 3 : rarity === 'rare' ? 1 : 0),
+      pierce: 1 + (rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : 0),
       color: '#f8fafc',
       glowColor: '#38bdf8',
       trailColor: '#0284c7',
@@ -516,63 +574,154 @@ export function generateRandomWeapon(floor: number, forcedType?: WeaponType, for
     };
   }
 
-  // Генерация аффиксов в зависимости от редкости
-  const affixCount = rarity === 'legendary' ? 4 : rarity === 'rare' ? 3 : rarity === 'magic' ? 2 : 1;
+  // 4. Строгие правила генерации аффиксов строго по грейду:
+  const targetAffixCount =
+    rarity === 'legendary' ? 4 :
+    rarity === 'epic'      ? 3 :
+    rarity === 'rare'      ? 2 :
+    (rarity === 'uncommon' || rarity === 'magic') ? 1 : 0; // 'common' = 0 аффиксов
+
   const affixes: WeaponAffix[] = [];
-
-  const chosenPrefix = PREFIXES[Math.floor(Math.random() * PREFIXES.length)];
-  const chosenSuffix = SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
-
-  if (chosenPrefix) {
-    const val = Math.floor(chosenPrefix.valRange[0] + Math.random() * (chosenPrefix.valRange[1] - chosenPrefix.valRange[0] + 1));
-    affixes.push({
-      id: `pref_${chosenPrefix.name}_${Math.random().toString(36).substring(2, 6)}`,
-      name: chosenPrefix.name,
-      desc: chosenPrefix.desc,
-      type: chosenPrefix.type,
-      value: val,
-      ...(chosenPrefix.element ? { element: chosenPrefix.element } : {}),
-    });
-  }
-
-  if (affixCount > 1 && chosenSuffix) {
-    const val = Math.floor(chosenSuffix.valRange[0] + Math.random() * (chosenSuffix.valRange[1] - chosenSuffix.valRange[0] + 1));
-    affixes.push({
-      id: `suf_${chosenSuffix.name}_${Math.random().toString(36).substring(2, 6)}`,
-      name: chosenSuffix.name,
-      desc: chosenSuffix.desc,
-      type: chosenSuffix.type,
-      value: val,
-      ...(chosenSuffix.element ? { element: chosenSuffix.element } : {}),
-    });
-  }
-
-  // Дополнительные аффиксы для редких/легендарных
-  while (affixes.length < affixCount) {
-    const pool = [...PREFIXES, ...SUFFIXES].filter((p) => !affixes.some((a) => a.name === p.name));
-    if (pool.length === 0) break;
-    const extra = pool[Math.floor(Math.random() * pool.length)];
-    const val = Math.floor(extra.valRange[0] + Math.random() * (extra.valRange[1] - extra.valRange[0] + 1));
-    affixes.push({
-      id: `extra_${extra.name}_${Math.random().toString(36).substring(2, 6)}`,
-      name: extra.name,
-      desc: extra.desc,
-      type: extra.type,
-      value: val,
-      ...(extra.element ? { element: extra.element } : {}),
-    });
-  }
-
-  // Имя оружия
   const baseNameList = WEAPON_BASE_NAMES[type];
   const baseName = baseNameList[Math.floor(Math.random() * baseNameList.length)];
-  let fullName = baseName;
-  if (chosenPrefix && chosenSuffix && affixCount > 1) {
-    fullName = `${chosenPrefix.name} ${baseName} ${chosenSuffix.name}`;
-  } else if (chosenPrefix) {
-    fullName = `${chosenPrefix.name} ${baseName}`;
-  } else if (chosenSuffix) {
-    fullName = `${baseName} ${chosenSuffix.name}`;
+  let fullName = '';
+
+  const scaleAffixVal = (valRange: [number, number]) => {
+    const raw = valRange[0] + Math.random() * (valRange[1] - valRange[0]);
+    const scaled = Math.round(raw * (1 + (itemLevel - 1) * 0.08));
+    return Math.max(valRange[0], scaled);
+  };
+
+  if (targetAffixCount === 0) {
+    // Обычное (0 аффиксов): «Ржавый Клинок 2 ур.» (чистые базовые статы урона по уровню предмета)
+    const commonPref = COMMON_PREFIXES[Math.floor(Math.random() * COMMON_PREFIXES.length)];
+    fullName = `${commonPref} ${baseName} ${itemLevel} ур.`;
+  } else if (targetAffixCount === 1) {
+    // Необычное (1 аффикс): «Острый Клинок 3 ур.» (1 полезное свойство: префикс или суффикс)
+    const usePrefix = Math.random() < 0.5;
+    if (usePrefix) {
+      const p = PREFIXES[Math.floor(Math.random() * PREFIXES.length)];
+      affixes.push({
+        id: `pref_${p.name}_${Math.random().toString(36).substring(2, 6)}`,
+        name: p.name,
+        desc: p.desc,
+        type: p.type,
+        value: scaleAffixVal(p.valRange),
+        ...(p.element ? { element: p.element } : {}),
+      });
+      fullName = `${p.name} ${baseName} ${itemLevel} ур.`;
+    } else {
+      const s = SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+      affixes.push({
+        id: `suf_${s.name}_${Math.random().toString(36).substring(2, 6)}`,
+        name: s.name,
+        desc: s.desc,
+        type: s.type,
+        value: scaleAffixVal(s.valRange),
+        ...(s.element ? { element: s.element } : {}),
+      });
+      fullName = `${baseName} ${s.name} ${itemLevel} ур.`;
+    }
+  } else if (targetAffixCount === 2) {
+    // Редкое (2 аффикса): «Пылающий Клинок Вампира 5 ур.» (2 свойства: префикс + суффикс)
+    const p = PREFIXES[Math.floor(Math.random() * PREFIXES.length)];
+    const s = SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+    affixes.push({
+      id: `pref_${p.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: p.name,
+      desc: p.desc,
+      type: p.type,
+      value: scaleAffixVal(p.valRange),
+      ...(p.element ? { element: p.element } : {}),
+    });
+    affixes.push({
+      id: `suf_${s.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: s.name,
+      desc: s.desc,
+      type: s.type,
+      value: scaleAffixVal(s.valRange),
+      ...(s.element ? { element: s.element } : {}),
+    });
+    fullName = `${p.name} ${baseName} ${s.name} ${itemLevel} ур.`;
+  } else if (targetAffixCount === 3) {
+    // Эпическое (3 аффикса): «Громовой Клинок Скорости Титана 8 ур.» (3 мощных свойства)
+    const p = PREFIXES[Math.floor(Math.random() * PREFIXES.length)];
+    const availableSuffixes = [...SUFFIXES];
+    const s1 = availableSuffixes.splice(Math.floor(Math.random() * availableSuffixes.length), 1)[0];
+    const s2 = availableSuffixes.splice(Math.floor(Math.random() * availableSuffixes.length), 1)[0];
+
+    affixes.push({
+      id: `pref_${p.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: p.name,
+      desc: p.desc,
+      type: p.type,
+      value: scaleAffixVal(p.valRange),
+      ...(p.element ? { element: p.element } : {}),
+    });
+    affixes.push({
+      id: `suf1_${s1.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: s1.name,
+      desc: s1.desc,
+      type: s1.type,
+      value: scaleAffixVal(s1.valRange),
+      ...(s1.element ? { element: s1.element } : {}),
+    });
+    affixes.push({
+      id: `suf2_${s2.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: s2.name,
+      desc: s2.desc,
+      type: s2.type,
+      value: scaleAffixVal(s2.valRange),
+      ...(s2.element ? { element: s2.element } : {}),
+    });
+    fullName = `${p.name} ${baseName} ${s1.name} ${s2.name} ${itemLevel} ур.`;
+  } else {
+    // Легендарное (4 аффикса): «Бездненный Клинок Хаоса Скверны и Вечности 10 ур.»
+    // (4 аффикса + спец. эффекты / Чёрная Магия)
+    const darkOrElemPrefixes = PREFIXES.filter((p) => p.type === 'darkMagic' || p.type === 'element');
+    const p = (darkOrElemPrefixes.length > 0 && Math.random() < 0.65)
+      ? darkOrElemPrefixes[Math.floor(Math.random() * darkOrElemPrefixes.length)]
+      : PREFIXES[Math.floor(Math.random() * PREFIXES.length)];
+
+    const availableSuffixes = [...SUFFIXES];
+    const s1 = availableSuffixes.splice(Math.floor(Math.random() * availableSuffixes.length), 1)[0];
+    const s2 = availableSuffixes.splice(Math.floor(Math.random() * availableSuffixes.length), 1)[0];
+    const s3 = availableSuffixes.splice(Math.floor(Math.random() * availableSuffixes.length), 1)[0];
+
+    affixes.push({
+      id: `pref_${p.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: p.name,
+      desc: p.desc,
+      type: p.type,
+      value: scaleAffixVal(p.valRange),
+      ...(p.element ? { element: p.element } : {}),
+    });
+    affixes.push({
+      id: `suf1_${s1.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: s1.name,
+      desc: s1.desc,
+      type: s1.type,
+      value: scaleAffixVal(s1.valRange),
+      ...(s1.element ? { element: s1.element } : {}),
+    });
+    affixes.push({
+      id: `suf2_${s2.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: s2.name,
+      desc: s2.desc,
+      type: s2.type,
+      value: scaleAffixVal(s2.valRange),
+      ...(s2.element ? { element: s2.element } : {}),
+    });
+    affixes.push({
+      id: `suf3_${s3.name}_${Math.random().toString(36).substring(2, 6)}`,
+      name: s3.name,
+      desc: s3.desc,
+      type: s3.type,
+      value: scaleAffixVal(s3.valRange),
+      ...(s3.element ? { element: s3.element } : {}),
+    });
+
+    fullName = `${p.name} ${baseName} ${s1.name} ${s2.name} и ${s3.name} ${itemLevel} ур.`;
   }
 
   const weapon: Weapon = {
@@ -581,6 +730,10 @@ export function generateRandomWeapon(floor: number, forcedType?: WeaponType, for
     type,
     rarity,
     level: 0,
+    itemLevel,
+    stars: 0,
+    starXp: 0,
+    starMaxXp: 100,
     statDamage: statDmg,
     statSpeed: statSpd,
     statMagicVitality: statMag,
@@ -724,8 +877,8 @@ export function applyScrollToWeapon(scroll: ScrollItem, weapon: Weapon): { messa
   }
 
   if (scroll.type === 'transmutation') {
-    const rarities: WeaponRarity[] = ['common', 'magic', 'rare', 'legendary'];
-    const currentIdx = rarities.indexOf(weapon.rarity);
+    const rarities: WeaponRarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    const currentIdx = rarities.indexOf(weapon.rarity === 'magic' ? 'uncommon' : weapon.rarity);
     if (currentIdx < rarities.length - 1) {
       weapon.rarity = rarities[currentIdx + 1];
     }
@@ -781,6 +934,10 @@ export function createStarterWeapon(heroClass: string): Weapon {
       type: 'wand',
       rarity: 'magic',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 10,
       statSpeed: 8,
       statMagicVitality: 14,
@@ -842,6 +999,10 @@ export function createStarterWeapon(heroClass: string): Weapon {
       type: 'dagger',
       rarity: 'magic',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 7,
       statSpeed: 16,
       statMagicVitality: 4,
@@ -884,6 +1045,10 @@ export function createStarterWeapon(heroClass: string): Weapon {
       type: 'sword',
       rarity: 'magic',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 12,
       statSpeed: 7,
       statMagicVitality: 10,
@@ -933,6 +1098,10 @@ export function createStarterWeapon(heroClass: string): Weapon {
       type: 'hammer',
       rarity: 'magic',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 18,
       statSpeed: 5,
       statMagicVitality: 4,
@@ -975,6 +1144,10 @@ export function createStarterWeapon(heroClass: string): Weapon {
     type: 'sword',
     rarity: 'common',
     level: 0,
+    itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
     statDamage: 9,
     statSpeed: 9,
     statMagicVitality: 8,
@@ -1018,6 +1191,10 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       type: 'wand',
       rarity: 'rare',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 12,
       statSpeed: 10,
       statMagicVitality: 16,
@@ -1079,6 +1256,10 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       type: 'sword',
       rarity: 'rare',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 18,
       statSpeed: 6,
       statMagicVitality: 8,
@@ -1128,6 +1309,10 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       type: 'dagger',
       rarity: 'rare',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 8,
       statSpeed: 20,
       statMagicVitality: 6,
@@ -1177,6 +1362,10 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       type: 'wand',
       rarity: 'rare',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 14,
       statSpeed: 9,
       statMagicVitality: 18,
@@ -1231,6 +1420,10 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       type: 'wand',
       rarity: 'legendary',
       level: 0,
+      itemLevel: 1,
+      stars: 0,
+      starXp: 0,
+      starMaxXp: 100,
       statDamage: 14,
       statSpeed: 12,
       statMagicVitality: 22,
@@ -1287,4 +1480,187 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
   }
 
   return createStarterWeapon(heroClass);
+}
+
+
+// -------------------------------------------------------------
+// Система Звёздности и Поглощения Лута (Star Infusion & Risk System)
+// -------------------------------------------------------------
+export function getStarRisks(currentStars: number, starAffinityBonus = 0): { breakChance: number; resetChance: number } {
+  if (currentStars <= 0) {
+    // 0 -> 1 звезда: абсолютно безопасно!
+    return { breakChance: 0, resetChance: 0 };
+  }
+  // Шанс поломки оружия в пыль: 1% на 1★, растет по +0.5% за каждую последующую звезду
+  const breakChance = Math.min(0.06, 0.01 + (currentStars - 1) * 0.005);
+
+  // Шанс сброса звездности до 0: 40% на 1★, 50% на 2★, 60% на 3★, 70% на 4★, 80% на 5★+
+  let resetChance = Math.min(0.85, 0.40 + (currentStars - 1) * 0.10);
+  if (starAffinityBonus > 0) {
+    resetChance = Math.max(0.15, resetChance - starAffinityBonus * 0.08);
+  }
+
+  return { breakChance, resetChance };
+}
+
+export function createBrokenFallbackWeapon(heroClass: string = 'zombie'): Weapon {
+  const baseNames: Record<string, string> = {
+    sorcerer: 'Треснувший Огарок Посоха 1 ур.',
+    assassin: 'Затупленный Обломок Стилета 1 ур.',
+    paladin: 'Погнутый Меч Пепла 1 ур.',
+    berserker: 'Расколотый Боевой Молот 1 ур.',
+    zombie: 'Ржавый Обломок Клинка 1 ур.',
+  };
+  return {
+    id: `broken_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: baseNames[heroClass] || 'Ржавый Обломок Клинка 1 ур.',
+    type: heroClass === 'sorcerer' ? 'wand' : heroClass === 'assassin' ? 'dagger' : heroClass === 'berserker' ? 'hammer' : 'sword',
+    rarity: 'common',
+    level: 0,
+    itemLevel: 1,
+    stars: 0,
+    starXp: 0,
+    starMaxXp: 100,
+    statDamage: 5,
+    statSpeed: 6,
+    statMagicVitality: 4,
+    baseDamage: 14,
+    attackCooldown: 0.28,
+    attackRange: 46,
+    affixes: [],
+    bonusDamage: 14,
+    bonusSpeedPct: 0,
+    bonusMaxHp: 0,
+    bonusCritChance: 0,
+    bonusCritMult: 2.0,
+    bonusLifesteal: 0,
+    bonusMoveSpeed: 0,
+    bonusLightRadius: 0,
+    bonusKnockback: 0,
+    bonusArmor: 0,
+    bonusMultishot: 0,
+    bonusHoming: false,
+    bonusExplosive: false,
+    bonusExecute: false,
+    bonusSouls: false,
+    bonusDarkMagicPct: 0,
+    svgIcon: generateWeaponSvg('sword', 'common'),
+  };
+}
+
+export function getStarXpFromWeapon(consumedWeapon: Weapon): { xp: number; directStars: number } {
+  // Обычный дает меньше опыта.
+  // Легендарный качает сразу 2 звезды!
+  switch (consumedWeapon.rarity) {
+    case 'legendary':
+      return { xp: 0, directStars: 2 };
+    case 'epic':
+      return { xp: 350, directStars: 1 };
+    case 'rare':
+      return { xp: 180, directStars: 0 };
+    case 'uncommon':
+    case 'magic':
+      return { xp: 75, directStars: 0 };
+    case 'common':
+    default:
+      return { xp: 35, directStars: 0 };
+  }
+}
+
+export type StarInfusionOutcome = 'success' | 'reset' | 'broken';
+
+export interface StarInfusionResult {
+  upgradedWeapon: Weapon;
+  outcome: StarInfusionOutcome;
+  starsGained: number;
+  xpGained: number;
+  leveledUp: boolean;
+  breakChance: number;
+  resetChance: number;
+}
+
+export function infuseWeaponWithStarXp(
+  equippedWeapon: Weapon,
+  consumedWeapon: Weapon,
+  starAffinityBonus = 0,
+  heroClass = 'zombie'
+): StarInfusionResult {
+  const { xp: baseExp, directStars } = getStarXpFromWeapon(consumedWeapon);
+  const xpGained = Math.round(baseExp * (1 + starAffinityBonus * 0.35));
+
+  let starsToAdd = directStars;
+  equippedWeapon.starXp = (equippedWeapon.starXp || 0) + xpGained;
+  if (!equippedWeapon.starMaxXp) {
+    equippedWeapon.starMaxXp = 100 + ((equippedWeapon.stars || 0) * 80);
+  }
+
+  while (equippedWeapon.starXp >= equippedWeapon.starMaxXp) {
+    equippedWeapon.starXp -= equippedWeapon.starMaxXp;
+    starsToAdd += 1;
+    equippedWeapon.starMaxXp = 100 + (((equippedWeapon.stars || 0) + starsToAdd) * 80);
+  }
+
+  const currentStars = equippedWeapon.stars || 0;
+  const risks = getStarRisks(currentStars, starAffinityBonus);
+
+  if (starsToAdd > 0) {
+    // Проверка риска только если текущие звезды >= 1
+    if (currentStars >= 1) {
+      const roll = Math.random();
+      // 1% шанс поломки в пыль
+      if (roll < risks.breakChance) {
+        const brokenWpn = createBrokenFallbackWeapon(heroClass);
+        return {
+          upgradedWeapon: brokenWpn,
+          outcome: 'broken',
+          starsGained: 0,
+          xpGained,
+          leveledUp: false,
+          breakChance: risks.breakChance,
+          resetChance: risks.resetChance,
+        };
+      }
+      // ~50% (и выше) шанс сброса до 0 звезд
+      if (roll < risks.breakChance + risks.resetChance) {
+        equippedWeapon.stars = 0;
+        equippedWeapon.starXp = 0;
+        equippedWeapon.starMaxXp = 100;
+        const downgraded = calculateWeaponStats(equippedWeapon);
+        return {
+          upgradedWeapon: downgraded,
+          outcome: 'reset',
+          starsGained: 0,
+          xpGained,
+          leveledUp: false,
+          breakChance: risks.breakChance,
+          resetChance: risks.resetChance,
+        };
+      }
+    }
+
+    // Успех закалки!
+    equippedWeapon.stars = currentStars + starsToAdd;
+    const upgraded = calculateWeaponStats(equippedWeapon);
+    return {
+      upgradedWeapon: upgraded,
+      outcome: 'success',
+      starsGained: starsToAdd,
+      xpGained,
+      leveledUp: true,
+      breakChance: risks.breakChance,
+      resetChance: risks.resetChance,
+    };
+  }
+
+  // Опыт накоплен, но уровня звезды еще нет
+  const upgraded = calculateWeaponStats(equippedWeapon);
+  return {
+    upgradedWeapon: upgraded,
+    outcome: 'success',
+    starsGained: 0,
+    xpGained,
+    leveledUp: false,
+    breakChance: risks.breakChance,
+    resetChance: risks.resetChance,
+  };
 }

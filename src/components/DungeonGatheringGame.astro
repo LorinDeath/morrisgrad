@@ -216,9 +216,7 @@
           </div>
         </div>
 
-        <button id="btn-show-charsheet" class="hud-mini-btn" title="Характеристики и оружие (Tab)">
-          📊
-        </button>
+        <button id="btn-show-charsheet" class="hud-gear-btn" title="Характеристики и оружие (Tab)">🎒 Снаряжение [TAB]</button>
         <button id="btn-show-relics" class="hud-mini-btn" title="Собранные реликвии (I)">
           📜
         </button>
@@ -1628,6 +1626,142 @@
   .btn-dash { background: #0284c7; border: 2px solid #7dd3fc; color: #fff; }
   .btn-pot { background: #16a34a; border: 2px solid #86efac; color: #fff; }
 
+
+  /* Always-Visible HUD Weapon Card */
+  .hud-gear-btn {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1.5px solid #ffd700;
+    color: #fde047;
+    font-weight: 800;
+    font-size: 0.78rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.25);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .hud-gear-btn:hover {
+    background: #ffd700;
+    color: #0f172a;
+    box-shadow: 0 0 18px rgba(255, 215, 0, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .hud-weapon-card {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    background: rgba(15, 23, 42, 0.94);
+    border: 2px solid #64748b;
+    border-radius: 12px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    z-index: 50;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    user-select: none;
+    max-width: 380px;
+  }
+  .hud-weapon-card:hover {
+    transform: translateY(-2px);
+    border-color: #ffd700;
+    box-shadow: 0 6px 24px rgba(255, 215, 0, 0.35);
+  }
+  .hw-icon-box {
+    width: 44px;
+    height: 44px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1.5px solid #475569;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .hw-icon-box svg {
+    width: 32px;
+    height: 32px;
+  }
+  .hw-info-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex-grow: 1;
+    min-width: 0;
+  }
+  .hw-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hw-name {
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #e2e8f0;
+  }
+  .hw-stars {
+    font-size: 0.75rem;
+    color: #facc15;
+    font-weight: bold;
+  }
+  .hw-stats-row {
+    display: flex;
+    gap: 8px;
+    font-size: 0.75rem;
+    font-family: monospace;
+    font-weight: bold;
+  }
+  .hw-affixes-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    max-height: 18px;
+    overflow: hidden;
+  }
+  .hw-affix-tag {
+    font-size: 0.65rem;
+    background: rgba(30, 41, 59, 0.8);
+    color: #94a3b8;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+  }
+  .hw-inspect-btn {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #ffd700;
+    background: rgba(255, 215, 0, 0.15);
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    border-radius: 6px;
+    padding: 4px 8px;
+    white-space: nowrap;
+    text-align: center;
+  }
+  @media (max-width: 768px) {
+    .hud-weapon-card {
+      bottom: auto;
+      top: 68px;
+      left: 12px;
+      padding: 6px 10px;
+      max-width: 290px;
+    }
+    .hw-icon-box {
+      width: 36px;
+      height: 36px;
+    }
+    .hw-inspect-btn {
+      display: none;
+    }
+  }
+
   /* MODALS - display: none when inactive completely removes click hijacking! */
   .game-modal-overlay {
     position: fixed;
@@ -2279,23 +2413,24 @@
     const loadMeta = (): { blueCoins: number; upgrades: MetaUpgrades } => {
       try {
         const raw = localStorage.getItem(metaStorageKey);
-        return raw
-          ? JSON.parse(raw)
-          : {
-              blueCoins: 0,
-              upgrades: {
-                extraHearts: 0,
-                extraDamage: 0,
-                extraGold: 0,
-                extraLight: 0,
-                extraPotions: 0,
-                vampireMastery: 0,
-                critMastery: 0,
-                greedMastery: 0,
-                spectralDiscount: 0,
-                soulMagnet: 0,
-              },
-            };
+        const parsed = raw ? JSON.parse(raw) : null;
+        return {
+          blueCoins: parsed?.blueCoins || 0,
+          upgrades: {
+            extraHearts: parsed?.upgrades?.extraHearts || 0,
+            extraDamage: parsed?.upgrades?.extraDamage || 0,
+            extraGold: parsed?.upgrades?.extraGold || 0,
+            extraLight: parsed?.upgrades?.extraLight || 0,
+            extraPotions: parsed?.upgrades?.extraPotions || 0,
+            vampireMastery: parsed?.upgrades?.vampireMastery || 0,
+            critMastery: parsed?.upgrades?.critMastery || 0,
+            greedMastery: parsed?.upgrades?.greedMastery || 0,
+            spectralDiscount: parsed?.upgrades?.spectralDiscount || 0,
+            soulMagnet: parsed?.upgrades?.soulMagnet || 0,
+            lootLuck: parsed?.upgrades?.lootLuck || 0,
+            starAffinity: parsed?.upgrades?.starAffinity || 0,
+          },
+        };
       } catch {
         return {
           blueCoins: 0,
@@ -2310,6 +2445,8 @@
             greedMastery: 0,
             spectralDiscount: 0,
             soulMagnet: 0,
+            lootLuck: 0,
+            starAffinity: 0,
           },
         };
       }
@@ -2800,7 +2937,25 @@
             onPrompt: (text: string | null) => {
               if (!promptToast) return;
               if (text) {
-                promptToast.textContent = text;
+                if (text.includes('[F]')) {
+                  promptToast.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;">
+                      <span>${text}</span>
+                      <button id="toast-btn-take" style="background:#2563eb;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:10px">E: Взять</button>
+                      <button id="toast-btn-infuse" style="background:#d97706;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:10px">F: В Звёзды ⭐</button>
+                    </div>
+                  `;
+                  document.getElementById('toast-btn-take')?.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    engine?.keys.add('KeyE');
+                  });
+                  document.getElementById('toast-btn-infuse')?.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    engine?.keys.add('KeyF');
+                  });
+                } else {
+                  promptToast.textContent = text;
+                }
                 promptToast.style.display = 'block';
               } else {
                 promptToast.style.display = 'none';
@@ -2986,9 +3141,11 @@
       const wpnCard = document.getElementById('cs-weapon-card');
       if (wpnCard && wpn) {
         const rarities: Record<string, { main: string; glow: string; label: string }> = {
-          common: { main: '#e2e8f0', glow: 'rgba(226, 232, 240, 0.4)', label: 'Обычное' },
-          magic: { main: '#38bdf8', glow: 'rgba(56, 189, 248, 0.6)', label: 'Магическое' },
-          rare: { main: '#facc15', glow: 'rgba(250, 204, 21, 0.7)', label: 'Редкое' },
+          common: { main: '#94a3b8', glow: 'rgba(148, 163, 184, 0.4)', label: 'Обычное' },
+          uncommon: { main: '#22c55e', glow: 'rgba(34, 197, 94, 0.6)', label: 'Необычное' },
+          magic: { main: '#22c55e', glow: 'rgba(34, 197, 94, 0.6)', label: 'Необычное' },
+          rare: { main: '#38bdf8', glow: 'rgba(56, 189, 248, 0.7)', label: 'Редкое' },
+          epic: { main: '#c084fc', glow: 'rgba(192, 132, 252, 0.8)', label: 'Эпическое' },
           legendary: { main: '#fb923c', glow: 'rgba(251, 146, 60, 0.9)', label: 'Легендарное' },
         };
         const rarityInfo = rarities[wpn.rarity] || rarities.common;
@@ -3019,14 +3176,20 @@
           <div class="cs-wpn-header" style="border-color: ${rarityInfo.main}; box-shadow: 0 0 15px ${rarityInfo.glow};">
             <div class="cs-wpn-icon-wrap">${wpn.svgIcon}</div>
             <div class="cs-wpn-title-col">
-              <h4 class="cs-wpn-name" style="color: ${rarityInfo.main}">${wpn.name} +${wpn.level}</h4>
+              <h4 class="cs-wpn-name" style="color: ${rarityInfo.main}">${wpn.name}${wpn.level > 0 ? ` +${wpn.level}` : ''}${wpn.stars > 0 ? ` ⭐x${wpn.stars} (+${wpn.stars * 10}%)` : ''}</h4>
               <span class="cs-wpn-rarity-badge" style="background: ${rarityInfo.glow}; color: ${rarityInfo.main}; border-color: ${rarityInfo.main}">
                 ${rarityInfo.label.toUpperCase()} • ${wpn.type.toUpperCase()}
               </span>
             </div>
           </div>
           <div class="cs-wpn-stats-body">
-            <div class="cs-wpn-stat-row"><span>⚔️ Базовый урон:</span> <b>${wpn.bonusDamage}</b></div>
+            ${wpn.stars > 0 || (wpn.starXp && wpn.starXp > 0) ? `
+              <div class="cs-wpn-stat-row" style="color:#facc15">
+                <span>⭐ Звёздность:</span>
+                <b>${'⭐'.repeat(wpn.stars || 0)} (+${(wpn.stars || 0) * 10}%) [EXP: ${wpn.starXp || 0}/${wpn.starMaxXp || 100}]</b>
+              </div>
+            ` : ''}
+            <div class="cs-wpn-stat-row"><span>⚔️ Итоговый урон:</span> <b>${wpn.bonusDamage}</b></div>
             <div class="cs-wpn-stat-row"><span>⚡ Задержка атаки:</span> <b>${wpn.attackCooldown.toFixed(2)} с</b></div>
             <div class="cs-wpn-stat-row"><span>📏 Радиус действия:</span> <b>${wpn.attackRange} px</b></div>
             ${projDesc}
@@ -3077,6 +3240,7 @@
     };
 
     if (btnShowCharSheet) btnShowCharSheet.addEventListener('click', toggleCharacterSheet);
+    document.getElementById('hud-weapon-card')?.addEventListener('click', toggleCharacterSheet);
     if (btnCloseCharSheet) btnCloseCharSheet.addEventListener('click', toggleCharacterSheet);
 
     const btnShowRelics = document.getElementById('btn-show-relics');
@@ -3217,7 +3381,22 @@
           costs: [5, 15],
           icon: '🧲',
         },
-
+        {
+          key: 'lootLuck' as keyof MetaUpgrades,
+          name: 'Удача Кладоискателя',
+          desc: '+25% к шансу выпадения снаряжения и повышенный шанс на редкие, эпические и легендарные предметы.',
+          max: 3,
+          costs: [5, 14, 28],
+          icon: '🍀',
+        },
+        {
+          key: 'starAffinity' as keyof MetaUpgrades,
+          name: 'Звёздный Резонанс',
+          desc: '+35% к опыту звёздности при поглощении предметов и +1 стартовая звезда для оружия.',
+          max: 3,
+          costs: [6, 15, 30],
+          icon: '⭐',
+        },
       ];
 
       upgradesList.forEach((upg) => {

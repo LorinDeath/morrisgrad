@@ -30,6 +30,8 @@ export function createInitialPlayer(
     greedMastery: 0,
     spectralDiscount: 0,
     soulMagnet: 0,
+    lootLuck: 0,
+    starAffinity: 0,
   },
   difficulty: DifficultyLevel = 'normal',
   gameMode: GameMode = 'campaign',
@@ -40,6 +42,9 @@ export function createInitialPlayer(
     ? createLoadoutWeapon(startingWeaponChoice, heroClass)
     : createStarterWeapon(heroClass);
 
+  if ((meta.starAffinity || 0) > 0) {
+    starterWeapon.stars = meta.starAffinity || 0;
+  }
   let maxHp = 6 + (meta.extraHearts || 0) * 2 + starterWeapon.bonusMaxHp;
   let speed = 132 + starterWeapon.bonusMoveSpeed;
   let damage = starterWeapon.bonusDamage + (meta.extraDamage || 0);
@@ -173,6 +178,22 @@ export function createInitialPlayer(
 
 let enemyIdCounter = 1;
 
+export function getDifficultyMobMultiplier(difficulty: DifficultyLevel = 'normal'): number {
+  switch (difficulty) {
+    case 'easy':
+      return 0.65;
+    case 'normal':
+      return 0.75;
+    case 'nightmare':
+      return 1.0;
+    case 'inferno':
+      return 1.4; // 1.3x – 1.5x
+    default:
+      return 0.75;
+  }
+}
+
+
 // 6 видов различных зомби + боссы с масштабированием сложности
 export function createEnemyInstance(
   type: EnemyType,
@@ -184,9 +205,9 @@ export function createEnemyInstance(
   difficulty: DifficultyLevel = 'normal'
 ): Enemy {
   let name = 'Чумной Зомби-Пехотинец';
-  let hp = 45 + floor * 10;
+  let baseHp = 42;
+  let baseDmg = 1;
   let speed = 48 + Math.random() * 12;
-  let damage = 1;
   let radius = 9;
   let attackCooldown = 0.9;
   let scale = 1.0;
@@ -197,8 +218,9 @@ export function createEnemyInstance(
   switch (type) {
     case 'zombie_walker':
       name = 'Чумной Зомби-Пехотинец';
-      hp = 42 + floor * 10;
-      speed = 52 + Math.random() * 10;
+      baseHp = 42;
+      baseDmg = 1;
+      speed = 56 + Math.random() * 10;
       radius = 9;
       rangedAttack = {
         name: 'Костяной шип',
@@ -215,7 +237,8 @@ export function createEnemyInstance(
 
     case 'zombie_spitter':
       name = 'Кислотный Зомби-Плевун';
-      hp = 36 + floor * 8;
+      baseHp = 36;
+      baseDmg = 1;
       speed = 55 + Math.random() * 12;
       radius = 9;
       tint = '#84cc16';
@@ -223,7 +246,7 @@ export function createEnemyInstance(
       rangedAttack = {
         name: 'Кислотная Сфера',
         cooldown: 1.8,
-        speed: 210,
+        speed: 235,
         damage: 1,
         range: 240,
         color: '#84cc16',
@@ -235,15 +258,16 @@ export function createEnemyInstance(
 
     case 'zombie_runner':
       name = 'Бешеный Чумник-Спринтер';
-      hp = 30 + floor * 7;
-      speed = 92 + Math.random() * 18;
+      baseHp = 30;
+      baseDmg = 1;
+      speed = 106 + Math.random() * 16;
       radius = 8;
       attackCooldown = 0.6;
       tint = '#38bdf8';
       rangedAttack = {
         name: 'Теневой Дротик',
         cooldown: 1.5,
-        speed: 290,
+        speed: 310,
         damage: 1,
         range: 190,
         color: '#38bdf8',
@@ -255,9 +279,9 @@ export function createEnemyInstance(
 
     case 'zombie_brute':
       name = 'Чумной Громила-Таран';
-      hp = 110 + floor * 30;
+      baseHp = 110;
+      baseDmg = 2;
       speed = 38 + Math.random() * 8;
-      damage = 2;
       radius = 15;
       scale = 1.45;
       attackCooldown = 1.4;
@@ -266,8 +290,8 @@ export function createEnemyInstance(
       rangedAttack = {
         name: 'Сокрушительный Валун',
         cooldown: 2.8,
-        speed: 160,
-        damage: 2,
+        speed: 180,
+        damage: 3,
         range: 220,
         color: '#78350f',
         trailColor: '#451a03',
@@ -278,7 +302,8 @@ export function createEnemyInstance(
 
     case 'zombie_witch':
       name = 'Некромантка Склепа';
-      hp = 46 + floor * 9;
+      baseHp = 46;
+      baseDmg = 1;
       speed = 46 + Math.random() * 8;
       radius = 9;
       tint = '#c084fc';
@@ -299,7 +324,8 @@ export function createEnemyInstance(
 
     case 'zombie_pyro':
       name = 'Пепельный Зомби-Пиромант';
-      hp = 52 + floor * 12;
+      baseHp = 52;
+      baseDmg = 1;
       speed = 50 + Math.random() * 10;
       radius = 10;
       tint = '#fb923c';
@@ -320,9 +346,9 @@ export function createEnemyInstance(
 
     case 'zombie_boss':
       name = 'Нечестивый Колосс Склепа';
-      hp = 540 + floor * 200;
-      speed = 62 + floor * 4;
-      damage = 2 + Math.floor(floor / 2);
+      baseHp = 650;
+      baseDmg = 2;
+      speed = 70 + floor * 4;
       radius = 28;
       scale = 2.6;
       attackCooldown = 1.1;
@@ -342,19 +368,42 @@ export function createEnemyInstance(
       break;
   }
 
+  // 5. Независимый скейлинг статов мобов по этажу:
+  // HP: BaseHP * (1 + (Floor - 1) * 0.28)
+  // Damage: BaseDMG * (1 + (Floor - 1) * 0.18)
+  const floorFactorHp = 1 + (floor - 1) * 0.35;
+  const floorFactorDmg = 1 + (floor - 1) * 0.25;
+
+  let hp = Math.round(baseHp * floorFactorHp);
+  let damage = Math.max(1, Math.round(baseDmg * floorFactorDmg));
+  if (rangedAttack) {
+    rangedAttack.damage = Math.max(1, Math.round(rangedAttack.damage * floorFactorDmg));
+  }
+
+  // Броня моба: базовое сопротивление возрастает плавно с 5-го этажа
+  let armor = 0;
+  if (floor >= 4) {
+    const floorArmorBonus = Math.floor((floor - 3) * 1.6);
+    const typeMult = type === 'zombie_brute' ? 1.5 : type === 'zombie_boss' ? 2.0 : 1.0;
+    armor = Math.round(floorArmorBonus * typeMult);
+  }
+
   // Масштабирование от уровня сложности
   if (difficulty === 'easy') {
     hp = Math.max(12, Math.round(hp * 0.75));
     speed *= 0.88;
+    armor = Math.max(0, armor - 2);
   } else if (difficulty === 'nightmare') {
     hp = Math.round(hp * 1.30);
-    damage = Math.round(damage * 1.4);
+    damage = Math.round(damage * 1.35);
     speed *= 1.15;
+    armor += 1;
     attackCooldown = Math.max(0.4, attackCooldown * 0.85);
   } else if (difficulty === 'inferno') {
     hp = Math.round(hp * 1.60);
-    damage = Math.round(damage * 1.8);
+    damage = Math.round(damage * 1.65);
     speed *= 1.25;
+    armor += 2;
     attackCooldown = Math.max(0.35, attackCooldown * 0.75);
   }
 
@@ -366,6 +415,7 @@ export function createEnemyInstance(
   if (isMiniBoss) {
     hp = Math.round(hp * 2.8);
     damage += 1;
+    armor += 3;
     scale *= 1.35;
     speed += 8;
     name = `★ СТРАЖ: ${name}`;
@@ -374,6 +424,7 @@ export function createEnemyInstance(
   } else if (isElite) {
     hp = Math.round(hp * 2.0);
     damage += 1;
+    armor += 1;
     scale *= 1.15;
     const affixes: Enemy['eliteAffix'][] = ['fire', 'frost', 'vampiric'];
     eliteAffix = affixes[Math.floor(Math.random() * affixes.length)];
@@ -401,6 +452,7 @@ export function createEnemyInstance(
     maxHp: hp,
     speed,
     damage,
+    armor,
     attackRange: rangedAttack ? rangedAttack.range : radius + 16,
     attackCooldown,
     attackTimer: Math.random() * 0.5,
@@ -442,7 +494,6 @@ export function spawnEnemiesForRoom(
   // 1. ОБУЧАЮЩИЙ РЕЖИМ (TUTORIAL)
   if (mode === 'tutorial') {
     if (room.id === 1) {
-      // 2 слабых тренировочных манекена
       for (let i = 0; i < 2; i++) {
         const dummy = createEnemyInstance('zombie_walker', (room.cx - 2 + i * 4) * 16 + 8, room.cy * 16 + 8, 1, room.id, false, 'easy');
         dummy.name = 'Тренировочный Зомби';
@@ -452,7 +503,6 @@ export function spawnEnemiesForRoom(
         enemies.push(dummy);
       }
     } else if (room.id === 2) {
-      // 2 зомби для проверки спецнавыка Q
       for (let i = 0; i < 2; i++) {
         const dummy = createEnemyInstance('zombie_spitter', (room.cx - 2 + i * 4) * 16 + 8, room.cy * 16 + 8, 1, room.id, false, 'easy');
         dummy.name = 'Манекен Навыка';
@@ -461,7 +511,6 @@ export function spawnEnemiesForRoom(
         enemies.push(dummy);
       }
     } else if (room.id === 4) {
-      // Тренировочный Страж
       const guardian = createEnemyInstance('zombie_brute', room.cx * 16 + 8, room.cy * 16 + 8, 1, room.id, true, 'easy');
       guardian.name = '★ ТРЕНИРОВОЧНЫЙ СТРАЖ';
       guardian.hp = 140;
@@ -474,7 +523,7 @@ export function spawnEnemiesForRoom(
   // 2. БОСС-РАШ (BOSS RUSH)
   if (mode === 'boss_rush') {
     if (room.type === 'boss') {
-      const wave = floor; // Floor corresponds to wave number (1 to 5)
+      const wave = floor;
       if (wave === 1) {
         enemies.push(createEnemyInstance('zombie_brute', room.cx * 16 + 8, room.cy * 16 + 8, 3, room.id, true, difficulty));
       } else if (wave === 2) {
@@ -499,6 +548,12 @@ export function spawnEnemiesForRoom(
   // 3. КАМПАНИЯ И БЕСКОНЕЧНЫЙ СПУСК
   if (room.type === 'spawn' || room.type === 'shrine' || room.type === 'shop') return enemies;
 
+  // 1. Зависимость плотности спавна от сложности игры
+  // Обычная (Normal / Casual): 0.65x – 0.75x
+  // Кошмар (Nightmare): 1.0x
+  // Ад / Пекло (Inferno): 1.3x – 1.5x (1.4x)
+  const mobMultiplier = getDifficultyMobMultiplier(difficulty);
+
   // Boss Chamber
   if (room.type === 'boss') {
     const boss = createEnemyInstance('zombie_boss', room.cx * 16 + 8, room.cy * 16 + 8, floor, room.id, false, difficulty);
@@ -518,10 +573,11 @@ export function spawnEnemiesForRoom(
     enemies.push(boss);
 
     const minionTypes: EnemyType[] = ['zombie_witch', 'zombie_pyro', 'zombie_brute'];
-    for (let i = 0; i < 3; i++) {
+    const minionCount = Math.max(2, Math.round(3 * mobMultiplier));
+    for (let i = 0; i < minionCount; i++) {
       const mx = (room.cx - 3 + i * 3) * 16 + 8;
       const my = (room.cy + 3) * 16 + 8;
-      enemies.push(createEnemyInstance(minionTypes[i], mx, my, floor, room.id, false, difficulty));
+      enemies.push(createEnemyInstance(minionTypes[i % minionTypes.length], mx, my, floor, room.id, false, difficulty));
     }
     return enemies;
   }
@@ -535,9 +591,10 @@ export function spawnEnemiesForRoom(
     'zombie_pyro',
   ];
 
-  // Зал Орды - 20-30 зомби!
+  // Зал Орды - 20-30 зомби (с учетом множителя сложности)
   if (room.type === 'horde') {
-    const hordeCount = 20 + Math.floor(Math.random() * 11);
+    const baseHordeCount = 20 + Math.floor(Math.random() * 11);
+    const hordeCount = Math.max(10, Math.round(baseHordeCount * mobMultiplier));
     for (let i = 0; i < hordeCount; i++) {
       const rx = room.x + 2 + Math.floor(Math.random() * (room.w - 4));
       const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));
@@ -549,13 +606,14 @@ export function spawnEnemiesForRoom(
     return enemies;
   }
 
-  // Обитель Стража - 5-6 монстров и 1 Мини-Босс
+  // Обитель Стража - 1 Мини-Босс и свита с плотностью по сложности
   if (room.type === 'elite') {
     const bossType: EnemyType = Math.random() < 0.5 ? 'zombie_brute' : 'zombie_pyro';
     enemies.push(
       createEnemyInstance(bossType, room.cx * 16 + 8, room.cy * 16 + 8, floor, room.id, true, difficulty)
     );
-    for (let i = 0; i < 5; i++) {
+    const minionCount = Math.max(2, Math.round(5 * mobMultiplier));
+    for (let i = 0; i < minionCount; i++) {
       const rx = room.x + 2 + Math.floor(Math.random() * (room.w - 4));
       const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));
       const chosenType = normalTypes[Math.floor(Math.random() * normalTypes.length)];
@@ -566,10 +624,11 @@ export function spawnEnemiesForRoom(
     return enemies;
   }
 
-  // Спокойная галерея (0-2 монстра)
+  // Спокойная галерея (0-2 монстра, скейлинг по сложности)
   if (room.type === 'normal') {
     const isQuiet = Math.random() < 0.45;
-    const count = isQuiet ? (Math.random() < 0.5 ? 0 : 1) : 2 + Math.floor(Math.random() * 3);
+    const baseCount = isQuiet ? (Math.random() < 0.5 ? 0 : 1) : 2 + Math.floor(Math.random() * 3);
+    const count = Math.round(baseCount * mobMultiplier);
 
     for (let i = 0; i < count; i++) {
       const rx = room.x + 2 + Math.floor(Math.random() * (room.w - 4));
@@ -582,7 +641,9 @@ export function spawnEnemiesForRoom(
     return enemies;
   }
 
-  const count = room.type === 'treasure' ? 2 : 6;
+  // Сокровищницы и прочие залы
+  const baseCount = room.type === 'treasure' ? 2 : 6;
+  const count = Math.max(1, Math.round(baseCount * mobMultiplier));
   for (let i = 0; i < count; i++) {
     const rx = room.x + 2 + Math.floor(Math.random() * (room.w - 4));
     const ry = room.y + 2 + Math.floor(Math.random() * (room.h - 4));

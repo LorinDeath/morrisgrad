@@ -534,7 +534,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
     if (r.type === 'spawn') {
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, 'wand', 'magic'),
+        weapon: generateRandomWeapon(floorNumber, 'wand', 'uncommon'),
         x: (r.cx + 2) * 16 + 8,
         y: (r.cy + 1) * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -552,7 +552,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
       });
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.5 ? 'legendary' : 'rare'),
+        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.5 ? 'legendary' : 'epic', true),
         x: (r.cx - 2) * 16 + 8,
         y: r.cy * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -567,7 +567,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
     } else if (r.type === 'horde') {
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, undefined, 'rare'),
+        weapon: generateRandomWeapon(floorNumber, undefined, 'rare', true),
         x: r.cx * 16 + 8,
         y: (r.cy - 2) * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -591,7 +591,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
       }
       groundWeapons.push({
         id: groundIdCounter++,
-        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.4 ? 'legendary' : 'rare'),
+        weapon: generateRandomWeapon(floorNumber, undefined, Math.random() < 0.4 ? 'legendary' : 'epic', true),
         x: r.cx * 16 + 8,
         y: r.cy * 16 + 8,
         bobTimer: Math.random() * Math.PI * 2,
@@ -607,7 +607,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
         });
       }
     } else if (r.type === 'normal') {
-      if (Math.random() < 0.35) {
+      if (Math.random() < 0.06) {
         groundWeapons.push({
           id: groundIdCounter++,
           weapon: generateRandomWeapon(floorNumber),
@@ -616,7 +616,7 @@ export function generateDungeon(floorNumber: number, mode: GameMode = 'campaign'
           bobTimer: Math.random() * Math.PI * 2,
         });
       }
-      if (Math.random() < 0.30) {
+      if (Math.random() < 0.06) {
         groundScrolls.push({
           id: groundIdCounter++,
           scroll: generateRandomScroll(),
@@ -749,7 +749,7 @@ export function generateTutorialDungeon(): DungeonMap {
   const groundWeapons: GroundWeapon[] = [
     {
       id: 991,
-      weapon: generateRandomWeapon(1, 'wand', 'magic'),
+      weapon: generateRandomWeapon(1, 'wand', 'uncommon'),
       x: rooms[1].cx * 16 + 8,
       y: rooms[1].cy * 16 + 8,
       bobTimer: 0,
