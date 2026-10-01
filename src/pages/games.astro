@@ -25,8 +25,23 @@ import geometriaImg from '../assets/geometria.png';
                 <img src="https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev/art/0_0%20(1).png" alt="Конкурс персонажей" class="game-icon" />
                 <span class="game-title" style="color: var(--accent-gold, #ffd700);">Квест: Конкурс Героев</span>
                 <div class="platforms">
-                    <span class="platform-tag" style="background: rgba(245, 208, 97, 0.2); color: #ffd700; border: 1px solid rgba(245,208,97,0.4);\">🏆 Ролевой Квест</span>
+                    <span class="platform-tag" style="background: rgba(245, 208, 97, 0.2); color: #ffd700; border: 1px solid rgba(245,208,97,0.4);">🏆 Ролевой Квест</span>
                     <span class="platform-tag" style="background: rgba(168, 85, 247, 0.2); color: #c084fc;">🎁 Награды</span>
+                </div>
+            </div>
+
+            <div class="game-card sanctuary-card" 
+                 data-title="Заповедный Лес: Тайны Древней Рощи" 
+                 data-desc="Масштабная 3D игра на поиск предметов и медитативное исследование в живом стилизованном лесу! Исследуйте вековые сосны, цветущие поляны и древние каменные святилища. Находите 12 священных реликвий, управляйте временем суток (золотой полдень, закат, лунная ночь, рассветный туман), используйте светлячка-проводника и делайте снимки в дзен-фотостудии. Полная поддержка кэширования 3D-ресурсов для мгновенного входа!" 
+                 data-game-url="/games/sanctuary" 
+                 data-changelog-url="/changelog-site">
+                <img src="/Stylized/Preview_1.jpg" alt="Заповедный Лес" class="game-icon" />
+                <span class="game-title" style="color: #ffd700;">Заповедный Лес</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4);">🌲 3D Поиск Реликвий</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                    <span class="platform-tag" style="background: rgba(212, 175, 55, 0.2); color: #ffd700; border: 1px solid rgba(212,175,55,0.4);">✨ Дзен & Релакс</span>
                 </div>
             </div>
 
@@ -187,6 +202,57 @@ import geometriaImg from '../assets/geometria.png';
         background: rgba(255,255,255,0.1);
         padding: 4px 8px;
         border-radius: 4px;
+    }
+
+    /* Sanctuary Card Style */
+    .sanctuary-card {
+        border-color: #34d399;
+        box-shadow: 0 0 18px rgba(52, 211, 153, 0.25);
+        background: linear-gradient(180deg, rgba(12, 28, 22, 0.94) 0%, rgba(6, 14, 12, 0.98) 100%);
+    }
+    .sanctuary-card:hover {
+        border-color: #ffd700;
+        box-shadow: 0 0 30px #ffd700, 0 0 15px #34d399;
+    }
+    .sanctuary-card .game-title {
+        color: #ffd700;
+        text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    }
+    .sanctuary-card:hover .game-icon {
+        border-color: #ffd700;
+        box-shadow: 0 0 20px #ffd700;
+    }
+
+    /* --- SANCTUARY THEME OVERRIDE --- */
+    .modal-content.sanctuary-theme {
+        border-color: #ffd700;
+        background: linear-gradient(180deg, rgba(12, 28, 22, 0.97) 0%, rgba(6, 14, 12, 0.99) 100%);
+        box-shadow: 0 0 50px rgba(255, 215, 0, 0.35), inset 0 0 30px rgba(52, 211, 153, 0.12);
+    }
+    .modal-content.sanctuary-theme #modal-title {
+        color: #ffd700;
+        text-shadow: 0 0 14px rgba(255, 215, 0, 0.7);
+    }
+    .modal-content.sanctuary-theme .start-btn {
+        border-color: #ffd700;
+        color: #ffd700;
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.25);
+    }
+    .modal-content.sanctuary-theme .start-btn:hover {
+        background: #ffd700;
+        color: #000;
+        box-shadow: 0 0 35px rgba(255, 215, 0, 0.8);
+    }
+    .modal-content.sanctuary-theme .changelog-link {
+        color: #ffd700;
+        border-color: #ffd700;
+    }
+    .modal-content.sanctuary-theme .changelog-link:hover {
+        color: #fff;
+        border-color: #fff;
+    }
+    .modal-content.sanctuary-theme .close-modal:hover {
+        color: #ffd700;
     }
 
     /* Ascetic Card Style */
@@ -540,18 +606,20 @@ import geometriaImg from '../assets/geometria.png';
                 if (changelogLink && changelogUrl) changelogLink.setAttribute('href', changelogUrl);
 
                 // Apply Theme based on card class
-                if (card.classList.contains('ascetic-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme');
+                if (card.classList.contains('sanctuary-card') && modalContent) {
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme');
+                    modalContent.classList.add('sanctuary-theme');
+                } else if (card.classList.contains('ascetic-card') && modalContent) {
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'sanctuary-theme');
                     modalContent.classList.add('ascetic-theme');
                 } else if (card.classList.contains('geometry-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme');
+                    modalContent.classList.remove('neon-theme', 'sanctuary-theme');
                     modalContent.classList.add('geometry-theme');
                 } else if (card.classList.contains('neon-card') && modalContent) {
-                    modalContent.classList.remove('geometry-theme');
+                    modalContent.classList.remove('geometry-theme', 'sanctuary-theme');
                     modalContent.classList.add('neon-theme');
                 } else if (modalContent) {
-                    modalContent.classList.remove('neon-theme');
-                    modalContent.classList.remove('geometry-theme');
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
                 }
 
                 modal.classList.add('active');

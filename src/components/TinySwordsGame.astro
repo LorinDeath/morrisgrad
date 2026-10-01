@@ -1,59 +1,73 @@
 ---
 // TinySwordsGame.astro - "Путь Аскетов: Осада МоррисГрад"
-// Полная RTS / Action-RPG стратегия с защитой цитадели на базе ассетов Tiny Swords
+// Ультимативная RTS & Action-RPG стратегия с защитой цитадели, квестами и полной системой строительства
 ---
 
 <div id="ascetic-game-container" class="ascetic-game-root">
   <!-- START / MENU SCREEN -->
   <div id="screen-menu" class="game-screen active">
     <div class="menu-overlay">
-      <div class="menu-card">
-        <div class="menu-badge">ОРДЕН АСКЕТОВ • МОРРИСГРАД</div>
+      <div class="menu-header-ribbon">
+        <img src="/Tiny Swords/UI Elements/UI Elements/Ribbons/SmallRibbons.png" alt="Ribbon" class="ribbon-gfx" />
+        <span class="ribbon-text">ОРДЕН АСКЕТОВ • МОРРИСГРАД</span>
+      </div>
+
+      <div class="title-emblem-wrap">
+        <img src="/Tiny Swords/UI Elements/UI Elements/Swords/Swords.png" alt="Swords" class="menu-swords-emblem" />
         <h1 class="game-title">ПУТЬ АСКЕТОВ</h1>
-        <div class="game-subtitle">ОСАДА ЦИТАДЕЛИ: ДРЕВНИЙ ОСТРОВ</div>
-        
-        <div class="menu-intro">
-          В суровых землях МоррисГрада орден Аскетов охраняет древний Источник Света.
-          Черный Легион идет войной. Возводите крепость, добывайте дерево и золото, 
-          нанимайте верных послушников, лучников и монахов, и встаньте плечом к плечу 
-          с верными воинами на защиту цитадели!
-        </div>
+        <div class="game-subtitle">ОСАДА ЦИТАДЕЛИ: ВОЙНА ПЯТИ ЗНАМЁН</div>
+      </div>
+      
+      <div class="menu-intro">
+        В священных землях МоррисГрада Черный Легион возвел цитадель Тьмы и начал наступление.
+        Управляйте Архистратигом Аскетов: рубите вековой лес, добывайте золотые самородки, возводите бастионы,
+        казармы и монастыри. Обучайте послушников, лучников и монахов. Выдержите 10 волн ночной осады 
+        ИЛИ соберите войско и <b>уничтожьте Черную Крепость врага</b> на севере острова!
+      </div>
 
-        <div class="mode-select-box">
-          <div class="mode-btn active" data-mode="campaign">
-            <span class="mode-icon">🛡️</span>
-            <div class="mode-text">
-              <span class="mode-name">Священная Кампания</span>
-              <span class="mode-desc">10 волн испытаний с финальным Владыкой Тьмы</span>
-            </div>
-          </div>
-          <div class="mode-btn" data-mode="endless">
-            <span class="mode-icon">⚔️</span>
-            <div class="mode-text">
-              <span class="mode-name">Бесконечная Осада</span>
-              <span class="mode-desc">Выживайте против нарастающих полчищ Черного Легиона</span>
-            </div>
+      <div class="mode-select-box">
+        <div class="mode-btn active" data-mode="campaign">
+          <span class="mode-icon">🛡️</span>
+          <div class="mode-text">
+            <span class="mode-name">Священная Кампания</span>
+            <span class="mode-desc">Сюжетные квесты, 10 волн осады + штурм Черной Цитадели</span>
           </div>
         </div>
-
-        <div class="difficulty-box">
-          <span class="diff-label">Сложность:</span>
-          <button class="diff-chip" data-diff="easy">Послушник (Легко)</button>
-          <button class="diff-chip active" data-diff="normal">Рыцарь (Норма)</button>
-          <button class="diff-chip" data-diff="hard">Аскет (Хардкор)</button>
+        <div class="mode-btn" data-mode="endless">
+          <span class="mode-icon">⚔️</span>
+          <div class="mode-text">
+            <span class="mode-name">Бесконечная Битва</span>
+            <span class="mode-desc">Выживание против нарастающей армии Тьмы</span>
+          </div>
         </div>
+      </div>
 
-        <div class="menu-actions">
-          <button id="btn-start-game" class="btn-primary-action">
-            <span class="btn-main-text">ВСТУПИТЬ В БОЙ</span>
-            <span class="btn-sub-text">ПРИНЯТЬ ОБЕТ АСКЕТА</span>
-          </button>
-        </div>
+      <div class="difficulty-box">
+        <span class="diff-label">Сложность:</span>
+        <button class="diff-chip" data-diff="easy">Послушник (Легко)</button>
+        <button class="diff-chip active" data-diff="normal">Рыцарь (Норма)</button>
+        <button class="diff-chip" data-diff="hard">Аскет (Хардкор)</button>
+      </div>
 
-        <div class="menu-quick-stats">
-          <span>🏆 Рекорд волн: <b id="stat-high-wave">0</b></span>
-          <span>💀 Уничтожено врагов: <b id="stat-high-kills">0</b></span>
-        </div>
+      <div class="menu-actions">
+        <button id="btn-start-game" class="btn-primary-action">
+          <span class="btn-main-text">ВСТУПИТЬ В БОЙ</span>
+          <span class="btn-sub-text">ПРИНЯТЬ ОБЕТ АСКЕТА</span>
+        </button>
+      </div>
+
+      <div class="menu-hotkeys-help">
+        <div class="hotkey-col"><b>WASD</b> — Движение</div>
+        <div class="hotkey-col"><b>ЛКМ</b> — Атака / Стройка</div>
+        <div class="hotkey-col"><b>ПКМ</b> — Блок / Приказ</div>
+        <div class="hotkey-col"><b>Q/E/R</b> — Вихрь / Рывок / Клич</div>
+        <div class="hotkey-col"><b>1..5</b> — Быстрый найм</div>
+        <div class="hotkey-col"><b>Shift+ЛКМ</b> — Выбор отрядов</div>
+      </div>
+
+      <div class="menu-quick-stats">
+        <span>🏆 Рекорд волн: <b id="stat-high-wave">0</b></span>
+        <span>💀 Уничтожено врагов: <b id="stat-high-kills">0</b></span>
       </div>
     </div>
   </div>
@@ -73,7 +87,7 @@
             </div>
             <div class="bar-track hp-track">
               <div id="hud-hero-hp" class="bar-fill hp-fill" style="width: 100%;"></div>
-              <span id="hud-hero-hp-text" class="bar-text">100 / 100</span>
+              <span id="hud-hero-hp-text" class="bar-text">280 / 280</span>
             </div>
             <div class="bar-track xp-track">
               <div id="hud-hero-xp" class="bar-fill xp-fill" style="width: 0%;"></div>
@@ -89,7 +103,7 @@
             <div class="castle-label">Цитадель Аскетов</div>
             <div class="bar-track castle-track">
               <div id="hud-castle-hp" class="bar-fill castle-fill" style="width: 100%;"></div>
-              <span id="hud-castle-hp-text" class="bar-text">2000 / 2000</span>
+              <span id="hud-castle-hp-text" class="bar-text">3000 / 3000</span>
             </div>
           </div>
         </div>
@@ -98,10 +112,10 @@
       <!-- Time & Wave Center Indicator -->
       <div class="hud-center">
         <div class="wave-box">
-          <div id="hud-phase-indicator" class="phase-badge day">☀️ ДЕНЬ (СБОР)</div>
+          <div id="hud-phase-indicator" class="phase-badge day">☀️ ДЕНЬ (СБОР И ЗАЩИТА)</div>
           <div class="time-countdown">
             <span id="hud-timer-label">До атаки:</span>
-            <span id="hud-countdown" class="timer-digits">00:45</span>
+            <span id="hud-countdown" class="timer-digits">00:50</span>
           </div>
           <div class="wave-count">Волна <span id="hud-current-wave">1</span> / <span id="hud-max-wave">10</span></div>
         </div>
@@ -120,19 +134,19 @@
         <div class="resources-row">
           <div class="res-item wood" title="Древесина">
             <img src="/Tiny Swords/Terrain/Resources/Wood/Wood Resource/Wood Resource.png" alt="Wood" class="res-icon" />
-            <span id="res-wood-val">120</span>
+            <span id="res-wood-val">180</span>
           </div>
           <div class="res-item gold" title="Золото">
             <img src="/Tiny Swords/Terrain/Resources/Gold/Gold Stones/Gold Stone 1.png" alt="Gold" class="res-icon" />
-            <span id="res-gold-val">150</span>
+            <span id="res-gold-val">180</span>
           </div>
           <div class="res-item food" title="Провизия">
             <img src="/Tiny Swords/Terrain/Resources/Meat/Meat Resource/Meat Resource.png" alt="Food" class="res-icon" />
-            <span id="res-food-val">40</span>
+            <span id="res-food-val">60</span>
           </div>
           <div class="res-item pop" title="Население">
             <span class="res-icon-text">👥</span>
-            <span id="res-pop-val">3/10</span>
+            <span id="res-pop-val">4/15</span>
           </div>
         </div>
 
@@ -147,53 +161,83 @@
     <div id="canvas-wrapper" class="canvas-wrapper">
       <canvas id="game-canvas"></canvas>
 
+      <!-- Quest Tracker Card on HUD -->
+      <div id="hud-quest-box" class="quest-tracker-pill">
+        <div class="quest-header">
+          <span class="quest-icon">📜</span>
+          <span class="quest-badge">СВЯЩЕННЫЙ ОБЕТ АСКЕТА</span>
+        </div>
+        <div id="quest-title" class="quest-title">1. Основание Обители</div>
+        <div id="quest-desc" class="quest-desc">Постройте 1 Хижину и наймите 2 послушников</div>
+        <div class="quest-progress-track">
+          <div id="quest-progress-fill" class="quest-progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
       <!-- Mini-map Radar -->
       <div class="minimap-container">
         <canvas id="minimap-canvas" width="160" height="120"></canvas>
-        <div class="minimap-title">КАРТА ЗЕМЕЛЬ</div>
+        <div class="minimap-title">РАДАР ЗЕМЕЛЬ</div>
       </div>
 
-      <!-- Quick Command Buttons -->
+      <!-- Army Command & Recruitment Bar -->
       <div class="army-command-bar">
-        <button id="cmd-follow" class="cmd-btn active" title="Приказ: Все солдаты следуют за Архистратигом">
-          🛡️ ЗА МНОЙ! (F)
-        </button>
-        <button id="cmd-defend" class="cmd-btn" title="Приказ: Оборонять Цитадель">
-          🏰 ОБОРОНА (G)
-        </button>
-        <button id="cmd-attack" class="cmd-btn" title="Приказ: Свободная охота на врагов">
-          ⚔️ В АТАКУ! (T)
-        </button>
-        <button id="cmd-hire-pawn" class="cmd-btn recruit-pawn" title="Нанять послушника (30 Золота, 10 Еды)">
-          ➕ ПОСЛУШНИК (1)
-        </button>
+        <div class="cmd-group">
+          <button id="cmd-follow" class="cmd-btn active" title="Приказ: Все солдаты следуют за Архистратигом">
+            🛡️ ЗА МНОЙ! (F)
+          </button>
+          <button id="cmd-defend" class="cmd-btn" title="Приказ: Оборонять Цитадель">
+            🏰 ОБОРОНА (G)
+          </button>
+          <button id="cmd-attack" class="cmd-btn" title="Приказ: Свободная охота на врагов">
+            ⚔️ В АТАКУ! (T)
+          </button>
+        </div>
+
+        <div class="recruit-group">
+          <button id="cmd-hire-pawn" class="recruit-btn" title="Послушник: строит и собирает ресурсы (25 🪙 10 🥩)">
+            <span class="rec-key">1</span> ⛏️ Пешка
+          </button>
+          <button id="cmd-hire-warrior" class="recruit-btn" title="Мечник: крепкая пехота передовой (50 🪙 20 🪵)">
+            <span class="rec-key">2</span> ⚔️ Мечник
+          </button>
+          <button id="cmd-hire-archer" class="recruit-btn" title="Лучник: стрелы на расстоянии (60 🪙 40 🪵)">
+            <span class="rec-key">3</span> 🏹 Лучник
+          </button>
+          <button id="cmd-hire-monk" class="recruit-btn" title="Монах: священное исцеление (80 🪙 30 🥩)">
+            <span class="rec-key">4</span> ⛪ Монах
+          </button>
+          <button id="cmd-hire-lancer" class="recruit-btn" title="Копейщик: длинный радиус атаки (70 🪙 30 🪵)">
+            <span class="rec-key">5</span> 🗡️ Копейщик
+          </button>
+        </div>
       </div>
 
       <!-- Action Hero Skills Toolbar -->
       <div class="hero-skills-bar">
-        <div id="skill-attack" class="skill-slot">
+        <div id="skill-attack" class="skill-slot" title="Удар мечом (или стройка рядом со зданием)">
           <div class="skill-key">ЛКМ / ПРОБЕЛ</div>
           <div class="skill-icon">🗡️</div>
-          <div class="skill-name">УДАР МЕЧОМ</div>
+          <div class="skill-name">УДАР / СТРОЙКА</div>
         </div>
-        <div id="skill-guard" class="skill-slot">
+        <div id="skill-guard" class="skill-slot" title="Блок священным щитом (поглощает 85% урона)">
           <div class="skill-key">ПКМ / SHIFT</div>
           <div class="skill-icon">🛡️</div>
           <div class="skill-name">БЛОК ЩИТОМ</div>
         </div>
-        <div id="skill-whirl" class="skill-slot">
+        <div id="skill-whirl" class="skill-slot" title="Очищающий Вихрь: круговой урон по площади">
           <div class="skill-key">Q</div>
           <div class="skill-icon">🌪️</div>
           <div class="skill-name">ВИХРЬ АСКЕТА</div>
           <div id="cd-whirl" class="skill-cd-mask"></div>
         </div>
-        <div id="skill-dash" class="skill-slot">
+        <div id="skill-dash" class="skill-slot" title="Рывок Веры: неуязвимость и отталкивание">
           <div class="skill-key">SPACE / E</div>
           <div class="skill-icon">⚡</div>
           <div class="skill-name">РЫВОК ВЕРЫ</div>
           <div id="cd-dash" class="skill-cd-mask"></div>
         </div>
-        <div id="skill-rally" class="skill-slot">
+        <div id="skill-rally" class="skill-slot" title="Клич Победы: исцеляет и ускоряет армию">
           <div class="skill-key">R</div>
           <div class="skill-icon">🎺</div>
           <div class="skill-name">КЛИЧ ПОБЕДЫ</div>
@@ -201,11 +245,11 @@
         </div>
       </div>
 
-      <!-- Construction / Recruitment Building Panel -->
+      <!-- Construction Building Panel -->
       <div class="building-bar">
-        <div class="build-bar-header">СТРОИТЕЛЬСТВО И НАЙМ (КЛИК ДЛЯ РАЗМЕЩЕНИЯ):</div>
+        <div class="build-bar-header">СТРОИТЕЛЬСТВО (ВЫБЕРИТЕ И КЛИКНИТЕ НА КАРТЕ — ПЕШКИ САМИ ПОСТРОЯТ!):</div>
         <div class="build-slots">
-          <button class="build-card" data-build="barracks">
+          <button class="build-card" data-build="barracks" title="Казармы: тренировка мечников и копейщиков">
             <img src="/Tiny Swords/Buildings/Blue Buildings/Barracks.png" alt="Barracks" />
             <div class="build-card-info">
               <span class="build-name">Казармы</span>
@@ -213,7 +257,7 @@
             </div>
           </button>
 
-          <button class="build-card" data-build="archery">
+          <button class="build-card" data-build="archery" title="Стрельбище: обучение лучников">
             <img src="/Tiny Swords/Buildings/Blue Buildings/Archery.png" alt="Archery" />
             <div class="build-card-info">
               <span class="build-name">Стрельбище</span>
@@ -221,7 +265,7 @@
             </div>
           </button>
 
-          <button class="build-card" data-build="monastery">
+          <button class="build-card" data-build="monastery" title="Монастырь: призыв монахов-целителей">
             <img src="/Tiny Swords/Buildings/Blue Buildings/Monastery.png" alt="Monastery" />
             <div class="build-card-info">
               <span class="build-name">Монастырь</span>
@@ -229,7 +273,7 @@
             </div>
           </button>
 
-          <button class="build-card" data-build="tower">
+          <button class="build-card" data-build="tower" title="Оборонительная Башня: ведет автоматический обстрел врагов">
             <img src="/Tiny Swords/Buildings/Blue Buildings/Tower.png" alt="Tower" />
             <div class="build-card-info">
               <span class="build-name">Башня Лучников</span>
@@ -237,7 +281,7 @@
             </div>
           </button>
 
-          <button class="build-card" data-build="house">
+          <button class="build-card" data-build="house" title="Хижина: увеличивает лимит армии на +5">
             <img src="/Tiny Swords/Buildings/Blue Buildings/House1.png" alt="House" />
             <div class="build-card-info">
               <span class="build-name">Хижина (+5 Поп.)</span>
@@ -262,7 +306,7 @@
 
       <!-- Interactive Tooltip Overlay -->
       <div id="hud-interaction-tip" class="interaction-tip">
-        Кликните, чтобы разместить здание (ESC — отмена)
+        Кликните на земле для закладки фундамента (ESC — отмена)
       </div>
     </div>
   </div>
@@ -345,12 +389,13 @@
     position: relative;
     width: 100vw;
     height: 100vh;
-    background: #0a0b10;
+    background: #07090e;
     color: #f1f5f9;
     font-family: 'Cinzel', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, serif;
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
+    cursor: url('/Tiny Swords/UI Elements/UI Elements/Cursors/Cursor_01.png'), auto;
   }
 
   .game-screen {
@@ -367,62 +412,86 @@
 
   /* MENU SCREEN */
   #screen-menu {
-    background: radial-gradient(circle at center, #1b2030 0%, #07090e 100%);
+    background: radial-gradient(circle at center, #1b233a 0%, #06080e 100%);
     justify-content: center;
     align-items: center;
     padding: 1.5rem;
+    overflow-y: auto;
   }
 
   .menu-overlay {
     width: 100%;
-    max-width: 680px;
-    background: rgba(15, 20, 32, 0.95);
+    max-width: 740px;
+    background: linear-gradient(180deg, rgba(22, 28, 44, 0.98) 0%, rgba(12, 16, 26, 0.98) 100%);
     border: 3px solid #d4af37;
-    border-radius: 16px;
-    padding: 2.2rem 2rem;
-    box-shadow: 0 0 50px rgba(212, 175, 55, 0.25), inset 0 0 30px rgba(0, 0, 0, 0.8);
+    border-radius: 18px;
+    padding: 2.2rem 2.4rem;
+    box-shadow: 0 0 50px rgba(212, 175, 55, 0.3), inset 0 0 30px rgba(0, 0, 0, 0.85);
     text-align: center;
     position: relative;
     backdrop-filter: blur(8px);
+    margin: auto;
   }
 
-  .menu-badge {
-    display: inline-block;
-    background: rgba(212, 175, 55, 0.15);
+  .menu-header-ribbon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.6rem;
+  }
+
+  .ribbon-gfx {
+    height: 38px;
+    image-rendering: pixelated;
+  }
+
+  .ribbon-text {
+    position: absolute;
     color: #ffd700;
-    border: 1px solid #d4af37;
-    padding: 4px 16px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 800;
+    font-size: 0.8rem;
+    font-weight: 900;
     letter-spacing: 2px;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .title-emblem-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     margin-bottom: 0.8rem;
   }
 
+  .menu-swords-emblem {
+    width: 64px;
+    height: auto;
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+    margin-bottom: 4px;
+  }
+
   .game-title {
-    font-size: 2.6rem;
+    font-size: 2.8rem;
     font-weight: 900;
     color: #ffd700;
     margin: 0;
     letter-spacing: 4px;
-    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 2px 4px #000;
+    text-shadow: 0 0 25px rgba(255, 215, 0, 0.6), 0 2px 4px #000;
   }
 
   .game-subtitle {
     font-size: 0.95rem;
     color: #94a3b8;
     letter-spacing: 3px;
-    margin-top: 0.3rem;
-    margin-bottom: 1.2rem;
-    font-weight: 700;
+    margin-top: 0.2rem;
+    font-weight: 800;
   }
 
   .menu-intro {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     line-height: 1.6;
     color: #cbd5e1;
-    margin-bottom: 1.6rem;
-    background: rgba(0, 0, 0, 0.4);
+    margin-bottom: 1.4rem;
+    background: rgba(0, 0, 0, 0.45);
     padding: 0.8rem 1.2rem;
     border-radius: 8px;
     border-left: 3px solid #d4af37;
@@ -440,28 +509,33 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    background: rgba(30, 41, 59, 0.6);
+    background: rgba(30, 41, 59, 0.7);
     border: 2px solid #475569;
-    border-radius: 10px;
-    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
     cursor: pointer;
     text-align: left;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
   }
 
   .mode-btn:hover {
     border-color: #ffd700;
-    background: rgba(212, 175, 55, 0.1);
+    background: rgba(212, 175, 55, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .mode-btn:active {
+    transform: translateY(2px) scale(0.98);
   }
 
   .mode-btn.active {
     border-color: #ffd700;
-    background: rgba(212, 175, 55, 0.2);
-    box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+    background: rgba(212, 175, 55, 0.25);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.35);
   }
 
   .mode-icon {
-    font-size: 1.6rem;
+    font-size: 1.8rem;
   }
 
   .mode-name {
@@ -482,13 +556,13 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.4rem;
   }
 
   .diff-label {
     font-size: 0.85rem;
     color: #94a3b8;
-    font-weight: 700;
+    font-weight: 800;
   }
 
   .diff-chip {
@@ -500,12 +574,16 @@
     font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .diff-chip:hover {
     border-color: #ffd700;
     color: #ffd700;
+  }
+
+  .diff-chip:active {
+    transform: translateY(2px) scale(0.97);
   }
 
   .diff-chip.active {
@@ -518,40 +596,62 @@
   .btn-primary-action {
     background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
     color: #000;
-    border: none;
-    padding: 14px 40px;
-    border-radius: 30px;
+    border: 2px solid #ffe066;
+    padding: 15px 48px;
+    border-radius: 35px;
     cursor: pointer;
     font-weight: 900;
     display: inline-flex;
     flex-direction: column;
     align-items: center;
-    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
-    transition: all 0.25s ease;
+    box-shadow: 0 6px 25px rgba(212, 175, 55, 0.5), inset 0 2px 3px rgba(255, 255, 255, 0.4);
+    transition: all 0.15s ease;
   }
 
   .btn-primary-action:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 45px rgba(212, 175, 55, 0.8);
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 8px 35px rgba(212, 175, 55, 0.8);
     background: linear-gradient(135deg, #ffd700 0%, #d4af37 100%);
   }
 
+  .btn-primary-action:active {
+    transform: translateY(4px) scale(0.97);
+    box-shadow: 0 2px 10px rgba(212, 175, 55, 0.4);
+  }
+
   .btn-main-text {
-    font-size: 1.25rem;
+    font-size: 1.35rem;
     letter-spacing: 2px;
   }
 
   .btn-sub-text {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     letter-spacing: 2px;
-    opacity: 0.85;
+    opacity: 0.9;
+  }
+
+  .menu-hotkeys-help {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-top: 1.4rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+
+  .hotkey-col b {
+    color: #ffd700;
   }
 
   .menu-quick-stats {
     display: flex;
     justify-content: center;
     gap: 2rem;
-    margin-top: 1.5rem;
+    margin-top: 1.2rem;
     font-size: 0.85rem;
     color: #94a3b8;
   }
@@ -582,15 +682,15 @@
   }
 
   .hero-status-pill, .castle-status-pill {
-    background: rgba(15, 23, 42, 0.88);
-    border: 2px solid rgba(212, 175, 55, 0.4);
+    background: rgba(15, 23, 42, 0.92);
+    border: 2px solid rgba(212, 175, 55, 0.5);
     border-radius: 12px;
     padding: 6px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
     backdrop-filter: blur(6px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
   }
 
   .hero-avatar {
@@ -625,7 +725,7 @@
     background: #090d16;
     border-radius: 5px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   .bar-fill {
@@ -667,12 +767,12 @@
 
   /* Center Wave Display */
   .wave-box {
-    background: rgba(15, 23, 42, 0.92);
+    background: rgba(15, 23, 42, 0.95);
     border: 2px solid #ffd700;
     border-radius: 12px;
     padding: 6px 18px;
     text-align: center;
-    box-shadow: 0 0 25px rgba(212, 175, 55, 0.35);
+    box-shadow: 0 0 25px rgba(212, 175, 55, 0.4);
   }
 
   .phase-badge {
@@ -714,7 +814,7 @@
     border-radius: 8px;
     padding: 4px 8px;
     text-align: center;
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
   }
 
   .boss-title {
@@ -730,11 +830,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(15, 23, 42, 0.88);
-    border: 2px solid rgba(212, 175, 55, 0.4);
+    background: rgba(15, 23, 42, 0.92);
+    border: 2px solid rgba(212, 175, 55, 0.5);
     border-radius: 12px;
     padding: 6px 14px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
   }
 
   .res-item {
@@ -773,12 +873,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .hud-mini-btn:hover {
     border-color: #ffd700;
-    transform: scale(1.05);
+    transform: translateY(-2px);
+  }
+
+  .hud-mini-btn:active {
+    transform: translateY(2px) scale(0.95);
   }
 
   /* CANVAS PLAYFIELD */
@@ -787,7 +891,6 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    cursor: crosshair;
   }
 
   #game-canvas {
@@ -795,7 +898,68 @@
     width: 100%;
     height: 100%;
     image-rendering: pixelated;
-    image-rendering: crisp-edges;
+  }
+
+  /* Quest Tracker Card */
+  .quest-tracker-pill {
+    position: absolute;
+    top: 90px;
+    left: 15px;
+    width: 250px;
+    background: linear-gradient(135deg, rgba(22, 28, 44, 0.94) 0%, rgba(12, 16, 26, 0.96) 100%);
+    border: 2px solid #d4af37;
+    border-radius: 12px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.8);
+    pointer-events: auto;
+    z-index: 50;
+  }
+
+  .quest-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+  }
+
+  .quest-icon {
+    font-size: 1rem;
+  }
+
+  .quest-badge {
+    font-size: 0.65rem;
+    font-weight: 900;
+    color: #ffd700;
+    letter-spacing: 1px;
+  }
+
+  .quest-title {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #f8fafc;
+    margin-bottom: 2px;
+  }
+
+  .quest-desc {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+
+  .quest-progress-track {
+    width: 100%;
+    height: 5px;
+    background: #000;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .quest-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #d4af37, #ffd700);
+    transition: width 0.2s ease;
   }
 
   /* Minimap */
@@ -803,11 +967,11 @@
     position: absolute;
     top: 90px;
     right: 15px;
-    background: rgba(10, 15, 25, 0.85);
+    background: rgba(10, 15, 25, 0.9);
     border: 2px solid #d4af37;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
     pointer-events: auto;
   }
 
@@ -829,16 +993,22 @@
   /* Army Command Bar */
   .army-command-bar {
     position: absolute;
-    top: 90px;
+    top: 200px;
     left: 15px;
     display: flex;
+    flex-direction: column;
     gap: 8px;
     z-index: 50;
     pointer-events: auto;
   }
 
+  .cmd-group {
+    display: flex;
+    gap: 6px;
+  }
+
   .cmd-btn {
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(15, 23, 42, 0.9);
     border: 1.5px solid #475569;
     color: #e2e8f0;
     padding: 6px 12px;
@@ -846,7 +1016,7 @@
     font-size: 0.75rem;
     font-weight: 800;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .cmd-btn:hover {
@@ -854,20 +1024,57 @@
     color: #ffd700;
   }
 
-  .cmd-btn.active {
-    background: rgba(212, 175, 55, 0.25);
-    border-color: #ffd700;
-    color: #ffd700;
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.35);
+  .cmd-btn:active {
+    transform: translateY(2px) scale(0.97);
   }
 
-  .cmd-btn.recruit-pawn {
-    border-color: #10b981;
+  .cmd-btn.active {
+    background: rgba(212, 175, 55, 0.3);
+    border-color: #ffd700;
+    color: #ffd700;
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.4);
+  }
+
+  .recruit-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 4px 6px;
+    border-radius: 8px;
+  }
+
+  .recruit-btn {
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid #475569;
+    color: #e2e8f0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .recruit-btn:hover {
+    border-color: #34d399;
     color: #34d399;
   }
 
-  .cmd-btn.recruit-pawn:hover {
-    background: rgba(16, 185, 129, 0.2);
+  .recruit-btn:active {
+    transform: translateY(2px) scale(0.96);
+  }
+
+  .rec-key {
+    background: #000;
+    color: #ffd700;
+    font-size: 0.6rem;
+    padding: 1px 4px;
+    border-radius: 3px;
   }
 
   /* Hero Skills Bar */
@@ -878,8 +1085,8 @@
     transform: translateX(-50%);
     display: flex;
     gap: 8px;
-    background: rgba(15, 23, 42, 0.9);
-    border: 2px solid rgba(212, 175, 55, 0.5);
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid rgba(212, 175, 55, 0.55);
     padding: 6px 14px;
     border-radius: 12px;
     backdrop-filter: blur(8px);
@@ -900,25 +1107,30 @@
     justify-content: center;
     overflow: hidden;
     cursor: pointer;
+    transition: all 0.15s;
   }
 
   .skill-slot:hover {
     border-color: #ffd700;
   }
 
+  .skill-slot:active {
+    transform: translateY(2px) scale(0.96);
+  }
+
   .skill-key {
-    font-size: 0.55rem;
+    font-size: 0.52rem;
     color: #94a3b8;
     font-weight: 800;
   }
 
   .skill-icon {
-    font-size: 1.4rem;
+    font-size: 1.35rem;
     margin: 2px 0;
   }
 
   .skill-name {
-    font-size: 0.52rem;
+    font-size: 0.5rem;
     color: #cbd5e1;
     text-align: center;
     font-weight: 700;
@@ -967,7 +1179,7 @@
   }
 
   .build-card {
-    background: rgba(30, 41, 59, 0.7);
+    background: rgba(30, 41, 59, 0.8);
     border: 1.5px solid #475569;
     border-radius: 8px;
     padding: 4px 8px;
@@ -975,19 +1187,23 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .build-card:hover {
     border-color: #ffd700;
-    background: rgba(212, 175, 55, 0.15);
+    background: rgba(212, 175, 55, 0.2);
     transform: translateY(-2px);
+  }
+
+  .build-card:active {
+    transform: translateY(2px) scale(0.97);
   }
 
   .build-card.selected {
     border-color: #ffd700;
-    background: rgba(212, 175, 55, 0.3);
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.5);
+    background: rgba(212, 175, 55, 0.35);
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.6);
   }
 
   .build-card img {
@@ -1021,13 +1237,13 @@
     bottom: 95px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid #ffd700;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1.5px solid #ffd700;
     color: #ffd700;
-    padding: 4px 12px;
+    padding: 6px 16px;
     border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: 0.8rem;
+    font-weight: 800;
     display: none;
     pointer-events: none;
     z-index: 60;
@@ -1091,6 +1307,8 @@
     .mobile-controls { display: block; }
     .hero-skills-bar { bottom: 100px; }
     .building-bar { bottom: 5px; }
+    .army-command-bar { top: 180px; left: 10px; }
+    .quest-tracker-pill { top: 75px; left: 10px; width: 220px; }
   }
 
   /* MODALS */
@@ -1114,10 +1332,10 @@
     border: 3px solid #d4af37;
     border-radius: 16px;
     padding: 2.2rem;
-    max-width: 580px;
+    max-width: 600px;
     width: 90%;
     text-align: center;
-    box-shadow: 0 0 50px rgba(212, 175, 55, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 0 50px rgba(212, 175, 55, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.85);
     position: relative;
   }
 
@@ -1153,7 +1371,6 @@
     margin-bottom: 1.5rem;
   }
 
-  /* Upgrade Cards Grid */
   .upgrade-cards-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1162,7 +1379,7 @@
   }
 
   .upgrade-card {
-    background: rgba(30, 41, 59, 0.7);
+    background: rgba(30, 41, 59, 0.8);
     border: 2px solid #475569;
     border-radius: 12px;
     padding: 1rem 0.8rem;
@@ -1171,15 +1388,19 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    transition: all 0.25s;
+    transition: all 0.2s;
     text-align: center;
   }
 
   .upgrade-card:hover {
     border-color: #ffd700;
-    background: rgba(212, 175, 55, 0.15);
+    background: rgba(212, 175, 55, 0.2);
     transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.25);
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
+  }
+
+  .upgrade-card:active {
+    transform: translateY(2px) scale(0.97);
   }
 
   .upgrade-icon {
@@ -1198,7 +1419,6 @@
     line-height: 1.3;
   }
 
-  /* Game Over Stats */
   .gameover-stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1240,7 +1460,7 @@
     font-weight: 800;
     cursor: pointer;
     border: none;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .btn-action.primary {
@@ -1251,7 +1471,11 @@
   .btn-action.primary:hover {
     background: #ffd700;
     box-shadow: 0 0 20px #ffd700;
-    transform: scale(1.03);
+    transform: translateY(-2px);
+  }
+
+  .btn-action.primary:active {
+    transform: translateY(2px) scale(0.97);
   }
 
   .btn-action.warning {
@@ -1261,6 +1485,11 @@
 
   .btn-action.warning:hover {
     background: #fbbf24;
+    transform: translateY(-2px);
+  }
+
+  .btn-action.warning:active {
+    transform: translateY(2px) scale(0.97);
   }
 
   .btn-action.secondary {
@@ -1272,6 +1501,11 @@
   .btn-action.secondary:hover {
     background: rgba(255, 255, 255, 0.2);
     border-color: #ffd700;
+    transform: translateY(-2px);
+  }
+
+  .btn-action.secondary:active {
+    transform: translateY(2px) scale(0.97);
   }
 </style>
 
@@ -1280,7 +1514,7 @@
 
   let engineInstance: TinySwordsEngine | null = null;
 
-  document.addEventListener('astro:page-load', () => {
+  function initTinySwords() {
     const root = document.getElementById('ascetic-game-container');
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     const minimapCanvas = document.getElementById('minimap-canvas') as HTMLCanvasElement;
@@ -1292,5 +1526,13 @@
     }
 
     engineInstance = new TinySwordsEngine(canvas, minimapCanvas, root);
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTinySwords);
+  } else {
+    initTinySwords();
+  }
+
+  document.addEventListener('astro:page-load', initTinySwords);
 </script>
