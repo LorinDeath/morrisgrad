@@ -69,6 +69,7 @@ export interface EngineCallbacks {
   onWeaponHover?: (groundWeapon: Weapon | null, equippedWeapon: Weapon | null) => void;
   onRelicFound?: (groundRelic: GroundRelic) => void;
   onUltimateTrigger?: (synergyName: string) => void;
+  onEvolutionNotify?: (text: string) => void;
 }
 
 export class DungeonEngine {
@@ -137,6 +138,16 @@ export class DungeonEngine {
     combo: 0,
   };
 
+  // High-performance light & glow GPU offscreen caches
+  private lightGlowPlayerCanvas: HTMLCanvasElement;
+  private lightGlowTorchCanvas: HTMLCanvasElement;
+  private lightGlowProjCanvas: HTMLCanvasElement;
+
+  // Progressive Evolution & Performance Timers
+  public floorTimer = 0;
+  private lastEvolutionInterval = 0;
+  private enemyAiTick = 0;
+
   private currentHeroClass: HeroClass = 'zombie';
   private currentGameMode: GameMode = 'campaign';
   public currentDifficulty: DifficultyLevel = 'normal';
@@ -167,6 +178,47 @@ export class DungeonEngine {
 
     this.lightCanvas = document.createElement('canvas');
     this.lightCtx = this.lightCanvas.getContext('2d')!;
+
+    // 1. Offscreen Player Glow Mask (256x256)
+    this.lightGlowPlayerCanvas = document.createElement('canvas');
+    this.lightGlowPlayerCanvas.width = 256;
+    this.lightGlowPlayerCanvas.height = 256;
+    const lpCtx = this.lightGlowPlayerCanvas.getContext('2d')!;
+    const lpGrad = lpCtx.createRadialGradient(128, 128, 10, 128, 128, 128);
+    lpGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
+    lpGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.7)');
+    lpGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    lpCtx.fillStyle = lpGrad;
+    lpCtx.beginPath();
+    lpCtx.arc(128, 128, 128, 0, Math.PI * 2);
+    lpCtx.fill();
+
+    // 2. Offscreen Torch Glow Mask (128x128)
+    this.lightGlowTorchCanvas = document.createElement('canvas');
+    this.lightGlowTorchCanvas.width = 128;
+    this.lightGlowTorchCanvas.height = 128;
+    const ltCtx = this.lightGlowTorchCanvas.getContext('2d')!;
+    const ltGrad = ltCtx.createRadialGradient(64, 64, 5, 64, 64, 64);
+    ltGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
+    ltGrad.addColorStop(0.6, 'rgba(0, 0, 0, 0.6)');
+    ltGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ltCtx.fillStyle = ltGrad;
+    ltCtx.beginPath();
+    ltCtx.arc(64, 64, 64, 0, Math.PI * 2);
+    ltCtx.fill();
+
+    // 3. Offscreen Projectile Glow Mask (64x64)
+    this.lightGlowProjCanvas = document.createElement('canvas');
+    this.lightGlowProjCanvas.width = 64;
+    this.lightGlowProjCanvas.height = 64;
+    const lprCtx = this.lightGlowProjCanvas.getContext('2d')!;
+    const lprGrad = lprCtx.createRadialGradient(32, 32, 2, 32, 32, 32);
+    lprGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+    lprGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    lprCtx.fillStyle = lprGrad;
+    lprCtx.beginPath();
+    lprCtx.arc(32, 32, 32, 0, Math.PI * 2);
+    lprCtx.fill();
 
     this.assets = assets;
     this.audio = audio;
@@ -215,6 +267,8 @@ export class DungeonEngine {
   }
 
   public initFloor(floorNum: number, resetPlayer = false) {
+    this.floorTimer = 0;
+    this.lastEvolutionInterval = 0;
     if (resetPlayer) {
       this.player = createInitialPlayer(
         this.currentHeroClass,
@@ -332,6 +386,14 @@ export class DungeonEngine {
 
   // --- UPDATE LOGIC ---
   private update(dt: number) {
+    this.floorTimer += dt;
+    this.enemyAiTick++;
+    const currentEvolutionInterval = Math.floor(this.floorTimer / 180);
+    if (currentEvolutionInterval > this.lastEvolutionInterval && this.floorTimer >= 180) {
+      this.lastEvolutionInterval = currentEvolutionInterval;
+      this.triggerMobEvolution();
+    }
+
     this.updatePlayer(dt);
     this.updateEnemies(dt);
     this.updateProjectiles(dt);
@@ -437,10 +499,7 @@ export class DungeonEngine {
           e.vx += Math.cos(pAngle) * pull * dt;
           e.vy += Math.sin(pAngle) * pull * dt;
           if (doDamage) {
-            e.hp -= bh.damage;
-            e.hurtTimer = 0.15;
-            this.floatingTexts.push(createFloatingText(e.x, e.y, `${bh.damage}`, '#a855f7', 11));
-            if (e.hp <= 0) this.killEnemy(e);
+            this.hitEnemy(e, bh.damage, Math.atan2(e.y - bh.y, e.x - bh.x), false, true, bh.damage);
           }
         }
       }
@@ -818,8 +877,15 @@ export class DungeonEngine {
       const spreadStep = 0.14;
       const half = (multishot - 1) / 2;
 
+      const wpnDark = this.player.equippedWeapon?.bonusDarkMagicPct || 0;
+      const hasVoidSeal = this.player.relics.some((r) => r?.id === 'void_seal');
+      const isDarkProj = wpnDark > 0 || hasVoidSeal || orbType === 'void';
+
       for (let s = -half; s <= half; s++) {
         const shootAngle = angle + s * spreadStep;
+        const pDamage = Math.round(
+          this.player.damage * (this.player.buffPowerTimer > 0 ? 1.5 : 1.0) * (hasSacredHeart ? 2.2 : 1.0)
+        );
         this.projectiles.push({
           id: Math.random(),
           x: this.playerPos.x,
@@ -827,21 +893,21 @@ export class DungeonEngine {
           vx: Math.cos(shootAngle) * pSpeed,
           vy: Math.sin(shootAngle) * pSpeed,
           radius: hasSacredHeart ? 14 : pRadius,
-          damage: Math.round(
-            this.player.damage * (this.player.buffPowerTimer > 0 ? 1.5 : 1.0) * (hasSacredHeart ? 2.2 : 1.0)
-          ),
+          damage: pDamage,
           fromPlayer: true,
-          color: hasSacredHeart ? '#ffffff' : hasTriquetra ? '#a855f7' : pColor,
-          trailColor: hasSacredHeart ? '#ffd700' : hasTriquetra ? '#7e22ce' : pTrail,
+          color: hasSacredHeart ? '#ffffff' : hasTriquetra ? '#a855f7' : isDarkProj ? '#c084fc' : pColor,
+          trailColor: hasSacredHeart ? '#ffd700' : hasTriquetra ? '#7e22ce' : isDarkProj ? '#3b0764' : pTrail,
           life: 0,
           maxLife: 2.2,
           piercing: true,
           pierceCount: pPierce,
           hitEnemyIds: new Set(),
           isMagicOrb: isOrb,
-          orbType: orbType as any,
+          orbType: (isDarkProj && !orbType ? 'void' : orbType) as any,
           explosive: isExplosive,
           homing: isHoming,
+          isDarkMagic: isDarkProj,
+          darkMagicDamage: isDarkProj ? Math.max(1, Math.round(pDamage * (hasVoidSeal ? 1.0 : Math.max(0.25, wpnDark)))) : 0,
         });
       }
 
@@ -943,8 +1009,13 @@ export class DungeonEngine {
         let diff = Math.abs(enemyAngle - angle);
         while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
 
+        const wpnDark = this.player.equippedWeapon?.bonusDarkMagicPct || 0;
+        const hasVoidSeal = this.player.relics.some((r) => r?.id === 'void_seal');
+        const isDarkMelee = wpnDark > 0 || hasVoidSeal || this.player.activeSynergy?.includes('ЧЁРНАЯ СИНГУЛЯРНОСТЬ');
+        const darkMeleeDmg = isDarkMelee ? Math.max(1, Math.round(baseDamage * (hasVoidSeal ? 1.0 : Math.max(0.25, wpnDark)))) : 0;
+
         if (isFinisher || diff < arcSpan / 2) {
-          this.hitEnemy(enemy, baseDamage, angle, isFinisher);
+          this.hitEnemy(enemy, baseDamage, angle, isFinisher, isDarkMelee, darkMeleeDmg);
         }
       }
     }
@@ -1024,7 +1095,9 @@ export class DungeonEngine {
             e,
             Math.round(this.player.damage * 2.2),
             Math.atan2(e.y - this.playerPos.y, e.x - this.playerPos.x),
-            true
+            true,
+            true,
+            Math.round(this.player.damage * 2.2)
           );
         }
       }
@@ -1130,12 +1203,87 @@ export class DungeonEngine {
     this.syncStats();
   }
 
-  private hitEnemy(enemy: Enemy, baseDamage: number, pushAngle: number, isFinisher = false) {
+  private hitEnemy(
+    enemy: Enemy,
+    baseDamage: number,
+    pushAngle: number,
+    isFinisher = false,
+    isDarkMagic = false,
+    darkMagicDamage = 0
+  ) {
     const isCrit = Math.random() < this.player.critChance;
     let finalDamage = Math.round(isCrit ? baseDamage * this.player.critMult : baseDamage);
 
     if (this.player.perks.includes('berserker_rage') && this.player.hp <= 4) {
       finalDamage = Math.round(finalDamage * 1.85);
+    }
+
+    // -------------------------------------------------------------
+    // ЧЁРНЫЙ ЩИТ И МЕХАНИКА ЧЁРНОЙ МАГИИ
+    // -------------------------------------------------------------
+    if (enemy.hasDarkShield && (enemy.darkShieldHp || 0) > 0) {
+      const hasVoidSeal = this.player.relics.some((r) => r?.id === 'void_seal');
+      const wpnDarkPct = this.player.equippedWeapon?.bonusDarkMagicPct || 0;
+      const isPureVoid = isDarkMagic || hasVoidSeal || this.player.activeSynergy?.includes('ЧЁРНАЯ СИНГУЛЯРНОСТЬ');
+      const hasDarkAttack = isPureVoid || wpnDarkPct > 0;
+
+      if (!hasDarkAttack) {
+        // Обычные атаки ПОЛНОСТЬЮ блокируются черным щитом!
+        this.audio.playDarkShieldAbsorb();
+        this.floatingTexts.push(
+          createFloatingText(enemy.x, enemy.y - 10, '🛡️ ПОГЛОЩЕНО (0)', '#c084fc', 12)
+        );
+        for (let sp = 0; sp < 4; sp++) {
+          this.particles.push({
+            x: enemy.x + (Math.random() - 0.5) * 16,
+            y: enemy.y + (Math.random() - 0.5) * 16,
+            vx: Math.cos(pushAngle + Math.PI + (Math.random() - 0.5)) * 90,
+            vy: Math.sin(pushAngle + Math.PI + (Math.random() - 0.5)) * 90,
+            size: 3,
+            color: '#c084fc',
+            alpha: 1.0,
+            life: 0,
+            maxLife: 0.25,
+          });
+        }
+        const pushForce = enemy.isBoss ? 15 : 50;
+        enemy.vx += Math.cos(pushAngle) * pushForce;
+        enemy.vy += Math.sin(pushAngle) * pushForce;
+        return;
+      }
+
+      // Атака содержит Чёрную Магию: пробивает щит и наносит урон
+      const darkRatio = isPureVoid ? 1.0 : Math.max(0.20, wpnDarkPct);
+      const pureDarkDmg = darkMagicDamage > 0 ? darkMagicDamage : Math.max(1, Math.round(finalDamage * darkRatio));
+
+      enemy.darkShieldHp = (enemy.darkShieldHp || 0) - pureDarkDmg;
+      this.floatingTexts.push(
+        createFloatingText(enemy.x, enemy.y - 14, `🔮 ТЁМНЫЙ УРОН ${pureDarkDmg}`, '#e879f9', 13)
+      );
+
+      for (let sp = 0; sp < 5; sp++) {
+        this.particles.push({
+          x: enemy.x,
+          y: enemy.y,
+          vx: (Math.random() - 0.5) * 80,
+          vy: (Math.random() - 0.5) * 80,
+          size: 3,
+          color: '#9333ea',
+          alpha: 1.0,
+          life: 0,
+          maxLife: 0.35,
+        });
+      }
+
+      if (enemy.darkShieldHp <= 0) {
+        enemy.hasDarkShield = false;
+        enemy.darkShieldHp = 0;
+        this.audio.playDarkShieldBreak();
+        this.addScreenShake(0.28, 6);
+        this.floatingTexts.push(
+          createFloatingText(enemy.x, enemy.y, '💥 ЧЁРНЫЙ ЩИТ РАЗРУШЕН!', '#f0abfc', 15)
+        );
+      }
     }
 
     // Chain Lightning perk
@@ -1453,6 +1601,85 @@ export class DungeonEngine {
     });
   }
 
+  // -------------------------------------------------------------
+  // ПРОГРЕССИВНАЯ ЭВОЛЮЦИЯ МОБОВ (КАЖДЫЕ 3 МИНУТЫ)
+  // -------------------------------------------------------------
+  private triggerMobEvolution() {
+    const candidates = this.enemies.filter((e) => !e.isDead && !e.isBoss);
+    if (candidates.length === 0) return;
+
+    // Выбираем 1 или 2 мобов для мутации
+    const count = Math.min(candidates.length, Math.random() < 0.5 ? 1 : 2);
+    candidates.sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < count; i++) {
+      const e = candidates[i];
+      e.isEvolved = true;
+      e.evolutionTier = (e.evolutionTier || 0) + 1;
+
+      if (e.type === 'zombie_walker') {
+        e.type = Math.random() < 0.5 ? 'zombie_runner' : 'zombie_brute';
+        e.name = e.type === 'zombie_runner' ? '★ [МУТАЦИЯ]: Теневой Спринтер' : '★ [МУТАЦИЯ]: Чумной Громила';
+        e.scale = e.type === 'zombie_brute' ? 1.4 : 1.1;
+      } else if (e.type === 'zombie_spitter') {
+        e.type = 'zombie_witch';
+        e.name = '★ [МУТАЦИЯ]: Некромантка Склепа';
+        e.scale = 1.15;
+      } else if (e.type === 'zombie_runner') {
+        e.type = 'zombie_pyro';
+        e.name = '★ [МУТАЦИЯ]: Пиромант Бездны';
+        e.scale = 1.25;
+      } else if (e.type === 'zombie_brute') {
+        e.name = '★ [ЭВОЛЮЦИЯ]: ЧУМНОЙ ТИТАН БЕЗДНЫ';
+        e.scale = 1.7;
+        e.damage += 1;
+      } else {
+        e.name = `★ [ВЛАДЫКА ПУСТОТЫ]: ${e.name}`;
+        e.scale = Math.min(2.0, e.scale * 1.25);
+        e.damage += 1;
+      }
+
+      e.maxHp = Math.round(e.maxHp * 1.75 + 40);
+      e.hp = e.maxHp;
+      e.speed *= 1.12;
+
+      // Эволюционировавший моб обретает Чёрный Щит
+      e.hasDarkShield = true;
+      e.darkShieldHp = Math.round(e.maxHp * 0.9 + 30);
+      e.maxDarkShieldHp = e.darkShieldHp;
+
+      for (let k = 0; k < 10; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 50 + Math.random() * 80;
+        this.particles.push({
+          x: e.x,
+          y: e.y,
+          vx: Math.cos(a) * spd,
+          vy: Math.sin(a) * spd,
+          size: 3.5,
+          color: '#c084fc',
+          alpha: 1.0,
+          life: 0,
+          maxLife: 0.45,
+        });
+      }
+
+      this.floatingTexts.push(
+        createFloatingText(e.x, e.y - 18, '★ ТЁМНАЯ ЭВОЛЮЦИЯ! ★', '#e879f9', 14)
+      );
+
+      const minutes = Math.floor(this.floorTimer / 60);
+      const alertMsg = `⚠️ [ТЁМНАЯ ЭВОЛЮЦИЯ | ${minutes} МИН]: Нежить мутировала в [${e.name}] с ЧЁРНЫМ ЩИТОМ!`;
+      this.callbacks.onNotify(alertMsg);
+      if (this.callbacks.onEvolutionNotify) {
+        this.callbacks.onEvolutionNotify(alertMsg);
+      }
+    }
+
+    this.audio.playDarkEvolutionRoar();
+    this.addScreenShake(0.35, 6);
+  }
+
   private fireSoulBolt(angle: number) {
     this.audio.playClawSlash();
     this.projectiles.push({
@@ -1506,12 +1733,16 @@ export class DungeonEngine {
 
       const detectRange = e.isBoss ? 480 : 250;
 
-      // 1. УМНЫЙ AI: Уклонение (dodge) от летящих снарядов игрока
-      if ((!e.dodgeTimer || e.dodgeTimer <= 0) && dist < 320) {
-        for (const p of this.projectiles) {
+      // 1. УМНЫЙ ОПТИМИЗИРОВАННЫЙ AI: Уклонение только для спринтеров/элиты с дросселированием
+      const canDodge = e.type === 'zombie_runner' || e.isElite;
+      if (canDodge && (!e.dodgeTimer || e.dodgeTimer <= 0) && dist < 170 && (this.enemyAiTick % 6 === e.id % 6)) {
+        const checkLimit = Math.min(this.projectiles.length, 12);
+        for (let pi = 0; pi < checkLimit; pi++) {
+          const p = this.projectiles[pi];
           if (!p.fromPlayer) continue;
+          if (Math.abs(e.x - p.x) > 60 || Math.abs(e.y - p.y) > 60) continue;
           const pdist = Math.hypot(e.x - p.x, e.y - p.y);
-          if (pdist < 80) {
+          if (pdist < 65) {
             // Проверяем вектор движения снаряда в сторону врага
             const dot = (e.x - p.x) * p.vx + (e.y - p.y) * p.vy;
             if (dot > 0) {
@@ -1519,18 +1750,30 @@ export class DungeonEngine {
               const perpX = -p.vy / plen;
               const perpY = p.vx / plen;
               const side = Math.random() < 0.5 ? 1 : -1;
-              const dodgeSpeed = e.type === 'zombie_runner' ? 240 : 160;
+              const dodgeSpeed = e.type === 'zombie_runner' ? 220 : 150;
               e.vx += perpX * side * dodgeSpeed;
               e.vy += perpY * side * dodgeSpeed;
               e.dodgeTimer = e.dodgeCooldown || (2.2 + Math.random() * 1.5);
               this.floatingTexts.push(
                 createFloatingText(e.x, e.y, 'УВОРОТ!', '#38bdf8', 11)
               );
-              this.particles.push(...createSparkleParticles(e.x, e.y, '#38bdf8'));
               break;
             }
           }
         }
+      }
+
+      // Активация фазы Чёрного Щита у боссов
+      if (e.isBoss && !e.hasDarkShield && e.hp < e.maxHp * 0.5 && !e.isDead) {
+        e.hasDarkShield = true;
+        e.darkShieldHp = Math.round(e.maxHp * 0.45);
+        e.maxDarkShieldHp = e.darkShieldHp;
+        this.audio.playDarkEvolutionRoar();
+        this.addScreenShake(0.4, 8);
+        this.floatingTexts.push(
+          createFloatingText(e.x, e.y - 24, '🛡️ ВЕЛИКИЙ ЧЁРНЫЙ ЩИТ!', '#c084fc', 16)
+        );
+        this.callbacks.onNotify('👑 ВЛАДЫКА ВОЗДВИГ ЧЁРНЫЙ ЩИТ БЕЗДНЫ! ИСПОЛЬЗУЙТЕ ЧЁРНУЮ МАГИЮ ИЛИ СВЕРХНАВЫКИ!');
       }
 
       // 2. Движение с тактическим позиционированием
@@ -1705,7 +1948,7 @@ export class DungeonEngine {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
 
-      if (Math.random() < 0.6) {
+      if (Math.random() < 0.15 && this.particles.length < 160) {
         this.particles.push({
           x: p.x,
           y: p.y,
@@ -1735,9 +1978,22 @@ export class DungeonEngine {
       if (p.fromPlayer) {
         if (!p.hitEnemyIds) p.hitEnemyIds = new Set();
         for (const enemy of this.enemies) {
-          if (!enemy.isDead && !p.hitEnemyIds.has(enemy.id) && Math.hypot(enemy.x - p.x, enemy.y - p.y) < enemy.radius + p.radius) {
+          if (
+            !enemy.isDead &&
+            !p.hitEnemyIds.has(enemy.id) &&
+            Math.abs(enemy.x - p.x) < 32 &&
+            Math.abs(enemy.y - p.y) < 32 &&
+            Math.hypot(enemy.x - p.x, enemy.y - p.y) < enemy.radius + p.radius
+          ) {
             p.hitEnemyIds.add(enemy.id);
-            this.hitEnemy(enemy, p.damage, Math.atan2(p.vy, p.vx));
+            this.hitEnemy(
+              enemy,
+              p.damage,
+              Math.atan2(p.vy, p.vx),
+              false,
+              p.isDarkMagic,
+              p.darkMagicDamage || 0
+            );
             this.particles.push(...createSparkleParticles(p.x, p.y, p.color));
 
             // Relic: Isaac's Tear - splits into 4 homing micro-orbs
@@ -3150,7 +3406,16 @@ export class DungeonEngine {
   }
 
   private renderEnemies() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 50;
+    const halfH = (this.canvas.height / zoom) / 2 + 50;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     for (const e of this.enemies) {
+      if (e.x < minX || e.x > maxX || e.y < minY || e.y > maxY) continue;
       this.ctx.save();
       this.ctx.translate(e.x, e.y);
 
@@ -3202,6 +3467,56 @@ export class DungeonEngine {
 
       this.ctx.restore();
 
+      // РЕНДЕРИНГ ЧЁРНОГО ЩИТА (ШЕЙДЕР-ГЛИТЧ БЕЗДНЫ)
+      if (e.hasDarkShield && (e.darkShieldHp || 0) > 0) {
+        const time = performance.now() * 0.005;
+        const shieldR = (e.radius + 12) * e.scale;
+
+        this.ctx.save();
+        // 1. Черное ядро поглощения света
+        this.ctx.beginPath();
+        this.ctx.arc(e.x, e.y, shieldR, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'rgba(6, 4, 15, 0.72)';
+        this.ctx.fill();
+
+        // 2. Неоновая фиолетовая окантовка
+        this.ctx.strokeStyle = '#c084fc';
+        this.ctx.lineWidth = 2.0;
+        this.ctx.beginPath();
+        const startA = time * 2.5;
+        this.ctx.arc(e.x, e.y, shieldR, startA, startA + Math.PI * 1.3);
+        this.ctx.stroke();
+
+        this.ctx.strokeStyle = '#38bdf8';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.beginPath();
+        this.ctx.arc(e.x, e.y, shieldR + 2, startA + Math.PI, startA + Math.PI * 2.1);
+        this.ctx.stroke();
+
+        // 3. Глитч-сканлайны искажения
+        const glitchOffset = Math.sin(time * 25 + e.id) * 5;
+        this.ctx.fillStyle = 'rgba(192, 132, 252, 0.45)';
+        this.ctx.fillRect(e.x - 14 + glitchOffset, e.y - 7, 28, 2);
+        this.ctx.fillRect(e.x - 12 - glitchOffset, e.y + 5, 24, 1.5);
+        this.ctx.restore();
+
+        // 4. Полоса прочности Чёрного Щита над ХП
+        const sBarW = 32 * e.scale;
+        const sBarH = 4;
+        const sBarX = e.x - sBarW / 2;
+        const sBarY = e.y - 32 * e.scale;
+        this.ctx.fillStyle = '#06040f';
+        this.ctx.fillRect(sBarX - 1, sBarY - 1, sBarW + 2, sBarH + 2);
+        this.ctx.fillStyle = '#a855f7';
+        const shieldPct = Math.max(0, (e.darkShieldHp || 0) / (e.maxDarkShieldHp || 1));
+        this.ctx.fillRect(sBarX, sBarY, shieldPct * sBarW, sBarH);
+
+        this.ctx.font = 'bold 7px monospace';
+        this.ctx.fillStyle = '#f0abfc';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('🛡️ ЧЁРНЫЙ ЩИТ', e.x, sBarY - 2);
+      }
+
       // Health bar & name for injured and elite enemies
       if (!e.isDead && !e.isBoss) {
         if (e.isElite || e.hp < e.maxHp) {
@@ -3215,9 +3530,9 @@ export class DungeonEngine {
           this.ctx.fillStyle = e.isElite ? '#f59e0b' : '#ef4444';
           this.ctx.fillRect(barX, barY, (Math.max(0, e.hp) / e.maxHp) * barW, barH);
 
-          if (e.isElite) {
+          if (e.isElite || e.isEvolved) {
             this.ctx.font = 'bold 7px sans-serif';
-            this.ctx.fillStyle = '#ffd700';
+            this.ctx.fillStyle = e.hasDarkShield ? '#c084fc' : '#ffd700';
             this.ctx.textAlign = 'center';
             this.ctx.fillText(e.name, e.x, barY - 3);
           }
@@ -3435,68 +3750,78 @@ export class DungeonEngine {
 
   private renderProjectiles() {
     const time = performance.now() * 0.012;
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 50;
+    const halfH = (this.canvas.height / zoom) / 2 + 50;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
     for (const p of this.projectiles) {
-      this.ctx.save();
+      if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+
       if (p.isMagicOrb) {
-        // Glowing outer aura с плавным радиальным градиентом
-        const outerRadius = p.radius * 2.2;
-        const grad = this.ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, outerRadius);
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.28, p.color);
-        grad.addColorStop(0.65, p.trailColor);
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        this.ctx.fillStyle = grad;
+        const outerR = p.radius * 2.0;
+
+        // 1. Внешний ореол (Halo) без тяжелого градиента
+        this.ctx.globalAlpha = 0.28;
+        this.ctx.fillStyle = p.trailColor;
         this.ctx.beginPath();
-        this.ctx.arc(p.x, p.y, outerRadius, 0, Math.PI * 2);
+        this.ctx.arc(p.x, p.y, outerR, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Core bright orb (сияющее ядро)
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.shadowColor = p.color;
-        this.ctx.shadowBlur = 16;
-        this.ctx.beginPath();
-        this.ctx.arc(p.x, p.y, p.radius * 0.7, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Внутреннее цветное кольцо сферы
-        this.ctx.strokeStyle = p.color;
-        this.ctx.lineWidth = 1.5;
-        this.ctx.beginPath();
-        this.ctx.arc(p.x, p.y, p.radius * 0.9, 0, Math.PI * 2);
-        this.ctx.stroke();
-
-        // Вращающиеся искры-спутники вокруг шара
-        for (let spark = 0; spark < 2; spark++) {
-          const spAngle = time + (spark * Math.PI);
-          const ox = p.x + Math.cos(spAngle) * (p.radius + 3.5);
-          const oy = p.y + Math.sin(spAngle) * (p.radius + 3.5);
-          this.ctx.fillStyle = '#fef08a';
-          this.ctx.beginPath();
-          this.ctx.arc(ox, oy, 2, 0, Math.PI * 2);
-          this.ctx.fill();
-        }
-      } else {
+        // 2. Внутреннее яркое кольцо энергии
+        this.ctx.globalAlpha = 0.85;
         this.ctx.fillStyle = p.color;
-        this.ctx.shadowColor = p.trailColor;
-        this.ctx.shadowBlur = 9;
+        this.ctx.beginPath();
+        this.ctx.arc(p.x, p.y, p.radius * 1.1, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // 3. Сияющее ядро
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.fillStyle = p.isDarkMagic ? '#06040f' : '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.arc(p.x, p.y, p.radius * 0.65, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // 4. Орбитальные искры
+        const spAngle = time + p.id;
+        const ox = p.x + Math.cos(spAngle) * (p.radius + 3);
+        const oy = p.y + Math.sin(spAngle) * (p.radius + 3);
+        this.ctx.fillStyle = p.isDarkMagic ? '#c084fc' : '#fef08a';
+        this.ctx.beginPath();
+        this.ctx.arc(ox, oy, 1.8, 0, Math.PI * 2);
+        this.ctx.fill();
+      } else {
+        // Обычные пули: быстрая отрисовка без shadowBlur
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.fillStyle = p.color;
         this.ctx.beginPath();
         this.ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         this.ctx.fill();
       }
-      this.ctx.restore();
     }
+    this.ctx.globalAlpha = 1.0;
   }
 
   private renderParticles() {
+    const zoom = this.camera.zoom;
+    const halfW = (this.canvas.width / zoom) / 2 + 30;
+    const halfH = (this.canvas.height / zoom) / 2 + 30;
+    const minX = this.camera.x - halfW;
+    const maxX = this.camera.x + halfW;
+    const minY = this.camera.y - halfH;
+    const maxY = this.camera.y + halfH;
+
+    this.ctx.save();
     for (const p of this.particles) {
-      this.ctx.save();
-      this.ctx.globalAlpha = p.alpha;
+      if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+      this.ctx.globalAlpha = Math.max(0, Math.min(1, p.alpha));
       this.ctx.fillStyle = p.color;
-      this.ctx.beginPath();
-      this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.restore();
+      this.ctx.fillRect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size);
     }
+    this.ctx.restore();
   }
 
   private renderFloatingTexts() {
@@ -3532,21 +3857,14 @@ export class DungeonEngine {
     const baseRadius = 135 + (this.currentMeta.extraLight > 0 ? 35 : 0) + (this.player.bonusLightRadius || 0);
     const pRadius = (baseRadius + pFlicker) * (zoom / 2);
 
-    const pGrad = this.lightCtx.createRadialGradient(
-      pScreen.x,
-      pScreen.y,
-      10,
-      pScreen.x,
-      pScreen.y,
-      pRadius
+    // Аппаратный блиттинг из кэша вместо createRadialGradient
+    this.lightCtx.drawImage(
+      this.lightGlowPlayerCanvas,
+      pScreen.x - pRadius,
+      pScreen.y - pRadius,
+      pRadius * 2,
+      pRadius * 2
     );
-    pGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
-    pGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.7)');
-    pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    this.lightCtx.fillStyle = pGrad;
-    this.lightCtx.beginPath();
-    this.lightCtx.arc(pScreen.x, pScreen.y, pRadius, 0, Math.PI * 2);
-    this.lightCtx.fill();
 
     for (const torch of this.map.torches) {
       const tPos = toScreen(torch.x * 16 + 8, torch.y * 16 + 8);
@@ -3555,43 +3873,39 @@ export class DungeonEngine {
       const tFlicker = Math.sin(performance.now() * 0.008 + torch.x) * 5;
       const tRadius = (70 + tFlicker) * (zoom / 2);
 
-      const tGrad = this.lightCtx.createRadialGradient(
-        tPos.x,
-        tPos.y,
-        5,
-        tPos.x,
-        tPos.y,
-        tRadius
+      this.lightCtx.drawImage(
+        this.lightGlowTorchCanvas,
+        tPos.x - tRadius,
+        tPos.y - tRadius,
+        tRadius * 2,
+        tRadius * 2
       );
-      tGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-      tGrad.addColorStop(0.6, 'rgba(0, 0, 0, 0.6)');
-      tGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      this.lightCtx.fillStyle = tGrad;
-      this.lightCtx.beginPath();
-      this.lightCtx.arc(tPos.x, tPos.y, tRadius, 0, Math.PI * 2);
-      this.lightCtx.fill();
     }
 
     if (this.map.shop) {
       const shPos = toScreen(this.map.shop.x, this.map.shop.y);
-      const sGrad = this.lightCtx.createRadialGradient(shPos.x, shPos.y, 10, shPos.x, shPos.y, 80);
-      sGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-      sGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      this.lightCtx.fillStyle = sGrad;
-      this.lightCtx.beginPath();
-      this.lightCtx.arc(shPos.x, shPos.y, 80, 0, Math.PI * 2);
-      this.lightCtx.fill();
+      if (shPos.x >= -100 && shPos.x <= w + 100 && shPos.y >= -100 && shPos.y <= h + 100) {
+        this.lightCtx.drawImage(
+          this.lightGlowPlayerCanvas,
+          shPos.x - 80,
+          shPos.y - 80,
+          160,
+          160
+        );
+      }
     }
 
     for (const proj of this.projectiles) {
       const prPos = toScreen(proj.x, proj.y);
-      const prGrad = this.lightCtx.createRadialGradient(prPos.x, prPos.y, 2, prPos.x, prPos.y, 25);
-      prGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
-      prGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      this.lightCtx.fillStyle = prGrad;
-      this.lightCtx.beginPath();
-      this.lightCtx.arc(prPos.x, prPos.y, 25, 0, Math.PI * 2);
-      this.lightCtx.fill();
+      if (prPos.x < -40 || prPos.x > w + 40 || prPos.y < -40 || prPos.y > h + 40) continue;
+      const r = proj.isMagicOrb ? 30 : 16;
+      this.lightCtx.drawImage(
+        this.lightGlowProjCanvas,
+        prPos.x - r,
+        prPos.y - r,
+        r * 2,
+        r * 2
+      );
     }
 
     this.lightCtx.globalCompositeOperation = 'source-over';
@@ -3677,9 +3991,10 @@ export class DungeonEngine {
       curY += lineH;
     } else {
       for (const affix of wpn.affixes) {
-        this.ctx.fillStyle = '#38bdf8';
+        const isDark = affix.type === 'darkMagic';
+        this.ctx.fillStyle = isDark ? '#c084fc' : '#38bdf8';
         this.ctx.fillText(`• ${affix.name}:`, bx + pad, curY);
-        this.ctx.fillStyle = '#e2e8f0';
+        this.ctx.fillStyle = isDark ? '#f0abfc' : '#e2e8f0';
         const nameW = this.ctx.measureText(`• ${affix.name}: `).width;
         this.ctx.fillText(affix.desc, bx + pad + nameW, curY);
         curY += lineH;

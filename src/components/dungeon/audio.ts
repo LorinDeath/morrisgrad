@@ -470,6 +470,84 @@ export class DungeonAudio {
     osc.stop(t + 0.9);
   }
 
+  public playDarkShieldAbsorb() {
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.18);
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(450, t);
+    filter.Q.setValueAtTime(4.0, t);
+
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain!);
+
+    osc.start(t);
+    osc.stop(t + 0.22);
+  }
+
+  public playDarkShieldBreak() {
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.45);
+
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain!);
+    osc.start(t);
+    osc.stop(t + 0.52);
+  }
+
+  public playDarkEvolutionRoar() {
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(55, t);
+    osc.frequency.linearRampToValueAtTime(130, t + 0.4);
+    osc.frequency.exponentialRampToValueAtTime(35, t + 1.1);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(250, t);
+    filter.frequency.linearRampToValueAtTime(800, t + 0.4);
+    filter.frequency.exponentialRampToValueAtTime(100, t + 1.1);
+
+    gain.gain.setValueAtTime(0.48, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.15);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain!);
+
+    osc.start(t);
+    osc.stop(t + 1.2);
+  }
+
   // --- PROCEDURAL DUNGEON SYNTH BGM ---
   private startBgmLoop() {
     if (this.bgmTimer) clearInterval(this.bgmTimer);

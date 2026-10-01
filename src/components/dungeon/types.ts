@@ -174,7 +174,8 @@ export interface Relic {
     | 'blood_crown'
     | 'unholy_triquetra'
     | 'chaos_d6'
-    | 'godhead_core';
+    | 'godhead_core'
+    | 'void_seal';
   stats?: {
     bonusDamage?: number;
     bonusHp?: number;
@@ -294,6 +295,15 @@ export interface Enemy {
   dodgeTimer?: number;
   preferredDistance?: number;
   telegraphTimer?: number;
+
+  // Progressive Evolution & Black Shield mechanics
+  hasDarkShield?: boolean;
+  darkShieldHp?: number;
+  maxDarkShieldHp?: number;
+  isEvolved?: boolean;
+  evolutionTier?: number;
+  darkGlitchSeed?: number;
+  isDarkInfused?: boolean;
 }
 
 export interface Projectile {
@@ -323,6 +333,10 @@ export interface Projectile {
   isBrimstone?: boolean;
   isSacredHeart?: boolean;
   isUnholyTriquetra?: boolean;
+
+  // Dark Magic modifier
+  isDarkMagic?: boolean;
+  darkMagicDamage?: number;
 }
 
 export interface Particle {
@@ -476,6 +490,7 @@ export interface PlayerStats {
   // Diablo Weapon Slot
   equippedWeapon: Weapon;
   bonusLightRadius: number;
+  bonusDarkMagicPct?: number;
 
   // Relic system (Isaac-style)
   relicSlotsCount: number;

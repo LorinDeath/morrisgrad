@@ -135,6 +135,18 @@ export const ALL_RELICS: Relic[] = [
       bonusHp: 2,
     },
   },
+  {
+    id: 'void_seal',
+    name: 'Печать Чёрной Магии',
+    desc: 'Наделяет всё оружие и навыки чистым уроном Чёрной Магии (+40%), полностью сокрушающим любые Чёрные Щиты монстров!',
+    icon: '🔮',
+    rarity: 'legendary',
+    effectType: 'void_seal',
+    stats: {
+      bonusDamage: 8,
+      bonusCrit: 0.10,
+    },
+  },
 ];
 
 export function getRandomRelic(excludeIds: string[] = []): Relic {
@@ -204,6 +216,17 @@ export function evaluateSynergy(equipped: (Relic | null)[]): SynergyInfo | null 
       desc: 'Все атаки получают взрывной эффект, +20 к базовому урону и сияющий золотой ореол непобедимости!',
       icon: '👼',
       color: '#38bdf8',
+    };
+  }
+
+  // 6. Void Seal + Black Hole = Чёрная Сингулярность
+  if (activeIds.has('void_seal') && activeIds.has('black_hole')) {
+    return {
+      id: 'void_singularity_magic',
+      name: '🔮 СИНЕРГИЯ: ЧЁРНАЯ СИНГУЛЯРНОСТЬ',
+      desc: 'Все атаки наносят 100% чистый урон Чёрной Магии, разрушая Чёрные Щиты врагов с первого попадания и вызывая мини-чёрные дыры!',
+      icon: '🔮',
+      color: '#c084fc',
     };
   }
 

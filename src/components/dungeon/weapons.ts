@@ -21,7 +21,8 @@ export type WeaponAffixType =
   | 'execute'
   | 'ricochet'
   | 'souls'
-  | 'pull';
+  | 'pull'
+  | 'darkMagic';
 
 export interface WeaponAffix {
   id: string;
@@ -29,7 +30,7 @@ export interface WeaponAffix {
   desc: string;
   type: WeaponAffixType;
   value: number;
-  element?: 'fire' | 'frost' | 'lightning' | 'arcane' | 'poison' | 'solar';
+  element?: 'fire' | 'frost' | 'lightning' | 'arcane' | 'poison' | 'solar' | 'dark' | 'void';
 }
 
 export interface WeaponProjectileConfig {
@@ -85,13 +86,14 @@ export interface Weapon {
   bonusExplosive: boolean;
   bonusExecute: boolean;
   bonusSouls: boolean;
-  element?: 'fire' | 'frost' | 'lightning' | 'arcane' | 'poison' | 'solar';
+  bonusDarkMagicPct: number;
+  element?: 'fire' | 'frost' | 'lightning' | 'arcane' | 'poison' | 'solar' | 'dark' | 'void';
 
   // SVG иконка
   svgIcon: string;
 }
 
-export type ScrollType = 'might' | 'swiftness' | 'vitality' | 'vampirism' | 'transmutation';
+export type ScrollType = 'might' | 'swiftness' | 'vitality' | 'vampirism' | 'transmutation' | 'dark_void';
 
 export interface ScrollItem {
   id: string;
@@ -254,6 +256,9 @@ export const PREFIXES: {
   { name: 'Взрывной', type: 'explosive', desc: 'Сферы взрываются при контакте с врагом, нанося урон по площади', valRange: [15, 35] },
   { name: 'Карающий', type: 'execute', desc: '+50% урона по врагам с запасом здоровья ниже 35%', valRange: [1, 1] },
   { name: 'Эгидный', type: 'armor', desc: '+к броне (снижает весь входящий урон)', valRange: [1, 2] },
+  { name: 'Оккультный', type: 'darkMagic', desc: '+25% урона Чёрной Магией (пробивает Чёрный Щит монстров)', valRange: [20, 35] },
+  { name: 'Бездненный', type: 'darkMagic', desc: '+35% чистого урона Чёрной Магией', valRange: [30, 45] },
+  { name: 'Скверны Бездны', type: 'darkMagic', desc: '+50% сокрушительного урона Чёрной Магией', valRange: [45, 60] },
 ];
 
 // Расширенный пул суффиксов в стиле Diablo
@@ -281,6 +286,8 @@ export const SUFFIXES: {
   { name: 'Сингулярности', type: 'pull', desc: 'Сферы притягивают окружающих врагов в эпицентр', valRange: [1, 1] },
   { name: 'Безумия', type: 'damage', desc: '+необузданная ярость и колоссальный урон', valRange: [14, 28] },
   { name: 'Вестника Рока', type: 'execute', desc: 'Убийственный палаческий урон по раненым монстрам', valRange: [1, 1] },
+  { name: 'Чёрной Бездны', type: 'darkMagic', desc: '+30% урона Чёрной Магией и сокрушение щитов', valRange: [25, 40] },
+  { name: 'Тёмной Магии', type: 'darkMagic', desc: '+35% чистого урона Чёрной Магией сквозь щиты', valRange: [30, 45] },
 ];
 
 export const WEAPON_BASE_NAMES: Record<WeaponType, string[]> = {
@@ -322,6 +329,7 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
   let bonusExplosive = false;
   let bonusExecute = false;
   let bonusSouls = false;
+  let bonusDarkMagicPct = 0;
   let pierce = weapon.projectile?.pierce || 1;
   let elem: Weapon['element'] = undefined;
 
@@ -356,6 +364,7 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
       dmg += Math.round(affix.value * 0.5);
     } else if (affix.type === 'execute') bonusExecute = true;
     else if (affix.type === 'souls') bonusSouls = true;
+    else if (affix.type === 'darkMagic') bonusDarkMagicPct += affix.value / 100;
     else if (affix.type === 'element') {
       dmg += affix.value;
       if (!elem) elem = affix.element || 'fire';
@@ -377,6 +386,7 @@ export function calculateWeaponStats(weapon: Weapon): Weapon {
   weapon.bonusExplosive = bonusExplosive;
   weapon.bonusExecute = bonusExecute;
   weapon.bonusSouls = bonusSouls;
+  weapon.bonusDarkMagicPct = Math.min(1.0, bonusDarkMagicPct);
   weapon.element = elem;
 
   if (weapon.projectile) {
@@ -594,6 +604,7 @@ export function generateRandomWeapon(floor: number, forcedType?: WeaponType, for
     bonusExplosive: false,
     bonusExecute: false,
     bonusSouls: false,
+    bonusDarkMagicPct: 0,
     svgIcon: generateWeaponSvg(type, rarity, chosenOrbType),
   };
 
@@ -642,6 +653,14 @@ export function generateRandomScroll(): ScrollItem {
       desc: 'Повышает качество оружия на 1 ранг (до Легендарного) и накладывает новый мощный аффикс!',
       icon: '✨',
       color: '#fb923c',
+    },
+    {
+      id: 'scroll_dark_void',
+      type: 'dark_void',
+      name: 'Свиток Тёмной Бездны',
+      desc: 'Наделяет оружие аффиксом Чёрной Магии (+35%), позволяющим пробивать и разрушать Чёрные Щиты монстров!',
+      icon: '🔮',
+      color: '#c084fc',
     },
   ];
 
@@ -729,6 +748,26 @@ export function applyScrollToWeapon(scroll: ScrollItem, weapon: Weapon): { messa
     };
   }
 
+  if (scroll.type === 'dark_void') {
+    weapon.affixes.push({
+      id: `scroll_void_${Date.now()}`,
+      name: 'Скверны Бездны',
+      desc: '+35% урона Чёрной Магией (пробивает Чёрные Щиты)',
+      type: 'darkMagic',
+      value: 35,
+    });
+    if (weapon.projectile) {
+      weapon.projectile.orbType = 'void';
+      weapon.projectile.color = '#c084fc';
+      weapon.projectile.glowColor = '#9333ea';
+      weapon.projectile.trailColor = '#3b0764';
+    }
+    return {
+      message: `🔮 БЕЗДНА: Оружие зачаровано Чёрной Магией (+35%)! Чёрные Щиты сокрушимы!`,
+      upgraded: calculateWeaponStats(weapon),
+    };
+  }
+
   return { message: 'Свиток использован!', upgraded: calculateWeaponStats(weapon) };
 }
 
@@ -791,6 +830,7 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExplosive: false,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('wand', 'magic', 'plasma'),
     };
   }
@@ -832,6 +872,7 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExplosive: false,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('dagger', 'magic'),
     };
   }
@@ -880,6 +921,7 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExplosive: false,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('sword', 'magic'),
     };
   }
@@ -921,6 +963,7 @@ export function createStarterWeapon(heroClass: string): Weapon {
       bonusExplosive: false,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('hammer', 'magic'),
     };
   }
@@ -962,6 +1005,7 @@ export function createStarterWeapon(heroClass: string): Weapon {
     bonusExplosive: false,
     bonusExecute: false,
     bonusSouls: false,
+    bonusDarkMagicPct: 0,
     svgIcon: generateWeaponSvg('sword', 'common'),
   };
 }
@@ -1023,6 +1067,7 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExplosive: true,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('wand', 'rare', 'plasma'),
     };
   }
@@ -1071,6 +1116,7 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExplosive: false,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('sword', 'rare'),
     };
   }
@@ -1119,7 +1165,62 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExplosive: false,
       bonusExecute: false,
       bonusSouls: false,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('dagger', 'rare'),
+    };
+  }
+
+  if (loadout === 'shadow_staff') {
+    return {
+      id: 'loadout_shadow_staff',
+      name: 'Оккультный Посох Бездны',
+      type: 'wand',
+      rarity: 'rare',
+      level: 0,
+      statDamage: 14,
+      statSpeed: 9,
+      statMagicVitality: 18,
+      baseDamage: 28,
+      attackCooldown: 0.25,
+      attackRange: 260,
+      projectile: {
+        speed: 310,
+        pierce: 3,
+        color: '#c084fc',
+        glowColor: '#9333ea',
+        trailColor: '#3b0764',
+        radius: 10,
+        isMagicOrb: true,
+        orbType: 'void',
+        multishot: 1,
+        homing: true,
+      },
+      affixes: [
+        {
+          id: 'loadout_shadow_1',
+          name: 'Скверна Пустоты',
+          desc: '+40% чистого урона Чёрной Магией (сокрушает Чёрные Щиты)',
+          type: 'darkMagic',
+          value: 40,
+        },
+      ],
+      bonusDamage: 28,
+      bonusSpeedPct: 0,
+      bonusMaxHp: 2,
+      bonusCritChance: 0.20,
+      bonusCritMult: 2.4,
+      bonusLifesteal: 0,
+      bonusMoveSpeed: 0,
+      bonusLightRadius: 50,
+      bonusKnockback: 40,
+      bonusArmor: 0,
+      bonusMultishot: 0,
+      bonusHoming: true,
+      bonusExplosive: false,
+      bonusExecute: false,
+      bonusSouls: true,
+      bonusDarkMagicPct: 0.40,
+      svgIcon: generateWeaponSvg('wand', 'rare', 'void'),
     };
   }
 
@@ -1180,6 +1281,7 @@ export function createLoadoutWeapon(loadout: string, heroClass: string): Weapon 
       bonusExplosive: true,
       bonusExecute: false,
       bonusSouls: true,
+      bonusDarkMagicPct: 0,
       svgIcon: generateWeaponSvg('wand', 'legendary', 'storm'),
     };
   }

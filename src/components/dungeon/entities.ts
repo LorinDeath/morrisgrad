@@ -158,6 +158,7 @@ export function createInitialPlayer(
 
     equippedWeapon: starterWeapon,
     bonusLightRadius,
+    bonusDarkMagicPct: starterWeapon.bonusDarkMagicPct || 0,
 
     relicSlotsCount,
     relics: new Array(relicSlotsCount).fill(null),
@@ -380,6 +381,13 @@ export function createEnemyInstance(
     tint = eliteAffix === 'fire' ? '#f97316' : eliteAffix === 'frost' ? '#38bdf8' : '#e11d48';
   }
 
+  const darkShieldChance = isMiniBoss ? (floor >= 2 ? 0.45 : 0) : isElite ? (floor >= 3 ? 0.25 : 0) : (floor >= 4 ? 0.08 : 0);
+  const hasDarkShield = Math.random() < darkShieldChance;
+  const darkShieldHp = hasDarkShield ? Math.round(hp * 0.85 + 25) : 0;
+  if (hasDarkShield) {
+    name = `🛡️ [ЧЁРНЫЙ ЩИТ] ${name}`;
+  }
+
   return {
     id: enemyIdCounter++,
     type,
@@ -414,6 +422,12 @@ export function createEnemyInstance(
     dodgeTimer: 0,
     preferredDistance,
     telegraphTimer: 0,
+    hasDarkShield,
+    darkShieldHp,
+    maxDarkShieldHp: darkShieldHp,
+    isEvolved: false,
+    evolutionTier: 0,
+    darkGlitchSeed: Math.random() * 100,
   };
 }
 
