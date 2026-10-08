@@ -30,6 +30,21 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+            <div class="game-card cherta-card"
+                 data-title="Черта купола"
+                 data-desc="Карточный рогалик за барьером Альказака. Семь колодок, три акта — Пустоши, Замок и Корона — и лестница черты. Атаку веди на врага, щит — на себя. Броня ложится голубой полосой поверх здоровья."
+                 data-game-url="/games/cherta"
+                 data-changelog-url="/games/cherta">
+                                <span class="cherta-badge">новое</span>
+                <img src="/cherta-cover.png" alt="Черта купола" class="game-icon" style="object-fit: cover; image-rendering: auto;" />
+                <span class="game-title" style="color: #e0b15a;">Черта купола</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(226, 75, 59, 0.2); color: #e24b3b; border: 1px solid rgba(226,75,59,0.4);">🃏 Карточный рогалик</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                </div>
+            </div>
+
             <div class="game-card sanctuary-card" 
                  data-title="Заповедный Лес: Тайны Древней Рощи" 
                  data-desc="Масштабная 3D игра на поиск предметов и медитативное исследование в живом стилизованном лесу! Исследуйте вековые сосны, цветущие поляны и древние каменные святилища. Находите 12 священных реликвий, управляйте временем суток (золотой полдень, закат, лунная ночь, рассветный туман), используйте светлячка-проводника и делайте снимки в дзен-фотостудии. Полная поддержка кэширования 3D-ресурсов для мгновенного входа!" 
@@ -90,20 +105,6 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
-
-            <div class="game-card cherta-card"
-                 data-title="Черта купола"
-                 data-desc="Карточный рогалик за барьером Альказака. Семь колодок, три акта — Пустоши, Замок и Корона — и лестница черты. Атаку веди на врага, щит — на себя. Броня ложится голубой полосой поверх здоровья."
-                 data-game-url="/games/cherta"
-                 data-changelog-url="/games/cherta">
-                <img src="/cherta-cover.png" alt="Черта купола" class="game-icon" style="object-fit: contain; background: #1b1416; image-rendering: pixelated;" />
-                <span class="game-title" style="color: #e0b15a;">Черта купола</span>
-                <div class="platforms">
-                    <span class="platform-tag" style="background: rgba(226, 75, 59, 0.2); color: #e24b3b; border: 1px solid rgba(226,75,59,0.4);">🃏 Карточный рогалик</span>
-                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
-                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
-                </div>
-            </div>
 
             <div class="game-card" 
                  data-title="Заглушка v0.2" 
@@ -179,17 +180,55 @@ import geometriaImg from '../assets/geometria.png';
 
 
     .cherta-card {
-        border-color: #e24b3b;
-        box-shadow: 0 0 18px rgba(226, 75, 59, 0.25);
-        background: linear-gradient(180deg, rgba(32, 16, 18, 0.94) 0%, rgba(12, 8, 9, 0.98) 100%);
+        border-color: #e0b15a;
+        box-shadow: 0 0 22px rgba(224, 177, 90, 0.45), 0 0 8px rgba(226, 75, 59, 0.35);
+        background: linear-gradient(180deg, rgba(48, 22, 18, 0.96) 0%, rgba(14, 8, 9, 0.98) 100%);
     }
     .cherta-card:hover {
-        border-color: #e0b15a;
-        box-shadow: 0 0 30px #e0b15a, 0 0 15px #e24b3b;
+        border-color: #ffd978;
+        box-shadow: 0 0 34px #e0b15a, 0 0 18px #e24b3b;
+        transform: translateY(-10px);
     }
     .cherta-card .game-title {
-        color: #e0b15a;
-        text-shadow: 0 0 8px rgba(224, 177, 90, 0.55);
+        color: #ffd978;
+        text-shadow: 0 0 10px rgba(224, 177, 90, 0.7);
+    }
+    .cherta-card .game-icon {
+        border-color: #e0b15a;
+        box-shadow: 0 0 16px rgba(224, 177, 90, 0.35);
+    }
+    .cherta-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 2;
+        background: #e24b3b;
+        color: #fff8f2;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        border-radius: 999px;
+        box-shadow: 0 0 12px rgba(226, 75, 59, 0.65);
+    }
+    .modal-content.cherta-theme {
+        border-color: #e0b15a;
+        box-shadow: 0 0 28px rgba(224, 177, 90, 0.35);
+    }
+    .modal-content.cherta-theme #modal-title {
+        color: #ffd978;
+    }
+    .modal-content.cherta-theme .start-btn {
+        border-color: #e0b15a;
+        color: #ffd978;
+    }
+    .modal-content.cherta-theme .start-btn:hover {
+        background: rgba(224, 177, 90, 0.16);
+    }
+    .modal-content.cherta-theme .modal-icon {
+        border-color: #e0b15a;
+        object-fit: cover;
     }
 
     .game-card {
@@ -706,19 +745,22 @@ import geometriaImg from '../assets/geometria.png';
                     modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
                     modalContent.classList.add('dungeon-theme');
                 } else if (card.classList.contains('sanctuary-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme');
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'cherta-theme');
                     modalContent.classList.add('sanctuary-theme');
                 } else if (card.classList.contains('ascetic-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'sanctuary-theme');
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'sanctuary-theme', 'cherta-theme');
                     modalContent.classList.add('ascetic-theme');
                 } else if (card.classList.contains('geometry-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'sanctuary-theme');
+                    modalContent.classList.remove('neon-theme', 'sanctuary-theme', 'cherta-theme');
                     modalContent.classList.add('geometry-theme');
                 } else if (card.classList.contains('neon-card') && modalContent) {
-                    modalContent.classList.remove('geometry-theme', 'sanctuary-theme');
+                    modalContent.classList.remove('geometry-theme', 'sanctuary-theme', 'cherta-theme');
                     modalContent.classList.add('neon-theme');
-                } else if (modalContent) {
+                } else if (card.classList.contains('cherta-card') && modalContent) {
                     modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
+                    modalContent.classList.add('cherta-theme');
+                } else if (modalContent) {
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme');
                 }
 
                 modal.classList.add('active');
