@@ -90,6 +90,21 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+
+            <div class="game-card cherta-card"
+                 data-title="Черта купола"
+                 data-desc="Карточный рогалик за барьером Альказака. Семь колодок, три акта — Пустоши, Замок и Корона — и лестница черты. Атаку веди на врага, щит — на себя. Броня ложится голубой полосой поверх здоровья."
+                 data-game-url="/games/cherta"
+                 data-changelog-url="/games/cherta">
+                <img src="/cherta-cover.png" alt="Черта купола" class="game-icon" style="object-fit: contain; background: #1b1416; image-rendering: pixelated;" />
+                <span class="game-title" style="color: #e0b15a;">Черта купола</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(226, 75, 59, 0.2); color: #e24b3b; border: 1px solid rgba(226,75,59,0.4);">🃏 Карточный рогалик</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                </div>
+            </div>
+
             <div class="game-card" 
                  data-title="Заглушка v0.2" 
                  data-desc="Это всего лишь временная заглушка, чтобы удержать внимание пользователя на странице. Когда нибудь Алзор подлючит энергоблок к данной мини игре и игроки будут вырабатывать энергию для развития своего мини городка. Но это не точно." 
@@ -160,6 +175,21 @@ import geometriaImg from '../assets/geometria.png';
         gap: 2rem;
         flex-wrap: wrap;
         margin: 3rem 0;
+    }
+
+
+    .cherta-card {
+        border-color: #e24b3b;
+        box-shadow: 0 0 18px rgba(226, 75, 59, 0.25);
+        background: linear-gradient(180deg, rgba(32, 16, 18, 0.94) 0%, rgba(12, 8, 9, 0.98) 100%);
+    }
+    .cherta-card:hover {
+        border-color: #e0b15a;
+        box-shadow: 0 0 30px #e0b15a, 0 0 15px #e24b3b;
+    }
+    .cherta-card .game-title {
+        color: #e0b15a;
+        text-shadow: 0 0 8px rgba(224, 177, 90, 0.55);
     }
 
     .game-card {
