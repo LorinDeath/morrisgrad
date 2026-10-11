@@ -477,8 +477,10 @@ export class MetaService {
     const ab = eff.abilities.find((x: any) => x.id === msg.id);
     if (!ab) return;
     const now = Date.now();
-    if ((ms.abilCd[ab.id] || 0) > now) return;
+    // подтверждение перезарядки для панели навыков клиента (сервер — источник правды)
+    if ((ms.abilCd[ab.id] || 0) > now) { this.send(ws, { type: "ability_cd", id: ab.id, left: ms.abilCd[ab.id] - now, cd: ab.cd, ok: false }); return; }
     ms.abilCd[ab.id] = now + ab.cd * 1000;
+    this.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
     ms.zp.x = session.x; ms.zp.y = session.y;
     const def = ABILITY_BY_ID[ab.id];
     const radius = ab.props.includes("extend") ? 200 : 140;
