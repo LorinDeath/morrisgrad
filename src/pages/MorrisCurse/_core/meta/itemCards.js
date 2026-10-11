@@ -15,3 +15,14 @@ export const ITEM_BY_ID = new Proxy({}, {
   get: (_, id) => (typeof id === 'string' ? cards.get(id) : undefined),
   has: (_, id) => cards.has(id),
 });
+
+// Пиксельные иконки предметов: атлас items_atlas.png (ячейка 20 px с рамкой редкости), индекс = номер в пуле (card.n).
+import atlasSrc from '../../../../assets/mc/items_atlas.png';
+import ATLAS from '../../../../assets/mc/items_atlas.json';
+const ATLAS_URL = typeof atlasSrc === 'object' && atlasSrc ? atlasSrc.src || atlasSrc.default || '' : atlasSrc;
+export function iconHtml(d, px = 40, cls = '') {
+  const n = d && Number.isInteger(d.n) ? d.n : -1;
+  if (n < 0 || n >= ATLAS.count) return `<span class="mc-ic-fb">${d?.icon || '·'}</span>`;
+  const k = px / ATLAS.cell, col = n % ATLAS.cols, row = Math.floor(n / ATLAS.cols);
+  return `<i class="mc-ic ${cls}" style="width:${px}px;height:${px}px;background-image:url('${ATLAS_URL}');background-size:${ATLAS.cols * ATLAS.cell * k}px auto;background-position:-${col * ATLAS.cell * k}px -${row * ATLAS.cell * k}px"></i>`;
+}

@@ -15,7 +15,7 @@ import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
 import { ZoneView } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES } from '../../../../server/meta/shared.ts';
-import { ITEM_BY_ID, addCards } from './meta/itemCards.js';
+import { ITEM_BY_ID, addCards, iconHtml } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
 import { HubWorld } from './hub/hubWorld.js';
@@ -391,7 +391,7 @@ async function boot(canvasId, username, userId, api) {
     if (parts.length) overlay.float(toX(player.x), 3.0, toZ(player.y), parts.join(' '), '#fde68a');
   }
   function showRunReward(r) {
-    const items = (r.items || []).map((it) => { const d = ITEM_BY_ID[it.id]; return d ? `<li style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</li>` : ''; }).join('');
+    const items = (r.items || []).map((it) => { const d = ITEM_BY_ID[it.id]; return d ? `<li style="color:${RARITIES[d.rarity].color}">${iconHtml(d, 20)} ${esc(d.name)}</li>` : ''; }).join('');
     const res = Object.entries(r.res || {}).map(([k, n]) => `${RESOURCES[k]?.icon || ''}×${n}`).join(' ');
     const box = overlay.screen?.querySelector('.mc3d-results');
     const html = `<div class="mc-reward"><b>Награда героя</b> (сервер): +${r.xp} опыта${r.levelUps ? ` · уровень +${r.levelUps}` : ''}${res ? ` · ${res}` : ''}${items ? `<ul>${items}</ul>` : ''}</div>`;

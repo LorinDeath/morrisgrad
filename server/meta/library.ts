@@ -65,7 +65,7 @@ export function itemCard(id: string) {
   const look = it.look ? LOOKS[it.look] : null;
   const ab = it.grantsAbility ? ABILITY_BY_ID[it.grantsAbility] : null;
   return {
-    id: it.id, name: it.name, slot: it.slot, rarity: it.rarity, lvl: it.lvl || 1, req: it.req || 1, wtype: it.wtype || null, stats: it.stats, icon: it.icon,
+    n: ITEM_INDEX[it.id], id: it.id, name: it.name, slot: it.slot, rarity: it.rarity, lvl: it.lvl || 1, req: it.req || 1, wtype: it.wtype || null, stats: it.stats, icon: it.icon,
     lore: it.lore, classes: it.classes || null, band: it.band || null, monster: it.monster || null, monsterName: it.monster ? ZONE_MOBS[it.monster]?.name || null : null,
     look: look ? { id: look.id, name: look.name, bonus: look.bonus, parts: look.parts.length } : null,
     ability: ab ? { id: ab.id, name: ab.name, icon: ab.icon, desc: ab.desc, cd: ab.cd } : null,

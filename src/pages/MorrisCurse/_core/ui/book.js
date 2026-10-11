@@ -6,7 +6,7 @@ import {
   TALENTS, TALENT_TIER_REQ, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
   RARITIES, SLOTS, SLOT_ORDER, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
 } from '../../../../../server/meta/shared.ts';
-import { ITEM_BY_ID } from '../meta/itemCards.js';
+import { ITEM_BY_ID, iconHtml } from '../meta/itemCards.js';
 import { QUESTS, QUEST_BY_ID, CAMPAIGN_NAMES } from '../../../../../server/meta/quests.ts';
 import { esc } from './overlay.js';
 
@@ -196,7 +196,7 @@ export class Book {
     const parts = [];
     if (r.xp) parts.push(`${r.xp} опыта`);
     for (const [c, n] of Object.entries(r.stars || {})) parts.push(`${star(c, n)}`);
-    for (const id of r.items || []) { const d = ITEM_BY_ID[id]; if (d) parts.push(`<span style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</span>`); }
+    for (const id of r.items || []) { const d = ITEM_BY_ID[id]; if (d) parts.push(`<span style="color:${RARITIES[d.rarity].color}">${iconHtml(d, 20)} ${esc(d.name)}</span>`); }
     for (const [k, n] of Object.entries(r.res || {})) parts.push(`${RESOURCES[k]?.icon || ''}×${n}`);
     if (r.flag === 'talents_open') parts.push('🔓 Дерево талантов');
     if (r.flag === 'radiance_open') parts.push('🔓 Сияние навыков');
@@ -287,13 +287,13 @@ export class Book {
       const uid = h?.equip?.[slot];
       const it = uid && byUid.get(uid);
       const d = it && ITEM_BY_ID[it.id];
-      return `<button class="mc-gslot" data-act="sel" data-v="${uid || ''}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? d.icon : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      return `<button class="mc-gslot" data-act="sel" data-v="${uid || ''}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bag = a.inv.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = ITEM_BY_ID[it.id];
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
-      return `<button class="mc-item ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${d.icon}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
+      return `<button class="mc-item ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${iconHtml(d, 40)}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
     const res = Object.entries(a.res || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span title="${esc(RESOURCES[k]?.name || k)}">${RESOURCES[k]?.icon || '•'} ${n}</span>`).join('');
     let detail = '<p class="mc-dim">Нажмите на предмет, чтобы увидеть характеристики и источник.</p>';
@@ -308,7 +308,7 @@ export class Book {
       const newAb = d.grantsAbility || d.ability?.id;
       const abNew = newAb && feats['ability:' + newAb] && !feats['ability:' + newAb].v;
       if (newProps.length || abNew) this.meta.markSeen('feats', [...newProps.map((k) => 'prop:' + k), ...(abNew ? ['ability:' + newAb] : [])]);
-      detail = `<div class="mc-tip"><div class="nm" style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</div>
+      detail = `<div class="mc-tip"><div class="nm" style="color:${RARITIES[d.rarity].color}">${iconHtml(d, 32)} ${esc(d.name)}</div>
         <div class="rr">${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
         <div class="ss">${itemStatsHtml(d, newProps)}</div>
         <div class="fx">Ур. предмета ${d.lvl || 1}. ${reqHtml(d, h)}. Характеристики фиксированные — не растут с уровнем.</div>
@@ -335,7 +335,7 @@ export class Book {
       if (!d) return '';
       const ok = Object.entries(r.cost).every(([k, n]) => (a.res[k] || 0) >= n);
       const cost = Object.entries(r.cost).map(([k, n]) => `<span class="${(a.res[k] || 0) >= n ? 'ok' : 'no'}">${RESOURCES[k]?.icon || ''} ${a.res[k] || 0}/${n}</span>`).join(' ');
-      return `<div class="mc-recipe"><b style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</b><small>${itemStatsHtml(d)}</small><div>${cost}</div><button class="mc-btn gold" data-act="craft" data-v="${r.id}" ${ok && near ? '' : 'disabled'}>Создать</button></div>`;
+      return `<div class="mc-recipe"><b style="color:${RARITIES[d.rarity].color}">${iconHtml(d, 24)} ${esc(d.name)}</b><small>${itemStatsHtml(d)}</small><div>${cost}</div><button class="mc-btn gold" data-act="craft" data-v="${r.id}" ${ok && near ? '' : 'disabled'}>Создать</button></div>`;
     }).join('');
     return `${near ? '' : '<p class="mc-lock">⚒️ Создавать можно у Петра (Поляна, юго-запад). Рецепты видны всегда.</p>'}${rows}`;
   }
@@ -347,19 +347,18 @@ export class Book {
     if (!L) return '<p class="mc-dim">Загрузка Библиотеки…</p>';
     const byN = new Map(Object.values(L.items).map((c) => [c.n, c]));
     const f = this.lfilter || 'all';
-    const SLOT_IC = { weapon: '⚔', helmet: '⛑', armor: '🛡', legs: '👖', hands: '🧤' };
     const cells = L.sil.map(([slot, rar], n) => {
       const c = byN.get(n);
       if (f !== 'all' && f !== slot) return '';
-      if (!c) return `<div class="mc-lib lock" style="border-color:${RAR(rar).color}55" title="${esc(RAR(rar).name)} · ${esc(SLOTS[slot])} — ещё не открыт"><span>${SLOT_IC[slot] || '?'}</span></div>`;
-      return `<button class="mc-lib ${c.isNew ? 'isnew' : ''} ${this.lsel === c.id ? 'on' : ''} ${c.owned ? 'own' : ''}" data-act="lsel" data-v="${c.id}" style="border-color:${RAR(c.rarity).color}" title="${esc(c.name)}">${c.icon}${c.isNew ? NEW_BADGE : ''}${c.owned ? `<small>×${c.owned}</small>` : ''}</button>`;
+      if (!c) return `<div class="mc-lib lock" style="border-color:${RAR(rar).color}55" title="${esc(RAR(rar).name)} · ${esc(SLOTS[slot])} — ещё не открыт">${iconHtml({ n }, 32, 'sil')}</div>`;
+      return `<button class="mc-lib ${c.isNew ? 'isnew' : ''} ${this.lsel === c.id ? 'on' : ''} ${c.owned ? 'own' : ''}" data-act="lsel" data-v="${c.id}" style="border-color:${RAR(c.rarity).color}" title="${esc(c.name)}">${iconHtml(c, 32)}${c.isNew ? NEW_BADGE : ''}${c.owned ? `<small>×${c.owned}</small>` : ''}</button>`;
     }).join('');
     const opened = Object.keys(L.items).length;
     const owned = Object.values(L.items).filter((c) => c.st === 'owned').length;
     let detail = '<p class="mc-dim">Открытые предметы показывают характеристики и источники. Закрытые — только силуэт: слот и редкость.</p>';
     const c = this.lsel && L.items[this.lsel];
     if (c) {
-      detail = `<div class="mc-tip"><div class="nm" style="color:${RAR(c.rarity).color}">${c.icon} ${esc(c.name)}</div>
+      detail = `<div class="mc-tip"><div class="nm" style="color:${RAR(c.rarity).color}">${iconHtml(c, 32)} ${esc(c.name)}</div>
         <div class="rr">${esc(RAR(c.rarity).name)} · ${esc(SLOTS[c.slot])} · ур. ${c.lvl}${c.band ? ` · ${esc(c.band)}` : ''}</div>
         <div class="fx">${reqHtml(c, st.hero)}</div>
         <div class="ss">${itemStatsHtml(c)}</div>
@@ -398,8 +397,8 @@ export class Book {
       if (open) {
         const d = lm?.drops;
         const gear = (d?.gear || []).map((g) => {
-          if (g.id) { const c = ITEM_BY_ID[g.id] || L?.items?.[g.id]; return c ? `<li><span style="color:${RAR(c.rarity).color}">${c.icon} ${esc(c.name)}</span> — <b>${g.chance}%</b></li>` : ''; }
-          return `<li class="lock"><span style="color:${RAR(g.rarity).color}">▒ ${esc(RAR(g.rarity).name)} · ${esc(SLOTS[g.slot] || '')}</span> — <b>${g.chance}%</b></li>`;
+          if (g.id) { const c = ITEM_BY_ID[g.id] || L?.items?.[g.id]; return c ? `<li><span style="color:${RAR(c.rarity).color}">${iconHtml(c, 20)} ${esc(c.name)}</span> — <b>${g.chance}%</b></li>` : ''; }
+          return `<li class="lock"><span style="color:${RAR(g.rarity).color}">${Number.isInteger(g.n) ? iconHtml(g, 20, 'sil') : '▒'} ${esc(RAR(g.rarity).name)} · ${esc(SLOTS[g.slot] || '')}</span> — <b>${g.chance}%</b></li>`;
         }).join('');
         const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${m.chance}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
         body = `<div class="s">${info ? `ур. ${info.lvl} · ${esc(ROLE_RU[info.role] || info.role || '')} · HP ${info.hp} · урон ${info.dmg} · броня ${info.armor}` : ''}</div>

@@ -294,3 +294,8 @@
 .mc3d-inv-ring small { font: 600 8px monospace; color: #bae6fd; max-width: 64px; text-align: center; line-height: 1.1; }
 .mc3d-inv-ring.over { background: radial-gradient(circle, #120d20 58%, transparent 60%), conic-gradient(#f87171 360deg, #f87171 0); box-shadow: 0 0 16px #f8717188; }
 .mc3d-inv-ring.over b, .mc3d-inv-ring.over small { color: #fecaca; }
+
+/* пиксельные иконки предметов (items_atlas.png) */
+.mc-ic { display: inline-block; vertical-align: middle; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; flex: none; }
+.mc-ic.sil { filter: grayscale(1) brightness(.42) contrast(1.6); opacity: .8; }
+.mc-item .mc-ic, .mc-lib .mc-ic { margin: auto; }
