@@ -14,7 +14,7 @@
 .mc3d-prompt { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); background: rgba(12, 8, 22, 0.88); border: 1px solid #c59b27; color: #ffd700; padding: 6px 12px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
 .mc3d-chat { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(360px, 90%); pointer-events: auto; display: none; }
 .mc3d-chat input { width: 100%; padding: 7px 10px; background: #0c0915; color: #fff; border: 1px solid #c59b27; border-radius: 6px; font-family: monospace; font-size: 13px; outline: none; }
-.mc3d-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: rgba(5, 3, 10, 0.82); pointer-events: auto; text-align: center; padding: 16px; z-index: 30; }
+.mc3d-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: safe center; overflow-y: auto; flex-direction: column; gap: 10px; background: rgba(5, 3, 10, 0.82); pointer-events: auto; text-align: center; padding: 16px; z-index: 30; }
 .mc3d-screen h2 { margin: 0; color: #ffd700; font-size: 20px; letter-spacing: 2px; }
 .mc3d-screen p { margin: 0; color: #cbd5e1; font-size: 12px; max-width: 420px; }
 .mc3d-btn { pointer-events: auto; background: #7c3aed; border: 1px solid #a855f7; color: #fff; padding: 9px 14px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 13px; cursor: pointer; }
@@ -51,8 +51,8 @@
 .mc3d-ability.hidden { display: none; }
 .mc3d-down { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); color: #fca5a5; font-weight: bold; font-size: 15px; text-shadow: 0 1px 3px #000; display: none; text-align: center; }
 
-.mc3d-choices { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
-.mc3d-choice { width: 180px; min-height: 130px; background: #120d20; border: 1px solid #3b2c52; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; text-align: left; pointer-events: auto; color: #e2e8f0; font-family: monospace; }
+.mc3d-choices { display: flex; gap: 8px; flex-wrap: nowrap; justify-content: center; width: 100%; max-width: 600px; }
+.mc3d-choice { flex: 1 1 0; min-width: 0; max-width: 190px; min-height: 0; background: #120d20; border: 1px solid #3b2c52; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; text-align: left; pointer-events: auto; color: #e2e8f0; font-family: monospace; }
 .mc3d-choice:hover, .mc3d-choice:focus { border-color: #facc15; box-shadow: 0 0 14px rgba(250, 204, 21, 0.35); outline: none; }
 .mc3d-choice .ic { font-size: 26px; }
 .mc3d-choice .nm { color: #ffd700; font-weight: bold; font-size: 13px; }
@@ -95,3 +95,18 @@
   .game-window:fullscreen .game-hud-panel { display: none !important; }
 }
 .mc3d-overlay-canvas { position: absolute; pointer-events: none; z-index: 4; }
+
+/* Маленькое окно (340×340 вне полноэкранного режима) — компактные модалки */
+.mc3d-compact .mc3d-screen { padding: 8px; gap: 6px; }
+.mc3d-compact .mc3d-screen h2 { font-size: 15px; }
+.mc3d-compact .mc3d-screen p { font-size: 10px; }
+.mc3d-compact .mc3d-choice { padding: 6px; gap: 3px; }
+.mc3d-compact .mc3d-choice .ic { font-size: 18px; }
+.mc3d-compact .mc3d-choice .nm { font-size: 11px; }
+.mc3d-compact .mc3d-choice .ds { font-size: 9px; }
+.mc3d-compact .mc3d-results { padding: 8px; gap: 4px; }
+.mc3d-compact .mc3d-kv { font-size: 10px; }
+.mc3d-compact .mc3d-classes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.mc3d-compact .mc3d-class { padding: 6px; }
+.mc3d-compact .mc3d-class .ds { display: none; }
+.mc3d-compact .mc3d-top { font-size: 11px; } .mc3d-compact .mc3d-top .t { font-size: 14px; }

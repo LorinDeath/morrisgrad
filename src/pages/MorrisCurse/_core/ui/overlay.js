@@ -39,6 +39,8 @@ export class Overlay {
     if (l.top !== top) l.top = top;
     if (l.width !== w) l.width = w;
     if (l.height !== h) l.height = h;
+    const compact = c.clientHeight < 480 || c.clientWidth < 360;
+    if (compact !== this.compact) { this.compact = compact; this.layer.classList.toggle('mc3d-compact', compact); }
   }
 
   // --- подписи над объектами (вызывать каждый кадр; неиспользованные скрываются) ---
