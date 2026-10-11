@@ -171,6 +171,9 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   await G(() => { const r = window.__game.run; r.team.xp += 5000; });
   await p.waitForSelector('.mc3d-choice', { timeout: 5000 }).catch(() => {});
   ok('level-up choice opens', await G(() => !!document.querySelector('.mc3d-choice')));
+  { const t0 = await G(() => window.__game.run.t); await p.waitForTimeout(1500); const t1 = await G(() => window.__game.run.t);
+    ok('solo: full pause while choosing (clock frozen, no auto-pick)', t1 === t0 && await G(() => window.__game.run.pendingChoices > 0), { t0, t1 }); }
+  await shot('07a-run-levelup-paused');
   await G(() => { const o = window.__game.debug.overlay; o.showScreen('<p>перекрытие</p>', []); o.hideScreen(); });
   await p.waitForTimeout(600);
   ok('level-up watchdog reopens choice after it was hidden', await G(() => !!document.querySelector('.mc3d-choice') && window.__game.run.pendingChoices > 0), await G(() => ({ pend: window.__game.run.pendingChoices, open: window.__game.debug.runUI.choiceOpen })));

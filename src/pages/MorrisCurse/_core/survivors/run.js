@@ -81,6 +81,9 @@ class Grid {
   }
 }
 
+// Отряд: через сколько секунд выбор улучшения делается автоматически (пауза для всех не бесконечна)
+export const CHOICE_AUTO_PICK = 10;
+
 export class RunSession {
   constructor(opts) {
     this.room = opts.room;
@@ -130,6 +133,8 @@ export class RunSession {
     this.killCredit = {}; // id игрока → убийства (авторитет — хост, рассылается в снапшоте)
     this.seenLevel = 1;
     this.pendingChoices = 0;
+    this.choiceT = 0; // сколько секунд открыт текущий выбор (для автовыбора в отряде)
+    this.pauseInfo = []; // кто сейчас выбирает улучшение (пауза для всего отряда)
     this.choiceSource = 'level';
     this.pendingHits = [];
     this.pendingPicks = [];
@@ -305,8 +310,15 @@ export class RunSession {
   // ---------- главный тик ----------
   update(dt, input) {
     if (this.ended) return;
-    const soloPause = this.paused || (this.pendingChoices > 0 && this.remotes.size === 0);
-    if (soloPause) return;
+    // Пауза выбора улучшения: соло — полная пауза, пока игрок выбирает (без ограничения времени);
+    // отряд — пауза для ВСЕХ, пока выбирает хоть кто-то (автовыбор через CHOICE_AUTO_PICK с — в game.js).
+    this.checkLevelUp(); // уровень отряда мог прийти снапшотом хоста — выбираем все одновременно
+    if (this.pendingChoices > 0) this.choiceT += dt; else this.choiceT = 0;
+    this.pauseInfo = this.choosers();
+    if (this.paused || this.pauseInfo.length) {
+      if (this.remotes.size || !this.isHost) { this.netTick(dt); this.ageRemotes(dt); } // связь живёт: видно, когда выбор закончится
+      return;
+    }
     if (this.isHost) this.t += dt;
     else this.t += dt; // гость экстраполирует, снапшот поправит
     this.updateMe(dt, input);
@@ -326,6 +338,10 @@ export class RunSession {
       }
     }
     this.netTick(dt);
+    this.checkLevelUp();
+  }
+
+  checkLevelUp() {
     if (this.team.level > this.seenLevel) {
       this.pendingChoices += this.team.level - this.seenLevel;
       this.seenLevel = this.team.level;
@@ -1434,6 +1450,10 @@ export class RunSession {
       f.t += dt;
       if (f.t >= f.life) this.fx.splice(i, 1);
     }
+    this.ageRemotes(dt);
+  }
+
+  ageRemotes(dt) {
     for (const r of this.remotes.values()) {
       if (r.tx !== undefined) {
         const k = Math.min(1, dt * 12);
@@ -1442,6 +1462,17 @@ export class RunSession {
       r.age = (r.age || 0) + dt;
       r.stale = r.age > 5;
     }
+  }
+
+  // Кто выбирает улучшение прямо сейчас: я + союзники (по флагу ch в их состоянии). Союзник «завис»
+  // (нет связи > 5 с или выбор дольше автовыбора + запас) — не держит отряд на паузе.
+  choosers() {
+    const out = [];
+    if (this.pendingChoices > 0 && !this.ended) out.push({ id: this.myId, username: this.username || 'Вы', me: true, t: this.choiceT });
+    for (const [id, r] of this.remotes) {
+      if (r.choosing && !r.stale && (r.chT || 0) < CHOICE_AUTO_PICK + 4) out.push({ id, username: r.username, color: r.color, t: r.chT || 0 });
+    }
+    return out;
   }
 
   finish(reason) {
@@ -1465,6 +1496,7 @@ export class RunSession {
         this.send({
           k: 'me', x: r1(m.x), z: r1(m.z), dx: r1(m.dirX), dz: r1(m.dirZ), mv: m.moving ? 1 : 0,
           hp: Math.round(m.hp), mh: Math.round(m.maxHp), dead: m.dead ? 1 : 0, mag: r1(m.magnet),
+          ch: this.pendingChoices > 0 ? r1(this.choiceT) : undefined,
           cls: this.classKey, lk: this.meta?.look || undefined, kills: m.stats.kills, dmg: Math.round(m.stats.damage), shots: this.outShots.slice(0, 40),
         });
       }
@@ -1586,6 +1618,7 @@ export class RunSession {
       if (r.x === undefined) { r.x = d.x; r.z = d.z; }
       r.hp = d.hp; r.maxHp = d.mh; r.dead = !!d.dead; r.magnet = d.mag || 2.4; r.classKey = d.cls; r.look = d.lk || null;
       r.damage = d.dmg; r.age = 0; // убийства считает хост (killCredit)
+      r.choosing = d.ch !== undefined && d.ch !== null; r.chT = Number(d.ch) || 0;
       if (member) { r.username = member.username; r.color = member.color; }
       (d.shots || []).forEach((sh) => {
         if (this.visualShots.length > 300) return;
