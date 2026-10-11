@@ -70,4 +70,27 @@ export const WORLD_PORTALS: WorldPortalDef[] = [
     height: 36,
     color: "#22d3ee",
   },
+  // Мини-игры хаба: используют параметры героя (односторонне)
+  {
+    id: "portal_duel",
+    name: "Арена дуэлей Кьют",
+    world: "hellfire",
+    runRoom: "duel",
+    x: 860,
+    y: 840,
+    width: 36,
+    height: 36,
+    color: "#f472b6",
+  },
+  {
+    id: "portal_trial",
+    name: "Испытание Обители",
+    world: "hellfire",
+    runRoom: "trial",
+    x: 300,
+    y: 900,
+    width: 36,
+    height: 36,
+    color: "#fbbf24",
+  },
 ];

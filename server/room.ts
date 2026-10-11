@@ -6,6 +6,7 @@ import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from ".
 import { CHARACTER_CLASSES } from "./classes";
 import { getSkill } from "./skills";
 import { DarBoss } from "./dar";
+import { MetaService } from "./meta/service";
 
 export function getFlowerName(flower: FlowerState): string {
   switch (flower.flowerType) {
@@ -22,6 +23,7 @@ export class GameRoom extends DurableObject {
   boss: KeytBoss;
   dar: DarBoss;
   flowers: Map<string, FlowerState>;
+  meta: MetaService;
 
   lastTick = Date.now();
   lastHealTick = Date.now();
@@ -33,6 +35,12 @@ export class GameRoom extends DurableObject {
     this.boss = new KeytBoss();
     this.dar = new DarBoss();
     this.flowers = new Map();
+    // Мета-прогрессия «Проклятых» (SQLite Durable Object), квесты и открытый мир Аринара
+    this.meta = new MetaService((ctx as any)?.storage?.sql, env);
+    this.meta.sessionLookup = (sid: string) => {
+      for (const [ws, s] of this.sessions.entries()) if (s.id === sid) return [ws, s];
+      return null;
+    };
 
     setInterval(() => {
       const now = Date.now();
@@ -196,6 +204,8 @@ export class GameRoom extends DurableObject {
           }
         }
       }
+
+      try { this.meta.tick(dt, this.sessions); } catch (err) { console.error("meta tick", err); }
 
       this.broadcast();
     }, 100);
@@ -832,27 +842,26 @@ export class GameRoom extends DurableObject {
             })
           );
           this.broadcast();
+          const joined = this.sessions.get(server);
+          if (joined) this.meta.onJoin(server, joined, msg).catch((err) => console.error("meta join", err));
         }
 
         // 2. Движение
         if (msg.type === "move" && session && !session.inDuel) {
-          session.x = msg.x;
-          session.y = msg.y;
+          let nx = Number(msg.x), ny = Number(msg.y);
+          if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
+          // В открытом мире Аринара позиция влияет на бой/сбор — ограничиваем скорость перемещения
+          if ((session.world || "hellfire") === "arinar") {
+            const now = Date.now();
+            const last = (session as any).lastMoveAt || now - 100;
+            const maxStep = 60 + (now - last) * 0.7;
+            const dx = nx - session.x, dy = ny - session.y, d = Math.hypot(dx, dy);
+            if (d > maxStep) { nx = session.x + (dx / d) * maxStep; ny = session.y + (dy / d) * maxStep; }
+            (session as any).lastMoveAt = now;
+          }
+          session.x = Math.max(0, Math.min(1200, nx));
+          session.y = Math.max(0, Math.min(1200, ny));
           this.broadcast();
-        }
-
-        if (msg.type === "admin_switch_world" && session && ADMIN_USER_IDS.includes(session.userId)) {
-          session.world = msg.world || "sandbox";
-          session.x = 600;
-          session.y = 600;
-          server.send(JSON.stringify({
-            type: "world_switched",
-            world: session.world,
-            x: session.x,
-            y: session.y,
-          }));
-          this.broadcast();
-          return;
         }
 
         // 3. Порталы (переходы между комнатами и мирами)
@@ -877,6 +886,7 @@ export class GameRoom extends DurableObject {
                 x: session.x,
                 y: session.y,
               }));
+              this.meta.onWorldChange(server, session);
               this.broadcast();
               return;
             }
@@ -903,6 +913,7 @@ export class GameRoom extends DurableObject {
               maxAtk: c.stats.maxAtk,
             };
             server.send(JSON.stringify({ type: "class_updated", stats: session.stats, color: session.color }));
+            this.meta.onSelectHero(server, session);
             this.broadcast();
           }
         }
@@ -1281,6 +1292,7 @@ export class GameRoom extends DurableObject {
             session.runJoinedAt = Date.now();
             if (prev) this.broadcastRunMembers(prev);
           }
+          this.meta.onRunJoin(session, roomDef.id, this.runMembers(roomDef.id).length);
           server.send(JSON.stringify({ type: "run_joined", room: roomDef.id, name: roomDef.name, myId: session.id }));
           this.broadcastRunMembers(roomDef.id);
           this.broadcast();
@@ -1310,6 +1322,12 @@ export class GameRoom extends DurableObject {
           }
           return;
         }
+
+        // 14. Мета-прогрессия, квесты, инвентарь, открытый мир (server/meta/service.ts)
+        if (session && typeof msg.type === "string" && this.meta.handle(server, session, msg, {
+          runMembers: (room: string) => this.runMembers(room),
+          broadcast: () => this.broadcast(),
+        })) return;
 
         // 12. Локальный чат (только игрокам того же мира)
         if (msg.type === "chat" && session && msg.text) {
@@ -1358,6 +1376,7 @@ export class GameRoom extends DurableObject {
           }
         }
         const leftRoom = session?.runRoom;
+        if (session) this.meta.onClose(session);
         this.sessions.delete(server);
         if (leftRoom) this.broadcastRunMembers(leftRoom);
         this.broadcast();
@@ -1379,6 +1398,7 @@ export class GameRoom extends DurableObject {
   // Состав комнаты забега. Хост (авторитет симуляции орды) — самый ранний участник.
   broadcastRunMembers(roomId: string) {
     const members = this.runMembers(roomId);
+    this.meta.onRunMembers(roomId, members);
     const payload = JSON.stringify({
       type: "run_members",
       room: roomId,

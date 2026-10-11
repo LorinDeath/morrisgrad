@@ -40,6 +40,9 @@ export const CLASSES_CONFIG: Record<string, {
 export const RUN_ROOMS: Record<string, RunRoomDef> = {
   crypt: { id: "crypt", name: "Склеп", maxPlayers: 4 },
   abyss: { id: "abyss", name: "Бездна", maxPlayers: 4 },
+  // Мини-игры хаба (те же механизмы комнат): дуэль 1×1 в реальном времени и испытание волнами
+  duel: { id: "duel", name: "Арена дуэлей", maxPlayers: 2 },
+  trial: { id: "trial", name: "Испытание Обители", maxPlayers: 4 },
 };
 
 // Максимальный размер ретранслируемого пакета забега (байт JSON)

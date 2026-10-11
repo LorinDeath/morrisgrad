@@ -1,0 +1,468 @@
+// Сервис мета-прогрессии, квестов и открытого мира Аринара. Подключается к GameRoom минимально:
+// onJoin / handle(msg) / tick / onClose. Старые сообщения протокола не меняются.
+import { CHARACTER_CLASSES } from "../classes";
+import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
+import {
+  HERO_IDS, ITEM_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
+  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS,
+} from "./defs";
+import { QUESTS, QUEST_BY_ID } from "./quests";
+import {
+  ProfileStore, heroEffective, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
+  craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
+} from "./profile";
+import { Zone, type ZPlayer } from "./zone";
+
+export interface MetaSess {
+  sid: string; pkey: string; verified: boolean; ready: boolean;
+  zp: ZPlayer; lastAtk: number; gather: { node: number; at: number } | null; abilCd: Record<string, number>;
+  run: { room: string; at: number; cls: string | null; maxMembers: number; usedAbility: boolean } | null;
+  dirty: boolean; lastSave: number; lastHub: number;
+}
+
+// Базовые статы героя для прогрессии (нормализованы из server/classes.ts, чтобы классы не расходились в разы)
+export function heroBase(cls: string | null) {
+  const c = cls ? CHARACTER_CLASSES[cls] : null;
+  if (!c) return { maxHp: 70, armor: 0, minAtk: 6, maxAtk: 9 };
+  return { maxHp: Math.round(55 + c.stats.maxHp * 0.55), armor: Math.round(c.stats.armor / 5), minAtk: 6, maxAtk: 9 };
+}
+
+export class MetaService {
+  store: ProfileStore;
+  // Общие миры с мобами: Аринар (Мэлвелдил) и Поляна перевоплощения (хаб, мошкара пролога)
+  zones: Record<string, Zone> = { arinar: new Zone("arinar", ZONE_SPAWNS, ZONE_NODES), hellfire: new Zone("hellfire", HUB_SPAWNS, []) };
+  ms = new Map<string, MetaSess>(); // session.id → состояние
+  env: any;
+  zoneAcc = 0;
+  constructor(sql: any, env: any) {
+    this.store = new ProfileStore(sql);
+    this.env = env || {};
+  }
+
+  // ---------- вход ----------
+  async onJoin(ws: WebSocket, session: any, msg: any) {
+    let uid: string | null = null;
+    if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+    if (!uid && this.env.MC_DEV_TRUST_USERID === "1" && msg.userId) uid = String(msg.userId);
+    const verified = !!uid;
+    if (uid) session.userId = uid;
+    const pkey = uid ? `uid:${uid}` : `guest:${String(session.username || "").toLowerCase().slice(0, 40)}`;
+    const ms: MetaSess = { sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
+      lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
+    this.ms.set(session.id, ms);
+    const a = this.store.account(pkey);
+    if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
+    this.refreshZonePlayer(session);
+    this.send(ws, { type: "meta_state", ...this.snap(session) });
+  }
+
+  applyHeroToSession(session: any, cls: string) {
+    const c = CHARACTER_CLASSES[cls];
+    session.color = c.color;
+    session.stats = { classId: cls, hp: c.stats.hp, maxHp: c.stats.maxHp, armor: c.stats.armor, minAtk: c.stats.minAtk, maxAtk: c.stats.maxAtk };
+  }
+
+  snap(session: any) {
+    const ms = this.ms.get(session.id)!;
+    const a = this.store.account(ms.pkey);
+    const cls = session.stats?.classId || null;
+    const h = cls ? this.store.hero(ms.pkey, cls) : null;
+    const s: any = snapshot(a, h, cls, heroBase(cls), ms.verified);
+    for (const id of HERO_IDS) { const hh = this.store.hero(ms.pkey, id); s.heroes[id] = { lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout }; }
+    s.available = QUESTS.filter((q) => questAvailable(a, q)).map((q) => q.id);
+    s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
+    s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
+    return s;
+  }
+
+  send(ws: WebSocket, obj: any) { try { ws.send(JSON.stringify(obj)); } catch (_) {} }
+
+  push(ws: WebSocket, session: any, extra: any = {}) {
+    const ms = this.ms.get(session.id);
+    if (!ms) return;
+    ms.dirty = true;
+    this.save(session);
+    this.send(ws, { type: "meta_state", ...this.snap(session), ...extra });
+  }
+
+  save(session: any) {
+    const ms = this.ms.get(session.id);
+    if (!ms) return;
+    this.store.saveAccount(ms.pkey, ms.verified);
+    for (const id of HERO_IDS) if (this.store.heroes.has(`${ms.pkey}|${id}`)) this.store.saveHero(ms.pkey, id);
+    ms.dirty = false; ms.lastSave = Date.now();
+  }
+
+  refreshZonePlayer(session: any) {
+    const ms = this.ms.get(session.id);
+    if (!ms) return;
+    const cls = session.stats?.classId || null;
+    const eff = this.effective(session);
+    const wasFull = ms.zp.hp >= ms.zp.maxHp;
+    ms.zp.maxHp = eff.maxHp;
+    ms.zp.armorRed = eff.damageReduction;
+    if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
+    void cls;
+  }
+
+  effective(session: any) {
+    const ms = this.ms.get(session.id)!;
+    const cls = session.stats?.classId || null;
+    const a = this.store.account(ms.pkey);
+    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0 };
+    return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls));
+  }
+
+  questEv(ws: WebSocket, session: any, ev: any) {
+    const ms = this.ms.get(session.id);
+    if (!ms) return;
+    const a = this.store.account(ms.pkey);
+    const changed = this.qev(a, session, ev);
+    if (changed.length) {
+      ms.dirty = true;
+      this.send(ws, { type: "quest_progress", quests: changed.map((id) => ({ id, p: a.quests.active[id]?.p, complete: questComplete(a, id) })) });
+    }
+  }
+
+  qev(a: Account, session: any, ev: any): string[] {
+    const ms = this.ms.get(session.id);
+    const cls = session.stats?.classId;
+    return questEvent(a, ev, ms && cls ? this.store.hero(ms.pkey, cls) : null);
+  }
+
+  nearNpc(session: any, npc: string) {
+    const n = NPCS[npc];
+    return n && (session.world || "hellfire") === n.world && Math.hypot(session.x - n.x, session.y - n.y) <= NPC_RANGE;
+  }
+
+  // ---------- сообщения ----------
+  handle(ws: WebSocket, session: any, msg: any, ctx: { runMembers: (room: string) => any[]; broadcast: () => void }): boolean {
+    const ms = this.ms.get(session?.id);
+    if (!ms) return false;
+    const a = this.store.account(ms.pkey);
+    const cls: string | null = session.stats?.classId || null;
+    const h: Hero | null = cls ? this.store.hero(ms.pkey, cls) : null;
+    const reply = (r: any, okMsg?: string) => {
+      if (r.ok) this.push(ws, session, { toast: r.msg || okMsg });
+      else this.send(ws, { type: "toast_error", message: r.err });
+    };
+    const needHero = () => { if (!h || !cls) { this.send(ws, { type: "toast_error", message: "Сначала выберите героя на Алтаре перевоплощения" }); return false; } return true; };
+    switch (msg.type) {
+      case "meta_get": this.send(ws, { type: "meta_state", ...this.snap(session) }); return true;
+      case "talent_learn": if (!needHero()) return true; { const r = learnTalent(a, h!, cls!, String(msg.id)); if (r.ok) this.qev(a, session, { type: "talent" }); reply(r, "Талант изучен"); this.refreshZonePlayer(session); } return true;
+      case "loadout_set": if (!needHero()) return true; reply(setLoadout(a, h!, cls!, msg.ids), "Раскладка сохранена"); return true;
+      case "radiance_up": if (!needHero()) return true; reply(upgradeRadiance(a, h!, cls!, String(msg.id)), "Сияние усилено"); return true;
+      case "ability_silence": if (!needHero()) return true; reply(silenceAbility(a, h!, cls!, String(msg.id), msg.confirm)); return true;
+      case "soul_buy": {
+        if (!this.nearNpcOrAltar(session)) { this.send(ws, { type: "toast_error", message: "Ветка души открывается только у Алтаря перевоплощения" }); return true; }
+        reply(buySoulNode(a, String(msg.id)), "Душа изменилась"); this.refreshZonePlayer(session); return true;
+      }
+      case "equip": {
+        if (!needHero()) return true;
+        const r = equip(a, h!, cls!, String(msg.uid));
+        if (r.ok) { const it = a.inv.find((i) => i.uid === msg.uid); const mon = it && ITEM_BY_ID[it.id].monster; if (mon) this.qev(a, session, { type: "equip_monster", monster: mon }); }
+        reply(r, "Надето"); this.refreshZonePlayer(session); return true;
+      }
+      case "unequip": if (!needHero()) return true; reply(unequip(h!, String(msg.slot)), "Снято"); this.refreshZonePlayer(session); return true;
+      case "salvage": {
+        const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
+        reply(salvage(a, heroes, String(msg.uid))); return true;
+      }
+      case "craft": {
+        if (!this.nearNpc(session, "petr")) { this.send(ws, { type: "toast_error", message: "Ремесло — у Петра (хаб, юго-запад)" }); return true; }
+        const r = craft(a, String(msg.recipe));
+        if (r.ok) this.qev(a, session, { type: "craft" });
+        reply(r, "Создано!"); return true;
+      }
+      case "npc_talk": {
+        const npc = String(msg.npc);
+        if (!this.nearNpc(session, npc)) { this.send(ws, { type: "toast_error", message: "Подойдите ближе" }); return true; }
+        this.questEv(ws, session, { type: "talk", npc });
+        const quests = QUESTS.filter((q) => q.npc === npc && (questAvailable(a, q) || a.quests.active[q.id])).map((q) => ({ id: q.id, state: a.quests.active[q.id] ? (questComplete(a, q.id) ? "complete" : "active") : "available" }));
+        this.push(ws, session);
+        this.send(ws, { type: "npc_dialog", npc, quests });
+        return true;
+      }
+      case "quest_accept": {
+        const q = QUEST_BY_ID[String(msg.id)];
+        if (!q || !this.nearNpc(session, q.npc)) { this.send(ws, { type: "toast_error", message: "Возьмите квест у персонажа" }); return true; }
+        const r = acceptQuest(a, q.id);
+        if (r.ok) { this.qev(a, session, { type: "talk", npc: q.npc }); if ((session.world || "hellfire") === "arinar") this.qev(a, session, { type: "reach", world: "arinar" }); }
+        reply(r, `Квест принят: ${q.title}`); return true;
+      }
+      case "quest_turnin": {
+        const q = QUEST_BY_ID[String(msg.id)];
+        if (!q) return true;
+        // сюжетные квесты пролога сдаются автоматически, остальные — у персонажа
+        if (q.campaign !== "prologue" && !this.nearNpc(session, q.npc)) { this.send(ws, { type: "toast_error", message: `Сдайте квест: ${NPCS[q.npc]?.name}` }); return true; }
+        const r = turnInQuest(a, h, q.id);
+        if (r.ok) this.push(ws, session, { questDone: { id: q.id, rewards: (r as any).rewards } });
+        else this.send(ws, { type: "toast_error", message: (r as any).err });
+        this.refreshZonePlayer(session);
+        return true;
+      }
+      case "run_result": this.runResult(ws, session, msg, ctx); return true;
+      case "zone_attack": this.zoneAttack(ws, session, msg); return true;
+      case "zone_ability": this.zoneAbility(ws, session, msg); return true;
+      case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
+      case "gather_done": this.gatherDone(ws, session, msg); return true;
+      case "dev_grant": {
+        // Только для локальных тестов (MC_DEV_TRUST_USERID=1): выдать звёзды/опыт/предмет
+        if (this.env.MC_DEV_TRUST_USERID !== "1") return true;
+        if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
+        if (msg.xp && h) gainXp(h, Number(msg.xp));
+        if (msg.item) addItem(a, String(msg.item));
+        if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
+        this.push(ws, session); return true;
+      }
+    }
+    return false;
+  }
+
+  nearNpcOrAltar(session: any) {
+    return (session.world || "hellfire") === "hellfire" && Math.hypot(session.x - 565, session.y - 600) <= 110;
+  }
+
+  // Вызывается из GameRoom после select_class (Алтарь): герой выбран — прогресс применяется к нему
+  onSelectHero(ws: WebSocket, session: any) {
+    const ms = this.ms.get(session.id);
+    if (!ms) return;
+    const a = this.store.account(ms.pkey);
+    a.hero = session.stats.classId;
+    this.store.hero(ms.pkey, a.hero!);
+    this.qev(a, session, { type: "select_hero" });
+    this.autoTurnInPrologue(a, session);
+    this.refreshZonePlayer(session);
+    ms.zp.hp = ms.zp.maxHp;
+    this.push(ws, session);
+  }
+  onWorldChange(ws: WebSocket, session: any) {
+    const ms = this.ms.get(session.id);
+    if (!ms) return;
+    ms.zp.x = session.x; ms.zp.y = session.y;
+    const a = this.store.account(ms.pkey);
+    if (this.qev(a, session, { type: "reach", world: session.world }).length) { this.autoTurnInPrologue(a, session); this.push(ws, session); }
+  }
+  autoTurnInPrologue(a: Account, session: any) {
+    const ms = this.ms.get(session.id)!;
+    const cls = session.stats?.classId;
+    for (const id of Object.keys(a.quests.active)) {
+      const q = QUEST_BY_ID[id];
+      if (q && q.campaign === "prologue" && questComplete(a, id) && q.objectives.every((o) => o.type !== "talk")) turnInQuest(a, cls ? this.store.hero(ms.pkey, cls) : null, id);
+    }
+  }
+  onRunJoin(session: any, room: string, members: number) {
+    const ms = this.ms.get(session.id);
+    if (ms) ms.run = { room, at: Date.now(), cls: session.stats?.classId || null, maxMembers: members, usedAbility: false };
+  }
+  onRunMembers(room: string, members: any[]) {
+    for (const s of members) { const ms = this.ms.get(s.id); if (ms?.run && ms.run.room === room) ms.run.maxMembers = Math.max(ms.run.maxMembers, members.length); }
+  }
+
+  // Награда за забег/мини-игру: ТОЛЬКО то, что посчитал сервер (см. REWARD_RULES в defs.ts)
+  runResult(ws: WebSocket, session: any, msg: any, ctx: { runMembers: (room: string) => any[] }) {
+    const ms = this.ms.get(session.id)!;
+    const run = ms.run;
+    if (!run || !session.runRoom || run.room !== session.runRoom) { this.send(ws, { type: "toast_error", message: "Нет активного забега для награды" }); return; }
+    const now = Date.now();
+    const realSec = (now - run.at) / 1000;
+    const time = Math.max(0, Math.min(Number(msg.time) || 0, realSec + 2));
+    ms.run = { ...run, at: now, maxMembers: ctx.runMembers(run.room).length }; // одна награда на окно времени
+    const a = this.store.account(ms.pkey);
+    const cls = session.stats?.classId || null;
+    const h = cls ? this.store.hero(ms.pkey, cls) : null;
+    const players = Math.max(run.maxMembers, ctx.runMembers(run.room).length);
+    const out: any = { xp: 0, items: [], res: {}, room: run.room, time: Math.round(time) };
+    const mode = MINIGAMES[run.room] ? run.room : "run";
+    if (mode === "run") {
+      const maxKills = Math.floor(time * REWARD_RULES.runMaxKillsPerSecond);
+      const kills: Record<string, number> = {};
+      let total = 0;
+      for (const [type, n] of Object.entries(msg.kills || {})) {
+        const k = Math.max(0, Math.floor(Number(n) || 0));
+        const take = Math.min(k, maxKills - total);
+        if (take <= 0) break;
+        kills[type] = take; total += take;
+      }
+      out.xp = Math.min(REWARD_RULES.runMaxXp, Math.round((time / 60) * REWARD_RULES.runXpPerMinute + total * REWARD_RULES.runXpPerKill));
+      // броски дропа по трофеям убитых (ограничено по числу бросков)
+      let rolls = 0;
+      for (const [type, n] of Object.entries(kills)) {
+        const key = type === "blade_fly" ? "run_fly" : type;
+        if (!MONSTER_LOOT[key]) continue;
+        a.bestiary[key] = { seen: 1, kills: (a.bestiary[key]?.kills || 0) + n };
+        for (let i = 0; i < n && rolls < REWARD_RULES.runMaxLootRolls; i++, rolls++) this.grantLoot(a, rollMonsterLoot(key), out);
+      }
+      const bosses = Math.min(Math.floor(time / 300), Math.max(0, Math.floor(Number(msg.bossKills) || 0)));
+      for (let i = 0; i < bosses; i++) { a.bestiary.warden = { seen: 1, kills: (a.bestiary.warden?.kills || 0) + 1 }; this.grantLoot(a, rollMonsterLoot("warden"), out); }
+      this.qev(a, session, { type: "run", room: run.room, time, cls, players });
+    } else if (mode === "duel") {
+      const won = !!msg.won && time >= 10;
+      out.xp = won ? REWARD_RULES.duel.winXp : (time >= 10 ? REWARD_RULES.duel.lossXp : 0);
+      if (won) this.qev(a, session, { type: "duel_win", hpCapPct: Math.max(1, Math.min(100, Number(msg.hpCapPct) || 100)) });
+    } else if (mode === "trial") {
+      const waves = Math.min(REWARD_RULES.trial.maxWaves, Math.floor(time / 20), Math.max(0, Math.floor(Number(msg.wave) || 0)));
+      out.xp = waves * REWARD_RULES.trial.perWaveXp;
+      out.waves = waves;
+    }
+    if (h && out.xp) out.levelUps = gainXp(h, out.xp);
+    this.push(ws, session, { reward: out });
+  }
+
+  grantLoot(a: Account, loot: { items: string[]; res: Record<string, number> }, out: any) {
+    for (const id of loot.items) { const it = addItem(a, id); if (it) out.items.push(it); }
+    for (const [r, n] of Object.entries(loot.res)) { addRes(a, r, n); out.res[r] = (out.res[r] || 0) + n; }
+  }
+
+  // ---------- открытый мир ----------
+  zoneOf(session: any): Zone | null {
+    if (session.runRoom || session.inDuel) return null;
+    return this.zones[session.world || "hellfire"] || null;
+  }
+  zoneAttack(ws: WebSocket, session: any, msg: any) {
+    const ms = this.ms.get(session.id)!;
+    const zone = this.zoneOf(session);
+    if (!zone) return;
+    ms.zp.x = session.x; ms.zp.y = session.y;
+    const eff = this.effective(session);
+    const now = Date.now();
+    const atkCd = 450 / (1 + (eff.atkSpeedPct || 0) / 100);
+    if (now - ms.lastAtk < atkCd) return;
+    const m = zone.attack(ms.zp, Number(msg.mob), now, 0);
+    if (!m) return;
+    ms.lastAtk = now;
+    const a = this.store.account(ms.pkey);
+    if (!a.bestiary[m.type]) a.bestiary[m.type] = { seen: 1, kills: 0 };
+    const crit = Math.random() * 100 < eff.critPct;
+    const raw = eff.weaponMin + Math.random() * (eff.weaponMax - eff.weaponMin);
+    const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1);
+    const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+    if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
+    if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
+  }
+
+  zoneAbility(ws: WebSocket, session: any, msg: any) {
+    const ms = this.ms.get(session.id)!;
+    const zone = this.zoneOf(session);
+    if (!zone || !ms.zp.alive) return;
+    const eff = this.effective(session);
+    const ab = eff.abilities.find((x: any) => x.id === msg.id);
+    if (!ab) return;
+    const now = Date.now();
+    if ((ms.abilCd[ab.id] || 0) > now) return;
+    ms.abilCd[ab.id] = now + ab.cd * 1000;
+    ms.zp.x = session.x; ms.zp.y = session.y;
+    const def = ABILITY_BY_ID[ab.id];
+    const radius = ab.props.includes("extend") ? 200 : 140;
+    const avg = (eff.weaponMin + eff.weaponMax) / 2;
+    const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100);
+    let dealt = 0;
+    for (const m of zone.mobsAround(session.x, session.y, radius)) {
+      m.usedAbility.add(session.id);
+      dealt += zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+    }
+    if (ab.props.includes("vamp") || def.id === "trick_strike") ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + dealt * 0.08);
+    zone.events.push({ k: "ability", sid: session.id, id: ab.id, x: session.x, y: session.y, r: radius });
+    const a = this.store.account(ms.pkey);
+    if (this.qev(a, session, { type: "ability_used" }).length) this.send(ws, { type: "toast_error", message: "Звёздный квест: навык применён — прогресс «без навыков» сброшен" });
+  }
+
+  gatherDone(ws: WebSocket, session: any, msg: any) {
+    const ms = this.ms.get(session.id)!;
+    const zone = this.zoneOf(session);
+    if (!zone || !ms.gather || ms.gather.node !== Number(msg.node)) return;
+    ms.zp.x = session.x; ms.zp.y = session.y;
+    const n = zone.gatherCheck(ms.zp, ms.gather.node, ms.gather.at, Date.now());
+    ms.gather = null;
+    if (!n) { this.send(ws, { type: "toast_error", message: "Сбор прерван" }); return; }
+    n.readyAt = Date.now() + n.respawn * 1000;
+    const qty = n.qty[0] + Math.floor(Math.random() * (n.qty[1] - n.qty[0] + 1));
+    const a = this.store.account(ms.pkey);
+    addRes(a, n.res, qty);
+    this.qev(a, session, { type: "gather", res: n.res, n: qty });
+    this.push(ws, session, { gathered: { res: n.res, n: qty } });
+  }
+
+  onMobKilled(m: any) {
+    const d = ZONE_MOBS[m.type];
+    const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
+    for (const [sid, dmg] of m.dmgBy as Map<string, number>) {
+      if (!d.boss && dmg / total < 0.15) continue; // вклад ≥15% (босс — любой вклад)
+      const ms = this.ms.get(sid);
+      const entry = this.sessionLookup?.(sid);
+      if (!ms || !entry) continue;
+      const [ws, session] = entry;
+      const a = this.store.account(ms.pkey);
+      const cls = session.stats?.classId || null;
+      const h = cls ? this.store.hero(ms.pkey, cls) : null;
+      a.bestiary[m.type] = { seen: 1, kills: (a.bestiary[m.type]?.kills || 0) + 1 };
+      const out: any = { xp: d.xp, items: [], res: {}, mob: m.type };
+      if (h) out.levelUps = gainXp(h, d.xp);
+      this.grantLoot(a, rollMonsterLoot(m.type), out);
+      this.qev(a, session, { type: "kill", mob: m.type, cls });
+      if (d.boss) this.qev(a, session, { type: "kill_boss", mob: m.type, usedAbility: m.usedAbility.has(sid) });
+      this.push(ws, session, { loot: out });
+    }
+  }
+  sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
+
+  tick(dt: number, sessions: Map<WebSocket, any>) {
+    const now = Date.now();
+    const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};
+    for (const w of Object.keys(this.zones)) byWorld[w] = { players: new Map(), socks: [] };
+    for (const [ws, s] of sessions) {
+      const ms = this.ms.get(s.id);
+      if (!ms) continue;
+      const w = s.world || "hellfire";
+      if (byWorld[w] && !s.runRoom && !s.inDuel) {
+        ms.zp.x = s.x; ms.zp.y = s.y;
+        if (!ms.zp.alive && now >= ms.zp.respawnAt) {
+          ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp;
+          const rp = w === "arinar" ? ZONE_RESPAWN : { x: 600, y: 640 };
+          s.x = rp.x; s.y = rp.y; ms.zp.x = s.x; ms.zp.y = s.y;
+          this.send(ws, { type: "zone_respawn", x: s.x, y: s.y });
+        }
+        if (ms.zp.alive && ms.zp.hp < ms.zp.maxHp) {
+          const eff = this.effective(s);
+          ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + (eff.regen + (w === "hellfire" ? 2 : 0.3)) * dt);
+        }
+        // в хабе боевое состояние только у тех, у кого есть оболочка
+        if (w !== "hellfire" || s.stats?.classId) byWorld[w].players.set(s.id, ms.zp);
+        byWorld[w].socks.push([ws, s]);
+      }
+      if (ms.dirty && now - ms.lastSave > 5000) this.save(s);
+    }
+    this.zoneAcc += dt;
+    const sendNow = this.zoneAcc >= 0.2;
+    if (sendNow) this.zoneAcc = 0;
+    for (const [w, zone] of Object.entries(this.zones)) {
+      const { players, socks } = byWorld[w];
+      zone.update(dt, now, players, (sid, dmg, src) => {
+        const ms = this.ms.get(sid);
+        if (!ms || !ms.zp.alive) return;
+        const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed)));
+        ms.zp.hp -= real;
+        zone.events.push({ k: "phit", sid, d: real, src });
+        if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }
+      }, () => {});
+      if (!sendNow) continue;
+      if (!socks.length) { zone.events.length = 0; continue; }
+      const ev = zone.takeEvents();
+      for (const [ws, s] of socks) {
+        const ms = this.ms.get(s.id)!;
+        const st = zone.state(s.x, s.y, ev);
+        this.send(ws, { type: "zone_state", ...st, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive } });
+      }
+    }
+  }
+
+  onClose(session: any) {
+    const ms = this.ms.get(session?.id);
+    if (!ms) return;
+    this.save(session);
+    this.ms.delete(session.id);
+    // выгружаем кэш, если других сессий с этим ключом нет
+    if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.store.evict(ms.pkey);
+  }
+}
+
