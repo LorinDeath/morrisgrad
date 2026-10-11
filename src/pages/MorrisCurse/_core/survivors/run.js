@@ -15,6 +15,10 @@ const PICKUP_KINDS = ['heart', 'magnet', 'bomb', 'chest'];
 const rand = (a, b) => a + Math.random() * (b - a);
 const dist2 = (ax, az, bx, bz) => (ax - bx) * (ax - bx) + (az - bz) * (az - bz);
 const r1 = (v) => Math.round(v * 10) / 10;
+// Повышение уровня в забеге: БЕЗ паузы (соло и отряд 2–4). Пока открыт выбор — 3 с неуязвимости;
+// выбор в эти 3 с → ударная волна от героя (отбрасывает врагов рядом, без урона). Хост проверяет окно и волну.
+export const LVL_INVULN = 3;
+export const WAVE = { r: 4.5, knock: 2.2 };
 // биты статусов (снапшот хоста и попадания гостей)
 const ST_BIT = { burn: 1, poison: 2, bleed: 4, freeze: 8 };
 // «стоячие» снаряды: у союзников рисуются на месте, без полёта (мины, облака, лучи)
@@ -81,9 +85,6 @@ class Grid {
   }
 }
 
-// Отряд: через сколько секунд выбор улучшения делается автоматически (пауза для всех не бесконечна)
-export const CHOICE_AUTO_PICK = 10;
-
 export class RunSession {
   constructor(opts) {
     this.room = opts.room;
@@ -133,9 +134,11 @@ export class RunSession {
     this.killCredit = {}; // id игрока → убийства (авторитет — хост, рассылается в снапшоте)
     this.seenLevel = 1;
     this.pendingChoices = 0;
-    this.choiceT = 0; // сколько секунд открыт текущий выбор (для автовыбора в отряде)
-    this.pauseInfo = []; // кто сейчас выбирает улучшение (пауза для всего отряда)
     this.choiceSource = 'level';
+    this.lvlInvUntil = -1; // до какого t героя не бьют (окно выбора после уровня)
+    this.lvlEvent = 0; this.waveEvent = 0; // номер события «уровень» и события, за которое волна уже была
+    this.hostLvlAt = -99; this.waveBy = {}; // хост: время последнего уровня отряда, кто уже пустил волну за событие
+    this.wavesOut = []; this.waveFx = []; // волны для снапшота / для отрисовки [{x,z,t,owner}]
     this.pendingHits = [];
     this.pendingPicks = [];
     this.gemAdds = []; this.gemRems = []; this.pkAdds = []; this.pkRems = [];
@@ -296,7 +299,47 @@ export class RunSession {
     else if (c.kind === 'heal') this.heal(this.me.maxHp * 0.4);
     this.recalc();
     this.pendingChoices = Math.max(0, this.pendingChoices - 1);
+    // выбор за 3 с после уровня → ударная волна (одна за событие уровня); неуязвимость сразу заканчивается
+    if (this.invulnLeft() > 0 && this.waveEvent !== this.lvlEvent) {
+      this.waveEvent = this.lvlEvent;
+      this.lvlInvUntil = Math.min(this.lvlInvUntil, this.t + 0.25);
+      this.shockwave();
+    }
     this.events('choice_applied', c);
+  }
+
+  invulnLeft() { return Math.max(0, this.lvlInvUntil - this.t); }
+
+  shockwave() {
+    const m = this.me;
+    this.waveFx.push({ x: m.x, z: m.z, t: 0, owner: this.myId });
+    if (this.isHost) this.applyWave(m.x, m.z, this.myId);
+    else this.send({ k: 'wave' }); // гость: волну применяет и проверяет хост
+  }
+
+  // Хост: волна союзника — только в окне после уровня отряда и одна за событие; центр — позиция, известная хосту
+  hostWave(from) {
+    const r = this.remotes.get(from);
+    if (!r || r.dead || this.t - this.hostLvlAt > LVL_INVULN + 0.5 || this.waveBy[from]) { this.waveRejected = (this.waveRejected || 0) + 1; return false; }
+    this.waveBy[from] = true;
+    this.applyWave(r.tx ?? r.x, r.tz ?? r.z, from);
+    return true;
+  }
+
+  applyWave(x, z, owner) {
+    if (owner === this.myId) this.waveBy[owner] = true;
+    let n = 0;
+    for (const e of this.enemies.values()) {
+      if (e.dead) continue;
+      const dx = e.x - x, dz = e.z - z, d = Math.hypot(dx, dz);
+      if (d > WAVE.r || d < 1e-3) continue;
+      const k = WAVE.knock * (1 - (d / WAVE.r) * 0.5) * (e.boss ? 0.15 : e.elite ? 0.5 : 1);
+      this.knock(e, (dx / d) * k, (dz / d) * k); n++;
+    }
+    if (this.remotes.size) this.wavesOut.push([r1(x), r1(z), owner]);
+    if (owner !== this.myId) this.waveFx.push({ x, z, t: 0, owner }); // волна союзника — видна и хосту
+    this.lastWave = { x, z, owner, n };
+    return n;
   }
 
   heal(v) {
@@ -310,15 +353,7 @@ export class RunSession {
   // ---------- главный тик ----------
   update(dt, input) {
     if (this.ended) return;
-    // Пауза выбора улучшения: соло — полная пауза, пока игрок выбирает (без ограничения времени);
-    // отряд — пауза для ВСЕХ, пока выбирает хоть кто-то (автовыбор через CHOICE_AUTO_PICK с — в game.js).
-    this.checkLevelUp(); // уровень отряда мог прийти снапшотом хоста — выбираем все одновременно
-    if (this.pendingChoices > 0) this.choiceT += dt; else this.choiceT = 0;
-    this.pauseInfo = this.choosers();
-    if (this.paused || this.pauseInfo.length) {
-      if (this.remotes.size || !this.isHost) { this.netTick(dt); this.ageRemotes(dt); } // связь живёт: видно, когда выбор закончится
-      return;
-    }
+    if (this.paused) return; // выбор улучшения игру НЕ останавливает
     if (this.isHost) this.t += dt;
     else this.t += dt; // гость экстраполирует, снапшот поправит
     this.updateMe(dt, input);
@@ -338,14 +373,13 @@ export class RunSession {
       }
     }
     this.netTick(dt);
-    this.checkLevelUp();
-  }
-
-  checkLevelUp() {
     if (this.team.level > this.seenLevel) {
       this.pendingChoices += this.team.level - this.seenLevel;
       this.seenLevel = this.team.level;
       this.choiceSource = 'level';
+      this.lvlEvent++;
+      this.lvlInvUntil = this.t + LVL_INVULN;
+      if (this.isHost) { this.hostLvlAt = this.t; this.waveBy = {}; }
       this.events('levelup', { level: this.team.level });
     }
   }
@@ -353,13 +387,13 @@ export class RunSession {
   updateMe(dt, input) {
     const m = this.me;
     m.iframes = Math.max(0, m.iframes - dt);
-    m.choosingInvuln = this.pendingChoices > 0 ? 0.6 : Math.max(0, m.choosingInvuln - dt);
+    m.choosingInvuln = this.invulnLeft();
     if (m.dead) {
       m.moving = false;
       return;
     }
     let ix = input?.x || 0, iz = input?.z || 0;
-    if (this.pendingChoices > 0) { ix = 0; iz = 0; }
+    // во время выбора можно двигаться: игра идёт
     const len = Math.hypot(ix, iz);
     if (len > 0.05) {
       const k = Math.min(1, len);
@@ -1450,10 +1484,6 @@ export class RunSession {
       f.t += dt;
       if (f.t >= f.life) this.fx.splice(i, 1);
     }
-    this.ageRemotes(dt);
-  }
-
-  ageRemotes(dt) {
     for (const r of this.remotes.values()) {
       if (r.tx !== undefined) {
         const k = Math.min(1, dt * 12);
@@ -1462,17 +1492,6 @@ export class RunSession {
       r.age = (r.age || 0) + dt;
       r.stale = r.age > 5;
     }
-  }
-
-  // Кто выбирает улучшение прямо сейчас: я + союзники (по флагу ch в их состоянии). Союзник «завис»
-  // (нет связи > 5 с или выбор дольше автовыбора + запас) — не держит отряд на паузе.
-  choosers() {
-    const out = [];
-    if (this.pendingChoices > 0 && !this.ended) out.push({ id: this.myId, username: this.username || 'Вы', me: true, t: this.choiceT });
-    for (const [id, r] of this.remotes) {
-      if (r.choosing && !r.stale && (r.chT || 0) < CHOICE_AUTO_PICK + 4) out.push({ id, username: r.username, color: r.color, t: r.chT || 0 });
-    }
-    return out;
   }
 
   finish(reason) {
@@ -1494,9 +1513,8 @@ export class RunSession {
       const m = this.me;
       if (this.remotes.size || !this.isHost) {
         this.send({
-          k: 'me', x: r1(m.x), z: r1(m.z), dx: r1(m.dirX), dz: r1(m.dirZ), mv: m.moving ? 1 : 0,
+          k: 'me', iv: this.invulnLeft() > 0 ? 1 : undefined, x: r1(m.x), z: r1(m.z), dx: r1(m.dirX), dz: r1(m.dirZ), mv: m.moving ? 1 : 0,
           hp: Math.round(m.hp), mh: Math.round(m.maxHp), dead: m.dead ? 1 : 0, mag: r1(m.magnet),
-          ch: this.pendingChoices > 0 ? r1(this.choiceT) : undefined,
           cls: this.classKey, lk: this.meta?.look || undefined, kills: m.stats.kills, dmg: Math.round(m.stats.damage), shots: this.outShots.slice(0, 40),
         });
       }
@@ -1527,6 +1545,8 @@ export class RunSession {
       k: 'snap', t: r1(this.t), e, es, ga: this.gemAdds.slice(0, 300), gr: this.gemRems.slice(0, 400), pa: this.pkAdds, pr: this.pkRems,
       xp: this.team.xp, lv: this.team.level, kills: this.team.kills, kc: this.killCredit, nb: r1(this.nextBoss), ne: r1(this.nextElite),
       hh: this.heart ? Math.round(this.heart.hp) : undefined, tw: this.trialWave,
+      iv: [...(this.invulnLeft() > 0 ? [this.myId] : []), ...[...this.remotes].filter(([, r]) => r.inv).map(([id]) => id)],
+      wv: this.wavesOut.splice(0, 8),
     };
   }
 
@@ -1601,6 +1621,8 @@ export class RunSession {
     this.nextBoss = s.nb; this.nextElite = s.ne;
     if (this.heart && s.hh != null) this.heart.hp = s.hh;
     if (s.tw != null) this.trialWave = s.tw;
+    if (Array.isArray(s.iv)) for (const [id, r] of this.remotes) r.inv = s.iv.includes(id);
+    if (Array.isArray(s.wv)) for (const [x, z, owner] of s.wv) if (owner !== this.myId) this.waveFx.push({ x, z, t: 0, owner });
   }
 
   // Входящие сообщения комнаты (от сервера run_relay)
@@ -1618,7 +1640,8 @@ export class RunSession {
       if (r.x === undefined) { r.x = d.x; r.z = d.z; }
       r.hp = d.hp; r.maxHp = d.mh; r.dead = !!d.dead; r.magnet = d.mag || 2.4; r.classKey = d.cls; r.look = d.lk || null;
       r.damage = d.dmg; r.age = 0; // убийства считает хост (killCredit)
-      r.choosing = d.ch !== undefined && d.ch !== null; r.chT = Number(d.ch) || 0;
+      // неуязвимость союзника хост признаёт только в окне LVL_INVULN после уровня отряда (гостям — список iv в снапшоте)
+      if (this.isHost) r.inv = !!d.iv && this.t - this.hostLvlAt <= LVL_INVULN + 0.5;
       if (member) { r.username = member.username; r.color = member.color; }
       (d.shots || []).forEach((sh) => {
         if (this.visualShots.length > 300) return;
@@ -1628,6 +1651,7 @@ export class RunSession {
       });
       return;
     }
+    if (this.isHost && d.k === 'wave') { this.hostWave(from); return; }
     if (this.isHost) {
       if (d.k === 'hits') {
         (d.h || []).forEach(([id, dmg, slow, st, kx, kz]) => {

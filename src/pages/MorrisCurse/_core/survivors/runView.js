@@ -12,6 +12,7 @@ const RUN_VIS = { imp: 1.4, bat: 0.9, ghoul: 1.8, spitter: 1.2, golem: 2.8, ward
 const RUN_H = {};
 const runH = (t) => (RUN_H[t] ??= beastHeightFor(t, RUN_VIS[t] ?? 1.5));
 import { ProjFx } from '../engine/projFx.js';
+import { LevelFx } from '../engine/levelFx.js';
 
 const CAP = { imp: 220, bat: 220, ghoul: 200, spitter: 120, golem: 90, warden: 4, blade_fly: 160, dream_moth: 120, rot_glitch: 140, moon_sentinel: 4 };
 const MOB_MAX = 700;
@@ -330,6 +331,14 @@ export class RunView {
     }
 
     this.drawShots(dt);
+
+    // уровень: пузырь неуязвимости (3 с выбора) у себя и союзников + ударные волны
+    this.levelFx ??= new LevelFx(THREE, this.root);
+    const inv = [];
+    const myLeft = run.invulnLeft?.() || 0;
+    if (myLeft > 0 && !run.me.dead) inv.push({ id: run.myId, x: run.me.x, z: run.me.z, left: myLeft });
+    for (const [id, r] of run.remotes) if (r.inv && !r.dead && !r.stale) inv.push({ id, x: r.x, z: r.z });
+    this.levelFx.update(dt, this.time, inv, run.waveFx || []);
 
     // герои
     const me = run.me;

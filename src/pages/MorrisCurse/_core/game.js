@@ -19,7 +19,7 @@ import { ITEM_BY_ID, addCards } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
 import { HubWorld } from './hub/hubWorld.js';
-import { RunSession, CHOICE_AUTO_PICK } from './survivors/run.js';
+import { RunSession, LVL_INVULN } from './survivors/run.js';
 import { RunView } from './survivors/runView.js';
 import { RunArena } from './survivors/arena.js';
 import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, displayClassName } from './survivors/data.js';
@@ -628,7 +628,7 @@ async function boot(canvasId, username, userId, api) {
       case 'choice_applied':
         if (run.pendingChoices > 0 && !runUI.choiceOpen && !run.ended) {
           const chest = run.choiceSource === 'chest';
-          runUI.openChoices(run.rollChoices(3), { title: chest ? 'Сундук!' : `Уровень ${run.team.level}!`, sub: run.remotes.size ? 'Отряд на паузе и ждёт вашего выбора' : 'Игра на паузе — выберите улучшение' });
+          runUI.openChoices(run.rollChoices(3), { title: chest ? 'Сундук!' : `Уровень ${run.team.level}!`, sub: chest ? '' : 'Игра не на паузе: 3 с неуязвимости. Успеете выбрать — ударная волна отбросит врагов' });
         }
         break;
       case 'toast': overlay.toast(d.text, d.color); break;
@@ -1172,14 +1172,7 @@ async function boot(canvasId, username, userId, api) {
       if (runUI.choiceOpen && overlay.screen !== runUI.choiceEl) { runUI.choiceOpen = false; runUI.choiceEl = null; }
       if (!runUI.choiceOpen && !overlay.screen && !overlay.chatOpen) onRunEvent('levelup', { level: run.team.level });
     } else if (runUI.choiceOpen && (run.pendingChoices <= 0 || run.ended)) runUI.closeChoices();
-    // отряд: автовыбор, чтобы пауза для всех не длилась дольше CHOICE_AUTO_PICK секунд
-    if (run.pendingChoices > 0 && !run.ended && run.remotes.size && run.choiceT >= CHOICE_AUTO_PICK) {
-      if (runUI.choiceOpen && runUI.choices?.length) runUI.pick(Math.floor(Math.random() * runUI.choices.length));
-      else run.applyChoice(run.rollChoices(3)[0]);
-      run.choiceT = 0;
-      overlay.toast('Время вышло — улучшение выбрано автоматически', '#fde68a');
-    }
-    runUI.setPause(run.pauseInfo || [], { coop: run.remotes.size > 0, autoPick: CHOICE_AUTO_PICK });
+    if (runUI.choiceOpen) runUI.setInvuln(run.invulnLeft(), LVL_INVULN);
     const blocked = overlay.chatOpen || (overlay.screen && !runUI.choiceOpen && !run.ended);
     const mv = blocked ? { x: 0, y: 0 } : moveVector();
     run.update(dt, { x: mv.x, z: mv.y, dash: input.dashPressed, slot: input.abilitySlot });

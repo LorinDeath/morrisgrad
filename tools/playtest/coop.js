@@ -1,4 +1,4 @@
-// Отряд: пауза у всех, пока кто-то выбирает улучшение; кто выбирает — видно; автовыбор ~10 с.
+// Отряд: уровень без паузы; 3 с неуязвимости (хост подтверждает окно), быстрый выбор → ударная волна (хост применяет/проверяет).
 const { chromium } = require('playwright-core');
 const OUT = '/workspace/morrisgrad-round2';
 let pass = 0, fail = 0;
@@ -34,33 +34,41 @@ const ok = (n, c, d) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL 
   await A.p.waitForTimeout(2500);
   ok('both in co-op run, see each other', await A.G(() => window.__game.run.remotes.size === 1) && await B.G(() => window.__game.run.remotes.size === 1));
   for (const X of [A, B]) await X.G(() => { const r = window.__game.run; r.me.hp = r.me.maxHp = 1e6; });
-  // хост получает уровень (отряд — общий опыт)
-  await A.G(() => { const r = window.__game.run; r.team.xp += 60; });
-  await A.p.waitForTimeout(1500);
-  const sA = await A.G(() => ({ pend: window.__game.run.pendingChoices, info: window.__game.run.pauseInfo.map((c) => c.username), t: window.__game.run.t }));
-  const sB = await B.G(() => ({ pend: window.__game.run.pendingChoices, info: window.__game.run.pauseInfo.map((c) => c.username), t: window.__game.run.t, bar: document.querySelector('.mc3d-pausebar')?.textContent || '' }));
-  ok('level-up in co-op: both players get a choice', sA.pend > 0 && sB.pend > 0, { sA, sB });
-  await A.p.waitForTimeout(1500);
+  const idA = await A.G(() => window.__game.run.myId), idB = await B.G(() => window.__game.run.myId);
+  // уровень отряда: БЕЗ паузы; у каждого 3 с неуязвимости, союзники видят пузырь (хост подтверждает окно)
+  await A.G(() => { window.__game.run.team.xp += 60; window.__game.debug.spawn('ghoul', 30); });
+  await A.p.waitForTimeout(700);
+  const sA = await A.G(() => ({ pend: window.__game.run.pendingChoices, inv: window.__game.run.invulnLeft(), t: window.__game.run.t }));
+  const sB = await B.G(() => ({ pend: window.__game.run.pendingChoices, inv: window.__game.run.invulnLeft(), t: window.__game.run.t }));
+  ok('level-up in co-op: both players get a choice + invulnerability', sA.pend > 0 && sB.pend > 0 && sA.inv > 1.5 && sB.inv > 1.5, { sA, sB });
+  await A.p.waitForTimeout(800);
   const tA2 = await A.G(() => window.__game.run.t), tB2 = await B.G(() => window.__game.run.t);
-  ok('co-op paused for everyone while choosing (clocks frozen)', Math.abs(tA2 - sA.t) < 0.05 && Math.abs(tB2 - sB.t) < 0.3, { a: [sA.t, tA2], b: [sB.t, tB2] });
-  await A.p.screenshot({ path: `${OUT}/coop-levelup-A-choosing.png` });
-  // B выбирает сразу, A — нет: B стоит на паузе и видит, что выбирает A
-  for (let i = 0; i < 6 && await B.G(() => window.__game.run.pendingChoices > 0); i++) { await B.G(() => document.querySelector('.mc3d-choice')?.click()); await B.p.waitForTimeout(500); }
-  await B.p.waitForTimeout(700);
-  const bar = await B.G(() => document.querySelector('.mc3d-pausebar')?.style.display !== 'none' ? document.querySelector('.mc3d-pausebar').textContent : '');
-  const tB3 = await B.G(() => window.__game.run.t); await B.p.waitForTimeout(1000); const tB4 = await B.G(() => window.__game.run.t);
-  ok('after own picks, B still paused and sees who is choosing', /Алекс/.test(bar) && !/: вы /.test(bar) && Math.abs(tB4 - tB3) < 0.05, { bar, tB3, tB4 });
-  await B.p.screenshot({ path: `${OUT}/coop-levelup-B-waiting.png` });
-  // автовыбор у A через ~10 с
-  await A.p.waitForFunction(() => window.__game.run.pendingChoices === 0, null, { timeout: 35000 }).catch(() => {});
-  const auto = await A.G(() => ({ pend: window.__game.run.pendingChoices, choiceT: window.__game.run.choiceT }));
-  ok('auto-pick (~10 s per pending choice) releases the pause', auto.pend === 0, auto);
-  await A.p.waitForTimeout(1500);
-  const r1 = await A.G(() => window.__game.run.t), q1 = await B.G(() => window.__game.run.t);
-  await A.p.waitForTimeout(1200);
-  const r2 = await A.G(() => window.__game.run.t), q2 = await B.G(() => window.__game.run.t);
-  ok('both clocks run again after everyone chose', r2 > r1 + 0.5 && q2 > q1 + 0.5, { a: [r1, r2], b: [q1, q2] });
-  ok('pause bar hidden after resume', await B.G(() => document.querySelector('.mc3d-pausebar').style.display === 'none'));
+  ok('co-op NOT paused while choosing (both clocks advance)', tA2 > sA.t + 0.4 && tB2 > sB.t + 0.4, { a: [sA.t, tA2], b: [sB.t, tB2] });
+  ok('host sees guest shimmer (validated window)', await A.G((id) => !!window.__game.run.remotes.get(id)?.inv, idB));
+  ok('guest sees host shimmer (from host snapshot)', await B.G((id) => !!window.__game.run.remotes.get(id)?.inv, idA));
+  await A.p.screenshot({ path: `${OUT}/coop-levelup-A-invuln.png` });
+  // гость выбирает в первые 3 с → волна; применяет и проверяет хост
+  await B.G(() => document.querySelector('.mc3d-choice')?.click());
+  await B.p.waitForTimeout(300);
+  const wA = await A.G(() => window.__game.run.lastWave);
+  ok('guest quick pick → host applies guest shockwave', !!wA && wA.owner === idB, wA);
+  ok('host renders guest wave', await A.G((id) => window.__game.run.waveFx.some((w) => w.owner === id) || !!window.__game.run.lastWave, idB));
+  await B.p.screenshot({ path: `${OUT}/coop-levelup-B-wave.png` });
+  // подделки: вторая волна за то же событие и «неуязвимость» вне окна — хост отклоняет
+  const rej0 = await A.G(() => window.__game.run.waveRejected || 0);
+  await B.G(() => window.__game.run.send({ k: 'wave' }));
+  await A.p.waitForTimeout(400);
+  ok('host rejects a 2nd wave for the same level-up', await A.G((r0) => (window.__game.run.waveRejected || 0) > r0, rej0));
+  await A.p.waitForTimeout(3600);
+  await B.G(() => { const r = window.__game.run, m = r.me; r.send({ k: 'me', iv: 1, x: m.x, z: m.z, dx: 0, dz: 1, mv: 0, hp: m.hp, mh: m.maxHp, dead: 0, mag: 2.4, cls: r.classKey }); });
+  await A.p.waitForTimeout(300);
+  ok('host ignores forged invulnerability outside the 3 s window', await A.G((id) => !window.__game.run.remotes.get(id)?.inv, idB));
+  const rej1 = await A.G(() => window.__game.run.waveRejected || 0);
+  await B.G(() => window.__game.run.send({ k: 'wave' }));
+  await A.p.waitForTimeout(400);
+  ok('host rejects a wave outside the window', await A.G((r0) => (window.__game.run.waveRejected || 0) > r0, rej1));
+  ok('host invulnerability ended after 3 s (choice may stay open)', await A.G(() => window.__game.run.invulnLeft() === 0));
+  for (const X of [A, B]) for (let i = 0; i < 6 && await X.G(() => window.__game.run.pendingChoices > 0); i++) { await X.G(() => document.querySelector('.mc3d-choice')?.click()); await X.p.waitForTimeout(300); }
   ok('no page errors', errs.length === 0, errs.slice(0, 3));
   console.log(`\n${pass} passed, ${fail} failed`);
   await b.close();

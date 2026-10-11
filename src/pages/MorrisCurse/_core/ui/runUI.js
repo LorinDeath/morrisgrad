@@ -23,7 +23,6 @@ export class RunUI {
       <div class="mc3d-hp"><div class="bar"><i style="width:100%"></i></div><div class="val">100 / 100</div></div>
       <div class="mc3d-slots"><div class="row w"></div><div class="row p"></div></div>
       <div class="mc3d-allies"></div>
-      <div class="mc3d-pausebar" style="display:none"></div>
       <div class="mc3d-boss"><span>Страж Склепа</span><div class="bar"><i style="width:100%"></i></div></div>
       <div class="mc3d-down">Вы пали!<br><small>Союзник может поднять вас, встав рядом</small><br><button class="mc-btn danger mc3d-giveup">🏳 Сдаться — в лобби</button></div>
       <div class="mc3d-abilities"></div>
@@ -41,7 +40,6 @@ export class RunUI {
     this.wRow = this.q('.mc3d-slots .w');
     this.pRow = this.q('.mc3d-slots .p');
     this.allies = this.q('.mc3d-allies');
-    this.pauseBar = this.q('.mc3d-pausebar');
     this.bossBox = this.q('.mc3d-boss');
     this.bossFill = this.q('.mc3d-boss i');
     this.downEl = this.q('.mc3d-down');
@@ -127,17 +125,19 @@ export class RunUI {
     });
   }
 
-  // --- пауза выбора: кто выбирает (отряд стоит, пока выбирает хоть кто-то) ---
-  setPause(list, { coop = false, autoPick = 10 } = {}) {
-    const key = coop && list.length ? list.map((c) => `${c.username}:${Math.max(0, Math.ceil(autoPick - c.t))}`).join('|') : '';
-    if (key !== this.cache.pause) {
-      this.cache.pause = key;
-      this.pauseBar.style.display = key ? '' : 'none';
-      if (key) this.pauseBar.innerHTML = `⏸ Пауза отряда — выбирает улучшение: ${list.map((c) => `<b style="color:${c.me ? '#fde68a' : esc(c.color || '#38bdf8')}">${esc(c.me ? 'вы' : c.username)}</b> <small>${Math.max(0, Math.ceil(autoPick - c.t))} с</small>`).join(', ')}`;
-    }
-    const tm = this.choiceEl?.querySelector('.mc3d-choice-timer');
-    const mine = list.find((c) => c.me);
-    if (tm) tm.textContent = coop && mine ? `Автовыбор через ${Math.max(0, Math.ceil(autoPick - mine.t))} с` : '';
+  // --- 3 с неуязвимости на выборе после уровня: кольцо обратного отсчёта ---
+  setInvuln(left, total) {
+    const ring = this.choiceEl?.querySelector('.mc3d-inv-ring');
+    if (!ring) return;
+    const key = left > 0 ? Math.ceil(left * 10) : -1;
+    if (key === this.cache.inv) return;
+    this.cache.inv = key;
+    if (left <= 0) { ring.classList.add('over'); ring.style.setProperty('--p', '0'); ring.querySelector('b').textContent = '!'; ring.querySelector('small').textContent = 'вы уязвимы'; ring.style.display = this.cache.invShown ? '' : 'none'; return; }
+    this.cache.invShown = true;
+    ring.style.display = ''; ring.classList.remove('over');
+    ring.style.setProperty('--p', String(Math.max(0, Math.min(1, left / total))));
+    ring.querySelector('b').textContent = String(Math.ceil(left));
+    ring.querySelector('small').textContent = 'выберите — будет волна';
   }
 
   // --- выбор улучшения ---
@@ -145,7 +145,8 @@ export class RunUI {
     this.closeChoices();
     this.choices = choices;
     this.choiceOpen = true;
-    const el = this.ov.showScreen(`<h2>${esc(title)}</h2><p>${esc(sub || 'Выберите улучшение — клавиши 1–3 или нажатие')}</p><p class="mc3d-choice-timer"></p><div class="mc3d-choices"></div>`, [], 'mc3d-choice-screen');
+    this.cache.inv = undefined; this.cache.invShown = false;
+    const el = this.ov.showScreen(`<h2>${esc(title)}</h2><p>${esc(sub || 'Выберите улучшение — клавиши 1–3 или нажатие')}</p><div class="mc3d-inv-ring" style="display:none"><b>3</b><small>неуязвимость</small></div><div class="mc3d-choices"></div>`, [], 'mc3d-choice-screen');
     el.style.background = 'rgba(5,3,10,0.62)';
     const box = el.querySelector('.mc3d-choices');
     choices.forEach((c, i) => {

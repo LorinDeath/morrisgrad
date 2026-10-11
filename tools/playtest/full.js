@@ -171,9 +171,21 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   await G(() => { const r = window.__game.run; r.team.xp += 5000; });
   await p.waitForSelector('.mc3d-choice', { timeout: 5000 }).catch(() => {});
   ok('level-up choice opens', await G(() => !!document.querySelector('.mc3d-choice')));
-  { const t0 = await G(() => window.__game.run.t); await p.waitForTimeout(1500); const t1 = await G(() => window.__game.run.t);
-    ok('solo: full pause while choosing (clock frozen, no auto-pick)', t1 === t0 && await G(() => window.__game.run.pendingChoices > 0), { t0, t1 }); }
-  await shot('07a-run-levelup-paused');
+  // Новое правило: БЕЗ паузы; 3 с неуязвимости, пока открыт выбор; не успел — уязвим (выбор остаётся открытым)
+  ok('level-up: 3 s invulnerability starts', await G(() => window.__game.run.invulnLeft() > 2.3), await G(() => window.__game.run.invulnLeft()));
+  { const t0 = await G(() => window.__game.run.t); await p.waitForTimeout(900); const t1 = await G(() => window.__game.run.t);
+    ok('no pause while choosing (run clock advances)', t1 > t0 + 0.4, { t0, t1 }); }
+  await shot('07a-run-levelup-invuln');
+  await p.waitForFunction(() => window.__game.run.invulnLeft() === 0, null, { timeout: 5000 }).catch(() => {});
+  const hp0 = await G(() => window.__game.run.me.hp);
+  for (let i = 0; i < 10; i++) { await G(() => { const r = window.__game.run; let k = 0; for (const e of r.enemies.values()) { if (e.dead || k++ > 6) continue; e.x = r.me.x + 0.2; e.z = r.me.z; } }); await p.waitForTimeout(100); }
+  const hp1 = await G(() => window.__game.run.me.hp);
+  ok('after 3 s: choice still open, invulnerability over, hero takes damage', await G(() => window.__game.run.pendingChoices > 0 && !!document.querySelector('.mc3d-choice') && !!document.querySelector('.mc3d-inv-ring.over')) && hp1 < hp0, { hp0, hp1 });
+  await shot('07b-run-levelup-vulnerable');
+  await G(() => { window.__game.run.lastWave = null; });
+  if (kind === 'desktop') await p.keyboard.press('Digit1'); else await p.tap('.mc3d-choice').catch(() => {});
+  await p.waitForTimeout(200);
+  ok('late pick (after 3 s) → no shockwave', await G(() => !window.__game.run.lastWave));
   await G(() => { const o = window.__game.debug.overlay; o.showScreen('<p>перекрытие</p>', []); o.hideScreen(); });
   await p.waitForTimeout(600);
   ok('level-up watchdog reopens choice after it was hidden', await G(() => !!document.querySelector('.mc3d-choice') && window.__game.run.pendingChoices > 0), await G(() => ({ pend: window.__game.run.pendingChoices, open: window.__game.debug.runUI.choiceOpen })));
@@ -181,10 +193,28 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
     if (kind === 'desktop') await p.keyboard.press('Digit1'); else await p.tap('.mc3d-choice').catch(() => {});
     await p.waitForTimeout(150);
   }
-  ok('all level-up choices resolved, run not paused', await G(() => window.__game.run.pendingChoices === 0 && !document.querySelector('.mc3d-choice')));
+  ok('all level-up choices resolved', await G(() => window.__game.run.pendingChoices === 0 && !document.querySelector('.mc3d-choice')));
   const t0 = await G(() => window.__game.run.t); await p.waitForTimeout(1000); const t1 = await G(() => window.__game.run.t);
   ok('run clock advances after choices', t1 > t0, { t0, t1 });
   await shot('07-run-after-levelups');
+  // выбор в первые 3 с → ударная волна отбрасывает врагов рядом (без урона)
+  await G(() => { window.__game.debug.spawn('ghoul', 20); window.__game.run.lastWave = null; });
+  await p.waitForTimeout(500);
+  await G(() => { const r = window.__game.run; let need = 0; r.team.xp += 1e5; });
+  await p.waitForSelector('.mc3d-choice', { timeout: 5000 }).catch(() => {});
+  const hpE0 = await G(() => [...window.__game.run.enemies.values()].reduce((a, e) => a + e.hp, 0));
+  await G(() => { const r = window.__game.run; let k = 0; for (const e of r.enemies.values()) { if (e.dead || e.boss || k >= 6) continue; const a = k++ * 1.05; e.x = r.me.x + Math.cos(a) * 2; e.z = r.me.z + Math.sin(a) * 2; } });
+  if (kind === 'desktop') await p.keyboard.press('Digit1'); else await p.tap('.mc3d-choice').catch(() => {});
+  await p.waitForTimeout(120);
+  await shot('07c-run-levelup-wave');
+  const wv = await G(() => window.__game.run.lastWave);
+  ok('quick pick (< 3 s) → shockwave knocks nearby enemies back', !!wv && wv.n > 0, wv);
+  ok('shockwave: invulnerability ends right after the pick', await G(() => window.__game.run.invulnLeft() <= 0.3));
+  for (let i = 0; i < 60 && await G(() => window.__game.run.pendingChoices > 0); i++) {
+    if (kind === 'desktop') await p.keyboard.press('Digit1'); else await p.tap('.mc3d-choice').catch(() => {});
+    await p.waitForTimeout(120);
+  }
+  ok('only one shockwave per level-up event', await G(() => window.__game.run.waveEvent === window.__game.run.lvlEvent));
   await G(() => window.__game.leaveRun());
   await p.waitForFunction(() => window.__game.state().mode === 'hub', null, { timeout: 8000 });
   // Испытание Обители
