@@ -8,12 +8,43 @@
 """
 import os, re, json, math, random
 from PIL import Image
-from pixkit import Sprite, Mat, hexc, mix
+from pixkit import Sprite, Mat, hexc, mix, ramp
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'src', 'assets', 'mc', 'bestiary_atlas.png')
 PREV = '/workspace/morrisgrad-round2/sprites'
-C, COLS, G = 48, 12, 46
+C, COLS, G = 48, 12, 46      # координаты рисования семейств (старая сетка 48, земля y=46, центр x=24)
+CO, GO, XO = 64, 62, 32        # реальная ячейка атласа v2: 64×64, земля y=62, центр x=32
+
+class XSprite(Sprite):
+    """Холст v2: семейства рисуют в старых координатах 48-сетки, а растеризация идёт в 64-ячейке с масштабом k —
+    больше пикселей на тело (детальнее кластеры), тот же код поз/анимации."""
+    def __init__(self, k):
+        super().__init__(CO, CO, v2=True); self.k = k
+    def T(self, x, y): return (XO + (x - 24) * self.k, GO - (G - y) * self.k)
+    def ellipse(self, cx, cy, rx, ry, mat, **kw):
+        X, Y = self.T(cx, cy); return super().ellipse(X, Y, rx * self.k, ry * self.k, mat, **kw)
+    def poly(self, pts, mat, **kw): return super().poly([self.T(x, y) for x, y in pts], mat, **kw)
+    def limb(self, x0, y0, x1, y1, r0, mat, r1=None, **kw):
+        a, b = self.T(x0, y0); c, d = self.T(x1, y1)
+        return super().limb(a, b, c, d, r0 * self.k, mat, r1=None if r1 is None else r1 * self.k, **kw)
+    def rect(self, x0, y0, x1, y1, mat, **kw):
+        a, b = self.T(x0, y0); c, d = self.T(x1 + 1, y1 + 1)
+        return self.fill([(x, y) for y in range(int(round(b)), int(round(d))) for x in range(int(round(a)), int(round(c)))], mat, **kw)
+    def px(self, x, y, c, glow=False):
+        X, Y = self.T(x, y); super().px(X, Y, c, glow)
+    def rpx(self, x, y, c, glow=False): super().px(x, y, c, glow)
+    def line(self, x0, y0, x1, y1, c, glow=False):
+        a, b = self.T(x0, y0); e, f = self.T(x1, y1)
+        n = int(max(abs(e - a), abs(f - b))) + 1
+        for i in range(n + 1):
+            t = i / n; super().px(a + (e - a) * t, b + (f - b) * t, c, glow)
+    def erase(self, pts):
+        out = []
+        for (x, y) in pts:
+            a, b = self.T(x, y); c, d = self.T(x + 1, y + 1)
+            out += [(u, v) for v in range(int(round(b)), int(round(d))) for u in range(int(round(a)), int(round(c)))]
+        super().erase(out)
 
 src = open(os.path.join(ROOT, 'server', 'meta', 'generated', 'public.ts'), encoding='utf8').read()
 MOBS = json.loads(re.search(r'MOBS_PUBLIC: Record<string, MobPublic> = (\{.*\});', src).group(1))
@@ -33,11 +64,33 @@ def darker(h, k=0.6):
     c = hexc(h); return '#%02x%02x%02x' % tuple(int(v * k) for v in c[:3])
 
 def eyes(s, x, y, gap, col='#1a1030', glow=None, size=1):
-    for dx in (-gap / 2, gap / 2):
-        if glow: s.rect(x + dx - size / 2, y, x + dx + size / 2 - 0.01 + (size > 1), y + size - 1 + 0.01, Mat(glow, glow=True))
+    """v2: аниме-глаза в реальных пикселях — ресница, радужка 2 тона, белый блик; светящиеся — ядро + ореол."""
+    k = getattr(s, 'k', 1)
+    X, Y = s.T(x, y) if hasattr(s, 'T') else (x, y)
+    g = max(3 if glow else 4, gap * k)
+    big = size > 1 or (k >= 1.3 and gap * k >= 4.5)
+    for i, dx in enumerate((-g / 2, g / 2)):
+        ex, ey = int(round(X + dx - (1 if big else 0.5))), int(round(Y))
+        if glow:
+            gc = hexc(glow)
+            for (u, v) in ((0, 0), (1, 0), (0, 1), (1, 1)) if big else ((0, 0), (0, 1)):
+                s.rpx(ex + u, ey + v, gc, glow=True)
+            s.rpx(ex, ey, (255, 255, 255, 255), glow=True)
         else:
-            s.px(x + dx, y, hexc(col)); s.px(x + dx, y + 1, hexc(col))
-            s.px(x + dx, y, (255, 255, 255, 255)) if size > 1 else None
+            lash = hexc(col)
+            iris = s.eye_iris
+            s.rpx(ex, ey, lash); s.rpx(ex + 1, ey, lash)
+            if i == 1: s.rpx(ex + 2, ey - 1, lash)
+            else: s.rpx(ex - 1, ey - 1, lash)
+            s.rpx(ex, ey + 1, (255, 255, 255, 255)); s.rpx(ex + 1, ey + 1, iris[1] + (255,))
+            s.rpx(ex, ey + 2, iris[2] + (255,)); s.rpx(ex + 1, ey + 2, iris[0] + (255,))
+            if big: s.rpx(ex, ey + 3, iris[3] + (255,)); s.rpx(ex + 1, ey + 3, iris[1] + (255,))
+            # румянец под внешним уголком глаза
+            bx = ex - 1 if i == 0 else ex + 2
+            if g >= 6: s.rpx(bx, ey + (4 if big else 3), (244, 140, 170, 255))
+    if not glow and g >= 6:  # ротик
+        mx, my = int(round(X)), int(round(Y)) + (4 if big else 3)
+        s.rpx(mx - 1, my, hexc(col)); s.rpx(mx, my + 1, hexc(col)) if big else None
 
 # ---------- семейства: f(s, M, A, ph) — M основной материал, A акцент, ph — фаза ----------
 def slime(s, M, A, ph, big=False):
@@ -370,10 +423,264 @@ def shade(s, M, A, ph):
     biped(s, M, A, ph, h=24, hood=True)
     s.erase([(x, yy) for x in range(48) for yy in range(G - 3, 48)])
 
+# ================= v2: детальные семейства (перекрывают старые определения выше) =================
+def mixh(a, b, t):
+    return '#%02x%02x%02x' % mix(hexc(a)[:3], hexc(b)[:3], t)
+
+def lighter(h, t=0.35): return mixh(h, '#fff4e0', t)
+
+def quad(s, M, A, ph, size=1.0, ears='fox', tail=True, antlers=False, head_low=False):
+    """Четвероногие v2: двухсегментные лапы с подушечками, светлое брюхо, грива/полоса по спине, морда с носом,
+    ухо с розовой внутренней частью, пушистый хвост с кончиком."""
+    k = size
+    b = math.sin(ph['t'] * 12.566)
+    by = G - 8 * k - abs(b) * 0.6
+    lx = ph['atk'] * 3
+    far, paw = Mat(darker(M.base, 0.72)), Mat(darker(M.base, 0.5))
+    belly = Mat(lighter(M.base, 0.45))
+    # дальние лапы (темнее), потом ближние
+    for i, ox in enumerate((-6, 4, -3, 7)):
+        near = i >= 2
+        sw = b * 2 * (1 if i % 2 else -1)
+        kx, ky = 24 + ox * k + sw * k * 0.6, by + 4.5 * k
+        fx = 24 + ox * k + sw * k * 1.4
+        mat = M if near else far
+        s.limb(24 + ox * k, by + 1 * k, kx, ky, 1.5 * k, mat, r1=1.1 * k)
+        s.limb(kx, ky, fx, G - 0.6 * k, 1.0 * k, mat, r1=0.9 * k)
+        s.ellipse(fx + 0.6 * k, G - 0.6 * k, 1.5 * k, 0.9 * k, paw)
+    if tail:
+        tx, ty = 24 - 13 * k, by - 6 * k + b * 2
+        s.limb(24 - 8 * k, by - 1 * k, tx, ty, 2.2 * k, M, r1=1.7 * k)
+        s.ellipse(tx - 0.5 * k, ty - 0.5 * k, 1.8 * k, 1.8 * k, Mat(lighter(M.base, 0.7)))
+    s.ellipse(24 + lx, by, 9 * k, 5 * k, M)
+    s.ellipse(24 + lx + 1 * k, by + 2.4 * k, 6.5 * k, 2.4 * k, belly)
+    # полоса/грива по спине (волки)
+    for i in (range(5) if ears == 'fox' and size >= 1.1 else ()):
+        x = 24 + lx - 6 * k + i * 3 * k
+        s.poly([(x - 1.5 * k, by - 4 * k), (x - 0.5 * k, by - 6.5 * k - (i % 2) * k), (x + 1.5 * k, by - 4 * k)], Mat(darker(M.base, 0.8)))
+    hx, hy = 24 + 9 * k + lx * 1.5, by - (2 if head_low else 5) * k
+    s.limb(24 + 6 * k + lx, by - 1 * k, hx - 1 * k, hy + 1 * k, 2.6 * k, M)  # шея
+    s.ellipse(hx - 1.5 * k, hy + 2.2 * k, 2.6 * k, 2.2 * k, belly)       # грудка/щёки
+    s.ellipse(hx, hy, 4.2 * k, 3.6 * k, M)
+    s.ellipse(hx + 3.2 * k, hy + 1.2 * k, 2.3 * k, 1.6 * k, Mat(lighter(M.base, 0.55)))  # морда
+    s.px(hx + 5.2 * k, hy + 0.6 * k, (24, 14, 30, 255))  # нос
+    if ph['atk'] > 0.5:  # пасть с клыками
+        s.line(hx + 2 * k, hy + 2.4 * k, hx + 5 * k, hy + 2.4 * k, (60, 16, 32, 255)); s.px(hx + 4 * k, hy + 3 * k, (255, 255, 255, 255))
+    inner = Mat('#f4a6b8')
+    if ears == 'fox':
+        for ex in (-1.5, 1.2):
+            e0 = hx + ex * k
+            s.poly([(e0 - 1.8 * k, hy - 2 * k), (e0 - 0.5 * k, hy - 7.5 * k), (e0 + 1.5 * k, hy - 2.5 * k)], M if ex > 0 else far)
+            if ex > 0: s.poly([(e0 - 0.9 * k, hy - 2.6 * k), (e0 - 0.4 * k, hy - 5.8 * k), (e0 + 0.6 * k, hy - 2.8 * k)], inner)
+    elif ears == 'hare':
+        s.limb(hx - 1.5, hy - 3, hx - 4, hy - 12 * k, 1.3 * k, far)
+        s.limb(hx + 0.5, hy - 3, hx + 0.5, hy - 12.5 * k, 1.3 * k, M); s.limb(hx + 0.5, hy - 4.5, hx + 0.5, hy - 11 * k, 0.5 * k, inner)
+    if antlers:
+        for sg in (-1, 1):
+            am = Mat(A) if sg > 0 else Mat(darker(A, 0.75))
+            s.limb(hx + sg * 2, hy - 3 * k, hx + sg * 7 * k, hy - 13 * k, 0.9 * k, am); s.limb(hx + sg * 5 * k, hy - 9 * k, hx + sg * 1, hy - 14 * k, 0.7 * k, am)
+            s.limb(hx + sg * 6.4 * k, hy - 11.5 * k, hx + sg * 10 * k, hy - 14 * k, 0.6 * k, am)
+    # глаз (вид сбоку): ресница, радужка, блик
+    X, Y = s.T(hx + 1.6 * k, hy - 1.2 * k); X, Y = int(round(X)), int(round(Y))
+    ir = s.eye_iris
+    s.rpx(X - 1, Y - 1, (24, 14, 30, 255)); s.rpx(X, Y - 1, (24, 14, 30, 255)); s.rpx(X + 1, Y - 1, (24, 14, 30, 255))
+    s.rpx(X, Y, (255, 255, 255, 255)); s.rpx(X + 1, Y, ir[1] + (255,)); s.rpx(X, Y + 1, ir[2] + (255,)); s.rpx(X + 1, Y + 1, ir[0] + (255,))
+
+def biped(s, M, A, ph, h=18, horns=False, hunch=False, armor=None, weapon=None, hood=False, thin=False, big=1.0):
+    """Гуманоиды v2: чиби-пропорции (голова ~1/3 у мелких), одежда другого цвета (туника/юбка, пояс с пряжкой, ворот),
+    сапоги, руки из двух сегментов с кистями; у рыцарей — шлем с прорезью и плюмажем, наплечники, щит с гербом."""
+    k = min(big, 44.0 / h)
+    b = math.sin(ph['t'] * 12.566)
+    hr = (2.8 + h * 0.06) * k                     # радиус головы
+    hip = G - max(5.5, h * 0.32) * k
+    top = G - h * k
+    lean = ph['atk'] * 3 * k + (3 if hunch else 0)
+    cl = armor or mixh(A, '#2a1f3d', 0.55)
+    if hood: cl = darker(M.base, 0.7)
+    cloth, clothd = Mat(cl), Mat(darker(cl, 0.75))
+    boot = Mat(darker(armor, 0.6) if armor else '#4a3426')
+    skin = M
+    bw = (2.6 if thin else 4.4) * k
+    sh_y = top + 2 * hr - 0.5 * k                  # линия плеч
+    reach = ph['atk']
+    # дальняя рука
+    s.limb(24 + lean - bw + 0.5 * k, sh_y + 1 * k, 24 + lean - bw - 2 * k, sh_y + (hip - sh_y) * 0.6, 1.1 * k, clothd)
+    s.ellipse(24 + lean - bw - 2 * k, sh_y + (hip - sh_y) * 0.6 + 1.2 * k, 1.2 * k, 1.2 * k, Mat(darker(M.base, 0.75)))
+    # ноги: штанины + сапоги
+    for sg in (-1, 1):
+        fx = 24 + sg * 2.4 * k + b * sg * 2 * k
+        s.limb(24 + sg * 2 * k, hip, fx, G - 2 * k, (0.9 if thin else 1.4) * k, clothd if not thin else skin)
+        s.limb(fx, G - 2.4 * k, fx + 0.6 * k, G - 0.8 * k, (1.1 if thin else 1.6) * k, boot)
+    # торс + подол
+    s.poly([(24 - bw - 0.5 * k, hip + 2 * k), (24 + bw + 0.5 * k, hip + 2 * k), (24 + bw * 0.95 + lean, sh_y), (24 - bw * 0.95 + lean, sh_y)], cloth)
+    if armor:
+        s.ellipse(24 + lean - 0.8 * k, sh_y + 3 * k, bw * 0.55, 2.4 * k, Mat(lighter(armor, 0.35)))  # нагрудник
+        for sg in (-1, 1): s.ellipse(24 + lean + sg * bw, sh_y + 0.6 * k, 1.9 * k, 1.5 * k, Mat(lighter(armor, 0.15)))  # наплечники
+    elif not hood:
+        s.poly([(24 + lean - 1.6 * k, sh_y), (24 + lean + 1.6 * k, sh_y), (24 + lean, sh_y + 2.4 * k)], skin)  # ворот
+    if not hood:
+        by_ = hip - 0.2 * k
+        s.rect(24 - bw - 0.2 * k + lean * 0.2, by_, 24 + bw + 0.2 * k + lean * 0.2, by_ + 0.9 * k, Mat('#3b2418'), tone=2)  # пояс
+        s.px(24 + lean * 0.2, by_ + 0.4 * k, hexc(A))
+    if thin and not armor and not hood:  # рёбра
+        for i in range(3): s.line(24 + lean - bw * 0.6, sh_y + 2 * k + i * 1.6 * k, 24 + lean + bw * 0.6, sh_y + 2 * k + i * 1.6 * k, hexc(darker(cl, 0.5)))
+    hx, hy = 24 + lean * 1.2, top + hr
+    if hood:
+        s.poly([(hx - hr * 1.3, hy + hr * 1.2), (hx + hr * 1.3, hy + hr * 1.2), (hx + hr * 0.9, hy - hr * 1.1), (hx + 0.5 * k, hy - hr * 1.7), (hx - hr * 0.9, hy - hr * 1.1)], cloth)
+        s.ellipse(hx + 0.4 * k, hy + 0.4 * k, hr * 0.68, hr * 0.7, Mat('#0b0712'), tone=2)
+        eyes(s, hx + 0.4 * k, hy, hr * 0.55, glow=A, size=max(1, int(k)))
+    else:
+        s.ellipse(hx, hy, hr, hr * 0.95, skin)
+        if armor:
+            s.ellipse(hx, hy - hr * 0.15, hr * 1.08, hr * 0.98, Mat(armor))
+            s.rect(hx - hr * 0.7, hy - 0.2 * k, hx + hr * 0.85, hy + 0.6 * k, Mat('#0b0712'), tone=2)
+            eyes(s, hx + 0.6 * k, hy, hr * 0.7, glow=A, size=max(1, int(k)))
+            s.poly([(hx - 0.8 * k, hy - hr), (hx - 4 * k, hy - hr - 3.5 * k), (hx + 1 * k, hy - hr - 1.8 * k)], Mat(A))  # плюмаж
+        else:
+            # причёска/макушка: тёмная шапка волос по верху головы с прядкой
+            hair = Mat(darker(A, 0.55)) if not thin else Mat(darker(M.base, 0.8))
+            HX, HY = s.T(hx, hy); R = hr * s.k
+            cap = [p for p in Sprite.ellipse_px(HX, HY - R * 0.12, R * 1.06, R * 0.98) if p[1] < HY - R * 0.32]
+            for j in range(-2, 3):  # чёлка: зубцы вниз
+                fx = HX + j * R * 0.38
+                cap += [p for p in Sprite.poly_px([(fx - R * 0.22, HY - R * 0.4), (fx + R * 0.02 * j, HY - R * (0.05 if j % 2 else 0.2)), (fx + R * 0.22, HY - R * 0.4)])]
+            Sprite.fill(s, cap, hair)
+            eyes(s, hx + 0.4 * k, hy + 0.2 * k, hr * 0.72, size=max(1, int(k)))
+    if horns:
+        for sg in (-1, 1):
+            s.poly([(hx + sg * hr * 0.7, hy - hr * 0.5), (hx + sg * (hr + 1.6 * k), hy - hr - 3.2 * k), (hx + sg * hr * 0.15, hy - hr * 0.8)], Mat(A))
+    # ближняя рука (плечо → локоть → кисть)
+    ax, ay = 24 + lean + bw - 0.5 * k, sh_y + 1 * k
+    ex, ey = ax + (2 + reach * 6) * k, ay + (hip - sh_y) * 0.65 - reach * 4 * k + (4 if hunch else 0)
+    s.limb(ax, ay, (ax + ex) / 2 + 0.6 * k, (ay + ey) / 2, 1.2 * k, cloth)
+    s.limb((ax + ex) / 2 + 0.6 * k, (ay + ey) / 2, ex, ey, 1.0 * k, skin)
+    s.ellipse(ex, ey, 1.25 * k, 1.25 * k, skin)
+    if weapon == 'sword':
+        tx, ty = ex + (2 + reach * 6) * k, ey - (9 - reach * 6) * k
+        s.line(ex, ey, tx, ty, (226, 232, 240, 255)); s.line(ex + 1, ey, tx + 1, ty, (148, 163, 184, 255))
+        s.line(ex - 1.5 * k, ey + 0.5 * k, ex + 1.5 * k, ey - 0.5 * k, hexc(A))  # гарда
+        sx = 24 + lean - bw - 3 * k
+        s.rect(sx - 2.2 * k, sh_y + 1 * k, sx + 1.2 * k, sh_y + 8 * k, Mat(A))  # щит
+        s.rect(sx - 1 * k, sh_y + 2.5 * k, sx, sh_y + 6 * k, Mat(darker(A, 0.55)), tone=2)  # герб
+    elif weapon == 'pick':
+        s.line(ex, ey, ex + 2 * k, ey - 8 * k, (120, 90, 60, 255)); s.line(ex - 3 * k, ey - 8 * k, ex + 6 * k, ey - 7 * k, (200, 200, 210, 255))
+    elif weapon == 'claws':
+        for d in (-1, 0, 1): s.line(ex, ey, ex + 3 * k, ey + (2 + d) * k, hexc(A))
+
+def golem(s, M, A, ph, big=1.0):
+    """Големы v2: каменные блоки с фасками и трещинами, мох/кристаллы акцентом, светящееся ядро и глаза-щели."""
+    k = big
+    b = math.sin(ph['t'] * 12.566)
+    st, std = M, Mat(darker(M.base, 0.75))
+    for sg in (-1, 1):
+        s.rect(24 + sg * 4 * k - 2.2 * k, G - 7 * k + abs(b) * sg, 24 + sg * 4 * k + 2.2 * k, G, std)
+        s.rect(24 + sg * 4 * k - 2.8 * k, G - 1.6 * k, 24 + sg * 4 * k + 2.8 * k, G, Mat(darker(M.base, 0.55)))
+    lift = ph['atk'] * 8 * k
+    s.rect(24 - 12.5 * k, G - 18 * k, 24 - 7.5 * k, G - 7 * k, std)  # дальняя рука
+    s.poly([(24 - 8 * k, G - 6 * k), (24 + 8 * k, G - 6 * k), (24 + 9 * k, G - 16 * k), (24 + 6 * k, G - 19 * k), (24 - 6 * k, G - 19 * k), (24 - 9 * k, G - 16 * k)], st)
+    s.ellipse(24, G - 12 * k, 2.6 * k, 2.6 * k, Mat(darker(M.base, 0.5)))
+    s.ellipse(24, G - 12 * k, 1.8 * k, 1.8 * k, Mat(A, glow=True))
+    # трещины
+    s.line(24 - 6 * k, G - 17 * k, 24 - 3 * k, G - 13 * k, hexc(darker(M.base, 0.45))); s.line(24 + 5 * k, G - 9 * k, 24 + 7 * k, G - 13 * k, hexc(darker(M.base, 0.45)))
+    # голова
+    s.poly([(24 - 4.5 * k, G - 18 * k), (24 + 4.5 * k, G - 18 * k), (24 + 4 * k, G - 25 * k), (24 - 4 * k, G - 25 * k)], st)
+    s.rect(24 - 3.2 * k, G - 22.6 * k, 24 + 3.2 * k, G - 21.4 * k, Mat('#0b0712'), tone=2)
+    for sg in (-1, 1): s.rect(24 + sg * 1.8 * k - 0.7 * k, G - 22.4 * k, 24 + sg * 1.8 * k + 0.7 * k, G - 21.6 * k, Mat(A, glow=True))
+    # мох / кристаллы на плечах
+    for sg in (-1, 1):
+        s.poly([(24 + sg * 6 * k, G - 19 * k), (24 + sg * 7.5 * k, G - 23 * k), (24 + sg * 9 * k, G - 18.5 * k)], Mat(A))
+    s.rect(24 + 7.5 * k, G - 18 * k - lift, 24 + 12.5 * k, G - 7 * k - lift, st)  # ближняя рука
+    s.rect(24 + 7 * k, G - 8.5 * k - lift, 24 + 13 * k, G - 5.5 * k - lift, Mat(darker(M.base, 0.6)))  # кулак
+
+def jelly(s, M, A, ph):
+    """Медуза v2: полупрозрачный купол с бликом и узором, оборка, сужающиеся щупальца."""
+    y = 22 + math.sin(ph['t'] * 6.283) * 2
+    for i in range(5):
+        x = 18.5 + i * 2.8
+        sw = math.sin(ph['t'] * 6.283 + i) * 2
+        s.limb(x, y + 4, x + sw, y + 10, 0.9, Mat(A), r1=0.7); s.limb(x + sw, y + 10, x - sw * 0.5, y + 15, 0.7, Mat(A), r1=0.4)
+    s.ellipse(24, y + 4.5, 9.5, 2, Mat(darker(M.base, 0.75)))
+    for i in range(6): s.ellipse(15.5 + i * 3.4, y + 5.5, 1.4, 1.2, Mat(darker(M.base, 0.65)))
+    s.fill([p for p in Sprite.ellipse_px(24, y + 2, 9, 8) if p[1] < y + 5], M) if False else None
+    s.ellipse(24, y + 1, 9, 6.5, M)
+    s.ellipse(24, y + 1.5, 5.5, 3.5, Mat(lighter(M.base, 0.3)))
+    s.ellipse(20.5, y - 2.5, 2, 1.4, Mat(A, glow=True))
+    eyes(s, 24, y + 0.5, 4)
+
+def slime(s, M, A, ph, big=False):
+    """Слизни v2: капля с бликом и внутренними пузырьками, «лужица» у земли; королевский — корона с камнями."""
+    k = 2 if big else 1
+    sq = 1 + 0.12 * math.sin(ph['t'] * 6.283) - 0.15 * ph['atk']
+    rx, ry = 8 * k * (2 - sq) / 1.0, 7 * k * sq
+    cy = G - ry
+    s.ellipse(24, G - 1 * k, rx * 0.85, 1.6 * k, Mat(darker(M.base, 0.8)))
+    s.ellipse(24, cy, rx * 0.75, ry, M)
+    s.ellipse(24 + rx * 0.25, cy + ry * 0.35, rx * 0.12, ry * 0.12, Mat(lighter(M.base, 0.4)))
+    s.ellipse(24 - rx * 0.3, cy + ry * 0.5, rx * 0.08, ry * 0.08, Mat(lighter(M.base, 0.4)))
+    s.ellipse(24 - rx * 0.25, cy - ry * 0.45, rx * 0.18, ry * 0.18, Mat(A, glow=True))
+    eyes(s, 24 + ph['atk'] * 2, cy - 1, 5 * k, glow=None)
+    if big:
+        for i in range(5): s.poly([(16 + i * 4, cy - ry + 1), (18 + i * 4, cy - ry - 5 - (i % 2) * 2), (20 + i * 4, cy - ry + 1)], Mat('#facc15'))
+        for i in (1, 3): s.px(18 + i * 4, cy - ry - 1, (239, 68, 68, 255))
+
+
+def ghost(s, M, A, ph):
+    """Призрак v2: волнистый подол, аниме-глаза с бликом, румянец, ручки, фонарь со свечением."""
+    y = 20 + math.sin(ph['t'] * 6.283) * 2
+    s.ellipse(24, y, 8, 7, M)
+    s.poly([(16, y), (32, y), (32, y + 13), (16, y + 13)], M)
+    for i in range(4): s.erase(Sprite.ellipse_px(18 + i * 4, y + 15, 1.2, 1.5))
+    s.ellipse(27, y + 6, 4, 6, Mat(darker(M.base, 0.85)))  # складка
+    s.limb(16.5, y + 5, 14 + ph['atk'] * 2, y + 8, 1.3, M)
+    eyes(s, 24, y - 2, 6)
+    s.ellipse(24, y + 4, 1.2, 0.8 + ph['atk'], Mat('#2a0f1e'), tone=2)
+    s.line(33, y + 4, 35, y + 9, (120, 100, 80, 255))
+    s.rect(33.5, y + 9.5, 36.5, y + 13, Mat('#6b4632')); s.ellipse(35, y + 11.2, 1.1, 1.3, Mat(A, glow=True))
+
+def spider(s, M, A, ph):
+    """Паук v2: суставчатые лапы с «коленями», брюшко с узором-меткой, кластер светящихся глаз, хелицеры."""
+    b = math.sin(ph['t'] * 12.566)
+    legc, kneec = Mat(darker(M.base, 0.5)), Mat(darker(M.base, 0.7))
+    for i in range(4):
+        for sg in (-1, 1):
+            kx, ky = 24 + sg * (9 + i * 2), G - 12 + i
+            fx = 24 + sg * (11 + i * 2) + b * sg * (1 if i % 2 else -1)
+            lc = hexc(darker(M.base, 0.45)); s.line(24 + sg * 4, G - 7, kx, ky, lc); s.line(24 + sg * 4, G - 6.4, kx, ky + 0.6, lc); s.line(kx, ky, fx, G, lc)
+            s.ellipse(kx, ky, 0.7, 0.7, kneec)
+    s.ellipse(21, G - 9, 7, 5.5, M)
+    s.poly([(19, G - 13), (22, G - 10), (19, G - 7), (16, G - 10)], Mat(A))  # метка на брюшке
+    s.ellipse(28 + ph['atk'] * 2, G - 6, 4, 3.2, Mat(darker(M.base, 0.8)))
+    for (dx, dy) in ((0, 0), (2, 0), (1, -1.2), (3, -1)):
+        s.px(28.5 + dx + ph['atk'] * 2, G - 7 + dy, hexc(A), glow=True)
+    for sg in (-1, 1): s.line(31 + ph['atk'] * 2, G - 4.5 + sg * 0.8, 32.5 + ph['atk'] * 3, G - 3 + sg * 1.2, (240, 230, 220, 255))
+
+
+def queen(s, M, A, ph):
+    """Королева v2: крылья с прожилками в 2 слоя, длинные волосы, аниме-лицо, платье с оборками и поясом, скипетр."""
+    f = math.sin(ph['t'] * 12.566) * 3
+    for sg in (-1, 1):
+        s.poly([(24 + sg * 4, 22), (24 + sg * 22, 6 - f), (24 + sg * 20, 22), (24 + sg * 14, 30)], Mat(A))
+        s.line(24 + sg * 5, 22, 24 + sg * 19, 9 - f, hexc(darker(A, 0.7))); s.line(24 + sg * 6, 24, 24 + sg * 18, 20, hexc(darker(A, 0.7)))
+        s.poly([(24 + sg * 4, 26), (24 + sg * 18, 34 + f), (24 + sg * 8, 32)], Mat(darker(A, 0.85)))
+    hair = Mat(mixh(M.base, '#4c1d95', 0.5))
+    s.poly([(17.5, 14), (30.5, 14), (32, 30), (16, 30)], hair)  # волосы за спиной
+    s.poly([(14, G), (34, G), (28, 22), (20, 22)], M)
+    for i in range(3): s.poly([(15 + i * 0.5, G - 2 - i * 7), (33 - i * 0.5, G - 2 - i * 7), (32 - i, G - 4 - i * 7), (16 + i, G - 4 - i * 7)], Mat(lighter(M.base, 0.4)))  # оборки
+    s.rect(20.5, 24, 27.5, 25, Mat('#facc15'))  # пояс
+    s.ellipse(24, 16, 5, 5, Mat('#f5d0fe'))
+    s.poly([(18.8, 14), (19.5, 11), (24, 10.4), (28.5, 11), (29.2, 14), (27, 12.5), (24, 13.2), (21, 12.5)], hair)  # чёлка
+    s.poly([(18, 12), (19, 4), (21, 9), (24, 2), (27, 9), (29, 4), (30, 12)], Mat('#facc15'))
+    s.px(24, 7, (239, 68, 68, 255)); s.px(20, 9, (96, 165, 250, 255)); s.px(28, 9, (96, 165, 250, 255))
+    s.eye_iris = ramp('#7c3aed'); eyes(s, 24, 15.5, 4.2)
+    r = ph['atk']
+    s.limb(28, 26, 34 + r * 6, 30 - r * 8, 1.4, M); s.line(34 + r * 6, 34 - r * 8, 35 + r * 6, 24 - r * 8, hexc('#facc15'))
+    s.ellipse(35 + r * 6, 23 - r * 8, 2, 2, Mat('#e879f9', glow=True))
+
+
 FAM = {
     'slime': slime, 'slime_l': lambda s, M, A, ph: slime(s, M, A, ph, big=True), 'wisp': wisp, 'bat': bat, 'fly': fly,
     'fly_boss': lambda s, M, A, ph: fly(s, M, A, ph, big=True), 'hare': lambda s, M, A, ph: quad(s, M, A, ph, 0.8, 'hare', tail=False),
-    'imp': lambda s, M, A, ph: biped(s, M, A, ph, h=15, horns=True), 'moth': moth, 'pixie': pixie, 'beetle': beetle, 'sprout': sprout,
+    'imp': lambda s, M, A, ph: biped(s, M, A, ph, h=19, horns=True), 'moth': moth, 'pixie': pixie, 'beetle': beetle, 'sprout': sprout,
     'fox': lambda s, M, A, ph: quad(s, M, A, ph, 0.95, 'fox'), 'mantis': mantis, 'golem': lambda s, M, A, ph: golem(s, M, A, ph, 0.9),
     'plant': plant, 'wolf': lambda s, M, A, ph: quad(s, M, A, ph, 1.15, 'fox', head_low=True), 'jelly': jelly, 'ghost': ghost,
     'stag_l': lambda s, M, A, ph: quad(s, M, A, ph, 1.6, None, tail=False, antlers=True),
@@ -387,16 +694,17 @@ FAM = {
     'crab': crab, 'eye': eye, 'thin': thin, 'drake': drake, 'choir': choir, 'star_l': star_l, 'queen_huge': queen, 'mushroom': mushroom,
 }
 
-def frame(fn, base, acc, col, fly):
+def frame(fn, base, acc, col, fly, scale=1.4):
     ph = {'t': 0.0, 'atk': 0.0}
     if col < 4: ph['t'] = col / 4
     elif col < 7: ph['atk'] = (0.35, 1.0, 0.5)[col - 4]; ph['t'] = 0.25
     else: ph['t'] = 0.0
-    s = Sprite(C, C)
+    s = XSprite(scale)
+    s.eye_iris = ramp(mix(hexc(acc)[:3], (59, 31, 107), 0.5))
     M = Mat(base); M.base = base
     fn(s, M, acc, ph)
     im = s.render(outline=True)
-    px = im.load()
+    px = im.load(); C = CO
     if col == 7:  # урон: светлая вспышка
         for y in range(C):
             for x in range(C):
@@ -421,6 +729,7 @@ def frame(fn, base, acc, col, fly):
 
 def main():
     ids = list(MOBS.keys())
+    C = CO
     atlas = Image.new('RGBA', (C * COLS, C * len(ids)), (0, 0, 0, 0))
     flying = {}
     missing = []
@@ -434,14 +743,15 @@ def main():
         acc = ACC.get(art.get('pal'), '#fde68a')
         if fam in FLY: flying[mid] = 0
         for c in range(COLS):
-            atlas.paste(frame(fn, base, acc, c, fam in FLY), (c * C, r * C))
+            big = m.get('boss') or m.get('huge') or fam.endswith(('_boss', '_huge', '_l'))
+            atlas.paste(frame(fn, base, acc, c, fam in FLY, scale=1.32 if big else 1.45), (c * C, r * C))
     atlas.save(OUT)
     # body: [низ, верх] видимого тела в кадре 0 (px от низа ячейки) — для масштаба в забеге и полосок над головой
     body = []
     for r in range(len(ids)):
         bb = atlas.crop((0, r * C, C, (r + 1) * C)).getbbox()
         body.append([C - bb[3], C - bb[1]] if bb else [0, C])
-    json.dump({'cell': C, 'cols': COLS, 'rows': ids, 'flying': flying, 'body': body}, open(OUT.replace('.png', '.json'), 'w'))
+    json.dump({'cell': C, 'pxPerM': 12.5, 'cols': COLS, 'rows': ids, 'flying': flying, 'body': body}, open(OUT.replace('.png', '.json'), 'w'))
     os.makedirs(PREV, exist_ok=True)
     # превью: кадр 0 каждого моба сеткой 12×N с подписью-индексом
     n = len(ids); pc = 12; pr = (n + pc - 1) // pc

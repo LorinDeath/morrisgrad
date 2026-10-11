@@ -7,7 +7,7 @@ import beastMeta from '../../../../assets/mc/bestiary_atlas.json';
 import { MOB_INFO } from '../../../../../server/meta/shared.ts';
 
 export const BEAST_ROW = Object.fromEntries(beastMeta.rows.map((id, i) => [id, i]));
-export const BEAST_H = beastMeta.cell / 10;
+export const BEAST_H = beastMeta.cell / (beastMeta.pxPerM || 10); // v2: 12.5 px арта = 1 м (детальнее при прежнем размере в мире)
 export const beastFlying = (type) => beastMeta.flying[type] !== undefined;
 // высота «макушки» (для полосок/значков статусов над головой)
 export const beastTop = (type) => { const m = MOB_INFO[type]; return m?.boss || m?.huge ? 4.6 : m?.size === 'l' ? 3.4 : beastFlying(type) ? 3.0 : 2.4; };

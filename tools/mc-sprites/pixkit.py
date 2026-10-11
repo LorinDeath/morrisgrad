@@ -32,8 +32,11 @@ class Mat:
         self.rim = rim; self.flat = flat; self.glow = glow
 
 class Sprite:
-    def __init__(self, w, h):
+    def __init__(self, w, h, v2=False):
         self.w, self.h = w, h
+        self.v2 = v2       # v2: 4 тона + глубокая тень, цветной контур, внутренние линии кластеров
+        self.rmp = {}      # (x,y) → рампа материала (для цветного контура)
+        self.detail = set()  # пиксели px()/line() — без внутренних линий
         self.col = {}      # (x,y) → (r,g,b,a)
         self.glowpx = set()
         self.sid = {}      # (x,y) → id фигуры (для ободков)
@@ -85,7 +88,7 @@ class Sprite:
         rx, ry = max(1, (x1 - x0) / 2 + 0.5), max(1, (y1 - y0) / 2 + 0.5)
         for (x, y) in S:
             if mat.glow:
-                self.col[(x, y)] = mat.r[3] + (255,); self.glowpx.add((x, y)); self.sid[(x, y)] = sid; continue
+                self.col[(x, y)] = mat.r[3] + (255,); self.glowpx.add((x, y)); self.sid[(x, y)] = sid; self.rmp.pop((x, y), None); self.detail.discard((x, y)); continue
             self.glowpx.discard((x, y))
             if tone is not None: t = tone
             elif mat.flat: t = 2
@@ -93,9 +96,10 @@ class Sprite:
                 nx, ny = (x - cx) / rx, (y - cy) / ry
                 v = nx * light[0] + ny * light[1] + bias
                 t = 3 if v > 0.55 else (1 if v < -0.45 else 2)
+                if self.v2 and v < -1.0: t = 0
                 if mode == 'round' and v > 0.95 and (nx * nx + ny * ny) < 0.6: t = 4
             self.col[(x, y)] = mat.r[t] + (255,)
-            self.sid[(x, y)] = sid
+            self.sid[(x, y)] = sid; self.rmp[(x, y)] = mat.r; self.detail.discard((x, y))
         if mat.rim and not mat.glow and tone is None:
             for (x, y) in S:
                 if (x + 1, y) not in S or (x, y + 1) not in S:
@@ -113,6 +117,7 @@ class Sprite:
         x, y = int(math.floor(x + 0.5)), int(math.floor(y + 0.5))
         if 0 <= x < self.w and 0 <= y < self.h:
             self.col[(x, y)] = c[:3] + (c[3] if len(c) > 3 else 255,)
+            self.detail.add((x, y)); self.rmp.pop((x, y), None)
             if glow: self.glowpx.add((x, y))
             else: self.glowpx.discard((x, y))
 
@@ -137,10 +142,41 @@ class Sprite:
         self.px(x, y + 2, ir[2] + (255,)); self.px(x + 1, y + 2, ir[0] + (255,))
         self.px(x + (0 if side > 0 else 1), y + 1, (255, 255, 255, 255))
 
+    def inner_lines(self):
+        """v2: кластерные линии — край фигуры, лежащей поверх другой фигуры, темнеет на 1–2 тона рампы."""
+        size = {}
+        for q, sd in self.sid.items(): size[sd] = size.get(sd, 0) + 1
+        upd = {}
+        for (x, y), c in self.col.items():
+            if (x, y) in self.glowpx or (x, y) in self.detail or (x, y) not in self.rmp: continue
+            sd = self.sid.get((x, y)); r = self.rmp[(x, y)]
+            if size.get(sd, 0) < 10: continue
+            for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)):
+                q = (x + dx, y + dy)
+                if q in self.col and q not in self.glowpx and q not in self.detail and self.sid.get(q, sd) < sd and self.rmp.get(q) is not r:
+                    upd[(x, y)] = r[0] if dy == 1 or dx == 1 else r[1]; break
+        for q, c in upd.items(): self.col[q] = c + (255,)
+
     def render(self, outline=True):
+        if self.v2: self.inner_lines()
         im = Image.new('RGBA', (self.w, self.h), (0, 0, 0, 0)); p = im.load()
         for (x, y), c in self.col.items(): p[x, y] = c
-        if outline:
+        if outline and self.v2:
+            out = {}
+            for y in range(self.h):
+                for x in range(self.w):
+                    if (x, y) in self.col: continue
+                    best = None
+                    for dx, dy in ((0, -1), (1, 0), (-1, 0), (0, 1)):
+                        q = (x + dx, y + dy)
+                        if q in self.col and q not in self.glowpx:
+                            r = self.rmp.get(q)
+                            base = r[0] if r else mix(self.col[q][:3], OUT_DARK, 0.6)
+                            # цветной контур: глубокий тон соседа; снизу (под фигурой) — темнее
+                            best = mix(base, OUT_DARK, 0.55 if dy == -1 else 0.3); break
+                    if best: out[(x, y)] = best + (255,)
+            for (x, y), c in out.items(): p[x, y] = c
+        elif outline:
             out = {}
             for y in range(self.h):
                 for x in range(self.w):
