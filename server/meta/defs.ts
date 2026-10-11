@@ -22,12 +22,14 @@ export const ITEMS: ItemDef[] = [
   // статы фиксированы и зависят только от уровня источника и редкости (balance.ts: itemBudget / weaponAvg).
   ...(CONTENT.items as ItemDef[]),
   // --- классовое / ремесло ---
-  { id: "greenpoise_bow", name: "Лук Гринпойса", slot: "weapon", rarity: "uncommon", classes: ["spearman", "rogue"], stats: { dmgMin: 7, dmgMax: 10 }, icon: "🏹", band: "ремесло", lvl: 5, req: 4, wtype: "bow", lore: "Из диких земель истребления. Тетива поёт на ветру." },
-  { id: "guard_axe", name: "Секира Стража", slot: "weapon", rarity: "rare", classes: ["warrior"], stats: { dmgMin: 8, dmgMax: 11, armor: 2 }, icon: "🪓", band: "ремесло", lvl: 6, req: 5, wtype: "axe", lore: "Выдаётся членам совета Стражей." },
-  { id: "aezer_staff", name: "Посох эфира Аезера", slot: "weapon", rarity: "rare", classes: ["mage"], stats: { dmgMin: 8, dmgMax: 11, cdrPct: 3 }, icon: "🪄", band: "ремесло", lvl: 6, req: 5, wtype: "staff", lore: "Белые маги не любили вопросов." },
+  { id: "greenpoise_bow", name: "Лук Гринпойса", slot: "weapon", rarity: "uncommon", classes: ["spearman", "rogue"], stats: { dmgMin: 7, dmgMax: 10 }, icon: "🏹", band: "ремесло", lvl: 5, req: 5, wtype: "bow", lore: "Из диких земель истребления. Тетива поёт на ветру." },
+  { id: "guard_axe", name: "Секира Стража", slot: "weapon", rarity: "rare", classes: ["warrior"], stats: { dmgMin: 8, dmgMax: 11, armor: 2 }, icon: "🪓", band: "ремесло", lvl: 6, req: 6, wtype: "axe", lore: "Выдаётся членам совета Стражей." },
+  { id: "aezer_staff", name: "Посох эфира Аезера", slot: "weapon", rarity: "rare", classes: ["mage"], stats: { dmgMin: 8, dmgMax: 11, cdrPct: 3 }, icon: "🪄", band: "ремесло", lvl: 6, req: 6, wtype: "staff", lore: "Белые маги не любили вопросов." },
   { id: "padded_coat", name: "Стёганая куртка", slot: "armor", rarity: "common", stats: { armor: 2, hp: 5 }, icon: "🧥", band: "старт", lvl: 1, req: 1, lore: "Тёплая. Это главное." },
-  { id: "melveldil_sandals", name: "Сандалии Мэлвелдила", slot: "legs", rarity: "rare", stats: { speedPct: 7, regen: 0.2 }, icon: "👡", band: "ремесло", lvl: 5, req: 4, lore: "Лэйр говорит: в них земля сама толкает вперёд." },
+  { id: "melveldil_sandals", name: "Сандалии Мэлвелдила", slot: "legs", rarity: "rare", stats: { speedPct: 7, regen: 0.2 }, icon: "👡", band: "ремесло", lvl: 5, req: 5, lore: "Лэйр говорит: в них земля сама толкает вперёд." },
 ];
+// требование уровня = уровень предмета (если не задано строже); попадает в D1 items.req_level через library.ts
+for (const it of ITEMS) { it.lvl = Math.max(1, it.lvl || 1); it.req = Math.max(it.req || 1, it.lvl); }
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 
 // ---------------- монстры: «что есть у монстра — то можно забрать» ----------------

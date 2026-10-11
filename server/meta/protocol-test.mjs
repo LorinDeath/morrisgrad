@@ -39,14 +39,21 @@ A.send({ type: 'talent_learn', id: 'spearman.vit' });
 let te = await A.wait('toast_error'); ok(te && /Алзи/.test(te.message), 'talent tree gated by story flag (Alzi)');
 // dev grant: xp + flags via quests is long; use dev_grant xp, stars, item
 A.clear();
-A.send({ type: 'dev_grant', xp: 12000, stars: { yellow: 3, black: 1 }, item: 'fly_blades' });
+A.send({ type: 'dev_grant', xp: 40000, stars: { yellow: 3, black: 1 }, item: 'fly_blades' });
 st = await A.wait('meta_state');
 ok(st.hero.lvl >= 5 && st.hero.talentPoints === st.hero.lvl - 1, `hero level ${st.hero.lvl}, talent points ${st.hero.talentPoints}, 3 ability slots=${st.hero.slots}`);
 const blades = st.account.inv.find((i) => i.id === 'fly_blades');
 A.clear(); A.send({ type: 'equip', uid: blades.uid });
 st = await A.wait('meta_state');
 ok(st.hero.equip.weapon === blades.uid && st.hero.monsterAbilities.includes('fly_blade_dash'), 'equip fly blades (weapon slot) → monster ability unlocked');
-ok(st.hero.effective.itemDmgMin === 5 && st.hero.effective.itemDmgMax === 7, 'fixed item stats 5–7 dmg (no scaling)');
+ok(st.hero.effective.itemDmgMin === 5 && st.hero.effective.itemDmgMax === 6, 'fixed item stats 5–6 dmg (lvl-1 trophy, no scaling)');
+// требование уровня: предмет ур. 20 нельзя надеть герою ур. < 20 — сервер отклоняет
+A.clear(); A.send({ type: 'dev_grant', item: 'spark_imp_helmet' });
+st = await A.wait('meta_state');
+const hiItem = st.account.inv.find((i) => i.id === 'spark_imp_helmet');
+ok(hiItem && st.cards?.spark_imp_helmet?.req === 20, 'item card carries req_level 20');
+A.clear(); A.send({ type: 'equip', uid: hiItem?.uid });
+te = await A.wait('toast_error'); ok(te && /Нужен 20 уровень/.test(te.message), 'server rejects equip below item level: ' + (te && te.message));
 A.clear(); A.send({ type: 'loadout_set', ids: ['pierce', 'fly_blade_dash', 'spear_rain'] });
 st = await A.wait('meta_state');
 ok(st.hero.loadout.length === 3 && st.hero.effective.abilities.length === 3, 'loadout of 3 abilities incl. monster ability');

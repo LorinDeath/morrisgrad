@@ -3,7 +3,10 @@
 import { Zone, type ZPlayer, type ZMob } from "./zone";
 import { ZONE_GEN, REGIONS, SAFE_ZONES, WORLD_GEN, genNodes, inSafe, regionAt } from "./zoneGen";
 import { BESTIARY } from "./bestiary";
-import { WEAPON_TYPES, ZONE_MOBS } from "./defs";
+import { WEAPON_TYPES, ZONE_MOBS, ITEMS, ITEM_BY_ID } from "./defs";
+import { QUESTS } from "./quests";
+import { xpNeed, mobXp, xpLevelMult, killsPerLevel } from "./balance";
+import { equip, newAccount, newHero, addItem } from "./profile";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, m: string) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m); };
@@ -179,5 +182,26 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
   ok(bm.kbx === 0, "bosses are immune to knockback");
 }
 
+
+// ---------- темп прокачки (MMORPG) и требования уровня предметов ----------
+{
+  const k2 = xpNeed(1) / mobXp(1);
+  ok(k2 >= 30 && k2 <= 50, `lvl 1→2 needs ${k2.toFixed(0)} same-level kills (30–50)`);
+  let grow = true; for (let L = 2; L < 25; L++) if (xpNeed(L) / mobXp(L) <= xpNeed(L - 1) / mobXp(L - 1)) grow = false;
+  ok(grow && killsPerLevel(24) > 20 * killsPerLevel(1), `kills/level grow steeply: L5 ${killsPerLevel(5).toFixed(0)}, L10 ${killsPerLevel(10).toFixed(0)}, L24 ${killsPerLevel(24).toFixed(0)}`);
+  ok(xpLevelMult(5, 10) === 0 && xpLevelMult(7, 10) <= 0.3 && xpLevelMult(9, 10) < 1 && xpLevelMult(10, 10) === 1, "mobs far below hero level give ~0 XP (−5 → 0, −3 → 30%)");
+  ok(ITEMS.every((i) => (i.req || 1) >= (i.lvl || 1)), "every item: req_level ≥ item level");
+  const lvl1 = new Set(ITEMS.filter((i) => (i.req || 1) === 1).map((i) => i.slot));
+  ok(["weapon", "helmet", "armor", "legs", "hands"].every((s) => lvl1.has(s)), "level-1 hero can equip something in every slot");
+  const qItems = QUESTS.filter((q) => q.campaign === "prologue").flatMap((q) => q.rewards.items || []);
+  ok(qItems.every((id) => (ITEM_BY_ID[id]?.req || 1) === 1), `prologue reward items are level 1 (${qItems.join(", ")})`);
+  const a = newAccount(), h = newHero("warrior");
+  const hi = addItem(a, "spark_imp_helmet", "test") as any, lo = addItem(a, "fly_legs", "test") as any;
+  const r1 = equip(a, h, "warrior", (hi?.uid ?? a.inv[0].uid));
+  ok(!r1.ok && /20/.test((r1 as any).err || ""), "server rejects equipping a lvl-20 item on a lvl-1 hero");
+  const r2 = equip(a, h, "warrior", (lo?.uid ?? a.inv[1].uid));
+  ok(r2.ok, "lvl-1 hero equips lvl-1 prologue item");
+  h.lvl = 20; ok(equip(a, h, "warrior", (hi?.uid ?? a.inv[0].uid)).ok, "lvl-20 hero equips lvl-20 item");
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 if (typeof process !== "undefined") process.exit(fail ? 1 : 0);

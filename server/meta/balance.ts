@@ -19,15 +19,20 @@ export const TIERS = [
 export function tierOf(lvl: number): number { return Math.max(1, Math.min(5, Math.ceil(lvl / 5))); }
 
 // ---------------- опыт ----------------
-// Нужно опыта на переход L → L+1. Цель темпа (симуляция): ~1 ч до 5 ур., ~6–7 ч до 10, ~30–35 ч до 25.
-export function xpNeed(L: number): number { return Math.round(20 + 315 * Math.pow(L, 2.1)); } // подобрано симуляцией
+// MMORPG-темп обычного режима (открытый мир, квесты, хаб): уровень — это долгий гринд.
+// Сколько убийств моба СВОЕГО уровня нужно на переход L → L+1: 40 на 1→2, дальше круто растёт.
+// Уровни забегов (Vampire Like) — отдельные и быстрые (survivors/data.js), в профиль не пишутся.
+export const KPL = { base: 40, k: 110, p: 1.2 };
+export function killsPerLevel(L: number): number { return KPL.base + KPL.k * Math.pow(Math.max(0, L - 1), KPL.p); }
+export function xpNeed(L: number): number { return Math.round(mobXp(L) * killsPerLevel(L)); } // подобрано симуляцией (tools/sim/progression.mjs)
 // Опыт за обычного моба уровня L
 export function mobXp(L: number): number { return Math.round(5 + 2.4 * Math.pow(L, 1.42)); }
 // Поправка опыта за разницу уровней (моб − герой): серые мобы почти ничего не дают, «красные» — бонус
+const BELOW_MULT = [1, 0.8, 0.55, 0.3, 0.1, 0];
 export function xpLevelMult(mobL: number, heroL: number): number {
   const d = mobL - heroL;
   if (d >= 0) return Math.min(1.25, 1 + 0.05 * d);
-  return Math.max(0.1, 1 + 0.12 * d); // −5 уровней → 40%, −8 → 10%
+  return BELOW_MULT[Math.min(BELOW_MULT.length - 1, -d)]; // −1 → 80%, −2 → 55%, −3 → 30%, −4 → 10%, ≤ −5 → 0
 }
 
 // ---------------- предметы: ФИКСИРОВАННАЯ сила, зависит от уровня источника и редкости ----------------
@@ -52,7 +57,8 @@ export const SLOT_PROFILE: Record<string, Record<string, number>[]> = {
   weapon: [{ critPct: 1 }, { atkSpeedPct: 1 }, { lifestealPct: 1 }, { cdrPct: 1 }],
 };
 // Требуемый уровень героя = уровень предмета − 1 (минимум 1): трофей своего уровня можно надеть сразу
-export function itemReqLevel(itemLevel: number): number { return Math.max(1, itemLevel - 1); }
+// Предмет уровня N может надеть только герой уровня ≥ N (проверяет сервер при equip)
+export function itemReqLevel(itemLevel: number): number { return Math.max(1, Math.floor(itemLevel || 1)); }
 
 // ---------------- шансы дропа (в процентах за убийство) ----------------
 // Обычные мобы: шанс на КАЖДЫЙ предмет комплекта. Части облика/с навыком — в 2 раза реже.

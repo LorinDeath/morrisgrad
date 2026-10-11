@@ -202,8 +202,9 @@ export const MINIGAMES: Record<string, { id: string; name: string; desc: string;
 // трофеям убитых монстров (число бросков ограничено) и прогресс квестов. Уровни, оружие и пассивки
 // забега в профиль не пишутся никогда.
 export const REWARD_RULES = {
-  // опыт забега — в «мобах уровня героя» (× balance.mobXp(lvl)): 6 в минуту + 0.03 за убийство, потолок — 15 минут
-  runXpPerMinute: 6, runXpPerKill: 0.03, runMaxMinutes: 15, runMaxKillsPerSecond: 5, runMaxLootRolls: 40,
+  // опыт забега ГЕРОЮ — в «мобах уровня героя» (× balance.mobXp(lvl)): 2 в минуту + 0.01 за убийство, потолок 15 минут
+  // (≤ ~38 убийств-эквивалентов за забег: уровни забега быстрые, но героя они почти не качают)
+  runXpPerMinute: 2, runXpPerKill: 0.01, runMaxMinutes: 15, runMaxKillsPerSecond: 5, runMaxLootRolls: 40,
   duel: { winXp: 40, lossXp: 12 }, trial: { perWaveXp: 12, maxWaves: 8 },
 };
 

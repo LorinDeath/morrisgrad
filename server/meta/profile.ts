@@ -41,11 +41,14 @@ export function newHero(cls: string): Hero {
 export function talentSpent(h: Hero): number { return Object.values(h.talents).reduce((a, b) => a + b, 0); }
 export function talentPoints(h: Hero): number { return talentPointsForLevel(h.lvl) - talentSpent(h); }
 
+export function itemReq(def: { lvl?: number; req?: number }): number { return Math.max(1, def.req || 1, def.lvl || 1); }
+
 export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string }[] {
   const out: { slot: string; uid: string; id: string }[] = [];
   for (const [slot, uid] of Object.entries(h.equip)) {
     const it = a.inv.find((i) => i.uid === uid);
-    if (it && ITEM_BY_ID[it.id]) out.push({ slot, uid, id: it.id });
+    const def = it && ITEM_BY_ID[it.id];
+    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id }); // надетое не по уровню (старые сохранения) не действует
   }
   return out;
 }
@@ -253,7 +256,8 @@ export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   const def = ITEM_BY_ID[it.id];
   if (!SLOTS[def.slot]) return fail("Неизвестный слот");
   if (def.classes && !def.classes.includes(cls as any)) return fail("Этот предмет не подходит герою");
-  if (def.req && h.lvl < def.req) return fail(`Нужен ${def.req} уровень героя`);
+  const req = itemReq(def);
+  if (h.lvl < req) return fail(`Нужен ${req} уровень героя (у героя ${h.lvl})`);
   h.equip[def.slot] = uid;
   return { ok: true };
 }

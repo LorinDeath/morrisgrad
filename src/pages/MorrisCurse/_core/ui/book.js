@@ -27,6 +27,10 @@ const STAT_LABEL = {
 const STAR_COL = { yellow: '#facc15', red: '#ef4444', purple: '#c084fc', black: '#94a3b8' };
 const star = (c, n = 1) => `<b style="color:${STAR_COL[c] || '#fff'}">${'★'.repeat(Math.max(0, n))}</b>`;
 
+// требование уровня: предмет уровня N надевает герой уровня ≥ N (сервер отклоняет equip)
+const reqOf = (d) => Math.max(1, d?.req || 1, d?.lvl || 1);
+const reqHtml = (d, h) => { const r = reqOf(d); const bad = h && h.lvl < r; return `<span class="mc-req ${bad ? 'bad' : 'ok'}">Требуется уровень героя: ${r}${bad ? ` (у вас ${h.lvl})` : ''}</span>`; };
+
 export function itemStatsHtml(def, newProps = []) {
   const st = def.stats || {};
   const rows = [];
@@ -288,7 +292,8 @@ export class Book {
     const bag = a.inv.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = ITEM_BY_ID[it.id];
       if (!d) return '';
-      return `<button class="mc-item ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}">${d.icon}${it.n ? NEW_BADGE : ''}</button>`;
+      const low = h && h.lvl < reqOf(d);
+      return `<button class="mc-item ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${d.icon}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
     const res = Object.entries(a.res || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span title="${esc(RESOURCES[k]?.name || k)}">${RESOURCES[k]?.icon || '•'} ${n}</span>`).join('');
     let detail = '<p class="mc-dim">Нажмите на предмет, чтобы увидеть характеристики и источник.</p>';
@@ -306,13 +311,13 @@ export class Book {
       detail = `<div class="mc-tip"><div class="nm" style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</div>
         <div class="rr">${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
         <div class="ss">${itemStatsHtml(d, newProps)}</div>
-        <div class="fx">Ур. предмета ${d.lvl || 1}${d.req > 1 ? ` · нужен ур. героя ${d.req}` : ''}. Характеристики фиксированные — не растут с уровнем.</div>
+        <div class="fx">Ур. предмета ${d.lvl || 1}. ${reqHtml(d, h)}. Характеристики фиксированные — не растут с уровнем.</div>
         ${d.ability ? `<div class="ab">✦ Даёт навык: <b>${esc(d.ability.name)}</b>${abNew ? NEW_BADGE : ''}</div>` : ''}
         ${look ? `<div class="ab">🎭 Часть облика «${esc(look.name)}» (${look.parts} предм.)${look.bonus ? ` — ${esc(look.bonus)}` : ''}</div>` : ''}
         ${it.src ? `<div class="src">Этот экземпляр: ${esc(srcLabel(it.src))}${it.at ? ` · ${new Date(it.at).toLocaleDateString('ru-RU')}` : ''}</div>` : ''}
         ${src.length ? `<div class="src">Источники: ${src.map(esc).join('; ')}</div>` : ''}
         ${d.lore ? `<div class="lore">${esc(d.lore)}</div>` : ''}
-        <div class="acts">${h ? (eq ? `<button class="mc-btn" data-act="unequip" data-v="${d.slot}">Снять</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">Надеть</button>`) : ''}
+        <div class="acts">${h ? (eq ? `<button class="mc-btn" data-act="unequip" data-v="${d.slot}">Снять</button>` : (h.lvl < reqOf(d) ? `<button class="mc-btn gold" disabled title="Нужен ${reqOf(d)} уровень героя">Надеть</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">Надеть</button>`)) : ''}
         ${eq ? '' : `<button class="mc-btn danger" data-act="salvage" data-v="${it.uid}">Разобрать</button>`}</div></div>`;
     }
     return `<div class="mc-gear"><div class="mc-gslots">${slots}</div><div class="mc-detail">${detail}</div></div>
@@ -356,6 +361,7 @@ export class Book {
     if (c) {
       detail = `<div class="mc-tip"><div class="nm" style="color:${RAR(c.rarity).color}">${c.icon} ${esc(c.name)}</div>
         <div class="rr">${esc(RAR(c.rarity).name)} · ${esc(SLOTS[c.slot])} · ур. ${c.lvl}${c.band ? ` · ${esc(c.band)}` : ''}</div>
+        <div class="fx">${reqHtml(c, st.hero)}</div>
         <div class="ss">${itemStatsHtml(c)}</div>
         ${c.ability ? `<div class="ab">✦ Навык: <b>${esc(c.ability.name)}</b> — ${esc(c.ability.desc || '')}</div>` : ''}
         ${c.look ? `<div class="ab">🎭 Облик «${esc(c.look.name)}» (${c.look.parts} предм.)${c.look.bonus ? ` — ${esc(c.look.bonus)}` : ''}</div>` : ''}

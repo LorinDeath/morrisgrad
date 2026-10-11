@@ -525,9 +525,9 @@ export class MetaService {
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       noteMob(a, m.type, 1);
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
-      const xp = Math.max(1, Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1) * xpLevelMult(d.lvl || 1, h?.lvl || 1)));
+      const xp = Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1) * xpLevelMult(d.lvl || 1, h?.lvl || 1)); // серые мобы (≥5 ур. ниже) — 0
       const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite };
-      if (h) out.levelUps = gainXp(h, xp);
+      if (h && xp > 0) out.levelUps = gainXp(h, xp);
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
       this.grantLoot(a, rollMonsterLoot(m.type), out, src);
       if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out, src); // элита: второй бросок добычи

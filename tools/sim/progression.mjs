@@ -83,7 +83,7 @@ function simulate(seed) {
     return { hp, red, dps, regen };
   };
   let cur = hero(), hp = cur.hp;
-  while (L < 25 && t < 200 * 3600) {
+  while (L < 25 && t < 600 * 3600) {
     cur = hero();
     // забег (12 мин): опыт по формуле сервера, броски дропа ограничены
     if (t >= nextRun) {

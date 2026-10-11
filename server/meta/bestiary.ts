@@ -43,7 +43,7 @@ export const BESTIARY: MobSpec[] = [
     gear: { w: ["Клыки-кастеты", C, "daggers"], h: ["Ушастый капюшон", C], a: ["Плащ-перепонка", U], l: ["Тихие лапки", C], g: ["Коготки", C] },
     mats: [["bat_wing", "Перепонка мыши", "🦇", "#a78bfa"]], look: { name: "Облик ночной мыши", bonus: "+3% скорости", stat: { speedPct: 3 } },
     art: { fam: "bat", pal: "night" } },
-  { id: "blade_fly", name: "Мошкара-Жнец", lvl: 2, role: "charger", size: "s", where: ["polyana_fixed", "polyana_ring", "wastes_low", "run:abyss"],
+  { id: "blade_fly", name: "Мошкара-Жнец", lvl: 1, role: "charger", size: "s", where: ["polyana_fixed", "polyana_ring", "wastes_low", "run:abyss"],
     desc: "Лезвийный рывок: после жужжащего замаха (красная линия) бросается вперёд.", lore: "Лезет в глаза. Буквально.",
     gear: { w: ["Лапки-лезвия мухи", U, "fly_blades"], h: ["Фасеточный шлем мухи", U], a: ["Хитиновый панцирь мухи", U], l: ["Сапоги-лапки мухи", U], g: ["Цепкие перчатки мухи", C] },
     legacy: { w: "fly_blades", h: "fly_eyes", a: "fly_carapace", l: "fly_legs" },
