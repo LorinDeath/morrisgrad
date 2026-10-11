@@ -12,6 +12,7 @@ import {
 } from '../../../../../server/meta/shared.ts';
 import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { ProjFx } from '../engine/projFx.js';
+import { atmo } from '../engine/atmosphere.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
@@ -216,6 +217,7 @@ export class ZoneView {
         if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
         BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * (o.elite ? 1.15 : 1), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
+        atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.45, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * (o.elite ? 1.15 : 1), fly ? 0.55 : 1);
       }
       for (const dd of this.dying) {
         const row = BEAST_ROW[dd.type];
@@ -253,6 +255,7 @@ export class ZoneView {
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || MOB_ROWS[id] === undefined) continue;
         B.push(toX(n.x), 0, toZ(n.y), MOB_HEIGHT[id] || 2.5, (Math.floor(T * 2.5 + n.x) & 3), MOB_ROWS[id], false, 1, 1, 1, 0, 1);
+        atmo.shadow(toX(n.x), toZ(n.y), 0.6);
       }
       B.end();
     }
@@ -266,6 +269,7 @@ export class ZoneView {
         const h = (propsMeta.cell[1] / 10) * (n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.03 : 0.7);
         const k = n.ready ? 1.15 + Math.sin(T * 2.4 + n.id) * 0.12 : 0.45;
         NB.push(toX(n.def.x), 0, toZ(n.def.y), h, e[0], e[1], n.flip, k, k, k, 0, n.ready ? 1 : 0.7);
+        atmo.shadow(toX(n.def.x), toZ(n.def.y), n.def.type === 'tree' ? 1.3 : 0.6, n.ready ? 1 : 0.6);
       }
       NB.end();
     }

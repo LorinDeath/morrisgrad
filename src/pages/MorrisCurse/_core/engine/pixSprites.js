@@ -4,6 +4,7 @@
 // mobs_atlas.png — строка = тип врага, ячейка 48×48, 12 колонок: 0–3 ход, 4–6 атака, 7 урон, 8–11 распад.
 // Оба листа генерируются скриптами tools/mc-sprites/ (см. README там же).
 import charsSrc from '../../../../assets/mc/chars_atlas.png';
+import { GRADE } from './atmosphere.js';
 import mobsSrc from '../../../../assets/mc/mobs_atlas.png';
 import projSrc from '../../../../assets/mc/proj_atlas.png';
 import projMeta from '../../../../assets/mc/proj_atlas.json';
@@ -77,8 +78,8 @@ export class PixCharacter {
     const g = new THREE.Group();
     g.add(sp);
     // мягкая тень-«блоб»
-    const sh = new THREE.Mesh(new THREE.CircleBufferGeometry(0.55, 14), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false }));
-    sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; sh.renderOrder = 1;
+    const sh = new THREE.Mesh(new THREE.CircleBufferGeometry(0.55, 14), new THREE.MeshBasicMaterial({ color: 0x0a0614, transparent: true, opacity: 0.38, depthWrite: false }));
+    sh.rotation.x = -Math.PI / 2; sh.scale.set(1.1, 0.6, 1); sh.position.set(0.06, 0.03, 0.03); sh.renderOrder = 1;
     g.add(sh);
     this.group = g;
     this.phase = Math.random() * 4;
@@ -97,6 +98,7 @@ export class PixCharacter {
   }
 
   update(dt, moving, t, dirX = 0, dirY = 1) {
+    if (!this.tinted && GRADE.value) this.sprite.material.color.copy(GRADE.value);  // тон зоны (atmosphere.js)
     this.phase += dt * (moving ? 8 : 0);
     if (Math.abs(dirX) + Math.abs(dirY) > 0.01) this.dRow = dirRow(dirX, dirY);
     if (this.mobType) {
@@ -121,7 +123,8 @@ export class PixCharacter {
   attack() { if (!this.mobType) this.atkT = 0.28; }
 
   setTint(hex, k = 0) {
-    if (k > 0 && hex != null) this.sprite.material.color.setHex(hex).lerp(new this.THREE.Color(1, 1, 1), 1 - k);
+    this.tinted = k > 0 && hex != null;
+    if (this.tinted) this.sprite.material.color.setHex(hex).lerp(new this.THREE.Color(1, 1, 1), 1 - k);
     else this.sprite.material.color.setRGB(1, 1, 1);
   }
 }

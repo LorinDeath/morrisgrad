@@ -2,9 +2,12 @@
 // Логика позиций — в пикселях сервера (0..1200), отрисовка — в метрах (1 м = 20 px).
 import { WorldMapManager } from '../worlds/worldMap.js';
 import { OpenWorldEnvironment } from '../worlds/openWorld.js';
-import { makePortal, makeFlower } from '../engine/models.js';
+import { makePortal } from '../engine/models.js';
+import { makePixFlower } from '../engine/pixFlower.js';
 import { createCharacter, kindFromClass } from '../engine/characters.js';
 import { toX, toZ } from '../engine/geometry.js';
+import { atmo } from '../engine/atmosphere.js';
+import { WORLD_PORTALS } from '../../../../../server/worlds/portals.ts';
 
 function disposeTree(o) {
   o.traverse((c) => {
@@ -31,7 +34,15 @@ export class HubWorld {
 
   attach() {
     if (!this.attached) { this.stage.scene.add(this.root); this.attached = true; }
-    if (this.env) this.stage.setEnvironment(this.env);
+    if (this.env) { this.stage.setEnvironment(this.env); this.syncAtmo(); }
+  }
+
+  // атмосфера: тени пропсов и источники света из раскладки terrain (когда она готова)
+  syncAtmo() {
+    const env = this.env;
+    if (!env) return;
+    const go = () => { if (this.env === env && this.attached) atmo.setScene(env.id, env.terrain?.layout, WORLD_PORTALS); };
+    if (env.terrain) go(); else env.ready?.then(go);
   }
 
   detach() {
@@ -51,7 +62,7 @@ export class HubWorld {
     this.rebuildTiles();
     this.portalSig = '';
     this.setPortals(portals);
-    if (this.attached) this.stage.setEnvironment(this.env);
+    if (this.attached) { this.stage.setEnvironment(this.env); this.syncAtmo(); }
     for (const f of this.flowerObjs.values()) this.root.remove(f.group);
     this.flowerObjs.clear();
   }
@@ -127,7 +138,7 @@ export class HubWorld {
     for (const fl of flowers.values()) {
       let f = this.flowerObjs.get(fl.id);
       if (!f) {
-        f = makeFlower(this.THREE);
+        f = makePixFlower(this.THREE);
         this.root.add(f.group);
         this.flowerObjs.set(fl.id, f);
         f.group.position.set(toX(fl.x), 0, toZ(fl.y));
@@ -138,6 +149,7 @@ export class HubWorld {
       f.group.position.x += (tx - f.group.position.x) * Math.min(1, dt * 12);
       f.group.position.z += (tz - f.group.position.z) * Math.min(1, dt * 12);
       f.update(dt, moving, this.time);
+      f.setHighlight?.(state.flowerHi === fl.id);
     }
     for (const [id, f] of this.flowerObjs) {
       if (!flowers.has(id)) { this.root.remove(f.group); this.flowerObjs.delete(id); }

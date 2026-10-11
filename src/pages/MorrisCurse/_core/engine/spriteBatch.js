@@ -3,6 +3,8 @@
 // Квад всегда повёрнут к камере (в пространстве вида), низ квада — в точке ног, поэтому спрайт «стоит» на земле.
 // Атласы — пиксель-арт: NearestFilter, без мипмапов; горячий цикл без аллокаций (только запись в Float32Array).
 
+import { GRADE } from './atmosphere.js';
+
 const VERT = `
 attribute vec3 iPos;
 attribute vec4 iSize;   // w, h (м), flipX (±1), yOffset (м)
@@ -27,6 +29,7 @@ void main() {
 const FRAG = `
 uniform sampler2D map;
 uniform float uLight;
+uniform vec3 uGrade;
 varying vec2 vUv;
 varying vec4 vTint;
 varying float vAlpha;
@@ -34,7 +37,7 @@ varying float vAlpha;
 void main() {
   vec4 c = texture2D(map, vUv);
   if (c.a < 0.3) discard;
-  vec3 col = c.rgb * vTint.rgb * uLight;
+  vec3 col = c.rgb * vTint.rgb * uLight * uGrade;
   col = mix(col, vec3(1.0), clamp(vTint.a, 0.0, 1.0));
   gl_FragColor = vec4(col, c.a * vAlpha);
   #include <fog_fragment>
@@ -68,6 +71,9 @@ export class SpriteBatch {
     this.geo = geo;
     const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, uLight: { value: light } }]);
     uniforms.map.value = texture;
+    // общий тон зоны (engine/atmosphere.js) — один объект uniform на все батчи
+    if (!GRADE.value) GRADE.value = new THREE.Color(1, 1, 1);
+    uniforms.uGrade = GRADE;
     this.material = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, fog: true, transparent: true, depthWrite: true });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.frustumCulled = false;

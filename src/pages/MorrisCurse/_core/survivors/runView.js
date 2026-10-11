@@ -2,6 +2,7 @@
 // анимации ход/замах/удар/урон/распад, телеграфы атак на земле, ауры элиты, вспышка при попадании.
 // Снаряды/камни — InstancedMesh (draw call на вид), герои — 2.5D-спрайты.
 import { buildEnemyGeometries, buildPickupGeometries, flatMat } from '../engine/models.js';
+import { atmo } from '../engine/atmosphere.js';
 import { createCharacter, kindFromClass, modelMode } from '../engine/characters.js';
 import { SpriteBatch } from '../engine/spriteBatch.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
@@ -191,6 +192,7 @@ export class RunView {
       else if (e.bleedU > run.t) { r *= 1.3; g *= 0.7; b *= 0.7; }
       if (e.wind > 0) { r = Math.max(r, 1.35); }
       (brow !== undefined ? BB : B).push(e.x + shake, y, e.z, h, col, row, rec.flip, r, g, b, e.flash > 0.05 ? 0.85 : 0, 1);
+      atmo.shadow(e.x, e.z, Math.max(0.35, h * 0.26), fly ? 0.55 : 1);
     }
     // исчезнувшие → распад архива (кадры 8–11)
     for (const [id, rec] of this.lastSeen) {

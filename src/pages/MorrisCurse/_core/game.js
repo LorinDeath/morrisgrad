@@ -22,6 +22,7 @@ import { HubWorld } from './hub/hubWorld.js';
 import { RunSession, LVL_INVULN } from './survivors/run.js';
 import { RunView } from './survivors/runView.js';
 import { RunArena } from './survivors/arena.js';
+import { atmo } from './engine/atmosphere.js';
 import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, displayClassName } from './survivors/data.js';
 import { Overlay, esc } from './ui/overlay.js';
 import { RunUI } from './ui/runUI.js';
@@ -38,7 +39,7 @@ const WORLD_SIZE = 1200; // хаб; Аринар — 2400 (server/worlds/sizes.t
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера
-const FLOWER_RANGE = 120;
+const FLOWER_RANGE = 56; // ≤ серверных 120 px: подсказка — только когда бутон рядом и виден
 const ALTAR = { x: 565, y: 600 };
 const NPC_LIST = NPCS;
 const ZONE_BOSS = Object.fromEntries(Object.entries(ZONE_MOBS).filter(([, m]) => m.boss).map(([k, m]) => [k, m.name]));
@@ -99,6 +100,8 @@ async function boot(canvasId, username, userId, api) {
   initModelMode();
   await Promise.all([preloadCharacterSheets(), loadPixAtlases(THREE)]);
   const stage = new Stage(THREE, canvas, { mobile });
+  atmo.init(THREE, stage, { mobile });
+  let atmoWorld = null; // 'run_crypt' | 'run_abyss' в забеге
   overlay.hideScreen();
 
   // ---------------- состояние ----------------
@@ -571,6 +574,7 @@ async function boot(canvasId, username, userId, api) {
     hub.detach();
     runView = new RunView(THREE, stage.scene, run, arena);
     stage.setEnvironment(arena);
+    atmoWorld = 'run_' + (arena.theme || 'crypt'); atmo.setScene(atmoWorld, null, []);
     mode = 'run';
     runUI.show(true);
     runUI.setAbilities(run.me.abilities);
@@ -722,7 +726,7 @@ async function boot(canvasId, username, userId, api) {
     for (const n of Object.values(NPCS)) if (n.world === world && Math.hypot(n.x - px, n.y - py) < 40) return true;
     for (const n of zone.nodes.values()) if (Math.hypot(n.def.x - px, n.def.y - py) < 40) return true;
     for (const p of portals) if ((p.world || 'hellfire') === world && Math.hypot(p.x - px, p.y - py) < 45) return true;
-    for (const f of flowers.values()) if (Math.hypot(f.x - px, f.y - py) < 36) return true;
+    if (world === 'hellfire') for (const f of flowers.values()) if (Math.hypot(f.x - px, f.y - py) < 36) return true;
     for (const o of others.values()) if (o.world === world && Math.hypot(o.x - px, o.y - py) < 30) return true;
     if (world === 'hellfire') for (const o of [boss, dar]) if (o && o.state !== 'dead' && Math.hypot(o.x - px, o.y - py) < 40) return true;
     return false;
@@ -796,6 +800,7 @@ async function boot(canvasId, username, userId, api) {
   }
   function nearestFlower() {
     let best = null, bd = FLOWER_RANGE;
+    if (world !== 'hellfire' || mode !== 'hub') return null;   // цветы есть только на Поляне
     for (const f of flowers.values()) {
       if (f.stage === 'active') continue;
       const d = Math.hypot(f.x - player.x, f.y - player.y);
@@ -860,7 +865,7 @@ async function boot(canvasId, username, userId, api) {
     for (const o of others.values()) if (o.world === world && !o.runRoom) cands.push({ kind: 'player', o, x: o.x, y: o.y });
     if (boss && boss.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'keyt', o: boss, x: boss.x, y: boss.y });
     if (dar && dar.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'dar', o: dar, x: dar.x, y: dar.y });
-    for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
+    if (world === 'hellfire') for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
     let best = null, bd = 40;
     for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; best = c; } }
@@ -907,8 +912,10 @@ async function boot(canvasId, username, userId, api) {
       stage.scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
     }
     stage.resize(true);
+    atmo.setQuality(quality.level);
   }
   if (quality.level) applyQuality();
+  atmo.setQuality(quality.level);
   function adaptQuality(realDt) {
     if (qForced) return;
     quality.cooldown -= realDt;
@@ -935,12 +942,14 @@ async function boot(canvasId, username, userId, api) {
     floatBudget = Math.min(30, floatBudget + dt * 40);
     stage.resize();
     overlay.syncRect();
+    atmo.begin();
     try {
       if (mode === 'run' && run) runFrame(dt, now);
       else hubFrame(dt, now);
     } catch (err) {
       console.error('[MorrisCurse 3D] ошибка кадра', err);
     }
+    try { atmo.end(dt, mode === 'run' && run ? atmoWorld : world, player.x, player.y); } catch (err) { console.warn('[atmo]', err); }
     stage.render();
     fpsS.cpuAcc += performance.now() - cpu0;
     hudAcc += dt;
@@ -1030,6 +1039,7 @@ async function boot(canvasId, username, userId, api) {
       boss: world === 'hellfire' ? boss : null,
       dar: world === 'hellfire' ? dar : null,
       flowers: world === 'hellfire' ? flowers : new Map(),
+      flowerHi: nearestFlower()?.id || null,
     });
 
     // камера
@@ -1214,6 +1224,13 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      plantFlower: (x, y, stage) => net.send({ type: 'dev_plant_flower', x, y, stage }),
+      flowers: () => [...flowers.values()].map((f) => ({ id: f.id, x: f.x, y: f.y, stage: f.stage })),
+      // видимость цветка: объект хаба существует, виден, и его точка на экране внутри канваса
+      flowerVisible: (id) => { const o = hub.flowerObjs.get(id); if (!o || !o.group.visible || !o.group.parent) return false; const p = o.group.position; const s = stage.project(p.x, 0.5, p.z); return !!s && s.x >= 0 && s.y >= 0 && s.x <= stage.width && s.y <= stage.height; },
+      flowerHighlighted: (id) => !!hub.flowerObjs.get(id)?.ring?.visible,
+      prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
+      atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       // экранная точка мировой позиции (px мира) — для тестов клика мышью
       screenOf: (x, y) => {

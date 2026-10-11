@@ -919,6 +919,15 @@ export class GameRoom extends DurableObject {
           }
         }
 
+        // Только локальные тесты (MC_DEV_TRUST_USERID=1): посадить бутон рядом с игроком
+        if (msg.type === "dev_plant_flower" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1" && (session.world || "hellfire") === "hellfire") {
+          this.plantFlower(Math.round(Number(msg.x ?? session.x)), Math.round(Number(msg.y ?? session.y)));
+          const f = [...this.flowers.values()].pop();
+          if (f && msg.stage === "mature") f.stage = "mature";
+          this.broadcast();
+          return;
+        }
+
         // 5. Взаимодействие с цветком: Тронуть
         if (msg.type === "touch_flower" && session && !session.inDuel && (session.world || "hellfire") === "hellfire") {
           const flower = this.flowers.get(msg.flowerId);
