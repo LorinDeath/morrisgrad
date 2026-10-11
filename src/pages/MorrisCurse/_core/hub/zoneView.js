@@ -4,6 +4,8 @@
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import propsSrc from '../../../../assets/mc/props_atlas.png';
 import propsMeta from '../../../../assets/mc/props_atlas.json';
+import beastSrc from '../../../../assets/mc/bestiary_atlas.png';
+import beastMeta from '../../../../assets/mc/bestiary_atlas.json';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
@@ -13,6 +15,10 @@ import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { ProjFx } from '../engine/projFx.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
+// Атлас всех 68 Отголосков (tools/mc-sprites/gen_bestiary.py): строка = моб, кадры как у mobs_atlas; ячейка 48 px = 4.8 м
+const BEAST_ROW = Object.fromEntries(beastMeta.rows.map((id, i) => [id, i]));
+const BEAST_H = beastMeta.cell / 10;
+const BEAST_TOP = (type) => { const m = ZONE_MOBS[type]; return m?.boss || m?.huge ? 4.6 : m?.size === 'l' ? 3.4 : beastMeta.flying[type] !== undefined ? 3.0 : 2.4; };
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
 const HIT_FOR = { spear: 'hit', daggers: 'hit_bleed', soul_spark: 'hit_ice', staff_bolt: 'hit_arcane', ab_backstab: 'hit_ice', thorn_bow: 'hit_bleed', war_axe: 'hit', fly_blades: 'hit_bleed', chain_bolt: 'hit_arcane' };
 const PX = 20;
@@ -54,6 +60,12 @@ export class ZoneView {
     this.col = new THREE.Color();
     // узлы ресурсов — пиксельные пропсы из props_atlas (тот же стиль, что земля и деревья)
     this.nodeBatch = null;
+    this.beast = null;
+    const burl = typeof beastSrc === 'object' && beastSrc ? (beastSrc.src || beastSrc.default || '') : beastSrc;
+    loadAtlasTexture(THREE, burl).then((t) => {
+      this.beast = new SpriteBatch(THREE, t, { cellW: beastMeta.cell, cellH: beastMeta.cell, cols: beastMeta.cols, rows: beastMeta.rows.length, max: 320 });
+      this.root.add(this.beast.mesh);
+    }).catch((e) => console.warn('[beast]', e.message));
     const purl = typeof propsSrc === 'object' && propsSrc ? (propsSrc.src || propsSrc.default || '') : propsSrc;
     loadAtlasTexture(THREE, purl).then((t) => {
       const [cw, ch] = propsMeta.cell;
@@ -200,11 +212,33 @@ export class ZoneView {
       if (o.tx !== undefined) { o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
       o.flash = Math.max(0, o.flash - dt);
     }
+    const BB = this.beast;
+    if (BB) {
+      BB.begin();
+      for (const o of this.mobs.values()) {
+        const row = BEAST_ROW[o.type];
+        if (row === undefined) continue;
+        const fly = beastMeta.flying[o.type] !== undefined;
+        let col = (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3;
+        if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
+        let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
+        if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
+        if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
+        BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * (o.elite ? 1.15 : 1), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
+      }
+      for (const dd of this.dying) {
+        const row = BEAST_ROW[dd.type];
+        if (row === undefined) continue;
+        const kk = Math.min(0.99, dd.t / (dd.boss ? 0.9 : 0.5));
+        BB.push(toX(dd.x), 0, toZ(dd.y), BEAST_H, 8 + Math.min(3, Math.floor(kk * 4)), row, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.5);
+      }
+      BB.end();
+    }
     if (B) {
       B.begin();
       for (const o of this.mobs.values()) {
         const row = MOB_ROWS[o.type];
-        if (row === undefined) continue;
+        if (row === undefined || (BB && BEAST_ROW[o.type] !== undefined)) continue;
         const boss = ZONE_MOBS[o.type]?.boss;
         const h = (MOB_HEIGHT[o.type] || 2) * (boss ? 1.2 : o.elite ? 1.3 : 1);
         const fly = MOB_FLYING[o.type] || 0;
@@ -221,6 +255,7 @@ export class ZoneView {
         const life = dd.boss ? 0.9 : 0.5;
         if (dd.t >= life) { this.dying.splice(i, 1); continue; }
         const kk = dd.t / life;
+        if (BB && BEAST_ROW[dd.type] !== undefined) continue;
         B.push(toX(dd.x), 0, toZ(dd.y), (MOB_HEIGHT[dd.type] || 2) * (dd.boss ? 1.2 : 1), 8 + Math.min(3, Math.floor(kk * 4)), MOB_ROWS[dd.type] ?? 6, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.6);
       }
       // NPC мира
@@ -289,7 +324,7 @@ export class ZoneView {
     }
     for (const o of this.mobs.values()) {
       if (!o.st) continue;
-      const h = (MOB_HEIGHT[o.type] || 2) * (ZONE_MOBS[o.type]?.boss ? 1.2 : o.elite ? 1.3 : 1) + (MOB_FLYING[o.type] || 0) + 0.3;
+      const h = (BEAST_ROW[o.type] !== undefined ? BEAST_TOP(o.type) * (o.elite ? 1.15 : 1) : (MOB_HEIGHT[o.type] || 2) * (ZONE_MOBS[o.type]?.boss ? 1.2 : o.elite ? 1.3 : 1) + (MOB_FLYING[o.type] || 0)) + 0.3;
       P.status(o.st, toX(o.x), h, toZ(o.y), o.id);
     }
     P.end();
