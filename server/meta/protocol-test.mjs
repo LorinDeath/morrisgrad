@@ -26,7 +26,7 @@ ok(zs && zs.m.length >= 6, 'hub zone_state: Мошкара-Жнец visible (AOI
 const flyId = zs.m[0], fx = zs.m[2], fy = zs.m[3];
 A.send({ type: 'move', x: fx, y: fy + 60 }); await sleep(200);
 A.clear();
-for (let i = 0; i < 40; i++) { const z = A.last('zone_state'); let mob = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === flyId) { mob = z.m.slice(j, j + 6); } if (z && !mob && i > 2) break; if (mob) A.send({ type: 'move', x: mob[2], y: mob[3] + 50 }); A.send({ type: 'zone_attack', mob: flyId }); await sleep(470); }
+for (let i = 0; i < 40; i++) { const z = A.last('zone_state'); let mob = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === flyId) { mob = z.m.slice(j, j + 6); } if (z && !mob && i > 2) break; if (mob) { A.send({ type: 'move', x: mob[2], y: mob[3] + 50 }); await sleep(60); A.send({ type: 'zone_attack', dx: 0, dy: -1 }); } await sleep(560); }
 const loot = await A.wait('meta_state', 3000, (m) => m.loot);
 ok(loot && loot.loot.mob === 'blade_fly' && loot.loot.xp > 0, 'server-side kill of Мошкара-Жнец → XP + loot roll ' + JSON.stringify(loot?.loot?.res || {}));
 ok(loot && loot.account.bestiary.blade_fly?.kills >= 1, 'bestiary records kill');
@@ -84,11 +84,36 @@ B.clear(); B.send({ type: 'craft', recipe: 'r_fly_legs' }); te = await B.wait('t
 B.send({ type: 'move', x: 240, y: 600 }); await sleep(150);
 B.clear(); B.send({ type: 'use_portal', portalId: 'portal_arinar' }); await B.wait('world_switched');
 const za = await B.wait('zone_state', 3000, (m) => m.w === 'arinar');
-ok(za && za.n.length === 9, 'Аринар zone: resource nodes ' + (za?.n.length) + ', mobs in AOI ' + (za ? za.m.length / 6 : 0));
+ok(za && za.n.length >= 10 && za.n.every((n) => n[0] >= 1000) && typeof za.sd === 'number', 'Аринар zone: seeded resource nodes ' + (za?.n.length) + ' (seed ' + za?.sd + ')');
 B.send({ type: 'move', x: 300, y: 650 }); await sleep(150); B.send({ type: 'move', x: 300, y: 700 }); await sleep(150);
 B.send({ type: 'move', x: 1200, y: 1200 }); await sleep(200);
 const me = B.last('players_state').players.find((p) => p.username === 'meta_A');
 ok(me && me.x < 500, 'anti-teleport clamp in Аринар (x=' + me?.x + ')');
+B.send({ type: 'move', x: 240, y: 600 }); await sleep(300);
+// процедурный спавн: мобы появляются вне безопасной зоны портала и не вплотную к игроку
+let zm = null;
+for (let i = 0; i < 40 && !(zm && zm.m.length); i++) { await sleep(200); zm = B.last('zone_state'); }
+const mobsA = []; if (zm) for (let j = 0; j < zm.m.length; j += 6) mobsA.push(zm.m.slice(j, j + 6));
+ok(mobsA.length > 0 && mobsA.every((m) => Math.hypot(m[2] - 240, m[3] - 600) > 120), 'Аринар procedural spawn: ' + mobsA.length + ' mobs in AOI, none in the portal safe zone');
+// атака по клику: неверное направление — промах, спам — режется кулдауном
+const tgt = mobsA[0];
+if (tgt) {
+  // подходим к мобу по шагам (анти-телепорт)
+  let px = 240, py = 600;
+  for (let i = 0; i < 30; i++) { const z = B.last('zone_state'); let m = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) m = z.m.slice(j, j + 6); if (!m) break;
+    const dx = m[2] - px, dy = m[3] + 70 - py, d = Math.hypot(dx, dy); if (d < 20) break; const st = Math.min(d, 90); px += dx / d * st; py += dy / d * st; B.send({ type: 'move', x: px, y: py }); await sleep(260); }
+  await sleep(600); B.clear();
+  B.send({ type: 'zone_attack', dx: 0, dy: 1 }); // от моба (он выше)
+  await sleep(700);
+  const hitsWrong = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'hit' && e.id === tgt[0]);
+  ok(hitsWrong.length === 0, 'click attack in the wrong direction misses (server-validated)');
+  B.clear();
+  for (let i = 0; i < 10; i++) { B.send({ type: 'zone_attack', dx: 0, dy: -1 }); await sleep(30); }
+  await sleep(800);
+  const shots = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'shot');
+  const hits = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'hit');
+  ok(shots.length >= 1 && shots.length <= 2 && hits.length >= 1, `attack spam (10 in 300ms) cut by weapon cooldown: ${shots.length} accepted, hits ${hits.length}`);
+} else ok(false, 'no Аринар mob to test click attack');
 // guest without uid
 const G = await client('meta_guest', '');
 const gs = await G.wait('meta_state');

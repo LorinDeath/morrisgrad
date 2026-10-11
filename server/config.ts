@@ -2,10 +2,6 @@ import { CHARACTER_CLASSES } from "./classes";
 import { WORLD_PORTALS } from "./worlds/portals";
 import type { RunRoomDef } from "./types";
 
-export const ADMIN_USER_IDS = [
-  "user_38QeREOr606p1c96P4f14YFsLp7"
-];
-
 export { WORLD_PORTALS };
 
 export const MINI_GAMES = [

@@ -84,6 +84,9 @@ export class HubWorld {
     return c;
   }
 
+  // анимация атаки своего героя (кадры замаха/удара 2.5D-листа)
+  attackMe() { this.chars.get('__me')?.ch.attack?.(); }
+
   // state: { me:{x,y,dirX,dirY,moving,classId,color,blink,dash}, others:[...], boss, dar, flowers:Map }
   update(dt, state) {
     this.time += dt;
@@ -103,9 +106,9 @@ export class HubWorld {
     };
 
     const me = state.me;
-    place('__me', kindFromClass(me.classId), me, me.color);
+    place('__me', kindFromClass(me.classId, me.look), me, me.color);
     (state.others || []).forEach((p) => {
-      place('p_' + p.key, kindFromClass(p.stats?.classId), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink }, p.color);
+      place('p_' + p.key, kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink }, p.color);
     });
     if (state.boss && state.boss.state !== 'dead') place('boss_keyt', 'keyt', state.boss);
     if (state.dar && state.dar.state !== 'dead') place('boss_dar', 'dar', state.dar);

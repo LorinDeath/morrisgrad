@@ -4,8 +4,9 @@ import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
   HERO_IDS, ITEM_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
-  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS,
+  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType,
 } from "./defs";
+import { ZONE_GEN } from "./zoneGen";
 import { QUESTS, QUEST_BY_ID } from "./quests";
 import {
   ProfileStore, heroEffective, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
@@ -15,7 +16,7 @@ import { Zone, type ZPlayer } from "./zone";
 
 export interface MetaSess {
   sid: string; pkey: string; verified: boolean; ready: boolean;
-  zp: ZPlayer; lastAtk: number; gather: { node: number; at: number } | null; abilCd: Record<string, number>;
+  zp: ZPlayer; lastAtk: number; gather: { node: number; at: number } | null; abilCd: Record<string, number>; wt?: string;
   run: { room: string; at: number; cls: string | null; maxMembers: number; usedAbility: boolean } | null;
   dirty: boolean; lastSave: number; lastHub: number;
 }
@@ -30,7 +31,9 @@ export function heroBase(cls: string | null) {
 export class MetaService {
   store: ProfileStore;
   // Общие миры с мобами: Аринар (Мэлвелдил) и Поляна перевоплощения (хаб, мошкара пролога)
-  zones: Record<string, Zone> = { arinar: new Zone("arinar", ZONE_SPAWNS, ZONE_NODES), hellfire: new Zone("hellfire", HUB_SPAWNS, []) };
+  // Аринар — процедурный режиссёр спавна (zoneGen.ts, сид экземпляра); Поляна хаба — фиксированные точки пролога.
+  // ZONE_SPAWNS/ZONE_NODES оставлены как справка и для отката (proc: false).
+  zones: Record<string, Zone> = { arinar: new Zone("arinar", [], ZONE_NODES, { proc: true, seed: ZONE_GEN.seed }), hellfire: new Zone("hellfire", HUB_SPAWNS, []) };
   ms = new Map<string, MetaSess>(); // session.id → состояние
   env: any;
   zoneAcc = 0;
@@ -46,7 +49,10 @@ export class MetaService {
     if (!uid && this.env.MC_DEV_TRUST_USERID === "1" && msg.userId) uid = String(msg.userId);
     const verified = !!uid;
     if (uid) session.userId = uid;
-    const pkey = uid ? `uid:${uid}` : `guest:${String(session.username || "").toLowerCase().slice(0, 40)}`;
+    // Гость (без входа): прогресс по случайному guestId из localStorage браузера — не по нику,
+    // чтобы разные «Странники» не делили один профиль. Не подтверждён сервером, ценность низкая.
+    const gid = typeof msg.guestId === "string" && /^[a-z0-9]{16,40}$/.test(msg.guestId) ? msg.guestId : `s${session.id}`;
+    const pkey = uid ? `uid:${uid}` : `guest:${gid}`;
     const ms: MetaSess = { sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
       lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
     this.ms.set(session.id, ms);
@@ -82,6 +88,7 @@ export class MetaService {
     if (!ms) return;
     ms.dirty = true;
     this.save(session);
+    this.refreshZonePlayer(session);
     this.send(ws, { type: "meta_state", ...this.snap(session), ...extra });
   }
 
@@ -102,14 +109,16 @@ export class MetaService {
     ms.zp.maxHp = eff.maxHp;
     ms.zp.armorRed = eff.damageReduction;
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
-    void cls;
+    // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
+    if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; }
+    ms.wt = eff.wtype;
   }
 
   effective(session: any) {
     const ms = this.ms.get(session.id)!;
     const cls = session.stats?.classId || null;
     const a = this.store.account(ms.pkey);
-    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0 };
+    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null) };
     return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls));
   }
 
@@ -288,13 +297,18 @@ export class MetaService {
       // броски дропа по трофеям убитых (ограничено по числу бросков)
       let rolls = 0;
       for (const [type, n] of Object.entries(kills)) {
-        const key = type === "blade_fly" ? "run_fly" : type;
-        if (!MONSTER_LOOT[key]) continue;
+        const key = RUN_LOOT_KEY[type];
+        if (!key || !MONSTER_LOOT[key]) continue;
         a.bestiary[key] = { seen: 1, kills: (a.bestiary[key]?.kills || 0) + n };
         for (let i = 0; i < n && rolls < REWARD_RULES.runMaxLootRolls; i++, rolls++) this.grantLoot(a, rollMonsterLoot(key), out);
       }
       const bosses = Math.min(Math.floor(time / 300), Math.max(0, Math.floor(Number(msg.bossKills) || 0)));
-      for (let i = 0; i < bosses; i++) { a.bestiary.warden = { seen: 1, kills: (a.bestiary.warden?.kills || 0) + 1 }; this.grantLoot(a, rollMonsterLoot("warden"), out); }
+      const boss = RUN_BOSS_BY_ROOM[run.room] || "warden";
+      for (let i = 0; i < bosses; i++) {
+        a.bestiary[boss] = { seen: 1, kills: (a.bestiary[boss]?.kills || 0) + 1 };
+        this.grantLoot(a, rollMonsterLoot(boss), out);
+        this.qev(a, session, { type: "kill_boss", mob: boss, usedAbility: true });
+      }
       this.qev(a, session, { type: "run", room: run.room, time, cls, players });
     } else if (mode === "duel") {
       const won = !!msg.won && time >= 10;
@@ -319,26 +333,49 @@ export class MetaService {
     if (session.runRoom || session.inDuel) return null;
     return this.zones[session.world || "hellfire"] || null;
   }
+  // Базовая атака в открытом мире — по клику в направлении курсора (или кнопкой атаки с автонаведением на телефоне).
+  // Сервер проверяет кд (скорость атаки), направление (единичный вектор), дальность и форму удара оружия.
+  // Старые клиенты могут прислать {mob} без направления — тогда направление считается на этого моба.
   zoneAttack(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id)!;
     const zone = this.zoneOf(session);
-    if (!zone) return;
+    if (!zone || !ms.zp.alive) return;
     ms.zp.x = session.x; ms.zp.y = session.y;
     const eff = this.effective(session);
     const now = Date.now();
-    const atkCd = 450 / (1 + (eff.atkSpeedPct || 0) / 100);
-    if (now - ms.lastAtk < atkCd) return;
-    const m = zone.attack(ms.zp, Number(msg.mob), now, 0);
-    if (!m) return;
-    ms.lastAtk = now;
+    const wt = eff.wtype || "book";
+    const W = WEAPON_TYPES[wt] || WEAPON_TYPES.book;
+    // темп удара по оружию: допуск 15% на сетевой джиттер, но средний темп не выше cd (следующий слот = max(now, прежний) + cd)
+    const atkCd = W.cd / (1 + Math.max(0, eff.atkSpeedPct || 0) / 100);
+    if (now < ms.lastAtk - atkCd * 0.15) return;
+    let dx = Number(msg.dx), dy = Number(msg.dy);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) {
+      const m0 = zone.mobs.find((x) => x.id === Number(msg.mob) && !x.dead);
+      if (!m0) return;
+      dx = m0.x - session.x; dy = m0.y - session.y;
+    }
+    const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    ms.lastAtk = Math.max(now, ms.lastAtk) + atkCd; // lastAtk хранит момент следующего разрешённого удара
+    ms.wt = wt;
+    const targets = zone.targetsInDir(ms.zp, dx, dy, W.atk);
+    const first = targets[0];
+    const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
+    const tx = first && W.atk.kind === "proj" ? first.x : session.x + dx * reach, ty = first && W.atk.kind === "proj" ? first.y : session.y + dy * reach;
+    // визуал выстрела для всех рядом (AOI); свой клиент рисует сразу и пропускает своё событие
+    zone.events.push({ k: "shot", sid: session.id, x: session.x, y: session.y, tx: Math.round(tx), ty: Math.round(ty), w: wt });
+    if (!targets.length) return;
     const a = this.store.account(ms.pkey);
-    if (!a.bestiary[m.type]) a.bestiary[m.type] = { seen: 1, kills: 0 };
-    const crit = Math.random() * 100 < eff.critPct;
-    const raw = eff.weaponMin + Math.random() * (eff.weaponMax - eff.weaponMin);
-    const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1);
-    const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
-    if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
-    if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
+    targets.forEach((m, i) => {
+      if (!a.bestiary[m.type]) a.bestiary[m.type] = { seen: 1, kills: 0 };
+      const crit = Math.random() * 100 < eff.critPct;
+      const raw = eff.weaponMin + Math.random() * (eff.weaponMax - eff.weaponMin);
+      const k = i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8);
+      const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
+      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+      if (!m.dead) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, session.x, session.y);
+      if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
+      if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
+    });
   }
 
   zoneAbility(ws: WebSocket, session: any, msg: any) {
@@ -396,9 +433,11 @@ export class MetaService {
       const cls = session.stats?.classId || null;
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       a.bestiary[m.type] = { seen: 1, kills: (a.bestiary[m.type]?.kills || 0) + 1 };
-      const out: any = { xp: d.xp, items: [], res: {}, mob: m.type };
-      if (h) out.levelUps = gainXp(h, d.xp);
+      const xp = Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1));
+      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite };
+      if (h) out.levelUps = gainXp(h, xp);
       this.grantLoot(a, rollMonsterLoot(m.type), out);
+      if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out); // элита: второй бросок добычи
       this.qev(a, session, { type: "kill", mob: m.type, cls });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: m.type, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
@@ -444,14 +483,14 @@ export class MetaService {
         ms.zp.hp -= real;
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }
-      }, () => {});
+      }, (mm) => this.onMobKilled(mm));
       if (!sendNow) continue;
       if (!socks.length) { zone.events.length = 0; continue; }
       const ev = zone.takeEvents();
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
         const st = zone.state(s.x, s.y, ev);
-        this.send(ws, { type: "zone_state", ...st, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive } });
+        this.send(ws, { type: "zone_state", ...st, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }

@@ -1,5 +1,5 @@
 // HUD забега, модалка выбора улучшения, экран итогов, баннер входа в комнату.
-import { WEAPONS, PASSIVES, ABILITIES, RUN_CLASSES, xpNeed, RUN_ROOMS, displayClassName } from '../survivors/data.js';
+import { WEAPONS, PASSIVES, xpNeed, RUN_ROOMS, displayClassName } from '../survivors/data.js';
 import { esc } from './overlay.js';
 
 const fmtTime = (t) => {
@@ -11,9 +11,9 @@ export { fmtTime };
 const BEST_KEY = 'mc-run-best';
 
 export class RunUI {
-  constructor(overlay, { onChoice, onAbility, onRestart, onLeave }) {
+  constructor(overlay, { onChoice, onAbility, onRestart, onLeave, onGiveUp }) {
     this.ov = overlay;
-    this.cb = { onChoice, onAbility, onRestart, onLeave };
+    this.cb = { onChoice, onAbility, onRestart, onLeave, onGiveUp };
     const el = document.createElement('div');
     el.className = 'mc3d-run-hud';
     el.style.display = 'none';
@@ -24,8 +24,8 @@ export class RunUI {
       <div class="mc3d-slots"><div class="row w"></div><div class="row p"></div></div>
       <div class="mc3d-allies"></div>
       <div class="mc3d-boss"><span>Страж Склепа</span><div class="bar"><i style="width:100%"></i></div></div>
-      <div class="mc3d-down">Вы пали!<br><small>Союзник может поднять вас, встав рядом</small></div>
-      <div class="mc3d-ability hidden" title="Навык класса [Q]"><span class="ic">✦</span><small>Q</small><div class="cd" style="display:none"></div></div>
+      <div class="mc3d-down">Вы пали!<br><small>Союзник может поднять вас, встав рядом</small><br><button class="mc-btn danger mc3d-giveup">🏳 Сдаться — в лобби</button></div>
+      <div class="mc3d-abilities"></div>
     `;
     overlay.layer.insertBefore(el, overlay.layer.firstChild);
     this.el = el;
@@ -43,10 +43,9 @@ export class RunUI {
     this.bossBox = this.q('.mc3d-boss');
     this.bossFill = this.q('.mc3d-boss i');
     this.downEl = this.q('.mc3d-down');
-    this.abBtn = this.q('.mc3d-ability');
-    this.abCd = this.q('.mc3d-ability .cd');
-    const fire = (e) => { e.preventDefault(); e.stopPropagation(); this.cb.onAbility?.(); };
-    this.abBtn.addEventListener('pointerdown', fire);
+    this.abBox = this.q('.mc3d-abilities');
+    this.q('.mc3d-giveup').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.cb.onGiveUp?.(); });
+    this.abEls = [];
     this.choiceOpen = false;
     this.cache = {};
     this.keyHandler = (e) => {
@@ -59,13 +58,19 @@ export class RunUI {
 
   show(on) { this.el.style.display = on ? '' : 'none'; if (!on) this.closeChoices(); }
 
-  setAbility(classKey) {
-    const ab = ABILITIES[RUN_CLASSES[classKey]?.ability];
-    this.abBtn.classList.toggle('hidden', !ab);
-    if (ab) {
-      this.abBtn.querySelector('.ic').textContent = ab.icon;
-      this.abBtn.title = `${ab.name} [Q] — ${ab.desc}`;
-    }
+  // До трёх навыков героя (Q / R / F); на телефоне — кнопки справа (touchControls)
+  setAbilities(list) {
+    const keys = ['Q', 'R', 'F'];
+    this.abBox.innerHTML = '';
+    this.abEls = (list || []).map((a, i) => {
+      const b = document.createElement('div');
+      b.className = 'mc3d-ability';
+      b.title = `${a.name} [${keys[i]}] — ${a.desc}`;
+      b.innerHTML = `<span class="ic">${a.icon}</span><small>${keys[i]}</small><div class="cd" style="display:none"></div>`;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.cb.onAbility?.(i); });
+      this.abBox.appendChild(b);
+      return b.querySelector('.cd');
+    });
   }
 
   set(key, el, prop, val) {
@@ -82,7 +87,10 @@ export class RunUI {
     this.set('time', this.timeEl, 'textContent', fmtTime(run.t));
     this.set('kills', this.killEl, 'textContent', `☠ ${run.team.kills}`);
     const toBoss = run.nextBoss - run.t;
-    this.set('nb', this.nbEl, 'textContent', toBoss > 0 && toBoss < 30 ? `⚠ Страж через ${Math.ceil(toBoss)}с` : '');
+    let nbText = toBoss > 0 && toBoss < 30 ? `⚠ Страж через ${Math.ceil(toBoss)}с` : '';
+    if (run.mode === 'trial' && run.heart) nbText = `💛 Сердце ${Math.max(0, Math.round((run.heart.hp / run.heart.maxHp) * 100))}% · Волна ${run.trialWave}/8`;
+    else if (run.mode === 'duel') nbText = run.hpCapPct < 100 ? `🪞 Кап здоровья ${run.hpCapPct}%` : '🪞 Отражение';
+    this.set('nb', this.nbEl, 'textContent', nbText);
     this.set('hpw', this.hpFill.style, 'width', `${Math.max(0, (m.hp / m.maxHp) * 100).toFixed(1)}%`);
     this.set('hpv', this.hpVal, 'textContent', `${Math.ceil(m.hp)} / ${m.maxHp}`);
     const wSig = Object.entries(m.weapons).map(([k, v]) => k + v.lv).join();
@@ -108,12 +116,13 @@ export class RunUI {
     if (boss) this.set('bossW', this.bossFill.style, 'width', `${Math.max(0, ((boss.hp ?? boss.maxHp) / boss.maxHp) * 100).toFixed(1)}%`);
     this.set('down', this.downEl.style, 'display', m.dead && !run.ended ? 'block' : 'none');
     // навык
-    const ab = ABILITIES[run.cls.ability];
-    if (ab) {
-      const cd = m.abilityCd;
-      this.set('abcd', this.abCd.style, 'display', cd > 0 ? 'flex' : 'none');
-      this.set('abct', this.abCd, 'textContent', cd > 0 ? String(Math.ceil(cd)) : '');
-    }
+    (m.abilities || []).forEach((a, i) => {
+      const el = this.abEls[i];
+      if (!el) return;
+      const cd = a.cdLeft;
+      this.set('abcd' + i, el.style, 'display', cd > 0 ? 'flex' : 'none');
+      this.set('abct' + i, el, 'textContent', cd > 0 ? String(Math.ceil(cd)) : '');
+    });
   }
 
   // --- выбор улучшения ---
@@ -169,10 +178,10 @@ export class RunUI {
         <span>Лучший забег</span><b>${fmtTime(best.time)}${isRecord ? ' 🏆 новый рекорд' : ''}</b>
       </div>
       ${coop ? `<table><tr><th>Игрок</th><th>Класс</th><th>Убийства</th><th>Урон</th></tr>${rows}</table>` : ''}
-      <p style="font-size:11px;color:#94a3b8">${coop && !isHost ? 'Перезапуск запускает ведущий забега.' : ''}</p>
+      <p style="font-size:11px;color:#94a3b8">Забег сброшен сервером. В лобби лидер запускает новый забег с нуля.</p>
     </div>`;
     this.ov.showScreen(html, [
-      { text: coop && !isHost ? 'Ждать / Снова' : '↻ Снова', cls: 'gold', id: 'mc3d-again', onClick: () => this.cb.onRestart?.() },
+      { text: '↻ В лобби', cls: 'gold', id: 'mc3d-again', onClick: () => this.cb.onRestart?.() },
       { text: '⟵ В мир', cls: 'ghost', id: 'mc3d-leave', onClick: () => this.cb.onLeave?.() },
     ], 'mc3d-results-screen');
   }

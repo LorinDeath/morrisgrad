@@ -65,7 +65,7 @@ export class WorldMapManager {
     };
     const floors = {};
     const objects = [];
-    const solids = [];
+    let solids = [];
     tiles.forEach((t) => {
       if (t.layer === 0) {
         const k = kinds[t.tileId] ? t.tileId : 'other';
@@ -88,26 +88,37 @@ export class WorldMapManager {
       im.receiveShadow = true;
       group.add(im);
     });
-    objects.forEach((t) => {
-      const x = toX(t.x * this.cellSize) + cs / 2;
-      const z = toZ(t.y * this.cellSize) + cs / 2;
-      if (t.tileId === 'column_rune') {
-        const col = new THREE.Mesh(new THREE.CylinderGeometry(cs * 0.3, cs * 0.36, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0x1b132e, flatShading: true, roughness: 0.6 }));
-        col.position.set(x, 1.3, z);
-        col.castShadow = true;
-        group.add(col);
-        const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), new THREE.MeshBasicMaterial({ color: 0xf472b6 }));
-        rune.position.set(x, 2.95, z);
-        rune.userData.spin = true;
-        group.add(rune);
-      } else {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(cs, 1.8, cs), new THREE.MeshStandardMaterial({ color: 0x2d2244, emissive: 0x4f3b75, emissiveIntensity: 0.25, flatShading: true }));
-        wall.position.set(x, 0.9, z);
-        wall.castShadow = true;
-        wall.receiveShadow = true;
-        group.add(wall);
-      }
-    });
+    // объекты: колонны-руны и руины стен — инстансами (1–2 вызова отрисовки на тип)
+    const cols = objects.filter((t) => t.tileId === 'column_rune');
+    const walls = objects.filter((t) => t.tileId !== 'column_rune');
+    const at = (t) => [toX(t.x * this.cellSize) + cs / 2, toZ(t.y * this.cellSize) + cs / 2];
+    if (cols.length) {
+      const colIm = new THREE.InstancedMesh(new THREE.CylinderGeometry(cs * 0.3, cs * 0.36, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0x1b132e, flatShading: true, roughness: 0.6 }), cols.length);
+      const runeIm = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.22, 0), new THREE.MeshBasicMaterial({ color: isHell ? 0xf472b6 : 0x67e8f9 }), cols.length);
+      cols.forEach((t, i) => {
+        const [x, z] = at(t);
+        dummy.position.set(x, 1.3, z); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); colIm.setMatrixAt(i, dummy.matrix);
+        dummy.position.set(x, 2.95, z); dummy.updateMatrix(); runeIm.setMatrixAt(i, dummy.matrix);
+      });
+      colIm.castShadow = true;
+      group.add(colIm, runeIm);
+    }
+    if (walls.length) {
+      const wallIm = new THREE.InstancedMesh(new THREE.BoxGeometry(cs, 1, cs), new THREE.MeshStandardMaterial({ color: isHell ? 0x2a2133 : 0x26245a, emissive: isHell ? 0x1a0f24 : 0x1e1b4b, emissiveIntensity: 0.3, flatShading: true, roughness: 0.9 }), walls.length);
+      walls.forEach((t, i) => {
+        const [x, z] = at(t);
+        // руины: высота «ломаная», детерминированная от координат
+        const h = 0.6 + (((t.x * 7 + t.y * 13) % 5) / 4) * 1.1;
+        dummy.position.set(x, h / 2, z); dummy.rotation.set(0, ((t.x * 3 + t.y) % 3 - 1) * 0.06, 0); dummy.scale.set(0.96, h, 0.9); dummy.updateMatrix();
+        wallIm.setMatrixAt(i, dummy.matrix);
+      });
+      wallIm.castShadow = true; wallIm.receiveShadow = true;
+      group.add(wallIm);
+      dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+    }
+    // коллизии под объектами уже нарисованы самими объектами
+    const objKeys = new Set(objects.map((t) => `${t.x}_${t.y}`));
+    solids = solids.filter((t) => !objKeys.has(`${t.x}_${t.y}`));
     if (solids.length) {
       const geo = new THREE.BoxGeometry(cs, 1.0, cs);
       const mat = new THREE.MeshStandardMaterial({ color: 0x3a2a4f, flatShading: true, transparent: showCollision, opacity: showCollision ? 0.55 : 1, emissive: showCollision ? 0xef4444 : 0x000000, emissiveIntensity: 0.4 });

@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import { WORLD_PORTALS, MINI_GAMES, ADMIN_USER_IDS, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
+import { RunLobbies, type RunInstance } from "./runs";
+import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -24,6 +25,7 @@ export class GameRoom extends DurableObject {
   dar: DarBoss;
   flowers: Map<string, FlowerState>;
   meta: MetaService;
+  lobbies = new RunLobbies(RUN_ROOMS);
 
   lastTick = Date.now();
   lastHealTick = Date.now();
@@ -828,14 +830,11 @@ export class GameRoom extends DurableObject {
             })
           );
 
-          // Проверка администратора по переданному userId из базы
-          const isAdmin = Boolean(msg.userId && ADMIN_USER_IDS.includes(msg.userId));
 
           server.send(
             JSON.stringify({
               type: "welcome",
               myId,
-              isAdmin,
               world: "hellfire",
               portals: WORLD_PORTALS,
               classes: classesPayload,
@@ -1264,68 +1263,15 @@ export class GameRoom extends DurableObject {
         }
 
         // 13. Co-op забеги: вход / выход / ретрансляция внутри комнаты
-        if (msg.type === "run_join" && session) {
-          const roomDef = RUN_ROOMS[String(msg.room || "")];
-          if (!roomDef) {
-            server.send(JSON.stringify({ type: "toast_error", message: "Комната забега не найдена" }));
-            return;
-          }
-          if (session.inDuel) {
-            server.send(JSON.stringify({ type: "toast_error", message: "Сначала завершите бой" }));
-            return;
-          }
-          if (msg.portalId) {
-            const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId && p.runRoom === roomDef.id);
-            if (!portal || (portal.world || "hellfire") !== (session.world || "hellfire") || Math.hypot(session.x - portal.x, session.y - portal.y) > 85) {
-              server.send(JSON.stringify({ type: "toast_error", message: "Подойдите ближе к входу" }));
-              return;
-            }
-          }
-          if (session.runRoom !== roomDef.id) {
-            const count = this.runMembers(roomDef.id).length;
-            if (count >= roomDef.maxPlayers) {
-              server.send(JSON.stringify({ type: "toast_error", message: `Комната «${roomDef.name}» заполнена (${count}/${roomDef.maxPlayers})` }));
-              return;
-            }
-            const prev = session.runRoom;
-            session.runRoom = roomDef.id;
-            session.runJoinedAt = Date.now();
-            if (prev) this.broadcastRunMembers(prev);
-          }
-          this.meta.onRunJoin(session, roomDef.id, this.runMembers(roomDef.id).length);
-          server.send(JSON.stringify({ type: "run_joined", room: roomDef.id, name: roomDef.name, myId: session.id }));
-          this.broadcastRunMembers(roomDef.id);
-          this.broadcast();
-          return;
-        }
-
-        if (msg.type === "run_leave" && session) {
-          const prev = session.runRoom;
-          if (prev) {
-            session.runRoom = undefined;
-            session.runJoinedAt = undefined;
-            server.send(JSON.stringify({ type: "run_left", room: prev }));
-            this.broadcastRunMembers(prev);
-            this.broadcast();
-          }
-          return;
-        }
-
-        if (msg.type === "run_relay" && session && session.runRoom) {
-          const payload = JSON.stringify({ type: "run_relay", room: session.runRoom, from: session.id, data: msg.data ?? null });
-          if (payload.length > RUN_RELAY_MAX_BYTES) return;
-          const to = typeof msg.to === "string" ? msg.to : null;
-          for (const [ws, s] of this.sessions.entries()) {
-            if (ws === server || s.runRoom !== session.runRoom) continue;
-            if (to && s.id !== to) continue;
-            try { ws.send(payload); } catch (_) {}
-          }
+        // Лобби и экземпляры забегов (server/runs.ts): создать / список / войти / готов / старт / гибель / выход
+        if (session && typeof msg.type === "string" && (msg.type.startsWith("lobby_") || msg.type === "run_join" || msg.type === "run_leave" || msg.type === "run_dead" || msg.type === "run_giveup" || msg.type === "run_finish" || msg.type === "run_relay")) {
+          this.handleRunMsg(server, session, msg);
           return;
         }
 
         // 14. Мета-прогрессия, квесты, инвентарь, открытый мир (server/meta/service.ts)
         if (session && typeof msg.type === "string" && this.meta.handle(server, session, msg, {
-          runMembers: (room: string) => this.runMembers(room),
+          runMembers: (_room: string) => (session.runId ? this.runMembers(session.runId) : []),
           broadcast: () => this.broadcast(),
         })) return;
 
@@ -1375,10 +1321,9 @@ export class GameRoom extends DurableObject {
             this.activeDuels.delete(session.duelId);
           }
         }
-        const leftRoom = session?.runRoom;
+        if (session) this.leaveRun(session, null);
         if (session) this.meta.onClose(session);
         this.sessions.delete(server);
-        if (leftRoom) this.broadcastRunMembers(leftRoom);
         this.broadcast();
       } catch (_) {}
     };
@@ -1389,25 +1334,159 @@ export class GameRoom extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  runMembers(roomId: string): Session[] {
-    return [...this.sessions.values()]
-      .filter((s) => s.runRoom === roomId)
-      .sort((a, b) => (a.runJoinedAt || 0) - (b.runJoinedAt || 0));
+  // ---------------- забеги: лобби и экземпляры ----------------
+  sessionsById(): Map<string, Session> {
+    const m = new Map<string, Session>();
+    for (const s of this.sessions.values()) m.set(s.id, s);
+    return m;
   }
-
-  // Состав комнаты забега. Хост (авторитет симуляции орды) — самый ранний участник.
-  broadcastRunMembers(roomId: string) {
-    const members = this.runMembers(roomId);
-    this.meta.onRunMembers(roomId, members);
-    const payload = JSON.stringify({
-      type: "run_members",
-      room: roomId,
-      hostId: members[0]?.id || null,
+  wsOf(sid: string): WebSocket | null {
+    for (const [ws, s] of this.sessions.entries()) if (s.id === sid) return ws;
+    return null;
+  }
+  runMembers(runId: string): Session[] {
+    const inst = this.lobbies.get(runId);
+    if (!inst) return [];
+    const byId = this.sessionsById();
+    return inst.members.map((id) => byId.get(id)).filter(Boolean) as Session[];
+  }
+  sendRun(runId: string, payload: any) {
+    const inst = this.lobbies.get(runId);
+    if (!inst) return;
+    const txt = JSON.stringify(payload);
+    for (const [ws, s] of this.sessions.entries()) if (s.runId === runId) { try { ws.send(txt); } catch (_) {} }
+  }
+  // Состав экземпляра. Хост симуляции орды = лидер лобби.
+  broadcastRunMembers(runId: string) {
+    const inst = this.lobbies.get(runId);
+    if (!inst) return;
+    const byId = this.sessionsById();
+    // members — участники симуляции (без «сдавшихся»), lobby — весь состав экземпляра
+    const members = this.lobbies.active(inst).map((id) => byId.get(id)).filter(Boolean) as Session[];
+    this.meta.onRunMembers(inst.room, members);
+    const info = this.lobbies.info(inst, byId);
+    this.sendRun(runId, {
+      type: "run_members", room: inst.room, runId, epoch: inst.epoch, state: inst.state, hostId: this.lobbies.hostId(inst), leaderId: inst.leaderId, lobby: info,
       members: members.map((s) => ({ id: s.id, username: s.username, color: s.color || "#ffffff", classId: s.stats?.classId || null })),
     });
-    for (const [ws, s] of this.sessions.entries()) {
-      if (s.runRoom === roomId) {
-        try { ws.send(payload); } catch (_) {}
+  }
+  portalOk(session: Session, room: string, portalId: unknown): boolean {
+    if (!portalId) return true; // отладочный/глубокая ссылка: без портала (сервер всё равно ведёт состав и эпохи)
+    const portal = WORLD_PORTALS.find((p) => p.id === portalId && p.runRoom === room);
+    return !!portal && (portal.world || "hellfire") === (session.world || "hellfire") && Math.hypot(session.x - portal.x, session.y - portal.y) <= 85;
+  }
+  enterRun(ws: WebSocket, session: Session, inst: RunInstance) {
+    if (session.runId && session.runId !== inst.id) this.leaveRun(session, null);
+    this.lobbies.join(inst, session.id);
+    session.runId = inst.id;
+    session.runRoom = inst.room;
+    session.runJoinedAt = Date.now();
+    ws.send(JSON.stringify({ type: "run_joined", room: inst.room, runId: inst.id, name: inst.name, myId: session.id, epoch: inst.epoch, state: inst.state, lobby: this.lobbies.info(inst, this.sessionsById()) }));
+    this.broadcastRunMembers(inst.id);
+    this.broadcast();
+  }
+  startRun(inst: RunInstance) {
+    for (const s of this.runMembers(inst.id)) this.meta.onRunJoin(s, inst.room, inst.members.length);
+    this.sendRun(inst.id, { type: "run_start", room: inst.room, runId: inst.id, epoch: inst.epoch, hostId: this.lobbies.hostId(inst) });
+    this.broadcastRunMembers(inst.id);
+  }
+  resetRun(inst: RunInstance, reason: string) {
+    this.sendRun(inst.id, { type: "run_reset", room: inst.room, runId: inst.id, epoch: inst.epoch, reason });
+    this.broadcastRunMembers(inst.id);
+  }
+  // Выход из экземпляра (по запросу, при разрыве связи, при переходе в другое лобби)
+  leaveRun(session: Session, ws: WebSocket | null) {
+    const inst = this.lobbies.get(session.runId);
+    const room = session.runRoom;
+    session.runId = undefined;
+    session.runRoom = undefined;
+    session.runJoinedAt = undefined;
+    if (ws && room) { try { ws.send(JSON.stringify({ type: "run_left", room })); } catch (_) {} }
+    if (!inst) return;
+    const r = this.lobbies.leave(inst, session.id);
+    if (r === "wipe") this.resetRun(inst, "wipe");
+    else if (r === "left") this.broadcastRunMembers(inst.id);
+  }
+
+  handleRunMsg(ws: WebSocket, session: Session, msg: any) {
+    const err = (message: string) => ws.send(JSON.stringify({ type: "toast_error", message }));
+    const inst = this.lobbies.get(session.runId);
+    switch (msg.type) {
+      case "lobby_list": {
+        const room = String(msg.room || "");
+        if (!RUN_ROOMS[room]) return err("Комната забега не найдена");
+        ws.send(JSON.stringify({ type: "lobby_list", room, lobbies: this.lobbies.list(room, this.sessionsById()) }));
+        return;
+      }
+      case "run_join": // старые клиенты: сразу отдельный экземпляр и старт (общих комнат больше нет)
+      case "lobby_create": {
+        const room = String(msg.room || "");
+        if (!RUN_ROOMS[room]) return err("Комната забега не найдена");
+        if (session.inDuel) return err("Сначала завершите бой");
+        if (!this.portalOk(session, room, msg.portalId)) return err("Подойдите ближе к входу");
+        const created = this.lobbies.create(room, session, { name: msg.name, isPublic: msg.type === "run_join" ? false : msg.isPublic !== false });
+        this.enterRun(ws, session, created);
+        if (msg.type === "run_join" || msg.autoStart) { this.lobbies.start(created, session.id, true); this.startRun(created); }
+        this.broadcast();
+        return;
+      }
+      case "lobby_join": {
+        const target = this.lobbies.get(String(msg.runId || ""));
+        if (session.inDuel) return err("Сначала завершите бой");
+        const e = this.lobbies.canJoin(target, session.id);
+        if (e) return err(e);
+        if (!this.portalOk(session, target!.room, msg.portalId)) return err("Подойдите ближе к входу");
+        this.enterRun(ws, session, target!);
+        return;
+      }
+      case "lobby_ready": {
+        if (!inst) return;
+        this.lobbies.setReady(inst, session.id, !!msg.ready);
+        this.broadcastRunMembers(inst.id);
+        return;
+      }
+      case "lobby_start": {
+        if (!inst) return err("Вы не в лобби");
+        const e = this.lobbies.start(inst, session.id);
+        if (e) return err(e);
+        this.startRun(inst);
+        this.broadcast();
+        return;
+      }
+      case "run_dead": {
+        if (!inst) return;
+        if (this.lobbies.setDead(inst, session.id, !!msg.dead, Number(msg.epoch))) this.resetRun(inst, "wipe");
+        return;
+      }
+      case "run_giveup": { // «Сдаться» после гибели: в лобби экземпляра; последний живой → сброс
+        if (!inst) return;
+        const wiped = this.lobbies.giveUp(inst, session.id, Number(msg.epoch));
+        ws.send(JSON.stringify({ type: "run_gaveup", runId: inst.id, epoch: inst.epoch, state: inst.state }));
+        if (wiped) this.resetRun(inst, "wipe"); else this.broadcastRunMembers(inst.id);
+        return;
+      }
+      case "run_finish": { // завершение (победа в мини-игре и т.п.) — только хост/лидер текущей эпохи
+        if (!inst || this.lobbies.hostId(inst) !== session.id || inst.state !== "running" || Number(msg.epoch) !== inst.epoch) return;
+        this.lobbies.reset(inst);
+        this.resetRun(inst, "finish");
+        return;
+      }
+      case "run_leave": {
+        this.leaveRun(session, ws);
+        this.broadcast();
+        return;
+      }
+      case "run_relay": {
+        if (!this.lobbies.relayAllowed(inst, session.id, msg.epoch)) return; // чужая/старая эпоха или забег не идёт
+        const payload = JSON.stringify({ type: "run_relay", room: inst!.room, runId: inst!.id, epoch: inst!.epoch, from: session.id, data: msg.data ?? null });
+        if (payload.length > RUN_RELAY_MAX_BYTES) return;
+        const to = typeof msg.to === "string" ? msg.to : null;
+        for (const [w, s] of this.sessions.entries()) {
+          if (w === ws || s.runId !== inst!.id) continue;
+          if (to && s.id !== to) continue;
+          try { w.send(payload); } catch (_) {}
+        }
+        return;
       }
     }
   }

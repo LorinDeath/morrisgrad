@@ -231,7 +231,16 @@ export const MONSTER_LOOT: Record<string, MonsterLoot> = {
   run_fly: { name: "Мошкара-Жнец (забег)", kind: "run", stats: { hp: 14, dmg: 7, armor: 0, speed: "очень быстрая" }, abilitiesText: ["Рывок с замахом."],
     gear: [{ item: "fly_blades", chance: 0.4 }, { item: "fly_eyes", chance: 0.4 }, { item: "fly_carapace", chance: 0.4 }, { item: "fly_legs", chance: 0.4 }],
     materials: [{ res: "fly_wing", chance: 6, qty: [1, 1] }] },
+  run_moth: { name: "Тихий мотылёк (забег)", kind: "run", stats: { hp: 16, dmg: 6, armor: 0, speed: "средняя" }, abilitiesText: ["Сонная пыльца замедляет."],
+    gear: [{ item: "moth_hood", chance: 0.2 }, { item: "moth_cloak", chance: 0.2 }, { item: "moth_gloves", chance: 0.2 }],
+    materials: [{ res: "moonpetal", chance: 5, qty: [1, 1] }] },
+  run_glitch: { name: "Глитч-слизь (забег)", kind: "run", stats: { hp: 22, dmg: 6, armor: 0, speed: "медленная" }, abilitiesText: ["Оставляет лужу гнили."],
+    gear: [{ item: "rot_greaves", chance: 0.3 }, { item: "rot_grip", chance: 0.3 }],
+    materials: [{ res: "rot_ore", chance: 6, qty: [1, 1] }] },
 };
+// тип врага в забеге → таблица трофеев (в забегах шансы ниже, чем в открытом мире)
+export const RUN_LOOT_KEY: Record<string, string> = { imp: "imp", ghoul: "ghoul", blade_fly: "run_fly", dream_moth: "run_moth", rot_glitch: "run_glitch" };
+export const RUN_BOSS_BY_ROOM: Record<string, string> = { crypt: "warden", abyss: "moon_sentinel" };
 export const LOOKS: Record<string, { id: string; name: string; parts: string[]; bonus: string }> =
   Object.fromEntries(Object.values(MONSTER_LOOT).filter((m) => m.look).map((m) => [m.look!.id, m.look!]));
 
@@ -277,6 +286,30 @@ export const HUB_SPAWNS: { type: string; x: number; y: number; respawn: number }
   { type: "blade_fly", x: 520, y: 150, respawn: 12 }, { type: "blade_fly", x: 600, y: 120, respawn: 12 }, { type: "blade_fly", x: 680, y: 160, respawn: 12 },
   { type: "blade_fly", x: 760, y: 130, respawn: 12 },
 ];
+// Тип оружия героя в открытом мире: визуал выстрела (спрайт proj_atlas у клиента) и статус (сервер-авторитет).
+// dpsPct — урон по времени в % от удара в секунду (не стакается: держится сильнейший), dur — сек.
+// atk — форма удара по клику: proj — первый моб на луче, line — пронзает до max, arc — дуга ±arc рад до max целей.
+// cd — базовая перезарядка удара (мс), делится на (1 + скорость атаки %/100); удержание ЛКМ повторяет удар с этим темпом.
+// Вторичные цели line/arc получают 70%/80% урона. knock — отбрасывание (px-импульс; боссы иммунны, элита ×0.5), slow — замедление на 1.2 с.
+export interface WeaponAtk { kind: "proj" | "line" | "arc"; range: number; width?: number; arc?: number; max?: number }
+export interface WeaponTypeDef { name: string; shot: string; cd: number; atk: WeaponAtk; status: { kind?: string; dpsPct?: number; dur?: number; slow?: boolean; knock?: number } }
+export const WEAPON_TYPES: Record<string, WeaponTypeDef> = {
+  spear: { name: "Копьё", shot: "spear", cd: 520, atk: { kind: "line", range: 200, width: 22, max: 3 }, status: { knock: 2.5 } },
+  daggers: { name: "Кинжалы", shot: "daggers", cd: 340, atk: { kind: "proj", range: 200, width: 18 }, status: { kind: "bleed", dpsPct: 12, dur: 3 } },
+  book: { name: "Гримуар", shot: "soul_spark", cd: 450, atk: { kind: "proj", range: 230, width: 22 }, status: { kind: "burn", dpsPct: 10, dur: 3 } },
+  staff: { name: "Посох", shot: "staff_bolt", cd: 560, atk: { kind: "proj", range: 240, width: 24 }, status: { kind: "burn", dpsPct: 15, dur: 3 } },
+  sword: { name: "Меч", shot: "ab_backstab", cd: 480, atk: { kind: "arc", range: 115, arc: 1.2, max: 4 }, status: { knock: 2 } },
+  bow: { name: "Лук", shot: "thorn_bow", cd: 560, atk: { kind: "line", range: 270, width: 16, max: 2 }, status: { kind: "bleed", dpsPct: 10, dur: 3 } },
+  axe: { name: "Секира", shot: "war_axe", cd: 640, atk: { kind: "arc", range: 125, arc: 1.4, max: 5 }, status: { knock: 4 } },
+  fly_blades: { name: "Лапки-лезвия", shot: "fly_blades", cd: 360, atk: { kind: "proj", range: 220, width: 22 }, status: { kind: "bleed", dpsPct: 14, dur: 2.5 } },
+  moon_blade: { name: "Лунный клинок", shot: "chain_bolt", cd: 480, atk: { kind: "arc", range: 135, arc: 1.3, max: 4 }, status: { slow: true, knock: 1 } },
+};
+export const ITEM_WTYPE: Record<string, string> = { fly_blades: "fly_blades", violet_moon_blade: "moon_blade", greenpoise_bow: "bow", guard_axe: "axe", aezer_staff: "staff" };
+export const CLASS_WTYPE: Record<string, string> = { spearman: "spear", rogue: "daggers", mage: "book", warrior: "sword" };
+export function weaponType(itemId: string | null | undefined, cls: string | null | undefined): string {
+  return (itemId && ITEM_WTYPE[itemId]) || (cls && CLASS_WTYPE[cls]) || "book";
+}
+
 export const GATHER_RANGE = 75;
 export const GATHER_TIME_MS = 1100;
 export const ZONE_ATTACK_RANGE = 230;

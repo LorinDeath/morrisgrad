@@ -1,5 +1,5 @@
 // Мир Адского Пламени: ар-деко арена в золотой раме, обсидиановые шпили и искры.
-import { createArtDecoCanvas } from './artDeco.js';
+import { createArtDecoCanvas, createStoneCanvas } from './artDeco.js';
 import { HALF } from '../engine/geometry.js';
 
 export class HellfireEnvironment {
@@ -17,15 +17,27 @@ export class HellfireEnvironment {
     const size = HALF * 2;
 
     // Пол арены
-    const tex = new THREE.CanvasTexture(createArtDecoCanvas());
+    // спокойный тёмный камень вместо пёстрой ар-деко плитки (узор остался только в центре — у Алтаря)
+    const tex = new THREE.CanvasTexture(createStoneCanvas({ base: '#17121f', motif: 'rgba(197,155,39,0.08)', moss: 'rgba(70,40,90,0.25)' }, 3));
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(size / 3.2, size / 3.2);
+    tex.repeat.set(size / 7, size / 7);
     tex.anisotropy = 4;
     if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.15 }));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     g.add(floor);
+
+    // Ар-деко «ковёр» у Алтаря перевоплощения — единственный яркий участок, ориентир
+    const deco = new THREE.CanvasTexture(createArtDecoCanvas({ base: '#100b18', corner: '#150f22', diamond: '#1a1329', inner: '#0b0812', gold: 'rgba(197,155,39,0.30)', gold2: 'rgba(212,175,55,0.40)' }));
+    deco.wrapS = deco.wrapT = THREE.RepeatWrapping;
+    deco.repeat.set(4, 4);
+    if (THREE.sRGBEncoding) deco.encoding = THREE.sRGBEncoding;
+    const carpet = new THREE.Mesh(new THREE.CircleGeometry(7.5, 40), new THREE.MeshStandardMaterial({ map: deco, roughness: 0.8, metalness: 0.2 }));
+    carpet.rotation.x = -Math.PI / 2;
+    carpet.position.set(565 / 20 - 30, 0.01, 600 / 20 - 30);
+    carpet.receiveShadow = true;
+    g.add(carpet);
 
     // Виньетка: тёмное кольцо по краю (как радиальный градиент 2D-версии)
     const vignette = new THREE.Mesh(

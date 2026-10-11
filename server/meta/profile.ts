@@ -4,7 +4,7 @@
 //   mc_accounts(pkey PK, data JSON, verified, updated_at)   — общий для аккаунта: сумка, материалы, звёзды, квесты…
 //   mc_heroes(pkey, hero, data JSON, updated_at, PK(pkey,hero)) — у каждого героя своя ветка прогресса
 // pkey = "uid:<Clerk userId>" (проверенный токен) или "guest:<ник>" (непроверенный гость).
-import {
+import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
   radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, LOOKS, RECIPES, RESOURCES, SLOTS,
@@ -116,10 +116,11 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     if (t) for (const [k, v] of Object.entries(t.per)) raw[k] += (v || 0) * r;
   }
   for (const id of a.soul) { const n = SOUL_BRANCH.find((s) => s.id === id); if (n) for (const [k, v] of Object.entries(n.per)) raw[k] += v || 0; }
-  let wMin = 0, wMax = 0;
+  let wMin = 0, wMax = 0, weaponId: string | null = null;
   const items = equippedItems(a, h);
   for (const e of items) {
     const st = ITEM_BY_ID[e.id].stats;
+    if (ITEM_BY_ID[e.id].slot === "weapon") weaponId = e.id;
     wMin += st.dmgMin || 0; wMax += st.dmgMax || 0;
     for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct"]) raw[k] += (st as any)[k] || 0;
   }
@@ -140,7 +141,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     atkSpeedPct: Math.round(softCap(raw.atkSpeedPct, STAT_CAPS.atkSpeedPct) * 10) / 10,
     revive: raw.revive > 0 ? 1 : 0,
     weaponMin: base.minAtk + wMin, weaponMax: base.maxAtk + wMax, itemDmgMin: wMin, itemDmgMax: wMax,
-    look,
+    look, weaponId, wtype: weaponType(weaponId, cls),
   };
   eff.damageReduction = Math.round(armorToReduction(eff.armor) * 1000) / 1000;
   const abilities = h.loadout.filter((id) => usableAbility(a, h, cls, id)).slice(0, abilitySlots(h.lvl)).map((id) => {

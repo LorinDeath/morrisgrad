@@ -478,5 +478,15 @@ export function makeHero(THREE, classId) {
       }
     },
     setTint() {},
+    // Поза для генерации спрайт-листов (tools/mc-sprites): sw — размах шага, yawRad — поворот
+    pose(sw, yawRad) {
+      h.legs[0].rotation.x = sw; h.legs[1].rotation.x = -sw;
+      h.arms[0].g.rotation.x = -sw * 0.8 - (h.book ? 0.35 : 0); h.arms[1].g.rotation.x = sw * 0.8;
+      h.rig.position.y = Math.abs(sw) > 0.01 ? 0.04 : 0; h.head.rotation.z = 0;
+      if (h.coat) h.coat.rotation.x = Math.abs(sw) > 0.01 ? -0.16 : 0;
+      yaw = yawRad; h.root.rotation.y = yawRad;
+    },
+    // «Чиби»-пропорции для пиксельного листа: крупнее голова, как у спрайтов проекта
+    chibi(k) { h.head.scale.setScalar(k); },
   };
 }

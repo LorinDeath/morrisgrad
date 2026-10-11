@@ -59,6 +59,8 @@ export interface Session {
   // Co-op забеги «Проклятых»: комната забега, в которой сейчас игрок (нет — значит в хабе)
   runRoom?: string;
   runJoinedAt?: number;
+  // Экземпляр забега/лобби (server/runs.ts)
+  runId?: string;
 }
 
 export interface WorldPortalDef {

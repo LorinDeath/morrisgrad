@@ -28,6 +28,10 @@ export class TouchControls {
     root.innerHTML = `
       <div class="mc3d-joy"><div class="mc3d-joy-base"></div><div class="mc3d-joy-knob"></div></div>
       <div class="mc3d-tbtns">
+        <div class="mc3d-tbtn ab" data-act="ability" data-slot="0" style="display:none"></div>
+        <div class="mc3d-tbtn ab" data-act="ability" data-slot="1" style="display:none"></div>
+        <div class="mc3d-tbtn ab" data-act="ability" data-slot="2" style="display:none"></div>
+        <div class="mc3d-tbtn atk" data-hold="attack" title="Атака (автонаведение)">⚔️</div>
         <div class="mc3d-tbtn" data-act="interact" title="Действие">✋</div>
         <div class="mc3d-tbtn" data-act="dash" title="Рывок">💨</div>
       </div>
@@ -35,7 +39,7 @@ export class TouchControls {
         <div class="mc3d-tbtn" data-act="zoomOut">－</div>
         <div class="mc3d-tbtn" data-act="zoomIn">＋</div>
         <div class="mc3d-tbtn" data-act="chat">💬</div>
-        <div class="mc3d-tbtn" data-act="soul">👤</div>
+        <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📜</div>
       </div>`;
     this.container.appendChild(root);
     this.root = root;
@@ -81,13 +85,18 @@ export class TouchControls {
     this.joy.addEventListener('pointermove', move);
     this.joy.addEventListener('pointerup', end);
     this.joy.addEventListener('pointercancel', end);
-    this.root.querySelectorAll('.mc3d-tbtn').forEach((b) => {
+    // кнопка удержания (атака): пока палец на кнопке — атака повторяется со скоростью оружия
+    this.atkBtn = this.root.querySelector('[data-hold="attack"]');
+    const hold = (on) => (e) => { e.preventDefault(); e.stopPropagation(); this.atkBtn.classList.toggle('hl', on); this.callbacks.onAttack?.(on); };
+    this.atkBtn.addEventListener('pointerdown', (e) => { try { this.atkBtn.setPointerCapture(e.pointerId); } catch (_) {} hold(true)(e); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => this.atkBtn.addEventListener(ev, hold(false)));
+    this.root.querySelectorAll('.mc3d-tbtn[data-act]').forEach((b) => {
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
         const act = b.dataset.act;
         const fn = this.callbacks['on' + act[0].toUpperCase() + act.slice(1)];
-        if (fn) fn();
+        if (fn) fn(b.dataset.slot !== undefined ? Number(b.dataset.slot) : undefined);
       });
     });
   }
@@ -95,6 +104,22 @@ export class TouchControls {
   setMode(mode) {
     if (!this.root) return;
     this.interactBtn.style.display = mode === 'run' ? 'none' : '';
+    if (this.atkBtn) this.atkBtn.style.display = mode === 'run' ? 'none' : '';
+  }
+
+  // Кнопки навыков (до 3): [{icon, name, cdLeft}]
+  setAbilities(list) {
+    if (!this.root) return;
+    this.abBtns = this.abBtns || [...this.root.querySelectorAll('.mc3d-tbtn.ab')];
+    this.abBtns.forEach((b, i) => {
+      const a = list[i];
+      b.style.display = a ? '' : 'none';
+      if (a) {
+        const txt = a.cdLeft > 0 ? String(Math.ceil(a.cdLeft)) : a.icon;
+        if (b.textContent !== txt) b.textContent = txt;
+        b.classList.toggle('cd', a.cdLeft > 0);
+      }
+    });
   }
 
   setInteractHighlight(active) {

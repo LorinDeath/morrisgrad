@@ -16,9 +16,11 @@ export function resolveWsUrl() {
 }
 
 export class NetClient {
-  constructor({ username, userId, getJoinState }) {
+  constructor({ username, userId, getJoinState, getToken, guestId }) {
     this.username = username;
     this.userId = userId || '';
+    this.getToken = getToken || null; // сессия Clerk → сервер проверяет подпись JWT (мета-прогрессия)
+    this.guestId = guestId || '';
     this.getJoinState = getJoinState;
     this.handlers = new Map();
     this.ping = 0;
@@ -49,10 +51,12 @@ export class NetClient {
     const failTimer = setTimeout(() => {
       if (!this.connected) this.goOffline('Сервер не отвечает');
     }, 6000);
-    socket.onopen = () => {
+    socket.onopen = async () => {
       clearTimeout(failTimer);
       this.connected = true;
       this.offline = false;
+      let token = '';
+      try { token = this.getToken ? (await this.getToken()) || '' : ''; } catch (_) { token = ''; }
       const st = this.getJoinState ? this.getJoinState() : {};
       this.send({
         type: 'join',
@@ -61,6 +65,8 @@ export class NetClient {
         x: Math.round(st.x || 600),
         y: Math.round(st.y || 600),
         stats: st.stats || {},
+        token: token || undefined,
+        guestId: this.guestId || undefined,
       });
       this.emit('open', {});
     };
@@ -115,7 +121,16 @@ export class NetClient {
   }
 
   // --- co-op забеги ---
-  runJoin(room, portalId) { return this.send({ type: 'run_join', room, portalId }); }
+  // Лобби/экземпляры забегов (server/runs.ts)
+  lobbyList(room) { return this.send({ type: 'lobby_list', room }); }
+  lobbyCreate(room, portalId, opts = {}) { return this.send({ type: 'lobby_create', room, portalId: portalId || undefined, name: opts.name || undefined, isPublic: opts.isPublic !== false, autoStart: !!opts.autoStart }); }
+  lobbyJoin(runId, portalId) { return this.send({ type: 'lobby_join', runId, portalId: portalId || undefined }); }
+  lobbyReady(ready) { return this.send({ type: 'lobby_ready', ready: !!ready }); }
+  lobbyStart() { return this.send({ type: 'lobby_start' }); }
   runLeave() { return this.send({ type: 'run_leave' }); }
-  runRelay(data, to) { return this.send(to ? { type: 'run_relay', data, to } : { type: 'run_relay', data }); }
+  runDead(epoch, dead) { return this.send({ type: 'run_dead', epoch, dead: !!dead }); }
+  runGiveUp(epoch) { return this.send({ type: 'run_giveup', epoch }); }
+  runFinish(epoch) { return this.send({ type: 'run_finish', epoch }); }
+  // epoch — эпоха экземпляра: сервер отбрасывает пакеты старой эпохи (после сброса/рестарта)
+  runRelay(data, to, epoch) { return this.send(to ? { type: 'run_relay', data, to, epoch } : { type: 'run_relay', data, epoch }); }
 }

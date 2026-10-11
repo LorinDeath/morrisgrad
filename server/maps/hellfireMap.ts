@@ -1,5 +1,6 @@
-// Сгенерировано Администратором в MapEditor
-// Мир: hellfire | Тайлов: 41
+// Поляна перевоплощения (мир hellfire): собрано вручную скриптом tools/mc-map/gen_hub.mjs.
+// Редактор карт удалён. Сервер не проверяет тайлы — только границы мира и скорость.
+// Тайлов: 160
 
 export interface TileData {
   x: number;
@@ -9,250 +10,164 @@ export interface TileData {
 }
 
 export const HELLFIRE_MAP_TILES: TileData[] = [
-  {
-    "x": 7,
-    "y": 4,
-    "tileId": "floor_star",
-    "layer": 0
-  },
-  {
-    "x": 8,
-    "y": 4,
-    "tileId": "platform_star",
-    "layer": 0
-  },
-  {
-    "x": 8,
-    "y": 5,
-    "tileId": "floor_star",
-    "layer": 0
-  },
-  {
-    "x": 7,
-    "y": 5,
-    "tileId": "platform_star",
-    "layer": 0
-  },
-  {
-    "x": 9,
-    "y": 5,
-    "tileId": "platform_star",
-    "layer": 0
-  },
-  {
-    "x": 9,
-    "y": 4,
-    "tileId": "floor_star",
-    "layer": 0
-  },
-  {
-    "x": 10,
-    "y": 4,
-    "tileId": "platform_star",
-    "layer": 0
-  },
-  {
-    "x": 10,
-    "y": 5,
-    "tileId": "floor_star",
-    "layer": 0
-  },
-  {
-    "x": 7,
-    "y": 6,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 6,
-    "y": 6,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 6,
-    "y": 5,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 6,
-    "y": 4,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 6,
-    "y": 3,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 7,
-    "y": 3,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 8,
-    "y": 3,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 9,
-    "y": 3,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 10,
-    "y": 3,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 11,
-    "y": 3,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 11,
-    "y": 4,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 11,
-    "y": 5,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 11,
-    "y": 6,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 10,
-    "y": 6,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 9,
-    "y": 6,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 8,
-    "y": 6,
-    "tileId": "floor_void",
-    "layer": 0
-  },
-  {
-    "x": 6,
-    "y": 5,
-    "tileId": "column_rune",
-    "layer": 1
-  },
-  {
-    "x": 11,
-    "y": 5,
-    "tileId": "column_rune",
-    "layer": 1
-  },
-  {
-    "x": 6,
-    "y": 5,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 11,
-    "y": 5,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 6,
-    "y": 6,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 7,
-    "y": 6,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 9,
-    "y": 6,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 10,
-    "y": 6,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 11,
-    "y": 6,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 11,
-    "y": 4,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 11,
-    "y": 3,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 10,
-    "y": 3,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 9,
-    "y": 3,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 8,
-    "y": 3,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 7,
-    "y": 3,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 6,
-    "y": 3,
-    "tileId": "collision_box",
-    "layer": 2
-  },
-  {
-    "x": 6,
-    "y": 4,
-    "tileId": "collision_box",
-    "layer": 2
-  }
+  { x: 17, y: 6, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 7, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 8, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 9, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 10, tileId: "floor_void", layer: 0 },
+  { x: 27, y: 10, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 11, tileId: "floor_void", layer: 0 },
+  { x: 26, y: 11, tileId: "floor_void", layer: 0 },
+  { x: 16, y: 12, tileId: "floor_star", layer: 0 },
+  { x: 17, y: 12, tileId: "platform_star", layer: 0 },
+  { x: 18, y: 12, tileId: "floor_star", layer: 0 },
+  { x: 24, y: 12, tileId: "floor_void", layer: 0 },
+  { x: 25, y: 12, tileId: "floor_void", layer: 0 },
+  { x: 14, y: 13, tileId: "platform_star", layer: 0 },
+  { x: 15, y: 13, tileId: "floor_star", layer: 0 },
+  { x: 19, y: 13, tileId: "floor_star", layer: 0 },
+  { x: 20, y: 13, tileId: "platform_star", layer: 0 },
+  { x: 23, y: 13, tileId: "floor_void", layer: 0 },
+  { x: 13, y: 14, tileId: "platform_star", layer: 0 },
+  { x: 21, y: 14, tileId: "platform_star", layer: 0 },
+  { x: 22, y: 14, tileId: "floor_void", layer: 0 },
+  { x: 12, y: 15, tileId: "platform_star", layer: 0 },
+  { x: 22, y: 15, tileId: "platform_star", layer: 0 },
+  { x: 12, y: 16, tileId: "floor_star", layer: 0 },
+  { x: 23, y: 16, tileId: "platform_star", layer: 0 },
+  { x: 11, y: 17, tileId: "floor_star", layer: 0 },
+  { x: 23, y: 17, tileId: "floor_star", layer: 0 },
+  { x: 8, y: 18, tileId: "floor_void", layer: 0 },
+  { x: 9, y: 18, tileId: "floor_void", layer: 0 },
+  { x: 10, y: 18, tileId: "floor_void", layer: 0 },
+  { x: 11, y: 18, tileId: "platform_star", layer: 0 },
+  { x: 23, y: 18, tileId: "platform_star", layer: 0 },
+  { x: 11, y: 19, tileId: "floor_star", layer: 0 },
+  { x: 23, y: 19, tileId: "floor_star", layer: 0 },
+  { x: 11, y: 20, tileId: "platform_star", layer: 0 },
+  { x: 12, y: 20, tileId: "floor_star", layer: 0 },
+  { x: 23, y: 20, tileId: "platform_star", layer: 0 },
+  { x: 12, y: 21, tileId: "platform_star", layer: 0 },
+  { x: 22, y: 21, tileId: "platform_star", layer: 0 },
+  { x: 12, y: 22, tileId: "floor_star", layer: 0 },
+  { x: 13, y: 22, tileId: "platform_star", layer: 0 },
+  { x: 22, y: 22, tileId: "floor_star", layer: 0 },
+  { x: 12, y: 23, tileId: "platform_star", layer: 0 },
+  { x: 13, y: 23, tileId: "floor_star", layer: 0 },
+  { x: 14, y: 23, tileId: "platform_star", layer: 0 },
+  { x: 20, y: 23, tileId: "platform_star", layer: 0 },
+  { x: 21, y: 23, tileId: "floor_star", layer: 0 },
+  { x: 22, y: 23, tileId: "floor_void", layer: 0 },
+  { x: 12, y: 24, tileId: "floor_void", layer: 0 },
+  { x: 13, y: 24, tileId: "platform_star", layer: 0 },
+  { x: 14, y: 24, tileId: "platform_star", layer: 0 },
+  { x: 15, y: 24, tileId: "platform_star", layer: 0 },
+  { x: 16, y: 24, tileId: "floor_star", layer: 0 },
+  { x: 17, y: 24, tileId: "platform_star", layer: 0 },
+  { x: 18, y: 24, tileId: "floor_star", layer: 0 },
+  { x: 19, y: 24, tileId: "platform_star", layer: 0 },
+  { x: 23, y: 24, tileId: "floor_void", layer: 0 },
+  { x: 24, y: 24, tileId: "floor_void", layer: 0 },
+  { x: 11, y: 25, tileId: "floor_void", layer: 0 },
+  { x: 12, y: 25, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 25, tileId: "floor_void", layer: 0 },
+  { x: 24, y: 25, tileId: "floor_void", layer: 0 },
+  { x: 25, y: 25, tileId: "floor_void", layer: 0 },
+  { x: 27, y: 25, tileId: "platform_star", layer: 0 },
+  { x: 29, y: 25, tileId: "platform_star", layer: 0 },
+  { x: 11, y: 26, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 26, tileId: "floor_void", layer: 0 },
+  { x: 26, y: 26, tileId: "floor_void", layer: 0 },
+  { x: 28, y: 26, tileId: "platform_star", layer: 0 },
+  { x: 10, y: 27, tileId: "floor_void", layer: 0 },
+  { x: 17, y: 27, tileId: "floor_void", layer: 0 },
+  { x: 25, y: 27, tileId: "platform_star", layer: 0 },
+  { x: 27, y: 27, tileId: "platform_star", layer: 0 },
+  { x: 29, y: 27, tileId: "platform_star", layer: 0 },
+  { x: 17, y: 28, tileId: "floor_void", layer: 0 },
+  { x: 26, y: 28, tileId: "platform_star", layer: 0 },
+  { x: 28, y: 28, tileId: "platform_star", layer: 0 },
+  { x: 17, y: 29, tileId: "floor_void", layer: 0 },
+  { x: 25, y: 29, tileId: "platform_star", layer: 0 },
+  { x: 27, y: 29, tileId: "platform_star", layer: 0 },
+  { x: 29, y: 29, tileId: "platform_star", layer: 0 },
+  { x: 6, y: 30, tileId: "floor_crystal", layer: 0 },
+  { x: 17, y: 30, tileId: "floor_void", layer: 0 },
+  { x: 11, y: 31, tileId: "floor_crystal", layer: 0 },
+  { x: 8, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 9, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 11, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 12, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 13, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 14, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 16, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 17, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 18, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 19, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 21, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 22, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 23, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 24, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 26, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 27, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 28, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 29, y: 1, tileId: "wall_ruin", layer: 1 },
+  { x: 27, y: 6, tileId: "wall_ruin", layer: 1 },
+  { x: 28, y: 6, tileId: "wall_ruin", layer: 1 },
+  { x: 29, y: 6, tileId: "wall_ruin", layer: 1 },
+  { x: 26, y: 7, tileId: "wall_ruin", layer: 1 },
+  { x: 30, y: 7, tileId: "wall_ruin", layer: 1 },
+  { x: 31, y: 8, tileId: "wall_ruin", layer: 1 },
+  { x: 13, y: 14, tileId: "column_rune", layer: 1 },
+  { x: 21, y: 14, tileId: "column_rune", layer: 1 },
+  { x: 6, y: 15, tileId: "column_rune", layer: 1 },
+  { x: 6, y: 21, tileId: "column_rune", layer: 1 },
+  { x: 13, y: 22, tileId: "column_rune", layer: 1 },
+  { x: 21, y: 22, tileId: "column_rune", layer: 1 },
+  { x: 30, y: 24, tileId: "column_rune", layer: 1 },
+  { x: 11, y: 25, tileId: "wall_ruin", layer: 1 },
+  { x: 15, y: 25, tileId: "wall_ruin", layer: 1 },
+  { x: 12, y: 26, tileId: "wall_ruin", layer: 1 },
+  { x: 13, y: 26, tileId: "wall_ruin", layer: 1 },
+  { x: 14, y: 26, tileId: "wall_ruin", layer: 1 },
+  { x: 24, y: 30, tileId: "column_rune", layer: 1 },
+  { x: 30, y: 30, tileId: "column_rune", layer: 1 },
+  { x: 8, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 9, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 11, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 12, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 13, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 14, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 16, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 17, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 18, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 19, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 21, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 22, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 23, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 24, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 26, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 27, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 28, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 29, y: 1, tileId: "collision_box", layer: 2 },
+  { x: 27, y: 6, tileId: "collision_box", layer: 2 },
+  { x: 28, y: 6, tileId: "collision_box", layer: 2 },
+  { x: 29, y: 6, tileId: "collision_box", layer: 2 },
+  { x: 26, y: 7, tileId: "collision_box", layer: 2 },
+  { x: 30, y: 7, tileId: "collision_box", layer: 2 },
+  { x: 31, y: 8, tileId: "collision_box", layer: 2 },
+  { x: 13, y: 14, tileId: "collision_box", layer: 2 },
+  { x: 21, y: 14, tileId: "collision_box", layer: 2 },
+  { x: 6, y: 15, tileId: "collision_box", layer: 2 },
+  { x: 6, y: 21, tileId: "collision_box", layer: 2 },
+  { x: 13, y: 22, tileId: "collision_box", layer: 2 },
+  { x: 21, y: 22, tileId: "collision_box", layer: 2 },
+  { x: 30, y: 24, tileId: "collision_box", layer: 2 },
+  { x: 11, y: 25, tileId: "collision_box", layer: 2 },
+  { x: 15, y: 25, tileId: "collision_box", layer: 2 },
+  { x: 12, y: 26, tileId: "collision_box", layer: 2 },
+  { x: 13, y: 26, tileId: "collision_box", layer: 2 },
+  { x: 14, y: 26, tileId: "collision_box", layer: 2 },
+  { x: 24, y: 30, tileId: "collision_box", layer: 2 },
+  { x: 30, y: 30, tileId: "collision_box", layer: 2 },
 ];

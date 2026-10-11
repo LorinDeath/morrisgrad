@@ -3,14 +3,29 @@
 // и командного опыта; каждый клиент сам симулирует своего героя и свои снаряды и шлёт хосту попадания.
 import {
   WEAPONS, PASSIVES, ABILITIES, ENEMIES, WAVES, RUN_CLASSES, MAX_WEAPONS, MAX_PASSIVES,
-  ELITE_EVERY, BOSS_EVERY, ARENA_RADIUS, xpNeed, classRunStats, armorReduction,
+  ELITE_EVERY, BOSS_EVERY, ARENA_RADIUS, xpNeed, classRunStats, armorReduction, ROOM_WAVES, ROOM_BOSS, ROOM_ELITES,
+  RUN_ROOMS, TRIAL, TRIAL_WAVES, STATUS,
 } from './data.js';
+const HEART_T = { x: 0, z: 0, heart: true };
+// Общие с сервером определения навыков (Сияние, раскладка): один источник истины
+import { ABILITY_BY_ID } from '../../../../../server/meta/defs.ts';
 
 const TYPE_IDS = Object.keys(ENEMIES);
 const PICKUP_KINDS = ['heart', 'magnet', 'bomb', 'chest'];
 const rand = (a, b) => a + Math.random() * (b - a);
 const dist2 = (ax, az, bx, bz) => (ax - bx) * (ax - bx) + (az - bz) * (az - bz);
 const r1 = (v) => Math.round(v * 10) / 10;
+// биты статусов (снапшот хоста и попадания гостей)
+const ST_BIT = { burn: 1, poison: 2, bleed: 4, freeze: 8 };
+// «стоячие» снаряды: у союзников рисуются на месте, без полёта (мины, облака, лучи)
+const STATIC_SHOTS = new Set(['glyph_mine', 'plague_cloud', 'sun_beam']);
+// спрайт попадания по виду оружия (рендер берёт из fx 'hit')
+const HIT_ROW = {
+  soul_spark: 'hit_ice', war_axe: 'hit', spear: 'hit', daggers: 'hit_bleed', fire_spark: 'hit_fire', orbit_skulls: 'hit_arcane',
+  chain_bolt: 'hit_arcane', ice_fan: 'hit_ice', thorn_bow: 'hit_bleed', moon_orb: 'hit', glyph_mine: 'hit_arcane', sun_beam: 'hit_fire',
+  split_shard: 'hit_arcane', plague_flask: 'hit_poison', fly_blades: 'hit_bleed',
+  ab_backstab: 'hit_ice', ab_pierce: 'hit', ab_trick: 'hit_acid', ab_fireball: 'hit_fire',
+};
 
 // Препятствия арены (колонны склепа) — круговые коллайдеры
 export const PILLARS = (() => {
@@ -78,6 +93,11 @@ export class RunSession {
     this.cls = RUN_CLASSES[this.classKey];
     this.serverClass = opts.serverClass || null;
     this.isHost = opts.isHost !== false;
+    // Итоговые статы героя с сервера (мета-прогрессия, ОДНОСТОРОННЕ: забег их не меняет)
+    this.meta = opts.meta || null;
+    // Режим комнаты: обычный забег, «Испытание отражений» (дуэль) или «Испытание Обители» (волны)
+    this.mode = RUN_ROOMS[opts.room]?.mode || 'run';
+    this.hpCapPct = this.mode === 'duel' ? Math.max(10, Math.min(100, Number(opts.hpCapPct) || 100)) : 100;
     this.members = new Map(); // id → {username,color,classId}
     this.remotes = new Map(); // id → состояние союзника
     this.grid = new Grid();
@@ -99,6 +119,8 @@ export class RunSession {
     this.outShots = [];
     this.visualShots = [];
     this.fx = [];
+    this.zones = []; // мины, облака, лучи (свои)
+    this.dots = new Map(); // `${id}:${kind}` → {e, kind, dps, until, acc, src, stacks}
     this.nextId = 1;
     this.spawnAcc = 0;
     this.nextElite = ELITE_EVERY;
@@ -114,16 +136,52 @@ export class RunSession {
     this.gemAdds = []; this.gemRems = []; this.pkAdds = []; this.pkRems = [];
     this.snapAcc = 0; this.meAcc = 0;
     this.lastSnapAt = 0;
-    const baseHp = st.maxHp;
+    const mt = this.classKey !== 'soul' ? this.meta : null;
+    const sc = this.serverClass || {};
+    const hpBonus = mt ? Math.max(0, (Number(mt.maxHp) || 0) - Number(sc.maxHp || sc.hp || 0)) * 0.55 : 0;
+    const armorBonus = mt ? Math.max(0, (Number(mt.armor) || 0) - Number(sc.armor || 0)) : 0;
+    const baseHp = Math.round(st.maxHp + hpBonus);
+    this.hazards = [];
+    this.echoes = [];
     this.me = {
       x: rand(-2, 2), z: rand(-2, 2), dirX: 0, dirZ: 1, aimX: 0, aimZ: 1, moving: false,
-      hp: baseHp, baseMaxHp: baseHp, maxHp: baseHp, armor: st.armor, baseSpeed: st.speed, dmgMult: st.dmgMult,
+      hp: baseHp, baseMaxHp: baseHp, maxHp: baseHp, armor: st.armor + armorBonus, baseSpeed: st.speed, dmgMult: st.dmgMult,
+      metaDmg: 1 + (mt?.dmgPct || 0) / 100, metaCrit: (mt?.critPct || 0) / 100, metaLs: (mt?.lifestealPct || 0) / 100,
+      metaRegen: mt?.regen || 0, metaSpeed: 1 + (mt?.speedPct || 0) / 100, metaMagnet: 1 + (mt?.magnetPct || 0) / 100,
+      metaAtkSpd: 1 + (mt?.atkSpeedPct || 0) / 100, itemMin: mt?.itemDmgMin || 0, itemMax: mt?.itemDmgMax || 0,
+      abilities: this.buildAbilities(mt), shieldT: 0, smokeT: 0, swiftT: 0, whirlT: 0, slowT: 0, leapT: 0,
       weapons: {}, passives: {}, abilityCd: 2, iframes: 0, dead: false, reviveProgress: 0,
       choosingInvuln: 0,
-      stats: { damage: 0, kills: 0, taken: 0, healed: 0, picked: 0, byWeapon: {} },
+      stats: { damage: 0, kills: 0, taken: 0, healed: 0, picked: 0, byWeapon: {}, killsByType: {}, bossKills: 0, usedAbility: false },
     };
     this.addWeapon(this.cls.startWeapon);
     this.recalc();
+    if (this.hpCapPct < 100) {
+      // добровольное ограничение здоровья (звёздные задания Кьют): кап на весь бой
+      const m = this.me;
+      m.baseMaxHp = Math.max(1, Math.round(m.baseMaxHp * this.hpCapPct / 100));
+      m.maxHp = m.baseMaxHp; m.hp = m.maxHp;
+    }
+    this.won = false;
+    this.duelSpawned = false;
+    this.trialWave = 0;
+    this.heart = this.mode === 'trial' ? { hp: TRIAL.heartHp, maxHp: TRIAL.heartHp } : null;
+  }
+
+  // Активные навыки (2–3 слота): раскладка героя с сервера, иначе — навык класса
+  buildAbilities(mt) {
+    const list = [];
+    if (mt?.abilities?.length) {
+      for (const a of mt.abilities.slice(0, 3)) {
+        const def = ABILITY_BY_ID[a.id];
+        if (!def) continue;
+        list.push({ id: a.id, name: def.name, icon: def.icon, desc: def.desc, power: (a.power || def.power) / def.power, cd: a.cd || def.cd, props: a.props || [], rad: a.rad || 0, cdLeft: 2 });
+      }
+    } else if (this.cls.ability) {
+      const A = ABILITIES[this.cls.ability];
+      list.push({ id: A.id, name: A.name, icon: A.icon, desc: A.desc, power: 1, cd: A.runCooldown, props: [], rad: 0, cdLeft: 2 });
+    }
+    return list;
   }
 
   // ---------- характеристики ----------
@@ -135,14 +193,14 @@ export class RunSession {
     if (newMax > m.maxHp) m.hp += newMax - m.maxHp;
     m.maxHp = newMax;
     m.hp = Math.min(m.hp, m.maxHp);
-    m.speed = m.baseSpeed * (1 + 0.08 * this.plv('swift'));
-    m.magnet = 2.4 * (1 + 0.35 * this.plv('magnet'));
-    m.regen = 0.4 * this.plv('regen');
+    m.speed = m.baseSpeed * (1 + 0.08 * this.plv('swift')) * (m.metaSpeed || 1);
+    m.magnet = 2.4 * (1 + 0.35 * this.plv('magnet')) * (m.metaMagnet || 1);
+    m.regen = 0.4 * this.plv('regen') + (m.metaRegen || 0);
     m.might = 1 + 0.1 * this.plv('might');
-    m.cdMult = Math.pow(0.93, this.plv('haste'));
+    m.cdMult = Math.pow(0.93, this.plv('haste')) / (m.metaAtkSpd || 1);
     m.extra = this.plv('amount') >= 4 ? 2 : (this.plv('amount') >= 2 ? 1 : 0);
     m.area = 1 + 0.1 * this.plv('area');
-    m.crit = 0.05 + 0.06 * this.plv('luck');
+    m.crit = Math.min(0.6, 0.05 + 0.06 * this.plv('luck') + (m.metaCrit || 0));
     m.abilityCdMult = Math.pow(0.88, this.plv('mastery'));
     m.abilityDmg = 1 + 0.2 * this.plv('mastery');
   }
@@ -165,9 +223,11 @@ export class RunSession {
       else if (/Перезарядка/.test(txt)) s.cd *= 1 - num / 100;
       else if (/Пробитие/.test(txt)) s.pierce += num;
       else if (/прыж/.test(txt)) s.chain = (s.chain || 0) + num;
-      else if (/Радиус/.test(txt)) { if (s.explode) s.explode *= 1 + num / 100; if (s.orbit) s.orbit *= 1 + num / 100; }
+      else if (/Отскок/.test(txt)) s.bounce = (s.bounce || 0) + num;
+      else if (/Раскол/.test(txt)) s.split = (s.split || 0) + num;
+      else if (/Радиус/.test(txt)) { if (s.explode) s.explode *= 1 + num / 100; if (s.orbit) s.orbit *= 1 + num / 100; if (s.zone) s.zone *= 1 + num / 100; }
       else if (/Размер/.test(txt)) s.size *= 1 + num / 100;
-      else if (/Длительность/.test(txt)) s.life += num;
+      else if (/Длительность/.test(txt)) { if (s.zoneLife) s.zoneLife += num; else s.life += num; }
       else if (/Замедление/.test(txt)) s.slow = Math.min(0.8, (s.slow || 0) + 0.2);
       else if (/^\+/.test(txt)) s.count += num;
     }
@@ -194,7 +254,7 @@ export class RunSession {
     });
     Object.keys(PASSIVES).forEach((id) => {
       const P = PASSIVES[id];
-      if (P.needsAbility && !this.cls.ability) return;
+      if (P.needsAbility && !this.me.abilities.length) return;
       const lv = m.passives[id] || 0;
       if (lv >= P.max) return;
       if (!lv && ownedP.length >= MAX_PASSIVES) return;
@@ -253,9 +313,18 @@ export class RunSession {
     if (this.isHost) this.hostSimulate(dt);
     else this.guestSimulate(dt);
     this.updateProjectiles(dt);
+    this.updateZones(dt);
+    this.updateDots(dt);
     this.updateVisualShots(dt);
     this.updatePickupsLocal(dt);
     this.updateFx(dt);
+    if (this.delayed?.length) {
+      for (let i = this.delayed.length - 1; i >= 0; i--) {
+        const d = this.delayed[i];
+        d.t -= dt;
+        if (d.t <= 0) { this.delayed.splice(i, 1); d.fn(); }
+      }
+    }
     this.netTick(dt);
     if (this.team.level > this.seenLevel) {
       this.pendingChoices += this.team.level - this.seenLevel;
@@ -278,8 +347,9 @@ export class RunSession {
     const len = Math.hypot(ix, iz);
     if (len > 0.05) {
       const k = Math.min(1, len);
-      m.x += (ix / len) * m.speed * k * dt;
-      m.z += (iz / len) * m.speed * k * dt;
+      const spd = m.speed * (m.swiftT > 0 ? 1.25 : 1) * (m.slowT > 0 ? 0.6 : 1);
+      m.x += (ix / len) * spd * k * dt;
+      m.z += (iz / len) * spd * k * dt;
       m.dirX = ix / len; m.dirZ = iz / len;
       m.moving = true;
     } else m.moving = false;
@@ -300,14 +370,29 @@ export class RunSession {
       w.cd -= dt;
       if (w.cd <= 0) {
         const s = this.weaponStats(id);
-        if (this.fireWeapon(id, s)) w.cd = s.cd;
+        if (this.fireWeapon(id, s)) { w.cd = s.cd; m.fireT = this.t; }
         else w.cd = 0.15;
       }
     }
-    // Навык класса
-    if (this.cls.ability) {
-      m.abilityCd = Math.max(0, m.abilityCd - dt);
-      if (input?.ability && m.abilityCd <= 0) this.castAbility();
+    // Навыки (до 3 слотов: Q / R / F или кнопки)
+    const abs = m.abilities;
+    for (let i = 0; i < abs.length; i++) abs[i].cdLeft = Math.max(0, abs[i].cdLeft - dt);
+    m.abilityCd = abs[0] ? abs[0].cdLeft : 0;
+    const slot = input?.slot >= 0 ? input.slot : (input?.ability ? 0 : -1);
+    if (slot >= 0 && abs[slot] && abs[slot].cdLeft <= 0) this.castAbility(slot);
+    for (let i = this.echoes.length - 1; i >= 0; i--) {
+      const ec = this.echoes[i];
+      ec.t -= dt;
+      if (ec.t <= 0) { this.echoes.splice(i, 1); this.castAbility(ec.slot, 0.4); }
+    }
+    m.shieldT = Math.max(0, m.shieldT - dt); m.smokeT = Math.max(0, m.smokeT - dt);
+    m.swiftT = Math.max(0, m.swiftT - dt); m.slowT = Math.max(0, m.slowT - dt); m.whirlT = Math.max(0, m.whirlT - dt);
+    // лужи гнили (Глитч-слизь) и прочие опасные зоны — каждый клиент считает урон себе сам
+    for (let i = this.hazards.length - 1; i >= 0; i--) {
+      const hz = this.hazards[i];
+      hz.t -= dt;
+      if (hz.t <= 0) { this.hazards.splice(i, 1); continue; }
+      if (m.iframes <= 0 && m.choosingInvuln <= 0 && dist2(hz.x, hz.z, m.x, m.z) < hz.r * hz.r) this.damageMe(hz.dmg);
     }
     // Контактный урон от орды (каждый клиент считает себя сам)
     if (m.iframes <= 0 && m.choosingInvuln <= 0) {
@@ -317,7 +402,7 @@ export class RunSession {
         const def = ENEMIES[e.type];
         const rr = def.radius * (e.scale || 1) + 0.45;
         if (dist2(e.x, e.z, m.x, m.z) < rr * rr) {
-          this.damageMe(def.dmg * this.dmgScale() * (e.elite ? 1.6 : 1));
+          this.damageMe(def.dmg * this.dmgScale() * (e.elite ? 1.6 : 1) * (e.dashT > 0 ? 1.5 : 1));
           break;
         }
       }
@@ -347,6 +432,8 @@ export class RunSession {
 
   damageMe(raw) {
     const m = this.me;
+    if (m.smokeT > 0 || m.leapT > 0) return;
+    if (m.shieldT > 0) raw *= 0.5;
     const dmg = Math.max(1, raw * (1 - armorReduction(m.armor)));
     m.hp -= dmg;
     m.iframes = 0.6;
@@ -384,11 +471,109 @@ export class RunSession {
   spawnProjectile(wid, s, x, z, dx, dz, extra = {}) {
     const p = {
       w: wid, x, z, vx: dx * s.speed, vz: dz * s.speed, life: s.life, age: 0,
-      dmg: s.dmg, pierce: s.pierce, size: s.size, hit: new Set(), ...extra,
+      dmg: s.dmg, pierce: s.pierce, size: s.size, hit: new Set(),
+      burn: s.burn, bleed: s.bleed, poison: s.poison, knock: s.knock, bounce: s.bounce, split: s.split,
+      seed: Math.random() * 8, ...extra,
     };
     this.projectiles.push(p);
-    this.outShots.push([wid, r1(x), r1(z), r1(p.vx), r1(p.vz), r1(s.life), extra.orbit ? 1 : 0]);
+    if (this.outShots.length < 60) this.outShots.push([wid, r1(x), r1(z), r1(p.vx), r1(p.vz), r1(p.life), extra.orbit ? 1 : 0]);
     return p;
+  }
+
+  // Зоны: мины-глифы, ядовитые облака, лучи (симулирует владелец, союзникам уходит визуал)
+  addZone(z) {
+    if (this.zones.length >= 40) this.zones.shift();
+    z.t = 0; z.acc = 0; z.seed = Math.random() * 8;
+    this.zones.push(z);
+    const vx = z.kind === 'beam' ? z.dx : 0, vz = z.kind === 'beam' ? z.dz : 0;
+    const wid = z.kind === 'mine' ? 'glyph_mine' : z.kind === 'cloud' ? 'plague_cloud' : 'sun_beam';
+    if (this.outShots.length < 60) this.outShots.push([wid, r1(z.x), r1(z.z), r1(vx), r1(vz), r1(z.life), 0]);
+    return z;
+  }
+
+  updateZones(dt) {
+    const m = this.me;
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const Z = this.zones[i];
+      Z.t += dt;
+      if (Z.t >= Z.life || Z.dead) { this.zones.splice(i, 1); continue; }
+      if (Z.kind === 'mine') {
+        if (Z.t < Z.arm) continue;
+        this.grid.query(Z.x, Z.z, 2.2, this.tmp);
+        let trig = false;
+        for (const e of this.tmp) {
+          if (e.dead) continue;
+          const rr = 0.9 + ENEMIES[e.type].radius * (e.scale || 1);
+          if (dist2(e.x, e.z, Z.x, Z.z) < rr * rr) { trig = true; break; }
+        }
+        if (trig) {
+          Z.dead = true;
+          this.pushFx({ kind: 'boom', x: Z.x, z: Z.z, r: Z.r, t: 0, life: 0.4, color: 0xa855f7, row: 'hit_arcane' });
+          this.areaHit(Z.x, Z.z, Z.r, Z.dmg, 'glyph_mine', 0, 0, { knock: Z.knock, fromX: Z.x, fromZ: Z.z });
+        }
+      } else if (Z.kind === 'cloud') {
+        Z.acc += dt;
+        if (Z.acc >= 0.5) {
+          Z.acc -= 0.5;
+          this.areaHit(Z.x, Z.z, Z.r, Z.dmg, 'plague_flask', 0, 0, { poison: Z.poison });
+        }
+      } else if (Z.kind === 'beam') {
+        // луч держится у героя и бьёт всех на линии каждые tick секунд
+        Z.x = m.x; Z.z = m.z;
+        Z.acc += dt;
+        if (Z.acc >= Z.tick) {
+          Z.acc -= Z.tick;
+          this.grid.query(Z.x + Z.dx * Z.len / 2, Z.z + Z.dz * Z.len / 2, Z.len / 2 + Z.w + 1.5, this.tmp);
+          const list = this.tmp.slice();
+          for (const e of list) {
+            if (e.dead) continue;
+            const ex = e.x - Z.x, ez = e.z - Z.z;
+            const along = ex * Z.dx + ez * Z.dz;
+            if (along < 0 || along > Z.len) continue;
+            const perp = Math.abs(ex * Z.dz - ez * Z.dx);
+            if (perp > Z.w + ENEMIES[e.type].radius * (e.scale || 1)) continue;
+            this.hitEnemy(e, { w: 'sun_beam', dmg: Z.dmg, burn: Z.burn, noFx: Math.random() < 0.6 });
+          }
+        }
+      }
+    }
+  }
+
+  pushFx(f) { if (this.fx.length < 260) this.fx.push(f); }
+
+  // Статусы. Урон по времени считает тот, кто наложил (гость шлёт хосту как попадания);
+  // хост ведёт видимые флаги и эффекты (заморозка, отбрасывание) — авторитетно для движения орды.
+  applyStatus(e, kind, dps, src) {
+    const S = STATUS[kind];
+    if (!S) return;
+    const now = this.t;
+    if (kind === 'freeze') {
+      e.frzU = Math.max(e.frzU || 0, now + (e.boss ? 0.25 : S.dur));
+      return;
+    }
+    e[kind + 'U'] = now + S.dur;
+    const key = e.id + ':' + kind;
+    let d = this.dots.get(key);
+    if (!d) {
+      if (this.dots.size > 900) return;
+      d = { e, kind, dps: 0, until: 0, acc: 0, src, stacks: 0 };
+      this.dots.set(key, d);
+    }
+    d.stacks = Math.min(S.stack, d.stacks + 1);
+    d.dps = Math.max(d.dps, dps);
+    d.until = now + S.dur;
+    d.src = src;
+  }
+
+  updateDots(dt) {
+    for (const [key, d] of this.dots) {
+      if (d.e.dead || this.t >= d.until) { this.dots.delete(key); continue; }
+      d.acc += dt;
+      if (d.acc >= 0.5) {
+        d.acc -= 0.5;
+        this.hitEnemy(d.e, { w: d.src, dmg: d.dps * 0.5 * d.stacks, dot: d.kind, noFx: true, ignoreArmor: true });
+      }
+    }
   }
 
   fireWeapon(id, s) {
@@ -455,54 +640,195 @@ export class RunSession {
         }
         return true;
       }
+      case 'thorn_bow':
+      case 'split_shard':
+      case 'moon_orb': {
+        if (!a.target && id !== 'moon_orb') return false;
+        const base = Math.atan2(a.z, a.x);
+        const gap = id === 'thorn_bow' ? 0.12 : 0.35;
+        for (let i = 0; i < s.count; i++) {
+          const ang = base + (i - (s.count - 1) / 2) * gap;
+          this.spawnProjectile(id, s, m.x, m.z, Math.cos(ang), Math.sin(ang), { wallBounce: id === 'moon_orb' });
+        }
+        return true;
+      }
+      case 'fly_blades': {
+        const base = Math.atan2(a.z, a.x);
+        for (let i = 0; i < s.count; i++) {
+          const ang = base + (i - (s.count - 1) / 2) * 0.9;
+          this.spawnProjectile(id, s, m.x, m.z, Math.cos(ang), Math.sin(ang), { homing: s.homing });
+        }
+        return true;
+      }
+      case 'glyph_mine': {
+        for (let i = 0; i < s.count; i++) {
+          // глифы ложатся на пути орды: ближе к врагам, иначе вокруг героя
+          const t = i === 0 && a.target ? a.target : null;
+          const ang = Math.random() * Math.PI * 2, r = 2 + Math.random() * 4;
+          const x = t ? m.x + (t.x - m.x) * 0.5 : m.x + Math.cos(ang) * r;
+          const z = t ? m.z + (t.z - m.z) * 0.5 : m.z + Math.sin(ang) * r;
+          this.addZone({ kind: 'mine', x, z, r: s.explode, dmg: s.dmg, knock: s.knock, arm: s.arm || 0.6, life: s.life });
+        }
+        return true;
+      }
+      case 'sun_beam': {
+        if (!a.target) return false;
+        const base = Math.atan2(a.z, a.x);
+        for (let i = 0; i < s.count; i++) {
+          const ang = base + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45;
+          this.addZone({ kind: 'beam', x: m.x, z: m.z, dx: Math.cos(ang), dz: Math.sin(ang), len: s.len * m.area, w: s.size, dmg: s.dmg, burn: s.burn, tick: s.tick, life: s.life });
+        }
+        return true;
+      }
+      case 'plague_flask': {
+        if (!a.target) return false;
+        const used = new Set();
+        for (let i = 0; i < s.count; i++) {
+          const t = i === 0 ? a.target : (this.nearestEnemy(m.x, m.z, 14, used) || a.target);
+          used.add(t.id);
+          const dx = t.x - m.x, dz = t.z - m.z, d = Math.hypot(dx, dz) || 1;
+          const life = Math.max(0.35, Math.min(1.1, d / s.speed));
+          this.spawnProjectile(id, s, m.x, m.z, dx / d, dz / d, { lob: true, life, zone: s.zone, zoneLife: s.zoneLife, poison: s.poison });
+        }
+        return true;
+      }
       default: return false;
     }
   }
 
-  castAbility() {
+  castAbility(slot = 0, echoK = 1) {
     const m = this.me;
-    const A = ABILITIES[this.cls.ability];
-    if (!A || m.dead) return;
-    const avgDmg = 14 * m.dmgMult * m.might * m.abilityDmg;
-    const big = (wid, dx, dz, extra) => this.spawnProjectile(wid, { speed: extra.speed || 18, life: extra.life || 1.4, dmg: extra.dmg, pierce: extra.pierce || 99, size: extra.size || 0.5 }, extra.x ?? m.x, extra.z ?? m.z, dx, dz, extra);
-    if (A.id === 'backstab') {
-      let target = null, best = 0;
-      for (const e of this.enemies.values()) {
-        if (e.dead) continue;
-        const d = dist2(e.x, e.z, m.x, m.z);
-        if (d > 14 * 14) continue;
-        const score = e.maxHp / (1 + Math.sqrt(d));
-        if (score > best) { best = score; target = e; }
+    const ab = m.abilities[slot];
+    if (!ab || m.dead) return;
+    const props = ab.props || [];
+    const ext = props.includes('extend') ? 1.4 : 1;
+    const ls = props.includes('vamp') ? 0.08 : 0;
+    const k = ab.power * echoK;
+    const avgDmg = 14 * m.dmgMult * m.might * m.abilityDmg * k;
+    const big = (wid, dx, dz, extra) => this.spawnProjectile(wid, { speed: extra.speed || 18, life: extra.life || 1.4, dmg: extra.dmg, pierce: extra.pierce || 99, size: extra.size || 0.5 }, extra.x ?? m.x, extra.z ?? m.z, dx, dz, { lifesteal: ls || undefined, ...extra });
+    const ring = (wid, n, extra) => { for (let i = 0; i < n; i++) { const ang = (i / n) * Math.PI * 2; big(wid, Math.cos(ang), Math.sin(ang), extra); } };
+    switch (ab.id) {
+      case 'backstab': {
+        let target = null, best = 0;
+        for (const e of this.enemies.values()) {
+          if (e.dead) continue;
+          const d = dist2(e.x, e.z, m.x, m.z);
+          if (d > 14 * 14) continue;
+          const score = e.maxHp / (1 + Math.sqrt(d));
+          if (score > best) { best = score; target = e; }
+        }
+        if (target && echoK === 1) {
+          const dx = target.x - m.x, dz = target.z - m.z, d = Math.hypot(dx, dz) || 1;
+          m.x = target.x + (dx / d) * 1.6; m.z = target.z + (dz / d) * 1.6;
+          resolvePillars(m, 0.5);
+        }
+        m.iframes = Math.max(m.iframes, 0.6);
+        ring('ab_backstab', 10, { dmg: avgDmg * 1.5 * 2.2 / 1.5, speed: 16, life: 0.6 * ext, size: 0.55, pierce: 3, bleed: 3 });
+        break;
       }
-      if (target) {
-        const dx = target.x - m.x, dz = target.z - m.z, d = Math.hypot(dx, dz) || 1;
-        m.x = target.x + (dx / d) * 1.6; m.z = target.z + (dz / d) * 1.6;
-        resolvePillars(m, 0.5);
+      case 'pierce': {
+        const a = this.aimDir(30);
+        big('ab_pierce', a.x, a.z, { dmg: avgDmg * 3, speed: 34, life: 1.6 * ext, size: 0.9, pierce: 999, ignoreArmor: true, knock: 1.5 });
+        break;
       }
-      m.iframes = 0.6;
-      for (let i = 0; i < 10; i++) {
-        const ang = (i / 10) * Math.PI * 2;
-        big('ab_backstab', Math.cos(ang), Math.sin(ang), { dmg: avgDmg * 1.5 * 2.2, speed: 16, life: 0.6, size: 0.55, pierce: 3 });
+      case 'trick_strike':
+        ring('ab_trick', 16, { dmg: avgDmg * 1.6, speed: 15, life: 0.9 * ext, size: 0.35, pierce: 2, lifesteal: 0.1 + ls });
+        break;
+      case 'fireball': {
+        let sx = 0, sz = 0, n = 0;
+        this.grid.query(m.x, m.z, 14, this.tmp);
+        for (const e of this.tmp) { if (!e.dead) { sx += e.x; sz += e.z; n++; } }
+        let dx = m.dirX, dz = m.dirZ;
+        if (n) { dx = sx / n - m.x; dz = sz / n - m.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d; }
+        big('ab_fireball', dx, dz, { dmg: avgDmg * 0.6, speed: 12, life: 1.2, size: 1.0, pierce: 1, explode: 5.5 * m.area * ext, burn: 5 });
+        break;
       }
-    } else if (A.id === 'pierce') {
-      const a = this.aimDir(30);
-      big('ab_pierce', a.x, a.z, { dmg: avgDmg * 1.2 * 3, speed: 34, life: 1.6, size: 0.9, pierce: 999, ignoreArmor: true });
-    } else if (A.id === 'trick_strike') {
-      for (let i = 0; i < 16; i++) {
-        const ang = (i / 16) * Math.PI * 2;
-        big('ab_trick', Math.cos(ang), Math.sin(ang), { dmg: avgDmg * 1.1 * 1.6, speed: 15, life: 0.9, size: 0.35, pierce: 2, lifesteal: 0.1 });
+      case 'shield_wall':
+        m.shieldT = 4 * ext;
+        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4 * ext, t: 0, life: 0.4, color: 0x93c5fd });
+        this.areaHit(m.x, m.z, 4 * ext, avgDmg * 0.8, 'ab_backstab', 6, ls, { knock: 2.5 });
+        break;
+      case 'whirlwind':
+        for (let i = 0; i < 4; i++) big('war_axe', 0, 0, { dmg: avgDmg * 0.9, speed: 0, life: 3 * ext, size: 0.75, orbit: 2.6, phase: (i / 4) * Math.PI * 2, hitCd: new Map() });
+        break;
+      case 'spear_rain':
+        for (let i = 0; i < 18; i++) {
+          const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 7 * ext;
+          this.pushFx({ kind: 'boom', x: m.x + Math.cos(a) * r, z: m.z + Math.sin(a) * r, r: 1.4, t: -i * 0.04, life: 0.3, color: 0xfbbf24 });
+          this.areaHit(m.x + Math.cos(a) * r, m.z + Math.sin(a) * r, 1.6, avgDmg * 1.1, 'spear', 0, ls);
+        }
+        break;
+      case 'leap_strike': {
+        const a = this.aimDir(12);
+        const dist = Math.min(9, a.target ? Math.hypot(a.target.x - m.x, a.target.z - m.z) : 7);
+        m.x += a.x * dist; m.z += a.z * dist; resolvePillars(m, 0.5);
+        m.leapT = 0.35; m.iframes = Math.max(m.iframes, 0.5);
+        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 3.5 * ext, t: 0, life: 0.4, color: 0xfde047 });
+        this.areaHit(m.x, m.z, 3.5 * ext, avgDmg * 2.2, 'ab_pierce', 0, ls, { knock: 3 });
+        break;
       }
-    } else if (A.id === 'fireball') {
-      // в гущу: центр масс ближайших врагов
-      let sx = 0, sz = 0, n = 0;
-      this.grid.query(m.x, m.z, 14, this.tmp);
-      for (const e of this.tmp) { if (!e.dead) { sx += e.x; sz += e.z; n++; } }
-      let dx = m.dirX, dz = m.dirZ;
-      if (n) { dx = sx / n - m.x; dz = sz / n - m.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d; }
-      big('ab_fireball', dx, dz, { dmg: avgDmg * 10 * 0.6, speed: 12, life: 1.2, size: 1.0, pierce: 1, explode: 5.5 * m.area });
+      case 'smoke_bomb':
+        m.smokeT = 2.5 * ext;
+        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4.5 * ext, t: 0, life: 2.5 * ext, color: 0x334155 });
+        this.grid.query(m.x, m.z, 4.5 * ext, this.tmp);
+        for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + 3; e.slowK = 0.6; }
+        this.areaHit(m.x, m.z, 4.5 * ext, avgDmg * 0.5, 'ab_trick', 0, ls);
+        break;
+      case 'shadow_step':
+      case 'fly_blade_dash': {
+        const a = this.aimDir(12);
+        const sx = m.x, sz = m.z;
+        m.x += a.x * 8; m.z += a.z * 8; resolvePillars(m, 0.5);
+        m.iframes = Math.max(m.iframes, 0.45);
+        const steps = 6;
+        for (let i = 1; i <= steps; i++) {
+          const px = sx + (m.x - sx) * (i / steps), pz = sz + (m.z - sz) * (i / steps);
+          this.areaHit(px, pz, 1.7 * ext, avgDmg * (ab.id === 'shadow_step' ? 1.4 : 1.3) / 2, ab.id === 'shadow_step' ? 'fire_spark' : 'ab_trick', 0, ls);
+          if (ab.id === 'shadow_step') this.pushFx({ kind: 'boom', x: px, z: pz, r: 1.6, t: -0.3, life: 0.4, color: 0xf97316 });
+          else this.pushFx({ kind: 'boom', x: px, z: pz, r: 1.2, t: 0, life: 0.25, color: 0xe2e8f0 });
+        }
+        break;
+      }
+      case 'frost_nova':
+        ring('ice_fan', 20, { dmg: avgDmg * 1.0, speed: 14, life: 0.55 * ext, size: 0.4, pierce: 6, slow: 0.8 });
+        this.grid.query(m.x, m.z, 6 * ext, this.tmp);
+        for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + 2; e.slowK = 0.85; }
+        break;
+      case 'meteor': {
+        const a = this.aimDir(16);
+        const tx = a.target ? a.target.x : m.x + a.x * 8, tz = a.target ? a.target.z : m.z + a.z * 8;
+        this.pushFx({ kind: 'tele', x: tx, z: tz, r: 4.5 * ext, t: 0, life: 1.2, color: 0xf97316 });
+        this.delayed = this.delayed || [];
+        this.delayed.push({ t: 1.2, fn: () => {
+          this.pushFx({ kind: 'boom', x: tx, z: tz, r: 4.5 * ext, t: 0, life: 0.5, color: 0xff5a1f });
+          this.areaHit(tx, tz, 4.5 * ext, avgDmg * 6 * 0.5, 'ab_fireball', 0, ls, { burn: 6, knock: 2 });
+        } });
+        break;
+      }
+      default: return;
     }
-    m.abilityCd = A.runCooldown * m.abilityCdMult;
-    this.events('ability', { id: A.id, name: A.name });
+    if (props.includes('nova') && echoK === 1) {
+      this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4, t: 0, life: 0.35, color: 0xf0abfc });
+      this.areaHit(m.x, m.z, 4, avgDmg * 1.2, 'ab_backstab', 0, ls, { knock: 2 });
+    }
+    if (props.includes('swift')) m.swiftT = 2;
+    if (props.includes('echo') && echoK === 1) this.echoes.push({ t: 0.6, slot });
+    if (echoK === 1) {
+      ab.cdLeft = ab.cd * m.abilityCdMult;
+      m.stats.usedAbility = true;
+      this.events('ability', { id: ab.id, name: ab.name });
+    }
+  }
+
+  // Мгновенный урон по площади от навыков (без снаряда)
+  areaHit(x, z, r, dmg, w, _n, ls, extra = null) {
+    this.grid.query(x, z, r + 1.5, this.tmp);
+    const list = this.tmp.slice();
+    for (const e of list) {
+      if (e.dead) continue;
+      const rr = r + ENEMIES[e.type].radius * (e.scale || 1);
+      if (dist2(e.x, e.z, x, z) <= rr * rr) this.hitEnemy(e, { w, dmg, noFx: true, lifesteal: ls || 0, fromX: x, fromZ: z, ...(extra || {}) });
+    }
   }
 
   // ---------- снаряды ----------
@@ -514,6 +840,11 @@ export class RunSession {
       p.age += dt;
       if (p.age >= p.life || p.dead) {
         if (p.explode && !p.exploded) this.explode(p);
+        if (p.lob && !p.dead) {
+          // склянка разбилась — ядовитое облако
+          this.pushFx({ kind: 'boom', x: p.x, z: p.z, r: p.zone * 0.8, t: 0, life: 0.35, color: 0x84cc16, row: 'hit_poison' });
+          this.addZone({ kind: 'cloud', x: p.x, z: p.z, r: p.zone, dmg: p.dmg, poison: p.poison, life: p.zoneLife });
+        }
         list.splice(i, 1);
         continue;
       }
@@ -542,7 +873,15 @@ export class RunSession {
           }
         }
         p.x += p.vx * dt; p.z += p.vz * dt;
+        if (p.wallBounce) {
+          const d = Math.hypot(p.x, p.z);
+          if (d > ARENA_RADIUS - 0.6) {
+            const nx = p.x / d, nz = p.z / d, dot = p.vx * nx + p.vz * nz;
+            if (dot > 0) { p.vx -= 2 * dot * nx; p.vz -= 2 * dot * nz; }
+          }
+        }
       }
+      if (p.lob) continue; // склянка летит по дуге — бьёт только облаком
       // попадания
       this.grid.query(p.x, p.z, p.size + 1.8, this.tmp);
       for (const e of this.tmp) {
@@ -559,14 +898,27 @@ export class RunSession {
         }
         this.hitEnemy(e, p);
         if (p.explode) { this.explode(p); p.exploded = true; p.dead = true; break; }
-        if (p.chain > 0) {
-          const nx = this.nearestEnemy(p.x, p.z, 8, p.hit);
+        if (p.split > 0 && !p.child) {
+          // раскол: осколки веером дальше по курсу, не бьют того же врага
+          const base = Math.atan2(p.vz, p.vx), sp = Math.hypot(p.vx, p.vz) || 18;
+          for (let k = 0; k < p.split; k++) {
+            const ang = base + (k - (p.split - 1) / 2) * 0.42;
+            const c = { w: p.w, x: p.x, z: p.z, vx: Math.cos(ang) * sp * 0.9, vz: Math.sin(ang) * sp * 0.9, life: 0.6, age: 0, dmg: p.dmg * 0.6, pierce: 1, size: p.size * 0.75, hit: new Set(p.hit), child: true, seed: Math.random() * 8 };
+            this.projectiles.push(c);
+            if (this.outShots.length < 60) this.outShots.push([p.w, r1(c.x), r1(c.z), r1(c.vx), r1(c.vz), 0.6, 0]);
+          }
+          p.dead = true;
+          break;
+        }
+        if (p.chain > 0 || p.bounce > 0) {
+          const nx = this.nearestEnemy(p.x, p.z, p.chain > 0 ? 8 : 10, p.hit);
           if (nx) {
             const sp = Math.hypot(p.vx, p.vz) || 20;
             const dx = nx.x - p.x, dz = nx.z - p.z, d = Math.hypot(dx, dz) || 1;
             p.vx = (dx / d) * sp; p.vz = (dz / d) * sp;
-            p.chain--; p.age = Math.min(p.age, p.life * 0.3);
-            this.fx.push({ kind: 'zap', x: p.x, z: p.z, x2: nx.x, z2: nx.z, t: 0, life: 0.15 });
+            p.age = Math.min(p.age, p.life * 0.3);
+            if (p.chain > 0) { p.chain--; this.pushFx({ kind: 'zap', x: p.x, z: p.z, x2: nx.x, z2: nx.z, t: 0, life: 0.15 }); }
+            else p.bounce--;
             continue;
           }
         }
@@ -579,42 +931,73 @@ export class RunSession {
   }
 
   explode(p) {
-    this.fx.push({ kind: 'boom', x: p.x, z: p.z, r: p.explode, t: 0, life: 0.35, color: p.w === 'ab_fireball' ? 0xff7a1a : 0xf97316 });
+    this.pushFx({ kind: 'boom', x: p.x, z: p.z, r: p.explode, t: 0, life: 0.35, color: p.w === 'ab_fireball' ? 0xff7a1a : 0xf97316 });
     this.grid.query(p.x, p.z, p.explode + 1.5, this.tmp);
-    for (const e of this.tmp) {
+    const list = this.tmp.slice();
+    for (const e of list) {
       if (e.dead) continue;
-      if (dist2(e.x, e.z, p.x, p.z) <= p.explode * p.explode) this.hitEnemy(e, { ...p, dmg: p.dmg * 0.75, noFx: true });
+      if (dist2(e.x, e.z, p.x, p.z) <= p.explode * p.explode) this.hitEnemy(e, { ...p, dmg: p.dmg * 0.75, noFx: true, fromX: p.x, fromZ: p.z });
     }
   }
 
   hitEnemy(e, p) {
     const m = this.me;
     const crit = Math.random() < m.crit;
-    let dmg = p.dmg * m.dmgMult * m.might * (crit ? 2 : 1);
+    // фиксированный урон надетого оружия (5–7 и т.п.) добавляется к ударам оружия, не навыков
+    const flat = !p.dot && m.itemMax > 0 && p.w && !String(p.w).startsWith('ab_') && WEAPONS[p.w] ? (m.itemMin + Math.random() * (m.itemMax - m.itemMin)) * 0.6 : 0;
+    let dmg = (p.dmg + flat) * m.dmgMult * m.might * (m.metaDmg || 1) * (crit && !p.dot ? 2 : 1);
     if (!p.ignoreArmor) dmg *= 1 - armorReduction(ENEMIES[e.type].armor);
     dmg = Math.max(1, Math.round(dmg));
     m.stats.damage += dmg;
     const wkey = p.w;
     m.stats.byWeapon[wkey] = (m.stats.byWeapon[wkey] || 0) + dmg;
-    if (p.lifesteal) this.heal(dmg * p.lifesteal);
+    const lsk = Math.min(0.15, (p.lifesteal || 0) + (m.metaLs || 0));
+    if (lsk > 0) this.heal(dmg * lsk);
     if (p.slow) e.slowUntil = this.t + 1.6, e.slowK = p.slow;
-    this.events('dmg', { x: e.x, z: e.z, dmg, crit, boss: e.boss });
+    // статусы и отбрасывание
+    let st = 0, kbx = 0, kbz = 0;
+    if (!p.dot) {
+      if (p.burn) { this.applyStatus(e, 'burn', p.burn, p.w); st |= ST_BIT.burn; }
+      if (p.poison) { this.applyStatus(e, 'poison', p.poison, p.w); st |= ST_BIT.poison; }
+      if (p.bleed) { this.applyStatus(e, 'bleed', p.bleed, p.w); st |= ST_BIT.bleed; }
+      if (p.freeze || (p.slow && p.slow >= 0.8)) { this.applyStatus(e, 'freeze', 0, p.w); st |= ST_BIT.freeze; }
+      if (p.knock) {
+        let dx = p.vx || 0, dz = p.vz || 0;
+        if (p.fromX !== undefined || (!dx && !dz)) { dx = e.x - (p.fromX ?? p.x ?? m.x); dz = e.z - (p.fromZ ?? p.z ?? m.z); }
+        const d = Math.hypot(dx, dz) || 1;
+        const k = p.knock * (e.boss ? 0.15 : e.elite ? 0.5 : 1);
+        kbx = (dx / d) * k; kbz = (dz / d) * k;
+        if (this.isHost) this.knock(e, kbx, kbz);
+      }
+    }
+    if (!p.noFx && this.fx.length < 220) this.fx.push({ kind: 'hit', x: e.x, z: e.z, row: HIT_ROW[p.w] || 'hit', r: 0.8 + (e.scale || 1) * 0.5, t: 0, life: 0.3 });
+    this.events('dmg', { x: e.x, z: e.z, dmg, crit, boss: e.boss, dot: p.dot });
     // мгновенно у себя (предсказание), у хоста — авторитетно
     e.hp -= dmg;
-    e.flash = 0.12;
+    if (!p.dot) e.flash = 0.12;
     if (this.isHost) {
       if (e.hp <= 0) this.killEnemy(e, this.myId);
     } else {
-      this.pendingHits.push([e.id, dmg, p.slow ? Math.round(p.slow * 100) : 0]);
-      if (e.hp <= 0) { e.dead = true; e.deadAt = this.t; }
+      if (st || kbx || kbz) this.pendingHits.push([e.id, dmg, p.slow ? Math.round(p.slow * 100) : 0, st, r1(kbx), r1(kbz)]);
+      else this.pendingHits.push([e.id, dmg, p.slow ? Math.round(p.slow * 100) : 0]);
+      if (e.hp <= 0 && !e.dead) { e.dead = true; e.deadAt = this.t; this.countMyKill(e); }
     }
+  }
+
+  // Отбрасывание (хост): короткий импульс, затухает за ~0.2 с
+  knock(e, kx, kz) {
+    e.kbx = (e.kbx || 0) + kx * 7; e.kbz = (e.kbz || 0) + kz * 7;
+    const s = Math.hypot(e.kbx, e.kbz), cap = 30;
+    if (s > cap) { e.kbx *= cap / s; e.kbz *= cap / s; }
+    e.kbT = 0.2;
   }
 
   // ---------- хост: орда ----------
   currentWave() {
     const min = this.t / 60;
-    let w = WAVES[0];
-    for (const x of WAVES) if (min >= x.from) w = x;
+    const list = ROOM_WAVES[this.room] || WAVES;
+    let w = list[0];
+    for (const x of list) if (min >= x.from) w = x;
     return w;
   }
 
@@ -633,7 +1016,8 @@ export class RunSession {
     const wave = this.currentWave();
     const cap = Math.round(wave.cap * (1 + 0.35 * (nPlayers - 1)));
     const alive = this.enemies.size;
-    if (players.length) {
+    if (players.length && this.mode !== 'run') this.modeSpawn(players, nPlayers);
+    else if (players.length) {
       this.spawnAcc += dt * wave.rate * (1 + 0.45 * (nPlayers - 1)) * (1 + this.t / 600);
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
@@ -653,15 +1037,17 @@ export class RunSession {
       if (this.t >= this.nextElite) {
         this.nextElite += ELITE_EVERY;
         const anchor = players[0];
-        const type = this.t > 240 ? 'golem' : (Math.random() < 0.5 ? 'ghoul' : 'golem');
+        const pool = ROOM_ELITES[this.room] || ['ghoul', 'golem'];
+        const type = this.t > 240 ? pool[pool.length - 1 - Math.floor(Math.random() * 2)] || 'golem' : pool[Math.floor(Math.random() * pool.length)];
         this.spawnEnemy(type, anchor, null, { elite: true });
         this.events('toast', { text: `⚠️ Элита: ${ENEMIES[type].name}`, color: '#facc15' });
       }
       if (this.t >= this.nextBoss) {
         this.nextBoss += BOSS_EVERY;
         this.bossCount++;
-        this.spawnEnemy('warden', players[0], null, { bossN: this.bossCount });
-        this.events('toast', { text: '👹 Страж Проклятия пробудился!', color: '#f43f5e', big: true });
+        const bossType = ROOM_BOSS[this.room] || 'warden';
+        this.spawnEnemy(bossType, players[0], null, { bossN: this.bossCount });
+        this.events('toast', { text: `👹 ${ENEMIES[bossType].name} пробудился!`, color: '#f43f5e', big: true });
       }
     }
     // ИИ
@@ -677,8 +1063,49 @@ export class RunSession {
         if (d < bd) { bd = d; target = p; }
       }
       e.flash = Math.max(0, (e.flash || 0) - dt);
+      if (e.kbT > 0) {
+        e.kbT -= dt;
+        e.x += e.kbx * dt; e.z += e.kbz * dt;
+        e.kbx *= 0.82; e.kbz *= 0.82;
+        if (!def.flying) resolvePillars(e, def.radius * (e.scale || 1));
+        if (e.kbT <= 0) { e.kbx = 0; e.kbz = 0; }
+        continue;
+      }
+      if (e.frzU > this.t) continue; // заморожен: ни шага, ни замаха
+      // Испытание Обители: твари идут к Сердцу, отвлекаясь лишь на героя вплотную
+      if (this.heart && (!target || bd > 16)) {
+        const hd = dist2(0, 0, e.x, e.z);
+        target = HEART_T; bd = hd;
+        const reach = TRIAL.heartR + def.radius * (e.scale || 1) + 0.3;
+        if (hd < reach * reach) {
+          this.heart.hp -= def.dmg * (e.elite ? 2 : 1) * (def.boss ? 1.5 : 1) * 0.6 * dt;
+          if (this.heart.hp <= 0 && !this.ended) { this.heart.hp = 0; this.finish('Сердце Обители угасло'); }
+          continue;
+        }
+      }
       if (!target) continue;
       const dx = target.x - e.x, dz = target.z - e.z, d = Math.sqrt(bd) || 1;
+      // Читаемые атаки: замах (телеграф на земле) → удар/рывок
+      if (def.atk) {
+        const A = def.atk;
+        if (e.wind > 0) {
+          e.wind -= dt;
+          if (e.wind <= 0) this.enemyStrike(e, A);
+          continue;
+        }
+        if (e.dashT > 0) {
+          e.dashT -= dt;
+          e.x += e.ax * A.speed * dt; e.z += e.az * A.speed * dt;
+          if (!def.flying) resolvePillars(e, def.radius * (e.scale || 1));
+          continue;
+        }
+        e.atkCd = (e.atkCd ?? rand(0.8, A.cd)) - dt;
+        if (e.atkCd <= 0 && d < A.range * (e.scale || 1)) {
+          e.wind = A.wind; e.ax = dx / d; e.az = dz / d; e.face = Math.atan2(dx, dz);
+          e.atkCd = A.cd * (e.elite ? 0.8 : 1);
+          continue;
+        }
+      }
       let sp = def.speed * (e.slowUntil > this.t ? 1 - (e.slowK || 0.4) : 1) * (e.elite ? 1.1 : 1);
       if (def.ranged && d < 9) sp *= -0.4; // плевун держит дистанцию
       let mx = (dx / d) * sp, mz = (dz / d) * sp;
@@ -745,6 +1172,60 @@ export class RunSession {
     } else this.deadTimer = 0;
   }
 
+  // Спавн мини-игр (только хост)
+  modeSpawn(players, nPlayers) {
+    if (this.ended) return;
+    const anchor = players[0];
+    if (this.mode === 'duel') {
+      if (!this.duelSpawned && this.t > 1.5) {
+        this.duelSpawned = true;
+        const e = this.spawnEnemy('kyut_mirror', anchor, { x: anchor.x + 10, z: anchor.z });
+        e.hp = e.maxHp = ENEMIES.kyut_mirror.hp * (1 + 0.7 * (nPlayers - 1));
+        this.events('toast', { text: '🪞 Отражение Кьют вышло на арену', color: '#f472b6', big: true });
+      } else if (this.duelSpawned && ![...this.enemies.values()].some((e) => e.type === 'kyut_mirror' && !e.dead)) {
+        this.won = true;
+        this.finish('Победа! Отражение рассеялось');
+      }
+      return;
+    }
+    if (this.mode === 'trial') {
+      const due = Math.min(TRIAL.waves, Math.floor((this.t - 3) / TRIAL.every) + 1);
+      while (this.trialWave < due) {
+        const comp = TRIAL_WAVES[this.trialWave] || TRIAL_WAVES[TRIAL_WAVES.length - 1];
+        this.trialWave++;
+        for (const [type, n0] of Object.entries(comp)) {
+          const n = ENEMIES[type].boss ? n0 : Math.round(n0 * (1 + 0.4 * (nPlayers - 1)));
+          for (let i = 0; i < n; i++) {
+            const a = Math.random() * Math.PI * 2, r = ARENA_RADIUS - 6 - Math.random() * 6;
+            const e = this.spawnEnemy(type, HEART_T, { x: Math.cos(a) * r, z: Math.sin(a) * r }, { bossN: 1 });
+            if (e.boss) { e.hp *= 0.4; e.maxHp = e.hp; } // финальный страж Испытания слабее забегового
+          }
+        }
+        this.events('toast', { text: `🛡 Волна ${this.trialWave}/${TRIAL.waves}`, color: '#fbbf24', big: this.trialWave === TRIAL.waves });
+      }
+      if (this.trialWave >= TRIAL.waves && this.enemies.size === 0 && this.t >= TRIAL.waves * TRIAL.every) {
+        this.won = true;
+        this.finish('Сердце Обители устояло!');
+      }
+    }
+  }
+
+  // Удар после замаха: рывок/выпад (движение — у хоста), удар по кругу/пыльца — урон считает каждый клиент себе
+  enemyStrike(e, A) {
+    if (A.kind === 'dash' || A.kind === 'lunge') {
+      e.dashT = (A.len || 6) / A.speed;
+      return;
+    }
+    const r = (A.r || 3) * (e.scale || 1);
+    this.pushFx({ kind: 'boom', x: e.x, z: e.z, r, t: 0, life: 0.35, color: A.kind === 'dust' ? 0xe9d5ff : 0xf87171 });
+    const m = this.me;
+    if (!m.dead && m.iframes <= 0 && m.choosingInvuln <= 0 && dist2(e.x, e.z, m.x, m.z) < r * r) {
+      const def = ENEMIES[e.type];
+      if (A.kind === 'dust') { m.slowT = 2.2; this.damageMe(def.dmg * 0.6 * this.dmgScale()); }
+      else this.damageMe(def.dmg * 1.4 * this.dmgScale() * (e.elite ? 1.4 : 1));
+    }
+  }
+
   pickType(mix) {
     const keys = Object.keys(mix);
     const total = keys.reduce((a, k) => a + mix[k], 0);
@@ -773,13 +1254,20 @@ export class RunSession {
     return e;
   }
 
+  countMyKill(e) {
+    const st = this.me.stats;
+    st.killsByType[e.type] = (st.killsByType[e.type] || 0) + 1;
+    if (e.boss) st.bossKills++;
+  }
+
   killEnemy(e, killerId) {
     if (e.dead) return;
     e.dead = true;
     this.enemies.delete(e.id);
     this.team.kills++;
     this.killCredit[killerId] = (this.killCredit[killerId] || 0) + 1;
-    if (killerId === this.myId) this.me.stats.kills++;
+    if (killerId === this.myId) { this.me.stats.kills++; this.countMyKill(e); }
+    if (ENEMIES[e.type].puddle) this.hazards.push({ x: e.x, z: e.z, r: 1.6, t: 4, dmg: 4 * this.dmgScale() });
     else { const r = this.remotes.get(killerId); if (r) r.kills = (r.kills || 0) + 1; }
     const def = ENEMIES[e.type];
     this.events('kill', { x: e.x, z: e.z, type: e.type, elite: e.elite, boss: e.boss });
@@ -861,7 +1349,7 @@ export class RunSession {
       for (const e of [...this.enemies.values()]) {
         if (!e.boss && !e.dead && dist2(e.x, e.z, p.x, p.z) < 22 * 22) this.killEnemy(e, toId);
       }
-      this.fx.push({ kind: 'boom', x: p.x, z: p.z, r: 14, t: 0, life: 0.6, color: 0xfde047 });
+      this.pushFx({ kind: 'boom', x: p.x, z: p.z, r: 14, t: 0, life: 0.6, color: 0xfde047 });
     }
     if (toId === this.myId) this.applyPickup(p.kind);
     else this.send({ k: 'grant', kind: p.kind, to: toId, x: r1(p.x), z: r1(p.z) }, toId);
@@ -897,6 +1385,11 @@ export class RunSession {
         e.x += (e.tx - e.x) * k; e.z += (e.tz - e.z) * k;
       }
       e.flash = Math.max(0, (e.flash || 0) - dt);
+      if (e.wind > 0) {
+        e.wind -= dt;
+        const A = ENEMIES[e.type].atk;
+        if (e.wind <= 0 && A && A.kind !== 'dash' && A.kind !== 'lunge') this.enemyStrike(e, A);
+      }
       this.grid.add(e);
     }
     for (let i = this.enemyShots.length - 1; i >= 0; i--) {
@@ -928,7 +1421,10 @@ export class RunSession {
       if (s.orbit) {
         const r = this.remotes.get(s.owner);
         if (r) { const a = s.phase + s.age * 3.2; s.x = r.x + Math.cos(a) * s.orbit; s.z = r.z + Math.sin(a) * s.orbit; }
-      } else { s.x += s.vx * dt; s.z += s.vz * dt; }
+      } else if (s.w === 'sun_beam') {
+        const r = this.remotes.get(s.owner);
+        if (r) { s.x = r.x; s.z = r.z; }
+      } else if (!STATIC_SHOTS.has(s.w)) { s.x += s.vx * dt; s.z += s.vz * dt; }
     }
   }
 
@@ -953,7 +1449,7 @@ export class RunSession {
     this.ended = true;
     const players = [{ id: this.myId, username: this.username, kills: this.me.stats.kills, damage: Math.round(this.me.stats.damage), classKey: this.classKey }];
     for (const [id, r] of this.remotes) players.push({ id, username: r.username, kills: r.kills || 0, damage: Math.round(r.damage || 0), classKey: r.classKey });
-    this.endInfo = { reason, time: this.t, level: this.team.level, kills: this.team.kills, players };
+    this.endInfo = { reason, time: this.t, level: this.team.level, kills: this.team.kills, players, mode: this.mode, won: this.won, wave: this.trialWave, hpCapPct: this.hpCapPct };
     if (this.isHost && this.remotes.size) this.send({ k: 'end', info: this.endInfo });
     this.events('end', this.endInfo);
   }
@@ -969,7 +1465,7 @@ export class RunSession {
         this.send({
           k: 'me', x: r1(m.x), z: r1(m.z), dx: r1(m.dirX), dz: r1(m.dirZ), mv: m.moving ? 1 : 0,
           hp: Math.round(m.hp), mh: Math.round(m.maxHp), dead: m.dead ? 1 : 0, mag: r1(m.magnet),
-          cls: this.classKey, kills: m.stats.kills, dmg: Math.round(m.stats.damage), shots: this.outShots.slice(0, 40),
+          cls: this.classKey, lk: this.meta?.look || undefined, kills: m.stats.kills, dmg: Math.round(m.stats.damage), shots: this.outShots.slice(0, 40),
         });
       }
       this.outShots.length = 0;
@@ -992,12 +1488,13 @@ export class RunSession {
     const e = [];
     for (const en of this.enemies.values()) {
       if (en.dead) continue;
-      e.push(en.id, TYPE_IDS.indexOf(en.type), r1(en.x), r1(en.z), Math.max(0, Math.round((en.hp / en.maxHp) * 100)), (en.elite ? 1 : 0) | (en.boss ? 2 : 0) | (en.slowUntil > this.t ? 4 : 0), Math.round(en.maxHp));
+      e.push(en.id, TYPE_IDS.indexOf(en.type), r1(en.x), r1(en.z), Math.max(0, Math.round((en.hp / en.maxHp) * 100)), (en.elite ? 1 : 0) | (en.boss ? 2 : 0) | (en.slowUntil > this.t ? 4 : 0) | (en.wind > 0 ? 8 : 0) | (en.dashT > 0 ? 16 : 0) | (en.burnU > this.t ? 32 : 0) | (en.poisonU > this.t ? 64 : 0) | (en.bleedU > this.t ? 128 : 0) | (en.frzU > this.t ? 256 : 0), Math.round(en.maxHp));
     }
     const es = this.enemyShots.slice(0, 80).map((s) => [r1(s.x), r1(s.z), r1(s.vx), r1(s.vz), r1(s.life), Math.round(s.dmg)]);
     return {
       k: 'snap', t: r1(this.t), e, es, ga: this.gemAdds.slice(0, 300), gr: this.gemRems.slice(0, 400), pa: this.pkAdds, pr: this.pkRems,
       xp: this.team.xp, lv: this.team.level, kills: this.team.kills, kc: this.killCredit, nb: r1(this.nextBoss), ne: r1(this.nextElite),
+      hh: this.heart ? Math.round(this.heart.hp) : undefined, tw: this.trialWave,
     };
   }
 
@@ -1035,8 +1532,19 @@ export class RunSession {
       en.maxHp = maxHp;
       en.hp = (e[i + 4] / 100) * maxHp;
       en.slowUntil = flags & 4 ? this.t + 0.3 : 0;
+      // замах на хосте → у гостя свой таймер удара (урон себе считает гость)
+      const A = ENEMIES[type].atk;
+      if (flags & 8) { if (!en.windSeen && A) { en.windSeen = true; en.wind = A.wind * 0.85; en.windMax = A.wind; } }
+      else en.windSeen = false;
+      en.dashT = flags & 16 ? 0.1 : 0;
+      // видимые статусы от хоста (свои наложенные гость ведёт сам)
+      if (flags & 32) en.burnU = Math.max(en.burnU || 0, this.t + 0.3);
+      if (flags & 64) en.poisonU = Math.max(en.poisonU || 0, this.t + 0.3);
+      if (flags & 128) en.bleedU = Math.max(en.bleedU || 0, this.t + 0.3);
+      if (flags & 256) en.frzU = Math.max(en.frzU || 0, this.t + 0.3);
     }
     for (const [id, en] of this.enemies) {
+      if (!seen.has(id) && ENEMIES[en.type]?.puddle) this.hazards.push({ x: en.x, z: en.z, r: 1.6, t: 4, dmg: 4 * this.dmgScale() });
       if (!seen.has(id) && !en.dead) this.enemies.delete(id);
       else if (!seen.has(id) && en.dead) this.enemies.delete(id);
     }
@@ -1059,6 +1567,8 @@ export class RunSession {
     if (full) { this.seenLevel = Math.max(1, this.seenLevel); }
     this.team.level = s.lv;
     this.nextBoss = s.nb; this.nextElite = s.ne;
+    if (this.heart && s.hh != null) this.heart.hp = s.hh;
+    if (s.tw != null) this.trialWave = s.tw;
   }
 
   // Входящие сообщения комнаты (от сервера run_relay)
@@ -1074,7 +1584,7 @@ export class RunSession {
       }
       r.tx = d.x; r.tz = d.z; r.dirX = d.dx; r.dirZ = d.dz; r.moving = !!d.mv;
       if (r.x === undefined) { r.x = d.x; r.z = d.z; }
-      r.hp = d.hp; r.maxHp = d.mh; r.dead = !!d.dead; r.magnet = d.mag || 2.4; r.classKey = d.cls;
+      r.hp = d.hp; r.maxHp = d.mh; r.dead = !!d.dead; r.magnet = d.mag || 2.4; r.classKey = d.cls; r.look = d.lk || null;
       r.damage = d.dmg; r.age = 0; // убийства считает хост (killCredit)
       if (member) { r.username = member.username; r.color = member.color; }
       (d.shots || []).forEach((sh) => {
@@ -1087,12 +1597,19 @@ export class RunSession {
     }
     if (this.isHost) {
       if (d.k === 'hits') {
-        (d.h || []).forEach(([id, dmg, slow]) => {
+        (d.h || []).forEach(([id, dmg, slow, st, kx, kz]) => {
           const e = this.enemies.get(id);
           if (!e || e.dead) return;
           e.hp -= Math.min(dmg, 1e6);
           e.flash = 0.12;
           if (slow) { e.slowUntil = this.t + 1.6; e.slowK = slow / 100; }
+          if (st) {
+            if (st & ST_BIT.burn) e.burnU = this.t + STATUS.burn.dur;
+            if (st & ST_BIT.poison) e.poisonU = this.t + STATUS.poison.dur;
+            if (st & ST_BIT.bleed) e.bleedU = this.t + STATUS.bleed.dur;
+            if (st & ST_BIT.freeze) e.frzU = Math.max(e.frzU || 0, this.t + (e.boss ? 0.25 : STATUS.freeze.dur));
+          }
+          if (kx || kz) this.knock(e, Math.max(-5, Math.min(5, kx || 0)), Math.max(-5, Math.min(5, kz || 0)));
           if (e.hp <= 0) this.killEnemy(e, from);
         });
       } else if (d.k === 'pick') {
@@ -1114,7 +1631,7 @@ export class RunSession {
       else if (d.k === 'end') { this.ended = true; this.endInfo = d.info; this.events('end', d.info); }
     }
     if (d.k === 'grant' && d.to === this.myId) {
-      if (d.kind === 'bomb') this.fx.push({ kind: 'boom', x: d.x, z: d.z, r: 14, t: 0, life: 0.6, color: 0xfde047 });
+      if (d.kind === 'bomb') this.pushFx({ kind: 'boom', x: d.x, z: d.z, r: 14, t: 0, life: 0.6, color: 0xfde047 });
       this.applyPickup(d.kind);
     }
     if (d.k === 'revive' && d.target === this.myId && this.me.dead) {

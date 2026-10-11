@@ -7,9 +7,9 @@ import { esc } from './ui/overlay.js';
 import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
-  constructor(container, { onTouchFlower, onPickFlower, onOpenAdmin, onEnterRun, onLeaveRun } = {}) {
+  constructor(container, { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun } = {}) {
     this.container = container;
-    this.cb = { onTouchFlower, onPickFlower, onOpenAdmin, onEnterRun, onLeaveRun };
+    this.cb = { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun };
     this.currentTarget = null;
     this.cache = {};
     this.mount();
@@ -24,11 +24,10 @@ export class GameHUD {
       <div class="hud-card">
         <div class="hud-header">ДУША</div>
         <div class="hud-player-name" id="ghud-my-name">Странник</div>
-        <div class="hud-player-class" id="ghud-my-class">Душа [C]</div>
+        <div class="hud-player-class" id="ghud-my-class">Душа [T]</div>
         <div class="hud-bar-bg"><div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width:100%"></div></div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
         <div class="hud-row"><span>Навык:</span><b id="ghud-my-skill">—</b></div>
-        <button id="ghud-admin-btn" class="mc-hud-admin-btn" style="display:none">🛠️ Редактор карт [F2]</button>
       </div>
       <div class="hud-card">
         <div class="hud-header">РЫВОК [Space]</div>
@@ -47,12 +46,18 @@ export class GameHUD {
         <div class="hud-header">УПРАВЛЕНИЕ</div>
         <div class="hud-ctrl-item">Движение <span>WASD / стрелки</span></div>
         <div class="hud-ctrl-item">Рывок <span>Space / Shift</span></div>
-        <div class="hud-ctrl-item">Действие / портал <span>E / клик</span></div>
-        <div class="hud-ctrl-item">Навык класса (забег) <span>Q</span></div>
-        <div class="hud-ctrl-item">Улучшение <span>1 / 2 / 3</span></div>
-        <div class="hud-ctrl-item">Душа <span>C</span></div>
+        <div class="hud-ctrl-item">Атака (в мире) <span>ЛКМ (удерживать)</span></div>
+        <div class="hud-ctrl-item">Действие / портал <span>E / клик по объекту</span></div>
+        <div class="hud-ctrl-item">Навыки <span>Q / R / F</span></div>
+        <div class="hud-ctrl-item">Улучшение (забег) <span>1 / 2 / 3</span></div>
+        <div class="hud-ctrl-item">Задания <span>J</span></div>
+        <div class="hud-ctrl-item">Герой и таланты <span>T / C</span></div>
+        <div class="hud-ctrl-item">Навыки и Сияние <span>K</span></div>
+        <div class="hud-ctrl-item">Снаряжение <span>I</span></div>
+        <div class="hud-ctrl-item">Бестиарий <span>B</span></div>
         <div class="hud-ctrl-item">Чат <span>Enter</span></div>
         <div class="hud-ctrl-item">Зум <span>колесо / + −</span></div>
+        <div class="hud-ctrl-item">Автоатака (доступность) <span>V</span></div>
       </div>`;
     const right = document.createElement('div');
     right.className = 'game-hud-panel hud-right';
@@ -93,8 +98,6 @@ export class GameHUD {
     this.minimap = new Minimap(right.querySelector('#ghud-minimap-slot'));
     const $ = (id) => this.container.querySelector('#' + id);
     this.$ = $;
-    this.adminBtn = $('ghud-admin-btn');
-    this.adminBtn.onclick = () => this.cb.onOpenAdmin?.();
     this.touchBtn = $('ghud-flower-touch-btn');
     this.pickBtn = $('ghud-flower-pick-btn');
     this.touchBtn.onclick = () => { if (this.currentTarget) this.cb.onTouchFlower?.(this.currentTarget.id); };
@@ -121,7 +124,7 @@ export class GameHUD {
 
   update(d) {
     if (!this.left.offsetParent) return; // панели скрыты (не fullscreen / мобильный) — не тратим время
-    const { player, username, mode, run, ping = 0, online = 1, zoom = 0.5, isAdmin, roomCounts = {}, nearby = [], dash } = d;
+    const { player, username, mode, run, ping = 0, online = 1, zoom = 0.5, roomCounts = {}, nearby = [], dash } = d;
     const st = player.stats || {};
     const cls = CLASSES[st.classId];
     const rc = RUN_CLASSES[st.classId] || RUN_CLASSES.soul;
@@ -136,7 +139,6 @@ export class GameHUD {
     }
     const ab = ABILITIES[rc.ability];
     this.txt('ghud-my-skill', ab ? `${ab.icon} ${ab.name}` : '— (нужно тело)');
-    this.adminBtn.style.display = isAdmin ? '' : 'none';
     const dashReady = !dash || dash.cd <= 0;
     this.txt('ghud-dash-status', dashReady ? 'ГОТОВ' : `${dash.cd.toFixed(1)}с`);
     this.txt('ghud-dash-status', dashReady ? 'hud-ready' : 'hud-cd', 'className');
