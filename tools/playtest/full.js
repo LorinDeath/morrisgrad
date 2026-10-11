@@ -40,6 +40,7 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   // бой с Мошкарой на северном краю
   await walk(600, 240);
   await p.waitForTimeout(800);
+  const kills0 = await G(() => (window.__game.meta.account?.bestiary?.blade_fly?.kills || 0));
   ok('auto-attack is OFF by default (no hits without input)', await G(() => !window.__game.debug.aim().autoAttack));
   const mobPos = () => G(() => { const st = window.__game.state().player; const m = window.__game.debug.zone.nearestMob(st.x, st.y, 600); return m ? window.__game.debug.screenOf(m.x, m.y) : null; });
   if (kind === 'mobile') {
@@ -49,7 +50,7 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
     const cdp = await ctx.newCDPSession(p);
     const tp = [{ x: bb.x + bb.width / 2, y: bb.y + bb.height / 2, id: 7 }];
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tp });
-    for (let i = 0; i < 24; i++) { await p.waitForTimeout(400); if (await G(() => (window.__game.meta.account?.bestiary?.blade_fly?.kills || 0) > 0)) break; }
+    for (let i = 0; i < 24; i++) { await p.waitForTimeout(400); if (await G((k0) => (window.__game.meta.account?.bestiary?.blade_fly?.kills || 0) > k0, kills0)) break; }
     await shot('02-hub-fight');
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } else {
@@ -59,13 +60,13 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
     if (pt) { await p.mouse.move(pt.x, pt.y); await p.mouse.down(); }
     for (let i = 0; i < 24; i++) {
       await p.waitForTimeout(400);
-      if (i === 4) await shot('02-hub-fight');
-      if (await G(() => (window.__game.meta.account?.bestiary?.blade_fly?.kills || 0) > 0)) break;
+      if (i === 1) await shot('02-hub-fight');
+      if (await G((k0) => (window.__game.meta.account?.bestiary?.blade_fly?.kills || 0) > k0, kills0)) break;
       pt = await mobPos(); if (pt) await p.mouse.move(pt.x, pt.y);
     }
     await p.mouse.up();
   }
-  const best = await G(() => window.__game.meta.account?.bestiary?.blade_fly?.kills || 0);
+  const best = await G(() => window.__game.meta.account?.bestiary?.blade_fly?.kills || 0) - kills0;
   ok(`hub ${kind === 'mobile' ? '⚔ button (aim assist)' : 'mouse-click'} attack kills blade fly (server)`, best > 0, { kills: best });
   // Кьют: диалог
   await walk(780, 715);
