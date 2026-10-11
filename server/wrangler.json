@@ -14,7 +14,17 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["GameRoom"]
+      "new_sqlite_classes": [
+        "GameRoom"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "GAME_DB",
+      "database_name": "morrisgrad_db",
+      "database_id": "76aa36d3-74b2-4b1c-bdfb-88100666317c",
+      "migrations_dir": "migrations"
     }
   ]
 }
