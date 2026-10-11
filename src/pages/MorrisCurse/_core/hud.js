@@ -152,7 +152,7 @@ export class GameHUD {
     this.txt('ghud-coords', mode === 'run' && run ? `${run.me.x.toFixed(0)} м | ${run.me.z.toFixed(0)} м` : `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`);
 
     if (mode === 'run' && run) this.minimap.updateRun(run);
-    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: 1200, lastFaceDir: d.lastFaceDir, currentWorld: d.world });
+    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: d.world === 'arinar' ? 2400 : 1200, lastFaceDir: d.lastFaceDir, currentWorld: d.world });
 
     // цель
     const t = this.currentTarget;

@@ -6,6 +6,7 @@
 import { loadThree } from './engine/three-loader.js';
 import { Stage } from './engine/stage.js';
 import { toX, toZ, toPx, toPy } from './engine/geometry.js';
+import { worldSize } from '../../../../server/worlds/sizes.ts';
 import { initModelMode, preloadCharacterSheets, modelMode } from './engine/characters.js';
 import { loadPixAtlases } from './engine/pixSprites.js';
 import { MetaClient } from './meta/metaClient.js';
@@ -32,7 +33,7 @@ import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/port
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 
-const WORLD_SIZE = 1200;
+const WORLD_SIZE = 1200; // хаб; Аринар — 2400 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера
@@ -972,8 +973,9 @@ async function boot(canvasId, username, userId, api) {
     player.moving = Math.hypot(vx, vy) > 1;
     if (player.moving) {
       if (!dash.active) { const l = Math.hypot(mv.x, mv.y) || 1; player.dirX = mv.x / l; player.dirY = mv.y / l; }
-      const nx = Math.max(16, Math.min(WORLD_SIZE - 16, player.x + vx * dt));
-      const ny = Math.max(16, Math.min(WORLD_SIZE - 16, player.y + vy * dt));
+      const wsz = worldSize(world);
+      const nx = Math.max(16, Math.min(wsz - 16, player.x + vx * dt));
+      const ny = Math.max(16, Math.min(wsz - 16, player.y + vy * dt));
       if (!hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
       if (!hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
     }

@@ -10,7 +10,8 @@ export class WorldMapManager {
     this.currentWorld = 'hellfire';
     this.maps = {
       hellfire: HELLFIRE_MAP_TILES || [],
-      arinar: ARINAR_MAP_TILES || [],
+      // Аринар теперь 2400×2400 с биомами (terrain.js); старая 1200-раскладка тайлов не используется
+      arinar: [],
       sandbox: ARINAR_MAP_TILES || [],
     };
     this.solidGrid = new Set();
@@ -68,8 +69,7 @@ export class WorldMapManager {
     let solids = [];
     tiles.forEach((t) => {
       if (t.layer === 0) {
-        const k = kinds[t.tileId] ? t.tileId : 'other';
-        (floors[k] = floors[k] || []).push(t);
+        if (this.drawFloors) { const k = kinds[t.tileId] ? t.tileId : 'other'; (floors[k] = floors[k] || []).push(t); }
       } else if (t.layer === 1) objects.push(t);
       else if (t.layer === 2 || t.tileId === 'collision_box') solids.push(t);
     });
@@ -92,7 +92,7 @@ export class WorldMapManager {
     const cols = objects.filter((t) => t.tileId === 'column_rune');
     const walls = objects.filter((t) => t.tileId !== 'column_rune');
     const at = (t) => [toX(t.x * this.cellSize) + cs / 2, toZ(t.y * this.cellSize) + cs / 2];
-    if (cols.length) {
+    if (cols.length && showCollision) {
       const colIm = new THREE.InstancedMesh(new THREE.CylinderGeometry(cs * 0.3, cs * 0.36, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0x1b132e, flatShading: true, roughness: 0.6 }), cols.length);
       const runeIm = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.22, 0), new THREE.MeshBasicMaterial({ color: isHell ? 0xf472b6 : 0x67e8f9 }), cols.length);
       cols.forEach((t, i) => {
@@ -103,7 +103,7 @@ export class WorldMapManager {
       colIm.castShadow = true;
       group.add(colIm, runeIm);
     }
-    if (walls.length) {
+    if (walls.length && showCollision) {
       const wallIm = new THREE.InstancedMesh(new THREE.BoxGeometry(cs, 1, cs), new THREE.MeshStandardMaterial({ color: isHell ? 0x2a2133 : 0x26245a, emissive: isHell ? 0x1a0f24 : 0x1e1b4b, emissiveIntensity: 0.3, flatShading: true, roughness: 0.9 }), walls.length);
       walls.forEach((t, i) => {
         const [x, z] = at(t);
@@ -117,6 +117,8 @@ export class WorldMapManager {
       dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
     }
     // коллизии под объектами уже нарисованы самими объектами
+    // в игре руины/колонны рисуются пиксельными пропсами (terrain.js); 3D-коробки — только в режиме показа коллизий
+    if (!showCollision) return group;
     const objKeys = new Set(objects.map((t) => `${t.x}_${t.y}`));
     solids = solids.filter((t) => !objKeys.has(`${t.x}_${t.y}`));
     if (solids.length) {

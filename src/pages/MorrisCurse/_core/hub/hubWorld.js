@@ -1,11 +1,17 @@
 // Хаб (Мир Адского Пламени / Аринар) в 3D: тайлы карты, порталы, игроки сервера, Кейт, Дар, цветы.
 // Логика позиций — в пикселях сервера (0..1200), отрисовка — в метрах (1 м = 20 px).
 import { WorldMapManager } from '../worlds/worldMap.js';
-import { HellfireEnvironment } from '../worlds/hellfire.js';
-import { ArinarSpaceEnvironment } from '../worlds/arinarSpace.js';
+import { OpenWorldEnvironment } from '../worlds/openWorld.js';
 import { makePortal, makeFlower } from '../engine/models.js';
 import { createCharacter, kindFromClass } from '../engine/characters.js';
 import { toX, toZ } from '../engine/geometry.js';
+
+function disposeTree(o) {
+  o.traverse((c) => {
+    c.geometry?.dispose?.();
+    const m = c.material; (Array.isArray(m) ? m : m ? [m] : []).forEach((mm) => { mm.map?.dispose?.(); mm.dispose?.(); });
+  });
+}
 
 export class HubWorld {
   constructor(THREE, stage) {
@@ -14,7 +20,7 @@ export class HubWorld {
     this.root = new THREE.Group();
     this.root.name = 'hub';
     this.map = new WorldMapManager(32);
-    this.envs = { hellfire: new HellfireEnvironment(), arinar: new ArinarSpaceEnvironment() };
+    this.envs = { hellfire: new OpenWorldEnvironment('hellfire'), arinar: new OpenWorldEnvironment('arinar') };
     this.world = null;
     this.portalObjs = new Map();
     this.chars = new Map(); // key → {ch, kind}
@@ -38,7 +44,7 @@ export class HubWorld {
     if (w === this.world && !force) { this.setPortals(portals); return; }
     this.world = w;
     this.map.switchWorld(w);
-    if (this.envGroup) this.root.remove(this.envGroup);
+    if (this.envGroup) { this.root.remove(this.envGroup); disposeTree(this.envGroup); }
     this.env = this.envs[w === 'arinar' ? 'arinar' : 'hellfire'];
     this.envGroup = this.env.build(THREE);
     this.root.add(this.envGroup);

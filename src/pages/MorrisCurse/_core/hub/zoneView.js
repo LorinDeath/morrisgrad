@@ -1,7 +1,9 @@
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
 // одним батчем. Атака/навыки/сбор — запросы к серверу; урон, лут, респавн решает сервер.
-import { SpriteBatch } from '../engine/spriteBatch.js';
+import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
+import propsSrc from '../../../../assets/mc/props_atlas.png';
+import propsMeta from '../../../../assets/mc/props_atlas.json';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
@@ -11,6 +13,7 @@ import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { ProjFx } from '../engine/projFx.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
+const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
 const HIT_FOR = { spear: 'hit', daggers: 'hit_bleed', soul_spark: 'hit_ice', staff_bolt: 'hit_arcane', ab_backstab: 'hit_ice', thorn_bow: 'hit_bleed', war_axe: 'hit', fly_blades: 'hit_bleed', chain_bolt: 'hit_arcane' };
 const PX = 20;
 
@@ -49,64 +52,30 @@ export class ZoneView {
     this.seed = ZONE_GEN.seed;
     this.d = new THREE.Object3D();
     this.col = new THREE.Color();
-    this.nodeGeos = this.buildNodeGeos();
-    this.nodeMat = flatMat(THREE, { emissive: 0x221133, emissiveIntensity: 0.5 });
-  }
-
-  buildNodeGeos() {
-    const T = this.THREE;
-    return {
-      // гранатовое дерево
-      tree: mergeParts(T, [
-        { geo: new T.CylinderBufferGeometry(0.18, 0.28, 2.2, 6), color: 0x5b3a29, pos: [0, 1.1, 0] },
-        { geo: new T.IcosahedronBufferGeometry(1.3, 0), color: 0x2f6b3a, pos: [0, 2.7, 0] },
-        { geo: new T.IcosahedronBufferGeometry(0.85, 0), color: 0x3c8a4b, pos: [0.7, 2.3, 0.3] },
-        { geo: new T.SphereBufferGeometry(0.2, 6, 4), color: 0xbe123c, pos: [0.5, 2.2, 0.9] },
-        { geo: new T.SphereBufferGeometry(0.2, 6, 4), color: 0xbe123c, pos: [-0.7, 2.6, 0.6] },
-        { geo: new T.SphereBufferGeometry(0.2, 6, 4), color: 0xe11d48, pos: [0.1, 3.3, 0.8] },
-      ]),
-      // ночная фиалка
-      flower: mergeParts(T, [
-        { geo: new T.CylinderBufferGeometry(0.05, 0.05, 0.8, 4), color: 0x3f6212, pos: [0, 0.4, 0] },
-        { geo: new T.IcosahedronBufferGeometry(0.32, 0), color: 0x9333ea, pos: [0, 0.9, 0] },
-        { geo: new T.IcosahedronBufferGeometry(0.22, 0), color: 0xa855f7, pos: [0.35, 0.65, 0.1] },
-        { geo: new T.IcosahedronBufferGeometry(0.22, 0), color: 0xc084fc, pos: [-0.3, 0.7, -0.1] },
-        { geo: new T.ConeBufferGeometry(0.25, 0.4, 5), color: 0x4d7c0f, pos: [0, 0.2, 0] },
-      ]),
-      crystal: mergeParts(T, [
-        { geo: new T.OctahedronBufferGeometry(0.6, 0), color: 0xe2e8f0, pos: [0, 0.9, 0], scale: [0.7, 1.6, 0.7] },
-        { geo: new T.OctahedronBufferGeometry(0.4, 0), color: 0xc7d2fe, pos: [0.5, 0.5, 0.2], scale: [0.7, 1.3, 0.7] },
-        { geo: new T.DodecahedronBufferGeometry(0.5, 0), color: 0x475569, pos: [0, 0.2, 0], scale: [1.4, 0.5, 1.2] },
-      ]),
-      ore: mergeParts(T, [
-        { geo: new T.DodecahedronBufferGeometry(0.8, 0), color: 0x3f3f46, pos: [0, 0.5, 0], scale: [1.2, 0.8, 1] },
-        { geo: new T.OctahedronBufferGeometry(0.3, 0), color: 0x84cc16, pos: [0.3, 0.9, 0.3] },
-        { geo: new T.OctahedronBufferGeometry(0.25, 0), color: 0xa3e635, pos: [-0.4, 0.8, 0.1] },
-      ]),
-    };
+    // узлы ресурсов — пиксельные пропсы из props_atlas (тот же стиль, что земля и деревья)
+    this.nodeBatch = null;
+    const purl = typeof propsSrc === 'object' && propsSrc ? (propsSrc.src || propsSrc.default || '') : propsSrc;
+    loadAtlasTexture(THREE, purl).then((t) => {
+      const [cw, ch] = propsMeta.cell;
+      this.nodeBatch = new SpriteBatch(THREE, t, { cellW: cw, cellH: ch, cols: propsMeta.cols, rows: propsMeta.rows, max: 128 });
+      this.root.add(this.nodeBatch.mesh);
+    }).catch((e) => console.warn('[nodes]', e.message));
   }
 
   setWorld(world) {
     if (world === this.world) return;
     this.world = world;
     this.mobs.clear(); this.dying.length = 0; this.teles.length = 0;
-    for (const n of this.nodes.values()) this.root.remove(n.mesh);
     this.nodes.clear();
     if (world === 'arinar') this.buildNodes(this.seed);
   }
 
   // Узлы ресурсов — из того же сида, что и на сервере (server/meta/zoneGen.ts)
   buildNodes(seed) {
-    for (const n of this.nodes.values()) this.root.remove(n.mesh);
     this.nodes.clear();
     this.seed = seed;
     genNodes(seed).forEach((def, i) => {
-      const mesh = new this.THREE.Mesh(this.nodeGeos[def.type] || this.nodeGeos.ore, this.nodeMat);
-      mesh.position.set(toX(def.x), 0, toZ(def.y));
-      mesh.rotation.y = (i * 1.7) % 6.28;
-      mesh.castShadow = true;
-      this.root.add(mesh);
-      this.nodes.set(def.id, { def, ready: true, mesh, id: def.id });
+      this.nodes.set(def.id, { def, ready: true, id: def.id, flip: (i & 1) === 1 });
     });
   }
 
@@ -262,11 +231,17 @@ export class ZoneView {
       B.end();
     }
     // ресурсы: готовые — светятся и покачиваются
-    for (const n of this.nodes.values()) {
-      n.mesh.visible = true;
-      const s = n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.04 : 0.55;
-      n.mesh.scale.setScalar(s);
-      n.mesh.position.y = n.ready ? 0 : -0.1;
+    const NB = this.nodeBatch;
+    if (NB) {
+      NB.begin();
+      for (const n of this.nodes.values()) {
+        const e = propsMeta.index[NODE_PROP[n.def.type] || 'ore_node'];
+        if (!e) continue;
+        const h = (propsMeta.cell[1] / 10) * (n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.03 : 0.7);
+        const k = n.ready ? 1.15 + Math.sin(T * 2.4 + n.id) * 0.12 : 0.45;
+        NB.push(toX(n.def.x), 0, toZ(n.def.y), h, e[0], e[1], n.flip, k, k, k, 0, n.ready ? 1 : 0.7);
+      }
+      NB.end();
     }
     // телеграфы и эффекты
     const d = this.d;
