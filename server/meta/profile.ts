@@ -1,4 +1,5 @@
-// Серверный профиль «Проклятых» в SQLite Durable Object (ctx.storage.sql).
+// Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
+// Хранение — store.ts (D1 — источник истины, сквозная запись из DO; фолбэк — SQLite DO, схема ниже).
 // Таблицы (миграции идемпотентны, применяются при старте объекта):
 //   mc_schema(version)                         — версия схемы
 //   mc_accounts(pkey PK, data JSON, verified, updated_at)   — общий для аккаунта: сумка, материалы, звёзды, квесты…
@@ -13,12 +14,14 @@ import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 
 export const SCHEMA_VERSION = 1;
 
-export interface InvItem { uid: string; id: string }
+// uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number }
+export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
   quests: { active: Record<string, { p: number[] }>; done: string[] };
-  bestiary: Record<string, { seen: number; kills: number }>; flags: Record<string, boolean>; hero: string | null; nextUid: number;
+  bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
 }
 export interface Hero {
   lvl: number; xp: number; talents: Record<string, number>; abil: Record<string, { rad: number; silenced?: boolean }>;
@@ -27,66 +30,11 @@ export interface Hero {
 
 export function newAccount(): Account {
   return { v: 1, inv: [], res: {}, stars: { yellow: 0, red: 0, purple: 0, black: 0 }, starsBy: {}, creation: 0, soul: [],
-    quests: { active: { p1_swarm: { p: [0] } }, done: [] }, bestiary: {}, flags: {}, hero: null, nextUid: 1 };
+    quests: { active: { p1_swarm: { p: [0] } }, done: [] }, bestiary: {}, disc: { items: {}, feats: {} }, flags: {}, hero: null, nextUid: 1 };
 }
 export function newHero(cls: string): Hero {
   const legacy = LEGACY_ABILITY[cls];
   return { lvl: 1, xp: 0, talents: {}, abil: legacy ? { [legacy]: { rad: 0 } } : {}, loadout: legacy ? [legacy] : [], equip: {} };
-}
-
-export class ProfileStore {
-  sql: any;
-  accounts = new Map<string, Account>();
-  heroes = new Map<string, Hero>(); // `${pkey}|${hero}`
-  constructor(sql: any) {
-    this.sql = sql;
-    this.migrate();
-  }
-  migrate() {
-    if (!this.sql) return;
-    this.sql.exec("CREATE TABLE IF NOT EXISTS mc_schema (version INTEGER NOT NULL)");
-    const row = [...this.sql.exec("SELECT version FROM mc_schema LIMIT 1")][0] as any;
-    const cur = row ? Number(row.version) : 0;
-    if (cur < 1) {
-      this.sql.exec("CREATE TABLE IF NOT EXISTS mc_accounts (pkey TEXT PRIMARY KEY, data TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)");
-      this.sql.exec("CREATE TABLE IF NOT EXISTS mc_heroes (pkey TEXT NOT NULL, hero TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (pkey, hero))");
-      if (row) this.sql.exec("UPDATE mc_schema SET version = 1"); else this.sql.exec("INSERT INTO mc_schema (version) VALUES (1)");
-    }
-    // будущие миграции: if (cur < 2) { ALTER TABLE … } — только аддитивные изменения
-  }
-  account(pkey: string): Account {
-    let a = this.accounts.get(pkey);
-    if (a) return a;
-    const row = this.sql ? ([...this.sql.exec("SELECT data FROM mc_accounts WHERE pkey = ?", pkey)][0] as any) : null;
-    a = row ? { ...newAccount(), ...JSON.parse(row.data) } : newAccount();
-    this.accounts.set(pkey, a!);
-    return a!;
-  }
-  hero(pkey: string, cls: string): Hero {
-    const k = `${pkey}|${cls}`;
-    let h = this.heroes.get(k);
-    if (h) return h;
-    const row = this.sql ? ([...this.sql.exec("SELECT data FROM mc_heroes WHERE pkey = ? AND hero = ?", pkey, cls)][0] as any) : null;
-    h = row ? { ...newHero(cls), ...JSON.parse(row.data) } : newHero(cls);
-    this.heroes.set(k, h!);
-    return h!;
-  }
-  saveAccount(pkey: string, verified: boolean) {
-    const a = this.accounts.get(pkey);
-    if (!a || !this.sql) return;
-    this.sql.exec("INSERT INTO mc_accounts (pkey, data, verified, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(pkey) DO UPDATE SET data = excluded.data, verified = excluded.verified, updated_at = excluded.updated_at",
-      pkey, JSON.stringify(a), verified ? 1 : 0, Date.now());
-  }
-  saveHero(pkey: string, cls: string) {
-    const h = this.heroes.get(`${pkey}|${cls}`);
-    if (!h || !this.sql) return;
-    this.sql.exec("INSERT INTO mc_heroes (pkey, hero, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(pkey, hero) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
-      pkey, cls, JSON.stringify(h), Date.now());
-  }
-  evict(pkey: string) {
-    this.accounts.delete(pkey);
-    for (const cls of HERO_IDS) this.heroes.delete(`${pkey}|${cls}`);
-  }
 }
 
 // ---------------- вычисления ----------------
@@ -241,12 +189,58 @@ export function buySoulNode(a: Account, id: string): R {
   return { ok: true };
 }
 
-export function addItem(a: Account, id: string): InvItem | null {
+// Криптостойкий ГСЧ для бросков добычи (Math.random предсказуем)
+const RBUF = new Uint32Array(64); let rpos = 64;
+export function cryptoRand(): number {
+  if (rpos >= RBUF.length) { (globalThis.crypto as any).getRandomValues(RBUF); rpos = 0; }
+  return RBUF[rpos++] / 4294967296;
+}
+export const newUid = (): string => (globalThis.crypto as any).randomUUID();
+
+// Выдача экземпляра предмета — ТОЛЬКО сервером: id из пула, новый instance_id, источник, отметка открытия
+export function addItem(a: Account, id: string, src = "?"): InvItem | null {
   if (!ITEM_BY_ID[id]) return null;
   if (a.inv.length >= 120) return null; // сумка ограничена
-  const it = { uid: `i${a.nextUid++}`, id };
+  const it: InvItem = { uid: newUid(), id, at: Date.now(), src, n: 1 };
   a.inv.push(it);
+  noteItem(a, id, src, true);
+  const def = ITEM_BY_ID[id];
+  for (const k of Object.keys(def.stats || {})) noteFeature(a, `prop:${k}`);
+  if (def.grantsAbility) noteFeature(a, `ability:${def.grantsAbility}`);
   return it;
+}
+export function noteItem(a: Account, id: string, src: string, owned: boolean) {
+  if (!ITEM_BY_ID[id]) return;
+  a.disc = a.disc || { items: {}, feats: {} };
+  const d = a.disc.items[id];
+  if (!d) a.disc.items[id] = { st: owned ? "owned" : "seen", at: Date.now(), src, v: 0 };
+  else if (owned && d.st !== "owned") { d.st = "owned"; d.v = 0; }
+}
+export function noteFeature(a: Account, f: string) {
+  a.disc = a.disc || { items: {}, feats: {} };
+  if (!a.disc.feats[f]) a.disc.feats[f] = { at: Date.now(), v: 0 };
+}
+export function noteMob(a: Account, mob: string, kills = 0) {
+  const b = a.bestiary[mob];
+  if (!b) a.bestiary[mob] = { seen: 1, kills, at: Date.now(), v: 0 };
+  else b.kills = (b.kills || 0) + kills;
+}
+export function fixAccount(a: Account): Account {
+  a.disc = a.disc || { items: {}, feats: {} };
+  a.disc.items = a.disc.items || {}; a.disc.feats = a.disc.feats || {};
+  a.inv = (a.inv || []).filter((i) => ITEM_BY_ID[i.id]);
+  return a;
+}
+// Снять отметку «новое» (сообщение mark_seen): только свои экземпляры/открытия, пачкой
+export function markSeen(a: Account, m: { inv?: string[]; items?: string[]; mobs?: string[]; feats?: string[] }): number {
+  let n = 0;
+  const lim = (x: any) => (Array.isArray(x) ? x.slice(0, 200).filter((v) => typeof v === "string" && v.length <= 64) : []);
+  const inv = new Set(lim(m.inv));
+  for (const it of a.inv) if (inv.has(it.uid) && it.n) { it.n = 0; n++; }
+  for (const id of lim(m.items)) { const d = a.disc.items[id]; if (d && !d.v) { d.v = 1; n++; } }
+  for (const id of lim(m.mobs)) { const b = a.bestiary[id]; if (b && !b.v) { b.v = 1; n++; } }
+  for (const f of lim(m.feats)) { const d = a.disc.feats[f]; if (d && !d.v) { d.v = 1; n++; } }
+  return n;
 }
 export function addRes(a: Account, res: string, n: number) {
   if (!RESOURCES[res] || n <= 0) return;
@@ -284,12 +278,12 @@ export function craft(a: Account, rid: string): R & { item?: InvItem } {
   for (const [res, n] of Object.entries(r.cost)) if ((a.res[res] || 0) < n) return fail(`Не хватает: ${RESOURCES[res]?.name || res}`);
   if (a.inv.length >= 120) return fail("Сумка полна");
   for (const [res, n] of Object.entries(r.cost)) a.res[res] -= n;
-  const item = addItem(a, r.item)!;
+  const item = addItem(a, r.item, `craft:${r.id}`)!;
   return { ok: true, item };
 }
 
 // Бросок дропа «по трофеям монстра» — только на сервере
-export function rollMonsterLoot(monster: string, rng = Math.random): { items: string[]; res: Record<string, number> } {
+export function rollMonsterLoot(monster: string, rng = cryptoRand): { items: string[]; res: Record<string, number> } {
   const m = MONSTER_LOOT[monster];
   const out = { items: [] as string[], res: {} as Record<string, number> };
   if (!m) return out;
@@ -311,6 +305,7 @@ export function acceptQuest(a: Account, qid: string): R {
   const nActive = Object.keys(a.quests.active).length;
   if (nActive >= 8) return fail("Слишком много активных квестов");
   a.quests.active[qid] = { p: q.objectives.map(() => 0) };
+  noteFeature(a, `quest:${qid}`);
   return { ok: true };
 }
 export function objectiveTarget(o: any): number { return o.count || 1; }
@@ -370,7 +365,7 @@ export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewa
     a.stars[c] = (a.stars[c] || 0) + n;
     (a.starsBy[q.npc] = a.starsBy[q.npc] || {})[c] = (a.starsBy[q.npc]?.[c] || 0) + n;
   }
-  for (const id of q.rewards.items || []) { const it = addItem(a, id); if (it) got.items.push(it); }
+  for (const id of q.rewards.items || []) { const it = addItem(a, id, `quest:${qid}`); if (it) got.items.push(it); }
   for (const [r, n] of Object.entries(q.rewards.res || {})) addRes(a, r, n);
   if (q.rewards.flag) a.flags[q.rewards.flag] = true;
   // авто-принятие следующего авто-квеста (пролог)
@@ -383,7 +378,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    account: { inv: a.inv, res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags },
+    account: { inv: a.inv, res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h),

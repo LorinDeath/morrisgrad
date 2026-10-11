@@ -850,8 +850,8 @@ export class GameRoom extends DurableObject {
         if (msg.type === "move" && session && !session.inDuel) {
           let nx = Number(msg.x), ny = Number(msg.y);
           if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
-          // В открытом мире Аринара позиция влияет на бой/сбор — ограничиваем скорость перемещения
-          if ((session.world || "hellfire") === "arinar") {
+          // В открытых мирах (Аринар и Поляна с мобами) позиция влияет на бой/сбор — ограничиваем скорость перемещения
+          {
             const now = Date.now();
             const last = (session as any).lastMoveAt || now - 100;
             const maxStep = 60 + (now - last) * 0.7;

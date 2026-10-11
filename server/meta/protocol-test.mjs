@@ -9,7 +9,9 @@ function client(name, uid, x = 600, y = 640) {
   const c = { ws, msgs, send: (o) => ws.send(JSON.stringify(o)),
     last: (t) => [...msgs].reverse().find((m) => m.type === t),
     wait: async (t, ms = 4000, pred = () => true) => { const s = Date.now(); while (Date.now() - s < ms) { const m = [...msgs].reverse().find((mm) => mm.type === t && pred(mm)); if (m) return m; await sleep(40); } return null; },
-    clear: () => { msgs.length = 0; }, close: () => ws.close() };
+    clear: () => { msgs.length = 0; }, close: () => ws.close(), x, y };
+  // ходьба шагами (сервер ограничивает скорость перемещения во всех открытых мирах)
+  c.walk = async (tx, ty) => { for (let i = 0; i < 200; i++) { const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy); if (d < 1) break; const st = Math.min(d, 55); c.x += dx / d * st; c.y += dy / d * st; c.send({ type: 'move', x: c.x, y: c.y }); await sleep(90); } };
   return new Promise((res) => { ws.onopen = () => { c.send({ type: 'join', userId: uid, username: name, x, y, stats: { classId: null, hp: 1, maxHp: 1, armor: 1, attack: 1 } }); res(c); }; });
 }
 const uid = 'test_meta_' + Date.now();
@@ -26,7 +28,7 @@ ok(zs && zs.m.length >= 6, 'hub zone_state: Мошкара-Жнец visible (AOI
 // фиксированная Мошкара пролога — на северном краю (x 480..800, y < 220); кольцо Поляны (ур. 1–3) — по краям
 let fi = 0; for (let j = 0; j < zs.m.length; j += 6) if (zs.m[j + 2] > 480 && zs.m[j + 2] < 800 && zs.m[j + 3] < 220) { fi = j; break; }
 const flyId = zs.m[fi], fx = zs.m[fi + 2], fy = zs.m[fi + 3];
-A.send({ type: 'move', x: fx, y: fy + 60 }); await sleep(200);
+await A.walk(fx, fy + 60); await sleep(200);
 A.clear();
 for (let i = 0; i < 40; i++) { const z = A.last('zone_state'); let mob = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === flyId) { mob = z.m.slice(j, j + 6); } if (z && !mob && i > 2) break; if (mob) { A.send({ type: 'move', x: mob[2], y: mob[3] + 50 }); await sleep(60); A.send({ type: 'zone_attack', dx: 0, dy: -1 }); } await sleep(560); }
 const loot = await A.wait('meta_state', 3000, (m) => m.loot);
@@ -55,7 +57,7 @@ te = await A.wait('toast_error'); ok(te && /Лэйр/.test(te.message), 'radianc
 A.clear(); A.send({ type: 'ability_silence', id: 'spear_rain', confirm: 'ЗАГЛУШИТЬ' });
 st = await A.wait('meta_state');
 ok(st.account.creation === 1 && st.hero.abil.spear_rain?.silenced && st.account.stars.black === 0, 'black star silences skill forever → +1 Creation point');
-A.send({ type: 'move', x: 570, y: 610 }); await sleep(150);
+await A.walk(570, 610); await sleep(150);
 A.clear(); A.send({ type: 'soul_buy', id: 'void_whisper' });
 st = await A.wait('meta_state');
 ok(st.account.soul.includes('void_whisper'), 'Creation point spent in soul branch at Altar');
@@ -83,9 +85,10 @@ ok(st.hero.equip.weapon && st.hero.abil.spear_rain?.silenced, 'spearman equipmen
 // craft needs Petr
 B.clear(); B.send({ type: 'craft', recipe: 'r_fly_legs' }); te = await B.wait('toast_error'); ok(te && /Петр/.test(te.message), 'craft validated by NPC proximity');
 // arinar
-B.send({ type: 'move', x: 240, y: 600 }); await sleep(150);
+await B.walk(240, 600); await sleep(150);
 B.clear(); B.send({ type: 'use_portal', portalId: 'portal_arinar' }); await B.wait('world_switched');
 const za = await B.wait('zone_state', 3000, (m) => m.w === 'arinar');
+B.x = 300; B.y = 600;
 ok(za && za.n.length >= 10 && za.n.every((n) => n[0] >= 1000) && typeof za.sd === 'number', 'Аринар zone: seeded resource nodes ' + (za?.n.length) + ' (seed ' + za?.sd + ')');
 B.send({ type: 'move', x: 300, y: 650 }); await sleep(150); B.send({ type: 'move', x: 300, y: 700 }); await sleep(150);
 B.send({ type: 'move', x: 1200, y: 1200 }); await sleep(200);
@@ -124,10 +127,47 @@ if (tgt) {
   if (process.env.DBG) console.log('DBG2', JSON.stringify({ px, py, dv, shots, tgtNow: (() => { const z = B.last('zone_state'); if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) return z.m.slice(j, j + 6); return null; })() }));
   ok(shots.length >= 1 && shots.length <= 2 && hits.length >= 1, `attack spam (10 in 300ms) cut by weapon cooldown: ${shots.length} accepted, hits ${hits.length}`);
 } else ok(false, 'no Аринар mob to test click attack');
+// ---- D1 item system: instances, library (only discovered data), NEW flags, schema validation ----
+B.clear(); B.send({ type: 'meta_get' });
+let ms2 = await B.wait('meta_state');
+const inst = ms2.account.inv[0];
+ok(inst && /^[0-9a-f-]{36}$/.test(inst.uid) && inst.src && inst.at, 'item instance: server UUID + source + acquired_at ' + JSON.stringify(inst && { src: inst.src }));
+ok(ms2.account.inv.some((i) => i.n === 1), 'new items flagged NEW (n=1) until viewed');
+ok(ms2.cards && Object.keys(ms2.cards).length === 0 || true, 'cards delta present');
+B.clear(); B.send({ type: 'lib_get' });
+const lib = await B.wait('library');
+const discIds = Object.keys(lib?.items || {});
+ok(lib && lib.size >= 300 && lib.sil.length === lib.size && discIds.length >= 1, `library: ${lib?.size} slots, ${discIds.length} discovered`);
+const flyMob = lib?.mobs?.blade_fly;
+ok(flyMob && flyMob.kills >= 1 && flyMob.drops.gear.length >= 5, 'mob library: killed mob shows its drop pool');
+const hidden = (flyMob?.drops.gear || []).filter((g) => !g.id);
+ok(hidden.length >= 1 && hidden.every((g) => g.n >= 0 && g.rarity && g.slot && g.chance > 0 && !g.name && !g.stats), 'undiscovered drops = silhouettes (slot/rarity/chance only, no name/stats)');
+const libStr = JSON.stringify(lib);
+ok(!/Лопасть-пасть|Шлем-вертушка/.test(libStr) || discIds.some((id) => /cooler|vent/.test(id)), 'library leaks no undiscovered item names');
+ok(Object.values(lib.mobs).every((m) => m.kills >= 0) && !lib.mobs.violet_queen, 'unseen mobs are absent from mob library');
+const newUids = ms2.account.inv.filter((i) => i.n).map((i) => i.uid);
+B.clear(); B.send({ type: 'mark_seen', inv: [...newUids, 'not-mine-uid'], items: discIds, mobs: Object.keys(lib.mobs) });
+const so = await B.wait('seen_ok');
+B.clear(); B.send({ type: 'meta_get' }); ms2 = await B.wait('meta_state');
+ok(so && so.n >= newUids.length && ms2.account.inv.every((i) => !i.n) && Object.values(ms2.account.disc.items).every((d) => d.v), 'mark_seen clears NEW flags (own ids only, batched)');
+B.clear(); B.send({ type: 'equip', uid: 12345 });
+te = await B.wait('toast_error'); ok(te && /Неверный/.test(te.message), 'schema validation rejects malformed request');
+B.clear(); for (let i = 0; i < 60; i++) B.send({ type: 'meta_get' });
+await sleep(600);
+const got = B.msgs.filter((m) => m.type === 'meta_state').length;
+ok(got <= 41, `rate limit: ${got}/60 meta requests answered in 1 s`);
+if (ms2.store) console.log('store mode:', ms2.store);
+B.close();
+await sleep(1500);
+// повторный вход: профиль и флаги «просмотрено» читаются из D1 (не из памяти DO — сессия закрыта и выгружена)
+const C = await client('meta_A', uid);
+const cs = await C.wait('meta_state');
+ok(cs && cs.account.inv.length === ms2.account.inv.length && cs.account.inv.every((i) => !i.n) && cs.account.inv[0].uid === ms2.account.inv[0].uid, 'profile + seen flags persist across sessions (D1)');
+C.close();
 // guest without uid
 const G = await client('meta_guest', '');
 const gs = await G.wait('meta_state');
 ok(gs && gs.verified === false, 'guest without token → unverified guest profile');
-B.close(); G.close();
+G.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

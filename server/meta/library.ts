@@ -75,7 +75,18 @@ export function itemCard(id: string) {
 // Силуэт закрытого предмета: только слот и ярус (без id, имени, статов) — порядковый номер в пуле
 export function itemSilhouette(idx: number) {
   const it = ITEMS[idx];
-  return { n: idx, slot: it.slot, tier: Math.max(1, Math.min(5, Math.ceil((it.lvl || 1) / 5))) };
+  return { n: idx, slot: it.slot, rarity: it.rarity, tier: Math.max(1, Math.min(5, Math.ceil((it.lvl || 1) / 5))) };
 }
 export const LIBRARY_SIZE = ITEMS.length;
 export const ITEM_INDEX: Record<string, number> = Object.fromEntries(ITEMS.map((it, i) => [it.id, i]));
+
+// Пул дропа моба для Библиотеки мобов: открытые предметы — по id, закрытые — только номер силуэта, слот, редкость и шанс
+export function mobDropView(mob: string, known: (id: string) => boolean) {
+  const m = MONSTER_LOOT[mob];
+  if (!m) return null;
+  return {
+    gear: m.gear.map((g) => { const it = ITEM_BY_ID[g.item]; return known(g.item) ? { id: g.item, chance: g.chance } : { n: ITEM_INDEX[g.item], slot: it?.slot, rarity: it?.rarity, chance: g.chance }; }),
+    res: m.materials.map((r) => ({ res: r.res, chance: r.chance, qty: r.qty })),
+  };
+}
+export const SILHOUETTES = ITEMS.map((_, i) => { const s = itemSilhouette(i); return [s.slot, s.rarity, s.tier]; });

@@ -10,17 +10,46 @@ import { ZONE_GEN, genOf } from "./zoneGen";
 import { mobXp, xpLevelMult } from "./balance";
 import { QUESTS, QUEST_BY_ID } from "./quests";
 import {
-  ProfileStore, heroEffective, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
+  heroEffective, markSeen, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
 } from "./profile";
 import { Zone, type ZPlayer } from "./zone";
+import { ProfileStore } from "./store";
+import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
 
 export interface MetaSess {
   sid: string; pkey: string; verified: boolean; ready: boolean;
   zp: ZPlayer; lastAtk: number; gather: { node: number; at: number } | null; abilCd: Record<string, number>; wt?: string;
   run: { room: string; at: number; cls: string | null; maxMembers: number; usedAbility: boolean } | null;
   dirty: boolean; lastSave: number; lastHub: number;
+  cards: Set<string>; rl: { t: number; n: number; warned: number };
 }
+
+// Схема входящих мета-сообщений: тип → поля и их типы (лишние поля игнорируются, неверные — отказ)
+const S = (o: Record<string, "s" | "n" | "b" | "o" | "a" | "s?" | "n?" | "b?" | "o?" | "a?">) => o;
+const MSG_SCHEMA: Record<string, Record<string, string>> = {
+  meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
+  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
+  quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
+  zone_attack: S({}), zone_ability: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
+  mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
+};
+function validMsg(msg: any): boolean {
+  const sch = MSG_SCHEMA[msg.type];
+  if (!sch) return true; // не мета-сообщение — его разберёт GameRoom
+  for (const [k, t] of Object.entries(sch)) {
+    const v = msg[k], opt = t.endsWith("?"), b = t[0];
+    if (v === undefined || v === null) { if (opt) continue; return false; }
+    if (b === "s" && (typeof v !== "string" || v.length > 64)) return false;
+    if (b === "n" && (typeof v !== "number" || !Number.isFinite(v))) return false;
+    if (b === "b" && typeof v !== "boolean") return false;
+    if (b === "o" && (typeof v !== "object" || Array.isArray(v) || Object.keys(v).length > 200)) return false;
+    if (b === "a" && (!Array.isArray(v) || v.length > 200)) return false;
+  }
+  return true;
+}
+const MOB_TYPES = Object.keys(ZONE_MOBS);
+const RATE = { windowMs: 1000, max: 40 }; // мета-сообщений в секунду на сессию (атаки/движение сюда не входят)
 
 // Базовые статы героя для прогрессии (нормализованы из server/classes.ts, чтобы классы не расходились в разы)
 export function heroBase(cls: string | null) {
@@ -39,7 +68,8 @@ export class MetaService {
   env: any;
   zoneAcc = 0;
   constructor(sql: any, env: any) {
-    this.store = new ProfileStore(sql);
+    this.store = new ProfileStore(sql, env?.GAME_DB);
+    if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
   }
 
@@ -54,7 +84,13 @@ export class MetaService {
     // чтобы разные «Странники» не делили один профиль. Не подтверждён сервером, ценность низкая.
     const gid = typeof msg.guestId === "string" && /^[a-z0-9]{16,40}$/.test(msg.guestId) ? msg.guestId : `s${session.id}`;
     const pkey = uid ? `uid:${uid}` : `guest:${gid}`;
-    const ms: MetaSess = { sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
+    // профиль из D1 (источник истины) — до любых действий игрока
+    try { await this.store.load(pkey); } catch (e: any) {
+      console.error("[mc] profile load failed", e?.message || e);
+      this.send(ws, { type: "toast_error", message: "Профиль временно недоступен — попробуйте переподключиться" });
+      return;
+    }
+    const ms: MetaSess = { cards: new Set(), rl: { t: 0, n: 0, warned: 0 }, sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
       lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
     this.ms.set(session.id, ms);
     const a = this.store.account(pkey);
@@ -79,6 +115,11 @@ export class MetaService {
     s.available = QUESTS.filter((q) => questAvailable(a, q)).map((q) => q.id);
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
+    // карточки предметов сумки — только новые для этой сессии (клиент кэширует); статы из клиента не принимаются
+    const cards: Record<string, any> = {};
+    for (const it of a.inv) if (!ms.cards.has(it.id)) { ms.cards.add(it.id); cards[it.id] = itemCard(it.id); }
+    s.cards = cards;
+    s.store = this.store.mode;
     return s;
   }
 
@@ -149,6 +190,15 @@ export class MetaService {
   handle(ws: WebSocket, session: any, msg: any, ctx: { runMembers: (room: string) => any[]; broadcast: () => void }): boolean {
     const ms = this.ms.get(session?.id);
     if (!ms) return false;
+    if (MSG_SCHEMA[msg.type]) {
+      const now = Date.now();
+      if (now - ms.rl.t > RATE.windowMs) { ms.rl.t = now; ms.rl.n = 0; }
+      if (++ms.rl.n > RATE.max) {
+        if (now - ms.rl.warned > 10000) { ms.rl.warned = now; this.store.audit(ms.pkey, "reject", `rl:${ms.pkey}:${Math.floor(now / 10000)}`, { why: "rate", type: msg.type }); }
+        return true;
+      }
+      if (!validMsg(msg)) { this.send(ws, { type: "toast_error", message: "Неверный запрос" }); this.store.audit(ms.pkey, "reject", `schema:${ms.pkey}:${now}`, { why: "schema", type: msg.type }); return true; }
+    }
     const a = this.store.account(ms.pkey);
     const cls: string | null = session.stats?.classId || null;
     const h: Hero | null = cls ? this.store.hero(ms.pkey, cls) : null;
@@ -159,6 +209,13 @@ export class MetaService {
     const needHero = () => { if (!h || !cls) { this.send(ws, { type: "toast_error", message: "Сначала выберите героя на Алтаре перевоплощения" }); return false; } return true; };
     switch (msg.type) {
       case "meta_get": this.send(ws, { type: "meta_state", ...this.snap(session) }); return true;
+      case "lib_get": this.send(ws, { type: "library", ...this.library(a) }); return true;
+      case "mark_seen": {
+        const n = markSeen(a, msg);
+        if (n) { ms.dirty = true; this.store.saveAccount(ms.pkey, ms.verified); }
+        this.send(ws, { type: "seen_ok", n });
+        return true;
+      }
       case "talent_learn": if (!needHero()) return true; { const r = learnTalent(a, h!, cls!, String(msg.id)); if (r.ok) this.qev(a, session, { type: "talent" }); reply(r, "Талант изучен"); this.refreshZonePlayer(session); } return true;
       case "loadout_set": if (!needHero()) return true; reply(setLoadout(a, h!, cls!, msg.ids), "Раскладка сохранена"); return true;
       case "radiance_up": if (!needHero()) return true; reply(upgradeRadiance(a, h!, cls!, String(msg.id)), "Сияние усилено"); return true;
@@ -211,7 +268,7 @@ export class MetaService {
         this.refreshZonePlayer(session);
         return true;
       }
-      case "run_result": this.runResult(ws, session, msg, ctx); return true;
+      case "run_result": this.runResult(ws, session, msg, ctx).catch((e) => console.error("[mc] run_result", e?.message || e)); return true;
       case "zone_attack": this.zoneAttack(ws, session, msg); return true;
       case "zone_ability": this.zoneAbility(ws, session, msg); return true;
       case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
@@ -221,12 +278,29 @@ export class MetaService {
         if (this.env.MC_DEV_TRUST_USERID !== "1") return true;
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
-        if (msg.item) addItem(a, String(msg.item));
+        if (msg.item) addItem(a, String(msg.item), "grant:dev");
         if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
         this.push(ws, session); return true;
       }
     }
     return false;
+  }
+
+  // Библиотека предметов и мобов (вкладки Книги). Сервер присылает данные ТОЛЬКО открытых предметов;
+  // закрытые — силуэты (слот/редкость/ярус по номеру в пуле), без имени, статов, свойств и навыков.
+  library(a: Account) {
+    const items: Record<string, any> = {};
+    const owned: Record<string, { n: number; srcs: string[] }> = {};
+    for (const it of a.inv) { const o = (owned[it.id] = owned[it.id] || { n: 0, srcs: [] }); o.n++; if (it.src && !o.srcs.includes(it.src) && o.srcs.length < 6) o.srcs.push(it.src); }
+    for (const [id, d] of Object.entries(a.disc.items)) {
+      const c = itemCard(id);
+      if (c) items[id] = { ...c, n: ITEM_INDEX[id], st: d.st, isNew: !d.v, first: d.src, owned: owned[id]?.n || 0, ownedSrc: owned[id]?.srcs || [] };
+    }
+    const known = (id: string) => !!a.disc.items[id];
+    const mobs: Record<string, any> = {};
+    for (const [id, b] of Object.entries(a.bestiary)) mobs[id] = { kills: b.kills || 0, isNew: !b.v, drops: mobDropView(id, known) };
+    const feats = Object.fromEntries(Object.entries(a.disc.feats).map(([f, d]) => [f, { isNew: !d.v }]));
+    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats };
   }
 
   nearNpcOrAltar(session: any) {
@@ -270,7 +344,7 @@ export class MetaService {
   }
 
   // Награда за забег/мини-игру: ТОЛЬКО то, что посчитал сервер (см. REWARD_RULES в defs.ts)
-  runResult(ws: WebSocket, session: any, msg: any, ctx: { runMembers: (room: string) => any[] }) {
+  async runResult(ws: WebSocket, session: any, msg: any, ctx: { runMembers: (room: string) => any[] }) {
     const ms = this.ms.get(session.id)!;
     const run = ms.run;
     if (!run || !session.runRoom || run.room !== session.runRoom) { this.send(ws, { type: "toast_error", message: "Нет активного забега для награды" }); return; }
@@ -278,6 +352,13 @@ export class MetaService {
     const realSec = (now - run.at) / 1000;
     const time = Math.max(0, Math.min(Number(msg.time) || 0, realSec + 2));
     ms.run = { ...run, at: now, maxMembers: ctx.runMembers(run.room).length }; // одна награда на окно времени
+    // один итог на забег (run_id = игрок + комната + начало окна) — повтор отклоняет база (PRIMARY KEY)
+    const runId = `${ms.pkey}|${run.room}|${run.at}`;
+    const claimedKills: number = Object.values(msg.kills || {}).reduce((x: number, y: any) => x + Math.max(0, Math.floor(Number(y) || 0)), 0) as number;
+    const fresh = await this.store.recordRun(ms.pkey, { runId, room: run.room, startedAt: run.at, endedAt: now, serverTime: Math.round(realSec), kills: Math.min(claimedKills, 1e6), xp: 0,
+      flags: { claimedTime: Number(msg.time) || 0, cappedTime: Math.round(time), maxKills: Math.floor(time * REWARD_RULES.runMaxKillsPerSecond), claimedKills } });
+    if (!fresh) { this.store.audit(ms.pkey, "reject", `rundup:${runId}`, { why: "duplicate run_result" }); return; }
+    if (!this.ms.has(session.id)) return;
     const a = this.store.account(ms.pkey);
     const cls = session.stats?.classId || null;
     const h = cls ? this.store.hero(ms.pkey, cls) : null;
@@ -303,14 +384,14 @@ export class MetaService {
       for (const [type, n] of Object.entries(kills)) {
         const key = RUN_LOOT_KEY[type];
         if (!key || !MONSTER_LOOT[key]) continue;
-        a.bestiary[key] = { seen: 1, kills: (a.bestiary[key]?.kills || 0) + n };
-        for (let i = 0; i < n && rolls < REWARD_RULES.runMaxLootRolls; i++, rolls++) this.grantLoot(a, rollMonsterLoot(key), out);
+        noteMob(a, key, n);
+        for (let i = 0; i < n && rolls < REWARD_RULES.runMaxLootRolls; i++, rolls++) this.grantLoot(a, rollMonsterLoot(key), out, `run:${run.room}:${key}`);
       }
       const bosses = Math.min(Math.floor(time / 300), Math.max(0, Math.floor(Number(msg.bossKills) || 0)));
       const boss = RUN_BOSS_BY_ROOM[run.room] || "warden";
       for (let i = 0; i < bosses; i++) {
-        a.bestiary[boss] = { seen: 1, kills: (a.bestiary[boss]?.kills || 0) + 1 };
-        this.grantLoot(a, rollMonsterLoot(boss), out);
+        noteMob(a, boss, 1);
+        this.grantLoot(a, rollMonsterLoot(boss), out, `run:${run.room}:${boss}`);
         this.qev(a, session, { type: "kill_boss", mob: boss, usedAbility: true });
       }
       this.qev(a, session, { type: "run", room: run.room, time, cls, players });
@@ -324,11 +405,12 @@ export class MetaService {
       out.waves = waves;
     }
     if (h && out.xp) out.levelUps = gainXp(h, out.xp);
+    this.store.audit(ms.pkey, "run_reward", `run:${runId}`, { xp: out.xp, items: out.items.map((i: any) => i.id), res: out.res, time: out.time }, { qty: out.xp, source: `run:${run.room}` });
     this.push(ws, session, { reward: out });
   }
 
-  grantLoot(a: Account, loot: { items: string[]; res: Record<string, number> }, out: any) {
-    for (const id of loot.items) { const it = addItem(a, id); if (it) out.items.push(it); }
+  grantLoot(a: Account, loot: { items: string[]; res: Record<string, number> }, out: any, src = "?") {
+    for (const id of loot.items) { const it = addItem(a, id, src); if (it) { out.items.push(it); (out.cards = out.cards || {})[id] = itemCard(id); } }
     for (const [r, n] of Object.entries(loot.res)) { addRes(a, r, n); out.res[r] = (out.res[r] || 0) + n; }
   }
 
@@ -370,9 +452,9 @@ export class MetaService {
     if (!targets.length) return;
     const a = this.store.account(ms.pkey);
     targets.forEach((m, i) => {
-      if (!a.bestiary[m.type]) a.bestiary[m.type] = { seen: 1, kills: 0 };
-      const crit = Math.random() * 100 < eff.critPct;
-      const raw = eff.weaponMin + Math.random() * (eff.weaponMax - eff.weaponMin);
+      if (!a.bestiary[m.type]) { noteMob(a, m.type, 0); ms.dirty = true; }
+      const crit = cryptoRand() * 100 < eff.critPct;
+      const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
       const k = i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8);
       const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
       const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
@@ -417,7 +499,7 @@ export class MetaService {
     ms.gather = null;
     if (!n) { this.send(ws, { type: "toast_error", message: "Сбор прерван" }); return; }
     n.readyAt = Date.now() + n.respawn * 1000;
-    const qty = n.qty[0] + Math.floor(Math.random() * (n.qty[1] - n.qty[0] + 1));
+    const qty = n.qty[0] + Math.floor(cryptoRand() * (n.qty[1] - n.qty[0] + 1));
     const a = this.store.account(ms.pkey);
     addRes(a, n.res, qty);
     this.qev(a, session, { type: "gather", res: n.res, n: qty });
@@ -436,13 +518,14 @@ export class MetaService {
       const a = this.store.account(ms.pkey);
       const cls = session.stats?.classId || null;
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
-      a.bestiary[m.type] = { seen: 1, kills: (a.bestiary[m.type]?.kills || 0) + 1 };
+      noteMob(a, m.type, 1);
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
       const xp = Math.max(1, Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1) * xpLevelMult(d.lvl || 1, h?.lvl || 1)));
       const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite };
       if (h) out.levelUps = gainXp(h, xp);
-      this.grantLoot(a, rollMonsterLoot(m.type), out);
-      if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out); // элита: второй бросок добычи
+      const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
+      this.grantLoot(a, rollMonsterLoot(m.type), out, src);
+      if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out, src); // элита: второй бросок добычи
       this.qev(a, session, { type: "kill", mob: m.type, cls });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: m.type, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
@@ -500,6 +583,12 @@ export class MetaService {
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
         const st = zone.state(s.x, s.y, ev);
+        // Библиотека мобов: «встречен», когда моб оказался рядом (≈ на экране)
+        const acc = this.store.accounts.get(ms.pkey);
+        if (acc) for (let i = 0; i < st.m.length; i += 6) {
+          const type = MOB_TYPES[st.m[i + 1]];
+          if (type && !acc.bestiary[type] && Math.abs(st.m[i + 2] - s.x) < 420 && Math.abs(st.m[i + 3] - s.y) < 320) { noteMob(acc, type, 0); ms.dirty = true; }
+        }
         this.send(ws, { type: "zone_state", ...st, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
@@ -511,7 +600,7 @@ export class MetaService {
     this.save(session);
     this.ms.delete(session.id);
     // выгружаем кэш, если других сессий с этим ключом нет
-    if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.store.evict(ms.pkey);
+    if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.store.evict(ms.pkey, () => [...this.ms.values()].some((x) => x.pkey === ms.pkey)).catch((e) => console.error("[mc] evict", e?.message || e));
   }
 }
 
