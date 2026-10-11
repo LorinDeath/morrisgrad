@@ -45,6 +45,21 @@ import geometriaImg from '../assets/geometria.png';
                 </div>
             </div>
 
+            <div class="game-card crate-card"
+                 data-title="Ящик: 3D Кликер"
+                 data-desc="Деревянный ящик. Просто ящик. Кликай по нему — он подпрыгивает, сыплет щепками и считает каждое твоё касание. Никто не знает, что внутри, но говорят, на десятитысячном клике Алзор что-то услышит. Счёт сохраняется в браузере."
+                 data-game-url="/games/crate"
+                 data-changelog-url="/changelog-crate">
+                <span class="crate-badge">новое</span>
+                <img src="/crate-cover.png" alt="Ящик: 3D Кликер" class="game-icon" style="object-fit: cover;" />
+                <span class="game-title">Ящик</span>
+                <div class="platforms">
+                    <span class="platform-tag" style="background: rgba(176, 122, 68, 0.2); color: #e0a868; border: 1px solid rgba(176,122,68,0.45);">📦 3D Кликер</span>
+                    <span class="platform-tag" title="PC">🖥️ PC (Mac)</span>
+                    <span class="platform-tag" title="Mobile">📱 Android (iOS)</span>
+                </div>
+            </div>
+
             <div class="game-card sanctuary-card" 
                  data-title="Заповедный Лес: Тайны Древней Рощи" 
                  data-desc="Масштабная 3D игра на поиск предметов и медитативное исследование в живом стилизованном лесу! Исследуйте вековые сосны, цветущие поляны и древние каменные святилища. Находите 12 священных реликвий, управляйте временем суток (золотой полдень, закат, лунная ночь, рассветный туман), используйте светлячка-проводника и делайте снимки в дзен-фотостудии. Полная поддержка кэширования 3D-ресурсов для мгновенного входа!" 
@@ -230,6 +245,50 @@ import geometriaImg from '../assets/geometria.png';
         border-color: #e0b15a;
         object-fit: cover;
     }
+
+    /* Crate Clicker Card Style */
+    .crate-card {
+        border-color: #b07a44;
+        box-shadow: 0 0 18px rgba(176, 122, 68, 0.3);
+        background: linear-gradient(180deg, rgba(40, 24, 14, 0.95) 0%, rgba(14, 9, 7, 0.98) 100%);
+    }
+    .crate-card:hover {
+        border-color: #e0a868;
+        box-shadow: 0 0 30px #b07a44, 0 0 14px #ffd978;
+    }
+    .crate-card .game-title {
+        color: #e0a868;
+        text-shadow: 0 0 8px rgba(224, 168, 104, 0.6);
+    }
+    .crate-card:hover .game-icon {
+        border-color: #e0a868;
+        box-shadow: 0 0 20px #b07a44;
+    }
+    .crate-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 2;
+        background: #b07a44;
+        color: #fff8f2;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 4px 8px;
+        border-radius: 999px;
+        box-shadow: 0 0 12px rgba(176, 122, 68, 0.65);
+    }
+    .modal-content.crate-theme {
+        border-color: #e0a868;
+        background: linear-gradient(180deg, rgba(36, 22, 12, 0.97) 0%, rgba(12, 8, 6, 0.99) 100%);
+        box-shadow: 0 0 40px rgba(176, 122, 68, 0.35);
+    }
+    .modal-content.crate-theme #modal-title { color: #e0a868; }
+    .modal-content.crate-theme .start-btn { border-color: #e0a868; color: #e0a868; }
+    .modal-content.crate-theme .start-btn:hover { background: #e0a868; color: #000; box-shadow: 0 0 30px rgba(224, 168, 104, 0.7); }
+    .modal-content.crate-theme .changelog-link { color: #e0a868; border-color: #e0a868; }
+    .modal-content.crate-theme .modal-icon { border-color: #e0a868; object-fit: cover; }
 
     .game-card {
         display: flex;
@@ -742,25 +801,28 @@ import geometriaImg from '../assets/geometria.png';
 
                 // Apply Theme based on card class
                 if (card.classList.contains('dungeon-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
+                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
                     modalContent.classList.add('dungeon-theme');
                 } else if (card.classList.contains('sanctuary-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'cherta-theme');
+                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'cherta-theme');
                     modalContent.classList.add('sanctuary-theme');
                 } else if (card.classList.contains('ascetic-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'sanctuary-theme', 'cherta-theme');
+                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'sanctuary-theme', 'cherta-theme');
                     modalContent.classList.add('ascetic-theme');
                 } else if (card.classList.contains('geometry-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'sanctuary-theme', 'cherta-theme');
+                    modalContent.classList.remove('crate-theme', 'neon-theme', 'sanctuary-theme', 'cherta-theme');
                     modalContent.classList.add('geometry-theme');
                 } else if (card.classList.contains('neon-card') && modalContent) {
-                    modalContent.classList.remove('geometry-theme', 'sanctuary-theme', 'cherta-theme');
+                    modalContent.classList.remove('crate-theme', 'geometry-theme', 'sanctuary-theme', 'cherta-theme');
                     modalContent.classList.add('neon-theme');
                 } else if (card.classList.contains('cherta-card') && modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
+                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme');
                     modalContent.classList.add('cherta-theme');
+                } else if (card.classList.contains('crate-card') && modalContent) {
+                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme', 'dungeon-theme');
+                    modalContent.classList.add('crate-theme');
                 } else if (modalContent) {
-                    modalContent.classList.remove('neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme');
+                    modalContent.classList.remove('crate-theme', 'neon-theme', 'geometry-theme', 'ascetic-theme', 'sanctuary-theme', 'cherta-theme');
                 }
 
                 modal.classList.add('active');

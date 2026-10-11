@@ -1,0 +1,522 @@
+---
+// CrateClickerGame.astro — 3D лоу-поли кликер «Ящик».
+// Three.js r128 берётся глобально из /js/three.min.js (подключается на странице игры).
+---
+
+<div id="crate-wrapper" class="crate-container">
+  <canvas id="crate-canvas" aria-label="3D ящик — кликай!"></canvas>
+
+  <div class="crate-hud">
+    <div class="crate-counter-label">Кликов по ящику</div>
+    <div id="crate-counter" class="crate-counter">0</div>
+    <div id="crate-cps" class="crate-cps">0 кл/сек</div>
+  </div>
+
+  <div id="crate-floaters" class="crate-floaters" aria-hidden="true"></div>
+
+  <div id="crate-milestone" class="crate-milestone" aria-live="polite"></div>
+
+  <div class="crate-hint" id="crate-hint">Тыкай по ящику 👆</div>
+
+  <button type="button" id="crate-reset" class="crate-reset" title="Сбросить счётчик">Сбросить</button>
+</div>
+
+<style is:global>
+  .crate-container {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 40%, #2a1622 0%, #120a10 55%, #07050a 100%);
+    font-family: 'Cinzel', system-ui, -apple-system, sans-serif;
+    color: #f3e8e0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #crate-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: pointer;
+  }
+  .crate-hud {
+    position: absolute;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .crate-counter-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #c9a86c;
+    opacity: 0.85;
+  }
+  .crate-counter {
+    font-size: clamp(2.6rem, 9vw, 4.6rem);
+    font-weight: 900;
+    line-height: 1.05;
+    color: #ffd978;
+    text-shadow: 0 0 18px rgba(201, 168, 108, 0.55), 0 3px 0 #3b1a10;
+    transition: transform 0.08s ease-out;
+  }
+  .crate-counter.bump { transform: scale(1.12); }
+  .crate-cps {
+    font-size: 0.85rem;
+    color: #a89a92;
+    margin-top: 2px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .crate-floaters {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .crate-floater {
+    position: absolute;
+    font-weight: 900;
+    font-size: 1.6rem;
+    color: #ffd978;
+    text-shadow: 0 0 10px rgba(255, 200, 90, 0.8), 0 2px 0 #3b1a10;
+    transform: translate(-50%, -50%);
+    animation: crate-float 0.9s ease-out forwards;
+    will-change: transform, opacity;
+  }
+  @keyframes crate-float {
+    0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+    15%  { opacity: 1; transform: translate(-50%, -70%) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -220%) scale(1); }
+  }
+  .crate-milestone {
+    position: absolute;
+    left: 50%;
+    bottom: 22%;
+    transform: translateX(-50%);
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(26, 10, 18, 0.85);
+    border: 1px solid rgba(201, 168, 108, 0.5);
+    color: #ffd978;
+    font-size: 0.95rem;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 4;
+  }
+  .crate-milestone.show { opacity: 1; }
+  .crate-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 9%;
+    transform: translateX(-50%);
+    font-size: 0.95rem;
+    color: #c9a86c;
+    opacity: 0.8;
+    pointer-events: none;
+    animation: crate-hint-pulse 2s ease-in-out infinite;
+    transition: opacity 0.5s;
+    z-index: 3;
+  }
+  .crate-hint.hidden { opacity: 0; animation: none; }
+  @keyframes crate-hint-pulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 0.95; }
+  }
+  .crate-reset {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    z-index: 5;
+    font: 600 0.75rem system-ui, -apple-system, sans-serif;
+    color: #a89a92;
+    background: rgba(16, 12, 13, 0.7);
+    border: 1px solid rgba(201, 168, 108, 0.25);
+    border-radius: 14px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .crate-reset:hover { color: #ffd978; border-color: #c9a86c; }
+</style>
+
+<script is:inline>
+(function () {
+  var STORAGE_KEY = 'morrisgrad-crate-clicks';
+  var MILESTONES = {
+    10: 'Ящик что-то почувствовал…',
+    50: 'Ящик начинает тебя узнавать',
+    100: '100! Ящик впечатлён 📦',
+    250: 'Алзор слышит стук…',
+    500: '500 — пальцы из стали',
+    1000: '1000! Легенда Моррис Града 🏆',
+    5000: '5000. Ящик стал твоим другом',
+    10000: '10 000. Остановись. Или нет.'
+  };
+
+  function waitForThree(cb) {
+    if (window.THREE) return cb(window.THREE);
+    setTimeout(function () { waitForThree(cb); }, 40);
+  }
+
+  function init(THREE) {
+    var wrapper = document.getElementById('crate-wrapper');
+    if (!wrapper || wrapper.dataset.initialized === 'true') return;
+    wrapper.dataset.initialized = 'true';
+
+    var canvas = document.getElementById('crate-canvas');
+    var counterEl = document.getElementById('crate-counter');
+    var cpsEl = document.getElementById('crate-cps');
+    var floaters = document.getElementById('crate-floaters');
+    var milestoneEl = document.getElementById('crate-milestone');
+    var hintEl = document.getElementById('crate-hint');
+    var resetBtn = document.getElementById('crate-reset');
+
+    // ---------- Сохранение ----------
+    var clicks = 0;
+    try { clicks = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0; } catch (e) {}
+    function save() { try { localStorage.setItem(STORAGE_KEY, String(clicks)); } catch (e) {} }
+    function fmt(n) { return n.toLocaleString('ru-RU'); }
+    counterEl.textContent = fmt(clicks);
+    if (clicks > 0) hintEl.classList.add('hidden');
+
+    // ---------- Рендерер / сцена ----------
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+    camera.position.set(0, 2.3, 6.2);
+    camera.lookAt(0, 0.55, 0);
+
+    scene.add(new THREE.HemisphereLight(0xffe2c4, 0x2a1020, 0.5));
+    var sun = new THREE.DirectionalLight(0xffd7a0, 1.05);
+    sun.position.set(3.5, 6, 4);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -3; sun.shadow.camera.right = 3;
+    sun.shadow.camera.top = 3; sun.shadow.camera.bottom = -3;
+    sun.shadow.radius = 4;
+    scene.add(sun);
+    var rim = new THREE.DirectionalLight(0xc084fc, 0.55);
+    rim.position.set(-4, 2.5, -3);
+    scene.add(rim);
+
+    // Пол — низкополигональный диск, края растворяются в фоне
+    var gc = document.createElement('canvas');
+    gc.width = gc.height = 256;
+    var gctx = gc.getContext('2d');
+    var gg = gctx.createRadialGradient(128, 128, 20, 128, 128, 128);
+    gg.addColorStop(0, '#ffffff');
+    gg.addColorStop(0.5, '#d0d0d0');
+    gg.addColorStop(1, '#000000');
+    gctx.fillStyle = '#000000';
+    gctx.fillRect(0, 0, 256, 256);
+    gctx.fillStyle = gg;
+    gctx.fillRect(0, 0, 256, 256);
+    var ground = new THREE.Mesh(
+      new THREE.CircleGeometry(3.4, 10),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x3a2028).convertSRGBToLinear(), roughness: 1, flatShading: true,
+        alphaMap: new THREE.CanvasTexture(gc), transparent: true, depthWrite: false
+      })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ---------- Процедурная текстура дерева ----------
+    function rand(seed) {
+      var s = seed;
+      return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    }
+    function makeWoodTexture() {
+      var S = 512, c = document.createElement('canvas');
+      c.width = c.height = S;
+      var g = c.getContext('2d');
+      var r = rand(1337);
+
+      // Доски (горизонтальные)
+      var planks = 5, ph = S / planks;
+      for (var i = 0; i < planks; i++) {
+        var base = 150 + Math.floor(r() * 30);
+        g.fillStyle = 'rgb(' + base + ',' + Math.floor(base * 0.62) + ',' + Math.floor(base * 0.32) + ')';
+        g.fillRect(0, i * ph, S, ph);
+        // Волокна
+        for (var k = 0; k < 38; k++) {
+          var y = i * ph + r() * ph;
+          g.strokeStyle = 'rgba(70,35,12,' + (0.08 + r() * 0.18) + ')';
+          g.lineWidth = 0.6 + r() * 1.8;
+          g.beginPath();
+          g.moveTo(0, y);
+          for (var x = 0; x <= S; x += 32) g.lineTo(x, y + Math.sin(x * 0.02 + k) * (1 + r() * 2.5));
+          g.stroke();
+        }
+        // Сучок
+        if (r() > 0.4) {
+          var kx = 60 + r() * (S - 120), ky = i * ph + ph * (0.3 + r() * 0.4);
+          var grd = g.createRadialGradient(kx, ky, 1, kx, ky, 12);
+          grd.addColorStop(0, 'rgba(60,28,8,0.9)'); grd.addColorStop(1, 'rgba(60,28,8,0)');
+          g.fillStyle = grd;
+          g.beginPath(); g.ellipse(kx, ky, 16, 7, 0, 0, Math.PI * 2); g.fill();
+        }
+        // Щель между досками
+        g.fillStyle = 'rgba(30,14,6,0.85)';
+        g.fillRect(0, i * ph, S, 3);
+      }
+
+      // Рама + диагональ (тёмные доски поверх)
+      function plankRect(x, y, w, h) {
+        g.fillStyle = '#7a4a22'; g.fillRect(x, y, w, h);
+        g.strokeStyle = 'rgba(40,18,6,0.35)'; g.lineWidth = 1;
+        for (var q = 0; q < 10; q++) {
+          g.beginPath();
+          if (w > h) { var yy = y + r() * h; g.moveTo(x, yy); g.lineTo(x + w, yy + (r() - 0.5) * 3); }
+          else { var xx = x + r() * w; g.moveTo(xx, y); g.lineTo(xx + (r() - 0.5) * 3, y + h); }
+          g.stroke();
+        }
+        g.strokeStyle = 'rgba(25,10,4,0.9)'; g.lineWidth = 3; g.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+      }
+      var F = 62;
+      g.save();
+      g.translate(S / 2, S / 2); g.rotate(-Math.PI / 4);
+      var diag = S * 1.25;
+      g.fillStyle = '#7a4a22'; g.fillRect(-diag / 2, -F / 2.4, diag, F / 1.2);
+      g.strokeStyle = 'rgba(25,10,4,0.9)'; g.lineWidth = 3; g.strokeRect(-diag / 2, -F / 2.4, diag, F / 1.2);
+      g.restore();
+      plankRect(0, 0, S, F); plankRect(0, S - F, S, F);
+      plankRect(0, 0, F, S); plankRect(S - F, 0, F, S);
+
+      // Гвозди
+      g.fillStyle = '#2a2a2e';
+      [[F / 2, F / 2], [S - F / 2, F / 2], [F / 2, S - F / 2], [S - F / 2, S - F / 2],
+       [S / 2, F / 2], [S / 2, S - F / 2], [F / 2, S / 2], [S - F / 2, S / 2]].forEach(function (p) {
+        g.beginPath(); g.arc(p[0], p[1], 5, 0, Math.PI * 2); g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.35)';
+        g.beginPath(); g.arc(p[0] - 1.5, p[1] - 1.5, 1.6, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#2a2a2e';
+      });
+
+      // Лёгкая потёртость
+      for (var n = 0; n < 1600; n++) {
+        g.fillStyle = 'rgba(0,0,0,' + r() * 0.07 + ')';
+        g.fillRect(r() * S, r() * S, 2, 2);
+      }
+      var tex = new THREE.CanvasTexture(c);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return tex;
+    }
+
+    // ---------- Ящик ----------
+    var woodTex = makeWoodTexture();
+    var crateMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85, metalness: 0.0, flatShading: true });
+    var crateGroup = new THREE.Group();     // вращение
+    var crateSquash = new THREE.Group();    // сплющивание (pivot у основания)
+    var crate = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), crateMat);
+    crate.position.y = 0.7;
+    crate.castShadow = true;
+    crate.receiveShadow = true;
+    crateSquash.add(crate);
+    crateGroup.add(crateSquash);
+    scene.add(crateGroup);
+    crateGroup.rotation.y = 0.6;
+
+    // ---------- Частицы: щепки ----------
+    var chipGeo = new THREE.BoxGeometry(0.09, 0.05, 0.16);
+    var chipMats = [0x8a5a2e, 0x6a3e1c, 0xb07a44].map(function (col) {
+      return new THREE.MeshStandardMaterial({ color: new THREE.Color(col).convertSRGBToLinear(), roughness: 1, flatShading: true, transparent: true });
+    });
+    var chips = [];
+    function spawnChips(point, count) {
+      for (var i = 0; i < count; i++) {
+        var m = new THREE.Mesh(chipGeo, chipMats[i % chipMats.length].clone());
+        m.position.copy(point);
+        var a = Math.random() * Math.PI * 2;
+        var sp = 1.6 + Math.random() * 2.2;
+        m.userData = {
+          v: new THREE.Vector3(Math.cos(a) * sp * 0.6, 2.2 + Math.random() * 2.4, Math.sin(a) * sp * 0.6),
+          w: new THREE.Vector3(Math.random() * 12, Math.random() * 12, Math.random() * 12),
+          life: 0.9 + Math.random() * 0.4, age: 0
+        };
+        m.castShadow = true;
+        scene.add(m);
+        chips.push(m);
+      }
+      if (chips.length > 160) {
+        chips.splice(0, chips.length - 160).forEach(function (old) { scene.remove(old); old.material.dispose(); });
+      }
+    }
+
+    // ---------- Звук (короткий деревянный «тук») ----------
+    var audioCtx = null;
+    function hasActivation() {
+      return !navigator.userActivation || navigator.userActivation.hasBeenActive;
+    }
+    // На мобильных жест засчитывается только на pointerup/touchend — там и «будим» звук
+    function unlockAudio() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+      } catch (e) {}
+    }
+    canvas.addEventListener('pointerup', unlockAudio);
+    canvas.addEventListener('touchend', unlockAudio, { passive: true });
+    function knock() {
+      try {
+        if (!audioCtx) { if (!hasActivation()) return; unlockAudio(); }
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        var t = audioCtx.currentTime;
+        var o = audioCtx.createOscillator(), gn = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(220 + Math.random() * 60, t);
+        o.frequency.exponentialRampToValueAtTime(90, t + 0.09);
+        gn.gain.setValueAtTime(0.22, t);
+        gn.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        o.connect(gn); gn.connect(audioCtx.destination);
+        o.start(t); o.stop(t + 0.13);
+      } catch (e) {}
+    }
+
+    // ---------- Клик ----------
+    var raycaster = new THREE.Raycaster();
+    var ndc = new THREE.Vector2();
+    var squashVel = 0, squash = 0;   // пружина
+    var spinBoost = 0;
+    var recent = [];
+    var milestoneTimer = null;
+
+    function onHit(clientX, clientY, point) {
+      clicks++;
+      save();
+      counterEl.textContent = fmt(clicks);
+      counterEl.classList.add('bump');
+      setTimeout(function () { counterEl.classList.remove('bump'); }, 80);
+      hintEl.classList.add('hidden');
+
+      squashVel -= 7.5;
+      spinBoost += 2.2;
+      spawnChips(point, 7);
+      knock();
+      if (navigator.vibrate && hasActivation()) { try { navigator.vibrate(8); } catch (e) {} }
+
+      var rect = wrapper.getBoundingClientRect();
+      var f = document.createElement('div');
+      f.className = 'crate-floater';
+      f.textContent = '+1';
+      f.style.left = (clientX - rect.left + (Math.random() - 0.5) * 30) + 'px';
+      f.style.top = (clientY - rect.top) + 'px';
+      floaters.appendChild(f);
+      setTimeout(function () { f.remove(); }, 950);
+
+      recent.push(performance.now());
+
+      if (MILESTONES[clicks]) {
+        milestoneEl.textContent = MILESTONES[clicks];
+        milestoneEl.classList.add('show');
+        clearTimeout(milestoneTimer);
+        milestoneTimer = setTimeout(function () { milestoneEl.classList.remove('show'); }, 2400);
+      }
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      var rect = canvas.getBoundingClientRect();
+      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      var hits = raycaster.intersectObject(crate, false);
+      if (hits.length) {
+        e.preventDefault();
+        onHit(e.clientX, e.clientY, hits[0].point);
+      }
+    });
+    // Наведение — курсор-рука только над ящиком
+    canvas.addEventListener('pointermove', function (e) {
+      if (e.pointerType !== 'mouse') return;
+      var rect = canvas.getBoundingClientRect();
+      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      canvas.style.cursor = raycaster.intersectObject(crate, false).length ? 'pointer' : 'default';
+    });
+
+    resetBtn.addEventListener('click', function () {
+      if (!confirm('Сбросить счётчик кликов?')) return;
+      clicks = 0; save();
+      counterEl.textContent = '0';
+      hintEl.classList.remove('hidden');
+    });
+
+    // ---------- Ресайз ----------
+    function resize() {
+      var w = wrapper.clientWidth, h = wrapper.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      // На узких экранах отодвигаем камеру, чтобы ящик влезал
+      camera.position.z = w / h < 0.75 ? 8.4 : 6.2;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ---------- Цикл ----------
+    var clock = new THREE.Clock();
+    var time = 0;
+    var gravity = -9.8;
+    function tick() {
+      if (!document.body.contains(canvas)) return; // страница сменилась
+      var dt = Math.min(clock.getDelta(), 0.05);
+      time += dt;
+
+      // Пружина сплющивания: squash → 0
+      squashVel += (-squash * 260 - squashVel * 14) * dt;
+      squash += squashVel * dt;
+      var sy = 1 + Math.max(-0.35, Math.min(0.35, squash * 0.12));
+      var sxz = 1 / Math.sqrt(sy);
+      crateSquash.scale.set(sxz, sy, sxz);
+
+      // Покачивание и вращение
+      spinBoost *= Math.pow(0.04, dt);
+      crateGroup.rotation.y += (0.35 + spinBoost) * dt;
+      crateGroup.position.y = 0.06 + Math.sin(time * 1.6) * 0.05;
+      crateGroup.rotation.z = Math.sin(time * 1.1) * 0.03;
+
+      // Щепки
+      for (var i = chips.length - 1; i >= 0; i--) {
+        var c = chips[i], d = c.userData;
+        d.age += dt;
+        d.v.y += gravity * dt;
+        c.position.addScaledVector(d.v, dt);
+        if (c.position.y < 0.03) { c.position.y = 0.03; d.v.y *= -0.3; d.v.x *= 0.6; d.v.z *= 0.6; }
+        c.rotation.x += d.w.x * dt; c.rotation.y += d.w.y * dt; c.rotation.z += d.w.z * dt;
+        c.material.opacity = Math.max(0, 1 - d.age / d.life);
+        if (d.age >= d.life) { scene.remove(c); c.material.dispose(); chips.splice(i, 1); }
+      }
+
+      // Клики в секунду (за последние 2 сек)
+      var now = performance.now();
+      while (recent.length && now - recent[0] > 2000) recent.shift();
+      cpsEl.textContent = (recent.length / 2).toFixed(1).replace('.', ',') + ' кл/сек';
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function boot() { waitForThree(init); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  document.addEventListener('astro:page-load', boot);
+})();
+</script>
