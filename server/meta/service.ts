@@ -4,7 +4,7 @@ import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
   HERO_IDS, ITEM_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
-  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType,
+  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType, RECIPES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { mobXp, xpLevelMult } from "./balance";
@@ -22,7 +22,7 @@ export interface MetaSess {
   zp: ZPlayer; lastAtk: number; gather: { node: number; at: number } | null; abilCd: Record<string, number>; wt?: string;
   run: { room: string; at: number; cls: string | null; maxMembers: number; usedAbility: boolean } | null;
   dirty: boolean; lastSave: number; lastHub: number;
-  cards: Set<string>; rl: { t: number; n: number; warned: number };
+  cards: Set<string>; sentRecipes?: boolean; rl: { t: number; n: number; warned: number };
 }
 
 // Схема входящих мета-сообщений: тип → поля и их типы (лишние поля игнорируются, неверные — отказ)
@@ -117,7 +117,12 @@ export class MetaService {
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
     // карточки предметов сумки — только новые для этой сессии (клиент кэширует); статы из клиента не принимаются
     const cards: Record<string, any> = {};
-    for (const it of a.inv) if (!ms.cards.has(it.id)) { ms.cards.add(it.id); cards[it.id] = itemCard(it.id); }
+    const want = new Set<string>(a.inv.map((it) => it.id));
+    // рецепты Петра и предметы-награды текущих/доступных заданий — показываются в Книге, значит нужны их карточки
+    if (!ms.sentRecipes) { s.recipes = RECIPES; ms.sentRecipes = true; }
+    for (const r of RECIPES) want.add(r.item);
+    for (const qid of [...Object.keys(a.quests.active), ...s.available]) for (const id of QUEST_BY_ID[qid]?.rewards?.items || []) want.add(id);
+    for (const id of want) if (!ms.cards.has(id)) { const c = itemCard(id); if (c) { ms.cards.add(id); cards[id] = c; } }
     s.cards = cards;
     s.store = this.store.mode;
     return s;
@@ -585,10 +590,12 @@ export class MetaService {
         const st = zone.state(s.x, s.y, ev);
         // Библиотека мобов: «встречен», когда моб оказался рядом (≈ на экране)
         const acc = this.store.accounts.get(ms.pkey);
+        let met = false;
         if (acc) for (let i = 0; i < st.m.length; i += 6) {
           const type = MOB_TYPES[st.m[i + 1]];
-          if (type && !acc.bestiary[type] && Math.abs(st.m[i + 2] - s.x) < 420 && Math.abs(st.m[i + 3] - s.y) < 320) { noteMob(acc, type, 0); ms.dirty = true; }
+          if (type && !acc.bestiary[type] && Math.abs(st.m[i + 2] - s.x) < 420 && Math.abs(st.m[i + 3] - s.y) < 320) { noteMob(acc, type, 0); ms.dirty = true; met = true; }
         }
+        if (met) this.send(ws, { type: "meta_state", ...this.snap(s) }); // новая запись Бестиария → счётчик «новое»
         this.send(ws, { type: "zone_state", ...st, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }

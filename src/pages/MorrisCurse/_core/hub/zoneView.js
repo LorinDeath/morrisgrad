@@ -7,8 +7,8 @@ import propsMeta from '../../../../assets/mc/props_atlas.json';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
-  ZONE_MOBS, NPCS, NPC_RANGE, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, RESOURCES, WEAPON_TYPES, CLASS_WTYPE,
-} from '../../../../../server/meta/defs.ts';
+  MOB_INFO as ZONE_MOBS, NPCS, NPC_RANGE, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, RESOURCES, WEAPON_TYPES, CLASS_WTYPE,
+} from '../../../../../server/meta/shared.ts';
 import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { ProjFx } from '../engine/projFx.js';
 

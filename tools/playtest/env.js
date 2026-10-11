@@ -1,0 +1,25 @@
+const { chromium } = require('playwright-core');
+const OUT = '/workspace/morrisgrad-round2';
+(async () => {
+  const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const p = await (await b.newContext({ viewport: { width: 1440, height: 860 } })).newPage();
+  const errs = [];
+  p.on('console', (m) => { if (m.type() === 'error' || m.text().includes('[terrain]')) errs.push(m.text()); });
+  p.on('pageerror', (e) => errs.push('PAGEERROR ' + String(e.stack || e)));
+  await p.goto(`http://127.0.0.1:5199/game.html?name=Env&uid=test_r2_env&ws=ws://127.0.0.1:8787&fs=1&debug=1`);
+  await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 40000 }).catch(async()=>{console.log('ERRS',errs.join('\n'));await p.screenshot({path:OUT+'/env-fail.png'});process.exit(1)});
+  const G = (fn, arg) => p.evaluate(fn, arg);
+  await p.waitForTimeout(2500);
+  await G(() => window.__game.debug.setZoom(0.55)); await p.waitForTimeout(800);
+  await p.screenshot({ path: `${OUT}/env-hub-near.png` });
+  await G(() => window.__game.debug.setZoom(0.2)); await p.waitForTimeout(800);
+  await p.screenshot({ path: `${OUT}/env-hub-far.png` });
+  await G(() => window.__game.debug.teleport(255, 600)); await p.waitForTimeout(600); await p.keyboard.press('KeyE'); await p.waitForTimeout(4000);
+  console.log('world', await G(() => window.__game.state().world));
+  await G(() => window.__game.debug.setZoom(0.2)); await p.waitForTimeout(2000);
+  await p.screenshot({ path: `${OUT}/env-arinar-far.png` });
+  await G(() => window.__game.debug.setZoom(0.55)); await p.waitForTimeout(800);
+  await p.screenshot({ path: `${OUT}/env-arinar-near.png` });
+  console.log(errs.slice(0, 10).join('\n'));
+  await b.close();
+})();

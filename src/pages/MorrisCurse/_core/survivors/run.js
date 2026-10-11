@@ -8,7 +8,7 @@ import {
 } from './data.js';
 const HEART_T = { x: 0, z: 0, heart: true };
 // Общие с сервером определения навыков (Сияние, раскладка): один источник истины
-import { ABILITY_BY_ID } from '../../../../../server/meta/defs.ts';
+import { ABILITY_BY_ID } from '../../../../../server/meta/shared.ts';
 
 const TYPE_IDS = Object.keys(ENEMIES);
 const PICKUP_KINDS = ['heart', 'magnet', 'bomb', 'chest'];

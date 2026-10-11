@@ -14,7 +14,8 @@ import { Book } from './ui/book.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
 import { ZoneView } from './hub/zoneView.js';
-import { ITEM_BY_ID, RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, ZONE_MOBS, WEAPON_TYPES } from '../../../../server/meta/defs.ts';
+import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES } from '../../../../server/meta/shared.ts';
+import { ITEM_BY_ID, addCards } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
 import { HubWorld } from './hub/hubWorld.js';
@@ -329,7 +330,9 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
     const prevLvl = meta.hero?.lvl;
+    addCards(d.loot?.cards); addCards(d.reward?.cards);
     meta.apply(d);
+    updateBookBadge();
     if (d.loot) showLoot(d.loot, `☠ ${esc(d.loot.mob ? (d.loot.mob) : '')}`);
     if (d.reward) showRunReward(d.reward);
     if (d.gathered) overlay.toast(`+${d.gathered.n} ${RESOURCES[d.gathered.res]?.icon || ''} ${RESOURCES[d.gathered.res]?.name || d.gathered.res}`, RESOURCES[d.gathered.res]?.color || '#a5f3fc');
@@ -345,6 +348,23 @@ async function boot(canvasId, username, userId, api) {
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
   });
   net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests));
+  net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
+  // Кнопка Книги со счётчиком «новое» (новые предметы в сумке, открытия Библиотеки и Бестиария)
+  const bookBtn = document.createElement('button');
+  bookBtn.className = 'mc-bookbtn';
+  bookBtn.title = 'Книга Проклятого (J/I/L/B)';
+  bookBtn.innerHTML = '📖<em class="mc-cnt" style="display:none"></em>';
+  bookBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); book.toggle(meta.unread().gear ? 'gear' : meta.unread().library ? 'library' : meta.unread().mobs ? 'bestiary' : undefined); });
+  overlay.layer.appendChild(bookBtn);
+  function updateBookBadge() {
+    const n = meta.unread().total;
+    const em = bookBtn.querySelector('em');
+    em.style.display = n ? '' : 'none'; em.textContent = n > 99 ? '99+' : String(n);
+    bookBtn.classList.toggle('isnew', n > 0);
+    const tb = overlay.layer.querySelector('.mc3d-tbtn[data-act="book"]');
+    if (tb) { tb.dataset.cnt = n ? String(Math.min(99, n)) : ''; tb.classList.toggle('hascnt', n > 0); }
+  }
+  meta.on(() => updateBookBadge());
   net.on('zone_state', (d) => {
     if (mode !== 'hub') return;
     const evs = zone.applyState(d, myId) || [];
@@ -678,6 +698,7 @@ async function boot(canvasId, username, userId, api) {
       if (k === 'k' || k === 'л') { tracker.tutDone('book'); book.toggle('skills'); }
       if (k === 't' || k === 'е' || k === 'c' || k === 'с') { tracker.tutDone('book'); book.toggle('hero'); }
       if (k === 'b' || k === 'и') { tracker.tutDone('book'); book.toggle('bestiary'); }
+      if (k === 'l' || k === 'д') { tracker.tutDone('book'); book.toggle('library'); }
     }
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) tracker.tutDone('move');
     if (e.key === '+' || e.key === '=') zoomBy(1.15);
@@ -1204,6 +1225,7 @@ async function boot(canvasId, username, userId, api) {
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
+      send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
       overlay, runUI, zone,
       WEAPONS,
     };

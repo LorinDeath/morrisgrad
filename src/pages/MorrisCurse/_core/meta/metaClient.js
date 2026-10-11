@@ -1,7 +1,8 @@
 // Клиент мета-прогрессии: хранит последний снимок профиля с сервера (meta_state) и шлёт запросы.
 // Всё решает сервер (server/meta/*): клиент лишь показывает и просит.
 import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
-import { NPCS, HERO_NAMES } from '../../../../../server/meta/defs.ts';
+import { NPCS, HERO_NAMES } from '../../../../../server/meta/shared.ts';
+import { addCards } from './itemCards.js';
 
 export class MetaClient {
   constructor(send) {
@@ -12,6 +13,8 @@ export class MetaClient {
   }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   apply(st) {
+    addCards(st.cards);
+    if (st.account && this.state?.account && !st.recipes && this.state.recipes) st.recipes = this.state.recipes;
     this.state = st;
     this.version++;
     for (const fn of this.listeners) { try { fn(st); } catch (err) { console.error('[meta]', err); } }
@@ -67,6 +70,42 @@ export class MetaClient {
   accept(id) { this.send({ type: 'quest_accept', id }); }
   turnIn(id) { this.send({ type: 'quest_turnin', id }); }
   refresh() { this.send({ type: 'meta_get' }); }
+  // Библиотека предметов/мобов (вкладки Книги): сервер присылает только открытое
+  libGet() { this.send({ type: 'lib_get' }); }
+  applyLibrary(lib) { this.library = lib; addCards(lib.items); this.libVersion = (this.libVersion || 0) + 1; for (const fn of this.listeners) { try { fn(this.state); } catch (err) { console.error('[meta]', err); } } }
+  // Снять «новое»: копим id и отправляем пачкой (не чаще раза в 600 мс)
+  markSeen(kind, ids) {
+    if (!ids?.length) return;
+    this.seenQ = this.seenQ || { inv: new Set(), items: new Set(), mobs: new Set(), feats: new Set() };
+    for (const id of ids) this.seenQ[kind].add(id);
+    clearTimeout(this.seenT);
+    this.seenT = setTimeout(() => {
+      const q = this.seenQ; this.seenQ = null;
+      const msg = { type: 'mark_seen' };
+      for (const k of ['inv', 'items', 'mobs', 'feats']) if (q[k].size) msg[k] = [...q[k]].slice(0, 200);
+      this.send(msg);
+      // оптимистично снимаем подсветку локально; сервер подтвердит следующим meta_state/library
+      const a = this.state?.account;
+      if (a) {
+        for (const it of a.inv) if (q.inv.has(it.uid)) it.n = 0;
+        for (const id of q.items) if (a.disc?.items?.[id]) a.disc.items[id].v = 1;
+        for (const id of q.mobs) if (a.bestiary?.[id]) a.bestiary[id].v = 1;
+        for (const id of q.feats) if (a.disc?.feats?.[id]) a.disc.feats[id].v = 1;
+      }
+      const L = this.library;
+      if (L) { for (const id of q.items) if (L.items[id]) L.items[id].isNew = false; for (const id of q.mobs) if (L.mobs[id]) L.mobs[id].isNew = false; }
+    }, 600);
+  }
+  // счётчики «новое» для вкладок Книги и кнопки Книги
+  unread() {
+    const a = this.account;
+    if (!a) return { gear: 0, library: 0, mobs: 0, total: 0 };
+    const gear = a.inv.filter((i) => i.n).length;
+    const library = Object.values(a.disc?.items || {}).filter((d) => !d.v).length;
+    const mobs = Object.values(a.bestiary || {}).filter((b) => b.v === 0).length;
+    const feats = Object.entries(a.disc?.feats || {}).filter(([, d]) => !d.v).length;
+    return { gear, library, mobs, feats, total: gear + library + mobs };
+  }
 }
 
 // Подсказки направления для целей без NPC (координаты мира сервера, px)
@@ -74,11 +113,12 @@ export const QUEST_WAYPOINTS = {
   p1_swarm: { world: 'hellfire', x: 640, y: 150, label: 'Рой Мошкары' },
   p2_shell: { world: 'hellfire', x: 565, y: 600, label: 'Алтарь перевоплощения' },
   p4_dream: { world: 'hellfire', x: 240, y: 600, label: 'Разлом в Аринар' },
-  l2_moths: { world: 'arinar', x: 320, y: 920, label: 'Тихие мотыльки' },
-  l3_violets: { world: 'arinar', x: 520, y: 760, label: 'Ночные фиалки' },
-  l4_boss: { world: 'arinar', x: 720, y: 1040, label: 'Безветрие' },
-  a2_heat: { world: 'arinar', x: 1010, y: 880, label: 'Глитч-слизь' },
-  a3_cool: { world: 'arinar', x: 1100, y: 620, label: 'Звёздное серебро' },
+  // карта Аринара 2400×2400 (регионы — server/meta/zoneGen.ts)
+  l2_moths: { world: 'arinar', x: 400, y: 1150, label: 'Тихие мотыльки (Луга)' },
+  l3_violets: { world: 'arinar', x: 400, y: 1050, label: 'Ночные фиалки (Луга)' },
+  l4_boss: { world: 'arinar', x: 1640, y: 280, label: 'Безветрие (Восточный кряж)' },
+  a2_heat: { world: 'arinar', x: 420, y: 1350, label: 'Глитч-слизь (Луга, юг)' },
+  a3_cool: { world: 'arinar', x: 1020, y: 270, label: 'Звёздное серебро (Пустоши)' },
   a4_hall: { world: 'arinar', x: 900, y: 600, label: 'Комната «Бездна»' },
   j1_fans: { world: 'arinar', x: 900, y: 600, label: 'Комната «Бездна» (вдвоём)' },
 };

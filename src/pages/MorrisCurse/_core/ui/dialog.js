@@ -1,7 +1,7 @@
 // Диалог с персонажем (Алзи, Лэйр, Петр, Кьют): реплики задания, принять/сдать.
 // Сервер присылает npc_dialog {npc, quests:[{id,state}]}; тексты — из server/meta/quests.ts.
 import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
-import { NPCS } from '../../../../../server/meta/defs.ts';
+import { NPCS } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
 
 const IDLE = {

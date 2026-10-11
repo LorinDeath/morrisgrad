@@ -1,11 +1,12 @@
 // «Книга Проклятого» — единое окно прогрессии: задания, герой и таланты, навыки и Сияние,
 // снаряжение (5 слотов) и сумка, ремесло, бестиарий, ветка души (только у Алтаря).
-// Данные — из снимка сервера (MetaClient), тексты/статы — из общих определений server/meta/defs.ts.
+// Данные — из снимка сервера (MetaClient). Клиент не содержит таблиц предметов и дропа: карточки предметов,
+// Библиотеку предметов и пулы дропа мобов сервер присылает ТОЛЬКО для открытого игроком (itemCards.js, lib_get).
 import {
   TALENTS, TALENT_TIER_REQ, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
-  ITEM_BY_ID, RARITIES, SLOTS, SLOT_ORDER, RESOURCES, RECIPES, MONSTER_LOOT, SOUL_BRANCH, STAR_NAMES, HERO_NAMES,
-  NPCS, LOOKS, STAT_CAPS,
-} from '../../../../../server/meta/defs.ts';
+  RARITIES, SLOTS, SLOT_ORDER, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
+} from '../../../../../server/meta/shared.ts';
+import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { QUESTS, QUEST_BY_ID, CAMPAIGN_NAMES } from '../../../../../server/meta/quests.ts';
 import { esc } from './overlay.js';
 
@@ -14,8 +15,9 @@ const TABS = [
   ['hero', '🧬', 'Герой', 'T'],
   ['skills', '✦', 'Навыки', 'K'],
   ['gear', '🎒', 'Снаряжение', 'I'],
-  ['craft', '⚒️', 'Ремесло', ''],
+  ['library', '📚', 'Библиотека', 'L'],
   ['bestiary', '👁️', 'Бестиарий', 'B'],
+  ['craft', '⚒️', 'Ремесло', ''],
   ['soul', '🜏', 'Душа', ''],
 ];
 const STAT_LABEL = {
@@ -25,20 +27,33 @@ const STAT_LABEL = {
 const STAR_COL = { yellow: '#facc15', red: '#ef4444', purple: '#c084fc', black: '#94a3b8' };
 const star = (c, n = 1) => `<b style="color:${STAR_COL[c] || '#fff'}">${'★'.repeat(Math.max(0, n))}</b>`;
 
-export function itemStatsHtml(def) {
+export function itemStatsHtml(def, newProps = []) {
   const st = def.stats || {};
   const rows = [];
   if (st.dmgMin || st.dmgMax) rows.push(`Урон: <b>${st.dmgMin}–${st.dmgMax}</b>`);
-  for (const [k, v] of Object.entries(st)) if (k !== 'dmgMin' && k !== 'dmgMax' && v) rows.push(`${STAT_LABEL[k] || k}: <b>+${v}</b>`);
+  for (const [k, v] of Object.entries(st)) if (k !== 'dmgMin' && k !== 'dmgMax' && v) rows.push(`${STAT_LABEL[k] || k}: <b>+${v}</b>${newProps.includes(k) ? ' <i class="mc-new">новое свойство</i>' : ''}`);
   return rows.join('<br>');
 }
-// Источник дропа: «Мошкара-Жнец — 5%» по таблицам MONSTER_LOOT
+// Источник дропа: «Мошкара-Жнец — 5%» — из карточки сервера (только для открытых предметов)
 export function itemSources(id) {
-  const out = [];
-  for (const [mk, ml] of Object.entries(MONSTER_LOOT)) for (const g of ml.gear || []) if (g.item === id) out.push(`${ml.name} — ${g.chance}%`);
-  for (const r of RECIPES) if (r.item === id) out.push('Ремесло у Петра');
-  return out;
+  return (ITEM_BY_ID[id]?.sources || []).map((s) => (s.mob.startsWith('craft:') ? s.name : `${s.name} — ${s.chance}%`));
 }
+// «Откуда этот экземпляр»: kill:<mob> / boss:<mob> / run:<room>:<mob> / quest:<id> / craft:<recipe>
+export function srcLabel(src) {
+  if (!src) return '';
+  const [k, a, b] = String(src).split(':');
+  const mob = (id) => MOB_INFO[String(id || '').replace(/^run_/, '')]?.name || id;
+  if (k === 'kill' || k === 'boss' || k === 'rare') return `${k === 'boss' ? 'мировой босс' : k === 'rare' ? 'редкий Отголосок' : 'добыча'}: ${mob(a)}`;
+  if (k === 'run') return `забег «${a}»${b ? ` · ${mob(b)}` : ''}`;
+  if (k === 'quest') return `награда задания`;
+  if (k === 'craft') return 'ремесло у Петра';
+  if (k === 'migrate') return 'перенесён из старого профиля';
+  if (k === 'grant') return 'выдан сервером';
+  return src;
+}
+const ROLE_RU = { melee: 'ближний бой', swarm: 'рой', charger: 'таран', ranged: 'стрелок', caster: 'заклинатель', tank: 'танк' };
+const NEW_BADGE = '<i class="mc-new">новое</i>';
+const RAR = (r) => RARITIES[r] || RARITIES.common;
 
 export class Book {
   constructor(overlay, meta, { canSoul, nearPetr }) {
@@ -64,7 +79,7 @@ export class Book {
     meta.on(() => { if (this.isOpen) this.render(); });
   }
 
-  open(tab) { if (tab) this.tab = tab; this.isOpen = true; this.el.style.display = ''; this.render(); }
+  open(tab) { if (tab) this.tab = tab; this.isOpen = true; this.el.style.display = ''; this.libAsked = -1; this.render(); }
   close() { this.isOpen = false; this.el.style.display = 'none'; this.sel = null; }
   toggle(tab) { if (this.isOpen && (!tab || tab === this.tab)) this.close(); else this.open(tab); }
 
@@ -75,7 +90,22 @@ export class Book {
     const act = b.dataset.act, v = b.dataset.v, m = this.meta;
     switch (act) {
       case 'tab': this.tab = v; this.sel = null; this.render(); break;
-      case 'sel': this.sel = v; this.render(); break;
+      case 'sel': {
+        this.sel = v;
+        const it = this.meta.account?.inv.find((i) => i.uid === v);
+        if (it?.n) this.meta.markSeen('inv', [v]);
+        this.render(); break;
+      }
+      case 'lsel': this.lsel = v; if (this.meta.library?.items?.[v]?.isNew) this.meta.markSeen('items', [v]); this.render(); break;
+      case 'msel': this.msel = this.msel === v ? null : v; if (this.meta.library?.mobs?.[v]?.isNew) this.meta.markSeen('mobs', [v]); this.render(); break;
+      case 'lfilter': this.lfilter = v; this.render(); break;
+      case 'seenall': {
+        const L = this.meta.library;
+        if (v === 'items' && L) this.meta.markSeen('items', Object.keys(L.items).filter((id) => L.items[id].isNew));
+        if (v === 'mobs' && L) this.meta.markSeen('mobs', Object.keys(L.mobs).filter((id) => L.mobs[id].isNew));
+        if (v === 'inv') this.meta.markSeen('inv', (this.meta.account?.inv || []).filter((i) => i.n).map((i) => i.uid));
+        setTimeout(() => this.render(), 700); break;
+      }
       case 'talent': m.talentLearn(v); break;
       case 'radiance': m.radianceUp(v); break;
       case 'silence':
@@ -105,10 +135,18 @@ export class Book {
   render() {
     const st = this.meta.state;
     this.tabsEl.innerHTML = TABS.filter(([id]) => id !== 'soul' || this.canSoul() || (st?.account?.creation || 0) > 0 || (st?.account?.soul || []).length)
-      .map(([id, ic, nm, key]) => `<button data-act="tab" data-v="${id}" class="${this.tab === id ? 'on' : ''}" title="${nm}${key ? ` [${key}]` : ''}">${ic}<span>${nm}</span></button>`).join('');
+      .map(([id, ic, nm, key]) => { const n = this.badge(id); return `<button data-act="tab" data-v="${id}" class="${this.tab === id ? 'on' : ''}" title="${nm}${key ? ` [${key}]` : ''}">${ic}<span>${nm}</span>${n ? `<em class="mc-cnt">${n}</em>` : ''}</button>`; }).join('');
     if (!st) { this.body.innerHTML = '<p class="mc-dim">Нет связи с сервером: прогресс героя хранится на сервере и сейчас недоступен. Соло-забеги работают офлайн.</p>'; return; }
-    const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, craft: this.rCraft, bestiary: this.rBestiary, soul: this.rSoul }[this.tab] || this.rQuests;
+    const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, soul: this.rSoul }[this.tab] || this.rQuests;
+    if ((this.tab === 'library' || this.tab === 'bestiary') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
+    const scroll = this.body.scrollTop;
     this.body.innerHTML = this.wallet(st) + fn.call(this, st);
+    this.body.scrollTop = scroll;
+  }
+  // счётчики «новое» на вкладках
+  badge(id) {
+    const u = this.meta.unread();
+    return id === 'gear' ? u.gear : id === 'library' ? u.library : id === 'bestiary' ? u.mobs : 0;
   }
 
   wallet(st) {
@@ -250,7 +288,7 @@ export class Book {
     const bag = a.inv.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = ITEM_BY_ID[it.id];
       if (!d) return '';
-      return `<button class="mc-item ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}">${d.icon}</button>`;
+      return `<button class="mc-item ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}">${d.icon}${it.n ? NEW_BADGE : ''}</button>`;
     }).join('');
     const res = Object.entries(a.res || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span title="${esc(RESOURCES[k]?.name || k)}">${RESOURCES[k]?.icon || '•'} ${n}</span>`).join('');
     let detail = '<p class="mc-dim">Нажмите на предмет, чтобы увидеть характеристики и источник.</p>';
@@ -259,21 +297,27 @@ export class Book {
       const d = ITEM_BY_ID[it.id];
       const src = itemSources(it.id);
       const eq = equippedUids.has(it.uid);
-      const look = d.look && LOOKS[d.look];
+      const look = d.look && typeof d.look === 'object' ? d.look : null;
+      const feats = this.meta.account?.disc?.feats || {};
+      const newProps = Object.keys(d.stats || {}).filter((k) => feats['prop:' + k] && !feats['prop:' + k].v);
+      const newAb = d.grantsAbility || d.ability?.id;
+      const abNew = newAb && feats['ability:' + newAb] && !feats['ability:' + newAb].v;
+      if (newProps.length || abNew) this.meta.markSeen('feats', [...newProps.map((k) => 'prop:' + k), ...(abNew ? ['ability:' + newAb] : [])]);
       detail = `<div class="mc-tip"><div class="nm" style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</div>
         <div class="rr">${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
-        <div class="ss">${itemStatsHtml(d)}</div>
-        <div class="fx">Характеристики фиксированные — не растут с уровнем.</div>
-        ${d.grantsAbility ? `<div class="ab">✦ Даёт навык: <b>${esc(ABILITY_BY_ID[d.grantsAbility]?.name || '')}</b></div>` : ''}
-        ${look ? `<div class="ab">🎭 Часть облика «${esc(look.name)}» (${look.parts.length} предм.)</div>` : ''}
-        ${src.length ? `<div class="src">Источник: ${src.map(esc).join('; ')}</div>` : ''}
+        <div class="ss">${itemStatsHtml(d, newProps)}</div>
+        <div class="fx">Ур. предмета ${d.lvl || 1}${d.req > 1 ? ` · нужен ур. героя ${d.req}` : ''}. Характеристики фиксированные — не растут с уровнем.</div>
+        ${d.ability ? `<div class="ab">✦ Даёт навык: <b>${esc(d.ability.name)}</b>${abNew ? NEW_BADGE : ''}</div>` : ''}
+        ${look ? `<div class="ab">🎭 Часть облика «${esc(look.name)}» (${look.parts} предм.)${look.bonus ? ` — ${esc(look.bonus)}` : ''}</div>` : ''}
+        ${it.src ? `<div class="src">Этот экземпляр: ${esc(srcLabel(it.src))}${it.at ? ` · ${new Date(it.at).toLocaleDateString('ru-RU')}` : ''}</div>` : ''}
+        ${src.length ? `<div class="src">Источники: ${src.map(esc).join('; ')}</div>` : ''}
         ${d.lore ? `<div class="lore">${esc(d.lore)}</div>` : ''}
         <div class="acts">${h ? (eq ? `<button class="mc-btn" data-act="unequip" data-v="${d.slot}">Снять</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">Надеть</button>`) : ''}
         ${eq ? '' : `<button class="mc-btn danger" data-act="salvage" data-v="${it.uid}">Разобрать</button>`}</div></div>`;
     }
     return `<div class="mc-gear"><div class="mc-gslots">${slots}</div><div class="mc-detail">${detail}</div></div>
       ${h ? '' : '<p class="mc-lock">Надевать предметы может только герой — выберите оболочку у Алтаря.</p>'}
-      <h3>Сумка (общая для всех героев) · ${a.inv.length}</h3><div class="mc-bag">${bag || '<p class="mc-dim">Пусто. Убивайте Отголосков — их снаряжение станет вашим.</p>'}</div>
+      <h3>Сумка (общая для всех героев) · ${a.inv.length}${a.inv.some((i) => i.n) ? ` <button class="mc-btn sm" data-act="seenall" data-v="inv">отметить просмотренным</button>` : ''}</h3><div class="mc-bag">${bag || '<p class="mc-dim">Пусто. Убивайте Отголосков — их снаряжение станет вашим.</p>'}</div>
       <h3>Материалы</h3><div class="mc-res">${res || '<span class="mc-dim">нет</span>'}</div>`;
   }
 
@@ -281,8 +325,9 @@ export class Book {
   rCraft(st) {
     const a = st.account;
     const near = this.nearPetr();
-    const rows = RECIPES.map((r) => {
+    const rows = (st.recipes || []).map((r) => {
       const d = ITEM_BY_ID[r.item];
+      if (!d) return '';
       const ok = Object.entries(r.cost).every(([k, n]) => (a.res[k] || 0) >= n);
       const cost = Object.entries(r.cost).map(([k, n]) => `<span class="${(a.res[k] || 0) >= n ? 'ok' : 'no'}">${RESOURCES[k]?.icon || ''} ${a.res[k] || 0}/${n}</span>`).join(' ');
       return `<div class="mc-recipe"><b style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</b><small>${itemStatsHtml(d)}</small><div>${cost}</div><button class="mc-btn gold" data-act="craft" data-v="${r.id}" ${ok && near ? '' : 'disabled'}>Создать</button></div>`;
@@ -290,24 +335,76 @@ export class Book {
     return `${near ? '' : '<p class="mc-lock">⚒️ Создавать можно у Петра (Поляна, юго-запад). Рецепты видны всегда.</p>'}${rows}`;
   }
 
-  // ---------- бестиарий ----------
-  rBestiary(st) {
-    const b = st.account.bestiary || {};
-    const rows = Object.entries(MONSTER_LOOT).map(([id, ml]) => {
-      const e = b[id];
-      if (!e) return `<div class="mc-beast unknown"><b>???</b><small>Ещё не встречен</small></div>`;
-      const gear = (ml.gear || []).map((g) => { const d = ITEM_BY_ID[g.item]; return d ? `<li><span style="color:${RARITIES[d.rarity].color}">${d.icon} ${esc(d.name)}</span> — <b>${g.chance}%</b></li>` : ''; }).join('');
-      const mats = (ml.materials || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${m.chance}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
-      const ab = (ml.abilities || []).map((x) => ABILITY_BY_ID[x]?.name).filter(Boolean);
-      return `<details class="mc-beast"><summary><b>${esc(ml.name)}</b><small>${ml.kind === 'boss' ? 'босс' : ml.kind === 'zone' ? 'открытый мир' : 'забег'} · убито ${e.kills}</small></summary>
-        <div class="s">HP ${ml.stats.hp} · урон ${ml.stats.dmg} · броня ${ml.stats.armor} · скорость: ${esc(ml.stats.speed)}</div>
-        <ul class="ab">${(ml.abilitiesText || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-        ${gear ? `<div class="h">Снаряжение (шанс за убийство):</div><ul>${gear}</ul>` : ''}
-        ${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}
-        ${ml.look ? `<div class="h">🎭 Облик: ${esc(ml.look.name)} — соберите ${ml.look.parts.length} предм.</div>` : ''}
-        ${ab.length ? `<div class="h">✦ Навык трофея: ${ab.map(esc).join(', ')}</div>` : ''}</details>`;
+  // ---------- Библиотека предметов ----------
+  // Все предметы пула — сеткой; открытые (встречены/получены) — с данными от сервера, закрытые — силуэты (слот + редкость).
+  rLibrary(st) {
+    const L = this.meta.library;
+    if (!L) return '<p class="mc-dim">Загрузка Библиотеки…</p>';
+    const byN = new Map(Object.values(L.items).map((c) => [c.n, c]));
+    const f = this.lfilter || 'all';
+    const SLOT_IC = { weapon: '⚔', helmet: '⛑', armor: '🛡', legs: '👖', hands: '🧤' };
+    const cells = L.sil.map(([slot, rar], n) => {
+      const c = byN.get(n);
+      if (f !== 'all' && f !== slot) return '';
+      if (!c) return `<div class="mc-lib lock" style="border-color:${RAR(rar).color}55" title="${esc(RAR(rar).name)} · ${esc(SLOTS[slot])} — ещё не открыт"><span>${SLOT_IC[slot] || '?'}</span></div>`;
+      return `<button class="mc-lib ${c.isNew ? 'isnew' : ''} ${this.lsel === c.id ? 'on' : ''} ${c.owned ? 'own' : ''}" data-act="lsel" data-v="${c.id}" style="border-color:${RAR(c.rarity).color}" title="${esc(c.name)}">${c.icon}${c.isNew ? NEW_BADGE : ''}${c.owned ? `<small>×${c.owned}</small>` : ''}</button>`;
     }).join('');
-    return `<p class="mc-dim">Записи открываются при первой встрече. Шансы — точные значения из таблиц сервера.</p>${rows}`;
+    const opened = Object.keys(L.items).length;
+    const owned = Object.values(L.items).filter((c) => c.st === 'owned').length;
+    let detail = '<p class="mc-dim">Открытые предметы показывают характеристики и источники. Закрытые — только силуэт: слот и редкость.</p>';
+    const c = this.lsel && L.items[this.lsel];
+    if (c) {
+      detail = `<div class="mc-tip"><div class="nm" style="color:${RAR(c.rarity).color}">${c.icon} ${esc(c.name)}</div>
+        <div class="rr">${esc(RAR(c.rarity).name)} · ${esc(SLOTS[c.slot])} · ур. ${c.lvl}${c.band ? ` · ${esc(c.band)}` : ''}</div>
+        <div class="ss">${itemStatsHtml(c)}</div>
+        ${c.ability ? `<div class="ab">✦ Навык: <b>${esc(c.ability.name)}</b> — ${esc(c.ability.desc || '')}</div>` : ''}
+        ${c.look ? `<div class="ab">🎭 Облик «${esc(c.look.name)}» (${c.look.parts} предм.)${c.look.bonus ? ` — ${esc(c.look.bonus)}` : ''}</div>` : ''}
+        <div class="src">Где добыть: ${(c.sources || []).map((s) => esc(s.mob.startsWith('craft:') ? s.name : `${s.name} — ${s.chance}%`)).join('; ') || '—'}</div>
+        <div class="src">${c.st === 'owned' ? `У вас: ${c.owned} шт.${c.ownedSrc?.length ? ` (${c.ownedSrc.map((x) => esc(srcLabel(x))).join('; ')})` : ''}` : 'Встречен, но ещё не получен'}</div>
+        ${c.lore ? `<div class="lore">${esc(c.lore)}</div>` : ''}</div>`;
+    }
+    const tabs = [['all', 'Все'], ...SLOT_ORDER.map((s) => [s, SLOTS[s]])].map(([v, nm]) => `<button class="mc-btn sm ${f === v ? 'gold' : ''}" data-act="lfilter" data-v="${v}">${esc(nm)}</button>`).join('');
+    const anyNew = Object.values(L.items).some((x) => x.isNew);
+    return `<p class="mc-dim">Открыто <b>${opened}</b> из ${L.size} · получено ${owned}. ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="items">отметить всё просмотренным</button>` : ''}</p>
+      <div class="mc-libf">${tabs}</div><div class="mc-gear"><div class="mc-libgrid">${cells}</div><div class="mc-detail">${detail}</div></div>`;
+  }
+
+  // ---------- Библиотека мобов (бестиарий) ----------
+  // Моб виден после встречи; после встречи показан его пул добычи: открытые предметы — по имени,
+  // закрытые — силуэтом с цветом редкости и шансом. Данные пула — от сервера (lib_get).
+  rBestiary(st) {
+    const L = this.meta.library;
+    const b = { ...(st.account.bestiary || {}) };
+    for (const [id, m] of Object.entries(L?.mobs || {})) if (!b[id]) b[id] = { seen: 1, kills: m.kills, v: m.isNew ? 0 : 1 };
+    const order = Object.keys(MOB_INFO).sort((x, y) => (MOB_INFO[x].lvl || 1) - (MOB_INFO[y].lvl || 1));
+    const keys = [...order, ...Object.keys(b).filter((k) => !MOB_INFO[k])];
+    const total = order.length;
+    const seen = keys.filter((k) => b[k]).length;
+    const rows = keys.map((id) => {
+      const e = b[id];
+      const info = MOB_INFO[id.replace(/^run_/, '')];
+      if (!e) return MOB_INFO[id] ? `<div class="mc-beast unknown"><b>???</b><small>ур. ${info.lvl} · ещё не встречен</small></div>` : '';
+      const lm = L?.mobs?.[id];
+      const isNew = lm ? lm.isNew : e.v === 0;
+      const open = this.msel === id;
+      const tag = info?.boss ? 'мировой босс' : info?.rare ? 'редкий' : info?.huge ? 'огромный' : id.startsWith('run_') ? 'забег' : ({ s: 'мелкий', m: 'средний', l: 'крупный' }[info?.size] || '');
+      let body = '';
+      if (open) {
+        const d = lm?.drops;
+        const gear = (d?.gear || []).map((g) => {
+          if (g.id) { const c = ITEM_BY_ID[g.id] || L?.items?.[g.id]; return c ? `<li><span style="color:${RAR(c.rarity).color}">${c.icon} ${esc(c.name)}</span> — <b>${g.chance}%</b></li>` : ''; }
+          return `<li class="lock"><span style="color:${RAR(g.rarity).color}">▒ ${esc(RAR(g.rarity).name)} · ${esc(SLOTS[g.slot] || '')}</span> — <b>${g.chance}%</b></li>`;
+        }).join('');
+        const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${m.chance}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
+        body = `<div class="s">${info ? `ур. ${info.lvl} · ${esc(ROLE_RU[info.role] || info.role || '')} · HP ${info.hp} · урон ${info.dmg} · броня ${info.armor}` : ''}</div>
+          ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
+          ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : '<p class="mc-dim">Загрузка пула добычи…</p>'}
+          ${info?.lore ? `<div class="lore">${esc(info.lore)}</div>` : ''}`;
+      }
+      return `<div class="mc-beast ${isNew ? 'isnew' : ''}"><button class="mc-beast-h" data-act="msel" data-v="${id}"><b>${esc(info?.name || id)}${id.startsWith('run_') ? ' (забег)' : ''}</b>${isNew ? NEW_BADGE : ''}<small>${tag} · убито ${e.kills || 0}</small></button>${body}</div>`;
+    }).join('');
+    const anyNew = L ? Object.values(L.mobs).some((m) => m.isNew) : false;
+    return `<p class="mc-dim">Встречено ${seen} из ${total}. Записи открываются при встрече; пул добычи — после встречи (закрытые предметы — силуэтом с редкостью и шансом). ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="mobs">отметить всё просмотренным</button>` : ''}</p>${rows}`;
   }
 
   // ---------- ветка души ----------
