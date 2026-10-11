@@ -6,10 +6,19 @@ import spearmanSrc from '../../../assets/character_9_frame16x20.png';
 import keytSrc from '../../../assets/Keyt.png';
 import mageSrc from '../../../assets/mage.png';
 import darSrc from '../../../assets/Dar.png';
-import flowerSrc from '../../../assets/Vampire Tulip 1A[anim].png'; // Импорт спрайтшита цветка
+import flowerSrc from '../../../assets/Vampire Tulip 1A[anim].png';
+
+// Новые спрайты персонажей (добавь PNG в src/assets/)
+import lorinSrc from '../../../assets/lorin_sprite.png';
+import alzorSrc from '../../../assets/alzor_sprite.png';
+import maskedSrc from '../../../assets/masked_sprite.png';
+import marielSrc from '../../../assets/mariel_sprite.png';
+import scholarSrc from '../../../assets/scholar_sprite.png';
+import officerSrc from '../../../assets/officer_sprite.png';
+import whitehairSrc from '../../../assets/whitehair_sprite.png';
 
 export const darImg = createImg(darSrc);
-export const flowerImg = createImg(flowerSrc); // Экспорт картинки цветка
+export const flowerImg = createImg(flowerSrc);
 
 function createImg(src) {
   const img = new Image();
@@ -35,13 +44,12 @@ export const SPRITE_CONFIG = {
   drawHeight: 40
 };
 
-// Конфигурация сетки анимаций цветка (4 колонки, 14 рядов)
 export const FLOWER_SPRITE_CONFIG = {
   cols: 4,
   rows: 14,
   frameSpeed: 150,
-  drawWidth: 64,  // Увеличенной в 2 раза ширина (было 32)
-  drawHeight: 64  // Увеличенная в 2 раза высота (было 32)
+  drawWidth: 64,
+  drawHeight: 64
 };
 
 export const campfireImg = createImg(campfireSrc);
@@ -52,24 +60,30 @@ export const SPRITES = {
   warrior: createImg(warriorSrc),
   spearman: createImg(spearmanSrc),
   rogue: createImg(rogueSrc),
-  mage: createImg(mageSrc)
+  mage: createImg(mageSrc),
+  // Новые
+  lorin: createImg(lorinSrc),
+  alzor: createImg(alzorSrc),
+  masked: createImg(maskedSrc),
+  mariel: createImg(marielSrc),
+  scholar: createImg(scholarSrc),
+  officer: createImg(officerSrc),
+  whitehair: createImg(whitehairSrc),
 };
 
+// ... остальной код без изменений (функции отрисовки и т.д.)
 export function createArtDecoPattern(ctx) {
   const tile = document.createElement('canvas');
   tile.width = 64;
   tile.height = 64;
   const t = tile.getContext('2d');
-
   t.fillStyle = '#0a0812';
   t.fillRect(0, 0, 64, 64);
-
   t.fillStyle = '#120d1f';
   t.beginPath(); t.moveTo(0, 0); t.lineTo(24, 0); t.lineTo(0, 24); t.fill();
   t.beginPath(); t.moveTo(64, 0); t.lineTo(40, 0); t.lineTo(64, 24); t.fill();
   t.beginPath(); t.moveTo(64, 64); t.lineTo(40, 64); t.lineTo(64, 40); t.fill();
   t.beginPath(); t.moveTo(0, 64); t.lineTo(24, 64); t.lineTo(0, 40); t.fill();
-
   t.strokeStyle = 'rgba(197, 155, 39, 0.45)';
   t.lineWidth = 1;
   t.beginPath();
@@ -78,7 +92,6 @@ export function createArtDecoPattern(ctx) {
   t.moveTo(50, 64); t.lineTo(64, 50);
   t.moveTo(14, 64); t.lineTo(0, 50);
   t.stroke();
-
   t.fillStyle = '#171126';
   t.beginPath();
   t.moveTo(32, 0); t.lineTo(64, 32);
@@ -88,7 +101,6 @@ export function createArtDecoPattern(ctx) {
   t.strokeStyle = 'rgba(212, 175, 55, 0.6)';
   t.lineWidth = 1.2;
   t.stroke();
-
   t.strokeStyle = '#432d5c';
   t.lineWidth = 1;
   t.beginPath();
@@ -96,7 +108,6 @@ export function createArtDecoPattern(ctx) {
   t.lineTo(32, 57); t.lineTo(7, 32);
   t.closePath();
   t.stroke();
-
   t.fillStyle = '#07050d';
   t.beginPath();
   t.moveTo(32, 13); t.lineTo(51, 32);
@@ -106,7 +117,6 @@ export function createArtDecoPattern(ctx) {
   t.strokeStyle = 'rgba(197, 155, 39, 0.5)';
   t.lineWidth = 1;
   t.stroke();
-
   t.strokeStyle = 'rgba(245, 215, 127, 0.55)';
   t.lineWidth = 1;
   t.beginPath();
@@ -114,18 +124,15 @@ export function createArtDecoPattern(ctx) {
   t.lineTo(32, 43); t.lineTo(21, 32);
   t.closePath();
   t.stroke();
-
   t.fillStyle = 'rgba(212, 175, 55, 0.7)';
   t.beginPath();
   t.moveTo(32, 27); t.lineTo(37, 32);
   t.lineTo(32, 37); t.lineTo(27, 32);
   t.closePath();
   t.fill();
-
   t.strokeStyle = 'rgba(212, 175, 55, 0.15)';
   t.lineWidth = 1;
   t.strokeRect(0.5, 0.5, 63, 63);
-
   return ctx.createPattern(tile, 'repeat');
 }
 
@@ -183,7 +190,6 @@ export function drawBossSprite(ctx, img, x, y, dirX, dirY, isMoving, now) {
   drawCharacterSprite(ctx, img, x, y, dirX, dirY, isMoving, now, '#f472b6');
 }
 
-// Отрисовка цветка-вампира с учетом стадий и цветовых шейдеров
 export function drawFlowerSprite(ctx, flower, now) {
   if (!flowerImg.complete || flowerImg.naturalWidth === 0) {
     ctx.fillStyle = '#f43f5e';
@@ -194,12 +200,11 @@ export function drawFlowerSprite(ctx, flower, now) {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
 
-  // Выбор ряда в зависимости от стадии
-  let targetRow = 1; // Ряд 2 (спящий бутон)
+  let targetRow = 1;
   if (flower.stage === 'mature') {
-    targetRow = 6; // Ряд 7 (созревший спиральный стебель)
+    targetRow = 6;
   } else if (flower.stage === 'active') {
-    targetRow = 0; // Ряд 1 (активный монстр с пастью)
+    targetRow = 0;
   }
 
   const frameW = flowerImg.naturalWidth / FLOWER_SPRITE_CONFIG.cols;
@@ -213,7 +218,6 @@ export function drawFlowerSprite(ctx, flower, now) {
   const dx = flower.x - dw / 2;
   const dy = flower.y - dh / 2;
 
-  // Применение стихийных шейдеров (Canvas Filters)
   if (flower.stage === 'active') {
     if (flower.flowerType === 'fire') {
       ctx.filter = 'hue-rotate(-20deg) saturate(2.5) brightness(1.2)';
