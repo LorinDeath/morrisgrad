@@ -22,7 +22,7 @@ def hx(h):
     h = h.lstrip('#'); return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
 
 def figure(c, d, leg, breathe=False):
-    legs = A.LEGS[d][leg]
+    legs = c.get('legs', A.LEGS)[d][leg]
     rows = list(c[d]) + list(legs)
     if breathe:  # кивок: голова на 1 px ниже, шея «уходит» в воротник
         rows = [rows[0]] + rows[0:12] + rows[13:]

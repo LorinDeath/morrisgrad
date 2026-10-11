@@ -510,3 +510,56 @@ KYUT = dict(
 CHARS = {'spearman': NOF, 'rogue': KAV, 'mage': MAR, 'warrior': VEL, 'alzi': ALZI, 'leyr': LEYR, 'petr': PETR, 'kyut': KYUT}
 # у Мариэль, Лэйр и Кьют вместо брюк — юбка/платье: верх «ног» в цвете ткани
 SKIRT = {'mage': 'B', 'leyr': 'B', 'kyut': 'B'}
+
+# =============== полировка v2 (арт-перерисовка): детали одежды, Кавега ===============
+def _sub(rows, fn):
+    return [''.join(fn(x, y, ch) for x, ch in enumerate(r)) for y, r in enumerate(rows)]
+
+# Кавега: волосы — серые с прядями багрово-каштанового (Q/q), сапоги кожаные с пряжкой, длинные полы плаща (свои «ноги»).
+KAV['pal'].update({'1': '#eceaf2', '2': '#a8a3b6', '3': '#5d566a', 'Q': '#c23a2e', 'q': '#7a2130',
+                   'K': '#5b3a2c', 'k': '#2e1c18', 'Y': '#d7b26a'})
+def _kav_hair(x, y, ch):
+    if y > 11: return ch
+    # мелирование: серая основа, правая сторона — багрово-каштановые пряди, плюс одна прядь у лица слева
+    if ch in '23' and ((x >= 9 and (x + y) % 3 == 0) or (x in (3, 4) and 5 <= y <= 9)):
+        return 'Q' if ch == '2' else 'q'
+    return ch
+for _d in ('down', 'left', 'up'): KAV[_d] = _sub(KAV[_d], _kav_hair)
+KAV['legs'] = {
+    'down': [
+        ["..oBBPPppPPPBo..",
+         "..oCBPpooKYKCBo.",
+         "..oCoKYKo.okkoo."],
+        ["..oBBPPppPPBBo..",
+         "..oCBoKYooYKoBCo"[:16],
+         "..oCoKKkooKKkoC."],
+        ["..oBBPPPppPPBBo.",
+         ".oBCKYKoopPPoCo.",
+         ".oCookko.oKYKoo."],
+    ],
+    'left': [
+        ["...oPPPPPPpoBBo.",
+         "..oKPPo.oPpoCBBo",
+         "..oKYo...oKYoCCo"],
+        ["....oPPPPpoBBo..",
+         "....oPPopPoCBBo.",
+         "....oKYoKYo.oCCo"],
+        ["....oPPPPpoBBBo.",
+         ".....oPPpoCBBo..",
+         ".....oKYKko.oo.."],
+    ],
+}
+KAV['legs']['up'] = KAV['legs']['down']
+
+# всем героям/NPC атласа: пояс с пряжкой на последней строке корпуса (вид спереди/сбоку) и блик на носке обуви
+def _belt(rows, row=16):
+    r = list(rows[row])
+    inner = [i for i, ch in enumerate(r) if ch in 'ABC']
+    if len(inner) >= 4:
+        for i in inner: r[i] = 'x'
+        mid = (inner[0] + inner[-1]) // 2
+        r[mid] = 'X'
+    rows = list(rows); rows[row] = ''.join(r); return rows
+for _c in CHARS.values():
+    for _d in ('down', 'left'):
+        _c[_d] = _belt(_c[_d], 15)
