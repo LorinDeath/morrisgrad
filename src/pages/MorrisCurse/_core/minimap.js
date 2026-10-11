@@ -128,6 +128,9 @@ export class Minimap {
 
   update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire' }) {
     if (!this.ctx || !this.canvas) return;
+    const now = performance.now();
+    if (now - (this._drawAt || 0) < 120) return;   // троттлинг перерисовки (~8 Гц)
+    this._drawAt = now;
 
     const ctx = this.ctx;
     const w = this.canvas.width;
@@ -283,6 +286,10 @@ export class Minimap {
   // Мини-карта забега: круглая арена (метры), орда, камни опыта, союзники
   updateRun(run, arenaRadius = 60) {
     if (!this.ctx || !this.canvas) return;
+    // троттлинг: не чаще ~8 раз/с, даже если HUD обновляется чаще
+    const now = performance.now();
+    if (now - (this._runDrawAt || 0) < 120) return;
+    this._runDrawAt = now;
     const ctx = this.ctx;
     const w = this.canvas.width, h = this.canvas.height, cx = w / 2, cy = h / 2;
     const scale = (Math.min(w, h) / 2 - 4) / arenaRadius * [1, 1.8, 3][this.zoomIndex];
@@ -296,15 +303,17 @@ export class Minimap {
     ctx.strokeStyle = '#c59b27';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(X(0), Y(0), arenaRadius * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = 'rgba(96, 165, 250, 0.8)';
-    for (const g of run.gems.values()) ctx.fillRect(X(g.x) - 0.5, Y(g.z) - 0.5, 1.5, 1.5);
+    // камни/сферы опыта на земле на мини-карту НЕ рисуются (их сотни — лишняя работа и шум)
     for (const e of run.enemies.values()) {
       if (e.dead) continue;
       ctx.fillStyle = e.boss ? '#f0abfc' : e.elite ? '#facc15' : '#ef4444';
       const r = e.boss ? 4 : e.elite ? 2.5 : 1.2;
       ctx.fillRect(X(e.x) - r / 2, Y(e.z) - r / 2, r, r);
     }
-    for (const p of run.pickups.values()) { ctx.fillStyle = '#4ade80'; ctx.fillRect(X(p.x) - 1.5, Y(p.z) - 1.5, 3, 3); }
+    for (const p of run.pickups.values()) {
+      if (p.kind === 'chest') { ctx.fillStyle = '#f59e0b'; ctx.fillRect(X(p.x) - 2.5, Y(p.z) - 2, 5, 4); ctx.fillStyle = '#fde68a'; ctx.fillRect(X(p.x) - 0.5, Y(p.z) - 1, 1, 2); }
+      else { ctx.fillStyle = '#4ade80'; ctx.fillRect(X(p.x) - 1.5, Y(p.z) - 1.5, 3, 3); }
+    }
     for (const r of run.remotes.values()) {
       ctx.fillStyle = r.dead ? '#64748b' : (r.color || '#38bdf8');
       ctx.beginPath(); ctx.arc(X(r.x), Y(r.z), 3, 0, Math.PI * 2); ctx.fill();
