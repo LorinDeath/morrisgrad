@@ -38,7 +38,7 @@ export class QuestTracker {
     const st = this.meta.state;
     // обучение: короткие шаги, пока игрок их не выполнил
     let tip = '';
-    const k = this.mobile ? { move: 'джойстик слева', act: 'кнопка ✋', book: 'кнопка 📜', atk: 'держите ⚔ (наведение на ближайшего)' } : { move: 'WASD', act: 'E', book: 'J / I / K / T', atk: 'ЛКМ в сторону цели (удерживайте)' };
+    const k = this.mobile ? { move: 'джойстик слева', act: 'кнопка ✋', book: 'кнопка 📖', atk: 'держите ⚔ (наведение на ближайшего)' } : { move: 'WASD', act: 'E', book: 'J / I / K / T', atk: 'ЛКМ в сторону цели (удерживайте)' };
     if (!this.tut.move) tip = `Двигайтесь: ${k.move}. Рывок — ${this.mobile ? 'кнопка ⚡' : 'Пробел'}.`;
     else if (!ctx.online) tip = 'Нет связи с сервером: прогресс героя не сохраняется. Соло-забеги работают у порталов.';
     else if (!this.tut.book && st) tip = `Книга Проклятого: ${k.book} — задания, герой, навыки, снаряжение, бестиарий.`;

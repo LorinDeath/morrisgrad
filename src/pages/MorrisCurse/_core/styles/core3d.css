@@ -89,7 +89,7 @@
 
 /* Раскладка: в полноэкранном режиме канвас занимает всё свободное место (3D не требует квадрата) */
 .game-window:fullscreen #game-canvas.mc3d-canvas { aspect-ratio: auto; flex: 1 1 auto; min-width: 0; max-width: none; width: 100%; }
-.game-screen.mc3d-mobile { width: 100vw !important; max-width: 100vw; height: calc(100svh - 120px) !important; min-height: 420px; margin: 0 auto; }
+.game-screen.mc3d-mobile { width: 100vw !important; max-width: 100vw; height: calc(100svh - 120px) !important; min-height: min(420px, calc(100svh - 46px)); margin: 0 auto; }
 .game-window:fullscreen .game-screen.mc3d-mobile { height: calc(100svh - 46px) !important; }
 .game-screen.mc3d-mobile .game-hud-panel { display: none !important; }
 @media (max-width: 900px) {
@@ -387,3 +387,53 @@
 .mc-tt-legend .lg-has { color: #facc15; } .mc-tt-legend .lg-av { color: #e9d5ff; }
 .mc-abil .t .mc-sic { vertical-align: middle; margin-right: 4px; }
 @media (max-width: 700px) { .mc-tree { transform: scale(.62); transform-origin: 0 0; margin-bottom: calc(-0.38 * 516px); } }
+
+/* ===== Мобильная раскладка (слой .mc-touch ставит TouchControls) =====
+   Джойстик — слева снизу; справа снизу — дуга: атака (угол) + рывок/Q/R/F по дуге r=112 + ✋ на внешнем кольце;
+   второстепенные (книга, чат, зум): портрет — колонка над дугой, альбом — ряд слева от дуги. Учитываются safe-area. */
+.mc-touch { --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px); --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); }
+.mc-touch .mc3d-joy { width: 62%; height: 58%; }
+.mc-touch .mc3d-joy-hint { position: absolute; left: calc(var(--sl) + 22px); bottom: calc(var(--sb) + 22px); width: 104px; height: 104px; border-radius: 50%; border: 2px dashed rgba(197, 155, 39, 0.35); background: radial-gradient(circle, rgba(250, 204, 21, 0.18) 0 18px, rgba(12, 8, 22, 0.18) 19px); pointer-events: none; }
+.mc-touch .mc3d-joy.on .mc3d-joy-hint { display: none; }
+.mc-touch .mc3d-tbtns { position: absolute; inset: 0; display: block; pointer-events: none; }
+.mc-touch .mc3d-tbtns .mc3d-tbtn { position: absolute; width: 56px; height: 56px; }
+.mc-touch .mc3d-tbtn.k-atk { width: 76px; height: 76px; right: calc(var(--sr) + 14px); bottom: calc(var(--sb) + 14px); }
+.mc-touch .mc3d-tbtn.k-dash { right: calc(var(--sr) + 136px); bottom: calc(var(--sb) + 24px); border-color: #38bdf8; }
+.mc-touch .mc3d-tbtn.k-q { right: calc(var(--sr) + 119px); bottom: calc(var(--sb) + 83px); }
+.mc-touch .mc3d-tbtn.k-r { right: calc(var(--sr) + 73px); bottom: calc(var(--sb) + 125px); }
+.mc-touch .mc3d-tbtn.k-f { right: calc(var(--sr) + 12px); bottom: calc(var(--sb) + 135px); }
+.mc-touch .mc3d-tbtn.k-act { width: 52px; height: 52px; right: calc(var(--sr) + 210px); bottom: calc(var(--sb) + 75px); }
+/* забег: атака автоматическая — рывок встаёт в угол, дуга навыков та же */
+.mc-touch.mc-run .mc3d-tbtn.k-dash { width: 72px; height: 72px; right: calc(var(--sr) + 16px); bottom: calc(var(--sb) + 16px); }
+.mc-touch .mc3d-tbtn .mc-sic { pointer-events: none; }
+.mc-touch .mc3d-ttop { position: absolute; top: auto; right: calc(var(--sr) + 18px); bottom: calc(var(--sb) + 206px); display: flex; flex-direction: column; gap: 8px; }
+.mc-touch .mc3d-ttop .mc3d-tbtn { width: 44px; height: 44px; font-size: 18px; border-radius: 12px; }
+.mc-touch .mc-bookbtn { display: none; }
+/* HUD: трекер — слева сверху (справа живут кнопки), подсказки и тосты — по центру, не над кнопками */
+.mc-touch .mc-tracker { left: calc(var(--sl) + 8px); right: auto; top: calc(var(--st) + 8px); width: min(240px, 58%); max-height: 30%; overflow: hidden; font-size: 10px; }
+.mc-touch .mc3d-toasts { top: 34%; width: 80%; }
+.mc-touch .mc3d-prompt { bottom: calc(var(--sb) + 222px); max-width: 70%; white-space: normal; text-align: center; }
+.mc-touch .mc3d-chat { bottom: auto; top: calc(var(--st) + 30%); }
+/* HUD забега */
+.mc-touch .mc3d-xp { top: var(--st); }
+.mc-touch .mc3d-hp { left: calc(var(--sl) + 8px); top: calc(var(--st) + 18px); width: min(160px, 42%); }
+.mc-touch .mc3d-top { left: auto; right: calc(var(--sr) + 10px); top: calc(var(--st) + 15px); gap: 10px; }
+.mc-touch .mc3d-allies { top: calc(var(--st) + 44px); right: calc(var(--sr) + 8px); width: min(140px, 36%); }
+.mc-touch .mc3d-boss { top: calc(var(--st) + 112px); }
+.mc-touch .mc-abar { left: calc(var(--sl) + 8px); top: calc(var(--st) + 50px); bottom: auto; transform: none; align-items: flex-start; }
+.mc-touch .mc-abar-run { justify-content: flex-start; max-width: 56%; }
+.mc-touch .mc-abar-main { display: none; }
+.mc-touch .mc-book { padding-top: var(--st); padding-left: var(--sl); padding-right: var(--sr); padding-bottom: var(--sb); }
+/* альбом (низкий экран): второстепенные — ряд слева от дуги */
+@media (orientation: landscape) and (max-height: 560px) {
+  .mc-touch .mc3d-ttop { flex-direction: row; right: calc(var(--sr) + 280px); bottom: calc(var(--sb) + 12px); }
+  .mc-touch .mc3d-joy { width: 48%; height: 70%; }
+  .mc-touch .mc3d-prompt { bottom: calc(var(--sb) + 70px); }
+  .mc-touch .mc-tracker { width: min(260px, 34%); max-height: 40%; }
+  .mc-touch .mc3d-boss { top: calc(var(--st) + 40px); width: min(320px, 40%); }
+}
+/* портрет: узкая ширина — ✋ поднимается на внешнюю дугу над Q (не заходит на джойстик), подсказка — выше */
+@media (orientation: portrait) {
+  .mc-touch .mc3d-tbtn.k-act { right: calc(var(--sr) + 121px); bottom: calc(var(--sb) + 190px); }
+  .mc-touch .mc3d-prompt { bottom: calc(var(--sb) + 262px); }
+}

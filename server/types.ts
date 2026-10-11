@@ -23,6 +23,7 @@ export interface FlowerState {
   duelId?: string;
   dirX?: number;
   dirY?: number;
+  nextActionTime?: number; // мс: следующее действие активного цветка (room.ts)
   targetPlayerId?: string | null;
   wanderTargetX?: number;
   wanderTargetY?: number;

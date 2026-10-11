@@ -27,22 +27,23 @@ export class TouchControls {
     const root = document.createElement('div');
     root.className = 'mc3d-touch';
     root.innerHTML = `
-      <div class="mc3d-joy"><div class="mc3d-joy-base"></div><div class="mc3d-joy-knob"></div></div>
+      <div class="mc3d-joy"><div class="mc3d-joy-hint"></div><div class="mc3d-joy-base"></div><div class="mc3d-joy-knob"></div></div>
       <div class="mc3d-tbtns">
-        <div class="mc3d-tbtn ab" data-act="ability" data-slot="0" style="display:none"></div>
-        <div class="mc3d-tbtn ab" data-act="ability" data-slot="1" style="display:none"></div>
-        <div class="mc3d-tbtn ab" data-act="ability" data-slot="2" style="display:none"></div>
-        <div class="mc3d-tbtn atk" data-hold="attack" title="Атака (автонаведение)">${skillIcon('attack', 36)}</div>
-        <div class="mc3d-tbtn" data-act="interact" title="Действие">✋</div>
-        <div class="mc3d-tbtn" data-act="dash" title="Рывок">${skillIcon('dash', 36)}</div>
+        <div class="mc3d-tbtn ab k-q" data-act="ability" data-slot="0" style="display:none"></div>
+        <div class="mc3d-tbtn ab k-r" data-act="ability" data-slot="1" style="display:none"></div>
+        <div class="mc3d-tbtn ab k-f" data-act="ability" data-slot="2" style="display:none"></div>
+        <div class="mc3d-tbtn atk k-atk" data-hold="attack" title="Атака (автонаведение)">${skillIcon('attack', 40)}</div>
+        <div class="mc3d-tbtn k-act" data-act="interact" title="Действие">✋</div>
+        <div class="mc3d-tbtn k-dash" data-act="dash" title="Рывок">${skillIcon('dash', 36)}</div>
       </div>
       <div class="mc3d-ttop">
-        <div class="mc3d-tbtn" data-act="zoomOut">－</div>
-        <div class="mc3d-tbtn" data-act="zoomIn">＋</div>
-        <div class="mc3d-tbtn" data-act="chat">💬</div>
-        <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📜</div>
+        <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📖</div>
+        <div class="mc3d-tbtn" data-act="chat" title="Чат">💬</div>
+        <div class="mc3d-tbtn" data-act="zoomIn" title="Приблизить">＋</div>
+        <div class="mc3d-tbtn" data-act="zoomOut" title="Отдалить">－</div>
       </div>`;
     this.container.appendChild(root);
+    this.container.classList.add('mc-touch'); // мобильная раскладка HUD (core3d.css: .mc-touch …)
     this.root = root;
     this.joy = root.querySelector('.mc3d-joy');
     this.base = root.querySelector('.mc3d-joy-base');
@@ -60,6 +61,7 @@ export class TouchControls {
       const rect = this.joy.getBoundingClientRect();
       this.origin = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       [this.base, this.knob].forEach((el) => { el.style.display = 'block'; });
+      this.joy.classList.add('on');
       this.base.style.left = this.origin.x + 'px'; this.base.style.top = this.origin.y + 'px';
       this.knob.style.left = this.origin.x + 'px'; this.knob.style.top = this.origin.y + 'px';
       try { this.joy.setPointerCapture(e.pointerId); } catch (_) {}
@@ -81,6 +83,7 @@ export class TouchControls {
       this.touchId = null;
       this.stickVector = { x: 0, y: 0 };
       [this.base, this.knob].forEach((el) => { el.style.display = 'none'; });
+      this.joy.classList.remove('on');
     };
     this.joy.addEventListener('pointerdown', start);
     this.joy.addEventListener('pointermove', move);
@@ -91,6 +94,9 @@ export class TouchControls {
     const hold = (on) => (e) => { e.preventDefault(); e.stopPropagation(); this.atkBtn.classList.toggle('hl', on); this.callbacks.onAttack?.(on); };
     this.atkBtn.addEventListener('pointerdown', (e) => { try { this.atkBtn.setPointerCapture(e.pointerId); } catch (_) {} hold(true)(e); });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => this.atkBtn.addEventListener(ev, hold(false)));
+    // «призрачный клик»: кнопка срабатывает на pointerdown и может открыть экран (лобби, книгу) — без этого
+    // синтетический click после touchend попадёт в кнопку нового экрана под пальцем
+    this.root.addEventListener('touchstart', (e) => { if (e.target.closest?.('.mc3d-tbtn')) e.preventDefault(); }, { passive: false });
     this.root.querySelectorAll('.mc3d-tbtn[data-act]').forEach((b) => {
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
@@ -106,6 +112,7 @@ export class TouchControls {
     if (!this.root) return;
     this.interactBtn.style.display = mode === 'run' ? 'none' : '';
     if (this.atkBtn) this.atkBtn.style.display = mode === 'run' ? 'none' : '';
+    this.container.classList.toggle('mc-run', mode === 'run'); // в забеге рывок занимает место атаки (атака авто)
   }
 
   // Кнопки навыков (до 3): [{icon, name, cdLeft}]
