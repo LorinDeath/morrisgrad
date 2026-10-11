@@ -1,3 +1,4 @@
+import { skillIcon, radColor } from './ui/actionBar.js';
 // Тач-управление: плавающий джойстик в левой части экрана + кнопки (рывок, действие, душа, чат, зум).
 // Навык класса в забеге — круглая кнопка HUD забега (runUI). Монтируется в DOM-слой поверх канваса.
 export function isMobileDevice() {
@@ -31,9 +32,9 @@ export class TouchControls {
         <div class="mc3d-tbtn ab" data-act="ability" data-slot="0" style="display:none"></div>
         <div class="mc3d-tbtn ab" data-act="ability" data-slot="1" style="display:none"></div>
         <div class="mc3d-tbtn ab" data-act="ability" data-slot="2" style="display:none"></div>
-        <div class="mc3d-tbtn atk" data-hold="attack" title="Атака (автонаведение)">⚔️</div>
+        <div class="mc3d-tbtn atk" data-hold="attack" title="Атака (автонаведение)">${skillIcon('attack', 36)}</div>
         <div class="mc3d-tbtn" data-act="interact" title="Действие">✋</div>
-        <div class="mc3d-tbtn" data-act="dash" title="Рывок">💨</div>
+        <div class="mc3d-tbtn" data-act="dash" title="Рывок">${skillIcon('dash', 36)}</div>
       </div>
       <div class="mc3d-ttop">
         <div class="mc3d-tbtn" data-act="zoomOut">－</div>
@@ -114,11 +115,15 @@ export class TouchControls {
     this.abBtns.forEach((b, i) => {
       const a = list[i];
       b.style.display = a ? '' : 'none';
-      if (a) {
-        const txt = a.cdLeft > 0 ? String(Math.ceil(a.cdLeft)) : a.icon;
-        if (b.textContent !== txt) b.textContent = txt;
-        b.classList.toggle('cd', a.cdLeft > 0);
-      }
+      if (!a) return;
+      // те же пиксельные иконки, что и на панели действий; радиальная шторка перезарядки
+      if (b.dataset.id !== a.id) { b.dataset.id = a.id; b.innerHTML = `${skillIcon(a.id, 36)}<div class="sw"></div><span class="cdt"></span>`; b.style.borderColor = radColor(a.rad || 0); }
+      const left = Math.max(0, a.cdLeft || 0), tot = Math.max(0.01, a.cd || a.cdTotal || 1);
+      const p = left > 0 ? Math.round(Math.min(1, left / tot) * 100) : 0;
+      if (b._p !== p) { b._p = p; b.querySelector('.sw').style.background = p ? `conic-gradient(rgba(5,3,12,.72) ${p}%, transparent 0)` : 'none'; }
+      const t = left > 0 ? String(Math.ceil(left)) : '';
+      const ct = b.querySelector('.cdt'); if (ct.textContent !== t) ct.textContent = t;
+      b.classList.toggle('cd', left > 0);
     });
   }
 

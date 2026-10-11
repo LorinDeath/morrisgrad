@@ -14,7 +14,7 @@ import { Book } from './ui/book.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
 import { ZoneView } from './hub/zoneView.js';
-import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES } from '../../../../server/meta/shared.ts';
+import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, abilitySlots } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
@@ -23,7 +23,8 @@ import { RunSession, LVL_INVULN } from './survivors/run.js';
 import { RunView } from './survivors/runView.js';
 import { RunArena } from './survivors/arena.js';
 import { atmo } from './engine/atmosphere.js';
-import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, displayClassName } from './survivors/data.js';
+import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, PASSIVES, displayClassName } from './survivors/data.js';
+import { ActionBar } from './ui/actionBar.js';
 import { Overlay, esc } from './ui/overlay.js';
 import { RunUI } from './ui/runUI.js';
 import { ClassSelect } from './ui/classSelect.js';
@@ -173,7 +174,10 @@ async function boot(canvasId, username, userId, api) {
   const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), mobile });
   const dialog = new NpcDialog(overlay, meta);
   dialog.onCraft = () => book.open('craft');
-  const zoneSt = { lastAtk: 0, gather: null, abilCd: {}, hurtShown: 0 };
+  const zoneSt = { lastAtk: 0, gather: null, abilCd: {}, abilSrv: {}, abilPend: {}, hurtShown: 0 };
+  const abar = new ActionBar(overlay.layer, {
+    onSlot: (i, kind) => { if (kind === 'ab') useAbility(i); else if (kind === 'dash') input.dashPressed = true; },
+  });
   const runUI = new RunUI(overlay, {
     onChoice: (c) => { run?.applyChoice(c); },
     onAbility: (slot) => { input.abilitySlot = slot ?? 0; },
@@ -317,6 +321,13 @@ async function boot(canvasId, username, userId, api) {
     }
   });
   net.on('toast_error', (d) => overlay.toast(d.message || 'Ошибка', '#fca5a5'));
+  // перезарядка навыка, подтверждённая сервером (и при успехе, и при отказе «ещё на перезарядке»)
+  net.on('ability_cd', (d) => {
+    const now = performance.now();
+    zoneSt.abilSrv[d.id] = { until: now + (d.left || 0), total: (d.cd || 1) * 1000 };
+    zoneSt.abilCd[d.id] = now + (d.left || 0);
+    delete zoneSt.abilPend[d.id];
+  });
   net.on('open_minigames_menu', (d) => {
     const list = (d.games || []).map((g) => `<div style="text-align:left;margin:4px 0">${g.disabled || !g.url
       ? `<b style="color:#64748b">${esc(g.title)}</b>`
@@ -752,14 +763,48 @@ async function boot(canvasId, username, userId, api) {
     if (!ab) { overlay.toast(h ? 'Слот навыка пуст — Книга (K)' : 'Навыки есть только у героя — Алтарь', '#94a3b8'); return; }
     const now = performance.now();
     if ((zoneSt.abilCd[ab.id] || 0) > now) return;
-    zoneSt.abilCd[ab.id] = now + ab.cd * 1000;
+    zoneSt.abilCd[ab.id] = now + Math.min(1500, ab.cd * 1000); // до подтверждения сервера — короткий замок от спама
+    zoneSt.abilPend[ab.id] = now;
     send({ type: 'zone_ability', id: ab.id });
     overlay.toast(`${ABILITY_BY_ID[ab.id]?.icon || '✦'} ${ABILITY_BY_ID[ab.id]?.name || ab.id}`, '#fde68a');
+  }
+  // панель действий: навыки раскладки + рывок + атака (мир) / навыки + рывок + оружие и пассивки (забег)
+  const ABAR_KEYS = ['Q', 'R', 'F'];
+  function updateActionBar() {
+    const now = performance.now();
+    if (mode === 'run' && run) {
+      const m = run.me;
+      const list = (m.abilities || []).map((a, i) => ({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: a.name, desc: a.desc, rad: a.rad || 0, cdLeft: a.cdLeft, cdTotal: a.cd }));
+      list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок с неуязвимостью 0.3 с', cdLeft: m.dashCd || 0, cdTotal: 1.1 });
+      abar.show(true); abar.setSlots(list); abar.setRun(m.weapons, m.passives, WEAPONS, PASSIVES);
+      return;
+    }
+    if (mode !== 'hub') { abar.show(false); return; }
+    abar.show(true); abar.setRun(null);
+    const h = meta.hero;
+    const eff = h?.effective;
+    const nSlots = h ? abilitySlots(h.lvl || 1) : 0;
+    const list = [];
+    for (let i = 0; i < 3; i++) {
+      if (!h) { list.push({ kind: 'ab', slot: i, key: ABAR_KEYS[i], name: 'Навык', locked: true, lockText: 'навыки есть только у героя — Алтарь Перевоплощения' }); continue; }
+      if (i >= nSlots) { list.push({ kind: 'ab', slot: i, key: ABAR_KEYS[i], name: '3-й слот', locked: true, lockText: 'откроется на 5 уровне героя' }); continue; }
+      const a = eff?.abilities?.[i];
+      if (!a) { list.push({ kind: 'ab', slot: i, key: ABAR_KEYS[i], empty: true }); continue; }
+      const def = ABILITY_BY_ID[a.id] || {};
+      const srv = zoneSt.abilSrv[a.id];
+      const left = srv ? Math.max(0, (srv.until - now) / 1000) : 0;
+      list.push({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: def.name || a.id, desc: def.desc, rad: a.rad || 0, cdLeft: left, cdTotal: srv ? srv.total / 1000 : a.cd, pending: zoneSt.abilPend[a.id] && now - zoneSt.abilPend[a.id] < 1500 });
+    }
+    list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок (Space / Shift)', cdLeft: dash.cd, cdTotal: DASH.cooldown });
+    const wt = zone.myWeaponType(player.stats.classId);
+    const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
+    list.push({ kind: 'atk', id: 'attack', key: 'ЛКМ', name: `Атака: ${WEAPON_TYPES[wt]?.name || 'оружие'}`, desc: 'Удерживайте ЛКМ — удар в сторону курсора; V — автоатака', cdLeft: Math.max(0, atkMs - (now - zoneSt.lastAtk)) / 1000, cdTotal: atkMs / 1000, locked: !h, lockText: 'атака — у героя' });
+    abar.setSlots(list);
   }
   function refreshAbilityButtons() {
     if (mode === 'run') return;
     const now = performance.now();
-    const list = (meta.hero?.effective?.abilities || []).map((a) => ({ icon: ABILITY_BY_ID[a.id]?.icon || '✦', cdLeft: Math.max(0, ((zoneSt.abilCd[a.id] || 0) - now) / 1000) }));
+    const list = (meta.hero?.effective?.abilities || []).map((a) => { const srv = zoneSt.abilSrv[a.id]; return { id: a.id, rad: a.rad || 0, cd: srv ? srv.total / 1000 : a.cd, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0 }; });
     touch.setAbilities(list);
   }
 
@@ -950,6 +995,7 @@ async function boot(canvasId, username, userId, api) {
       console.error('[MorrisCurse 3D] ошибка кадра', err);
     }
     try { atmo.end(dt, mode === 'run' && run ? atmoWorld : world, player.x, player.y); } catch (err) { console.warn('[atmo]', err); }
+    try { updateActionBar(); } catch (err) { console.warn('[abar]', err); }
     stage.render();
     fpsS.cpuAcc += performance.now() - cpu0;
     hudAcc += dt;
@@ -1224,6 +1270,7 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      rawSend: (o) => net.send(o),
       plantFlower: (x, y, stage) => net.send({ type: 'dev_plant_flower', x, y, stage }),
       flowers: () => [...flowers.values()].map((f) => ({ id: f.id, x: f.x, y: f.y, stage: f.stage })),
       // видимость цветка: объект хаба существует, виден, и его точка на экране внутри канваса

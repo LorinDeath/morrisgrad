@@ -299,3 +299,40 @@
 .mc-ic { display: inline-block; vertical-align: middle; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; flex: none; }
 .mc-ic.sil { filter: grayscale(1) brightness(.42) contrast(1.6); opacity: .8; }
 .mc-item .mc-ic, .mc-lib .mc-ic { margin: auto; }
+
+/* панель действий (ui/actionBar.js) */
+.mc-sic { display: inline-block; background-repeat: no-repeat; image-rendering: pixelated; image-rendering: crisp-edges; flex: none; }
+.mc-abar { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 5; }
+.mc-abar-main { display: flex; gap: 6px; align-items: flex-end; }
+.mc-as { position: relative; width: 56px; height: 56px; border-radius: 9px; background: radial-gradient(circle at 50% 40%, #2a1f40, #0e0918 75%); border: 2px solid var(--rc, #5b4a7a); box-shadow: 0 0 0 1px #000, inset 0 0 6px rgba(0,0,0,.6), 0 0 8px color-mix(in srgb, var(--rc) 35%, transparent); display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; user-select: none; touch-action: none; }
+.mc-as.atk, .mc-as.dash { width: 46px; height: 46px; }
+.mc-as .sw { position: absolute; inset: 0; border-radius: 7px; pointer-events: none; }
+.mc-as .cd { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: bold 16px monospace; color: #fff; text-shadow: 0 0 3px #000, 0 1px 0 #000; pointer-events: none; }
+.mc-as .key { position: absolute; left: 3px; top: 1px; font: bold 9px monospace; color: #fde68a; text-shadow: 0 1px 0 #000; pointer-events: none; }
+.mc-as.oncd .mc-sic { filter: saturate(.55) brightness(.8); }
+.mc-as.locked .mc-sic, .mc-as.empty .mc-sic { filter: grayscale(1) brightness(.75); }
+.mc-as.locked, .mc-as.empty { border-style: dashed; border-color: #4b3f63; box-shadow: none; cursor: default; }
+.mc-as.pending { animation: mcPend .5s ease-in-out infinite alternate; }
+@keyframes mcPend { to { box-shadow: 0 0 0 1px #000, 0 0 14px #fde68a; } }
+.mc-as .tip { display: none; position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); min-width: 180px; max-width: 260px; background: rgba(14,9,24,.97); border: 1px solid var(--rc, #5b4a7a); border-radius: 6px; padding: 6px 8px; font: 11px/1.35 monospace; color: #e2e8f0; white-space: normal; text-align: left; z-index: 10; }
+.mc-as:hover .tip { display: block; }
+.mc-abar-run { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: 70vw; }
+.mc-abar-run .sep { width: 6px; }
+.mc-rs { position: relative; width: 34px; height: 34px; border-radius: 6px; background: rgba(12,8,22,.88); border: 1px solid #3b2c52; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+.mc-rs.p { border-color: #4c3a6e; }
+.mc-rs span { font-size: 16px; }
+.mc-rs b { position: absolute; right: 1px; bottom: -2px; font: bold 9px monospace; color: #ffd700; text-shadow: 0 1px 0 #000; }
+/* на телефоне — те же иконки на сенсорных кнопках; основной ряд панели скрыт, ряд оружия забега остаётся */
+@media (max-width: 700px), (max-height: 520px) {
+  .mc-abar-main { display: none; }
+  .mc-abar { bottom: 6px; }
+  .mc-abar-run { max-width: 56vw; }
+  .mc-rs { width: 26px; height: 26px; }
+  .mc-rs .mc-sic { transform: scale(.7); }
+}
+.mc3d-tbtn.ab .mc-sic { width: 36px; height: 36px; }
+.mc3d-tbtn.ab { position: relative; overflow: hidden; }
+.mc3d-tbtn.ab .sw { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+.mc3d-tbtn.ab .cdt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: bold 15px monospace; color: #fff; text-shadow: 0 0 3px #000; pointer-events: none; }
+/* старые индикаторы забега заменены панелью действий */
+.mc3d-slots, .mc3d-abilities { display: none !important; }
