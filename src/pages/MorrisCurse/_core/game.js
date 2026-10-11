@@ -1023,7 +1023,7 @@ async function boot(canvasId, username, userId, api) {
       hudAcc = 0;
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom,
-        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world,
+        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
       });
     }
@@ -1291,6 +1291,10 @@ async function boot(canvasId, username, userId, api) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
       rawSend: (o) => net.send(o),
+      minimap: () => hud.minimap?.stats,
+      zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y) })),
+      fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)
+      othersInfo: () => [...others.values()].map((o) => ({ world: o.world, x: Math.round(o.x), y: Math.round(o.y), runRoom: o.runRoom })),
       plantFlower: (x, y, stage) => net.send({ type: 'dev_plant_flower', x, y, stage }),
       flowers: () => [...flowers.values()].map((f) => ({ id: f.id, x: f.x, y: f.y, stage: f.stage })),
       // видимость цветка: объект хаба существует, виден, и его точка на экране внутри канваса

@@ -2,6 +2,7 @@
 // цель, объекты рядом, комнаты забегов. Дуэльные кнопки (WAP) удалены.
 import { CLASSES, getArmorReduction } from './classes.js';
 import { Minimap } from './minimap.js';
+import { worldSize } from '../../../../server/worlds/sizes.ts';
 import { RUN_ROOMS, RUN_CLASSES, ABILITIES, displayClassName } from './survivors/data.js';
 import { esc } from './ui/overlay.js';
 import { fmtTime } from './ui/runUI.js';
@@ -152,7 +153,7 @@ export class GameHUD {
     this.txt('ghud-coords', mode === 'run' && run ? `${run.me.x.toFixed(0)} м | ${run.me.z.toFixed(0)} м` : `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`);
 
     if (mode === 'run' && run) this.minimap.updateRun(run);
-    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: d.world === 'arinar' ? 2400 : 1200, lastFaceDir: d.lastFaceDir, currentWorld: d.world });
+    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: worldSize(d.world), lastFaceDir: d.lastFaceDir, currentWorld: d.world || 'hellfire', mobs: d.zoneMobs, mobInfo: d.mobInfo });
 
     // цель
     const t = this.currentTarget;

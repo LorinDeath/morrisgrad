@@ -126,7 +126,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire' }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {} }) {
     if (!this.ctx || !this.canvas) return;
     const now = performance.now();
     if (now - (this._drawAt || 0) < 120) return;   // троттлинг перерисовки (~8 Гц)
@@ -139,6 +139,7 @@ export class Minimap {
     const cy = h / 2;
     const scale = this.zoomLevels[this.zoomIndex];
     const isArinar = currentWorld === 'arinar';
+    this.stats = { mode: 'world', world: currentWorld, mobs: 0, bosses: 0, players: 0 };
 
     ctx.save();
     ctx.clearRect(0, 0, w, h);
@@ -243,20 +244,35 @@ export class Minimap {
       ctx.stroke();
     }
 
-    // 5. Другие игроки (ТОЛЬКО текущего мира)
+    // 4b. Мобы открытого мира (все известные клиенту — зона присылает их по области видимости): обычные — красные точки,
+    // элита — жёлтые, боссы — крупный пурпурный ромб с белым контуром
+    if (mobs) {
+      for (const m of mobs.values()) {
+        const mx = cx + (m.x - player.x) * scale, my = cy + (m.y - player.y) * scale;
+        if (mx < -6 || my < -6 || mx > w + 6 || my > h + 6) continue;
+        this.stats.mobs++;
+        if (mobInfo[m.type]?.boss) {
+          this.stats.bosses++;
+          ctx.fillStyle = '#e879f9'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(mx, my - 5); ctx.lineTo(mx + 5, my); ctx.lineTo(mx, my + 5); ctx.lineTo(mx - 5, my); ctx.closePath(); ctx.fill(); ctx.stroke();
+        } else if (m.elite) { ctx.fillStyle = '#facc15'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
+        else { ctx.fillStyle = '#ef4444'; ctx.fillRect(mx - 1.5, my - 1.5, 3, 3); }
+      }
+    }
+
+    // 5. Другие игроки (текущего мира; без поля world — считаем, что в нашем): единый цвет «союзник» — голубой с белым контуром,
+    // чтобы не путать с мобами и собой (золотой)
     if (this.filters.players && otherPlayers) {
       otherPlayers.forEach((p) => {
-        if ((p.world || 'hellfire') !== currentWorld) return;
-
+        if ((p.world || currentWorld) !== currentWorld) return;
+        this.stats.players++;
         const ox = cx + (p.x - player.x) * scale;
         const oy = cy + (p.y - player.y) * scale;
-
-        ctx.fillStyle = p.color || '#38bdf8';
+        ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
-        ctx.arc(ox, oy, 3, 0, Math.PI * 2);
+        ctx.arc(ox, oy, 3.2, 0, Math.PI * 2);
         ctx.fill();
-
-        ctx.strokeStyle = '#050408';
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1;
         ctx.stroke();
       });
@@ -296,6 +312,7 @@ export class Minimap {
     const m = run.me;
     const fx = this.zoomIndex === 0 ? 0 : m.x, fz = this.zoomIndex === 0 ? 0 : m.z;
     const X = (x) => cx + (x - fx) * scale, Y = (z) => cy + (z - fz) * scale;
+    this.stats = { mode: 'run', mobs: 0, bosses: 0, players: 0, chests: 0, gems: 0, heart: 0 };
     ctx.save();
     ctx.fillStyle = '#05030a';
     ctx.fillRect(0, 0, w, h);
@@ -306,17 +323,30 @@ export class Minimap {
     // камни/сферы опыта на земле на мини-карту НЕ рисуются (их сотни — лишняя работа и шум)
     for (const e of run.enemies.values()) {
       if (e.dead) continue;
-      ctx.fillStyle = e.boss ? '#f0abfc' : e.elite ? '#facc15' : '#ef4444';
-      const r = e.boss ? 4 : e.elite ? 2.5 : 1.2;
+      this.stats.mobs++;
+      if (e.boss) {
+        this.stats.bosses++;
+        const bx = X(e.x), by = Y(e.z);
+        ctx.fillStyle = '#e879f9'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(bx, by - 5); ctx.lineTo(bx + 5, by); ctx.lineTo(bx, by + 5); ctx.lineTo(bx - 5, by); ctx.closePath(); ctx.fill(); ctx.stroke();
+        continue;
+      }
+      ctx.fillStyle = e.elite ? '#facc15' : '#ef4444';
+      const r = e.elite ? 3 : 2;
       ctx.fillRect(X(e.x) - r / 2, Y(e.z) - r / 2, r, r);
     }
     for (const p of run.pickups.values()) {
+      if (p.kind === 'chest') this.stats.chests++;
       if (p.kind === 'chest') { ctx.fillStyle = '#f59e0b'; ctx.fillRect(X(p.x) - 2.5, Y(p.z) - 2, 5, 4); ctx.fillStyle = '#fde68a'; ctx.fillRect(X(p.x) - 0.5, Y(p.z) - 1, 1, 2); }
       else { ctx.fillStyle = '#4ade80'; ctx.fillRect(X(p.x) - 1.5, Y(p.z) - 1.5, 3, 3); }
     }
+    // сердце (испытание Обители) — зелёный крест
+    if (run.heart && run.heart.hp > 0) { const hx = X(run.heart.x ?? 0), hz = Y(run.heart.z ?? 0); ctx.fillStyle = '#4ade80'; ctx.fillRect(hx - 4, hz - 1.5, 8, 3); ctx.fillRect(hx - 1.5, hz - 4, 3, 8); this.stats.heart = 1; }
     for (const r of run.remotes.values()) {
-      ctx.fillStyle = r.dead ? '#64748b' : (r.color || '#38bdf8');
-      ctx.beginPath(); ctx.arc(X(r.x), Y(r.z), 3, 0, Math.PI * 2); ctx.fill();
+      this.stats.players++;
+      ctx.fillStyle = r.dead ? '#64748b' : '#38bdf8';
+      ctx.beginPath(); ctx.arc(X(r.x), Y(r.z), 3.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.fillStyle = '#ffd700';
     ctx.beginPath(); ctx.arc(X(m.x), Y(m.z), 3.5, 0, Math.PI * 2); ctx.fill();
