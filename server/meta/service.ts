@@ -6,7 +6,8 @@ import {
   HERO_IDS, ITEM_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType,
 } from "./defs";
-import { ZONE_GEN } from "./zoneGen";
+import { ZONE_GEN, genOf } from "./zoneGen";
+import { mobXp, xpLevelMult } from "./balance";
 import { QUESTS, QUEST_BY_ID } from "./quests";
 import {
   ProfileStore, heroEffective, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
@@ -33,7 +34,7 @@ export class MetaService {
   // Общие миры с мобами: Аринар (Мэлвелдил) и Поляна перевоплощения (хаб, мошкара пролога)
   // Аринар — процедурный режиссёр спавна (zoneGen.ts, сид экземпляра); Поляна хаба — фиксированные точки пролога.
   // ZONE_SPAWNS/ZONE_NODES оставлены как справка и для отката (proc: false).
-  zones: Record<string, Zone> = { arinar: new Zone("arinar", [], ZONE_NODES, { proc: true, seed: ZONE_GEN.seed }), hellfire: new Zone("hellfire", HUB_SPAWNS, []) };
+  zones: Record<string, Zone> = { arinar: new Zone("arinar", [], ZONE_NODES, { proc: true, seed: ZONE_GEN.seed }), hellfire: new Zone("hellfire", HUB_SPAWNS, [], { proc: true }) };
   ms = new Map<string, MetaSess>(); // session.id → состояние
   env: any;
   zoneAcc = 0;
@@ -293,7 +294,10 @@ export class MetaService {
         if (take <= 0) break;
         kills[type] = take; total += take;
       }
-      out.xp = Math.min(REWARD_RULES.runMaxXp, Math.round((time / 60) * REWARD_RULES.runXpPerMinute + total * REWARD_RULES.runXpPerKill));
+      // опыт забега масштабируется уровнем героя (как фарм в мире): минуты × N «мобов своего уровня», с потолком по времени
+      const per = mobXp(h?.lvl || 1);
+      const mins = Math.min(REWARD_RULES.runMaxMinutes, time / 60);
+      out.xp = Math.round(Math.min(REWARD_RULES.runMaxMinutes * REWARD_RULES.runXpPerMinute * 1.25, mins * REWARD_RULES.runXpPerMinute + total * REWARD_RULES.runXpPerKill) * per);
       // броски дропа по трофеям убитых (ограничено по числу бросков)
       let rolls = 0;
       for (const [type, n] of Object.entries(kills)) {
@@ -424,7 +428,7 @@ export class MetaService {
     const d = ZONE_MOBS[m.type];
     const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
     for (const [sid, dmg] of m.dmgBy as Map<string, number>) {
-      if (!d.boss && dmg / total < 0.15) continue; // вклад ≥15% (босс — любой вклад)
+      if (!d.boss && !d.rare && dmg / total < 0.15) continue; // вклад ≥15% (босс/редкий — любой вклад)
       const ms = this.ms.get(sid);
       const entry = this.sessionLookup?.(sid);
       if (!ms || !entry) continue;
@@ -433,7 +437,8 @@ export class MetaService {
       const cls = session.stats?.classId || null;
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       a.bestiary[m.type] = { seen: 1, kills: (a.bestiary[m.type]?.kills || 0) + 1 };
-      const xp = Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1));
+      // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
+      const xp = Math.max(1, Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1) * xpLevelMult(d.lvl || 1, h?.lvl || 1)));
       const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite };
       if (h) out.levelUps = gainXp(h, xp);
       this.grantLoot(a, rollMonsterLoot(m.type), out);
@@ -441,6 +446,9 @@ export class MetaService {
       this.qev(a, session, { type: "kill", mob: m.type, cls });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: m.type, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
+      // эпические и выше трофеи — объявление в мире (MMO-момент)
+      const epic = out.items.find((it: any) => ["epic", "legendary", "mythic"].includes(ITEM_BY_ID[it.id]?.rarity));
+      if (epic) this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `💎 ${session.username || "Игрок"} добывает «${ITEM_BY_ID[epic.id].name}»!`, color: "#f0abfc" });
     }
   }
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
@@ -457,13 +465,15 @@ export class MetaService {
         ms.zp.x = s.x; ms.zp.y = s.y;
         if (!ms.zp.alive && now >= ms.zp.respawnAt) {
           ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp;
-          const rp = w === "arinar" ? ZONE_RESPAWN : { x: 600, y: 640 };
+          const rp = genOf(w).respawn;
           s.x = rp.x; s.y = rp.y; ms.zp.x = s.x; ms.zp.y = s.y;
           this.send(ws, { type: "zone_respawn", x: s.x, y: s.y });
         }
         if (ms.zp.alive && ms.zp.hp < ms.zp.maxHp) {
           const eff = this.effective(s);
-          ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + (eff.regen + (w === "hellfire" ? 2 : 0.3)) * dt);
+          // вне боя (5 с без урона) — быстрое восстановление 4% ХП/с, как в MMO: простой между стычками короткий
+          const ooc = now - ((ms as any).hurtAt || 0) > 5000 ? ms.zp.maxHp * 0.04 : 0;
+          ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + (eff.regen + (w === "hellfire" ? 2 : 0.3) + ooc) * dt);
         }
         // в хабе боевое состояние только у тех, у кого есть оболочка
         if (w !== "hellfire" || s.stats?.classId) byWorld[w].players.set(s.id, ms.zp);
@@ -480,7 +490,7 @@ export class MetaService {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
         const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed)));
-        ms.zp.hp -= real;
+        ms.zp.hp -= real; (ms as any).hurtAt = now;
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }
       }, (mm) => this.onMobKilled(mm));

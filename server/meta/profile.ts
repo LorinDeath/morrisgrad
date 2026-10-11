@@ -124,8 +124,10 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     wMin += st.dmgMin || 0; wMax += st.dmgMax || 0;
     for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct"]) raw[k] += (st as any)[k] || 0;
   }
+  // полный комплект моба: облик + бонус комплекта (bestiary.ts → look.stat)
   const look = activeLook(a, h);
-  if (look === "blade_fly") raw.speedPct += 5;
+  const lookStat = look ? LOOKS[look]?.stat : null;
+  if (lookStat) for (const [k, v] of Object.entries(lookStat)) raw[k] = (raw[k] || 0) + (v || 0);
   // капы и убывающая отдача (см. docs/MORRISCURSE-BALANCE.md)
   const eff = {
     maxHp: Math.round(base.maxHp + heroLevelHp(h.lvl) + raw.hp),
@@ -257,6 +259,7 @@ export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   const def = ITEM_BY_ID[it.id];
   if (!SLOTS[def.slot]) return fail("Неизвестный слот");
   if (def.classes && !def.classes.includes(cls as any)) return fail("Этот предмет не подходит герою");
+  if (def.req && h.lvl < def.req) return fail(`Нужен ${def.req} уровень героя`);
   h.equip[def.slot] = uid;
   return { ok: true };
 }

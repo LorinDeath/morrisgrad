@@ -23,7 +23,9 @@ ok(st && st.hero.lvl === 1 && st.hero.loadout[0] === 'pierce', 'select hero at a
 const zs = await A.wait('zone_state', 3000, (m) => m.w === 'hellfire');
 ok(zs && zs.m.length >= 6, 'hub zone_state: Мошкара-Жнец visible (AOI) count=' + (zs ? zs.m.length / 6 : 0));
 // kill a fly: teleport near and attack until dead
-const flyId = zs.m[0], fx = zs.m[2], fy = zs.m[3];
+// фиксированная Мошкара пролога — на северном краю (x 480..800, y < 220); кольцо Поляны (ур. 1–3) — по краям
+let fi = 0; for (let j = 0; j < zs.m.length; j += 6) if (zs.m[j + 2] > 480 && zs.m[j + 2] < 800 && zs.m[j + 3] < 220) { fi = j; break; }
+const flyId = zs.m[fi], fx = zs.m[fi + 2], fy = zs.m[fi + 3];
 A.send({ type: 'move', x: fx, y: fy + 60 }); await sleep(200);
 A.clear();
 for (let i = 0; i < 40; i++) { const z = A.last('zone_state'); let mob = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === flyId) { mob = z.m.slice(j, j + 6); } if (z && !mob && i > 2) break; if (mob) { A.send({ type: 'move', x: mob[2], y: mob[3] + 50 }); await sleep(60); A.send({ type: 'zone_attack', dx: 0, dy: -1 }); } await sleep(560); }
@@ -35,7 +37,7 @@ A.send({ type: 'talent_learn', id: 'spearman.vit' });
 let te = await A.wait('toast_error'); ok(te && /Алзи/.test(te.message), 'talent tree gated by story flag (Alzi)');
 // dev grant: xp + flags via quests is long; use dev_grant xp, stars, item
 A.clear();
-A.send({ type: 'dev_grant', xp: 3000, stars: { yellow: 3, black: 1 }, item: 'fly_blades' });
+A.send({ type: 'dev_grant', xp: 12000, stars: { yellow: 3, black: 1 }, item: 'fly_blades' });
 st = await A.wait('meta_state');
 ok(st.hero.lvl >= 5 && st.hero.talentPoints === st.hero.lvl - 1, `hero level ${st.hero.lvl}, talent points ${st.hero.talentPoints}, 3 ability slots=${st.hero.slots}`);
 const blades = st.account.inv.find((i) => i.id === 'fly_blades');
@@ -62,7 +64,7 @@ A.send({ type: 'run_join', room: 'crypt' }); await A.wait('run_joined');
 await sleep(1500);
 A.clear(); A.send({ type: 'run_result', time: 9999, kills: { imp: 99999 }, bossKills: 5 });
 st = await A.wait('meta_state', 4000, (m) => m.reward);
-ok(st && st.reward.time <= 5 && st.reward.xp < 20, 'run reward capped by server-measured time (claimed 9999s → ' + st?.reward.time + 's, xp ' + st?.reward.xp + ')');
+ok(st && st.reward.time <= 5 && st.reward.xp < 60, 'run reward capped by server-measured time, xp ≈ minutes × 6 mobs of hero level (claimed 9999s → ' + st?.reward.time + 's, xp ' + st?.reward.xp + ')');
 A.send({ type: 'run_leave' }); await sleep(200);
 // per-hero separation
 A.clear(); A.send({ type: 'select_class', classId: 'mage' });
@@ -101,17 +103,25 @@ if (tgt) {
   // подходим к мобу по шагам (анти-телепорт)
   let px = 240, py = 600;
   for (let i = 0; i < 30; i++) { const z = B.last('zone_state'); let m = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) m = z.m.slice(j, j + 6); if (!m) break;
-    const dx = m[2] - px, dy = m[3] + 70 - py, d = Math.hypot(dx, dy); if (d < 20) break; const st = Math.min(d, 90); px += dx / d * st; py += dy / d * st; B.send({ type: 'move', x: px, y: py }); await sleep(260); }
-  await sleep(600); B.clear();
-  B.send({ type: 'zone_attack', dx: 0, dy: 1 }); // от моба (он выше)
-  await sleep(700);
+    const dx = m[2] - px, dy = m[3] + 70 - py, d = Math.hypot(dx, dy); if (d < 40) break; const st = Math.min(d, 90); px += dx / d * st; py += dy / d * st; B.send({ type: 'move', x: px, y: py }); await sleep(260); }
+  // направление на моба — по свежему состоянию (мобы с ролями двигаются: стрелки держат дистанцию)
+  const dirTo = () => { const z = B.last('zone_state'); if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) { const dx = z.m[j + 2] - px, dy = z.m[j + 3] - py, d = Math.hypot(dx, dy) || 1; return { dx: dx / d, dy: dy / d, d }; } return { dx: 0, dy: -1, d: 0 }; };
+  await sleep(300);
+  let dv = dirTo(); B.clear();
+  B.send({ type: 'zone_attack', dx: -dv.dx, dy: -dv.dy }); // от моба
+  await sleep(500);
   const hitsWrong = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'hit' && e.id === tgt[0]);
+  if (process.env.DBG) console.log('DBG', JSON.stringify({ tgt, px, py, dv, hitsWrong, last: B.last('zone_state')?.m, ev: B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).slice(0, 12) }));
   ok(hitsWrong.length === 0, 'click attack in the wrong direction misses (server-validated)');
-  B.clear();
-  for (let i = 0; i < 10; i++) { B.send({ type: 'zone_attack', dx: 0, dy: -1 }); await sleep(30); }
+  await sleep(300);
+  // снова подойти вплотную (моб мог отойти) и бить точно в него
+  for (let i = 0; i < 25; i++) { dv = dirTo(); if (!dv.d || dv.d < 70) break; const st = Math.min(dv.d - 50, 90); px += dv.dx * st; py += dv.dy * st; B.send({ type: 'move', x: px, y: py }); await sleep(260); }
+  dv = dirTo(); B.clear();
+  for (let i = 0; i < 10; i++) { B.send({ type: 'zone_attack', dx: dv.dx, dy: dv.dy }); await sleep(30); }
   await sleep(800);
   const shots = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'shot');
   const hits = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'hit');
+  if (process.env.DBG) console.log('DBG2', JSON.stringify({ px, py, dv, shots, tgtNow: (() => { const z = B.last('zone_state'); if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) return z.m.slice(j, j + 6); return null; })() }));
   ok(shots.length >= 1 && shots.length <= 2 && hits.length >= 1, `attack spam (10 in 300ms) cut by weapon cooldown: ${shots.length} accepted, hits ${hits.length}`);
 } else ok(false, 'no Аринар mob to test click attack');
 // guest without uid

@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
+import { worldSize } from "./worlds/sizes";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -858,8 +859,9 @@ export class GameRoom extends DurableObject {
             if (d > maxStep) { nx = session.x + (dx / d) * maxStep; ny = session.y + (dy / d) * maxStep; }
             (session as any).lastMoveAt = now;
           }
-          session.x = Math.max(0, Math.min(1200, nx));
-          session.y = Math.max(0, Math.min(1200, ny));
+          const wsz = worldSize(session.world);
+          session.x = Math.max(0, Math.min(wsz, nx));
+          session.y = Math.max(0, Math.min(wsz, ny));
           this.broadcast();
         }
 

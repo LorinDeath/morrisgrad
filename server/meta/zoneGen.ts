@@ -1,8 +1,10 @@
-// Процедурное наполнение открытого мира (Аринар): регионы-биомы, таблицы мобов, режиссёр спавна, узлы ресурсов.
-// Общий для сервера (Zone — авторитет) и клиента (те же узлы ресурсов из того же сида — без пересылки позиций).
+// Процедурное наполнение открытых миров: регионы-биомы по ярусам сложности, таблицы мобов (из бестиария),
+// режиссёр спавна, мировые боссы и редкие Отголоски на длинных таймерах, узлы ресурсов.
+// Общий для сервера (Zone — авторитет) и клиента (те же узлы ресурсов и регионы из того же сида — без пересылки).
 // Всё детерминировано сидом экземпляра зоны (mulberry32), чтобы баги воспроизводились.
 // Параметры и обоснование — docs/MORRISCURSE-BALANCE.md, раздел «Открытый мир: спавн».
-import { NPCS, ZONE_RESPAWN } from "./defs";
+import { NPCS, ZONE_RESPAWN } from "./shared";
+import { WORLD_SIZES } from "../worlds/sizes";
 
 export function rng(seed: number) {
   let a = seed >>> 0;
@@ -17,18 +19,26 @@ export function rng(seed: number) {
 
 export interface MobRow { type: string; w: number; pack: [number, number] }
 export interface Region {
-  id: string; name: string; band: string;
-  rect: [number, number, number, number]; // x0, y0, x1, y1 (px мира 0..1200)
+  id: string; name: string; band: string; tier: number; lvl: [number, number]; biome: string; tags: Record<string, number>;
+  rect: [number, number, number, number]; // x0, y0, x1, y1 (px мира)
   cap: number;                            // максимум живых мобов региона
   table: MobRow[];
   night?: Record<string, number>;         // множители весов в «Фиолетовую ночь»
   elite: number;                          // шанс элиты на пачку
   nodes: { type: string; res: string; n: number; respawn: number; qty: [number, number] }[];
 }
+export interface WorldBossDef { type: string; x: number; y: number; firstAfter: number; every: number; where: string }
+export interface RareDef { type: string; region: string; every: [number, number]; life: number }
+export interface SafeZone { x: number; y: number; r: number; name: string }
+export interface WorldGen {
+  id: string; size: number; seed: number; globalCap: number; nearBase: number; nearPerPlayer: number; nearMax: number;
+  safe: SafeZone[]; regions: Region[]; bosses: WorldBossDef[]; rares: RareDef[]; respawn: { x: number; y: number };
+}
 
+// Общие параметры режиссёра (миры переопределяют капы)
 export const ZONE_GEN = {
   seed: 0x4d454c56,          // «MELV»: сид экземпляра Аринара по умолчанию
-  globalCap: 34,             // все мобы зоны (без мирового босса)
+  globalCap: 60,             // все мобы зоны (без боссов и редких) — Аринар 2400×2400
   nearBase: 6,               // мобов в радиусе nearR вокруг игрока, если он один
   nearPerPlayer: 3,          // +за каждого игрока поблизости
   nearMax: 16,               // потолок плотности вокруг группы
@@ -44,53 +54,106 @@ export const ZONE_GEN = {
   despawnDist: 1150,         // дальше от всех игроков…
   despawnIdle: 30,           // …и вне боя столько секунд → исчезает
   eliteHp: 2.2, eliteDmg: 1.35, eliteXp: 2.5,
-  boss: { type: "moon_sentinel", x: 720, y: 1040, firstAfter: 180, every: 480 },
   nodeMinDist: 95,
+  bossScalePerPlayer: 0.5,   // ХП босса ×(1 + 0.5·(игроков−1)), максимум ×2.5
 };
 
-export const SAFE_ZONES: { x: number; y: number; r: number; name: string }[] = [
+// ---------- таблицы регионов: тег where бестиария → вес ----------
+// Таблицы мобов заполняет ТОЛЬКО сервер (zoneTables.ts импортирует бестиарий со снаряжением) —
+// клиентский бандл получает лишь регионы, теги и узлы ресурсов.
+const reg = (o: Omit<Region, "table" | "night">): Region => ({ ...o, table: [], night: {} });
+const N = (type: string, res: string, n: number, respawn: number, qty: [number, number] = [1, 2]) => ({ type, res, n, respawn, qty });
+
+// ---------- Аринар (государство Мэлвелдил), 2400×2400 ----------
+// Деревня-«безопасная» на западе (порталы, Алзи, Лэйр) → ярусы идут по часовой стрелке и к югу.
+const ARINAR_REGIONS: Region[] = [
+  reg({ id: "groves", name: "Западные рощи", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "grove", rect: [100, 60, 680, 340], cap: 9, elite: 0.04,
+    tags: { groves: 3 }, nodes: [N("tree", "dreamwood", 4, 35, [1, 3]), N("flower", "moonpetal", 2, 40)] }),
+  reg({ id: "meadow", name: "Луга мотыльков", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "meadow", rect: [100, 900, 700, 1500], cap: 11, elite: 0.05,
+    tags: { meadow: 3, mines_edge: 0.6 }, nodes: [N("flower", "moonpetal", 5, 40), N("tree", "dreamwood", 2, 35, [1, 3])] }),
+  reg({ id: "wastes", name: "Звёздные пустоши", band: "Мэлвелдил II", tier: 2, lvl: [6, 10], biome: "waste", rect: [720, 60, 1320, 480], cap: 10, elite: 0.06,
+    tags: { wastes: 3, wastes_low: 0.8, ridge_low: 1.5 }, nodes: [N("crystal", "starsilver", 3, 60)] }),
+  reg({ id: "gardens", name: "Гранатовые сады", band: "Мэлвелдил II", tier: 2, lvl: [6, 10], biome: "garden", rect: [1020, 520, 1700, 1160], cap: 12, elite: 0.06,
+    tags: { gardens: 3, gardens_edge: 1, meadow_far: 1, village_night: 0.4 }, nodes: [N("tree", "dreamwood", 3, 35, [1, 3]), N("flower", "moonpetal", 3, 40)] }),
+  reg({ id: "mines", name: "Гнилые копи", band: "Мэлвелдил III", tier: 3, lvl: [11, 15], biome: "rot", rect: [720, 1200, 1360, 1800], cap: 12, elite: 0.07,
+    tags: { mines: 3 }, nodes: [N("ore", "rot_ore", 4, 45), N("crystal", "starsilver", 1, 60)] }),
+  reg({ id: "ridge", name: "Восточный кряж", band: "Мэлвелдил III", tier: 3, lvl: [11, 15], biome: "ridge", rect: [1360, 60, 1920, 500], cap: 10, elite: 0.07,
+    tags: { ridge: 3 }, nodes: [N("crystal", "starsilver", 3, 60), N("tree", "dreamwood", 1, 35, [1, 3])] }),
+  reg({ id: "pylons", name: "Гудящие пилоны", band: "Мэлвелдил IV", tier: 4, lvl: [16, 20], biome: "pylon", rect: [1760, 560, 2340, 1440], cap: 12, elite: 0.08,
+    tags: { pylons: 3 }, nodes: [N("crystal", "starsilver", 3, 60), N("ore", "rot_ore", 2, 45)] }),
+  reg({ id: "glitch", name: "Глитч-разлом", band: "Мэлвелдил IV", tier: 4, lvl: [16, 20], biome: "glitch", rect: [1400, 1460, 2340, 1900], cap: 12, elite: 0.08,
+    tags: { glitch: 3 }, nodes: [N("ore", "rot_ore", 3, 45), N("crystal", "starsilver", 1, 60)] }),
+  reg({ id: "crater", name: "Лунный кратер", band: "Мэлвелдил V", tier: 5, lvl: [21, 25], biome: "crater", rect: [1460, 1960, 2340, 2340], cap: 12, elite: 0.1,
+    tags: { crater: 3, crater_edge: 1 }, nodes: [N("crystal", "starsilver", 4, 60, [2, 3])] }),
+  reg({ id: "thin", name: "Тонкие земли", band: "Мэлвелдил V", tier: 5, lvl: [21, 25], biome: "thin", rect: [100, 1860, 1400, 2340], cap: 12, elite: 0.1,
+    tags: { thin: 3 }, nodes: [N("flower", "moonpetal", 2, 40, [2, 3]), N("ore", "rot_ore", 2, 45, [1, 3])] }),
+];
+const ARINAR_SAFE: SafeZone[] = [
   { x: ZONE_RESPAWN.x, y: ZONE_RESPAWN.y, r: 170, name: "точка возрождения / портал" },
   { x: 240, y: 600, r: 120, name: "Разлом в Мир Адского Пламени" },
   { x: 900, y: 600, r: 120, name: "портал Бездны" },
   ...Object.values(NPCS).filter((n) => n.world === "arinar").map((n) => ({ x: n.x, y: n.y, r: 120, name: n.name })),
 ];
 
-export const REGIONS: Region[] = [
-  {
-    id: "wastes", name: "Звёздные пустоши", band: "Мэлвелдил I", rect: [340, 140, 900, 430], cap: 10, elite: 0.05,
-    table: [{ type: "blade_fly", w: 6, pack: [1, 3] }, { type: "rot_glitch", w: 1, pack: [1, 2] }],
-    nodes: [{ type: "crystal", res: "starsilver", n: 2, respawn: 60, qty: [1, 2] }],
-  },
-  {
-    id: "ridge", name: "Восточный кряж", band: "Мэлвелдил I–II", rect: [920, 160, 1170, 560], cap: 7, elite: 0.07,
-    table: [{ type: "blade_fly", w: 3, pack: [2, 3] }, { type: "dream_moth", w: 2, pack: [1, 2] }],
-    night: { dream_moth: 2 },
-    nodes: [{ type: "tree", res: "dreamwood", n: 2, respawn: 35, qty: [1, 3] }, { type: "crystal", res: "starsilver", n: 1, respawn: 60, qty: [1, 2] }],
-  },
-  {
-    id: "meadow", name: "Луга мотыльков", band: "Мэлвелдил II", rect: [110, 760, 560, 1150], cap: 8, elite: 0.06,
-    table: [{ type: "dream_moth", w: 5, pack: [1, 2] }, { type: "blade_fly", w: 1, pack: [1, 2] }],
-    night: { dream_moth: 1.6 },
-    nodes: [{ type: "flower", res: "moonpetal", n: 3, respawn: 40, qty: [1, 2] }],
-  },
-  {
-    id: "mines", name: "Гнилые копи", band: "Мэлвелдил II", rect: [880, 700, 1170, 1150], cap: 9, elite: 0.08,
-    table: [{ type: "rot_glitch", w: 5, pack: [2, 3] }, { type: "dream_moth", w: 1, pack: [1, 1] }],
-    nodes: [{ type: "ore", res: "rot_ore", n: 2, respawn: 45, qty: [1, 2] }],
-  },
-  {
-    id: "groves", name: "Западные рощи", band: "Мэлвелдил I", rect: [100, 150, 330, 480], cap: 5, elite: 0.04,
-    table: [{ type: "rot_glitch", w: 2, pack: [1, 2] }, { type: "blade_fly", w: 2, pack: [1, 2] }],
-    nodes: [{ type: "tree", res: "dreamwood", n: 3, respawn: 35, qty: [1, 3] }, { type: "flower", res: "moonpetal", n: 1, respawn: 40, qty: [1, 2] }],
-  },
+// ---------- Поляна перевоплощения (хаб, мир hellfire), 1200×1200: внешнее кольцо ур. 1–3 ----------
+const RING = (id: string, name: string, rect: [number, number, number, number], cap: number): Region =>
+  reg({ id, name, band: "Поляна", tier: 1, lvl: [1, 3], biome: "meadow", rect, cap, elite: 0.02, tags: { polyana_ring: 3 }, nodes: [] });
+const HUB_REGIONS: Region[] = [
+  RING("ring_w", "Западная опушка", [30, 160, 190, 1170], 3),
+  RING("ring_s", "Южный луг", [190, 1070, 1170, 1170], 3),
+  RING("ring_e", "Восточная опушка", [1030, 400, 1170, 1070], 3),
+  RING("ring_nw", "Северо-западный край", [30, 30, 420, 160], 2),
+  RING("ring_ne", "Северо-восточный край", [1010, 30, 1170, 220], 2),
+];
+const HUB_SAFE: SafeZone[] = [
+  { x: 565, y: 600, r: 300, name: "Алтарь перевоплощения" },
+  { x: 660, y: 640, r: 150, name: "точка появления" },
+  { x: 240, y: 600, r: 110, name: "Разлом в Аринар" },
+  { x: 900, y: 300, r: 120, name: "Склеп" },
+  { x: 860, y: 840, r: 110, name: "Арена Кьют" },
+  { x: 300, y: 900, r: 110, name: "Испытание" },
+  { x: 565, y: 1000, r: 110, name: "Разлом мини-игр" },
+  ...Object.values(NPCS).filter((n) => n.world === "hellfire").map((n) => ({ x: n.x, y: n.y, r: 110, name: n.name })),
 ];
 
-export function inSafe(x: number, y: number, pad = 0) {
-  for (const s of SAFE_ZONES) if (Math.hypot(x - s.x, y - s.y) < s.r + pad) return true;
+export const WORLD_GEN: Record<string, WorldGen> = {
+  arinar: {
+    id: "arinar", size: WORLD_SIZES.arinar, seed: ZONE_GEN.seed, globalCap: 60, nearBase: 6, nearPerPlayer: 3, nearMax: 16,
+    safe: ARINAR_SAFE, regions: ARINAR_REGIONS, respawn: ZONE_RESPAWN,
+    // мировые боссы: длинные таймеры, объявление всем в мире
+    bosses: [
+      { type: "swarm_mother", x: 390, y: 200, firstAfter: 120, every: 600, where: "в Западных рощах" },
+      { type: "thorn_matron", x: 1360, y: 840, firstAfter: 240, every: 900, where: "в Гранатовых садах" },
+      { type: "moon_sentinel", x: 1640, y: 280, firstAfter: 360, every: 1200, where: "на Восточном кряже" },
+      { type: "the_silencer", x: 2050, y: 1000, firstAfter: 480, every: 1500, where: "у Гудящих пилонов" },
+      { type: "violet_queen", x: 1900, y: 2150, firstAfter: 600, every: 2400, where: "в Лунном кратере" },
+    ],
+    // редкие Отголоски: случайное место региона, таймер со случайным разбросом, уходят, если их не нашли
+    rares: [
+      { type: "dew_king", region: "meadow", every: [600, 1200], life: 480 },
+      { type: "white_stag", region: "gardens", every: [900, 1500], life: 480 },
+      { type: "rust_baron", region: "mines", every: [900, 1500], life: 480 },
+      { type: "cooler_maw", region: "pylons", every: [1200, 1800], life: 480 },
+      { type: "fallen_star", region: "crater", every: [1500, 2400], life: 480 },
+    ],
+  },
+  hellfire: {
+    id: "hellfire", size: WORLD_SIZES.hellfire, seed: 0x504f4c59, globalCap: 10, nearBase: 4, nearPerPlayer: 2, nearMax: 8,
+    safe: HUB_SAFE, regions: HUB_REGIONS, respawn: { x: 600, y: 640 }, bosses: [], rares: [],
+  },
+};
+
+// совместимость: Аринар по умолчанию
+export const SAFE_ZONES = ARINAR_SAFE;
+export const REGIONS = ARINAR_REGIONS;
+
+export function genOf(world?: string): WorldGen { return WORLD_GEN[world || "arinar"] || WORLD_GEN.arinar; }
+export function inSafe(x: number, y: number, pad = 0, world = "arinar") {
+  for (const s of genOf(world).safe) if (Math.hypot(x - s.x, y - s.y) < s.r + pad) return true;
   return false;
 }
-export function regionAt(x: number, y: number): Region | null {
-  for (const r of REGIONS) if (x >= r.rect[0] && x <= r.rect[2] && y >= r.rect[1] && y <= r.rect[3]) return r;
+export function regionAt(x: number, y: number, world = "arinar"): Region | null {
+  for (const r of genOf(world).regions) if (x >= r.rect[0] && x <= r.rect[2] && y >= r.rect[1] && y <= r.rect[3]) return r;
   return null;
 }
 
@@ -98,16 +161,17 @@ export function regionAt(x: number, y: number): Region | null {
 export function isNight(now: number) { return Math.floor(now / 60000) % 20 >= 15; }
 
 // Узлы ресурсов из сида: одинаково на сервере и клиенте (id 1000+i)
-export function genNodes(seed: number) {
+export function genNodes(seed: number, world = "arinar") {
+  const G = genOf(world);
   const R = rng(seed ^ 0x9e3779b9);
   const out: { id: number; type: string; res: string; x: number; y: number; respawn: number; qty: [number, number] }[] = [];
-  for (const reg of REGIONS) {
+  for (const reg of G.regions) {
     for (const nd of reg.nodes) {
       for (let k = 0; k < nd.n; k++) {
         for (let t = 0; t < 30; t++) {
           const x = Math.round(reg.rect[0] + 30 + R() * (reg.rect[2] - reg.rect[0] - 60));
           const y = Math.round(reg.rect[1] + 30 + R() * (reg.rect[3] - reg.rect[1] - 60));
-          if (inSafe(x, y, 20) || Math.hypot(x - ZONE_GEN.boss.x, y - ZONE_GEN.boss.y) < 110) continue;
+          if (inSafe(x, y, 20, world) || G.bosses.some((b) => Math.hypot(x - b.x, y - b.y) < 130)) continue;
           if (out.some((o) => Math.hypot(o.x - x, o.y - y) < ZONE_GEN.nodeMinDist)) continue;
           out.push({ id: 1000 + out.length, type: nd.type, res: nd.res, x, y, respawn: nd.respawn, qty: nd.qty });
           break;
