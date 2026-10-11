@@ -1,0 +1,45 @@
+/* ==========================================================================
+   ДИЗАЙН-ТОКЕНЫ МОРРИСГРАД: LORIN ART DECO
+   Crimson / Deep Black / Purple Eye / Brass Gold
+   ========================================================================== */
+:root {
+  --bg-dark: #0c0a0d;
+  --bg-dark-rgb: 12, 10, 13;
+  --bg-purple: #1a0a12;
+  --bg-surface: #121016;
+  --bg-surface-elevated: #1a1420;
+  --bg-surface-card: rgba(18, 16, 22, 0.78);
+
+  /* Art Deco латунь / золото */
+  --accent-gold: #c9a86c;
+  --accent-gold-bright: #d4b483;
+  --accent-gold-dark: #8a6d3b;
+  --gold-glow: rgba(201, 168, 108, 0.35);
+  --gold-border: rgba(201, 168, 108, 0.35);
+  --gold-border-soft: rgba(201, 168, 108, 0.18);
+
+  /* Фиолетовый глаз */
+  --energy-purple: #c084fc;
+  --energy-purple-bright: #d8b4fe;
+  --purple-deep: #3b1a4a;
+  --purple-glow: rgba(192, 132, 252, 0.35);
+  --purple-border: rgba(192, 132, 252, 0.3);
+
+  /* Crimson / blood red — основной акцент Лорин */
+  --accent-crimson: #e11d48;
+  --accent-crimson-bright: #f43f5e;
+  --crimson-glow: rgba(225, 29, 72, 0.4);
+  --crimson-border: rgba(225, 29, 72, 0.4);
+
+  --btn-gray: #1a1420;
+  --border-subtle: #2a2030;
+  --border-card: rgba(201, 168, 108, 0.22);
+
+  --text-light: #f3e8e0;
+  --text-main: #e8e0d8;
+  --text-muted: #a89a92;
+  --text-dim: #7a6c68;
+
+  --font-heading: 'Shket', 'Cinzel', serif;
+  --font-body: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
+}

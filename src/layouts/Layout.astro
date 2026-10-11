@@ -2,6 +2,7 @@
 import { ViewTransitions } from 'astro:transitions';
 import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/astro/components";
 import RadioPlayer from '../components/RadioPlayer.astro';
+import '../styles/tokens.css';
 
 interface Props {
   title: string;
@@ -44,14 +45,14 @@ const { title } = Astro.props;
         <a href="/" class="logo-area" title="На главную МоррисГрад">
           <div class="logo-crest">
             <svg viewBox="0 0 40 40" width="34" height="34" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 2L36 9V21C36 30 29 36.5 20 39C11 36.5 4 30 4 21V9L20 2Z" fill="url(#crest-grad)" stroke="#ffd700" stroke-width="1.5" stroke-opacity="0.8"/>
-              <path d="M12 28V15L20 23L28 15V28" stroke="#ffd700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="20" cy="11" r="2" fill="#ffd700" filter="drop-shadow(0 0 4px #ffd700)"/>
+              <path d="M20 2L36 9V21C36 30 29 36.5 20 39C11 36.5 4 30 4 21V9L20 2Z" fill="url(#crest-grad)" stroke="#c9a86c" stroke-width="1.5" stroke-opacity="0.8"/>
+              <path d="M12 28V15L20 23L28 15V28" stroke="#c9a86c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="20" cy="11" r="2" fill="#c9a86c" filter="drop-shadow(0 0 4px #c9a86c)"/>
               <defs>
                 <linearGradient id="crest-grad" x1="4" y1="2" x2="36" y2="39" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#2d124d"/>
-                  <stop offset="0.6" stop-color="#140824"/>
-                  <stop offset="1" stop-color="#07030d"/>
+                  <stop stop-color="#1a0a12"/>
+                  <stop offset="0.6" stop-color="#0c0608"/>
+                  <stop offset="1" stop-color="#050304"/>
                 </linearGradient>
               </defs>
             </svg>
@@ -62,7 +63,6 @@ const { title } = Astro.props;
           </div>
         </a>
 
-        <!-- Быстрые навигационные кнопки: Книги и Галерея -->
         <nav class="header-nav-links">
           <a href="/books" class="header-nav-btn" title="Летописи и книги вселенной">
             <span class="nav-icon">📖</span> <span class="nav-btn-text">Книги</span>
@@ -131,10 +131,7 @@ const { title } = Astro.props;
       </div>
     </footer>
 
-
-
     <script>
-      // Инициализация кнопки "Назад", лайтбокса и проверки чата
       document.addEventListener('astro:page-load', () => {
         const backBtn = document.getElementById('back-btn');
         if (backBtn) {
@@ -146,7 +143,6 @@ const { title } = Astro.props;
           backBtn.onclick = () => window.history.back();
         }
 
-        // Проверка непрочитанных сообщений в чате
         const checkChat = async () => {
           if (window.location.pathname === '/chat') return;
           try {
@@ -170,43 +166,6 @@ const { title } = Astro.props;
 </html>
 
 <style is:global>
-  /* ==========================================================================
-     ДИЗАЙН-ТОКЕНЫ МОРРИСГРАД: DARK FANTASY (PURPLE & GOLD)
-     ========================================================================== */
-  :root {
-    --bg-dark: #06040a;
-    --bg-dark-rgb: 6, 4, 10;
-    --bg-purple: #130822;
-    --bg-surface: #0e0817;
-    --bg-surface-elevated: #170d26;
-    --bg-surface-card: rgba(22, 13, 38, 0.72);
-    
-    --accent-gold: #f5d061;
-    --accent-gold-bright: #ffd700;
-    --accent-gold-dark: #b8912c;
-    --gold-glow: rgba(245, 208, 97, 0.35);
-    --gold-border: rgba(245, 208, 97, 0.3);
-    --gold-border-soft: rgba(245, 208, 97, 0.15);
-
-    --energy-purple: #a855f7;
-    --energy-purple-bright: #c084fc;
-    --purple-deep: #250943;
-    --purple-glow: rgba(168, 85, 247, 0.4);
-    --purple-border: rgba(168, 85, 247, 0.35);
-
-    --btn-gray: #1a1424;
-    --border-subtle: #291c3d;
-    --border-card: rgba(168, 85, 247, 0.2);
-
-    --text-light: #f5f2fb;
-    --text-main: #e2daf0;
-    --text-muted: #9f91b8;
-    --text-dim: #73648a;
-
-    --font-heading: 'Shket', 'Cinzel', serif;
-    --font-body: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
-  }
-
   @font-face {
     font-family: 'Shket';
     src: url('/fonts/Shket-Regular.otf') format('opentype');
@@ -215,7 +174,6 @@ const { title } = Astro.props;
     font-display: swap;
   }
 
-  /* Базовый сброс и типографика */
   *, *::before, *::after {
     box-sizing: border-box;
   }
@@ -239,9 +197,9 @@ const { title } = Astro.props;
     position: relative;
     background-color: var(--bg-dark);
     background-image: 
-      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(120, 35, 200, 0.22), transparent 75%),
-      radial-gradient(ellipse 70% 50% at 50% 100%, rgba(65, 15, 120, 0.25), transparent 80%),
-      linear-gradient(rgba(6, 4, 10, 0.88), rgba(12, 6, 22, 0.92)),
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(225, 29, 72, 0.12), transparent 75%),
+      radial-gradient(ellipse 70% 50% at 50% 100%, rgba(192, 132, 252, 0.08), transparent 80%),
+      linear-gradient(rgba(12, 10, 13, 0.92), rgba(18, 12, 16, 0.94)),
       url('/images/main-bg.webp');
     background-size: cover;
     background-position: center;
@@ -249,7 +207,6 @@ const { title } = Astro.props;
     background-repeat: no-repeat;
   }
 
-  /* Декоративные световые ореолы */
   .ambient-glow {
     position: fixed;
     width: 600px;
@@ -258,19 +215,19 @@ const { title } = Astro.props;
     pointer-events: none;
     z-index: 0;
     filter: blur(140px);
-    opacity: 0.18;
+    opacity: 0.15;
   }
   .ambient-glow-top {
     top: -200px;
     left: 50%;
     transform: translateX(-50%);
-    background: radial-gradient(circle, var(--energy-purple) 0%, transparent 70%);
+    background: radial-gradient(circle, var(--accent-crimson) 0%, transparent 70%);
   }
   .ambient-glow-bottom {
     bottom: -200px;
     right: 5%;
-    background: radial-gradient(circle, var(--accent-gold-dark) 0%, transparent 70%);
-    opacity: 0.12;
+    background: radial-gradient(circle, var(--energy-purple) 0%, transparent 70%);
+    opacity: 0.1;
   }
 
   h1, h2, h3, .site-name, .welcome-text {
@@ -285,9 +242,6 @@ const { title } = Astro.props;
     z-index: 1;
   }
 
-  /* ==========================================================================
-     ШАПКА (HEADER)
-     ========================================================================== */
   .top-radio-bar {
     position: sticky;
     top: 0;
@@ -300,11 +254,11 @@ const { title } = Astro.props;
     justify-content: space-between;
     align-items: center;
     padding: 0.9rem 2.2rem;
-    background: rgba(10, 6, 18, 0.82);
+    background: rgba(12, 10, 13, 0.85);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--gold-border-soft);
-    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(168, 85, 247, 0.15);
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(225, 29, 72, 0.1);
     position: relative;
     z-index: 900;
   }
@@ -328,7 +282,7 @@ const { title } = Astro.props;
     gap: 6px;
     padding: 5px 12px;
     border-radius: 8px;
-    background: rgba(28, 14, 46, 0.6);
+    background: rgba(26, 16, 32, 0.6);
     border: 1px solid var(--border-subtle);
     color: var(--text-main);
     text-decoration: none;
@@ -339,16 +293,13 @@ const { title } = Astro.props;
   .header-nav-btn:hover {
     color: var(--accent-gold);
     border-color: var(--accent-gold);
-    background: rgba(45, 25, 75, 0.7);
+    background: rgba(45, 25, 40, 0.7);
     box-shadow: 0 0 10px var(--gold-glow);
     transform: translateY(-2px);
   }
-  .header-nav-btn .nav-icon {
-    font-size: 0.95rem;
-  }
 
   .nav-btn {
-    background: rgba(26, 17, 43, 0.6);
+    background: rgba(26, 16, 32, 0.6);
     border: 1px solid var(--border-subtle);
     color: var(--text-muted);
     width: 36px;
@@ -365,7 +316,6 @@ const { title } = Astro.props;
     color: var(--accent-gold);
     transform: translateX(-3px);
     box-shadow: 0 0 12px var(--gold-glow);
-    background: rgba(45, 25, 75, 0.7);
   }
 
   .logo-area {
@@ -379,16 +329,12 @@ const { title } = Astro.props;
   .logo-area:hover {
     transform: scale(1.02);
   }
-  .logo-area:hover .logo-crest {
-    box-shadow: 0 0 20px var(--gold-glow), 0 0 12px var(--purple-glow);
-    border-color: var(--accent-gold);
-  }
 
   .logo-crest {
     width: 42px;
     height: 42px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #1c0d30 0%, #0d0617 100%);
+    background: linear-gradient(135deg, #1a0a12 0%, #0c0608 100%);
     border: 1px solid var(--gold-border);
     display: flex;
     align-items: center;
@@ -407,21 +353,19 @@ const { title } = Astro.props;
     font-size: 1.35rem;
     font-weight: 700;
     text-transform: uppercase;
-    background: linear-gradient(135deg, #ffffff 40%, var(--accent-gold) 100%);
+    background: linear-gradient(135deg, #f3e8e0 40%, var(--accent-gold) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 20px rgba(245, 208, 97, 0.25);
   }
 
   .version-chip {
     font-size: 0.68rem;
     font-family: monospace;
     color: var(--accent-gold);
-    background: rgba(245, 208, 97, 0.1);
-    border: 1px solid rgba(245, 208, 97, 0.3);
+    background: rgba(201, 168, 108, 0.1);
+    border: 1px solid rgba(201, 168, 108, 0.3);
     padding: 2px 7px;
     border-radius: 999px;
-    letter-spacing: 0.5px;
   }
 
   .auth-controls {
@@ -437,7 +381,7 @@ const { title } = Astro.props;
     font-size: 0.88rem;
     padding: 6px 14px;
     border-radius: 8px;
-    background: rgba(26, 17, 43, 0.6);
+    background: rgba(26, 16, 32, 0.6);
     border: 1px solid var(--border-subtle);
     display: flex;
     align-items: center;
@@ -447,9 +391,8 @@ const { title } = Astro.props;
   }
   .header-chat-link:hover {
     color: var(--accent-gold);
-    border-color: var(--energy-purple);
-    background: rgba(45, 25, 75, 0.65);
-    box-shadow: 0 0 14px var(--purple-glow);
+    border-color: var(--accent-crimson);
+    box-shadow: 0 0 14px var(--crimson-glow);
   }
 
   .notify-dot {
@@ -469,8 +412,8 @@ const { title } = Astro.props;
   }
 
   .login-btn {
-    background: linear-gradient(135deg, rgba(147, 51, 234, 0.3) 0%, rgba(88, 28, 135, 0.5) 100%);
-    border: 1px solid var(--energy-purple);
+    background: linear-gradient(135deg, rgba(225, 29, 72, 0.25) 0%, rgba(159, 18, 57, 0.4) 100%);
+    border: 1px solid var(--accent-crimson);
     color: var(--text-light);
     padding: 0.45rem 1.2rem;
     border-radius: 8px;
@@ -484,17 +427,13 @@ const { title } = Astro.props;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
   }
   .login-btn:hover {
-    background: linear-gradient(135deg, var(--energy-purple) 0%, #7e22ce 100%);
+    background: linear-gradient(135deg, var(--accent-crimson) 0%, #9f1239 100%);
     color: #fff;
     border-color: var(--accent-gold);
-    box-shadow: 0 0 20px var(--purple-glow), 0 0 8px var(--gold-glow);
+    box-shadow: 0 0 20px var(--crimson-glow);
     transform: translateY(-2px);
-  }
-  .btn-rune {
-    color: var(--accent-gold);
   }
 
   .profile-link {
@@ -504,7 +443,7 @@ const { title } = Astro.props;
     font-size: 0.9rem;
     padding: 6px 14px;
     border-radius: 8px;
-    background: rgba(26, 17, 43, 0.6);
+    background: rgba(26, 16, 32, 0.6);
     border: 1px solid var(--border-subtle);
     display: inline-flex;
     align-items: center;
@@ -516,13 +455,7 @@ const { title } = Astro.props;
     border-color: var(--accent-gold);
     box-shadow: 0 0 12px var(--gold-glow);
   }
-  .profile-icon {
-    color: var(--accent-gold);
-  }
 
-  /* ==========================================================================
-     КОНТЕЙНЕРЫ И ОБЩИЕ ЭЛЕМЕНТЫ
-     ========================================================================== */
   .container {
     max-width: 1180px;
     margin: 0 auto;
@@ -531,11 +464,10 @@ const { title } = Astro.props;
 
   .shimmer-line {
     height: 2px;
-    background: linear-gradient(90deg, transparent 0%, rgba(168, 85, 247, 0.4) 20%, var(--accent-gold) 50%, rgba(168, 85, 247, 0.4) 80%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(225, 29, 72, 0.3) 20%, var(--accent-gold) 50%, rgba(192, 132, 252, 0.3) 80%, transparent 100%);
     margin: 2.5rem 0;
-    box-shadow: 0 0 12px var(--gold-glow);
+    box-shadow: 0 0 12px var(--crimson-glow);
     width: 100%;
-    position: relative;
   }
 
   .section-title {
@@ -548,22 +480,18 @@ const { title } = Astro.props;
   }
   .section-title::before {
     content: "❖";
-    color: var(--energy-purple-bright);
+    color: var(--accent-crimson);
     font-size: 1.3rem;
   }
 
-  /* ==========================================================================
-     ФУТЕР (FOOTER)
-     ========================================================================== */
   .footer {
     text-align: center;
     padding: 3.5rem 1.5rem 3rem;
-    background: #040307;
+    background: #08060a;
     border-top: 1px solid var(--gold-border-soft);
     position: relative;
     width: 100%;
     z-index: 10;
-    box-shadow: 0 100vh 0 100vh #040307;
   }
 
   .footer-ornament {
@@ -583,7 +511,6 @@ const { title } = Astro.props;
     color: var(--accent-gold);
     font-size: 0.85rem;
     letter-spacing: 3px;
-    text-shadow: 0 0 8px var(--gold-glow);
   }
 
   .socials {
@@ -595,7 +522,7 @@ const { title } = Astro.props;
   }
 
   .social-badge {
-    background: rgba(22, 13, 38, 0.8);
+    background: rgba(18, 16, 22, 0.8);
     border: 1px solid var(--border-subtle);
     color: var(--text-main);
     text-decoration: none;
@@ -611,181 +538,8 @@ const { title } = Astro.props;
   .social-badge:hover {
     color: var(--accent-gold);
     border-color: var(--accent-gold);
-    background: rgba(45, 25, 75, 0.7);
+    background: rgba(45, 25, 40, 0.7);
     box-shadow: 0 0 16px var(--gold-glow);
     transform: translateY(-2px);
-  }
-  .social-icon {
-    font-size: 0.95rem;
-  }
-
-  .copy {
-    color: var(--text-dim);
-    font-size: 0.88rem;
-    margin: 0.5rem 0 0.8rem;
-    letter-spacing: 0.5px;
-  }
-
-  .site-version-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-muted);
-    font-size: 0.82rem;
-    text-decoration: none;
-    transition: color 0.25s ease;
-    border-bottom: 1px dotted rgba(245, 208, 97, 0.3);
-    padding-bottom: 2px;
-  }
-  .site-version-link:hover {
-    color: var(--accent-gold);
-    border-color: var(--accent-gold);
-  }
-  .link-bullet {
-    color: var(--energy-purple);
-    font-size: 0.75rem;
-  }
-
-  /* ==========================================================================
-     СТИЛИ ДЛЯ ЗАМЕТОК, КАРТОЧЕК И ЛАЙТБОКСА
-     ========================================================================== */
-  .notes-container {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    margin-top: 2rem;
-    margin-bottom: 2rem;
-  }
-
-  .note-card {
-    background: linear-gradient(135deg, rgba(32, 17, 56, 0.75) 0%, rgba(14, 8, 26, 0.85) 100%);
-    border: 1px solid var(--gold-border-soft);
-    border-radius: 12px;
-    padding: 18px 24px;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(168, 85, 247, 0.05);
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    backdrop-filter: blur(8px);
-  }
-  .note-card:hover {
-    border-color: var(--accent-gold);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px var(--gold-glow);
-    transform: translateY(-2px);
-  }
-
-  .note-divider {
-    width: 3px;
-    height: 44px;
-    background: linear-gradient(180deg, transparent, var(--accent-gold), transparent);
-    flex-shrink: 0;
-    box-shadow: 0 0 8px var(--accent-gold);
-  }
-
-  .note-card p {
-    color: #ede5f8;
-    line-height: 1.6;
-    font-size: 0.96rem;
-    margin: 0;
-  }
-
-  /* Персонажи и галереи */
-  .chars-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 24px;
-    margin-bottom: 2.5rem;
-  }
-
-  .char-card {
-    position: relative;
-    display: block;
-    aspect-ratio: 2 / 3;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid var(--gold-border-soft);
-    background: var(--bg-surface-elevated);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-    transition: all 0.35s ease;
-    text-decoration: none;
-  }
-  .char-card:hover {
-    transform: translateY(-8px);
-    border-color: var(--accent-gold);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-glow);
-  }
-  .char-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.6s ease;
-  }
-  .char-card:hover .char-img {
-    transform: scale(1.06);
-  }
-  .char-name {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: linear-gradient(to top, rgba(6, 4, 10, 0.95) 0%, rgba(6, 4, 10, 0.7) 60%, transparent 100%);
-    color: #fff;
-    text-align: center;
-    padding: 18px 10px 12px;
-    font-weight: bold;
-    font-size: 1.15rem;
-    letter-spacing: 0.5px;
-  }
-
-  .gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-  }
-  .gallery-item img {
-    width: 100%;
-    height: auto;
-    border-radius: 10px;
-    border: 1px solid var(--border-subtle);
-    transition: all 0.3s ease;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
-  }
-  .gallery-item img:hover {
-    transform: scale(1.03);
-    border-color: var(--accent-gold);
-    box-shadow: 0 8px 25px var(--purple-glow);
-  }
-
-  /* Скроллбар */
-  ::-webkit-scrollbar { width: 9px; }
-  ::-webkit-scrollbar-track { background: #06040a; }
-  ::-webkit-scrollbar-thumb {
-    background: #231638;
-    border: 1px solid var(--border-subtle);
-    border-radius: 999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #3c1e63;
-    border-color: var(--accent-gold);
-  }
-
-  ::selection {
-    background: #6b21a8;
-    color: #ffd700;
-  }
-
-  /* Адаптивность для мобильных */
-  @media (max-width: 768px) {
-    .header { padding: 0.8rem 1rem; }
-    .site-name { font-size: 1.1rem; }
-    .version-chip { display: none; }
-    .header-chat-link .chat-text { display: none; }
-    .header-nav-btn .nav-btn-text { display: none; }
-    .header-nav-btn { padding: 5px 8px; }
-    .socials { gap: 0.8rem; }
-    .container { padding: 1.5rem 1rem; }
   }
 </style>
