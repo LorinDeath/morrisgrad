@@ -4,7 +4,7 @@
 Строка = моб (порядок MOBS_PUBLIC из server/meta/generated/public.ts), 12 колонок:
   0–3 ход/полёт, 4–6 атака (замах → удар → возврат), 7 урон (вспышка), 8–11 распад.
 Семейство и палитра — из бестиария (art.fam / art.pal), базовый цвет — mob.color.
-Выход: src/assets/mc/bestiary_atlas.png + bestiary_atlas.json {cell, cols, rows: [ids], flying: {id: м}}.
+Выход: src/assets/mc/bestiary_atlas.png + bestiary_atlas.json {cell, cols, rows: [ids], flying: {id: м}, body: [[низ, верх] px]}.
 """
 import os, re, json, math, random
 from PIL import Image
@@ -404,7 +404,7 @@ def frame(fn, base, acc, col, fly):
                 if a: px[x, y] = (min(255, r + 110), min(255, g + 90), min(255, b + 110), a)
     if col >= 8:  # распад: пиксели исчезают и уходят вверх фиолетовыми искрами
         k = (col - 7) / 4
-        rnd = random.Random(col * 31 + hash(base) % 97)
+        rnd = random.Random(col * 31 + sum(map(ord, base)) % 97)  # детерминированно (hash() строк солится)
         out = Image.new('RGBA', (C, C), (0, 0, 0, 0)); op = out.load()
         for y in range(C):
             for x in range(C):
@@ -436,7 +436,12 @@ def main():
         for c in range(COLS):
             atlas.paste(frame(fn, base, acc, c, fam in FLY), (c * C, r * C))
     atlas.save(OUT)
-    json.dump({'cell': C, 'cols': COLS, 'rows': ids, 'flying': flying}, open(OUT.replace('.png', '.json'), 'w'))
+    # body: [низ, верх] видимого тела в кадре 0 (px от низа ячейки) — для масштаба в забеге и полосок над головой
+    body = []
+    for r in range(len(ids)):
+        bb = atlas.crop((0, r * C, C, (r + 1) * C)).getbbox()
+        body.append([C - bb[3], C - bb[1]] if bb else [0, C])
+    json.dump({'cell': C, 'cols': COLS, 'rows': ids, 'flying': flying, 'body': body}, open(OUT.replace('.png', '.json'), 'w'))
     os.makedirs(PREV, exist_ok=True)
     # превью: кадр 0 каждого моба сеткой 12×N с подписью-индексом
     n = len(ids); pc = 12; pr = (n + pc - 1) // pc

@@ -6,6 +6,11 @@ import { createCharacter, kindFromClass, modelMode } from '../engine/characters.
 import { SpriteBatch } from '../engine/spriteBatch.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
 import { ENEMIES, WEAPONS } from './data.js';
+import { BEAST_ROW, beastFlying, beastHeightFor, loadBeastBatch } from '../engine/beastSprites.js';
+// видимый рост тела в забеге (м) — как у прежних спрайтов арены; остальные Отголоски — 1.5 м
+const RUN_VIS = { imp: 1.4, bat: 0.9, ghoul: 1.8, spitter: 1.2, golem: 2.8, warden: 4.4, blade_fly: 1.35, dream_moth: 1.1, rot_glitch: 1.1, moon_sentinel: 4.9 };
+const RUN_H = {};
+const runH = (t) => (RUN_H[t] ??= beastHeightFor(t, RUN_VIS[t] ?? 1.5));
 import { ProjFx } from '../engine/projFx.js';
 
 const CAP = { imp: 220, bat: 220, ghoul: 200, spitter: 120, golem: 90, warden: 4, blade_fly: 160, dream_moth: 120, rot_glitch: 140, moon_sentinel: 4 };
@@ -56,6 +61,9 @@ export class RunView {
     if (atl.mobs && modelMode() === 'pix') {
       this.mobBatch = new SpriteBatch(THREE, atl.mobs, { cellW: MOB_CELL.w, cellH: MOB_CELL.h, cols: MOB_CELL.cols, rows: MOB_CELL.rows, max: MOB_MAX });
       this.root.add(this.mobBatch.mesh);
+      // единый атлас Отголосков (как в открытом мире); старый 14-типовой — только для отсутствующих (зеркало Кьют)
+      this.beast = null;
+      loadBeastBatch(THREE, MOB_MAX).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
     }
     // Телеграфы (круги/линии на земле), ауры элиты, лужи — по одному InstancedMesh
     const decal = (geo, cap, opacity) => {
@@ -150,17 +158,18 @@ export class RunView {
 
   // 2.5D-орда: один батч, кадры по состоянию, распад исчезнувших врагов
   drawHorde(dt) {
-    const run = this.run, B = this.mobBatch, T = this.time;
+    const run = this.run, B = this.mobBatch, BB = this.beast, T = this.time;
     const fno = ++this.frameNo;
-    B.begin();
+    B.begin(); BB?.begin();
     for (const e of run.enemies.values()) {
       if (e.dead) continue;
-      const row = MOB_ROWS[e.type];
+      const brow = BB ? BEAST_ROW[e.type] : undefined;
+      const row = brow ?? MOB_ROWS[e.type];
       if (row === undefined) continue;
       const s = e.scale || 1;
-      const h = (MOB_HEIGHT[e.type] || 2) * s;
-      const fly = MOB_FLYING[e.type] || 0;
-      const y = fly ? (fly + Math.sin(T * 7 + e.id) * 0.18) * s : 0;
+      const h = brow !== undefined ? runH(e.type) * s : (MOB_HEIGHT[e.type] || 2) * s;
+      const fly = brow !== undefined ? (beastFlying(e.type) ? 1 : 0) : MOB_FLYING[e.type] || 0;
+      const y = brow !== undefined ? (fly ? Math.sin(T * 5 + e.id) * 0.15 * s : 0) : fly ? (fly + Math.sin(T * 7 + e.id) * 0.18) * s : 0;
       let col;
       if (e.flash > 0.05) col = 7;
       else if (e.wind > 0) col = 4;
@@ -180,7 +189,7 @@ export class RunView {
       else if (e.poisonU > run.t) { r *= 0.75; g *= 1.2; b *= 0.6; }
       else if (e.bleedU > run.t) { r *= 1.3; g *= 0.7; b *= 0.7; }
       if (e.wind > 0) { r = Math.max(r, 1.35); }
-      B.push(e.x + shake, y, e.z, h, col, row, rec.flip, r, g, b, e.flash > 0.05 ? 0.85 : 0, 1);
+      (brow !== undefined ? BB : B).push(e.x + shake, y, e.z, h, col, row, rec.flip, r, g, b, e.flash > 0.05 ? 0.85 : 0, 1);
     }
     // исчезнувшие → распад архива (кадры 8–11)
     for (const [id, rec] of this.lastSeen) {
@@ -194,10 +203,13 @@ export class RunView {
       const life = dd.elite ? 0.8 : 0.45;
       if (dd.t >= life) { this.dying.splice(i, 1); continue; }
       const k = dd.t / life;
+      const brow = BB ? BEAST_ROW[dd.type] : undefined;
+      if (brow !== undefined) { BB.push(dd.x, 0, dd.z, runH(dd.type) * dd.s, 8 + Math.min(3, Math.floor(k * 4)), brow, dd.flip, 1.2, 1.1, 1.3, k < 0.15 ? 0.6 : 0, 1 - k * 0.6); continue; }
+      if (MOB_ROWS[dd.type] === undefined) continue;
       const fly = MOB_FLYING[dd.type] || 0;
       B.push(dd.x, fly * dd.s * (1 - k), dd.z, (MOB_HEIGHT[dd.type] || 2) * dd.s, 8 + Math.min(3, Math.floor(k * 4)), MOB_ROWS[dd.type], dd.flip, 1.2, 1.1, 1.3, k < 0.15 ? 0.6 : 0, 1 - k * 0.6);
     }
-    B.end();
+    B.end(); BB?.end();
   }
 
   // Телеграфы атак, ауры элиты/босса, лужи гнили, метки метеора
@@ -372,7 +384,7 @@ export class RunView {
     let n = 0;
     for (const e of run.enemies.values()) {
       if (e.dead || n >= STATUS_ICONS) continue;
-      const h = (MOB_HEIGHT[e.type] || 2) * (e.scale || 1) + (MOB_FLYING[e.type] || 0) + 0.25;
+      const h = (this.beast && BEAST_ROW[e.type] !== undefined ? (RUN_VIS[e.type] ?? 1.5) * (e.scale || 1) + (beastFlying(e.type) ? 0.6 : 0) : (MOB_HEIGHT[e.type] || 2) * (e.scale || 1) + (MOB_FLYING[e.type] || 0)) + 0.25;
       let off = 0;
       for (const kind of ST_KINDS) {
         if (!(e[kind + 'U'] > T)) continue;

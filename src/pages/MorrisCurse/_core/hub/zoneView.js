@@ -4,8 +4,7 @@
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import propsSrc from '../../../../assets/mc/props_atlas.png';
 import propsMeta from '../../../../assets/mc/props_atlas.json';
-import beastSrc from '../../../../assets/mc/bestiary_atlas.png';
-import beastMeta from '../../../../assets/mc/bestiary_atlas.json';
+import { BEAST_ROW, BEAST_H, beastTop as BEAST_TOP, beastFlying, loadBeastBatch } from '../engine/beastSprites.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
@@ -15,10 +14,6 @@ import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { ProjFx } from '../engine/projFx.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
-// Атлас всех 68 Отголосков (tools/mc-sprites/gen_bestiary.py): строка = моб, кадры как у mobs_atlas; ячейка 48 px = 4.8 м
-const BEAST_ROW = Object.fromEntries(beastMeta.rows.map((id, i) => [id, i]));
-const BEAST_H = beastMeta.cell / 10;
-const BEAST_TOP = (type) => { const m = ZONE_MOBS[type]; return m?.boss || m?.huge ? 4.6 : m?.size === 'l' ? 3.4 : beastMeta.flying[type] !== undefined ? 3.0 : 2.4; };
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
 const HIT_FOR = { spear: 'hit', daggers: 'hit_bleed', soul_spark: 'hit_ice', staff_bolt: 'hit_arcane', ab_backstab: 'hit_ice', thorn_bow: 'hit_bleed', war_axe: 'hit', fly_blades: 'hit_bleed', chain_bolt: 'hit_arcane' };
 const PX = 20;
@@ -61,11 +56,7 @@ export class ZoneView {
     // узлы ресурсов — пиксельные пропсы из props_atlas (тот же стиль, что земля и деревья)
     this.nodeBatch = null;
     this.beast = null;
-    const burl = typeof beastSrc === 'object' && beastSrc ? (beastSrc.src || beastSrc.default || '') : beastSrc;
-    loadAtlasTexture(THREE, burl).then((t) => {
-      this.beast = new SpriteBatch(THREE, t, { cellW: beastMeta.cell, cellH: beastMeta.cell, cols: beastMeta.cols, rows: beastMeta.rows.length, max: 320 });
-      this.root.add(this.beast.mesh);
-    }).catch((e) => console.warn('[beast]', e.message));
+    loadBeastBatch(THREE, 320).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
     const purl = typeof propsSrc === 'object' && propsSrc ? (propsSrc.src || propsSrc.default || '') : propsSrc;
     loadAtlasTexture(THREE, purl).then((t) => {
       const [cw, ch] = propsMeta.cell;
@@ -218,7 +209,7 @@ export class ZoneView {
       for (const o of this.mobs.values()) {
         const row = BEAST_ROW[o.type];
         if (row === undefined) continue;
-        const fly = beastMeta.flying[o.type] !== undefined;
+        const fly = beastFlying(o.type);
         let col = (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3;
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
         let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
