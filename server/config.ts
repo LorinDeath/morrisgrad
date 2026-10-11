@@ -1,5 +1,6 @@
 import { CHARACTER_CLASSES } from "./classes";
 import { WORLD_PORTALS } from "./worlds/portals";
+import type { RunRoomDef } from "./types";
 
 export const ADMIN_USER_IDS = [
   "user_38QeREOr606p1c96P4f14YFsLp7"
@@ -35,3 +36,11 @@ export const CLASSES_CONFIG: Record<string, {
     },
   ])
 );
+// Co-op комнаты забегов. Ключ — id комнаты (совпадает с WorldPortalDef.runRoom).
+export const RUN_ROOMS: Record<string, RunRoomDef> = {
+  crypt: { id: "crypt", name: "Склеп", maxPlayers: 4 },
+  abyss: { id: "abyss", name: "Бездна", maxPlayers: 4 },
+};
+
+// Максимальный размер ретранслируемого пакета забега (байт JSON)
+export const RUN_RELAY_MAX_BYTES = 24000;

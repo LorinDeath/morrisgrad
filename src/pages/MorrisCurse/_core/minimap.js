@@ -279,4 +279,38 @@ export class Minimap {
 
     ctx.restore();
   }
+
+  // Мини-карта забега: круглая арена (метры), орда, камни опыта, союзники
+  updateRun(run, arenaRadius = 60) {
+    if (!this.ctx || !this.canvas) return;
+    const ctx = this.ctx;
+    const w = this.canvas.width, h = this.canvas.height, cx = w / 2, cy = h / 2;
+    const scale = (Math.min(w, h) / 2 - 4) / arenaRadius * [1, 1.8, 3][this.zoomIndex];
+    const m = run.me;
+    const fx = this.zoomIndex === 0 ? 0 : m.x, fz = this.zoomIndex === 0 ? 0 : m.z;
+    const X = (x) => cx + (x - fx) * scale, Y = (z) => cy + (z - fz) * scale;
+    ctx.save();
+    ctx.fillStyle = '#05030a';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#120c1f';
+    ctx.strokeStyle = '#c59b27';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(X(0), Y(0), arenaRadius * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(96, 165, 250, 0.8)';
+    for (const g of run.gems.values()) ctx.fillRect(X(g.x) - 0.5, Y(g.z) - 0.5, 1.5, 1.5);
+    for (const e of run.enemies.values()) {
+      if (e.dead) continue;
+      ctx.fillStyle = e.boss ? '#f0abfc' : e.elite ? '#facc15' : '#ef4444';
+      const r = e.boss ? 4 : e.elite ? 2.5 : 1.2;
+      ctx.fillRect(X(e.x) - r / 2, Y(e.z) - r / 2, r, r);
+    }
+    for (const p of run.pickups.values()) { ctx.fillStyle = '#4ade80'; ctx.fillRect(X(p.x) - 1.5, Y(p.z) - 1.5, 3, 3); }
+    for (const r of run.remotes.values()) {
+      ctx.fillStyle = r.dead ? '#64748b' : (r.color || '#38bdf8');
+      ctx.beginPath(); ctx.arc(X(r.x), Y(r.z), 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath(); ctx.arc(X(m.x), Y(m.z), 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
 }

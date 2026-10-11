@@ -1,178 +1,119 @@
+// Фрактал Бабочки «Аринар»: парящая звёздная платформа в открытом космосе.
+import { HALF } from '../engine/geometry.js';
+import { createArtDecoCanvas } from './artDeco.js';
+
 export class ArinarSpaceEnvironment {
-  constructor(worldSize = 1200) {
-    this.worldSize = worldSize;
-    this.stars = [];
-    this.particles = [];
-    this.initCosmos();
+  constructor() {
+    this.id = 'arinar';
+    this.sky = 0x03020a;
+    this.fog = { color: 0x060418, near: 30, far: 95 };
+    this.hemi = { sky: 0x8ea2ff, ground: 0x1b0c33, intensity: 0.6 };
+    this.sun = { color: 0xc7d2fe, intensity: 0.7 };
   }
 
-  initCosmos() {
-    // 180 процедурных звёзд разной яркости
-    for (let i = 0; i < 180; i++) {
-      this.stars.push({
-        x: Math.random() * this.worldSize,
-        y: Math.random() * this.worldSize,
-        size: Math.random() * 1.8 + 0.6,
-        baseAlpha: Math.random() * 0.6 + 0.3,
-        pulseSpeed: Math.random() * 2 + 1,
-        color: ['#ffffff', '#a5f3fc', '#e0e7ff', '#fbcfe8'][Math.floor(Math.random() * 4)]
-      });
-    }
+  build(THREE) {
+    const g = new THREE.Group();
+    g.name = 'env-arinar';
+    const size = HALF * 2;
 
-    // 40 медленно парящих космических частиц
-    for (let i = 0; i < 40; i++) {
-      this.particles.push({
-        x: Math.random() * this.worldSize,
-        y: Math.random() * this.worldSize,
-        vx: (Math.random() - 0.5) * 8,
-        vy: (Math.random() - 0.5) * 8,
-        size: Math.random() * 2.5 + 1.2,
-        color: ['#818cf8', '#38bdf8', '#c084fc', '#f472b6'][Math.floor(Math.random() * 4)],
-        pulse: Math.random() * Math.PI
-      });
+    const tex = new THREE.CanvasTexture(createArtDecoCanvas({
+      base: '#070a1c', corner: '#0d1230', diamond: '#10163a', inner: '#05061a',
+      gold: 'rgba(129, 140, 248, 0.45)', gold2: 'rgba(165, 180, 252, 0.6)', violet: '#2e2a6b',
+    }));
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(size / 3.2, size / 3.2);
+    if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(size, 1.2, size), [
+      new THREE.MeshStandardMaterial({ color: 0x1e1b4b, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x1e1b4b, flatShading: true }),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.3, transparent: true, opacity: 0.93 }),
+      new THREE.MeshStandardMaterial({ color: 0x0b0a24 }),
+      new THREE.MeshStandardMaterial({ color: 0x1e1b4b, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x1e1b4b, flatShading: true }),
+    ]);
+    floor.position.y = -0.6;
+    floor.receiveShadow = true;
+    g.add(floor);
+    // Светящийся кант платформы
+    const edgeMat = new THREE.MeshBasicMaterial({ color: 0x818cf8 });
+    [[0, -HALF, size, 0.08], [0, HALF, size, 0.08], [-HALF, 0, 0.08, size], [HALF, 0, 0.08, size]].forEach(([x, z, w, d]) => {
+      const e = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), edgeMat);
+      e.position.set(x, 0.01, z);
+      g.add(e);
+    });
+    // Звёздная сфера
+    const N = 1400;
+    const pos = new Float32Array(N * 3);
+    const col = new Float32Array(N * 3);
+    const palette = [[1, 1, 1], [0.65, 0.95, 0.99], [0.88, 0.9, 1], [0.98, 0.81, 0.91]];
+    for (let i = 0; i < N; i++) {
+      const u = Math.random() * 2 - 1;
+      const th = Math.random() * Math.PI * 2;
+      const r = 90 + Math.random() * 60;
+      const s = Math.sqrt(1 - u * u);
+      pos[i * 3] = Math.cos(th) * s * r;
+      pos[i * 3 + 1] = u * r * 0.7 - 10;
+      pos[i * 3 + 2] = Math.sin(th) * s * r;
+      const c = palette[i % 4];
+      col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
     }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    sg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ size: 0.6, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, fog: false }));
+    g.add(this.stars);
+    // Туманности
+    const nebColors = [0x6d28d9, 0x0e7490, 0xbe185d, 0x4338ca];
+    for (let i = 0; i < 7; i++) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(10 + Math.random() * 14, 10, 8), new THREE.MeshBasicMaterial({ color: nebColors[i % 4], transparent: true, opacity: 0.09, depthWrite: false, fog: false }));
+      const a = (i / 7) * Math.PI * 2;
+      m.position.set(Math.cos(a) * 75, -12 + Math.random() * 25, Math.sin(a) * 75);
+      g.add(m);
+    }
+    // Парящие кристаллы-осколки
+    this.shards = [];
+    const shardMat = new THREE.MeshStandardMaterial({ color: 0xa5b4fc, emissive: 0x4338ca, emissiveIntensity: 0.6, flatShading: true, metalness: 0.3, roughness: 0.2 });
+    for (let i = 0; i < 28; i++) {
+      const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.6 + Math.random() * 1.8, 0), shardMat);
+      const a = Math.random() * Math.PI * 2;
+      const r = HALF + 5 + Math.random() * 30;
+      s.position.set(Math.cos(a) * r, -6 + Math.random() * 14, Math.sin(a) * r);
+      s.userData.base = s.position.y;
+      s.userData.ph = Math.random() * 6;
+      g.add(s);
+      this.shards.push(s);
+    }
+    // Мотыльки света над платформой
+    const M = 60;
+    const mp = new Float32Array(M * 3);
+    for (let i = 0; i < M; i++) {
+      mp[i * 3] = (Math.random() - 0.5) * size;
+      mp[i * 3 + 1] = 0.5 + Math.random() * 5;
+      mp[i * 3 + 2] = (Math.random() - 0.5) * size;
+    }
+    const mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+    this.motes = new THREE.Points(mg, new THREE.PointsMaterial({ color: 0xc4b5fd, size: 0.22, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+    g.add(this.motes);
+    this.t = 0;
+    this.group = g;
+    return g;
   }
 
   update(dt) {
-    this.particles.forEach((p) => {
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.pulse += dt * 1.5;
-
-      if (p.x < 0) p.x = this.worldSize;
-      if (p.x > this.worldSize) p.x = 0;
-      if (p.y < 0) p.y = this.worldSize;
-      if (p.y > this.worldSize) p.y = 0;
+    this.t += dt;
+    if (this.stars) this.stars.rotation.y += dt * 0.004;
+    this.shards?.forEach((s) => {
+      s.position.y = s.userData.base + Math.sin(this.t * 0.7 + s.userData.ph) * 0.8;
+      s.rotation.y += dt * 0.3;
     });
-  }
-
-  renderBackground(ctx, now) {
-    // Глубокий космический градиент
-    const grad = ctx.createRadialGradient(
-      this.worldSize / 2, this.worldSize / 2, 80,
-      this.worldSize / 2, this.worldSize / 2, this.worldSize * 0.75
-    );
-    grad.addColorStop(0, '#090518');
-    grad.addColorStop(0.5, '#04020a');
-    grad.addColorStop(1, '#020105');
-
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, this.worldSize, this.worldSize);
-
-    // Отрисовка звёзд
-    this.stars.forEach((s) => {
-      const alpha = s.baseAlpha + Math.sin(now / 1000 * s.pulseSpeed) * 0.25;
-      ctx.save();
-      ctx.fillStyle = s.color;
-      ctx.globalAlpha = Math.max(0.1, Math.min(1, alpha));
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Отрисовка парящих частиц
-    this.particles.forEach((p) => {
-      ctx.save();
-      const alpha = 0.4 + Math.sin(p.pulse) * 0.3;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = Math.max(0.1, Math.min(0.85, alpha));
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Космическая рамка мира
-    ctx.strokeStyle = 'rgba(129, 140, 248, 0.4)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(4, 4, this.worldSize - 8, this.worldSize - 8);
-  }
-
-  // Отрисовка персонажа в виде светящегося круга
-  drawCircleAvatar(ctx, x, y, color = '#818cf8', dirX = 0, dirY = 1, isSelf = false, now) {
-    ctx.save();
-    const radius = 15;
-    const pulse = Math.sin(now / 200) * 2;
-
-    // Внешнее свечение
-    ctx.shadowColor = color;
-    ctx.shadowBlur = isSelf ? 16 + pulse : 10;
-
-    // Фоновое тело шара
-    ctx.fillStyle = '#0a0815';
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Энергетический обод
-    ctx.lineWidth = isSelf ? 3 : 2;
-    ctx.strokeStyle = color;
-    ctx.stroke();
-
-    // Внутреннее светящееся ядро
-    const coreGrad = ctx.createRadialGradient(x, y, 1, x, y, radius);
-    coreGrad.addColorStop(0, color);
-    coreGrad.addColorStop(0.7, `${color}44`);
-    coreGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = coreGrad;
-    ctx.beginPath();
-    ctx.arc(x, y, radius - 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Указатель направления взгляда
-    const len = Math.hypot(dirX, dirY) || 1;
-    const nx = dirX / len;
-    const ny = dirY / len;
-    const ptX = x + nx * (radius + 4);
-    const ptY = y + ny * (radius + 4);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(ptX, ptY, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // Отрисовка портала Бабочки
-  drawButterflyPortal(ctx, portal, now) {
-    const { x, y } = portal;
-    const pulse = Math.sin(now / 250) * 6;
-
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Свечение крыльев
-    ctx.shadowColor = portal.color || '#818cf8';
-    ctx.shadowBlur = 18 + Math.abs(pulse);
-
-    // Левое крыло
-    ctx.strokeStyle = portal.color || '#818cf8';
-    ctx.lineWidth = 2.5;
-    ctx.fillStyle = 'rgba(129, 140, 248, 0.2)';
-
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-26 - pulse, -30, -32 - pulse, 15, 0, 18);
-    ctx.stroke();
-    ctx.fill();
-
-    // Правое крыло
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(26 + pulse, -30, 32 + pulse, 15, 0, 18);
-    ctx.stroke();
-    ctx.fill();
-
-    // Ядро
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(0, 0, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
+    if (this.motes) {
+      const a = this.motes.geometry.attributes.position;
+      for (let i = 0; i < a.count; i++) {
+        a.array[i * 3] += Math.sin(this.t * 0.8 + i) * dt * 0.4;
+        a.array[i * 3 + 2] += Math.cos(this.t * 0.6 + i * 1.3) * dt * 0.4;
+      }
+      a.needsUpdate = true;
+    }
   }
 }

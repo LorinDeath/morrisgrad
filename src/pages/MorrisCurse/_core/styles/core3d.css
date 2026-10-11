@@ -1,0 +1,97 @@
+/* 3D-ядро «Проклятые»: оверлей поверх WebGL-канваса, HUD забега, модалки, мобильная раскладка. */
+.mc3d-layer { position: absolute; pointer-events: none; overflow: hidden; z-index: 5; font-family: monospace; color: #f1f5f9; }
+.mc3d-layer * { box-sizing: border-box; }
+.mc3d-label { position: absolute; transform: translate(-50%, -100%); white-space: nowrap; font-size: 11px; font-weight: bold; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; text-align: center; line-height: 1.15; }
+.mc3d-label small { display: block; font-size: 9px; font-weight: normal; opacity: 0.85; }
+.mc3d-label .mc3d-mini-hp { width: 40px; height: 4px; margin: 2px auto 0; background: #1f1630; border: 1px solid #000; }
+.mc3d-label .mc3d-mini-hp i { display: block; height: 100%; background: #ef4444; }
+.mc3d-bubble { position: absolute; transform: translate(-50%, -100%); max-width: 180px; background: rgba(15, 10, 28, 0.92); border: 1px solid #c59b27; border-radius: 8px; padding: 4px 8px; font-size: 11px; white-space: normal; text-align: center; }
+.mc3d-float { position: absolute; transform: translate(-50%, -50%); font-weight: 900; font-size: 13px; text-shadow: 0 1px 0 #000, 0 0 3px #000; pointer-events: none; will-change: transform, opacity; }
+.mc3d-float.crit { font-size: 17px; color: #fde047; }
+.mc3d-toasts { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 4px; align-items: center; width: 92%; }
+.mc3d-toast { background: rgba(12, 8, 22, 0.9); border: 1px solid #3b2c52; border-radius: 6px; padding: 5px 10px; font-size: 12px; animation: mc3dToast 2.6s forwards; text-align: center; }
+@keyframes mc3dToast { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+.mc3d-prompt { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); background: rgba(12, 8, 22, 0.88); border: 1px solid #c59b27; color: #ffd700; padding: 6px 12px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+.mc3d-chat { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(360px, 90%); pointer-events: auto; display: none; }
+.mc3d-chat input { width: 100%; padding: 7px 10px; background: #0c0915; color: #fff; border: 1px solid #c59b27; border-radius: 6px; font-family: monospace; font-size: 13px; outline: none; }
+.mc3d-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: rgba(5, 3, 10, 0.82); pointer-events: auto; text-align: center; padding: 16px; z-index: 30; }
+.mc3d-screen h2 { margin: 0; color: #ffd700; font-size: 20px; letter-spacing: 2px; }
+.mc3d-screen p { margin: 0; color: #cbd5e1; font-size: 12px; max-width: 420px; }
+.mc3d-btn { pointer-events: auto; background: #7c3aed; border: 1px solid #a855f7; color: #fff; padding: 9px 14px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 13px; cursor: pointer; }
+.mc3d-btn:hover { background: #9333ea; }
+.mc3d-btn.gold { background: #a16207; border-color: #facc15; }
+.mc3d-btn.ghost { background: #1f1630; border-color: #3b2c52; }
+.mc3d-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* HUD забега */
+.mc3d-run-hud { position: absolute; inset: 0; pointer-events: none; }
+.mc3d-xp { position: absolute; left: 0; right: 0; top: 0; height: 12px; background: #0b0814; border-bottom: 1px solid #3b2c52; }
+.mc3d-xp i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2563eb, #22d3ee); transition: width 0.15s; }
+.mc3d-xp span { position: absolute; right: 6px; top: -1px; font-size: 10px; font-weight: bold; text-shadow: 0 1px 2px #000; }
+.mc3d-top { position: absolute; top: 16px; left: 0; right: 0; display: flex; justify-content: center; gap: 14px; font-size: 13px; font-weight: bold; text-shadow: 0 1px 2px #000; }
+.mc3d-top .t { font-size: 18px; color: #fff; }
+.mc3d-hp { position: absolute; left: 8px; top: 18px; width: min(170px, 38%); }
+.mc3d-hp .bar { height: 12px; background: #1f1630; border: 1px solid #000; border-radius: 3px; overflow: hidden; }
+.mc3d-hp .bar i { display: block; height: 100%; background: linear-gradient(90deg, #dc2626, #f87171); transition: width 0.1s; }
+.mc3d-hp .val { font-size: 10px; margin-top: 2px; text-shadow: 0 1px 2px #000; }
+.mc3d-slots { position: absolute; left: 8px; top: 50px; display: flex; flex-direction: column; gap: 3px; }
+.mc3d-slots .row { display: flex; gap: 3px; flex-wrap: wrap; max-width: 46vw; }
+.mc3d-slot { width: 26px; height: 26px; background: rgba(12, 8, 22, 0.85); border: 1px solid #3b2c52; border-radius: 4px; font-size: 14px; display: flex; align-items: center; justify-content: center; position: relative; }
+.mc3d-slot b { position: absolute; right: 1px; bottom: -1px; font-size: 8px; color: #ffd700; }
+.mc3d-allies { position: absolute; right: 8px; top: 18px; display: flex; flex-direction: column; gap: 4px; width: min(150px, 34%); }
+.mc3d-ally { font-size: 10px; text-shadow: 0 1px 2px #000; }
+.mc3d-ally .bar { height: 5px; background: #1f1630; border: 1px solid #000; }
+.mc3d-ally .bar i { display: block; height: 100%; background: #4ade80; }
+.mc3d-boss { position: absolute; left: 50%; top: 42px; transform: translateX(-50%); width: min(320px, 70%); display: none; text-align: center; font-size: 11px; color: #f0abfc; text-shadow: 0 1px 2px #000; }
+.mc3d-boss .bar { height: 8px; background: #1f1630; border: 1px solid #000; margin-top: 2px; }
+.mc3d-boss .bar i { display: block; height: 100%; background: linear-gradient(90deg, #a21caf, #f472b6); }
+.mc3d-ability { position: absolute; right: 12px; bottom: 12px; width: 62px; height: 62px; border-radius: 50%; background: rgba(12, 8, 22, 0.85); border: 2px solid #c59b27; display: flex; align-items: center; justify-content: center; flex-direction: column; font-size: 22px; pointer-events: auto; cursor: pointer; user-select: none; touch-action: none; overflow: hidden; }
+.mc3d-ability small { font-size: 8px; color: #fde68a; margin-top: -2px; }
+.mc3d-ability .cd { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.65); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; }
+.mc3d-ability.hidden { display: none; }
+.mc3d-down { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); color: #fca5a5; font-weight: bold; font-size: 15px; text-shadow: 0 1px 3px #000; display: none; text-align: center; }
+
+.mc3d-choices { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
+.mc3d-choice { width: 180px; min-height: 130px; background: #120d20; border: 1px solid #3b2c52; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; text-align: left; pointer-events: auto; color: #e2e8f0; font-family: monospace; }
+.mc3d-choice:hover, .mc3d-choice:focus { border-color: #facc15; box-shadow: 0 0 14px rgba(250, 204, 21, 0.35); outline: none; }
+.mc3d-choice .ic { font-size: 26px; }
+.mc3d-choice .nm { color: #ffd700; font-weight: bold; font-size: 13px; }
+.mc3d-choice .lv { font-size: 10px; color: #a5b4fc; }
+.mc3d-choice .ds { font-size: 11px; color: #cbd5e1; line-height: 1.35; }
+.mc3d-choice .new { color: #4ade80; font-size: 10px; font-weight: bold; }
+.mc3d-results { width: min(460px, 96%); background: #0f0a1c; border: 1px solid #c59b27; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.mc3d-results table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.mc3d-results td, .mc3d-results th { padding: 3px 4px; border-bottom: 1px solid #231b33; text-align: left; }
+.mc3d-results th { color: #c59b27; }
+.mc3d-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; text-align: left; }
+.mc3d-kv b { color: #fff; }
+
+/* Выбор тела / класса */
+.mc3d-classes { display: grid; grid-template-columns: repeat(2, minmax(150px, 220px)); gap: 10px; }
+.mc3d-class { background: #120d20; border: 2px solid #3b2c52; border-radius: 8px; padding: 10px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px; color: #e2e8f0; font-family: monospace; }
+.mc3d-class:hover { border-color: #facc15; }
+.mc3d-class.active { border-color: #4ade80; }
+.mc3d-class .nm { font-weight: bold; font-size: 14px; }
+.mc3d-class .sk { font-size: 11px; color: #fde68a; }
+.mc3d-class .ds { font-size: 10px; color: #94a3b8; line-height: 1.35; }
+
+/* Тач-управление */
+.mc3d-touch { position: absolute; inset: 0; pointer-events: none; z-index: 12; }
+.mc3d-joy { position: absolute; left: 0; bottom: 0; width: 55%; height: 60%; pointer-events: auto; touch-action: none; }
+.mc3d-joy-base { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(197, 155, 39, 0.55); background: rgba(12, 8, 22, 0.35); display: none; }
+.mc3d-joy-knob { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(250, 204, 21, 0.6); display: none; }
+.mc3d-tbtns { position: absolute; right: 10px; bottom: 84px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
+.mc3d-tbtn { pointer-events: auto; width: 52px; height: 52px; border-radius: 50%; background: rgba(12, 8, 22, 0.8); border: 2px solid #3b2c52; color: #fff; font-size: 18px; display: flex; align-items: center; justify-content: center; user-select: none; touch-action: none; }
+.mc3d-tbtn.hl { border-color: #facc15; box-shadow: 0 0 12px rgba(250, 204, 21, 0.6); }
+.mc3d-ttop { position: absolute; right: 8px; top: 30%; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.mc3d-ttop .mc3d-tbtn { width: 38px; height: 38px; font-size: 15px; }
+
+/* Раскладка: в полноэкранном режиме канвас занимает всё свободное место (3D не требует квадрата) */
+.game-window:fullscreen #game-canvas.mc3d-canvas { aspect-ratio: auto; flex: 1 1 auto; min-width: 0; max-width: none; width: 100%; }
+.game-screen.mc3d-mobile { width: 100vw !important; max-width: 100vw; height: calc(100svh - 120px) !important; min-height: 420px; margin: 0 auto; }
+.game-window:fullscreen .game-screen.mc3d-mobile { height: calc(100svh - 46px) !important; }
+.game-screen.mc3d-mobile .game-hud-panel { display: none !important; }
+@media (max-width: 900px) {
+  .game-window:fullscreen .game-hud-panel { display: none !important; }
+}
+.mc3d-overlay-canvas { position: absolute; pointer-events: none; z-index: 4; }

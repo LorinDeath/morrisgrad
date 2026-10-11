@@ -1,1862 +1,816 @@
-import { DEFAULT_STATS, StatsUI } from './playerStats.js';
-import { AdminPanel } from './admin/adminPanel.js';
-import { DuelManager } from './duelManager.js';
+// «Проклятые» — 3D-ядро. Точка входа прежняя: initGame(canvasId, username, userId) (импортируется index.astro).
+//
+// Хаб: общий мир сервера (Адское Пламя / Аринар) в 3D, тот же WebSocket-протокол (join/move/use_portal/...).
+// Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
+// co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
+import { loadThree } from './engine/three-loader.js';
+import { Stage } from './engine/stage.js';
+import { toX, toZ, toPx, toPy } from './engine/geometry.js';
+import { initModelMode, preloadCharacterSheets, modelMode } from './engine/characters.js';
+import { NetClient } from './net.js';
+import { HubWorld } from './hub/hubWorld.js';
+import { RunSession } from './survivors/run.js';
+import { RunView } from './survivors/runView.js';
+import { RunArena } from './survivors/arena.js';
+import { RUN_ROOMS, RUN_CLASSES, ENEMIES, displayClassName } from './survivors/data.js';
+import { Overlay, esc } from './ui/overlay.js';
+import { RunUI } from './ui/runUI.js';
+import { ClassSelect } from './ui/classSelect.js';
 import { GameHUD } from './hud.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
-import { syncClassesFromServer } from './classes.js';
-import { ArinarSpaceEnvironment } from './worlds/arinarSpace.js';
-import { WorldMapManager } from './mapRenderer.js';
-import {
-  CAMPFIRE_CONFIG,
-  SPRITE_CONFIG,
-  SPRITES,
-  campfireImg,
-  keytImg,
-  darImg,
-  flowerImg,
-  drawFlowerSprite,
-  createArtDecoPattern,
-  drawCharacterShadow,
-  drawCharacterSprite,
-  drawBossSprite
-} from './sprites.js';
+import { StatsUI, DEFAULT_STATS } from './playerStats.js';
+import { CLASSES, syncClassesFromServer } from './classes.js';
+import { AdminPanel } from './admin/adminPanel.js';
+import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/portals.ts';
+import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
+import './styles/core3d.css';
+
+const WORLD_SIZE = 1200;
+const MOVE_SPEED = 175; // px/с, как в 2D-версии
+const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
+const PORTAL_RANGE = 85; // как проверка сервера
+const FLOWER_RANGE = 120;
+const ADMIN_IDS = ['user_38QeREOr606p1c96P4f14YFsLp7'];
 
 export function initGame(canvasId, username = 'Игрок', userId = '') {
+  if (window.__MC3D_GAME__) return window.__MC3D_GAME__;
+  const api = { ready: null };
+  window.__MC3D_GAME__ = api;
+  api.ready = boot(canvasId, username || 'Игрок', userId || '', api).catch((err) => {
+    console.error('[MorrisCurse 3D] не удалось запустить игру', err);
+    const canvas = document.getElementById(canvasId);
+    const host = canvas?.parentElement;
+    if (host) {
+      const box = document.createElement('div');
+      box.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fca5a5;font:12px monospace;text-align:center;padding:16px;z-index:40;background:#050408';
+      box.textContent = 'Не удалось запустить 3D (WebGL недоступен?). ' + (err?.message || '');
+      host.appendChild(box);
+    }
+  });
+  return api;
+}
+
+async function boot(canvasId, username, userId, api) {
   const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-
-  const WORLD_SIZE = 1200;
-  let floorPattern = null;
-
-  // Идентификаторы Главного Администратора (D1 UUID и Clerk ID)
-// Строгая проверка: только непустой ID из белого списка
-  const ADMIN_IDS = [
-    'user_38QeREOr606p1c96P4f14YFsLp7'
-  ];
-
+  if (!canvas) throw new Error(`canvas #${canvasId} не найден`);
+  const container = canvas.parentElement || document.body;
+  if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+  const mobile = isMobileDevice() || /[?&]mobile=1/.test(location.search);
+  canvas.classList.add('mc3d-canvas');
+  if (mobile) container.classList.add('mc3d-mobile');
   window.__CURRENT_USERNAME__ = username;
-  let isCurrentUserAdmin = Boolean(
-    (userId && ADMIN_IDS.includes(userId)) ||
-    (username && username.trim().toLowerCase() === 'lorin death')
-  );
 
-  // Резервные порталы по умолчанию
-  const DEFAULT_PORTALS = [
-    { id: "portal_class_select", name: "Алтарь Перевоплощения", world: "hellfire", x: 565, y: 600, width: 32, height: 32, color: "#38bdf8" },
-    { id: "portal_arinar", name: "Фрактал Бабочки: «Аринар»", world: "hellfire", targetWorld: "arinar", targetX: 300, targetY: 600, x: 240, y: 600, width: 36, height: 36, color: "#818cf8" },
-    { id: "portal_hellfire", name: "Разлом: «Мир Адского Пламени»", world: "arinar", targetWorld: "hellfire", targetX: 300, targetY: 600, x: 240, y: 600, width: 36, height: 36, color: "#f97316" },
-    { id: "portal_arcade", name: "Разлом Мини-игр", world: "hellfire", x: 12, y: 1188, width: 32, height: 32, color: "#a855f7" }
-  ];
+  const overlay = new Overlay(canvas, container);
+  overlay.showScreen('<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
 
-  let currentWorld = 'hellfire';
-  const arinarCosmos = new ArinarSpaceEnvironment(WORLD_SIZE);
-  let worldPortals = [...DEFAULT_PORTALS];
+  const THREE = await loadThree();
+  initModelMode();
+  await preloadCharacterSheets();
+  const stage = new Stage(THREE, canvas, { mobile });
+  overlay.hideScreen();
 
-  // Инициализация мультимирного менеджера карт (Hellfire & Arinar)
-  const worldMap = new WorldMapManager(32);
-  worldMap.switchWorld(currentWorld);
-
-  function updateCanvasResolution() {
-    const isMobile = isMobileDevice();
-
-    if (isMobile) {
-      document.body.classList.add('mobile-game-mode');
-      const rect = canvas.getBoundingClientRect();
-      const w = (rect.width && rect.width > 50) ? rect.width : window.innerWidth;
-      const h = (rect.height && rect.height > 50) ? rect.height : window.innerHeight;
-      const aspect = h > 0 ? (w / h) : (window.innerWidth / window.innerHeight);
-
-      if (aspect >= 1) {
-        canvas.height = 300;
-        canvas.width = Math.round(300 * aspect);
-      } else {
-        canvas.width = 300;
-        canvas.height = Math.round(300 / aspect);
-      }
-
-      if (canvas.parentElement) {
-        canvas.parentElement.style.padding = '0';
-        canvas.parentElement.style.margin = '0';
-      }
-    } else {
-      document.body.classList.remove('mobile-game-mode');
-      canvas.width = 300;
-      canvas.height = 300;
-    }
-
-    floorPattern = createArtDecoPattern(ctx);
-  }
-
-  updateCanvasResolution();
-  window.addEventListener('resize', updateCanvasResolution);
-  window.addEventListener('orientationchange', () => setTimeout(updateCanvasResolution, 150));
-
-  let isKicked = false;
-  let kickReason = '';
-
-  let isTyping = false;
-  let chatText = '';
-
-  let currentPing = 0;
-  let lastPingTimestamp = 0;
-
-  let isModalOpen = false;
-  let isGameRunning = false;
-  let activeNearPortal = null;
-
-  const boss = {
-    x: 700,
-    y: 700,
-    targetX: 700,
-    targetY: 700,
-    dirX: 0,
-    dirY: 1,
-    state: 'wander',
-    isMoving: false,
-    hp: 100,
-    maxHp: 100,
-    armor: 10,
-    attack: 5,
-    inDuel: false,
-    bubble: { text: '', expireAt: 0 }
-  };
-
-  const dar = {
-    x: 300,
-    y: 300,
-    targetX: 300,
-    targetY: 300,
-    dirX: 0,
-    dirY: 1,
-    state: 'wander',
-    isMoving: false,
-    hp: 400,
-    maxHp: 400,
-    armor: 20,
-    attack: 15,
-    inDuel: false,
-    bubble: { text: '', expireAt: 0 }
-  };
-
-  const worldFlowers = new Map();
-
-  let surpriseFlashTimer = 0;
-  let damageFlashTimer = 0;
-  const floatingTexts = [];
-
-  const dash = {
-    active: false,
-    timer: 0,
-    duration: 0.22,
-    speed: 620,
-    cooldown: 0.9,
-    cooldownTimer: 0,
-    dirX: 0,
-    dirY: 1
-  };
-  let lastFaceDir = { x: 0, y: 1 };
-
+  // ---------------- состояние ----------------
   const player = {
-    x: WORLD_SIZE / 2,
-    y: WORLD_SIZE / 2,
-    width: 32,
-    height: 40,
-    color: '#ffffff',
-    inDuel: false,
-    escapedUntil: 0,
-    dismoraleUntil: 0,
-    shield: 0,
-    stats: { ...DEFAULT_STATS, moveSpeed: 175 },
-    bubble: { text: '', expireAt: 0 }
+    x: WORLD_SIZE / 2 + 60, y: WORLD_SIZE / 2 + 40, color: '#ffffff', dirX: 0, dirY: 1, moving: false,
+    stats: { ...DEFAULT_STATS }, shield: 0, inDuel: false,
   };
+  const dash = { active: false, timer: 0, cd: 0, max: DASH.cooldown, dirX: 0, dirY: 1 };
+  let world = 'hellfire';
+  let portals = OFFLINE_PORTALS.slice();
+  let myId = null;
+  let isAdmin = ADMIN_IDS.includes(userId) || username.trim().toLowerCase() === 'lorin death';
+  const others = new Map(); // id → player
+  let boss = null, dar = null;
+  const flowers = new Map();
+  let mode = 'hub';
+  let run = null, runView = null, runRoom = null, runHostId = null, helloSent = false;
+  let roomCounts = {};
+  let offlineToastShown = false;
 
-  let myNetworkId = null;
-  const otherPlayers = new Map();
-
-  function getGameContainer() {
-    return document.fullscreenElement && document.fullscreenElement !== canvas
-      ? document.fullscreenElement
-      : (canvas.parentElement || document.body);
+  if (!Object.keys(CLASSES).length) {
+    syncClassesFromServer(Object.fromEntries(Object.values(OFFLINE_CLASSES).map((c) => [c.id, { id: c.id, name: c.name, color: c.color, ...c.stats }])));
   }
 
-  function showToast(text) {
-    const t = document.createElement('div');
-    t.style.cssText = `
-      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-      background: #ef4444; color: #fff; padding: 6px 14px; border-radius: 4px;
-      font-family: monospace; font-size: 12px; z-index: 10020; box-shadow: 0 0 10px rgba(0,0,0,0.8);
-    `;
-    t.textContent = text;
-    getGameContainer().appendChild(t);
-    setTimeout(() => t.remove(), 3000);
-  }
+  const hub = new HubWorld(THREE, stage);
+  hub.setWorld(world, portals);
+  hub.attach();
 
-  const duelManager = new DuelManager(getGameContainer(), (data) => {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(data));
+  // ---------------- сеть ----------------
+  const net = new NetClient({
+    username, userId,
+    getJoinState: () => ({
+      x: player.x, y: player.y,
+      stats: { classId: player.stats.classId, hp: player.stats.hp, maxHp: player.stats.maxHp, armor: player.stats.armor, attack: player.stats.attack },
+    }),
+  });
+  api.net = net;
+  const send = (obj) => net.send(obj);
+
+  // ---------------- UI ----------------
+  const classSelect = new ClassSelect(overlay, (classId) => {
+    if (!send({ type: 'select_class', classId })) {
+      // офлайн: применяем локально
+      const c = CLASSES[classId];
+      if (c) {
+        player.stats = { classId, hp: c.hp, maxHp: c.maxHp, armor: c.armor, minAtk: c.minAtk, maxAtk: c.maxAtk };
+        player.color = c.color;
+        overlay.toast(`Вы обрели тело: ${displayClassName(classId, c.name)}`, c.color);
+      }
     }
   });
+  const statsUI = new StatsUI(overlay);
+  const runUI = new RunUI(overlay, {
+    onChoice: (c) => { run?.applyChoice(c); },
+    onAbility: () => { input.abilityPressed = true; },
+    onRestart: () => restartRun(),
+    onLeave: () => leaveRun(),
+  });
+  const hud = new GameHUD(container, {
+    onTouchFlower: (id) => send({ type: 'touch_flower', flowerId: id }),
+    onPickFlower: (id) => send({ type: 'pick_flower', flowerId: id }),
+    onOpenAdmin: () => adminPanel?.editor?.toggle(),
+    onEnterRun: (room) => requestRun(room, null),
+    onLeaveRun: () => leaveRun(),
+  });
+  const touch = new TouchControls(overlay.layer, {
+    onDash: () => { input.dashPressed = true; },
+    onInteract: () => interact(),
+    onSoul: () => toggleSoul(),
+    onChat: () => openChat(),
+    onZoomIn: () => zoomBy(1.2),
+    onZoomOut: () => zoomBy(1 / 1.2),
+  }, /[?&]mobile=1/.test(location.search));
 
-  const statsUI = new StatsUI(getGameContainer(), () => {});
+  // Админ-редактор карт: прежний 2D-модуль поверх ортографической 3D-камеры «строго сверху»
+  const edCanvas = document.createElement('canvas');
+  edCanvas.className = 'mc3d-overlay-canvas';
+  container.appendChild(edCanvas);
+  const edCtx = edCanvas.getContext('2d');
+  const adminPanel = new AdminPanel(edCanvas, container, userId, () => world, (nextWorld) => {
+    send({ type: 'admin_switch_world', world: nextWorld });
+  });
+  if (adminPanel.editor && hub.map.maps[world]) adminPanel.editor.loadTilesArray(hub.map.maps[world]);
+  let editorWasActive = false;
 
-  // Инициализация модуля админки
-const adminPanel = new AdminPanel(
-  canvas,
-  getGameContainer(),
-  userId,
-  () => currentWorld,
-  (nextWorld) => {
-    currentWorld = nextWorld;
-    worldMap.switchWorld(currentWorld);
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'admin_switch_world', world: nextWorld }));
+  // ---------------- обработчики сервера ----------------
+  net.on('welcome', (d) => {
+    myId = d.myId;
+    isAdmin = isAdmin || !!d.isAdmin;
+    if (Array.isArray(d.portals)) portals = d.portals;
+    if (d.classes) syncClassesFromServer(d.classes);
+    world = d.world || 'hellfire';
+    hub.setWorld(world, portals, true);
+    if (mode === 'run' && run) run.myId = myId;
+    const deep = new URLSearchParams(location.search).get('run');
+    if (deep && RUN_ROOMS[deep] && mode === 'hub') requestRun(deep, null);
+  });
+
+  net.on('players_state', (d) => {
+    if (d.world && d.world !== world && mode === 'hub') {
+      world = d.world;
+      hub.setWorld(world, portals);
     }
-  }
-);
-
-if (adminPanel.editor && worldMap.maps[currentWorld]) {
-    adminPanel.editor.loadTilesArray(worldMap.maps[currentWorld]);
-  }
-
-  const hud = new GameHUD(
-    canvas.parentElement || document.body,
-    (targetId, targetNick) => {
-      if (!player.stats.classId) {
-        showToast('Для дуэли нужно выбрать тело у алтаря!');
+    const seen = new Set();
+    const myNick = username.trim().toLowerCase();
+    const counts = {};
+    (d.players || []).forEach((p) => {
+      if (p.runRoom) counts[p.runRoom] = (counts[p.runRoom] || 0) + 1;
+      if (p.id === myId || (!myId && (p.username || '').trim().toLowerCase() === myNick)) {
+        player.inDuel = !!p.inDuel;
+        if (p.color) player.color = p.color;
+        if (p.shield !== undefined) player.shield = p.shield;
+        if (p.stats) {
+          if (player.stats && p.stats.hp > player.stats.hp && !player.inDuel && mode === 'hub') {
+            overlay.float(toX(player.x), 2.6, toZ(player.y), `+${p.stats.hp - player.stats.hp} HP`, '#4ade80');
+          }
+          player.stats = { ...player.stats, ...p.stats };
+        }
         return;
       }
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'duel_invite', targetId }));
-        showToast(`Вызов на дуэль отправлен: ${targetNick}`);
+      seen.add(p.id);
+      let o = others.get(p.id);
+      if (!o) {
+        o = { id: p.id, x: p.x, y: p.y, dirX: 0, dirY: 1 };
+        others.set(p.id, o);
       }
-    },
-    (side) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'join_boss_fight', side }));
-      }
-    },
-    (flowerId) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'touch_flower', flowerId }));
-      }
-    },
-    (flowerId) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'pick_flower', flowerId }));
-      }
-    },
-    () => {
-      if (adminPanel && adminPanel.editor) {
-        adminPanel.editor.toggle();
-      }
-    }
-  );
-
-  const touchControls = new TouchControls(getGameContainer(), {
-    onDash: () => {
-      if (!canMove() || dash.cooldownTimer > 0 || dash.active) return;
-      dash.dirX = lastFaceDir.x || 0;
-      dash.dirY = lastFaceDir.y || 1;
-      dash.active = true;
-      dash.timer = dash.duration;
-      dash.cooldownTimer = dash.cooldown;
-    },
-    onInteract: () => {
-      if (activeNearPortal && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'use_portal', portalId: activeNearPortal.id }));
-      }
-    },
-    onSoul: () => {
-      if (canMove()) {
-        resetKeys();
-        statsUI.toggleSoulModal(undefined, player.stats, username, currentWorld);
-      }
-    },
-    onToggleMap: (isOpen, slotElement) => {
-      if (isOpen && slotElement && hud.minimap?.container) {
-        slotElement.appendChild(hud.minimap.container);
-      } else if (hud.minimap?.container) {
-        const desktopSlot = document.getElementById('ghud-minimap-slot');
-        if (desktopSlot) desktopSlot.appendChild(hud.minimap.container);
-      }
-    },
-    onSendChat: (msgText) => {
-      player.bubble = { text: msgText, expireAt: Date.now() + 5000 };
-      try {
-        socket.send(JSON.stringify({ type: 'chat', text: msgText }));
-      } catch (_) {}
-    }
-  });
-
-  function canMove() {
-  return !isKicked &&
-         !isTyping &&
-         !isModalOpen &&
-         !statsUI.isSoulOpen &&
-         !player.inDuel &&
-         !(duelManager && duelManager.isAnyModalOpen());
-}
-
-  function resetKeys() {
-    keys.w = keys.a = keys.s = keys.d = false;
-    dash.active = false;
-  }
-
-  function initArcadeDOM() {
-    let overlay = document.getElementById('arcade-overlay');
-    const container = getGameContainer();
-
-    if (getComputedStyle(container).position === 'static') {
-      container.style.position = 'relative';
-    }
-
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'arcade-overlay';
-      overlay.style.cssText = `
-        display: none; position: absolute; inset: 0; width: 100%; height: 100%;
-        background: rgba(5, 4, 10, 0.92); backdrop-filter: blur(8px); z-index: 99999;
-        align-items: center; justify-content: center; font-family: monospace; box-sizing: border-box;
-      `;
-
-      overlay.innerHTML = `
-        <button id="arcade-quick-exit" style="display: none; position: absolute; top: 12px; right: 12px; z-index: 100000; background: #dc2626; border: 1px solid #f87171; color: #fff; padding: 6px 14px; font-family: monospace; font-size: 12px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.8);">✕ ВЫЙТИ [Esc]</button>
-        <div id="arcade-card" style="background: #0e0c18; border: 2px solid #8b5cf6; border-radius: 10px; width: 92%; max-width: 520px; max-height: 90%; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); color: #fff; box-sizing: border-box;">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2e2642; padding-bottom: 12px; margin-bottom: 16px;">
-            <div id="arcade-title" style="font-weight: bold; font-size: 16px; color: #c084fc; letter-spacing: 1px;">РАЗЛОМ</div>
-            <button id="arcade-close-btn" style="background: transparent; border: none; color: #a1a1aa; font-size: 22px; cursor: pointer; line-height: 1; padding: 0 6px;">✕</button>
-          </div>
-          <div id="arcade-list" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto;"></div>
-          <iframe id="arcade-frame" style="display: none; width: 100%; height: 100%; border: none; background: #000; border-radius: 4px;" src=""></iframe>
-        </div>
-      `;
-
-      container.appendChild(overlay);
-
-      document.getElementById('arcade-close-btn').onclick = closeArcadeModal;
-      document.getElementById('arcade-quick-exit').onclick = backToGameList;
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay && !isGameRunning) closeArcadeModal();
-      });
-    } else if (overlay.parentElement !== container) {
-      container.appendChild(overlay);
-    }
-  }
-
-  function openArcadeModal(portalName, games) {
-    initArcadeDOM();
-    isModalOpen = true;
-    isGameRunning = false;
-    resetKeys();
-
-    const overlay = document.getElementById('arcade-overlay');
-    const title = document.getElementById('arcade-title');
-    const list = document.getElementById('arcade-list');
-
-    title.textContent = portalName || 'Разлом Мини-игр';
-    list.innerHTML = '';
-    backToGameList();
-
-    (games || []).forEach((game) => {
-      const isDisabled = Boolean(game.disabled);
-      const item = document.createElement('div');
-      item.style.cssText = `
-        background: ${isDisabled ? '#12101b' : '#171326'}; border: 1px solid ${isDisabled ? '#241e33' : '#30264b'};
-        padding: 12px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
-        ${isDisabled ? 'opacity: 0.4; filter: grayscale(100%);' : ''}
-      `;
-
-      item.innerHTML = `
-        <div>
-          <div style="font-weight: bold; color: ${isDisabled ? '#9ca3af' : '#facc15'}; font-size: 14px;">${game.title}</div>
-          <div style="font-size: 11px; color: #a1a1aa; margin-top: 2px;">${game.desc}</div>
-        </div>
-        <button ${isDisabled ? 'disabled' : ''} style="background: ${isDisabled ? '#374151' : '#7c3aed'}; border: none; padding: 6px 14px; border-radius: 4px; color: ${isDisabled ? '#9ca3af' : '#fff'}; font-family: monospace; font-weight: bold; cursor: ${isDisabled ? 'not-allowed' : 'pointer'};">
-          ${isDisabled ? 'СКОРО' : 'ВОЙТИ'}
-        </button>
-      `;
-
-      if (!isDisabled) {
-        item.querySelector('button').onclick = () => launchGame(game.url);
-      }
-      list.appendChild(item);
+      Object.assign(o, { username: p.username || 'Странник', userId: p.userId || '', world: p.world || 'hellfire', targetX: p.x, targetY: p.y, color: p.color || '#38bdf8', stats: p.stats || DEFAULT_STATS, inDuel: !!p.inDuel, shield: p.shield || 0, runRoom: p.runRoom || null });
     });
+    for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
+    roomCounts = counts;
+    const sync = (cur, s) => {
+      if (!s) return null;
+      const o = cur || { x: s.x, y: s.y };
+      Object.assign(o, s, { targetX: s.x, targetY: s.y, x: o.x, y: o.y });
+      return o;
+    };
+    boss = sync(boss, d.boss);
+    dar = sync(dar, d.dar);
+    const ids = new Set();
+    (d.flowers || []).forEach((f) => { ids.add(f.id); flowers.set(f.id, { ...flowers.get(f.id), ...f }); });
+    for (const id of flowers.keys()) if (!ids.has(id)) flowers.delete(id);
+  });
 
-    overlay.style.display = 'flex';
+  net.on('kicked', () => {
+    overlay.showScreen('<h2>Сессия закрыта</h2><p>Вы вошли в игру с другого устройства или вкладки.</p>', [{ text: 'Перезагрузить', onClick: () => location.reload() }]);
+  });
+  net.on('offline', (d) => {
+    if (net.kicked) return;
+    if (!offlineToastShown) overlay.toast(`${d.reason}. Офлайн-режим: соло-забеги доступны у порталов.`, '#fca5a5');
+    offlineToastShown = true;
+    if (mode === 'run' && run) { run.setMembers([], null); }
+  });
+  net.on('world_switched', (d) => {
+    world = d.world || 'hellfire';
+    player.x = d.x; player.y = d.y;
+    hub.setWorld(world, portals);
+    if (adminPanel.editor) adminPanel.editor.loadTilesArray(hub.map.maps[world] || []);
+    stage.follow(toX(player.x), toZ(player.y), 0, true);
+    overlay.toast(world === 'arinar' ? 'Фрактал Бабочки: Аринар' : world === 'hellfire' ? 'Мир Адского Пламени' : `Мир: ${world}`, '#c084fc');
+  });
+  net.on('open_class_selection', () => classSelect.open(player.stats.classId));
+  net.on('class_updated', (d) => {
+    player.stats = { ...player.stats, ...d.stats };
+    if (d.color) player.color = d.color;
+    const c = CLASSES[d.stats?.classId];
+    overlay.toast(`Вы обрели тело: ${displayClassName(d.stats?.classId, c?.name || d.stats?.classId)}`, d.color);
+  });
+  // WAP-дуэли удалены из клиента. Сервер ещё может прислать дуэльные события (ИИ Кейт/Дар, старые клиенты):
+  // вежливо отказываемся/выходим, чтобы игрок не «зависал» в бою без интерфейса.
+  net.on('duel_incoming', (d) => {
+    send({ type: 'duel_decline', targetId: d.fromId });
+    overlay.toast(`${d.fromUsername || 'Игрок'} вызвал на дуэль — дуэли заменены co-op забегами`, '#fcd34d');
+  });
+  net.on('duel_start', () => {
+    send({ type: 'duel_action', action: 'escape' });
+    overlay.toast('Вас втянули в бой — вы ускользнули. Сражайтесь в забегах!', '#fcd34d');
+  });
+  net.on('duel_declined_notify', (d) => overlay.toast(`${d.targetNick || 'Игрок'} отказался`, '#94a3b8'));
+  net.on('combat_death', (d) => overlay.toast(`Вы пали! Восстановление: ${d.lockDuration || 30} с`, '#fca5a5'));
+  net.on('dar_surprise_hit', (d) => {
+    if (d.targetId === myId) {
+      if (d.hp !== undefined) player.stats.hp = d.hp;
+      flashHurt();
+      overlay.float(toX(player.x), 2.6, toZ(player.y), `-${d.damage || ''}`, '#ef4444');
+    }
+  });
+  net.on('flower_touched_notify', (d) => {
+    if (d.targetId === myId) {
+      if (d.hp !== undefined) player.stats.hp = d.hp;
+      flashHurt();
+      overlay.float(toX(player.x), 2.6, toZ(player.y), `-${d.damage || 1} HP`, '#ef4444');
+    }
+  });
+  net.on('flower_picked_notify', (d) => {
+    flowers.delete(d.flowerId);
+    if (d.playerId === myId) {
+      player.shield = d.shield;
+      overlay.toast('Вы сорвали цветок: синий щит +20', '#38bdf8');
+      overlay.float(toX(player.x), 2.6, toZ(player.y), '+20 🛡️', '#38bdf8');
+    }
+  });
+  net.on('toast_error', (d) => overlay.toast(d.message || 'Ошибка', '#fca5a5'));
+  net.on('open_minigames_menu', (d) => {
+    const list = (d.games || []).map((g) => `<div style="text-align:left;margin:4px 0">${g.disabled || !g.url
+      ? `<b style="color:#64748b">${esc(g.title)}</b>`
+      : `<a href="${esc(g.url)}" style="color:#ffd700;font-weight:bold">${esc(g.title)}</a>`}<br><small style="color:#94a3b8">${esc(g.desc)}</small></div>`).join('');
+    overlay.showScreen(`<h2>${esc(d.portalName || 'Мини-игры')}</h2><div class="mc3d-results" style="max-height:60%;overflow:auto">${list}</div>`, [{ text: 'Закрыть', cls: 'ghost', onClick: () => overlay.hideScreen() }]);
+  });
+  net.on('chat_bubble', (d) => {
+    const nick = (d.username || '').trim().toLowerCase();
+    let key = d.playerId;
+    if (d.playerId === myId || nick === username.trim().toLowerCase()) key = '__me';
+    overlay.bubble(key, d.text);
+  });
+
+  // --- co-op забеги ---
+  net.on('run_joined', (d) => {
+    runRoom = d.room;
+    if (d.myId) myId = d.myId;
+    startRun(d.room, false);
+  });
+  net.on('run_members', (d) => {
+    if (!run || d.room !== runRoom) return;
+    runHostId = d.hostId;
+    const wasHost = run.isHost;
+    run.setMembers(d.members || [], d.hostId);
+    if (!run.isHost && (!helloSent || wasHost)) {
+      helloSent = true;
+      net.runRelay({ k: 'hello' }, d.hostId);
+    }
+  });
+  net.on('run_left', () => { if (mode === 'run') exitRun(); });
+  net.on('run_relay', (d) => { if (run && d.room === runRoom) run.onRelay(d.from, d.data); });
+
+  // ---------------- забег ----------------
+  function requestRun(roomId, portalId) {
+    if (mode === 'run') return;
+    if (net.isOpen() && myId) {
+      net.runJoin(roomId, portalId || undefined);
+    } else {
+      runRoom = roomId;
+      startRun(roomId, true);
+    }
   }
 
-  function launchGame(url) {
-    isGameRunning = true;
-    const card = document.getElementById('arcade-card');
-    const list = document.getElementById('arcade-list');
-    const frame = document.getElementById('arcade-frame');
-    const exitBtn = document.getElementById('arcade-quick-exit');
-
-    card.style.cssText = 'width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; padding: 0; border: none;';
-    list.style.display = 'none';
-    card.firstElementChild.style.display = 'none';
-    frame.src = url;
-    frame.style.display = 'block';
-    exitBtn.style.display = 'block';
+  function startRun(roomId, solo) {
+    if (mode === 'run' && run) return;
+    overlay.hideScreen();
+    classSelect.isOpen = false; statsUI.isOpen = false;
+    const classKey = RUN_CLASSES[player.stats.classId] ? player.stats.classId : 'soul';
+    run = new RunSession({
+      room: roomId, myId: myId || 'local', username, color: player.color,
+      classKey, serverClass: CLASSES[player.stats.classId] || null,
+      isHost: solo,
+      send: (data, to) => { if (!solo) net.runRelay(data, to); },
+      events: onRunEvent,
+    });
+    helloSent = false;
+    const arena = new RunArena(RUN_ROOMS[roomId]?.theme || 'crypt');
+    hub.detach();
+    runView = new RunView(THREE, stage.scene, run, arena);
+    stage.setEnvironment(arena);
+    mode = 'run';
+    runUI.show(true);
+    runUI.setAbility(classKey);
+    touch.setMode('run');
+    overlay.clearFloats();
+    stage.follow(run.me.x, run.me.z, 0, true);
+    overlay.toast(`«${RUN_ROOMS[roomId]?.name || roomId}»: продержитесь как можно дольше!`, RUN_ROOMS[roomId]?.color);
+    api.run = run;
   }
 
-  function backToGameList() {
-    isGameRunning = false;
-    const card = document.getElementById('arcade-card');
-    const list = document.getElementById('arcade-list');
-    const frame = document.getElementById('arcade-frame');
-    const exitBtn = document.getElementById('arcade-quick-exit');
-
-    card.style.cssText = 'background: #0e0c18; border: 2px solid #8b5cf6; border-radius: 10px; width: 92%; max-width: 520px; height: auto; max-height: 90%; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); color: #fff; box-sizing: border-box;';
-    frame.src = '';
-    frame.style.display = 'none';
-    exitBtn.style.display = 'none';
-    card.firstElementChild.style.display = 'flex';
-    list.style.display = 'flex';
+  function restartRun() {
+    if (!run) return;
+    if (run.remotes.size && !run.isHost) { overlay.toast('Ждём, пока ведущий перезапустит забег…', '#fcd34d'); return; }
+    if (run.remotes.size) net.runRelay({ k: 'restart' });
+    doRestart();
+  }
+  function doRestart() {
+    run.reset(0);
+    overlay.hideScreen();
+    runUI.closeChoices();
+    if (!run.isHost && runHostId) net.runRelay({ k: 'hello' }, runHostId);
   }
 
-  function closeArcadeModal() {
-    backToGameList();
-    const overlay = document.getElementById('arcade-overlay');
-    if (overlay) overlay.style.display = 'none';
-    isModalOpen = false;
-    isGameRunning = false;
+  function leaveRun() {
+    if (mode !== 'run') return;
+    if (net.isOpen() && runRoom && myId) {
+      net.runLeave();
+      setTimeout(() => { if (mode === 'run') exitRun(); }, 1500);
+    } else exitRun();
   }
 
-  const WS_URL = 'wss://morris-multiplayer.alexseylyou.workers.dev';
-  const socket = new WebSocket(WS_URL);
+  function exitRun() {
+    if (mode !== 'run') return;
+    runView?.dispose();
+    runView = null; run = null; runRoom = null; api.run = null;
+    runUI.show(false);
+    overlay.hideScreen();
+    overlay.clearFloats();
+    hub.attach();
+    touch.setMode('hub');
+    mode = 'hub';
+    stage.follow(toX(player.x), toZ(player.y), 0, true);
+  }
 
-socket.onopen = () => {
-    socket.send(JSON.stringify({
-      type: 'join',
-      userId: userId || '', // Передаем только РЕАЛЬНЫЙ userId игрока (без подстановки твоего UUID!)
-      username: username,
-      x: Math.round(player.x),
-      y: Math.round(player.y),
-      stats: {
-        classId: player.stats.classId,
-        hp: player.stats.hp,
-        maxHp: player.stats.maxHp,
-        armor: player.stats.armor,
-        attack: player.stats.attack,
-      }
-    }));
-  };
-
-  setInterval(() => {
-    if (socket.readyState === WebSocket.OPEN && !isKicked) {
-      lastPingTimestamp = performance.now();
-      socket.send(JSON.stringify({ type: 'ping' }));
-    }
-  }, 2000);
-
-  socket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-
-      if (data.type === 'pong') {
-        if (lastPingTimestamp > 0) {
-          currentPing = Math.max(1, Math.round(performance.now() - lastPingTimestamp));
+  let floatBudget = 0;
+  function onRunEvent(type, d) {
+    if (!run) return;
+    switch (type) {
+      case 'levelup':
+      case 'choice_applied':
+        if (run.pendingChoices > 0 && !runUI.choiceOpen && !run.ended) {
+          const chest = run.choiceSource === 'chest';
+          runUI.openChoices(run.rollChoices(3), { title: chest ? 'Сундук!' : `Уровень ${run.team.level}!`, sub: run.remotes.size ? 'Отряд не ждёт: вы неуязвимы, пока выбираете' : '' });
         }
-        return;
-      }
-
-      if (data.type === 'kicked') {
-        isKicked = true;
-        kickReason = data.reason || 'Сессия закрыта';
-        socket.close();
-        return;
-      }
-
-      if (data.type === 'welcome') {
-        myNetworkId = data.myId;
-        if (data.world) {
-          currentWorld = data.world;
-          worldMap.switchWorld(currentWorld);
-        }
-        if (data.portals && data.portals.length > 0) {
-          worldPortals = data.portals;
-        }
-        if (data.isAdmin) {
-          isCurrentUserAdmin = true;
-        }
-        if (data.classes) {
-          syncClassesFromServer(data.classes);
-          duelManager.renderClassCards();
-        }
-      }
-
-      if (data.type === 'world_switched') {
-        currentWorld = data.world;
-        worldMap.switchWorld(currentWorld); // Мгновенно подгружаем коллизии нового мира
-
-        if (adminPanel.editor && worldMap.maps[currentWorld]) {
-          adminPanel.editor.loadTilesArray(worldMap.maps[currentWorld]);
-        }
-
-        player.x = data.x;
-        player.y = data.y;
-        lastSentX = data.x;
-        lastSentY = data.y;
-        player.dismoraleUntil = 0;
-        player.escapedUntil = 0;
-        worldFlowers.clear();
-        hud.clearTarget();
-        resetKeys();
-
-        const toastMsg = currentWorld === 'arinar'
-          ? '🌌 Вы вошли во Фрактал Бабочки: «Аринар»'
-          : '🔥 Вы вернулись в Мир Адского Пламени';
-        showToast(toastMsg);
-      }
-
-      if (data.type === 'open_class_selection') {
-        resetKeys();
-        duelManager.openClassSelect();
-      }
-      if (data.type === 'class_updated') {
-        player.stats = { ...player.stats, ...data.stats };
-        player.color = data.color;
-      }
-      if (data.type === 'duel_incoming') {
-        resetKeys();
-        duelManager.showInvite(data.fromUsername, data.fromId);
-      }
-      if (data.type === 'duel_declined_notify') {
-        showToast(`${data.targetNick} отклонил вызов на дуэль.`);
-      }
-
-      if (data.type === 'duel_start') {
-        player.inDuel = true;
-        resetKeys();
-        hud.clearTarget();
-        duelManager.startDuel(data, myNetworkId, username);
-      }
-
-      if (data.type === 'duel_update') {
-        duelManager.updateDuel(data);
-      }
-
-      if (data.type === 'duel_end') {
-        player.inDuel = false;
-        duelManager.endDuel(data.winnerName);
-      }
-
-      if (data.type === 'combat_death') {
-        player.inDuel = false;
-        player.deathLockUntil = Date.now() + (data.lockDuration || 30) * 1000;
-        showToast(`Вы пали в бою! Восстановление сил: ${data.lockDuration || 30} сек.`);
-        duelManager.escapeBattle();
-      }
-
-      if (data.type === 'dar_surprise_hit') {
-        let hitX = player.x;
-        let hitY = player.y;
-
-        if (data.targetId === myNetworkId) {
-          surpriseFlashTimer = 0.45;
-          if (data.hp !== undefined) player.stats.hp = data.hp;
-          hitX = player.x;
-          hitY = player.y;
-        } else {
-          for (const other of otherPlayers.values()) {
-            if (other.id === data.targetId) {
-              hitX = other.x;
-              hitY = other.y;
-              if (data.hp !== undefined && other.stats) other.stats.hp = data.hp;
-              break;
-            }
-          }
-        }
-
-        floatingTexts.push({
-          text: `💥 Тыдыщ! -${data.damage}`,
-          x: hitX,
-          y: hitY - 45,
-          vy: -32,
-          color: '#ef4444',
-          expireAt: Date.now() + 1600
-        });
-      }
-
-      if (data.type === 'flower_touched_notify') {
-        let hitX = player.x;
-        let hitY = player.y;
-
-        if (data.targetId === myNetworkId) {
-          damageFlashTimer = 0.25;
-          if (data.hp !== undefined) player.stats.hp = data.hp;
-        } else {
-          for (const other of otherPlayers.values()) {
-            if (other.id === data.targetId) {
-              hitX = other.x;
-              hitY = other.y;
-              if (data.hp !== undefined && other.stats) other.stats.hp = data.hp;
-              break;
-            }
-          }
-        }
-
-        floatingTexts.push({
-          text: `-1 HP`,
-          x: hitX,
-          y: hitY - 45,
-          vy: -20,
-          color: '#ef4444',
-          expireAt: Date.now() + 1200
-        });
-      }
-
-      if (data.type === 'flower_picked_notify') {
-        worldFlowers.delete(data.flowerId);
-        if (data.playerId === myNetworkId) {
-          player.shield = data.shield;
-          showToast('Вы сорвали цветок и получили синий щит +20 HP!');
-          floatingTexts.push({
-            text: `+20 🛡️ ЩИТ`,
-            x: player.x,
-            y: player.y - 45,
-            vy: -25,
-            color: '#38bdf8',
-            expireAt: Date.now() + 1500
-          });
-        }
-      }
-
-      if (data.type === 'toast_error') {
-        showToast(data.message);
-      }
-
-      if (data.type === 'open_minigames_menu') {
-        openArcadeModal(data.portalName, data.games);
-      }
-
-      if (data.type === 'chat_bubble') {
-        const targetNick = (data.username || '').trim().toLowerCase();
-        const myNick = (username || '').trim().toLowerCase();
-
-        if (data.playerId === 'boss_keyt' || targetNick === 'кейт') {
-          if (currentWorld === 'hellfire') {
-            boss.bubble = { text: data.text, expireAt: Date.now() + 4500 };
-          }
-          return;
-        }
-
-        if (data.playerId === 'boss_dar' || targetNick === 'дар') {
-          if (currentWorld === 'hellfire') {
-            dar.bubble = { text: data.text, expireAt: Date.now() + 4500 };
-          }
-          return;
-        }
-
-        if (targetNick === myNick || (data.playerId && data.playerId === myNetworkId)) {
-          player.bubble = { text: data.text, expireAt: Date.now() + 5000 };
-          return;
-        }
-
-        let assigned = false;
-        if (otherPlayers.has(targetNick)) {
-          otherPlayers.get(targetNick).bubble = { text: data.text, expireAt: Date.now() + 5000 };
-          assigned = true;
-        }
-
-        if (!assigned) {
-          for (const other of otherPlayers.values()) {
-            if (other.username && other.username.trim().toLowerCase() === targetNick) {
-              other.bubble = { text: data.text, expireAt: Date.now() + 5000 };
-              break;
-            }
-          }
-        }
-      }
-
-      if (data.type === 'players_state') {
-        if (data.boss) {
-          boss.targetX = data.boss.x;
-          boss.targetY = data.boss.y;
-          boss.dirX = data.boss.dirX;
-          boss.dirY = data.boss.dirY;
-          boss.state = data.boss.state;
-          boss.hp = data.boss.hp;
-          boss.maxHp = data.boss.maxHp;
-          boss.armor = data.boss.armor;
-          boss.attack = data.boss.attack;
-          boss.inDuel = data.boss.inDuel;
-          boss.duelId = data.boss.duelId;
-        } else {
-          boss.state = 'dead';
-          boss.x = -9999;
-          boss.y = -9999;
-          boss.targetX = -9999;
-          boss.targetY = -9999;
-        }
-
-        if (data.dar) {
-          dar.targetX = data.dar.x;
-          dar.targetY = data.dar.y;
-          dar.dirX = data.dar.dirX;
-          dar.dirY = data.dar.dirY;
-          dar.state = data.dar.state;
-          dar.hp = data.dar.hp;
-          dar.maxHp = data.dar.maxHp;
-          dar.armor = data.dar.armor;
-          dar.attack = data.dar.attack;
-          dar.inDuel = data.dar.inDuel;
-          dar.duelId = data.dar.duelId;
-        } else {
-          dar.state = 'dead';
-          dar.x = -9999;
-          dar.y = -9999;
-          dar.targetX = -9999;
-          dar.targetY = -9999;
-        }
-
-        if (data.flowers) {
-          const activeFlowerIds = new Set();
-          data.flowers.forEach((fl) => {
-            activeFlowerIds.add(fl.id);
-            worldFlowers.set(fl.id, fl);
-          });
-          for (const id of worldFlowers.keys()) {
-            if (!activeFlowerIds.has(id)) {
-              if (hud.currentTarget && hud.currentTarget.id === id) {
-                hud.clearTarget();
-              }
-              worldFlowers.delete(id);
-            }
-          }
-        } else {
-          worldFlowers.clear();
-        }
-
-        const activeNicks = new Set();
-        const myNameLower = (username || '').trim().toLowerCase();
-
-        data.players.forEach((p) => {
-          const pNameLower = (p.username || '').trim().toLowerCase();
-
-          if (p.id === myNetworkId || pNameLower === myNameLower) {
-            if (p.world && p.world !== currentWorld) {
-              currentWorld = p.world;
-              worldMap.switchWorld(currentWorld);
-            }
-            player.inDuel = Boolean(p.inDuel);
-            if (p.escapedUntil) player.escapedUntil = p.escapedUntil;
-            if (p.color) player.color = p.color;
-            if (p.shield !== undefined) player.shield = p.shield;
-
-            if (p.dismoraleUntil) {
-              if (!player.dismoraleUntil || player.dismoraleUntil <= Date.now()) {
-                showToast('Дар наложила на вас «Дизмораль»! (-35% урона)');
-              }
-              player.dismoraleUntil = p.dismoraleUntil;
-            }
-
-            if (p.stats) {
-              if (player.stats && p.stats.hp > player.stats.hp && !player.inDuel) {
-                const healAmt = p.stats.hp - player.stats.hp;
-                floatingTexts.push({
-                  text: `+${healAmt} HP`,
-                  x: player.x,
-                  y: player.y - 45,
-                  vy: -25,
-                  color: '#4ade80',
-                  expireAt: Date.now() + 1300
-                });
-              }
-              player.stats = { ...player.stats, ...p.stats };
-            }
-            return;
-          }
-
-          activeNicks.add(pNameLower);
-
-          if (otherPlayers.has(pNameLower)) {
-            const cur = otherPlayers.get(pNameLower);
-            cur.world = p.world || 'hellfire';
-            cur.targetX = p.x;
-            cur.targetY = p.y;
-            cur.username = p.username;
-            cur.userId = p.userId || '';
-            cur.color = p.color || '#38bdf8';
-            cur.inDuel = Boolean(p.inDuel);
-            cur.escapedUntil = p.escapedUntil || 0;
-            cur.dismoraleUntil = p.dismoraleUntil || 0;
-            cur.shield = p.shield || 0;
-            cur.stats = p.stats || DEFAULT_STATS;
-          } else {
-            otherPlayers.set(pNameLower, {
-              id: p.id,
-              userId: p.userId || '',
-              world: p.world || 'hellfire',
-              x: p.x,
-              y: p.y,
-              targetX: p.x,
-              targetY: p.y,
-              dirX: 0,
-              dirY: 1,
-              username: p.username || 'Странник',
-              color: p.color || '#38bdf8',
-              inDuel: Boolean(p.inDuel),
-              escapedUntil: p.escapedUntil || 0,
-              dismoraleUntil: p.dismoraleUntil || 0,
-              shield: p.shield || 0,
-              stats: p.stats || DEFAULT_STATS,
-              width: 32,
-              height: 40,
-              bubble: { text: '', expireAt: 0 }
-            });
-          }
-        });
-
-        for (const nick of otherPlayers.keys()) {
-          if (!activeNicks.has(nick)) {
-            if (hud.currentTarget && hud.currentTarget.username && hud.currentTarget.username.toLowerCase() === nick) {
-              hud.clearTarget();
-            }
-            otherPlayers.delete(nick);
-          }
-        }
-      }
-    } catch (e) {}
-  };
-
-  let lastSentX = player.x;
-  let lastSentY = player.y;
-
-  setInterval(() => {
-    if (!isKicked && socket.readyState === WebSocket.OPEN && canMove()) {
-      const curX = Math.round(player.x);
-      const curY = Math.round(player.y);
-
-      if (curX !== lastSentX || curY !== lastSentY) {
-        lastSentX = curX;
-        lastSentY = curY;
-        socket.send(JSON.stringify({ type: 'move', x: curX, y: curY }));
-      }
-    }
-  }, 66);
-
-  const camera = {
-    x: player.x,
-    y: player.y,
-    zoom: 0.5,
-    targetZoom: 0.5,
-    minZoom: 0.2,
-    maxZoom: 1.5,
-    smoothSpeed: 14
-  };
-
-  window.__GAME_CAMERA__ = camera;
-
-  const keys = { w: false, a: false, s: false, d: false };
-  window.addEventListener('blur', resetKeys);
-
-  canvas.addEventListener('click', (e) => {
-    if (!canMove()) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const screenX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const screenY = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-    const mouseWorldX = (screenX - canvas.width / 2) / camera.zoom + camera.x;
-    const mouseWorldY = (screenY - canvas.height / 2) / camera.zoom + camera.y;
-
-    if (currentWorld === 'hellfire') {
-      if (boss.state !== 'dead') {
-        if (Math.abs(mouseWorldX - boss.x) <= 24 && Math.abs(mouseWorldY - boss.y) <= 28) {
-          hud.setTarget({ ...boss, isBoss: true });
-          return;
-        }
-      }
-
-      if (dar.state !== 'dead') {
-        if (Math.abs(mouseWorldX - dar.x) <= 24 && Math.abs(mouseWorldY - dar.y) <= 28) {
-          hud.setTarget({ ...dar, isDar: true });
-          return;
-        }
-      }
-
-      for (const fl of worldFlowers.values()) {
-        if (Math.abs(mouseWorldX - fl.x) <= 24 && Math.abs(mouseWorldY - fl.y) <= 28) {
-          hud.setTarget({ ...fl, isFlowerEntity: true });
-          return;
-        }
-      }
-    }
-
-    for (const portal of worldPortals) {
-      if ((portal.world || 'hellfire') !== currentWorld) continue;
-
-      const pw = portal.width || 36;
-      const ph = portal.height || 36;
-      if (
-        Math.abs(mouseWorldX - portal.x) <= pw / 2 + 12 &&
-        Math.abs(mouseWorldY - portal.y) <= ph / 2 + 12
-      ) {
-        const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
-        if (dist <= 75 && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: 'use_portal', portalId: portal.id }));
-          return;
-        } else if (dist > 75) {
-          showToast('Подойдите ближе к объекту');
-        }
-        return;
-      }
-    }
-
-    let clicked = null;
-    for (const p of otherPlayers.values()) {
-      if ((p.world || 'hellfire') !== currentWorld) continue;
-
-      if (
-        Math.abs(mouseWorldX - p.x) <= SPRITE_CONFIG.drawWidth / 2 + 6 &&
-        mouseWorldY >= p.y - SPRITE_CONFIG.drawHeight / 2 - 24 / camera.zoom &&
-        mouseWorldY <= p.y + SPRITE_CONFIG.drawHeight / 2
-      ) {
-        if (p.escapedUntil && Date.now() < p.escapedUntil) {
-          showToast('Игрок восстанавливается после побега');
-          return;
-        }
-        clicked = p;
         break;
-      }
+      case 'toast': overlay.toast(d.text, d.color); break;
+      case 'hurt':
+        flashHurt();
+        if (floatBudget > 0) { floatBudget--; overlay.float(run.me.x, 2.4, run.me.z, `-${Math.round(d.dmg)}`, '#f87171'); }
+        break;
+      case 'downed': overlay.toast(run.remotes.size ? 'Вы пали! Союзники могут поднять вас' : 'Вы пали…', '#fca5a5'); break;
+      case 'revived': overlay.toast('Вас подняли!', '#4ade80'); break;
+      case 'dmg':
+        if (floatBudget > 0) { floatBudget--; overlay.float(d.x, 1.8, d.z, String(Math.round(d.dmg)), d.boss ? '#f0abfc' : '#fff', d.crit); }
+        break;
+      case 'kill':
+        if (d.boss) overlay.toast('Страж повержен!', '#f0abfc');
+        break;
+      case 'ability': overlay.toast(`${d.name}!`, '#fde68a'); break;
+      case 'end':
+        runUI.showResults(d, { isHost: run.isHost, coop: run.remotes.size > 0 || (d.players || []).length > 1, myId: run.myId });
+        break;
+      case 'remote_join': overlay.toast(`${run.remotes.get(d.id)?.username || 'Союзник'} в забеге`, '#4ade80'); break;
+      case 'host_lost': if (!hostLostShown) { hostLostShown = true; overlay.toast('Ведущий не отвечает…', '#fcd34d'); } break;
+      case 'restart_req': if (!run.isHost) doRestart(); break;
+      default: break;
     }
+  }
+  let hostLostShown = false;
 
-    if (clicked) {
-      hud.setTarget(clicked);
-    } else {
-      hud.clearTarget();
-    }
-  });
+  const flashEl = document.createElement('div');
+  flashEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 60px rgba(220,38,38,0.85);opacity:0;transition:opacity 0.25s';
+  overlay.layer.appendChild(flashEl);
+  function flashHurt() {
+    flashEl.style.transition = 'none';
+    flashEl.style.opacity = '1';
+    requestAnimationFrame(() => { flashEl.style.transition = 'opacity 0.35s'; flashEl.style.opacity = '0'; });
+  }
 
+  // ---------------- ввод ----------------
+  const keys = new Set();
+  const input = { dashPressed: false, abilityPressed: false };
+  const isTyping = (e) => e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
   window.addEventListener('keydown', (e) => {
-    if (isKicked) return;
-
+    if (isTyping(e) || net.kicked) return;
+    const k = e.key.toLowerCase();
     if (e.key === 'Escape') {
-      if (adminPanel && adminPanel.editor && adminPanel.editor.isActive) {
-        adminPanel.editor.toggle(false);
-        resetKeys();
-        e.preventDefault();
-        return;
-      }
-      if (duelManager && duelManager.isClassSelectOpen) {
-        duelManager.closeClassSelect();
-        resetKeys();
-        e.preventDefault();
-        return;
-      }
-      if (statsUI && statsUI.isSoulOpen) {
-        statsUI.toggleSoulModal(false);
-        resetKeys();
-        e.preventDefault();
-        return;
-      }
-      if (hud && hud.currentTarget) {
-        hud.clearTarget();
-        e.preventDefault();
-        return;
-      }
-      if (isGameRunning) {
-        backToGameList();
-        e.preventDefault();
-        return;
-      }
-      if (isModalOpen) {
-        closeArcadeModal();
-        e.preventDefault();
-        return;
-      }
-      if (isTyping) {
-        isTyping = false;
-        chatText = '';
-        e.preventDefault();
-        return;
-      }
-    }
-
-    if ((e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') && !isTyping && canMove()) {
-      if (activeNearPortal && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'use_portal', portalId: activeNearPortal.id }));
-        e.preventDefault();
-        return;
-      }
-    }
-
-    if ((e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') && !isTyping && canMove()) {
-      resetKeys();
-      statsUI.toggleSoulModal(undefined, player.stats, username, currentWorld);
-      e.preventDefault();
+      if (adminPanel.editor?.isActive) { adminPanel.editor.toggle(false); keys.clear(); e.preventDefault(); return; }
+      if (classSelect.isOpen) { classSelect.close(); return; }
+      if (statsUI.isOpen) { statsUI.close(); return; }
+      if (overlay.screen && !runUI.choiceOpen && !(run && run.ended)) { overlay.hideScreen(); return; }
       return;
     }
-
-    if ((e.code === 'Space' || e.key === ' ' || e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.key === 'Shift') && canMove()) {
-      e.preventDefault();
-      if (dash.cooldownTimer <= 0 && !dash.active) {
-        let mx = 0;
-        let my = 0;
-        if (keys.w) my -= 1;
-        if (keys.s) my += 1;
-        if (keys.a) mx -= 1;
-        if (keys.d) mx += 1;
-
-        if (mx !== 0 || my !== 0) {
-          const len = Math.hypot(mx, my);
-          dash.dirX = mx / len;
-          dash.dirY = my / len;
-        } else if (lastFaceDir.x !== 0 || lastFaceDir.y !== 0) {
-          const len = Math.hypot(lastFaceDir.x, lastFaceDir.y);
-          dash.dirX = lastFaceDir.x / len;
-          dash.dirY = lastFaceDir.y / len;
-        } else {
-          dash.dirX = 0;
-          dash.dirY = 1;
-        }
-
-        dash.active = true;
-        dash.timer = dash.duration;
-        dash.cooldownTimer = dash.cooldown;
-      }
-      return;
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!isTyping) {
-        isTyping = true;
-        chatText = '';
-        resetKeys();
-      } else {
-        const msg = chatText.trim();
-        if (msg.length > 0) {
-          player.bubble = { text: msg, expireAt: Date.now() + 5000 };
-          try {
-            socket.send(JSON.stringify({ type: 'chat', text: msg }));
-          } catch (_) {}
-        }
-        isTyping = false;
-        chatText = '';
-      }
-      return;
-    }
-
-    if (isTyping) {
-      if (e.key === 'Backspace') {
-        chatText = chatText.slice(0, -1);
-        e.preventDefault();
-        return;
-      }
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (chatText.length < 35) chatText += e.key;
-        e.preventDefault();
-        return;
-      }
-      return;
-    }
-
-    if (!canMove()) return;
-
-    const k = e.key.toLowerCase();
-    if (k === 'w' || k === 'ц' || e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = true;
-    if (k === 'a' || k === 'ф' || e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true;
-    if (k === 's' || k === 'ы' || e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = true;
-    if (k === 'd' || k === 'в' || e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true;
-
-    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
-      camera.targetZoom = Math.min(camera.maxZoom, camera.targetZoom + 0.2);
-    }
-    if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') {
-      camera.targetZoom = Math.max(camera.minZoom, camera.targetZoom - 0.2);
-    }
+    if (e.key === 'Enter') { e.preventDefault(); openChat(); return; }
+    if (runUI.choiceOpen) return; // 1–3 обрабатывает модалка
+    keys.add(e.code);
+    if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { input.dashPressed = true; e.preventDefault(); }
+    if (k === 'q' || k === 'й') input.abilityPressed = true;
+    if (k === 'e' || k === 'у') interact();
+    if (k === 'c' || k === 'с') toggleSoul();
+    if (e.key === '+' || e.key === '=') zoomBy(1.15);
+    if (e.key === '-' || e.key === '_') zoomBy(1 / 1.15);
+    if (e.key === 'F3') { e.preventDefault(); showDebug = !showDebug; }
   });
+  window.addEventListener('keyup', (e) => keys.delete(e.code));
+  window.addEventListener('blur', () => keys.clear());
+  canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
+  canvas.addEventListener('click', (e) => onCanvasClick(e));
 
-  window.addEventListener('keyup', (e) => {
-    const k = e.key.toLowerCase();
-    if (k === 'w' || k === 'ц' || e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = false;
-    if (k === 'a' || k === 'ф' || e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
-    if (k === 's' || k === 'ы' || e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false;
-    if (k === 'd' || k === 'в' || e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
-  });
+  function zoomBy(f) {
+    const v = stage.view;
+    v.targetZoom = Math.max(v.minZoom, Math.min(v.maxZoom, v.targetZoom * f));
+  }
+  function openChat() {
+    overlay.openChat((text) => {
+      if (!send({ type: 'chat', text })) overlay.bubble('__me', text);
+    });
+  }
+  function toggleSoul() {
+    if (mode === 'run' && !statsUI.isOpen && overlay.screen) return;
+    statsUI.toggleSoulModal(undefined, player.stats, username, world, { shield: player.shield });
+  }
+  let showDebug = /[?&]debug=1/.test(location.search);
 
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.15 : -0.15;
-    camera.targetZoom = Math.max(camera.minZoom, Math.min(camera.maxZoom, camera.targetZoom + delta));
-  }, { passive: false });
-
-  function drawBubble(text, x, y, isSelf, strokeColor) {
-    ctx.save();
-    const targetFontPx = 13;
-    const fontInWorld = targetFontPx / camera.zoom;
-    ctx.font = `bold ${fontInWorld}px monospace`;
-
-    const textMetrics = ctx.measureText(text);
-    const padX = 10 / camera.zoom;
-    const boxW = textMetrics.width + padX * 2;
-    const boxH = 22 / camera.zoom;
-    const boxX = x - boxW / 2;
-    const boxY = y - boxH;
-
-    const borderColor = strokeColor || (isSelf ? '#ffd700' : '#38bdf8');
-
-    ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 1.5 / camera.zoom;
-    ctx.fillRect(boxX, boxY, boxW, boxH);
-    ctx.strokeRect(boxX, boxY, boxW, boxH);
-
-    const tailH = 5 / camera.zoom;
-    ctx.beginPath();
-    ctx.moveTo(x - 4 / camera.zoom, boxY + boxH);
-    ctx.lineTo(x, boxY + boxH + tailH);
-    ctx.lineTo(x + 4 / camera.zoom, boxY + boxH);
-    ctx.fillStyle = borderColor;
-    ctx.fill();
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeStyle = '#050408';
-    ctx.lineWidth = 2.5 / camera.zoom;
-    ctx.strokeText(text, x, boxY + boxH / 2);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, x, boxY + boxH / 2);
-    ctx.restore();
+  function moveVector() {
+    let x = 0, y = 0;
+    if (keys.has('KeyW') || keys.has('ArrowUp')) y -= 1;
+    if (keys.has('KeyS') || keys.has('ArrowDown')) y += 1;
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
+    if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
+    const st = touch.getMoveVector?.() || { x: 0, y: 0 };
+    if (st.x || st.y) { x = st.x; y = st.y; }
+    const len = Math.hypot(x, y);
+    if (len > 1) { x /= len; y /= len; }
+    return { x, y };
   }
 
-  function drawDebuffBadge(ctx, x, y, text) {
-    ctx.save();
-    const fontSize = 9.5 / camera.zoom;
-    ctx.font = `bold ${fontSize}px monospace`;
-    const textMetrics = ctx.measureText(text);
-    const w = textMetrics.width + 8 / camera.zoom;
-    const h = 15 / camera.zoom;
-    const bx = x - w / 2;
-    const by = y - h / 2;
-
-    ctx.fillStyle = 'rgba(30, 8, 16, 0.92)';
-    ctx.strokeStyle = '#f87171';
-    ctx.lineWidth = 1.2 / camera.zoom;
-    ctx.fillRect(bx, by, w, h);
-    ctx.strokeRect(bx, by, w, h);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fca5a5';
-    ctx.fillText(text, x, y);
-    ctx.restore();
+  // ---------------- хаб: взаимодействие ----------------
+  function nearestPortal() {
+    let best = null, bd = PORTAL_RANGE;
+    for (const p of portals) {
+      if ((p.world || 'hellfire') !== world) continue;
+      const d = Math.hypot(p.x - player.x, p.y - player.y);
+      if (d <= bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+  function nearestFlower() {
+    let best = null, bd = FLOWER_RANGE;
+    for (const f of flowers.values()) {
+      if (f.stage === 'active') continue;
+      const d = Math.hypot(f.x - player.x, f.y - player.y);
+      if (d <= bd) { bd = d; best = f; }
+    }
+    return best;
   }
 
-function drawAdminNameplate(ctx, nickText, x, y, now) {
-    ctx.save();
-    // Увеличили размер никнейма с 9 до 14 пикселей
-    const fontSize = 22;
-    ctx.font = `bold ${fontSize}px monospace`;
-    const metrics = ctx.measureText(nickText);
-    const badgeText = 'ADMIN';
-    
-    // Увеличили размер плашки ADMIN с 7 до 10 пикселей
-    const badgeFontSize = 16;
-    ctx.font = `bold ${badgeFontSize}px monospace`;
-    const badgeMetrics = ctx.measureText(badgeText);
-
-    // Увеличили отступы (padX) и общую высоту рамки (h) под новые шрифты
-    const padX = 8;
-    const h = 40;
-    const totalW = metrics.width + badgeMetrics.width + (padX * 3);
-    const bx = x - totalW / 2;
-    const by = y - h - 6;
-
-    // Фон рамки
-    ctx.fillStyle = 'rgba(10, 8, 18, 0.9)';
-    ctx.fillRect(bx, by, totalW, h);
-
-    // Золотая окантовка со свечением (немного усилили толщину и размытие)
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = '#eab308';
-    ctx.shadowBlur = 6;
-    ctx.strokeRect(bx, by, totalW, h);
-    ctx.shadowBlur = 0;
-
-    // Бейдж ADMIN (красный)
-    const badgeX = bx + padX + badgeMetrics.width / 2;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `bold ${badgeFontSize}px monospace`;
-    ctx.fillStyle = '#ef4444';
-    ctx.fillText(badgeText, badgeX, by + h / 2);
-
-    // Никнейм (золотой)
-    const nickX = bx + (padX * 2) + badgeMetrics.width + (metrics.width / 2);
-    ctx.font = `bold ${fontSize}px monospace`;
-    ctx.fillStyle = '#ffd700';
-    ctx.fillText(nickText, nickX, by + h / 2);
-
-    ctx.restore();
-}
-
-  let lastTime = performance.now();
-
-  function loop(currentTime) {
-    const dt = Math.min(0.04, (currentTime - lastTime) / 1000);
-    lastTime = currentTime;
-    const now = Date.now();
-
-    if (dash.cooldownTimer > 0) {
-      dash.cooldownTimer = Math.max(0, dash.cooldownTimer - dt);
-    }
-
-    let isMoving = false;
-
-    if (canMove()) {
-      let moveSpeed = player.stats.moveSpeed;
-      let moveDirX = 0;
-      let moveDirY = 0;
-
-      if (dash.active) {
-        moveSpeed = dash.speed;
-        moveDirX = dash.dirX;
-        moveDirY = dash.dirY;
-        isMoving = true;
-
-        dash.timer -= dt;
-        if (dash.timer <= 0) dash.active = false;
-      } else {
-        let dx = 0;
-        let dy = 0;
-        if (keys.w) dy -= 1;
-        if (keys.s) dy += 1;
-        if (keys.a) dx -= 1;
-        if (keys.d) dx += 1;
-
-        const stick = touchControls.getMoveVector();
-        if (stick.x !== 0 || stick.y !== 0) {
-          dx = stick.x;
-          dy = stick.y;
-        }
-
-        if (dx !== 0 || dy !== 0) {
-          isMoving = true;
-          if (keys.w || keys.s || keys.a || keys.d) {
-            if (dx !== 0 && dy !== 0) {
-              dx *= 0.7071;
-              dy *= 0.7071;
-            }
-          }
-          lastFaceDir.x = dx;
-          lastFaceDir.y = dy;
-        }
-
-        moveDirX = dx;
-        moveDirY = dy;
-      }
-
-      // Физика столкновений со стенами и препятствиями текущего мира
-      const deltaX = moveDirX * moveSpeed * dt;
-      const deltaY = moveDirY * moveSpeed * dt;
-      const targetX = player.x + deltaX;
-      const targetY = player.y + deltaY;
-
-      if (!worldMap.isBlocked(targetX, player.y)) {
-        player.x = targetX;
-      }
-      if (!worldMap.isBlocked(player.x, targetY)) {
-        player.y = targetY;
-      }
-
-      const halfW = player.width / 2;
-      const halfH = player.height / 2;
-      player.x = Math.max(halfW + 4, Math.min(WORLD_SIZE - halfW - 4, player.x));
-      player.y = Math.max(halfH + 28, Math.min(WORLD_SIZE - halfH - 4, player.y));
-
-      activeNearPortal = null;
-      let minPortalDist = Infinity;
-      worldPortals.forEach((portal) => {
-        if ((portal.world || 'hellfire') !== currentWorld) return;
-
-        const dist = Math.hypot(player.x - portal.x, player.y - portal.y);
-        if (dist <= 60 && dist < minPortalDist) {
-          minPortalDist = dist;
-          activeNearPortal = portal;
-        }
-      });
-
-      touchControls.setInteractHighlight(Boolean(activeNearPortal));
-    }
-
-    if (currentWorld === 'hellfire' && boss.state !== 'dead') {
-      const bDx = boss.targetX - boss.x;
-      const bDy = boss.targetY - boss.y;
-      const dist = Math.hypot(bDx, bDy);
-
-      boss.isMoving = dist > 0.8 && boss.state !== 'combat';
-
-      if (dist > 0.5) {
-        boss.dirX = bDx;
-        boss.dirY = bDy;
-      }
-
-      boss.x += bDx * Math.min(1, 14 * dt);
-      boss.y += bDy * Math.min(1, 14 * dt);
-    } else {
-      boss.isMoving = false;
-    }
-
-    if (currentWorld === 'hellfire' && dar.state !== 'dead') {
-      const dDx = dar.targetX - dar.x;
-      const dDy = dar.targetY - dar.y;
-      const dDist = Math.hypot(dDx, dDy);
-
-      dar.isMoving = dDist > 0.8 && dar.state !== 'combat';
-
-      if (dDist > 0.5) {
-        dar.dirX = dDx;
-        dar.dirY = dDy;
-      }
-
-      dar.x += dDx * Math.min(1, 14 * dt);
-      dar.y += dDy * Math.min(1, 14 * dt);
-    } else {
-      dar.isMoving = false;
-    }
-
-    const isArinar = currentWorld === 'arinar';
-    const hudBoss = isArinar ? { ...boss, state: 'dead', x: -9999, y: -9999 } : boss;
-    const hudDar = isArinar ? { ...dar, state: 'dead', x: -9999, y: -9999 } : dar;
-    const hudFlowers = isArinar ? new Map() : worldFlowers;
-    const hudPortals = worldPortals.filter((p) => (p.world || 'hellfire') === currentWorld);
-
-    const hudOtherPlayers = new Map();
-    otherPlayers.forEach((p, key) => {
-      if ((p.world || 'hellfire') === currentWorld) {
-        hudOtherPlayers.set(key, p);
-      }
-    });
-
-    hud.update({
-      player,
-      otherPlayers: hudOtherPlayers,
-      boss: hudBoss,
-      dar: hudDar,
-      worldFlowers: hudFlowers,
-      worldPortals: hudPortals,
-      activeNearPortal,
-      camera,
-      dash,
-      username,
-      lastFaceDir,
-      currentWorld,
-      isAdmin: isCurrentUserAdmin,
-      ping: currentPing,
-      deathLockUntil: player.deathLockUntil || 0
-    });
-
-    camera.zoom += (camera.targetZoom - camera.zoom) * Math.min(1, 10 * dt);
-    camera.x += (player.x - camera.x) * Math.min(1, camera.smoothSpeed * dt);
-    camera.y += (player.y - camera.y) * Math.min(1, camera.smoothSpeed * dt);
-
-    const halfViewW = (canvas.width / 2) / camera.zoom;
-    const halfViewH = (canvas.height / 2) / camera.zoom;
-
-    camera.x = Math.max(halfViewW, Math.min(WORLD_SIZE - halfViewW, camera.x));
-    camera.y = Math.max(halfViewH, Math.min(WORLD_SIZE - halfViewH, camera.y));
-
-    ctx.fillStyle = '#050408';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(camera.zoom, camera.zoom);
-    ctx.translate(-camera.x, -camera.y);
-
-    // 1. Фон
-    if (currentWorld === 'arinar') {
-      arinarCosmos.update(dt);
-      arinarCosmos.renderBackground(ctx, now);
-    } else {
-      if (floorPattern) {
-        ctx.fillStyle = floorPattern;
-        ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
-      } else {
-        ctx.fillStyle = '#0c0a14';
-        ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
-      }
-
-      ctx.fillStyle = 'rgba(12, 8, 24, 0.62)';
-      ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
-
-      const edgeGradient = ctx.createRadialGradient(
-        WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.28,
-        WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE * 0.72
-      );
-      edgeGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      edgeGradient.addColorStop(1, 'rgba(4, 2, 8, 0.85)');
-      ctx.fillStyle = edgeGradient;
-      ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
-
-      ctx.strokeStyle = '#c59b27';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(2, 2, WORLD_SIZE - 4, WORLD_SIZE - 4);
-
-      ctx.strokeStyle = 'rgba(245, 215, 127, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(8, 8, WORLD_SIZE - 16, WORLD_SIZE - 16);
-
-      otherPlayers.forEach((p) => {
-        if ((p.world || 'hellfire') === 'hellfire') {
-          drawCharacterShadow(ctx, p.x, p.y);
-        }
-      });
-      if (boss.state !== 'dead') {
-        drawCharacterShadow(ctx, boss.x, boss.y, 1.2);
-      }
-      if (dar.state !== 'dead') {
-        drawCharacterShadow(ctx, dar.x, dar.y, 1.2);
-      }
-      worldFlowers.forEach((fl) => drawCharacterShadow(ctx, fl.x, fl.y, 0.8));
-      drawCharacterShadow(ctx, player.x, player.y, dash.active ? 1.25 : 1);
-    }
-
-    // Отрисовка пола текущего мира
-    worldMap.renderFloor(ctx);
-
-    // Отрисовка декораций и стен текущего мира
-    worldMap.renderObjects(ctx, now);
-
-    // Отрисовка наложения сетки редактора карт
-    if (adminPanel) {
-      adminPanel.render(ctx, camera);
-    }
-
-    otherPlayers.forEach((p) => {
-      const pDx = p.targetX - p.x;
-      const pDy = p.targetY - p.y;
-      const isOtherMoving = Math.hypot(pDx, pDy) > 0.6;
-      if (isOtherMoving) {
-        p.dirX = pDx;
-        p.dirY = pDy;
-      }
-      p.x += pDx * Math.min(1, 14 * dt);
-      p.y += pDy * Math.min(1, 14 * dt);
-    });
-
-    // 2. Сбор сущностей по глубине
-    const entities = [];
-
-    worldPortals.forEach((portal) => {
-      if ((portal.world || 'hellfire') === currentWorld) {
-        entities.push({ type: 'portal', y: portal.y, item: portal });
-      }
-    });
-
-    otherPlayers.forEach((p) => {
-      if ((p.world || 'hellfire') === currentWorld) {
-        entities.push({ type: 'other_player', y: p.y, item: p });
-      }
-    });
-
-    if (currentWorld === 'hellfire') {
-      worldFlowers.forEach((fl) => entities.push({ type: 'flower', y: fl.y, item: fl }));
-      if (boss.state !== 'dead') {
-        entities.push({ type: 'boss', y: boss.y, item: boss });
-      }
-      if (dar.state !== 'dead') {
-        entities.push({ type: 'dar', y: dar.y, item: dar });
-      }
-    }
-
-    entities.push({ type: 'self_player', y: player.y, item: player });
-    entities.sort((a, b) => a.y - b.y);
-
-    // 3. Отрисовка сущностей
-    entities.forEach((ent) => {
-      if (ent.type === 'portal') {
-        const portal = ent.item;
-
-        if (portal.id === 'portal_arinar' || portal.id === 'portal_hellfire') {
-          arinarCosmos.drawButterflyPortal(ctx, portal, now);
-          return;
-        }
-
-        if (portal.id === 'portal_class_select') {
-          ctx.save();
-          const lightPulse = Math.sin(now / 180) * 5;
-          const glow = ctx.createRadialGradient(portal.x, portal.y + 4, 3, portal.x, portal.y + 4, 52 + lightPulse);
-          glow.addColorStop(0, 'rgba(168, 85, 247, 0.55)');
-          glow.addColorStop(0.5, 'rgba(139, 92, 246, 0.18)');
-          glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(portal.x, portal.y + 4, 55 + lightPulse, 0, Math.PI * 2);
-          ctx.fill();
-
-          const drawW = CAMPFIRE_CONFIG.drawWidth;
-          const drawH = 40;
-          const drawX = portal.x - drawW / 2;
-          const drawY = portal.y - drawH + 12;
-
-          if (campfireImg.complete && campfireImg.naturalWidth > 0) {
-            ctx.imageSmoothingEnabled = false;
-            const frameW = campfireImg.naturalWidth / CAMPFIRE_CONFIG.cols;
-            const frameH = campfireImg.naturalHeight / CAMPFIRE_CONFIG.rows;
-            const currentFrame = Math.floor(now / CAMPFIRE_CONFIG.frameSpeed) % CAMPFIRE_CONFIG.cols;
-            const sx = currentFrame * frameW;
-            const sy = 0;
-
-            ctx.filter = 'hue-rotate(240deg) saturate(1.8) brightness(1.1)';
-            ctx.drawImage(campfireImg, sx, sy, frameW, frameH, drawX, drawY, drawW, drawH);
-            ctx.filter = 'none';
-          }
-          ctx.restore();
-          return;
-        }
-
-        const pw = portal.width || 32;
-        const ph = portal.height || 32;
-        const drawX = Math.max(6, Math.min(WORLD_SIZE - pw - 6, portal.x - pw / 2));
-        const drawY = Math.max(6, Math.min(WORLD_SIZE - ph - 6, portal.y - ph / 2));
-        const pulse = Math.sin(now / 200) * 3;
-
-        ctx.save();
-        ctx.shadowColor = portal.color || '#a855f7';
-        ctx.shadowBlur = 12 + Math.abs(pulse);
-        ctx.strokeStyle = portal.color || '#a855f7';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(drawX - pulse / 2, drawY - pulse / 2, pw + pulse, ph + pulse);
-        ctx.fillStyle = portal.color ? `${portal.color}99` : 'rgba(168, 85, 247, 0.65)';
-        ctx.fillRect(drawX, drawY, pw, ph);
-        ctx.restore();
-        return;
-      }
-
-      if (ent.type === 'boss') {
-        const b = ent.item;
-        drawBossSprite(ctx, keytImg, b.x, b.y, b.dirX || 0, b.dirY || 1, Boolean(boss.isMoving), now);
-        return;
-      }
-
-      if (ent.type === 'dar') {
-        const d = ent.item;
-        drawBossSprite(ctx, darImg, d.x, d.y, d.dirX || 0, d.dirY || 1, Boolean(dar.isMoving), now);
-        return;
-      }
-
-      if (ent.type === 'flower') {
-        const fl = ent.item;
-        drawFlowerSprite(ctx, fl, now);
-        return;
-      }
-
-      if (ent.type === 'other_player') {
-        const p = ent.item;
-
-        if (currentWorld === 'arinar') {
-          arinarCosmos.drawCircleAvatar(ctx, p.x, p.y, p.color || '#818cf8', p.dirX || 0, p.dirY || 1, false, now);
-        } else {
-          const isOtherMoving = Math.hypot(p.targetX - p.x, p.targetY - p.y) > 0.6;
-          const classId = p.stats?.classId;
-          const targetSprite = (classId && SPRITES[classId]) ? SPRITES[classId] : SPRITES.soul;
-
-          ctx.save();
-          if (p.escapedUntil && now < p.escapedUntil) {
-            ctx.globalAlpha = Math.floor(now / 150) % 2 === 0 ? 0.3 : 1.0;
-          }
-
-          drawCharacterSprite(ctx, targetSprite, p.x, p.y, p.dirX || 0, p.dirY || 1, isOtherMoving, now, p.color || '#38bdf8');
-          ctx.restore();
-        }
-        return;
-      }
-
-      if (ent.type === 'self_player') {
-        if (currentWorld === 'arinar') {
-          arinarCosmos.drawCircleAvatar(ctx, player.x, player.y, player.color || '#ffffff', lastFaceDir.x, lastFaceDir.y, true, now);
-        } else {
-          const halfW = player.width / 2;
-          const halfH = player.height / 2;
-
-          if (dash.active) {
-            ctx.save();
-            ctx.shadowColor = '#eab308';
-            ctx.shadowBlur = 12;
-            ctx.strokeStyle = '#fef08a';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(player.x - halfW - 2, player.y - halfH - 2, player.width + 4, player.height + 4);
-            ctx.restore();
-          }
-
-          const myClassId = player.stats?.classId;
-          const mySprite = (myClassId && SPRITES[myClassId]) ? SPRITES[myClassId] : SPRITES.soul;
-
-          ctx.save();
-          if (player.escapedUntil && now < player.escapedUntil) {
-            ctx.globalAlpha = Math.floor(now / 150) % 2 === 0 ? 0.3 : 1.0;
-          }
-
-          drawCharacterSprite(ctx, mySprite, player.x, player.y, lastFaceDir.x, lastFaceDir.y, isMoving, now, player.color || '#ffffff');
-          ctx.restore();
-        }
-      }
-    });
-
-    const halfH = player.height / 2;
-
-    worldPortals.forEach((portal) => {
-      if ((portal.world || 'hellfire') !== currentWorld) return;
-
-      const pFontSize = 24 / camera.zoom;
-      ctx.font = `bold ${pFontSize}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.strokeStyle = '#050408';
-      ctx.lineWidth = 2.5 / camera.zoom;
-
-      if (portal.id === 'portal_class_select') {
-        const drawY = portal.y - 40 + 12;
-        ctx.strokeText(`[ Алтарь Перевоплощения ]`, portal.x, drawY - 6 / camera.zoom);
-        ctx.fillStyle = '#e9d5ff';
-        ctx.fillText(`[ Алтарь Перевоплощения ]`, portal.x, drawY - 6 / camera.zoom);
-
-        if (activeNearPortal && activeNearPortal.id === portal.id) {
-          const badgeY = drawY - 22 / camera.zoom;
-          ctx.fillStyle = 'rgba(13, 10, 24, 0.92)';
-          ctx.strokeStyle = '#a855f7';
-          ctx.lineWidth = 1.5 / camera.zoom;
-          const bw = 120 / camera.zoom;
-          const bh = 18 / camera.zoom;
-          ctx.fillRect(portal.x - bw / 2, badgeY - bh / 2, bw, bh);
-          ctx.strokeRect(portal.x - bw / 2, badgeY - bh / 2, bw, bh);
-          ctx.font = `bold ${10 / camera.zoom}px monospace`;
-          ctx.fillStyle = '#facc15';
-          ctx.fillText(`[E] или Клик: Тело`, portal.x, badgeY + 3 / camera.zoom);
-        }
-      } else {
-        const pw = portal.width || 32;
-        const ph = portal.height || 32;
-        const drawX = portal.x;
-        const drawY = portal.y - ph / 2;
-
-        ctx.strokeText(`[ ${portal.name} ]`, drawX, drawY - 8 / camera.zoom);
-        ctx.fillStyle = portal.color || '#e9d5ff';
-        ctx.fillText(`[ ${portal.name} ]`, drawX, drawY - 8 / camera.zoom);
-
-        if (activeNearPortal && activeNearPortal.id === portal.id) {
-          const badgeY = drawY - 24 / camera.zoom;
-          ctx.fillStyle = 'rgba(13, 10, 24, 0.92)';
-          ctx.strokeStyle = portal.color || '#38bdf8';
-          ctx.lineWidth = 1.5 / camera.zoom;
-          const bw = 110 / camera.zoom;
-          const bh = 18 / camera.zoom;
-          ctx.fillRect(drawX - bw / 2, badgeY - bh / 2, bw, bh);
-          ctx.strokeRect(drawX - bw / 2, badgeY - bh / 2, bw, bh);
-          ctx.font = `bold ${10 / camera.zoom}px monospace`;
-          ctx.fillStyle = '#facc15';
-          ctx.fillText(`[E] Войти`, drawX, badgeY + 3 / camera.zoom);
-        }
-      }
-    });
-
-    if (currentWorld === 'hellfire') {
-      if (boss.state !== 'dead') {
-        const bossNickOffsetY = halfH + (12 / camera.zoom);
-        ctx.font = `bold ${12 / camera.zoom}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#050408';
-        ctx.lineWidth = 2.5 / camera.zoom;
-        ctx.strokeText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
-        ctx.fillStyle = '#f472b6';
-        ctx.fillText('Кейт', Math.round(boss.x), Math.round(boss.y - bossNickOffsetY));
-
-        if (boss.inDuel) {
-          ctx.font = `bold ${15 / camera.zoom}px monospace`;
-          ctx.fillText('⚔️', Math.round(boss.x), Math.round(boss.y - halfH - 26 / camera.zoom));
-        }
-      }
-
-      if (dar.state !== 'dead') {
-        const darNickOffsetY = halfH + (12 / camera.zoom);
-        ctx.font = `bold ${12 / camera.zoom}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#050408';
-        ctx.lineWidth = 2.5 / camera.zoom;
-        ctx.strokeText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
-        ctx.fillStyle = '#34d399';
-        ctx.fillText('Дар', Math.round(dar.x), Math.round(dar.y - darNickOffsetY));
-
-        if (dar.inDuel) {
-          ctx.font = `bold ${24 / camera.zoom}px monospace`;
-          ctx.fillText('⚔️', Math.round(dar.x), Math.round(dar.y - halfH - 26 / camera.zoom));
-        }
-      }
-    }
-
-    otherPlayers.forEach((p) => {
-      if ((p.world || 'hellfire') === currentWorld && p.inDuel) {
-        ctx.font = `bold ${24 / camera.zoom}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText('⚔️', Math.round(p.x), Math.round(p.y - halfH - 24 / camera.zoom));
-      }
-    });
-
-    if (player.inDuel) {
-      ctx.font = `bold ${24 / camera.zoom}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillText('⚔️', Math.round(player.x), Math.round(player.y - halfH - 24 / camera.zoom));
-    }
-
-    const nickFontSize = 24 / camera.zoom;
-    ctx.font = `bold ${nickFontSize}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.lineWidth = 2.5 / camera.zoom;
-
-    const nickOffsetY = currentWorld === 'arinar' ? (22 / camera.zoom) : (halfH + 10 / camera.zoom);
-
-    otherPlayers.forEach((p) => {
-      if ((p.world || 'hellfire') !== currentWorld) return;
-
-const isOtherAdmin = Boolean(
-        (p.userId && ADMIN_IDS.includes(p.userId)) || 
-        (p.username && p.username.trim().toLowerCase() === 'lorin death')
-      );
-      if (isOtherAdmin) {
-        drawAdminNameplate(ctx, p.username, Math.round(p.x), Math.round(p.y - nickOffsetY), now);
-      } else {
-        // Обычные игроки рисуются простым текстом без рамки ADMIN
-        ctx.font = `bold 24px monospace`;
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#050408';
-        ctx.lineWidth = 2;
-        ctx.strokeText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
-        ctx.fillStyle = p.color || '#38bdf8';
-        ctx.fillText(p.username, Math.round(p.x), Math.round(p.y - nickOffsetY));
-      }
-
-      if (p.dismoraleUntil && p.dismoraleUntil > now) {
-        const leftSec = Math.ceil((p.dismoraleUntil - now) / 1000);
-        drawDebuffBadge(ctx, p.x, p.y - halfH - (22 / camera.zoom), `💔 ДИЗМОРАЛЬ ${leftSec}с`);
-      }
-    });
-
-    if (isCurrentUserAdmin) {
-      drawAdminNameplate(ctx, username, Math.round(player.x), Math.round(player.y - nickOffsetY), now);
-    } else {
-      ctx.strokeStyle = '#050408';
-      ctx.strokeText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
-      ctx.fillStyle = '#ffd700';
-      ctx.fillText(username, Math.round(player.x), Math.round(player.y - nickOffsetY));
-    }
-
-    if (player.dismoraleUntil && player.dismoraleUntil > now) {
-      const leftSec = Math.ceil((player.dismoraleUntil - now) / 1000);
-      drawDebuffBadge(ctx, player.x, player.y - halfH - (22 / camera.zoom), `💔 ДИЗМОРАЛЬ ${leftSec}с`);
-    }
-
-    const bubbleOffsetY = currentWorld === 'arinar' ? (36 / camera.zoom) : (halfH + 34 / camera.zoom);
-
-    if (currentWorld === 'hellfire') {
-      if (boss.bubble && boss.bubble.expireAt > now && boss.state !== 'dead') {
-        drawBubble(boss.bubble.text, boss.x, boss.y - bubbleOffsetY, false, '#f472b6');
-      }
-
-      if (dar.bubble && dar.bubble.expireAt > now && dar.state !== 'dead') {
-        drawBubble(dar.bubble.text, dar.x, dar.y - bubbleOffsetY, false, '#34d399');
-      }
-    }
-
-    otherPlayers.forEach((p) => {
-      if ((p.world || 'hellfire') === currentWorld && p.bubble && p.bubble.expireAt > now) {
-        drawBubble(p.bubble.text, p.x, p.y - bubbleOffsetY, false);
-      }
-    });
-
-    if (player.bubble && player.bubble.expireAt > now) {
-      drawBubble(player.bubble.text, player.x, player.y - bubbleOffsetY, true);
-    }
-
-    for (let i = floatingTexts.length - 1; i >= 0; i--) {
-      const ft = floatingTexts[i];
-      if (now > ft.expireAt) {
-        floatingTexts.splice(i, 1);
-        continue;
-      }
-
-      ft.y += (ft.vy || -30) * dt;
-      const progress = (ft.expireAt - now) / 1400;
-      const alpha = Math.min(1, Math.max(0, progress * 1.5));
-
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.font = `bold ${16 / camera.zoom}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = ft.color;
-      ctx.strokeStyle = '#050408';
-      ctx.lineWidth = 3 / camera.zoom;
-      ctx.strokeText(ft.text, ft.x, ft.y);
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    }
-
-    ctx.restore();
-
-    if (surpriseFlashTimer > 0) {
-      surpriseFlashTimer -= dt;
-      ctx.save();
-      ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.85, surpriseFlashTimer * 2.5)})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-    }
-
-    if (damageFlashTimer > 0) {
-      damageFlashTimer -= dt;
-      ctx.save();
-      ctx.fillStyle = `rgba(239, 68, 68, ${Math.min(0.35, damageFlashTimer * 1.4)})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-    }
-
-    if (isTyping) {
-      const isCursorVisible = Math.floor(now / 500) % 2 === 0;
-
-      ctx.fillStyle = 'rgba(10, 8, 18, 0.95)';
-      ctx.fillRect(8, canvas.height - 36, canvas.width - 16, 28);
-      ctx.strokeStyle = '#ffd700';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(8, canvas.height - 36, canvas.width - 16, 28);
-
-      ctx.font = 'bold 13px monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffd700';
-      ctx.fillText('>', 14, canvas.height - 22);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(chatText + (isCursorVisible ? '_' : ''), 30, canvas.height - 22);
-    } else {
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.fillText('[Enter] Чат', canvas.width - 10, canvas.height - 10);
-    }
-
-    if (isKicked) {
-      ctx.fillStyle = 'rgba(5, 4, 8, 0.85)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.font = 'bold 13px monospace';
-      ctx.fillStyle = '#ef4444';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('СВЯЗЬ РАЗОРВАНА', canvas.width / 2, canvas.height / 2 - 10);
-      ctx.font = '11px monospace';
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText(kickReason, canvas.width / 2, canvas.height / 2 + 12);
+  function interact() {
+    if (mode !== 'hub' || overlay.screen || overlay.chatOpen) return;
+    const p = nearestPortal();
+    if (p) return usePortal(p);
+    const f = nearestFlower();
+    if (f) send({ type: f.stage === 'bud' ? 'touch_flower' : 'pick_flower', flowerId: f.id });
+  }
+
+  function usePortal(p) {
+    if (p.runRoom) return showRoomPrompt(p);
+    if (net.isOpen() && myId) { send({ type: 'use_portal', portalId: p.id }); return; }
+    // офлайн-поведение порталов
+    if (p.id === 'portal_class_select') classSelect.open(player.stats.classId);
+    else if (p.targetWorld) {
+      world = p.targetWorld; player.x = p.targetX || 300; player.y = p.targetY || 600;
+      hub.setWorld(world, portals);
+      stage.follow(toX(player.x), toZ(player.y), 0, true);
+    } else overlay.toast('Портал недоступен без связи с сервером', '#fca5a5');
+  }
+
+  function showRoomPrompt(p) {
+    const room = RUN_ROOMS[p.runRoom];
+    if (!room) return;
+    const cls = RUN_CLASSES[player.stats.classId] || RUN_CLASSES.soul;
+    const n = roomCounts[room.id] || 0;
+    overlay.showScreen(`<h2 style="color:${room.color}">${esc(room.name)}</h2>
+      <p>${esc(room.desc)}</p>
+      <p>Сейчас в комнате: <b>${n}/4</b>${n ? ' — вы присоединитесь к их забегу' : ''}${net.isOpen() ? '' : ' · <span style="color:#fca5a5">офлайн: соло</span>'}</p>
+      <p>Ваш класс: <b style="color:${cls.color}">${esc(displayClassName(player.stats.classId))}</b>. Улучшения и уровни действуют только внутри забега.</p>
+      ${player.stats.classId ? '' : '<p style="color:#fcd34d">Без тела у вас нет навыка класса — выберите тело у Алтаря.</p>'}`,
+    [
+      { text: '▶ Начать забег', cls: 'gold', id: 'mc3d-run-start', onClick: () => { overlay.hideScreen(); requestRun(room.id, p.id); } },
+      { text: 'Отмена', cls: 'ghost', onClick: () => overlay.hideScreen() },
+    ]);
+  }
+
+  function onCanvasClick(e) {
+    canvas.focus?.();
+    if (mode !== 'hub' || overlay.screen || adminPanel.editor?.isActive) return;
+    const g = stage.groundPoint(e.clientX, e.clientY);
+    if (!g) return;
+    const px = toPx(g.x), py = toPy(g.z);
+    const cands = [];
+    for (const o of others.values()) if (o.world === world && !o.runRoom) cands.push({ kind: 'player', o, x: o.x, y: o.y });
+    if (boss && boss.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'keyt', o: boss, x: boss.x, y: boss.y });
+    if (dar && dar.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'dar', o: dar, x: dar.x, y: dar.y });
+    for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
+    for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
+    let best = null, bd = 40;
+    for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; best = c; } }
+    if (!best) { hud.clearTarget(); return; }
+    const o = best.o;
+    if (best.kind === 'portal') {
+      hud.setTarget({ kind: 'portal', id: o.id, name: o.name, typeLabel: o.runRoom ? 'Комната забега' : 'Портал' });
+      if (Math.hypot(o.x - player.x, o.y - player.y) <= PORTAL_RANGE) usePortal(o);
+      else overlay.toast(`Подойдите ближе: ${o.name}`, '#94a3b8');
       return;
     }
-
-    requestAnimationFrame(loop);
+    if (best.kind === 'flower') {
+      hud.setTarget({ kind: 'flower', id: o.id, stage: o.stage, name: 'Тюльпан-вампир', typeLabel: `${o.stage}${o.flowerType ? ' / ' + o.flowerType : ''}` });
+      return;
+    }
+    const st = o.stats || o;
+    hud.setTarget({
+      kind: best.kind, id: o.id, name: o.username || o.name || (best.kind === 'keyt' ? 'Кейт' : 'Дар'),
+      typeLabel: best.kind === 'player' ? displayClassName(st.classId) : 'Хранитель',
+      hp: `${st.hp ?? '?'} / ${st.maxHp ?? '?'}`, armor: st.armor ?? '-', atk: st.minAtk !== undefined ? `${st.minAtk}-${st.maxAtk}` : (st.attack ?? '-'),
+    });
   }
 
-  requestAnimationFrame(loop);
+  // ---------------- цикл ----------------
+  let last = performance.now();
+  let moveAcc = 0, lastSentX = -1, lastSentY = -1, hudAcc = 0;
+  const fpsS = { n: 0, t: 0, fps: 0 };
+  const debugEl = document.createElement('div');
+  debugEl.style.cssText = 'position:absolute;left:6px;bottom:6px;font:10px monospace;color:#a3e635;text-shadow:0 1px 2px #000;pointer-events:none;white-space:pre';
+  overlay.layer.appendChild(debugEl);
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+    last = now;
+    fpsS.n++; fpsS.t += dt;
+    if (fpsS.t >= 0.5) { fpsS.fps = Math.round(fpsS.n / fpsS.t); fpsS.n = 0; fpsS.t = 0; }
+    floatBudget = Math.min(30, floatBudget + dt * 40);
+    stage.resize();
+    overlay.syncRect();
+    try {
+      if (mode === 'run' && run) runFrame(dt, now);
+      else hubFrame(dt, now);
+    } catch (err) {
+      console.error('[MorrisCurse 3D] ошибка кадра', err);
+    }
+    stage.render();
+    hudAcc += dt;
+    if (hudAcc > 0.15) {
+      hudAcc = 0;
+      hud.update({
+        player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, isAdmin,
+        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world,
+        lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
+      });
+    }
+    if (showDebug) {
+      const info = stage.renderer.info.render;
+      debugEl.textContent = `${fpsS.fps} fps · calls ${info.calls} · tris ${info.triangles} · ${mode}${run ? ` · enemies ${run.enemies.size} · ${run.isHost ? 'host' : 'guest'}` : ''} · models ${modelMode()} · ${net.offline ? 'offline' : net.isOpen() ? 'online' : '…'}`;
+    } else if (debugEl.textContent) debugEl.textContent = '';
+  }
+
+  function nearbyList() {
+    const out = [];
+    if (mode !== 'hub') return out;
+    for (const o of others.values()) {
+      if (o.world !== world || o.runRoom) continue;
+      const d = Math.round(Math.hypot(o.x - player.x, o.y - player.y));
+      if (d < 320) out.push({ title: o.username, dist: d, color: o.color });
+    }
+    for (const p of portals) {
+      if ((p.world || 'hellfire') !== world) continue;
+      const d = Math.round(Math.hypot(p.x - player.x, p.y - player.y));
+      if (d < 260) out.push({ title: p.name, dist: d, color: p.color });
+    }
+    return out.sort((a, b) => a.dist - b.dist).slice(0, 8);
+  }
+
+  function hubFrame(dt, now) {
+    const editorActive = !!adminPanel.editor?.isActive;
+    // движение
+    const blocked = overlay.screen || overlay.chatOpen || editorActive || net.kicked;
+    const mv = blocked ? { x: 0, y: 0 } : moveVector();
+    dash.cd = Math.max(0, dash.cd - dt);
+    if (input.dashPressed && !blocked && dash.cd <= 0 && !dash.active) {
+      dash.active = true; dash.timer = DASH.duration; dash.cd = DASH.cooldown;
+      dash.dirX = mv.x || player.dirX; dash.dirY = mv.y || player.dirY;
+      const l = Math.hypot(dash.dirX, dash.dirY) || 1; dash.dirX /= l; dash.dirY /= l;
+    }
+    input.dashPressed = false; input.abilityPressed = false;
+    let vx = mv.x * MOVE_SPEED, vy = mv.y * MOVE_SPEED;
+    if (dash.active) {
+      vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;
+      dash.timer -= dt;
+      if (dash.timer <= 0) dash.active = false;
+    }
+    player.moving = Math.hypot(vx, vy) > 1;
+    if (player.moving) {
+      if (!dash.active) { const l = Math.hypot(mv.x, mv.y) || 1; player.dirX = mv.x / l; player.dirY = mv.y / l; }
+      const nx = Math.max(16, Math.min(WORLD_SIZE - 16, player.x + vx * dt));
+      const ny = Math.max(16, Math.min(WORLD_SIZE - 16, player.y + vy * dt));
+      if (!hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
+      if (!hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
+    }
+    // отправка позиции (как раньше: раз в 66 мс при изменении)
+    moveAcc += dt;
+    if (moveAcc >= 0.066) {
+      moveAcc = 0;
+      const cx = Math.round(player.x), cy = Math.round(player.y);
+      if ((cx !== lastSentX || cy !== lastSentY) && net.isOpen() && myId) {
+        lastSentX = cx; lastSentY = cy;
+        send({ type: 'move', x: cx, y: cy });
+      }
+    }
+    // интерполяция чужих
+    const k = Math.min(1, dt * 10);
+    const lerp = (o) => {
+      if (o.targetX === undefined) return;
+      const dx = o.targetX - o.x, dy = o.targetY - o.y;
+      o.moving = Math.hypot(dx, dy) > 0.6;
+      if (o.moving) { o.dirX = dx; o.dirY = dy; }
+      if (Math.hypot(dx, dy) > 200) { o.x = o.targetX; o.y = o.targetY; } else { o.x += dx * k; o.y += dy * k; }
+    };
+    others.forEach(lerp);
+    if (boss) lerp(boss);
+    if (dar) lerp(dar);
+
+    const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom);
+    hub.update(dt, {
+      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, color: player.color, scale: dash.active ? 1.08 : 1 },
+      others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, color: o.color })),
+      boss: world === 'hellfire' ? boss : null,
+      dar: world === 'hellfire' ? dar : null,
+      flowers: world === 'hellfire' ? flowers : new Map(),
+    });
+
+    // камера
+    window.__GAME_CAMERA__ = { x: player.x, y: player.y, zoom: stage.view.zoom };
+    if (editorActive) {
+      const cam = window.__GAME_CAMERA__;
+      stage.view.zoom += (stage.view.targetZoom - stage.view.zoom) * Math.min(1, dt * 10);
+      stage.setOrthoTopDown(toX(cam.x), toZ(cam.y), 1 / (cam.zoom * 20));
+      drawEditorOverlay(cam);
+    } else {
+      stage.useOrtho = false;
+      stage.follow(toX(player.x), toZ(player.y), dt);
+      if (editorWasActive) {
+        // применяем нарисованное в редакторе к 3D-карте и коллизиям
+        hub.map.updateWorldTiles(world, [...adminPanel.editor.tiles.values()]);
+        hub.rebuildTiles();
+        edCanvas.style.pointerEvents = 'none';
+        edCtx.clearRect(0, 0, edCanvas.width, edCanvas.height);
+      }
+    }
+    editorWasActive = editorActive;
+
+    // подписи
+    overlay.beginFrame();
+    const head = (x, y, h = 2.5) => stage.project(toX(x), h, toZ(y));
+    const alive = new Set(['__me']);
+    let p = head(player.x, player.y);
+    if (p) {
+      const c = CLASSES[player.stats.classId];
+      overlay.label('me', p.x, p.y, `${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>`, '#ffd700');
+      overlay.placeBubble('__me', p.x, p.y - 26);
+    }
+    visibleOthers.forEach((o) => {
+      alive.add(o.id);
+      const q = head(o.x, o.y);
+      if (!q) return;
+      overlay.label('p_' + o.id, q.x, q.y, `${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}</small>`, o.color);
+      overlay.placeBubble(o.id, q.x, q.y - 26);
+    });
+    [[boss, 'boss_keyt', 'Кейт', '#f472b6'], [dar, 'boss_dar', 'Дар', '#fb923c']].forEach(([b, id, nm, col]) => {
+      if (!b || b.state === 'dead' || world !== 'hellfire') return;
+      alive.add(id);
+      const q = head(b.x, b.y, 3.1);
+      if (!q) return;
+      const hp = b.maxHp ? Math.max(0, Math.round((b.hp / b.maxHp) * 100)) : 100;
+      overlay.label(id, q.x, q.y, `${esc(b.name || nm)}<div class="mc3d-mini-hp"><i style="width:${hp}%"></i></div>`, col);
+      overlay.placeBubble(id, q.x, q.y - 30);
+    });
+    for (const pt of portals) {
+      if ((pt.world || 'hellfire') !== world) continue;
+      const q = stage.project(toX(pt.x), pt.id === 'portal_class_select' ? 2.2 : 3.6, toZ(pt.y));
+      if (!q) continue;
+      const extra = pt.runRoom ? `<small>${roomCounts[pt.runRoom] || 0}/4 в забеге · co-op</small>` : '';
+      overlay.label('pt_' + pt.id, q.x, q.y, `${esc(pt.name)}${extra}`, pt.color || '#c084fc');
+    }
+    overlay.cleanupBubbles(alive);
+    overlay.endFrame();
+    overlay.updateFloats(dt, (x, y, z) => stage.project(x, y, z));
+
+    // подсказка действия
+    let promptText = '';
+    if (!overlay.screen && !editorActive) {
+      const np = nearestPortal();
+      const nf = np ? null : nearestFlower();
+      const key = touch.isMobileTouch ? '✋' : 'E';
+      if (np) promptText = `${key} — ${np.runRoom ? 'войти в забег: ' : ''}${np.name}`;
+      else if (nf) promptText = `${key} — ${nf.stage === 'bud' ? 'тронуть бутон (-1 HP)' : 'сорвать цветок (+20 щит)'}`;
+      touch.setInteractHighlight(!!(np || nf));
+    }
+    overlay.setPrompt(promptText);
+  }
+
+  function drawEditorOverlay(cam) {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    edCanvas.style.left = canvas.offsetLeft + 'px';
+    edCanvas.style.top = canvas.offsetTop + 'px';
+    edCanvas.style.width = w + 'px';
+    edCanvas.style.height = h + 'px';
+    edCanvas.style.pointerEvents = 'auto';
+    if (edCanvas.width !== w) edCanvas.width = w;
+    if (edCanvas.height !== h) edCanvas.height = h;
+    edCtx.setTransform(1, 0, 0, 1, 0, 0);
+    edCtx.clearRect(0, 0, w, h);
+    edCtx.setTransform(cam.zoom, 0, 0, cam.zoom, w / 2 - cam.x * cam.zoom, h / 2 - cam.y * cam.zoom);
+    adminPanel.render(edCtx, cam);
+    edCtx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  function runFrame(dt, now) {
+    const blocked = overlay.chatOpen || (overlay.screen && !runUI.choiceOpen && !run.ended);
+    const mv = blocked ? { x: 0, y: 0 } : moveVector();
+    run.update(dt, { x: mv.x, z: mv.y, dash: input.dashPressed, ability: input.abilityPressed });
+    input.dashPressed = false; input.abilityPressed = false;
+    runView.update(dt, now / 1000);
+    stage.useOrtho = false;
+    stage.follow(run.me.x, run.me.z, dt);
+    window.__GAME_CAMERA__ = { x: toPx(run.me.x), y: toPy(run.me.z), zoom: stage.view.zoom };
+    runUI.update(run);
+
+    overlay.beginFrame();
+    for (const [id, r] of run.remotes) {
+      if (r.stale) continue;
+      const q = stage.project(r.x, 2.6, r.z);
+      if (!q) continue;
+      const rev = r.dead ? `<small>💀 ${r.reviveProgress ? `поднимаем ${Math.round((r.reviveProgress / 2.5) * 100)}%` : 'встаньте рядом, чтобы поднять'}</small>` : '';
+      overlay.label('r_' + id, q.x, q.y, `${esc(r.username)}${id === runHostId ? ' 👑' : ''}${rev}`, r.color);
+      overlay.placeBubble(id, q.x, q.y - 24);
+    }
+    for (const e of run.enemies.values()) {
+      if (!(e.elite || e.boss) || e.dead) continue;
+      const def = ENEMIES[e.type];
+      const q = stage.project(e.x, (def.radius || 0.6) * (e.scale || 1) * 2 + 1.2, e.z);
+      if (!q) continue;
+      const hp = Math.max(0, Math.round(((e.hp ?? e.maxHp) / e.maxHp) * 100));
+      overlay.label('e_' + e.id, q.x, q.y, `${e.boss ? 'Страж' : '★ ' + esc(def.name || e.type)}<div class="mc3d-mini-hp"><i style="width:${hp}%"></i></div>`, e.boss ? '#f0abfc' : '#facc15');
+    }
+    const q = stage.project(run.me.x, 2.6, run.me.z);
+    if (q) overlay.placeBubble('__me', q.x, q.y - 10);
+    overlay.endFrame();
+    overlay.updateFloats(dt, (x, y, z) => stage.project(x, y, z));
+    overlay.setPrompt('');
+  }
+
+  api.state = () => ({ mode, world, myId, player: { ...player }, others: others.size, run: run ? { t: run.t, enemies: run.enemies.size, level: run.team.level, kills: run.team.kills, isHost: run.isHost, remotes: run.remotes.size, hp: run.me.hp, dead: run.me.dead, ended: run.ended } : null, net: { open: net.isOpen(), offline: net.offline } });
+  api.startRun = (room = 'crypt') => requestRun(room, null);
+  if (showDebug) {
+    // отладочные хуки для автотестов (только с ?debug=1)
+    api.debug = {
+      teleport: (x, y) => { player.x = x; player.y = y; },
+      selectClass: (id) => classSelect.onSelect(id),
+      setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
+    };
+  }
+  api.leaveRun = () => leaveRun();
+  requestAnimationFrame(frame);
+  canvas.focus?.();
 }

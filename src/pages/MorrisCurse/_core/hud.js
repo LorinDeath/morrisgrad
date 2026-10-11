@@ -1,517 +1,189 @@
-import { getArmorReduction } from './classes.js';
+// Боковые панели (видны в полноэкранном режиме на десктопе): тело/HP, рывок, сеть, мини-карта,
+// цель, объекты рядом, комнаты забегов. Дуэльные кнопки (WAP) удалены.
+import { CLASSES, getArmorReduction } from './classes.js';
 import { Minimap } from './minimap.js';
+import { RUN_ROOMS, RUN_CLASSES, ABILITIES, displayClassName } from './survivors/data.js';
+import { esc } from './ui/overlay.js';
+import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
-  constructor(container, onDuelInvite, onJoinBossFight, onTouchFlower, onPickFlower, onOpenAdmin = null) {
+  constructor(container, { onTouchFlower, onPickFlower, onOpenAdmin, onEnterRun, onLeaveRun } = {}) {
     this.container = container;
-    this.onDuelInvite = onDuelInvite;
-    this.onJoinBossFight = onJoinBossFight;
-    this.onTouchFlower = onTouchFlower;
-    this.onPickFlower = onPickFlower;
-    this.onOpenAdmin = onOpenAdmin;
+    this.cb = { onTouchFlower, onPickFlower, onOpenAdmin, onEnterRun, onLeaveRun };
     this.currentTarget = null;
+    this.cache = {};
     this.mount();
   }
 
   mount() {
     this.container.querySelectorAll('.game-hud-panel').forEach((el) => el.remove());
-
-    const canvas = this.container.querySelector('canvas') || this.container.querySelector('#game-canvas');
-
-    const leftSidebar = document.createElement('aside');
-    leftSidebar.className = 'game-hud-panel hud-left';
-    leftSidebar.style.order = '1';
-    leftSidebar.innerHTML = `
+    const canvas = this.container.querySelector('#game-canvas') || this.container.querySelector('canvas');
+    const left = document.createElement('div');
+    left.className = 'game-hud-panel hud-left';
+    left.innerHTML = `
       <div class="hud-card">
-        <div class="hud-header">СУЩНОСТЬ</div>
+        <div class="hud-header">ДУША</div>
         <div class="hud-player-name" id="ghud-my-name">Странник</div>
         <div class="hud-player-class" id="ghud-my-class">Душа [C]</div>
-        <div class="hud-bar-bg">
-          <div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width: 100%;"></div>
-        </div>
+        <div class="hud-bar-bg"><div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width:100%"></div></div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
-
-        <!-- Кнопка маппинга использует класс из game-theme.css -->
-        <button id="ghud-admin-btn" class="mc-hud-admin-btn" style="display: none;">
-          ⚡ МАППИНГ // АДМИН [F2]
-        </button>
-
-        <div id="ghud-debuff-box" style="display: none; margin-top: 8px; padding: 6px 8px; background: var(--mc-danger-bg); border: 1px solid var(--mc-danger-border); border-radius: 4px; font-size: 11px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: #fca5a5; font-weight: bold;">💔 Дизмораль</span>
-            <b id="ghud-debuff-timer" style="color: #ef4444;">60c</b>
-          </div>
-          <div style="font-size: 10px; color: #fecaca; margin-top: 2px;">Урон снижен на 35%</div>
-        </div>
+        <div class="hud-row"><span>Навык:</span><b id="ghud-my-skill">—</b></div>
+        <button id="ghud-admin-btn" class="mc-hud-admin-btn" style="display:none">🛠️ Редактор карт [F2]</button>
       </div>
-
       <div class="hud-card">
-        <div class="hud-header">СПОСОБНОСТИ</div>
-        <div class="hud-row">
-          <span>Рывок [Space]</span>
-          <b id="ghud-dash-status" class="hud-ready">ГОТОВ</b>
-        </div>
-        <div class="hud-bar-bg">
-          <div class="hud-bar-fill hud-dash-fill" id="ghud-dash-bar" style="width: 100%;"></div>
-        </div>
+        <div class="hud-header">РЫВОК [Space]</div>
+        <div class="hud-row"><span>Статус:</span><b id="ghud-dash-status" class="hud-ready">ГОТОВ</b></div>
+        <div class="hud-bar-bg"><div class="hud-bar-fill hud-dash-fill" id="ghud-dash-bar" style="width:100%"></div></div>
       </div>
-
       <div class="hud-card">
-        <div class="hud-header">МИР И СВЯЗЬ</div>
+        <div class="hud-header">СЕТЬ</div>
         <div class="hud-row"><span>В сети:</span><b id="ghud-online">1</b></div>
-        <div class="hud-row"><span>Пинг:</span><b id="ghud-ping" style="color: #4ade80;">-- ms</b></div>
-        <div class="hud-row"><span>Качество:</span><b id="ghud-net-quality" style="color: #4ade80;">📶 Отличное</b></div>
+        <div class="hud-row"><span>Пинг:</span><b id="ghud-ping" style="color:#4ade80">-- ms</b></div>
+        <div class="hud-row"><span>Качество:</span><b id="ghud-net-quality" style="color:#4ade80">📶 Отличное</b></div>
         <div class="hud-row"><span>Зум:</span><b id="ghud-zoom">x0.5</b></div>
         <div class="hud-row"><span>Координаты:</span><b id="ghud-coords">X: 0 | Y: 0</b></div>
       </div>
-
       <div class="hud-card hud-controls">
         <div class="hud-header">УПРАВЛЕНИЕ</div>
-        <div class="hud-ctrl-item"><span>[W][A][S][D]</span> Бег</div>
-        <div class="hud-ctrl-item"><span>[Space/Shift]</span> Рывок</div>
-        <div class="hud-ctrl-item"><span>[E] / Клик</span> Взаимодействие</div>
-        <div class="hud-ctrl-item"><span>[C]</span> Алтарь души</div>
-        <div class="hud-ctrl-item"><span>[Enter]</span> Чат</div>
-        <div class="hud-ctrl-item"><span>[+/-] / Колесо</span> Зум</div>
-      </div>
-    `;
-
-    const rightSidebar = document.createElement('aside');
-    rightSidebar.className = 'game-hud-panel hud-right';
-    rightSidebar.style.order = '3';
-    rightSidebar.innerHTML = `
+        <div class="hud-ctrl-item">Движение <span>WASD / стрелки</span></div>
+        <div class="hud-ctrl-item">Рывок <span>Space / Shift</span></div>
+        <div class="hud-ctrl-item">Действие / портал <span>E / клик</span></div>
+        <div class="hud-ctrl-item">Навык класса (забег) <span>Q</span></div>
+        <div class="hud-ctrl-item">Улучшение <span>1 / 2 / 3</span></div>
+        <div class="hud-ctrl-item">Душа <span>C</span></div>
+        <div class="hud-ctrl-item">Чат <span>Enter</span></div>
+        <div class="hud-ctrl-item">Зум <span>колесо / + −</span></div>
+      </div>`;
+    const right = document.createElement('div');
+    right.className = 'game-hud-panel hud-right';
+    right.innerHTML = `
       <div id="ghud-minimap-slot"></div>
-
       <div class="hud-card" id="ghud-target-card">
         <div class="hud-header">ЦЕЛЬ</div>
         <div id="ghud-target-empty" class="hud-empty">Кликните по объекту</div>
-        <div id="ghud-target-details" style="display: none;">
+        <div id="ghud-target-details" style="display:none">
           <div class="hud-target-title" id="ghud-target-name">Цель</div>
           <div class="hud-row"><span>Класс / Тип:</span><b id="ghud-target-class">-</b></div>
           <div class="hud-row"><span>❤️ HP:</span><b id="ghud-target-hp">-</b></div>
           <div class="hud-row"><span>🛡️ Защита:</span><b id="ghud-target-armor">-</b></div>
           <div class="hud-row"><span>⚔️ Урон:</span><b id="ghud-target-atk">-</b></div>
-          
-          <button class="hud-duel-btn" id="ghud-duel-btn">⚔️ ВЫЗВАТЬ НА ДУЭЛЬ</button>
-          <button class="hud-duel-btn" id="ghud-flower-touch-btn" style="display: none; background: #b91c1c; border-color: #f87171;">🖐️ ТРОНУТЬ БУТОН (-1 HP)</button>
-          <button class="hud-duel-btn" id="ghud-flower-pick-btn" style="display: none; background: #0284c7; border-color: #38bdf8;">🌸 СОРВАТЬ (+20 🛡️ ЩИТ)</button>
-
-          <div id="ghud-boss-join-buttons" style="display: none; flex-direction: column; gap: 6px; margin-top: 6px;">
-            <button class="hud-duel-btn" id="ghud-join-hunters-btn" style="background: #dc2626; border-color: #f87171;">⚔️ Охотиться</button>
-            <button class="hud-duel-btn" id="ghud-join-kate-btn" style="background: #ec4899; border-color: #f472b6;">💖 Защитить</button>
-          </div>
+          <button class="hud-duel-btn" id="ghud-flower-touch-btn" style="display:none;background:#b91c1c;border-color:#f87171">🖐️ ТРОНУТЬ БУТОН (-1 HP)</button>
+          <button class="hud-duel-btn" id="ghud-flower-pick-btn" style="display:none;background:#0284c7;border-color:#38bdf8">🌸 СОРВАТЬ (+20 🛡️ ЩИТ)</button>
         </div>
       </div>
-
       <div class="hud-card">
-        <div class="hud-header">СУЩНОСТИ РЯДОМ</div>
-        <div id="ghud-nearby-list" class="hud-nearby-box">
-          <span class="hud-empty">Никого нет поблизости</span>
-        </div>
+        <div class="hud-header">ЗАБЕГИ (CO-OP)</div>
+        <div id="ghud-run-rooms"></div>
       </div>
-
       <div class="hud-card">
-        <div class="hud-header">ОКРУЖЕНИЕ</div>
-        <div id="ghud-near-obj-empty" class="hud-empty">Поблизости нет объектов</div>
-        <div id="ghud-near-obj-details" style="display: none;">
-          <div class="hud-near-name" id="ghud-near-obj-name">Алтарь</div>
-          <div class="hud-near-hint">Нажмите <b>[E]</b> или кликните для входа</div>
-        </div>
-      </div>
-    `;
-
+        <div class="hud-header">РЯДОМ</div>
+        <div id="ghud-nearby-list" class="hud-nearby-box"><div class="hud-empty">Никого</div></div>
+      </div>`;
     if (canvas) {
       canvas.style.order = '2';
-      this.container.insertBefore(leftSidebar, canvas);
-      this.container.appendChild(rightSidebar);
+      left.style.order = '1';
+      right.style.order = '3';
+      this.container.insertBefore(left, canvas);
+      this.container.appendChild(right);
     } else {
-      this.container.appendChild(leftSidebar);
-      this.container.appendChild(rightSidebar);
+      this.container.appendChild(left);
+      this.container.appendChild(right);
     }
-
-    const mmSlot = rightSidebar.querySelector('#ghud-minimap-slot');
-    this.minimap = new Minimap(mmSlot);
-
-    this.adminBtn = leftSidebar.querySelector('#ghud-admin-btn');
-    if (this.adminBtn) {
-      this.adminBtn.onclick = () => {
-        if (typeof this.onOpenAdmin === 'function') {
-          this.onOpenAdmin();
-        }
-      };
-    }
-
-    this.duelBtn = rightSidebar.querySelector('#ghud-duel-btn');
-    this.touchBtn = rightSidebar.querySelector('#ghud-flower-touch-btn');
-    this.pickBtn = rightSidebar.querySelector('#ghud-flower-pick-btn');
-
-    if (this.duelBtn) {
-      this.duelBtn.onclick = () => {
-        if (this.currentTarget && typeof this.onDuelInvite === 'function') {
-          const targetId = this.currentTarget.isDar ? 'boss_dar' : this.currentTarget.id;
-          this.onDuelInvite(targetId, this.currentTarget.name || this.currentTarget.username);
-        }
-      };
-    }
-
-    if (this.touchBtn) {
-      this.touchBtn.onclick = () => {
-        if (this.currentTarget && typeof this.onTouchFlower === 'function') {
-          this.onTouchFlower(this.currentTarget.id);
-        }
-      };
-    }
-
-    if (this.pickBtn) {
-      this.pickBtn.onclick = () => {
-        if (this.currentTarget && typeof this.onPickFlower === 'function') {
-          this.onPickFlower(this.currentTarget.id);
-          this.clearTarget();
-        }
-      };
-    }
-
-    const huntersBtn = rightSidebar.querySelector('#ghud-join-hunters-btn');
-    const kateBtn = rightSidebar.querySelector('#ghud-join-kate-btn');
-
-    if (huntersBtn) huntersBtn.onclick = () => this.onJoinBossFight?.('hunters');
-    if (kateBtn) kateBtn.onclick = () => this.onJoinBossFight?.('allies');
+    this.left = left; this.right = right;
+    this.minimap = new Minimap(right.querySelector('#ghud-minimap-slot'));
+    const $ = (id) => this.container.querySelector('#' + id);
+    this.$ = $;
+    this.adminBtn = $('ghud-admin-btn');
+    this.adminBtn.onclick = () => this.cb.onOpenAdmin?.();
+    this.touchBtn = $('ghud-flower-touch-btn');
+    this.pickBtn = $('ghud-flower-pick-btn');
+    this.touchBtn.onclick = () => { if (this.currentTarget) this.cb.onTouchFlower?.(this.currentTarget.id); };
+    this.pickBtn.onclick = () => { if (this.currentTarget) { this.cb.onPickFlower?.(this.currentTarget.id); this.clearTarget(); } };
+    this.roomsBox = $('ghud-run-rooms');
+    this.roomsBox.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-room]');
+      if (!b) return;
+      if (b.dataset.leave) this.cb.onLeaveRun?.(); else this.cb.onEnterRun?.(b.dataset.room);
+    });
   }
 
-  setTarget(target) {
-    this.currentTarget = target;
+  setTarget(target) { this.currentTarget = target; }
+  clearTarget() { this.currentTarget = null; }
+
+  txt(id, v, prop = 'textContent') {
+    const key = id + prop;
+    if (this.cache[key] === v) return;
+    this.cache[key] = v;
+    const el = this.$(id);
+    if (!el) return;
+    if (prop === 'width') el.style.width = v; else el[prop] = v;
   }
 
-  clearTarget() {
-    this.currentTarget = null;
-  }
-
-  update(data) {
-    const {
-      player,
-      otherPlayers,
-      boss = null,
-      dar = null,
-      worldFlowers = new Map(),
-      worldPortals,
-      activeNearPortal,
-      camera,
-      dash,
-      username,
-      lastFaceDir,
-      currentWorld = 'hellfire',
-      isAdmin = false,
-      ping = 0,
-      deathLockUntil = 0
-    } = data;
-
-    const isMyBody = Boolean(player.stats && player.stats.classId);
-    const isLocked = deathLockUntil > Date.now();
-    const lockSec = Math.ceil((deathLockUntil - Date.now()) / 1000);
-
-    if (this.minimap) {
-      this.minimap.update({
-        player,
-        otherPlayers,
-        boss,
-        worldPortals,
-        worldSize: 1200,
-        lastFaceDir,
-        currentWorld
-      });
-    }
-
-    const myName = document.getElementById('ghud-my-name');
-    const myClass = document.getElementById('ghud-my-class');
-    const hpBar = document.getElementById('ghud-my-hp-bar');
-    const hpVal = document.getElementById('ghud-my-hp-val');
-
-    if (myName) myName.textContent = username;
-    if (myClass) {
-      const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
-      myClass.textContent = isMyBody ? (classMap[player.stats.classId] || 'Герой') : 'Душа [C]';
-    }
-
-    if (this.adminBtn) {
-      this.adminBtn.style.display = isAdmin ? 'flex' : 'none';
-    }
-
-    const curHp = player.stats?.hp || 100;
-    const maxHp = player.stats?.maxHp || 100;
-    if (hpBar) hpBar.style.width = `${Math.max(0, Math.min(100, (curHp / maxHp) * 100))}%`;
-    if (hpVal) hpVal.textContent = `${curHp} / ${maxHp} HP ${player.shield ? `(+${player.shield} 🛡️)` : ''}`;
-
-    const debuffBox = document.getElementById('ghud-debuff-box');
-    const debuffTimer = document.getElementById('ghud-debuff-timer');
-    if (debuffBox && debuffTimer) {
-      const now = Date.now();
-      if (player.dismoraleUntil && player.dismoraleUntil > now) {
-        debuffBox.style.display = 'block';
-        const leftSec = Math.ceil((player.dismoraleUntil - now) / 1000);
-        debuffTimer.textContent = `${leftSec}c`;
-      } else {
-        debuffBox.style.display = 'none';
-      }
-    }
-
-    const dashStatus = document.getElementById('ghud-dash-status');
-    const dashBar = document.getElementById('ghud-dash-bar');
-    if (dashStatus && dashBar) {
-      if (dash.cooldownTimer <= 0) {
-        dashStatus.textContent = 'ГОТОВ';
-        dashStatus.className = 'hud-ready';
-        dashBar.style.width = '100%';
-      } else {
-        dashStatus.textContent = `${dash.cooldownTimer.toFixed(1)}c`;
-        dashStatus.className = 'hud-cd';
-        const pct = ((dash.cooldown - dash.cooldownTimer) / dash.cooldown) * 100;
-        dashBar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-      }
-    }
-
-    const online = document.getElementById('ghud-online');
-    const zoom = document.getElementById('ghud-zoom');
-    const coords = document.getElementById('ghud-coords');
-    const pingEl = document.getElementById('ghud-ping');
-    const qualityEl = document.getElementById('ghud-net-quality');
-
-    if (online) online.textContent = `${otherPlayers.size + 1}`;
-    if (zoom) zoom.textContent = `x${camera.zoom.toFixed(1)}`;
-    if (coords) coords.textContent = `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`;
-
-    if (pingEl && qualityEl) {
-      pingEl.textContent = `${ping} ms`;
-      if (ping <= 60) {
-        pingEl.style.color = '#4ade80';
-        qualityEl.style.color = '#4ade80';
-        qualityEl.textContent = '📶 Отличное';
-      } else if (ping <= 140) {
-        pingEl.style.color = '#facc15';
-        qualityEl.style.color = '#facc15';
-        qualityEl.textContent = '📶 Хорошее';
-      } else {
-        pingEl.style.color = '#f87171';
-        qualityEl.style.color = '#f87171';
-        qualityEl.textContent = '📶 Нестабильное';
-      }
-    }
-
-    const targetEmpty = document.getElementById('ghud-target-empty');
-    const targetDetails = document.getElementById('ghud-target-details');
-    const tName = document.getElementById('ghud-target-name');
-    const tClass = document.getElementById('ghud-target-class');
-    const tHp = document.getElementById('ghud-target-hp');
-    const tArmor = document.getElementById('ghud-target-armor');
-    const tAtk = document.getElementById('ghud-target-atk');
-    const bossJoinBtns = document.getElementById('ghud-boss-join-buttons');
-
-    if (this.currentTarget) {
-      if (targetEmpty) targetEmpty.style.display = 'none';
-      if (targetDetails) targetDetails.style.display = 'block';
-
-      if (this.duelBtn) this.duelBtn.style.display = 'none';
-      if (this.touchBtn) this.touchBtn.style.display = 'none';
-      if (this.pickBtn) this.pickBtn.style.display = 'none';
-      if (bossJoinBtns) bossJoinBtns.style.display = 'none';
-
-      if (this.currentTarget.isFlowerEntity || worldFlowers.has(this.currentTarget.id)) {
-        const fl = worldFlowers.get(this.currentTarget.id) || this.currentTarget;
-
-        if (fl.stage === 'bud') {
-          if (tName) { tName.textContent = 'Спящий бутон'; tName.style.color = '#f87171'; }
-          if (tClass) tClass.textContent = 'Растение-вампир';
-          if (tHp) tHp.textContent = '10 / 10 HP';
-          if (tArmor) tArmor.textContent = '0 (0%)';
-          if (tAtk) tAtk.textContent = '1 (Шипы)';
-          if (this.touchBtn) this.touchBtn.style.display = 'block';
-        } else if (fl.stage === 'mature') {
-          if (tName) { tName.textContent = 'Созревший вампирский стебель'; tName.style.color = '#38bdf8'; }
-          if (tClass) tClass.textContent = 'Созревшее растение';
-          if (tHp) tHp.textContent = 'HP: ?';
-          if (tArmor) tArmor.textContent = 'Def: ?';
-          if (tAtk) tAtk.textContent = 'Atk: ?';
-          if (this.pickBtn) this.pickBtn.style.display = 'block';
-        } else if (fl.stage === 'active') {
-          const typeNames = { normal: 'Обычный', fire: 'Огненный', frost: 'Морозный', hell: 'Адский' };
-          const typeColors = { normal: '#f43f5e', fire: '#f97316', frost: '#38bdf8', hell: '#c084fc' };
-
-          if (tName) {
-            tName.textContent = `${typeNames[fl.flowerType] || 'Хищный'} Тюльпан`;
-            tName.style.color = typeColors[fl.flowerType] || '#f43f5e';
-          }
-          if (tClass) tClass.textContent = `Монстр (${typeNames[fl.flowerType] || 'Хищник'})`;
-          if (tHp) tHp.textContent = `${fl.stats.hp} / ${fl.stats.maxHp} HP`;
-          const redPct = (getArmorReduction(fl.stats.armor) * 100).toFixed(1);
-          if (tArmor) tArmor.textContent = `${fl.stats.armor} (${redPct}%)`;
-          if (tAtk) tAtk.textContent = `${fl.stats.atk}`;
-
-          if (this.duelBtn) {
-            this.duelBtn.style.display = 'block';
-            this.duelBtn.textContent = '⚔️ НАПАСТЬ НА ТЮЛЬПАН';
-            this.duelBtn.className = isLocked ? 'hud-duel-btn hud-btn-disabled' : 'hud-duel-btn';
-          }
-        }
-        return;
-      }
-
-      if (this.currentTarget.isBoss || this.currentTarget.id === 'boss_keyt') {
-        const b = boss || this.currentTarget;
-        if (tName) { tName.textContent = 'Кейт'; tName.style.color = '#f472b6'; }
-        if (tClass) tClass.textContent = 'Рыцарь смерти';
-        if (tHp) tHp.textContent = `${b.hp} / ${b.maxHp}`;
-        const redPct = (getArmorReduction(b.armor) * 100).toFixed(1);
-        if (tArmor) tArmor.textContent = `${b.armor} (${redPct}%)`;
-        if (tAtk) tAtk.textContent = `${b.attack}`;
-
-        if (bossJoinBtns) bossJoinBtns.style.display = (b.inDuel && !player.inDuel) ? 'flex' : 'none';
-      }
-      else if (this.currentTarget.isDar || this.currentTarget.id === 'boss_dar') {
-        const d = dar || this.currentTarget;
-        if (tName) { tName.textContent = 'Дар'; tName.style.color = '#34d399'; }
-        if (tClass) tClass.textContent = 'Трикстер';
-        if (tHp) tHp.textContent = `${d.hp} / ${d.maxHp}`;
-        const redPct = (getArmorReduction(d.armor) * 100).toFixed(1);
-        if (tArmor) tArmor.textContent = `${d.armor} (${redPct}%)`;
-        if (tAtk) tAtk.textContent = `5 - 25`;
-
-        if (this.duelBtn) {
-          this.duelBtn.style.display = 'block';
-          this.duelBtn.textContent = '⚔️ ВЫЗВАТЬ ДАР';
-          this.duelBtn.className = 'hud-duel-btn';
-        }
-        if (bossJoinBtns) bossJoinBtns.style.display = (d.inDuel && !player.inDuel) ? 'flex' : 'none';
-      }
-      else if (otherPlayers.has(this.currentTarget.username?.toLowerCase())) {
-        const p = otherPlayers.get(this.currentTarget.username.toLowerCase());
-        if (this.duelBtn) this.duelBtn.style.display = 'block';
-
-        if (tName) {
-          tName.textContent = p.username;
-          tName.style.color = '#ffd700';
-        }
-
-        const classMap = { warrior: 'Воин', rogue: 'Разбойник', spearman: 'Копейщик', mage: 'Маг' };
-        const tClassId = p.stats?.classId;
-        if (tClass) tClass.textContent = tClassId ? (classMap[tClassId] || tClassId) : 'Душа (нет тела)';
-        if (tHp) tHp.textContent = `${p.stats?.hp || 100} / ${p.stats?.maxHp || 100}`;
-
-        const armorVal = p.stats?.armor || 0;
-        const redPct = (getArmorReduction(armorVal) * 100).toFixed(1);
-        if (tArmor) tArmor.textContent = `${armorVal} (${redPct}%)`;
-
-        const minA = p.stats?.minAtk !== undefined ? p.stats.minAtk : 1;
-        const maxA = p.stats?.maxAtk !== undefined ? p.stats.maxAtk : 4;
-        if (tAtk) tAtk.textContent = `${minA} - ${maxA}`;
-
-        if (this.duelBtn) {
-          if (isLocked) {
-            this.duelBtn.textContent = `Восстановление (${lockSec}с)`;
-            this.duelBtn.className = 'hud-duel-btn hud-btn-disabled';
-          } else if (!tClassId || !isMyBody) {
-            this.duelBtn.textContent = 'Нужно тело';
-            this.duelBtn.className = 'hud-duel-btn hud-btn-disabled';
-          } else {
-            this.duelBtn.textContent = '⚔️ ВЫЗВАТЬ НА ДУЭЛЬ';
-            this.duelBtn.className = 'hud-duel-btn';
-          }
-        }
-      }
+  update(d) {
+    if (!this.left.offsetParent) return; // панели скрыты (не fullscreen / мобильный) — не тратим время
+    const { player, username, mode, run, ping = 0, online = 1, zoom = 0.5, isAdmin, roomCounts = {}, nearby = [], dash } = d;
+    const st = player.stats || {};
+    const cls = CLASSES[st.classId];
+    const rc = RUN_CLASSES[st.classId] || RUN_CLASSES.soul;
+    this.txt('ghud-my-name', username);
+    this.txt('ghud-my-class', `${cls ? displayClassName(st.classId, cls.name) : 'Душа'} [C]`);
+    if (mode === 'run' && run) {
+      this.txt('ghud-my-hp-bar', `${Math.max(0, (run.me.hp / run.me.maxHp) * 100)}%`, 'width');
+      this.txt('ghud-my-hp-val', `${Math.ceil(run.me.hp)} / ${run.me.maxHp} HP (забег)`);
     } else {
-      if (targetEmpty) targetEmpty.style.display = 'block';
-      if (targetDetails) targetDetails.style.display = 'none';
+      this.txt('ghud-my-hp-bar', `${Math.max(0, ((st.hp ?? 100) / (st.maxHp || 100)) * 100)}%`, 'width');
+      this.txt('ghud-my-hp-val', `${st.hp ?? 100} / ${st.maxHp ?? 100} HP${st.armor ? ` · 🛡️ ${Math.round(getArmorReduction(st.armor) * 100)}%` : ''}`);
+    }
+    const ab = ABILITIES[rc.ability];
+    this.txt('ghud-my-skill', ab ? `${ab.icon} ${ab.name}` : '— (нужно тело)');
+    this.adminBtn.style.display = isAdmin ? '' : 'none';
+    const dashReady = !dash || dash.cd <= 0;
+    this.txt('ghud-dash-status', dashReady ? 'ГОТОВ' : `${dash.cd.toFixed(1)}с`);
+    this.txt('ghud-dash-status', dashReady ? 'hud-ready' : 'hud-cd', 'className');
+    this.txt('ghud-dash-bar', `${dashReady ? 100 : Math.round((1 - dash.cd / dash.max) * 100)}%`, 'width');
+    this.txt('ghud-online', String(online));
+    this.txt('ghud-ping', ping ? `${ping} ms` : '-- ms');
+    const q = !ping ? ['—', '#94a3b8'] : ping < 90 ? ['📶 Отличное', '#4ade80'] : ping < 200 ? ['📶 Среднее', '#facc15'] : ['📶 Плохое', '#ef4444'];
+    this.txt('ghud-net-quality', q[0]);
+    this.$('ghud-net-quality').style.color = q[1];
+    this.txt('ghud-zoom', `x${zoom.toFixed(2)}`);
+    this.txt('ghud-coords', mode === 'run' && run ? `${run.me.x.toFixed(0)} м | ${run.me.z.toFixed(0)} м` : `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`);
+
+    if (mode === 'run' && run) this.minimap.updateRun(run);
+    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: 1200, lastFaceDir: d.lastFaceDir, currentWorld: d.world });
+
+    // цель
+    const t = this.currentTarget;
+    this.$('ghud-target-empty').style.display = t ? 'none' : '';
+    this.$('ghud-target-details').style.display = t ? '' : 'none';
+    if (t) {
+      this.txt('ghud-target-name', t.name);
+      this.txt('ghud-target-class', t.typeLabel || '-');
+      this.txt('ghud-target-hp', t.hp ?? '-');
+      this.txt('ghud-target-armor', t.armor ?? '-');
+      this.txt('ghud-target-atk', t.atk ?? '-');
+      this.touchBtn.style.display = t.kind === 'flower' && t.stage === 'bud' ? '' : 'none';
+      this.pickBtn.style.display = t.kind === 'flower' && t.stage === 'mature' ? '' : 'none';
     }
 
-    const nearbyBox = document.getElementById('ghud-nearby-list');
-    if (nearbyBox) {
-      const nearbyList = [];
-
-      if (boss && boss.state !== 'dead') {
-        const bDistPx = Math.hypot(player.x - boss.x, player.y - boss.y);
-        if (bDistPx <= 500) {
-          nearbyList.push({
-            type: 'boss',
-            title: 'Кейт',
-            color: '#f472b6',
-            meters: (bDistPx / 20).toFixed(1),
-            distPx: bDistPx,
-            raw: boss,
-          });
-        }
-      }
-
-      if (dar && dar.state !== 'dead') {
-        const dDistPx = Math.hypot(player.x - dar.x, player.y - dar.y);
-        if (dDistPx <= 500) {
-          nearbyList.push({
-            type: 'dar',
-            title: 'Дар',
-            color: '#34d399',
-            meters: (dDistPx / 20).toFixed(1),
-            distPx: dDistPx,
-            raw: dar,
-          });
-        }
-      }
-
-      otherPlayers.forEach((p) => {
-        const distPx = Math.hypot(player.x - p.x, player.y - p.y);
-        if (distPx <= 400) {
-          nearbyList.push({
-            type: 'player',
-            title: p.username,
-            color: p.color || '#38bdf8',
-            meters: (distPx / 20).toFixed(1),
-            distPx: distPx,
-            raw: p,
-          });
-        }
-      });
-
-      nearbyList.sort((a, b) => a.distPx - b.distPx);
-
-      if (nearbyList.length === 0) {
-        nearbyBox.innerHTML = `<span class="hud-empty">Никого нет поблизости</span>`;
-      } else {
-        nearbyBox.innerHTML = nearbyList.map((item) => `
-          <div class="hud-nearby-item" data-type="${item.type}" data-id="${item.title}">
-            <span style="color: ${item.color}">${item.title}</span>
-            <b>${item.meters} м</b>
-          </div>
-        `).join('');
-
-        nearbyBox.querySelectorAll('.hud-nearby-item').forEach((el) => {
-          el.onclick = () => {
-            const t = el.getAttribute('data-type');
-            if (t === 'boss' && boss) {
-              this.setTarget({ ...boss, isBoss: true });
-            } else if (t === 'dar' && dar) {
-              this.setTarget({ ...dar, isDar: true });
-            } else {
-              const nick = el.getAttribute('data-id')?.toLowerCase();
-              if (nick && otherPlayers.has(nick)) {
-                this.setTarget(otherPlayers.get(nick));
-              }
-            }
-          };
-        });
-      }
+    // комнаты забегов
+    const rSig = JSON.stringify([mode, d.runRoom, roomCounts, run ? Math.floor(run.t) : 0]);
+    if (rSig !== this.cache.rSig) {
+      this.cache.rSig = rSig;
+      this.roomsBox.innerHTML = Object.values(RUN_ROOMS).map((r) => {
+        const inIt = d.runRoom === r.id;
+        return `<div class="hud-row" style="align-items:center;margin-bottom:4px"><span style="color:${r.color}">${esc(r.name)} · ${roomCounts[r.id] || 0}/4</span>${inIt
+          ? `<button class="hud-duel-btn" style="margin:0;padding:3px 6px" data-room="${r.id}" data-leave="1">Выйти</button>`
+          : `<button class="hud-duel-btn" style="margin:0;padding:3px 6px" data-room="${r.id}" ${mode === 'run' ? 'disabled' : ''}>Войти</button>`}</div>`;
+      }).join('') + (mode === 'run' && run ? `<div class="hud-row"><span>Время:</span><b>${fmtTime(run.t)}</b></div><div class="hud-row"><span>Роль:</span><b>${run.isHost ? '👑 ведущий' : 'участник'}</b></div>` : '<div class="hud-empty">Войти можно у портала-разлома или кнопкой (вход у портала проверяется сервером).</div>');
     }
 
-    const nearEmpty = document.getElementById('ghud-near-obj-empty');
-    const nearDetails = document.getElementById('ghud-near-obj-details');
-    const nearName = document.getElementById('ghud-near-obj-name');
-
-    if (activeNearPortal) {
-      if (nearEmpty) nearEmpty.style.display = 'none';
-      if (nearDetails) nearDetails.style.display = 'block';
-      if (nearName) {
-        nearName.textContent = activeNearPortal.id === 'portal_class_select'
-          ? 'Алтарь Перевоплощения'
-          : activeNearPortal.name;
-      }
-    } else {
-      if (nearEmpty) nearEmpty.style.display = 'block';
-      if (nearDetails) nearDetails.style.display = 'none';
+    const nSig = nearby.map((n) => n.title + n.dist).join('|');
+    if (nSig !== this.cache.nSig) {
+      this.cache.nSig = nSig;
+      this.$('ghud-nearby-list').innerHTML = nearby.length
+        ? nearby.map((n) => `<div class="hud-row"><span style="color:${esc(n.color || '#e2e8f0')}">${esc(n.title)}</span><b>${n.dist} px</b></div>`).join('')
+        : '<div class="hud-empty">Никого</div>';
     }
   }
 }

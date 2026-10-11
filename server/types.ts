@@ -54,6 +54,11 @@ export interface Session {
   rejoinBlockedUntil?: number;
   dismoraleUntil?: number;
   stats: PlayerStats;
+  userId?: string;
+  shield?: number;
+  // Co-op забеги «Проклятых»: комната забега, в которой сейчас игрок (нет — значит в хабе)
+  runRoom?: string;
+  runJoinedAt?: number;
 }
 
 export interface WorldPortalDef {
@@ -68,6 +73,14 @@ export interface WorldPortalDef {
   width?: number;
   height?: number;
   color?: string;
+  // Если задано — портал ведёт в co-op комнату забега (id из RUN_ROOMS)
+  runRoom?: string;
+}
+
+export interface RunRoomDef {
+  id: string;
+  name: string;
+  maxPlayers: number;
 }
 
 export interface DuelParticipant {

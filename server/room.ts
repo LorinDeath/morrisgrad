@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { WORLD_PORTALS, MINI_GAMES, ADMIN_USER_IDS } from "./config";
+import { WORLD_PORTALS, MINI_GAMES, ADMIN_USER_IDS, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -42,7 +42,8 @@ export class GameRoom extends DurableObject {
       // Выделяем сессии только Адского Мира для ИИ боссов и костра
       const hellfireSessions = new Map<WebSocket, Session>();
       for (const [ws, s] of this.sessions.entries()) {
-        if ((s.world || "hellfire") === "hellfire") {
+        // Игроки внутри co-op забега не видны ИИ хаба (Кейт/Дар/цветы не утащат их в бой)
+        if ((s.world || "hellfire") === "hellfire" && !s.runRoom) {
           hellfireSessions.set(ws, s);
         }
       }
@@ -1251,6 +1252,65 @@ export class GameRoom extends DurableObject {
           }
         }
 
+        // 13. Co-op забеги: вход / выход / ретрансляция внутри комнаты
+        if (msg.type === "run_join" && session) {
+          const roomDef = RUN_ROOMS[String(msg.room || "")];
+          if (!roomDef) {
+            server.send(JSON.stringify({ type: "toast_error", message: "Комната забега не найдена" }));
+            return;
+          }
+          if (session.inDuel) {
+            server.send(JSON.stringify({ type: "toast_error", message: "Сначала завершите бой" }));
+            return;
+          }
+          if (msg.portalId) {
+            const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId && p.runRoom === roomDef.id);
+            if (!portal || (portal.world || "hellfire") !== (session.world || "hellfire") || Math.hypot(session.x - portal.x, session.y - portal.y) > 85) {
+              server.send(JSON.stringify({ type: "toast_error", message: "Подойдите ближе к входу" }));
+              return;
+            }
+          }
+          if (session.runRoom !== roomDef.id) {
+            const count = this.runMembers(roomDef.id).length;
+            if (count >= roomDef.maxPlayers) {
+              server.send(JSON.stringify({ type: "toast_error", message: `Комната «${roomDef.name}» заполнена (${count}/${roomDef.maxPlayers})` }));
+              return;
+            }
+            const prev = session.runRoom;
+            session.runRoom = roomDef.id;
+            session.runJoinedAt = Date.now();
+            if (prev) this.broadcastRunMembers(prev);
+          }
+          server.send(JSON.stringify({ type: "run_joined", room: roomDef.id, name: roomDef.name, myId: session.id }));
+          this.broadcastRunMembers(roomDef.id);
+          this.broadcast();
+          return;
+        }
+
+        if (msg.type === "run_leave" && session) {
+          const prev = session.runRoom;
+          if (prev) {
+            session.runRoom = undefined;
+            session.runJoinedAt = undefined;
+            server.send(JSON.stringify({ type: "run_left", room: prev }));
+            this.broadcastRunMembers(prev);
+            this.broadcast();
+          }
+          return;
+        }
+
+        if (msg.type === "run_relay" && session && session.runRoom) {
+          const payload = JSON.stringify({ type: "run_relay", room: session.runRoom, from: session.id, data: msg.data ?? null });
+          if (payload.length > RUN_RELAY_MAX_BYTES) return;
+          const to = typeof msg.to === "string" ? msg.to : null;
+          for (const [ws, s] of this.sessions.entries()) {
+            if (ws === server || s.runRoom !== session.runRoom) continue;
+            if (to && s.id !== to) continue;
+            try { ws.send(payload); } catch (_) {}
+          }
+          return;
+        }
+
         // 12. Локальный чат (только игрокам того же мира)
         if (msg.type === "chat" && session && msg.text) {
           const cleanText = String(msg.text).trim().slice(0, 45);
@@ -1297,7 +1357,9 @@ export class GameRoom extends DurableObject {
             this.activeDuels.delete(session.duelId);
           }
         }
+        const leftRoom = session?.runRoom;
         this.sessions.delete(server);
+        if (leftRoom) this.broadcastRunMembers(leftRoom);
         this.broadcast();
       } catch (_) {}
     };
@@ -1306,6 +1368,28 @@ export class GameRoom extends DurableObject {
     server.addEventListener("error", closeHandler);
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  runMembers(roomId: string): Session[] {
+    return [...this.sessions.values()]
+      .filter((s) => s.runRoom === roomId)
+      .sort((a, b) => (a.runJoinedAt || 0) - (b.runJoinedAt || 0));
+  }
+
+  // Состав комнаты забега. Хост (авторитет симуляции орды) — самый ранний участник.
+  broadcastRunMembers(roomId: string) {
+    const members = this.runMembers(roomId);
+    const payload = JSON.stringify({
+      type: "run_members",
+      room: roomId,
+      hostId: members[0]?.id || null,
+      members: members.map((s) => ({ id: s.id, username: s.username, color: s.color || "#ffffff", classId: s.stats?.classId || null })),
+    });
+    for (const [ws, s] of this.sessions.entries()) {
+      if (s.runRoom === roomId) {
+        try { ws.send(payload); } catch (_) {}
+      }
+    }
   }
 
   broadcast() {
@@ -1334,6 +1418,7 @@ export class GameRoom extends DurableObject {
           dismoraleUntil: s.dismoraleUntil || 0,
           shield: s.shield || 0,
           stats: s.stats,
+          runRoom: s.runRoom || null,
         };
 
         if (w === "hellfire" && !seenHellfire.has(key)) {

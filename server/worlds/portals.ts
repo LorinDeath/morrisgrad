@@ -47,4 +47,27 @@ export const WORLD_PORTALS: WorldPortalDef[] = [
     height: 36,
     color: "#f97316",
   },
+  // Входы в co-op комнаты забегов (новые клиенты 3D-ядра; старые клиенты видят их как обычные порталы)
+  {
+    id: "portal_run_crypt",
+    name: "Комната Проклятия: «Склеп»",
+    world: "hellfire",
+    runRoom: "crypt",
+    x: 900,
+    y: 300,
+    width: 36,
+    height: 36,
+    color: "#ef4444",
+  },
+  {
+    id: "portal_run_abyss",
+    name: "Комната Проклятия: «Бездна»",
+    world: "arinar",
+    runRoom: "abyss",
+    x: 900,
+    y: 600,
+    width: 36,
+    height: 36,
+    color: "#22d3ee",
+  },
 ];
