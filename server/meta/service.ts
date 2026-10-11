@@ -75,9 +75,25 @@ export class MetaService {
 
   // ---------- вход ----------
   async onJoin(ws: WebSocket, session: any, msg: any) {
+    session.metaJoinMsg = msg; // для повторной загрузки профиля по meta_get (если первая не удалась)
+    if (session.metaJoining) return;
+    session.metaJoining = true;
+    try { await this.joinMeta(ws, session, msg); } finally { session.metaJoining = false; }
+  }
+  // Повтор входа в мету: клиент присылает meta_get, пока не получил meta_state (не чаще раза в секунду).
+  retryJoin(ws: WebSocket, session: any) {
+    const now = Date.now();
+    if (session.metaJoining || now - (session.metaRetryAt || 0) < 1000) return;
+    session.metaRetryAt = now;
+    this.onJoin(ws, session, session.metaJoinMsg || {}).catch((err) => console.error("meta retry", err));
+  }
+  async joinMeta(ws: WebSocket, session: any, msg: any) {
     let uid: string | null = null;
-    if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+    // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
+    if (session.metaUid) uid = session.metaUid;
+    else if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
     if (!uid && this.env.MC_DEV_TRUST_USERID === "1" && msg.userId) uid = String(msg.userId);
+    if (uid) session.metaUid = uid;
     const verified = !!uid;
     if (uid) session.userId = uid;
     // Гость (без входа): прогресс по случайному guestId из localStorage браузера — не по нику,
@@ -87,9 +103,11 @@ export class MetaService {
     // профиль из D1 (источник истины) — до любых действий игрока
     try { await this.store.load(pkey); } catch (e: any) {
       console.error("[mc] profile load failed", e?.message || e);
-      this.send(ws, { type: "toast_error", message: "Профиль временно недоступен — попробуйте переподключиться" });
+      this.send(ws, { type: "meta_error", retry: true, message: "Профиль загружается дольше обычного — повторяем…" });
       return;
     }
+    if ((ws as any).readyState > 1) return; // игрок ушёл, пока грузился профиль
+    if (this.ms.has(session.id)) { this.send(ws, { type: "meta_state", ...this.snap(session) }); return; }
     const ms: MetaSess = { cards: new Set(), rl: { t: 0, n: 0, warned: 0 }, sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
       lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
     this.ms.set(session.id, ms);
@@ -197,7 +215,11 @@ export class MetaService {
   // ---------- сообщения ----------
   handle(ws: WebSocket, session: any, msg: any, ctx: { runMembers: (room: string) => any[]; broadcast: () => void }): boolean {
     const ms = this.ms.get(session?.id);
-    if (!ms) return false;
+    if (!ms) {
+      // профиль ещё не загружен (или загрузка не удалась) — meta_get запускает повтор
+      if (msg.type === "meta_get" && session) { this.retryJoin(ws, session); return true; }
+      return false;
+    }
     if (MSG_SCHEMA[msg.type]) {
       const now = Date.now();
       if (now - ms.rl.t > RATE.windowMs) { ms.rl.t = now; ms.rl.n = 0; }

@@ -13,6 +13,14 @@ import { newAccount, newHero, newUid, noteItem, fixAccount, sanitizeTalents, typ
 import { TALENT_VERSION } from "./shared";
 import { libraryHash, seedTables, SEED_COLS, SEED_PK } from "./library";
 
+// Обещание с тайм-аутом: зависший запрос к D1 (например, начатый в контексте уже отменённого запроса)
+// не должен навсегда блокировать вход игроков.
+export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let t: any;
+  const to = new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error(`${label}: timeout ${ms} ms`)), ms); });
+  return Promise.race([p, to]).finally(() => clearTimeout(t));
+}
+
 type Shadow = {
   acc: string; heroes: Record<string, string>; inv: Map<string, string>; invSeen: Map<string, number>; res: Map<string, number>;
   equip: Map<string, string>; mobs: Map<string, string>; idisc: Map<string, string>; fdisc: Map<string, number>;
@@ -49,8 +57,12 @@ export class ProfileStore {
   shadow = new Map<string, Shadow>();
   chain = new Map<string, Promise<void>>();
   pending = new Set<string>();
-  loading = new Map<string, Promise<void>>();
+  loading = new Map<string, { p: Promise<void>; at: number }>();
+  loadGen = new Map<string, number>(); // поколение загрузки: поздний результат зависшей попытки отбрасывается
   libReady: Promise<void> | null = null;
+  libStarted = 0;
+  static LOAD_TIMEOUT_MS = 8000; // загрузка профиля целиком
+  static LIB_TIMEOUT_MS = 5000;  // сверка библиотеки перед загрузкой (не критична для входа)
   stats = { flushes: 0, errors: 0, lastError: "" };
 
   constructor(sql: any, db?: any) {
@@ -87,8 +99,10 @@ export class ProfileStore {
   // ---- библиотека: сверка версии пула при старте, досев при расхождении ----
   ensureLibrary(): Promise<void> {
     if (!this.db) return Promise.resolve();
-    if (this.libReady) return this.libReady;
-    this.libReady = (async () => {
+    if (this.libReady && Date.now() - this.libStarted < ProfileStore.LIB_TIMEOUT_MS * 2) return this.libReady;
+    if (this.libReady) console.error("[mc] library check stuck — restarting");
+    this.libStarted = Date.now();
+    const lp: Promise<void> = (async () => {
       const want = libraryHash();
       const row = await this.db.prepare("SELECT value FROM library_meta WHERE key = 'items_hash'").first();
       if (row?.value === want) return;
@@ -104,17 +118,26 @@ export class ProfileStore {
       stmts.push(this.db.prepare("INSERT INTO library_meta (key, value) VALUES ('items_hash', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(want));
       for (let i = 0; i < stmts.length; i += 200) await this.db.batch(stmts.slice(i, i + 200));
       console.log(`[mc] item library reseeded (${want})`);
-    })().catch((e) => { console.error("[mc] library check failed", e?.message || e); this.libReady = null; });
-    return this.libReady;
+    })().catch((e) => { console.error("[mc] library check failed", e?.message || e); if (this.libReady === lp) this.libReady = null; });
+    this.libReady = lp;
+    return lp;
   }
 
   // ---- загрузка профиля (ждём перед входом) ----
+  // Зависшая попытка (дольше LOAD_TIMEOUT_MS) не переиспользуется: начинается новая, а поздний результат старой
+  // отбрасывается по поколению. Ошибка/тайм-аут → reject: сервис отвечает клиенту meta_error, клиент повторяет.
   load(pkey: string): Promise<void> {
     if (this.accounts.has(pkey)) return Promise.resolve();
-    let p = this.loading.get(pkey);
-    if (p) return p;
-    p = (this.db ? this.loadD1(pkey) : Promise.resolve(this.loadLegacy(pkey))).finally(() => this.loading.delete(pkey));
-    this.loading.set(pkey, p);
+    const cur = this.loading.get(pkey);
+    if (cur && Date.now() - cur.at < ProfileStore.LOAD_TIMEOUT_MS) return cur.p;
+    if (cur) console.error(`[mc] discarding stuck profile load ${pkey.slice(0, 12)}…`);
+    const gen = (this.loadGen.get(pkey) || 0) + 1;
+    this.loadGen.set(pkey, gen);
+    const inner = this.db ? this.loadD1(pkey, gen) : Promise.resolve(this.loadLegacy(pkey));
+    const p: Promise<void> = withTimeout(inner, ProfileStore.LOAD_TIMEOUT_MS, "profile load")
+      .catch((e) => { if (this.loadGen.get(pkey) === gen) this.loadGen.set(pkey, gen + 1); throw e; })
+      .finally(() => { if (this.loading.get(pkey)?.p === p) this.loading.delete(pkey); });
+    this.loading.set(pkey, { p, at: Date.now() });
     return p;
   }
 
@@ -130,8 +153,13 @@ export class ProfileStore {
     }
   }
 
-  async loadD1(pkey: string) {
-    await this.ensureLibrary();
+  async loadD1(pkey: string, gen = 0) {
+    // библиотека не нужна для профиля: ждём ограниченно, при зависании — сбрасываем и идём дальше
+    const lib = this.ensureLibrary();
+    await withTimeout(lib, ProfileStore.LIB_TIMEOUT_MS, "library check").catch((e) => {
+      console.error("[mc]", e?.message || e);
+      if (this.libReady === lib) this.libReady = null;
+    });
     const db = this.db;
     const q = (sql: string) => db.prepare(sql).bind(pkey);
     const res = await db.batch([
@@ -145,6 +173,8 @@ export class ProfileStore {
       q("SELECT feature, first_at, viewed_at FROM player_feature_discovery WHERE pkey = ?"),
     ]);
     const [accR, heroR, instR, eqR, resR, idR, mdR, fdR] = res.map((r: any) => r.results || []);
+    // попытка устарела (тайм-аут/новая попытка) или профиль уже загружен — не перезаписываем кэш
+    if ((gen && this.loadGen.get(pkey) !== gen) || this.accounts.has(pkey)) return;
     if (!accR.length) {
       // первый вход в D1: перенос из SQLite DO (если был), иначе новый профиль; запишется первой же выгрузкой
       const raw = this.legacyAccount(pkey);

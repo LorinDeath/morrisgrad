@@ -322,6 +322,23 @@ async function boot(canvasId, username, userId, api) {
     }
   });
   net.on('toast_error', (d) => overlay.toast(d.message || 'Ошибка', '#fca5a5'));
+  // Профиль: сервер может не успеть загрузить его (meta_error) — повторяем meta_get с нарастающей паузой,
+  // и сторож: если после welcome нет meta_state за 8 с — тоже запрос.
+  const metaLoad = { got: false, n: 0, t: 0 };
+  const metaRetry = (delay) => {
+    clearTimeout(metaLoad.t);
+    metaLoad.t = setTimeout(() => {
+      if (metaLoad.got) return;
+      send({ type: 'meta_get' });
+      metaRetry(Math.min(15000, 1000 * 2 ** Math.min(++metaLoad.n, 4)));
+    }, delay);
+  };
+  net.on('welcome', () => { metaLoad.got = false; metaLoad.n = 0; metaRetry(8000); });
+  net.on('meta_error', (d) => {
+    if (metaLoad.n === 0) overlay.toast(d.message || 'Профиль загружается…', '#fca5a5');
+    if (!metaLoad.got) metaRetry(Math.min(15000, 1000 * 2 ** Math.min(metaLoad.n, 4)));
+  });
+  net.on('offline', () => clearTimeout(metaLoad.t));
   // перезарядка навыка, подтверждённая сервером (и при успехе, и при отказе «ещё на перезарядке»)
   net.on('ability_cd', (d) => {
     const now = performance.now();
@@ -344,6 +361,7 @@ async function boot(canvasId, username, userId, api) {
 
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
+    metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl;
     addCards(d.loot?.cards); addCards(d.reward?.cards);
     meta.apply(d);
