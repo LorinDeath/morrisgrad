@@ -18,6 +18,7 @@ const entry = join(dir, "entry.ts");
 writeFileSync(entry, `export * from ${JSON.stringify(join(root, "server/meta/balance.ts"))};
 export { CONTENT } from ${JSON.stringify(join(root, "server/meta/content.ts"))};
 export { WORLD_GEN } from ${JSON.stringify(join(root, "server/meta/zoneGen.ts"))};
+export { TABLES_READY } from ${JSON.stringify(join(root, "server/meta/zoneTables.ts"))};
 export { REWARD_RULES, HERO_MAX_LEVEL } from ${JSON.stringify(join(root, "server/meta/defs.ts"))};`);
 const out = join(dir, "bundle.mjs");
 buildSync({ entryPoints: [entry], bundle: true, format: "esm", platform: "node", outfile: out, logLevel: "error" });
