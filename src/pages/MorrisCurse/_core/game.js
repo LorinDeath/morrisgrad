@@ -167,6 +167,7 @@ async function boot(canvasId, username, userId, api) {
   // Мета-прогрессия героя (сервер): книга, трекер заданий, диалоги NPC
   const meta = new MetaClient(send);
   api.meta = meta;
+  queueMicrotask(() => { api.book = book; });
   const book = new Book(overlay, meta, {
     canSoul: () => mode === 'hub' && world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) <= 110,
     nearPetr: () => mode === 'hub' && !!zone.nearestNpc(world, player.x, player.y) && zone.nearestNpc(world, player.x, player.y).id === 'petr',
@@ -349,6 +350,7 @@ async function boot(canvasId, username, userId, api) {
     updateBookBadge();
     if (d.loot) showLoot(d.loot, `☠ ${esc(d.loot.mob ? (d.loot.mob) : '')}`);
     if (d.reward) showRunReward(d.reward);
+    if (d.notice) overlay.toast(d.notice, '#c4b5fd');
     if (d.gathered) overlay.toast(`+${d.gathered.n} ${RESOURCES[d.gathered.res]?.icon || ''} ${RESOURCES[d.gathered.res]?.name || d.gathered.res}`, RESOURCES[d.gathered.res]?.color || '#a5f3fc');
     if (d.questDone) {
       const q = QUEST_BY_ID[d.questDone.id];

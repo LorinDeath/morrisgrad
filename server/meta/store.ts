@@ -9,7 +9,8 @@
 //   Старые профили из SQLite DO (mc_accounts/mc_heroes) переносятся в D1 при первом входе (uid → UUID).
 //   Без GAME_DB (локальные тесты без D1) — прежнее хранилище SQLite DO.
 import { HERO_IDS, ITEM_BY_ID, RESOURCES } from "./defs";
-import { newAccount, newHero, newUid, noteItem, fixAccount, type Account, type Hero, type InvItem } from "./profile";
+import { newAccount, newHero, newUid, noteItem, fixAccount, sanitizeTalents, type Account, type Hero, type InvItem } from "./profile";
+import { TALENT_VERSION } from "./shared";
 import { libraryHash, seedTables, SEED_COLS, SEED_PK } from "./library";
 
 type Shadow = {
@@ -22,7 +23,7 @@ const accData = (a: Account) => {
   const { inv, res, bestiary, disc, ...rest } = a as any;
   return JSON.stringify(rest);
 };
-const heroData = (h: Hero) => JSON.stringify({ lvl: h.lvl, xp: h.xp, talents: h.talents, abil: h.abil, loadout: h.loadout });
+const heroData = (h: Hero) => JSON.stringify({ lvl: h.lvl, xp: h.xp, talents: h.talents, abil: h.abil, loadout: h.loadout, tv: h.tv || 1 });
 
 function snapshotOf(a: Account, heroes: Record<string, Hero>): Shadow {
   const s: Shadow = { acc: accData(a), heroes: {}, inv: new Map(), invSeen: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() };
@@ -121,7 +122,12 @@ export class ProfileStore {
     const raw = this.legacyAccount(pkey);
     const a = fixAccount(raw ? { ...newAccount(), ...raw } : newAccount());
     this.accounts.set(pkey, a);
-    for (const cls of HERO_IDS) { const r = this.legacyHero(pkey, cls); this.heroes.set(`${pkey}|${cls}`, r ? { ...newHero(cls), ...r } : newHero(cls)); }
+    for (const cls of HERO_IDS) {
+      const r = this.legacyHero(pkey, cls);
+      const h: Hero = r ? { ...newHero(cls), tv: 1, ...r } : newHero(cls);
+      const n = sanitizeTalents(h, cls, h.tv || 1); h.tv = TALENT_VERSION; if (n > 0) h.refunded = n;
+      this.heroes.set(`${pkey}|${cls}`, h);
+    }
   }
 
   async loadD1(pkey: string) {
@@ -130,7 +136,7 @@ export class ProfileStore {
     const q = (sql: string) => db.prepare(sql).bind(pkey);
     const res = await db.batch([
       q("SELECT data, verified FROM accounts WHERE pkey = ?"),
-      q("SELECT hero, lvl, xp, talents, abil, loadout FROM heroes WHERE pkey = ?"),
+      q("SELECT hero, lvl, xp, talents, abil, loadout, talent_ver FROM heroes WHERE pkey = ?"),
       q("SELECT instance_id, item_id, acquired_at, source, viewed_at FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
       q("SELECT hero, slot, instance_id FROM hero_equipment WHERE pkey = ?"),
       q("SELECT res, qty FROM resources WHERE pkey = ?"),
@@ -149,7 +155,8 @@ export class ProfileStore {
       this.accounts.set(pkey, a);
       for (const cls of HERO_IDS) {
         const r = this.legacyHero(pkey, cls);
-        const h: Hero = r ? { ...newHero(cls), ...r } : newHero(cls);
+        const h: Hero = r ? { ...newHero(cls), tv: 1, ...r } : newHero(cls);
+        { const n = sanitizeTalents(h, cls, h.tv || 1); h.tv = TALENT_VERSION; if (n > 0) h.refunded = n; }
         h.equip = Object.fromEntries(Object.entries(h.equip || {}).filter(([, u]) => remap[u]).map(([s, u]) => [s, remap[u]]));
         this.heroes.set(`${pkey}|${cls}`, h);
       }
@@ -169,11 +176,22 @@ export class ProfileStore {
     const owned = new Set(a.inv.map((i) => i.uid));
     for (const cls of HERO_IDS) {
       const r = heroR.find((x: any) => x.hero === cls);
-      const h: Hero = r ? { ...newHero(cls), lvl: r.lvl, xp: r.xp, talents: JSON.parse(r.talents), abil: JSON.parse(r.abil), loadout: JSON.parse(r.loadout), equip: {} } : newHero(cls);
+      const h: Hero = r ? { ...newHero(cls), lvl: r.lvl, xp: r.xp, talents: JSON.parse(r.talents), abil: JSON.parse(r.abil), loadout: JSON.parse(r.loadout), equip: {}, tv: r.talent_ver ?? 1 } : newHero(cls);
       for (const e of eqR) if (e.hero === cls && owned.has(e.instance_id)) h.equip[e.slot] = e.instance_id;
       this.heroes.set(`${pkey}|${cls}`, h);
     }
+    // снимок ДО проверки дерева: исправленное (возврат очков / talent_ver = 2) уйдёт в D1 первой же выгрузкой
     this.shadow.set(pkey, snapshotOf(a, this.heroMap(pkey)));
+    let refundedAny = false;
+    for (const cls of HERO_IDS) {
+      const h = this.heroes.get(`${pkey}|${cls}`)!;
+      const before = { talents: h.talents, loadout: h.loadout, tv: h.tv };
+      const n = sanitizeTalents(h, cls, h.tv || 1);
+      h.tv = TALENT_VERSION;
+      if (n > 0) { h.refunded = n; refundedAny = true; this.audit(pkey, "talent_refund", `talent_refund:${cls}:${before.tv}:${Date.now()}`, { hero: cls, points: n, from: before.tv, talents: before.talents, loadout: before.loadout }); }
+    }
+    const sh = this.shadow.get(pkey)!;
+    if (refundedAny || HERO_IDS.some((c) => sh.heroes[c] !== undefined && sh.heroes[c] !== heroData(this.heroes.get(`${pkey}|${c}`)!))) this.flush(pkey).catch(() => {});
   }
 
   heroMap(pkey: string): Record<string, Hero> {
@@ -248,8 +266,8 @@ export class ProfileStore {
     for (const [cls, j] of Object.entries(cur.heroes)) {
       if (old.heroes[cls] === j) continue;
       const h = JSON.parse(j);
-      P("INSERT INTO heroes (pkey, hero, lvl, xp, talents, abil, loadout, updated_at, rev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1) ON CONFLICT(pkey, hero) DO UPDATE SET lvl = excluded.lvl, xp = excluded.xp, talents = excluded.talents, abil = excluded.abil, loadout = excluded.loadout, updated_at = excluded.updated_at, rev = heroes.rev + 1",
-        pkey, cls, h.lvl, h.xp, JSON.stringify(h.talents), JSON.stringify(h.abil), JSON.stringify(h.loadout), now);
+      P("INSERT INTO heroes (pkey, hero, lvl, xp, talents, abil, loadout, talent_ver, updated_at, rev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1) ON CONFLICT(pkey, hero) DO UPDATE SET lvl = excluded.lvl, xp = excluded.xp, talents = excluded.talents, abil = excluded.abil, loadout = excluded.loadout, talent_ver = excluded.talent_ver, updated_at = excluded.updated_at, rev = heroes.rev + 1",
+        pkey, cls, h.lvl, h.xp, JSON.stringify(h.talents), JSON.stringify(h.abil), JSON.stringify(h.loadout), h.tv || 1, now);
     }
     // снятое/перемещённое — сначала удалить (UNIQUE instance_id не даст надеть один экземпляр дважды)
     for (const [k, uid] of old.equip) if (cur.equip.get(k) !== uid) { const [cls, slot] = k.split("|"); P("DELETE FROM hero_equipment WHERE pkey = ? AND hero = ? AND slot = ?", pkey, cls, slot); }

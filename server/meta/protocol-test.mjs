@@ -54,6 +54,20 @@ const hiItem = st.account.inv.find((i) => i.id === 'spark_imp_helmet');
 ok(hiItem && st.cards?.spark_imp_helmet?.req === 20, 'item card carries req_level 20');
 A.clear(); A.send({ type: 'equip', uid: hiItem?.uid });
 te = await A.wait('toast_error'); ok(te && /Нужен 20 уровень/.test(te.message), 'server rejects equip below item level: ' + (te && te.message));
+// активные навыки — только через дерево талантов (сервер проверяет очки, ярус, пререквизиты)
+A.clear(); A.send({ type: 'loadout_set', ids: ['pierce', 'spear_rain'] });
+te = await A.wait('toast_error'); ok(te && /недоступен/.test(te.message), 'locked active (spear_rain) rejected in loadout before tree unlock: ' + (te && te.message));
+A.clear(); A.send({ type: 'dev_grant', flags: { talents_open: 1 } }); await A.wait('meta_state');
+A.clear(); A.send({ type: 'talent_learn', id: 'spearman.spear_rain' });
+te = await A.wait('toast_error'); ok(te && /(Ярус|Сначала)/.test(te.message), 'active node rejected without prerequisite/tier: ' + (te && te.message));
+A.clear(); A.send({ type: 'talent_learn', id: 'mage.split' });
+te = await A.wait('toast_error'); ok(te && /недоступен/.test(te.message), 'other class talent rejected');
+for (let i = 0; i < 3; i++) { A.clear(); A.send({ type: 'talent_learn', id: 'spearman.clue' }); await A.wait('meta_state'); }
+A.clear(); A.send({ type: 'talent_learn', id: 'spearman.spear_rain' });
+st = await A.wait('meta_state');
+ok(st.hero.talents['spearman.spear_rain'] === 1 && st.hero.unlocked.includes('spear_rain') && st.hero.talentPoints === st.hero.lvl - 1 - 4, 'spear_rain unlocked via tree node (4 points spent), server lists unlocked actives');
+A.clear(); A.send({ type: 'loadout_set', ids: ['pierce', 'leap_strike'] });
+te = await A.wait('toast_error'); ok(!!te, 'forged loadout with still-locked leap_strike rejected');
 A.clear(); A.send({ type: 'loadout_set', ids: ['pierce', 'fly_blade_dash', 'spear_rain'] });
 st = await A.wait('meta_state');
 ok(st.hero.loadout.length === 3 && st.hero.effective.abilities.length === 3, 'loadout of 3 abilities incl. monster ability');

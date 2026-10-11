@@ -112,6 +112,9 @@ export class MetaService {
     const h = cls ? this.store.hero(ms.pkey, cls) : null;
     const s: any = snapshot(a, h, cls, heroBase(cls), ms.verified);
     for (const id of HERO_IDS) { const hh = this.store.hero(ms.pkey, id); s.heroes[id] = { lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout }; }
+    // переход на новые деревья талантов: сообщить о возвращённых очках (один раз)
+    const refunds = HERO_IDS.map((id) => [id, this.store.hero(ms.pkey, id)] as const).filter(([, hh]) => hh.refunded);
+    if (refunds.length) { s.notice = `Деревья талантов обновлены: очки возвращены (${refunds.map(([id, hh]) => `${id} +${hh.refunded}`).join(", ")}). Активные навыки теперь открываются в дереве.`; for (const [, hh] of refunds) delete hh.refunded; }
     s.available = QUESTS.filter((q) => questAvailable(a, q)).map((q) => q.id);
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
@@ -283,6 +286,7 @@ export class MetaService {
         if (this.env.MC_DEV_TRUST_USERID !== "1") return true;
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
+        if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
         if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
         this.push(ws, session); return true;
@@ -477,13 +481,17 @@ export class MetaService {
     const ab = eff.abilities.find((x: any) => x.id === msg.id);
     if (!ab) return;
     const now = Date.now();
-    if ((ms.abilCd[ab.id] || 0) > now) return;
+    // подтверждение перезарядки для панели навыков клиента (сервер — источник правды)
+    if ((ms.abilCd[ab.id] || 0) > now) { this.send(ws, { type: "ability_cd", id: ab.id, left: ms.abilCd[ab.id] - now, cd: ab.cd, ok: false }); return; }
     ms.abilCd[ab.id] = now + ab.cd * 1000;
+    this.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
     ms.zp.x = session.x; ms.zp.y = session.y;
     const def = ABILITY_BY_ID[ab.id];
-    const radius = ab.props.includes("extend") ? 200 : 140;
+    // в открытом мире навыки — упрощённая область; каждый модификатор из дерева талантов (t_*) даёт +15% радиуса и урона
+    const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
+    const radius = (ab.props.includes("extend") ? 200 : 140) * (1 + 0.15 * tmods);
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
-    const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100);
+    const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods);
     let dealt = 0;
     for (const m of zone.mobsAround(session.x, session.y, radius)) {
       m.usedAbility.add(session.id);

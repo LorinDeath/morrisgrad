@@ -773,36 +773,54 @@ export class RunSession {
           resolvePillars(m, 0.5);
         }
         m.iframes = Math.max(m.iframes, 0.6);
-        ring('ab_backstab', 10, { dmg: avgDmg * 1.5 * 2.2 / 1.5, speed: 16, life: 0.6 * ext, size: 0.55, pierce: 3, bleed: 3 });
+        ring('ab_backstab', props.includes('t_fan') ? 14 : 10, { dmg: avgDmg * 1.5 * 2.2 / 1.5, speed: 16, life: 0.6 * ext, size: 0.55, pierce: 3, bleed: 3 });
         break;
       }
       case 'pierce': {
         const a = this.aimDir(30);
-        big('ab_pierce', a.x, a.z, { dmg: avgDmg * 3, speed: 34, life: 1.6 * ext, size: 0.9, pierce: 999, ignoreArmor: true, knock: 1.5 });
+        // талант «Двойной выпад»: два копья веером ±9°
+        const angs = props.includes('t_twin') ? [-0.16, 0.16] : [0];
+        for (const da of angs) {
+          const c = Math.cos(da), s2 = Math.sin(da);
+          big('ab_pierce', a.x * c - a.z * s2, a.x * s2 + a.z * c, { dmg: avgDmg * 3, speed: 34, life: 1.6 * ext, size: 0.9, pierce: 999, ignoreArmor: true, knock: 1.5 });
+        }
         break;
       }
-      case 'trick_strike':
-        ring('ab_trick', 16, { dmg: avgDmg * 1.6, speed: 15, life: 0.9 * ext, size: 0.35, pierce: 2, lifesteal: 0.1 + ls });
+      case 'trick_strike': {
+        // таланты Кавеги: «Ядовитые кинжалы» (яд), «Веер ножей» (24), «Двойной вихрь» (второй вихрь через 0.4 с)
+        const tx = { dmg: avgDmg * 1.6, speed: 15, life: 0.9 * ext, size: 0.35, pierce: 2, lifesteal: 0.1 + ls, poison: props.includes('t_poison') ? 5 : undefined };
+        const n = props.includes('t_fan24') ? 24 : 16;
+        ring('ab_trick', n, tx);
+        if (props.includes('t_double') && echoK === 1) { this.delayed = this.delayed || []; this.delayed.push({ t: 0.4, fn: () => { for (let i = 0; i < n; i++) { const ang = (i / n + 0.5 / n) * Math.PI * 2; big('ab_trick', Math.cos(ang), Math.sin(ang), { ...tx, x: m.x, z: m.z }); } } }); }
         break;
+      }
       case 'fireball': {
         let sx = 0, sz = 0, n = 0;
         this.grid.query(m.x, m.z, 14, this.tmp);
         for (const e of this.tmp) { if (!e.dead) { sx += e.x; sz += e.z; n++; } }
         let dx = m.dirX, dz = m.dirZ;
         if (n) { dx = sx / n - m.x; dz = sz / n - m.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d; }
-        big('ab_fireball', dx, dz, { dmg: avgDmg * 0.6, speed: 12, life: 1.2, size: 1.0, pierce: 1, explode: 5.5 * m.area * ext, burn: 5 });
+        if (props.includes('t_split3')) {
+          // талант «Тройной шар»: три шара веером, каждый — 55% взрыва и поменьше
+          for (const da of [-0.32, 0, 0.32]) {
+            const c = Math.cos(da), s2 = Math.sin(da);
+            big('ab_fireball', dx * c - dz * s2, dx * s2 + dz * c, { dmg: avgDmg * 0.6 * 0.55, speed: 12, life: 1.2, size: 0.75, pierce: 1, explode: 4.2 * m.area * ext, burn: 5 });
+          }
+        } else big('ab_fireball', dx, dz, { dmg: avgDmg * 0.6, speed: 12, life: 1.2, size: 1.0, pierce: 1, explode: 5.5 * m.area * ext, burn: 5 });
         break;
       }
-      case 'shield_wall':
-        m.shieldT = 4 * ext;
-        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4 * ext, t: 0, life: 0.4, color: 0x93c5fd });
-        this.areaHit(m.x, m.z, 4 * ext, avgDmg * 0.8, 'ab_backstab', 6, ls, { knock: 2.5 });
+      case 'shield_wall': {
+        const refl = props.includes('t_reflect');
+        m.shieldT = (4 + (refl ? 1 : 0)) * ext;
+        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4 * ext, t: 0, life: 0.4, color: refl ? 0xfde68a : 0x93c5fd });
+        this.areaHit(m.x, m.z, 4 * ext, avgDmg * 0.8 * (refl ? 2 : 1), 'ab_backstab', 6, ls, { knock: 2.5 });
+      }
         break;
       case 'whirlwind':
-        for (let i = 0; i < 4; i++) big('war_axe', 0, 0, { dmg: avgDmg * 0.9, speed: 0, life: 3 * ext, size: 0.75, orbit: 2.6, phase: (i / 4) * Math.PI * 2, hitCd: new Map() });
+        { const na = props.includes('t_axes6') ? 6 : 4; for (let i = 0; i < na; i++) big('war_axe', 0, 0, { dmg: avgDmg * 0.9, speed: 0, life: 3 * ext, size: 0.75, orbit: 2.6, phase: (i / na) * Math.PI * 2, hitCd: new Map() }); }
         break;
       case 'spear_rain':
-        for (let i = 0; i < 18; i++) {
+        for (let i = 0, nr = props.includes('t_storm') ? 26 : 18; i < nr; i++) {
           const a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 7 * ext;
           this.pushFx({ kind: 'boom', x: m.x + Math.cos(a) * r, z: m.z + Math.sin(a) * r, r: 1.4, t: -i * 0.04, life: 0.3, color: 0xfbbf24 });
           this.areaHit(m.x + Math.cos(a) * r, m.z + Math.sin(a) * r, 1.6, avgDmg * 1.1, 'spear', 0, ls);
@@ -813,17 +831,22 @@ export class RunSession {
         const dist = Math.min(9, a.target ? Math.hypot(a.target.x - m.x, a.target.z - m.z) : 7);
         m.x += a.x * dist; m.z += a.z * dist; resolvePillars(m, 0.5);
         m.leapT = 0.35; m.iframes = Math.max(m.iframes, 0.5);
-        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 3.5 * ext, t: 0, life: 0.4, color: 0xfde047 });
-        this.areaHit(m.x, m.z, 3.5 * ext, avgDmg * 2.2, 'ab_pierce', 0, ls, { knock: 3 });
+        const qr = 3.5 * ext * (props.includes('t_quake') ? 1.5 : 1);
+        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: qr, t: 0, life: 0.4, color: 0xfde047 });
+        this.areaHit(m.x, m.z, qr, avgDmg * 2.2, 'ab_pierce', 0, ls, { knock: 3 });
+        if (props.includes('t_quake')) { this.grid.query(m.x, m.z, qr, this.tmp); for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + 2.5; e.slowK = 0.5; } }
         break;
       }
-      case 'smoke_bomb':
-        m.smokeT = 2.5 * ext;
-        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4.5 * ext, t: 0, life: 2.5 * ext, color: 0x334155 });
+      case 'smoke_bomb': {
+        const choke = props.includes('t_choke');
+        const dur = (2.5 + (choke ? 1.5 : 0)) * ext;
+        m.smokeT = 2.5 * ext; // неуязвимость — как раньше; «Чадящая печь» удлиняет только облако
+        this.pushFx({ kind: 'boom', x: m.x, z: m.z, r: 4.5 * ext, t: 0, life: dur, color: 0x334155 });
         this.grid.query(m.x, m.z, 4.5 * ext, this.tmp);
-        for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + 3; e.slowK = 0.6; }
-        this.areaHit(m.x, m.z, 4.5 * ext, avgDmg * 0.5, 'ab_trick', 0, ls);
+        for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + 3 + (choke ? 1.5 : 0); e.slowK = 0.6; }
+        this.areaHit(m.x, m.z, 4.5 * ext, avgDmg * 0.5, 'ab_trick', 0, ls, choke ? { burn: 4 } : undefined);
         break;
+      }
       case 'shadow_step':
       case 'fly_blade_dash': {
         const a = this.aimDir(12);
@@ -835,14 +858,16 @@ export class RunSession {
           const px = sx + (m.x - sx) * (i / steps), pz = sz + (m.z - sz) * (i / steps);
           this.areaHit(px, pz, 1.7 * ext, avgDmg * (ab.id === 'shadow_step' ? 1.4 : 1.3) / 2, ab.id === 'shadow_step' ? 'fire_spark' : 'ab_trick', 0, ls);
           if (ab.id === 'shadow_step') this.pushFx({ kind: 'boom', x: px, z: pz, r: 1.6, t: -0.3, life: 0.4, color: 0xf97316 });
+          if (ab.id === 'shadow_step' && props.includes('t_trail')) { this.delayed = this.delayed || []; this.delayed.push({ t: 0.6 + i * 0.05, fn: () => { this.pushFx({ kind: 'boom', x: px, z: pz, r: 1.9, t: 0, life: 0.35, color: 0xfb923c }); this.areaHit(px, pz, 1.9 * ext, avgDmg * 0.7 / 2, 'fire_spark', 0, ls, { burn: 3 }); } }); }
           else this.pushFx({ kind: 'boom', x: px, z: pz, r: 1.2, t: 0, life: 0.25, color: 0xe2e8f0 });
         }
         break;
       }
       case 'frost_nova':
-        ring('ice_fan', 20, { dmg: avgDmg * 1.0, speed: 14, life: 0.55 * ext, size: 0.4, pierce: 6, slow: 0.8 });
-        this.grid.query(m.x, m.z, 6 * ext, this.tmp);
-        for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + 2; e.slowK = 0.85; }
+        { const deep = props.includes('t_deep');
+          ring('ice_fan', deep ? 28 : 20, { dmg: avgDmg * 1.0, speed: 14, life: 0.55 * ext, size: 0.4, pierce: 6, slow: 0.8 });
+          this.grid.query(m.x, m.z, 6 * ext, this.tmp);
+          for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + (deep ? 3 : 2); e.slowK = 0.85; } }
         break;
       case 'meteor': {
         const a = this.aimDir(16);
@@ -853,6 +878,13 @@ export class RunSession {
           this.pushFx({ kind: 'boom', x: tx, z: tz, r: 4.5 * ext, t: 0, life: 0.5, color: 0xff5a1f });
           this.areaHit(tx, tz, 4.5 * ext, avgDmg * 6 * 0.5, 'ab_fireball', 0, ls, { burn: 6, knock: 2 });
         } });
+        if (props.includes('t_shower')) for (const [k, ox, oz] of [[1, 2.6, 1.2], [2, -2.2, -1.8]]) {
+          const sx2 = tx + ox, sz2 = tz + oz;
+          this.delayed.push({ t: 1.2 + k * 0.3, fn: () => {
+            this.pushFx({ kind: 'boom', x: sx2, z: sz2, r: 2.6 * ext, t: 0, life: 0.4, color: 0xfb923c });
+            this.areaHit(sx2, sz2, 2.6 * ext, avgDmg * 6 * 0.2, 'ab_fireball', 0, ls, { burn: 3 });
+          } });
+        }
         break;
       }
       default: return;

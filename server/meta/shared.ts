@@ -40,31 +40,115 @@ export function armorToReduction(armor: number): number {
   return Math.min(STAT_CAPS.damageReduction, armor / (armor + 60));
 }
 
-// ---------------- дерево талантов класса ----------------
-export interface TalentDef { id: string; name: string; icon: string; desc: string; tier: 1 | 2 | 3; max: number; per: Partial<Record<StatKey, number>>; req?: string }
-export const TALENT_TIER_REQ: Record<number, number> = { 1: 0, 2: 5, 3: 12 }; // очков вложено в дерево до яруса
-function tree(cls: string, n: { might: string; ward: string; focus: string; crit: string; regen: string; revive: string }): TalentDef[] {
-  const t = (key: string, d: Omit<TalentDef, "id">): TalentDef => ({ ...d, id: `${cls}.${key}` });
-  return [
-    t("vit", { name: "Живучесть", icon: "❤️", desc: "+6 макс. здоровья", tier: 1, max: 5, per: { hp: 6 } }),
-    t("might", { name: n.might, icon: "💪", desc: "+3% урона", tier: 1, max: 5, per: { dmgPct: 3 } }),
-    t("ward", { name: n.ward, icon: "🛡️", desc: "+2 брони", tier: 1, max: 5, per: { armor: 2 } }),
-    t("greed", { name: "Притяжение", icon: "🧲", desc: "+8% радиус сбора", tier: 1, max: 3, per: { magnetPct: 8 } }),
-    t("swift", { name: "Лёгкий шаг", icon: "👟", desc: "+3% скорости", tier: 2, max: 4, per: { speedPct: 3 } }),
-    t("focus", { name: n.focus, icon: "📜", desc: "−3% перезарядки навыков", tier: 2, max: 5, per: { cdrPct: 3 } }),
-    t("crit", { name: n.crit, icon: "🎯", desc: "+2% шанс крита", tier: 2, max: 5, per: { critPct: 2 } }),
-    t("haste", { name: "Ритм боя", icon: "⏱️", desc: "+3% скорость атаки", tier: 2, max: 4, per: { atkSpeedPct: 3 } }),
-    t("regen", { name: n.regen, icon: "🌿", desc: "+0.2 HP/с", tier: 3, max: 4, per: { regen: 0.2 } }),
-    t("leech", { name: "Жажда", icon: "🩸", desc: "+1% вампиризма", tier: 3, max: 3, per: { lifestealPct: 1 } }),
-    t("revive", { name: n.revive, icon: "🕯️", desc: "Раз за забег/бой встать с 40% HP", tier: 3, max: 1, per: { revive: 1 }, req: `${cls}.vit` }),
-  ];
+// ---------------- деревья талантов классов (у каждого — своё) ----------------
+// Узлы: stat — пассивные ранги; active — открывает активный навык класса (кроме стартового legacy, он бесплатен);
+// mod — меняет навык класса (свойство t_* в props навыка и/или ±% силы/перезарядки); keystone — выбор «одно из двух» (excl).
+// Раскладка: tier = ряд (1..5, сверху вниз), col = колонка 0..4. req — все перечисленные узлы должны быть изучены.
+// Всё проверяет сервер (profile.ts → learnTalent): очки, порог яруса, пререквизиты, взаимоисключение ключевых узлов.
+export type TalentKind = "stat" | "active" | "mod" | "keystone";
+export interface TalentMod { ability: string; prop?: string; powerPct?: number; cdPct?: number }
+export interface TalentDef {
+  id: string; name: string; icon: string; desc: string; tier: 1 | 2 | 3 | 4 | 5; col: number; max: number;
+  per: Partial<Record<StatKey, number>>; req?: string[]; kind: TalentKind; grants?: string; mod?: TalentMod; excl?: string; branch?: string;
 }
-export const TALENTS: Record<string, TalentDef[]> = {
-  warrior: tree("warrior", { might: "Тяжесть Стража", ward: "Закалка", focus: "Клятва совета", crit: "Удар без промаха", regen: "Кровь бессмертных", revive: "Клятва Вайт" }),
-  spearman: tree("spearman", { might: "Хватка детектива", ward: "Кожаный жилет", focus: "Чутьё на улики", crit: "Точный выпад", regen: "Упрямство Гринпойса", revive: "Второй шанс" }),
-  rogue: tree("rogue", { might: "Пламя нулевого дня", ward: "Плащ из сажи", focus: "Ритм печи", crit: "Холодный расчёт", regen: "Тлеющие угли", revive: "Пепел возрождается" }),
-  mage: tree("mage", { might: "Эфир Аезера", ward: "Белый мундир", focus: "Библиотечная тишина", crit: "Острый ум", regen: "Фиолетовое пламя", revive: "Последняя страница" }),
+export const TALENT_TIER_REQ: Record<number, number> = { 1: 0, 2: 3, 3: 7, 4: 12, 5: 18 }; // очков вложено в дерево до яруса
+export const TALENT_VERSION = 2; // 1 = старое общее дерево (сброс с возвратом очков при загрузке)
+type N = Omit<TalentDef, "id" | "kind" | "per" | "max"> & { kind?: TalentKind; per?: TalentDef["per"]; max?: number };
+function classTree(cls: string, branches: string[], nodes: Record<string, N>): TalentDef[] {
+  const out: TalentDef[] = [];
+  for (const [key, n] of Object.entries(nodes)) {
+    out.push({ kind: "stat", per: {}, max: 1, ...n, id: `${cls}.${key}`, req: n.req?.map((r) => `${cls}.${r}`), excl: n.excl ? `${cls}.${n.excl}` : undefined, branch: n.branch || branches[Math.min(branches.length - 1, Math.floor(n.col * branches.length / 5))] });
+  }
+  return out;
+}
+export const TALENT_BRANCHES: Record<string, string[]> = {
+  warrior: ["Бастион", "Клинки", "Вихрь стали"],
+  spearman: ["Протокол", "Копьё", "Слежка"],
+  rogue: ["Сажа", "Кинжалы", "Нулевой день"],
+  mage: ["Лёд", "Пламя", "Эфир"],
 };
+export const TALENTS: Record<string, TalentDef[]> = {
+  // Страж Вайт: щиты слева, клинки удара в спину по центру, вращающиеся топоры справа
+  warrior: classTree("warrior", TALENT_BRANCHES.warrior, {
+    vit: { name: "Живучесть стража", icon: "❤️", desc: "+6 макс. здоровья", tier: 1, col: 0, max: 5, per: { hp: 6 } },
+    might: { name: "Тяжесть Стража", icon: "💪", desc: "+3% урона", tier: 1, col: 2, max: 5, per: { dmgPct: 3 } },
+    ward: { name: "Закалка", icon: "🛡️", desc: "+2 брони", tier: 1, col: 4, max: 5, per: { armor: 2 } },
+    shield_wall: { kind: "active", grants: "shield_wall", name: "Стена щитов", icon: "🛡️", desc: "Открывает навык «Стена щитов»", tier: 2, col: 0, req: ["vit"] },
+    fan: { kind: "mod", mod: { ability: "backstab", prop: "t_fan" }, name: "Веер клинков", icon: "🗡️", desc: "Удар в спину: 14 клинков вместо 10", tier: 2, col: 2, req: ["might"] },
+    whirlwind: { kind: "active", grants: "whirlwind", name: "Вихрь стали", icon: "🌪️", desc: "Открывает навык «Вихрь стали»", tier: 2, col: 4, req: ["ward"] },
+    bulwark: { kind: "mod", mod: { ability: "shield_wall", prop: "t_reflect" }, name: "Отражение", icon: "🔰", desc: "Стена щитов: +1 с, ударная волна ×2 урона", tier: 3, col: 0, req: ["shield_wall"] },
+    crit: { name: "Удар без промаха", icon: "🎯", desc: "+2% шанс крита", tier: 3, col: 2, max: 5, per: { critPct: 2 }, req: ["fan"] },
+    axes: { kind: "mod", mod: { ability: "whirlwind", prop: "t_axes6" }, name: "Шесть топоров", icon: "🪓", desc: "Вихрь стали: 6 топоров вместо 4", tier: 3, col: 4, req: ["whirlwind"] },
+    iron: { kind: "keystone", excl: "fury", name: "Железная клятва", icon: "⛓️", desc: "+10 брони, +20 здоровья, −6% скорости", tier: 4, col: 1, per: { armor: 10, hp: 20, speedPct: -6 } },
+    fury: { kind: "keystone", excl: "iron", name: "Ярость Вайт", icon: "🔥", desc: "+12% урона, +2% вампиризма, −8 брони", tier: 4, col: 3, per: { dmgPct: 12, lifestealPct: 2, armor: -8 } },
+    regen: { name: "Кровь бессмертных", icon: "🌿", desc: "+0.2 HP/с", tier: 4, col: 0, max: 4, per: { regen: 0.2 }, req: ["bulwark"] },
+    haste: { name: "Ритм боя", icon: "⏱️", desc: "+3% скорость атаки", tier: 4, col: 4, max: 4, per: { atkSpeedPct: 3 }, req: ["axes"] },
+    oath: { name: "Клятва Вайт", icon: "🕯️", desc: "Раз за забег/бой встать с 40% HP", tier: 5, col: 2, per: { revive: 1 }, req: ["crit"] },
+    echo: { kind: "keystone", excl: "unbroken", mod: { ability: "backstab", cdPct: -25 }, name: "Эхо клинков", icon: "🌀", desc: "Удар в спину: −25% перезарядки", tier: 5, col: 1 },
+    unbroken: { kind: "keystone", excl: "echo", mod: { ability: "shield_wall", cdPct: -30, powerPct: 20 }, name: "Нерушимый", icon: "🏰", desc: "Стена щитов: −30% перезарядки, +20% силы", tier: 5, col: 3 },
+  }),
+  // Детектив Гринпойс: протокол (защита/перезарядка) слева, копьё по центру, слежка (сбор/дождь копий) справа
+  spearman: classTree("spearman", TALENT_BRANCHES.spearman, {
+    vest: { name: "Кожаный жилет", icon: "🧥", desc: "+2 брони", tier: 1, col: 0, max: 5, per: { armor: 2 } },
+    grip: { name: "Хватка детектива", icon: "✊", desc: "+3% урона", tier: 1, col: 2, max: 5, per: { dmgPct: 3 } },
+    clue: { name: "Чутьё на улики", icon: "🔎", desc: "+8% радиус сбора", tier: 1, col: 4, max: 3, per: { magnetPct: 8 } },
+    focus: { name: "Протокол", icon: "📋", desc: "−3% перезарядки навыков", tier: 2, col: 0, max: 5, per: { cdrPct: 3 }, req: ["vest"] },
+    twin: { kind: "mod", mod: { ability: "pierce", prop: "t_twin" }, name: "Двойной выпад", icon: "🔱", desc: "Колющий удар: два копья веером", tier: 2, col: 2, req: ["grip"] },
+    spear_rain: { kind: "active", grants: "spear_rain", name: "Дождь копий", icon: "☔", desc: "Открывает навык «Дождь копий»", tier: 2, col: 4, req: ["clue"] },
+    leap_strike: { kind: "active", grants: "leap_strike", name: "Прыжок детектива", icon: "🦘", desc: "Открывает навык «Прыжок детектива»", tier: 3, col: 0, req: ["focus"] },
+    precise: { name: "Точный выпад", icon: "🎯", desc: "+2% шанс крита", tier: 3, col: 2, max: 5, per: { critPct: 2 }, req: ["twin"] },
+    storm: { kind: "mod", mod: { ability: "spear_rain", prop: "t_storm" }, name: "Ливень улик", icon: "🌧️", desc: "Дождь копий: 26 копий вместо 18", tier: 3, col: 4, req: ["spear_rain"] },
+    quake: { kind: "mod", mod: { ability: "leap_strike", prop: "t_quake" }, name: "Сотрясение", icon: "💥", desc: "Прыжок: радиус приземления ×1.5, враги замедлены", tier: 4, col: 0, req: ["leap_strike"] },
+    hunter: { kind: "keystone", excl: "patrol", name: "Охотник", icon: "🏹", desc: "+6% крита, +5% урона", tier: 3, col: 1, per: { critPct: 6, dmgPct: 5 } },
+    patrol: { kind: "keystone", excl: "hunter", name: "Патрульный", icon: "🚨", desc: "+8% скорости, +30% сбора, +0.3 HP/с", tier: 3, col: 3, per: { speedPct: 8, magnetPct: 30, regen: 0.3 } },
+    swift: { name: "Лёгкий шаг", icon: "👟", desc: "+3% скорости", tier: 4, col: 4, max: 4, per: { speedPct: 3 }, req: ["storm"] },
+    second: { name: "Второй шанс", icon: "🕯️", desc: "Раз за забег/бой встать с 40% HP", tier: 4, col: 2, per: { revive: 1 }, req: ["precise"] },
+    impale: { kind: "keystone", excl: "barrage", mod: { ability: "pierce", cdPct: -30 }, name: "Пригвоздить", icon: "📌", desc: "Колющий удар: −30% перезарядки", tier: 5, col: 1 },
+    barrage: { kind: "keystone", excl: "impale", mod: { ability: "spear_rain", powerPct: 40 }, name: "Шквал", icon: "🌩️", desc: "Дождь копий: +40% урона", tier: 5, col: 3 },
+    manhunt: { name: "Розыск", icon: "🗂️", desc: "+3% урона, +1% крита", tier: 5, col: 2, max: 3, per: { dmgPct: 3, critPct: 1 }, req: ["second"] },
+    stub: { name: "Упрямство Гринпойса", icon: "🌿", desc: "+0.2 HP/с", tier: 4, col: 3, max: 4, per: { regen: 0.2 }, req: ["storm"] },
+  }),
+  // Кавега: сажа (уклонение) слева, ядовитые кинжалы по центру, огненный рывок нулевого дня справа
+  rogue: classTree("rogue", TALENT_BRANCHES.rogue, {
+    agile: { name: "Плащ из сажи", icon: "🧥", desc: "+3% скорости", tier: 1, col: 0, max: 4, per: { speedPct: 3 } },
+    ember: { name: "Пламя нулевого дня", icon: "🔥", desc: "+3% урона", tier: 1, col: 2, max: 5, per: { dmgPct: 3 } },
+    cold: { name: "Холодный расчёт", icon: "🎯", desc: "+2% шанс крита", tier: 1, col: 4, max: 5, per: { critPct: 2 } },
+    smoke_bomb: { kind: "active", grants: "smoke_bomb", name: "Сажа печи", icon: "💨", desc: "Открывает навык «Сажа печи»", tier: 2, col: 0, req: ["agile"] },
+    venom: { kind: "mod", mod: { ability: "trick_strike", prop: "t_poison" }, name: "Ядовитые кинжалы", icon: "🧪", desc: "Коварный удар: кинжалы отравляют (урон 4 с)", tier: 2, col: 2, req: ["ember"] },
+    rhythm: { name: "Ритм печи", icon: "⏱️", desc: "+3% скорость атаки", tier: 2, col: 4, max: 4, per: { atkSpeedPct: 3 }, req: ["cold"] },
+    choke: { kind: "mod", mod: { ability: "smoke_bomb", prop: "t_choke" }, name: "Чадящая печь", icon: "🌫️", desc: "Сажа печи: облако +1.5 с и жжёт врагов", tier: 3, col: 0, req: ["smoke_bomb"] },
+    leech: { name: "Тлеющие угли", icon: "🩸", desc: "+1% вампиризма", tier: 4, col: 2, max: 3, per: { lifestealPct: 1 }, req: ["venom"] },
+    shadow_step: { kind: "active", grants: "shadow_step", name: "Рывок нулевого дня", icon: "☄️", desc: "Открывает навык «Рывок нулевого дня»", tier: 3, col: 4, req: ["rhythm"] },
+    soot: { name: "Сажевая кожа", icon: "❤️", desc: "+6 макс. здоровья", tier: 4, col: 0, max: 4, per: { hp: 6 }, req: ["choke"] },
+    ghost: { kind: "keystone", excl: "cuts", name: "Призрак сажи", icon: "👻", desc: "+10% скорости, +4 брони", tier: 3, col: 1, per: { speedPct: 10, armor: 4 } },
+    cuts: { kind: "keystone", excl: "ghost", name: "Тысяча порезов", icon: "✂️", desc: "+6% крита, +6% скорости атаки", tier: 3, col: 3, per: { critPct: 6, atkSpeedPct: 6 } },
+    trail: { kind: "mod", mod: { ability: "shadow_step", prop: "t_trail" }, name: "Огненный след", icon: "🔥", desc: "Рывок нулевого дня: след взрывается второй раз", tier: 4, col: 4, req: ["shadow_step"] },
+    ashes: { name: "Пепел возрождается", icon: "🕯️", desc: "Раз за забег/бой встать с 40% HP", tier: 5, col: 2, per: { revive: 1 }, req: ["leech"] },
+    fan24: { kind: "keystone", excl: "double", mod: { ability: "trick_strike", prop: "t_fan24" }, name: "Веер ножей", icon: "🗡️", desc: "Коварный удар: 24 кинжала вместо 16", tier: 5, col: 0 },
+    double: { kind: "keystone", excl: "fan24", mod: { ability: "trick_strike", prop: "t_double" }, name: "Двойной вихрь", icon: "🌀", desc: "Коварный удар: второй вихрь через 0.4 с", tier: 5, col: 4 },
+  }),
+  // Мариэль/Аезер: лёд слева, огненный шар по центру, эфир и метеор справа
+  mage: classTree("mage", TALENT_BRANCHES.mage, {
+    coat: { name: "Белый мундир", icon: "🧥", desc: "+2 брони", tier: 1, col: 0, max: 5, per: { armor: 2 } },
+    ether: { name: "Эфир Аезера", icon: "✨", desc: "+3% урона", tier: 1, col: 2, max: 5, per: { dmgPct: 3 } },
+    mind: { name: "Острый ум", icon: "🎯", desc: "+2% шанс крита", tier: 1, col: 4, max: 5, per: { critPct: 2 } },
+    frost_nova: { kind: "active", grants: "frost_nova", name: "Морозная звезда", icon: "❄️", desc: "Открывает навык «Морозная звезда»", tier: 2, col: 0, req: ["coat"] },
+    split: { kind: "mod", mod: { ability: "fireball", prop: "t_split3" }, name: "Тройной шар", icon: "☄️", desc: "Огненный шар раскалывается на 3 (каждый — 55% взрыва)", tier: 2, col: 2, req: ["ether"] },
+    quiet: { name: "Библиотечная тишина", icon: "📚", desc: "−3% перезарядки навыков", tier: 2, col: 4, max: 5, per: { cdrPct: 3 }, req: ["mind"] },
+    deep: { kind: "mod", mod: { ability: "frost_nova", prop: "t_deep" }, name: "Глубокая стужа", icon: "🧊", desc: "Морозная звезда: 28 осколков, заморозка 3 с", tier: 3, col: 0, req: ["frost_nova"] },
+    violet: { name: "Фиолетовое пламя", icon: "🌿", desc: "+0.2 HP/с", tier: 3, col: 2, max: 4, per: { regen: 0.2 }, req: ["split"] },
+    meteor: { kind: "active", grants: "meteor", name: "Метеор Аезера", icon: "🌠", desc: "Открывает навык «Метеор Аезера»", tier: 3, col: 4, req: ["quiet"] },
+    vit: { name: "Чернильная стойкость", icon: "❤️", desc: "+6 макс. здоровья", tier: 4, col: 0, max: 4, per: { hp: 6 }, req: ["deep"] },
+    pyro: { kind: "keystone", excl: "cryo", mod: { ability: "fireball", powerPct: 35 }, name: "Пиромант", icon: "🔥", desc: "Огненный шар: +35% урона", tier: 4, col: 1 },
+    cryo: { kind: "keystone", excl: "pyro", mod: { ability: "frost_nova", cdPct: -30 }, name: "Криомант", icon: "❄️", desc: "Морозная звезда: −30% перезарядки", tier: 4, col: 3 },
+    shower: { kind: "mod", mod: { ability: "meteor", prop: "t_shower" }, name: "Звездопад Аезера", icon: "🌠", desc: "Метеор: следом падают ещё 2 малых", tier: 4, col: 4, req: ["meteor"] },
+    page: { name: "Последняя страница", icon: "🕯️", desc: "Раз за забег/бой встать с 40% HP", tier: 5, col: 2, per: { revive: 1 }, req: ["violet"] },
+    glass: { kind: "keystone", excl: "archive", name: "Стеклянная пушка", icon: "💎", desc: "+15% урона, −20 здоровья", tier: 5, col: 0, per: { dmgPct: 15, hp: -20 } },
+    archive: { kind: "keystone", excl: "glass", name: "Архивариус", icon: "📜", desc: "+25 здоровья, +0.4 HP/с", tier: 5, col: 4, per: { hp: 25, regen: 0.4 } },
+  }),
+};
+// навык класса → узел дерева, который его открывает
+export const ACTIVE_NODE: Record<string, string> = Object.fromEntries(Object.values(TALENTS).flat().filter((t) => t.grants).map((t) => [t.grants!, t.id]));
 export const TALENT_BY_ID: Record<string, TalentDef> = Object.fromEntries(Object.values(TALENTS).flat().map((t) => [t.id, t]));
 
 // ---------------- навыки: пул класса + навыки монстров; раскладка 2–3 слота ----------------

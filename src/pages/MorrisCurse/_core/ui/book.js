@@ -3,12 +3,13 @@
 // Данные — из снимка сервера (MetaClient). Клиент не содержит таблиц предметов и дропа: карточки предметов,
 // Библиотеку предметов и пулы дропа мобов сервер присылает ТОЛЬКО для открытого игроком (itemCards.js, lib_get).
 import {
-  TALENTS, TALENT_TIER_REQ, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
+  TALENTS, TALENT_TIER_REQ, TALENT_BRANCHES, TALENT_BY_ID, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
   RARITIES, SLOTS, SLOT_ORDER, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
 } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, iconHtml } from '../meta/itemCards.js';
 import { QUESTS, QUEST_BY_ID, CAMPAIGN_NAMES } from '../../../../../server/meta/quests.ts';
 import { esc } from './overlay.js';
+import { skillIcon } from './actionBar.js';
 
 const TABS = [
   ['quests', '📜', 'Задания', 'J'],
@@ -217,23 +218,63 @@ export class Book {
     </div>`;
     const xpw = Math.min(100, (h.xp / (h.xpNeed || 1)) * 100);
     const open = this.meta.flag('talents_open');
-    const spent = Object.values(h.talents || {}).reduce((x, y) => x + y, 0);
-    const tiers = [1, 2, 3].map((tier) => {
-      const list = (TALENTS[h.cls] || []).filter((t) => t.tier === tier);
-      const locked = spent < TALENT_TIER_REQ[tier];
-      return `<div class="mc-tier ${locked ? 'locked' : ''}"><div class="tl">Ярус ${tier}${locked ? ` · нужно вложить ${TALENT_TIER_REQ[tier]}` : ''}</div>${list.map((t) => {
-        const r = h.talents[t.id] || 0;
-        const can = open && !locked && h.talentPoints > 0 && r < t.max && (!t.req || h.talents[t.req] > 0);
-        return `<button class="mc-tal ${r ? 'has' : ''}" data-act="talent" data-v="${t.id}" ${can ? '' : 'disabled'} title="${esc(t.desc)}"><span>${t.icon}</span><b>${esc(t.name)}</b><i>${r}/${t.max}</i><small>${esc(t.desc)}</small></button>`;
-      }).join('')}</div>`;
-    }).join('');
     return `<div class="mc-heroes">${heroes}</div>
       <div class="mc-xp"><i style="width:${xpw}%"></i><span>Уровень ${h.lvl} · ${h.xp}/${h.xpNeed} опыта</span></div>
       ${stats}
-      <h3>Дерево талантов · очков: <b>${h.talentPoints}</b></h3>
+      <h3>Дерево талантов · ${esc(HERO_NAMES[h.cls] || h.cls)} · очков: <b>${h.talentPoints}</b></h3>
       ${open ? '' : '<p class="mc-lock">🔒 Дерево откроет Алзи — кампания «Держать мир», глава 1 (Аринар).</p>'}
-      ${tiers}
-      <p class="mc-dim">Очки талантов даются за уровни этого героя. Проценты ограничены мягкими капами — подробности в бестиарии баланса.</p>`;
+      ${this.rTree(h, open)}
+      <p class="mc-dim">Очки талантов даются за уровни этого героя (1 за уровень). Стартовый навык класса бесплатен, остальные активные навыки открываются узлами дерева. Ключевые узлы ◆ — выбор одного из двух, навсегда. Проценты ограничены мягкими капами.</p>`;
+  }
+
+  // Дерево талантов: сетка 5×5 (ярус × колонка), связи — SVG. Состояния: изучен / доступен / закрыт.
+  // Узлы навыков (active) и модификаторов (mod) — с пиксельной иконкой навыка; ключевые (keystone) — ромб, пара «или».
+  rTree(h, open) {
+    const T = TALENTS[h.cls] || [];
+    const spent = Object.values(h.talents || {}).reduce((x, y) => x + y, 0);
+    const CW = 104, RH = 92, X0 = 64, NODE = 58;
+    const cx = (t) => X0 + t.col * CW + CW / 2, cy = (t) => 30 + (t.tier - 1) * RH + RH / 2;
+    const rank = (t) => h.talents?.[t.id] || 0;
+    const state = (t) => {
+      const r = rank(t);
+      if (r >= t.max) return 'max';
+      const reqOk = (t.req || []).every((q) => (h.talents?.[q] || 0) > 0);
+      const exclTaken = t.excl && (h.talents?.[t.excl] || 0) > 0;
+      if (exclTaken) return 'excl';
+      if (open && h.talentPoints > 0 && spent >= TALENT_TIER_REQ[t.tier] && reqOk) return r ? 'has avail' : 'avail';
+      return r ? 'has' : 'locked';
+    };
+    const W = X0 + 5 * CW + 8, H = 30 + 5 * RH + 26;
+    const lines = [];
+    for (const t of T) for (const q of t.req || []) {
+      const f = TALENT_BY_ID[q]; if (!f) continue;
+      const on = rank(f) > 0 && rank(t) > 0, ready = rank(f) > 0;
+      lines.push(`<line x1="${cx(f)}" y1="${cy(f) + NODE / 2}" x2="${cx(t)}" y2="${cy(t) - NODE / 2}" class="${on ? 'on' : ready ? 'ready' : ''}"/>`);
+    }
+    const pairs = new Set();
+    for (const t of T) if (t.excl && !pairs.has(t.excl)) {
+      pairs.add(t.id); const o = TALENT_BY_ID[t.excl];
+      const y = cy(t), x1 = Math.min(cx(t), cx(o)) + NODE / 2, x2 = Math.max(cx(t), cx(o)) - NODE / 2;
+      lines.push(`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" class="excl"/><text x="${(x1 + x2) / 2}" y="${y - 6}" class="or">или</text>`);
+    }
+    const tiers = [1, 2, 3, 4, 5].map((tier) => `<div class="mc-tt-tier ${spent >= TALENT_TIER_REQ[tier] ? '' : 'locked'}" style="top:${30 + (tier - 1) * RH}px;height:${RH}px"><b>${['I', 'II', 'III', 'IV', 'V'][tier - 1]}</b><small>${TALENT_TIER_REQ[tier] ? `от ${TALENT_TIER_REQ[tier]}` : 'старт'}</small></div>`).join('');
+    const br = TALENT_BRANCHES[h.cls] || [];
+    const heads = br.map((n, i) => { const w = (5 * CW) / br.length; return `<div class="mc-tt-br" style="left:${X0 + i * w}px;width:${w}px">${esc(n)}</div>`; }).join('');
+    const nodes = T.map((t) => {
+      const r = rank(t), st = state(t);
+      const abil = t.grants || t.mod?.ability;
+      const icon = abil ? skillIcon(abil, 40) : `<span class="em">${t.icon}</span>`;
+      const kindTxt = { active: 'Активный навык', mod: `Модификатор: ${ABILITY_BY_ID[t.mod?.ability]?.name || ''}`, keystone: 'Ключевой выбор (одно из двух)', stat: 'Пассивный' }[t.kind];
+      const reqTxt = (t.req || []).map((q) => TALENT_BY_ID[q]?.name).filter(Boolean).join(', ');
+      const why = st === 'excl' ? `Выбран «${TALENT_BY_ID[t.excl]?.name}» — этот путь закрыт` : st === 'locked' ? [!open && 'дерево ещё закрыто (Алзи)', spent < TALENT_TIER_REQ[t.tier] && `нужно вложить ${TALENT_TIER_REQ[t.tier]} очков`, reqTxt && (t.req || []).some((q) => !(h.talents?.[q] > 0)) && `сначала: ${reqTxt}`, open && h.talentPoints <= 0 && 'нет свободных очков'].filter(Boolean).join(' · ') : '';
+      const can = st.includes('avail');
+      return `<button class="mc-tn ${t.kind} ${st}" data-act="${can ? 'talent' : ''}" data-v="${t.id}" data-tid="${t.id}" style="left:${cx(t) - NODE / 2}px;top:${cy(t) - NODE / 2}px">
+        ${icon}${t.kind === 'mod' ? '<i class="plus">+</i>' : ''}<em>${r}/${t.max}</em>
+        <div class="tip"><b>${esc(t.name)}</b><small>${kindTxt}${t.max > 1 ? ` · ранг ${r}/${t.max}` : ''}</small><p>${esc(t.desc)}</p>${t.grants ? `<p class="g">${esc(ABILITY_BY_ID[t.grants]?.desc || '')}</p>` : ''}${reqTxt ? `<small>Требует: ${esc(reqTxt)}</small>` : ''}${why ? `<small class="why">${esc(why)}</small>` : can ? '<small class="ok">Нажмите, чтобы изучить</small>' : ''}</div>
+        <span class="nm">${esc(t.name)}</span></button>`;
+    }).join('');
+    return `<div class="mc-tree" style="width:${W}px;height:${H}px">${tiers}${heads}<svg width="${W}" height="${H}">${lines.join('')}</svg>${nodes}</div>
+      <div class="mc-tt-legend"><span class="lg active"></span>активный навык <span class="lg mod"></span>модификатор навыка <span class="lg keystone"></span>ключевой выбор <span class="lg stat"></span>пассив · <b class="lg-has">●</b> изучен <b class="lg-av">●</b> доступен</div>`;
   }
 
   // ---------- навыки и Сияние ----------
@@ -251,7 +292,8 @@ export class Book {
     }
     const card = (d, monster) => {
       const ab = h.abil[d.id] || { rad: 0 };
-      const locked = !monster && h.lvl < d.unlockLevel;
+      const locked = !monster && !(h.unlocked || []).includes(d.id);
+      const node = !monster && !d.legacy ? (TALENTS[h.cls] || []).find((t) => t.grants === d.id) : null;
       const sil = ab.silenced;
       const rad = ab.rad || 0;
       const stars = [];
@@ -261,7 +303,7 @@ export class Book {
       const inLo = h.loadout.includes(d.id);
       const slotBtns = locked || sil ? '' : Array.from({ length: h.slots }, (_, i) => `<button class="mc-btn ${inLo && h.loadout.indexOf(d.id) === i ? 'on' : ''}" data-act="slot" data-v="${d.id}|${i}">${['Q', 'R', 'F'][i]}</button>`).join('');
       return `<div class="mc-abil ${locked ? 'locked' : ''} ${sil ? 'sil' : ''}">
-        <div class="t"><span>${d.icon}</span><b>${esc(d.name)}</b>${monster ? '<em>трофей</em>' : ''}${d.legacy ? '<em>классовый</em>' : ''}${locked ? `<em>ур. ${d.unlockLevel}</em>` : ''}${sil ? '<em>заглушён</em>' : ''}</div>
+        <div class="t">${skillIcon(d.id, 32)}<b>${esc(d.name)}</b>${monster ? '<em>трофей</em>' : ''}${d.legacy ? '<em>классовый</em>' : ''}${locked ? `<em title="Откройте узел «${esc(node?.name || '')}» в дереве талантов">🔒 дерево, ярус ${node?.tier || '?'}</em>` : ''}${sil ? '<em>заглушён</em>' : ''}</div>
         <div class="d">${esc(d.desc)} · перезарядка ${d.cd} с</div>
         <div class="rad">Сияние: ${stars.join('')}</div>
         <div class="props">${props}</div>

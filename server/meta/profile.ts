@@ -7,7 +7,7 @@
 // pkey = "uid:<Clerk userId>" (проверенный токен) или "guest:<ник>" (непроверенный гость).
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
-  TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
+  TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
   radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, LOOKS, RECIPES, RESOURCES, SLOTS,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
@@ -26,6 +26,8 @@ export interface Account {
 export interface Hero {
   lvl: number; xp: number; talents: Record<string, number>; abil: Record<string, { rad: number; silenced?: boolean }>;
   loadout: string[]; equip: Record<string, string>; // слот → uid предмета из общей сумки
+  tv?: number; // версия дерева талантов (heroes.talent_ver)
+  refunded?: number; // не хранится: сколько очков вернули при загрузке (уведомление игроку)
 }
 
 export function newAccount(): Account {
@@ -34,7 +36,7 @@ export function newAccount(): Account {
 }
 export function newHero(cls: string): Hero {
   const legacy = LEGACY_ABILITY[cls];
-  return { lvl: 1, xp: 0, talents: {}, abil: legacy ? { [legacy]: { rad: 0 } } : {}, loadout: legacy ? [legacy] : [], equip: {} };
+  return { lvl: 1, xp: 0, talents: {}, abil: legacy ? { [legacy]: { rad: 0 } } : {}, loadout: legacy ? [legacy] : [], equip: {}, tv: TALENT_VERSION };
 }
 
 // ---------------- вычисления ----------------
@@ -97,10 +99,17 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     look, weaponId, wtype: weaponType(weaponId, cls),
   };
   eff.damageReduction = Math.round(armorToReduction(eff.armor) * 1000) / 1000;
+  const mods = talentMods(h, cls);
   const abilities = h.loadout.filter((id) => usableAbility(a, h, cls, id)).slice(0, abilitySlots(h.lvl)).map((id) => {
     const rad = h.abil[id]?.rad || 0;
     const def = ABILITY_BY_ID[id];
-    return { id, rad, power: Math.round(def.power * radiancePowerMult(rad) * 100) / 100, cd: Math.round(def.cd * radianceCdMult(rad) * (1 - eff.cdrPct / 100) * 100) / 100, props: radianceProps(id, rad) };
+    const m = mods[id] || { props: [], powerPct: 0, cdPct: 0 };
+    return {
+      id, rad,
+      power: Math.round(def.power * radiancePowerMult(rad) * (1 + m.powerPct / 100) * 100) / 100,
+      cd: Math.round(def.cd * radianceCdMult(rad) * (1 - eff.cdrPct / 100) * Math.max(0.4, 1 + m.cdPct / 100) * 100) / 100,
+      props: [...radianceProps(id, rad), ...m.props],
+    };
   });
   return { ...eff, abilities, level: h.lvl };
 }
@@ -114,7 +123,30 @@ export function usableAbility(a: Account, h: Hero, cls: string, id: string): boo
   if (!def) return false;
   if (h.abil[id]?.silenced) return false;
   if (def.cls === "monster") return monsterAbilities(a, h).includes(id);
-  return def.cls === cls && h.lvl >= def.unlockLevel;
+  return def.cls === cls && abilityUnlocked(h, cls, id);
+}
+// Навык класса открыт: стартовый (legacy) — всегда; остальные — узлом дерева талантов (очками), не уровнем.
+export function abilityUnlocked(h: Hero, cls: string, id: string): boolean {
+  const def = ABILITY_BY_ID[id];
+  if (!def || def.cls !== cls) return false;
+  if (def.legacy) return true;
+  const node = ACTIVE_NODE[id];
+  return !!node && (h.talents[node] || 0) > 0;
+}
+export function unlockedAbilities(h: Hero, cls: string): string[] {
+  return ABILITIES_DEF.filter((d) => d.cls === cls && abilityUnlocked(h, cls, d.id)).map((d) => d.id);
+}
+// Модификаторы навыков от узлов дерева (mod/keystone): свойства t_* и ±% силы/перезарядки
+export function talentMods(h: Hero, cls: string): Record<string, { props: string[]; powerPct: number; cdPct: number }> {
+  const out: Record<string, { props: string[]; powerPct: number; cdPct: number }> = {};
+  for (const [id, r] of Object.entries(h.talents)) {
+    const t = TALENT_BY_ID[id];
+    if (!t || !r || !t.mod || !id.startsWith(cls + ".")) continue;
+    const o = (out[t.mod.ability] = out[t.mod.ability] || { props: [], powerPct: 0, cdPct: 0 });
+    if (t.mod.prop && !o.props.includes(t.mod.prop)) o.props.push(t.mod.prop);
+    o.powerPct += t.mod.powerPct || 0; o.cdPct += t.mod.cdPct || 0;
+  }
+  return out;
 }
 
 // ---------------- операции (все проверки здесь) ----------------
@@ -133,15 +165,48 @@ export function gainXp(h: Hero, xp: number): number {
 
 export function learnTalent(a: Account, h: Hero, cls: string, id: string): R {
   if (!a.flags.talents_open) return fail("Дерево талантов откроет Алзи (кампания «Держать мир»)");
+  if (typeof id !== "string") return fail("Плохой запрос");
   const t = TALENT_BY_ID[id];
   if (!t || !id.startsWith(cls + ".")) return fail("Талант недоступен этому герою");
   const cur = h.talents[id] || 0;
   if (cur >= t.max) return fail("Максимальный ранг");
   if (talentPoints(h) <= 0) return fail("Нет очков талантов (даются за уровни героя)");
-  if (talentSpent(h) < TALENT_TIER_REQ[t.tier]) return fail(`Нужно вложить ${TALENT_TIER_REQ[t.tier]} очков в дерево`);
-  if (t.req && !(h.talents[t.req] > 0)) return fail("Сначала изучите предыдущий талант");
+  if (talentSpent(h) < (TALENT_TIER_REQ[t.tier] ?? Infinity)) return fail(`Ярус ${t.tier}: нужно вложить ${TALENT_TIER_REQ[t.tier]} очков в дерево`);
+  for (const r of t.req || []) if (!(h.talents[r] > 0)) return fail(`Сначала изучите «${TALENT_BY_ID[r]?.name || r}»`);
+  if (t.excl && (h.talents[t.excl] || 0) > 0) return fail(`Ключевой выбор: уже выбран «${TALENT_BY_ID[t.excl]?.name}» (только один из двух)`);
   h.talents[id] = cur + 1;
-  return { ok: true };
+  if (t.grants && !h.abil[t.grants]) h.abil[t.grants] = { rad: 0 };
+  // открытый навык сразу встаёт в свободный слот раскладки
+  if (t.grants && !h.loadout.includes(t.grants) && h.loadout.length < abilitySlots(h.lvl)) h.loadout.push(t.grants);
+  return { ok: true, msg: t.grants ? `Навык открыт: ${ABILITY_BY_ID[t.grants]?.name}` : undefined };
+}
+
+// Проверка сохранённого дерева (загрузка из D1 / переход со старого общего дерева).
+// Неизвестные узлы, превышение рангов/очков, нарушенные ярусы/пререквизиты, оба узла ключевого выбора → полный сброс
+// с возвратом очков (очки = уровень − 1 − вложенное, поэтому сброс = возврат). Раскладка очищается от закрытых навыков.
+// Возвращает число возвращённых очков (0 — дерево корректно).
+export function sanitizeTalents(h: Hero, cls: string, ver: number): number {
+  const spent = talentSpent(h);
+  let bad = ver < TALENT_VERSION;
+  if (!bad) {
+    const order = Object.entries(h.talents);
+    if (spent > talentPointsForLevel(h.lvl)) bad = true;
+    for (const [id, r] of order) {
+      const t = TALENT_BY_ID[id];
+      if (!t || !id.startsWith(cls + ".") || !Number.isInteger(r) || r < 0 || r > t.max) { bad = true; break; }
+      if ((t.req || []).some((q) => !(h.talents[q] > 0))) { bad = true; break; }
+      if (t.excl && h.talents[t.excl] > 0 && r > 0) { bad = true; break; }
+      // ярус: без учёта узлов этого и более высоких ярусов должно хватать вложенного
+      const below = order.reduce((acc, [j, rr]) => acc + ((TALENT_BY_ID[j]?.tier || 99) < t.tier ? rr : 0), 0);
+      if (r > 0 && below < TALENT_TIER_REQ[t.tier]) { bad = true; break; }
+    }
+  }
+  if (!bad) { h.loadout = h.loadout.filter((x) => ABILITY_BY_ID[x]?.cls === "monster" || abilityUnlocked(h, cls, x)); return 0; }
+  h.talents = {};
+  h.loadout = h.loadout.filter((x) => ABILITY_BY_ID[x]?.cls === "monster" || abilityUnlocked(h, cls, x));
+  const legacy = LEGACY_ABILITY[cls];
+  if (legacy && !h.loadout.length) h.loadout = [legacy];
+  return spent;
 }
 
 export function setLoadout(a: Account, h: Hero, cls: string, ids: unknown): R {
@@ -172,6 +237,7 @@ export function silenceAbility(a: Account, h: Hero, cls: string, id: string, con
   if (confirm !== "ЗАГЛУШИТЬ") return fail("Нужно подтверждение");
   const def = ABILITY_BY_ID[id];
   if (!def || def.cls !== cls) return fail("Можно заглушить только навык класса");
+  if (!abilityUnlocked(h, cls, id)) return fail("Навык ещё не открыт в дереве талантов");
   if (h.abil[id]?.silenced) return fail("Уже заглушён");
   if ((a.stars.black || 0) < 1) return fail("Нужна чёрная звезда");
   a.stars.black -= 1;
@@ -385,7 +451,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
     account: { inv: a.inv, res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
-      slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h),
+      slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),
       effective: base ? heroEffective(a, h, cls, base) : null,
     } : null,
     heroes,
