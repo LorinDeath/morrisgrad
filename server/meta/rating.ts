@@ -16,6 +16,7 @@ export const RATING_TOP = 100;
 
 export type LvlRow = { pkey: string; hero: string | null; lvl: number; xp: number };
 export type DmgRow = { pkey: string; hero: string; v: number; at: number; where: string };
+export type DuelRow = { pkey: string; hero: string | null; w: number; l: number; d: number };
 
 // FNV-1a 2×32 — синхронно (Worker и Node), стабильно между перезапусками
 export function opaqueId(pkey: string): string {
@@ -37,6 +38,8 @@ export class Rating {
   dmg: DmgRow[] = [];
   lvlRank = new Map<string, number>();
   dmgRank = new Map<string, number>();
+  duel: DuelRow[] = [];
+  duelRank = new Map<string, number>();
   names = new Map<string, string>();
   byId = new Map<string, string>(); // opaque id → pkey (только строки, которые уже показывались)
   builds = 0;
@@ -51,7 +54,7 @@ export class Rating {
 
   async build() {
     const db = this.db;
-    const [lv, dm] = await db.batch([
+    const [lv, dm, du] = await db.batch([
       db.prepare(`SELECT pkey, hero, lvl, xp, acc_hero FROM (
           SELECT h.pkey, h.hero, h.lvl, h.xp, json_extract(a.data, '$.hero') AS acc_hero,
             ROW_NUMBER() OVER (PARTITION BY h.pkey ORDER BY h.lvl DESC, h.xp DESC, (h.hero = json_extract(a.data, '$.hero')) DESC, h.hero) AS rn
@@ -61,14 +64,19 @@ export class Rating {
           SELECT pkey, hero, max_dmg, max_dmg_at, max_dmg_where, ROW_NUMBER() OVER (PARTITION BY pkey ORDER BY max_dmg DESC, max_dmg_at ASC) AS rn
           FROM heroes WHERE max_dmg > 0)
         WHERE rn = 1 ORDER BY max_dmg DESC, max_dmg_at ASC, pkey LIMIT 50000`),
+      // дуэлянты: по победам, затем доле побед, затем меньше поражений
+      db.prepare(`SELECT pkey, last_hero, wins, losses, draws FROM duel_stats WHERE wins + losses + draws > 0
+        ORDER BY wins DESC, (wins * 1.0 / (wins + losses + draws)) DESC, losses ASC, updated_at ASC, pkey LIMIT 50000`),
     ]);
+    this.duel = (du.results || []).map((r: any) => ({ pkey: r.pkey, hero: r.last_hero || null, w: r.wins, l: r.losses, d: r.draws }));
+    this.duelRank = new Map(this.duel.map((r, i) => [r.pkey, i + 1]));
     // душа без героя (все герои ур. 1 без опыта и герой аккаунта не выбран) — в рейтинге без класса
     this.lvl = (lv.results || []).map((r: any) => ({ pkey: r.pkey, hero: !r.acc_hero && r.lvl <= 1 && !r.xp ? null : r.hero, lvl: r.lvl, xp: r.xp }));
     this.dmg = (dm.results || []).map((r: any) => ({ pkey: r.pkey, hero: r.hero, v: r.max_dmg, at: r.max_dmg_at || 0, where: r.max_dmg_where || "" }));
     this.lvlRank = new Map(this.lvl.map((r, i) => [r.pkey, i + 1]));
     this.dmgRank = new Map(this.dmg.map((r, i) => [r.pkey, i + 1]));
     this.names = new Map();
-    await this.loadNames([...this.lvl.slice(0, RATING_TOP), ...this.dmg.slice(0, RATING_TOP)].map((r) => r.pkey));
+    await this.loadNames([...this.lvl.slice(0, RATING_TOP), ...this.dmg.slice(0, RATING_TOP), ...this.duel.slice(0, RATING_TOP)].map((r) => r.pkey));
     this.at = Date.now();
     this.builds++;
   }
@@ -90,16 +98,23 @@ export class Rating {
   lvlView(r: LvlRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, lvl: r.lvl, xp: r.xp, me: r.pkey === me || undefined }; }
   dmgView(r: DmgRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, v: r.v, at: r.at, where: r.where, me: r.pkey === me || undefined }; }
 
+  duelView(r: DuelRow, rank: number, me: string) {
+    const id = opaqueId(r.pkey); this.byId.set(id, r.pkey);
+    const n = r.w + r.l + r.d;
+    return { r: rank, id, name: this.name(r.pkey), hero: r.hero, w: r.w, l: r.l, d: r.d, wr: n ? Math.round((r.w / n) * 1000) / 10 : 0, me: r.pkey === me || undefined };
+  }
+
   // Публичный вид рейтинга для игрока: топ-100 по обеим вкладкам + своё место (даже вне топа)
   async view(me: string) {
     await this.ensure();
     if (uidOf(me) && !this.names.has(me)) await this.loadNames([me]);
     const top = (rows: any[], f: (r: any, i: number) => any) => rows.slice(0, RATING_TOP).map((r, i) => f(r, i + 1));
-    const li = this.lvlRank.get(me), di = this.dmgRank.get(me);
+    const li = this.lvlRank.get(me), di = this.dmgRank.get(me), ui = this.duelRank.get(me);
     return {
-      at: this.at, ttl: RATING_TTL_MS, total: { level: this.lvl.length, dmg: this.dmg.length },
+      at: this.at, ttl: RATING_TTL_MS, total: { level: this.lvl.length, dmg: this.dmg.length, duel: this.duel.length },
       level: { top: top(this.lvl, (r, i) => this.lvlView(r, i, me)), me: li ? this.lvlView(this.lvl[li - 1], li, me) : null },
       dmg: { top: top(this.dmg, (r, i) => this.dmgView(r, i, me)), me: di ? this.dmgView(this.dmg[di - 1], di, me) : null },
+      duel: { top: top(this.duel, (r, i) => this.duelView(r, i, me)), me: ui ? this.duelView(this.duel[ui - 1], ui, me) : null },
     };
   }
 }
@@ -140,4 +155,13 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
     abilities: eff.abilities.map((x: any) => ({ id: x.id, rad: x.rad, power: x.power, cd: x.cd })),
     maxDmg: h.md ? { v: h.md, where: h.mdW || "" } : null,
   };
+}
+
+// Счёт дуэлей игрока (для просмотра персонажа); нет таблицы/строки — нули
+export async function loadDuelRecord(db: any, pkey: string): Promise<{ w: number; l: number; d: number }> {
+  if (!db) return { w: 0, l: 0, d: 0 };
+  try {
+    const r = await db.prepare("SELECT wins, losses, draws FROM duel_stats WHERE pkey = ?").bind(pkey).first();
+    return r ? { w: r.wins, l: r.losses, d: r.draws } : { w: 0, l: 0, d: 0 };
+  } catch (_) { return { w: 0, l: 0, d: 0 }; }
 }

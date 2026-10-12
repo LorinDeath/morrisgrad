@@ -73,7 +73,63 @@ function segDist(px, py, ax, ay, bx, by) {
 }
 
 // Раскладка мира: что за тайл в каждой клетке (включая поля за краем) и где пропсы.
+// Арена PvP-дуэли: 25×25 клеток — каменная площадка с руной в центре, стена в одну клетку по краю
+// (непроходима: сервер не пускает центр героя ближе 46 px к краю), за стеной — выжженная пустошь.
+function layoutArena() {
+  const size = worldSize('arena');
+  const n = Math.ceil(size / CELL), N = n + MARGIN * 2, seed = 23;
+  const base = new Uint16Array(N * N), over = [], biome = new Array(N * N);
+  const c = n / 2;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const ci = i - MARGIN, cj = j - MARGIN;
+    const inside = ci >= 1 && cj >= 1 && ci <= n - 2 && cj <= n - 2;
+    const wall = !inside && ci >= 0 && cj >= 0 && ci <= n - 1 && cj <= n - 1;
+    let name, b;
+    if (inside) {
+      b = 'plaza';
+      const d = Math.hypot(ci + 0.5 - c, cj + 0.5 - c);
+      name = Math.abs(d - 5.2) < 0.55 || d < 1.1 ? 'plaza_rune' : Math.abs(d - 9.5) < 0.5 ? 'cobble' + (ci + cj) % 3 : ['plaza0', 'plaza1', 'plaza2', 'plaza3'][(ci & 1) + 2 * (cj & 1)];
+    } else if (wall) {
+      b = 'wall';
+      name = cj === 0 ? 'wall_top' : hash2(ci, cj, seed) < 0.25 ? 'brick_moss' : hash2(ci, cj, seed + 1) < 0.5 ? 'brick0' : 'brick1';
+    } else {
+      b = 'waste';
+      const r = hash2(i, j, seed);
+      name = r < 0.18 ? 'crater' + Math.floor(r * 22) % 4 : 'waste' + Math.floor(r * 40) % 4;
+    }
+    base[j * N + i] = T[name] ?? 0;
+    biome[j * N + i] = b;
+    if (inside) {
+      if (cj === 1) over.push(i, j, T.curb_n);
+      if (cj === n - 2) over.push(i, j, T.curb_s);
+      if (ci === 1) over.push(i, j, T.curb_w);
+      if (ci === n - 2) over.push(i, j, T.curb_e);
+    }
+  }
+  const props = [];
+  // стена: колонны по периметру (через клетку) и факелы у середины каждой стороны
+  for (let k = 0; k < n; k += 3) {
+    const x = k * CELL + CELL / 2;
+    props.push({ k: 'ruin_pillar', x, y: CELL - 2, s: 1, f: k % 2 === 0 }, { k: 'ruin_pillar', x, y: size - 2, s: 1, f: k % 2 === 1 });
+    if (k > 0 && k < n - 1) props.push({ k: 'ruin_pillar', x: CELL / 2, y: k * CELL + CELL - 2, s: 1, f: false }, { k: 'ruin_pillar', x: size - CELL / 2, y: k * CELL + CELL - 2, s: 1, f: true });
+  }
+  for (const [x, y] of [[size / 2 - 70, CELL + 10], [size / 2 + 70, CELL + 10], [size / 2 - 70, size - CELL + 6], [size / 2 + 70, size - CELL + 6], [CELL + 12, size / 2], [size - CELL - 12, size / 2]]) props.push({ k: 'torch', x, y, s: 1, f: x > size / 2 });
+  for (const [x, y] of [[CELL * 1.6, CELL * 1.8], [size - CELL * 1.6, CELL * 1.8], [CELL * 1.6, size - CELL * 0.9], [size - CELL * 1.6, size - CELL * 0.9]]) props.push({ k: 'obelisk', x, y, s: 1.05, f: x > size / 2 });
+  // за стеной — пустошь: камни, надгробия, кристаллы
+  const R = rng(seed * 7919 + 5);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    if (biome[j * N + i] !== 'waste') { R(); continue; }
+    const x = (i - MARGIN + R()) * CELL, y = (j - MARGIN + R()) * CELL;
+    if (R() > 0.14) continue;
+    const r = R();
+    props.push({ k: r < 0.4 ? 'rock' : r < 0.65 ? 'tombstone' : r < 0.85 ? 'dead_tree' : 'star_crystal', x, y, s: 0.85 + R() * 0.3, f: R() < 0.5 });
+  }
+  props.sort((a, b) => a.y - b.y);
+  return { world: 'arena', size, n, N, base, over, props, biome };
+}
+
 export function layoutWorld(world) {
+  if (world === 'arena') return layoutArena();
   const w = world === 'arinar' ? 'arinar' : 'hellfire';
   const gen = WORLD_GEN[w];
   const size = worldSize(w);

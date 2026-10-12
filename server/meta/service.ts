@@ -16,7 +16,8 @@ import {
 import { Zone, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
-import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId } from "./rating";
+import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
+import { Pvp, type Duel } from "./pvp";
 
 export interface MetaSess {
   sid: string; pkey: string; verified: boolean; ready: boolean;
@@ -24,6 +25,7 @@ export interface MetaSess {
   run: { room: string; at: number; cls: string | null; maxMembers: number; usedAbility: boolean } | null;
   dirty: boolean; lastSave: number; lastHub: number;
   cards: Set<string>; sentRecipes?: boolean; rl: { t: number; n: number; warned: number };
+  pub?: { cls: string; lvl: number; armor: number; dr: number; wMin: number; wMax: number; critPct: number; wt: string } | null; // публичные статы для панели «ЦЕЛЬ»
   social?: { rating: number; insp: number[] }; // ограничение частоты: рейтинг — раз в 2 с, просмотр персонажа — 1/с и 12/мин
 }
 
@@ -36,6 +38,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   zone_attack: S({}), zone_ability: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
   mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
+  duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b" }), duel_cancel: S({}), duel_leave: S({}),
 };
 function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
@@ -71,9 +74,13 @@ export class MetaService {
   env: any;
   zoneAcc = 0;
   rating: Rating;
+  pvp: Pvp;
+  duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
+  onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   constructor(sql: any, env: any) {
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
+    this.pvp = new Pvp(this);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
   }
@@ -185,6 +192,7 @@ export class MetaService {
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
     if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; }
     ms.wt = eff.wtype;
+    ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
   }
 
   effective(session: any) {
@@ -193,6 +201,43 @@ export class MetaService {
     const a = this.store.account(ms.pkey);
     if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null) };
     return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls));
+  }
+
+  // ——— PvP / публичные статы ———
+  pvpGone(session: any) { if (session?.id) this.pvp.leave(session, "disconnect"); }
+  pvpFrozen(session: any) { return this.pvp.frozen(session); }
+  // статы героя, посчитанные сервером, для панели «ЦЕЛЬ» у других игроков (кэш обновляется в refreshZonePlayer)
+  publicStats(sid: string) {
+    const ms = this.ms.get(sid);
+    if (!ms || !ms.pub) return null;
+    return { ...ms.pub, hp: Math.max(0, Math.round(ms.zp.hp)), maxHp: ms.zp.maxHp };
+  }
+  displayName(session: any) {
+    const ms = this.ms.get(session?.id);
+    if (ms && ms.pkey.startsWith("guest:") && !session.username) return guestName(ms.pkey);
+    return String(session?.username || "Странник").slice(0, 32);
+  }
+  async recordDuel(d: Duel, winner: 0 | 1 | null, reason: string) {
+    const now = Date.now();
+    const res = (i: number) => (winner === null ? "d" : winner === i ? "w" : "l");
+    const db = this.store.db;
+    if (!db) {
+      d.pkeys.forEach((pk, i) => { const r = this.duelMem.get(pk) || { w: 0, l: 0, d: 0 }; r[res(i) as "w" | "l" | "d"]++; this.duelMem.set(pk, r); });
+      return;
+    }
+    const up = (i: number) => db.prepare(`INSERT INTO duel_stats (pkey, wins, losses, draws, last_hero, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(pkey) DO UPDATE SET wins = wins + excluded.wins, losses = losses + excluded.losses, draws = draws + excluded.draws, last_hero = excluded.last_hero, updated_at = excluded.updated_at`)
+      .bind(d.pkeys[i], res(i) === "w" ? 1 : 0, res(i) === "l" ? 1 : 0, res(i) === "d" ? 1 : 0, d.heroes[i], now);
+    // журнал первым: повтор с тем же id дуэли упадёт на PRIMARY KEY и не задвоит счёт (batch — одна транзакция)
+    await db.batch([
+      db.prepare("INSERT INTO duel_results (id, a_pkey, b_pkey, a_hero, b_hero, winner, reason, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(d.id, d.pkeys[0], d.pkeys[1], d.heroes[0], d.heroes[1], winner === null ? null : winner === 0 ? "a" : "b", reason, d.startAt, now),
+      up(0), up(1),
+    ]);
+  }
+  async duelRecord(pkey: string) {
+    if (!this.store.db) return this.duelMem.get(pkey) || { w: 0, l: 0, d: 0 };
+    return loadDuelRecord(this.store.db, pkey);
   }
 
   questEv(ws: WebSocket, session: any, ev: any) {
@@ -320,8 +365,13 @@ export class MetaService {
         this.inspect(ws, session, msg).catch((e) => { console.error("[mc] inspect", e?.message || e); this.send(ws, { type: "inspect_err", message: "Персонаж недоступен" }); });
         return true;
       }
-      case "zone_attack": this.zoneAttack(ws, session, msg); return true;
-      case "zone_ability": this.zoneAbility(ws, session, msg); return true;
+      case "zone_attack": if (this.pvp.inDuel(session.id)) this.pvp.attack(ws, session, msg); else this.zoneAttack(ws, session, msg); return true;
+      case "zone_ability": if (this.pvp.inDuel(session.id)) this.pvp.ability(ws, session, msg); else this.zoneAbility(ws, session, msg); return true;
+      // PvP-дуэли (meta/pvp.ts): вызов, ответ, отмена своего вызова, сдача
+      case "duel_challenge": this.pvp.challenge(ws, session, msg); return true;
+      case "duel_respond": this.pvp.respond(ws, session, msg); return true;
+      case "duel_cancel": this.pvp.cancel(ws, session); return true;
+      case "duel_leave": this.pvp.leave(session, "forfeit"); return true;
       case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
       case "gather_done": this.gatherDone(ws, session, msg); return true;
       case "dev_grant": {
@@ -562,7 +612,8 @@ export class MetaService {
       if (!cls) { this.send(ws, { type: "inspect", id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
       h = p.heroes[cls];
     }
-    this.send(ws, { type: "inspect", id: opaqueId(pkey), sid: msg.sid || undefined, ...publicCharacter(name, cls, a, h, heroBase(cls)) });
+    const duel = await this.duelRecord(pkey);
+    this.send(ws, { type: "inspect", id: opaqueId(pkey), sid: msg.sid || undefined, ...publicCharacter(name, cls, a, h, heroBase(cls)), duel });
   }
 
   zoneAbility(ws: WebSocket, session: any, msg: any) {
@@ -645,6 +696,7 @@ export class MetaService {
 
   tick(dt: number, sessions: Map<WebSocket, any>) {
     const now = Date.now();
+    try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
     const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};
     for (const w of Object.keys(this.zones)) byWorld[w] = { players: new Map(), socks: [] };
     for (const [ws, s] of sessions) {
@@ -704,6 +756,7 @@ export class MetaService {
   }
 
   onClose(session: any) {
+    this.pvpGone(session);
     const ms = this.ms.get(session?.id);
     if (!ms) return;
     this.save(session);

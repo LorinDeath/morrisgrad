@@ -6,7 +6,7 @@
 import { loadThree } from './engine/three-loader.js';
 import { Stage } from './engine/stage.js';
 import { toX, toZ, toPx, toPy } from './engine/geometry.js';
-import { worldSize } from '../../../../server/worlds/sizes.ts';
+import { worldSize, worldBounds } from '../../../../server/worlds/sizes.ts';
 import { initModelMode, preloadCharacterSheets, modelMode } from './engine/characters.js';
 import { loadPixAtlases } from './engine/pixSprites.js';
 import { MetaClient } from './meta/metaClient.js';
@@ -30,6 +30,7 @@ import { RunUI } from './ui/runUI.js';
 import { ClassSelect } from './ui/classSelect.js';
 import { GameHUD } from './hud.js';
 import { Social } from './ui/social.js';
+import { DuelUI } from './ui/duel.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
 import { StatsUI, DEFAULT_STATS } from './playerStats.js';
 import { CLASSES, syncClassesFromServer } from './classes.js';
@@ -194,6 +195,7 @@ async function boot(canvasId, username, userId, api) {
     onLeaveRun: () => leaveRun(),
     onRating: () => openRating(),
     onInspect: (sid) => inspectPlayer(sid),
+    onDuel: (sid) => challengeDuel(sid),
   });
   const touch = new TouchControls(overlay.layer, {
     onRating: () => openRating(),
@@ -250,7 +252,7 @@ async function boot(canvasId, username, userId, api) {
         o = { id: p.id, x: p.x, y: p.y, dirX: 0, dirY: 1 };
         others.set(p.id, o);
       }
-      Object.assign(o, { username: p.username || 'Странник', userId: p.userId || '', world: p.world || 'hellfire', targetX: p.x, targetY: p.y, color: p.color || '#38bdf8', stats: p.stats || DEFAULT_STATS, inDuel: !!p.inDuel, shield: p.shield || 0, runRoom: p.runRoom || null });
+      Object.assign(o, { username: p.username || 'Странник', sv: p.sv || null, world: p.world || 'hellfire', targetX: p.x, targetY: p.y, color: p.color || '#38bdf8', stats: p.stats || DEFAULT_STATS, inDuel: !!p.inDuel, shield: p.shield || 0, runRoom: p.runRoom || null });
     });
     for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
     roomCounts = counts;
@@ -282,7 +284,7 @@ async function boot(canvasId, username, userId, api) {
     hub.setWorld(world, portals);
     zone.setWorld(world);
     stage.follow(toX(player.x), toZ(player.y), 0, true);
-    overlay.toast(world === 'arinar' ? 'Аринар · государство Мэлвелдил' : world === 'hellfire' ? 'Поляна перевоплощения' : `Мир: ${world}`, '#c084fc');
+    if (world !== 'arena') overlay.toast(world === 'arinar' ? 'Аринар · государство Мэлвелдил' : world === 'hellfire' ? 'Поляна перевоплощения' : `Мир: ${world}`, '#c084fc');
   });
   net.on('open_class_selection', () => classSelect.open(player.stats.classId));
   net.on('class_updated', (d) => {
@@ -291,13 +293,10 @@ async function boot(canvasId, username, userId, api) {
     const c = CLASSES[d.stats?.classId];
     overlay.toast(`Вы обрели тело: ${displayClassName(d.stats?.classId, c?.name || d.stats?.classId)}`, d.color);
   });
-  // WAP-дуэли удалены из клиента. Сервер ещё может прислать дуэльные события (ИИ Кейт/Дар, старые клиенты):
-  // вежливо отказываемся/выходим, чтобы игрок не «зависал» в бою без интерфейса.
-  net.on('duel_incoming', (d) => {
-    send({ type: 'duel_decline', targetId: d.fromId });
-    overlay.toast(`${d.fromUsername || 'Игрок'} вызвал на дуэль — дуэли заменены co-op забегами`, '#fcd34d');
-  });
-  net.on('duel_start', () => {
+  // PvP-дуэли — сервер-авторитетные (ui/duel.js, server/meta/pvp.ts). Старые пошаговые бои WAP остались только
+  // у ИИ Поляны (цветы-вампиры/Кейт/Дар, isBossFight): интерфейса для них нет — выходим, чтобы не «зависнуть».
+  net.on('duel_start', (d) => {
+    if (d && d.isBossFight === false) return; // PvP по старому протоколу сервер больше не начинает
     send({ type: 'duel_action', action: 'escape' });
     overlay.toast('Вас втянули в бой — вы ускользнули. Сражайтесь в забегах!', '#fcd34d');
   });
@@ -388,7 +387,42 @@ async function boot(canvasId, username, userId, api) {
   net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests));
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
   // Рейтинг и просмотр персонажа (данные — только от сервера)
-  const social = new Social({ overlay, send });
+  const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
+  // ——— PvP-дуэли ———
+  const duel = new DuelUI({ overlay, send });
+  function challengeDuel(sid) {
+    if (!net.isOpen() || !sid) return;
+    if (mode !== 'hub') { overlay.toast('Дуэль — только в открытом мире', '#94a3b8'); return; }
+    if (duel.inArena) return;
+    if (!player.stats.classId) { overlay.toast('Сначала выберите героя', '#94a3b8'); return; }
+    send({ type: 'duel_challenge', sid: String(sid) });
+  }
+  net.on('pvp_invite', (d) => { duel.invite(d); overlay.toast(`⚔️ ${d.name} вызывает вас на дуэль`, '#fcd34d'); });
+  net.on('duel_pending', (d) => duel.pending(d));
+  net.on('duel_declined', (d) => { duel.clearPending(); overlay.toast(d.gone ? `${d.name} ушёл` : `${d.name} отказался от дуэли`, '#94a3b8'); });
+  net.on('duel_expired', () => { duel.clearPending(); overlay.toast('Вызов остался без ответа', '#94a3b8'); });
+  net.on('duel_closed', (d) => { if (d.from) duel.closeInvite(d.from); if (d.to) duel.clearPending(); if (d.from && !d.expired) overlay.toast('Вызов отменён', '#94a3b8'); });
+  net.on('duel_err', (d) => { duel.clearPending(); overlay.toast(d.message || 'Дуэль недоступна', '#fca5a5'); });
+  net.on('pvp_start', (d) => {
+    if (social.isOpen) social.close();
+    if (book.isOpen) book.close();
+    overlay.hideScreen();
+    zoneSt.abilCd = {}; zoneSt.abilSrv = {}; zoneSt.abilPend = {}; zoneSt.gather = null; // перезарядки сброшены сервером
+    hud.clearTarget();
+    duel.start(d);
+  });
+  net.on('pvp_state', (d) => {
+    duel.state(d);
+    for (const e of d.ev || []) {
+      if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
+      else if (e.k === 'ability') zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
+      else if (e.k === 'phit') {
+        if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
+        else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5'); }
+      }
+    }
+  });
+  net.on('pvp_end', (d) => { duel.end(d); hud.clearTarget(); });
   net.on('rating', (d) => social.onRating(d));
   net.on('rating_err', (d) => social.onRatingErr(d));
   net.on('inspect', (d) => social.onInspect(d));
@@ -416,16 +450,21 @@ async function boot(canvasId, username, userId, api) {
   const tchip = document.createElement('div');
   tchip.className = 'mc-tchip';
   tchip.style.display = 'none';
-  tchip.innerHTML = '<div class="nm"></div><button class="mc-btn gold insp">👤 Посмотреть персонажа</button><button class="x" title="Снять выбор">✕</button>';
+  tchip.innerHTML = '<div class="nm"></div><div class="bt"><button class="mc-btn gold insp">👤 Персонаж</button><button class="mc-btn duel">⚔️ Дуэль</button></div><button class="x" title="Снять выбор">✕</button>';
   tchip.addEventListener('pointerdown', (e) => e.stopPropagation());
   tchip.addEventListener('touchstart', (e) => { if (e.target.closest('button')) e.preventDefault(); }, { passive: false });
   tchip.querySelector('.insp').addEventListener('pointerdown', (e) => { e.preventDefault(); const t = hud.currentTarget; if (t?.kind === 'player') inspectPlayer(t.id); });
+  tchip.querySelector('.duel').addEventListener('pointerdown', (e) => { e.preventDefault(); const t = hud.currentTarget; if (t?.kind === 'player') challengeDuel(t.id); });
   tchip.querySelector('.x').addEventListener('pointerdown', (e) => { e.preventDefault(); hud.clearTarget(); updateTargetChip(); });
   overlay.layer.appendChild(tchip);
   function updateTargetChip() {
-    const t = hud.currentTarget;
+    let t = hud.currentTarget;
+    if (t?.kind === 'player') { const o = others.get(t.id); if (o) { t = playerTarget(o); hud.setTarget(t); } } // живые ОЗ с сервера
     const show = !!t && t.kind === 'player' && mode === 'hub' && !hud.left.offsetParent && others.has(t.id);
-    if (show) { const txt = `${t.name} · ${t.typeLabel || ''}`; const nm = tchip.querySelector('.nm'); if (nm.textContent !== txt) nm.textContent = txt; }
+    if (show) {
+      const txt = `${t.name} · ${t.typeLabel || ''}${t.hp && t.hp !== '…' ? ` · ❤️ ${t.hp}` : ''}`; const nm = tchip.querySelector('.nm'); if (nm.textContent !== txt) nm.textContent = txt;
+      const db = tchip.querySelector('.duel'), dd = t.canDuel ? '' : 'none'; if (db.style.display !== dd) db.style.display = dd;
+    }
     const disp = show ? '' : 'none';
     if (tchip.style.display !== disp) tchip.style.display = disp;
   }
@@ -804,7 +843,7 @@ async function boot(canvasId, username, userId, api) {
     for (const n of zone.nodes.values()) if (Math.hypot(n.def.x - px, n.def.y - py) < 40) return true;
     for (const p of portals) if ((p.world || 'hellfire') === world && Math.hypot(p.x - px, p.y - py) < 45) return true;
     if (world === 'hellfire') for (const f of flowers.values()) if (Math.hypot(f.x - px, f.y - py) < 36) return true;
-    for (const o of others.values()) if (o.world === world && Math.hypot(o.x - px, o.y - py) < 30) return true;
+    if (world !== 'arena') for (const o of others.values()) if (o.world === world && Math.hypot(o.x - px, o.y - py) < 30) return true; // на арене клик по сопернику — удар
     if (world === 'hellfire') for (const o of [boss, dar]) if (o && o.state !== 'dead' && Math.hypot(o.x - px, o.y - py) < 40) return true;
     return false;
   }
@@ -966,6 +1005,16 @@ async function boot(canvasId, username, userId, api) {
     ]);
   }
 
+  // Панель «ЦЕЛЬ» для игрока: только статы, посчитанные сервером (players_state.sv — как в просмотре персонажа)
+  function playerTarget(o) {
+    const v = o.sv;
+    return {
+      kind: 'player', id: o.id, name: o.username || 'Странник',
+      typeLabel: v ? `${displayClassName(v.cls)} · ур. ${v.lvl}` : displayClassName(o.stats?.classId),
+      hp: v ? `${v.hp} / ${v.maxHp}` : '…', armor: v ? `${v.armor} (−${Math.round(v.dr * 100)}%)` : '…', atk: v ? `${v.wMin}-${v.wMax}` : '…',
+      canDuel: world !== 'arena' && !o.runRoom && !o.inDuel,
+    };
+  }
   function onCanvasClick(e) {
     canvas.focus?.();
     if (mode !== 'hub' || overlay.screen || book.isOpen) return;
@@ -992,6 +1041,7 @@ async function boot(canvasId, username, userId, api) {
       hud.setTarget({ kind: 'flower', id: o.id, stage: o.stage, name: 'Тюльпан-вампир', typeLabel: `${o.stage}${o.flowerType ? ' / ' + o.flowerType : ''}` });
       return;
     }
+    if (best.kind === 'player') { hud.setTarget(playerTarget(o)); return; }
     const st = o.stats || o;
     hud.setTarget({
       kind: best.kind, id: o.id, name: o.username || o.name || (best.kind === 'keyt' ? 'Кейт' : 'Дар'),
@@ -1113,12 +1163,13 @@ async function boot(canvasId, username, userId, api) {
       dash.timer -= dt;
       if (dash.timer <= 0) dash.active = false;
     }
+    if (duel.inArena && duel.lastPh !== 'fight') { vx = 0; vy = 0; } // отсчёт дуэли: стоим (сервер тоже не двигает)
     player.moving = Math.hypot(vx, vy) > 1;
     if (player.moving) {
       if (!dash.active) { const l = Math.hypot(mv.x, mv.y) || 1; player.dirX = mv.x / l; player.dirY = mv.y / l; }
-      const wsz = worldSize(world);
-      const nx = Math.max(16, Math.min(wsz - 16, player.x + vx * dt));
-      const ny = Math.max(16, Math.min(wsz - 16, player.y + vy * dt));
+      const [blo, bhi] = worldBounds(world), lo = Math.max(16, blo), hi = Math.min(worldSize(world) - 16, bhi); // арена: стены
+      const nx = Math.max(lo, Math.min(hi, player.x + vx * dt));
+      const ny = Math.max(lo, Math.min(hi, player.y + vy * dt));
       if (!hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
       if (!hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
     }
@@ -1259,6 +1310,10 @@ async function boot(canvasId, username, userId, api) {
       // мышь: удар в сторону курсора (точка на земле)
       const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy);
       dir = d > 1 ? { x: dx / d, y: dy / d } : { x: player.dirX || 0, y: player.dirY || 1 };
+    } else if ((aim.touch || autoAttack) && world === 'arena' && others.get(duel.oppSid())) {
+      // арена: автонаведение на соперника (кнопка ⚔ на телефоне / автоатака)
+      const o = others.get(duel.oppSid()), dx = o.x - player.x, dy = o.y - player.y, d = Math.hypot(dx, dy) || 1;
+      dir = { x: dx / d, y: dy / d };
     } else if (aim.touch) {
       dir = zone.assistDir(player.x, player.y, player.dirX || 0, player.dirY || 1, wt);
     } else if (autoAttack) {
@@ -1350,6 +1405,7 @@ async function boot(canvasId, username, userId, api) {
       prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
+      pos: () => ({ x: player.x, y: player.y }),
       // экранная точка мировой позиции (px мира) — для тестов клика мышью
       screenOf: (x, y) => {
         const v = new THREE.Vector3(toX(x), 0, toZ(y)).project(stage.activeCamera());

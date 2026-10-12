@@ -18,8 +18,9 @@ export function whereLabel(w) {
 const fmtDate = (t) => { if (!t) return ''; const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 export class Social {
-  constructor({ overlay, send }) {
+  constructor({ overlay, send, onDuel, canDuel }) {
     this.overlay = overlay; this.send = send;
+    this.onDuel = onDuel; this.canDuel = canDuel; // вызов на дуэль из просмотра персонажа (только игрок в сети)
     this.tab = 'level'; this.data = null; this.view = null; // 'rating' | 'inspect'
     this.askedAt = 0;
   }
@@ -39,22 +40,27 @@ export class Social {
   renderRating() {
     const d = this.data, t = this.tab;
     const L = d?.[t];
-    const row = (r) => t === 'level'
-      ? `<tr class="${r.me ? 'me' : ''}" data-id="${esc(r.id)}" data-hero="${esc(r.hero || '')}"><td class="n">${r.r}</td><td class="nm">${esc(r.name)}${r.me ? ' <i>(вы)</i>' : ''}</td><td>${esc(heroLabel(r.hero))}</td><td class="v">${r.lvl}</td></tr>`
-      : `<tr class="${r.me ? 'me' : ''}" data-id="${esc(r.id)}" data-hero="${esc(r.hero || '')}"><td class="n">${r.r}</td><td class="nm">${esc(r.name)}${r.me ? ' <i>(вы)</i>' : ''}</td><td>${esc(heroLabel(r.hero))}</td><td class="v">${r.v}</td><td class="w">${esc(whereLabel(r.where))}<small>${fmtDate(r.at)}</small></td></tr>`;
-    const head = t === 'level' ? '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Ур.</th></tr>' : '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Удар</th><th>Где</th></tr>';
+    const tr = (r) => `<tr class="${r.me ? 'me' : ''}" data-id="${esc(r.id)}" data-hero="${esc(r.hero || '')}"><td class="n">${r.r}</td><td class="nm">${esc(r.name)}${r.me ? ' <i>(вы)</i>' : ''}</td><td>${esc(heroLabel(r.hero))}</td>`;
+    const row = (r) => t === 'level' ? `${tr(r)}<td class="v">${r.lvl}</td></tr>`
+      : t === 'duel' ? `${tr(r)}<td class="v">${r.w}</td><td class="wl">${r.w}/${r.l}${r.d ? `<small>ничьи ${r.d}</small>` : ''}</td><td class="wr">${r.wr}%</td></tr>`
+      : `${tr(r)}<td class="v">${r.v}</td><td class="w">${esc(whereLabel(r.where))}<small>${fmtDate(r.at)}</small></td></tr>`;
+    const head = t === 'level' ? '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Ур.</th></tr>'
+      : t === 'duel' ? '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Побед</th><th>П/П</th><th>%</th></tr>'
+      : '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Удар</th><th>Где</th></tr>';
     let body = '';
     if (!d) body = `<div class="mc-soc-empty">${this.err ? esc(this.err) : 'Загрузка рейтинга…'}</div>`;
-    else if (!L.top.length) body = `<div class="mc-soc-empty">${t === 'dmg' ? 'Рекордов ещё нет — бейте монстров на Поляне и в Аринаре' : 'Пока пусто'}</div>`;
+    else if (!L) body = '<div class="mc-soc-empty">Вкладка появится после обновления сервера</div>';
+    else if (!L.top.length) body = `<div class="mc-soc-empty">${t === 'dmg' ? 'Рекордов ещё нет — бейте монстров на Поляне и в Аринаре' : t === 'duel' ? 'Дуэлей ещё не было — вызовите кого-нибудь: выберите игрока и «⚔️ Вызвать на дуэль»' : 'Пока пусто'}</div>`;
     else {
       const meOut = L.me && L.me.r > L.top.length;
       body = `<div class="mc-soc-scroll"><table class="mc-soc-tbl ${t}"><thead>${head}</thead><tbody>${L.top.map(row).join('')}</tbody></table></div>`
-        + `<div class="mc-soc-mine">${L.me ? (meOut ? `<table class="mc-soc-tbl ${t}"><tbody>${row(L.me)}</tbody></table>` : `Ваше место: <b>${L.me.r}</b>`) : (t === 'dmg' ? 'У вас ещё нет рекорда урона' : 'Вас пока нет в рейтинге')}</div>`;
+        + `<div class="mc-soc-mine">${L.me ? (meOut ? `<table class="mc-soc-tbl ${t}"><tbody>${row(L.me)}</tbody></table>` : `Ваше место: <b>${L.me.r}</b>`) : (t === 'dmg' ? 'У вас ещё нет рекорда урона' : t === 'duel' ? 'Вы ещё не дрались на дуэлях' : 'Вас пока нет в рейтинге')}</div>`;
     }
-    const note = t === 'dmg' ? 'Самый сильный одиночный удар по монстру в открытом мире (считает сервер; забеги не учитываются).' : 'Лучший герой игрока: уровень, при равенстве — опыт.';
+    const note = t === 'dmg' ? 'Самый сильный одиночный удар по монстру в открытом мире (считает сервер; забеги не учитываются).'
+      : t === 'duel' ? 'Топ-100 по победам в дуэлях (П/П — победы/поражения, % — доля побед). Бой считает сервер.' : 'Лучший герой игрока: уровень, при равенстве — опыт.';
     const html = `<div class="mc-soc"><div class="mc-soc-head"><h2>🏆 РЕЙТИНГ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>
-      <div class="mc-soc-tabs"><button data-tab="level" class="${t === 'level' ? 'on' : ''}">По уровню</button><button data-tab="dmg" class="${t === 'dmg' ? 'on' : ''}">Рекорд урона</button></div>
-      <div class="mc-soc-note">${note}${d ? ` · всего: ${d.total[t]}` : ''}</div>${body}</div>`;
+      <div class="mc-soc-tabs"><button data-tab="level" class="${t === 'level' ? 'on' : ''}">По уровню</button><button data-tab="dmg" class="${t === 'dmg' ? 'on' : ''}">Рекорд урона</button><button data-tab="duel" class="${t === 'duel' ? 'on' : ''}">⚔️ Дуэлянты</button></div>
+      <div class="mc-soc-note">${note}${d && d.total[t] !== undefined ? ` · всего: ${d.total[t]}` : ''}</div>${body}</div>`;
     this.overlay.showScreen(html, [], 'mc-social');
     const el = this.overlay.screen;
     el.addEventListener('click', (e) => {
@@ -108,7 +114,9 @@ export class Social {
           <div class="tip">${esc(def.desc || '')}</div></div>`;
       }).join('') : '<div class="mc-soc-empty">Навыки не выбраны</div>';
       body = `<div class="mc-insp-top"><div><div class="mc-insp-name">${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div>
-          ${d.maxDmg ? `<div class="mc-insp-rec">Рекорд удара<br><b>${d.maxDmg.v}</b><small>${esc(whereLabel(d.maxDmg.where))}</small></div>` : ''}</div>
+          <div class="mc-insp-recs">${d.maxDmg ? `<div class="mc-insp-rec">Рекорд удара<br><b>${d.maxDmg.v}</b><small>${esc(whereLabel(d.maxDmg.where))}</small></div>` : ''}
+          ${d.duel ? `<div class="mc-insp-rec duel">Дуэли<br><b>${d.duel.w}–${d.duel.l}</b><small>победы–поражения${d.duel.d ? ` · ничьи ${d.duel.d}` : ''}</small></div>` : ''}</div></div>
+        ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
         <div class="mc-insp-h">Снаряжение</div><div class="mc-insp-gear">${gear}</div>
         <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}</div>
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
@@ -120,6 +128,7 @@ export class Social {
       e.stopPropagation();
       if (e.target.closest('.mc-soc-x')) { this.close(); return; }
       if (e.target.closest('.mc-soc-back')) { this.view = 'rating'; this.renderRating(); return; }
+      if (e.target.closest('.mc-insp-duel')) { const sid = this.insp?.sid; this.close(); if (sid) this.onDuel?.(sid); return; }
       const sl = e.target.closest('.mc-insp-slot, .mc-insp-ab');
       el.querySelectorAll('.mc-insp-slot.sel, .mc-insp-ab.sel').forEach((x) => { if (x !== sl) x.classList.remove('sel'); });
       if (sl) sl.classList.toggle('sel'); // касание на телефоне показывает подсказку

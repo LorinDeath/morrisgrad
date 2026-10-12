@@ -6,6 +6,7 @@ import { toX, toZ } from '../engine/geometry.js';
 
 const PALETTE = {
   hellfire: { sky: 0x1b1733, fog: { color: 0x1b1733, near: 34, far: 90 }, hemi: { sky: 0xd8ccff, ground: 0x3a5a3a, intensity: 1.0 }, sun: { color: 0xfff1d6, intensity: 0.75 }, motes: 0xfde68a },
+  arena: { sky: 0x1a0d14, fog: { color: 0x1a0d14, near: 30, far: 80 }, hemi: { sky: 0xffd2c2, ground: 0x4a2a22, intensity: 0.95 }, sun: { color: 0xffd9b0, intensity: 0.8 }, motes: 0xfb923c },
   arinar: { sky: 0x151030, fog: { color: 0x151030, near: 36, far: 100 }, hemi: { sky: 0xc7c2ff, ground: 0x334d3d, intensity: 0.95 }, sun: { color: 0xffe9d2, intensity: 0.7 }, motes: 0xc4b5fd },
 };
 
@@ -27,7 +28,7 @@ export class OpenWorldEnvironment {
     }).catch((e) => console.warn('[terrain]', e.message));
     // светлячки / пыльца над землёй
     const size = worldSize(this.id);
-    const N = this.id === 'arinar' ? 420 : 160;
+    const N = this.id === 'arinar' ? 420 : this.id === 'arena' ? 90 : 160;
     const pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
       pos[i * 3] = toX(Math.random() * size);

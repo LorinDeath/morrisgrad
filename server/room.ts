@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
-import { worldSize } from "./worlds/sizes";
+import { worldSize, worldBounds } from "./worlds/sizes";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -44,6 +44,7 @@ export class GameRoom extends DurableObject {
       for (const [ws, s] of this.sessions.entries()) if (s.id === sid) return [ws, s];
       return null;
     };
+    this.meta.onPlayersChanged = () => this.broadcast();
 
     setInterval(() => {
       const now = Date.now();
@@ -792,9 +793,12 @@ export class GameRoom extends DurableObject {
                 oldWs.send(JSON.stringify({ type: "kicked", reason: "Вход с другой вкладки" }));
                 oldWs.close(1000, "Duplicate session");
               } catch (_) {}
+              this.meta.pvpGone(s); // дуэль вытесненной вкладки — поражение (сокет закрыт)
               this.sessions.delete(oldWs);
             }
           }
+          const prev = this.sessions.get(server);
+          if (prev) this.meta.pvpGone(prev); // повторный join на том же сокете
 
           const myId = crypto.randomUUID();
           this.sessions.set(server, {
@@ -847,7 +851,7 @@ export class GameRoom extends DurableObject {
         }
 
         // 2. Движение
-        if (msg.type === "move" && session && !session.inDuel) {
+        if (msg.type === "move" && session && !session.inDuel && !this.meta.pvpFrozen(session)) {
           let nx = Number(msg.x), ny = Number(msg.y);
           if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
           // В открытых мирах (Аринар и Поляна с мобами) позиция влияет на бой/сбор — ограничиваем скорость перемещения
@@ -859,14 +863,14 @@ export class GameRoom extends DurableObject {
             if (d > maxStep) { nx = session.x + (dx / d) * maxStep; ny = session.y + (dy / d) * maxStep; }
             (session as any).lastMoveAt = now;
           }
-          const wsz = worldSize(session.world);
-          session.x = Math.max(0, Math.min(wsz, nx));
-          session.y = Math.max(0, Math.min(wsz, ny));
+          const [lo, hi] = worldBounds(session.world);
+          session.x = Math.max(lo, Math.min(hi, nx));
+          session.y = Math.max(lo, Math.min(hi, ny));
           this.broadcast();
         }
 
         // 3. Порталы (переходы между комнатами и мирами)
-        if (msg.type === "use_portal" && session && !session.inDuel) {
+        if (msg.type === "use_portal" && session && !session.inDuel && !(session as any).pvp) {
           const curWorld = session.world || "hellfire";
           const portal = WORLD_PORTALS.find((p) => p.id === msg.portalId && (p.world || "hellfire") === curWorld);
 
@@ -901,7 +905,7 @@ export class GameRoom extends DurableObject {
         }
 
         // 4. Выбор класса
-        if (msg.type === "select_class" && session) {
+        if (msg.type === "select_class" && session && !(session as any).pvp) {
           const c = CHARACTER_CLASSES[msg.classId];
           if (c) {
             session.color = c.color;
@@ -979,7 +983,7 @@ export class GameRoom extends DurableObject {
         }
 
         // 7. Дуэль: вызов (только внутри одного мира)
-        if (msg.type === "duel_invite" && session && session.stats.classId && !session.inDuel) {
+        if (msg.type === "duel_invite" && session && session.stats.classId && !session.inDuel && !(session as any).pvp) {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
             server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
@@ -1009,88 +1013,12 @@ export class GameRoom extends DurableObject {
             }
           }
 
-          for (const [targetWs, s] of this.sessions.entries()) {
-            if (s.id === msg.targetId && s.stats.classId && !s.inDuel && (s.world || "hellfire") === (session.world || "hellfire")) {
-              targetWs.send(JSON.stringify({ type: "duel_incoming", fromId: session.id, fromUsername: session.username }));
-              break;
-            }
-          }
-        }
-
-        // 8. Дуэль: отказ
-        if (msg.type === "duel_decline") {
-          for (const [targetWs, s] of this.sessions.entries()) {
-            if (s.id === msg.targetId) {
-              targetWs.send(JSON.stringify({ type: "duel_declined_notify", targetNick: session.username }));
-              break;
-            }
-          }
-        }
-
-        // 9. Дуэль: принятие
-        if (msg.type === "duel_accept" && session && !session.inDuel) {
-          if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
-            const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
-            server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
-            return;
-          }
-
-          let opponentWs: WebSocket | null = null;
-          let opponentSession: Session | null = null;
-
-          for (const [ws, s] of this.sessions.entries()) {
-            if (s.id === msg.targetId && !s.inDuel && (s.world || "hellfire") === (session.world || "hellfire")) {
-              opponentWs = ws;
-              opponentSession = s;
-              break;
-            }
-          }
-
-          if (opponentWs && opponentSession) {
-            const duelId = crypto.randomUUID();
-            session.inDuel = true;
-            session.duelId = duelId;
-            opponentSession.inDuel = true;
-            opponentSession.duelId = duelId;
-
-            session.stats.hp = session.stats.maxHp;
-            opponentSession.stats.hp = opponentSession.stats.maxHp;
-
-            const p1 = { id: session.id, username: session.username, classId: session.stats.classId!, hp: session.stats.hp, maxHp: session.stats.maxHp, armor: session.stats.armor };
-            const p2 = { id: opponentSession.id, username: opponentSession.username, classId: opponentSession.stats.classId!, hp: opponentSession.stats.hp, maxHp: opponentSession.stats.maxHp, armor: opponentSession.stats.armor };
-
-            const duelState: DuelState = {
-              id: duelId,
-              isBossFight: false,
-              hunters: [{ ...p1, ws: server }],
-              allies: [{ ...p2, ws: opponentWs }],
-              p1: { ...p1, ws: server },
-              p2: { ...p2, ws: opponentWs },
-            };
-
-            this.activeDuels.set(duelId, duelState);
-
-            const payload = JSON.stringify({
-              type: "duel_start",
-              isBossFight: false,
-              duel: {
-                id: duelId,
-                isBossFight: false,
-                hunters: [p1],
-                allies: [p2],
-                p1,
-                p2,
-              },
-            });
-
-            server.send(payload);
-            opponentWs.send(payload);
-            this.broadcast();
-          }
+          // Старые PvP-дуэли (без проверки приглашения на сервере) удалены — вызов игрока идёт через
+          // сервер-авторитетные дуэли MetaService (duel_challenge / duel_respond, см. meta/pvp.ts).
         }
 
         // 10. Присоединение к бою босса (только в Аду)
-        if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && (session.world || "hellfire") === "hellfire") {
+        if (msg.type === "join_boss_fight" && session && session.stats.classId && !session.inDuel && !(session as any).pvp && (session.world || "hellfire") === "hellfire") {
           if (session.rejoinBlockedUntil && Date.now() < session.rejoinBlockedUntil) {
             const leftSec = Math.ceil((session.rejoinBlockedUntil - Date.now()) / 1000);
             server.send(JSON.stringify({ type: "toast_error", message: `Восстановление после гибели: ${leftSec}с` }));
@@ -1275,6 +1203,11 @@ export class GameRoom extends DurableObject {
 
         // 13. Co-op забеги: вход / выход / ретрансляция внутри комнаты
         // Лобби и экземпляры забегов (server/runs.ts): создать / список / войти / готов / старт / гибель / выход
+        // во время PvP-дуэли — никаких забегов/лобби (иначе можно «сбежать» с арены без поражения)
+        if (session && (session as any).pvp && typeof msg.type === "string" && (msg.type.startsWith("lobby_") || msg.type.startsWith("run_"))) {
+          server.send(JSON.stringify({ type: "toast_error", message: "Сначала завершите дуэль" }));
+          return;
+        }
         if (session && typeof msg.type === "string" && (msg.type.startsWith("lobby_") || msg.type === "run_join" || msg.type === "run_leave" || msg.type === "run_dead" || msg.type === "run_giveup" || msg.type === "run_finish" || msg.type === "run_relay")) {
           this.handleRunMsg(server, session, msg);
           return;
@@ -1504,65 +1437,55 @@ export class GameRoom extends DurableObject {
 
   broadcast() {
     try {
-      const hellfirePlayers: any[] = [];
-      const arinarPlayers: any[] = [];
-      const seenHellfire = new Set<string>();
-      const seenArinar = new Set<string>();
-
+      // Группы видимости: Поляна, Аринар и отдельная арена каждой PvP-дуэли (arena:<id>).
+      // Clerk userId наружу не отдаётся: игроков различают по id сессии (случайный UUID на подключение).
+      const groupOf = (s: any) => { const w = s.world || "hellfire"; return w === "arena" ? `arena:${s.pvp || ""}` : w === "arinar" ? "arinar" : "hellfire"; };
+      const groups = new Map<string, any[]>();
+      const seen = new Set<string>();
       for (const s of this.sessions.values()) {
         if (!s || !s.username) continue;
         const w = s.world || "hellfire";
-        const key = s.username.toLowerCase();
-
+        const g = groupOf(s);
+        const key = g + "|" + s.username.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
         const pData = {
           id: s.id,
-          userId: s.userId || "",
           world: w,
           username: s.username,
           x: s.x,
           y: s.y,
           color: s.color || "#ffffff",
-          inDuel: Boolean(s.inDuel),
+          inDuel: Boolean(s.inDuel || (s as any).pvp),
           escapedUntil: s.escapedUntil || 0,
           rejoinBlockedUntil: s.rejoinBlockedUntil || 0,
           dismoraleUntil: s.dismoraleUntil || 0,
           shield: s.shield || 0,
           stats: s.stats,
+          sv: this.meta.publicStats(s.id), // статы героя, посчитанные сервером (панель «ЦЕЛЬ»)
           runRoom: s.runRoom || null,
         };
-
-        if (w === "hellfire" && !seenHellfire.has(key)) {
-          seenHellfire.add(key);
-          hellfirePlayers.push(pData);
-        } else if (w === "arinar" && !seenArinar.has(key)) {
-          seenArinar.add(key);
-          arinarPlayers.push(pData);
-        }
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g)!.push(pData);
       }
-
-      // Пакет для Мира Адского Пламени
-      const hellfirePayload = JSON.stringify({
-        type: "players_state",
-        world: "hellfire",
-        players: hellfirePlayers,
-        boss: this.boss.getState(),
-        dar: this.dar.getState(),
-        flowers: Array.from(this.flowers.values()),
-      });
-
-      // Пакет для Аринара (полная изоляция: боссы и цветы отсутствуют)
-      const arinarPayload = JSON.stringify({
-        type: "players_state",
-        world: "arinar",
-        players: arinarPlayers,
-        boss: null,
-        dar: null,
-        flowers: [],
-      });
-
+      const payloads = new Map<string, string>();
+      const payloadFor = (g: string) => {
+        let p = payloads.get(g);
+        if (p) return p;
+        const hf = g === "hellfire";
+        p = JSON.stringify({
+          type: "players_state",
+          world: g.startsWith("arena:") ? "arena" : g,
+          players: groups.get(g) || [],
+          boss: hf ? this.boss.getState() : null,
+          dar: hf ? this.dar.getState() : null,
+          flowers: hf ? Array.from(this.flowers.values()) : [],
+        });
+        payloads.set(g, p);
+        return p;
+      };
       for (const [ws, s] of this.sessions.entries()) {
-        const payload = (s.world || "hellfire") === "arinar" ? arinarPayload : hellfirePayload;
-        try { ws.send(payload); } catch (_) { this.sessions.delete(ws); }
+        try { ws.send(payloadFor(groupOf(s))); } catch (_) { this.sessions.delete(ws); }
       }
     } catch (err) {
       console.error("Ошибка в broadcast:", err);

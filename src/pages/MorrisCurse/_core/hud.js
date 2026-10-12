@@ -8,9 +8,9 @@ import { esc } from './ui/overlay.js';
 import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
-  constructor(container, { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect } = {}) {
+  constructor(container, { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect, onDuel } = {}) {
     this.container = container;
-    this.cb = { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect };
+    this.cb = { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect, onDuel };
     this.currentTarget = null;
     this.cache = {};
     this.mount();
@@ -76,6 +76,7 @@ export class GameHUD {
           <button class="hud-duel-btn" id="ghud-flower-touch-btn" style="display:none;background:#b91c1c;border-color:#f87171">🖐️ ТРОНУТЬ БУТОН (-1 HP)</button>
           <button class="hud-duel-btn" id="ghud-flower-pick-btn" style="display:none;background:#0284c7;border-color:#38bdf8">🌸 СОРВАТЬ (+20 🛡️ ЩИТ)</button>
           <button class="hud-duel-btn" id="ghud-inspect-btn" style="display:none;background:#4c1d95;border-color:#a78bfa">👤 Посмотреть персонажа</button>
+          <button class="hud-duel-btn" id="ghud-duel-btn" style="display:none;background:#7f1d1d;border-color:#f87171">⚔️ Вызвать на дуэль</button>
         </div>
       </div>
       <div class="hud-card">
@@ -109,6 +110,8 @@ export class GameHUD {
     this.pickBtn.onclick = () => { if (this.currentTarget) { this.cb.onPickFlower?.(this.currentTarget.id); this.clearTarget(); } };
     this.inspectBtn = $('ghud-inspect-btn');
     this.inspectBtn.onclick = () => { if (this.currentTarget?.kind === 'player') this.cb.onInspect?.(this.currentTarget.id); };
+    this.duelBtn = $('ghud-duel-btn');
+    this.duelBtn.onclick = () => { if (this.currentTarget?.kind === 'player') this.cb.onDuel?.(this.currentTarget.id); };
     $('ghud-rating-btn').onclick = () => this.cb.onRating?.();
     this.roomsBox = $('ghud-run-rooms');
     this.roomsBox.addEventListener('click', (e) => {
@@ -175,6 +178,7 @@ export class GameHUD {
       this.touchBtn.style.display = t.kind === 'flower' && t.stage === 'bud' ? '' : 'none';
       this.pickBtn.style.display = t.kind === 'flower' && t.stage === 'mature' ? '' : 'none';
       this.inspectBtn.style.display = t.kind === 'player' ? '' : 'none';
+      this.duelBtn.style.display = t.kind === 'player' && t.canDuel ? '' : 'none';
     }
 
     // комнаты забегов

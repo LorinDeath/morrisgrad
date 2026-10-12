@@ -23,7 +23,7 @@ export class HubWorld {
     this.root = new THREE.Group();
     this.root.name = 'hub';
     this.map = new WorldMapManager(32);
-    this.envs = { hellfire: new OpenWorldEnvironment('hellfire'), arinar: new OpenWorldEnvironment('arinar') };
+    this.envs = { hellfire: new OpenWorldEnvironment('hellfire'), arinar: new OpenWorldEnvironment('arinar'), arena: new OpenWorldEnvironment('arena') };
     this.world = null;
     this.portalObjs = new Map();
     this.chars = new Map(); // key → {ch, kind}
@@ -51,12 +51,12 @@ export class HubWorld {
 
   setWorld(world, portals, force = false) {
     const THREE = this.THREE;
-    const w = world === 'arinar' ? 'arinar' : (world || 'hellfire');
+    const w = world === 'arinar' || world === 'arena' ? world : 'hellfire';
     if (w === this.world && !force) { this.setPortals(portals); return; }
     this.world = w;
     this.map.switchWorld(w);
     if (this.envGroup) { this.root.remove(this.envGroup); disposeTree(this.envGroup); }
-    this.env = this.envs[w === 'arinar' ? 'arinar' : 'hellfire'];
+    this.env = this.envs[w] || this.envs.hellfire;
     this.envGroup = this.env.build(THREE);
     this.root.add(this.envGroup);
     this.rebuildTiles();
