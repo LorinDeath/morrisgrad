@@ -1,1 +1,1 @@
-$(cat /tmp/service.ts)
+$(cat /tmp/service_upload.txt)
