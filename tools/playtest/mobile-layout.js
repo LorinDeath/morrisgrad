@@ -28,7 +28,7 @@ const VIEWS = [[360, 640], [390, 844], [412, 915], [844, 390]];
       const R = (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
       const items = [];
       for (const e of document.querySelectorAll('.mc3d-touch .mc3d-tbtn')) if (vis(e)) items.push({ n: 'btn:' + (e.dataset.act || e.dataset.hold) + (e.dataset.slot ?? ''), btn: 1, round: getComputedStyle(e).borderRadius === '50%', ...R(e) });
-      const panels = mode === 'run' ? ['.mc3d-hp', '.mc3d-top', '.mc-abar-run', '.mc3d-allies'] : ['.mc-tracker', '.mc3d-prompt'];
+      const panels = mode === 'run' ? ['.mc3d-hp', '.mc3d-top', '.mc-abar-run', '.mc3d-allies'] : ['.mc-tracker', '.mc3d-prompt', '.mc-tchip'];
       for (const s of panels) for (const e of document.querySelectorAll(s)) if (vis(e) && e.children.length + (e.textContent.trim() ? 1 : 0) > 0) items.push({ n: s, ...R(e) });
       const over = [];
       for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {

@@ -16,6 +16,7 @@ import {
 import { Zone, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
+import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId } from "./rating";
 
 export interface MetaSess {
   sid: string; pkey: string; verified: boolean; ready: boolean;
@@ -23,6 +24,7 @@ export interface MetaSess {
   run: { room: string; at: number; cls: string | null; maxMembers: number; usedAbility: boolean } | null;
   dirty: boolean; lastSave: number; lastHub: number;
   cards: Set<string>; sentRecipes?: boolean; rl: { t: number; n: number; warned: number };
+  social?: { rating: number; insp: number[] }; // ограничение частоты: рейтинг — раз в 2 с, просмотр персонажа — 1/с и 12/мин
 }
 
 // Схема входящих мета-сообщений: тип → поля и их типы (лишние поля игнорируются, неверные — отказ)
@@ -33,6 +35,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
   zone_attack: S({}), zone_ability: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
   mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
+  rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
 };
 function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
@@ -67,8 +70,10 @@ export class MetaService {
   ms = new Map<string, MetaSess>(); // session.id → состояние
   env: any;
   zoneAcc = 0;
+  rating: Rating;
   constructor(sql: any, env: any) {
     this.store = new ProfileStore(sql, env?.GAME_DB);
+    this.rating = new Rating(env?.GAME_DB);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
   }
@@ -299,6 +304,22 @@ export class MetaService {
         return true;
       }
       case "run_result": this.runResult(ws, session, msg, ctx).catch((e) => console.error("[mc] run_result", e?.message || e)); return true;
+      case "rating_get": {
+        const so = (ms.social = ms.social || { rating: 0, insp: [] });
+        if (Date.now() - so.rating < 2000) { this.send(ws, { type: "rating_err", message: "Рейтинг обновляется — подождите пару секунд" }); return true; }
+        so.rating = Date.now();
+        this.rating.view(ms.pkey).then((v) => this.send(ws, { type: "rating", ...v })).catch((e) => { console.error("[mc] rating", e?.message || e); this.send(ws, { type: "rating_err", message: "Рейтинг временно недоступен" }); });
+        return true;
+      }
+      case "inspect_player": {
+        const so = (ms.social = ms.social || { rating: 0, insp: [] });
+        const t = Date.now();
+        so.insp = so.insp.filter((x) => t - x < 60000);
+        if ((so.insp.length && t - so.insp[so.insp.length - 1] < 700) || so.insp.length >= 12) { this.send(ws, { type: "inspect_err", message: "Слишком часто — подождите немного" }); return true; }
+        so.insp.push(t);
+        this.inspect(ws, session, msg).catch((e) => { console.error("[mc] inspect", e?.message || e); this.send(ws, { type: "inspect_err", message: "Персонаж недоступен" }); });
+        return true;
+      }
       case "zone_attack": this.zoneAttack(ws, session, msg); return true;
       case "zone_ability": this.zoneAbility(ws, session, msg); return true;
       case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
@@ -306,6 +327,8 @@ export class MetaService {
       case "dev_grant": {
         // Только для локальных тестов (MC_DEV_TRUST_USERID=1): выдать звёзды/опыт/предмет
         if (this.env.MC_DEV_TRUST_USERID !== "1") return true;
+        // тесты рейтинга: выгрузить профиль в D1 и сбросить кэш рейтинга (обычно — не чаще раза в 60 с)
+        if (msg.ratingRefresh) { this.save(session); (this.store.chain.get(ms.pkey) || Promise.resolve()).then(() => this.store.flush(ms.pkey)).then(() => { this.rating.at = 0; this.send(ws, { type: "dev_rating_reset" }); }); return true; }
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
@@ -489,10 +512,57 @@ export class MetaService {
       const k = i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8);
       const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
       const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+      this.noteHit(session, real, m.type);
       if (!m.dead) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, session.x, session.y);
       if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
     });
+  }
+
+  // Рекорд одиночного удара: только удары, посчитанные сервером в открытом мире (см. rating.ts)
+  noteHit(session: any, real: number, mobType: string) {
+    const ms = this.ms.get(session.id);
+    const cls = session.stats?.classId;
+    if (!ms || !cls || !(real > 0)) return;
+    const h = this.store.hero(ms.pkey, cls);
+    if (real <= (h.md || 0)) return;
+    h.md = Math.round(real); h.mdAt = Date.now(); h.mdW = `${session.world || "hellfire"}:${mobType}`;
+    ms.dirty = true;
+  }
+
+  // Просмотр персонажа: онлайн-игрок (sid сессии в этой комнате) или строка рейтинга (непрозрачный id)
+  async inspect(ws: WebSocket, session: any, msg: any) {
+    let pkey: string | null = null, cls: string | null = null, nick = "";
+    if (msg.sid) {
+      const e = this.sessionLookup?.(String(msg.sid));
+      const tms = e ? this.ms.get(e[1].id) : null;
+      if (!e || !tms) { this.send(ws, { type: "inspect_err", message: "Игрок не в сети" }); return; }
+      pkey = tms.pkey; nick = e[1].username || "";
+      cls = e[1].stats?.classId || this.store.account(pkey).hero || null;
+    } else if (msg.id) {
+      pkey = this.rating.byId.get(String(msg.id)) || null;
+      if (!pkey) { await this.rating.ensure(); pkey = this.rating.byId.get(String(msg.id)) || null; }
+      if (!pkey) { this.send(ws, { type: "inspect_err", message: "Персонаж не найден — обновите рейтинг" }); return; }
+      cls = msg.hero && (HERO_IDS as readonly string[]).includes(msg.hero) ? String(msg.hero) : null;
+    }
+    if (!pkey) { this.send(ws, { type: "inspect_err", message: "Не выбран персонаж" }); return; }
+    // имя: зарегистрированные — из таблицы сайта users, гости — «Гость #xxxx»
+    if (pkey.startsWith("uid:") && !this.rating.names.has(pkey)) await this.rating.loadNames([pkey]);
+    const name = pkey.startsWith("uid:") ? this.rating.names.get(pkey) || nick || "Игрок" : guestName(pkey);
+    let a: Account, h: any;
+    if (this.store.accounts.has(pkey)) {
+      a = this.store.account(pkey);
+      cls = cls || a.hero;
+      if (!cls) { this.send(ws, { type: "inspect", id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
+      h = this.store.hero(pkey, cls);
+    } else {
+      const p = this.store.db ? await loadPublicProfile(this.store.db, pkey) : null;
+      if (!p) { this.send(ws, { type: "inspect_err", message: "Персонаж не найден" }); return; }
+      a = p.a; cls = cls || a.hero;
+      if (!cls) { this.send(ws, { type: "inspect", id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
+      h = p.heroes[cls];
+    }
+    this.send(ws, { type: "inspect", id: opaqueId(pkey), sid: msg.sid || undefined, ...publicCharacter(name, cls, a, h, heroBase(cls)) });
   }
 
   zoneAbility(ws: WebSocket, session: any, msg: any) {
@@ -517,7 +587,9 @@ export class MetaService {
     let dealt = 0;
     for (const m of zone.mobsAround(session.x, session.y, radius)) {
       m.usedAbility.add(session.id);
-      dealt += zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+      this.noteHit(session, real, m.type);
+      dealt += real;
     }
     if (ab.props.includes("vamp") || def.id === "trick_strike") ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + dealt * 0.08);
     zone.events.push({ k: "ability", sid: session.id, id: ab.id, x: session.x, y: session.y, r: radius });

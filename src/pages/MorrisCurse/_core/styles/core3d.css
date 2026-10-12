@@ -437,3 +437,56 @@
   .mc-touch .mc3d-tbtn.k-act { right: calc(var(--sr) + 121px); bottom: calc(var(--sb) + 190px); }
   .mc-touch .mc3d-prompt { bottom: calc(var(--sb) + 262px); }
 }
+
+/* ===== Рейтинг и просмотр персонажа ===== */
+.mc-ratebtn { position: absolute; left: 60px; bottom: 34px; z-index: 30; width: 44px; height: 44px; border-radius: 10px; border: 2px solid #78350f; background: rgba(18, 13, 32, .88); font-size: 22px; cursor: pointer; pointer-events: auto; }
+.mc-ratebtn:hover, .mc-bookbtn:hover { border-color: #fbbf24; }
+.mc-touch .mc-ratebtn { display: none; }
+.hud-rating-card { margin-top: auto; }
+.mc3d-screen.mc-social { justify-content: flex-start; padding: 12px; z-index: 40; }
+.mc-soc { width: min(620px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 8px; background: #0d0918; border: 2px solid #4c3a6b; border-radius: 12px; padding: 10px 12px; box-sizing: border-box; text-align: left; color: #e2e8f0; font-size: 12px; }
+.mc-soc-head { display: flex; align-items: center; gap: 8px; }
+.mc-soc-head h2 { flex: 1; text-align: left; font-size: 17px; }
+.mc-soc-x, .mc-soc-back { min-width: 40px; height: 40px; border-radius: 10px; border: 1px solid #4c3a6b; background: #1a1230; color: #e2e8f0; font-size: 18px; cursor: pointer; }
+.mc-soc-tabs { display: flex; gap: 6px; }
+.mc-soc-tabs button { flex: 1; min-height: 40px; border-radius: 8px; border: 1px solid #4c3a6b; background: #150f26; color: #cbd5e1; font: 700 13px system-ui, sans-serif; cursor: pointer; }
+.mc-soc-tabs button.on { background: #78350f; border-color: #fbbf24; color: #fde68a; }
+.mc-soc-note { color: #94a3b8; font-size: 11px; }
+.mc-soc-empty { color: #94a3b8; padding: 18px 4px; text-align: center; }
+.mc-soc-scroll { overflow-y: auto; min-height: 0; flex: 1; border: 1px solid #2a2140; border-radius: 8px; }
+.mc-soc-tbl { width: 100%; border-collapse: collapse; }
+.mc-soc-tbl th { position: sticky; top: 0; background: #1a1230; color: #fbbf24; font-weight: 700; text-align: left; padding: 6px; font-size: 11px; }
+.mc-soc-tbl td { padding: 6px; border-top: 1px solid #1f1833; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.mc-soc-tbl td.n { width: 34px; color: #94a3b8; font-weight: 700; }
+.mc-soc-tbl td.v { color: #fde68a; font-weight: 700; text-align: right; }
+.mc-soc-tbl td.w { color: #a5b4fc; font-size: 11px; } .mc-soc-tbl td.w small { color: #64748b; margin-left: 6px; }
+.mc-soc-tbl td.nm i { color: #fbbf24; font-style: normal; font-size: 10px; }
+.mc-soc-tbl tbody tr { cursor: pointer; } .mc-soc-tbl tbody tr:hover { background: #1c1530; }
+.mc-soc-tbl tr.me td { background: rgba(250, 204, 21, .16); color: #fef3c7; }
+.mc-soc-tbl tr.me td:first-child { box-shadow: inset 3px 0 #fbbf24; }
+.mc-soc-mine { color: #cbd5e1; font-size: 12px; border-top: 1px dashed #4c3a6b; padding-top: 6px; }
+.mc-insp-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.mc-insp-name { font: 700 18px system-ui, sans-serif; color: #fde68a; }
+.mc-insp-cls { color: #cbd5e1; }
+.mc-insp-rec { text-align: right; color: #94a3b8; font-size: 10px; } .mc-insp-rec b { display: block; color: #fca5a5; font-size: 18px; } .mc-insp-rec small { color: #a5b4fc; }
+.mc-insp-h { color: #fbbf24; font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+.mc-insp-gear { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.mc-insp-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border: 2px solid var(--rc, #2a2140); border-radius: 8px; background: #140e24; cursor: pointer; font-size: 10px; color: #94a3b8; outline: none; }
+.mc-insp-slot.empty { border-style: dashed; border-color: #2a2140; }
+.mc-insp-slot .ic { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.mc-insp-slot .tip, .mc-insp-ab .tip { display: none; position: absolute; z-index: 5; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); min-width: 150px; max-width: 220px; padding: 8px; background: #05030a; border: 1px solid #4c3a6b; border-radius: 8px; color: #e2e8f0; font-size: 11px; line-height: 1.45; text-align: left; white-space: normal; pointer-events: none; }
+.mc-insp-slot:hover .tip, .mc-insp-slot.sel .tip, .mc-insp-slot:focus .tip, .mc-insp-ab:hover .tip, .mc-insp-ab.sel .tip { display: block; }
+.mc-insp-gear .mc-insp-slot:first-child .tip { left: 0; transform: none; } .mc-insp-gear .mc-insp-slot:last-child .tip { left: auto; right: 0; transform: none; }
+.mc-insp-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px 12px; }
+.mc-insp-st { display: flex; justify-content: space-between; border-bottom: 1px solid #1f1833; padding: 2px 0; } .mc-insp-st b { color: #fde68a; } .mc-insp-st small { color: #94a3b8; font-weight: 400; }
+.mc-insp-abs { display: flex; flex-direction: column; gap: 6px; }
+.mc-insp-ab { position: relative; display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 2px solid var(--rc); border-radius: 8px; background: #140e24; cursor: pointer; }
+.mc-insp-ab small { display: block; color: #94a3b8; font-size: 10px; }
+.mc-insp-ab .tip { left: 50px; transform: none; }
+.mc-tchip { position: absolute; z-index: 31; top: 40px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #a78bfa; border-radius: 12px; background: rgba(13, 9, 24, .92); pointer-events: auto; color: #e2e8f0; font-size: 12px; max-width: 92%; }
+.mc-tchip .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.mc-tchip .insp { min-height: 44px; white-space: nowrap; }
+.mc-tchip .x { min-width: 44px; min-height: 44px; border-radius: 10px; border: 1px solid #4c3a6b; background: #1a1230; color: #e2e8f0; font-size: 16px; }
+.mc-touch .mc-tchip { top: calc(var(--st) + 31%); left: calc(var(--sl) + 8px); transform: none; flex-wrap: wrap; max-width: min(300px, 70%); }
+@media (orientation: landscape) and (max-height: 560px) { .mc-touch .mc-tchip { top: calc(var(--st) + 41%); } }
+@media (max-width: 480px) { .mc-insp-gear { grid-template-columns: repeat(3, 1fr); } .mc-insp-stats { grid-template-columns: 1fr; } .mc-soc-tbl td { max-width: 110px; } .mc-soc-tbl td.w small { display: none; } }

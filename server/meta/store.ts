@@ -31,7 +31,7 @@ const accData = (a: Account) => {
   const { inv, res, bestiary, disc, ...rest } = a as any;
   return JSON.stringify(rest);
 };
-const heroData = (h: Hero) => JSON.stringify({ lvl: h.lvl, xp: h.xp, talents: h.talents, abil: h.abil, loadout: h.loadout, tv: h.tv || 1 });
+const heroData = (h: Hero) => JSON.stringify({ lvl: h.lvl, xp: h.xp, talents: h.talents, abil: h.abil, loadout: h.loadout, tv: h.tv || 1, md: h.md || 0, mdAt: h.mdAt || null, mdW: h.mdW || null });
 
 function snapshotOf(a: Account, heroes: Record<string, Hero>): Shadow {
   const s: Shadow = { acc: accData(a), heroes: {}, inv: new Map(), invSeen: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() };
@@ -164,7 +164,7 @@ export class ProfileStore {
     const q = (sql: string) => db.prepare(sql).bind(pkey);
     const res = await db.batch([
       q("SELECT data, verified FROM accounts WHERE pkey = ?"),
-      q("SELECT hero, lvl, xp, talents, abil, loadout, talent_ver FROM heroes WHERE pkey = ?"),
+      q("SELECT hero, lvl, xp, talents, abil, loadout, talent_ver, max_dmg, max_dmg_at, max_dmg_where FROM heroes WHERE pkey = ?"),
       q("SELECT instance_id, item_id, acquired_at, source, viewed_at FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
       q("SELECT hero, slot, instance_id FROM hero_equipment WHERE pkey = ?"),
       q("SELECT res, qty FROM resources WHERE pkey = ?"),
@@ -206,7 +206,7 @@ export class ProfileStore {
     const owned = new Set(a.inv.map((i) => i.uid));
     for (const cls of HERO_IDS) {
       const r = heroR.find((x: any) => x.hero === cls);
-      const h: Hero = r ? { ...newHero(cls), lvl: r.lvl, xp: r.xp, talents: JSON.parse(r.talents), abil: JSON.parse(r.abil), loadout: JSON.parse(r.loadout), equip: {}, tv: r.talent_ver ?? 1 } : newHero(cls);
+      const h: Hero = r ? { ...newHero(cls), lvl: r.lvl, xp: r.xp, talents: JSON.parse(r.talents), abil: JSON.parse(r.abil), loadout: JSON.parse(r.loadout), equip: {}, tv: r.talent_ver ?? 1, md: r.max_dmg || 0, mdAt: r.max_dmg_at || undefined, mdW: r.max_dmg_where || undefined } : newHero(cls);
       for (const e of eqR) if (e.hero === cls && owned.has(e.instance_id)) h.equip[e.slot] = e.instance_id;
       this.heroes.set(`${pkey}|${cls}`, h);
     }
@@ -296,8 +296,10 @@ export class ProfileStore {
     for (const [cls, j] of Object.entries(cur.heroes)) {
       if (old.heroes[cls] === j) continue;
       const h = JSON.parse(j);
-      P("INSERT INTO heroes (pkey, hero, lvl, xp, talents, abil, loadout, talent_ver, updated_at, rev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1) ON CONFLICT(pkey, hero) DO UPDATE SET lvl = excluded.lvl, xp = excluded.xp, talents = excluded.talents, abil = excluded.abil, loadout = excluded.loadout, talent_ver = excluded.talent_ver, updated_at = excluded.updated_at, rev = heroes.rev + 1",
-        pkey, cls, h.lvl, h.xp, JSON.stringify(h.talents), JSON.stringify(h.abil), JSON.stringify(h.loadout), h.tv || 1, now);
+      // рекорд урона только растёт (MAX): устаревшая запись из другого экземпляра не уменьшит его
+      P("INSERT INTO heroes (pkey, hero, lvl, xp, talents, abil, loadout, talent_ver, max_dmg, max_dmg_at, max_dmg_where, updated_at, rev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1) ON CONFLICT(pkey, hero) DO UPDATE SET lvl = excluded.lvl, xp = excluded.xp, talents = excluded.talents, abil = excluded.abil, loadout = excluded.loadout, talent_ver = excluded.talent_ver, "
+        + "max_dmg_at = CASE WHEN excluded.max_dmg > heroes.max_dmg THEN excluded.max_dmg_at ELSE heroes.max_dmg_at END, max_dmg_where = CASE WHEN excluded.max_dmg > heroes.max_dmg THEN excluded.max_dmg_where ELSE heroes.max_dmg_where END, max_dmg = MAX(heroes.max_dmg, excluded.max_dmg), updated_at = excluded.updated_at, rev = heroes.rev + 1",
+        pkey, cls, h.lvl, h.xp, JSON.stringify(h.talents), JSON.stringify(h.abil), JSON.stringify(h.loadout), h.tv || 1, Math.round(h.md || 0), h.mdAt || null, h.mdW || null, now);
     }
     // снятое/перемещённое — сначала удалить (UNIQUE instance_id не даст надеть один экземпляр дважды)
     for (const [k, uid] of old.equip) if (cur.equip.get(k) !== uid) { const [cls, slot] = k.split("|"); P("DELETE FROM hero_equipment WHERE pkey = ? AND hero = ? AND slot = ?", pkey, cls, slot); }

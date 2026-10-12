@@ -1,0 +1,143 @@
+// «Проклятые»: рейтинг игроков и просмотр персонажа (только публичные данные).
+// • Рейтинг считается на сервере из D1 (heroes + accounts), кэшируется на экземпляр не дольше RATING_TTL_MS.
+//   Игрок = лучший из его героев (уровень, затем опыт). Имя — из таблицы сайта users (по Clerk uid),
+//   гости — «Гость #xxxx» (стабильный хеш ключа профиля). Ключи профилей и uid наружу не отдаются:
+//   у строк — непрозрачный id (хеш), по которому можно открыть просмотр персонажа.
+// • Рекорд урона = самый сильный ОДИНОЧНЫЙ удар по монстру в открытом мире (Поляна, Аринар), посчитанный
+//   сервером (zone_attack / zone_ability: статы героя с сервера, крит и разброс — криптографический ГСЧ сервера,
+//   броня моба). Забеги симулируются на клиенте ведущего — их удары сервер проверить не может, поэтому в рекорд
+//   не идут (кап «максимально возможным уроном» сделал бы рекорд у всех одинаковым и подделываемым до капа).
+import { HERO_IDS, ITEM_BY_ID } from "./defs";
+import { heroEffective, equippedItems, fixAccount, newAccount, newHero, type Account, type Hero } from "./profile";
+import { ITEM_INDEX } from "./library";
+
+export const RATING_TTL_MS = 60_000;
+export const RATING_TOP = 100;
+
+export type LvlRow = { pkey: string; hero: string | null; lvl: number; xp: number };
+export type DmgRow = { pkey: string; hero: string; v: number; at: number; where: string };
+
+// FNV-1a 2×32 — синхронно (Worker и Node), стабильно между перезапусками
+export function opaqueId(pkey: string): string {
+  let h1 = 0x811c9dc5, h2 = 0x9e3779b9 ^ pkey.length;
+  for (let i = 0; i < pkey.length; i++) { const c = pkey.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 2246822519) >>> 0; }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+export function guestName(pkey: string): string {
+  return "Гость #" + parseInt(opaqueId("g|" + pkey).slice(0, 6), 36).toString(16).slice(-4).padStart(4, "0").toUpperCase();
+}
+const uidOf = (pkey: string) => (pkey.startsWith("uid:") ? pkey.slice(4) : null);
+const cleanName = (s: any) => (typeof s === "string" ? s.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 32) : "");
+
+export class Rating {
+  db: any;
+  at = 0;
+  building: Promise<void> | null = null;
+  lvl: LvlRow[] = [];
+  dmg: DmgRow[] = [];
+  lvlRank = new Map<string, number>();
+  dmgRank = new Map<string, number>();
+  names = new Map<string, string>();
+  byId = new Map<string, string>(); // opaque id → pkey (только строки, которые уже показывались)
+  builds = 0;
+  constructor(db: any) { this.db = db; }
+
+  async ensure(now = Date.now()) {
+    if (!this.db) return;
+    if (this.at && now - this.at < RATING_TTL_MS) return;
+    if (!this.building) this.building = this.build().finally(() => { this.building = null; });
+    await this.building;
+  }
+
+  async build() {
+    const db = this.db;
+    const [lv, dm] = await db.batch([
+      db.prepare(`SELECT pkey, hero, lvl, xp, acc_hero FROM (
+          SELECT h.pkey, h.hero, h.lvl, h.xp, json_extract(a.data, '$.hero') AS acc_hero,
+            ROW_NUMBER() OVER (PARTITION BY h.pkey ORDER BY h.lvl DESC, h.xp DESC, (h.hero = json_extract(a.data, '$.hero')) DESC, h.hero) AS rn
+          FROM heroes h LEFT JOIN accounts a ON a.pkey = h.pkey)
+        WHERE rn = 1 ORDER BY lvl DESC, xp DESC, pkey LIMIT 50000`),
+      db.prepare(`SELECT pkey, hero, max_dmg, max_dmg_at, max_dmg_where FROM (
+          SELECT pkey, hero, max_dmg, max_dmg_at, max_dmg_where, ROW_NUMBER() OVER (PARTITION BY pkey ORDER BY max_dmg DESC, max_dmg_at ASC) AS rn
+          FROM heroes WHERE max_dmg > 0)
+        WHERE rn = 1 ORDER BY max_dmg DESC, max_dmg_at ASC, pkey LIMIT 50000`),
+    ]);
+    // душа без героя (все герои ур. 1 без опыта и герой аккаунта не выбран) — в рейтинге без класса
+    this.lvl = (lv.results || []).map((r: any) => ({ pkey: r.pkey, hero: !r.acc_hero && r.lvl <= 1 && !r.xp ? null : r.hero, lvl: r.lvl, xp: r.xp }));
+    this.dmg = (dm.results || []).map((r: any) => ({ pkey: r.pkey, hero: r.hero, v: r.max_dmg, at: r.max_dmg_at || 0, where: r.max_dmg_where || "" }));
+    this.lvlRank = new Map(this.lvl.map((r, i) => [r.pkey, i + 1]));
+    this.dmgRank = new Map(this.dmg.map((r, i) => [r.pkey, i + 1]));
+    this.names = new Map();
+    await this.loadNames([...this.lvl.slice(0, RATING_TOP), ...this.dmg.slice(0, RATING_TOP)].map((r) => r.pkey));
+    this.at = Date.now();
+    this.builds++;
+  }
+
+  // имена зарегистрированных игроков — из таблицы сайта users (нет таблицы локально — гостевые имена не страдают)
+  async loadNames(pkeys: string[]) {
+    const uids = [...new Set(pkeys.map(uidOf).filter((u): u is string => !!u && !this.names.has("uid:" + u)))];
+    for (let i = 0; i < uids.length; i += 80) {
+      const part = uids.slice(i, i + 80);
+      try {
+        const r = await this.db.prepare(`SELECT id, username FROM users WHERE id IN (${part.map(() => "?").join(",")})`).bind(...part).all();
+        for (const row of r.results || []) { const n = cleanName(row.username); if (n) this.names.set("uid:" + row.id, n); }
+      } catch (_) { break; }
+    }
+    for (const u of uids) if (!this.names.has("uid:" + u)) this.names.set("uid:" + u, "Игрок #" + opaqueId(u).slice(0, 4).toUpperCase());
+  }
+  name(pkey: string): string { return pkey.startsWith("uid:") ? this.names.get(pkey) || "Игрок" : guestName(pkey); }
+
+  lvlView(r: LvlRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, lvl: r.lvl, xp: r.xp, me: r.pkey === me || undefined }; }
+  dmgView(r: DmgRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, v: r.v, at: r.at, where: r.where, me: r.pkey === me || undefined }; }
+
+  // Публичный вид рейтинга для игрока: топ-100 по обеим вкладкам + своё место (даже вне топа)
+  async view(me: string) {
+    await this.ensure();
+    if (uidOf(me) && !this.names.has(me)) await this.loadNames([me]);
+    const top = (rows: any[], f: (r: any, i: number) => any) => rows.slice(0, RATING_TOP).map((r, i) => f(r, i + 1));
+    const li = this.lvlRank.get(me), di = this.dmgRank.get(me);
+    return {
+      at: this.at, ttl: RATING_TTL_MS, total: { level: this.lvl.length, dmg: this.dmg.length },
+      level: { top: top(this.lvl, (r, i) => this.lvlView(r, i, me)), me: li ? this.lvlView(this.lvl[li - 1], li, me) : null },
+      dmg: { top: top(this.dmg, (r, i) => this.dmgView(r, i, me)), me: di ? this.dmgView(this.dmg[di - 1], di, me) : null },
+    };
+  }
+}
+
+// Профиль игрока «вне сети» — только для просмотра (в кэш профилей не попадает)
+export async function loadPublicProfile(db: any, pkey: string): Promise<{ a: Account; heroes: Record<string, Hero & { md?: number; mdW?: string }> } | null> {
+  const q = (sql: string) => db.prepare(sql).bind(pkey);
+  const [accR, heroR, eqR] = (await db.batch([
+    q("SELECT data FROM accounts WHERE pkey = ?"),
+    q("SELECT hero, lvl, xp, talents, abil, loadout, max_dmg, max_dmg_where FROM heroes WHERE pkey = ?"),
+    q("SELECT e.hero, e.slot, e.instance_id, i.item_id FROM hero_equipment e JOIN item_instances i ON i.instance_id = e.instance_id AND i.owner = e.pkey AND i.state = 'inv' WHERE e.pkey = ?"),
+  ])).map((r: any) => r.results || []);
+  if (!accR.length && !heroR.length) return null;
+  const a: Account = fixAccount({ ...newAccount(), ...(accR[0] ? JSON.parse(accR[0].data) : {}), inv: eqR.map((e: any) => ({ uid: e.instance_id, id: e.item_id })) } as Account);
+  const heroes: Record<string, any> = {};
+  for (const cls of HERO_IDS) {
+    const r = heroR.find((x: any) => x.hero === cls);
+    const h: any = r ? { ...newHero(cls), lvl: r.lvl, xp: r.xp, talents: JSON.parse(r.talents), abil: JSON.parse(r.abil), loadout: JSON.parse(r.loadout), equip: {}, md: r.max_dmg || 0, mdW: r.max_dmg_where || "" } : newHero(cls);
+    for (const e of eqR) if (e.hero === cls) h.equip[e.slot] = e.instance_id;
+    heroes[cls] = h;
+  }
+  return { a, heroes };
+}
+
+// Публичная карточка персонажа: имя, герой, уровень, надетое (иконка, редкость, статы), итоговые параметры
+// (как их считает сервер) и навыки раскладки с Сиянием. Без сумки, ресурсов, квестов, талантов, ключей.
+export function publicCharacter(name: string, cls: string, a: Account, h: Hero & { md?: number; mdW?: string }, base: any) {
+  const eff: any = heroEffective(a, h, cls, base);
+  const gear = equippedItems(a, h).map((e) => {
+    const it = ITEM_BY_ID[e.id];
+    return { slot: e.slot, n: ITEM_INDEX[e.id], id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: it.stats, icon: it.icon };
+  });
+  return {
+    name, cls, lvl: h.lvl, gear,
+    stats: { maxHp: eff.maxHp, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, dmgPct: eff.dmgPct, critPct: eff.critPct, atkSpeedPct: eff.atkSpeedPct,
+      speedPct: eff.speedPct, regen: eff.regen, lifestealPct: eff.lifestealPct, cdrPct: eff.cdrPct, magnetPct: eff.magnetPct, revive: eff.revive },
+    look: eff.look || null, wtype: eff.wtype,
+    abilities: eff.abilities.map((x: any) => ({ id: x.id, rad: x.rad, power: x.power, cd: x.cd })),
+    maxDmg: h.md ? { v: h.md, where: h.mdW || "" } : null,
+  };
+}

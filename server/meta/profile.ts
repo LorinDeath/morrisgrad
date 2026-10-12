@@ -27,6 +27,7 @@ export interface Hero {
   lvl: number; xp: number; talents: Record<string, number>; abil: Record<string, { rad: number; silenced?: boolean }>;
   loadout: string[]; equip: Record<string, string>; // слот → uid предмета из общей сумки
   tv?: number; // версия дерева талантов (heroes.talent_ver)
+  md?: number; mdAt?: number; mdW?: string; // рекорд одиночного удара в открытом мире (heroes.max_dmg / max_dmg_at / max_dmg_where; только сервер)
   refunded?: number; // не хранится: сколько очков вернули при загрузке (уведомление игроку)
 }
 

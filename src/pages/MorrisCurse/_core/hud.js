@@ -8,9 +8,9 @@ import { esc } from './ui/overlay.js';
 import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
-  constructor(container, { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun } = {}) {
+  constructor(container, { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect } = {}) {
     this.container = container;
-    this.cb = { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun };
+    this.cb = { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect };
     this.currentTarget = null;
     this.cache = {};
     this.mount();
@@ -75,6 +75,7 @@ export class GameHUD {
           <div class="hud-row"><span>⚔️ Урон:</span><b id="ghud-target-atk">-</b></div>
           <button class="hud-duel-btn" id="ghud-flower-touch-btn" style="display:none;background:#b91c1c;border-color:#f87171">🖐️ ТРОНУТЬ БУТОН (-1 HP)</button>
           <button class="hud-duel-btn" id="ghud-flower-pick-btn" style="display:none;background:#0284c7;border-color:#38bdf8">🌸 СОРВАТЬ (+20 🛡️ ЩИТ)</button>
+          <button class="hud-duel-btn" id="ghud-inspect-btn" style="display:none;background:#4c1d95;border-color:#a78bfa">👤 Посмотреть персонажа</button>
         </div>
       </div>
       <div class="hud-card">
@@ -84,6 +85,9 @@ export class GameHUD {
       <div class="hud-card">
         <div class="hud-header">РЯДОМ</div>
         <div id="ghud-nearby-list" class="hud-nearby-box"><div class="hud-empty">Никого</div></div>
+      </div>
+      <div class="hud-card hud-rating-card">
+        <button class="hud-duel-btn" id="ghud-rating-btn" style="margin:0;background:#78350f;border-color:#fbbf24">🏆 РЕЙТИНГ ИГРОКОВ</button>
       </div>`;
     if (canvas) {
       canvas.style.order = '2';
@@ -103,6 +107,9 @@ export class GameHUD {
     this.pickBtn = $('ghud-flower-pick-btn');
     this.touchBtn.onclick = () => { if (this.currentTarget) this.cb.onTouchFlower?.(this.currentTarget.id); };
     this.pickBtn.onclick = () => { if (this.currentTarget) { this.cb.onPickFlower?.(this.currentTarget.id); this.clearTarget(); } };
+    this.inspectBtn = $('ghud-inspect-btn');
+    this.inspectBtn.onclick = () => { if (this.currentTarget?.kind === 'player') this.cb.onInspect?.(this.currentTarget.id); };
+    $('ghud-rating-btn').onclick = () => this.cb.onRating?.();
     this.roomsBox = $('ghud-run-rooms');
     this.roomsBox.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-room]');
@@ -167,6 +174,7 @@ export class GameHUD {
       this.txt('ghud-target-atk', t.atk ?? '-');
       this.touchBtn.style.display = t.kind === 'flower' && t.stage === 'bud' ? '' : 'none';
       this.pickBtn.style.display = t.kind === 'flower' && t.stage === 'mature' ? '' : 'none';
+      this.inspectBtn.style.display = t.kind === 'player' ? '' : 'none';
     }
 
     // комнаты забегов

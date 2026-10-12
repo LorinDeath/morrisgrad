@@ -29,6 +29,7 @@ import { Overlay, esc } from './ui/overlay.js';
 import { RunUI } from './ui/runUI.js';
 import { ClassSelect } from './ui/classSelect.js';
 import { GameHUD } from './hud.js';
+import { Social } from './ui/social.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
 import { StatsUI, DEFAULT_STATS } from './playerStats.js';
 import { CLASSES, syncClassesFromServer } from './classes.js';
@@ -191,8 +192,11 @@ async function boot(canvasId, username, userId, api) {
     onPickFlower: (id) => send({ type: 'pick_flower', flowerId: id }),
     onEnterRun: (room) => requestRun(room, null),
     onLeaveRun: () => leaveRun(),
+    onRating: () => openRating(),
+    onInspect: (sid) => inspectPlayer(sid),
   });
   const touch = new TouchControls(overlay.layer, {
+    onRating: () => openRating(),
     onDash: () => { input.dashPressed = true; },
     onInteract: () => interact(),
     onAttack: (on) => { aim.touch = !!on; },
@@ -383,6 +387,48 @@ async function boot(canvasId, username, userId, api) {
   });
   net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests));
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
+  // Рейтинг и просмотр персонажа (данные — только от сервера)
+  const social = new Social({ overlay, send });
+  net.on('rating', (d) => social.onRating(d));
+  net.on('rating_err', (d) => social.onRatingErr(d));
+  net.on('inspect', (d) => social.onInspect(d));
+  net.on('inspect_err', (d) => social.onInspectErr(d));
+  function openRating() {
+    if (mode === 'run' && run && !run.ended) { overlay.toast('Рейтинг — после забега', '#94a3b8'); return; }
+    if (!net.isOpen()) { overlay.toast('Рейтинг доступен только онлайн', '#fca5a5'); return; }
+    if (book.isOpen) book.close();
+    if (social.isOpen && social.view === 'rating') { social.close(); return; }
+    social.openRating();
+  }
+  function inspectPlayer(sid) {
+    if (!net.isOpen() || !sid) return;
+    if (book.isOpen) book.close();
+    social.openInspect({ sid: String(sid) });
+  }
+  // кнопка рейтинга рядом с Книгой (окно без боковых панелей); на телефоне — в столбце кнопок (touchControls)
+  const rateBtn = document.createElement('button');
+  rateBtn.className = 'mc-ratebtn';
+  rateBtn.title = 'Рейтинг игроков';
+  rateBtn.textContent = '🏆';
+  rateBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); openRating(); });
+  overlay.layer.appendChild(rateBtn);
+  // выбранный игрок, когда боковой панели «Цель» не видно (телефон, окно): плашка с кнопкой просмотра
+  const tchip = document.createElement('div');
+  tchip.className = 'mc-tchip';
+  tchip.style.display = 'none';
+  tchip.innerHTML = '<div class="nm"></div><button class="mc-btn gold insp">👤 Посмотреть персонажа</button><button class="x" title="Снять выбор">✕</button>';
+  tchip.addEventListener('pointerdown', (e) => e.stopPropagation());
+  tchip.addEventListener('touchstart', (e) => { if (e.target.closest('button')) e.preventDefault(); }, { passive: false });
+  tchip.querySelector('.insp').addEventListener('pointerdown', (e) => { e.preventDefault(); const t = hud.currentTarget; if (t?.kind === 'player') inspectPlayer(t.id); });
+  tchip.querySelector('.x').addEventListener('pointerdown', (e) => { e.preventDefault(); hud.clearTarget(); updateTargetChip(); });
+  overlay.layer.appendChild(tchip);
+  function updateTargetChip() {
+    const t = hud.currentTarget;
+    const show = !!t && t.kind === 'player' && mode === 'hub' && !hud.left.offsetParent && others.has(t.id);
+    if (show) { const txt = `${t.name} · ${t.typeLabel || ''}`; const nm = tchip.querySelector('.nm'); if (nm.textContent !== txt) nm.textContent = txt; }
+    const disp = show ? '' : 'none';
+    if (tchip.style.display !== disp) tchip.style.display = disp;
+  }
   // Кнопка Книги со счётчиком «новое» (новые предметы в сумке, открытия Библиотеки и Бестиария)
   const bookBtn = document.createElement('button');
   bookBtn.className = 'mc-bookbtn';
@@ -1021,6 +1067,7 @@ async function boot(canvasId, username, userId, api) {
     hudAcc += dt;
     if (hudAcc > 0.15) {
       hudAcc = 0;
+      updateTargetChip();
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom,
         roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS,
