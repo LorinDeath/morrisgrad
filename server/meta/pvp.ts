@@ -13,10 +13,10 @@ import { WORLD_SIZES } from "../worlds/sizes";
 export const DUEL_INVITE_MS = 15_000;
 export const DUEL_COUNTDOWN_MS = 3_000;
 export const DUEL_FIGHT_MS = 180_000;
-export const CHALLENGE_GAP_MS = 4_000;      // не чаще одного вызова в 4 с
-export const CHALLENGE_PER_MIN = 6;          // и не больше 6 в минуту
-export const SAME_TARGET_GAP_MS = 20_000;    // повторный вызов того же игрока после отказа/таймаута
-export const PVP_ATK_MULT = 0.6;             // PvP-множители: бой длится десятки секунд, а не два удара
+export const CHALLENGE_GAP_MS = 4_000;
+export const CHALLENGE_PER_MIN = 6;
+export const SAME_TARGET_GAP_MS = 20_000;
+export const PVP_ATK_MULT = 0.6;
 export const PVP_ABIL_MULT = 0.45;
 export const HERO_R = 14;
 const ARENA = WORLD_SIZES.arena;
@@ -44,11 +44,11 @@ export interface PvpHost {
 
 export class Pvp {
   host: PvpHost;
-  invites = new Map<string, Invite>();          // по sid цели
+  invites = new Map<string, Invite>();
   duels = new Map<string, Duel>();
-  bySid = new Map<string, string>();            // sid → id дуэли
-  rl = new Map<string, number[]>();             // sid → времена вызовов
-  pairGap = new Map<string, number>();          // "from>to" → до какого момента нельзя снова
+  bySid = new Map<string, string>();
+  rl = new Map<string, number[]>();
+  pairGap = new Map<string, number>();
   constructor(host: PvpHost) { this.host = host; }
 
   inDuel(sid: string) { return this.bySid.has(sid); }
@@ -57,7 +57,6 @@ export class Pvp {
   private err(ws: WebSocket, message: string) { this.host.send(ws, { type: "duel_err", message }); }
   private pendingOf(sid: string) { for (const inv of this.invites.values()) if (inv.from === sid) return inv; return null; }
 
-  // общие условия: оба онлайн, герой выбран, не в забеге / старом бою / другой дуэли, живы, в одном открытом мире
   private eligible(s: any): string | null {
     const ms = this.host.ms.get(s?.id);
     if (!ms || !ms.ready) return "профиль ещё загружается";
@@ -130,7 +129,6 @@ export class Pvp {
   private start(a: [WebSocket, any], b: [WebSocket, any], now: number) {
     const id = crypto.randomUUID();
     const pair = [a, b];
-    // приглашения обоих (входящие и исходящие) снимаются
     for (const [, s] of pair) { this.invites.delete(s.id); const p = this.pendingOf(s.id); if (p) this.invites.delete(p.to); }
     const d: Duel = {
       id, sids: [a[1].id, b[1].id], pkeys: [this.host.ms.get(a[1].id).pkey, this.host.ms.get(b[1].id).pkey],
@@ -169,11 +167,10 @@ export class Pvp {
     d.ev = []; d.lastSent = now;
   }
 
-  // ——— бой ———
   private ctx(session: any) {
     const id = this.bySid.get(session.id);
     const d = id ? this.duels.get(id) : null;
-    if (!d || d.phase !== "fight") return null; // во время отсчёта урона нет
+    if (!d || d.phase !== "fight") return null;
     const i = d.sids[0] === session.id ? 0 : 1;
     const e = this.host.sessionLookup?.(d.sids[1 - i]);
     if (!e) return null;
@@ -241,7 +238,10 @@ export class Pvp {
     const def = ABILITY_BY_ID[ab.id];
     const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
     const radius = (ab.props.includes("extend") ? 200 : 140) * (1 + 0.15 * tmods);
-    c.d.ev.push({ k: "ability", sid: session.id, id: ab.id, x: Math.round(session.x), y: Math.round(session.y), r: radius });
+    let dx = Number(msg.dx), dy = Number(msg.dy);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) { dx = 0; dy = 1; }
+    const L = Math.hypot(dx, dy) || 1;
+    c.d.ev.push({ k: "ability", sid: session.id, id: ab.id, x: Math.round(session.x), y: Math.round(session.y), r: radius, dx: dx / L, dy: dy / L });
     if (Math.hypot(c.os.x - session.x, c.os.y - session.y) > radius + HERO_R) return;
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
     const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods) * PVP_ABIL_MULT;
@@ -250,7 +250,6 @@ export class Pvp {
   }
 
   leave(session: any, reason: "forfeit" | "disconnect") {
-    // приглашения с участием ушедшего
     const inc = this.invites.get(session.id);
     if (inc) { this.invites.delete(session.id); const e = this.host.sessionLookup?.(inc.from); if (e) this.host.send(e[0], { type: "duel_declined", name: this.host.displayName(session), gone: true }); }
     const out = this.pendingOf(session.id);
@@ -284,11 +283,10 @@ export class Pvp {
     }
   }
 
-  // Конец дуэли: результат обоим, запись в D1, оба — в Аринар (безопасная точка) с полным здоровьем
   finish(d: Duel, winner: 0 | 1 | null, reason: string, goneSid?: string) {
     if (d.phase === "over") return;
     const now = Date.now();
-    this.sendState(d, now); // последний удар/полоски — до экрана результата
+    this.sendState(d, now);
     d.phase = "over";
     this.duels.delete(d.id);
     const sd = this.sides(d);
@@ -302,7 +300,7 @@ export class Pvp {
       if (ms) { ms.zp.hp = ms.zp.maxHp; ms.zp.alive = true; ms.abilCd = {}; ms.lastAtk = 0; }
       const result = winner === null ? "draw" : winner === i ? "win" : "loss";
       const msg: any = { type: "pvp_end", id: d.id, result, reason, opp: d.names[1 - i], hp: hpPct[i], oppHp: hpPct[1 - i], dealt: d.hits[i], taken: d.hits[1 - i] };
-      if (reason === "disconnect" && d.sids[i] === goneSid) return; // отключившийся — сообщать некому, состояние очищено
+      if (reason === "disconnect" && d.sids[i] === goneSid) return;
       s.world = "arinar"; s.x = ZONE_RESPAWN.x; s.y = ZONE_RESPAWN.y;
       if (ms) { ms.zp.x = s.x; ms.zp.y = s.y; }
       this.host.send(ws, { type: "world_switched", world: "arinar", x: s.x, y: s.y });
