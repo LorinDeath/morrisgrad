@@ -19,6 +19,16 @@ const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal
 const HIT_FOR = { spear: 'hit', daggers: 'hit_bleed', soul_spark: 'hit_ice', staff_bolt: 'hit_arcane', ab_backstab: 'hit_ice', thorn_bow: 'hit_bleed', war_axe: 'hit', fly_blades: 'hit_bleed', chain_bolt: 'hit_arcane' };
 const PX = 20;
 
+// Уникальные визуалы навыков для открытого мира и дуэлей (только визуал, урон не меняется)
+const ABILITY_FX = {
+  pierce: { kind: 'spear', shot: 'ab_pierce', count: 1, spread: 0, speed: 28, life: 1.4, size: 1.1 },
+  backstab: { kind: 'fan', shot: 'ab_backstab', count: 8, spread: 0.9, speed: 16, life: 0.7, size: 0.8 },
+  trick_strike: { kind: 'ring', shot: 'ab_trick', count: 14, speed: 14, life: 0.8, size: 0.55 },
+  fireball: { kind: 'ball', shot: 'ab_fireball', speed: 12, life: 1.1, size: 1.4, explode: true },
+  spear_rain: { kind: 'rain', shot: 'spear', count: 12, speed: 18, life: 1.0, size: 0.7 },
+  leap_strike: { kind: 'leap', shot: 'ab_backstab', speed: 22, life: 0.6, size: 0.9 },
+};
+
 export class ZoneView {
   constructor(THREE, parent) {
     this.THREE = THREE;
@@ -26,11 +36,12 @@ export class ZoneView {
     this.root.name = 'zone';
     parent.add(this.root);
     this.world = null;
-    this.mobs = new Map(); // id → {type,x,y,tx,ty,hp,flag,flash,flip,seen}
-    this.nodes = new Map(); // id → {def, ready, mesh}
+    this.mobs = new Map();
+    this.nodes = new Map();
     this.dying = [];
-    this.teles = []; // {kind,x,y,r,dx,dy,len,t,life}
+    this.teles = [];
     this.bolts = [];
+    this.abilBolts = []; // визуальные снаряды навыков
     this.me = { hp: 0, maxHp: 0, alive: true };
     this.lastState = 0;
     this.time = 0;
@@ -48,13 +59,11 @@ export class ZoneView {
     const rg = new THREE.RingBufferGeometry(0.86, 1, 32); rg.rotateX(-Math.PI / 2);
     const lg = new THREE.PlaneBufferGeometry(1, 1); lg.rotateX(-Math.PI / 2); lg.translate(0, 0, 0.5);
     this.fill = decal(cg, 48, 0.3); this.ring = decal(rg, 64, 0.8); this.line = decal(lg, 32, 0.35);
-    // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
     this.pfx = new ProjFx(THREE, this.root, { max: 400, glowMax: 500 });
     this.hits = [];
     this.seed = ZONE_GEN.seed;
     this.d = new THREE.Object3D();
     this.col = new THREE.Color();
-    // узлы ресурсов — пиксельные пропсы из props_atlas (тот же стиль, что земля и деревья)
     this.nodeBatch = null;
     this.beast = null;
     loadBeastBatch(THREE, 320).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
@@ -69,12 +78,11 @@ export class ZoneView {
   setWorld(world) {
     if (world === this.world) return;
     this.world = world;
-    this.mobs.clear(); this.dying.length = 0; this.teles.length = 0;
+    this.mobs.clear(); this.dying.length = 0; this.teles.length = 0; this.abilBolts.length = 0;
     this.nodes.clear();
     if (world === 'arinar') this.buildNodes(this.seed);
   }
 
-  // Узлы ресурсов — из того же сида, что и на сервере (server/meta/zoneGen.ts)
   buildNodes(seed) {
     this.nodes.clear();
     this.seed = seed;
@@ -83,7 +91,6 @@ export class ZoneView {
     });
   }
 
-  // zone_state от сервера
   applyState(s, myId) {
     if (s.w !== this.world) return;
     this.lastState = this.time;
@@ -114,14 +121,43 @@ export class ZoneView {
       else if (e.k === 'slam') this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.35 });
       else if (e.k === 'tele') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 });
       else if (e.k === 'tele_circle') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
-      else if (e.k === 'ability') this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.4, color: 0xfde68a });
+      else if (e.k === 'ability') this.spawnAbilityFx(e);
       else if (e.k === 'phit' && e.sid === myId) out.push({ k: 'hurt', d: e.d });
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }
     return out;
   }
 
-  // Ближайший живой моб в радиусе атаки сервера
+  // Визуал навыка по id (только клиент, урон не меняется)
+  spawnAbilityFx(e) {
+    const fx = ABILITY_FX[e.id] || { kind: 'boom', shot: 'ab_pierce' };
+    const dx = e.dx ?? 0, dy = e.dy ?? 1;
+    const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L;
+    if (fx.kind === 'spear' || fx.kind === 'ball' || fx.kind === 'leap') {
+      this.abilBolts.push({ x: e.x, y: e.y, vx: ux * (fx.speed || 20), vy: uy * (fx.speed || 20), t: 0, life: fx.life || 1, shot: fx.shot, size: fx.size || 1, seed: Math.random() * 8 });
+    } else if (fx.kind === 'fan') {
+      const n = fx.count || 6;
+      for (let i = 0; i < n; i++) {
+        const a = Math.atan2(uy, ux) + (i - (n - 1) / 2) * (fx.spread || 0.6) / n;
+        this.abilBolts.push({ x: e.x, y: e.y, vx: Math.cos(a) * fx.speed, vy: Math.sin(a) * fx.speed, t: 0, life: fx.life, shot: fx.shot, size: fx.size, seed: Math.random() * 8 });
+      }
+    } else if (fx.kind === 'ring') {
+      const n = fx.count || 12;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        this.abilBolts.push({ x: e.x, y: e.y, vx: Math.cos(a) * fx.speed, vy: Math.sin(a) * fx.speed, t: 0, life: fx.life, shot: fx.shot, size: fx.size, seed: Math.random() * 8 });
+      }
+    } else if (fx.kind === 'rain') {
+      for (let i = 0; i < (fx.count || 10); i++) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * (e.r || 140) * 0.7;
+        this.abilBolts.push({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r, vx: 0, vy: -fx.speed, t: 0, life: fx.life, shot: fx.shot, size: fx.size, seed: Math.random() * 8 });
+      }
+    }
+    // всегда добавляем небольшой boom для ощущения удара
+    this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: Math.min(e.r || 140, 180), t: 0, life: 0.35, color: 0xfde68a });
+  }
+
   nearestMob(px, py, range = ZONE_ATTACK_RANGE) {
     let best = null, bd = range;
     for (const o of this.mobs.values()) {
@@ -151,14 +187,11 @@ export class ZoneView {
   resName(res) { return RESOURCES[res]?.name || res; }
   gatherTime() { return GATHER_TIME_MS; }
 
-  // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
-  // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара
   shoot(fromX, fromY, mob, wtype, tx, ty) {
     if (this.bolts.length >= 64) return;
     const W = WEAPON_TYPES[wtype] || WEAPON_TYPES.book;
     this.bolts.push({ x: fromX, y: fromY, mob, lx: tx, ly: ty, t: 0, shot: W.shot, seed: Math.random() * 8, arc: W.atk.kind === 'arc' });
   }
-  // Клиентский прогноз удара по направлению (та же форма, что на сервере: zone.ts targetsInDir) — для визуала
   aimTargets(px, py, dx, dy, wtype) {
     const A = (WEAPON_TYPES[wtype] || WEAPON_TYPES.book).atk;
     const out = [];
@@ -179,7 +212,6 @@ export class ZoneView {
     out.sort((a, b) => a[1] - b[1]);
     return { atk: A, list: out.slice(0, A.kind === 'proj' ? 1 : (A.max || 1)).map((x) => x[0]) };
   }
-  // Автонаведение (телефон): ближайший моб в секторе взгляда, иначе ближайший в радиусе атаки
   assistDir(px, py, fx, fy, wtype) {
     const A = (WEAPON_TYPES[wtype] || WEAPON_TYPES.book).atk;
     let best = null, bs = -Infinity;
@@ -251,7 +283,6 @@ export class ZoneView {
         if (BB && BEAST_ROW[dd.type] !== undefined) continue;
         B.push(toX(dd.x), 0, toZ(dd.y), (MOB_HEIGHT[dd.type] || 2) * (dd.boss ? 1.2 : 1), 8 + Math.min(3, Math.floor(kk * 4)), MOB_ROWS[dd.type] ?? 6, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.6);
       }
-      // NPC мира
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || MOB_ROWS[id] === undefined) continue;
         B.push(toX(n.x), 0, toZ(n.y), MOB_HEIGHT[id] || 2.5, (Math.floor(T * 2.5 + n.x) & 3), MOB_ROWS[id], false, 1, 1, 1, 0, 1);
@@ -259,7 +290,6 @@ export class ZoneView {
       }
       B.end();
     }
-    // ресурсы: готовые — светятся и покачиваются
     const NB = this.nodeBatch;
     if (NB) {
       NB.begin();
@@ -273,7 +303,6 @@ export class ZoneView {
       }
       NB.end();
     }
-    // телеграфы и эффекты
     const d = this.d;
     let nf = 0, nr = 0, nl = 0;
     const put = (im, i, x, z, sx, sz, rot, r, g, b) => { d.position.set(x, 0.06 + i * 0.0005, z); d.rotation.set(0, rot, 0); d.scale.set(sx, 1, sz); d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, this.col.setRGB(r, g, b)); };
@@ -292,7 +321,6 @@ export class ZoneView {
     }
     this.fill.count = nf; this.ring.count = nr; this.line.count = nl;
     for (const im of [this.fill, this.ring, this.line]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
-    // снаряды базовой атаки, вспышки попаданий, значки статусов — спрайты из proj_atlas
     const P = this.pfx;
     P.begin(dt);
     for (let i = this.bolts.length - 1; i >= 0; i--) {
@@ -302,7 +330,7 @@ export class ZoneView {
       if (tx === undefined) { this.bolts.splice(i, 1); continue; }
       b.lx = tx; b.ly = ty;
       const dist = Math.hypot(tx - b.x, ty - b.y) / PX;
-      b.t += dt * (b.arc ? 6 : Math.max(2.6, 22 / Math.max(1, dist))); // ~22 м/с, но не дольше ~0.4 с
+      b.t += dt * (b.arc ? 6 : Math.max(2.6, 22 / Math.max(1, dist)));
       if (b.t >= 1) {
         this.bolts.splice(i, 1);
         if (this.hits.length < 48 && (m || b.arc)) this.hits.push({ x: toX(tx), z: toZ(ty), row: HIT_FOR[b.shot] || 'hit', t: 0 });
@@ -310,6 +338,14 @@ export class ZoneView {
       }
       const x = b.x + (tx - b.x) * b.t, y = b.y + (ty - b.y) * b.t;
       P.shot(b.shot, toX(x), toZ(y), (tx - b.x) / PX * 3, (ty - b.y) / PX * 3, b.t * 0.4, b.seed, 1, 1, 1.2);
+    }
+    // визуальные снаряды навыков
+    for (let i = this.abilBolts.length - 1; i >= 0; i--) {
+      const b = this.abilBolts[i];
+      b.t += dt;
+      if (b.t >= b.life) { this.abilBolts.splice(i, 1); continue; }
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      P.shot(b.shot, toX(b.x), toZ(b.y), b.vx / PX * 2, b.vy / PX * 2, b.t, b.seed, b.size || 1, 1, 1.1);
     }
     for (let i = this.hits.length - 1; i >= 0; i--) {
       const h = this.hits[i];
