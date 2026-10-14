@@ -1,6 +1,6 @@
 // Разбор: одиночный = логика по умолчанию/админки; массовый = ровно сумма одиночных; превью = результат; навык R из админки важнее выпавшего
 import { newAccount, newHero, salvage, salvagePreview, salvageMany, weaponSkill } from "./profile";
-import { ITEMS, ITEM_BY_ID, salvageDefault } from "./defs";
+import { ITEMS, ITEM_BY_ID, salvageDefault, weaponType } from "./defs";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 let fail = 0; const ok = (c: boolean, m: string) => { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + m); };
 const byR = (r: string) => ITEMS.filter((i: any) => i.rarity === r && i.slot !== "weapon");
@@ -23,5 +23,8 @@ const rare = byR("rare"), h = newHero("warrior");
 { const w: any = ITEMS.find((i: any) => i.slot === "weapon"), a = mk(); a.inv = [{ uid: "wp", id: w.id, at: 0, rs: "spear" }]; const hh = newHero("warrior"); hh.equip = { weapon: "wp" };
   ok(weaponSkill(a, hh) === "spear", "без правки — навык экземпляра");
   const v = validatePatch("item", w.id, { rs: "fire_spark" }); applyOverride("item", w.id, v); ok(weaponSkill(a, hh) === "fire_spark", "навык оружия из админки важнее выпавшего");
-  ok(typeof validatePatch("item", rare[0].id, { rs: "spear" }) === "string", "навык R не у оружия — отклонён"); applyOverride("item", w.id, null); }
+  ok(typeof validatePatch("item", rare[0].id, { rs: "spear" }) === "string", "навык R не у оружия — отклонён"); applyOverride("item", w.id, null);
+  const wt = weaponType(w.id, null), vt = validatePatch("weapon", wt, { rs: "moon_orb" }); applyOverride("weapon", wt, vt);
+  ok(weaponSkill(a, hh) === "moon_orb", `навык для типа оружия (${wt}) из админки важнее выпавшего`); applyOverride("weapon", wt, null);
+  ok(weaponSkill(a, hh) === "spear", "сброс — снова навык экземпляра"); }
 if (fail) { console.log(fail + " FAIL"); process.exit(1); } console.log("salvage ok");

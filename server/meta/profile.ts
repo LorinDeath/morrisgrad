@@ -8,7 +8,7 @@
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
-  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield,
+  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 
@@ -320,7 +320,8 @@ export function rollRunSkill(a: Account, it: InvItem, kind: "mob" | "rare" | "bo
 export function weaponSkill(a: Account, h: Hero | null): string | null {
   const uid = h?.equip?.weapon; if (!uid) return null;
   const inst = a.inv.find((i) => i.uid === uid); if (!inst) return null;
-  const adm = (ITEM_BY_ID as any)[inst.id]?.rs; // навык, назначенный оружию в админке, важнее выпавшего у экземпляра
+  // навык из админки важнее выпавшего у экземпляра: сначала у предмета, затем у типа оружия
+  const adm = (ITEM_BY_ID as any)[inst.id]?.rs || (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs;
   const rs = adm && RUN_SKILL_BY_ID[adm] ? adm : inst.rs;
   return rs && RUN_SKILL_BY_ID[rs] ? rs : null;
 }
