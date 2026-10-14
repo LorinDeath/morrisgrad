@@ -87,6 +87,21 @@ const R = (n: number) => Math.round(n);
 export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_orb", "split_shard", "thorn_bow", "spear", "pierce", "daggers", "sun_beam", "ice_fan", "chain_bolt",
   "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws"]);
 // спрайт снаряда автоатаки по типу оружия (открытый мир и дуэли)
+/** Точка вылета и прицел выстрела. Клиент присылает свою отрисованную позицию героя (ox, oy) и точку курсора (tx, ty):
+ *  сервер принимает исходную точку, только если она ближе SHOT_TOL к серверной позиции (лаг движения ≤ ~100 мс при 175–250 px/с),
+ *  иначе — серверная позиция. Направление — от принятой точки к курсору (так снаряд идёт ровно в курсор), иначе — вектор dx/dy. */
+export const SHOT_TOL = 96;
+export function shotAim(sx: number, sy: number, msg: any, lo = -Infinity, hi = Infinity): { x: number; y: number; dx: number; dy: number; client: boolean } {
+  const ox = Number(msg?.ox), oy = Number(msg?.oy);
+  const client = Number.isFinite(ox) && Number.isFinite(oy) && Math.hypot(ox - sx, oy - sy) <= SHOT_TOL;
+  const x = client ? Math.max(lo, Math.min(hi, ox)) : sx, y = client ? Math.max(lo, Math.min(hi, oy)) : sy;
+  let dx = Number(msg?.dx), dy = Number(msg?.dy);
+  const tx = Number(msg?.tx), ty = Number(msg?.ty);
+  if (Number.isFinite(tx) && Number.isFinite(ty) && Math.hypot(tx - x, ty - y) > 6) { dx = tx - x; dy = ty - y; }
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 0; }
+  const L = Math.hypot(dx, dy) || 1;
+  return { x, y, dx: dx / L, dy: dy / L, client };
+}
 export const AUTO_SPRITE: Record<string, string> = { daggers: "auto_daggers", book: "auto_staff", staff: "auto_staff", bow: "auto_bow", fly_blades: "auto_claws", spear: "spear" };
 export function projSprite(id: string, fb: string): string {
   const k = id.startsWith("rs:") ? id.slice(3) : id; const b = (ABILITY_BY_ID as any)[id]?.base;

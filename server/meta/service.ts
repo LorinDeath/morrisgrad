@@ -12,7 +12,7 @@ import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
 // спрайт снаряда автоатаки по типу оружия (атлас projectiles.png)
-import { AUTO_SPRITE } from "./abilityShapes";
+import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
@@ -755,20 +755,26 @@ export class MetaService {
     const ms = this.ms.get(session.id)!;
     const zone = this.zoneOf(session);
     if (!zone || !ms.zp.alive) return;
-    ms.zp.x = session.x; ms.zp.y = session.y;
     const eff = this.effective(session);
     const now = Date.now();
     const wt = eff.wtype || "book";
+    // точка вылета = отрисованный центр героя у клиента (в допуске SHOT_TOL от серверной позиции), прицел — точка курсора;
+    // автоатака по выбранной цели (msg.mob): сервер сам целит в ТЕКУЩУЮ позицию этого моба, если он в досягаемости
+    const [blo, bhi] = worldBounds(session.world);
+    const aimR = shotAim(session.x, session.y, msg, blo, bhi);
+    const ox = aimR.x, oy = aimR.y;
+    ms.zp.x = ox; ms.zp.y = oy;
     const W = WEAPON_TYPES[wt] || WEAPON_TYPES.book;
     // темп удара по оружию: допуск 15% на сетевой джиттер, но средний темп не выше cd (следующий слот = max(now, прежний) + cd)
     const atkCd = W.cd / (1 + Math.max(0, eff.atkSpeedPct || 0) / 100);
     if (now < ms.lastAtk - atkCd * 0.15) return;
-    let dx = Number(msg.dx), dy = Number(msg.dy);
-    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) {
-      const m0 = zone.mobs.find((x) => x.id === Number(msg.mob) && !x.dead);
-      if (!m0) return;
-      dx = m0.x - session.x; dy = m0.y - session.y;
+    let dx = aimR.dx, dy = aimR.dy;
+    const lockId = Number(msg.mob);
+    if (lockId) { // выбранная цель: точно в неё (сервер-авторитет: моб жив и в пределах дальности оружия ×1.6)
+      const m0 = zone.byId.get(lockId);
+      if (m0 && !m0.dead && Math.hypot(m0.x - ox, m0.y - oy) <= Math.max(160, W.atk.range * 1.6)) { dx = m0.x - ox; dy = m0.y - oy; }
     }
+    if (Math.hypot(dx, dy) < 0.01) return;
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     ms.lastAtk = Math.max(now, ms.lastAtk) + atkCd; // lastAtk хранит момент следующего разрешённого удара
     ms.wt = wt;
@@ -786,7 +792,7 @@ export class MetaService {
       const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
       const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
       this.noteHit(session, real, m.type);
-      if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, session.x, session.y);
+      if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, ox, oy);
       if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
       if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traits);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
@@ -794,11 +800,11 @@ export class MetaService {
     for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
       if (W.atk.kind === "arc") {
         const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
-        zone.events.push({ k: "shot", sid: session.id, x: session.x, y: session.y, tx: Math.round(session.x + vx * reach), ty: Math.round(session.y + vy * reach), w: wt });
+        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt });
         targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
       } else {
         const line = W.atk.kind === "line";
-        zone.fire({ o: "p", sid: session.id, t: AUTO_SPRITE[wt] || "auto_staff", x: session.x, y: session.y, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1,
+        zone.fire({ o: "p", sid: session.id, t: AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1,
           onHit: (m: any, i: number) => applyHit(m, per * (i === 0 ? 1 : line ? 0.7 : 0.8)) });
       }
     }
@@ -877,6 +883,9 @@ export class MetaService {
     if ((ms.abilCd[cdKey] || 0) > now) { this.send(ws, { type: "ability_cd", id: ab.id, left: ms.abilCd[cdKey] - now, cd: ab.cd, ok: false }); return; }
     ms.abilCd[cdKey] = now + ab.cd * 1000;
     this.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
+    const [blo, bhi] = worldBounds(session.world);
+    const aimR = shotAim(session.x, session.y, msg, blo, bhi); // вылет из отрисованного центра героя (в допуске), прицел — курсор
+    if (aimR.client) { session.x = aimR.x; session.y = aimR.y; }
     ms.zp.x = session.x; ms.zp.y = session.y;
     const def = ABILITY_BY_ID[ab.id];
     // в открытом мире навыки — упрощённая область; каждый модификатор из дерева талантов (t_*) даёт +15% радиуса и урона
@@ -885,9 +894,8 @@ export class MetaService {
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
     const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods);
     // направление от клиента — только единичный вектор; дальность/цели/позиции — сервер (meta/abilityShapes.ts)
-    let dx = Number(msg.dx), dy = Number(msg.dy);
-    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }
-    const L = Math.hypot(dx, dy); dx /= L; dy /= L;
+    let dx = aimR.dx, dy = aimR.dy;
+    if (Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }
     const world = session.world || "hellfire";
     const sid = session.id;
     const dealt = castShape(ab.id, {

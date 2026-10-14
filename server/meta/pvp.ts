@@ -9,10 +9,10 @@
 import { WEAPON_TYPES, ABILITY_BY_ID, ZONE_RESPAWN, volleyDirs } from "./defs";
 import { traitsFor, applyTraits } from "./admin";
 import { cryptoRand } from "./profile";
-import { castShape, AUTO_SPRITE } from "./abilityShapes";
+import { castShape, AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { PROJ_SPEED } from "./zone";
 const W_ARENA = WORLD_SIZES.arena;
-import { WORLD_SIZES } from "../worlds/sizes";
+import { WORLD_SIZES, worldBounds } from "../worlds/sizes";
 
 export const DUEL_INVITE_MS = 15_000;
 export const DUEL_COUNTDOWN_MS = 3_000;
@@ -181,12 +181,12 @@ export class Pvp {
   }
 
   // ——— снаряды дуэли ———
-  fire(d: Duel, owner: 0 | 1, o: { t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number; spd?: number; arc?: boolean; onHit?: (i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void }) {
+  fire(d: Duel, owner: 0 | 1, o: { t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number; spd?: number; arc?: boolean; cid?: number; onHit?: (i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void }) {
     d.projs ||= []; if (d.projs.length > 60) return null;
     const L = Math.hypot(o.dx, o.dy) || 1;
     const p: DuelProj = { id: (d.nextProj = (d.nextProj || 0) + 1), owner, n: 0, flown: 0, spd: o.spd || PROJ_SPEED[o.t] || PROJ_SPEED.default, ...o, dx: o.dx / L, dy: o.dy / L };
     d.projs.push(p);
-    d.ev.push({ k: "proj", id: p.id, o: "p", sid: d.sids[owner], t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
+    d.ev.push({ k: "proj", cid: (o as any).cid, id: p.id, o: "p", sid: d.sids[owner], t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
     return p;
   }
   /** шаги не длиннее половины ширины снаряда: попадание по текущей позиции соперника */
@@ -290,8 +290,10 @@ export class Pvp {
     const W = WEAPON_TYPES[wt] || WEAPON_TYPES.book;
     const atkCd = W.cd / (1 + Math.max(0, eff.atkSpeedPct || 0) / 100);
     if (now < c.me.lastAtk - atkCd * 0.15) return;
-    let dx = Number(msg.dx), dy = Number(msg.dy);
-    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = c.os.x - session.x; dy = c.os.y - session.y; }
+    // вылет из отрисованного центра героя (допуск SHOT_TOL), прицел — курсор; автоатака по сопернику (mob = -1) — точно в него
+    const [blo, bhi] = worldBounds("arena"), A = shotAim(session.x, session.y, msg, blo, bhi), ox = A.x, oy = A.y;
+    let dx = A.dx, dy = A.dy;
+    if (Number(msg.mob) === -1 || Math.hypot(dx, dy) < 0.01) { dx = c.os.x - ox; dy = c.os.y - oy; }
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     c.me.lastAtk = Math.max(now, c.me.lastAtk) + atkCd;
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
@@ -299,7 +301,7 @@ export class Pvp {
     if (W.atk.kind !== "arc") { // стрелковое оружие: настоящие снаряды, урон при касании (можно увернуться)
       const c0 = c, d0 = c.d;
       for (const [vx, vy] of volleyDirs(W.atk, dx, dy))
-        this.fire(d0, c.i as 0 | 1, { t: AUTO_SPRITE[wt] || "auto_staff", x: session.x, y: session.y, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
+        this.fire(d0, c.i as 0 | 1, { t: AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
           onHit: () => { if (!this.duels.has(d0.id) || c0.op.zp.hp <= 0) return; const crit = cryptoRand() * 100 < eff.critPct; const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
             const real = this.deal(c0, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per, crit, eff); this.traits(c0, session, real, wt); this.weaponStatus(c0, session, W, real); } });
       return;
@@ -333,8 +335,10 @@ export class Pvp {
     const def = ABILITY_BY_ID[ab.id];
     const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
     // те же формы, что в открытом мире (abilityShapes.ts): соперник — единственная «цель»; направление от клиента
-    let dx = Number(msg.dx), dy = Number(msg.dy);
-    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = c.os.x - session.x; dy = c.os.y - session.y; }
+    const [blo, bhi] = worldBounds("arena"), A = shotAim(session.x, session.y, msg, blo, bhi);
+    if (A.client) { session.x = A.x; session.y = A.y; c.me.zp.x = A.x; c.me.zp.y = A.y; }
+    let dx = A.dx, dy = A.dy;
+    if (Math.hypot(dx, dy) < 0.01) { dx = c.os.x - session.x; dy = c.os.y - session.y; }
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
     const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods) * PVP_ABIL_MULT;

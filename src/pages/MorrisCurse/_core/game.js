@@ -985,6 +985,20 @@ async function boot(canvasId, username, userId, api) {
     const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy);
     return d > 1 ? { x: dx / d, y: dy / d } : null;
   }
+  // точка вылета = отрисованный центр героя, прицел = точка курсора на земле (сервер проверяет допуск, см. abilityShapes.shotAim)
+  let shotCid = 0;
+  function shotMsg(dir, extra = {}) {
+    const m = { dx: Math.round(dir.x * 1000) / 1000, dy: Math.round(dir.y * 1000) / 1000, ox: Math.round(player.x), oy: Math.round(player.y), cid: (shotCid = (shotCid % 1e6) + 1), ...extra };
+    if (!('tx' in extra) && aim.x != null && !aim.touch && aim.cx != null) { m.tx = Math.round(aim.x); m.ty = Math.round(aim.y); }
+    if (m.tx == null || m.ty == null) { delete m.tx; delete m.ty; } // без курсора (телефон/автоцель) — только направление
+    return m;
+  }
+  // выбранный враг (клик по мобу → панель «Цель»; на арене — соперник): автоатака бьёт точно в него
+  function lockedTarget() {
+    if (world === 'arena') { const o = others.get(duel.oppSid?.()); return o ? { x: o.x, y: o.y, mob: -1 } : null; }
+    const ct = hud.currentTarget; if (ct?.kind !== 'mob') return null;
+    const o = zone.mobs.get(ct.id); return o && !o.dead ? { x: o.x, y: o.y, mob: ct.id } : null;
+  }
   function clickHitsInteractive(px, py) {
     for (const n of Object.values(NPCS)) if (n.world === world && Math.hypot(n.x - px, n.y - py) < 40) return true;
     for (const n of zone.nodes.values()) if (Math.hypot(n.def.x - px, n.def.y - py) < 40) return true;
@@ -1020,7 +1034,7 @@ async function boot(canvasId, username, userId, api) {
     const ad = aimDir();
     if (ad) { adx = ad.x; ady = ad.y; }
     else if (aim.touch || aim.cx == null) { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
-    send({ type: 'zone_ability', id: 'rs', dx: Math.round(adx * 1000) / 1000, dy: Math.round(ady * 1000) / 1000 });
+    send({ type: 'zone_ability', id: 'rs', ...shotMsg({ x: adx, y: ady }, ad ? {} : { tx: null, ty: null }) });
     overlay.toast(`${RUN_SKILL_BY_ID[rs]?.icon || '✦'} ${RUN_SKILL_BY_ID[rs]?.name || rs}`, '#fde68a');
   }
   function useAbility(slot) {
@@ -1037,7 +1051,7 @@ async function boot(canvasId, username, userId, api) {
     const ad = aimDir();
     if (ad) { adx = ad.x; ady = ad.y; }
     else if (aim.touch || aim.cx == null) { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
-    send({ type: 'zone_ability', id: ab.id, dx: Math.round(adx * 1000) / 1000, dy: Math.round(ady * 1000) / 1000 });
+    send({ type: 'zone_ability', id: ab.id, ...shotMsg({ x: adx, y: ady }, ad ? {} : { tx: null, ty: null }) });
     overlay.toast(`${ABILITY_BY_ID[ab.id]?.icon || '✦'} ${ABILITY_BY_ID[ab.id]?.name || ab.id}`, '#fde68a');
   }
   // панель действий: навыки раскладки + рывок + атака (мир) / навыки + рывок + оружие и пассивки (забег)
@@ -1532,7 +1546,7 @@ async function boot(canvasId, username, userId, api) {
     const wt = zone.myWeaponType(player.stats.classId);
     const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
     if (now - zoneSt.lastAtk < atkMs) return;
-    let dir = null;
+    let dir = null, lock = null;
     if (aim.held) {
       // мышь: удар в сторону курсора (точка на земле пересчитывается каждый удар)
       dir = aimDir() || { x: player.dirX || 0, y: player.dirY || 1 };
@@ -1542,15 +1556,25 @@ async function boot(canvasId, username, userId, api) {
       dir = { x: dx / d, y: dy / d };
     } else if (aim.touch) {
       dir = zone.assistDir(player.x, player.y, player.dirX || 0, player.dirY || 1, wt);
+    } else if (autoAttack && (lock = lockedTarget())) {
+      // автоатака + выбранный враг: точно в него (сервер сам целит в его текущую позицию по msg.mob)
+      const dx = lock.x - player.x, dy = lock.y - player.y, d = Math.hypot(dx, dy) || 1; dir = { x: dx / d, y: dy / d };
     } else if (autoAttack && aimDir()) {
-      dir = aimDir(); // автоатака (доступность): автоповтор, но направление — всё равно курсор игрока
+      dir = aimDir(); // автоатака без цели: в сторону курсора
     } else if (autoAttack) {
       const target = zone.nearestMob(player.x, player.y);
       if (target) { const dx = target.x - player.x, dy = target.y - player.y, d = Math.hypot(dx, dy) || 1; dir = { x: dx / d, y: dy / d }; }
     }
     if (!dir) return;
     zoneSt.lastAtk = now;
-    send({ type: 'zone_attack', dx: Math.round(dir.x * 1000) / 1000, dy: Math.round(dir.y * 1000) / 1000 });
+    const sm = shotMsg(dir, lock ? { mob: lock.mob, tx: Math.round(lock.x), ty: Math.round(lock.y) } : aim.held || autoAttack ? {} : { tx: null, ty: null });
+    send({ type: 'zone_attack', ...sm });
+    { // стрелковое оружие: свой снаряд рисуем сразу из центра героя (подтвердит сервер тем же cid)
+      const W0 = WEAPON_TYPES[wt] || WEAPON_TYPES.book;
+      if (W0.atk.kind !== 'arc' && zone.pax) { zone.pax.meSid = myId; const t = { daggers: 'auto_daggers', book: 'auto_staff', staff: 'auto_staff', bow: 'auto_bow', fly_blades: 'auto_claws', spear: 'spear' }[wt] || 'auto_staff'; // = AUTO_SPRITE сервера
+        const tx = sm.tx ?? player.x + dir.x * 100, ty = sm.ty ?? player.y + dir.y * 100, L = Math.hypot(tx - player.x, ty - player.y) || 1, ux = (tx - player.x) / L, uy = (ty - player.y) / L;
+        for (const [vx, vy] of volleyDirs(W0.atk, ux, uy)) zone.pax.predict(sm.cid, t, player.x, player.y, vx, vy, W0.atk.range, { auto_bow: 900, auto_daggers: 760, auto_staff: 620, auto_claws: 700, spear: 820 }[t] || 640); }
+    }
     // залп (кинжалы ×2, лапки-лезвия ×5) — та же раскладка направлений, что на сервере (shared.volleyDirs)
     let anyHit = false; zoneSt.lastVolley = 0;
     for (const [vx, vy] of volleyDirs((WEAPON_TYPES[wt] || WEAPON_TYPES.book).atk, dir.x, dir.y)) {

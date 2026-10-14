@@ -26,6 +26,7 @@ export function projInfo(t) {
 
 export class ProjAtlasFx {
   constructor(THREE, parent, toX, toZ) {
+    this.pred = {}; this.meSid = null;
     this.THREE = THREE; this.parent = parent; this.toX = toX; this.toZ = toZ;
     this.live = new Map(); // id → снаряд в полёте
     this.fx = [];          // удары, лужи, падения (метеор/копья), разлёты
@@ -41,10 +42,26 @@ export class ProjAtlasFx {
   }
   get count() { return this.live.size; }
   // сервер: снаряд вылетел
+  // свой выстрел: снаряд появляется СРАЗУ из отрисованного центра героя (клиент), сервер потом подтверждает его тем же cid
+  // (точка вылета на сервере = эта же точка, если она в допуске) — без рывка назад и без двойного снаряда
+  predict(cid, t, x, y, dx, dy, r, s = 640) {
+    if (this.live.size > 500) return;
+    const id = 'c' + cid + ':' + (this._pn = (this._pn || 0) + 1);
+    const p = { id, t, x0: x, y0: y, dx, dy, s, r, arc: false, age: 0, info: projInfo(t), o: 'p', pred: cid };
+    this.live.set(id, p); (this.pred[cid] ||= []).push(p);
+    setTimeout(() => { const L = this.pred[cid]; if (!L) return; for (const q of L) if (this.live.get(q.id) === q) this.live.delete(q.id); delete this.pred[cid]; }, 900); // сервер отклонил — убираем
+  }
   spawn(e) {
     this.spawned[`${e.o || '?'}:${e.t}`] = (this.spawned[`${e.o || '?'}:${e.t}`] || 0) + 1; // счётчик для отладки/тестов
+    const L = e.cid && e.sid === this.meSid ? this.pred[e.cid] : null;
+    if (L?.length) { // подтверждение своего: ближайший по направлению прогноз получает id сервера (позиция не прыгает)
+      let bi = 0, bd = -2; L.forEach((q, i) => { const d = q.dx * e.dx + q.dy * e.dy; if (d > bd) { bd = d; bi = i; } });
+      const q = L.splice(bi, 1)[0]; if (!L.length) delete this.pred[e.cid];
+      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
+    }
     if (this.live.size > 500) return;
-    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: 0, info: projInfo(e.t), o: e.o });
+    // a — мс, которые снаряд уже пролетел на сервере до отправки пачки: догоняем, чтобы он был там, где на самом деле
+    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o });
   }
   // сервер: попал / долетел
   end(e) {

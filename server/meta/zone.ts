@@ -89,7 +89,7 @@ export class Zone {
     const L = Math.hypot(o.dx, o.dy) || 1;
     const p: Proj = { spd: PROJ_SPEED[o.t] || PROJ_SPEED.default, flown: 0, hit: new Set(), n: 0, born: this.now || Date.now(), id: this.nextProj++, ...o, dx: o.dx / L, dy: o.dy / L } as Proj;
     this.projs.push(p);
-    this.events.push({ k: "proj", id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
+    this.events.push({ k: "proj", _b: p.born, cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
     return p;
   }
   /** движение и столкновения снарядов: шаги не длиннее ширины снаряда (быстрый снаряд не «перепрыгивает» моба) */
@@ -935,7 +935,11 @@ export class Zone {
     return n;
   }
   // AOI: клиент получает только мобов/события в радиусе видимости
-  takeEvents() { return this.events.splice(0, 80); }
+  takeEvents() { // снаряд: a — сколько мс он уже летит на сервере (события уходят пачкой 5 Гц; клиент догоняет позицию)
+    const ev = this.events.splice(0, 80), now = Date.now();
+    for (const e of ev) if (e.k === "proj" && e._b) { e.a = Math.max(0, Math.min(400, now - e._b)); delete e._b; }
+    return ev;
+  }
   state(px: number, py: number, ev: any[], aoi = 700) {
     const m: number[] = [];
     const now = Date.now();

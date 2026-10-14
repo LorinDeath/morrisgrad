@@ -113,13 +113,13 @@ for (const [hpA, hpB, exp] of [[80, 40, 0], [30, 90, 1], [55, 55, null]] as cons
   const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
   (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
   sa.x = 300; sa.y = 400; sb.x = 400; sb.y = 400;
-  const evs: any[] = []; const st0 = (w.pvp as any).status.bind(w.pvp); (w.pvp as any).status = (c: any, ss: any, st: any) => { if (st.freeze) evs.push({ k: "pstatus", s: "freeze" }); if (st.kind) evs.push({ k: "pstatus", s: st.kind }); return st0(c, ss, st); };
+  const evs: any[] = []; const st0 = (w.pvp as any).status.bind(w.pvp); (w.pvp as any).status = (c: any, ss: any, st: any) => { if (st.freeze) evs.push({ k: "pstatus", s: "freeze" }); if (st.slow) evs.push({ k: "pstatus", s: "slow" }); if (st.kind) evs.push({ k: "pstatus", s: st.kind }); return st0(c, ss, st); };
   w.pvp.ability(wa, sa, { id: "frost_nova", dx: 1, dy: 0 });
-  const frozen = (w.ms.get("b").frozenUntil || 0) > Date.now();
+  const frozen = (w.ms.get("b").slowUntil || 0) > Date.now() || evs.some((e) => e.s === "slow"); // Ледяная нова = как в забеге: замедление
   (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 3000;
   w.pvp.attack(wa, sa, { dx: 1, dy: 0 }); for (let k = 0; k <= 10; k++) w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 3000 + k * 50);
   (Date as any).now = realNow;
-  ok(frozen && evs.some((e) => e.k === "pstatus" && e.s === "freeze") && evs.some((e) => e.k === "pstatus" && e.s === "burn"), `duel statuses like open world: freeze from frost_nova (${frozen}), burn from grimoire hit`);
+  ok(frozen && evs.some((e) => e.k === "pstatus" && e.s === "slow") && evs.some((e) => e.k === "pstatus" && e.s === "burn"), `duel statuses like open world: slow from frost_nova (${frozen}), burn from grimoire hit`);
 }
 Date.now = realNow;
 console.log(`\n${pass} passed, ${fail} failed`);
