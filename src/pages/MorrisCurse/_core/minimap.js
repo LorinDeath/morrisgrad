@@ -161,7 +161,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null, party = null }) {
     if (!this.ctx || !this.canvas) return;
     const now = performance.now();
     if (now - (this._drawAt || 0) < 120) return;   // троттлинг перерисовки (~8 Гц)
@@ -349,9 +349,21 @@ export class Minimap {
 
     // 5. Другие игроки (текущего мира; без поля world — считаем, что в нашем): единый цвет «союзник» — голубой с белым контуром,
     // чтобы не путать с мобами и собой (золотой)
+    // 5a. Отряд: зелёные с белым контуром (позиции с сервера — видны и вне области видимости), стрелка у края, если далеко
+    const pset = new Set((party || []).map((m) => m.sid));
+    for (const m of party || []) {
+      if (m.world !== currentWorld || m.run) continue;
+      this.stats.party = (this.stats.party || 0) + 1;
+      let ox = cx + (m.x - player.x) * scale, oy = cy + (m.y - player.y) * scale;
+      const out = ox < 4 || oy < 4 || ox > w - 4 || oy > h - 4;
+      if (out) { const k = Math.min((w / 2 - 6) / Math.abs(ox - cx || 1), (h / 2 - 6) / Math.abs(oy - cy || 1)); ox = cx + (ox - cx) * k; oy = cy + (oy - cy) * k; }
+      ctx.fillStyle = '#4ade80'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(ox, oy, out ? 3 : 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
     if (this.filters.players && otherPlayers) {
       otherPlayers.forEach((p) => {
         if ((p.world || currentWorld) !== currentWorld) return;
+        if (pset.has(p.id) || pset.has(p.sid)) return; // уже нарисован как союзник
         this.stats.players++;
         const ox = cx + (p.x - player.x) * scale;
         const oy = cy + (p.y - player.y) * scale;

@@ -40,6 +40,7 @@ export type DuelProj = { id: number; owner: 0 | 1; t: string; x: number; y: numb
 
 export interface PvpHost {
   ms: Map<string, any>;
+  ally?(a: string, b: string): boolean; // члены одного отряда — не бьют друг друга
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null;
   effective(session: any): any;
   send(ws: WebSocket, obj: any): void;
@@ -86,6 +87,7 @@ export class Pvp {
     const t = (this.rl.get(session.id) || []).filter((x) => now - x < 60_000);
     if ((t.length && now - t[t.length - 1] < CHALLENGE_GAP_MS) || t.length >= CHALLENGE_PER_MIN) return this.err(ws, "Слишком часто — подождите немного");
     if (!toSid || toSid === session.id) return this.err(ws, "Выберите другого игрока");
+    if (this.host.ally?.(session.id, toSid)) return this.err(ws, "Это союзник по отряду — сначала выйдите из отряда");
     const e = this.host.sessionLookup?.(toSid);
     if (!e) return this.err(ws, "Игрок не в сети");
     const [tws, ts] = e;
@@ -234,6 +236,7 @@ export class Pvp {
   }
 
   private deal(c: any, session: any, dmg: number, crit: boolean, eff: any) {
+    if (this.host.ally?.(session.id, c.os.id)) return; // союзники по отряду не наносят друг другу урон
     const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, c.op.zp.armorRed || 0))));
     c.op.zp.hp = Math.max(0, c.op.zp.hp - real);
     c.d.hits[c.i] += real;

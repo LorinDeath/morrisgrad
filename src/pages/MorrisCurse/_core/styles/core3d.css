@@ -672,3 +672,16 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-ask-btns { display: flex; gap: 8px; justify-content: flex-end; }
 .mc-salv { font-weight: normal; font-size: 11px; margin-left: 8px; }
 .mc-salv .mc-btn { margin-left: 3px; }
+/* отряд: рамки участников слева, окно приглашения */
+.mc-party { position: absolute; left: 10px; top: 210px; width: 190px; pointer-events: auto; z-index: 12; background: rgba(12, 8, 22, 0.82); border: 1px solid #3b2c52; border-radius: 8px; padding: 5px 6px; font-size: 11px; color: #e2e8f0; }
+.mc-party .hd { display: flex; justify-content: space-between; align-items: center; color: #4ade80; font-weight: bold; margin-bottom: 3px; }
+.mc-party .pm { margin: 3px 0; }
+.mc-party .pm.off { opacity: 0.5; }
+.mc-party .pm .nm { display: flex; gap: 4px; align-items: center; }
+.mc-party .pm .nm small { color: #94a3b8; flex: 1; }
+.mc-party .pm .x { background: none; border: 1px solid #3b2c52; color: #fca5a5; border-radius: 4px; cursor: pointer; font-size: 10px; padding: 0 3px; }
+.mc-party .hp { position: relative; height: 9px; background: #1f1630; border-radius: 3px; overflow: hidden; }
+.mc-party .hp i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #16a34a, #4ade80); }
+.mc-party .hp span { position: relative; font-size: 8px; padding-left: 3px; }
+.mc-party-ask { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 40; pointer-events: auto; background: #140d24; border: 2px solid #4ade80; border-radius: 10px; padding: 10px 14px; color: #e2e8f0; font-size: 13px; text-align: center; }
+.mc-party-ask .b { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }

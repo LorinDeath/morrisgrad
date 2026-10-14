@@ -91,6 +91,11 @@ export class WorldMap {
           ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fillRect(x - tw / 2, y + 16, tw, 16); ctx.fillStyle = bs.alive ? '#fca5a5' : '#d1d5db'; ctx.fillText(t, x, y + 24.5); ctx.font = '14px sans-serif'; } }
       if (this.k > 0.12 && m.type === 'sign') { ctx.font = '11px sans-serif'; ctx.fillStyle = '#fde68a'; ctx.fillText(m.label, x, y + 24); ctx.font = '14px sans-serif'; }
     }
+    for (const m of st.party || []) { // отряд на карте M — зелёные метки с именем
+      const [x, y] = this.toScreen(m.x, m.y);
+      ctx.fillStyle = '#4ade80'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.font = '11px sans-serif'; ctx.fillStyle = '#bbf7d0'; ctx.textAlign = 'center'; ctx.fillText(m.name, x, y - 10); ctx.font = '14px sans-serif';
+    }
     const p = st.me; if (p) {
       const [x, y] = this.toScreen(p.x, p.y);
       if (!drawMarkerIcon(ctx, 'player', x, y, 32)) { ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }

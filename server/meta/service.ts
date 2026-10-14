@@ -14,6 +14,7 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 // спрайт снаряда автоатаки по типу оружия (атлас projectiles.png)
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
+import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
@@ -54,6 +55,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   zone_attack: S({}), zone_ability: S({}), zone_target: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
   mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
+  party_invite: S({ sid: "s" }), party_respond: S({ from: "s", accept: "b" }), party_leave: S({}), party_kick: S({ sid: "s" }), party_promote: S({ sid: "s" }), party_get: S({}),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
   admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }),
@@ -105,6 +107,7 @@ export class MetaService {
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
     this.pvp = new Pvp(this);
+    this.party = new Parties();
     this.social = new Social(this, env?.GAME_DB);
     this.roles = new Roles(env?.GAME_DB);
     this.explore = new ExploreStore(env?.GAME_DB);
@@ -487,6 +490,7 @@ export class MetaService {
       case "zone_attack": if (this.pvp.inDuel(session.id)) this.pvp.attack(ws, session, msg); else this.zoneAttack(ws, session, msg); return true;
       case "zone_ability": if (this.pvp.inDuel(session.id)) this.pvp.ability(ws, session, msg); else this.zoneAbility(ws, session, msg); return true;
       // PvP-дуэли (meta/pvp.ts): вызов, ответ, отмена своего вызова, сдача
+      case "party_invite": case "party_respond": case "party_leave": case "party_kick": case "party_promote": case "party_get": this.partyMsg(ws, session, msg); return true;
       case "duel_challenge": this.pvp.challenge(ws, session, msg); return true;
       case "duel_respond":
         // «Не беспокоить 5 минут»: отказ + запрет вызовов на весь аккаунт (все герои, все вкладки) на 5 минут
@@ -974,8 +978,21 @@ export class MetaService {
     const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
     // мешок — ОДИН: больше всех урона, с шансом 10% — добившему (сервер); видит и открывает только владелец
     const bagOwner = pickBagOwner(m.dmgBy, m.killer, cryptoRand);
+    // Отряд (в духе Albion): награду получают и члены отряда рядом с мобом (≤1500 px, тот же мир), даже без урона.
+    // Опыт — каждому своя доля: killXp × (1 + 10% за каждого сверх первого) / n; мешок владельца делится между членами рядом.
+    const world: string | null = null; // мир — по участнику (моб в том же мире, что и бивший его)
+    const recv = new Map<string, number>(); // sid → размер группы для дележа
+    const grpOf = new Map<string, string[]>();
     for (const [sid, dmg] of m.dmgBy as Map<string, number>) {
       if (!d.boss && !d.rare && dmg / total < 0.15 && sid !== bagOwner) continue; // вклад ≥15% (босс/редкий — любой вклад)
+      const me = this.partyPos(sid); if (!me) continue;
+      const grp = this.party.near(sid, world || me.world, m.x, m.y, this.partyPos);
+      for (const g of grp) { recv.set(g, Math.max(recv.get(g) || 1, grp.length)); grpOf.set(g, grp); }
+      if (!grp.includes(sid)) { recv.set(sid, 1); grpOf.set(sid, [sid]); }
+    }
+    const ownerGrp = grpOf.get(bagOwner) || [bagOwner];
+    let split: Map<string, { items: string[]; res: Record<string, number> }> | null = null;
+    for (const sid of recv.keys()) {
       const ms = this.ms.get(sid);
       const entry = this.sessionLookup?.(sid);
       if (!ms || !entry) continue;
@@ -987,14 +1004,19 @@ export class MetaService {
       noteMob(a, base, 1);
       const lootKey = MONSTER_LOOT[m.type] ? m.type : base; // у каждого моба своя (правимая в админке) таблица
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
-      const xp = killXp({ xp: d.xp, mobL: d.lvl || 1, heroL: h?.lvl || 1, elite: m.elite, cursed: m.cursed, boss: !!d.boss }); // balance.killXp: серые — 0, сильные — больше с потолком
-      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed };
+      const n = recv.get(sid) || 1;
+      const xp = Math.round(killXp({ xp: d.xp, mobL: d.lvl || 1, heroL: h?.lvl || 1, elite: m.elite, cursed: m.cursed, boss: !!d.boss }) * partyXpShare(n)); // balance.killXp: серые — 0, сильные — больше с потолком; отряд — доля
+      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed, party: n > 1 ? n : undefined };
       if (h && xp > 0) out.levelUps = gainXp(h, xp);
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
       const lootMul = m.cursed ? ZONE_GEN.cursedLoot : 1; // проклятый: шансы дропа ×10 (только сервер)
       // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
-      const loot = sid === bagOwner ? rollMonsterLoot(lootKey, cryptoRand, lootMul) : { items: [] as string[], res: {} as Record<string, number> };
-      if (m.elite && sid === bagOwner) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul); loot.items.push(...l2.items); for (const [r, n] of Object.entries(l2.res)) loot.res[r] = (loot.res[r] || 0) + n; } // элита: второй бросок
+      if (!split && ownerGrp.includes(sid)) { // один бросок на убийство (как раньше), затем — делёж в отряде владельца мешка
+        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul);
+        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
+        split = splitLoot(roll, ownerGrp.filter((g) => recv.has(g)), cryptoRand);
+      }
+      const loot = split?.get(sid) || { items: [] as string[], res: {} as Record<string, number> };
       const bag = this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       this.qev(a, session, { type: "kill", mob: base, cls });
@@ -1003,12 +1025,47 @@ export class MetaService {
     }
   }
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
+  party!: Parties; partyAt = 0;
+  ally(a: string, b: string) { return this.party.ally(a, b); }
+  /** позиция участника (для дележа/портала): мир, x, y, жив ли в мире */
+  partyPos = (sid: string) => { const e = this.sessionLookup?.(sid); if (!e) return null; const s = e[1], ms = this.ms.get(sid); return { world: s.world || "hellfire", x: s.x, y: s.y, alive: ms?.zp ? ms.zp.alive !== false : true, run: s.runId || null }; };
+  partyView(p: any) {
+    return { type: "party_state", id: p.id, leader: p.leader, max: PARTY_MAX, members: p.members.map((sid: string) => { const e = this.sessionLookup?.(sid), s = e?.[1], ms = this.ms.get(sid), cls = s?.stats?.classId || null;
+      return { sid, name: s ? this.displayName(s) : "…", cls, lvl: cls && ms ? this.store.hero(ms.pkey, cls).lvl : 0, hp: ms?.zp ? Math.round(ms.zp.hp) : 0, maxHp: ms?.zp?.maxHp || 0, world: s?.world || "hellfire", x: Math.round(s?.x || 0), y: Math.round(s?.y || 0), run: s?.runRoom || null, online: !!e }; }) };
+  }
+  partySend(p: any) { if (!p) return; const v = p.members.length > 1 ? this.partyView(p) : null; for (const sid of p.members) { const e = this.sessionLookup?.(sid); if (e) this.send(e[0], v || { type: "party_state", id: null }); } }
+  partyMsg(ws: WebSocket, session: any, msg: any) {
+    const err = (m: string) => this.send(ws, { type: "toast_error", message: m });
+    const P = this.party, me = session.id;
+    switch (msg.type) {
+      case "party_invite": {
+        const to = String(msg.sid || ""), e = this.sessionLookup?.(to);
+        if (!e) return err("Игрок не в сети");
+        if (session.inDuel || e[1].inDuel) return err("Сначала завершите дуэль");
+        const r = P.invite(me, to); if (r) return err(r);
+        this.send(e[0], { type: "party_invite", from: me, name: this.displayName(session) });
+        this.send(ws, { type: "toast", message: `Приглашение отправлено: ${this.displayName(e[1])}` });
+        return;
+      }
+      case "party_respond": {
+        const from = String(msg.from || "");
+        if (!msg.accept) { P.decline(me, from); const e = this.sessionLookup?.(from); if (e) this.send(e[0], { type: "toast", message: `${this.displayName(session)} отклонил(а) приглашение` }); return; }
+        const r = P.accept(me, from); if (typeof r === "string") return err(r);
+        this.partySend(r); return;
+      }
+      case "party_leave": { const p = P.leave(me); this.send(ws, { type: "party_state", id: null }); this.partySend(p); return; }
+      case "party_kick": { const r = P.kick(me, String(msg.sid || "")); if (typeof r === "string") return err(r); const e = this.sessionLookup?.(String(msg.sid)); if (e) this.send(e[0], { type: "party_state", id: null }); this.partySend(r); return; }
+      case "party_promote": { const r = P.promote(me, String(msg.sid || "")); if (typeof r === "string") return err(r); this.partySend(r); return; }
+      case "party_get": { const p = P.get(me); this.send(ws, p ? this.partyView(p) : { type: "party_state", id: null }); return; }
+    }
+  }
   loot!: LootBags; lootExpAt = 0;
   fx: { at: number; world: string; sid: string; fn: () => void }[] = []; // отложенные части навыков (метеор, тики, след)
 
   tick(dt: number, sessions: Map<WebSocket, any>) {
     const now = Date.now();
     if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); }
+    if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
     const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};
     for (const w of Object.keys(this.zones)) byWorld[w] = { players: new Map(), socks: [] };
@@ -1116,6 +1173,7 @@ export class MetaService {
 
   onClose(session: any) {
     this.pvpGone(session);
+    { const p = this.party.leave(session?.id); this.partySend(p); } // отключился — выходит из отряда
     const ms = this.ms.get(session?.id);
     if (!ms) return;
     this.save(session);

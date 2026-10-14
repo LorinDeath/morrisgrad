@@ -1444,6 +1444,10 @@ export class GameRoom extends DurableObject {
         if (!this.portalOk(session, room, msg.portalId)) return err("Подойдите ближе к входу");
         const created = this.lobbies.create(room, session, { name: msg.name, isPublic: msg.type === "run_join" ? false : msg.isPublic !== false });
         this.enterRun(ws, session, created);
+        { // лидер отряда открыл забег/данж у портала → остальным участникам — приглашение войти без похода к порталу
+          const p = this.meta.party.get(session.id);
+          if (p && p.leader === session.id) for (const sid of p.members) if (sid !== session.id) { const e = this.meta.sessionLookup?.(sid); if (e) e[0].send(JSON.stringify({ type: "party_run", runId: created.id, room, leader: session.username || "Лидер" })); }
+        }
         if (msg.type === "run_join" || msg.autoStart) { this.lobbies.start(created, session.id, true); this.startRun(created); }
         this.broadcast();
         return;
@@ -1453,7 +1457,9 @@ export class GameRoom extends DurableObject {
         if (session.inDuel) return err("Сначала завершите бой");
         const e = this.lobbies.canJoin(target, session.id);
         if (e) return err(e);
-        if (!this.portalOk(session, target!.room, msg.portalId)) return err("Подойдите ближе к входу");
+        // отряд: у портала должен стоять только лидер — участники входят в его забег/данж откуда угодно
+        const lead = this.meta.party.leaderOf(session.id), viaParty = !!lead && lead !== session.id && target!.members.includes(lead);
+        if (!viaParty && !this.portalOk(session, target!.room, msg.portalId)) return err("Подойдите ближе к входу");
         this.enterRun(ws, session, target!);
         return;
       }

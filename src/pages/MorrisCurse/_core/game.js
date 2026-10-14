@@ -42,6 +42,7 @@ import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
 import { DpsMeter } from './ui/dps.js';
+import { PartyUI } from './ui/party.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
 import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
@@ -417,7 +418,7 @@ async function boot(canvasId, username, userId, api) {
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
   });
   // туман войны и большая карта (M)
-  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y } }));
+  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, party: party.others().filter((m) => m.world === world && !m.run) }));
   hud.minimap.onOpenMap = () => worldMap.open();
   net.on('fog', (d) => { fog.setFull(d); worldMap.draw(); });
   net.on('fog_add', (d) => { fog.add(d); if (worldMap.isOpen) worldMap.draw(); });
@@ -427,6 +428,11 @@ async function boot(canvasId, username, userId, api) {
   const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
   // ——— PvP-дуэли ———
   const duel = new DuelUI({ overlay, send });
+  // ——— Отряд (до 4) ———
+  const party = new PartyUI({ overlay, send, myId: () => myId, onJoinRun: (d) => send({ type: 'lobby_join', runId: d.runId }) });
+  net.on('party_state', (d) => party.setState(d));
+  net.on('party_invite', (d) => party.onInvite(d));
+  net.on('party_run', (d) => party.onRun(d));
   function challengeDuel(sid) {
     if (!net.isOpen() || !sid) return;
     if (mode !== 'hub') { overlay.toast('Дуэль — только в открытом мире', '#94a3b8'); return; }
@@ -577,11 +583,12 @@ async function boot(canvasId, username, userId, api) {
   const tchip = document.createElement('div');
   tchip.className = 'mc-tchip';
   tchip.style.display = 'none';
-  tchip.innerHTML = '<div class="nm"></div><div class="bt"><button class="mc-btn gold insp">👤 Персонаж</button><button class="mc-btn duel">⚔️ Дуэль</button></div><button class="x" title="Снять выбор">✕</button>';
+  tchip.innerHTML = '<div class="nm"></div><div class="bt"><button class="mc-btn gold insp">👤 Персонаж</button><button class="mc-btn duel">⚔️ Дуэль</button><button class="mc-btn pinv">👥 В отряд</button></div><button class="x" title="Снять выбор">✕</button>';
   tchip.addEventListener('pointerdown', (e) => e.stopPropagation());
   tchip.addEventListener('touchstart', (e) => { if (e.target.closest('button')) e.preventDefault(); }, { passive: false });
   tchip.querySelector('.insp').addEventListener('pointerdown', (e) => { e.preventDefault(); const t = hud.currentTarget; if (t?.kind === 'player') inspectPlayer(t.id); });
   tchip.querySelector('.duel').addEventListener('pointerdown', (e) => { e.preventDefault(); const t = hud.currentTarget; if (t?.kind === 'player') challengeDuel(t.id); });
+  tchip.querySelector('.pinv').addEventListener('pointerdown', (e) => { e.preventDefault(); const t = hud.currentTarget; if (t?.kind === 'player') party.invite(t.id); });
   tchip.querySelector('.x').addEventListener('pointerdown', (e) => { e.preventDefault(); hud.clearTarget(); updateTargetChip(); });
   overlay.layer.appendChild(tchip);
   function updateTargetChip() {
@@ -590,7 +597,8 @@ async function boot(canvasId, username, userId, api) {
     const show = !!t && t.kind === 'player' && mode === 'hub' && !hud.left.offsetParent && others.has(t.id);
     if (show) {
       const txt = `${t.name} · ${t.typeLabel || ''}${t.hp && t.hp !== '…' ? ` · ❤️ ${t.hp}` : ''}`; const nm = tchip.querySelector('.nm'); if (nm.textContent !== txt) nm.textContent = txt;
-      const db = tchip.querySelector('.duel'), dd = t.canDuel ? '' : 'none'; if (db.style.display !== dd) db.style.display = dd;
+      const db = tchip.querySelector('.duel'), dd = t.canDuel && !party.has(t.id) ? '' : 'none'; if (db.style.display !== dd) db.style.display = dd; // союзника по отряду на дуэль не вызвать
+      const pb = tchip.querySelector('.pinv'), pd = party.canInvite(t.id) ? '' : 'none'; if (pb.style.display !== pd) pb.style.display = pd;
     }
     const disp = show ? '' : 'none';
     if (tchip.style.display !== disp) tchip.style.display = disp;
@@ -1363,7 +1371,7 @@ async function boot(canvasId, username, userId, api) {
       updateTargetChip();
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
-        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes,
+        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
         zoneMe: mode === 'hub' && meta.hero ? zone.me : null, eff: meta.hero?.effective || null, heroName: meta.hero ? meta.heroName(player.stats.classId) : null, dps: dpsMeter.stats(),
       });
@@ -1668,6 +1676,9 @@ async function boot(canvasId, username, userId, api) {
       selectMobId: (id) => { const o = zone.mobs.get(id); if (o) selectMob(o); return !!o; },
       mobsNear: (r = 500) => [...zone.mobs.values()].filter((o) => !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < r).map((o) => ({ id: o.id, x: o.x, y: o.y, type: o.type })),
       dps: () => dpsMeter.stats(),
+      party: () => party.state,
+      myId: () => myId,
+      runRoom: () => lobby?.room || null,
       track: () => ({ target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
       forceQuest: (id) => { meta.trackedQuest = () => id; },
       campsRaw: () => zone.camps,
