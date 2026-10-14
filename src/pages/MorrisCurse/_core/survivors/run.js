@@ -88,6 +88,7 @@ class Grid {
 export class RunSession {
   constructor(opts) {
     this.room = opts.room;
+    this.runSkill = opts.runSkill || null; // навык забега из пула аккаунта (сервер: account.runSkillSel)
     this.myId = opts.myId || 'local';
     this.username = opts.username || 'Странник';
     this.color = opts.color || '#ffffff';
@@ -162,7 +163,10 @@ export class RunSession {
       choosingInvuln: 0,
       stats: { damage: 0, kills: 0, taken: 0, healed: 0, picked: 0, byWeapon: {}, killsByType: {}, bossKills: 0, usedAbility: false },
     };
-    this.addWeapon(this.cls.startWeapon);
+    // стартовое оружие класса и навык забега из пула (трофей открытого мира) — «бесплатные»: не занимают 4 слота оружия
+    this.addWeapon(this.cls.startWeapon, true);
+    const rs = this.runSkill;
+    if (rs && WEAPONS[rs] && rs !== this.cls.startWeapon) this.addWeapon(rs, true);
     this.recalc();
     if (this.hpCapPct < 100) {
       // добровольное ограничение здоровья (звёздные задания Кьют): кап на весь бой
@@ -213,10 +217,10 @@ export class RunSession {
     m.abilityDmg = 1 + 0.2 * this.plv('mastery');
   }
 
-  addWeapon(id) {
+  addWeapon(id, free = false) {
     if (!WEAPONS[id]) return;
     if (this.me.weapons[id]) this.me.weapons[id].lv = Math.min(8, this.me.weapons[id].lv + 1);
-    else this.me.weapons[id] = { lv: 1, cd: 0.3 };
+    else this.me.weapons[id] = { lv: 1, cd: 0.3, free };
   }
 
   weaponStats(id) {
@@ -251,7 +255,8 @@ export class RunSession {
   rollChoices(n = 3) {
     const m = this.me;
     const pool = [];
-    const ownedW = Object.keys(m.weapons);
+    // лимит MAX_WEAPONS — только на оружие, взятое улучшениями: навыки класса и бесплатное оружие слоты не тратят
+    const ownedW = Object.keys(m.weapons).filter((id) => !m.weapons[id].free);
     const ownedP = Object.keys(m.passives);
     Object.keys(WEAPONS).forEach((id) => {
       const have = m.weapons[id];

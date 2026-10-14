@@ -115,6 +115,10 @@ export class ZoneView {
       else if (e.k === 'tele') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 });
       else if (e.k === 'tele_circle') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
       else if (e.k === 'ability') this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.4, color: 0xfde68a });
+      // формы навыков (server/meta/abilityShapes.ts): линия/рывок, снаряд, отложенный удар (метеор), точки дождя
+      else if (e.k === 'aline') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 });
+      else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty);
+      else if (e.k === 'amark') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
       else if (e.k === 'phit' && e.sid === myId) out.push({ k: 'hurt', d: e.d });
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }

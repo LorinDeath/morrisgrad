@@ -3,14 +3,14 @@
 import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
-  HERO_IDS, ITEM_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
+  HERO_IDS, ITEM_BY_ID, RUN_SKILL_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType, RECIPES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { mobXp, xpLevelMult } from "./balance";
 import { QUESTS, QUEST_BY_ID } from "./quests";
 import {
-  heroEffective, markSeen, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
+  heroEffective, markSeen, rollRunSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
 } from "./profile";
 import { Zone, type ZPlayer } from "./zone";
@@ -19,6 +19,8 @@ import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
 import { Pvp, type Duel } from "./pvp";
 import { Social } from "./social";
+import { castShape } from "./abilityShapes";
+import { worldBounds } from "../worlds/sizes";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
 
 export interface MetaSess {
@@ -309,6 +311,11 @@ export class MetaService {
         if (n) { ms.dirty = true; this.store.saveAccount(ms.pkey, ms.verified); }
         this.send(ws, { type: "seen_ok", n });
         return true;
+      }
+      case "run_skill_set": { // выбрать навык забега из пула аккаунта (или null — без навыка)
+        const id = msg.id == null ? null : String(msg.id);
+        if (id !== null && !(a.runSkills || []).includes(id)) { reply({ ok: false, err: "Навык ещё не открыт" }); return true; }
+        a.runSkillSel = id; reply({ ok: true }, id ? "Навык забега выбран" : "Навык забега снят"); return true;
       }
       case "talent_learn": if (!needHero()) return true; { const r = learnTalent(a, h!, cls!, String(msg.id)); if (r.ok) this.qev(a, session, { type: "talent" }); reply(r, "Талант изучен"); this.refreshZonePlayer(session); } return true;
       case "loadout_set": if (!needHero()) return true; reply(setLoadout(a, h!, cls!, msg.ids), "Раскладка сохранена"); return true;
@@ -674,18 +681,40 @@ export class MetaService {
     const def = ABILITY_BY_ID[ab.id];
     // в открытом мире навыки — упрощённая область; каждый модификатор из дерева талантов (t_*) даёт +15% радиуса и урона
     const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
-    const radius = (ab.props.includes("extend") ? 200 : 140) * (1 + 0.15 * tmods);
+    const radiusMult = (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods);
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
     const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods);
-    let dealt = 0;
-    for (const m of zone.mobsAround(session.x, session.y, radius)) {
-      m.usedAbility.add(session.id);
-      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
-      this.noteHit(session, real, m.type);
-      dealt += real;
-    }
-    if (ab.props.includes("vamp") || def.id === "trick_strike") ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + dealt * 0.08);
-    zone.events.push({ k: "ability", sid: session.id, id: ab.id, x: session.x, y: session.y, r: radius });
+    // направление от клиента — только единичный вектор; дальность/цели/позиции — сервер (meta/abilityShapes.ts)
+    let dx = Number(msg.dx), dy = Number(msg.dy);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }
+    const L = Math.hypot(dx, dy); dx /= L; dy /= L;
+    const world = session.world || "hellfire";
+    const sid = session.id;
+    const dealt = castShape(ab.id, {
+      zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult,
+      hit: (m, mult, opts) => {
+        if (m.dead) return 0;
+        m.usedAbility.add(sid);
+        const d = ZONE_MOBS[m.type];
+        const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1);
+        const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm)) || 0;
+        this.noteHit(session, real, m.type);
+        return real;
+      },
+      status: (m, st, fx, fy) => { zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? 600 : st.freeze); } },
+      move: (x, y) => { session.x = x; session.y = y; ms.zp.x = x; ms.zp.y = y; (session as any).lastMoveAt = Date.now(); this.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
+      bounds: (x, y) => { const [lo, hi] = worldBounds(world); return [Math.max(lo, Math.min(hi, x)), Math.max(lo, Math.min(hi, y))]; },
+      buff: (b) => {
+        const t = Date.now();
+        if (b.invuln) (ms as any).invulnUntil = Math.max((ms as any).invulnUntil || 0, t + b.invuln);
+        if (b.dr) (ms as any).drUntil = Math.max((ms as any).drUntil || 0, t + b.dr);
+        if (b.heal) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + b.heal);
+      },
+      later: (ms2, fn) => this.fx.push({ at: Date.now() + ms2, world, sid, fn }),
+      ev: (e) => zone.events.push(e),
+    });
+    if (ab.props.includes("vamp")) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + dealt * 0.08);
+    void def;
     const a = this.store.account(ms.pkey);
     if (this.qev(a, session, { type: "ability_used" }).length) this.send(ws, { type: "toast_error", message: "Звёздный квест: навык применён — прогресс «без навыков» сброшен" });
   }
@@ -726,6 +755,12 @@ export class MetaService {
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
       this.grantLoot(a, rollMonsterLoot(m.type), out, src);
       if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out, src); // элита: второй бросок добычи
+      // редкое оружие несёт навык «Вампир-лайка» → в пул аккаунта (бросок только здесь, на сервере)
+      for (const it of out.items) {
+        const rs = rollRunSkill(a, it.id, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob");
+        if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id }; ms.dirty = true;
+          this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `${RUN_SKILL_BY_ID[rs].icon} ${session.username || "Игрок"} постигает навык «${RUN_SKILL_BY_ID[rs].name}»!`, color: "#fde68a" }); break; }
+      }
       this.qev(a, session, { type: "kill", mob: m.type, cls });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: m.type, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
@@ -735,6 +770,7 @@ export class MetaService {
     }
   }
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
+  fx: { at: number; world: string; sid: string; fn: () => void }[] = []; // отложенные части навыков (метеор, тики, след)
 
   tick(dt: number, sessions: Map<WebSocket, any>) {
     const now = Date.now();
@@ -768,12 +804,18 @@ export class MetaService {
     this.zoneAcc += dt;
     const sendNow = this.zoneAcc >= 0.2;
     if (sendNow) this.zoneAcc = 0;
+    if (this.fx.length) {
+      const due = this.fx.filter((f) => f.at <= now);
+      this.fx = this.fx.filter((f) => f.at > now);
+      for (const f of due) { if (!this.ms.has(f.sid)) continue; try { f.fn(); } catch (e: any) { console.error("[mc] ability fx", e?.message || e); } }
+    }
     for (const [w, zone] of Object.entries(this.zones)) {
       const { players, socks } = byWorld[w];
       zone.update(dt, now, players, (sid, dmg, src) => {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
-        const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed)));
+        if (((ms as any).invulnUntil || 0) > now) return; // неуязвимость навыка (прыжок, облако, рывок)
+        const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }

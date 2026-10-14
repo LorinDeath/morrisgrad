@@ -8,7 +8,7 @@
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
-  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, LOOKS, RECIPES, RESOURCES, SLOTS,
+  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 
@@ -22,6 +22,7 @@ export interface Account {
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
   quests: { active: Record<string, { p: number[] }>; done: string[] };
   bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
+  runSkills?: string[]; runSkillSel?: string | null; // пул навыков забега (трофеи) и выбранный в забег
   gname?: string; // имя гостевого профиля (guestNames.ts), назначает сервер
 }
 export interface Hero {
@@ -300,7 +301,21 @@ export function fixAccount(a: Account): Account {
   a.disc = a.disc || { items: {}, feats: {} };
   a.disc.items = a.disc.items || {}; a.disc.feats = a.disc.feats || {};
   a.inv = (a.inv || []).filter((i) => ITEM_BY_ID[i.id]);
+  a.runSkills = Array.isArray(a.runSkills) ? a.runSkills.filter((id) => RUN_SKILL_BY_ID[id]) : [];
+  if (a.runSkillSel && !a.runSkills.includes(a.runSkillSel)) a.runSkillSel = null;
   return a;
+}
+// Бросок «оружие несёт навык забега»: только оружие, только ещё не открытый навык; ГСЧ сервера
+export function rollRunSkill(a: Account, itemId: string, kind: "mob" | "rare" | "boss", rnd = cryptoRand): string | null {
+  if (ITEM_BY_ID[itemId]?.slot !== "weapon") return null;
+  if (rnd() * 100 >= RUN_SKILL_DROP_PCT[kind]) return null;
+  const left = RUN_SKILLS.filter((r) => !(a.runSkills || []).includes(r.id));
+  if (!left.length) return null;
+  const pick = left[Math.floor(rnd() * left.length)].id;
+  (a.runSkills = a.runSkills || []).push(pick);
+  if (!a.runSkillSel) a.runSkillSel = pick;
+  noteFeature(a, `runskill:${pick}`);
+  return pick;
 }
 // Снять отметку «новое» (сообщение mark_seen): только свои экземпляры/открытия, пачкой
 export function markSeen(a: Account, m: { inv?: string[]; items?: string[]; mobs?: string[]; feats?: string[] }): number {
@@ -453,7 +468,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    account: { inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    account: { runSkills: a.runSkills || [], runSkillSel: a.runSkillSel || null, inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),

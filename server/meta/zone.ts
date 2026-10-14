@@ -350,7 +350,7 @@ export class Zone {
       }
       if (best) {
         const dx = best.x - m.x, dy = best.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
-        const sp = d.speed * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? 1.3 : 1);
+        const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? 1.3 : 1);
         let want = d.radius + 14; // желаемая дистанция
         if (d.size !== "s") {
           if (m.atkCd <= 0 && dist < 380) { this.bossPattern(m, d, best, players, now); continue; }

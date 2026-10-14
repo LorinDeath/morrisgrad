@@ -425,6 +425,8 @@ async function boot(canvasId, username, userId, api) {
     }
   });
   net.on('pvp_end', (d) => { duel.end(d); hud.clearTarget(); });
+  // рывок/прыжок навыка в открытом мире: позицию задаёт сервер
+  net.on('ability_move', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
   net.on('rating', (d) => social.onRating(d));
   net.on('rating_err', (d) => social.onRatingErr(d));
   net.on('inspect', (d) => social.onInspect(d));
@@ -537,6 +539,7 @@ async function boot(canvasId, username, userId, api) {
       const def = ITEM_BY_ID[it.id];
       if (def) overlay.toast(`🎁 ${def.icon} ${def.name} (${RARITIES[def.rarity].name})`, RARITIES[def.rarity].color);
     }
+    if (loot.runSkill) overlay.toast(`${loot.runSkill.icon} Новый навык забега: «${loot.runSkill.name}» — Книга → Навыки забега`, '#fde68a');
     for (const [r, n] of Object.entries(loot.res || {})) parts.push(`${RESOURCES[r]?.icon || ''}×${n}`);
     if (parts.length) overlay.float(toX(player.x), 3.0, toZ(player.y), parts.join(' '), '#fde68a');
   }
@@ -705,7 +708,7 @@ async function boot(canvasId, username, userId, api) {
     classSelect.isOpen = false; statsUI.isOpen = false;
     const classKey = RUN_CLASSES[player.stats.classId] ? player.stats.classId : 'soul';
     run = new RunSession({
-      room: roomId, myId: myId || 'local', username, color: player.color,
+      room: roomId, runSkill: meta.state?.account?.runSkillSel || null, myId: myId || 'local', username, color: player.color,
       classKey, serverClass: CLASSES[player.stats.classId] || null,
       meta: classKey !== 'soul' && meta.hero?.cls === classKey ? meta.hero.effective : null,
       hpCapPct: runOpts.hpCapPct,
@@ -901,7 +904,11 @@ async function boot(canvasId, username, userId, api) {
     if ((zoneSt.abilCd[ab.id] || 0) > now) return;
     zoneSt.abilCd[ab.id] = now + Math.min(1500, ab.cd * 1000); // до подтверждения сервера — короткий замок от спама
     zoneSt.abilPend[ab.id] = now;
-    send({ type: 'zone_ability', id: ab.id });
+    // направление навыка: курсор мыши, иначе ближайший моб, иначе взгляд героя (сервер считает форму навыка сам)
+    let adx = player.dirX || 0, ady = player.dirY || 1;
+    if (aim.x !== null && !aim.touch) { const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy); if (d > 1) { adx = dx / d; ady = dy / d; } }
+    else { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
+    send({ type: 'zone_ability', id: ab.id, dx: Math.round(adx * 1000) / 1000, dy: Math.round(ady * 1000) / 1000 });
     overlay.toast(`${ABILITY_BY_ID[ab.id]?.icon || '✦'} ${ABILITY_BY_ID[ab.id]?.name || ab.id}`, '#fde68a');
   }
   // панель действий: навыки раскладки + рывок + атака (мир) / навыки + рывок + оружие и пассивки (забег)
