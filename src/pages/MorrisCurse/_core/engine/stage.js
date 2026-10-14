@@ -26,7 +26,7 @@ export class Stage {
     this.sun = new THREE.DirectionalLight(0xffd9a8, 0.85);
     this.sun.position.set(8, 18, 6);
     this.sun.castShadow = !mobile;
-    this.sun.shadow.mapSize.set(1024, 1024);
+    this.sun.shadow.mapSize.set(2048, 2048); // коробка теней растёт с зумом — держим плотность текселей
     const sc = this.sun.shadow.camera;
     sc.left = -22; sc.right = 22; sc.top = 22; sc.bottom = -22; sc.near = 1; sc.far = 60;
     this.sun.shadow.bias = -0.0008;
@@ -94,12 +94,22 @@ export class Stage {
     const d = this.distance();
     this.camera.position.set(this.focus.x, Math.sin(this.pitch) * d, this.focus.z + Math.cos(this.pitch) * d);
     this.camera.lookAt(this.focus.x, 0, this.focus.z);
+    // Мерцание на дальнем зуме (>~20 клеток): (1) туман не масштабировался — дальний пол «исчезал» в нём;
+    // (2) коробка теней была ±22 ед. (±440 px) — тени и объекты на её краю мигали при ходьбе, плюс «плавание» текселей;
+    // (3) near=0.1 при камере в 40–60 ед. — z-конфликт пола с дальней плоскостью. Всё масштабируем от расстояния камеры.
     if (this.scene.fog && this.baseFog) {
-      this.scene.fog.near = this.baseFog.near + d * 0.6;
-      this.scene.fog.far = this.baseFog.far + d * 0.9;
+      this.scene.fog.near = this.baseFog.near + d * 1.1;
+      this.scene.fog.far = this.baseFog.far + d * 2.2;
     }
-    this.sun.position.set(this.focus.x + 8, 20, this.focus.z + 6);
-    this.sun.target.position.set(this.focus.x, 0, this.focus.z);
+    const near = Math.max(0.1, d * 0.08), far = Math.max(400, d * 8 + 60);
+    if (Math.abs(this.camera.near - near) > near * 0.05 || this.camera.far !== far) { this.camera.near = near; this.camera.far = far; this.camera.updateProjectionMatrix(); }
+    const sc = this.sun.shadow.camera, half = Math.max(22, Math.ceil(d * 1.25));
+    if (sc.right !== half) { sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.far = Math.max(60, half * 3); sc.updateProjectionMatrix(); }
+    // привязка центра теней к сетке текселей карты теней — тени не «плавают» и не мигают при движении
+    const step = (2 * half) / (this.sun.shadow.mapSize?.x || 1024);
+    const sx = Math.round(this.focus.x / step) * step, sz = Math.round(this.focus.z / step) * step;
+    this.sun.position.set(sx + 8, 20, sz + 6);
+    this.sun.target.position.set(sx, 0, sz);
   }
 
   // Ортографический вид строго сверху для редактора карт (соответствует 2D-математике редактора)

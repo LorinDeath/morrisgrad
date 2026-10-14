@@ -40,6 +40,16 @@ const OUT = '/workspace/morrisgrad-round2';
   const fps = await G(() => window.__game.debug.perf ? window.__game.debug.perf() : null);
   ok(ch && ch.live <= 30, `chunks at 30 cells: ${JSON.stringify(ch)} perf ${JSON.stringify(fps)}`);
   await A.screenshot({ path: `${OUT}/arinar-cam-30.png` });
+  { // мерцание на 30 клетках: идём 3 с — чанки не выгружаются/не перебейкаются, пол не уходит в туман, тени покрывают обзор, near масштабирован
+    const ch0 = await G(() => window.__game.debug.chunks());
+    await A.keyboard.down('KeyD'); const shots = [];
+    for (let i = 0; i < 6; i++) { await A.waitForTimeout(500); if (i % 2 === 0) { const f = `${OUT}/flicker-30-walk-${i / 2}.png`; await A.screenshot({ path: f }); shots.push(f); } }
+    await A.keyboard.up('KeyD');
+    const ch1 = await G(() => window.__game.debug.chunks()), r = await G(() => window.__game.debug.cam());
+    const topDist = r.d / Math.cos(Math.max(0, Math.PI / 2 - r.pitch - (r.fov / 2) * Math.PI / 180)); // от камеры до верхнего края пола в кадре
+    ok(ch1.evicted === ch0.evicted && ch1.live >= 20, `30 клеток, ходьба: чанки не выгружаются (${JSON.stringify(ch0)} → ${JSON.stringify(ch1)})`);
+    ok(r.fogFar > topDist * 1.2 && r.shadowHalf >= r.d * 1.2 && r.near >= r.d * 0.05, `30 клеток: туман ${r.fogFar?.toFixed(0)} > верх пола ${topDist.toFixed(0)}, тени ±${r.shadowHalf}, near ${r.near.toFixed(2)} (d ${r.d.toFixed(1)})`);
+  }
   await G(() => window.__game.debug.setCells(20)); await A.waitForTimeout(800); await A.screenshot({ path: `${OUT}/arinar-cam-20.png` });
   for (let k = 0; k < 12; k++) { await A.mouse.wheel(0, -400); await A.waitForTimeout(60); }
   await A.waitForTimeout(1000); c = await G(() => window.__game.debug.cam());

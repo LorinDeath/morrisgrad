@@ -166,7 +166,7 @@ export class ArinarTerrain {
     this.layout = { world: 'arinar', props: [], size: this.plan.size, chunked: true };
     this.light = 1;
     this.stats = { baked: 0, live: 0, evicted: 0, bakeMs: 0 };
-    this.maxLive = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '') ? 20 : 30;
+    this.maxLive = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '') ? 28 : 42; // запас над видимыми (~25 при 30 клетках): без выгрузки/перебейка при ходьбе
     this.ground = null; this.batch = null;
   }
   async init(px = ZONE_RESPAWN.x, py = ZONE_RESPAWN.y) {
@@ -181,7 +181,7 @@ export class ArinarTerrain {
     this.farMat = new THREE.MeshBasicMaterial({ map: ft, color: 0xb8b4c8 });
     const span = this.plan.size / PX;
     const far = new THREE.Mesh(new THREE.PlaneGeometry(span, span), this.farMat);
-    far.rotation.x = -Math.PI / 2; far.position.set(toX(this.plan.size / 2), -0.02, toZ(this.plan.size / 2)); far.name = 'ground-far';
+    far.rotation.x = -Math.PI / 2; far.position.set(toX(this.plan.size / 2), -0.25, toZ(this.plan.size / 2)); far.name = 'ground-far'; far.renderOrder = -1; // ниже чанков с запасом — без z-конфликта на дальнем зуме
     this.group.add(far); this.ground = far;
     // старт: 3×3 вокруг точки входа сразу
     const ci = Math.floor(px / (CH * CELL)), cj = Math.floor(py / (CH * CELL));
@@ -224,8 +224,9 @@ export class ArinarTerrain {
     this.chunks.delete(c.key); this.stats.evicted++;
   }
   /** кадр: px,py — фокус камеры (px мира). Бакает недостающие видимые чанки (бюджет), выгружает дальние */
-  update(px, py, budget = 1) {
-    const S = CH * CELL, rx = 1900, ry = 1600, now = performance.now();
+  update(px, py, budget = 1, view = null) {
+    // область стрима — от фактического обзора камеры (+запас 1 чанк), не меньше прежних ±1900×±1600
+    const S = CH * CELL, rx = Math.max(1900, (view?.rx || 0) + S), ry = Math.max(1600, (view?.ry || 0) + S), now = performance.now();
     const c0 = Math.floor((px - rx) / S), c1 = Math.floor((px + rx) / S), r0 = Math.floor((py - ry) / S), r1 = Math.floor((py + ry) / S);
     const want = [];
     for (let ci = c0; ci <= c1; ci++) for (let cj = r0; cj <= r1; cj++) {

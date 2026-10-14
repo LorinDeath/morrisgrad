@@ -1568,7 +1568,8 @@ async function boot(canvasId, username, userId, api) {
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
       setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
-      cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)) }),
+      cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)),
+        d: stage.distance(), near: stage.camera.near, far: stage.camera.far, fogFar: stage.scene.fog?.far, shadowHalf: stage.sun.shadow.camera.right, pitch: stage.pitch, fov: stage.camera.fov }),
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
