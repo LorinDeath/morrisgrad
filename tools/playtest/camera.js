@@ -1,5 +1,5 @@
 // Камера открытого мира: ~60 клеток по умолчанию, 30…90 колесом/щипком/кнопками мини-карты (общий зум),
-// мини-карта = область камеры ×1.3, сервер шлёт мобов/игроков не дальше OPEN_AOI, чанки/производительность на 90.
+// мини-карта = область камеры ×1.3, сервер шлёт мобов/игроков не дальше OPEN_AOI, чанки/производительность на 45.
 // Скриншоты → /workspace/morrisgrad-round2/arinar-cam-*.png
 const { chromium } = require('playwright-core');
 const OUT = '/workspace/morrisgrad-round2';
@@ -24,35 +24,35 @@ const OUT = '/workspace/morrisgrad-round2';
   // у лагеря рядом с хабом (юг): мобы в кадре
   await G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 23900, y: 26500, god: true }); window.__game.debug.teleport(23900, 26500); }); await A.waitForTimeout(5000);
   let c = await G(() => window.__game.debug.cam());
-  ok(Math.abs(c.cells - 60) <= 2 && Math.abs(c.min - 30) <= 2 && Math.abs(c.max - 90) <= 2, `default ~60 cells, range ${c.min}…${c.max} (${JSON.stringify(c)})`);
+  ok(Math.abs(c.cells - 30) <= 2 && Math.abs(c.min - 15) <= 2 && Math.abs(c.max - 45) <= 2, `default ~30 cells, range ${c.min}…${c.max} (${JSON.stringify(c)})`);
   for (let k = 0; k < 12; k++) { await A.mouse.move(700, 400); await A.mouse.wheel(0, 400); await A.waitForTimeout(60); }
   await A.waitForTimeout(150); const mid = (await G(() => window.__game.debug.cam())).cells;
   await A.waitForTimeout(900); c = await G(() => window.__game.debug.cam());
-  ok(Math.abs(c.cells - 90) <= 2, `wheel out clamps at ~90 cells (${c.cells}); smooth: mid-transition ${mid}`);
+  ok(Math.abs(c.cells - 45) <= 2, `wheel out clamps at ~45 cells (${c.cells}); smooth: mid-transition ${mid}`);
   const mm = await G(() => window.__game.debug.minimap());
   ok(Math.abs(mm.span - c.cells * 1.3 * 32) < 80, `minimap follows camera: ${mm.cam} cells → span ${mm.span}px`);
   const me = await G(() => window.__game.debug.pos());
   const mobs = await G(() => window.__game.debug.zoneMobs());
   const far = Math.max(0, ...mobs.map((m) => Math.max(Math.abs(m.x - me.x), Math.abs(m.y - me.y))));
-  ok(far <= 1584 * 1.15 + 60, `server interest ≤ OPEN_AOI: ${mobs.length} mobs, farthest ${Math.round(far)}px (box ±${Math.round(1584 * 1.15)})`);
+  ok(far <= 792 * 1.15 + 60, `server interest ≤ OPEN_AOI: ${mobs.length} mobs, farthest ${Math.round(far)}px (box ±${Math.round(792 * 1.15)})`);
   const t0 = await G(() => performance.now()); await A.waitForTimeout(4000);
   const ch = await G(() => window.__game.debug.chunks());
   const fps = await G(() => window.__game.debug.perf ? window.__game.debug.perf() : null);
-  ok(ch && ch.live <= 30, `chunks at 90 cells: ${JSON.stringify(ch)} perf ${JSON.stringify(fps)}`);
-  await A.screenshot({ path: `${OUT}/arinar-cam-90.png` });
-  await G(() => window.__game.debug.setCells(60)); await A.waitForTimeout(800); await A.screenshot({ path: `${OUT}/arinar-cam-60.png` });
+  ok(ch && ch.live <= 30, `chunks at 45 cells: ${JSON.stringify(ch)} perf ${JSON.stringify(fps)}`);
+  await A.screenshot({ path: `${OUT}/arinar-cam-45.png` });
+  await G(() => window.__game.debug.setCells(30)); await A.waitForTimeout(800); await A.screenshot({ path: `${OUT}/arinar-cam-30.png` });
   for (let k = 0; k < 12; k++) { await A.mouse.wheel(0, -400); await A.waitForTimeout(60); }
   await A.waitForTimeout(1000); c = await G(() => window.__game.debug.cam());
-  ok(Math.abs(c.cells - 30) <= 2, `wheel in clamps at ~30 cells (${c.cells})`);
-  await A.screenshot({ path: `${OUT}/arinar-cam-30.png` });
+  ok(Math.abs(c.cells - 15) <= 2, `wheel in clamps at ~15 cells (${c.cells})`);
+  await A.screenshot({ path: `${OUT}/arinar-cam-15.png` });
   await A.click('#mm-btn-minus'); await A.waitForTimeout(900); const c2 = await G(() => window.__game.debug.cam());
-  ok(c2.cells > c.cells + 4, `minimap «−» = camera zoom out (${c.cells} → ${c2.cells})`);
+  ok(c2.cells >= c.cells * 1.15, `minimap «−» = camera zoom out (${c.cells} → ${c2.cells})`);
   // мобильный: щипок
   const [M, GM] = await open('CamM', true);
   await GM(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 23900, y: 26500, god: true }); window.__game.debug.teleport(23900, 26500); }); await M.waitForTimeout(4000);
   let cm = await GM(() => window.__game.debug.cam());
-  ok(Math.abs(cm.cells - 60) <= 2, `mobile default ~60 cells (${JSON.stringify(cm)})`);
-  await M.screenshot({ path: `${OUT}/arinar-cam-mobile-60.png` });
+  ok(Math.abs(cm.cells - 30) <= 2, `mobile default ~30 cells (${JSON.stringify(cm)})`);
+  await M.screenshot({ path: `${OUT}/arinar-cam-mobile-30.png` });
   const cdp = await M.context().newCDPSession(M);
   const tp = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], i) => ({ x, y, id: i })) });
   await tp('touchStart', [[150, 400], [240, 400]]);
@@ -60,8 +60,8 @@ const OUT = '/workspace/morrisgrad-round2';
   await tp('touchEnd', []); await M.waitForTimeout(900);
   const cm2 = await GM(() => window.__game.debug.cam());
   ok(cm2.cells < cm.cells - 5, `pinch out → zoom in (${cm.cells} → ${cm2.cells} cells)`);
-  await GM(() => window.__game.debug.setCells(90)); await M.waitForTimeout(800);
-  await M.screenshot({ path: `${OUT}/arinar-cam-mobile-90.png` });
+  await GM(() => window.__game.debug.setCells(45)); await M.waitForTimeout(800);
+  await M.screenshot({ path: `${OUT}/arinar-cam-mobile-45.png` });
   ok(errs.length === 0, 'no page errors ' + errs.slice(0, 3).join(' | '));
   console.log(`${pass} passed, ${fail} failed`); await b.close();
 })();

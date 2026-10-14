@@ -1549,7 +1549,7 @@ export class GameRoom extends DurableObject {
       // общий payload на чанк, а не на игрока; тот, кто вне соседних чанков, просто не приходит.
       const arin = groups.get("arinar") || [];
       const chunkOf = (x: number, y: number) => [Math.floor(x / WORLD_CHUNK), Math.floor(y / WORLD_CHUNK)];
-      // ячейка 400 px: общий payload на ячейку; виден квадрат ±OPEN_AOI от центра ячейки (самый дальний зум камеры, не больше)
+      // ячейка 400 px: общий payload на ячейку; виден квадрат ±OPEN_AOI + полъячейки от центра ячейки (самый дальний зум камеры, не больше)
       const AC = 400;
       const arinFor = (s: any) => {
         const cx = Math.floor((s.x || 0) / AC), cy = Math.floor((s.y || 0) / AC);
@@ -1557,7 +1557,7 @@ export class GameRoom extends DurableObject {
         let p = payloads.get(key);
         if (p) return p;
         const mx = (cx + 0.5) * AC, my = (cy + 0.5) * AC;
-        const vis = arin.filter((o) => o === s || (Math.abs((o.x || 0) - mx) <= OPEN_AOI && Math.abs((o.y || 0) - my) <= OPEN_AOI));
+        const vis = arin.filter((o) => o === s || (Math.abs((o.x || 0) - mx) <= OPEN_AOI + AC / 2 && Math.abs((o.y || 0) - my) <= OPEN_AOI + AC / 2));
         p = JSON.stringify({ type: "players_state", world: "arinar", players: vis, boss: null, dar: null, flowers: [], aoi: 1 });
         payloads.set(key, p);
         return p;

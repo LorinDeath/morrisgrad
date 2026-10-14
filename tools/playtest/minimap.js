@@ -42,7 +42,7 @@ const OUT = '/workspace/morrisgrad-round2';
   ok(s.bosses >= Math.max(1, realBosses), 'arinar: boss drawn as distinct diamond ' + JSON.stringify(s));
   { // мини-карта = область камеры ×1.3; её +/- меняют зум камеры (общий)
     const m0 = await G(A, () => window.__game.debug.minimap());
-    ok(m0.cam >= 55 && m0.cam <= 65 && Math.abs(m0.span - m0.cam * 1.3 * 32) < 60, `arinar minimap = camera ${m0.cam} cells ×1.3 → span ${m0.span}px`);
+    ok(m0.cam >= 27 && m0.cam <= 33 && Math.abs(m0.span - m0.cam * 1.3 * 32) < 60, `arinar minimap = camera ${m0.cam} cells ×1.3 → span ${m0.span}px`);
     await A.click('#mm-btn-minus'); await A.click('#mm-btn-minus'); await A.waitForTimeout(900);
     const m1 = await G(A, () => window.__game.debug.minimap());
     ok(m1.cam > m0.cam + 10, `minimap «−» zooms the camera out: ${m0.cam} → ${m1.cam} cells`);

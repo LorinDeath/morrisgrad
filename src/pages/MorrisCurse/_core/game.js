@@ -1010,7 +1010,7 @@ async function boot(canvasId, username, userId, api) {
     const v = stage.view;
     v.targetZoom = Math.max(v.minZoom, Math.min(v.maxZoom, v.targetZoom * f));
   }
-  // Открытый мир (Аринар): зум камеры в клетках — по умолчанию ~60, отдалить до ~90, приблизить до ~30 (VIEW_CELLS).
+  // Открытый мир (Аринар): зум камеры в клетках — по умолчанию ~30, отдалить до ~45, приблизить до ~15 (VIEW_CELLS).
   // Пределы пересчитываются при смене мира и размера окна; мини-карта показывает область камеры ×1.3 и делит этот зум.
   let camKey = '';
   function applyCamLimits() {
