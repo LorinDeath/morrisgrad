@@ -124,6 +124,11 @@
 .mc-tracker { position: absolute; right: 10px; top: 54px; width: min(250px, 46%); pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; gap: 6px; font-size: 11px; z-index: 3; }
 .mc-tracker .q { background: rgba(10, 6, 20, 0.78); border: 1px solid #3b2c52; border-left: 3px solid #facc15; border-radius: 6px; padding: 6px 8px; }
 .mc-tracker .q .t { color: #fde68a; font-weight: bold; margin-bottom: 3px; }
+.mc-tracker .q .t2 { color: #e5e7eb; opacity: .85; font-size: .92em; margin-top: 3px; }
+.mc-qtrack { float: right; font: inherit; font-size: 11px; padding: 1px 7px; margin-left: 8px; border-radius: 9px; cursor: pointer; border: 1px solid #6b7280; background: #1f2937; color: #9ca3af; }
+.mc-qtrack.on { border-color: #fbbf24; color: #fde68a; background: #3b2f12; }
+.mc-quest.untracked { opacity: .7; }
+.mc-qtrack-all { display: flex; gap: 6px; margin: 4px 0 8px; }
 .mc-tracker .q ul { margin: 0; padding-left: 14px; color: #cbd5e1; }
 .mc-tracker .q li.ok { color: #86efac; text-decoration: line-through; opacity: 0.8; }
 .mc-tracker .q li b { color: #fff; }

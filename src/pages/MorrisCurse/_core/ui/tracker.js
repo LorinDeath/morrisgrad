@@ -51,12 +51,16 @@ export class QuestTracker {
     this.tutEl.style.display = tip ? '' : 'none';
 
     // задание
-    const qid = this.meta.trackedQuest();
+    // все отслеживаемые задания (выбор в журнале); стрелка — к первому, подсветка мобов — по всем
+    const tracked = this.meta.trackedQuests ? this.meta.trackedQuests() : [this.meta.trackedQuest()].filter(Boolean);
+    const qid = tracked[0];
     const q = qid && QUEST_BY_ID[qid];
     let html = '';
     this.target = null;
     this.trackTypes = new Set(); // типы мобов-целей (подсветка на экране/мини-карте + компас), если отслеживание не выключено в админке
     if (q && st) {
+      for (const oid of tracked) { const oq = QUEST_BY_ID[oid], op = st.account.quests.active[oid]?.p || [];
+        if (oq && !st.complete.includes(oid) && oq.track !== false) oq.objectives.forEach((o, i) => { if ((o.type === 'kill' || o.type === 'kill_boss') && o.mob && (op[i] || 0) < (o.count || 1)) this.trackTypes.add(o.mob); }); }
       const p = st.account.quests.active[qid]?.p || [];
       const complete = st.complete.includes(qid);
       const obj = q.objectives.map((o, i) => {
@@ -67,8 +71,12 @@ export class QuestTracker {
       // сдача другому NPC — подсказка говорит об этом явно (и в процессе, и после выполнения)
       const turnTxt = other ? `Сдать: ${esc(NPCS[tn]?.name || tn)} (не ${esc(NPCS[q.npc]?.name || q.npc)})` : '';
       html = `<div class="t">${complete ? '✔ ' : '◆ '}${esc(q.title)}</div><ul>${complete && !q.auto ? `<li class="ok">${other ? turnTxt : `Вернитесь: ${esc(this.meta.questTarget(qid)?.label || '')}`}</li>` : obj + (other ? `<li class="turnin">↪ ${turnTxt}</li>` : '')}</ul>`;
+      // остальные отслеживаемые — компактно, по строке
+      const more = tracked.slice(1, 4).map((id) => { const x = QUEST_BY_ID[id], c = st.complete.includes(id), xp = st.account.quests.active[id]?.p || [];
+        const o = x.objectives.findIndex((ob, i) => (xp[i] || 0) < (ob.count || 1)), ob = x.objectives[o];
+        return `<div class="t2">${c ? '✔' : '◇'} ${esc(x.title)}${!c && ob && (ob.count || 1) > 1 ? ` <b>${Math.min(ob.count, xp[o] || 0)}/${ob.count}</b>` : ''}</div>`; }).join('');
+      html += more + (tracked.length > 4 ? `<div class="t2">… ещё ${tracked.length - 4}</div>` : '');
       this.target = this.meta.questTarget(qid);
-      if (!complete && q.track !== false) q.objectives.forEach((o, i) => { if ((o.type === 'kill' || o.type === 'kill_boss') && o.mob && (p[i] || 0) < (o.count || 1)) this.trackTypes.add(o.mob); });
       if (this.trackTypes.size) { // компас — к ближайшей видимой цели, иначе к ближайшему лагерю, где она водится
         const isT = (t) => this.trackTypes.has(t) || this.trackTypes.has(baseOf(t));
         let best = null, bd = Infinity;
@@ -76,7 +84,7 @@ export class QuestTracker {
         if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
         if (best) this.target = best;
       }
-    } else if (st) {
+    } else if (st && !Object.keys(st.account.quests.active).length) { // всё снято с отслеживания — трекер молчит
       const av = (st.available || [])[0];
       if (av) {
         const aq = QUEST_BY_ID[av];

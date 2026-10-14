@@ -1,0 +1,12 @@
+import { setQuestTrack, isQuestTracked } from "./questTrack";
+let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
+const q: any = { active: { a: {}, b: {}, c: {} }, done: [] };
+ok(isQuestTracked(q, "a") && isQuestTracked(q, "c"), "старое сохранение без поля — всё отслеживается");
+setQuestTrack(q, "b", false); ok(!isQuestTracked(q, "b") && isQuestTracked(q, "a"), "снять один");
+setQuestTrack(q, "b", true); ok(isQuestTracked(q, "b"), "вернуть один");
+setQuestTrack(q, null, false); ok(["a", "b", "c"].every((x) => !isQuestTracked(q, x)), "«Снять все»");
+setQuestTrack(q, null, true); ok(q.untracked.length === 0, "«Отслеживать все»");
+ok(!setQuestTrack(q, "zzz", false).ok, "чужой/неактивный квест — отказ");
+setQuestTrack(q, "c", false); delete q.active.c; setQuestTrack(q, "a", false); ok(!q.untracked.includes("c"), "сданный квест выпадает из списка");
+q.active.d = {}; ok(isQuestTracked(q, "d"), "новый квест — сразу отслеживается");
+console.log(f ? `FAILED ${f}` : "quest-track ok"); if (f) process.exit(1);

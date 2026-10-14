@@ -21,7 +21,7 @@ export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
-  quests: { active: Record<string, { p: number[] }>; done: string[] };
+  quests: { active: Record<string, { p: number[] }>; done: string[]; untracked?: string[] };
   bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
   runSkills?: string[]; // кодекс: открытые (хоть раз выпавшие) навыки «Вампир-лайка»
   gname?: string; // имя гостевого профиля (guestNames.ts), назначает сервер

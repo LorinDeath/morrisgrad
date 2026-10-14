@@ -160,6 +160,8 @@ export class Book {
       case 'craft': m.craft(v); break;
       case 'soul': m.soulBuy(v); break;
       case 'turnin': m.turnIn(v); break;
+      case 'qtrack': m.setTrack(v === '*' ? null : v, true); this.render(); break;
+      case 'quntrack': m.setTrack(v === '*' ? null : v, false); this.render(); break;
       default: break;
     }
   }
@@ -206,8 +208,9 @@ export class Book {
         return `<li class="${have >= need ? 'ok' : ''}">${esc(o.text)}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
       }).join('');
       const npc = NPCS[q.turnin || q.npc], other = !!q.turnin && q.turnin !== q.npc; // сдача может быть другому NPC
-      return `<div class="mc-quest ${complete ? 'done' : ''}">
-        <div class="t">${q.star ? star(q.star) + ' ' : ''}${esc(q.title)} <small>${esc(q.chapter || CAMPAIGN_NAMES[q.campaign] || '')}</small></div>
+      const tr = this.meta.isTracked ? this.meta.isTracked(id) : true;
+      return `<div class="mc-quest ${complete ? 'done' : ''} ${tr ? 'tracked' : 'untracked'}" data-q="${id}">
+        <div class="t"><button class="mc-qtrack ${tr ? 'on' : ''}" data-act="${tr ? 'quntrack' : 'qtrack'}" data-v="${id}" title="${tr ? 'Снять с отслеживания' : 'Отслеживать: трекер, мини-карта, компас'}">${tr ? '👁 Отслеживается' : '◌ Отслеживать'}</button>${q.star ? star(q.star) + ' ' : ''}${esc(q.title)} <small>${esc(q.chapter || CAMPAIGN_NAMES[q.campaign] || '')}</small></div>
         <ul>${objs}</ul>
         ${q.hint && !complete ? `<div class="h">💡 ${esc(q.hint)}</div>` : ''}
         ${!complete && other ? `<div class="h">↪ Сдавать: ${esc(npc?.name || '')} (не тот, кто выдал)</div>` : ''}
@@ -221,7 +224,8 @@ export class Book {
       return `<div class="mc-quest avail"><div class="t">❕ ${q.star ? star(q.star) + ' ' : ''}${esc(q.title)} <small>${esc(q.chapter || CAMPAIGN_NAMES[q.campaign] || '')}</small></div><div class="h">Возьмите у: <b>${esc(npc?.name || q.npc)}</b>${npc ? ` (${npc.world === 'arinar' ? 'Аринар' : 'Поляна'})` : ''}</div></div>`;
     }).join('');
     const doneN = a.quests.done.length;
-    return `<h3>Активные</h3>${active.map(row).join('') || '<p class="mc-dim">Нет активных заданий.</p>'}
+    const allBtns = active.length ? `<div class="mc-qtrack-all"><button class="mc-btn" data-act="qtrack" data-v="*">👁 Отслеживать все</button> <button class="mc-btn" data-act="quntrack" data-v="*">◌ Снять все</button></div>` : '';
+    return `<h3>Активные</h3>${allBtns}${active.map(row).join('') || '<p class="mc-dim">Нет активных заданий.</p>'}
       ${avail ? `<h3>Доступны</h3>${avail}` : ''}
       <p class="mc-dim">Завершено заданий: ${doneN} из ${QUESTS.length}. Сюжет: Пролог → «Чувствовать» (Лэйр) и «Держать мир» (Алзи) → совместная «Гул» → звёздные испытания → экзамен → чёрная звезда.</p>`;
   }

@@ -1,0 +1,33 @@
+// Отслеживание заданий: журнал → снять/вернуть, «Снять все»/«Отслеживать все», трекер, сохранение на сервере (перезагрузка). Только локально.
+const { chromium } = require('playwright-core');
+const { guardLocal, assertLocalUrl } = require(process.env.MC_LOCAL_GUARD || './_local');
+const OUT = '/workspace/morrisgrad-round3', URL = 'http://127.0.0.1:5199/game.html?name=Алекс&uid=test_admin_pt&ws=ws://127.0.0.1:8787&fs=1&debug=1';
+let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
+(async () => {
+  const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 860 } }); await guardLocal(ctx);
+  const open = async () => { const p = await ctx.newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 200)));
+    await p.goto(assertLocalUrl(URL)); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game.meta?.state, null, { timeout: 120000 }); await p.waitForTimeout(2500); return p; };
+  let p = await open();
+  const S = () => p.evaluate(() => { const m = window.__game.meta; return { act: Object.keys(m.state.account.quests.active), un: m.state.account.quests.untracked || [], tr: m.trackedQuests(), hud: document.querySelector('.mc-tracker .q')?.innerText || '', types: [...(window.__game.debug.track?.().types || [])] }; });
+  let s = await S(); console.log('active', s.act.join(','));
+  ok(s.act.length >= 1, 'есть активные задания');
+  await p.evaluate(() => window.__game.debug.openBook?.('quests')); await p.waitForTimeout(800);
+  await p.screenshot({ path: `${OUT}/qtrack-1-log.png` });
+  const first = s.tr[0];
+  await p.click(`.mc-quest[data-q="${first}"] .mc-qtrack`); await p.waitForTimeout(1200);
+  s = await S(); ok(!s.tr.includes(first) && s.un.includes(first), `снят с отслеживания: ${first}`);
+  await p.screenshot({ path: `${OUT}/qtrack-2-one-off.png` });
+  await p.click('.mc-qtrack-all [data-act="quntrack"]'); await p.waitForTimeout(1200);
+  s = await S(); ok(s.tr.length === 0 && !s.hud.trim(), '«Снять все»: трекер пуст, цели не подсвечены' + (s.types.length ? ' (types ' + s.types + ')' : ''));
+  ok(s.types.length === 0, 'мини-карта/компас: нет целей');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(500); await p.screenshot({ path: `${OUT}/qtrack-3-none-hud.png` });
+  await p.close(); p = await open(); s = await S();
+  ok(s.tr.length === 0 && s.un.length === s.act.length, 'после перезагрузки — выбор сохранён на сервере');
+  await p.evaluate(() => window.__game.debug.openBook?.('quests')); await p.waitForTimeout(800);
+  await p.click('.mc-qtrack-all [data-act="qtrack"]'); await p.waitForTimeout(1200);
+  s = await S(); ok(s.tr.length === s.act.length && s.hud.trim().length > 0, '«Отслеживать все»: всё вернулось в трекер');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(500); await p.screenshot({ path: `${OUT}/qtrack-4-all-hud.png` });
+  ok(!p.errs.length, 'без ошибок страницы ' + p.errs.join(' | '));
+  console.log(fails ? `FAILED ${fails}` : 'quest-track playtest ok'); await b.close(); process.exit(fails ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(2); });

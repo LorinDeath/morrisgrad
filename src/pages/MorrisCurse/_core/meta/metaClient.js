@@ -38,14 +38,25 @@ export class MetaClient {
   flag(f) { return !!this.state?.account?.flags?.[f]; }
 
   // Квест, за которым следит трекер: сначала готовые к сдаче, потом активные (сюжет важнее звёзд)
-  trackedQuest() {
+  // Компас/стрелка ведут к первому из отслеживаемых (выбор игрока в журнале — quests.untracked на сервере)
+  trackedQuest() { return this.trackedQuests()[0] || null; }
+  isTracked(id) { return !(this.account?.quests.untracked || []).includes(id); }
+  trackedQuests() {
     const a = this.account;
-    if (!a) return null;
+    if (!a) return [];
     const order = ['prologue', 'leyr', 'alzi', 'joint', 'star', 'exam', 'black'];
-    const ids = Object.keys(a.quests.active).filter((id) => QUEST_BY_ID[id]);
+    const ids = Object.keys(a.quests.active).filter((id) => QUEST_BY_ID[id] && this.isTracked(id));
     ids.sort((x, y) => order.indexOf(QUEST_BY_ID[x].campaign) - order.indexOf(QUEST_BY_ID[y].campaign));
-    const done = ids.find((id) => this.state.complete.includes(id));
-    return done || ids[0] || null;
+    const done = ids.filter((id) => this.state.complete.includes(id));
+    return [...done, ...ids.filter((id) => !done.includes(id))];
+  }
+  /** id = null — все активные. Сразу меняем у себя (трекер не мигает), сервер подтвердит состоянием. */
+  setTrack(id, on) {
+    const q = this.account?.quests; if (!q) return;
+    const act = Object.keys(q.active), un = new Set((q.untracked || []).filter((x) => act.includes(x)));
+    if (id == null) { if (on) un.clear(); else act.forEach((x) => un.add(x)); } else if (on) un.delete(id); else un.add(id);
+    q.untracked = [...un];
+    this.send(id == null ? { type: 'quest_track', all: true, on: !!on } : { type: 'quest_track', id, on: !!on });
   }
   // Куда идти по квесту: {world,x,y,label} или null
   questTarget(qid) {

@@ -32,6 +32,7 @@ import { Social } from "./social";
 import { Roles } from "./roles";
 import { WEAPON_SKILL_CD } from "./abilityShapes";
 import { rsInfo, RS_DEF } from "./rsAny";
+import { setQuestTrack } from "./questTrack";
 /** ХП/с игрока: вне боя — полное (стат + база зоны + 4% ХП/с), в бою — ×ZONE_GEN.regenCombat. */
 /** восстановление в бою для клиента (забеги считают ХП у себя) */
 export function regenCfg() { const G: any = ZONE_GEN; return { mul: G.regenCombat ?? 0.1, sec: G.regenCombatSec ?? 5 }; }
@@ -426,6 +427,10 @@ export class MetaService {
         this.push(ws, session);
         this.send(ws, { type: "npc_dialog", npc, quests });
         return true;
+      }
+      case "quest_track": { // отслеживание: { id, on } или { all: true, on }
+        const id = msg.all ? null : String(msg.id ?? "");
+        reply(setQuestTrack(a.quests, id, !!msg.on)); return true;
       }
       case "quest_accept": {
         const q = QUEST_BY_ID[String(msg.id)];
