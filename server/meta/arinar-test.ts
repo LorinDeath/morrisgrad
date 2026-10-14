@@ -1,7 +1,7 @@
 // Аринар 48000: лагеря, биомы, поводок, сон чанков, проклятые, навыки боссов, опыт, индекс типов.
 // Запуск: esbuild server/meta/arinar-test.ts --bundle --platform=node --format=esm --outfile=/tmp/at.mjs && node /tmp/at.mjs
 import { Zone, skillsFor, type ZPlayer } from "./zone";
-import { ZONE_GEN, WORLD_GEN, regionAt, inSafe } from "./zoneGen";
+import { ZONE_GEN, WORLD_GEN, regionAt, inSafe, ARINAR_PATCHES } from "./zoneGen";
 import { ZONE_MOBS } from "./defs";
 import { MOB_INFO, ZONE_RESPAWN, NPCS } from "./shared";
 import { BIOMES, VARIANTS, baseOf } from "./biomes";
@@ -33,9 +33,20 @@ for (const b of Object.values(BIOMES)) {
   ok(ms.length > 50 && Math.min(...lv) === b.lvl[0] && Math.max(...lv) === b.lvl[1], `biome ${b.id} (${b.name}): ${ms.length} mobs lvl ${Math.min(...lv)}–${Math.max(...lv)} (want ${b.lvl.join("–")})`);
 }
 const bb = WORLD_GEN.arinar.bosses.filter((b) => (ZONE_MOBS[b.type] as any).biome);
-ok(Object.keys(BIOMES).every((id) => bb.filter((b) => (ZONE_MOBS[b.type] as any).biome === id).length >= 1 && bb.filter((b) => (ZONE_MOBS[b.type] as any).biome === id).length <= 2), `1–2 themed bosses per biome: ${bb.map((b) => b.type).join(", ")}`);
+const tOf = (id: string) => new Set(bb.filter((b) => (ZONE_MOBS[b.type] as any).biome === id).map((b) => b.type)).size;
+ok(Object.keys(BIOMES).every((id) => tOf(id) >= 1 && tOf(id) <= 2), `1–2 themed boss TYPES per biome, ${bb.length} placements across patches: ${bb.map((b) => b.type).join(", ")}`);
 ok(bb.every((b) => regionAt(b.x, b.y)?.biome === "b_" + (ZONE_MOBS[b.type] as any).biome), "biome bosses stand in their biome");
 const hubR = regionAt(ARINAR_HUB.x, ARINAR_HUB.y);
+{ // Minecraft-подобная генерация: несколько пятен каждого биома, в каждом лагеря, боссы распределены
+  const cnt = (k: string) => ARINAR_PATCHES.filter((p) => p.kind === k).length;
+  ok(["ice", "fire", "stone", "air"].every((k) => cnt(k) >= 4), `biome patches: ${["ice", "fire", "stone", "air"].map((k) => k + "×" + cnt(k)).join(", ")} (+ ${ARINAR_PATCHES.length - 24} patches of old tiers)`);
+  const withCamps = ARINAR_PATCHES.filter((P) => camps.some((c) => (regionAt(c.x, c.y) as any)?.patch === P.idx)).length;
+  ok(withCamps === ARINAR_PATCHES.length, `camps in every patch (${withCamps}/${ARINAR_PATCHES.length})`);
+  const elemP = ARINAR_PATCHES.filter((P) => ["ice", "fire", "stone", "air"].includes(P.kind));
+  ok(elemP.every((P) => WORLD_GEN.arinar.bosses.some((b) => (regionAt(b.x, b.y) as any)?.patch === P.idx)), `every elemental patch has its own boss (${WORLD_GEN.arinar.bosses.length} boss spawns total)`);
+  const lv = (k: string) => WORLD_GEN.arinar.regions.filter((r: any) => r.kind?.startsWith(k + "_")).map((r) => r.lvl);
+  ok(["ice", "fire", "stone", "air"].every((k: any) => lv(k).every((l) => l[0] >= (BIOMES as any)[k].lvl[0] && l[1] <= (BIOMES as any)[k].lvl[1])), "level bands follow biome TYPE in every patch");
+}
 ok(hubR?.id === "hub" && ["groves", "meadow", "violets_w", "pome_e"].every((id) => WORLD_GEN.arinar.regions.find((r) => r.id === id)!.lvl[1] <= 5), "hub «Гранатовый двор» ringed by lvl 1–5 groves/violet meadows/pomegranate garden");
 ok(baseOf("ice_dew_slime") === "dew_slime" && (MOB_INFO as any).ice_dew_slime.tint.length === 3, "variants: base for loot/bestiary + tint for client");
 
@@ -43,7 +54,7 @@ ok(baseOf("ice_dew_slime") === "dew_slime" && (MOB_INFO as any).ice_dew_slime.ti
 {
   // лагерь с ближником, который быстрее игрока (иначе он просто теряет цель — тоже честно, но не поводок)
   const okMob = (t: string) => ZONE_MOBS[t].speed >= 70 && ["melee", "charger", "swarm"].includes(ZONE_MOBS[t].role);
-  const camp = camps.find((c) => regionAt(c.x, c.y)?.id === "fire_inner" && okMob(c.types[0]))!;
+  const camp = camps.find((c) => (regionAt(c.x, c.y) as any)?.kind === "fire_inner" && okMob(c.types[0]))!;
   const mob = z.mobs.find((m) => m.camp === camp.id && m.type === camp.types[0])!;
   const far = z.mobs.find((m) => Math.hypot(m.x - camp.x, m.y - camp.y) > 16000)!;
   const fx = far.x, fy = far.y;

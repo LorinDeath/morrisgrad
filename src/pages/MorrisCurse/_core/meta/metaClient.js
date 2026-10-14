@@ -1,5 +1,6 @@
 // Клиент мета-прогрессии: хранит последний снимок профиля с сервера (meta_state) и шлёт запросы.
 // Всё решает сервер (server/meta/*): клиент лишь показывает и просит.
+import { patchOf } from '../../../../../server/meta/zoneGen.ts';
 import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
 import { NPCS, HERO_NAMES } from '../../../../../server/meta/shared.ts';
 import { addCards } from './itemCards.js';
@@ -109,6 +110,7 @@ export class MetaClient {
 }
 
 // Подсказки направления для целей без NPC (координаты мира сервера, px)
+const pXY = (k) => { const p = patchOf(k); return p ? { x: p.x, y: p.y } : { x: 24000, y: 24000 }; }; // ближайшее к хабу пятно биома
 export const QUEST_WAYPOINTS = {
   p1_swarm: { world: 'hellfire', x: 640, y: 150, label: 'Рой Мошкары' },
   p2_shell: { world: 'hellfire', x: 565, y: 600, label: 'Алтарь перевоплощения' },
@@ -116,9 +118,9 @@ export const QUEST_WAYPOINTS = {
   // карта Аринара 48000×48000: хаб в центре, биомы вокруг (регионы — server/meta/zoneGen.ts)
   l2_moths: { world: 'arinar', x: 24000, y: 27400, label: 'Тихие мотыльки (Луга фиалок)' },
   l3_violets: { world: 'arinar', x: 20600, y: 24000, label: 'Ночные фиалки (Фиалковая лощина)' },
-  l4_boss: { world: 'arinar', x: 41400, y: 6000, label: 'Безветрие (Восточный кряж)' },
+  l4_boss: { world: 'arinar', ...pXY('ridge'), label: 'Безветрие (Восточный кряж, ближнее пятно)' },
   a2_heat: { world: 'arinar', x: 24000, y: 28200, label: 'Глитч-слизь (Луга фиалок, юг)' },
-  a3_cool: { world: 'arinar', x: 33000, y: 6000, label: 'Звёздное серебро (Пустоши)' },
+  a3_cool: { world: 'arinar', ...pXY('wastes'), label: 'Звёздное серебро (Пустоши, ближнее пятно)' },
   a4_hall: { world: 'arinar', x: 24300, y: 24000, label: 'Комната «Бездна»' },
   j1_fans: { world: 'arinar', x: 24300, y: 24000, label: 'Комната «Бездна» (вдвоём)' },
 };

@@ -1,5 +1,6 @@
 // Юнит-тесты процедурного спавна и атаки по направлению (без сети).
 // Запуск: esbuild server/meta/zone-test.ts --bundle --platform=node --outfile=/tmp/zt.js && node /tmp/zt.js
+import { volleyDirs } from "./shared";
 import { Zone, type ZPlayer, type ZMob } from "./zone";
 import { ZONE_GEN, REGIONS, SAFE_ZONES, WORLD_GEN, genNodes, inSafe, regionAt } from "./zoneGen";
 import { BESTIARY } from "./bestiary";
@@ -87,7 +88,7 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
   const ann = z.events.find((e) => e.k === "announce");
   ok(!!boss && !!ann && boss.special === "boss", `world boss ${B.type} after ${B.firstAfter}s with announcement: "${ann?.text}"`);
   if (boss) { z.kill(boss, noop); now += 1000; z.update(1, now, pm, noop, noop); }
-  ok(z.bossAt[B.type] > now + (B.every - 5) * 1000 && !z.mobs.some((m) => m.type === B.type && !m.dead), `boss re-timer ${B.every}s after kill`);
+  ok(z.bossAt[B.key || B.type] > now + (B.every - 5) * 1000 && !z.mobs.some((m) => m.type === B.type && !m.dead), `boss re-timer ${B.every}s after kill`);
   const last = WORLD_GEN.arinar.bosses.reduce((a, b) => (b.firstAfter > a.firstAfter ? b : a));
   for (let s = 0; s < last.firstAfter; s++) { now += 1000; z.update(1, now, pm, noop, noop); }
   const alive = WORLD_GEN.arinar.bosses.filter((b) => z.mobs.some((m) => m.type === b.type && !m.dead && m.special === "boss")).length;
@@ -152,14 +153,26 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
 // 5. атака по направлению: форма оружия
 {
   const z = new Zone("arinar", [], [], { proc: false });
-  const p = P("a", 500, 500);
-  const m1 = z.addMob("rot_glitch", 600, 500), m2 = z.addMob("rot_glitch", 680, 505), m3 = z.addMob("rot_glitch", 500, 590);
+  const O = 24000; // внутри безопасного хаба — там нет лагерей, мешающих геометрии
+  const p = P("a", O + 500, O + 500);
+  const m1 = z.addMob("rot_glitch", O + 600, O + 500), m2 = z.addMob("rot_glitch", O + 680, O + 505), m3 = z.addMob("rot_glitch", O + 500, O + 590);
   const spear = WEAPON_TYPES.spear.atk, book = WEAPON_TYPES.book.atk, sword = WEAPON_TYPES.sword.atk;
   ok(z.targetsInDir(p, 1, 0, book).map((m) => m.id).join() === String(m1.id), "proj: hits only the first mob on the ray");
   ok(z.targetsInDir(p, 1, 0, spear).length === 2, "line (spear): pierces 2 mobs in a row");
   ok(z.targetsInDir(p, -1, 0, book).length === 0, "wrong direction → miss (server-validated)");
   ok(z.targetsInDir(p, 0, 1, sword).map((m) => m.id).join() === String(m3.id), "arc (sword): hits mob in the swing, not those outside the arc");
   ok(z.targetsInDir(p, 0.7071, 0.7071, sword).length >= 2, "arc (sword): 45° swing catches mobs on both sides (cleave)");
+  { // залпы: кинжалы ×2, лапки-лезвия ×5 — веер, каждый снаряд бьёт первую цель на своём луче; DPS сбалансирован
+    const vol = (wt: string) => volleyDirs(WEAPON_TYPES[wt].atk, 1, 0);
+    ok(vol("daggers").length === 2 && vol("fly_blades").length === 5 && vol("book").length === 1 && vol("sword").length === 1, "volley sizes: daggers 2, fly_blades 5, others 1");
+    const fan = vol("fly_blades").map(([vx, vy]) => z.addMob("rot_glitch", O - 500 + vx * 190, O - 500 + vy * 190)); // пачка веером
+    const p2 = P("b", O - 500, O - 500);
+    const hitIds = new Set(vol("fly_blades").flatMap(([vx, vy]) => z.targetsInDir(p2, vx, vy, WEAPON_TYPES.fly_blades.atk).map((m) => m.id)));
+    ok(fan.filter((m) => hitIds.has(m.id)).length >= 4, `fly_blades fan hits ${fan.filter((m) => hitIds.has(m.id)).length}/5 mobs of a spread pack`);
+    const tot = (wt: string) => { const A = WEAPON_TYPES[wt].atk; return (A.count || 1) * (A.per || 1); };
+    ok(tot("daggers") <= 1.2 && tot("fly_blades") <= 1.25 && tot("daggers") >= 1 && tot("fly_blades") >= 1, `volley total vs single shot: daggers ×${tot("daggers").toFixed(2)}, fly_blades ×${tot("fly_blades").toFixed(2)} (max if all hit one target)`);
+    fan.forEach((m) => z.kill(m, () => {}));
+  }
   const far = z.addMob("rot_glitch", 500, 500 - (book.range + 60));
   ok(!z.targetsInDir(p, 0, -1, book).includes(far), "out of range → miss");
   m1.dead = true;

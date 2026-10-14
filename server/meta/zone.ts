@@ -186,10 +186,11 @@ export class Zone {
     const G = this.gen;
     const scale = Math.max(1, Math.min(4, players.size));
     for (const b of G.bosses) {
-      if (!this.bossAt[b.type]) this.bossAt[b.type] = now + b.firstAfter * 1000;
-      if (this.bossIds[b.type] || now < this.bossAt[b.type]) continue;
+      const bk = b.key || b.type; // несколько боссов одного типа в разных пятнах — свои таймеры
+      if (!this.bossAt[bk]) this.bossAt[bk] = now + b.firstAfter * 1000;
+      if (this.bossIds[bk] || now < this.bossAt[bk]) continue;
       const m = this.addMob(b.type, b.x, b.y, { region: null, hpMul: 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1), special: "boss" });
-      this.bossIds[b.type] = m.id; this.bossAt[b.type] = Number.MAX_SAFE_INTEGER;
+      (m as any).bossKey = bk; this.bossIds[bk] = m.id; this.bossAt[bk] = Number.MAX_SAFE_INTEGER;
       const d = ZONE_MOBS[b.type];
       this.events.push({ k: "announce", text: `${m.cursed ? "☠️ ПРОКЛЯТЫЙ м" : "🌙 М"}ировой босс «${d.name}» (ур. ${d.lvl}) пробуждается ${b.where}!`, color: "#c084fc", x: undefined });
     }
@@ -202,7 +203,8 @@ export class Zone {
       }
       if (this.rareIds[r.type]) { delete this.rareIds[r.type]; this.rareAt[r.type] = now + (r.every[0] + this.rand() * (r.every[1] - r.every[0])) * 1000; continue; }
       if (now < this.rareAt[r.type]) continue;
-      const reg = G.regions.find((x) => x.id === r.region);
+      const cand = G.regions.filter((x) => x.id === r.region || (x as any).kind === r.region); // пятна одного биома
+      const reg = cand.length ? cand[Math.floor(this.rand() * cand.length)] : null;
       if (!reg) continue;
       for (let t = 0; t < 12; t++) {
         const x = reg.rect[0] + 60 + this.rand() * (reg.rect[2] - reg.rect[0] - 120), y = reg.rect[1] + 60 + this.rand() * (reg.rect[3] - reg.rect[1] - 120);
@@ -392,8 +394,9 @@ export class Zone {
         const m = this.mobs[i];
         if (m.dead && !m.fixed) {
           if (m.special === "boss") {
-            const b = this.gen.bosses.find((x) => x.type === m.type);
-            delete this.bossIds[m.type]; this.bossAt[m.type] = now + (b?.every || 600) * 1000;
+            const bk = (m as any).bossKey || m.type;
+            const b = this.gen.bosses.find((x) => (x.key || x.type) === bk);
+            delete this.bossIds[bk]; this.bossAt[bk] = now + (b?.every || 600) * 1000;
           }
           if (m.special === "rare" && this.rareIds[m.type] === m.id) {
             const r = this.gen.rares.find((x) => x.type === m.type)!;

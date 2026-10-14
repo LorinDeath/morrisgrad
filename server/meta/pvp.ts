@@ -6,7 +6,7 @@
 // Урон считает сервер: статы героев (снаряжение, таланты) — с сервера, разброс/крит — криптографический ГСЧ,
 // темп ударов и перезарядки — серверные, попадание — по позициям сервера и форме удара оружия.
 // Клиентские числа урона и любые «duel_action» игнорируются. Счёт — в D1 (миграция 0005_duels.sql).
-import { WEAPON_TYPES, ABILITY_BY_ID, ZONE_RESPAWN } from "./defs";
+import { WEAPON_TYPES, ABILITY_BY_ID, ZONE_RESPAWN, volleyDirs } from "./defs";
 import { cryptoRand } from "./profile";
 import { WORLD_SIZES } from "../worlds/sizes";
 
@@ -221,14 +221,19 @@ export class Pvp {
     if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = c.os.x - session.x; dy = c.os.y - session.y; }
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     c.me.lastAtk = Math.max(now, c.me.lastAtk) + atkCd;
-    const hit = this.hitTest(session.x, session.y, c.os.x, c.os.y, dx, dy, W.atk);
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
-    const tx = hit && W.atk.kind === "proj" ? c.os.x : session.x + dx * reach, ty = hit && W.atk.kind === "proj" ? c.os.y : session.y + dy * reach;
-    c.d.ev.push({ k: "shot", sid: session.id, x: Math.round(session.x), y: Math.round(session.y), tx: Math.round(tx), ty: Math.round(ty), w: wt });
-    if (!hit) return;
+    const per = (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1;
+    let n = 0; // залп: сколько снарядов попало в соперника
+    for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
+      const hit = this.hitTest(session.x, session.y, c.os.x, c.os.y, vx, vy, W.atk);
+      if (hit) n++;
+      const tx = hit && W.atk.kind === "proj" ? c.os.x : session.x + vx * reach, ty = hit && W.atk.kind === "proj" ? c.os.y : session.y + vy * reach;
+      c.d.ev.push({ k: "shot", sid: session.id, x: Math.round(session.x), y: Math.round(session.y), tx: Math.round(tx), ty: Math.round(ty), w: wt });
+    }
+    if (!n) return;
     const crit = cryptoRand() * 100 < eff.critPct;
     const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
-    this.deal(c, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT, crit, eff);
+    this.deal(c, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per * n, crit, eff);
   }
 
   ability(ws: WebSocket, session: any, msg: any) {

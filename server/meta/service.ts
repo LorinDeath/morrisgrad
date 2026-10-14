@@ -4,7 +4,7 @@ import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
   HERO_IDS, ITEM_BY_ID, RUN_SKILL_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
-  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType, RECIPES,
+  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
@@ -615,23 +615,30 @@ export class MetaService {
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     ms.lastAtk = Math.max(now, ms.lastAtk) + atkCd; // lastAtk хранит момент следующего разрешённого удара
     ms.wt = wt;
-    const targets = zone.targetsInDir(ms.zp, dx, dy, W.atk);
-    const first = targets[0];
+    // залп (кинжалы ×2, лапки-лезвия ×5): каждый снаряд — свой луч и своя первая цель; одна цель может поймать несколько
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
-    const tx = first && W.atk.kind === "proj" ? first.x : session.x + dx * reach, ty = first && W.atk.kind === "proj" ? first.y : session.y + dy * reach;
-    // визуал выстрела для всех рядом (AOI); свой клиент рисует сразу и пропускает своё событие
-    zone.events.push({ k: "shot", sid: session.id, x: session.x, y: session.y, tx: Math.round(tx), ty: Math.round(ty), w: wt });
-    if (!targets.length) return;
+    const per = (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1;
+    const hits: { m: any; k: number }[] = [];
+    for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
+      const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
+      const first = targets[0];
+      const tx = first && W.atk.kind === "proj" ? first.x : session.x + vx * reach, ty = first && W.atk.kind === "proj" ? first.y : session.y + vy * reach;
+      // визуал выстрела для всех рядом (AOI); свой клиент рисует сразу и пропускает своё событие
+      zone.events.push({ k: "shot", sid: session.id, x: session.x, y: session.y, tx: Math.round(tx), ty: Math.round(ty), w: wt });
+      targets.forEach((m, i) => hits.push({ m, k: per * (i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8)) }));
+    }
+    if (!hits.length) return;
     const a = this.store.account(ms.pkey);
-    targets.forEach((m, i) => {
+    const statused = new Set<number>();
+    hits.forEach(({ m, k }) => {
+      if (m.dead) return;
       if (!a.bestiary[baseOf(m.type)]) { noteMob(a, baseOf(m.type), 0); ms.dirty = true; }
       const crit = cryptoRand() * 100 < eff.critPct;
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
-      const k = i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8);
       const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
       const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
       this.noteHit(session, real, m.type);
-      if (!m.dead) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, session.x, session.y);
+      if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, session.x, session.y);
       if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
     });

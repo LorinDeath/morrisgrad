@@ -14,18 +14,19 @@ export type Shape =
   | { k: "leap"; len: number; r: number; invuln?: number }
   | { k: "rain"; n: number; area: number; r: number }
   | { k: "meteor"; dist: number; r: number; delay: number }
-  | { k: "cloud"; r: number; invuln: number };
+  | { k: "cloud"; r: number; invuln: number }
+  | { k: "cone"; len: number; arc: number; freeze?: number; slow?: boolean; knock?: number; heal?: number };
 
 // Навыки «Вампир-лайка» на оружии (слот R): форма в открытом мире по мотивам оружия забега
 export const WEAPON_SKILL_CD = 8; // с
 export const RS_SHAPES: Record<string, Shape> = {
-  war_axe: { k: "nova", r: 150, knock: 2 },
+  war_axe: { k: "proj", len: 320, r: 100, w: "staff" }, // брошенная секира: летит вперёд, взрыв у первой цели
   spear: { k: "line", len: 420, w: 40, pierceArmor: true },
   daggers: { k: "line", len: 300, w: 90 },
   fire_spark: { k: "proj", len: 420, r: 100, w: "staff" },
   orbit_skulls: { k: "nova", r: 130, ticks: 3, gap: 600 },
   chain_bolt: { k: "rain", n: 6, area: 200, r: 60 },
-  ice_fan: { k: "nova", r: 160, freeze: 1500 },
+  ice_fan: { k: "cone", len: 260, arc: 1.0, freeze: 1500 }, // веер ледяных осколков вперёд (как в забеге)
   thorn_bow: { k: "line", len: 480, w: 36 },
   moon_orb: { k: "proj", len: 380, r: 90, w: "staff" },
   glyph_mine: { k: "rain", n: 5, area: 120, r: 70 },
@@ -41,13 +42,17 @@ export const SHAPES: Record<string, Shape> = {
   pierce: { k: "line", len: 420, w: 44, pierceArmor: true },
   spear_rain: { k: "rain", n: 18, area: 220, r: 55 },
   leap_strike: { k: "leap", len: 220, r: 120, invuln: 600 },
-  trick_strike: { k: "nova", r: 140, heal: 0.1 },
+  trick_strike: { k: "cone", len: 170, arc: 1.3, heal: 0.1 }, // финт: веер ударов вперёд + лечение от урона
   smoke_bomb: { k: "cloud", r: 150, invuln: 2500 },
   shadow_step: { k: "dash", len: 240, w: 50, trail: 600, invuln: 300 },
   fireball: { k: "proj", len: 480, r: 110, w: "staff" },
   frost_nova: { k: "nova", r: 170, freeze: 2000 },
   meteor: { k: "meteor", dist: 300, r: 130, delay: 1200 },
   fly_blade_dash: { k: "dash", len: 200, w: 60 },
+  // навыки монстров из кодекса — тоже по направлению
+  dew_splash: { k: "cone", len: 220, arc: 1.1, slow: true },
+  warden_slam: { k: "meteor", dist: 140, r: 120, delay: 350 },
+  gear_spin: { k: "cone", len: 200, arc: 1.6, knock: 2 },
 };
 // навыки монстров: форма их базовой реализации (AbilityDef.base), иначе — вспышка
 export function shapeOf(id: string): Shape {
@@ -147,9 +152,11 @@ export function castShape(id: string, c: CastCtx): number {
     }
     case "rain": {
       const area = s.area * k;
+      // область дождя — ПЕРЕД героем по направлению (а не вокруг него)
+      const ox = c.x + c.dx * area * 1.1, oy = c.y + c.dy * area * 1.1;
       for (let i = 0; i < s.n; i++) {
         const a = cryptoRand() * Math.PI * 2, d = Math.sqrt(cryptoRand()) * area;
-        const px = c.x + Math.cos(a) * d, py = c.y + Math.sin(a) * d;
+        const px = ox + Math.cos(a) * d, py = oy + Math.sin(a) * d;
         c.later(80 * i, () => { hitAll(c.zone.mobsAround(px, py, s.r), 1 / 4); c.ev({ k: "ability", sid: c.sid, id, x: R(px), y: R(py), r: s.r }); });
       }
       break;
@@ -159,6 +166,18 @@ export function castShape(id: string, c: CastCtx): number {
       const r = s.r * k;
       c.ev({ k: "amark", sid: c.sid, id, x: R(tx), y: R(ty), r, t: s.delay / 1000 });
       c.later(s.delay, () => { hitAll(c.zone.mobsAround(tx, ty, r), 1); c.ev({ k: "ability", sid: c.sid, id, x: R(tx), y: R(ty), r }); });
+      break;
+    }
+    case "cone": {
+      const len = s.len * k, half = s.arc / 2;
+      const ms = c.zone.mobsAround(c.x, c.y, len + 14).filter((m: any) => {
+        const ex = m.x - c.x, ey = m.y - c.y, d = Math.hypot(ex, ey) || 1;
+        return d < 24 || Math.acos(Math.max(-1, Math.min(1, (ex * c.dx + ey * c.dy) / d))) <= half;
+      });
+      hitAll(ms, 1);
+      for (const m of ms) c.status(m, { slow: !!(s.slow || s.freeze), knock: s.knock, freeze: s.freeze }, c.x, c.y);
+      if (s.heal) c.buff({ heal: dealt * s.heal });
+      for (const a of [-half, 0, half]) { const ca = Math.cos(a), sa = Math.sin(a); c.ev({ k: "aline", sid: c.sid, id, x: R(c.x), y: R(c.y), dx: c.dx * ca - c.dy * sa, dy: c.dx * sa + c.dy * ca, len: R(len) }); }
       break;
     }
     case "cloud": {

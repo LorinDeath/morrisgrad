@@ -168,7 +168,7 @@ export class ZoneView {
   // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
   // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара
   shoot(fromX, fromY, mob, wtype, tx, ty) {
-    if (this.bolts.length >= 64) return;
+    if (this.bolts.length >= 128) return; // залпы по 5 снарядов
     const W = WEAPON_TYPES[wtype] || WEAPON_TYPES.book;
     this.bolts.push({ x: fromX, y: fromY, mob, lx: tx, ly: ty, t: 0, shot: W.shot, seed: Math.random() * 8, arc: W.atk.kind === 'arc' });
   }

@@ -17,6 +17,10 @@ varying float vAlpha;
 #include <fog_pars_vertex>
 void main() {
   vec4 mvPosition = modelViewMatrix * vec4(iPos + vec3(0.0, iSize.w, 0.0), 1.0);
+  // глубина — по точке НОГ на земле (не по поднятому якорю летуна): при наклонной камере подъём по Y
+  // приближал квад к камере, и летающий/подпрыгивающий моб позади рисовался ПОВЕРХ игрока.
+  // Так порядок слоёв = порядок по «y мира» (кто ближе к низу экрана — тот спереди), одинаково для всех батчей.
+  mvPosition.z = (modelViewMatrix * vec4(iPos, 1.0)).z;
   mvPosition.xy += vec2(position.x * iSize.x, position.y * iSize.y);
   float u = iSize.z < 0.0 ? 1.0 - uv.x : uv.x;
   vUv = vec2(iUV.x + u * iUV.z, iUV.y + uv.y * iUV.w);

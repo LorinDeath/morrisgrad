@@ -110,7 +110,8 @@ export class PixCharacter {
     if (this.mobType) {
       const f = Math.floor(t * 8 + this.phase) % 4;
       this.setCell(f);
-      this.sprite.position.y = this.lift + (this.lift ? Math.sin(t * 6) * 0.12 : 0);
+      // подъём летуна — смещением центра спрайта (якорь глубины остаётся на земле → правильный порядок слоёв)
+      this.sprite.center.y = -(this.lift + (this.lift ? Math.sin(t * 6) * 0.12 : 0)) / this.sprite.scale.y;
       if (Math.abs(dirX) > 0.05) this.tex.repeat.x = (dirX < 0 ? -1 : 1) / this.cell.cols;
       if (this.tex.repeat.x < 0) this.tex.offset.x += 1 / this.cell.cols;
     } else {

@@ -2,7 +2,7 @@
 // Чанк = 32×32 клетки (1024 px мира, канвас 512×512): запекается по требованию вокруг камеры (бюджет — 1–2 чанка
 // за кадр), LRU-кэш выгружает дальние. Под чанками — дешёвая «дальняя» плоскость 750×750 (1 px = клетка, цвет биома),
 // чтобы на границе стрима не было дыр. Раскладка детерминирована (одинакова у всех клиентов): биом клетки —
-// регион zoneGen + шум границ; биомы Аринара рисуются своими тайлсетами (tiles_<ice|fire|stone|air>.png).
+// регион zoneGen (пятна Вороного, как в Minecraft) + шум границ; биомы Аринара рисуются своими тайлсетами (tiles_<ice|fire|stone|air>.png).
 import tilesSrc from '../../../../assets/mc/tiles_atlas.png';
 import tilesMeta from '../../../../assets/mc/tiles_atlas.json';
 import tIce from '../../../../assets/mc/tiles_ice.png';
@@ -11,7 +11,7 @@ import tStone from '../../../../assets/mc/tiles_stone.png';
 import tAir from '../../../../assets/mc/tiles_air.png';
 import propsSrc from '../../../../assets/mc/props_atlas.png';
 import propsMeta from '../../../../assets/mc/props_atlas.json';
-import { WORLD_GEN } from '../../../../../server/meta/zoneGen.ts';
+import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
 import { NPCS, ZONE_RESPAWN } from '../../../../../server/meta/shared.ts';
 import { BIOMES } from '../../../../../server/meta/biomes.ts';
 import { worldSize, ARINAR_HUB } from '../../../../../server/worlds/sizes.ts';
@@ -76,7 +76,7 @@ export function arinarPlan() {
   const roads = [];
   pois.forEach((p) => roads.push([center.x, center.y, p.x, p.y, 26, 'cobble']));
   for (const r of gen.regions) {
-    if (r.id === 'hub') continue;
+    if (r.id === 'hub' || (r.kind && !r.seed)) continue; // пятна биомов: одна дорога в «семя» пятна
     const cx = (r.rect[0] + r.rect[2]) / 2, cy = (r.rect[1] + r.rect[3]) / 2, kx = center.x + (cx - center.x) * 0.5;
     roads.push([center.x, center.y, kx, center.y + (cy - center.y) * 0.5, 48, 'dirt'], [kx, center.y + (cy - center.y) * 0.5, cx, cy, 40, 'dirt']);
   }
@@ -97,7 +97,7 @@ export function arinarPlan() {
     const outside = x < 0 || y < 0 || x > size || y > size;
     const jx = x + (vnoise(x / 180, y / 180, seed) - 0.5) * 220, jy = y + (vnoise(x / 180, y / 180, seed + 11) - 0.5) * 220;
     let b = 'grass';
-    for (const r of gen.regions) { const [x0, y0, x1, y1] = r.rect; if (jx >= x0 && jx <= x1 && jy >= y0 && jy <= y1) { b = r.biome; break; } }
+    { const r = regionAt(Math.min(size - 1, Math.max(0, jx)), Math.min(size - 1, Math.max(0, jy)), 'arinar'); if (r) b = r.biome; } // O(1): сетка пятен
     if (outside) return b.startsWith('b_') ? b : 'grove';
     for (const wv of waters) { if (Math.abs(x - wv.x) < wv.r + 40 && Math.abs(y - wv.y) < wv.r + 40 && Math.hypot(x - wv.x, y - wv.y) + (vnoise(x / 40, y / 40, seed + 3) - 0.5) * 40 < wv.r) return 'water'; }
     const ids = roadIdx.get(Math.floor(x / 1000) * 1000 + Math.floor(y / 1000));

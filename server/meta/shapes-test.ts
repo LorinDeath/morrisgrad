@@ -21,5 +21,5 @@ function setup(mobs: [number, number][]) {
   t("метеор: урон отложен", log.hits.length === 0 && log.later.length > 0); log.later.forEach((l: any) => l[1]()); t("метеор: падает в точке", log.hits.length === 1); }
 { const { c, log } = setup([[0, 0]]); castShape("shield_wall", c); t("стена щитов: снижение урона", log.buff.some((b: any) => b.dr)); }
 { const { c, log } = setup([]); c.x = 950; castShape("leap_strike", c); t("прыжок: в границах мира", log.move && log.move[0] <= 1000); }
-t("все формы известны", Object.values(SHAPES).every((s: any) => ["nova", "line", "proj", "dash", "leap", "rain", "meteor", "cloud"].includes(s.k)));
+t("все формы известны", Object.values(SHAPES).every((s: any) => ["nova", "line", "proj", "dash", "leap", "rain", "meteor", "cloud", "cone"].includes(s.k)));
 console.log(`shapes ${ok}/${ok + bad}`);

@@ -14,7 +14,7 @@ import { Book } from './ui/book.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
 import { ZoneView } from './hub/zoneView.js';
-import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
+import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
@@ -1405,14 +1405,18 @@ async function boot(canvasId, username, userId, api) {
     if (!dir) return;
     zoneSt.lastAtk = now;
     send({ type: 'zone_attack', dx: Math.round(dir.x * 1000) / 1000, dy: Math.round(dir.y * 1000) / 1000 });
-    const pred = zone.aimTargets(player.x, player.y, dir.x, dir.y, wt);
-    const first = pred.list[0];
-    const reach = pred.atk.kind === 'arc' ? pred.atk.range * 0.8 : pred.atk.range;
-    if (first && pred.atk.kind === 'proj') zone.shoot(player.x, player.y, first.id, wt);
-    else zone.shoot(player.x, player.y, null, wt, player.x + dir.x * reach, player.y + dir.y * reach);
+    // залп (кинжалы ×2, лапки-лезвия ×5) — та же раскладка направлений, что на сервере (shared.volleyDirs)
+    let anyHit = false;
+    for (const [vx, vy] of volleyDirs((WEAPON_TYPES[wt] || WEAPON_TYPES.book).atk, dir.x, dir.y)) {
+      const pred = zone.aimTargets(player.x, player.y, vx, vy, wt);
+      const first = pred.list[0]; if (first) anyHit = true;
+      const reach = pred.atk.kind === 'arc' ? pred.atk.range * 0.8 : pred.atk.range;
+      if (first && pred.atk.kind === 'proj') zone.shoot(player.x, player.y, first.id, wt);
+      else zone.shoot(player.x, player.y, null, wt, player.x + vx * reach, player.y + vy * reach);
+    }
     if (!player.moving) { player.dirX = dir.x; player.dirY = dir.y; }
     hub.attackMe?.();
-    if (pred.list.length) tracker.tutDone('fight');
+    if (anyHit) tracker.tutDone('fight');
   }
   function npcMark(id) {
     const st = meta.state;
