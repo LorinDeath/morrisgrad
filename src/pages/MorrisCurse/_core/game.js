@@ -36,7 +36,7 @@ import { DuelUI } from './ui/duel.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
 import { StatsUI, DEFAULT_STATS } from './playerStats.js';
 import { CLASSES, syncClassesFromServer } from './classes.js';
-import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/portals.ts';
+import { WORLD_PORTALS as OFFLINE_PORTALS, HOME_PORTAL_HUB } from '../../../../server/worlds/portals.ts';
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
@@ -213,6 +213,7 @@ async function boot(canvasId, username, userId, api) {
     onDuel: (sid) => challengeDuel(sid),
   });
   const touch = new TouchControls(overlay.layer, {
+    onHome: () => openHomePortal(),
     onRating: () => openRating(),
     onMap: () => { if (mode === 'hub') worldMap.toggle(); },
     onPeople: () => openPeople('online'),
@@ -231,7 +232,7 @@ async function boot(canvasId, username, userId, api) {
   // ---------------- обработчики сервера ----------------
   net.on('welcome', (d) => {
     myId = d.myId;
-    if (Array.isArray(d.portals)) portals = d.portals;
+    if (Array.isArray(d.portals)) { portals = d.portals; homePortalKey = ''; }
     if (d.classes) syncClassesFromServer(d.classes);
     world = d.world || 'hellfire';
     hub.setWorld(world, portals, true);
@@ -297,6 +298,8 @@ async function boot(canvasId, username, userId, api) {
     if (mode === 'run' && run) { run.setMembers([], null); }
   });
   net.on('world_switched', (d) => {
+    if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
+    if (d.homePortal === 'home_portal_back') overlay.toast('🌀 Вы вернулись туда, где открыли портал', '#c4b5fd');
     world = d.world || 'hellfire';
     player.x = d.x; player.y = d.y;
     hub.setWorld(world, portals);
@@ -383,6 +386,7 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
+    if (d.portal !== undefined) syncHomePortal(d.portal);
     if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
@@ -469,6 +473,7 @@ async function boot(canvasId, username, userId, api) {
   adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
   net.on('admin_result', (d) => adminPanel.onResult(d));
   net.on('loot_bag', (d) => { addCards(d.cards); if (lootWin.isOpen) lootWin.update(d); else if (!d.taken) lootWin.open(d); });
+  net.on('home_portal_err', (d) => overlay.toast('🌀 ' + d.message, '#fca5a5'));
   net.on('loot_err', (d) => { if (lootWin.isOpen) lootWin.error(d.message); else overlay.toast(d.message, '#fca5a5'); });
   function openBag(b) { if (Math.hypot(b.x - player.x, b.y - player.y) > 100) { overlay.toast('Подойдите ближе к мешку', '#94a3b8'); return; } send({ type: 'loot_open', bag: b.id }); }
   // правки админ-панели прилетают сразу (без переподключения): оружие/навыки/мобы, квесты, карточки предметов
@@ -526,6 +531,26 @@ async function boot(canvasId, username, userId, api) {
   const onlineBtn = mkBtn('mc-ratebtn mc-onlinebtn', 'Кто в сети', '👥<b>·</b>', () => openPeople('online'));
   const friendsBtn = mkBtn('mc-ratebtn mc-friendsbtn', 'Друзья', '🤝', () => openPeople('friends'));
   const setBtn = mkBtn('mc-ratebtn mc-setbtn', 'Настройки', '⚙️', () => openPeople('settings'));
+  // личный портал домой (H): открыть в Аринаре → в хаб; в хабе — возвратный портал ведёт обратно (сервер проверяет всё)
+  const homeBtn = mkBtn('mc-ratebtn mc-homebtn', 'Портал домой (H)', '🌀<small></small>', () => openHomePortal());
+  let homePortalKey = '';
+  function openHomePortal() {
+    if (mode !== 'hub') return;
+    if (world !== 'arinar') { overlay.toast('Портал домой открывается в Аринаре', '#94a3b8'); return; }
+    if (!net.isOpen()) { overlay.toast('Нужна связь с сервером', '#fca5a5'); return; }
+    send({ type: 'home_portal' });
+  }
+  function syncHomePortal(p) { // meta_state.portal → личные порталы (в хабе — назад, в Аринаре — на месте открытия)
+    homePortalCd = p?.cd || 0;
+    const want = p && p.x != null ? [
+      { id: 'home_return', name: '🌀 Ваш портал → Аринар', x: HOME_PORTAL_HUB.x, y: HOME_PORTAL_HUB.y, world: 'hellfire', personal: true },
+      { id: 'home_field', name: '🌀 Ваш портал → хаб', x: p.x, y: p.y, world: 'arinar', personal: true },
+    ] : [];
+    const key = JSON.stringify(want); if (key === homePortalKey) return; homePortalKey = key;
+    portals = [...portals.filter((x) => !x.personal), ...want];
+    hub.setWorld(world, portals);
+  }
+  let homePortalCd = 0;
   // выбранный игрок, когда боковой панели «Цель» не видно (телефон, окно): плашка с кнопкой просмотра
   const tchip = document.createElement('div');
   tchip.className = 'mc-tchip';
@@ -892,6 +917,7 @@ async function boot(canvasId, username, userId, api) {
       return;
     }
     if (e.key === 'Enter') { e.preventDefault(); openChat(); return; }
+    if ((k === 'h' || k === 'р') && mode === 'hub' && !e.repeat) { openHomePortal(); return; }
     if ((k === 'm' || k === 'ь') && mode === 'hub') { worldMap.toggle(); return; }
     if (runUI.choiceOpen) return; // 1–3 обрабатывает модалка
     keys.add(e.code);
@@ -1118,6 +1144,8 @@ async function boot(canvasId, username, userId, api) {
   }
 
   function usePortal(p) {
+    if (p.id === 'home_return') { send({ type: 'home_portal_back' }); return; }
+    if (p.id === 'home_field') { send({ type: 'home_portal_enter' }); return; }
     if (p.runRoom) return net.isOpen() && myId ? requestRun(p.runRoom, p.id) : showRoomPrompt(p);
     if (net.isOpen() && myId) { send({ type: 'use_portal', portalId: p.id }); return; }
     // офлайн-поведение порталов
@@ -1437,6 +1465,8 @@ async function boot(canvasId, username, userId, api) {
       const nearAltar = world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 110;
       const bagN = zone.nearestBag(player.x, player.y, 100);
       lootWin.tick(player.x, player.y);
+      { const show = world === 'arinar'; homeBtn.style.display = show ? 'block' : 'none'; const tb = overlay.layer.querySelector('.mc3d-tbtn[data-act="home"]'); if (tb) tb.style.display = show ? '' : 'none';
+        const left = Math.max(0, Math.ceil((homePortalCd - Date.now()) / 1000)); homeBtn.classList.toggle('cd', left > 0); homeBtn.querySelector('small').textContent = left ? left : ''; }
       if (bagN && !lootWin.isOpen) promptText = `${key} — открыть добычу (${bagN.n})`;
       else if (zoneSt.gather) promptText = `Сбор: ${zone.resName(zoneSt.gather.res)} ${Math.round(Math.min(1, zoneSt.gather.t / (zone.gatherTime() / 1000)) * 100)}%`;
       else if (npc) promptText = `${key} — поговорить: ${npc.name}`;
@@ -1566,6 +1596,7 @@ async function boot(canvasId, username, userId, api) {
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
       bags: () => [...zone.bags.values()], loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
+      portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal })),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),
       fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)
       othersInfo: () => [...others.values()].map((o) => ({ world: o.world, x: Math.round(o.x), y: Math.round(o.y), runRoom: o.runRoom })),

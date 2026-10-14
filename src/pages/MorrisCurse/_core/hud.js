@@ -61,6 +61,7 @@ export class GameHUD {
         <div class="hud-ctrl-item">Чат <span>Enter</span></div>
         <div class="hud-ctrl-item">Зум <span>колесо / + −</span></div>
         <div class="hud-ctrl-item">Автоатака (доступность) <span>V</span></div>
+        <div class="hud-ctrl-item">Портал домой (Аринар) <span>H</span></div>
       </div>`;
     const right = document.createElement('div');
     right.className = 'game-hud-panel hud-right';

@@ -10,6 +10,7 @@ import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
+import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
 import { LootBags, type Bag } from "./loot";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
@@ -188,6 +189,7 @@ export class MetaService {
     s.available = QUESTS.filter((q) => questAvailable(a, q, h)).map((q) => q.id);
     s.customQuests = QUESTS.filter((q) => q.custom); // тексты квестов админ-панели (клиент вливает в QUEST_BY_ID)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
+    if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
@@ -646,6 +648,33 @@ export class MetaService {
     for (const [r, n] of Object.entries(loot.res)) { addRes(a, r, n); out.res[r] = (out.res[r] || 0) + n; }
   }
 
+  // ---------- личный портал домой ----------
+  // Открыть: только Аринар, жив, не в бою (6 с), не чаще раза в 90 с, один активный портал на героя (D1 heroes.home_portal).
+  homePortal(session: any, op: "open" | "enter" | "back"): { ok: true; x: number; y: number; world: string } | { ok: false; err: string } {
+    const ms = this.ms.get(session.id), cls = session.stats?.classId; if (!ms || !cls) return { ok: false, err: "Сначала выберите героя" };
+    const h = this.store.hero(ms.pkey, cls), now = Date.now(), P = h.portal || {};
+    if (session.runRoom || session.inDuel || (session as any).pvp) return { ok: false, err: "Не во время забега или дуэли" };
+    if (!ms.zp.alive) return { ok: false, err: "Нельзя, пока вы повержены" };
+    if (op === "open") {
+      if (session.world !== "arinar") return { ok: false, err: "Портал домой открывается только в Аринаре" };
+      if (P.x != null) return { ok: false, err: "Портал уже открыт — сначала вернитесь через него" };
+      if ((P.cd || 0) > now) return { ok: false, err: `Портал перезаряжается: ${Math.ceil(((P.cd || 0) - now) / 1000)} с` };
+      if (now - Math.max((ms as any).hurtAt || 0, (ms as any).hitAt || 0) < HOME_PORTAL_COMBAT_MS) return { ok: false, err: "Нельзя открыть портал в бою" };
+      h.portal = { x: Math.round(session.x), y: Math.round(session.y), at: now, cd: now + HOME_PORTAL_CD_MS };
+    } else if (op === "enter") { // портал в поле ещё раз ведёт домой
+      if (session.world !== "arinar" || P.x == null || Math.hypot(session.x - P.x, session.y - (P.y || 0)) > 90) return { ok: false, err: "Подойдите к своему порталу" };
+    } else {
+      if ((session.world || "hellfire") !== "hellfire" || Math.hypot(session.x - HOME_PORTAL_HUB.x, session.y - HOME_PORTAL_HUB.y) > 90) return { ok: false, err: "Подойдите к своему порталу в хабе" };
+      if (P.x == null) return { ok: false, err: "Нет открытого портала" };
+      const back = { x: P.x, y: P.y || 0 };
+      h.portal = { cd: P.cd }; // одноразовый: после возврата закрыт
+      ms.dirty = true; this.save(session);
+      return { ok: true, world: "arinar", ...back };
+    }
+    ms.dirty = true; this.save(session);
+    return { ok: true, world: "hellfire", x: HOME_PORTAL_HUB.x + 50, y: HOME_PORTAL_HUB.y + 40 };
+  }
+
   // ---------- добыча на земле ----------
   private bagView(b: Bag, ms: MetaSess) {
     const cards: Record<string, any> = {};
@@ -765,6 +794,7 @@ export class MetaService {
 
   // Рекорд одиночного удара: только удары, посчитанные сервером в открытом мире (см. rating.ts)
   noteHit(session: any, real: number, mobType: string) {
+    { const m0 = this.ms.get(session.id); if (m0) (m0 as any).hitAt = Date.now(); } // бой — для портала домой
     const ms = this.ms.get(session.id);
     const cls = session.stats?.classId;
     if (!ms || !cls || !(real > 0)) return;

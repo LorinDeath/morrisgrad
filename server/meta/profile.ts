@@ -30,6 +30,7 @@ export interface Hero {
   loadout: string[]; equip: Record<string, string>; // слот → uid предмета из общей сумки
   tv?: number; // версия дерева талантов (heroes.talent_ver)
   md?: number; mdAt?: number; mdW?: string; // рекорд одиночного удара в открытом мире (heroes.max_dmg / max_dmg_at / max_dmg_where; только сервер)
+  portal?: { x?: number; y?: number; at?: number; cd?: number }; // личный портал домой (heroes.home_portal)
   refunded?: number; // не хранится: сколько очков вернули при загрузке (уведомление игроку)
 }
 

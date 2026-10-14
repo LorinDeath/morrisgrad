@@ -38,6 +38,7 @@ export class TouchControls {
         <div class="mc3d-tbtn k-dash" data-act="dash" title="Рывок">${skillIcon('dash', 36)}</div>
       </div>
       <div class="mc3d-ttop">
+        <div class="mc3d-tbtn" data-act="home" title="Портал домой (H)">🌀</div>
         <div class="mc3d-tbtn" data-act="map" title="Карта мира">🗺</div>
         <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📖</div>
         <div class="mc3d-tbtn" data-act="rating" title="Рейтинг игроков">🏆</div>

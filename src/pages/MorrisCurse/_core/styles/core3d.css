@@ -544,6 +544,10 @@
 .mc-friendsbtn { left: 12px; bottom: 84px; }
 .mc-friendsbtn.has { border-color: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
 .mc-setbtn { left: 60px; bottom: 84px; }
+.mc-homebtn { left: 108px; bottom: 84px; display: none; }
+.mc-homebtn small { position: absolute; right: 2px; bottom: 0; font-size: 10px; color: #fde68a; }
+.mc-homebtn.cd { filter: grayscale(.7); }
+.mc-touch .mc-homebtn { display: none !important; }
 .mc-touch .mc-onlinebtn, .mc-touch .mc-friendsbtn, .mc-touch .mc-setbtn { display: none; }
 .hud-soc-row { display: flex; gap: 4px; margin-top: 4px; }
 .hud-soc-row .hud-duel-btn { margin: 0; flex: 1; padding: 6px 2px; font-size: 10px; white-space: nowrap; letter-spacing: 0; background: #14532d; border-color: #22c55e; }

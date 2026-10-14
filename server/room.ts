@@ -944,6 +944,20 @@ export class GameRoom extends DurableObject {
           }
         }
 
+        // 3б. Личный портал домой (сервер проверяет всё: мир, бой, перезарядку, один портал, дальность)
+        if ((msg.type === "home_portal" || msg.type === "home_portal_enter" || msg.type === "home_portal_back") && session) {
+          const r = this.meta.homePortal(session, msg.type === "home_portal" ? "open" : msg.type === "home_portal_enter" ? "enter" : "back");
+          if (!r.ok) { server.send(JSON.stringify({ type: "home_portal_err", message: r.err })); return; }
+          session.world = r.world; session.x = r.x; session.y = r.y; (session as any).lastMoveAt = Date.now();
+          if (session.world === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
+          session.dismoraleUntil = 0; session.escapedUntil = 0;
+          server.send(JSON.stringify({ type: "world_switched", world: session.world, x: session.x, y: session.y, homePortal: msg.type }));
+          this.meta.onWorldChange(server, session);
+          this.meta.push(server, session); // meta_state: портал (точка/перезарядка)
+          this.broadcast();
+          return;
+        }
+
         // 4. Выбор класса
         if (msg.type === "select_class" && session && !(session as any).pvp) {
           const c = CHARACTER_CLASSES[msg.classId];

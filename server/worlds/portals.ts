@@ -94,3 +94,8 @@ export const WORLD_PORTALS: WorldPortalDef[] = [
     color: "#fbbf24",
   },
 ];
+
+// личный портал домой: в хабе возвратный портал стоит здесь (видит только владелец)
+export const HOME_PORTAL_HUB = { x: 720, y: 470 };
+export const HOME_PORTAL_CD_MS = 90_000;   // перезарядка открытия
+export const HOME_PORTAL_COMBAT_MS = 6_000; // нельзя открыть, если били/получали урон за последние 6 с
