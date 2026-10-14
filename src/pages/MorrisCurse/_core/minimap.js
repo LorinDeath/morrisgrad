@@ -161,7 +161,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null, party = null }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null, party = null, hunt = null }) {
     if (!this.ctx || !this.canvas) return;
     const now = performance.now();
     if (now - (this._drawAt || 0) < 120) return;   // троттлинг перерисовки (~8 Гц)
@@ -347,6 +347,15 @@ export class Minimap {
       }
     }
 
+    // 4c. Охота из Бестиария: 🎯 к цели (живой моб / лагерь / место обитания / портал); за краем — на краю, по направлению
+    if (hunt && hunt.world === currentWorld) {
+      let hx = cx + (hunt.x - player.x) * scale, hy = cy + (hunt.y - player.y) * scale; const m = 7;
+      const edge = hx < m || hy < m || hx > w - m || hy > h - m;
+      if (edge) { const dx = hx - cx, dy = hy - cy, k = Math.min((w / 2 - m) / Math.abs(dx || 1e-6), (h / 2 - m) / Math.abs(dy || 1e-6)); hx = cx + dx * k; hy = cy + dy * k; }
+      ctx.fillStyle = 'rgba(10,30,15,.85)'; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#4ade80'; ctx.beginPath(); ctx.arc(hx, hy, 2, 0, Math.PI * 2); ctx.fill();
+      this.stats.hunt = edge ? 'edge' : 'in';
+    } else this.stats.hunt = null;
     // 5. Другие игроки (текущего мира; без поля world — считаем, что в нашем): единый цвет «союзник» — голубой с белым контуром,
     // чтобы не путать с мобами и собой (золотой)
     // 5a. Отряд: зелёные с белым контуром (позиции с сервера — видны и вне области видимости), стрелка у края, если далеко

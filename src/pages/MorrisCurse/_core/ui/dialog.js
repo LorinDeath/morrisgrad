@@ -1,3 +1,4 @@
+import { objText } from '../../../../../server/meta/objText.ts';
 // Диалог с персонажем (Алзи, Лэйр, Петр, Кьют): реплики задания, принять/сдать.
 // Сервер присылает npc_dialog {npc, quests:[{id,state}]}; тексты — из server/meta/quests.ts.
 import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
@@ -72,7 +73,7 @@ export class NpcDialog {
   showQuest(id, st) {
     const q = QUEST_BY_ID[id], n = NPCS[this.npc], x = (this.list || []).find((y) => y.id === id) || {};
     const lines = st === 'done' ? (q.lore ? [q.lore] : q.done) : st === 'complete' ? q.done : st === 'active' ? [q.progress, q.hint ? `Подсказка: ${q.hint}` : ''].filter(Boolean) : q.offer;
-    const goals = q.objectives.map((o) => `<li>${esc(o.text)}</li>`).join('');
+    const goals = q.objectives.map((o) => `<li>${esc(objText(o))}</li>`).join('');
     const btns = [];
     if (st === 'available') btns.push({ text: `Взять: ${q.title}`, cls: 'gold', id: 'npc-take', onClick: () => { this.meta.accept(q.id); this.close(); } });
     if (st === 'complete') btns.push({ text: `✔ Сдать`, cls: 'gold', onClick: () => { this.meta.turnIn(q.id); this.close(); } });

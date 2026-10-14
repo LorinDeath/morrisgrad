@@ -1,3 +1,4 @@
+import { autoObjText } from "./objText";
 // «Проклятые»: админ-панель — сервер. Правки игровых данных (overrides.ts: схема + проверка) и квесты из игры
 // хранятся в D1 (миграция 0010): game_overrides, custom_quests, журнал game_override_audit, версия набора
 // game_config_version (комнаты сверяют её и перечитывают правки). Писать может только серверно проверенный админ —
@@ -44,7 +45,7 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
       if (!same) return `цель «${o?.type}» сюжетного квеста менять нельзя (только текст)`;
       objectives.push({ ...same, text: STR(o?.text, 160).trim() || same.text } as any); continue;
     }
-    const t = String(o?.type), text = STR(o?.text, 160).trim() || "Цель";
+    const t = String(o?.type), text0 = STR(o?.text, 160).trim(); let text = text0 && text0 !== "Цель" ? text0 : "";
     const cnt = Math.round(Number(o?.count) || 1);
     if (!(OBJ_TYPES as readonly string[]).includes(t)) return `тип цели ${t} недоступен`;
     if (cnt < 1 || cnt > 999) return "количество 1…999";
@@ -58,6 +59,7 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
     if (builtin) { const ob = builtin.objectives?.[objectives.length - 1] as any, nw = objectives[objectives.length - 1] as any;
       if (ob && ob.type === nw.type) for (const [k, v] of Object.entries(ob)) if (!["type", "mob", "npc", "res", "item", "world", "count", "text"].includes(k) && nw[k] === undefined) nw[k] = v; }
   }
+  for (const ob of objectives as any[]) if (!ob.text || ob.text === "Цель") ob.text = autoObjText(ob); // пусто — текст по типу цели
   const r = q.rewards || {}, rewards: QuestDef["rewards"] = {};
   const xp = Math.round(Number(r.xp) || 0); if (xp < 0 || xp > 100000) return "опыт 0…100000"; if (xp) rewards.xp = xp;
   if (r.items) { if (!Array.isArray(r.items) || r.items.length > 4 || !r.items.every((i: any) => ITEM_BY_ID[i])) return "награда: до 4 существующих предметов"; if (r.items.length) rewards.items = r.items.map(String); }

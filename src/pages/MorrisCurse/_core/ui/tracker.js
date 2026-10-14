@@ -1,9 +1,11 @@
+import { objText } from '../../../../../server/meta/objText.ts';
 // Трекер задания (всегда виден): цель, прогресс, подсказка и стрелка-направление к цели.
 // Плюс пошаговое обучение для новичка — игрок всегда понимает, что делать дальше.
 import { QUEST_BY_ID, turninNpc } from '../../../../../server/meta/quests.ts';
 import { NPCS } from '../../../../../server/meta/shared.ts';
 import { baseOf } from '../../../../../server/meta/biomes.ts';
 import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
+import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { esc } from './overlay.js';
 
 const TUT_KEY = 'mc-tut-v2';
@@ -65,7 +67,7 @@ export class QuestTracker {
       const complete = st.complete.includes(qid);
       const obj = q.objectives.map((o, i) => {
         const need = o.count || 1, have = Math.min(need, p[i] || 0);
-        return `<li class="${have >= need ? 'ok' : ''}">${esc(o.text)}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
+        return `<li class="${have >= need ? 'ok' : ''}">${esc(objText(o))}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
       }).join('');
       const tn = turninNpc(q), other = tn !== q.npc;
       // сдача другому NPC — подсказка говорит об этом явно (и в процессе, и после выполнения)
@@ -82,6 +84,14 @@ export class QuestTracker {
         let best = null, bd = Infinity;
         for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: ZONE_MOBS[m.type]?.name || 'Цель', mob: 1 }; } }
         if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
+        if (!best) { // нет рядом — место обитания первого незакрытого моба-цели (в другой локации — портал туда)
+          let ty = null, n = null, nd = Infinity; // ближайшее место обитания среди всех мобов-целей (своя локация важнее)
+          for (const t0 of this.trackTypes) { const r = nearestHome(t0, ctx.world, ctx.x, ctx.y); if (!r) continue; const d = r.portal ? 1e12 : Math.hypot(r.home.x - ctx.x, r.home.y - ctx.y); if (d < nd) { nd = d; n = r; ty = t0; } }
+          const nm = ZONE_MOBS[ty]?.name || ty;
+          if (n && !n.portal && n.home.world === ctx.world) best = { world: ctx.world, x: n.home.x, y: n.home.y, label: nm + ' · ' + n.home.region.split(':')[0], mob: 1 };
+          else if (n?.portal) best = { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, mob: 1 };
+          if (n && n.home.world !== ctx.world) html = html.replace('</ul>', `<li class="turnin">↪ ${esc(nm)} — ${esc(WORLD_NAMES[n.home.world] || n.home.world)} · ${esc(n.home.region)}</li></ul>`);
+        }
         if (best) this.target = best;
       }
     } else if (st && !Object.keys(st.account.quests.active).length) { // всё снято с отслеживания — трекер молчит
@@ -95,17 +105,26 @@ export class QuestTracker {
       html = '<div class="t">◆ Начало</div><ul><li>Подойдите к Алтарю перевоплощения в центре Поляны</li></ul>';
       this.target = { world: 'hellfire', x: 565, y: 600, label: 'Алтарь' };
     }
-    // «Отслеживать» из Бестиария: добавляем тип к целям; компас — к нему, если квест не задал свою цель-моба
+    // «Отслеживать» из Бестиария: строка «Охота: <моб>» с подсказкой места; подсветка (экран/мини-карта/карта M) и компас —
+    // к ближайшему живому мобу, иначе к лагерю, иначе к месту обитания; в другой локации — к порталу туда
     const mt = this.meta.mobTrack;
-    if (mt && ctx.world === 'arinar') {
+    this.hunt = null;
+    if (mt && (ZONE_MOBS[mt] || ZONE_MOBS[baseOf(mt)])) {
       this.trackTypes.add(mt);
       const isT = (t) => t === mt || baseOf(t) === mt;
-      if (!this.target?.mob) {
-        let best = null, bd = Infinity;
-        for (const m of ctx.mobs?.values?.() || []) if (isT(m.type)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: '🧭 ' + (ZONE_MOBS[m.type]?.name || mt), mob: 1 }; } }
-        if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🧭 Лагерь: ' + (ZONE_MOBS[mt]?.name || mt), mob: 1 }; } }
-        if (best) { this.target = best; if (!html) html = `<div class="t">🧭 Отслеживание</div><ul><li>${esc(ZONE_MOBS[mt]?.name || mt)}</li></ul>`; }
-      }
+      const nm = ZONE_MOBS[mt]?.name || ZONE_MOBS[baseOf(mt)]?.name || mt;
+      let best = null, bd = Infinity, where = '';
+      for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: '🎯 ' + nm, mob: 1, hunt: 'mob' }; } }
+      if (best) where = 'рядом';
+      if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🎯 Лагерь: ' + nm, mob: 1, hunt: 'camp' }; } }
+      if (best && !where) where = 'лагерь неподалёку';
+      if (!best) { const n = nearestHome(mt, ctx.world, ctx.x, ctx.y);
+        if (n && !n.portal && n.home.world === ctx.world) { best = { world: ctx.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm + ' · ' + n.home.region.split(':')[0], mob: 1, hunt: 'home' }; where = n.home.region; }
+        else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
+        else where = 'место обитания неизвестно'; }
+      this.hunt = { id: mt, name: nm, where, target: best };
+      if (best) this.target = best; // охота из Бестиария — явный выбор игрока, компас ведёт к ней
+      html += `<div class="hunt${html ? ' sep' : ''}"><div class="t">🎯 Охота: ${esc(nm)}</div><ul><li>${esc(where)}</li></ul></div>`;
     }
     if (html !== this.sig) { this.sig = html; this.qEl.innerHTML = html; }
     this.qEl.style.display = html ? '' : 'none';

@@ -426,7 +426,7 @@ async function boot(canvasId, username, userId, api) {
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
   });
   // туман войны и большая карта (M)
-  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, party: party.others().filter((m) => m.world === world && !m.run) }));
+  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, hunt: tracker.hunt, party: party.others().filter((m) => m.world === world && !m.run) }));
   hud.minimap.onOpenMap = () => worldMap.open();
   net.on('fog', (d) => { fog.setFull(d); worldMap.draw(); });
   net.on('fog_add', (d) => { fog.add(d); if (worldMap.isOpen) worldMap.draw(); });
@@ -1415,7 +1415,7 @@ async function boot(canvasId, username, userId, api) {
       updateTargetChip();
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
-        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes,
+        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes, hunt: tracker.hunt?.target || null,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
         zoneMe: mode === 'hub' && meta.hero ? zone.me : null, eff: meta.hero?.effective || null, heroName: meta.hero ? meta.heroName(player.stats.classId) : null, dps: dpsMeter.stats(),
       });
@@ -1730,8 +1730,9 @@ async function boot(canvasId, username, userId, api) {
       party: () => party.state,
       myId: () => myId,
       runRoom: () => lobby?.room || null,
-      track: () => ({ target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
+      track: () => ({ hunt: tracker.hunt, target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
       forceQuest: (id) => { meta.trackedQuest = () => id; },
+      worldMapStats: () => worldMap.stats,
       campsRaw: () => zone.camps,
       bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),

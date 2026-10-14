@@ -1,3 +1,4 @@
+import { mobHomes } from '../../../../../server/meta/mobHome.ts';
 // Большая карта мира (клавиша M, кнопка 🗺 у мини-карты): на весь экран, открывается приближенной вокруг игрока,
 // перетаскивание/колесо/щипок, туман войны (чёрное — не разведано), объекты из реестра (server/meta/markers.ts) —
 // только в разведанных местах. Подложка — арт художника v5 (map/mapArt.js: 4096 десктоп / 2048 мобильные).
@@ -96,11 +97,17 @@ export class WorldMap {
       ctx.fillStyle = '#4ade80'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.font = '11px sans-serif'; ctx.fillStyle = '#bbf7d0'; ctx.textAlign = 'center'; ctx.fillText(m.name, x, y - 10); ctx.font = '14px sans-serif';
     }
+    const hu = st.hunt; // охота из Бестиария: место обитания (регион) + текущая цель 🎯
+    if (hu) { const hs = mobHomes(hu.id).filter((h) => h.world === w); ctx.lineWidth = 2;
+      for (const h of hs) { const [x, y] = this.toScreen(h.x, h.y); if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue; ctx.strokeStyle = 'rgba(74,222,128,.55)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(x, y, Math.max(8, 600 * this.k), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+      const t = hu.target; if (t && t.world === w) { const [x, y] = this.toScreen(t.x, t.y); ctx.fillStyle = 'rgba(10,30,15,.85)'; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 12 + 2 * Math.sin(performance.now() / 220), 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fillText('🎯', x, y + 1); ctx.font = 'bold 12px sans-serif'; const tx = `Охота: ${hu.name}`, tw = ctx.measureText(tx).width + 8; ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fillRect(x - tw / 2, y + 16, tw, 16); ctx.fillStyle = '#86efac'; ctx.fillText(tx, x, y + 24.5); ctx.font = '14px sans-serif'; }
+      this.stats_hunt = { homes: hs.length, target: !!(t && t.world === w) }; }
     const p = st.me; if (p) {
       const [x, y] = this.toScreen(p.x, p.y);
       if (!drawMarkerIcon(ctx, 'player', x, y, 32)) { ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     }
     this.info.textContent = fog.active(w) ? `разведано ${fog.pct()}% · объектов видно: ${ms.length}` : `объектов: ${ms.length}`;
-    this.stats = { k: this.k, markers: ms.length, fog: fog.active(w), pct: fog.pct() };
+    this.stats = { k: this.k, markers: ms.length, fog: fog.active(w), pct: fog.pct(), hunt: hu ? this.stats_hunt : null };
   }
 }

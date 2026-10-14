@@ -11,15 +11,18 @@ export class MetaClient {
     this.state = null; // { verified, account, hero, heroes, available, complete, zone }
     this.listeners = new Set();
     this.version = 0;
-    try { this.mobTrack = localStorage.getItem('mc-mob-track') || null; } catch (_) { this.mobTrack = null; }
+    this._mt = undefined; // локальная правка до ответа сервера
   }
-  // отслеживание моба из Бестиария (одна цель; работает вместе с отслеживанием квеста)
-  setMobTrack(id) { this.mobTrack = id || null; try { localStorage.setItem('mc-mob-track', this.mobTrack || ''); } catch (_) {} }
+  // отслеживание моба из Бестиария (одна цель; работает вместе с отслеживанием квеста) — хранит сервер (account.mobTrack)
+  get mobTrack() { return this._mt !== undefined ? this._mt : this.state?.account?.mobTrack || null; }
+  setMobTrack(id) { this._mt = id || null; this.send({ type: 'mob_track', id: id || null }); for (const fn of this.listeners) { try { fn(this.state); } catch (_) {} } }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   apply(st) {
     addCards(st.cards);
     if (st.account && this.state?.account && !st.recipes && this.state.recipes) st.recipes = this.state.recipes;
     this.state = st;
+    if (st?.account && 'mobTrack' in st.account) this._mt = undefined; // сервер подтвердил
+    try { const old = localStorage.getItem('mc-mob-track'); if (old && st?.account && !st.account.mobTrack) { localStorage.removeItem('mc-mob-track'); this.setMobTrack(old); } else if (old !== null) localStorage.removeItem('mc-mob-track'); } catch (_) {} // перенос старого локального выбора
     this.version++;
     for (const fn of this.listeners) { try { fn(st); } catch (err) { console.error('[meta]', err); } }
   }

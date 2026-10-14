@@ -437,6 +437,11 @@ export class MetaService {
         this.send(ws, { type: "npc_dialog", npc, quests });
         return true;
       }
+      case "mob_track": { // «Отслеживать» из Бестиария: { id } или { id: null } — снять
+        const id = msg.id ? String(msg.id) : null;
+        if (id && !(ZONE_MOBS as any)[id] && !(ZONE_MOBS as any)[baseOf(id)]) { this.send(ws, { type: "toast_error", message: "Нет такого существа" }); return true; }
+        a.mobTrack = id; reply({ ok: true }); return true;
+      }
       case "quest_track": { // отслеживание: { id, on } или { all: true, on }
         const id = msg.all ? null : String(msg.id ?? "");
         reply(setQuestTrack(a.quests, id, !!msg.on)); return true;

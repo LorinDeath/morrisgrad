@@ -22,6 +22,7 @@ export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
   quests: { active: Record<string, { p: number[] }>; done: string[]; untracked?: string[] };
+  mobTrack?: string | null; // «Отслеживать» из Бестиария (одна цель, сохраняется на сервере)
   bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
   runSkills?: string[]; // кодекс: открытые (хоть раз выпавшие) навыки «Вампир-лайка»
   gname?: string; // имя гостевого профиля (guestNames.ts), назначает сервер
@@ -556,7 +557,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    weaponSkill: weaponSkill(a, h), account: { runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    weaponSkill: weaponSkill(a, h), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),
