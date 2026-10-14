@@ -105,7 +105,7 @@ export class ZoneView {
       if (!o) { o = { id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false }; this.mobs.set(id, o); }
       if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
-      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048);
+      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096);
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
     }
     for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
@@ -233,7 +233,7 @@ export class ZoneView {
         if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
         if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
-        BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * (o.elite ? 1.15 : 1), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
+        BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * (o.chief ? 1.45 : o.elite ? 1.15 : 1), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
         atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.45, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * (o.elite ? 1.15 : 1), fly ? 0.55 : 1);
       }
       for (const dd of this.dying) {
@@ -250,7 +250,7 @@ export class ZoneView {
         const row = MOB_ROWS[o.sk];
         if (row === undefined || (BB && BEAST_ROW[o.sk] !== undefined)) continue;
         const boss = ZONE_MOBS[o.type]?.boss;
-        const h = (MOB_HEIGHT[o.sk] || 2) * (boss ? 1.2 : o.elite ? 1.3 : 1);
+        const h = (MOB_HEIGHT[o.sk] || 2) * (boss ? 1.2 : o.chief ? 1.6 : o.elite ? 1.3 : 1);
         const fly = MOB_FLYING[o.sk] || 0;
         let col = (Math.floor(T * (fly ? 12 : 7) + o.id * 0.7)) & 3;
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
@@ -323,6 +323,7 @@ export class ZoneView {
       if (o.id === this.selected && nr < 64) { const R = Math.max(1.1, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
       if (o.cursed && nr < 64) { const R = 1.6 + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }
       if (ZONE_MOBS[o.type]?.boss && nr < 64) { const R = 2.4 + Math.sin(T * 4) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.8, 0.4, 1); }
+      else if (o.chief && nr < 64) { const R = 1.9 + Math.sin(T * 3 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.55, 0.1); } // вожак лагеря — крупнее, золотое кольцо
       else if (o.elite && nr < 64) { const R = 1.3 + Math.sin(T * 5 + o.id) * 0.08; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.8, 0.2); }
     }
     this.fill.count = nf; this.ring.count = nr; this.line.count = nl;

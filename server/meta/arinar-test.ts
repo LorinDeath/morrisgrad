@@ -25,7 +25,14 @@ const z = new Zone("arinar", [], [], { proc: true });
 const camps = z.camps;
 let minD = Infinity;
 for (let i = 0; i < camps.length; i++) for (let j = i + 1; j < camps.length; j++) { const d = Math.hypot(camps[i].x - camps[j].x, camps[i].y - camps[j].y); if (d < minD) minD = d; }
-ok(camps.length > 1200 && minD >= ZONE_GEN.campMinDist, `${camps.length} camps, ${z.mobs.length} mobs; min camp spacing ${minD.toFixed(0)} ≥ ${ZONE_GEN.campMinDist}px`);
+ok(camps.length > 900 && minD >= ZONE_GEN.campMinDist, `${camps.length} camps, ${z.mobs.length} mobs; min camp spacing ${minD.toFixed(0)} ≥ ${ZONE_GEN.campMinDist}px`);
+{ // большие лагеря не сливаются: ближайшие мобы РАЗНЫХ лагерей дальше радиуса агро
+  const B = new Map<number, any[]>(); for (const m of z.mobs as any[]) if (m.camp) { const k = Math.floor(m.x / 600) * 4096 + Math.floor(m.y / 600); (B.get(k) || B.set(k, []).get(k)!).push(m); }
+  let gap = Infinity; for (const m of z.mobs as any[]) { if (!m.camp) continue; const cx = Math.floor(m.x / 600), cy = Math.floor(m.y / 600);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const o of B.get((cx + i) * 4096 + cy + j) || []) if (o.camp !== m.camp) gap = Math.min(gap, Math.hypot(o.x - m.x, o.y - m.y)); }
+  const aggro = Math.max(...Object.values(ZONE_MOBS).filter((d: any) => !d.boss).map((d: any) => d.aggro || 0));
+  ok(gap > aggro + 40, `anti-merge between big camps: closest mobs of different camps ${gap.toFixed(0)} px > aggro ${aggro} + 40`);
+}
 ok(camps.every((c) => !inSafe(c.x, c.y, 250)), "no camps in/near hub safe zone");
 for (const b of Object.values(BIOMES)) {
   const ms = z.mobs.filter((m) => (ZONE_MOBS[m.type] as any).biome === b.id && !ZONE_MOBS[m.type].boss);

@@ -56,7 +56,9 @@ export const ZONE_GEN = {
   despawnDist: 1150,         // дальше от всех игроков…
   despawnIdle: 30,           // …и вне боя столько секунд → исчезает
   // лагеря (Аринар): сетка с шагом campStep и разбросом; соседние лагеря дальше, чем радиус «подтягивания»
-  campStep: 1000, campJitter: 220, campMinDist: 760, campRespawn: 45,
+  campStep: 1000, campJitter: 220, campMinDist: 900, campRespawn: 45,
+  // большие лагеря: 2–3 пачки по кругу campRing + вожак (×chiefHp ОЗ, ×chiefDmg урон), в части лагерей два вожака
+  campFill: 0.95, campAccept: 0.3, campRing: 120, campPacks3: 0.45, campTwoChiefs: 0.22, chiefHp: 2.6, chiefDmg: 1.4,
   // кочевники: доля мобов региона, бродят по петле соседних лагерей (в пределах roamRange) и дерутся с враждебными
   roamPct: 0.07, roamRange: 3200,
   // поводок MMO: моб дальше leash от дома → «сброс» (уходит домой, быстро лечится, игнорирует игроков)

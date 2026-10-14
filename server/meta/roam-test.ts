@@ -14,11 +14,11 @@ const C = z.camps;
 const nn = C.map((c) => { let d = Infinity; for (const o of C) if (o !== c) d = Math.min(d, Math.hypot(o.x - c.x, o.y - c.y)); return d; });
 const mean = nn.reduce((a, b) => a + b, 0) / nn.length, sd = Math.sqrt(nn.reduce((a, b) => a + (b - mean) ** 2, 0) / nn.length);
 ok(Math.min(...nn) >= ZONE_GEN.campMinDist, `anti-merge kept: min camp spacing ${Math.min(...nn).toFixed(0)} ≥ ${ZONE_GEN.campMinDist}`);
-ok(sd / mean > 0.15 && Math.max(...nn) > 1.8 * Math.min(...nn), `varied spacing: nearest-neighbour ${Math.min(...nn).toFixed(0)}…${Math.max(...nn).toFixed(0)} px, mean ${mean.toFixed(0)}, CV ${(sd / mean).toFixed(2)}`);
+ok(sd / mean > 0.12 && Math.max(...nn) > 1.8 * Math.min(...nn), `varied spacing: nearest-neighbour ${Math.min(...nn).toFixed(0)}…${Math.max(...nn).toFixed(0)} px, mean ${mean.toFixed(0)}, CV ${(sd / mean).toFixed(2)}`);
 const onLattice = C.filter((c) => Math.abs(((c.x % 1000) + 1000) % 1000 - 500) < 230 && Math.abs(((c.y % 1000) + 1000) % 1000 - 500) < 230).length / C.length;
 ok(onLattice < 0.4, `not on the old 1000 px grid: ${(onLattice * 100).toFixed(0)}% within old jitter box (random ≈ 21%, old grid 100%)`);
 const sizes = new Set(C.map((c) => c.types.length));
-ok(sizes.size >= 5 && sizes.has(1), `group sizes vary: ${[...sizes].sort().join(",")}`);
+ok(sizes.size >= 5 && C.every((c: any) => c.packs >= 2 && c.chiefs >= 1), `big camps (2–3 packs + 1–2 chiefs), sizes vary: ${[...sizes].sort().join(",")}`);
 // формы: расстояния членов от центра пачки — не кольцо (разброс радиусов)
 let ringish = 0, multi = 0;
 for (const c of C) {
@@ -31,7 +31,10 @@ for (const c of C) {
 ok(ringish / multi < 0.25, `packs are not perfect rings: ${ringish}/${multi} ring-like`);
 const minIn = Math.min(...C.map((c) => { const ms = z.mobs.filter((m) => m.camp === c.id); let d = Infinity; for (const a of ms) for (const b of ms) if (a !== b) d = Math.min(d, Math.hypot(a.x - b.x, a.y - b.y)); return d; }).filter(Number.isFinite));
 ok(minIn >= 15, `members of a pack don't overlap (min ${minIn.toFixed(0)} px)`);
-ok(C.length > 1200 && C.length < 1800, `${C.length} camps, ${z.mobs.length} mobs (old grid: 1433 camps)`);
+ok(C.length > 900 && C.length < 1800 && z.mobs.length > 7000, `${C.length} camps, ${z.mobs.length} mobs (before big camps: 1211 camps / ~5000 mobs)`);
+{ const cs = C as any[]; const p3 = cs.filter((c) => c.packs === 3).length / cs.length, c2 = cs.filter((c) => c.chiefs === 2).length / cs.length;
+  ok(p3 > 0.3 && p3 < 0.6 && c2 > 0.1 && c2 < 0.35, `camp mix: ${(p3 * 100).toFixed(0)}% three packs, ${(c2 * 100).toFixed(0)}% two chiefs`);
+  const ch = z.mobs.filter((m: any) => m.chief); ok(ch.length && ch.every((m: any) => m.elite && m.maxHp > ZONE_MOBS[m.type].hp * 2.5), `${ch.length} chiefs: elite, ×${ZONE_GEN.chiefHp} HP`); }
 
 // 2. кочевники
 const roam = z.mobs.filter((m) => m.roam);
@@ -81,7 +84,7 @@ ok(hostile("ice_dew_slime", "fire_dew_slime") && !hostile("ice_dew_slime", "ice_
   const pm = new Map([["a", P("a", 24000, 24100)]]);
   let t = 3e9; for (let i = 0; i < 50; i++) { t += 100; z3.update(0.1, t, pm, () => {}, () => {}); }
   const rm = z3.mobs.filter((m) => m.roam);
-  const movedFar = rm.filter((m, i) => Math.hypot(m.x - before[i][0], m.y - before[i][1]) > 1 && !z3.awake.has(Math.floor(m.x / 2000) * 4096 + Math.floor(m.y / 2000))).length;
+  const movedFar = rm.filter((m, i) => Math.hypot(m.x - before[i][0], m.y - before[i][1]) > 1 && !z3.awake.has(Math.floor(before[i][0] / 1000) * 4096 + Math.floor(before[i][1] / 1000))).length;
   ok(movedFar === 0 && z3.stats.asleep > z3.mobs.length * 0.9, `sleeping chunks stay asleep: ${movedFar} far roamers moved, ${z3.stats.asleep}/${z3.mobs.length} asleep`);
   const many = new Map<string, ZPlayer>();
   for (let i = 0; i < 32; i++) { const a = i * 2.4; many.set("p" + i, P("p" + i, 24000 + Math.cos(a) * (2000 + i * 500), 24000 + Math.sin(a) * (2000 + i * 500))); }

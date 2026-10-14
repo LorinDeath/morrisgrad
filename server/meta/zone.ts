@@ -21,13 +21,16 @@ export function skillsFor(type: string, n: number, salt = 0): string[] {
   return out;
 }
 const ck = (x: number, y: number) => Math.floor(x / WORLD_CHUNK) * 4096 + Math.floor(y / WORLD_CHUNK);
+// ячейка сна мельче чанка интереса: камера 30 клеток (AOI ±607 px) — бодрствует 3×3 ячейки по 1000 px вокруг игрока (≥1000 px во все стороны)
+const SLEEP_CELL = 1000;
+const sk = (x: number, y: number) => Math.floor(x / SLEEP_CELL) * 4096 + Math.floor(y / SLEEP_CELL);
 
 export interface ZCast { leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number }
 export interface ZMob { id: number; type: string; respawn: number; sx: number; sy: number; x: number; y: number; hp: number; maxHp: number; dead: boolean; respawnAt: number;
   targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>;
   windup: number; dashX: number; dashY: number; dashT: number;
   // процедурный спавн: регион, элита, простой вне боя (для деспавна); fixed — классическая точка респавна
-  fixed: boolean; region: string | null; elite: boolean; idle: number;
+  fixed: boolean; region: string | null; elite: boolean; idle: number; chief?: boolean;
   // статусы от оружия игроков (сервер-авторитет): урон по времени, замедление, отбрасывание
   dot: { kind: string; dps: number; until: number; sid: string } | null; slowUntil: number; kbx: number; kby: number;
   // телеграфы в полёте, фаза босса, ярость, особый тип (boss/rare), время жизни редкого
@@ -122,29 +125,49 @@ export class Zone {
     for (const reg of this.gen.regions) {
       if (!reg.table.length) continue;
       const w = reg.rect[2] - reg.rect[0], h = reg.rect[3] - reg.rect[1];
-      const want = Math.max(1, Math.round((w * h) / (G.campStep * G.campStep) * 0.78));
+      const want = Math.max(1, Math.round((w * h) / (G.campStep * G.campStep) * G.campFill));
       let made = 0;
       for (let t = 0; t < want * 14 && made < want; t++) {
         const x = Math.round(reg.rect[0] + 60 + R() * (w - 120)), y = Math.round(reg.rect[1] + 60 + R() * (h - 120));
         const dn = 0.65 * dens(x, y) + 0.35 * dens2(x, y);                  // 0..1: густо/пусто
-        if (R() > 0.1 + dn * dn * 1.3) continue;
+        if (R() > G.campAccept + dn * dn * 1.3) continue;
         const minD = G.campMinDist * (1 + (1 - dn) * 1.8 * R() + (R() < 0.15 ? 0.6 : 0));       // в густых пятнах — ближе (но ≥ campMinDist)
         if (inSafe(x, y, 300, this.world) || this.gen.bosses.some((b) => Math.hypot(b.x - x, b.y - y) < 700)) continue;
         if (tooClose(x, y, minD)) continue;
         let tw = reg.table.reduce((a, b) => a + b.w, 0) * R(), row = reg.table[0];
         for (const tr of reg.table) { tw -= tr.w; if (tw <= 0) { row = tr; break; } }
-        let n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
-        const roll = R();
-        if (roll < 0.18) n = Math.min(7, n + 1 + (R() < 0.4 ? 1 : 0)); else if (roll < 0.3) n = Math.max(1, n - 1); // крупнее/мельче/одиночки
+        // БОЛЬШОЙ лагерь: 2–3 пачки по кругу (радиус campRing) + вожак в центре (иногда два вожака)
         const alt = reg.table.filter((tr) => tr.type !== row.type && ["ranged", "charger", "caster"].includes(ZONE_MOBS[tr.type]?.role));
-        const types: string[] = [];
-        for (let i = 0; i < n; i++) types.push(i === n - 1 && n >= 3 && alt.length ? alt[Math.floor(R() * alt.length)].type : row.type);
-        const camp = { id: this.camps.length + 1, region: reg.id, x, y, types };
+        const nPacks = R() < G.campPacks3 ? 3 : 2, a0 = R() * Math.PI * 2;
+        const placed: [number, number][] = [];
+        const spot = (x0: number, y0: number): [number, number] => { // не ближе 24 px к любому мобу лагеря (спираль наружу)
+          for (let t = 0; t < 40; t++) { const a = t * 2.4, rr = t ? 10 + t * 5 : 0; const qx = this.clamp(x0 + Math.cos(a) * rr), qy = this.clamp(y0 + Math.sin(a) * rr);
+            if (placed.every((o) => Math.hypot(o[0] - qx, o[1] - qy) >= 24)) { placed.push([qx, qy]); return [qx, qy]; } }
+          const q: [number, number] = [this.clamp(x0), this.clamp(y0)]; placed.push(q); return q; };
+        const camp = { id: this.camps.length + 1, region: reg.id, x, y, types: [] as string[], packs: nPacks, chiefs: 0 };
         this.camps.push(camp); made++;
         const k = gk(x, y); const gb = grid.get(k); if (gb) gb.push(camp); else grid.set(k, [camp]);
-        for (const [i, p] of this.formation(n, R).entries()) {
-          const m = this.addMob(types[i], this.clamp(x + p[0]), this.clamp(y + p[1]), { fixed: true, respawn: G.campRespawn, region: reg.id, elite: R() < reg.elite });
-          m.camp = camp.id;
+        for (let pk = 0; pk < nPacks; pk++) {
+          let n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
+          const roll = R(); if (roll < 0.18) n = Math.min(6, n + 1); else if (roll < 0.3) n = Math.max(2, n - 1);
+          const prow = pk > 0 && R() < 0.35 ? reg.table[Math.floor(R() * reg.table.length)] : row; // соседняя пачка бывает другого вида
+          const types: string[] = [];
+          for (let i = 0; i < n; i++) types.push(i === n - 1 && n >= 3 && alt.length ? alt[Math.floor(R() * alt.length)].type : prow.type);
+          const a = a0 + (pk / nPacks) * Math.PI * 2 + (R() - 0.5) * 0.6, rr = G.campRing * (0.8 + R() * 0.4);
+          const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+          for (const [i, p] of this.formation(n, R).entries()) {
+            const [qx, qy] = spot(px + p[0] * 0.7, py + p[1] * 0.7);
+            const m = this.addMob(types[i], qx, qy, { fixed: true, respawn: G.campRespawn, region: reg.id, elite: R() < reg.elite });
+            m.camp = camp.id; camp.types.push(types[i]);
+          }
+        }
+        // вожак: самый сильный вид региона, элита, ×chiefHp ОЗ, ×chiefDmg урон; в части лагерей — двое
+        const strong = [...reg.table].sort((p, q) => (ZONE_MOBS[q.type]?.lvl || 0) - (ZONE_MOBS[p.type]?.lvl || 0) || (ZONE_MOBS[q.type]?.hp || 0) - (ZONE_MOBS[p.type]?.hp || 0))[0].type;
+        const nChief = R() < G.campTwoChiefs ? 2 : 1;
+        for (let c = 0; c < nChief; c++) {
+          const [qx, qy] = spot(x + (nChief > 1 ? (c ? 26 : -26) : 0), y);
+          const m = this.addMob(strong, qx, qy, { fixed: true, respawn: G.campRespawn * 2, region: reg.id, elite: true });
+          m.chief = true; m.camp = camp.id; m.maxHp = m.hp = this.hpOf(m, 1); camp.types.push(strong); camp.chiefs++;
         }
       }
     }
@@ -246,7 +269,7 @@ export class Zone {
   /** множитель ХП моба по его флагам */
   hpOf(m: ZMob, scale = 1) {
     const d = ZONE_MOBS[m.type];
-    return Math.round(d.hp * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? ZONE_GEN.cursedHp : 1) * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
+    return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? ZONE_GEN.cursedHp : 1) * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
   }
   rollCursed(m: ZMob) {
     const d = ZONE_MOBS[m.type];
@@ -285,7 +308,7 @@ export class Zone {
     this.awake.clear();
     const S = ZONE_GEN.sleepR;
     for (const p of players.values()) {
-      const cx = Math.floor(p.x / WORLD_CHUNK), cy = Math.floor(p.y / WORLD_CHUNK);
+      const cx = Math.floor(p.x / SLEEP_CELL), cy = Math.floor(p.y / SLEEP_CELL);
       for (let i = -S; i <= S; i++) for (let j = -S; j <= S; j++) this.awake.add((cx + i) * 4096 + cy + j);
     }
   }
@@ -469,7 +492,7 @@ export class Zone {
   // атаки крупных и боссов: по кругу набора, набор зависит от фазы
   bossPattern(m: ZMob, d: any, best: ZPlayer, players: Map<string, ZPlayer>, now: number) {
     const big = d.size === "huge" ? 1.35 : d.size === "boss" ? 1.15 : 1;
-    const dmg = d.dmg * (m.elite ? ZONE_GEN.eliteDmg : 1);
+    const dmg = d.dmg * (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1);
     const tele = (m.enraged ? 0.8 : 1) * (d.size === "l" ? 1.1 : 1.25) * 1000;
     const pats = d.size === "l" ? ["circle", d.role === "charger" ? "dash" : d.role === "caster" ? "triple" : "nova"]
       : m.phase === 1 ? ["circle", "line", "nova"] : m.phase === 2 ? ["triple", "line3", "ring", "circle"] : ["triple", "ring", "line3", "nova", "circle"];
@@ -550,7 +573,7 @@ export class Zone {
     for (const m of this.mobs) {
       const d = ZONE_MOBS[m.type];
       // сон: чанк без игроков рядом — без ИИ (мобы заморожены; поводок/лечение — мгновенно при засыпании)
-      if (sleepy && !this.awake.has(ck(m.x, m.y))) {
+      if (sleepy && !this.awake.has(sk(m.x, m.y))) {
         asleep++;
         if (!m.dead && (m.targetSid || m.mobTarget || m.reset || m.hp < m.maxHp)) { m.x = m.sx; m.y = m.sy; m.hp = m.maxHp; m.targetSid = null; m.mobTarget = 0; m.reset = false; m.casts = []; m.dot = null; m.windup = 0; m.dashT = 0; }
         continue;
@@ -575,7 +598,7 @@ export class Zone {
         if (m.fixed && now >= m.respawnAt) {
           if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; }
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
-          if (m.camp) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
+          if (m.camp && !m.chief) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
           this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp;
           m.dmgBy.clear(); m.usedAbility.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
         }
@@ -611,7 +634,7 @@ export class Zone {
       m.atkCd = Math.max(0, m.atkCd - dt);
       m.leapCd = Math.max(0, m.leapCd - dt);
       for (const k of m.skills) m.skCd[k] = Math.max(0, (m.skCd[k] || 0) - dt);
-      const eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.cursed ? ZONE_GEN.cursedDmg : 1);
+      const eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? ZONE_GEN.cursedDmg : 1);
       // рывок (charger и крупные): замах (телеграф) → рывок
       if (m.dashT > 0) {
         const dsp = d.size === "s" ? 330 : 420;
@@ -791,7 +814,7 @@ export class Zone {
       if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.15 && Math.abs(x.y - py) < aoi * 1.15)) continue; // боссов видно дальше
       const st = x.dot ? (x.dot.kind === "burn" ? 8 : x.dot.kind === "poison" ? 16 : 32) : 0;
       m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
-        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0));
+        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0));
     }
     const nr = aoi * 2.2; // узлы — тоже по интересу (в Аринаре их сотни)
     const n = this.nodes.filter((x) => !this.gen.camps || (Math.abs(x.x - px) < nr && Math.abs(x.y - py) < nr)).map((x) => [x.id, now >= x.readyAt ? 1 : 0]);
