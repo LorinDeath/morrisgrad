@@ -28,10 +28,22 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   ok(await P.isVisible('.mc-homebtn'), 'в Аринаре видна кнопка 🌀 «Портал домой»');
   await P.click('.mc-homebtn'); await P.waitForTimeout(2500);
   let st = await G(() => ({ w: window.__game.state().world, p: window.__game.state().player }));
-  ok(st.w === 'hellfire' && Math.hypot(st.p.x - 770, st.p.y - 510) < 40, `клик по 🌀 → хаб (${st.w}, ${Math.round(st.p.x)},${Math.round(st.p.y)})`);
+  ok(st.w === 'hellfire' && Math.hypot(st.p.x - 710, st.p.y - 420) < 40, `клик по 🌀 → хаб (${st.w}, ${Math.round(st.p.x)},${Math.round(st.p.y)})`);
   const ps = await G(() => window.__game.debug.portals().filter((x) => x.personal).map((x) => x.id));
   ok(ps.includes('home_return') && ps.includes('home_field'), 'личные порталы: возвратный в хабе + точка в Аринаре ' + ps.join(','));
+  { const hp = await G(() => window.__game.debug.portals().find((x) => x.id === 'home_return')); ok(hp && Math.hypot(hp.x - 760, hp.y - 470) > 100, `возвратный портал в стороне от колодца (${hp?.x},${hp?.y})`); }
   await P.screenshot({ path: `${OUT}/portal-hub.png` });
+  // приватность: другой игрок у той же точки видит «чужой портал (Walker)», войти не может
+  { const [X, GX, xerr] = await open('Stranger');
+    await GX(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y }); window.__game.debug.teleport(x, y); }, [S.x + 60, S.y + 40]); await X.waitForTimeout(2500);
+    const fps = await GX(() => window.__game.debug.portals().filter((x) => x.foreign).map((x) => x.name));
+    ok(fps.some((n) => /Чужой портал \(Walker/.test(n)), 'чужой портал виден с подписью: ' + fps.join(', '));
+    await GX(() => window.__game.debug.rawSend({ type: 'home_portal_enter' })); await X.waitForTimeout(800);
+    const fp = await GX(() => window.__game.debug.portals().find((x) => x.foreign));
+    if (fp) { const sc = await GX(([x, y]) => window.__game.debug.screenOf(x, y), [fp.x, fp.y]); if (sc) { await X.mouse.click(sc.x, sc.y); await X.waitForTimeout(1200); } }
+    ok((await GX(() => window.__game.state().world)) === 'arinar' && xerr.length >= 1, 'войти в чужой портал нельзя (сервер): ' + xerr.at(-1));
+    await X.screenshot({ path: `${OUT}/portal-foreign.png` });
+    await X.context().close(); }
   // D1: точка сохранена у героя
   let row = ''; for (let i = 0; i < 20 && !/25400/.test(row); i++) { await P.waitForTimeout(1500); row = d1(`SELECT h.home_portal FROM heroes h JOIN accounts a ON a.pkey = h.pkey WHERE h.hero = 'mage' AND h.home_portal IS NOT NULL ORDER BY h.updated_at DESC LIMIT 1`); }
   ok(/25400/.test(row) && /27900/.test(row), 'D1 heroes.home_portal хранит точку ' + (row.match(/home_portal[^}]*\}/) || [''])[0].slice(0, 90));
@@ -39,8 +51,8 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   await P.keyboard.press('h'); await P.waitForTimeout(600);
   ok(!(await G(() => window.__game.state().world !== 'hellfire')), 'в хабе H не открывает портал');
   // вернуться: подойти к возвратному порталу и кликнуть мышью
-  await G(() => window.__game.debug.teleport(700, 470)); await P.waitForTimeout(800);
-  const sc = await G(() => window.__game.debug.screenOf(720, 470));
+  await G(() => window.__game.debug.teleport(640, 380)); await P.waitForTimeout(800);
+  const sc = await G(() => window.__game.debug.screenOf(660, 380));
   await P.mouse.click(sc.x, sc.y); await P.waitForTimeout(2500);
   st = await G(() => ({ w: window.__game.state().world, p: window.__game.state().player }));
   ok(st.w === 'arinar' && Math.hypot(st.p.x - S.x, st.p.y - S.y) < 30, `клик по возвратному порталу → та же точка в Аринаре (${Math.round(st.p.x)},${Math.round(st.p.y)})`);

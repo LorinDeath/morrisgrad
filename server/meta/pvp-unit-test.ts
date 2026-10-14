@@ -47,11 +47,13 @@ const realNow = Date.now;
   const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
   (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
   sa.x = 300; sa.y = 400; sb.x = 450; sb.y = 400;
-  w.pvp.ability(wa, sa, { id: "pierce", dx: -1, dy: 0 });
+  const fly = (t: number) => { for (let k = 0; k <= 12; k++) w.pvp.tick(t + k * 50); }; // снаряды дуэли летят в тике
+  w.pvp.ability(wa, sa, { id: "pierce", dx: -1, dy: 0 }); fly(t0 + DUEL_COUNTDOWN_MS + 20);
   const hp1 = w.ms.get("b").zp.hp;
   (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 3000;
-  w.pvp.ability(wa, sa, { id: "pierce", dx: 1, dy: 0 });
+  w.pvp.ability(wa, sa, { id: "pierce", dx: 1, dy: 0 }); const hpNow = w.ms.get("b").zp.hp; fly(t0 + DUEL_COUNTDOWN_MS + 3000);
   const hp2 = w.ms.get("b").zp.hp;
+  ok(hpNow === 100 && hp2 < 100, `duel projectile: no instant damage (${100 - hpNow}), damage on contact (${100 - hp2})`);
   (Date as any).now = realNow;
   ok(hp1 === 100 && hp2 < 100, `duel skill is directional: backwards ${100 - hp1} dmg, forwards ${100 - hp2} dmg`);
 }
@@ -85,6 +87,39 @@ for (const [hpA, hpB, exp] of [[80, 40, 0], [30, 90, 1], [55, 55, null]] as cons
   w.mk("a2", "uid:a"); const [wa2, sa2] = w.sess.get("a2");
   w.pvp.challenge(wa2, sa2, { sid: "a" });
   ok(w.out.a2.some((m) => m.type === "duel_err" && /самого себя/.test(m.message)), "same account (two tabs) cannot duel itself");
+}
+{ // дуэль: от стрелы можно увернуться (снаряд сервера), стоящего — бьёт
+  const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
+  (w as any).pvp.host.effective = () => ({ level: 5, wtype: "bow", weaponMin: 10, weaponMax: 10, dmgPct: 0, critPct: 0, atkSpeedPct: 0, lifestealPct: 0, abilities: [] });
+  const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");
+  w.pvp.challenge(wa, sa, { sid: "b" }); w.pvp.respond(wb, sb, { from: "a", accept: true });
+  const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
+  sa.x = 300; sa.y = 400; sb.x = 520; sb.y = 400;
+  w.pvp.attack(wa, sa, { dx: 1, dy: 0 }); sb.y = 520; // ушёл с линии
+  for (let k = 0; k <= 12; k++) w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 20 + k * 50);
+  const dodged = w.ms.get("b").zp.hp; sb.y = 400;
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 3000;
+  w.pvp.attack(wa, sa, { dx: 1, dy: 0 });
+  for (let k = 0; k <= 12; k++) w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 3000 + k * 50);
+  (Date as any).now = realNow;
+  ok(dodged === 100 && w.ms.get("b").zp.hp < 100, `duel arrow: dodged → ${100 - dodged} dmg, standing → ${100 - w.ms.get("b").zp.hp} dmg`);
+}
+{ // дуэль = открытый мир: заморозка навыка (frost_nova), статус оружия (гримуар — поджог, тики DoT)
+  const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
+  (w as any).pvp.host.effective = () => ({ level: 5, wtype: "book", weaponMin: 10, weaponMax: 10, dmgPct: 0, critPct: 0, atkSpeedPct: 0, lifestealPct: 0, abilities: [{ id: "frost_nova", cd: 1, power: 1, props: [] }] });
+  const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");
+  w.pvp.challenge(wa, sa, { sid: "b" }); w.pvp.respond(wb, sb, { from: "a", accept: true });
+  const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
+  sa.x = 300; sa.y = 400; sb.x = 400; sb.y = 400;
+  const evs: any[] = []; const st0 = (w.pvp as any).status.bind(w.pvp); (w.pvp as any).status = (c: any, ss: any, st: any) => { if (st.freeze) evs.push({ k: "pstatus", s: "freeze" }); if (st.kind) evs.push({ k: "pstatus", s: st.kind }); return st0(c, ss, st); };
+  w.pvp.ability(wa, sa, { id: "frost_nova", dx: 1, dy: 0 });
+  const frozen = (w.ms.get("b").frozenUntil || 0) > Date.now();
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 3000;
+  w.pvp.attack(wa, sa, { dx: 1, dy: 0 }); for (let k = 0; k <= 10; k++) w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 3000 + k * 50);
+  (Date as any).now = realNow;
+  ok(frozen && evs.some((e) => e.k === "pstatus" && e.s === "freeze") && evs.some((e) => e.k === "pstatus" && e.s === "burn"), `duel statuses like open world: freeze from frost_nova (${frozen}), burn from grimoire hit`);
 }
 Date.now = realNow;
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -8,6 +8,16 @@ export const TAKE_RATE = 25;         // позиций/с (Shift-проводк�
 export type BagEntry = { lid: number; k: "item" | "res"; id: string; n: number };
 export type Bag = { id: number; world: string; x: number; y: number; owner: string; at: number; exp: number; src: string; kind: string; mob: string; entries: BagEntry[] };
 
+export const KILLER_BAG_CHANCE = 0.1; // мешок добившему вместо лучшего по урону
+/** Владелец мешка: игрок с наибольшим уроном; с шансом 10% (rng сервера) — добивший (если это игрок). Мобы («mob:…») не владеют. */
+export function pickBagOwner(dmgBy: Map<string, number>, killer: string | null | undefined, rand: () => number): string | null {
+  let best: string | null = null, bd = -1;
+  for (const [sid, d] of dmgBy) if (!sid.startsWith("mob:") && d > bd) { bd = d; best = sid; }
+  if (!best) return null;
+  if (killer && !killer.startsWith("mob:") && killer !== best && dmgBy.has(killer) && rand() < KILLER_BAG_CHANCE) return killer;
+  return best;
+}
+
 export class LootBags {
   bags = new Map<number, Bag>();
   private nextId = 1; private nextLid = 1;

@@ -89,6 +89,7 @@ export class RunSession {
   constructor(opts) {
     this.room = opts.room;
     this.runSkill = opts.runSkill || null; // навык забега из пула аккаунта (сервер: account.runSkillSel)
+    this.traits = opts.traits || null; // черты админки {weapon:[...], skill:{id:[...]}} — сервер присылает в meta_state.runTraits
     this.myId = opts.myId || 'local';
     this.username = opts.username || 'Странник';
     this.color = opts.color || '#ffffff';
@@ -604,6 +605,27 @@ export class RunSession {
     }
   }
 
+  // черты админки в забеге (как server/meta/admin.ts applyTraits): поджог/яд/кровь (% урона/с), замедление, отбрасывание, заморозка, вампиризм
+  traitsFor(w) {
+    const T = this.traits; if (!T) return [];
+    const k = String(w || '');
+    if (k.startsWith('ab_')) return T.skill?.[k.slice(3)] || [];
+    if (this.runSkill && k === this.runSkill) return [...(T.weapon || []), ...(T.skill?.['rs:' + k] || [])];
+    return T.weapon || [];
+  }
+  applyTraits(e, p, dmg) {
+    let st = 0;
+    for (const t of this.traitsFor(p.w)) {
+      if (Math.random() * 100 >= (t.chance ?? 100)) continue;
+      if (t.k === 'burn' || t.k === 'bleed' || t.k === 'poison') { this.applyStatus(e, t.k, (dmg * (t.dpsPct || 0)) / 100, p.w); st |= ST_BIT[t.k]; }
+      else if (t.k === 'slow') { e.slowUntil = this.t + 1.6; e.slowK = 0.6; }
+      else if (t.k === 'freeze') { this.applyStatus(e, 'freeze', 0, p.w); st |= ST_BIT.freeze; }
+      else if (t.k === 'knock' && this.isHost) { const dx = e.x - this.me.x, dz = e.z - this.me.z, d = Math.hypot(dx, dz) || 1, k = (t.power || 1) * (e.boss ? 0.15 : e.elite ? 0.5 : 1); this.knock(e, (dx / d) * k, (dz / d) * k); }
+      else if (t.k === 'lifesteal') this.heal((dmg * (t.pct || 0)) / 100);
+    }
+    return st;
+  }
+
   pushFx(f) { if (this.fx.length < 260) this.fx.push(f); }
 
   // Статусы. Урон по времени считает тот, кто наложил (гость шлёт хосту как попадания);
@@ -1067,6 +1089,7 @@ export class RunSession {
         if (this.isHost) this.knock(e, kbx, kbz);
       }
     }
+    if (!p.dot && this.traits) st |= this.applyTraits(e, p, dmg);
     if (!p.noFx && this.fx.length < 220) this.fx.push({ kind: 'hit', x: e.x, z: e.z, row: HIT_ROW[p.w] || 'hit', r: 0.8 + (e.scale || 1) * 0.5, t: 0, life: 0.3 });
     this.events('dmg', { x: e.x, z: e.z, dmg, crit, boss: e.boss, dot: p.dot });
     // мгновенно у себя (предсказание), у хоста — авторитетно

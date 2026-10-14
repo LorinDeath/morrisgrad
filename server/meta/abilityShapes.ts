@@ -80,6 +80,8 @@ const R = (n: number) => Math.round(n);
 // строки атласа снарядов (src/assets/mc/projectiles.json): id навыка/оружия → спрайт
 export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_orb", "split_shard", "thorn_bow", "spear", "pierce", "daggers", "sun_beam", "ice_fan", "chain_bolt",
   "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws"]);
+// спрайт снаряда автоатаки по типу оружия (открытый мир и дуэли)
+export const AUTO_SPRITE: Record<string, string> = { daggers: "auto_daggers", book: "auto_staff", staff: "auto_staff", bow: "auto_bow", fly_blades: "auto_claws", spear: "spear" };
 export function projSprite(id: string, fb: string): string {
   const k = id.startsWith("rs:") ? id.slice(3) : id; const b = (ABILITY_BY_ID as any)[id]?.base;
   return PROJ_SPRITES.has(k) ? k : b && PROJ_SPRITES.has(b) ? b : fb;

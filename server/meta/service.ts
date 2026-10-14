@@ -12,8 +12,8 @@ import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
 // спрайт снаряда автоатаки по типу оружия (атлас projectiles.png)
-const AUTO_SPRITE: Record<string, string> = { daggers: "auto_daggers", book: "auto_staff", staff: "auto_staff", bow: "auto_bow", fly_blades: "auto_claws", spear: "spear" };
-import { LootBags, type Bag } from "./loot";
+import { AUTO_SPRITE } from "./abilityShapes";
+import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
@@ -184,6 +184,11 @@ export class MetaService {
     const h = cls ? this.store.hero(ms.pkey, cls) : null;
     const s: any = snapshot(a, h, cls, heroBase(cls), ms.verified);
     for (const id of HERO_IDS) { const hh = this.store.hero(ms.pkey, id); s.heroes[id] = { lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout }; }
+    // черты админки для ЗАБЕГА (забег считает клиент-хост): оружие+надетое, навыки героя по id и навык оружия (rs:*)
+    try { const eff = this.effective(session); const sk: Record<string, any[]> = {};
+      for (const ab of eff.abilities || []) { const t = traitsFor(null, [], ab.id); if (t.length) sk[ab.id] = t; }
+      const rs = (s as any).weaponSkill; if (rs) { const t = traitsFor(null, [], "rs:" + rs); if (t.length) sk["rs:" + rs] = t; }
+      s.runTraits = { weapon: traitsFor(eff.wtype || null, this.equippedIds(session, a)), skill: sk }; } catch { /* нет героя — без черт */ }
     // переход на новые деревья талантов: сообщить о возвращённых очках (один раз)
     const refunds = HERO_IDS.map((id) => [id, this.store.hero(ms.pkey, id)] as const).filter(([, hh]) => hh.refunded);
     if (refunds.length) { s.notice = `Деревья талантов обновлены: очки возвращены (${refunds.map(([id, hh]) => `${id} +${hh.refunded}`).join(", ")}). Активные навыки теперь открываются в дереве.`; for (const [, hh] of refunds) delete hh.refunded; }
@@ -512,6 +517,10 @@ export class MetaService {
         if (msg.bag && typeof msg.bag === "object") { const items = (Array.isArray(msg.bag.items) ? msg.bag.items : []).filter((id: any) => ITEM_BY_ID[id]).slice(0, 30); const res: Record<string, number> = {}; for (const [r, n] of Object.entries(msg.bag.res || {})) if (RESOURCES[r]) res[r] = Math.max(1, Math.min(99, Number(n) || 1)); this.loot.drop(session.world || "hellfire", session.x + 50, session.y, ms.pkey, { items, res }, "dev", "mob", "dev"); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
+        // стресс-тест анти-дюпа: забить сумку, освободить слоты, точный счёт предметов (только dev)
+        if (msg.fill && ITEM_BY_ID[msg.fill.id]) for (let i = 0; i < Math.min(200, Number(msg.fill.n) || 0); i++) if (!addItem(a, String(msg.fill.id), "grant:fill")) break;
+        if (msg.freeSlots) { let n = Math.min(200, Number(msg.freeSlots) || 0); for (let i = a.inv.length - 1; i >= 0 && n > 0; i--) if (a.inv[i].src === "grant:fill") { a.inv.splice(i, 1); n--; } }
+        if (msg.invCount) { const cnt: Record<string, number> = {}; for (const it of a.inv) cnt[it.id] = (cnt[it.id] || 0) + 1; this.send(ws, { type: "dev_inv", n: a.inv.length, cnt, uids: new Set(a.inv.map((i) => i.uid)).size, res: a.res }); }
         if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
         this.push(ws, session); return true;
       }
@@ -931,8 +940,10 @@ export class MetaService {
   onMobKilled(m: any) {
     const d = ZONE_MOBS[m.type];
     const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
+    // мешок — ОДИН: больше всех урона, с шансом 10% — добившему (сервер); видит и открывает только владелец
+    const bagOwner = pickBagOwner(m.dmgBy, m.killer, cryptoRand);
     for (const [sid, dmg] of m.dmgBy as Map<string, number>) {
-      if (!d.boss && !d.rare && dmg / total < 0.15) continue; // вклад ≥15% (босс/редкий — любой вклад)
+      if (!d.boss && !d.rare && dmg / total < 0.15 && sid !== bagOwner) continue; // вклад ≥15% (босс/редкий — любой вклад)
       const ms = this.ms.get(sid);
       const entry = this.sessionLookup?.(sid);
       if (!ms || !entry) continue;
@@ -949,8 +960,8 @@ export class MetaService {
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
       const lootMul = m.cursed ? ZONE_GEN.cursedLoot : 1; // проклятый: шансы дропа ×10 (только сервер)
       // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
-      const loot = rollMonsterLoot(base, cryptoRand, lootMul);
-      if (m.elite) { const l2 = rollMonsterLoot(base, cryptoRand, lootMul); loot.items.push(...l2.items); for (const [r, n] of Object.entries(l2.res)) loot.res[r] = (loot.res[r] || 0) + n; } // элита: второй бросок
+      const loot = sid === bagOwner ? rollMonsterLoot(base, cryptoRand, lootMul) : { items: [] as string[], res: {} as Record<string, number> };
+      if (m.elite && sid === bagOwner) { const l2 = rollMonsterLoot(base, cryptoRand, lootMul); loot.items.push(...l2.items); for (const [r, n] of Object.entries(l2.res)) loot.res[r] = (loot.res[r] || 0) + n; } // элита: второй бросок
       const bag = this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       this.qev(a, session, { type: "kill", mob: base, cls });
@@ -1033,7 +1044,11 @@ export class MetaService {
               skills: tm.skills.length ? tm.skills.map((k) => MOB_SKILLS[k].name) : undefined }
           : tid ? { id: tid, gone: 1 } : undefined;
         const bags = this.loot.near(ms.pkey, s.world || "hellfire", s.x, s.y, 800);
-        this.send(ws, { type: "zone_state", ...st, tg, bags, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        // чужие личные порталы рядом (видны всем, войти может только владелец): [ключ, имя, x, y]
+        const fp: [string, string, number, number][] = [];
+        if ((s.world || "hellfire") === "arinar") for (const m2 of this.ms.values()) { if (m2.sid === s.id) continue; const s2 = this.sessionLookup?.(m2.sid)?.[1], c2 = s2?.stats?.classId; if (!c2) continue; // владелец может быть где угодно (хаб, забег)
+          const P = this.store.hero(m2.pkey, c2).portal; if (P?.x != null && Math.abs(P.x - s.x) < 1500 && Math.abs((P.y || 0) - s.y) < 1500) fp.push([opaqueId(m2.pkey).slice(0, 12), this.displayName(s2), P.x, P.y || 0]); }
+        this.send(ws, { type: "zone_state", ...st, tg, bags, fp, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }

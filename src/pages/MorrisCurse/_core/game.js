@@ -53,6 +53,7 @@ function applyConfig(d) {
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
+const pvpSt = { slowUntil: 0, frozenUntil: 0 }; // замедление/заморозка от соперника (pvp_state pstatus)
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера
 const FLOWER_RANGE = 56; // ≤ серверных 120 px: подсказка — только когда бутон рядом и виден
@@ -385,6 +386,7 @@ async function boot(canvasId, username, userId, api) {
 
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
+    if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
     if (d.portal !== undefined) syncHomePortal(d.portal);
     if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches });
@@ -445,7 +447,12 @@ async function boot(canvasId, username, userId, api) {
     duel.state(d);
     for (const e of d.ev || []) {
       if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
-      else if (['ability', 'aline', 'aproj', 'amark'].includes(e.k)) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
+      else if (['ability', 'aline', 'aproj', 'amark', 'proj', 'pend', 'puddle'].includes(e.k)) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
+      else if (e.k === 'pstatus') { // статусы дуэли (сервер): замедление/заморозка ощущаются в движении; DoT — подпись
+        const T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], burn: ['Поджог', '#fb923c'], poison: ['Яд', '#a3e635'], bleed: ['Кровотечение', '#f87171'] }[e.s] || [e.s, '#fff'];
+        if (e.to === myId) { if (e.s === 'slow') pvpSt.slowUntil = performance.now() + (e.ms || 2000); if (e.s === 'freeze') pvpSt.frozenUntil = performance.now() + (e.ms || 1000); overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
+        else { const o = others.get(e.to); if (o) overlay.float(toX(o.x), 3, toZ(o.y), T[0], T[1]); }
+      }
       else if (e.k === 'phit') {
         if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
         else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5'); }
@@ -547,10 +554,18 @@ async function boot(canvasId, username, userId, api) {
       { id: 'home_field', name: '🌀 Ваш портал → хаб', x: p.x, y: p.y, world: 'arinar', personal: true },
     ] : [];
     const key = JSON.stringify(want); if (key === homePortalKey) return; homePortalKey = key;
-    portals = [...portals.filter((x) => !x.personal), ...want];
+    portals = [...portals.filter((x) => !x.personal || x.foreign), ...want];
     hub.setWorld(world, portals);
   }
   let homePortalCd = 0;
+  // чужие личные порталы (zone_state.fp): видны с подписью «чужой портал», войти нельзя (сервер всё равно проверяет владельца)
+  let foreignKey = '';
+  function syncForeignPortals(fp) {
+    const want = (fp || []).map(([k, name, x, y]) => ({ id: 'fp_' + k, name: `🔒 Чужой портал (${name})`, x, y, world: 'arinar', personal: true, foreign: true, owner: name }));
+    const key = JSON.stringify(want); if (key === foreignKey) return; foreignKey = key;
+    portals = [...portals.filter((x) => !x.foreign), ...want];
+    hub.setWorld(world, portals);
+  }
   // выбранный игрок, когда боковой панели «Цель» не видно (телефон, окно): плашка с кнопкой просмотра
   const tchip = document.createElement('div');
   tchip.className = 'mc-tchip';
@@ -590,6 +605,7 @@ async function boot(canvasId, username, userId, api) {
   }
   meta.on(() => updateBookBadge());
   net.on('zone_state', (d) => {
+    if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
     if (mode !== 'hub') return;
     const evs = zone.applyState(d, myId) || [];
     const ct = hud.currentTarget;
@@ -787,7 +803,7 @@ async function boot(canvasId, username, userId, api) {
     classSelect.isOpen = false; statsUI.isOpen = false;
     const classKey = RUN_CLASSES[player.stats.classId] ? player.stats.classId : 'soul';
     run = new RunSession({
-      room: roomId, runSkill: meta.state?.weaponSkill || null, myId: myId || 'local', username, color: player.color,
+      room: roomId, runSkill: meta.state?.weaponSkill || null, traits: meta.state?.runTraits || null, myId: myId || 'local', username, color: player.color,
       classKey, serverClass: CLASSES[player.stats.classId] || null,
       meta: classKey !== 'soul' && meta.hero?.cls === classKey ? meta.hero.effective : null,
       hpCapPct: runOpts.hpCapPct,
@@ -1144,6 +1160,7 @@ async function boot(canvasId, username, userId, api) {
   }
 
   function usePortal(p) {
+    if (p.foreign) { overlay.toast(`Чужой портал (${p.owner}) — войти может только владелец`, '#fca5a5'); return; }
     if (p.id === 'home_return') { send({ type: 'home_portal_back' }); return; }
     if (p.id === 'home_field') { send({ type: 'home_portal_enter' }); return; }
     if (p.runRoom) return net.isOpen() && myId ? requestRun(p.runRoom, p.id) : showRoomPrompt(p);
@@ -1208,11 +1225,12 @@ async function boot(canvasId, username, userId, api) {
     if (world === 'hellfire') for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
     for (const b of zone.bags.values()) cands.push({ kind: 'bag', o: b, x: b.x, y: b.y, pad: 14 });
-    for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) / MOB_VIS * 0.85 - 10) });
-      // клик по телу спрайта (выше «ног») — точка на земле уходит «за» моба: второй кандидат чуть выше по экрану
-      for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y - 22 * mobScale(m), pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) - 12) });
+    for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) - 10) }); // зона клика = видимый размер (мобы ×0.75)
+
     let best = null, bd = 40;
     for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py) - (c.pad || 0); if (d < bd) { bd = d; best = c; } }
+    // запасной вариант: клик по телу спрайта (выше «ног») — точка на земле уходит «за» моба; только если у ног никого
+    if (!best) { let bd2 = 30; for (const m of zone.mobs.values()) { const d = Math.hypot(m.x - px, m.y - 22 * mobScale(m) - py) - Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) - 12); if (d < bd2) { bd2 = d; best = { kind: 'mob', o: m }; } } }
     if (best?.kind !== 'mob' && zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
     if (!best) { hud.clearTarget(); return; }
     if (best.kind === 'mob') { selectMob(best.o); return; }
@@ -1345,7 +1363,8 @@ async function boot(canvasId, username, userId, api) {
       const l = Math.hypot(dash.dirX, dash.dirY) || 1; dash.dirX /= l; dash.dirY /= l;
     }
     input.dashPressed = false; input.abilityPressed = false;
-    let vx = mv.x * MOVE_SPEED, vy = mv.y * MOVE_SPEED;
+    const pn = performance.now(), slowK = world === 'arena' ? (pn < pvpSt.frozenUntil ? 0 : pn < pvpSt.slowUntil ? 0.6 : 1) : 1; // статусы дуэли
+    let vx = mv.x * MOVE_SPEED * slowK, vy = mv.y * MOVE_SPEED * slowK;
     if (dash.active) {
       vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;
       dash.timer -= dt;
@@ -1522,7 +1541,7 @@ async function boot(canvasId, username, userId, api) {
       const pred = zone.aimTargets(player.x, player.y, vx, vy, wt);
       const first = pred.list[0]; if (first) anyHit = true; zoneSt.lastVolley++;
       const reach = pred.atk.kind === 'arc' ? pred.atk.range * 0.8 : pred.atk.range;
-      if (pred.atk.kind !== 'arc' && world !== 'arena') continue; // открытый мир: снаряд ведёт и рисует сервер ({k:'proj'}), без локального прогноза
+      if (pred.atk.kind !== 'arc') continue; // мир и дуэль: снаряд ведёт и рисует сервер ({k:'proj'}), без локального прогноза
       if (first && pred.atk.kind === 'proj') zone.shoot(player.x, player.y, first.id, wt);
       else zone.shoot(player.x, player.y, null, wt, player.x + vx * reach, player.y + vy * reach);
     }
@@ -1604,7 +1623,7 @@ async function boot(canvasId, username, userId, api) {
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
       bags: () => [...zone.bags.values()], loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
-      portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal })),
+      portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal, foreign: !!p.foreign, name: p.name })),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),
       fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)
       othersInfo: () => [...others.values()].map((o) => ({ world: o.world, x: Math.round(o.x), y: Math.round(o.y), runRoom: o.runRoom })),

@@ -302,7 +302,7 @@ export class Zone {
     if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
     this.events.push({ k: "hit", id: t.id, d: real, mob: 1 });
     this.stats.mobHits++;
-    if (t.hp <= 0) { this.stats.mobKills++; this.kill(t, onKill); }
+    if (t.hp <= 0) { this.stats.mobKills++; (t as any).killer = "mob:" + src.id; this.kill(t, onKill); }
     return real;
   }
   /** пачка лагеря поднимается на защиту (против моба) */
@@ -647,7 +647,7 @@ export class Zone {
           const dmg = m.dot.dps * dt;
           m.hp -= dmg;
           m.dmgBy.set(m.dot.sid, (m.dmgBy.get(m.dot.sid) || 0) + dmg);
-          if (m.hp <= 0) { this.kill(m, onKill); continue; }
+          if (m.hp <= 0) { (m as any).killer = m.dot.sid; this.kill(m, onKill); continue; }
           this.checkPhase(m, d);
         }
       }
@@ -847,7 +847,7 @@ export class Zone {
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
     this.events.push({ k: "hit", id: m.id, d: real });
-    if (m.hp <= 0) this.kill(m, onKill);
+    if (m.hp <= 0) { (m as any).killer = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);
     return real;
   }

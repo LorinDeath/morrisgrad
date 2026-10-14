@@ -9,7 +9,8 @@
 import { WEAPON_TYPES, ABILITY_BY_ID, ZONE_RESPAWN, volleyDirs } from "./defs";
 import { traitsFor, applyTraits } from "./admin";
 import { cryptoRand } from "./profile";
-import { castShape } from "./abilityShapes";
+import { castShape, AUTO_SPRITE } from "./abilityShapes";
+import { PROJ_SPEED } from "./zone";
 const W_ARENA = WORLD_SIZES.arena;
 import { WORLD_SIZES } from "../worlds/sizes";
 
@@ -31,7 +32,11 @@ export type Duel = {
   id: string; sids: [string, string]; pkeys: [string, string]; heroes: [string, string]; names: [string, string];
   phase: "countdown" | "fight" | "over"; startAt: number; fightAt: number; endAt: number;
   ev: any[]; lastSent: number; hits: [number, number];
+  projs?: DuelProj[]; projAt?: number; nextProj?: number;
 };
+/** снаряд дуэли: летит на сервере, попадает, если на пути окажется соперник (от него можно увернуться) */
+export type DuelProj = { id: number; owner: 0 | 1; t: string; x: number; y: number; dx: number; dy: number; spd: number; range: number; flown: number; w: number; max: number; n: number; arc?: boolean;
+  onHit?: (i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void };
 
 export interface PvpHost {
   ms: Map<string, any>;
@@ -175,6 +180,33 @@ export class Pvp {
     d.ev = []; d.lastSent = now;
   }
 
+  // ——— снаряды дуэли ———
+  fire(d: Duel, owner: 0 | 1, o: { t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number; spd?: number; arc?: boolean; onHit?: (i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void }) {
+    d.projs ||= []; if (d.projs.length > 60) return null;
+    const L = Math.hypot(o.dx, o.dy) || 1;
+    const p: DuelProj = { id: (d.nextProj = (d.nextProj || 0) + 1), owner, n: 0, flown: 0, spd: o.spd || PROJ_SPEED[o.t] || PROJ_SPEED.default, ...o, dx: o.dx / L, dy: o.dy / L };
+    d.projs.push(p);
+    d.ev.push({ k: "proj", id: p.id, o: "p", sid: d.sids[owner], t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
+    return p;
+  }
+  /** шаги не длиннее половины ширины снаряда: попадание по текущей позиции соперника */
+  stepProjs(d: Duel, dt: number) {
+    if (!d.projs?.length) return;
+    for (let i = d.projs.length - 1; i >= 0; i--) {
+      const p = d.projs[i];
+      if (!this.duels.has(d.id) || d.phase !== "fight") { d.projs.length = 0; return; }
+      const tgt = this.host.sessionLookup?.(d.sids[1 - p.owner])?.[1];
+      let left = Math.min(p.range - p.flown, p.spd * dt), done = false;
+      while (left > 0 && !done) {
+        const st = p.arc ? left : Math.min(left, Math.max(6, p.w * 0.5)); left -= st;
+        p.x += p.dx * st; p.y += p.dy * st; p.flown += st;
+        if (!p.arc && p.max > 0 && tgt && p.n < 1 && Math.hypot(tgt.x - p.x, tgt.y - p.y) <= HERO_R + p.w / 2) { const k = p.n++; p.onHit?.(k); if (p.n >= p.max || p.n >= 1) done = true; }
+        if (p.flown >= p.range - 0.5) done = true;
+      }
+      if (done) { d.projs.splice(i, 1); d.ev.push({ k: "pend", id: p.id, x: Math.round(p.x), y: Math.round(p.y), hit: p.n ? 1 : undefined, t: p.t }); p.onEnd?.(p.x, p.y, p.n > 0); }
+    }
+  }
+
   // ——— бой ———
   private ctx(session: any) {
     const id = this.bySid.get(session.id);
@@ -227,6 +259,27 @@ export class Pvp {
     });
   }
 
+  /** статус оружия при попадании (как в мире): поджог/яд/кровь по % урона, замедление, отбрасывание; не чаще раза в 1.5 с */
+  private weaponStatus(c: any, session: any, W: any, real: number) {
+    if (!real || !W?.status) return; const now = Date.now(); if ((c.op.wstAt || 0) > now) return; c.op.wstAt = now + 1500;
+    this.status(c, session, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock });
+  }
+  /** статусы как в открытом мире (zone.applyStatus): замедление, отбрасывание, заморозка (≤1.5 с), DoT оружия */
+  private status(c: any, session: any, st: { slow?: boolean; knock?: number; freeze?: number; kind?: string; dps?: number; dur?: number }) {
+    const d = c.d; if (!this.duels.has(d.id) || c.op.zp.hp <= 0) return;
+    const now = Date.now();
+    if (st.slow) { c.op.slowUntil = now + 2000; d.ev.push({ k: "pstatus", to: c.os.id, s: "slow", ms: 2000 }); }
+    if (st.freeze) { const t = Math.min(1500, st.freeze); c.op.frozenUntil = now + t; d.ev.push({ k: "pstatus", to: c.os.id, s: "freeze", ms: t }); }
+    if (st.knock) { const dx = c.os.x - session.x, dy = c.os.y - session.y, L = Math.hypot(dx, dy) || 1, S = W_ARENA, k = 40 * Math.min(3, st.knock);
+      c.os.x = Math.max(46, Math.min(S - 46, c.os.x + dx / L * k)); c.os.y = Math.max(46, Math.min(S - 46, c.os.y + dy / L * k)); c.op.zp.x = c.os.x; c.op.zp.y = c.os.y;
+      const e = this.host.sessionLookup?.(c.os.id); if (e) this.host.send(e[0], { type: "ability_move", x: Math.round(c.os.x), y: Math.round(c.os.y) }); }
+    if (st.kind && st.dps && st.dur) {
+      d.ev.push({ k: "pstatus", to: c.os.id, s: st.kind, ms: st.dur * 1000 });
+      for (let t = 1; t <= Math.min(10, Math.round(st.dur)); t++) setTimeout(() => { if (!this.duels.has(d.id) || c.op.zp.hp <= 0) return; const v = Math.max(1, Math.round(st.dps!)); c.op.zp.hp = Math.max(0, c.op.zp.hp - v); d.hits[c.i] += v;
+        d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: v, dot: st.kind, x: Math.round(c.os.x), y: Math.round(c.os.y) }); if (c.op.zp.hp <= 0) this.finish(d, c.i as 0 | 1, "ko"); }, t * 1000);
+    }
+  }
+
   attack(ws: WebSocket, session: any, msg: any) {
     const c = this.ctx(session);
     if (!c) return;
@@ -243,6 +296,14 @@ export class Pvp {
     c.me.lastAtk = Math.max(now, c.me.lastAtk) + atkCd;
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
     const per = (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1;
+    if (W.atk.kind !== "arc") { // стрелковое оружие: настоящие снаряды, урон при касании (можно увернуться)
+      const c0 = c, d0 = c.d;
+      for (const [vx, vy] of volleyDirs(W.atk, dx, dy))
+        this.fire(d0, c.i as 0 | 1, { t: AUTO_SPRITE[wt] || "auto_staff", x: session.x, y: session.y, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: 1,
+          onHit: () => { if (!this.duels.has(d0.id) || c0.op.zp.hp <= 0) return; const crit = cryptoRand() * 100 < eff.critPct; const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
+            const real = this.deal(c0, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per, crit, eff); this.traits(c0, session, real, wt); this.weaponStatus(c0, session, W, real); } });
+      return;
+    }
     let n = 0; // залп: сколько снарядов попало в соперника
     for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
       const hit = this.hitTest(session.x, session.y, c.os.x, c.os.y, vx, vy, W.atk);
@@ -255,6 +316,7 @@ export class Pvp {
     const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
     const real = this.deal(c, session, raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * PVP_ATK_MULT * per * n, crit, eff);
     this.traits(c, session, real, wt);
+    this.weaponStatus(c, session, W, real);
   }
 
   ability(ws: WebSocket, session: any, msg: any) {
@@ -283,12 +345,13 @@ export class Pvp {
     const dealt = castShape(ab.id, {
       zone, sid: session.id, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult: (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods),
       hit: (_m, mult) => { if (!live()) return 0; const real = this.deal(c, session, dmg * mult, false, { lifestealPct: 0 }) || 0; this.traits(c, session, real, null, ab.id); return real; },
-      status: () => {},
+      status: (_m, st) => this.status(c, session, { slow: !!st.slow, knock: st.knock, freeze: st.freeze }), // навыки: замедление/отбрасывание/заморозка — как в мире
       move: (x, y) => { session.x = x; session.y = y; c.me.zp.x = x; c.me.zp.y = y; this.host.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
       bounds: (x, y) => [Math.max(46, Math.min(S - 46, x)), Math.max(46, Math.min(S - 46, y))],
       buff: (b) => { if (b.heal) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + b.heal); },
       later: (ms2, fn) => { setTimeout(() => { if (live()) fn(); }, ms2); },
       ev: (e) => d.ev.push(e),
+      fire: (o) => this.fire(d, c.i as 0 | 1, { ...o, onHit: o.onHit ? () => { if (live()) o.onHit!(opp, 0); } : undefined, onEnd: o.onEnd ? (x, y, h) => { if (live()) o.onEnd!(x, y, h); } : undefined }),
     });
     if ((ab.props.includes("vamp") || def?.id === "trick_strike") && this.duels.has(d.id)) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + dealt * 0.08);
   }
@@ -316,6 +379,8 @@ export class Pvp {
       if (b) this.host.send(b[0], { type: "duel_closed", from: inv.from, expired: true });
     }
     for (const d of this.duels.values()) {
+      if (d.phase === "fight") { const dt = Math.min(0.25, (now - (d.projAt || now)) / 1000); d.projAt = now; if (dt > 0) this.stepProjs(d, dt); }
+      if (!this.duels.has(d.id)) continue;
       if (d.phase === "countdown" && now >= d.fightAt) { d.phase = "fight"; d.ev.push({ k: "go" }); }
       if (d.phase === "fight" && now >= d.endAt) {
         const sd = this.sides(d);

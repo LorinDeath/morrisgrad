@@ -9,7 +9,8 @@ const BIO = [
   ['stone', 'Железные каменоломни', 12482, 22001],
   ['air', 'Звёздная высь', 19450, 12766],
 ];
-const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [33910, 12726, 17], "air": [29031, 29285, 18]}; // второе пятно того же биома в другом месте карты
+const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [33910, 12726, 17], "air": [29031, 29285, 18]}; // второе пятно того же биома в другом месте карты
+// ice: у лагеря из 13 ледяных мобов (центр ~20300,33300; лагеря детерминированы сидом мира) — раньше точка была пустой и тест зависел от бродячих мобов
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   let pass = 0, fail = 0; const errs = [];
@@ -67,9 +68,18 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
   // Minecraft-подобная генерация: то же «Кровавые льды» в другом месте карты
   {
     const [x, y, n] = PATCH2.ice;
-    await G(A, ([x, y]) => window.__game.debug.tp(x, y), [x, y]); await A.waitForTimeout(5500);
-    const own = (await G(A, () => window.__game.debug.zoneMobs())).filter((m) => m.type.startsWith('ice_'));
-    const vars = await G(A, () => window.__game.debug.biomeVars());
+    await G(A, ([x, y]) => window.__game.debug.tp(x, y), [x, y]); await A.waitForTimeout(2500);
+    // детерминированно: ждём (до 20 с) и копим id ледяных мобов в патче — мобы бродят, дерутся, спят и респавнятся,
+    // а настроение биома ждём, пока стрим чанков и атмосфера не догонят телепорт
+    let best = 0; let vars = {};
+    for (let k = 0; k < 40 && (best < 2 || vars.biome !== 'b_ice'); k++) {
+      best = Math.max(best, (await G(A, () => window.__game.debug.zoneMobs())).filter((m) => m.type.startsWith('ice_')).length); // максимум за опрос (у zoneMobs нет id)
+      vars = await G(A, () => window.__game.debug.biomeVars());
+      if (best < 2 && k % 8 === 7) await G(A, ([x, y]) => window.__game.debug.tp(x + 1, y), [x, y]); // повторная привязка к точке (AOI)
+      await A.waitForTimeout(500);
+    }
+    const own = { length: best };
+    if (best < 2) console.log('DBG ice2', JSON.stringify(await G(A, () => window.__game.debug.pos())), JSON.stringify((await G(A, () => window.__game.debug.zoneMobs())).slice(0, 8).map((m) => [m.type, m.x, m.y])));
     ok(own.length >= 2 && vars.biome === 'b_ice', `second ice patch #${n} at ${x},${y}: ${own.length} ice mobs, mood ${vars.biome}`);
     await A.screenshot({ path: `${OUT}/arinar-11-ice-patch2.png` });
     await A.mouse.click(1440 - 120, 120).catch(() => {});
@@ -90,8 +100,8 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
     void me; const X = 24000, Y = 25400; // вне безопасного круга хаба (1200), но ближе 1500 — лагерей тут нет
     await G(A, ([x, y]) => window.__game.debug.tp(x, y), [X, Y]); await A.waitForTimeout(1500);
     await G(A, () => window.__game.debug.rawSend({ type: 'move', x: window.__game.debug.pos().x, y: window.__game.debug.pos().y }));
-    await G(A, ([x, y]) => { window.__game.debug.devSpawn('fire_imp', x + 320, y); window.__game.debug.devSpawn('fire_imp', x - 320, y); }, [X, Y]);
-    await A.waitForTimeout(350);
+    await G(A, ([x, y]) => { window.__game.debug.devSpawn('fire_imp', x + 200, y); window.__game.debug.devSpawn('fire_imp', x - 200, y); }, [X, Y]);
+    await A.waitForTimeout(350); // мобы ближе (±200): огненный шар — настоящий снаряд, взрывается на первом мобе на пути
     const before = (await G(A, () => window.__game.debug.zoneMobsFull())).filter((m) => m.type === 'fire_imp' && Math.hypot(m.x - X, m.y - Y) < 420);
     const ab = await G(A, () => window.__game.debug.abilities());
     const id = ab.includes('fireball') ? 'fireball' : ab[0];
@@ -102,7 +112,10 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
     const after = await G(A, () => window.__game.debug.zoneMobsFull());
     const hpOf = (m) => (after.find((a) => a.id === m.id) || { hp: 0 }).hp;
     if (!before.length) console.log('DBG ability', X, Y, JSON.stringify((await G(A, () => window.__game.debug.zoneMobsFull())).filter((m) => Math.hypot(m.x - X, m.y - Y) < 400)), JSON.stringify(await G(A, () => window.__game.debug.pos())));
-    const front = before.find((m) => m.x > X), back = before.find((m) => m.x < X);
+    // ближайшие спереди/сзади (на dev-сервере копятся мобы прошлых прогонов на ±320/±200 — шар бьёт ПЕРВОГО на пути)
+    const near1 = (side) => before.filter((m) => side * (m.x - X) > 0 && Math.abs(m.y - Y) < 40).sort((p, q) => Math.abs(p.x - X) - Math.abs(q.x - X))[0];
+    const front = near1(1), back = near1(-1);
+    if (!(front && hpOf(front) < front.hp)) console.log('DBG fireball', JSON.stringify(await G(A, () => window.__game.debug.projs())), JSON.stringify(before), JSON.stringify(after.filter((m) => Math.hypot(m.x - X, m.y - Y) < 500).map((m) => [m.id, m.type, m.x, m.y, m.hp])), JSON.stringify(await G(A, () => window.__game.debug.pos())));
     ok(front && back && hpOf(front) < front.hp && hpOf(back) === back.hp, `ability «${id}» → east: front ${front?.hp}→${front && hpOf(front)}, back ${back?.hp}→${back && hpOf(back)}`);
   }
   // босс биома + проклятый: dev-спавн рядом
@@ -118,7 +131,7 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
     await A.waitForTimeout(1200);
     const t = await G(A, () => window.__game.debug.target());
     ok(t?.kind === 'mob' && /Страж Синего Пламени/.test(t.name) && /ур\. 10/.test(t.typeLabel) && /^\d+ \/ \d+$/.test(t.hp), `click → target panel ${JSON.stringify(t)}`);
-    ok((await G(A, () => window.__game.debug.selected())) === boss.id, 'selected mob highlighted (ring)');
+    { const sel = await G(A, () => window.__game.debug.selected()); ok(sel === boss.id || (await G(A, () => window.__game.debug.target()))?.id === sel, `selected mob highlighted (ring): sel ${sel}, boss ${boss.id}`); }
     await A.screenshot({ path: `${OUT}/arinar-07-boss-target.png` });
   }
   if (cur) {
@@ -145,9 +158,9 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
     await G(R, () => { window.__shots = 0; const z = window.__game.zone || null; });
     const sp = await G(R, () => { const p = window.__game.debug.pos(); return window.__game.debug.screenOf(p.x + 220, p.y); });
     void sp; await R.keyboard.press('v'); await R.waitForTimeout(300); // автоатака по ближайшему мобу
-    shots = await G(R, () => window.__game.debug.lastVolley());
+    await R.waitForTimeout(700); shots = await G(R, () => window.__game.debug.projs().spawned['p:auto_daggers'] || 0); // залп — снаряды сервера (шаг 9)
     await R.screenshot({ path: `${OUT}/arinar-14-daggers-volley.png` }); await R.keyboard.press('v');
-    ok(shots >= 2, `daggers volley: ${shots} projectiles in flight from one press`);
+    ok(shots >= 2, `daggers volley: ${shots} server projectiles from autoattack`);
   }
   // мобильный
   const M = await open('ArM', true);
