@@ -4,7 +4,7 @@
 import { esc } from './overlay.js';
 import { statIcon } from './statIcons.js';
 
-const TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
 .mc-admin{position:absolute;left:4%;top:4%;width:92%;height:92%;z-index:60;background:rgba(10,7,20,.97);color:#f1e7d0;font:13px/1.35 monospace;display:flex;flex-direction:column;
@@ -114,6 +114,9 @@ export class AdminPanel {
       }
       return out;
     }
+    if (this.tab === 'spawn') return [{ grp: 1, id: '__gs', name: 'Лагеря и бродячие мобы' }, ...(this.cat.ent.spawn || []).map((e) => ({ ...row(e, 'spawn', 'spawn:'), name: '⏱ ' + e.name })),
+      { grp: 1, id: '__gb', name: 'Мировые боссы — таймеры' }, ...(this.cat.ent.boss || []).map((e) => ({ ...row(e, 'boss', 'boss:'), sub: `${Math.round(e.values.every / 60)} мин · ${e.id}` })),
+      { grp: 1, id: '__gr', name: 'Редкие Отголоски' }, ...(this.cat.ent.rare || []).map((e) => ({ ...row(e, 'rare', 'rare:'), sub: `${Math.round(e.values['every.0'] / 60)}–${Math.round(e.values['every.1'] / 60)} мин` }))];
     const list = this.cat.ent[this.tab].map((e) => row(e, this.tab));
     return this.tab === 'loot' ? list : list.sort((a, b) => (a.lvl || 0) - (b.lvl || 0));
   }
@@ -141,8 +144,8 @@ export class AdminPanel {
     this.list();
     if (this.tab === 'audit') { if (!this.audit) this.send({ type: 'admin_audit' }); sec.innerHTML = this.auditHtml(); return; }
     if (this.tab === 'quest') { if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }
-    const isItem = String(this.sel || '').startsWith('item:');
-    const kind = isItem ? 'item' : this.tab, id = isItem ? this.sel.slice(5) : this.sel;
+    const pre = /^(item|spawn|boss|rare):/.exec(String(this.sel || ''));
+    const kind = pre ? pre[1] : this.tab, id = pre ? this.sel.slice(pre[0].length) : this.sel;
     if (String(this.sel || '').startsWith('res:')) { const r = (this.cat.res || []).find((x) => 'res:' + x.id === this.sel); sec.innerHTML = r ? `<h3>${esc(r.icon || '')} ${esc(r.name)}</h3><p>Материал <code>${esc(r.id)}</code> — выпадает с мобов и из сбора; редактируется через таблицы дропа (вкладка «Дроп»).</p>` : ''; return; }
     const e = this.cat.ent[kind].find((x) => x.id === id);
     if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
