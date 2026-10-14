@@ -389,6 +389,7 @@ async function boot(canvasId, username, userId, api) {
   });
 
   // --- мета-прогрессия, квесты, открытый мир ---
+  net.on('salvage_preview', (d) => book.showSalvagePreview(d));
   net.on('meta_state', (d) => {
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)

@@ -66,6 +66,8 @@ export class MetaClient {
   equip(uid) { this.send({ type: 'equip', uid }); }
   unequip(slot) { this.send({ type: 'unequip', slot }); }
   salvage(uid) { this.send({ type: 'salvage', uid }); }
+  salvagePreview(rarity) { this.send({ type: 'salvage_preview', rarity }); }
+  salvageMany(rarity, uids) { this.send({ type: 'salvage_many', rarity, uids }); }
   craft(recipe) { this.send({ type: 'craft', recipe }); }
   talk(npc) { this.send({ type: 'npc_talk', npc }); }
   accept(id) { this.send({ type: 'quest_accept', id }); }

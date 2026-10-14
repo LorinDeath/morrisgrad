@@ -3,12 +3,13 @@
 // apply() восстанавливает исходное значение из кода и накладывает патч — повторное применение идемпотентно.
 // Черты (traits) — эффекты в духе RPG Maker MZ «Traits/Effects»: поджог, кровотечение, яд, заморозка, замедление,
 // отбрасывание, вампиризм — с параметрами; вешаются на оружие (тип), предмет и навык; применяет сервер при попадании.
-import { ZONE_MOBS, WEAPON_TYPES, ITEM_BY_ID, ABILITY_BY_ID, MONSTER_LOOT, RESOURCES } from "./defs";
+import { ZONE_MOBS, WEAPON_TYPES, ITEM_BY_ID, ABILITY_BY_ID, MONSTER_LOOT, RESOURCES, salvageDefault } from "./defs";
+import { RUN_SKILLS } from "./shared";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 
 export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare";
-export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills"; min?: number; max?: number; opts?: string[] }
+export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap"; min?: number; max?: number; opts?: string[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -26,7 +27,10 @@ const ST = ["dmgMin", "dmgMax", "armor", "hp", "speedPct", "critPct", "regen", "
 export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: boolean }> = {
   mob: { name: "Бестиарий", fields: [N("lvl", "Уровень", 1, 60, "int"), N("hp", "ОЗ", 1, 1e7, "int"), N("dmg", "Урон", 0, 1e5), N("armor", "Броня", 0, 95), N("speed", "Скорость", 0, 400), N("aggro", "Агро, px", 0, 2000, "int"), N("xp", "Опыт", 0, 1e6, "int"), N("radius", "Радиус", 4, 200, "int"), { path: "skills", label: "Навыки моба", t: "skills" }] },
   weapon: { name: "Оружие", traits: true, fields: [N("cd", "Перезарядка удара, мс", 100, 5000, "int"), { path: "atk.kind", label: "Форма удара", t: "enum", opts: ["proj", "line", "arc"] }, N("atk.range", "Дальность", 20, 800, "int"), N("atk.width", "Ширина", 4, 200, "int"), N("atk.arc", "Дуга, рад", 0.1, 3.2), N("atk.max", "Целей", 1, 10, "int"), N("atk.count", "Снарядов в залпе", 1, 9, "int"), N("atk.spread", "Веер, рад", 0, 2), N("atk.per", "Урон снаряда, ×", 0.05, 1), { path: "status.kind", label: "Статус", t: "enum", opts: ["", "burn", "bleed", "poison"] }, N("status.dpsPct", "Статус: урон/с, %", 0, 100), N("status.dur", "Статус: длит., с", 0, 20), { path: "status.slow", label: "Замедляет", t: "bool" }, N("status.knock", "Отбрасывание", 0, 10)] },
-  item: { name: "Предметы", traits: true, fields: [N("lvl", "Ур. предмета", 1, 60, "int"), N("req", "Треб. уровень (надеть)", 1, 60, "int"), ...ST.map((k) => N("stats." + k, k, 0, 1e4))] },
+  item: { name: "Предметы", traits: true, fields: [N("lvl", "Ур. предмета", 1, 60, "int"), N("req", "Треб. уровень (надеть)", 1, 60, "int"), ...ST.map((k) => N("stats." + k, k, 0, 1e4)),
+    // навык оружия (R): если задан — важнее навыка, выпавшего у экземпляра; «» — как выпало
+    { path: "rs", label: "Навык оружия (R), важнее выпавшего", t: "enum", opts: ["", ...RUN_SKILLS.map((r) => r.id)] },
+    { path: "salvage", label: "Разбор даёт (ресурс: кол-во)", t: "resmap" }] },
   skill: { name: "Навыки", traits: true, fields: [N("cd", "Перезарядка, с", 0.5, 120), N("power", "Сила, ×", 0.1, 10)] },
   loot: { name: "Дроп", fields: [] }, // gear/materials — таблицы, проверяются отдельно (validateLoot)
   // спавн Аринара (живые: сервер читает ZONE_GEN на каждом респавне/проверке) — лагеря и бродячие мобы
@@ -84,7 +88,13 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
     if (p === "traits") { if (!S.traits) return "у этой сущности нет черт"; const t = validateTraits(v); if (typeof t === "string") return t; out.traits = t; continue; }
     const f = S.fields.find((x) => x.path === p); if (!f) return `поле ${p} не редактируется`;
     if (f.t === "bool") out[p] = !!v;
-    else if (f.t === "enum") { if (!f.opts!.includes(String(v))) return `${f.label}: недопустимо`; out[p] = String(v); }
+    else if (f.t === "enum") { if (!f.opts!.includes(String(v))) return `${f.label}: недопустимо`; if (p === "rs" && v && TABLES.item[id].slot !== "weapon") return "навык R — только у оружия"; out[p] = String(v); }
+    else if (f.t === "resmap") {
+      if (!v || typeof v !== "object" || Array.isArray(v) || Object.keys(v).length > 8) return `${f.label}: до 8 ресурсов`;
+      const m: Record<string, number> = {};
+      for (const [r, n] of Object.entries(v as any)) { const q = Math.round(Number(n)); if (!RESOURCES[r]) return `нет ресурса ${r}`; if (!(q >= 0 && q <= 999)) return "кол-во 0…999"; if (q) m[r] = q; }
+      out[p] = m;
+    }
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }
   }
@@ -108,6 +118,7 @@ export function currentValues(kind: Kind, id: string) {
   const o = TABLES[kind][id]; if (!o) return null;
   if (kind === "loot") return { gear: o.gear, materials: o.materials };
   const v: any = Object.fromEntries(SCHEMA[kind].fields.map((f) => [f.path, getP(o, f.path) ?? null]));
+  if (kind === "item" && v.salvage == null) v.salvage = salvageDefault(id); // по умолчанию — текущая логика разбора
   if (SCHEMA[kind].traits) v.traits = TRAITS[kind][id] || [];
   return v;
 }

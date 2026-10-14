@@ -108,3 +108,13 @@ for (const [k, d] of Object.entries(ZONE_MOBS)) {
     ? { ...b, name: d.name, lvl: d.lvl, gear: b.gear.map((g) => ({ ...g })), materials: b.materials.map((r) => ({ ...r, qty: [...r.qty] as any })) }
     : { name: d.name, kind: "zone", lvl: d.lvl, stats: { hp: d.hp, dmg: d.dmg, armor: d.armor || 0, speed: String(d.speed) }, abilitiesText: [], gear: [], materials: [] } as any;
 }
+
+// Разбор предмета: что даёт. По умолчанию — осколки души по редкости (как было); админка может задать
+// своё (поле предмета «salvage»: { ресурс: кол-во }). Источник правды для разбора, массового разбора и превью.
+export const SALVAGE_SHARDS: Record<string, number> = { common: 0, uncommon: 1, rare: 2, epic: 4, legendary: 8, mythic: 15 };
+export function salvageDefault(id: string): Record<string, number> {
+  const n = SALVAGE_SHARDS[(ITEM_BY_ID as any)[id]?.rarity] || 0; return n ? { soul_shard: n } : {};
+}
+export function salvageYield(id: string): Record<string, number> {
+  const s = (ITEM_BY_ID as any)[id]?.salvage; return s && typeof s === "object" ? { ...s } : salvageDefault(id);
+}

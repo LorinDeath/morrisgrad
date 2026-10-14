@@ -8,7 +8,7 @@
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
-  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS,
+  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 
@@ -319,7 +319,9 @@ export function rollRunSkill(a: Account, it: InvItem, kind: "mob" | "rare" | "bo
 // Навык 4-го слота (R): от надетого сейчас оружия героя; сняли оружие — навыка нет
 export function weaponSkill(a: Account, h: Hero | null): string | null {
   const uid = h?.equip?.weapon; if (!uid) return null;
-  const rs = a.inv.find((i) => i.uid === uid)?.rs;
+  const inst = a.inv.find((i) => i.uid === uid); if (!inst) return null;
+  const adm = (ITEM_BY_ID as any)[inst.id]?.rs; // навык, назначенный оружию в админке, важнее выпавшего у экземпляра
+  const rs = adm && RUN_SKILL_BY_ID[adm] ? adm : inst.rs;
   return rs && RUN_SKILL_BY_ID[rs] ? rs : null;
 }
 // Снять отметку «новое» (сообщение mark_seen): только свои экземпляры/открытия, пачкой
@@ -361,11 +363,31 @@ export function salvage(a: Account, heroes: Hero[], uid: string): R {
   const idx = a.inv.findIndex((i) => i.uid === uid);
   if (idx < 0) return fail("Нет предмета");
   if (heroes.some((h) => Object.values(h.equip).includes(uid))) return fail("Сначала снимите предмет");
-  const def = ITEM_BY_ID[a.inv[idx].id];
+  const got = salvageYield(a.inv[idx].id);
   a.inv.splice(idx, 1);
-  const shards = { common: 0, uncommon: 1, rare: 2, epic: 4, legendary: 8, mythic: 15 }[def.rarity] || 0;
-  if (shards) addRes(a, "soul_shard", shards);
-  return { ok: true, msg: shards ? `+${shards} осколков души` : "Разобрано" };
+  for (const [r, n] of Object.entries(got)) addRes(a, r, n);
+  return { ok: true, msg: yieldText(got) || "Разобрано", got } as any;
+}
+const yieldText = (g: Record<string, number>) => Object.entries(g).map(([r, n]) => `+${n} ${RESOURCES[r]?.name || r}`).join(", ");
+/** Какие экземпляры можно разобрать «пачкой по редкости»: не надеты, свои/общие для героя cls, ровно этой редкости. */
+export function salvageCandidates(a: Account, heroes: Hero[], cls: string | null, rarity: string): InvItem[] {
+  const worn = new Set(heroes.flatMap((h) => Object.values(h.equip || {})));
+  return a.inv.filter((i) => ITEM_BY_ID[i.id]?.rarity === rarity && !worn.has(i.uid) && (!i.hero || i.hero === cls));
+}
+/** Превью массового разбора — считает сервер: ровно сумма одиночных разборов. */
+export function salvagePreview(a: Account, heroes: Hero[], cls: string | null, rarity: string) {
+  const list = salvageCandidates(a, heroes, cls, rarity), res: Record<string, number> = {};
+  for (const i of list) for (const [r, n] of Object.entries(salvageYield(i.id))) res[r] = (res[r] || 0) + n;
+  return { rarity, uids: list.map((i) => i.uid), items: list.map((i) => ({ uid: i.uid, id: i.id, name: ITEM_BY_ID[i.id]?.name || i.id })), res };
+}
+/** Массовый разбор: разбираем только подтверждённые uid, которые всё ещё подходят (никаких сюрпризов после превью). */
+export function salvageMany(a: Account, heroes: Hero[], cls: string | null, rarity: string, uids: string[]): R & { got?: Record<string, number>; n?: number; uids?: string[] } {
+  const ok = new Set(salvageCandidates(a, heroes, cls, rarity).map((i) => i.uid));
+  const pick = [...new Set(uids)].filter((u) => ok.has(u));
+  if (!pick.length) return fail("Нечего разбирать");
+  const got: Record<string, number> = {};
+  for (const u of pick) { const r: any = salvage(a, heroes, u); if (r.ok) for (const [k, n] of Object.entries(r.got || {})) got[k] = (got[k] || 0) + (n as number); }
+  return { ok: true, msg: `Разобрано ${pick.length}: ${yieldText(got) || "ничего"}`, got, n: pick.length, uids: pick };
 }
 export function craft(a: Account, rid: string): R & { item?: InvItem } {
   const r = RECIPES.find((x) => x.id === rid);

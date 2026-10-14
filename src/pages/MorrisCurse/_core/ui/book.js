@@ -84,6 +84,24 @@ export class Book {
     el.addEventListener('click', (e) => this.onClick(e));
     el.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
     meta.on(() => { if (this.isOpen) this.render(); });
+    // окно подтверждения — внутри игры (не браузерный confirm)
+    const ask = document.createElement('div'); ask.className = 'mc-ask'; ask.style.display = 'none';
+    el.appendChild(ask); this.askEl = ask;
+    ask.addEventListener('click', (e) => { const b = e.target.closest('[data-ask]'); if (!b) return; e.stopPropagation(); const fn = this.askOk; this.closeAsk(); if (b.dataset.ask === 'ok') fn?.(); });
+  }
+  confirmIn(title, html, onOk, okLabel = 'Разобрать') {
+    this.askOk = onOk;
+    this.askEl.innerHTML = `<div class="mc-ask-box"><h3>${esc(title)}</h3><div class="mc-ask-body">${html}</div><div class="mc-ask-btns"><button class="mc-btn danger" data-ask="ok">${esc(okLabel)}</button><button class="mc-btn" data-ask="no">Отмена</button></div></div>`;
+    this.askEl.style.display = '';
+  }
+  closeAsk() { this.askOk = null; this.askEl.style.display = 'none'; }
+  /** превью массового разбора от сервера → окно со списком «что получите» */
+  showSalvagePreview(p) {
+    const rn = RARITIES[p.rarity]?.name || p.rarity;
+    if (!p.uids?.length) { this.confirmIn(`Разбор: ${rn}`, '<p class="mc-dim">В сумке нет неодетых предметов этой редкости.</p>', null, 'OK'); return; }
+    const got = Object.entries(p.res || {}).map(([k, n]) => `<li>${RESOURCES[k]?.icon || '•'} ${esc(RESOURCES[k]?.name || k)} ×${n}</li>`).join('') || '<li class="mc-dim">ничего</li>';
+    const items = p.items.map((i) => `<li style="color:${RARITIES[p.rarity]?.color || ''}">${esc(i.name)}</li>`).join('');
+    this.confirmIn(`Разобрать всё: ${rn} (${p.uids.length})`, `<b>Будет разобрано:</b><ul class="mc-ask-list">${items}</ul><b>Вы получите:</b><ul class="mc-ask-list">${got}</ul>`, () => { this.meta.salvageMany(p.rarity, p.uids); this.sel = null; });
   }
 
   open(tab) { if (tab) this.tab = tab; this.isOpen = true; this.el.style.display = ''; this.libAsked = -1; this.render(); }
@@ -131,7 +149,9 @@ export class Book {
       case 'unslot': m.setLoadout((m.hero?.loadout || []).filter((x) => x !== v)); break;
       case 'equip': m.equip(v); break;
       case 'unequip': m.unequip(v); break;
-      case 'salvage': if (window.confirm('Разобрать предмет на осколки души?')) { m.salvage(v); this.sel = null; } break;
+      case 'salvage': { const it = m.account?.inv.find((i) => i.uid === v), d = it && ITEM_BY_ID[it.id];
+        this.confirmIn('Разобрать предмет?', `<p>${esc(d?.name || 'Предмет')} будет уничтожен.</p>`, () => { m.salvage(v); this.sel = null; }); break; }
+      case 'salvage_r': m.salvagePreview(v); break;
       case 'craft': m.craft(v); break;
       case 'soul': m.soulBuy(v); break;
       case 'turnin': m.turnIn(v); break;
@@ -341,6 +361,9 @@ export class Book {
       const low = h && h.lvl < reqOf(d);
       return `<button class="mc-item ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${iconHtml(d, 40)}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
+    // массовый разбор по редкости: кнопка на каждую редкость, что есть в сумке → превью с сервера → окно подтверждения
+    const rset = [...new Set(bagItems.map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
+    const salvBtns = rset.map((r) => `<button class="mc-btn sm" data-act="salvage_r" data-v="${r}" style="border-color:${RARITIES[r].color};color:${RARITIES[r].color}" title="Разобрать все неодетые: ${esc(RARITIES[r].name)}">${esc(RARITIES[r].name)}</button>`).join('');
     const res = Object.entries(a.res || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span title="${esc(RESOURCES[k]?.name || k)}">${RESOURCES[k]?.icon || '•'} ${n}</span>`).join('');
     let detail = '<p class="mc-dim">Нажмите на предмет, чтобы увидеть характеристики и источник.</p>';
     const it = this.sel && byUid.get(this.sel);
@@ -369,7 +392,7 @@ export class Book {
     }
     return `<div class="mc-gear"><div class="mc-gslots">${slots}</div><div class="mc-detail">${detail}</div></div>
       ${h ? '' : '<p class="mc-lock">Надевать предметы может только герой — выберите оболочку у Алтаря.</p>'}
-      <h3>Сумка ${h ? 'героя' : ''} · ${bagItems.length}${bagItems.some((i) => i.n) ? ` <button class="mc-btn sm" data-act="seenall" data-v="inv">отметить просмотренным</button>` : ''}</h3><div class="mc-bag">${bag || '<p class="mc-dim">Пусто. Убивайте Отголосков — их снаряжение станет вашим.</p>'}</div>
+      <h3>Сумка ${h ? 'героя' : ''} · ${bagItems.length}${salvBtns ? ` <span class="mc-salv">разобрать всё: ${salvBtns}</span>` : ''}${bagItems.some((i) => i.n) ? ` <button class="mc-btn sm" data-act="seenall" data-v="inv">отметить просмотренным</button>` : ''}</h3><div class="mc-bag">${bag || '<p class="mc-dim">Пусто. Убивайте Отголосков — их снаряжение станет вашим.</p>'}</div>
       <h3>Материалы</h3><div class="mc-res">${res || '<span class="mc-dim">нет</span>'}</div>`;
   }
 
