@@ -300,7 +300,9 @@ export function makePortal(THREE, portal) {
     const FW = 64, FH = 96, GROUND = 93, M = 1 / PX_M;
     const mkSheet = (src, n) => { const tex = new THREE.TextureLoader().load(src); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
       if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace; tex.repeat.set(1 / n, 1); return tex; };
-    const idleTex = mkSheet(altarSrc, 8), flashTex = mkSheet(altarFlashSrc, 6);
+    // в сборке Astro импорт PNG — объект { src }, в Vite — строка
+    const aUrl = (x) => (typeof x === 'object' && x ? x.src || x.default?.src || x.default || '' : x);
+    const idleTex = mkSheet(aUrl(altarSrc), 8), flashTex = mkSheet(aUrl(altarFlashSrc), 6);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: idleTex, transparent: true, alphaTest: 0.3, toneMapped: false }));
     sp.center.set(0.5, (FH - GROUND) / FH); sp.scale.set(FW * M, FH * M, 1); sp.renderOrder = 2;
     g.add(sp);
