@@ -4,13 +4,14 @@
 // ИИ по ролям (bestiary.ts): melee, swarm, charger (замах → рывок), ranged (линия-телеграф → выстрел),
 // caster (круг-телеграф под целью), tank (медленный, не отбрасывается). Крупные/боссы — набор
 // телеграфируемых атак по фазам (60% / 30% ХП): круги, линии, кольцо, «волна» вокруг, призыв, ярость.
-import { ZONE_MOBS, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
+import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
 import { ZONE_GEN, BOSS_TIMERS, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
 import { WORLD_CHUNK } from "../worlds/sizes";
 
 // Навыки боссов и проклятых (ids — базы навыков бестиария). Обычный босс — ровно 1 навык, проклятый — 2–5.
-import { MOB_SKILLS } from "./mobSkills";
+import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
+import { shapeOf } from "./abilityShapes";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
@@ -924,11 +925,29 @@ export class Zone {
     else if (k === "fly_blade_dash") { m.windup = 0.6; m.dashX = ux; m.dashY = uy; this.events.push({ k: "tele", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: 220, t: 0.6 }); }
     else if (k === "shadow_step") { m.x = this.clamp(t.x - ux * 60); m.y = this.clamp(t.y - uy * 60); this.cast(m, { kind: "circle", at: now + 600, x: t.x, y: t.y, r: Math.round(70 * big), dmg: dmg * 1.5, fx: "auto_daggers" }); }
     else if (k === "fireball") this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(420 * Math.max(0.8, big)), w: Math.round(40 * big), dmg: dmg * 1.6, proj: "fireball" });
-    else if (k === "shield_wall") m.shieldUntil = now + 4000;
+    else if (!MOB_NATIVE.has(k)) this.heroCast(m, d, k, t, players, now, dmg, big, tele, ux, uy);
     else if (k === "smoke_bomb") { this.cast(m, { kind: "circle", at: now + 700, x: m.x, y: m.y, r: Math.round(120 * big), dmg: dmg * 0.9, fx: "plague_puddle" }); for (const p of players.values()) if (Math.hypot(p.x - m.x, p.y - m.y) < 140 * big) void p; }
     m.atkCd = Math.max(m.atkCd, 1.2);
   }
 
+  /** Навык героя в руках моба: та же форма (abilityShapes.shapeOf), но по игрокам и с телеграфом (от удара можно уйти).
+   *  Урон — урон моба × сила навыка (не больше ×1.8). */
+  heroCast(m: ZMob, d: any, id: string, t: ZPlayer, players: Map<string, ZPlayer>, now: number, dmg: number, big: number, tele: number, ux: number, uy: number) {
+    const s: any = shapeOf(id), pw = Math.min(1.8, Math.max(0.8, (ABILITY_BY_ID as any)[id]?.power || 1)), D = dmg * pw, k = Math.max(0.8, big);
+    switch (s.k) {
+      case "line": this.cast(m, { kind: "line", at: now + tele, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round((s.w || 44) * k), dmg: D }); break;
+      case "proj": this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round(40 * k), dmg: D, proj: id === "fireball" ? "fireball" : "fire_spark" }); break;
+      case "dash": m.windup = 0.6; m.dashX = ux; m.dashY = uy; this.events.push({ k: "tele", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: Math.round(s.len * k), t: 0.6 }); break;
+      case "leap": this.cast(m, { kind: "circle", at: now + tele, x: t.x, y: t.y, r: Math.round(s.r * k), dmg: D, leap: true }); break;
+      case "meteor": this.cast(m, { kind: "circle", at: now + tele + (s.delay || 600), x: t.x, y: t.y, r: Math.round(s.r * k), dmg: D * 1.2, fx: "meteor" }); break;
+      case "rain": for (let i = 0; i < Math.min(8, s.n); i++) { const a = this.rand() * 6.283, r = this.rand() * s.area; this.cast(m, { kind: "circle", at: now + tele + i * 110, x: t.x + Math.cos(a) * r, y: t.y + Math.sin(a) * r, r: Math.round(s.r * k), dmg: D * 0.6 }); } break;
+      case "cone": for (const off of [-s.arc / 3, 0, s.arc / 3]) { const c = Math.cos(off), sn = Math.sin(off); this.cast(m, { kind: "line", at: now + tele, x: m.x, y: m.y, dx: ux * c - uy * sn, dy: ux * sn + uy * c, len: Math.round(s.len * k), w: 40, dmg: D * 0.7 }); } break;
+      case "nova": this.cast(m, { kind: "nova", at: now + tele, x: m.x, y: m.y, r: Math.round(s.r * k * 1.2), dmg: D }); if (s.dr) m.shieldUntil = now + Math.min(4000, s.dr); break;
+      case "ring": this.cast(m, { kind: "ring", at: now + tele, x: m.x, y: m.y, r0: Math.round(30 * k), r: Math.round(200 * k), dmg: D }); break;
+      case "cloud": this.cast(m, { kind: "circle", at: now + 700, x: m.x, y: m.y, r: Math.round(s.r * k), dmg: D * 0.8, fx: "plague_puddle" }); m.shieldUntil = now + Math.min(2500, s.invuln || 1500); break;
+      default: this.cast(m, { kind: "nova", at: now + tele, x: m.x, y: m.y, r: Math.round(150 * k), dmg: D });
+    }
+  }
   // Атака игрока по мобу (авто-атака). Дистанция/кд проверяются; урон считает вызывающий по статам героя.
   attack(p: ZPlayer, mobId: number, now: number, lastAt: number): ZMob | null {
     if (now - lastAt < ZONE_ATTACK_CD_MS) return null;
