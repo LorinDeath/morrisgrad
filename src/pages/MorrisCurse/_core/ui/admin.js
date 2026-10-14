@@ -182,9 +182,9 @@ export class AdminPanel {
     this.traits = JSON.parse(JSON.stringify(v.traits || []));
     const drawTraits = () => {
       const box = sec.querySelector('.traits'); if (!box) return;
-      box.innerHTML = this.traits.map((t, i) => { const d = this.cat.traits[t.k]; return `<div class="trait"><span class="tn">${t.k === 'burn' ? '🔥' : t.k === 'freeze' ? '❄️' : t.k === 'poison' ? '☠' : t.k === 'bleed' ? '🩸' : t.k === 'lifesteal' ? '🦇' : '✦'} ${esc(d?.name || t.k)}</span>${(d?.params || []).map((p) => `<label><span>${esc(p.label)}</span><input type="number" step="0.1" min="${p.min}" max="${p.max}" data-ti="${i}" data-tk="${p.k}" value="${t[p.k] ?? p.def}"></label>`).join('')}<button class="btn red" data-rm="${i}">✕</button></div>`; }).join('') || '<small>Эффектов нет</small>';
+      box.innerHTML = this.traits.map((t, i) => { const d = this.cat.traits[t.k]; return `<div class="trait"><span class="tn">${t.k === 'burn' ? '🔥' : t.k === 'freeze' ? '❄️' : t.k === 'poison' ? '☠' : t.k === 'bleed' ? '🩸' : t.k === 'lifesteal' ? '🦇' : '✦'} ${esc(d?.name || t.k)}</span>${(d?.params || []).map((p) => `<label><span>${esc(p.label)}</span><input type="number" step="0.1" min="${p.min}" max="${p.max}" data-ti="${i}" data-tk="${p.k}" value="${t[p.k] ?? p.def}"></label>`).join('')}<button class="btn red" data-trm="${i}">✕</button></div>`; }).join('') || '<small>Эффектов нет</small>';
       box.querySelectorAll('[data-ti]').forEach((inp) => (inp.oninput = () => { this.traits[+inp.dataset.ti][inp.dataset.tk] = Number(inp.value); }));
-      box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { this.traits.splice(+b.dataset.rm, 1); drawTraits(); }));
+      box.querySelectorAll('[data-trm]').forEach((b) => (b.onclick = () => { this.traits.splice(+b.dataset.trm, 1); drawTraits(); }));
     };
     drawTraits();
     sec.querySelectorAll('.mc-adm-chipsearch').forEach((q) => q.addEventListener('input', () => {
@@ -208,7 +208,7 @@ export class AdminPanel {
       if (kind === 'loot') patch = this.readLoot(sec);
       else {
         sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' ? i.value : Number(i.value); });
-        sec.querySelectorAll('[data-rm]').forEach((i) => { const m = {}; for (const part of i.value.split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } patch[i.dataset.rm] = m; });
+        sec.querySelectorAll('input[data-rm]').forEach((i) => { const m = {}; for (const part of i.value.split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } patch[i.dataset.rm] = m; });
         if (S.fields.some((f) => f.t === 'skills')) patch.skills = [...sec.querySelectorAll('[data-sk]:checked')].map((i) => i.dataset.sk);
         if (S.traits) patch.traits = this.traits;
       }

@@ -30,7 +30,7 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
   // 2. админ
   const [A, G] = await open('Админ', 'test_admin_pt');
   ok((await G(() => window.__game.debug.admin())).btn, 'админ: кнопка 🛠 в HUD');
-  await A.click('#ghud-admin-btn'); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
+  await G(() => document.querySelector('#ghud-admin-btn').click()); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
   ok(true, 'панель открыта, каталог загружен с сервера');
   { // окно внутри игры: в игровом контейнере, рамка, игра рисуется позади, клавиши не уходят в игру, Esc закрывает
     const inf = await G(() => { const el = document.querySelector('.mc-admin'), cv = document.querySelector('canvas'); const r = el.getBoundingClientRect(), c = cv.parentElement.getBoundingClientRect();
@@ -43,7 +43,7 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
     const moved = await G(() => document.querySelector('.mc-admin').style.left); ok(!!moved, 'окно перетаскивается за шапку: left=' + moved);
     await A.screenshot({ path: `${OUT}/admin-ingame.png` });
     await A.keyboard.press('Escape'); await A.waitForTimeout(200); ok(!(await G(() => window.__game.debug.admin())).open, 'Esc закрывает админку');
-    await A.click('#ghud-admin-btn'); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
+    await G(() => document.querySelector('#ghud-admin-btn').click()); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
   }
   const pick = async (tab, id) => { await A.click(`.mc-admin [data-tab="${tab}"]`); await A.waitForTimeout(200); if (id) { await A.fill('.mc-admin aside input', id); await A.click(`.mc-admin aside li[data-id="${id}"]`); await A.waitForTimeout(250); } };
   const saved = async () => { await A.waitForFunction(() => /Сохранено|✖/.test(document.querySelector('.mc-admin .msg')?.textContent || ''), null, { timeout: 8000 }); return A.textContent('.mc-admin .msg'); };
@@ -63,6 +63,14 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
   // неверное значение — сервер отвергает
   await A.fill('.mc-admin [data-tk="chance"]', '400'); await A.click('.mc-admin [data-save]'); await A.waitForTimeout(700);
   ok(/✖/.test(await A.textContent('.mc-admin .msg')), 'шанс 400% → отказ сервера: ' + (await A.textContent('.mc-admin .msg')));
+  // предмет с полем «Разбор» (resmap) + черта: раньше кнопка ✕ черты (data-rm) попадала в патч как «поле 0»
+  await A.click('.mc-admin [data-tab="weapon"]'); await A.waitForTimeout(300); await A.fill('.mc-admin aside input', 'dew_slime_weapon'); await A.waitForTimeout(300); await G(() => document.querySelector('.mc-admin aside li[data-id="item:dew_slime_weapon"]').click()); await A.waitForTimeout(400);
+  await A.selectOption('.mc-admin .addk', 'burn'); await A.click('.mc-admin [data-addt]');
+  await A.fill('.mc-admin [data-tk="chance"] >> nth=-1', '25'); await A.fill('.mc-admin [data-tk="dpsPct"] >> nth=-1', '15'); await A.fill('.mc-admin [data-tk="dur"] >> nth=-1', '3');
+  await A.click('.mc-admin [data-save]'); m = await saved(); ok(/Сохранено/.test(m), 'предмет dew_slime_weapon: «Поджог» 25/15/3 сохранён — ' + m);
+  await A.screenshot({ path: '/workspace/morrisgrad-round3/admin-item-trait.png' });
+  ok(/burn/.test(d1("SELECT data FROM game_overrides WHERE kind='item' AND id='dew_slime_weapon'")), 'D1: черта предмета записана');
+  A.once('dialog', (d) => d.accept()); await A.click('.mc-admin [data-reset]').catch(() => {}); await A.waitForTimeout(800);
   // поиск по-русски (регистр, ё/е) + уровень в каждой строке
   const rows = () => A.$$eval('.mc-admin aside li[data-id]', (xs) => xs.filter((x) => !x.dataset.id.startsWith('__')).map((x) => ({ id: x.dataset.id, t: x.textContent, lv: !!x.querySelector('.lv') })));
   await A.click('.mc-admin [data-tab="mob"]'); await A.waitForTimeout(200);

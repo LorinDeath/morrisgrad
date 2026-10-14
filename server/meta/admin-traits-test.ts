@@ -1,0 +1,16 @@
+import { validatePatch, applyOverride, TRAITS, currentValues, TABLES } from "./overrides";
+let pass = 0, fail = 0; const ok = (c: any, m: string) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m); };
+const item = TABLES.item.dew_slime_weapon ? "dew_slime_weapon" : Object.keys(TABLES.item).find((k) => TABLES.item[k].slot === "weapon")!;
+const burn = { k: "burn", chance: 25, dpsPct: 15, dur: 3 };
+const cv = currentValues("item", item);
+const p = validatePatch("item", item, { lvl: cv.lvl, salvage: cv.salvage || {}, traits: [burn] });
+ok(typeof p !== "string", `предмет ${item}: патч с «Поджогом» + разбор принят ${typeof p === "string" ? p : ""}`);
+applyOverride("item", item, p); ok(TRAITS.item[item]?.[0]?.k === "burn" && TRAITS.item[item][0].chance === 25, "черта применена в памяти (живьём)");
+ok(currentValues("item", item).traits.length === 1, "currentValues отдаёт черту");
+ok(validatePatch("item", item, { "0": {}, traits: [burn] }) === "поле 0 не редактируется", "старый (сломанный) клиентский патч отклоняется как раньше");
+const w = Object.keys(TABLES.weapon)[0]; const pw = validatePatch("weapon", w, { cd: TABLES.weapon[w].cd ?? 500, traits: [burn, { k: "freeze", chance: 10, dur: 1 }] });
+ok(typeof pw !== "string", `тип оружия ${w}: черты приняты ${typeof pw === "string" ? pw : ""}`); applyOverride("weapon", w, pw); ok(TRAITS.weapon[w]?.length === 2, "тип оружия: черты живьём");
+const m = Object.keys(TABLES.mob)[0]; const pm = validatePatch("mob", m, { hp: 100, skills: [] }); ok(typeof pm !== "string", `моб ${m}: сохраняется ${typeof pm === "string" ? pm : ""}`);
+ok(validatePatch("mob", m, { traits: [burn] }) === "у этой сущности нет черт", "моб: черт нет в схеме — понятная ошибка");
+applyOverride("item", item, null); ok(!TRAITS.item[item], "сброс убирает черту");
+console.log(`${pass}/${pass + fail}`); if (fail) process.exit(1);
