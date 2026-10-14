@@ -137,7 +137,8 @@ class Atmosphere {
       const d = this.d; let n = 0;
       for (const p of props) {
         const r = (PROP_SHADOW[p.k] || 0.6) * (p.s || 1);
-        d.position.set(toX(p.x) + r * 0.15, 0.025, toZ(p.y) + 0.05); d.rotation.set(0, 0, 0); d.scale.set(r * 2.1, 1, r * 1.1); d.updateMatrix();
+        // центр эллипса — у основания спрайта (как у героя), а не перед ним
+        d.position.set(toX(p.x) + r * 0.06, 0.025, toZ(p.y) - r * 0.18); d.rotation.set(0, 0, 0); d.scale.set(r * 2.1, 1, r * 1.1); d.updateMatrix();
         im.setMatrixAt(n++, d.matrix);
         const L = LIGHT_PROPS[p.k];
         if (L) this.sources.push({ x: toX(p.x), z: toZ(p.y), col: new THREE.Color(L[0]), r: L[1] * (p.s || 1), h: L[2] * (p.s || 1), k: L[3], ph: Math.random() * 10, fire: p.k === 'torch' || p.k === 'campfire' || p.k === 'lantern' });
@@ -170,7 +171,8 @@ class Atmosphere {
   // тень-капля под билбордом: (x,z) — ноги в метрах, r — полуширина (м), a — плотность 0..1
   shadow(x, z, r = 0.6, a = 1) {
     if (!this.ready || this.nSh >= 768) return;
-    const d = this.d; d.position.set(x + r * 0.12, 0.03, z + 0.04); d.rotation.set(0, 0, 0);
+    // под ногами, как у героя (не «парит» перед основанием)
+    const d = this.d; d.position.set(x + r * 0.06, 0.03, z - r * 0.18); d.rotation.set(0, 0, 0);
     const k = 0.55 + 0.45 * a; d.scale.set(r * 2.2 * k, 1, r * 1.1 * k); d.updateMatrix();
     this.shadows.setMatrixAt(this.nSh++, d.matrix);
   }
