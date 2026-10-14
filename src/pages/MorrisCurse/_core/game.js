@@ -42,7 +42,7 @@ import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
-import { setBossState } from '../../../../server/meta/markers.ts';
+import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
@@ -488,6 +488,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('config_update', (d) => { applyConfig(d); if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests);
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); }
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
+  net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('role_changed', (d) => social.onRoleChanged(d));
   net.on('inspect_err', (d) => social.onInspectErr(d));
@@ -1653,6 +1654,10 @@ async function boot(canvasId, username, userId, api) {
       projDemo: (kinds) => { const ks = kinds || ['fireball','war_axe','fire_spark','moon_orb','split_shard','thorn_bow','spear','daggers','sun_beam','ice_fan','chain_bolt','plague_flask','glyph_mine','orbit_skulls','meteor','spear_rain','dew_splash','auto_staff','auto_bow','auto_daggers','auto_claws','pierce'];
         ks.forEach((t, i) => zone.pax.spawn({ id: 900000 + i + Math.floor(Math.random() * 1e5) * 100, t, x: player.x - 260 + (i % 6) * 100, y: player.y - 170 + Math.floor(i / 6) * 90, dx: 1, dy: 0, s: 6, r: 4000 }));
         zone.pax.puddle(player.x - 200, player.y + 200, 70, 30); zone.pax.impact('fireball', player.x + 260, player.y + 200, { k: 2 }); zone.pax.fall('meteor', player.x, player.y + 220, 0.5, -1, 1.2); return ks.length; },
+      projList: () => ({ me: { x: player.x, y: player.y }, confirmed: zone.pax.confirmed || 0, list: [...zone.pax.live.values()].filter((p) => p.o === 'p').map((p) => { const d = Math.min(p.r, p.s * p.age); return { id: p.id, t: p.t, pred: !!p.pred, x0: p.x0, y0: p.y0, x: p.x0 + p.dx * d, y: p.y0 + p.dy * d, dx: p.dx, dy: p.dy, age: p.age }; }) }),
+      selectMobId: (id) => { const o = zone.mobs.get(id); if (o) selectMob(o); return !!o; },
+      mobsNear: (r = 500) => [...zone.mobs.values()].filter((o) => !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < r).map((o) => ({ id: o.id, x: o.x, y: o.y, type: o.type })),
+      bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),

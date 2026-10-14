@@ -522,6 +522,13 @@ export class MetaService {
         if (msg.freeSlots) { let n = Math.min(200, Number(msg.freeSlots) || 0); for (let i = a.inv.length - 1; i >= 0 && n > 0; i--) if (a.inv[i].src === "grant:fill") { a.inv.splice(i, 1); n--; } }
         if (msg.invCount) { const cnt: Record<string, number> = {}; for (const it of a.inv) cnt[it.id] = (cnt[it.id] || 0) + 1; this.send(ws, { type: "dev_inv", n: a.inv.length, cnt, uids: new Set(a.inv.map((i) => i.uid)).size, res: a.res }); }
         if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
+        // тесты: мировые боссы (spawnBosses — всех сразу, killBoss — ключ логова), бродячие (ambientNow — проверка сейчас)
+        { const z = this.zoneOf(session) as any; if (z) {
+          if (msg.spawnBosses) for (const b of z.gen.bosses) if (!z.bossIds[b.key || b.type]) z.bossAt[b.key || b.type] = 1;
+          if (msg.killBoss) { const id = z.bossIds[msg.killBoss], m = id && z.byId.get(id); if (m && !m.dead) z.kill(m, (mm: any) => this.onMobKilled(mm)); }
+          if (msg.ambientNow) z.ambNext.set(session.id, 0);
+          if (msg.devStats) this.send(ws, { type: "dev_stats", amb: z.ambStats, ambient: z.mobs.filter((m: any) => m.ambient === session.id && !m.dead).map((m: any) => ({ id: m.id, type: m.type, elite: m.elite, x: Math.round(m.x), y: Math.round(m.y), tgt: m.targetSid === session.id })), bosses: z.bossStatus(Date.now()).slice(0, 80).map((x: any, i: number) => [...x, z.gen.bosses[i].x, z.gen.bosses[i].y]) });
+        } }
         this.push(ws, session); return true;
       }
     }
