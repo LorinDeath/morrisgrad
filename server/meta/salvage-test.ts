@@ -1,5 +1,5 @@
 // Разбор: одиночный = логика по умолчанию/админки; массовый = ровно сумма одиночных; превью = результат; навык R из админки важнее выпавшего
-import { newAccount, newHero, salvage, salvagePreview, salvageMany, weaponSkill } from "./profile";
+import { newAccount, newHero, salvage, salvagePreview, salvageMany, effSkill, weaponSkill } from "./profile";
 import { ITEMS, ITEM_BY_ID, salvageDefault, weaponType } from "./defs";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 let fail = 0; const ok = (c: boolean, m: string) => { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + m); };
@@ -26,5 +26,11 @@ const rare = byR("rare"), h = newHero("warrior");
   ok(typeof validatePatch("item", rare[0].id, { rs: "spear" }) === "string", "навык R не у оружия — отклонён"); applyOverride("item", w.id, null);
   const wt = weaponType(w.id, null), vt = validatePatch("weapon", wt, { rs: "moon_orb" }); applyOverride("weapon", wt, vt);
   ok(weaponSkill(a, hh) === "moon_orb", `навык для типа оружия (${wt}) из админки важнее выпавшего`); applyOverride("weapon", wt, null);
-  ok(weaponSkill(a, hh) === "spear", "сброс — снова навык экземпляра"); }
+  ok(weaponSkill(a, hh) === "spear", "сброс — снова навык экземпляра");
+  { const inst: any = a.inv.find((i: any) => i.uid === hh.equip.weapon), wt2 = weaponType(inst.id, null);
+    ok(effSkill(inst)?.src === "drop", "карточка: источник — выпавший");
+    applyOverride("weapon", wt2, validatePatch("weapon", wt2, { rs: "moon_orb" })); ok(effSkill(inst)?.src === "type" && effSkill(inst)?.rs === "moon_orb", "карточка: источник — тип оружия");
+    applyOverride("item", inst.id, validatePatch("item", inst.id, { rs: "sun_beam" })); ok(effSkill(inst)?.src === "item" && effSkill(inst)?.rs === "sun_beam", "карточка: предмет важнее типа");
+    applyOverride("item", inst.id, null); applyOverride("weapon", wt2, null);
+    ok(effSkill({ id: rare[0].id } as any) === null, "не оружие — без навыка"); } }
 if (fail) { console.log(fail + " FAIL"); process.exit(1); } console.log("salvage ok");

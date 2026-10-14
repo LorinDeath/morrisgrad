@@ -169,7 +169,7 @@ export class Book {
       .map(([id, ic, nm, key]) => { const n = this.badge(id); return `<button data-act="tab" data-v="${id}" class="${this.tab === id ? 'on' : ''}" title="${nm}${key ? ` [${key}]` : ''}">${ic}<span>${nm}</span>${n ? `<em class="mc-cnt">${n}</em>` : ''}</button>`; }).join('');
     if (!st) { this.body.innerHTML = '<p class="mc-dim">Нет связи с сервером: прогресс героя хранится на сервере и сейчас недоступен. Соло-забеги работают офлайн.</p>'; return; }
     const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, runskills: this.rRunSkills, soul: this.rSoul }[this.tab] || this.rQuests;
-    if ((this.tab === 'library' || this.tab === 'bestiary' || this.tab === 'runskills') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
+    if ((this.tab === 'library' || this.tab === 'bestiary' || this.tab === 'runskills' || this.tab === 'gear') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
     // прокрутка сохраняется у тела И у всех внутренних списков (сетка Библиотеки, Бестиарий, Кодекс, сумка, карточка):
     // перерисовка после клика по предмету/«просмотрено» не должна прыгать в начало
     const scroll = this.body.scrollTop, key = (e) => e.className.split(' ')[0] + '#' + [...this.body.querySelectorAll('.' + e.className.split(' ')[0])].indexOf(e);
@@ -391,7 +391,13 @@ export class Book {
         <div class="rr">${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
         <div class="ss">${itemStatsHtml(d, newProps)}</div>
         <div class="fx">Ур. предмета ${d.lvl || 1}. ${reqHtml(d, h)}. Характеристики фиксированные — не растут с уровнем.</div>
-        ${it.rs && RUN_SKILL_BY_ID[it.rs] ? `<div class="ab rsk">${RUN_SKILL_BY_ID[it.rs].icon} Навык оружия (R): <b>${esc(RUN_SKILL_BY_ID[it.rs].name)}</b> — ${esc(RUN_SKILL_BY_ID[it.rs].desc)}${eq ? ' · <i>активен</i>' : ' · наденьте, чтобы получить 4-й слот'}</div>` : ''}
+        ${(() => { // действующий навык и выход разбора — с сервера (правки админки), иначе выпавший навык экземпляра
+          const L = this.meta.library?.inv?.[it.uid], rs = L ? L.rs : it.rs, R = rs && RUN_SKILL_BY_ID[rs];
+          const SRC = { item: 'назначен этому предмету', type: 'назначен типу оружия', drop: 'выпал с оружием' };
+          const sk = R ? `<div class="ab rsk">${R.icon} Навык оружия (R): <b>${esc(R.name)}</b> — ${esc(R.desc)}${L?.rsSrc ? ` <small class="mc-dim">(${SRC[L.rsSrc]})</small>` : ''}${eq ? ' · <i>активен</i>' : ' · наденьте, чтобы получить 4-й слот'}</div>` : '';
+          const sv = L?.salv ? Object.entries(L.salv).map(([k, n]) => `${RESOURCES[k]?.icon || '•'} ${esc(RESOURCES[k]?.name || k)} ×${n}`).join(', ') : '';
+          return sk + (sv ? `<div class="ab salv">⚒ Разбор даст: ${sv}</div>` : '');
+        })()}
         ${d.ability ? `<div class="ab">✦ Даёт навык: <b>${esc(d.ability.name)}</b>${abNew ? NEW_BADGE : ''}</div>` : ''}
         ${look ? `<div class="ab">🎭 Часть облика «${esc(look.name)}» (${look.parts} предм.)${look.bonus ? ` — ${esc(look.bonus)}` : ''}</div>` : ''}
         ${it.src ? `<div class="src">Этот экземпляр: ${esc(srcLabel(it.src))}${it.at ? ` · ${new Date(it.at).toLocaleDateString('ru-RU')}` : ''}</div>` : ''}

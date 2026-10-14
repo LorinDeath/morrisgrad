@@ -496,7 +496,8 @@ async function boot(canvasId, username, userId, api) {
   net.on('loot_err', (d) => { if (lootWin.isOpen) lootWin.error(d.message); else overlay.toast(d.message, '#fca5a5'); });
   function openBag(b) { if (Math.hypot(b.x - player.x, b.y - player.y) > 100) { overlay.toast('Подойдите ближе к мешку', '#94a3b8'); return; } send({ type: 'loot_open', bag: b.id }); }
   // правки админ-панели прилетают сразу (без переподключения): оружие/навыки/мобы, квесты, карточки предметов
-  net.on('config_update', (d) => { applyConfig(d); book.libAsked = -1; if (book.isOpen && ['library', 'bestiary', 'runskills'].includes(book.tab)) book.render(); // правки админки → Бестиарий/Библиотека/Кодекс заново с сервера if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests);
+  net.on('config_update', (d) => { applyConfig(d); book.libAsked = -1; if (book.isOpen && ['library', 'bestiary', 'runskills', 'gear'].includes(book.tab)) book.render(); // правки админки → Бестиарий/Библиотека/Кодекс заново с сервера
+    if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests);
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); }
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты

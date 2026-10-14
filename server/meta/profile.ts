@@ -317,6 +317,13 @@ export function rollRunSkill(a: Account, it: InvItem, kind: "mob" | "rare" | "bo
   return pick;
 }
 // Навык 4-го слота (R): от надетого сейчас оружия героя; сняли оружие — навыка нет
+/** Действующий навык R экземпляра оружия и откуда он: правка предмета в админке > правка типа оружия > выпавший. */
+export function effSkill(inst: { id: string; rs?: string | null }): { rs: string; src: "item" | "type" | "drop" } | null {
+  const d: any = (ITEM_BY_ID as any)[inst.id]; if (!d || d.slot !== "weapon") return null;
+  if (d.rs && RUN_SKILL_BY_ID[d.rs]) return { rs: d.rs, src: "item" };
+  const t = (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs; if (t && RUN_SKILL_BY_ID[t]) return { rs: t, src: "type" };
+  return inst.rs && RUN_SKILL_BY_ID[inst.rs] ? { rs: inst.rs, src: "drop" } : null;
+}
 export function weaponSkill(a: Account, h: Hero | null): string | null {
   const uid = h?.equip?.weapon; if (!uid) return null;
   const inst = a.inv.find((i) => i.uid === uid); if (!inst) return null;

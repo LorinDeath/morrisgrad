@@ -3,7 +3,7 @@
 import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
-  HERO_IDS, ITEM_BY_ID, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
+  HERO_IDS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
@@ -19,7 +19,7 @@ import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import {
-  heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany,
+  heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
@@ -570,7 +570,17 @@ export class MetaService {
       ...RUN_SKILLS.map((r) => ({ id: "rs:" + r.id, kind: "weapon", name: r.name, icon: r.icon, desc: r.desc, cd: WEAPON_SKILL_CD, found: (a.runSkills || []).includes(r.id) })),
       ...Object.entries(MOB_SKILLS).map(([id, m]) => ({ id: "mob:" + id, kind: "mob", name: m.name, icon: "👹", desc: "Навык монстров и боссов", cd: m.cd, found: mobSk.has(id) })),
     ];
-    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats, codex };
+    // Карточки экземпляров: действующий навык оружия (с источником) и выход разбора — с правками админки
+    const inv: Record<string, any> = {};
+    const eqUids = new Set<string>(); for (const h of heroes) for (const u of Object.values(h?.equip || {})) if (u) eqUids.add(String(u));
+    const bound: Record<string, { name: string; eq: boolean; src: string }[]> = {};
+    for (const it of a.inv) {
+      const e = effSkill(it); inv[it.uid] = { salv: salvageYield(it.id), ...(e ? { rs: e.rs, rsSrc: e.src } : {}) };
+      if (e) { const L = (bound["rs:" + e.rs] = bound["rs:" + e.rs] || []); const nm = (ITEM_BY_ID as any)[it.id].name, eq = eqUids.has(it.uid);
+        const ex = L.find((x) => x.name === nm); if (ex) ex.eq = ex.eq || eq; else if (L.length < 8) L.push({ name: nm, eq, src: e.src }); }
+    }
+    for (const c of codex as any[]) if (bound[c.id]) c.bound = bound[c.id].sort((x, y) => +y.eq - +x.eq);
+    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats, codex, inv };
   }
 
   nearNpcOrAltar(session: any) {
