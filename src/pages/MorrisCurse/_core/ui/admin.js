@@ -7,7 +7,11 @@ import { statIcon } from './statIcons.js';
 const TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
-.mc-admin{position:fixed;inset:0;z-index:9000;background:rgba(8,5,16,.96);color:#f1e7d0;font:13px/1.35 monospace;display:flex;flex-direction:column}
+.mc-admin{position:absolute;left:4%;top:4%;width:92%;height:92%;z-index:60;background:rgba(10,7,20,.97);color:#f1e7d0;font:13px/1.35 monospace;display:flex;flex-direction:column;
+  border:2px solid #c59b27;border-radius:10px;box-shadow:0 0 0 1px #3b2a12,0 12px 40px rgba(0,0,0,.7),inset 0 0 0 1px rgba(253,230,138,.12);overflow:hidden;min-width:420px;min-height:300px;resize:both}
+.mc-admin header{cursor:move;background:linear-gradient(#2a1d0b,#160f08);user-select:none}
+.mc-admin.sheet{left:0!important;top:0!important;width:100%!important;height:100%!important;border-radius:0;resize:none;min-width:0}
+.mc-admin .rz{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,#c59b27 50%);opacity:.7}
 .mc-admin header{display:flex;gap:6px;align-items:center;padding:8px 10px;border-bottom:2px solid #c59b27;flex-wrap:wrap}
 .mc-admin header b{color:#f87171;margin-right:8px;font-size:15px}
 .mc-admin .tabs button,.mc-admin .btn{background:#1b142c;border:1px solid #6b4fa0;color:#fde68a;padding:5px 9px;border-radius:6px;cursor:pointer;font:inherit}
@@ -49,16 +53,29 @@ const css = `
 `;
 
 export class AdminPanel {
-  constructor(send) { this.send = send; this.el = null; this.cat = null; this.tab = 'mob'; this.sel = null; this.q = ''; }
+  // окно ВНУТРИ игрового контейнера (работает в полноэкранном режиме, игра рисуется позади): перетаскивание за шапку,
+  // изменение размера за угол, Esc — закрыть; на телефоне — лист на весь игровой экран
+  constructor(send, host) { this.host = host || document.body; this.send = send; this.el = null; this.cat = null; this.tab = 'mob'; this.sel = null; this.q = ''; }
   get isOpen() { return !!this.el; }
   open() {
     if (this.el) return;
     if (!document.getElementById('mc-admin-css')) { const s = document.createElement('style'); s.id = 'mc-admin-css'; s.textContent = css; document.head.appendChild(s); }
     const el = this.el = document.createElement('div'); el.className = 'mc-admin';
+    if (this.host.clientWidth < 760 || /Mobi|Android|iPhone/i.test(navigator.userAgent)) el.classList.add('sheet');
+    if (getComputedStyle(this.host).position === 'static') this.host.style.position = 'relative';
     el.innerHTML = `<header><b>🛠 Админ-панель</b><div class="tabs">${TABS.map(([k, t]) => `<button data-tab="${k}">${t}</button>`).join(' ')}</div><span class="msg"></span><button class="btn" data-x>✕ Закрыть</button></header>
       <main><aside><input placeholder="Поиск…"><ul></ul></aside><section><p>Загрузка данных с сервера…</p></section></main>`;
-    document.body.appendChild(el);
-    el.addEventListener('keydown', (e) => e.stopPropagation()); el.addEventListener('keyup', (e) => e.stopPropagation());
+    this.host.appendChild(el);
+    // клавиши не доходят до игры (WASD/навыки), Esc закрывает
+    el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); this.close(); } });
+    el.tabIndex = -1; el.focus({ preventScroll: true });
+    ['pointerdown', 'wheel', 'touchstart', 'contextmenu'].forEach((t) => el.addEventListener(t, (e) => e.stopPropagation(), { passive: t !== 'contextmenu' }));
+    { // перетаскивание за шапку
+      const hd = el.querySelector('header'); let d0 = null;
+      hd.addEventListener('pointerdown', (e) => { if (el.classList.contains('sheet') || e.target.closest('button,input,select')) return; const r = el.getBoundingClientRect(), H = this.host.getBoundingClientRect(); d0 = { x: e.clientX, y: e.clientY, l: r.left - H.left, t: r.top - H.top, H }; hd.setPointerCapture(e.pointerId); });
+      hd.addEventListener('pointermove', (e) => { if (!d0) return; const w = el.offsetWidth, h = el.offsetHeight; if (w > d0.H.width * 0.8) { el.style.width = Math.round(d0.H.width * 0.8) + 'px'; } if (h > d0.H.height * 0.85) el.style.height = Math.round(d0.H.height * 0.85) + 'px'; const l = Math.max(0, Math.min(d0.H.width - el.offsetWidth, d0.l + e.clientX - d0.x)), t = Math.max(0, Math.min(d0.H.height - el.offsetHeight, d0.t + e.clientY - d0.y)); /* окно не выходит за игровой экран */ el.style.left = l + 'px'; el.style.top = t + 'px'; });
+      hd.addEventListener('pointerup', () => { d0 = null; });
+    } el.addEventListener('keyup', (e) => e.stopPropagation());
     el.querySelector('[data-x]').onclick = () => this.close();
     el.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.sel = null; this.q = ''; const qi = this.el.querySelector('aside input'); if (qi) qi.value = ''; this.render(); }));
     el.querySelector('aside input').oninput = (e) => { this.q = e.target.value.toLowerCase(); this.list(); };

@@ -452,7 +452,7 @@ async function boot(canvasId, username, userId, api) {
     if (b) b.style.display = d.admin ? '' : 'none';
     if (!d.admin) adminPanel.close();
   });
-  const adminPanel = new AdminPanel((o) => send(o));
+  const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
   net.on('admin_result', (d) => adminPanel.onResult(d));
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));

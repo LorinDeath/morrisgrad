@@ -30,6 +30,19 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   ok((await G(() => window.__game.debug.admin())).btn, 'админ: кнопка 🛠 в HUD');
   await A.click('#ghud-admin-btn'); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
   ok(true, 'панель открыта, каталог загружен с сервера');
+  { // окно внутри игры: в игровом контейнере, рамка, игра рисуется позади, клавиши не уходят в игру, Esc закрывает
+    const inf = await G(() => { const el = document.querySelector('.mc-admin'), cv = document.querySelector('canvas'); const r = el.getBoundingClientRect(), c = cv.parentElement.getBoundingClientRect();
+      return { inGame: cv.parentElement.contains(el), parentIsBody: el.parentElement === document.body, inside: r.left >= c.left - 1 && r.right <= c.right + 1 && r.top >= c.top - 1 && r.bottom <= c.bottom + 1, border: getComputedStyle(el).borderTopColor }; });
+    ok(inf.inGame && !inf.parentIsBody && inf.inside, 'админка — окно внутри игрового контейнера ' + JSON.stringify(inf));
+    const p0 = await G(() => window.__game.state().player); await A.click('.mc-admin aside input'); await A.keyboard.type('dddddwwww'); await A.waitForTimeout(400);
+    const p1 = await G(() => window.__game.state().player); ok(Math.hypot(p1.x - p0.x, p1.y - p0.y) < 2, `ввод в админке не двигает героя (${Math.round(p0.x)},${Math.round(p0.y)} → ${Math.round(p1.x)},${Math.round(p1.y)})`);
+    await A.fill('.mc-admin aside input', '');
+    const hd = await A.$('.mc-admin header b'); const hb = await hd.boundingBox(); await A.mouse.move(hb.x + 5, hb.y + 5); await A.mouse.down(); await A.mouse.move(hb.x + 65, hb.y + 45, { steps: 4 }); await A.mouse.up();
+    const moved = await G(() => document.querySelector('.mc-admin').style.left); ok(!!moved, 'окно перетаскивается за шапку: left=' + moved);
+    await A.screenshot({ path: `${OUT}/admin-ingame.png` });
+    await A.keyboard.press('Escape'); await A.waitForTimeout(200); ok(!(await G(() => window.__game.debug.admin())).open, 'Esc закрывает админку');
+    await A.click('#ghud-admin-btn'); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
+  }
   const pick = async (tab, id) => { await A.click(`.mc-admin [data-tab="${tab}"]`); await A.waitForTimeout(200); if (id) { await A.fill('.mc-admin aside input', id); await A.click(`.mc-admin aside li[data-id="${id}"]`); await A.waitForTimeout(250); } };
   const saved = async () => { await A.waitForFunction(() => /Сохранено|✖/.test(document.querySelector('.mc-admin .msg')?.textContent || ''), null, { timeout: 8000 }); return A.textContent('.mc-admin .msg'); };
   await pick('mob', 'ice_dew_slime');
