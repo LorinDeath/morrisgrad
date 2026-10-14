@@ -28,7 +28,7 @@ export interface Region {
   elite: number;                          // шанс элиты на пачку
   nodes: { type: string; res: string; n: number; respawn: number; qty: [number, number] }[];
 }
-export interface WorldBossDef { type: string; key?: string; x: number; y: number; firstAfter: number; every: number; where: string }
+export interface WorldBossDef { type: string; key?: string; x: number; y: number; firstAfter: number; every: number; where: string; stagger?: number }
 export interface RareDef { type: string; region: string; every: [number, number]; life: number }
 export interface SafeZone { x: number; y: number; r: number; name: string }
 export interface WorldGen {
@@ -68,6 +68,11 @@ export const ZONE_GEN = {
   eliteHp: 2.2, eliteDmg: 1.5, eliteArmor: 1.4, eliteXp: 2.5,
   nodeMinDist: 95,
   bossScalePerPlayer: 0.5,   // ХП босса ×(1 + 0.5·(игроков−1)), максимум ×2.5
+  // «бродячие» мобы (Аринар, ДОБАВКА к лагерям): раз в ambientEvery с на игрока, если в ambientNear px нет живых мобов —
+  // ambientChance % один обычный моб региона у края экрана (ambientEdge px), ambientGroupChance % — группа ambientGroup + 1 элита;
+  // идут на игрока (охота ambientHunt с); не больше ambientCap на игрока; уходят, если далеко/без боя ambientLife с
+  ambientOn: 1, ambientEvery: 10, ambientChance: 10, ambientGroupChance: 1, ambientNear: 520, ambientEdge: 440,
+  ambientGroup: 3, ambientCap: 6, ambientHunt: 25, ambientLife: 60, ambientDespawnDist: 1100,
 };
 
 // ---------- таблицы регионов: тег where бестиария → вес ----------
@@ -195,6 +200,9 @@ const BOSS_BY_KIND: Record<string, { type: string; firstAfter: number; every: nu
   pylons: [{ type: "the_silencer", firstAfter: 480, every: 1500 }],
   crater: [{ type: "violet_queen", firstAfter: 600, every: 2400 }],
 };
+/** тип мирового босса → его таймеры (общий объект для всех пятен: правка в админке сразу действует на все логова) */
+export const BOSS_TIMERS: Record<string, { type: string; firstAfter: number; every: number }> = {};
+for (const list of Object.values(BOSS_BY_KIND)) for (const b of list) BOSS_TIMERS[b.type] ??= b;
 const ARINAR_BOSSES: WorldBossDef[] = [];
 {
   const seen: Record<string, number> = {};
@@ -203,7 +211,7 @@ const ARINAR_BOSSES: WorldBossDef[] = [];
     const n = seen[P.kind] = (seen[P.kind] || 0) + 1;
     const b = list[(n - 1) % list.length];
     const seedCell = P.cells.find((c) => (c as any).seed)!;
-    ARINAR_BOSSES.push({ ...b, key: `${b.type}@${P.idx}`, x: P.x, y: P.y, firstAfter: b.firstAfter + (n - 1) * 30, where: `в «${seedCell.name}»` });
+    ARINAR_BOSSES.push({ ...b, key: `${b.type}@${P.idx}`, x: P.x, y: P.y, firstAfter: b.firstAfter + (n - 1) * 30, stagger: (n - 1) * 30, where: `в «${seedCell.name}»` });
   }
 }
 export function patchOf(kind: string, near = ARINAR_HUB) {

@@ -6,7 +6,7 @@
 // телеграфируемых атак по фазам (60% / 30% ХП): круги, линии, кольцо, «волна» вокруг, призыв, ярость.
 import { ZONE_MOBS, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
-import { ZONE_GEN, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
+import { ZONE_GEN, BOSS_TIMERS, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
 import { WORLD_CHUNK } from "../worlds/sizes";
 
 // Навыки боссов и проклятых (ids — базы навыков бестиария). Обычный босс — ровно 1 навык, проклятый — 2–5.
@@ -38,7 +38,9 @@ export interface ZMob { id: number; type: string; respawn: number; sx: number; s
   // раунд Аринара: проклятый (10%), навыки и их кд, «сброс» поводка, рывок агрессии, лагерь
   cursed: boolean; skills: string[]; skCd: Record<string, number>; reset: boolean; burstUntil: number; camp: number; leapCd: number; shieldUntil: number;
   // бой моб↔моб (кочевники и враждебные фракции): цель-моб, время следующего осмотра; маршрут кочевника
-  mobTarget: number; scanAt: number; roam: { pts: [number, number][]; i: number; home: [number, number]; waitUntil: number } | null }
+  mobTarget: number; scanAt: number; roam: { pts: [number, number][]; i: number; home: [number, number]; waitUntil: number } | null;
+  // бродячий моб (ambient): sid игрока-«хозяина», охота до huntUntil, множитель респавна лагеря (rk × campRespawn — живая правка)
+  ambient?: string; huntUntil?: number; bornAt?: number; rk?: number }
 export interface ZNode { id: number; type: string; res: string; respawn: number; x: number; y: number; readyAt: number; qty: [number, number] }
 export interface ZPlayer { sid: string; x: number; y: number; hp: number; maxHp: number; armorRed: number; alive: boolean; respawnAt: number }
 
@@ -214,7 +216,7 @@ export class Zone {
           for (const [i, p] of this.formation(n, R).entries()) {
             const [qx, qy] = spot(px + p[0] * 0.7, py + p[1] * 0.7);
             const m = this.addMob(types[i], qx, qy, { fixed: true, respawn: G.campRespawn, region: reg.id, elite: R() < reg.elite });
-            m.camp = camp.id; camp.types.push(types[i]);
+            m.rk = 1; m.camp = camp.id; camp.types.push(types[i]);
           }
         }
         // вожак: самый сильный вид региона, элита, ×chiefHp ОЗ, ×chiefDmg урон; в части лагерей — двое
@@ -223,7 +225,7 @@ export class Zone {
         for (let c = 0; c < nChief; c++) {
           const [qx, qy] = spot(x + (nChief > 1 ? (c ? 26 : -26) : 0), y);
           const m = this.addMob(strong, qx, qy, { fixed: true, respawn: G.campRespawn * 2, region: reg.id, elite: true });
-          m.chief = true; m.camp = camp.id; m.maxHp = m.hp = this.hpOf(m, 1); camp.types.push(strong); camp.chiefs++;
+          m.chief = true; m.rk = 2; m.camp = camp.id; m.maxHp = m.hp = this.hpOf(m, 1); camp.types.push(strong); camp.chiefs++;
         }
       }
     }
@@ -274,7 +276,7 @@ export class Zone {
         const k = Math.min(quota, R() < 0.55 ? 1 : 2);
         for (let i = 0; i < k; i++) {
           const m = this.addMob(row.type, pts[0][0] + i * 28, pts[0][1] + i * 18, { fixed: true, respawn: G.campRespawn * 1.5, region: reg.id, elite: R() < reg.elite });
-          m.roam = { pts, i: 1, home: [m.x, m.y], waitUntil: 0 };
+          m.roam = { pts, i: 1, home: [m.x, m.y], waitUntil: 0 }; m.rk = 1.5;
           this.stats.roamers++;
         }
         quota -= k;
@@ -388,13 +390,72 @@ export class Zone {
     return m;
   }
 
+
+  // ---------- бродячие мобы у игрока (Аринар): добавка к лагерям, чтобы между ними не было пусто ----------
+  ambNext = new Map<string, number>();
+  ambStats = { checks: 0, singles: 0, groups: 0, despawned: 0 };
+  regionAt(x: number, y: number): Region | null {
+    let best: Region | null = null;
+    for (const r of this.gen.regions) if (r.table.length && x >= r.rect[0] && x <= r.rect[2] && y >= r.rect[1] && y <= r.rect[3]) { if (!best || (r.rect[2] - r.rect[0]) < (best.rect[2] - best.rect[0])) best = r; }
+    return best;
+  }
+  ambient(now: number, players: Map<string, ZPlayer>) {
+    const G = ZONE_GEN;
+    // уход: хозяин вышел/далеко, или без боя дольше ambientLife — исчезает (не копится, не фармится «вагонами»)
+    const own = new Map<string, number>();
+    for (const m of this.mobs) {
+      if (!m.ambient || m.dead) continue;
+      const p = players.get(m.ambient);
+      const far = !p || Math.hypot(p.x - m.x, p.y - m.y) > G.ambientDespawnDist;
+      const idle = !m.targetSid && now - (m.bornAt || now) > G.ambientLife * 1000;
+      if ((far && !m.targetSid) || idle || (far && now - (m.bornAt || now) > G.ambientLife * 3000)) { m.dead = true; m.respawnAt = -1; this.ambStats.despawned++; continue; }
+      own.set(m.ambient, (own.get(m.ambient) || 0) + 1);
+    }
+    if (!G.ambientOn) return;
+    for (const p of players.values()) {
+      if (!p.alive) continue;
+      const due = this.ambNext.get(p.sid);
+      if (due === undefined) { this.ambNext.set(p.sid, now + G.ambientEvery * 1000); continue; }
+      if (now < due) continue;
+      this.ambNext.set(p.sid, now + Math.max(2, G.ambientEvery) * 1000);
+      this.ambStats.checks++;
+      if ((own.get(p.sid) || 0) >= G.ambientCap || inSafe(p.x, p.y, 200, this.world)) continue;
+      if (this.near(p.x, p.y, G.ambientNear).some((m) => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) < G.ambientNear)) continue;
+      const roll = this.rand() * 100;
+      const group = roll < G.ambientGroupChance, single = !group && roll < G.ambientGroupChance + G.ambientChance;
+      if (!group && !single) continue;
+      const reg = this.regionAt(p.x, p.y); if (!reg) continue;
+      const rows = reg.table.filter((r) => { const d = ZONE_MOBS[r.type]; return d && !d.boss && d.size !== "boss" && d.size !== "huge"; });
+      if (!rows.length) continue;
+      let tw = rows.reduce((a, b) => a + b.w, 0) * this.rand(), row = rows[0];
+      for (const r of rows) { tw -= r.w; if (tw <= 0) { row = r; break; } }
+      let pos: [number, number] | null = null;
+      for (let t = 0; t < 10 && !pos; t++) {
+        const a = this.rand() * Math.PI * 2, x = this.clamp(p.x + Math.cos(a) * G.ambientEdge), y = this.clamp(p.y + Math.sin(a) * G.ambientEdge);
+        if (!inSafe(x, y, 60, this.world) && Math.hypot(x - p.x, y - p.y) > G.ambientEdge * 0.7) pos = [x, y];
+      }
+      if (!pos) continue;
+      const n = group ? Math.min(G.ambientCap - (own.get(p.sid) || 0), Math.max(1, Math.round(G.ambientGroup)) + 1) : 1;
+      for (let i = 0; i < n; i++) {
+        const a = this.rand() * Math.PI * 2, rr = i ? 22 + this.rand() * 30 : 0;
+        const elite = group && i === 0;
+        const m = this.addMob(row.type, this.clamp(pos[0] + Math.cos(a) * rr), this.clamp(pos[1] + Math.sin(a) * rr), { region: null, elite });
+        m.ambient = p.sid; m.bornAt = now; m.huntUntil = now + G.ambientHunt * 1000; m.targetSid = p.sid; m.burstUntil = now + 1200;
+        this.stats.spawned++;
+      }
+      own.set(p.sid, (own.get(p.sid) || 0) + n);
+      if (group) this.ambStats.groups++; else this.ambStats.singles++;
+    }
+    for (const sid of this.ambNext.keys()) if (!players.has(sid)) this.ambNext.delete(sid);
+  }
+
   // ---------- мировые боссы и редкие Отголоски ----------
   specials(now: number, players: Map<string, ZPlayer>) {
     const G = this.gen;
     const scale = Math.max(1, Math.min(4, players.size));
     for (const b of G.bosses) {
       const bk = b.key || b.type; // несколько боссов одного типа в разных пятнах — свои таймеры
-      if (!this.bossAt[bk]) this.bossAt[bk] = now + b.firstAfter * 1000;
+      if (!this.bossAt[bk]) this.bossAt[bk] = now + (BOSS_TIMERS[b.type] ? BOSS_TIMERS[b.type].firstAfter + ((b as any).stagger || 0) : b.firstAfter) * 1000; // таймер — из админки
       if (this.bossIds[bk] || now < this.bossAt[bk]) continue;
       const m = this.addMob(b.type, b.x, b.y, { region: null, hpMul: 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1), special: "boss" });
       (m as any).bossKey = bk; this.bossIds[bk] = m.id; this.bossAt[bk] = Number.MAX_SAFE_INTEGER;
@@ -609,7 +670,7 @@ export class Zone {
           if (m.special === "boss") {
             const bk = (m as any).bossKey || m.type;
             const b = this.gen.bosses.find((x) => (x.key || x.type) === bk);
-            delete this.bossIds[bk]; this.bossAt[bk] = now + (b?.every || 600) * 1000;
+            delete this.bossIds[bk]; this.bossAt[bk] = now + ((b && BOSS_TIMERS[b.type]?.every) || b?.every || 600) * 1000; // таймер — из админки
           }
           if (m.special === "rare" && this.rareIds[m.type] === m.id) {
             const r = this.gen.rares.find((x) => x.type === m.type)!;
@@ -621,7 +682,7 @@ export class Zone {
       }
       this.dirAcc += dt;
       if (this.dirAcc >= ZONE_GEN.directorEvery) {
-        if (this.gen.camps) { if ([...players.values()].some((p) => p.alive)) this.specials(now, players); } // лагеря вместо режиссёра
+        if (this.gen.camps) { if ([...players.values()].some((p) => p.alive)) this.specials(now, players); this.ambient(now, players); } // лагеря вместо режиссёра + бродячие
         else this.director(this.dirAcc, now, players);
         this.dirAcc = 0;
       }
@@ -684,7 +745,7 @@ export class Zone {
       }
       const aggro = d.aggro * (m.special ? 1.2 : 1) * (m.cursed ? 1.25 : 1);
       let best: ZPlayer | null = null, bd = aggro;
-      if (m.targetSid) { const t = players.get(m.targetSid); if (t && t.alive) { const dd = Math.hypot(t.x - m.x, t.y - m.y); if (dd < aggro * (m.special ? 2.6 : 1.8)) { best = t; bd = dd; } } }
+      if (m.targetSid) { const t = players.get(m.targetSid); if (t && t.alive) { const dd = Math.hypot(t.x - m.x, t.y - m.y); if (dd < aggro * (m.special ? 2.6 : 1.8) || (m.huntUntil && now < m.huntUntil && dd < ZONE_GEN.ambientDespawnDist)) { best = t; bd = dd; } } }
       if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
       const fresh = !m.targetSid && best;
       m.targetSid = best ? best.sid : null;
@@ -853,7 +914,7 @@ export class Zone {
   }
   kill(m: ZMob, onKill: (m: ZMob) => void) {
     m.dead = true; m.hp = 0; m.windup = 0; m.dashT = 0; m.dot = null; m.casts = [];
-    m.respawnAt = Date.now() + m.respawn * 1000;
+    m.respawnAt = Date.now() + (m.rk ? ZONE_GEN.campRespawn * m.rk : m.respawn) * 1000; // лагеря — живая правка админки
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
     if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}» повержен!`, color: "#fde68a" });
     onKill(m);
