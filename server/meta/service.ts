@@ -10,6 +10,8 @@ import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests } from "./quests";
+import { ExploreStore } from "./exploreDb";
+import { FOG_WORLDS } from "./explore";
 import {
   heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -89,12 +91,14 @@ export class MetaService {
   roles: Roles;
   duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
+  explore: ExploreStore;
   constructor(sql: any, env: any) {
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
     this.pvp = new Pvp(this);
     this.social = new Social(this, env?.GAME_DB);
     this.roles = new Roles(env?.GAME_DB);
+    this.explore = new ExploreStore(env?.GAME_DB);
     this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
@@ -833,6 +837,7 @@ export class MetaService {
       const w = s.world || "hellfire";
       if (byWorld[w] && !s.runRoom && !s.inDuel) {
         ms.zp.x = s.x; ms.zp.y = s.y;
+        this.fogTick(ws, s, ms, w, now);
         if (!ms.zp.alive && now >= ms.zp.respawnAt) {
           ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp;
           const rp = genOf(w).respawn;
@@ -895,12 +900,35 @@ export class MetaService {
     }
   }
 
+  // туман войны: открываем по серверной позиции; клиенту — полная маска при смене героя/мира, дальше дельты раз в секунду
+  fogTick(ws: WebSocket, s: any, ms: any, w: string, now: number) {
+    const cls = s.stats?.classId;
+    if (!cls) return;
+    const key = cls + "|" + w;
+    if (ms.fogKey !== key) {
+      ms.fogKey = key; ms.fogAt = now;
+      if (!FOG_WORLDS.includes(w)) { this.send(ws, { type: "fog", world: w, none: true }); return; }
+      this.explore.visit(ms.pkey, cls, w, s.x, s.y);
+      this.explore.full(ms.pkey, cls, w).then((f) => { if (ms.fogKey === key) this.send(ws, { type: "fog", ...f, hero: cls }); }).catch((e) => console.error("[mc] fog", e?.message || e));
+      return;
+    }
+    if (!FOG_WORLDS.includes(w)) return;
+    this.explore.visit(ms.pkey, cls, w, s.x, s.y);
+    if (now - (ms.fogAt || 0) >= 1000) {
+      ms.fogAt = now;
+      const add = this.explore.takePending(ms.pkey, cls, w);
+      if (add.length) this.send(ws, { type: "fog_add", world: w, c: add });
+      this.explore.save(ms.pkey, cls, w).catch(() => {});
+    }
+  }
+
   onClose(session: any) {
     this.pvpGone(session);
     const ms = this.ms.get(session?.id);
     if (!ms) return;
     this.save(session);
     this.ms.delete(session.id);
+    if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.explore.flushKey(ms.pkey).catch(() => {});
     // выгружаем кэш, если других сессий с этим ключом нет
     if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.store.evict(ms.pkey, () => [...this.ms.values()].some((x) => x.pkey === ms.pkey)).catch((e) => console.error("[mc] evict", e?.message || e));
   }
