@@ -20,4 +20,12 @@ ok(Object.values(r.hidden).some((n) => n > 0), "оружие этого типа
 applyOverride("weapon", t, null); for (const w of [w1, w2]) applyOverride("item", w.id, null);
 const b: any = newAccount(); r = codexBound(b, new Set());
 ok(!Object.keys(r.bound).length, "ничего не открыто — имён нет");
+// навык из админки (любой навык игры) — карточка Кодекса по своему id
+{ const c: any = newAccount(); const w = W[5]; applyOverride("item", w.id, validatePatch("item", w.id, { rs: "fly_blades" }) as any);
+  c.disc.items[w.id] = { st: 0, v: 1 }; c.inv.push({ uid: "x1", id: w.id }); let q = codexBound(c, new Set(["x1"]));
+  ok(q.bound["rs:fly_blades"]?.[0]?.name === w.name && q.bound["rs:fly_blades"][0].eq, "«Летучие клинки» из админки: закреплён за открытым надетым оружием");
+  applyOverride("item", w.id, validatePatch("item", w.id, { rs: "ab:meteor" }) as any); q = codexBound(c, new Set());
+  ok(q.bound["meteor"]?.[0]?.name === w.name, "навык героя в слоте R → карточка героя «Метеор»");
+  ok(typeof validatePatch("item", w.id, { rs: "ab:nope" }) === "string", "неизвестный навык отклонён");
+  applyOverride("item", w.id, null); }
 console.log(f ? `FAILED ${f}` : "codex-bound ok"); if (f) process.exit(1);

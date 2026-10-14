@@ -687,3 +687,4 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-party-ask .b { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
 
 .mc-rskill .bound{color:#7fd88a;display:block}
+.mc-rskill .bound .eq{color:#fde68a;font-style:italic}

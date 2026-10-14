@@ -1,3 +1,4 @@
+import { isRs, rsCodexId } from "./rsAny";
 // Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
 // Хранение — store.ts (D1 — источник истины, сквозная запись из DO; фолбэк — SQLite DO, схема ниже).
 // Таблицы (миграции идемпотентны, применяются при старте объекта):
@@ -325,8 +326,8 @@ export function rollRunSkill(a: Account, it: InvItem, kind: "mob" | "rare" | "bo
 /** Действующий навык R экземпляра оружия и откуда он: правка предмета в админке > правка типа оружия > выпавший. */
 export function effSkill(inst: { id: string; rs?: string | null }): { rs: string; src: "item" | "type" | "drop" } | null {
   const d: any = (ITEM_BY_ID as any)[inst.id]; if (!d || d.slot !== "weapon") return null;
-  if (d.rs && RUN_SKILL_BY_ID[d.rs]) return { rs: d.rs, src: "item" };
-  const t = (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs; if (t && RUN_SKILL_BY_ID[t]) return { rs: t, src: "type" };
+  if (d.rs && isRs(d.rs)) return { rs: d.rs, src: "item" };
+  const t = (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs; if (t && isRs(t)) return { rs: t, src: "type" };
   return inst.rs && RUN_SKILL_BY_ID[inst.rs] ? { rs: inst.rs, src: "drop" } : null;
 }
 /** Кодекс «закреплён за»: все виды оружия с этим действующим навыком; открытые в Библиотеке — по имени, закрытые — счётчиком. */
@@ -337,7 +338,7 @@ export function codexBound(a: Account, eqUids: Set<string>) {
       const mine = a.inv.filter((i) => i.id === d.id);
       const pairs = fixed ? [{ rs: fixed.rs, src: fixed.src, eq: mine.some((i) => eqUids.has(i.uid)) }]
         : [...new Set(mine.map((i) => i.rs).filter((r) => r && RUN_SKILL_BY_ID[r!]))].map((rs) => ({ rs: rs!, src: "drop", eq: mine.some((i) => i.rs === rs && eqUids.has(i.uid)) }));
-      for (const q of pairs) { const k = "rs:" + q.rs;
+      for (const q of pairs) { const k = rsCodexId(q.rs);
         if (!disc) { hidden[k] = (hidden[k] || 0) + 1; continue; }
         (bound[k] = bound[k] || []).push({ name: d.name, eq: q.eq, src: q.src }); }
     }
@@ -348,8 +349,8 @@ export function weaponSkill(a: Account, h: Hero | null): string | null {
   const inst = a.inv.find((i) => i.uid === uid); if (!inst) return null;
   // навык из админки важнее выпавшего у экземпляра: сначала у предмета, затем у типа оружия
   const adm = (ITEM_BY_ID as any)[inst.id]?.rs || (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs;
-  const rs = adm && RUN_SKILL_BY_ID[adm] ? adm : inst.rs;
-  return rs && RUN_SKILL_BY_ID[rs] ? rs : null;
+  const rs = adm && isRs(adm) ? adm : inst.rs;
+  return rs && isRs(rs) ? rs : null;
 }
 // Снять отметку «новое» (сообщение mark_seen): только свои экземпляры/открытия, пачкой
 export function markSeen(a: Account, m: { inv?: string[]; items?: string[]; mobs?: string[]; feats?: string[] }): number {

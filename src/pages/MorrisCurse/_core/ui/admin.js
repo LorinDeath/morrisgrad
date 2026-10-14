@@ -158,9 +158,18 @@ export class AdminPanel {
       const val = v[f.path], ic = STAT_OF(f.path) ? statIcon(STAT_OF(f.path), 16) : '';
       let inp;
       if (f.t === 'bool') inp = `<input type="checkbox" data-p="${f.path}" ${val ? 'checked' : ''}>`;
+      else if (f.t === 'enum' && f.optl) { // список с названиями и группами (навык R — любой навык игры) + поиск
+        const groups = [...new Set(f.optl.map((o) => o.group))];
+        const opt = (o) => `<option ${o.id === (val ?? '') ? 'selected' : ''} value="${esc(o.id)}">${esc(o.name)}</option>`;
+        inp = `<span class="mc-adm-skpick"><input type="search" class="mc-adm-sksearch" placeholder="поиск навыка…" data-for="${f.path}">`
+          + `<select data-p="${f.path}"><option value="" ${!val ? 'selected' : ''}>— нет (как выпало)</option>${groups.map((g) => `<optgroup label="${esc(g)}">${f.optl.filter((o) => o.group === g).map(opt).join('')}</optgroup>`).join('')}</select></span>`;
+      }
       else if (f.t === 'enum') inp = `<select data-p="${f.path}">${f.opts.map((o) => `<option ${o === (val ?? '') ? 'selected' : ''} value="${o}">${o || '—'}</option>`).join('')}</select>`;
       else if (f.t === 'resmap') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>формат: soul_shard:2, iron:1 · пусто = ничего</small><input type="text" style="width:100%" list="mc-adm-res" data-rm="${f.path}" value="${esc(Object.entries(val || {}).map(([r, n]) => r + ':' + n).join(', '))}"><datalist id="mc-adm-res">${(this.cat.res || []).map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</datalist></div>`;
-      else if (f.t === 'skills') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>(до 5)</small><div class="chips">${this.cat.mobSkills.map((k) => `<label><input type="checkbox" data-sk="${k}" ${(val || []).includes(k) ? 'checked' : ''}>${k}</label>`).join('')}</div></div>`;
+      else if (f.t === 'skills') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>(до 5)</small><input type="search" class="mc-adm-chipsearch" placeholder="поиск навыка…">${(() => { // все навыки игры: по группам, русские названия
+          const L = f.optl || this.cat.mobSkills.map((k) => ({ id: k, name: k, group: 'Навыки' }));
+          return [...new Set(L.map((o) => o.group))].map((g) => `<div class="chips" data-g="${esc(g)}"><small class="mc-dim">${esc(g)}</small>${L.filter((o) => o.group === g).map((o) => `<label title="${esc(o.id)}"><input type="checkbox" data-sk="${esc(o.id)}" ${(val || []).includes(o.id) ? 'checked' : ''}>${esc(o.name)}</label>`).join('')}</div>`).join('');
+        })()}</div>`;
       else inp = `<input type="number" step="${f.t === 'int' ? 1 : 0.01}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="—">`;
       return `<label title="${f.path} · ${f.min ?? ''}…${f.max ?? ''}"><span>${ic}${esc(f.label)}</span>${inp}</label>`;
     };
@@ -178,6 +187,20 @@ export class AdminPanel {
       box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { this.traits.splice(+b.dataset.rm, 1); drawTraits(); }));
     };
     drawTraits();
+    sec.querySelectorAll('.mc-adm-chipsearch').forEach((q) => q.addEventListener('input', () => {
+      const t = q.value.trim().toLowerCase(), box = q.parentElement;
+      box.querySelectorAll('.chips').forEach((c) => { let any = false;
+        c.querySelectorAll('label').forEach((l) => { const hit = !t || l.textContent.toLowerCase().includes(t) || l.title.toLowerCase().includes(t) || l.querySelector('input').checked; l.hidden = !hit; any = any || hit; });
+        c.hidden = !any; });
+    }));
+    // поиск в списке навыков: скрывает неподходящие варианты (по названию и id), группы без совпадений — тоже
+    sec.querySelectorAll('.mc-adm-sksearch').forEach((q) => q.addEventListener('input', () => {
+      const sel = sec.querySelector(`select[data-p="${q.dataset.for}"]`), t = q.value.trim().toLowerCase();
+      sel.querySelectorAll('optgroup').forEach((g) => { let any = false;
+        g.querySelectorAll('option').forEach((o) => { const hit = !t || o.textContent.toLowerCase().includes(t) || o.value.toLowerCase().includes(t); o.hidden = !hit; any = any || hit; });
+        g.hidden = !any; });
+      const first = [...sel.querySelectorAll('optgroup:not([hidden]) option:not([hidden])')][0]; if (t && first && sel.selectedOptions[0]?.hidden) sel.value = first.value;
+    }));
     sec.querySelector('[data-addt]')?.addEventListener('click', () => { const k = sec.querySelector('.addk').value; const d = this.cat.traits[k]; this.traits.push({ k, ...Object.fromEntries(d.params.map((p) => [p.k, p.def])) }); drawTraits(); });
     if (kind === 'loot') this.bindLoot(sec, v);
     sec.querySelector('[data-save]').onclick = () => {

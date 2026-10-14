@@ -21,6 +21,7 @@ import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
 import { HubWorld } from './hub/hubWorld.js';
+import { rsInfo } from '../../../../server/meta/rsAny.ts';
 import { RunSession, LVL_INVULN } from './survivors/run.js';
 import { RunView } from './survivors/runView.js';
 import { RunArena } from './survivors/arena.js';
@@ -1053,7 +1054,7 @@ async function boot(canvasId, username, userId, api) {
     if (ad) { adx = ad.x; ady = ad.y; }
     else if (aim.touch || aim.cx == null) { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
     send({ type: 'zone_ability', id: 'rs', ...shotMsg({ x: adx, y: ady }, ad ? {} : { tx: null, ty: null }) });
-    overlay.toast(`${RUN_SKILL_BY_ID[rs]?.icon || '✦'} ${RUN_SKILL_BY_ID[rs]?.name || rs}`, '#fde68a');
+    overlay.toast(`${rsInfo(rs)?.icon || '✦'} ${rsInfo(rs)?.name || rs}`, '#fde68a');
   }
   function useAbility(slot) {
     if (mode === 'run') { input.abilitySlot = slot; return; }
@@ -1100,7 +1101,7 @@ async function boot(canvasId, username, userId, api) {
       const left = srv ? Math.max(0, (srv.until - now) / 1000) : 0;
       list.push({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: def.name || a.id, desc: def.desc, rad: a.rad || 0, cdLeft: left, cdTotal: srv ? srv.total / 1000 : a.cd, pending: zoneSt.abilPend[a.id] && now - zoneSt.abilPend[a.id] < 1500 });
     }
-    { const rs = meta.state?.weaponSkill; const R0 = rs && RUN_SKILL_BY_ID[rs]; const srv = rs && zoneSt.abilSrv['rs:' + rs];
+    { const rs = meta.state?.weaponSkill; const R0 = rs && rsInfo(rs); const srv = rs && zoneSt.abilSrv['rs:' + rs];
       list.push(rs ? { kind: 'rs', slot: 3, id: 'rs:' + rs, icon: R0?.icon, key: 'R', name: R0?.name || rs, desc: `Навык оружия. ${R0?.desc || ''}`, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0, cdTotal: srv ? srv.total / 1000 : 8 }
         : { kind: 'rs', slot: 3, key: 'R', name: 'Навык оружия', locked: true, lockText: 'наденьте оружие с навыком «Вампир-лайка» (редкий трофей открытого мира)' }); }
     list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок (Space / Shift)', cdLeft: dash.cd, cdTotal: DASH.cooldown });
@@ -1114,7 +1115,7 @@ async function boot(canvasId, username, userId, api) {
     const now = performance.now();
     const list = (meta.hero?.effective?.abilities || []).map((a) => { const srv = zoneSt.abilSrv[a.id]; return { id: a.id, rad: a.rad || 0, cd: srv ? srv.total / 1000 : a.cd, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0 }; });
     touch.setAbilities(list);
-    { const rs = meta.state?.weaponSkill; const srv = rs && zoneSt.abilSrv['rs:' + rs]; touch.setWeaponSkill(rs ? { icon: RUN_SKILL_BY_ID[rs]?.icon || '✦', cd: srv ? srv.total / 1000 : 8, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0 } : null); }
+    { const rs = meta.state?.weaponSkill; const srv = rs && zoneSt.abilSrv['rs:' + rs]; touch.setWeaponSkill(rs ? { icon: rsInfo(rs)?.icon || '✦', cd: srv ? srv.total / 1000 : 8, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0 } : null); }
   }
 
   function zoomBy(f) {

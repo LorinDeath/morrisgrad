@@ -43,6 +43,7 @@ export interface PvpHost {
   ally?(a: string, b: string): boolean; // члены одного отряда — не бьют друг друга
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null;
   effective(session: any): any;
+  rsAbilityOf?(session: any): any; // слот R (навык оружия — любой навык игры)
   send(ws: WebSocket, obj: any): void;
   displayName(session: any): string;
   recordDuel(d: Duel, winner: 0 | 1 | null, reason: string): Promise<void>;
@@ -333,11 +334,12 @@ export class Pvp {
     if (!c) return;
     if ((c.me.frozenUntil || 0) > Date.now()) return;
     const eff = this.host.effective(session);
-    const ab = eff.abilities.find((x: any) => x.id === msg.id);
+    let ab = eff.abilities.find((x: any) => x.id === msg.id);
+    if (!ab && msg.id === "rs") ab = this.host.rsAbilityOf?.(session);
     if (!ab) return;
-    const now = Date.now();
-    if ((c.me.abilCd[ab.id] || 0) > now) { this.host.send(ws, { type: "ability_cd", id: ab.id, left: c.me.abilCd[ab.id] - now, cd: ab.cd, ok: false }); return; }
-    c.me.abilCd[ab.id] = now + ab.cd * 1000;
+    const now = Date.now(), cdKey = ab.rsSlot ? "rs" : ab.id;
+    if ((c.me.abilCd[cdKey] || 0) > now) { this.host.send(ws, { type: "ability_cd", id: ab.id, left: c.me.abilCd[cdKey] - now, cd: ab.cd, ok: false }); return; }
+    c.me.abilCd[cdKey] = now + ab.cd * 1000;
     this.host.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
     const def = ABILITY_BY_ID[ab.id];
     const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
@@ -353,7 +355,7 @@ export class Pvp {
     const live = () => this.duels.has(d.id) && c.op.zp.hp > 0;
     const zone = { mobsAround: (x: number, y: number, r: number) => (live() && Math.hypot(c.os.x - x, c.os.y - y) <= r + HERO_R ? [opp] : []) };
     const S = W_ARENA;
-    const dealt = castShape(ab.id, {
+    const dealt = castShape(ab.cast || ab.id, {
       zone, sid: session.id, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult: (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods), props: ab.props, here: () => [session.x, session.y],
       hit: (_m, mult) => { if (!live()) return 0; const real = this.deal(c, session, dmg * mult, false, { lifestealPct: 0 }) || 0; this.traits(c, session, real, null, ab.id); return real; },
       status: (_m, st) => this.status(c, session, { slow: !!st.slow, knock: st.knock, freeze: st.freeze }), // навыки: замедление/отбрасывание/заморозка — как в мире

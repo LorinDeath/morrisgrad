@@ -31,6 +31,7 @@ import { Pvp, type Duel } from "./pvp";
 import { Social } from "./social";
 import { Roles } from "./roles";
 import { WEAPON_SKILL_CD } from "./abilityShapes";
+import { rsInfo, RS_DEF } from "./rsAny";
 import { castShape } from "./abilityShapes";
 import { worldBounds, OPEN_AOI } from "../worlds/sizes";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
@@ -566,9 +567,9 @@ export class MetaService {
     const lvlBy: Record<string, number> = {}; HERO_IDS.forEach((cls, i) => { const h = heroes[i]; if (h) lvlBy[cls] = h.lvl || 1; }); // навык героя открыт, когда уровень героя этого класса ≥ уровня открытия
     const mobSk = new Set<string>(); for (const id of Object.keys(a.bestiary)) for (const k of ((ZONE_MOBS as any)[id]?.skills || [])) mobSk.add(k);
     const codex = [
-      ...Object.values(ABILITY_BY_ID).map((d: any) => ({ id: d.id, kind: "hero", cls: d.cls, name: d.name, icon: d.icon, desc: d.desc, cd: d.cd, power: d.power, lvl: d.unlockLevel || 1, found: (lvlBy[d.cls] || 0) >= (d.unlockLevel || 1) })),
-      ...RUN_SKILLS.map((r) => ({ id: "rs:" + r.id, kind: "weapon", name: r.name, icon: r.icon, desc: r.desc, cd: WEAPON_SKILL_CD, found: (a.runSkills || []).includes(r.id) })),
-      ...Object.entries(MOB_SKILLS).map(([id, m]) => ({ id: "mob:" + id, kind: "mob", name: m.name, icon: "👹", desc: "Навык монстров и боссов", cd: m.cd, found: mobSk.has(id) })),
+      ...Object.values(ABILITY_BY_ID).map((d: any) => ({ id: d.id, kind: d.cls === "monster" ? "trophy" : "hero", cls: d.cls, name: d.name, icon: d.icon, desc: d.desc, cd: d.cd, power: d.power, lvl: d.unlockLevel || 1, found: d.cls === "monster" ? mobSk.has(d.id) : (lvlBy[d.cls] || 0) >= (d.unlockLevel || 1) })),
+      ...RUN_SKILLS.map((r) => ({ id: "rs:" + r.id, kind: "weapon", name: r.name, icon: r.icon, desc: r.desc, cd: RS_DEF["rs:" + r.id]?.cd ?? WEAPON_SKILL_CD, found: (a.runSkills || []).includes(r.id) })),
+      ...Object.entries(MOB_SKILLS).filter(([id]) => !id.startsWith("rs:")).map(([id, m]) => ({ id: "mob:" + id, kind: "mob", name: m.name, icon: "👹", desc: "Навык монстров и боссов", cd: m.cd, found: mobSk.has(id) })),
     ];
     // Карточки экземпляров: действующий навык оружия (с источником) и выход разбора — с правками админки
     const inv: Record<string, any> = {};
@@ -577,7 +578,8 @@ export class MetaService {
     // «Закреплён за»: ВСЕ виды оружия с этим действующим навыком (правка предмета > правка типа > выпавший у своих экземпляров),
     // но показаны только открытые в Библиотеке; закрытые — лишь счётчиком («???»)
     const { bound, hidden } = codexBound(a, eqUids);
-    for (const c of codex as any[]) { if (bound[c.id]) c.bound = bound[c.id].sort((x, y) => +y.eq - +x.eq || x.name.localeCompare(y.name)); if (hidden[c.id]) c.boundHidden = hidden[c.id]; }
+    // открытое оружие с этим навыком открывает и карточку навыка
+    for (const c of codex as any[]) { if (bound[c.id]?.length) c.found = true; if (bound[c.id]) c.bound = bound[c.id].sort((x, y) => +y.eq - +x.eq || x.name.localeCompare(y.name)); if (hidden[c.id]) c.boundHidden = hidden[c.id]; }
     return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats, codex, inv };
   }
 
@@ -900,6 +902,15 @@ export class MetaService {
     this.send(ws, { type: "inspect", id: opaqueId(pkey), sid: msg.sid || undefined, ...publicCharacter(name, cls, a, h, heroBase(cls)), duel, ...roleX });
   }
 
+  /** Слот R: любой навык игры (оружия, героя, монстров) — форма из общих abilityShapes, кд/сила — rsInfo. */
+  rsAbility(rs: string | null): any {
+    const I = rsInfo(rs); if (!I) return null;
+    return { id: "rs:" + rs, cast: I.castId, rsSlot: true, cd: I.cd, power: I.power, props: [] };
+  }
+  rsAbilityOf(session: any): any {
+    const ms = this.ms.get(session.id); const cls = session.stats?.classId; if (!ms || !cls) return null;
+    return this.rsAbility(weaponSkill(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls)));
+  }
   zoneAbility(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id)!;
     const zone = this.zoneOf(session);
@@ -910,12 +921,12 @@ export class MetaService {
     if (!ab && msg.id === "rs") {
       const cls = session.stats?.classId; const a0 = this.store.account(ms.pkey);
       const rs = cls ? weaponSkill(a0, this.store.hero(ms.pkey, cls)) : null;
-      if (rs) ab = { id: "rs:" + rs, cd: WEAPON_SKILL_CD, power: 1, props: [] };
+      ab = this.rsAbility(rs);
     }
     if (!ab) return;
     const now = Date.now();
     // подтверждение перезарядки для панели навыков клиента (сервер — источник правды)
-    const cdKey = ab.id.startsWith("rs:") ? "rs" : ab.id; // перезарядка слота R общая (смена оружия её не сбрасывает)
+    const cdKey = ab.rsSlot ? "rs" : ab.id; // перезарядка слота R общая (смена оружия её не сбрасывает)
     if ((ms.abilCd[cdKey] || 0) > now) { this.send(ws, { type: "ability_cd", id: ab.id, left: ms.abilCd[cdKey] - now, cd: ab.cd, ok: false }); return; }
     ms.abilCd[cdKey] = now + ab.cd * 1000;
     this.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
@@ -934,7 +945,7 @@ export class MetaService {
     if (Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }
     const world = session.world || "hellfire";
     const sid = session.id;
-    const dealt = castShape(ab.id, {
+    const dealt = castShape(ab.cast || ab.id, {
       zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult, props: ab.props, here: () => [session.x, session.y],
       fire: (o) => zone.fire({ ...o, o: "p", sid }), // настоящие снаряды навыков
       hit: (m, mult, opts) => {
