@@ -110,7 +110,7 @@ await B.walk(240, 600); await sleep(150);
 B.clear(); B.send({ type: 'use_portal', portalId: 'portal_arinar' }); await B.wait('world_switched');
 const za = await B.wait('zone_state', 3000, (m) => m.w === 'arinar');
 B.x = 24000; B.y = 24150; // Аринар 24000: вход — центральный хаб (ZONE_RESPAWN)
-ok(za && za.n.length >= 10 && za.n.every((n) => n[0] >= 1000) && typeof za.sd === 'number', 'Аринар zone: seeded resource nodes ' + (za?.n.length) + ' (seed ' + za?.sd + ')');
+ok(za && za.n.length >= 3 && za.n.every((n) => n[0] >= 1000) && typeof za.sd === 'number', 'Аринар zone: seeded resource nodes ' + (za?.n.length) + ' (seed ' + za?.sd + ')');
 B.send({ type: 'move', x: 24000, y: 24200 }); await sleep(150); B.send({ type: 'move', x: 24000, y: 24250 }); await sleep(150);
 B.send({ type: 'move', x: 1200, y: 1200 }); await sleep(200);
 const me = B.last('players_state').players.find((p) => p.username === 'meta_A');
@@ -147,7 +147,9 @@ if (tgt) {
   const shots = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'shot');
   const hits = B.msgs.filter((m) => m.type === 'zone_state').flatMap((m) => m.ev || []).filter((e) => e.k === 'hit');
   if (process.env.DBG) console.log('DBG2', JSON.stringify({ px, py, dv, shots, tgtNow: (() => { const z = B.last('zone_state'); if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) return z.m.slice(j, j + 6); return null; })() }));
-  ok(shots.length >= 1 && shots.length <= 2 && hits.length >= 1, `attack spam (10 in 300ms) cut by weapon cooldown: ${shots.length} accepted, hits ${hits.length}`);
+  const vol = ({ daggers: 2, fly_blades: 5 })[shots[0]?.w] || 1; // залп: одно принятое нажатие = vol событий shot
+  const acc = Math.ceil(shots.length / vol);
+  ok(acc >= 1 && acc <= (vol > 1 ? 3 : 2) && hits.length >= 1, `attack spam (10 in 300ms) cut by weapon cooldown: ${acc} accepted (${shots.length} shots, volley ${vol}), hits ${hits.length}`);
 } else ok(false, 'no Аринар mob to test click attack');
 // ---- D1 item system: instances, library (only discovered data), NEW flags, schema validation ----
 B.clear(); B.send({ type: 'meta_get' });

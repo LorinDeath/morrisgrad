@@ -1406,10 +1406,10 @@ async function boot(canvasId, username, userId, api) {
     zoneSt.lastAtk = now;
     send({ type: 'zone_attack', dx: Math.round(dir.x * 1000) / 1000, dy: Math.round(dir.y * 1000) / 1000 });
     // залп (кинжалы ×2, лапки-лезвия ×5) — та же раскладка направлений, что на сервере (shared.volleyDirs)
-    let anyHit = false;
+    let anyHit = false; zoneSt.lastVolley = 0;
     for (const [vx, vy] of volleyDirs((WEAPON_TYPES[wt] || WEAPON_TYPES.book).atk, dir.x, dir.y)) {
       const pred = zone.aimTargets(player.x, player.y, vx, vy, wt);
-      const first = pred.list[0]; if (first) anyHit = true;
+      const first = pred.list[0]; if (first) anyHit = true; zoneSt.lastVolley++;
       const reach = pred.atk.kind === 'arc' ? pred.atk.range * 0.8 : pred.atk.range;
       if (first && pred.atk.kind === 'proj') zone.shoot(player.x, player.y, first.id, wt);
       else zone.shoot(player.x, player.y, null, wt, player.x + vx * reach, player.y + vy * reach);
@@ -1496,7 +1496,9 @@ async function boot(canvasId, username, userId, api) {
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed }),
       target: () => hud.currentTarget,
-      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, cursed: !!m.cursed, elite: !!m.elite })),
+      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, cursed: !!m.cursed, elite: !!m.elite })),
+      abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
+      bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
       biomeVars: () => ({ biome: document.documentElement.dataset.biome || '', col: getComputedStyle(document.documentElement).getPropertyValue('--mc-biome').trim() }),
