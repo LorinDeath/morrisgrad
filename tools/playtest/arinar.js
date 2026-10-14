@@ -147,7 +147,7 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
   const M = await open('ArM', true);
   await G(M, () => window.__game.debug.selectClass('mage')); await M.waitForTimeout(2500);
   await toArinar(M);
-  await G(M, () => window.__game.debug.tp(22800, 32400));
+  await G(M, () => window.__game.debug.tp(19677, 29480)); // у лагеря ледяного пятна
   await M.waitForTimeout(6000);
   await M.screenshot({ path: `${OUT}/arinar-10-mobile-ice.png` });
   ch = await G(M, () => window.__game.debug.chunks());

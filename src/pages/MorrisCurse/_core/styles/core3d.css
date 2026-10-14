@@ -615,3 +615,7 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
   border-color: color-mix(in srgb, var(--mc-biome) 45%, #78350f);
   box-shadow: 0 0 10px color-mix(in srgb, var(--mc-biome) 30%, transparent);
 }
+/* узкие низкие телефоны: верхняя строка забега — левее колонки кнопок справа (не перекрывать 📖) */
+@media (max-height: 680px) and (max-width: 420px) {
+  .mc-touch .mc3d-top { right: calc(var(--sr) + 74px); }
+}
