@@ -26,6 +26,7 @@ export interface QuestDef {
   requires?: string[];
   requiresStars?: { npc: string; color: string; count: number };
   auto?: boolean; // сдаётся автоматически (пролог)
+  track?: boolean; // отслеживание целей-мобов (подсветка на карте/мини-карте + компас); false — выключено в админке
   objectives: Objective[];
   rewards: { xp?: number; stars?: Record<string, number>; items?: string[]; res?: Record<string, number>; flag?: string };
   offer: string[]; progress: string; done: string[];

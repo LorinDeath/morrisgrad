@@ -613,6 +613,7 @@ async function boot(canvasId, username, userId, api) {
   meta.on(() => updateBookBadge());
   net.on('zone_state', (d) => {
     if (Array.isArray(d.wb)) setBossState(d.wb);
+    if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
     for (const e of d.ev || []) if (e.k === 'hit' && e.by === myId && e.d > 0) dpsMeter.add(e.d); // мировые боссы: жив / таймер — на карте и мини-карте
     if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
     if (mode !== 'hub') return;
@@ -1362,7 +1363,7 @@ async function boot(canvasId, username, userId, api) {
       updateTargetChip();
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
-        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS,
+        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
         zoneMe: mode === 'hub' && meta.hero ? zone.me : null, eff: meta.hero?.effective || null, heroName: meta.hero ? meta.heroName(player.stats.classId) : null, dps: dpsMeter.stats(),
       });
@@ -1536,7 +1537,8 @@ async function boot(canvasId, username, userId, api) {
       touch.setInteractHighlight(!!(npc || node || np || nf));
     }
     overlay.setPrompt(promptText);
-    tracker.update({ world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
+    tracker.update({ mobs: mode === 'hub' ? zone.mobs : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
+    zone.trackTypes = tracker.trackTypes; // подсветка мобов-целей квеста на экране
     refreshAbilityButtons();
   }
 
@@ -1666,6 +1668,9 @@ async function boot(canvasId, username, userId, api) {
       selectMobId: (id) => { const o = zone.mobs.get(id); if (o) selectMob(o); return !!o; },
       mobsNear: (r = 500) => [...zone.mobs.values()].filter((o) => !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < r).map((o) => ({ id: o.id, x: o.x, y: o.y, type: o.type })),
       dps: () => dpsMeter.stats(),
+      track: () => ({ target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
+      forceQuest: (id) => { meta.trackedQuest = () => id; },
+      campsRaw: () => zone.camps,
       bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),

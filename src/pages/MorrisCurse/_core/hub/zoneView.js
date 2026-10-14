@@ -1,3 +1,4 @@
+import { baseOf } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
 // одним батчем. Атака/навыки/сбор — запросы к серверу; урон, лут, респавн решает сервер.
@@ -353,6 +354,7 @@ export class ZoneView {
     for (const b of this.bags.values()) if (nr < 64) { const R = 0.9 + Math.sin(T * 4 + b.id) * 0.08; put(this.ring, nr++, toX(b.x), toZ(b.y), R, R, 0, 1, 0.85, 0.25); } // мешок — золотое кольцо
     for (const o of this.mobs.values()) {
       if (o.id === this.selected && nr < 64) { const R = Math.max(0.85, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2 * mobScale(o)) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
+      if (this.trackTypes?.size && nr < 64 && (this.trackTypes.has(o.type) || this.trackTypes.has(baseOf(o.type)))) { const R = 1.15 * mobScale(o) + Math.sin(T * 5 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.3, 1, 0.45); } // цель квеста (отслеживание) — зелёное кольцо
       if (o.cursed && nr < 64) { const R = 1.6 * mobScale(o) + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }
       if (ZONE_MOBS[o.type]?.boss && nr < 64) { const R = 2.4 * MOB_VIS * 1.35 + Math.sin(T * 4) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.8, 0.4, 1); }
       else if (o.chief && nr < 64) { const R = 1.9 * MOB_VIS * 1.6 / 1.45 + Math.sin(T * 3 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.55, 0.1); } // вожак лагеря — крупнее, золотое кольцо

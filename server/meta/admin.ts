@@ -78,7 +78,8 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
   const offer = lines(q.offer, 6), done = lines(q.done, 6);
   if (!offer.length || !done.length) return "нужны реплики «предложение» и «сдача»";
   return { id, npc: q.npc, turnin: q.turnin || undefined, campaign: "custom", custom: true, title, chapter: STR(q.chapter, 80) || "Поручения", minLevel, requires,
-    objectives, rewards, offer, progress: STR(q.progress, 300) || "…", done, lore: STR(q.lore, 2000) || undefined, hint: STR(q.hint, 200) || undefined };
+    objectives, rewards, offer, progress: STR(q.progress, 300) || "…", done, lore: STR(q.lore, 2000) || undefined, hint: STR(q.hint, 200) || undefined,
+    track: q.track === false || q.track === "0" ? false : true }; // отслеживание целей (мобы на карте + компас)
 }
 
 /** черты (RPG Maker MZ-подобные эффекты) при попадании игрока: оружие + надетые предметы + навык */

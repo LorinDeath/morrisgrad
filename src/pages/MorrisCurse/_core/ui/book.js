@@ -195,12 +195,13 @@ export class Book {
         const have = Math.min(need, p[i] || 0);
         return `<li class="${have >= need ? 'ok' : ''}">${esc(o.text)}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
       }).join('');
-      const npc = NPCS[q.npc];
+      const npc = NPCS[q.turnin || q.npc], other = !!q.turnin && q.turnin !== q.npc; // сдача может быть другому NPC
       return `<div class="mc-quest ${complete ? 'done' : ''}">
         <div class="t">${q.star ? star(q.star) + ' ' : ''}${esc(q.title)} <small>${esc(q.chapter || CAMPAIGN_NAMES[q.campaign] || '')}</small></div>
         <ul>${objs}</ul>
         ${q.hint && !complete ? `<div class="h">💡 ${esc(q.hint)}</div>` : ''}
-        ${complete ? (q.auto ? '<div class="h ok">✔ Выполнено</div>' : `<div class="h ok">✔ Сдайте: ${esc(npc?.name || '')} <button class="mc-btn" data-act="turnin" data-v="${id}">Сдать</button></div>`) : ''}
+        ${!complete && other ? `<div class="h">↪ Сдавать: ${esc(npc?.name || '')} (не тот, кто выдал)</div>` : ''}
+        ${complete ? (q.auto ? '<div class="h ok">✔ Выполнено</div>' : `<div class="h ok">✔ Сдайте: ${esc(npc?.name || '')}${other ? ` <small>(не ${esc(NPCS[q.npc]?.name || '')} — другой NPC)</small>` : ''} <button class="mc-btn" data-act="turnin" data-v="${id}">Сдать</button></div>`) : ''}
         ${this.rewardsLine(q)}
       </div>`;
     };

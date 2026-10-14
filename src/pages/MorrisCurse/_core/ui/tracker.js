@@ -1,6 +1,9 @@
 // Трекер задания (всегда виден): цель, прогресс, подсказка и стрелка-направление к цели.
 // Плюс пошаговое обучение для новичка — игрок всегда понимает, что делать дальше.
-import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
+import { QUEST_BY_ID, turninNpc } from '../../../../../server/meta/quests.ts';
+import { NPCS } from '../../../../../server/meta/shared.ts';
+import { baseOf } from '../../../../../server/meta/biomes.ts';
+import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
 import { esc } from './overlay.js';
 
 const TUT_KEY = 'mc-tut-v2';
@@ -52,6 +55,7 @@ export class QuestTracker {
     const q = qid && QUEST_BY_ID[qid];
     let html = '';
     this.target = null;
+    this.trackTypes = new Set(); // типы мобов-целей (подсветка на экране/мини-карте + компас), если отслеживание не выключено в админке
     if (q && st) {
       const p = st.account.quests.active[qid]?.p || [];
       const complete = st.complete.includes(qid);
@@ -59,8 +63,19 @@ export class QuestTracker {
         const need = o.count || 1, have = Math.min(need, p[i] || 0);
         return `<li class="${have >= need ? 'ok' : ''}">${esc(o.text)}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
       }).join('');
-      html = `<div class="t">${complete ? '✔ ' : '◆ '}${esc(q.title)}</div><ul>${complete && !q.auto ? `<li class="ok">Вернитесь: ${esc(this.meta.questTarget(qid)?.label || '')}</li>` : obj}</ul>`;
+      const tn = turninNpc(q), other = tn !== q.npc;
+      // сдача другому NPC — подсказка говорит об этом явно (и в процессе, и после выполнения)
+      const turnTxt = other ? `Сдать: ${esc(NPCS[tn]?.name || tn)} (не ${esc(NPCS[q.npc]?.name || q.npc)})` : '';
+      html = `<div class="t">${complete ? '✔ ' : '◆ '}${esc(q.title)}</div><ul>${complete && !q.auto ? `<li class="ok">${other ? turnTxt : `Вернитесь: ${esc(this.meta.questTarget(qid)?.label || '')}`}</li>` : obj + (other ? `<li class="turnin">↪ ${turnTxt}</li>` : '')}</ul>`;
       this.target = this.meta.questTarget(qid);
+      if (!complete && q.track !== false) q.objectives.forEach((o, i) => { if ((o.type === 'kill' || o.type === 'kill_boss') && o.mob && (p[i] || 0) < (o.count || 1)) this.trackTypes.add(o.mob); });
+      if (this.trackTypes.size) { // компас — к ближайшей видимой цели, иначе к ближайшему лагерю, где она водится
+        const isT = (t) => this.trackTypes.has(t) || this.trackTypes.has(baseOf(t));
+        let best = null, bd = Infinity;
+        for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: ZONE_MOBS[m.type]?.name || 'Цель', mob: 1 }; } }
+        if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
+        if (best) this.target = best;
+      }
     } else if (st) {
       const av = (st.available || [])[0];
       if (av) {

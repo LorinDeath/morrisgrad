@@ -1,7 +1,7 @@
 // Клиент мета-прогрессии: хранит последний снимок профиля с сервера (meta_state) и шлёт запросы.
 // Всё решает сервер (server/meta/*): клиент лишь показывает и просит.
 import { patchOf } from '../../../../../server/meta/zoneGen.ts';
-import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
+import { QUEST_BY_ID, turninNpc } from '../../../../../server/meta/quests.ts';
 import { NPCS, HERO_NAMES } from '../../../../../server/meta/shared.ts';
 import { addCards } from './itemCards.js';
 
@@ -49,10 +49,12 @@ export class MetaClient {
     const q = QUEST_BY_ID[qid];
     if (!q) return null;
     const complete = this.state.complete.includes(qid);
-    if (complete || q.objectives.some((o) => o.type === 'talk')) {
-      const n = NPCS[q.npc];
-      if (n) return { world: n.world, x: n.x, y: n.y, label: n.name };
+    if (complete) { // сдавать — NPC сдачи (может отличаться от выдавшего)
+      const n = NPCS[turninNpc(q)];
+      if (n) return { world: n.world, x: n.x, y: n.y, label: n.name, other: turninNpc(q) !== q.npc };
     }
+    const talk = q.objectives.find((o) => o.type === 'talk');
+    if (talk) { const n = NPCS[talk.npc || q.npc]; if (n) return { world: n.world, x: n.x, y: n.y, label: n.name }; }
     return QUEST_WAYPOINTS[qid] || null;
   }
   heroName(cls) { return HERO_NAMES[cls] || 'Душа'; }

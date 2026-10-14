@@ -1,3 +1,4 @@
+import { baseOf as baseOfMob } from '../../../../server/meta/biomes.ts';
 import { WORLD_GEN } from '../../../../server/meta/zoneGen.ts';
 import { fog } from './map/fog.js';
 import { markersOf, MARKER_STYLE, bossStatus } from '../../../../server/meta/markers.ts';
@@ -160,7 +161,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {} }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null }) {
     if (!this.ctx || !this.canvas) return;
     const now = performance.now();
     if (now - (this._drawAt || 0) < 120) return;   // троттлинг перерисовки (~8 Гц)
@@ -309,6 +310,25 @@ export class Minimap {
       ctx.stroke();
     }
 
+    // 4a. Лагеря: круг = зона агро (радиус разброса пачки + агро самого «чуткого» моба); цвет — активность:
+    // бой — красный, спит — оранжевый, пусто (ждёт респавна) — серый пунктир; лагерь с целью квеста — зелёный контур
+    if (camps) {
+      const isT = (t) => track && (track.has(t) || track.has(baseOfMob(t)));
+      for (const c of camps) {
+        const x = cx + (c[1] - player.x) * scale, y = cy + (c[2] - player.y) * scale, r = Math.max(3, c[6] * scale);
+        if (x < -r || y < -r || x > w + r || y > h + r) continue;
+        this.stats.camps = (this.stats.camps || 0) + 1;
+        const st = c[5], tg = c[7]?.some(isT);
+        ctx.setLineDash(st === 2 ? [3, 3] : []);
+        ctx.fillStyle = st === 1 ? 'rgba(239,68,68,0.18)' : st === 0 ? 'rgba(251,146,60,0.12)' : 'rgba(148,163,184,0.06)';
+        ctx.strokeStyle = tg ? '#4ade80' : st === 1 ? '#ef4444' : st === 0 ? '#fb923c' : '#64748b';
+        ctx.lineWidth = tg ? 1.6 : 1;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = ctx.strokeStyle; ctx.font = '8px monospace'; ctx.textAlign = 'center';
+        if (r > 8) ctx.fillText(`⛺${c[3]}/${c[4]}`, x, y + 3);
+      }
+    }
     // 4b. Мобы открытого мира (все известные клиенту — зона присылает их по области видимости): обычные — красные точки,
     // элита — жёлтые, боссы — крупный пурпурный ромб с белым контуром
     if (mobs) {
@@ -323,6 +343,7 @@ export class Minimap {
         } else if (m.cursed) { ctx.fillStyle = '#a855f7'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else if (m.elite) { ctx.fillStyle = '#facc15'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else { ctx.fillStyle = '#ef4444'; ctx.fillRect(mx - 1.5, my - 1.5, 3, 3); }
+        if (track && (track.has(m.type) || track.has(baseOfMob(m.type)))) { this.stats.track = (this.stats.track || 0) + 1; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI * 2); ctx.stroke(); } // цель квеста
       }
     }
 

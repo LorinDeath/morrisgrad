@@ -1076,7 +1076,10 @@ export class MetaService {
         // логова мировых боссов (карта M и мини-карта): раз в 5 с и сразу при смене (клиент сам скрывает неразведанные)
         let wb: any;
         if (zone.gen.bosses.length) { const list = zone.bossStatus(now), sig = list.map((x) => x[0] + x[1]).join(); if (now - ((ms as any).wbAt || 0) > 5000 || (ms as any).wbSig !== sig) { wb = list; (ms as any).wbAt = now; (ms as any).wbSig = sig; } }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, fp, wb, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        // лагеря рядом (мини-карта: зоны агро и активность; трекер квеста: где искать цель) — раз в 2 с
+        let cp: any;
+        if (zone.camps.length && now - ((ms as any).cpAt || 0) > 2000) { (ms as any).cpAt = now; cp = zone.campSummary(now).filter((c: any) => Math.abs(c[1] - s.x) < 6000 && Math.abs(c[2] - s.y) < 6000); }
+        this.send(ws, { type: "zone_state", ...st, tg, bags, fp, wb, cp, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }
