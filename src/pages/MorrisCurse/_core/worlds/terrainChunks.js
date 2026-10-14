@@ -12,6 +12,7 @@ import tAir from '../../../../assets/mc/tiles_air.png';
 import propsSrc from '../../../../assets/mc/props_atlas.png';
 import propsMeta from '../../../../assets/mc/props_atlas.json';
 import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
+import { markersOf } from '../../../../../server/meta/markers.ts';
 import { NPCS, ZONE_RESPAWN } from '../../../../../server/meta/shared.ts';
 import { BIOMES } from '../../../../../server/meta/biomes.ts';
 import { worldSize, ARINAR_HUB } from '../../../../../server/worlds/sizes.ts';
@@ -142,7 +143,9 @@ export function layoutChunk(plan, ci, cj) {
   const extra = [];
   for (let a = 0; a < 12; a++) { const ang = (a / 12) * Math.PI * 2; extra.push({ k: 'pome_tree', x: c.x + Math.cos(ang) * (R0 + 70), y: c.y + Math.sin(ang) * (R0 + 70), s: 1.1, f: a % 2 === 0 }); extra.push({ k: 'violets', x: c.x + Math.cos(ang + 0.26) * (R0 + 30), y: c.y + Math.sin(ang + 0.26) * (R0 + 30), s: 1, f: false }); }
   for (let a = 0; a < 4; a++) { const ang = (a / 4) * Math.PI * 2 + Math.PI / 4; extra.push({ k: 'lantern', x: c.x + Math.cos(ang) * (R0 + 8), y: c.y + Math.sin(ang) * (R0 + 8), s: 1, f: false }); }
-  extra.push({ k: 'well', x: c.x + 150, y: c.y + 140, s: 1, f: false }, { k: 'signpost', x: c.x - 120, y: c.y - 160, s: 1, f: false });
+  extra.push({ k: 'well', x: c.x + 150, y: c.y + 140, s: 1, f: false });
+  // таблички — из реестра объектов карты (markers.ts): всё, что туда внесено, стоит и в мире, и на картах
+  for (const m of markersOf('arinar', 'sign')) extra.push({ k: 'signpost', x: m.x, y: m.y, s: 1, f: false });
   plan.portals.forEach((p) => extra.push({ k: 'torch', x: p.x - 50, y: p.y + 6, s: 1, f: false }, { k: 'torch', x: p.x + 50, y: p.y + 6, s: 1, f: true }));
   plan.npcs.forEach((p, idx) => extra.push({ k: idx % 2 ? 'crate' : 'barrel', x: p.x - 40, y: p.y - 14, s: 1, f: false }, { k: 'campfire', x: p.x + 42, y: p.y - 10, s: 1, f: false }));
   const x0 = i0 * CELL, y0 = j0 * CELL, x1 = x0 + CH * CELL, y1 = y0 + CH * CELL;

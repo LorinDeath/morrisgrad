@@ -785,10 +785,10 @@ export class Zone {
   state(px: number, py: number, ev: any[], aoi = 700) {
     const m: number[] = [];
     const now = Date.now();
-    for (const x of (this.gen.camps ? this.near(px, py, aoi * 1.6) : this.mobs)) {
+    for (const x of (this.gen.camps ? this.near(px, py, aoi * 1.15) : this.mobs)) {
       if (x.dead) continue;
       const far = Math.abs(x.x - px) > aoi || Math.abs(x.y - py) > aoi;
-      if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.6 && Math.abs(x.y - py) < aoi * 1.6)) continue; // боссов видно дальше
+      if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.15 && Math.abs(x.y - py) < aoi * 1.15)) continue; // боссов видно дальше
       const st = x.dot ? (x.dot.kind === "burn" ? 8 : x.dot.kind === "poison" ? 16 : 32) : 0;
       m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
         (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0));

@@ -14,3 +14,9 @@ export function worldBounds(world: string | null | undefined): [number, number] 
 export const ARINAR_HUB = { x: 24000, y: 24000, r: 1200 };
 export const WORLD_CHUNK = 2000; // px: ячейка «сна» сервера и интереса игрока
 export const ARINAR_LAYOUT_VER = 3; // версия раскладки: старые позиции (v1 2400 px, v2 24000 px) → возрождение в хабе
+
+// Обзор камеры в открытом мире (Аринар): клеток (32 px) по большей стороне экрана — ближе / по умолчанию / дальше.
+// Сервер шлёт мобов/игроков только в квадрате ±OPEN_AOI — с запасом на самый дальний зум, не больше.
+export const VIEW_CELLS = { min: 30, def: 60, max: 90 };
+export const CELL_PX = 32;
+export const OPEN_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.1); // 1584 px

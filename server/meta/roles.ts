@@ -8,17 +8,18 @@ export class Roles {
   db: any;
   map = new Map<string, Role>();
   loaded = false;
+  loadedAt = 0; // кэш ролей перечитывается раз в минуту (роль, выданная/снятая в D1 вручную, доходит без перезапуска)
   loading: Promise<void> | null = null;
   constructor(db: any) { this.db = db; }
 
   async ensure() {
-    if (this.loaded || !this.db) return;
+    if (!this.db || (this.loaded && Date.now() - this.loadedAt < 60000)) return;
     this.loading = this.loading || (async () => {
       try {
         const r = await this.db.prepare("SELECT pkey, role FROM player_roles").all();
         this.map.clear();
         for (const row of r.results || []) if (row.role === "admin" || row.role === "moderator") this.map.set(String(row.pkey), row.role);
-        this.loaded = true;
+        this.loaded = true; this.loadedAt = Date.now();
       } catch (e: any) { console.error("[mc] roles load", e?.message || e); }
       finally { this.loading = null; }
     })();

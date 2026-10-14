@@ -73,6 +73,19 @@ export class Stage {
     return base * Math.pow(0.5 / this.view.zoom, 0.85);
   }
 
+  /** сколько клеток (32 px мира = 1.6 ед.) видно по большей стороне экрана при зуме z */
+  viewCells(z = this.view.zoom) {
+    const portrait = this.height > this.width * 1.15, base = portrait ? 26 : 24;
+    const d = base * Math.pow(0.5 / z, 0.85), half = d * Math.tan((this.camera.fov / 2) * Math.PI / 180);
+    const wU = 2 * half * (this.width / Math.max(1, this.height)), hU = (2 * half) / Math.sin(this.pitch);
+    return Math.max(wU, hU) / 1.6;
+  }
+  /** зум, при котором видно cells клеток (viewCells монотонно убывает по зуму) */
+  zoomForCells(cells) {
+    let lo = 0.01, hi = 3;
+    for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (this.viewCells(m) > cells) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
   follow(x, z, dt, snap = false) {
     const k = snap ? 1 : Math.min(1, dt * 9);
     this.view.zoom += (this.view.targetZoom - this.view.zoom) * Math.min(1, dt * 10);

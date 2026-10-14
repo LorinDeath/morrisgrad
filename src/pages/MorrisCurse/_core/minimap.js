@@ -1,5 +1,9 @@
 import { WORLD_GEN } from '../../../../server/meta/zoneGen.ts';
+import { fog } from './map/fog.js';
+import { markersOf, MARKER_STYLE } from '../../../../server/meta/markers.ts';
 import { BIOMES } from '../../../../server/meta/biomes.ts';
+import { mapImage, drawMarkerIcon, drawFog } from './map/mapArt.js';
+import { FOG_N, getBit } from '../../../../server/meta/explore.ts';
 // подложка мини-карты Аринара: регионы цветом биома (240×240, рисуется один раз)
 const REG_COL = { grove: '#2f5a3a', meadow: '#4b4a7a', garden: '#6a3a44', waste: '#3a4458', rot: '#3d4426', ridge: '#4a4038', pylon: '#3c3a62', glitch: '#24502e', crater: '#3a3a5a', thin: '#4a4260' };
 function arinarMinimapBg(size) {
@@ -14,6 +18,9 @@ function arinarMinimapBg(size) {
   g.globalAlpha = 1; g.fillStyle = '#fde68a'; g.beginPath(); g.arc(120, 120, 3, 0, Math.PI * 2); g.fill(); // хаб
   return cv;
 }
+// Аринар: мини-карта = область камеры (VIEW_CELLS в sizes.ts) × запас; +/- меняют зум камеры (общий с колесом/щипком)
+export const MINIMAP_MARGIN = 1.3;
+const CELL_PX = 32;
 export class Minimap {
   constructor(mountElement) {
     this.mountElement = mountElement;
@@ -39,6 +46,8 @@ export class Minimap {
           <button id="mm-btn-minus" class="mm-btn">-</button>
           <span id="mm-zoom-text" style="color: #ffd700; font-size: 10px; min-width: 18px; text-align: center;">1x</span>
           <button id="mm-btn-plus" class="mm-btn">+</button>
+          <button id="mm-btn-art" class="mm-btn mm-art" title="Мини-карта: простая / рисованная">🎨</button>
+          <button id="mm-btn-map" class="mm-btn mm-map" title="Карта мира (M)">🗺</button>
         </div>
       </div>
 
@@ -57,11 +66,19 @@ export class Minimap {
     this.canvas = this.container.querySelector('#mm-canvas');
     this.ctx = this.canvas.getContext('2d');
 
+    // вид мини-карты: plain — простая (без раскраски биомов), art — рисованная карта художника (под туманом)
+    this.style = (() => { try { return localStorage.getItem('mc_mm_style') || 'plain'; } catch { return 'plain'; } })();
+    const artBtn = this.container.querySelector('#mm-btn-art');
+    const syncArt = () => { artBtn.classList.toggle('mm-art-on', this.style === 'art'); artBtn.title = this.style === 'art' ? 'Мини-карта: рисованная (нажмите — простая)' : 'Мини-карта: простая (нажмите — рисованная)'; };
+    artBtn.onclick = (e) => { e.stopPropagation(); this.style = this.style === 'art' ? 'plain' : 'art'; try { localStorage.setItem('mc_mm_style', this.style); } catch {} syncArt(); };
+    syncArt();
+    this.container.querySelector('#mm-btn-map').onclick = (e) => { e.stopPropagation(); this.onOpenMap?.(); };
     const minusBtn = this.container.querySelector('#mm-btn-minus');
     const plusBtn = this.container.querySelector('#mm-btn-plus');
-    const zoomText = this.container.querySelector('#mm-zoom-text');
+    const zoomText = this.zoomText = this.container.querySelector('#mm-zoom-text');
 
     minusBtn.onclick = () => {
+      if (this.getCamCells?.()) { this.onZoom?.(1 / 1.25); return; }
       if (this.zoomIndex > 0) {
         this.zoomIndex--;
         zoomText.textContent = this.zoomLabels[this.zoomIndex];
@@ -69,6 +86,7 @@ export class Minimap {
     };
 
     plusBtn.onclick = () => {
+      if (this.getCamCells?.()) { this.onZoom?.(1.25); return; }
       if (this.zoomIndex < this.zoomLevels.length - 1) {
         this.zoomIndex++;
         zoomText.textContent = this.zoomLabels[this.zoomIndex];
@@ -155,8 +173,10 @@ export class Minimap {
     const cy = h / 2;
     const isArinar = currentWorld === 'arinar';
     // Аринар 48000 px: свой масштаб (весь мир → обзор края → окрестности) и подложка биомов
-    const scale = isArinar && worldSize > 4000 ? [0.0062, 0.03, 0.12][this.zoomIndex] : this.zoomLevels[this.zoomIndex];
-    this.stats = { mode: 'world', world: currentWorld, mobs: 0, bosses: 0, players: 0 };
+    const camCells = isArinar && worldSize > 4000 ? this.getCamCells?.() || 60 : 0;
+    if (camCells && this.zoomText) { const t = String(Math.round(camCells)); if (this.zoomText.textContent !== t) { this.zoomText.textContent = t; this.zoomText.title = 'Обзор камеры, клеток'; } }
+    const scale = camCells ? w / (camCells * MINIMAP_MARGIN * CELL_PX) : this.zoomLevels[this.zoomIndex]; // Аринар: область камеры ×1.3 (весь мир — только на карте M)
+    this.stats = { mode: 'world', world: currentWorld, style: this.style, span: Math.round(w / scale), cam: Math.round(this.getCamCells?.() || 0), mobs: 0, bosses: 0, players: 0 };
 
     ctx.save();
     ctx.clearRect(0, 0, w, h);
@@ -176,12 +196,10 @@ export class Minimap {
 
     ctx.fillStyle = isArinar ? '#08051a' : '#0f0b1a';
     ctx.fillRect(mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
-    if (isArinar && worldSize > 4000) {
-      const bg = this.arinarBg || (this.arinarBg = arinarMinimapBg(worldSize));
-      ctx.globalAlpha = 0.85; ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(bg, mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
-      ctx.globalAlpha = 1;
-    }
+    if (isArinar && worldSize > 4000 && this.style === 'art') { // рисованная карта (туман — ниже, поверх)
+      const art = mapImage(false);
+      if (art.complete && art.naturalWidth) { ctx.imageSmoothingEnabled = false; ctx.drawImage(art, mapWorldX, mapWorldY, mapWorldSize, mapWorldSize); }
+    } // простая: без раскраски биомов — только тёмная подложка и сетка чанков
 
     // Сетка локации
     ctx.strokeStyle = isArinar ? 'rgba(129, 140, 248, 0.12)' : 'rgba(212, 175, 55, 0.08)';
@@ -253,13 +271,20 @@ export class Minimap {
       });
     }
 
-    // 3b. Логова мировых боссов Аринара (статичные точки из zoneGen; живые — пурпурным ромбом из AOI ниже)
-    if (isArinar && worldSize > 4000) {
-      for (const b of WORLD_GEN.arinar.bosses) {
-        const bx = cx + (b.x - player.x) * scale, by = cy + (b.y - player.y) * scale;
-        if (bx < -4 || by < -4 || bx > w + 4 || by > h + 4) continue;
-        ctx.strokeStyle = '#f0abfc'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI * 2); ctx.stroke();
-      }
+    // 3a. Туман войны (как на большой карте): неразведанное — чёрным
+    if (fog.active(currentWorld)) drawFog(ctx, fog, mapWorldX, mapWorldY, mapWorldSize, FOG_N, getBit);
+    // 3b. Объекты реестра карты (таблички, логова боссов, NPC… — server/meta/markers.ts), только разведанные
+    this.stats.markers = 0;
+    for (const m of markersOf(currentWorld)) {
+      if (m.type === 'portal' || !fog.seen(currentWorld, m.x, m.y)) continue; // порталы рисуются ниже своим стилем
+      const bx = cx + (m.x - player.x) * scale, by = cy + (m.y - player.y) * scale;
+      if (bx < -4 || by < -4 || bx > w + 4 || by > h + 4) continue;
+      this.stats.markers++;
+      const col = m.color || MARKER_STYLE[m.type]?.color || '#fff';
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      if (this.style === 'art' && drawMarkerIcon(ctx, m.type, bx, by, 16)) continue;
+      if (m.type === 'sign') { ctx.fillStyle = col; ctx.fillRect(bx - 2, by - 3, 4, 3); ctx.fillRect(bx - 0.5, by, 1, 3); }
+      else { ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI * 2); ctx.stroke(); }
     }
 
     // 4. Метка Кейт (ТОЛЬКО в Аду)

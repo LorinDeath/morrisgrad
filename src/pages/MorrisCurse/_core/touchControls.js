@@ -38,6 +38,7 @@ export class TouchControls {
         <div class="mc3d-tbtn k-dash" data-act="dash" title="Рывок">${skillIcon('dash', 36)}</div>
       </div>
       <div class="mc3d-ttop">
+        <div class="mc3d-tbtn" data-act="map" title="Карта мира">🗺</div>
         <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📖</div>
         <div class="mc3d-tbtn" data-act="rating" title="Рейтинг игроков">🏆</div>
         <div class="mc3d-tbtn" data-act="people" title="Онлайн · друзья · настройки">👥</div>
@@ -115,6 +116,7 @@ export class TouchControls {
     if (!this.root) return;
     this.interactBtn.style.display = mode === 'run' ? 'none' : '';
     if (this.atkBtn) this.atkBtn.style.display = mode === 'run' ? 'none' : '';
+    const mb = this.root.querySelector('[data-act="map"]'); if (mb) mb.style.display = mode === 'run' ? 'none' : ''; // в забеге карты нет
     this.container.classList.toggle('mc-run', mode === 'run'); // в забеге рывок занимает место атаки (атака авто)
   }
 

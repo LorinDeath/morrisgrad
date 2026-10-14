@@ -10,6 +10,7 @@ import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests } from "./quests";
+import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import {
@@ -26,7 +27,7 @@ import { Social } from "./social";
 import { Roles } from "./roles";
 import { WEAPON_SKILL_CD } from "./abilityShapes";
 import { castShape } from "./abilityShapes";
-import { worldBounds } from "../worlds/sizes";
+import { worldBounds, OPEN_AOI } from "../worlds/sizes";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
 
 export interface MetaSess {
@@ -50,6 +51,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
+  admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
 };
 function validMsg(msg: any): boolean {
@@ -92,6 +94,7 @@ export class MetaService {
   duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   explore: ExploreStore;
+  admin: AdminStore;
   constructor(sql: any, env: any) {
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
@@ -99,6 +102,7 @@ export class MetaService {
     this.social = new Social(this, env?.GAME_DB);
     this.roles = new Roles(env?.GAME_DB);
     this.explore = new ExploreStore(env?.GAME_DB);
+    this.admin = new AdminStore(env?.GAME_DB);
     this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
@@ -119,6 +123,7 @@ export class MetaService {
     this.onJoin(ws, session, session.metaJoinMsg || {}).catch((err) => console.error("meta retry", err));
   }
   async joinMeta(ws: WebSocket, session: any, msg: any) {
+    await this.admin.sync(); // правки админ-панели (горячая перезагрузка по версии набора)
     let uid: string | null = null;
     // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
     if (session.metaUid) uid = session.metaUid;
@@ -397,6 +402,21 @@ export class MetaService {
         this.rating.view(ms.pkey).then((v) => this.send(ws, { type: "rating", ...v })).catch((e) => { console.error("[mc] rating", e?.message || e); this.send(ws, { type: "rating_err", message: "Рейтинг временно недоступен" }); });
         return true;
       }
+      case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": {
+        // только серверно проверенный админ (uid из Clerk + player_roles); id/роль из сообщения не используются
+        if (!this.roles.isAdmin(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why: "not_admin", type: msg.type }); return true; }
+        const t = Date.now(); if (msg.type !== "admin_open" && t - ((ms as any).admAt || 0) < 300) { this.send(ws, { type: "toast_error", message: "Слишком часто" }); return true; }
+        (ms as any).admAt = t;
+        if (JSON.stringify(msg).length > 24000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
+        const fail = (e: any) => { console.error("[mc] admin", e?.message || e); this.send(ws, { type: "admin_result", ok: false, err: "Ошибка сохранения" }); };
+        if (msg.type === "admin_open") this.admin.sync(true).then(() => this.send(ws, { type: "admin_catalog", ...this.admin.catalog() })).catch(fail);
+        else if (msg.type === "admin_audit") this.admin.audit(60).then((rows) => this.send(ws, { type: "admin_audit", rows })).catch(fail);
+        else if (msg.type === "admin_save") this.admin.save(ms.pkey, msg.kind, msg.id, msg.patch).then((r) => this.send(ws, { type: "admin_result", op: "save", kind: msg.kind, id: msg.id, ...r })).catch(fail);
+        else if (msg.type === "admin_reset") this.admin.reset(ms.pkey, msg.kind, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "reset", kind: msg.kind, id: msg.id, ...r })).catch(fail);
+        else if (msg.type === "admin_quest_save") this.admin.saveQuest(ms.pkey, msg.quest).then((r) => this.send(ws, { type: "admin_result", op: "quest", ...r })).catch(fail);
+        else this.admin.deleteQuest(ms.pkey, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "quest_delete", id: msg.id, ...r })).catch(fail);
+        return true;
+      }
       case "role_set": {
         // только серверно проверенный админ; цель — по sid онлайн-сессии или непрозрачному id (рейтинг/друзья/онлайн)
         if (!this.roles.isAdmin(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
@@ -607,6 +627,23 @@ export class MetaService {
   // Базовая атака в открытом мире — по клику в направлении курсора (или кнопкой атаки с автонаведением на телефоне).
   // Сервер проверяет кд (скорость атаки), направление (единичный вектор), дальность и форму удара оружия.
   // Старые клиенты могут прислать {mob} без направления — тогда направление считается на этого моба.
+  /** id надетых предметов героя (для черт из админ-панели) */
+  equippedIds(session: any, a: Account): string[] {
+    const ms = this.ms.get(session.id), cls = session.stats?.classId; if (!ms || !cls) return [];
+    const h = this.store.hero(ms.pkey, cls); const uids = new Set(Object.values(h?.equip || {}));
+    return a.inv.filter((i: any) => uids.has(i.uid)).map((i: any) => i.id);
+  }
+  /** черты (поджог/яд/кровотечение/заморозка/замедление/отбрасывание/вампиризм) — только сервер */
+  traitHit(zone: any, m: any, session: any, ms: any, real: number, traits: any[]) {
+    if (!traits.length) return;
+    applyTraits(traits, real, cryptoRand, {
+      dot: (kind, dps, dur) => zone.applyStatus(m, session.id, { kind, dps, dur }, session.x, session.y),
+      slow: () => zone.applyStatus(m, session.id, { slow: true }, session.x, session.y),
+      knock: (p) => zone.applyStatus(m, session.id, { knock: p }, session.x, session.y),
+      freeze: (t) => { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? Math.min(600, t) : t); },
+      heal: (hp) => { ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + hp); },
+    });
+  }
   zoneAttack(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id)!;
     const zone = this.zoneOf(session);
@@ -643,6 +680,7 @@ export class MetaService {
     if (!hits.length) return;
     const a = this.store.account(ms.pkey);
     const statused = new Set<number>();
+    const traits = traitsFor(wt, this.equippedIds(session, a));
     hits.forEach(({ m, k }) => {
       if (m.dead) return;
       if (!a.bestiary[baseOf(m.type)]) { noteMob(a, baseOf(m.type), 0); ms.dirty = true; }
@@ -653,6 +691,7 @@ export class MetaService {
       this.noteHit(session, real, m.type);
       if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, session.x, session.y);
       if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
+      if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traits);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
     });
   }
@@ -751,6 +790,7 @@ export class MetaService {
         const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1);
         const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm)) || 0;
         this.noteHit(session, real, m.type);
+        if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
         return real;
       },
       status: (m, st, fx, fy) => { zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? 600 : st.freeze); } },
@@ -880,7 +920,7 @@ export class MetaService {
       const ev = zone.takeEvents();
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
-        const st = zone.state(s.x, s.y, ev);
+        const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
         // Библиотека мобов: «встречен», когда моб оказался рядом (≈ на экране)
         const acc = this.store.accounts.get(ms.pkey);
         let met = false;

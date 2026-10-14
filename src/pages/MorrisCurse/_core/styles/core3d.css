@@ -617,7 +617,24 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 }
 /* узкие низкие телефоны: верхняя строка забега — левее колонки кнопок справа (не перекрывать 📖) */
 @media (max-height: 680px) and (max-width: 420px) {
+  .mc-touch .mc3d-ttop { flex-wrap: wrap-reverse; max-height: 252px; align-content: flex-end; }
   .mc-touch .mc3d-top { right: calc(var(--sr) + 74px); }
 }
 .mc-sti { display: inline-block; vertical-align: -3px; margin-right: 4px; image-rendering: pixelated; image-rendering: crisp-edges; flex: none; }
 .mc-stats .mc-sti { vertical-align: middle; margin-right: 6px; }
+/* большая карта мира (M) */
+.mc-worldmap { position: absolute; inset: 0; z-index: 60; background: #000; touch-action: none; }
+.mc-worldmap canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: grab; }
+.mc-worldmap .wm-top { position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: linear-gradient(#0c0816ee, #0c081600); color: #fde68a; font-size: 14px; }
+.mc-worldmap .wm-info { color: #cbd5e1; font-size: 12px; } .mc-worldmap .wm-sp { flex: 1; }
+.mc-worldmap button { min-width: 44px; min-height: 44px; border-radius: 10px; border: 2px solid #3b2c52; background: rgba(18,13,32,.9); color: #fff; font-size: 18px; }
+.mc-worldmap .wm-tip { position: absolute; display: none; padding: 4px 8px; background: #120c1fee; border: 1px solid #c59b27; color: #fde68a; font-size: 12px; border-radius: 6px; pointer-events: none; }
+.mm-btn.mm-map { width: auto; padding: 0 4px; }
+.mm-btn.mm-art { width: auto; padding: 0 4px; opacity: .65; }
+.mm-btn.mm-art.mm-art-on { opacity: 1; background: #3b2a12; box-shadow: 0 0 4px #c59b27; }
+/* диалог NPC: «Все квесты» */
+.mc-qall .qa-grp { margin: 8px 0; text-align: left; }
+.mc-qall .qa-grp > b { display: block; color: #fde68a; margin-bottom: 4px; }
+.mc-qall .qa-row { display: block; width: 100%; text-align: left; margin: 3px 0; }
+.mc-qall .qa-locked { opacity: .65; } .mc-qall .qa-done { border-color: #6ee7b7; } .mc-qall .qa-available { border-color: #fbbf24; }
+.qa-lock { color: #fca5a5; font-size: 12px; } .qa-goals { text-align: left; color: #c4b5fd; font-size: 12px; }

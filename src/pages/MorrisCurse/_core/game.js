@@ -3,10 +3,12 @@
 // Хаб: общий мир сервера (Адское Пламя / Аринар) в 3D, тот же WebSocket-протокол (join/move/use_portal/...).
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
+import { fog } from './map/fog.js';
+import { WorldMap } from './map/worldMap.js';
 import { loadThree } from './engine/three-loader.js';
 import { Stage } from './engine/stage.js';
 import { toX, toZ, toPx, toPy } from './engine/geometry.js';
-import { worldSize, worldBounds } from '../../../../server/worlds/sizes.ts';
+import { worldSize, worldBounds, VIEW_CELLS } from '../../../../server/worlds/sizes.ts';
 import { initModelMode, preloadCharacterSheets, modelMode } from './engine/characters.js';
 import { loadPixAtlases } from './engine/pixSprites.js';
 import { MetaClient } from './meta/metaClient.js';
@@ -37,6 +39,8 @@ import { CLASSES, syncClassesFromServer } from './classes.js';
 import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/portals.ts';
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
+import { AdminPanel } from './ui/admin.js';
+import { setCustomQuests } from '../../../../server/meta/quests.ts';
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
@@ -194,12 +198,14 @@ async function boot(canvasId, username, userId, api) {
     onEnterRun: (room) => requestRun(room, null),
     onLeaveRun: () => leaveRun(),
     onRating: () => openRating(),
+    onMap: () => { if (mode === 'hub') worldMap.toggle(); },
     onPeople: (v) => openPeople(v),
     onInspect: (sid) => inspectPlayer(sid),
     onDuel: (sid) => challengeDuel(sid),
   });
   const touch = new TouchControls(overlay.layer, {
     onRating: () => openRating(),
+    onMap: () => { if (mode === 'hub') worldMap.toggle(); },
     onPeople: () => openPeople('online'),
     onDash: () => { input.dashPressed = true; },
     onWskill: () => useWeaponSkill(),
@@ -367,6 +373,7 @@ async function boot(canvasId, username, userId, api) {
 
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
+    if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
     metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl;
     addCards(d.loot?.cards); addCards(d.reward?.cards);
@@ -387,6 +394,11 @@ async function boot(canvasId, username, userId, api) {
     meta.applyProgress(d.quests);
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
   });
+  // туман войны и большая карта (M)
+  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y } }));
+  hud.minimap.onOpenMap = () => worldMap.open();
+  net.on('fog', (d) => { fog.setFull(d); worldMap.draw(); });
+  net.on('fog_add', (d) => { fog.add(d); if (worldMap.isOpen) worldMap.draw(); });
   net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests));
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
   // Рейтинг и просмотр персонажа (данные — только от сервера)
@@ -432,7 +444,18 @@ async function boot(canvasId, username, userId, api) {
   net.on('rating_err', (d) => social.onRatingErr(d));
   net.on('inspect', (d) => social.onInspect(d));
   let myRole = null; // роль своего аккаунта (сервер: player_roles + проверенный вход)
-  net.on('my_role', (d) => { myRole = d.role || null; });
+  net.on('my_role', (d) => {
+    myRole = d.role || null;
+    // кнопка панели — только админу (сервер всё равно проверяет каждый admin_* запрос)
+    let b = document.getElementById('ghud-admin-btn');
+    if (d.admin && !b) { b = document.createElement('button'); b.id = 'ghud-admin-btn'; b.className = 'hud-duel-btn'; b.title = 'Админ-панель'; b.textContent = '🛠'; b.style.cssText = 'flex:0 0 auto;border-color:#f87171;color:#fca5a5'; b.onclick = () => adminPanel.open(); document.getElementById('ghud-set-btn')?.insertAdjacentElement('afterend', b); }
+    if (b) b.style.display = d.admin ? '' : 'none';
+    if (!d.admin) adminPanel.close();
+  });
+  const adminPanel = new AdminPanel((o) => send(o));
+  net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
+  net.on('admin_result', (d) => adminPanel.onResult(d));
+  net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('role_changed', (d) => social.onRoleChanged(d));
   net.on('inspect_err', (d) => social.onInspectErr(d));
   // онлайн / друзья / настройки аккаунта (server/meta/social.ts)
@@ -838,6 +861,7 @@ async function boot(canvasId, username, userId, api) {
   window.addEventListener('keydown', (e) => {
     if (isTyping(e) || net.kicked) return;
     const k = e.key.toLowerCase();
+    if (e.key === 'Escape' && worldMap.isOpen) { worldMap.close(); return; }
     if (e.key === 'Escape') {
       if (book.isOpen) { book.close(); return; }
       if (dialog.isOpen) { dialog.close(); return; }
@@ -847,6 +871,7 @@ async function boot(canvasId, username, userId, api) {
       return;
     }
     if (e.key === 'Enter') { e.preventDefault(); openChat(); return; }
+    if ((k === 'm' || k === 'ь') && mode === 'hub') { worldMap.toggle(); return; }
     if (runUI.choiceOpen) return; // 1–3 обрабатывает модалка
     keys.add(e.code);
     if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { input.dashPressed = true; e.preventDefault(); }
@@ -984,6 +1009,31 @@ async function boot(canvasId, username, userId, api) {
   function zoomBy(f) {
     const v = stage.view;
     v.targetZoom = Math.max(v.minZoom, Math.min(v.maxZoom, v.targetZoom * f));
+  }
+  // Открытый мир (Аринар): зум камеры в клетках — по умолчанию ~60, отдалить до ~90, приблизить до ~30 (VIEW_CELLS).
+  // Пределы пересчитываются при смене мира и размера окна; мини-карта показывает область камеры ×1.3 и делит этот зум.
+  let camKey = '';
+  function applyCamLimits() {
+    const w = mode === 'hub' ? world : '', key = `${w}|${stage.width}x${stage.height}`;
+    if (key === camKey) return; const was = camKey.split('|')[0]; camKey = key;
+    const v = stage.view;
+    if (w === 'arinar') {
+      const cells = was === 'arinar' ? stage.viewCells(v.targetZoom) : VIEW_CELLS.def;
+      v.minZoom = stage.zoomForCells(VIEW_CELLS.max); v.maxZoom = stage.zoomForCells(VIEW_CELLS.min);
+      v.targetZoom = Math.max(v.minZoom, Math.min(v.maxZoom, stage.zoomForCells(cells)));
+      if (was !== 'arinar') v.zoom = v.targetZoom;
+    } else if (was === 'arinar') { v.minZoom = 0.2; v.maxZoom = 1.5; v.targetZoom = v.zoom = 0.5; }
+  }
+  hud.minimap.getCamCells = () => (world === 'arinar' && mode === 'hub' ? stage.viewCells() : 0);
+  hud.minimap.onZoom = (f) => zoomBy(f);
+  { // щипок двумя пальцами — зум камеры (плавно, тем же zoomBy)
+    let pd = 0;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    // слушаем документ (поверх канваса лежит слой сенсорного управления); щипок по кнопкам/окнам не считается
+    const onUi = (e) => [...e.touches].some((t) => t.target?.closest?.('button, .mc-screen, .mc-worldmap, .hud-card, input, textarea'));
+    document.addEventListener('touchstart', (e) => { pd = e.touches.length === 2 && !onUi(e) ? dist(e.touches) : 0; }, { passive: true });
+    document.addEventListener('touchmove', (e) => { if (e.touches.length === 2 && pd) { const d = dist(e.touches); zoomBy(d / pd); pd = d; } }, { passive: true });
+    document.addEventListener('touchend', (e) => { if (e.touches.length < 2) pd = 0; }, { passive: true });
   }
   function openChat() {
     overlay.openChat((text) => {
@@ -1184,6 +1234,7 @@ async function boot(canvasId, username, userId, api) {
     const cpu0 = performance.now();
     floatBudget = Math.min(30, floatBudget + dt * 40);
     stage.resize();
+    applyCamLimits();
     overlay.syncRect();
     atmo.begin();
     try {
@@ -1201,7 +1252,7 @@ async function boot(canvasId, username, userId, api) {
       hudAcc = 0;
       updateTargetChip();
       hud.update({
-        player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom,
+        player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
         roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
       });
@@ -1482,6 +1533,10 @@ async function boot(canvasId, username, userId, api) {
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       minimap: () => hud.minimap?.stats,
+      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
+      worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
+      openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y) })),
       fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)
       othersInfo: () => [...others.values()].map((o) => ({ world: o.world, x: Math.round(o.x), y: Math.round(o.y), runRoom: o.runRoom })),
@@ -1512,6 +1567,8 @@ async function boot(canvasId, username, userId, api) {
       aim: () => ({ ...aim, autoAttack }),
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
+      setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
+      cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)) }),
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
