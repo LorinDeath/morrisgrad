@@ -62,6 +62,7 @@ const ROLE_RU = { melee: 'ближний бой', swarm: 'рой', charger: 'т�
 const NEW_BADGE = '<i class="mc-new">новое</i>';
 const RAR = (r) => RARITIES[r] || RARITIES.common;
 
+const sortBtn = (d) => `<button class="mc-btn sm" data-act="lvlsort" title="Сортировка по уровню">ур. ${d === 'desc' ? '↓' : '↑'}</button>`;
 export class Book {
   constructor(overlay, meta, { canSoul, nearPetr }) {
     this.ov = overlay;
@@ -124,6 +125,9 @@ export class Book {
       case 'lsel': this.lsel = v; if (this.meta.library?.items?.[v]?.isNew) this.meta.markSeen('items', [v]); this.render(); break;
       case 'msel': this.msel = this.msel === v ? null : v; if (this.meta.library?.mobs?.[v]?.isNew) this.meta.markSeen('mobs', [v]); this.render(); break;
       case 'lfilter': this.lfilter = v; this.render(); break;
+      case 'cfilter': this.cfilter = v; this.render(); break;
+      case 'lvlsort': this.lvlSort = this.lvlSort === 'desc' ? 'asc' : 'desc'; this.render(); break; // Библиотека и Бестиарий: по уровню ↑/↓
+      case 'mtrack': this.meta.setMobTrack(this.meta.mobTrack === v ? null : v); this.render(); break; // «Отслеживать» моба из Бестиария
       case 'seenall': {
         const L = this.meta.library;
         if (v === 'items' && L) this.meta.markSeen('items', Object.keys(L.items).filter((id) => L.items[id].isNew));
@@ -165,10 +169,15 @@ export class Book {
       .map(([id, ic, nm, key]) => { const n = this.badge(id); return `<button data-act="tab" data-v="${id}" class="${this.tab === id ? 'on' : ''}" title="${nm}${key ? ` [${key}]` : ''}">${ic}<span>${nm}</span>${n ? `<em class="mc-cnt">${n}</em>` : ''}</button>`; }).join('');
     if (!st) { this.body.innerHTML = '<p class="mc-dim">Нет связи с сервером: прогресс героя хранится на сервере и сейчас недоступен. Соло-забеги работают офлайн.</p>'; return; }
     const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, runskills: this.rRunSkills, soul: this.rSoul }[this.tab] || this.rQuests;
-    if ((this.tab === 'library' || this.tab === 'bestiary') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
-    const scroll = this.body.scrollTop;
+    if ((this.tab === 'library' || this.tab === 'bestiary' || this.tab === 'runskills') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
+    // прокрутка сохраняется у тела И у всех внутренних списков (сетка Библиотеки, Бестиарий, Кодекс, сумка, карточка):
+    // перерисовка после клика по предмету/«просмотрено» не должна прыгать в начало
+    const scroll = this.body.scrollTop, key = (e) => e.className.split(' ')[0] + '#' + [...this.body.querySelectorAll('.' + e.className.split(' ')[0])].indexOf(e);
+    const inner = new Map(); for (const e of this.body.querySelectorAll('*')) if (e.scrollTop > 0 && e.className && typeof e.className === 'string') inner.set(key(e), e.scrollTop);
+    const tabKey = this.tab;
     this.body.innerHTML = this.wallet(st) + fn.call(this, st);
-    this.body.scrollTop = scroll;
+    if (tabKey === this.lastTab) { this.body.scrollTop = scroll; for (const [k, v] of inner) { const [cls, i] = k.split('#'); const e = this.body.querySelectorAll('.' + cls)[+i]; if (e) e.scrollTop = v; } }
+    this.lastTab = tabKey;
   }
   // счётчики «новое» на вкладках
   badge(id) {
@@ -418,7 +427,9 @@ export class Book {
     if (!L) return '<p class="mc-dim">Загрузка Библиотеки…</p>';
     const byN = new Map(Object.values(L.items).map((c) => [c.n, c]));
     const f = this.lfilter || 'all';
-    const cells = L.sil.map(([slot, rar], n) => {
+    const dir = this.lvlSort === 'desc' ? -1 : 1, lvOf = (n) => byN.get(n)?.lvl ?? (L.sil[n][2] || 1) * 5 - 2;
+    const idx = L.sil.map((_, n) => n).sort((x, y) => (lvOf(x) - lvOf(y)) * dir || x - y);
+    const cells = idx.map((n) => { const [slot, rar] = L.sil[n];
       const c = byN.get(n);
       if (f !== 'all' && f !== slot) return '';
       if (!c) return `<div class="mc-lib lock" style="border-color:${RAR(rar).color}55" title="${esc(RAR(rar).name)} · ${esc(SLOTS[slot])} — ещё не открыт">${iconHtml({ n }, 32, 'sil')}</div>`;
@@ -442,7 +453,7 @@ export class Book {
     const tabs = [['all', 'Все'], ...SLOT_ORDER.map((s) => [s, SLOTS[s]])].map(([v, nm]) => `<button class="mc-btn sm ${f === v ? 'gold' : ''}" data-act="lfilter" data-v="${v}">${esc(nm)}</button>`).join('');
     const anyNew = Object.values(L.items).some((x) => x.isNew);
     return `<p class="mc-dim">Открыто <b>${opened}</b> из ${L.size} · получено ${owned}. ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="items">отметить всё просмотренным</button>` : ''}</p>
-      <div class="mc-libf">${tabs}</div><div class="mc-gear"><div class="mc-libgrid">${cells}</div><div class="mc-detail">${detail}</div></div>`;
+      <div class="mc-libf">${tabs} ${sortBtn(this.lvlSort)}</div><div class="mc-gear"><div class="mc-libgrid">${cells}</div><div class="mc-detail">${detail}</div></div>`;
   }
 
   // ---------- Библиотека мобов (бестиарий) ----------
@@ -450,28 +461,35 @@ export class Book {
   // закрытые — силуэтом с цветом редкости и шансом. Данные пула — от сервера (lib_get).
   // Пул навыков забега (трофеи с оружия открытого мира) + кодекс: открытые и ещё скрытые
   // Кодекс навыков «Вампир-лайка»: какие навыки уже встречались на добытом оружии (сам навык живёт на оружии)
+  // Кодекс навыков: ВСЕ навыки — героев, оружия (R) и монстров; данные и «открыт/нет» — с сервера (правки админки из D1)
   rRunSkills(st) {
-    const have = new Set(st.account.runSkills || []);
-    const cur = st.weaponSkill || null;
-    const cards = RUN_SKILLS.map((r) => have.has(r.id)
-      ? `<div class="mc-rskill ${cur === r.id ? 'on' : ''}"><i>${r.icon}</i><b>${esc(r.name)}</b><small>${esc(r.desc)}</small>${cur === r.id ? '<em>на надетом оружии · R</em>' : ''}</div>`
-      : `<div class="mc-rskill locked"><i>❔</i><b>???</b><small>Выпадает с оружием монстров открытого мира</small></div>`).join('');
-    return `<div class="mc-rs-head"><b>Кодекс навыков: ${have.size}/${RUN_SKILLS.length}</b>
-      <small>Оружие, добытое в открытом мире, иногда несёт навык «Вампир-лайка» (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%). Наденьте такое оружие — появится 4-й слот (клавиша R) в мире и в забеге; в забеге навык ещё и стреляет сам, не занимая 4 слота оружия.</small></div>
-      <div class="mc-rs-grid">${cards}</div>`;
+    const cur = st.weaponSkill || null, C = this.meta.library?.codex;
+    if (!C) return '<p class="mc-dim">Загрузка Кодекса…</p>';
+    const f = this.cfilter || 'all', KN = { hero: 'Герои', weapon: 'Оружие (R)', mob: 'Монстры' };
+    const list = C.filter((c) => f === 'all' || c.kind === f);
+    const found = C.filter((c) => c.found).length;
+    const cards = list.map((c) => c.found
+      ? `<div class="mc-rskill ${cur && c.id === 'rs:' + cur ? 'on' : ''}"><i>${c.icon || '✦'}</i><b>${esc(c.name)}</b><small>${esc(c.desc || '')}</small><small class="mc-dim">${esc(KN[c.kind])}${c.cls ? ' · ' + esc(HERO_NAMES[c.cls] || c.cls) : ''}${c.cd ? ` · перезарядка ${c.cd} с` : ''}${c.power ? ` · сила ×${c.power}` : ''}</small>${cur && c.id === 'rs:' + cur ? '<em>на надетом оружии · R</em>' : ''}</div>`
+      : `<div class="mc-rskill locked"><i>❔</i><b>???</b><small>${c.kind === 'hero' ? `${esc(HERO_NAMES[c.cls] || '')}: откроется на ур. ${c.lvl}` : c.kind === 'weapon' ? 'Выпадает с оружием монстров открытого мира' : 'Встретьте монстра с этим навыком'}</small></div>`).join('');
+    const tabs = [['all', 'Все'], ...Object.entries(KN)].map(([v, nm]) => `<button class="mc-btn sm ${f === v ? 'gold' : ''}" data-act="cfilter" data-v="${v}">${esc(nm)} ${v === 'all' ? C.length : C.filter((c) => c.kind === v).length}</button>`).join('');
+    return `<div class="mc-rs-head"><b>Кодекс навыков: ${found}/${C.length}</b>
+      <small>Навыки героев открываются уровнем, навыки оружия — с добытым оружием (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%; клавиша R), навыки монстров — при встрече с ними.</small></div>
+      <div class="mc-libf">${tabs}</div><div class="mc-rs-grid">${cards}</div>`;
   }
   rBestiary(st) {
     const L = this.meta.library;
     const b = { ...(st.account.bestiary || {}) };
     for (const [id, m] of Object.entries(L?.mobs || {})) if (!b[id]) b[id] = { seen: 1, kills: m.kills, v: m.isNew ? 0 : 1 };
-    const order = Object.keys(MOB_INFO).sort((x, y) => (MOB_INFO[x].lvl || 1) - (MOB_INFO[y].lvl || 1));
+    // уровень/статы — с сервера (правки админки), иначе из справочника
+    const lvlOf = (id) => L?.mobs?.[id]?.st?.lvl ?? MOB_INFO[id]?.lvl ?? 1, dir = this.lvlSort === 'desc' ? -1 : 1;
+    const order = Object.keys(MOB_INFO).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir);
     const keys = [...order, ...Object.keys(b).filter((k) => !MOB_INFO[k])];
     const total = order.length;
     const seen = keys.filter((k) => b[k]).length;
     const rows = keys.map((id) => {
       const e = b[id];
       const info = MOB_INFO[id.replace(/^run_/, '')];
-      if (!e) return MOB_INFO[id] ? `<div class="mc-beast unknown"><b>???</b><small>ур. ${info.lvl} · ещё не встречен</small></div>` : '';
+      if (!e) return MOB_INFO[id] ? `<div class="mc-beast unknown"><b>???</b><small>ур. ${lvlOf(id)} · ещё не встречен</small></div>` : '';
       const lm = L?.mobs?.[id];
       const isNew = lm ? lm.isNew : e.v === 0;
       const open = this.msel === id;
@@ -484,7 +502,11 @@ export class Book {
           return `<li class="lock"><span style="color:${RAR(g.rarity).color}">${Number.isInteger(g.n) ? iconHtml(g, 20, 'sil') : '▒'} ${esc(RAR(g.rarity).name)} · ${esc(SLOTS[g.slot] || '')}</span> — <b>${g.chance}%</b></li>`;
         }).join('');
         const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${m.chance}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
-        body = `<div class="s">${info ? `ур. ${info.lvl} · ${esc(ROLE_RU[info.role] || info.role || '')} · HP ${info.hp} · урон ${info.dmg} · броня ${info.armor}` : ''}</div>
+        const S = lm?.st || info; // сервер: статы с правками админки
+        const canTrack = !id.startsWith('run_');
+        body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${S.hp} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>
+          ${lm?.st?.skills?.length ? `<div class="h">Навыки: ${lm.st.skills.map(esc).join(', ')}</div>` : ''}
+          ${canTrack ? `<button class="mc-btn sm ${this.meta.mobTrack === id ? 'gold' : ''}" data-act="mtrack" data-v="${id}">${this.meta.mobTrack === id ? '🧭 Не отслеживать' : '🧭 Отслеживать'}</button>` : ''}
           ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
           ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : '<p class="mc-dim">Загрузка пула добычи…</p>'}
           ${info?.lore ? `<div class="lore">${esc(info.lore)}</div>` : ''}`;
@@ -492,7 +514,7 @@ export class Book {
       return `<div class="mc-beast ${isNew ? 'isnew' : ''}"><button class="mc-beast-h" data-act="msel" data-v="${id}"><b>${esc(info?.name || id)}${id.startsWith('run_') ? ' (забег)' : ''}</b>${isNew ? NEW_BADGE : ''}<small>${tag} · убито ${e.kills || 0}</small></button>${body}</div>`;
     }).join('');
     const anyNew = L ? Object.values(L.mobs).some((m) => m.isNew) : false;
-    return `<p class="mc-dim">Встречено ${seen} из ${total}. Записи открываются при встрече; пул добычи — после встречи (закрытые предметы — силуэтом с редкостью и шансом). ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="mobs">отметить всё просмотренным</button>` : ''}</p>${rows}`;
+    return `<p class="mc-dim">${sortBtn(this.lvlSort)} Встречено ${seen} из ${total}. Записи открываются при встрече; пул добычи — после встречи (закрытые предметы — силуэтом с редкостью и шансом). ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="mobs">отметить всё просмотренным</button>` : ''}</p>${rows}`;
   }
 
   // ---------- ветка души ----------

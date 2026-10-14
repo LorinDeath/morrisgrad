@@ -87,6 +87,18 @@ export class QuestTracker {
       html = '<div class="t">◆ Начало</div><ul><li>Подойдите к Алтарю перевоплощения в центре Поляны</li></ul>';
       this.target = { world: 'hellfire', x: 565, y: 600, label: 'Алтарь' };
     }
+    // «Отслеживать» из Бестиария: добавляем тип к целям; компас — к нему, если квест не задал свою цель-моба
+    const mt = this.meta.mobTrack;
+    if (mt && ctx.world === 'arinar') {
+      this.trackTypes.add(mt);
+      const isT = (t) => t === mt || baseOf(t) === mt;
+      if (!this.target?.mob) {
+        let best = null, bd = Infinity;
+        for (const m of ctx.mobs?.values?.() || []) if (isT(m.type)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: '🧭 ' + (ZONE_MOBS[m.type]?.name || mt), mob: 1 }; } }
+        if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🧭 Лагерь: ' + (ZONE_MOBS[mt]?.name || mt), mob: 1 }; } }
+        if (best) { this.target = best; if (!html) html = `<div class="t">🧭 Отслеживание</div><ul><li>${esc(ZONE_MOBS[mt]?.name || mt)}</li></ul>`; }
+      }
+    }
     if (html !== this.sig) { this.sig = html; this.qEl.innerHTML = html; }
     this.qEl.style.display = html ? '' : 'none';
     // стрелка к цели

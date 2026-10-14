@@ -2,6 +2,7 @@
 // Строки для D1-таблицы item_library, хеш версии пула и «публичная карточка» предмета, которую сервер
 // присылает клиенту ТОЛЬКО для открытых игроком предметов (встречен в добыче или получен).
 import { ITEMS, ITEM_BY_ID, MONSTER_LOOT, LOOKS, ZONE_MOBS, ABILITY_BY_ID, RECIPES, RARITIES, BALANCE, type ItemDef } from "./defs";
+import { MOB_SKILLS } from "./mobSkills";
 
 // источники: какие мобы роняют предмет и с каким шансом (+ ремесло/квест)
 const SOURCES: Record<string, { mob: string; chance: number; kind: string }[]> = {};
@@ -88,5 +89,12 @@ export function mobDropView(mob: string, known: (id: string) => boolean) {
     gear: m.gear.map((g) => { const it = ITEM_BY_ID[g.item]; return known(g.item) ? { id: g.item, chance: g.chance } : { n: ITEM_INDEX[g.item], slot: it?.slot, rarity: it?.rarity, chance: g.chance }; }),
     res: m.materials.map((r) => ({ res: r.res, chance: r.chance, qty: r.qty })),
   };
+}
+// Статы моба для Бестиария — из тех же данных, что использует сервер (ZONE_MOBS с правками админки из D1)
+export function mobStatView(mob: string) {
+  const z: any = (ZONE_MOBS as any)[mob], l: any = MONSTER_LOOT[mob];
+  if (z) return { lvl: z.lvl, hp: Math.round(z.hp), dmg: z.dmg, armor: z.armor || 0, speed: z.speed, aggro: z.aggro, xp: z.xp, skills: (z.skills || []).map((k: string) => MOB_SKILLS[k]?.name || k) };
+  if (l) return { lvl: l.lvl, hp: l.stats?.hp, dmg: l.stats?.dmg, armor: l.stats?.armor, skills: [] };
+  return null;
 }
 export const SILHOUETTES = ITEMS.map((_, i) => { const s = itemSilhouette(i); return [s.slot, s.rarity, s.tier]; });

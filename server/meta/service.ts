@@ -3,7 +3,7 @@
 import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
-  HERO_IDS, ITEM_BY_ID, RUN_SKILL_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
+  HERO_IDS, ITEM_BY_ID, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
@@ -24,7 +24,7 @@ import {
 } from "./profile";
 import { Zone, MOB_SKILLS, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
-import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
+import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
 import { Pvp, type Duel } from "./pvp";
 import { Social } from "./social";
@@ -357,7 +357,7 @@ export class MetaService {
     const needHero = () => { if (!h || !cls) { this.send(ws, { type: "toast_error", message: "Сначала выберите героя на Алтаре перевоплощения" }); return false; } return true; };
     switch (msg.type) {
       case "meta_get": this.send(ws, { type: "meta_state", ...this.snap(session) }); return true;
-      case "lib_get": this.send(ws, { type: "library", ...this.library(a) }); return true;
+      case "lib_get": this.send(ws, { type: "library", ...this.library(a, HERO_IDS.map((id) => this.store.hero(ms.pkey, id))) }); return true;
       case "mark_seen": {
         const n = markSeen(a, msg);
         if (n) { ms.dirty = true; this.store.saveAccount(ms.pkey, ms.verified); }
@@ -546,7 +546,7 @@ export class MetaService {
 
   // Библиотека предметов и мобов (вкладки Книги). Сервер присылает данные ТОЛЬКО открытых предметов;
   // закрытые — силуэты (слот/редкость/ярус по номеру в пуле), без имени, статов, свойств и навыков.
-  library(a: Account) {
+  library(a: Account, heroes: any[] = []) {
     const items: Record<string, any> = {};
     const owned: Record<string, { n: number; srcs: string[] }> = {};
     for (const it of a.inv) { const o = (owned[it.id] = owned[it.id] || { n: 0, srcs: [] }); o.n++; if (it.src && !o.srcs.includes(it.src) && o.srcs.length < 6) o.srcs.push(it.src); }
@@ -556,9 +556,17 @@ export class MetaService {
     }
     const known = (id: string) => !!a.disc.items[id];
     const mobs: Record<string, any> = {};
-    for (const [id, b] of Object.entries(a.bestiary)) mobs[id] = { kills: b.kills || 0, isNew: !b.v, drops: mobDropView(id, known) };
+    for (const [id, b] of Object.entries(a.bestiary)) mobs[id] = { kills: b.kills || 0, isNew: !b.v, drops: mobDropView(id, known), st: mobStatView(id) }; // статы — с правками админки (как считает сервер)
     const feats = Object.fromEntries(Object.entries(a.disc.feats).map(([f, d]) => [f, { isNew: !d.v }]));
-    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats };
+    // Кодекс навыков: ВСЕ навыки (героев, оружия R, монстров) с действующими (после правок админки) значениями и «открыт/нет»
+    const lvlBy: Record<string, number> = {}; HERO_IDS.forEach((cls, i) => { const h = heroes[i]; if (h) lvlBy[cls] = h.lvl || 1; }); // навык героя открыт, когда уровень героя этого класса ≥ уровня открытия
+    const mobSk = new Set<string>(); for (const id of Object.keys(a.bestiary)) for (const k of ((ZONE_MOBS as any)[id]?.skills || [])) mobSk.add(k);
+    const codex = [
+      ...Object.values(ABILITY_BY_ID).map((d: any) => ({ id: d.id, kind: "hero", cls: d.cls, name: d.name, icon: d.icon, desc: d.desc, cd: d.cd, power: d.power, lvl: d.unlockLevel || 1, found: (lvlBy[d.cls] || 0) >= (d.unlockLevel || 1) })),
+      ...RUN_SKILLS.map((r) => ({ id: "rs:" + r.id, kind: "weapon", name: r.name, icon: r.icon, desc: r.desc, cd: WEAPON_SKILL_CD, found: (a.runSkills || []).includes(r.id) })),
+      ...Object.entries(MOB_SKILLS).map(([id, m]) => ({ id: "mob:" + id, kind: "mob", name: m.name, icon: "👹", desc: "Навык монстров и боссов", cd: m.cd, found: mobSk.has(id) })),
+    ];
+    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats, codex };
   }
 
   nearNpcOrAltar(session: any) {

@@ -11,7 +11,10 @@ export class MetaClient {
     this.state = null; // { verified, account, hero, heroes, available, complete, zone }
     this.listeners = new Set();
     this.version = 0;
+    try { this.mobTrack = localStorage.getItem('mc-mob-track') || null; } catch (_) { this.mobTrack = null; }
   }
+  // отслеживание моба из Бестиария (одна цель; работает вместе с отслеживанием квеста)
+  setMobTrack(id) { this.mobTrack = id || null; try { localStorage.setItem('mc-mob-track', this.mobTrack || ''); } catch (_) {} }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   apply(st) {
     addCards(st.cards);
