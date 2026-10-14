@@ -1523,7 +1523,10 @@ async function boot(canvasId, username, userId, api) {
       alive.add(o.id);
       const q = head(o.x, o.y);
       if (!q) return;
-      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>`, o.color);
+      // союзник по отряду — фиолетовая полоска ОЗ (данные отряда); остальные игроки — без изменений
+      const pm = party.has(o.id) ? party.state.members.find((m) => m.sid === o.id) : null;
+      const pBar = pm && pm.maxHp ? `<div class="mc3d-mini-hp party"><i style="width:${Math.max(0, Math.round((pm.hp / pm.maxHp) * 100))}%"></i></div>` : '';
+      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}`, o.color);
       overlay.placeBubble(o.id, q.x, q.y - 26);
     });
     [[boss, 'boss_keyt', 'Кейт', '#f472b6'], [dar, 'boss_dar', 'Дар', '#fb923c']].forEach(([b, id, nm, col]) => {
@@ -1748,6 +1751,7 @@ async function boot(canvasId, username, userId, api) {
       prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
+      hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed }),
       target: () => hud.currentTarget,

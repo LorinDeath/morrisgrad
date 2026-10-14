@@ -54,10 +54,10 @@ export class GameHUD {
         <div class="hud-ctrl-item">Навык оружия <span>R</span></div>
         <div class="hud-ctrl-item">Улучшение (забег) <span>1 / 2 / 3</span></div>
         <div class="hud-ctrl-item">Задания <span>J</span></div>
-        <div class="hud-ctrl-item">Герой и таланты <span>T / C</span></div>
+        <div class="hud-ctrl-item">Персонаж <span>C</span></div>
         <div class="hud-ctrl-item">Навыки и Сияние <span>K</span></div>
         <div class="hud-ctrl-item">Снаряжение <span>I</span></div>
-        <div class="hud-ctrl-item">Бестиарий <span>B</span></div>
+        <div class="hud-ctrl-item">Меню <span>B</span></div>
         <div class="hud-ctrl-item">Чат <span>Enter</span></div>
         <div class="hud-ctrl-item">Зум <span>колесо / + −</span></div>
         <div class="hud-ctrl-item">Автоатака (доступность) <span>V</span></div>
