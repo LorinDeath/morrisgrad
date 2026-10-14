@@ -22,6 +22,9 @@ const MOB_TYPES = Object.keys(ZONE_MOBS);
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
 const HIT_FOR = { spear: 'hit', daggers: 'hit_bleed', soul_spark: 'hit_ice', staff_bolt: 'hit_arcane', ab_backstab: 'hit_ice', thorn_bow: 'hit_bleed', war_axe: 'hit', fly_blades: 'hit_bleed', chain_bolt: 'hit_arcane' };
 const PX = 20;
+// Масштаб мобов открытого мира: общий ×0.75 (было крупно), вожаки/боссы/элита — относительно крупнее обычных
+export const MOB_VIS = 0.75;
+export const mobScale = (o, boss = !!ZONE_MOBS[o.type]?.boss) => MOB_VIS * (boss ? 1.35 : o.chief ? 1.6 : o.elite ? 1.25 : 1);
 
 export class ZoneView {
   constructor(THREE, parent) {
@@ -254,14 +257,14 @@ export class ZoneView {
         if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
         if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
-        BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * (o.chief ? 1.45 : o.elite ? 1.15 : 1), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
-        atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.45, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * (o.elite ? 1.15 : 1), fly ? 0.55 : 1);
+        BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * mobScale(o), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
+        atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.35, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * mobScale(o) / MOB_VIS * 0.85, fly ? 0.55 : 1);
       }
       for (const dd of this.dying) {
         const row = BEAST_ROW[dd.sk];
         if (row === undefined) continue;
         const kk = Math.min(0.99, dd.t / (dd.boss ? 0.9 : 0.5));
-        BB.push(toX(dd.x), 0, toZ(dd.y), BEAST_H, 8 + Math.min(3, Math.floor(kk * 4)), row, dd.flip, 1.2 * (dd.tint?.[0] || 1), 1.1 * (dd.tint?.[1] || 1), 1.3 * (dd.tint?.[2] || 1), kk < 0.15 ? 0.6 : 0, 1 - kk * 0.5);
+        BB.push(toX(dd.x), 0, toZ(dd.y), BEAST_H * MOB_VIS * (dd.boss ? 1.35 : 1), 8 + Math.min(3, Math.floor(kk * 4)), row, dd.flip, 1.2 * (dd.tint?.[0] || 1), 1.1 * (dd.tint?.[1] || 1), 1.3 * (dd.tint?.[2] || 1), kk < 0.15 ? 0.6 : 0, 1 - kk * 0.5);
       }
       BB.end();
     }
@@ -271,7 +274,7 @@ export class ZoneView {
         const row = MOB_ROWS[o.sk];
         if (row === undefined || (BB && BEAST_ROW[o.sk] !== undefined)) continue;
         const boss = ZONE_MOBS[o.type]?.boss;
-        const h = (MOB_HEIGHT[o.sk] || 2) * (boss ? 1.2 : o.chief ? 1.6 : o.elite ? 1.3 : 1);
+        const h = (MOB_HEIGHT[o.sk] || 2) * mobScale(o, boss);
         const fly = MOB_FLYING[o.sk] || 0;
         let col = (Math.floor(T * (fly ? 12 : 7) + o.id * 0.7)) & 3;
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
@@ -290,7 +293,7 @@ export class ZoneView {
         if (dd.t >= life) { this.dying.splice(i, 1); continue; }
         const kk = dd.t / life;
         if (BB && BEAST_ROW[dd.sk] !== undefined) continue;
-        B.push(toX(dd.x), 0, toZ(dd.y), (MOB_HEIGHT[dd.sk] || 2) * (dd.boss ? 1.2 : 1), 8 + Math.min(3, Math.floor(kk * 4)), MOB_ROWS[dd.sk] ?? 6, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.6);
+        B.push(toX(dd.x), 0, toZ(dd.y), (MOB_HEIGHT[dd.sk] || 2) * MOB_VIS * (dd.boss ? 1.35 : 1), 8 + Math.min(3, Math.floor(kk * 4)), MOB_ROWS[dd.sk] ?? 6, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.6);
       }
       // NPC мира
       for (const [id, n] of Object.entries(NPCS)) {
@@ -349,11 +352,11 @@ export class ZoneView {
     }
     for (const b of this.bags.values()) if (nr < 64) { const R = 0.9 + Math.sin(T * 4 + b.id) * 0.08; put(this.ring, nr++, toX(b.x), toZ(b.y), R, R, 0, 1, 0.85, 0.25); } // мешок — золотое кольцо
     for (const o of this.mobs.values()) {
-      if (o.id === this.selected && nr < 64) { const R = Math.max(1.1, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
-      if (o.cursed && nr < 64) { const R = 1.6 + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }
-      if (ZONE_MOBS[o.type]?.boss && nr < 64) { const R = 2.4 + Math.sin(T * 4) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.8, 0.4, 1); }
-      else if (o.chief && nr < 64) { const R = 1.9 + Math.sin(T * 3 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.55, 0.1); } // вожак лагеря — крупнее, золотое кольцо
-      else if (o.elite && nr < 64) { const R = 1.3 + Math.sin(T * 5 + o.id) * 0.08; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.8, 0.2); }
+      if (o.id === this.selected && nr < 64) { const R = Math.max(0.85, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2 * mobScale(o)) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
+      if (o.cursed && nr < 64) { const R = 1.6 * mobScale(o) + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }
+      if (ZONE_MOBS[o.type]?.boss && nr < 64) { const R = 2.4 * MOB_VIS * 1.35 + Math.sin(T * 4) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.8, 0.4, 1); }
+      else if (o.chief && nr < 64) { const R = 1.9 * MOB_VIS * 1.6 / 1.45 + Math.sin(T * 3 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.55, 0.1); } // вожак лагеря — крупнее, золотое кольцо
+      else if (o.elite && nr < 64) { const R = 1.3 * MOB_VIS * 1.1 + Math.sin(T * 5 + o.id) * 0.08; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.8, 0.2); }
     }
     this.fill.count = nf; this.ring.count = nr; this.line.count = nl;
     for (const im of [this.fill, this.ring, this.line]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
@@ -384,7 +387,7 @@ export class ZoneView {
     }
     for (const o of this.mobs.values()) {
       if (!o.st) continue;
-      const h = (BEAST_ROW[o.sk] !== undefined ? BEAST_TOP(o.sk) * (o.elite ? 1.15 : 1) : (MOB_HEIGHT[o.sk] || 2) * (ZONE_MOBS[o.type]?.boss ? 1.2 : o.elite ? 1.3 : 1) + (MOB_FLYING[o.sk] || 0)) + 0.3;
+      const h = (BEAST_ROW[o.sk] !== undefined ? BEAST_TOP(o.sk) * mobScale(o) : (MOB_HEIGHT[o.sk] || 2) * mobScale(o) + (MOB_FLYING[o.sk] || 0)) + 0.3; // значок статуса — над головой уменьшенного моба
       P.status(o.st, toX(o.x), h, toZ(o.y), o.id);
     }
     P.end();

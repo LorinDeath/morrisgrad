@@ -15,7 +15,7 @@ import { MetaClient } from './meta/metaClient.js';
 import { Book } from './ui/book.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
-import { ZoneView } from './hub/zoneView.js';
+import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
@@ -1208,7 +1208,9 @@ async function boot(canvasId, username, userId, api) {
     if (world === 'hellfire') for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
     for (const b of zone.bags.values()) cands.push({ kind: 'bag', o: b, x: b.x, y: b.y, pad: 14 });
-    for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) - 10) });
+    for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) / MOB_VIS * 0.85 - 10) });
+      // клик по телу спрайта (выше «ног») — точка на земле уходит «за» моба: второй кандидат чуть выше по экрану
+      for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y - 22 * mobScale(m), pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) - 12) });
     let best = null, bd = 40;
     for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py) - (c.pad || 0); if (d < bd) { bd = d; best = c; } }
     if (best?.kind !== 'mob' && zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
