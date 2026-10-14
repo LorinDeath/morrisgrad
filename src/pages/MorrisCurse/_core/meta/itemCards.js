@@ -26,3 +26,4 @@ export function iconHtml(d, px = 40, cls = '') {
   const k = px / ATLAS.cell, col = n % ATLAS.cols, row = Math.floor(n / ATLAS.cols);
   return `<i class="mc-ic ${cls}" style="width:${px}px;height:${px}px;background-image:url('${ATLAS_URL}');background-size:${ATLAS.cols * ATLAS.cell * k}px auto;background-position:-${col * ATLAS.cell * k}px -${row * ATLAS.cell * k}px"></i>`;
 }
+export function cardIds() { return [...cards.keys()]; }

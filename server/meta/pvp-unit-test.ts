@@ -1,6 +1,7 @@
 // Юнит-тест дуэли без сервера: таймаут 3 мин (больший % ОЗ побеждает, равенство — ничья), стек дуэлей.
 // esbuild pvp-unit-test.ts --bundle --platform=node --format=esm --outfile=/tmp/pvpu.mjs && node /tmp/pvpu.mjs
 import { Pvp, DUEL_COUNTDOWN_MS, DUEL_FIGHT_MS } from "./pvp";
+import { TRAITS } from "./overrides";
 let pass = 0, fail = 0;
 const ok = (c: any, m: string) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m); };
 function world() {
@@ -22,6 +23,22 @@ function world() {
   return { out, ms, sess, mk, recs, pvp: new Pvp(host) };
 }
 const realNow = Date.now;
+{ // черты админ-панели работают и в дуэли: вампиризм 100% лечит, заморозка 100% блокирует ответный удар
+  const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
+  TRAITS.weapon.sword = [{ k: "lifesteal", chance: 100, pct: 50 } as any, { k: "freeze", chance: 100, dur: 1 } as any];
+  const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");
+  w.pvp.challenge(wa, sa, { sid: "b" }); w.pvp.respond(wb, sb, { from: "a", accept: true });
+  const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
+  sa.x = 300; sa.y = 400; sb.x = 340; sb.y = 400;
+  w.ms.get("a").zp.hp = 50;
+  w.pvp.attack(wa, sa, { dx: 1, dy: 0 });
+  const healed = w.ms.get("a").zp.hp, bHp = w.ms.get("b").zp.hp;
+  const aBefore = w.ms.get("a").zp.hp; w.pvp.attack(wb, sb, { dx: -1, dy: 0 }); // b заморожен → удар не проходит
+  ok(bHp < 100 && healed > 50, `duel traits: lifesteal heals attacker (${50}→${Math.round(healed)}), b hp ${Math.round(bHp)}`);
+  ok(w.ms.get("a").zp.hp === aBefore, "duel traits: frozen opponent cannot attack");
+  (Date as any).now = realNow; delete TRAITS.weapon.sword;
+}
 { // навыки в дуэли — направленные (те же формы, что в мире): «Пронзание» назад мимо, вперёд — попадание
   const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
   w.ms.get("a"); (w as any).pvp.host.effective = () => ({ level: 5, wtype: "sword", weaponMin: 10, weaponMax: 10, dmgPct: 0, critPct: 0, atkSpeedPct: 0, lifestealPct: 0, abilities: [{ id: "pierce", cd: 1, power: 1, props: [] }] });

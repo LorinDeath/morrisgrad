@@ -17,7 +17,7 @@ import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
 import { ZoneView } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
-import { ITEM_BY_ID, addCards, iconHtml } from './meta/itemCards.js';
+import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
 import { HubWorld } from './hub/hubWorld.js';
@@ -41,6 +41,14 @@ import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes
 import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
+// правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
+const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
+let configVer = 0;
+function applyConfig(d) {
+  if (Number.isFinite(d?.ver)) configVer = d.ver;
+  for (const p of d?.patches || []) { const o = CFG_TABLES[p.kind]?.[p.id]; if (!o || !p.values) continue;
+    for (const [path, v] of Object.entries(p.values)) { if (v == null || path === 'traits') continue; const ks = path.split('.'); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === 'object' ? t[k] : {}; t[ks.at(-1)] = v; } }
+}
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
@@ -374,6 +382,7 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
+    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl;
@@ -457,6 +466,10 @@ async function boot(canvasId, username, userId, api) {
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
   adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
   net.on('admin_result', (d) => adminPanel.onResult(d));
+  // правки админ-панели прилетают сразу (без переподключения): оружие/навыки/мобы, квесты, карточки предметов
+  net.on('config_update', (d) => { applyConfig(d); if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests);
+    if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); }
+    addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('role_changed', (d) => social.onRoleChanged(d));
   net.on('inspect_err', (d) => social.onInspectErr(d));
@@ -1535,7 +1548,7 @@ async function boot(canvasId, username, userId, api) {
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       minimap: () => hud.minimap?.stats,
-      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),

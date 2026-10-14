@@ -103,6 +103,9 @@ export function applyTraits(traits: Trait[], real: number, rand: () => number, f
 
 export class AdminStore {
   db: any; ver = -1; checkedAt = 0; loading: Promise<void> | null = null;
+  /** правка применилась (своя или подхваченная по версии) — разослать онлайн-игрокам */
+  onChange?: () => void;
+  touched = new Set<string>(); // kind:id всех когда-либо изменённых сущностей (чтобы сброс тоже дошёл до клиентов)
   constructor(db: any) { this.db = db; }
   /** перечитать правки, если версия набора в D1 изменилась (раз в 10 с; комнаты/воркеры — горячая перезагрузка) */
   async sync(force = false) {
@@ -115,7 +118,7 @@ export class AdminStore {
         const ver = Number(v?.v ?? 0); if (!force && ver === this.ver) return;
         const rows = (await this.db.prepare("SELECT kind, id, data FROM game_overrides").all()).results || [];
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
-        for (const r of rows) { const p = validatePatch(r.kind, r.id, JSON.parse(r.data)); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
+        for (const r of rows) { this.touched.add(r.kind + ":" + r.id); const p = validatePatch(r.kind, r.id, JSON.parse(r.data)); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
         const qs = (await this.db.prepare("SELECT data FROM custom_quests WHERE enabled = 1").all()).results || [];
         // сюжетные квесты: сначала вернуть исходные, затем наложить правки (строки custom_quests с id сюжетного квеста)
         for (const q of QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null);
@@ -126,7 +129,8 @@ export class AdminStore {
           else { const v = validateQuest(raw); if (typeof v !== "string") custom.push(v); }
         }
         setCustomQuests(custom);
-        this.ver = ver;
+        const first = this.ver === -1; this.ver = ver;
+        if (!first) this.onChange?.();
       } catch (e: any) { console.error("[mc] admin sync", e?.message || e); }
       finally { this.loading = null; }
     })();
@@ -138,6 +142,8 @@ export class AdminStore {
       this.db.prepare("UPDATE game_config_version SET v = v + 1 WHERE k = 'overrides'"),
     ]);
     this.ver++; // своё изменение уже применено в памяти
+    if (kind !== "quest") this.touched.add(kind + ":" + target);
+    this.onChange?.();
   }
   async save(by: string, kind: Kind, id: string, patch: any): Promise<{ ok: boolean; err?: string; values?: any; version?: number }> {
     if (!this.db) return { ok: false, err: "База недоступна" };
@@ -194,6 +200,13 @@ export class AdminStore {
     await this.bump(by, "quest", id, q, null, 0);
     return { ok: true };
   }
+  /** публичные значения изменённых сущностей для клиентов (оружие/навыки/мобы; предметы — через карточки) */
+  clientPatches() {
+    const out: { kind: string; id: string; values: any }[] = [];
+    for (const k of this.touched) { const [kind, id] = k.split(":"); if (kind === "weapon" || kind === "skill" || kind === "mob") out.push({ kind, id, values: currentValues(kind as Kind, id) }); }
+    return out;
+  }
+  touchedItems() { return [...this.touched].filter((k) => k.startsWith("item:")).map((k) => k.slice(5)); }
   async audit(limit = 50) {
     if (!this.db) return [];
     const r = await this.db.prepare("SELECT aid, kind, target_id, before, after, version, granted_by, at FROM game_override_audit ORDER BY aid DESC LIMIT ?").bind(Math.max(1, Math.min(200, limit))).all();

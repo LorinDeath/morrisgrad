@@ -104,6 +104,7 @@ export class MetaService {
     this.roles = new Roles(env?.GAME_DB);
     this.explore = new ExploreStore(env?.GAME_DB);
     this.admin = new AdminStore(env?.GAME_DB);
+    { let t: any = null; this.admin.onChange = () => { if (!t) t = setTimeout(() => { t = null; this.broadcastConfig(); }, 50); }; } // правки — всем онлайн сразу
     this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
@@ -184,6 +185,7 @@ export class MetaService {
     s.available = QUESTS.filter((q) => questAvailable(a, q, h)).map((q) => q.id);
     s.customQuests = QUESTS.filter((q) => q.custom); // тексты квестов админ-панели (клиент вливает в QUEST_BY_ID)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
+    s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
     // карточки предметов сумки — только новые для этой сессии (клиент кэширует); статы из клиента не принимаются
@@ -199,6 +201,19 @@ export class MetaService {
     return s;
   }
 
+  /** правка админ-панели — сразу всем онлайн-игрокам (без переподключения): тексты квестов, оружие/навыки/мобы,
+   *  свежие карточки изменённых предметов, пересчитанные статы героя. Сервер уже применил правку в памяти (мир/дуэли/забеги). */
+  broadcastConfig() {
+    const patches = this.admin.clientPatches(), items = this.admin.touchedItems();
+    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides() };
+    for (const [sid, ms] of this.ms) {
+      const e = this.sessionLookup?.(sid); if (!e) continue;
+      const cards: Record<string, any> = {};
+      for (const id of items) if (ms.cards.has(id)) { const c = itemCard(id); if (c) cards[id] = c; }
+      this.send(e[0], { ...base, cards });
+      try { this.send(e[0], { type: "meta_state", ...this.snap(e[1]) }); } catch (_) {}
+    }
+  }
   send(ws: WebSocket, obj: any) { try { ws.send(JSON.stringify(obj)); } catch (_) {} }
 
   push(ws: WebSocket, session: any, extra: any = {}) {
@@ -632,6 +647,8 @@ export class MetaService {
   // Сервер проверяет кд (скорость атаки), направление (единичный вектор), дальность и форму удара оружия.
   // Старые клиенты могут прислать {mob} без направления — тогда направление считается на этого моба.
   /** id надетых предметов героя (для черт из админ-панели) */
+  /** то же без готового аккаунта (дуэли) */
+  equippedOf(session: any): string[] { const ms = this.ms.get(session.id); if (!ms) return []; const a = this.store.account(ms.pkey); return a ? this.equippedIds(session, a) : []; }
   equippedIds(session: any, a: Account): string[] {
     const ms = this.ms.get(session.id), cls = session.stats?.classId; if (!ms || !cls) return [];
     const h = this.store.hero(ms.pkey, cls); const uids = new Set(Object.values(h?.equip || {}));
