@@ -31,6 +31,7 @@ const OUT = '/workspace/morrisgrad-round2';
   await G(A, () => window.__game.debug.tp(24000, 27000)); await G(B, () => window.__game.debug.tp(24080, 27020)); // Аринар 24000: к лагерям Лугов фиалок
   await A.waitForTimeout(3000);
   s = await mm(A);
+  if (!s.mobs) { await G(A, () => { const p = window.__game.state().player; window.__game.debug.devSpawn('ice_dew_slime', p.x + 140, p.y + 40); }); await A.waitForTimeout(2500); s = await mm(A); } // AOI под 30 клеток (~±600 px): лагерь мог оказаться дальше
   const known = await G(A, () => { const z = window.__game.zone?.mobs; return z ? z.size : -1; });
   ok(s?.world === 'arinar' && s.mobs > 0, `arinar: zone mobs drawn ${JSON.stringify(s)} (zone knows ${known})`);
   ok(s?.players >= 1, 'arinar: other player drawn ' + JSON.stringify({ bw: await G(B, () => window.__game.state().world), oth: await G(A, () => window.__game.debug.othersInfo()) }));
@@ -42,10 +43,10 @@ const OUT = '/workspace/morrisgrad-round2';
   ok(s.bosses >= Math.max(1, realBosses), 'arinar: boss drawn as distinct diamond ' + JSON.stringify(s));
   { // мини-карта = область камеры ×1.3; её +/- меняют зум камеры (общий)
     const m0 = await G(A, () => window.__game.debug.minimap());
-    ok(m0.cam >= 27 && m0.cam <= 33 && Math.abs(m0.span - m0.cam * 1.3 * 32) < 60, `arinar minimap = camera ${m0.cam} cells ×1.3 → span ${m0.span}px`);
+    ok(m0.cam >= 18 && m0.cam <= 22 && Math.abs(m0.span - m0.cam * 1.3 * 32) < 60, `arinar minimap = camera ${m0.cam} cells ×1.3 → span ${m0.span}px`);
     await A.click('#mm-btn-minus'); await A.click('#mm-btn-minus'); await A.waitForTimeout(900);
     const m1 = await G(A, () => window.__game.debug.minimap());
-    ok(m1.cam > m0.cam + 10, `minimap «−» zooms the camera out: ${m0.cam} → ${m1.cam} cells`);
+    ok(m1.cam > m0.cam * 1.3, `minimap «−» zooms the camera out: ${m0.cam} → ${m1.cam} cells`);
     await A.click('#mm-btn-plus'); await A.click('#mm-btn-plus'); await A.waitForTimeout(900);
   }
   await shot(A, 'minimap-arinar.png');

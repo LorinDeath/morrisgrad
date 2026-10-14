@@ -17,6 +17,6 @@ export const ARINAR_LAYOUT_VER = 3; // версия раскладки: стар
 
 // Обзор камеры в открытом мире (Аринар): клеток (32 px) по большей стороне экрана — ближе / по умолчанию / дальше.
 // Сервер шлёт мобов/игроков только в квадрате ±OPEN_AOI — с запасом на самый дальний зум, не больше.
-export const VIEW_CELLS = { min: 15, def: 30, max: 45 };
+export const VIEW_CELLS = { min: 10, def: 20, max: 30 };
 export const CELL_PX = 32;
-export const OPEN_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.1); // 792 px
+export const OPEN_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.1); // 528 px
