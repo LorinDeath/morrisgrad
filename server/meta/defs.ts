@@ -98,3 +98,13 @@ export function weaponType(itemId: string | null | undefined, cls: string | null
   return (itemId && ITEM_WTYPE[itemId]) || (cls && CLASS_WTYPE[cls]) || "book";
 }
 
+
+// Таблица трофеев есть у КАЖДОГО моба открытого мира (у вариантов биомов — копия базовой), чтобы в админке «Дроп»
+// редактировался любой из ZONE_MOBS отдельно. Без правок админа дроп варианта совпадает с базовым (как было).
+for (const [k, d] of Object.entries(ZONE_MOBS)) {
+  if (MONSTER_LOOT[k]) continue;
+  const b = MONSTER_LOOT[(d as any).base || ""];
+  MONSTER_LOOT[k] = b
+    ? { ...b, name: d.name, lvl: d.lvl, gear: b.gear.map((g) => ({ ...g })), materials: b.materials.map((r) => ({ ...r, qty: [...r.qty] as any })) }
+    : { name: d.name, kind: "zone", lvl: d.lvl, stats: { hp: d.hp, dmg: d.dmg, armor: d.armor || 0, speed: String(d.speed) }, abilitiesText: [], gear: [], materials: [] } as any;
+}

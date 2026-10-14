@@ -968,6 +968,7 @@ export class MetaService {
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       const base = baseOf(m.type); // вариант биома → трофеи/бестиарий/квесты базового Отголоска
       noteMob(a, base, 1);
+      const lootKey = MONSTER_LOOT[m.type] ? m.type : base; // у каждого моба своя (правимая в админке) таблица
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
       const xp = killXp({ xp: d.xp, mobL: d.lvl || 1, heroL: h?.lvl || 1, elite: m.elite, cursed: m.cursed, boss: !!d.boss }); // balance.killXp: серые — 0, сильные — больше с потолком
       const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed };
@@ -975,8 +976,8 @@ export class MetaService {
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
       const lootMul = m.cursed ? ZONE_GEN.cursedLoot : 1; // проклятый: шансы дропа ×10 (только сервер)
       // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
-      const loot = sid === bagOwner ? rollMonsterLoot(base, cryptoRand, lootMul) : { items: [] as string[], res: {} as Record<string, number> };
-      if (m.elite && sid === bagOwner) { const l2 = rollMonsterLoot(base, cryptoRand, lootMul); loot.items.push(...l2.items); for (const [r, n] of Object.entries(l2.res)) loot.res[r] = (loot.res[r] || 0) + n; } // элита: второй бросок
+      const loot = sid === bagOwner ? rollMonsterLoot(lootKey, cryptoRand, lootMul) : { items: [] as string[], res: {} as Record<string, number> };
+      if (m.elite && sid === bagOwner) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul); loot.items.push(...l2.items); for (const [r, n] of Object.entries(l2.res)) loot.res[r] = (loot.res[r] || 0) + n; } // элита: второй бросок
       const bag = this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       this.qev(a, session, { type: "kill", mob: base, cls });
