@@ -26,7 +26,7 @@ const N = (path: string, label: string, min: number, max: number, t: "int" | "nu
 const ST = ["dmgMin", "dmgMax", "armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct"];
 export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: boolean }> = {
   mob: { name: "Бестиарий", fields: [N("lvl", "Уровень", 1, 60, "int"), N("hp", "ОЗ", 1, 1e7, "int"), N("dmg", "Урон", 0, 1e5), N("armor", "Броня", 0, 95), N("speed", "Скорость", 0, 400), N("aggro", "Агро, px", 0, 2000, "int"), N("xp", "Опыт", 0, 1e6, "int"), N("radius", "Радиус", 4, 200, "int"), { path: "skills", label: "Навыки моба", t: "skills" }] },
-  weapon: { name: "Оружие", traits: true, fields: [N("cd", "Перезарядка удара, мс", 100, 5000, "int"), { path: "atk.kind", label: "Форма удара", t: "enum", opts: ["proj", "line", "arc"] }, N("atk.range", "Дальность", 20, 800, "int"), N("atk.width", "Ширина", 4, 200, "int"), N("atk.arc", "Дуга, рад", 0.1, 3.2), N("atk.max", "Целей", 1, 10, "int"), N("atk.count", "Снарядов в залпе", 1, 9, "int"), N("atk.spread", "Веер, рад", 0, 2), N("atk.per", "Урон снаряда, ×", 0.05, 1), { path: "status.kind", label: "Статус", t: "enum", opts: ["", "burn", "bleed", "poison"] }, N("status.dpsPct", "Статус: урон/с, %", 0, 100), N("status.dur", "Статус: длит., с", 0, 20), { path: "status.slow", label: "Замедляет", t: "bool" }, N("status.knock", "Отбрасывание", 0, 10)] },
+  weapon: { name: "Оружие", traits: true, fields: [N("cd", "Перезарядка удара, мс", 100, 5000, "int"), { path: "atk.kind", label: "Форма удара", t: "enum", opts: ["proj", "line", "arc"] }, N("atk.range", "Дальность", 20, 800, "int"), N("atk.width", "Ширина", 4, 200, "int"), N("atk.arc", "Дуга, рад", 0.1, 3.2), N("atk.max", "Целей", 1, 10, "int"), N("atk.count", "Снарядов в залпе", 1, 9, "int"), N("atk.spread", "Веер, рад", 0, 2), N("atk.per", "Урон снаряда, ×", 0.05, 1), N("status.knock", "Отбрасывание", 0, 10)] }, // статусы — только чертами предметов
   item: { name: "Предметы", traits: true, fields: [N("lvl", "Ур. предмета", 1, 60, "int"), N("req", "Треб. уровень (надеть)", 1, 60, "int"), ...ST.map((k) => N("stats." + k, k, 0, 1e4)),
     // навык оружия (R): если задан — важнее навыка, выпавшего у экземпляра; «» — как выпало
     { path: "rs", label: "Навык оружия (R), важнее выпавшего", t: "enum", opts: ["", ...RUN_SKILLS.map((r) => r.id)] },
@@ -112,7 +112,11 @@ export function applyOverride(kind: Kind, id: string, patch: any | null) {
   for (const p of paths) setP(o, p, orig[p] === null ? undefined : JSON.parse(JSON.stringify(orig[p])));
   if (SCHEMA[kind].traits) delete TRAITS[kind][id];
   if (!patch) return;
-  for (const [p, v] of Object.entries(patch)) { if (p === "traits") TRAITS[kind][id] = v as Trait[]; else setP(o, p, v); }
+  for (const [p, v] of Object.entries(patch)) {
+    if (p === "traits") TRAITS[kind][id] = v as Trait[];
+    else if (!SCHEMA[kind].fields.some((f) => f.path === p)) continue; // старые поля из D1 (например, статус типа оружия) — игнорируются
+    else setP(o, p, v);
+  }
 }
 export function currentValues(kind: Kind, id: string) {
   const o = TABLES[kind][id]; if (!o) return null;

@@ -249,17 +249,19 @@ export interface ItemDef {
 // per подобран так, что «все снаряды в одну цель» ≈ ×1.1–1.2 одиночного выстрела (на дистанции попадает меньше,
 // зато веер цепляет пачку) — DPS сбалансирован. Всё считает сервер (service.zoneAttack / pvp.attack).
 export interface WeaponAtk { kind: "proj" | "line" | "arc"; range: number; width?: number; arc?: number; max?: number; count?: number; spread?: number; per?: number }
+// Статусы (поджог/кровотечение/яд/замедление) у ТИПА оружия больше не задаются — только чертами конкретного предмета в админке;
+// у типа осталось лишь отбрасывание (реакция на удар).
 export interface WeaponTypeDef { name: string; shot: string; cd: number; atk: WeaponAtk; status: { kind?: string; dpsPct?: number; dur?: number; slow?: boolean; knock?: number } }
 export const WEAPON_TYPES: Record<string, WeaponTypeDef> = {
   spear: { name: "Копьё", shot: "spear", cd: 520, atk: { kind: "line", range: 200, width: 22, max: 3 }, status: { knock: 2.5 } },
-  daggers: { name: "Кинжалы", shot: "daggers", cd: 340, atk: { kind: "proj", range: 200, width: 18, count: 2, spread: 0.16, per: 0.56 }, status: { kind: "bleed", dpsPct: 12, dur: 3 } },
-  book: { name: "Гримуар", shot: "soul_spark", cd: 450, atk: { kind: "proj", range: 230, width: 22 }, status: { kind: "burn", dpsPct: 10, dur: 3 } },
-  staff: { name: "Посох", shot: "staff_bolt", cd: 560, atk: { kind: "proj", range: 240, width: 24 }, status: { kind: "burn", dpsPct: 15, dur: 3 } },
+  daggers: { name: "Кинжалы", shot: "daggers", cd: 340, atk: { kind: "proj", range: 200, width: 18, count: 2, spread: 0.16, per: 0.56 }, status: {} },
+  book: { name: "Гримуар", shot: "soul_spark", cd: 450, atk: { kind: "proj", range: 230, width: 22 }, status: {} },
+  staff: { name: "Посох", shot: "staff_bolt", cd: 560, atk: { kind: "proj", range: 240, width: 24 }, status: {} },
   sword: { name: "Меч", shot: "ab_backstab", cd: 480, atk: { kind: "arc", range: 115, arc: 1.2, max: 4 }, status: { knock: 2 } },
-  bow: { name: "Лук", shot: "thorn_bow", cd: 560, atk: { kind: "line", range: 270, width: 16, max: 2 }, status: { kind: "bleed", dpsPct: 10, dur: 3 } },
+  bow: { name: "Лук", shot: "thorn_bow", cd: 560, atk: { kind: "line", range: 270, width: 16, max: 2 }, status: {} },
   axe: { name: "Секира", shot: "war_axe", cd: 640, atk: { kind: "arc", range: 125, arc: 1.4, max: 5 }, status: { knock: 4 } },
-  fly_blades: { name: "Лапки-лезвия", shot: "fly_blades", cd: 360, atk: { kind: "proj", range: 220, width: 16, count: 5, spread: 0.7, per: 0.24 }, status: { kind: "bleed", dpsPct: 14, dur: 2.5 } },
-  moon_blade: { name: "Лунный клинок", shot: "chain_bolt", cd: 480, atk: { kind: "arc", range: 135, arc: 1.3, max: 4 }, status: { slow: true, knock: 1 } },
+  fly_blades: { name: "Лапки-лезвия", shot: "fly_blades", cd: 360, atk: { kind: "proj", range: 220, width: 16, count: 5, spread: 0.7, per: 0.24 }, status: {} },
+  moon_blade: { name: "Лунный клинок", shot: "chain_bolt", cd: 480, atk: { kind: "arc", range: 135, arc: 1.3, max: 4 }, status: { knock: 1 } },
 };
 /** Направления снарядов залпа (единичные векторы) — одинаково на сервере и клиенте. */
 export function volleyDirs(atk: WeaponAtk, dx: number, dy: number): [number, number][] {

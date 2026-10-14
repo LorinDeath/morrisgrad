@@ -32,7 +32,7 @@ export interface ZMob { id: number; type: string; respawn: number; sx: number; s
   // процедурный спавн: регион, элита, простой вне боя (для деспавна); fixed — классическая точка респавна
   fixed: boolean; region: string | null; elite: boolean; idle: number; chief?: boolean;
   // статусы от оружия игроков (сервер-авторитет): урон по времени, замедление, отбрасывание
-  dot: { kind: string; dps: number; until: number; sid: string } | null; slowUntil: number; kbx: number; kby: number;
+  dot: { kind: string; dps: number; until: number; sid: string } | null; dots?: { kind: string; dps: number; until: number; sid: string }[]; slowUntil: number; kbx: number; kby: number;
   // телеграфы в полёте, фаза босса, ярость, особый тип (boss/rare), время жизни редкого
   casts: ZCast[]; phase: number; enraged: boolean; special: "" | "boss" | "rare"; expireAt: number; patIdx: number;
   // раунд Аринара: проклятый (10%), навыки и их кд, «сброс» поводка, рывок агрессии, лагерь
@@ -63,6 +63,7 @@ function valueNoise(seed: number, step: number) {
     return a + (b - a) * sy;
   };
 }
+export const DOT_STACK_MAX = 5; // стаков одного статуса на цели
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 // выстрел дальнобойного моба: спрайт по стихии
 const MOB_SHOT: Record<string, string> = { ice: "ice_fan", fire: "fire_spark", stone: "spear", air: "chain_bolt", wild: "thorn_bow" };
@@ -591,7 +592,13 @@ export class Zone {
     const now = Date.now();
     const d = ZONE_MOBS[m.type];
     if (st.kind && st.dps && st.dur) {
-      if (!m.dot || m.dot.until < now || m.dot.dps <= st.dps) m.dot = { kind: st.kind, dps: st.dps, until: now + st.dur * 1000, sid };
+      // стаки: один и тот же статус от разных попаданий/источников складывается (каждый стак — свой урон/с и срок),
+      // до DOT_STACK_MAX на вид (самый старый уходит); разные статусы (поджог + кровотечение + яд) действуют одновременно
+      const L = (m.dots = (m.dots || []).filter((x) => x.until > now));
+      const same = L.filter((x) => x.kind === st.kind);
+      if (same.length >= DOT_STACK_MAX) L.splice(L.indexOf(same.reduce((a, b) => (a.until < b.until ? a : b))), 1);
+      L.push({ kind: st.kind, dps: st.dps, until: now + st.dur * 1000, sid });
+      m.dot = L[L.length - 1];
     }
     if (st.slow) m.slowUntil = now + (d.boss ? 600 : 1200);
     if (st.knock && !KNOCK_IMMUNE(d)) {
@@ -721,19 +728,23 @@ export class Zone {
       // сон: чанк без игроков рядом — без ИИ (мобы заморожены; поводок/лечение — мгновенно при засыпании)
       if (sleepy && !this.awake.has(sk(m.x, m.y))) {
         asleep++;
-        if (!m.dead && (m.targetSid || m.mobTarget || m.reset || m.hp < m.maxHp)) { m.x = m.sx; m.y = m.sy; m.hp = m.maxHp; m.targetSid = null; m.mobTarget = 0; m.reset = false; m.casts = []; m.dot = null; m.windup = 0; m.dashT = 0; }
+        if (!m.dead && (m.targetSid || m.mobTarget || m.reset || m.hp < m.maxHp)) { m.x = m.sx; m.y = m.sy; m.hp = m.maxHp; m.targetSid = null; m.mobTarget = 0; m.reset = false; m.casts = []; m.dot = null; m.dots = []; m.windup = 0; m.dashT = 0; }
         continue;
       }
       awake++;
-      if (!m.dead && m.dot) {
-        if (now >= m.dot.until) m.dot = null;
+      if (!m.dead && m.dots?.length) {
+        m.dots = m.dots.filter((x) => x.until > now);
+        if (!m.dots.length) m.dot = null;
         else {
-          const dmg = m.dot.dps * dt;
-          m.hp -= dmg;
-          m.dmgBy.set(m.dot.sid, (m.dmgBy.get(m.dot.sid) || 0) + dmg);
-          (m as any).dotAcc = ((m as any).dotAcc || 0) + dmg; // урон по времени — событием раз в ~1 с (счётчик DPS)
-          if ((m as any).dotAcc >= Math.max(1, m.dot.dps)) { this.events.push({ k: "hit", id: m.id, d: Math.round((m as any).dotAcc), by: m.dot.sid, dot: 1 }); (m as any).dotAcc = 0; }
-          if (m.hp <= 0) { (m as any).killer = m.dot.sid; this.kill(m, onKill); continue; }
+          let killer = "";
+          for (const x of m.dots) { // каждый стак тикает сам: урон идёт своему источнику (счётчик DPS, вклад в награду)
+            const dmg = x.dps * dt;
+            m.hp -= dmg; killer = x.sid;
+            m.dmgBy.set(x.sid, (m.dmgBy.get(x.sid) || 0) + dmg);
+            const acc = ((m as any).dotAcc ||= {}); acc[x.sid] = (acc[x.sid] || 0) + dmg; // урон по времени — событием раз в ~1 с
+            if (acc[x.sid] >= Math.max(1, x.dps)) { this.events.push({ k: "hit", id: m.id, d: Math.round(acc[x.sid]), by: x.sid, dot: 1 }); acc[x.sid] = 0; }
+          }
+          if (m.hp <= 0) { (m as any).killer = killer; this.kill(m, onKill); continue; }
           this.checkPhase(m, d);
         }
       }
@@ -757,7 +768,7 @@ export class Zone {
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
       if (!m.reset && (m.targetSid || m.mobTarget) && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
-        m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.burstUntil = 0; this.stats.resets++;
+        m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
       }
       if (m.reset) {
@@ -852,7 +863,7 @@ export class Zone {
             else { const sp = d.speed * 0.55 * dt; m.x += (dx / dist) * sp; m.y += (dy / dist) * sp; }
           }
           m.sx = m.x; m.sy = m.y;
-          if (!m.dot) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt);
+          if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt);
           if (m.hp >= m.maxHp) m.dmgBy.clear();
           m.x = this.clamp(m.x); m.y = this.clamp(m.y);
           continue;
@@ -861,7 +872,7 @@ export class Zone {
         if (now >= m.nextWander) { m.nextWander = now + 2500 + Math.random() * 3000; m.wanderX = m.sx + (Math.random() - 0.5) * 120; m.wanderY = m.sy + (Math.random() - 0.5) * 120; if (!m.fixed && inSafe(m.wanderX, m.wanderY, 0, this.world)) { m.wanderX = m.sx; m.wanderY = m.sy; } }
         const dx = m.wanderX - m.x, dy = m.wanderY - m.y, dist = Math.hypot(dx, dy);
         if (dist > 4) { m.x += (dx / dist) * d.speed * 0.4 * dt; m.y += (dy / dist) * d.speed * 0.4 * dt; }
-        if (!m.dot) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt); // горящий/отравленный не лечится
+        if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt); // горящий/отравленный не лечится
         if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.usedAbility.clear(); m.phase = 1; m.enraged = false; }
       }
       m.x = this.clamp(m.x); m.y = this.clamp(m.y);
@@ -938,7 +949,7 @@ export class Zone {
     return real;
   }
   kill(m: ZMob, onKill: (m: ZMob) => void) {
-    m.dead = true; m.hp = 0; m.windup = 0; m.dashT = 0; m.dot = null; m.casts = [];
+    m.dead = true; m.hp = 0; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.casts = [];
     m.respawnAt = Date.now() + (m.rk ? ZONE_GEN.campRespawn * m.rk : m.respawn) * 1000; // лагеря — живая правка админки
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
     if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}» повержен!`, color: "#fde68a" });
@@ -964,7 +975,9 @@ export class Zone {
       if (x.dead) continue;
       const far = Math.abs(x.x - px) > aoi || Math.abs(x.y - py) > aoi;
       if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.15 && Math.abs(x.y - py) < aoi * 1.15)) continue; // боссов видно дальше
-      const st = x.dot ? (x.dot.kind === "burn" ? 8 : x.dot.kind === "poison" ? 16 : 32) : 0;
+      // статусы — битами (могут быть одновременно) + число стаков каждого (по 3 бита: поджог 13–15, яд 16–18, кровотечение 19–21)
+      let st = 0;
+      if (x.dots?.length) for (const dd of x.dots) if (dd.until > now) { const i = dd.kind === "burn" ? 0 : dd.kind === "poison" ? 1 : 2; st |= 8 << i; const sh = 13 + i * 3, c = (st >> sh) & 7; if (c < 7) st = (st & ~(7 << sh)) | ((c + 1) << sh); }
       m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
         (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0));
     }

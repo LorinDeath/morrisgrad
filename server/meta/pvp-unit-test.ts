@@ -119,7 +119,7 @@ for (const [hpA, hpB, exp] of [[80, 40, 0], [30, 90, 1], [55, 55, null]] as cons
   (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 3000;
   w.pvp.attack(wa, sa, { dx: 1, dy: 0 }); for (let k = 0; k <= 10; k++) w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 3000 + k * 50);
   (Date as any).now = realNow;
-  ok(frozen && evs.some((e) => e.k === "pstatus" && e.s === "slow") && evs.some((e) => e.k === "pstatus" && e.s === "burn"), `duel statuses like open world: slow from frost_nova (${frozen}), burn from grimoire hit`);
+  ok(frozen && evs.some((e) => e.k === "pstatus" && e.s === "slow") && !evs.some((e) => e.k === "pstatus" && e.s === "burn"), `duel statuses like open world: slow from frost_nova (${frozen}); plain grimoire no longer burns (status only from item traits)`);
 }
 Date.now = realNow;
 console.log(`\n${pass} passed, ${fail} failed`);

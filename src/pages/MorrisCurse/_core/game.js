@@ -1237,12 +1237,14 @@ async function boot(canvasId, username, userId, api) {
   }
 
   // Выбор моба кликом: подсветка-кольцо + панель «Цель» (имя, уровень, ХП тек./макс. — с сервера, zone_state.tg)
+  // стаки статусов цели: 🔥×2 🩸×1 ☣×3 (поджог/кровотечение/яд — одновременно)
+  function stsLabel(s) { if (!s) return ''; const t = [['burn', '🔥'], ['bleed', '🩸'], ['poison', '☣']].filter(([k]) => s[k] > 0).map(([k, i]) => `${i}×${s[k]}`).join(' '); return t ? ' · ' + t : ''; }
   function mobTarget(o, tg) {
     const info = ZONE_MOBS[o.type] || {};
     const tags = [tg?.cursed || o.cursed ? '☠ Проклятый' : '', tg?.boss || info.boss ? '👑 Босс' : '', tg?.elite || o.elite ? '★ Элита' : '', tg?.reset ? '↩ сброс' : ''].filter(Boolean).join(' · ');
     return {
       kind: 'mob', id: o.id, name: tg?.name || info.name || o.type,
-      typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · ✦ ' + tg.skills.join(', ') : ''}`,
+      typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · ✦ ' + tg.skills.join(', ') : ''}${stsLabel(tg?.sts || o.sts)}`,
       hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: info.armor ?? '-', atk: info.dmg ?? '-',
     };
   }

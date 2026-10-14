@@ -277,7 +277,11 @@ export class Pvp {
       c.os.x = Math.max(46, Math.min(S - 46, c.os.x + dx / L * k)); c.os.y = Math.max(46, Math.min(S - 46, c.os.y + dy / L * k)); c.op.zp.x = c.os.x; c.op.zp.y = c.os.y;
       const e = this.host.sessionLookup?.(c.os.id); if (e) this.host.send(e[0], { type: "ability_move", x: Math.round(c.os.x), y: Math.round(c.os.y) }); }
     if (st.kind && st.dps && st.dur) {
-      d.ev.push({ k: "pstatus", to: c.os.id, s: st.kind, ms: st.dur * 1000 });
+      // стаки как в открытом мире: один статус от разных попаданий складывается (до 5 одновременно), разные — независимо
+      const S2 = (c.op.dotStacks ||= {}) as Record<string, number[]>, live = (S2[st.kind] = (S2[st.kind] || []).filter((u) => u > now));
+      if (live.length >= 5) return;
+      live.push(now + st.dur * 1000);
+      d.ev.push({ k: "pstatus", to: c.os.id, s: st.kind, ms: st.dur * 1000, n: live.length });
       for (let t = 1; t <= Math.min(10, Math.round(st.dur)); t++) setTimeout(() => { if (!this.duels.has(d.id) || c.op.zp.hp <= 0) return; const v = Math.max(1, Math.round(st.dps!)); c.op.zp.hp = Math.max(0, c.op.zp.hp - v); d.hits[c.i] += v;
         d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: v, dot: st.kind, x: Math.round(c.os.x), y: Math.round(c.os.y) }); if (c.op.zp.hp <= 0) this.finish(d, c.i as 0 | 1, "ko"); }, t * 1000);
     }

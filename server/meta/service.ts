@@ -1131,7 +1131,8 @@ export class MetaService {
         const tg = tm && !tm.dead && Math.abs(tm.x - s.x) < 1600 && Math.abs(tm.y - s.y) < 1600
           ? { id: tm.id, type: tm.type, name: ZONE_MOBS[tm.type].name, lvl: ZONE_MOBS[tm.type].lvl, hp: Math.max(0, Math.ceil(tm.hp)), maxHp: tm.maxHp,
               elite: tm.elite || undefined, cursed: tm.cursed || undefined, boss: tm.special === "boss" || undefined, reset: tm.reset || undefined,
-              skills: tm.skills.length ? tm.skills.map((k) => MOB_SKILLS[k].name) : undefined }
+              skills: tm.skills.length ? tm.skills.map((k) => MOB_SKILLS[k].name) : undefined,
+              sts: tm.dots?.length ? tm.dots.filter((x) => x.until > now).reduce((o: any, x) => ((o[x.kind] = (o[x.kind] || 0) + 1), o), {}) : undefined } // стаки статусов цели
           : tid ? { id: tid, gone: 1 } : undefined;
         const bags = this.loot.near(ms.pkey, s.world || "hellfire", s.x, s.y, 800);
         // чужие личные порталы рядом (видны всем, войти может только владелец): [ключ, имя, x, y]
