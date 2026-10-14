@@ -427,8 +427,9 @@ export class RunSession {
     }
     if (m.dashCd) m.dashCd = Math.max(0, m.dashCd - dt);
     resolvePillars(m, 0.5);
-    // в бою (удар/урон за последние 5 с) восстановление ×0.1, как в мире
-    if (m.regen) this.heal(m.regen * dt * (this.t - (m.combatAt ?? -1e9) < 5 ? 0.1 : 1));
+    // в бою (удар/урон за последние sec с) восстановление ×mul — как в мире, из админки «Спавн» (по умолчанию 0.1 / 5 с)
+    const rc = globalThis.__mcRegen || { mul: 0.1, sec: 5 };
+    if (m.regen) this.heal(m.regen * dt * (this.t - (m.combatAt ?? -1e9) < rc.sec ? rc.mul : 1));
 
     this.wsCd = Math.max(0, (this.wsCd || 0) - dt);
     // Оружие

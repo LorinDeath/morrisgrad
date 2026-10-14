@@ -33,6 +33,8 @@ import { Roles } from "./roles";
 import { WEAPON_SKILL_CD } from "./abilityShapes";
 import { rsInfo, RS_DEF } from "./rsAny";
 /** ХП/с игрока: вне боя — полное (стат + база зоны + 4% ХП/с), в бою — ×ZONE_GEN.regenCombat. */
+/** восстановление в бою для клиента (забеги считают ХП у себя) */
+export function regenCfg() { const G: any = ZONE_GEN; return { mul: G.regenCombat ?? 0.1, sec: G.regenCombatSec ?? 5 }; }
 export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: number, statRegen: number, hub: boolean): number {
   const G: any = ZONE_GEN, inCombat = now - Math.max(hurtAt, hitAt) < (G.regenCombatSec ?? 5) * 1000;
   const full = statRegen + (hub ? 2 : 0.3) + maxHp * 0.04;
@@ -207,7 +209,7 @@ export class MetaService {
     s.customQuests = QUESTS.filter((q) => q.custom); // тексты квестов админ-панели (клиент вливает в QUEST_BY_ID)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
-    s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; // правки оружия/навыков/мобов
+    s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
     // карточки предметов сумки — только новые для этой сессии (клиент кэширует); статы из клиента не принимаются
@@ -227,7 +229,7 @@ export class MetaService {
    *  свежие карточки изменённых предметов, пересчитанные статы героя. Сервер уже применил правку в памяти (мир/дуэли/забеги). */
   broadcastConfig() {
     const patches = this.admin.clientPatches(), items = this.admin.touchedItems();
-    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides() };
+    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), regenCfg: regenCfg() };
     for (const [sid, ms] of this.ms) {
       const e = this.sessionLookup?.(sid); if (!e) continue;
       const cards: Record<string, any> = {};

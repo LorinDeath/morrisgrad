@@ -52,6 +52,7 @@ const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS 
 let configVer = 0;
 function applyConfig(d) {
   if (Number.isFinite(d?.ver)) configVer = d.ver;
+  if (d?.regenCfg) globalThis.__mcRegen = d.regenCfg; // забег: восстановление в бою по настройкам админки
   for (const p of d?.patches || []) { const o = CFG_TABLES[p.kind]?.[p.id]; if (!o || !p.values) continue;
     for (const [path, v] of Object.entries(p.values)) { if (v == null || path === 'traits') continue; const ks = path.split('.'); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === 'object' ? t[k] : {}; t[ks.at(-1)] = v; } }
 }
@@ -399,7 +400,7 @@ async function boot(canvasId, username, userId, api) {
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
     if (d.portal !== undefined) syncHomePortal(d.portal);
-    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches });
+    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl;
