@@ -4,6 +4,7 @@
 // mobs_atlas.png — строка = тип врага, ячейка 48×48, 12 колонок: 0–3 ход, 4–6 атака, 7 урон, 8–11 распад.
 // Оба листа генерируются скриптами tools/mc-sprites/ (см. README там же).
 import charsSrc from '../../../../assets/mc/chars_atlas.png';
+import heroesHdSrc from '../../../../assets/mc/heroes_atlas.png';
 import { GRADE } from './atmosphere.js';
 import mobsSrc from '../../../../assets/mc/mobs_atlas.png';
 import projSrc from '../../../../assets/mc/proj_atlas.png';
@@ -15,7 +16,12 @@ const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.s
 export const PX_PER_M = 10;
 export const HERO_ROWS = { spearman: 0, rogue: 1, mage: 2, warrior: 3 };
 export const NPC_ROWS = { alzi: 4, leyr: 5, petr: 6, kyut: 7 };
-export const HERO_CELL = { w: 24, h: 24, cols: 24, rows: 8 };
+// heroes_atlas.png — те же строки и кадры в ячейке 48×60 (утверждённые листы 2026-10, tools/mc-sprites/build_hero_atlases.py).
+// По умолчанию — HD-атлас (фигура ≈57 px из 60 → рост 2.1 м, как у 21 px из 24 в старом); ?herosd=1 / localStorage mc-hero-sd=1 — старый 24×24.
+const SD = typeof location !== 'undefined' && (/[?&]herosd=1/.test(location.search) || (typeof localStorage !== 'undefined' && localStorage.getItem('mc-hero-sd') === '1'));
+export const HERO_HD = !SD;
+export const HERO_CELL = HERO_HD ? { w: 48, h: 60, cols: 24, rows: 8 } : { w: 24, h: 24, cols: 24, rows: 8 };
+export const HERO_H_M = HERO_HD ? 2.2 : 2.4; // высота билборда, м
 export const HERO_FRAMES = 6;
 export const MOB_CELL = { w: 48, h: 48, cols: 12, rows: 14 };
 export const MOB_ROWS = { imp: 0, bat: 1, ghoul: 2, spitter: 3, golem: 4, warden: 5, blade_fly: 6, dream_moth: 7, rot_glitch: 8, moon_sentinel: 9, alzi: 10, leyr: 11, petr: 12, kyut: 13, kyut_mirror: 13 };
@@ -35,7 +41,7 @@ let loading = null;
 export function loadPixAtlases(THREE) {
   if (loading) return loading;
   loading = Promise.all([
-    loadAtlasTexture(THREE, url(charsSrc)).then((t) => { atlases.heroes = t; }).catch((e) => console.warn('[pix]', e.message)),
+    loadAtlasTexture(THREE, url(HERO_HD ? heroesHdSrc : charsSrc)).then((t) => { atlases.heroes = t; }).catch((e) => console.warn('[pix]', e.message)),
     loadAtlasTexture(THREE, url(mobsSrc)).then((t) => { atlases.mobs = t; }).catch((e) => console.warn('[pix]', e.message)),
     loadAtlasTexture(THREE, url(projSrc)).then((t) => { atlases.proj = t; }).catch((e) => console.warn('[pix]', e.message)),
   ]).then(() => atlases);
@@ -71,7 +77,7 @@ export class PixCharacter {
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.3, toneMapped: false });
     const sp = new THREE.Sprite(mat);
     sp.center.set(0.5, 0);
-    const h = isLook ? (MOB_HEIGHT[this.mobType] || 2) : HERO_CELL.h / PX_PER_M;
+    const h = isLook ? (MOB_HEIGHT[this.mobType] || 2) : HERO_H_M;
     sp.scale.set(h * (cell.w / cell.h), h, 1);
     this.sprite = sp;
     this.lift = isLook ? (MOB_FLYING[this.mobType] || 0) : 0;

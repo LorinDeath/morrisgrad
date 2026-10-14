@@ -5,7 +5,7 @@ import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import propsSrc from '../../../../assets/mc/props_atlas.png';
 import propsMeta from '../../../../assets/mc/props_atlas.json';
 import { BEAST_ROW, BEAST_H, beastTop as BEAST_TOP, beastFlying, loadBeastBatch } from '../engine/beastSprites.js';
-import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
+import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING, HERO_HD, HERO_CELL, HERO_H_M, NPC_ROWS } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
   MOB_INFO as ZONE_MOBS, NPCS, NPC_RANGE, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, RESOURCES, WEAPON_TYPES, CLASS_WTYPE,
@@ -38,6 +38,11 @@ export class ZoneView {
     if (at.mobs) {
       this.batch = new SpriteBatch(THREE, at.mobs, { cellW: MOB_CELL.w, cellH: MOB_CELL.h, cols: MOB_CELL.cols, rows: MOB_CELL.rows, max: 256 });
       this.root.add(this.batch.mesh);
+    }
+    // NPC мира — утверждённые листы 48×60 (строки 4–7 heroes_atlas, 4 направления × 6 кадров), дыхание на месте
+    if (HERO_HD && at.heroes) {
+      this.npcBatch = new SpriteBatch(THREE, at.heroes, { cellW: HERO_CELL.w, cellH: HERO_CELL.h, cols: HERO_CELL.cols, rows: HERO_CELL.rows, max: 16 });
+      this.root.add(this.npcBatch.mesh);
     }
     const decal = (geo, cap, op) => {
       const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide }), cap);
@@ -258,10 +263,21 @@ export class ZoneView {
       // NPC мира
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || MOB_ROWS[id] === undefined) continue;
+        if (this.npcBatch && NPC_ROWS[id] !== undefined) continue; // рисует npcBatch (HD)
         B.push(toX(n.x), 0, toZ(n.y), MOB_HEIGHT[id] || 2.5, (Math.floor(T * 2.5 + n.x) & 3), MOB_ROWS[id], false, 1, 1, 1, 0, 1);
         atmo.shadow(toX(n.x), toZ(n.y), 0.6);
       }
       B.end();
+    }
+    const NPB = this.npcBatch;
+    if (NPB) {
+      NPB.begin();
+      for (const [id, n] of Object.entries(NPCS)) {
+        if (n.world !== world || NPC_ROWS[id] === undefined) continue;
+        NPB.push(toX(n.x), 0, toZ(n.y), HERO_H_M * 1.08, (Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1, NPC_ROWS[id], false, 1, 1, 1, 0, 1);
+        atmo.shadow(toX(n.x), toZ(n.y), 0.6);
+      }
+      NPB.end();
     }
     // ресурсы: готовые — светятся и покачиваются
     const NB = this.nodeBatch;
