@@ -29,6 +29,7 @@ export class ZoneView {
     this.world = null;
     this.mobs = new Map(); // id → {type,x,y,tx,ty,hp,flag,flash,flip,seen}
     this.nodes = new Map(); // id → {def, ready, mesh}
+    this.bags = new Map(); // мешки добычи (свои): id → {id, x, y, n}
     this.dying = [];
     this.teles = []; // {kind,x,y,r,dx,dy,len,t,life}
     this.bolts = [];
@@ -76,13 +77,13 @@ export class ZoneView {
     if (world === this.world) return;
     this.world = world;
     this.mobs.clear(); this.dying.length = 0; this.teles.length = 0;
-    this.nodes.clear();
+    this.nodes.clear(); this.bags.clear();
     if (world === 'arinar') this.buildNodes(this.seed);
   }
 
   // Узлы ресурсов — из того же сида, что и на сервере (server/meta/zoneGen.ts)
   buildNodes(seed) {
-    this.nodes.clear();
+    this.nodes.clear(); this.bags.clear();
     this.seed = seed;
     genNodes(seed).forEach((def, i) => {
       this.nodes.set(def.id, { def, ready: true, id: def.id, flip: (i & 1) === 1 });
@@ -109,6 +110,7 @@ export class ZoneView {
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
     }
     for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
+    if (Array.isArray(s.bags)) { const keep = new Set(); for (const [id, x, y, n] of s.bags) { keep.add(id); this.bags.set(id, { id, x, y, n }); } for (const id of [...this.bags.keys()]) if (!keep.has(id)) this.bags.delete(id); }
     for (const [id, ready] of s.n || []) { const n = this.nodes.get(id); if (n) n.ready = !!ready; }
     if (s.me) this.me = s.me;
     this.tg = s.tg || null; // выбранная цель: точные ХП с сервера
@@ -142,6 +144,11 @@ export class ZoneView {
       const d = Math.hypot(o.x - px, o.y - py) - (ZONE_MOBS[o.type]?.radius || 12);
       if (d < bd) { bd = d; best = o; }
     }
+    return best;
+  }
+  nearestBag(px, py, range = 100) {
+    let best = null, bd = range;
+    for (const b of this.bags.values()) { const d = Math.hypot(b.x - px, b.y - py); if (d < bd) { bd = d; best = b; } }
     return best;
   }
   nearestNode(px, py) {
@@ -304,6 +311,13 @@ export class ZoneView {
         NB.push(toX(n.def.x), 0, toZ(n.def.y), h, e[0], e[1], n.flip, k, k, k, 0, n.ready ? 1 : 0.7);
         atmo.shadow(toX(n.def.x), toZ(n.def.y), n.def.type === 'tree' ? 1.3 : 0.6, n.ready ? 1 : 0.6);
       }
+      // мешки добычи: ящик-мешок, покачивается
+      const eb = propsMeta.index.crate;
+      if (eb) for (const b of this.bags.values()) {
+        const h = (propsMeta.cell[1] / 10) * 0.55 * (1 + Math.sin(T * 4 + b.id) * 0.05);
+        NB.push(toX(b.x), 0, toZ(b.y), h, eb[0], eb[1], false, 1.35, 1.15, 0.6, 0, 1);
+        atmo.shadow(toX(b.x), toZ(b.y), 0.5, 1);
+      }
       NB.end();
     }
     // телеграфы и эффекты
@@ -319,6 +333,7 @@ export class ZoneView {
       else if (t.kind === 'circle' && nf < 48 && nr < 64) { const R = t.r / PX; put(this.fill, nf++, toX(t.x), toZ(t.y), R * kk, R * kk, 0, 1, 0.3, 0.6); put(this.ring, nr++, toX(t.x), toZ(t.y), R, R, 0, 1, 0.4, 0.9); }
       else if (t.kind === 'boom' && nr < 64) { const R = (t.r / PX) * (0.5 + kk * 0.6); const c = t.color === 0xfde68a ? [1, 0.9, 0.4] : [1, 0.35, 0.3]; put(this.ring, nr++, toX(t.x), toZ(t.y), R, R, 0, ...c); }
     }
+    for (const b of this.bags.values()) if (nr < 64) { const R = 0.9 + Math.sin(T * 4 + b.id) * 0.08; put(this.ring, nr++, toX(b.x), toZ(b.y), R, R, 0, 1, 0.85, 0.25); } // мешок — золотое кольцо
     for (const o of this.mobs.values()) {
       if (o.id === this.selected && nr < 64) { const R = Math.max(1.1, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
       if (o.cursed && nr < 64) { const R = 1.6 + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }

@@ -40,6 +40,7 @@ import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/port
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
+import { LootWindow } from './ui/loot.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
@@ -462,10 +463,14 @@ async function boot(canvasId, username, userId, api) {
     if (b) b.style.display = d.admin ? '' : 'none';
     if (!d.admin) adminPanel.close();
   });
+  const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
   adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
   net.on('admin_result', (d) => adminPanel.onResult(d));
+  net.on('loot_bag', (d) => { addCards(d.cards); if (lootWin.isOpen) lootWin.update(d); else if (!d.taken) lootWin.open(d); });
+  net.on('loot_err', (d) => { if (lootWin.isOpen) lootWin.error(d.message); else overlay.toast(d.message, '#fca5a5'); });
+  function openBag(b) { if (Math.hypot(b.x - player.x, b.y - player.y) > 100) { overlay.toast('Подойдите ближе к мешку', '#94a3b8'); return; } send({ type: 'loot_open', bag: b.id }); }
   // правки админ-панели прилетают сразу (без переподключения): оружие/навыки/мобы, квесты, карточки предметов
   net.on('config_update', (d) => { applyConfig(d); if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests);
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); }
@@ -587,6 +592,7 @@ async function boot(canvasId, username, userId, api) {
       const def = ITEM_BY_ID[it.id];
       if (def) overlay.toast(`🎁 ${def.icon} ${def.name} (${RARITIES[def.rarity].name})`, RARITIES[def.rarity].color);
     }
+    if (loot.bag) overlay.toast(`💰 Добыча лежит у трупа (${loot.bag.n}) — подойдите и откройте мешок`, '#fde68a');
     if (loot.runSkill) overlay.toast(`${loot.runSkill.icon} Оружие с навыком «${loot.runSkill.name}»! Наденьте его — навык на клавише R`, '#fde68a');
     for (const [r, n] of Object.entries(loot.res || {})) parts.push(`${RESOURCES[r]?.icon || ''}×${n}`);
     if (parts.length) overlay.float(toX(player.x), 3.0, toZ(player.y), parts.join(' '), '#fde68a');
@@ -889,6 +895,7 @@ async function boot(canvasId, username, userId, api) {
     if ((k === 'm' || k === 'ь') && mode === 'hub') { worldMap.toggle(); return; }
     if (runUI.choiceOpen) return; // 1–3 обрабатывает модалка
     keys.add(e.code);
+    if (lootWin.isOpen && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) return; // Shift в окне добычи — проводка
     if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { input.dashPressed = true; e.preventDefault(); }
     if (!book.isOpen || mode === 'run') {
       if (k === 'q' || k === 'й') useAbility(0);
@@ -1094,6 +1101,7 @@ async function boot(canvasId, username, userId, api) {
 
   function interact() {
     if (mode !== 'hub' || overlay.screen || overlay.chatOpen) return;
+    { const b = zone.nearestBag(player.x, player.y, 100); if (b) { if (lootWin.isOpen) lootWin.close(); else openBag(b); return; } }
     const npc = zone.nearestNpc(world, player.x, player.y);
     if (npc) { if (net.isOpen()) send({ type: 'npc_talk', npc: npc.id }); else overlay.toast('Персонажи говорят только при связи с сервером', '#fca5a5'); return; }
     const node = zone.nearestNode(player.x, player.y);
@@ -1171,12 +1179,14 @@ async function boot(canvasId, username, userId, api) {
     if (dar && dar.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'dar', o: dar, x: dar.x, y: dar.y });
     if (world === 'hellfire') for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
+    for (const b of zone.bags.values()) cands.push({ kind: 'bag', o: b, x: b.x, y: b.y, pad: 14 });
     for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) - 10) });
     let best = null, bd = 40;
     for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py) - (c.pad || 0); if (d < bd) { bd = d; best = c; } }
     if (best?.kind !== 'mob' && zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
     if (!best) { hud.clearTarget(); return; }
     if (best.kind === 'mob') { selectMob(best.o); return; }
+    if (best.kind === 'bag') { openBag(best.o); return; }
     const o = best.o;
     if (best.kind === 'portal') {
       hud.setTarget({ kind: 'portal', id: o.id, name: o.name, typeLabel: o.runRoom ? 'Комната забега' : 'Портал' });
@@ -1425,7 +1435,10 @@ async function boot(canvasId, username, userId, api) {
       const np = npc || node ? null : nearestPortal();
       const nf = npc || node || np ? null : nearestFlower();
       const nearAltar = world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 110;
-      if (zoneSt.gather) promptText = `Сбор: ${zone.resName(zoneSt.gather.res)} ${Math.round(Math.min(1, zoneSt.gather.t / (zone.gatherTime() / 1000)) * 100)}%`;
+      const bagN = zone.nearestBag(player.x, player.y, 100);
+      lootWin.tick(player.x, player.y);
+      if (bagN && !lootWin.isOpen) promptText = `${key} — открыть добычу (${bagN.n})`;
+      else if (zoneSt.gather) promptText = `Сбор: ${zone.resName(zoneSt.gather.res)} ${Math.round(Math.min(1, zoneSt.gather.t / (zone.gatherTime() / 1000)) * 100)}%`;
       else if (npc) promptText = `${key} — поговорить: ${npc.name}`;
       else if (node) promptText = `${key} — собрать: ${zone.resName(node.def.res)}`;
       else if (np) promptText = `${key} — ${np.runRoom ? 'войти: ' : ''}${np.name}${np.id === 'portal_class_select' ? ' (выбор героя · ветка души)' : ''}`;
@@ -1552,6 +1565,7 @@ async function boot(canvasId, username, userId, api) {
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
+      bags: () => [...zone.bags.values()], loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),
       fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)
       othersInfo: () => [...others.values()].map((o) => ({ world: o.world, x: Math.round(o.x), y: Math.round(o.y), runRoom: o.runRoom })),

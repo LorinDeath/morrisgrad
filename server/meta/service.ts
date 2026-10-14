@@ -4,12 +4,13 @@ import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
   HERO_IDS, ITEM_BY_ID, RUN_SKILL_BY_ID, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
-  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES,
+  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
+import { LootBags, type Bag } from "./loot";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
@@ -46,6 +47,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
   soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
+  loot_open: S({ bag: "n" }), loot_take: S({ bag: "n", lids: "a?", all: "b?" }),
   zone_attack: S({}), zone_ability: S({}), zone_target: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
   mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
@@ -104,6 +106,7 @@ export class MetaService {
     this.roles = new Roles(env?.GAME_DB);
     this.explore = new ExploreStore(env?.GAME_DB);
     this.admin = new AdminStore(env?.GAME_DB);
+    this.loot = new LootBags();
     { let t: any = null; this.admin.onChange = () => { if (!t) t = setTimeout(() => { t = null; this.broadcastConfig(); }, 50); }; } // правки — всем онлайн сразу
     this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
@@ -491,6 +494,8 @@ export class MetaService {
       case "duel_leave": this.pvp.leave(session, "forfeit"); return true;
       case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
       case "gather_done": this.gatherDone(ws, session, msg); return true;
+      case "loot_open": this.lootOpen(ws, session, msg); return true;
+      case "loot_take": this.lootTake(ws, session, msg); return true;
       case "dev_grant": {
         // Только для локальных тестов (MC_DEV_TRUST_USERID=1): выдать звёзды/опыт/предмет
         if (session.dev !== true) return true;
@@ -498,6 +503,9 @@ export class MetaService {
         if (msg.ratingRefresh) { this.save(session); (this.store.chain.get(ms.pkey) || Promise.resolve()).then(() => this.store.flush(ms.pkey)).then(() => { this.rating.at = 0; this.send(ws, { type: "dev_rating_reset" }); }); return true; }
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
+        if (msg.killNear) { const z = this.zoneOf(session); const m = z?.mobs.filter((x: any) => !x.dead && !x.special).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
+          if (m && Math.hypot(m.x - session.x, m.y - session.y) < 400) { if (msg.cursed) m.cursed = true; z!.damage(m, session.id, m.hp + 1e6, (mm: any) => this.onMobKilled(mm)); } } // тест: настоящее убийство (обычный путь награды)
+        if (msg.bag && typeof msg.bag === "object") { const items = (Array.isArray(msg.bag.items) ? msg.bag.items : []).filter((id: any) => ITEM_BY_ID[id]).slice(0, 30); const res: Record<string, number> = {}; for (const [r, n] of Object.entries(msg.bag.res || {})) if (RESOURCES[r]) res[r] = Math.max(1, Math.min(99, Number(n) || 1)); this.loot.drop(session.world || "hellfire", session.x + 50, session.y, ms.pkey, { items, res }, "dev", "mob", "dev"); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
         if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
@@ -636,6 +644,44 @@ export class MetaService {
   grantLoot(a: Account, loot: { items: string[]; res: Record<string, number> }, out: any, src = "?") {
     for (const id of loot.items) { const it = addItem(a, id, src); if (it) { out.items.push(it); (out.cards = out.cards || {})[id] = itemCard(id); } }
     for (const [r, n] of Object.entries(loot.res)) { addRes(a, r, n); out.res[r] = (out.res[r] || 0) + n; }
+  }
+
+  // ---------- добыча на земле ----------
+  private bagView(b: Bag, ms: MetaSess) {
+    const cards: Record<string, any> = {};
+    for (const e of b.entries) if (e.k === "item" && !ms.cards.has(e.id)) { const c = itemCard(e.id); if (c) { cards[e.id] = c; ms.cards.add(e.id); } }
+    return { type: "loot_bag", id: b.id, x: b.x, y: b.y, exp: b.exp, entries: b.entries, cards };
+  }
+  lootOpen(ws: WebSocket, session: any, msg: any) {
+    const ms = this.ms.get(session.id); if (!ms || !this.zoneOf(session)) return;
+    const b = this.loot.access(msg.bag, ms.pkey, session.world || "hellfire", session.x, session.y);
+    if (typeof b === "string") { this.send(ws, { type: "loot_err", id: Number(msg.bag), message: b }); return; }
+    this.send(ws, this.bagView(b, ms));
+  }
+  lootTake(ws: WebSocket, session: any, msg: any) {
+    const ms = this.ms.get(session.id); if (!ms || !this.zoneOf(session)) return;
+    const b = this.loot.access(msg.bag, ms.pkey, session.world || "hellfire", session.x, session.y);
+    if (typeof b === "string") { this.send(ws, { type: "loot_err", id: Number(msg.bag), message: b }); return; }
+    const lids = msg.all === true ? "all" : Array.isArray(msg.lids) ? msg.lids.slice(0, 40) : [];
+    const budget = this.loot.admit(ms.pkey, lids === "all" ? b.entries.length : lids.length);
+    if (!budget) { this.send(ws, { type: "loot_err", id: b.id, message: "Не так быстро" }); return; }
+    const a = this.store.account(ms.pkey);
+    const out: any = { xp: 0, items: [], res: {}, fromBag: b.id };
+    const r = this.loot.take(b, lids, (e) => {
+      if (e.k === "res") { addRes(a, e.id, e.n); out.res[e.id] = (out.res[e.id] || 0) + e.n; return true; }
+      const it = addItem(a, e.id, b.src); if (!it) return false; // сумка полна — позиция остаётся в мешке
+      out.items.push(it); (out.cards = out.cards || {})[e.id] = itemCard(e.id); return true;
+    }, budget);
+    // редкое оружие несёт навык «Вампир-лайка» (бросок при подборе, только сервер)
+    for (const it of out.items) {
+      const rs = rollRunSkill(a, it, b.kind as any);
+      if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id, uid: it.uid };
+        this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `${RUN_SKILL_BY_ID[rs].icon} ${session.username || "Игрок"} постигает навык «${RUN_SKILL_BY_ID[rs].name}»!`, color: "#fde68a" }); break; }
+    }
+    const epic = out.items.find((it: any) => ["epic", "legendary", "mythic"].includes(ITEM_BY_ID[it.id]?.rarity));
+    if (epic) this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `💎 ${session.username || "Игрок"} добывает «${ITEM_BY_ID[epic.id].name}»!`, color: "#f0abfc" });
+    if (r.got.length) { ms.dirty = true; this.push(ws, session, { loot: out }); }
+    this.send(ws, { ...this.bagView(b, ms), taken: r.got.map((e) => e.lid), full: r.full || undefined, gone: !r.left || undefined });
   }
 
   // ---------- открытый мир ----------
@@ -868,27 +914,23 @@ export class MetaService {
       if (h && xp > 0) out.levelUps = gainXp(h, xp);
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
       const lootMul = m.cursed ? ZONE_GEN.cursedLoot : 1; // проклятый: шансы дропа ×10 (только сервер)
-      this.grantLoot(a, rollMonsterLoot(base, cryptoRand, lootMul), out, src);
-      if (m.elite) this.grantLoot(a, rollMonsterLoot(base, cryptoRand, lootMul), out, src); // элита: второй бросок добычи
-      // редкое оружие несёт навык «Вампир-лайка» → в пул аккаунта (бросок только здесь, на сервере)
-      for (const it of out.items) {
-        const rs = rollRunSkill(a, it, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob");
-        if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id, uid: it.uid }; ms.dirty = true;
-          this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `${RUN_SKILL_BY_ID[rs].icon} ${session.username || "Игрок"} постигает навык «${RUN_SKILL_BY_ID[rs].name}»!`, color: "#fde68a" }); break; }
-      }
+      // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
+      const loot = rollMonsterLoot(base, cryptoRand, lootMul);
+      if (m.elite) { const l2 = rollMonsterLoot(base, cryptoRand, lootMul); loot.items.push(...l2.items); for (const [r, n] of Object.entries(l2.res)) loot.res[r] = (loot.res[r] || 0) + n; } // элита: второй бросок
+      const bag = this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
+      if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       this.qev(a, session, { type: "kill", mob: base, cls });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
-      // эпические и выше трофеи — объявление в мире (MMO-момент)
-      const epic = out.items.find((it: any) => ["epic", "legendary", "mythic"].includes(ITEM_BY_ID[it.id]?.rarity));
-      if (epic) this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `💎 ${session.username || "Игрок"} добывает «${ITEM_BY_ID[epic.id].name}»!`, color: "#f0abfc" });
     }
   }
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
+  loot!: LootBags; lootExpAt = 0;
   fx: { at: number; world: string; sid: string; fn: () => void }[] = []; // отложенные части навыков (метеор, тики, след)
 
   tick(dt: number, sessions: Map<WebSocket, any>) {
     const now = Date.now();
+    if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); }
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
     const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};
     for (const w of Object.keys(this.zones)) byWorld[w] = { players: new Map(), socks: [] };
@@ -956,7 +998,8 @@ export class MetaService {
               elite: tm.elite || undefined, cursed: tm.cursed || undefined, boss: tm.special === "boss" || undefined, reset: tm.reset || undefined,
               skills: tm.skills.length ? tm.skills.map((k) => MOB_SKILLS[k].name) : undefined }
           : tid ? { id: tid, gone: 1 } : undefined;
-        this.send(ws, { type: "zone_state", ...st, tg, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        const bags = this.loot.near(ms.pkey, s.world || "hellfire", s.x, s.y, 800);
+        this.send(ws, { type: "zone_state", ...st, tg, bags, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }
