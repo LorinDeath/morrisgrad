@@ -3,6 +3,7 @@
 // Хаб: общий мир сервера (Адское Пламя / Аринар) в 3D, тот же WebSocket-протокол (join/move/use_portal/...).
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
+import { initGrim, grimSet } from './ui/grim.js';
 import { fog } from './map/fog.js';
 import { WorldMap } from './map/worldMap.js';
 import { loadThree } from './engine/three-loader.js';
@@ -121,6 +122,7 @@ async function boot(canvasId, username, userId, api) {
   initModelMode();
   await Promise.all([preloadCharacterSheets(), loadPixAtlases(THREE)]);
   const stage = new Stage(THREE, canvas, { mobile });
+  initGrim(canvas); // мрачная цветокоррекция + дымка к краям (ui/grim.js; сила — Настройки)
   atmo.init(THREE, stage, { mobile });
   let atmoWorld = null; // 'run_crypt' | 'run_abyss' в забеге
   overlay.hideScreen();
@@ -1693,6 +1695,7 @@ async function boot(canvasId, username, userId, api) {
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       altarFlash: () => hub.portalObjs?.get('portal_class_select')?.flash?.(),
+      grim: (g, f) => { grimSet('grim', g); grimSet('fog', f); },
       minimap: () => hud.minimap?.stats,
       openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),

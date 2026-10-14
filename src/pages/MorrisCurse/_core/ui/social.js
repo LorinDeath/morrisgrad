@@ -1,3 +1,4 @@
+import { grimGet, grimSet } from './grim.js';
 // Рейтинг игроков (топ-100 по уровню / по рекорду урона) и просмотр персонажа (только чтение).
 // Все данные — от сервера (rating / inspect); клиент ничего не считает и не хранит.
 import { statIcon } from './statIcons.js';
@@ -216,11 +217,14 @@ export class Social {
     const dndMin = st.dnd > 0 ? Math.ceil(st.dnd / 60000) : 0;
     this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>⚙️ НАСТРОЙКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('settings')}
       <div class="mc-set"><div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
+      <div class="mc-set-row"><span>🌑 Мрачность</span><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"></div>
+      <div class="mc-set-row"><span>🌫 Дымка вдали</span><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"></div>
       <div class="mc-set-row"><span>⚔️ Вызовы на дуэль</span><div class="grp">${opt('all', 'От всех')}${opt('friends', 'Только друзья')}${opt('none', 'Никто')}</div></div>
       <div class="mc-set-row"><span>🤝 Заявки в друзья</span><button class="mc-btn sm ${st.freq ? 'gold' : ''}" data-act="freq">${st.freq ? 'Принимать' : 'Не принимать'}</button></div>
       <div class="mc-set-row"><span>🌙 Не беспокоить (5 минут)</span><button class="mc-btn sm ${dndMin ? 'gold' : ''}" data-act="dnd">${dndMin ? `Включено · ещё ${dndMin} мин` : 'Выключено'}</button></div>
       <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук — на этом устройстве.</p></div></div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);
+    this.overlay.screen.querySelectorAll('[data-grim]').forEach((r) => r.addEventListener('input', () => grimSet(r.dataset.grim, Number(r.value))));
   }
 
   close() { this.view = null; this.overlay.hideScreen(); }
