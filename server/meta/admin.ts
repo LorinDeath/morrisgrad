@@ -2,6 +2,8 @@
 // хранятся в D1 (миграция 0010): game_overrides, custom_quests, журнал game_override_audit, версия набора
 // game_config_version (комнаты сверяют её и перечитывают правки). Писать может только серверно проверенный админ —
 // проверка роли в service.ts ДО вызова этих методов. Все запросы к D1 — только с bind (никакой склейки SQL).
+import { STAR_COLORS } from "./shared";
+import { itemReq } from "./profile";
 import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, type Kind, type Trait } from "./overrides";
 import { QUESTS, QUEST_BY_ID, setCustomQuests, type QuestDef, type Objective } from "./quests";
 import { NPCS, RESOURCES } from "./shared";
@@ -23,8 +25,15 @@ export function validateQuest(q: any): QuestDef | string {
   const title = STR(q.title, 80).trim(); if (!title) return "нужно название";
   const minLevel = q.minLevel == null || q.minLevel === "" ? undefined : Math.round(Number(q.minLevel));
   if (minLevel !== undefined && !(minLevel >= 1 && minLevel <= 60)) return "мин. уровень 1…60";
-  const requires = Array.isArray(q.requires) ? q.requires.map(String).slice(0, 5) : [];
-  for (const r of requires) if (!QUEST_BY_ID[r] && r !== id) return `нет квеста ${r}`;
+  // «открывается после квестов»: цепочка предусловий (у одного квеста может быть несколько «детей»)
+  if (q.requires != null && !Array.isArray(q.requires)) return "предусловия: список id";
+  const requires = [...new Set((q.requires || []).map(String))] as string[];
+  if (requires.length > 5) return "предусловий не больше 5";
+  for (const r of requires) { if (r === id) return "квест не может открываться после самого себя"; if (!QUEST_BY_ID[r]) return `нет квеста ${r}`; }
+  { // без циклов: из предусловий нельзя вернуться к этому квесту
+    const seen = new Set<string>(), st = [...requires];
+    while (st.length) { const c = st.pop()!; if (c === id) return "цикл в цепочке квестов"; if (seen.has(c)) continue; seen.add(c); st.push(...(QUEST_BY_ID[c]?.requires || [])); }
+  }
   if (!Array.isArray(q.objectives) || !q.objectives.length || q.objectives.length > 5) return "целей 1…5";
   const objectives: Objective[] = [];
   for (const o of q.objectives) {
@@ -42,6 +51,12 @@ export function validateQuest(q: any): QuestDef | string {
   const r = q.rewards || {}, rewards: QuestDef["rewards"] = {};
   const xp = Math.round(Number(r.xp) || 0); if (xp < 0 || xp > 100000) return "опыт 0…100000"; if (xp) rewards.xp = xp;
   if (r.items) { if (!Array.isArray(r.items) || r.items.length > 4 || !r.items.every((i: any) => ITEM_BY_ID[i])) return "награда: до 4 существующих предметов"; if (r.items.length) rewards.items = r.items.map(String); }
+  if (r.stars != null) {
+    if (typeof r.stars !== "object" || Array.isArray(r.stars)) return "звёзды: объект цвет → число";
+    const stars: Record<string, number> = {};
+    for (const [k, v] of Object.entries(r.stars)) { const n = Math.round(Number(v)); if (!(STAR_COLORS as readonly string[]).includes(k) || !(n >= 0 && n <= 5)) return `звёзды ${k}: 0…5`; if (n) stars[k] = n; }
+    if (Object.keys(stars).length) rewards.stars = stars;
+  }
   if (r.res) {
     if (typeof r.res !== "object" || Object.keys(r.res).length > 6) return "награда: до 6 ресурсов";
     const res: Record<string, number> = {};
@@ -158,10 +173,13 @@ export class AdminStore {
   /** всё для панели: схема, черты, сущности с текущими значениями, квесты, справочники */
   catalog() {
     const ent: Record<string, any[]> = {};
-    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: o.name || o.title || id, icon: o.icon || "", values: currentValues(k, id) }));
+    // уровень в строке списка: моб — lvl; предмет/оружие — требуемый уровень надевания itemReq = max(req, lvl);
+    // навык — unlockLevel; таблица дропа — уровень моба-владельца
+    const lvlOf = (k: string, id: string, o: any) => k === "mob" ? o.lvl : k === "item" ? itemReq(o) : k === "skill" ? o.unlockLevel : k === "loot" ? (ZONE_MOBS as any)[id]?.lvl : undefined;
+    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" ? (ZONE_MOBS as any)[id]?.name : null) || o.name || o.title || id, icon: o.icon || (k === "loot" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
-      quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, def: q.custom ? q : undefined })),
+      quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q.custom ? q : undefined })),
       npcs: Object.entries(NPCS).map(([id, n]) => ({ id, name: n.name, world: n.world })),
       items: Object.entries(ITEM_BY_ID).map(([id, o]: [string, any]) => ({ id, name: o.name })),
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),

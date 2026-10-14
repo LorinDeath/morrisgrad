@@ -48,6 +48,12 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
     const mobs = await G(A, () => window.__game.debug.zoneMobs());
     let own = mobs.filter((m) => m.type.startsWith(id + '_'));
     if (own.length < 2) { await A.waitForTimeout(4000); own = (await G(A, () => window.__game.debug.zoneMobs())).filter((m) => m.type.startsWith(id + '_')); }
+    // AOI сервера под камеру 45 клеток (~±900 px): если пачка дальше — обходим пятно шагами по 800 px
+    for (const [dx, dy] of [[800, 0], [-800, 0], [0, 800], [0, -800], [800, 800], [-800, -800], [800, -800], [-800, 800]]) {
+      if (own.length >= 2) break;
+      await G(A, ([x, y]) => window.__game.debug.tp(x, y), [x + dx, y + dy]); await A.waitForTimeout(3000);
+      own = (await G(A, () => window.__game.debug.zoneMobs())).filter((m) => m.type.startsWith(id + '_'));
+    }
     const atmo = await G(A, () => window.__game.debug.atmo());
     const vars = await G(A, () => window.__game.debug.biomeVars());
     ch = (await G(A, () => window.__game.debug.chunks())) || {};

@@ -40,7 +40,7 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   await A.screenshot({ path: `${OUT}/admin-mob.png` });
   // оружие: черта «Поджог» (RPG Maker MZ-стиль)
   const wt = await G(() => Object.keys(window.__game.debug.admin && {}).length || null);
-  await A.click('.mc-admin [data-tab="weapon"]'); await A.waitForTimeout(200); await A.click('.mc-admin aside li >> nth=0'); await A.waitForTimeout(250);
+  await A.click('.mc-admin [data-tab="weapon"]'); await A.waitForTimeout(200); await A.click('.mc-admin aside li[data-id] >> nth=0'); await A.waitForTimeout(250);
   await A.selectOption('.mc-admin .addk', 'burn'); await A.click('.mc-admin [data-addt]');
   await A.fill('.mc-admin [data-tk="chance"]', '40');
   await A.click('.mc-admin [data-save]'); m = await saved(); ok(/Сохранено/.test(m), 'оружие: черта «Поджог» (шанс 40%) сохранена — ' + m);
@@ -48,6 +48,30 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   // неверное значение — сервер отвергает
   await A.fill('.mc-admin [data-tk="chance"]', '400'); await A.click('.mc-admin [data-save]'); await A.waitForTimeout(700);
   ok(/✖/.test(await A.textContent('.mc-admin .msg')), 'шанс 400% → отказ сервера: ' + (await A.textContent('.mc-admin .msg')));
+  // поиск по-русски (регистр, ё/е) + уровень в каждой строке
+  const rows = () => A.$$eval('.mc-admin aside li[data-id]', (xs) => xs.filter((x) => !x.dataset.id.startsWith('__')).map((x) => ({ id: x.dataset.id, t: x.textContent, lv: !!x.querySelector('.lv') })));
+  await A.click('.mc-admin [data-tab="mob"]'); await A.waitForTimeout(200);
+  await A.fill('.mc-admin aside input', 'СЛИЗ'); await A.waitForTimeout(200); let r = await rows();
+  ok(r.length >= 1 && r.every((x) => /слиз/i.test(x.t)) && r.every((x) => x.lv), `поиск «СЛИЗ» (рус., регистр): ${r.length} мобов, у всех уровень — ${r.slice(0, 3).map((x) => x.t).join(' / ')}`);
+  await A.screenshot({ path: `${OUT}/admin-search-ru.png` });
+  await A.fill('.mc-admin aside input', 'ice_dew'); await A.waitForTimeout(150); r = await rows(); ok(r.some((x) => x.id === 'ice_dew_slime'), 'поиск по id');
+  // уровень оружия: существующее поле предмета req (треб. уровень надевания; itemReq = max(req, lvl))
+  await A.click('.mc-admin [data-tab="weapon"]'); await A.waitForTimeout(200);
+  await A.fill('.mc-admin aside input', 'секира'); await A.waitForTimeout(200); r = await rows();
+  ok(r.some((x) => x.id === 'item:guard_axe' && /ур\. 6/.test(x.t)), 'оружие: «Секира Стража» найдена по-русски, в строке «ур. 6» ' + JSON.stringify(r.map((x) => x.t)));
+  await A.click('.mc-admin aside li[data-id="item:guard_axe"]'); await A.waitForTimeout(250);
+  await A.fill('.mc-admin [data-p="req"]', '9'); await A.click('.mc-admin [data-save]'); m = await saved();
+  ok(/Сохранено/.test(m) && /"req":9/.test(d1("SELECT data FROM game_overrides WHERE kind='item' AND id='guard_axe'").replace(/\\/g, '')), 'оружие: треб. уровень 9 → D1 ' + m);
+  r = await rows(); ok(r.some((x) => x.id === 'item:guard_axe' && /ур\. 9/.test(x.t)), 'строка списка обновилась: ур. 9');
+  await A.fill('.mc-admin [data-p="req"]', '99'); await A.click('.mc-admin [data-save]'); await A.waitForTimeout(700);
+  ok(/✖/.test(await A.textContent('.mc-admin .msg')), 'треб. уровень 99 → отказ сервера: ' + (await A.textContent('.mc-admin .msg')));
+  await A.screenshot({ path: `${OUT}/admin-weapon-level.png` });
+  await G(() => window.__game.debug.rawSend({ type: 'admin_reset', kind: 'item', id: 'guard_axe' })); await A.waitForTimeout(400);
+  for (const [tab, shot] of [['item', 'admin-items'], ['skill', 'admin-skills'], ['loot', 'admin-loot-list']]) {
+    await A.click(`.mc-admin [data-tab="${tab}"]`); await A.waitForTimeout(250); r = await rows();
+    const lv = r.filter((x) => x.lv).length; ok(r.length > 3 && lv >= r.length * (tab === 'loot' ? 0.5 : 1), `${tab}: уровень в строках ${lv}/${r.length}`);
+    await A.click('.mc-admin aside li[data-id] >> nth=1'); await A.waitForTimeout(250); await A.screenshot({ path: `${OUT}/${shot}.png` });
+  }
   // предмет со значками характеристик
   await A.click('.mc-admin [data-tab="item"]'); await A.waitForTimeout(200); await A.click('.mc-admin aside li >> nth=3'); await A.waitForTimeout(250);
   ok((await A.$$('.mc-admin .mc-sti')).length >= 5, `предмет: значки характеристик в полях (${(await A.$$('.mc-admin .mc-sti')).length})`);
@@ -60,8 +84,34 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   await A.selectOption('.mc-admin [data-q="npc"]', 'alzi');
   await A.fill('.mc-admin [data-otext]', 'Развейте 3 слизней'); await A.fill('.mc-admin [data-q="offer"]', 'Слизь липнет к опоре. Поможете?');
   await A.fill('.mc-admin [data-q="done"]', 'Чисто. Спасибо.'); await A.fill('.mc-admin [data-q="lore"]', 'Опоры Мэлвелдила помнят каждого, кто их чистил.');
-  await A.click('.mc-admin [data-qsave]'); m = await saved(); ok(/Сохранено/.test(m), 'квест c_pt_slimes для Алзи сохранён — ' + m);
+  await A.fill('.mc-admin [data-star="yellow"]', '1');
+  await A.click('.mc-admin [data-qsave]'); m = await saved(); ok(/Сохранено/.test(m), 'квест c_pt_slimes (1 ★) для Алзи сохранён — ' + m);
   await A.screenshot({ path: `${OUT}/admin-quest.png` });
+  // продолжение: открывается после c_pt_slimes, 2 ★
+  await A.click('.mc-admin aside li[data-id="__new"]'); await A.waitForTimeout(250);
+  await A.fill('.mc-admin [data-q="id"]', 'c_pt_slimes2'); await A.fill('.mc-admin [data-q="title"]', 'Корни шпиля'); await A.selectOption('.mc-admin [data-q="npc"]', 'alzi');
+  await A.selectOption('.mc-admin [data-q="requires"]', ['c_pt_slimes']); await A.fill('.mc-admin [data-star="yellow"]', '2');
+  await A.fill('.mc-admin [data-otext]', 'Ещё 5 слизней'); await A.fill('.mc-admin [data-q="offer"]', 'Слизь вернулась.'); await A.fill('.mc-admin [data-q="done"]', 'Теперь точно чисто.');
+  await A.click('.mc-admin [data-qsave]'); m = await saved(); ok(/Сохранено/.test(m), 'квест c_pt_slimes2 «открывается после c_pt_slimes» — ' + m);
+  ok(/c_pt_slimes/.test(d1("SELECT data FROM custom_quests WHERE id='c_pt_slimes2'")), 'D1: предусловие сохранено');
+  // цикл отвергается сервером
+  await A.click('.mc-admin aside li[data-id="c_pt_slimes"]'); await A.waitForTimeout(250);
+  await A.selectOption('.mc-admin [data-q="requires"]', ['c_pt_slimes2']); await A.click('.mc-admin [data-qsave]'); await A.waitForTimeout(700);
+  ok(/цикл/.test(await A.textContent('.mc-admin .msg')), 'цикл в цепочке → отказ: ' + (await A.textContent('.mc-admin .msg')));
+  // дерево
+  await A.click('.mc-admin aside li[data-id="__tree"]'); await A.waitForTimeout(300);
+  const nested = await A.$('.mc-admin .qtree details[data-node="c_pt_slimes"] [data-node="c_pt_slimes2"]');
+  ok(!!nested, 'дерево: c_pt_slimes2 — ребёнок c_pt_slimes');
+  const starTxt = await A.textContent('.mc-admin .qtree [data-go="c_pt_slimes2"]'); ok(/2 ★/.test(starTxt), 'дерево: «2 ★» у звёздного квеста — ' + starTxt);
+  const nDet = (await A.$$('.mc-admin .qtree details')).length; ok(nDet >= 3, `дерево: ${nDet} раскрываемых узлов`);
+  const lst = await A.textContent('.mc-admin aside li[data-id="c_pt_slimes2"]'); ok(/2 ★/.test(lst), 'список квестов: «2 ★» — ' + lst);
+  await A.click('.mc-admin .qtree [data-node="c_pt_slimes"] > summary'); await A.waitForTimeout(150);
+  ok(!(await A.$eval('.mc-admin .qtree details[data-node="c_pt_slimes"]', (d) => d.open)), 'узел сворачивается');
+  await A.click('.mc-admin .qtree [data-node="c_pt_slimes"] > summary'); await A.waitForTimeout(150);
+  await A.$eval('.mc-admin .qtree [data-node="c_pt_slimes"]', (d) => d.scrollIntoView({ block: 'center' }));
+  await A.screenshot({ path: `${OUT}/admin-quest-tree.png` });
+  await A.click('.mc-admin .qtree [data-go="c_pt_slimes2"] >> nth=0'); await A.waitForTimeout(250);
+  ok((await A.inputValue('.mc-admin [data-q="id"]')) === 'c_pt_slimes2', 'клик по узлу открывает квест в редакторе');
   ok(/c_pt_slimes/.test(d1("SELECT id FROM custom_quests WHERE id='c_pt_slimes' AND enabled=1")), 'D1 custom_quests: квест есть');
   await A.click('.mc-admin [data-tab="audit"]'); await A.waitForTimeout(1200);
   ok((await A.$$('.mc-admin table tr')).length >= 4, 'журнал правок: записи есть');
@@ -75,11 +125,13 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   ok(!!(await A.$('#npc-all-quests')), 'диалог Алзи: кнопка «Все квесты»');
   await A.click('#npc-all-quests'); await A.waitForTimeout(400);
   const groups = await A.$$eval('.mc-qall .qa-grp > b', (x) => x.map((e) => e.textContent));
-  ok(groups.length >= 1 && (await A.$$('.mc-qall .qa-row')).length >= 2, 'список квестов по группам: ' + groups.join(' | '));
-  await A.screenshot({ path: `${OUT}/admin-npc-all-quests.png` });
-  const lockBtn = await A.$('.mc-qall .qa-locked'); if (lockBtn) { await lockBtn.click(); await A.waitForTimeout(300); ok(!(await A.$('#npc-take')) && !!(await A.$('.qa-lock')), 'заблокированный: только просмотр (нет «Взять»)'); await A.screenshot({ path: `${OUT}/admin-npc-locked.png` }); await A.click('text=← Все квесты'); await A.waitForTimeout(300); }
+  ok(groups.length >= 1 && (await A.$$('.mc-qall .qa-row')).length >= 1, 'список квестов по группам: ' + groups.join(' | '));
+  ok(!(await A.$('.mc-qall .qa-locked')) && !groups.some((g) => /Заблок/.test(g)) && !(await A.$('.mc-qall [data-q="c_pt_slimes2"]')), 'заблокированные скрыты (нет группы, нет c_pt_slimes2)');
+  await A.screenshot({ path: `${OUT}/npc-quests-no-locked.png` }); await A.screenshot({ path: `${OUT}/admin-npc-all-quests.png` });
   const av = await A.$('.mc-qall [data-q="c_pt_slimes"]'); ok(!!av, 'квест из панели виден у Алзи');
-  if (av) { await av.click(); await A.waitForTimeout(300); await A.screenshot({ path: `${OUT}/admin-npc-quest.png` }); }
+  ok(av && /1 ★/.test(await av.textContent()), 'звёздный квест в диалоге: «1 ★» — ' + (av ? await av.textContent() : ''));
+  await A.screenshot({ path: `${OUT}/quest-stars.png` });
+  if (av) { await av.click(); await A.waitForTimeout(300); ok(/1 ★/.test(await A.textContent('.mc-dialog .qt')), 'звёзды в карточке квеста'); await A.screenshot({ path: `${OUT}/admin-npc-quest.png` }); }
   // уборка: вернуть правки и скрыть тестовый квест
   await G(() => { const s = window.__game.debug.rawSend; s({ type: 'admin_reset', kind: 'mob', id: 'ice_dew_slime' }); });
   await A.waitForTimeout(400);
