@@ -387,22 +387,49 @@ export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1): { i
 }
 
 // ---------------- квесты ----------------
-export function questAvailable(a: Account, q: QuestDef): boolean {
+export function questAvailable(a: Account, q: QuestDef, h: Hero | null = null): boolean {
   if (a.quests.done.includes(q.id) || a.quests.active[q.id]) return false;
+  if (q.minLevel && (!h || h.lvl < q.minLevel)) return false;
   if (q.requires && !q.requires.every((r) => a.quests.done.includes(r))) return false;
   if (q.requiresStars && (a.starsBy[q.requiresStars.npc]?.[q.requiresStars.color] || 0) < q.requiresStars.count) return false;
   return true;
 }
-export function acceptQuest(a: Account, qid: string): R {
+/** Почему квест закрыт (для списка «Все квесты»): null — можно взять. */
+export function questLockReason(a: Account, q: QuestDef, h: Hero | null): string | null {
+  if (a.quests.done.includes(q.id)) return "уже выполнен";
+  if (a.quests.active[q.id]) return null;
+  if (q.minLevel && (!h || h.lvl < q.minLevel)) return `нужен уровень героя ${q.minLevel}${h ? ` (у вас ${h.lvl})` : ""}`;
+  const miss = (q.requires || []).filter((r) => !a.quests.done.includes(r));
+  if (miss.length) return "сначала: " + miss.map((r) => `«${QUEST_BY_ID[r]?.title || r}»`).join(", ");
+  if (q.requiresStars && (a.starsBy[q.requiresStars.npc]?.[q.requiresStars.color] || 0) < q.requiresStars.count) return `нужно звёзд (${q.requiresStars.color}) от персонажа: ${q.requiresStars.count}`;
+  return null;
+}
+// «собрать» и «уровень» — состояние профиля, а не события: пересчитываем перед показом/сдачей
+const bagCount = (a: Account, h: Hero | null, id: string) => { const eq = new Set(Object.values(h?.equip || {})); return a.inv.filter((i) => i.id === id && (!i.hero || i.hero === a.hero) && !eq.has(i.uid)).length; };
+export function questRefresh(a: Account, h: Hero | null): string[] {
+  const ch: string[] = [];
+  for (const [qid, st] of Object.entries(a.quests.active)) {
+    const q = QUEST_BY_ID[qid]; if (!q) continue;
+    q.objectives.forEach((o: any, i) => {
+      const b = st.p[i];
+      if (o.type === "collect") st.p[i] = Math.min(o.count, o.item ? bagCount(a, h, o.item) : Math.floor(a.res[o.res] || 0));
+      if (o.type === "level") st.p[i] = h && h.lvl >= o.count ? 1 : 0;
+      if (b !== st.p[i]) ch.push(qid);
+    });
+  }
+  return [...new Set(ch)];
+}
+export function acceptQuest(a: Account, qid: string, h: Hero | null = null): R {
   const q = QUEST_BY_ID[qid];
-  if (!q || !questAvailable(a, q)) return fail("Квест недоступен");
+  if (!q || !questAvailable(a, q, h)) return fail("Квест недоступен");
   const nActive = Object.keys(a.quests.active).length;
   if (nActive >= 8) return fail("Слишком много активных квестов");
   a.quests.active[qid] = { p: q.objectives.map(() => 0) };
+  questRefresh(a, h);
   noteFeature(a, `quest:${qid}`);
   return { ok: true };
 }
-export function objectiveTarget(o: any): number { return o.count || 1; }
+export function objectiveTarget(o: any): number { return o.type === "level" ? 1 : o.count || 1; }
 export function questComplete(a: Account, qid: string): boolean {
   const q = QUEST_BY_ID[qid]; const st = a.quests.active[qid];
   if (!q || !st) return false;
@@ -450,7 +477,13 @@ function questEventRaw(a: Account, ev: any): string[] {
 }
 export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewards?: any } {
   const q = QUEST_BY_ID[qid];
+  questRefresh(a, h);
   if (!q || !questComplete(a, qid)) return fail("Квест не выполнен");
+  // «собрать предмет/ресурс»: сдаётся NPC
+  for (const o of q.objectives as any[]) if (o.type === "collect") {
+    if (o.res) a.res[o.res] = Math.max(0, (a.res[o.res] || 0) - o.count);
+    else { const eq = new Set(Object.values(h?.equip || {})); let n = o.count; a.inv = a.inv.filter((i) => { if (n > 0 && i.id === o.item && (!i.hero || i.hero === a.hero) && !eq.has(i.uid)) { n--; return false; } return true; }); }
+  }
   delete a.quests.active[qid];
   a.quests.done.push(qid);
   const got: any = { items: [], res: q.rewards.res || {}, stars: q.rewards.stars || {}, xp: 0 };

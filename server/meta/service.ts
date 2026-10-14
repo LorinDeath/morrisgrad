@@ -9,10 +9,11 @@ import {
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
-import { QUESTS, QUEST_BY_ID } from "./quests";
+import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests } from "./quests";
 import {
   heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
+  questLockReason, questRefresh,
 } from "./profile";
 import { Zone, MOB_SKILLS, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
@@ -168,7 +169,9 @@ export class MetaService {
     // переход на новые деревья талантов: сообщить о возвращённых очках (один раз)
     const refunds = HERO_IDS.map((id) => [id, this.store.hero(ms.pkey, id)] as const).filter(([, hh]) => hh.refunded);
     if (refunds.length) { s.notice = `Деревья талантов обновлены: очки возвращены (${refunds.map(([id, hh]) => `${id} +${hh.refunded}`).join(", ")}). Активные навыки теперь открываются в дереве.`; for (const [, hh] of refunds) delete hh.refunded; }
-    s.available = QUESTS.filter((q) => questAvailable(a, q)).map((q) => q.id);
+    questRefresh(a, h);
+    s.available = QUESTS.filter((q) => questAvailable(a, q, h)).map((q) => q.id);
+    s.customQuests = QUESTS.filter((q) => q.custom); // тексты квестов админ-панели (клиент вливает в QUEST_BY_ID)
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
     // карточки предметов сумки — только новые для этой сессии (клиент кэширует); статы из клиента не принимаются
@@ -353,7 +356,13 @@ export class MetaService {
         const npc = String(msg.npc);
         if (!this.nearNpc(session, npc)) { this.send(ws, { type: "toast_error", message: "Подойдите ближе" }); return true; }
         this.questEv(ws, session, { type: "talk", npc });
-        const quests = QUESTS.filter((q) => q.npc === npc && (questAvailable(a, q) || a.quests.active[q.id])).map((q) => ({ id: q.id, state: a.quests.active[q.id] ? (questComplete(a, q.id) ? "complete" : "active") : "available" }));
+        questRefresh(a, h);
+        // все квесты персонажа: доступные, закрытые (с причиной), активные, готовые к сдаче, выполненные (лор читается)
+        const quests = QUESTS.filter((q) => !q.auto && (q.npc === npc || turninNpc(q) === npc)).map((q) => {
+          const act = a.quests.active[q.id];
+          const state = act ? (questComplete(a, q.id) ? (turninNpc(q) === npc ? "complete" : "active") : "active") : a.quests.done.includes(q.id) ? "done" : q.npc !== npc ? "elsewhere" : questAvailable(a, q, h) ? "available" : "locked";
+          return { id: q.id, state, reason: state === "locked" ? questLockReason(a, q, h) : state === "elsewhere" ? `берётся у: ${NPCS[q.npc]?.name || q.npc}` : undefined, p: act?.p };
+        }).filter((x) => x.state !== "elsewhere" || a.quests.done.includes(x.id));
         this.push(ws, session);
         this.send(ws, { type: "npc_dialog", npc, quests });
         return true;
@@ -361,7 +370,7 @@ export class MetaService {
       case "quest_accept": {
         const q = QUEST_BY_ID[String(msg.id)];
         if (!q || !this.nearNpc(session, q.npc)) { this.send(ws, { type: "toast_error", message: "Возьмите квест у персонажа" }); return true; }
-        const r = acceptQuest(a, q.id);
+        const r = acceptQuest(a, q.id, h);
         if (r.ok) { this.qev(a, session, { type: "talk", npc: q.npc }); if ((session.world || "hellfire") === "arinar") this.qev(a, session, { type: "reach", world: "arinar" }); }
         reply(r, `Квест принят: ${q.title}`); return true;
       }
@@ -369,7 +378,7 @@ export class MetaService {
         const q = QUEST_BY_ID[String(msg.id)];
         if (!q) return true;
         // сюжетные квесты пролога сдаются автоматически, остальные — у персонажа
-        if (q.campaign !== "prologue" && !this.nearNpc(session, q.npc)) { this.send(ws, { type: "toast_error", message: `Сдайте квест: ${NPCS[q.npc]?.name}` }); return true; }
+        if (q.campaign !== "prologue" && !this.nearNpc(session, turninNpc(q))) { this.send(ws, { type: "toast_error", message: `Сдайте квест: ${NPCS[turninNpc(q)]?.name}` }); return true; }
         const r = turnInQuest(a, h, q.id);
         if (r.ok) this.push(ws, session, { questDone: { id: q.id, rewards: (r as any).rewards } });
         else this.send(ws, { type: "toast_error", message: (r as any).err });

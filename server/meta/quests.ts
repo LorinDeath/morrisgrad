@@ -14,10 +14,14 @@ export type Objective =
   | { type: "talent"; count: number; text: string }
   | { type: "run"; room: string; minTime: number; text: string; cls?: string; minPlayers?: number; maxPlayers?: number }
   | { type: "duel_win"; text: string; hpCapPct?: number }
-  | { type: "kill_boss"; mob: string; text: string; noAbilities?: boolean };
+  | { type: "kill_boss"; mob: string; text: string; noAbilities?: boolean }
+  // квесты из админ-панели: собрать предмет/ресурс (сдаются при сдаче) и достичь уровня — проверяются по профилю
+  | { type: "collect"; item?: string; res?: string; count: number; text: string }
+  | { type: "level"; count: number; text: string };
 
 export interface QuestDef {
-  id: string; npc: string; campaign: "prologue" | "leyr" | "alzi" | "joint" | "star" | "exam" | "black";
+  id: string; npc: string; campaign: "prologue" | "leyr" | "alzi" | "joint" | "star" | "exam" | "black" | "custom";
+  turnin?: string; minLevel?: number; lore?: string; custom?: boolean; // квесты админ-панели: сдать другому NPC, мин. уровень, текст-лор
   title: string; chapter?: string; star?: "yellow" | "red" | "purple" | "black";
   requires?: string[];
   requiresStars?: { npc: string; color: string; count: number };
@@ -135,4 +139,10 @@ export const QUESTS: QuestDef[] = [
     offer: ["В этот раз — без отряда."], progress: "Соло.", done: ["Звезда."] },
 ];
 export const QUEST_BY_ID: Record<string, QuestDef> = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
-export const CAMPAIGN_NAMES: Record<string, string> = { prologue: "Пролог", leyr: "Лэйр · «Чувствовать»", alzi: "Алзи · «Держать мир»", joint: "Совместная · «Гул»", star: "Звёздные квесты", exam: "Экзамены", black: "Чёрная звезда" };
+/** Квесты админ-панели (D1 custom_quests): заменить набор «custom» в общих таблицах (сервер — при загрузке/сохранении, клиент — из meta_state). */
+export function setCustomQuests(list: QuestDef[]) {
+  for (let i = QUESTS.length - 1; i >= 0; i--) if (QUESTS[i].custom) { delete QUEST_BY_ID[QUESTS[i].id]; QUESTS.splice(i, 1); }
+  for (const q of list) { if (QUEST_BY_ID[q.id]) continue; const d = { ...q, custom: true, campaign: "custom" as const }; QUESTS.push(d); QUEST_BY_ID[q.id] = d; }
+}
+export const turninNpc = (q: QuestDef) => q.turnin || q.npc;
+export const CAMPAIGN_NAMES: Record<string, string> = { custom: "Поручения", prologue: "Пролог", leyr: "Лэйр · «Чувствовать»", alzi: "Алзи · «Держать мир»", joint: "Совместная · «Гул»", star: "Звёздные квесты", exam: "Экзамены", black: "Чёрная звезда" };

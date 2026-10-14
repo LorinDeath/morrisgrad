@@ -10,11 +10,8 @@ import { ZONE_GEN, rng, inSafe, isNight, genNodes, genOf, type Region, type Worl
 import { WORLD_CHUNK } from "../worlds/sizes";
 
 // Навыки боссов и проклятых (ids — базы навыков бестиария). Обычный босс — ровно 1 навык, проклятый — 2–5.
-export const MOB_SKILLS: Record<string, { name: string; cd: number }> = {
-  frost_nova: { name: "Ледяная звезда", cd: 9 }, meteor: { name: "Метеор", cd: 12 }, spear_rain: { name: "Дождь копий", cd: 10 },
-  whirlwind: { name: "Вихрь", cd: 8 }, fly_blade_dash: { name: "Рывок клинка", cd: 7 }, shadow_step: { name: "Шаг тени", cd: 11 },
-  fireball: { name: "Огненный шар", cd: 6 }, shield_wall: { name: "Стена щитов", cd: 15 }, smoke_bomb: { name: "Дымовая завеса", cd: 14 },
-};
+import { MOB_SKILLS } from "./mobSkills";
+export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
 /** навыки моба: детерминированно по типу (+соль для проклятых) */
@@ -124,7 +121,8 @@ export class Zone {
   rollCursed(m: ZMob) {
     const d = ZONE_MOBS[m.type];
     m.cursed = this.rand() * 100 < ZONE_GEN.cursedPct;
-    m.skills = m.cursed ? skillsFor(m.type, 2 + Math.floor(this.rand() * 4), m.id) : d.boss ? skillsFor(m.type, 1) : [];
+    const own = (d as any).skills as string[] | undefined; // навыки из админ-панели
+    m.skills = m.cursed ? [...new Set([...(own || []), ...skillsFor(m.type, 2 + Math.floor(this.rand() * 4), m.id)])].slice(0, 5) : own ? [...own] : d.boss ? skillsFor(m.type, 1) : [];
     m.skCd = Object.fromEntries(m.skills.map((k, i) => [k, 2 + i * 1.5]));
     if (m.cursed) this.stats.cursed++;
   }
