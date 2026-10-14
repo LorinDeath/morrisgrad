@@ -32,6 +32,12 @@ import { Social } from "./social";
 import { Roles } from "./roles";
 import { WEAPON_SKILL_CD } from "./abilityShapes";
 import { rsInfo, RS_DEF } from "./rsAny";
+/** ХП/с игрока: вне боя — полное (стат + база зоны + 4% ХП/с), в бою — ×ZONE_GEN.regenCombat. */
+export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: number, statRegen: number, hub: boolean): number {
+  const G: any = ZONE_GEN, inCombat = now - Math.max(hurtAt, hitAt) < (G.regenCombatSec ?? 5) * 1000;
+  const full = statRegen + (hub ? 2 : 0.3) + maxHp * 0.04;
+  return inCombat ? (statRegen + (hub ? 2 : 0.3)) * (G.regenCombat ?? 0.1) : full;
+}
 import { castShape } from "./abilityShapes";
 import { worldBounds, OPEN_AOI } from "../worlds/sizes";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
@@ -1113,8 +1119,9 @@ export class MetaService {
         if (ms.zp.alive && ms.zp.hp < ms.zp.maxHp) {
           const eff = this.effective(s);
           // вне боя (5 с без урона) — быстрое восстановление 4% ХП/с, как в MMO: простой между стычками короткий
-          const ooc = now - ((ms as any).hurtAt || 0) > 5000 ? ms.zp.maxHp * 0.04 : 0;
-          ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + (eff.regen + (w === "hellfire" ? 2 : 0.3) + ooc) * dt);
+          // в бою (нанёс или получил урон за последние regenCombatSec с) — восстановление ×regenCombat; оба — из админки «Спавн»
+          const R = regenRate(now, (ms as any).hurtAt || 0, (ms as any).hitAt || 0, ms.zp.maxHp, eff.regen, w === "hellfire");
+          ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + R * dt);
         }
         // в хабе боевое состояние только у тех, у кого есть оболочка
         if (w !== "hellfire" || s.stats?.classId) byWorld[w].players.set(s.id, ms.zp);

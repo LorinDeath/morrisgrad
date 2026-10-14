@@ -1,0 +1,14 @@
+import { regenRate } from "./service";
+import { ZONE_GEN } from "./zoneGen";
+import { validatePatch, applyOverride } from "./overrides";
+let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
+const now = 1e9, out = regenRate(now, 0, 0, 200, 1, false), hurt = regenRate(now, now - 1000, 0, 200, 1, false), hit = regenRate(now, 0, now - 2000, 200, 1, false);
+ok(out > 8, `вне боя — полное восстановление (${out.toFixed(2)} ХП/с)`);
+ok(Math.abs(hurt - (1 + 0.3) * 0.1) < 1e-9, `получил урон 1 с назад — ×0.1 (${hurt.toFixed(3)})`);
+ok(Math.abs(hit - hurt) < 1e-9, "нанёс урон — тоже «в бою»");
+ok(regenRate(now, now - 5100, 0, 200, 1, false) === out, "через 5 с без урона — снова полное");
+const v = validatePatch("spawn", "arinar", { regenCombat: 0.5, regenCombatSec: 10 }); ok(typeof v !== "string", "админка: множитель и задержка");
+applyOverride("spawn", "arinar", v as any);
+ok(Math.abs(regenRate(now, now - 7000, 0, 200, 1, false) - 1.3 * 0.5) < 1e-9, "правка действует сразу: ×0.5, 10 с");
+applyOverride("spawn", "arinar", null); ok((ZONE_GEN as any).regenCombat === 0.1 && (ZONE_GEN as any).regenCombatSec === 5, "сброс — как в коде");
+console.log(f ? `FAILED ${f}` : "regen ok"); if (f) process.exit(1);

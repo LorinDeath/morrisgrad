@@ -427,7 +427,8 @@ export class RunSession {
     }
     if (m.dashCd) m.dashCd = Math.max(0, m.dashCd - dt);
     resolvePillars(m, 0.5);
-    if (m.regen) this.heal(m.regen * dt);
+    // в бою (удар/урон за последние 5 с) восстановление ×0.1, как в мире
+    if (m.regen) this.heal(m.regen * dt * (this.t - (m.combatAt ?? -1e9) < 5 ? 0.1 : 1));
 
     this.wsCd = Math.max(0, (this.wsCd || 0) - dt);
     // Оружие
@@ -502,6 +503,7 @@ export class RunSession {
     if (m.shieldT > 0) raw *= 0.5;
     const dmg = Math.max(1, raw * (1 - armorReduction(m.armor)));
     m.hp -= dmg;
+    m.combatAt = this.t;
     m.iframes = 0.6;
     m.stats.taken += dmg;
     this.events('hurt', { dmg });
@@ -1061,6 +1063,7 @@ export class RunSession {
 
   hitEnemy(e, p) {
     const m = this.me;
+    m.combatAt = this.t;
     const crit = Math.random() < m.crit;
     // фиксированный урон надетого оружия (5–7 и т.п.) добавляется к ударам оружия, не навыков
     const flat = !p.dot && m.itemMax > 0 && p.w && !String(p.w).startsWith('ab_') && WEAPONS[p.w] ? (m.itemMin + Math.random() * (m.itemMax - m.itemMin)) * 0.6 : 0;

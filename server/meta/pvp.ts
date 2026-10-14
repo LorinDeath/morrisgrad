@@ -240,6 +240,7 @@ export class Pvp {
     if (this.host.ally?.(session.id, c.os.id)) return; // союзники по отряду не наносят друг другу урон
     const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, c.op.zp.armorRed || 0))));
     c.op.zp.hp = Math.max(0, c.op.zp.hp - real);
+    { const t = Date.now(); (c.op as any).hurtAt = t; (c.me as any).hitAt = t; } // бой → регенерация ×regenCombat
     c.d.hits[c.i] += real;
     if (eff.lifestealPct) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + real * eff.lifestealPct / 100);
     c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: real, crit: crit || undefined, x: Math.round(c.os.x), y: Math.round(c.os.y) });
