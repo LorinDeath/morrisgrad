@@ -128,6 +128,8 @@ export class Stage {
   activeCamera() { return this.useOrtho ? this.ortho : this.camera; }
 
   render() {
+    // «Единый стиль» (engine/unify.js) — общий проход поверх сцены; выключен (сила 0) → обычный рендер
+    if (this.unify?.render(this.scene, this.activeCamera())) return;
     this.renderer.render(this.scene, this.activeCamera());
   }
 

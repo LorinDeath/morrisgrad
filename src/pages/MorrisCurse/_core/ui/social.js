@@ -219,6 +219,7 @@ export class Social {
       <div class="mc-set"><div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
       <div class="mc-set-row"><span>🌑 Мрачность</span><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"></div>
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"></div>
+      <div class="mc-set-row"><span>🎨 Единый стиль</span><input type="range" min="0" max="100" step="5" value="${grimGet('style')}" data-grim="style"></div>
       <div class="mc-set-row"><span>⚔️ Вызовы на дуэль</span><div class="grp">${opt('all', 'От всех')}${opt('friends', 'Только друзья')}${opt('none', 'Никто')}</div></div>
       <div class="mc-set-row"><span>🤝 Заявки в друзья</span><button class="mc-btn sm ${st.freq ? 'gold' : ''}" data-act="freq">${st.freq ? 'Принимать' : 'Не принимать'}</button></div>
       <div class="mc-set-row"><span>🌙 Не беспокоить (5 минут)</span><button class="mc-btn sm ${dndMin ? 'gold' : ''}" data-act="dnd">${dndMin ? `Включено · ещё ${dndMin} мин` : 'Выключено'}</button></div>

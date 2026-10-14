@@ -2,7 +2,10 @@
 // Лёгкая: CSS-фильтр холста (экспозиция/насыщенность/контраст) + два слоя-градиента между холстом и интерфейсом
 // (холодные тени — soft-light; дымка к краям экрана — радиальный градиент, центр с героем чистый). Без лишнего
 // прохода рендера. Интерфейс (DOM поверх) не затронут. Сила — ползунки «Мрачность» и «Дымка» в Настройках (localStorage).
-const KEY = { grim: 'mc-grim', fog: 'mc-fog' }, DEF = { grim: 60, fog: 50 };
+const KEY = { grim: 'mc-grim', fog: 'mc-fog', style: 'mc-style' }, DEF = { grim: 60, fog: 50, style: 50 };
+let onStyle = null;
+/** «Единый стиль»: fn(0..1) — сейчас и при каждом изменении ползунка */
+export function onGrimStyle(fn) { onStyle = fn; fn(grimGet('style') / 100); }
 export function grimGet(k) { try { const v = Number(localStorage.getItem(KEY[k])); return Number.isFinite(v) && localStorage.getItem(KEY[k]) != null ? Math.max(0, Math.min(100, v)) : DEF[k]; } catch (_) { return DEF[k]; } }
 export function grimSet(k, v) { try { localStorage.setItem(KEY[k], String(Math.round(v))); } catch (_) {} applyGrim(); }
 let canvas = null, tone = null, haze = null;
@@ -14,6 +17,7 @@ export function initGrim(c) {
   applyGrim();
 }
 export function applyGrim() {
+  onStyle?.(grimGet('style') / 100);
   if (!canvas) return;
   const g = grimGet('grim') / 100, f = grimGet('fog') / 100;
   // темнее и глуше, чуть контрастнее (снаряды/метки/свечение добычи — яркие и остаются читаемыми)
