@@ -15,13 +15,14 @@ import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 export const SCHEMA_VERSION = 1;
 
 // uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
-export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number }
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null } // hero — владелец-герой (у каждого героя своя сумка)
 export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
   quests: { active: Record<string, { p: number[] }>; done: string[] };
   bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
+  gname?: string; // имя гостевого профиля (guestNames.ts), назначает сервер
 }
 export interface Hero {
   lvl: number; xp: number; talents: Record<string, number>; abil: Record<string, { rad: number; silenced?: boolean }>;
@@ -268,10 +269,10 @@ export function cryptoRand(): number {
 export const newUid = (): string => (globalThis.crypto as any).randomUUID();
 
 // Выдача экземпляра предмета — ТОЛЬКО сервером: id из пула, новый instance_id, источник, отметка открытия
-export function addItem(a: Account, id: string, src = "?"): InvItem | null {
+export function addItem(a: Account, id: string, src = "?", hero: string | null = a.hero): InvItem | null {
   if (!ITEM_BY_ID[id]) return null;
-  if (a.inv.length >= 120) return null; // сумка ограничена
-  const it: InvItem = { uid: newUid(), id, at: Date.now(), src, n: 1 };
+  if (a.inv.filter((i) => (i.hero || null) === (hero || null)).length >= 120) return null; // сумка героя ограничена
+  const it: InvItem = { uid: newUid(), id, at: Date.now(), src, n: 1, hero: hero || null };
   a.inv.push(it);
   noteItem(a, id, src, true);
   const def = ITEM_BY_ID[id];
@@ -320,6 +321,9 @@ export function addRes(a: Account, res: string, n: number) {
 export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   const it = a.inv.find((i) => i.uid === uid);
   if (!it) return fail("Нет такого предмета");
+  // у каждого героя своя сумка: чужой предмет не надеть (и один экземпляр — не на двух героях: иначе D1 отвергает выгрузку)
+  if (it.hero && it.hero !== cls) return fail("Это предмет другого героя");
+  if (!it.hero) it.hero = cls;
   const def = ITEM_BY_ID[it.id];
   if (!SLOTS[def.slot]) return fail("Неизвестный слот");
   if (def.classes && !def.classes.includes(cls as any)) return fail("Этот предмет не подходит герою");
@@ -449,7 +453,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    account: { inv: a.inv, res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    account: { inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),

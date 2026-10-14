@@ -42,10 +42,10 @@ export class Social {
     const L = d?.[t];
     const tr = (r) => `<tr class="${r.me ? 'me' : ''}" data-id="${esc(r.id)}" data-hero="${esc(r.hero || '')}"><td class="n">${r.r}</td><td class="nm">${esc(r.name)}${r.me ? ' <i>(вы)</i>' : ''}</td><td>${esc(heroLabel(r.hero))}</td>`;
     const row = (r) => t === 'level' ? `${tr(r)}<td class="v">${r.lvl}</td></tr>`
-      : t === 'duel' ? `${tr(r)}<td class="v">${r.w}</td><td class="wl">${r.w}/${r.l}${r.d ? `<small>ничьи ${r.d}</small>` : ''}</td><td class="wr">${r.wr}%</td></tr>`
+      : t === 'duel' ? `${tr(r)}<td class="v">${r.n ?? (r.w + r.l + r.d)}</td><td class="wl">${r.w}/${r.l}${r.d ? `<small>ничьи ${r.d}</small>` : ''}</td><td class="wr">${r.wr}%</td></tr>`
       : `${tr(r)}<td class="v">${r.v}</td><td class="w">${esc(whereLabel(r.where))}<small>${fmtDate(r.at)}</small></td></tr>`;
     const head = t === 'level' ? '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Ур.</th></tr>'
-      : t === 'duel' ? '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Побед</th><th>П/П</th><th>%</th></tr>'
+      : t === 'duel' ? '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Дуэлей</th><th>П/П</th><th>% побед</th></tr>'
       : '<tr><th>#</th><th>Игрок</th><th>Герой</th><th>Удар</th><th>Где</th></tr>';
     let body = '';
     if (!d) body = `<div class="mc-soc-empty">${this.err ? esc(this.err) : 'Загрузка рейтинга…'}</div>`;
@@ -57,7 +57,7 @@ export class Social {
         + `<div class="mc-soc-mine">${L.me ? (meOut ? `<table class="mc-soc-tbl ${t}"><tbody>${row(L.me)}</tbody></table>` : `Ваше место: <b>${L.me.r}</b>`) : (t === 'dmg' ? 'У вас ещё нет рекорда урона' : t === 'duel' ? 'Вы ещё не дрались на дуэлях' : 'Вас пока нет в рейтинге')}</div>`;
     }
     const note = t === 'dmg' ? 'Самый сильный одиночный удар по монстру в открытом мире (считает сервер; забеги не учитываются).'
-      : t === 'duel' ? 'Топ-100 по победам в дуэлях (П/П — победы/поражения, % — доля побед). Бой считает сервер.' : 'Лучший герой игрока: уровень, при равенстве — опыт.';
+      : t === 'duel' ? 'Топ-100 дуэлянтов: учитываются и число дуэлей, и доля побед (нижняя граница Уилсона) — одна победа 1:0 не обгонит 18 из 20. Бой считает сервер.' : 'Лучший по уровню герой игрока (при равенстве — опыт). Во вкладке «Рекорд урона» — герой с самым сильным ударом.';
     const html = `<div class="mc-soc"><div class="mc-soc-head"><h2>🏆 РЕЙТИНГ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>
       <div class="mc-soc-tabs"><button data-tab="level" class="${t === 'level' ? 'on' : ''}">По уровню</button><button data-tab="dmg" class="${t === 'dmg' ? 'on' : ''}">Рекорд урона</button><button data-tab="duel" class="${t === 'duel' ? 'on' : ''}">⚔️ Дуэлянты</button></div>
       <div class="mc-soc-note">${note}${d && d.total[t] !== undefined ? ` · всего: ${d.total[t]}` : ''}</div>${body}</div>`;
@@ -76,7 +76,7 @@ export class Social {
 
   // ---------- просмотр персонажа ----------
   openInspect(q) {
-    this.back = this.view === 'rating' ? 'rating' : null;
+    this.back = ['rating', 'online', 'friends'].includes(this.view) ? this.view : null;
     this.view = 'inspect'; this.insp = null; this.inspErr = null; this.inspQ = q;
     this.send({ type: 'inspect_player', ...q });
     this.renderInspect();
@@ -121,13 +121,13 @@ export class Social {
         <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}</div>
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
     }
-    const html = `<div class="mc-soc mc-insp"><div class="mc-soc-head">${this.back ? '<button class="mc-soc-back" title="Назад к рейтингу">←</button>' : ''}<h2>👤 ПЕРСОНАЖ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${body}</div>`;
+    const html = `<div class="mc-soc mc-insp"><div class="mc-soc-head">${this.back ? '<button class="mc-soc-back" title="Назад">←</button>' : ''}<h2>👤 ПЕРСОНАЖ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${body}</div>`;
     this.overlay.showScreen(html, [], 'mc-social');
     const el = this.overlay.screen;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       if (e.target.closest('.mc-soc-x')) { this.close(); return; }
-      if (e.target.closest('.mc-soc-back')) { this.view = 'rating'; this.renderRating(); return; }
+      if (e.target.closest('.mc-soc-back')) { const b = this.back; if (b === 'online') this.openOnline(); else if (b === 'friends') this.openFriends(); else { this.view = 'rating'; this.renderRating(); } return; }
       if (e.target.closest('.mc-insp-duel')) { const sid = this.insp?.sid; this.close(); if (sid) this.onDuel?.(sid); return; }
       const sl = e.target.closest('.mc-insp-slot, .mc-insp-ab');
       el.querySelectorAll('.mc-insp-slot.sel, .mc-insp-ab.sel').forEach((x) => { if (x !== sl) x.classList.remove('sel'); });
@@ -135,5 +135,94 @@ export class Social {
     });
   }
 
+  // ---------- онлайн / друзья / настройки ----------
+  onOnline(d) { this.online = d; this.onCount?.(d.n); if (this.view === 'online') this.renderOnline(); }
+  onFriends(d) { this.friends = d; if (d.settings) this.settings = d.settings; this.onCount?.(this.online?.n, (d.incoming || []).length); if (this.view === 'friends') this.renderFriends(); if (this.view === 'settings') this.renderSettings(); }
+  onSettings(d) { this.settings = d.settings; if (this.view === 'settings') this.renderSettings(); }
+
+  openOnline() { this.back = null; this.view = 'online'; this.send({ type: 'online_get' }); this.renderOnline(); }
+  openFriends(tab) { this.back = null; this.view = 'friends'; if (tab) this.ftab = tab; this.send({ type: 'friends_get' }); this.renderFriends(); }
+  openSettings() { this.back = null; this.view = 'settings'; this.send({ type: 'friends_get' }); this.renderSettings(); }
+
+  socTabs(cur) {
+    const inc = (this.friends?.incoming || []).length;
+    return `<div class="mc-soc-tabs"><button data-view="online" class="${cur === 'online' ? 'on' : ''}">🟢 Онлайн${this.online ? ` (${this.online.n})` : ''}</button><button data-view="friends" class="${cur === 'friends' ? 'on' : ''}">🤝 Друзья${inc ? ` <i class="mc-soc-badge">${inc}</i>` : ''}</button><button data-view="settings" class="${cur === 'settings' ? 'on' : ''}">⚙️ Настройки</button></div>`;
+  }
+  playerRow(p, acts) {
+    const where = p.world ? (WORLD_RU[p.world] || (p.world === 'arena' ? 'Арена' : p.world)) : (p.online ? 'в сети' : 'не в сети');
+    return `<div class="mc-soc-pl ${p.me ? 'me' : ''}" data-id="${esc(p.id)}" data-sid="${esc(p.sid || '')}"><span class="dot ${p.online === false ? 'off' : ''}"></span>
+      <div class="who"><b>${esc(p.name)}</b>${p.me ? ' <i>(вы)</i>' : ''}${p.friend ? ' <span class="fr" title="Друг">🤝</span>' : ''}<small>${esc(heroLabel(p.cls))}${p.lvl ? ` · ур. ${p.lvl}` : ''} · ${esc(where)}${p.busy ? ' · занят' : ''}</small></div>
+      <div class="acts">${acts}</div></div>`;
+  }
+  bindSoc(el) {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (e.target.closest('.mc-soc-x')) { this.close(); return; }
+      const v = e.target.closest('[data-view]');
+      if (v) { const k = v.dataset.view; if (k === 'online') this.openOnline(); else if (k === 'friends') this.openFriends(); else this.openSettings(); return; }
+      const ft = e.target.closest('[data-ftab]');
+      if (ft) { this.ftab = ft.dataset.ftab; this.renderFriends(); return; }
+      const b = e.target.closest('button[data-act]');
+      if (!b) return;
+      const row = b.closest('.mc-soc-pl');
+      const id = row?.dataset.id, sid = row?.dataset.sid;
+      const act = b.dataset.act;
+      if (act === 'view') { const back = this.view; this.openInspect(sid ? { sid } : { id }); this.back = back; }
+      else if (act === 'add') { this.send(sid ? { type: 'friend_add', sid } : { type: 'friend_add', id }); b.disabled = true; b.textContent = '✓ Заявка'; }
+      else if (act === 'duel') { if (sid) { this.close(); this.onDuel?.(sid); } }
+      else if (act === 'acc') this.send({ type: 'friend_respond', id, accept: true });
+      else if (act === 'dec') this.send({ type: 'friend_respond', id, accept: false });
+      else if (act === 'cancel') this.send({ type: 'friend_cancel', id });
+      else if (act === 'del') { if (b.dataset.sure) this.send({ type: 'friend_remove', id }); else { b.dataset.sure = '1'; b.textContent = 'Точно удалить?'; } }
+      else if (act === 'duelset') this.send({ type: 'settings_set', duel: b.dataset.v });
+      else if (act === 'freq') this.send({ type: 'settings_set', freq: !this.settings?.freq });
+      else if (act === 'dnd') this.send({ type: 'settings_set', dnd: !(this.settings?.dnd > 0) });
+      else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
+    });
+  }
+  renderOnline() {
+    const d = this.online;
+    const body = !d ? '<div class="mc-soc-empty">Загрузка…</div>' : !d.list.length ? '<div class="mc-soc-empty">Никого нет в сети</div>'
+      : `<div class="mc-soc-scroll mc-soc-list">${d.list.map((p) => this.playerRow(p, p.me ? '' : `<button class="mc-btn sm" data-act="view">👤 Посмотреть</button>${p.friend ? '' : '<button class="mc-btn sm" data-act="add">🤝 В друзья</button>'}<button class="mc-btn sm gold" data-act="duel" ${p.busy ? 'disabled' : ''}>⚔️ На дуэль</button>`)).join('')}</div>`;
+    this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>👥 ИГРОКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('online')}
+      <div class="mc-soc-note">Все, кто сейчас в игре${d ? ` · ${d.n}` : ''}. Дуэль — если вы оба в открытом мире (Поляна/Аринар).</div>${body}</div>`, [], 'mc-social');
+    this.bindSoc(this.overlay.screen);
+  }
+  renderFriends() {
+    const d = this.friends, t = this.ftab || 'list';
+    let body = '<div class="mc-soc-empty">Загрузка…</div>';
+    if (d) {
+      if (t === 'list') body = d.friends.length ? d.friends.map((p) => this.playerRow(p, `<button class="mc-btn sm" data-act="view">👤 Посмотреть</button>${p.online ? '<button class="mc-btn sm gold" data-act="duel">⚔️ На дуэль</button>' : ''}<button class="mc-btn sm danger" data-act="del">✕</button>`)).join('')
+        : '<div class="mc-soc-empty">Друзей пока нет — откройте «Онлайн» и нажмите «🤝 В друзья»</div>';
+      else body = (d.incoming.length ? `<div class="mc-insp-h">Входящие</div>${d.incoming.map((p) => this.playerRow(p, '<button class="mc-btn sm gold" data-act="acc">Принять</button><button class="mc-btn sm" data-act="dec">Отклонить</button>')).join('')}` : '<div class="mc-soc-empty">Входящих заявок нет</div>')
+        + (d.outgoing.length ? `<div class="mc-insp-h">Отправленные</div>${d.outgoing.map((p) => this.playerRow(p, '<button class="mc-btn sm" data-act="cancel">Отозвать</button>')).join('')}` : '');
+    }
+    const inc = (d?.incoming || []).length;
+    this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>🤝 ДРУЗЬЯ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('friends')}
+      <div class="mc-soc-tabs sub"><button data-ftab="list" class="${t === 'list' ? 'on' : ''}">Список${d ? ` (${d.friends.length})` : ''}</button><button data-ftab="req" class="${t === 'req' ? 'on' : ''}">Заявки${inc ? ` <i class="mc-soc-badge">${inc}</i>` : ''}</button></div>
+      <div class="mc-soc-scroll mc-soc-list">${body}</div></div>`, [], 'mc-social');
+    this.bindSoc(this.overlay.screen);
+  }
+  renderSettings() {
+    const st = this.settings || { duel: 'all', freq: true, dnd: 0 };
+    const opt = (v, t) => `<button class="mc-btn sm ${st.duel === v ? 'gold' : ''}" data-act="duelset" data-v="${v}">${t}</button>`;
+    const dndMin = st.dnd > 0 ? Math.ceil(st.dnd / 60000) : 0;
+    this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>⚙️ НАСТРОЙКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('settings')}
+      <div class="mc-set"><div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
+      <div class="mc-set-row"><span>⚔️ Вызовы на дуэль</span><div class="grp">${opt('all', 'От всех')}${opt('friends', 'Только друзья')}${opt('none', 'Никто')}</div></div>
+      <div class="mc-set-row"><span>🤝 Заявки в друзья</span><button class="mc-btn sm ${st.freq ? 'gold' : ''}" data-act="freq">${st.freq ? 'Принимать' : 'Не принимать'}</button></div>
+      <div class="mc-set-row"><span>🌙 Не беспокоить (5 минут)</span><button class="mc-btn sm ${dndMin ? 'gold' : ''}" data-act="dnd">${dndMin ? `Включено · ещё ${dndMin} мин` : 'Выключено'}</button></div>
+      <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук — на этом устройстве.</p></div></div>`, [], 'mc-social');
+    this.bindSoc(this.overlay.screen);
+  }
+
   close() { this.view = null; this.overlay.hideScreen(); }
+}
+
+// звук: настройка устройства (localStorage); глушит все медиа-элементы страницы и доступна как window.MC_SOUND
+export function soundOn() { try { return localStorage.getItem('mc-sound') !== '0'; } catch (_) { return true; } }
+export function setSound(on) {
+  try { localStorage.setItem('mc-sound', on ? '1' : '0'); } catch (_) {}
+  window.MC_SOUND = !!on;
+  document.querySelectorAll('audio, video').forEach((m) => { m.muted = !on; });
 }

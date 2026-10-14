@@ -5,8 +5,9 @@ import { RUN_CLASSES, ABILITIES, WEAPONS } from '../survivors/data.js';
 import { esc } from './overlay.js';
 
 export class ClassSelect {
-  constructor(overlay, onSelect) {
+  constructor(overlay, getHeroes, onSave, onSelect) {
     this.ov = overlay;
+    this.getHeroes = getHeroes; this.onSave = onSave;
     this.onSelect = onSelect;
     this.isOpen = false;
   }
@@ -20,8 +21,9 @@ export class ClassSelect {
       const ab = c.ability || {};
       const runAb = ABILITIES[rc.ability] || {};
       const w = WEAPONS[rc.startWeapon];
+      const hs = this.getHeroes?.()?.[id];
       return `<button class="mc3d-class ${id === currentClassId ? 'active' : ''}" data-id="${esc(id)}" style="border-color:${id === currentClassId ? '' : esc(c.color || rc.color)}55">
-        <div class="nm" style="color:${esc(c.color || rc.color)}">${esc(rc.hero || c.name || id)} <span style="font-size:11px;color:#cbd5e1">· ${esc(c.name || rc.name || id)}</span></div>
+        <div class="nm" style="color:${esc(c.color || rc.color)}">${esc(rc.hero || c.name || id)} <span style="font-size:11px;color:#cbd5e1">· ${esc(c.name || rc.name || id)}</span>${hs ? ` <span class="lv">ур. ${hs.lvl}</span>` : ''}</div>
         <div class="ds">❤️ ${c.maxHp ?? '?'} · 🛡️ ${c.armor ?? '?'} · ⚔️ ${c.minAtk ?? '?'}–${c.maxAtk ?? '?'}</div>
         <div class="sk">${runAb.icon || '✦'} ${esc(ab.name || runAb.name || '')} <span style="color:#94a3b8">(кд ${ab.cooldown ?? runAb.serverCooldown ?? '?'}с в мире / ${runAb.runCooldown ?? '?'}с в забеге)</span></div>
         <div class="ds">${esc(ab.desc || runAb.desc || '')}</div>
@@ -29,8 +31,8 @@ export class ClassSelect {
         <div class="ds">${esc(rc.blurb || '')}</div>
       </button>`;
     }).join('');
-    const el = this.ov.showScreen(`<h2>АЛТАРЬ ТЕЛ</h2><p>Выберите тело. Класс определяет оружие и навык в забегах.</p><div class="mc3d-classes">${cards}</div>`,
-      [{ text: 'Закрыть [Esc]', cls: 'ghost', onClick: () => this.close() }], 'mc3d-class-screen');
+    const el = this.ov.showScreen(`<h2>АЛТАРЬ ТЕЛ</h2><p>Выберите тело. У каждого героя своё сохранение: уровень, таланты, сумка и надетое. При смене души текущий герой сохраняется сразу.</p><div class="mc3d-classes">${cards}</div>`,
+      [{ text: '💾 Сохранить сейчас', cls: 'gold mc-save-now', onClick: () => { this.onSave?.(); } }, { text: 'Закрыть [Esc]', cls: 'ghost', onClick: () => this.close() }], 'mc3d-class-screen');
     el.style.overflowY = 'auto';
     el.querySelectorAll('.mc3d-class').forEach((b) => {
       b.addEventListener('click', (e) => {

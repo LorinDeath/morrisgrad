@@ -29,7 +29,7 @@ import { Overlay, esc } from './ui/overlay.js';
 import { RunUI } from './ui/runUI.js';
 import { ClassSelect } from './ui/classSelect.js';
 import { GameHUD } from './hud.js';
-import { Social } from './ui/social.js';
+import { Social, soundOn, setSound } from './ui/social.js';
 import { DuelUI } from './ui/duel.js';
 import { TouchControls, isMobileDevice } from './touchControls.js';
 import { StatsUI, DEFAULT_STATS } from './playerStats.js';
@@ -154,7 +154,7 @@ async function boot(canvasId, username, userId, api) {
   const send = (obj) => net.send(obj);
 
   // ---------------- UI ----------------
-  const classSelect = new ClassSelect(overlay, (classId) => {
+  const classSelect = new ClassSelect(overlay, () => api.meta?.state?.heroes || null, () => send({ type: 'save_now' }), (classId) => {
     if (!send({ type: 'select_class', classId })) {
       // офлайн: применяем локально
       const c = CLASSES[classId];
@@ -194,11 +194,13 @@ async function boot(canvasId, username, userId, api) {
     onEnterRun: (room) => requestRun(room, null),
     onLeaveRun: () => leaveRun(),
     onRating: () => openRating(),
+    onPeople: (v) => openPeople(v),
     onInspect: (sid) => inspectPlayer(sid),
     onDuel: (sid) => challengeDuel(sid),
   });
   const touch = new TouchControls(overlay.layer, {
     onRating: () => openRating(),
+    onPeople: () => openPeople('online'),
     onDash: () => { input.dashPressed = true; },
     onInteract: () => interact(),
     onAttack: (on) => { aim.touch = !!on; },
@@ -427,6 +429,31 @@ async function boot(canvasId, username, userId, api) {
   net.on('rating_err', (d) => social.onRatingErr(d));
   net.on('inspect', (d) => social.onInspect(d));
   net.on('inspect_err', (d) => social.onInspectErr(d));
+  // онлайн / друзья / настройки аккаунта (server/meta/social.ts)
+  net.on('online', (d) => social.onOnline(d));
+  net.on('friends', (d) => social.onFriends(d));
+  net.on('settings', (d) => { social.onSettings(d); if (d.toast) overlay.toast(d.toast, '#a5b4fc'); });
+  net.on('social_err', (d) => overlay.toast(d.message || 'Ошибка', '#fca5a5'));
+  net.on('toast', (d) => { overlay.toast(d.message || '', '#86efac'); if (social.view === 'online') send({ type: 'online_get' }); });
+  net.on('friend_request', (d) => { overlay.toast(`🤝 ${d.name} хочет добавить вас в друзья — «Друзья» → «Заявки»`, '#fcd34d'); send({ type: 'friends_get' }); });
+  net.on('guest_name', (d) => { if (d.name) { window.__CURRENT_USERNAME__ = d.name; net.username = d.name; } });
+  net.on('saved', (d) => overlay.toast(d.message || (d.ok ? 'Сохранено' : 'Не сохранено'), d.ok ? '#86efac' : '#fca5a5'));
+  setSound(soundOn());
+  function openPeople(view) {
+    if (!net.isOpen()) { overlay.toast('Доступно только онлайн', '#fca5a5'); return; }
+    if (mode === 'run' && run && !run.ended) { overlay.toast('После забега', '#94a3b8'); return; }
+    if (book.isOpen) book.close();
+    if (social.isOpen && social.view === view) { social.close(); return; }
+    if (view === 'friends') social.openFriends(); else if (view === 'settings') social.openSettings(); else social.openOnline();
+  }
+  api.openPeople = openPeople;
+  // счётчик «Онлайн» на кнопках: опрос раз в 20 с, пока соединение открыто
+  social.onCount = (n, inc) => {
+    if (n !== undefined && n !== null) { onlineBtn.querySelector('b').textContent = n; const hb = container.querySelector('#ghud-online-btn b'); if (hb) hb.textContent = n; }
+    if (inc !== undefined) { friendsBtn.classList.toggle('has', inc > 0); }
+  };
+  setInterval(() => { if (net.isOpen() && document.visibilityState !== 'hidden') send({ type: 'online_get' }); }, 20000);
+  setTimeout(() => { if (net.isOpen()) { send({ type: 'online_get' }); send({ type: 'friends_get' }); } }, 2500);
   function openRating() {
     if (mode === 'run' && run && !run.ended) { overlay.toast('Рейтинг — после забега', '#94a3b8'); return; }
     if (!net.isOpen()) { overlay.toast('Рейтинг доступен только онлайн', '#fca5a5'); return; }
@@ -446,6 +473,10 @@ async function boot(canvasId, username, userId, api) {
   rateBtn.textContent = '🏆';
   rateBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); openRating(); });
   overlay.layer.appendChild(rateBtn);
+  const mkBtn = (cls, title, html, fn) => { const b = document.createElement('button'); b.className = cls; b.title = title; b.innerHTML = html; b.addEventListener('pointerdown', (e) => { e.stopPropagation(); fn(); }); overlay.layer.appendChild(b); return b; };
+  const onlineBtn = mkBtn('mc-ratebtn mc-onlinebtn', 'Кто в сети', '👥<b>·</b>', () => openPeople('online'));
+  const friendsBtn = mkBtn('mc-ratebtn mc-friendsbtn', 'Друзья', '🤝', () => openPeople('friends'));
+  const setBtn = mkBtn('mc-ratebtn mc-setbtn', 'Настройки', '⚙️', () => openPeople('settings'));
   // выбранный игрок, когда боковой панели «Цель» не видно (телефон, окно): плашка с кнопкой просмотра
   const tchip = document.createElement('div');
   tchip.className = 'mc-tchip';
@@ -1393,6 +1424,7 @@ async function boot(canvasId, username, userId, api) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
       rawSend: (o) => net.send(o),
+      openAltar: () => classSelect.open(player.stats.classId),
       minimap: () => hud.minimap?.stats,
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y) })),
       fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)

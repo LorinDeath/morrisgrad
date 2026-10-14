@@ -329,9 +329,11 @@ export class Book {
       const uid = h?.equip?.[slot];
       const it = uid && byUid.get(uid);
       const d = it && ITEM_BY_ID[it.id];
-      return `<button class="mc-gslot" data-act="sel" data-v="${uid || ''}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      // надетое видно только в слоте; нажатие на занятый слот снимает предмет в сумку героя
+      return `<button class="mc-gslot ${d ? 'filled' : ''}" ${d && h ? `data-act="unequip" data-v="${slot}"` : `data-act="sel" data-v=""`} title="${d ? esc(d.name) + ' — нажмите, чтобы снять' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
-    const bag = a.inv.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
+    const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
+    const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = ITEM_BY_ID[it.id];
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
@@ -364,7 +366,7 @@ export class Book {
     }
     return `<div class="mc-gear"><div class="mc-gslots">${slots}</div><div class="mc-detail">${detail}</div></div>
       ${h ? '' : '<p class="mc-lock">Надевать предметы может только герой — выберите оболочку у Алтаря.</p>'}
-      <h3>Сумка (общая для всех героев) · ${a.inv.length}${a.inv.some((i) => i.n) ? ` <button class="mc-btn sm" data-act="seenall" data-v="inv">отметить просмотренным</button>` : ''}</h3><div class="mc-bag">${bag || '<p class="mc-dim">Пусто. Убивайте Отголосков — их снаряжение станет вашим.</p>'}</div>
+      <h3>Сумка ${h ? 'героя' : ''} · ${bagItems.length}${bagItems.some((i) => i.n) ? ` <button class="mc-btn sm" data-act="seenall" data-v="inv">отметить просмотренным</button>` : ''}</h3><div class="mc-bag">${bag || '<p class="mc-dim">Пусто. Убивайте Отголосков — их снаряжение станет вашим.</p>'}</div>
       <h3>Материалы</h3><div class="mc-res">${res || '<span class="mc-dim">нет</span>'}</div>`;
   }
 

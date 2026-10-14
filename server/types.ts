@@ -42,6 +42,7 @@ export interface PlayerStats {
 }
 
 export interface Session {
+  dupKey?: string | null;
   id: string;
   username: string;
   world: GameWorldId; // Текущий мир игрока

@@ -18,6 +18,8 @@ import { ProfileStore } from "./store";
 import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
 import { Pvp, type Duel } from "./pvp";
+import { Social } from "./social";
+import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
 
 export interface MetaSess {
   sid: string; pkey: string; verified: boolean; ready: boolean;
@@ -38,7 +40,9 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   zone_attack: S({}), zone_ability: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
   mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
-  duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b" }), duel_cancel: S({}), duel_leave: S({}),
+  duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
+  save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
+  friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
 };
 function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
@@ -75,12 +79,14 @@ export class MetaService {
   zoneAcc = 0;
   rating: Rating;
   pvp: Pvp;
+  social: Social;
   duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   constructor(sql: any, env: any) {
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
     this.pvp = new Pvp(this);
+    this.social = new Social(this, env?.GAME_DB);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
   }
@@ -124,6 +130,13 @@ export class MetaService {
       lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
     this.ms.set(session.id, ms);
     const a = this.store.account(pkey);
+    // гость: имя из 100 четырёхбуквенных назначает сервер один раз (хранится в профиле), показ — «Гость» Имя
+    if (!verified) {
+      if (!a.gname || !isGuestName(a.gname)) { a.gname = GUEST_NAMES[Math.floor(cryptoRand() * GUEST_NAMES.length)]; this.store.saveAccount(pkey, false); }
+      session.username = guestDisplay(a.gname);
+      this.send(ws, { type: "guest_name", name: session.username });
+    }
+    await this.social.warm(pkey);
     if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
     this.refreshZonePlayer(session);
     this.send(ws, { type: "meta_state", ...this.snap(session) });
@@ -214,9 +227,10 @@ export class MetaService {
   }
   displayName(session: any) {
     const ms = this.ms.get(session?.id);
-    if (ms && ms.pkey.startsWith("guest:") && !session.username) return guestName(ms.pkey);
+    if (ms && ms.pkey.startsWith("guest:")) return guestName(ms.pkey, this.store.accounts.get(ms.pkey)?.gname);
     return String(session?.username || "Странник").slice(0, 32);
   }
+  duelBlock(from: string, to: string) { return this.social.duelBlock(from, to); }
   async recordDuel(d: Duel, winner: 0 | 1 | null, reason: string) {
     const now = Date.now();
     const res = (i: number) => (winner === null ? "d" : winner === i ? "w" : "l");
@@ -312,6 +326,8 @@ export class MetaService {
       }
       case "unequip": if (!needHero()) return true; reply(unequip(h!, String(msg.slot)), "Снято"); this.refreshZonePlayer(session); return true;
       case "salvage": {
+        const own = a.inv.find((i) => i.uid === String(msg.uid));
+        if (own?.hero && own.hero !== cls) { this.send(ws, { type: "toast_error", message: "Это предмет другого героя" }); return true; }
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
         reply(salvage(a, heroes, String(msg.uid))); return true;
       }
@@ -369,7 +385,26 @@ export class MetaService {
       case "zone_ability": if (this.pvp.inDuel(session.id)) this.pvp.ability(ws, session, msg); else this.zoneAbility(ws, session, msg); return true;
       // PvP-дуэли (meta/pvp.ts): вызов, ответ, отмена своего вызова, сдача
       case "duel_challenge": this.pvp.challenge(ws, session, msg); return true;
-      case "duel_respond": this.pvp.respond(ws, session, msg); return true;
+      case "duel_respond":
+        // «Не беспокоить 5 минут»: отказ + запрет вызовов на весь аккаунт (все герои, все вкладки) на 5 минут
+        if (msg.dnd) { this.social.setDnd(ms.pkey, true).then((p) => this.send(ws, { type: "settings", settings: this.social.settingsView(p), toast: "Не беспокоить: 5 минут" })).catch(() => {}); msg.accept = false; }
+        this.pvp.respond(ws, session, msg); return true;
+      case "save_now": {
+        // кнопка «Сохранить сейчас» у Алтаря перевоплощения (автосохранение тоже работает)
+        if (!this.nearNpcOrAltar(session)) { this.send(ws, { type: "toast_error", message: "Сохранение — у Алтаря перевоплощения" }); return true; }
+        const t = Date.now();
+        if (t - ((ms as any).lastSaveNow || 0) < 3000) { this.send(ws, { type: "toast_error", message: "Только что сохранено" }); return true; }
+        (ms as any).lastSaveNow = t;
+        this.save(session);
+        this.store.flush(ms.pkey).then(() => this.store.chain.get(ms.pkey)).then(() => {
+          const ok = !this.store.lastFailed(ms.pkey);
+          this.send(ws, { type: "saved", ok, message: ok ? "Сохранено ✓" : "Не удалось сохранить — повторим автоматически" });
+        });
+        return true;
+      }
+      case "online_get": case "friends_get": case "friend_add": case "friend_respond": case "friend_cancel": case "friend_remove": case "settings_set":
+        this.social.handle(ws, session, ms, msg).catch((e) => { console.error("[mc] social", e?.message || e); this.send(ws, { type: "social_err", message: "Друзья временно недоступны" }); });
+        return true;
       case "duel_cancel": this.pvp.cancel(ws, session); return true;
       case "duel_leave": this.pvp.leave(session, "forfeit"); return true;
       case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
@@ -416,8 +451,11 @@ export class MetaService {
     const ms = this.ms.get(session.id);
     if (!ms) return;
     const a = this.store.account(ms.pkey);
+    const prev = a.hero;
     a.hero = session.stats.classId;
     this.store.hero(ms.pkey, a.hero!);
+    // смена души: всё прошлого героя (сумка, 4 надетых, прогресс) — в D1 сразу, не ждём автосохранения
+    if (prev && prev !== a.hero) { this.save(session); this.store.flush(ms.pkey).catch(() => {}); }
     this.qev(a, session, { type: "select_hero" });
     this.autoTurnInPrologue(a, session);
     this.refreshZonePlayer(session);
@@ -590,15 +628,18 @@ export class MetaService {
       pkey = tms.pkey; nick = e[1].username || "";
       cls = e[1].stats?.classId || this.store.account(pkey).hero || null;
     } else if (msg.id) {
-      pkey = this.rating.byId.get(String(msg.id)) || null;
+      pkey = this.rating.byId.get(String(msg.id)) || this.social.ids.get(String(msg.id)) || null;
       if (!pkey) { await this.rating.ensure(); pkey = this.rating.byId.get(String(msg.id)) || null; }
       if (!pkey) { this.send(ws, { type: "inspect_err", message: "Персонаж не найден — обновите рейтинг" }); return; }
       cls = msg.hero && (HERO_IDS as readonly string[]).includes(msg.hero) ? String(msg.hero) : null;
+      // игрок в сети: имя как в мире (ник сессии / «Гость» Имя)
+      const osid = this.social.onlineSid(pkey); const oe = osid ? this.sessionLookup?.(osid) : null;
+      if (oe) nick = this.displayName(oe[1]);
     }
     if (!pkey) { this.send(ws, { type: "inspect_err", message: "Не выбран персонаж" }); return; }
     // имя: зарегистрированные — из таблицы сайта users, гости — «Гость #xxxx»
     if (pkey.startsWith("uid:") && !this.rating.names.has(pkey)) await this.rating.loadNames([pkey]);
-    const name = pkey.startsWith("uid:") ? this.rating.names.get(pkey) || nick || "Игрок" : guestName(pkey);
+    let name = pkey.startsWith("uid:") ? this.rating.names.get(pkey) || nick || "Игрок" : guestName(pkey, this.store.accounts.get(pkey)?.gname || this.rating.gnames.get(pkey));
     let a: Account, h: any;
     if (this.store.accounts.has(pkey)) {
       a = this.store.account(pkey);
@@ -609,6 +650,7 @@ export class MetaService {
       const p = this.store.db ? await loadPublicProfile(this.store.db, pkey) : null;
       if (!p) { this.send(ws, { type: "inspect_err", message: "Персонаж не найден" }); return; }
       a = p.a; cls = cls || a.hero;
+      if (pkey.startsWith("guest:")) name = guestName(pkey, a.gname);
       if (!cls) { this.send(ws, { type: "inspect", id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
       h = p.heroes[cls];
     }

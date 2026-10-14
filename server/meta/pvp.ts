@@ -40,6 +40,7 @@ export interface PvpHost {
   duelRecord(pkey: string): Promise<{ w: number; l: number; d: number }>;
   onWorldChange(ws: WebSocket, session: any): void;
   onPlayersChanged: (() => void) | null;
+  duelBlock?(from: string, to: string): string | null; // настройки аккаунта цели: все / друзья / никто, «не беспокоить»
 }
 
 export class Pvp {
@@ -82,6 +83,8 @@ export class Pvp {
     const [tws, ts] = e;
     const tms = this.host.ms.get(ts.id), mms = this.host.ms.get(session.id);
     if (tms && mms && tms.pkey === mms.pkey) return this.err(ws, "Нельзя вызвать самого себя");
+    const blocked = tms && mms ? this.host.duelBlock?.(mms.pkey, tms.pkey) : null;
+    if (blocked) return this.err(ws, `Нельзя вызвать на дуэль: ${blocked}`);
     const theirs = this.eligible(ts);
     if (theirs) return this.err(ws, `Игрок недоступен: ${theirs}`);
     if ((ts.world || "hellfire") !== (session.world || "hellfire")) return this.err(ws, "Игрок в другом мире");

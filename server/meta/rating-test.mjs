@@ -58,7 +58,7 @@ let r = await A.wait('rating', 8000);
 ok(r && r.level.top.length === 100 && r.level.top[0].r === 1, `rating: level top-100 (${r?.level.top.length} rows, total ${r?.total.level})`);
 ok(r && r.level.me && r.level.me.r > 100 && r.level.me.name === 'Рейтинговый_А' && r.level.me.hero === 'warrior' && r.level.me.lvl === st.hero.lvl && r.level.me.me, `own place shown outside top-100: #${r?.level.me?.r} ${JSON.stringify(r?.level.me)}`);
 ok(r && r.level.top.every((x, i, arr) => i === 0 || arr[i - 1].lvl > x.lvl || (arr[i - 1].lvl === x.lvl && arr[i - 1].xp >= x.xp)), 'level tab sorted by level, tie-break XP');
-ok(r && r.level.top.some((x) => /^Гость #[0-9A-F]{4}$/.test(x.name)), 'guests shown as «Гость #xxxx»');
+ok(r && r.level.top.some((x) => /^«Гость» [А-ЯЁ][а-яё]{3}$/.test(x.name)), 'guests shown as «Гость» Имя');
 const raw = JSON.stringify(r || {});
 ok(!raw.includes(uidA) && !raw.includes('uid:') && !raw.includes('guest:') && !raw.includes('ratingguest') && !raw.includes('ratingfake'), 'rating JSON has no profile keys / uids / guest ids');
 const maxHit = Math.max(0, ...hits);
@@ -85,7 +85,7 @@ ok(ins && ins.name === 'Рейтинговый_А' && ins.cls === 'warrior', 'in
 await sleep(800);
 B.clear(); B.send({ type: 'inspect_player', id: r.level.top[0].id, hero: r.level.top[0].hero });
 ins = await B.wait('inspect', 5000);
-ok(ins && /^Гость #/.test(ins.name) && ins.lvl === 40 && ins.stats, 'inspect offline player from D1 (read-only) ' + JSON.stringify(ins && { n: ins.name, l: ins.lvl }));
+ok(ins && /^«Гость» /.test(ins.name) && ins.lvl === 40 && ins.stats, 'inspect offline player from D1 (read-only) ' + JSON.stringify(ins && { n: ins.name, l: ins.lvl }));
 await sleep(800);
 B.clear(); B.send({ type: 'inspect_player', id: 'nonexistent123' });
 ok(!!(await B.wait('inspect_err', 3000)), 'unknown id → inspect_err');

@@ -10,13 +10,14 @@
 import { HERO_IDS, ITEM_BY_ID } from "./defs";
 import { heroEffective, equippedItems, fixAccount, newAccount, newHero, type Account, type Hero } from "./profile";
 import { ITEM_INDEX } from "./library";
+import { guestDisplay, guestNameFor, isGuestName } from "./guestNames";
 
 export const RATING_TTL_MS = 60_000;
 export const RATING_TOP = 100;
 
 export type LvlRow = { pkey: string; hero: string | null; lvl: number; xp: number };
 export type DmgRow = { pkey: string; hero: string; v: number; at: number; where: string };
-export type DuelRow = { pkey: string; hero: string | null; w: number; l: number; d: number };
+export type DuelRow = { pkey: string; hero: string | null; w: number; l: number; d: number; s?: number };
 
 // FNV-1a 2×32 — синхронно (Worker и Node), стабильно между перезапусками
 export function opaqueId(pkey: string): string {
@@ -24,8 +25,17 @@ export function opaqueId(pkey: string): string {
   for (let i = 0; i < pkey.length; i++) { const c = pkey.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 2246822519) >>> 0; }
   return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
 }
-export function guestName(pkey: string): string {
-  return "Гость #" + parseInt(opaqueId("g|" + pkey).slice(0, 6), 36).toString(16).slice(-4).padStart(4, "0").toUpperCase();
+// гость: «Гость» Имя (имя из 100 четырёхбуквенных — назначает сервер, accounts.data.gname); без записанного имени — стабильное по ключу
+export function guestName(pkey: string, gname?: string | null): string {
+  return guestDisplay(gname && isGuestName(gname) ? gname : guestNameFor(pkey));
+}
+// Рейтинг дуэлянтов: нижняя граница доверительного интервала Уилсона (z = 1.96) для доли побед (ничья = ½ победы).
+// Одна дуэль 1:0 даёт ≈0.21 и не обгоняет, например, 18 побед из 20 (≈0.70).
+export function wilsonLB(w: number, l: number, d: number, z = 1.96): number {
+  const n = w + l + d;
+  if (!n) return 0;
+  const p = (w + d / 2) / n, z2 = z * z;
+  return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n);
 }
 const uidOf = (pkey: string) => (pkey.startsWith("uid:") ? pkey.slice(4) : null);
 const cleanName = (s: any) => (typeof s === "string" ? s.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 32) : "");
@@ -41,6 +51,7 @@ export class Rating {
   duel: DuelRow[] = [];
   duelRank = new Map<string, number>();
   names = new Map<string, string>();
+  gnames = new Map<string, string>(); // гость → записанное имя
   byId = new Map<string, string>(); // opaque id → pkey (только строки, которые уже показывались)
   builds = 0;
   constructor(db: any) { this.db = db; }
@@ -64,18 +75,18 @@ export class Rating {
           SELECT pkey, hero, max_dmg, max_dmg_at, max_dmg_where, ROW_NUMBER() OVER (PARTITION BY pkey ORDER BY max_dmg DESC, max_dmg_at ASC) AS rn
           FROM heroes WHERE max_dmg > 0)
         WHERE rn = 1 ORDER BY max_dmg DESC, max_dmg_at ASC, pkey LIMIT 50000`),
-      // дуэлянты: по победам, затем доле побед, затем меньше поражений
-      db.prepare(`SELECT pkey, last_hero, wins, losses, draws FROM duel_stats WHERE wins + losses + draws > 0
-        ORDER BY wins DESC, (wins * 1.0 / (wins + losses + draws)) DESC, losses ASC, updated_at ASC, pkey LIMIT 50000`),
+      // дуэлянты: порядок — по нижней границе Уилсона (учитывает и число дуэлей, и долю побед), см. wilsonLB
+      db.prepare(`SELECT pkey, last_hero, wins, losses, draws, updated_at FROM duel_stats WHERE wins + losses + draws > 0 LIMIT 50000`),
     ]);
-    this.duel = (du.results || []).map((r: any) => ({ pkey: r.pkey, hero: r.last_hero || null, w: r.wins, l: r.losses, d: r.draws }));
+    this.duel = (du.results || []).map((r: any) => ({ pkey: r.pkey, hero: r.last_hero || null, w: r.wins, l: r.losses, d: r.draws, s: wilsonLB(r.wins, r.losses, r.draws), at: r.updated_at || 0 }))
+      .sort((x: any, y: any) => y.s - x.s || (y.w + y.l + y.d) - (x.w + x.l + x.d) || x.at - y.at || (x.pkey < y.pkey ? -1 : 1));
     this.duelRank = new Map(this.duel.map((r, i) => [r.pkey, i + 1]));
     // душа без героя (все герои ур. 1 без опыта и герой аккаунта не выбран) — в рейтинге без класса
     this.lvl = (lv.results || []).map((r: any) => ({ pkey: r.pkey, hero: !r.acc_hero && r.lvl <= 1 && !r.xp ? null : r.hero, lvl: r.lvl, xp: r.xp }));
     this.dmg = (dm.results || []).map((r: any) => ({ pkey: r.pkey, hero: r.hero, v: r.max_dmg, at: r.max_dmg_at || 0, where: r.max_dmg_where || "" }));
     this.lvlRank = new Map(this.lvl.map((r, i) => [r.pkey, i + 1]));
     this.dmgRank = new Map(this.dmg.map((r, i) => [r.pkey, i + 1]));
-    this.names = new Map();
+    this.names = new Map(); this.gnames = new Map();
     await this.loadNames([...this.lvl.slice(0, RATING_TOP), ...this.dmg.slice(0, RATING_TOP), ...this.duel.slice(0, RATING_TOP)].map((r) => r.pkey));
     this.at = Date.now();
     this.builds++;
@@ -92,8 +103,16 @@ export class Rating {
       } catch (_) { break; }
     }
     for (const u of uids) if (!this.names.has("uid:" + u)) this.names.set("uid:" + u, "Игрок #" + opaqueId(u).slice(0, 4).toUpperCase());
+    const gs = [...new Set(pkeys.filter((p) => p.startsWith("guest:") && !this.gnames.has(p)))];
+    for (let i = 0; i < gs.length; i += 80) {
+      const part = gs.slice(i, i + 80);
+      try {
+        const r = await this.db.prepare(`SELECT pkey, json_extract(data, '$.gname') AS g FROM accounts WHERE pkey IN (${part.map(() => "?").join(",")})`).bind(...part).all();
+        for (const row of r.results || []) if (row.g) this.gnames.set(row.pkey, String(row.g));
+      } catch (_) { break; }
+    }
   }
-  name(pkey: string): string { return pkey.startsWith("uid:") ? this.names.get(pkey) || "Игрок" : guestName(pkey); }
+  name(pkey: string): string { return pkey.startsWith("uid:") ? this.names.get(pkey) || "Игрок" : guestName(pkey, this.gnames.get(pkey)); }
 
   lvlView(r: LvlRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, lvl: r.lvl, xp: r.xp, me: r.pkey === me || undefined }; }
   dmgView(r: DmgRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, v: r.v, at: r.at, where: r.where, me: r.pkey === me || undefined }; }
@@ -101,7 +120,7 @@ export class Rating {
   duelView(r: DuelRow, rank: number, me: string) {
     const id = opaqueId(r.pkey); this.byId.set(id, r.pkey);
     const n = r.w + r.l + r.d;
-    return { r: rank, id, name: this.name(r.pkey), hero: r.hero, w: r.w, l: r.l, d: r.d, wr: n ? Math.round((r.w / n) * 1000) / 10 : 0, me: r.pkey === me || undefined };
+    return { r: rank, id, name: this.name(r.pkey), hero: r.hero, w: r.w, l: r.l, d: r.d, n, wr: n ? Math.round((r.w / n) * 1000) / 10 : 0, score: Math.round((r.s ?? wilsonLB(r.w, r.l, r.d)) * 1000) / 10, me: r.pkey === me || undefined };
   }
 
   // Публичный вид рейтинга для игрока: топ-100 по обеим вкладкам + своё место (даже вне топа)

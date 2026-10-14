@@ -22,7 +22,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
 }
 
 type Shadow = {
-  acc: string; heroes: Record<string, string>; inv: Map<string, string>; invSeen: Map<string, number>; res: Map<string, number>;
+  acc: string; heroes: Record<string, string>; inv: Map<string, string>; invHero: Map<string, string>; invSeen: Map<string, number>; res: Map<string, number>;
   equip: Map<string, string>; mobs: Map<string, string>; idisc: Map<string, string>; fdisc: Map<string, number>;
 };
 
@@ -34,19 +34,23 @@ const accData = (a: Account) => {
 const heroData = (h: Hero) => JSON.stringify({ lvl: h.lvl, xp: h.xp, talents: h.talents, abil: h.abil, loadout: h.loadout, tv: h.tv || 1, md: h.md || 0, mdAt: h.mdAt || null, mdW: h.mdW || null });
 
 function snapshotOf(a: Account, heroes: Record<string, Hero>): Shadow {
-  const s: Shadow = { acc: accData(a), heroes: {}, inv: new Map(), invSeen: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() };
+  const s: Shadow = { acc: accData(a), heroes: {}, invHero: new Map(), inv: new Map(), invSeen: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() };
   for (const [cls, h] of Object.entries(heroes)) {
     s.heroes[cls] = heroData(h);
-    for (const [slot, uid] of Object.entries(h.equip || {})) s.equip.set(`${cls}|${slot}`, uid);
+    for (const [slot, uid] of Object.entries(h.equip || {})) {
+      // один экземпляр — максимум в одном слоте одного героя (UNIQUE в D1): дубль не уходит в выгрузку
+      if ([...s.equip.values()].includes(uid)) continue;
+      s.equip.set(`${cls}|${slot}`, uid);
+    }
   }
-  for (const it of a.inv) { s.inv.set(it.uid, it.id); s.invSeen.set(it.uid, it.n ? 0 : 1); }
+  for (const it of a.inv) { s.inv.set(it.uid, it.id); s.invHero.set(it.uid, it.hero || ""); s.invSeen.set(it.uid, it.n ? 0 : 1); }
   for (const [r, q] of Object.entries(a.res)) s.res.set(r, q);
   for (const [m, b] of Object.entries(a.bestiary)) s.mobs.set(m, `${b.kills}|${b.v ? 1 : 0}|${b.at || 0}`);
   for (const [id, d] of Object.entries(a.disc?.items || {})) s.idisc.set(id, `${d.st}|${d.v ? 1 : 0}`);
   for (const [f, d] of Object.entries(a.disc?.feats || {})) s.fdisc.set(f, d.v ? 1 : 0);
   return s;
 }
-const emptyShadow = (): Shadow => ({ acc: "", heroes: {}, inv: new Map(), invSeen: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() });
+const emptyShadow = (): Shadow => ({ acc: "", heroes: {}, invHero: new Map(), inv: new Map(), invSeen: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() });
 
 export class ProfileStore {
   sql: any;
@@ -64,6 +68,8 @@ export class ProfileStore {
   static LOAD_TIMEOUT_MS = 8000; // загрузка профиля целиком
   static LIB_TIMEOUT_MS = 5000;  // сверка библиотеки перед загрузкой (не критична для входа)
   stats = { flushes: 0, errors: 0, lastError: "" };
+  failed = new Set<string>(); // последняя выгрузка игрока не удалась
+  lastFailed(pkey: string) { return this.failed.has(pkey); }
 
   constructor(sql: any, db?: any) {
     this.sql = sql;
@@ -165,7 +171,7 @@ export class ProfileStore {
     const res = await db.batch([
       q("SELECT data, verified FROM accounts WHERE pkey = ?"),
       q("SELECT hero, lvl, xp, talents, abil, loadout, talent_ver, max_dmg, max_dmg_at, max_dmg_where FROM heroes WHERE pkey = ?"),
-      q("SELECT instance_id, item_id, acquired_at, source, viewed_at FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
+      q("SELECT instance_id, item_id, acquired_at, source, viewed_at, hero FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
       q("SELECT hero, slot, instance_id FROM hero_equipment WHERE pkey = ?"),
       q("SELECT res, qty FROM resources WHERE pkey = ?"),
       q("SELECT item_id, state, first_at, first_source, viewed_at FROM player_item_discovery WHERE pkey = ?"),
@@ -195,7 +201,7 @@ export class ProfileStore {
       return;
     }
     const a: Account = fixAccount({ ...newAccount(), ...JSON.parse(accR[0].data) });
-    a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0 }));
+    a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0, hero: r.hero || null }));
     a.res = Object.fromEntries(resR.map((r: any) => [r.res, r.qty]));
     a.bestiary = Object.fromEntries(mdR.map((r: any) => [r.mob_id, { seen: 1, kills: r.kills, at: r.seen_at, v: r.viewed_at == null ? 0 : 1 }]));
     a.disc = {
@@ -208,6 +214,8 @@ export class ProfileStore {
       const r = heroR.find((x: any) => x.hero === cls);
       const h: Hero = r ? { ...newHero(cls), lvl: r.lvl, xp: r.xp, talents: JSON.parse(r.talents), abil: JSON.parse(r.abil), loadout: JSON.parse(r.loadout), equip: {}, tv: r.talent_ver ?? 1, md: r.max_dmg || 0, mdAt: r.max_dmg_at || undefined, mdW: r.max_dmg_where || undefined } : newHero(cls);
       for (const e of eqR) if (e.hero === cls && owned.has(e.instance_id)) h.equip[e.slot] = e.instance_id;
+      // старые сохранения (до 0007): надетое принадлежит надевшему герою
+      for (const uid of Object.values(h.equip)) { const it = a.inv.find((i) => i.uid === uid); if (it && !it.hero) it.hero = cls; }
       this.heroes.set(`${pkey}|${cls}`, h);
     }
     // снимок ДО проверки дерева: исправленное (возврат очков / talent_ver = 2) уйдёт в D1 первой же выгрузкой
@@ -274,7 +282,8 @@ export class ProfileStore {
     if (this.pending.has(pkey)) return this.chain.get(pkey) || Promise.resolve();
     this.pending.add(pkey);
     const prev = this.chain.get(pkey) || Promise.resolve();
-    const next = prev.then(() => { this.pending.delete(pkey); return this.flushNow(pkey); }).catch((e) => {
+    const next = prev.then(() => { this.pending.delete(pkey); return this.flushNow(pkey); }).then(() => { this.failed.delete(pkey); }).catch((e) => {
+      this.failed.add(pkey);
       this.stats.errors++; this.stats.lastError = String(e?.message || e);
       console.error("[mc] D1 flush failed", pkey.slice(0, 12), this.stats.lastError);
     });
@@ -309,14 +318,15 @@ export class ProfileStore {
       if (old.inv.has(uid)) continue;
       const it = byUid.get(uid)!;
       const tx = `grant:${uid}`;
-      P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?)",
-        uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now);
+      P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at, hero) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?, ?)",
+        uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now, it.hero || null);
       P("INSERT OR IGNORE INTO grant_audit (ts, pkey, kind, item_id, instance_id, qty, source, tx_id, detail) VALUES (?, ?, 'grant', ?, ?, 1, ?, ?, NULL)", it.at || now, pkey, id, uid, it.src || "?", tx);
     }
     for (const [uid, id] of old.inv) if (!cur.inv.has(uid)) {
       P("UPDATE item_instances SET state = 'salvaged', updated_at = ? WHERE instance_id = ? AND owner = ?", now, uid, pkey);
       P("INSERT OR IGNORE INTO grant_audit (ts, pkey, kind, item_id, instance_id, qty, source, tx_id, detail) VALUES (?, ?, 'remove', ?, ?, 1, 'server', ?, NULL)", now, pkey, id, uid, `remove:${uid}`);
     }
+    for (const [uid, hr] of cur.invHero) if (old.inv.has(uid) && (old.invHero.get(uid) ?? "") !== hr) P("UPDATE item_instances SET hero = ?, updated_at = ? WHERE instance_id = ? AND owner = ?", hr || null, now, uid, pkey);
     for (const [uid, seen] of cur.invSeen) if (old.inv.has(uid) && old.invSeen.get(uid) !== seen && seen) P("UPDATE item_instances SET viewed_at = ? WHERE instance_id = ? AND owner = ? AND viewed_at IS NULL", now, uid, pkey);
     for (const [k, uid] of cur.equip) if (old.equip.get(k) !== uid) {
       const [cls, slot] = k.split("|");

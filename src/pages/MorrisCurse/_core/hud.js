@@ -89,6 +89,7 @@ export class GameHUD {
       </div>
       <div class="hud-card hud-rating-card">
         <button class="hud-duel-btn" id="ghud-rating-btn" style="margin:0;background:#78350f;border-color:#fbbf24">🏆 РЕЙТИНГ ИГРОКОВ</button>
+        <div class="hud-soc-row"><button class="hud-duel-btn" id="ghud-online-btn">🟢 ОНЛАЙН <b>·</b></button><button class="hud-duel-btn" id="ghud-friends-btn">🤝 ДРУЗЬЯ</button><button class="hud-duel-btn" id="ghud-set-btn" title="Настройки">⚙️</button></div>
       </div>`;
     if (canvas) {
       canvas.style.order = '2';
@@ -113,6 +114,9 @@ export class GameHUD {
     this.duelBtn = $('ghud-duel-btn');
     this.duelBtn.onclick = () => { if (this.currentTarget?.kind === 'player') this.cb.onDuel?.(this.currentTarget.id); };
     $('ghud-rating-btn').onclick = () => this.cb.onRating?.();
+    $('ghud-online-btn').onclick = () => this.cb.onPeople?.('online');
+    $('ghud-friends-btn').onclick = () => this.cb.onPeople?.('friends');
+    $('ghud-set-btn').onclick = () => this.cb.onPeople?.('settings');
     this.roomsBox = $('ghud-run-rooms');
     this.roomsBox.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-room]');

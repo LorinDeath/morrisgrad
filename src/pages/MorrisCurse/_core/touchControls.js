@@ -39,6 +39,7 @@ export class TouchControls {
       <div class="mc3d-ttop">
         <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📖</div>
         <div class="mc3d-tbtn" data-act="rating" title="Рейтинг игроков">🏆</div>
+        <div class="mc3d-tbtn" data-act="people" title="Онлайн · друзья · настройки">👥</div>
         <div class="mc3d-tbtn" data-act="chat" title="Чат">💬</div>
         <div class="mc3d-tbtn" data-act="zoomIn" title="Приблизить">＋</div>
         <div class="mc3d-tbtn" data-act="zoomOut" title="Отдалить">－</div>

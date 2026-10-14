@@ -538,3 +538,31 @@
 .mc-soc-tbl.duel td.wr { color: #fde68a; font-weight: 700; }
 .mc-insp-recs { display: flex; gap: 14px; } .mc-insp-rec.duel b { color: #fde68a; }
 .mc-insp-duel { display: block; width: 100%; margin: 8px 0 2px; min-height: 44px; background: #7f1d1d !important; border-color: #f87171 !important; color: #fee2e2 !important; font-weight: 800; }
+/* онлайн / друзья / настройки */
+.mc-onlinebtn { left: 108px; width: auto; min-width: 44px; padding: 0 6px; font-size: 18px; }
+.mc-onlinebtn b { font-size: 12px; margin-left: 3px; color: #86efac; }
+.mc-friendsbtn { left: 12px; bottom: 84px; }
+.mc-friendsbtn.has { border-color: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+.mc-setbtn { left: 60px; bottom: 84px; }
+.mc-touch .mc-onlinebtn, .mc-touch .mc-friendsbtn, .mc-touch .mc-setbtn { display: none; }
+.hud-soc-row { display: flex; gap: 4px; margin-top: 4px; }
+.hud-soc-row .hud-duel-btn { margin: 0; flex: 1; padding: 6px 4px; font-size: 11px; background: #14532d; border-color: #22c55e; }
+.hud-soc-row #ghud-set-btn { flex: 0 0 34px; background: #312e81; border-color: #818cf8; }
+.mc-soc-tabs.sub button { font-size: 12px; }
+.mc-soc-badge { font-style: normal; background: #dc2626; color: #fff; border-radius: 8px; padding: 0 5px; font-size: 11px; }
+.mc-soc-list { display: flex; flex-direction: column; gap: 6px; }
+.mc-soc-pl { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #3b3355; border-radius: 8px; background: rgba(30, 24, 50, .7); }
+.mc-soc-pl.me { border-color: #fbbf24; }
+.mc-soc-pl .dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; flex: 0 0 9px; }
+.mc-soc-pl .dot.off { background: #64748b; }
+.mc-soc-pl .who { flex: 1; min-width: 0; }
+.mc-soc-pl .who small { display: block; color: #94a3b8; font-size: 11px; }
+.mc-soc-pl .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.mc-set { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; }
+.mc-set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.mc-set-row .grp { display: flex; gap: 4px; flex-wrap: wrap; }
+.mc-duel-card .row .dnd { font-size: 11px; }
+.mc3d-class .lv { font-size: 11px; color: #fde68a; margin-left: 4px; }
+.mc-gslot.filled { cursor: pointer; }
+.mc-gslot.filled:hover::after { content: 'снять'; position: absolute; top: 2px; right: 4px; font-size: 10px; color: #fca5a5; }
+.mc-gslot { position: relative; }

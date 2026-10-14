@@ -787,8 +787,12 @@ export class GameRoom extends DurableObject {
           const cleanName = (msg.username || "Странник").trim();
           const lowerName = cleanName.toLowerCase();
 
+          // Вытеснение «второй вкладки» — только того же профиля (тот же вход или тот же guestId браузера), а не по нику:
+          // иначе все гости «Странник» выбивали друг друга. Имя гостя («Гость» Имя) назначает мета-сервис после загрузки.
+          const dupKey = msg.userId ? `u:${String(msg.userId)}` : (typeof msg.guestId === "string" && msg.guestId ? `g:${msg.guestId}` : null);
+          void lowerName;
           for (const [oldWs, s] of this.sessions.entries()) {
-            if (oldWs !== server && s.username && s.username.toLowerCase() === lowerName) {
+            if (oldWs !== server && dupKey && (s as any).dupKey === dupKey) {
               try {
                 oldWs.send(JSON.stringify({ type: "kicked", reason: "Вход с другой вкладки" }));
                 oldWs.close(1000, "Duplicate session");
@@ -803,6 +807,7 @@ export class GameRoom extends DurableObject {
           const myId = crypto.randomUUID();
           this.sessions.set(server, {
             id: myId,
+            dupKey,
             userId: msg.userId || "",
             username: cleanName,
             world: "hellfire",

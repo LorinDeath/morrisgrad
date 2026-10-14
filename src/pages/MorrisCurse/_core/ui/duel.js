@@ -33,11 +33,12 @@ export class DuelUI {
       <div class="who"><b>${esc(d.name)}</b> · ${esc(displayClassName(d.cls, d.cls))} · ур. ${d.lvl}</div>
       <div class="sub">Бой один на один на закрытой арене. Без наград и без потерь.</div>
       <div class="mc-duel-time"><i></i></div>
-      <div class="row"><button class="mc-btn gold ok">Принять</button><button class="mc-btn no">Отказаться</button></div>`);
+      <div class="row"><button class="mc-btn gold ok">Принять</button><button class="mc-btn no">Отказаться</button><button class="mc-btn dnd" title="Отказать и не получать вызовов 5 минут (на весь аккаунт)">Не беспокоить 5 мин</button></div>`);
     this.inv = { from: d.from, el, until: performance.now() + (d.ms || 15000) };
     this.bar(el, d.ms || 15000);
     el.querySelector('.ok').addEventListener('pointerdown', (e) => { e.preventDefault(); this.send({ type: 'duel_respond', from: d.from, accept: true }); this.closeInvite(); });
     el.querySelector('.no').addEventListener('pointerdown', (e) => { e.preventDefault(); this.send({ type: 'duel_respond', from: d.from, accept: false }); this.closeInvite(); });
+    el.querySelector('.dnd').addEventListener('pointerdown', (e) => { e.preventDefault(); this.send({ type: 'duel_respond', from: d.from, accept: false, dnd: true }); this.closeInvite(); });
     this.inv.timer = setTimeout(() => this.closeInvite(), (d.ms || 15000) + 300);
   }
   closeInvite(from) {
