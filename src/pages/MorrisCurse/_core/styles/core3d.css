@@ -693,3 +693,5 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 
 .mc-rskill .bound{color:#7fd88a;display:block}
 .mc-rskill .bound .eq{color:#fde68a;font-style:italic}
+
+.mc-grim-v { display: inline-block; min-width: 38px; text-align: right; color: #fde68a; font-size: 12px; margin-left: 6px; }

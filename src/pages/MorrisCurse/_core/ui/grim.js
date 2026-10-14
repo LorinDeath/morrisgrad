@@ -2,7 +2,11 @@
 // Лёгкая: CSS-фильтр холста (экспозиция/насыщенность/контраст) + два слоя-градиента между холстом и интерфейсом
 // (холодные тени — soft-light; дымка к краям экрана — радиальный градиент, центр с героем чистый). Без лишнего
 // прохода рендера. Интерфейс (DOM поверх) не затронут. Сила — ползунки «Мрачность» и «Дымка» в Настройках (localStorage).
-const KEY = { grim: 'mc-grim', fog: 'mc-fog', style: 'mc-style' }, DEF = { grim: 60, fog: 50, style: 50 };
+// на телефонах «Единый стиль» по умолчанию выключен (лишний проход по экрану); игрок может включить сам
+const MOBILE = (() => { try { return matchMedia('(pointer: coarse) and (hover: none)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); } catch (_) { return false; } })();
+const KEY = { grim: 'mc-grim', fog: 'mc-fog', style: 'mc-style' }, DEF = { grim: 60, fog: 50, style: MOBILE ? 0 : 50 };
+/** вернуть значения по умолчанию (для этого устройства) */
+export function grimReset() { try { Object.values(KEY).forEach((k) => localStorage.removeItem(k)); } catch (_) {} applyGrim(); }
 let onStyle = null;
 /** «Единый стиль»: fn(0..1) — сейчас и при каждом изменении ползунка */
 export function onGrimStyle(fn) { onStyle = fn; fn(grimGet('style') / 100); }
