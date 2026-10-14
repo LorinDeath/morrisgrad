@@ -20,7 +20,8 @@ export function whereLabel(w) {
 const fmtDate = (t) => { if (!t) return ''; const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 export class Social {
-  constructor({ overlay, send, onDuel, canDuel }) {
+  constructor({ overlay, send, onDuel, canDuel, onParty, canParty }) {
+    this.onParty = onParty; this.canParty = canParty || (() => false);
     this.overlay = overlay; this.send = send;
     this.onDuel = onDuel; this.canDuel = canDuel; // вызов на дуэль из просмотра персонажа (только игрок в сети)
     this.tab = 'level'; this.data = null; this.view = null; // 'rating' | 'inspect'
@@ -178,6 +179,7 @@ export class Social {
       if (act === 'view') { const back = this.view; this.openInspect(sid ? { sid } : { id }); this.back = back; }
       else if (act === 'add') { this.send(sid ? { type: 'friend_add', sid } : { type: 'friend_add', id }); b.disabled = true; b.textContent = '✓ Заявка'; }
       else if (act === 'duel') { if (sid) { this.close(); this.onDuel?.(sid); } }
+      else if (act === 'pinv') { if (sid) this.onParty?.(sid); }
       else if (act === 'acc') this.send({ type: 'friend_respond', id, accept: true });
       else if (act === 'dec') this.send({ type: 'friend_respond', id, accept: false });
       else if (act === 'cancel') this.send({ type: 'friend_cancel', id });
@@ -191,7 +193,7 @@ export class Social {
   renderOnline() {
     const d = this.online;
     const body = !d ? '<div class="mc-soc-empty">Загрузка…</div>' : !d.list.length ? '<div class="mc-soc-empty">Никого нет в сети</div>'
-      : `<div class="mc-soc-scroll mc-soc-list">${d.list.map((p) => this.playerRow(p, p.me ? '' : `<button class="mc-btn sm" data-act="view">👤 Посмотреть</button>${p.friend ? '' : '<button class="mc-btn sm" data-act="add">🤝 В друзья</button>'}<button class="mc-btn sm gold" data-act="duel" ${p.busy ? 'disabled' : ''}>⚔️ На дуэль</button>`)).join('')}</div>`;
+      : `<div class="mc-soc-scroll mc-soc-list">${d.list.map((p) => this.playerRow(p, p.me ? '' : `<button class="mc-btn sm" data-act="view">👤 Посмотреть</button>${p.friend ? '' : '<button class="mc-btn sm" data-act="add">🤝 В друзья</button>'}<button class="mc-btn sm gold" data-act="duel" ${p.busy ? 'disabled' : ''}>⚔️ На дуэль</button>${this.canParty(p.sid) ? '<button class="mc-btn sm" data-act="pinv">👥 В отряд</button>' : ''}`)).join('')}</div>`;
     this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>👥 ИГРОКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('online')}
       <div class="mc-soc-note">Все, кто сейчас в игре${d ? ` · ${d.n}` : ''}. Дуэль — если вы оба в открытом мире (Поляна/Аринар).</div>${body}</div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);

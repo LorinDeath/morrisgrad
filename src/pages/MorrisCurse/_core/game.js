@@ -432,11 +432,14 @@ async function boot(canvasId, username, userId, api) {
   net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests));
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
   // Рейтинг и просмотр персонажа (данные — только от сервера)
-  const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
+  const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), onParty: (sid) => party.invite(sid), canParty: (sid) => !!sid && sid !== myId && party.canInvite(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
   // ——— PvP-дуэли ———
   const duel = new DuelUI({ overlay, send });
   // ——— Отряд (до 4) ———
-  const party = new PartyUI({ overlay, send, myId: () => myId, onJoinRun: (d) => send({ type: 'lobby_join', runId: d.runId }) });
+  const party = new PartyUI({ overlay, send, myId: () => myId, onJoinRun: (d) => send({ type: 'lobby_join', runId: d.runId }),
+    // «＋ Пригласить»: игроки в этом мире, ближние первыми
+    nearby: () => [...others.values()].filter((o) => o.world === world && !o.runRoom).map((o) => ({ id: o.id, name: o.username || 'Странник', d: Math.hypot(o.x - player.x, o.y - player.y), sub: `${o.sv ? displayClassName(o.sv.cls) + ' · ур. ' + o.sv.lvl : displayClassName(o.stats?.classId)} · ${Math.round(Math.hypot(o.x - player.x, o.y - player.y) / 20)} м` })).sort((a, b) => a.d - b.d),
+    clsName: (c) => displayClassName(c), onInspect: (sid) => inspectPlayer(sid), onDuel: (sid) => challengeDuel(sid) });
   net.on('party_state', (d) => party.setState(d));
   net.on('party_invite', (d) => party.onInvite(d));
   net.on('party_run', (d) => party.onRun(d));
@@ -990,6 +993,15 @@ async function boot(canvasId, username, userId, api) {
   window.addEventListener('blur', () => keys.clear());
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
   canvas.addEventListener('click', (e) => onCanvasClick(e));
+  // ПКМ по игроку — то же меню (персонаж / дуэль / в отряд)
+  canvas.addEventListener('contextmenu', (e) => {
+    if (mode !== 'hub' || overlay.screen || book.isOpen) return;
+    const g = stage.groundPoint(e.clientX, e.clientY); if (!g) return;
+    const px = toPx(g.x), py = toPy(g.z); let best = null, bd = 40;
+    for (const o of others.values()) if (o.world === world && !o.runRoom) { const d = Math.hypot(o.x - px, o.y - py); if (d < bd) { bd = d; best = o; } }
+    if (!best) return;
+    e.preventDefault(); const t = playerTarget(best); hud.setTarget(t); party.openMenu({ ...t, sub: t.typeLabel }, e.clientX, e.clientY);
+  });
   // Базовая атака в открытом мире: ЛКМ (удержание — повтор со скоростью атаки) в сторону курсора.
   // Клик по NPC/порталу/ресурсу/цветку/игроку — взаимодействие, не атака. Телефон — кнопка ⚔ с автонаведением.
   const aim = { held: false, touch: false, x: null, y: null, cx: null, cy: null };
@@ -1301,7 +1313,7 @@ async function boot(canvasId, username, userId, api) {
       hud.setTarget({ kind: 'flower', id: o.id, stage: o.stage, name: 'Тюльпан-вампир', typeLabel: `${o.stage}${o.flowerType ? ' / ' + o.flowerType : ''}` });
       return;
     }
-    if (best.kind === 'player') { hud.setTarget(playerTarget(o)); return; }
+    if (best.kind === 'player') { const t = playerTarget(o); hud.setTarget(t); party.openMenu({ ...t, sub: t.typeLabel }, e.clientX, e.clientY); return; } // меню: персонаж / дуэль / в отряд
     const st = o.stats || o;
     hud.setTarget({
       kind: best.kind, id: o.id, name: o.username || o.name || (best.kind === 'keyt' ? 'Кейт' : 'Дар'),
@@ -1556,6 +1568,7 @@ async function boot(canvasId, username, userId, api) {
     }
     overlay.setPrompt(promptText);
     tracker.update({ mobs: mode === 'hub' ? zone.mobs : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
+    party.setHub(mode === 'hub'); // панель отряда видна в мире и без отряда («＋ Пригласить»)
     zone.trackTypes = tracker.trackTypes; // подсветка мобов-целей квеста на экране
     refreshAbilityButtons();
   }

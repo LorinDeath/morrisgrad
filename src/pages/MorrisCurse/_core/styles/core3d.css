@@ -695,3 +695,22 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-rskill .bound .eq{color:#fde68a;font-style:italic}
 
 .mc-grim-v { display: inline-block; min-width: 38px; text-align: right; color: #fde68a; font-size: 12px; margin-left: 6px; }
+
+/* отряд: плашка без отряда, список приглашения, меню игрока */
+.mc-party .hd small { color: #94a3b8; font-weight: normal; margin-left: 4px; flex: 1; }
+.mc-party .hd .hb { display: flex; gap: 4px; }
+.mc-party .pick { display: flex; flex-direction: column; gap: 3px; margin: 4px 0; }
+.mc-party .pick .pi { text-align: left; font: inherit; font-size: 11px; color: #e5e7eb; background: #1f1630; border: 1px solid #3b2c52; border-radius: 5px; padding: 3px 6px; cursor: pointer; }
+.mc-party .pick .pi:hover { border-color: #fbbf24; }
+.mc-party .pick .pi small { color: #94a3b8; }
+.mc-pmenu { position: fixed; z-index: 45; min-width: 170px; pointer-events: auto; background: #140d24; border: 1px solid #fbbf24; border-radius: 8px; padding: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5); font-size: 12px; color: #e5e7eb; }
+.mc-pmenu .t { color: #fde68a; font-weight: bold; }
+.mc-pmenu .s { color: #94a3b8; font-size: 11px; margin: 2px 0; }
+.mc-pmenu button { display: block; width: 100%; text-align: left; font: inherit; color: #e5e7eb; background: #1f1630; border: 1px solid #3b2c52; border-radius: 5px; padding: 4px 7px; margin-top: 4px; cursor: pointer; }
+.mc-pmenu button:hover { border-color: #fbbf24; }
+.mc-pmenu button.gold { border-color: #b45309; color: #fde68a; }
+.mc-party { width: 236px; }
+.mc-party .pm .nm { flex-wrap: wrap; font-weight: bold; color: #e5e7eb; }
+.mc-party .pm .nm small { order: 3; flex-basis: 100%; font-weight: normal; font-size: 10px; }
+.mc-party .pm.me .nm { color: #fde68a; }
+.mc-party .hp { height: 10px; margin-top: 1px; }
