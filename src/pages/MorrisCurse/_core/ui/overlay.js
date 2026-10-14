@@ -144,10 +144,23 @@ export class Overlay {
     this.prompt.style.display = '';
   }
 
+  // поле чата всегда над панелью навыков (Q G F R Space ЛКМ) и прочими нижними кнопками: меряем их верх и поднимаем поле
+  placeChat() {
+    const box = this.chatBox; box.style.bottom = ''; box.style.top = '';
+    const L = this.layer.getBoundingClientRect(), r = this.chatInput.getBoundingClientRect();
+    let top = Infinity;
+    for (const el of this.layer.querySelectorAll('.mc-abar, .mc3d-slots, .mc3d-abilities')) {
+      const b = el.getBoundingClientRect(); if (!b.width || !b.height) continue;
+      if (b.right > r.left && b.left < r.right && b.bottom > r.top) top = Math.min(top, b.top);
+    }
+    if (top < Infinity && top < r.bottom + 6) box.style.bottom = Math.max(8, Math.round(L.bottom - top + 8)) + 'px';
+  }
+
   openChat(onSend) {
     if (this.chatOpen) return;
     this.chatOpen = true;
     this.chatBox.style.display = 'block';
+    this.placeChat();
     this.chatInput.value = '';
     setTimeout(() => this.chatInput.focus(), 0);
     const finish = (send) => {

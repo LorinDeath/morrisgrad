@@ -8,9 +8,10 @@ import { esc } from './ui/overlay.js';
 import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
-  constructor(container, { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect, onDuel } = {}) {
+  constructor(container, cb = {}) {
     this.container = container;
-    this.cb = { onTouchFlower, onPickFlower, onEnterRun, onLeaveRun, onRating, onInspect, onDuel };
+    // все колбэки целиком (раньше список полей терял onPeople/onMap — «Онлайн», «Друзья», ⚙ молча не работали)
+    this.cb = { ...cb };
     this.currentTarget = null;
     this.cache = {};
     this.mount();

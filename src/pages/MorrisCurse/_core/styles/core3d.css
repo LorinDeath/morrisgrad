@@ -12,7 +12,7 @@
 .mc3d-toast { background: rgba(12, 8, 22, 0.9); border: 1px solid #3b2c52; border-radius: 6px; padding: 5px 10px; font-size: 12px; animation: mc3dToast 2.6s forwards; text-align: center; }
 @keyframes mc3dToast { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 .mc3d-prompt { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); background: rgba(12, 8, 22, 0.88); border: 1px solid #c59b27; color: #ffd700; padding: 6px 12px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
-.mc3d-chat { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(360px, 90%); pointer-events: auto; display: none; }
+.mc3d-chat { position: absolute; left: 50%; bottom: 84px; z-index: 35; transform: translateX(-50%); width: min(360px, 90%); pointer-events: auto; display: none; }
 .mc3d-chat input { width: 100%; padding: 7px 10px; background: #0c0915; color: #fff; border: 1px solid #c59b27; border-radius: 6px; font-family: monospace; font-size: 13px; outline: none; }
 .mc3d-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: safe center; overflow-y: auto; flex-direction: column; gap: 10px; background: rgba(5, 3, 10, 0.82); pointer-events: auto; text-align: center; padding: 16px; z-index: 30; }
 .mc3d-screen h2 { margin: 0; color: #ffd700; font-size: 20px; letter-spacing: 2px; }
@@ -413,7 +413,7 @@
 .mc-touch .mc-tracker { left: calc(var(--sl) + 8px); right: auto; top: calc(var(--st) + 8px); width: min(240px, 58%); max-height: 30%; overflow: hidden; font-size: 10px; }
 .mc-touch .mc3d-toasts { top: 34%; width: 80%; }
 .mc-touch .mc3d-prompt { bottom: calc(var(--sb) + 222px); max-width: 70%; white-space: normal; text-align: center; }
-.mc-touch .mc3d-chat { bottom: auto; top: calc(var(--st) + 30%); }
+.mc-touch .mc3d-chat { bottom: auto !important; top: calc(var(--st) + 30%); left: 8px; right: 72px; width: auto; transform: none; } /* левее столбца кнопок справа */
 /* HUD забега */
 .mc-touch .mc3d-xp { top: var(--st); }
 .mc-touch .mc3d-hp { left: calc(var(--sl) + 8px); top: calc(var(--st) + 18px); width: min(160px, 42%); }
