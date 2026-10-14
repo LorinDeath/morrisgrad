@@ -1,4 +1,4 @@
-// Нагрузочный тест Аринара 24000: N игроков (группы и одиночки по миру, движутся и бьют), ~850 мобов лагерей.
+// Нагрузочный тест Аринара 48000: N игроков (группы и одиночки по миру, движутся и бьют), ~3400 мобов лагерей.
 // Меряет: время такта zone.update (мс, p50/p95/max), долю спящих мобов, байты zone_state на игрока за отправку (5 Гц),
 // players_state c интересом по чанкам vs. без него. Запуск: esbuild … --bundle --platform=node --format=esm && node
 import { Zone, type ZPlayer } from "./zone";
@@ -11,14 +11,14 @@ function run(N: number, secs = 30) {
   for (let i = 0; i < N; i++) {
     // 60% — в 12 «точках сбора» (группы), 40% — одиночки по всей карте
     const g = i % 12, grp = R() < 0.6;
-    const x = grp ? 3000 + (g % 4) * 6000 + R() * 300 : 1500 + R() * 21000, y = grp ? 4000 + Math.floor(g / 4) * 7000 + R() * 300 : 1500 + R() * 21000;
+    const x = grp ? 6000 + (g % 4) * 12000 + R() * 300 : 3000 + R() * 42000, y = grp ? 8000 + Math.floor(g / 4) * 14000 + R() * 300 : 3000 + R() * 42000;
     pl.set("p" + i, { sid: "p" + i, x, y, hp: 1e9, maxHp: 1e9, armorRed: 0.3, alive: true, respawnAt: 0, vx: (R() - 0.5) * 140, vy: (R() - 0.5) * 140 });
   }
   const times: number[] = []; let bytes = 0, sends = 0, now = 10_000_000, kills = 0;
   const dt = 0.05; // такт 20 Гц (как у DO)
   for (let t = 0; t < secs / dt; t++) {
     now += dt * 1000;
-    for (const p of pl.values()) { p.x = Math.max(50, Math.min(23950, p.x + p.vx * dt)); p.y = Math.max(50, Math.min(23950, p.y + p.vy * dt)); if (R() < 0.01) { p.vx = (R() - 0.5) * 140; p.vy = (R() - 0.5) * 140; } }
+    for (const p of pl.values()) { p.x = Math.max(50, Math.min(47950, p.x + p.vx * dt)); p.y = Math.max(50, Math.min(47950, p.y + p.vy * dt)); if (R() < 0.01) { p.vx = (R() - 0.5) * 140; p.vy = (R() - 0.5) * 140; } }
     const t0 = performance.now();
     z.update(dt, now, pl, () => {}, () => { kills++; });
     // атаки игроков: ближайший моб в радиусе
@@ -40,4 +40,4 @@ function run(N: number, secs = 30) {
     zoneStateB: Math.round(bytes / sends), zoneKBs: +((bytes / sends) * 5 / 1024).toFixed(1),
     playersStateAllB: all, playersStateAoiB: Math.round(aoi / N) };
 }
-for (const N of [1, 10, 50, 100, 200]) console.log(JSON.stringify(run(N)));
+for (const N of [1, 10, 50, 100, 200, 400]) console.log(JSON.stringify(run(N)));

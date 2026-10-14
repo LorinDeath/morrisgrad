@@ -1,4 +1,4 @@
-// Аринар 24000×24000 px (750×750 клеток по 32 px мира, тайл 16 px арта): земля стримится ЧАНКАМИ.
+// Аринар 48000×48000 px (1500×1500 клеток по 32 px мира, тайл 16 px арта): земля стримится ЧАНКАМИ.
 // Чанк = 32×32 клетки (1024 px мира, канвас 512×512): запекается по требованию вокруг камеры (бюджет — 1–2 чанка
 // за кадр), LRU-кэш выгружает дальние. Под чанками — дешёвая «дальняя» плоскость 750×750 (1 px = клетка, цвет биома),
 // чтобы на границе стрима не было дыр. Раскладка детерминирована (одинакова у всех клиентов): биом клетки —
@@ -78,16 +78,18 @@ export function arinarPlan() {
   for (const r of gen.regions) {
     if (r.id === 'hub') continue;
     const cx = (r.rect[0] + r.rect[2]) / 2, cy = (r.rect[1] + r.rect[3]) / 2, kx = center.x + (cx - center.x) * 0.5;
-    roads.push([center.x, center.y, kx, center.y + (cy - center.y) * 0.5, 40, 'dirt'], [kx, center.y + (cy - center.y) * 0.5, cx, cy, 34, 'dirt']);
+    roads.push([center.x, center.y, kx, center.y + (cy - center.y) * 0.5, 48, 'dirt'], [kx, center.y + (cy - center.y) * 0.5, cx, cy, 40, 'dirt']);
   }
-  const waters = [{ x: 12420, y: 12420, r: 150 }, { x: 10400, y: 13700, r: 260 }, { x: 13600, y: 10300, r: 220 }, { x: 9800, y: 4000, r: 420 }, { x: 20500, y: 12000, r: 360 }, { x: 14000, y: 20000, r: 380 }, { x: 3500, y: 12500, r: 400 }];
+  const K = size / 24000; // базовые единицы 24000 → мир
+  const waters = [{ x: 10400, y: 13700, r: 260 }, { x: 13600, y: 10300, r: 220 }, { x: 9800, y: 4000, r: 420 }, { x: 20500, y: 12000, r: 360 }, { x: 14000, y: 20000, r: 380 }, { x: 3500, y: 12500, r: 400 }].map((w) => ({ x: w.x * K, y: w.y * K, r: w.r * (K > 1 ? 1.5 : 1) }));
   // клетки → регион: грубая сетка-индекс (регионов ~22, клеток 750² — без индекса дорого)
   const plazaR = 260;
+  waters.push({ x: center.x + 420, y: center.y + 420, r: 150 }); // пруд хаба
   const roadIdx = new Map(); // ячейка 1000 px → дороги рядом
   roads.forEach((rd, k) => {
     const x0 = Math.min(rd[0], rd[2]) - 60, x1 = Math.max(rd[0], rd[2]) + 60, y0 = Math.min(rd[1], rd[3]) - 60, y1 = Math.max(rd[1], rd[3]) + 60;
     for (let gx = Math.floor(x0 / 1000); gx <= Math.floor(x1 / 1000); gx++) for (let gy = Math.floor(y0 / 1000); gy <= Math.floor(y1 / 1000); gy++) {
-      const key = gx * 100 + gy; if (!roadIdx.has(key)) roadIdx.set(key, []); roadIdx.get(key).push(k);
+      const key = gx * 1000 + gy; if (!roadIdx.has(key)) roadIdx.set(key, []); roadIdx.get(key).push(k);
     }
   });
   function biomeAt(i, j) {
@@ -98,7 +100,7 @@ export function arinarPlan() {
     for (const r of gen.regions) { const [x0, y0, x1, y1] = r.rect; if (jx >= x0 && jx <= x1 && jy >= y0 && jy <= y1) { b = r.biome; break; } }
     if (outside) return b.startsWith('b_') ? b : 'grove';
     for (const wv of waters) { if (Math.abs(x - wv.x) < wv.r + 40 && Math.abs(y - wv.y) < wv.r + 40 && Math.hypot(x - wv.x, y - wv.y) + (vnoise(x / 40, y / 40, seed + 3) - 0.5) * 40 < wv.r) return 'water'; }
-    const ids = roadIdx.get(Math.floor(x / 1000) * 100 + Math.floor(y / 1000));
+    const ids = roadIdx.get(Math.floor(x / 1000) * 1000 + Math.floor(y / 1000));
     if (ids) for (const k of ids) { const rd = roads[k]; if (segDist(x, y, rd[0], rd[1], rd[2], rd[3]) + (vnoise(x / 50, y / 50, seed + 7) - 0.5) * 12 < rd[4]) return b.startsWith('b_') && rd[5] === 'dirt' ? b : rd[5]; }
     if (Math.hypot(x - center.x, y - center.y) < plazaR) return 'plaza';
     if (portals.some((p) => Math.hypot(x - p.x, y - p.y) < 64)) return 'cobble';
@@ -169,9 +171,9 @@ export class ArinarTerrain {
     this.sheets = await Promise.all([tilesSrc, tIce, tFire, tStone, tAir].map((s) => loadImg(url(s))));
     this.ptex = await loadAtlasTexture(THREE, url(propsSrc));
     // дальняя плоскость: 1 px = 1 клетка, цвет биома
-    const n = this.plan.n, cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(n / 2);
+    const n = this.plan.n, cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(n / 4); // 375×375: 1 px = 4×4 клетки
     const g = cv.getContext('2d');
-    for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) { g.fillStyle = FAR_COL[this.plan.biomeAt(i * 2, j * 2)] || '#334'; g.fillRect(i, j, 1, 1); }
+    for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) { g.fillStyle = FAR_COL[this.plan.biomeAt(i * 4, j * 4)] || '#334'; g.fillRect(i, j, 1, 1); }
     const ft = new THREE.CanvasTexture(cv); ft.magFilter = THREE.LinearFilter;
     this.farMat = new THREE.MeshBasicMaterial({ map: ft, color: 0xb8b4c8 });
     const span = this.plan.size / PX;

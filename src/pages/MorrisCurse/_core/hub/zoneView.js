@@ -294,7 +294,7 @@ export class ZoneView {
     const NB = this.nodeBatch;
     if (NB) {
       NB.begin();
-      const V = this.view; // Аринар 24000: рисуем только узлы рядом с камерой (их сотни)
+      const V = this.view; // Аринар 48000: рисуем только узлы рядом с камерой (их сотни)
       for (const n of this.nodes.values()) {
         if (V && (Math.abs(n.def.x - V.x) > 1400 || Math.abs(n.def.y - V.y) > 1100)) continue;
         const e = propsMeta.index[NODE_PROP[n.def.type] || 'ore_node'];

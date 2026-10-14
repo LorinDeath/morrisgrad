@@ -10,7 +10,7 @@ export class WorldMapManager {
     this.currentWorld = 'hellfire';
     this.maps = {
       hellfire: HELLFIRE_MAP_TILES || [],
-      // Аринар теперь 24000×24000 с биомами (terrain.js); старая 1200-раскладка тайлов не используется
+      // Аринар теперь 48000×48000 с биомами (terrain.js); старая 1200-раскладка тайлов не используется
       arinar: [],
       sandbox: ARINAR_MAP_TILES || [],
     };

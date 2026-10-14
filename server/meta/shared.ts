@@ -263,12 +263,12 @@ export const GATHER_RANGE = 75;
 export const GATHER_TIME_MS = 1100;
 export const ZONE_ATTACK_RANGE = 230;
 export const ZONE_ATTACK_CD_MS = 450;
-export const ZONE_RESPAWN = { x: 12000, y: 12150 }; // центральный хаб Аринара (worlds/sizes.ts ARINAR_HUB)
+export const ZONE_RESPAWN = { x: 24000, y: 24150 }; // центральный хаб Аринара (worlds/sizes.ts ARINAR_HUB)
 
 // ---------------- NPC ----------------
 export const NPCS: Record<string, { name: string; title: string; world: string; x: number; y: number; color: string; role: string }> = {
-  alzi: { name: "Алзи", title: "Создатель Мэлвелдила", world: "arinar", x: 12160, y: 11880, color: "#fde68a", role: "story" },
-  leyr: { name: "Лэйр", title: "Хозяйка лугов Мэлвелдила", world: "arinar", x: 11850, y: 12200, color: "#f9a8d4", role: "story" },
+  alzi: { name: "Алзи", title: "Создатель Мэлвелдила", world: "arinar", x: 24160, y: 23880, color: "#fde68a", role: "story" },
+  leyr: { name: "Лэйр", title: "Хозяйка лугов Мэлвелдила", world: "arinar", x: 23850, y: 24200, color: "#f9a8d4", role: "story" },
   petr: { name: "Петр", title: "Распаковщик архивов · ремесло", world: "hellfire", x: 420, y: 760, color: "#fbbf24", role: "craft" },
   kyut: { name: "Кьют", title: "Испытание отражений (дуэли)", world: "hellfire", x: 780, y: 760, color: "#f472b6", role: "arena" },
 };

@@ -1,4 +1,4 @@
-// Аринар 24000: лагеря, биомы, поводок, сон чанков, проклятые, навыки боссов, опыт, индекс типов.
+// Аринар 48000: лагеря, биомы, поводок, сон чанков, проклятые, навыки боссов, опыт, индекс типов.
 // Запуск: esbuild server/meta/arinar-test.ts --bundle --platform=node --format=esm --outfile=/tmp/at.mjs && node /tmp/at.mjs
 import { Zone, skillsFor, type ZPlayer } from "./zone";
 import { ZONE_GEN, WORLD_GEN, regionAt, inSafe } from "./zoneGen";
@@ -14,7 +14,7 @@ const ok = (c: boolean, m: string) => { c ? pass++ : fail++; console.log((c ? "P
 const P = (sid: string, x: number, y: number, hp = 1e9): ZPlayer => ({ sid, x, y, hp, maxHp: hp, armorRed: 0, alive: true, respawnAt: 0 });
 const noop = () => {};
 
-ok(WORLD_SIZES.arinar === 24000, "Arinar is 24000×24000 px (750×750 cells of 32 px)");
+ok(WORLD_SIZES.arinar === 48000, "Arinar is 48000×48000 px (1500×1500 cells of 32 px)");
 ok(Math.hypot(ZONE_RESPAWN.x - ARINAR_HUB.x, ZONE_RESPAWN.y - ARINAR_HUB.y) < ARINAR_HUB.r && inSafe(ZONE_RESPAWN.x, ZONE_RESPAWN.y), "respawn in central hub safe zone");
 ok(Object.values(NPCS).filter((n) => n.world === "arinar").every((n) => Math.hypot(n.x - ARINAR_HUB.x, n.y - ARINAR_HUB.y) < ARINAR_HUB.r), "Alzi/Leyr stand in the hub");
 ok(WORLD_PORTALS.filter((p: any) => p.world === "arinar").every((p: any) => inSafe(p.x, p.y)) && WORLD_PORTALS.find((p: any) => p.id === "portal_arinar")!.targetX === ZONE_RESPAWN.x, "arinar portals in hub; hellfire→arinar lands in hub");
@@ -25,7 +25,7 @@ const z = new Zone("arinar", [], [], { proc: true });
 const camps = z.camps;
 let minD = Infinity;
 for (let i = 0; i < camps.length; i++) for (let j = i + 1; j < camps.length; j++) { const d = Math.hypot(camps[i].x - camps[j].x, camps[i].y - camps[j].y); if (d < minD) minD = d; }
-ok(camps.length > 300 && minD >= ZONE_GEN.campMinDist, `${camps.length} camps, ${z.mobs.length} mobs; min camp spacing ${minD.toFixed(0)} ≥ ${ZONE_GEN.campMinDist}px`);
+ok(camps.length > 1200 && minD >= ZONE_GEN.campMinDist, `${camps.length} camps, ${z.mobs.length} mobs; min camp spacing ${minD.toFixed(0)} ≥ ${ZONE_GEN.campMinDist}px`);
 ok(camps.every((c) => !inSafe(c.x, c.y, 250)), "no camps in/near hub safe zone");
 for (const b of Object.values(BIOMES)) {
   const ms = z.mobs.filter((m) => (ZONE_MOBS[m.type] as any).biome === b.id && !ZONE_MOBS[m.type].boss);
@@ -41,9 +41,11 @@ ok(baseOf("ice_dew_slime") === "dew_slime" && (MOB_INFO as any).ice_dew_slime.ti
 
 // сон: без игроков рядом мобы не двигаются; рядом — просыпаются
 {
-  const camp = camps.find((c) => regionAt(c.x, c.y)?.id === "fire_inner")!;
-  const mob = z.mobs.find((m) => m.camp === camp.id)!;
-  const far = z.mobs.find((m) => Math.hypot(m.x - camp.x, m.y - camp.y) > 8000)!;
+  // лагерь с ближником, который быстрее игрока (иначе он просто теряет цель — тоже честно, но не поводок)
+  const okMob = (t: string) => ZONE_MOBS[t].speed >= 70 && ["melee", "charger", "swarm"].includes(ZONE_MOBS[t].role);
+  const camp = camps.find((c) => regionAt(c.x, c.y)?.id === "fire_inner" && okMob(c.types[0]))!;
+  const mob = z.mobs.find((m) => m.camp === camp.id && m.type === camp.types[0])!;
+  const far = z.mobs.find((m) => Math.hypot(m.x - camp.x, m.y - camp.y) > 16000)!;
   const fx = far.x, fy = far.y;
   const p = P("a", camp.x + 120, camp.y); const pm = new Map([["a", p]]);
   let now = 1_000_000;
@@ -56,7 +58,8 @@ ok(baseOf("ice_dew_slime") === "dew_slime" && (MOB_INFO as any).ice_dew_slime.ti
   ok(others.length === 0, "neighbouring camps not pulled");
   // поводок: утягиваем игрока далеко от дома
   const dmg = z.damage(mob, "a", 50, noop);
-  for (let i = 0; i < 400 && !mob.reset; i++) { now += 100; p.x += 6; z.update(0.1, now, pm, noop, noop); }
+  const step = ZONE_MOBS[mob.type].speed * 0.07;
+  for (let i = 0; i < 600 && !mob.reset; i++) { now += 100; p.x += step; z.update(0.1, now, pm, noop, noop); }
   ok(mob.reset && z.events.some((e) => e.k === "evade"), `leash: mob resets after ${Math.round(Math.hypot(mob.x - mob.sx, mob.y - mob.sy))}px from home (leash ${ZONE_GEN.leash})`);
   ok(z.damage(mob, "a", 999999, noop) === 0 && !mob.dead, "resetting mob is immune (evade) and ignores player");
   const hp0 = mob.hp;

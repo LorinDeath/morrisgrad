@@ -1,9 +1,9 @@
-// Аринар 24000: хаб, 4 биома (тайлсеты, перекрашенные мобы, свет/HUD биома), босс биома, проклятый, выбор цели кликом,
+// Аринар 48000: хаб, 4 биома (тайлсеты, перекрашенные мобы, свет/HUD биома), босс биома, проклятый, выбор цели кликом,
 // мини-карта, стрим чанков, мобильная раскладка. Скриншоты → /workspace/morrisgrad-round2/arinar-*.png
 const { chromium } = require('playwright-core');
 const OUT = '/workspace/morrisgrad-round2';
 const BIO = [
-  ['ice', 'Кровавые льды', 8000, 8000], ['fire', 'Синее пламя', 16400, 7000], ['stone', 'Железные каменоломни', 12000, 17000], ['air', 'Звёздная высь', 7400, 12000],
+  ['ice', 'Кровавые льды', 16000, 16000], ['fire', 'Синее пламя', 32800, 14000], ['stone', 'Железные каменоломни', 24000, 34000], ['air', 'Звёздная высь', 14800, 24000],
 ];
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -30,7 +30,7 @@ const BIO = [
   await A.waitForTimeout(4000);
   await A.mouse.move(700, 400); for (let k = 0; k < 3; k++) { await A.mouse.wheel(0, 400); await A.waitForTimeout(150); } // отдалить камеру
   let pos = await G(A, () => window.__game.debug.pos());
-  ok((await G(A, () => window.__game.state().world)) === 'arinar' && Math.hypot(pos.x - 12000, pos.y - 12150) < 200, `portal → central hub ${JSON.stringify(pos)}`);
+  ok((await G(A, () => window.__game.state().world)) === 'arinar' && Math.hypot(pos.x - 24000, pos.y - 24150) < 200, `portal → central hub ${JSON.stringify(pos)}`);
   let ch = await G(A, () => window.__game.debug.chunks());
   ok(ch && ch.live >= 9 && ch.live <= 30, `chunk streaming: ${JSON.stringify(ch)}`);
   await A.screenshot({ path: `${OUT}/arinar-01-hub.png` });
@@ -53,8 +53,8 @@ const BIO = [
     await A.screenshot({ path: `${OUT}/arinar-0${i++}-${id}.png` });
   }
   // босс биома + проклятый: dev-спавн рядом
-  await G(A, () => window.__game.debug.tp(16400, 7000)); await A.waitForTimeout(800);
-  await G(A, () => { window.__game.debug.devSpawn('fire_warden', 16620, 6930); window.__game.debug.devSpawn('fire_imp', 16230, 7050, true); });
+  await G(A, () => window.__game.debug.tp(32800, 14000)); await A.waitForTimeout(800);
+  await G(A, () => { window.__game.debug.devSpawn('fire_warden', 33020, 13930); window.__game.debug.devSpawn('fire_imp', 32630, 14050, true); });
   await A.waitForTimeout(2500);
   const ms = await G(A, () => window.__game.debug.zoneMobsFull());
   const boss = ms.find((m) => m.type === 'fire_warden'), cur = ms.find((m) => m.cursed && m.type === 'fire_imp') || ms.find((m) => m.cursed && m.id !== boss?.id);
@@ -75,7 +75,7 @@ const BIO = [
     ok(t?.kind === 'mob' && /Проклятый/.test(t.typeLabel) && /✦/.test(t.typeLabel), `cursed target shows tag + skills ${JSON.stringify(t)}`);
     await A.screenshot({ path: `${OUT}/arinar-08-cursed.png` });
   }
-  await G(A, () => window.__game.debug.tp(12000, 12150));
+  await G(A, () => window.__game.debug.tp(24000, 24150));
   await A.waitForTimeout(3000);
   const vars = await G(A, () => window.__game.debug.biomeVars());
   ok(!vars.biome, 'back in hub: HUD returns to default gold');
@@ -84,7 +84,7 @@ const BIO = [
   const M = await open('ArM', true);
   await G(M, () => window.__game.debug.selectClass('mage')); await M.waitForTimeout(2500);
   await toArinar(M);
-  await G(M, () => window.__game.debug.tp(8000, 8000));
+  await G(M, () => window.__game.debug.tp(16000, 16000));
   await M.waitForTimeout(6000);
   await M.screenshot({ path: `${OUT}/arinar-10-mobile-ice.png` });
   ch = await G(M, () => window.__game.debug.chunks());

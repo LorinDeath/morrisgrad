@@ -23,7 +23,7 @@ ok(minNode >= ZONE_GEN.nodeMinDist - 1, `node min distance ${minNode.toFixed(0)}
 
 // 2. спавн: капы, безопасные зоны, дистанция от игроков, детерминизм
 function sim(seed: number, players: ZPlayer[], secs: number, t0 = 1_000_000) {
-  // режиссёр работает в мирах без лагерей (Поляна хаба); Аринар 24000 — лагеря, см. arinar-test.ts
+  // режиссёр работает в мирах без лагерей (Поляна хаба); Аринар 48000 — лагеря, см. arinar-test.ts
   const z = new Zone("hellfire", [], [], { proc: true, seed });
   const pm = new Map(players.map((p) => [p.sid, p]));
   const spawnedAt: { x: number; y: number; dmin: number }[] = [];

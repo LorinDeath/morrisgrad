@@ -37,7 +37,7 @@ const OUT = process.env.OUT || '/workspace/morrisgrad-round2';
     await G(p, () => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await p.waitForTimeout(1200);
   }
   ok(await G(p, () => window.__game.state().world) === 'arinar', 'in Arinar');
-  await G(p, () => window.__game.debug.tp(12000, 13500)); await p.waitForTimeout(3000); // Аринар 24000: Луга фиалок
+  await G(p, () => window.__game.debug.tp(24000, 27000)); await p.waitForTimeout(3000); // Аринар 24000: Луга фиалок
   await p.screenshot({ path: `${OUT}/sprites-05-npc-alzi-leyr.png` });
   const mobs = await G(p, () => window.__game.debug.zoneMobs());
   ok(mobs.length > 0, `zone mobs: ${mobs.length}`);

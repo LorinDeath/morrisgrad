@@ -109,19 +109,19 @@ B.clear(); B.send({ type: 'craft', recipe: 'r_fly_legs' }); te = await B.wait('t
 await B.walk(240, 600); await sleep(150);
 B.clear(); B.send({ type: 'use_portal', portalId: 'portal_arinar' }); await B.wait('world_switched');
 const za = await B.wait('zone_state', 3000, (m) => m.w === 'arinar');
-B.x = 12000; B.y = 12150; // Аринар 24000: вход — центральный хаб (ZONE_RESPAWN)
+B.x = 24000; B.y = 24150; // Аринар 24000: вход — центральный хаб (ZONE_RESPAWN)
 ok(za && za.n.length >= 10 && za.n.every((n) => n[0] >= 1000) && typeof za.sd === 'number', 'Аринар zone: seeded resource nodes ' + (za?.n.length) + ' (seed ' + za?.sd + ')');
-B.send({ type: 'move', x: 12000, y: 12200 }); await sleep(150); B.send({ type: 'move', x: 12000, y: 12250 }); await sleep(150);
+B.send({ type: 'move', x: 24000, y: 24200 }); await sleep(150); B.send({ type: 'move', x: 24000, y: 24250 }); await sleep(150);
 B.send({ type: 'move', x: 1200, y: 1200 }); await sleep(200);
 const me = B.last('players_state').players.find((p) => p.username === 'meta_A');
-ok(me && Math.hypot(me.x - 12000, me.y - 12250) < 700, 'anti-teleport clamp in Аринар (x=' + me?.x + ')');
-B.x = me?.x ?? 12000; B.y = me?.y ?? 12250;
-await B.walk(12000, 13500); await sleep(500); // к лагерям Лугов фиалок (за пределами безопасного хаба r=900)
+ok(me && Math.hypot(me.x - 24000, me.y - 24250) < 700, 'anti-teleport clamp in Аринар (x=' + me?.x + ')');
+B.x = me?.x ?? 24000; B.y = me?.y ?? 24250;
+await B.walk(24000, 27000); await sleep(500); // к лагерям Лугов фиалок (за пределами безопасного хаба r=1200)
 // процедурный спавн: мобы появляются вне безопасной зоны портала и не вплотную к игроку
 let zm = null;
 for (let i = 0; i < 40 && !(zm && zm.m.length); i++) { await sleep(200); zm = B.last('zone_state'); }
 const mobsA = []; if (zm) for (let j = 0; j < zm.m.length; j += 6) mobsA.push(zm.m.slice(j, j + 6));
-ok(mobsA.length > 0 && mobsA.every((m) => Math.hypot(m[2] - 12000, m[3] - 12000) > 900), 'Аринар camps: ' + mobsA.length + ' mobs in AOI, none in the hub safe zone');
+ok(mobsA.length > 0 && mobsA.every((m) => Math.hypot(m[2] - 24000, m[3] - 24000) > 1200), 'Аринар camps: ' + mobsA.length + ' mobs in AOI, none in the hub safe zone');
 // атака по клику: неверное направление — промах, спам — режется кулдауном
 const tgt = mobsA[0];
 if (tgt) {

@@ -309,7 +309,7 @@ export async function bakeGround(layout) {
 
 // 3D-объект земли + пропсов; возвращает { group, setLight(k) }
 export async function buildTerrain(THREE, world) {
-  // Аринар 24000 px — стриминг чанков (terrainChunks.js): целиком мир в одну текстуру не влезает
+  // Аринар 48000 px — стриминг чанков (terrainChunks.js): целиком мир в одну текстуру не влезает
   if (world === 'arinar') { const t = await new ArinarTerrain(THREE).init(); return t; }
   const L = layoutWorld(world);
   const group = new THREE.Group();

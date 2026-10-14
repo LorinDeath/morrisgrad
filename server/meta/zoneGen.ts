@@ -72,11 +72,14 @@ export const ZONE_GEN = {
 const reg = (o: Omit<Region, "table" | "night">): Region => ({ ...o, table: [], night: {} });
 const N = (type: string, res: string, n: number, respawn: number, qty: [number, number] = [1, 2]) => ({ type, res, n, respawn, qty });
 
-// ---------- Аринар (государство Мэлвелдил), 24000×24000 ----------
+// ---------- Аринар (государство Мэлвелдил), 48000×48000 (1500×1500 клеток по 32 px) ----------
+// Координаты раскладки заданы в «базовых» единицах 24000 и масштабируются K = размер/24000 (сейчас ×2).
+const K = WORLD_SIZES.arinar / 24000;
+const sc = (r: number[]) => r.map((v) => Math.round(v * K)) as [number, number, number, number];
 // Центр — хаб «Гранатовый двор» (порталы, Алзи, Лэйр, гранатовые деревья и фиалки). Вокруг хаба — кольцо ур. 1–5
 // (рощи/луга фиалок/гранатовые сады). Дальше «вертушкой» — 4 стихийных биома (biomes.ts), у каждого
 // внутренняя (ближе к хабу) и внешняя половины. В углах — окраины прежних ярусов 6–25 (их мобы и мировые боссы).
-const H0 = 9600, H1 = 14400, HC0 = 11100, HC1 = 12900;
+const H0 = 9600, H1 = 14400, HC0 = 11100, HC1 = 12900; // базовые единицы (× K в sc)
 const bt = (biome: BiomeId, half: 0 | 1): MobRow[] => {
   const vs = VARIANTS.filter((v) => v.biome === biome && !v.boss);
   const n = vs.length / 2;
@@ -88,41 +91,41 @@ const BR = (biome: BiomeId, half: 0 | 1, name: string, rect: [number, number, nu
     biome: `b_${biome}`, rect, cap: 0, elite: 0.06, tags: {}, nodes }), table: tbl };
 };
 const ARINAR_REGIONS: Region[] = [
-  reg({ id: "hub", name: "Гранатовый двор", band: "Сердце Аринара", tier: 1, lvl: [1, 1], biome: "garden", rect: [HC0, HC0, HC1, HC1], cap: 0, elite: 0, tags: {},
+  reg({ id: "hub", name: "Гранатовый двор", band: "Сердце Аринара", tier: 1, lvl: [1, 1], biome: "garden", rect: sc([HC0, HC0, HC1, HC1]), cap: 0, elite: 0, tags: {},
     nodes: [N("tree", "dreamwood", 3, 35, [1, 2]), N("flower", "moonpetal", 4, 40)] }),
-  reg({ id: "groves", name: "Северные гранатовые рощи", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "grove", rect: [H0, H0, H1, HC0], cap: 0, elite: 0.04,
+  reg({ id: "groves", name: "Северные гранатовые рощи", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "grove", rect: sc([H0, H0, H1, HC0]), cap: 0, elite: 0.04,
     tags: { groves: 3, polyana_ring: 1 }, nodes: [N("tree", "dreamwood", 10, 35, [1, 3]), N("flower", "moonpetal", 4, 40)] }),
-  reg({ id: "meadow", name: "Луга фиалок", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "meadow", rect: [H0, HC1, H1, H1], cap: 0, elite: 0.05,
+  reg({ id: "meadow", name: "Луга фиалок", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "meadow", rect: sc([H0, HC1, H1, H1]), cap: 0, elite: 0.05,
     tags: { meadow: 3, polyana_ring: 1 }, nodes: [N("flower", "moonpetal", 12, 40), N("tree", "dreamwood", 3, 35, [1, 3])] }),
-  reg({ id: "violets_w", name: "Фиалковая лощина", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "meadow", rect: [H0, HC0, HC0, HC1], cap: 0, elite: 0.04,
+  reg({ id: "violets_w", name: "Фиалковая лощина", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "meadow", rect: sc([H0, HC0, HC0, HC1]), cap: 0, elite: 0.04,
     tags: { meadow: 2, polyana_ring: 2 }, nodes: [N("flower", "moonpetal", 5, 40)] }),
-  reg({ id: "pome_e", name: "Гранатовый сад Мэлвелдила", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "garden", rect: [HC1, HC0, H1, HC1], cap: 0, elite: 0.04,
+  reg({ id: "pome_e", name: "Гранатовый сад Мэлвелдила", band: "Мэлвелдил I", tier: 1, lvl: [1, 5], biome: "garden", rect: sc([HC1, HC0, H1, HC1]), cap: 0, elite: 0.04,
     tags: { groves: 2, gardens_edge: 2 }, nodes: [N("tree", "dreamwood", 6, 35, [1, 3])] }),
   // стихийные биомы («вертушка» вокруг хаба)
-  BR("ice", 0, "Кровавые льды: Алый наст", [4800, 6000, H1, H0], [N("crystal", "starsilver", 14, 60)]),
-  BR("ice", 1, "Кровавые льды: Ледник Жертв", [4800, 1200, H1, 6000], [N("crystal", "starsilver", 16, 60, [1, 3])]),
-  BR("fire", 0, "Синее пламя: Тлеющие поля", [H1, 4800, 18600, H1], [N("ore", "rot_ore", 14, 45)]),
-  BR("fire", 1, "Синее пламя: Горн Лазури", [18600, 4800, 22800, H1], [N("ore", "rot_ore", 14, 45, [1, 3]), N("crystal", "starsilver", 4, 60)]),
-  BR("stone", 0, "Железные каменоломни: Рудные ступени", [H0, H1, 19200, 18600], [N("ore", "rot_ore", 16, 45)]),
-  BR("stone", 1, "Железные каменоломни: Литейная бездна", [H0, 18600, 19200, 22800], [N("ore", "rot_ore", 16, 45, [2, 3])]),
-  BR("air", 0, "Звёздная высь: Парящие острова", [5400, H0, H0, 19200], [N("crystal", "starsilver", 14, 60)]),
-  BR("air", 1, "Звёздная высь: Край пустоты", [1200, H0, 5400, 19200], [N("crystal", "starsilver", 14, 60, [2, 3]), N("flower", "moonpetal", 4, 40)]),
+  BR("ice", 0, "Кровавые льды: Алый наст", sc([4800, 6000, H1, H0]), [N("crystal", "starsilver", 14, 60)]),
+  BR("ice", 1, "Кровавые льды: Ледник Жертв", sc([4800, 1200, H1, 6000]), [N("crystal", "starsilver", 16, 60, [1, 3])]),
+  BR("fire", 0, "Синее пламя: Тлеющие поля", sc([H1, 4800, 18600, H1]), [N("ore", "rot_ore", 14, 45)]),
+  BR("fire", 1, "Синее пламя: Горн Лазури", sc([18600, 4800, 22800, H1]), [N("ore", "rot_ore", 14, 45, [1, 3]), N("crystal", "starsilver", 4, 60)]),
+  BR("stone", 0, "Железные каменоломни: Рудные ступени", sc([H0, H1, 19200, 18600]), [N("ore", "rot_ore", 16, 45)]),
+  BR("stone", 1, "Железные каменоломни: Литейная бездна", sc([H0, 18600, 19200, 22800]), [N("ore", "rot_ore", 16, 45, [2, 3])]),
+  BR("air", 0, "Звёздная высь: Парящие острова", sc([5400, H0, H0, 19200]), [N("crystal", "starsilver", 14, 60)]),
+  BR("air", 1, "Звёздная высь: Край пустоты", sc([1200, H0, 5400, 19200]), [N("crystal", "starsilver", 14, 60, [2, 3]), N("flower", "moonpetal", 4, 40)]),
   // окраины прежних ярусов (углы карты)
-  reg({ id: "gardens", name: "Дикие гранатовые сады", band: "Мэлвелдил II", tier: 2, lvl: [6, 10], biome: "garden", rect: [1200, 1200, 4800, 5400], cap: 0, elite: 0.06,
+  reg({ id: "gardens", name: "Дикие гранатовые сады", band: "Мэлвелдил II", tier: 2, lvl: [6, 10], biome: "garden", rect: sc([1200, 1200, 4800, 5400]), cap: 0, elite: 0.06,
     tags: { gardens: 3, gardens_edge: 1, meadow_far: 1, village_night: 0.4 }, nodes: [N("tree", "dreamwood", 8, 35, [1, 3]), N("flower", "moonpetal", 6, 40)] }),
-  reg({ id: "thin", name: "Тонкие земли", band: "Мэлвелдил V", tier: 5, lvl: [21, 25], biome: "thin", rect: [1200, 5400, 4800, H0], cap: 0, elite: 0.1,
+  reg({ id: "thin", name: "Тонкие земли", band: "Мэлвелдил V", tier: 5, lvl: [21, 25], biome: "thin", rect: sc([1200, 5400, 4800, H0]), cap: 0, elite: 0.1,
     tags: { thin: 3 }, nodes: [N("flower", "moonpetal", 4, 40, [2, 3]), N("ore", "rot_ore", 4, 45, [1, 3])] }),
-  reg({ id: "wastes", name: "Звёздные пустоши", band: "Мэлвелдил II", tier: 2, lvl: [6, 10], biome: "waste", rect: [H1, 1200, 18600, 4800], cap: 0, elite: 0.06,
+  reg({ id: "wastes", name: "Звёздные пустоши", band: "Мэлвелдил II", tier: 2, lvl: [6, 10], biome: "waste", rect: sc([H1, 1200, 18600, 4800]), cap: 0, elite: 0.06,
     tags: { wastes: 3, wastes_low: 0.8, ridge_low: 1.5 }, nodes: [N("crystal", "starsilver", 8, 60)] }),
-  reg({ id: "ridge", name: "Восточный кряж", band: "Мэлвелдил III", tier: 3, lvl: [11, 15], biome: "ridge", rect: [18600, 1200, 22800, 4800], cap: 0, elite: 0.07,
+  reg({ id: "ridge", name: "Восточный кряж", band: "Мэлвелдил III", tier: 3, lvl: [11, 15], biome: "ridge", rect: sc([18600, 1200, 22800, 4800]), cap: 0, elite: 0.07,
     tags: { ridge: 3 }, nodes: [N("crystal", "starsilver", 8, 60)] }),
-  reg({ id: "mines", name: "Гнилые копи", band: "Мэлвелдил III", tier: 3, lvl: [11, 15], biome: "rot", rect: [19200, H1, 22800, 18600], cap: 0, elite: 0.07,
+  reg({ id: "mines", name: "Гнилые копи", band: "Мэлвелдил III", tier: 3, lvl: [11, 15], biome: "rot", rect: sc([19200, H1, 22800, 18600]), cap: 0, elite: 0.07,
     tags: { mines: 3 }, nodes: [N("ore", "rot_ore", 10, 45)] }),
-  reg({ id: "pylons", name: "Гудящие пилоны", band: "Мэлвелдил IV", tier: 4, lvl: [16, 20], biome: "pylon", rect: [19200, 18600, 22800, 22800], cap: 0, elite: 0.08,
+  reg({ id: "pylons", name: "Гудящие пилоны", band: "Мэлвелдил IV", tier: 4, lvl: [16, 20], biome: "pylon", rect: sc([19200, 18600, 22800, 22800]), cap: 0, elite: 0.08,
     tags: { pylons: 3 }, nodes: [N("crystal", "starsilver", 6, 60), N("ore", "rot_ore", 4, 45)] }),
-  reg({ id: "crater", name: "Лунный кратер", band: "Мэлвелдил V", tier: 5, lvl: [21, 25], biome: "crater", rect: [5400, 19200, H0, 22800], cap: 0, elite: 0.1,
+  reg({ id: "crater", name: "Лунный кратер", band: "Мэлвелдил V", tier: 5, lvl: [21, 25], biome: "crater", rect: sc([5400, 19200, H0, 22800]), cap: 0, elite: 0.1,
     tags: { crater: 3, crater_edge: 1 }, nodes: [N("crystal", "starsilver", 8, 60, [2, 3])] }),
-  reg({ id: "glitch", name: "Глитч-разлом", band: "Мэлвелдил IV", tier: 4, lvl: [16, 20], biome: "glitch", rect: [1200, 19200, 5400, 22800], cap: 0, elite: 0.08,
+  reg({ id: "glitch", name: "Глитч-разлом", band: "Мэлвелдил IV", tier: 4, lvl: [16, 20], biome: "glitch", rect: sc([1200, 19200, 5400, 22800]), cap: 0, elite: 0.08,
     tags: { glitch: 3 }, nodes: [N("ore", "rot_ore", 6, 45)] }),
 ];
 const ARINAR_SAFE: SafeZone[] = [
@@ -159,19 +162,19 @@ export const WORLD_GEN: Record<string, WorldGen> = {
     camps: true,
     // мировые боссы: длинные таймеры, объявление всем в мире. Боссы биомов — варианты (biomes.ts).
     bosses: [
-      { type: "swarm_mother", x: 3000, y: 3300, firstAfter: 120, every: 600, where: "в Диких гранатовых садах" },
-      { type: "thorn_matron", x: 3000, y: 2200, firstAfter: 240, every: 900, where: "в Диких гранатовых садах" },
-      { type: "moon_sentinel", x: 20700, y: 3000, firstAfter: 360, every: 1200, where: "на Восточном кряже" },
-      { type: "the_silencer", x: 21000, y: 20700, firstAfter: 480, every: 1500, where: "у Гудящих пилонов" },
-      { type: "violet_queen", x: 7500, y: 21000, firstAfter: 600, every: 2400, where: "в Лунном кратере" },
-      { type: "ice_swarm_mother", x: 9600, y: 7400, firstAfter: 90, every: 600, where: "на Алом насте" },
-      { type: "ice_thorn_matron", x: 9600, y: 2600, firstAfter: 180, every: 900, where: "на Леднике Жертв" },
-      { type: "fire_warden", x: 16600, y: 9600, firstAfter: 120, every: 700, where: "на Тлеющих полях" },
-      { type: "fire_the_silencer", x: 21000, y: 9600, firstAfter: 240, every: 1200, where: "в Горне Лазури" },
-      { type: "stone_moon_sentinel", x: 14400, y: 16600, firstAfter: 150, every: 1000, where: "на Рудных ступенях" },
-      { type: "stone_rust_baron", x: 14400, y: 21000, firstAfter: 300, every: 1200, where: "в Литейной бездне" },
-      { type: "air_moon_sentinel", x: 7400, y: 14400, firstAfter: 180, every: 1000, where: "на Парящих островах" },
-      { type: "air_violet_queen", x: 3200, y: 14400, firstAfter: 360, every: 1800, where: "на Краю пустоты" },
+      { type: "swarm_mother", x: 6000, y: 6600, firstAfter: 120, every: 600, where: "в Диких гранатовых садах" },
+      { type: "thorn_matron", x: 6000, y: 4400, firstAfter: 240, every: 900, where: "в Диких гранатовых садах" },
+      { type: "moon_sentinel", x: 41400, y: 6000, firstAfter: 360, every: 1200, where: "на Восточном кряже" },
+      { type: "the_silencer", x: 42000, y: 41400, firstAfter: 480, every: 1500, where: "у Гудящих пилонов" },
+      { type: "violet_queen", x: 15000, y: 42000, firstAfter: 600, every: 2400, where: "в Лунном кратере" },
+      { type: "ice_swarm_mother", x: 19200, y: 14800, firstAfter: 90, every: 600, where: "на Алом насте" },
+      { type: "ice_thorn_matron", x: 19200, y: 5200, firstAfter: 180, every: 900, where: "на Леднике Жертв" },
+      { type: "fire_warden", x: 33200, y: 19200, firstAfter: 120, every: 700, where: "на Тлеющих полях" },
+      { type: "fire_the_silencer", x: 42000, y: 19200, firstAfter: 240, every: 1200, where: "в Горне Лазури" },
+      { type: "stone_moon_sentinel", x: 28800, y: 33200, firstAfter: 150, every: 1000, where: "на Рудных ступенях" },
+      { type: "stone_rust_baron", x: 28800, y: 42000, firstAfter: 300, every: 1200, where: "в Литейной бездне" },
+      { type: "air_moon_sentinel", x: 14800, y: 28800, firstAfter: 180, every: 1000, where: "на Парящих островах" },
+      { type: "air_violet_queen", x: 6400, y: 28800, firstAfter: 360, every: 1800, where: "на Краю пустоты" },
     ],
     // редкие Отголоски: случайное место региона, таймер со случайным разбросом, уходят, если их не нашли
     rares: [

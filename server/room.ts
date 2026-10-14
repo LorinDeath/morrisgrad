@@ -862,7 +862,7 @@ export class GameRoom extends DurableObject {
         if (msg.type === "move" && session && !session.inDuel && !this.meta.pvpFrozen(session)) {
           let nx = Number(msg.x), ny = Number(msg.y);
           if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
-          // Миграция раскладки Аринара (2400 → 24000 px): позиция без версии раскладки (старый клиент/сессия
+          // Миграция раскладки Аринара (2400 → 24000 → 48000 px): позиция без версии раскладки (старый клиент/сессия
           // до обновления) — безопасно в хаб, без «телепорта» в случайный биом. Позиции в D1 не хранятся.
           if (session.world === "arinar" && (session as any).arVer !== ARINAR_LAYOUT_VER) {
             (session as any).arVer = ARINAR_LAYOUT_VER;
@@ -1523,7 +1523,7 @@ export class GameRoom extends DurableObject {
         payloads.set(g, p);
         return p;
       };
-      // Интерес в Аринаре (24000 px): получатель видит игроков своего и соседних чанков (WORLD_CHUNK) —
+      // Интерес в Аринаре (48000 px): получатель видит игроков своего и соседних чанков (WORLD_CHUNK) —
       // общий payload на чанк, а не на игрока; тот, кто вне соседних чанков, просто не приходит.
       const arin = groups.get("arinar") || [];
       const chunkOf = (x: number, y: number) => [Math.floor(x / WORLD_CHUNK), Math.floor(y / WORLD_CHUNK)];

@@ -28,7 +28,7 @@ const OUT = '/workspace/morrisgrad-round2';
       await G(p, () => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await p.waitForTimeout(1200);
     }
   }
-  await G(A, () => window.__game.debug.tp(12000, 13500)); await G(B, () => window.__game.debug.tp(12080, 13520)); // Аринар 24000: к лагерям Лугов фиалок
+  await G(A, () => window.__game.debug.tp(24000, 27000)); await G(B, () => window.__game.debug.tp(24080, 27020)); // Аринар 24000: к лагерям Лугов фиалок
   await A.waitForTimeout(3000);
   s = await mm(A);
   const known = await G(A, () => { const z = window.__game.zone?.mobs; return z ? z.size : -1; });

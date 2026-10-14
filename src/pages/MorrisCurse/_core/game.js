@@ -38,7 +38,7 @@ import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/port
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 
-const WORLD_SIZE = 1200; // хаб; Аринар — 24000 (server/worlds/sizes.ts)
+const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера

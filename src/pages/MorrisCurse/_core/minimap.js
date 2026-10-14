@@ -154,8 +154,8 @@ export class Minimap {
     const cx = w / 2;
     const cy = h / 2;
     const isArinar = currentWorld === 'arinar';
-    // Аринар 24000 px: свой масштаб (весь мир → обзор края → окрестности) и подложка биомов
-    const scale = isArinar && worldSize > 4000 ? [0.0125, 0.04, 0.12][this.zoomIndex] : this.zoomLevels[this.zoomIndex];
+    // Аринар 48000 px: свой масштаб (весь мир → обзор края → окрестности) и подложка биомов
+    const scale = isArinar && worldSize > 4000 ? [0.0062, 0.03, 0.12][this.zoomIndex] : this.zoomLevels[this.zoomIndex];
     this.stats = { mode: 'world', world: currentWorld, mobs: 0, bosses: 0, players: 0 };
 
     ctx.save();
