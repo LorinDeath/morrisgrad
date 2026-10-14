@@ -49,7 +49,8 @@ export class GameHUD {
         <div class="hud-ctrl-item">Рывок <span>Space / Shift</span></div>
         <div class="hud-ctrl-item">Атака (в мире) <span>ЛКМ (удерживать)</span></div>
         <div class="hud-ctrl-item">Действие / портал <span>E / клик по объекту</span></div>
-        <div class="hud-ctrl-item">Навыки <span>Q / R / F</span></div>
+        <div class="hud-ctrl-item">Навыки <span>Q / G / F</span></div>
+        <div class="hud-ctrl-item">Навык оружия <span>R</span></div>
         <div class="hud-ctrl-item">Улучшение (забег) <span>1 / 2 / 3</span></div>
         <div class="hud-ctrl-item">Задания <span>J</span></div>
         <div class="hud-ctrl-item">Герой и таланты <span>T / C</span></div>

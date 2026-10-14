@@ -43,7 +43,7 @@ export class QuestTracker {
     else if (!ctx.online) tip = 'Нет связи с сервером: прогресс героя не сохраняется. Соло-забеги работают у порталов.';
     else if (!this.tut.book && st) tip = `Книга Проклятого: ${k.book} — задания, герой, навыки, снаряжение, бестиарий.`;
     else if (!ctx.hasClass && ctx.near?.altar) tip = `${k.act} — выбрать оболочку у Алтаря.`;
-    else if (ctx.hasClass && !this.tut.fight && ctx.mobsNear) tip = `Атака: ${k.atk}. Навыки — ${this.mobile ? 'кнопки навыков' : 'Q / R / F'}.`;
+    else if (ctx.hasClass && !this.tut.fight && ctx.mobsNear) tip = `Атака: ${k.atk}. Навыки — ${this.mobile ? 'кнопки навыков' : 'Q / G / F, навык оружия — R'}.`;
     this.tutEl.textContent = tip;
     this.tutEl.style.display = tip ? '' : 'none';
 

@@ -14,7 +14,7 @@ import { Book } from './ui/book.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog } from './ui/dialog.js';
 import { ZoneView } from './hub/zoneView.js';
-import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, abilitySlots } from '../../../../server/meta/shared.ts';
+import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
 import { NetClient } from './net.js';
@@ -25,7 +25,7 @@ import { RunArena } from './survivors/arena.js';
 import { atmo } from './engine/atmosphere.js';
 import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, PASSIVES, displayClassName } from './survivors/data.js';
 import { ActionBar } from './ui/actionBar.js';
-import { Overlay, esc } from './ui/overlay.js';
+import { Overlay, esc, roleTag } from './ui/overlay.js';
 import { RunUI } from './ui/runUI.js';
 import { ClassSelect } from './ui/classSelect.js';
 import { GameHUD } from './hud.js';
@@ -179,7 +179,7 @@ async function boot(canvasId, username, userId, api) {
   dialog.onCraft = () => book.open('craft');
   const zoneSt = { lastAtk: 0, gather: null, abilCd: {}, abilSrv: {}, abilPend: {}, hurtShown: 0 };
   const abar = new ActionBar(overlay.layer, {
-    onSlot: (i, kind) => { if (kind === 'ab') useAbility(i); else if (kind === 'dash') input.dashPressed = true; },
+    onSlot: (i, kind) => { if (kind === 'rs') useWeaponSkill(); else if (kind === 'ab') useAbility(i); else if (kind === 'dash') input.dashPressed = true; },
   });
   const runUI = new RunUI(overlay, {
     onChoice: (c) => { run?.applyChoice(c); },
@@ -202,6 +202,7 @@ async function boot(canvasId, username, userId, api) {
     onRating: () => openRating(),
     onPeople: () => openPeople('online'),
     onDash: () => { input.dashPressed = true; },
+    onWskill: () => useWeaponSkill(),
     onInteract: () => interact(),
     onAttack: (on) => { aim.touch = !!on; },
     onSoul: () => book.toggle('hero'),
@@ -254,7 +255,7 @@ async function boot(canvasId, username, userId, api) {
         o = { id: p.id, x: p.x, y: p.y, dirX: 0, dirY: 1 };
         others.set(p.id, o);
       }
-      Object.assign(o, { username: p.username || 'Странник', sv: p.sv || null, world: p.world || 'hellfire', targetX: p.x, targetY: p.y, color: p.color || '#38bdf8', stats: p.stats || DEFAULT_STATS, inDuel: !!p.inDuel, shield: p.shield || 0, runRoom: p.runRoom || null });
+      Object.assign(o, { username: p.username || 'Странник', sv: p.sv || null, world: p.world || 'hellfire', targetX: p.x, targetY: p.y, color: p.color || '#38bdf8', stats: p.stats || DEFAULT_STATS, inDuel: !!p.inDuel, shield: p.shield || 0, runRoom: p.runRoom || null, role: p.role || null });
     });
     for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
     roomCounts = counts;
@@ -361,7 +362,7 @@ async function boot(canvasId, username, userId, api) {
     const nick = (d.username || '').trim().toLowerCase();
     let key = d.playerId;
     if (d.playerId === myId || nick === username.trim().toLowerCase()) key = '__me';
-    overlay.bubble(key, d.text);
+    overlay.bubble(key, d.text, d.role);
   });
 
   // --- мета-прогрессия, квесты, открытый мир ---
@@ -430,6 +431,9 @@ async function boot(canvasId, username, userId, api) {
   net.on('rating', (d) => social.onRating(d));
   net.on('rating_err', (d) => social.onRatingErr(d));
   net.on('inspect', (d) => social.onInspect(d));
+  let myRole = null; // роль своего аккаунта (сервер: player_roles + проверенный вход)
+  net.on('my_role', (d) => { myRole = d.role || null; });
+  net.on('role_changed', (d) => social.onRoleChanged(d));
   net.on('inspect_err', (d) => social.onInspectErr(d));
   // онлайн / друзья / настройки аккаунта (server/meta/social.ts)
   net.on('online', (d) => social.onOnline(d));
@@ -539,7 +543,7 @@ async function boot(canvasId, username, userId, api) {
       const def = ITEM_BY_ID[it.id];
       if (def) overlay.toast(`🎁 ${def.icon} ${def.name} (${RARITIES[def.rarity].name})`, RARITIES[def.rarity].color);
     }
-    if (loot.runSkill) overlay.toast(`${loot.runSkill.icon} Новый навык забега: «${loot.runSkill.name}» — Книга → Навыки забега`, '#fde68a');
+    if (loot.runSkill) overlay.toast(`${loot.runSkill.icon} Оружие с навыком «${loot.runSkill.name}»! Наденьте его — навык на клавише R`, '#fde68a');
     for (const [r, n] of Object.entries(loot.res || {})) parts.push(`${RESOURCES[r]?.icon || ''}×${n}`);
     if (parts.length) overlay.float(toX(player.x), 3.0, toZ(player.y), parts.join(' '), '#fde68a');
   }
@@ -708,7 +712,7 @@ async function boot(canvasId, username, userId, api) {
     classSelect.isOpen = false; statsUI.isOpen = false;
     const classKey = RUN_CLASSES[player.stats.classId] ? player.stats.classId : 'soul';
     run = new RunSession({
-      room: roomId, runSkill: meta.state?.account?.runSkillSel || null, myId: myId || 'local', username, color: player.color,
+      room: roomId, runSkill: meta.state?.weaponSkill || null, myId: myId || 'local', username, color: player.color,
       classKey, serverClass: CLASSES[player.stats.classId] || null,
       meta: classKey !== 'soul' && meta.hero?.cls === classKey ? meta.hero.effective : null,
       hpCapPct: runOpts.hpCapPct,
@@ -842,7 +846,8 @@ async function boot(canvasId, username, userId, api) {
     if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { input.dashPressed = true; e.preventDefault(); }
     if (!book.isOpen || mode === 'run') {
       if (k === 'q' || k === 'й') useAbility(0);
-      if (k === 'r' || k === 'к') useAbility(1);
+      if (k === 'g' || k === 'п') useAbility(1); // 2-й навык: G (R теперь — навык оружия)
+      if (k === 'r' || k === 'к') useWeaponSkill();
       if (k === 'f' || k === 'а') useAbility(2);
     }
     if (k === 'e' || k === 'у') interact();
@@ -895,6 +900,20 @@ async function boot(canvasId, username, userId, api) {
   window.addEventListener('blur', aimUp);
 
   // Навык по слоту: в забеге — локально (RunSession), в мире — запрос серверу (zone_ability)
+  // 4-й слот (R): навык «Вампир-лайка» надетого оружия. Какой навык — решает сервер по экипировке (meta.state.weaponSkill)
+  function useWeaponSkill() {
+    const rs = meta.state?.weaponSkill;
+    if (mode === 'run') { if (run?.weaponSkillBurst?.()) overlay.toast(`${RUN_SKILL_BY_ID[run.runSkill]?.icon || '✦'} Залп навыка оружия`, '#fde68a'); return; }
+    if (!rs) { overlay.toast('Нет навыка оружия — наденьте оружие с навыком (Книга → Снаряжение)', '#94a3b8'); return; }
+    const now = performance.now();
+    if ((zoneSt.abilCd.rs || 0) > now) return;
+    zoneSt.abilCd.rs = now + 1500; zoneSt.abilPend['rs:' + rs] = now;
+    let adx = player.dirX || 0, ady = player.dirY || 1;
+    if (aim.x !== null && !aim.touch) { const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy); if (d > 1) { adx = dx / d; ady = dy / d; } }
+    else { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
+    send({ type: 'zone_ability', id: 'rs', dx: Math.round(adx * 1000) / 1000, dy: Math.round(ady * 1000) / 1000 });
+    overlay.toast(`${RUN_SKILL_BY_ID[rs]?.icon || '✦'} ${RUN_SKILL_BY_ID[rs]?.name || rs}`, '#fde68a');
+  }
   function useAbility(slot) {
     if (mode === 'run') { input.abilitySlot = slot; return; }
     const h = meta.hero;
@@ -912,13 +931,14 @@ async function boot(canvasId, username, userId, api) {
     overlay.toast(`${ABILITY_BY_ID[ab.id]?.icon || '✦'} ${ABILITY_BY_ID[ab.id]?.name || ab.id}`, '#fde68a');
   }
   // панель действий: навыки раскладки + рывок + атака (мир) / навыки + рывок + оружие и пассивки (забег)
-  const ABAR_KEYS = ['Q', 'R', 'F'];
+  const ABAR_KEYS = ['Q', 'G', 'F'];
   function updateActionBar() {
     const now = performance.now();
     if (mode === 'run' && run) {
       const m = run.me;
       const list = (m.abilities || []).map((a, i) => ({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: a.name, desc: a.desc, rad: a.rad || 0, cdLeft: a.cdLeft, cdTotal: a.cd }));
       list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок с неуязвимостью 0.3 с', cdLeft: m.dashCd || 0, cdTotal: 1.1 });
+      if (run.runSkill && m.weapons[run.runSkill]) { const R0 = RUN_SKILL_BY_ID[run.runSkill]; list.push({ kind: 'rs', slot: 3, id: 'rs:' + run.runSkill, icon: R0?.icon, key: 'R', name: R0?.name || run.runSkill, desc: 'Навык оружия: мгновенный усиленный залп', cdLeft: run.wsCd || 0, cdTotal: 8 }); }
       abar.show(true); abar.setSlots(list); abar.setRun(m.weapons, m.passives, WEAPONS, PASSIVES);
       return;
     }
@@ -938,6 +958,9 @@ async function boot(canvasId, username, userId, api) {
       const left = srv ? Math.max(0, (srv.until - now) / 1000) : 0;
       list.push({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: def.name || a.id, desc: def.desc, rad: a.rad || 0, cdLeft: left, cdTotal: srv ? srv.total / 1000 : a.cd, pending: zoneSt.abilPend[a.id] && now - zoneSt.abilPend[a.id] < 1500 });
     }
+    { const rs = meta.state?.weaponSkill; const R0 = rs && RUN_SKILL_BY_ID[rs]; const srv = rs && zoneSt.abilSrv['rs:' + rs];
+      list.push(rs ? { kind: 'rs', slot: 3, id: 'rs:' + rs, icon: R0?.icon, key: 'R', name: R0?.name || rs, desc: `Навык оружия. ${R0?.desc || ''}`, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0, cdTotal: srv ? srv.total / 1000 : 8 }
+        : { kind: 'rs', slot: 3, key: 'R', name: 'Навык оружия', locked: true, lockText: 'наденьте оружие с навыком «Вампир-лайка» (редкий трофей открытого мира)' }); }
     list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок (Space / Shift)', cdLeft: dash.cd, cdTotal: DASH.cooldown });
     const wt = zone.myWeaponType(player.stats.classId);
     const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
@@ -949,6 +972,7 @@ async function boot(canvasId, username, userId, api) {
     const now = performance.now();
     const list = (meta.hero?.effective?.abilities || []).map((a) => { const srv = zoneSt.abilSrv[a.id]; return { id: a.id, rad: a.rad || 0, cd: srv ? srv.total / 1000 : a.cd, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0 }; });
     touch.setAbilities(list);
+    { const rs = meta.state?.weaponSkill; const srv = rs && zoneSt.abilSrv['rs:' + rs]; touch.setWeaponSkill(rs ? { icon: RUN_SKILL_BY_ID[rs]?.icon || '✦', cd: srv ? srv.total / 1000 : 8, cdLeft: srv ? Math.max(0, (srv.until - now) / 1000) : 0 } : null); }
   }
 
   function zoomBy(f) {
@@ -1261,14 +1285,14 @@ async function boot(canvasId, username, userId, api) {
     if (p) {
       const zm = zone.me;
       const hpBar = player.stats.classId && zm && zm.maxHp && zm.hp < zm.maxHp ? `<div class="mc3d-mini-hp"><i style="width:${Math.max(0, Math.round((zm.hp / zm.maxHp) * 100))}%"></i></div>` : '';
-      overlay.label('me', p.x, p.y, `${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}`, '#ffd700');
+      overlay.label('me', p.x, p.y, `${roleTag(myRole)}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}`, '#ffd700');
       overlay.placeBubble('__me', p.x, p.y - 26);
     }
     visibleOthers.forEach((o) => {
       alive.add(o.id);
       const q = head(o.x, o.y);
       if (!q) return;
-      overlay.label('p_' + o.id, q.x, q.y, `${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>`, o.color);
+      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>`, o.color);
       overlay.placeBubble(o.id, q.x, q.y - 26);
     });
     [[boss, 'boss_keyt', 'Кейт', '#f472b6'], [dar, 'boss_dar', 'Дар', '#fb923c']].forEach(([b, id, nm, col]) => {

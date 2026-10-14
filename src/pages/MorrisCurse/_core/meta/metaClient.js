@@ -62,7 +62,6 @@ export class MetaClient {
   radianceUp(id) { this.send({ type: 'radiance_up', id }); }
   silence(id) { this.send({ type: 'ability_silence', id, confirm: 'ЗАГЛУШИТЬ' }); }
   soulBuy(id) { this.send({ type: 'soul_buy', id }); }
-  runSkillSet(id) { this.send({ type: 'run_skill_set', id }); }
   equip(uid) { this.send({ type: 'equip', uid }); }
   unequip(slot) { this.send({ type: 'unequip', slot }); }
   salvage(uid) { this.send({ type: 'salvage', uid }); }

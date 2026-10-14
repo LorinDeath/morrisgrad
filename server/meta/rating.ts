@@ -114,13 +114,14 @@ export class Rating {
   }
   name(pkey: string): string { return pkey.startsWith("uid:") ? this.names.get(pkey) || "Игрок" : guestName(pkey, this.gnames.get(pkey)); }
 
-  lvlView(r: LvlRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, lvl: r.lvl, xp: r.xp, me: r.pkey === me || undefined }; }
-  dmgView(r: DmgRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), hero: r.hero, v: r.v, at: r.at, where: r.where, me: r.pkey === me || undefined }; }
+  roleOf: (pkey: string) => string | undefined = () => undefined;
+  lvlView(r: LvlRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), role: this.roleOf(r.pkey), hero: r.hero, lvl: r.lvl, xp: r.xp, me: r.pkey === me || undefined }; }
+  dmgView(r: DmgRow, rank: number, me: string) { const id = opaqueId(r.pkey); this.byId.set(id, r.pkey); return { r: rank, id, name: this.name(r.pkey), role: this.roleOf(r.pkey), hero: r.hero, v: r.v, at: r.at, where: r.where, me: r.pkey === me || undefined }; }
 
   duelView(r: DuelRow, rank: number, me: string) {
     const id = opaqueId(r.pkey); this.byId.set(id, r.pkey);
     const n = r.w + r.l + r.d;
-    return { r: rank, id, name: this.name(r.pkey), hero: r.hero, w: r.w, l: r.l, d: r.d, n, wr: n ? Math.round((r.w / n) * 1000) / 10 : 0, score: Math.round((r.s ?? wilsonLB(r.w, r.l, r.d)) * 1000) / 10, me: r.pkey === me || undefined };
+    return { r: rank, id, name: this.name(r.pkey), role: this.roleOf(r.pkey), hero: r.hero, w: r.w, l: r.l, d: r.d, n, wr: n ? Math.round((r.w / n) * 1000) / 10 : 0, score: Math.round((r.s ?? wilsonLB(r.w, r.l, r.d)) * 1000) / 10, me: r.pkey === me || undefined };
   }
 
   // Публичный вид рейтинга для игрока: топ-100 по обеим вкладкам + своё место (даже вне топа)

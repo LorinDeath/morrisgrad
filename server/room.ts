@@ -1232,6 +1232,7 @@ export class GameRoom extends DurableObject {
               type: "chat_bubble",
               playerId: session.id,
               username: session.username,
+              role: this.meta.roleOfSid(session.id),
               text: cleanText,
             });
             for (const [ws, s] of this.sessions.entries()) {
@@ -1458,6 +1459,7 @@ export class GameRoom extends DurableObject {
           id: s.id,
           world: w,
           username: s.username,
+          role: this.meta.roleOfSid(s.id), // «Админ» / «Модератор» (D1 player_roles, только проверенный вход)
           x: s.x,
           y: s.y,
           color: s.color || "#ffffff",

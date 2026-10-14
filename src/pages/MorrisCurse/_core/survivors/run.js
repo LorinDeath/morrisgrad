@@ -217,6 +217,15 @@ export class RunSession {
     m.abilityDmg = 1 + 0.2 * this.plv('mastery');
   }
 
+  // R в забеге: навык надетого оружия (выдан бесплатным оружием) — мгновенный двойной залп, перезарядка 8 с
+  weaponSkillBurst() {
+    const id = this.runSkill, w = id && this.me?.weapons?.[id];
+    if (!w || (this.wsCd || 0) > 0 || !this.me.alive && this.me.alive !== undefined) return false;
+    const s = this.weaponStats(id);
+    this.fireWeapon(id, s); this.fireWeapon(id, s);
+    w.cd = Math.min(w.cd, 0.05); this.wsCd = 8;
+    return true;
+  }
   addWeapon(id, free = false) {
     if (!WEAPONS[id]) return;
     if (this.me.weapons[id]) this.me.weapons[id].lv = Math.min(8, this.me.weapons[id].lv + 1);
@@ -419,6 +428,7 @@ export class RunSession {
     resolvePillars(m, 0.5);
     if (m.regen) this.heal(m.regen * dt);
 
+    this.wsCd = Math.max(0, (this.wsCd || 0) - dt);
     // Оружие
     for (const id of Object.keys(m.weapons)) {
       const w = m.weapons[id];
@@ -429,7 +439,7 @@ export class RunSession {
         else w.cd = 0.15;
       }
     }
-    // Навыки (до 3 слотов: Q / R / F или кнопки)
+    // Навыки (до 3 слотов: Q / G / F или кнопки; R — навык оружия, weaponSkillBurst)
     const abs = m.abilities;
     for (let i = 0; i < abs.length; i++) abs[i].cdLeft = Math.max(0, abs[i].cdLeft - dt);
     m.abilityCd = abs[0] ? abs[0].cdLeft : 0;

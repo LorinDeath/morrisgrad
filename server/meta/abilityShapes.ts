@@ -16,6 +16,24 @@ export type Shape =
   | { k: "meteor"; dist: number; r: number; delay: number }
   | { k: "cloud"; r: number; invuln: number };
 
+// Навыки «Вампир-лайка» на оружии (слот R): форма в открытом мире по мотивам оружия забега
+export const WEAPON_SKILL_CD = 8; // с
+export const RS_SHAPES: Record<string, Shape> = {
+  war_axe: { k: "nova", r: 150, knock: 2 },
+  spear: { k: "line", len: 420, w: 40, pierceArmor: true },
+  daggers: { k: "line", len: 300, w: 90 },
+  fire_spark: { k: "proj", len: 420, r: 100, w: "staff" },
+  orbit_skulls: { k: "nova", r: 130, ticks: 3, gap: 600 },
+  chain_bolt: { k: "rain", n: 6, area: 200, r: 60 },
+  ice_fan: { k: "nova", r: 160, freeze: 1500 },
+  thorn_bow: { k: "line", len: 480, w: 36 },
+  moon_orb: { k: "proj", len: 380, r: 90, w: "staff" },
+  glyph_mine: { k: "rain", n: 5, area: 120, r: 70 },
+  sun_beam: { k: "line", len: 520, w: 50 },
+  split_shard: { k: "proj", len: 360, r: 130, w: "staff" },
+  plague_flask: { k: "meteor", dist: 220, r: 120, delay: 500 },
+  fly_blades: { k: "dash", len: 200, w: 70 },
+};
 export const SHAPES: Record<string, Shape> = {
   backstab: { k: "dash", len: 260, w: 50, toStrongest: true, fan: 150 },
   shield_wall: { k: "nova", r: 150, knock: 3, dr: 4000 },
@@ -33,6 +51,7 @@ export const SHAPES: Record<string, Shape> = {
 };
 // навыки монстров: форма их базовой реализации (AbilityDef.base), иначе — вспышка
 export function shapeOf(id: string): Shape {
+  if (id.startsWith("rs:") && RS_SHAPES[id.slice(3)]) return RS_SHAPES[id.slice(3)];
   const d: any = ABILITY_BY_ID[id];
   return SHAPES[id] || (d?.base && SHAPES[d.base]) || { k: "nova", r: 140 };
 }

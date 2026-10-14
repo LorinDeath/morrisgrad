@@ -331,9 +331,9 @@
   .mc-rs .mc-sic { transform: scale(.7); }
 }
 .mc3d-tbtn.ab .mc-sic { width: 36px; height: 36px; }
-.mc3d-tbtn.ab { position: relative; overflow: hidden; }
-.mc3d-tbtn.ab .sw { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
-.mc3d-tbtn.ab .cdt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: bold 15px monospace; color: #fff; text-shadow: 0 0 3px #000; pointer-events: none; }
+.mc3d-tbtn.ab, .mc3d-tbtn.k-ws { position: relative; overflow: hidden; }
+.mc3d-tbtn.ab .sw, .mc3d-tbtn.k-ws .sw { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+.mc3d-tbtn.ab .cdt, .mc3d-tbtn.k-ws .cdt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: bold 15px monospace; color: #fff; text-shadow: 0 0 3px #000; pointer-events: none; }
 /* старые индикаторы забега заменены панелью действий */
 .mc3d-slots, .mc3d-abilities { display: none !important; }
 
@@ -575,3 +575,16 @@
 .mc-rskill small{opacity:.75;font-size:11px;line-height:1.3;flex:1}
 .mc-rskill.on{border-color:#fde68a;box-shadow:0 0 10px rgba(253,230,138,.35)}
 .mc-rskill.locked{opacity:.45;filter:grayscale(1)}
+/* роли: плашка перед именем */
+.mc-role{display:inline-block;font-size:9px;line-height:1;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 4px;border-radius:4px;margin-right:4px;vertical-align:1px;color:#fff;text-shadow:none;white-space:nowrap}
+.mc-role.admin{background:#dc2626;box-shadow:0 0 6px rgba(220,38,38,.6)}
+.mc-role.moderator{background:#16a34a;box-shadow:0 0 6px rgba(22,163,74,.55)}
+.mc-insp-mod{display:flex;justify-content:flex-end;margin:-4px 0 6px}
+.mc-modbtn.off{border-color:#f87171;color:#fca5a5}
+/* 4-й слот (R): навык оружия */
+.mc-as.rs .mc-as-emo{display:flex;align-items:center;justify-content:center;width:48px;height:48px;font-size:28px;filter:drop-shadow(0 0 4px rgba(253,230,138,.5))}
+.mc3d-tbtn.k-ws{border-color:#fde68a}
+.mc3d-tbtn.k-ws .ic{font-size:24px;pointer-events:none}
+.mc-touch .mc3d-tbtn.k-ws { right: calc(var(--sr) + 178px); bottom: calc(var(--sb) + 140px); }
+.mc-rskill em{font-style:normal;font-size:10px;color:#fde68a}
+.mc-tip .ab.rsk{color:#fde68a}

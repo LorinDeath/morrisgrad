@@ -58,7 +58,7 @@ export class RunUI {
 
   show(on) { this.el.style.display = on ? '' : 'none'; if (!on) this.closeChoices(); }
 
-  // До трёх навыков героя (Q / R / F); на телефоне — кнопки справа (touchControls)
+  // До трёх навыков героя (Q / G / F; R — навык оружия); на телефоне — кнопки справа (touchControls)
   setAbilities(list) {
     const keys = ['Q', 'R', 'F'];
     this.abBox.innerHTML = '';

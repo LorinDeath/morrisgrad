@@ -4,7 +4,7 @@ import { ABILITY_BY_ID, RADIANCE_PROPS, radianceProps, RARITIES, SLOTS, SLOT_ORD
 import { displayClassName } from '../survivors/data.js';
 import { iconHtml } from '../meta/itemCards.js';
 import { skillIcon, radColor } from './actionBar.js';
-import { esc } from './overlay.js';
+import { esc, roleTag } from './overlay.js';
 
 const WORLD_RU = { hellfire: 'Поляна', arinar: 'Аринар' };
 const STAT_RU = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с',
@@ -40,7 +40,7 @@ export class Social {
   renderRating() {
     const d = this.data, t = this.tab;
     const L = d?.[t];
-    const tr = (r) => `<tr class="${r.me ? 'me' : ''}" data-id="${esc(r.id)}" data-hero="${esc(r.hero || '')}"><td class="n">${r.r}</td><td class="nm">${esc(r.name)}${r.me ? ' <i>(вы)</i>' : ''}</td><td>${esc(heroLabel(r.hero))}</td>`;
+    const tr = (r) => `<tr class="${r.me ? 'me' : ''}" data-id="${esc(r.id)}" data-hero="${esc(r.hero || '')}"><td class="n">${r.r}</td><td class="nm">${roleTag(r.role)}${esc(r.name)}${r.me ? ' <i>(вы)</i>' : ''}</td><td>${esc(heroLabel(r.hero))}</td>`;
     const row = (r) => t === 'level' ? `${tr(r)}<td class="v">${r.lvl}</td></tr>`
       : t === 'duel' ? `${tr(r)}<td class="v">${r.n ?? (r.w + r.l + r.d)}</td><td class="wl">${r.w}/${r.l}${r.d ? `<small>ничьи ${r.d}</small>` : ''}</td><td class="wr">${r.wr}%</td></tr>`
       : `${tr(r)}<td class="v">${r.v}</td><td class="w">${esc(whereLabel(r.where))}<small>${fmtDate(r.at)}</small></td></tr>`;
@@ -81,6 +81,8 @@ export class Social {
     this.send({ type: 'inspect_player', ...q });
     this.renderInspect();
   }
+  // ответ сервера на role_set: обновить карточку и списки
+  onRoleChanged(d) { if (this.insp && this.insp.id === d.id) { this.insp.role = d.role || undefined; if (this.view === 'inspect') this.renderInspect(); } }
   onInspect(d) { if (this.view === 'inspect') { this.insp = d; this.renderInspect(); } }
   onInspectErr(d) { if (this.view === 'inspect') { this.inspErr = d.message; this.renderInspect(); } }
 
@@ -113,7 +115,7 @@ export class Social {
         return `<div class="mc-insp-ab" tabindex="0" style="--rc:${radColor(a.rad)}">${skillIcon(a.id, 40)}<div><b>${esc(def.name)}</b><small>Сияние ${a.rad}${props.length ? ' · ' + esc(props.join(', ')) : ''} · сила ×${a.power} · кд ${a.cd} с</small></div>
           <div class="tip">${esc(def.desc || '')}</div></div>`;
       }).join('') : '<div class="mc-soc-empty">Навыки не выбраны</div>';
-      body = `<div class="mc-insp-top"><div><div class="mc-insp-name">${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div>
+      body = `<div class="mc-insp-top"><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div>
           <div class="mc-insp-recs">${d.maxDmg ? `<div class="mc-insp-rec">Рекорд удара<br><b>${d.maxDmg.v}</b><small>${esc(whereLabel(d.maxDmg.where))}</small></div>` : ''}
           ${d.duel ? `<div class="mc-insp-rec duel">Дуэли<br><b>${d.duel.w}–${d.duel.l}</b><small>победы–поражения${d.duel.d ? ` · ничьи ${d.duel.d}` : ''}</small></div>` : ''}</div></div>
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
@@ -121,6 +123,8 @@ export class Social {
         <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}</div>
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
     }
+    // только серверно проверенный админ получает canMod; сервер всё равно проверяет права на role_set
+    if (d?.canMod) body = `<div class="mc-insp-mod">${d.role === 'moderator' ? '<button class="mc-btn sm mc-modbtn off" data-on="0">Снять</button>' : '<button class="mc-btn sm gold mc-modbtn" data-on="1">Выдать модерку</button>'}</div>` + body;
     const html = `<div class="mc-soc mc-insp"><div class="mc-soc-head">${this.back ? '<button class="mc-soc-back" title="Назад">←</button>' : ''}<h2>👤 ПЕРСОНАЖ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${body}</div>`;
     this.overlay.showScreen(html, [], 'mc-social');
     const el = this.overlay.screen;
@@ -128,6 +132,8 @@ export class Social {
       e.stopPropagation();
       if (e.target.closest('.mc-soc-x')) { this.close(); return; }
       if (e.target.closest('.mc-soc-back')) { const b = this.back; if (b === 'online') this.openOnline(); else if (b === 'friends') this.openFriends(); else { this.view = 'rating'; this.renderRating(); } return; }
+      const mb = e.target.closest('.mc-modbtn');
+      if (mb && this.insp?.id) { mb.disabled = true; this.send({ type: 'role_set', id: this.insp.id, moderator: mb.dataset.on === '1' }); return; }
       if (e.target.closest('.mc-insp-duel')) { const sid = this.insp?.sid; this.close(); if (sid) this.onDuel?.(sid); return; }
       const sl = e.target.closest('.mc-insp-slot, .mc-insp-ab');
       el.querySelectorAll('.mc-insp-slot.sel, .mc-insp-ab.sel').forEach((x) => { if (x !== sl) x.classList.remove('sel'); });
@@ -151,7 +157,7 @@ export class Social {
   playerRow(p, acts) {
     const where = p.world ? (WORLD_RU[p.world] || (p.world === 'arena' ? 'Арена' : p.world)) : (p.online ? 'в сети' : 'не в сети');
     return `<div class="mc-soc-pl ${p.me ? 'me' : ''}" data-id="${esc(p.id)}" data-sid="${esc(p.sid || '')}"><span class="dot ${p.online === false ? 'off' : ''}"></span>
-      <div class="who"><b>${esc(p.name)}</b>${p.me ? ' <i>(вы)</i>' : ''}${p.friend ? ' <span class="fr" title="Друг">🤝</span>' : ''}<small>${esc(heroLabel(p.cls))}${p.lvl ? ` · ур. ${p.lvl}` : ''} · ${esc(where)}${p.busy ? ' · занят' : ''}</small></div>
+      <div class="who"><b>${roleTag(p.role)}${esc(p.name)}</b>${p.me ? ' <i>(вы)</i>' : ''}${p.friend ? ' <span class="fr" title="Друг">🤝</span>' : ''}<small>${esc(heroLabel(p.cls))}${p.lvl ? ` · ур. ${p.lvl}` : ''} · ${esc(where)}${p.busy ? ' · занят' : ''}</small></div>
       <div class="acts">${acts}</div></div>`;
   }
   bindSoc(el) {

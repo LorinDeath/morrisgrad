@@ -10,7 +10,7 @@ import { ZONE_GEN, genOf } from "./zoneGen";
 import { mobXp, xpLevelMult } from "./balance";
 import { QUESTS, QUEST_BY_ID } from "./quests";
 import {
-  heroEffective, markSeen, rollRunSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
+  heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
 } from "./profile";
 import { Zone, type ZPlayer } from "./zone";
@@ -19,6 +19,8 @@ import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
 import { Pvp, type Duel } from "./pvp";
 import { Social } from "./social";
+import { Roles } from "./roles";
+import { WEAPON_SKILL_CD } from "./abilityShapes";
 import { castShape } from "./abilityShapes";
 import { worldBounds } from "../worlds/sizes";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
@@ -44,7 +46,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
-  friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
+  friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
 };
 function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
@@ -82,6 +84,7 @@ export class MetaService {
   rating: Rating;
   pvp: Pvp;
   social: Social;
+  roles: Roles;
   duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   constructor(sql: any, env: any) {
@@ -89,6 +92,8 @@ export class MetaService {
     this.rating = new Rating(env?.GAME_DB);
     this.pvp = new Pvp(this);
     this.social = new Social(this, env?.GAME_DB);
+    this.roles = new Roles(env?.GAME_DB);
+    this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
     this.env = env || {};
   }
@@ -139,6 +144,8 @@ export class MetaService {
       this.send(ws, { type: "guest_name", name: session.username });
     }
     await this.social.warm(pkey);
+    await this.roles.ensure();
+    { const ms0 = this.ms.get(session.id); const role = ms0?.verified ? this.roles.of(pkey) : undefined; this.send(ws, { type: "my_role", role: role || null, admin: this.roles.isAdmin(ms0) }); }
     if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
     this.refreshZonePlayer(session);
     this.send(ws, { type: "meta_state", ...this.snap(session) });
@@ -222,6 +229,8 @@ export class MetaService {
   pvpGone(session: any) { if (session?.id) this.pvp.leave(session, "disconnect"); }
   pvpFrozen(session: any) { return this.pvp.frozen(session); }
   // статы героя, посчитанные сервером, для панели «ЦЕЛЬ» у других игроков (кэш обновляется в refreshZonePlayer)
+  // роль сессии для показа (плашка над головой, чат, «Онлайн»): только проверенный вход
+  roleOfSid(sid: string) { const ms = this.ms.get(sid); return ms?.verified ? this.roles.of(ms.pkey) : undefined; }
   publicStats(sid: string) {
     const ms = this.ms.get(sid);
     if (!ms || !ms.pub) return null;
@@ -312,11 +321,6 @@ export class MetaService {
         this.send(ws, { type: "seen_ok", n });
         return true;
       }
-      case "run_skill_set": { // выбрать навык забега из пула аккаунта (или null — без навыка)
-        const id = msg.id == null ? null : String(msg.id);
-        if (id !== null && !(a.runSkills || []).includes(id)) { reply({ ok: false, err: "Навык ещё не открыт" }); return true; }
-        a.runSkillSel = id; reply({ ok: true }, id ? "Навык забега выбран" : "Навык забега снят"); return true;
-      }
       case "talent_learn": if (!needHero()) return true; { const r = learnTalent(a, h!, cls!, String(msg.id)); if (r.ok) this.qev(a, session, { type: "talent" }); reply(r, "Талант изучен"); this.refreshZonePlayer(session); } return true;
       case "loadout_set": if (!needHero()) return true; reply(setLoadout(a, h!, cls!, msg.ids), "Раскладка сохранена"); return true;
       case "radiance_up": if (!needHero()) return true; reply(upgradeRadiance(a, h!, cls!, String(msg.id)), "Сияние усилено"); return true;
@@ -377,6 +381,22 @@ export class MetaService {
         if (Date.now() - so.rating < 2000) { this.send(ws, { type: "rating_err", message: "Рейтинг обновляется — подождите пару секунд" }); return true; }
         so.rating = Date.now();
         this.rating.view(ms.pkey).then((v) => this.send(ws, { type: "rating", ...v })).catch((e) => { console.error("[mc] rating", e?.message || e); this.send(ws, { type: "rating_err", message: "Рейтинг временно недоступен" }); });
+        return true;
+      }
+      case "role_set": {
+        // только серверно проверенный админ; цель — по sid онлайн-сессии или непрозрачному id (рейтинг/друзья/онлайн)
+        if (!this.roles.isAdmin(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+        let target: string | null = null;
+        if (msg.sid) { const e = this.sessionLookup?.(String(msg.sid)); target = e ? this.ms.get(e[1].id)?.pkey || null : null; }
+        else if (msg.id) target = this.rating.byId.get(String(msg.id)) || this.social.ids.get(String(msg.id)) || null;
+        if (!target) { this.send(ws, { type: "toast_error", message: "Игрок не найден" }); return true; }
+        this.roles.setModerator(ms.pkey, target, !!msg.moderator).then((r) => {
+          if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err }); return; }
+          this.send(ws, { type: "role_changed", id: opaqueId(target!), role: r.role || null });
+          this.push(ws, session, { toast: r.role ? "Модерка выдана" : "Модерка снята" });
+          const osid = this.social.onlineSid(target!); const oe = osid ? this.sessionLookup?.(osid) : null;
+          if (oe) this.send(oe[0], { type: "my_role", role: r.role || null, admin: false });
+        }).catch((e) => { console.error("[mc] role_set", e?.message || e); this.send(ws, { type: "toast_error", message: "Не удалось сохранить роль" }); });
         return true;
       }
       case "inspect_player": {
@@ -644,6 +664,8 @@ export class MetaService {
       if (oe) nick = this.displayName(oe[1]);
     }
     if (!pkey) { this.send(ws, { type: "inspect_err", message: "Не выбран персонаж" }); return; }
+    await this.roles.ensure();
+    const roleX = { role: this.roles.of(pkey), canMod: this.roles.isAdmin(this.ms.get(session.id)) && pkey.startsWith("uid:") && this.roles.of(pkey) !== "admin" || undefined };
     // имя: зарегистрированные — из таблицы сайта users, гости — «Гость #xxxx»
     if (pkey.startsWith("uid:") && !this.rating.names.has(pkey)) await this.rating.loadNames([pkey]);
     let name = pkey.startsWith("uid:") ? this.rating.names.get(pkey) || nick || "Игрок" : guestName(pkey, this.store.accounts.get(pkey)?.gname || this.rating.gnames.get(pkey));
@@ -651,18 +673,18 @@ export class MetaService {
     if (this.store.accounts.has(pkey)) {
       a = this.store.account(pkey);
       cls = cls || a.hero;
-      if (!cls) { this.send(ws, { type: "inspect", id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
+      if (!cls) { this.send(ws, { type: "inspect", ...roleX, id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
       h = this.store.hero(pkey, cls);
     } else {
       const p = this.store.db ? await loadPublicProfile(this.store.db, pkey) : null;
       if (!p) { this.send(ws, { type: "inspect_err", message: "Персонаж не найден" }); return; }
       a = p.a; cls = cls || a.hero;
       if (pkey.startsWith("guest:")) name = guestName(pkey, a.gname);
-      if (!cls) { this.send(ws, { type: "inspect", id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
+      if (!cls) { this.send(ws, { type: "inspect", ...roleX, id: opaqueId(pkey), name, cls: null, lvl: 0, gear: [], stats: null, abilities: [], maxDmg: null }); return; }
       h = p.heroes[cls];
     }
     const duel = await this.duelRecord(pkey);
-    this.send(ws, { type: "inspect", id: opaqueId(pkey), sid: msg.sid || undefined, ...publicCharacter(name, cls, a, h, heroBase(cls)), duel });
+    this.send(ws, { type: "inspect", id: opaqueId(pkey), sid: msg.sid || undefined, ...publicCharacter(name, cls, a, h, heroBase(cls)), duel, ...roleX });
   }
 
   zoneAbility(ws: WebSocket, session: any, msg: any) {
@@ -670,12 +692,19 @@ export class MetaService {
     const zone = this.zoneOf(session);
     if (!zone || !ms.zp.alive) return;
     const eff = this.effective(session);
-    const ab = eff.abilities.find((x: any) => x.id === msg.id);
+    // 4-й слот (R): навык надетого оружия — сервер сам берёт его с экипировки, клиент лишь просит "rs"
+    let ab: any = eff.abilities.find((x: any) => x.id === msg.id);
+    if (!ab && msg.id === "rs") {
+      const cls = session.stats?.classId; const a0 = this.store.account(ms.pkey);
+      const rs = cls ? weaponSkill(a0, this.store.hero(ms.pkey, cls)) : null;
+      if (rs) ab = { id: "rs:" + rs, cd: WEAPON_SKILL_CD, power: 1, props: [] };
+    }
     if (!ab) return;
     const now = Date.now();
     // подтверждение перезарядки для панели навыков клиента (сервер — источник правды)
-    if ((ms.abilCd[ab.id] || 0) > now) { this.send(ws, { type: "ability_cd", id: ab.id, left: ms.abilCd[ab.id] - now, cd: ab.cd, ok: false }); return; }
-    ms.abilCd[ab.id] = now + ab.cd * 1000;
+    const cdKey = ab.id.startsWith("rs:") ? "rs" : ab.id; // перезарядка слота R общая (смена оружия её не сбрасывает)
+    if ((ms.abilCd[cdKey] || 0) > now) { this.send(ws, { type: "ability_cd", id: ab.id, left: ms.abilCd[cdKey] - now, cd: ab.cd, ok: false }); return; }
+    ms.abilCd[cdKey] = now + ab.cd * 1000;
     this.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
     ms.zp.x = session.x; ms.zp.y = session.y;
     const def = ABILITY_BY_ID[ab.id];
@@ -757,8 +786,8 @@ export class MetaService {
       if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out, src); // элита: второй бросок добычи
       // редкое оружие несёт навык «Вампир-лайка» → в пул аккаунта (бросок только здесь, на сервере)
       for (const it of out.items) {
-        const rs = rollRunSkill(a, it.id, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob");
-        if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id }; ms.dirty = true;
+        const rs = rollRunSkill(a, it, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob");
+        if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id, uid: it.uid }; ms.dirty = true;
           this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `${RUN_SKILL_BY_ID[rs].icon} ${session.username || "Игрок"} постигает навык «${RUN_SKILL_BY_ID[rs].name}»!`, color: "#fde68a" }); break; }
       }
       this.qev(a, session, { type: "kill", mob: m.type, cls });

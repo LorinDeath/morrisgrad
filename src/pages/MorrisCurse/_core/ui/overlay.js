@@ -2,6 +2,9 @@
 // поле чата и полноэкранные экраны (кик / офлайн). Слой повторяет положение канваса внутри .game-screen.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export { esc };
+// Плашка роли перед именем: красная «Админ», зелёная «Модератор» (роль приходит с сервера)
+const ROLE_TXT = { admin: 'Админ', moderator: 'Модератор' };
+export function roleTag(role) { return ROLE_TXT[role] ? `<span class="mc-role ${role}">${ROLE_TXT[role]}</span>` : ''; }
 
 export class Overlay {
   constructor(canvas, container) {
@@ -74,12 +77,13 @@ export class Overlay {
   }
 
   // --- пузыри чата ---
-  bubble(id, text) {
+  bubble(id, text, role) {
     const old = this.bubbles.get(id);
     if (old) old.el.remove();
     const el = document.createElement('div');
     el.className = 'mc3d-bubble';
     el.textContent = text;
+    if (role && ROLE_TXT[role]) el.insertAdjacentHTML('afterbegin', roleTag(role) + ' ');
     this.layer.appendChild(el);
     this.bubbles.set(id, { el, until: performance.now() + 5000 });
   }

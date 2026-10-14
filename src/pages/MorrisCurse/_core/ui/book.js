@@ -4,7 +4,7 @@
 // Библиотеку предметов и пулы дропа мобов сервер присылает ТОЛЬКО для открытого игроком (itemCards.js, lib_get).
 import {
   TALENTS, TALENT_TIER_REQ, TALENT_BRANCHES, TALENT_BY_ID, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
-  RARITIES, SLOTS, SLOT_ORDER, RUN_SKILLS, RUN_SKILL_DROP_PCT, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
+  RARITIES, SLOTS, SLOT_ORDER, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
 } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, iconHtml } from '../meta/itemCards.js';
 import { QUESTS, QUEST_BY_ID, CAMPAIGN_NAMES } from '../../../../../server/meta/quests.ts';
@@ -18,7 +18,7 @@ const TABS = [
   ['gear', '🎒', 'Снаряжение', 'I'],
   ['library', '📚', 'Библиотека', 'L'],
   ['bestiary', '👁️', 'Бестиарий', 'B'],
-  ['runskills', '🌀', 'Навыки забега', ''],
+  ['runskills', '🌀', 'Кодекс навыков', ''],
   ['craft', '⚒️', 'Ремесло', ''],
   ['soul', '🜏', 'Душа', ''],
 ];
@@ -130,7 +130,6 @@ export class Book {
       case 'unslot': m.setLoadout((m.hero?.loadout || []).filter((x) => x !== v)); break;
       case 'equip': m.equip(v); break;
       case 'unequip': m.unequip(v); break;
-      case 'runsel': m.runSkillSet(v === '-' ? null : v); break;
       case 'salvage': if (window.confirm('Разобрать предмет на осколки души?')) { m.salvage(v); this.sel = null; } break;
       case 'craft': m.craft(v); break;
       case 'soul': m.soulBuy(v); break;
@@ -358,6 +357,7 @@ export class Book {
         <div class="rr">${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
         <div class="ss">${itemStatsHtml(d, newProps)}</div>
         <div class="fx">Ур. предмета ${d.lvl || 1}. ${reqHtml(d, h)}. Характеристики фиксированные — не растут с уровнем.</div>
+        ${it.rs && RUN_SKILL_BY_ID[it.rs] ? `<div class="ab rsk">${RUN_SKILL_BY_ID[it.rs].icon} Навык оружия (R): <b>${esc(RUN_SKILL_BY_ID[it.rs].name)}</b> — ${esc(RUN_SKILL_BY_ID[it.rs].desc)}${eq ? ' · <i>активен</i>' : ' · наденьте, чтобы получить 4-й слот'}</div>` : ''}
         ${d.ability ? `<div class="ab">✦ Даёт навык: <b>${esc(d.ability.name)}</b>${abNew ? NEW_BADGE : ''}</div>` : ''}
         ${look ? `<div class="ab">🎭 Часть облика «${esc(look.name)}» (${look.parts} предм.)${look.bonus ? ` — ${esc(look.bonus)}` : ''}</div>` : ''}
         ${it.src ? `<div class="src">Этот экземпляр: ${esc(srcLabel(it.src))}${it.at ? ` · ${new Date(it.at).toLocaleDateString('ru-RU')}` : ''}</div>` : ''}
@@ -424,14 +424,15 @@ export class Book {
   // Моб виден после встречи; после встречи показан его пул добычи: открытые предметы — по имени,
   // закрытые — силуэтом с цветом редкости и шансом. Данные пула — от сервера (lib_get).
   // Пул навыков забега (трофеи с оружия открытого мира) + кодекс: открытые и ещё скрытые
+  // Кодекс навыков «Вампир-лайка»: какие навыки уже встречались на добытом оружии (сам навык живёт на оружии)
   rRunSkills(st) {
-    const have = new Set(st.account.runSkills || []), sel = st.account.runSkillSel || null;
+    const have = new Set(st.account.runSkills || []);
+    const cur = st.weaponSkill || null;
     const cards = RUN_SKILLS.map((r) => have.has(r.id)
-      ? `<div class="mc-rskill ${sel === r.id ? 'on' : ''}"><i>${r.icon}</i><b>${esc(r.name)}</b><small>${esc(r.desc)}</small>
-          ${sel === r.id ? '<button class="mc-btn sm" data-act="runsel" data-v="-">Снять</button>' : `<button class="mc-btn sm gold" data-act="runsel" data-v="${r.id}">Взять в забег</button>`}</div>`
+      ? `<div class="mc-rskill ${cur === r.id ? 'on' : ''}"><i>${r.icon}</i><b>${esc(r.name)}</b><small>${esc(r.desc)}</small>${cur === r.id ? '<em>на надетом оружии · R</em>' : ''}</div>`
       : `<div class="mc-rskill locked"><i>❔</i><b>???</b><small>Выпадает с оружием монстров открытого мира</small></div>`).join('');
     return `<div class="mc-rs-head"><b>Кодекс навыков: ${have.size}/${RUN_SKILLS.length}</b>
-      <small>Оружие, добытое в открытом мире, иногда несёт навык «Вампир-лайка» (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%). Выбранный навык герой берёт в забег бесплатно — он не занимает 4 слота оружия.</small></div>
+      <small>Оружие, добытое в открытом мире, иногда несёт навык «Вампир-лайка» (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%). Наденьте такое оружие — появится 4-й слот (клавиша R) в мире и в забеге; в забеге навык ещё и стреляет сам, не занимая 4 слота оружия.</small></div>
       <div class="mc-rs-grid">${cards}</div>`;
   }
   rBestiary(st) {

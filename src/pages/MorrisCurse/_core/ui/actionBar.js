@@ -1,5 +1,5 @@
 // Панель действий (низ по центру) — открытый мир и забег.
-// Слоты: навыки раскладки (Q/R/F, 2–3), рывок (Space), базовая атака (ЛКМ, в мире); в забеге — ещё ряд оружия и пассивок.
+// Слоты: навыки раскладки (Q/G/F, 2–3; R — навык оружия), рывок (Space), базовая атака (ЛКМ, в мире); в забеге — ещё ряд оружия и пассивок.
 // Каждый слот: пиксельная иконка 24 px (skill_icons.png, ×2), клавиша, радиальная «шторка» перезарядки + секунды,
 // рамка цвета Сияния (жёлтое/красное/фиолетовое), состояния «пусто»/«закрыто», подсказка при наведении.
 // Перезарядка навыков в мире — подтверждённая сервером (ability_cd), до подтверждения слот «ожидает».
@@ -46,8 +46,8 @@ export class ActionBar {
       this.main.innerHTML = list.map((s) => {
         const icon = s.locked ? 'locked' : s.empty ? 'empty' : (hasSkillIcon(s.id) ? s.id : (s.kind === 'dash' ? 'dash' : s.kind === 'atk' ? 'attack' : 'empty'));
         const tip = s.locked ? `${s.name || 'Слот'} — ${s.lockText || 'закрыто'}` : s.empty ? `Слот ${s.key} пуст — назначьте навык в Книге (K)` : `${s.name}${s.rad ? ` · Сияние ${s.rad}` : ''}${s.cdTotal ? ` · перезарядка ${(+s.cdTotal).toFixed(1)} с` : ''}${s.desc ? `\n${s.desc}` : ''}`;
-        return `<div class="mc-as ${s.kind} ${s.locked ? 'locked' : ''} ${s.empty ? 'empty' : ''}" data-slot="${s.slot ?? ''}" data-kind="${s.kind}" data-id="${esc(s.id || '')}" style="--rc:${s.kind === 'ab' ? radColor(s.rad) : s.kind === 'dash' ? '#38bdf8' : '#94a3b8'}">
-          ${skillIcon(icon, s.kind === 'ab' ? 48 : 36)}<div class="sw"></div><span class="cd"></span><b class="key">${esc(s.key)}</b><div class="tip">${esc(tip).replace(/\n/g, '<br>')}</div></div>`;
+        return `<div class="mc-as ${s.kind} ${s.locked ? 'locked' : ''} ${s.empty ? 'empty' : ''}" data-slot="${s.slot ?? ''}" data-kind="${s.kind}" data-id="${esc(s.id || '')}" style="--rc:${s.kind === 'ab' ? radColor(s.rad) : s.kind === 'rs' ? '#fde68a' : s.kind === 'dash' ? '#38bdf8' : '#94a3b8'}">
+          ${s.kind === 'rs' && s.icon && !s.locked ? `<span class="mc-as-emo">${s.icon}</span>` : skillIcon(icon, s.kind === 'ab' || s.kind === 'rs' ? 48 : 36)}<div class="sw"></div><span class="cd"></span><b class="key">${esc(s.key)}</b><div class="tip">${esc(tip).replace(/\n/g, '<br>')}</div></div>`;
       }).join('');
       this.slots = [...this.main.querySelectorAll('.mc-as')].map((e) => ({ e, sw: e.querySelector('.sw'), cd: e.querySelector('.cd'), p: -1, t: '', pend: null }));
     }

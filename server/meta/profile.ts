@@ -15,14 +15,14 @@ import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 export const SCHEMA_VERSION = 1;
 
 // uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
-export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null } // hero — владелец-герой (у каждого героя своя сумка)
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string } // hero — владелец-герой (у каждого героя своя сумка)
 export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
   quests: { active: Record<string, { p: number[] }>; done: string[] };
   bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
-  runSkills?: string[]; runSkillSel?: string | null; // пул навыков забега (трофеи) и выбранный в забег
+  runSkills?: string[]; // кодекс: открытые (хоть раз выпавшие) навыки «Вампир-лайка»
   gname?: string; // имя гостевого профиля (guestNames.ts), назначает сервер
 }
 export interface Hero {
@@ -302,20 +302,24 @@ export function fixAccount(a: Account): Account {
   a.disc.items = a.disc.items || {}; a.disc.feats = a.disc.feats || {};
   a.inv = (a.inv || []).filter((i) => ITEM_BY_ID[i.id]);
   a.runSkills = Array.isArray(a.runSkills) ? a.runSkills.filter((id) => RUN_SKILL_BY_ID[id]) : [];
-  if (a.runSkillSel && !a.runSkills.includes(a.runSkillSel)) a.runSkillSel = null;
+  delete (a as any).runSkillSel; // старый выбор из пула (задача 8 v1) больше не используется
   return a;
 }
-// Бросок «оружие несёт навык забега»: только оружие, только ещё не открытый навык; ГСЧ сервера
-export function rollRunSkill(a: Account, itemId: string, kind: "mob" | "rare" | "boss", rnd = cryptoRand): string | null {
-  if (ITEM_BY_ID[itemId]?.slot !== "weapon") return null;
+// Бросок «оружие несёт навык забега»: только оружие, ГСЧ сервера. Навык записывается НА ЭКЗЕМПЛЯР предмета
+// (item_instances.run_skill), в кодекс аккаунта — как открытие. Дубли навыков на разном оружии возможны.
+export function rollRunSkill(a: Account, it: InvItem, kind: "mob" | "rare" | "boss", rnd = cryptoRand): string | null {
+  if (!it || it.rs || ITEM_BY_ID[it.id]?.slot !== "weapon") return null;
   if (rnd() * 100 >= RUN_SKILL_DROP_PCT[kind]) return null;
-  const left = RUN_SKILLS.filter((r) => !(a.runSkills || []).includes(r.id));
-  if (!left.length) return null;
-  const pick = left[Math.floor(rnd() * left.length)].id;
-  (a.runSkills = a.runSkills || []).push(pick);
-  if (!a.runSkillSel) a.runSkillSel = pick;
-  noteFeature(a, `runskill:${pick}`);
+  const pick = RUN_SKILLS[Math.floor(rnd() * RUN_SKILLS.length)].id;
+  it.rs = pick;
+  if (!(a.runSkills = a.runSkills || []).includes(pick)) { a.runSkills.push(pick); noteFeature(a, `runskill:${pick}`); }
   return pick;
+}
+// Навык 4-го слота (R): от надетого сейчас оружия героя; сняли оружие — навыка нет
+export function weaponSkill(a: Account, h: Hero | null): string | null {
+  const uid = h?.equip?.weapon; if (!uid) return null;
+  const rs = a.inv.find((i) => i.uid === uid)?.rs;
+  return rs && RUN_SKILL_BY_ID[rs] ? rs : null;
 }
 // Снять отметку «новое» (сообщение mark_seen): только свои экземпляры/открытия, пачкой
 export function markSeen(a: Account, m: { inv?: string[]; items?: string[]; mobs?: string[]; feats?: string[] }): number {
@@ -468,7 +472,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    account: { runSkills: a.runSkills || [], runSkillSel: a.runSkillSel || null, inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    weaponSkill: weaponSkill(a, h), account: { runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),

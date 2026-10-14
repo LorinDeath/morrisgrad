@@ -60,7 +60,7 @@ export class Social {
     const list = this.online().map(({ sid, pkey, s }) => {
       const ms = this.svc.ms.get(sid);
       const pub = ms?.pub;
-      return { sid, id: this.oid(pkey), name: this.nameOf(pkey, s), cls: s.stats?.classId || null, lvl: pub?.lvl || 0, world: s.world || "hellfire",
+      return { sid, id: this.oid(pkey), name: this.nameOf(pkey, s), role: this.svc.roleOfSid(sid), cls: s.stats?.classId || null, lvl: pub?.lvl || 0, world: s.world || "hellfire",
         friend: this.fr.isFriendCached(me, pkey) || undefined, me: pkey === me || undefined, busy: !!(s.pvp || s.runRoom) || undefined };
     });
     list.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0) || (b.friend ? 1 : 0) - (a.friend ? 1 : 0) || b.lvl - a.lvl || a.name.localeCompare(b.name));
@@ -78,7 +78,7 @@ export class Social {
       const e = sid ? this.svc.sessionLookup?.(sid) : null;
       const pr = profs.get(pkey);
       const name = e ? this.nameOf(pkey, e[1]) : pr?.gname && pkey.startsWith("guest:") ? guestName(pkey, pr.gname) : this.nameOf(pkey);
-      return { id: this.oid(pkey), name, sid: sid || undefined, online: !!sid, cls: e ? e[1].stats?.classId || null : pr?.hero || null, lvl: e ? this.svc.ms.get(sid!)?.pub?.lvl || 0 : pr?.lvl || 0 };
+      return { id: this.oid(pkey), name, role: this.svc.roles?.of(pkey), sid: sid || undefined, online: !!sid, cls: e ? e[1].stats?.classId || null : pr?.hero || null, lvl: e ? this.svc.ms.get(sid!)?.pub?.lvl || 0 : pr?.lvl || 0 };
     };
     return { type: "friends", friends: fl.map(row), incoming: rin.map((r) => row(r.pkey)), outgoing: rout.map((r) => row(r.pkey)), settings: this.settingsView(prefs), max: MAX_FRIENDS };
   }

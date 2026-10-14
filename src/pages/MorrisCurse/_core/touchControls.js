@@ -32,6 +32,7 @@ export class TouchControls {
         <div class="mc3d-tbtn ab k-q" data-act="ability" data-slot="0" style="display:none"></div>
         <div class="mc3d-tbtn ab k-r" data-act="ability" data-slot="1" style="display:none"></div>
         <div class="mc3d-tbtn ab k-f" data-act="ability" data-slot="2" style="display:none"></div>
+        <div class="mc3d-tbtn k-ws" data-act="wskill" title="Навык оружия (R)" style="display:none"></div>
         <div class="mc3d-tbtn atk k-atk" data-hold="attack" title="Атака (автонаведение)">${skillIcon('attack', 40)}</div>
         <div class="mc3d-tbtn k-act" data-act="interact" title="Действие">✋</div>
         <div class="mc3d-tbtn k-dash" data-act="dash" title="Рывок">${skillIcon('dash', 36)}</div>
@@ -134,6 +135,18 @@ export class TouchControls {
       const ct = b.querySelector('.cdt'); if (ct.textContent !== t) ct.textContent = t;
       b.classList.toggle('cd', left > 0);
     });
+  }
+
+  // 4-я кнопка: навык надетого оружия (или в забеге — залп навыка); null — скрыть
+  setWeaponSkill(a) {
+    if (!this.root) return;
+    const b = this.wsBtn = this.wsBtn || this.root.querySelector('.k-ws');
+    b.style.display = a ? '' : 'none';
+    if (!a) return;
+    if (b.dataset.ic !== a.icon) { b.dataset.ic = a.icon; b.innerHTML = `<span class="ic">${a.icon}</span><div class="sw"></div><span class="cdt"></span>`; }
+    const left = Math.max(0, a.cdLeft || 0), p = left > 0 ? Math.round(Math.min(1, left / Math.max(0.01, a.cd)) * 100) : 0;
+    b.querySelector('.sw').style.background = p ? `conic-gradient(rgba(5,3,12,.72) ${p}%, transparent 0)` : 'none';
+    b.querySelector('.cdt').textContent = left > 0 ? String(Math.ceil(left)) : '';
   }
 
   setInteractHighlight(active) {
