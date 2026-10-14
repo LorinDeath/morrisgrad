@@ -23,7 +23,7 @@ import {
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
-import { Zone, MOB_SKILLS, type ZPlayer } from "./zone";
+import { Zone, MOB_SKILLS, regSig, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
@@ -1025,7 +1025,14 @@ export class MetaService {
     }
   }
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
-  party!: Parties; partyAt = 0;
+  party!: Parties; partyAt = 0; regAt = 0;
+  /** пересобрать лагеря локаций, чьи настройки плотности изменились (админка → D1 → applyOverride на этом экземпляре) */
+  syncRegions() {
+    const z: any = (this.zones as any).arinar; if (!z?.gen?.camps) return;
+    for (const r of z.gen.regions) { if (!r.table?.length) continue;
+      if (z.regBuilt[r.id] !== regSig(r)) { const n = z.regenRegion(r.id); console.log(`[mc] регион ${r.id}: лагеря пересобраны (снято ${n})`); }
+    }
+  }
   ally(a: string, b: string) { return this.party.ally(a, b); }
   /** позиция участника (для дележа/портала): мир, x, y, жив ли в мире */
   partyPos = (sid: string) => { const e = this.sessionLookup?.(sid); if (!e) return null; const s = e[1], ms = this.ms.get(sid); return { world: s.world || "hellfire", x: s.x, y: s.y, alive: ms?.zp ? ms.zp.alive !== false : true, run: s.runId || null }; };
@@ -1065,6 +1072,7 @@ export class MetaService {
   tick(dt: number, sessions: Map<WebSocket, any>) {
     const now = Date.now();
     if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); }
+    if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.syncRegions(); } // правки плотности локаций → пересборка лагерей
     if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
     const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};

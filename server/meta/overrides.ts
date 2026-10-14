@@ -8,7 +8,7 @@ import { RUN_SKILLS } from "./shared";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region";
 export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap"; min?: number; max?: number; opts?: string[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -40,11 +40,17 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("ambientGroup", "Бродячие: обычных в группе (+1 элита)", 1, 8, "int"), N("ambientCap", "Бродячие: максимум на игрока", 0, 20, "int"),
     N("ambientNear", "«Пусто», если нет мобов ближе, px", 150, 1500, "int"), N("ambientEdge", "Появляются на расстоянии, px (экран 640×360)", 200, 1200, "int"),
     N("ambientHunt", "Охотятся на игрока, с", 0, 120, "int"), N("ambientLife", "Уходят без боя через, с", 10, 600, "int")] },
+  // плотность мобов по локациям Аринара (лагеря строятся заново при правке — сервер, без дублей)
+  region: { name: "Локации: плотность", fields: [N("dens", "Лагерей: множитель (0 — без лагерей, 1 — как в коде)", 0, 5),
+    N("packs.0", "Пачек в лагере: от", 1, 6, "int"), N("packs.1", "Пачек в лагере: до", 1, 6, "int"),
+    N("pack.0", "Мобов в пачке: от", 1, 10, "int"), N("pack.1", "Мобов в пачке: до", 1, 10, "int"),
+    N("elite", "Шанс элиты (0…1; с лимитом — на пачку)", 0, 1), N("eliteMax", "Максимум элит в лагере (кроме вожаков)", 0, 12, "int"),
+    { path: "bossOn", label: "Мировой босс в локации", t: "bool" }] },
   boss: { name: "Мировые боссы", fields: [N("every", "Возрождение после смерти, с", 30, 86400, "int"), N("firstAfter", "Первое появление после старта, с", 0, 86400, "int")] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: ABILITY_BY_ID, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -98,6 +104,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }
   }
+  if (kind === "region") { const R = TABLES.region[id]; for (const k of ["packs", "pack"]) { const a = out[k + ".0"] ?? R[k]?.[0], b = out[k + ".1"] ?? R[k]?.[1]; if (a != null && b != null && a > b) return `${k === "packs" ? "пачек" : "мобов"}: «от» больше «до»`; } }
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
 }
@@ -122,7 +129,8 @@ export function currentValues(kind: Kind, id: string) {
   const o = TABLES[kind][id]; if (!o) return null;
   if (kind === "loot") return { gear: o.gear, materials: o.materials };
   const v: any = Object.fromEntries(SCHEMA[kind].fields.map((f) => [f.path, getP(o, f.path) ?? null]));
-  if (kind === "item" && v.salvage == null) v.salvage = salvageDefault(id); // по умолчанию — текущая логика разбора
+  if (kind === "item" && v.salvage == null) v.salvage = salvageDefault(id);
+  if (kind === "region" && v.bossOn == null) v.bossOn = true; // по умолчанию босс есть (флажок не должен выключить его случайно) // по умолчанию — текущая логика разбора
   if (SCHEMA[kind].traits) v.traits = TRAITS[kind][id] || [];
   return v;
 }

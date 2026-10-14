@@ -63,6 +63,7 @@ function valueNoise(seed: number, step: number) {
     return a + (b - a) * sy;
   };
 }
+export const regSig = (r: any) => JSON.stringify([r.dens, r.packs, r.pack, r.elite, r.eliteMax, r.bossOn]);
 export const DOT_STACK_MAX = 5; // стаков одного статуса на цели
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 // выстрел дальнобойного моба: спрайт по стихии
@@ -181,34 +182,45 @@ export class Zone {
       for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) for (const c of grid.get((cx + i) * 4096 + cy + j) || []) if (Math.hypot(c.x - x, c.y - y) < d) return true;
       return false;
     };
-    for (const reg of this.gen.regions) {
-      if (!reg.table.length) continue;
+    for (const reg of this.gen.regions) this.buildRegionCamps(reg, R, dens, dens2, grid, gk, tooClose);
+    this.buildRoamers(R);
+  }
+  /** лагеря одной локации (и при старте, и при правке плотности в админке — тогда старые лагеря локации убираются) */
+  buildRegionCamps(reg: any, R: () => number, dens: (x: number, y: number) => number, dens2: (x: number, y: number) => number, grid: Map<number, any[]>, gk: (x: number, y: number) => number, tooClose: (x: number, y: number, d: number) => boolean) {
+    const G = ZONE_GEN;
+    this.regBuilt[reg.id] = regSig(reg); // с какими настройками построены лагеря (пересборка — только при изменении)
+    {
+      if (!reg.table.length || reg.dens === 0) return;
       const w = reg.rect[2] - reg.rect[0], h = reg.rect[3] - reg.rect[1];
-      const want = Math.max(1, Math.round((w * h) / (G.campStep * G.campStep) * G.campFill));
+      const want = Math.max(1, Math.round((w * h) / (G.campStep * G.campStep) * G.campFill * (reg.dens ?? 1)));
+      const minMul = 1 / Math.sqrt(Math.max(0.25, reg.dens ?? 1)); // гуще — лагеря ближе (но не ближе 0.5×)
       let made = 0;
       for (let t = 0; t < want * 14 && made < want; t++) {
         const x = Math.round(reg.rect[0] + 60 + R() * (w - 120)), y = Math.round(reg.rect[1] + 60 + R() * (h - 120));
         const dn = 0.65 * dens(x, y) + 0.35 * dens2(x, y);                  // 0..1: густо/пусто
         if (R() > G.campAccept + dn * dn * 1.3) continue;
-        const minD = G.campMinDist * (1 + (1 - dn) * 1.8 * R() + (R() < 0.15 ? 0.6 : 0));       // в густых пятнах — ближе (но ≥ campMinDist)
+        const minD = G.campMinDist * Math.max(0.5, minMul) * (1 + (1 - dn) * 1.8 * R() + (R() < 0.15 ? 0.6 : 0));       // в густых пятнах — ближе (но ≥ campMinDist)
         if (inSafe(x, y, 300, this.world) || this.gen.bosses.some((b) => Math.hypot(b.x - x, b.y - y) < 700)) continue;
         if (tooClose(x, y, minD)) continue;
         let tw = reg.table.reduce((a, b) => a + b.w, 0) * R(), row = reg.table[0];
         for (const tr of reg.table) { tw -= tr.w; if (tw <= 0) { row = tr; break; } }
         // БОЛЬШОЙ лагерь: 2–3 пачки по кругу (радиус campRing) + вожак в центре (иногда два вожака)
         const alt = reg.table.filter((tr) => tr.type !== row.type && ["ranged", "charger", "caster"].includes(ZONE_MOBS[tr.type]?.role));
-        const nPacks = R() < G.campPacks3 ? 3 : 2, a0 = R() * Math.PI * 2;
+        const nPacks = reg.packs ? reg.packs[0] + Math.floor(R() * (reg.packs[1] - reg.packs[0] + 1)) : R() < G.campPacks3 ? 3 : 2, a0 = R() * Math.PI * 2;
+        let elites = 0; const eliteMax = reg.eliteMax ?? 99;
         const placed: [number, number][] = [];
         const spot = (x0: number, y0: number): [number, number] => { // не ближе 24 px к любому мобу лагеря (спираль наружу)
           for (let t = 0; t < 40; t++) { const a = t * 2.4, rr = t ? 10 + t * 5 : 0; const qx = this.clamp(x0 + Math.cos(a) * rr), qy = this.clamp(y0 + Math.sin(a) * rr);
             if (placed.every((o) => Math.hypot(o[0] - qx, o[1] - qy) >= 24)) { placed.push([qx, qy]); return [qx, qy]; } }
           const q: [number, number] = [this.clamp(x0), this.clamp(y0)]; placed.push(q); return q; };
-        const camp = { id: this.camps.length + 1, region: reg.id, x, y, types: [] as string[], packs: nPacks, chiefs: 0 };
+        const camp = { id: ++this.campSeq, region: reg.id, x, y, types: [] as string[], packs: nPacks, chiefs: 0 };
         this.camps.push(camp); made++;
         const k = gk(x, y); const gb = grid.get(k); if (gb) gb.push(camp); else grid.set(k, [camp]);
         for (let pk = 0; pk < nPacks; pk++) {
           let n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
           const roll = R(); if (roll < 0.18) n = Math.min(6, n + 1); else if (roll < 0.3) n = Math.max(2, n - 1);
+          if (reg.pack) n = reg.pack[0] + Math.floor(R() * (reg.pack[1] - reg.pack[0] + 1)); // админка: мобов в пачке
+          const eliteThis = R() < reg.elite && elites < eliteMax; if (eliteThis) elites++; // шанс элиты — на пачку, не больше eliteMax в лагере
           const prow = pk > 0 && R() < 0.35 ? reg.table[Math.floor(R() * reg.table.length)] : row; // соседняя пачка бывает другого вида
           const types: string[] = [];
           for (let i = 0; i < n; i++) types.push(i === n - 1 && n >= 3 && alt.length ? alt[Math.floor(R() * alt.length)].type : prow.type);
@@ -216,7 +228,7 @@ export class Zone {
           const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
           for (const [i, p] of this.formation(n, R).entries()) {
             const [qx, qy] = spot(px + p[0] * 0.7, py + p[1] * 0.7);
-            const m = this.addMob(types[i], qx, qy, { fixed: true, respawn: G.campRespawn, region: reg.id, elite: R() < reg.elite });
+            const m = this.addMob(types[i], qx, qy, { fixed: true, respawn: G.campRespawn, region: reg.id, elite: reg.eliteMax == null ? R() < reg.elite : eliteThis && i === 0 }); // без правки — как раньше (шанс на моба); с лимитом из админки — шанс на пачку, ≤ eliteMax в лагере
             m.rk = 1; m.camp = camp.id; camp.types.push(types[i]);
           }
         }
@@ -230,7 +242,24 @@ export class Zone {
         }
       }
     }
-    this.buildRoamers(R);
+  }
+  campSeq = 0; regBuilt: Record<string, string> = {};
+  /** Админка поменяла плотность локации: убрать её лагеря (мобы снимаются обычным путём «мёртв без респавна» — без дублей,
+   *  мешки добычи живут отдельно и не теряются) и построить заново по новым правилам. Мобы в бою с игроком — тоже убираются. */
+  regenRegion(id: string) {
+    const reg = this.gen.regions.find((r) => r.id === id); if (!reg || !this.gen.camps) return 0;
+    const old = new Set(this.camps.filter((c) => c.region === id).map((c) => c.id));
+    let removed = 0;
+    for (const m of this.mobs) if (m.camp && old.has(m.camp)) { m.dead = true; m.respawnAt = -1; m.camp = 0; removed++; }
+    this.camps = this.camps.filter((c) => !old.has(c.id));
+    const CELL = 1000, grid = new Map<number, any[]>(), gk = (x: number, y: number) => Math.floor(x / CELL) * 4096 + Math.floor(y / CELL);
+    for (const c of this.camps) { const k = gk(c.x, c.y); const g = grid.get(k); if (g) g.push(c); else grid.set(k, [c]); }
+    const tooClose = (x: number, y: number, d: number) => { const r = Math.ceil(d / CELL), cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+      for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) for (const c of grid.get((cx + i) * 4096 + cy + j) || []) if (Math.hypot(c.x - x, c.y - y) < d) return true; return false; };
+    const R = rng(this.seed ^ 0xc0ffee ^ (Date.now() & 0xffff));
+    this.buildRegionCamps(reg, R, valueNoise(this.seed ^ 0x51ed, 3200), valueNoise(this.seed ^ 0x9a1, 900), grid, gk, tooClose);
+    this.campCache.at = 0;
+    return removed;
   }
   /** смещения членов пачки: неровные формы, минимум 24 px между мобами */
   formation(n: number, R: () => number): [number, number][] {
@@ -480,6 +509,8 @@ export class Zone {
     for (const b of G.bosses) {
       const bk = b.key || b.type; // несколько боссов одного типа в разных пятнах — свои таймеры
       if (!this.bossAt[bk]) this.bossAt[bk] = now + (BOSS_TIMERS[b.type] ? BOSS_TIMERS[b.type].firstAfter + ((b as any).stagger || 0) : b.firstAfter) * 1000; // таймер — из админки
+      const breg = this.gen.regions.find((r) => b.x >= r.rect[0] && b.x < r.rect[2] && b.y >= r.rect[1] && b.y < r.rect[3]);
+      if (breg?.bossOn === false) { const id = this.bossIds[bk], bm = id && this.byId.get(id); if (bm && !bm.dead && !bm.targetSid) { bm.dead = true; bm.respawnAt = -1; } continue; } // админка: босс в локации выключен
       if (this.bossIds[bk] || now < this.bossAt[bk]) continue;
       const m = this.addMob(b.type, b.x, b.y, { region: null, hpMul: 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1), special: "boss" });
       (m as any).bossKey = bk; this.bossIds[bk] = m.id; this.bossAt[bk] = Number.MAX_SAFE_INTEGER;

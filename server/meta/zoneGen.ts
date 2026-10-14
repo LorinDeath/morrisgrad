@@ -26,6 +26,9 @@ export interface Region {
   table: MobRow[];
   night?: Record<string, number>;         // множители весов в «Фиолетовую ночь»
   elite: number;                          // шанс элиты на пачку
+  // плотность (админка «Спавн» → локация; пусто = как в коде): множитель числа лагерей, пачек в лагере, мобов в пачке,
+  // максимум элит в лагере (кроме вожаков), есть ли мировой босс в локации
+  dens?: number; packs?: [number, number]; pack?: [number, number]; eliteMax?: number; bossOn?: boolean;
   nodes: { type: string; res: string; n: number; respawn: number; qty: [number, number] }[];
 }
 export interface WorldBossDef { type: string; key?: string; x: number; y: number; firstAfter: number; every: number; where: string; stagger?: number }
