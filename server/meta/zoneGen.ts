@@ -71,7 +71,7 @@ export const ZONE_GEN = {
   // «бродячие» мобы (Аринар, ДОБАВКА к лагерям): раз в ambientEvery с на игрока, если в ambientNear px нет живых мобов —
   // ambientChance % один обычный моб региона у края экрана (ambientEdge px), ambientGroupChance % — группа ambientGroup + 1 элита;
   // идут на игрока (охота ambientHunt с); не больше ambientCap на игрока; уходят, если далеко/без боя ambientLife с
-  ambientOn: 1, ambientEvery: 10, ambientChance: 10, ambientGroupChance: 1, ambientNear: 520, ambientEdge: 440,
+  ambientOn: 1, ambientEvery: 10, ambientChance: 10, ambientGroupChance: 1, ambientNear: 420, ambientEdge: 380,
   ambientGroup: 3, ambientCap: 6, ambientHunt: 25, ambientLife: 60, ambientDespawnDist: 1100,
 };
 
