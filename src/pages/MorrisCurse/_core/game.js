@@ -724,7 +724,7 @@ async function boot(canvasId, username, userId, api) {
     run.sentDead = false;
     helloSent = false;
     if (!solo && !run.isHost && runHostId) { helloSent = true; setTimeout(() => { if (run && run.epoch === epoch && !run.isHost) net.runRelay({ k: 'hello' }, runHostId, epoch); }, 300); }
-    const arena = new RunArena(RUN_ROOMS[roomId]?.theme || 'crypt');
+    const arena = new RunArena(RUN_ROOMS[roomId]?.theme || 'crypt', RUN_ROOMS[roomId]?.tiles || null);
     hub.detach();
     runView = new RunView(THREE, stage.scene, run, arena);
     stage.setEnvironment(arena);
@@ -1455,6 +1455,7 @@ async function boot(canvasId, username, userId, api) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
       rawSend: (o) => net.send(o),
+      arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       minimap: () => hud.minimap?.stats,
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y) })),

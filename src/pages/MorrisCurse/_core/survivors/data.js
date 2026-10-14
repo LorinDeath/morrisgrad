@@ -2,12 +2,14 @@
 // id классов и навыков совпадают с сервером (server/classes.ts, server/skills.ts):
 //   warrior → backstab, spearman → pierce, rogue → trick_strike, mage → fireball.
 
+// tiles — тайлсет пола подземелья (src/assets/mc/tiles_<theme>.png, tilesets_new): Склеп=камень, Бездна=воздух,
+// Испытание отражений=лёд (зеркала Кьют), Испытание Обители=огонь (сердце под Миром Адского Пламени). Открытый мир — прежний tiles_atlas.
 export const RUN_ROOMS = {
-  crypt: { id: 'crypt', name: 'Склеп', theme: 'crypt', color: '#ef4444', desc: 'Каменный склеп под Миром Адского Пламени. Бесы, упыри и Страж Проклятия.' },
-  abyss: { id: 'abyss', name: 'Бездна', theme: 'abyss', color: '#22d3ee', desc: 'Осколок Аринара в пустоте. Те же твари — в космическом обличье.' },
+  crypt: { id: 'crypt', name: 'Склеп', theme: 'crypt', tiles: 'stone', color: '#ef4444', desc: 'Каменный склеп под Миром Адского Пламени. Бесы, упыри и Страж Проклятия.' },
+  abyss: { id: 'abyss', name: 'Бездна', theme: 'abyss', tiles: 'air', color: '#22d3ee', desc: 'Осколок Аринара в пустоте. Те же твари — в космическом обличье.' },
   // мини-игры хаба (тот же движок комнат; награды и квестовые события — на сервере)
-  duel: { id: 'duel', name: 'Испытание отражений', theme: 'abyss', color: '#f472b6', mode: 'duel', desc: 'Кьют выпускает своё отражение. Победите его — можно урезать себе здоровье (50% / 30%) ради звёздных заданий.' },
-  trial: { id: 'trial', name: 'Испытание Обители', theme: 'crypt', color: '#fbbf24', mode: 'trial', desc: 'Сердце Обители в центре зала. Удержите его 8 волн — твари идут к нему, а не к вам.' },
+  duel: { id: 'duel', name: 'Испытание отражений', theme: 'abyss', tiles: 'ice', color: '#f472b6', mode: 'duel', desc: 'Кьют выпускает своё отражение. Победите его — можно урезать себе здоровье (50% / 30%) ради звёздных заданий.' },
+  trial: { id: 'trial', name: 'Испытание Обители', theme: 'crypt', tiles: 'fire', color: '#fbbf24', mode: 'trial', desc: 'Сердце Обители в центре зала. Удержите его 8 волн — твари идут к нему, а не к вам.' },
 };
 // Испытание Обители: 8 волн по 20 с (сервер проверяет время ≥ волна × 20 с)
 export const TRIAL = { waves: 8, every: 20, heartHp: 600, heartR: 1.6 };

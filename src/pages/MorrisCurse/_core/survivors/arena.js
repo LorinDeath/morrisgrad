@@ -2,10 +2,44 @@
 import { ARENA_RADIUS } from './data.js';
 import { PILLARS } from './run.js';
 import { createStoneCanvas } from '../worlds/artDeco.js';
+import tilesStone from '../../../../assets/mc/tiles_stone.png';
+import tilesAir from '../../../../assets/mc/tiles_air.png';
+import tilesIce from '../../../../assets/mc/tiles_ice.png';
+import tilesFire from '../../../../assets/mc/tiles_fire.png';
+import tilesMeta from '../../../../assets/mc/tiles_stone.json'; // индекс 63 слотов одинаков у всех тем (и у tiles_atlas)
+
+const TILE_SRC = { stone: tilesStone, air: tilesAir, ice: tilesIce, fire: tilesFire };
+// акцент темы: сигил/обод/огни колонн
+export const TILE_ACCENT = { stone: 0xc59b27, air: 0x22d3ee, ice: 0x93c5fd, fire: 0xff6a1a };
+const srcUrl = (s) => (typeof s === 'object' && s ? (s.src || s.default || '') : s);
+const TILE_M = 1.6; // 16 px = 1.6 м — тот же масштаб пикселей, что у мира и спрайтов
+
+// Пол подземелья из тайлсета темы: центр — плаза с руной, кольцо брусчатки с вкраплениями, край — кладка
+export function bakeTileFloor(img, R, seed = 7) {
+  const T = tilesMeta.tile, cols = tilesMeta.cols, I = tilesMeta.index;
+  const N = Math.ceil((2 * (R + 2)) / TILE_M);
+  const cv = document.createElement('canvas'); cv.width = cv.height = N * T;
+  const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+  let s = seed; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const pick = (...names) => I[names[Math.floor(rnd() * names.length)]];
+  const c = (N - 1) / 2, rT = (R + 2) / TILE_M;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const d = Math.hypot(x - c, y - c);
+    let id;
+    if (d < 0.8) id = I.plaza_rune;
+    else if (d < rT * 0.18) id = pick('plaza0', 'plaza1', 'plaza2', 'plaza3');
+    else if (d > rT - 2.2) id = pick('brick0', 'brick1', 'brick_moss', 'wall_top');
+    else { const r = rnd(); id = r < 0.06 ? pick('crater0', 'crater1', 'crater2', 'crater3') : r < 0.12 ? pick('rot0', 'rot1', 'waste0', 'waste1') : r < 0.2 ? pick('dirt0', 'dirt1', 'dirt2') : pick('cobble0', 'cobble1', 'cobble2'); }
+    if (id === undefined) id = I.cobble0;
+    g.drawImage(img, (id % cols) * T, Math.floor(id / cols) * T, T, T, x * T, y * T, T, T);
+  }
+  return cv;
+}
 
 export class RunArena {
-  constructor(theme = 'crypt') {
+  constructor(theme = 'crypt', tiles = null) {
     this.theme = theme;
+    this.tiles = TILE_SRC[tiles] ? tiles : null;
     const abyss = theme === 'abyss';
     this.id = 'run_' + theme;
     this.sky = abyss ? 0x03020a : 0x050308;
@@ -16,6 +50,7 @@ export class RunArena {
 
   build(THREE) {
     const abyss = this.theme === 'abyss';
+    const acc = this.tiles ? TILE_ACCENT[this.tiles] : null; // акцент тайлсета
     const g = new THREE.Group();
     const R = ARENA_RADIUS;
     const tex = new THREE.CanvasTexture(createStoneCanvas(abyss
@@ -25,12 +60,23 @@ export class RunArena {
     tex.repeat.set(R / 4, R / 4);
     tex.anisotropy = 4;
     if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    // тайлсет темы (если есть): каменный холст — до загрузки PNG, потом запечённый пол из тайлов
+    if (this.tiles) {
+      const img = new Image();
+      img.onload = () => {
+        const t2 = new THREE.CanvasTexture(bakeTileFloor(img, R, this.tiles.length * 31));
+        t2.magFilter = THREE.NearestFilter; t2.minFilter = THREE.NearestFilter; t2.generateMipmaps = false;
+        if (THREE.sRGBEncoding) t2.encoding = THREE.sRGBEncoding;
+        floor.material.map = t2; floor.material.needsUpdate = true; this.floorReady = true;
+      };
+      img.src = srcUrl(TILE_SRC[this.tiles]);
+    }
     const floor = new THREE.Mesh(new THREE.CircleGeometry(R + 2, 64), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.1 }));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     g.add(floor);
     // Сигил в центре
-    const sigil = new THREE.Mesh(new THREE.RingGeometry(5, 5.4, 6), new THREE.MeshBasicMaterial({ color: abyss ? 0x22d3ee : 0xef4444, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+    const sigil = new THREE.Mesh(new THREE.RingGeometry(5, 5.4, 6), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xef4444), transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
     sigil.rotation.x = -Math.PI / 2; sigil.position.y = 0.02;
     g.add(sigil);
     this.sigil = sigil;
@@ -43,13 +89,13 @@ export class RunArena {
     wall.material.side = THREE.BackSide;
     wall.position.y = 1.5;
     g.add(wall);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.2, 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: abyss ? 0x22d3ee : 0xc59b27 }));
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.2, 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xc59b27) }));
     rim.rotation.x = Math.PI / 2; rim.position.y = 0.05;
     g.add(rim);
     // Колонны (совпадают с коллайдерами симуляции)
     const colMat = new THREE.MeshStandardMaterial({ color: abyss ? 0x312e81 : 0x2a1f1f, flatShading: true, roughness: 0.6 });
     const capMat = new THREE.MeshStandardMaterial({ color: abyss ? 0xa5b4fc : 0xc59b27, metalness: 0.6, roughness: 0.35, emissive: abyss ? 0x312e81 : 0x3d2a00, emissiveIntensity: 0.5 });
-    const flameMat = new THREE.MeshBasicMaterial({ color: abyss ? 0x67e8f9 : 0xff7a1a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+    const flameMat = new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x67e8f9 : 0xff7a1a), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
     this.flames = [];
     PILLARS.forEach((p, i) => {
       const h = 3.2 + (i % 3) * 0.6;
@@ -65,7 +111,7 @@ export class RunArena {
       g.add(fl);
       this.flames.push(fl);
       if (i % 2 === 0) {
-        const light = new THREE.PointLight(abyss ? 0x67e8f9 : 0xff8a3c, 1.1, 12, 1.8);
+        const light = new THREE.PointLight(acc ?? (abyss ? 0x67e8f9 : 0xff8a3c), 1.1, 12, 1.8);
         light.position.set(p.x, h + 1.2, p.z);
         g.add(light);
       }

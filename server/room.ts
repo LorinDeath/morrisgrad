@@ -932,7 +932,7 @@ export class GameRoom extends DurableObject {
         if (msg.type === "dev_plant_flower" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1" && (session.world || "hellfire") === "hellfire") {
           this.plantFlower(Math.round(Number(msg.x ?? session.x)), Math.round(Number(msg.y ?? session.y)));
           const f = [...this.flowers.values()].pop();
-          if (f && msg.stage === "mature") f.stage = "mature";
+          if (f && (msg.stage === "mature" || msg.stage === "active")) f.stage = msg.stage; // только dev: показать все стадии
           this.broadcast();
           return;
         }
