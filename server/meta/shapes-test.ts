@@ -12,7 +12,7 @@ function setup(mobs: [number, number][]) {
   return { c, log, ms };
 }
 { const { c, log } = setup([[100, 0], [-100, 0], [500, 0]]); castShape("frost_nova", c);
-  t("нова: в радиусе обе стороны", log.hits.length === 2); t("нова: заморозка", log.st.length === 2); }
+  t("нова: в радиусе обе стороны", log.hits.length === 2); t("нова: замедление (как в забеге)", log.st.length >= 2 && log.st.every((x: any) => x[1].slow)); }
 { const { c, log } = setup([[200, 0], [400, 0], [200, 200]]); castShape("pierce", c);
   t("линия: только по направлению", log.hits.length === 2 && log.hits.every((h: any) => h[0] !== 2)); t("линия: пробой брони", log.hits[0][2]?.pierceArmor); }
 { const { c, log } = setup([[100, 0]]); castShape("shadow_step", c);
@@ -21,5 +21,5 @@ function setup(mobs: [number, number][]) {
   t("метеор: урон отложен", log.hits.length === 0 && log.later.length > 0); log.later.forEach((l: any) => l[1]()); t("метеор: падает в точке", log.hits.length === 1); }
 { const { c, log } = setup([[0, 0]]); castShape("shield_wall", c); t("стена щитов: снижение урона", log.buff.some((b: any) => b.dr)); }
 { const { c, log } = setup([]); c.x = 950; castShape("leap_strike", c); t("прыжок: в границах мира", log.move && log.move[0] <= 1000); }
-t("все формы известны", Object.values(SHAPES).every((s: any) => ["nova", "line", "proj", "dash", "leap", "rain", "meteor", "cloud", "cone"].includes(s.k)));
+t("все формы известны", Object.values(SHAPES).every((s: any) => ["nova", "line", "proj", "dash", "leap", "rain", "meteor", "cloud", "cone", "ring"].includes(s.k)));
 console.log(`shapes ${ok}/${ok + bad}`);

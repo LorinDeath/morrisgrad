@@ -15,6 +15,7 @@ export type Shape =
   | { k: "rain"; n: number; area: number; r: number }
   | { k: "meteor"; dist: number; r: number; delay: number }
   | { k: "cloud"; r: number; invuln: number }
+  | { k: "ring"; n: number }
   | { k: "cone"; len: number; arc: number; freeze?: number; slow?: boolean; knock?: number; heal?: number };
 
 // Навыки «Вампир-лайка» на оружии (слот R): форма в открытом мире по мотивам оружия забега
@@ -36,17 +37,17 @@ export const RS_SHAPES: Record<string, Shape> = {
   fly_blades: { k: "dash", len: 200, w: 70 },
 };
 export const SHAPES: Record<string, Shape> = {
-  backstab: { k: "dash", len: 260, w: 50, toStrongest: true, fan: 150 },
+  backstab: { k: "dash", len: 260, w: 50, toStrongest: true, invuln: 600 }, // + веер клинков после рывка (POST.backstab)
   shield_wall: { k: "nova", r: 150, knock: 3, dr: 4000 },
   whirlwind: { k: "nova", r: 120, ticks: 4, gap: 750 },
   pierce: { k: "line", len: 420, w: 44, pierceArmor: true },
   spear_rain: { k: "rain", n: 18, area: 220, r: 55 },
   leap_strike: { k: "leap", len: 220, r: 120, invuln: 600 },
-  trick_strike: { k: "cone", len: 170, arc: 1.3, heal: 0.1 }, // финт: веер ударов вперёд + лечение от урона
+  trick_strike: { k: "ring", n: 16 }, // вихрь кинжалов во все стороны + 10% лечения (как в забеге)
   smoke_bomb: { k: "cloud", r: 150, invuln: 2500 },
-  shadow_step: { k: "dash", len: 240, w: 50, trail: 600, invuln: 300 },
+  shadow_step: { k: "dash", len: 240, w: 50, invuln: 450 }, // огненный след — только с талантом t_trail (как в забеге)
   fireball: { k: "proj", len: 480, r: 110, w: "staff" },
-  frost_nova: { k: "nova", r: 170, freeze: 2000 },
+  frost_nova: { k: "ring", n: 20 }, // кольцо ледяных осколков + замедление вокруг (как в забеге)
   meteor: { k: "meteor", dist: 300, r: 130, delay: 1200 },
   fly_blade_dash: { k: "dash", len: 200, w: 60 },
   // навыки монстров из кодекса — тоже по направлению
@@ -72,6 +73,11 @@ export interface CastCtx {
   buff: (b: { invuln?: number; dr?: number; heal?: number }) => void;
   later: (ms: number, fn: () => void) => void;
   ev: (e: any) => void;
+  /** модификаторы навыка (Сияния и таланты t_*): составные эффекты как в забеге */
+  props?: string[];
+  /** текущая позиция героя (для отложенного «эха») */
+  here?: () => [number, number];
+  echo?: boolean;
   /** настоящий снаряд сервера (открытый мир); без него (дуэль) — прежний мгновенный расчёт */
   fire?: (o: { t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number; spd?: number; arc?: boolean; onHit?: (m: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void }) => any;
 }
@@ -98,8 +104,15 @@ function lineMobs(zone: any, x: number, y: number, dx: number, dy: number, len: 
 export function castShape(id: string, c: CastCtx): number {
   const s = shapeOf(id);
   const k = c.radiusMult;
-  let dealt = 0;
+  const P = c.props || [];
+  let dealt = 0, endX = c.x, endY = c.y;
   const hitAll = (ms: any[], mult: number, opts?: any) => { for (const m of ms) dealt += c.hit(m, mult, opts) || 0; };
+  // кольцо настоящих снарядов из точки (веер клинков/кинжалов/осколков забега); без fire — мгновенный круг
+  const ring = (spr: string, n: number, ox: number, oy: number, range: number, mult: number, max: number, phase = 0, onHit?: (m: any, d: number) => void) => {
+    if (!c.fire) { for (const m of c.zone.mobsAround(ox, oy, range)) { const d = c.hit(m, mult * Math.min(3, max)) || 0; dealt += d; onHit?.(m, d); } c.ev({ k: "ability", sid: c.sid, id, x: R(ox), y: R(oy), r: R(range) }); return; }
+    for (let i = 0; i < n; i++) { const a = phase + (i / n) * Math.PI * 2;
+      c.fire({ t: spr, x: ox, y: oy, dx: Math.cos(a), dy: Math.sin(a), range, w: 24, max, onHit: (m) => { const d = c.hit(m, mult) || 0; dealt += d; onHit?.(m, d); } }); }
+  };
   switch (s.k) {
     case "nova": {
       const r = s.r * k;
@@ -118,7 +131,7 @@ export function castShape(id: string, c: CastCtx): number {
     case "line": {
       const len = s.len * k, spr = projSprite(id, "spear");
       if (c.fire && spr !== "sun_beam") { // летящее копьё/кинжалы: пробивает насквозь, урон в момент касания
-        const fan = spr === "daggers" ? [-0.22, 0, 0.22] : [0];
+        const fan = spr === "daggers" ? [-0.22, 0, 0.22] : id === "pierce" && P.includes("t_twin") ? [-0.16, 0.16] : [0]; // «Двойной выпад»
         for (const a of fan) { const [vx, vy] = rot(c.dx, c.dy, a); c.fire({ t: spr, x: c.x, y: c.y, dx: vx, dy: vy, range: len, w: fan.length > 1 ? 34 : s.w, max: 99, onHit: (m) => { dealt += c.hit(m, fan.length > 1 ? 0.5 : 1, { pierceArmor: s.pierceArmor }) || 0; } }); }
         break;
       }
@@ -130,11 +143,16 @@ export function castShape(id: string, c: CastCtx): number {
       // летит до первого моба на линии (или до конца), там взрыв
       const len = s.len * k, spr = projSprite(id, "fireball");
       if (c.fire) {
-        const r = s.r * k;
-        c.fire({ t: spr, x: c.x, y: c.y, dx: c.dx, dy: c.dy, range: len, w: 30, max: 1, onEnd: (x, y) => {
-          hitAll(c.zone.mobsAround(x, y, r), 1); c.ev({ k: "ability", sid: c.sid, id, x: R(x), y: R(y), r });
+        // талант «Тройной шар»: три шара веером ±18°, каждый 55% и меньше взрыв (как в забеге)
+        const split = id === "fireball" && P.includes("t_split3");
+        for (const da of split ? [-0.32, 0, 0.32] : [0]) {
+        const [pdx, pdy] = rot(c.dx, c.dy, da);
+        const r = s.r * k * (split ? 0.76 : 1), pm = split ? 0.55 : 1;
+        c.fire({ t: spr, x: c.x, y: c.y, dx: pdx, dy: pdy, range: len, w: 30, max: 1, onEnd: (x, y) => {
+          hitAll(c.zone.mobsAround(x, y, r), pm); c.ev({ k: "ability", sid: c.sid, id, x: R(x), y: R(y), r });
           if (spr === "split_shard") for (const a of [-0.6, 0, 0.6]) { const [vx, vy] = rot(c.dx, c.dy, a); c.fire!({ t: "split_shard", x: x + vx * 20, y: y + vy * 20, dx: vx, dy: vy, range: 170, w: 22, max: 1, onHit: (m) => { dealt += c.hit(m, 0.4) || 0; } }); }
         } });
+        }
         break;
       }
       const on = lineMobs(c.zone, c.x, c.y, c.dx, c.dy, len, 30).map((m: any) => ({ m, a: (m.x - c.x) * c.dx + (m.y - c.y) * c.dy })).sort((p: any, q: any) => p.a - q.a);
@@ -158,10 +176,10 @@ export function castShape(id: string, c: CastCtx): number {
       hitAll(lineMobs(c.zone, c.x, c.y, dx, dy, real, s.w), 1);
       c.ev({ k: "aline", sid: c.sid, id, x: R(c.x), y: R(c.y), dx, dy, len: R(real) });
       const fx = c.x, fy = c.y;
-      c.move(nx, ny);
+      c.move(nx, ny); endX = nx; endY = ny;
       if (s.invuln) c.buff({ invuln: s.invuln });
       if (s.fan) { const r = s.fan * k; hitAll(c.zone.mobsAround(nx, ny, r), 0.6); c.ev({ k: "ability", sid: c.sid, id, x: R(nx), y: R(ny), r }); }
-      if (s.trail) c.later(s.trail, () => {
+      if (s.trail || (id === "shadow_step" && P.includes("t_trail"))) c.later(s.trail || 600, () => {
         hitAll(lineMobs(c.zone, fx, fy, dx, dy, real, s.w + 30), 0.7);
         for (let i = 0; i <= 3; i++) c.ev({ k: "ability", sid: c.sid, id, x: R(fx + dx * real * i / 3), y: R(fy + dy * real * i / 3), r: 60 });
       });
@@ -172,7 +190,8 @@ export function castShape(id: string, c: CastCtx): number {
       if (s.invuln) c.buff({ invuln: s.invuln });
       c.ev({ k: "amark", sid: c.sid, id, x: R(nx), y: R(ny), r: s.r * k, t: 0.45 });
       c.move(nx, ny);
-      c.later(400, () => { const r = s.r * k; const ms = c.zone.mobsAround(nx, ny, r); hitAll(ms, 1); for (const m of ms) c.status(m, { knock: 2 }, nx, ny); c.ev({ k: "ability", sid: c.sid, id, x: R(nx), y: R(ny), r }); });
+      endX = nx; endY = ny;
+      c.later(400, () => { const quake = P.includes("t_quake"); const r = s.r * k * (quake ? 1.5 : 1); const ms = c.zone.mobsAround(nx, ny, r); hitAll(ms, 1); for (const m of ms) c.status(m, { knock: 2, slow: quake }, nx, ny); c.ev({ k: "ability", sid: c.sid, id, x: R(nx), y: R(ny), r }); });
       break;
     }
     case "rain": {
@@ -200,6 +219,11 @@ export function castShape(id: string, c: CastCtx): number {
       }
       c.ev({ k: "amark", sid: c.sid, id, x: R(tx), y: R(ty), r, t: s.delay / 1000, fdx: c.dx < 0 ? -1 : 1 });
       c.later(s.delay, () => { hitAll(c.zone.mobsAround(tx, ty, r), 1); c.ev({ k: "ability", sid: c.sid, id, x: R(tx), y: R(ty), r }); });
+      if (id === "meteor" && P.includes("t_shower")) for (const [i, ox, oy] of [[1, 52, 24], [2, -44, -36]]) { // «Метеоритный дождь»: ещё два малых
+        const [sx, sy] = c.bounds(tx + ox, ty + oy), r2 = r * 0.58;
+        c.ev({ k: "amark", sid: c.sid, id, x: R(sx), y: R(sy), r: R(r2), t: (s.delay + i * 300) / 1000, fdx: c.dx < 0 ? -1 : 1 });
+        c.later(s.delay + i * 300, () => { hitAll(c.zone.mobsAround(sx, sy, r2), 0.2); c.ev({ k: "ability", sid: c.sid, id, x: R(sx), y: R(sy), r: R(r2) }); });
+      }
       break;
     }
     case "cone": {
@@ -219,6 +243,22 @@ export function castShape(id: string, c: CastCtx): number {
       for (const a of [-half, 0, half]) { const ca = Math.cos(a), sa = Math.sin(a); c.ev({ k: "aline", sid: c.sid, id, x: R(c.x), y: R(c.y), dx: c.dx * ca - c.dy * sa, dy: c.dx * sa + c.dy * ca, len: R(len) }); }
       break;
     }
+    case "ring": {
+      if (id === "trick_strike") {
+        // «Коварный удар»: вихрь 16 (24 — «Веер ножей») кинжалов, 10% урона — лечение; «Двойной вихрь» — второй через 0.4 с
+        const n = P.includes("t_fan24") ? 24 : 16, range = 270 * k;
+        const heal = (_m: any, d: number) => { if (d) c.buff({ heal: d * 0.1 }); };
+        ring("daggers", n, c.x, c.y, range, 0.6, 2, 0, heal);
+        if (P.includes("t_double") && !c.echo) c.later(400, () => { const [hx, hy] = c.here ? c.here() : [c.x, c.y]; ring("daggers", n, hx, hy, range, 0.6, 2, Math.PI / n, heal); });
+      } else {
+        // «Ледяная нова»: кольцо 20 (28 — «Глубокий холод») осколков + замедление вокруг
+        const n = P.includes("t_deep") ? 28 : 20, r = 120 * k;
+        ring("ice_fan", n, c.x, c.y, 154 * k, 0.45, 6, 0, (m) => c.status(m, { slow: true }, c.x, c.y));
+        for (const m of c.zone.mobsAround(c.x, c.y, r)) c.status(m, { slow: true }, c.x, c.y);
+        c.ev({ k: "ability", sid: c.sid, id, x: R(c.x), y: R(c.y), r: R(r) });
+      }
+      break;
+    }
     case "cloud": {
       const r = s.r * k;
       c.buff({ invuln: s.invuln });
@@ -229,5 +269,18 @@ export function castShape(id: string, c: CastCtx): number {
       break;
     }
   }
+  // составные эффекты ПОСЛЕ основной формы — как в забеге (survivors/run.js castAbility)
+  if (id === "backstab") {
+    // «Удар в спину»: после рывка за спину — веер 10 (14 — талант t_fan) клинков из точки приземления
+    ring("daggers", P.includes("t_fan") ? 14 : 10, endX, endY, 192 * k, 0.8, 3);
+    c.ev({ k: "ability", sid: c.sid, id, x: R(endX), y: R(endY), r: 60 });
+  }
+  if (P.includes("nova") && !c.echo) { // Сияние «Нова»: взрыв вокруг героя после навыка
+    const r = 80, ms = c.zone.mobsAround(endX, endY, r); hitAll(ms, 0.55);
+    for (const m of ms) c.status(m, { knock: 2 }, endX, endY);
+    c.ev({ k: "ability", sid: c.sid, id: "nova", x: R(endX), y: R(endY), r });
+  }
+  if (P.includes("echo") && !c.echo) // Сияние «Эхо»: повтор через 0.6 с с силой 40% из текущей позиции, без перемещения
+    c.later(600, () => { const [hx, hy] = c.here ? c.here() : [endX, endY]; castShape(id, { ...c, x: hx, y: hy, dmg: c.dmg * 0.4, echo: true, hit: (m, mult, o) => c.hit(m, mult * 0.4, o), move: () => {}, buff: () => {} }); });
   return dealt;
 }

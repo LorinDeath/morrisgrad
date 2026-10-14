@@ -891,7 +891,7 @@ export class MetaService {
     const world = session.world || "hellfire";
     const sid = session.id;
     const dealt = castShape(ab.id, {
-      zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult,
+      zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult, props: ab.props, here: () => [session.x, session.y],
       fire: (o) => zone.fire({ ...o, o: "p", sid }), // настоящие снаряды навыков
       hit: (m, mult, opts) => {
         if (m.dead) return 0;

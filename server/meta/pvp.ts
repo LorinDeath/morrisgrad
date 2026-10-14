@@ -343,7 +343,7 @@ export class Pvp {
     const zone = { mobsAround: (x: number, y: number, r: number) => (live() && Math.hypot(c.os.x - x, c.os.y - y) <= r + HERO_R ? [opp] : []) };
     const S = W_ARENA;
     const dealt = castShape(ab.id, {
-      zone, sid: session.id, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult: (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods),
+      zone, sid: session.id, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult: (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods), props: ab.props, here: () => [session.x, session.y],
       hit: (_m, mult) => { if (!live()) return 0; const real = this.deal(c, session, dmg * mult, false, { lifestealPct: 0 }) || 0; this.traits(c, session, real, null, ab.id); return real; },
       status: (_m, st) => this.status(c, session, { slow: !!st.slow, knock: st.knock, freeze: st.freeze }), // навыки: замедление/отбрасывание/заморозка — как в мире
       move: (x, y) => { session.x = x; session.y = y; c.me.zp.x = x; c.me.zp.y = y; this.host.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
