@@ -1048,7 +1048,10 @@ export class MetaService {
         const fp: [string, string, number, number][] = [];
         if ((s.world || "hellfire") === "arinar") for (const m2 of this.ms.values()) { if (m2.sid === s.id) continue; const s2 = this.sessionLookup?.(m2.sid)?.[1], c2 = s2?.stats?.classId; if (!c2) continue; // владелец может быть где угодно (хаб, забег)
           const P = this.store.hero(m2.pkey, c2).portal; if (P?.x != null && Math.abs(P.x - s.x) < 1500 && Math.abs((P.y || 0) - s.y) < 1500) fp.push([opaqueId(m2.pkey).slice(0, 12), this.displayName(s2), P.x, P.y || 0]); }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, fp, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        // логова мировых боссов (карта M и мини-карта): раз в 5 с и сразу при смене (клиент сам скрывает неразведанные)
+        let wb: any;
+        if (zone.gen.bosses.length) { const list = zone.bossStatus(now), sig = list.map((x) => x[0] + x[1]).join(); if (now - ((ms as any).wbAt || 0) > 5000 || (ms as any).wbSig !== sig) { wb = list; (ms as any).wbAt = now; (ms as any).wbSig = sig; } }
+        this.send(ws, { type: "zone_state", ...st, tg, bags, fp, wb, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }

@@ -42,6 +42,7 @@ import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
+import { setBossState } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
@@ -605,6 +606,7 @@ async function boot(canvasId, username, userId, api) {
   }
   meta.on(() => updateBookBadge());
   net.on('zone_state', (d) => {
+    if (Array.isArray(d.wb)) setBossState(d.wb); // мировые боссы: жив / таймер — на карте и мини-карте
     if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
     if (mode !== 'hub') return;
     const evs = zone.applyState(d, myId) || [];

@@ -449,6 +449,14 @@ export class Zone {
     for (const sid of this.ambNext.keys()) if (!players.has(sid)) this.ambNext.delete(sid);
   }
 
+  /** состояние логов мировых боссов для карты: [ключ, жив, секунд до появления, тип] */
+  bossStatus(now: number): [string, number, number, string][] {
+    return this.gen.bosses.map((b) => { const bk = b.key || b.type, id = this.bossIds[bk], m = id ? this.byId.get(id) : null;
+      const alive = !!(m && !m.dead), at = this.bossAt[bk];
+      const left = alive ? 0 : at && at < Number.MAX_SAFE_INTEGER ? Math.ceil((at - now) / 1000) : (BOSS_TIMERS[b.type]?.firstAfter ?? b.firstAfter) + ((b as any).stagger || 0);
+      return [bk, alive ? 1 : 0, Math.max(0, left), b.type]; });
+  }
+
   // ---------- мировые боссы и редкие Отголоски ----------
   specials(now: number, players: Map<string, ZPlayer>) {
     const G = this.gen;

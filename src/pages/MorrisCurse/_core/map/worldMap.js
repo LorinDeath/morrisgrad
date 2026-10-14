@@ -2,7 +2,7 @@
 // перетаскивание/колесо/щипок, туман войны (чёрное — не разведано), объекты из реестра (server/meta/markers.ts) —
 // только в разведанных местах. Подложка — арт художника v5 (map/mapArt.js: 4096 десктоп / 2048 мобильные).
 import { mapImage, drawMarkerIcon, drawFog } from './mapArt.js';
-import { markersOf, MARKER_STYLE } from '../../../../../server/meta/markers.ts';
+import { markersOf, MARKER_STYLE, bossStatus } from '../../../../../server/meta/markers.ts';
 import { WORLD_SIZES } from '../../../../../server/worlds/sizes.ts';
 import { fog } from './fog.js';
 import { FOG_N, getBit } from '../../../../../server/meta/explore.ts';
@@ -43,14 +43,14 @@ export class WorldMap {
   get world() { return this.getState().world || 'hellfire'; }
   fit() { const r = this.el.getBoundingClientRect(); this.cv.width = r.width; this.cv.height = r.height; this.draw(); }
   open() {
-    this.isOpen = true; this.el.style.display = 'block';
+    this.isOpen = true; this.el.style.display = 'block'; clearInterval(this._tick); this._tick = setInterval(() => this.isOpen && this.draw(), 1000); // таймеры боссов
     this.fit();
     const S = WORLD_SIZES[this.world] || 1200;
     this.minK = Math.min(this.cv.width, this.cv.height) / S * 0.9;
     this.k = Math.max(this.minK, 0.06); // приближено: ~16000 px мира на экран 1000 px
     this.center();
   }
-  close() { this.isOpen = false; this.el.style.display = 'none'; this.tip.style.display = 'none'; }
+  close() { clearInterval(this._tick); this.isOpen = false; this.el.style.display = 'none'; this.tip.style.display = 'none'; }
   toggle() { this.isOpen ? this.close() : this.open(); }
   center() { const p = this.getState().me || { x: 0, y: 0 }; this.cx = p.x; this.cy = p.y; this.draw(); }
   zoomBy(f) { this.k = Math.max(this.minK || 0.01, Math.min(1.5, this.k * f)); this.draw(); }
@@ -59,7 +59,7 @@ export class WorldMap {
   hover(sx, sy) {
     const m = this.visibleMarkers().find((m) => { const [x, y] = this.toScreen(m.x, m.y); return Math.hypot(sx - x, sy - y) < 12; });
     if (!m) { this.tip.style.display = 'none'; return; }
-    this.tip.style.display = 'block'; this.tip.style.left = sx + 14 + 'px'; this.tip.style.top = sy + 'px'; this.tip.innerHTML = esc(m.label);
+    this.tip.style.display = 'block'; this.tip.style.left = sx + 14 + 'px'; this.tip.style.top = sy + 'px'; { const bs = bossStatus(m); this.tip.innerHTML = esc(m.label) + (bs ? `<br><b style="color:${bs.alive ? '#fca5a5' : '#d1d5db'}">${bs.alive ? '☠ Босс жив — можно идти' : '⏳ Возродится через ' + esc(bs.text)}</b>` : ''); }
   }
   draw() {
     if (!this.isOpen) return;
@@ -84,6 +84,11 @@ export class WorldMap {
         ctx.strokeStyle = m.color || stl.color || '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.fillText(m.icon || stl.icon || '•', x, y + 1);
       }
+      if (m.type === 'boss') { const bs = bossStatus(m); // мировой босс: «☠ жив» красным / «⏳ 4:12» до возрождения
+        if (bs) { const t = bs.alive ? '☠ жив' : '⏳ ' + bs.text; ctx.font = 'bold 12px sans-serif'; const tw = ctx.measureText(t).width + 8;
+          if (bs.alive) { ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 15 + 2 * Math.sin(performance.now() / 220), 0, Math.PI * 2); ctx.stroke(); }
+          else { ctx.fillStyle = 'rgba(40,40,48,.55)'; ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill(); }
+          ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fillRect(x - tw / 2, y + 16, tw, 16); ctx.fillStyle = bs.alive ? '#fca5a5' : '#d1d5db'; ctx.fillText(t, x, y + 24.5); ctx.font = '14px sans-serif'; } }
       if (this.k > 0.12 && m.type === 'sign') { ctx.font = '11px sans-serif'; ctx.fillStyle = '#fde68a'; ctx.fillText(m.label, x, y + 24); ctx.font = '14px sans-serif'; }
     }
     const p = st.me; if (p) {

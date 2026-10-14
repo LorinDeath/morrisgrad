@@ -18,6 +18,21 @@ export const MARKER_STYLE: Record<string, { icon: string; color: string }> = {
   sign: { icon: "🪧", color: "#fde68a" }, portal: { icon: "🌀", color: "#818cf8" }, npc: { icon: "💬", color: "#f9a8d4" }, boss: { icon: "☠", color: "#f0abfc" },
 };
 
+// --- живое состояние мировых боссов (сервер → zone_state.wb раз в несколько секунд): жив / через сколько возродится ---
+export interface BossState { alive: boolean; at: number; type?: string }
+export const BOSS_STATE = new Map<string, BossState>();
+/** list: [ключ логова, жив 0/1, секунд до появления, тип] */
+export function setBossState(list: [string, number, number, string?][], now = Date.now()) {
+  for (const [k, a, s, t] of list) BOSS_STATE.set("boss:" + k, { alive: !!a, at: now + Math.max(0, s) * 1000, type: t });
+  listeners.forEach((f) => f());
+}
+export function bossStatus(m: MapMarker, now = Date.now()): { alive: boolean; text: string } | null {
+  const st = m.type === "boss" ? BOSS_STATE.get(m.id) : null; if (!st) return null;
+  if (st.alive) return { alive: true, text: "жив" };
+  const s = Math.max(0, Math.round((st.at - now) / 1000)), h = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+  return { alive: false, text: s <= 0 ? "вот-вот" : h ? `${h}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${mm}:${String(ss).padStart(2, "0")}` };
+}
+
 // --- встроенные объекты ---
 registerMarker({ id: "sign:hub", type: "sign", world: "arinar", x: ARINAR_HUB.x - 120, y: ARINAR_HUB.y - 160, icon: "🪧", label: "Гранатовый двор — сердце Аринара" });
 for (const P of ARINAR_PATCHES) {
