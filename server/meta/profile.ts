@@ -8,7 +8,7 @@
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
-  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES,
+  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 
@@ -328,6 +328,20 @@ export function effSkill(inst: { id: string; rs?: string | null }): { rs: string
   if (d.rs && RUN_SKILL_BY_ID[d.rs]) return { rs: d.rs, src: "item" };
   const t = (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs; if (t && RUN_SKILL_BY_ID[t]) return { rs: t, src: "type" };
   return inst.rs && RUN_SKILL_BY_ID[inst.rs] ? { rs: inst.rs, src: "drop" } : null;
+}
+/** Кодекс «закреплён за»: все виды оружия с этим действующим навыком; открытые в Библиотеке — по имени, закрытые — счётчиком. */
+export function codexBound(a: Account, eqUids: Set<string>) {
+    const bound: Record<string, { name: string; eq: boolean; src: string }[]> = {}, hidden: Record<string, number> = {};
+    for (const d of ITEMS as any[]) { if (d.slot !== "weapon") continue;
+      const fixed = effSkill({ id: d.id, rs: null }), disc = !!a.disc.items[d.id];
+      const mine = a.inv.filter((i) => i.id === d.id);
+      const pairs = fixed ? [{ rs: fixed.rs, src: fixed.src, eq: mine.some((i) => eqUids.has(i.uid)) }]
+        : [...new Set(mine.map((i) => i.rs).filter((r) => r && RUN_SKILL_BY_ID[r!]))].map((rs) => ({ rs: rs!, src: "drop", eq: mine.some((i) => i.rs === rs && eqUids.has(i.uid)) }));
+      for (const q of pairs) { const k = "rs:" + q.rs;
+        if (!disc) { hidden[k] = (hidden[k] || 0) + 1; continue; }
+        (bound[k] = bound[k] || []).push({ name: d.name, eq: q.eq, src: q.src }); }
+    }
+  return { bound, hidden };
 }
 export function weaponSkill(a: Account, h: Hero | null): string | null {
   const uid = h?.equip?.weapon; if (!uid) return null;

@@ -3,7 +3,7 @@
 import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
-  HERO_IDS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
+  HERO_IDS, ITEMS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
@@ -19,7 +19,7 @@ import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import {
-  heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill,
+  heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
@@ -573,13 +573,11 @@ export class MetaService {
     // Карточки экземпляров: действующий навык оружия (с источником) и выход разбора — с правками админки
     const inv: Record<string, any> = {};
     const eqUids = new Set<string>(); for (const h of heroes) for (const u of Object.values(h?.equip || {})) if (u) eqUids.add(String(u));
-    const bound: Record<string, { name: string; eq: boolean; src: string }[]> = {};
-    for (const it of a.inv) {
-      const e = effSkill(it); inv[it.uid] = { salv: salvageYield(it.id), ...(e ? { rs: e.rs, rsSrc: e.src } : {}) };
-      if (e) { const L = (bound["rs:" + e.rs] = bound["rs:" + e.rs] || []); const nm = (ITEM_BY_ID as any)[it.id].name, eq = eqUids.has(it.uid);
-        const ex = L.find((x) => x.name === nm); if (ex) ex.eq = ex.eq || eq; else if (L.length < 8) L.push({ name: nm, eq, src: e.src }); }
-    }
-    for (const c of codex as any[]) if (bound[c.id]) c.bound = bound[c.id].sort((x, y) => +y.eq - +x.eq);
+    for (const it of a.inv) { const e = effSkill(it); inv[it.uid] = { salv: salvageYield(it.id), ...(e ? { rs: e.rs, rsSrc: e.src } : {}) }; }
+    // «Закреплён за»: ВСЕ виды оружия с этим действующим навыком (правка предмета > правка типа > выпавший у своих экземпляров),
+    // но показаны только открытые в Библиотеке; закрытые — лишь счётчиком («???»)
+    const { bound, hidden } = codexBound(a, eqUids);
+    for (const c of codex as any[]) { if (bound[c.id]) c.bound = bound[c.id].sort((x, y) => +y.eq - +x.eq || x.name.localeCompare(y.name)); if (hidden[c.id]) c.boundHidden = hidden[c.id]; }
     return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats, codex, inv };
   }
 
