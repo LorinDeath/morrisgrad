@@ -2,6 +2,7 @@
 // снаряжение (5 слотов) и сумка, ремесло, бестиарий, ветка души (только у Алтаря).
 // Данные — из снимка сервера (MetaClient). Клиент не содержит таблиц предметов и дропа: карточки предметов,
 // Библиотеку предметов и пулы дропа мобов сервер присылает ТОЛЬКО для открытого игроком (itemCards.js, lib_get).
+import { statIcon } from './statIcons.js';
 import {
   TALENTS, TALENT_TIER_REQ, TALENT_BRANCHES, TALENT_BY_ID, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
   RARITIES, SLOTS, SLOT_ORDER, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
@@ -36,8 +37,8 @@ const reqHtml = (d, h) => { const r = reqOf(d); const bad = h && h.lvl < r; retu
 export function itemStatsHtml(def, newProps = []) {
   const st = def.stats || {};
   const rows = [];
-  if (st.dmgMin || st.dmgMax) rows.push(`Урон: <b>${st.dmgMin}–${st.dmgMax}</b>`);
-  for (const [k, v] of Object.entries(st)) if (k !== 'dmgMin' && k !== 'dmgMax' && v) rows.push(`${STAT_LABEL[k] || k}: <b>+${v}</b>${newProps.includes(k) ? ' <i class="mc-new">новое свойство</i>' : ''}`);
+  if (st.dmgMin || st.dmgMax) rows.push(`${statIcon('dmgMin')}Урон: <b>${st.dmgMin}–${st.dmgMax}</b>`);
+  for (const [k, v] of Object.entries(st)) if (k !== 'dmgMin' && k !== 'dmgMax' && v) rows.push(`${statIcon(k)}${STAT_LABEL[k] || k}: <b>+${v}</b>${newProps.includes(k) ? ' <i class="mc-new">новое свойство</i>' : ''}`);
   return rows.join('<br>');
 }
 // Источник дропа: «Мошкара-Жнец — 5%» — из карточки сервера (только для открытых предметов)
@@ -211,11 +212,11 @@ export class Book {
     const heroes = Object.entries(st.heroes || {}).map(([id, x]) => `<span class="${h?.cls === id ? 'on' : ''}">${esc(HERO_NAMES[id])} <b>${x.lvl}</b></span>`).join('');
     if (!h) return `<div class="mc-heroes">${heroes}</div><p>Выберите оболочку у <b>Алтаря перевоплощения</b> в центре Поляны. Каждый герой качается отдельно.</p>`;
     const e = h.effective || {};
-    const stat = (k, v, cap) => `<span>${k}<b>${v}</b>${cap ? `<i title="мягкий кап">/${cap}</i>` : ''}</span>`;
+    const stat = (k, v, cap, id) => `<span>${id ? statIcon(id, 32) : ''}${k}<b>${v}</b>${cap ? `<i title="мягкий кап">/${cap}</i>` : ''}</span>`;
     const stats = `<div class="mc-stats">
-      ${stat('Здоровье', e.maxHp)}${stat('Броня', `${e.armor} (−${Math.round((e.damageReduction || 0) * 100)}%)`)}${stat('Оружие', `${e.weaponMin}–${e.weaponMax}`)}
-      ${stat('Урон', `+${e.dmgPct}%`, STAT_CAPS.dmgPct)}${stat('Крит', `${e.critPct}%`, STAT_CAPS.critPct)}${stat('Скор. атаки', `+${e.atkSpeedPct}%`, STAT_CAPS.atkSpeedPct)}
-      ${stat('Перезарядка', `−${e.cdrPct}%`, STAT_CAPS.cdrPct)}${stat('Вампиризм', `${e.lifestealPct}%`, STAT_CAPS.lifestealPct)}${stat('Скорость', `+${e.speedPct}%`, STAT_CAPS.speedPct)}
+      ${stat('Здоровье', e.maxHp, 0, 'maxHp')}${stat('Броня', `${e.armor} (−${Math.round((e.damageReduction || 0) * 100)}%)`, 0, 'armor')}${stat('Оружие', `${e.weaponMin}–${e.weaponMax}`, 0, 'weaponMin')}
+      ${stat('Урон', `+${e.dmgPct}%`, STAT_CAPS.dmgPct, 'dmgPct')}${stat('Крит', `${e.critPct}%`, STAT_CAPS.critPct, 'critPct')}${stat('Скор. атаки', `+${e.atkSpeedPct}%`, STAT_CAPS.atkSpeedPct, 'atkSpeedPct')}
+      ${stat('Перезарядка', `−${e.cdrPct}%`, STAT_CAPS.cdrPct, 'cdrPct')}${stat('Вампиризм', `${e.lifestealPct}%`, STAT_CAPS.lifestealPct, 'lifestealPct')}${stat('Скорость', `+${e.speedPct}%`, STAT_CAPS.speedPct, 'speedPct')}
     </div>`;
     const xpw = Math.min(100, (h.xp / (h.xpNeed || 1)) * 100);
     const open = this.meta.flag('talents_open');

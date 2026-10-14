@@ -1,5 +1,6 @@
 // Рейтинг игроков (топ-100 по уровню / по рекорду урона) и просмотр персонажа (только чтение).
 // Все данные — от сервера (rating / inspect); клиент ничего не считает и не хранит.
+import { statIcon } from './statIcons.js';
 import { ABILITY_BY_ID, RADIANCE_PROPS, radianceProps, RARITIES, SLOTS, SLOT_ORDER, MOB_INFO } from '../../../../../server/meta/shared.ts';
 import { displayClassName } from '../survivors/data.js';
 import { iconHtml } from '../meta/itemCards.js';
@@ -98,7 +99,7 @@ export class Social {
         if (!g) return `<div class="mc-insp-slot empty" tabindex="0"><div class="ic">·</div><span>${esc(SLOTS[s])}</span><div class="tip">${esc(SLOTS[s])}: пусто</div></div>`;
         const rar = RARITIES[g.rarity] || RARITIES.common;
         const st = Object.entries(g.stats || {}).filter(([, v]) => v);
-        const stHtml = (g.stats?.dmgMin || g.stats?.dmgMax ? `Урон: <b>${g.stats.dmgMin}–${g.stats.dmgMax}</b><br>` : '') + st.filter(([k]) => k !== 'dmgMin' && k !== 'dmgMax').map(([k, v]) => `${STAT_RU[k] || esc(k)}: <b>+${v}</b>`).join('<br>');
+        const stHtml = (g.stats?.dmgMin || g.stats?.dmgMax ? `${statIcon('dmgMin')}Урон: <b>${g.stats.dmgMin}–${g.stats.dmgMax}</b><br>` : '') + st.filter(([k]) => k !== 'dmgMin' && k !== 'dmgMax').map(([k, v]) => `${statIcon(k)}${STAT_RU[k] || esc(k)}: <b>+${v}</b>`).join('<br>');
         return `<div class="mc-insp-slot" tabindex="0" style="--rc:${rar.color}"><div class="ic">${iconHtml(g, 40)}</div><span>${esc(SLOTS[s])}</span>
           <div class="tip"><b style="color:${rar.color}">${esc(g.name)}</b><br><small>${esc(rar.name)} · ур. ${g.req}</small><br>${stHtml || '—'}</div></div>`;
       }).join('');

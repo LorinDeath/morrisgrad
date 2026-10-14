@@ -1,0 +1,39 @@
+{
+ "cell": [
+  16,
+  32
+ ],
+ "cols": 8,
+ "index": {
+  "hp": 0,
+  "maxHp": 1,
+  "vigor": 2,
+  "armor": 3,
+  "damageReduction": 4,
+  "dmgPct": 5,
+  "dmgMin": 6,
+  "dmgMax": 7,
+  "weaponMin": 8,
+  "weaponMax": 9,
+  "might": 10,
+  "critPct": 11,
+  "luck": 12,
+  "atkSpeedPct": 13,
+  "cdrPct": 14,
+  "haste": 15,
+  "mastery": 16,
+  "lifestealPct": 17,
+  "speedPct": 18,
+  "swift": 19,
+  "magnetPct": 20,
+  "magnet": 21,
+  "regen": 22,
+  "revive": 23,
+  "amount": 24,
+  "area": 25
+ },
+ "files": {
+  "16": "stats_16.png",
+  "32": "stats_32.png"
+ }
+}

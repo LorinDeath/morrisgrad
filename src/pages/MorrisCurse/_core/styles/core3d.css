@@ -619,3 +619,5 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 @media (max-height: 680px) and (max-width: 420px) {
   .mc-touch .mc3d-top { right: calc(var(--sr) + 74px); }
 }
+.mc-sti { display: inline-block; vertical-align: -3px; margin-right: 4px; image-rendering: pixelated; image-rendering: crisp-edges; flex: none; }
+.mc-stats .mc-sti { vertical-align: middle; margin-right: 6px; }
