@@ -37,7 +37,7 @@ export class ProjAtlasFx {
       this.norm = new ProjBatch(THREE, tex, { cols: META.columns, rows: Math.round(800 / META.frameH), max: 800, renderOrder: 4 });
       this.add = new ProjBatch(THREE, t2, { cols: META.columns, rows: Math.round(800 / META.frameH), max: 400, additive: true, renderOrder: 5 });
       parent.add(this.norm.mesh); parent.add(this.add.mesh); this.ready = true;
-    }).catch(() => {});
+    }).catch((e) => console.warn('[proj]', e.message));
   }
   get count() { return this.live.size; }
   // сервер: снаряд вылетел

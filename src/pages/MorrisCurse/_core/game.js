@@ -966,11 +966,22 @@ async function boot(canvasId, username, userId, api) {
   canvas.addEventListener('click', (e) => onCanvasClick(e));
   // Базовая атака в открытом мире: ЛКМ (удержание — повтор со скоростью атаки) в сторону курсора.
   // Клик по NPC/порталу/ресурсу/цветку/игроку — взаимодействие, не атака. Телефон — кнопка ⚔ с автонаведением.
-  const aim = { held: false, touch: false, x: null, y: null };
+  const aim = { held: false, touch: false, x: null, y: null, cx: null, cy: null };
   let autoAttack = localStorage.getItem('mc-autoatk') === '1'; // доступность: «автоатака» (по умолчанию выкл., клавиша V)
   function aimAt(e) {
-    const g = stage.groundPoint(e.clientX, e.clientY);
+    if (e) { aim.cx = e.clientX; aim.cy = e.clientY; }
+    if (aim.cx == null) return;
+    const g = stage.groundPoint(aim.cx, aim.cy);
     if (g) { aim.x = toPx(g.x); aim.y = toPy(g.z); }
+  }
+  // Ручное прицеливание (мир/поляна/дуэль): курсор отслеживается всегда, точка на земле пересчитывается в момент
+  // выстрела (камера едет за героем — старая мировая точка устарела бы). Сервер берёт только единичный вектор.
+  function aimDir() {
+    if (aim.touch || aim.cx == null) return null;
+    aimAt(null);
+    if (aim.x === null) return null;
+    const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy);
+    return d > 1 ? { x: dx / d, y: dy / d } : null;
   }
   function clickHitsInteractive(px, py) {
     for (const n of Object.values(NPCS)) if (n.world === world && Math.hypot(n.x - px, n.y - py) < 40) return true;
@@ -988,7 +999,7 @@ async function boot(canvasId, username, userId, api) {
     aim.held = true;
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
-  canvas.addEventListener('pointermove', (e) => { if (aim.held) aimAt(e); });
+  canvas.addEventListener('pointermove', (e) => { if (e.pointerType !== 'touch') aimAt(e); });
   const aimUp = () => { aim.held = false; };
   canvas.addEventListener('pointerup', aimUp);
   canvas.addEventListener('pointercancel', aimUp);
@@ -1004,8 +1015,9 @@ async function boot(canvasId, username, userId, api) {
     if ((zoneSt.abilCd.rs || 0) > now) return;
     zoneSt.abilCd.rs = now + 1500; zoneSt.abilPend['rs:' + rs] = now;
     let adx = player.dirX || 0, ady = player.dirY || 1;
-    if (aim.x !== null && !aim.touch) { const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy); if (d > 1) { adx = dx / d; ady = dy / d; } }
-    else { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
+    const ad = aimDir();
+    if (ad) { adx = ad.x; ady = ad.y; }
+    else if (aim.touch || aim.cx == null) { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
     send({ type: 'zone_ability', id: 'rs', dx: Math.round(adx * 1000) / 1000, dy: Math.round(ady * 1000) / 1000 });
     overlay.toast(`${RUN_SKILL_BY_ID[rs]?.icon || '✦'} ${RUN_SKILL_BY_ID[rs]?.name || rs}`, '#fde68a');
   }
@@ -1020,8 +1032,9 @@ async function boot(canvasId, username, userId, api) {
     zoneSt.abilPend[ab.id] = now;
     // направление навыка: курсор мыши, иначе ближайший моб, иначе взгляд героя (сервер считает форму навыка сам)
     let adx = player.dirX || 0, ady = player.dirY || 1;
-    if (aim.x !== null && !aim.touch) { const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy); if (d > 1) { adx = dx / d; ady = dy / d; } }
-    else { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
+    const ad = aimDir();
+    if (ad) { adx = ad.x; ady = ad.y; }
+    else if (aim.touch || aim.cx == null) { const t = zone.nearestMob(player.x, player.y, 420); if (t) { const dx = t.x - player.x, dy = t.y - player.y, d = Math.hypot(dx, dy) || 1; adx = dx / d; ady = dy / d; } }
     send({ type: 'zone_ability', id: ab.id, dx: Math.round(adx * 1000) / 1000, dy: Math.round(ady * 1000) / 1000 });
     overlay.toast(`${ABILITY_BY_ID[ab.id]?.icon || '✦'} ${ABILITY_BY_ID[ab.id]?.name || ab.id}`, '#fde68a');
   }
@@ -1518,16 +1531,17 @@ async function boot(canvasId, username, userId, api) {
     const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
     if (now - zoneSt.lastAtk < atkMs) return;
     let dir = null;
-    if (aim.held && aim.x !== null) {
-      // мышь: удар в сторону курсора (точка на земле)
-      const dx = aim.x - player.x, dy = aim.y - player.y, d = Math.hypot(dx, dy);
-      dir = d > 1 ? { x: dx / d, y: dy / d } : { x: player.dirX || 0, y: player.dirY || 1 };
-    } else if ((aim.touch || autoAttack) && world === 'arena' && others.get(duel.oppSid())) {
+    if (aim.held) {
+      // мышь: удар в сторону курсора (точка на земле пересчитывается каждый удар)
+      dir = aimDir() || { x: player.dirX || 0, y: player.dirY || 1 };
+    } else if (aim.touch && world === 'arena' && others.get(duel.oppSid())) {
       // арена: автонаведение на соперника (кнопка ⚔ на телефоне / автоатака)
       const o = others.get(duel.oppSid()), dx = o.x - player.x, dy = o.y - player.y, d = Math.hypot(dx, dy) || 1;
       dir = { x: dx / d, y: dy / d };
     } else if (aim.touch) {
       dir = zone.assistDir(player.x, player.y, player.dirX || 0, player.dirY || 1, wt);
+    } else if (autoAttack && aimDir()) {
+      dir = aimDir(); // автоатака (доступность): автоповтор, но направление — всё равно курсор игрока
     } else if (autoAttack) {
       const target = zone.nearestMob(player.x, player.y);
       if (target) { const dx = target.x - player.x, dy = target.y - player.y, d = Math.hypot(dx, dy) || 1; dir = { x: dx / d, y: dy / d }; }

@@ -113,7 +113,10 @@ export class SpriteBatch {
 }
 
 // Загрузка атласа как текстуры (sRGB-файл выводится «как есть» — пиксели точно как в листе)
+// Astro/Vite отдаёт импорт .png объектом {src,...}, esbuild — строкой: принимаем оба
+export const assetUrl = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s);
 export function loadAtlasTexture(THREE, src) {
+  src = assetUrl(src);
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => { const t = new THREE.Texture(img); t.needsUpdate = true; resolve(t); };
