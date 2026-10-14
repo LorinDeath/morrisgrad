@@ -8,6 +8,8 @@
 // Клиентские числа урона и любые «duel_action» игнорируются. Счёт — в D1 (миграция 0005_duels.sql).
 import { WEAPON_TYPES, ABILITY_BY_ID, ZONE_RESPAWN, volleyDirs } from "./defs";
 import { cryptoRand } from "./profile";
+import { castShape } from "./abilityShapes";
+const W_ARENA = WORLD_SIZES.arena;
 import { WORLD_SIZES } from "../worlds/sizes";
 
 export const DUEL_INVITE_MS = 15_000;
@@ -248,13 +250,27 @@ export class Pvp {
     this.host.send(ws, { type: "ability_cd", id: ab.id, left: ab.cd * 1000, cd: ab.cd, ok: true });
     const def = ABILITY_BY_ID[ab.id];
     const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
-    const radius = (ab.props.includes("extend") ? 200 : 140) * (1 + 0.15 * tmods);
-    c.d.ev.push({ k: "ability", sid: session.id, id: ab.id, x: Math.round(session.x), y: Math.round(session.y), r: radius });
-    if (Math.hypot(c.os.x - session.x, c.os.y - session.y) > radius + HERO_R) return;
+    // те же формы, что в открытом мире (abilityShapes.ts): соперник — единственная «цель»; направление от клиента
+    let dx = Number(msg.dx), dy = Number(msg.dy);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.01) { dx = c.os.x - session.x; dy = c.os.y - session.y; }
+    const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
     const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods) * PVP_ABIL_MULT;
-    const real = this.deal(c, session, dmg, false, { lifestealPct: 0 });
-    if ((ab.props.includes("vamp") || def?.id === "trick_strike") && this.duels.has(c.d.id)) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + real * 0.08);
+    const d = c.d, opp = { id: -1, get x() { return c.os.x; }, get y() { return c.os.y; }, hp: 1, dead: false, usedAbility: new Set() };
+    const live = () => this.duels.has(d.id) && c.op.zp.hp > 0;
+    const zone = { mobsAround: (x: number, y: number, r: number) => (live() && Math.hypot(c.os.x - x, c.os.y - y) <= r + HERO_R ? [opp] : []) };
+    const S = W_ARENA;
+    const dealt = castShape(ab.id, {
+      zone, sid: session.id, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult: (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods),
+      hit: (_m, mult) => (live() ? this.deal(c, session, dmg * mult, false, { lifestealPct: 0 }) || 0 : 0),
+      status: () => {},
+      move: (x, y) => { session.x = x; session.y = y; c.me.zp.x = x; c.me.zp.y = y; this.host.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
+      bounds: (x, y) => [Math.max(46, Math.min(S - 46, x)), Math.max(46, Math.min(S - 46, y))],
+      buff: (b) => { if (b.heal) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + b.heal); },
+      later: (ms2, fn) => { setTimeout(() => { if (live()) fn(); }, ms2); },
+      ev: (e) => d.ev.push(e),
+    });
+    if ((ab.props.includes("vamp") || def?.id === "trick_strike") && this.duels.has(d.id)) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + dealt * 0.08);
   }
 
   leave(session: any, reason: "forfeit" | "disconnect") {

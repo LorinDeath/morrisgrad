@@ -418,7 +418,7 @@ async function boot(canvasId, username, userId, api) {
     duel.state(d);
     for (const e of d.ev || []) {
       if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
-      else if (e.k === 'ability') zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
+      else if (['ability', 'aline', 'aproj', 'amark'].includes(e.k)) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
       else if (e.k === 'phit') {
         if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
         else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5'); }

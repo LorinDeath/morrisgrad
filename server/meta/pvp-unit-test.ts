@@ -22,6 +22,22 @@ function world() {
   return { out, ms, sess, mk, recs, pvp: new Pvp(host) };
 }
 const realNow = Date.now;
+{ // навыки в дуэли — направленные (те же формы, что в мире): «Пронзание» назад мимо, вперёд — попадание
+  const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
+  w.ms.get("a"); (w as any).pvp.host.effective = () => ({ level: 5, wtype: "sword", weaponMin: 10, weaponMax: 10, dmgPct: 0, critPct: 0, atkSpeedPct: 0, lifestealPct: 0, abilities: [{ id: "pierce", cd: 1, power: 1, props: [] }] });
+  const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");
+  w.pvp.challenge(wa, sa, { sid: "b" }); w.pvp.respond(wb, sb, { from: "a", accept: true });
+  const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
+  sa.x = 300; sa.y = 400; sb.x = 450; sb.y = 400;
+  w.pvp.ability(wa, sa, { id: "pierce", dx: -1, dy: 0 });
+  const hp1 = w.ms.get("b").zp.hp;
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 3000;
+  w.pvp.ability(wa, sa, { id: "pierce", dx: 1, dy: 0 });
+  const hp2 = w.ms.get("b").zp.hp;
+  (Date as any).now = realNow;
+  ok(hp1 === 100 && hp2 < 100, `duel skill is directional: backwards ${100 - hp1} dmg, forwards ${100 - hp2} dmg`);
+}
 for (const [hpA, hpB, exp] of [[80, 40, 0], [30, 90, 1], [55, 55, null]] as const) {
   const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
   const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");

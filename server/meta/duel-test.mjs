@@ -112,7 +112,7 @@ await A.wait('pvp_state', 4000, (m) => m.ph === 'fight');
 ok(true, 'fight phase started after countdown');
 // сближение и удары (с подделанными полями урона)
 await A.walk(B.x - 90, B.y);
-const bound = Math.ceil(effA.weaponMax * (1 + effA.dmgPct / 100) * 1.75 * 0.6) + 1;
+const bound = Math.ceil(effA.weaponMax * (1 + effA.dmgPct / 100) * 1.75 * 0.6 * 1.2) + 1; // ×1.2 — максимум залпа в одну цель
 A.clear(); B.clear();
 let end = null;
 for (let i = 0; i < 200 && !end; i++) {
