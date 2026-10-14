@@ -714,3 +714,12 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-party .pm .nm small { order: 3; flex-basis: 100%; font-weight: normal; font-size: 10px; }
 .mc-party .pm.me .nm { color: #fde68a; }
 .mc-party .hp { height: 10px; margin-top: 1px; }
+
+/* лист персонажа (C): карточка + дерево талантов рядом */
+.mc-social .mc-charsheet { width: min(1260px, 96vw); max-width: none; }
+.mc-charsheet .mc-soc-head h2 small { font-size: 11px; color: #94a3b8; border: 1px solid #3b2c52; border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+.mc-cs-cols { display: flex; gap: 14px; align-items: flex-start; max-height: calc(92vh - 60px); overflow: auto; }
+.mc-cs-card { flex: 1 1 520px; min-width: 360px; }
+.mc-cs-tal { flex: 0 0 auto; overflow-x: auto; border-left: 1px solid #3b2c52; padding-left: 12px; }
+.mc-cs-tal h3 { margin: 4px 0 6px; color: #fde68a; font-size: 14px; }
+@media (max-width: 1100px) { .mc-cs-cols { flex-direction: column; } .mc-cs-tal { border-left: 0; padding-left: 0; max-width: 100%; } }

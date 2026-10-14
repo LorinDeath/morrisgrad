@@ -399,6 +399,7 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('salvage_preview', (d) => book.showSalvagePreview(d));
   net.on('meta_state', (d) => {
+    setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
     if (d.portal !== undefined) syncHomePortal(d.portal);
@@ -545,6 +546,13 @@ async function boot(canvasId, username, userId, api) {
     if (book.isOpen) book.close();
     if (social.isOpen && social.view === 'rating') { social.close(); return; }
     social.openRating();
+  }
+  // C — свой лист персонажа (карточка как у чужого «Персонажа») + дерево талантов; Esc / C — закрыть
+  function toggleCharSheet() {
+    if (social.isSelfOpen()) { social.close(); return; }
+    if (!net.isOpen() || !myId) return;
+    if (book.isOpen) book.close();
+    social.openSelf(myId, { talentHtml: () => book.talentPanel(), onTalent: (id) => meta.talentLearn(id) });
   }
   function inspectPlayer(sid) {
     if (!net.isOpen() || !sid) return;
@@ -980,7 +988,8 @@ async function boot(canvasId, username, userId, api) {
       if (k === 'j' || k === 'о') { tracker.tutDone('book'); book.toggle('quests'); }
       if (k === 'i' || k === 'ш') { tracker.tutDone('book'); book.toggle('gear'); }
       if (k === 'k' || k === 'л') { tracker.tutDone('book'); book.toggle('skills'); }
-      if (k === 't' || k === 'е' || k === 'c' || k === 'с') { tracker.tutDone('book'); book.toggle('hero'); }
+      if (k === 't' || k === 'е') { tracker.tutDone('book'); book.toggle('hero'); }
+      if ((k === 'c' || k === 'с') && !e.repeat) { tracker.tutDone('book'); toggleCharSheet(); }
       if (k === 'b' || k === 'и') { tracker.tutDone('book'); book.toggle('bestiary'); }
       if (k === 'l' || k === 'д') { tracker.tutDone('book'); book.toggle('library'); }
     }
@@ -1433,7 +1442,9 @@ async function boot(canvasId, username, userId, api) {
     }
     input.dashPressed = false; input.abilityPressed = false;
     const pn = performance.now(), slowK = world === 'arena' ? (pn < pvpSt.frozenUntil ? 0 : pn < pvpSt.slowUntil ? 0.6 : 1) : 1; // статусы дуэли
-    let vx = mv.x * MOVE_SPEED * slowK, vy = mv.y * MOVE_SPEED * slowK;
+    // скорость героя из талантов/снаряжения/души (eff.speedPct, сервер уже применил мягкий кап и нижнюю границу −20%)
+    const spK = mode === 'run' ? 1 : 1 + (meta.hero?.effective?.speedPct || 0) / 100;
+    let vx = mv.x * MOVE_SPEED * slowK * spK, vy = mv.y * MOVE_SPEED * slowK * spK;
     if (dash.active) {
       vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;
       dash.timer -= dt;

@@ -33,6 +33,7 @@ import { Roles } from "./roles";
 import { WEAPON_SKILL_CD } from "./abilityShapes";
 import { rsInfo, RS_DEF } from "./rsAny";
 import { setQuestTrack } from "./questTrack";
+import { tryRevive } from "./revive";
 /** ХП/с игрока: вне боя — полное (стат + база зоны + 4% ХП/с), в бою — ×ZONE_GEN.regenCombat. */
 /** восстановление в бою для клиента (забеги считают ХП у себя) */
 export function regenCfg() { const G: any = ZONE_GEN; return { mul: G.regenCombat ?? 0.1, sec: G.regenCombatSec ?? 5 }; }
@@ -266,6 +267,7 @@ export class MetaService {
     const wasFull = ms.zp.hp >= ms.zp.maxHp;
     ms.zp.maxHp = eff.maxHp;
     ms.zp.armorRed = eff.damageReduction;
+    (ms as any).revive = (eff as any).revive || 0; // талант «встать с 40% ХП» (revive.ts)
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
     if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; }
@@ -971,7 +973,7 @@ export class MetaService {
         if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
         return real;
       },
-      status: (m, st, fx, fy) => { zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? 600 : st.freeze); } },
+      status: (m, st, fx, fy) => { if (st.dot) zone.applyStatus(m, sid, st.dot, fx, fy); if (st.slow || st.knock) zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? 600 : st.freeze); } },
       move: (x, y) => { session.x = x; session.y = y; ms.zp.x = x; ms.zp.y = y; (session as any).lastMoveAt = Date.now(); this.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
       bounds: (x, y) => { const [lo, hi] = worldBounds(world); return [Math.max(lo, Math.min(hi, x)), Math.max(lo, Math.min(hi, y))]; },
       buff: (b) => {
@@ -1128,6 +1130,7 @@ export class MetaService {
           // вне боя (5 с без урона) — быстрое восстановление 4% ХП/с, как в MMO: простой между стычками короткий
           // в бою (нанёс или получил урон за последние regenCombatSec с) — восстановление ×regenCombat; оба — из админки «Спавн»
           const R = regenRate(now, (ms as any).hurtAt || 0, (ms as any).hitAt || 0, ms.zp.maxHp, eff.regen, w === "hellfire");
+          if ((ms as any).reviveUsed && R > eff.regen + 1) (ms as any).reviveUsed = false; // вне боя (полная регенерация) — талант снова готов
           ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + R * dt);
         }
         // в хабе боевое состояние только у тех, у кого есть оболочка
@@ -1153,7 +1156,8 @@ export class MetaService {
         const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
         zone.events.push({ k: "phit", sid, d: real, src });
-        if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }
+        if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
+        else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }
       }, (mm) => this.onMobKilled(mm));
       if (!sendNow) continue;
       if (!socks.length) { zone.events.length = 0; continue; }

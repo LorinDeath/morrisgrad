@@ -157,7 +157,7 @@ export class RunSession {
       x: rand(-2, 2), z: rand(-2, 2), dirX: 0, dirZ: 1, aimX: 0, aimZ: 1, moving: false,
       hp: baseHp, baseMaxHp: baseHp, maxHp: baseHp, armor: st.armor + armorBonus, baseSpeed: st.speed, dmgMult: st.dmgMult,
       metaDmg: 1 + (mt?.dmgPct || 0) / 100, metaCrit: (mt?.critPct || 0) / 100, metaLs: (mt?.lifestealPct || 0) / 100,
-      metaRegen: mt?.regen || 0, metaSpeed: 1 + (mt?.speedPct || 0) / 100, metaMagnet: 1 + (mt?.magnetPct || 0) / 100,
+      metaRegen: mt?.regen || 0, metaRevive: mt?.revive ? 1 : 0, revived: false, metaSpeed: 1 + (mt?.speedPct || 0) / 100, metaMagnet: 1 + (mt?.magnetPct || 0) / 100,
       metaAtkSpd: 1 + (mt?.atkSpeedPct || 0) / 100, itemMin: mt?.itemDmgMin || 0, itemMax: mt?.itemDmgMax || 0,
       abilities: this.buildAbilities(mt), shieldT: 0, smokeT: 0, swiftT: 0, whirlT: 0, slowT: 0, leapT: 0,
       weapons: {}, passives: {}, abilityCd: 2, iframes: 0, dead: false, reviveProgress: 0,
@@ -508,6 +508,8 @@ export class RunSession {
     m.iframes = 0.6;
     m.stats.taken += dmg;
     this.events('hurt', { dmg });
+    // талант «встать с 40% ХП» — раз за забег
+    if (m.hp <= 0 && m.metaRevive && !m.revived) { m.revived = true; m.hp = Math.max(1, Math.round(m.maxHp * 0.4)); m.iframes = 1.2; this.events('revived', {}); }
     if (m.hp <= 0) {
       m.hp = 0;
       m.dead = true;

@@ -131,15 +131,18 @@ export function castShape(id: string, c: CastCtx): number {
   switch (s.k) {
     case "nova": {
       const r = s.r * k;
+      // таланты как в забеге: «Отражение» — волна стены щитов ×2 и +1 с защиты; «Шесть топоров» — вихрь 6 топоров вместо 4 (урон ×1.5)
+      const refl = id === "shield_wall" && P.includes("t_reflect"), axes = id === "whirlwind" && P.includes("t_axes6");
+      const tm = (refl ? 2 : 1) * (axes ? 1.5 : 1);
       const tick = () => {
         const ms = c.zone.mobsAround(c.x, c.y, r);
-        hitAll(ms, s.ticks ? 1 / Math.sqrt(s.ticks) : 1);
+        hitAll(ms, (s.ticks ? 1 / Math.sqrt(s.ticks) : 1) * tm);
         for (const m of ms) c.status(m, { slow: !!(s.slow || s.freeze), knock: s.knock, freeze: s.freeze }, c.x, c.y);
         c.ev({ k: "ability", sid: c.sid, id, x: R(c.x), y: R(c.y), r });
       };
       tick();
       for (let i = 1; i < (s.ticks || 1); i++) c.later(i * (s.gap || 700), tick);
-      if (s.dr) c.buff({ dr: s.dr });
+      if (s.dr) c.buff({ dr: s.dr + (refl ? 1000 : 0) });
       if (s.heal) c.buff({ heal: dealt * s.heal });
       break;
     }
@@ -210,10 +213,10 @@ export function castShape(id: string, c: CastCtx): number {
       break;
     }
     case "rain": {
-      const area = s.area * k;
+      const area = s.area * k, n = id === "spear_rain" && P.includes("t_storm") ? 26 : s.n; // «Ливень улик»: 26 копий
       // область дождя — ПЕРЕД героем по направлению (а не вокруг него)
       const ox = c.x + c.dx * area * 1.1, oy = c.y + c.dy * area * 1.1;
-      for (let i = 0; i < s.n; i++) {
+      for (let i = 0; i < n; i++) {
         const a = cryptoRand() * Math.PI * 2, d = Math.sqrt(cryptoRand()) * area;
         const px = ox + Math.cos(a) * d, py = oy + Math.sin(a) * d;
         c.later(80 * i, () => { hitAll(c.zone.mobsAround(px, py, s.r), 1 / 4); c.ev({ k: "ability", sid: c.sid, id, x: R(px), y: R(py), r: s.r }); });
@@ -262,7 +265,9 @@ export function castShape(id: string, c: CastCtx): number {
       if (id === "trick_strike") {
         // «Коварный удар»: вихрь 16 (24 — «Веер ножей») кинжалов, 10% урона — лечение; «Двойной вихрь» — второй через 0.4 с
         const n = P.includes("t_fan24") ? 24 : 16, range = 270 * k;
-        const heal = (_m: any, d: number) => { if (d) c.buff({ heal: d * 0.1 }); };
+        // «Ядовитые кинжалы»: попадание отравляет на 4 с (как в забеге)
+        const poison = P.includes("t_poison");
+        const heal = (m: any, d: number) => { if (d) { c.buff({ heal: d * 0.1 }); if (poison) c.status(m, { dot: { kind: "poison", dps: Math.max(1, c.dmg * 0.12), dur: 4 } }, c.x, c.y); } };
         ring("daggers", n, c.x, c.y, range, 0.6, 2, 0, heal);
         if (P.includes("t_double") && !c.echo) c.later(400, () => { const [hx, hy] = c.here ? c.here() : [c.x, c.y]; ring("daggers", n, hx, hy, range, 0.6, 2, Math.PI / n, heal); });
       } else {
@@ -275,12 +280,14 @@ export function castShape(id: string, c: CastCtx): number {
       break;
     }
     case "cloud": {
-      const r = s.r * k;
+      const r = s.r * k, choke = id === "smoke_bomb" && P.includes("t_choke");
       c.buff({ invuln: s.invuln });
       const ms = c.zone.mobsAround(c.x, c.y, r);
       hitAll(ms, 1);
       for (const m of ms) c.status(m, { slow: true }, c.x, c.y);
-      c.ev({ k: "amark", sid: c.sid, id, x: R(c.x), y: R(c.y), r, t: s.invuln / 1000 });
+      // «Чадящая печь»: облако держится на 1.5 с дольше и жжёт врагов внутри (3 тика)
+      if (choke) for (let i = 1; i <= 3; i++) c.later(i * 1000, () => { const ins = c.zone.mobsAround(c.x, c.y, r); hitAll(ins, 0.3); for (const m of ins) c.status(m, { slow: true }, c.x, c.y); });
+      c.ev({ k: "amark", sid: c.sid, id, x: R(c.x), y: R(c.y), r, t: (s.invuln + (choke ? 1500 : 0)) / 1000 });
       break;
     }
   }

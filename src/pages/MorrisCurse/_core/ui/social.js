@@ -78,7 +78,17 @@ export class Social {
   }
 
   // ---------- просмотр персонажа ----------
-  openInspect(q) {
+  // C — свой персонаж: та же карточка, что у чужого «Персонаж», + дерево талантов рядом (self: { talentHtml, onTalent })
+  openSelf(sid, self) { this.view = null; this.openInspect({ sid: String(sid) }, self); this.back = null; }
+  isSelfOpen() { return !!this.self && this.view === 'inspect' && !!this.overlay.screen?.querySelector?.('.mc-charsheet'); }
+  /** после изучения таланта: дерево — сразу, параметры — новым запросом (сервер ограничивает частоту) */
+  refreshSelf() {
+    if (!this.isSelfOpen()) return;
+    const t = this.overlay.screen.querySelector('.mc-cs-tal'); if (t) t.innerHTML = this.self.talentHtml();
+    clearTimeout(this.selfT); this.selfT = setTimeout(() => { if (this.isSelfOpen()) this.send({ type: 'inspect_player', ...this.inspQ }); }, 900);
+  }
+  openInspect(q, self = null) {
+    this.self = self;
     this.back = ['rating', 'online', 'friends'].includes(this.view) ? this.view : null;
     this.view = 'inspect'; this.insp = null; this.inspErr = null; this.inspQ = q;
     this.send({ type: 'inspect_player', ...q });
@@ -86,10 +96,19 @@ export class Social {
   }
   // ответ сервера на role_set: обновить карточку и списки
   onRoleChanged(d) { if (this.insp && this.insp.id === d.id) { this.insp.role = d.role || undefined; if (this.view === 'inspect') this.renderInspect(); } }
-  onInspect(d) { if (this.view === 'inspect') { this.insp = d; this.renderInspect(); } }
+  onInspect(d) { if (this.view === 'inspect') { this.insp = d; if (this.isSelfOpen()) { const c = this.overlay.screen.querySelector('.mc-cs-card'); if (c) { c.innerHTML = this.inspBody(); return; } } this.renderInspect(); } }
   onInspectErr(d) { if (this.view === 'inspect') { this.inspErr = d.message; this.renderInspect(); } }
 
   renderInspect() {
+    const body = this.inspBody();
+    const html = this.self
+      ? `<div class="mc-soc mc-insp mc-charsheet"><div class="mc-soc-head"><h2>🧍 МОЙ ПЕРСОНАЖ <small>C</small></h2><button class="mc-soc-x" title="Закрыть (Esc / C)">✕</button></div>
+          <div class="mc-cs-cols"><div class="mc-cs-card">${body}</div><div class="mc-cs-tal">${this.self.talentHtml()}</div></div></div>`
+      : `<div class="mc-soc mc-insp"><div class="mc-soc-head">${this.back ? '<button class="mc-soc-back" title="Назад">←</button>' : ''}<h2>👤 ПЕРСОНАЖ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${body}</div>`;
+    this.overlay.showScreen(html, [], 'mc-social');
+    this.bindInspect();
+  }
+  inspBody() {
     const d = this.insp;
     let body;
     if (!d) body = `<div class="mc-soc-empty">${this.inspErr ? esc(this.inspErr) : 'Загрузка…'}</div>`;
@@ -128,8 +147,9 @@ export class Social {
     }
     // только серверно проверенный админ получает canMod; сервер всё равно проверяет права на role_set
     if (d?.canMod) body = `<div class="mc-insp-mod">${d.role === 'moderator' ? '<button class="mc-btn sm mc-modbtn off" data-on="0">Снять</button>' : '<button class="mc-btn sm gold mc-modbtn" data-on="1">Выдать модерку</button>'}</div>` + body;
-    const html = `<div class="mc-soc mc-insp"><div class="mc-soc-head">${this.back ? '<button class="mc-soc-back" title="Назад">←</button>' : ''}<h2>👤 ПЕРСОНАЖ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${body}</div>`;
-    this.overlay.showScreen(html, [], 'mc-social');
+    return body;
+  }
+  bindInspect() {
     const el = this.overlay.screen;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -137,6 +157,8 @@ export class Social {
       if (e.target.closest('.mc-soc-back')) { const b = this.back; if (b === 'online') this.openOnline(); else if (b === 'friends') this.openFriends(); else { this.view = 'rating'; this.renderRating(); } return; }
       const mb = e.target.closest('.mc-modbtn');
       if (mb && this.insp?.id) { mb.disabled = true; this.send({ type: 'role_set', id: this.insp.id, moderator: mb.dataset.on === '1' }); return; }
+      const tb = e.target.closest('[data-act="talent"]');
+      if (tb && this.self) { this.self.onTalent(tb.dataset.v); return; }
       if (e.target.closest('.mc-insp-duel')) { const sid = this.insp?.sid; this.close(); if (sid) this.onDuel?.(sid); return; }
       const sl = e.target.closest('.mc-insp-slot, .mc-insp-ab');
       el.querySelectorAll('.mc-insp-slot.sel, .mc-insp-ab.sel').forEach((x) => { if (x !== sl) x.classList.remove('sel'); });
@@ -233,7 +255,7 @@ export class Social {
     this.overlay.screen.querySelector('[data-act="grimreset"]')?.addEventListener('click', (e) => { e.stopPropagation(); grimReset(); this.renderSettings(); });
   }
 
-  close() { this.view = null; this.overlay.hideScreen(); }
+  close() { this.view = null; this.self = null; this.overlay.hideScreen(); }
 }
 
 // звук: настройка устройства (localStorage); глушит все медиа-элементы страницы и доступна как window.MC_SOUND
