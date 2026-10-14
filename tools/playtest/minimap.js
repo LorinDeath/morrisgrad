@@ -38,8 +38,7 @@ const OUT = '/workspace/morrisgrad-round2';
   // мировые боссы Аринара появляются по таймеру (2–6 мин) — для проверки маркера кладём босса в список зоны клиента
   const realBosses = s.bosses || 0; // на долго работающем сервере настоящий босс уже может быть рядом
   await G(A, () => { const p = window.__game.state().player; setInterval(() => window.__game.debug.fakeZoneMob('swarm_mother', p.x + 90, p.y - 40), 20); });
-  await A.waitForTimeout(400);
-  s = await mm(A);
+  for (let i = 0; i < 15; i++) { await A.waitForTimeout(200); s = await mm(A); if (s.bosses >= 1) break; } // поддельный босс живёт до следующего снимка зоны — ловим кадр
   ok(s.bosses >= Math.max(1, realBosses), 'arinar: boss drawn as distinct diamond ' + JSON.stringify(s));
   { // мини-карта = область камеры ×1.3; её +/- меняют зум камеры (общий)
     const m0 = await G(A, () => window.__game.debug.minimap());

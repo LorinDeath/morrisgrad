@@ -95,6 +95,7 @@ export class MetaService {
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   explore: ExploreStore;
   admin: AdminStore;
+  onVerified?: (ws: any, session: any, uid: string) => void;
   constructor(sql: any, env: any) {
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
@@ -128,10 +129,11 @@ export class MetaService {
     // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
     if (session.metaUid) uid = session.metaUid;
     else if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
-    if (!uid && this.env.MC_DEV_TRUST_USERID === "1" && msg.userId) uid = String(msg.userId);
+    if (!uid && session.dev === true && msg.userId) uid = String(msg.userId).slice(0, 128);
     if (uid) session.metaUid = uid;
     const verified = !!uid;
     if (uid) session.userId = uid;
+    if (uid && msg.token) this.onVerified?.(ws, session, uid);
     // Гость (без входа): прогресс по случайному guestId из localStorage браузера — не по нику,
     // чтобы разные «Странники» не делили один профиль. Не подтверждён сервером, ценность низкая.
     const gid = typeof msg.guestId === "string" && /^[a-z0-9]{16,40}$/.test(msg.guestId) ? msg.guestId : `s${session.id}`;
@@ -474,7 +476,7 @@ export class MetaService {
       case "gather_done": this.gatherDone(ws, session, msg); return true;
       case "dev_grant": {
         // Только для локальных тестов (MC_DEV_TRUST_USERID=1): выдать звёзды/опыт/предмет
-        if (this.env.MC_DEV_TRUST_USERID !== "1") return true;
+        if (session.dev !== true) return true;
         // тесты рейтинга: выгрузить профиль в D1 и сбросить кэш рейтинга (обычно — не чаще раза в 60 с)
         if (msg.ratingRefresh) { this.save(session); (this.store.chain.get(ms.pkey) || Promise.resolve()).then(() => this.store.flush(ms.pkey)).then(() => { this.rating.at = 0; this.send(ws, { type: "dev_rating_reset" }); }); return true; }
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);

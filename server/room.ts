@@ -1,3 +1,4 @@
+import { admitMessage, isDevRequest, MSG_BURST } from "./limits";
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
@@ -43,6 +44,15 @@ export class GameRoom extends DurableObject {
     this.flowers = new Map();
     // Мета-прогрессия «Проклятых» (SQLite Durable Object), квесты и открытый мир Аринара
     this.meta = new MetaService((ctx as any)?.storage?.sql, env);
+    // после проверки токена: выбить прежние вкладки того же аккаунта (по проверенному uid, а не по присланному userId)
+    this.meta.onVerified = (ws: any, s: any, uid: string) => {
+      s.dupKey = `u:${uid}`;
+      for (const [oldWs, o] of this.sessions.entries()) {
+        if (oldWs === ws || (o as any).dupKey !== s.dupKey) continue;
+        try { oldWs.send(JSON.stringify({ type: "kicked", reason: "Вход с другой вкладки" })); oldWs.close(1000, "Duplicate session"); } catch (_) {}
+        this.meta.pvpGone(o); this.sessions.delete(oldWs);
+      }
+    };
     this.meta.sessionLookup = (sid: string) => {
       for (const [ws, s] of this.sessions.entries()) if (s.id === sid) return [ws, s];
       return null;
@@ -773,10 +783,19 @@ export class GameRoom extends DurableObject {
     const [client, server] = Object.values(pair);
 
     server.accept();
+    // dev-доверие (userId без токена, dev_* команды) — только при MC_DEV_TRUST_USERID=1 И подключении к localhost:
+    // даже если переменную по ошибке включат в проде, публичный домен её не активирует.
+    const devOk = isDevRequest(this.env, request);
+    const lim = { tokens: MSG_BURST, at: Date.now(), strikes: 0 };
 
     server.addEventListener("message", (event) => {
       try {
-        const msg = JSON.parse(event.data as string);
+        // защита от мусора/флуда: размер до разбора JSON, токен-бакет на сокет; злостный флуд — закрыть сокет
+        const raw = event.data;
+        const verdict = admitMessage(lim, raw, Date.now());
+        if (verdict !== "ok") { if (verdict === "close") { try { server.close(1008, "flood"); } catch (_) {} } return; }
+        const msg = JSON.parse(raw as string);
+        if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.type !== "string" || msg.type.length > 40) return;
 
         if (msg.type === "ping") {
           server.send(JSON.stringify({ type: "pong" }));
@@ -787,12 +806,14 @@ export class GameRoom extends DurableObject {
 
         // 1. Вход игрока в игру
         if (msg.type === "join") {
-          const cleanName = (msg.username || "Странник").trim();
+          const cleanName = (typeof msg.username === "string" ? msg.username : "").trim().slice(0, 32) || "Странник";
           const lowerName = cleanName.toLowerCase();
 
           // Вытеснение «второй вкладки» — только того же профиля (тот же вход или тот же guestId браузера), а не по нику:
           // иначе все гости «Странник» выбивали друг друга. Имя гостя («Гость» Имя) назначает мета-сервис после загрузки.
-          const dupKey = msg.userId ? `u:${String(msg.userId)}` : (typeof msg.guestId === "string" && msg.guestId ? `g:${msg.guestId}` : null);
+          // u:<userId> из join не проверен (токен проверяет мета-сервис позже) — по нему выбивать нельзя, иначе любой выбьет чужую сессию,
+          // зная userId. Выбивание по проверенному uid — в meta.onVerified; без dev-режима до проверки ключ только по guestId.
+          const dupKey = devOk && msg.userId ? `u:${String(msg.userId).slice(0, 128)}` : (typeof msg.guestId === "string" && msg.guestId ? `g:${msg.guestId.slice(0, 128)}` : null);
           void lowerName;
           for (const [oldWs, s] of this.sessions.entries()) {
             if (oldWs !== server && dupKey && (s as any).dupKey === dupKey) {
@@ -811,7 +832,8 @@ export class GameRoom extends DurableObject {
           this.sessions.set(server, {
             id: myId,
             dupKey,
-            userId: msg.userId || "",
+            dev: devOk,
+            userId: devOk ? String(msg.userId || "").slice(0, 128) : "", // реальный uid выставит мета-сервис после проверки токена
             username: cleanName,
             world: "hellfire",
             x: msg.x || 600,
@@ -943,7 +965,7 @@ export class GameRoom extends DurableObject {
 
         // Только локальные тесты (MC_DEV_TRUST_USERID=1): посадить бутон рядом с игроком
         // только dev: моб/босс рядом (скриншоты боссов биомов без ожидания таймеров)
-        if (msg.type === "dev_spawn_mob" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1") {
+        if (msg.type === "dev_spawn_mob" && session && session.dev === true) {
           const z = (this.meta as any).zones?.[session.world || "hellfire"];
           if (z && ZONE_MOBS[String(msg.mob)]) {
             const m = z.addMob(String(msg.mob), Number(msg.x) || session.x + 120, Number(msg.y) || session.y, { special: ZONE_MOBS[String(msg.mob)].boss ? "boss" : "" });
@@ -952,7 +974,7 @@ export class GameRoom extends DurableObject {
           return;
         }
         // только dev (MC_DEV_TRUST_USERID=1): мгновенный перенос по миру — скриншоты/плейтесты Аринара 24000 px
-        if (msg.type === "dev_teleport" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1") {
+        if (msg.type === "dev_teleport" && session && session.dev === true) {
           const [lo, hi] = worldBounds(session.world);
           session.x = Math.max(lo, Math.min(hi, Number(msg.x) || session.x)); session.y = Math.max(lo, Math.min(hi, Number(msg.y) || session.y));
           (session as any).lastMoveAt = Date.now(); if (session.world === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
@@ -961,7 +983,7 @@ export class GameRoom extends DurableObject {
           server.send(JSON.stringify({ type: "zone_respawn", x: session.x, y: session.y }));
           return;
         }
-        if (msg.type === "dev_plant_flower" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1" && (session.world || "hellfire") === "hellfire") {
+        if (msg.type === "dev_plant_flower" && session && session.dev === true && (session.world || "hellfire") === "hellfire") {
           this.plantFlower(Math.round(Number(msg.x ?? session.x)), Math.round(Number(msg.y ?? session.y)));
           const f = [...this.flowers.values()].pop();
           if (f && (msg.stage === "mature" || msg.stage === "active")) f.stage = msg.stage; // только dev: показать все стадии
