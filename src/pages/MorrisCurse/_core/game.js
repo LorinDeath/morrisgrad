@@ -626,10 +626,15 @@ async function boot(canvasId, username, userId, api) {
   // Кнопка Книги со счётчиком «новое» (новые предметы в сумке, открытия Библиотеки и Бестиария)
   const bookBtn = document.createElement('button');
   bookBtn.className = 'mc-bookbtn';
-  bookBtn.title = 'Книга Проклятого (J/I/L/B)';
+  bookBtn.title = 'Меню (B)';
   bookBtn.innerHTML = '📖<em class="mc-cnt" style="display:none"></em>';
   bookBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); book.toggle(meta.unread().gear ? 'gear' : meta.unread().library ? 'library' : meta.unread().mobs ? 'bestiary' : undefined); });
   overlay.layer.appendChild(bookBtn);
+  // Лист персонажа (C) — рядом с книгой
+  const charBtn = document.createElement('button');
+  charBtn.className = 'mc-bookbtn mc-charbtn'; charBtn.title = 'Персонаж (C)'; charBtn.textContent = '🧙';
+  charBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); tracker.tutDone('book'); toggleCharSheet(); });
+  overlay.layer.appendChild(charBtn);
   function updateBookBadge() {
     const n = meta.unread().total;
     const em = bookBtn.querySelector('em');
@@ -990,7 +995,7 @@ async function boot(canvasId, username, userId, api) {
       if (k === 'k' || k === 'л') { tracker.tutDone('book'); book.toggle('skills'); }
       if (k === 't' || k === 'е') { tracker.tutDone('book'); book.toggle('hero'); }
       if ((k === 'c' || k === 'с') && !e.repeat) { tracker.tutDone('book'); toggleCharSheet(); }
-      if (k === 'b' || k === 'и') { tracker.tutDone('book'); book.toggle('bestiary'); }
+      if ((k === 'b' || k === 'и') && !e.repeat) { tracker.tutDone('book'); book.toggle(); } // B — меню-книга (Бестиарий — вкладкой)
       if (k === 'l' || k === 'д') { tracker.tutDone('book'); book.toggle('library'); }
     }
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) tracker.tutDone('move');

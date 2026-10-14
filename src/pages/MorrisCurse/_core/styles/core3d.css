@@ -267,6 +267,7 @@
 @keyframes mcNewGlow { 0%, 100% { box-shadow: 0 0 0 1px rgba(250, 204, 21, .5), 0 0 6px rgba(250, 204, 21, .35); } 50% { box-shadow: 0 0 0 2px rgba(250, 204, 21, .9), 0 0 14px rgba(250, 204, 21, .6); } }
 .mc-cnt { font-style: normal; display: inline-block; min-width: 14px; margin-left: 4px; padding: 0 4px; border-radius: 8px; background: #ef4444; color: #fff; font-size: 10px; line-height: 14px; text-align: center; font-weight: 700; }
 .mc-bookbtn { position: absolute; left: 10px; bottom: 34px; z-index: 30; width: 44px; height: 44px; border-radius: 10px; border: 2px solid #3b2c52; background: rgba(18, 13, 32, .88); font-size: 22px; cursor: pointer; pointer-events: auto; }
+.mc-charbtn { left: 60px; }
 .mc-bookbtn .mc-cnt { position: absolute; top: -6px; right: -8px; margin: 0; }
 .mc3d-tbtn.hascnt { position: relative; }
 .mc3d-tbtn.hascnt::after { content: attr(data-cnt); position: absolute; top: -4px; right: -4px; min-width: 14px; padding: 0 3px; border-radius: 8px; background: #ef4444; color: #fff; font: 700 10px/14px monospace; text-align: center; }
@@ -444,7 +445,7 @@
 }
 
 /* ===== Рейтинг и просмотр персонажа ===== */
-.mc-ratebtn { position: absolute; left: 60px; bottom: 34px; z-index: 30; width: 44px; height: 44px; border-radius: 10px; border: 2px solid #78350f; background: rgba(18, 13, 32, .88); font-size: 22px; cursor: pointer; pointer-events: auto; }
+.mc-ratebtn { position: absolute; left: 108px; bottom: 34px; z-index: 30; width: 44px; height: 44px; border-radius: 10px; border: 2px solid #78350f; background: rgba(18, 13, 32, .88); font-size: 22px; cursor: pointer; pointer-events: auto; }
 .mc-ratebtn:hover, .mc-bookbtn:hover { border-color: #fbbf24; }
 .mc-touch .mc-ratebtn { display: none; }
 .hud-rating-card { margin-top: auto; }
@@ -544,7 +545,7 @@
 .mc-insp-recs { display: flex; gap: 14px; } .mc-insp-rec.duel b { color: #fde68a; }
 .mc-insp-duel { display: block; width: 100%; margin: 8px 0 2px; min-height: 44px; background: #7f1d1d !important; border-color: #f87171 !important; color: #fee2e2 !important; font-weight: 800; }
 /* онлайн / друзья / настройки */
-.mc-onlinebtn { left: 108px; width: auto; min-width: 44px; padding: 0 6px; font-size: 18px; }
+.mc-onlinebtn { left: 156px; width: auto; min-width: 44px; padding: 0 6px; font-size: 18px; }
 .mc-onlinebtn b { font-size: 12px; margin-left: 3px; color: #86efac; }
 .mc-friendsbtn { left: 12px; bottom: 84px; }
 .mc-friendsbtn.has { border-color: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
