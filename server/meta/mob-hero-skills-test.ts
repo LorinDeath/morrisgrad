@@ -1,7 +1,7 @@
 import { Zone } from "./zone";
 import { MOB_SKILLS, MOB_SKILLS_LIST } from "./mobSkills";
 import { ABILITIES_DEF } from "./shared";
-import { validatePatch } from "./overrides";
+import { validatePatch, applyOverride } from "./overrides";
 import { ZONE_MOBS } from "./defs";
 let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
 const ids = ABILITIES_DEF.map((a) => a.id);
@@ -19,4 +19,8 @@ for (const id of ids) {
   ok(tele, `${id}: есть телеграф`);
   ok(z.events.some((e: any) => e.k === "mskill" && e.name), `${id}: имя навыка показано`);
 }
+{ const live = z.mobs.find((q: any) => !q.dead && !q.cursed), t = live.type;
+  const pt = validatePatch("mob", t, { skills: ["meteor", "pierce"] }); applyOverride("mob", t, pt as any);
+  const n = z.syncMobSkills(); ok(n > 0 && live.skills.join() === "meteor,pierce", `правка админки — сразу у живых мобов (${n}): ${live.skills}`);
+  applyOverride("mob", t, null); z.syncMobSkills(); ok(!live.skills.includes("pierce"), "сброс — навыки как в коде"); }
 console.log(f ? `FAILED ${f}` : "mob-hero-skills ok"); if (f) process.exit(1);

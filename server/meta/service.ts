@@ -1038,6 +1038,7 @@ export class MetaService {
   party!: Parties; partyAt = 0; regAt = 0;
   /** пересобрать лагеря локаций, чьи настройки плотности изменились (админка → D1 → applyOverride на этом экземпляре) */
   syncRegions() {
+    for (const z of Object.values(this.zones as any) as any[]) z?.syncMobSkills?.(); // навыки мобов из админки — сразу у живых
     const z: any = (this.zones as any).arinar; if (!z?.gen?.camps) return;
     for (const r of z.gen.regions) { if (!r.table?.length) continue;
       if (z.regBuilt[r.id] !== regSig(r)) { const n = z.regenRegion(r.id); console.log(`[mc] регион ${r.id}: лагеря пересобраны (снято ${n})`); }

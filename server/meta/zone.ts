@@ -375,12 +375,26 @@ export class Zone {
     const d = ZONE_MOBS[m.type];
     return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? ZONE_GEN.cursedHp : 1) * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
   }
+  /** Правка навыков моба в админке — сразу у живых мобов этого вида (без ожидания респавна). Возвращает число обновлённых. */
+  syncMobSkills(): number {
+    let n = 0;
+    for (const m of this.mobs) { if (m.dead) continue;
+      const own = (ZONE_MOBS[m.type] as any)?.skills as string[] | undefined, sig = JSON.stringify(own || null);
+      if ((m as any).skSig === undefined || (m as any).skSig === sig) continue;
+      const d: any = ZONE_MOBS[m.type], extra = m.cursed ? m.skills.filter((k) => !JSON.parse((m as any).skSig || "[]")?.includes?.(k)) : [];
+      m.skills = m.cursed ? [...new Set([...(own || []), ...extra])].slice(0, 5) : own ? [...own] : d.boss ? skillsFor(m.type, 1) : [];
+      for (const k of m.skills) if (m.skCd[k] == null) m.skCd[k] = 1.5;
+      (m as any).skSig = sig; n++;
+    }
+    return n;
+  }
   rollCursed(m: ZMob) {
     const d = ZONE_MOBS[m.type];
     m.cursed = this.rand() * 100 < ZONE_GEN.cursedPct;
     const own = (d as any).skills as string[] | undefined; // навыки из админ-панели
     m.skills = m.cursed ? [...new Set([...(own || []), ...skillsFor(m.type, 2 + Math.floor(this.rand() * 4), m.id)])].slice(0, 5) : own ? [...own] : d.boss ? skillsFor(m.type, 1) : [];
     m.skCd = Object.fromEntries(m.skills.map((k, i) => [k, 2 + i * 1.5]));
+    (m as any).skSig = JSON.stringify(own || null);
     if (m.cursed) this.stats.cursed++;
   }
   reindex() {
