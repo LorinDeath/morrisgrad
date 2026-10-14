@@ -1057,7 +1057,7 @@ async function boot(canvasId, username, userId, api) {
   function useAbility(slot) {
     if (mode === 'run') { input.abilitySlot = slot; return; }
     const h = meta.hero;
-    const ab = h?.effective?.abilities?.[slot];
+    const abs = h?.effective?.abilities || [], ab = abs.find((x) => x.slot === slot) || (abs.some((x) => x.slot != null) ? null : abs[slot]); // по клавише слота (Q/G/F)
     if (!ab) { overlay.toast(h ? 'Слот навыка пуст — Книга (K)' : 'Навыки есть только у героя — Алтарь', '#94a3b8'); return; }
     const now = performance.now();
     if ((zoneSt.abilCd[ab.id] || 0) > now) return;
@@ -1092,7 +1092,7 @@ async function boot(canvasId, username, userId, api) {
     for (let i = 0; i < 3; i++) {
       if (!h) { list.push({ kind: 'ab', slot: i, key: ABAR_KEYS[i], name: 'Навык', locked: true, lockText: 'навыки есть только у героя — Алтарь Перевоплощения' }); continue; }
       if (i >= nSlots) { list.push({ kind: 'ab', slot: i, key: ABAR_KEYS[i], name: '3-й слот', locked: true, lockText: 'откроется на 5 уровне героя' }); continue; }
-      const a = eff?.abilities?.[i];
+      const abs = eff?.abilities || [], a = abs.find((x) => x.slot === i) || (abs.some((x) => x.slot != null) ? null : abs[i]);
       if (!a) { list.push({ kind: 'ab', slot: i, key: ABAR_KEYS[i], empty: true }); continue; }
       const def = ABILITY_BY_ID[a.id] || {};
       const srv = zoneSt.abilSrv[a.id];

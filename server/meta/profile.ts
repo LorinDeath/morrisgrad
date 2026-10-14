@@ -104,12 +104,13 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
   };
   eff.damageReduction = Math.round(armorToReduction(eff.armor) * 1000) / 1000;
   const mods = talentMods(h, cls);
-  const abilities = h.loadout.filter((id) => usableAbility(a, h, cls, id)).slice(0, abilitySlots(h.lvl)).map((id) => {
+  // раскладка позиционная (Q, G, F; "" — пустой слот): у навыка есть slot — его клавиша на панели
+  const abilities = h.loadout.map((id, slot) => ({ id, slot })).filter((x) => x.id && x.slot < abilitySlots(h.lvl) && usableAbility(a, h, cls, x.id)).map(({ id, slot }) => {
     const rad = h.abil[id]?.rad || 0;
     const def = ABILITY_BY_ID[id];
     const m = mods[id] || { props: [], powerPct: 0, cdPct: 0 };
     return {
-      id, rad,
+      id, rad, slot,
       power: Math.round(def.power * radiancePowerMult(rad) * (1 + m.powerPct / 100) * 100) / 100,
       cd: Math.round(def.cd * radianceCdMult(rad) * (1 - eff.cdrPct / 100) * Math.max(0.4, 1 + m.cdPct / 100) * 100) / 100,
       props: [...radianceProps(id, rad), ...m.props],
@@ -181,7 +182,7 @@ export function learnTalent(a: Account, h: Hero, cls: string, id: string): R {
   h.talents[id] = cur + 1;
   if (t.grants && !h.abil[t.grants]) h.abil[t.grants] = { rad: 0 };
   // открытый навык сразу встаёт в свободный слот раскладки
-  if (t.grants && !h.loadout.includes(t.grants) && h.loadout.length < abilitySlots(h.lvl)) h.loadout.push(t.grants);
+  if (t.grants && !h.loadout.includes(t.grants)) { const hole = h.loadout.indexOf(""); if (hole >= 0 && hole < abilitySlots(h.lvl)) h.loadout[hole] = t.grants; else if (h.loadout.length < abilitySlots(h.lvl)) h.loadout.push(t.grants); }
   return { ok: true, msg: t.grants ? `Навык открыт: ${ABILITY_BY_ID[t.grants]?.name}` : undefined };
 }
 
@@ -205,21 +206,25 @@ export function sanitizeTalents(h: Hero, cls: string, ver: number): number {
       if (r > 0 && below < TALENT_TIER_REQ[t.tier]) { bad = true; break; }
     }
   }
-  if (!bad) { h.loadout = h.loadout.filter((x) => ABILITY_BY_ID[x]?.cls === "monster" || abilityUnlocked(h, cls, x)); return 0; }
+  if (!bad) { h.loadout = h.loadout.map((x) => (x && (ABILITY_BY_ID[x]?.cls === "monster" || abilityUnlocked(h, cls, x)) ? x : "")); return 0; }
   h.talents = {};
-  h.loadout = h.loadout.filter((x) => ABILITY_BY_ID[x]?.cls === "monster" || abilityUnlocked(h, cls, x));
+  h.loadout = h.loadout.map((x) => (x && (ABILITY_BY_ID[x]?.cls === "monster" || abilityUnlocked(h, cls, x)) ? x : ""));
   const legacy = LEGACY_ABILITY[cls];
-  if (legacy && !h.loadout.length) h.loadout = [legacy];
+  if (legacy && !h.loadout.some(Boolean)) h.loadout = [legacy];
   return spent;
 }
 
 export function setLoadout(a: Account, h: Hero, cls: string, ids: unknown): R {
   if (!Array.isArray(ids)) return fail("Плохая раскладка");
-  const uniq = [...new Set(ids.map(String))];
+  // позиционно: [Q, G, F], "" — пустой слот; навык не может стоять в двух слотах
+  const pos = ids.map((x) => (x == null ? "" : String(x)));
+  while (pos.length && !pos[pos.length - 1]) pos.pop();
+  const uniq = pos.filter(Boolean);
   if (uniq.length < 1) return fail("Нужен хотя бы один навык");
-  if (uniq.length > abilitySlots(h.lvl)) return fail(`Слотов навыков: ${abilitySlots(h.lvl)} (3-й — с 5 уровня)`);
+  if (new Set(uniq).size !== uniq.length) return fail("Навык уже стоит в другом слоте");
+  if (pos.length > abilitySlots(h.lvl)) return fail(`Слотов навыков: ${abilitySlots(h.lvl)} (3-й, F — с 5 уровня)`);
   for (const id of uniq) if (!usableAbility(a, h, cls, id)) return fail(`Навык недоступен: ${ABILITY_BY_ID[id]?.name || id}`);
-  h.loadout = uniq;
+  h.loadout = pos;
   for (const id of uniq) if (!h.abil[id]) h.abil[id] = { rad: 0 };
   return { ok: true };
 }

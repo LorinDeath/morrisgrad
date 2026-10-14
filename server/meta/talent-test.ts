@@ -42,6 +42,13 @@ for (const c of HERO_IDS) {
   ok(r.ok && usableAbility(a, h, "mage", "frost_nova") && h.loadout.includes("frost_nova"), "frost_nova unlocked by tree node, auto-slotted");
   ok(unlockedAbilities(h, "mage").join() === "fireball,frost_nova", "unlocked list = fireball, frost_nova");
   ok(setLoadout(a, h, "mage", ["frost_nova", "fireball"]).ok, "loadout with unlocked actives accepted");
+  // позиционная раскладка Q/G/F: дыры, F, обмен, без дублей
+  ok(setLoadout(a, h, "mage", ["", "", "fireball"]).ok && h.loadout.join() === ",,fireball", "навык на F при пустых Q/G");
+  ok(heroEffective(a, h, "mage", { maxHp: 100, armor: 0, minAtk: 1, maxAtk: 2 }).abilities.find((x: any) => x.id === "fireball")?.slot === 2, "у навыка slot=2 (F) — панель берёт клавишу из slot");
+  ok(setLoadout(a, h, "mage", ["fireball", "", "frost_nova"]).ok && h.loadout.join() === "fireball,,frost_nova", "Q + F, G пуст");
+  ok(!setLoadout(a, h, "mage", ["fireball", "fireball"]).ok, "один навык в двух слотах — отклонено");
+  ok(!setLoadout(a, h, "mage", ["", "", ""]).ok, "пустая раскладка — отклонено");
+  const lo = hero("mage", 3); ok(!setLoadout(a, lo, "mage", ["", "", "fireball"]).ok, "F до 5 ур. — отклонено");
 }
 // 3) античит: очки, ярусы, пререквизиты, чужой класс, ключевой выбор, мусор
 {
@@ -84,7 +91,7 @@ for (const c of HERO_IDS) {
   h.loadout = ["pierce", "spear_rain", "fly_blade_dash"];
   const n = sanitizeTalents(h, "spearman", 1);
   ok(n === 11 && Object.keys(h.talents).length === 0 && talentPoints(h) === 11, `old tree (ver 1) → full refund of ${n} points`);
-  ok(h.loadout.join() === "pierce,fly_blade_dash", "loadout keeps legacy + monster trophy skill, drops locked spear_rain");
+  ok(h.loadout.join() === "pierce,,fly_blade_dash", "loadout keeps legacy + monster trophy skill, drops locked spear_rain (slot left empty, positions kept)");
   const g = hero("rogue", 30);
   learn(acc(), g, "rogue", "agile", "agile", "agile", "smoke_bomb");
   ok(sanitizeTalents(g, "rogue", 2) === 0 && g.talents["rogue.smoke_bomb"] === 1, "valid v2 tree kept as is");

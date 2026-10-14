@@ -142,15 +142,15 @@ export class Book {
         break;
       case 'slot': {
         const [id, idx] = v.split('|');
-        const lo = [...(m.hero?.loadout || [])];
-        const i = Number(idx);
+        // позиционно (Q, G, F): навык встаёт в выбранный слот; если он уже был в другом — меняются местами
+        const n = m.hero?.slots || 2, i = Number(idx), lo = Array.from({ length: n }, (_, k) => m.hero?.loadout?.[k] || '');
         const cur = lo.indexOf(id);
-        if (cur >= 0) lo.splice(cur, 1);
-        lo.splice(Math.min(i, lo.length), 0, id);
-        m.setLoadout(lo.slice(0, m.hero?.slots || 2));
+        if (cur === i) break;
+        if (cur >= 0) lo[cur] = lo[i]; lo[i] = id;
+        m.setLoadout(lo);
         break;
       }
-      case 'unslot': m.setLoadout((m.hero?.loadout || []).filter((x) => x !== v)); break;
+      case 'unslot': m.setLoadout((m.hero?.loadout || []).map((x) => (x === v ? '' : x))); break;
       case 'equip': m.equip(v); break;
       case 'unequip': m.unequip(v); break;
       case 'salvage': { const it = m.account?.inv.find((i) => i.uid === v), d = it && ITEM_BY_ID[it.id];
@@ -320,7 +320,7 @@ export class Book {
     for (let i = 0; i < h.slots; i++) {
       const id = h.loadout[i];
       const d = id && ABILITY_BY_ID[id];
-      slots.push(`<div class="mc-aslot">${d ? `<span>${d.icon}</span><b>${esc(d.name)}</b><button class="mc-btn ghost" data-act="unslot" data-v="${id}">убрать</button>` : '<i>пусто</i>'}<em>${['Q', 'R', 'F'][i]}</em></div>`);
+      slots.push(`<div class="mc-aslot">${d ? `<span>${d.icon}</span><b>${esc(d.name)}</b><button class="mc-btn ghost" data-act="unslot" data-v="${id}">убрать</button>` : '<i>пусто</i>'}<em>${['Q', 'G', 'F'][i]}</em></div>`);
     }
     const card = (d, monster) => {
       const ab = h.abil[d.id] || { rad: 0 };
@@ -333,7 +333,9 @@ export class Book {
       const next = rad < RADIANCE_MAX ? radianceCost(rad + 1) : null;
       const props = (d.radiance || []).map((p, i) => `<span class="${rad >= (i + 1) * 3 ? 'on' : ''}" title="${esc(RADIANCE_PROPS[p]?.desc || '')}">${esc(RADIANCE_PROPS[p]?.name || p)} <small>(${['жёлтая', 'красная', 'фиолетовая'][i]} 3)</small></span>`).join('');
       const inLo = h.loadout.includes(d.id);
-      const slotBtns = locked || sil ? '' : Array.from({ length: h.slots }, (_, i) => `<button class="mc-btn ${inLo && h.loadout.indexOf(d.id) === i ? 'on' : ''}" data-act="slot" data-v="${d.id}|${i}">${['Q', 'R', 'F'][i]}</button>`).join('');
+      const slotBtns = locked || sil ? '' : ['Q', 'G', 'F'].map((k, i) => i < h.slots
+        ? `<button class="mc-btn ${inLo && h.loadout.indexOf(d.id) === i ? 'on' : ''}" data-act="slot" data-v="${d.id}|${i}" title="Назначить на ${k}${h.loadout[i] && h.loadout[i] !== d.id ? ' (поменяется местами)' : ''}">${k}</button>`
+        : `<button class="mc-btn" disabled title="Слот F — с 5 уровня героя">${k}</button>`).join('');
       return `<div class="mc-abil ${locked ? 'locked' : ''} ${sil ? 'sil' : ''}">
         <div class="t">${skillIcon(d.id, 32)}<b>${esc(d.name)}</b>${monster ? '<em>трофей</em>' : ''}${d.legacy ? '<em>классовый</em>' : ''}${locked ? `<em title="Откройте узел «${esc(node?.name || '')}» в дереве талантов">🔒 дерево, ярус ${node?.tier || '?'}</em>` : ''}${sil ? '<em>заглушён</em>' : ''}</div>
         <div class="d">${esc(d.desc)} · перезарядка ${d.cd} с</div>
