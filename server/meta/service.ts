@@ -37,6 +37,13 @@ import { tryRevive } from "./revive";
 /** ХП/с игрока: вне боя — полное (стат + база зоны + 4% ХП/с), в бою — ×ZONE_GEN.regenCombat. */
 /** восстановление в бою для клиента (забеги считают ХП у себя) */
 export function regenCfg() { const G: any = ZONE_GEN; return { mul: G.regenCombat ?? 0.1, sec: G.regenCombatSec ?? 5 }; }
+/** заморозка моба: боссы — 0.6 с, элита/редкие — половина; после — 1.5 с устойчивости (нельзя держать вечно) */
+export function freezeMob(m: any, ms: number, now = Date.now()) {
+  if ((m.frzImmune || 0) > now) return 0;
+  const d = ZONE_MOBS[m.type]?.boss || m.special === "boss" ? Math.min(600, ms) : m.elite || m.special === "rare" ? ms * 0.5 : ms;
+  m.frozenUntil = Math.max(m.frozenUntil || 0, now + d); m.frzImmune = m.frozenUntil + 1500;
+  return d;
+}
 export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: number, statRegen: number, hub: boolean): number {
   const G: any = ZONE_GEN, inCombat = now - Math.max(hurtAt, hitAt) < (G.regenCombatSec ?? 5) * 1000;
   const full = statRegen + (hub ? 2 : 0.3) + maxHp * 0.04;
@@ -800,7 +807,7 @@ export class MetaService {
       dot: (kind, dps, dur) => zone.applyStatus(m, session.id, { kind, dps, dur }, session.x, session.y),
       slow: () => zone.applyStatus(m, session.id, { slow: true }, session.x, session.y),
       knock: (p) => zone.applyStatus(m, session.id, { knock: p }, session.x, session.y),
-      freeze: (t) => { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? Math.min(600, t) : t); },
+      freeze: (t) => { freezeMob(m, t); },
       heal: (hp) => { ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + hp); },
     });
   }
@@ -973,7 +980,7 @@ export class MetaService {
         if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
         return real;
       },
-      status: (m, st, fx, fy) => { if (st.dot) zone.applyStatus(m, sid, st.dot, fx, fy); if (st.slow || st.knock) zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) { m.frozenUntil = Date.now() + (ZONE_MOBS[m.type]?.boss ? 600 : st.freeze); } },
+      status: (m, st, fx, fy) => { if (st.dot) zone.applyStatus(m, sid, st.dot, fx, fy); if (st.slow || st.knock) zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) freezeMob(m, st.freeze); },
       move: (x, y) => { session.x = x; session.y = y; ms.zp.x = x; ms.zp.y = y; (session as any).lastMoveAt = Date.now(); this.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
       bounds: (x, y) => { const [lo, hi] = worldBounds(world); return [Math.max(lo, Math.min(hi, x)), Math.max(lo, Math.min(hi, y))]; },
       buff: (b) => {

@@ -909,7 +909,8 @@ export class RunSession {
         { const deep = props.includes('t_deep');
           ring('ice_fan', deep ? 28 : 20, { dmg: avgDmg * 1.0, speed: 14, life: 0.55 * ext, size: 0.4, pierce: 6, slow: 0.8 });
           this.grid.query(m.x, m.z, 6 * ext, this.tmp);
-          for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + (deep ? 3 : 2); e.slowK = 0.85; } }
+          // «Глубокая стужа»: заморозка 3 с (боссы 0.6 с, элита 1.5 с)
+          for (const e of this.tmp) if (!e.dead) { e.slowUntil = this.t + (deep ? 3 : 2); e.slowK = 0.85; if (deep) e.frzU = Math.max(e.frzU || 0, this.t + (e.boss ? 0.6 : e.elite ? 1.5 : 3)); } }
         break;
       case 'meteor': {
         const a = this.aimDir(16);

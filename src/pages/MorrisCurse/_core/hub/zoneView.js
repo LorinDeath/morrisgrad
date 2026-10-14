@@ -114,7 +114,7 @@ export class ZoneView {
       if (!o) { o = { id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false }; this.mobs.set(id, o); }
       if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
-      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096);
+      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096); o.frozen = !!(f & (1 << 22));
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
       o.sts = f & 56 ? { burn: (f >> 13) & 7, poison: (f >> 16) & 7, bleed: (f >> 19) & 7 } : null; // стаки статусов (одновременно несколько видов)
     }
@@ -251,7 +251,7 @@ export class ZoneView {
         const row = BEAST_ROW[o.sk];
         if (row === undefined) continue;
         const fly = beastFlying(o.sk);
-        let col = (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3;
+        let col = o.frozen ? 0 : (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3; // заморожен — кадр стоит
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
         let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
         if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
@@ -259,7 +259,8 @@ export class ZoneView {
         if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
         if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
-        BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * mobScale(o), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
+        if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; } // лёд: ярко-голубой, как в забеге
+        BB.push(toX(o.x), fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * mobScale(o), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
         atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.35, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * mobScale(o) / MOB_VIS * 0.85, fly ? 0.55 : 1);
       }
       for (const dd of this.dying) {
@@ -286,6 +287,7 @@ export class ZoneView {
         if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
         if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
+        if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; } // лёд: ярко-голубой, как в забеге
         B.push(toX(o.x), fly ? fly + Math.sin(T * 7 + o.id) * 0.18 : 0, toZ(o.y), h, col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
       }
       for (let i = this.dying.length - 1; i >= 0; i--) {

@@ -854,6 +854,7 @@ export class Zone {
         if (m.windup <= 0) m.dashT = d.size === "s" ? 0.35 : 0.5;
         continue;
       }
+      if ((m as any).frozenUntil > now) continue; // заморожен: ни шага, ни удара, ни навыка
       if (best) {
         const dx = best.x - m.x, dy = best.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
         const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? 1.3 : 1) * (m.burstUntil > now ? 1.6 : 1);
@@ -1043,7 +1044,7 @@ export class Zone {
       let st = 0;
       if (x.dots?.length) for (const dd of x.dots) if (dd.until > now) { const i = dd.kind === "burn" ? 0 : dd.kind === "poison" ? 1 : 2; st |= 8 << i; const sh = 13 + i * 3, c = (st >> sh) & 7; if (c < 7) st = (st & ~(7 << sh)) | ((c + 1) << sh); }
       m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
-        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0));
+        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0));
     }
     const nr = aoi * 2.2; // узлы — тоже по интересу (в Аринаре их сотни)
     const n = this.nodes.filter((x) => !this.gen.camps || (Math.abs(x.x - px) < nr && Math.abs(x.y - py) < nr)).map((x) => [x.id, now >= x.readyAt ? 1 : 0]);

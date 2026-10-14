@@ -274,8 +274,10 @@ export function castShape(id: string, c: CastCtx): number {
         // «Ледяная нова»: кольцо 20 (28 — «Глубокий холод») осколков + замедление вокруг
         const n = P.includes("t_deep") ? 28 : 20, r = 120 * k;
         ring("ice_fan", n, c.x, c.y, 154 * k, 0.45, 6, 0, (m) => c.status(m, { slow: true }, c.x, c.y));
-        for (const m of c.zone.mobsAround(c.x, c.y, r)) c.status(m, { slow: true }, c.x, c.y);
-        c.ev({ k: "ability", sid: c.sid, id, x: R(c.x), y: R(c.y), r: R(r) });
+        // «Глубокая стужа» (t_deep): настоящая заморозка 3 с вокруг (боссы/элита — короче, см. FREEZE_MS у сервера)
+        const deep = P.includes("t_deep");
+        for (const m of c.zone.mobsAround(c.x, c.y, r)) c.status(m, deep ? { slow: true, freeze: 3000 } : { slow: true }, c.x, c.y);
+        c.ev({ k: "ability", sid: c.sid, id, x: R(c.x), y: R(c.y), r: R(r), frz: deep ? 1 : undefined });
       }
       break;
     }
