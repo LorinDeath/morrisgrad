@@ -1,6 +1,8 @@
 // Процедурные low-poly модели: герои классов, Кейт, Дар, тюльпаны, порталы, орда, лут.
 // Никаких внешних ассетов — всё строится из примитивов Three.js r128.
-import { mergeParts, flatMat } from './geometry.js';
+import { mergeParts, flatMat, PX as PX_M } from './geometry.js';
+import altarSrc from '../../../../assets/mc/altar.png';
+import altarFlashSrc from '../../../../assets/mc/altar_flash.png';
 
 const SKIN = 0xf1c7a1;
 
@@ -290,25 +292,26 @@ export function makePortal(THREE, portal) {
   const g = new THREE.Group();
   const color = new THREE.Color(portal.color || '#a855f7');
   const anim = [];
+  let flash = null;
 
   if (portal.id === 'portal_class_select') {
-    // Алтарь Перевоплощения: каменный постамент с фиолетовым пламенем
-    const stone = std(THREE, 0x2a2238);
-    const gold = std(THREE, 0xc59b27, { metalness: 0.7, roughness: 0.3 });
-    g.add(mesh(THREE, new THREE.CylinderGeometry(1.25, 1.45, 0.35, 8), stone, 0, 0.17, 0));
-    g.add(mesh(THREE, new THREE.CylinderGeometry(0.9, 1.05, 0.5, 8), stone, 0, 0.55, 0));
-    const goldRing = mesh(THREE, new THREE.TorusGeometry(1.0, 0.05, 4, 16), gold, 0, 0.8, 0);
-    goldRing.rotation.x = Math.PI / 2;
-    g.add(goldRing);
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
-    const flameMat2 = new THREE.MeshBasicMaterial({ color: 0xf0abfc, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-    for (let i = 0; i < 5; i++) {
-      const f = new THREE.Mesh(new THREE.ConeGeometry(0.3 - i * 0.03, 1.1 + (i % 2) * 0.4, 5), i % 2 ? flameMat2 : flameMat);
-      const a = (i / 5) * Math.PI * 2;
-      f.position.set(Math.cos(a) * 0.25, 1.3, Math.sin(a) * 0.25);
-      g.add(f);
-      anim.push((t) => { f.scale.y = 0.8 + Math.sin(t * 9 + i * 1.7) * 0.25; f.rotation.y = t * 2 + i; });
-    }
+    // Алтарь Перевоплощения: пиксельный билборд (8 кадров 64×96, цикл) + вспышка (6 кадров) при открытии/выборе героя.
+    // Низ привязан к земле (линия земли в кадре — y=93), 1 px арта ≈ 1 px мира (20 px/м) → основание ~60 px ≈ 2.9 м
+    const FW = 64, FH = 96, GROUND = 93, M = 1 / PX_M;
+    const mkSheet = (src, n) => { const tex = new THREE.TextureLoader().load(src); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace; tex.repeat.set(1 / n, 1); return tex; };
+    const idleTex = mkSheet(altarSrc, 8), flashTex = mkSheet(altarFlashSrc, 6);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: idleTex, transparent: true, alphaTest: 0.3, toneMapped: false }));
+    sp.center.set(0.5, (FH - GROUND) / FH); sp.scale.set(FW * M, FH * M, 1); sp.renderOrder = 2;
+    g.add(sp);
+    let flashAt = -1, nowT = 0;
+    flash = () => { flashAt = nowT; };
+    anim.push((t) => {
+      nowT = t;
+      const fl = flashAt >= 0 ? Math.floor((t - flashAt) * 12) : -1; // вспышка 12 к/с, один раз
+      if (fl >= 0 && fl < 6) { if (sp.material.map !== flashTex) { sp.material.map = flashTex; sp.material.needsUpdate = true; } flashTex.offset.x = fl / 6; }
+      else { if (flashAt >= 0) flashAt = -1; if (sp.material.map !== idleTex) { sp.material.map = idleTex; sp.material.needsUpdate = true; } idleTex.offset.x = (Math.floor(t * 8) % 8) / 8; }
+    });
     const light = new THREE.PointLight(0xa855f7, 2.2, 14, 1.6);
     light.position.y = 2;
     g.add(light);
@@ -374,7 +377,7 @@ export function makePortal(THREE, portal) {
       });
     });
   }
-  return { group: g, update(t) { anim.forEach((f) => f(t)); } };
+  return { group: g, update(t) { anim.forEach((f) => f(t)); }, flash() { flash?.(); } };
 }
 
 // ---------------------------------------------------------------------------

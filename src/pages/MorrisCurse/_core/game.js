@@ -173,6 +173,7 @@ async function boot(canvasId, username, userId, api) {
 
   // ---------------- UI ----------------
   const classSelect = new ClassSelect(overlay, () => api.meta?.state?.heroes || null, () => send({ type: 'save_now' }), (classId) => {
+    hub.portalObjs?.get('portal_class_select')?.flash?.(); // вспышка алтаря при выборе героя
     if (!send({ type: 'select_class', classId })) {
       // офлайн: применяем локально
       const c = CLASSES[classId];
@@ -313,7 +314,7 @@ async function boot(canvasId, username, userId, api) {
     stage.follow(toX(player.x), toZ(player.y), 0, true);
     if (world !== 'arena') overlay.toast(world === 'arinar' ? 'Аринар · государство Мэлвелдил' : world === 'hellfire' ? 'Поляна перевоплощения' : `Мир: ${world}`, '#c084fc');
   });
-  net.on('open_class_selection', () => classSelect.open(player.stats.classId));
+  net.on('open_class_selection', () => { hub.portalObjs?.get('portal_class_select')?.flash?.(); classSelect.open(player.stats.classId); });
   net.on('class_updated', (d) => {
     player.stats = { ...player.stats, ...d.stats };
     if (d.color) player.color = d.color;
@@ -1501,7 +1502,7 @@ async function boot(canvasId, username, userId, api) {
     });
     for (const pt of portals) {
       if ((pt.world || 'hellfire') !== world) continue;
-      const q = stage.project(toX(pt.x), pt.id === 'portal_class_select' ? 2.2 : 3.6, toZ(pt.y));
+      const q = stage.project(toX(pt.x), pt.id === 'portal_class_select' ? 5.0 : 3.6, toZ(pt.y));
       if (!q) continue;
       const extra = pt.runRoom ? `<small>${roomCounts[pt.runRoom] || 0}/4 в забеге · co-op</small>` : '';
       overlay.label('pt_' + pt.id, q.x, q.y, `${esc(pt.name)}${extra}`, pt.color || '#c084fc');
@@ -1690,6 +1691,7 @@ async function boot(canvasId, username, userId, api) {
       rawSend: (o) => net.send(o),
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
+      altarFlash: () => hub.portalObjs?.get('portal_class_select')?.flash?.(),
       minimap: () => hud.minimap?.stats,
       openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
