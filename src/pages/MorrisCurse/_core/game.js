@@ -605,7 +605,8 @@ async function boot(canvasId, username, userId, api) {
   function updateTargetChip() {
     let t = hud.currentTarget;
     if (t?.kind === 'player') { const o = others.get(t.id); if (o) { t = playerTarget(o); hud.setTarget(t); } } // живые ОЗ с сервера
-    const show = !!t && t.kind === 'player' && mode === 'hub' && !hud.left.offsetParent && others.has(t.id);
+    // верхняя плашка — только на телефоне; на ПК действия с игроком — всплывающее меню у курсора (party.openMenu)
+    const show = mobile && !!t && t.kind === 'player' && mode === 'hub' && !hud.left.offsetParent && others.has(t.id);
     if (show) {
       const txt = `${t.name} · ${t.typeLabel || ''}${t.hp && t.hp !== '…' ? ` · ❤️ ${t.hp}` : ''}`; const nm = tchip.querySelector('.nm'); if (nm.textContent !== txt) nm.textContent = txt;
       const db = tchip.querySelector('.duel'), dd = t.canDuel && !party.has(t.id) ? '' : 'none'; if (db.style.display !== dd) db.style.display = dd; // союзника по отряду на дуэль не вызвать
@@ -1313,7 +1314,7 @@ async function boot(canvasId, username, userId, api) {
       hud.setTarget({ kind: 'flower', id: o.id, stage: o.stage, name: 'Тюльпан-вампир', typeLabel: `${o.stage}${o.flowerType ? ' / ' + o.flowerType : ''}` });
       return;
     }
-    if (best.kind === 'player') { const t = playerTarget(o); hud.setTarget(t); party.openMenu({ ...t, sub: t.typeLabel }, e.clientX, e.clientY); return; } // меню: персонаж / дуэль / в отряд
+    if (best.kind === 'player') { const t = playerTarget(o); hud.setTarget(t); if (!mobile) party.openMenu({ ...t, sub: t.typeLabel }, e.clientX, e.clientY); return; } // меню: персонаж / дуэль / в отряд (на телефоне — плашка сверху)
     const st = o.stats || o;
     hud.setTarget({
       kind: best.kind, id: o.id, name: o.username || o.name || (best.kind === 'keyt' ? 'Кейт' : 'Дар'),
