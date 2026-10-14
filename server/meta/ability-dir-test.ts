@@ -1,11 +1,11 @@
 // Навыки в открытом мире — направленные (как в «Вампир-лайке»), а не вспышка вокруг героя.
 // Для каждого навыка класса и каждого навыка оружия (R): моб ВПЕРЕДИ по направлению каста получает урон,
-// моб ПОЗАДИ — нет. Исключения — только формы «вокруг себя» по замыслу (вихрь, щит, облако, кольцо черепов…).
+// моб ПОЗАДИ — нет. Исключения — только формы «вокруг себя» по замыслу (вихрь, щит, облако, кольцо черепов, кольца осколков/кинжалов…).
 import { ABILITIES_DEF, RUN_SKILLS } from "./shared";
 import { castShape, shapeOf } from "./abilityShapes";
 let pass = 0, fail = 0;
 const ok = (c: boolean, m: string) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m); };
-const reach = (s: any) => s.k === "line" || s.k === "dash" ? s.len * 0.6 : s.k === "proj" ? s.len * 0.5 : s.k === "leap" ? s.len : s.k === "meteor" ? s.dist : s.k === "rain" ? s.area * 1.1 : s.k === "cone" ? s.len * 0.6 : s.r * 0.6;
+const reach = (s: any) => s.k === "line" || s.k === "dash" ? s.len * 0.6 : s.k === "proj" ? s.len * 0.5 : s.k === "leap" ? s.len : s.k === "meteor" ? s.dist : s.k === "rain" ? s.area * 1.1 : s.k === "cone" ? s.len * 0.6 : s.k === "ring" ? 100 : s.r * 0.6; // кольцо: снаряды во все стороны, дальность ≥120
 function trial(id: string) {
   const s: any = shapeOf(id), d = reach(s);
   const mobs = [{ id: 1, x: 1000 + d, y: 1000, hp: 100, dead: false, usedAbility: new Set() }, { id: 2, x: 1000 - d, y: 1000, hp: 100, dead: false, usedAbility: new Set() }];
@@ -17,7 +17,7 @@ function trial(id: string) {
       status: () => {}, move: () => {}, bounds: (x, y) => [x, y], buff: () => {}, later: (_ms, fn) => fn(), ev: () => {} });
   return { s, front: hit.has(1), back: hit.has(2) };
 }
-const SELF = new Set(["nova", "cloud"]);
+const SELF = new Set(["nova", "cloud", "ring"]); // кольцо (ледяная нова, вихрь кинжалов, мёртвый штиль) — во все стороны по замыслу
 const ids = [...new Set([...ABILITIES_DEF.filter((a: any) => a.cls || a.classId || a.hero || true).map((a) => a.id), ...RUN_SKILLS.map((x) => "rs:" + x.id)])];
 const rows: string[] = [];
 let dir = 0, self = 0;
