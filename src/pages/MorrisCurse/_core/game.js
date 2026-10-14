@@ -41,6 +41,7 @@ import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes
 import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
+import { DpsMeter } from './ui/dps.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
 import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
@@ -151,6 +152,7 @@ async function boot(canvasId, username, userId, api) {
 
   const hub = new HubWorld(THREE, stage);
   const zone = new ZoneView(THREE, hub.root);
+  const dpsMeter = new DpsMeter(); // DPS / DPM героя (по событиям сервера)
   hub.setWorld(world, portals);
   zone.setWorld(world);
   hub.attach();
@@ -193,6 +195,7 @@ async function boot(canvasId, username, userId, api) {
   const dialog = new NpcDialog(overlay, meta);
   dialog.onCraft = () => book.open('craft');
   const zoneSt = { lastAtk: 0, gather: null, abilCd: {}, abilSrv: {}, abilPend: {}, hurtShown: 0 };
+  dpsMeter.mount(overlay.layer);
   const abar = new ActionBar(overlay.layer, {
     onSlot: (i, kind) => { if (kind === 'rs') useWeaponSkill(); else if (kind === 'ab') useAbility(i); else if (kind === 'dash') input.dashPressed = true; },
   });
@@ -455,6 +458,7 @@ async function boot(canvasId, username, userId, api) {
         else { const o = others.get(e.to); if (o) overlay.float(toX(o.x), 3, toZ(o.y), T[0], T[1]); }
       }
       else if (e.k === 'phit') {
+        if (e.by === myId) dpsMeter.add(e.d);
         if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
         else { const o = others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), `${e.crit ? '✦' : ''}${e.d}`, e.crit ? '#fde047' : '#fca5a5'); }
       }
@@ -607,7 +611,8 @@ async function boot(canvasId, username, userId, api) {
   }
   meta.on(() => updateBookBadge());
   net.on('zone_state', (d) => {
-    if (Array.isArray(d.wb)) setBossState(d.wb); // мировые боссы: жив / таймер — на карте и мини-карте
+    if (Array.isArray(d.wb)) setBossState(d.wb);
+    for (const e of d.ev || []) if (e.k === 'hit' && e.by === myId && e.d > 0) dpsMeter.add(e.d); // мировые боссы: жив / таймер — на карте и мини-карте
     if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
     if (mode !== 'hub') return;
     const evs = zone.applyState(d, myId) || [];
@@ -1358,6 +1363,7 @@ async function boot(canvasId, username, userId, api) {
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
         roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, zoneMobs: zone.mobs, mobInfo: ZONE_MOBS,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
+        zoneMe: mode === 'hub' && meta.hero ? zone.me : null, eff: meta.hero?.effective || null, heroName: meta.hero ? meta.heroName(player.stats.classId) : null, dps: dpsMeter.stats(),
       });
     }
     if (showDebug) {
@@ -1454,6 +1460,7 @@ async function boot(canvasId, username, userId, api) {
 
     // подписи
     overlay.beginFrame();
+    dpsMeter.render();
     const head = (x, y, h = 2.5) => stage.project(toX(x), h, toZ(y));
     const alive = new Set(['__me']);
     let p = head(player.x, player.y);
@@ -1657,6 +1664,7 @@ async function boot(canvasId, username, userId, api) {
       projList: () => ({ me: { x: player.x, y: player.y }, confirmed: zone.pax.confirmed || 0, list: [...zone.pax.live.values()].filter((p) => p.o === 'p').map((p) => { const d = Math.min(p.r, p.s * p.age); return { id: p.id, t: p.t, pred: !!p.pred, x0: p.x0, y0: p.y0, x: p.x0 + p.dx * d, y: p.y0 + p.dy * d, dx: p.dx, dy: p.dy, age: p.age }; }) }),
       selectMobId: (id) => { const o = zone.mobs.get(id); if (o) selectMob(o); return !!o; },
       mobsNear: (r = 500) => [...zone.mobs.values()].filter((o) => !o.dead && Math.hypot(o.x - player.x, o.y - player.y) < r).map((o) => ({ id: o.id, x: o.x, y: o.y, type: o.type })),
+      dps: () => dpsMeter.stats(),
       bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),

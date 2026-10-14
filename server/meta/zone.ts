@@ -716,6 +716,8 @@ export class Zone {
           const dmg = m.dot.dps * dt;
           m.hp -= dmg;
           m.dmgBy.set(m.dot.sid, (m.dmgBy.get(m.dot.sid) || 0) + dmg);
+          (m as any).dotAcc = ((m as any).dotAcc || 0) + dmg; // урон по времени — событием раз в ~1 с (счётчик DPS)
+          if ((m as any).dotAcc >= Math.max(1, m.dot.dps)) { this.events.push({ k: "hit", id: m.id, d: Math.round((m as any).dotAcc), by: m.dot.sid, dot: 1 }); (m as any).dotAcc = 0; }
           if (m.hp <= 0) { (m as any).killer = m.dot.sid; this.kill(m, onKill); continue; }
           this.checkPhase(m, d);
         }
@@ -915,7 +917,7 @@ export class Zone {
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
-    this.events.push({ k: "hit", id: m.id, d: real });
+    this.events.push({ k: "hit", id: m.id, d: real, by: sid }); // by — для счётчика DPS у клиента
     if (m.hp <= 0) { (m as any).killer = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);
     return real;

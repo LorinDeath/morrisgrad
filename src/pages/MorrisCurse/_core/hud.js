@@ -24,7 +24,7 @@ export class GameHUD {
     left.className = 'game-hud-panel hud-left';
     left.innerHTML = `
       <div class="hud-card">
-        <div class="hud-header">ДУША</div>
+        <div class="hud-header" id="ghud-my-head">ГЕРОЙ</div>
         <div class="hud-player-name" id="ghud-my-name">Странник</div>
         <div class="hud-player-class" id="ghud-my-class">Душа [T]</div>
         <div class="hud-bar-bg"><div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width:100%"></div></div>
@@ -148,12 +148,17 @@ export class GameHUD {
     const rc = RUN_CLASSES[st.classId] || RUN_CLASSES.soul;
     this.txt('ghud-my-name', username);
     this.txt('ghud-my-class', `${cls ? displayClassName(st.classId, cls.name) : 'Душа'} [C]`);
+    this.txt('ghud-my-head', cls ? 'ГЕРОЙ · ТЕЛО' : 'ДУША (без тела)'); // душа вселилась в тело — карточка героя
     if (mode === 'run' && run) {
       this.txt('ghud-my-hp-bar', `${Math.max(0, (run.me.hp / run.me.maxHp) * 100)}%`, 'width');
       this.txt('ghud-my-hp-val', `${Math.ceil(run.me.hp)} / ${run.me.maxHp} HP (забег)`);
     } else {
-      this.txt('ghud-my-hp-bar', `${Math.max(0, ((st.hp ?? 100) / (st.maxHp || 100)) * 100)}%`, 'width');
-      this.txt('ghud-my-hp-val', `${st.hp ?? 100} / ${st.maxHp ?? 100} HP${st.armor ? ` · 🛡️ ${Math.round(getArmorReduction(st.armor) * 100)}%` : ''}`);
+      // мир: настоящие ОЗ — с сервера (zone_state.me), броня — эффективная героя (снаряжение + таланты), как считает сервер
+      const zm = d.zoneMe, eff = d.eff;
+      const hp = zm && zm.maxHp ? Math.max(0, Math.round(zm.hp)) : eff?.maxHp ?? st.hp ?? 100, mx = zm && zm.maxHp ? zm.maxHp : eff?.maxHp ?? st.maxHp ?? 100;
+      const arm = eff ? eff.armor : st.armor, red = eff ? eff.damageReduction : arm ? getArmorReduction(arm) : 0;
+      this.txt('ghud-my-hp-bar', `${Math.max(0, (hp / (mx || 1)) * 100)}%`, 'width');
+      this.txt('ghud-my-hp-val', `${hp} / ${mx} ОЗ${arm ? ` · 🛡️ ${Math.round(arm)} брони (−${Math.round(red * 100)}% урона)` : ''}`);
     }
     const ab = ABILITIES[rc.ability];
     this.txt('ghud-my-skill', ab ? `${ab.icon} ${ab.name}` : '— (нужно тело)');
