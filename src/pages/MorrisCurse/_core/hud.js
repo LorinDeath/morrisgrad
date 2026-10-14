@@ -1,6 +1,6 @@
 // Боковые панели (видны в полноэкранном режиме на десктопе): тело/HP, рывок, сеть, мини-карта,
 // цель, объекты рядом, комнаты забегов. Дуэльные кнопки (WAP) удалены.
-import { CLASSES, getArmorReduction } from './classes.js';
+import { CLASSES } from './classes.js';
 import { Minimap } from './minimap.js';
 import { worldSize } from '../../../../server/worlds/sizes.ts';
 import { RUN_ROOMS, RUN_CLASSES, ABILITIES, displayClassName } from './survivors/data.js';
@@ -153,12 +153,11 @@ export class GameHUD {
       this.txt('ghud-my-hp-bar', `${Math.max(0, (run.me.hp / run.me.maxHp) * 100)}%`, 'width');
       this.txt('ghud-my-hp-val', `${Math.ceil(run.me.hp)} / ${run.me.maxHp} HP (забег)`);
     } else {
-      // мир: настоящие ОЗ — с сервера (zone_state.me), броня — эффективная героя (снаряжение + таланты), как считает сервер
+      // мир: настоящие ОЗ — с сервера (zone_state.me), брони на карточке нет (решение владельца)
       const zm = d.zoneMe, eff = d.eff;
       const hp = zm && zm.maxHp ? Math.max(0, Math.round(zm.hp)) : eff?.maxHp ?? st.hp ?? 100, mx = zm && zm.maxHp ? zm.maxHp : eff?.maxHp ?? st.maxHp ?? 100;
-      const arm = eff ? eff.armor : st.armor, red = eff ? eff.damageReduction : arm ? getArmorReduction(arm) : 0;
       this.txt('ghud-my-hp-bar', `${Math.max(0, (hp / (mx || 1)) * 100)}%`, 'width');
-      this.txt('ghud-my-hp-val', `${hp} / ${mx} ОЗ${arm ? ` · 🛡️ ${Math.round(arm)} брони (−${Math.round(red * 100)}% урона)` : ''}`);
+      this.txt('ghud-my-hp-val', `${hp} / ${mx} ОЗ`); // броня на карточке героя убрана по решению владельца
     }
     const ab = ABILITIES[rc.ability];
     this.txt('ghud-my-skill', ab ? `${ab.icon} ${ab.name}` : '— (нужно тело)');
