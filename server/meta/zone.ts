@@ -33,10 +33,31 @@ export interface ZMob { id: number; type: string; respawn: number; sx: number; s
   // телеграфы в полёте, фаза босса, ярость, особый тип (boss/rare), время жизни редкого
   casts: ZCast[]; phase: number; enraged: boolean; special: "" | "boss" | "rare"; expireAt: number; patIdx: number;
   // раунд Аринара: проклятый (10%), навыки и их кд, «сброс» поводка, рывок агрессии, лагерь
-  cursed: boolean; skills: string[]; skCd: Record<string, number>; reset: boolean; burstUntil: number; camp: number; leapCd: number; shieldUntil: number }
+  cursed: boolean; skills: string[]; skCd: Record<string, number>; reset: boolean; burstUntil: number; camp: number; leapCd: number; shieldUntil: number;
+  // бой моб↔моб (кочевники и враждебные фракции): цель-моб, время следующего осмотра; маршрут кочевника
+  mobTarget: number; scanAt: number; roam: { pts: [number, number][]; i: number; home: [number, number]; waitUntil: number } | null }
 export interface ZNode { id: number; type: string; res: string; respawn: number; x: number; y: number; readyAt: number; qty: [number, number] }
 export interface ZPlayer { sid: string; x: number; y: number; hp: number; maxHp: number; armorRed: number; alive: boolean; respawnAt: number }
 
+// ---------- фракции (бой моб↔моб) ----------
+// Фракция — тема биома варианта (ice_/fire_/stone_/air_) или «дикие» (старые ярусы). Таблица враждебности
+// симметрична: стихии воюют по кругу соседей, дикие — со всеми стихиями. Своя фракция не враждует.
+export const HOSTILITY: Record<string, string[]> = {
+  ice: ["fire", "air", "wild"], fire: ["ice", "stone", "wild"], stone: ["fire", "air", "wild"], air: ["stone", "ice", "wild"],
+  wild: ["ice", "fire", "stone", "air"],
+};
+export const factionOf = (type: string) => { const k = type.split("_")[0]; return HOSTILITY[k] && k !== "wild" ? k : "wild"; };
+export const hostile = (a: string, b: string) => HOSTILITY[factionOf(a)].includes(factionOf(b));
+/** гладкий шум 0..1 (значения в узлах решётки step, билинейно) — плотность лагерей «пятнами» */
+function valueNoise(seed: number, step: number) {
+  const h = (i: number, j: number) => { let x = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ seed; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
+  return (x: number, y: number) => {
+    const gx = x / step, gy = y / step, i = Math.floor(gx), j = Math.floor(gy), fx = gx - i, fy = gy - j;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const a = h(i, j) + (h(i + 1, j) - h(i, j)) * sx, b = h(i, j + 1) + (h(i + 1, j + 1) - h(i, j + 1)) * sx;
+    return a + (b - a) * sy;
+  };
+}
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 const KNOCK_IMMUNE = (d: any) => !!d.boss || d.size !== "s" || d.role === "tank";
 const segDist = (px: number, py: number, x: number, y: number, dx: number, dy: number, len: number) => {
@@ -63,7 +84,7 @@ export class Zone {
   bossIds: Record<string, number> = {};
   rareAt: Record<string, number> = {};
   rareIds: Record<string, number> = {};
-  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, cursed: 0 };
+  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, cursed: 0, roamers: 0, mobHits: 0, mobKills: 0 };
   byId = new Map<number, ZMob>();
   buckets = new Map<number, ZMob[]>(); // чанк WORLD_CHUNK → мобы (интерес/выборки)
   awake = new Set<number>();           // чанки рядом с игроками (остальные спят: без ИИ)
@@ -85,33 +106,142 @@ export class Zone {
     this.reindex();
   }
 
-  // Лагеря: сетка с разбросом по регионам с таблицей; соседи дальше campMinDist (бой с одной пачкой не тянет соседей)
+  // Лагеря (органично): «дротики» Пуассона с ПЕРЕМЕННЫМ минимумом (campMinDist…×2.3) и плотностью по гладкому шуму —
+  // где-то лагеря кучно (но не ближе campMinDist: бой с одной пачкой не тянет соседей), где-то пустоши.
+  // Форма пачки: клякса / цепочка / две кучки / полумесяц; размер пачки плавает. Затем кочевники (roamPct).
   buildCamps() {
     const G = ZONE_GEN, R = rng(this.seed ^ 0xc0ffee);
+    const dens = valueNoise(this.seed ^ 0x51ed, 3200), dens2 = valueNoise(this.seed ^ 0x9a1, 900);
+    const CELL = 1000, grid = new Map<number, { x: number; y: number }[]>();
+    const gk = (x: number, y: number) => Math.floor(x / CELL) * 4096 + Math.floor(y / CELL);
+    const tooClose = (x: number, y: number, d: number) => {
+      const r = Math.ceil(d / CELL), cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+      for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) for (const c of grid.get((cx + i) * 4096 + cy + j) || []) if (Math.hypot(c.x - x, c.y - y) < d) return true;
+      return false;
+    };
     for (const reg of this.gen.regions) {
       if (!reg.table.length) continue;
-      for (let gx = reg.rect[0] + G.campStep / 2; gx < reg.rect[2]; gx += G.campStep)
-        for (let gy = reg.rect[1] + G.campStep / 2; gy < reg.rect[3]; gy += G.campStep) {
-          const x = Math.round(gx + (R() - 0.5) * 2 * G.campJitter), y = Math.round(gy + (R() - 0.5) * 2 * G.campJitter);
-          if (x < reg.rect[0] + 60 || y < reg.rect[1] + 60 || x > reg.rect[2] - 60 || y > reg.rect[3] - 60) continue;
-          if (inSafe(x, y, 300, this.world) || this.gen.bosses.some((b) => Math.hypot(b.x - x, b.y - y) < 700)) continue;
-          if (this.camps.some((c) => Math.hypot(c.x - x, c.y - y) < G.campMinDist)) continue;
-          let tw = reg.table.reduce((a, b) => a + b.w, 0) * R(), row = reg.table[0];
-          for (const t of reg.table) { tw -= t.w; if (tw <= 0) { row = t; break; } }
-          const n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
-          // смешанные пачки: к основному типу — дальнобойный/рывковый сосед из той же таблицы
-          const alt = reg.table.filter((t) => t.type !== row.type && ["ranged", "charger", "caster"].includes(ZONE_MOBS[t.type]?.role));
-          const types: string[] = [];
-          for (let i = 0; i < n; i++) types.push(i === n - 1 && n >= 3 && alt.length ? alt[Math.floor(R() * alt.length)].type : row.type);
-          const camp = { id: this.camps.length + 1, region: reg.id, x, y, types };
-          this.camps.push(camp);
-          types.forEach((t, i) => {
-            const a = (i / types.length) * Math.PI * 2 + R(), rr = i ? 40 + R() * 40 : 0;
-            const m = this.addMob(t, this.clamp(x + Math.cos(a) * rr), this.clamp(y + Math.sin(a) * rr), { fixed: true, respawn: G.campRespawn, region: reg.id, elite: R() < reg.elite });
-            m.camp = camp.id;
-          });
+      const w = reg.rect[2] - reg.rect[0], h = reg.rect[3] - reg.rect[1];
+      const want = Math.max(1, Math.round((w * h) / (G.campStep * G.campStep) * 0.78));
+      let made = 0;
+      for (let t = 0; t < want * 14 && made < want; t++) {
+        const x = Math.round(reg.rect[0] + 60 + R() * (w - 120)), y = Math.round(reg.rect[1] + 60 + R() * (h - 120));
+        const dn = 0.65 * dens(x, y) + 0.35 * dens2(x, y);                  // 0..1: густо/пусто
+        if (R() > 0.1 + dn * dn * 1.3) continue;
+        const minD = G.campMinDist * (1 + (1 - dn) * 1.8 * R() + (R() < 0.15 ? 0.6 : 0));       // в густых пятнах — ближе (но ≥ campMinDist)
+        if (inSafe(x, y, 300, this.world) || this.gen.bosses.some((b) => Math.hypot(b.x - x, b.y - y) < 700)) continue;
+        if (tooClose(x, y, minD)) continue;
+        let tw = reg.table.reduce((a, b) => a + b.w, 0) * R(), row = reg.table[0];
+        for (const tr of reg.table) { tw -= tr.w; if (tw <= 0) { row = tr; break; } }
+        let n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
+        const roll = R();
+        if (roll < 0.18) n = Math.min(7, n + 1 + (R() < 0.4 ? 1 : 0)); else if (roll < 0.3) n = Math.max(1, n - 1); // крупнее/мельче/одиночки
+        const alt = reg.table.filter((tr) => tr.type !== row.type && ["ranged", "charger", "caster"].includes(ZONE_MOBS[tr.type]?.role));
+        const types: string[] = [];
+        for (let i = 0; i < n; i++) types.push(i === n - 1 && n >= 3 && alt.length ? alt[Math.floor(R() * alt.length)].type : row.type);
+        const camp = { id: this.camps.length + 1, region: reg.id, x, y, types };
+        this.camps.push(camp); made++;
+        const k = gk(x, y); const gb = grid.get(k); if (gb) gb.push(camp); else grid.set(k, [camp]);
+        for (const [i, p] of this.formation(n, R).entries()) {
+          const m = this.addMob(types[i], this.clamp(x + p[0]), this.clamp(y + p[1]), { fixed: true, respawn: G.campRespawn, region: reg.id, elite: R() < reg.elite });
+          m.camp = camp.id;
         }
+      }
     }
+    this.buildRoamers(R);
+  }
+  /** смещения членов пачки: неровные формы, минимум 24 px между мобами */
+  formation(n: number, R: () => number): [number, number][] {
+    const shape = R(), ang = R() * Math.PI * 2, spread = 34 + R() * 70, out: [number, number][] = [];
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    for (let i = 0; i < n; i++) {
+      let best: [number, number] = [0, 0];
+      for (let t = 0; t < 12; t++) {
+        let u: number, v: number;
+        if (shape < 0.45) { const r = spread * Math.sqrt(R()) * (0.6 + R() * 0.6), a = R() * 6.283; u = Math.cos(a) * r; v = Math.sin(a) * r * (0.5 + R() * 0.7); } // клякса
+        else if (shape < 0.7) { u = (i - (n - 1) / 2) * (30 + R() * 22) + (R() - 0.5) * 18; v = (R() - 0.5) * 30 + Math.sin(i * 1.3) * 14; } // цепочка
+        else if (shape < 0.9) { const side = i % 2 ? 1 : -1; u = side * spread * (0.7 + R() * 0.5) + (R() - 0.5) * 30; v = (R() - 0.5) * 40; } // две кучки
+        else { const a = -1.2 + (n > 1 ? (i / (n - 1)) * 2.4 : 0) + (R() - 0.5) * 0.4, r = spread * (0.8 + R() * 0.4); u = Math.cos(a) * r - spread * 0.5; v = Math.sin(a) * r; } // полумесяц
+        const x = u * ca - v * sa, y = u * sa + v * ca;
+        best = [Math.round(x), Math.round(y)];
+        if (out.every((o) => Math.hypot(o[0] - x, o[1] - y) >= 24)) break;
+        if (t === 11) { const a = R() * 6.283; for (let r = 30; r < 200; r += 12) { const bx = Math.round(Math.cos(a) * r), by = Math.round(Math.sin(a) * r); if (out.every((o) => Math.hypot(o[0] - bx, o[1] - by) >= 24)) { best = [bx, by]; break; } } }
+      }
+      out.push(best);
+    }
+    return out;
+  }
+  /** кочевники: roamPct от мобов региона, 1–2 в группе; маршрут — петля по 3–4 соседним лагерям (часто — враждебной фракции) */
+  buildRoamers(R: () => number) {
+    const G = ZONE_GEN;
+    const byReg = new Map<string, typeof this.camps>();
+    for (const c of this.camps) { const l = byReg.get(c.region); if (l) l.push(c); else byReg.set(c.region, [c]); }
+    for (const reg of this.gen.regions) {
+      const own = byReg.get(reg.id); if (!own || !reg.table.length) continue;
+      const mobsIn = own.reduce((a, c) => a + c.types.length, 0);
+      let quota = Math.floor(mobsIn * G.roamPct + R());
+      for (let g = 0; quota > 0 && g < 200; g++) {
+        const start = own[Math.floor(R() * own.length)];
+        const row = reg.table[Math.floor(R() * reg.table.length)];
+        if (ZONE_MOBS[row.type]?.role === "tank") continue;
+        const cand = this.camps.filter((c) => c !== start && Math.hypot(c.x - start.x, c.y - start.y) < G.roamRange);
+        if (cand.length < 2) continue;
+        const foe = cand.filter((c) => hostile(row.type, c.types[0])), pick: typeof cand = [];
+        for (let k = 0, n = 2 + Math.floor(R() * 2); k < n; k++) { const pool = foe.length && R() < 0.5 ? foe : cand; const c = pool[Math.floor(R() * pool.length)]; if (!pick.includes(c)) pick.push(c); }
+        // точка у лагеря, не в центре (кочевник проходит мимо — агрится/агрит, если враждебны)
+        const pts: [number, number][] = [[start.x, start.y], ...pick].map((c: any) => { const a = R() * 6.283, r = 140 + R() * 120; return [this.clamp(Math.round((c.x ?? c[0]) + Math.cos(a) * r)), this.clamp(Math.round((c.y ?? c[1]) + Math.sin(a) * r))] as [number, number]; })
+          .filter((p) => !inSafe(p[0], p[1], 120, this.world));
+        if (pts.length < 2) continue;
+        const k = Math.min(quota, R() < 0.55 ? 1 : 2);
+        for (let i = 0; i < k; i++) {
+          const m = this.addMob(row.type, pts[0][0] + i * 28, pts[0][1] + i * 18, { fixed: true, respawn: G.campRespawn * 1.5, region: reg.id, elite: R() < reg.elite });
+          m.roam = { pts, i: 1, home: [m.x, m.y], waitUntil: 0 };
+          this.stats.roamers++;
+        }
+        quota -= k;
+      }
+    }
+  }
+  // ---------- бой моб↔моб ----------
+  /** ближайший враждебный живой моб в радиусе r (не сбрасывающийся) */
+  findFoe(m: ZMob, r: number): ZMob | null {
+    let best: ZMob | null = null, bd = r;
+    for (const o of this.near(m.x, m.y, r)) {
+      if (o === m || o.reset || o.special || !hostile(m.type, o.type)) continue;
+      if (!m.roam && !o.roam) continue; // лагеря не воюют друг с другом — только с проходящими кочевниками
+      const d = Math.hypot(o.x - m.x, o.y - m.y); if (d < bd) { bd = d; best = o; }
+    }
+    return best;
+  }
+  /** удар моба по мобу (броня цели учитывается); вклад копится в dmgBy под ключом "mob:<id>" — игрок без ≥15% вклада награды не получит */
+  mobHit(src: ZMob, t: ZMob, dmg: number, onKill: (m: ZMob) => void) {
+    if (t.dead || t.reset) return 0;
+    const d = ZONE_MOBS[t.type];
+    const armor = d.armor * (t.elite ? ZONE_GEN.eliteArmor : 1) * (t.cursed ? 1.3 : 1);
+    const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.65, armor / (armor + 60))) * (t.shieldUntil > this.now ? 0.5 : 1)));
+    t.hp -= real; t.dmgBy.set("mob:" + src.id, (t.dmgBy.get("mob:" + src.id) || 0) + real);
+    if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
+    this.events.push({ k: "hit", id: t.id, d: real, mob: 1 });
+    this.stats.mobHits++;
+    if (t.hp <= 0) { this.stats.mobKills++; this.kill(t, onKill); }
+    return real;
+  }
+  /** пачка лагеря поднимается на защиту (против моба) */
+  rally(m: ZMob, foe: number) { if (m.camp) for (const o of this.near(m.x, m.y, 360)) if (o.camp === m.camp && !o.targetSid && !o.mobTarget && !o.reset) o.mobTarget = foe; }
+  /** такт драки с мобом: true — моб занят боем */
+  mobFight(m: ZMob, d: any, dt: number, onKill: (m: ZMob) => void, mul: number): boolean {
+    const t = m.mobTarget ? this.byId.get(m.mobTarget) : null;
+    if (!t || t.dead || t.reset || Math.hypot(t.x - m.x, t.y - m.y) > d.aggro * 2.2) { m.mobTarget = 0; return false; }
+    const dx = t.x - m.x, dy = t.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+    const td = ZONE_MOBS[t.type];
+    const ranged = d.role === "ranged" || d.role === "caster", want = ranged ? 160 : d.radius + td.radius + 6;
+    if (dist > want) { const sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt; m.x += ux * sp; m.y += uy * sp; }
+    if (dist <= want + 12 && m.atkCd <= 0) {
+      if (ranged) this.events.push({ k: "mshot", id: m.id, x: Math.round(m.x), y: Math.round(m.y), tx: Math.round(t.x), ty: Math.round(t.y) });
+      this.mobHit(m, t, d.dmg * mul * (d.role === "tank" ? 1.25 : 1), onKill);
+      m.atkCd = ranged ? 2.2 : d.role === "swarm" ? 0.9 : 1.2;
+    }
+    return true;
   }
   /** множитель ХП моба по его флагам */
   hpOf(m: ZMob, scale = 1) {
@@ -167,7 +297,7 @@ export class Zone {
   addMob(type: string, x: number, y: number, o: { fixed?: boolean; respawn?: number; region?: string | null; elite?: boolean; hpMul?: number; special?: "" | "boss" | "rare" } = {}) {
     const d = ZONE_MOBS[type];
     const hp = Math.round(d.hp * (o.elite ? ZONE_GEN.eliteHp : 1) * (o.hpMul || 1));
-    const m: ZMob = { cursed: false, skills: [], skCd: {}, reset: false, burstUntil: 0, camp: 0, leapCd: 0, shieldUntil: 0, id: this.nextId++, type, respawn: o.respawn || 0, sx: x, sy: y, x, y, hp, maxHp: hp, dead: false, respawnAt: 0, targetSid: null,
+    const m: ZMob = { mobTarget: 0, scanAt: 0, roam: null, cursed: false, skills: [], skCd: {}, reset: false, burstUntil: 0, camp: 0, leapCd: 0, shieldUntil: 0, id: this.nextId++, type, respawn: o.respawn || 0, sx: x, sy: y, x, y, hp, maxHp: hp, dead: false, respawnAt: 0, targetSid: null,
       wanderX: x, wanderY: y, nextWander: 0, atkCd: 0, dmgBy: new Map(), usedAbility: new Set(), windup: 0, dashX: 0, dashY: 0, dashT: 0,
       fixed: !!o.fixed, region: o.region || null, elite: !!o.elite, idle: 0, dot: null, slowUntil: 0, kbx: 0, kby: 0,
       casts: [], phase: 1, enraged: false, special: o.special || "", expireAt: 0, patIdx: 0 };
@@ -422,7 +552,7 @@ export class Zone {
       // сон: чанк без игроков рядом — без ИИ (мобы заморожены; поводок/лечение — мгновенно при засыпании)
       if (sleepy && !this.awake.has(ck(m.x, m.y))) {
         asleep++;
-        if (!m.dead && (m.targetSid || m.reset || m.hp < m.maxHp)) { m.x = m.sx; m.y = m.sy; m.hp = m.maxHp; m.targetSid = null; m.reset = false; m.casts = []; m.dot = null; m.windup = 0; m.dashT = 0; }
+        if (!m.dead && (m.targetSid || m.mobTarget || m.reset || m.hp < m.maxHp)) { m.x = m.sx; m.y = m.sy; m.hp = m.maxHp; m.targetSid = null; m.mobTarget = 0; m.reset = false; m.casts = []; m.dot = null; m.windup = 0; m.dashT = 0; }
         continue;
       }
       awake++;
@@ -443,7 +573,8 @@ export class Zone {
       }
       if (m.dead) {
         if (m.fixed && now >= m.respawnAt) {
-          m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false;
+          if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; }
+          m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
           if (m.camp) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
           this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp;
           m.dmgBy.clear(); m.usedAbility.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
@@ -454,8 +585,8 @@ export class Zone {
       // цель
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
-      if (!m.reset && m.targetSid && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
-        m.reset = true; m.targetSid = null; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.burstUntil = 0; this.stats.resets++;
+      if (!m.reset && (m.targetSid || m.mobTarget) && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
+        m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.burstUntil = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
       }
       if (m.reset) {
@@ -472,6 +603,7 @@ export class Zone {
       if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
       const fresh = !m.targetSid && best;
       m.targetSid = best ? best.sid : null;
+      if (best) m.mobTarget = 0; // игроки важнее драки с мобом
       if (fresh) {
         m.burstUntil = now + 1200; // рывок агрессии: первые 1.2 с — быстрее (от пачки не уйти шагом)
         if (m.camp) for (const o of this.near(m.x, m.y, 360)) if (o.camp === m.camp && !o.targetSid && !o.reset) { o.targetSid = m.targetSid; o.burstUntil = now + 1200; } // пачка агрится вместе
@@ -539,6 +671,21 @@ export class Zone {
           m.atkCd = tank ? 1.4 : d.role === "swarm" ? 0.9 : 1.1;
         }
       } else {
+        // бой моб↔моб: кочевник ↔ враждебный лагерь (осмотр раз в 0.4 с; только в бодрствующих чанках — сюда спящие не доходят)
+        if (!m.mobTarget && now >= m.scanAt) { m.scanAt = now + 400; const f = this.findFoe(m, d.aggro); if (f) { m.mobTarget = f.id; this.rally(m, f.id); } }
+        if (m.mobTarget && this.mobFight(m, d, dt, onKill, eliteDmg)) { m.x = this.clamp(m.x); m.y = this.clamp(m.y); continue; }
+        if (m.roam) { // кочевник: идёт по петле маршрута; «дом» для поводка — где он сейчас
+          const [tx, ty] = m.roam.pts[m.roam.i], dx = tx - m.x, dy = ty - m.y, dist = Math.hypot(dx, dy);
+          if (now >= m.roam.waitUntil) {
+            if (dist < 20) { m.roam.i = (m.roam.i + 1) % m.roam.pts.length; m.roam.waitUntil = now + 1500 + Math.random() * 4000; }
+            else { const sp = d.speed * 0.55 * dt; m.x += (dx / dist) * sp; m.y += (dy / dist) * sp; }
+          }
+          m.sx = m.x; m.sy = m.y;
+          if (!m.dot) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt);
+          if (m.hp >= m.maxHp) m.dmgBy.clear();
+          m.x = this.clamp(m.x); m.y = this.clamp(m.y);
+          continue;
+        }
         // возврат/брожение у точки спавна; регенерация вне боя
         if (now >= m.nextWander) { m.nextWander = now + 2500 + Math.random() * 3000; m.wanderX = m.sx + (Math.random() - 0.5) * 120; m.wanderY = m.sy + (Math.random() - 0.5) * 120; if (!m.fixed && inSafe(m.wanderX, m.wanderY, 0, this.world)) { m.wanderX = m.sx; m.wanderY = m.sy; } }
         const dx = m.wanderX - m.x, dy = m.wanderY - m.y, dist = Math.hypot(dx, dy);
