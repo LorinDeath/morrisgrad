@@ -84,7 +84,7 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
   await G(() => window.__game.debug.rawSend({ type: 'admin_reset', kind: 'item', id: 'guard_axe' })); await A.waitForTimeout(400);
   for (const [tab, shot] of [['item', 'admin-items'], ['skill', 'admin-skills'], ['loot', 'admin-loot-list']]) {
     await A.click(`.mc-admin [data-tab="${tab}"]`); await A.waitForTimeout(250); r = await rows();
-    const lv = r.filter((x) => x.lv).length; ok(r.length > 3 && lv >= r.length * (tab === 'loot' ? 0.5 : 1), `${tab}: уровень в строках ${lv}/${r.length}`);
+    if (tab === 'item') r = r.filter((x) => !x.id.startsWith('res:')); const lv = r.filter((x) => x.lv).length; ok(r.length > 3 && lv >= r.length * (tab === 'loot' ? 0.5 : 1), `${tab}: уровень в строках ${lv}/${r.length}`);
     await A.click('.mc-admin aside li[data-id] >> nth=1'); await A.waitForTimeout(250); await A.screenshot({ path: `${OUT}/${shot}.png` });
   }
   // предмет со значками характеристик
@@ -127,6 +127,27 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
   await A.screenshot({ path: `${OUT}/admin-quest-tree.png` });
   await A.click('.mc-admin .qtree [data-go="c_pt_slimes2"] >> nth=0'); await A.waitForTimeout(250);
   ok((await A.inputValue('.mc-admin [data-q="id"]')) === 'c_pt_slimes2', 'клик по узлу открывает квест в редакторе');
+  { // ВСЕ предметы: в «Предметах» каждый не-оружейный предмет + материалы, в «Оружии» — всё оружие; ничего не пропало
+    await A.click('.mc-admin [data-tab="item"]'); await A.waitForTimeout(300);
+    const tot = await G(() => window.__game.debug.admin().totals || null);
+    const nItems = await A.$$eval('.mc-admin aside li[data-id]', (l) => l.length);
+    ok(tot && nItems === tot.items - tot.weapons + tot.res, `Предметы: ${nItems} строк = ${tot && tot.items - tot.weapons} предметов + ${tot && tot.res} материалов`);
+    const grp = await A.$$eval('.mc-admin aside li[data-g]', (l) => l.map((x) => x.textContent));
+    ok(grp.length >= 4, 'группы по слотам: ' + grp.join(' | '));
+    const chips = await A.$$eval('.mc-admin .chip', (l) => l.map((x) => x.textContent)); ok(chips.length >= 5, 'чипы: ' + chips.join(', '));
+    const rowOk = await A.$$eval('.mc-admin aside li[data-id]', (l) => l.filter((x) => !x.dataset.id.startsWith('res:')).every((x) => /ур\. \d+/.test(x.textContent)));
+    ok(rowOk, 'у каждого предмета в строке — уровень');
+    await A.click('.mc-admin aside li[data-g="helmet"]'); await A.waitForTimeout(150);
+    ok((await A.$$eval('.mc-admin aside li[data-id]', (l) => l.length)) < nItems, 'группа сворачивается по клику');
+    await A.click('.mc-admin aside li[data-g="helmet"]');
+    await A.click('.mc-admin .chip[data-chip="hands"]'); await A.waitForTimeout(150);
+    ok((await A.$$eval('.mc-admin aside li[data-g]', (l) => l.length)) === 1, 'чип «Перчатки» оставляет одну группу');
+    await A.click('.mc-admin .chip[data-chip=""]'); await A.waitForTimeout(150);
+    await A.screenshot({ path: `${OUT}/admin-items-all.png` });
+    await A.click('.mc-admin [data-tab="weapon"]'); await A.waitForTimeout(200);
+    ok((await A.$$eval('.mc-admin aside li[data-id^="item:"]', (l) => l.length)) === tot.weapons, 'Оружие: все ' + tot.weapons + ' единиц');
+    await A.click('.mc-admin [data-tab="quest"]'); await A.waitForTimeout(200);
+  }
   { // сюжетный квест sl_p1 — редактируется (правка в D1 поверх кода), «Вернуть исходное»
     await A.click('.mc-admin aside li[data-id="sl_p1"]'); await A.waitForTimeout(300);
     ok(!!(await A.$('.mc-admin [data-qsave]')) && (await A.inputValue('.mc-admin [data-q="id"]')) === 'sl_p1', 'сюжетный квест открыт в редакторе (не только просмотр)');

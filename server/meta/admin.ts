@@ -214,6 +214,7 @@ export class AdminStore {
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
       mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl })),
       objTypes: OBJ_TYPES,
+      totals: { items: Object.keys(ITEM_BY_ID).length, weapons: Object.values(ITEM_BY_ID).filter((o: any) => o.slot === "weapon").length, res: Object.keys(RESOURCES).length }, // для проверки «ни один предмет не пропал»
     };
   }
 }

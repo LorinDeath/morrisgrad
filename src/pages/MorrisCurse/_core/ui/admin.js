@@ -52,6 +52,8 @@ const css = `
 @media (max-width:760px){.mc-admin main{flex-direction:column}.mc-admin aside{width:auto;max-height:34vh;border-right:0;border-bottom:1px solid #3b2c52}}
 `;
 
+const SLOT_ORDER = ['', 'helmet', 'armor', 'hands', 'legs', 'boots', 'ring', 'amulet', 'paws', 'consumable', 'quest', '__res'];
+const SLOT_NAMES = { helmet: '⛑ Шлемы', armor: '🛡 Броня (тело)', hands: '🧤 Перчатки', legs: '👖 Поножи', boots: '👢 Обувь', ring: '💍 Кольца', amulet: '📿 Амулеты', paws: '🐾 Лапы', consumable: '🧪 Расходники', quest: '📜 Квестовые', __res: '🪨 Материалы' };
 export class AdminPanel {
   // окно ВНУТРИ игрового контейнера (работает в полноэкранном режиме, игра рисуется позади): перетаскивание за шапку,
   // изменение размера за угол, Esc — закрыть; на телефоне — лист на весь игровой экран
@@ -64,7 +66,7 @@ export class AdminPanel {
     if (this.host.clientWidth < 760 || /Mobi|Android|iPhone/i.test(navigator.userAgent)) el.classList.add('sheet');
     if (getComputedStyle(this.host).position === 'static') this.host.style.position = 'relative';
     el.innerHTML = `<header><b>🛠 Админ-панель</b><div class="tabs">${TABS.map(([k, t]) => `<button data-tab="${k}">${t}</button>`).join(' ')}</div><span class="msg"></span><button class="btn" data-x>✕ Закрыть</button></header>
-      <main><aside><input placeholder="Поиск…"><ul></ul></aside><section><p>Загрузка данных с сервера…</p></section></main>`;
+      <main><aside><input placeholder="Поиск…"><div class="chips"></div><ul></ul></aside><section><p>Загрузка данных с сервера…</p></section></main>`;
     this.host.appendChild(el);
     // клавиши не доходят до игры (WASD/навыки), Esc закрывает
     el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); this.close(); } });
@@ -77,7 +79,7 @@ export class AdminPanel {
       hd.addEventListener('pointerup', () => { d0 = null; });
     } el.addEventListener('keyup', (e) => e.stopPropagation());
     el.querySelector('[data-x]').onclick = () => this.close();
-    el.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.sel = null; this.q = ''; const qi = this.el.querySelector('aside input'); if (qi) qi.value = ''; this.render(); }));
+    el.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.sel = null; this.q = ''; const qi = this.el.querySelector('aside input'); if (qi) qi.value = ''; this.msg(''); this.render(); }));
     el.querySelector('aside input').oninput = (e) => { this.q = e.target.value.toLowerCase(); this.list(); };
     this.send({ type: 'admin_open' });
   }
@@ -100,7 +102,19 @@ export class AdminPanel {
     // Оружие: типы (форма удара, черты) + конкретное оружие-предметы с требуемым уровнем надевания (item.req/lvl)
     if (this.tab === 'weapon') return [{ grp: 1, id: '__g1', name: 'Типы оружия' }, ...this.cat.ent.weapon.map((e) => ({ ...row(e, 'weapon'), sub: 'тип · ' + e.id })),
       { grp: 1, id: '__g2', name: 'Оружие (предметы)' }, ...this.cat.ent.item.filter((e) => e.slot === 'weapon').sort((a, b) => (a.lvl || 0) - (b.lvl || 0)).map((e) => row(e, 'item', 'item:'))];
-    const list = this.cat.ent[this.tab].filter((e) => this.tab !== 'item' || e.slot !== 'weapon').map((e) => row(e, this.tab));
+    if (this.tab === 'item') { // ВСЕ предметы, кроме оружия: группы по слоту (сворачиваются) + материалы; фильтр-чипы сверху
+      const out = [], col = this.collapsed || (this.collapsed = new Set());
+      const groups = {};
+      for (const e of this.cat.ent.item) if (e.slot !== 'weapon') (groups[e.slot] = groups[e.slot] || []).push(row(e, 'item'));
+      groups.__res = (this.cat.res || []).map((r) => ({ id: 'res:' + r.id, name: `${r.icon || ''} ${r.name}`.trim(), sub: r.id + ' · материал', kind: 'res' }));
+      for (const [g, rows] of Object.entries(groups).sort((a, b) => (SLOT_ORDER.indexOf(a[0]) + 99) % 99 - (SLOT_ORDER.indexOf(b[0]) + 99) % 99)) {
+        if (this.chip && this.chip !== g) continue;
+        out.push({ grp: 1, g, id: '__g_' + g, name: `${col.has(g) ? '▸' : '▾'} ${SLOT_NAMES[g] || g} · ${rows.length}` });
+        if (!col.has(g)) out.push(...rows.sort((a, b) => (a.lvl || 0) - (b.lvl || 0) || a.name.localeCompare(b.name, 'ru')));
+      }
+      return out;
+    }
+    const list = this.cat.ent[this.tab].map((e) => row(e, this.tab));
     return this.tab === 'loot' ? list : list.sort((a, b) => (a.lvl || 0) - (b.lvl || 0));
   }
   list() {
@@ -110,7 +124,13 @@ export class AdminPanel {
     const q = norm(this.q).trim();
     const hit = (x) => !q || x.grp || x.id.startsWith('__') || norm(`${x.name} ${x.id} ${x.sub || ''}`).includes(q);
     ul.innerHTML = this.items().filter(hit).slice(0, 500)
-      .map((x) => x.grp ? `<li class="grp" data-grp="1">${esc(x.name)}</li>` : `<li data-id="${esc(x.id)}" class="${x.id === this.sel ? 'on' : ''}"><span class="nm">${esc(x.name)}${x.stars ? ` <span class="stars">${x.stars} ★</span>` : ''} ${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.lvl ? `<span class="lv">ур. ${x.lvl}</span>` : ''}</li>`).join('');
+      .map((x) => x.grp ? `<li class="grp" data-grp="1"${x.g ? ` data-g="${esc(x.g)}" style="cursor:pointer"` : ''}>${esc(x.name)}</li>` : `<li data-id="${esc(x.id)}" class="${x.id === this.sel ? 'on' : ''}"><span class="nm">${esc(x.name)}${x.stars ? ` <span class="stars">${x.stars} ★</span>` : ''} ${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.lvl ? `<span class="lv">ур. ${x.lvl}</span>` : ''}</li>`).join('');
+    ul.querySelectorAll('li[data-g]').forEach((li) => (li.onclick = () => { const g = li.dataset.g, c = this.collapsed; c.has(g) ? c.delete(g) : c.add(g); this.list(); }));
+    const chips = this.el.querySelector('.chips');
+    if (chips) { chips.style.display = this.tab === 'item' ? '' : 'none';
+      if (this.tab === 'item') { const gs = ['', ...new Set(this.cat.ent.item.filter((e) => e.slot !== 'weapon').map((e) => e.slot)), '__res'].sort((a, b) => (SLOT_ORDER.indexOf(a) + 99) % 99 - (SLOT_ORDER.indexOf(b) + 99) % 99);
+        chips.innerHTML = gs.map((g) => `<button class="chip ${(this.chip || '') === g ? 'on' : ''}" data-chip="${g}">${g ? SLOT_NAMES[g] || g : 'Все'}</button>`).join('');
+        chips.querySelectorAll('[data-chip]').forEach((b) => (b.onclick = () => { this.chip = b.dataset.chip || null; this.list(); })); } }
     ul.querySelectorAll('li[data-id]').forEach((li) => (li.onclick = () => { this.sel = li.dataset.id; this.render(); }));
   }
   render() {
@@ -123,6 +143,7 @@ export class AdminPanel {
     if (this.tab === 'quest') { if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }
     const isItem = String(this.sel || '').startsWith('item:');
     const kind = isItem ? 'item' : this.tab, id = isItem ? this.sel.slice(5) : this.sel;
+    if (String(this.sel || '').startsWith('res:')) { const r = (this.cat.res || []).find((x) => 'res:' + x.id === this.sel); sec.innerHTML = r ? `<h3>${esc(r.icon || '')} ${esc(r.name)}</h3><p>Материал <code>${esc(r.id)}</code> — выпадает с мобов и из сбора; редактируется через таблицы дропа (вкладка «Дроп»).</p>` : ''; return; }
     const e = this.cat.ent[kind].find((x) => x.id === id);
     if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
     this.entityForm(sec, kind, e);

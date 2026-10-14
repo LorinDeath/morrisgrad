@@ -639,3 +639,7 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-qall .qa-locked { opacity: .65; } .mc-qall .qa-done { border-color: #6ee7b7; } .mc-qall .qa-available { border-color: #fbbf24; }
 .qa-lock { color: #fca5a5; font-size: 12px; } .qa-goals { text-align: left; color: #c4b5fd; font-size: 12px; }
 .q-stars{color:#fbbf24;font-weight:bold;white-space:nowrap}
+/* админка: фильтр-чипы категорий предметов */
+.mc-admin .chips { display: flex; flex-wrap: wrap; gap: 3px; padding: 4px 6px; }
+.mc-admin .chip { font: inherit; font-size: 11px; padding: 2px 6px; border-radius: 9px; border: 1px solid #6b5a2e; background: #1b1626; color: #e7d9b0; cursor: pointer; }
+.mc-admin .chip.on { background: #6b5a2e; color: #fff4cf; }

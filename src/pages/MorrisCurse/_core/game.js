@@ -1535,7 +1535,7 @@ async function boot(canvasId, username, userId, api) {
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       minimap: () => hud.minimap?.stats,
-      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
