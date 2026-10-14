@@ -5,6 +5,9 @@
 .mc3d-label small { display: block; font-size: 9px; font-weight: normal; opacity: 0.85; }
 .mc3d-label .mc3d-mini-hp { width: 40px; height: 4px; margin: 2px auto 0; background: #1f1630; border: 1px solid #000; }
 .mc3d-label .mc3d-mini-hp i { display: block; height: 100%; background: #ef4444; }
+.mc3d-label .mc-msts { display: flex; justify-content: center; gap: 2px; margin-bottom: 1px; }
+.mc3d-label .mc-mst { font-size: 11px; line-height: 12px; font-weight: normal; text-shadow: 0 0 2px #000; }
+.mc3d-label .mc-mst sub { font-size: 8px; color: #fde68a; vertical-align: baseline; margin-left: 1px; font-weight: bold; }
 .mc3d-label .mc3d-mini-hp.party i { background: #a855f7; }
 .mc3d-bubble { position: absolute; transform: translate(-50%, -100%); max-width: 180px; background: rgba(15, 10, 28, 0.92); border: 1px solid #c59b27; border-radius: 8px; padding: 4px 8px; font-size: 11px; white-space: normal; text-align: center; }
 .mc3d-float { position: absolute; transform: translate(-50%, -50%); font-weight: 900; font-size: 13px; text-shadow: 0 1px 0 #000, 0 0 3px #000; pointer-events: none; will-change: transform, opacity; }

@@ -548,6 +548,13 @@ async function boot(canvasId, username, userId, api) {
     social.openRating();
   }
   // C — свой лист персонажа (карточка как у чужого «Персонажа») + дерево талантов; Esc / C — закрыть
+  // ряд значков статусов над полоской ОЗ моба: по одному на вид, со стаками (поджог ×2, кровотечение ×1…)
+  const MOB_ST = [['burn', '🔥', 'Поджог'], ['poison', '☠', 'Яд'], ['bleed', '🩸', 'Кровотечение'], ['slow', '🐌', 'Замедление'], ['frozen', '❄️', 'Заморозка']];
+  function mobStatusRow(o) {
+    const n = { ...(o.sts || {}), slow: (o.flagRaw & 64) ? 1 : 0, frozen: o.frozen ? 1 : 0 };
+    const it = MOB_ST.filter(([k]) => n[k] > 0).map(([k, ic, t]) => `<b class="mc-mst ${k}" title="${t}">${ic}${n[k] > 1 ? `<sub>×${n[k]}</sub>` : ''}</b>`);
+    return it.length ? `<div class="mc-msts">${it.join('')}</div>` : '';
+  }
   function toggleCharSheet() {
     if (social.isSelfOpen()) { social.close(); return; }
     if (!net.isOpen() || !myId) return;
@@ -1555,10 +1562,11 @@ async function boot(canvasId, username, userId, api) {
     }
     // мобы мира с неполным здоровьем — полоска
     for (const o of zone.mobs.values()) {
-      if (o.hp >= 100 && !ZONE_BOSS[o.type]) continue;
+      const stRow = mobStatusRow(o);
+      if (o.hp >= 100 && !ZONE_BOSS[o.type] && !stRow) continue;
       const q = stage.project(toX(o.x), ZONE_BOSS[o.type] ? 6.4 : 2.6, toZ(o.y));
       if (!q) continue;
-      overlay.label('zm_' + o.id, q.x, q.y, `${ZONE_BOSS[o.type] ? esc(ZONE_BOSS[o.type]) : ''}<div class="mc3d-mini-hp"><i style="width:${o.hp}%"></i></div>`, ZONE_BOSS[o.type] ? '#c084fc' : '#e2e8f0');
+      overlay.label('zm_' + o.id, q.x, q.y, `${ZONE_BOSS[o.type] ? esc(ZONE_BOSS[o.type]) : ''}${stRow}<div class="mc3d-mini-hp"><i style="width:${o.hp}%"></i></div>`, ZONE_BOSS[o.type] ? '#c084fc' : '#e2e8f0');
     }
     overlay.cleanupBubbles(alive);
     overlay.endFrame();
@@ -1751,6 +1759,7 @@ async function boot(canvasId, username, userId, api) {
       prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
+      mobStatusRow: (o) => mobStatusRow(o),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed }),

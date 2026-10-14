@@ -84,6 +84,12 @@ export interface Proj {
 }
 export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420 };
 
+/** Биты статусов моба для снимка: вид (8/16/32 — поджог/яд/кровотечение) + стаки каждого вида по 3 бита (13–15, 16–18, 19–21; максимум 7). */
+export function mobStatusBits(dots: { kind: string; until: number }[] | undefined, now: number): number {
+  let st = 0;
+  if (dots?.length) for (const dd of dots) if (dd.until > now) { const i = dd.kind === "burn" ? 0 : dd.kind === "poison" ? 1 : 2; st |= 8 << i; const sh = 13 + i * 3, c = (st >> sh) & 7; if (c < 7) st = (st & ~(7 << sh)) | ((c + 1) << sh); }
+  return st;
+}
 export class Zone {
   projs: Proj[] = []; private nextProj = 1;
   /** выпустить снаряд (сервер); событие proj — клиентам для отрисовки (траектория детерминирована) */
@@ -1041,8 +1047,7 @@ export class Zone {
       const far = Math.abs(x.x - px) > aoi || Math.abs(x.y - py) > aoi;
       if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.15 && Math.abs(x.y - py) < aoi * 1.15)) continue; // боссов видно дальше
       // статусы — битами (могут быть одновременно) + число стаков каждого (по 3 бита: поджог 13–15, яд 16–18, кровотечение 19–21)
-      let st = 0;
-      if (x.dots?.length) for (const dd of x.dots) if (dd.until > now) { const i = dd.kind === "burn" ? 0 : dd.kind === "poison" ? 1 : 2; st |= 8 << i; const sh = 13 + i * 3, c = (st >> sh) & 7; if (c < 7) st = (st & ~(7 << sh)) | ((c + 1) << sh); }
+      const st = mobStatusBits(x.dots, now);
       m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
         (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0));
     }
