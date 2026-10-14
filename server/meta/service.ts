@@ -9,7 +9,7 @@ import {
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
-import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests } from "./quests";
+import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
@@ -51,7 +51,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
-  admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }),
+  admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
 };
 function validMsg(msg: any): boolean {
@@ -183,6 +183,7 @@ export class MetaService {
     questRefresh(a, h);
     s.available = QUESTS.filter((q) => questAvailable(a, q, h)).map((q) => q.id);
     s.customQuests = QUESTS.filter((q) => q.custom); // тексты квестов админ-панели (клиент вливает в QUEST_BY_ID)
+    s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
     // карточки предметов сумки — только новые для этой сессии (клиент кэширует); статы из клиента не принимаются
@@ -404,7 +405,7 @@ export class MetaService {
         this.rating.view(ms.pkey).then((v) => this.send(ws, { type: "rating", ...v })).catch((e) => { console.error("[mc] rating", e?.message || e); this.send(ws, { type: "rating_err", message: "Рейтинг временно недоступен" }); });
         return true;
       }
-      case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": {
+      case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": {
         // только серверно проверенный админ (uid из Clerk + player_roles); id/роль из сообщения не используются
         if (!this.roles.isAdmin(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why: "not_admin", type: msg.type }); return true; }
         const t = Date.now(); if (msg.type !== "admin_open" && t - ((ms as any).admAt || 0) < 300) { this.send(ws, { type: "toast_error", message: "Слишком часто" }); return true; }
@@ -415,6 +416,7 @@ export class MetaService {
         else if (msg.type === "admin_audit") this.admin.audit(60).then((rows) => this.send(ws, { type: "admin_audit", rows })).catch(fail);
         else if (msg.type === "admin_save") this.admin.save(ms.pkey, msg.kind, msg.id, msg.patch).then((r) => this.send(ws, { type: "admin_result", op: "save", kind: msg.kind, id: msg.id, ...r })).catch(fail);
         else if (msg.type === "admin_reset") this.admin.reset(ms.pkey, msg.kind, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "reset", kind: msg.kind, id: msg.id, ...r })).catch(fail);
+        else if (msg.type === "admin_quest_reset") this.admin.resetQuest(ms.pkey, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "quest", reset: true, ...r })).catch(fail);
         else if (msg.type === "admin_quest_save") this.admin.saveQuest(ms.pkey, msg.quest).then((r) => this.send(ws, { type: "admin_result", op: "quest", ...r })).catch(fail);
         else this.admin.deleteQuest(ms.pkey, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "quest_delete", id: msg.id, ...r })).catch(fail);
         return true;

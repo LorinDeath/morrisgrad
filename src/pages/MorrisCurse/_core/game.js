@@ -40,7 +40,7 @@ import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/port
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
-import { setCustomQuests } from '../../../../server/meta/quests.ts';
+import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
@@ -374,6 +374,7 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('meta_state', (d) => {
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
+    if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl;
     addCards(d.loot?.cards); addCards(d.reward?.cards);
@@ -454,6 +455,7 @@ async function boot(canvasId, username, userId, api) {
   });
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
+  adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
   net.on('admin_result', (d) => adminPanel.onResult(d));
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('role_changed', (d) => social.onRoleChanged(d));

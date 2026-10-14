@@ -5,7 +5,7 @@
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, type Kind, type Trait } from "./overrides";
-import { QUESTS, QUEST_BY_ID, setCustomQuests, type QuestDef, type Objective } from "./quests";
+import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOriginal, type QuestDef, type Objective } from "./quests";
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { MOB_SKILLS_LIST } from "./mobSkills";
@@ -16,10 +16,11 @@ const STR = (v: any, max: number) => (typeof v === "string" ? v.slice(0, max) : 
 const OBJ_TYPES = ["talk", "kill", "kill_boss", "gather", "collect", "level", "reach"] as const;
 
 /** проверка квеста из панели: только разрешённые поля и типы целей, ссылки на существующих NPC/мобов/предметы */
-export function validateQuest(q: any): QuestDef | string {
+export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
   if (!q || typeof q !== "object") return "пустой квест";
   const id = String(q.id || "");
-  if (!/^c_[a-z0-9_]{1,40}$/.test(id)) return "id квеста: c_ + латиница/цифры/_ (до 40)";
+  if (builtin) { if (id !== builtin.id) return "id сюжетного квеста менять нельзя"; }
+  else if (!/^c_[a-z0-9_]{1,40}$/.test(id)) return "id квеста: c_ + латиница/цифры/_ (до 40)";
   if (!NPCS[q.npc]) return "NPC не найден";
   if (q.turnin && !NPCS[q.turnin]) return "NPC сдачи не найден";
   const title = STR(q.title, 80).trim(); if (!title) return "нужно название";
@@ -37,6 +38,12 @@ export function validateQuest(q: any): QuestDef | string {
   if (!Array.isArray(q.objectives) || !q.objectives.length || q.objectives.length > 5) return "целей 1…5";
   const objectives: Objective[] = [];
   for (const o of q.objectives) {
+    // у сюжетных квестов бывают особые цели (забег, «без навыков»…): их можно оставить как в коде, но не менять
+    if (builtin && !(OBJ_TYPES as readonly string[]).includes(String(o?.type))) {
+      const same = (builtin.objectives || []).find((x: any) => JSON.stringify({ ...x, text: undefined }) === JSON.stringify({ ...o, text: undefined }));
+      if (!same) return `цель «${o?.type}» сюжетного квеста менять нельзя (только текст)`;
+      objectives.push({ ...same, text: STR(o?.text, 160).trim() || same.text } as any); continue;
+    }
     const t = String(o?.type), text = STR(o?.text, 160).trim() || "Цель";
     const cnt = Math.round(Number(o?.count) || 1);
     if (!(OBJ_TYPES as readonly string[]).includes(t)) return `тип цели ${t} недоступен`;
@@ -47,6 +54,9 @@ export function validateQuest(q: any): QuestDef | string {
     else if (t === "collect") { if (o.item ? !ITEM_BY_ID[o.item] : !RESOURCES[o.res]) return "собрать: нужен предмет или ресурс"; objectives.push({ type: "collect", ...(o.item ? { item: o.item } : { res: o.res }), count: cnt, text }); }
     else if (t === "level") { if (cnt > 60) return "уровень до 60"; objectives.push({ type: "level", count: cnt, text }); }
     else if (t === "reach") { if (!["arinar", "hellfire"].includes(o.world)) return "мир: arinar/hellfire"; objectives.push({ type: "reach", world: o.world, text }); }
+    // сюжетный квест: особые флаги цели из кода (noAbilities и т.п.) сохраняются, если тип цели тот же
+    if (builtin) { const ob = builtin.objectives?.[objectives.length - 1] as any, nw = objectives[objectives.length - 1] as any;
+      if (ob && ob.type === nw.type) for (const [k, v] of Object.entries(ob)) if (!["type", "mob", "npc", "res", "item", "world", "count", "text"].includes(k) && nw[k] === undefined) nw[k] = v; }
   }
   const r = q.rewards || {}, rewards: QuestDef["rewards"] = {};
   const xp = Math.round(Number(r.xp) || 0); if (xp < 0 || xp > 100000) return "опыт 0…100000"; if (xp) rewards.xp = xp;
@@ -63,6 +73,7 @@ export function validateQuest(q: any): QuestDef | string {
     for (const [k, v] of Object.entries(r.res)) { const n = Math.round(Number(v)); if (!RESOURCES[k] || !(n >= 1 && n <= 999)) return `ресурс ${k}: 1…999`; res[k] = n; }
     if (Object.keys(res).length) rewards.res = res;
   }
+  if (builtin && (builtin.rewards as any)?.flag) (rewards as any).flag = (builtin.rewards as any).flag; // сюжетный флаг награды — не редактируется
   const lines = (v: any, n: number) => (Array.isArray(v) ? v : [v]).map((x) => STR(x, 400).trim()).filter(Boolean).slice(0, n);
   const offer = lines(q.offer, 6), done = lines(q.done, 6);
   if (!offer.length || !done.length) return "нужны реплики «предложение» и «сдача»";
@@ -106,7 +117,15 @@ export class AdminStore {
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
         for (const r of rows) { const p = validatePatch(r.kind, r.id, JSON.parse(r.data)); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
         const qs = (await this.db.prepare("SELECT data FROM custom_quests WHERE enabled = 1").all()).results || [];
-        setCustomQuests(qs.map((r: any) => validateQuest(JSON.parse(r.data))).filter((q: any) => typeof q !== "string") as QuestDef[]);
+        // сюжетные квесты: сначала вернуть исходные, затем наложить правки (строки custom_quests с id сюжетного квеста)
+        for (const q of QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null);
+        const custom: QuestDef[] = [];
+        for (const r of qs as any[]) {
+          const raw = JSON.parse(r.data), orig = questOriginal(String(raw?.id));
+          if (orig) { const v = validateQuest(raw, orig); if (typeof v !== "string") applyBuiltinOverride(orig.id, v); }
+          else { const v = validateQuest(raw); if (typeof v !== "string") custom.push(v); }
+        }
+        setCustomQuests(custom);
         this.ver = ver;
       } catch (e: any) { console.error("[mc] admin sync", e?.message || e); }
       finally { this.loading = null; }
@@ -146,16 +165,26 @@ export class AdminStore {
   }
   async saveQuest(by: string, raw: any) {
     if (!this.db) return { ok: false, err: "База недоступна" };
-    const q = validateQuest(raw); if (typeof q === "string") return { ok: false, err: q };
-    if (QUEST_BY_ID[q.id] && !QUEST_BY_ID[q.id].custom) return { ok: false, err: "id занят сюжетным квестом" };
-    const before = QUEST_BY_ID[q.id] || null;
+    const orig = questOriginal(String(raw?.id || ""));
+    const q = validateQuest(raw, orig); if (typeof q === "string") return { ok: false, err: q };
+    const before = QUEST_BY_ID[q.id] ? JSON.parse(JSON.stringify(QUEST_BY_ID[q.id])) : null;
     const row = await this.db.prepare("SELECT version FROM custom_quests WHERE id = ?").bind(q.id).first();
     const version = Number(row?.version || 0) + 1;
     await this.db.prepare("INSERT INTO custom_quests (id, data, enabled, version, updated_by, updated_at) VALUES (?, ?, 1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, enabled = 1, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at")
       .bind(q.id, JSON.stringify(q), version, by, Date.now()).run();
-    setCustomQuests([...QUESTS.filter((x) => x.custom && x.id !== q.id), q]);
+    if (orig) applyBuiltinOverride(q.id, q); else setCustomQuests([...QUESTS.filter((x) => x.custom && x.id !== q.id), q]);
     await this.bump(by, "quest", q.id, before, q, version);
-    return { ok: true, quest: q, version };
+    return { ok: true, quest: orig ? { ...QUEST_BY_ID[q.id] } : q, builtin: !!orig, version };
+  }
+  /** сюжетный квест: удалить правку — вернуть значения из кода */
+  async resetQuest(by: string, id: string) {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    if (!questOriginal(id)) return { ok: false, err: "это не сюжетный квест" };
+    const before = JSON.parse(JSON.stringify(QUEST_BY_ID[id]));
+    await this.db.prepare("DELETE FROM custom_quests WHERE id = ?").bind(id).run();
+    applyBuiltinOverride(id, null);
+    await this.bump(by, "quest", id, before, QUEST_BY_ID[id], 0);
+    return { ok: true, quest: { ...QUEST_BY_ID[id] }, builtin: true };
   }
   async deleteQuest(by: string, id: string) {
     if (!this.db) return { ok: false, err: "База недоступна" };
@@ -179,7 +208,7 @@ export class AdminStore {
     for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" ? (ZONE_MOBS as any)[id]?.name : null) || o.name || o.title || id, icon: o.icon || (k === "loot" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
-      quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q.custom ? q : undefined })),
+      quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),
       npcs: Object.entries(NPCS).map(([id, n]) => ({ id, name: n.name, world: n.world })),
       items: Object.entries(ITEM_BY_ID).map(([id, o]: [string, any]) => ({ id, name: o.name })),
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),

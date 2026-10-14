@@ -87,7 +87,7 @@ export class AdminPanel {
   onResult(r) {
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
     if (r.kind && r.values) { const e = this.cat.ent[r.kind].find((x) => x.id === r.id); if (e) { e.values = r.values; if (r.kind === 'item') e.lvl = Math.max(1, r.values.req || 1, r.values.lvl || 1); if (r.kind === 'mob') e.lvl = r.values.lvl; } }
-    if (r.op === 'quest' && r.quest) { const i = this.cat.quests.findIndex((x) => x.id === r.quest.id); const row = { id: r.quest.id, title: r.quest.title, npc: r.quest.npc, custom: true, requires: r.quest.requires || [], minLevel: r.quest.minLevel, stars: Object.values(r.quest.rewards?.stars || {}).reduce((a, b) => a + b, 0), def: r.quest }; if (i >= 0) this.cat.quests[i] = row; else this.cat.quests.push(row); this.sel = r.quest.id; }
+    if (r.op === 'quest' && r.quest) { this.onQuestApplied?.(r); const i = this.cat.quests.findIndex((x) => x.id === r.quest.id); const row = { id: r.quest.id, title: r.quest.title, npc: r.quest.npc, custom: !r.builtin, edited: r.builtin && !r.reset, requires: r.quest.requires || [], minLevel: r.quest.minLevel, stars: Object.values(r.quest.rewards?.stars || {}).reduce((a, b) => a + b, 0), def: r.quest }; if (i >= 0) this.cat.quests[i] = row; else this.cat.quests.push(row); this.sel = r.quest.id; }
     if (r.op === 'quest_delete') { this.cat.quests = this.cat.quests.filter((x) => x.id !== r.id); this.sel = null; }
     this.msg(`✔ Сохранено в D1${r.version ? ` (версия ${r.version})` : ''}`); this.render();
   }
@@ -95,7 +95,7 @@ export class AdminPanel {
   items() {
     if (!this.cat) return [];
     const row = (e, kind, pre = '') => ({ id: pre + e.id, name: `${e.icon || ''} ${e.name}`.trim(), sub: e.id, lvl: e.lvl, kind });
-    if (this.tab === 'quest') return [{ id: '__tree', name: '🌳 Дерево квестов' }, { id: '__new', name: '＋ Новый квест' }, ...this.cat.quests.map((q) => ({ id: q.id, name: q.title, stars: q.stars, lvl: q.minLevel, sub: (q.custom ? '✎ ' : '🔒 ') + q.npc }))];
+    if (this.tab === 'quest') return [{ id: '__tree', name: '🌳 Дерево квестов' }, { id: '__new', name: '＋ Новый квест' }, ...this.cat.quests.map((q) => ({ id: q.id, name: q.title, stars: q.stars, lvl: q.minLevel, sub: (q.custom ? '✚ ' : q.edited ? '✎ ' : '📖 ') + q.npc }))];
     if (this.tab === 'audit') return [];
     // Оружие: типы (форма удара, черты) + конкретное оружие-предметы с требуемым уровнем надевания (item.req/lvl)
     if (this.tab === 'weapon') return [{ grp: 1, id: '__g1', name: 'Типы оружия' }, ...this.cat.ent.weapon.map((e) => ({ ...row(e, 'weapon'), sub: 'тип · ' + e.id })),
@@ -183,7 +183,7 @@ export class AdminPanel {
   }
   questForm(sec, draft = null) {
     const row = this.cat.quests.find((q) => q.id === this.sel);
-    if (row && !row.custom) {
+    if (row && !row.custom && !draft && this.viewOnly) {
       const kids = this.cat.quests.filter((x) => (x.requires || []).includes(row.id)), par = (row.requires || []).map((id) => this.cat.quests.find((x) => x.id === id)).filter(Boolean);
       const link = (x) => `<span class="qn" data-go="${esc(x.id)}">${esc(x.title)}${x.stars ? ` <span class="stars">${x.stars} ★</span>` : ''}</span>`;
       sec.innerHTML = `<h3>🔒 ${esc(row.title)}${row.stars ? ` <span class="stars">${row.stars} ★</span>` : ''} <button class="btn" data-totree>🌳 К дереву</button></h3><p>Сюжетный квест из кода (${esc(row.id)}, NPC ${esc(row.npc)}${row.minLevel ? ', ур. ' + row.minLevel : ''}) — только просмотр. Новые квесты создаются кнопкой «＋ Новый квест».</p>
@@ -193,16 +193,17 @@ export class AdminPanel {
       return;
     }
     if (!row && this.sel !== '__new') { sec.innerHTML = '<h3>Квесты</h3><p>Выберите квест или «＋ Новый квест». Квест назначается NPC; игроки видят его в диалоге NPC («Все квесты»).</p>'; return; }
+    const builtin = row && !row.custom;
     const q = draft || row?.def || { id: 'c_', npc: this.cat.npcs[0]?.id, title: '', objectives: [{ type: 'kill', mob: this.cat.mobs[0]?.id, count: 5, text: '' }], rewards: { xp: 100 }, offer: [''], progress: '', done: [''], lore: '' };
     const npcOpt = (cur, empty) => (empty ? '<option value="">— тот же —</option>' : '') + this.cat.npcs.map((n) => `<option value="${n.id}" ${n.id === cur ? 'selected' : ''}>${esc(n.name)} (${n.world})</option>`).join('');
     const opt = (list, cur) => list.map((x) => `<option value="${x.id}" ${x.id === cur ? 'selected' : ''}>${esc(x.name)}${x.lvl ? ' · ур.' + x.lvl : ''}</option>`).join('');
-    const objRow = (o, i) => `<div class="trait" data-oi="${i}"><select data-ot>${this.cat.objTypes.map((t) => `<option ${t === o.type ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    const objRow = (o, i) => !this.cat.objTypes.includes(o.type) ? `<div class="trait" data-oi="${i}" data-raw="${esc(JSON.stringify(o))}"><span class="tn">🔒 ${esc(o.type)}</span><small>особая цель сюжета — меняется только текст</small><input data-otext value="${esc(o.text || '')}" style="flex:1;min-width:180px"></div>` : `<div class="trait" data-oi="${i}"><select data-ot>${this.cat.objTypes.map((t) => `<option ${t === o.type ? 'selected' : ''}>${t}</option>`).join('')}</select>
       ${['kill', 'kill_boss'].includes(o.type) ? `<select data-om>${opt(this.cat.mobs, o.mob)}</select>` : ''}${o.type === 'talk' ? `<select data-on>${npcOpt(o.npc)}</select>` : ''}
       ${['gather'].includes(o.type) ? `<select data-or>${opt(this.cat.res, o.res)}</select>` : ''}${o.type === 'collect' ? `<select data-oc><option value="">ресурс…</option>${opt(this.cat.items, o.item)}</select><select data-or>${opt(this.cat.res, o.res)}</select>` : ''}
       ${o.type === 'reach' ? `<select data-ow><option ${o.world === 'arinar' ? 'selected' : ''}>arinar</option><option ${o.world === 'hellfire' ? 'selected' : ''}>hellfire</option></select>` : ''}
       ${['kill', 'gather', 'collect', 'level'].includes(o.type) ? `<input type="number" data-ocnt min="1" max="999" value="${o.count || 1}">` : ''}
       <input data-otext placeholder="текст цели" value="${esc(o.text || '')}" style="flex:1;min-width:180px"><button class="btn red" data-orm="${i}">✕</button></div>`;
-    sec.innerHTML = `<h3>📜 ${row ? 'Квест ' + esc(q.id) : 'Новый квест'}${row?.stars ? ` <span class="stars">${row.stars} ★</span>` : ''} <button class="btn" data-totree>🌳 К дереву</button></h3>
+    sec.innerHTML = `${builtin ? `<p class="box" style="margin:0 0 8px">📖 Сюжетный квест <b>${esc(q.id)}</b> — правка хранится в D1 поверх кода; id не меняется, прогресс игроков сохраняется. ${row.edited ? '<b style="color:#fbbf24">✎ изменён</b>' : 'значения из кода'}</p>` : ''}<h3>📜 ${row ? 'Квест ' + esc(q.id) : 'Новый квест'}${row?.stars ? ` <span class="stars">${row.stars} ★</span>` : ''} <button class="btn" data-totree>🌳 К дереву</button></h3>
       <div class="grid"><label><span>id (c_…)</span><input data-q="id" value="${esc(q.id)}" ${row ? 'readonly' : ''}></label><label><span>Название</span><input data-q="title" value="${esc(q.title)}"></label>
       <label><span>Выдаёт NPC</span><select data-q="npc">${npcOpt(q.npc)}</select></label><label><span>Сдать NPC</span><select data-q="turnin">${npcOpt(q.turnin, true)}</select></label>
       <label><span>Мин. уровень</span><input type="number" data-q="minLevel" min="1" max="60" value="${q.minLevel ?? ''}"></label><label style="grid-column:1/-1"><span>🔗 Открывается после квеста(ов)<br><small>Ctrl/⌘ — несколько; пусто — корень дерева</small></span><select multiple size="6" data-q="requires">${this.cat.quests.filter((x) => x.id !== q.id).map((x) => `<option value="${esc(x.id)}" ${(q.requires || []).includes(x.id) ? 'selected' : ''}>${esc(x.title)}${x.stars ? ' ' + x.stars + '★' : ''} — ${esc(x.id)}</option>`).join('')}</select></label>
@@ -210,10 +211,10 @@ export class AdminPanel {
       <label><span>★ Звёзды-награда</span><span>${[['yellow', '#fbbf24'], ['red', '#f87171'], ['purple', '#c084fc'], ['black', '#9ca3af']].map(([c, col]) => `<span style="color:${col}">★</span><input type="number" data-star="${c}" min="0" max="5" style="width:44px" value="${q.rewards?.stars?.[c] || ''}">`).join('')}</span></label></div>
       <div class="box"><b>Цели</b><div class="objs">${q.objectives.map(objRow).join('')}</div><button class="btn" data-oadd>＋ цель</button></div>
       <div class="box"><b>Реплики</b><p>Предложение (строки):</p><textarea data-q="offer">${esc((q.offer || []).join('\n'))}</textarea><p>В процессе:</p><textarea data-q="progress">${esc(q.progress || '')}</textarea><p>При сдаче (строки):</p><textarea data-q="done">${esc((q.done || []).join('\n'))}</textarea><p>Лор (открывается в «Все квесты» после выполнения):</p><textarea data-q="lore">${esc(q.lore || '')}</textarea></div>
-      <p><button class="btn gold" data-qsave>💾 Сохранить квест в D1</button> ${row ? '<button class="btn red" data-qdel>🗑 Скрыть квест</button>' : ''}</p>`;
+      <p><button class="btn gold" data-qsave>💾 Сохранить квест в D1</button> ${builtin ? (row.edited ? '<button class="btn red" data-qreset>↺ Вернуть исходное</button>' : '') : row ? '<button class="btn red" data-qdel>🗑 Скрыть квест</button>' : ''}</p>`;
     const read = () => {
       const g = (k) => sec.querySelector(`[data-q="${k}"]`).value;
-      const objectives = [...sec.querySelectorAll('[data-oi]')].map((r) => { const s = (a) => r.querySelector(a)?.value; return { type: s('[data-ot]'), mob: s('[data-om]'), npc: s('[data-on]'), res: s('[data-or]'), item: s('[data-oc]') || undefined, world: s('[data-ow]'), count: Number(s('[data-ocnt]') || 1), text: s('[data-otext]') }; });
+      const objectives = [...sec.querySelectorAll('[data-oi]')].map((r) => { const s = (a) => r.querySelector(a)?.value; if (r.dataset.raw) return { ...JSON.parse(r.dataset.raw), text: s('[data-otext]') }; return { type: s('[data-ot]'), mob: s('[data-om]'), npc: s('[data-on]'), res: s('[data-or]'), item: s('[data-oc]') || undefined, world: s('[data-ow]'), count: Number(s('[data-ocnt]') || 1), text: s('[data-otext]') }; });
       return { id: g('id').trim(), title: g('title'), npc: g('npc'), turnin: g('turnin') || undefined, minLevel: g('minLevel') || undefined, requires: [...sec.querySelector('[data-q="requires"]').selectedOptions].map((o) => o.value),
         objectives, rewards: { xp: Number(g('xp') || 0), items: g('items').split(',').map((x) => x.trim()).filter(Boolean), stars: Object.fromEntries([...sec.querySelectorAll('[data-star]')].filter((i) => Number(i.value) > 0).map((i) => [i.dataset.star, Number(i.value)])) }, offer: g('offer').split('\n'), progress: g('progress'), done: g('done').split('\n'), lore: g('lore') };
     };
@@ -223,6 +224,7 @@ export class AdminPanel {
     sec.querySelectorAll('[data-orm]').forEach((b) => (b.onclick = () => { const q2 = read(); q2.objectives.splice(+b.dataset.orm, 1); rerender(q2); }));
     sec.querySelector('[data-oadd]').onclick = () => { const q2 = read(); q2.objectives.push({ type: 'kill', mob: this.cat.mobs[0]?.id, count: 3, text: '' }); rerender(q2); };
     sec.querySelector('[data-qsave]').onclick = () => { this.msg('Сохранение…'); this.send({ type: 'admin_quest_save', quest: read() }); };
+    sec.querySelector('[data-qreset]')?.addEventListener('click', () => { if (confirm('Вернуть квест к значениям из кода?')) { this.msg('Сброс…'); this.send({ type: 'admin_quest_reset', id: q.id }); } });
     sec.querySelector('[data-qdel]')?.addEventListener('click', () => { if (confirm('Скрыть квест у игроков?')) this.send({ type: 'admin_quest_delete', id: q.id }); });
   }
   // дерево квестов (как граф Obsidian, но деревом): корни — квесты без предусловий; дети — квесты, которые открываются после.

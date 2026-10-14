@@ -4,6 +4,8 @@ const { chromium } = require('playwright-core');
 const { execSync } = require('child_process');
 const OUT = '/workspace/morrisgrad-round2';
 const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db --local --json --command "${sql}"`).toString();
+// чистый старт: правки оружия/предметов от прошлых прогонов убрать (версия +1 — сервер перечитает)
+d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_config_version SET v = v + 1 WHERE k = 'overrides'");
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   let pass = 0, fail = 0; const errs = [];
@@ -125,6 +127,19 @@ const d1 = (sql) => execSync(`cd server && npx wrangler d1 execute morrisgrad_db
   await A.screenshot({ path: `${OUT}/admin-quest-tree.png` });
   await A.click('.mc-admin .qtree [data-go="c_pt_slimes2"] >> nth=0'); await A.waitForTimeout(250);
   ok((await A.inputValue('.mc-admin [data-q="id"]')) === 'c_pt_slimes2', 'клик по узлу открывает квест в редакторе');
+  { // сюжетный квест sl_p1 — редактируется (правка в D1 поверх кода), «Вернуть исходное»
+    await A.click('.mc-admin aside li[data-id="sl_p1"]'); await A.waitForTimeout(300);
+    ok(!!(await A.$('.mc-admin [data-qsave]')) && (await A.inputValue('.mc-admin [data-q="id"]')) === 'sl_p1', 'сюжетный квест открыт в редакторе (не только просмотр)');
+    const t0 = await A.inputValue('.mc-admin [data-q="title"]');
+    await A.fill('.mc-admin [data-q="title"]', '★★★ Фиолетовая полоса (правка)'); await A.fill('.mc-admin [data-q="xp"]', '777');
+    await A.click('.mc-admin [data-qsave]'); m = await saved(); ok(/Сохранено/.test(m), 'сюжетный квест сохранён — ' + m);
+    ok(/правка/.test(d1("SELECT data FROM custom_quests WHERE id='sl_p1'")), 'D1: правка sl_p1 записана (id сохранён)');
+    ok(/правка/.test(await A.textContent('.mc-admin aside li[data-id="sl_p1"]')), 'список: новое название');
+    ok(!!(await A.$('.mc-admin [data-qreset]')), 'кнопка «Вернуть исходное»');
+    await A.screenshot({ path: `${OUT}/admin-quest-edit-builtin.png` });
+    A.once('dialog', (d) => d.accept()); await A.click('.mc-admin [data-qreset]'); m = await saved();
+    ok((await A.textContent('.mc-admin aside li[data-id="sl_p1"]')).includes(t0) && !/sl_p1/.test(d1("SELECT id FROM custom_quests WHERE id='sl_p1'")), 'сброс: исходное название, строки в D1 нет — ' + m);
+  }
   ok(/c_pt_slimes/.test(d1("SELECT id FROM custom_quests WHERE id='c_pt_slimes' AND enabled=1")), 'D1 custom_quests: квест есть');
   await A.click('.mc-admin [data-tab="audit"]'); await A.waitForTimeout(1200);
   ok((await A.$$('.mc-admin table tr')).length >= 4, 'журнал правок: записи есть');

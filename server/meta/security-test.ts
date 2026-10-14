@@ -43,6 +43,16 @@ const good = { id: "c_t1", title: "Т", npc: Object.keys({}).length ? "" : undef
 ok(typeof validateQuest({ id: "evil", title: "x" }) === "string", "id квеста без c_ — отказ");
 ok(typeof validateQuest({ ...good, id: "c_" + "x".repeat(200) }) === "string", "длинный id — отказ");
 ok(typeof validateQuest(null) === "string", "null-квест — отказ");
+// 5б. сюжетные квесты: id не меняется, особые цели — только текст, флаги целей сохраняются
+{ const { QUEST_BY_ID } = await import("./quests"); const o: any = QUEST_BY_ID["sl_p1"];
+  const base = { ...o, objectives: o.objectives.map((x: any) => ({ ...x })) };
+  ok(typeof validateQuest({ ...base, title: "Новое" }, o) === "object", "сюжетный: правка названия — ок");
+  ok(typeof validateQuest({ ...base, id: "sl_other" }, o) === "string", "сюжетный: смена id — отказ");
+  const sp = Object.values(QUEST_BY_ID).find((q: any) => q.objectives?.some((x: any) => x.type === "run")) as any;
+  if (sp) { const bad = { ...sp, objectives: sp.objectives.map((x: any) => x.type === "run" ? { ...x, minTime: 1 } : x) }; ok(typeof validateQuest(bad, sp) === "string", "сюжетный: особая цель «run» не меняется"); }
+  const na = Object.values(QUEST_BY_ID).find((q: any) => q.objectives?.some((x: any) => x.noAbilities)) as any;
+  if (na) { const v: any = validateQuest({ ...na, objectives: na.objectives.map((x: any) => ({ type: x.type, mob: x.mob, count: x.count, text: "новый текст" })) }, na); ok(typeof v === "object" && v.objectives.some((x: any) => x.noAbilities), "сюжетный: флаг noAbilities сохраняется"); }
+}
 // 6. черты
 { let dot = 0, heal = 0; applyTraits([{ k: "burn", chance: 100, dpsPct: 10, dur: 3 }, { k: "lifesteal", chance: 0, pct: 50 }], 100, () => 0.5, { dot: (_k, d) => (dot = d), slow() {}, knock() {}, freeze() {}, heal: (h) => (heal = h) });
   ok(dot === 10 && heal === 0, `черты: поджог 10/с, вампиризм с шансом 0 не срабатывает (${dot}, ${heal})`); }

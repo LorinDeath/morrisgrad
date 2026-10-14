@@ -144,5 +144,19 @@ export function setCustomQuests(list: QuestDef[]) {
   for (let i = QUESTS.length - 1; i >= 0; i--) if (QUESTS[i].custom) { delete QUEST_BY_ID[QUESTS[i].id]; QUESTS.splice(i, 1); }
   for (const q of list) { if (QUEST_BY_ID[q.id]) continue; const d = { ...q, custom: true, campaign: "custom" as const }; QUESTS.push(d); QUEST_BY_ID[q.id] = d; }
 }
+// правки СЮЖЕТНЫХ квестов из админ-панели: поверх значений из кода, id не меняется (прогресс игроков сохраняется).
+// Объект квеста мутируется на месте — ссылки QUEST_BY_ID/QUESTS остаются теми же; null — вернуть исходное.
+const QUEST_ORIG = new Map<string, QuestDef>();
+export const QUEST_EDITABLE = ["title", "chapter", "npc", "turnin", "minLevel", "requires", "objectives", "rewards", "offer", "progress", "done", "lore", "hint"] as const;
+export function questOriginal(id: string): QuestDef | undefined { const q = QUEST_BY_ID[id]; if (!q || q.custom) return undefined; return QUEST_ORIG.get(id) || q; }
+export function applyBuiltinOverride(id: string, patch: Partial<QuestDef> | null) {
+  const q = QUEST_BY_ID[id]; if (!q || q.custom) return;
+  if (!QUEST_ORIG.has(id)) QUEST_ORIG.set(id, JSON.parse(JSON.stringify(q)));
+  const o = QUEST_ORIG.get(id)! as any;
+  for (const k of QUEST_EDITABLE) { (q as any)[k] = o[k] === undefined ? undefined : JSON.parse(JSON.stringify(o[k])); }
+  (q as any).edited = false;
+  if (patch) { for (const k of QUEST_EDITABLE) if ((patch as any)[k] !== undefined) (q as any)[k] = (patch as any)[k]; (q as any).edited = true; }
+}
+export function builtinOverrides(): Partial<QuestDef>[] { return QUESTS.filter((q: any) => !q.custom && q.edited).map((q) => { const o: any = { id: q.id }; for (const k of QUEST_EDITABLE) o[k] = (q as any)[k]; return o; }); }
 export const turninNpc = (q: QuestDef) => q.turnin || q.npc;
 export const CAMPAIGN_NAMES: Record<string, string> = { custom: "Поручения", prologue: "Пролог", leyr: "Лэйр · «Чувствовать»", alzi: "Алзи · «Держать мир»", joint: "Совместная · «Гул»", star: "Звёздные квесты", exam: "Экзамены", black: "Чёрная звезда" };
