@@ -87,7 +87,7 @@ export class QuestTracker {
       } else this.arrow.style.display = 'none';
     } else if (t) {
       this.arrowI.style.transform = 'rotate(0rad)';
-      this.arrowS.textContent = t.world === 'arinar' ? 'Цель в Аринаре — разлом на западе Поляны' : 'Цель на Поляне — портал на западе Аринара';
+      this.arrowS.textContent = t.world === 'arinar' ? 'Цель в Аринаре — разлом на западе Поляны' : 'Цель на Поляне — портал в центре Аринара (Гранатовый двор)';
       this.arrow.style.display = '';
     } else this.arrow.style.display = 'none';
   }

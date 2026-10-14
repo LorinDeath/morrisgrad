@@ -306,7 +306,7 @@ export class Pvp {
       const result = winner === null ? "draw" : winner === i ? "win" : "loss";
       const msg: any = { type: "pvp_end", id: d.id, result, reason, opp: d.names[1 - i], hp: hpPct[i], oppHp: hpPct[1 - i], dealt: d.hits[i], taken: d.hits[1 - i] };
       if (reason === "disconnect" && d.sids[i] === goneSid) return; // отключившийся — сообщать некому, состояние очищено
-      s.world = "arinar"; s.x = ZONE_RESPAWN.x; s.y = ZONE_RESPAWN.y;
+      s.world = "arinar"; s.x = ZONE_RESPAWN.x; s.y = ZONE_RESPAWN.y; (s as any).arVer = 2; // ARINAR_LAYOUT_VER
       if (ms) { ms.zp.x = s.x; ms.zp.y = s.y; }
       this.host.send(ws, { type: "world_switched", world: "arinar", x: s.x, y: s.y });
       this.host.onWorldChange(ws, s);

@@ -11,6 +11,7 @@
 // defs.ts — ТОЛЬКО СЕРВЕР: всё из shared.ts + предметы, добыча, облики, ремесло, статы мобов.
 
 import { CONTENT } from "./content";
+import { withVariants, baseOf } from "./biomes";
 import type { ItemDef, HeroId } from "./shared";
 import { CLASS_WTYPE } from "./shared";
 export * from "./shared";
@@ -68,7 +69,7 @@ export const RECIPES: { id: string; item: string; cost: Record<string, number> }
 export const ZONE_WORLD = "arinar";
 export interface ZoneMobDef { name: string; hp: number; dmg: number; speed: number; aggro: number; xp: number; radius: number; armor: number; color: string; boss?: boolean; lvl: number; tier: number; role: string; size: string; rare?: boolean; huge?: boolean; phases?: number }
 // Все Отголоски мира: статы — из кривых balance.ts по уровню/роли/размеру (см. bestiary.ts)
-export const ZONE_MOBS: Record<string, ZoneMobDef> = CONTENT.zoneMobs as any;
+export const ZONE_MOBS: Record<string, ZoneMobDef> = withVariants(CONTENT.zoneMobs as any); // + варианты биомов Аринара
 export const ZONE_SPAWNS: { type: string; x: number; y: number; respawn: number }[] = [
   { type: "blade_fly", x: 420, y: 300, respawn: 20 }, { type: "blade_fly", x: 500, y: 250, respawn: 20 }, { type: "blade_fly", x: 560, y: 330, respawn: 20 },
   { type: "blade_fly", x: 700, y: 280, respawn: 20 }, { type: "blade_fly", x: 760, y: 360, respawn: 20 }, { type: "blade_fly", x: 640, y: 210, respawn: 20 },

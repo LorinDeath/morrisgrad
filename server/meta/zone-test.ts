@@ -23,7 +23,8 @@ ok(minNode >= ZONE_GEN.nodeMinDist - 1, `node min distance ${minNode.toFixed(0)}
 
 // 2. спавн: капы, безопасные зоны, дистанция от игроков, детерминизм
 function sim(seed: number, players: ZPlayer[], secs: number, t0 = 1_000_000) {
-  const z = new Zone("arinar", [], [], { proc: true, seed });
+  // режиссёр работает в мирах без лагерей (Поляна хаба); Аринар 24000 — лагеря, см. arinar-test.ts
+  const z = new Zone("hellfire", [], [], { proc: true, seed });
   const pm = new Map(players.map((p) => [p.sid, p]));
   const spawnedAt: { x: number; y: number; dmin: number }[] = [];
   let maxAlive = 0, maxNear = 0, now = t0;
@@ -39,21 +40,21 @@ function sim(seed: number, players: ZPlayer[], secs: number, t0 = 1_000_000) {
     const alive = z.mobs.filter((m) => !m.dead && m.id !== z.bossId);
     maxAlive = Math.max(maxAlive, alive.length);
     for (const p of players) maxNear = Math.max(maxNear, alive.filter((m) => Math.hypot(m.x - p.x, m.y - p.y) < ZONE_GEN.nearR).length);
-    for (const r of REGIONS) if (alive.filter((m) => m.region === r.id).length > r.cap) ok(false, "region cap exceeded " + r.id);
+    for (const r of WORLD_GEN.hellfire.regions) if (alive.filter((m) => m.region === r.id).length > r.cap) ok(false, "region cap exceeded " + r.id);
   }
   return { z, spawnedAt, maxAlive, maxNear, now };
 }
 const solo = sim(7, [P("a", 620, 300)], 60);
-ok(solo.z.stats.spawned > 0 && solo.maxAlive <= ZONE_GEN.globalCap, `solo: spawned ${solo.z.stats.spawned}, max alive ${solo.maxAlive} ≤ global cap ${ZONE_GEN.globalCap}`);
+ok(solo.z.stats.spawned > 0 && solo.maxAlive <= WORLD_GEN.hellfire.globalCap, `solo: spawned ${solo.z.stats.spawned}, max alive ${solo.maxAlive} ≤ global cap ${WORLD_GEN.hellfire.globalCap}`);
 ok(solo.maxNear <= ZONE_GEN.nearBase, `solo: density near player ${solo.maxNear} ≤ nearBase ${ZONE_GEN.nearBase}`);
-ok(solo.spawnedAt.every((s) => !inSafe(s.x, s.y)), "no spawns in safe zones (" + SAFE_ZONES.map((s) => s.name).join(", ") + ")");
+ok(solo.spawnedAt.every((s) => !inSafe(s.x, s.y, 0, "hellfire")), "no spawns in safe zones (" + WORLD_GEN.hellfire.safe.map((s) => s.name).join(", ") + ")");
 // первые мобы пачки ≥ spawnMinDist; соседи по пачке — до 44 px от центра
 ok(solo.spawnedAt.every((s) => s.dmin >= ZONE_GEN.spawnMinDistCrowded - 45 && s.dmin <= ZONE_GEN.spawnMaxDist + 45), "spawns between spawnMinDist and spawnMaxDist from players");
 const group = sim(7, [P("a", 620, 300), P("b", 640, 320), P("c", 600, 280), P("d", 630, 290)], 60);
 const lim4 = Math.min(ZONE_GEN.nearMax, ZONE_GEN.nearBase + ZONE_GEN.nearPerPlayer * 3);
 ok(group.maxNear <= lim4 && group.maxNear >= solo.maxNear, `group of 4: density ${group.maxNear} ≤ ${lim4} (scales with players, capped at ${ZONE_GEN.nearMax})`);
 const many = sim(9, [...Array(12)].map((_, i) => P("p" + i, 150 + (i % 4) * 300, 200 + Math.floor(i / 4) * 400)), 120);
-ok(many.maxAlive > 0 && many.maxAlive <= ZONE_GEN.globalCap, `12 spread players: max alive ${many.maxAlive} ≤ global cap ${ZONE_GEN.globalCap}`);
+ok(many.maxAlive > 0 && many.maxAlive <= WORLD_GEN.hellfire.globalCap, `12 spread players: max alive ${many.maxAlive} ≤ global cap ${WORLD_GEN.hellfire.globalCap}`);
 // темп: не больше burst + rate*t пачек
 const s1 = sim(3, [P("a", 620, 300)], 2);
 ok(s1.z.stats.spawned <= (ZONE_GEN.burst + ZONE_GEN.ratePerSec * 2) * 6, `rate limit: ${s1.z.stats.spawned} mobs in first 2 s (token bucket burst ${ZONE_GEN.burst}, ${ZONE_GEN.ratePerSec}/s)`);
@@ -63,12 +64,12 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
 
 // 3. деспавн далёких праздных мобов
 {
-  const z = new Zone("arinar", [], [], { proc: true, seed: 5 });
-  const p = P("a", 620, 300); const pm = new Map([["a", p]]);
+  const z = new Zone("hellfire", [], [], { proc: true, seed: 5 });
+  const p = P("a", 110, 600); const pm = new Map([["a", p]]);
   let now = 2_000_000;
   for (let t = 0; t < 100; t++) { now += 100; z.update(0.1, now, pm, noop, noop); for (const m of z.mobs) { m.x = m.sx; m.y = m.sy; m.targetSid = null; } }
   const before = z.mobs.filter((m) => !m.dead).length;
-  p.x = 150; p.y = 1150; // далеко от пустошей
+  p.x = 1150; p.y = 1150; p.x = 2600; // «ушёл» из мира (портал): далеко от всех мобов
   for (let t = 0; t < (ZONE_GEN.despawnIdle + 5) * 10; t++) { now += 100; z.update(0.1, now, pm, noop, noop); for (const m of z.mobs) { m.x = m.sx; m.y = m.sy; m.targetSid = null; } }
   const far = z.mobs.filter((m) => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) > ZONE_GEN.despawnDist);
   ok(before > 0 && z.stats.despawned > 0 && far.length === 0, `despawn: ${z.stats.despawned} far idle mobs removed after ${ZONE_GEN.despawnIdle}s, none left beyond ${ZONE_GEN.despawnDist}px`);
@@ -87,7 +88,7 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
   ok(!!boss && !!ann && boss.special === "boss", `world boss ${B.type} after ${B.firstAfter}s with announcement: "${ann?.text}"`);
   if (boss) { z.kill(boss, noop); now += 1000; z.update(1, now, pm, noop, noop); }
   ok(z.bossAt[B.type] > now + (B.every - 5) * 1000 && !z.mobs.some((m) => m.type === B.type && !m.dead), `boss re-timer ${B.every}s after kill`);
-  const last = WORLD_GEN.arinar.bosses[WORLD_GEN.arinar.bosses.length - 1];
+  const last = WORLD_GEN.arinar.bosses.reduce((a, b) => (b.firstAfter > a.firstAfter ? b : a));
   for (let s = 0; s < last.firstAfter; s++) { now += 1000; z.update(1, now, pm, noop, noop); }
   const alive = WORLD_GEN.arinar.bosses.filter((b) => z.mobs.some((m) => m.type === b.type && !m.dead && m.special === "boss")).length;
   ok(alive >= WORLD_GEN.arinar.bosses.length - 1, `${alive} world bosses on independent timers (${WORLD_GEN.arinar.bosses.map((b) => b.type + "/" + b.every / 60 + "м").join(", ")})`);
@@ -171,7 +172,7 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
   const m = z.addMob("dream_moth", 600, 600); const hp0 = m.hp;
   z.applyStatus(m, "a", { kind: "burn", dps: 10, dur: 3 }, 550, 600);
   z.applyStatus(m, "a", { knock: 3 }, 550, 600);
-  const pm = new Map<string, ZPlayer>();
+  const pm = new Map<string, ZPlayer>([["far", P("far", 600, 1900)]]); // игрок в том же чанке (иначе чанк спит), вне агро
   const now = Date.now();
   for (let i = 0; i < 10; i++) z.update(0.1, now + i * 100, pm, noop, noop);
   ok(m.hp < hp0 - 8 && m.dmgBy.get("a")! > 8, `burn DoT ${Math.round(hp0 - m.hp)} dmg in 1s credited to attacker`);

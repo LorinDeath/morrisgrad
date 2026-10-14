@@ -38,7 +38,7 @@ import { WORLD_PORTALS as OFFLINE_PORTALS } from '../../../../server/worlds/port
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 
-const WORLD_SIZE = 1200; // хаб; Аринар — 2400 (server/worlds/sizes.ts)
+const WORLD_SIZE = 1200; // хаб; Аринар — 24000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера
@@ -524,6 +524,12 @@ async function boot(canvasId, username, userId, api) {
   net.on('zone_state', (d) => {
     if (mode !== 'hub') return;
     const evs = zone.applyState(d, myId) || [];
+    const ct = hud.currentTarget;
+    if (ct?.kind === 'mob') {
+      const o = zone.mobs.get(ct.id);
+      if (!o || d.tg?.gone) { hud.clearTarget(); zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
+      else hud.setTarget(mobTarget(o, d.tg && d.tg.id === ct.id ? d.tg : null));
+    }
     for (const e of evs) {
       if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color);
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
@@ -1067,6 +1073,17 @@ async function boot(canvasId, username, userId, api) {
     ]);
   }
 
+  // Выбор моба кликом: подсветка-кольцо + панель «Цель» (имя, уровень, ХП тек./макс. — с сервера, zone_state.tg)
+  function mobTarget(o, tg) {
+    const info = ZONE_MOBS[o.type] || {};
+    const tags = [tg?.cursed || o.cursed ? '☠ Проклятый' : '', tg?.boss || info.boss ? '👑 Босс' : '', tg?.elite || o.elite ? '★ Элита' : '', tg?.reset ? '↩ сброс' : ''].filter(Boolean).join(' · ');
+    return {
+      kind: 'mob', id: o.id, name: tg?.name || info.name || o.type,
+      typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · ✦ ' + tg.skills.join(', ') : ''}`,
+      hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: info.armor ?? '-', atk: info.dmg ?? '-',
+    };
+  }
+  function selectMob(o) { zone.selected = o.id; send({ type: 'zone_target', id: o.id }); hud.setTarget(mobTarget(o, null)); }
   // Панель «ЦЕЛЬ» для игрока: только статы, посчитанные сервером (players_state.sv — как в просмотре персонажа)
   function playerTarget(o) {
     const v = o.sv;
@@ -1089,9 +1106,12 @@ async function boot(canvasId, username, userId, api) {
     if (dar && dar.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'dar', o: dar, x: dar.x, y: dar.y });
     if (world === 'hellfire') for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
+    for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) - 10) });
     let best = null, bd = 40;
-    for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; best = c; } }
+    for (const c of cands) { const d = Math.hypot(c.x - px, c.y - py) - (c.pad || 0); if (d < bd) { bd = d; best = c; } }
+    if (best?.kind !== 'mob' && zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
     if (!best) { hud.clearTarget(); return; }
+    if (best.kind === 'mob') { selectMob(best.o); return; }
     const o = best.o;
     if (best.kind === 'portal') {
       hud.setTarget({ kind: 'portal', id: o.id, name: o.name, typeLabel: o.runRoom ? 'Комната забега' : 'Портал' });
@@ -1274,7 +1294,7 @@ async function boot(canvasId, username, userId, api) {
     stage.follow(toX(player.x), toZ(player.y), dt);
 
     // открытый мир: мобы/ресурсы/NPC сервера, атака по клику, сбор
-    zone.update(dt, world);
+    zone.view = player; zone.update(dt, world);
     zoneTick(dt, now);
 
     // подписи
@@ -1469,6 +1489,13 @@ async function boot(canvasId, username, userId, api) {
       prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
+      tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
+      devSpawn: (type, x, y, cursed) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed }),
+      target: () => hud.currentTarget,
+      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, cursed: !!m.cursed, elite: !!m.elite })),
+      selected: () => zone.selected || 0,
+      chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
+      biomeVars: () => ({ biome: document.documentElement.dataset.biome || '', col: getComputedStyle(document.documentElement).getPropertyValue('--mc-biome').trim() }),
       pos: () => ({ x: player.x, y: player.y }),
       // экранная точка мировой позиции (px мира) — для тестов клика мышью
       screenOf: (x, y) => {

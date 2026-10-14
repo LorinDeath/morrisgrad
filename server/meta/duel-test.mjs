@@ -127,7 +127,7 @@ ok(phits.length <= Math.ceil((A.msgs.length ? 200 * 170 : 0) / atkGap) + 2, 'att
 const endB = await B.wait('pvp_end', 3000);
 ok(end && end.result === 'win' && end.reason === 'ko' && endB && endB.result === 'loss', `KO: A wins, B loses (${end?.result}/${endB?.result})`);
 const back = await A.wait('world_switched', 2000, (m) => m.world === 'arinar'), backB = await B.wait('world_switched', 2000, (m) => m.world === 'arinar');
-ok(back && backB && back.x === 300 && back.y === 600 && backB.x === 300, 'both teleported to Arinar safe spawn');
+ok(back && backB && back.x === 12000 && back.y === 12150 && backB.x === 12000, 'both teleported to Arinar hub spawn');
 ok(end.record && end.record.w === 1 && endB.record && endB.record.l === 1, `record in result: A ${JSON.stringify(end.record)} B ${JSON.stringify(endB.record)}`);
 const psBack = await C.wait('players_state', 2000) && await A.wait('players_state', 3000, (m) => m.world === 'arinar' && m.players.some((p) => p.id === sidA && p.sv?.hp === p.sv?.maxHp));
 ok(!!psBack, 'A back in Arinar with full HP (server)');

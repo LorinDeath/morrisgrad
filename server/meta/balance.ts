@@ -31,8 +31,21 @@ export function mobXp(L: number): number { return Math.round(5 + 2.4 * Math.pow(
 const BELOW_MULT = [1, 0.8, 0.55, 0.3, 0.1, 0];
 export function xpLevelMult(mobL: number, heroL: number): number {
   const d = mobL - heroL;
-  if (d >= 0) return Math.min(1.25, 1 + 0.05 * d);
+  // сильнее героя — больше опыта, но с убывающей отдачей: +1 → ×1.14, +3 → ×1.32, +5 → ×1.41, потолок ×1.5
+  if (d >= 0) return 1 + 0.5 * (1 - Math.exp(-d / 3));
   return BELOW_MULT[Math.min(BELOW_MULT.length - 1, -d)]; // −1 → 80%, −2 → 55%, −3 → 30%, −4 → 10%, ≤ −5 → 0
+}
+// Опыт за убийство (открытый мир). Старое: xp = d.xp × (элита ? 2.5 : 1) × xpLevelMult (потолок ×1.25 при +5).
+// Новое: множители «силы» (элита ×2.5, проклятый ×3) перемножаются и мягко ограничиваются (≤ ×6),
+// а итог одного убийства не больше доли опыта до следующего уровня героя (обычный ≤ 6%, босс ≤ 30%) —
+// сильные враги ценнее, но не «перекачивают»; серые мобы (≤ −5 ур.) по-прежнему 0.
+export const KILL_XP = { elite: 2.5, cursed: 3, softFrom: 2, softMax: 6, capMob: 0.06, capBoss: 0.3 };
+export function killXp(o: { xp: number; mobL: number; heroL: number; elite?: boolean; cursed?: boolean; boss?: boolean }): number {
+  const raw = (o.elite ? KILL_XP.elite : 1) * (o.cursed ? KILL_XP.cursed : 1);
+  const K = KILL_XP, kind = raw <= K.softFrom ? raw : K.softFrom + (K.softMax - K.softFrom) * (1 - Math.exp(-(raw - K.softFrom) / (K.softMax - K.softFrom)));
+  const xp = o.xp * kind * xpLevelMult(o.mobL, o.heroL);
+  const cap = xpNeed(o.heroL) * (o.boss ? K.capBoss : K.capMob);
+  return Math.round(Math.min(xp, cap));
 }
 
 // ---------------- предметы: ФИКСИРОВАННАЯ сила, зависит от уровня источника и редкости ----------------

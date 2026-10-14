@@ -7,13 +7,14 @@ import {
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, weaponType, RECIPES,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
-import { mobXp, xpLevelMult } from "./balance";
+import { baseOf } from "./biomes";
+import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID } from "./quests";
 import {
   heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
 } from "./profile";
-import { Zone, type ZPlayer } from "./zone";
+import { Zone, MOB_SKILLS, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
@@ -41,7 +42,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
   soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
-  zone_attack: S({}), zone_ability: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
+  zone_attack: S({}), zone_ability: S({}), zone_target: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
   mark_seen: S({ inv: "a?", items: "a?", mobs: "a?", feats: "a?" }),
   rating_get: S({}), inspect_player: S({ sid: "s?", id: "s?", hero: "s?" }),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
@@ -408,6 +409,8 @@ export class MetaService {
         this.inspect(ws, session, msg).catch((e) => { console.error("[mc] inspect", e?.message || e); this.send(ws, { type: "inspect_err", message: "Персонаж недоступен" }); });
         return true;
       }
+      // выбор цели кликом: сервер шлёт её точные ХП/макс. ХП/имя/уровень в zone_state (панель «Цель»)
+      case "zone_target": { const id = Number(msg.id); (ms as any).target = Number.isFinite(id) && id > 0 ? id : 0; return true; }
       case "zone_attack": if (this.pvp.inDuel(session.id)) this.pvp.attack(ws, session, msg); else this.zoneAttack(ws, session, msg); return true;
       case "zone_ability": if (this.pvp.inDuel(session.id)) this.pvp.ability(ws, session, msg); else this.zoneAbility(ws, session, msg); return true;
       // PvP-дуэли (meta/pvp.ts): вызов, ответ, отмена своего вызова, сдача
@@ -621,7 +624,7 @@ export class MetaService {
     if (!targets.length) return;
     const a = this.store.account(ms.pkey);
     targets.forEach((m, i) => {
-      if (!a.bestiary[m.type]) { noteMob(a, m.type, 0); ms.dirty = true; }
+      if (!a.bestiary[baseOf(m.type)]) { noteMob(a, baseOf(m.type), 0); ms.dirty = true; }
       const crit = cryptoRand() * 100 < eff.critPct;
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
       const k = i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8);
@@ -776,22 +779,24 @@ export class MetaService {
       const a = this.store.account(ms.pkey);
       const cls = session.stats?.classId || null;
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
-      noteMob(a, m.type, 1);
+      const base = baseOf(m.type); // вариант биома → трофеи/бестиарий/квесты базового Отголоска
+      noteMob(a, base, 1);
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
-      const xp = Math.round(d.xp * (m.elite ? ZONE_GEN.eliteXp : 1) * xpLevelMult(d.lvl || 1, h?.lvl || 1)); // серые мобы (≥5 ур. ниже) — 0
-      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite };
+      const xp = killXp({ xp: d.xp, mobL: d.lvl || 1, heroL: h?.lvl || 1, elite: m.elite, cursed: m.cursed, boss: !!d.boss }); // balance.killXp: серые — 0, сильные — больше с потолком
+      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed };
       if (h && xp > 0) out.levelUps = gainXp(h, xp);
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
-      this.grantLoot(a, rollMonsterLoot(m.type), out, src);
-      if (m.elite) this.grantLoot(a, rollMonsterLoot(m.type), out, src); // элита: второй бросок добычи
+      const lootMul = m.cursed ? ZONE_GEN.cursedLoot : 1; // проклятый: шансы дропа ×10 (только сервер)
+      this.grantLoot(a, rollMonsterLoot(base, cryptoRand, lootMul), out, src);
+      if (m.elite) this.grantLoot(a, rollMonsterLoot(base, cryptoRand, lootMul), out, src); // элита: второй бросок добычи
       // редкое оружие несёт навык «Вампир-лайка» → в пул аккаунта (бросок только здесь, на сервере)
       for (const it of out.items) {
         const rs = rollRunSkill(a, it, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob");
         if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id, uid: it.uid }; ms.dirty = true;
           this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `${RUN_SKILL_BY_ID[rs].icon} ${session.username || "Игрок"} постигает навык «${RUN_SKILL_BY_ID[rs].name}»!`, color: "#fde68a" }); break; }
       }
-      this.qev(a, session, { type: "kill", mob: m.type, cls });
-      if (d.boss) this.qev(a, session, { type: "kill_boss", mob: m.type, usedAbility: m.usedAbility.has(sid) });
+      this.qev(a, session, { type: "kill", mob: base, cls });
+      if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
       // эпические и выше трофеи — объявление в мире (MMO-момент)
       const epic = out.items.find((it: any) => ["epic", "legendary", "mythic"].includes(ITEM_BY_ID[it.id]?.rarity));
@@ -859,11 +864,17 @@ export class MetaService {
         const acc = this.store.accounts.get(ms.pkey);
         let met = false;
         if (acc) for (let i = 0; i < st.m.length; i += 6) {
-          const type = MOB_TYPES[st.m[i + 1]];
+          const type = baseOf(MOB_TYPES[st.m[i + 1]] || "");
           if (type && !acc.bestiary[type] && Math.abs(st.m[i + 2] - s.x) < 420 && Math.abs(st.m[i + 3] - s.y) < 320) { noteMob(acc, type, 0); ms.dirty = true; met = true; }
         }
         if (met) this.send(ws, { type: "meta_state", ...this.snap(s) }); // новая запись Бестиария → счётчик «новое»
-        this.send(ws, { type: "zone_state", ...st, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        const tid = (ms as any).target, tm = tid ? zone.byId.get(tid) : null;
+        const tg = tm && !tm.dead && Math.abs(tm.x - s.x) < 1600 && Math.abs(tm.y - s.y) < 1600
+          ? { id: tm.id, type: tm.type, name: ZONE_MOBS[tm.type].name, lvl: ZONE_MOBS[tm.type].lvl, hp: Math.max(0, Math.ceil(tm.hp)), maxHp: tm.maxHp,
+              elite: tm.elite || undefined, cursed: tm.cursed || undefined, boss: tm.special === "boss" || undefined, reset: tm.reset || undefined,
+              skills: tm.skills.length ? tm.skills.map((k) => MOB_SKILLS[k].name) : undefined }
+          : tid ? { id: tid, gone: 1 } : undefined;
+        this.send(ws, { type: "zone_state", ...st, tg, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }

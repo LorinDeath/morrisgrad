@@ -12,6 +12,7 @@ import { WORLD_PORTALS as PORTALS } from '../../../../../server/worlds/portals.t
 import { HELLFIRE_MAP_TILES } from '../../../../../server/maps/hellfireMap.ts';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ, PX } from '../engine/geometry.js';
+import { ArinarTerrain } from './terrainChunks.js';
 
 export const CELL = 32;         // px мира на тайл
 const TEX = tilesMeta.tile;     // 16 px текстуры на тайл
@@ -308,6 +309,8 @@ export async function bakeGround(layout) {
 
 // 3D-объект земли + пропсов; возвращает { group, setLight(k) }
 export async function buildTerrain(THREE, world) {
+  // Аринар 24000 px — стриминг чанков (terrainChunks.js): целиком мир в одну текстуру не влезает
+  if (world === 'arinar') { const t = await new ArinarTerrain(THREE).init(); return t; }
   const L = layoutWorld(world);
   const group = new THREE.Group();
   group.name = 'terrain-' + L.world;

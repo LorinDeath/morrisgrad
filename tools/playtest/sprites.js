@@ -37,11 +37,11 @@ const OUT = process.env.OUT || '/workspace/morrisgrad-round2';
     await G(p, () => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await p.waitForTimeout(1200);
   }
   ok(await G(p, () => window.__game.state().world) === 'arinar', 'in Arinar');
-  await G(p, () => window.__game.debug.teleport(430, 620)); await p.waitForTimeout(3000);
+  await G(p, () => window.__game.debug.tp(12000, 13500)); await p.waitForTimeout(3000); // Аринар 24000: Луга фиалок
   await p.screenshot({ path: `${OUT}/sprites-05-npc-alzi-leyr.png` });
   const mobs = await G(p, () => window.__game.debug.zoneMobs());
   ok(mobs.length > 0, `zone mobs: ${mobs.length}`);
-  if (mobs.length) { const m = mobs[Math.floor(mobs.length / 2)]; await G(p, (q) => window.__game.debug.teleport(q.x - 60, q.y), m); await p.waitForTimeout(3000); }
+  if (mobs.length) { const m = mobs[Math.floor(mobs.length / 2)]; await G(p, (q) => window.__game.debug.tp(q.x - 60, q.y), m); await p.waitForTimeout(3000); }
   await p.screenshot({ path: `${OUT}/sprites-06-mobs.png` });
   const far = mobs.filter((m) => m.type && m.type.includes('king') || m.type.includes('boss'))[0] || mobs[mobs.length - 1];
   if (far) { await G(p, (q) => window.__game.debug.teleport(q.x - 60, q.y), far); await p.waitForTimeout(3000); }

@@ -109,23 +109,24 @@ B.clear(); B.send({ type: 'craft', recipe: 'r_fly_legs' }); te = await B.wait('t
 await B.walk(240, 600); await sleep(150);
 B.clear(); B.send({ type: 'use_portal', portalId: 'portal_arinar' }); await B.wait('world_switched');
 const za = await B.wait('zone_state', 3000, (m) => m.w === 'arinar');
-B.x = 300; B.y = 600;
+B.x = 12000; B.y = 12150; // Аринар 24000: вход — центральный хаб (ZONE_RESPAWN)
 ok(za && za.n.length >= 10 && za.n.every((n) => n[0] >= 1000) && typeof za.sd === 'number', 'Аринар zone: seeded resource nodes ' + (za?.n.length) + ' (seed ' + za?.sd + ')');
-B.send({ type: 'move', x: 300, y: 650 }); await sleep(150); B.send({ type: 'move', x: 300, y: 700 }); await sleep(150);
+B.send({ type: 'move', x: 12000, y: 12200 }); await sleep(150); B.send({ type: 'move', x: 12000, y: 12250 }); await sleep(150);
 B.send({ type: 'move', x: 1200, y: 1200 }); await sleep(200);
 const me = B.last('players_state').players.find((p) => p.username === 'meta_A');
-ok(me && me.x < 500, 'anti-teleport clamp in Аринар (x=' + me?.x + ')');
-B.send({ type: 'move', x: 240, y: 600 }); await sleep(300);
+ok(me && Math.hypot(me.x - 12000, me.y - 12250) < 700, 'anti-teleport clamp in Аринар (x=' + me?.x + ')');
+B.x = me?.x ?? 12000; B.y = me?.y ?? 12250;
+await B.walk(12000, 13500); await sleep(500); // к лагерям Лугов фиалок (за пределами безопасного хаба r=900)
 // процедурный спавн: мобы появляются вне безопасной зоны портала и не вплотную к игроку
 let zm = null;
 for (let i = 0; i < 40 && !(zm && zm.m.length); i++) { await sleep(200); zm = B.last('zone_state'); }
 const mobsA = []; if (zm) for (let j = 0; j < zm.m.length; j += 6) mobsA.push(zm.m.slice(j, j + 6));
-ok(mobsA.length > 0 && mobsA.every((m) => Math.hypot(m[2] - 240, m[3] - 600) > 120), 'Аринар procedural spawn: ' + mobsA.length + ' mobs in AOI, none in the portal safe zone');
+ok(mobsA.length > 0 && mobsA.every((m) => Math.hypot(m[2] - 12000, m[3] - 12000) > 900), 'Аринар camps: ' + mobsA.length + ' mobs in AOI, none in the hub safe zone');
 // атака по клику: неверное направление — промах, спам — режется кулдауном
 const tgt = mobsA[0];
 if (tgt) {
   // подходим к мобу по шагам (анти-телепорт)
-  let px = 240, py = 600;
+  let px = B.x, py = B.y;
   for (let i = 0; i < 30; i++) { const z = B.last('zone_state'); let m = null; if (z) for (let j = 0; j < z.m.length; j += 6) if (z.m[j] === tgt[0]) m = z.m.slice(j, j + 6); if (!m) break;
     const dx = m[2] - px, dy = m[3] + 70 - py, d = Math.hypot(dx, dy); if (d < 40) break; const st = Math.min(d, 90); px += dx / d * st; py += dy / d * st; B.send({ type: 'move', x: px, y: py }); await sleep(260); }
   // направление на моба — по свежему состоянию (мобы с ролями двигаются: стрелки держат дистанцию)

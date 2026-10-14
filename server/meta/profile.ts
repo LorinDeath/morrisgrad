@@ -377,12 +377,12 @@ export function craft(a: Account, rid: string): R & { item?: InvItem } {
 }
 
 // Бросок дропа «по трофеям монстра» — только на сервере
-export function rollMonsterLoot(monster: string, rng = cryptoRand): { items: string[]; res: Record<string, number> } {
+export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1): { items: string[]; res: Record<string, number> } {
   const m = MONSTER_LOOT[monster];
   const out = { items: [] as string[], res: {} as Record<string, number> };
   if (!m) return out;
-  for (const g of m.gear) if (rng() * 100 < g.chance) out.items.push(g.item);
-  for (const r of m.materials) if (rng() * 100 < r.chance) out.res[r.res] = (out.res[r.res] || 0) + r.qty[0] + Math.floor(rng() * (r.qty[1] - r.qty[0] + 1));
+  for (const g of m.gear) if (rng() * 100 < Math.min(100, g.chance * mul)) out.items.push(g.item);
+  for (const r of m.materials) if (rng() * 100 < Math.min(100, r.chance * mul)) out.res[r.res] = (out.res[r.res] || 0) + r.qty[0] + Math.floor(rng() * (r.qty[1] - r.qty[0] + 1));
   return out;
 }
 

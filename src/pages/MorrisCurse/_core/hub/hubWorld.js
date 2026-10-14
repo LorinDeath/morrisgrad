@@ -107,7 +107,7 @@ export class HubWorld {
   // state: { me:{x,y,dirX,dirY,moving,classId,color,blink,dash}, others:[...], boss, dar, flowers:Map }
   update(dt, state) {
     this.time += dt;
-    this.env?.update(dt);
+    this.env?.update(dt, state?.me);
     for (const o of this.portalObjs.values()) o.update(this.time);
     this.tilesGroup?.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 1.5; });
     for (const c of this.chars.values()) c.used = false;

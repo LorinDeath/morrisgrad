@@ -588,3 +588,30 @@
 .mc-touch .mc3d-tbtn.k-ws { right: calc(var(--sr) + 178px); bottom: calc(var(--sb) + 140px); }
 .mc-rskill em{font-style:normal;font-size:10px;color:#fde68a}
 .mc-tip .ab.rsk{color:#fde68a}
+
+/* ---- тема HUD по биому Аринара (atmosphere.js выставляет --mc-biome/--mc-biome2 и data-biome на <html>) ----
+   Левая и правая колонки HUD (Душа, Рывок, Сеть, Управление, Мини-карта, Цель, Забеги, Рядом) и кнопка рейтинга:
+   рамки/заголовки/свечение плавно (1.4 с) подмешивают цвет биома; вне биома — так же плавно обратно к золоту.
+   Фон и текст не меняются (читаемость), золотая база остаётся (биом — 35–45% в color-mix). */
+.game-hud-panel, .game-hud-panel .hud-card, .game-hud-panel .hud-header, .game-hud-panel .hud-player-name, .game-hud-panel .hud-target-title,
+.game-hud-panel .hud-duel-btn, #ghud-rating-btn, .mc-ratebtn, .mc-tchip {
+  transition: border-color 1.4s ease, box-shadow 1.4s ease, color 1.4s ease, background-color 1.4s ease, text-shadow 1.4s ease;
+}
+html[data-biome] .game-window:fullscreen .hud-left { border-right-color: color-mix(in srgb, var(--mc-biome) 55%, #231b33); }
+html[data-biome] .game-window:fullscreen .hud-right { border-left-color: color-mix(in srgb, var(--mc-biome) 55%, #231b33); }
+html[data-biome] .game-window:fullscreen #game-canvas { border-left-color: color-mix(in srgb, var(--mc-biome) 40%, #c59b27); border-right-color: color-mix(in srgb, var(--mc-biome) 40%, #c59b27); }
+html[data-biome] .game-hud-panel .hud-card {
+  border-color: color-mix(in srgb, var(--mc-biome) 62%, #2d2242);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5), 0 0 12px color-mix(in srgb, var(--mc-biome) 34%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--mc-biome2) 14%, transparent);
+}
+html[data-biome] .game-hud-panel .hud-header {
+  color: color-mix(in srgb, var(--mc-biome) 45%, #c59b27);
+  border-bottom-color: color-mix(in srgb, var(--mc-biome) 60%, #261c38);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--mc-biome) 45%, transparent);
+}
+html[data-biome] .game-hud-panel .hud-player-name, html[data-biome] .game-hud-panel .hud-target-title { text-shadow: 0 0 8px color-mix(in srgb, var(--mc-biome) 40%, transparent); }
+html[data-biome] .game-hud-panel .hud-duel-btn { border-color: color-mix(in srgb, var(--mc-biome) 50%, #a855f7); }
+html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome] .mc-tchip {
+  border-color: color-mix(in srgb, var(--mc-biome) 45%, #78350f);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--mc-biome) 30%, transparent);
+}

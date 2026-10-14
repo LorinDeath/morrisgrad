@@ -1,7 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
-import { worldSize, worldBounds } from "./worlds/sizes";
+import { worldSize, worldBounds, WORLD_CHUNK, ARINAR_LAYOUT_VER } from "./worlds/sizes";
+import { ZONE_RESPAWN } from "./meta/shared";
+import { ZONE_MOBS } from "./meta/defs";
+import { skillsFor } from "./meta/zone";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -859,6 +862,15 @@ export class GameRoom extends DurableObject {
         if (msg.type === "move" && session && !session.inDuel && !this.meta.pvpFrozen(session)) {
           let nx = Number(msg.x), ny = Number(msg.y);
           if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
+          // Миграция раскладки Аринара (2400 → 24000 px): позиция без версии раскладки (старый клиент/сессия
+          // до обновления) — безопасно в хаб, без «телепорта» в случайный биом. Позиции в D1 не хранятся.
+          if (session.world === "arinar" && (session as any).arVer !== ARINAR_LAYOUT_VER) {
+            (session as any).arVer = ARINAR_LAYOUT_VER;
+            session.x = ZONE_RESPAWN.x; session.y = ZONE_RESPAWN.y;
+            server.send(JSON.stringify({ type: "world_switched", world: "arinar", x: session.x, y: session.y, migrated: 1 }));
+            this.meta.onWorldChange(server, session);
+            return;
+          }
           // В открытых мирах (Аринар и Поляна с мобами) позиция влияет на бой/сбор — ограничиваем скорость перемещения
           {
             const now = Date.now();
@@ -885,6 +897,7 @@ export class GameRoom extends DurableObject {
               session.world = portal.targetWorld;
               session.x = portal.targetX || 300;
               session.y = portal.targetY || 600;
+              if (session.world === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
 
               // Полное снятие временных дебаффов и блокировок прошлого мира
               session.dismoraleUntil = 0;
@@ -929,6 +942,25 @@ export class GameRoom extends DurableObject {
         }
 
         // Только локальные тесты (MC_DEV_TRUST_USERID=1): посадить бутон рядом с игроком
+        // только dev: моб/босс рядом (скриншоты боссов биомов без ожидания таймеров)
+        if (msg.type === "dev_spawn_mob" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1") {
+          const z = (this.meta as any).zones?.[session.world || "hellfire"];
+          if (z && ZONE_MOBS[String(msg.mob)]) {
+            const m = z.addMob(String(msg.mob), Number(msg.x) || session.x + 120, Number(msg.y) || session.y, { special: ZONE_MOBS[String(msg.mob)].boss ? "boss" : "" });
+            if (msg.cursed && !m.cursed) { m.cursed = true; m.maxHp = m.hp = Math.round(m.hp * 2.5); m.skills = skillsFor(m.type, 3, m.id); m.skCd = Object.fromEntries(m.skills.map((k: string) => [k, 3])); }
+          }
+          return;
+        }
+        // только dev (MC_DEV_TRUST_USERID=1): мгновенный перенос по миру — скриншоты/плейтесты Аринара 24000 px
+        if (msg.type === "dev_teleport" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1") {
+          const [lo, hi] = worldBounds(session.world);
+          session.x = Math.max(lo, Math.min(hi, Number(msg.x) || session.x)); session.y = Math.max(lo, Math.min(hi, Number(msg.y) || session.y));
+          (session as any).lastMoveAt = Date.now(); if (session.world === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
+          if (msg.god) { const ms = (this.meta as any).ms?.get(session.id); if (ms) { ms.invulnUntil = Date.now() + 10 * 60000; ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp; } } // dev: неуязвимость для скриншотов
+          this.meta.onWorldChange(server, session);
+          server.send(JSON.stringify({ type: "zone_respawn", x: session.x, y: session.y }));
+          return;
+        }
         if (msg.type === "dev_plant_flower" && session && (this as any).env?.MC_DEV_TRUST_USERID === "1" && (session.world || "hellfire") === "hellfire") {
           this.plantFlower(Math.round(Number(msg.x ?? session.x)), Math.round(Number(msg.y ?? session.y)));
           const f = [...this.flowers.values()].pop();
@@ -1491,8 +1523,22 @@ export class GameRoom extends DurableObject {
         payloads.set(g, p);
         return p;
       };
+      // Интерес в Аринаре (24000 px): получатель видит игроков своего и соседних чанков (WORLD_CHUNK) —
+      // общий payload на чанк, а не на игрока; тот, кто вне соседних чанков, просто не приходит.
+      const arin = groups.get("arinar") || [];
+      const chunkOf = (x: number, y: number) => [Math.floor(x / WORLD_CHUNK), Math.floor(y / WORLD_CHUNK)];
+      const arinFor = (s: any) => {
+        const [cx, cy] = chunkOf(s.x || 0, s.y || 0);
+        const key = `arinar@${cx},${cy}`;
+        let p = payloads.get(key);
+        if (p) return p;
+        const vis = arin.filter((o) => { const [ox, oy] = chunkOf(o.x || 0, o.y || 0); return Math.abs(ox - cx) <= 1 && Math.abs(oy - cy) <= 1; });
+        p = JSON.stringify({ type: "players_state", world: "arinar", players: vis, boss: null, dar: null, flowers: [], aoi: 1 });
+        payloads.set(key, p);
+        return p;
+      };
       for (const [ws, s] of this.sessions.entries()) {
-        try { ws.send(payloadFor(groupOf(s))); } catch (_) { this.sessions.delete(ws); }
+        try { ws.send(groupOf(s) === "arinar" ? arinFor(s) : payloadFor(groupOf(s))); } catch (_) { this.sessions.delete(ws); }
       }
     } catch (err) {
       console.error("Ошибка в broadcast:", err);

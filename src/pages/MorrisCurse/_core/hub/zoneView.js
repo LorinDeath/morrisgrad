@@ -11,6 +11,7 @@ import {
   MOB_INFO as ZONE_MOBS, NPCS, NPC_RANGE, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, RESOURCES, WEAPON_TYPES, CLASS_WTYPE,
 } from '../../../../../server/meta/shared.ts';
 import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
+import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
 import { atmo } from '../engine/atmosphere.js';
 
@@ -100,22 +101,26 @@ export class ZoneView {
       seen.add(id);
       let o = this.mobs.get(id);
       const type = MOB_TYPES[m[i + 1]] || 'blade_fly';
-      if (!o) { o = { id, type, x: m[i + 2], y: m[i + 3], flash: 0, flip: false }; this.mobs.set(id, o); }
+      // варианты биомов: спрайт базового Отголоска (sk) + перекраска (tint) — server/meta/biomes.ts
+      if (!o) { o = { id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false }; this.mobs.set(id, o); }
       if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
-      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4);
+      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048);
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
     }
     for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
     for (const [id, ready] of s.n || []) { const n = this.nodes.get(id); if (n) n.ready = !!ready; }
     if (s.me) this.me = s.me;
+    this.tg = s.tg || null; // выбранная цель: точные ХП с сервера
     const out = [];
     for (const e of s.ev || []) {
-      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = 0.15; out.push({ k: 'float', x: o.x, y: o.y, text: String(Math.round(e.d)), color: '#fff' }); } }
+      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = 0.15; out.push({ k: 'float', x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : '#fff' }); } }
+      else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
+      else if (e.k === 'mskill') out.push({ k: 'float', x: e.x, y: e.y - 20, text: `✦ ${e.name}`, color: '#f0abfc' });
       else if (e.k === 'shot') { if (e.sid !== myId) this.shoot(e.x, e.y, null, e.w, e.tx, e.ty); }
       else if (e.k === 'announce') out.push({ k: 'toast', text: e.text, color: e.color });
       else if (e.k === 'crit') out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' });
-      else if (e.k === 'die') { this.dying.push({ type: e.type, x: e.x, y: e.y, t: 0, flip: false, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
+      else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: false, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
       else if (e.k === 'slam') this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.35 });
       else if (e.k === 'tele') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 });
       else if (e.k === 'tele_circle') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
@@ -217,38 +222,44 @@ export class ZoneView {
     if (BB) {
       BB.begin();
       for (const o of this.mobs.values()) {
-        const row = BEAST_ROW[o.type];
+        const row = BEAST_ROW[o.sk];
         if (row === undefined) continue;
-        const fly = beastFlying(o.type);
+        const fly = beastFlying(o.sk);
         let col = (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3;
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
         let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
         if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
+        if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
+        if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
+        if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
         BB.push(toX(o.x), fly ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * (o.elite ? 1.15 : 1), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
         atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.45, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * (o.elite ? 1.15 : 1), fly ? 0.55 : 1);
       }
       for (const dd of this.dying) {
-        const row = BEAST_ROW[dd.type];
+        const row = BEAST_ROW[dd.sk];
         if (row === undefined) continue;
         const kk = Math.min(0.99, dd.t / (dd.boss ? 0.9 : 0.5));
-        BB.push(toX(dd.x), 0, toZ(dd.y), BEAST_H, 8 + Math.min(3, Math.floor(kk * 4)), row, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.5);
+        BB.push(toX(dd.x), 0, toZ(dd.y), BEAST_H, 8 + Math.min(3, Math.floor(kk * 4)), row, dd.flip, 1.2 * (dd.tint?.[0] || 1), 1.1 * (dd.tint?.[1] || 1), 1.3 * (dd.tint?.[2] || 1), kk < 0.15 ? 0.6 : 0, 1 - kk * 0.5);
       }
       BB.end();
     }
     if (B) {
       B.begin();
       for (const o of this.mobs.values()) {
-        const row = MOB_ROWS[o.type];
-        if (row === undefined || (BB && BEAST_ROW[o.type] !== undefined)) continue;
+        const row = MOB_ROWS[o.sk];
+        if (row === undefined || (BB && BEAST_ROW[o.sk] !== undefined)) continue;
         const boss = ZONE_MOBS[o.type]?.boss;
-        const h = (MOB_HEIGHT[o.type] || 2) * (boss ? 1.2 : o.elite ? 1.3 : 1);
-        const fly = MOB_FLYING[o.type] || 0;
+        const h = (MOB_HEIGHT[o.sk] || 2) * (boss ? 1.2 : o.elite ? 1.3 : 1);
+        const fly = MOB_FLYING[o.sk] || 0;
         let col = (Math.floor(T * (fly ? 12 : 7) + o.id * 0.7)) & 3;
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
         let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
         if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
+        if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
+        if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
+        if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
         B.push(toX(o.x), fly ? fly + Math.sin(T * 7 + o.id) * 0.18 : 0, toZ(o.y), h, col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1);
       }
       for (let i = this.dying.length - 1; i >= 0; i--) {
@@ -257,8 +268,8 @@ export class ZoneView {
         const life = dd.boss ? 0.9 : 0.5;
         if (dd.t >= life) { this.dying.splice(i, 1); continue; }
         const kk = dd.t / life;
-        if (BB && BEAST_ROW[dd.type] !== undefined) continue;
-        B.push(toX(dd.x), 0, toZ(dd.y), (MOB_HEIGHT[dd.type] || 2) * (dd.boss ? 1.2 : 1), 8 + Math.min(3, Math.floor(kk * 4)), MOB_ROWS[dd.type] ?? 6, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.6);
+        if (BB && BEAST_ROW[dd.sk] !== undefined) continue;
+        B.push(toX(dd.x), 0, toZ(dd.y), (MOB_HEIGHT[dd.sk] || 2) * (dd.boss ? 1.2 : 1), 8 + Math.min(3, Math.floor(kk * 4)), MOB_ROWS[dd.sk] ?? 6, dd.flip, 1.2, 1.1, 1.3, kk < 0.15 ? 0.6 : 0, 1 - kk * 0.6);
       }
       // NPC мира
       for (const [id, n] of Object.entries(NPCS)) {
@@ -283,7 +294,9 @@ export class ZoneView {
     const NB = this.nodeBatch;
     if (NB) {
       NB.begin();
+      const V = this.view; // Аринар 24000: рисуем только узлы рядом с камерой (их сотни)
       for (const n of this.nodes.values()) {
+        if (V && (Math.abs(n.def.x - V.x) > 1400 || Math.abs(n.def.y - V.y) > 1100)) continue;
         const e = propsMeta.index[NODE_PROP[n.def.type] || 'ore_node'];
         if (!e) continue;
         const h = (propsMeta.cell[1] / 10) * (n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.03 : 0.7);
@@ -307,6 +320,8 @@ export class ZoneView {
       else if (t.kind === 'boom' && nr < 64) { const R = (t.r / PX) * (0.5 + kk * 0.6); const c = t.color === 0xfde68a ? [1, 0.9, 0.4] : [1, 0.35, 0.3]; put(this.ring, nr++, toX(t.x), toZ(t.y), R, R, 0, ...c); }
     }
     for (const o of this.mobs.values()) {
+      if (o.id === this.selected && nr < 64) { const R = Math.max(1.1, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
+      if (o.cursed && nr < 64) { const R = 1.6 + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }
       if (ZONE_MOBS[o.type]?.boss && nr < 64) { const R = 2.4 + Math.sin(T * 4) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.8, 0.4, 1); }
       else if (o.elite && nr < 64) { const R = 1.3 + Math.sin(T * 5 + o.id) * 0.08; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.8, 0.2); }
     }
@@ -339,7 +354,7 @@ export class ZoneView {
     }
     for (const o of this.mobs.values()) {
       if (!o.st) continue;
-      const h = (BEAST_ROW[o.type] !== undefined ? BEAST_TOP(o.type) * (o.elite ? 1.15 : 1) : (MOB_HEIGHT[o.type] || 2) * (ZONE_MOBS[o.type]?.boss ? 1.2 : o.elite ? 1.3 : 1) + (MOB_FLYING[o.type] || 0)) + 0.3;
+      const h = (BEAST_ROW[o.sk] !== undefined ? BEAST_TOP(o.sk) * (o.elite ? 1.15 : 1) : (MOB_HEIGHT[o.sk] || 2) * (ZONE_MOBS[o.type]?.boss ? 1.2 : o.elite ? 1.3 : 1) + (MOB_FLYING[o.sk] || 0)) + 0.3;
       P.status(o.st, toX(o.x), h, toZ(o.y), o.id);
     }
     P.end();

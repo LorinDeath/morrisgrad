@@ -10,6 +10,7 @@
 //    сюжет/квесты, бестиарий. Баланс и капы — docs/MORRISCURSE-BALANCE.md.
 
 import { xpNeed } from "./balance";
+import { MOBS_PUBLIC_ALL } from "./biomes";
 import { MOBS_PUBLIC, MONSTER_ABILITIES, MOB_RESOURCES, type MobPublic } from "./generated/public";
 
 export const HERO_IDS = ["warrior", "spearman", "rogue", "mage"] as const;
@@ -262,12 +263,12 @@ export const GATHER_RANGE = 75;
 export const GATHER_TIME_MS = 1100;
 export const ZONE_ATTACK_RANGE = 230;
 export const ZONE_ATTACK_CD_MS = 450;
-export const ZONE_RESPAWN = { x: 300, y: 600 };
+export const ZONE_RESPAWN = { x: 12000, y: 12150 }; // центральный хаб Аринара (worlds/sizes.ts ARINAR_HUB)
 
 // ---------------- NPC ----------------
 export const NPCS: Record<string, { name: string; title: string; world: string; x: number; y: number; color: string; role: string }> = {
-  alzi: { name: "Алзи", title: "Создатель Мэлвелдила", world: "arinar", x: 470, y: 560, color: "#fde68a", role: "story" },
-  leyr: { name: "Лэйр", title: "Хозяйка лугов Мэлвелдила", world: "arinar", x: 380, y: 680, color: "#f9a8d4", role: "story" },
+  alzi: { name: "Алзи", title: "Создатель Мэлвелдила", world: "arinar", x: 12160, y: 11880, color: "#fde68a", role: "story" },
+  leyr: { name: "Лэйр", title: "Хозяйка лугов Мэлвелдила", world: "arinar", x: 11850, y: 12200, color: "#f9a8d4", role: "story" },
   petr: { name: "Петр", title: "Распаковщик архивов · ремесло", world: "hellfire", x: 420, y: 760, color: "#fbbf24", role: "craft" },
   kyut: { name: "Кьют", title: "Испытание отражений (дуэли)", world: "hellfire", x: 780, y: 760, color: "#f472b6", role: "arena" },
 };
@@ -294,7 +295,7 @@ export const REWARD_RULES = {
 
 
 // публичные данные мобов (имя, уровень, роль, размер, описание) — для клиента; порядок = индекс в zone_state
-export const MOB_INFO: Record<string, MobPublic> = MOBS_PUBLIC;
+export const MOB_INFO: Record<string, MobPublic> = MOBS_PUBLIC_ALL as any; // + варианты биомов (biomes.ts)
 export type { MobPublic };
 
 // ---------------- навыки забега («Вампир-лайк»): пул аккаунта ----------------

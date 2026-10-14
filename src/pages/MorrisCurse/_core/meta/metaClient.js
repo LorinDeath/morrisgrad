@@ -113,12 +113,12 @@ export const QUEST_WAYPOINTS = {
   p1_swarm: { world: 'hellfire', x: 640, y: 150, label: 'Рой Мошкары' },
   p2_shell: { world: 'hellfire', x: 565, y: 600, label: 'Алтарь перевоплощения' },
   p4_dream: { world: 'hellfire', x: 240, y: 600, label: 'Разлом в Аринар' },
-  // карта Аринара 2400×2400 (регионы — server/meta/zoneGen.ts)
-  l2_moths: { world: 'arinar', x: 400, y: 1150, label: 'Тихие мотыльки (Луга)' },
-  l3_violets: { world: 'arinar', x: 400, y: 1050, label: 'Ночные фиалки (Луга)' },
-  l4_boss: { world: 'arinar', x: 1640, y: 280, label: 'Безветрие (Восточный кряж)' },
-  a2_heat: { world: 'arinar', x: 420, y: 1350, label: 'Глитч-слизь (Луга, юг)' },
-  a3_cool: { world: 'arinar', x: 1020, y: 270, label: 'Звёздное серебро (Пустоши)' },
-  a4_hall: { world: 'arinar', x: 900, y: 600, label: 'Комната «Бездна»' },
-  j1_fans: { world: 'arinar', x: 900, y: 600, label: 'Комната «Бездна» (вдвоём)' },
+  // карта Аринара 24000×24000: хаб в центре, биомы вокруг (регионы — server/meta/zoneGen.ts)
+  l2_moths: { world: 'arinar', x: 12000, y: 13700, label: 'Тихие мотыльки (Луга фиалок)' },
+  l3_violets: { world: 'arinar', x: 10300, y: 12000, label: 'Ночные фиалки (Фиалковая лощина)' },
+  l4_boss: { world: 'arinar', x: 20700, y: 3000, label: 'Безветрие (Восточный кряж)' },
+  a2_heat: { world: 'arinar', x: 12000, y: 14100, label: 'Глитч-слизь (Луга фиалок, юг)' },
+  a3_cool: { world: 'arinar', x: 16500, y: 3000, label: 'Звёздное серебро (Пустоши)' },
+  a4_hall: { world: 'arinar', x: 12300, y: 12000, label: 'Комната «Бездна»' },
+  j1_fans: { world: 'arinar', x: 12300, y: 12000, label: 'Комната «Бездна» (вдвоём)' },
 };

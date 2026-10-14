@@ -1,4 +1,4 @@
-// Открытые миры в пиксельном 2.5D: Поляна перевоплощения (хаб, мир hellfire) и Мэлвелдил (Аринар, 2400×2400).
+// Открытые миры в пиксельном 2.5D: Поляна перевоплощения (хаб, мир hellfire) и Мэлвелдил (Аринар, 24000×24000, земля чанками).
 // Земля и пропсы — terrain.js (запечённый tiles_atlas + props_atlas); здесь — небо, туман, свет и светлячки.
 import { buildTerrain } from './terrain.js';
 import { worldSize } from '../../../../../server/worlds/sizes.ts';
@@ -28,7 +28,7 @@ export class OpenWorldEnvironment {
     }).catch((e) => console.warn('[terrain]', e.message));
     // светлячки / пыльца над землёй
     const size = worldSize(this.id);
-    const N = this.id === 'arinar' ? 420 : this.id === 'arena' ? 90 : 160;
+    const N = this.id === 'arinar' ? 0 : this.id === 'arena' ? 90 : 160; // Аринар: частицы — atmosphere.js у камеры
     const pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
       pos[i * 3] = toX(Math.random() * size);
@@ -43,8 +43,9 @@ export class OpenWorldEnvironment {
     return g;
   }
 
-  update(dt) {
+  update(dt, focus) {
     this.t += dt;
+    if (focus && this.terrain?.update) this.terrain.update(focus.x, focus.y, 1); // Аринар: стрим чанков вокруг героя
     if (!this.motes) return;
     const a = this.motes.geometry.attributes.position;
     for (let i = 0; i < a.count; i += 1) {

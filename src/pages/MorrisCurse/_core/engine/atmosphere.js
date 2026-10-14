@@ -26,6 +26,11 @@ const MOOD = {
   glitch: { sky: 0x0a1810, fog: 0x0f2418, hemiSky: 0x86efac, hemiGround: 0x1a2a20, hemi: 0.85, sun: 0xbbf7d0, sunI: 0.6, grade: [0.92, 1.06, 0.96], tint: 'rgba(60,220,120,0.12)', vig: 0.55, parts: 'sparks' },
   crater: { sky: 0x101020, fog: 0x1a1a30, hemiSky: 0xe0e7ff, hemiGround: 0x2a2a34, hemi: 0.95, sun: 0xf1f5f9, sunI: 0.8, grade: [0.95, 0.97, 1.06], tint: 'rgba(170,180,255,0.12)', vig: 0.5, parts: 'dust' },
   thin: { sky: 0x18101e, fog: 0x241830, hemiSky: 0xe9d5ff, hemiGround: 0x2e2434, hemi: 0.85, sun: 0xf5f3ff, sunI: 0.6, grade: [0.98, 0.94, 1.04], tint: 'rgba(200,160,255,0.12)', vig: 0.58, parts: 'dust' },
+  // биомы Аринара (server/meta/biomes.ts): мягкий тон героя (grade), свет и частицы; переход — плавный lerp
+  b_ice: { sky: 0x0c1424, fog: 0x14203a, hemiSky: 0xbfdcff, hemiGround: 0x3a2030, hemi: 0.95, sun: 0xdbeaff, sunI: 0.8, grade: [0.98, 0.97, 1.1], tint: 'rgba(120,170,255,0.16)', vig: 0.5, parts: 'snow', hud: '#9cc9ff', hud2: '#e05a6e' },
+  b_fire: { sky: 0x070c22, fog: 0x0c1636, hemiSky: 0x93b4ff, hemiGround: 0x101c48, hemi: 0.9, sun: 0x7fa8ff, sunI: 0.85, grade: [0.9, 0.98, 1.14], tint: 'rgba(60,120,255,0.20)', vig: 0.55, parts: 'bluefire', hud: '#4f8dff', hud2: '#7dd3fc' },
+  b_stone: { sky: 0x101318, fog: 0x1a1e26, hemiSky: 0xd0d6e0, hemiGround: 0x2c2e34, hemi: 0.92, sun: 0xe8edf5, sunI: 0.75, grade: [0.97, 0.98, 1.02], tint: 'rgba(160,170,190,0.14)', vig: 0.5, parts: 'metal', hud: '#b8c2d0', hud2: '#8b95a5' },
+  b_air: { sky: 0x0a0618, fog: 0x140c2a, hemiSky: 0xc9b2ff, hemiGround: 0x1e1438, hemi: 0.9, sun: 0xe9d8ff, sunI: 0.7, grade: [1.0, 0.92, 1.12], tint: 'rgba(150,90,255,0.18)', vig: 0.55, parts: 'stars', hud: '#a78bfa', hud2: '#f0abfc' },
   crypt: { sky: 0x050308, fog: 0x0a0610, hemiSky: 0xb38bd6, hemiGround: 0x2a1006, hemi: 0.5, sun: 0xffc58a, sunI: 0.8, grade: [1.04, 0.97, 0.94], tint: 'rgba(255,120,60,0.10)', vig: 0.55, parts: 'embers' },
   abyss: { sky: 0x03020a, fog: 0x060418, hemiSky: 0x8ea2ff, hemiGround: 0x1b0c33, hemi: 0.6, sun: 0xc7d2fe, sunI: 0.75, grade: [0.92, 0.96, 1.08], tint: 'rgba(80,120,255,0.12)', vig: 0.55, parts: 'dust' },
 };
@@ -35,6 +40,10 @@ const PART = {
   dust: { n: 90, col: [[0.85, 0.9, 1], [0.75, 0.8, 0.95]], size: 0.07, fall: -0.05, sway: 0.25, blink: false },
   spores: { n: 80, col: [[0.75, 0.95, 0.35], [0.55, 0.8, 0.3]], size: 0.09, fall: -0.15, sway: 0.4, blink: true },
   sparks: { n: 60, col: [[0.75, 0.6, 1], [0.6, 0.95, 1]], size: 0.09, fall: -0.4, sway: 0.3, blink: true },
+  snow: { n: 80, col: [[0.92, 0.96, 1], [1, 0.55, 0.6], [0.8, 0.9, 1]], size: 0.08, fall: 0.45, sway: 0.6, blink: false },
+  bluefire: { n: 60, col: [[0.45, 0.65, 1], [0.6, 0.9, 1]], size: 0.09, fall: -0.6, sway: 0.4, blink: true },
+  metal: { n: 50, col: [[0.85, 0.88, 0.92], [1, 0.85, 0.55]], size: 0.06, fall: -0.2, sway: 0.2, blink: true },
+  stars: { n: 80, col: [[1, 1, 1], [0.8, 0.7, 1], [0.6, 0.8, 1]], size: 0.07, fall: 0, sway: 0.15, blink: true },
   embers: { n: 60, col: [[1, 0.6, 0.25], [1, 0.8, 0.4]], size: 0.08, fall: -0.6, sway: 0.4, blink: true },
 };
 // какие пропсы — источники света: [цвет, радиус пятна (м), высота огня (м), сила]
@@ -185,6 +194,10 @@ class Atmosphere {
       this.moodKey = key;
       if (this.tintEl) this.tintEl.style.backgroundColor = M.tint;
       if (this.vigEl) this.vigEl.style.background = `radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 52%, rgba(6,3,14,${M.vig}) 100%)`;
+      // тема HUD по биому: акцент рамок/свечения (CSS-переменные с transition; золотая база остаётся)
+      const rs = document.documentElement.style;
+      if (M.hud) { rs.setProperty('--mc-biome', M.hud); rs.setProperty('--mc-biome2', M.hud2 || M.hud); document.documentElement.dataset.biome = key; }
+      else { rs.removeProperty('--mc-biome'); rs.removeProperty('--mc-biome2'); delete document.documentElement.dataset.biome; }
     }
     const k = Math.min(1, dt * 1.5);
     const lerpHex = (col, hex) => col.lerp(this.c.setHex(hex), k);

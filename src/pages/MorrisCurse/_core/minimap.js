@@ -1,3 +1,19 @@
+import { WORLD_GEN } from '../../../../server/meta/zoneGen.ts';
+import { BIOMES } from '../../../../server/meta/biomes.ts';
+// подложка мини-карты Аринара: регионы цветом биома (240×240, рисуется один раз)
+const REG_COL = { grove: '#2f5a3a', meadow: '#4b4a7a', garden: '#6a3a44', waste: '#3a4458', rot: '#3d4426', ridge: '#4a4038', pylon: '#3c3a62', glitch: '#24502e', crater: '#3a3a5a', thin: '#4a4260' };
+function arinarMinimapBg(size) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 240;
+  const g = cv.getContext('2d'), k = 240 / size;
+  for (const r of WORLD_GEN.arinar.regions) {
+    const b = r.biome.startsWith('b_') ? BIOMES[r.biome.slice(2)] : null;
+    g.fillStyle = b ? b.color : REG_COL[r.biome] || '#333';
+    g.globalAlpha = r.id.endsWith('_outer') ? 0.55 : 0.8;
+    g.fillRect(r.rect[0] * k, r.rect[1] * k, (r.rect[2] - r.rect[0]) * k, (r.rect[3] - r.rect[1]) * k);
+  }
+  g.globalAlpha = 1; g.fillStyle = '#fde68a'; g.beginPath(); g.arc(120, 120, 3, 0, Math.PI * 2); g.fill(); // хаб
+  return cv;
+}
 export class Minimap {
   constructor(mountElement) {
     this.mountElement = mountElement;
@@ -137,8 +153,9 @@ export class Minimap {
     const h = this.canvas.height;
     const cx = w / 2;
     const cy = h / 2;
-    const scale = this.zoomLevels[this.zoomIndex];
     const isArinar = currentWorld === 'arinar';
+    // Аринар 24000 px: свой масштаб (весь мир → обзор края → окрестности) и подложка биомов
+    const scale = isArinar && worldSize > 4000 ? [0.0125, 0.04, 0.12][this.zoomIndex] : this.zoomLevels[this.zoomIndex];
     this.stats = { mode: 'world', world: currentWorld, mobs: 0, bosses: 0, players: 0 };
 
     ctx.save();
@@ -159,17 +176,24 @@ export class Minimap {
 
     ctx.fillStyle = isArinar ? '#08051a' : '#0f0b1a';
     ctx.fillRect(mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
+    if (isArinar && worldSize > 4000) {
+      const bg = this.arinarBg || (this.arinarBg = arinarMinimapBg(worldSize));
+      ctx.globalAlpha = 0.85; ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bg, mapWorldX, mapWorldY, mapWorldSize, mapWorldSize);
+      ctx.globalAlpha = 1;
+    }
 
     // Сетка локации
     ctx.strokeStyle = isArinar ? 'rgba(129, 140, 248, 0.12)' : 'rgba(212, 175, 55, 0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let gx = 0; gx <= worldSize; gx += 128) {
+    const step = worldSize > 4000 ? 2000 : 128; // сетка: чанки WORLD_CHUNK в Аринаре
+    for (let gx = 0; gx <= worldSize; gx += step) {
       const rx = mapWorldX + gx * scale;
       ctx.moveTo(rx, mapWorldY);
       ctx.lineTo(rx, mapWorldY + mapWorldSize);
     }
-    for (let gy = 0; gy <= worldSize; gy += 128) {
+    for (let gy = 0; gy <= worldSize; gy += step) {
       const ry = mapWorldY + gy * scale;
       ctx.moveTo(mapWorldX, ry);
       ctx.lineTo(mapWorldX + mapWorldSize, ry);
@@ -229,6 +253,15 @@ export class Minimap {
       });
     }
 
+    // 3b. Логова мировых боссов Аринара (статичные точки из zoneGen; живые — пурпурным ромбом из AOI ниже)
+    if (isArinar && worldSize > 4000) {
+      for (const b of WORLD_GEN.arinar.bosses) {
+        const bx = cx + (b.x - player.x) * scale, by = cy + (b.y - player.y) * scale;
+        if (bx < -4 || by < -4 || bx > w + 4 || by > h + 4) continue;
+        ctx.strokeStyle = '#f0abfc'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
     // 4. Метка Кейт (ТОЛЬКО в Аду)
     if (!isArinar && boss && boss.state !== 'dead' && boss.x > 0) {
       const bx = cx + (boss.x - player.x) * scale;
@@ -255,7 +288,8 @@ export class Minimap {
           this.stats.bosses++;
           ctx.fillStyle = '#e879f9'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(mx, my - 5); ctx.lineTo(mx + 5, my); ctx.lineTo(mx, my + 5); ctx.lineTo(mx - 5, my); ctx.closePath(); ctx.fill(); ctx.stroke();
-        } else if (m.elite) { ctx.fillStyle = '#facc15'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
+        } else if (m.cursed) { ctx.fillStyle = '#a855f7'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
+        else if (m.elite) { ctx.fillStyle = '#facc15'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else { ctx.fillStyle = '#ef4444'; ctx.fillRect(mx - 1.5, my - 1.5, 3, 3); }
       }
     }
