@@ -14,7 +14,7 @@ const BASE = process.env.U || null;
     p.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
     if (BASE) { for (let i = 0; i < 4; i++) { const r = await p.goto(BASE, { waitUntil: 'load', timeout: 60000 }).catch(() => null); if (r && r.ok()) break; await p.waitForTimeout(1500); } await p.waitForTimeout(2500); await p.locator('text=Начать игру').first().click(); }
     else await p.goto(`http://127.0.0.1:5199/game.html?name=Hud${mobile ? 'M' : 'D'}&uid=hud_${Date.now()}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1'}`);
-    await p.waitForSelector(mobile ? '.mc3d-ttop .mc3d-tbtn' : '.mc-abar', { timeout: 90000 }); await p.waitForTimeout(4000);
+    await p.waitForSelector(mobile ? '.mc3d-ttop .mc3d-tbtn:not([data-act="home"])' : '.mc-abar', { timeout: 90000 }); await p.waitForTimeout(4000);
     return p;
   };
   const screen = (p) => p.evaluate(() => { const s = document.querySelector('.mc3d-screen'); const bk = [...document.querySelectorAll('[class*=mc-book]')].find((e) => e.offsetParent && e.getBoundingClientRect().height > 200);

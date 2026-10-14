@@ -11,6 +11,8 @@ import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
+// спрайт снаряда автоатаки по типу оружия (атлас projectiles.png)
+const AUTO_SPRITE: Record<string, string> = { daggers: "auto_daggers", book: "auto_staff", staff: "auto_staff", bow: "auto_bow", fly_blades: "auto_claws", spear: "spear" };
 import { LootBags, type Bag } from "./loot";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
@@ -761,24 +763,14 @@ export class MetaService {
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     ms.lastAtk = Math.max(now, ms.lastAtk) + atkCd; // lastAtk хранит момент следующего разрешённого удара
     ms.wt = wt;
-    // залп (кинжалы ×2, лапки-лезвия ×5): каждый снаряд — свой луч и своя первая цель; одна цель может поймать несколько
+    // ближний бой (дуга) — мгновенно; стрелковое оружие (снаряд/линия) — НАСТОЯЩИЕ снаряды сервера: урон при попадании
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
     const per = (W.atk.count || 1) > 1 ? W.atk.per || 1 / (W.atk.count || 1) : 1;
-    const hits: { m: any; k: number }[] = [];
-    for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
-      const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
-      const first = targets[0];
-      const tx = first && W.atk.kind === "proj" ? first.x : session.x + vx * reach, ty = first && W.atk.kind === "proj" ? first.y : session.y + vy * reach;
-      // визуал выстрела для всех рядом (AOI); свой клиент рисует сразу и пропускает своё событие
-      zone.events.push({ k: "shot", sid: session.id, x: session.x, y: session.y, tx: Math.round(tx), ty: Math.round(ty), w: wt });
-      targets.forEach((m, i) => hits.push({ m, k: per * (i === 0 ? 1 : (W.atk.kind === "line" ? 0.7 : 0.8)) }));
-    }
-    if (!hits.length) return;
     const a = this.store.account(ms.pkey);
     const statused = new Set<number>();
     const traits = traitsFor(wt, this.equippedIds(session, a));
-    hits.forEach(({ m, k }) => {
-      if (m.dead) return;
+    const applyHit = (m: any, k: number) => {
+      if (m.dead || !ms.zp.alive && W.atk.kind === "arc") return;
       if (!a.bestiary[baseOf(m.type)]) { noteMob(a, baseOf(m.type), 0); ms.dirty = true; }
       const crit = cryptoRand() * 100 < eff.critPct;
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
@@ -789,7 +781,18 @@ export class MetaService {
       if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
       if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traits);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
-    });
+    };
+    for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
+      if (W.atk.kind === "arc") {
+        const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
+        zone.events.push({ k: "shot", sid: session.id, x: session.x, y: session.y, tx: Math.round(session.x + vx * reach), ty: Math.round(session.y + vy * reach), w: wt });
+        targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
+      } else {
+        const line = W.atk.kind === "line";
+        zone.fire({ o: "p", sid: session.id, t: AUTO_SPRITE[wt] || "auto_staff", x: session.x, y: session.y, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1,
+          onHit: (m: any, i: number) => applyHit(m, per * (i === 0 ? 1 : line ? 0.7 : 0.8)) });
+      }
+    }
   }
 
   // Рекорд одиночного удара: только удары, посчитанные сервером в открытом мире (см. rating.ts)
@@ -880,6 +883,7 @@ export class MetaService {
     const sid = session.id;
     const dealt = castShape(ab.id, {
       zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult,
+      fire: (o) => zone.fire({ ...o, o: "p", sid }), // настоящие снаряды навыков
       hit: (m, mult, opts) => {
         if (m.dead) return 0;
         m.usedAbility.add(sid);

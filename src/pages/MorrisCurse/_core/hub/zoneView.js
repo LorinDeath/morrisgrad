@@ -13,6 +13,9 @@ import {
 import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
+import { ProjAtlasFx } from '../engine/projAtlas.js';
+import PROJ_META from '../../../../assets/mc/projectiles.json';
+const atlasId = (id) => { const k = String(id || '').replace(/^rs:/, ''); return PROJ_META.items[k] ? k : null; };
 import { atmo } from '../engine/atmosphere.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
@@ -57,6 +60,7 @@ export class ZoneView {
     this.fill = decal(cg, 48, 0.3); this.ring = decal(rg, 64, 0.8); this.line = decal(lg, 32, 0.35);
     // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
     this.pfx = new ProjFx(THREE, this.root, { max: 400, glowMax: 500 });
+    this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (атлас projectiles.png)
     this.hits = [];
     this.seed = ZONE_GEN.seed;
     this.d = new THREE.Object3D();
@@ -123,14 +127,24 @@ export class ZoneView {
       else if (e.k === 'announce') out.push({ k: 'toast', text: e.text, color: e.color });
       else if (e.k === 'crit') out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' });
       else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: false, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
-      else if (e.k === 'slam') this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.35 });
+      else if (e.k === 'slam') {
+        if (!e.fx) this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.35 });
+        else if (e.fx === 'ice_fan') this.pax.burst('ice_fan', e.x, e.y, e.r, 12);
+        else if (e.fx === 'war_axe') this.pax.burst('war_axe', e.x, e.y, e.r, 6);
+        else if (e.fx === 'plague_puddle') this.pax.puddle(e.x, e.y, e.r, 1.6);
+        else if (e.fx !== 'meteor' && e.fx !== 'spear_rain') this.pax.impact(e.fx, e.x, e.y, { k: Math.max(1, e.r / 50) }); // метеор/копья — своё падение
+      }
       else if (e.k === 'tele') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 });
-      else if (e.k === 'tele_circle') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
-      else if (e.k === 'ability') this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.4, color: 0xfde68a });
+      else if (e.k === 'tele_circle') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (e.fx === 'meteor' || e.fx === 'spear_rain') this.pax.fall(e.fx, e.x, e.y, e.t || 1.2, e.fdx || 1, e.fx === 'meteor' ? Math.max(1, e.r / 70) : 1); }
+      // снаряды сервера: вылет / попадание; лужа фляги; удары навыков мобов спрайтами атласа
+      else if (e.k === 'proj') this.pax.spawn(e);
+      else if (e.k === 'pend') this.pax.end(e);
+      else if (e.k === 'puddle') this.pax.puddle(e.x, e.y, e.r, e.t);
+      else if (e.k === 'ability') { const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60) }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70) }); this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: 0xfde68a }); }
       // формы навыков (server/meta/abilityShapes.ts): линия/рывок, снаряд, отложенный удар (метеор), точки дождя
       else if (e.k === 'aline') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 });
       else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty);
-      else if (e.k === 'amark') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
+      else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
       else if (e.k === 'phit' && e.sid === myId) out.push({ k: 'hurt', d: e.d });
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }
@@ -374,7 +388,8 @@ export class ZoneView {
       P.status(o.st, toX(o.x), h, toZ(o.y), o.id);
     }
     P.end();
+    this.pax.update(dt);
   }
 
-  dispose() { this.root.parent?.remove(this.root); }
+  dispose() { this.pax?.dispose(); this.root.parent?.remove(this.root); }
 }

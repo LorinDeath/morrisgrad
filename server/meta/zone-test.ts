@@ -131,7 +131,26 @@ ok(sig(d1.z) === sig(d2.z) && sig(d1.z).length > 0, "same seed + same inputs →
   ok(!!tl, `ranged ${ranged}: line telegraph (len ${tl?.len}, ${tl?.t}s)`);
   p.y = 600; // ушёл с линии
   for (let i = 0; i < 9; i++) { now += 100; z.update(0.1, now, pm, onHit, noop); }
-  ok(hits.length === 0 && z.events.some((e) => e.k === "mshot"), "ranged: dodging the telegraph avoids the hit");
+  ok(hits.length === 0 && z.events.some((e) => e.k === "proj" && e.o === "m"), "ranged: dodging the telegraph avoids the flying shot");
+  // стоит на линии — снаряд долетает, урон в момент касания (не мгновенно)
+  { const z2 = new Zone("arinar", [], [], { proc: false }); const p2 = P("b", 500, 500); const pm2 = new Map([["b", p2]]); const h2: number[] = [];
+    const r2 = z2.addMob(ranged, 700, 500); r2.targetSid = "b"; let n2 = 6_000_000, firedAt = 0, hitAt = 0;
+    for (let i = 0; i < 40 && !hitAt; i++) { n2 += 50; z2.update(0.05, n2, pm2, (_s: string, d: number) => { h2.push(d); hitAt = n2; }, noop); if (!firedAt && z2.events.some((e) => e.k === "proj")) firedAt = n2; }
+    ok(firedAt > 0 && hitAt > firedAt && z2.events.some((e) => e.k === "pend" && e.hit), `projectile: fired → flew ${hitAt - firedAt}ms → hit player (${h2[0]} dmg)`); }
+  // снаряд игрока: пробивающий бьёт всех на линии один раз, обычный — первого
+  { const z3 = new Zone("arinar", [], [], { proc: false }); const ty = Object.keys(ZONE_MOBS).find((k) => !ZONE_MOBS[k].boss && ZONE_MOBS[k].size === "s")!;
+    const a = z3.addMob(ty, 600, 500), b = z3.addMob(ty, 700, 500); const got: number[] = []; let ended = 0;
+    z3.fire({ o: "p", sid: "x", t: "spear", x: 500, y: 500, dx: 1, dy: 0, range: 400, w: 30, max: 99, onHit: (m: any) => got.push(m.id), onEnd: () => ended++ });
+    z3.fire({ o: "p", sid: "x", t: "fireball", x: 500, y: 500, dx: 1, dy: 0, range: 400, w: 30, max: 1, onHit: (m: any) => got.push(-m.id) });
+    z3.updateProjs(0.016, new Map()); const early = got.length;
+    for (let i = 0; i < 60; i++) z3.updateProjs(0.05, new Map());
+    ok(early === 0 && got.filter((x) => x > 0).length === 2 && got.filter((x) => x < 0).length === 1 && got.includes(-a.id) && ended === 1 && z3.projs.length === 0,
+      `player projectiles: pierce hit ${got.filter((x) => x > 0).length}, single hit first only, none on frame 1`); }
+  // снаряд без onHit (взрыв навыка в onEnd) всё равно останавливается на первом мобе
+  { const z4 = new Zone("arinar", [], [], { proc: false }); const ty = Object.keys(ZONE_MOBS).find((k) => !ZONE_MOBS[k].boss && ZONE_MOBS[k].size === "s")!;
+    z4.addMob(ty, 700, 500); let endX = 0; z4.fire({ o: "p", sid: "x", t: "fireball", x: 500, y: 500, dx: 1, dy: 0, range: 480, w: 30, max: 1, onEnd: (x: number) => { endX = x; } });
+    for (let i = 0; i < 30; i++) z4.updateProjs(0.05, new Map());
+    ok(endX > 640 && endX < 720, `explode-on-contact projectile (no onHit) stops at mob: end x=${Math.round(endX)}`); }
   r.dead = true;
   const caster = Object.keys(ZONE_MOBS).find((k) => ZONE_MOBS[k].role === "caster" && ZONE_MOBS[k].size === "s")!;
   const c = z.addMob(caster, 650, 600); c.targetSid = "a"; z.events.length = 0;

@@ -25,7 +25,7 @@ const ck = (x: number, y: number) => Math.floor(x / WORLD_CHUNK) * 4096 + Math.f
 const SLEEP_CELL = 1000;
 const sk = (x: number, y: number) => Math.floor(x / SLEEP_CELL) * 4096 + Math.floor(y / SLEEP_CELL);
 
-export interface ZCast { leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number }
+export interface ZCast { proj?: string; fx?: string; leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number }
 export interface ZMob { id: number; type: string; respawn: number; sx: number; sy: number; x: number; y: number; hp: number; maxHp: number; dead: boolean; respawnAt: number;
   targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>;
   windup: number; dashX: number; dashY: number; dashT: number;
@@ -62,13 +62,69 @@ function valueNoise(seed: number, step: number) {
   };
 }
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
+// выстрел дальнобойного моба: спрайт по стихии
+const MOB_SHOT: Record<string, string> = { ice: "ice_fan", fire: "fire_spark", stone: "spear", air: "chain_bolt", wild: "thorn_bow" };
 const KNOCK_IMMUNE = (d: any) => !!d.boss || d.size !== "s" || d.role === "tank";
 const segDist = (px: number, py: number, x: number, y: number, dx: number, dy: number, len: number) => {
   const t = Math.max(0, Math.min(len, (px - x) * dx + (py - y) * dy));
   return Math.hypot(px - (x + dx * t), py - (y + dy * t));
 };
 
+// Снаряды — сущности сервера: летят со скоростью, урон в момент попадания (не мгновенно), столкновения считает сервер.
+// owner "p" — снаряд игрока (бьёт мобов), "m" — снаряд моба (бьёт игроков, от него можно увернуться).
+export interface Proj {
+  id: number; o: "p" | "m"; sid?: string; mob?: number; t: string; x: number; y: number; dx: number; dy: number; spd: number; range: number; w: number;
+  max: number; flown: number; hit: Set<number | string>; n: number; arc?: boolean; delay?: number; born: number;
+  onHit?: (target: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void;
+}
+export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420 };
+
 export class Zone {
+  projs: Proj[] = []; private nextProj = 1;
+  /** выпустить снаряд (сервер); событие proj — клиентам для отрисовки (траектория детерминирована) */
+  fire(o: Partial<Proj> & { o: "p" | "m"; t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number }) {
+    if (this.projs.length > 600) return null; // предохранитель
+    const L = Math.hypot(o.dx, o.dy) || 1;
+    const p: Proj = { spd: PROJ_SPEED[o.t] || PROJ_SPEED.default, flown: 0, hit: new Set(), n: 0, born: this.now || Date.now(), id: this.nextProj++, ...o, dx: o.dx / L, dy: o.dy / L } as Proj;
+    this.projs.push(p);
+    this.events.push({ k: "proj", id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
+    return p;
+  }
+  /** движение и столкновения снарядов: шаги не длиннее ширины снаряда (быстрый снаряд не «перепрыгивает» моба) */
+  updateProjs(dt: number, players: Map<string, ZPlayer>) {
+    for (let i = this.projs.length - 1; i >= 0; i--) {
+      const p = this.projs[i];
+      let left = Math.min(p.range - p.flown, p.spd * dt), done = false;
+      if (p.arc) { // навесной (фляга): летит над головами, урон — по месту падения
+        p.flown += left; p.x += p.dx * left; p.y += p.dy * left;
+        if (p.flown >= p.range - 0.5) done = true;
+      } else while (left > 0 && !done) {
+        const st = Math.min(left, Math.max(6, p.w * 0.5)); left -= st;
+        p.x += p.dx * st; p.y += p.dy * st; p.flown += st;
+        if (p.o === "p") {
+          for (const m of this.near(p.x, p.y, p.w + 60)) {
+            if (m.dead || p.hit.has(m.id)) continue;
+            if (Math.hypot(m.x - p.x, m.y - p.y) > ZONE_MOBS[m.type].radius + p.w / 2) continue;
+            p.hit.add(m.id); const k = p.n++; p.onHit?.(m, k); // n считаем и без onHit (взрыв в onEnd)
+            if (p.n >= p.max) { done = true; break; }
+          }
+        } else {
+          for (const pl of players.values()) {
+            if (!pl.alive || p.hit.has(pl.sid)) continue;
+            if (Math.hypot(pl.x - p.x, pl.y - p.y) > 14 + p.w / 2) continue;
+            p.hit.add(pl.sid); const k = p.n++; p.onHit?.(pl, k);
+            if (p.n >= p.max) { done = true; break; }
+          }
+        }
+        if (p.flown >= p.range - 0.5) done = true;
+      }
+      if (done) {
+        this.projs.splice(i, 1);
+        this.events.push({ k: "pend", id: p.id, x: Math.round(p.x), y: Math.round(p.y), hit: p.n > 0 ? 1 : undefined, t: p.t });
+        p.onEnd?.(p.x, p.y, p.n > 0);
+      }
+    }
+  }
   mobs: ZMob[] = [];
   nodes: ZNode[] = [];
   events: any[] = [];
@@ -465,10 +521,10 @@ export class Zone {
   cast(m: ZMob, c: ZCast) {
     m.casts.push(c);
     const t = Math.round(Math.max(0.2, (c.at - this.now) / 1000) * 100) / 100;
-    if (c.kind === "circle") this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t });
+    if (c.kind === "circle") this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, fx: c.fx, fdx: c.fx === "meteor" ? (c.x < m.x ? -1 : 1) : undefined });
     else if (c.kind === "line") this.events.push({ k: "tele_line", id: m.id, x: Math.round(c.x), y: Math.round(c.y), dx: +c.dx!.toFixed(3), dy: +c.dy!.toFixed(3), len: c.len, w: c.w, t });
-    else if (c.kind === "ring") this.events.push({ k: "tele_ring", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r0: c.r0, r: c.r, t });
-    else this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, nova: 1 });
+    else if (c.kind === "ring") this.events.push({ k: "tele_ring", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r0: c.r0, r: c.r, t, fx: c.fx });
+    else this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, nova: 1, fx: c.fx });
   }
   resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string) => void) {
     for (let i = m.casts.length - 1; i >= 0; i--) {
@@ -476,6 +532,11 @@ export class Zone {
       if (now < c.at) continue;
       m.casts.splice(i, 1);
       if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); }
+      if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
+        this.fire({ o: "m", mob: m.id, t: c.proj, x: m.x, y: m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: c.proj === "fireball" ? 480 : PROJ_SPEED.mob,
+          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type) });
+        continue;
+      }
       for (const p of players.values()) {
         if (!p.alive) continue;
         const dist = Math.hypot(p.x - c.x, p.y - c.y);
@@ -485,7 +546,7 @@ export class Zone {
         if (hit) onHit(p.sid, c.dmg, m.type);
       }
       if (c.kind === "line") this.events.push({ k: "mshot", id: m.id, x: Math.round(c.x), y: Math.round(c.y), tx: Math.round(c.x + c.dx! * c.len!), ty: Math.round(c.y + c.dy! * c.len!) });
-      else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0 });
+      else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0, fx: c.fx }); // fx — спрайт атласа снарядов (метеор, копья, осколки…)
     }
   }
 
@@ -503,7 +564,7 @@ export class Zone {
       const targets = [...players.values()].filter((q) => q.alive && Math.hypot(q.x - m.x, q.y - m.y) < 420).slice(0, 3);
       for (let i = 0; i < 3; i++) {
         const t = targets[i] || best, a = i * 2.1 + this.rand();
-        this.cast(m, { kind: "circle", at: now + tele + i * 180, x: t.x + (targets[i] ? 0 : Math.cos(a) * 90), y: t.y + (targets[i] ? 0 : Math.sin(a) * 90), r: Math.round(70 * big), dmg: dmg * 1.4 });
+        this.cast(m, { kind: "circle", at: now + tele + i * 180, x: t.x + (targets[i] ? 0 : Math.cos(a) * 90), y: t.y + (targets[i] ? 0 : Math.sin(a) * 90), r: Math.round(70 * big), fx: "meteor", dmg: dmg * 1.4 });
       }
     } else if (p === "line" || p === "line3") {
       const n = p === "line3" ? 3 : 1;
@@ -538,6 +599,7 @@ export class Zone {
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
   update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string) => void, onKill: (m: ZMob) => void) {
     this.now = now;
+    if (this.projs.length) this.updateProjs(dt, players);
     const scale = Math.max(1, Math.min(4, players.size)); // ХП босса растёт с числом игроков (ограниченно)
     if (this.proc) {
       // убитые/исчезнувшие процедурные мобы удаляются (их место займёт режиссёр)
@@ -674,14 +736,14 @@ export class Zone {
         } else if (d.role === "ranged") {
           want = 170;
           if (dist < 280 && m.atkCd <= 0) {
-            this.cast(m, { kind: "line", at: now + 700, x: m.x, y: m.y, dx: ux, dy: uy, len: 290, w: 20, dmg: d.dmg * 1.2 * eliteDmg });
+            this.cast(m, { kind: "line", at: now + 700, x: m.x, y: m.y, dx: ux, dy: uy, len: 290, w: 20, dmg: d.dmg * 1.2 * eliteDmg, proj: MOB_SHOT[factionOf(m.type)] || "thorn_bow" });
             m.atkCd = 2.2; m.windup = 0.45;
             continue;
           }
         } else if (d.role === "caster") {
           want = 190;
           if (dist < 300 && m.atkCd <= 0) {
-            this.cast(m, { kind: "circle", at: now + 1000, x: best.x, y: best.y, r: 60, dmg: d.dmg * 1.4 * eliteDmg });
+            this.cast(m, { kind: "circle", at: now + 1000, x: best.x, y: best.y, r: 60, dmg: d.dmg * 1.4 * eliteDmg, fx: "glyph_mine" });
             m.atkCd = 2.8; m.windup = 0.4;
             continue;
           }
@@ -727,15 +789,15 @@ export class Zone {
     const dmg = d.dmg * mul, tele = (m.enraged ? 800 : 1000);
     const dx = t.x - m.x, dy = t.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
     this.events.push({ k: "mskill", id: m.id, x: Math.round(m.x), y: Math.round(m.y), name: MOB_SKILLS[k].name });
-    if (k === "frost_nova") { this.cast(m, { kind: "nova", at: now + tele, x: m.x, y: m.y, r: Math.round(170 * big), dmg: dmg * 1.4 }); for (const p of players.values()) void p; }
-    else if (k === "meteor") { const ts = [...players.values()].filter((q) => q.alive && Math.hypot(q.x - m.x, q.y - m.y) < 450).slice(0, 3); ts.forEach((q, i) => this.cast(m, { kind: "circle", at: now + tele * 1.3 + i * 200, x: q.x, y: q.y, r: Math.round(90 * big), dmg: dmg * 1.8 })); }
-    else if (k === "spear_rain") { for (let i = 0; i < 5; i++) { const a = this.rand() * 6.283, r = 40 + this.rand() * 110; this.cast(m, { kind: "circle", at: now + tele + i * 120, x: t.x + Math.cos(a) * r, y: t.y + Math.sin(a) * r, r: Math.round(50 * big), dmg: dmg * 1.2 }); } }
-    else if (k === "whirlwind") this.cast(m, { kind: "ring", at: now + tele, x: m.x, y: m.y, r0: Math.round(30 * big), r: Math.round(210 * big), dmg: dmg * 1.5 });
+    if (k === "frost_nova") { this.cast(m, { kind: "nova", at: now + tele, x: m.x, y: m.y, r: Math.round(170 * big), dmg: dmg * 1.4, fx: "ice_fan" }); for (const p of players.values()) void p; }
+    else if (k === "meteor") { const ts = [...players.values()].filter((q) => q.alive && Math.hypot(q.x - m.x, q.y - m.y) < 450).slice(0, 3); ts.forEach((q, i) => this.cast(m, { kind: "circle", at: now + tele * 1.3 + i * 200, x: q.x, y: q.y, r: Math.round(90 * big), dmg: dmg * 1.8, fx: "meteor" })); }
+    else if (k === "spear_rain") { for (let i = 0; i < 5; i++) { const a = this.rand() * 6.283, r = 40 + this.rand() * 110; this.cast(m, { kind: "circle", at: now + tele + i * 120, x: t.x + Math.cos(a) * r, y: t.y + Math.sin(a) * r, r: Math.round(50 * big), dmg: dmg * 1.2, fx: "spear_rain" }); } }
+    else if (k === "whirlwind") this.cast(m, { kind: "ring", at: now + tele, x: m.x, y: m.y, r0: Math.round(30 * big), r: Math.round(210 * big), dmg: dmg * 1.5, fx: "war_axe" });
     else if (k === "fly_blade_dash") { m.windup = 0.6; m.dashX = ux; m.dashY = uy; this.events.push({ k: "tele", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: 220, t: 0.6 }); }
-    else if (k === "shadow_step") { m.x = this.clamp(t.x - ux * 60); m.y = this.clamp(t.y - uy * 60); this.cast(m, { kind: "circle", at: now + 600, x: t.x, y: t.y, r: Math.round(70 * big), dmg: dmg * 1.5 }); }
-    else if (k === "fireball") this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(420 * Math.max(0.8, big)), w: Math.round(40 * big), dmg: dmg * 1.6 });
+    else if (k === "shadow_step") { m.x = this.clamp(t.x - ux * 60); m.y = this.clamp(t.y - uy * 60); this.cast(m, { kind: "circle", at: now + 600, x: t.x, y: t.y, r: Math.round(70 * big), dmg: dmg * 1.5, fx: "auto_daggers" }); }
+    else if (k === "fireball") this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(420 * Math.max(0.8, big)), w: Math.round(40 * big), dmg: dmg * 1.6, proj: "fireball" });
     else if (k === "shield_wall") m.shieldUntil = now + 4000;
-    else if (k === "smoke_bomb") { this.cast(m, { kind: "circle", at: now + 700, x: m.x, y: m.y, r: Math.round(120 * big), dmg: dmg * 0.9 }); for (const p of players.values()) if (Math.hypot(p.x - m.x, p.y - m.y) < 140 * big) void p; }
+    else if (k === "smoke_bomb") { this.cast(m, { kind: "circle", at: now + 700, x: m.x, y: m.y, r: Math.round(120 * big), dmg: dmg * 0.9, fx: "plague_puddle" }); for (const p of players.values()) if (Math.hypot(p.x - m.x, p.y - m.y) < 140 * big) void p; }
     m.atkCd = Math.max(m.atkCd, 1.2);
   }
 

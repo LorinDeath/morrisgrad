@@ -1520,6 +1520,7 @@ async function boot(canvasId, username, userId, api) {
       const pred = zone.aimTargets(player.x, player.y, vx, vy, wt);
       const first = pred.list[0]; if (first) anyHit = true; zoneSt.lastVolley++;
       const reach = pred.atk.kind === 'arc' ? pred.atk.range * 0.8 : pred.atk.range;
+      if (pred.atk.kind !== 'arc' && world !== 'arena') continue; // открытый мир: снаряд ведёт и рисует сервер ({k:'proj'}), без локального прогноза
       if (first && pred.atk.kind === 'proj') zone.shoot(player.x, player.y, first.id, wt);
       else zone.shoot(player.x, player.y, null, wt, player.x + vx * reach, player.y + vy * reach);
     }
@@ -1587,6 +1588,11 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      // витрина атласа: все виды снарядов сеткой 5×5 (медленно летят вправо) + удары/лужа/падение метеора
+      projDemo: (kinds) => { const ks = kinds || ['fireball','war_axe','fire_spark','moon_orb','split_shard','thorn_bow','spear','daggers','sun_beam','ice_fan','chain_bolt','plague_flask','glyph_mine','orbit_skulls','meteor','spear_rain','dew_splash','auto_staff','auto_bow','auto_daggers','auto_claws','pierce'];
+        ks.forEach((t, i) => zone.pax.spawn({ id: 900000 + i + Math.floor(Math.random() * 1e5) * 100, t, x: player.x - 260 + (i % 6) * 100, y: player.y - 170 + Math.floor(i / 6) * 90, dx: 1, dy: 0, s: 6, r: 4000 }));
+        zone.pax.puddle(player.x - 200, player.y + 200, 70, 30); zone.pax.impact('fireball', player.x + 260, player.y + 200, { k: 2 }); zone.pax.fall('meteor', player.x, player.y + 220, 0.5, -1, 1.2); return ks.length; },
+      projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),

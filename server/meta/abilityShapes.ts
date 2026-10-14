@@ -72,9 +72,19 @@ export interface CastCtx {
   buff: (b: { invuln?: number; dr?: number; heal?: number }) => void;
   later: (ms: number, fn: () => void) => void;
   ev: (e: any) => void;
+  /** настоящий снаряд сервера (открытый мир); без него (дуэль) — прежний мгновенный расчёт */
+  fire?: (o: { t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number; spd?: number; arc?: boolean; onHit?: (m: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void }) => any;
 }
 
 const R = (n: number) => Math.round(n);
+// строки атласа снарядов (src/assets/mc/projectiles.json): id навыка/оружия → спрайт
+export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_orb", "split_shard", "thorn_bow", "spear", "pierce", "daggers", "sun_beam", "ice_fan", "chain_bolt",
+  "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws"]);
+export function projSprite(id: string, fb: string): string {
+  const k = id.startsWith("rs:") ? id.slice(3) : id; const b = (ABILITY_BY_ID as any)[id]?.base;
+  return PROJ_SPRITES.has(k) ? k : b && PROJ_SPRITES.has(b) ? b : fb;
+}
+const rot = (dx: number, dy: number, a: number): [number, number] => [dx * Math.cos(a) - dy * Math.sin(a), dx * Math.sin(a) + dy * Math.cos(a)];
 function lineMobs(zone: any, x: number, y: number, dx: number, dy: number, len: number, w: number) {
   return zone.mobsAround(x + dx * len / 2, y + dy * len / 2, len / 2 + w).filter((m: any) => {
     const ex = m.x - x, ey = m.y - y, along = ex * dx + ey * dy;
@@ -104,14 +114,27 @@ export function castShape(id: string, c: CastCtx): number {
       break;
     }
     case "line": {
-      const len = s.len * k;
+      const len = s.len * k, spr = projSprite(id, "spear");
+      if (c.fire && spr !== "sun_beam") { // летящее копьё/кинжалы: пробивает насквозь, урон в момент касания
+        const fan = spr === "daggers" ? [-0.22, 0, 0.22] : [0];
+        for (const a of fan) { const [vx, vy] = rot(c.dx, c.dy, a); c.fire({ t: spr, x: c.x, y: c.y, dx: vx, dy: vy, range: len, w: fan.length > 1 ? 34 : s.w, max: 99, onHit: (m) => { dealt += c.hit(m, fan.length > 1 ? 0.5 : 1, { pierceArmor: s.pierceArmor }) || 0; } }); }
+        break;
+      }
       hitAll(lineMobs(c.zone, c.x, c.y, c.dx, c.dy, len, s.w), 1, { pierceArmor: s.pierceArmor });
       c.ev({ k: "aline", sid: c.sid, id, x: R(c.x), y: R(c.y), dx: c.dx, dy: c.dy, len: R(len) });
       break;
     }
     case "proj": {
       // летит до первого моба на линии (или до конца), там взрыв
-      const len = s.len * k;
+      const len = s.len * k, spr = projSprite(id, "fireball");
+      if (c.fire) {
+        const r = s.r * k;
+        c.fire({ t: spr, x: c.x, y: c.y, dx: c.dx, dy: c.dy, range: len, w: 30, max: 1, onEnd: (x, y) => {
+          hitAll(c.zone.mobsAround(x, y, r), 1); c.ev({ k: "ability", sid: c.sid, id, x: R(x), y: R(y), r });
+          if (spr === "split_shard") for (const a of [-0.6, 0, 0.6]) { const [vx, vy] = rot(c.dx, c.dy, a); c.fire!({ t: "split_shard", x: x + vx * 20, y: y + vy * 20, dx: vx, dy: vy, range: 170, w: 22, max: 1, onHit: (m) => { dealt += c.hit(m, 0.4) || 0; } }); }
+        } });
+        break;
+      }
       const on = lineMobs(c.zone, c.x, c.y, c.dx, c.dy, len, 30).map((m: any) => ({ m, a: (m.x - c.x) * c.dx + (m.y - c.y) * c.dy })).sort((p: any, q: any) => p.a - q.a);
       const at = on.length ? Math.max(0, on[0].a) : len;
       const tx = c.x + c.dx * at, ty = c.y + c.dy * at;
@@ -164,12 +187,26 @@ export function castShape(id: string, c: CastCtx): number {
     case "meteor": {
       const [tx, ty] = c.bounds(c.x + c.dx * s.dist, c.y + c.dy * s.dist);
       const r = s.r * k;
-      c.ev({ k: "amark", sid: c.sid, id, x: R(tx), y: R(ty), r, t: s.delay / 1000 });
+      if (c.fire && projSprite(id, "") === "plague_flask") { // фляга летит навесом, разбивается в лужу (+2 тика)
+        const dist = Math.hypot(tx - c.x, ty - c.y) || 1;
+        c.ev({ k: "amark", sid: c.sid, id, x: R(tx), y: R(ty), r, t: s.delay / 1000 });
+        c.fire({ t: "plague_flask", x: c.x, y: c.y, dx: (tx - c.x) / dist, dy: (ty - c.y) / dist, range: dist, w: 20, max: 0, arc: true, spd: dist / Math.max(0.25, s.delay / 1000), onEnd: (x, y) => {
+          hitAll(c.zone.mobsAround(x, y, r), 1); c.ev({ k: "puddle", sid: c.sid, x: R(x), y: R(y), r, t: 2.4 });
+          for (const t of [800, 1600]) c.later(t, () => hitAll(c.zone.mobsAround(x, y, r), 0.25));
+        } });
+        break;
+      }
+      c.ev({ k: "amark", sid: c.sid, id, x: R(tx), y: R(ty), r, t: s.delay / 1000, fdx: c.dx < 0 ? -1 : 1 });
       c.later(s.delay, () => { hitAll(c.zone.mobsAround(tx, ty, r), 1); c.ev({ k: "ability", sid: c.sid, id, x: R(tx), y: R(ty), r }); });
       break;
     }
     case "cone": {
-      const len = s.len * k, half = s.arc / 2;
+      const len = s.len * k, half = s.arc / 2, spr = projSprite(id, "");
+      if (c.fire && (spr === "ice_fan" || spr === "dew_splash")) { // веер: 5 осколков, каждый до первого моба
+        for (let i = 0; i < 5; i++) { const [vx, vy] = rot(c.dx, c.dy, -half + (i / 4) * s.arc);
+          c.fire({ t: spr, x: c.x, y: c.y, dx: vx, dy: vy, range: len, w: 24, max: 1, onHit: (m) => { dealt += c.hit(m, 0.7) || 0; c.status(m, { slow: !!(s.slow || s.freeze), knock: s.knock, freeze: s.freeze }, c.x, c.y); } }); }
+        break;
+      }
       const ms = c.zone.mobsAround(c.x, c.y, len + 14).filter((m: any) => {
         const ex = m.x - c.x, ey = m.y - c.y, d = Math.hypot(ex, ey) || 1;
         return d < 24 || Math.acos(Math.max(-1, Math.min(1, (ex * c.dx + ey * c.dy) / d))) <= half;

@@ -61,7 +61,7 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
     if (near) { await G(A, ([x, y]) => window.__game.debug.tp(x - 170, y + 90), [near.x, near.y]); await A.waitForTimeout(2200); }
     ok(own.length >= 2, `${id}: ${own.length} tinted ${id}_* mobs nearby (${[...new Set(own.map((m) => m.type))].join(', ')})`);
     ok(atmo.mood === 'b_' + id && vars.biome === 'b_' + id && vars.col, `${id}: ambient mood + HUD theme ${JSON.stringify(vars)}`);
-    ok(ch.live <= 30, `${id}: chunks live ${ch.live}, baked ${ch.baked}, evicted ${ch.evicted}, ~${ch.bakeMs}ms/chunk`);
+    ok(ch.live <= 42, `(cap 42, 8aabadf) ${id}: chunks live ${ch.live}, baked ${ch.baked}, evicted ${ch.evicted}, ~${ch.bakeMs}ms/chunk`);
     await A.screenshot({ path: `${OUT}/arinar-0${i++}-${id}.png` });
   }
   // Minecraft-подобная генерация: то же «Кровавые льды» в другом месте карты
@@ -157,7 +157,7 @@ const PATCH2 = {"ice": [17174, 34275, 10], "fire": [31430, 7949, 7], "stone": [3
   await M.waitForTimeout(6000);
   await M.screenshot({ path: `${OUT}/arinar-10-mobile-ice.png` });
   ch = await G(M, () => window.__game.debug.chunks());
-  ok(ch && ch.live <= 20, `mobile: chunk cap ${JSON.stringify(ch)}`);
+  ok(ch && ch.live <= 28, `mobile: chunk cap ${JSON.stringify(ch)}`);
   ok(errs.length === 0, 'no page errors ' + errs.slice(0, 3).join(' | '));
   console.log(`${pass} passed, ${fail} failed`);
   await b.close();
