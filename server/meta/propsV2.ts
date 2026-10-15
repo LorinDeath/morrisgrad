@@ -16,7 +16,7 @@ const SOLID: Record<string, number> = {
   arena_wall_crypt: 0.6, arena_wall_abyss: 0.6, arena_wall_mirror: 0.6, arena_wall_abode: 0.6, heart_of_abode: 0.45,
 };
 // порталы — твёрдые только по краям арки (две «ноги»), центр проходим — к нему подходят и активируют
-export const PORTAL_EDGE = { offset: 0.36, r: 0.09 }; // доли size_m: смещение ног от центра и их радиус
+export const PORTAL_EDGE = { offset: 0.30, r: 0.08 }; // доли size_m: смещение ног от центра и их радиус
 
 const hash = (x: number, y: number, s: number) => { let h = (Math.imul(Math.floor(x) | 0, 374761393) + Math.imul(Math.floor(y) | 0, 668265263) + Math.imul(s, 2246822519)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 /** ключ (или старый псевдоним) → базовый ключ v2 */
