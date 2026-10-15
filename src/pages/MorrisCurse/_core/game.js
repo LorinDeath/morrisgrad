@@ -18,7 +18,7 @@ import { loadPixAtlases } from './engine/pixSprites.js';
 import { MetaClient } from './meta/metaClient.js';
 import { Book } from './ui/book.js';
 import { QuestTracker } from './ui/tracker.js';
-import { NpcDialog } from './ui/dialog.js';
+import { NpcDialog, npcIconUrl } from './ui/dialog.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
@@ -49,6 +49,7 @@ import { LootWindow } from './ui/loot.js';
 import { DpsMeter } from './ui/dps.js';
 import { PartyUI } from './ui/party.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
+import { setQuestDialogues, QUEST_DIALOGUES } from '../../../../server/meta/vnChars.ts';
 import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
@@ -406,6 +407,7 @@ async function boot(canvasId, username, userId, api) {
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
+    if (d.questDialogues && typeof d.questDialogues === 'object') setQuestDialogues(d.questDialogues); // диалоги-новеллы
     if (d.portal !== undefined) syncHomePortal(d.portal);
     if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
@@ -504,6 +506,7 @@ async function boot(canvasId, username, userId, api) {
   const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
+  adminPanel.onDialogueApplied = (r) => { if (r.dialogue) QUEST_DIALOGUES[r.questId] = r.dialogue; else delete QUEST_DIALOGUES[r.questId]; };
   adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
   net.on('admin_result', (d) => adminPanel.onResult(d));
   net.on('loot_bag', (d) => { addCards(d.cards); if (lootWin.isOpen) lootWin.update(d); else if (!d.taken) lootWin.open(d); });
@@ -513,6 +516,7 @@ async function boot(canvasId, username, userId, api) {
   // правки админ-панели прилетают сразу (без переподключения): оружие/навыки/мобы, квесты, карточки предметов
   net.on('config_update', (d) => { applyConfig(d); book.libAsked = -1; if (book.isOpen && ['library', 'bestiary', 'runskills', 'gear'].includes(book.tab)) book.render(); // правки админки → Бестиарий/Библиотека/Кодекс заново с сервера
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests);
+    if (d.questDialogues && typeof d.questDialogues === 'object') setQuestDialogues(d.questDialogues);
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); }
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты
@@ -1564,8 +1568,8 @@ async function boot(canvasId, username, userId, api) {
       if (n.world !== world) continue;
       const q = stage.project(toX(n.x), 3.0, toZ(n.y));
       if (!q) continue;
-      const mark = npcMark(id);
-      overlay.label('npc_' + id, q.x, q.y, `${mark ? `<b class="mc-npc-mark">${mark}</b>` : ''}${esc(n.name)}<small>${esc(n.title)}</small>`, n.color);
+      const mark = npcMark(id), ic = npcIconUrl(id); // портрет квестодателя (арт VN) рядом с именем
+      overlay.label('npc_' + id, q.x, q.y, `${mark ? `<b class="mc-npc-mark">${mark}</b>` : ''}${ic ? `<img class="mc-npc-ic${mark ? ' q' : ''}" src="${ic}" alt="">` : ''}${esc(n.name)}<small>${esc(n.title)}</small>`, n.color);
     }
     // мобы мира с неполным здоровьем — полоска
     for (const o of zone.mobs.values()) {

@@ -4,6 +4,10 @@ import { objText } from '../../../../../server/meta/objText.ts';
 import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
 import { NPCS } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
+import { QUEST_DIALOGUES, VN_CHARS, VN_HERO, vnImg, vnIcon, npcVnChar } from '../../../../../server/meta/vnChars.ts';
+
+/** иконка квестодателя (арт VN) для шапки диалога/маркеров; null — арта нет */
+export const npcIconUrl = (npc) => { const c = npcVnChar(npc); return c ? vnIcon(c) : null; };
 
 const IDLE = {
   alzi: ['Слышишь гул? Это не гроза. Это вентиляторы. …Забудь, что я сказал.', 'Мир держится на опорах. Иногда опоры — это люди.'],
@@ -33,6 +37,11 @@ export class NpcDialog {
     let lines = [], btns = [];
     const close = { text: 'Уйти', cls: 'ghost', onClick: () => this.close() };
     const all = { text: '📜 Все квесты', id: 'npc-all-quests', onClick: () => this.showAll() };
+    const vnAll = list.some((x) => QUEST_BY_ID[x.id]) ? [all] : [];
+    if (complete && QUEST_DIALOGUES[complete.id]?.done?.length) { const q = QUEST_BY_ID[complete.id];
+      return this.playVN(QUEST_DIALOGUES[q.id].done, q, [{ text: `✔ Сдать: ${q.title}`, cls: 'gold', id: 'vn-turnin', onClick: () => { this.meta.turnIn(q.id); this.close(); } }, close]); }
+    if (!complete && avail && QUEST_DIALOGUES[avail.id]?.offer?.length) { const q = QUEST_BY_ID[avail.id];
+      return this.playVN(QUEST_DIALOGUES[q.id].offer, q, [{ text: `Взять: ${q.title}`, cls: 'gold', id: 'vn-accept', onClick: () => { this.meta.accept(q.id); this.close(); } }, ...vnAll, close]); }
     if (complete) {
       const q = QUEST_BY_ID[complete.id];
       lines = q.done;
@@ -53,7 +62,8 @@ export class NpcDialog {
     }
     if (list.some((x) => QUEST_BY_ID[x.id])) btns.splice(btns.indexOf(close), 0, all);
     const q = (complete || avail || active) && QUEST_BY_ID[(complete || avail || active).id];
-    this.ov.showScreen(`<div class="mc-dialog"><div class="who" style="color:${n.color}">${esc(n.name)} <small>${esc(n.title)}</small></div>
+    const ic = npcIconUrl(npc);
+    this.ov.showScreen(`<div class="mc-dialog"><div class="who" style="color:${n.color}">${ic ? `<img class="npc-ic" src="${ic}" alt="">` : ''}${esc(n.name)} <small>${esc(n.title)}</small></div>
       ${q ? `<div class="qt">${esc(q.title)}${starTag(q)} · <small>${esc(q.chapter || '')}</small></div>` : ''}
       ${lines.map((l) => `<p>${esc(l)}</p>`).join('')}</div>`, btns, 'mc-dialog-screen');
     this.isOpen = true;
@@ -83,5 +93,32 @@ export class NpcDialog {
       ${lines.map((l) => `<p>${esc(l)}</p>`).join('')}${st !== 'done' ? `<ul class="qa-goals">${goals}</ul>` : ''}</div>`, btns, 'mc-dialog-screen');
     this.isOpen = true;
   }
-  close() { if (this.isOpen) this.ov.hideScreen(); this.isOpen = false; }
+  // ---------- визуальная новелла: окна диалога из админки (аватар с эмоцией слева, имя + текст, «Дальше») ----------
+  speaker(w) {
+    let id = w.who;
+    if (id === VN_HERO) { const cls = this.meta?.hero?.cls; id = VN_CHARS[cls] ? cls : null; if (!id) return { id: null, name: 'Вы', color: '#e2e8f0' }; }
+    const c = VN_CHARS[id]; return c ? { id, name: c.name, color: c.color } : { id: null, name: '…', color: '#e2e8f0' };
+  }
+  playVN(wins, q, endBtns) {
+    this.vn = { wins, q, endBtns, i: 0 };
+    for (const w of wins) { const sp = this.speaker(w); if (sp.id) { const im = new Image(); im.src = vnImg(sp.id, w.emo); } } // предзагрузка
+    if (!this.vnKey) { // Space/Enter — «Дальше» (до игровых клавиш: рывок/чат)
+      this.vnKey = (e) => { if (!this.vn || !this.isOpen) return; if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) this.vnNext(); } };
+      window.addEventListener('keydown', this.vnKey, true);
+    }
+    this.vnRender();
+  }
+  vnNext() { const v = this.vn; if (!v) return; if (v.i < v.wins.length - 1) { v.i++; this.vnRender(); } else { const b = v.endBtns.find((x) => x.cls === 'gold'); if (b) b.onClick(); } }
+  vnRender() {
+    const v = this.vn, w = v.wins[v.i], sp = this.speaker(w), last = v.i === v.wins.length - 1;
+    const btns = last ? v.endBtns : [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.vnNext() }, { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }];
+    const el = this.ov.showScreen(`<div class="mc-vn" data-vn-i="${v.i}" data-who="${esc(w.who)}" data-emo="${esc(w.emo)}">
+      ${sp.id ? `<img class="vn-av" src="${vnImg(sp.id, w.emo)}" alt="${esc(sp.name)}">` : ''}
+      <div class="mc-dialog vn-box"><div class="vn-top"><span class="who" style="color:${sp.color}">${esc(sp.name)}</span>${v.q ? `<span class="qt">${esc(v.q.title)}${starTag(v.q)}</span>` : ''}<span class="vn-n">${v.i + 1} / ${v.wins.length}</span></div>
+      ${w.text.split('\n').map((l) => `<p>${esc(l)}</p>`).join('')}${last ? '' : '<small class="vn-hint">Пробел / Enter — дальше</small>'}</div></div>`, btns, 'mc-dialog-screen mc-vn-screen');
+    // клик по тексту — тоже «дальше»
+    el.querySelector('.vn-box').onclick = (e) => { e.stopPropagation(); if (!last) this.vnNext(); };
+    this.isOpen = true;
+  }
+  close() { if (this.isOpen) this.ov.hideScreen(); this.isOpen = false; this.vn = null; }
 }

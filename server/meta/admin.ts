@@ -10,6 +10,7 @@ import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOrigin
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { MOB_SKILLS_LIST } from "./mobSkills";
+import { validateDialogue, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
 
 export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
@@ -132,6 +133,10 @@ export class AdminStore {
           else { const v = validateQuest(raw); if (typeof v !== "string") custom.push(v); }
         }
         setCustomQuests(custom);
+        // диалоги-новеллы квестов (таблица может отсутствовать до миграции 0013 — тогда без диалогов)
+        try { const dl = (await this.db.prepare("SELECT quest_id, data FROM quest_dialogues").all()).results || []; const map: Record<string, QuestDialogue> = {};
+          for (const r of dl as any[]) { const v = validateDialogue(JSON.parse(r.data)); if (typeof v !== "string" && QUEST_BY_ID[r.quest_id]) map[r.quest_id] = v; }
+          setQuestDialogues(map); } catch (e: any) { console.error("[mc] dialogues", e?.message || e); }
         const first = this.ver === -1; this.ver = ver;
         if (!first) this.onChange?.();
       } catch (e: any) { console.error("[mc] admin sync", e?.message || e); }
@@ -145,7 +150,7 @@ export class AdminStore {
       this.db.prepare("UPDATE game_config_version SET v = v + 1 WHERE k = 'overrides'"),
     ]);
     this.ver++; // своё изменение уже применено в памяти
-    if (kind !== "quest") this.touched.add(kind + ":" + target);
+    if (kind !== "quest" && kind !== "dialogue") this.touched.add(kind + ":" + target);
     this.onChange?.();
   }
   async save(by: string, kind: Kind, id: string, patch: any): Promise<{ ok: boolean; err?: string; values?: any; version?: number }> {
@@ -203,6 +208,22 @@ export class AdminStore {
     await this.bump(by, "quest", id, q, null, 0);
     return { ok: true };
   }
+  /** диалог-новелла квеста: пустой (без окон) — удалить строку (квест вернётся к обычным репликам) */
+  async saveDialogue(by: string, questId: any, raw: any) {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    const id = String(questId || ""); if (!ID_RE.test(id) || !QUEST_BY_ID[id]) return { ok: false, err: "квест не найден" };
+    const d = validateDialogue(raw); if (typeof d === "string") return { ok: false, err: d };
+    const before = QUEST_DIALOGUES[id] || null;
+    const empty = !d.offer.length && !d.done.length;
+    const row = await this.db.prepare("SELECT version FROM quest_dialogues WHERE quest_id = ?").bind(id).first();
+    const version = empty ? 0 : Number(row?.version || 0) + 1;
+    if (empty) await this.db.prepare("DELETE FROM quest_dialogues WHERE quest_id = ?").bind(id).run();
+    else await this.db.prepare("INSERT INTO quest_dialogues (quest_id, data, version, updated_by, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(quest_id) DO UPDATE SET data = excluded.data, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at")
+      .bind(id, JSON.stringify(d), version, by, Date.now()).run();
+    if (empty) delete QUEST_DIALOGUES[id]; else QUEST_DIALOGUES[id] = d;
+    await this.bump(by, "dialogue", id, before, empty ? null : d, version);
+    return { ok: true, questId: id, dialogue: empty ? null : d, version };
+  }
   /** публичные значения изменённых сущностей для клиентов (оружие/навыки/мобы; предметы — через карточки) */
   clientPatches() {
     const out: { kind: string; id: string; values: any }[] = [];
@@ -230,6 +251,7 @@ export class AdminStore {
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
       mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl })),
       objTypes: OBJ_TYPES,
+      vn: { chars: Object.values(VN_CHARS), emotions: VN_EMOTIONS.map((id) => ({ id, name: VN_EMOTION_NAMES[id] })), limits: VN_LIMITS, dialogues: { ...QUEST_DIALOGUES } },
       totals: { items: Object.keys(ITEM_BY_ID).length, weapons: Object.values(ITEM_BY_ID).filter((o: any) => o.slot === "weapon").length, res: Object.keys(RESOURCES).length }, // для проверки «ни один предмет не пропал»
     };
   }

@@ -738,3 +738,19 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-cs-tal { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; border-left: 1px solid #3b2c52; padding-left: 12px; }
 .mc-cs-tal h3 { margin: 4px 0 6px; color: #fde68a; font-size: 14px; }
 @container (max-width: 980px) { .mc-cs-cols { flex-direction: column; align-items: stretch; } .mc-cs-tal { border-left: 0; padding-left: 0; } }
+/* визуальная новелла: аватар с эмоцией слева, окно текста снизу */
+.mc-dialog .who .npc-ic { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 6px; border: 1px solid #c59b27; object-fit: cover; }
+.mc-vn-screen { justify-content: flex-end !important; padding-bottom: 18px !important; }
+.mc-vn { position: relative; width: 100%; max-width: 920px; display: flex; align-items: flex-end; min-height: 46vh; }
+.mc-vn .vn-av { position: absolute; left: 0; bottom: 0; height: min(78vh, 620px); max-width: 46%; object-fit: contain; object-position: left bottom; filter: drop-shadow(0 0 18px rgba(0,0,0,.7)); pointer-events: none; animation: vnIn .18s ease-out; }
+.mc-vn .vn-box { position: relative; margin-left: auto; width: 62%; max-width: 600px; min-height: 120px; cursor: pointer; z-index: 1; }
+.mc-vn .vn-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.mc-vn .vn-top .who { font-size: 17px; font-weight: bold; }
+.mc-vn .vn-top .qt { margin: 0; flex: 1; }
+.mc-vn .vn-n { color: #64748b; font-size: 11px; }
+.mc-vn .vn-hint { color: #64748b; font-size: 10px; }
+.mc-vn .vn-box p { font-size: 14px; }
+@keyframes vnIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@media (max-width: 700px) { .mc-vn .vn-av { height: 52vh; max-width: 60%; opacity: .95; } .mc-vn .vn-box { width: 100%; margin-top: 30vh; } .mc-vn { min-height: 0; flex-direction: column; } }
+.mc3d-label .mc-npc-ic { display: block; width: 30px; height: 30px; margin: 0 auto 2px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); object-fit: cover; background: rgba(10,6,20,.7); }
+.mc3d-label .mc-npc-ic.q { width: 38px; height: 38px; border: 2px solid #fbbf24; box-shadow: 0 0 10px rgba(251,191,36,.6); }

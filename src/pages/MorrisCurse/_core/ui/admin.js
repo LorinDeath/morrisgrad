@@ -7,6 +7,12 @@ import { statIcon } from './statIcons.js';
 const TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
+.mc-admin .vnw{display:grid;grid-template-columns:28px 64px 1fr auto;gap:8px;align-items:start;border:1px solid #3b2a12;border-radius:8px;padding:6px;margin:6px 0;background:rgba(255,255,255,.02)}
+.mc-admin .vnw .vn-th{width:64px;height:85px;object-fit:cover;border-radius:6px;border:1px solid #c59b27;background:#1a1226}
+.mc-admin .vnw .vn-f{display:flex;flex-direction:column;gap:4px}.mc-admin .vnw .vn-f div{display:flex;gap:6px;flex-wrap:wrap}
+.mc-admin .vnw textarea{min-height:54px;width:100%}.mc-admin .vnw .vn-ops{display:flex;flex-direction:column;gap:3px}
+.mc-admin .vn-emos{display:flex;gap:3px;flex-wrap:wrap}.mc-admin .vn-emos img{width:30px;height:40px;object-fit:cover;border-radius:4px;border:1px solid #3b2a12;cursor:pointer;opacity:.7}
+.mc-admin .vn-emos img.on{border:2px solid #fbbf24;opacity:1}.mc-admin .vn-ph button.on{background:#c59b27;color:#160f08}
 .mc-admin{position:absolute;left:4%;top:4%;width:92%;height:92%;z-index:60;background:rgba(10,7,20,.97);color:#f1e7d0;font:13px/1.35 monospace;display:flex;flex-direction:column;
   border:2px solid #c59b27;border-radius:10px;box-shadow:0 0 0 1px #3b2a12,0 12px 40px rgba(0,0,0,.7),inset 0 0 0 1px rgba(253,230,138,.12);overflow:hidden;min-width:420px;min-height:300px;resize:both}
 .mc-admin header{cursor:move;background:linear-gradient(#2a1d0b,#160f08);user-select:none}
@@ -90,6 +96,7 @@ export class AdminPanel {
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
     if (r.kind && r.values) { const e = this.cat.ent[r.kind].find((x) => x.id === r.id); if (e) { e.values = r.values; if (r.kind === 'item') e.lvl = Math.max(1, r.values.req || 1, r.values.lvl || 1); if (r.kind === 'mob') e.lvl = r.values.lvl; } }
     if (r.op === 'quest' && r.quest) { this.onQuestApplied?.(r); const i = this.cat.quests.findIndex((x) => x.id === r.quest.id); const row = { id: r.quest.id, title: r.quest.title, npc: r.quest.npc, custom: !r.builtin, edited: r.builtin && !r.reset, requires: r.quest.requires || [], minLevel: r.quest.minLevel, stars: Object.values(r.quest.rewards?.stars || {}).reduce((a, b) => a + b, 0), def: r.quest }; if (i >= 0) this.cat.quests[i] = row; else this.cat.quests.push(row); this.sel = r.quest.id; }
+    if (r.op === 'dialogue') { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
     if (r.op === 'quest_delete') { this.cat.quests = this.cat.quests.filter((x) => x.id !== r.id); this.sel = null; }
     this.msg(`✔ Сохранено в D1${r.version ? ` (версия ${r.version})` : ''}`); this.render();
   }
@@ -285,6 +292,34 @@ export class AdminPanel {
     sec.querySelector('[data-qsave]').onclick = () => { this.msg('Сохранение…'); this.send({ type: 'admin_quest_save', quest: read() }); };
     sec.querySelector('[data-qreset]')?.addEventListener('click', () => { if (confirm('Вернуть квест к значениям из кода?')) { this.msg('Сброс…'); this.send({ type: 'admin_quest_reset', id: q.id }); } });
     sec.querySelector('[data-qdel]')?.addEventListener('click', () => { if (confirm('Скрыть квест у игроков?')) this.send({ type: 'admin_quest_delete', id: q.id }); });
+    if (row && this.cat.vn) { const box = document.createElement('div'); box.className = 'box vn-ed'; sec.appendChild(box); this.dialogueEditor(box, row.id); }
+  }
+  // ---------- диалог-новелла квеста: окна (говорящий, эмоция с превью, текст), добавить/удалить/переставить → D1 quest_dialogues ----------
+  dialogueEditor(box, qid) {
+    const vn = this.cat.vn;
+    if (!this.vnDraft || this.vnDraft.qid !== qid) { const d = vn.dialogues[qid] || {}; this.vnDraft = { qid, ph: this.vnDraft?.ph || 'offer', offer: JSON.parse(JSON.stringify(d.offer || [])), done: JSON.parse(JSON.stringify(d.done || [])) }; }
+    const D = this.vnDraft, wins = D[D.ph];
+    const charOpt = (cur) => `<option value="hero" ${cur === 'hero' ? 'selected' : ''}>🎭 Герой игрока (текущая оболочка)</option>` + vn.chars.map((c) => `<option value="${c.id}" ${c.id === cur ? 'selected' : ''}>${esc(c.name)}${c.hero ? ' · герой' : ''}</option>`).join('');
+    const imgOf = (who, emo, t) => `/mc-vn/${who === 'hero' ? 'warrior' : who}/${emo}${t ? '_t' : ''}.webp`;
+    const row = (w, i) => `<div class="vnw" data-wi="${i}"><b>${i + 1}</b><img class="vn-th" src="${imgOf(w.who, w.emo, true)}" alt="">
+      <div class="vn-f"><div><select data-wwho>${charOpt(w.who)}</select><select data-wemo>${vn.emotions.map((e) => `<option value="${e.id}" ${e.id === w.emo ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></div>
+      <div class="vn-emos">${vn.emotions.map((e) => `<img src="${imgOf(w.who, e.id, true)}" title="${esc(e.name)}" data-pick="${e.id}" class="${e.id === w.emo ? 'on' : ''}">`).join('')}</div>
+      <textarea data-wtext maxlength="${vn.limits.text}" placeholder="Текст окна">${esc(w.text || '')}</textarea></div>
+      <div class="vn-ops"><button class="btn" data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button class="btn" data-dn="${i}" ${i < wins.length - 1 ? '' : 'disabled'}>▼</button><button class="btn red" data-wrm="${i}">✕</button></div></div>`;
+    box.innerHTML = `<b>💬 Диалог-новелла</b> <small>окна листаются «Дальше»; слева — аватар с выбранной эмоцией. Пусто — обычные реплики выше.</small>
+      <div class="vn-ph" style="margin:6px 0"><button class="btn ${D.ph === 'offer' ? 'on' : ''}" data-ph="offer">Перед «Взять» (${D.offer.length})</button> <button class="btn ${D.ph === 'done' ? 'on' : ''}" data-ph="done">Перед «Сдать» (${D.done.length})</button></div>
+      <div class="vn-list">${wins.map(row).join('') || '<p><small>Окон нет.</small></p>'}</div>
+      <p><button class="btn" data-wadd ${wins.length >= vn.limits.windows ? 'disabled' : ''}>＋ окно</button> <button class="btn gold" data-vnsave>💾 Сохранить диалог в D1</button></p>`;
+    const sync = () => box.querySelectorAll('[data-wi]').forEach((r) => { const w = wins[+r.dataset.wi]; w.who = r.querySelector('[data-wwho]').value; w.emo = r.querySelector('[data-wemo]').value; w.text = r.querySelector('[data-wtext]').value; });
+    const re = () => { sync(); this.dialogueEditor(box, qid); };
+    box.querySelectorAll('[data-ph]').forEach((b) => (b.onclick = () => { sync(); D.ph = b.dataset.ph; this.dialogueEditor(box, qid); }));
+    box.querySelectorAll('[data-wwho],[data-wemo]').forEach((s) => (s.onchange = re));
+    box.querySelectorAll('[data-pick]').forEach((im) => (im.onclick = () => { sync(); wins[+im.closest('[data-wi]').dataset.wi].emo = im.dataset.pick; this.dialogueEditor(box, qid); }));
+    box.querySelectorAll('[data-up]').forEach((b) => (b.onclick = () => { sync(); const i = +b.dataset.up; [wins[i - 1], wins[i]] = [wins[i], wins[i - 1]]; this.dialogueEditor(box, qid); }));
+    box.querySelectorAll('[data-dn]').forEach((b) => (b.onclick = () => { sync(); const i = +b.dataset.dn; [wins[i + 1], wins[i]] = [wins[i], wins[i + 1]]; this.dialogueEditor(box, qid); }));
+    box.querySelectorAll('[data-wrm]').forEach((b) => (b.onclick = () => { sync(); wins.splice(+b.dataset.wrm, 1); this.dialogueEditor(box, qid); }));
+    box.querySelector('[data-wadd]').onclick = () => { sync(); const prev = wins[wins.length - 1]; wins.push({ who: prev?.who || this.cat.quests.find((x) => x.id === qid)?.npc || 'alzi', emo: 'calm', text: '' }); if (!vn.chars.some((c) => c.id === wins[wins.length - 1].who)) wins[wins.length - 1].who = 'alzi'; this.dialogueEditor(box, qid); };
+    box.querySelector('[data-vnsave]').onclick = () => { sync(); this.msg('Сохранение диалога…'); this.send({ type: 'admin_dialogue_save', questId: qid, dialogue: { offer: D.offer, done: D.done } }); };
   }
   // дерево квестов (как граф Obsidian, но деревом): корни — квесты без предусловий; дети — квесты, которые открываются после.
   // Квест с несколькими предусловиями виден под каждым (↪ — повтор). Узлы сворачиваются; клик по названию — открыть в редакторе.
