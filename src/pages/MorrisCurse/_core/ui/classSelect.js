@@ -1,3 +1,5 @@
+import { curseDef, curseTint } from './book.js';
+import { glowK } from '../meta/curseCfg.js';
 // Выбор тела у Алтаря (portal_class_select → open_class_selection → select_class{classId}).
 // Слева — полный портрет выбранного героя; справа — карточки, статы, экипировка и сумка из сохранения.
 import { CLASSES } from '../classes.js';
@@ -70,8 +72,8 @@ export class ClassSelect {
     const equip = hs.equip || {};
     const slots = SLOT_ORDER.map((slot) => {
       const e = equip[slot];
-      const d = e && ITEM_BY_ID[e.id];
-      const rar = d ? (RARITIES[d.rarity] || {}) : {};
+      const d = e && curseDef(ITEM_BY_ID[e.id], e);
+      const rar = d ? (d.cursed ? { color: curseTint() } : RARITIES[d.rarity] || {}) : {};
       const on = this.tipKey === `eq:${slot}`;
       const tip = d ? `data-tip="eq:${slot}" data-item="${esc(d.id)}"` : '';
       return `<button type="button" class="mc-altar-slot ${d ? 'filled' : ''} ${on ? 'on' : ''}" ${tip} title="${d ? esc(d.name) + ' — статы' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')}"` : ''}>
@@ -88,9 +90,9 @@ export class ClassSelect {
     });
     const bagHtml = bag.length
       ? bag.map((it) => {
-          const d = ITEM_BY_ID[it.id];
+          const d = curseDef(ITEM_BY_ID[it.id], it);
           if (!d) return '';
-          const rar = RARITIES[d.rarity] || {};
+          const rar = d.cursed ? { color: curseTint() } : RARITIES[d.rarity] || {};
           const on = this.tipKey === `bag:${it.uid}`;
           return `<button type="button" class="mc-altar-item filled ${on ? 'on' : ''}" data-tip="bag:${esc(it.uid)}" data-item="${esc(d.id)}" title="${esc(d.name)} — статы" style="border-color:${esc(rar.color || '#3b2c52')}">${iconHtml(d, 28)}</button>`;
         }).join('')
@@ -99,17 +101,17 @@ export class ClassSelect {
     // карточка статов (только просмотр — с алтаря нельзя надеть/снять)
     let tipHtml = '';
     if (this.tipKey) {
-      let itemId = null;
+      let inst = null;
       if (this.tipKey.startsWith('eq:')) {
         const slot = this.tipKey.slice(3);
-        itemId = equip[slot]?.id || null;
+        inst = equip[slot] || null;
       } else if (this.tipKey.startsWith('bag:')) {
         const uid = this.tipKey.slice(4);
-        itemId = bag.find((i) => String(i.uid) === uid)?.id || null;
+        inst = bag.find((i) => String(i.uid) === uid) || null;
       }
-      const d = itemId && ITEM_BY_ID[itemId];
+      const d = inst && curseDef(ITEM_BY_ID[inst.id], inst);
       if (d) {
-        const rar = RARITIES[d.rarity] || RARITIES.common;
+        const rar = d.cursed ? { color: curseTint(), name: '☠ Проклятая · ' + (RARITIES[d.rarity] || RARITIES.common).name } : RARITIES[d.rarity] || RARITIES.common;
         tipHtml = `<div class="mc-altar-tip"><div class="nm" style="color:${esc(rar.color)}">${iconHtml(d, 28)} ${esc(d.name)}</div>
           <div class="rr">${esc(rar.name)} · ${esc(SLOTS[d.slot] || d.slot)} · ур. ${d.lvl || 1}</div>
           <div class="ss">${itemStatsHtml(d) || '<span class="mc-altar-empty">без статов</span>'}</div>
@@ -128,7 +130,8 @@ export class ClassSelect {
         <p>Выберите тело. У каждого героя своё сохранение: уровень, таланты, сумка и надетое.</p></div>
       <div class="mc-altar-body">
         <aside class="mc-altar-portrait" style="--c:${esc(color)}">
-          <img src="${PORTRAIT(id)}" alt="${esc(name)}" data-portrait="${esc(id)}">
+          <img src="${PORTRAIT(id)}" alt="${esc(name)}" data-portrait="${esc(id)}" ${(() => { const cg = eff?.cursedGlow | 0, k = glowK(cg); if (!k) return ''; const c = curseTint(); // свечение проклятия по контуру портрета (drop-shadow повторяет альфу)
+            return `class="mc-cursed-glow ${cg >= 5 ? 'pulse' : ''}" style="filter:drop-shadow(0 0 ${Math.round(2 + 6 * k)}px ${c}) drop-shadow(0 0 ${Math.round(1 + 3 * k)}px ${c}) drop-shadow(0 0 1px ${c})"`; })()}>
           <div class="mc-altar-pname" style="color:${esc(color)}">${esc(name)} <small>· ${esc(clsName)}</small></div>
         </aside>
         <div class="mc-altar-right">

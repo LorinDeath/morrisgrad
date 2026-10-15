@@ -5,7 +5,7 @@ export const BAG_TTL_MS = 120_000;   // мешок исчезает через 2
 export const BAG_RANGE = 110;        // px: открыть/забрать — не дальше
 export const BAG_MAX_PER_OWNER = 40; // старые мешки владельца исчезают первыми
 export const TAKE_RATE = 25;         // позиций/с (Shift-проводка забирает быстро, но не флудом)
-export type BagEntry = { lid: number; k: "item" | "res"; id: string; n: number };
+export type BagEntry = { lid: number; k: "item" | "res"; id: string; n: number; c?: 1 }; // c — проклятый экземпляр (решает сервер)
 export type Bag = { id: number; world: string; x: number; y: number; owner: string; at: number; exp: number; src: string; kind: string; mob: string; entries: BagEntry[] };
 
 export const KILLER_BAG_CHANCE = 0.1; // мешок добившему вместо лучшего по урону
@@ -24,7 +24,7 @@ export class LootBags {
   private rl = new Map<string, { t: number; tokens: number }>();
   drop(world: string, x: number, y: number, owner: string, loot: { items: string[]; res: Record<string, number> }, src: string, kind: string, mob: string, now = Date.now()): Bag | null {
     const entries: BagEntry[] = [];
-    for (const id of loot.items) entries.push({ lid: this.nextLid++, k: "item", id, n: 1 });
+    for (const raw of loot.items) { const c = raw.endsWith("@c"); entries.push({ lid: this.nextLid++, k: "item", id: c ? raw.slice(0, -2) : raw, n: 1, ...(c ? { c: 1 as const } : {}) }); }
     for (const [id, n] of Object.entries(loot.res)) if (n > 0) entries.push({ lid: this.nextLid++, k: "res", id, n });
     if (!entries.length) return null;
     const mine = [...this.bags.values()].filter((b) => b.owner === owner).sort((a, b) => a.at - b.at);

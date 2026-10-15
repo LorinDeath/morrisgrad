@@ -123,10 +123,44 @@ export class PixCharacter {
       this.setCell(col);
       this.sprite.position.y = moving ? Math.abs(Math.sin(this.phase * Math.PI / 2)) * 0.05 : 0;
     }
+    this._glowTick(t);
   }
 
   // короткая анимация атаки (замах/удар), направление — текущее
   attack() { if (!this.mobType) this.atkT = 0.28; }
+
+  // Свечение проклятия: второй спрайт поверх с тем же кадром (общая текстура); шейдер рисует фиолетовый ОРЕОЛ по контуру
+  // (соседние пиксели непрозрачны, сам — прозрачен) + слабое внутреннее свечение у края тела. k — яркость 0..1, pulse — пульс (полный комплект).
+  setCurseGlow(k, rgb = [0.66, 0.33, 0.97], pulse = false) {
+    if (!(k > 0)) { if (this.glow) this.glow.visible = false; this.glowK = 0; return; }
+    if (!this.glow) {
+      const T = this.THREE, img = this.tex.image || {};
+      const mat = new T.SpriteMaterial({ map: this.tex, transparent: true, depthWrite: false, toneMapped: false });
+      const U = { uTexel: { value: new T.Vector2(1 / (img.width || 1024), 1 / (img.height || 1024)) }, uCol: { value: new T.Vector3(...rgb) }, uK: { value: k }, uR: { value: 1 } };
+      mat.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, U);
+        sh.fragmentShader = 'uniform vec2 uTexel; uniform vec3 uCol; uniform float uK; uniform float uR;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+          float a0 = texture2D(map, vUv).a, nOut = 0.0, nMin = 1.0;
+          for (int i = 0; i < 8; i++) { float an = float(i) * 0.785398; vec2 d = vec2(cos(an), sin(an)) * uTexel;
+            nOut = max(nOut, texture2D(map, vUv + d * 1.5 * uR).a * 1.0); nOut = max(nOut, texture2D(map, vUv + d * 3.0 * uR).a * 0.55);
+            nMin = min(nMin, texture2D(map, vUv + d * 1.5).a); }
+          float outer = smoothstep(0.2, 0.9, nOut) * (1.0 - step(0.3, a0));
+          float inner = step(0.3, a0) * (1.0 - smoothstep(0.3, 1.0, nMin)) * 0.55 + step(0.3, a0) * 0.10;
+          diffuseColor = vec4(mix(uCol, vec3(1.0), outer * 0.15), clamp((outer + inner) * uK, 0.0, 1.0));`);
+      };
+      this.glowU = U;
+      const g = new T.Sprite(mat); g.center.copy(this.sprite.center); g.scale.copy(this.sprite.scale); g.renderOrder = (this.sprite.renderOrder || 0) + 1;
+      this.glow = g; this.group.add(g);
+    }
+    this.glow.visible = true; this.glowK = k; this.glowPulse = pulse;
+    this.glowU.uCol.value.set(rgb[0], rgb[1], rgb[2]);
+    this.glowU.uR.value = 0.8 + 1.2 * k; // толщина ореола растёт с числом проклятых вещей
+  }
+  _glowTick(t) {
+    if (!this.glow?.visible) return;
+    this.glow.position.copy(this.sprite.position); this.glow.position.z += 0.002; this.glow.center.copy(this.sprite.center);
+    this.glowU.uK.value = Math.min(1, this.glowK * (this.glowPulse ? 0.8 + 0.35 * Math.sin(t * 4) : 1) * 1.15);
+  }
 
   setTint(hex, k = 0) {
     this.tinted = k > 0 && hex != null;

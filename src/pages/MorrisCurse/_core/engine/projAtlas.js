@@ -5,8 +5,12 @@
 // ground — на земле; fall — без поворота, метеор зеркалится по X. Смешивание и ореол — из fx_atlas.json
 // (огненный шар и метеор — normal + glow, как просила художница).
 import { FxAtlas, fxDef, fxDur } from './fxAtlas.js';
+import { GLOW } from './projBatch.js';
 
 const PX = 20;
+// проклятый навык R (cz): фиолетовый шейдер — умножение цвета спрайта + фиолетовый ореол (цвет — CURSE.tint)
+import { curseRGB, curseHex } from '../meta/curseCfg.js';
+export { curseRGB, curseHex };
 // старые ключи сервера, которых нет в v2, — на ключи v2 (sun_beam как снаряд — его вспышка; лужа — plague_puddle)
 const T2 = { sun_beam: 'sun_beam' };
 export function projInfo(t) {
@@ -44,11 +48,11 @@ export class ProjAtlasFx {
     if (L?.length) { // подтверждение своего: ближайший по направлению прогноз получает id сервера (позиция не прыгает)
       let bi = 0, bd = -2; L.forEach((q, i) => { const d = q.dx * e.dx + q.dy * e.dy; if (d > bd) { bd = d; bi = i; } });
       const q = L.splice(bi, 1)[0]; if (!L.length) delete this.pred[e.cid];
-      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
+      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.cz = !!e.cz; q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
     }
     if (this.live.size > 500) return;
     // a — мс, которые снаряд уже пролетел на сервере до отправки пачки: догоняем, чтобы он был там, где на самом деле
-    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o });
+    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o, cz: !!e.cz });
   }
   // сервер: попал / долетел
   end(e) {
@@ -58,9 +62,9 @@ export class ProjAtlasFx {
     this.live.delete(e.id);
     const t = e.t || p?.t || 'fireball';
     if (t === 'plague_flask') return; // фляга: лужу рисует событие 'puddle'
-    this.impact(t, e.x, e.y, { dx: p?.dx, dy: p?.dy });
+    this.impact(t, e.x, e.y, { dx: p?.dx, dy: p?.dy, cz: p?.cz });
   }
-  impact(t, x, y, o = {}) { if (this.fx.length < 200) this.fx.push({ kind: 'impact', t, x, y, age: 0, life: projInfo(t).impDur, info: projInfo(t), k: o.k || 1, dx: o.dx || 1, dy: o.dy || 0, fdx: o.fdx || 1 }); }
+  impact(t, x, y, o = {}) { if (this.fx.length < 200) this.fx.push({ kind: 'impact', t, x, y, age: 0, life: projInfo(t).impDur, info: projInfo(t), k: o.k || 1, dx: o.dx || 1, dy: o.dy || 0, fdx: o.fdx || 1, cz: !!o.cz }); }
   puddle(x, y, r, life = 2.4, t = 'plague_puddle') { this.fx.push({ kind: 'loop', t, x, y, age: 0, life, info: projInfo(t), k: Math.max(1, (r || 60) / 50) }); }
   // падение сверху к моменту удара (метеор, дождь копий): delay — сек до удара
   fall(t, x, y, delay, fdx = 1, k = 1) { this.fx.push({ kind: 'fall', t, x, y, age: -Math.max(0, delay - 0.35), life: 0.35, info: projInfo(t), fdx, k }); }
@@ -68,8 +72,10 @@ export class ProjAtlasFx {
   burst(t, x, y, r, n = 10) { for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; this.fx.push({ kind: 'fly', t, x, y, dx: Math.cos(a), dy: Math.sin(a), r, age: 0, life: 0.35, info: projInfo(t) }); } }
 
   // (x,y) — точка мира; h — высота, м; w (знак — зеркало), hh — размер; mode 0/1/2; anim/t — анимация и её время
-  _put(info, anim, t, x, y, h, w, hh, mode, dx, dz, a = 1, loop) {
-    this.atl.draw(info.key, anim, t, this.toX(x), h, this.toZ(y), w, hh, mode, 0, dx, dz, null, a, 1, loop);
+  _put(info, anim, t, x, y, h, w, hh, mode, dx, dz, a = 1, loop, cz = false) {
+    const X = this.toX(x), Z = this.toZ(y);
+    if (cz) { const CZ = curseRGB(), gs = Math.max(Math.abs(w), hh) * 2.1; this.atl.glow.push(X, mode === 2 ? 0.05 : h, Z, gs, gs, mode === 2 ? 2 : 0, 0, 0, 0, GLOW.ball, 0, CZ[0], CZ[1], CZ[2], 0.75 * a); }
+    this.atl.draw(info.key, anim, t, X, h, Z, w, hh, mode, 0, dx, dz, cz ? curseRGB().map((c) => -c) : null, a, cz ? 0 : 1, loop);
   }
   _mode(info) { return info.ground ? 2 : info.rot ? 1 : 0; }
 
@@ -85,7 +91,7 @@ export class ProjAtlasFx {
       const x = p.x0 + p.dx * d, y = p.y0 + p.dy * d, i = p.info, S = i.size;
       const h = p.arc ? 0.6 + Math.sin(Math.min(1, d / p.r) * Math.PI) * Math.min(4, p.r / PX * 0.35) : i.ground ? 0.06 : 1.0;
       const m = this._mode(i), w = i.fall && p.dx < 0 ? -S : S;
-      this._put(i, i.fly, p.age, x, y, h, w, S, m, m ? p.dx : 0, m ? p.dy : 0, 1, true);
+      this._put(i, i.fly, p.age, x, y, h, w, S, m, m ? p.dx : 0, m ? p.dy : 0, 1, true, p.cz);
     }
     for (let j = this.fx.length - 1; j >= 0; j--) {
       const f = this.fx[j]; f.age += dt;
@@ -99,7 +105,7 @@ export class ProjAtlasFx {
       if (f.kind === 'impact') {
         const w = i.fall && f.fdx < 0 ? -S : S, big = i.fall || i.imp === 'land' || i.imp === 'burst';
         // удар падающих (метеор/копья/страж) и наземных — на земле; остальное — к камере по направлению
-        this._put(i, i.imp, f.age, f.x, f.y, big || i.ground ? 0.5 : 0.9, w, S, i.ground ? 2 : m === 1 ? 1 : 0, m === 1 ? f.dx : 0, m === 1 ? f.dy : 0);
+        this._put(i, i.imp, f.age, f.x, f.y, big || i.ground ? 0.5 : 0.9, w, S, i.ground ? 2 : m === 1 ? 1 : 0, m === 1 ? f.dx : 0, m === 1 ? f.dy : 0, 1, undefined, f.cz);
       } else if (f.kind === 'loop') { // лужа: цикл loop, в конце — fade
         const fd = fxDur(i.key, 'fade'), left = f.life - f.age, a = Math.min(1, f.age / 0.15);
         if (fd && left < fd) this._put(i, 'fade', fd - left, f.x, f.y, 0.06, S, S, 2, 0, 0, a);

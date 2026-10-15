@@ -5,6 +5,7 @@ import { OUTLEVEL_SOLO_BOSS } from "./balance";
 // ИИ по ролям (bestiary.ts): melee, swarm, charger (замах → рывок), ranged (линия-телеграф → выстрел),
 // caster (круг-телеграф под целью), tank (медленный, не отбрасывается). Крупные/боссы — набор
 // телеграфируемых атак по фазам (60% / 30% ХП): круги, линии, кольцо, «волна» вокруг, призыв, ярость.
+import { CURSE } from "./cursed";
 import { resolveWorld, freeSpot } from "./propCollision.ts";
 const MOB_R = 12;
 import { mobShot } from "./mobFamily";
@@ -102,7 +103,7 @@ export class Zone {
     const L = Math.hypot(o.dx, o.dy) || 1;
     const p: Proj = { spd: PROJ_SPEED[o.t] || PROJ_SPEED.default, flown: 0, hit: new Set(), n: 0, born: this.now || Date.now(), id: this.nextProj++, ...o, dx: o.dx / L, dy: o.dy / L } as Proj;
     this.projs.push(p);
-    this.events.push({ k: "proj", _b: p.born, cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined });
+    this.events.push({ k: "proj", _b: p.born, cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined });
     return p;
   }
   /** движение и столкновения снарядов: шаги не длиннее ширины снаряда (быстрый снаряд не «перепрыгивает» моба) */
@@ -339,7 +340,7 @@ export class Zone {
   mobHit(src: ZMob, t: ZMob, dmg: number, onKill: (m: ZMob) => void) {
     if (t.dead || t.reset) return 0;
     const d = ZONE_MOBS[t.type];
-    const armor = d.armor * (t.elite ? ZONE_GEN.eliteArmor : 1) * (t.cursed ? 1.3 : 1);
+    const armor = d.armor * (t.elite ? ZONE_GEN.eliteArmor : 1) * (t.cursed ? 1 + (CURSE.mobArmor - 1) * 0.67 : 1);
     const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * (t.shieldUntil > this.now ? 0.5 : 1)));
     t.hp -= real; t.dmgBy.set("mob:" + src.id, (t.dmgBy.get("mob:" + src.id) || 0) + real);
     if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
@@ -383,7 +384,7 @@ export class Zone {
   /** множитель ХП моба по его флагам */
   hpOf(m: ZMob, scale = 1) {
     const d = ZONE_MOBS[m.type];
-    return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? ZONE_GEN.cursedHp : 1) * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
+    return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? CURSE.mobHp : 1) * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
   }
   /** Правка навыков моба в админке — сразу у живых мобов этого вида (без ожидания респавна). Возвращает число обновлённых. */
   syncMobSkills(): number {
@@ -461,7 +462,7 @@ export class Zone {
       fixed: !!o.fixed, region: o.region || null, elite: !!o.elite, idle: 0, dot: null, slowUntil: 0, kbx: 0, kby: 0,
       casts: [], phase: 1, enraged: false, special: o.special || "", expireAt: 0, patIdx: 0 };
     this.rollCursed(m);
-    if (m.cursed) { m.maxHp = m.hp = Math.round(hp * ZONE_GEN.cursedHp); }
+    if (m.cursed) { m.maxHp = m.hp = Math.round(hp * CURSE.mobHp); }
     this.mobs.push(m);
     this.byId.set(m.id, m);
     const k = ck(x, y); const b = this.buckets.get(k); if (b) b.push(m); else this.buckets.set(k, [m]);
@@ -877,7 +878,7 @@ export class Zone {
           this.events.push({ k: "phase", id: m.id, x: Math.round(m.x), y: Math.round(m.y), p: m.phase, text: `«${d.name}» разъярён временем боя!` });
         }
       }
-      let eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? ZONE_GEN.cursedDmg : 1);
+      let eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? CURSE.mobDmg : 1);
       if (isWorld && m.enraged) eliteDmg *= (ZONE_GEN as any).bossEnrageDmg || 2.8;
       // рывок (charger и крупные): замах (телеграф) → рывок
       if (m.dashT > 0) {
@@ -1050,7 +1051,7 @@ export class Zone {
     if (m.dead) return;
     const d = ZONE_MOBS[m.type];
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
-    const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? 1.45 : 1);
+    const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? CURSE.mobArmor : 1);
     const real = Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);

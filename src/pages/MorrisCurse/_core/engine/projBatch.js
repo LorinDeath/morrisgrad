@@ -47,12 +47,15 @@ varying vec2 vUv;
 varying vec4 vCol;
 void main() {
   vec4 c = texture2D(map, vUv);
+  vec3 tint = vCol.rgb;
+  // отрицательный цвет = «проклятый» перекрас (фиолетовый шейдер навыка R): яркость спрайта × цвет проклятия
+  if (vCol.r < 0.0) { float l = dot(c.rgb, vec3(0.3, 0.59, 0.11)); c.rgb = vec3(l) * 1.7 + vec3(0.08); tint = -vCol.rgb; }
   if (uAdd > 0.5) {
-    gl_FragColor = vec4(c.rgb * vCol.rgb * vCol.a * c.a, 1.0);
+    gl_FragColor = vec4(c.rgb * tint * vCol.a * c.a, 1.0);
   } else {
     float a = c.a * vCol.a;
     if (a < 0.04) discard;
-    gl_FragColor = vec4(c.rgb * vCol.rgb, a);
+    gl_FragColor = vec4(c.rgb * tint, a);
   }
 }`;
 
