@@ -4,6 +4,7 @@
 // ИИ по ролям (bestiary.ts): melee, swarm, charger (замах → рывок), ranged (линия-телеграф → выстрел),
 // caster (круг-телеграф под целью), tank (медленный, не отбрасывается). Крупные/боссы — набор
 // телеграфируемых атак по фазам (60% / 30% ХП): круги, линии, кольцо, «волна» вокруг, призыв, ярость.
+import { mobShot } from "./mobFamily";
 import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
 import { ZONE_GEN, BOSS_TIMERS, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
@@ -68,7 +69,6 @@ export const regSig = (r: any) => JSON.stringify([r.dens, r.packs, r.pack, r.eli
 export const DOT_STACK_MAX = 5; // стаков одного статуса на цели
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 // выстрел дальнобойного моба: спрайт по стихии
-const MOB_SHOT: Record<string, string> = { ice: "ice_fan", fire: "fire_spark", stone: "spear", air: "chain_bolt", wild: "thorn_bow" };
 const KNOCK_IMMUNE = (d: any) => !!d.boss || d.size !== "s" || d.role === "tank";
 const segDist = (px: number, py: number, x: number, y: number, dx: number, dy: number, len: number) => {
   const t = Math.max(0, Math.min(len, (px - x) * dx + (py - y) * dy));
@@ -689,7 +689,7 @@ export class Zone {
         if (hit) onHit(p.sid, c.dmg, m.type);
       }
       if (c.kind === "line") this.events.push({ k: "mshot", id: m.id, x: Math.round(c.x), y: Math.round(c.y), tx: Math.round(c.x + c.dx! * c.len!), ty: Math.round(c.y + c.dy! * c.len!) });
-      else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0, fx: c.fx }); // fx — спрайт атласа снарядов (метеор, копья, осколки…)
+      else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0, fx: c.fx, nova: c.kind === "nova" ? 1 : undefined }); // fx — спрайт атласа снарядов (метеор, копья, осколки…)
     }
   }
 
@@ -886,7 +886,7 @@ export class Zone {
         } else if (d.role === "ranged") {
           want = 170;
           if (dist < 280 && m.atkCd <= 0) {
-            this.cast(m, { kind: "line", at: now + 700, x: m.x, y: m.y, dx: ux, dy: uy, len: 290, w: 20, dmg: d.dmg * 1.2 * eliteDmg, proj: MOB_SHOT[factionOf(m.type)] || "thorn_bow" });
+            this.cast(m, { kind: "line", at: now + 700, x: m.x, y: m.y, dx: ux, dy: uy, len: 290, w: 20, dmg: d.dmg * 1.2 * eliteDmg, proj: mobShot(m.type, !!d.boss) }); // семейство снаряда по стихии моба (FX atlas v2)
             m.atkCd = 2.2; m.windup = 0.45;
             continue;
           }
@@ -960,9 +960,10 @@ export class Zone {
       case "proj": this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round(40 * k), dmg: D, proj: id === "fireball" ? "fireball" : "fire_spark" }); break;
       case "dash": m.windup = 0.6; m.dashX = ux; m.dashY = uy; this.events.push({ k: "tele", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: Math.round(s.len * k), t: 0.6 }); break;
       case "leap": this.cast(m, { kind: "circle", at: now + tele, x: t.x, y: t.y, r: Math.round(s.r * k), dmg: D, leap: true }); break;
-      case "meteor": this.cast(m, { kind: "circle", at: now + tele + (s.delay || 600), x: t.x, y: t.y, r: Math.round(s.r * k), dmg: D * 1.2, fx: "meteor" }); break;
+      case "meteor": this.cast(m, { kind: "circle", at: now + tele + (s.delay || 600), x: t.x, y: t.y, r: Math.round(s.r * k), dmg: D * 1.2, fx: id === "warden_slam" ? "warden_slam" : "meteor" }); break;
       case "rain": for (let i = 0; i < Math.min(8, s.n); i++) { const a = this.rand() * 6.283, r = this.rand() * s.area; this.cast(m, { kind: "circle", at: now + tele + i * 110, x: t.x + Math.cos(a) * r, y: t.y + Math.sin(a) * r, r: Math.round(s.r * k), dmg: D * 0.6 }); } break;
-      case "cone": for (const off of [-s.arc / 3, 0, s.arc / 3]) { const c = Math.cos(off), sn = Math.sin(off); this.cast(m, { kind: "line", at: now + tele, x: m.x, y: m.y, dx: ux * c - uy * sn, dy: ux * sn + uy * c, len: Math.round(s.len * k), w: 40, dmg: D * 0.7 }); } break;
+      case "cone": this.events.push({ k: "tele_cone", id: m.id, fx: id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: Math.round(s.len * k), arc: s.arc, t: Math.round(Math.max(0.2, tele / 1000) * 100) / 100 }); // телеграф конуса спрайтом
+        for (const off of [-s.arc / 3, 0, s.arc / 3]) { const c = Math.cos(off), sn = Math.sin(off); this.cast(m, { kind: "line", at: now + tele, x: m.x, y: m.y, dx: ux * c - uy * sn, dy: ux * sn + uy * c, len: Math.round(s.len * k), w: 40, dmg: D * 0.7 }); } break;
       case "nova": this.cast(m, { kind: "nova", at: now + tele, x: m.x, y: m.y, r: Math.round(s.r * k * 1.2), dmg: D }); if (s.dr) m.shieldUntil = now + Math.min(4000, s.dr); break;
       case "ring": this.cast(m, { kind: "ring", at: now + tele, x: m.x, y: m.y, r0: Math.round(30 * k), r: Math.round(200 * k), dmg: D }); break;
       case "cloud": this.cast(m, { kind: "circle", at: now + 700, x: m.x, y: m.y, r: Math.round(s.r * k), dmg: D * 0.8, fx: "plague_puddle" }); m.shieldUntil = now + Math.min(2500, s.invuln || 1500); break;

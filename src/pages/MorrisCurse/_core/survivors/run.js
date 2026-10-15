@@ -1263,11 +1263,11 @@ export class RunSession {
             e.shotCd = 3.6;
             for (let i = 0; i < 14; i++) {
               const a = (i / 14) * Math.PI * 2 + this.t;
-              this.enemyShots.push({ x: e.x, z: e.z, vx: Math.cos(a) * 7, vz: Math.sin(a) * 7, life: 3, dmg: 14 * this.dmgScale() });
+              this.enemyShots.push({ x: e.x, z: e.z, vx: Math.cos(a) * 7, vz: Math.sin(a) * 7, life: 3, dmg: 14 * this.dmgScale(), boss: 1 });
             }
           } else if (d < 13) {
             e.shotCd = 2.6;
-            this.enemyShots.push({ x: e.x, z: e.z, vx: (dx / d) * 8, vz: (dz / d) * 8, life: 2.2, dmg: 8 * this.dmgScale() });
+            this.enemyShots.push({ x: e.x, z: e.z, vx: (dx / d) * 8, vz: (dz / d) * 8, life: 2.2, dmg: 8 * this.dmgScale(), ty: e.type });
           } else e.shotCd = 0.5;
         }
       }

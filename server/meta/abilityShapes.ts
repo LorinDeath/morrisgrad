@@ -3,6 +3,7 @@
 // линия насквозь, снаряд со взрывом, рывок/прыжок (сервер сам двигает героя, клиенту — ability_move),
 // дождь из точек, отложенный удар (метеор), аура с тиками, неуязвимость/снижение урона, заморозка/замедление.
 // Направление — от клиента (нормализуется), всё остальное (дальность, урон, цели, позиции) — сервер.
+import { ENEMY_SPRITES } from "./mobFamily";
 import { ABILITY_BY_ID } from "./defs";
 import { cryptoRand } from "./profile";
 
@@ -83,9 +84,9 @@ export interface CastCtx {
 }
 
 const R = (n: number) => Math.round(n);
-// строки атласа снарядов (src/assets/mc/projectiles.json): id навыка/оружия → спрайт
+// ключи FX atlas v2 (src/assets/mc/fx2/fx_atlas.json): id навыка/оружия → спрайт
 export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_orb", "split_shard", "thorn_bow", "spear", "pierce", "daggers", "sun_beam", "ice_fan", "chain_bolt",
-  "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws"]);
+  "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws", ...ENEMY_SPRITES]);
 // спрайт снаряда автоатаки по типу оружия (открытый мир и дуэли)
 /** Точка вылета и прицел выстрела. Клиент присылает свою отрисованную позицию героя (ox, oy) и точку курсора (tx, ty):
  *  сервер принимает исходную точку, только если она ближе SHOT_TOL к серверной позиции (лаг движения ≤ ~100 мс при 175–250 px/с),
@@ -247,6 +248,7 @@ export function castShape(id: string, c: CastCtx): number {
     case "cone": {
       const len = s.len * k, half = s.arc / 2, spr = projSprite(id, "");
       if (c.fire && (spr === "ice_fan" || spr === "dew_splash")) { // веер: 5 осколков, каждый до первого моба
+        c.ev({ k: "acone", sid: c.sid, id, x: R(c.x), y: R(c.y), dx: +c.dx.toFixed(3), dy: +c.dy.toFixed(3), len: R(len), arc: s.arc });
         for (let i = 0; i < 5; i++) { const [vx, vy] = rot(c.dx, c.dy, -half + (i / 4) * s.arc);
           c.fire({ t: spr, x: c.x, y: c.y, dx: vx, dy: vy, range: len, w: 24, max: 1, onHit: (m) => { dealt += c.hit(m, 0.7) || 0; c.status(m, { slow: !!(s.slow || s.freeze), knock: s.knock, freeze: s.freeze }, c.x, c.y); } }); }
         break;
@@ -258,7 +260,7 @@ export function castShape(id: string, c: CastCtx): number {
       hitAll(ms, 1);
       for (const m of ms) c.status(m, { slow: !!(s.slow || s.freeze), knock: s.knock, freeze: s.freeze }, c.x, c.y);
       if (s.heal) c.buff({ heal: dealt * s.heal });
-      for (const a of [-half, 0, half]) { const ca = Math.cos(a), sa = Math.sin(a); c.ev({ k: "aline", sid: c.sid, id, x: R(c.x), y: R(c.y), dx: c.dx * ca - c.dy * sa, dy: c.dx * sa + c.dy * ca, len: R(len) }); }
+      c.ev({ k: "acone", sid: c.sid, id, x: R(c.x), y: R(c.y), dx: +c.dx.toFixed(3), dy: +c.dy.toFixed(3), len: R(len), arc: s.arc }); // конус спрайтом (FX v2: *_cone по реальному углу)
       break;
     }
     case "ring": {
