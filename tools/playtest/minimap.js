@@ -8,7 +8,7 @@ const OUT = '/workspace/morrisgrad-round2';
   const open = async (n) => {
     const p = await (await b.newContext({ viewport: { width: 1440, height: 860 } })).newPage();
     p.on('pageerror', (e) => errs.push(n + ' ' + String(e.stack || e)));
-    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=test_r2_mm_${n}_${Date.now()}&ws=ws://127.0.0.1:8787&fs=1&debug=1`);
+    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=test_r2_mm_${n}_${Date.now()}&ws=ws://127.0.0.1:8787&fs=1&panels=1&debug=1`);
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 60000 });
     return p;
   };

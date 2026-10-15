@@ -12,7 +12,7 @@ const OUT = '/workspace/morrisgrad-round2';
     const ctx = await b.newContext(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148' } : { viewport: { width: 1440, height: 860 } });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errs.push(n + ' ' + String(e.stack || e).slice(0, 300)));
-    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=${UID}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1'}&debug=1`);
+    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=${UID}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1&panels=1'}&debug=1`);
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 90000 });
     return p;
   };
@@ -45,7 +45,7 @@ const OUT = '/workspace/morrisgrad-round2';
   await A.keyboard.press('Escape'); await A.waitForTimeout(300);
   ok(!(await G(A, () => window.__game.debug.worldMap())).open, 'Esc закрывает карту');
   await tp(A, 24000, 24300); await A.waitForTimeout(800); // мини-карта = область камеры ×1.3 — объекты хаба рядом
-  const mm = await G(A, () => window.__game.debug.minimap()); ok(mm && mm.markers >= 1, `мини-карта: объекты реестра под туманом (${mm?.markers})`);
+  const mm = await G(A, () => window.__game.debug.minimap()); ok(mm && mm.markers >= 1, `мини-карта: объекты реестра под туманом (${mm?.markers}) ${JSON.stringify(mm)}`);
   await A.screenshot({ path: `${OUT}/worldmap-minimap-fog.png` });
   const before = f.cells;
   await A.context().close(); await new Promise((r) => setTimeout(r, 3000));

@@ -47,6 +47,7 @@ const OUT = '/workspace/morrisgrad-round3';
   console.log("MM", JSON.stringify(t3.mm)); ok((t3.mm?.track || 0) > 0 && (t3.mm?.camps || 0) > 0, `мини-карта: лагерей ${t3.mm?.camps}, целей подсвечено ${t3.mm?.track}, canvas ${await p.$eval('#ghud-minimap-slot canvas', (c) => c.width + 'x' + c.height).catch(() => '?')}`);
   const mm = await p.$('#ghud-minimap-slot'); if (mm) await mm.screenshot({ path: `${OUT}/r3-minimap-camps.png` });
   // DPS-метр: бьём ближайших
+  { const me = await G(() => window.__game.state().player); await G(([x, y]) => window.__game.debug.rawSend({ type: 'dev_spawn_mob', mob: 'violet_pixie', x: x + 120, y }), [me.x, me.y]); await p.waitForTimeout(1500); } // гарантированная цель рядом
   const ms = await G(() => window.__game.debug.mobsNear(500));
   if (ms.length) { await G((id) => window.__game.debug.selectMobId(id), ms[0].id); await p.mouse.move(720, 430); await p.mouse.down(); await p.waitForTimeout(4500); await p.mouse.up(); }
   const d = await G(() => window.__game.debug.dps());

@@ -1731,7 +1731,7 @@ async function boot(canvasId, username, userId, api) {
       myId: () => myId,
       runRoom: () => lobby?.room || null,
       track: () => ({ hunt: tracker.hunt, target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
-      forceQuest: (id) => { meta.trackedQuest = () => id; },
+      forceQuest: (id) => { const tq = meta.trackedQuests.bind(meta); meta.trackedQuests = () => [id, ...tq().filter((x) => x !== id)]; meta.trackedQuest = () => id; },
       worldMapStats: () => worldMap.stats,
       campsRaw: () => zone.camps,
       bossState: () => [...BOSS_STATE_DBG.entries()],
