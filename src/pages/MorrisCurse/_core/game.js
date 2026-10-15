@@ -1720,6 +1720,22 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
+      fxDemo: (what = 'enemy') => {
+        const X = player.x, Y = player.y, T = zone.teles;
+        if (what === 'clear') { T.length = 0; zone.pax.live.clear(); zone.pax.fx.length = 0; }
+        if (what === 'enemy') ['enemy_acid','enemy_bone','enemy_fire','enemy_frost','enemy_shadow','enemy_arcane','enemy_blood','enemy_rock','enemy_lightning','enemy_web','enemy_water','enemy_boss'].forEach((t, i) => zone.pax.spawn({ id: 800000 + i + Math.floor(Math.random() * 1e5) * 100, t, x: X - 250 + (i % 4) * 130, y: Y - 150 + Math.floor(i / 4) * 110, dx: 1, dy: 0, s: 5, r: 4000 }));
+        if (what === 'skills') {
+          T.push({ kind: 'cone', fx: 'ice_fan_cone', x: X - 60, y: Y - 120, dx: -1, dy: 0, len: 260, arc: 1.0, t: 13, life: 30 }, { kind: 'cone', fx: 'dew_splash_cone', x: X + 60, y: Y - 120, dx: 1, dy: 0, len: 220, arc: 1.1, t: 13, life: 30 }, { kind: 'cone', fx: 'gear_spin_cone', x: X, y: Y + 40, dx: 0, dy: 1, len: 200, arc: 1.6, t: 13, life: 30 });
+          T.push({ kind: 'nova', fx: 'frost_nova', x: X - 300, y: Y + 150, r: 110, t: 13, life: 30 }, { kind: 'nova', fx: 'nova_burst', x: X + 300, y: Y + 150, r: 110, t: 13, life: 30, col: [1, 0.45, 0.55] }, { kind: 'nova', fx: 'whirlwind', x: X - 300, y: Y - 60, r: 100, t: 13, life: 30 }, { kind: 'nova', fx: 'shield_wall', x: X + 300, y: Y - 60, r: 100, t: 13, life: 30 });
+          T.push({ kind: 'dash', fx: 'dash_trail', x: X - 200, y: Y + 260, dx: 1, dy: 0, len: 180, t: 13, life: 30, col: [1, 0.5, 0.45] }, { kind: 'dash', fx: 'shadow_step_trail', x: X + 40, y: Y + 260, dx: 1, dy: 0, len: 180, t: 13, life: 30 });
+          T.push({ kind: 'slam', x: X + 160, y: Y - 260, r: 120, t: 0.5, life: 30 });
+        }
+        if (what === 'tele') {
+          T.push({ kind: 'line', x: X - 250, y: Y - 100, dx: 1, dy: 0, len: 220, t: 29, life: 30 }, { kind: 'circle', x: X + 150, y: Y - 100, r: 90, t: 15, life: 30 }, { kind: 'tcone', x: X - 100, y: Y + 80, dx: 0, dy: 1, len: 220, arc: 1.1, t: 0, life: 30 }, { kind: 'boom', x: X + 220, y: Y + 160, r: 90, t: 0.1, life: 30, color: 0xfde68a });
+        }
+        return window.__fxMissing?.() || [];
+      },
       // витрина атласа: все виды снарядов сеткой 5×5 (медленно летят вправо) + удары/лужа/падение метеора
       projDemo: (kinds) => { const ks = kinds || ['fireball','war_axe','fire_spark','moon_orb','split_shard','thorn_bow','spear','daggers','sun_beam','ice_fan','chain_bolt','plague_flask','glyph_mine','orbit_skulls','meteor','spear_rain','dew_splash','auto_staff','auto_bow','auto_daggers','auto_claws','pierce'];
         ks.forEach((t, i) => zone.pax.spawn({ id: 900000 + i + Math.floor(Math.random() * 1e5) * 100, t, x: player.x - 260 + (i % 6) * 100, y: player.y - 170 + Math.floor(i / 6) * 90, dx: 1, dy: 0, s: 6, r: 4000 }));

@@ -1,4 +1,4 @@
-// Настоящие снаряды (шаг 9): сервер ведёт снаряд, урон — при касании; клиент рисует атлас projectiles.png.
+// Настоящие снаряды (шаг 9): сервер ведёт снаряд, урон — при касании; клиент рисует FX atlas v2.
 // Проверки: автоатака посоха → {proj} auto_staff в полёте, без локального прогноза; навыки Q/G/F; снаряды мобов (стрелки лагеря);
 // витрина атласа (все виды). Скриншоты projectiles-*.png
 const { chromium } = require('playwright-core');
@@ -19,7 +19,7 @@ const OUT = '/workspace/morrisgrad-round2';
   const X = CX, Y = CY + 260;
   await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [X, Y]); await p.waitForTimeout(4000);
   await G(() => window.__game.debug.setCells(16)); await p.waitForTimeout(800);
-  ok(await G(() => window.__game.debug.projs().ready), 'атлас projectiles.png загружен');
+  ok(await G(() => window.__game.debug.projs().ready), 'FX atlas v2 загружен');
   // автоатака вверх, к лагерю: снаряд приходит событием сервера и летит
   let seen = new Set(), maxLive = 0, shotAt = 0;
   for (let i = 0; i < 14; i++) {
