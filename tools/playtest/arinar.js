@@ -101,9 +101,9 @@ const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [3
     void me; const X = 24000, Y = 25400; // вне безопасного круга хаба (1200), но ближе 1500 — лагерей тут нет
     await G(A, ([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.tp(x, y); }, [X, Y]); await A.waitForTimeout(1500); // и на сервере: навык летит из серверной позиции героя
     await G(A, () => window.__game.debug.rawSend({ type: 'move', x: window.__game.debug.pos().x, y: window.__game.debug.pos().y }));
-    await G(A, ([x, y]) => { window.__game.debug.devSpawn('fire_imp', x + 200, y); window.__game.debug.devSpawn('fire_imp', x - 200, y); }, [X, Y]);
+    await G(A, ([x, y]) => { window.__game.debug.devSpawn('fire_imp', x + 200, y); window.__game.debug.devSpawn('fire_imp', x - 420, y); /* задний дальше: мобы идут на героя и раньше успевали войти в радиус взрыва 110 px */ }, [X, Y]);
     await A.waitForTimeout(350); // мобы ближе (±200): огненный шар — настоящий снаряд, взрывается на первом мобе на пути
-    const before = (await G(A, () => window.__game.debug.zoneMobsFull())).filter((m) => m.type === 'fire_imp' && Math.hypot(m.x - X, m.y - Y) < 420);
+    const before = (await G(A, () => window.__game.debug.zoneMobsFull())).filter((m) => m.type === 'fire_imp' && Math.hypot(m.x - X, m.y - Y) < 480);
     const ab = await G(A, () => window.__game.debug.abilities());
     const id = ab.includes('fireball') ? 'fireball' : ab[0];
     await G(A, (id) => window.__game.debug.rawSend({ type: 'zone_ability', id, dx: 1, dy: 0 }), id);
@@ -114,7 +114,7 @@ const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [3
     const hpOf = (m) => (after.find((a) => a.id === m.id) || { hp: 0 }).hp;
     if (!before.length) console.log('DBG ability', X, Y, JSON.stringify((await G(A, () => window.__game.debug.zoneMobsFull())).filter((m) => Math.hypot(m.x - X, m.y - Y) < 400)), JSON.stringify(await G(A, () => window.__game.debug.pos())));
     // ближайшие спереди/сзади (на dev-сервере копятся мобы прошлых прогонов на ±320/±200 — шар бьёт ПЕРВОГО на пути)
-    const near1 = (side) => before.filter((m) => side * (m.x - X) > 0 && Math.abs(m.y - Y) < 40).sort((p, q) => Math.abs(p.x - X) - Math.abs(q.x - X))[0];
+    const near1 = (side) => before.filter((m) => side * (m.x - X) > 0 && Math.abs(m.y - Y) < 40 && Math.abs(m.x - X) < 480).sort((p, q) => Math.abs(p.x - X) - Math.abs(q.x - X))[0];
     const front = near1(1), back = near1(-1);
     if (!(front && hpOf(front) < front.hp)) console.log('DBG fireball', JSON.stringify(await G(A, () => window.__game.debug.projs())), JSON.stringify(before), JSON.stringify(after.filter((m) => Math.hypot(m.x - X, m.y - Y) < 500).map((m) => [m.id, m.type, m.x, m.y, m.hp])), JSON.stringify(await G(A, () => window.__game.debug.pos())));
     ok(front && back && hpOf(front) < front.hp && hpOf(back) === back.hp, `ability «${id}» → east: front ${front?.hp}→${front && hpOf(front)}, back ${back?.hp}→${back && hpOf(back)}`);
