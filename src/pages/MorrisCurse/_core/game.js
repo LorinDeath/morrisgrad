@@ -1774,6 +1774,16 @@ async function boot(canvasId, username, userId, api) {
       bags: () => [...zone.bags.values()], loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
       portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal, foreign: !!p.foreign, name: p.name })),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),
+      // тест мерцания: статичные пары спрайтов на ОДНОЙ глубине (батч мобов + 2 героя-спрайта) у точки (x, y) мира
+      sortDemo: async (x, y) => {
+        const { SpriteBatch } = await import('./engine/spriteBatch.js'); const { createCharacter } = await import('./engine/characters.js');
+        const tex = zone.batch?.material.uniforms.map.value; if (!tex) return 'no atlas';
+        const B = new SpriteBatch(THREE, tex, { cellW: 48, cellH: 48, cols: tex.image ? Math.round(tex.image.width / 48) : 8, rows: tex.image ? Math.round(tex.image.height / 48) : 8, max: 16 });
+        B.begin(); for (let k = 0; k < 4; k++) for (let j = 0; j < 2; j++) { B.push(toX(x) - 3 + k * 2 + j * 0.45, 0, toZ(y) + 1.5, 2.2, 1, (k * 2 + j) % 8); B.sortId?.('demo' + k + '_' + j); } B.end();
+        hub.root.add(B.mesh); window.__sortDemo = B;
+        for (let j = 0; j < 2; j++) { const c = createCharacter(THREE, j ? 'mage' : 'warrior'); c.group.position.set(toX(x) + 3 + j * 0.35, 0, toZ(y) + 1.5); hub.root.add(c.group); c.setSortId?.('demoH' + j); c.update(0, false, 0); }
+        return 'ok';
+      },
       fakeZoneMob: (type, x, y) => zone.mobs.set('fake_' + type, { id: 'fake_' + type, type, x, y, tx: x, ty: y, hp: 1 }), // тест мини-карты (мировые боссы появляются по таймеру)
       othersInfo: () => [...others.values()].map((o) => ({ world: o.world, x: Math.round(o.x), y: Math.round(o.y), runRoom: o.runRoom })),
       plantFlower: (x, y, stage) => net.send({ type: 'dev_plant_flower', x, y, stage }),
