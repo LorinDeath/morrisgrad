@@ -1781,6 +1781,11 @@ async function boot(canvasId, username, userId, api) {
         const B = new SpriteBatch(THREE, tex, { cellW: 48, cellH: 48, cols: tex.image ? Math.round(tex.image.width / 48) : 8, rows: tex.image ? Math.round(tex.image.height / 48) : 8, max: 16 });
         B.begin(); for (let k = 0; k < 4; k++) for (let j = 0; j < 2; j++) { B.push(toX(x) - 3 + k * 2 + j * 0.45, 0, toZ(y) + 1.5, 2.2, 1, (k * 2 + j) % 8); B.sortId?.('demo' + k + '_' + j); } B.end();
         hub.root.add(B.mesh); window.__sortDemo = B;
+        // «дрожащая» пара (как толпа мобов: y отличается на доли мм и меняет знак каждый кадр) — до фикса порядок прыгал
+        const J = new SpriteBatch(THREE, tex, { cellW: 48, cellH: 48, cols: tex.image ? Math.round(tex.image.width / 48) : 8, rows: tex.image ? Math.round(tex.image.height / 48) : 8, max: 4 });
+        hub.root.add(J.mesh); const zb = Math.floor((toZ(y) + 3) / 0.05) * 0.05 + 0.025; let fr = 0;
+        const tick = () => { fr++; const j = fr % 2 ? 0.004 : -0.004; J.begin(); J.push(toX(x) - 1, 0, zb + j, 2.4, 1, 2); J.sortId?.('jA'); J.push(toX(x) - 0.4, 0, zb - j, 2.4, 1, 5); J.sortId?.('jB'); J.end(); requestAnimationFrame(tick); };
+        tick();
         for (let j = 0; j < 2; j++) { const c = createCharacter(THREE, j ? 'mage' : 'warrior'); c.group.position.set(toX(x) + 3 + j * 0.35, 0, toZ(y) + 1.5); hub.root.add(c.group); c.setSortId?.('demoH' + j); c.update(0, false, 0); }
         return 'ok';
       },

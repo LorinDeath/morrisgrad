@@ -25,6 +25,25 @@ const URL = (u) => `http://127.0.0.1:5199/game.html?name=Алекс&uid=test_dar
     const s1 = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x + 100, y - 30), [me.x, me.y]);
     const clip = { x: Math.round(Math.min(s0.x, s1.x)), y: Math.round(Math.min(s0.y, s1.y)), width: Math.round(Math.abs(s1.x - s0.x)), height: Math.round(Math.abs(s1.y - s0.y)) };
     console.log('INFO clip', JSON.stringify(clip));
+    const j0 = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x - 50, y + 64), [me.x, me.y]), j1 = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x + 20, y + 6), [me.x, me.y]);
+    const jclip = { x: Math.round(Math.min(j0.x, j1.x)), y: Math.round(Math.min(j0.y, j1.y)), width: Math.round(Math.abs(j1.x - j0.x)), height: Math.round(Math.abs(j1.y - j0.y)) };
+    const jf = []; for (let i = 0; i < 10; i++) { const f = `${OUT}/${TAG}-jitter-${i}.png`; await p.screenshot({ path: f, clip: jclip }); jf.push(f); await p.waitForTimeout(150 + i * 37); }
+    const jd = execFileSync('python3', ['-c', `
+import sys
+from PIL import Image, ImageChops
+ims=[Image.open(f).convert('RGB') for f in sys.argv[1:]]
+def d(a,b):
+  x=ImageChops.difference(a,b).convert('L').point(lambda v:255 if v>60 else 0); return sum(1 for v in x.getdata() if v)/(a.size[0]*a.size[1])
+print(max(d(ims[0],im) for im in ims[1:]))
+`, ...jf]).toString().trim();
+    ok(+jd < 0.01, `дрожащая по y пара (±4 мм каждый кадр): порядок не прыгает — макс. отличие кадров ${(+jd * 100).toFixed(2)}%`);
+    { const strip = execFileSync('python3', ['-c', `
+import sys
+from PIL import Image
+ims=[Image.open(f) for f in sys.argv[2:]]; w,h=ims[0].size; o=Image.new('RGB',(w*len(ims),h))
+for k,im in enumerate(ims): o.paste(im,(k*w,0))
+o.save(sys.argv[1])
+`, `${OUT}/${TAG}-jitter-strip.png`, ...jf]); void strip; }
     const files = [];
     for (let i = 0; i < 8; i++) { await p.evaluate((z) => window.__game.debug.setZoom(z), i % 2 ? 0.52 : 0.5); await p.waitForTimeout(2500); const f = `${OUT}/${TAG}-sort-${i}.png`; await p.screenshot({ path: f, clip }); files.push(f); }
     await p.screenshot({ path: `${OUT}/${TAG}-sort-demo.png` });
