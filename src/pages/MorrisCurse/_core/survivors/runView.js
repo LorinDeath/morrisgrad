@@ -1,3 +1,4 @@
+import { glowK, curseRGB } from '../meta/curseCfg.js';
 // Отрисовка забега. Орда — 2.5D пиксельные билборды из одного атласа (один draw call на всю орду),
 // анимации ход/замах/удар/урон/распад, телеграфы атак на земле, ауры элиты, вспышка при попадании.
 // Снаряды/камни — InstancedMesh (draw call на вид), герои — 2.5D-спрайты.
@@ -339,6 +340,7 @@ export class RunView {
     // герои
     const me = run.me;
     const meP = this.playerModel(run.myId, run.classKey, run.color, true, run.meta?.look);
+    this.curseGlow(meP, run.meta?.cursedGlow || 0);
     this.placePlayer(meP, me, dt, t, me.iframes > 0 && !me.dead && Math.floor(this.time * 20) % 2 === 0);
     if (me.fireT !== undefined && me.fireT !== this.lastFireT) { this.lastFireT = me.fireT; if (!me.moving || Math.random() < 0.5) meP.ch.attack?.(); }
     this.meLight.position.set(me.x, 3, me.z);
@@ -349,6 +351,7 @@ export class RunView {
     for (const [id, r] of run.remotes) {
       alive.add(id);
       const p = this.playerModel(id, r.classKey || 'soul', r.color, false, r.look);
+      this.curseGlow(p, r.cg || 0);
       this.placePlayer(p, r, dt, t, false);
       p.ch.group.visible = !r.stale;
     }
@@ -405,6 +408,7 @@ export class RunView {
     this.arena.setLights?.(this.LL || [], this.nL || 0, run.me); // свет пола тёмной арены
   }
 
+  curseGlow(p, cg) { if (p.cg !== cg) { p.cg = cg; p.ch.setCurseGlow?.(glowK(cg), curseRGB(), cg >= 5); } }
   placePlayer(p, s, dt, t, blink) {
     const g = p.ch.group;
     g.position.set(s.x, 0, s.z);

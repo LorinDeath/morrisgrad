@@ -9,9 +9,10 @@ import { ZONE_MOBS, WEAPON_TYPES, ITEM_BY_ID, ABILITY_BY_ID, MONSTER_LOOT, RESOU
 import { RUN_SKILLS } from "./shared";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
+import { CURSE } from "./cursed";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region";
-export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse";
+export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -51,10 +52,19 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("elite", "Шанс элиты (0…1; с лимитом — на пачку)", 0, 1), N("eliteMax", "Максимум элит в лагере (кроме вожаков)", 0, 12, "int"),
     { path: "bossOn", label: "Мировой босс в локации", t: "bool" }] },
   boss: { name: "Мировые боссы", fields: [N("every", "Возрождение после смерти, с", 30, 86400, "int"), N("firstAfter", "Первое появление после старта, с", 0, 86400, "int")] },
+  // «Проклятие» — только админ (модератору не отдаётся: roles.MOD_ADMIN_KINDS); одна запись id='main'
+  curse: { name: "Проклятие", fields: [N("equipDropMult", "Шанс дропа экипировки, × (все таблицы; материалы не трогаются)", 0, 100),
+    N("mobDropMult", "Проклятый моб/босс: шанс обычных вещей и материалов, ×", 0, 100),
+    N("itemChanceMult", "Проклятая версия вещи: шанс = базовый × (отдельный бросок)", 0, 100),
+    { path: "bossOnly", label: "Проклятые вещи — только с проклятых боссов", t: "bool" },
+    N("statMult", "Статы проклятой вещи, ×", 1, 10), N("rsMult", "Урон навыка R проклятого оружия, ×", 1, 10),
+    N("mobHp", "Проклятый моб: ОЗ, ×", 1, 50), N("mobDmg", "Проклятый моб: урон, ×", 1, 50), N("mobArmor", "Проклятый моб: броня, ×", 1, 20), N("mobXp", "Проклятый моб: опыт, ×", 0, 50),
+    N("glow1", "Свечение: 1 вещь (0…1)", 0, 1), N("glow2", "Свечение: 2 вещи", 0, 1), N("glow3", "Свечение: 3 вещи", 0, 1), N("glow4", "Свечение: 4 вещи", 0, 1), N("glow5", "Свечение: полный комплект (пульсирует)", 0, 1),
+    { path: "tint", label: "Цвет проклятия", t: "color" }] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -105,6 +115,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
       for (const [r, n] of Object.entries(v as any)) { const q = Math.round(Number(n)); if (!RESOURCES[r]) return `нет ресурса ${r}`; if (!(q >= 0 && q <= 999)) return "кол-во 0…999"; if (q) m[r] = q; }
       out[p] = m;
     }
+    else if (f.t === "color") { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) return `${f.label}: #rrggbb`; out[p] = String(v).toLowerCase(); }
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }
   }

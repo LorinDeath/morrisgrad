@@ -17,6 +17,7 @@ import { initModelMode, preloadCharacterSheets, modelMode } from './engine/chara
 import { loadPixAtlases } from './engine/pixSprites.js';
 import { MetaClient } from './meta/metaClient.js';
 import { Book } from './ui/book.js';
+import { setCurse, glowK } from './meta/curseCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
@@ -408,6 +409,7 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('salvage_preview', (d) => book.showSalvagePreview(d));
   net.on('meta_state', (d) => {
+    if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
@@ -1532,7 +1534,7 @@ async function boot(canvasId, username, userId, api) {
 
     const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom);
     hub.update(dt, {
-      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: zone.me && zone.me.alive === false },
+      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: zone.me && zone.me.alive === false, cg: meta.hero?.effective?.cursedGlow || 0 },
       others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color })),
       boss: world === 'hellfire' ? boss : null,
       dar: world === 'hellfire' ? dar : null,
@@ -1756,6 +1758,11 @@ async function boot(canvasId, username, userId, api) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
+      myGlow: () => { const c = hub.chars.get('__me')?.ch; return c?.glow?.visible ? { k: c.glowK, pulse: !!c.glowPulse } : null; },
+      othersGlow: () => [...hub.chars.entries()].filter(([k]) => k.startsWith('p_')).map(([k, c]) => ({ k: c.ch.glow?.visible ? c.ch.glowK : 0, pulse: !!c.ch.glowPulse })),
+      // витрина навыка R: слева обычный, справа проклятый (cz — как в событиях сервера)
+      cursedFxDemo: (X, Y) => { ['fireball', 'moon_orb', 'chain_bolt'].forEach((t, i) => { for (const cz of [0, 1]) zone.pax.spawn({ id: 700000 + i * 2 + cz + Math.floor(Math.random() * 1e4) * 10, t, o: 'p', x: X + (cz ? 45 : -75), y: Y - 75 + i * 40, dx: 1, dy: 0, s: 2, r: 4000, cz }); });
+        zone.applyState({ w: zone.world, m: [], ev: [{ k: 'ability', id: 'rs:frost_nova', x: X - 160, y: Y + 200, r: 90 }, { k: 'ability', id: 'rs:frost_nova', x: X + 160, y: Y + 200, r: 90, cz: 1 }] }, myId); },
       fxDemo: (what = 'enemy') => {
         const X = player.x, Y = player.y, T = zone.teles;
         if (what === 'clear') { T.length = 0; zone.pax.live.clear(); zone.pax.fx.length = 0; }

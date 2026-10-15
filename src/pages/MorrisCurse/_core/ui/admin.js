@@ -39,7 +39,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -244,6 +244,7 @@ export class AdminPanel {
         inp = `<span class="mc-adm-skpick"><input type="search" class="mc-adm-sksearch" placeholder="поиск навыка…" data-for="${f.path}">`
           + `<select data-p="${f.path}"><option value="" ${!val ? 'selected' : ''}>— нет (как выпало)</option>${groups.map((g) => `<optgroup label="${esc(g)}">${f.optl.filter((o) => o.group === g).map(opt).join('')}</optgroup>`).join('')}</select></span>`;
       }
+      else if (f.t === 'color') inp = `<input type="color" data-p="${f.path}" value="${esc(val || '#a855f7')}">`;
       else if (f.t === 'enum') inp = `<select data-p="${f.path}">${f.opts.map((o) => `<option ${o === (val ?? '') ? 'selected' : ''} value="${o}">${o || '—'}</option>`).join('')}</select>`;
       else if (f.t === 'resmap') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>формат: soul_shard:2, iron:1 · пусто = ничего</small><input type="text" style="width:100%" list="mc-adm-res" data-rm="${f.path}" value="${esc(Object.entries(val || {}).map(([r, n]) => r + ':' + n).join(', '))}"><datalist id="mc-adm-res">${(this.cat.res || []).map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</datalist></div>`;
       else if (f.t === 'skills') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>(до 5)</small><input type="search" class="mc-adm-chipsearch" placeholder="поиск навыка…">${(() => { // все навыки игры: по группам, русские названия
@@ -287,7 +288,7 @@ export class AdminPanel {
       let patch = {};
       if (kind === 'loot') patch = this.readLoot(sec);
       else {
-        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' ? i.value : Number(i.value); });
+        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' ? i.value : Number(i.value); });
         sec.querySelectorAll('input[data-rm]').forEach((i) => { const m = {}; for (const part of i.value.split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } patch[i.dataset.rm] = m; });
         if (S.fields.some((f) => f.t === 'skills')) patch.skills = [...sec.querySelectorAll('[data-sk]:checked')].map((i) => i.dataset.sk);
         if (S.traits) patch.traits = this.traits;

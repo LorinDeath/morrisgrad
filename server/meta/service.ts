@@ -14,13 +14,14 @@ import { QUEST_DIALOGUES } from "./vnChars";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
 // спрайт снаряда автоатаки по типу оружия (FX atlas v2)
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
+import { CURSE, curseClient, isCursedTag, untag } from "./cursed";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import {
-  heroEffective, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
+  heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
@@ -213,18 +214,18 @@ export class MetaService {
       const equip: Record<string, { uid: string; id: string }> = {};
       for (const [slot, uid] of Object.entries(hh.equip || {})) {
         const it = a.inv.find((i) => i.uid === uid);
-        if (it) equip[slot] = { uid: String(uid), id: it.id };
+        if (it) equip[slot] = { uid: String(uid), id: it.id, ...(it.cursed ? { cursed: 1 } : {}) };
       }
       const bag = a.inv
         .filter((i) => (!i.hero || i.hero === id) && !eqUids.has(i.uid))
-        .map((i) => ({ uid: i.uid, id: i.id }));
+        .map((i) => ({ uid: i.uid, id: i.id, ...(i.cursed ? { cursed: 1 } : {}) }));
       const eff = heroEffective(a, hh, id, base);
       s.heroes[id] = {
         lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout, equip, bag,
         effective: {
           maxHp: eff.maxHp, armor: eff.armor, damageReduction: eff.damageReduction,
           weaponMin: eff.weaponMin, weaponMax: eff.weaponMax,
-          dmgPct: eff.dmgPct, critPct: eff.critPct, speedPct: eff.speedPct,
+          dmgPct: eff.dmgPct, critPct: eff.critPct, speedPct: eff.speedPct, cursedGlow: (eff as any).cursedGlow || 0,
         },
       };
     }
@@ -266,7 +267,8 @@ export class MetaService {
     for (const [sid, ms] of this.ms) {
       const e = this.sessionLookup?.(sid); if (!e) continue;
       const cards: Record<string, any> = {};
-      for (const id of items) if (ms.cards.has(id)) { const c = itemCard(id); if (c) cards[id] = c; }
+      // правка «Проклятия» меняет cstats всех карточек — переслать все закэшированные
+      for (const id of this.admin.touched.has("curse:main") ? [...ms.cards] : items) if (ms.cards.has(id)) { const c = itemCard(id); if (c) cards[id] = c; }
       this.send(e[0], { ...base, cards });
       try { this.send(e[0], { type: "meta_state", ...this.snap(e[1]) }); } catch (_) {}
     }
@@ -301,7 +303,7 @@ export class MetaService {
     (ms as any).revive = (eff as any).revive || 0; // талант «встать с 40% ХП» (revive.ts)
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
-    if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; }
+    if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; session.stats.cg = (eff as any).cursedGlow || 0; } // cg — свечение проклятия (видно всем)
     ms.wt = eff.wtype;
     (ms.zp as any).lvl = eff.level || 1; ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
   }
@@ -310,7 +312,7 @@ export class MetaService {
     const ms = this.ms.get(session.id)!;
     const cls = session.stats?.classId || null;
     const a = this.store.account(ms.pkey);
-    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, armorPen: 0, armorPenPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null) };
+    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, armorPen: 0, armorPenPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null), cursedGlow: 0, weaponCursed: 0 };
     return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls));
   }
 
@@ -754,7 +756,7 @@ export class MetaService {
   }
 
   grantLoot(a: Account, loot: { items: string[]; res: Record<string, number> }, out: any, src = "?") {
-    for (const id of loot.items) { const it = addItem(a, id, src); if (it) { out.items.push(it); (out.cards = out.cards || {})[id] = itemCard(id); } }
+    for (const id of loot.items) { const it = addItem(a, id, src); if (it) { out.items.push(it); (out.cards = out.cards || {})[it.id] = itemCard(it.id); } }
     for (const [r, n] of Object.entries(loot.res)) { addRes(a, r, n); out.res[r] = (out.res[r] || 0) + n; }
   }
 
@@ -808,7 +810,7 @@ export class MetaService {
     const out: any = { xp: 0, items: [], res: {}, fromBag: b.id };
     const r = this.loot.take(b, lids, (e) => {
       if (e.k === "res") { addRes(a, e.id, e.n); out.res[e.id] = (out.res[e.id] || 0) + e.n; return true; }
-      const it = addItem(a, e.id, b.src); if (!it) return false; // сумка полна — позиция остаётся в мешке
+      const it = addItem(a, e.id, b.src, a.hero, !!e.c); if (!it) return false; // сумка полна — позиция остаётся в мешке
       out.items.push(it); (out.cards = out.cards || {})[e.id] = itemCard(e.id); return true;
     }, budget);
     // редкое оружие несёт навык «Вампир-лайка» (бросок при подборе, только сервер)
@@ -985,6 +987,7 @@ export class MetaService {
     const h = this.store.hero(ms.pkey, cls);
     const ab = this.rsAbility(weaponSkill(this.store.account(ms.pkey), h));
     if (ab && h) ab.power = Math.round(ab.power * weaponSkillPowerMult(h.lvl) * 100) / 100;
+    if (ab && h && weaponCursed(this.store.account(ms.pkey), h)) { ab.power = Math.round(ab.power * CURSE.rsMult * 100) / 100; ab.cursed = 1; } // проклятое оружие: навык R ×rsMult (доты — % удара)
     return ab;
   }
   zoneAbility(ws: WebSocket, session: any, msg: any) {
@@ -1021,7 +1024,7 @@ export class MetaService {
     const sid = session.id;
     const dealt = castShape(ab.cast || ab.id, {
       zone, sid, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult, props: ab.props, here: () => [session.x, session.y],
-      fire: (o) => zone.fire({ ...o, o: "p", sid }), // настоящие снаряды навыков
+      fire: (o) => zone.fire({ ...o, o: "p", sid, ...(ab.cursed ? { cz: 1 } : {}) }), // настоящие снаряды навыков (cz — проклятый навык R: фиолетовый шейдер)
       hit: (m, mult, opts) => {
         if (m.dead) return 0;
         m.usedAbility.add(sid);
@@ -1043,7 +1046,7 @@ export class MetaService {
         if (b.heal) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + b.heal);
       },
       later: (ms2, fn) => this.fx.push({ at: Date.now() + ms2, world, sid, fn }),
-      ev: (e) => zone.events.push(e),
+      ev: (e) => zone.events.push(ab.cursed ? { ...e, cz: 1 } : e),
     });
     if (ab.props.includes("vamp")) this.lifesteal(zone, session, ms, dealt * 0.08);
     if (ab.props.includes("swift")) { // Порыв сияния: +25% скорости на 2 с (как в забеге) — открытый мир
@@ -1107,11 +1110,13 @@ export class MetaService {
       const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed, party: n > 1 ? n : undefined };
       if (h && xp > 0) out.levelUps = gainXp(h, xp);
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
-      const lootMul = m.cursed ? ZONE_GEN.cursedLoot : 1; // проклятый: шансы дропа ×10 (только сервер)
+      const lootMul = m.cursed ? CURSE.mobDropMult : 1; // проклятый: шансы обычных вещей/материалов × (только сервер)
+      // проклятые ВЕРСИИ вещей: только с проклятых боссов (CURSE.bossOnly), отдельный независимый бросок по базовому шансу
+      const cursedRoll = !!m.cursed && (!CURSE.bossOnly || !!d.boss || m.special === "boss");
       // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
       if (!split && ownerGrp.includes(sid)) { // один бросок на убийство (как раньше), затем — делёж в отряде владельца мешка
-        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul);
-        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
+        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll);
+        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
         split = splitLoot(roll, ownerGrp.filter((g) => recv.has(g)), cryptoRand);
       }
       const loot = split?.get(sid) || { items: [] as string[], res: {} as Record<string, number> };

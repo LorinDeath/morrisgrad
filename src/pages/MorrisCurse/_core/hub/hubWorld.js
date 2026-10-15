@@ -1,3 +1,4 @@
+import { glowK, curseRGB } from '../meta/curseCfg.js';
 // Хаб (Мир Адского Пламени / Аринар) в 3D: тайлы карты, порталы, игроки сервера, Кейт, Дар, цветы.
 // Логика позиций — в пикселях сервера (0..1200), отрисовка — в метрах (1 м = 20 px).
 import { WorldMapManager } from '../worlds/worldMap.js';
@@ -119,13 +120,14 @@ export class HubWorld {
       c.ch.update(dt, !!s.moving, this.time, s.dirX || 0, s.dirY ?? 1);
       c.ch.group.visible = !s.blink;
       c.ch.group.scale.setScalar(s.scale || 1);
+      const cg = s.cg | 0; if (c.cg !== cg) { c.cg = cg; c.ch.setCurseGlow?.(glowK(cg), curseRGB(), cg >= 5); } // свечение проклятия: 1 — слабо … 5 (комплект) — пульс
       return c;
     };
 
     const me = state.me;
     place('__me', kindFromClass(me.classId, me.look), me, me.color);
     (state.others || []).forEach((p) => {
-      place('p_' + p.key, kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink }, p.color);
+      place('p_' + p.key, kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink, cg: p.stats?.cg }, p.color);
     });
     if (state.boss && state.boss.state !== 'dead') place('boss_keyt', 'keyt', state.boss);
     if (state.dar && state.dar.state !== 'dead') place('boss_dar', 'dar', state.dar);

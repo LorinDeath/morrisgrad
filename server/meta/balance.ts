@@ -1,3 +1,4 @@
+import { CURSE } from "./cursed";
 // Баланс прогрессии «Проклятых» (уровни 1–25): единые кривые для мобов, предметов, опыта и шансов дропа.
 // Всё здесь — чистые функции без зависимостей: их используют bestiary.ts (генерация статов), сервер и
 // симуляция tools/sim/progression.mjs. Таблицы и обоснование — docs/MORRISCURSE-BALANCE.md («Кривые 1–25»).
@@ -45,7 +46,7 @@ export const KILL_XP = { elite: 1.5, cursed: 2, softMax: 2.5 };
 export function killXp(o: { xp: number; mobL: number; heroL: number; elite?: boolean; cursed?: boolean; boss?: boolean }): number {
   let frac = xpFrac(o.mobL, o.heroL);
   if (o.boss) frac *= 10;
-  let kind = (o.elite ? KILL_XP.elite : 1) * (o.cursed ? KILL_XP.cursed : 1);
+  let kind = (o.elite ? KILL_XP.elite : 1) * (o.cursed ? CURSE.mobXp : 1);
   if (kind > KILL_XP.softMax) kind = KILL_XP.softMax;
   return Math.max(1, Math.round(xpNeed(o.heroL) * frac * kind));
 }

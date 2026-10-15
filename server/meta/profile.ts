@@ -1,4 +1,5 @@
 import { isRs, rsCodexId } from "./rsAny";
+import { CURSE, CURSED_TAG, isCursedTag, untag, instStats, glowLevel, curseClient } from "./cursed";
 // Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
 // Хранение — store.ts (D1 — источник истины, сквозная запись из DO; фолбэк — SQLite DO, схема ниже).
 // Таблицы (миграции идемпотентны, применяются при старте объекта):
@@ -16,7 +17,7 @@ import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 export const SCHEMA_VERSION = 1;
 
 // uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
-export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string } // hero — владелец-герой (у каждого героя своя сумка)
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1 } // hero — владелец-герой (у каждого героя своя сумка)
 export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
@@ -51,12 +52,12 @@ export function talentPoints(h: Hero): number { return talentPointsForLevel(h.lv
 
 export function itemReq(def: { lvl?: number; req?: number }): number { return Math.max(1, def.req || 1, def.lvl || 1); }
 
-export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string }[] {
-  const out: { slot: string; uid: string; id: string }[] = [];
+export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1 }[] {
+  const out: { slot: string; uid: string; id: string; cursed?: 1 }[] = [];
   for (const [slot, uid] of Object.entries(h.equip)) {
     const it = a.inv.find((i) => i.uid === uid);
     const def = it && ITEM_BY_ID[it.id];
-    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id }); // надетое не по уровню (старые сохранения) не действует
+    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}) }); // надетое не по уровню (старые сохранения) не действует
   }
   return out;
 }
@@ -78,7 +79,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
   let wMin = 0, wMax = 0, weaponId: string | null = null;
   const items = equippedItems(a, h);
   for (const e of items) {
-    const st = ITEM_BY_ID[e.id].stats;
+    const st: any = instStats(ITEM_BY_ID[e.id], e); // проклятый экземпляр: статы базы ×1.5 на лету
     if (ITEM_BY_ID[e.id].slot === "weapon") weaponId = e.id;
     wMin += st.dmgMin || 0; wMax += st.dmgMax || 0;
     for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct", "armorPen", "armorPenPct"]) raw[k] += (st as any)[k] || 0;
@@ -105,6 +106,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     revive: raw.revive > 0 ? 1 : 0,
     weaponMin: base.minAtk + wMin, weaponMax: base.maxAtk + wMax, itemDmgMin: wMin, itemDmgMax: wMax,
     look, weaponId, wtype: weaponType(weaponId, cls),
+    cursedGlow: glowLevel(items.filter((e) => e.cursed).length), weaponCursed: items.some((e) => e.cursed && e.slot === "weapon") ? 1 : 0,
   };
   eff.damageReduction = Math.round(armorToReduction(eff.armor) * 1000) / 1000;
   const mods = talentMods(h, cls);
@@ -280,10 +282,11 @@ export function cryptoRand(): number {
 export const newUid = (): string => (globalThis.crypto as any).randomUUID();
 
 // Выдача экземпляра предмета — ТОЛЬКО сервером: id из пула, новый instance_id, источник, отметка открытия
-export function addItem(a: Account, id: string, src = "?", hero: string | null = a.hero): InvItem | null {
+export function addItem(a: Account, id: string, src = "?", hero: string | null = a.hero, cursed = false): InvItem | null {
+  if (isCursedTag(id)) { id = untag(id); cursed = true; }
   if (!ITEM_BY_ID[id]) return null;
   if (a.inv.filter((i) => (i.hero || null) === (hero || null)).length >= 120) return null; // сумка героя ограничена
-  const it: InvItem = { uid: newUid(), id, at: Date.now(), src, n: 1, hero: hero || null };
+  const it: InvItem = { uid: newUid(), id, at: Date.now(), src, n: 1, hero: hero || null, ...(cursed ? { cursed: 1 as const } : {}) };
   a.inv.push(it);
   noteItem(a, id, src, true);
   const def = ITEM_BY_ID[id];
@@ -354,6 +357,17 @@ export function weaponSkill(a: Account, h: Hero | null): string | null {
   const adm = (ITEM_BY_ID as any)[inst.id]?.rs || (WEAPON_TYPES as any)[weaponType(inst.id, null)]?.rs;
   const rs = adm && isRs(adm) ? adm : inst.rs;
   return rs && isRs(rs) ? rs : null;
+}
+/** Надетое оружие проклято → навык R ×2. */
+export function weaponCursed(a: Account, h: Hero | null): boolean {
+  const uid = h?.equip?.weapon; if (!uid) return false;
+  return !!a.inv.find((i) => i.uid === uid)?.cursed;
+}
+/** Сколько надето проклятых (действующих) вещей и уровень свечения (0..3) — для синхронизации другим игрокам. */
+export function cursedGlow(a: Account, h: Hero | null): { n: number; glow: number } {
+  if (!h) return { n: 0, glow: 0 };
+  const eq = equippedItems(a, h); const n = eq.filter((e) => e.cursed).length;
+  return { n, glow: glowLevel(n) };
 }
 // Снять отметку «новое» (сообщение mark_seen): только свои экземпляры/открытия, пачкой
 export function markSeen(a: Account, m: { inv?: string[]; items?: string[]; mobs?: string[]; feats?: string[] }): number {
@@ -431,11 +445,16 @@ export function craft(a: Account, rid: string): R & { item?: InvItem } {
 }
 
 // Бросок дропа «по трофеям монстра» — только на сервере
-export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1): { items: string[]; res: Record<string, number> } {
+/** Действующий шанс строки дропа: экипировка × CURSE.equipDropMult (кламп 100). */
+export function dropChance(g: { item: string; chance: number }): number { return ITEM_BY_ID[g.item]?.slot ? Math.min(100, g.chance * CURSE.equipDropMult) : g.chance; }
+/** Бросок добычи. mul — множитель проклятого моба (только обычные вещи и материалы).
+ * cursedRoll — проклятый БОСС: каждая экипировка дополнительно и НЕЗАВИСИМО бросается как проклятая по БАЗОВОМУ шансу (без mul). */
+export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1, cursedRoll = false): { items: string[]; res: Record<string, number> } {
   const m = MONSTER_LOOT[monster];
   const out = { items: [] as string[], res: {} as Record<string, number> };
   if (!m) return out;
-  for (const g of m.gear) if (rng() * 100 < Math.min(100, g.chance * mul)) out.items.push(g.item);
+  for (const g of m.gear) if (rng() * 100 < Math.min(100, dropChance(g) * mul)) out.items.push(g.item);
+  if (cursedRoll) for (const g of m.gear) if (ITEM_BY_ID[g.item]?.slot && rng() * 100 < Math.min(100, dropChance(g) * CURSE.itemChanceMult)) out.items.push(g.item + CURSED_TAG);
   for (const r of m.materials) if (rng() * 100 < Math.min(100, r.chance * mul)) out.res[r.res] = (out.res[r.res] || 0) + r.qty[0] + Math.floor(rng() * (r.qty[1] - r.qty[0] + 1));
   return out;
 }
@@ -559,7 +578,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    weaponSkill: weaponSkill(a, h), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),

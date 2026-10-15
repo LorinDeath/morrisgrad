@@ -13,7 +13,7 @@ import {
 import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
-import { ProjAtlasFx } from '../engine/projAtlas.js';
+import { ProjAtlasFx, curseRGB, curseHex } from '../engine/projAtlas.js';
 import { FX_META } from '../engine/fxAtlas.js';
 // id навыка → ключ снаряда FX atlas v2 (с псевдонимами); значки/метки/телеграфы не считаются снарядами
 const atlasId = (id) => { let k = String(id || '').replace(/^rs:/, ''); k = FX_META.keys[k] ? k : FX_META.aliases[k]; return k && FX_META.keys[k] && !/^(hit|status|mark|tele)_?/.test(k) && FX_META.keys[k].anims.hit ? k : null; };
@@ -141,10 +141,10 @@ export class ZoneView {
       else if (e.k === 'proj') this.pax.spawn(e);
       else if (e.k === 'pend') this.pax.end(e);
       else if (e.k === 'puddle') this.pax.puddle(e.x, e.y, e.r, e.t);
-      else if (e.k === 'ability') { const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60) }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70) }); const id = String(e.id || '').replace(/^rs:/, ''); if (NOVA_FX[id]) this.teles.push({ kind: 'nova', fx: NOVA_FX[id], x: e.x, y: e.y, r: e.r || 120, t: 0, life: 0.6 }); else this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: 0xfde68a }); }
+      else if (e.k === 'ability') { const cz = !!e.cz, col = cz ? curseRGB() : null; const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60), cz }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70), cz }); const id = String(e.id || '').replace(/^rs:/, ''); if (NOVA_FX[id]) this.teles.push({ kind: 'nova', fx: NOVA_FX[id], x: e.x, y: e.y, r: e.r || 120, t: 0, life: 0.6, col }); else this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: cz ? curseHex() : 0xfde68a }); }
       // формы навыков (server/meta/abilityShapes.ts): линия/рывок, снаряд, отложенный удар (метеор), точки дождя
-      else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 }); }
-      else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty);
+      else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, col: e.cz ? curseRGB() : null }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, cz: !!e.cz }); }
+      else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty, e.cz);
       else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (String(e.id || '').replace(/^rs:/, '') === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.95 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
       else if (e.k === 'phit' && e.sid === myId) out.push({ k: 'hurt', d: e.d });
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
@@ -342,7 +342,7 @@ export class ZoneView {
       if (t.t >= t.life) { this.teles.splice(i, 1); continue; }
       if (t.t < 0) continue; // эффект ждёт своего момента (шлейф после рывка, удар после падения)
       const kk = t.t / t.life, X = toX(t.x), Z = toZ(t.y);
-      if (t.kind === 'line') P.teleLine(X, Z, t.dx, t.dy, (t.len / PX) * (0.3 + 0.7 * kk), Math.max(1.1, (t.w || 0) / PX), [1, 0.3, 0.3], 0.85);
+      if (t.kind === 'line') P.teleLine(X, Z, t.dx, t.dy, (t.len / PX) * (0.3 + 0.7 * kk), Math.max(1.1, (t.w || 0) / PX), t.cz ? curseRGB() : [1, 0.3, 0.3], 0.85);
       else if (t.kind === 'circle') P.teleCircle(X, Z, t.r / PX, kk, [1, 0.35, 0.65], 0.9);
       else if (t.kind === 'tcone') P.teleCone(X, Z, t.dx, t.dy, t.len / PX, t.arc, [1, 0.35, 0.3], 0.8);
       else if (t.kind === 'cone') P.cone(t.fx, X, Z, t.dx, t.dy, t.len / PX, t.arc, kk);

@@ -1,3 +1,4 @@
+import { CURSE } from '../meta/curseCfg.js';
 import { objText } from '../../../../../server/meta/objText.ts';
 import { rsInfo } from '../../../../../server/meta/rsAny.ts';
 // «Книга Проклятого» — единое окно прогрессии: задания, герой и таланты, навыки и Сияние,
@@ -65,6 +66,14 @@ const NEW_BADGE = '<i class="mc-new">новое</i>';
 const RAR = (r) => RARITIES[r] || RARITIES.common;
 
 const sortBtn = (d) => `<button class="mc-btn sm" data-act="lvlsort" title="Сортировка по уровню">ур. ${d === 'desc' ? '↓' : '↑'}</button>`;
+// Проклятый экземпляр: та же вещь (id), статы — cstats с сервера (база с правками админки × statMult), имя с приставкой
+export const curseTint = () => CURSE.tint;
+export function curseDef(d, it) {
+  if (!d || !it?.cursed) return d;
+  const st = d.cstats || Object.fromEntries(Object.entries(d.stats || {}).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * CURSE.statMult * 10) / 10 : v]));
+  return { ...d, name: 'Проклятый ' + d.name.charAt(0).toLowerCase() + d.name.slice(1), stats: st, cursed: 1 };
+}
+
 export class Book {
   constructor(overlay, meta, { canSoul, nearPetr }) {
     this.ov = overlay;
@@ -376,16 +385,16 @@ export class Book {
     const slots = SLOT_ORDER.map((slot) => {
       const uid = h?.equip?.[slot];
       const it = uid && byUid.get(uid);
-      const d = it && ITEM_BY_ID[it.id];
+      const d = it && curseDef(ITEM_BY_ID[it.id], it);
       // клик по надетому — карточка статов (Снять только кнопкой в карточке); снятие drag'ом не меняем (его нет)
-      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} title="${d ? esc(d.name) + ' — нажмите, чтобы посмотреть' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d?.cursed ? 'cursed' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} title="${d ? esc(d.name) + ' — нажмите, чтобы посмотреть' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
     const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
-      const d = ITEM_BY_ID[it.id];
+      const d = curseDef(ITEM_BY_ID[it.id], it);
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
-      return `<button class="mc-item ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${iconHtml(d, 40)}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
+      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${iconHtml(d, 40)}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
     // массовый разбор по редкости: кнопка на каждую редкость, что есть в сумке → превью с сервера → окно подтверждения
     const rset = [...new Set(bagItems.map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
@@ -394,7 +403,7 @@ export class Book {
     let detail = '<p class="mc-dim">Нажмите на слот или предмет в сумке, чтобы увидеть характеристики. Снять / надеть — кнопками в карточке.</p>';
     const it = this.sel && byUid.get(this.sel);
     if (it) {
-      const d = ITEM_BY_ID[it.id];
+      const d = curseDef(ITEM_BY_ID[it.id], it);
       const src = itemSources(it.id);
       const eq = equippedUids.has(it.uid);
       const look = d.look && typeof d.look === 'object' ? d.look : null;
@@ -403,8 +412,10 @@ export class Book {
       const newAb = d.grantsAbility || d.ability?.id;
       const abNew = newAb && feats['ability:' + newAb] && !feats['ability:' + newAb].v;
       if (newProps.length || abNew) this.meta.markSeen('feats', [...newProps.map((k) => 'prop:' + k), ...(abNew ? ['ability:' + newAb] : [])]);
-      detail = `<div class="mc-tip"><div class="nm" style="color:${RARITIES[d.rarity].color}">${iconHtml(d, 32)} ${esc(d.name)}</div>
-        <div class="rr">${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
+      const C = CURSE;
+      detail = `<div class="mc-tip ${d.cursed ? 'cursed' : ''}" ${d.cursed ? `style="--curse:${curseTint()}"` : ''}><div class="nm" style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${iconHtml(d, 32)} ${esc(d.name)}</div>
+        <div class="rr">${d.cursed ? `<b class="cz">☠ Проклятая</b> · ` : ''}${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
+        ${d.cursed ? `<div class="ab cz">☠ Проклятие: все характеристики ×${C.statMult || 1.5}${d.slot === 'weapon' ? `, урон навыка R ×${C.rsMult || 2}` : ''}. Тот же уровень, что у обычной версии.</div>` : ''}
         <div class="ss">${itemStatsHtml(d, newProps)}</div>
         <div class="fx">Ур. предмета ${d.lvl || 1}. ${reqHtml(d, h)}. Характеристики фиксированные — не растут с уровнем.</div>
         ${(() => { // действующий навык и выход разбора — с сервера (правки админки), иначе выпавший навык экземпляра
