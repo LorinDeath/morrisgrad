@@ -422,11 +422,12 @@ export class Minimap {
     const X = (x) => cx + (x - fx) * scale, Y = (z) => cy + (z - fz) * scale;
     this.stats = { mode: 'run', mobs: 0, bosses: 0, players: 0, chests: 0, gems: 0, heart: 0 };
     ctx.save();
-    ctx.fillStyle = '#05030a';
+    // тёмная карта забега (как тёмная арена): фон почти чёрный, обод приглушён — точки игроков/мобов читаются
+    ctx.fillStyle = '#020104';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#120c1f';
-    ctx.strokeStyle = '#c59b27';
-    ctx.lineWidth = 1.5;
+    ctx.fillStyle = '#07050c';
+    ctx.strokeStyle = 'rgba(197,155,39,0.55)';
+    ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(X(0), Y(0), arenaRadius * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     // камни/сферы опыта на земле на мини-карту НЕ рисуются (их сотни — лишняя работа и шум)
     for (const e of run.enemies.values()) {
@@ -439,8 +440,9 @@ export class Minimap {
         ctx.beginPath(); ctx.moveTo(bx, by - 5); ctx.lineTo(bx + 5, by); ctx.lineTo(bx, by + 5); ctx.lineTo(bx - 5, by); ctx.closePath(); ctx.fill(); ctx.stroke();
         continue;
       }
-      ctx.fillStyle = e.elite ? '#facc15' : '#ef4444';
-      const r = e.elite ? 3 : 2;
+      const r = e.elite ? 4 : 3; // точка с тёмной обводкой — не сливается в «кашу» при толпе
+      ctx.fillStyle = '#000'; ctx.fillRect(X(e.x) - r / 2 - 0.5, Y(e.z) - r / 2 - 0.5, r + 1, r + 1);
+      ctx.fillStyle = e.elite ? '#facc15' : '#ff4d4d';
       ctx.fillRect(X(e.x) - r / 2, Y(e.z) - r / 2, r, r);
     }
     for (const p of run.pickups.values()) {
@@ -457,7 +459,8 @@ export class Minimap {
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.fillStyle = '#ffd700';
-    ctx.beginPath(); ctx.arc(X(m.x), Y(m.z), 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(X(m.x), Y(m.z), 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.restore();
   }
 }

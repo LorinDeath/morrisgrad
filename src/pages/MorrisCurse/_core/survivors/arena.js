@@ -13,6 +13,10 @@ import tilesMeta from '../../../../assets/mc/tiles_stone.json'; // индекс 
 const TILE_SRC = { stone: tilesStone, air: tilesAir, ice: tilesIce, fire: tilesFire };
 // акцент темы: сигил/обод/огни колонн
 export const TILE_ACCENT = { stone: 0xc59b27, air: 0x22d3ee, ice: 0x93c5fd, fire: 0xff6a1a };
+// Настройки тёмной арены (все комнаты/темы забега): пол почти чёрный, свет — сигил, мобы, магия
+export const DARK = { amb: 0.13, sigilR: 6.0, sigilK: 0.95, meR: 4.2, meK: 0.32, edge: 0.35, maxLights: 40, wallLight: 0.42 };
+// светлые тайлсеты (воздух/лёд) темним сильнее — итоговая яркость пола одинаково низкая во всех темах
+const TILE_DARK = { air: 0.4, ice: 0.6, stone: 1, fire: 1 };
 const srcUrl = (s) => (typeof s === 'object' && s ? (s.src || s.default || '') : s);
 const TILE_M = 1.6; // 16 px = 1.6 м — тот же масштаб пикселей, что у мира и спрайтов
 
@@ -73,7 +77,8 @@ export class RunArena {
       };
       img.src = srcUrl(TILE_SRC[this.tiles]);
     }
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(R + 2, 64), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.1 }));
+    // Тёмный пол: без света сцены (MeshBasic) — освещают только сигил, мобы, снаряды/эффекты и слабый ореол героя (makeDarkFloor)
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(R + 2, 64), this.makeDarkFloor(THREE, tex, R, acc ?? (abyss ? 0x22d3ee : 0xef4444)));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     g.add(floor);
@@ -81,7 +86,7 @@ export class RunArena {
     const AT = { stone: 'crypt', air: 'abyss', ice: 'mirror', fire: 'abode' }[this.tiles] || (abyss ? 'abyss' : 'crypt');
     this.propTheme = AT;
     const sigilCol = new THREE.Color(acc ?? (abyss ? 0x22d3ee : 0xef4444));
-    const sigil = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const sigil = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
     sigil.rotation.x = -Math.PI / 2; sigil.position.y = 0.02;
     g.add(sigil); this.sigil = sigil;
     const sigil2 = new THREE.Mesh(new THREE.RingGeometry(9, 9.2, 48), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
@@ -98,6 +103,7 @@ export class RunArena {
       PILLARS.forEach((p) => items.push(['arena_column_' + AT, p.x, p.z, p.r / 1.44])); // коллайдер колонны (run.js) = 45% ширины 6.4 м → 1.44 м при s=1
       const B = new PropSprites(THREE, tex, { max: items.length + 4, parent: g });
       B.begin(); for (const [k, x, z, sc] of items) B.push(k, x * 20, z * 20, x, z, sc, false, 1, 0, null, false); B.end();
+      B.setLight(DARK.wallLight); // стены/колонны — в полутьме, акцент только у огней
       this.props = B;
     }).catch((e) => console.warn('[arena props]', e.message));
     const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.2, 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xc59b27) }));
@@ -107,7 +113,7 @@ export class RunArena {
     this.flames = [];
     PILLARS.forEach((p, i) => {
       if (i % 2 === 0) {
-        const light = new THREE.PointLight(acc ?? (abyss ? 0x67e8f9 : 0xff8a3c), 1.1, 12, 1.8);
+        const light = new THREE.PointLight(acc ?? (abyss ? 0x67e8f9 : 0xff8a3c), 0.55, 9, 1.8);
         light.position.set(p.x, 4.4, p.z);
         g.add(light);
       }
@@ -134,6 +140,44 @@ export class RunArena {
     this.group = g;
     this.time = 0;
     return g;
+  }
+
+  /** Материал пола «тёмное подземелье»: яркость = ambient + свет сигила (центр) + ореол героя + до MAXL динамических огней,
+   *  жёсткая виньетка к стене. Огни (мобы, снаряды, взрывы) задаёт RunView каждый кадр: setLights(). */
+  makeDarkFloor(THREE, tex, R, sigilHex) {
+    const MAXL = DARK.maxLights;
+    const U = this.darkU = {
+      uAmb: { value: DARK.amb * (TILE_DARK[this.tiles] ?? 1) }, uSig: { value: new THREE.Color(sigilHex) }, uR: { value: R },
+      uMe: { value: new THREE.Vector2(0, 0) }, uN: { value: 0 },
+      uL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4()) }, uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color()) },
+    };
+    const m = new THREE.MeshBasicMaterial({ map: tex });
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      sh.vertexShader = 'varying vec2 vW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vW = (modelMatrix * vec4(position, 1.0)).xz;');
+      sh.fragmentShader = `varying vec2 vW;
+uniform float uAmb; uniform vec3 uSig; uniform float uR; uniform vec2 uMe; uniform int uN;
+uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
+` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    float dc = length(vW);
+    vec3 li = vec3(uAmb);
+    float sg = 1.0 - smoothstep(0.0, ${DARK.sigilR.toFixed(1)}, dc); li += uSig * (sg * sg * ${DARK.sigilK.toFixed(2)});
+    float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
+    for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
+    li *= mix(1.0, ${DARK.edge.toFixed(2)}, smoothstep(uR * 0.5, uR + 1.5, dc)); // виньетка к стене
+    diffuseColor.rgb *= li;
+  }`);
+    };
+    return m;
+  }
+  /** огни кадра: list = [[x, z, радиус м, сила, hex], …]; me — позиция героя (м) */
+  setLights(list, n, me) {
+    const U = this.darkU; if (!U) return;
+    const k = Math.min(n, DARK.maxLights);
+    for (let i = 0; i < k; i++) { const L = list[i]; U.uL.value[i].set(L[0], L[1], L[2], L[3]); U.uLC.value[i].setHex(L[4]); }
+    U.uN.value = k;
+    if (me) U.uMe.value.set(me.x, me.z);
   }
 
   // Декор (не влияет на коллизии): плоские детали пола + невысокие предметы у стены и у колонн.

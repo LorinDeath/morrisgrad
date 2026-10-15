@@ -192,8 +192,10 @@ export class RunView {
       else if (e.poisonU > run.t) { r *= 0.75; g *= 1.2; b *= 0.6; }
       else if (e.bleedU > run.t) { r *= 1.3; g *= 0.7; b *= 0.7; }
       if (e.wind > 0) { r = Math.max(r, 1.35); }
-      (brow !== undefined ? BB : B).push(e.x + shake, y, e.z, h, col, row, rec.flip, r, g, b, e.flash > 0.05 ? 0.85 : 0, 1);
+      { const QB = brow !== undefined ? BB : B; QB.push(e.x + shake, y, e.z, h, col, row, rec.flip, r, g, b, e.flash > 0.05 ? 0.85 : 0, 1); QB.sortId(e.id); }
       atmo.shadow(e.x, e.z, Math.max(0.35, h * 0.26), fly ? 0.55 : 1);
+      if (e.boss || e.elite) this.light(e.x, e.z, 2.6 * s, e.boss ? 0.42 : 0.3, e.boss ? 0xff4d6d : 0xffc95a); // ореол мобов — мягкий, элитные/боссы ярче
+      else if ((this.nL || 0) < 26) this.light(e.x, e.z, 1.7 * s, 0.16, 0x9d8cff);
     }
     // исчезнувшие → распад архива (кадры 8–11)
     for (const [id, rec] of this.lastSeen) {
@@ -261,7 +263,11 @@ export class RunView {
     return p;
   }
 
+  // огни пола тёмной арены (мобы, снаряды, взрывы): пул массивов без аллокаций
+  light(x, z, rad, k, hex) { const L = this.LL ||= []; const i = this.nL || 0; if (i >= 40) return; (L[i] ||= [0, 0, 0, 0, 0]); L[i][0] = x; L[i][1] = z; L[i][2] = rad; L[i][3] = k; L[i][4] = hex; this.nL = i + 1; }
+
   update(dt, t) {
+    this.nL = 0;
     const THREE = this.THREE;
     const run = this.run;
     const d = this.dummy;
@@ -362,6 +368,7 @@ export class RunView {
       else if (z.kind === 'beam') P.beam(z.x, z.z, z.dx, z.dz, z.len, z.w, z.t, z.life, 0xfbbf24);
     }
     for (const p of run.projectiles) {
+      this.light(p.x, p.z, 2.4, 0.55, 0xffd58a);
       const base = WEAPON_SIZE[p.w] || 0.5;
       P.shot(p.w, p.x, p.z, p.orbit ? -Math.sin(p.phase + p.age * 3.2) : p.vx, p.orbit ? Math.cos(p.phase + p.age * 3.2) : p.vz, p.age, p.seed || 0, Math.max(0.7, Math.min(2.2, p.size / base)) * (p.child ? 0.75 : 1));
     }
@@ -370,10 +377,12 @@ export class RunView {
       else if (s.w === 'sun_beam') P.beam(s.x, s.z, s.vx, s.vz, 11, 0.7, s.age, s.life, 0xfbbf24);
       else P.shot(s.w, s.x, s.z, s.vx, s.vz, s.age, s.phase);
     }
+    for (const s of run.enemyShots) this.light(s.x, s.z, 2.0, 0.5, s.boss ? 0xff3b5c : 0xff7a59);
     for (const s of run.enemyShots) P.shot(s.boss || s.dmg > 10 ? 'enemy_boss' : mobShot(s.ty || ''), s.x, s.z, s.vx, s.vz, 3 - s.life, s.x * 0.3, 1, 1, 0.8); // семейство по стихии врага (FX v2)
     for (const f of run.fx) {
       if (f.t < 0) continue;
       const k = f.t / f.life;
+      if (f.kind === 'boom' && f.life <= 1) this.light(f.x, f.z, (f.r || 2) * 1.8, 0.9 * (1 - k), f.color || 0xf97316);
       if (f.kind === 'hit') P.hit(f.row, f.x, f.z, k, f.r);
       else if (f.kind === 'boom') {
         if (f.life > 1) P.cloud(f.x, f.z, f.r * 0.8, f.t, f.life, f.color || 0x334155, f.x);
@@ -393,6 +402,7 @@ export class RunView {
       }
     }
     P.end();
+    this.arena.setLights?.(this.LL || [], this.nL || 0, run.me); // свет пола тёмной арены
   }
 
   placePlayer(p, s, dt, t, blink) {

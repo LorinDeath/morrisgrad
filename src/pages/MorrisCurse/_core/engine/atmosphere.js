@@ -31,8 +31,8 @@ const MOOD = {
   b_fire: { sky: 0x070c22, fog: 0x0c1636, hemiSky: 0x93b4ff, hemiGround: 0x101c48, hemi: 0.9, sun: 0x7fa8ff, sunI: 0.85, grade: [0.9, 0.98, 1.14], tint: 'rgba(60,120,255,0.20)', vig: 0.55, parts: 'bluefire', hud: '#4f8dff', hud2: '#7dd3fc' },
   b_stone: { sky: 0x101318, fog: 0x1a1e26, hemiSky: 0xd0d6e0, hemiGround: 0x2c2e34, hemi: 0.92, sun: 0xe8edf5, sunI: 0.75, grade: [0.97, 0.98, 1.02], tint: 'rgba(160,170,190,0.14)', vig: 0.5, parts: 'metal', hud: '#b8c2d0', hud2: '#8b95a5' },
   b_air: { sky: 0x0a0618, fog: 0x140c2a, hemiSky: 0xc9b2ff, hemiGround: 0x1e1438, hemi: 0.9, sun: 0xe9d8ff, sunI: 0.7, grade: [1.0, 0.92, 1.12], tint: 'rgba(150,90,255,0.18)', vig: 0.55, parts: 'stars', hud: '#a78bfa', hud2: '#f0abfc' },
-  crypt: { sky: 0x050308, fog: 0x0a0610, hemiSky: 0xb38bd6, hemiGround: 0x2a1006, hemi: 0.5, sun: 0xffc58a, sunI: 0.8, grade: [1.04, 0.97, 0.94], tint: 'rgba(255,120,60,0.10)', vig: 0.55, parts: 'embers' },
-  abyss: { sky: 0x03020a, fog: 0x060418, hemiSky: 0x8ea2ff, hemiGround: 0x1b0c33, hemi: 0.6, sun: 0xc7d2fe, sunI: 0.75, grade: [0.92, 0.96, 1.08], tint: 'rgba(80,120,255,0.12)', vig: 0.55, parts: 'dust' },
+  crypt: { sky: 0x050308, fog: 0x0a0610, hemiSky: 0xb38bd6, hemiGround: 0x2a1006, hemi: 0.16, sun: 0xffc58a, sunI: 0.2, grade: [1.04, 0.97, 0.94], tint: 'rgba(255,120,60,0.10)', vig: 0.78, parts: 'embers' },
+  abyss: { sky: 0x03020a, fog: 0x060418, hemiSky: 0x8ea2ff, hemiGround: 0x1b0c33, hemi: 0.16, sun: 0xc7d2fe, sunI: 0.2, grade: [0.92, 0.96, 1.08], tint: 'rgba(80,120,255,0.12)', vig: 0.78, parts: 'dust' },
 };
 const PART = {
   fireflies: { n: 70, col: [[1, 0.93, 0.55], [0.8, 0.95, 0.5], [0.85, 0.7, 1]], size: 0.13, fall: 0, sway: 0.5, blink: true },
