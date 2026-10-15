@@ -3,6 +3,41 @@
 import { esc } from './overlay.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
+import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
+
+// краткое описание предмета для пикера наград квеста (уровень, редкость, слот, статы)
+const ITEM_STAT_RU = {
+  dmgMin: 'урон мин', dmgMax: 'урон макс', hp: 'HP', armor: 'броня', critPct: 'крит%', speedPct: 'скор%',
+  regen: 'реген', cdrPct: 'КД−%', magnetPct: 'магнит%', lifestealPct: 'вампир%', atkSpeedPct: 'скор.атак%', dmgPct: 'урон%', armorPct: 'броня%',
+};
+function itemStatsBrief(it) {
+  if (!it) return '';
+  const st = it.stats || {};
+  const bits = [];
+  if (st.dmgMin != null || st.dmgMax != null) bits.push(`урон ${st.dmgMin ?? '?'}–${st.dmgMax ?? '?'}`);
+  for (const [k, v] of Object.entries(st)) {
+    if (k === 'dmgMin' || k === 'dmgMax' || v == null || v === 0) continue;
+    bits.push(`+${v} ${ITEM_STAT_RU[k] || k}`);
+  }
+  return bits.join(', ');
+}
+function itemMetaLine(it) {
+  if (!it) return '';
+  const rar = RARITIES[it.rarity] || RARITIES.common;
+  const parts = [`ур.${it.lvl || it.req || 1}`, rar.name];
+  if (it.slot && SLOTS[it.slot]) parts.push(SLOTS[it.slot]);
+  const st = itemStatsBrief(it);
+  if (st) parts.push(st);
+  return parts.join(' · ');
+}
+function itemMetaTitle(it) {
+  if (!it) return '';
+  const rar = RARITIES[it.rarity] || RARITIES.common;
+  const lines = [`${it.name} (${it.id})`, `Ур. ${it.lvl || it.req || 1} · ${rar.name}${it.slot && SLOTS[it.slot] ? ' · ' + SLOTS[it.slot] : ''}`];
+  const st = itemStatsBrief(it);
+  if (st) lines.push(st);
+  return lines.join('\n');
+}
 
 const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
@@ -57,6 +92,12 @@ const css = `
 .mc-admin .msg{margin-left:auto;color:#a7f3d0}.mc-admin .msg.err{color:#fca5a5}
 .mc-admin table{border-collapse:collapse;width:100%}.mc-admin td,.mc-admin th{border-bottom:1px solid #241a3a;padding:3px 6px;text-align:left;vertical-align:top}
 .mc-admin .chips{display:flex;flex-wrap:wrap;gap:4px}.mc-admin .chips label{padding:2px 6px}
+.mc-admin .chips .chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:5px 8px;border:1px solid #3b2c52;border-radius:6px;background:#140e24;max-width:280px}
+.mc-admin .chips .chip > span{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.mc-admin .chips .chip .meta{color:#9a8bb8;font-size:10px;line-height:1.3}
+.mc-admin .pick .pi{display:flex;flex-direction:column;gap:1px;border-bottom:1px solid #1d1530;padding:4px 6px!important}
+.mc-admin .pick .pi .meta{color:#9a8bb8;font-size:10px;line-height:1.3;padding-left:12px}
+
 @media (max-width:760px){.mc-admin main{flex-direction:column}.mc-admin aside{width:auto;max-height:34vh;border-right:0;border-bottom:1px solid #3b2c52}}
 `;
 
@@ -303,8 +344,8 @@ export class AdminPanel {
         <div class="vn-stepbox"><h4>2 · Окно получения (цели + награда)</h4><small>Говорящий и текст; ниже игрок видит цели с именами целей и награду, кнопки «Взять» / «Уйти».</small><div data-vnone="accept"></div>
           <div class="box"><b>Цели</b><div class="objs">${q.objectives.map(objRow).join('')}</div><button class="btn" data-oadd>＋ цель</button></div>
           <div class="box grid"><b style="grid-column:1/-1">🎁 Награда</b>
-      <label><span>${statIcon('luck', 16)}Опыт</span><input type="number" data-q="xp" min="0" value="${q.rewards?.xp ?? 0}"></label><div class="box" style="grid-column:1/-1"><b>🎁 Предметы-награды</b> <small>(до 4; поиск по названию или id)</small><div class="chips" data-qitems>${(q.rewards?.items || []).map((id) => { const it = this.cat.items.find((x) => x.id === id); return `<span class="chip" data-qi="${esc(id)}">${esc(it?.name || id)} <small>${esc(id)}</small> <button class="btn red" data-qirm="${esc(id)}">✕</button></span>`; }).join('') || '<small>нет</small>'}</div>
-        <input type="search" data-qisearch placeholder="🔎 найти предмет…" style="width:100%"><div class="pick" data-qipick style="max-height:160px;overflow:auto"></div></div>
+      <label><span>${statIcon('luck', 16)}Опыт</span><input type="number" data-q="xp" min="0" value="${q.rewards?.xp ?? 0}"></label><div class="box" style="grid-column:1/-1"><b>🎁 Предметы-награды</b> <small>(до 4; поиск по названию или id)</small><div class="chips" data-qitems>${(q.rewards?.items || []).map((id) => { const it = this.cat.items.find((x) => x.id === id); const rar = RARITIES[it?.rarity] || RARITIES.common; const meta = itemMetaLine(it); return `<span class="chip" data-qi="${esc(id)}" title="${esc(itemMetaTitle(it) || id)}" style="border-color:${rar.color}"><span>${esc(it?.name || id)} <small style="color:${rar.color}">${esc(id)}</small> <button class="btn red" data-qirm="${esc(id)}">✕</button></span>${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</span>`; }).join('') || '<small>нет</small>'}</div>
+        <input type="search" data-qisearch placeholder="🔎 найти предмет…" style="width:100%"><div class="pick" data-qipick style="max-height:220px;overflow:auto"></div></div>
       <label><span>★ Звёзды-награда</span><span>${[['yellow', '#fbbf24'], ['red', '#f87171'], ['purple', '#c084fc'], ['black', '#9ca3af']].map(([c, col]) => `<span style="color:${col}">★</span><input type="number" data-star="${c}" min="0" max="5" style="width:44px" value="${q.rewards?.stars?.[c] || ''}">`).join('')}</span></label>          </div></div>
         <div class="vn-stepbox"><h4>3 · В процессе (необязательно)</h4><small>Одно окно, когда игрок говорит с NPC до выполнения. Пусто — короткая фраза по умолчанию.</small><div data-vnone="progress"></div></div>
         <div class="vn-stepbox"><h4>4 · Сдача (окна)</h4><small>На последнем окне — награда и «Сдать».</small><div data-vnlist="done"></div></div>
@@ -323,7 +364,7 @@ export class AdminPanel {
     // выбор предметов-наград из каталога с поиском (вместо ввода id)
     const qs = sec.querySelector('[data-qisearch]'), pick = sec.querySelector('[data-qipick]');
     const showPick = () => { const t = qs.value.trim().toLowerCase(); if (!t) { pick.innerHTML = ''; return; }
-      pick.innerHTML = this.cat.items.filter((x) => x.name.toLowerCase().includes(t) || x.id.includes(t)).slice(0, 40).map((x) => `<div class="pi" data-qiadd="${esc(x.id)}" style="cursor:pointer;padding:2px 4px">＋ ${esc(x.name)} <small>${esc(x.id)}</small></div>`).join('') || '<small>ничего не найдено</small>';
+      pick.innerHTML = this.cat.items.filter((x) => x.name.toLowerCase().includes(t) || x.id.includes(t)).slice(0, 40).map((x) => { const rar = RARITIES[x.rarity] || RARITIES.common; const meta = itemMetaLine(x); return `<div class="pi" data-qiadd="${esc(x.id)}" title="${esc(itemMetaTitle(x))}" style="cursor:pointer;border-left:3px solid ${rar.color}">＋ <b style="color:${rar.color}">${esc(x.name)}</b> <small>${esc(x.id)}</small>${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</div>`; }).join('') || '<small>ничего не найдено</small>';
       pick.querySelectorAll('[data-qiadd]').forEach((n) => (n.onclick = () => { const q2 = read(); if (q2.rewards.items.length >= 4) { this.msg('Не больше 4 предметов'); return; } if (!q2.rewards.items.includes(n.dataset.qiadd)) q2.rewards.items.push(n.dataset.qiadd); rerender(q2); })); };
     qs.oninput = showPick;
     sec.querySelectorAll('[data-qirm]').forEach((b) => (b.onclick = () => { const q2 = read(); q2.rewards.items = q2.rewards.items.filter((x) => x !== b.dataset.qirm); rerender(q2); }));

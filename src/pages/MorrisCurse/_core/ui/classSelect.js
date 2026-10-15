@@ -5,6 +5,7 @@ import { RUN_CLASSES, ABILITIES, WEAPONS } from '../survivors/data.js';
 import { HERO_NAMES, SLOTS, SLOT_ORDER, RARITIES } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, iconHtml } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
+import { itemStatsHtml } from './book.js';
 
 const IDS = ['warrior', 'spearman', 'rogue', 'mage'];
 const PORTRAIT = (id) => `/mc-vn/${id}/full.webp`;
@@ -17,12 +18,14 @@ export class ClassSelect {
     this.onSelect = onSelect;
     this.isOpen = false;
     this.previewId = null;
+    this.tipKey = null; // ключ выбранного слота/сумки для карточки статов
   }
 
   open(currentClassId) {
     this.isOpen = true;
     this.previewId = currentClassId && IDS.includes(currentClassId) ? currentClassId : IDS[0];
     this.currentClassId = currentClassId || null;
+    this.tipKey = null;
     this.render();
   }
 
@@ -69,11 +72,13 @@ export class ClassSelect {
       const e = equip[slot];
       const d = e && ITEM_BY_ID[e.id];
       const rar = d ? (RARITIES[d.rarity] || {}) : {};
-      return `<div class="mc-altar-slot ${d ? 'filled' : ''}" title="${d ? esc(d.name) : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')}"` : ''}>
+      const on = this.tipKey === `eq:${slot}`;
+      const tip = d ? `data-tip="eq:${slot}" data-item="${esc(d.id)}"` : '';
+      return `<button type="button" class="mc-altar-slot ${d ? 'filled' : ''} ${on ? 'on' : ''}" ${tip} title="${d ? esc(d.name) + ' — статы' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')}"` : ''}>
         <span class="ic">${d ? iconHtml(d, 28) : '·'}</span>
         <small>${esc(SLOTS[slot])}</small>
         ${d ? `<b style="color:${esc(rar.color || '#e2e8f0')}">${esc(d.name)}</b>` : ''}
-      </div>`;
+      </button>`;
     }).join('');
 
     const bag = (hs.bag || []).slice().sort((a, b) => {
@@ -86,9 +91,34 @@ export class ClassSelect {
           const d = ITEM_BY_ID[it.id];
           if (!d) return '';
           const rar = RARITIES[d.rarity] || {};
-          return `<div class="mc-altar-item" title="${esc(d.name)}" style="border-color:${esc(rar.color || '#3b2c52')}">${iconHtml(d, 28)}</div>`;
+          const on = this.tipKey === `bag:${it.uid}`;
+          return `<button type="button" class="mc-altar-item filled ${on ? 'on' : ''}" data-tip="bag:${esc(it.uid)}" data-item="${esc(d.id)}" title="${esc(d.name)} — статы" style="border-color:${esc(rar.color || '#3b2c52')}">${iconHtml(d, 28)}</button>`;
         }).join('')
       : '<p class="mc-altar-empty">Сумка пуста</p>';
+
+    // карточка статов (только просмотр — с алтаря нельзя надеть/снять)
+    let tipHtml = '';
+    if (this.tipKey) {
+      let itemId = null;
+      if (this.tipKey.startsWith('eq:')) {
+        const slot = this.tipKey.slice(3);
+        itemId = equip[slot]?.id || null;
+      } else if (this.tipKey.startsWith('bag:')) {
+        const uid = this.tipKey.slice(4);
+        itemId = bag.find((i) => String(i.uid) === uid)?.id || null;
+      }
+      const d = itemId && ITEM_BY_ID[itemId];
+      if (d) {
+        const rar = RARITIES[d.rarity] || RARITIES.common;
+        tipHtml = `<div class="mc-altar-tip"><div class="nm" style="color:${esc(rar.color)}">${iconHtml(d, 28)} ${esc(d.name)}</div>
+          <div class="rr">${esc(rar.name)} · ${esc(SLOTS[d.slot] || d.slot)} · ур. ${d.lvl || 1}</div>
+          <div class="ss">${itemStatsHtml(d) || '<span class="mc-altar-empty">без статов</span>'}</div>
+          <div class="fx">Требуется уровень героя: ${Math.max(1, d.req || 1, d.lvl || 1)}. Только просмотр — надеть/снять в Книге (I).</div>
+          ${d.lore ? `<div class="lore">${esc(d.lore)}</div>` : ''}</div>`;
+      } else {
+        this.tipKey = null;
+      }
+    }
 
     const isCurrent = id === this.currentClassId;
     const acceptLabel = isCurrent ? 'Уже в этом теле' : `Принять тело · ${name}`;
@@ -122,6 +152,7 @@ export class ClassSelect {
             <section class="mc-altar-panel">
               <h3>Надето</h3>
               <div class="mc-altar-slots">${slots}</div>
+              ${tipHtml}
             </section>
             <section class="mc-altar-panel mc-altar-bag">
               <h3>Сумка <small>${bag.length}</small></h3>
@@ -153,6 +184,15 @@ export class ClassSelect {
         const next = b.dataset.id;
         if (next === this.previewId) return;
         this.previewId = next;
+        this.tipKey = null;
+        this.render();
+      });
+    });
+    el.querySelectorAll('[data-tip]').forEach((b) => {
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const k = b.dataset.tip;
+        this.tipKey = this.tipKey === k ? null : k;
         this.render();
       });
     });
