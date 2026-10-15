@@ -617,12 +617,22 @@
 .mc-altar-skill { margin-top: 8px; font-size: 11px; color: #fde68a; display: flex; flex-direction: column; gap: 2px; }
 .mc-altar-skill small { color: #94a3b8; font-size: 10px; line-height: 1.35; }
 .mc-altar-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 5px; }
-.mc-altar-slot { background: #0a0614; border: 2px solid #3b2c52; border-radius: 8px; padding: 4px 2px; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9px; color: #94a3b8; }
+.mc-altar-slot { background: #0a0614; border: 2px solid #3b2c52; border-radius: 8px; padding: 4px 2px; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9px; color: #94a3b8; font-family: inherit; }
+.mc-altar-slot.filled { cursor: pointer; }
+.mc-altar-slot.filled:hover, .mc-altar-slot.on { border-color: #facc15; }
 .mc-altar-slot .ic { font-size: 18px; line-height: 1; }
 .mc-altar-slot b { font-size: 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
 .mc-altar-items { display: flex; flex-wrap: wrap; gap: 4px; max-height: 140px; overflow-y: auto; }
-.mc-altar-item { width: 36px; height: 36px; border: 2px solid #3b2c52; border-radius: 6px; background: #0a0614; display: flex; align-items: center; justify-content: center; }
+.mc-altar-item { width: 36px; height: 36px; border: 2px solid #3b2c52; border-radius: 6px; background: #0a0614; display: flex; align-items: center; justify-content: center; padding: 0; font-family: inherit; color: inherit; }
+.mc-altar-item.filled { cursor: pointer; }
+.mc-altar-item.filled:hover, .mc-altar-item.on { border-color: #facc15; outline: 1px solid #facc15; }
 .mc-altar-empty { margin: 0; color: #64748b; font-size: 11px; }
+.mc-altar-tip { margin-top: 8px; padding: 8px 10px; border: 1px solid #3b2c52; border-radius: 8px; background: #0a0614; font-size: 12px; line-height: 1.4; }
+.mc-altar-tip .nm { font-weight: 700; margin-bottom: 2px; }
+.mc-altar-tip .rr { color: #94a3b8; font-size: 11px; margin-bottom: 4px; }
+.mc-altar-tip .ss { color: #e2e8f0; }
+.mc-altar-tip .fx { color: #94a3b8; font-size: 11px; margin-top: 4px; }
+.mc-altar-tip .lore { color: #a78bfa; font-size: 11px; margin-top: 4px; font-style: italic; }
 .mc3d-btn.mc-altar-accept.dim { opacity: .65; }
 .mc3d-compact .mc-altar-body { grid-template-columns: 1fr; }
 .mc3d-compact .mc-altar-portrait { min-height: 220px; max-height: 260px; }
@@ -635,7 +645,8 @@
 }
 
 .mc-gslot.filled { cursor: pointer; }
-.mc-gslot.filled:hover::after { content: 'снять'; position: absolute; top: 2px; right: 4px; font-size: 10px; color: #fca5a5; }
+.mc-gslot.filled:hover::after { content: 'статы'; position: absolute; top: 2px; right: 4px; font-size: 10px; color: #fde68a; }
+.mc-gslot.on { outline: 2px solid #facc15; }
 .mc-gslot { position: relative; }
 /* навыки забега: пул + кодекс */
 .mc-rs-head{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}

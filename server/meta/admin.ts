@@ -262,7 +262,10 @@ export class AdminStore {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
       quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),
       npcs: Object.entries(NPCS).map(([id, n]) => ({ id, name: n.name, world: n.world })),
-      items: Object.entries(ITEM_BY_ID).map(([id, o]: [string, any]) => ({ id, name: o.name })),
+      items: Object.entries(ITEM_BY_ID).map(([id, o]: [string, any]) => ({
+        id, name: o.name, icon: o.icon || "", lvl: o.lvl || 1, req: itemReq(o),
+        rarity: o.rarity || "common", slot: o.slot || "", stats: { ...(o.stats || {}) },
+      })),
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
       mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl })),
       objTypes: OBJ_TYPES,

@@ -377,8 +377,8 @@ export class Book {
       const uid = h?.equip?.[slot];
       const it = uid && byUid.get(uid);
       const d = it && ITEM_BY_ID[it.id];
-      // надетое видно только в слоте; нажатие на занятый слот снимает предмет в сумку героя
-      return `<button class="mc-gslot ${d ? 'filled' : ''}" ${d && h ? `data-act="unequip" data-v="${slot}"` : `data-act="sel" data-v=""`} title="${d ? esc(d.name) + ' — нажмите, чтобы снять' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      // клик по надетому — карточка статов (Снять только кнопкой в карточке); снятие drag'ом не меняем (его нет)
+      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} title="${d ? esc(d.name) + ' — нажмите, чтобы посмотреть' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
     const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
@@ -391,7 +391,7 @@ export class Book {
     const rset = [...new Set(bagItems.map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
     const salvBtns = rset.map((r) => `<button class="mc-btn sm" data-act="salvage_r" data-v="${r}" style="border-color:${RARITIES[r].color};color:${RARITIES[r].color}" title="Разобрать все неодетые: ${esc(RARITIES[r].name)}">${esc(RARITIES[r].name)}</button>`).join('');
     const res = Object.entries(a.res || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span title="${esc(RESOURCES[k]?.name || k)}">${RESOURCES[k]?.icon || '•'} ${n}</span>`).join('');
-    let detail = '<p class="mc-dim">Нажмите на предмет, чтобы увидеть характеристики и источник.</p>';
+    let detail = '<p class="mc-dim">Нажмите на слот или предмет в сумке, чтобы увидеть характеристики. Снять / надеть — кнопками в карточке.</p>';
     const it = this.sel && byUid.get(this.sel);
     if (it) {
       const d = ITEM_BY_ID[it.id];
