@@ -28,7 +28,7 @@ export function heroLevelHp(level: number): number { return (Math.min(HERO_MAX_L
 export type StatKey = "hp" | "armor" | "dmgPct" | "speedPct" | "regen" | "magnetPct" | "cdrPct" | "critPct" | "lifestealPct" | "atkSpeedPct" | "revive";
 // Жёсткие капы итоговых значений после всех источников (таланты + предметы + сияние + душа)
 export const STAT_CAPS: Record<string, number> = {
-  critPct: 55, cdrPct: 40, lifestealPct: 12, atkSpeedPct: 55, speedPct: 35, magnetPct: 120, dmgPct: 100, regen: 8, damageReduction: 0.72, armorPenPct: 40, armorPen: 70,
+  critPct: 55, cdrPct: 40, lifestealPct: 12, atkSpeedPct: 55, speedPct: 35, magnetPct: 120, dmgPct: 100, regen: 8, damageReduction: 0.72, armorPenPct: 40, armorPen: 90,
 };
 // Убывающая отдача: эффективное = cap * (1 - exp(-raw / cap)) — первые очки почти 1:1, дальше всё меньше.
 export function softCap(raw: number, cap: number): number {

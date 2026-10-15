@@ -64,9 +64,9 @@ function danger(d: any) { d.dmg = Math.round(d.dmg * dangerDmg(d.lvl) * 10) / 10
 export function withVariants<T extends Record<string, any>>(table: Record<string, T>): Record<string, T> {
   for (const k of Object.keys(table)) (table as any)[k] = danger({ ...table[k] });
   for (const v of VARIANTS) {
-    const b = table[v.base];
-    if (!b) throw new Error(`biomes: нет базового моба ${v.base}`);
-    (table as any)[v.id] = danger(variantDef(v, b));
+    const base = table[v.base];
+    if (!base) throw new Error(`biomes: нет базового моба ${v.base}`);
+    (table as any)[v.id] = danger(variantDef(v, base));
   }
   return table;
 }

@@ -117,7 +117,7 @@ export const SET_BONUSES: Record<string, { pieces: number; stats: Record<string,
 /** Один предмет не больше этой доли бюджета в одну строку (запрет «перегруза»). */
 export const AFFIX_MAX_SHARE = 0.75;
 /** Кап одной строки на одном предмете (итог героя дополнительно режут STAT_CAPS + softCap). */
-export const ITEM_LINE_CAP: Record<string, number> = { critPct: 9, lifestealPct: 4, atkSpeedPct: 10, cdrPct: 10, speedPct: 10, regen: 3, magnetPct: 30, armorPen: 18, armorPenPct: 8 };
+export const ITEM_LINE_CAP: Record<string, number> = { critPct: 9, lifestealPct: 4, atkSpeedPct: 10, cdrPct: 10, speedPct: 10, regen: 3, magnetPct: 30, armorPen: 22, armorPenPct: 10 };
 export const STAT_COST: Record<string, number> = { armor: 1, hp: 0.4, critPct: 1.5, speedPct: 1.2, cdrPct: 1.5, regen: 10, lifestealPct: 3, atkSpeedPct: 1.4, magnetPct: 0.2, dmgMin: 1, dmgMax: 1, armorPen: 1.2, armorPenPct: 2.5 };
 
 /** Архетипы шмота (роль от экипа, не от класса). Любой класс носит любой предмет. */
@@ -128,7 +128,7 @@ export const ARCHETYPE_SLOT: Record<GearArchetype, Record<string, Record<string,
     armor: [{ armor: 0.65, hp: 0.3, armorPen: 0.05 }, { armor: 0.5, hp: 0.4, regen: 0.1 }],
     legs: [{ armor: 0.6, hp: 0.35, armorPen: 0.05 }, { armor: 0.5, speedPct: 0.2, hp: 0.3 }],
     hands: [{ armor: 0.4, armorPen: 0.3, lifestealPct: 0.15, hp: 0.15 }, { armor: 0.35, lifestealPct: 0.25, armorPenPct: 0.25, hp: 0.15 }],
-    weapon: [{ armorPenPct: 0.6, armorPen: 0.4 }, { lifestealPct: 1 }, { armor: 1 }],
+    weapon: [{ armorPen: 0.7, armorPenPct: 0.3 }, { armorPenPct: 1 }, { lifestealPct: 1 }],
   },
   bruiser: {
     helmet: [{ hp: 0.35, armor: 0.2, critPct: 0.35, armorPen: 0.1 }, { hp: 0.4, armor: 0.4, armorPenPct: 0.2 }],
@@ -222,12 +222,12 @@ export function refBuild(L: number, arch: GearArchetype, rarity = "uncommon") {
   }
   const wp = profiles.weapon[0];
   for (const [k, f] of Object.entries(wp)) addLine(k, (b * 0.35 * Math.min(AFFIX_MAX_SHARE, f)) / (STAT_COST[k] || 1));
-  const dmgMult = arch === "caster" ? 1.25 : arch === "assassin" ? 1.15 : arch === "tank" ? 0.85 : 1;
+  const dmgMult = arch === "caster" ? 1.25 : arch === "assassin" ? 1.15 : arch === "tank" ? 1.0 : 1;
   const hpMult = arch === "tank" ? 1.35 : arch === "caster" ? 0.7 : arch === "assassin" ? 0.8 : 1;
   const armMult = arch === "tank" ? 1.4 : arch === "caster" ? 0.55 : arch === "assassin" ? 0.65 : 1;
   hp *= hpMult; armor *= armMult;
   // ITEM_LINE_CAP уже применён; softCap/STAT_CAPS — на герое (profile / sim)
-  penFlat = Math.min(70, penFlat); penPct = Math.min(40, penPct);
+  penFlat = Math.min(90, penFlat); penPct = Math.min(40, penPct);
   const hit = (10 + wa * dmgMult) * (1 + Math.min(0.5, (L - 1) * 0.012));
   const atkPerSec = (1 / 0.45) * (1 + Math.min(50, atkSp) / 100);
   const skill = arch === "caster" ? 1.55 : arch === "assassin" ? 1.35 : 1.25;
@@ -239,7 +239,7 @@ export function refBuild(L: number, arch: GearArchetype, rarity = "uncommon") {
 // ---------------- мобы ----------------
 export function ttkTarget(L: number): number { return 5.5 + 2.5 * (L - 1) / 24; }
 /** Броня моба ≈ 0.85× средний удар эталона — ниже уровнем почти не пробивает (flat soak). */
-export function mobArmor(L: number): number { return Math.round(weaponAvg(L, "uncommon") * 0.86); }
+export function mobArmor(L: number): number { return Math.round(weaponAvg(L, "uncommon") * 0.58); }
 export const ROLE_MULT: Record<string, { hp: number; dmg: number; speed: number; xp: number }> = {
   melee: { hp: 1, dmg: 1, speed: 1, xp: 1 },
   swarm: { hp: 0.45, dmg: 0.6, speed: 1.35, xp: 0.45 },
@@ -263,7 +263,7 @@ export function levelGapHitMult(mobL: number, heroL: number): number {
   const g = (mobL || 1) - (heroL || 1);
   if (g <= 0) return 1;
   // ранние уровни: сильнее режет удар (длинный gap-бой); к 25 — мягче
-  const per = 0.65 + 0.16 * Math.max(0, (heroL || 1) - 1) / 24;
+  const per = 0.65 + 0.32 * Math.max(0, (heroL || 1) - 1) / 24;
   return Math.max(0.35, Math.pow(per, g));
 }
 export function levelGapDmgMult(mobL: number, heroL: number): number {
@@ -271,17 +271,17 @@ export function levelGapDmgMult(mobL: number, heroL: number): number {
   if (g >= 0) return Math.max(0.1, Math.pow(0.82, g));
   const under = -g;
   // ранние уровни: моб бьёт больнее vs underlevel (gap drain); к 25 — мягче
-  const per = 1.80 - 0.42 * Math.max(0, (heroL || 1) - 1) / 24;
+  const per = 1.92 - 0.78 * Math.max(0, (heroL || 1) - 1) / 24;
   return Math.min(2.6, Math.pow(per, Math.min(2, under)) * Math.pow(1.1, Math.max(0, under - 2)));
 }
 /** Целевой TTK рейда из 5 на боссе своего уровня (сек). */
-export const BOSS_RAID_TTK = 235;
+export const BOSS_RAID_TTK = 220;
 export function mobStats(L: number, role = "melee", size = "s") {
   const h = refHero(L), R = ROLE_MULT[role] || ROLE_MULT.melee, S = SIZE_MULT[size] || SIZE_MULT.s;
   const press = soloPressure(L);
   const isWorld = size === "boss" || size === "huge";
   // мировой босс: броня ниже обычной (рейд пробивает), но героя ниже уровнем — гасит
-  const armor = Math.round(mobArmor(L) * (isWorld ? 0.6 : role === "tank" || size !== "s" ? 1.45 : 1) * press);
+  const armor = Math.round(mobArmor(L) * (isWorld ? 0.55 : role === "tank" || size !== "s" ? 1.4 : 1) * press);
   const effHit = Math.max(h.hit * 0.05, h.hit - armor);
   const effDps = h.dps * (effHit / Math.max(1, h.hit));
   let hp: number;
@@ -294,7 +294,7 @@ export function mobStats(L: number, role = "melee", size = "s") {
   } else {
     hp = effDps * ttkTarget(L) * R.hp * S.hp * press;
   }
-  const deathT = isWorld ? 95 : (32 - 6 * (L - 1) / 24); // мировой босс: фокус танка ~25–40 с
+  const deathT = isWorld ? 140 : (36 - 6 * (L - 1) / 24); // мировой босс: фокус танка ~25–40 с
   const dmgHit = (h.ehp / deathT) * 1.1 * R.dmg * S.dmg * press;
   return { hp: Math.round(hp), dmg: Math.round(dmgHit * 10) / 10, armor: Math.round(armor), xp: Math.round(mobXp(L) * R.xp * S.xp * (isWorld ? 1 : 1)), speedMult: R.speed };
 }
