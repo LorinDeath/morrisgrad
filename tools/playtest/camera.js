@@ -10,7 +10,7 @@ const OUT = '/workspace/morrisgrad-round2';
   const open = async (n, mobile) => {
     const ctx = await b.newContext(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148' } : { viewport: { width: 1440, height: 860 } });
     const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(n + ' ' + String(e).slice(0, 200)));
-    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=test_cam_${n}_${Date.now()}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1'}&debug=1`);
+    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=test_cam_${n}_${Date.now()}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1&panels=1'}&debug=1`);
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 90000 });
     const G = (fn, a) => p.evaluate(fn, a);
     await G(() => window.__game.debug.selectClass('mage')); await p.waitForTimeout(2000);
