@@ -481,6 +481,7 @@ async function boot(canvasId, username, userId, api) {
         if (e.to === myId) { if (e.s === 'slow') pvpSt.slowUntil = performance.now() + (e.ms || 2000); if (e.s === 'freeze') pvpSt.frozenUntil = performance.now() + (e.ms || 1000); overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
         else { const o = others.get(e.to); if (o) overlay.float(toX(o.x), 3, toZ(o.y), T[0], T[1]); }
       }
+      else if (e.k === 'lsheal') { if (e.sid === myId) lsAdd(e.d); }
       else if (e.k === 'phit') {
         if (e.by === myId) dpsMeter.add(e.d);
         if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
@@ -659,8 +660,12 @@ async function boot(canvasId, username, userId, api) {
     if (tb) { tb.dataset.cnt = n ? String(Math.min(99, n)) : ''; tb.classList.toggle('hascnt', n > 0); }
   }
   meta.on(() => updateBookBadge());
+  // «+N HP» от вампиризма (сервер шлёт lsheal ≥1 ОЗ): копим и показываем пачкой раз в 0.5 с над героем
+  const lsPop = { acc: 0, at: 0 };
+  const lsAdd = (n) => { lsPop.acc += n; const t = performance.now(); if (t - lsPop.at >= 500 && lsPop.acc >= 1) { overlay.float(toX(player.x), 2.9, toZ(player.y), `+${Math.floor(lsPop.acc)} HP`, '#4ade80'); lsPop.acc -= Math.floor(lsPop.acc); lsPop.at = t; } };
   net.on('zone_state', (d) => {
     if (Array.isArray(d.wb)) setBossState(d.wb);
+    for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
     if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
     for (const e of d.ev || []) if (e.k === 'hit' && e.by === myId && e.d > 0) dpsMeter.add(e.d); // мировые боссы: жив / таймер — на карте и мини-карте
     if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
@@ -945,6 +950,7 @@ async function boot(canvasId, username, userId, api) {
         break;
       case 'downed': overlay.toast(run.remotes.size ? 'Вы пали! Союзники могут поднять вас' : 'Вы пали…', '#fca5a5'); break;
       case 'revived': overlay.toast('Вас подняли!', '#4ade80'); break;
+      case 'lsheal': overlay.float(run.me.x, 2.9, run.me.z, `+${d.amt} HP`, '#4ade80'); break;
       case 'dmg':
         if (floatBudget > 0) { floatBudget--; overlay.float(d.x, 1.8, d.z, String(Math.round(d.dmg)), d.boss ? '#f0abfc' : '#fff', d.crit); }
         break;

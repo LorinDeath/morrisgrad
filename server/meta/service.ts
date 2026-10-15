@@ -808,15 +808,25 @@ export class MetaService {
     const h = this.store.hero(ms.pkey, cls); const uids = new Set(Object.values(h?.equip || {}));
     return a.inv.filter((i: any) => uids.has(i.uid)).map((i: any) => i.id);
   }
-  /** черты (поджог/яд/кровотечение/заморозка/замедление/отбрасывание/вампиризм) — только сервер */
+  /** вампиризм: лечит героя (сервер) и копит дробные остатки; событие «lsheal» уходит, когда набралось ≥1 ОЗ */
+  lifesteal(zone: any, session: any, ms: any, amt: number) {
+    if (!(amt > 0) || !ms.zp.alive) return;
+    const before = ms.zp.hp;
+    ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + amt);
+    ms.lsAcc = (ms.lsAcc || 0) + (ms.zp.hp - before);
+    if (ms.lsAcc >= 1) { const n = Math.floor(ms.lsAcc); ms.lsAcc -= n; zone?.events.push({ k: "lsheal", sid: session.id, d: n, x: Math.round(session.x), y: Math.round(session.y) }); }
+  }
+  /** черты (поджог/яд/кровотечение/заморозка/замедление/отбрасывание/вампиризм) — только сервер.
+   *  Добивающий удар: эффекты на моба не нужны, но вампиризм всё равно лечит. */
   traitHit(zone: any, m: any, session: any, ms: any, real: number, traits: any[]) {
-    if (!traits.length) return;
+    if (!traits.length || !real) return;
+    const dead = !!m.dead;
     applyTraits(traits, real, cryptoRand, {
-      dot: (kind, dps, dur) => zone.applyStatus(m, session.id, { kind, dps, dur }, session.x, session.y),
-      slow: () => zone.applyStatus(m, session.id, { slow: true }, session.x, session.y),
-      knock: (p) => zone.applyStatus(m, session.id, { knock: p }, session.x, session.y),
-      freeze: (t) => { freezeMob(m, t); },
-      heal: (hp) => { ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + hp); },
+      dot: (kind, dps, dur) => { if (!dead) zone.applyStatus(m, session.id, { kind, dps, dur }, session.x, session.y); },
+      slow: () => { if (!dead) zone.applyStatus(m, session.id, { slow: true }, session.x, session.y); },
+      knock: (p) => { if (!dead) zone.applyStatus(m, session.id, { knock: p }, session.x, session.y); },
+      freeze: (t) => { if (!dead) freezeMob(m, t); },
+      heal: (hp) => this.lifesteal(zone, session, ms, hp),
     });
   }
   zoneAttack(ws: WebSocket, session: any, msg: any) {
@@ -861,8 +871,8 @@ export class MetaService {
       const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
       this.noteHit(session, real, m.type);
       if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, ox, oy);
-      if (eff.lifestealPct && real) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + real * eff.lifestealPct / 100);
-      if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traits);
+      if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100);
+      if (real) this.traitHit(zone, m, session, ms, real, traits);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
     };
     for (const [vx, vy] of volleyDirs(W.atk, dx, dy)) {
@@ -985,7 +995,8 @@ export class MetaService {
         const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1);
         const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm)) || 0;
         this.noteHit(session, real, m.type);
-        if (real && !m.dead) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
+        if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100); // пассивный вампиризм и с навыков
+        if (real) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
         return real;
       },
       status: (m, st, fx, fy) => { if (st.dot) zone.applyStatus(m, sid, st.dot, fx, fy); if (st.slow || st.knock) zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) freezeMob(m, st.freeze); },
@@ -1000,7 +1011,7 @@ export class MetaService {
       later: (ms2, fn) => this.fx.push({ at: Date.now() + ms2, world, sid, fn }),
       ev: (e) => zone.events.push(e),
     });
-    if (ab.props.includes("vamp")) ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + dealt * 0.08);
+    if (ab.props.includes("vamp")) this.lifesteal(zone, session, ms, dealt * 0.08);
     void def;
     const a = this.store.account(ms.pkey);
     if (this.qev(a, session, { type: "ability_used" }).length) this.send(ws, { type: "toast_error", message: "Звёздный квест: навык применён — прогресс «без навыков» сброшен" });

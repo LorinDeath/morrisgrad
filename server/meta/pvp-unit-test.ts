@@ -39,6 +39,20 @@ const realNow = Date.now;
   ok(w.ms.get("a").zp.hp === aBefore, "duel traits: frozen opponent cannot attack");
   (Date as any).now = realNow; delete TRAITS.weapon.sword;
 }
+{ // пассивный вампиризм (lifestealPct) работает и с навыков в дуэли
+  const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
+  (w as any).pvp.host.effective = () => ({ level: 5, wtype: "sword", weaponMin: 10, weaponMax: 10, dmgPct: 0, critPct: 0, atkSpeedPct: 0, lifestealPct: 50, abilities: [{ id: "pierce", cd: 1, power: 1, props: [] }] });
+  const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");
+  w.pvp.challenge(wa, sa, { sid: "b" }); w.pvp.respond(wb, sb, { from: "a", accept: true });
+  const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
+  (Date as any).now = () => t0 + DUEL_COUNTDOWN_MS + 20;
+  sa.x = 300; sa.y = 400; sb.x = 450; sb.y = 400; w.ms.get("a").zp.hp = 20;
+  (w.pvp as any).ability(wa, sa, { id: "pierce", dx: 1, dy: 0 });
+  for (let k = 0; k <= 12; k++) w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 20 + k * 50);
+  const bHp = w.ms.get("b").zp.hp, aHp = w.ms.get("a").zp.hp;
+  ok(bHp < 100 && aHp > 20, `duel skill: passive lifesteal heals (20→${Math.round(aHp)}, b ${Math.round(bHp)})`);
+  (Date as any).now = realNow;
+}
 { // навыки в дуэли — направленные (те же формы, что в мире): «Пронзание» назад мимо, вперёд — попадание
   const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
   w.ms.get("a"); (w as any).pvp.host.effective = () => ({ level: 5, wtype: "sword", weaponMin: 10, weaponMax: 10, dmgPct: 0, critPct: 0, atkSpeedPct: 0, lifestealPct: 0, abilities: [{ id: "pierce", cd: 1, power: 1, props: [] }] });

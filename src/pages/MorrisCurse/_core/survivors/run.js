@@ -365,6 +365,18 @@ export class RunSession {
     m.stats.healed += m.hp - before;
   }
 
+  // вампиризм: лечит и копит реально восстановленное; всплывашка «+N HP» — пачкой раз в 0.5 с (flushLs в update)
+  lsHeal(v) {
+    const m = this.me; if (m.dead || !(v > 0)) return;
+    const before = m.hp; this.heal(v); this.lsAcc = (this.lsAcc || 0) + (m.hp - before);
+  }
+  flushLs() {
+    if ((this.lsAcc || 0) >= 1 && this.t - (this.lsAt || -1) >= 0.5) {
+      const n = Math.floor(this.lsAcc); this.lsAcc -= n; this.lsAt = this.t;
+      this.events('lsheal', { x: this.me.x, z: this.me.z, amt: n });
+    }
+  }
+
   // ---------- главный тик ----------
   update(dt, input) {
     if (this.ended) return;
@@ -377,6 +389,7 @@ export class RunSession {
     this.updateProjectiles(dt);
     this.updateZones(dt);
     this.updateDots(dt);
+    this.flushLs();
     this.updateVisualShots(dt);
     this.updatePickupsLocal(dt);
     this.updateFx(dt);
@@ -629,7 +642,7 @@ export class RunSession {
       else if (t.k === 'slow') { e.slowUntil = this.t + 1.6; e.slowK = 0.6; }
       else if (t.k === 'freeze') { this.applyStatus(e, 'freeze', 0, p.w); st |= ST_BIT.freeze; }
       else if (t.k === 'knock' && this.isHost) { const dx = e.x - this.me.x, dz = e.z - this.me.z, d = Math.hypot(dx, dz) || 1, k = (t.power || 1) * (e.boss ? 0.15 : e.elite ? 0.5 : 1); this.knock(e, (dx / d) * k, (dz / d) * k); }
-      else if (t.k === 'lifesteal') this.heal((dmg * (t.pct || 0)) / 100);
+      else if (t.k === 'lifesteal') this.lsHeal((dmg * (t.pct || 0)) / 100);
     }
     return st;
   }
@@ -1081,7 +1094,7 @@ export class RunSession {
     const wkey = p.w;
     m.stats.byWeapon[wkey] = (m.stats.byWeapon[wkey] || 0) + dmg;
     const lsk = Math.min(0.15, (p.lifesteal || 0) + (m.metaLs || 0));
-    if (lsk > 0) this.heal(dmg * lsk);
+    if (lsk > 0) this.lsHeal(dmg * lsk);
     if (p.slow) e.slowUntil = this.t + 1.6, e.slowK = p.slow;
     // статусы и отбрасывание
     let st = 0, kbx = 0, kbz = 0;
