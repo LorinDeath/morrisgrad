@@ -20,23 +20,18 @@ const d1 = (sql) => execSync(`${WR} d1 execute morrisgrad_db --local --json --co
   };
   let [ctx, p] = await open();
   ok(await p.evaluate(() => Array.isArray(window.__game.meta.state?.account?.runSkills)), 'snapshot carries account.runSkills');
-  await p.evaluate(() => window.__game.debug.rawSend({ type: 'run_skill_set', id: 'chain_bolt' })); await p.waitForTimeout(900);
-  ok(await p.locator('text=Навык ещё не открыт').count() >= 1, 'server refuses selecting a locked skill');
+  // Модель изменилась: навык R живёт на самом оружии (item_instances.run_skill), выбора «run_skill_set» больше нет.
+  // account.runSkills — кодекс: какие навыки уже встречались на добытом оружии.
   await ctx.close(); await new Promise((r) => setTimeout(r, 4000));
-  // имитируем два трофея (как после бросков rollRunSkill): правим только локальную D1
-  d1(`UPDATE accounts SET data=json_set(data,'$.runSkills',json('["chain_bolt","ice_fan"]'),'$.runSkillSel','chain_bolt') WHERE pkey='uid:${uid}'`);
+  d1(`UPDATE accounts SET data=json_set(data,'$.runSkills',json('["chain_bolt","ice_fan"]')) WHERE pkey='uid:${uid}'`);
   [ctx, p] = await open();
   const st = await p.evaluate(() => window.__game.meta.state.account);
-  ok(st.runSkills.length === 2 && st.runSkillSel === 'chain_bolt', `pool loaded from D1: ${JSON.stringify([st.runSkills, st.runSkillSel])}`);
-  await p.evaluate(() => window.__game.debug.openBook?.('runskills')); await p.waitForTimeout(900);
-  if (!(await p.locator('.mc-rs-grid').count())) { await p.keyboard.press('j'); await p.waitForTimeout(600); await p.click('[data-act="tab"][data-v="runskills"]'); await p.waitForTimeout(800); }
-  ok(await p.locator('.mc-rskill:not(.locked)').count() === 2 && await p.locator('.mc-rskill.locked').count() === 12, 'codex: 2 открыто, 12 скрыто');
-  ok(await p.locator('.mc-rskill.on', { hasText: 'Цепная молния' }).count() === 1, 'selected skill highlighted');
+  ok(JSON.stringify(st.runSkills) === '["chain_bolt","ice_fan"]', `codex pool loaded from D1: ${JSON.stringify(st.runSkills)}`);
+  await p.evaluate(() => window.__game.book.toggle('runskills')); await p.waitForTimeout(1500);
+  const open2 = await p.locator('.mc-rskill:not(.locked)').allInnerTexts(), locked = await p.locator('.mc-rskill.locked').count();
+  ok(open2.some((t) => /Цепная молния/.test(t)) && open2.some((t) => /Ледяной веер/.test(t)), `codex: найденные навыки оружия открыты (${open2.length} открыто)`);
+  ok(locked > 0 && await p.locator('.mc-rskill.locked', { hasText: '???' }).count() === locked, `codex: ненайденные — «???» (${locked})`);
   await p.screenshot({ path: `${OUT}/runskills-01-codex.png` });
-  await p.locator('.mc-rskill', { hasText: 'Ледяной веер' }).locator('[data-act="runsel"]').click(); await p.waitForTimeout(1200);
-  ok(await p.evaluate(() => window.__game.meta.state.account.runSkillSel) === 'ice_fan', 'select via server → ice_fan');
-  ok(await p.locator('.mc-rskill.on', { hasText: 'Ледяной веер' }).count() === 1, 'UI updated after select');
-  await p.screenshot({ path: `${OUT}/runskills-02-selected.png` });
   await ctx.close();
   ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0].slice(0, 200) : ''));
   console.log(`${pass} passed, ${fail} failed`); await b.close(); process.exit(fail ? 1 : 0);
