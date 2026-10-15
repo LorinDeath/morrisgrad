@@ -106,7 +106,9 @@ const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [3
     const before = (await G(A, () => window.__game.debug.zoneMobsFull())).filter((m) => m.type === 'fire_imp' && Math.hypot(m.x - X, m.y - Y) < 480);
     const ab = await G(A, () => window.__game.debug.abilities());
     const id = ab.includes('fireball') ? 'fireball' : ab[0];
-    await G(A, (id) => window.__game.debug.rawSend({ type: 'zone_ability', id, dx: 1, dy: 0 }), id);
+    { const f0 = before.filter((m) => m.x > X && Math.abs(m.y - Y) < 40).sort((p, q) => p.x - q.x)[0]; // целимся в ТЕКУЩЕЕ положение переднего (мобы бродят, шар узкий)
+      const cur = f0 && (await G(A, () => window.__game.debug.zoneMobsFull())).find((m) => m.id === f0.id); const ddx = cur ? cur.x - X : 1, ddy = cur ? cur.y - Y : 0, L = Math.hypot(ddx, ddy) || 1;
+      await G(A, ([id, dx, dy]) => window.__game.debug.rawSend({ type: 'zone_ability', id, dx, dy }), [id, ddx / L, ddy / L]); }
     await A.waitForTimeout(400);
     await A.screenshot({ path: `${OUT}/arinar-13-ability-dir.png` });
     await A.waitForTimeout(1200);
