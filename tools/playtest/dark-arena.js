@@ -19,9 +19,11 @@ const URL = (u) => `http://127.0.0.1:5199/game.html?name=Алекс&uid=test_dar
     const me = await p.evaluate(() => window.__game.state().player);
     ok((await p.evaluate(([x, y]) => window.__game.debug.sortDemo(x, y), [me.x, me.y])) === 'ok', 'sortDemo построен');
     await p.waitForTimeout(1500);
-    const clip = { x: 520, y: 300, width: 420, height: 260 };
+    await p.evaluate(() => { window.__game.atmo?.setQuality?.(3); }); // без частиц (светлячки летают через кадр)
+    const sp = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x, y + 30), [me.x, me.y]);
+    const clip = { x: Math.round(sp.x - 170), y: Math.round(sp.y - 150), width: 340, height: 175 };
     const files = [];
-    for (let i = 0; i < 8; i++) { await p.evaluate((z) => window.__game.debug.setZoom(z), i % 2 ? 1.03 : 1); await p.waitForTimeout(500); const f = `${OUT}/${TAG}-sort-${i}.png`; await p.screenshot({ path: f, clip }); files.push(f); }
+    for (let i = 0; i < 8; i++) { await p.evaluate((z) => window.__game.debug.setZoom(z), i % 2 ? 1.03 : 1); await p.waitForTimeout(2500); const f = `${OUT}/${TAG}-sort-${i}.png`; await p.screenshot({ path: f, clip }); files.push(f); }
     await p.screenshot({ path: `${OUT}/${TAG}-sort-demo.png` });
     const out = execFileSync('python3', ['-c', `
 import sys
@@ -35,7 +37,7 @@ print(max(d(ims[i],ims[i+2]) for i in range(len(ims)-2)))
     ok(!errs.length, 'нет ошибок страницы (хаб) ' + errs.join('|')); await ctx.close();
   }
   // B) комнаты забега
-  for (const room of ['crypt', 'abyss', 'duel', 'trial']) {
+  for (const room of process.env.SKIP_B ? [] : ['crypt', 'abyss', 'duel', 'trial']) {
     const { p, errs, ctx } = await page('r_' + room);
     await p.evaluate(() => window.__game.debug.selectClass('mage')); await p.waitForTimeout(1200);
     await p.evaluate((r) => window.__game.startRun(r), room);
