@@ -20,7 +20,9 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const near = async () => (await G(() => window.__game.debug.zoneMobs())).map((m) => ({ ...m, d: 0 }));
   let ms = await near(); const me = await G(() => window.__game.state().player);
   ms.sort((a, z) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(z.x - me.x, z.y - me.y));
-  const m0 = ms[0]; if (m0) { await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [m0.x - 40, m0.y]); await p.waitForTimeout(1500); }
+  // гарантированные живучие обычные мобы прямо перед героем (ближайшие у хаба — слабые и умирали от самой «Стужи» раньше проверки)
+  await G(([x, y]) => { for (const dy of [-40, 0, 40]) window.__game.debug.rawSend({ type: 'dev_spawn_mob', mob: 'garden_golem', x: x + 70, y: y + dy, cursed: true }); }, [me.x, me.y]); await p.waitForTimeout(1500);
+  const m0 = null; if (m0) { await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [m0.x - 40, m0.y]); await p.waitForTimeout(1500); }
   await p.mouse.move(700, 380); await p.keyboard.press('KeyQ'); await p.waitForTimeout(700);
   const fr = await G(() => window.__game.debug.zoneFrozen());
   await p.screenshot({ path: `${OUT}/freeze-world.png` });
@@ -29,7 +31,8 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const still = pos1.filter((a) => { const b2 = pos2.find((x) => x.id === a.id); return b2 && Math.hypot(b2.x - a.x, b2.y - a.y) < 3; }).length;
   console.log('  frozen', JSON.stringify(pos1), '→', JSON.stringify(pos2.filter((x) => pos1.some((a) => a.id === x.id))));
   ok(fr > 0, `замороженных мобов рядом: ${fr}`);
-  ok(pos1.length > 0 && still === pos1.length, `замороженные стоят на месте (${still} неподвижных)`);
+  const alive = pos1.filter((a) => pos2.some((x) => x.id === a.id)).length; // погибшие от урона «Стужи» не считаем
+  ok(still > 0 && still === alive, `замороженные стоят на месте (${still} неподвижных)`);
   await p.waitForTimeout(2500); const fr2 = await G(() => window.__game.debug.zoneFrozen?.()); ok(fr2 < fr, `через ~4 с заморозка спала (${fr} → ${fr2})`);
   ok(!errs.length, 'без ошибок ' + errs.join('|'));
   console.log(fails ? `FAILED ${fails}` : 'freeze ok'); await b.close(); process.exit(fails ? 1 : 0);

@@ -13,7 +13,7 @@ const OUT = '/workspace/morrisgrad-round2';
     await G(() => window.__game.debug.teleport(240, 600)); await p.waitForTimeout(700);
     await G(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await p.waitForTimeout(1500);
   }
-  const CX = 24746, CY = 26870; // лагерь: 3 пачки + 2 вожака (сид мира ZONE_GEN.seed)
+  const CX = 26134, CY = 27018; // лагерь: 3 пачки + 2 вожака, 11 мобов (сид мира ZONE_GEN.seed; раскладка обновилась — старый лагерь 24746,26870 сместился)
   await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [CX, CY + 120]); await p.waitForTimeout(4500);
   await G(() => window.__game.debug.setCells(30)); await p.waitForTimeout(1500);
   const mobs = await G(() => window.__game.debug.zoneMobs());

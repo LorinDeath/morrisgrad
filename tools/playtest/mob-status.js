@@ -20,6 +20,8 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   for (const w of WT) await G((w) => window.__game.debug.rawSend({ type: 'admin_save', kind: 'weapon', id: w, patch: { traits: [{ k: 'burn', chance: 100, dpsPct: 5, dur: 8 }, { k: 'bleed', chance: 100, dpsPct: 5, dur: 4 }] } }), w);
   await p.waitForTimeout(1500);
   const me = await G(() => window.__game.state().player);
+  // гарантированный обычный (не элита) живучий моб рядом
+  await G(([x, y]) => window.__game.debug.rawSend({ type: 'dev_spawn_mob', mob: 'garden_golem', x: x + 90, y, cursed: true }), [me.x, me.y]); await p.waitForTimeout(1500);
   let ms = (await G(() => window.__game.debug.zoneMobsFull())).filter((m) => !m.elite); ms.sort((a, z) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(z.x - me.x, z.y - me.y));
   const m0 = ms[0]; ok(!!m0, 'моб рядом');
   await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [m0.x - 90, m0.y]); await p.waitForTimeout(1500);

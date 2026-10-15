@@ -21,6 +21,7 @@ const SK = ['meteor', 'leap_strike', 'spear_rain', 'pierce', 'frost_nova'];
   const go = async (x, y, god = true) => { await G(([x, y, god]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god }); window.__game.debug.teleport(x, y); }, [x, y, god]); await p.waitForTimeout(3500); };
   await go(24000, 20500);
   const me = await G(() => window.__game.state().me || null);
+  await G(() => window.__game.debug.rawSend({ type: 'dev_spawn_mob', mob: 'garden_golem', x: 24090, y: 20500 })); await p.waitForTimeout(1500); // гарантированный обычный моб рядом
   const mobs = await G(() => window.__game.debug.zoneMobs());
   const c = mobs.filter((m) => !m.elite && !m.chief).sort((a, z) => Math.hypot(a.x - 24000, a.y - 20500) - Math.hypot(z.x - 24000, z.y - 20500))[0];
   ok(!!c, 'рядом есть моб: ' + (c && c.type));
