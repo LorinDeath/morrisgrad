@@ -124,12 +124,7 @@ export class QuestTracker {
         else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
         else where = 'место обитания неизвестно'; }
       this.hunt = { id: mt, name: nm, where, target: best };
-      // охота из Бестиария и цель задания: компас ведёт к БЛИЖАЙШЕЙ из целей в этом мире (раньше охота всегда перебивала задание,
-      // даже если до мобов задания 20 м, а охота — «портал в Аринар»)
-      if (best) {
-        const q = this.target, here = (t) => t && t.world === ctx.world, dist = (t) => Math.hypot(t.x - ctx.x, t.y - ctx.y);
-        if (!here(q) || (here(best) && dist(best) <= dist(q)) || (!q.mob && best.hunt === 'mob')) this.target = best;
-      }
+      if (best) this.target = best; // охота из Бестиария — явный выбор игрока, компас ведёт к ней (среди целей заданий — ближайшая)
       html += `<div class="hunt${html ? ' sep' : ''}"><div class="t">🎯 Охота: ${esc(nm)}</div><ul><li>${esc(where)}</li></ul></div>`;
     }
     if (html !== this.sig) { this.sig = html; this.qEl.innerHTML = html; }
