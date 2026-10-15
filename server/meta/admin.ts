@@ -1,7 +1,7 @@
 import { autoObjText } from "./objText";
 // «Проклятые»: админ-панель — сервер. Правки игровых данных (overrides.ts: схема + проверка) и квесты из игры
 // хранятся в D1 (миграция 0010): game_overrides, custom_quests, журнал game_override_audit, версия набора
-// game_config_version (комнаты сверяют её и перечитывают правки). Писать может только серверно проверенный админ —
+// game_config_version (комнаты сверяют её и перечитывают правки). Писать может серверно проверенный админ (всё) или модератор (только mob/weapon/item) —
 // проверка роли в service.ts ДО вызова этих методов. Все запросы к D1 — только с bind (никакой склейки SQL).
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
@@ -268,6 +268,24 @@ export class AdminStore {
       objTypes: OBJ_TYPES,
       vn: { chars: Object.values(VN_CHARS), emotions: VN_EMOTIONS.map((id) => ({ id, name: VN_EMOTION_NAMES[id] })), limits: VN_LIMITS, dialogues: { ...QUEST_DIALOGUES } },
       totals: { items: Object.keys(ITEM_BY_ID).length, weapons: Object.values(ITEM_BY_ID).filter((o: any) => o.slot === "weapon").length, res: Object.keys(RESOURCES).length }, // для проверки «ни один предмет не пропал»
+    };
+  }
+  /** каталог для роли: модератор получает только бестиарий/оружие/предметы (без квестов, VN, навыка, дропа, спавна, журнала) */
+  catalogFor(scope: "admin" | "moderator") {
+    const full = this.catalog();
+    if (scope === "admin") return { ...full, scope: "admin" as const };
+    const allow = ["mob", "weapon", "item"];
+    const ent: Record<string, any[]> = {};
+    for (const k of allow) ent[k] = full.ent[k] || [];
+    const schema: Record<string, any> = {};
+    for (const k of allow) if (full.schema[k]) schema[k] = full.schema[k];
+    return {
+      scope: "moderator" as const,
+      schema, traits: full.traits, ent,
+      mobSkills: full.mobSkills, // нужны для выбора навыков в карточке моба
+      quests: [], npcs: [], items: full.items, res: full.res, mobs: full.mobs, objTypes: [],
+      vn: { chars: [], emotions: [], limits: full.vn?.limits || {}, dialogues: {} },
+      totals: full.totals,
     };
   }
 }

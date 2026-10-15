@@ -187,7 +187,7 @@ export class MetaService {
     }
     await this.social.warm(pkey);
     await this.roles.ensure();
-    { const ms0 = this.ms.get(session.id); const role = ms0?.verified ? this.roles.of(pkey) : undefined; this.send(ws, { type: "my_role", role: role || null, admin: this.roles.isAdmin(ms0) }); }
+    { const ms0 = this.ms.get(session.id); const role = ms0?.verified ? this.roles.of(pkey) : undefined; const pf = this.roles.panelFlags(ms0); this.send(ws, { type: "my_role", role: role || null, ...pf }); }
     if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
     this.refreshZonePlayer(session);
     this.send(ws, { type: "meta_state", ...this.snap(session) });
@@ -497,13 +497,22 @@ export class MetaService {
         return true;
       }
       case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
-        // только серверно проверенный админ (uid из Clerk + player_roles); id/роль из сообщения не используются
-        if (!this.roles.isAdmin(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why: "not_admin", type: msg.type }); return true; }
+        // роли из D1 + verified; id/роль из сообщения клиента игнорируются.
+        // Админ — всё. Модератор — только admin_open + admin_save/reset для mob/weapon/item. Остальное — отказ.
+        const deny = (why: string) => { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why, type: msg.type, kind: (msg as any).kind }); return true; };
+        if (msg.type === "admin_open") {
+          if (!this.roles.canOpenAdmin(ms)) return deny("not_panel");
+        } else if (msg.type === "admin_save" || msg.type === "admin_reset") {
+          if (!this.roles.canAdminWrite(ms, String((msg as any).kind || ""))) return deny("not_write_kind");
+        } else {
+          // audit / quests / dialogues — только полный админ
+          if (!this.roles.canAdminFull(ms)) return deny("admin_only");
+        }
         const t = Date.now(); if (msg.type !== "admin_open" && t - ((ms as any).admAt || 0) < 300) { this.send(ws, { type: "toast_error", message: "Слишком часто" }); return true; }
         (ms as any).admAt = t;
         if (JSON.stringify(msg).length > 24000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
         const fail = (e: any) => { console.error("[mc] admin", e?.message || e); this.send(ws, { type: "admin_result", ok: false, err: "Ошибка сохранения" }); };
-        if (msg.type === "admin_open") this.admin.sync(true).then(() => this.send(ws, { type: "admin_catalog", ...this.admin.catalog() })).catch(fail);
+        if (msg.type === "admin_open") this.admin.sync(true).then(() => this.send(ws, { type: "admin_catalog", ...this.admin.catalogFor(this.roles.isAdmin(ms) ? "admin" : "moderator") })).catch(fail);
         else if (msg.type === "admin_audit") this.admin.audit(60).then((rows) => this.send(ws, { type: "admin_audit", rows })).catch(fail);
         else if (msg.type === "admin_save") this.admin.save(ms.pkey, msg.kind, msg.id, msg.patch).then((r) => this.send(ws, { type: "admin_result", op: "save", kind: msg.kind, id: msg.id, ...r })).catch(fail);
         else if (msg.type === "admin_reset") this.admin.reset(ms.pkey, msg.kind, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "reset", kind: msg.kind, id: msg.id, ...r })).catch(fail);
@@ -525,7 +534,7 @@ export class MetaService {
           this.send(ws, { type: "role_changed", id: opaqueId(target!), role: r.role || null });
           this.push(ws, session, { toast: r.role ? "Модерка выдана" : "Модерка снята" });
           const osid = this.social.onlineSid(target!); const oe = osid ? this.sessionLookup?.(osid) : null;
-          if (oe) this.send(oe[0], { type: "my_role", role: r.role || null, admin: false });
+          if (oe) { const tms = this.ms.get(oe[1].id); this.send(oe[0], { type: "my_role", role: r.role || null, ...this.roles.panelFlags(tms) }); }
         }).catch((e) => { console.error("[mc] role_set", e?.message || e); this.send(ws, { type: "toast_error", message: "Не удалось сохранить роль" }); });
         return true;
       }

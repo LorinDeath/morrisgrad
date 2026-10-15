@@ -498,11 +498,23 @@ async function boot(canvasId, username, userId, api) {
   let myRole = null; // роль своего аккаунта (сервер: player_roles + проверенный вход)
   net.on('my_role', (d) => {
     myRole = d.role || null;
-    // кнопка панели — только админу (сервер всё равно проверяет каждый admin_* запрос)
+    // кнопка панели — админ (полный доступ) или модератор (бестиарий/оружие/предметы); сервер проверяет каждый admin_*
+    const canPanel = !!(d.admin || d.modAdmin);
+    adminPanel.setAccess({ full: !!d.admin, allowed: !!(d.admin || d.modAdmin), kinds: d.kinds || (d.modAdmin ? ['mob', 'weapon', 'item'] : null) });
     let b = document.getElementById('ghud-admin-btn');
-    if (d.admin && !b) { b = document.createElement('button'); b.id = 'ghud-admin-btn'; b.className = 'hud-duel-btn'; b.title = 'Админ-панель'; b.textContent = '🛠'; b.style.cssText = 'flex:0 0 auto;border-color:#f87171;color:#fca5a5'; b.onclick = () => adminPanel.open(); document.getElementById('ghud-set-btn')?.insertAdjacentElement('afterend', b); }
-    if (b) b.style.display = d.admin ? '' : 'none';
-    if (!d.admin) adminPanel.close();
+    if (canPanel && !b) {
+      b = document.createElement('button'); b.id = 'ghud-admin-btn'; b.className = 'hud-duel-btn'; b.textContent = '🛠';
+      b.onclick = () => adminPanel.open();
+      document.getElementById('ghud-set-btn')?.insertAdjacentElement('afterend', b);
+    }
+    if (b) {
+      b.style.display = canPanel ? '' : 'none';
+      b.title = d.admin ? 'Админ-панель' : 'Панель модератора';
+      b.style.cssText = d.admin
+        ? 'flex:0 0 auto;border-color:#f87171;color:#fca5a5'
+        : 'flex:0 0 auto;border-color:#4ade80;color:#86efac';
+    }
+    if (!canPanel) adminPanel.close();
   });
   const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
@@ -1777,7 +1789,7 @@ async function boot(canvasId, username, userId, api) {
       grim: (g, f) => { grimSet('grim', g); grimSet('fog', f); },
       style: (v) => grimSet('style', v),
       minimap: () => hud.minimap?.stats,
-      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
