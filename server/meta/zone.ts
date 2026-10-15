@@ -4,6 +4,8 @@
 // ИИ по ролям (bestiary.ts): melee, swarm, charger (замах → рывок), ranged (линия-телеграф → выстрел),
 // caster (круг-телеграф под целью), tank (медленный, не отбрасывается). Крупные/боссы — набор
 // телеграфируемых атак по фазам (60% / 30% ХП): круги, линии, кольцо, «волна» вокруг, призыв, ярость.
+import { resolveWorld, freeSpot } from "./propCollision.ts";
+const MOB_R = 12;
 import { mobShot } from "./mobFamily";
 import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
@@ -368,7 +370,7 @@ export class Zone {
     const dx = t.x - m.x, dy = t.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
     const td = ZONE_MOBS[t.type];
     const ranged = d.role === "ranged" || d.role === "caster", want = ranged ? 160 : d.radius + td.radius + 6;
-    if (dist > want) { const sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt; m.x += ux * sp; m.y += uy * sp; }
+    if (dist > want) { const sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt; m.x += ux * sp; m.y += uy * sp; this.solid(m); }
     if (dist <= want + 12 && m.atkCd <= 0) {
       if (ranged) this.events.push({ k: "mshot", id: m.id, x: Math.round(m.x), y: Math.round(m.y), tx: Math.round(t.x), ty: Math.round(t.y) });
       this.mobHit(m, t, d.dmg * mul * (d.role === "tank" ? 1.25 : 1), onKill);
@@ -441,6 +443,14 @@ export class Zone {
   isSpecial(m: ZMob) { return m.special !== ""; }
   clamp(v: number) { return Math.max(20, Math.min(this.size - 20, v)); }
 
+  /** Выталкивание моба из твёрдых пропсов (скользит вдоль ствола/камня). Возврат домой (reset) — без коллизий: поводок не застревает */
+  solid(m: ZMob) { if (m.reset) return; const [x, y] = resolveWorld(this.world, m.x, m.y, MOB_R); m.x = this.clamp(x); m.y = this.clamp(y); }
+  spawnFix(m: ZMob) {
+    (m as any).spOk = 1;
+    const [sx, sy] = freeSpot(this.world, m.sx, m.sy, MOB_R);
+    if (sx !== m.sx || sy !== m.sy) { if (m.x === m.sx && m.y === m.sy) { m.x = sx; m.y = sy; } m.sx = sx; m.sy = sy; (m as any).wanderX = sx; (m as any).wanderY = sy; }
+    this.solid(m);
+  }
   addMob(type: string, x: number, y: number, o: { fixed?: boolean; respawn?: number; region?: string | null; elite?: boolean; hpMul?: number; special?: "" | "boss" | "rare" } = {}) {
     const d = ZONE_MOBS[type];
     const hp = Math.round(d.hp * (o.elite ? ZONE_GEN.eliteHp : 1) * (o.hpMul || 1));
@@ -674,7 +684,7 @@ export class Zone {
       const c = m.casts[i];
       if (now < c.at) continue;
       m.casts.splice(i, 1);
-      if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); }
+      if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); this.solid(m); }
       if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
         this.fire({ o: "m", mob: m.id, t: c.proj, x: m.x, y: m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: c.proj === "fireball" ? 480 : PROJ_SPEED.mob,
           onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type) });
@@ -784,6 +794,7 @@ export class Zone {
         continue;
       }
       awake++;
+      if (!(m as any).spOk) this.spawnFix(m); // дом/спавн — вне твёрдых пропсов (лениво: только бодрствующие, сетка Аринара строится по чанкам)
       if (!m.dead && m.dots?.length) {
         m.dots = m.dots.filter((x) => x.until > now);
         if (!m.dots.length) m.dot = null;
@@ -801,13 +812,13 @@ export class Zone {
         }
       }
       if (!m.dead && (m.kbx || m.kby)) {
-        m.x += m.kbx * dt * 10; m.y += m.kby * dt * 10;
+        m.x += m.kbx * dt * 10; m.y += m.kby * dt * 10; this.solid(m);
         m.kbx *= 0.75; m.kby *= 0.75;
         if (Math.abs(m.kbx) + Math.abs(m.kby) < 0.5) { m.kbx = 0; m.kby = 0; }
       }
       if (m.dead) {
         if (m.fixed && now >= m.respawnAt) {
-          if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; }
+          if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; (m as any).spOk = 0; }
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
           if (m.camp && !m.chief) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
           this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp;
@@ -849,10 +860,10 @@ export class Zone {
       // рывок (charger и крупные): замах (телеграф) → рывок
       if (m.dashT > 0) {
         const dsp = d.size === "s" ? 330 : 420;
-        m.dashT -= dt; m.x += m.dashX * dsp * dt; m.y += m.dashY * dsp * dt;
+        m.dashT -= dt; m.x += m.dashX * dsp * dt; m.y += m.dashY * dsp * dt; this.solid(m);
         for (const p of players.values()) if (p.alive && Math.hypot(p.x - m.x, p.y - m.y) < d.radius + 12 && !m.usedAbility.has("dash:" + p.sid)) { onHit(p.sid, d.dmg * 1.5 * eliteDmg, m.type); m.usedAbility.add("dash:" + p.sid); }
         if (m.dashT <= 0) for (const k of [...m.usedAbility]) if (k.startsWith("dash:")) m.usedAbility.delete(k);
-        m.x = this.clamp(m.x); m.y = this.clamp(m.y);
+        m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
         continue;
       }
       if (m.windup > 0) {
@@ -898,7 +909,7 @@ export class Zone {
             continue;
           }
         }
-        if (dist > want) { m.x += ux * sp * dt; m.y += uy * sp * dt; }
+        if (dist > want) { m.x += ux * sp * dt; m.y += uy * sp * dt; this.solid(m); }
         else if (want > d.radius + 14 && dist < want - 50) { m.x -= ux * sp * 0.6 * dt; m.y -= uy * sp * 0.6 * dt; } // держит дистанцию
         if (dist <= d.radius + 16 && m.atkCd <= 0) {
           const tank = d.role === "tank";
@@ -908,7 +919,7 @@ export class Zone {
       } else {
         // бой моб↔моб: кочевник ↔ враждебный лагерь (осмотр раз в 0.4 с; только в бодрствующих чанках — сюда спящие не доходят)
         if (!m.mobTarget && now >= m.scanAt) { m.scanAt = now + 400; const f = this.findFoe(m, d.aggro); if (f) { m.mobTarget = f.id; this.rally(m, f.id); } }
-        if (m.mobTarget && this.mobFight(m, d, dt, onKill, eliteDmg)) { m.x = this.clamp(m.x); m.y = this.clamp(m.y); continue; }
+        if (m.mobTarget && this.mobFight(m, d, dt, onKill, eliteDmg)) { m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m); continue; }
         if (m.roam) { // кочевник: идёт по петле маршрута; «дом» для поводка — где он сейчас
           const [tx, ty] = m.roam.pts[m.roam.i], dx = tx - m.x, dy = ty - m.y, dist = Math.hypot(dx, dy);
           if (now >= m.roam.waitUntil) {
@@ -918,7 +929,7 @@ export class Zone {
           m.sx = m.x; m.sy = m.y;
           if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt);
           if (m.hp >= m.maxHp) m.dmgBy.clear();
-          m.x = this.clamp(m.x); m.y = this.clamp(m.y);
+          m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
           continue;
         }
         // возврат/брожение у точки спавна; регенерация вне боя
@@ -928,7 +939,7 @@ export class Zone {
         if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt); // горящий/отравленный не лечится
         if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.usedAbility.clear(); m.phase = 1; m.enraged = false; }
       }
-      m.x = this.clamp(m.x); m.y = this.clamp(m.y);
+      m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
     }
     this.stats.awake = awake; this.stats.asleep = asleep;
     this.reindex();
@@ -944,7 +955,7 @@ export class Zone {
     else if (k === "spear_rain") { for (let i = 0; i < 5; i++) { const a = this.rand() * 6.283, r = 40 + this.rand() * 110; this.cast(m, { kind: "circle", at: now + tele + i * 120, x: t.x + Math.cos(a) * r, y: t.y + Math.sin(a) * r, r: Math.round(50 * big), dmg: dmg * 1.2, fx: "spear_rain" }); } }
     else if (k === "whirlwind") this.cast(m, { kind: "ring", at: now + tele, x: m.x, y: m.y, r0: Math.round(30 * big), r: Math.round(210 * big), dmg: dmg * 1.5, fx: "war_axe" });
     else if (k === "fly_blade_dash") { m.windup = 0.6; m.dashX = ux; m.dashY = uy; this.events.push({ k: "tele", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: 220, t: 0.6 }); }
-    else if (k === "shadow_step") { m.x = this.clamp(t.x - ux * 60); m.y = this.clamp(t.y - uy * 60); this.cast(m, { kind: "circle", at: now + 600, x: t.x, y: t.y, r: Math.round(70 * big), dmg: dmg * 1.5, fx: "auto_daggers" }); }
+    else if (k === "shadow_step") { m.x = this.clamp(t.x - ux * 60); m.y = this.clamp(t.y - uy * 60); this.solid(m); this.cast(m, { kind: "circle", at: now + 600, x: t.x, y: t.y, r: Math.round(70 * big), dmg: dmg * 1.5, fx: "auto_daggers" }); }
     else if (k === "fireball") this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(420 * Math.max(0.8, big)), w: Math.round(40 * big), dmg: dmg * 1.6, proj: "fireball" });
     else if (!MOB_NATIVE.has(k)) this.heroCast(m, d, k, t, players, now, dmg, big, tele, ux, uy);
     else if (k === "smoke_bomb") { this.cast(m, { kind: "circle", at: now + 700, x: m.x, y: m.y, r: Math.round(120 * big), dmg: dmg * 0.9, fx: "plague_puddle" }); for (const p of players.values()) if (Math.hypot(p.x - m.x, p.y - m.y) < 140 * big) void p; }
