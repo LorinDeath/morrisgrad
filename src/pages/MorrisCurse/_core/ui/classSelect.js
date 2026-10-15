@@ -143,6 +143,9 @@ export class ClassSelect {
     ];
 
     const el = this.ov.showScreen(html, btns, 'mc3d-class-screen mc-altar-screen');
+    // На весь game-screen поверх боковых панелей HUD (слой оверлея покрывает только канвас)
+    const host = this.ov.container;
+    if (host && el.parentElement !== host) host.appendChild(el);
     el.style.overflowY = 'auto';
     el.querySelectorAll('.mc-altar-card').forEach((b) => {
       b.addEventListener('click', (e) => {
