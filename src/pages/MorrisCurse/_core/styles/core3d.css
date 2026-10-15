@@ -583,7 +583,7 @@
 .mc3d-class .lv { font-size: 11px; color: #fde68a; margin-left: 4px; }
 
 /* ===== Алтарь тел: портрет слева + карточки/статы/экип/сумка справа ===== */
-.mc3d-screen.mc-altar-screen { justify-content: flex-start; padding: 12px 16px 20px; gap: 8px; z-index: 100; background: rgba(5, 3, 10, 0.96); }
+.mc3d-screen.mc-altar-screen { justify-content: flex-start; padding: 12px 16px 20px; gap: 8px; z-index: 100; background: #05030a; }
 .game-screen > .mc3d-screen.mc-altar-screen { position: absolute; inset: 0; width: auto; height: auto; }
 .mc3d-screen.mc-altar-screen > .mc-altar { width: min(1080px, 100%); max-width: 100%; }
 .mc-altar { display: flex; flex-direction: column; gap: 10px; text-align: left; color: #e2e8f0; font-family: monospace; }
