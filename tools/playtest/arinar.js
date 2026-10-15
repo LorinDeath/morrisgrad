@@ -3,11 +3,12 @@
 const { chromium } = require('playwright-core');
 const OUT = '/workspace/morrisgrad-round2';
 // координаты — «семена» ближайших к хабу пятен каждого биома (zoneGen ARINAR_PATCHES, детерминированно)
+// ближайшие к хабу лагеря каждого биома при текущем сиде (пересчитано 15.10.2026: раскладка мира менялась)
 const BIO = [
-  ['ice', 'Кровавые льды', 19677, 29480],
-  ['fire', 'Синее пламя', 10070, 14769],
-  ['stone', 'Железные каменоломни', 12482, 22001],
-  ['air', 'Звёздная высь', 19450, 12766],
+  ['ice', 'Кровавые льды', 25154, 28989],
+  ['fire', 'Синее пламя', 18261, 20917],
+  ['stone', 'Железные каменоломни', 16222, 23693],
+  ['air', 'Звёздная высь', 26175, 18540],
 ];
 const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [33910, 12726, 17], "air": [29031, 29285, 18]}; // второе пятно того же биома в другом месте карты
 // ice: у лагеря из 13 ледяных мобов (центр ~20300,33300; лагеря детерминированы сидом мира) — раньше точка была пустой и тест зависел от бродячих мобов
@@ -98,7 +99,7 @@ const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [3
   {
     const me = await G(A, () => window.__game.debug.pos());
     void me; const X = 24000, Y = 25400; // вне безопасного круга хаба (1200), но ближе 1500 — лагерей тут нет
-    await G(A, ([x, y]) => window.__game.debug.tp(x, y), [X, Y]); await A.waitForTimeout(1500);
+    await G(A, ([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.tp(x, y); }, [X, Y]); await A.waitForTimeout(1500); // и на сервере: навык летит из серверной позиции героя
     await G(A, () => window.__game.debug.rawSend({ type: 'move', x: window.__game.debug.pos().x, y: window.__game.debug.pos().y }));
     await G(A, ([x, y]) => { window.__game.debug.devSpawn('fire_imp', x + 200, y); window.__game.debug.devSpawn('fire_imp', x - 200, y); }, [X, Y]);
     await A.waitForTimeout(350); // мобы ближе (±200): огненный шар — настоящий снаряд, взрывается на первом мобе на пути
@@ -119,26 +120,30 @@ const PATCH2 = {"ice": [20300, 33560, 10], "fire": [31430, 7949, 7], "stone": [3
     ok(front && back && hpOf(front) < front.hp && hpOf(back) === back.hp, `ability «${id}» → east: front ${front?.hp}→${front && hpOf(front)}, back ${back?.hp}→${back && hpOf(back)}`);
   }
   // босс биома + проклятый: dev-спавн рядом
-  await G(A, () => window.__game.debug.tp(10070, 14769)); await A.waitForTimeout(800);
-  await G(A, () => { window.__game.debug.devSpawn('fire_warden', 10290, 14700); window.__game.debug.devSpawn('fire_imp', 9900, 14820, true); });
+  await G(A, () => window.__game.book?.close?.()); await A.keyboard.press('Escape'); // книга с прошлого шага перекрывала канвас — клик не доходил до моба
+  // босс и проклятый моб — прямо у героя (координаты старого пятна огня устарели)
+  { const [bx, by] = [18261, 20917]; await G(A, ([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.tp(x, y); }, [bx, by]); await A.waitForTimeout(2500);
+    await G(A, ([x, y]) => { window.__game.debug.devSpawn('fire_warden', x + 220, y - 70); window.__game.debug.devSpawn('fire_imp', x - 170, y + 50, true); }, [bx, by]); }
   await A.waitForTimeout(2500);
   const ms = await G(A, () => window.__game.debug.zoneMobsFull());
   const boss = ms.find((m) => m.type === 'fire_warden'), cur = ms.find((m) => m.cursed && m.type === 'fire_imp') || ms.find((m) => m.cursed && m.id !== boss?.id);
   ok(!!boss && !!cur, `biome boss fire_warden + cursed mob visible (${cur?.type})`);
   if (boss) {
     const sp = await G(A, ([x, y]) => window.__game.debug.screenOf(x, y), [boss.x, boss.y]);
+    console.log('DBG click', JSON.stringify(sp), await G(A, ([x, y]) => { let e = document.elementFromPoint(x, y); const o = []; while (e && o.length < 5) { o.push(e.className + ':' + (e.textContent || '').slice(0, 30)); e = e.parentElement; } return o.join(' < '); }, [sp.x, sp.y]), JSON.stringify(await G(A, () => ({ pos: window.__game.debug.pos(), mode: window.__game.state().mode, book: !!window.__game.book?.isOpen }))));
     await A.mouse.click(sp.x, sp.y);
     await A.waitForTimeout(1200);
-    const t = await G(A, () => window.__game.debug.target());
-    ok(t?.kind === 'mob' && /Страж Синего Пламени/.test(t.name) && /ур\. 10/.test(t.typeLabel) && /^\d+ \/ \d+$/.test(t.hp), `click → target panel ${JSON.stringify(t)}`);
-    { const sel = await G(A, () => window.__game.debug.selected()); ok(sel === boss.id || (await G(A, () => window.__game.debug.target()))?.id === sel, `selected mob highlighted (ring): sel ${sel}, boss ${boss.id}`); }
+    // верхнюю панель цели убрали (r6): клик выделяет моба (кольцо), имя/уровень — на табличке над мобом
+    { const sel = await G(A, () => window.__game.debug.selected()); const sm = (await G(A, () => window.__game.debug.zoneMobsFull())).find((m) => m.id === sel); // на dev-сервере рядом копятся мобы прошлых прогонов — клик выбирает ближайшего под курсором
+      ok(sel === boss.id || (sm && Math.hypot(sm.x - boss.x, sm.y - boss.y) < 60), `click selects mob under cursor (ring): sel ${sel}, boss ${boss.id}`); }
     await A.screenshot({ path: `${OUT}/arinar-07-boss-target.png` });
   }
   if (cur) {
     const sp = await G(A, ([x, y]) => window.__game.debug.screenOf(x, y), [cur.x, cur.y]);
     await A.mouse.click(sp.x, sp.y); await A.waitForTimeout(1200);
-    const t = await G(A, () => window.__game.debug.target());
-    ok(t?.kind === 'mob' && /Проклятый/.test(t.typeLabel) && /✦/.test(t.typeLabel), `cursed target shows tag + skills ${JSON.stringify(t)}`);
+    const sel = await G(A, () => window.__game.debug.selected()); const cm = (await G(A, () => window.__game.debug.zoneMobsFull())).find((m) => m.id === cur.id);
+    const sm2 = (await G(A, () => window.__game.debug.zoneMobsFull())).find((m) => m.id === sel);
+    ok((sel === cur.id && cm?.cursed) || (sm2 && Math.hypot(sm2.x - cur.x, sm2.y - cur.y) < 60), `click selects mob under cursor (sel ${sel}, cursed ${cm?.cursed})`);
     await A.screenshot({ path: `${OUT}/arinar-08-cursed.png` });
   }
   await G(A, () => window.__game.debug.tp(24000, 24150));
