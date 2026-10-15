@@ -117,25 +117,25 @@ export const SET_BONUSES: Record<string, { pieces: number; stats: Record<string,
 /** Один предмет не больше этой доли бюджета в одну строку (запрет «перегруза»). */
 export const AFFIX_MAX_SHARE = 0.75;
 /** Кап одной строки на одном предмете (итог героя дополнительно режут STAT_CAPS + softCap). */
-export const ITEM_LINE_CAP: Record<string, number> = { critPct: 12, lifestealPct: 4, atkSpeedPct: 12, cdrPct: 10, speedPct: 10, regen: 3, magnetPct: 30 };
-export const STAT_COST: Record<string, number> = { armor: 1, hp: 0.4, critPct: 1.5, speedPct: 1.2, cdrPct: 1.5, regen: 10, lifestealPct: 3, atkSpeedPct: 1.4, magnetPct: 0.2, dmgMin: 1, dmgMax: 1 };
+export const ITEM_LINE_CAP: Record<string, number> = { critPct: 9, lifestealPct: 4, atkSpeedPct: 10, cdrPct: 10, speedPct: 10, regen: 3, magnetPct: 30, armorPen: 18, armorPenPct: 8 };
+export const STAT_COST: Record<string, number> = { armor: 1, hp: 0.4, critPct: 1.5, speedPct: 1.2, cdrPct: 1.5, regen: 10, lifestealPct: 3, atkSpeedPct: 1.4, magnetPct: 0.2, dmgMin: 1, dmgMax: 1, armorPen: 1.2, armorPenPct: 2.5 };
 
 /** Архетипы шмота (роль от экипа, не от класса). Любой класс носит любой предмет. */
 export type GearArchetype = "tank" | "bruiser" | "assassin" | "caster" | "balanced";
 export const ARCHETYPE_SLOT: Record<GearArchetype, Record<string, Record<string, number>[]>> = {
   tank: {
-    helmet: [{ hp: 0.75, armor: 0.25 }, { armor: 0.55, hp: 0.45 }],
-    armor: [{ armor: 0.7, hp: 0.3 }, { armor: 0.5, hp: 0.4, regen: 0.1 }],
-    legs: [{ armor: 0.65, hp: 0.35 }, { armor: 0.5, speedPct: 0.2, hp: 0.3 }],
-    hands: [{ armor: 0.6, hp: 0.4 }, { armor: 0.45, lifestealPct: 0.25, hp: 0.3 }],
-    weapon: [{ armor: 1 }, { hp: 1 }, { lifestealPct: 1 }],
+    helmet: [{ hp: 0.7, armor: 0.25, armorPen: 0.05 }, { armor: 0.55, hp: 0.4, armorPenPct: 0.05 }],
+    armor: [{ armor: 0.65, hp: 0.3, armorPen: 0.05 }, { armor: 0.5, hp: 0.4, regen: 0.1 }],
+    legs: [{ armor: 0.6, hp: 0.35, armorPen: 0.05 }, { armor: 0.5, speedPct: 0.2, hp: 0.3 }],
+    hands: [{ armor: 0.4, armorPen: 0.3, lifestealPct: 0.15, hp: 0.15 }, { armor: 0.35, lifestealPct: 0.25, armorPenPct: 0.25, hp: 0.15 }],
+    weapon: [{ armorPenPct: 0.6, armorPen: 0.4 }, { lifestealPct: 1 }, { armor: 1 }],
   },
   bruiser: {
-    helmet: [{ hp: 0.5, armor: 0.3, critPct: 0.2 }, { hp: 0.45, armor: 0.55 }],
-    armor: [{ armor: 0.45, hp: 0.4, regen: 0.15 }, { armor: 0.5, hp: 0.5 }],
-    legs: [{ speedPct: 0.35, armor: 0.4, hp: 0.25 }, { armor: 0.5, speedPct: 0.5 }],
-    hands: [{ atkSpeedPct: 0.35, critPct: 0.3, armor: 0.35 }, { lifestealPct: 0.4, armor: 0.35, critPct: 0.25 }],
-    weapon: [{ critPct: 1 }, { lifestealPct: 1 }, { atkSpeedPct: 1 }],
+    helmet: [{ hp: 0.35, armor: 0.2, critPct: 0.35, armorPen: 0.1 }, { hp: 0.4, armor: 0.4, armorPenPct: 0.2 }],
+    armor: [{ armor: 0.35, hp: 0.3, critPct: 0.2, regen: 0.15 }, { armor: 0.4, hp: 0.35, armorPen: 0.25 }],
+    legs: [{ speedPct: 0.3, armor: 0.25, critPct: 0.25, hp: 0.2 }, { armor: 0.4, speedPct: 0.4, armorPenPct: 0.2 }],
+    hands: [{ atkSpeedPct: 0.25, critPct: 0.35, armorPen: 0.25, armor: 0.15 }, { lifestealPct: 0.25, armorPenPct: 0.25, critPct: 0.25, armor: 0.25 }],
+    weapon: [{ critPct: 0.65, armorPenPct: 0.35 }, { armorPen: 1 }, { lifestealPct: 1 }, { atkSpeedPct: 1 }],
   },
   assassin: {
     helmet: [{ critPct: 0.55, speedPct: 0.25, hp: 0.2 }, { critPct: 0.45, atkSpeedPct: 0.35, hp: 0.2 }],
@@ -172,9 +172,14 @@ export const SET_PIECE_MULT = 0.5;
 
 /** Плоская броня мобов: урон = max(5% raw, raw − armor). Низкий уровень vs высокий — почти 0. */
 export const ARMOR_SOAK = 1;
-export function mitigateDamage(raw: number, armor: number): number {
-  if (!(raw > 0)) return 0;
+/** Эффективная броня после пробития: % сначала, затем плоское. */
+export function effectiveArmor(armor: number, penFlat = 0, penPct = 0): number {
   const a = Math.max(0, armor || 0);
+  return Math.max(0, a * (1 - Math.min(0.75, Math.max(0, penPct) / 100)) - Math.max(0, penFlat));
+}
+export function mitigateDamage(raw: number, armor: number, penFlat = 0, penPct = 0): number {
+  if (!(raw > 0)) return 0;
+  const a = effectiveArmor(armor, penFlat, penPct);
   return Math.max(1, Math.round(Math.max(raw * 0.05, raw - a * ARMOR_SOAK)));
 }
 
@@ -202,46 +207,39 @@ export function refBuild(L: number, arch: GearArchetype, rarity = "uncommon") {
   const b = itemBudget(L, rarity);
   const wa = weaponAvg(L, rarity);
   const slots = ["helmet", "armor", "legs", "hands"] as const;
-  let hp = 120 + 8 * (L - 1), armor = 8 + 2 * (L - 1), crit = 5, atkSp = 0, life = 0, cdr = 0;
+  let hp = 120 + 8 * (L - 1), armor = 8 + 2 * (L - 1), crit = 5, atkSp = 0, life = 0, cdr = 0, penFlat = 0, penPct = 0;
   const profiles = ARCHETYPE_SLOT[arch];
+  const addLine = (k: string, raw: number) => {
+    const cap = ITEM_LINE_CAP[k];
+    const v = cap != null ? Math.min(cap, raw) : raw;
+    if (k === "hp") hp += v; else if (k === "armor") armor += v; else if (k === "critPct") crit += v;
+    else if (k === "atkSpeedPct") atkSp += v; else if (k === "lifestealPct") life += v; else if (k === "cdrPct") cdr += v;
+    else if (k === "armorPen") penFlat += v; else if (k === "armorPenPct") penPct += v;
+  };
   for (const slot of slots) {
     const prof = profiles[slot][0];
-    for (const [k, f] of Object.entries(prof)) {
-      const v = (b * f) / (STAT_COST[k] || 1);
-      if (k === "hp") hp += v;
-      else if (k === "armor") armor += v;
-      else if (k === "critPct") crit += v;
-      else if (k === "atkSpeedPct") atkSp += v;
-      else if (k === "lifestealPct") life += v;
-      else if (k === "cdrPct") cdr += v;
-    }
+    for (const [k, f] of Object.entries(prof)) addLine(k, (b * Math.min(AFFIX_MAX_SHARE, f)) / (STAT_COST[k] || 1));
   }
-  // weapon secondary
   const wp = profiles.weapon[0];
-  for (const [k, f] of Object.entries(wp)) {
-    const v = (b * 0.35 * f) / (STAT_COST[k] || 1);
-    if (k === "hp") hp += v;
-    else if (k === "armor") armor += v;
-    else if (k === "critPct") crit += v;
-    else if (k === "atkSpeedPct") atkSp += v;
-    else if (k === "lifestealPct") life += v;
-  }
-  const dmgMult = arch === "caster" ? 1.25 : arch === "assassin" ? 1.15 : arch === "tank" ? 0.75 : 1;
+  for (const [k, f] of Object.entries(wp)) addLine(k, (b * 0.35 * Math.min(AFFIX_MAX_SHARE, f)) / (STAT_COST[k] || 1));
+  const dmgMult = arch === "caster" ? 1.25 : arch === "assassin" ? 1.15 : arch === "tank" ? 0.85 : 1;
   const hpMult = arch === "tank" ? 1.35 : arch === "caster" ? 0.7 : arch === "assassin" ? 0.8 : 1;
   const armMult = arch === "tank" ? 1.4 : arch === "caster" ? 0.55 : arch === "assassin" ? 0.65 : 1;
   hp *= hpMult; armor *= armMult;
-  const hit = (10 + wa * dmgMult) * (1 + Math.min(0.5, (L - 1) * 0.012)) * (1 + 0.75 * Math.min(0.45, crit / 100));
+  // ITEM_LINE_CAP уже применён; softCap/STAT_CAPS — на герое (profile / sim)
+  penFlat = Math.min(70, penFlat); penPct = Math.min(40, penPct);
+  const hit = (10 + wa * dmgMult) * (1 + Math.min(0.5, (L - 1) * 0.012));
   const atkPerSec = (1 / 0.45) * (1 + Math.min(50, atkSp) / 100);
   const skill = arch === "caster" ? 1.55 : arch === "assassin" ? 1.35 : 1.25;
-  const dps = hit * atkPerSec * skill;
+  const dps = hit * (1 + 0.75 * Math.min(0.55, crit / 100)) * atkPerSec * skill;
   const red = Math.min(0.7, armor / (armor + 250));
-  return { hp: Math.round(hp), armor: Math.round(armor), red, ehp: hp / (1 - red), hit, dps, crit, atkSp, life, arch, wMin: Math.round(wa * dmgMult * 0.55), wMax: Math.round(wa * dmgMult * 1.45) };
+  return { hp: Math.round(hp), armor: Math.round(armor), red, ehp: hp / (1 - red), hit, dps, crit, atkSp, life, penFlat: Math.round(penFlat), penPct: Math.round(penPct * 10) / 10, arch, wMin: Math.round(wa * dmgMult * 0.55), wMax: Math.round(wa * dmgMult * 1.45) };
 }
 
 // ---------------- мобы ----------------
-export function ttkTarget(L: number): number { return 4.0 + 2.8 * (L - 1) / 24; }
+export function ttkTarget(L: number): number { return 5.5 + 2.5 * (L - 1) / 24; }
 /** Броня моба ≈ 0.85× средний удар эталона — ниже уровнем почти не пробивает (flat soak). */
-export function mobArmor(L: number): number { return Math.round(weaponAvg(L, "uncommon") * 0.85); }
+export function mobArmor(L: number): number { return Math.round(weaponAvg(L, "uncommon") * 0.86); }
 export const ROLE_MULT: Record<string, { hp: number; dmg: number; speed: number; xp: number }> = {
   melee: { hp: 1, dmg: 1, speed: 1, xp: 1 },
   swarm: { hp: 0.45, dmg: 0.6, speed: 1.35, xp: 0.45 },
@@ -254,18 +252,30 @@ export const SIZE_MULT: Record<string, { hp: number; dmg: number; xp: number }> 
   s: { hp: 1, dmg: 1, xp: 1 },
   l: { hp: 3.5, dmg: 1.4, xp: 3 },
   // Мировые боссы: расчёт под рейд 5 игроков ~4–5 мин на своём уровне (миллионы HP к 20–25)
-  boss: { hp: 180, dmg: 2.2, xp: 40 },
-  huge: { hp: 420, dmg: 2.6, xp: 80 },
+  boss: { hp: 180, dmg: 1.55, xp: 40 },
+  huge: { hp: 420, dmg: 1.65, xp: 80 },
 };
 /** Соло vs мировой босс: нужно опережать уровень на OUTLEVEL_SOLO_BOSS (kite/пробитие). */
 export const OUTLEVEL_SOLO_BOSS = 9;
 /** Урон моба по герою от разницы уровней: герой выше — ×0.8/ур. (мин 0.1), ниже — ×1.12/ур. (макс 2.5). */
+/** Урон героя по мобу выше уровнем: −18%/ур. (мин 0.35) — gap hard. */
+export function levelGapHitMult(mobL: number, heroL: number): number {
+  const g = (mobL || 1) - (heroL || 1);
+  if (g <= 0) return 1;
+  // ранние уровни: сильнее режет удар (длинный gap-бой); к 25 — мягче
+  const per = 0.65 + 0.16 * Math.max(0, (heroL || 1) - 1) / 24;
+  return Math.max(0.35, Math.pow(per, g));
+}
 export function levelGapDmgMult(mobL: number, heroL: number): number {
   const g = (heroL || 1) - (mobL || 1);
-  return g >= 0 ? Math.max(0.1, Math.pow(0.8, g)) : Math.min(2.5, Math.pow(1.12, -g));
+  if (g >= 0) return Math.max(0.1, Math.pow(0.82, g));
+  const under = -g;
+  // ранние уровни: моб бьёт больнее vs underlevel (gap drain); к 25 — мягче
+  const per = 1.80 - 0.42 * Math.max(0, (heroL || 1) - 1) / 24;
+  return Math.min(2.6, Math.pow(per, Math.min(2, under)) * Math.pow(1.1, Math.max(0, under - 2)));
 }
 /** Целевой TTK рейда из 5 на боссе своего уровня (сек). */
-export const BOSS_RAID_TTK = 240;
+export const BOSS_RAID_TTK = 235;
 export function mobStats(L: number, role = "melee", size = "s") {
   const h = refHero(L), R = ROLE_MULT[role] || ROLE_MULT.melee, S = SIZE_MULT[size] || SIZE_MULT.s;
   const press = soloPressure(L);
@@ -279,12 +289,12 @@ export function mobStats(L: number, role = "melee", size = "s") {
     // Рейд из 5 на своём уровне ~4.5 мин; huge чуть толще. Соло своего уровня — не успевает до enrage.
     // сырой DPS рейда (5 сборок своего уровня + навыки/DoT) × ~4.5 мин → миллионы HP
     let raid = 0; // эффективный DPS рейда из 5 архетипов своего уровня (с учётом брони босса)
-    for (const a of ["tank", "caster", "assassin", "bruiser", "balanced"] as GearArchetype[]) { const rb = refBuild(L, a); raid += mitigateDamage(rb.hit, armor) / Math.max(1, rb.hit) * rb.dps; }
+    for (const a of ["tank", "caster", "assassin", "bruiser", "balanced"] as GearArchetype[]) { const rb = refBuild(L, a); const eh = mitigateDamage(rb.hit, armor, rb.penFlat || 0, rb.penPct || 0); raid += eh / Math.max(1, rb.hit) * rb.dps; }
     hp = raid * BOSS_RAID_TTK;
   } else {
     hp = effDps * ttkTarget(L) * R.hp * S.hp * press;
   }
-  const deathT = isWorld ? 360 : (36 - 8 * (L - 1) / 24);
+  const deathT = isWorld ? 95 : (32 - 6 * (L - 1) / 24); // мировой босс: фокус танка ~25–40 с
   const dmgHit = (h.ehp / deathT) * 1.1 * R.dmg * S.dmg * press;
   return { hp: Math.round(hp), dmg: Math.round(dmgHit * 10) / 10, armor: Math.round(armor), xp: Math.round(mobXp(L) * R.xp * S.xp * (isWorld ? 1 : 1)), speedMult: R.speed };
 }

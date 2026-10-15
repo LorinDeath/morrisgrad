@@ -28,7 +28,7 @@ export function heroLevelHp(level: number): number { return (Math.min(HERO_MAX_L
 export type StatKey = "hp" | "armor" | "dmgPct" | "speedPct" | "regen" | "magnetPct" | "cdrPct" | "critPct" | "lifestealPct" | "atkSpeedPct" | "revive";
 // Жёсткие капы итоговых значений после всех источников (таланты + предметы + сияние + душа)
 export const STAT_CAPS: Record<string, number> = {
-  critPct: 55, cdrPct: 40, lifestealPct: 12, atkSpeedPct: 55, speedPct: 35, magnetPct: 120, dmgPct: 100, regen: 8, damageReduction: 0.72,
+  critPct: 55, cdrPct: 40, lifestealPct: 12, atkSpeedPct: 55, speedPct: 35, magnetPct: 120, dmgPct: 100, regen: 8, damageReduction: 0.72, armorPenPct: 40, armorPen: 70,
 };
 // Убывающая отдача: эффективное = cap * (1 - exp(-raw / cap)) — первые очки почти 1:1, дальше всё меньше.
 export function softCap(raw: number, cap: number): number {
@@ -234,7 +234,7 @@ export const RARITIES: Record<string, { name: string; color: string; order: numb
 // 4 слота одежды (шлем, броня, ноги, руки) + оружие
 export const SLOTS: Record<string, string> = { weapon: "Оружие", helmet: "Шлем", armor: "Броня", legs: "Ноги", hands: "Руки" };
 export const SLOT_ORDER = ["weapon", "helmet", "armor", "legs", "hands"];
-export interface ItemStats { dmgMin?: number; dmgMax?: number; armor?: number; hp?: number; speedPct?: number; critPct?: number; regen?: number; cdrPct?: number; magnetPct?: number; lifestealPct?: number; atkSpeedPct?: number }
+export interface ItemStats { dmgMin?: number; dmgMax?: number; armor?: number; hp?: number; speedPct?: number; critPct?: number; regen?: number; cdrPct?: number; magnetPct?: number; lifestealPct?: number; atkSpeedPct?: number; armorPen?: number; armorPenPct?: number }
 export interface ItemDef {
   id: string; name: string; slot: string; rarity: string; classes?: HeroId[]; stats: ItemStats; lore: string; icon: string;
   monster?: string; look?: string; grantsAbility?: string; band?: string; // band — зона/полоса силы

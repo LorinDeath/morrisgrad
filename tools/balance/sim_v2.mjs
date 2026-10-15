@@ -20,7 +20,7 @@ const allItems = [...CONTENT.items, ...B.ITEMS.filter((i) => !genIds.has(i.id) &
 for (const it of allItems) {
   const old = P["item:" + it.id] || {};
   const d = { lvl: old.lvl ?? it.lvl, req: old.req ?? it.req };
-  for (const k of ["dmgMin", "dmgMax", "armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct"]) d["stats." + k] = it.stats[k] || 0; // явные 0 — старые базовые значения не «протекают»
+  for (const k of ["dmgMin", "dmgMax", "armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct", "armorPen", "armorPenPct"]) d["stats." + k] = it.stats[k] || 0;
   for (const k of ["rs", "traits", "salvage"]) if (old[k] != null) d[k] = old[k];
   const v = validatePatch("item", it.id, d); if (typeof v === "string") { fails.push(`item ${it.id}: ${v}`); continue; }
   apply.push(up("item", it.id, v, "rebalance-v2")); touched.push("item:" + it.id);
@@ -49,37 +49,47 @@ function hero(L, arch = "bruiser", gearD = 0, syn = {}) {
   const as = softCap(b.atkSp + (syn.as || 0), STAT_CAPS.atkSpeedPct) / 100;
   const ls = softCap(b.life + (syn.ls || 0), STAT_CAPS.lifestealPct) / 100;
   const hpMul = syn.hpMul || 1, dmgMul = syn.dmgMul || 1;
-  const hit = b.hit / (1 + 0.75 * Math.min(0.45, b.crit / 100)) * dmgMul; // без крита
-  return { L, arch, hp: b.hp * hpMul, red: armorToReduction(b.armor * (syn.armMul || 1)), hit, aps: (1000 / 450) * (1 + as), crit, critMul: 1.75 + (syn.critDmg || 0), ls, skill: arch === "caster" ? 1.55 : 1.3 };
+  const hit = b.hit * dmgMul; // hit уже без крита (крит в fight)
+  return { L, gearL: Math.max(1, L + gearD), arch, hp: b.hp * hpMul, red: armorToReduction(b.armor * (syn.armMul || 1)), hit, aps: (1000 / 450) * (1 + as), crit, critMul: 1.75 + (syn.critDmg || 0), ls, skill: arch === "caster" ? 1.55 : arch === "assassin" ? 1.35 : 1.25, penFlat: Math.min(70, (b.penFlat || 0) + (syn.penFlat || 0)), penPct: softCap((b.penPct || 0) + (syn.penPct || 0), STAT_CAPS.armorPenPct || 40) };
 }
 // fight: n героев против моба; kite=true — соло уходит из мили (обычный моб не догоняет, проклятый/босс догоняет)
 function fight(hs, m, { cursed = false, world = false, kite = false, maxT = 900 } = {}) {
-  const gm = B.levelGapDmgMult(m.lvl || hs[0].L, hs[0].L); let mhp = m.hp * (cursed ? G.cursedHp : 1), arm = m.armor * (cursed ? 1.3 : 1), dmg = m.dmg * (cursed ? G.cursedDmg : 1);
-  const hp = hs.map((h) => h.hp); let t = 0, dt = 0.1, enr = false, regenAcc = 0, heal = 0;
+  const gm = B.levelGapDmgMult(m.lvl || hs[0].L, hs[0].L); const hm = B.levelGapHitMult(m.lvl || hs[0].L, hs[0].L); let mhp = m.hp * (cursed ? G.cursedHp : 1), arm = m.armor * (cursed ? 1.45 : 1), dmg = m.dmg * (cursed ? G.cursedDmg : 1);
+  const hp = hs.map((h) => h.hp); const maxHp = hs.map((h) => h.hp); let t = 0, dt = 0.1, enr = false;
   while (t < maxT) {
     t += dt;
-    const alive = hs.filter((_, i) => hp[i] > 0); if (!alive.length) return { win: false, t: +t.toFixed(1), why: "dead" };
+    const alive = hs.filter((_, i) => hp[i] > 0); if (!alive.length) return { win: false, t: +t.toFixed(1), why: "dead", hpLeft: 0 };
     let dealt = 0;
-    for (const h of alive) { const per = mitigateDamage(h.hit * (1 + h.crit * (h.critMul - 1)), arm) * h.skill; const d = per * h.aps * dt * (kite ? 0.55 : 1); dealt += d; heal = d * h.ls; const i = hs.indexOf(h); hp[i] = Math.min(h.hp, hp[i] + heal); }
-    mhp -= dealt; if (mhp <= 0) return { win: true, t: +t.toFixed(1) };
+    for (const h of alive) {
+      const per = mitigateDamage(h.hit * (1 + h.crit * (h.critMul - 1)) * hm, arm, h.penFlat || 0, h.penPct || 0) * h.skill;
+      const d = per * h.aps * dt * (kite ? 0.55 : 1); dealt += d;
+      const i = hs.indexOf(h); hp[i] = Math.min(h.hp, hp[i] + d * h.ls);
+    }
+    mhp -= dealt;
+    if (mhp <= 0) {
+      const left = Math.max(0, ...hp.map((x, i) => x / maxHp[i]));
+      return { win: true, t: +t.toFixed(1), hpLeft: +left.toFixed(3) };
+    }
     if (world && !enr && hs[0].L < m.lvl + OUTLEVEL_SOLO_BOSS && ((alive.length < G.bossEnrageMinPlayers && t >= G.bossEnrageSec) || t >= G.bossSoftEnrageSec)) enr = true;
-    // кайт: обычный моб почти не попадает; проклятый (×cursedSpeed + прыжки) и мировой босс (рывки) — догоняют ~85%
-    const catchUp = kite ? (cursed || world ? 0.85 : 0.1) : 1;
-    const tanks = alive.filter((h) => h.arch === "tank" || h.arch === "bruiser"); const pool = world && tanks.length ? tanks : alive; const tank = world && pool.length > 1 ? pool[Math.floor(t / 10) % pool.length] : pool.reduce((a, b) => (b.hp > a.hp ? b : a)); // рейд: танк+брузер меняются каждые 10 с, ДД ловят только AoE
+    const out = world && hs[0].L >= (m.lvl || 0) + OUTLEVEL_SOLO_BOSS; const catchUp = kite ? (cursed || world ? 0.85 : 0.1) : (out ? 0.4 : 1);
+    const tanks = alive.filter((h) => h.arch === "tank" || h.arch === "bruiser");
+    const pool = world && tanks.length ? tanks : alive;
+    const tank = world && pool.length > 1 ? pool[Math.floor(t / 10) % pool.length] : pool.reduce((a, b) => (b.hp > a.hp ? b : a));
     const ti = hs.indexOf(tank);
-    hp[ti] -= (dmg * gm / 1.1) * dt * (1 - tank.red) * catchUp * (enr ? G.bossEnrageDmg : 1) * (world ? 1 : 1);
-    if (world) for (const h of alive) if (h !== tank) hp[hs.indexOf(h)] -= dmg * gm * 0.15 * dt * (1 - h.red) * (enr ? G.bossEnrageDmg : 1); // AoE по всем
+    const atkRate = hm < 1 ? 1.1 / 0.85 : 1.1; // моб агрессивнее vs героя ниже уровнем
+    hp[ti] -= (dmg * gm / atkRate) * dt * (1 - tank.red) * catchUp * (enr ? G.bossEnrageDmg : 1);
+    if (world) for (const h of alive) if (h !== tank) hp[hs.indexOf(h)] -= dmg * gm * 0.08 * dt * (1 - h.red) * (enr ? G.bossEnrageDmg : 1);
   }
-  return { win: false, t: maxT, why: "timeout" };
+  return { win: false, t: maxT, why: "timeout", hpLeft: 0 };
 }
 const R = { normal: [], world: [], synergy: [], weapons: [] };
 for (const L of [5, 10, 15, 20, 25]) {
   const m = mobAt(L), mUp = mobAt(L + 1);
-  R.normal.push({ L, mob: m, same: fight([hero(L)], m), gapHard: fight([hero(L, "bruiser", -1)], mUp), low_vs_high: { L5vsL8_hitAfterArmor: L === 5 ? mitigateDamage(hero(5).hit, mobAt(8).armor) : undefined }, kiteCursed: fight([hero(L)], m, { cursed: true, kite: true }), cursedSolo: fight([hero(L)], m, { cursed: true }), cursedParty3: fight([hero(L, "tank"), hero(L, "caster"), hero(L, "assassin")], m, { cursed: true }) });
+  R.normal.push({ L, mob: m, same: fight([hero(L)], m), gapHard: fight([hero(L, "bruiser", -1)], mUp), low_vs_high: { L5vsL8_hitAfterArmor: L === 5 ? mitigateDamage(hero(5).hit * B.levelGapHitMult(8, 5), mobAt(8).armor) : undefined }, kiteCursed: fight([hero(L)], m, { cursed: true, kite: true }), cursedSolo: fight([hero(L)], m, { cursed: true }), cursedParty3: fight([hero(L, "tank", 0, { ls: 35 }), hero(L, "bruiser"), hero(L, "assassin")], m, { cursed: true }) });
   const wb = mobAt(L, "huge", "caster");
   R.world.push({ L, hp: wb.hp, armor: wb.armor, soloKite: fight([hero(L)], wb, { world: true, kite: true }), solo: fight([hero(L)], wb, { world: true }),
-    party5: fight([hero(L, "tank"), hero(L, "caster"), hero(L, "assassin"), hero(L, "bruiser"), hero(L, "balanced")], wb, { world: true }),
-    soloOutlevel: fight([hero(L + OUTLEVEL_SOLO_BOSS)], wb, { world: true, kite: true, maxT: 1800 }), soloOutlevel5: fight([hero(L + 5)], wb, { world: true, kite: true, maxT: 1800 }) });
+    party5: fight([hero(L, "tank", 0, { ls: 25 }), hero(L, "caster"), hero(L, "assassin"), hero(L, "bruiser"), hero(L, "balanced")], wb, { world: true }),
+    soloOutlevel: fight([hero(L + OUTLEVEL_SOLO_BOSS, "assassin")], wb, { world: true, kite: false, maxT: 1800 }), soloOutlevel5: fight([hero(L + 5)], wb, { world: true, kite: true, maxT: 1800 }) });
 }
 const L = 20, m20 = mobAt(20);
 const builds = {
@@ -88,14 +98,35 @@ const builds = {
   "glass-cannon caster": hero(L, "caster", 0, { crit: 30, dmgMul: 1.6, hpMul: 0.7 }),
   "baseline bruiser": hero(L),
 };
-for (const [n, h] of Object.entries(builds)) { const f = fight([h], m20), c = fight([h], m20, { cursed: true }); R.synergy.push({ build: n, crit: +(h.crit * 100).toFixed(1), atkSpeedPct: +((h.aps / (1000 / 450) - 1) * 100).toFixed(1), lifesteal: +(h.ls * 100).toFixed(1), dpsVsMob: Math.round(mitigateDamage(h.hit * (1 + h.crit * (h.critMul - 1)), m20.armor) * h.skill * h.aps), normal: f, cursedSolo: c }); }
+for (const [n, h] of Object.entries(builds)) { const f = fight([h], m20), c = fight([h], m20, { cursed: true }); R.synergy.push({ build: n, crit: +(h.crit * 100).toFixed(1), atkSpeedPct: +((h.aps / (1000 / 450) - 1) * 100).toFixed(1), lifesteal: +(h.ls * 100).toFixed(1), penFlat: h.penFlat, penPct: h.penPct, dpsVsMob: Math.round(mitigateDamage(h.hit * (1 + h.crit * (h.critMul - 1)), m20.armor, h.penFlat, h.penPct) * h.skill * h.aps), normal: f, cursedSolo: c }); }
 for (const w of Object.keys(B.WEAPON_CD)) { const hit = weaponAvg(20, "epic") * weaponHitMult(w); R.weapons.push({ w, cd: B.WEAPON_CD[w], hit: Math.round(hit), dmgMin: Math.round(hit * 0.55), dmgMax: Math.round(hit * 1.45), dpsIndex: Math.round(hit * (B.WEAPON_VOLLEY[w] || 1) / (B.WEAPON_CD[w] / 1000)) }); }
 // проверки
-for (const n of R.normal) { if (!n.same.win) fails.push(`L${n.L} same-level`); if (n.kiteCursed.win) fails.push(`L${n.L} cursed kite should fail`); if (n.cursedSolo.win) fails.push(`L${n.L} cursed solo should fail`); if (!n.cursedParty3.win) fails.push(`L${n.L} cursed party3`); }
-for (const w of R.world) { if (w.soloKite.win || w.solo.win) fails.push(`WB L${w.L} solo should fail`); if (!w.party5.win || w.party5.t < 150 || w.party5.t > 400) fails.push(`WB L${w.L} party5 ${w.party5.t}s`); if (!w.soloOutlevel.win) fails.push(`WB L${w.L} solo +${OUTLEVEL_SOLO_BOSS} should win`); }
-for (const s of R.synergy) if (s.lifesteal > STAT_CAPS.lifestealPct + 0.01 || s.crit > STAT_CAPS.critPct + 0.01) fails.push("cap broken " + s.build);
+for (const n of R.normal) {
+  if (!n.same.win) fails.push(`L${n.L} same-level`);
+  if (!n.gapHard.win) fails.push(`L${n.L} gear-1 vs mob+1 should WIN (hard)`);
+  else {
+    const lim = n.L <= 5 ? 0.45 : n.L <= 10 ? 0.35 : 0.30;
+    if (n.gapHard.hpLeft > lim) fails.push(`L${n.L} gear-1 vs mob+1 too easy hpLeft=${n.gapHard.hpLeft} (lim ${lim})`);
+  }
+  if (n.kiteCursed.win) fails.push(`L${n.L} cursed kite should fail`);
+  if (n.cursedSolo.win) fails.push(`L${n.L} cursed solo should fail`);
+  if (!n.cursedParty3.win) fails.push(`L${n.L} cursed party3`);
+  if (n.L === 5 && !(n.low_vs_high.L5vsL8_hitAfterArmor <= 8)) fails.push(`L5 vs L8 should be near-impenetrable (got ${n.low_vs_high.L5vsL8_hitAfterArmor})`);
+}
+for (const w of R.world) {
+  if (w.soloKite.win || w.solo.win) fails.push(`WB L${w.L} solo should fail`);
+  if (!w.party5.win || w.party5.t < 160 || w.party5.t > 400) fails.push(`WB L${w.L} party5 ${w.party5.t}s`);
+  if (!w.soloOutlevel.win) fails.push(`WB L${w.L} solo +${OUTLEVEL_SOLO_BOSS} should win`);
+  // базовый удар угрожает танку: соло умирает за <120 с (не «бесконечно»)
+  if (!(w.solo.t < 120)) fails.push(`WB L${w.L} basic hit too soft (solo dies ${w.solo.t}s)`);
+}
+for (const s of R.synergy) {
+  if (s.lifesteal > STAT_CAPS.lifestealPct + 0.01 || s.crit > STAT_CAPS.critPct + 0.01) fails.push("cap broken " + s.build);
+  if (s.build === "lifesteal tank" && (!s.normal.win || s.normal.t < 6 || s.normal.t > 10)) fails.push(`lifesteal tank TTK ${s.normal.t} (want 6–10s)`);
+  if (s.build === "baseline bruiser" && (s.crit < 32 || s.crit > 48)) fails.push(`baseline crit ${s.crit} (want ~35–45 at L20)`);
+}
 writeFileSync(OUT + "/sim-v2.json", JSON.stringify({ ...R, mobRows, fails, caps: STAT_CAPS, outlevel: OUTLEVEL_SOLO_BOSS }, null, 2));
-console.log(JSON.stringify({ normal: R.normal.map((n) => [n.L, n.same.t, n.gapHard.win, n.kiteCursed.win, n.cursedParty3.t, n.low_vs_high.L5vsL8_hitAfterArmor]), world: R.world.map((w) => [w.L, w.hp, w.solo.why, w.party5.win, w.party5.t, w.soloOutlevel.win, w.soloOutlevel.t, w.soloOutlevel5.win, w.solo.t]), syn: R.synergy.map((s) => [s.build, s.dpsVsMob, s.normal.t, s.cursedSolo.win]), weapons: R.weapons.map((w) => [w.w, w.hit, w.dpsIndex]) }));
+console.log(JSON.stringify({ normal: R.normal.map((n) => [n.L, n.same.t, n.gapHard.win, n.gapHard.hpLeft, n.gapHard.t, n.kiteCursed.win, n.cursedParty3.t, n.low_vs_high.L5vsL8_hitAfterArmor]), world: R.world.map((w) => [w.L, w.hp, w.solo.why, w.party5.win, w.party5.t, w.soloOutlevel.win, w.soloOutlevel.t, w.soloOutlevel5.win, w.solo.t]), syn: R.synergy.map((s) => [s.build, s.crit, s.dpsVsMob, s.normal.t, s.penFlat, s.penPct, s.cursedSolo.win]), weapons: R.weapons.map((w) => [w.w, w.hit, w.dpsIndex]) }));
 console.log("items/mobs", touched.length, "FAILS", fails.length, fails.slice(0, 20));
 if (process.env.DBG) { const wb = mobAt(20, "huge", "caster"); for (const a of ["tank","caster","assassin","bruiser","balanced"]) { const h = hero(20, a); console.log(a, Math.round(h.hit), wb.armor, Math.round(mitigateDamage(h.hit*(1+h.crit*(h.critMul-1)), wb.armor)*h.skill*h.aps), Math.round(h.hp)); } const h=hero(29); console.log("L29", Math.round(mitigateDamage(h.hit*(1+h.crit*(h.critMul-1)), wb.armor)*h.skill*h.aps), h.hp, wb.dmg); }
 if (process.env.DBG2) { for (const L of [5,20]) { const wb = mobAt(L, "huge", "caster"); const hs = ["tank","caster","assassin","bruiser","balanced"].map(a=>hero(L,a)); const d = hs.map(h=>Math.round(mitigateDamage(h.hit*(1+h.crit*(h.critMul-1)), wb.armor)*h.skill*h.aps)); const rb = ["tank","caster","assassin","bruiser","balanced"].map(a=>{const r=refBuild(L,a); return Math.round(mitigateDamage(r.hit, wb.armor)/r.hit*r.dps)}); console.log(L, wb.hp, wb.dmg, d, rb, hs.map(h=>Math.round(h.hp)+"/"+h.red.toFixed(2))); } }

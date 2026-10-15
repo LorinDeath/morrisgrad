@@ -1046,12 +1046,12 @@ export class Zone {
   mobsAround(x: number, y: number, r: number): ZMob[] {
     return this.near(x, y, r + 60).filter((m) => Math.hypot(m.x - x, m.y - y) <= r + ZONE_MOBS[m.type].radius);
   }
-  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void) {
+  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number }) {
     if (m.dead) return;
     const d = ZONE_MOBS[m.type];
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
-    const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? 1.3 : 1);
-    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
+    const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? 1.45 : 1);
+    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
