@@ -13,7 +13,7 @@ const OUT = '/workspace/morrisgrad-round2';
   await p.waitForTimeout(1200);
   const slots = () => G(() => [...document.querySelectorAll('.mc-abar-main .mc-as')].map((e) => ({ kind: e.dataset.kind, id: e.dataset.id, key: e.querySelector('.key')?.textContent, cd: e.querySelector('.cd')?.textContent, locked: e.classList.contains('locked'), empty: e.classList.contains('empty'), oncd: e.classList.contains('oncd'), pend: e.classList.contains('pending'), rc: e.style.getPropertyValue('--rc') })));
   let s0 = await slots();
-  ok(s0.length === 5 && s0.filter((x) => x.kind === 'ab').every((x) => x.locked), 'soul (no hero): 3 locked skill slots + dash + attack — ' + s0.map((x) => x.kind + (x.locked ? '🔒' : '')).join(','));
+  ok(s0.length === 6 && s0.filter((x) => ['ab', 'rs', 'atk'].includes(x.kind)).every((x) => x.locked) && s0.some((x) => x.kind === 'dash' && !x.locked), 'soul (no hero): Q/G/F + R + attack locked (герой на Алтаре), dash open — ' + s0.map((x) => x.kind + (x.locked ? '🔒' : '')).join(','));
   // герой
   for (let i = 0; i < 6; i++) { await G(() => window.__game.debug.selectClass('warrior')); await p.waitForTimeout(1500); if (await G(() => !!window.__game.meta?.hero)) break; }
   await p.waitForFunction(() => document.querySelector('.mc-abar-main .mc-as.ab:not(.locked):not(.empty)'), null, { timeout: 8000 }).catch(() => {});

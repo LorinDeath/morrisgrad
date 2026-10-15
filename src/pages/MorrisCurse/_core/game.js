@@ -1146,7 +1146,7 @@ async function boot(canvasId, username, userId, api) {
     list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок (Space / Shift)', cdLeft: dash.cd, cdTotal: DASH.cooldown });
     const wt = zone.myWeaponType(player.stats.classId);
     const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
-    list.push({ kind: 'atk', id: 'attack', key: 'ЛКМ', name: `Атака: ${WEAPON_TYPES[wt]?.name || 'оружие'}`, desc: 'Удерживайте ЛКМ — удар в сторону курсора; V — автоатака', cdLeft: Math.max(0, atkMs - (now - zoneSt.lastAtk)) / 1000, cdTotal: atkMs / 1000, locked: !h, lockText: 'атака — у героя' });
+    list.push({ kind: 'atk', id: 'attack', key: 'ЛКМ', name: `Атака: ${WEAPON_TYPES[wt]?.name || 'оружие'}`, desc: 'Удерживайте ЛКМ — удар в сторону курсора; V — автоатака', cdLeft: Math.max(0, atkMs - (now - zoneSt.lastAtk)) / 1000, cdTotal: atkMs / 1000, locked: !h, lockText: 'атака есть только у героя — выберите героя на Алтаре Перевоплощения' });
     abar.setSlots(list);
   }
   function refreshAbilityButtons() {
