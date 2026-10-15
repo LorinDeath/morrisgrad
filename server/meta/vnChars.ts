@@ -30,9 +30,23 @@ export const vnIcon = (id: string) => `${VN_BASE}/${id}/icon.webp`;
 export const npcVnChar = (npc: string) => Object.values(VN_CHARS).find((c) => c.npc === npc)?.id || (npc === "leyr_echo" ? "leyr" : undefined);
 
 export interface VnWindow { who: string; emo: VnEmotion; text: string }
-export interface QuestDialogue { offer: VnWindow[]; done: VnWindow[] }
+/** поток квеста: offer — окна пояснения → accept — окно получения (цели+награда, «Взять») → progress — «В процессе» → done — окна сдачи («Сдать» на последнем) */
+export interface QuestDialogue { offer: VnWindow[]; accept?: VnWindow | null; progress?: VnWindow | null; done: VnWindow[] }
 export const VN_LIMITS = { windows: 30, text: 500 };
 
+/** серверная проверка диалога из админки: известный говорящий и эмоция, лимиты длины. Возвращает чистую копию или ошибку. */
+function cleanWin(w: any, label: string, allowEmpty = false): VnWindow | string | null {
+  if (w == null) return null;
+  if (typeof w !== "object" || Array.isArray(w)) return `${label}: пусто`;
+  const who = String(w.who || ""), emo = String(w.emo || "calm");
+  if (who !== VN_HERO && !VN_CHARS[who]) return `${label}: неизвестный персонаж`;
+  if (!(VN_EMOTIONS as readonly string[]).includes(emo)) return `${label}: неизвестная эмоция`;
+  if (w.text != null && typeof w.text !== "string") return `${label}: нужен текст`;
+  const text = String(w.text || "").replace(/\r/g, "").trim();
+  if (!text && !allowEmpty) return `${label}: пустой текст`;
+  if (text.length > VN_LIMITS.text) return `${label}: текст длиннее ${VN_LIMITS.text}`;
+  return { who, emo: emo as VnEmotion, text };
+}
 /** серверная проверка диалога из админки: известный говорящий и эмоция, лимиты длины. Возвращает чистую копию или ошибку. */
 export function validateDialogue(d: any): QuestDialogue | string {
   if (!d || typeof d !== "object" || Array.isArray(d)) return "диалог: нужен объект";
@@ -41,19 +55,24 @@ export function validateDialogue(d: any): QuestDialogue | string {
     const arr = d[ph] == null ? [] : d[ph];
     if (!Array.isArray(arr)) return `диалог ${ph}: нужен список окон`;
     if (arr.length > VN_LIMITS.windows) return `не больше ${VN_LIMITS.windows} окон в диалоге`;
-    for (let i = 0; i < arr.length; i++) {
-      const w = arr[i]; if (!w || typeof w !== "object") return `окно ${i + 1}: пусто`;
-      const who = String(w.who || ""), emo = String(w.emo || "");
-      if (who !== VN_HERO && !VN_CHARS[who]) return `окно ${i + 1}: неизвестный персонаж`;
-      if (!(VN_EMOTIONS as readonly string[]).includes(emo)) return `окно ${i + 1}: неизвестная эмоция`;
-      if (typeof w.text !== "string") return `окно ${i + 1}: нужен текст`;
-      const text = w.text.replace(/\r/g, "").trim();
-      if (!text) return `окно ${i + 1}: пустой текст`;
-      if (text.length > VN_LIMITS.text) return `окно ${i + 1}: текст длиннее ${VN_LIMITS.text}`;
-      out[ph].push({ who, emo: emo as VnEmotion, text });
-    }
+    for (let i = 0; i < arr.length; i++) { const w = cleanWin(arr[i], `окно ${i + 1}`); if (typeof w === "string") return w; if (w) out[ph].push(w); }
   }
+  // окно получения: текст может быть пустым (покажем цели и награду); «В процессе» с пустым текстом — нет окна
+  const acc = cleanWin(d.accept, "окно получения", true); if (typeof acc === "string") return acc; if (acc) out.accept = acc;
+  const pr = cleanWin(d.progress, "окно «В процессе»", true); if (typeof pr === "string") return pr; if (pr && pr.text) out.progress = pr;
   return out;
+}
+export const dialogueEmpty = (d: QuestDialogue) => !d.offer.length && !d.done.length && !d.accept && !d.progress;
+/** поток квеста с подстановкой старых реплик (offer/progress/done строки → окна квестодателя, эмоция calm) — ничего старого не ломается */
+export function questFlow(q: { npc: string; turnin?: string; offer?: string[]; progress?: string; done?: string[] }, d?: QuestDialogue | null): Required<QuestDialogue> {
+  const giver = npcVnChar(q.npc) || VN_HERO, tin = npcVnChar(q.turnin || q.npc) || giver;
+  const lines = (a: any, who: string) => (Array.isArray(a) ? a : a ? [a] : []).map((t: any) => String(t || "").trim()).filter(Boolean).map((text: string) => ({ who, emo: "calm" as VnEmotion, text }));
+  return {
+    offer: d?.offer?.length ? d.offer : lines(q.offer, giver),
+    accept: d?.accept || { who: giver, emo: "calm", text: "" },
+    progress: d?.progress || (q.progress && q.progress !== "…" ? { who: giver, emo: "think", text: q.progress } : null),
+    done: d?.done?.length ? d.done : lines(q.done, tin),
+  };
 }
 
 /** диалоги квестов (D1 quest_dialogues): quest_id → окна. Сервер грузит в AdminStore.sync, клиент получает в meta_state. */

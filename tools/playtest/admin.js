@@ -105,8 +105,8 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
   await A.click('.mc-admin [data-tab="quest"]'); await A.waitForTimeout(200); await A.click('.mc-admin aside li[data-id="__new"]'); await A.waitForTimeout(250);
   await A.fill('.mc-admin [data-q="id"]', 'c_pt_slimes'); await A.fill('.mc-admin [data-q="title"]', 'Слизь у шпиля');
   await A.selectOption('.mc-admin [data-q="npc"]', 'alzi');
-  await A.fill('.mc-admin [data-otext]', 'Развейте 3 слизней'); await A.fill('.mc-admin [data-q="offer"]', 'Слизь липнет к опоре. Поможете?');
-  await A.fill('.mc-admin [data-q="done"]', 'Чисто. Спасибо.'); await A.fill('.mc-admin [data-q="lore"]', 'Опоры Мэлвелдила помнят каждого, кто их чистил.');
+  await A.fill('.mc-admin [data-otext]', 'Развейте 3 слизней'); await A.click('.mc-admin [data-wadd="offer"]'); await A.fill('.mc-admin [data-ph="offer"][data-wi="0"] [data-wtext]', 'Слизь липнет к опоре. Поможете?');
+  await A.click('.mc-admin [data-wadd="done"]'); await A.fill('.mc-admin [data-ph="done"][data-wi="0"] [data-wtext]', 'Чисто. Спасибо.'); await A.fill('.mc-admin [data-q="lore"]', 'Опоры Мэлвелдила помнят каждого, кто их чистил.');
   await A.fill('.mc-admin [data-star="yellow"]', '1');
   await A.click('.mc-admin [data-qsave]'); m = await saved(); ok(/Сохранено/.test(m), 'квест c_pt_slimes (1 ★) для Алзи сохранён — ' + m);
   await A.screenshot({ path: `${OUT}/admin-quest.png` });
@@ -114,7 +114,7 @@ d1("DELETE FROM game_overrides WHERE kind IN ('weapon','item'); UPDATE game_conf
   await A.click('.mc-admin aside li[data-id="__new"]'); await A.waitForTimeout(250);
   await A.fill('.mc-admin [data-q="id"]', 'c_pt_slimes2'); await A.fill('.mc-admin [data-q="title"]', 'Корни шпиля'); await A.selectOption('.mc-admin [data-q="npc"]', 'alzi');
   await A.selectOption('.mc-admin [data-q="requires"]', ['c_pt_slimes']); await A.fill('.mc-admin [data-star="yellow"]', '2');
-  await A.fill('.mc-admin [data-otext]', 'Ещё 5 слизней'); await A.fill('.mc-admin [data-q="offer"]', 'Слизь вернулась.'); await A.fill('.mc-admin [data-q="done"]', 'Теперь точно чисто.');
+  await A.fill('.mc-admin [data-otext]', 'Ещё 5 слизней'); await A.click('.mc-admin [data-wadd="offer"]'); await A.fill('.mc-admin [data-ph="offer"][data-wi="0"] [data-wtext]', 'Слизь вернулась.'); await A.click('.mc-admin [data-wadd="done"]'); await A.fill('.mc-admin [data-ph="done"][data-wi="0"] [data-wtext]', 'Теперь точно чисто.');
   await A.click('.mc-admin [data-qsave]'); m = await saved(); ok(/Сохранено/.test(m), 'квест c_pt_slimes2 «открывается после c_pt_slimes» — ' + m);
   ok(/c_pt_slimes/.test(d1("SELECT data FROM custom_quests WHERE id='c_pt_slimes2'")), 'D1: предусловие сохранено');
   // цикл отвергается сервером

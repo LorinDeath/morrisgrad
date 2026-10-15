@@ -10,7 +10,7 @@ import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOrigin
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { MOB_SKILLS_LIST } from "./mobSkills";
-import { validateDialogue, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
+import { validateDialogue, dialogueEmpty, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
 
 export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
@@ -79,7 +79,7 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
   if (builtin && (builtin.rewards as any)?.flag) (rewards as any).flag = (builtin.rewards as any).flag; // сюжетный флаг награды — не редактируется
   const lines = (v: any, n: number) => (Array.isArray(v) ? v : [v]).map((x) => STR(x, 400).trim()).filter(Boolean).slice(0, n);
   const offer = lines(q.offer, 6), done = lines(q.done, 6);
-  if (!offer.length || !done.length) return "нужны реплики «предложение» и «сдача»";
+  if (!offer.length || !done.length) return "нужны окна пояснения и сдачи";
   return { id, npc: q.npc, turnin: q.turnin || undefined, campaign: "custom", custom: true, title, chapter: STR(q.chapter, 80) || "Поручения", minLevel, requires,
     objectives, rewards, offer, progress: STR(q.progress, 300) || "…", done, lore: STR(q.lore, 2000) || undefined, hint: STR(q.hint, 200) || undefined,
     track: q.track === false || q.track === "0" ? false : true }; // отслеживание целей (мобы на карте + компас)
@@ -179,6 +179,19 @@ export class AdminStore {
   }
   async saveQuest(by: string, raw: any) {
     if (!this.db) return { ok: false, err: "База недоступна" };
+    // единый поток (админка): квест + диалог одной кнопкой. Тексты окон пояснения/«в процессе»/сдачи → старые реплики
+    // offer/progress/done квеста (их читают трекер, Книга, «Все квесты»), окна — в quest_dialogues.
+    let dlg: any = undefined;
+    if (raw && raw.dialogue !== undefined) {
+      const d = validateDialogue(raw.dialogue); if (typeof d === "string") return { ok: false, err: d };
+      dlg = d; raw = { ...raw };
+      if (d.offer.length) raw.offer = d.offer.map((w) => w.text);
+      if (d.done.length) raw.done = d.done.map((w) => w.text);
+      raw.progress = d.progress?.text || raw.progress;
+      if (!d.offer.length) return { ok: false, err: "нужно хотя бы одно окно пояснения" };
+      if (!d.done.length) return { ok: false, err: "нужно хотя бы одно окно сдачи" };
+      delete raw.dialogue;
+    }
     const orig = questOriginal(String(raw?.id || ""));
     const q = validateQuest(raw, orig); if (typeof q === "string") return { ok: false, err: q };
     const before = QUEST_BY_ID[q.id] ? JSON.parse(JSON.stringify(QUEST_BY_ID[q.id])) : null;
@@ -188,7 +201,9 @@ export class AdminStore {
       .bind(q.id, JSON.stringify(q), version, by, Date.now()).run();
     if (orig) applyBuiltinOverride(q.id, q); else setCustomQuests([...QUESTS.filter((x) => x.custom && x.id !== q.id), q]);
     await this.bump(by, "quest", q.id, before, q, version);
-    return { ok: true, quest: orig ? { ...QUEST_BY_ID[q.id] } : q, builtin: !!orig, version };
+    let dialogue: any = undefined;
+    if (dlg) { const r = await this.saveDialogue(by, q.id, dlg); if (!r.ok) return { ok: false, err: r.err }; dialogue = r.dialogue; }
+    return { ok: true, quest: orig ? { ...QUEST_BY_ID[q.id] } : q, builtin: !!orig, version, ...(dlg ? { dialogue, questId: q.id, withDialogue: true } : {}) };
   }
   /** сюжетный квест: удалить правку — вернуть значения из кода */
   async resetQuest(by: string, id: string) {
@@ -214,7 +229,7 @@ export class AdminStore {
     const id = String(questId || ""); if (!ID_RE.test(id) || !QUEST_BY_ID[id]) return { ok: false, err: "квест не найден" };
     const d = validateDialogue(raw); if (typeof d === "string") return { ok: false, err: d };
     const before = QUEST_DIALOGUES[id] || null;
-    const empty = !d.offer.length && !d.done.length;
+    const empty = dialogueEmpty(d);
     const row = await this.db.prepare("SELECT version FROM quest_dialogues WHERE quest_id = ?").bind(id).first();
     const version = empty ? 0 : Number(row?.version || 0) + 1;
     if (empty) await this.db.prepare("DELETE FROM quest_dialogues WHERE quest_id = ?").bind(id).run();
