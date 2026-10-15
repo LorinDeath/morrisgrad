@@ -8,7 +8,7 @@ import {
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
-import { mobXp, xpLevelMult, killXp, dotStackMax, weaponSkillPowerMult } from "./balance";
+import { mobXp, xpLevelMult, killXp, dotStackMax, weaponSkillPowerMult, levelGapDmgMult, levelGapHitMult } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { QUEST_DIALOGUES } from "./vnChars";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
@@ -303,14 +303,14 @@ export class MetaService {
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
     if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; }
     ms.wt = eff.wtype;
-    ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
+    (ms.zp as any).lvl = eff.level || 1; ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
   }
 
   effective(session: any) {
     const ms = this.ms.get(session.id)!;
     const cls = session.stats?.classId || null;
     const a = this.store.account(ms.pkey);
-    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null) };
+    if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, armorPen: 0, armorPenPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null) };
     return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls));
   }
 
@@ -899,8 +899,9 @@ export class MetaService {
       if (!a.bestiary[baseOf(m.type)]) { noteMob(a, baseOf(m.type), 0); ms.dirty = true; }
       const crit = cryptoRand() * 100 < eff.critPct;
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
-      const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
-      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
+      const gapHit = levelGapHitMult(ZONE_MOBS[m.type]?.lvl || 1, eff.level || 1);
+      const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k * gapHit;
+      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm), { penFlat: eff.armorPen || 0, penPct: eff.armorPenPct || 0 }) || 0;
       this.noteHit(session, real, m.type);
       if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, ox, oy, dotStackMax(eff.level || 1));
       if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100);
@@ -1025,8 +1026,8 @@ export class MetaService {
         if (m.dead) return 0;
         m.usedAbility.add(sid);
         const d = ZONE_MOBS[m.type];
-        const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1);
-        const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm)) || 0;
+        const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1) * levelGapHitMult(d?.lvl || 1, eff.level || 1);
+        const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { penFlat: eff.armorPen || 0, penPct: eff.armorPenPct || 0 }) || 0;
         this.noteHit(session, real, m.type);
         if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100); // пассивный вампиризм и с навыков
         if (real) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
@@ -1216,7 +1217,8 @@ export class MetaService {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
         if (((ms as any).invulnUntil || 0) > now) return; // неуязвимость навыка (прыжок, облако, рывок)
-        const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
+        const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
+        const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой

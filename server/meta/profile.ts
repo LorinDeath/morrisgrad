@@ -69,7 +69,7 @@ export function activeLook(a: Account, h: Hero): string | null {
 
 // Итоговые статы героя — то, что ОДНОСТОРОННЕ передаётся в забег/мини-игру/открытый мир.
 export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: number; armor: number; minAtk: number; maxAtk: number }) {
-  const raw: Record<string, number> = { hp: 0, armor: 0, dmgPct: 0, speedPct: 0, regen: 0, magnetPct: 0, cdrPct: 0, critPct: 0, lifestealPct: 0, atkSpeedPct: 0, revive: 0 };
+  const raw: Record<string, number> = { hp: 0, armor: 0, dmgPct: 0, speedPct: 0, regen: 0, magnetPct: 0, cdrPct: 0, critPct: 0, lifestealPct: 0, atkSpeedPct: 0, revive: 0, armorPen: 0, armorPenPct: 0 };
   for (const [id, r] of Object.entries(h.talents)) {
     const t = TALENT_BY_ID[id];
     if (t) for (const [k, v] of Object.entries(t.per)) raw[k] += (v || 0) * r;
@@ -81,7 +81,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     const st = ITEM_BY_ID[e.id].stats;
     if (ITEM_BY_ID[e.id].slot === "weapon") weaponId = e.id;
     wMin += st.dmgMin || 0; wMax += st.dmgMax || 0;
-    for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct"]) raw[k] += (st as any)[k] || 0;
+    for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct", "armorPen", "armorPenPct"]) raw[k] += (st as any)[k] || 0;
   }
   // полный комплект моба: облик + бонус комплекта (bestiary.ts → look.stat)
   const look = activeLook(a, h);
@@ -100,6 +100,8 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     critPct: Math.round(softCap(raw.critPct, STAT_CAPS.critPct) * 10) / 10,
     lifestealPct: Math.round(softCap(raw.lifestealPct, STAT_CAPS.lifestealPct) * 10) / 10,
     atkSpeedPct: Math.round(softCap(raw.atkSpeedPct, STAT_CAPS.atkSpeedPct) * 10) / 10,
+    armorPen: Math.round(softCap(raw.armorPen, STAT_CAPS.armorPen)),
+    armorPenPct: Math.round(softCap(raw.armorPenPct, STAT_CAPS.armorPenPct) * 10) / 10,
     revive: raw.revive > 0 ? 1 : 0,
     weaponMin: base.minAtk + wMin, weaponMax: base.maxAtk + wMax, itemDmgMin: wMin, itemDmgMax: wMax,
     look, weaponId, wtype: weaponType(weaponId, cls),
@@ -377,7 +379,7 @@ export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   if (!it.hero) it.hero = cls;
   const def = ITEM_BY_ID[it.id];
   if (!SLOTS[def.slot]) return fail("Неизвестный слот");
-  if (def.classes && !def.classes.includes(cls as any)) return fail("Этот предмет не подходит герою");
+  // Классовых ограничений экипа нет: любой герой носит любой предмет (гибриды ок).
   const req = itemReq(def);
   if (h.lvl < req) return fail(`Нужен ${req} уровень героя (у героя ${h.lvl})`);
   h.equip[def.slot] = uid;

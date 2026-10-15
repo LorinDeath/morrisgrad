@@ -28,7 +28,7 @@ export function heroLevelHp(level: number): number { return (Math.min(HERO_MAX_L
 export type StatKey = "hp" | "armor" | "dmgPct" | "speedPct" | "regen" | "magnetPct" | "cdrPct" | "critPct" | "lifestealPct" | "atkSpeedPct" | "revive";
 // Жёсткие капы итоговых значений после всех источников (таланты + предметы + сияние + душа)
 export const STAT_CAPS: Record<string, number> = {
-  critPct: 40, cdrPct: 35, lifestealPct: 8, atkSpeedPct: 40, speedPct: 30, magnetPct: 120, dmgPct: 80, regen: 3, damageReduction: 0.6,
+  critPct: 55, cdrPct: 40, lifestealPct: 12, atkSpeedPct: 55, speedPct: 35, magnetPct: 120, dmgPct: 100, regen: 8, damageReduction: 0.72, armorPenPct: 40, armorPen: 90,
 };
 // Убывающая отдача: эффективное = cap * (1 - exp(-raw / cap)) — первые очки почти 1:1, дальше всё меньше.
 export function softCap(raw: number, cap: number): number {
@@ -38,7 +38,8 @@ export function softCap(raw: number, cap: number): number {
 // Броня → снижение урона с убывающей отдачей, кап 60%
 export function armorToReduction(armor: number): number {
   if (armor <= 0) return 0;
-  return Math.min(STAT_CAPS.damageReduction, armor / (armor + 60));
+  // Крупная шкала брони (v2): константа 250, чтобы танк-шмот давал ощутимый DR, не упираясь в кап сразу
+  return Math.min(STAT_CAPS.damageReduction, armor / (armor + 250));
 }
 
 // ---------------- деревья талантов классов (у каждого — своё) ----------------
@@ -233,7 +234,7 @@ export const RARITIES: Record<string, { name: string; color: string; order: numb
 // 4 слота одежды (шлем, броня, ноги, руки) + оружие
 export const SLOTS: Record<string, string> = { weapon: "Оружие", helmet: "Шлем", armor: "Броня", legs: "Ноги", hands: "Руки" };
 export const SLOT_ORDER = ["weapon", "helmet", "armor", "legs", "hands"];
-export interface ItemStats { dmgMin?: number; dmgMax?: number; armor?: number; hp?: number; speedPct?: number; critPct?: number; regen?: number; cdrPct?: number; magnetPct?: number; lifestealPct?: number; atkSpeedPct?: number }
+export interface ItemStats { dmgMin?: number; dmgMax?: number; armor?: number; hp?: number; speedPct?: number; critPct?: number; regen?: number; cdrPct?: number; magnetPct?: number; lifestealPct?: number; atkSpeedPct?: number; armorPen?: number; armorPenPct?: number }
 export interface ItemDef {
   id: string; name: string; slot: string; rarity: string; classes?: HeroId[]; stats: ItemStats; lore: string; icon: string;
   monster?: string; look?: string; grantsAbility?: string; band?: string; // band — зона/полоса силы
