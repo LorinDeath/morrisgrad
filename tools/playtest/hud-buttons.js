@@ -3,7 +3,8 @@
 // U=<url страницы> — проверить другую сборку (например, продовую сборку astro через wrangler dev). Скриншоты → /workspace/morrisgrad-round2/
 const { chromium } = require('playwright-core');
 const OUT = '/workspace/morrisgrad-round2';
-const BASE = process.env.U || null;
+const { assertLocalUrl } = require(process.env.MC_LOCAL_GUARD || './_local');
+const BASE = process.env.U ? assertLocalUrl(process.env.U) : null; // только локальная сборка: прод из плейтеста не трогаем
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   let pass = 0, fail = 0; const errs = [];
@@ -13,7 +14,7 @@ const BASE = process.env.U || null;
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
     if (BASE) { for (let i = 0; i < 4; i++) { const r = await p.goto(BASE, { waitUntil: 'load', timeout: 60000 }).catch(() => null); if (r && r.ok()) break; await p.waitForTimeout(1500); } await p.waitForTimeout(2500); await p.locator('text=Начать игру').first().click(); }
-    else await p.goto(`http://127.0.0.1:5199/game.html?name=Hud${mobile ? 'M' : 'D'}&uid=hud_${Date.now()}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1'}`);
+    else await p.goto(`http://127.0.0.1:5199/game.html?name=Hud${mobile ? 'M' : 'D'}&uid=hud_${Date.now()}&ws=ws://127.0.0.1:8787${mobile ? '' : '&fs=1&panels=1'}`); // боковые панели сайта (рейтинг/онлайн/друзья/⚙) — только с panels=1
     await p.waitForSelector(mobile ? '.mc3d-ttop .mc3d-tbtn:not([data-act="home"])' : '.mc-abar', { timeout: 90000 }); await p.waitForTimeout(4000);
     return p;
   };
