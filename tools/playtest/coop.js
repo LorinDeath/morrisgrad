@@ -62,7 +62,7 @@ const ok = (n, c, d) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL 
   await B.G(() => window.__game.run.send({ k: 'wave' }));
   await A.p.waitForTimeout(400);
   ok('host rejects a 2nd wave for the same level-up', await A.G((r0) => (window.__game.run.waveRejected || 0) > r0, rej0));
-  await A.p.waitForTimeout(3600);
+  { const t0 = await A.G(() => window.__game.run.t); await A.p.waitForFunction((t) => window.__game.run.t > t + 3.6 && !(window.__game.run.pendingChoices > 0 && window.__game.run.invulnLeft() > 0), t0, { timeout: 60000 }).catch(() => {}); } // окно 3 с — по игровым часам (swiftshader медленный)
   await B.G(() => { const r = window.__game.run, m = r.me; r.send({ k: 'me', iv: 1, x: m.x, z: m.z, dx: 0, dz: 1, mv: 0, hp: m.hp, mh: m.maxHp, dead: 0, mag: 2.4, cls: r.classKey }); });
   await A.p.waitForTimeout(300);
   ok('host ignores forged invulnerability outside the 3 s window', await A.G((id) => !window.__game.run.remotes.get(id)?.inv, idB));
