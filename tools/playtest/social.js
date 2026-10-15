@@ -13,7 +13,7 @@ const d1 = (sql) => execSync(`cd /workspace/mg-work/server && ../node_modules/.b
   const open = async (n, uid, ctxOpts = { viewport: { width: 1440, height: 860 } }, extra = '') => {
     const p = await (await b.newContext(ctxOpts)).newPage();
     p.on('pageerror', (e) => errs.push(n + ' ' + String(e.stack || e)));
-    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=${uid}&ws=ws://127.0.0.1:8787&fs=1&debug=1${extra}`);
+    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=${uid}&ws=ws://127.0.0.1:8787&fs=1&panels=1&debug=1${extra}`);
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 60000 });
     return p;
   };
@@ -34,12 +34,12 @@ const d1 = (sql) => execSync(`cd /workspace/mg-work/server && ../node_modules/.b
   for (let i = 0; i < 6 && !clicked; i++) {
     const pt = await G(B, (id) => { const o = [...(window.__game.debug.othersInfo?.() || [])]; const me = o.find((x) => x); return me ? window.__game.debug.screenOf(me.x, me.y) : null; }, aId);
     if (pt) { await B.mouse.click(pt.x, pt.y - 6); await B.waitForTimeout(400); }
-    clicked = await G(B, () => getComputedStyle(document.querySelector('#ghud-inspect-btn')).display !== 'none');
+    clicked = await G(B, () => (() => { const b = document.querySelector('.mc-pmenu'); return !!b && getComputedStyle(b).display !== 'none' && !!b.querySelector('[data-m="insp"]'); })());
   }
-  ok(clicked, 'B clicks A in hub → target panel shows «Посмотреть персонажа»');
-  await B.locator('#ghud-target-card').screenshot({ path: `${OUT}/social-target-panel.png` });
+  ok(clicked, 'B clicks A in hub → player menu with «👤 Персонаж»'); // верхнюю панель цели убрали (r6) — теперь меню игрока
+  await B.locator('.mc-pmenu').screenshot({ path: `${OUT}/social-player-menu.png` }).catch(() => {});
   await B.screenshot({ path: `${OUT}/social-target-full.png` });
-  await B.click('#ghud-inspect-btn');
+  await B.click('.mc-pmenu [data-m="insp"]');
   await B.waitForSelector('.mc-insp .mc-insp-name', { timeout: 6000 }).catch(() => {});
   const ins = await G(B, () => ({ name: document.querySelector('.mc-insp-name')?.textContent, cls: document.querySelector('.mc-insp-cls')?.textContent, gear: document.querySelectorAll('.mc-insp-slot:not(.empty) .mc-ic').length, stats: document.querySelectorAll('.mc-insp-st').length, abs: document.querySelectorAll('.mc-insp-ab').length, talents: /талант/i.test(document.querySelector('.mc-insp')?.textContent || '') }));
   ok(ins.name === 'Алекс_Тест' && /Велес|Воин|warrior/i.test(ins.cls) && ins.gear === 2 && ins.stats >= 10 && ins.abs >= 1 && !ins.talents, 'inspect view: name, hero, 2 gear icons, params, skills, no talent tree ' + JSON.stringify(ins));

@@ -15,7 +15,7 @@ const d1 = (sql) => execSync(`cd /workspace/mg-work/server && ../node_modules/.b
   const open = async (n, uid, ctxOpts = { viewport: { width: 1440, height: 860 } }) => {
     const p = await (await b.newContext(ctxOpts)).newPage();
     p.on('pageerror', (e) => errs.push(n + ' ' + String(e.stack || e)));
-    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=${uid}&ws=ws://127.0.0.1:8787&fs=1&debug=1`);
+    await p.goto(`http://127.0.0.1:5199/game.html?name=${n}&uid=${uid}&ws=ws://127.0.0.1:8787&fs=1&panels=1&debug=1`);
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 60000 });
     return p;
   };
@@ -32,16 +32,13 @@ const d1 = (sql) => execSync(`cd /workspace/mg-work/server && ../node_modules/.b
   for (let i = 0; i < 6 && !clicked; i++) {
     const pt = await G(B, () => { const o = (window.__game.debug.othersInfo?.() || [])[0]; return o ? window.__game.debug.screenOf(o.x, o.y) : null; });
     if (pt) { await B.mouse.click(pt.x, pt.y - 6); await B.waitForTimeout(400); }
-    clicked = await G(B, () => getComputedStyle(document.querySelector('#ghud-duel-btn')).display !== 'none');
+    clicked = await G(B, () => (() => { const b = document.querySelector('.mc-pmenu'); return !!b && getComputedStyle(b).display !== 'none' && !!b.querySelector('[data-m="duel"]'); })());
   }
-  ok(clicked, 'B selects A → target panel shows «⚔️ Вызвать на дуэль»');
+  ok(clicked, 'B clicks A → player menu with «⚔️ Вызвать на дуэль»'); // панель «ЦЕЛЬ» убрана в r6
   await B.waitForTimeout(600);
-  const effA = await G(A, () => window.__game.meta.hero.effective);
-  const tp = await G(B, () => ({ hp: document.querySelector('#ghud-target-hp').textContent, armor: document.querySelector('#ghud-target-armor').textContent, atk: document.querySelector('#ghud-target-atk').textContent, cls: document.querySelector('#ghud-target-class').textContent }));
-  ok(tp.hp === `${effA.maxHp} / ${effA.maxHp}` && tp.armor.startsWith(String(effA.armor)) && tp.atk === `${effA.weaponMin}-${effA.weaponMax}` && /ур\./.test(tp.cls), `target panel = server stats ${JSON.stringify(tp)} vs maxHp ${effA.maxHp} armor ${effA.armor} ${effA.weaponMin}-${effA.weaponMax}`);
-  await B.locator('#ghud-target-card').screenshot({ path: `${OUT}/duel-target-panel.png` });
+  await B.locator('.mc-pmenu').screenshot({ path: `${OUT}/duel-player-menu.png` }).catch(() => {});
   // ——— вызов ———
-  await B.click('#ghud-duel-btn');
+  await B.click('.mc-pmenu [data-m="duel"]');
   await A.waitForSelector('.mc-duel-card.inv', { timeout: 5000 }).catch(() => {});
   ok(await G(A, () => /Bob|Боб/.test(document.querySelector('.mc-duel-card.inv')?.textContent || '')), 'A sees challenge prompt from B');
   ok(await G(B, () => !!document.querySelector('.mc-duel-card.pend')), 'B sees «Вызов отправлен»');
@@ -65,10 +62,12 @@ const d1 = (sql) => execSync(`cd /workspace/mg-work/server && ../node_modules/.b
   ok(await G(A, () => document.querySelector('.mc-duel-cd')?.textContent === 'БОЙ!'), '«БОЙ!» after countdown');
   // A идёт к B и бьёт мышью (зажата ЛКМ на сопернике); B отвечает
   const toward = async (p) => G(p, () => { const o = (window.__game.debug.othersInfo?.() || []).find((x) => x.world === 'arena'); return o && o.x < window.__game.debug.pos().x ? 'a' : 'd'; });
-  const k = await toward(A); await A.keyboard.down(k); await A.waitForTimeout(1300); await A.keyboard.up(k);
+  // идём до сближения (под swiftshader fps низкий — фиксированных 1.3 с не хватало, воин оставался в 200 px)
+  const gap = () => G(A, () => { const o = (window.__game.debug.othersInfo?.() || []).find((x) => x.world === 'arena'), me = window.__game.debug.pos(); return o ? Math.abs(o.x - me.x) : 0; });
+  const k = await toward(A); await A.keyboard.down(k); for (let i = 0; i < 40 && (await gap()) > 60; i++) await A.waitForTimeout(150); await A.keyboard.up(k);
   const hold = async (p) => { const pt = await G(p, () => { const o = (window.__game.debug.othersInfo?.() || []).find((x) => x.world === 'arena'); return o ? window.__game.debug.screenOf(o.x, o.y) : null; }); if (pt) { await p.mouse.move(pt.x, pt.y - 10); await p.mouse.down(); } return pt; };
   await hold(A); await hold(B);
-  await A.waitForTimeout(1600);
+  await A.waitForFunction(() => [...document.querySelectorAll('.mc-duel-hud .hp span')].some((x) => { const [a, m] = x.textContent.split(' / ').map(Number); return a < m; }), null, { timeout: 8000 }).catch(() => {});
   await A.screenshot({ path: `${OUT}/duel-fight.png` });
   const hpMid = await G(A, () => [...document.querySelectorAll('.mc-duel-hud .hp span')].map((x) => x.textContent));
   ok(hpMid.length === 2 && hpMid.some((t) => { const [a, m] = t.split(' / ').map(Number); return a < m; }), 'fight: HP bars drop ' + JSON.stringify(hpMid));
