@@ -10,7 +10,7 @@ const OUT = '/workspace/morrisgrad-round3';
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await p.waitForTimeout(2500);
   const G = (fn, a) => p.evaluate(fn, a);
   await G(() => window.__game.debug.selectClass('warrior')); await p.waitForTimeout(2500);
-  const ids = process.env.IDS.split(',');
+  const ids = (process.env.IDS || 'guard_axe,aezer_staff,melveldil_sandals,padded_coat,greenpoise_bow').split(','); // по умолчанию — 3 редких + обычный + необычный
   for (const id of ids) { await G((id) => window.__game.debug.rawSend({ type: 'dev_grant', item: id }), id); await p.waitForTimeout(150); }
   await p.waitForTimeout(1200);
   await p.keyboard.press('i'); await p.waitForTimeout(900);
