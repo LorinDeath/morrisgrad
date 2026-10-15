@@ -38,10 +38,13 @@ const ok = (n, c, d) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL 
   // уровень отряда: БЕЗ паузы; у каждого 3 с неуязвимости, союзники видят пузырь (хост подтверждает окно)
   await A.G(() => { window.__game.run.team.xp += 60; window.__game.debug.spawn('ghoul', 30); });
   await A.p.waitForTimeout(700);
+  // под swiftshader fps низкий и игровое время идёт медленнее реального: ждём по игровым часам, а не по таймеру
+  await B.p.waitForFunction(() => window.__game.run.pendingChoices > 0, null, { timeout: 6000 }).catch(() => {});
   const sA = await A.G(() => ({ pend: window.__game.run.pendingChoices, inv: window.__game.run.invulnLeft(), t: window.__game.run.t }));
   const sB = await B.G(() => ({ pend: window.__game.run.pendingChoices, inv: window.__game.run.invulnLeft(), t: window.__game.run.t }));
   ok('level-up in co-op: both players get a choice + invulnerability', sA.pend > 0 && sB.pend > 0 && sA.inv > 1.5 && sB.inv > 1.5, { sA, sB });
-  await A.p.waitForTimeout(800);
+  await A.p.waitForFunction((t0) => window.__game.run.t > t0 + 0.5, sA.t, { timeout: 8000 }).catch(() => {});
+  await B.p.waitForFunction((t0) => window.__game.run.t > t0 + 0.5, sB.t, { timeout: 8000 }).catch(() => {});
   const tA2 = await A.G(() => window.__game.run.t), tB2 = await B.G(() => window.__game.run.t);
   ok('co-op NOT paused while choosing (both clocks advance)', tA2 > sA.t + 0.4 && tB2 > sB.t + 0.4, { a: [sA.t, tA2], b: [sB.t, tB2] });
   ok('host sees guest shimmer (validated window)', await A.G((id) => !!window.__game.run.remotes.get(id)?.inv, idB));
@@ -67,6 +70,7 @@ const ok = (n, c, d) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL 
   await B.G(() => window.__game.run.send({ k: 'wave' }));
   await A.p.waitForTimeout(400);
   ok('host rejects a wave outside the window', await A.G((r0) => (window.__game.run.waveRejected || 0) > r0, rej1));
+  await A.p.waitForFunction((t0) => window.__game.run.t > t0 + 3.2, sA.t, { timeout: 20000 }).catch(() => {});
   ok('host invulnerability ended after 3 s (choice may stay open)', await A.G(() => window.__game.run.invulnLeft() === 0));
   for (const X of [A, B]) for (let i = 0; i < 6 && await X.G(() => window.__game.run.pendingChoices > 0); i++) { await X.G(() => document.querySelector('.mc3d-choice')?.click()); await X.p.waitForTimeout(300); }
   ok('no page errors', errs.length === 0, errs.slice(0, 3));

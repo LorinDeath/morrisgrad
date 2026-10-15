@@ -446,7 +446,10 @@ export class RunSession {
     const abs = m.abilities;
     for (let i = 0; i < abs.length; i++) abs[i].cdLeft = Math.max(0, abs[i].cdLeft - dt);
     m.abilityCd = abs[0] ? abs[0].cdLeft : 0;
-    const slot = input?.slot >= 0 ? input.slot : (input?.ability ? 0 : -1);
+    let slot = input?.slot >= 0 ? input.slot : (input?.ability ? 0 : -1);
+    // буфер нажатия: тап/клавиша за ≤0.6 с до конца перезарядки не теряется, навык сработает сам, как только откатится
+    if (slot >= 0 && abs[slot] && abs[slot].cdLeft > 0) { if (abs[slot].cdLeft <= 0.6) this.bufSlot = { slot, t: 0.6 }; slot = -1; }
+    if (slot < 0 && this.bufSlot) { this.bufSlot.t -= dt; const b = this.bufSlot; if (abs[b.slot] && abs[b.slot].cdLeft <= 0) { slot = b.slot; this.bufSlot = null; } else if (b.t <= 0) this.bufSlot = null; }
     if (slot >= 0 && abs[slot] && abs[slot].cdLeft <= 0) this.castAbility(slot);
     for (let i = this.echoes.length - 1; i >= 0; i--) {
       const ec = this.echoes[i];

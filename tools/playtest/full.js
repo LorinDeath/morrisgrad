@@ -10,10 +10,10 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   delete ctxOpts.defaultBrowserType;
   const ctx = await b.newContext(ctxOpts);
   const p = await ctx.newPage();
-  const errs = [];
+  let errs = [];
   p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text() + ' @ ' + (m.location()?.url || '')); });
   p.on('pageerror', (e) => errs.push('PAGEERROR ' + String(e.stack || e)));
-  const uid = `test_r2_${kind}`;
+  const uid = `test_r2_${kind}_${Date.now().toString(36)}`; // свежий профиль: узлы сбора и квесты не «истрачены» прошлым прогоном
   await p.goto(`http://127.0.0.1:5199/game.html?name=${kind === 'mobile' ? 'Мобайл' : 'Десктоп'}&uid=${uid}&ws=ws://127.0.0.1:8787${kind === 'desktop' ? '&fs=1' : ''}&debug=1`);
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 90000 });
   await p.waitForFunction(() => window.__game.meta?.state, null, { timeout: 20000 }).catch(() => {});
@@ -112,12 +112,13 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   await shot('05-arinar');
   await G(() => window.__game.debug.setZoom(0.55));
   // назад на Поляну
-  await G(() => window.__game.debug.teleport(255, 600));
-  await p.waitForTimeout(400);
+  // портал «Мир Адского Пламени» теперь у хаба Аринара (worlds/portals.ts: 23700,24000)
+  await G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 23700, y: 24000 }); window.__game.debug.teleport(23700, 24000); });
+  await p.waitForTimeout(1200);
   if (kind === 'mobile') await p.tap('.mc3d-tbtn[data-act="interact"]'); else await p.keyboard.press('KeyE');
   await p.waitForFunction(() => window.__game.state().world === 'hellfire', null, { timeout: 6000 }).catch(() => {});
   // Лобби через портал Склепа
-  await walk(900, 330);
+  await walk(900, 305);
   if (kind === 'mobile') await p.tap('.mc3d-tbtn[data-act="interact"]'); else await p.keyboard.press('KeyE');
   await p.waitForSelector('.mc-lobby', { timeout: 5000 }).catch(() => {});
   ok('crypt portal opens lobby browser', await G(() => !!document.querySelector('.mc-lobby #mc-lobby-create, .mc-lobby') && !!document.querySelector('#mc-lobby-create')));
@@ -173,12 +174,12 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   ok('level-up choice opens', await G(() => !!document.querySelector('.mc3d-choice')));
   // Новое правило: БЕЗ паузы; 3 с неуязвимости, пока открыт выбор; не успел — уязвим (выбор остаётся открытым)
   ok('level-up: 3 s invulnerability starts', await G(() => window.__game.run.invulnLeft() > 2.3), await G(() => window.__game.run.invulnLeft()));
-  { const t0 = await G(() => window.__game.run.t); await p.waitForTimeout(900); const t1 = await G(() => window.__game.run.t);
+  { const t0 = await G(() => window.__game.run.t); await p.waitForTimeout(900); await p.waitForFunction((a) => window.__game.run.t > a + 0.45, t0, { timeout: 6000 }).catch(() => {}); const t1 = await G(() => window.__game.run.t);
     ok('no pause while choosing (run clock advances)', t1 > t0 + 0.4, { t0, t1 }); }
   await shot('07a-run-levelup-invuln');
-  await p.waitForFunction(() => window.__game.run.invulnLeft() === 0, null, { timeout: 5000 }).catch(() => {});
+  await p.waitForFunction(() => window.__game.run.invulnLeft() === 0, null, { timeout: 20000 }).catch(() => {});
   const hp0 = await G(() => window.__game.run.me.hp);
-  for (let i = 0; i < 10; i++) { await G(() => { const r = window.__game.run; let k = 0; for (const e of r.enemies.values()) { if (e.dead || k++ > 6) continue; e.x = r.me.x + 0.2; e.z = r.me.z; } }); await p.waitForTimeout(100); }
+  for (let i = 0; i < 60; i++) { if (i >= 10 && (await G(() => window.__game.run.me.hp)) < hp0) break; await G(() => { const r = window.__game.run; let k = 0; for (const e of r.enemies.values()) { if (e.dead || k++ > 6) continue; e.x = r.me.x + 0.2; e.z = r.me.z; } }); await p.waitForTimeout(100); }
   const hp1 = await G(() => window.__game.run.me.hp);
   ok('after 3 s: choice still open, invulnerability over, hero takes damage', await G(() => window.__game.run.pendingChoices > 0 && !!document.querySelector('.mc3d-choice') && !!document.querySelector('.mc3d-inv-ring.over')) && hp1 < hp0, { hp0, hp1 });
   await shot('07b-run-levelup-vulnerable');
@@ -231,7 +232,7 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   await p.waitForTimeout(800);
   await G(() => window.__game.startRun('duel'));
   await p.waitForFunction(() => window.__game.state().mode === 'run', null, { timeout: 8000 });
-  await p.waitForTimeout(3000);
+  await p.waitForFunction(() => [...window.__game.run.enemies.values()].some((e) => e.type === 'kyut_mirror'), null, { timeout: 15000 }).catch(() => {});
   ok('duel mirror spawned', await G(() => [...window.__game.run.enemies.values()].some((e) => e.type === 'kyut_mirror')));
   await shot('09-duel');
   await G(() => { window.__game.run.t = 15; for (const e of window.__game.run.enemies.values()) if (e.type === 'kyut_mirror') window.__game.run.killEnemy(e, window.__game.run.myId); });
@@ -242,7 +243,7 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   await G(() => window.__game.leaveRun());
   await p.waitForTimeout(1500);
   // «Сдаться» в co-op: 2-й игрок (гость) жив → сдавшийся уходит в лобби, забег идёт
-  report.errors = errs;
+  report.errors = errs = errs.filter((e) => !/favicon\.ico/.test(e)); // у стенда нет favicon — не ошибка игры
   ok('no console errors', errs.length === 0, errs.slice(0, 6));
   require('fs').writeFileSync(`${OUT}/test-${kind}.json`, JSON.stringify(report, null, 1));
   await b.close();

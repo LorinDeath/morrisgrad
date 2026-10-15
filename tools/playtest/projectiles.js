@@ -39,7 +39,9 @@ const OUT = '/workspace/morrisgrad-round2';
   const mobKinds = new Set(['ice_fan', 'fire_spark', 'spear', 'chain_bolt', 'thorn_bow', 'fireball']);
   let mobShot = false;
   await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [CX + 40, CY + 150]);
-  for (let i = 0; i < 40 && !mobShot; i++) { const s = await G(() => window.__game.debug.projs()); if (s.kinds.some((t) => t.startsWith('m:') && mobKinds.has(t.slice(2)))) { mobShot = true; await p.screenshot({ path: `${OUT}/projectiles-mobs.png` }); } await p.waitForTimeout(150); }
+  // гарантированный стрелок рядом (лагерь у CX,CY мог быть зачищен прошлыми тестами): dev_spawn_mob violet_pixie (role ranged)
+  await G(([x, y]) => { for (const dx of [-140, 140]) window.__game.debug.rawSend({ type: 'dev_spawn_mob', mob: 'violet_pixie', x: x + dx, y: y - 60 }); }, [CX + 40, CY + 150]);
+  for (let i = 0; i < 40 && !mobShot; i++) { const s = await G(() => window.__game.debug.projs()); if (s.kinds.some((t) => t.startsWith('m:'))) { mobShot = true; await p.screenshot({ path: `${OUT}/projectiles-mobs.png` }); } await p.waitForTimeout(150); }
   ok(mobShot || [...seen].some((t) => t.startsWith('m:')), 'снаряды мобов приходят с сервера и рисуются');
   // витрина: все виды атласа
   await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x, y, god: true }); window.__game.debug.teleport(x, y); }, [X + 1400, Y + 1400]); await p.waitForTimeout(2500);

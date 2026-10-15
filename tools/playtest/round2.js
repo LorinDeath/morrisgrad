@@ -43,7 +43,9 @@ const OUT = '/workspace/morrisgrad-round2';
   const pairs = atk.map((m) => [m, got.find((e) => e.cid === m.cid)]).filter((x) => x[1]);
   const dO = pairs.map(([m, e]) => Math.hypot(e.x - m.ox, e.y - m.oy));
   ok(pairs.length >= 2 && Math.max(...dO) <= 1, `сервер выпускает снаряд из той же точки, что клиент (расхождение ≤ ${Math.max(...dO, 0).toFixed(1)} px, ${pairs.length} выстрелов)`);
-  const dA = pairs.map(([m, e]) => { const L = Math.hypot(m.tx - m.ox, m.ty - m.oy); return Math.abs(Math.acos(Math.max(-1, Math.min(1, ((m.tx - m.ox) * e.dx + (m.ty - m.oy) * e.dy) / L))) * 180 / Math.PI); });
+  // залп из нескольких снарядов (кинжалы ×2, разброс) веером вокруг курсора: сравниваем СРЕДНЕЕ направление залпа
+  const mean = (cid) => { const es = got.filter((e) => e.cid === cid); const sx = es.reduce((a, e) => a + e.dx, 0), sy = es.reduce((a, e) => a + e.dy, 0), L = Math.hypot(sx, sy) || 1; return { dx: sx / L, dy: sy / L }; };
+  const dA = pairs.map(([m, e0]) => { const e = mean(m.cid); const L = Math.hypot(m.tx - m.ox, m.ty - m.oy); return Math.abs(Math.acos(Math.max(-1, Math.min(1, ((m.tx - m.ox) * e.dx + (m.ty - m.oy) * e.dy) / L))) * 180 / Math.PI); });
   ok(dA.length && Math.max(...dA) < 1.5, `снаряд летит точно в курсор (отклонение ≤ ${Math.max(...dA, 0).toFixed(2)}°)`);
   ok(offs.length && Math.max(...offs) < 12, `свой снаряд появляется у центра героя в движении (смещение ≤ ${Math.max(...offs, 0).toFixed(1)} px)`);
   ok((await G(() => window.__game.debug.projList())).confirmed >= 2, 'прогноз подтверждён сервером по cid (без двойных снарядов)');

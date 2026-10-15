@@ -66,6 +66,8 @@ const VIEWS = [[360, 640], [390, 844], [412, 915], [844, 390]];
     ok(a.over.length === 0, `${tag} run: no overlaps among ${a.n} controls/panels ${a.over.join(', ')}`);
     ok(a.small.length === 0 && a.out.length === 0, `${tag} run: sizes ≥ 44, on screen ${a.small.join(',')} ${a.out.join(',')}`);
     ok(a.joyBL && a.clusterBR && a.joyOver.length === 0, `${tag} run: joystick bottom-left, dash in the corner`);
+    // стартовая перезарядка (2 с игрового времени; под swiftshader время идёт медленнее) — ждём, пока навык готов
+    await p.waitForFunction(() => window.__game.run.me.abilities[0].cdLeft <= 0, null, { timeout: 15000 }).catch(() => {});
     await p.tap('.mc3d-tbtn.ab[data-slot="0"]'); await p.waitForTimeout(600);
     ok(await p.evaluate(() => window.__game.run.me.abilities[0].cdLeft > 1), `${tag} run: tap on skill button casts (cooldown starts)`);
     await p.waitForTimeout(2500);
