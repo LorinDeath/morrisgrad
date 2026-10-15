@@ -1,4 +1,6 @@
 // 3D-арена комнаты забега: «Склеп» (адский камень) и «Бездна» (осколок Аринара).
+import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
+import { PROPS_META, propDef } from '../../../../../server/meta/propsV2.ts';
 import { ARENA_RADIUS } from './data.js';
 import { PILLARS } from './run.js';
 import { createStoneCanvas } from '../worlds/artDeco.js';
@@ -75,44 +77,38 @@ export class RunArena {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     g.add(floor);
-    // Сигил в центре
-    const sigil = new THREE.Mesh(new THREE.RingGeometry(5, 5.4, 6), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xef4444), transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+    // Сигил, стена-кольцо и колонны — пропсы v2 (arena_sigil / arena_wall_<тема> / arena_column_<тема>): тема по тайлсету комнаты
+    const AT = { stone: 'crypt', air: 'abyss', ice: 'mirror', fire: 'abode' }[this.tiles] || (abyss ? 'abyss' : 'crypt');
+    this.propTheme = AT;
+    const sigilCol = new THREE.Color(acc ?? (abyss ? 0x22d3ee : 0xef4444));
+    const sigil = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
     sigil.rotation.x = -Math.PI / 2; sigil.position.y = 0.02;
-    g.add(sigil);
-    this.sigil = sigil;
-    const sigil2 = new THREE.Mesh(new THREE.RingGeometry(9, 9.2, 48), sigil.material);
+    g.add(sigil); this.sigil = sigil;
+    const sigil2 = new THREE.Mesh(new THREE.RingGeometry(9, 9.2, 48), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
     sigil2.rotation.x = -Math.PI / 2; sigil2.position.y = 0.02;
     g.add(sigil2);
-    // Стена-кольцо
-    const wallMat = new THREE.MeshStandardMaterial({ color: abyss ? 0x1e1b4b : 0x1c1414, flatShading: true, roughness: 0.9 });
-    const wall = new THREE.Mesh(new THREE.CylinderGeometry(R + 3, R + 3, 3.5, 48, 1, true), wallMat);
-    wall.material.side = THREE.BackSide;
-    wall.position.y = 1.5;
-    g.add(wall);
+    const sd = propDef('arena_sigil'), SS = PROPS_META.sheets[sd.sheet];
+    loadPropTextures(THREE).then((tex) => {
+      const t = tex[sd.sheet].clone(); t.needsUpdate = true; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+      t.repeat.set(1 / SS.cols, 1 / SS.rows); t.offset.set(sd.col / SS.cols, 1 - (sd.row + 1) / SS.rows);
+      sigil.material.map = t; sigil.material.needsUpdate = true; this.sigilTex = t; this.sigilDef = sd; this.sigilCols = SS.cols;
+      const items = [];
+      const seg = 5.4, Rw = R + 1.6, n = Math.round((2 * Math.PI * Rw) / seg);
+      for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; items.push(['arena_wall_' + AT, Math.cos(a) * Rw, Math.sin(a) * Rw, 0.9]); }
+      PILLARS.forEach((p) => items.push(['arena_column_' + AT, p.x, p.z, p.r / 1.44])); // коллайдер колонны (run.js) = 45% ширины 6.4 м → 1.44 м при s=1
+      const B = new PropSprites(THREE, tex, { max: items.length + 4, parent: g });
+      B.begin(); for (const [k, x, z, sc] of items) B.push(k, x * 20, z * 20, x, z, sc, false, 1, 0, null, false); B.end();
+      this.props = B;
+    }).catch((e) => console.warn('[arena props]', e.message));
     const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.2, 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xc59b27) }));
     rim.rotation.x = Math.PI / 2; rim.position.y = 0.05;
     g.add(rim);
-    // Колонны (совпадают с коллайдерами симуляции)
-    const colMat = new THREE.MeshStandardMaterial({ color: abyss ? 0x312e81 : 0x2a1f1f, flatShading: true, roughness: 0.6 });
-    const capMat = new THREE.MeshStandardMaterial({ color: abyss ? 0xa5b4fc : 0xc59b27, metalness: 0.6, roughness: 0.35, emissive: abyss ? 0x312e81 : 0x3d2a00, emissiveIntensity: 0.5 });
-    const flameMat = new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x67e8f9 : 0xff7a1a), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+    // свет у колонн (сами колонны — спрайты v2 выше)
     this.flames = [];
     PILLARS.forEach((p, i) => {
-      const h = 3.2 + (i % 3) * 0.6;
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(p.r * 0.8, p.r, h, 6), colMat);
-      col.position.set(p.x, h / 2, p.z);
-      col.castShadow = true; col.receiveShadow = true;
-      g.add(col);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(p.r * 1.05, p.r * 0.85, 0.35, 6), capMat);
-      cap.position.set(p.x, h + 0.15, p.z);
-      g.add(cap);
-      const fl = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.0, 5), flameMat);
-      fl.position.set(p.x, h + 0.8, p.z);
-      g.add(fl);
-      this.flames.push(fl);
       if (i % 2 === 0) {
         const light = new THREE.PointLight(acc ?? (abyss ? 0x67e8f9 : 0xff8a3c), 1.1, 12, 1.8);
-        light.position.set(p.x, h + 1.2, p.z);
+        light.position.set(p.x, 4.4, p.z);
         g.add(light);
       }
     });
@@ -196,6 +192,7 @@ export class RunArena {
   update(dt) {
     this.time += dt;
     if (this.sigil) this.sigil.rotation.z += dt * 0.2;
+    if (this.sigilTex) { const d = this.sigilDef; this.sigilTex.offset.x = (d.col + (Math.floor(this.time * d.fps) % d.frames)) / this.sigilCols; }
     this.flames?.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(this.time * 9 + i) * 0.25; });
     if (this.embers) {
       const a = this.embers.geometry.attributes.position;

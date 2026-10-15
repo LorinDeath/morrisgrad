@@ -1,6 +1,7 @@
 // Мир Адского Пламени: ар-деко арена в золотой раме, обсидиановые шпили и искры.
 import { createArtDecoCanvas, createStoneCanvas } from './artDeco.js';
 import { HALF } from '../engine/geometry.js';
+import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 
 export class HellfireEnvironment {
   constructor() {
@@ -54,60 +55,27 @@ export class HellfireEnvironment {
     outer.position.y = -0.6;
     g.add(outer);
 
-    // Золотая рама арены (низкий бортик)
-    const gold = new THREE.MeshStandardMaterial({ color: 0xc59b27, metalness: 0.75, roughness: 0.3, emissive: 0x3d2a00, emissiveIntensity: 0.4 });
-    const stone = new THREE.MeshStandardMaterial({ color: 0x1b1428, roughness: 0.8, flatShading: true });
-    const t = 0.6;
-    [[0, -HALF - t / 2, size + t * 2, t], [0, HALF + t / 2, size + t * 2, t], [-HALF - t / 2, 0, t, size], [HALF + t / 2, 0, t, size]].forEach(([x, z, w, d]) => {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 0.7, d), stone);
-      wall.position.set(x, 0.35, z);
-      wall.receiveShadow = true;
-      g.add(wall);
-      const trim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, 0.08, d + 0.02), gold);
-      trim.position.set(x, 0.72, z);
-      g.add(trim);
-    });
-    // Обелиски по углам и по сторонам
-    const obMat = new THREE.MeshStandardMaterial({ color: 0x140f1f, roughness: 0.5, metalness: 0.3, flatShading: true });
-    const tipMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+    // Рама арены, обсидиановые шпили, скалы и лава пустоши — спрайты пропсов v2 (hell_wall / hell_spire / hell_crag / lava_vent /
+    // hell_flame / brazier) вместо мешей; кадры играет шейдер, варианты — по позиции. Пустошь вне арены недоступна → без коллизий.
+    const items = [];
+    const R = (() => { let x = 1337; return () => ((x = (x * 16807) % 2147483647) / 2147483647); })(); // детерминированно у всех
+    const seg = 6.4 * 0.9; // плитка стены 6.4 м (масштаб 0.9)
+    for (const [x0, z0, dx, dz, L] of [[-HALF, -HALF - 0.4, 1, 0, size], [-HALF, HALF + 0.4, 1, 0, size], [-HALF - 0.4, -HALF, 0, 1, size], [HALF + 0.4, -HALF, 0, 1, size]])
+      for (let d = seg / 2; d < L; d += seg) items.push(['hell_wall', x0 + dx * d, z0 + dz * d, 0.9]);
     for (let i = 0; i < 12; i++) {
-      const side = i % 4;
-      const k = Math.floor(i / 4) - 1; // -1,0,1
-      const along = k * (HALF * 0.66);
-      const out = HALF + 1.6;
+      const side = i % 4, k = Math.floor(i / 4) - 1, along = k * (HALF * 0.66), out = HALF + 1.6;
       const x = side === 0 ? along : side === 1 ? out : side === 2 ? along : -out;
       const z = side === 0 ? -out : side === 1 ? along : side === 2 ? out : along;
-      const ob = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.75, 6 + (i % 3), 4), obMat);
-      ob.position.set(x, (6 + (i % 3)) / 2 - 0.3, z);
-      ob.rotation.y = Math.PI / 4;
-      ob.castShadow = true;
-      g.add(ob);
-      const tip = new THREE.Mesh(new THREE.OctahedronGeometry(0.25, 0), tipMat);
-      tip.position.set(x, 6.4 + (i % 3), z);
-      g.add(tip);
+      items.push([k === 0 ? 'brazier' : 'hell_spire', x, z, k === 0 ? 1 : 1 + (i % 3) * 0.12]);
     }
-    // Шпили-скалы в пустоши
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x1c1212, flatShading: true, roughness: 0.95 });
-    for (let i = 0; i < 46; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = HALF + 6 + Math.random() * 40;
-      const h = 2 + Math.random() * 9;
-      const rock = new THREE.Mesh(new THREE.ConeGeometry(0.8 + Math.random() * 1.8, h, 5), rockMat);
-      rock.position.set(Math.cos(a) * r, h / 2 - 0.6, Math.sin(a) * r);
-      rock.rotation.y = Math.random() * 3;
-      g.add(rock);
-    }
-    // Лавовые трещины во внешней пустоши
-    const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff5a1f, transparent: true, opacity: 0.75 });
-    for (let i = 0; i < 26; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = HALF + 4 + Math.random() * 30;
-      const crack = new THREE.Mesh(new THREE.PlaneGeometry(0.25 + Math.random() * 0.4, 3 + Math.random() * 8), lavaMat);
-      crack.rotation.x = -Math.PI / 2;
-      crack.rotation.z = Math.random() * Math.PI;
-      crack.position.set(Math.cos(a) * r, -0.57, Math.sin(a) * r);
-      g.add(crack);
-    }
+    for (let i = 0; i < 46; i++) { const a = R() * Math.PI * 2, r = HALF + 6 + R() * 40; items.push([R() < 0.45 ? 'hell_spire' : 'hell_crag', Math.cos(a) * r, Math.sin(a) * r, 0.8 + R() * 0.7]); }
+    for (let i = 0; i < 26; i++) { const a = R() * Math.PI * 2, r = HALF + 4 + R() * 30; items.push([i % 3 ? 'lava_vent' : 'hell_flame', Math.cos(a) * r, Math.sin(a) * r, 0.9 + R() * 0.5]); }
+    loadPropTextures(THREE).then((tex) => {
+      const B = new PropSprites(THREE, tex, { max: items.length + 4, parent: g });
+      B.begin();
+      for (const [k, x, z, sc] of items) B.push(k, x * 20, z * 20, x, z, sc, false, 1, k === 'lava_vent' ? -0.55 : 0);
+      B.end(); this.props = B;
+    }).catch((e) => console.warn('[hellfire props]', e.message));
 
     // Искры, поднимающиеся вверх
     const N = 220;

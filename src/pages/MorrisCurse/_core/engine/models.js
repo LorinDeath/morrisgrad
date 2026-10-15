@@ -1,5 +1,6 @@
 // Процедурные low-poly модели: герои классов, Кейт, Дар, тюльпаны, порталы, орда, лут.
 // Никаких внешних ассетов — всё строится из примитивов Three.js r128.
+import { propObject } from './propAtlas.js';
 import { mergeParts, flatMat, PX as PX_M } from './geometry.js';
 import altarSrc from '../../../../assets/mc/altar.png';
 import altarFlashSrc from '../../../../assets/mc/altar_flash.png';
@@ -324,60 +325,15 @@ export function makePortal(THREE, portal) {
     ring.position.y = 0.03;
     g.add(ring);
     anim.push((t) => { ring.material.opacity = 0.22 + Math.sin(t * 2) * 0.1; });
-  } else if (portal.id === 'portal_arinar' || portal.id === 'portal_hellfire') {
-    // Фрактал Бабочки: кольцо + крылья
-    const ringMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, metalness: 0.4, roughness: 0.3 });
-    const ring = mesh(THREE, new THREE.TorusGeometry(1.15, 0.12, 6, 20), ringMat, 0, 1.6, 0);
-    g.add(ring);
-    const inner = new THREE.Mesh(new THREE.CircleGeometry(1.05, 24), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
-    inner.position.y = 1.6;
-    g.add(inner);
-    const wingShape = new THREE.Shape();
-    wingShape.moveTo(0, 0);
-    wingShape.bezierCurveTo(0.6, 1.2, 1.8, 1.3, 1.6, 0.3);
-    wingShape.bezierCurveTo(1.5, -0.3, 1.0, -1.0, 0, -0.2);
-    const wingGeo = new THREE.ShapeGeometry(wingShape);
-    const wingMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
-    const wl = new THREE.Mesh(wingGeo, wingMat);
-    const wr = new THREE.Mesh(wingGeo, wingMat);
-    wl.position.set(-0.4, 1.6, -0.05); wl.scale.x = -1;
-    wr.position.set(0.4, 1.6, -0.05);
-    g.add(wl, wr);
-    const light = new THREE.PointLight(color, 1.6, 10, 1.6);
-    light.position.y = 1.6;
-    g.add(light);
-    anim.push((t) => {
-      const flap = Math.sin(t * 3) * 0.6;
-      wl.rotation.y = flap; wr.rotation.y = -flap;
-      inner.material.opacity = 0.25 + Math.sin(t * 4) * 0.1;
-      ring.rotation.z = t * 0.6;
-    });
   } else {
-    // Разлом мини-игр и любые другие порталы: светящаяся рамка
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e1530, emissive: color, emissiveIntensity: 0.5, flatShading: true });
-    g.add(mesh(THREE, new THREE.BoxGeometry(0.25, 2.4, 0.25), frameMat, -0.95, 1.2, 0));
-    g.add(mesh(THREE, new THREE.BoxGeometry(0.25, 2.4, 0.25), frameMat, 0.95, 1.2, 0));
-    g.add(mesh(THREE, new THREE.BoxGeometry(2.2, 0.25, 0.3), frameMat, 0, 2.45, 0));
-    const swirl = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 2.2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
-    swirl.position.y = 1.2;
-    g.add(swirl);
-    const shards = [];
-    for (let i = 0; i < 6; i++) {
-      const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color }));
-      g.add(s);
-      shards.push(s);
-    }
-    const light = new THREE.PointLight(color, 1.4, 9, 1.6);
-    light.position.y = 1.4;
+    // Порталы (Фрактал Бабочки, разломы мини-игр и др.) — спрайт пропсов v2 «portal» (арка + вихрь, 8 кадров, свечение),
+    // тон вихря — цвет портала. Коллизия — только «ноги» арки по краям (server/meta/propsV2.ts), центр проходим: портал активируется
+    const po = propObject(THREE, 'portal', { s: 0.75, glowTint: color });
+    g.add(po.group);
+    const light = new THREE.PointLight(color, 1.5, 10, 1.6);
+    light.position.y = 1.8;
     g.add(light);
-    anim.push((t) => {
-      swirl.material.opacity = 0.4 + Math.sin(t * 5) * 0.15;
-      shards.forEach((s, i) => {
-        const a = t * 1.5 + (i / 6) * Math.PI * 2;
-        s.position.set(Math.cos(a) * 1.4, 1.3 + Math.sin(t * 2 + i) * 0.4, Math.sin(a) * 0.5);
-        s.rotation.y = t * 3;
-      });
-    });
+    anim.push((t) => { po.update(t); light.intensity = 1.4 + Math.sin(t * 4) * 0.25; });
   }
   return { group: g, update(t) { anim.forEach((f) => f(t)); }, flash() { flash?.(); } };
 }

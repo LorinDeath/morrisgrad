@@ -46,3 +46,23 @@ export class PropSprites {
   // плоская декаль (arena_sigil): кладётся на землю отдельным мешем — здесь только проверка ключа
   dispose(parent) { for (const B of this.list) { B.dispose(); parent?.remove(B.mesh); } }
 }
+
+// Отдельный анимированный пропс как THREE.Sprite (порталы, Сердце Обители и др. одиночные объекты сцены):
+// основа (обычное смешивание, alphaTest) + свечение (аддитивно). Низ кадра — в точке группы. update(t) листает кадры.
+export function propObject(THREE, k, { s = 1, tint = null, glowTint = null } = {}) {
+  const key = META.aliases[k] || k, d = propDef(key);
+  const g = new THREE.Group(); if (!d) return { group: g, update() {} };
+  const S = META.sheets[d.sheet], h = S.frameH / 10 * s, w = S.frameW / 10 * s;
+  const mk = (add) => { const m = new THREE.SpriteMaterial({ transparent: true, alphaTest: add ? 0 : 0.3, depthWrite: !add, toneMapped: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending }); const sp = new THREE.Sprite(m); sp.center.set(0.5, 0); sp.scale.set(w, h, 1); sp.renderOrder = add ? 3 : 2; return sp; };
+  const base = mk(false), glow = d.glow ? mk(true) : null;
+  if (tint) base.material.color.set(tint);
+  if (glow && (glowTint || tint)) glow.material.color.set(glowTint || tint);
+  g.add(base); if (glow) g.add(glow);
+  const maps = [];
+  loadPropTextures(THREE).then((tex) => {
+    const set = (sp, t) => { const m = t.clone(); m.needsUpdate = true; m.magFilter = m.minFilter = THREE.NearestFilter; m.generateMipmaps = false; if ('colorSpace' in m) m.colorSpace = THREE.SRGBColorSpace; m.repeat.set(1 / S.cols, 1 / S.rows); m.offset.set(d.col / S.cols, 1 - (d.row + 1) / S.rows); sp.material.map = m; sp.material.needsUpdate = true; maps.push(m); };
+    set(base, tex[d.sheet]); if (glow) set(glow, tex[d.glow.sheet]);
+  });
+  const ph = Math.random() * 5;
+  return { group: g, key, update(t) { if (d.frames < 2) return; const f = Math.floor((t + ph) * d.fps) % d.frames; for (const m of maps) m.offset.x = (d.col + f) / S.cols; } };
+}

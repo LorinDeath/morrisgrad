@@ -1,6 +1,7 @@
 // Отрисовка забега. Орда — 2.5D пиксельные билборды из одного атласа (один draw call на всю орду),
 // анимации ход/замах/удар/урон/распад, телеграфы атак на земле, ауры элиты, вспышка при попадании.
 // Снаряды/камни — InstancedMesh (draw call на вид), герои — 2.5D-спрайты.
+import { propObject } from '../engine/propAtlas.js';
 import { mobShot } from '../../../../../server/meta/mobFamily.ts';
 import { buildEnemyGeometries, buildPickupGeometries, flatMat } from '../engine/models.js';
 import { atmo } from '../engine/atmosphere.js';
@@ -40,14 +41,12 @@ export class RunView {
     if (run.mode === 'trial') {
       // Сердце Обители (Испытание): кристалл в центре, тускнеет с потерей здоровья
       const hg = new THREE.Group();
-      const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0), new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xf59e0b, emissiveIntensity: 0.9, flatShading: true, roughness: 0.3 }));
-      core.position.y = 1.8; core.scale.y = 1.5;
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.7, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0x2a1f1f, flatShading: true }));
-      base.position.y = 0.25;
+      // Сердце Обители — анимированный спрайт пропсов v2 heart_of_abode (вместо октаэдра), тускнеет с потерей здоровья
+      const core = propObject(THREE, 'heart_of_abode', { s: 0.8 });
       const ring = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03;
       const light = new THREE.PointLight(0xfbbf24, 1.4, 14, 1.8); light.position.y = 2.4;
-      hg.add(core, base, ring, light);
+      hg.add(core.group, ring, light);
       this.root.add(hg);
       this.heartObj = { core, ring, light };
     }
@@ -271,9 +270,8 @@ export class RunView {
     if (this.heartObj && run.heart) {
       const k = Math.max(0, run.heart.hp / run.heart.maxHp);
       const h = this.heartObj;
-      h.core.rotation.y += dt * (0.6 + (1 - k) * 2);
-      h.core.material.emissiveIntensity = 0.25 + 0.75 * k;
-      h.core.material.color.setRGB(0.98, 0.45 + 0.3 * k, 0.15 + 0.1 * k);
+      h.core.update(this.time * (1 + (1 - k)));
+      for (const o of h.core.group.children) o.material.color.setRGB(0.5 + 0.5 * k, 0.4 + 0.6 * k, 0.4 + 0.6 * k);
       h.light.intensity = 0.4 + 1.0 * k;
       h.ring.material.opacity = 0.2 + 0.4 * k;
     }
