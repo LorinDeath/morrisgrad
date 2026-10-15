@@ -1680,6 +1680,7 @@ async function boot(canvasId, username, userId, api) {
     if (runUI.choiceOpen) runUI.setInvuln(run.invulnLeft(), LVL_INVULN);
     const blocked = overlay.chatOpen || (overlay.screen && !runUI.choiceOpen && !run.ended);
     const mv = blocked ? { x: 0, y: 0 } : moveVector();
+    party.setHub(false); // в забеге плашка «Отряд · Пригласить» без отряда не нужна (раньше оставалась с Поляны и закрывала HP)
     run.update(dt, { x: mv.x, z: mv.y, dash: input.dashPressed, slot: input.abilitySlot });
     input.dashPressed = false; input.abilityPressed = false; input.abilitySlot = -1;
     touch.setAbilities(run.me.abilities);

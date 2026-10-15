@@ -688,6 +688,8 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-salv .mc-btn { margin-left: 3px; }
 /* отряд: рамки участников слева, окно приглашения */
 .mc-party { position: absolute; left: 10px; top: 210px; width: 190px; pointer-events: auto; z-index: 12; background: rgba(12, 8, 22, 0.82); border: 1px solid #3b2c52; border-radius: 8px; padding: 5px 6px; font-size: 11px; color: #e2e8f0; }
+.mc-party.solo { width: auto; padding: 3px 6px; opacity: .8; } .mc-party.solo:hover { opacity: 1; }
+.mc-party.solo .hd { margin: 0; gap: 6px; } .mc-party.solo .hd small { display: none; }
 .mc-party .hd { display: flex; justify-content: space-between; align-items: center; color: #4ade80; font-weight: bold; margin-bottom: 3px; }
 .mc-party .pm { margin: 3px 0; }
 .mc-party .pm.off { opacity: 0.5; }

@@ -38,9 +38,11 @@ export class PartyUI {
     const pick = this.pickOpen ? this.pickHtml() : '';
     if (!s) { // без отряда: короткая плашка с приглашением
       if (!this.inHub) { this.el.style.display = 'none'; this.html(''); return; }
+      this.el.classList.add('solo');
       this.html(`<div class="hd">👥 Отряд <small>до 4</small><button class="mc-btn sm gold" data-p="pick" title="Пригласить игрока рядом (или клик/ПКМ по нему)">＋ Пригласить</button></div>${pick}`);
       this.el.style.display = ''; return;
     }
+    this.el.classList.remove('solo');
     const me = this.myId(), lead = s.leader === me;
     this.html(`<div class="hd">👥 Отряд ${s.members.length}/${s.max}<span class="hb">${lead && !this.full() ? '<button class="mc-btn sm gold" data-p="pick" title="Пригласить">＋</button>' : ''}<button class="mc-btn sm" data-p="leave" title="Выйти из отряда">выйти</button></span></div>${pick}` + s.members.map((m) => {
       const pct = m.maxHp ? Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100)) : 0;
