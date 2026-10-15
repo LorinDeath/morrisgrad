@@ -205,7 +205,29 @@ export class MetaService {
     const cls = session.stats?.classId || null;
     const h = cls ? this.store.hero(ms.pkey, cls) : null;
     const s: any = snapshot(a, h, cls, heroBase(cls), ms.verified);
-    for (const id of HERO_IDS) { const hh = this.store.hero(ms.pkey, id); s.heroes[id] = { lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout }; }
+    // Алтарь тел: у каждого героя — статы/экип/сумка для превью без смены оболочки
+    for (const id of HERO_IDS) {
+      const hh = this.store.hero(ms.pkey, id);
+      const base = heroBase(id);
+      const eqUids = new Set(Object.values(hh.equip || {}));
+      const equip: Record<string, { uid: string; id: string }> = {};
+      for (const [slot, uid] of Object.entries(hh.equip || {})) {
+        const it = a.inv.find((i) => i.uid === uid);
+        if (it) equip[slot] = { uid: String(uid), id: it.id };
+      }
+      const bag = a.inv
+        .filter((i) => (!i.hero || i.hero === id) && !eqUids.has(i.uid))
+        .map((i) => ({ uid: i.uid, id: i.id }));
+      const eff = heroEffective(a, hh, id, base);
+      s.heroes[id] = {
+        lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout, equip, bag,
+        effective: {
+          maxHp: eff.maxHp, armor: eff.armor, damageReduction: eff.damageReduction,
+          weaponMin: eff.weaponMin, weaponMax: eff.weaponMax,
+          dmgPct: eff.dmgPct, critPct: eff.critPct, speedPct: eff.speedPct,
+        },
+      };
+    }
     // черты админки для ЗАБЕГА (забег считает клиент-хост): оружие+надетое, навыки героя по id и навык оружия (rs:*)
     try { const eff = this.effective(session); const sk: Record<string, any[]> = {};
       for (const ab of eff.abilities || []) { const t = traitsFor(null, [], ab.id); if (t.length) sk[ab.id] = t; }

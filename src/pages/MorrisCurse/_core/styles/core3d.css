@@ -581,6 +581,58 @@
 .mc-set-row .grp { display: flex; gap: 4px; flex-wrap: wrap; }
 .mc-duel-card .row .dnd { font-size: 11px; }
 .mc3d-class .lv { font-size: 11px; color: #fde68a; margin-left: 4px; }
+
+/* ===== Алтарь тел: портрет слева + карточки/статы/экип/сумка справа ===== */
+.mc3d-screen.mc-altar-screen { justify-content: flex-start; padding: 12px 16px 20px; gap: 8px; }
+.mc3d-screen.mc-altar-screen > .mc-altar { width: min(1080px, 100%); max-width: 100%; }
+.mc-altar { display: flex; flex-direction: column; gap: 10px; text-align: left; color: #e2e8f0; font-family: monospace; }
+.mc-altar-head { text-align: center; }
+.mc-altar-head h2 { margin: 0; }
+.mc-altar-head p { margin: 4px auto 0; max-width: 560px; color: #94a3b8; font-size: 12px; }
+.mc-altar-body { display: grid; grid-template-columns: minmax(200px, 340px) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.mc-altar-portrait { position: relative; background: linear-gradient(180deg, #1a1028 0%, #0a0614 100%); border: 2px solid color-mix(in srgb, var(--c, #a855f7) 55%, #3b2c52); border-radius: 12px; overflow: hidden; min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; box-shadow: inset 0 0 40px rgba(168, 85, 247, 0.12); }
+.mc-altar-portrait img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; flex: 1; min-height: 0; pointer-events: none; filter: drop-shadow(0 0 18px color-mix(in srgb, var(--c, #a855f7) 45%, transparent)); }
+.mc-altar-pname { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px 12px; background: linear-gradient(transparent, rgba(5,3,10,.92) 40%); font-weight: 700; font-size: 16px; text-align: center; text-shadow: 0 1px 4px #000; }
+.mc-altar-pname small { font-weight: 500; color: #cbd5e1; font-size: 12px; }
+.mc-altar-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mc-altar-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mc-altar-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; background: #120d20; border: 2px solid #3b2c52; border-radius: 10px; color: #e2e8f0; cursor: pointer; font-family: monospace; }
+.mc-altar-card:hover { border-color: #facc15; }
+.mc-altar-card.on { border-color: var(--c, #4ade80); box-shadow: 0 0 12px color-mix(in srgb, var(--c, #4ade80) 35%, transparent); }
+.mc-altar-card.worn::after { content: ''; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.35); }
+.mc-altar-card-ic { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #0a0614; }
+.mc-altar-card .nm { font-weight: 700; font-size: 13px; }
+.mc-altar-card .lv { font-size: 11px; color: #fde68a; }
+.mc-altar-card .tag { font-size: 9px; color: #4ade80; letter-spacing: .04em; text-transform: uppercase; }
+.mc-altar-panels { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 8px; }
+.mc-altar-panel { background: rgba(12, 8, 22, 0.85); border: 1px solid #3b2c52; border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.mc-altar-panel h3 { margin: 0 0 6px; font-size: 12px; color: #fde68a; letter-spacing: .04em; }
+.mc-altar-panel h3 small { color: #94a3b8; font-weight: 500; }
+.mc-altar-stats { grid-column: 1 / -1; }
+.mc-altar-kv { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 4px 10px; font-size: 12px; align-items: baseline; }
+.mc-altar-kv span { color: #94a3b8; }
+.mc-altar-kv b { color: #fff; }
+.mc-altar-kv b small { color: #94a3b8; font-weight: 500; }
+.mc-altar-skill { margin-top: 8px; font-size: 11px; color: #fde68a; display: flex; flex-direction: column; gap: 2px; }
+.mc-altar-skill small { color: #94a3b8; font-size: 10px; line-height: 1.35; }
+.mc-altar-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 5px; }
+.mc-altar-slot { background: #0a0614; border: 2px solid #3b2c52; border-radius: 8px; padding: 4px 2px; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9px; color: #94a3b8; }
+.mc-altar-slot .ic { font-size: 18px; line-height: 1; }
+.mc-altar-slot b { font-size: 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
+.mc-altar-items { display: flex; flex-wrap: wrap; gap: 4px; max-height: 140px; overflow-y: auto; }
+.mc-altar-item { width: 36px; height: 36px; border: 2px solid #3b2c52; border-radius: 6px; background: #0a0614; display: flex; align-items: center; justify-content: center; }
+.mc-altar-empty { margin: 0; color: #64748b; font-size: 11px; }
+.mc3d-btn.mc-altar-accept.dim { opacity: .65; }
+.mc3d-compact .mc-altar-body { grid-template-columns: 1fr; }
+.mc3d-compact .mc-altar-portrait { min-height: 220px; max-height: 260px; }
+.mc3d-compact .mc-altar-panels { grid-template-columns: 1fr; }
+.mc3d-compact .mc-altar-card-ic { width: 36px; height: 36px; }
+@media (max-width: 720px) {
+  .mc-altar-body { grid-template-columns: 1fr; }
+  .mc-altar-portrait { min-height: 240px; max-height: 300px; }
+  .mc-altar-panels { grid-template-columns: 1fr; }
+}
+
 .mc-gslot.filled { cursor: pointer; }
 .mc-gslot.filled:hover::after { content: 'снять'; position: absolute; top: 2px; right: 4px; font-size: 10px; color: #fca5a5; }
 .mc-gslot { position: relative; }
