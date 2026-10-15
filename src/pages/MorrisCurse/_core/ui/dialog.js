@@ -126,7 +126,7 @@ export class NpcDialog {
   // 1) окна пояснения → 2) окно получения
   flowOffer(id) { const F = this.flow(id); if (!F) return;
     if (!F.f.offer.length) return this.flowAccept(id);
-    this.playVN(F.f.offer, F.q, [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.flowAccept(id) }, { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }]); }
+    this.playVN(F.f.offer, F.q, [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.flowAccept(id) }, ...this.btnAll(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }], { mid: this.btnAll() }); }
   // 2) окно получения: говорящий + текст, цели с реальными именами, награда, «Взять»/«Уйти»
   flowAccept(id) { const F = this.flow(id); if (!F) return;
     this.playVN([F.f.accept], F.q, [{ text: `Взять: ${F.q.title}`, cls: 'gold', id: 'vn-accept', onClick: () => { this.meta.accept(F.q.id); this.close(); } }, ...this.btnAll(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
@@ -153,7 +153,7 @@ export class NpcDialog {
   vnNext() { const v = this.vn; if (!v) return; if (v.i < v.wins.length - 1) { v.i++; this.vnRender(); } else if (v.opt.kind === 'accept' || v.opt.kind === 'progress') { /* «Взять» — только кнопкой */ } else { const b = v.endBtns.find((x) => x.cls === 'gold'); if (b) b.onClick(); } }
   vnRender() {
     const v = this.vn, w = v.wins[v.i], sp = this.speaker(w), last = v.i === v.wins.length - 1;
-    const btns = last ? v.endBtns : [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.vnNext() }, { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }];
+    const btns = last ? v.endBtns : [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.vnNext() }, ...(v.opt.mid || []), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }];
     const kind = v.opt.kind || 'offer', many = v.wins.length > 1;
     const el = this.ov.showScreen(`<div class="mc-vn vn-${kind}" data-vn-i="${v.i}" data-who="${esc(w.who)}" data-emo="${esc(w.emo)}" data-kind="${kind}">
       ${sp.id ? `<img class="vn-av" src="${vnImg(sp.id, w.emo)}" alt="${esc(sp.name)}">` : ''}

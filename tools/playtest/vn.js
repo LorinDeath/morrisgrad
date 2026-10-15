@@ -38,31 +38,34 @@ let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log(
   }
   await G(() => document.querySelector('#ghud-admin-btn').click()); await A.waitForFunction(() => window.__game.debug.admin().loaded, null, { timeout: 15000 });
   await A.click('.mc-admin [data-tab="quest"]'); await A.waitForTimeout(300); await A.fill('.mc-admin aside input', QID); await A.click(`.mc-admin aside li[data-id="${QID}"]`); await A.waitForTimeout(400);
-  ok(!!(await A.$('.mc-admin .vn-ed')), 'в форме квеста есть редактор «Диалог-новелла»');
+  ok(!!(await A.$('.mc-admin .vn-flow')), 'в форме квеста есть блок «Поток квеста»');
+  // старые реплики квеста подставлены окнами — убрать, собрать поток заново
+  for (const ph of ['offer', 'done']) while (await A.$(`.mc-admin [data-ph="${ph}"] [data-wrm="0"]`)) { await A.click(`.mc-admin [data-ph="${ph}"] [data-wrm="0"]`); await A.waitForTimeout(100); }
   const W = [['petr', 'think', 'Хм… Ещё один Проклятый. Ты пахнешь пеплом Поляны.'], ['mage', 'shy', 'Я… просто хотела спросить, что за архивы вы распаковываете.'], ['petr', 'smirk', 'Архивы — это всё, что осталось от убитых Отголосков. Хочешь научиться?'], ['kyut', 'joy', 'Пётр, не пугай новичков! Соглашайся — потом приходи ко мне на арену.']];
   for (let i = 0; i < W.length; i++) {
-    await A.click('.mc-admin [data-wadd]'); await A.waitForTimeout(150);
-    const r = `.mc-admin [data-wi="${i}"]`;
+    await A.click('.mc-admin [data-wadd="offer"]'); await A.waitForTimeout(150);
+    const r = `.mc-admin [data-ph="offer"][data-wi="${i}"]`;
     await A.selectOption(`${r} [data-wwho]`, W[i][0]); await A.waitForTimeout(150);
     await A.click(`${r} [data-pick="${W[i][1]}"]`); await A.waitForTimeout(150);
     await A.fill(`${r} [data-wtext]`, W[i][2]);
   }
   // переставить: добавить лишнее окно, поднять его и удалить — проверка ▲/✕
-  await A.click('.mc-admin [data-wadd]'); await A.fill('.mc-admin [data-wi="4"] [data-wtext]', 'лишнее'); await A.click('.mc-admin [data-up="4"]'); await A.waitForTimeout(150);
-  ok((await A.inputValue('.mc-admin [data-wi="3"] [data-wtext]')) === 'лишнее', '▲ переставляет окно');
-  await A.click('.mc-admin [data-wrm="3"]'); await A.waitForTimeout(150);
-  ok((await A.$$('.mc-admin .vnw')).length === 4, '✕ удаляет окно (осталось 4)');
+  await A.click('.mc-admin [data-wadd="offer"]'); await A.fill('.mc-admin [data-ph="offer"][data-wi="4"] [data-wtext]', 'лишнее'); await A.click('.mc-admin [data-ph="offer"] [data-up="4"]'); await A.waitForTimeout(150);
+  ok((await A.inputValue('.mc-admin [data-ph="offer"][data-wi="3"] [data-wtext]')) === 'лишнее', '▲ переставляет окно');
+  await A.click('.mc-admin [data-ph="offer"] [data-wrm="3"]'); await A.waitForTimeout(150);
+  ok((await A.$$('.mc-admin [data-ph="offer"].vnw')).length === 4, '✕ удаляет окно (осталось 4)');
   await A.screenshot({ path: `${OUT}/01-admin-editor-offer.png` });
-  await A.click('.mc-admin [data-ph="done"]'); await A.waitForTimeout(150);
   const D = [['petr', 'joy', 'Вот видишь — разговор тоже работа. Держи опыт.'], ['hero', 'determined', 'Спасибо, Пётр. Я вернусь с архивами.']];
-  for (let i = 0; i < D.length; i++) { await A.click('.mc-admin [data-wadd]'); const r = `.mc-admin [data-wi="${i}"]`; await A.selectOption(`${r} [data-wwho]`, D[i][0]); await A.click(`${r} [data-pick="${D[i][1]}"]`); await A.fill(`${r} [data-wtext]`, D[i][2]); }
+  for (let i = 0; i < D.length; i++) { await A.click('.mc-admin [data-wadd="done"]'); const r = `.mc-admin [data-ph="done"][data-wi="${i}"]`; await A.selectOption(`${r} [data-wwho]`, D[i][0]); await A.click(`${r} [data-pick="${D[i][1]}"]`); await A.fill(`${r} [data-wtext]`, D[i][2]); }
   await A.screenshot({ path: `${OUT}/02-admin-editor-done.png` });
-  await A.click('.mc-admin [data-vnsave]');
+  await A.click('.mc-admin [data-qsave]');
   await A.waitForFunction(() => /Сохранено|✖/.test(document.querySelector('.mc-admin .msg')?.textContent || ''), null, { timeout: 8000 });
   const m = await A.textContent('.mc-admin .msg'); ok(/Сохранено/.test(m), 'диалог сохранён: ' + m);
   const row = d1(`SELECT data FROM quest_dialogues WHERE quest_id='${QID}'`).replace(/\\/g, '');
   ok(/"who":"kyut","emo":"joy"/.test(row) && /"who":"hero","emo":"determined"/.test(row), 'D1 quest_dialogues: окна с говорящими и эмоциями');
   await A.screenshot({ path: `${OUT}/03-admin-saved.png` });
+  { const others = () => [...d1(`SELECT id FROM custom_quests WHERE enabled=1 AND id <> '${QID}' AND data LIKE '%petr%'`).matchAll(/"id": "([^"]+)"/g)].map((x) => x[1]);
+    for (const id of others()) { await G((q) => window.__game.debug.rawSend({ type: 'admin_quest_delete', id: q }), id); await A.waitForTimeout(700); } } // остатки прошлых прогонов
   await A.click('.mc-admin [data-x]');
   // 3. игра (свежий игрок, не админ): Пётр → окна новеллы
   const [P, GP] = await open('Мариэль', 'test_vn_player_' + Date.now());
