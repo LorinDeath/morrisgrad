@@ -379,6 +379,11 @@ export class Pvp {
       fire: (o) => this.fire(d, c.i as 0 | 1, { ...o, onHit: o.onHit ? () => { if (live()) o.onHit!(opp, 0); } : undefined, onEnd: o.onEnd ? (x, y, h) => { if (live()) o.onEnd!(x, y, h); } : undefined }),
     });
     if ((ab.props.includes("vamp") || def?.id === "trick_strike") && this.duels.has(d.id)) this.lsHeal(c, session, dealt * 0.08);
+    if (ab.props.includes("swift") && this.duels.has(d.id)) { // Порыв сияния в дуэли — как в забеге/мире
+      c.me.swiftUntil = now + 2000;
+      d.ev.push({ k: "pstatus", to: session.id, s: "swift", ms: 2000 });
+      this.host.send(ws, { type: "buff", id: "swift", ms: 2000 });
+    }
   }
 
   leave(session: any, reason: "forfeit" | "disconnect") {

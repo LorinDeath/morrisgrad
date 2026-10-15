@@ -63,7 +63,8 @@ function applyConfig(d) {
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
-const pvpSt = { slowUntil: 0, frozenUntil: 0 }; // замедление/заморозка от соперника (pvp_state pstatus)
+const pvpSt = { slowUntil: 0, frozenUntil: 0, swiftUntil: 0 }; // замедление/заморозка/порыв от сервера (pvp_state pstatus / buff)
+const swiftSt = { until: 0 }; // Порыв сияния в открытом мире (+25% скорости на 2 с)
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера
 const FLOWER_RANGE = 56; // ≤ серверных 120 px: подсказка — только когда бутон рядом и виден
@@ -388,6 +389,9 @@ async function boot(canvasId, username, userId, api) {
     zoneSt.abilCd[d.id] = now + (d.left || 0);
     delete zoneSt.abilPend[d.id];
   });
+  net.on('buff', (d) => { // серверные бафы навыков (Порыв сияния и т.п.)
+    if (d.id === 'swift') { const u = performance.now() + (d.ms || 2000); swiftSt.until = u; pvpSt.swiftUntil = Math.max(pvpSt.swiftUntil, u); }
+  });
   net.on('open_minigames_menu', (d) => {
     const list = (d.games || []).map((g) => `<div style="text-align:left;margin:4px 0">${g.disabled || !g.url
       ? `<b style="color:#64748b">${esc(g.title)}</b>`
@@ -477,8 +481,8 @@ async function boot(canvasId, username, userId, api) {
       if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
       else if (['ability', 'aline', 'aproj', 'amark', 'proj', 'pend', 'puddle'].includes(e.k)) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
       else if (e.k === 'pstatus') { // статусы дуэли (сервер): замедление/заморозка ощущаются в движении; DoT — подпись
-        const T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], burn: ['Поджог', '#fb923c'], poison: ['Яд', '#a3e635'], bleed: ['Кровотечение', '#f87171'] }[e.s] || [e.s, '#fff'];
-        if (e.to === myId) { if (e.s === 'slow') pvpSt.slowUntil = performance.now() + (e.ms || 2000); if (e.s === 'freeze') pvpSt.frozenUntil = performance.now() + (e.ms || 1000); overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
+        const T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], burn: ['Поджог', '#fb923c'], poison: ['Яд', '#a3e635'], bleed: ['Кровотечение', '#f87171'], swift: ['Порыв', '#86efac'] }[e.s] || [e.s, '#fff'];
+        if (e.to === myId) { if (e.s === 'slow') pvpSt.slowUntil = performance.now() + (e.ms || 2000); if (e.s === 'freeze') pvpSt.frozenUntil = performance.now() + (e.ms || 1000); if (e.s === 'swift') { pvpSt.swiftUntil = performance.now() + (e.ms || 2000); swiftSt.until = pvpSt.swiftUntil; } overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
         else { const o = others.get(e.to); if (o) overlay.float(toX(o.x), 3, toZ(o.y), T[0], T[1]); }
       }
       else if (e.k === 'lsheal') { if (e.sid === myId) lsAdd(e.d); }
@@ -498,11 +502,23 @@ async function boot(canvasId, username, userId, api) {
   let myRole = null; // роль своего аккаунта (сервер: player_roles + проверенный вход)
   net.on('my_role', (d) => {
     myRole = d.role || null;
-    // кнопка панели — только админу (сервер всё равно проверяет каждый admin_* запрос)
+    // кнопка панели — админ (полный доступ) или модератор (бестиарий/оружие/предметы); сервер проверяет каждый admin_*
+    const canPanel = !!(d.admin || d.modAdmin);
+    adminPanel.setAccess({ full: !!d.admin, allowed: !!(d.admin || d.modAdmin), kinds: d.kinds || (d.modAdmin ? ['mob', 'weapon', 'item'] : null) });
     let b = document.getElementById('ghud-admin-btn');
-    if (d.admin && !b) { b = document.createElement('button'); b.id = 'ghud-admin-btn'; b.className = 'hud-duel-btn'; b.title = 'Админ-панель'; b.textContent = '🛠'; b.style.cssText = 'flex:0 0 auto;border-color:#f87171;color:#fca5a5'; b.onclick = () => adminPanel.open(); document.getElementById('ghud-set-btn')?.insertAdjacentElement('afterend', b); }
-    if (b) b.style.display = d.admin ? '' : 'none';
-    if (!d.admin) adminPanel.close();
+    if (canPanel && !b) {
+      b = document.createElement('button'); b.id = 'ghud-admin-btn'; b.className = 'hud-duel-btn'; b.textContent = '🛠';
+      b.onclick = () => adminPanel.open();
+      document.getElementById('ghud-set-btn')?.insertAdjacentElement('afterend', b);
+    }
+    if (b) {
+      b.style.display = canPanel ? '' : 'none';
+      b.title = d.admin ? 'Админ-панель' : 'Панель модератора';
+      b.style.cssText = d.admin
+        ? 'flex:0 0 auto;border-color:#f87171;color:#fca5a5'
+        : 'flex:0 0 auto;border-color:#4ade80;color:#86efac';
+    }
+    if (!canPanel) adminPanel.close();
   });
   const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
@@ -1470,8 +1486,10 @@ async function boot(canvasId, username, userId, api) {
     input.dashPressed = false; input.abilityPressed = false;
     const pn = performance.now(), slowK = world === 'arena' ? (pn < pvpSt.frozenUntil ? 0 : pn < pvpSt.slowUntil ? 0.6 : 1) : 1; // статусы дуэли
     // скорость героя из талантов/снаряжения/души (eff.speedPct, сервер уже применил мягкий кап и нижнюю границу −20%)
+    // Порыв сияния (+25% на 2 с) — и в открытом мире, и на арене
+    const swiftK = (pn < swiftSt.until || pn < pvpSt.swiftUntil) ? 1.25 : 1;
     const spK = mode === 'run' ? 1 : 1 + (meta.hero?.effective?.speedPct || 0) / 100;
-    let vx = mv.x * MOVE_SPEED * slowK * spK, vy = mv.y * MOVE_SPEED * slowK * spK;
+    let vx = mv.x * MOVE_SPEED * slowK * spK * swiftK, vy = mv.y * MOVE_SPEED * slowK * spK * swiftK;
     if (dash.active) {
       vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;
       dash.timer -= dt;
@@ -1777,7 +1795,7 @@ async function boot(canvasId, username, userId, api) {
       grim: (g, f) => { grimSet('grim', g); grimSet('fog', f); },
       style: (v) => grimSet('style', v),
       minimap: () => hud.minimap?.stats,
-      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),

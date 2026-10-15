@@ -90,7 +90,7 @@ function ok2(c: boolean) { if (!c) ok(false, "reset mob retargeted player"); }
 {
   const n = z.mobs.length, c = z.mobs.filter((m) => m.cursed).length;
   ok(c / n > 0.07 && c / n < 0.13, `cursed rate ${(100 * c / n).toFixed(1)}% (target ${ZONE_GEN.cursedPct}%)`);
-  ok(z.mobs.filter((m) => m.cursed).every((m) => m.skills.length >= 2 && m.skills.length <= 5 && m.maxHp >= ZONE_MOBS[m.type].hp * 2), "cursed: 2–5 skills, ×2.5 HP");
+  ok(z.mobs.filter((m) => m.cursed).every((m) => m.skills.length >= 2 && m.skills.length <= 5 && m.maxHp >= ZONE_MOBS[m.type].hp * 4), "cursed: 2–5 skills, ×5.2 HP");
   ok(z.mobs.filter((m) => !m.cursed && !ZONE_MOBS[m.type].boss).every((m) => m.skills.length === 0), "regular mobs: no skills");
   const bosses = Object.keys(ZONE_MOBS).filter((k) => ZONE_MOBS[k].boss);
   ok(bosses.every((k) => skillsFor(k, 1).length === 1), `every regular boss gets exactly 1 skill (${bosses.length} bosses; e.g. fire_warden: ${skillsFor("fire_warden", 1)})`);
@@ -111,14 +111,17 @@ function ok2(c: boolean) { if (!c) ok(false, "reset mob retargeted player"); }
   let now = 3_000_000; for (let i = 0; i < 5; i++) { now += 100; zz.update(0.1, now, pm, noop, noop); }
   ok(zz.events.some((e) => e.k === "tele_circle" && e.r === 52), "melee pack mob leaps with a circle telegraph");
 }
-// опыт
+// опыт (ребаланс: доля xpNeed; ниже = 0.01%, равный = 0.1%, выше = 1%; босс ×10)
 {
-  const lvl = (L: number) => ZONE_MOBS[Object.keys(ZONE_MOBS).find((k) => ZONE_MOBS[k].lvl === L && ZONE_MOBS[k].size === "s")!];
-  const d10 = lvl(10);
-  const x = (o: any) => killXp({ xp: d10.xp, mobL: 10, heroL: 10, ...o });
-  ok(killXp({ xp: d10.xp, mobL: 10, heroL: 15 }) === 0, "−5 levels → 0 XP");
-  ok(x({}) < x({ elite: true }) && x({ elite: true }) < x({ elite: true, cursed: true }) && x({ elite: true, cursed: true }) <= d10.xp * 6 * 1.0001, `stronger → more XP with soft cap: ${x({})} / elite ${x({ elite: true })} / cursed ${x({ cursed: true })} / elite+cursed ${x({ elite: true, cursed: true })}`);
-  ok(killXp({ xp: 1e9, mobL: 30, heroL: 10, boss: true }) <= xpNeed(10) * 0.3 + 1, "boss kill ≤ 30% of a level");
+  const need = xpNeed(10);
+  ok(killXp({ xp: 0, mobL: 5, heroL: 10 }) === Math.max(1, Math.round(need * 0.0001)), "ниже → 0.01% xpNeed");
+  ok(killXp({ xp: 0, mobL: 10, heroL: 10 }) === Math.max(1, Math.round(need * 0.001)), "равный → 0.1%");
+  ok(killXp({ xp: 0, mobL: 12, heroL: 10 }) === Math.max(1, Math.round(need * 0.01)), "+2 → 1%");
+  ok(killXp({ xp: 0, mobL: 20, heroL: 10 }) === Math.max(1, Math.round(need * 0.01)), ">+3 → кап 1%");
+  const same = killXp({ xp: 0, mobL: 10, heroL: 10 });
+  ok(same < killXp({ xp: 0, mobL: 10, heroL: 10, elite: true }) && killXp({ xp: 0, mobL: 10, heroL: 10, elite: true }) <= killXp({ xp: 0, mobL: 10, heroL: 10, elite: true, cursed: true }), "элита/проклятый дают больше");
+  ok(killXp({ xp: 0, mobL: 10, heroL: 10, boss: true }) === Math.max(1, Math.round(need * 0.01)), "босс своего ур. → 1%");
+  ok(killXp({ xp: 0, mobL: 30, heroL: 10, boss: true }) === Math.max(1, Math.round(need * 0.1)), "босс выше → 10%");
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

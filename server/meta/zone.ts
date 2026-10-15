@@ -650,15 +650,16 @@ export class Zone {
   }
 
   // ---------- статусы от оружия игроков ----------
-  applyStatus(m: ZMob, sid: string, st: { kind?: string; dps?: number; dur?: number; slow?: number | boolean; knock?: number }, fromX: number, fromY: number) {
+  applyStatus(m: ZMob, sid: string, st: { kind?: string; dps?: number; dur?: number; slow?: number | boolean; knock?: number }, fromX: number, fromY: number, maxStacks = DOT_STACK_MAX) {
     const now = Date.now();
     const d = ZONE_MOBS[m.type];
     if (st.kind && st.dps && st.dur) {
       // стаки: один и тот же статус от разных попаданий/источников складывается (каждый стак — свой урон/с и срок),
-      // до DOT_STACK_MAX на вид (самый старый уходит); разные статусы (поджог + кровотечение + яд) действуют одновременно
+      // до maxStacks на вид (по уровню героя, кап DOT_STACK_MAX); разные статусы действуют одновременно
+      const cap = Math.max(1, Math.min(DOT_STACK_MAX, maxStacks | 0));
       const L = (m.dots = (m.dots || []).filter((x) => x.until > now));
       const same = L.filter((x) => x.kind === st.kind);
-      if (same.length >= DOT_STACK_MAX) L.splice(L.indexOf(same.reduce((a, b) => (a.until < b.until ? a : b))), 1);
+      if (same.length >= cap) L.splice(L.indexOf(same.reduce((a, b) => (a.until < b.until ? a : b))), 1);
       L.push({ kind: st.kind, dps: st.dps, until: now + st.dur * 1000, sid });
       m.dot = L[L.length - 1];
     }

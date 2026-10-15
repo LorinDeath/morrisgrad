@@ -8,7 +8,7 @@ import {
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
-import { mobXp, xpLevelMult, killXp } from "./balance";
+import { mobXp, xpLevelMult, killXp, dotStackMax, weaponSkillPowerMult } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { QUEST_DIALOGUES } from "./vnChars";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
@@ -187,7 +187,7 @@ export class MetaService {
     }
     await this.social.warm(pkey);
     await this.roles.ensure();
-    { const ms0 = this.ms.get(session.id); const role = ms0?.verified ? this.roles.of(pkey) : undefined; this.send(ws, { type: "my_role", role: role || null, admin: this.roles.isAdmin(ms0) }); }
+    { const ms0 = this.ms.get(session.id); const role = ms0?.verified ? this.roles.of(pkey) : undefined; const pf = this.roles.panelFlags(ms0); this.send(ws, { type: "my_role", role: role || null, ...pf }); }
     if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
     this.refreshZonePlayer(session);
     this.send(ws, { type: "meta_state", ...this.snap(session) });
@@ -497,13 +497,22 @@ export class MetaService {
         return true;
       }
       case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
-        // только серверно проверенный админ (uid из Clerk + player_roles); id/роль из сообщения не используются
-        if (!this.roles.isAdmin(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why: "not_admin", type: msg.type }); return true; }
+        // роли из D1 + verified; id/роль из сообщения клиента игнорируются.
+        // Админ — всё. Модератор — только admin_open + admin_save/reset для mob/weapon/item. Остальное — отказ.
+        const deny = (why: string) => { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why, type: msg.type, kind: (msg as any).kind }); return true; };
+        if (msg.type === "admin_open") {
+          if (!this.roles.canOpenAdmin(ms)) return deny("not_panel");
+        } else if (msg.type === "admin_save" || msg.type === "admin_reset") {
+          if (!this.roles.canAdminWrite(ms, String((msg as any).kind || ""))) return deny("not_write_kind");
+        } else {
+          // audit / quests / dialogues — только полный админ
+          if (!this.roles.canAdminFull(ms)) return deny("admin_only");
+        }
         const t = Date.now(); if (msg.type !== "admin_open" && t - ((ms as any).admAt || 0) < 300) { this.send(ws, { type: "toast_error", message: "Слишком часто" }); return true; }
         (ms as any).admAt = t;
         if (JSON.stringify(msg).length > 24000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
         const fail = (e: any) => { console.error("[mc] admin", e?.message || e); this.send(ws, { type: "admin_result", ok: false, err: "Ошибка сохранения" }); };
-        if (msg.type === "admin_open") this.admin.sync(true).then(() => this.send(ws, { type: "admin_catalog", ...this.admin.catalog() })).catch(fail);
+        if (msg.type === "admin_open") this.admin.sync(true).then(() => this.send(ws, { type: "admin_catalog", ...this.admin.catalogFor(this.roles.isAdmin(ms) ? "admin" : "moderator") })).catch(fail);
         else if (msg.type === "admin_audit") this.admin.audit(60).then((rows) => this.send(ws, { type: "admin_audit", rows })).catch(fail);
         else if (msg.type === "admin_save") this.admin.save(ms.pkey, msg.kind, msg.id, msg.patch).then((r) => this.send(ws, { type: "admin_result", op: "save", kind: msg.kind, id: msg.id, ...r })).catch(fail);
         else if (msg.type === "admin_reset") this.admin.reset(ms.pkey, msg.kind, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "reset", kind: msg.kind, id: msg.id, ...r })).catch(fail);
@@ -525,7 +534,7 @@ export class MetaService {
           this.send(ws, { type: "role_changed", id: opaqueId(target!), role: r.role || null });
           this.push(ws, session, { toast: r.role ? "Модерка выдана" : "Модерка снята" });
           const osid = this.social.onlineSid(target!); const oe = osid ? this.sessionLookup?.(osid) : null;
-          if (oe) this.send(oe[0], { type: "my_role", role: r.role || null, admin: false });
+          if (oe) { const tms = this.ms.get(oe[1].id); this.send(oe[0], { type: "my_role", role: r.role || null, ...this.roles.panelFlags(tms) }); }
         }).catch((e) => { console.error("[mc] role_set", e?.message || e); this.send(ws, { type: "toast_error", message: "Не удалось сохранить роль" }); });
         return true;
       }
@@ -843,8 +852,9 @@ export class MetaService {
   traitHit(zone: any, m: any, session: any, ms: any, real: number, traits: any[]) {
     if (!traits.length || !real) return;
     const dead = !!m.dead;
+    const stacks = dotStackMax(ms?.pub?.lvl || session.stats?.level || 1);
     applyTraits(traits, real, cryptoRand, {
-      dot: (kind, dps, dur) => { if (!dead) zone.applyStatus(m, session.id, { kind, dps, dur }, session.x, session.y); },
+      dot: (kind, dps, dur) => { if (!dead) zone.applyStatus(m, session.id, { kind, dps, dur }, session.x, session.y, stacks); },
       slow: () => { if (!dead) zone.applyStatus(m, session.id, { slow: true }, session.x, session.y); },
       knock: (p) => { if (!dead) zone.applyStatus(m, session.id, { knock: p }, session.x, session.y); },
       freeze: (t) => { if (!dead) freezeMob(m, t); },
@@ -892,7 +902,7 @@ export class MetaService {
       const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k;
       const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm)) || 0;
       this.noteHit(session, real, m.type);
-      if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, ox, oy);
+      if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, ox, oy, dotStackMax(eff.level || 1));
       if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100);
       if (real) this.traitHit(zone, m, session, ms, real, traits);
       if (crit) zone.events.push({ k: "crit", id: m.id, x: m.x, y: m.y });
@@ -971,7 +981,10 @@ export class MetaService {
   }
   rsAbilityOf(session: any): any {
     const ms = this.ms.get(session.id); const cls = session.stats?.classId; if (!ms || !cls) return null;
-    return this.rsAbility(weaponSkill(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls)));
+    const h = this.store.hero(ms.pkey, cls);
+    const ab = this.rsAbility(weaponSkill(this.store.account(ms.pkey), h));
+    if (ab && h) ab.power = Math.round(ab.power * weaponSkillPowerMult(h.lvl) * 100) / 100;
+    return ab;
   }
   zoneAbility(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id)!;
@@ -981,9 +994,7 @@ export class MetaService {
     // 4-й слот (R): навык надетого оружия — сервер сам берёт его с экипировки, клиент лишь просит "rs"
     let ab: any = eff.abilities.find((x: any) => x.id === msg.id);
     if (!ab && msg.id === "rs") {
-      const cls = session.stats?.classId; const a0 = this.store.account(ms.pkey);
-      const rs = cls ? weaponSkill(a0, this.store.hero(ms.pkey, cls)) : null;
-      ab = this.rsAbility(rs);
+      ab = this.rsAbilityOf(session);
     }
     if (!ab) return;
     const now = Date.now();
@@ -1021,7 +1032,7 @@ export class MetaService {
         if (real) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
         return real;
       },
-      status: (m, st, fx, fy) => { if (st.dot) zone.applyStatus(m, sid, st.dot, fx, fy); if (st.slow || st.knock) zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) freezeMob(m, st.freeze); },
+      status: (m, st, fx, fy) => { const stacks = dotStackMax(eff.level || 1); if (st.dot) zone.applyStatus(m, sid, st.dot, fx, fy, stacks); if (st.slow || st.knock) zone.applyStatus(m, sid, { slow: st.slow, knock: st.knock }, fx, fy); if (st.freeze) freezeMob(m, st.freeze); },
       move: (x, y) => { session.x = x; session.y = y; ms.zp.x = x; ms.zp.y = y; (session as any).lastMoveAt = Date.now(); this.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
       bounds: (x, y) => { const [lo, hi] = worldBounds(world); return [Math.max(lo, Math.min(hi, x)), Math.max(lo, Math.min(hi, y))]; },
       buff: (b) => {
@@ -1034,6 +1045,10 @@ export class MetaService {
       ev: (e) => zone.events.push(e),
     });
     if (ab.props.includes("vamp")) this.lifesteal(zone, session, ms, dealt * 0.08);
+    if (ab.props.includes("swift")) { // Порыв сияния: +25% скорости на 2 с (как в забеге) — открытый мир
+      (ms as any).swiftUntil = Math.max((ms as any).swiftUntil || 0, Date.now() + 2000);
+      this.send(ws, { type: "buff", id: "swift", ms: 2000 });
+    }
     void def;
     const a = this.store.account(ms.pkey);
     if (this.qev(a, session, { type: "ability_used" }).length) this.send(ws, { type: "toast_error", message: "Звёздный квест: навык применён — прогресс «без навыков» сброшен" });

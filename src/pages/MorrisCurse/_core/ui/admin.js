@@ -1,11 +1,11 @@
-// Админ-панель (только роль admin; сервер проверяет КАЖДЫЙ запрос — клиентская кнопка лишь скрыта у остальных).
-// Вкладки: Бестиарий / Оружие / Предметы / Навыки / Дроп / Квесты / Журнал. Поля — из server/meta/overrides.ts (SCHEMA),
-// черты — редактор эффектов в духе RPG Maker MZ (Traits): эффект + параметры, добавить/удалить. «Сохранить» → D1.
+// Админ-панель: полный доступ — роль admin; модератор видит только Бестиарий / Оружие / Предметы.
+// Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
 import { esc } from './overlay.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
 
-const TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
 .mc-admin .vn-stepbox{border:1px solid #5b4416;border-radius:8px;padding:8px;margin:8px 0;background:rgba(197,155,39,.04)}.mc-admin .vn-stepbox h4{margin:0 0 2px;color:#fde68a}
@@ -21,7 +21,7 @@ const css = `
 .mc-admin.sheet{left:0!important;top:0!important;width:100%!important;height:100%!important;border-radius:0;resize:none;min-width:0}
 .mc-admin .rz{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,#c59b27 50%);opacity:.7}
 .mc-admin header{display:flex;gap:6px;align-items:center;padding:8px 10px;border-bottom:2px solid #c59b27;flex-wrap:wrap}
-.mc-admin header b{color:#f87171;margin-right:8px;font-size:15px}
+.mc-admin header b{color:#f87171;margin-right:8px;font-size:15px}.mc-admin.mod{border-color:#4ade80;box-shadow:0 0 0 1px #14532d,0 12px 40px rgba(0,0,0,.7)}.mc-admin.mod header{border-bottom-color:#4ade80;background:linear-gradient(#14532d,#052e16)}.mc-admin.mod header b{color:#86efac}
 .mc-admin .tabs button,.mc-admin .btn{background:#1b142c;border:1px solid #6b4fa0;color:#fde68a;padding:5px 9px;border-radius:6px;cursor:pointer;font:inherit}
 .mc-admin .tabs button.on{background:#3b2a12;border-color:#c59b27}
 .mc-admin .btn.gold{background:#78350f;border-color:#fbbf24}.mc-admin .btn.red{background:#4c0f17;border-color:#f87171}
@@ -65,15 +65,40 @@ const SLOT_NAMES = { helmet: '⛑ Шлемы', armor: '🛡 Броня (тело
 export class AdminPanel {
   // окно ВНУТРИ игрового контейнера (работает в полноэкранном режиме, игра рисуется позади): перетаскивание за шапку,
   // изменение размера за угол, Esc — закрыть; на телефоне — лист на весь игровой экран
-  constructor(send, host) { this.host = host || document.body; this.send = send; this.el = null; this.cat = null; this.tab = 'mob'; this.sel = null; this.q = ''; }
+  constructor(send, host) { this.host = host || document.body; this.send = send; this.el = null; this.cat = null; this.tab = 'mob'; this.sel = null; this.q = ''; this.full = true; this.kinds = null; }
+  /** доступ с сервера (my_role): full=admin; иначе модератор с kinds=['mob','weapon','item'] */
+  setAccess({ full = false, kinds = null, allowed = false } = {}) {
+    this.full = !!full;
+    // без allowed/full — панель закрыта; kinds только когда сервер явно дал доступ
+    if (full) this.kinds = null;
+    else if (allowed || (Array.isArray(kinds) && kinds.length)) this.kinds = Array.isArray(kinds) && kinds.length ? kinds : ['mob', 'weapon', 'item'];
+    else this.kinds = [];
+    if (!this.full && this.kinds.length && !this.kinds.includes(this.tab)) { this.tab = this.kinds[0]; this.sel = null; }
+    if (this.el) this.openTabs();
+  }
+  tabs() {
+    if (this.full) return ALL_TABS;
+    const allow = new Set(this.kinds || [...MOD_TABS]);
+    return ALL_TABS.filter(([k]) => allow.has(k));
+  }
+  openTabs() {
+    if (!this.el) return;
+    const box = this.el.querySelector('.tabs');
+    if (!box) return;
+    box.innerHTML = this.tabs().map(([k, t]) => `<button data-tab="${k}" class="${k === this.tab ? 'on' : ''}">${t}</button>`).join(' ');
+    box.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.sel = null; this.q = ''; const qi = this.el.querySelector('aside input'); if (qi) qi.value = ''; this.msg(''); this.render(); }));
+    const title = this.el.querySelector('header b');
+    if (title) title.textContent = this.full ? '🛠 Админ-панель' : '🛠 Панель модератора';
+    this.el.classList.toggle('mod', !this.full);
+  }
   get isOpen() { return !!this.el; }
   open() {
     if (this.el) return;
     if (!document.getElementById('mc-admin-css')) { const s = document.createElement('style'); s.id = 'mc-admin-css'; s.textContent = css; document.head.appendChild(s); }
-    const el = this.el = document.createElement('div'); el.className = 'mc-admin';
+    const el = this.el = document.createElement('div'); el.className = 'mc-admin' + (this.full ? '' : ' mod');
     if (this.host.clientWidth < 760 || /Mobi|Android|iPhone/i.test(navigator.userAgent)) el.classList.add('sheet');
     if (getComputedStyle(this.host).position === 'static') this.host.style.position = 'relative';
-    el.innerHTML = `<header><b>🛠 Админ-панель</b><div class="tabs">${TABS.map(([k, t]) => `<button data-tab="${k}">${t}</button>`).join(' ')}</div><span class="msg"></span><button class="btn" data-x>✕ Закрыть</button></header>
+    el.innerHTML = `<header><b>${this.full ? '🛠 Админ-панель' : '🛠 Панель модератора'}</b><div class="tabs"></div><span class="msg"></span><button class="btn" data-x>✕ Закрыть</button></header>
       <main><aside><input placeholder="Поиск…"><div class="chips"></div><ul></ul></aside><section><p>Загрузка данных с сервера…</p></section></main>`;
     this.host.appendChild(el);
     // клавиши не доходят до игры (WASD/навыки), Esc закрывает
@@ -87,7 +112,7 @@ export class AdminPanel {
       hd.addEventListener('pointerup', () => { d0 = null; });
     } el.addEventListener('keyup', (e) => e.stopPropagation());
     el.querySelector('[data-x]').onclick = () => this.close();
-    el.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.sel = null; this.q = ''; const qi = this.el.querySelector('aside input'); if (qi) qi.value = ''; this.msg(''); this.render(); }));
+    this.openTabs();
     el.querySelector('aside input').oninput = (e) => { this.q = e.target.value.toLowerCase(); this.list(); };
     this.send({ type: 'admin_open' });
   }
@@ -128,7 +153,8 @@ export class AdminPanel {
       { grp: 1, id: '__gl', name: 'Локации — плотность мобов (лагеря пересобираются сразу)' }, ...(this.cat.ent.region || []).map((e) => ({ ...row(e, 'region', 'region:'), name: '🗺 ' + e.name, sub: `${e.values.dens != null ? '×' + e.values.dens : 'как в коде'}${e.values.bossOn === false ? ' · без босса' : ''} · ${e.id}` })),
       { grp: 1, id: '__gb', name: 'Мировые боссы — таймеры' }, ...(this.cat.ent.boss || []).map((e) => ({ ...row(e, 'boss', 'boss:'), sub: `${Math.round(e.values.every / 60)} мин · ${e.id}` })),
       { grp: 1, id: '__gr', name: 'Редкие Отголоски' }, ...(this.cat.ent.rare || []).map((e) => ({ ...row(e, 'rare', 'rare:'), sub: `${Math.round(e.values['every.0'] / 60)}–${Math.round(e.values['every.1'] / 60)} мин` }))];
-    const list = this.cat.ent[this.tab].map((e) => row(e, this.tab));
+    const ent = this.cat.ent[this.tab] || [];
+    const list = ent.map((e) => row(e, this.tab));
     return this.tab === 'loot' ? list : list.sort((a, b) => (a.lvl || 0) - (b.lvl || 0));
   }
   list() {
@@ -153,8 +179,9 @@ export class AdminPanel {
     const sec = this.el.querySelector('section');
     if (!this.cat) return;
     this.list();
-    if (this.tab === 'audit') { if (!this.audit) this.send({ type: 'admin_audit' }); sec.innerHTML = this.auditHtml(); return; }
-    if (this.tab === 'quest') { if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }
+    if (!this.full && !(this.kinds || []).includes(this.tab)) { this.tab = (this.kinds || ['mob'])[0]; }
+    if (this.tab === 'audit') { if (!this.full) { sec.innerHTML = '<p>Журнал доступен только админу.</p>'; return; } if (!this.audit) this.send({ type: 'admin_audit' }); sec.innerHTML = this.auditHtml(); return; }
+    if (this.tab === 'quest') { if (!this.full) { sec.innerHTML = '<p>Квесты доступны только админу.</p>'; return; } if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }
     const pre = /^(item|spawn|boss|rare|region):/.exec(String(this.sel || ''));
     const kind = pre ? pre[1] : this.tab, id = pre ? this.sel.slice(pre[0].length) : this.sel;
     if (String(this.sel || '').startsWith('res:')) { const r = (this.cat.res || []).find((x) => 'res:' + x.id === this.sel); sec.innerHTML = r ? `<h3>${esc(r.icon || '')} ${esc(r.name)}</h3><p>Материал <code>${esc(r.id)}</code> — выпадает с мобов и из сбора; редактируется через таблицы дропа (вкладка «Дроп»).</p>` : ''; return; }
@@ -163,7 +190,9 @@ export class AdminPanel {
     this.entityForm(sec, kind, e);
   }
   entityForm(sec, kind, e) {
+    if (!this.full && !(this.kinds || ['mob','weapon','item']).includes(kind)) { sec.innerHTML = '<p>Недостаточно прав.</p>'; return; }
     const S = this.cat.schema[kind], v = e.values || {};
+    if (!S) { sec.innerHTML = '<p>Схема недоступна.</p>'; return; }
     const field = (f) => {
       const val = v[f.path], ic = STAT_OF(f.path) ? statIcon(STAT_OF(f.path), 16) : '';
       let inp;
