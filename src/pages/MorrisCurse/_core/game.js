@@ -3,6 +3,7 @@
 // Хаб: общий мир сервера (Адское Пламя / Аринар) в 3D, тот же WebSocket-протокол (join/move/use_portal/...).
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
+import { resolveWorld } from '../../../../server/meta/propCollision.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
@@ -311,6 +312,8 @@ async function boot(canvasId, username, userId, api) {
     offlineToastShown = true;
     if (mode === 'run' && run) { run.setMembers([], null); }
   });
+  // коррекция сервера: упёрлись в твёрдый пропс иначе, чем предсказали (propCollision.ts)
+  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
   net.on('world_switched', (d) => {
     if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
     if (d.homePortal === 'home_portal_back') overlay.toast('🌀 Вы вернулись туда, где открыли портал', '#c4b5fd');
@@ -1473,6 +1476,8 @@ async function boot(canvasId, username, userId, api) {
       const ny = Math.max(lo, Math.min(hi, player.y + vy * dt));
       if (!hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
       if (!hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
+      // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
+      if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }
     // отправка позиции (как раньше: раз в 66 мс при изменении)
     moveAcc += dt;

@@ -1,4 +1,5 @@
 import { admitMessage, isDevRequest, MSG_BURST } from "./limits";
+import { resolveWorld } from "./meta/propCollision.ts";
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
@@ -909,8 +910,13 @@ export class GameRoom extends DurableObject {
             (session as any).lastMoveAt = now;
           }
           const [lo, hi] = worldBounds(session.world);
-          session.x = Math.max(lo, Math.min(hi, nx));
-          session.y = Math.max(lo, Math.min(hi, ny));
+          nx = Math.max(lo, Math.min(hi, nx)); ny = Math.max(lo, Math.min(hi, ny));
+          // Твёрдые пропсы v2 (деревья, камни, бочки, края порталов…): сервер выталкивает тело так же, как клиент
+          // предсказывает (propCollision.ts); заметное расхождение — коррекция клиенту
+          const [rx, ry] = resolveWorld(session.world || "hellfire", nx, ny);
+          session.x = Math.max(lo, Math.min(hi, rx));
+          session.y = Math.max(lo, Math.min(hi, ry));
+          if (Math.hypot(rx - nx, ry - ny) > 16) server.send(JSON.stringify({ type: "pos_fix", x: Math.round(session.x), y: Math.round(session.y) }));
           this.broadcast();
         }
 
