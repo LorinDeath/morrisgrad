@@ -71,11 +71,12 @@ const OUT = '/workspace/morrisgrad-round2';
   } else ok(false, 'нет моба рядом для теста цели');
 
   // ---------- 3. админка «⏱ Спавн» + бродячие мобы ----------
-  await G(() => window.__game.debug.rawSend({ type: 'admin_save', kind: 'spawn', id: 'arinar', patch: { ambientChance: 100, ambientEvery: 3 } })); await p.waitForTimeout(800);
   // пустошь (замер: между лагерями) — ищем точку без мобов вокруг
   let empty = null;
-  for (const [x, y] of [[30500, 20500], [17000, 31000], [33000, 33000], [12000, 15000], [36000, 12000], [20500, 38000], [9000, 26000]]) { await tp(x, y, 2500); const n = await G(() => window.__game.debug.mobsNear(450)); if (!n.length) { empty = [x, y]; break; } }
+  for (const [x, y] of [[6000, 12900], [6000, 24400], [7700, 17500], [7700, 26700], [6000, 38200]]) /* пустоши при текущем сиде (нет мобов в 750 px) */ { await tp(x, y, 2500); const n = await G(() => window.__game.debug.mobsNear(450)); if (!n.length) { empty = [x, y]; break; } }
   ok(!!empty, 'нашлась пустошь ' + JSON.stringify(empty));
+  // бродячих включаем ПОСЛЕ поиска пустоши: при 100% они сразу появлялись рядом и «пустошь» не находилась
+  await G(() => window.__game.debug.rawSend({ type: 'admin_save', kind: 'spawn', id: 'arinar', patch: { ambientChance: 100, ambientEvery: 3 } })); await p.waitForTimeout(800);
   await G(() => window.__game.debug.rawSend({ type: 'dev_grant', ambientNow: 1 })); await p.waitForTimeout(1500);
   let st = await stats(); let shotA = false;
   for (let i = 0; i < 10 && !shotA; i++) { await p.waitForTimeout(500); st = await stats(); const near = st.ambient.filter((a) => a.tgt); if (near.length) { await p.waitForTimeout(1500); await p.screenshot({ path: `${OUT}/r2-ambient.png` }); shotA = true; } }
