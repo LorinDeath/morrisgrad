@@ -7,7 +7,7 @@ const OUT = '/workspace/morrisgrad-round3';
   const p = await (await b.newContext({ viewport: { width: 1440, height: 860 } })).newPage(); const errs = []; p.on('pageerror', (e) => errs.push(String(e).slice(0, 200)));
   const adm = []; p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (s.includes('admin_result')) adm.push(s.slice(0, 300)); }));
   await p.goto(`http://127.0.0.1:5199/game.html?name=Алекс&uid=test_admin_pt&ws=ws://127.0.0.1:8787&fs=1&debug=1`);
-  await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await p.waitForTimeout(2500);
+  await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await p.waitForTimeout(2500); await p.evaluate(() => window.__game.meta.setMobTrack(null)); await p.waitForTimeout(1200); // охота из Бестиария от прошлых тестов (общий аккаунт) перебивает компас
   await p.addStyleTag({ content: '.game-hud-panel{display:block!important;visibility:visible!important}' });
   const G = (fn, a) => p.evaluate(fn, a);
   await G(() => window.__game.debug.selectClass('mage')); await p.waitForTimeout(2500);
