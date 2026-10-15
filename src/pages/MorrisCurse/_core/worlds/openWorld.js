@@ -1,5 +1,5 @@
 // Открытые миры в пиксельном 2.5D: Поляна перевоплощения (хаб, мир hellfire) и Мэлвелдил (Аринар, 48000×48000, земля чанками).
-// Земля и пропсы — terrain.js (запечённый tiles_atlas + props_atlas); здесь — небо, туман, свет и светлячки.
+// Земля и пропсы — terrain.js (запечённый tiles_atlas + пропсы v2); здесь — небо, туман, свет и светлячки.
 import { buildTerrain } from './terrain.js';
 import { worldSize } from '../../../../../server/worlds/sizes.ts';
 import { toX, toZ } from '../engine/geometry.js';

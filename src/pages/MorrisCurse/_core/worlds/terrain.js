@@ -3,8 +3,7 @@
 // Земля запекается в ОДНУ текстуру (canvas из tiles_atlas) на плоскости мира + поля по краям; пропсы — один SpriteBatch.
 import tilesSrc from '../../../../assets/mc/tiles_atlas.png';
 import tilesMeta from '../../../../assets/mc/tiles_atlas.json';
-import propsSrc from '../../../../assets/mc/props_atlas.png';
-import propsMeta from '../../../../assets/mc/props_atlas.json';
+import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { WORLD_GEN, rng } from '../../../../../server/meta/zoneGen.ts';
 import { NPCS, ZONE_RESPAWN } from '../../../../../server/meta/shared.ts';
 import { worldSize } from '../../../../../server/worlds/sizes.ts';
@@ -328,19 +327,12 @@ export async function buildTerrain(THREE, world) {
   ground.name = 'ground';
   group.add(ground);
 
-  const ptex = await loadAtlasTexture(THREE, url(propsSrc));
-  const [cw, ch] = propsMeta.cell;
-  const batch = new SpriteBatch(THREE, ptex, { cellW: cw, cellH: ch, cols: propsMeta.cols, rows: propsMeta.rows, max: L.props.length + 8, light: 1 });
+  // пропсы v2: варианты и фаза анимации — по позиции, кадры играет шейдер
+  const ptex = await loadPropTextures(THREE);
+  const batch = new PropSprites(THREE, ptex, { max: L.props.length + 8, parent: group });
   batch.begin();
-  for (const p of L.props) {
-    const e = propsMeta.index[p.k];
-    if (!e) continue;
-    // высота ячейки 48 px арта = 4.8 м при масштабе 10 px = 1 м
-    const h = (ch / 10) * p.s;
-    batch.push(toX(p.x), 0, toZ(p.y), h, e[0], e[1], p.f);
-  }
+  for (const p of L.props) batch.push(p.k, p.x, p.y, toX(p.x), toZ(p.y), p.s, p.f);
   batch.end();
-  batch.mesh.name = 'props';
-  group.add(batch.mesh);
+  for (const B of batch.list) B.mesh.name = 'props';
   return { group, layout: L, ground, batch, setLight: (k) => { batch.setLight(k); mat.color.setScalar(0.84 * k); } };
 }

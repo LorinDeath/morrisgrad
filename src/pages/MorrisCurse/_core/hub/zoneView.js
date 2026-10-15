@@ -3,8 +3,7 @@ import { baseOf } from '../../../../../server/meta/biomes.ts';
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
 // одним батчем. Атака/навыки/сбор — запросы к серверу; урон, лут, респавн решает сервер.
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
-import propsSrc from '../../../../assets/mc/props_atlas.png';
-import propsMeta from '../../../../assets/mc/props_atlas.json';
+import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { BEAST_ROW, BEAST_H, beastTop as BEAST_TOP, beastFlying, loadBeastBatch } from '../engine/beastSprites.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING, HERO_HD, HERO_CELL, HERO_H_M, NPC_ROWS } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
@@ -65,16 +64,11 @@ export class ZoneView {
     this.seed = ZONE_GEN.seed;
     this.d = new THREE.Object3D();
     this.col = new THREE.Color();
-    // узлы ресурсов — пиксельные пропсы из props_atlas (тот же стиль, что земля и деревья)
+    // узлы ресурсов — пропсы v2 (engine/propAtlas.js) (тот же стиль, что земля и деревья)
     this.nodeBatch = null;
     this.beast = null;
     loadBeastBatch(THREE, 320).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
-    const purl = typeof propsSrc === 'object' && propsSrc ? (propsSrc.src || propsSrc.default || '') : propsSrc;
-    loadAtlasTexture(THREE, purl).then((t) => {
-      const [cw, ch] = propsMeta.cell;
-      this.nodeBatch = new SpriteBatch(THREE, t, { cellW: cw, cellH: ch, cols: propsMeta.cols, rows: propsMeta.rows, max: 128 });
-      this.root.add(this.nodeBatch.mesh);
-    }).catch((e) => console.warn('[nodes]', e.message));
+    loadPropTextures(THREE).then((t) => { this.nodeBatch = new PropSprites(THREE, t, { max: 160, parent: this.root }); }).catch((e) => console.warn('[nodes]', e.message));
   }
 
   setWorld(world) {
@@ -327,18 +321,14 @@ export class ZoneView {
       const V = this.view; // Аринар 48000: рисуем только узлы рядом с камерой (их сотни)
       for (const n of this.nodes.values()) {
         if (V && (Math.abs(n.def.x - V.x) > 1400 || Math.abs(n.def.y - V.y) > 1100)) continue;
-        const e = propsMeta.index[NODE_PROP[n.def.type] || 'ore_node'];
-        if (!e) continue;
-        const h = (propsMeta.cell[1] / 10) * (n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.03 : 0.7);
+        const sc = n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.03 : 0.7;
         const k = n.ready ? 1.15 + Math.sin(T * 2.4 + n.id) * 0.12 : 0.45;
-        NB.push(toX(n.def.x), 0, toZ(n.def.y), h, e[0], e[1], n.flip, k, k, k, 0, n.ready ? 1 : 0.7);
+        NB.push(NODE_PROP[n.def.type] || 'ore_node', n.def.x, n.def.y, toX(n.def.x), toZ(n.def.y), sc, n.flip, n.ready ? 1 : 0.7, 0, [k, k, k]);
         atmo.shadow(toX(n.def.x), toZ(n.def.y), n.def.type === 'tree' ? 1.3 : 0.6, n.ready ? 1 : 0.6);
       }
       // мешки добычи: ящик-мешок, покачивается
-      const eb = propsMeta.index.crate;
-      if (eb) for (const b of this.bags.values()) {
-        const h = (propsMeta.cell[1] / 10) * 0.55 * (1 + Math.sin(T * 4 + b.id) * 0.05);
-        NB.push(toX(b.x), 0, toZ(b.y), h, eb[0], eb[1], false, 1.35, 1.15, 0.6, 0, 1);
+      for (const b of this.bags.values()) {
+        NB.push('crate', 0, 0, toX(b.x), toZ(b.y), 0.55 * (1 + Math.sin(T * 4 + b.id) * 0.05), false, 1, 0, [1.35, 1.15, 0.6], false);
         atmo.shadow(toX(b.x), toZ(b.y), 0.5, 1);
       }
       NB.end();

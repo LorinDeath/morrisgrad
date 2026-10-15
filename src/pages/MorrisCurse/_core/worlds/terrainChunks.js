@@ -9,8 +9,7 @@ import tIce from '../../../../assets/mc/tiles_ice.png';
 import tFire from '../../../../assets/mc/tiles_fire.png';
 import tStone from '../../../../assets/mc/tiles_stone.png';
 import tAir from '../../../../assets/mc/tiles_air.png';
-import propsSrc from '../../../../assets/mc/props_atlas.png';
-import propsMeta from '../../../../assets/mc/props_atlas.json';
+import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
 import { markersOf } from '../../../../../server/meta/markers.ts';
 import { NPCS, ZONE_RESPAWN } from '../../../../../server/meta/shared.ts';
@@ -172,7 +171,7 @@ export class ArinarTerrain {
   async init(px = ZONE_RESPAWN.x, py = ZONE_RESPAWN.y) {
     const THREE = this.THREE;
     this.sheets = await Promise.all([tilesSrc, tIce, tFire, tStone, tAir].map((s) => loadImg(url(s))));
-    this.ptex = await loadAtlasTexture(THREE, url(propsSrc));
+    this.ptex = await loadPropTextures(THREE); // пропсы v2 (props_p32/b64 + свечение)
     // дальняя плоскость: 1 px = 1 клетка, цвет биома
     const n = this.plan.n, cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(n / 4); // 375×375: 1 px = 4×4 клетки
     const g = cv.getContext('2d');
@@ -207,11 +206,10 @@ export class ArinarTerrain {
     this.group.add(mesh);
     let batch = null;
     if (L.props.length) {
-      const [cw, ch] = propsMeta.cell;
-      batch = new SpriteBatch(THREE, this.ptex, { cellW: cw, cellH: ch, cols: propsMeta.cols, rows: propsMeta.rows, max: L.props.length + 2, light: 1 });
+      batch = new PropSprites(THREE, this.ptex, { max: L.props.length + 2, parent: this.group });
       batch.begin();
-      for (const p of L.props) { const e = propsMeta.index[p.k]; if (e) batch.push(toX(p.x), 0, toZ(p.y), (ch / 10) * p.s, e[0], e[1], p.f); }
-      batch.end(); batch.setLight?.(this.light); batch.mesh.name = 'props'; this.group.add(batch.mesh);
+      for (const p of L.props) batch.push(p.k, p.x, p.y, toX(p.x), toZ(p.y), p.s, p.f);
+      batch.end(); batch.setLight(this.light); for (const B of batch.list) B.mesh.name = 'props';
     }
     const c = { key, ci, cj, mesh, mat, tex, batch, used: performance.now(), props: L.props };
     this.chunks.set(key, c);
@@ -220,7 +218,7 @@ export class ArinarTerrain {
   }
   drop(c) {
     this.group.remove(c.mesh); c.mesh.geometry.dispose(); c.mat.dispose(); c.tex.dispose();
-    if (c.batch) { this.group.remove(c.batch.mesh); c.batch.mesh.geometry?.dispose?.(); c.batch.mesh.material?.dispose?.(); }
+    if (c.batch) c.batch.dispose(this.group);
     this.chunks.delete(c.key); this.stats.evicted++;
   }
   /** кадр: px,py — фокус камеры (px мира). Бакает недостающие видимые чанки (бюджет), выгружает дальние */

@@ -3,6 +3,7 @@
 // Хаб: общий мир сервера (Адское Пламя / Аринар) в 3D, тот же WebSocket-протокол (join/move/use_portal/...).
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
+import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
 import { fog } from './map/fog.js';
@@ -1390,6 +1391,7 @@ async function boot(canvasId, username, userId, api) {
     const realDt = Math.max(0, (now - last) / 1000);
     const dt = Math.min(0.05, realDt);
     last = now;
+    tickSpriteTime(dt); // кадры анимированных пропсов v2 (шейдер SpriteBatch)
     fpsS.n++; fpsS.t += realDt;
     if (fpsS.t >= 0.5) { fpsS.fps = Math.round(fpsS.n / fpsS.t); fpsS.cpu = fpsS.cpuAcc / fpsS.n; fpsS.n = 0; fpsS.t = 0; fpsS.cpuAcc = 0; }
     if (realDt < 1) adaptQuality(realDt);

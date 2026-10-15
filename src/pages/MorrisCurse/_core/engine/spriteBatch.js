@@ -11,6 +11,8 @@ attribute vec4 iSize;   // w, h (м), flipX (±1), yOffset (м)
 attribute vec4 iUV;     // u0, v0, du, dv
 attribute vec4 iTint;   // r, g, b, flash
 attribute float iAlpha;
+attribute vec3 iAnim;   // кадров, к/с, сдвиг фазы (сек) — анимация пропсов на GPU (статичные батчи чанков тоже «живут»)
+uniform float uTime;
 varying vec2 vUv;
 varying vec4 vTint;
 varying float vAlpha;
@@ -23,7 +25,8 @@ void main() {
   mvPosition.z = (modelViewMatrix * vec4(iPos, 1.0)).z;
   mvPosition.xy += vec2(position.x * iSize.x, position.y * iSize.y);
   float u = iSize.z < 0.0 ? 1.0 - uv.x : uv.x;
-  vUv = vec2(iUV.x + u * iUV.z, iUV.y + uv.y * iUV.w);
+  float fr = iAnim.x > 1.5 ? floor(mod((uTime + iAnim.z) * iAnim.y, iAnim.x)) : 0.0;
+  vUv = vec2(iUV.x + (fr + u) * iUV.z, iUV.y + uv.y * iUV.w);
   vTint = iTint;
   vAlpha = iAlpha;
   gl_Position = projectionMatrix * mvPosition;
@@ -38,8 +41,10 @@ varying vec2 vUv;
 varying vec4 vTint;
 varying float vAlpha;
 #include <fog_pars_fragment>
+uniform float uAdd;
 void main() {
   vec4 c = texture2D(map, vUv);
+  if (uAdd > 0.5) { gl_FragColor = vec4(c.rgb * vTint.rgb * c.a * vAlpha * uGrade, 1.0); return; } // свечение (*_glow.png), аддитивно
   if (c.a < 0.3) discard;
   vec3 col = c.rgb * vTint.rgb * uLight * uGrade;
   col = mix(col, vec3(1.0), clamp(vTint.a, 0.0, 1.0));
@@ -47,13 +52,16 @@ void main() {
   #include <fog_fragment>
 }`;
 
+export const SPRITE_TIME = { value: 0 };
+export function tickSpriteTime(dt) { SPRITE_TIME.value = (SPRITE_TIME.value + (dt || 0)) % 3600; }
+
 export class SpriteBatch {
   /**
    * @param THREE
    * @param texture THREE.Texture атласа
    * @param opts { cellW, cellH, cols, rows, max }
    */
-  constructor(THREE, texture, { cellW, cellH, cols, rows, max = 512, light = 1 }) {
+  constructor(THREE, texture, { cellW, cellH, cols, rows, max = 512, light = 1, additive = false }) {
     this.THREE = THREE;
     this.cols = cols; this.rows = rows; this.max = max;
     this.du = 1 / cols; this.dv = 1 / rows;
@@ -68,9 +76,9 @@ export class SpriteBatch {
     geo.setAttribute('position', base.attributes.position);
     geo.setAttribute('uv', base.attributes.uv);
     const mk = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(max * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
-    this.aPos = mk(3); this.aSize = mk(4); this.aUV = mk(4); this.aTint = mk(4); this.aAlpha = mk(1);
+    this.aPos = mk(3); this.aSize = mk(4); this.aUV = mk(4); this.aTint = mk(4); this.aAlpha = mk(1); this.aAnim = mk(3);
     geo.setAttribute('iPos', this.aPos); geo.setAttribute('iSize', this.aSize); geo.setAttribute('iUV', this.aUV);
-    geo.setAttribute('iTint', this.aTint); geo.setAttribute('iAlpha', this.aAlpha);
+    geo.setAttribute('iTint', this.aTint); geo.setAttribute('iAlpha', this.aAlpha); geo.setAttribute('iAnim', this.aAnim);
     geo.instanceCount = 0;
     this.geo = geo;
     const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, uLight: { value: light } }]);
@@ -78,10 +86,12 @@ export class SpriteBatch {
     // общий тон зоны (engine/atmosphere.js) — один объект uniform на все батчи
     if (!GRADE.value) GRADE.value = new THREE.Color(1, 1, 1);
     uniforms.uGrade = GRADE;
-    this.material = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, fog: true, transparent: true, depthWrite: true });
+    uniforms.uTime = SPRITE_TIME; // общее время анимации (обновляет игровой цикл: tickSpriteTime)
+    uniforms.uAdd = { value: additive ? 1 : 0 };
+    this.material = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, fog: true, transparent: true, depthWrite: !additive, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 2;
+    this.mesh.renderOrder = additive ? 3 : 2;
     this.n = 0;
   }
 
@@ -100,13 +110,17 @@ export class SpriteBatch {
     u[i * 4] = col * this.du; u[i * 4 + 1] = 1 - (row + 1) * this.dv; u[i * 4 + 2] = this.du; u[i * 4 + 3] = this.dv;
     t[i * 4] = r; t[i * 4 + 1] = g; t[i * 4 + 2] = b; t[i * 4 + 3] = flash;
     this.aAlpha.array[i] = alpha;
+    const an = this.aAnim.array; an[i * 3] = 1; an[i * 3 + 1] = 0; an[i * 3 + 2] = 0;
     return true;
   }
+
+  // анимация последнего добавленного спрайта: frames кадров подряд вправо от col, fps, фаза (сек)
+  anim(frames, fps, phase = 0) { const i = this.n - 1; if (i < 0) return; const an = this.aAnim.array; an[i * 3] = frames; an[i * 3 + 1] = fps; an[i * 3 + 2] = phase; }
 
   end() {
     this.geo.instanceCount = this.n;
     const upd = (a) => { a.needsUpdate = true; a.updateRange.offset = 0; a.updateRange.count = this.n * a.itemSize; };
-    upd(this.aPos); upd(this.aSize); upd(this.aUV); upd(this.aTint); upd(this.aAlpha);
+    upd(this.aPos); upd(this.aSize); upd(this.aUV); upd(this.aTint); upd(this.aAlpha); upd(this.aAnim);
   }
 
   dispose() { this.geo.dispose(); this.material.dispose(); }
