@@ -5,6 +5,20 @@
 
 import { GRADE } from './atmosphere.js';
 
+// --- стабильная сортировка спрайтов (мир, хаб, забеги): общая для SpriteBatch и THREE.Sprite (pixSprites) ---
+export const DEPTH_Q = 0.05; // м = 1 px мира
+const KEY_N = 16;            // корзин ключа: шаг Q·0.9/16 ≈ 2.8 мм > точности буфера глубины на дистанции камеры
+/** id (число/строка) → ключ [0,1) детерминированно */
+export function sortKey(id) {
+  let h = 2166136261;
+  const s = String(id);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % KEY_N) / KEY_N;
+}
+/** z «ног» для глубины: квант по y + ключ (одинаково с шейдером SpriteBatch) */
+export function depthZ(z, key) { return Math.floor(z / DEPTH_Q) * DEPTH_Q + key * DEPTH_Q * 0.9; }
+const posKey = (x, z) => sortKey(Math.round(x * 20) * 7919 + Math.round(z * 20));
+
 const VERT = `
 attribute vec3 iPos;
 attribute vec4 iSize;   // w, h (м), flipX (±1), yOffset (м)
@@ -18,11 +32,14 @@ varying vec4 vTint;
 varying float vAlpha;
 #include <fog_pars_vertex>
 void main() {
-  vec4 mvPosition = modelViewMatrix * vec4(iPos + vec3(0.0, iSize.w, 0.0), 1.0);
+  vec4 mvPosition = modelViewMatrix * vec4(iPos.x, iSize.w, iPos.z, 1.0);
   // глубина — по точке НОГ на земле (не по поднятому якорю летуна): при наклонной камере подъём по Y
   // приближал квад к камере, и летающий/подпрыгивающий моб позади рисовался ПОВЕРХ игрока.
   // Так порядок слоёв = порядок по «y мира» (кто ближе к низу экрана — тот спереди), одинаково для всех батчей.
-  mvPosition.z = (modelViewMatrix * vec4(iPos, 1.0)).z;
+  // Стабильный порядок: глубина по y ног, квантованному до DEPTH_Q (1 px мира), + детерминированный ключ экземпляра
+  // (iPos.y ∈ [0,1): id сущности или хэш позиции) — равные/дрожащие по float y спрайты больше не мерцают (z-fighting).
+  float zq = floor(iPos.z / ${DEPTH_Q.toFixed(4)}) * ${DEPTH_Q.toFixed(4)} + iPos.y * ${(DEPTH_Q * 0.9).toFixed(4)};
+  mvPosition.z = (modelViewMatrix * vec4(iPos.x, 0.0, zq, 1.0)).z;
   mvPosition.xy += vec2(position.x * iSize.x, position.y * iSize.y);
   float u = iSize.z < 0.0 ? 1.0 - uv.x : uv.x;
   float fr = iAnim.x > 1.5 ? floor(mod((uTime + iAnim.z) * iAnim.y, iAnim.x)) : 0.0;
@@ -105,7 +122,7 @@ export class SpriteBatch {
     if (i >= this.max) return false;
     this.n++;
     const p = this.aPos.array, s = this.aSize.array, u = this.aUV.array, t = this.aTint.array;
-    p[i * 3] = x; p[i * 3 + 1] = 0; p[i * 3 + 2] = z;
+    p[i * 3] = x; p[i * 3 + 1] = posKey(x, z); p[i * 3 + 2] = z; // y атрибута = ключ сортировки (по умолчанию — от позиции; sortId() — от id)
     s[i * 4] = widthM || heightM * this.cellAspect; s[i * 4 + 1] = heightM; s[i * 4 + 2] = flip ? -1 : 1; s[i * 4 + 3] = y;
     u[i * 4] = col * this.du; u[i * 4 + 1] = 1 - (row + 1) * this.dv; u[i * 4 + 2] = this.du; u[i * 4 + 3] = this.dv;
     t[i * 4] = r; t[i * 4 + 1] = g; t[i * 4 + 2] = b; t[i * 4 + 3] = flash;
@@ -113,6 +130,9 @@ export class SpriteBatch {
     const an = this.aAnim.array; an[i * 3] = 1; an[i * 3 + 1] = 0; an[i * 3 + 2] = 0;
     return true;
   }
+
+  // ключ сортировки последнего спрайта по id сущности (стабилен при движении)
+  sortId(id) { const i = this.n - 1; if (i >= 0) this.aPos.array[i * 3 + 1] = sortKey(id); }
 
   // анимация последнего добавленного спрайта: frames кадров подряд вправо от col, fps, фаза (сек)
   anim(frames, fps, phase = 0) { const i = this.n - 1; if (i < 0) return; const an = this.aAnim.array; an[i * 3] = frames; an[i * 3 + 1] = fps; an[i * 3 + 2] = phase; }

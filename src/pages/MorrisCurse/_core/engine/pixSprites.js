@@ -3,6 +3,8 @@
 //   24 колонки = 4 направления (вниз, влево, вправо, вверх) × 6 кадров (шаг A, стойка, шаг B, вдох, замах, удар) — gen_chars.py.
 // mobs_atlas.png — строка = тип врага, ячейка 48×48, 12 колонок: 0–3 ход, 4–6 атака, 7 урон, 8–11 распад.
 // Оба листа генерируются скриптами tools/mc-sprites/ (см. README там же).
+import { sortKey, depthZ } from './spriteBatch.js';
+let PIX_SEQ = 0;
 import charsSrc from '../../../../assets/mc/chars_atlas.png';
 import heroesHdSrc from '../../../../assets/mc/heroes_atlas.png';
 import { GRADE } from './atmosphere.js';
@@ -82,6 +84,7 @@ export class PixCharacter {
     g.add(sh);
     this.group = g;
     this.phase = Math.random() * 4;
+    this.key = sortKey(++PIX_SEQ); // стабильный ключ глубины (setSortId — по id игрока/моба)
     this.dRow = 0;
     this.setCell(1);
   }
@@ -96,7 +99,10 @@ export class PixCharacter {
     }
   }
 
+  setSortId(id) { this.key = sortKey(id); }
+
   update(dt, moving, t, dirX = 0, dirY = 1) {
+    { const gz = this.group.position.z; this.sprite.position.z = depthZ(gz, this.key) - gz; } // стабильный порядок слоёв (как SpriteBatch)
     if (!this.tinted && GRADE.value) this.sprite.material.color.copy(GRADE.value);  // тон зоны (atmosphere.js)
     this.phase += dt * (moving ? 8 : 0);
     if (Math.abs(dirX) + Math.abs(dirY) > 0.01) this.dRow = dirRow(dirX, dirY);
