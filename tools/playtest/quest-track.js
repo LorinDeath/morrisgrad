@@ -9,6 +9,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const open = async () => { const p = await ctx.newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 200)));
     await p.goto(assertLocalUrl(URL)); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game.meta?.state, null, { timeout: 120000 }); await p.waitForTimeout(2500); return p; };
   let p = await open();
+  await p.evaluate(() => window.__game.meta.setMobTrack(null)); await p.waitForTimeout(1200); // охота из Бестиария от прошлых тестов (общий аккаунт) не должна мешать
   const S = () => p.evaluate(() => { const m = window.__game.meta; return { act: Object.keys(m.state.account.quests.active), un: m.state.account.quests.untracked || [], tr: m.trackedQuests(), hud: document.querySelector('.mc-tracker .q')?.innerText || '', types: [...(window.__game.debug.track?.().types || [])] }; });
   let s = await S(); console.log('active', s.act.join(','));
   ok(s.act.length >= 1, 'есть активные задания');
