@@ -63,7 +63,8 @@ function applyConfig(d) {
 
 const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.ts)
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
-const pvpSt = { slowUntil: 0, frozenUntil: 0 }; // замедление/заморозка от соперника (pvp_state pstatus)
+const pvpSt = { slowUntil: 0, frozenUntil: 0, swiftUntil: 0 }; // замедление/заморозка/порыв от сервера (pvp_state pstatus / buff)
+const swiftSt = { until: 0 }; // Порыв сияния в открытом мире (+25% скорости на 2 с)
 const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
 const PORTAL_RANGE = 85; // как проверка сервера
 const FLOWER_RANGE = 56; // ≤ серверных 120 px: подсказка — только когда бутон рядом и виден
@@ -388,6 +389,9 @@ async function boot(canvasId, username, userId, api) {
     zoneSt.abilCd[d.id] = now + (d.left || 0);
     delete zoneSt.abilPend[d.id];
   });
+  net.on('buff', (d) => { // серверные бафы навыков (Порыв сияния и т.п.)
+    if (d.id === 'swift') { const u = performance.now() + (d.ms || 2000); swiftSt.until = u; pvpSt.swiftUntil = Math.max(pvpSt.swiftUntil, u); }
+  });
   net.on('open_minigames_menu', (d) => {
     const list = (d.games || []).map((g) => `<div style="text-align:left;margin:4px 0">${g.disabled || !g.url
       ? `<b style="color:#64748b">${esc(g.title)}</b>`
@@ -477,8 +481,8 @@ async function boot(canvasId, username, userId, api) {
       if (e.k === 'shot' && e.sid !== myId) zone.shoot(e.x, e.y, null, e.w, e.tx, e.ty);
       else if (['ability', 'aline', 'aproj', 'amark', 'proj', 'pend', 'puddle'].includes(e.k)) zone.applyState({ w: zone.world, m: [], ev: [e] }, myId);
       else if (e.k === 'pstatus') { // статусы дуэли (сервер): замедление/заморозка ощущаются в движении; DoT — подпись
-        const T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], burn: ['Поджог', '#fb923c'], poison: ['Яд', '#a3e635'], bleed: ['Кровотечение', '#f87171'] }[e.s] || [e.s, '#fff'];
-        if (e.to === myId) { if (e.s === 'slow') pvpSt.slowUntil = performance.now() + (e.ms || 2000); if (e.s === 'freeze') pvpSt.frozenUntil = performance.now() + (e.ms || 1000); overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
+        const T = { slow: ['Замедление', '#7dd3fc'], freeze: ['Заморозка', '#bae6fd'], burn: ['Поджог', '#fb923c'], poison: ['Яд', '#a3e635'], bleed: ['Кровотечение', '#f87171'], swift: ['Порыв', '#86efac'] }[e.s] || [e.s, '#fff'];
+        if (e.to === myId) { if (e.s === 'slow') pvpSt.slowUntil = performance.now() + (e.ms || 2000); if (e.s === 'freeze') pvpSt.frozenUntil = performance.now() + (e.ms || 1000); if (e.s === 'swift') { pvpSt.swiftUntil = performance.now() + (e.ms || 2000); swiftSt.until = pvpSt.swiftUntil; } overlay.float(toX(player.x), 3, toZ(player.y), T[0], T[1]); }
         else { const o = others.get(e.to); if (o) overlay.float(toX(o.x), 3, toZ(o.y), T[0], T[1]); }
       }
       else if (e.k === 'lsheal') { if (e.sid === myId) lsAdd(e.d); }
@@ -1482,8 +1486,10 @@ async function boot(canvasId, username, userId, api) {
     input.dashPressed = false; input.abilityPressed = false;
     const pn = performance.now(), slowK = world === 'arena' ? (pn < pvpSt.frozenUntil ? 0 : pn < pvpSt.slowUntil ? 0.6 : 1) : 1; // статусы дуэли
     // скорость героя из талантов/снаряжения/души (eff.speedPct, сервер уже применил мягкий кап и нижнюю границу −20%)
+    // Порыв сияния (+25% на 2 с) — и в открытом мире, и на арене
+    const swiftK = (pn < swiftSt.until || pn < pvpSt.swiftUntil) ? 1.25 : 1;
     const spK = mode === 'run' ? 1 : 1 + (meta.hero?.effective?.speedPct || 0) / 100;
-    let vx = mv.x * MOVE_SPEED * slowK * spK, vy = mv.y * MOVE_SPEED * slowK * spK;
+    let vx = mv.x * MOVE_SPEED * slowK * spK * swiftK, vy = mv.y * MOVE_SPEED * slowK * spK * swiftK;
     if (dash.active) {
       vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;
       dash.timer -= dt;

@@ -69,7 +69,7 @@ export const ZONE_GEN = {
   // поводок MMO: моб дальше leash от дома → «сброс» (уходит домой, быстро лечится, игнорирует игроков)
   leash: 900, leashBoss: 1300, resetSpeed: 2.2, resetRegen: 0.6, // доля maxHp в секунду
   sleepR: 1, // спят чанки дальше этого числа соседних чанков (WORLD_CHUNK) от любого игрока
-  cursedPct: 10, cursedHp: 2.5, cursedDmg: 1.4, cursedLoot: 10,
+  cursedPct: 10, cursedHp: 5.2, cursedDmg: 2.3, cursedLoot: 10, // проклятый: не соло своего ур.; партия из 3 — да
   eliteHp: 2.2, eliteDmg: 1.5, eliteArmor: 1.4, eliteXp: 2.5,
   nodeMinDist: 95,
   bossScalePerPlayer: 0.5,   // ХП босса ×(1 + 0.5·(игроков−1)), максимум ×2.5

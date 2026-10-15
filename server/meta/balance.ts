@@ -19,33 +19,67 @@ export const TIERS = [
 export function tierOf(lvl: number): number { return Math.max(1, Math.min(5, Math.ceil(lvl / 5))); }
 
 // ---------------- опыт ----------------
-// MMORPG-темп обычного режима (открытый мир, квесты, хаб): уровень — это долгий гринд.
-// Сколько убийств моба СВОЕГО уровня нужно на переход L → L+1: 40 на 1→2, дальше круто растёт.
-// Уровни забегов (Vampire Like) — отдельные и быстрые (survivors/data.js), в профиль не пишутся.
+// Ребаланс 2026-10: опыт за убийство — доля xpNeed героя (не абсолютный mobXp).
+//   моб своего уровня → 0.1%  |  моб ниже → 0.01%  |  моб на 1–3 ур. выше → 1%
+//   моб на >3 ур. выше → тоже 1% (кап; дальше — только ради челленджа, не ради фарма)
+//   босс: ×10 от этих долей (1% / 0.1% / 10%, кап 10% при >+3)
+// Элита ×1.5, проклятый ×2 (мягко; элита+проклятый ≤ ×2.5). Поле o.xp больше не влияет на итог —
+// оставлено в сигнатуре для совместимости вызовов/тестов.
+// killsPerLevel / mobXp сохранены для xpNeed (кривая «сколько нужно до след. уровня») и забегов.
 export const KPL = { base: 40, k: 110, p: 1.2 };
 export function killsPerLevel(L: number): number { return KPL.base + KPL.k * Math.pow(Math.max(0, L - 1), KPL.p); }
-export function xpNeed(L: number): number { return Math.round(mobXp(L) * killsPerLevel(L)); } // подобрано симуляцией (tools/sim/progression.mjs)
-// Опыт за обычного моба уровня L
+export function xpNeed(L: number): number { return Math.round(mobXp(L) * killsPerLevel(L)); }
 export function mobXp(L: number): number { return Math.round(5 + 2.4 * Math.pow(L, 1.42)); }
-// Поправка опыта за разницу уровней (моб − герой): серые мобы почти ничего не дают, «красные» — бонус
-const BELOW_MULT = [1, 0.8, 0.55, 0.3, 0.1, 0];
-export function xpLevelMult(mobL: number, heroL: number): number {
+/** Доля xpNeed за одно убийство по разнице уровней (моб − герой). Босс — снаружи ×10. */
+export function xpFrac(mobL: number, heroL: number): number {
   const d = mobL - heroL;
-  // сильнее героя — больше опыта, но с убывающей отдачей: +1 → ×1.14, +3 → ×1.32, +5 → ×1.41, потолок ×1.5
-  if (d >= 0) return 1 + 0.5 * (1 - Math.exp(-d / 3));
-  return BELOW_MULT[Math.min(BELOW_MULT.length - 1, -d)]; // −1 → 80%, −2 → 55%, −3 → 30%, −4 → 10%, ≤ −5 → 0
+  if (d < 0) return 0.0001;       // ниже: 0.01%
+  if (d === 0) return 0.001;      // равный: 0.1%
+  return 0.01;                    // +1 и выше (в т.ч. >+3): 1%
 }
-// Опыт за убийство (открытый мир). Старое: xp = d.xp × (элита ? 2.5 : 1) × xpLevelMult (потолок ×1.25 при +5).
-// Новое: множители «силы» (элита ×2.5, проклятый ×3) перемножаются и мягко ограничиваются (≤ ×6),
-// а итог одного убийства не больше доли опыта до следующего уровня героя (обычный ≤ 6%, босс ≤ 30%) —
-// сильные враги ценнее, но не «перекачивают»; серые мобы (≤ −5 ур.) по-прежнему 0.
-export const KILL_XP = { elite: 2.5, cursed: 3, softFrom: 2, softMax: 6, capMob: 0.06, capBoss: 0.3 };
+export function xpLevelMult(mobL: number, heroL: number): number {
+  // совместимость: относительный множитель к «равному» (для старых тестов/симов)
+  return xpFrac(mobL, heroL) / 0.001;
+}
+export const KILL_XP = { elite: 1.5, cursed: 2, softMax: 2.5 };
 export function killXp(o: { xp: number; mobL: number; heroL: number; elite?: boolean; cursed?: boolean; boss?: boolean }): number {
-  const raw = (o.elite ? KILL_XP.elite : 1) * (o.cursed ? KILL_XP.cursed : 1);
-  const K = KILL_XP, kind = raw <= K.softFrom ? raw : K.softFrom + (K.softMax - K.softFrom) * (1 - Math.exp(-(raw - K.softFrom) / (K.softMax - K.softFrom)));
-  const xp = o.xp * kind * xpLevelMult(o.mobL, o.heroL);
-  const cap = xpNeed(o.heroL) * (o.boss ? K.capBoss : K.capMob);
-  return Math.round(Math.min(xp, cap));
+  let frac = xpFrac(o.mobL, o.heroL);
+  if (o.boss) frac *= 10;
+  let kind = (o.elite ? KILL_XP.elite : 1) * (o.cursed ? KILL_XP.cursed : 1);
+  if (kind > KILL_XP.softMax) kind = KILL_XP.softMax;
+  return Math.max(1, Math.round(xpNeed(o.heroL) * frac * kind));
+}
+
+// ---------------- прогрессия: что открывается с уровнем ----------------
+// Чем выше уровень — тем больше опций (слоты, ярусы, сияние, стаки DoT) и тем тяжелее соло
+// (множитель силы мобов относительно эталонного героя растёт с L — см. soloPressure).
+export const PROGRESSION = {
+  abilitySlot3: 5,          // 3-й слот навыка (F) с 5 ур.
+  talentTierPts: { 1: 0, 2: 3, 3: 7, 4: 12, 5: 18 } as Record<number, number>,
+  radianceOpenFlag: "radiance_open", // сюжетный флаг (не уровень)
+  dotStackByLevel: [ // max стаков одного DoT: [minHeroLvl, stacks]
+    [1, 2], [5, 3], [10, 4], [15, 5],
+  ] as [number, number][],
+  weaponSkillPower: [ // сила навыка оружия R: [minHeroLvl, powerMult]
+    [1, 1], [8, 1.15], [15, 1.3], [22, 1.45],
+  ] as [number, number][],
+  setBonusMinPieces: 5,     // полный комплект — все 5 слотов (без изменения)
+};
+export function dotStackMax(heroL: number): number {
+  let n = 2;
+  for (const [L, s] of PROGRESSION.dotStackByLevel) if (heroL >= L) n = s;
+  return n;
+}
+export function weaponSkillPowerMult(heroL: number): number {
+  let m = 1;
+  for (const [L, p] of PROGRESSION.weaponSkillPower) if (heroL >= L) m = p;
+  return m;
+}
+/** Давление соло: во сколько раз « entтивный» урон/ХП моба растёт относительно эталона с уровнем.
+ *  L1 ≈ 0.85 (легко соло), L10 ≈ 1.0, L20 ≈ 1.25, L25 ≈ 1.4 — группа всё нужнее. */
+export function soloPressure(L: number): number {
+  // L1 ≈ 0.92 (легко соло), L12 ≈ 1.0, L25 ≈ 1.18 — соло всё туже, но партия из 3 бьёт проклятого
+  return 0.92 + 0.26 * Math.pow(Math.max(0, L - 1) / 24, 1.05);
 }
 
 // ---------------- предметы: ФИКСИРОВАННАЯ сила, зависит от уровня источника и редкости ----------------
@@ -75,11 +109,11 @@ export function itemReqLevel(itemLevel: number): number { return Math.max(1, Mat
 
 // ---------------- шансы дропа (в процентах за убийство) ----------------
 // Обычные мобы: шанс на КАЖДЫЙ предмет комплекта. Части облика/с навыком — в 2 раза реже.
-export const DROP_PCT: Record<string, number> = { common: 4, uncommon: 2.5, rare: 0.7, epic: 0.2, legendary: 0.12, mythic: 0.1 };
+export const DROP_PCT: Record<string, number> = { common: 5.5, uncommon: 3.5, rare: 1.0, epic: 0.3, legendary: 0.16, mythic: 0.12 }; // +~35% шансы (что падает — без изменений)
 // Боссы (большие/огромные): шансы выше — их убивают редко и группой; уникальная мифическая вещь — 0.1%
-export const BOSS_DROP_PCT: Record<string, number> = { common: 40, uncommon: 25, rare: 10, epic: 3, legendary: 0.8, mythic: 0.1 };
+export const BOSS_DROP_PCT: Record<string, number> = { common: 48, uncommon: 32, rare: 13, epic: 4, legendary: 1.1, mythic: 0.14 };
 // Редкие мобы (rare spawn): между обычными и боссами
-export const RARE_DROP_PCT: Record<string, number> = { common: 20, uncommon: 12, rare: 5, epic: 1.2, legendary: 0.4, mythic: 0.1 };
+export const RARE_DROP_PCT: Record<string, number> = { common: 26, uncommon: 16, rare: 7, epic: 1.6, legendary: 0.55, mythic: 0.12 };
 export const SET_PIECE_MULT = 0.5;
 
 // ---------------- эталонный герой ----------------
