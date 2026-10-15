@@ -139,6 +139,8 @@
 .mc-tracker .q li.ok { color: #86efac; text-decoration: line-through; opacity: 0.8; }
 .mc-tracker .q li b { color: #fff; }
 .mc-tracker .arrow { display: flex; align-items: center; gap: 6px; background: rgba(10, 6, 20, 0.7); border-radius: 6px; padding: 4px 8px; color: #a5f3fc; }
+.mc-tracker .arrow span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-tracker .arrow .d { flex: none; color: #facc15; font-weight: bold; white-space: nowrap; }
 .mc-tracker .arrow i { display: inline-block; font-style: normal; color: #facc15; font-size: 16px; transition: transform 0.15s; }
 .mc-tracker .tut { background: rgba(88, 28, 135, 0.82); border: 1px solid #c084fc; border-radius: 6px; padding: 6px 8px; color: #f5f3ff; }
 

@@ -16,13 +16,14 @@ export class QuestTracker {
     this.mobile = mobile;
     const el = document.createElement('div');
     el.className = 'mc-tracker';
-    el.innerHTML = '<div class="q"></div><div class="arrow"><i>➤</i><span></span></div><div class="tut"></div>';
+    el.innerHTML = '<div class="q"></div><div class="arrow"><i>➤</i><span></span><b class="d"></b></div><div class="tut"></div>';
     overlay.layer.appendChild(el);
     this.el = el;
     this.qEl = el.querySelector('.q');
     this.arrow = el.querySelector('.arrow');
     this.arrowI = el.querySelector('.arrow i');
     this.arrowS = el.querySelector('.arrow span');
+    this.arrowD = el.querySelector('.arrow .d');
     this.tutEl = el.querySelector('.tut');
     el.addEventListener('pointerdown', (e) => { e.stopPropagation(); onOpenBook?.(); });
     this.sig = '';
@@ -123,7 +124,12 @@ export class QuestTracker {
         else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
         else where = 'место обитания неизвестно'; }
       this.hunt = { id: mt, name: nm, where, target: best };
-      if (best) this.target = best; // охота из Бестиария — явный выбор игрока, компас ведёт к ней
+      // охота из Бестиария и цель задания: компас ведёт к БЛИЖАЙШЕЙ из целей в этом мире (раньше охота всегда перебивала задание,
+      // даже если до мобов задания 20 м, а охота — «портал в Аринар»)
+      if (best) {
+        const q = this.target, here = (t) => t && t.world === ctx.world, dist = (t) => Math.hypot(t.x - ctx.x, t.y - ctx.y);
+        if (!here(q) || (here(best) && dist(best) <= dist(q)) || (!q.mob && best.hunt === 'mob')) this.target = best;
+      }
       html += `<div class="hunt${html ? ' sep' : ''}"><div class="t">🎯 Охота: ${esc(nm)}</div><ul><li>${esc(where)}</li></ul></div>`;
     }
     if (html !== this.sig) { this.sig = html; this.qEl.innerHTML = html; }
@@ -136,11 +142,14 @@ export class QuestTracker {
         // мир: +x вправо, +y «вниз» экрана (к камере)
         const ang = Math.atan2(dy, dx);
         this.arrowI.style.transform = `rotate(${ang}rad)`;
-        this.arrowS.textContent = `${t.label} · ${Math.round(d / 20)} м`;
+        // название — в одну строку с многоточием (полное — в подсказке), расстояние отдельно и всегда видно
+        if (this.arrowS.textContent !== t.label) { this.arrowS.textContent = t.label; this.arrow.title = t.label; }
+        this.arrowD.textContent = `${Math.round(d / 20)} м`;
         this.arrow.style.display = '';
       } else this.arrow.style.display = 'none';
     } else if (t) {
       this.arrowI.style.transform = 'rotate(0rad)';
+      this.arrowD.textContent = '';
       this.arrowS.textContent = t.world === 'arinar' ? 'Цель в Аринаре — разлом на западе Поляны' : 'Цель на Поляне — портал в центре Аринара (Гранатовый двор)';
       this.arrow.style.display = '';
     } else this.arrow.style.display = 'none';
