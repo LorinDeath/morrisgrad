@@ -1,4 +1,76 @@
--- Rollback rebalance overrides to pre-rebalance prod state
+-- Rollback rebalance to pre-rebalance prod overrides
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'dew_slime_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'fly_blades';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'night_bat_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'grass_imp_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'mirage_hare_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'rot_glitch_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'dream_moth_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'violet_pixie_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'dew_king_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'pome_beetle_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'rootling_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'swarm_mother_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'aezer_staff';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'dream_fox_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'dust_sprite_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'pome_sprout_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'star_scarab_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'thorn_mantis_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'garden_golem_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'shard_imp_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'star_hound_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'crescent_wolf_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'thorn_vine_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'lantern_ghost_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'thorn_matron_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'void_jelly_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'white_stag_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'bat_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'imp_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'ore_slime_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'cave_crab_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'ghoul_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'spitter_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'pick_skeleton_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'rot_spider_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'warden_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'golem_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'ridge_harpy_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'glitch_knight_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'ridge_eagle_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'rust_baron_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'violet_moon_blade';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'fan_spirit_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'miner_mite_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'cable_serpent_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'glitch_hound_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'pixel_wraith_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'heat_golem_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'moon_wolf_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'memory_shade_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'silence_weaver_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'cooler_maw_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'spark_imp_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'the_silencer_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'crater_crab_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'moon_moth_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'thin_wisp_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'thin_one_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'void_eye_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'moon_jelly_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'star_knight_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'crystal_drake_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'echo_warden_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'faceless_choir_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'fallen_star_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'lunar_golem_weapon';
+DELETE FROM game_overrides WHERE kind = 'item' AND id = 'violet_queen_weapon';
+DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'spear';
+DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'staff';
+DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'bow';
+DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'fly_blades';
+DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'moon_blade';
 DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'whisper_wisp';
 DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'night_bat';
 DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'blade_fly';
@@ -103,35 +175,17 @@ DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'fire_the_silencer';
 DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'stone_moon_sentinel';
 DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'stone_rust_baron';
 DELETE FROM game_overrides WHERE kind = 'mob' AND id = 'air_violet_queen';
-DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'spear';
-DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'staff';
-DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'bow';
-DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'fly_blades';
-DELETE FROM game_overrides WHERE kind = 'weapon' AND id = 'moon_blade';
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('skill', 'backstab', '{"cd":12,"power":1.5,"traits":[{"k":"poison","chance":20,"dpsPct":8,"dur":6}]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'guard_axe', '{"lvl":6,"req":6,"stats.dmgMin":12,"stats.dmgMax":17,"stats.armor":2,"stats.lifestealPct":8,"stats.atkSpeedPct":2,"salvage":{"soul_shard":2},"traits":[{"k":"bleed","chance":100,"dpsPct":12,"dur":3}]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'axe', '{"cd":640,"atk.kind":"arc","atk.range":250,"atk.arc":1.4,"atk.max":5,"status.slow":false,"status.knock":4,"traits":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'daggers', '{"cd":340,"atk.kind":"proj","atk.range":200,"atk.width":18,"atk.count":2,"atk.spread":0.16,"atk.per":0.56,"status.dpsPct":12,"status.dur":3,"status.slow":false,"traits":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'book', '{"cd":450,"atk.kind":"proj","atk.range":230,"atk.width":22,"status.dpsPct":10,"status.dur":3,"status.slow":false,"traits":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'sword', '{"cd":480,"atk.kind":"arc","atk.range":115,"atk.arc":1.2,"atk.max":5,"status.slow":false,"status.knock":2,"traits":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('spawn', 'arinar', '{"campRespawn":45,"ambientOn":true,"ambientEvery":3,"ambientChance":50,"ambientGroupChance":10,"ambientGroup":8,"ambientCap":10,"ambientNear":150,"ambientEdge":200,"ambientHunt":25,"ambientLife":60}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'whisper_wisp_weapon', '{"lvl":1,"req":1,"stats.dmgMin":5,"stats.dmgMax":6,"stats.atkSpeedPct":1,"salvage":{},"traits":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('mob', 'dew_slime', '{"lvl":1,"hp":138,"dmg":3.8,"armor":1,"speed":72,"aggro":170,"xp":7,"radius":13,"skills":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'greenpoise_bow', '{"lvl":5,"req":5,"stats.dmgMin":7,"stats.dmgMax":10,"rs":"plague_flask","salvage":{"soul_shard":1},"traits":[{"k":"poison","chance":30,"dpsPct":8,"dur":6}]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'puff_mushroom_weapon', '{"lvl":2,"req":2,"stats.dmgMin":6,"stats.dmgMax":8,"stats.atkSpeedPct":1,"salvage":{},"traits":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('skill', 'warden_slam', '{"cd":15,"power":4,"traits":[{"k":"bleed","chance":25,"dpsPct":12,"dur":3},{"k":"burn","chance":25,"dpsPct":15,"dur":3},{"k":"burn","chance":25,"dpsPct":15,"dur":3}]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
-INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('mob', 'air_moon_sentinel', '{"lvl":14,"hp":27213,"dmg":19,"armor":26,"speed":40,"aggro":230,"xp":5885,"radius":46,"skills":[]}', 1, 'rollback', strftime('%s','now')*1000)
-ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('skill', 'backstab', '{"cd":12,"power":1.5,"traits":[{"k":"poison","chance":20,"dpsPct":8,"dur":6}]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'guard_axe', '{"lvl":6,"req":6,"stats.dmgMin":12,"stats.dmgMax":17,"stats.armor":2,"stats.lifestealPct":8,"stats.atkSpeedPct":2,"salvage":{"soul_shard":2},"traits":[{"k":"bleed","chance":100,"dpsPct":12,"dur":3}]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'axe', '{"cd":640,"atk.kind":"arc","atk.range":250,"atk.arc":1.4,"atk.max":5,"status.slow":false,"status.knock":4,"traits":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'daggers', '{"cd":340,"atk.kind":"proj","atk.range":200,"atk.width":18,"atk.count":2,"atk.spread":0.16,"atk.per":0.56,"status.dpsPct":12,"status.dur":3,"status.slow":false,"traits":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'book', '{"cd":450,"atk.kind":"proj","atk.range":230,"atk.width":22,"status.dpsPct":10,"status.dur":3,"status.slow":false,"traits":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('weapon', 'sword', '{"cd":480,"atk.kind":"arc","atk.range":115,"atk.arc":1.2,"atk.max":5,"status.slow":false,"status.knock":2,"traits":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('spawn', 'arinar', '{"campRespawn":45,"ambientOn":true,"ambientEvery":3,"ambientChance":50,"ambientGroupChance":10,"ambientGroup":8,"ambientCap":10,"ambientNear":150,"ambientEdge":200,"ambientHunt":25,"ambientLife":60}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'whisper_wisp_weapon', '{"lvl":1,"req":1,"stats.dmgMin":5,"stats.dmgMax":6,"stats.atkSpeedPct":1,"salvage":{},"traits":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('mob', 'dew_slime', '{"lvl":1,"hp":138,"dmg":3.8,"armor":1,"speed":72,"aggro":170,"xp":7,"radius":13,"skills":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'greenpoise_bow', '{"lvl":5,"req":5,"stats.dmgMin":7,"stats.dmgMax":10,"rs":"plague_flask","salvage":{"soul_shard":1},"traits":[{"k":"poison","chance":30,"dpsPct":8,"dur":6}]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('item', 'puff_mushroom_weapon', '{"lvl":2,"req":2,"stats.dmgMin":6,"stats.dmgMax":8,"stats.atkSpeedPct":1,"salvage":{},"traits":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('skill', 'warden_slam', '{"cd":15,"power":4,"traits":[{"k":"bleed","chance":25,"dpsPct":12,"dur":3},{"k":"burn","chance":25,"dpsPct":15,"dur":3},{"k":"burn","chance":25,"dpsPct":15,"dur":3}]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
+INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES ('mob', 'air_moon_sentinel', '{"lvl":14,"hp":27213,"dmg":19,"armor":26,"speed":40,"aggro":230,"xp":5885,"radius":46,"skills":[]}', 1, 'rollback', 1792090331139) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = game_overrides.version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at;
 UPDATE game_config_version SET v = v + 1 WHERE k = 'overrides';
