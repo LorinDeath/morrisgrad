@@ -3,6 +3,9 @@ import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
 import { worldSize, worldBounds, WORLD_CHUNK, ARINAR_LAYOUT_VER, OPEN_AOI } from "./worlds/sizes";
+const SMALL_MSG_CHARS = 16 * 1024;
+const BIG_MSG_TYPES = new Set(["run_relay", "run_result", "admin_save", "admin_quest_save"]);
+const joinCoord = (v: any): number => { const n = Number(v); const [lo, hi] = worldBounds("hellfire"); return Number.isFinite(n) && n !== 0 ? Math.max(lo, Math.min(hi, n)) : 600; };
 import { ZONE_RESPAWN } from "./meta/shared";
 import { ZONE_MOBS } from "./meta/defs";
 import { skillsFor } from "./meta/zone";
@@ -796,6 +799,8 @@ export class GameRoom extends DurableObject {
         if (verdict !== "ok") { if (verdict === "close") { try { server.close(1008, "flood"); } catch (_) {} } return; }
         const msg = JSON.parse(raw as string);
         if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.type !== "string" || msg.type.length > 40) return;
+        // крупные сообщения (до MSG_MAX_CHARS) — только ретрансляция забега и правки админки; остальным хватает 16 КБ
+        if ((raw as string).length > SMALL_MSG_CHARS && !BIG_MSG_TYPES.has(msg.type)) return;
 
         if (msg.type === "ping") {
           server.send(JSON.stringify({ type: "pong" }));
@@ -836,8 +841,9 @@ export class GameRoom extends DurableObject {
             userId: devOk ? String(msg.userId || "").slice(0, 128) : "", // реальный uid выставит мета-сервис после проверки токена
             username: cleanName,
             world: "hellfire",
-            x: msg.x || 600,
-            y: msg.y || 600,
+            // координаты из join — только подсказка клиента: конечное число в границах мира хаба, иначе точка входа
+            x: joinCoord(msg.x),
+            y: joinCoord(msg.y),
             color: "#ffffff",
             inDuel: false,
             lastActionTime: 0,
