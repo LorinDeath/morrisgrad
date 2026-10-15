@@ -20,10 +20,13 @@ const URL = (u) => `http://127.0.0.1:5199/game.html?name=Алекс&uid=test_dar
     ok((await p.evaluate(([x, y]) => window.__game.debug.sortDemo(x, y), [me.x, me.y])) === 'ok', 'sortDemo построен');
     await p.waitForTimeout(1500);
     await p.evaluate(() => { window.__game.atmo?.setQuality?.(3); }); // без частиц (светлячки летают через кадр)
-    const sp = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x, y + 30), [me.x, me.y]);
-    const clip = { x: Math.round(sp.x - 170), y: Math.round(sp.y - 150), width: 340, height: 175 };
+    await p.evaluate(() => window.__game.debug.setZoom(0.5)); await p.waitForTimeout(2500);
+    const s0 = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x - 90, y + 34), [me.x, me.y]);
+    const s1 = await p.evaluate(([x, y]) => window.__game.debug.screenOf(x + 100, y - 30), [me.x, me.y]);
+    const clip = { x: Math.round(Math.min(s0.x, s1.x)), y: Math.round(Math.min(s0.y, s1.y)), width: Math.round(Math.abs(s1.x - s0.x)), height: Math.round(Math.abs(s1.y - s0.y)) };
+    console.log('INFO clip', JSON.stringify(clip));
     const files = [];
-    for (let i = 0; i < 8; i++) { await p.evaluate((z) => window.__game.debug.setZoom(z), i % 2 ? 1.03 : 1); await p.waitForTimeout(2500); const f = `${OUT}/${TAG}-sort-${i}.png`; await p.screenshot({ path: f, clip }); files.push(f); }
+    for (let i = 0; i < 8; i++) { await p.evaluate((z) => window.__game.debug.setZoom(z), i % 2 ? 0.52 : 0.5); await p.waitForTimeout(2500); const f = `${OUT}/${TAG}-sort-${i}.png`; await p.screenshot({ path: f, clip }); files.push(f); }
     await p.screenshot({ path: `${OUT}/${TAG}-sort-demo.png` });
     const out = execFileSync('python3', ['-c', `
 import sys
