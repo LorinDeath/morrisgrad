@@ -81,7 +81,8 @@ let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log(
     await P.waitForTimeout(350);
   }
   ok(seen.every((s) => s.loaded), 'все аватары загрузились');
-  ok(!!(await P.$('#vn-accept')) && !(await P.$('#vn-next')), 'последнее окно: кнопка «Взять» вместо «Дальше»');
+  await P.click('#vn-next'); await P.waitForTimeout(400); // единый поток: после пояснения — окно получения
+  ok(!!(await P.$('.mc-vn[data-kind="accept"] #vn-accept, #vn-accept')) && !(await P.$('#vn-next')), 'после последнего окна «Дальше» → окно получения с «Взять»');
   ok(await GP(() => document.querySelector('.mc-ghud-chat input, #mc-chat-input') ? document.activeElement?.tagName !== 'INPUT' : true), 'Enter не открыл чат');
   await P.click('#vn-accept'); await P.waitForTimeout(1200);
   await GP(() => window.__game.debug.rawSend({ type: 'npc_talk', npc: 'petr' })); await P.waitForSelector('.mc-vn', { timeout: 5000 });
