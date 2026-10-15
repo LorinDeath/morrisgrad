@@ -4,7 +4,7 @@
 const { chromium } = require('playwright-core');
 const { execSync } = require('child_process');
 const { guardLocal } = require(process.env.MC_LOCAL_GUARD || './_local');
-const OUT = '/workspace/morrisgrad-round3/vn'; require('fs').mkdirSync(OUT, { recursive: true });
+const OUT = process.env.OUT || '/workspace/morrisgrad-round3/vn'; require('fs').mkdirSync(OUT, { recursive: true });
 const d1 = (sql) => execSync(`npx wrangler d1 execute morrisgrad_db --local --json --command "${sql}"`).toString();
 const QID = 'c_vn_' + (Date.now() % 1e7);
 let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + m); };
