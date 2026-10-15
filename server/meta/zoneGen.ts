@@ -69,10 +69,18 @@ export const ZONE_GEN = {
   // поводок MMO: моб дальше leash от дома → «сброс» (уходит домой, быстро лечится, игнорирует игроков)
   leash: 900, leashBoss: 1300, resetSpeed: 2.2, resetRegen: 0.6, // доля maxHp в секунду
   sleepR: 1, // спят чанки дальше этого числа соседних чанков (WORLD_CHUNK) от любого игрока
-  cursedPct: 10, cursedHp: 5.2, cursedDmg: 2.3, cursedLoot: 10, // проклятый: не соло своего ур.; партия из 3 — да
+  cursedPct: 10, cursedHp: 5.5, cursedDmg: 2.6, cursedLoot: 10, cursedSpeed: 1.5, cursedLeap: 0.55, // скорость/рывок — анти-kite; соло проклятого нельзя
   eliteHp: 2.2, eliteDmg: 1.5, eliteArmor: 1.4, eliteXp: 2.5,
   nodeMinDist: 95,
   bossScalePerPlayer: 0.5,   // ХП босса ×(1 + 0.5·(игроков−1)), максимум ×2.5
+  // Анти-kite мировых боссов: ярость если мало damagers / долго бой; рывки чаще; скорость выше
+  bossEnrageSec: 75,         // через N с боя с <bossEnrageMinPlayers damagers → ярость
+  bossEnrageMinPlayers: 3,
+  bossEnrageDmg: 2.8,
+  bossEnrageSpeed: 1.75,
+  bossCombatSpeed: 1.25,     // в бою босс быстрее обычного моба
+  bossLeapMul: 0.5,          // кд рывка×
+  bossSoftEnrageSec: 360,    // мягкий enrage для рейда (~6 мин) — ×урона даже в группе
   // «бродячие» мобы (Аринар, ДОБАВКА к лагерям): раз в ambientEvery с на игрока, если в ambientNear px нет живых мобов —
   // ambientChance % один обычный моб региона у края экрана (ambientEdge px), ambientGroupChance % — группа ambientGroup + 1 элита;
   // идут на игрока (охота ambientHunt с); не больше ambientCap на игрока; уходят, если далеко/без боя ambientLife с

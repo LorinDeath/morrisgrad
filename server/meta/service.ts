@@ -8,7 +8,7 @@ import {
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
 import { baseOf } from "./biomes";
-import { mobXp, xpLevelMult, killXp, dotStackMax, weaponSkillPowerMult } from "./balance";
+import { mobXp, xpLevelMult, killXp, dotStackMax, weaponSkillPowerMult, levelGapDmgMult } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { QUEST_DIALOGUES } from "./vnChars";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
@@ -303,7 +303,7 @@ export class MetaService {
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
     if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; }
     ms.wt = eff.wtype;
-    ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
+    (ms.zp as any).lvl = eff.level || 1; ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
   }
 
   effective(session: any) {
@@ -1216,7 +1216,8 @@ export class MetaService {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
         if (((ms as any).invulnUntil || 0) > now) return; // неуязвимость навыка (прыжок, облако, рывок)
-        const real = Math.max(1, Math.round(dmg * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
+        const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
+        const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой

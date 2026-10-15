@@ -16,6 +16,7 @@ export interface CharacterClass {
 }
 
 export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
+  // Базы классов почти как были: роль задаёт ШМОТ (архетипы), не класс. Экип без локов.
   warrior: {
     id: "warrior",
     name: "Воин",
@@ -28,21 +29,21 @@ export const CHARACTER_CLASSES: Record<string, CharacterClass> = {
     name: "Копейщик",
     color: "#ef4444",
     abilityId: "pierce",
-    stats: { hp: 80, maxHp: 80, armor: 15, minAtk: 5, maxAtk: 10 },
+    stats: { hp: 90, maxHp: 90, armor: 18, minAtk: 5, maxAtk: 10 },
   },
   rogue: {
     id: "rogue",
     name: "Разбойник",
     color: "#22c55e",
     abilityId: "trick_strike",
-    stats: { hp: 150, maxHp: 150, armor: 8, minAtk: 1, maxAtk: 7 },
+    stats: { hp: 140, maxHp: 140, armor: 8, minAtk: 2, maxAtk: 7 },
   },
   mage: {
     id: "mage",
     name: "Маг",
     color: "#a855f7",
     abilityId: "fireball",
-    stats: { hp: 30, maxHp: 30, armor: 1, minAtk: 1, maxAtk: 2 },
+    stats: { hp: 40, maxHp: 40, armor: 2, minAtk: 2, maxAtk: 4 },
   },
 };
 

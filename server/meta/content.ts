@@ -2,7 +2,7 @@
 // фиксированными статами по уровню источника и редкости), таблицы добычи, материалы, облики и навыки монстров.
 // Детерминированно (без случайности): одинаковый результат на сервере и клиенте.
 import { BESTIARY, type MobSpec } from "./bestiary";
-import { mobStats, itemBudget, weaponAvg, STAT_COST, SLOT_PROFILE, itemReqLevel, DROP_PCT, BOSS_DROP_PCT, RARE_DROP_PCT, SET_PIECE_MULT, tierOf } from "./balance";
+import { weaponHitMult, AFFIX_MAX_SHARE, ITEM_LINE_CAP, mobStats, itemBudget, weaponAvg, STAT_COST, SLOT_PROFILE, ARCHETYPE_SLOT, itemReqLevel, DROP_PCT, BOSS_DROP_PCT, RARE_DROP_PCT, SET_PIECE_MULT, tierOf, type GearArchetype } from "./balance";
 
 export interface GenItem {
   id: string; name: string; slot: string; rarity: string; stats: Record<string, number>; lore: string; icon: string;
@@ -39,19 +39,33 @@ function statRound(k: string, v: number): number {
   return Math.max(1, Math.round(v));
 }
 
-export function genItemStats(slot: string, L: number, rarity: string, seed: number, wtype?: string): Record<string, number> {
+const ARCH_CYCLE: GearArchetype[] = ["tank", "bruiser", "assassin", "caster", "balanced"];
+export function archetypeOf(seed: number): GearArchetype { return ARCH_CYCLE[seed % ARCH_CYCLE.length]; }
+function capLines(st: Record<string, number>) { for (const k in st) if (ITEM_LINE_CAP[k] != null) st[k] = Math.min(ITEM_LINE_CAP[k], st[k]); return st; }
+export function genItemStats(slot: string, L: number, rarity: string, seed: number, wtype?: string, arch?: GearArchetype): Record<string, number> {
   const b = itemBudget(L, rarity);
-  const profs = SLOT_PROFILE[slot];
+  const A = arch || archetypeOf(seed);
+  const profs = (ARCHETYPE_SLOT[A] || SLOT_PROFILE)[slot] || SLOT_PROFILE[slot];
   const prof = profs[seed % profs.length];
   const st: Record<string, number> = {};
   if (slot === "weapon") {
-    const avg = weaponAvg(L, rarity) * (wtype === "axe" || wtype === "staff" ? 1.06 : wtype === "daggers" || wtype === "fly_blades" ? 0.94 : 1);
-    st.dmgMin = Math.max(1, Math.round(avg * 0.85)); st.dmgMax = Math.max(st.dmgMin + 1, Math.round(avg * 1.15));
-    for (const [k, f] of Object.entries(prof)) st[k] = statRound(k, (b * 0.3 * f) / STAT_COST[k]);
-    return st;
+    const avg = weaponAvg(L, rarity) * weaponHitMult(wtype); // равный DPS: секира бьёт крупно, кинжалы мелко
+    // широкий min–max (±45%), L25 epic book min ≈ 150+
+    st.dmgMin = Math.max(1, Math.round(avg * 0.55)); st.dmgMax = Math.max(st.dmgMin + 2, Math.round(avg * 1.45));
+    // вторичные линии: с ростом уровня — больше статов
+    const lines = L >= 15 ? 2 : 1;
+    const keys = Object.entries(prof);
+    for (let i = 0; i < Math.min(lines, keys.length); i++) {
+      const [k, f] = keys[(seed + i) % keys.length];
+      st[k] = statRound(k, (b * 0.35 * f) / (STAT_COST[k] || 1));
+    }
+    return capLines(st);
   }
-  for (const [k, f] of Object.entries(prof)) st[k] = statRound(k, (b * f) / STAT_COST[k]);
-  return st;
+  for (const [k, f] of Object.entries(prof)) st[k] = statRound(k, (b * Math.min(AFFIX_MAX_SHARE, f)) / (STAT_COST[k] || 1));
+  // высокий уровень: доп. линия (crit или regen)
+  if (L >= 12 && !st.critPct && seed % 2 === 0) st.critPct = statRound("critPct", (b * 0.12) / STAT_COST.critPct);
+  if (L >= 18 && !st.lifestealPct && seed % 3 === 0) st.lifestealPct = statRound("lifestealPct", (b * 0.08) / STAT_COST.lifestealPct);
+  return capLines(st);
 }
 
 export function buildContent() {
@@ -83,7 +97,7 @@ export function buildContent() {
       const id = m.legacy?.[k] || `${m.id}_${slot}`;
       const grants = k === "w" && m.ability ? m.ability.id : undefined;
       items.push({
-        id, name, slot, rarity, stats: genItemStats(slot, m.lvl, rarity, hash(m.id) + si, wtype), icon: k === "w" ? WTYPE_ICON[wtype!] || "⚔️" : SLOT_ICON[slot],
+        id, name, slot, rarity, stats: genItemStats(slot, m.lvl, rarity, hash(m.id) + si, wtype, archetypeOf(hash(m.id))), icon: k === "w" ? WTYPE_ICON[wtype!] || "⚔️" : SLOT_ICON[slot],
         lore: `${SLOT_LORE[slot]}: «${m.name}». ${m.lore}`, monster: m.id, look: lookId, grantsAbility: grants, band: BAND(m.lvl),
         lvl: m.lvl, req: itemReqLevel(m.lvl), wtype,
       });

@@ -377,7 +377,7 @@ export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   if (!it.hero) it.hero = cls;
   const def = ITEM_BY_ID[it.id];
   if (!SLOTS[def.slot]) return fail("Неизвестный слот");
-  if (def.classes && !def.classes.includes(cls as any)) return fail("Этот предмет не подходит герою");
+  // Классовых ограничений экипа нет: любой герой носит любой предмет (гибриды ок).
   const req = itemReq(def);
   if (h.lvl < req) return fail(`Нужен ${req} уровень героя (у героя ${h.lvl})`);
   h.equip[def.slot] = uid;

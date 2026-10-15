@@ -1,3 +1,4 @@
+import { OUTLEVEL_SOLO_BOSS } from "./balance";
 // Открытые миры (Аринар — государство Мэлвелдил; Поляна хаба): общие для всех онлайн-игроков мобы и узлы ресурсов.
 // Полностью серверный авторитет: позиции/HP мобов, урон по игрокам, сбор, дроп. Клиент лишь присылает
 // намерения (атаковать / начать-закончить сбор / применить навык) — сервер проверяет дистанцию и кд.
@@ -15,6 +16,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 // Навыки боссов и проклятых (ids — базы навыков бестиария). Обычный босс — ровно 1 навык, проклятый — 2–5.
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
+import { mitigateDamage } from "./balance";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
@@ -46,7 +48,7 @@ export interface ZMob { id: number; type: string; respawn: number; sx: number; s
   // бродячий моб (ambient): sid игрока-«хозяина», охота до huntUntil, множитель респавна лагеря (rk × campRespawn — живая правка)
   ambient?: string; huntUntil?: number; bornAt?: number; rk?: number }
 export interface ZNode { id: number; type: string; res: string; respawn: number; x: number; y: number; readyAt: number; qty: [number, number] }
-export interface ZPlayer { sid: string; x: number; y: number; hp: number; maxHp: number; armorRed: number; alive: boolean; respawnAt: number }
+export interface ZPlayer { sid: string; x: number; y: number; hp: number; maxHp: number; armorRed: number; alive: boolean; respawnAt: number; lvl?: number }
 
 // ---------- фракции (бой моб↔моб) ----------
 // Фракция — тема биома варианта (ice_/fire_/stone_/air_) или «дикие» (старые ярусы). Таблица враждебности
@@ -338,7 +340,7 @@ export class Zone {
     if (t.dead || t.reset) return 0;
     const d = ZONE_MOBS[t.type];
     const armor = d.armor * (t.elite ? ZONE_GEN.eliteArmor : 1) * (t.cursed ? 1.3 : 1);
-    const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.65, armor / (armor + 60))) * (t.shieldUntil > this.now ? 0.5 : 1)));
+    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * (t.shieldUntil > this.now ? 0.5 : 1)));
     t.hp -= real; t.dmgBy.set("mob:" + src.id, (t.dmgBy.get("mob:" + src.id) || 0) + real);
     if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
     this.events.push({ k: "hit", id: t.id, d: real, mob: 1 });
@@ -832,7 +834,7 @@ export class Zone {
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
       if (!m.reset && (m.targetSid || m.mobTarget) && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
-        m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; this.stats.resets++;
+        m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
       }
       if (m.reset) {
@@ -851,13 +853,32 @@ export class Zone {
       m.targetSid = best ? best.sid : null;
       if (best) m.mobTarget = 0; // игроки важнее драки с мобом
       if (fresh) {
-        m.burstUntil = now + 1200; // рывок агрессии: первые 1.2 с — быстрее (от пачки не уйти шагом)
-        if (m.camp) for (const o of this.near(m.x, m.y, 360)) if (o.camp === m.camp && !o.targetSid && !o.reset) { o.targetSid = m.targetSid; o.burstUntil = now + 1200; } // пачка агрится вместе
+        m.burstUntil = now + (m.cursed ? 2800 : 1200); // проклятый дольше прессует — анти-kite
+        (m as any).combatSince = now; // старт боя (ярость мирового босса)
+        if (m.camp) for (const o of this.near(m.x, m.y, 360)) if (o.camp === m.camp && !o.targetSid && !o.reset) { o.targetSid = m.targetSid; o.burstUntil = now + 1200; }
       }
+      if (!best) (m as any).combatSince = 0;
       m.atkCd = Math.max(0, m.atkCd - dt);
       m.leapCd = Math.max(0, m.leapCd - dt);
       for (const k of m.skills) m.skCd[k] = Math.max(0, (m.skCd[k] || 0) - dt);
-      const eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? ZONE_GEN.cursedDmg : 1);
+      // Ярость мирового босса: мало damagers дольше bossEnrageSec, или soft enrage для рейда
+      const isWorld = m.special === "boss" || !!d.boss;
+      if (isWorld && (m as any).combatSince) {
+        const fightSec = (now - (m as any).combatSince) / 1000;
+        let damagers = 0; for (const k of m.dmgBy.keys()) if (!k.startsWith("mob:")) damagers++;
+        const G = ZONE_GEN as any;
+        // герой, опередивший босса на OUTLEVEL_SOLO_BOSS+, не провоцирует «ярость малой группы»
+        let outlvl = damagers > 0; for (const k of m.dmgBy.keys()) if (!k.startsWith("mob:")) { const pl = players.get(k); if (!pl || (pl.lvl || 1) < (d.lvl || 1) + OUTLEVEL_SOLO_BOSS) outlvl = false; }
+        if (!m.enraged && !outlvl && damagers < (G.bossEnrageMinPlayers || 3) && fightSec >= (G.bossEnrageSec || 75)) {
+          m.enraged = true;
+          this.events.push({ k: "phase", id: m.id, x: Math.round(m.x), y: Math.round(m.y), p: m.phase, text: `«${d.name}» в ярости — мало героев!` });
+        } else if (!m.enraged && !outlvl && fightSec >= (G.bossSoftEnrageSec || 360)) {
+          m.enraged = true;
+          this.events.push({ k: "phase", id: m.id, x: Math.round(m.x), y: Math.round(m.y), p: m.phase, text: `«${d.name}» разъярён временем боя!` });
+        }
+      }
+      let eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? ZONE_GEN.cursedDmg : 1);
+      if (isWorld && m.enraged) eliteDmg *= (ZONE_GEN as any).bossEnrageDmg || 2.8;
       // рывок (charger и крупные): замах (телеграф) → рывок
       if (m.dashT > 0) {
         const dsp = d.size === "s" ? 330 : 420;
@@ -875,7 +896,7 @@ export class Zone {
       if ((m as any).frozenUntil > now) continue; // заморожен: ни шага, ни удара, ни навыка
       if (best) {
         const dx = best.x - m.x, dy = best.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
-        const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? 1.3 : 1) * (m.burstUntil > now ? 1.6 : 1);
+        const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? (isWorld ? ((ZONE_GEN as any).bossEnrageSpeed || 1.75) : 1.3) : 1) * (m.burstUntil > now ? 1.6 : 1) * (m.cursed ? (ZONE_GEN.cursedSpeed || 1.5) : 1) * (isWorld ? ((ZONE_GEN as any).bossCombatSpeed || 1.25) : 1);
         let want = d.radius + 14; // желаемая дистанция
         // навыки боссов/проклятых (свои кд)
         if (m.skills.length && dist < 420) {
@@ -883,7 +904,14 @@ export class Zone {
           if (k) { this.useSkill(m, d, k, best, players, now, eliteDmg); m.skCd[k] = MOB_SKILLS[k].cd * (m.enraged ? 0.75 : 1); continue; }
         }
         if (d.size !== "s") {
-          if (m.atkCd <= 0 && dist < 380) { this.bossPattern(m, d, best, players, now); continue; }
+          // Анти-kite: если герой далеко — рывок к нему (проклятый/обычный мировой босс)
+          if (dist > 200 && m.leapCd <= 0) {
+            m.windup = 0.45; m.dashX = ux; m.dashY = uy;
+            m.leapCd = 3.2 * ((ZONE_GEN as any).bossLeapMul || 0.5);
+            this.events.push({ k: "tele", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), len: Math.min(280, dist), t: 0.45 });
+            continue;
+          }
+          if (m.atkCd <= 0 && dist < 420) { this.bossPattern(m, d, best, players, now); continue; }
         } else if (d.role === "charger") {
           if (dist < 150 && dist > 50 && m.atkCd <= 0) {
             m.windup = 0.55; m.dashX = ux; m.dashY = uy; m.atkCd = 2.4;
@@ -893,7 +921,7 @@ export class Zone {
         } else if ((d.role === "melee" || d.role === "swarm") && d.lvl >= 3 && dist > 80 && dist < 210 && m.leapCd <= 0) {
           // прыжок: круг-телеграф под целью, через 0.65 с моб приземляется туда (уклоняемо)
           this.cast(m, { kind: "circle", at: now + 650, x: best.x, y: best.y, r: 52, dmg: d.dmg * 1.3 * eliteDmg, leap: true });
-          m.leapCd = d.role === "swarm" ? 7 : 5; m.windup = 0.65; m.dashX = 0; m.dashY = 0;
+          m.leapCd = (d.role === "swarm" ? 7 : 5) * (m.cursed ? (ZONE_GEN.cursedLeap || 0.55) : 1); m.windup = m.cursed ? 0.4 : 0.65; m.dashX = 0; m.dashY = 0;
           continue;
         } else if (d.role === "ranged") {
           want = 170;
@@ -1023,7 +1051,7 @@ export class Zone {
     const d = ZONE_MOBS[m.type];
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
     const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? 1.3 : 1);
-    const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.65, armor / (armor + 60))) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
+    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
