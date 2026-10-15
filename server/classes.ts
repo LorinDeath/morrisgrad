@@ -5,7 +5,6 @@ export interface BaseClassStats {
   minAtk: number;
   maxAtk: number;
   critChance?: number;
-  vampirism?: number;
 }
 
 export interface CharacterClass {

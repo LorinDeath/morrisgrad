@@ -244,10 +244,19 @@ export class Pvp {
     c.op.zp.hp = Math.max(0, c.op.zp.hp - real);
     { const t = Date.now(); (c.op as any).hurtAt = t; (c.me as any).hitAt = t; } // бой → регенерация ×regenCombat
     c.d.hits[c.i] += real;
-    if (eff.lifestealPct) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + real * eff.lifestealPct / 100);
+    if (eff.lifestealPct) this.lsHeal(c, session, real * eff.lifestealPct / 100);
     c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: real, crit: crit || undefined, x: Math.round(c.os.x), y: Math.round(c.os.y) });
     if (c.op.zp.hp <= 0 && !this.revived(c.d, c)) this.finish(c.d, c.i as 0 | 1, "ko");
     return real;
+  }
+
+  /** вампиризм в дуэли: лечит атакующего (сервер), «+N HP» — событием lsheal, дробные остатки копятся */
+  private lsHeal(c: any, session: any, amt: number) {
+    if (!(amt > 0)) return;
+    const before = c.me.zp.hp;
+    c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + amt);
+    c.me.lsAcc = (c.me.lsAcc || 0) + (c.me.zp.hp - before);
+    if (c.me.lsAcc >= 1) { const n = Math.floor(c.me.lsAcc); c.me.lsAcc -= n; c.d.ev.push({ k: "lsheal", sid: session.id, d: n, x: Math.round(session.x), y: Math.round(session.y) }); }
   }
 
   /** черты админ-панели (поджог/яд/кровотечение/заморозка/замедление/отбрасывание/вампиризм) в дуэли — сервер */
@@ -262,7 +271,7 @@ export class Pvp {
         c.os.x = Math.max(46, Math.min(S - 46, c.os.x + dx / L * k)); c.os.y = Math.max(46, Math.min(S - 46, c.os.y + dy / L * k)); c.op.zp.x = c.os.x; c.op.zp.y = c.os.y;
         const e = this.host.sessionLookup?.(c.os.id); if (e) this.host.send(e[0], { type: "ability_move", x: Math.round(c.os.x), y: Math.round(c.os.y) }); },
       freeze: (t) => { c.op.frozenUntil = Date.now() + Math.min(1500, t); d.ev.push({ k: "pstatus", to: c.os.id, s: "freeze", ms: Math.min(1500, t) }); },
-      heal: (hp) => { c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + hp); },
+      heal: (hp) => this.lsHeal(c, session, hp),
     });
   }
 
@@ -360,7 +369,7 @@ export class Pvp {
     const S = W_ARENA;
     const dealt = castShape(ab.cast || ab.id, {
       zone, sid: session.id, x: session.x, y: session.y, dx, dy, now, dmg, radiusMult: (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods), props: ab.props, here: () => [session.x, session.y],
-      hit: (_m, mult) => { if (!live()) return 0; const real = this.deal(c, session, dmg * mult, false, { lifestealPct: 0 }) || 0; this.traits(c, session, real, null, ab.id); return real; },
+      hit: (_m, mult) => { if (!live()) return 0; const real = this.deal(c, session, dmg * mult, false, eff) || 0; this.traits(c, session, real, null, ab.id); return real; },
       status: (_m, st) => this.status(c, session, st.dot ? { kind: st.dot.kind, dps: st.dot.dps, dur: st.dot.dur } : { slow: !!st.slow, knock: st.knock, freeze: st.freeze }), // навыки: замедление/отбрасывание/заморозка — как в мире
       move: (x, y) => { session.x = x; session.y = y; c.me.zp.x = x; c.me.zp.y = y; this.host.send(ws, { type: "ability_move", x: Math.round(x), y: Math.round(y) }); },
       bounds: (x, y) => [Math.max(46, Math.min(S - 46, x)), Math.max(46, Math.min(S - 46, y))],
@@ -369,7 +378,7 @@ export class Pvp {
       ev: (e) => d.ev.push(e),
       fire: (o) => this.fire(d, c.i as 0 | 1, { ...o, onHit: o.onHit ? () => { if (live()) o.onHit!(opp, 0); } : undefined, onEnd: o.onEnd ? (x, y, h) => { if (live()) o.onEnd!(x, y, h); } : undefined }),
     });
-    if ((ab.props.includes("vamp") || def?.id === "trick_strike") && this.duels.has(d.id)) c.me.zp.hp = Math.min(c.me.zp.maxHp, c.me.zp.hp + dealt * 0.08);
+    if ((ab.props.includes("vamp") || def?.id === "trick_strike") && this.duels.has(d.id)) this.lsHeal(c, session, dealt * 0.08);
   }
 
   leave(session: any, reason: "forfeit" | "disconnect") {
