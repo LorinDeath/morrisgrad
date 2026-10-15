@@ -49,7 +49,7 @@ const OUT = '/workspace/morrisgrad-round3';
   // DPS-метр: бьём ближайших
   { const me = await G(() => window.__game.state().player); await G(([x, y]) => window.__game.debug.rawSend({ type: 'dev_spawn_mob', mob: 'violet_pixie', x: x + 120, y }), [me.x, me.y]); await p.waitForTimeout(1500); } // гарантированная цель рядом
   const ms = await G(() => window.__game.debug.mobsNear(500));
-  if (ms.length) { await G((id) => window.__game.debug.selectMobId(id), ms[0].id); await p.mouse.move(720, 430); await p.mouse.down(); await p.waitForTimeout(4500); await p.mouse.up(); }
+  if (ms.length) { await G((id) => window.__game.debug.selectMobId(id), ms[0].id); await p.mouse.move(720, 430); await p.mouse.down(); await p.waitForFunction(() => window.__game.debug.dps().fight > 0, null, { timeout: 15000 }).catch(() => {}); await p.mouse.up(); } // по игровым часам: при ~10 fps 4.5 с реального времени мало
   const d = await G(() => window.__game.debug.dps());
   ok(d.fight > 0 && d.dps >= 0, `DPS-метр: ${JSON.stringify(d)}`);
   const hpTxt = await p.$eval('#ghud-my-hp-val', (e) => e.textContent).catch(() => '');

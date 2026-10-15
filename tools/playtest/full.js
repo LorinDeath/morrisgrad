@@ -103,7 +103,7 @@ const ok = (name, cond, extra) => { report.checks.push({ name, pass: !!cond, ext
   await p.waitForTimeout(600);
   const res0 = await G(() => JSON.stringify(window.__game.meta.account?.res || {}));
   if (kind === 'mobile') await p.tap('.mc3d-tbtn[data-act="interact"]'); else await p.keyboard.press('KeyE');
-  await p.waitForTimeout(2200);
+  await p.waitForFunction((r0) => JSON.stringify(window.__game.meta.account?.res || {}) !== r0, res0, { timeout: 12000 }).catch(() => {}); // сбор длится GATHER_TIME_MS игрового времени (swiftshader медленный)
   const res1 = await G(() => JSON.stringify(window.__game.meta.account?.res || {}));
   ok('gather resource node in Arinar', res0 !== res1, { res0, res1 });
   await G(() => window.__game.debug.setZoom(0.4));
