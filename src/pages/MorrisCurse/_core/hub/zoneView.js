@@ -15,13 +15,17 @@ import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
 import { ProjAtlasFx } from '../engine/projAtlas.js';
-import PROJ_META from '../../../../assets/mc/projectiles.json';
-const atlasId = (id) => { const k = String(id || '').replace(/^rs:/, ''); return PROJ_META.items[k] ? k : null; };
+import { FX_META } from '../engine/fxAtlas.js';
+// id навыка → ключ снаряда FX atlas v2 (с псевдонимами); значки/метки/телеграфы не считаются снарядами
+const atlasId = (id) => { let k = String(id || '').replace(/^rs:/, ''); k = FX_META.keys[k] ? k : FX_META.aliases[k]; return k && FX_META.keys[k] && !/^(hit|status|mark|tele)_?/.test(k) && FX_META.keys[k].anims.hit ? k : null; };
+// навыки без снаряда → эффект v2: рывок (шлейф), нова/аура на месте, конус
+const DASH_FX = { backstab: 'shadow_step_trail', shadow_step: 'shadow_step_trail', fly_blade_dash: 'fly_blade_dash_trail', leap_strike: 'leap_strike' };
+const NOVA_FX = { shield_wall: 'shield_wall', whirlwind: 'whirlwind', frost_nova: 'frost_nova', orbit_skulls: 'orbit_skulls_aura' };
+const CONE_FX = { ice_fan: 'ice_fan_cone', dew_splash: 'dew_splash_cone', gear_spin: 'gear_spin_cone' };
 import { atmo } from '../engine/atmosphere.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
-const HIT_FOR = { spear: 'hit', daggers: 'hit_bleed', soul_spark: 'hit_ice', staff_bolt: 'hit_arcane', ab_backstab: 'hit_ice', thorn_bow: 'hit_bleed', war_axe: 'hit', fly_blades: 'hit_bleed', chain_bolt: 'hit_arcane' };
 const PX = 20;
 // Масштаб мобов открытого мира: общий ×0.75 (было крупно), вожаки/боссы/элита — относительно крупнее обычных
 export const MOB_VIS = 0.75;
@@ -53,18 +57,10 @@ export class ZoneView {
       this.npcBatch = new SpriteBatch(THREE, at.heroes, { cellW: HERO_CELL.w, cellH: HERO_CELL.h, cols: HERO_CELL.cols, rows: HERO_CELL.rows, max: 16 });
       this.root.add(this.npcBatch.mesh);
     }
-    const decal = (geo, cap, op) => {
-      const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide }), cap);
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.setColorAt(0, new THREE.Color(1, 1, 1));
-      im.count = 0; im.frustumCulled = false; this.root.add(im); return im;
-    };
-    const cg = new THREE.CircleBufferGeometry(1, 28); cg.rotateX(-Math.PI / 2);
-    const rg = new THREE.RingBufferGeometry(0.86, 1, 32); rg.rotateX(-Math.PI / 2);
-    const lg = new THREE.PlaneBufferGeometry(1, 1); lg.rotateX(-Math.PI / 2); lg.translate(0, 0, 0.5);
-    this.fill = decal(cg, 48, 0.3); this.ring = decal(rg, 64, 0.8); this.line = decal(lg, 32, 0.35);
+    // телеграфы, метки под целями, кольца взрывов — спрайты FX atlas v2 (tele_*, mark_*, boom) через this.pfx
     // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
-    this.pfx = new ProjFx(THREE, this.root, { max: 400, glowMax: 500 });
-    this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (атлас projectiles.png)
+    this.pfx = new ProjFx(THREE, this.root, { max: 600, glowMax: 600 });
+    this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (FX atlas v2)
     this.hits = [];
     this.seed = ZONE_GEN.seed;
     this.d = new THREE.Object3D();
@@ -133,23 +129,29 @@ export class ZoneView {
       else if (e.k === 'crit') out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' });
       else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: false, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
       else if (e.k === 'slam') {
-        if (!e.fx) this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.35 });
+        if (e.nova && !e.fx) this.teles.push({ kind: 'nova', fx: 'nova_burst', x: e.x, y: e.y, r: e.r, t: 0, life: 0.5, col: [1, 0.45, 0.55] }); // навык монстра без формы — nova_burst (тинт)
+        else if (e.fx === 'warden_slam') { /* удар уже рисует падение (tele_circle) */ }
+        else if (!e.fx) this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.35 });
         else if (e.fx === 'ice_fan') this.pax.burst('ice_fan', e.x, e.y, e.r, 12);
         else if (e.fx === 'war_axe') this.pax.burst('war_axe', e.x, e.y, e.r, 6);
         else if (e.fx === 'plague_puddle') this.pax.puddle(e.x, e.y, e.r, 1.6);
         else if (e.fx !== 'meteor' && e.fx !== 'spear_rain') this.pax.impact(e.fx, e.x, e.y, { k: Math.max(1, e.r / 50) }); // метеор/копья — своё падение
       }
-      else if (e.k === 'tele') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 });
-      else if (e.k === 'tele_circle') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (e.fx === 'meteor' || e.fx === 'spear_rain') this.pax.fall(e.fx, e.x, e.y, e.t || 1.2, e.fdx || 1, e.fx === 'meteor' ? Math.max(1, e.r / 70) : 1); }
+      else if (e.k === 'tele') { this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 }); this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: -(e.t || 0.55), life: 0.3, col: [1, 0.5, 0.45] }); } // рывок моба: телеграф, затем шлейф dash_trail
+      else if (e.k === 'tele_line') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, w: e.w, t: 0, life: e.t || 0.55 });
+      else if (e.k === 'tele_ring') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });
+      else if (e.k === 'tele_cone') { this.teles.push({ kind: 'tcone', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: 0, life: e.t || 0.6 }); if (CONE_FX[e.fx]) this.teles.push({ kind: 'cone', fx: CONE_FX[e.fx], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: -(e.t || 0.6), life: 0.45 }); }
+      else if (e.k === 'acone') { const id = String(e.id || '').replace(/^rs:/, ''); this.teles.push({ kind: 'cone', fx: CONE_FX[id] || 'gear_spin_cone', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: 0, life: 0.45 }); }
+      else if (e.k === 'tele_circle') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (e.fx === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.35 + 0.6 }); if (e.fx === 'meteor' || e.fx === 'spear_rain') this.pax.fall(e.fx, e.x, e.y, e.t || 1.2, e.fdx || 1, e.fx === 'meteor' ? Math.max(1, e.r / 70) : 1); }
       // снаряды сервера: вылет / попадание; лужа фляги; удары навыков мобов спрайтами атласа
       else if (e.k === 'proj') this.pax.spawn(e);
       else if (e.k === 'pend') this.pax.end(e);
       else if (e.k === 'puddle') this.pax.puddle(e.x, e.y, e.r, e.t);
-      else if (e.k === 'ability') { const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60) }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70) }); this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: 0xfde68a }); }
+      else if (e.k === 'ability') { const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60) }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70) }); const id = String(e.id || '').replace(/^rs:/, ''); if (NOVA_FX[id]) this.teles.push({ kind: 'nova', fx: NOVA_FX[id], x: e.x, y: e.y, r: e.r || 120, t: 0, life: 0.6 }); else this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: 0xfde68a }); }
       // формы навыков (server/meta/abilityShapes.ts): линия/рывок, снаряд, отложенный удар (метеор), точки дождя
-      else if (e.k === 'aline') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 });
+      else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35 }); }
       else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty);
-      else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
+      else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (String(e.id || '').replace(/^rs:/, '') === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.95 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
       else if (e.k === 'phit' && e.sid === myId) out.push({ k: 'hurt', d: e.d });
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }
@@ -341,33 +343,35 @@ export class ZoneView {
       }
       NB.end();
     }
-    // телеграфы и эффекты
-    const d = this.d;
-    let nf = 0, nr = 0, nl = 0;
-    const put = (im, i, x, z, sx, sz, rot, r, g, b) => { d.position.set(x, 0.06 + i * 0.0005, z); d.rotation.set(0, rot, 0); d.scale.set(sx, 1, sz); d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, this.col.setRGB(r, g, b)); };
+    // телеграфы, эффекты навыков и метки — спрайты FX atlas v2 (телеграфы #dcd3e6, цвет задаёт код)
+    const P = this.pfx;
+    P.begin(dt);
     for (let i = this.teles.length - 1; i >= 0; i--) {
       const t = this.teles[i];
       t.t += dt;
       if (t.t >= t.life) { this.teles.splice(i, 1); continue; }
-      const kk = t.t / t.life;
-      if (t.kind === 'line' && nl < 32) put(this.line, nl++, toX(t.x), toZ(t.y), 1.1, (t.len / PX) * (0.3 + 0.7 * kk), Math.atan2(t.dx, t.dy), 1, 0.25, 0.25);
-      else if (t.kind === 'circle' && nf < 48 && nr < 64) { const R = t.r / PX; put(this.fill, nf++, toX(t.x), toZ(t.y), R * kk, R * kk, 0, 1, 0.3, 0.6); put(this.ring, nr++, toX(t.x), toZ(t.y), R, R, 0, 1, 0.4, 0.9); }
-      else if (t.kind === 'boom' && nr < 64) { const R = (t.r / PX) * (0.5 + kk * 0.6); const c = t.color === 0xfde68a ? [1, 0.9, 0.4] : [1, 0.35, 0.3]; put(this.ring, nr++, toX(t.x), toZ(t.y), R, R, 0, ...c); }
+      if (t.t < 0) continue; // эффект ждёт своего момента (шлейф после рывка, удар после падения)
+      const kk = t.t / t.life, X = toX(t.x), Z = toZ(t.y);
+      if (t.kind === 'line') P.teleLine(X, Z, t.dx, t.dy, (t.len / PX) * (0.3 + 0.7 * kk), Math.max(1.1, (t.w || 0) / PX), [1, 0.3, 0.3], 0.85);
+      else if (t.kind === 'circle') P.teleCircle(X, Z, t.r / PX, kk, [1, 0.35, 0.65], 0.9);
+      else if (t.kind === 'tcone') P.teleCone(X, Z, t.dx, t.dy, t.len / PX, t.arc, [1, 0.35, 0.3], 0.8);
+      else if (t.kind === 'cone') P.cone(t.fx, X, Z, t.dx, t.dy, t.len / PX, t.arc, kk);
+      else if (t.kind === 'nova') P.nova(t.fx, X, Z, t.r / PX, kk, t.col || null);
+      else if (t.kind === 'dash') P.dash(t.fx, X, Z, t.dx, t.dy, t.len / PX, kk, t.col || null);
+      else if (t.kind === 'slam') P.slam(X, Z, t.r / PX, t.t, 0.35);
+      else if (t.kind === 'boom') P.boom(X, Z, (t.r / PX) * 0.8, kk, t.color || 0xf87171, t.color === 0xfde68a ? 'hit_holy' : 'hit_fire');
     }
-    for (const b of this.bags.values()) if (nr < 64) { const R = 0.9 + Math.sin(T * 4 + b.id) * 0.08; put(this.ring, nr++, toX(b.x), toZ(b.y), R, R, 0, 1, 0.85, 0.25); } // мешок — золотое кольцо
+    for (const b of this.bags.values()) P.mark('loot', toX(b.x), toZ(b.y), 0.9 + Math.sin(T * 4 + b.id) * 0.08, 1, b.id); // мешок
     for (const o of this.mobs.values()) {
-      if (o.id === this.selected && nr < 64) { const R = Math.max(0.85, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2 * mobScale(o)) + Math.sin(T * 6) * 0.06; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.95, 0.4); } // выбранная цель
-      if (this.trackTypes?.size && nr < 64 && (this.trackTypes.has(o.type) || this.trackTypes.has(baseOf(o.type)))) { const R = 1.15 * mobScale(o) + Math.sin(T * 5 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.3, 1, 0.45); } // цель квеста (отслеживание) — зелёное кольцо
-      if (o.cursed && nr < 64) { const R = 1.6 * mobScale(o) + Math.sin(T * 3 + o.id) * 0.15; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.75, 0.2, 1); }
-      if (ZONE_MOBS[o.type]?.boss && nr < 64) { const R = 2.4 * MOB_VIS * 1.35 + Math.sin(T * 4) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 0.8, 0.4, 1); }
-      else if (o.chief && nr < 64) { const R = 1.9 * MOB_VIS * 1.6 / 1.45 + Math.sin(T * 3 + o.id) * 0.1; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.55, 0.1); } // вожак лагеря — крупнее, золотое кольцо
-      else if (o.elite && nr < 64) { const R = 1.3 * MOB_VIS * 1.1 + Math.sin(T * 5 + o.id) * 0.08; put(this.ring, nr++, toX(o.x), toZ(o.y), R, R, 0, 1, 0.8, 0.2); }
+      const X = toX(o.x), Z = toZ(o.y);
+      if (o.id === this.selected) P.mark('target', X, Z, Math.max(0.85, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2 * mobScale(o)), 1, o.id); // выбранная цель
+      if (this.trackTypes?.size && (this.trackTypes.has(o.type) || this.trackTypes.has(baseOf(o.type)))) P.mark('tracked', X, Z, 1.15 * mobScale(o), 1, o.id); // цель квеста (отслеживание)
+      if (o.cursed) P.mark('cursed', X, Z, 1.6 * mobScale(o), 1, o.id);
+      if (ZONE_MOBS[o.type]?.boss) P.mark('boss', X, Z, 2.4 * MOB_VIS * 1.35, 1, o.id);
+      else if (o.chief) P.mark('leader', X, Z, 1.9 * MOB_VIS * 1.6 / 1.45, 1, o.id); // вожак лагеря
+      else if (o.elite) P.mark('elite', X, Z, 1.3 * MOB_VIS * 1.1, 1, o.id);
     }
-    this.fill.count = nf; this.ring.count = nr; this.line.count = nl;
-    for (const im of [this.fill, this.ring, this.line]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
-    // снаряды базовой атаки, вспышки попаданий, значки статусов — спрайты из proj_atlas
-    const P = this.pfx;
-    P.begin(dt);
+    // снаряды базовой атаки, вспышки попаданий, значки статусов
     for (let i = this.bolts.length - 1; i >= 0; i--) {
       const b = this.bolts[i];
       const m = this.mobs.get(b.mob);
@@ -378,7 +382,7 @@ export class ZoneView {
       b.t += dt * (b.arc ? 6 : Math.max(2.6, 22 / Math.max(1, dist))); // ~22 м/с, но не дольше ~0.4 с
       if (b.t >= 1) {
         this.bolts.splice(i, 1);
-        if (this.hits.length < 48 && (m || b.arc)) this.hits.push({ x: toX(tx), z: toZ(ty), row: HIT_FOR[b.shot] || 'hit', t: 0 });
+        if (this.hits.length < 48 && (m || b.arc)) this.hits.push({ x: toX(tx), z: toZ(ty), row: P.hitOf(b.shot), t: 0 });
         continue;
       }
       const x = b.x + (tx - b.x) * b.t, y = b.y + (ty - b.y) * b.t;

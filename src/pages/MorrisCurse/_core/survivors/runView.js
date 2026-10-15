@@ -1,6 +1,7 @@
 // Отрисовка забега. Орда — 2.5D пиксельные билборды из одного атласа (один draw call на всю орду),
 // анимации ход/замах/удар/урон/распад, телеграфы атак на земле, ауры элиты, вспышка при попадании.
 // Снаряды/камни — InstancedMesh (draw call на вид), герои — 2.5D-спрайты.
+import { mobShot } from '../../../../../server/meta/mobFamily.ts';
 import { buildEnemyGeometries, buildPickupGeometries, flatMat } from '../engine/models.js';
 import { atmo } from '../engine/atmosphere.js';
 import { createCharacter, kindFromClass, modelMode } from '../engine/characters.js';
@@ -107,7 +108,7 @@ export class RunView {
     this.pickupMeshes = new Map();
     this.pickupMat = flatMat(THREE, { emissive: 0x222222, emissiveIntensity: 0.4 });
 
-    // Снаряды и эффекты — PNG-спрайты из proj_atlas (2 draw call на всё)
+    // Снаряды и эффекты — спрайты FX atlas v2 (батч на лист и смешивание)
     this.pfx = new ProjFx(THREE, this.root);
 
     // Герои
@@ -123,6 +124,7 @@ export class RunView {
     this.magnetRing = new THREE.Mesh(new THREE.RingGeometry(0.98, 1.0, 48), new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
     this.magnetRing.rotation.x = -Math.PI / 2;
     this.magnetRing.position.y = 0.03;
+    this.magnetRing.visible = false; // радиус магнита — спрайт mark_magnet (FX v2)
     this.root.add(this.magnetRing);
   }
 
@@ -215,44 +217,32 @@ export class RunView {
     B.end(); BB?.end();
   }
 
-  // Телеграфы атак, ауры элиты/босса, лужи гнили, метки метеора
-  drawDecals() {
-    const run = this.run, d = this.dummy, T = this.time;
-    let nf = 0, nr = 0, nl = 0;
-    const fill = this.teleFill, ring = this.teleRing, line = this.teleLine;
-    const put = (im, i, x, z, sx, sz, rotY, r, g, b) => {
-      d.position.set(x, 0.05 + i * 0.0004, z); d.rotation.set(0, rotY, 0); d.scale.set(sx, 1, sz); d.updateMatrix();
-      im.setMatrixAt(i, d.matrix); im.setColorAt(i, this.col.setRGB(r, g, b));
-    };
+  // Телеграфы атак, ауры элиты/босса, лужи гнили, метки метеора — спрайты FX atlas v2 (tele_*, mark_*, plague_puddle)
+  drawTeleSprites(P) {
+    const run = this.run, T = this.time;
     for (const e of run.enemies.values()) {
       if (e.dead) continue;
       const A = ENEMIES[e.type].atk;
       const s = e.scale || 1;
-      if (e.wind > 0 && A && nf < TELE_MAX && nr < TELE_MAX) {
+      if (e.wind > 0 && A) {
         const k = 1 - Math.max(0, e.wind) / (A.wind || 1);
-        if (A.kind === 'dash' || A.kind === 'lunge') {
-          if (nl < TELE_MAX) put(line, nl++, e.x, e.z, 0.9 * s, (A.len || 6) * (0.4 + 0.6 * k), e.face || 0, 1, 0.25, 0.25);
-        } else {
-          const R = (A.r || 3) * s;
-          put(fill, nf++, e.x, e.z, R * k, R * k, 0, A.kind === 'dust' ? 0.9 : 1, A.kind === 'dust' ? 0.7 : 0.2, A.kind === 'dust' ? 1 : 0.2);
-          put(ring, nr++, e.x, e.z, R, R, 0, 1, A.kind === 'dust' ? 0.8 : 0.3, A.kind === 'dust' ? 1 : 0.3);
-        }
+        if (A.kind === 'dash' || A.kind === 'lunge') { const f = e.face || 0; P.teleLine(e.x, e.z, Math.sin(f), Math.cos(f), (A.len || 6) * (0.4 + 0.6 * k), 0.9 * s, [1, 0.3, 0.3], 0.85); }
+        else P.teleCircle(e.x, e.z, (A.r || 3) * s, k, A.kind === 'dust' ? [0.85, 0.6, 1] : [1, 0.3, 0.3], 0.9);
       }
-      if ((e.elite || e.boss) && nr < TELE_MAX) {
-        const R = ENEMIES[e.type].radius * s * 1.35 + Math.sin(T * 4 + e.id) * 0.08;
-        put(ring, nr++, e.x, e.z, R, R, 0, e.boss ? 0.9 : 1, e.boss ? 0.4 : 0.8, e.boss ? 1 : 0.2);
-      }
+      if (e.boss) P.mark('boss', e.x, e.z, ENEMIES[e.type].radius * s * 1.35, 1, e.id);
+      else if (e.elite) P.mark('elite', e.x, e.z, ENEMIES[e.type].radius * s * 1.35, 1, e.id);
     }
-    for (const hz of run.hazards || []) {
-      if (nf >= TELE_MAX) break;
-      put(fill, nf++, hz.x, hz.z, hz.r, hz.r, 0, 0.45, 0.9, 0.15);
-    }
+    for (const hz of run.hazards || []) P.aura('plague_puddle', hz.x, hz.z, hz.r, hz.x, 0.85);
     for (const f of run.fx) {
-      if (f.kind !== 'tele' || nr >= TELE_MAX || nf >= TELE_MAX) continue;
-      const k = Math.min(1, f.t / f.life);
-      put(ring, nr++, f.x, f.z, f.r, f.r, 0, 1, 0.55, 0.1);
-      put(fill, nf++, f.x, f.z, f.r * k, f.r * k, 0, 1, 0.4, 0.1);
+      if (f.kind !== 'tele') continue;
+      P.teleCircle(f.x, f.z, f.r, Math.min(1, f.t / f.life), [1, 0.55, 0.15], 0.9);
     }
+    const me = run.me;
+    if (me) P.mark('magnet', me.x, me.z, me.magnet || 2.4, 0.5, 0);
+  }
+  drawDecals() {
+    const fill = this.teleFill, ring = this.teleRing, line = this.teleLine;
+    const nf = 0, nr = 0, nl = 0; // всё рисует drawTeleSprites (FX v2); меши-декали остаются пустыми
     for (const im of [fill, ring, line]) {
       im.count = im === fill ? nf : im === ring ? nr : nl;
       im.instanceMatrix.needsUpdate = true;
@@ -367,6 +357,7 @@ export class RunView {
   drawShots(dt) {
     const run = this.run, P = this.pfx, T = run.t;
     P.begin(dt);
+    this.drawTeleSprites(P);
     for (const z of run.zones || []) {
       if (z.kind === 'mine') P.shot('glyph_mine', z.x, z.z, 0, 0, z.t, z.seed, z.t < z.arm ? 0.7 : 1, z.t < z.arm ? 0.55 : 1);
       else if (z.kind === 'cloud') P.cloud(z.x, z.z, z.r, z.t, z.life, 0x65a30d, z.seed);
@@ -381,7 +372,7 @@ export class RunView {
       else if (s.w === 'sun_beam') P.beam(s.x, s.z, s.vx, s.vz, 11, 0.7, s.age, s.life, 0xfbbf24);
       else P.shot(s.w, s.x, s.z, s.vx, s.vz, s.age, s.phase);
     }
-    for (const s of run.enemyShots) P.shot(s.dmg > 10 ? 'enemy_boss' : 'enemy', s.x, s.z, s.vx, s.vz, 3 - s.life, s.x * 0.3, 1, 1, 0.8);
+    for (const s of run.enemyShots) P.shot(s.boss || s.dmg > 10 ? 'enemy_boss' : mobShot(s.ty || ''), s.x, s.z, s.vx, s.vz, 3 - s.life, s.x * 0.3, 1, 1, 0.8); // семейство по стихии врага (FX v2)
     for (const f of run.fx) {
       if (f.t < 0) continue;
       const k = f.t / f.life;

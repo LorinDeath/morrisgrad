@@ -7,8 +7,6 @@ import charsSrc from '../../../../assets/mc/chars_atlas.png';
 import heroesHdSrc from '../../../../assets/mc/heroes_atlas.png';
 import { GRADE } from './atmosphere.js';
 import mobsSrc from '../../../../assets/mc/mobs_atlas.png';
-import projSrc from '../../../../assets/mc/proj_atlas.png';
-import projMeta from '../../../../assets/mc/proj_atlas.json';
 import { loadAtlasTexture } from './spriteBatch.js';
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s);
@@ -30,12 +28,8 @@ export const MOB_HEIGHT = { imp: 1.9, bat: 1.7, ghoul: 2.3, spitter: 2.0, golem:
 export const MOB_FLYING = { bat: 0.6, blade_fly: 0.5, dream_moth: 0.7 };
 export const MOB_ANIM = { walk: 0, atk: 4, hit: 7, die: 8 };
 
-// proj_atlas.png — снаряды/попадания (tools/mc-sprites/gen_projectiles.py): ячейка 32×32, 8 кадров в строке
-export const PROJ_COLS = projMeta.cols || 8;
-export const PROJ_ROW_LIST = projMeta.rows || [];
-export const PROJ_ROWS = Object.fromEntries(PROJ_ROW_LIST.map((k, i) => [k, i]));
-
-const atlases = { heroes: null, mobs: null, proj: null };
+// снаряды/попадания/статусы — FX atlas v2 (engine/fxAtlas.js); старый proj_atlas удалён
+const atlases = { heroes: null, mobs: null };
 let loading = null;
 
 export function loadPixAtlases(THREE) {
@@ -43,7 +37,6 @@ export function loadPixAtlases(THREE) {
   loading = Promise.all([
     loadAtlasTexture(THREE, url(HERO_HD ? heroesHdSrc : charsSrc)).then((t) => { atlases.heroes = t; }).catch((e) => console.warn('[pix]', e.message)),
     loadAtlasTexture(THREE, url(mobsSrc)).then((t) => { atlases.mobs = t; }).catch((e) => console.warn('[pix]', e.message)),
-    loadAtlasTexture(THREE, url(projSrc)).then((t) => { atlases.proj = t; }).catch((e) => console.warn('[pix]', e.message)),
   ]).then(() => atlases);
   return loading;
 }

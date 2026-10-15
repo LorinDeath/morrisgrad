@@ -11,7 +11,7 @@ import { baseOf } from "./biomes";
 import { mobXp, xpLevelMult, killXp } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
-// спрайт снаряда автоатаки по типу оружия (атлас projectiles.png)
+// спрайт снаряда автоатаки по типу оружия (FX atlas v2)
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
