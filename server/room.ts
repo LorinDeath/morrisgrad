@@ -10,6 +10,7 @@ const joinCoord = (v: any): number => { const n = Number(v); const [lo, hi] = wo
 import { ZONE_RESPAWN } from "./meta/shared";
 import { ZONE_MOBS } from "./meta/defs";
 import { skillsFor } from "./meta/zone";
+import { CURSE } from "./meta/cursed";
 import { processCombatAction, calcArmorReduction } from "./combat";
 import { KeytBoss } from "./boss";
 import type { Session, DuelState, FlowerState, FlowerType, GameWorldId } from "./types";
@@ -995,7 +996,11 @@ export class GameRoom extends DurableObject {
           const z = (this.meta as any).zones?.[session.world || "hellfire"];
           if (z && ZONE_MOBS[String(msg.mob)]) {
             const m = z.addMob(String(msg.mob), Number(msg.x) || session.x + 120, Number(msg.y) || session.y, { special: ZONE_MOBS[String(msg.mob)].boss ? "boss" : "" });
-            if (msg.cursed && !m.cursed) { m.cursed = true; m.maxHp = m.hp = Math.round(m.hp * 2.5); m.skills = skillsFor(m.type, 3, m.id); m.skCd = Object.fromEntries(m.skills.map((k: string) => [k, 3])); }
+            // msg.cursed явно задаёт флаг (тесты): снять случайный rollCursed или наложить CURSE.mobHp
+            if (msg.cursed === true || msg.cursed === false) {
+              if (msg.cursed && !m.cursed) { m.cursed = true; m.maxHp = m.hp = Math.round(m.hp * CURSE.mobHp); m.skills = skillsFor(m.type, 3, m.id); m.skCd = Object.fromEntries(m.skills.map((k: string) => [k, 3])); }
+              else if (!msg.cursed && m.cursed) { m.cursed = false; m.maxHp = m.hp = Math.max(1, Math.round(m.hp / CURSE.mobHp)); m.skills = (ZONE_MOBS[m.type] as any)?.skills ? [...(ZONE_MOBS[m.type] as any).skills] : []; m.skCd = Object.fromEntries(m.skills.map((k: string) => [k, 3])); }
+            }
           }
           return;
         }

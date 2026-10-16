@@ -1840,7 +1840,7 @@ async function boot(canvasId, username, userId, api) {
       devSpawn: (type, x, y, cursed) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed }),
       target: () => hud.currentTarget,
       zoneFrozen: (list) => { const f = [...zone.mobs.values()].filter((m) => m.frozen); return list ? f.map((m) => ({ id: m.id, x: m.tx, y: m.ty })) : f.length; },
-      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, cursed: !!m.cursed, elite: !!m.elite })),
+      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, elite: !!m.elite, boss: !!(m.flagRaw & 256) })),
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,

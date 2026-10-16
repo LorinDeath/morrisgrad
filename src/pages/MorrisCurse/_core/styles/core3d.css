@@ -742,6 +742,8 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-loot .msg { padding: 0 10px 8px; color: #a3e635; min-height: 0; } .mc-loot .msg.err { color: #fca5a5; }
 @media (max-width: 700px) { .mc-loot { top: auto; bottom: 120px; transform: translateX(-50%); } }
 .mc-loot .cell.empty { border-style: dashed; border-color: #3a3150; background: transparent; cursor: default; min-height: 64px; }
+.mc-loot .cell.cursed { box-shadow: 0 0 8px 1px #a855f7aa, inset 0 0 10px #a855f755; background: linear-gradient(180deg,#24113a,#120d20); }
+.mc-loot .cell .cz { position: absolute; left: 4px; top: 2px; color: #c084fc; font-size: 12px; }
 /* окно подтверждения внутри игры (разбор и т.п.) */
 .mc-ask { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 30; border-radius: inherit; }
 .mc-ask-box { background: #140d24; border: 2px solid #c59b27; border-radius: 10px; padding: 14px 18px; min-width: 280px; max-width: 460px; max-height: 80%; overflow: auto; }
