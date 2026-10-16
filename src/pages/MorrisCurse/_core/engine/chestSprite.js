@@ -71,14 +71,19 @@ export class ChestSprites {
     this.x = new SpriteBatch(THREE, base, o); // «рентген» сквозь пропсы
     this.x.material.depthFunc = THREE.GreaterDepth; this.x.material.depthWrite = false;
     for (const [B, ro, dt] of [[this.g, 9, false], [this.b, 10, true], [this.gi, 11, false], [this.x, 12, true]]) { B.material.depthTest = dt; if (B !== this.b) B.material.depthWrite = false; B.mesh.renderOrder = ro; parent.add(B.mesh); }
+    // тень-«блоб» как у героя (pixSprites: круг 0.55, 0x0a0614, opacity 0.38) — своя, т.к. atmo.shadow в хабе скрыт
+    const sg = new THREE.CircleGeometry ? new THREE.CircleGeometry(0.55, 14) : new THREE.CircleBufferGeometry(0.55, 14); sg.rotateX(-Math.PI / 2);
+    this.sh = new THREE.InstancedMesh(sg, new THREE.MeshBasicMaterial({ color: 0x0a0614, transparent: true, opacity: 0.5, depthWrite: false }), 64);
+    this.sh.renderOrder = 1; this.sh.frustumCulled = false; this.sh.count = 0; this.shM = new THREE.Matrix4(); parent.add(this.sh);
     this.ready = true;
   }
-  begin() { if (!this.ready) return; this.b.begin(); this.g.begin(); this.gi.begin(); this.x.begin(); this.seen = new Set(); }
-  end() { if (!this.ready) return; this.b.end(); this.g.end(); this.gi.end(); this.x.end(); for (const id of [...this.st.keys()]) if (!this.seen.has(id)) this.st.delete(id); }
+  begin() { if (!this.ready) return; this.b.begin(); this.g.begin(); this.gi.begin(); this.x.begin(); this.seen = new Set(); this.sh.count = 0; }
+  end() { if (!this.ready) return; this.b.end(); this.g.end(); this.gi.end(); this.x.end(); this.sh.instanceMatrix.needsUpdate = true; for (const id of [...this.st.keys()]) if (!this.seen.has(id)) this.st.delete(id); }
   /** c: {id, pub, mine, cz}; st: 'closed'|'chan'|'open'; T — время */
   push(x, z, c, st, T, k = 1) {
     if (!this.ready) return;
     this.seen.add(c.id); let s = this.st.get(c.id); if (!s || s.st !== st) { s = { st, t0: T }; this.st.set(c.id, s); }
+    if (this.sh.count < 64) { this.shM.makeScale(1.45 * k, 1, 0.75 * k).setPosition(x + 0.05, 0.03, z + 0.05); this.sh.setMatrixAt(this.sh.count++, this.shM); }
     const [row, col] = chestFrame(st, T - s.t0, T), h = HM * k;
     const tint = st === 'chan' ? [1.0, 0.85, 0.35] : !c.pub && c.mine ? [1.0, 0.78, 0.25] : c.pub ? [0.75, 0.8, 0.9] : [0.35, 0.35, 0.4];
     const pulse = st === 'chan' ? 0.7 + 0.3 * Math.sin(T * 10) : !c.pub && c.mine ? 0.75 + 0.25 * Math.sin(T * 3) : 0.55;
