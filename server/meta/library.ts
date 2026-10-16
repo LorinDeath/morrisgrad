@@ -1,5 +1,5 @@
 import { CURSE, cursedStats } from "./cursed";
-import { dropChance } from "./profile";
+import { dropChance, matChance } from "./profile";
 // Библиотека предметов (только сервер): фиксированный пул предметов с уникальными id — из defs.ts (бестиарий).
 // Строки для D1-таблицы item_library, хеш версии пула и «публичная карточка» предмета, которую сервер
 // присылает клиенту ТОЛЬКО для открытых игроком предметов (встречен в добыче или получен).
@@ -89,7 +89,7 @@ export function mobDropView(mob: string, known: (id: string) => boolean) {
   if (!m) return null;
   return {
     gear: m.gear.map((g) => { const it = ITEM_BY_ID[g.item]; const chance = dropChance(g); return known(g.item) ? { id: g.item, chance } : { n: ITEM_INDEX[g.item], slot: it?.slot, rarity: it?.rarity, chance }; }),
-    res: m.materials.map((r) => ({ res: r.res, chance: r.chance, qty: r.qty })),
+    res: m.materials.map((r) => ({ res: r.res, chance: matChance(r), qty: r.qty })),
   };
 }
 // Статы моба для Бестиария — из тех же данных, что использует сервер (ZONE_MOBS с правками админки из D1)

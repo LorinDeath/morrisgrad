@@ -248,6 +248,7 @@ export class AdminPanel {
     const S = this.cat.schema[kind], v = e.values || {};
     if (!S) { sec.innerHTML = '<p>Схема недоступна.</p>'; return; }
     const field = (f) => {
+      if (f.t === 'hdr') return `<div class="box" style="grid-column:1/-1;background:none;border:none;padding:6px 0 0"><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">${esc(f.label)}</b></div>`;
       const val = v[f.path], ic = STAT_OF(f.path) ? statIcon(STAT_OF(f.path), 16) : '';
       let inp;
       if (f.t === 'bool') inp = `<input type="checkbox" data-p="${f.path}" ${val ? 'checked' : ''}>`;
@@ -265,7 +266,7 @@ export class AdminPanel {
           const L = f.optl || this.cat.mobSkills.map((k) => ({ id: k, name: k, group: 'Навыки' }));
           return [...new Set(L.map((o) => o.group))].map((g) => `<div class="chips" data-g="${esc(g)}"><small class="mc-dim">${esc(g)}</small>${L.filter((o) => o.group === g).map((o) => `<label title="${esc(o.id)}"><input type="checkbox" data-sk="${esc(o.id)}" ${(val || []).includes(o.id) ? 'checked' : ''}>${esc(o.name)}</label>`).join('')}</div>`).join('');
         })()}</div>`;
-      else inp = `<input type="number" step="${f.t === 'int' ? 1 : 0.01}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="${esc(e.defs?.[f.path] ?? '—')}" title="${val == null && e.defs?.[f.path] ? 'Пусто — как в коде: ' + esc(e.defs[f.path]) : ''}">`;
+      else inp = `<input type="number" step="${f.t === 'int' ? 1 : 'any'}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="${esc(e.defs?.[f.path] ?? '—')}" title="${val == null && e.defs?.[f.path] ? 'Пусто — как в коде: ' + esc(e.defs[f.path]) : ''}">`;
       return `<label title="${f.path} · ${f.min ?? ''}…${f.max ?? ''}"><span>${ic}${esc(f.label)}</span>${inp}</label>`;
     };
     sec.innerHTML = `<h3>${esc(e.icon || '')} ${esc(e.name)} <small style="color:#9a8bb8">${esc(kind)}:${esc(e.id)}</small>${e.lvl ? ` <span class="lv" style="color:#86efac">ур. ${e.lvl}</span>` : ''}</h3>

@@ -19,9 +19,16 @@ export const CHEST = {
   guard: true,           // охрана: при переходе в общий — стража у сундука, если рядом нет мобов
   guardN: 3,             // стражей
   takeRate: 6,           // позиций/с на игрока (Shift+клик, без «забрать всё»)
+  // --- Лагерь (сундук зачищенного лагеря) ---
+  campRaw: true,         // шансы ровно как в таблице (без equipDropMult/matDropMult); выкл — таблица × campMult
+  campMult: 1,           // свой множитель шансов сундука лагеря (если campRaw выкл), кламп 100%
+  campSecondPct: 0,      // % шанс второго сундука (независимый второй бросок по тем же убийствам)
+  campSpawnEmpty: false, // ставить сундук, даже если бросок пустой
+  matDropMult: 1,        // шанс МАТЕРИАЛОВ × в открытом мире (мешки мобов; сундук лагеря и забеги — без него); количество не меняется
+  campIdleSec: 600,      // с: зачистка лагеря без убийств столько времени — сбрасывается (накопленное пропадает)
 };
 export type ChestEntry = { lid: number; k: "item" | "res"; id: string; n: number; c?: 1; o: string }; // o — владелец (pkey) в личной фазе
-export type Chest = { id: number; world: string; x: number; y: number; at: number; pubAt: number; exp: number; src: string; kind: string; mob: string; guardType: string; entries: ChestEntry[]; guarded?: 1 };
+export type Chest = { keepEmpty?: 1; id: number; world: string; x: number; y: number; at: number; pubAt: number; exp: number; src: string; kind: string; mob: string; guardType: string; entries: ChestEntry[]; guarded?: 1 };
 export type Kill = { type: string; lootKey: string; elite: boolean; cursed: boolean; boss: boolean; rare: boolean; special: string; x: number; y: number };
 export type Encounter = { id: number; world: string; watch: Set<number>; dmg: Map<string, number>; pkey: Map<string, string>; kills: Kill[]; x: number; y: number; lastAt: number; startAt: number; anyBoss: boolean };
 
@@ -66,6 +73,35 @@ export class Encounters {
   close(e: Encounter) { this.map.delete(e.id); for (const id of e.watch) this.byMob.delete(id); }
 }
 
+// ---------- сундук ЗАЧИЩЕННОГО ЛАГЕРЯ ----------
+// Только мобы лагеря (m.camp) копят добычу; лагерь зачищен, когда КАЖДЫЙ его моб убит хотя бы раз за эту зачистку
+// (лагерные мобы возрождаются за ~45 с — «все мертвы одновременно» в большом лагере недостижимо). Тогда — ОДИН сундук
+// в центре лагеря, броски по СЫРЫМ шансам таблицы (без equipDropMult/matDropMult). Одиночки, бродяги, стража — мешки.
+export type CampRun = Encounter & { camp: number; killed: Set<number> };
+export class CampRuns {
+  map = new Map<string, CampRun>(); private seq = 1;
+  key(world: string, camp: number) { return world + ":" + camp; }
+  /** убийство лагерного моба → зачистка (копится). null — не лагерный/сундуки выключены */
+  onKill(world: string, m: any, pkeyOf: (sid: string) => string | null, now = Date.now()): CampRun | null {
+    if (!CHEST.on || !m.camp || m.chestGuard) return null;
+    const players = [...(m.dmgBy?.keys?.() || [])].filter((k: string) => !k.startsWith("mob:"));
+    if (!players.length) return null;
+    const k = this.key(world, m.camp); let r = this.map.get(k);
+    if (r && now - r.lastAt > CHEST.campIdleSec * 1000) { this.map.delete(k); r = undefined; }
+    if (!r) { r = { id: this.seq++, camp: m.camp, killed: new Set(), world, watch: new Set(), dmg: new Map(), pkey: new Map(), kills: [], x: m.x, y: m.y, lastAt: now, startAt: now, anyBoss: false }; this.map.set(k, r); }
+    r.killed.add(m.id);
+    for (const [sid, d] of m.dmgBy as Map<string, number>) if (!sid.startsWith("mob:")) { r.dmg.set(sid, (r.dmg.get(sid) || 0) + d); const pk = pkeyOf(sid); if (pk) r.pkey.set(sid, pk); }
+    r.lastAt = now; return r;
+  }
+  /** зачищен ли лагерь: каждый (не снятый навсегда) моб лагеря убит за эту зачистку */
+  cleared(r: CampRun, mobs: any[]): boolean {
+    let n = 0; for (const o of mobs) if (o.camp === r.camp && o.respawnAt !== -1) { n++; if (!r.killed.has(o.id)) return false; }
+    return n > 0;
+  }
+  close(r: CampRun) { this.map.delete(this.key(r.world, r.camp)); }
+  expire(now = Date.now()) { for (const [k, r] of this.map) if (now - r.lastAt > CHEST.campIdleSec * 1000) this.map.delete(k); }
+}
+
 /** получатели: вклад ≥ minSharePct урона схватки (босс/редкий — любой) + отряд рядом (partyNear). sid → pkey */
 export function recipients(e: Encounter, party: (sid: string) => string[]): Map<string, string> {
   const total = [...e.dmg.values()].reduce((a, b) => a + b, 0) || 1, out = new Map<string, string>();
@@ -102,16 +138,16 @@ export class Chests {
   dirty = new Set<number>(); removed = new Set<number>();
   private rl = new Map<string, { t: number; tokens: number }>();
   seed(list: Chest[]) { for (const c of list) { this.chests.set(c.id, c); this.nextId = Math.max(this.nextId, c.id + 1); for (const e of c.entries) this.nextLid = Math.max(this.nextLid, e.lid + 1); } }
-  spawn(world: string, x: number, y: number, ents: { o: string; id: string; k: "item" | "res"; n: number }[], src: string, kind: string, mob: string, guardType: string, now = Date.now()): Chest | null {
-    if (!ents.length) return null;
+  spawn(world: string, x: number, y: number, ents: { o: string; id: string; k: "item" | "res"; n: number }[], src: string, kind: string, mob: string, guardType: string, now = Date.now(), keepEmpty = false): Chest | null {
+    if (!ents.length && !keepEmpty) return null;
     const entries: ChestEntry[] = ents.map((e) => { const c = e.k === "item" && e.id.endsWith("@c"); return { lid: this.nextLid++, k: e.k, id: c ? e.id.slice(0, -2) : e.id, n: e.n, o: e.o, ...(c ? { c: 1 as const } : {}) }; });
-    const c: Chest = { id: this.nextId++, world, x: Math.round(x), y: Math.round(y), at: now, pubAt: now + CHEST.personalSec * 1000, exp: now + (CHEST.personalSec + CHEST.publicSec) * 1000, src, kind, mob, guardType, entries };
+    const c: Chest = { id: this.nextId++, world, x: Math.round(x), y: Math.round(y), at: now, pubAt: now + CHEST.personalSec * 1000, exp: now + (CHEST.personalSec + CHEST.publicSec) * 1000, src, kind, mob, guardType, entries, ...(keepEmpty && !entries.length ? { keepEmpty: 1 as const } : {}) };
     this.chests.set(c.id, c); this.dirty.add(c.id); return c;
   }
   isPublic(c: Chest, now = Date.now()) { return now >= c.pubAt; }
   /** позиции, видимые игроку: личная фаза — только свои; общая — все */
   visible(c: Chest, pk: string, now = Date.now()) { return this.isPublic(c, now) ? c.entries : c.entries.filter((e) => e.o === pk); }
-  expire(now = Date.now()) { const gone: Chest[] = []; for (const [id, c] of this.chests) if (now >= c.exp || !c.entries.length) { this.chests.delete(id); this.removed.add(id); this.dirty.delete(id); gone.push(c); } return gone; }
+  expire(now = Date.now()) { const gone: Chest[] = []; for (const [id, c] of this.chests) if (now >= c.exp || (!c.entries.length && !c.keepEmpty)) { this.chests.delete(id); this.removed.add(id); this.dirty.delete(id); gone.push(c); } return gone; }
   /** для zone_state: [id, x, y, фаза 0/1, осталось с, видимых мне, всего, проклятых видимых мне (≤5)] — в личной фазе только свои (чужое не уходит) */
   near(pk: string, world: string, x: number, y: number, r: number, now = Date.now()) {
     const out: number[][] = [];
@@ -120,14 +156,14 @@ export class Chests {
   }
   get(id: any, world: string, x: number, y: number, now = Date.now()): Chest | string {
     const c = this.chests.get(Number(id));
-    if (!c || now >= c.exp || !c.entries.length) return "Сундук исчез";
+    if (!c || now >= c.exp || (!c.entries.length && !c.keepEmpty)) return "Сундук исчез";
     if (c.world !== world || Math.hypot(c.x - x, c.y - y) > CHEST.range) return "Подойдите ближе к сундуку";
     return c;
   }
   /** клик по сундуку: личная фаза — сразу (если есть свои); общая — канал (или уже открыт) */
   tryOpen(c: Chest, pk: string, sid: string, now = Date.now()): { view: true } | { channel: number } | { err: string } {
     if (!this.isPublic(c, now)) {
-      if (!c.entries.some((e) => e.o === pk)) return { err: `Сундук пока личный: станет общим через ${Math.ceil((c.pubAt - now) / 1000)} с` };
+      if (!c.keepEmpty && !c.entries.some((e) => e.o === pk)) return { err: `Сундук пока личный: станет общим через ${Math.ceil((c.pubAt - now) / 1000)} с` };
       this.open.set(pk, { id: c.id, at: now, sid }); return { view: true };
     }
     const o = this.open.get(pk); if (o && o.id === c.id && o.at >= c.pubAt) return { view: true }; // окно личной фазы в общую не переходит — нужен канал
@@ -140,7 +176,7 @@ export class Chests {
     const ev: { k: "opened" | "cancel" | "close"; pk: string; sid: string; id: number; why?: string }[] = [];
     for (const [pk, ch] of this.chan) {
       const c = this.chests.get(ch.id), p = pos(ch.sid);
-      let why = !c ? "Сундук исчез" : !p || !p.alive ? "Открытие прервано" : hurt(ch.sid) > ch.at ? "Открытие прервано: вас ударили" : p.world !== c.world || Math.hypot(c.x - p.x, c.y - p.y) > CHEST.range ? "Открытие прервано: вы отошли" : "";
+      let why = !c ? "Сундук исчез" : !p || !p.alive ? "Открытие прервано" : hurt(ch.sid) > ch.at ? "Открытие прервано: вас ударили" : p.world !== c.world || Math.hypot(c.x - p.x, c.y - p.y) > CHEST.range + 40 ? "Открытие прервано: вы отошли" : "";
       if (why) { this.chan.delete(pk); ev.push({ k: "cancel", pk, sid: ch.sid, id: ch.id, why }); continue; }
       if (now >= ch.at + CHEST.channelSec * 1000) { this.chan.delete(pk); this.open.set(pk, { id: ch.id, at: now, sid: ch.sid }); ev.push({ k: "opened", pk, sid: ch.sid, id: ch.id }); }
     }

@@ -1,4 +1,5 @@
 import { isRs, rsCodexId } from "./rsAny";
+import { CHEST } from "./chests";
 import { CURSE, CURSED_TAG, isCursedTag, untag, instStats, glowLevel, curseClient } from "./cursed";
 // Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
 // Хранение — store.ts (D1 — источник истины, сквозная запись из DO; фолбэк — SQLite DO, схема ниже).
@@ -447,16 +448,32 @@ export function craft(a: Account, rid: string): R & { item?: InvItem } {
 // Бросок дропа «по трофеям монстра» — только на сервере
 /** Действующий шанс строки дропа: экипировка × CURSE.equipDropMult (кламп 100). */
 export function dropChance(g: { item: string; chance: number }): number { return ITEM_BY_ID[g.item]?.slot ? Math.min(100, g.chance * CURSE.equipDropMult) : g.chance; }
+/** Действующий шанс материала в открытом мире: × CURSE.matDropMult (кламп 100). Количество не меняется. */
+export function matChance(r: { chance: number }): number { return Math.min(100, r.chance * CHEST.matDropMult); }
+/** Режим броска: "world" — открытый мир (экипировка × equipDropMult, материалы × matDropMult);
+ * "base" — как раньше (экипировка × equipDropMult, материалы без множителя; забеги/подземелья);
+ * "raw" — шансы ровно как в таблице (сундук зачищенного лагеря), без equipDropMult/matDropMult. */
+export type LootMode = "world" | "base" | "raw";
 /** Бросок добычи. mul — множитель проклятого моба (только обычные вещи и материалы).
- * cursedRoll — проклятый БОСС: каждая экипировка дополнительно и НЕЗАВИСИМО бросается как проклятая по БАЗОВОМУ шансу (без mul). */
-export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1, cursedRoll = false): { items: string[]; res: Record<string, number> } {
+ * cursedRoll — проклятый БОСС: каждая экипировка дополнительно и НЕЗАВИСИМО бросается как проклятая по шансу строки (режима) × itemChanceMult, без mul. */
+export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1, cursedRoll = false, mode: LootMode = "base"): { items: string[]; res: Record<string, number> } {
   const m = MONSTER_LOOT[monster];
   const out = { items: [] as string[], res: {} as Record<string, number> };
   if (!m) return out;
-  for (const g of m.gear) if (rng() * 100 < Math.min(100, dropChance(g) * mul)) out.items.push(g.item);
-  if (cursedRoll) for (const g of m.gear) if (ITEM_BY_ID[g.item]?.slot && rng() * 100 < Math.min(100, dropChance(g) * CURSE.itemChanceMult)) out.items.push(g.item + CURSED_TAG);
-  for (const r of m.materials) if (rng() * 100 < Math.min(100, r.chance * mul)) out.res[r.res] = (out.res[r.res] || 0) + r.qty[0] + Math.floor(rng() * (r.qty[1] - r.qty[0] + 1));
+  const gc = (g: { item: string; chance: number }) => (mode === "raw" ? g.chance : dropChance(g));
+  const mc = (r: { chance: number }) => (mode === "world" ? matChance(r) : r.chance);
+  for (const g of m.gear) if (rng() * 100 < Math.min(100, gc(g) * mul)) out.items.push(g.item);
+  if (cursedRoll) for (const g of m.gear) if (ITEM_BY_ID[g.item]?.slot && rng() * 100 < Math.min(100, gc(g) * CURSE.itemChanceMult)) out.items.push(g.item + CURSED_TAG);
+  for (const r of m.materials) if (rng() * 100 < Math.min(100, mc(r) * mul)) out.res[r.res] = (out.res[r.res] || 0) + r.qty[0] + Math.floor(rng() * (r.qty[1] - r.qty[0] + 1));
   return out;
+}
+
+/** бросок одного убийства для сундука зачищенного лагеря: СЫРЫЕ шансы; проклятый — × mobDropMult и проклятые копии (bossOnly); элита — второй бросок */
+export function campRoll(k: { lootKey: string; elite: boolean; cursed: boolean; boss: boolean }, rng = cryptoRand) {
+  const mul = (k.cursed ? CURSE.mobDropMult : 1) * (CHEST.campRaw ? 1 : CHEST.campMult), cr = k.cursed && (!CURSE.bossOnly || k.boss);
+  const r = rollMonsterLoot(k.lootKey, rng, mul, cr, "raw");
+  if (k.elite) { const l2 = rollMonsterLoot(k.lootKey, rng, mul, cr, "raw"); r.items.push(...l2.items); for (const [x, n] of Object.entries(l2.res)) r.res[x] = (r.res[x] || 0) + n; }
+  return r;
 }
 
 // ---------------- квесты ----------------
