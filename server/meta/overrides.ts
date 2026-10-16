@@ -13,9 +13,10 @@ import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { CURSE } from "./cursed";
 import { CHEST } from "./chests";
+import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome";
-export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade";
+export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -64,6 +65,13 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("mobHp", "Проклятый моб: ОЗ, ×", 1, 50), N("mobDmg", "Проклятый моб: урон, ×", 1, 50), N("mobArmor", "Проклятый моб: броня, ×", 1, 20), N("mobXp", "Проклятый моб: опыт, ×", 0, 50),
     N("glow1", "Свечение: 1 вещь (0…1)", 0, 1), N("glow2", "Свечение: 2 вещи", 0, 1), N("glow3", "Свечение: 3 вещи", 0, 1), N("glow4", "Свечение: 4 вещи", 0, 1), N("glow5", "Свечение: полный комплект (пульсирует)", 0, 1),
     { path: "tint", label: "Цвет проклятия", t: "color" }] },
+  // «⚒ Улучшение» у Петра — только админ: материал и кол-во на каждый уровень, проклятые, прибавка статов (провалов/поломок нет)
+  upgrade: { name: "Улучшение", fields: [N("maxLvl", `Максимальный уровень улучшения (≤ ${UPG_ORDER.length})`, 0, UPG_ORDER.length, "int"), N("cost", "Материалов за уровень (обычная вещь), если у уровня не задано своё", 1, 999, "int"),
+    N("cursedMult", "Проклятая вещь: кол-во ×, плюс второй материал (следующий по редкости)", 1, 20),
+    N("flatPct", "Обычная: +% к плоским статам за уровень (от базы)", 0, 100), N("pctPts", "Обычная: +п.п. к процентным статам за уровень", 0, 10),
+    N("cFlatPct", "Проклятая: +% к плоским статам за уровень (от проклятой базы)", 0, 100), N("cPctPts", "Проклятая: +п.п. к процентным статам за уровень", 0, 10),
+    ...UPG_ORDER.flatMap((_, i) => [{ path: `order.${i}`, label: `+${i + 1}: материал`, t: "enum" as const, opts: Object.keys(RESOURCES), optn: Object.fromEntries(Object.entries(RESOURCES).map(([k, r]) => [k, `${r.icon} ${r.name}`])) },
+      N(`costs.${i}`, `+${i + 1}: кол-во (0 — общее)`, 0, 999, "int")])] },
   // «Рывок» — только админ: перезарядка и неуязвимость (сервер считает по времени)
   biome: { name: "Биомы карты", fields: [{ path: "name", label: "Название биома на карте M", t: "text" }, { path: "sub", label: "Название зоны (вторая строка; пусто — без неё)", t: "text" }] },
   dash: { name: "Рывок", fields: [N("cd", "Перезарядка рывка, с", 0.5, 60), N("invulnMs", "Неуязвимость после рывка, мс (1 кадр ≈ 16,7 мс · 5 кадров ≈ 83 мс; 0 — нет)", 0, 1000, "int"), { path: "blink", label: "Мигание героя во время неуязвимости (видят все)", t: "bool" }] },
@@ -78,7 +86,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

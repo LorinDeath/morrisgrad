@@ -85,6 +85,7 @@ export class MetaClient {
   equip(uid) { this.send({ type: 'equip', uid }); }
   unequip(slot) { this.send({ type: 'unequip', slot }); }
   salvage(uid) { this.send({ type: 'salvage', uid }); }
+  upgrade(uid, at) { this.send({ type: 'item_upgrade', uid, at }); }
   lockItem(uid, on) { this.send({ type: 'item_lock', uid, on: !!on }); }
   salvagePreview(rarity) { this.send({ type: 'salvage_preview', rarity }); }
   salvageMany(rarity, uids) { this.send({ type: 'salvage_many', rarity, uids }); }
