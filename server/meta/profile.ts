@@ -53,12 +53,12 @@ export function talentPoints(h: Hero): number { return talentPointsForLevel(h.lv
 
 export function itemReq(def: { lvl?: number; req?: number }): number { return Math.max(1, def.req || 1, def.lvl || 1); }
 
-export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1 }[] {
-  const out: { slot: string; uid: string; id: string; cursed?: 1 }[] = [];
+export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1; up?: number }[] {
+  const out: { slot: string; uid: string; id: string; cursed?: 1; up?: number }[] = [];
   for (const [slot, uid] of Object.entries(h.equip)) {
     const it = a.inv.find((i) => i.uid === uid);
     const def = it && ITEM_BY_ID[it.id];
-    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}) }); // надетое не по уровню (старые сохранения) не действует
+    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}), ...(it.up ? { up: it.up } : {}) }); // надетое не по уровню (старые сохранения) не действует
   }
   return out;
 }

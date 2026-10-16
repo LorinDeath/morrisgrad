@@ -1805,6 +1805,7 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      inspect: (sid) => inspectPlayer(sid), charSheet: () => toggleCharSheet(),
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
       myGlow: () => { const c = hub.chars.get('__me')?.ch; return c?.glow?.visible ? { k: c.glowK, pulse: !!c.glowPulse } : null; },
       othersGlow: () => [...hub.chars.entries()].filter(([k]) => k.startsWith('p_')).map(([k, c]) => ({ k: c.ch.glow?.visible ? c.ch.glowK : 0, pulse: !!c.ch.glowPulse })),

@@ -77,7 +77,7 @@ export class ClassSelect {
       const rar = d ? (d.cursed ? { color: curseTint() } : RARITIES[d.rarity] || {}) : {};
       const on = this.tipKey === `eq:${slot}`;
       const tip = d ? `data-tip="eq:${slot}" data-item="${esc(d.id)}"` : '';
-      return `<button type="button" class="mc-altar-slot ${d ? 'filled' : ''} ${on ? 'on' : ''}" ${tip} title="${d ? esc(d.name) + ' — статы' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')}"` : ''}>
+      return `<button type="button" class="mc-altar-slot ${d ? 'filled' : ''} ${d?.cursed ? "cursed " : ""}${on ? 'on' : ''}" ${tip} title="${d ? esc(d.name) + ' — статы' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')}"` : ''}>
         <span class="ic">${d ? iconHtml(d, 28) + upBadge(e.up, e.cursed) : '·'}</span>
         <small>${esc(SLOTS[slot])}</small>
         ${d ? `<b style="color:${esc(rar.color || '#e2e8f0')}">${esc(d.name)}</b>` : ''}
