@@ -6,11 +6,12 @@ import { WORLD_SIZES } from '../../../../../server/worlds/sizes.ts';
 import { mapImage } from '../map/mapArt.js';
 const REG_COL = { grove: '#2f5a3a', meadow: '#4b4a7a', garden: '#6a3a44', waste: '#3a4458', rot: '#3d4426', ridge: '#4a4038', pylon: '#3c3a62', glitch: '#24502e', crater: '#3a3a5a', thin: '#4a4260' };
 const colOf = (r) => (r.biome.startsWith('b_') ? BIOMES[r.biome.slice(2)]?.color : REG_COL[r.biome]) || '#333';
-let BG = null;
-function regionsLayer(px) { // все регионы цветом биома — один раз
-  if (BG) return BG; const S = WORLD_SIZES.arinar, k = px / S; const cv = document.createElement('canvas'); cv.width = cv.height = px; const g = cv.getContext('2d');
+const BG = {};
+/** все регионы цветом биома (px×px, кэш по размеру) — админка и «карта биомов» M */
+export function regionsLayer(px) {
+  if (BG[px]) return BG[px]; const S = WORLD_SIZES.arinar, k = px / S; const cv = document.createElement('canvas'); cv.width = cv.height = px; const g = cv.getContext('2d');
   for (const r of WORLD_GEN.arinar.regions) { g.globalAlpha = r.id.includes('_outer') ? 0.45 : 0.6; g.fillStyle = colOf(r); g.fillRect(r.rect[0] * k, r.rect[1] * k, (r.rect[2] - r.rect[0]) * k, (r.rect[3] - r.rect[1]) * k); }
-  g.globalAlpha = 1; return (BG = cv);
+  g.globalAlpha = 1; return (BG[px] = cv);
 }
 export function regionMapHtml() { return `<div class="adm-rmap"><canvas width="420" height="420" style="width:420px;max-width:100%;image-rendering:pixelated;border:2px solid #c59b27;background:#000;cursor:crosshair"></canvas><small class="adm-rmap-cap"></small></div>`; }
 /** рисует карту в sec; id — выбранный регион; onPick(id) — клик по карте */

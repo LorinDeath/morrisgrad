@@ -27,8 +27,8 @@ ok(r.canOpenAdmin(adm) && r.canOpenAdmin(mod) && !r.canOpenAdmin(plain), "open: 
 ok(r.canAdminFull(adm) && !r.canAdminFull(mod) && !r.canAdminFull(plain), "full (quests/audit): admin only");
 
 for (const k of MOD_ADMIN_KINDS) ok(r.canAdminWrite(mod, k), `mod write ${k}`);
-for (const k of ["skill", "loot", "spawn", "region", "boss", "rare", "quest"]) ok(!r.canAdminWrite(mod, k), `mod deny write ${k}`);
-ok(r.canAdminWrite(adm, "skill") && r.canAdminWrite(adm, "quest"), "admin write any");
+for (const k of ["skill", "loot", "spawn", "region", "boss", "rare", "quest", "curse", "chest", "dash", "biome"]) ok(!r.canAdminWrite(mod, k), `mod deny write ${k}`);
+ok(r.canAdminWrite(adm, "skill") && r.canAdminWrite(adm, "quest") && r.canAdminWrite(adm, "dash") && r.canAdminWrite(adm, "biome"), "admin write any");
 ok(!r.canAdminWrite(plain, "mob"), "plain deny write mob");
 
 const pfA = r.panelFlags(adm), pfM = r.panelFlags(mod), pfP = r.panelFlags(plain);

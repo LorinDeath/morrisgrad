@@ -135,6 +135,20 @@ for (const [hpA, hpB, exp] of [[80, 40, 0], [30, 90, 1], [55, 55, null]] as cons
   (Date as any).now = realNow;
   ok(frozen && evs.some((e) => e.k === "pstatus" && e.s === "slow") && !evs.some((e) => e.k === "pstatus" && e.s === "burn"), `duel statuses like open world: slow from frost_nova (${frozen}); plain grimoire no longer burns (status only from item traits)`);
 }
+{ // рывок: окно неуязвимости (83 мс по часам сервера) блокирует урон игрока в дуэли; после окна — урон проходит
+  const w = world(); w.mk("a", "uid:a"); w.mk("b", "uid:b");
+  const [wa, sa] = w.sess.get("a"), [wb, sb] = w.sess.get("b");
+  w.pvp.challenge(wa, sa, { sid: "b" }); w.pvp.respond(wb, sb, { from: "a", accept: true });
+  const t0 = Date.now(); w.pvp.tick(t0 + DUEL_COUNTDOWN_MS + 10);
+  const T = t0 + DUEL_COUNTDOWN_MS + 20; (Date as any).now = () => T;
+  sa.x = 300; sa.y = 400; sb.x = 340; sb.y = 400; w.ms.get("b").invulnUntil = T + 83;
+  w.pvp.attack(wa, sa, { dx: 1, dy: 0 });
+  const d = [...(w.pvp as any).duels.values()][0], evs = d?.ev || [];
+  ok(w.ms.get("b").zp.hp === 100, `dash i-frames: duel hit blocked (b hp ${w.ms.get("b").zp.hp})`);
+  (Date as any).now = () => T + 2000; w.pvp.attack(wa, sa, { dx: 1, dy: 0 });
+  ok(w.ms.get("b").zp.hp < 100, `dash i-frames: after window hit lands (b hp ${Math.round(w.ms.get("b").zp.hp)})`);
+  (Date as any).now = realNow;
+}
 Date.now = realNow;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

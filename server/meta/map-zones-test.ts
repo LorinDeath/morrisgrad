@@ -15,3 +15,12 @@ ok(Object.keys(z).length >= 15 && Object.values(z).every((v) => !/пятно/.te
 const t = "ice_garden_golem", was = (ZONE_MOBS as any)[t].lvl; (ZONE_MOBS as any)[t].lvl = 30; // как правка админки «Бестиарий»
 z = mapZones(R, ZONE_MOBS as any); ok(z.ice_outer.lvl[1] === 30, `правка ур. моба → подпись ${z.ice_outer.lvl}`); (ZONE_MOBS as any)[t].lvl = was;
 console.log(`${pass} passed, ${fail} failed`); if (fail) process.exit(1);
+{ // админка «🧭 Биомы»: правка названия зоны (kind biome) → подпись карты, сброс — как в коде
+  const { validatePatch, applyOverride, TABLES } = await import("./overrides");
+  ok(!!TABLES.biome.ice_inner && TABLES.biome.ice_inner.name === "Кровавые льды", "kind biome: запись на зону");
+  ok(typeof validatePatch("biome", "ice_inner", { name: "x".repeat(60) }) === "string", "длинное имя отклонено");
+  const pt = validatePatch("biome", "ice_inner", { name: "Алые <b>снега</b>", sub: "Наст" }); ok(typeof pt !== "string" && !(pt as any).name.includes("<"), "теги вырезаны " + JSON.stringify(pt));
+  applyOverride("biome", "ice_inner", pt as any); const z2 = mapZones(R, ZONE_MOBS as any); ok(z2.ice_inner.name.startsWith("Алые") && z2.ice_inner.sub === "Наст", "имя с админки на карте: " + z2.ice_inner.name);
+  applyOverride("biome", "ice_inner", null); ok(mapZones(R, ZONE_MOBS as any).ice_inner.name === "Кровавые льды", "сброс — как в коде");
+  console.log(`${pass} passed, ${fail} failed`); if (fail) process.exit(1);
+}

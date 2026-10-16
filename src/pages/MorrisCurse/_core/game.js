@@ -496,6 +496,7 @@ async function boot(canvasId, username, userId, api) {
         else { const o = others.get(e.to); if (o) overlay.float(toX(o.x), 3, toZ(o.y), T[0], T[1]); }
       }
       else if (e.k === 'lsheal') { if (e.sid === myId) lsAdd(e.d); }
+      else if (e.k === 'phit' && e.immune) { const me = e.to === myId, o = me ? player : others.get(e.to); overlay.float(toX(o ? o.x : e.x), 2.6, toZ(o ? o.y : e.y), 'неуязвим', '#c4b5fd'); }
       else if (e.k === 'phit') {
         if (e.by === myId) dpsMeter.add(e.d);
         if (e.to === myId) { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, e.crit ? '#fb923c' : '#f87171'); }
@@ -1022,6 +1023,7 @@ async function boot(canvasId, username, userId, api) {
     if (isTyping(e) || net.kicked) return;
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && worldMap.isOpen) { worldMap.close(); return; }
+    if (worldMap.isOpen && (k === 'n' || k === 'т') && !e.repeat) { worldMap.toggleBiome(); return; } // N — карта биомов
     if (e.key === 'Escape') {
       if (book.isOpen) { book.close(); return; }
       if (dialog.isOpen) { dialog.close(); return; }
@@ -1832,7 +1834,7 @@ async function boot(canvasId, username, userId, api) {
       dashInfo: () => ({ cd: DASH.cooldown, invulnMs: DASH.invulnMs, blink: DASH.blink, blinking: [...ivBlink.keys()] }),
       biomes: () => ({ known: mapZonesKnown(), labels: biomeLabels(world).map((L) => L.key) }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
-      openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
+      openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f), mapBiome: (on) => worldMap.toggleBiome(on),
       bags: () => [...zone.bags.values()], chests: () => [...zone.chests.values()], chest: () => ({ open: chestWin.isOpen, chan: chestWin.channeling, c: chestWin.c }), loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
       portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal, foreign: !!p.foreign, name: p.name })),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),

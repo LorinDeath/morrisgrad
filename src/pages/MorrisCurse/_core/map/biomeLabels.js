@@ -46,12 +46,15 @@ export function biomeLabels(world) {
   cache = { k, out }; return out;
 }
 // табличка в стиле пиксельного UI: тёмная плашка, золотая рамка 2px без скруглений, полоса цвета биома
-export function drawBiomeLabel(ctx, x, y, L, k) {
+export function labelBox(ctx, L, k) {
   const big = k > 0.03, f1 = big ? 13 : 11, f2 = big ? 11 : 10;
   const t1 = L.name, lv = L.safe ? 'без монстров' : L.lvl[0] === L.lvl[1] ? `ур. ${L.lvl[0]}` : `ур. ${L.lvl[0]}–${L.lvl[1]}`, t2 = L.sub ? `${L.sub} · ${lv}` : lv;
+  ctx.save(); ctx.font = `bold ${f1}px monospace`; const w1 = ctx.measureText(t1).width; ctx.font = `${f2}px monospace`; const w2 = ctx.measureText(t2).width; ctx.restore();
+  return { w: Math.round(Math.max(w1, w2) + 16), h: f1 + f2 + 12, t1, t2, f1, f2 };
+}
+export function drawBiomeLabel(ctx, x, y, L, k, B = labelBox(ctx, L, k)) {
+  const { w, h, t1, t2, f1, f2 } = B, x0 = Math.round(x - w / 2), y0 = Math.round(y - h / 2);
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `bold ${f1}px monospace`; const w1 = ctx.measureText(t1).width; ctx.font = `${f2}px monospace`; const w2 = ctx.measureText(t2).width;
-  const w = Math.round(Math.max(w1, w2) + 16), h = f1 + f2 + 12, x0 = Math.round(x - w / 2), y0 = Math.round(y - h / 2);
   ctx.fillStyle = '#000'; ctx.fillRect(x0 + 3, y0 + 3, w, h); // жёсткая пиксельная тень
   ctx.fillStyle = '#c59b27'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
   ctx.fillStyle = '#120c1f'; ctx.fillRect(x0, y0, w, h);
@@ -59,4 +62,16 @@ export function drawBiomeLabel(ctx, x, y, L, k) {
   ctx.fillStyle = '#fde68a'; ctx.font = `bold ${f1}px monospace`; ctx.fillText(t1, x, y0 + 4 + f1 / 2);
   ctx.fillStyle = !L.safe && L.lvl[1] >= 9 ? '#fca5a5' : '#cbd5e1'; ctx.font = `${f2}px monospace`; ctx.fillText(t2, x, y0 + 8 + f1 + f2 / 2);
   ctx.restore();
+}
+/** раскладка без наложений: подпись сдвигается от иконок (игрок, порталы, метки) и от других подписей */
+export function placeLabels(ctx, items, obstacles, k) {
+  const out = [], boxes = [], hit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+  const obs = obstacles.map(([x, y, r]) => ({ x0: x - r, y0: y - r, x1: x + r, y1: y + r }));
+  for (const it of items) {
+    const B = labelBox(ctx, it.L, k), dys = [0, -1, 1, -2, 2, -3, 3].map((n) => n * (B.h + 10));
+    for (const dy of dys) { const y = it.y + dy, r = { x0: it.x - B.w / 2 - 3, x1: it.x + B.w / 2 + 3, y0: y - B.h / 2 - 3, y1: y + B.h / 2 + 3 };
+      if (obs.some((o) => hit(o, r)) || boxes.some((o) => hit(o, r))) continue;
+      boxes.push(r); out.push({ ...it, y, B }); break; }
+  }
+  return out;
 }

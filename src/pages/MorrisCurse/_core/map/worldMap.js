@@ -8,7 +8,8 @@ import { WORLD_SIZES } from '../../../../../server/worlds/sizes.ts';
 import { fog } from './fog.js';
 import { FOG_N, getBit } from '../../../../../server/meta/explore.ts';
 import { esc } from '../ui/overlay.js';
-import { biomeLabels, drawBiomeLabel } from './biomeLabels.js';
+import { biomeLabels, drawBiomeLabel, placeLabels } from './biomeLabels.js';
+import { regionsLayer } from '../ui/regionMap.js';
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default || '') : s);
 export class WorldMap {
@@ -17,7 +18,7 @@ export class WorldMap {
     const el = this.el = document.createElement('div');
     el.className = 'mc-worldmap'; el.style.display = 'none';
     el.innerHTML = `<canvas></canvas><div class="wm-top"><b>Карта мира</b> <span class="wm-info"></span><span class="wm-sp"></span>
-      <button data-z="1">＋</button><button data-z="-1">－</button><button data-c="1" title="К герою">◎</button><button class="wm-x" title="Закрыть (M / Esc)">✕</button></div>
+      <button data-bm="1" class="wm-bm" title="Карта биомов (N)">🧭 Биомы</button><button data-z="1">＋</button><button data-z="-1">－</button><button data-c="1" title="К герою">◎</button><button class="wm-x" title="Закрыть (M / Esc)">✕</button></div>
       <div class="wm-tip"></div>`;
     parent.appendChild(el);
     this.cv = el.querySelector('canvas'); this.ctx = this.cv.getContext('2d');
@@ -25,6 +26,7 @@ export class WorldMap {
     el.querySelector('.wm-x').onclick = () => this.close();
     el.querySelectorAll('[data-z]').forEach((b) => (b.onclick = () => this.zoomBy(Number(b.dataset.z) > 0 ? 1.5 : 1 / 1.5)));
     el.querySelector('[data-c]').onclick = () => this.center();
+    this.biome = false; this.bmBtn = el.querySelector('[data-bm]'); this.bmBtn.onclick = () => this.toggleBiome();
     const pts = new Map(); let pinch = 0;
     this.cv.addEventListener('pointerdown', (e) => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); this.cv.setPointerCapture(e.pointerId); });
     this.cv.addEventListener('pointermove', (e) => {
@@ -54,6 +56,8 @@ export class WorldMap {
   }
   close() { clearInterval(this._tick); this.isOpen = false; this.el.style.display = 'none'; this.tip.style.display = 'none'; }
   toggle() { this.isOpen ? this.close() : this.open(); }
+  /** «карта биомов»: регионы цветом биома + подписи «биом · ур. мобов» (только разведанное); выкл — обычная карта */
+  toggleBiome(on = !this.biome) { this.biome = !!on; this.bmBtn.classList.toggle('on', this.biome); this.draw(); }
   center() { const p = this.getState().me || { x: 0, y: 0 }; this.cx = p.x; this.cy = p.y; this.draw(); }
   zoomBy(f) { this.k = Math.max(this.minK || 0.01, Math.min(1.5, this.k * f)); this.draw(); }
   toScreen(x, y) { return [this.cv.width / 2 + (x - this.cx) * this.k, this.cv.height / 2 + (y - this.cy) * this.k]; }
@@ -74,10 +78,9 @@ export class WorldMap {
     ctx.imageSmoothingEnabled = this.k < 4096 / (WORLD_SIZES.arinar || 48000); // крупно — пиксели арта чёткие
     if (img && img.complete && img.naturalWidth) ctx.drawImage(img, x0, y0, sz, sz);
     else { ctx.fillStyle = '#1b1530'; ctx.fillRect(x0, y0, sz, sz); }
+    if (this.biome && w === 'arinar') { ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 0.85; ctx.drawImage(regionsLayer(1024), x0, y0, sz, sz); ctx.restore(); } // цвет биома — под туманом
     if (fog.active(w)) drawFog(ctx, fog, x0, y0, sz, FOG_N, getBit); // чёрное с облаками — неразведанное
     ctx.strokeStyle = '#c59b27'; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, sz, sz);
-    const bl = biomeLabels(w); let blN = 0; // биом · ур. мобов — только разведанное
-    for (const L of bl) { const [x, y] = this.toScreen(L.x, L.y); if (x < -150 || y < -40 || x > W + 150 || y > H + 40) continue; if (this.k < 0.012 && L.cells < 3) continue; drawBiomeLabel(ctx, x, y, L, this.k); blN++; }
     ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const ms = this.visibleMarkers();
     for (const m of ms) {
@@ -110,7 +113,16 @@ export class WorldMap {
       const [x, y] = this.toScreen(p.x, p.y);
       if (!drawMarkerIcon(ctx, 'player', x, y, 32)) { ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     }
+    const bl = this.biome ? biomeLabels(w) : []; let placed = [];
+    if (bl.length) { // подписи поверх, но не на иконках: препятствия — игрок, метки, отряд
+      const obst = []; if (p) obst.push([...this.toScreen(p.x, p.y), 22]);
+      for (const m of ms) obst.push([...this.toScreen(m.x, m.y), this.k > 0.05 ? 18 : 10]);
+      for (const m of st.party || []) obst.push([...this.toScreen(m.x, m.y), 12]);
+      const items = bl.filter((L) => !(this.k < 0.012 && L.cells < 3)).map((L) => { const [x, y] = this.toScreen(L.x, L.y); return { L, x, y }; }).filter((it) => it.x > -150 && it.y > -40 && it.x < W + 150 && it.y < H + 40);
+      placed = placeLabels(ctx, items, obst, this.k); for (const it of placed) drawBiomeLabel(ctx, it.x, it.y, it.L, this.k, it.B);
+      this._place = { placed: placed.map((it) => ({ x0: it.x - it.B.w / 2, x1: it.x + it.B.w / 2, y0: it.y - it.B.h / 2, y1: it.y + it.B.h / 2 })), obst }; }
+    const blN = placed.length;
     this.info.textContent = fog.active(w) ? `разведано ${fog.pct()}% · объектов видно: ${ms.length}` : `объектов: ${ms.length}`;
-    this.stats = { labels: bl.map((L) => L.name + (L.sub ? ': ' + L.sub : '') + ' ' + L.lvl.join('-')), labelsDrawn: blN, k: this.k, markers: ms.length, fog: fog.active(w), pct: fog.pct(), hunt: hu ? this.stats_hunt : null };
+    this.stats = { biome: this.biome, overlap: this._place && bl.length ? this._place.placed.some((r) => this._place.obst.some(([x, y, rr]) => x + rr > r.x0 && x - rr < r.x1 && y + rr > r.y0 && y - rr < r.y1)) : false, labels: (this.biome ? biomeLabels(w) : []).map((L) => L.name + (L.sub ? ': ' + L.sub : '') + ' ' + L.lvl.join('-')), labelsDrawn: blN, k: this.k, markers: ms.length, fog: fog.active(w), pct: fog.pct(), hunt: hu ? this.stats_hunt : null };
   }
 }

@@ -22,7 +22,7 @@ import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import { mapZones } from "./mapZones";
-import { dashTry, dashClient, DASH_CFG } from "./dash";
+import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
@@ -1339,7 +1339,7 @@ export class MetaService {
       zone.update(dt, now, players, (sid, dmg, src) => {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
-        if (((ms as any).invulnUntil || 0) > now) return; // неуязвимость навыка (прыжок, облако, рывок)
+        if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
         const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
         const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;

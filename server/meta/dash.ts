@@ -10,3 +10,5 @@ export function dashTry(st: { last?: number }, now: number, cfg = DASH_CFG): { o
   if (st.last && left > DASH_LAG_MS) return { ok: false, invulnUntil: 0, left };
   st.last = now; return { ok: true, invulnUntil: now + Math.max(0, Math.min(1000, cfg.invulnMs)), left: 0 };
 }
+/** неуязвим ли игрок сейчас (рывок, навыки с invuln) — общая проверка для урона от мобов и от игроков */
+export const isInvuln = (ms: any, now = Date.now()) => ((ms?.invulnUntil) || 0) > now;

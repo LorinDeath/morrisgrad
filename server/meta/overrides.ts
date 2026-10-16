@@ -1,4 +1,5 @@
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
+import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
@@ -13,8 +14,8 @@ import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { CURSE } from "./cursed";
 import { CHEST } from "./chests";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash";
-export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome";
+export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -64,6 +65,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("glow1", "Свечение: 1 вещь (0…1)", 0, 1), N("glow2", "Свечение: 2 вещи", 0, 1), N("glow3", "Свечение: 3 вещи", 0, 1), N("glow4", "Свечение: 4 вещи", 0, 1), N("glow5", "Свечение: полный комплект (пульсирует)", 0, 1),
     { path: "tint", label: "Цвет проклятия", t: "color" }] },
   // «Рывок» — только админ: перезарядка и неуязвимость (сервер считает по времени)
+  biome: { name: "Биомы карты", fields: [{ path: "name", label: "Название биома на карте M", t: "text" }, { path: "sub", label: "Название зоны (вторая строка; пусто — без неё)", t: "text" }] },
   dash: { name: "Рывок", fields: [N("cd", "Перезарядка рывка, с", 0.5, 60), N("invulnMs", "Неуязвимость после рывка, мс (1 кадр ≈ 16,7 мс · 5 кадров ≈ 83 мс; 0 — нет)", 0, 1000, "int"), { path: "blink", label: "Мигание героя во время неуязвимости (видят все)", t: "bool" }] },
   // «Сундуки схватки» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main'
   chest: { name: "Сундуки", fields: [{ path: "on", label: "Сундуки схватки включены (выкл — мешок с каждого моба)", t: "bool" },
@@ -76,7 +78,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -127,6 +129,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
       for (const [r, n] of Object.entries(v as any)) { const q = Math.round(Number(n)); if (!RESOURCES[r]) return `нет ресурса ${r}`; if (!(q >= 0 && q <= 999)) return "кол-во 0…999"; if (q) m[r] = q; }
       out[p] = m;
     }
+    else if (f.t === "text") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (t.length > 48) return `${f.label}: до 48 символов`; if (!t && p === "name") return `${f.label}: не пусто`; out[p] = t; }
     else if (f.t === "color") { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) return `${f.label}: #rrggbb`; out[p] = String(v).toLowerCase(); }
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }
