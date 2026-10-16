@@ -340,7 +340,7 @@ export class ZoneView {
     }
     // сундуки схватки: пиксель-арт сундук поверх пропсов (ореол: личный — золото, общий — серый, канал — пульс)
     if (!this.chestSpr && this.chests.size) this.chestSpr = new ChestSprites(this.THREE, this.root);
-    if (this.chestSpr) { const CS = this.chestSpr; CS.begin(); for (const c of this.chests.values()) { atmo.shadow(toX(c.x), toZ(c.y) + 0.3, 1.7, 1); atmo.shadow(toX(c.x), toZ(c.y) + 0.15, 1.15, 1); // тень: широкая + плотное пятно касания (как у героев) CS.push(toX(c.x), toZ(c.y), c, this.chestSt.chan === c.id ? 'chan' : this.chestSt.open === c.id ? 'open' : 'closed', T); } CS.end(); }
+    if (this.chestSpr) { const CS = this.chestSpr; CS.begin(); for (const c of this.chests.values()) { atmo.shadow(toX(c.x), toZ(c.y) + 0.12, 0.85, 1); atmo.shadow(toX(c.x), toZ(c.y) + 0.06, 0.6, 1); // тень: широкая + плотное пятно касания (как у героев) CS.push(toX(c.x), toZ(c.y), c, this.chestSt.chan === c.id ? 'chan' : this.chestSt.open === c.id ? 'open' : 'closed', T); } CS.end(); }
     // телеграфы, эффекты навыков и метки — спрайты FX atlas v2 (телеграфы #dcd3e6, цвет задаёт код)
     const P = this.pfx;
     P.begin(dt);

@@ -61,6 +61,7 @@ varying float vAlpha;
 uniform float uAdd;
 void main() {
   vec4 c = texture2D(map, vUv);
+  if (uAdd > 1.5) { gl_FragColor = vec4(mix(vTint.rgb, vec3(1.0), c.r), c.a * vAlpha); return; } // мягкое свечение (ореол проклятия): R — подмес белого, A — плотность
   if (uAdd > 0.5) { gl_FragColor = vec4(c.rgb * vTint.rgb * c.a * vAlpha * uGrade, 1.0); return; } // свечение (*_glow.png), аддитивно
   if (c.a < 0.3) discard;
   vec3 col = c.rgb * vTint.rgb * uLight * uGrade;
@@ -78,7 +79,7 @@ export class SpriteBatch {
    * @param texture THREE.Texture атласа
    * @param opts { cellW, cellH, cols, rows, max }
    */
-  constructor(THREE, texture, { cellW, cellH, cols, rows, max = 512, light = 1, additive = false }) {
+  constructor(THREE, texture, { cellW, cellH, cols, rows, max = 512, light = 1, additive = false, soft = false }) {
     this.THREE = THREE;
     this.cols = cols; this.rows = rows; this.max = max;
     this.du = 1 / cols; this.dv = 1 / rows;
@@ -104,7 +105,7 @@ export class SpriteBatch {
     if (!GRADE.value) GRADE.value = new THREE.Color(1, 1, 1);
     uniforms.uGrade = GRADE;
     uniforms.uTime = SPRITE_TIME; // общее время анимации (обновляет игровой цикл: tickSpriteTime)
-    uniforms.uAdd = { value: additive ? 1 : 0 };
+    uniforms.uAdd = { value: soft ? 2 : additive ? 1 : 0 };
     this.material = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, fog: true, transparent: true, depthWrite: !additive, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.frustumCulled = false;
