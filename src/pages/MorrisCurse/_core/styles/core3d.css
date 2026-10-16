@@ -908,12 +908,12 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-upb.t5 { --ub: #2f6fd6; --ubh: #8ec5ff; --ubs: #173b80; color: #eef6ff; filter: drop-shadow(0 0 2px rgba(110, 170, 255, 0.55)); }
 .mc-upb.t6 { --ub: #c0263e; --ubh: #ff8a9a; --ubs: #6e0f1e; color: #fff0f2; filter: drop-shadow(0 0 3px rgba(255, 80, 110, 0.6)); }
 /* проклятые: фиолетовая гамма, темнее → ярче по ступеням */
-.mc-upb.cz.t1 { --ub: #5b3a7a; --ubh: #9d78c2; --ubs: #321e47; }
-.mc-upb.cz.t2 { --ub: #6a45a0; --ubh: #b89ae6; --ubs: #3a2360; }
-.mc-upb.cz.t3 { --ub: #7d3fbf; --ubh: #c99cff; --ubs: #43207a; }
-.mc-upb.cz.t4 { --ub: #8e3ad6; --ubh: #d6a8ff; --ubs: #4c1a85; filter: drop-shadow(0 0 2px rgba(190, 120, 255, 0.5)); }
-.mc-upb.cz.t5 { --ub: #a234e0; --ubh: #e6b3ff; --ubs: #561a8a; filter: drop-shadow(0 0 2px rgba(210, 120, 255, 0.6)); }
-.mc-upb.cz.t6 { --ub: #b92ad8; --ubh: #f6b8ff; --ubs: #5e1270; filter: drop-shadow(0 0 3px rgba(230, 110, 255, 0.7)); }
+.mc-upb.cz.t1 { --ub: #4a3358; --ubh: #8a6f9e; --ubs: #24172e; color: #e4d6ee; }
+.mc-upb.cz.t2 { --ub: #a3167a; --ubh: #ff6fcf; --ubs: #560a3f; color: #ffe6f6; }
+.mc-upb.cz.t3 { --ub: #b569c9; --ubh: #ffd38a; --ubs: #5a2a6e; color: #fff3d6; }
+.mc-upb.cz.t4 { --ub: #2a1f8f; --ubh: #7fa8ff; --ubs: #120b4a; color: #e2ecff; filter: drop-shadow(0 0 2px rgba(100, 140, 255, 0.65)); }
+.mc-upb.cz.t5 { --ub: #6e0f3a; --ubh: #ff4f8b; --ubs: #33041a; color: #ffd9e8; filter: drop-shadow(0 0 3px rgba(255, 60, 130, 0.7)); }
+.mc-upb.cz.t6 { --ub: #8b2cff; --ubh: #ffffff; --ubs: #3a0a80; color: #ffffff; filter: drop-shadow(0 0 3px rgba(200, 140, 255, 0.95)) drop-shadow(0 0 6px rgba(160, 80, 255, 0.6)); }
 /* максимум: блик пробегает по плашке (дёшево: один градиент, шаговая анимация — «пиксельно») */
 .mc-upb.max { background: linear-gradient(100deg, var(--ub) 0 40%, var(--ubh) 45% 55%, var(--ub) 60% 100%) var(--ub); background-size: 300% 100%; animation: mc-upb-shine 2.4s steps(12) infinite; }
 @keyframes mc-upb-shine { 0% { background-position: 100% 0; } 60%, 100% { background-position: -50% 0; } }

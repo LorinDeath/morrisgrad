@@ -42,6 +42,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await p.evaluate(() => { const d = document.createElement('div'); d.id = 'zoomrow'; d.style.cssText = 'position:fixed;left:10px;top:10px;z-index:99;background:#0e0a19;padding:10px;display:flex;gap:8px;transform:scale(3);transform-origin:0 0;border:1px solid #3b2c52';
         const seen = new Set(); for (const c of document.querySelectorAll('.mc-bag .mc-item')) { const u = c.querySelector('.mc-upb'); if (!u) continue; const k = u.className; if (seen.has(k)) continue; seen.add(k); const cl = c.cloneNode(true); cl.style.width = '52px'; d.appendChild(cl); } document.body.appendChild(d); });
       await p.waitForTimeout(300); await p.screenshot({ path: `${OUT}/${tag}-06-zoom-x3-all-tiers.png` }); await p.evaluate(() => document.getElementById('zoomrow').remove());
+      await p.mouse.move(3, 3); await p.evaluate(() => { const d = document.createElement('div'); d.id = 'zoomcz'; d.style.cssText = 'position:fixed;left:10px;top:10px;z-index:99;background:#0e0a19;padding:10px;display:flex;gap:8px;transform:scale(3.2);transform-origin:0 0;border:1px solid #3b2c52';
+        const seen = new Set(); for (const c of document.querySelectorAll('.mc-bag .mc-item')) { const u = c.querySelector('.mc-upb.cz'); if (!u || seen.has(u.className)) continue; seen.add(u.className); const cl = c.cloneNode(true); cl.style.width = '52px'; d.appendChild(cl); } document.body.appendChild(d); });
+      await p.waitForTimeout(300); await p.screenshot({ path: `${OUT}/${tag}-06b-zoom-x3-cursed-tiers.png` }); await p.evaluate(() => document.getElementById('zoomcz').remove());
       await p.evaluate(() => window.__game.debug.openUpgrade()); await p.waitForTimeout(800); await p.screenshot({ path: `${OUT}/${tag}-07-petr-window.png` });
     }
     if (errs.length) { fails++; console.log('FAIL ошибки', errs); }
