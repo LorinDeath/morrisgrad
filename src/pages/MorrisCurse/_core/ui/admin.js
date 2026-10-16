@@ -254,7 +254,7 @@ export class AdminPanel {
           const L = f.optl || this.cat.mobSkills.map((k) => ({ id: k, name: k, group: 'Навыки' }));
           return [...new Set(L.map((o) => o.group))].map((g) => `<div class="chips" data-g="${esc(g)}"><small class="mc-dim">${esc(g)}</small>${L.filter((o) => o.group === g).map((o) => `<label title="${esc(o.id)}"><input type="checkbox" data-sk="${esc(o.id)}" ${(val || []).includes(o.id) ? 'checked' : ''}>${esc(o.name)}</label>`).join('')}</div>`).join('');
         })()}</div>`;
-      else inp = `<input type="number" step="${f.t === 'int' ? 1 : 0.01}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="—">`;
+      else inp = `<input type="number" step="${f.t === 'int' ? 1 : 0.01}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="${esc(e.defs?.[f.path] ?? '—')}" title="${val == null && e.defs?.[f.path] ? 'Пусто — как в коде: ' + esc(e.defs[f.path]) : ''}">`;
       return `<label title="${f.path} · ${f.min ?? ''}…${f.max ?? ''}"><span>${ic}${esc(f.label)}</span>${inp}</label>`;
     };
     sec.innerHTML = `<h3>${esc(e.icon || '')} ${esc(e.name)} <small style="color:#9a8bb8">${esc(kind)}:${esc(e.id)}</small>${e.lvl ? ` <span class="lv" style="color:#86efac">ур. ${e.lvl}</span>` : ''}</h3>

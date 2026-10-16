@@ -3,6 +3,7 @@ import { autoObjText } from "./objText";
 // хранятся в D1 (миграция 0010): game_overrides, custom_quests, журнал game_override_audit, версия набора
 // game_config_version (комнаты сверяют её и перечитывают правки). Писать может серверно проверенный админ (всё) или модератор (только mob/weapon/item) —
 // проверка роли в service.ts ДО вызова этих методов. Все запросы к D1 — только с bind (никакой склейки SQL).
+import { ZONE_GEN } from "./zoneGen";
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, type Kind, type Trait } from "./overrides";
@@ -12,6 +13,12 @@ import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { validateDialogue, dialogueEmpty, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
 
+/** «Спавн» → локация: что будет, если поле пустое (как в коде) — подсказка вместо «—» */
+function regionDefs(r: any) {
+  const pk = (r.table || []).map((t: any) => t.pack).filter(Boolean), G: any = ZONE_GEN;
+  return { dens: "1", "packs.0": "2", "packs.1": `3 (в ${Math.round(G.campPacks3 * 100)}% лагерей)`, "pack.0": pk.length ? String(Math.min(...pk.map((p: any) => p[0]))) : "—", "pack.1": pk.length ? String(Math.max(...pk.map((p: any) => p[1]))) : "—",
+    eliteMax: "без лимита", elite: String(r.elite ?? 0) };
+}
 export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
 const STR = (v: any, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
@@ -257,7 +264,7 @@ export class AdminStore {
     // уровень в строке списка: моб — lvl; предмет/оружие — требуемый уровень надевания itemReq = max(req, lvl);
     // навык — unlockLevel; таблица дропа — уровень моба-владельца
     const lvlOf = (k: string, id: string, o: any) => k === "mob" ? o.lvl : k === "item" ? itemReq(o) : k === "skill" ? o.unlockLevel : k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.lvl : undefined;
-    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "chest" ? "📦 Сундуки схватки: таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
+    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "chest" ? "📦 Сундуки схватки: таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
       quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),
