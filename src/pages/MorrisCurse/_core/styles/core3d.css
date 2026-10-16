@@ -486,6 +486,9 @@
 .mc-insp-h { color: #fbbf24; font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
 .mc-insp-gear { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .mc-insp-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border: 2px solid var(--rc, #2a2140); border-radius: 8px; background: #140e24; cursor: pointer; font-size: 10px; color: #94a3b8; outline: none; }
+.mc-altar-slot.cursed, .mc-insp-slot.cursed { box-shadow: 0 0 8px 1px #a855f7aa, inset 0 0 10px #a855f755; background: linear-gradient(180deg,#24113a,#120d20); color: #d8b4fe; }
+.mc-insp-slot .tip.cursed { border-color: #a855f7; box-shadow: 0 0 10px #a855f766; }
+.mc-insp-slot .tip .cz { color: #c084fc; }
 .mc-insp-slot.empty { border-style: dashed; border-color: #2a2140; }
 .mc-insp-slot .ic { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .mc-insp-slot .tip, .mc-insp-ab .tip { display: none; position: absolute; z-index: 5; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); min-width: 150px; max-width: 220px; padding: 8px; background: #05030a; border: 1px solid #4c3a6b; border-radius: 8px; color: #e2e8f0; font-size: 11px; line-height: 1.45; text-align: left; white-space: normal; pointer-events: none; }
@@ -870,3 +873,54 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-cmp .hint { color: #64748b; font-size: 9px; margin-top: 5px; }
 .mc-item, .mc-gslot { position: relative; -webkit-touch-callout: none; user-select: none; }
 .mc-lk { position: absolute; top: 2px; left: 3px; font-size: 11px; font-style: normal; filter: drop-shadow(0 1px 0 #000); }
+/* окно улучшения у Петра */
+.mc-upg { position: fixed; inset: 0; z-index: 55; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(5, 3, 12, 0.55); font-family: monospace; color: #e2e8f0; }
+.mc-upg-box { width: min(980px, 96vw); max-height: 92vh; display: flex; flex-direction: column; background: #0e0a19; border: 3px solid #b45309; border-radius: 6px; box-shadow: 0 6px 0 #000a, inset 0 0 0 2px #3b2c52; image-rendering: pixelated; }
+.mc-upg-box.flash { box-shadow: 0 0 24px #fbbf24, inset 0 0 0 2px #fbbf24; }
+.mc-upg .hd { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 2px solid #3b2c52; color: #fbbf24; }
+.mc-upg .bd { display: grid; grid-template-columns: 190px 1fr 1.25fr; gap: 10px; padding: 10px; overflow: auto; }
+.mc-upg .pt img { width: 100%; border: 2px solid #3b2c52; border-radius: 4px; background: #120d20; }
+.mc-upg .say { margin-top: 6px; font-size: 11px; color: #fde68a; background: #1a1230; border: 1px solid #3b2c52; padding: 5px; border-radius: 4px; }
+.mc-upg .h { color: #cbd5e1; font-size: 11px; margin: 4px 0; }
+.mc-upg .mc-bag { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 5px; max-height: 60vh; overflow: auto; }
+.mc-upg .mc-item { min-height: 48px; position: relative; }
+.mc-upg .dt .nm { font-weight: bold; font-size: 13px; }
+.mc-upg .dt .rr { font-size: 10px; color: #94a3b8; margin: 2px 0 6px; }
+.mc-upg .cz { color: var(--curse, #a855f7); }
+.mc-upg .lv { display: flex; gap: 8px; align-items: center; font-size: 11px; }
+.mc-upg .bar { flex: 1; height: 8px; background: #1a1230; border: 1px solid #3b2c52; }
+.mc-upg .bar i { display: block; height: 100%; background: #f59e0b; }
+.mc-upg table.st { width: 100%; font-size: 11px; margin: 6px 0; border-collapse: collapse; }
+.mc-upg table.st td { padding: 2px 4px; border-bottom: 1px dashed #2c2145; }
+.mc-upg .up { color: #4ade80; }
+.mc-upg .cost { font-size: 11px; padding: 2px 0; }
+.mc-upg .cost.ok b { color: #4ade80; } .mc-upg .cost.no b { color: #f87171; }
+.mc-upg .big { margin-top: 8px; width: 100%; padding: 8px; font-size: 13px; }
+.mc-upg .sm { font-size: 9px; margin-top: 4px; }
+.mc-upg .per { font-size: 10px; }
+@media (max-width: 760px) { .mc-upg .bd { grid-template-columns: 1fr; } .mc-upg .pt { display: flex; gap: 8px; align-items: center; } .mc-upg .pt img { width: 72px; } }
+/* значок улучшения +N (ui/upBadge.js) */
+.mc-upb { position: absolute; right: 1px; bottom: 1px; z-index: 2; pointer-events: none; font: normal 700 9px/1 monospace; letter-spacing: -0.5px; padding: 2px 3px 1px; color: #fff7e6;
+  border: 1px solid #1a1626; border-radius: 0; background: var(--ub, #8a5a2b); box-shadow: inset 1px 1px 0 var(--ubh, #d9a066), inset -1px -1px 0 var(--ubs, #5a3414), 0 1px 0 #1a1626;
+  text-shadow: 1px 0 0 #1a1626, -1px 0 0 #1a1626, 0 1px 0 #1a1626, 0 -1px 0 #1a1626; image-rendering: pixelated; -webkit-font-smoothing: none; font-smooth: never; }
+.mc-upb.sm { position: static; display: inline-block; vertical-align: middle; margin-left: 4px; font-size: 9px; }
+.mc-upb.t1 { --ub: #9a6332; --ubh: #e0a86a; --ubs: #5e3816; color: #ffe9cc; }
+.mc-upb.t2 { --ub: #8d96a6; --ubh: #e6ecf5; --ubs: #4e5666; color: #ffffff; }
+.mc-upb.t3 { --ub: #c99a1c; --ubh: #ffe27a; --ubs: #7a5508; color: #fff8d6; }
+.mc-upb.t4 { --ub: #1f9e86; --ubh: #6ff0d0; --ubs: #0c5a4b; color: #e6fff8; filter: drop-shadow(0 0 2px rgba(80, 240, 200, 0.45)); }
+.mc-upb.t5 { --ub: #2f6fd6; --ubh: #8ec5ff; --ubs: #173b80; color: #eef6ff; filter: drop-shadow(0 0 2px rgba(110, 170, 255, 0.55)); }
+.mc-upb.t6 { --ub: #c0263e; --ubh: #ff8a9a; --ubs: #6e0f1e; color: #fff0f2; filter: drop-shadow(0 0 3px rgba(255, 80, 110, 0.6)); }
+/* проклятые: фиолетовая гамма, темнее → ярче по ступеням */
+.mc-upb.cz.t1 { --ub: #4a3358; --ubh: #8a6f9e; --ubs: #24172e; color: #e4d6ee; }
+.mc-upb.cz.t2 { --ub: #a3167a; --ubh: #ff6fcf; --ubs: #560a3f; color: #ffe6f6; }
+.mc-upb.cz.t3 { --ub: #b569c9; --ubh: #ffd38a; --ubs: #5a2a6e; color: #fff3d6; }
+.mc-upb.cz.t4 { --ub: #2a1f8f; --ubh: #7fa8ff; --ubs: #120b4a; color: #e2ecff; filter: drop-shadow(0 0 2px rgba(100, 140, 255, 0.65)); }
+.mc-upb.cz.t5 { --ub: #6e0f3a; --ubh: #ff4f8b; --ubs: #33041a; color: #ffd9e8; filter: drop-shadow(0 0 3px rgba(255, 60, 130, 0.7)); }
+.mc-upb.cz.t6 { --ub: #8b2cff; --ubh: #ffffff; --ubs: #3a0a80; color: #ffffff; filter: drop-shadow(0 0 3px rgba(200, 140, 255, 0.95)) drop-shadow(0 0 6px rgba(160, 80, 255, 0.6)); }
+/* максимум: блик пробегает по плашке (дёшево: один градиент, шаговая анимация — «пиксельно») */
+.mc-upb.max { background: linear-gradient(100deg, var(--ub) 0 40%, var(--ubh) 45% 55%, var(--ub) 60% 100%) var(--ub); background-size: 300% 100%; animation: mc-upb-shine 2.4s steps(12) infinite; }
+@keyframes mc-upb-shine { 0% { background-position: 100% 0; } 60%, 100% { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .mc-upb.max { animation: none; } }
+/* «нужен ур.» переезжает влево, чтобы не спорить со значком */
+.mc-item .req { right: auto; left: 2px; }
+.mc-altar-item, .mc-altar-slot .ic, .mc-insp-slot .ic, .mc-gslot span { position: relative; }

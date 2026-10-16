@@ -11,7 +11,7 @@ import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
 // краткое описание предмета для пикера наград квеста (уровень, редкость, слот, статы)
 const ITEM_STAT_RU = {
   dmgMin: 'урон мин', dmgMax: 'урон макс', hp: 'HP', armor: 'броня', critPct: 'крит%', speedPct: 'скор%',
-  regen: 'реген', cdrPct: 'КД−%', magnetPct: 'магнит%', lifestealPct: 'вампир%', atkSpeedPct: 'скор.атак%', dmgPct: 'урон%', armorPct: 'броня%',
+  regen: 'реген', cdrPct: 'КД−%', magnetPct: 'магнит%', lifestealPct: 'вампир%', atkSpeedPct: 'скор.атак%', dmgPct: 'урон%', armorPct: 'броня%', armorPen: 'пробитие', armorPenPct: 'пробитие%',
 };
 function itemStatsBrief(it) {
   if (!it) return '';
@@ -42,7 +42,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -261,7 +261,7 @@ export class AdminPanel {
       }
       else if (f.t === 'text') inp = `<input type="text" maxlength="48" data-p="${f.path}" value="${esc(val ?? '')}">`;
       else if (f.t === 'color') inp = `<input type="color" data-p="${f.path}" value="${esc(val || '#a855f7')}">`;
-      else if (f.t === 'enum') inp = `<select data-p="${f.path}">${f.opts.map((o) => `<option ${o === (val ?? '') ? 'selected' : ''} value="${o}">${o || '—'}</option>`).join('')}</select>`;
+      else if (f.t === 'enum') inp = `<select data-p="${f.path}">${f.opts.map((o) => `<option ${o === (val ?? '') ? 'selected' : ''} value="${o}">${esc(f.optn?.[o] || o || '—')}</option>`).join('')}</select>`;
       else if (f.t === 'resmap') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>формат: soul_shard:2, iron:1 · пусто = ничего</small><input type="text" style="width:100%" list="mc-adm-res" data-rm="${f.path}" value="${esc(Object.entries(val || {}).map(([r, n]) => r + ':' + n).join(', '))}"><datalist id="mc-adm-res">${(this.cat.res || []).map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</datalist></div>`;
       else if (f.t === 'skills') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>(до 5)</small><input type="search" class="mc-adm-chipsearch" placeholder="поиск навыка…">${(() => { // все навыки игры: по группам, русские названия
           const L = f.optl || this.cat.mobSkills.map((k) => ({ id: k, name: k, group: 'Навыки' }));

@@ -1,5 +1,6 @@
 import { isRs, rsCodexId } from "./rsAny";
 import { CHEST } from "./chests";
+import { UPG, upgCost, upgClient } from "./upgrade";
 import { CURSE, CURSED_TAG, isCursedTag, untag, instStats, glowLevel, curseClient } from "./cursed";
 // Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
 // Хранение — store.ts (D1 — источник истины, сквозная запись из DO; фолбэк — SQLite DO, схема ниже).
@@ -18,7 +19,7 @@ import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 export const SCHEMA_VERSION = 1;
 
 // uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
-export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1; lk?: 1 } // hero — владелец-герой (у каждого героя своя сумка)
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1; lk?: 1; up?: number } // hero — владелец-герой (у каждого героя своя сумка)
 export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
@@ -53,12 +54,12 @@ export function talentPoints(h: Hero): number { return talentPointsForLevel(h.lv
 
 export function itemReq(def: { lvl?: number; req?: number }): number { return Math.max(1, def.req || 1, def.lvl || 1); }
 
-export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1 }[] {
-  const out: { slot: string; uid: string; id: string; cursed?: 1 }[] = [];
+export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1; up?: number }[] {
+  const out: { slot: string; uid: string; id: string; cursed?: 1; up?: number }[] = [];
   for (const [slot, uid] of Object.entries(h.equip)) {
     const it = a.inv.find((i) => i.uid === uid);
     const def = it && ITEM_BY_ID[it.id];
-    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}) }); // надетое не по уровню (старые сохранения) не действует
+    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}), ...(it.up ? { up: it.up } : {}) }); // надетое не по уровню (старые сохранения) не действует
   }
   return out;
 }
@@ -413,6 +414,23 @@ export function setLock(a: Account, cls: string | null, uid: string, on: boolean
   if (on) it.lk = 1; else delete it.lk;
   return { ok: true, msg: on ? "Закреплено" : "Откреплено", uid, lk: on };
 }
+/** Улучшение у Петра: +1 уровень, всегда успешно; материалы списываются атомарно (сначала проверка всех, потом списание). */
+export function upgradeItem(a: Account, cls: string | null, uid: string, expect?: number): R & { uid?: string; up?: number; cost?: Record<string, number> } {
+  const it = a.inv.find((i) => i.uid === uid);
+  if (!it || !ITEM_BY_ID[it.id]) return fail("Нет предмета");
+  if (it.hero && it.hero !== cls) return fail("Это предмет другого героя");
+  const cur = it.up || 0;
+  if (expect != null && expect !== cur) return fail("Уровень предмета уже изменился — обновите окно");
+  if (cur >= UPG.maxLvl) return fail(`Предмет уже улучшен до максимума (+${UPG.maxLvl})`);
+  const cost = upgCost(cur + 1, !!it.cursed);
+  if (!cost) return fail("Улучшение недоступно");
+  const miss = Object.entries(cost).filter(([r, n]) => (a.res[r] || 0) < n);
+  if (miss.length) return fail("Не хватает: " + miss.map(([r, n]) => `${RESOURCES[r]?.name || r} ${a.res[r] || 0}/${n}`).join(", "));
+  for (const [r, n] of Object.entries(cost)) a.res[r] = (a.res[r] || 0) - n;
+  for (const r of Object.keys(cost)) if (a.res[r] <= 0) delete a.res[r];
+  it.up = cur + 1;
+  return { ok: true, msg: `Улучшено до +${it.up}`, uid, up: it.up, cost };
+}
 export function salvage(a: Account, heroes: Hero[], uid: string): R {
   const idx = a.inv.findIndex((i) => i.uid === uid);
   if (idx < 0) return fail("Нет предмета");
@@ -609,7 +627,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified,
-    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), upg: upgClient(), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),

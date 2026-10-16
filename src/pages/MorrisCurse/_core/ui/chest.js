@@ -1,5 +1,6 @@
 // Сундук схватки (Albion-стиль). Сервер — авторитет (chest_open / chest_take / chest_view / chest_channel).
 // Личная фаза: окно сразу, только свои позиции. Общая: канал открытия (полоса), урон прерывает; брать только Shift+клик по одной.
+import { upBadge } from './upBadge.js';
 import { esc } from './overlay.js';
 import { card, iconHtml } from '../meta/itemCards.js';
 import { curseTint } from './book.js';
@@ -64,7 +65,7 @@ export class ChestWindow {
       if (e.k === 'res') { const r = RESOURCES[e.id] || {}; return `<div class="cell res" data-lid="${e.lid}" title="${esc(r.name || e.id)}"><span class="ic">${r.icon || '◆'}</span><span class="n">${e.n}</span><span class="nm">${esc(r.name || e.id)}</span></div>`; }
       const cc = card(e.id) || { name: e.id }, cz = !!e.c, nm = cz ? 'Проклятый ' + String(cc.name || e.id).charAt(0).toLowerCase() + String(cc.name || e.id).slice(1) : cc.name || e.id;
       const rc = cz ? curseTint() : RARITIES[cc.rarity]?.color || '#9ca3af';
-      return `<div class="cell${cz ? ' cursed' : ''}${e.mine ? ' mine' : ''}" data-lid="${e.lid}" style="--rc:${rc}" title="${esc(nm)}">${iconHtml(cc, 36)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${cc.lvl ? `<span class="lv">ур. ${cc.lvl}</span>` : ''}${cz ? '<span class="cz">☠</span>' : ''}</div>`;
+      return `<div class="cell${cz ? ' cursed' : ''}${e.mine ? ' mine' : ''}" data-lid="${e.lid}" style="--rc:${rc}" title="${esc(nm)}">${iconHtml(cc, 36)}${upBadge(e.up, cz)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${cc.lvl ? `<span class="lv">ур. ${cc.lvl}</span>` : ''}${cz ? '<span class="cz">☠</span>' : ''}</div>`;
     }).join('');
     g.querySelectorAll('[data-lid]').forEach((el) => { const lid = Number(el.dataset.lid); if (this.pending.has(lid)) el.classList.add('taking'); el.onclick = (ev) => this.take(lid, ev.shiftKey || this.shift); });
   }

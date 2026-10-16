@@ -149,6 +149,14 @@ for (const [hpA, hpB, exp] of [[80, 40, 0], [30, 90, 1], [55, 55, null]] as cons
   ok(w.ms.get("b").zp.hp < 100, `dash i-frames: after window hit lands (b hp ${Math.round(w.ms.get("b").zp.hp)})`);
   (Date as any).now = realNow;
 }
+{ // пробитие брони в дуэли: плоское снижает броню цели → урон выше; без брони у цели — без изменений
+  const w = world(); const pv: any = w.pvp;
+  const mkC = () => ({ me: { zp: { hp: 100, maxHp: 100 } }, op: { zp: { hp: 1e6, maxHp: 1e6, armor: 250, armorRed: 0.5 } }, os: { id: "b", x: 0, y: 0 }, d: { ev: [], hits: [0, 0] }, i: 0 });
+  const c1 = mkC(), c2 = mkC();
+  const r0 = pv.deal(c1, { id: "a" }, 1000, false, { armorPen: 0 });
+  const r1 = pv.deal(c2, { id: "a" }, 1000, false, { armorPen: 100 });
+  ok(r0 === 500 && r1 > r0, `duel armorPen: 0 → ${r0}, 100 flat → ${r1}`);
+}
 Date.now = realNow;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

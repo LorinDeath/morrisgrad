@@ -2,6 +2,7 @@
 // значения ниже — только исходные из кода, наложение правки — overrides.applyOverride, живьём по версии конфига).
 // Проклятые вещи — НЕ отдельные предметы, а флаг экземпляра (item_instances.cursed / InvItem.cursed).
 // Статы считаются на лету от базового определения (с правками админки) × statMult — правка базы меняет и проклятую версию.
+import { upgStats } from "./upgrade";
 export const CURSE = {
   equipDropMult: 10,     // шанс дропа ЭКИПИРОВКИ ×N во всех таблицах (материалы не трогаются), кламп 100%
   mobDropMult: 10,       // проклятый моб/босс: множитель шанса ОБЫЧНЫХ вещей и материалов
@@ -22,7 +23,8 @@ export function cursedStats<T extends Record<string, any>>(st: T | undefined | n
   for (const [k, v] of Object.entries(st || {})) o[k] = typeof v === "number" ? (Number.isInteger(v) ? Math.round(v * k0) : Math.round(v * k0 * 10) / 10) : v;
   return o;
 }
-export function instStats(def: any, inst?: { cursed?: any } | null) { return inst?.cursed ? cursedStats(def?.stats) : def?.stats || {}; }
+/** Статы экземпляра: база (с правками админки) → ×проклятие → +улучшение (+N у Петра). */
+export function instStats(def: any, inst?: { cursed?: any; up?: number } | null) { const b = inst?.cursed ? cursedStats(def?.stats) : def?.stats || {}; return inst?.up ? upgStats(b, inst.up, !!inst.cursed) : b; }
 export const FULL_SET = 5; // слотов экипировки (SLOTS)
 /** Уровень свечения = число надетых проклятых (0..5); яркость — CURSE.glowN (клиент получает конфиг). */
 export function glowLevel(nCursed: number): number { return Math.max(0, Math.min(FULL_SET, nCursed | 0)); }

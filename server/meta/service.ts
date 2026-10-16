@@ -31,7 +31,7 @@ import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
-  heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, salvagePreview, salvageMany, effSkill, codexBound,
+  heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
@@ -79,7 +79,7 @@ export interface MetaSess {
 const S = (o: Record<string, "s" | "n" | "b" | "o" | "a" | "s?" | "n?" | "b?" | "o?" | "a?">) => o;
 const MSG_SCHEMA: Record<string, Record<string, string>> = {
   meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
-  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
+  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), item_upgrade: S({ uid: "s", at: "n?" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
   loot_open: S({ bag: "n" }), chest_open: S({ chest: "n" }), chest_take: S({ chest: "n", lid: "n" }), loot_take: S({ bag: "n", lids: "a?", all: "b?" }),
   zone_attack: S({}), zone_ability: S({}), zone_target: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
@@ -315,7 +315,7 @@ export class MetaService {
     const eff = this.effective(session);
     const wasFull = ms.zp.hp >= ms.zp.maxHp;
     ms.zp.maxHp = eff.maxHp;
-    ms.zp.armorRed = eff.damageReduction;
+    ms.zp.armorRed = eff.damageReduction; (ms.zp as any).armor = eff.armor || 0; // сырая броня — для пробития в дуэлях
     (ms as any).revive = (eff as any).revive || 0; // талант «встать с 40% ХП» (revive.ts)
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
@@ -470,6 +470,14 @@ export class MetaService {
       }
       case "item_lock": { // закрепление экземпляра (флаг в D1: item_instances.locked)
         reply(setLock(a, cls || null, String(msg.uid), !!msg.on)); return true;
+      }
+      case "item_upgrade": { // улучшение — только у Петра; сервер считает стоимость и списывает; не чаще 4 раз/с
+        if (!this.nearNpc(session, "petr")) { this.send(ws, { type: "toast_error", message: "Улучшение — у Петра (хаб, юго-запад)" }); return true; }
+        const now = Date.now(); if (now - ((ms as any).upgAt || 0) < 250) return true; (ms as any).upgAt = now;
+        const r: any = upgradeItem(a, cls || null, String(msg.uid), msg.at == null ? undefined : Number(msg.at));
+        if (r.ok) this.store.audit(ms.pkey, "upgrade", `upg:${msg.uid}:${r.up}`, { uid: msg.uid, up: r.up, cost: r.cost });
+        this.send(ws, { type: "upgrade_result", ok: !!r.ok, uid: String(msg.uid), up: r.up, err: r.err });
+        reply(r); if (r.ok) this.refreshZonePlayer(session); return true;
       }
       case "salvage_preview": { // массовый разбор: сначала превью от сервера (что именно получит игрок), подтверждение — в игре
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
@@ -650,6 +658,7 @@ export class MetaService {
         if (msg.hurtMe) { (ms as any).hurtAt = Date.now(); ms.zp.hp = Math.max(1, ms.zp.hp - 1); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
+        if (msg.setUp && typeof msg.setUp === "object") { const it = a.inv.find((i) => i.uid === String(msg.setUp.uid)); if (it) it.up = Math.max(0, Math.min(58, Number(msg.setUp.up) | 0)); } // тест значков улучшения (только dev)
         // стресс-тест анти-дюпа: забить сумку, освободить слоты, точный счёт предметов (только dev)
         if (msg.fill && ITEM_BY_ID[msg.fill.id]) for (let i = 0; i < Math.min(200, Number(msg.fill.n) || 0); i++) if (!addItem(a, String(msg.fill.id), "grant:fill")) break;
         if (msg.freeSlots) { let n = Math.min(200, Number(msg.freeSlots) || 0); for (let i = a.inv.length - 1; i >= 0 && n > 0; i--) if (a.inv[i].src === "grant:fill") { a.inv.splice(i, 1); n--; } }

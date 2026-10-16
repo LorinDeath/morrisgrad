@@ -76,7 +76,7 @@ export class NpcDialog {
     } else {
       const idle = IDLE[npc] || ['…'];
       lines = [idle[Math.floor(Math.random() * idle.length)]];
-      if (npc === 'petr') btns.push({ text: '⚒️ Ремесло', cls: 'gold', onClick: () => { this.close(); this.onCraft?.(); } });
+      if (npc === 'petr') btns.push({ text: '⚒️ Ремесло', cls: 'gold', onClick: () => { this.close(); this.onCraft?.(); } }, { text: '🔨 Улучшение', cls: 'gold', onClick: () => { this.close(); this.onUpgrade?.(); } });
       btns.push(close);
     }
     if (list.some((x) => QUEST_BY_ID[x.id])) btns.splice(btns.indexOf(close), 0, all);

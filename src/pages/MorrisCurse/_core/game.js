@@ -17,6 +17,8 @@ import { initModelMode, preloadCharacterSheets, modelMode } from './engine/chara
 import { loadPixAtlases } from './engine/pixSprites.js';
 import { MetaClient } from './meta/metaClient.js';
 import { Book } from './ui/book.js';
+import { UpgradeWin } from './ui/upgradeWin.js';
+import { UPG } from '../../../../server/meta/upgrade.ts';
 import { setCurse, glowK } from './meta/curseCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
@@ -212,6 +214,9 @@ async function boot(canvasId, username, userId, api) {
   const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), mobile });
   const dialog = new NpcDialog(overlay, meta);
   dialog.onCraft = () => book.open('craft');
+  const upgWin = new UpgradeWin(overlay, meta, { nearPetr: () => mode === 'hub' && zone.nearestNpc(world, player.x, player.y)?.id === 'petr' });
+  dialog.onUpgrade = () => upgWin.open();
+  api.upgWin = upgWin;
   const zoneSt = { lastAtk: 0, gather: null, abilCd: {}, abilSrv: {}, abilPend: {}, hurtShown: 0 };
   dpsMeter.mount(overlay.layer);
   const abar = new ActionBar(overlay.layer, {
@@ -418,9 +423,11 @@ async function boot(canvasId, username, userId, api) {
 
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('salvage_preview', (d) => book.showSalvagePreview(d));
+  net.on('upgrade_result', (d) => upgWin.onResult(d));
   net.on('meta_state', (d) => {
     if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
+    if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -1028,6 +1035,7 @@ async function boot(canvasId, username, userId, api) {
   window.addEventListener('keydown', (e) => {
     if (isTyping(e) || net.kicked) return;
     const k = e.key.toLowerCase();
+    if (e.key === 'Escape' && upgWin.isOpen) { upgWin.close(); return; }
     if (e.key === 'Escape' && worldMap.isOpen) { worldMap.close(); return; }
     if (worldMap.isOpen && (k === 'n' || k === 'т') && !e.repeat) { worldMap.toggleBiome(); return; } // N — карта биомов
     if (worldMap.isOpen && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')) { worldMap.zoomBy(1.5); return; } // +/− — зум карты
@@ -1797,6 +1805,7 @@ async function boot(canvasId, username, userId, api) {
   if (showDebug) {
     // отладочные хуки для автотестов (только с ?debug=1)
     api.debug = {
+      inspect: (sid) => inspectPlayer(sid), charSheet: () => toggleCharSheet(),
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
       myGlow: () => { const c = hub.chars.get('__me')?.ch; return c?.glow?.visible ? { k: c.glowK, pulse: !!c.glowPulse } : null; },
       othersGlow: () => [...hub.chars.entries()].filter(([k]) => k.startsWith('p_')).map(([k, c]) => ({ k: c.ch.glow?.visible ? c.ch.glowK : 0, pulse: !!c.ch.glowPulse })),
@@ -1903,6 +1912,7 @@ async function boot(canvasId, username, userId, api) {
         d: stage.distance(), near: stage.camera.near, far: stage.camera.far, fogFar: stage.scene.fog?.far, shadowHalf: stage.sun.shadow.camera.right, pitch: stage.pitch, fov: stage.camera.fov }),
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
+      openUpgrade: () => upgWin.open(),
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
       overlay, runUI, zone,
       WEAPONS,
