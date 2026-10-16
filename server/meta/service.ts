@@ -23,6 +23,10 @@ import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import { mapZones } from "./mapZones";
 import { MarkStore } from "./mapMarks";
+import { PERF, perfServer, perfZone, wrapDb } from "./perf";
+import { ST } from "./stats";
+import { regionAt } from "./zoneGen";
+import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
@@ -131,6 +135,8 @@ export class MetaService {
   admin: AdminStore;
   onVerified?: (ws: any, session: any, uid: string) => void;
   constructor(sql: any, env: any) {
+    if (env?.GAME_DB) env = { ...env, GAME_DB: wrapDb(env.GAME_DB) }; // «📊 Нагрузка»: счёт запросов D1 и задержки
+    ST.db = env?.GAME_DB || null;
     this.store = new ProfileStore(sql, env?.GAME_DB);
     this.rating = new Rating(env?.GAME_DB);
     this.pvp = new Pvp(this);
@@ -187,6 +193,7 @@ export class MetaService {
     const ms: MetaSess = { cards: new Set(), rl: { t: 0, n: 0, warned: 0 }, sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
       lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
     this.ms.set(session.id, ms);
+    ST.join(session.id, pkey, verified); if (verified && msg.guestId) { ST.pendingConv.add(pkey); if (ST.pendingConv.size > 500) ST.pendingConv.clear(); } // гость → вошёл в аккаунт (оценка)
     const a = this.store.account(pkey);
     // гость: имя из 100 четырёхбуквенных назначает сервер один раз (хранится в профиле), показ — «Гость» Имя
     if (!verified) {
@@ -513,6 +520,7 @@ export class MetaService {
         // сюжетные квесты пролога сдаются автоматически, остальные — у персонажа
         if (q.campaign !== "prologue" && !this.nearNpc(session, turninNpc(q))) { this.send(ws, { type: "toast_error", message: `Сдайте квест: ${NPCS[turninNpc(q)]?.name}` }); return true; }
         const r = turnInQuest(a, h, q.id);
+        if (r.ok) ST.inc("quests");
         if (r.ok) this.push(ws, session, { questDone: { id: q.id, rewards: (r as any).rewards } });
         else this.send(ws, { type: "toast_error", message: (r as any).err });
         this.refreshZonePlayer(session);
@@ -525,6 +533,16 @@ export class MetaService {
         so.rating = Date.now();
         this.rating.view(ms.pkey).then((v) => this.send(ws, { type: "rating", ...v })).catch((e) => { console.error("[mc] rating", e?.message || e); this.send(ws, { type: "rating_err", message: "Рейтинг временно недоступен" }); });
         return true;
+      }
+      case "admin_perf": { // «📊 Нагрузка» — только админ (роль из D1 + проверенный вход); модератору отказ
+        if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+        if (Date.now() - ((ms as any).perfAt || 0) < 1000) return true; (ms as any).perfAt = Date.now();
+        this.perfSnapshot().then((data) => this.send(ws, { type: "admin_perf", data })).catch((e) => console.error("[mc] perf", e?.message || e));
+        return true;
+      }
+      case "client_stats": { // fps/пинг/устройство раз в минуту; значения проверяются и обрезаются в ST.clientStats
+        if (Date.now() - ((ms as any).cstAt || 0) < 20000) return true; (ms as any).cstAt = Date.now();
+        ST.clientStats(session.id, msg); return true;
       }
       case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
         // роли из D1 + verified; id/роль из сообщения клиента игнорируются.
@@ -1110,6 +1128,7 @@ export class MetaService {
   }
 
   onMobKilled(m: any) {
+    ST.inc("kills"); if (m.elite) ST.inc("kills_elite"); if (m.cursed) ST.inc("kills_cursed"); if (m.special === "boss" || ZONE_MOBS[m.type]?.boss) ST.inc("kills_boss");
     const d = ZONE_MOBS[m.type];
     const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
     // мешок — ОДИН: больше всех урона, с шансом 10% — добившему (сервер); видит и открывает только владелец
@@ -1162,6 +1181,7 @@ export class MetaService {
         split = splitLoot(roll, ownerGrp.filter((g) => recv.has(g)), cryptoRand);
       }
       const loot = split?.get(sid) || { items: [] as string[], res: {} as Record<string, number> };
+      if (loot.items.length) { ST.inc("items_drop", loot.items.length); for (const it of loot.items) if (String(it).includes("@c")) ST.inc("cursed_drop"); }
       const bag = enc ? null : this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       if (enc) out.enc = enc.watch.size; // добыча копится в сундук схватки
@@ -1224,6 +1244,7 @@ export class MetaService {
       if (k.elite) { const l2 = rollMonsterLoot(k.lootKey, cryptoRand, mul, cr); r.items.push(...l2.items); for (const [x, n] of Object.entries(l2.res)) r.res[x] = (r.res[x] || 0) + n; } return r; };
     const ents = rollChest(e, rec, groupOf, roll, cryptoRand);
     const last = e.kills[e.kills.length - 1], guardType = (e.kills.find((k) => !k.boss && !k.special) || last).type;
+    for (const en of ents as any[]) for (const it of (en?.items || [])) { ST.inc("items_drop"); if (String(it).includes("@c")) ST.inc("cursed_drop"); }
     const c = this.chests.spawn(e.world, e.x, e.y, ents, `chest:${last.type}`, e.anyBoss ? "boss" : e.kills.some((k) => k.rare || k.elite) ? "rare" : "mob", last.type, guardType);
     if (!c) return;
     for (const [sid, pk] of rec) { const en = this.sessionLookup?.(sid); const mine = c.entries.filter((x) => x.o === pk).length; if (en && mine) this.send(en[0], { type: "chest_spawn", id: c.id, x: c.x, y: c.y, mine, kills: e.kills.length }); }
@@ -1241,7 +1262,7 @@ export class MetaService {
     const r = this.chests.tryOpen(c, ms.pkey, session.id);
     if ("err" in r) return this.send(ws, { type: "chest_err", id: c.id, message: r.err });
     if ("channel" in r) return this.send(ws, { type: "chest_channel", id: c.id, until: r.channel, sec: CHEST.channelSec });
-    this.send(ws, this.chestView(c, ms));
+    ST.inc("chests_open"); this.send(ws, this.chestView(c, ms));
   }
   chestTake(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id); if (!ms || !this.zoneOf(session)) return;
@@ -1304,8 +1325,72 @@ export class MetaService {
   }
   fx: { at: number; world: string; sid: string; fn: () => void }[] = []; // отложенные части навыков (метеор, тики, след)
 
+  /** Живой срез для «📊 Нагрузка»: только агрегаты, без ников/IP (id — анонимный хеш). Вызывается по запросу админа. */
+  perfLive(now = Date.now()) {
+    const worlds: any = {}, zones: any = {}, lvl: Record<string, number> = {}, cls: Record<string, number> = {};
+    let reg = 0, guest = 0;
+    for (const s of this.sessionsRef?.values?.() || []) {
+      const ms = this.ms.get(s.id); if (!ms) continue;
+      ms.verified ? reg++ : guest++;
+      const w = s.world || "hellfire"; worlds[w] = (worlds[w] || 0) + 1;
+      if (w === "arinar") { let z = "?"; try { const r: any = regionAt(s.x, s.y); z = (r && (ZONE_NAMES[zoneKeyOf(r.id)]?.name || r.name)) || "вне локаций"; } catch (_) {} zones[z] = (zones[z] || 0) + 1; }
+      const L = ms.pub?.lvl || 1, b = L >= 50 ? "50+" : `${Math.floor((L - 1) / 10) * 10 + 1}-${Math.floor((L - 1) / 10) * 10 + 10}`; lvl[b] = (lvl[b] || 0) + 1;
+      const c = s.stats?.classId || "?"; cls[c] = (cls[c] || 0) + 1;
+    }
+    const ent: any = {};
+    for (const [w, z] of Object.entries(this.zones) as any) {
+      let awake = 0, dots = 0, casts = 0; for (const m of z.mobs || []) { if (!m.dead && !m.sleep) awake++; dots += m.dots?.length || 0; casts += m.casts?.length || 0; }
+      ent[w] = { mobs: (z.mobs || []).length, awake: z.stats?.awake ?? awake, camps: z.gen?.camps?.length || 0, projectiles: (z.projs || z.projectiles || []).length, aoe: (z.aoes || z.casts || []).length + casts, dots };
+    }
+    let chests = 0; for (const c of this.chests.chests.values()) chests++;
+    return { online: { total: reg + guest, registered: reg, guests: guest }, worlds, zones, levels: lvl, classes: cls, entities: ent, chests, lootBags: this.loot.bags.size, parties: this.party.parties.size, fx: this.fx.length };
+  }
+  stAt = 0;
+  sessionsRef: Map<WebSocket, any> | null = null;
+  async perfSnapshot() {
+    const now = Date.now(), live = this.perfLive(now), hist: any = await ST.history(now);
+    const D = hist.days as string[], today = D[D.length - 1], daily = hist.daily as Record<string, Record<string, number>>;
+    const td: Record<string, number> = { ...(daily[today] || {}) }; // + ещё не записанная минута из памяти
+    for (const [k, v] of ST.sum) td[k] = (td[k] || 0) + v; for (const [k, v] of ST.max) td[k] = Math.max(td[k] || 0, v);
+    { let n = 0, r = 0; const pre = today + "|"; for (const k of ST.seen) if (k.startsWith(pre)) n++; for (const q of ST.seenQ) if (q[0] === today && q[2]) r++; // ещё не записанные в D1
+      hist.dau[today] = Math.max(hist.dau[today] || 0, n); hist.dauReg[today] = Math.max(hist.dauReg[today] || 0, r); }
+    td.peak = Math.max(td.peak || 0, live.online.total);
+    const g = (d: string, k: string) => (d === today ? td[k] : daily[d]?.[k]) || 0, last7 = D.slice(-7);
+    const hourRow = (d: string) => Array.from({ length: 24 }, (_, h) => Math.max(g(d, "h" + String(h).padStart(2, "0")), (ST.hourly as any)[d]?.[h] || 0));
+    const ECON = ["kills", "kills_elite", "kills_cursed", "kills_boss", "deaths", "chests_open", "items_drop", "cursed_drop", "quests"];
+    const perDay = (k: string) => D.map((d) => g(d, k));
+    return { v: 1, at: new Date(now).toISOString(), tz: "Europe/Kiev", privacy: "только агрегаты; id игроков — анонимный солёный хеш, IP и ники не хранятся",
+      server: perfServer(now),
+      online: { now: live.online, peakToday: g(today, "peak"), peak7d: Math.max(0, ...last7.map((d) => g(d, "peak"))),
+        dau: D.map((d) => hist.dau[d] || 0), dauRegistered: D.map((d) => hist.dauReg[d] || 0), wau: hist.wau, mau: hist.mau,
+        newRegistrations: perDay("new_reg"), guestToRegistered: perDay("conv"), sessionsPerDay: perDay("sessions"),
+        sessions: ST.sessionSummary(now), sessionLenBuckets: Object.fromEntries(Object.keys(td).filter((k) => /^sl\d$/.test(k)).map((k) => [k, td[k]])),
+        hourlyToday: hourRow(today), hourly7d: last7.map((d) => ({ day: d, h: hourRow(d) })) },
+      players: { worlds: live.worlds, zones: live.zones, levels: live.levels, classes: live.classes, activeToday: ST.todaySummary(), client: ST.clientSummary() },
+      economy: { today: Object.fromEntries(ECON.map((k) => [k, g(today, k)])), perDay: Object.fromEntries(ECON.map((k) => [k, perDay(k)])) },
+      entities: live.entities, objects: { chests: live.chests, lootBags: live.lootBags, parties: live.parties, fx: live.fx },
+      days: D, note: hist.note || undefined };
+  }
+  /** GET …/admin/perf — тот же JSON. Bearer Clerk-токен → uid → роль «админ» из D1. Иначе 401/403. */
+  async perfHttp(req: Request) {
+    const h = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (!tok) return new Response(JSON.stringify({ error: "нужен токен" }), { status: 401, headers: h });
+    const uid = await verifyClerkToken(tok, this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER).catch(() => null);
+    if (!uid) return new Response(JSON.stringify({ error: "токен недействителен" }), { status: 401, headers: h });
+    await this.roles.ensure().catch(() => {});
+    if (!this.roles.canAdminFull({ pkey: "uid:" + uid, verified: true } as any)) return new Response(JSON.stringify({ error: "только админ" }), { status: 403, headers: h });
+    return new Response(JSON.stringify(await this.perfSnapshot()), { headers: h });
+  }
+
   tick(dt: number, sessions: Map<WebSocket, any>) {
     const now = Date.now();
+    this.sessionsRef = sessions;
+    if (now - (this.stAt || 0) >= 60000) { // аналитика: раз в минуту (выборка онлайна + один batch в D1)
+      this.stAt = now; let r = 0, g = 0;
+      for (const s of sessions.values()) { const ms = this.ms.get(s.id); if (!ms) continue; ms.verified ? r++ : g++; ST.hero(s.id, ms.pub?.lvl || 1, s.stats?.classId || ""); }
+      ST.tick(now, r, g);
+    }
     if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); this.chestTick(now); }
     this.chestChan(now);
     if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.syncRegions(); } // правки плотности локаций → пересборка лагерей
@@ -1350,6 +1435,7 @@ export class MetaService {
     }
     for (const [w, zone] of Object.entries(this.zones)) {
       const { players, socks } = byWorld[w];
+      const zt0 = performance.now();
       zone.update(dt, now, players, (sid, dmg, src) => {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
@@ -1359,8 +1445,9 @@ export class MetaService {
         ms.zp.hp -= real; (ms as any).hurtAt = now;
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
-        else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); }
+        else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); }
       }, (mm) => this.onMobKilled(mm));
+      perfZone(w, performance.now() - zt0);
       if (!sendNow) continue;
       if (!socks.length) { zone.events.length = 0; continue; }
       const ev = zone.takeEvents();
@@ -1423,6 +1510,7 @@ export class MetaService {
   }
 
   onClose(session: any) {
+    ST.leave(session?.id);
     this.pvpGone(session);
     { const p = this.party.leave(session?.id); this.partySend(p); } // отключился — выходит из отряда
     const ms = this.ms.get(session?.id);

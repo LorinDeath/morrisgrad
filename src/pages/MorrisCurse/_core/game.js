@@ -562,6 +562,7 @@ async function boot(canvasId, username, userId, api) {
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
+  net.on('admin_perf', (d) => adminPanel.onPerf(d.data));
   net.on('role_changed', (d) => social.onRoleChanged(d));
   net.on('inspect_err', (d) => social.onInspectErr(d));
   // онлайн / друзья / настройки аккаунта (server/meta/social.ts)
@@ -1441,6 +1442,11 @@ async function boot(canvasId, username, userId, api) {
     else if (quality.high > 12 && quality.level > 0) { quality.level--; applyQuality(); quality.high = 0; quality.cooldown = 8; }
   }
   api.perf = () => ({ fps: fpsS.fps, cpuMs: +fpsS.cpu.toFixed(2), quality: quality.level, pixelRatio: stage.renderer.getPixelRatio(), shadows: stage.renderer.shadowMap.enabled, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles, enemies: run ? run.enemies.size : 0 });
+  // «📊 Нагрузка»: раз в минуту — fps/пинг/тип устройства/браузер (без идентификаторов; сервер обрезает значения)
+  { const ua = navigator.userAgent || '', br = /YaBrowser/.test(ua) ? 'yandex' : /SamsungBrowser/.test(ua) ? 'samsung' : /Edg\//.test(ua) ? 'edge' : /OPR\//.test(ua) ? 'opera' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'other';
+    const mobile = /Mobi|Android|iPhone|iPad/.test(ua) || (navigator.maxTouchPoints > 1 && matchMedia('(pointer:coarse)').matches);
+    const cst = () => { if (net.connected && fpsS.fps) net.send({ type: 'client_stats', fps: fpsS.fps, ping: Math.round(net.ping || 0), mobile, br }); };
+    setTimeout(cst, 15000); setInterval(cst, 60000); }
   const debugEl = document.createElement('div');
   debugEl.style.cssText = 'position:absolute;left:6px;bottom:6px;font:10px monospace;color:#a3e635;text-shadow:0 1px 2px #000;pointer-events:none;white-space:pre';
   overlay.layer.appendChild(debugEl);
