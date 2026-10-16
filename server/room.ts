@@ -1,4 +1,5 @@
 import { admitMessage, isDevRequest, MSG_BURST } from "./limits";
+import { PERF, perfTick, perfMsgIn, perfErr, wrapSend, perfBoot } from "./meta/perf";
 import { resolveWorld } from "./meta/propCollision.ts";
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
@@ -42,6 +43,8 @@ export class GameRoom extends DurableObject {
 
   constructor(ctx: any, env: any) {
     super(ctx, env);
+    perfBoot((ctx as any)?.storage?.sql); // «📊 Нагрузка»: число перезапусков DO
+    if (!(console as any).__perf) { const ce = console.error.bind(console); console.error = (...a: any[]) => { try { perfErr(a.map((x) => (x instanceof Error ? x.message : String(x))).join(" ")); } catch (_) {} ce(...a); }; (console as any).__perf = true; }
     this.sessions = new Map();
     this.activeDuels = new Map();
     this.boss = new KeytBoss();
@@ -65,6 +68,7 @@ export class GameRoom extends DurableObject {
     this.meta.onPlayersChanged = () => this.broadcast();
 
     setInterval(() => {
+      const p0 = performance.now();
       const now = Date.now();
       const dt = (now - this.lastTick) / 1000;
       this.lastTick = now;
@@ -230,6 +234,7 @@ export class GameRoom extends DurableObject {
       try { this.meta.tick(dt, this.sessions); } catch (err) { console.error("meta tick", err); }
 
       this.broadcast();
+      perfTick(p0, performance.now()); // длительность такта и интервал между тактами (кольцевой буфер)
     }, 100);
   }
 
@@ -780,6 +785,8 @@ export class GameRoom extends DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    PERF.sec.add("req");
+    { const u = new URL(request.url); if (u.pathname.endsWith("/admin/perf")) return this.meta.perfHttp(request); } // JSON «Нагрузки» — только админ (Bearer Clerk)
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Ожидался WebSocket", { status: 426 });
     }
@@ -788,12 +795,14 @@ export class GameRoom extends DurableObject {
     const [client, server] = Object.values(pair);
 
     server.accept();
+    wrapSend(server); PERF.sec.add("wsOpen"); // исходящие сообщения/байты — одно сложение на send
     // dev-доверие (userId без токена, dev_* команды) — только при MC_DEV_TRUST_USERID=1 И подключении к localhost:
     // даже если переменную по ошибке включат в проде, публичный домен её не активирует.
     const devOk = isDevRequest(this.env, request);
     const lim = { tokens: MSG_BURST, at: Date.now(), strikes: 0 };
 
     server.addEventListener("message", (event) => {
+      const h0 = performance.now();
       try {
         // защита от мусора/флуда: размер до разбора JSON, токен-бакет на сокет; злостный флуд — закрыть сокет
         const raw = event.data;
@@ -801,6 +810,7 @@ export class GameRoom extends DurableObject {
         if (verdict !== "ok") { if (verdict === "close") { try { server.close(1008, "flood"); } catch (_) {} } return; }
         const msg = JSON.parse(raw as string);
         if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.type !== "string" || msg.type.length > 40) return;
+        perfMsgIn(msg.type, (raw as string).length || 0);
         // крупные сообщения (до MSG_MAX_CHARS) — только ретрансляция забега и правки админки; остальным хватает 16 КБ
         if ((raw as string).length > SMALL_MSG_CHARS && !BIG_MSG_TYPES.has(msg.type)) return;
 
@@ -1329,10 +1339,11 @@ export class GameRoom extends DurableObject {
         }
       } catch (err) {
         console.error("Ошибка:", err);
-      }
+      } finally { PERF.handlerMs.push(Date.now(), performance.now() - h0); }
     });
 
     const closeHandler = () => {
+      PERF.sec.add("wsClose");
       try {
         const session = this.sessions.get(server);
         if (session && session.inDuel && session.duelId) {
@@ -1533,6 +1544,7 @@ export class GameRoom extends DurableObject {
   }
 
   broadcast() {
+    PERF.sec.add("bcast"); PERF.sec.add("fanout", this.sessions.size);
     try {
       // Группы видимости: Поляна, Аринар и отдельная арена каждой PvP-дуэли (arena:<id>).
       // Clerk userId наружу не отдаётся: игроков различают по id сессии (случайный UUID на подключение).

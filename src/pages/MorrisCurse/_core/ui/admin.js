@@ -2,6 +2,7 @@
 // Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
 import { esc } from './overlay.js';
 import { regionMapHtml, mountRegionMap } from './regionMap.js';
+import { perfHtml, mountPerf } from './perfTab.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
 import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
@@ -40,7 +41,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -170,12 +171,21 @@ export class AdminPanel {
     if (r.op === 'quest_delete') { this.cat.quests = this.cat.quests.filter((x) => x.id !== r.id); this.sel = null; }
     this.msg(`✔ Сохранено в D1${r.version ? ` (версия ${r.version})` : ''}`); this.render();
   }
+  onPerf(data) { this.perf = data; this.perfAt = Date.now(); if (this.tab === 'perf' && this.el) this.renderPerf(this.el.querySelector('section')); }
+  renderPerf(sec) {
+    if (!this.full) { sec.innerHTML = '<p>Раздел «Нагрузка» доступен только админу.</p>'; return; }
+    this.perfSub = this.perfSub || 'server';
+    sec.innerHTML = perfHtml(this.perf, this.perfSub);
+    mountPerf(sec, this.perf, { sub: (k) => { this.perfSub = k; this.renderPerf(sec); }, refresh: () => this.send({ type: 'admin_perf' }),
+      copy: async () => { const t = JSON.stringify(this.perf, null, 2); try { await navigator.clipboard.writeText(t); this.msg('✔ JSON скопирован'); } catch (_) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); this.msg('✔ JSON скопирован'); } } });
+    clearInterval(this.perfTimer); this.perfTimer = setInterval(() => { if (this.tab !== 'perf' || !this.el?.isConnected) { clearInterval(this.perfTimer); return; } if (sec.querySelector('[data-auto]')?.checked) this.send({ type: 'admin_perf' }); }, 5000);
+  }
   onAudit(rows) { this.audit = rows; if (this.tab === 'audit') this.render(); }
   items() {
     if (!this.cat) return [];
     const row = (e, kind, pre = '') => ({ id: pre + e.id, name: `${e.icon || ''} ${e.name}`.trim(), sub: e.id, lvl: e.lvl, kind });
     if (this.tab === 'quest') return [{ id: '__tree', name: '🌳 Дерево квестов' }, { id: '__new', name: '＋ Новый квест' }, ...this.cat.quests.map((q) => ({ id: q.id, name: q.title, stars: q.stars, lvl: q.minLevel, sub: (q.custom ? '✚ ' : q.edited ? '✎ ' : '📖 ') + q.npc }))];
-    if (this.tab === 'audit') return [];
+    if (this.tab === 'audit' || this.tab === 'perf') return [];
     // Оружие: типы (форма удара, черты) + конкретное оружие-предметы с требуемым уровнем надевания (item.req/lvl)
     if (this.tab === 'weapon') return [{ grp: 1, id: '__g1', name: 'Типы оружия' }, ...this.cat.ent.weapon.map((e) => ({ ...row(e, 'weapon'), sub: 'тип · ' + e.id })),
       { grp: 1, id: '__g2', name: 'Оружие (предметы)' }, ...this.cat.ent.item.filter((e) => e.slot === 'weapon').sort((a, b) => (a.lvl || 0) - (b.lvl || 0)).map((e) => row(e, 'item', 'item:'))];
@@ -223,6 +233,7 @@ export class AdminPanel {
     this.list();
     if (!this.full && !(this.kinds || []).includes(this.tab)) { this.tab = (this.kinds || ['mob'])[0]; }
     if (this.tab === 'audit') { if (!this.full) { sec.innerHTML = '<p>Журнал доступен только админу.</p>'; return; } if (!this.audit) this.send({ type: 'admin_audit' }); sec.innerHTML = this.auditHtml(); return; }
+    if (this.tab === 'perf') { if (!this.perf || Date.now() - (this.perfAt || 0) > 5000) this.send({ type: 'admin_perf' }); this.renderPerf(sec); return; }
     if (this.tab === 'quest') { if (!this.full) { sec.innerHTML = '<p>Квесты доступны только админу.</p>'; return; } if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }
     const pre = /^(item|spawn|boss|rare|region):/.exec(String(this.sel || ''));
     const kind = pre ? pre[1] : this.tab, id = pre ? this.sel.slice(pre[0].length) : this.sel;

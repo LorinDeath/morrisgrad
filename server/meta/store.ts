@@ -8,6 +8,7 @@
 //   • открытия (предметы/мобы/свойства) + флаг «новое» (viewed_at IS NULL); журнал выдач — grant_audit (уникальный tx).
 //   Старые профили из SQLite DO (mc_accounts/mc_heroes) переносятся в D1 при первом входе (uid → UUID).
 //   Без GAME_DB (локальные тесты без D1) — прежнее хранилище SQLite DO.
+import { ST } from "./stats";
 import { HERO_IDS, ITEM_BY_ID, RESOURCES } from "./defs";
 import { newAccount, newHero, newUid, noteItem, fixAccount, sanitizeTalents, type Account, type Hero, type InvItem } from "./profile";
 import { TALENT_VERSION } from "./shared";
@@ -184,6 +185,7 @@ export class ProfileStore {
     if (!accR.length) {
       // первый вход в D1: перенос из SQLite DO (если был), иначе новый профиль; запишется первой же выгрузкой
       const raw = this.legacyAccount(pkey);
+      if (!raw && pkey.startsWith("uid:")) { ST.inc("new_reg"); if (ST.pendingConv.delete(pkey)) ST.inc("conv"); } // «📊 Нагрузка»: новая регистрация
       const a = fixAccount(raw ? { ...newAccount(), ...raw } : newAccount());
       const remap: Record<string, string> = {};
       for (const it of a.inv) { const u = newUid(); remap[it.uid] = u; it.uid = u; it.src = it.src || "migrate"; it.at = it.at || Date.now(); }
