@@ -16,7 +16,7 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag } from "./cursed";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
-import { CHEST, Chests, Encounters, recipients, rollChest, type Chest, type Encounter, type Kill } from "./chests";
+import { CHEST, Chests, CampRuns, recipients, rollChest, type Chest, type CampRun } from "./chests";
 import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
@@ -32,7 +32,7 @@ import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
-  craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
+  craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
 import { Zone, MOB_SKILLS, regSig, type ZPlayer } from "./zone";
@@ -146,7 +146,7 @@ export class MetaService {
     this.explore = new ExploreStore(env?.GAME_DB);
     this.marks = new MarkStore(env?.GAME_DB);
     this.admin = new AdminStore(env?.GAME_DB);
-    this.loot = new LootBags(); this.chests = new Chests(); this.enc = new Encounters(); this.db = env?.GAME_DB || null;
+    this.loot = new LootBags(); this.chests = new Chests(); this.camps = new CampRuns(); this.db = env?.GAME_DB || null;
     { let t: any = null; this.admin.onChange = () => { if (!t) t = setTimeout(() => { t = null; this.broadcastConfig(); }, 50); }; } // правки — всем онлайн сразу
     this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
@@ -642,7 +642,7 @@ export class MetaService {
         if (msg.mobInfo) { const z = this.zoneOf(session); const list = (z?.mobs || []).filter((x: any) => !x.dead).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y)); const m = msg.typeFilter ? list.find((x: any) => x.type === msg.typeFilter) : list[0]; if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, elite: !!m.elite, special: m.special || "" }); }
         if (msg.bag && typeof msg.bag === "object") { const items = (Array.isArray(msg.bag.items) ? msg.bag.items : []).filter((id: any) => ITEM_BY_ID[untag(String(id))]).slice(0, 30); const res: Record<string, number> = {}; for (const [r, n] of Object.entries(msg.bag.res || {})) if (RESOURCES[r]) res[r] = Math.max(1, Math.min(99, Number(n) || 1)); this.loot.drop(session.world || "hellfire", session.x + 50, session.y, ms.pkey, { items, res }, "dev", "mob", "dev"); }
         if (msg.engageNear) { const z = this.zoneOf(session); for (const m of z?.near(session.x, session.y, Number(msg.engageNear) || 300) || []) if (!m.dead && !m.special && Math.hypot(m.x - session.x, m.y - session.y) <= (Number(msg.engageNear) || 300)) { m.targetSid = session.id; m.dmgBy.set(session.id, (m.dmgBy.get(session.id) || 0) + 1); } } // тест сундуков: «пачка вступила в бой»
-        if (msg.chestInfo) this.send(ws, { type: "dev_chests", list: [...this.chests.chests.values()].map((c) => ({ id: c.id, x: c.x, y: c.y, n: c.entries.length, owners: [...new Set(c.entries.map((e) => e.o))], per: c.entries.reduce((o: any, e) => ((o[e.o] = (o[e.o] || 0) + 1), o), {}), pub: Date.now() >= c.pubAt, guarded: !!c.guarded })), enc: this.enc.map.size });
+        if (msg.chestInfo) this.send(ws, { type: "dev_chests", list: [...this.chests.chests.values()].map((c) => ({ id: c.id, x: c.x, y: c.y, n: c.entries.length, owners: [...new Set(c.entries.map((e) => e.o))], per: c.entries.reduce((o: any, e) => ((o[e.o] = (o[e.o] || 0) + 1), o), {}), pub: Date.now() >= c.pubAt, guarded: !!c.guarded })), enc: this.camps.map.size });
         if (msg.chestSpawn && typeof msg.chestSpawn === "object") { const ents: any[] = []; for (const [owner, ids] of Object.entries(msg.chestSpawn.by || {})) for (const id of (Array.isArray(ids) ? ids : []).slice(0, 30)) if (ITEM_BY_ID[untag(String(id))]) ents.push({ o: owner === "me" ? ms.pkey : String(owner), id: String(id), k: "item", n: 1 }); this.chests.spawn(session.world || "hellfire", session.x + (Number(msg.chestSpawn.dx) || 0), session.y + (Number(msg.chestSpawn.dy) || 0), ents, "dev", "mob", "dev", "dew_slime"); } // тест сундуков (только dev)
         if (msg.hurtMe) { (ms as any).hurtAt = Date.now(); ms.zp.hp = Math.max(1, ms.zp.hp - 1); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
@@ -1149,10 +1149,11 @@ export class MetaService {
     // Сундук схватки: моб из пачки/лагеря → дроп копится; последний моб схватки — ОДИН сундук. Одиночка — мешок (ниже).
     const zw = (() => { for (const sid of m.dmgBy.keys()) { const p = this.partyPos(sid); if (p) return p.world; } return "arinar"; })();
     const zone: any = (this.zones as any)[zw];
-    const enc = zone ? this.enc.onKill(zw, m, zone.mobs, (sid) => this.ms.get(sid)?.pkey || null) : null;
+    // сундук зачищенного лагеря: лагерный моб — добыча копится (мешка нет: без двойного броска); последний моб лагеря — ОДИН сундук
+    const enc = zone ? this.camps.onKill(zw, m, (sid) => this.ms.get(sid)?.pkey || null) : null;
     if (enc) { enc.kills.push({ type: m.type, lootKey: MONSTER_LOOT[m.type] ? m.type : baseOf(m.type), elite: !!m.elite, cursed: !!m.cursed, boss: !!d.boss || m.special === "boss", rare: !!d.rare, special: m.special || "", x: m.x, y: m.y }); if (d.boss) enc.anyBoss = true;
       for (const sid of recv.keys()) { const pk = this.ms.get(sid)?.pkey; if (pk && !enc.pkey.has(sid)) enc.pkey.set(sid, pk); } // отряд рядом
-      if (this.enc.done(enc, (id) => zone.byId.get(id))) this.finishEncounter(enc); }
+      if (this.camps.cleared(enc, zone.mobs)) { const c = (zone.camps || []).find((x: any) => x.id === enc.camp); if (c) { enc.x = c.x; enc.y = c.y; } else { enc.x = m.x; enc.y = m.y; } this.finishCamp(enc); } }
     let split: Map<string, { items: string[]; res: Record<string, number> }> | null = null;
     for (const sid of recv.keys()) {
       const ms = this.ms.get(sid);
@@ -1176,15 +1177,15 @@ export class MetaService {
       const cursedRoll = !!m.cursed && (!CURSE.bossOnly || !!d.boss || m.special === "boss");
       // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
       if (!enc && !split && ownerGrp.includes(sid)) { // один бросок на убийство (как раньше), затем — делёж в отряде владельца мешка
-        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll);
-        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
+        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll, "world"); // открытый мир: × equipDropMult и × matDropMult
+        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll, "world"); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
         split = splitLoot(roll, ownerGrp.filter((g) => recv.has(g)), cryptoRand);
       }
       const loot = split?.get(sid) || { items: [] as string[], res: {} as Record<string, number> };
       if (loot.items.length) { ST.inc("items_drop", loot.items.length); for (const it of loot.items) if (String(it).includes("@c")) ST.inc("cursed_drop"); }
       const bag = enc ? null : this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
-      if (enc) out.enc = enc.watch.size; // добыча копится в сундук схватки
+      if (enc) { let left = 0; for (const o of zone.mobs) if (o.camp === enc.camp && o.respawnAt !== -1 && !enc.killed.has(o.id)) left++; out.enc = left; } // добыча копится в сундук лагеря; осталось мобов
       this.qev(a, session, { type: "kill", mob: base, cls });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, usedAbility: m.usedAbility.has(sid) });
       this.push(ws, session, { loot: out });
@@ -1234,25 +1235,32 @@ export class MetaService {
     }
   }
   loot!: LootBags; lootExpAt = 0;
-  chests!: Chests; enc!: Encounters; db: any = null; chestLoaded = false; chestSaving = false;
+  chests!: Chests; camps!: CampRuns; db: any = null; chestLoaded = false; chestSaving = false;
   // ---------- сундуки схватки ----------
-  finishEncounter(e: Encounter) {
-    this.enc.close(e);
+  /** лагерь зачищен: ОДИН сундук в центре лагеря. Шансы — СЫРЫЕ из таблицы (без equipDropMult/matDropMult).
+   * Проклятые мобы — прежние правила: обычные вещи/материалы × mobDropMult, проклятые копии — по CURSE.bossOnly и itemChanceMult. */
+  finishCamp(e: CampRun) {
+    this.camps.close(e);
     const groupOf = (sid: string) => { const p = this.party.get(sid); return p ? p.members.filter((x) => { const q = this.partyPos(x), me = this.partyPos(sid); return q && me && q.world === me.world && Math.hypot(q.x - e.x, q.y - e.y) < 1500; }) : [sid]; };
     const rec = recipients(e, (sid) => (CHEST.partyNear ? groupOf(sid) : [sid]));
-    const roll = (k: Kill) => { const mul = k.cursed ? CURSE.mobDropMult : 1, cr = k.cursed && (!CURSE.bossOnly || k.boss); const r = rollMonsterLoot(k.lootKey, cryptoRand, mul, cr);
-      if (k.elite) { const l2 = rollMonsterLoot(k.lootKey, cryptoRand, mul, cr); r.items.push(...l2.items); for (const [x, n] of Object.entries(l2.res)) r.res[x] = (r.res[x] || 0) + n; } return r; };
-    const ents = rollChest(e, rec, groupOf, roll, cryptoRand);
     const last = e.kills[e.kills.length - 1], guardType = (e.kills.find((k) => !k.boss && !k.special) || last).type;
-    for (const en of ents as any[]) for (const it of (en?.items || [])) { ST.inc("items_drop"); if (String(it).includes("@c")) ST.inc("cursed_drop"); }
-    const c = this.chests.spawn(e.world, e.x, e.y, ents, `chest:${last.type}`, e.anyBoss ? "boss" : e.kills.some((k) => k.rare || k.elite) ? "rare" : "mob", last.type, guardType);
-    if (!c) return;
-    for (const [sid, pk] of rec) { const en = this.sessionLookup?.(sid); const mine = c.entries.filter((x) => x.o === pk).length; if (en && mine) this.send(en[0], { type: "chest_spawn", id: c.id, x: c.x, y: c.y, mine, kills: e.kills.length }); }
+    const kind = e.anyBoss ? "boss" : e.kills.some((k) => k.rare || k.elite) ? "rare" : "mob";
+    // второй сундук — с шансом campSecondPct (независимый второй бросок по тем же убийствам), чуть в стороне
+    const n = 1 + (cryptoRand() * 100 < CHEST.campSecondPct ? 1 : 0);
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const ents = rollChest(e, rec, groupOf, campRoll, cryptoRand);
+      for (const en of ents) if (en.k === "item") { ST.inc("items_drop"); if (en.id.endsWith("@c")) ST.inc("cursed_drop"); }
+      const c = this.chests.spawn(e.world, e.x + (i ? 70 : 0), e.y + (i ? 30 : 0), ents, `camp:${e.world}:${e.camp}`, kind, last.type, guardType, Date.now(), CHEST.campSpawnEmpty);
+      if (!c) continue; any = true;
+      for (const [sid, pk] of rec) { const en = this.sessionLookup?.(sid); const mine = c.entries.filter((x) => x.o === pk).length; if (en && (mine || c.keepEmpty)) this.send(en[0], { type: "chest_spawn", id: c.id, x: c.x, y: c.y, mine, kills: e.kills.length, second: i ? 1 : undefined }); }
+    }
+    if (!any) for (const sid of rec.keys()) { const en = this.sessionLookup?.(sid); if (en) this.send(en[0], { type: "toast", message: "Лагерь зачищен — в этот раз без добычи" }); } // пустой сундук не ставим (campSpawnEmpty выкл)
   }
   chestView(c: Chest, ms: MetaSess, extra: any = {}) {
     const now = Date.now(), ents = this.chests.visible(c, ms.pkey, now), cards: Record<string, any> = {};
     for (const e of ents) if (e.k === "item" && !ms.cards.has(e.id)) { const cc = itemCard(e.id); if (cc) { cards[e.id] = cc; ms.cards.add(e.id); } }
-    return { type: "chest_view", id: c.id, x: c.x, y: c.y, pub: this.chests.isPublic(c, now) ? 1 : 0, pubAt: c.pubAt, exp: c.exp, entries: ents.map(({ o, ...r }) => ({ ...r, mine: o === ms.pkey ? 1 : undefined })), cards, ...extra };
+    return { type: "chest_view", now, id: c.id, x: c.x, y: c.y, pub: this.chests.isPublic(c, now) ? 1 : 0, pubAt: c.pubAt, exp: c.exp, entries: ents.map(({ o, ...r }) => ({ ...r, mine: o === ms.pkey ? 1 : undefined })), cards, ...extra };
   }
   chestOpen(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id); if (!ms || !this.zoneOf(session)) return;
@@ -1261,7 +1269,7 @@ export class MetaService {
     if (typeof c === "string") return this.send(ws, { type: "chest_err", id: Number(msg.chest), message: c });
     const r = this.chests.tryOpen(c, ms.pkey, session.id);
     if ("err" in r) return this.send(ws, { type: "chest_err", id: c.id, message: r.err });
-    if ("channel" in r) return this.send(ws, { type: "chest_channel", id: c.id, until: r.channel, sec: CHEST.channelSec });
+    if ("channel" in r) return this.send(ws, { type: "chest_channel", id: c.id, until: r.channel, left: Math.max(0, r.channel - Date.now()), sec: CHEST.channelSec }); // left — остаток в мс: часы телефона могут отличаться от сервера
     ST.inc("chests_open"); this.send(ws, this.chestView(c, ms));
   }
   chestTake(ws: WebSocket, session: any, msg: any) {
@@ -1290,7 +1298,7 @@ export class MetaService {
   }
   chestTick(now: number) {
     if (!this.chestLoaded) { this.chestLoaded = true; this.chestLoad().catch((e) => console.error("[mc] chest load", e?.message || e)); }
-    for (const e of [...this.enc.map.values()]) { const z: any = (this.zones as any)[e.world]; if (this.enc.done(e, (id) => z?.byId.get(id), now)) this.finishEncounter(e); }
+    this.camps.expire(now); // зачистки без убийств дольше campIdleSec — сброс
     this.chests.expire(now);
     for (const c of this.chests.chests.values()) if (CHEST.guard && !c.guarded && now >= c.pubAt && c.entries.length) this.guardChest(c);
     if (!this.chestSaving && (this.chests.dirty.size || this.chests.removed.size)) this.chestSave().catch((e) => console.error("[mc] chest save", e?.message || e));

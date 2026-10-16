@@ -16,12 +16,16 @@ export class ChestWindow {
   get channeling() { return !!this.ch; }
   // ---- канал открытия ----
   channel(d) {
-    this.ch = { id: d.id, from: Date.now(), until: d.until, sec: d.sec };
+    // остаток — по своим часам: часы телефона бывают сдвинуты относительно сервера (полоса заполнялась за ~4 с и «висела»)
+    const now = Date.now(), left = Number.isFinite(d.left) ? d.left : Math.max(0, d.until - now);
+    if (this.ch && this.ch.id === d.id) this.ch.until = now + left; // повторное нажатие — тот же канал, полоса не начинается заново
+    else this.ch = { id: d.id, from: now, until: now + left, sec: d.sec };
     if (!this.bar) { const b = document.createElement('div'); b.className = 'mc-chest-chan'; b.innerHTML = `<div class="t">📦 Открытие сундука… <span></span></div><div class="trk"><i></i></div><small>Любой урон прервёт открытие</small>`; this.host.appendChild(b); this.bar = b; }
   }
   cancel(msg) { this.ch = null; if (this.bar) { this.bar.classList.add('fail'); this.bar.querySelector('.t').textContent = msg || 'Открытие прервано'; const b = this.bar; this.bar = null; setTimeout(() => b.remove(), 1400); } }
   // ---- окно ----
   view(d) {
+    if (Number.isFinite(d.now)) { const k = Date.now() - d.now; d = { ...d, pubAt: d.pubAt + k, exp: d.exp + k }; } // таймеры окна — в часах клиента
     if (this.ch && this.ch.id === d.id) { this.ch = null; this.bar?.remove(); this.bar = null; }
     if (this.c && this.c.id === d.id && this.el) { if (d.taken) this.pending.delete(d.taken); this.c = d; if (!d.entries.length) { this.close(); return; } this.render(); return; }
     this.c = d; this.order = null;

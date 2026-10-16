@@ -15,7 +15,7 @@ import { CURSE } from "./cursed";
 import { CHEST } from "./chests";
 
 export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome";
-export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
+export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -56,7 +56,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "bossOn", label: "Мировой босс в локации", t: "bool" }] },
   boss: { name: "Мировые боссы", fields: [N("every", "Возрождение после смерти, с", 30, 86400, "int"), N("firstAfter", "Первое появление после старта, с", 0, 86400, "int")] },
   // «Проклятие» — только админ (модератору не отдаётся: roles.MOD_ADMIN_KINDS); одна запись id='main'
-  curse: { name: "Проклятие", fields: [N("equipDropMult", "Шанс дропа экипировки, × (все таблицы; материалы не трогаются)", 0, 100),
+  curse: { name: "Проклятие", fields: [N("equipDropMult", "Шанс дропа экипировки, × (открытый мир и забеги; сундук лагеря — по таблице)", 0, 100),
     N("mobDropMult", "Проклятый моб/босс: шанс обычных вещей и материалов, ×", 0, 100),
     N("itemChanceMult", "Проклятая версия вещи: шанс = базовый × (отдельный бросок)", 0, 100),
     { path: "bossOnly", label: "Проклятые вещи — только с проклятых боссов", t: "bool" },
@@ -68,10 +68,17 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   biome: { name: "Биомы карты", fields: [{ path: "name", label: "Название биома на карте M", t: "text" }, { path: "sub", label: "Название зоны (вторая строка; пусто — без неё)", t: "text" }] },
   dash: { name: "Рывок", fields: [N("cd", "Перезарядка рывка, с", 0.5, 60), N("invulnMs", "Неуязвимость после рывка, мс (1 кадр ≈ 16,7 мс · 5 кадров ≈ 83 мс; 0 — нет)", 0, 1000, "int"), { path: "blink", label: "Мигание героя во время неуязвимости (видят все)", t: "bool" }] },
   // «Сундуки схватки» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main'
-  chest: { name: "Сундуки", fields: [{ path: "on", label: "Сундуки схватки включены (выкл — мешок с каждого моба)", t: "bool" },
+  chest: { name: "Сундуки", fields: [{ path: "_h_camp", label: "Лагерь", t: "hdr" },
+    { path: "on", label: "Сундук зачищенного лагеря включён (выкл — мешок с каждого моба)", t: "bool" },
+    { path: "campRaw", label: "Сундук лагеря: шансы ровно как в таблице (выкл — таблица × свой множитель)", t: "bool" },
+    N("campMult", "Сундук лагеря: свой множитель шансов, × (если «как в таблице» выкл)", 0, 100),
+    N("campSecondPct", "Шанс второго сундука, %", 0, 100), { path: "campSpawnEmpty", label: "Ставить сундук, даже если пустой", t: "bool" },
+    N("campIdleSec", "Зачистка лагеря сбрасывается без убийств через, с", 30, 7200, "int"),
+    N("matDropMult", "Шанс материалов в открытом мире, × (мешки мобов; количество не меняется)", 0, 100),
+    { path: "_h_gen", label: "Общие", t: "hdr" },
     N("personalSec", "Личная фаза, с", 0, 3600, "int"), N("publicSec", "Общий сундук живёт, с", 10, 86400, "int"), N("channelSec", "Открытие общего сундука (канал), с", 0, 120),
-    N("range", "Дальность открыть/взять, px", 40, 400, "int"), N("linkRadius", "Схватка: радиус связи мобов, px", 50, 3000, "int"), N("linkWindowSec", "Схватка: окно продолжения, с", 0, 300),
-    N("timeoutSec", "Схватка: закрыть без убийств через, с", 5, 900, "int"), N("minSharePct", "Порог вклада, % урона схватки", 0, 100),
+    N("range", "Дальность открыть/взять, px", 40, 400, "int"), N("linkRadius", "(не используется) радиус связи мобов, px", 50, 3000, "int"), N("linkWindowSec", "(не используется) окно продолжения, с", 0, 300),
+    N("timeoutSec", "(не используется) закрыть без убийств через, с", 5, 900, "int"),  N("minSharePct", "Порог вклада, % урона по лагерю", 0, 100),
     { path: "partyNear", label: "Отряд участника рядом тоже получает добычу", t: "bool" },
     { path: "partyMode", label: "Режим отряда: personal — свои броски; rr — общий бросок по кругу; roll — общий бросок, случайному", t: "enum", opts: ["personal", "rr", "roll"] },
     { path: "guard", label: "Стража у общего сундука", t: "bool" }, N("guardN", "Стражей", 0, 8, "int"), N("takeRate", "Взятий в секунду (Shift+клик)", 1, 30)] },
@@ -120,7 +127,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
   const out: any = {};
   for (const [p, v] of Object.entries(patch)) {
     if (p === "traits") { if (!S.traits) return "у этой сущности нет черт"; const t = validateTraits(v); if (typeof t === "string") return t; out.traits = t; continue; }
-    const f = S.fields.find((x) => x.path === p); if (!f) return `поле ${p} не редактируется`;
+    const f = S.fields.find((x) => x.path === p); if (!f || f.t === "hdr") return `поле ${p} не редактируется`;
     if (f.t === "bool") out[p] = !!v;
     else if (f.t === "enum") { if (!f.opts!.includes(String(v))) return `${f.label}: недопустимо`; if (p === "rs" && v && kind === "item" && TABLES.item[id].slot !== "weapon") return "навык R — только у оружия"; out[p] = String(v); }
     else if (f.t === "resmap") {
