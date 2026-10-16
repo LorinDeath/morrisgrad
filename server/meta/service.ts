@@ -21,6 +21,10 @@ import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
+import { mapZones } from "./mapZones";
+import { dashTry, dashClient, DASH_CFG } from "./dash";
+import { WORLD_GEN } from "./zoneGen";
+let MZ: { ver: number; z: any } | null = null;
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -244,6 +248,7 @@ export class MetaService {
     s.questDialogues = QUEST_DIALOGUES; // диалоги-новеллы квестов (админка)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
+    if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); // карта M: биом · ур. мобов (живые уровни)
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
@@ -386,6 +391,14 @@ export class MetaService {
       // профиль ещё не загружен (или загрузка не удалась) — meta_get запускает повтор
       if (msg.type === "meta_get" && session) { this.retryJoin(ws, session); return true; }
       return false;
+    }
+    if (msg.type === "dash") { // рывок: перезарядка и неуязвимость — по часам сервера; мигание видят все в мире
+      const now = Date.now(), r = dashTry((ms as any).dashSt ||= {}, now);
+      if (!r.ok) { this.send(ws, { type: "dash_reject", left: Math.round(r.left) }); return true; }
+      if (DASH_CFG.invulnMs > 0) (ms as any).invulnUntil = Math.max((ms as any).invulnUntil || 0, r.invulnUntil);
+      const fx = { type: "dash_fx", id: session.id, ms: DASH_CFG.invulnMs, blink: DASH_CFG.blink !== false }, w = session.world || "hellfire";
+      for (const sid of this.ms.keys()) { const e = this.sessionLookup?.(sid); if (e && (e[1]?.world || "hellfire") === w) this.send(e[0], fx); }
+      return true;
     }
     if (MSG_SCHEMA[msg.type]) {
       const now = Date.now();

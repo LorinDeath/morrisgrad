@@ -54,6 +54,7 @@ import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../
 import { setQuestDialogues, QUEST_DIALOGUES } from '../../../../server/meta/vnChars.ts';
 import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
+import { setMapZones, mapZonesKnown, biomeLabels } from './map/biomeLabels.js';
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
 function applyConfig(d) {
@@ -67,7 +68,9 @@ const WORLD_SIZE = 1200; // хаб; Аринар — 48000 (server/worlds/sizes.
 const MOVE_SPEED = 175; // px/с, как в 2D-версии
 const pvpSt = { slowUntil: 0, frozenUntil: 0, swiftUntil: 0 }; // замедление/заморозка/порыв от сервера (pvp_state pstatus / buff)
 const swiftSt = { until: 0 }; // Порыв сияния в открытом мире (+25% скорости на 2 с)
-const DASH = { duration: 0.22, speed: 620, cooldown: 0.9 };
+const DASH = { duration: 0.22, speed: 620, cooldown: 5, invulnMs: 83, blink: true }; // cooldown/invulnMs/blink — с сервера (админка «🏃 Рывок»)
+const ivBlink = new Map(); // id игрока ('me' — я) → до какого времени мигать (неуязвимость рывка, dash_fx от сервера)
+const blinkOn = (id) => { const u = ivBlink.get(id); if (!u) return false; const t = performance.now(); if (t > u) { ivBlink.delete(id); return false; } return Math.floor(t / 33) % 2 === 0; };
 const PORTAL_RANGE = 85; // как проверка сервера
 const FLOWER_RANGE = 56; // ≤ серверных 120 px: подсказка — только когда бутон рядом и виден
 const ALTAR = { x: 565, y: 600 };
@@ -317,6 +320,8 @@ async function boot(canvasId, username, userId, api) {
     if (mode === 'run' && run) { run.setMembers([], null); }
   });
   // коррекция сервера: упёрлись в твёрдый пропс иначе, чем предсказали (propCollision.ts)
+  net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
+  net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
   net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
   net.on('world_switched', (d) => {
     if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
@@ -410,6 +415,8 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('salvage_preview', (d) => book.showSalvagePreview(d));
   net.on('meta_state', (d) => {
+    if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
+    if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -1493,7 +1500,8 @@ async function boot(canvasId, username, userId, api) {
     const mv = blocked ? { x: 0, y: 0 } : moveVector();
     dash.cd = Math.max(0, dash.cd - dt);
     if (input.dashPressed && !blocked && dash.cd <= 0 && !dash.active) {
-      dash.active = true; dash.timer = DASH.duration; dash.cd = DASH.cooldown;
+      dash.active = true; dash.timer = DASH.duration; dash.cd = DASH.cooldown; dash.max = DASH.cooldown;
+      net.send({ type: 'dash' }); // сервер: перезарядка и неуязвимость по своим часам, мигание — всем в мире (dash_fx)
       dash.dirX = mv.x || player.dirX; dash.dirY = mv.y || player.dirY;
       const l = Math.hypot(dash.dirX, dash.dirY) || 1; dash.dirX /= l; dash.dirY /= l;
     }
@@ -1546,8 +1554,8 @@ async function boot(canvasId, username, userId, api) {
 
     const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom);
     hub.update(dt, {
-      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: zone.me && zone.me.alive === false, cg: meta.hero?.effective?.cursedGlow || 0 },
-      others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color })),
+      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0 },
+      others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color, blink: blinkOn(o.id) })),
       boss: world === 'hellfire' ? boss : null,
       dar: world === 'hellfire' ? dar : null,
       flowers: world === 'hellfire' ? flowers : new Map(),
@@ -1821,6 +1829,8 @@ async function boot(canvasId, username, userId, api) {
       minimap: () => hud.minimap?.stats,
       openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
+      dashInfo: () => ({ cd: DASH.cooldown, invulnMs: DASH.invulnMs, blink: DASH.blink, blinking: [...ivBlink.keys()] }),
+      biomes: () => ({ known: mapZonesKnown(), labels: biomeLabels(world).map((L) => L.key) }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
       bags: () => [...zone.bags.values()], chests: () => [...zone.chests.values()], chest: () => ({ open: chestWin.isOpen, chan: chestWin.channeling, c: chestWin.c }), loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),

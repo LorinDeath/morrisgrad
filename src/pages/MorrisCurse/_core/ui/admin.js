@@ -1,6 +1,7 @@
 // Админ-панель: полный доступ — роль admin; модератор видит только Бестиарий / Оружие / Предметы.
 // Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
 import { esc } from './overlay.js';
+import { regionMapHtml, mountRegionMap } from './regionMap.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
 import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
@@ -39,7 +40,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -229,6 +230,7 @@ export class AdminPanel {
     const e = this.cat.ent[kind].find((x) => x.id === id);
     if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
     this.entityForm(sec, kind, e);
+    if (kind === 'region') { sec.insertAdjacentHTML('beforeend', regionMapHtml()); this.rmap = mountRegionMap(sec, id, (rid) => { if (this.cat.ent.region.some((x) => x.id === rid)) { this.sel = 'region:' + rid; this.render(); this.el.querySelector('aside li.on')?.scrollIntoView({ block: 'nearest' }); } }); }
   }
   entityForm(sec, kind, e) {
     if (!this.full && !(this.kinds || ['mob','weapon','item']).includes(kind)) { sec.innerHTML = '<p>Недостаточно прав.</p>'; return; }

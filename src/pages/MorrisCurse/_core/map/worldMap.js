@@ -8,6 +8,7 @@ import { WORLD_SIZES } from '../../../../../server/worlds/sizes.ts';
 import { fog } from './fog.js';
 import { FOG_N, getBit } from '../../../../../server/meta/explore.ts';
 import { esc } from '../ui/overlay.js';
+import { biomeLabels, drawBiomeLabel } from './biomeLabels.js';
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default || '') : s);
 export class WorldMap {
@@ -75,6 +76,8 @@ export class WorldMap {
     else { ctx.fillStyle = '#1b1530'; ctx.fillRect(x0, y0, sz, sz); }
     if (fog.active(w)) drawFog(ctx, fog, x0, y0, sz, FOG_N, getBit); // чёрное с облаками — неразведанное
     ctx.strokeStyle = '#c59b27'; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, sz, sz);
+    const bl = biomeLabels(w); let blN = 0; // биом · ур. мобов — только разведанное
+    for (const L of bl) { const [x, y] = this.toScreen(L.x, L.y); if (x < -150 || y < -40 || x > W + 150 || y > H + 40) continue; if (this.k < 0.012 && L.cells < 3) continue; drawBiomeLabel(ctx, x, y, L, this.k); blN++; }
     ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const ms = this.visibleMarkers();
     for (const m of ms) {
@@ -108,6 +111,6 @@ export class WorldMap {
       if (!drawMarkerIcon(ctx, 'player', x, y, 32)) { ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     }
     this.info.textContent = fog.active(w) ? `разведано ${fog.pct()}% · объектов видно: ${ms.length}` : `объектов: ${ms.length}`;
-    this.stats = { k: this.k, markers: ms.length, fog: fog.active(w), pct: fog.pct(), hunt: hu ? this.stats_hunt : null };
+    this.stats = { labels: bl.map((L) => L.name + (L.sub ? ': ' + L.sub : '') + ' ' + L.lvl.join('-')), labelsDrawn: blN, k: this.k, markers: ms.length, fog: fog.active(w), pct: fog.pct(), hunt: hu ? this.stats_hunt : null };
   }
 }

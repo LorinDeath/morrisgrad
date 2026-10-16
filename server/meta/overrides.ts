@@ -1,4 +1,5 @@
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
+import { DASH_CFG } from "./dash";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
@@ -12,7 +13,7 @@ import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { CURSE } from "./cursed";
 import { CHEST } from "./chests";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash";
 export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -62,6 +63,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("mobHp", "Проклятый моб: ОЗ, ×", 1, 50), N("mobDmg", "Проклятый моб: урон, ×", 1, 50), N("mobArmor", "Проклятый моб: броня, ×", 1, 20), N("mobXp", "Проклятый моб: опыт, ×", 0, 50),
     N("glow1", "Свечение: 1 вещь (0…1)", 0, 1), N("glow2", "Свечение: 2 вещи", 0, 1), N("glow3", "Свечение: 3 вещи", 0, 1), N("glow4", "Свечение: 4 вещи", 0, 1), N("glow5", "Свечение: полный комплект (пульсирует)", 0, 1),
     { path: "tint", label: "Цвет проклятия", t: "color" }] },
+  // «Рывок» — только админ: перезарядка и неуязвимость (сервер считает по времени)
+  dash: { name: "Рывок", fields: [N("cd", "Перезарядка рывка, с", 0.5, 60), N("invulnMs", "Неуязвимость после рывка, мс (1 кадр ≈ 16,7 мс · 5 кадров ≈ 83 мс; 0 — нет)", 0, 1000, "int"), { path: "blink", label: "Мигание героя во время неуязвимости (видят все)", t: "bool" }] },
   // «Сундуки схватки» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main'
   chest: { name: "Сундуки", fields: [{ path: "on", label: "Сундуки схватки включены (выкл — мешок с каждого моба)", t: "bool" },
     N("personalSec", "Личная фаза, с", 0, 3600, "int"), N("publicSec", "Общий сундук живёт, с", 10, 86400, "int"), N("channelSec", "Открытие общего сундука (канал), с", 0, 120),
@@ -73,7 +76,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
