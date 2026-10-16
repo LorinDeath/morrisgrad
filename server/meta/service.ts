@@ -22,6 +22,7 @@ import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
 import { mapZones } from "./mapZones";
+import { MarkStore } from "./mapMarks";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
@@ -126,6 +127,7 @@ export class MetaService {
   duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   explore: ExploreStore;
+  marks: MarkStore;
   admin: AdminStore;
   onVerified?: (ws: any, session: any, uid: string) => void;
   constructor(sql: any, env: any) {
@@ -136,6 +138,7 @@ export class MetaService {
     this.social = new Social(this, env?.GAME_DB);
     this.roles = new Roles(env?.GAME_DB);
     this.explore = new ExploreStore(env?.GAME_DB);
+    this.marks = new MarkStore(env?.GAME_DB);
     this.admin = new AdminStore(env?.GAME_DB);
     this.loot = new LootBags(); this.chests = new Chests(); this.enc = new Encounters(); this.db = env?.GAME_DB || null;
     { let t: any = null; this.admin.onChange = () => { if (!t) t = setTimeout(() => { t = null; this.broadcastConfig(); }, 50); }; } // правки — всем онлайн сразу
@@ -391,6 +394,17 @@ export class MetaService {
       // профиль ещё не загружен (или загрузка не удалась) — meta_get запускает повтор
       if (msg.type === "meta_get" && session) { this.retryJoin(ws, session); return true; }
       return false;
+    }
+    if (msg.type === "mark_add" || msg.type === "mark_del" || msg.type === "mark_rename" || msg.type === "mark_list") { // метки карты M: только свои, герой = класс сессии, мир = мир сессии
+      const cls = session.stats?.classId, w = session.world || "hellfire"; if (!cls) return true;
+      const t = Date.now(); if (msg.type !== "mark_list" && t - ((ms as any).markAt || 0) < 150) { this.send(ws, { type: "mark_err", message: "Слишком часто" }); return true; }
+      (ms as any).markAt = t; const P = ms.pkey, done = (r: any) => this.send(ws, r.ok ? { type: "mark_ok", op: msg.type, world: w, mark: r.mark, id: msg.id } : { type: "mark_err", message: r.err });
+      const fail = (e: any) => { console.error("[mc] marks", e?.message || e); this.send(ws, { type: "mark_err", message: "Не удалось сохранить метку" }); };
+      if (msg.type === "mark_list") this.marks.list(P, cls, w).then((a) => this.send(ws, { type: "marks", world: w, hero: cls, list: a })).catch(fail);
+      else if (msg.type === "mark_add") this.marks.add(P, cls, w, msg.x, msg.y, msg.n).then(done).catch(fail);
+      else if (msg.type === "mark_rename") this.marks.rename(P, cls, w, msg.id, msg.n).then(done).catch(fail);
+      else this.marks.del(P, cls, w, msg.id).then(done).catch(fail);
+      return true;
     }
     if (msg.type === "dash") { // рывок: перезарядка и неуязвимость — по часам сервера; мигание видят все в мире
       const now = Date.now(), r = dashTry((ms as any).dashSt ||= {}, now);
@@ -1392,6 +1406,7 @@ export class MetaService {
     const key = cls + "|" + w;
     if (ms.fogKey !== key) {
       ms.fogKey = key; ms.fogAt = now;
+      this.marks.list(ms.pkey, cls, w).then((a) => { if (ms.fogKey === key) this.send(ws, { type: "marks", world: w, hero: cls, list: a }); }).catch(() => {}); // свои метки героя для этого мира
       if (!FOG_WORLDS.includes(w)) { this.send(ws, { type: "fog", world: w, none: true }); return; }
       this.explore.visit(ms.pkey, cls, w, s.x, s.y);
       this.explore.full(ms.pkey, cls, w).then((f) => { if (ms.fogKey === key) this.send(ws, { type: "fog", ...f, hero: cls }); }).catch((e) => console.error("[mc] fog", e?.message || e));

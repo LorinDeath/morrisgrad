@@ -55,6 +55,7 @@ import { setQuestDialogues, QUEST_DIALOGUES } from '../../../../server/meta/vnCh
 import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 import { setMapZones, mapZonesKnown, biomeLabels } from './map/biomeLabels.js';
+import { onMarks, onMarkOk, marks as MARKS } from './map/marks.js';
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
 function applyConfig(d) {
@@ -320,6 +321,9 @@ async function boot(canvasId, username, userId, api) {
     if (mode === 'run' && run) { run.setMembers([], null); }
   });
   // коррекция сервера: упёрлись в твёрдый пропс иначе, чем предсказали (propCollision.ts)
+  net.on('marks', (d) => { onMarks(d); worldMap.draw(); });
+  net.on('mark_ok', (d) => { onMarkOk(d); worldMap.draw(); });
+  net.on('mark_err', (d) => overlay.toast(d.message || 'Ошибка метки', '#fca5a5'));
   net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
   net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
   net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
@@ -447,6 +451,7 @@ async function boot(canvasId, username, userId, api) {
   });
   // туман войны и большая карта (M)
   const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, hunt: tracker.hunt, party: party.others().filter((m) => m.world === world && !m.run) }));
+  worldMap.send = (o) => net.send(o); // метки карты — на сервер
   hud.minimap.onOpenMap = () => worldMap.open();
   net.on('fog', (d) => { fog.setFull(d); worldMap.draw(); });
   net.on('fog_add', (d) => { fog.add(d); if (worldMap.isOpen) worldMap.draw(); });
@@ -1024,6 +1029,8 @@ async function boot(canvasId, username, userId, api) {
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && worldMap.isOpen) { worldMap.close(); return; }
     if (worldMap.isOpen && (k === 'n' || k === 'т') && !e.repeat) { worldMap.toggleBiome(); return; } // N — карта биомов
+    if (worldMap.isOpen && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')) { worldMap.zoomBy(1.5); return; } // +/− — зум карты
+    if (worldMap.isOpen && (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract')) { worldMap.zoomBy(1 / 1.5); return; }
     if (e.key === 'Escape') {
       if (book.isOpen) { book.close(); return; }
       if (dialog.isOpen) { dialog.close(); return; }
@@ -1834,7 +1841,7 @@ async function boot(canvasId, username, userId, api) {
       dashInfo: () => ({ cd: DASH.cooldown, invulnMs: DASH.invulnMs, blink: DASH.blink, blinking: [...ivBlink.keys()] }),
       biomes: () => ({ known: mapZonesKnown(), labels: biomeLabels(world).map((L) => L.key) }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
-      openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f), mapBiome: (on) => worldMap.toggleBiome(on),
+      openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f), mapBiome: (on) => worldMap.toggleBiome(on), marks: () => ({ world: MARKS.world, n: MARKS.list.length, list: MARKS.list.map((m) => m.n), show: MARKS.show }), mapTap: (sx, sy) => worldMap.tap(sx, sy), mapScreen: (x, y) => worldMap.toScreen(x, y),
       bags: () => [...zone.bags.values()], chests: () => [...zone.chests.values()], chest: () => ({ open: chestWin.isOpen, chan: chestWin.channeling, c: chestWin.c }), loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
       portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal, foreign: !!p.foreign, name: p.name })),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),
