@@ -40,6 +40,7 @@ export class ZoneView {
     this.mobs = new Map(); // id → {type,x,y,tx,ty,hp,flag,flash,flip,seen}
     this.nodes = new Map(); // id → {def, ready, mesh}
     this.bags = new Map(); // мешки добычи (свои): id → {id, x, y, n}
+    this.chests = new Map(); // сундуки схватки: id → {id, x, y, pub, left, mine, n}
     this.dying = [];
     this.teles = []; // {kind,x,y,r,dx,dy,len,t,life}
     this.bolts = [];
@@ -75,13 +76,13 @@ export class ZoneView {
     if (world === this.world) return;
     this.world = world;
     this.mobs.clear(); this.dying.length = 0; this.teles.length = 0;
-    this.nodes.clear(); this.bags.clear();
+    this.nodes.clear(); this.bags.clear(); this.chests.clear();
     if (world === 'arinar') this.buildNodes(this.seed);
   }
 
   // Узлы ресурсов — из того же сида, что и на сервере (server/meta/zoneGen.ts)
   buildNodes(seed) {
-    this.nodes.clear(); this.bags.clear();
+    this.nodes.clear(); this.bags.clear(); this.chests.clear();
     this.seed = seed;
     genNodes(seed).forEach((def, i) => {
       this.nodes.set(def.id, { def, ready: true, id: def.id, flip: (i & 1) === 1 });
@@ -110,6 +111,7 @@ export class ZoneView {
     }
     for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
     if (Array.isArray(s.bags)) { const keep = new Set(); for (const [id, x, y, n] of s.bags) { keep.add(id); this.bags.set(id, { id, x, y, n }); } for (const id of [...this.bags.keys()]) if (!keep.has(id)) this.bags.delete(id); }
+    if (Array.isArray(s.chests)) { const keep = new Set(); for (const [id, x, y, pub, left, mine, n] of s.chests) { keep.add(id); this.chests.set(id, { id, x, y, pub: !!pub, left, mine, n, at: Date.now() }); } for (const id of [...this.chests.keys()]) if (!keep.has(id)) this.chests.delete(id); }
     for (const [id, ready] of s.n || []) { const n = this.nodes.get(id); if (n) n.ready = !!ready; }
     if (s.me) this.me = s.me;
     this.tg = s.tg || null; // выбранная цель: точные ХП с сервера
@@ -161,6 +163,7 @@ export class ZoneView {
     }
     return best;
   }
+  nearestChest(px, py, range = 110) { let best = null, bd = range; for (const c of this.chests.values()) { const d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; best = c; } } return best; }
   nearestBag(px, py, range = 100) {
     let best = null, bd = range;
     for (const b of this.bags.values()) { const d = Math.hypot(b.x - px, b.y - py); if (d < bd) { bd = d; best = b; } }
@@ -331,6 +334,8 @@ export class ZoneView {
         NB.push('crate', 0, 0, toX(b.x), toZ(b.y), 0.55 * (1 + Math.sin(T * 4 + b.id) * 0.05), false, 1, 0, [1.35, 1.15, 0.6], false);
         atmo.shadow(toX(b.x), toZ(b.y), 0.5, 1);
       }
+      // сундуки схватки: большой ящик; личный (есть мои) — золотой, общий — тёмный
+      for (const c of this.chests.values()) { const g = !c.pub && c.mine ? [1.6, 1.3, 0.5] : c.pub ? [0.85, 0.8, 0.95] : [0.7, 0.65, 0.6]; NB.push('crate', 0, 0, toX(c.x), toZ(c.y), 0.65 * (1 + Math.sin(T * 2 + c.id) * 0.03), false, 1, 0, g, false); atmo.shadow(toX(c.x), toZ(c.y), 0.9, 1); }
       NB.end();
     }
     // телеграфы, эффекты навыков и метки — спрайты FX atlas v2 (телеграфы #dcd3e6, цвет задаёт код)
@@ -351,6 +356,7 @@ export class ZoneView {
       else if (t.kind === 'slam') P.slam(X, Z, t.r / PX, t.t, 0.35);
       else if (t.kind === 'boom') P.boom(X, Z, (t.r / PX) * 0.8, kk, t.color || 0xf87171, t.color === 0xfde68a ? 'hit_holy' : 'hit_fire');
     }
+    for (const c of this.chests.values()) if (c.mine || c.pub) P.mark('loot', toX(c.x), toZ(c.y), 1.4 + Math.sin(T * 3 + c.id) * 0.1, 1, c.id); // сундук
     for (const b of this.bags.values()) P.mark('loot', toX(b.x), toZ(b.y), 0.9 + Math.sin(T * 4 + b.id) * 0.08, 1, b.id); // мешок
     for (const o of this.mobs.values()) {
       const X = toX(o.x), Z = toZ(o.y);

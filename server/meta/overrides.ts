@@ -10,8 +10,9 @@ import { RUN_SKILLS } from "./shared";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { CURSE } from "./cursed";
+import { CHEST } from "./chests";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest";
 export interface Field { path: string; label: string; t: "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[] }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -61,10 +62,18 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("mobHp", "Проклятый моб: ОЗ, ×", 1, 50), N("mobDmg", "Проклятый моб: урон, ×", 1, 50), N("mobArmor", "Проклятый моб: броня, ×", 1, 20), N("mobXp", "Проклятый моб: опыт, ×", 0, 50),
     N("glow1", "Свечение: 1 вещь (0…1)", 0, 1), N("glow2", "Свечение: 2 вещи", 0, 1), N("glow3", "Свечение: 3 вещи", 0, 1), N("glow4", "Свечение: 4 вещи", 0, 1), N("glow5", "Свечение: полный комплект (пульсирует)", 0, 1),
     { path: "tint", label: "Цвет проклятия", t: "color" }] },
+  // «Сундуки схватки» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main'
+  chest: { name: "Сундуки", fields: [{ path: "on", label: "Сундуки схватки включены (выкл — мешок с каждого моба)", t: "bool" },
+    N("personalSec", "Личная фаза, с", 0, 3600, "int"), N("publicSec", "Общий сундук живёт, с", 10, 86400, "int"), N("channelSec", "Открытие общего сундука (канал), с", 0, 120),
+    N("range", "Дальность открыть/взять, px", 40, 400, "int"), N("linkRadius", "Схватка: радиус связи мобов, px", 50, 3000, "int"), N("linkWindowSec", "Схватка: окно продолжения, с", 0, 300),
+    N("timeoutSec", "Схватка: закрыть без убийств через, с", 5, 900, "int"), N("minSharePct", "Порог вклада, % урона схватки", 0, 100),
+    { path: "partyNear", label: "Отряд участника рядом тоже получает добычу", t: "bool" },
+    { path: "partyMode", label: "Режим отряда: personal — свои броски; rr — общий бросок по кругу; roll — общий бросок, случайному", t: "enum", opts: ["personal", "rr", "roll"] },
+    { path: "guard", label: "Стража у общего сундука", t: "bool" }, N("guardN", "Стражей", 0, 8, "int"), N("takeRate", "Взятий в секунду (Shift+клик)", 1, 30)] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

@@ -839,3 +839,9 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-tip .cz { color: var(--curse,#c084fc); }
 .mc-cursed-glow.pulse { animation: mcCursePulse 1.6s ease-in-out infinite; }
 @keyframes mcCursePulse { 50% { opacity: .88; transform: scale(1.01); } }
+/* сундук схватки */
+.mc-chest { border-color: #c59b27; } .mc-chest .cell.mine { outline: 1px dashed #fde68a55; }
+.mc-chest-chan { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 61; width: min(320px, 80%); padding: 8px 12px; background: #120e1bee; border: 2px solid #b8913a; border-radius: 8px; color: #fde68a; font: 13px monospace; text-align: center; }
+.mc-chest-chan .trk { height: 10px; margin: 6px 0 4px; background: #2a2010; border: 1px solid #5b4720; border-radius: 5px; overflow: hidden; } .mc-chest-chan .trk i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #b8913a, #fde68a); }
+.mc-chest-chan small { color: #a8977a; } .mc-chest-chan.fail { border-color: #f87171; color: #fca5a5; } .mc-chest-chan.fail .trk i { background: #f87171; }
+.mc-chest-lbl { color: #fde68a; } .mc-chest-lbl.pub { color: #e5e7eb; }

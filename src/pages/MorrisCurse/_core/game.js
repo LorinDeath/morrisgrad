@@ -47,6 +47,7 @@ import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes
 import './styles/core3d.css';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
+import { ChestWindow } from './ui/chest.js';
 import { DpsMeter } from './ui/dps.js';
 import { PartyUI } from './ui/party.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
@@ -522,6 +523,14 @@ async function boot(canvasId, username, userId, api) {
     }
     if (!canPanel) adminPanel.close();
   });
+  const chestWin = new ChestWindow(container, (o) => send(o)); // сундук схватки
+  net.on('chest_view', (d) => { addCards(d.cards); chestWin.view(d); });
+  net.on('chest_channel', (d) => chestWin.channel(d));
+  net.on('chest_cancel', (d) => { chestWin.cancel(d.message); });
+  net.on('chest_close', (d) => { if (chestWin.isOpen) { chestWin.close(); overlay.toast('📦 ' + d.message, '#fca5a5'); } });
+  net.on('chest_err', (d) => { if (chestWin.isOpen) chestWin.error(d); else overlay.toast('📦 ' + d.message, '#fca5a5'); });
+  net.on('chest_spawn', (d) => overlay.toast(`📦 Сундук схватки: ваших предметов — ${d.mine}`, '#fde68a'));
+  function openChest(c) { if (Math.hypot(c.x - player.x, c.y - player.y) > 110) { overlay.toast('Подойдите ближе к сундуку', '#94a3b8'); return; } send({ type: 'chest_open', chest: c.id }); }
   const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
@@ -1019,7 +1028,7 @@ async function boot(canvasId, username, userId, api) {
     if ((k === 'm' || k === 'ь') && mode === 'hub') { worldMap.toggle(); return; }
     if (runUI.choiceOpen) return; // 1–3 обрабатывает модалка
     keys.add(e.code);
-    if (lootWin.isOpen && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) return; // Shift в окне добычи — проводка
+    if ((lootWin.isOpen || chestWin.isOpen) && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) return; // Shift в окне добычи — проводка
     if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { input.dashPressed = true; e.preventDefault(); }
     if (!book.isOpen || mode === 'run') {
       if (k === 'q' || k === 'й') useAbility(0);
@@ -1262,6 +1271,7 @@ async function boot(canvasId, username, userId, api) {
 
   function interact() {
     if (mode !== 'hub' || overlay.screen || overlay.chatOpen) return;
+    { const c = zone.nearestChest(player.x, player.y, 110); if (c) { if (chestWin.isOpen) chestWin.close(); else openChest(c); return; } }
     { const b = zone.nearestBag(player.x, player.y, 100); if (b) { if (lootWin.isOpen) lootWin.close(); else openBag(b); return; } }
     const npc = zone.nearestNpc(world, player.x, player.y);
     if (npc) { if (net.isOpen()) send({ type: 'npc_talk', npc: npc.id }); else overlay.toast('Персонажи говорят только при связи с сервером', '#fca5a5'); return; }
@@ -1345,6 +1355,7 @@ async function boot(canvasId, username, userId, api) {
     if (dar && dar.state !== 'dead' && world === 'hellfire') cands.push({ kind: 'dar', o: dar, x: dar.x, y: dar.y });
     if (world === 'hellfire') for (const f of flowers.values()) cands.push({ kind: 'flower', o: f, x: f.x, y: f.y });
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
+    for (const c of zone.chests.values()) cands.push({ kind: 'chest', o: c, x: c.x, y: c.y, pad: 22 });
     for (const b of zone.bags.values()) cands.push({ kind: 'bag', o: b, x: b.x, y: b.y, pad: 14 });
     for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) - 10) }); // зона клика = видимый размер (мобы ×0.75)
 
@@ -1356,6 +1367,7 @@ async function boot(canvasId, username, userId, api) {
     if (!best) { hud.clearTarget(); return; }
     if (best.kind === 'mob') { selectMob(best.o); return; }
     if (best.kind === 'bag') { openBag(best.o); return; }
+    if (best.kind === 'chest') { openChest(best.o); return; }
     const o = best.o;
     if (best.kind === 'portal') {
       hud.setTarget({ kind: 'portal', id: o.id, name: o.name, typeLabel: o.runRoom ? 'Комната забега' : 'Портал' });
@@ -1589,6 +1601,9 @@ async function boot(canvasId, username, userId, api) {
       const extra = pt.runRoom ? `<small>${roomCounts[pt.runRoom] || 0}/4 в забеге · co-op</small>` : '';
       overlay.label('pt_' + pt.id, q.x, q.y, `${esc(pt.name)}${extra}`, pt.color || '#c084fc');
     }
+    // сундуки схватки: таймер личной/общей фазы
+    for (const c of zone.chests.values()) { const q = stage.project(toX(c.x), 2.2, toZ(c.y)); if (!q) continue; const left = Math.max(0, c.left - Math.floor((Date.now() - c.at) / 1000)); const t = left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left} с`;
+      overlay.label('ch_' + c.id, q.x, q.y, c.pub ? `📦 Общий сундук<small>${c.n} предм. · ${t}</small>` : `📦 ${c.mine ? 'Ваша добыча: ' + c.mine : 'Чужая добыча'}<small>личный · ${t}</small>`, c.pub ? '#e5e7eb' : c.mine ? '#fde68a' : '#94a3b8'); }
     // NPC: имя и значок задания (❕ — есть задание, ✔ — можно сдать)
     for (const [id, n] of Object.entries(NPC_LIST)) {
       if (n.world !== world) continue;
@@ -1619,10 +1634,12 @@ async function boot(canvasId, username, userId, api) {
       const nf = npc || node || np ? null : nearestFlower();
       const nearAltar = world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 110;
       const bagN = zone.nearestBag(player.x, player.y, 100);
-      lootWin.tick(player.x, player.y);
+      lootWin.tick(player.x, player.y); chestWin.tick(player.x, player.y);
+      const chN = zone.nearestChest(player.x, player.y, 110);
       { const show = world === 'arinar'; homeBtn.style.display = show ? 'block' : 'none'; const tb = overlay.layer.querySelector('.mc3d-tbtn[data-act="home"]'); if (tb) tb.style.display = show ? '' : 'none';
         const left = Math.max(0, Math.ceil((homePortalCd - Date.now()) / 1000)); homeBtn.classList.toggle('cd', left > 0); homeBtn.querySelector('small').textContent = left ? left : ''; }
-      if (bagN && !lootWin.isOpen) promptText = `${key} — открыть добычу (${bagN.n})`;
+      if (chN && !chestWin.isOpen && !chestWin.channeling) promptText = `${key} — ${chN.pub ? 'открыть общий сундук (' + chN.n + ')' : chN.mine ? 'забрать свою добычу (' + chN.mine + ')' : 'сундук личный'}`;
+      else if (bagN && !lootWin.isOpen) promptText = `${key} — открыть добычу (${bagN.n})`;
       else if (zoneSt.gather) promptText = `Сбор: ${zone.resName(zoneSt.gather.res)} ${Math.round(Math.min(1, zoneSt.gather.t / (zone.gatherTime() / 1000)) * 100)}%`;
       else if (npc) promptText = `${key} — поговорить: ${npc.name}`;
       else if (node) promptText = `${key} — собрать: ${zone.resName(node.def.res)}`;
@@ -1806,7 +1823,7 @@ async function boot(canvasId, username, userId, api) {
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),
       openMap: () => worldMap.open(), mapZoom: (f) => worldMap.zoomBy(f),
-      bags: () => [...zone.bags.values()], loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
+      bags: () => [...zone.bags.values()], chests: () => [...zone.chests.values()], chest: () => ({ open: chestWin.isOpen, chan: chestWin.channeling, c: chestWin.c }), loot: () => ({ open: lootWin.isOpen, entries: lootWin.bag?.entries || [] }),
       portals: () => portals.map((p) => ({ id: p.id, x: p.x, y: p.y, world: p.world, personal: !!p.personal, foreign: !!p.foreign, name: p.name })),
       zoneMobs: () => [...zone.mobs.values()].map((m) => ({ type: m.type, x: Math.round(m.x), y: Math.round(m.y), elite: !!m.elite, chief: !!m.chief })),
       // тест мерцания: статичные пары спрайтов на ОДНОЙ глубине (батч мобов + 2 героя-спрайта) у точки (x, y) мира
