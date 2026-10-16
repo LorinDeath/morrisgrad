@@ -31,7 +31,7 @@ import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
-  heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
+  heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
@@ -79,7 +79,7 @@ export interface MetaSess {
 const S = (o: Record<string, "s" | "n" | "b" | "o" | "a" | "s?" | "n?" | "b?" | "o?" | "a?">) => o;
 const MSG_SCHEMA: Record<string, Record<string, string>> = {
   meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
-  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
+  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
   loot_open: S({ bag: "n" }), chest_open: S({ chest: "n" }), chest_take: S({ chest: "n", lid: "n" }), loot_take: S({ bag: "n", lids: "a?", all: "b?" }),
   zone_attack: S({}), zone_ability: S({}), zone_target: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
@@ -467,6 +467,9 @@ export class MetaService {
         if (own?.hero && own.hero !== cls) { this.send(ws, { type: "toast_error", message: "Это предмет другого героя" }); return true; }
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
         reply(salvage(a, heroes, String(msg.uid))); return true;
+      }
+      case "item_lock": { // закрепление экземпляра (флаг в D1: item_instances.locked)
+        reply(setLock(a, cls || null, String(msg.uid), !!msg.on)); return true;
       }
       case "salvage_preview": { // массовый разбор: сначала превью от сервера (что именно получит игрок), подтверждение — в игре
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));

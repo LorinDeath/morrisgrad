@@ -6,6 +6,8 @@ import { rsInfo } from '../../../../../server/meta/rsAny.ts';
 // Данные — из снимка сервера (MetaClient). Клиент не содержит таблиц предметов и дропа: карточки предметов,
 // Библиотеку предметов и пулы дропа мобов сервер присылает ТОЛЬКО для открытого игроком (itemCards.js, lib_get).
 import { statIcon } from './statIcons.js';
+import { diffStats } from './itemCompare.js';
+import { fmtPct } from './fmtPct.js';
 import {
   TALENTS, TALENT_TIER_REQ, TALENT_BRANCHES, TALENT_BY_ID, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
   RARITIES, SLOTS, SLOT_ORDER, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, RESOURCES, SOUL_BRANCH, STAR_NAMES, HERO_NAMES, NPCS, STAT_CAPS, MOB_INFO,
@@ -28,7 +30,7 @@ const TABS = [
 ];
 const STAT_LABEL = {
   dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %',
-  regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %',
+  regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %', armorPen: 'Пробивание брони', armorPenPct: 'Пробивание брони, %',
 };
 const STAR_COL = { yellow: '#facc15', red: '#ef4444', purple: '#c084fc', black: '#94a3b8' };
 const star = (c, n = 1) => `<b style="color:${STAR_COL[c] || '#fff'}">${'★'.repeat(Math.max(0, n))}</b>`;
@@ -46,7 +48,7 @@ export function itemStatsHtml(def, newProps = []) {
 }
 // Источник дропа: «Мошкара-Жнец — 5%» — из карточки сервера (только для открытых предметов)
 export function itemSources(id) {
-  return (ITEM_BY_ID[id]?.sources || []).map((s) => (s.mob.startsWith('craft:') ? s.name : `${s.name} — ${s.chance}%`));
+  return (ITEM_BY_ID[id]?.sources || []).map((s) => (s.mob.startsWith('craft:') ? s.name : `${s.name} — ${fmtPct(s.chance)}%`));
 }
 // «Откуда этот экземпляр»: kill:<mob> / boss:<mob> / run:<room>:<mob> / quest:<id> / craft:<recipe>
 export function srcLabel(src) {
@@ -96,10 +98,80 @@ export class Book {
     el.addEventListener('click', (e) => this.onClick(e));
     el.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
     meta.on(() => { if (this.isOpen) this.render(); });
+    // всплывающее сравнение с надетым: наведение мышью, на телефоне — долгое нажатие
+    const cmp = document.createElement('div'); cmp.className = 'mc-cmp'; cmp.style.display = 'none'; el.appendChild(cmp); this.cmpEl = cmp;
+    const slotOf = (t) => t?.closest?.('.mc-item[data-v], .mc-gslot[data-v]');
+    el.addEventListener('pointerover', (e) => { if (e.pointerType === 'mouse') { const b = slotOf(e.target); if (b && b.dataset.v) this.showCmp(b.dataset.v, e.clientX, e.clientY); } });
+    el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && this.cmpEl.style.display !== 'none') this.placeCmp(e.clientX, e.clientY); });
+    el.addEventListener('pointerout', (e) => { if (e.pointerType === 'mouse') { const b = slotOf(e.target); if (b && !b.contains(e.relatedTarget)) this.hideCmp(); } });
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      this.hideCmp(); clearTimeout(this.lpT);
+      const b = slotOf(e.target); if (!b || !b.dataset.v) return;
+      const x = e.clientX, y = e.clientY;
+      this.lpT = setTimeout(() => { this.lpShown = Date.now(); this.showCmp(b.dataset.v, x, y); }, 420);
+    }, true);
+    const lpCancel = () => clearTimeout(this.lpT);
+    el.addEventListener('pointerup', lpCancel, true); el.addEventListener('pointercancel', lpCancel, true);
+    el.addEventListener('dblclick', (e) => { if (this.lastSel && Date.now() - (this.lastSelAt || 0) < 500 && !e.target.closest('[data-act]:not([data-act="sel"])')) this.dblEquip(this.lastSel); });
+    el.addEventListener('contextmenu', (e) => { if (slotOf(e.target)) e.preventDefault(); });
     // окно подтверждения — внутри игры (не браузерный confirm)
     const ask = document.createElement('div'); ask.className = 'mc-ask'; ask.style.display = 'none';
     el.appendChild(ask); this.askEl = ask;
     ask.addEventListener('click', (e) => { const b = e.target.closest('[data-ask]'); if (!b) return; e.stopPropagation(); const fn = this.askOk; this.closeAsk(); if (b.dataset.ask === 'ok') fn?.(); });
+  }
+  /** надеть предмет из сумки двойным кликом; true — если отправили «Надеть» */
+  dblEquip(uid) {
+    const m = this.meta, h0 = m.hero, it0 = m.account?.inv.find((i) => i.uid === uid);
+    this.lastSel = null;
+    if (!it0 || !h0 || Object.values(h0.equip || {}).includes(uid)) return false;
+    this.hideCmp(); m.equip(uid); return true; // уровень и владельца проверяет сервер (покажет ошибку)
+  }
+  hideCmp() { if (this.cmpEl) this.cmpEl.style.display = 'none'; }
+  placeCmp(x, y) {
+    const c = this.cmpEl, W = window.innerWidth, H = window.innerHeight, w = c.offsetWidth, hh = c.offsetHeight;
+    let L = x + 16, T = y + 12;
+    if (L + w > W - 6) L = Math.max(6, x - w - 16);
+    if (T + hh > H - 6) T = Math.max(6, H - hh - 6);
+    c.style.left = L + 'px'; c.style.top = T + 'px';
+  }
+  showCmp(uid, x, y) {
+    const html = this.cmpHtml(uid);
+    if (!html) { this.hideCmp(); return; }
+    this.cmpEl.innerHTML = html; this.cmpEl.style.display = ''; this.placeCmp(x, y);
+  }
+  /** всплывающая карточка: предмет + сравнение с надетым в том же слоте */
+  cmpHtml(uid) {
+    const a = this.meta.account, h = this.meta.hero;
+    const it = a?.inv.find((i) => i.uid === uid); if (!it) return '';
+    const d = curseDef(ITEM_BY_ID[it.id], it); if (!d) return '';
+    const curUid = h?.equip?.[d.slot], worn = curUid === uid;
+    const cit = !worn && curUid ? a.inv.find((i) => i.uid === curUid) : null;
+    const cd = cit ? curseDef(ITEM_BY_ID[cit.id], cit) : null;
+    const col = (x) => (x.cursed ? curseTint() : RARITIES[x.rarity]?.color || '#fff');
+    const rsOf = (x) => { const L = this.meta.library?.inv?.[x.uid], rs = L ? L.rs : x.rs; return rs ? rsInfo(rs) : null; };
+    const R = rsOf(it), CR = cit ? rsOf(cit) : null;
+    const fmt = (v) => (Number.isInteger(v) ? v : v.toFixed(1));
+    const arrow = (dv) => (dv > 0 ? `<span class="up">▲ +${fmt(dv)}</span>` : dv < 0 ? `<span class="dn">▼ ${fmt(dv)}</span>` : '<span class="eqv">=</span>');
+    const rows = diffStats(d.stats || {}, worn ? null : (cd?.stats || (h && !worn ? {} : null))).map((r) => {
+      const lbl = r.k === 'dmg' ? 'Урон' : (STAT_LABEL[r.k] || r.k), ic = statIcon(r.k === 'dmg' ? 'dmgMin' : r.k);
+      const val = r.k === 'dmg' ? (r.nv ? `${r.nv.min}–${r.nv.max}` : '—') : (r.nv ? `+${fmt(r.nv)}` : '—');
+      const was = r.k === 'dmg' ? (r.cv ? ` <small>(было ${r.cv.min}–${r.cv.max})</small>` : '') : (r.kind === 'both' && r.cv ? ` <small>(было +${fmt(r.cv)})</small>` : '');
+      const tag = r.kind === 'new' ? ' <i class="nw">новое</i>' : r.kind === 'lost' ? ' <i class="ls">потеряете</i>' : '';
+      const ar = r.kind === 'base' ? '' : ' ' + arrow(r.d);
+      return `<div class="row ${r.kind}">${ic}${esc(lbl)}: <b>${val}</b>${was}${ar}${tag}</div>`;
+    }).join('');
+    const lvlD = cd ? (d.lvl || 1) - (cd.lvl || 1) : 0;
+    const head = worn ? '<div class="cmpw">Надето сейчас</div>' : !h ? '' : cd
+      ? `<div class="cmpw">Сравнение с надетым: <b style="color:${col(cd)}">${esc(cd.name)}</b> <small>(ур. ${cd.lvl || 1}${cd.cursed ? ', ☠' : ''})</small></div>`
+      : `<div class="cmpw">Слот «${esc(SLOTS[d.slot])}» пуст — всё ниже будет прибавкой</div>`;
+    const rsRow = d.slot === 'weapon' ? `<div class="row rsk">🌀 Навык R: <b>${R ? `${R.icon} ${esc(R.name)}` : 'нет'}</b>${cd && !worn ? (CR?.name === R?.name ? ' <small>(тот же)</small>' : ` <small>(сейчас: ${CR ? esc(CR.name) : 'нет'})</small>`) : ''}</div>` : '';
+    const low = h && h.lvl < reqOf(d);
+    return `<div class="nm" style="color:${col(d)}">${iconHtml(d, 24)} ${esc(d.name)}${it.lk ? ' 🔒' : ''}</div>
+      <div class="rr">${d.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot])} · ур. ${d.lvl || 1}${cd && lvlD ? ` ${arrow(lvlD)}` : ''}</div>
+      ${head}<div class="rows">${rows || '<div class="mc-dim">Без характеристик</div>'}</div>${rsRow}
+      ${low ? `<div class="row ls">Нужен ${reqOf(d)} уровень героя (у вас ${h.lvl})</div>` : ''}
+      <div class="hint">${worn ? 'Нажмите — карточка предмета' : 'Нажмите — карточка · двойной клик — надеть'}</div>`;
   }
   confirmIn(title, html, onOk, okLabel = 'Разобрать') {
     this.askOk = onOk;
@@ -117,7 +189,7 @@ export class Book {
   }
 
   open(tab) { if (tab) this.tab = tab; this.isOpen = true; this.el.style.display = ''; this.libAsked = -1; this.render(); }
-  close() { this.isOpen = false; this.el.style.display = 'none'; this.sel = null; }
+  close() { this.isOpen = false; this.el.style.display = 'none'; this.sel = null; this.hideCmp(); }
   toggle(tab) { if (this.isOpen && (!tab || tab === this.tab)) this.close(); else this.open(tab); }
 
   onClick(e) {
@@ -128,6 +200,12 @@ export class Book {
     switch (act) {
       case 'tab': this.tab = v; this.sel = null; this.render(); break;
       case 'sel': {
+        if (this.lpShown && Date.now() - this.lpShown < 900) { this.lpShown = 0; return; } // долгое нажатие = только сравнение
+        // двойной клик — надеть. Первый клик открывает карточку и сдвигает раскладку, поэтому второй клик
+        // может попасть в соседнюю ячейку: в паре кликов надеваем предмет ПЕРВОГО клика
+        const now = Date.now(), dblUid = this.lastSel && now - (this.lastSelAt || 0) < 400 ? this.lastSel : null;
+        if (dblUid && this.dblEquip(dblUid)) break;
+        this.lastSel = v; this.lastSelAt = now;
         this.sel = v;
         const it = this.meta.account?.inv.find((i) => i.uid === v);
         if (it?.n) this.meta.markSeen('inv', [v]);
@@ -165,8 +243,11 @@ export class Book {
       case 'equip': m.equip(v); break;
       case 'unequip': m.unequip(v); break;
       case 'salvage': { const it = m.account?.inv.find((i) => i.uid === v), d = it && ITEM_BY_ID[it.id];
+        if (it?.lk) break; // закреплённый — кнопка неактивна (и сервер всё равно откажет)
         this.confirmIn('Разобрать предмет?', `<p>${esc(d?.name || 'Предмет')} будет уничтожен.</p>`, () => { m.salvage(v); this.sel = null; }); break; }
       case 'salvage_r': m.salvagePreview(v); break;
+      case 'lock': m.lockItem(v, true); break;
+      case 'unlock': m.lockItem(v, false); break;
       case 'craft': m.craft(v); break;
       case 'soul': m.soulBuy(v); break;
       case 'turnin': m.turnIn(v); break;
@@ -387,20 +468,20 @@ export class Book {
       const it = uid && byUid.get(uid);
       const d = it && curseDef(ITEM_BY_ID[it.id], it);
       // клик по надетому — карточка статов (Снять только кнопкой в карточке); снятие drag'ом не меняем (его нет)
-      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d?.cursed ? 'cursed' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} title="${d ? esc(d.name) + ' — нажмите, чтобы посмотреть' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${d ? `<b style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d?.cursed ? 'cursed' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
     const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = curseDef(ITEM_BY_ID[it.id], it);
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
-      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}" title="${esc(d.name)}${low ? ` — нужен ур. ${reqOf(d)}` : ''}">${iconHtml(d, 40)}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
+      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}" >${iconHtml(d, 40)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
     // массовый разбор по редкости: кнопка на каждую редкость, что есть в сумке → превью с сервера → окно подтверждения
-    const rset = [...new Set(bagItems.map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
-    const salvBtns = rset.map((r) => `<button class="mc-btn sm" data-act="salvage_r" data-v="${r}" style="border-color:${RARITIES[r].color};color:${RARITIES[r].color}" title="Разобрать все неодетые: ${esc(RARITIES[r].name)}">${esc(RARITIES[r].name)}</button>`).join('');
+    const rset = [...new Set(bagItems.filter((i) => !i.lk).map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
+    const salvBtns = rset.map((r) => `<button class="mc-btn sm" data-act="salvage_r" data-v="${r}" style="border-color:${RARITIES[r].color};color:${RARITIES[r].color}" title="Разобрать все неодетые и незакреплённые: ${esc(RARITIES[r].name)}">${esc(RARITIES[r].name)}</button>`).join('');
     const res = Object.entries(a.res || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span title="${esc(RESOURCES[k]?.name || k)}">${RESOURCES[k]?.icon || '•'} ${n}</span>`).join('');
-    let detail = '<p class="mc-dim">Нажмите на слот или предмет в сумке, чтобы увидеть характеристики. Снять / надеть — кнопками в карточке.</p>';
+    let detail = '<p class="mc-dim">Нажмите на слот или предмет в сумке, чтобы увидеть характеристики. Наведите — сравнение с надетым, двойной клик — надеть. Снять / закрепить — кнопками в карточке.</p>';
     const it = this.sel && byUid.get(this.sel);
     if (it) {
       const d = curseDef(ITEM_BY_ID[it.id], it);
@@ -431,7 +512,9 @@ export class Book {
         ${src.length ? `<div class="src">Источники: ${src.map(esc).join('; ')}</div>` : ''}
         ${d.lore ? `<div class="lore">${esc(d.lore)}</div>` : ''}
         <div class="acts">${h ? (eq ? `<button class="mc-btn" data-act="unequip" data-v="${d.slot}">Снять</button>` : (h.lvl < reqOf(d) ? `<button class="mc-btn gold" disabled title="Нужен ${reqOf(d)} уровень героя">Надеть</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">Надеть</button>`)) : ''}
-        ${eq ? '' : `<button class="mc-btn danger" data-act="salvage" data-v="${it.uid}">Разобрать</button>`}</div></div>`;
+        ${it.lk ? `<button class="mc-btn" data-act="unlock" data-v="${it.uid}" title="Снова можно будет разобрать">🔓 Открепить</button>` : `<button class="mc-btn" data-act="lock" data-v="${it.uid}" title="Закреплённый предмет нельзя разобрать — ни поштучно, ни «разобрать всё»">🔒 Закрепить</button>`}
+        ${eq ? '' : it.lk ? `<button class="mc-btn danger" disabled title="Предмет закреплён — сначала открепите">Разобрать</button>` : `<button class="mc-btn danger" data-act="salvage" data-v="${it.uid}">Разобрать</button>`}</div>
+        ${it.lk ? '<div class="fx">🔒 Закреплён: не разбирается и не попадает в «разобрать всё».</div>' : ''}</div>`;
     }
     return `<div class="mc-gear"><div class="mc-gslots">${slots}</div><div class="mc-detail">${detail}</div></div>
       ${h ? '' : '<p class="mc-lock">Надевать предметы может только герой — выберите оболочку у Алтаря.</p>'}
@@ -479,7 +562,7 @@ export class Book {
         <div class="ss">${itemStatsHtml(c)}</div>
         ${c.ability ? `<div class="ab">✦ Навык: <b>${esc(c.ability.name)}</b> — ${esc(c.ability.desc || '')}</div>` : ''}
         ${c.look ? `<div class="ab">🎭 Облик «${esc(c.look.name)}» (${c.look.parts} предм.)${c.look.bonus ? ` — ${esc(c.look.bonus)}` : ''}</div>` : ''}
-        <div class="src">Где добыть: ${(c.sources || []).map((s) => esc(s.mob.startsWith('craft:') ? s.name : `${s.name} — ${s.chance}%`)).join('; ') || '—'}</div>
+        <div class="src">Где добыть: ${(c.sources || []).map((s) => esc(s.mob.startsWith('craft:') ? s.name : `${s.name} — ${fmtPct(s.chance)}%`)).join('; ') || '—'}</div>
         <div class="src">${c.st === 'owned' ? `У вас: ${c.owned} шт.${c.ownedSrc?.length ? ` (${c.ownedSrc.map((x) => esc(srcLabel(x))).join('; ')})` : ''}` : 'Встречен, но ещё не получен'}</div>
         ${c.lore ? `<div class="lore">${esc(c.lore)}</div>` : ''}</div>`;
     }
@@ -531,10 +614,10 @@ export class Book {
       if (open) {
         const d = lm?.drops;
         const gear = (d?.gear || []).map((g) => {
-          if (g.id) { const c = ITEM_BY_ID[g.id] || L?.items?.[g.id]; return c ? `<li><span style="color:${RAR(c.rarity).color}">${iconHtml(c, 20)} ${esc(c.name)}</span> — <b>${g.chance}%</b></li>` : ''; }
-          return `<li class="lock"><span style="color:${RAR(g.rarity).color}">${Number.isInteger(g.n) ? iconHtml(g, 20, 'sil') : '▒'} ${esc(RAR(g.rarity).name)} · ${esc(SLOTS[g.slot] || '')}</span> — <b>${g.chance}%</b></li>`;
+          if (g.id) { const c = ITEM_BY_ID[g.id] || L?.items?.[g.id]; return c ? `<li><span style="color:${RAR(c.rarity).color}">${iconHtml(c, 20)} ${esc(c.name)}</span> — <b>${fmtPct(g.chance)}%</b></li>` : ''; }
+          return `<li class="lock"><span style="color:${RAR(g.rarity).color}">${Number.isInteger(g.n) ? iconHtml(g, 20, 'sil') : '▒'} ${esc(RAR(g.rarity).name)} · ${esc(SLOTS[g.slot] || '')}</span> — <b>${fmtPct(g.chance)}%</b></li>`;
         }).join('');
-        const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${m.chance}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
+        const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${fmtPct(m.chance)}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
         const S = lm?.st || info; // сервер: статы с правками админки
         const canTrack = !id.startsWith('run_');
         body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${S.hp} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>

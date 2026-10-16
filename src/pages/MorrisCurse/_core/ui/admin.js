@@ -1,6 +1,7 @@
 // Админ-панель: полный доступ — роль admin; модератор видит только Бестиарий / Оружие / Предметы.
 // Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
 import { esc } from './overlay.js';
+import { cleanNum } from './fmtPct.js';
 import { regionMapHtml, mountRegionMap } from './regionMap.js';
 import { perfHtml, mountPerf } from './perfTab.js';
 import { statIcon } from './statIcons.js';
@@ -313,8 +314,8 @@ export class AdminPanel {
   }
   lootHtml(v) {
     const opt = (list, cur) => list.map((x) => `<option value="${x.id}" ${x.id === cur ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-    return `<div class="box"><b>Снаряжение (шанс %)</b><table class="lg">${(v.gear || []).map((g) => `<tr><td><select data-gi>${opt(this.cat.items, g.item)}</select></td><td><input type="number" data-gc min="0" max="100" step="0.1" value="${g.chance}"></td><td><button class="btn red" data-delrow>✕</button></td></tr>`).join('')}</table><button class="btn" data-addg>＋ предмет</button></div>
-      <div class="box"><b>Материалы (шанс %, кол-во)</b><table class="lm">${(v.materials || []).map((m) => `<tr><td><select data-mr>${opt(this.cat.res, m.res)}</select></td><td><input type="number" data-mc min="0" max="100" value="${m.chance}"></td><td><input type="number" data-m0 min="1" max="99" value="${m.qty?.[0] ?? 1}"> – <input type="number" data-m1 min="1" max="99" value="${m.qty?.[1] ?? 1}"></td><td><button class="btn red" data-delrow>✕</button></td></tr>`).join('')}</table><button class="btn" data-addm>＋ материал</button></div>`;
+    return `<div class="box"><b>Снаряжение (шанс %)</b><table class="lg">${(v.gear || []).map((g) => `<tr><td><select data-gi>${opt(this.cat.items, g.item)}</select></td><td><input type="number" data-gc min="0" max="100" step="0.1" value="${cleanNum(g.chance)}"></td><td><button class="btn red" data-delrow>✕</button></td></tr>`).join('')}</table><button class="btn" data-addg>＋ предмет</button></div>
+      <div class="box"><b>Материалы (шанс %, кол-во)</b><table class="lm">${(v.materials || []).map((m) => `<tr><td><select data-mr>${opt(this.cat.res, m.res)}</select></td><td><input type="number" data-mc min="0" max="100" value="${cleanNum(m.chance)}"></td><td><input type="number" data-m0 min="1" max="99" value="${m.qty?.[0] ?? 1}"> – <input type="number" data-m1 min="1" max="99" value="${m.qty?.[1] ?? 1}"></td><td><button class="btn red" data-delrow>✕</button></td></tr>`).join('')}</table><button class="btn" data-addm>＋ материал</button></div>`;
   }
   bindLoot(sec, v) {
     const redraw = () => { const cur = this.readLoot(sec); sec.querySelector('.box').parentElement; const e = this.cat.ent.loot.find((x) => x.id === this.sel); this.entityForm(sec, 'loot', { ...e, values: cur }); };
