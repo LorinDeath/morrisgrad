@@ -1634,7 +1634,7 @@ async function boot(canvasId, username, userId, api) {
       const nf = npc || node || np ? null : nearestFlower();
       const nearAltar = world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 110;
       const bagN = zone.nearestBag(player.x, player.y, 100);
-      lootWin.tick(player.x, player.y); chestWin.tick(player.x, player.y);
+      lootWin.tick(player.x, player.y); chestWin.tick(player.x, player.y); zone.chestSt = { chan: chestWin.ch?.id || 0, open: chestWin.c?.id || 0 };
       const chN = zone.nearestChest(player.x, player.y, 110);
       { const show = world === 'arinar'; homeBtn.style.display = show ? 'block' : 'none'; const tb = overlay.layer.querySelector('.mc3d-tbtn[data-act="home"]'); if (tb) tb.style.display = show ? '' : 'none';
         const left = Math.max(0, Math.ceil((homePortalCd - Date.now()) / 1000)); homeBtn.classList.toggle('cd', left > 0); homeBtn.querySelector('small').textContent = left ? left : ''; }

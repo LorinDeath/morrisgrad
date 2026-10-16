@@ -14,9 +14,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } });
   await guardLocal(ctx);
   const open = async (name, uid, cls) => {
-    const p = await ctx.newPage(); p.msgs = []; p.errs = [];
+    const p = await ctx.newPage(); p.msgs = []; p.errs = []; p.raw = [];
     p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 200)));
-    p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/"type":"(chest_|dev_chests|admin_result|toast_error)/.test(s) || s.includes('"loot":{')) { try { p.msgs.push(JSON.parse(s)); } catch {} } }));
+    p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (s.includes('chest')) p.raw.push({ t: Date.now(), s }); if (/"type":"(chest_|dev_chests|admin_result|toast_error)/.test(s) || s.includes('"loot":{')) { try { p.msgs.push(JSON.parse(s)); } catch {} } }));
     await p.goto(assertLocalUrl(`${BASE}?name=${encodeURIComponent(name)}&uid=${uid}&ws=${WS}&fs=1&debug=1`));
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 });
     await p.waitForTimeout(1000);
@@ -45,8 +45,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(true, `восстановлено из D1 после перезапуска сервера: ${R.pre.length} сундук(ов) ${JSON.stringify(R.pre)}`); R.notes.push('restored ' + JSON.stringify(pre?.list));
   // быстрые таймеры для теста (живая правка из админки → D1)
   A.msgs.length = 0;
-  await RAW(A, { type: 'admin_save', kind: 'chest', id: 'main', patch: { personalSec: 45, channelSec: 4, publicSec: 600, minSharePct: 7, guard: true, guardN: 3 } });
-  const sv = await msg(A, (m) => m.type === 'admin_result'); ok(sv && sv.ok !== false, 'админ сохранил быстрые таймеры (45 с / канал 4 с)');
+  await RAW(A, { type: 'admin_save', kind: 'chest', id: 'main', patch: { personalSec: 45, channelSec: 8, publicSec: 600, minSharePct: 7, guard: true, guardN: 3 } });
+  const sv = await msg(A, (m) => m.type === 'admin_result'); ok(sv && sv.ok !== false, 'админ сохранил быстрые таймеры (45 с / канал 8 с)');
   await RAW(A, { type: 'admin_save', kind: 'curse', id: 'main', patch: { equipDropMult: 100 } }); await msg(A, (m) => m.type === 'admin_result'); // чтобы дроп был гарантирован
   await A.evaluate(() => window.__game.debug.closeAdmin?.() || document.querySelector('.mc-admin .x, .mc-admin [data-act="close"]')?.click());
   const M = await open('Модер', 'ch_mod', 'mage');
@@ -72,6 +72,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let ci = await chests(A); ok(ci && ci.list.length === 0 && ci.enc >= 1, `после 1-го убийства: сундука нет, схватка открыта (${JSON.stringify(ci)})`);
   await S(B, { type: 'dev_grant', killNear: true }); await A.waitForTimeout(250);
   await S(A, { type: 'dev_grant', killNear: true }); await A.waitForTimeout(800);
+  for (let i = 0; i < 10; i++) { ci = await chests(A); if (ci.list.length) break; await S(i % 2 ? B : A, { type: 'dev_grant', killNear: true }); await A.waitForTimeout(500); } // в схватку могли войти бродячие мобы Поляны — добиваем всех
+  R.notes.push('extra kills until chest: ' + JSON.stringify(ci));
   ci = await chests(A); const ch = ci?.list?.[0]; R.chestAt = Date.now();
   ok(ci && ci.list.length === 1, `последний моб → ОДИН сундук (${JSON.stringify(ci?.list)})`);
   ok(ch && ch.owners.length === 2, `личные броски у A и B, C без вклада (${ch && ch.owners.join(',')})`);
@@ -79,16 +81,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await tp(A, X + 1400, Y + 900); await A.waitForTimeout(700); const Pl = await A.evaluate(() => window.__game.debug.pos());
   await A.evaluate(([x, y]) => window.__game.debug.devSpawn('dew_slime', x, y, false), [Pl.x + 60, Pl.y]); await A.waitForTimeout(700);
   A.msgs.length = 0; await S(A, { type: 'dev_grant', killNear: true });
-  const lm = await msg(A, (m) => JSON.stringify(m).includes('"loot":{'), 4000); const lo = lm && (lm.loot || lm.push?.loot || Object.values(lm).find((v) => v && v.loot)?.loot);
+  const lm = await msg(A, (m) => m.loot && (m.loot.bag || m.loot.enc !== undefined), 4000); const lo = lm && (lm.loot || lm.push?.loot || Object.values(lm).find((v) => v && v.loot)?.loot);
   const ci2 = await chests(A); R.notes.push('lone loot msg: ' + JSON.stringify(lm).slice(0, 300));
   ok(lo && lo.bag && lo.enc === undefined && ci2.list.length === 1, `одиночный моб → мешок сразу (bag=${JSON.stringify(lo?.bag)}), сундуков по-прежнему 1`);
   await tp(A, ch.x - 40, ch.y + 30); await A.waitForTimeout(900);
-  await A.evaluate(() => window.__game.debug.setZoom?.(2.0)); await A.waitForTimeout(600);
+  await A.evaluate(() => window.__game.debug.setZoom?.(1.4)); await A.waitForTimeout(900);
   await shot(A, '02-chest-in-world-personal.png');
   // ---- личная фаза ----
   A.msgs.length = 0; await S(A, { type: 'chest_open', chest: ch.id });
   const va = await msg(A, (m) => m.type === 'chest_view'); ok(va && va.entries.length > 0 && va.entries.every((e) => e.mine) && !va.pub, `A открыл сразу, видит только своё (${va?.entries.length})`);
-  await A.waitForTimeout(500); await shot(A, '03-personal-window.png');
+  await A.waitForTimeout(500); await shot(A, '03-personal-window.png'); await A.evaluate(() => { const w = document.getElementById('mc-chest'); if (w) w.style.visibility = 'hidden'; }); await A.waitForTimeout(300); await shot(A, '11-world-chest-opened.png'); await A.evaluate(() => { const w = document.getElementById('mc-chest'); if (w) w.style.visibility = ''; });
+  const myN = ch.per['uid:ch_admin']; ok(va.entries.length === myN, `A: в сети пришло ровно своих ${va.entries.length} из ${ch.n} (свои по серверу ${myN})`);
   // обычный клик — подсказка, Shift+клик — взять
   const cell = A.locator('#mc-chest .cell[data-lid]').first(); const lid0 = Number(await cell.getAttribute('data-lid'));
   await cell.click(); await A.waitForTimeout(400);
@@ -101,11 +104,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // B: своё; B пытается взять позицию A
   await tp(B, ch.x + 30, ch.y); await B.waitForTimeout(700); B.msgs.length = 0;
   await S(B, { type: 'chest_open', chest: ch.id }); const vb = await msg(B, (m) => m.type === 'chest_view'); ok(vb && vb.entries.every((e) => e.mine), `B видит только своё (${vb?.entries.length})`);
+  const bPk = Object.keys(ch.per).find((k) => k !== 'uid:ch_admin');
+  ok(vb.entries.length === ch.per[bPk], `B: пришло ровно своих ${vb.entries.length} (по серверу ${ch.per[bPk]})`);
+  const aL = new Set(va.entries.map((e) => e.lid)); ok(!vb.entries.some((e) => aL.has(e.lid)), 'личные payload A и B не пересекаются (чужие позиции не отправляются)');
   const aLid = va.entries.find((e) => e.lid !== lid0)?.lid; if (aLid) { await S(B, { type: 'chest_take', chest: ch.id, lid: aLid }); const e1 = await msg(B, (m) => m.type === 'chest_err'); ok(e1 && /чужая/.test(e1.message), 'B не может взять позицию A'); }
   // C без вклада
   await tp(C, ch.x, ch.y + 40); await C.waitForTimeout(700); C.msgs.length = 0;
   await S(C, { type: 'chest_open', chest: ch.id }); const ec = await msg(C, (m) => m.type === 'chest_err'); ok(ec && /личный/.test(ec.message), `C: «${ec?.message}»`);
   await C.waitForTimeout(300); await shot(C, '05-foreign-personal-denied.png');
+  const leakC = C.raw.filter((r) => /"entries":\[\{/.test(r.s)); ok(!leakC.length, `C в личной фазе не получил ни одной позиции (кадров с entries: ${leakC.length})`);
   // смерть/возвращение: A «умирает» (перезаход новой сессией) и возвращается — его вещи ждут
   await A.reload(); await A.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await A.waitForTimeout(1200);
   await tp(A, ch.x - 40, ch.y + 30); await A.waitForTimeout(800); A.msgs.length = 0;
@@ -116,15 +123,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ci = await chests(C); ok(ci.list[0]?.pub, 'через personalSec сундук общий');
   ok(ci.list[0]?.guarded, 'стража выставлена (guard)');
   C.msgs.length = 0; await C.evaluate(() => window.__game.debug.setZoom?.(2.0));
-  await S(C, { type: 'chest_open', chest: ch.id }); const cc = await msg(C, (m) => m.type === 'chest_channel'); ok(cc && cc.sec === 4, `C: канал открытия ${cc?.sec} с`);
-  await C.waitForTimeout(1500); await shot(C, '06-public-channel-progress.png');
+  await S(C, { type: 'chest_open', chest: ch.id }); const cc = await msg(C, (m) => m.type === 'chest_channel'); ok(cc && cc.sec === 8, `C: канал открытия ${cc?.sec} с`);
+  await C.waitForTimeout(1500); await shot(C, '06-public-channel-progress.png'); await C.evaluate(() => window.__game.debug.setZoom?.(1.4)); await C.waitForTimeout(300); await shot(C, '12-world-chest-channel-shake.png');
   await S(C, { type: 'dev_grant', hurtMe: true }); const cx = await msg(C, (m) => m.type === 'chest_cancel'); ok(cx && /ударили/.test(cx.message), 'урон прерывает канал');
   await C.waitForTimeout(300); await shot(C, '07-channel-interrupted.png');
   C.msgs.length = 0; await S(C, { type: 'chest_open', chest: ch.id }); await msg(C, (m) => m.type === 'chest_channel');
-  const vc = await msg(C, (m) => m.type === 'chest_view' && m.opened, 8000); ok(vc && vc.pub && vc.entries.length > 0, `канал 4 с без урона → окно общего сундука (${vc?.entries.length})`);
+  const vc = await msg(C, (m) => m.type === 'chest_view' && m.opened, 12000); const ciPub = await chests(C); ok(vc && vc.pub && vc.entries.length === ciPub.list[0].n, `общая фаза: C видит ВСЕ оставшиеся ${vc?.entries.length} из ${ciPub.list[0].n}`);
   await C.waitForTimeout(400); await shot(C, '08-public-window.png');
+  await A.evaluate(() => window.__game.debug.setZoom?.(1.4)); await A.waitForTimeout(500); await shot(A, '13-world-chest-public-grey.png');
   // B тоже открывает; конкуренция за одну позицию
-  B.msgs.length = 0; await S(B, { type: 'chest_open', chest: ch.id }); await msg(B, (m) => m.type === 'chest_channel'); const vbo = await msg(B, (m) => m.type === 'chest_view' && m.opened, 8000);
+  B.msgs.length = 0; await S(B, { type: 'chest_open', chest: ch.id }); await msg(B, (m) => m.type === 'chest_channel'); const vbo = await msg(B, (m) => m.type === 'chest_view' && m.opened, 12000);
   const L = vc.entries[0].lid; C.msgs.length = 0; B.msgs.length = 0;
   await Promise.all([S(C, { type: 'chest_take', chest: ch.id, lid: L }), S(B, { type: 'chest_take', chest: ch.id, lid: L })]);
   const rc = await msg(C, (m) => (m.type === 'chest_view' && m.taken === L) || (m.type === 'chest_err' && m.lid === L)), rb = await msg(B, (m) => (m.type === 'chest_view' && m.taken === L) || (m.type === 'chest_err' && m.lid === L));

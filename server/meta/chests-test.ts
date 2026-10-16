@@ -73,6 +73,16 @@ const t0 = 1e12;
   ok(C.expire(c.exp + 1).length === 1 && !C.chests.size && C.removed.has(c.id), "через час — исчезает (и удаляется из D1)");
   const C2 = new Chests(); C2.seed([JSON.parse(JSON.stringify(c))]); ok(C2.chests.get(c.id)?.entries.length === c.entries.length, "восстановление из БД (рестарт DO)");
 }
+// --- свечение проклятых: только свои в личной фазе ---
+{
+  const C = new Chests(); const t = 2e12;
+  const c = C.spawn("arinar", 0, 0, [{ o: "uid:A", id: "a@c", k: "item", n: 1 }, { o: "uid:A", id: "b@c", k: "item", n: 1 }, ...[1, 2, 3, 4].map((i) => ({ o: "uid:B", id: "x" + i + "@c", k: "item" as const, n: 1 })), { o: "uid:B", id: "plain", k: "item", n: 1 }], "s", "mob", "m", "m", t)!;
+  const nA = C.near("uid:A", "arinar", 0, 0, 100, t)[0], nB = C.near("uid:B", "arinar", 0, 0, 100, t)[0], nZ = C.near("uid:Z", "arinar", 0, 0, 100, t)[0];
+  ok(nA[7] === 2 && nB[7] === 4 && nZ[7] === 0 && nZ[5] === 0, "личная фаза: свечение по СВОИМ проклятым (A 2, B 4, чужой 0)");
+  const nP = C.near("uid:Z", "arinar", 0, 0, 100, c.pubAt + 1)[0]; ok(nP[7] === 5 && nP[5] === 7, "общая: все оставшиеся проклятые, потолок 5");
+  C.open.set("uid:B", { id: c.id, at: t, sid: "b" }); C.take(c, "uid:B", c.entries.find((e) => e.o === "uid:B" && e.c)!.lid, () => true, t);
+  ok(C.near("uid:B", "arinar", 0, 0, 100, t)[0][7] === 3, "свечение уменьшается при взятии");
+}
 // --- админка ---
 {
   ok(typeof validatePatch("chest", "main", { personalSec: 10, channelSec: 3, partyMode: "rr", guard: false, minSharePct: 12 }) === "object", "правка сундуков валидна");

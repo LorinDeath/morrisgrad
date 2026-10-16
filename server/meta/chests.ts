@@ -112,10 +112,10 @@ export class Chests {
   /** позиции, видимые игроку: личная фаза — только свои; общая — все */
   visible(c: Chest, pk: string, now = Date.now()) { return this.isPublic(c, now) ? c.entries : c.entries.filter((e) => e.o === pk); }
   expire(now = Date.now()) { const gone: Chest[] = []; for (const [id, c] of this.chests) if (now >= c.exp || !c.entries.length) { this.chests.delete(id); this.removed.add(id); this.dirty.delete(id); gone.push(c); } return gone; }
-  /** для zone_state: [id, x, y, фаза 0/1, осталось с, моих, всего] */
+  /** для zone_state: [id, x, y, фаза 0/1, осталось с, видимых мне, всего, проклятых видимых мне (≤5)] — в личной фазе только свои (чужое не уходит) */
   near(pk: string, world: string, x: number, y: number, r: number, now = Date.now()) {
     const out: number[][] = [];
-    for (const c of this.chests.values()) if (c.world === world && Math.abs(c.x - x) <= r && Math.abs(c.y - y) <= r) { const pub = this.isPublic(c, now); out.push([c.id, c.x, c.y, pub ? 1 : 0, Math.max(0, Math.ceil(((pub ? c.exp : c.pubAt) - now) / 1000)), pub ? c.entries.length : c.entries.filter((e) => e.o === pk).length, c.entries.length]); }
+    for (const c of this.chests.values()) if (c.world === world && Math.abs(c.x - x) <= r && Math.abs(c.y - y) <= r) { const pub = this.isPublic(c, now); { const vis = pub ? c.entries : c.entries.filter((e) => e.o === pk); out.push([c.id, c.x, c.y, pub ? 1 : 0, Math.max(0, Math.ceil(((pub ? c.exp : c.pubAt) - now) / 1000)), vis.length, c.entries.length, Math.min(5, vis.filter((e) => e.c).length)]); } }
     return out;
   }
   get(id: any, world: string, x: number, y: number, now = Date.now()): Chest | string {

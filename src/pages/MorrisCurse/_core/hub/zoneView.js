@@ -1,3 +1,4 @@
+import { ChestSprites } from '../engine/chestSprite.js';
 import { baseOf } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
@@ -66,7 +67,7 @@ export class ZoneView {
     this.d = new THREE.Object3D();
     this.col = new THREE.Color();
     // узлы ресурсов — пропсы v2 (engine/propAtlas.js) (тот же стиль, что земля и деревья)
-    this.nodeBatch = null;
+    this.nodeBatch = null; this.chestSpr = null; this.chestSt = {}; // сундуки: {chan: id, open: id} — локальное состояние окна/канала
     this.beast = null;
     loadBeastBatch(THREE, 320).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
     loadPropTextures(THREE).then((t) => { this.nodeBatch = new PropSprites(THREE, t, { max: 160, parent: this.root }); }).catch((e) => console.warn('[nodes]', e.message));
@@ -111,7 +112,7 @@ export class ZoneView {
     }
     for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
     if (Array.isArray(s.bags)) { const keep = new Set(); for (const [id, x, y, n] of s.bags) { keep.add(id); this.bags.set(id, { id, x, y, n }); } for (const id of [...this.bags.keys()]) if (!keep.has(id)) this.bags.delete(id); }
-    if (Array.isArray(s.chests)) { const keep = new Set(); for (const [id, x, y, pub, left, mine, n] of s.chests) { keep.add(id); this.chests.set(id, { id, x, y, pub: !!pub, left, mine, n, at: Date.now() }); } for (const id of [...this.chests.keys()]) if (!keep.has(id)) this.chests.delete(id); }
+    if (Array.isArray(s.chests)) { const keep = new Set(); for (const [id, x, y, pub, left, mine, n, cz] of s.chests) { keep.add(id); this.chests.set(id, { id, x, y, pub: !!pub, left, mine, n, cz: cz | 0, at: Date.now() }); } for (const id of [...this.chests.keys()]) if (!keep.has(id)) this.chests.delete(id); }
     for (const [id, ready] of s.n || []) { const n = this.nodes.get(id); if (n) n.ready = !!ready; }
     if (s.me) this.me = s.me;
     this.tg = s.tg || null; // выбранная цель: точные ХП с сервера
@@ -335,9 +336,11 @@ export class ZoneView {
         atmo.shadow(toX(b.x), toZ(b.y), 0.5, 1);
       }
       // сундуки схватки: большой ящик; личный (есть мои) — золотой, общий — тёмный
-      for (const c of this.chests.values()) { const g = !c.pub && c.mine ? [1.6, 1.3, 0.5] : c.pub ? [0.85, 0.8, 0.95] : [0.7, 0.65, 0.6]; NB.push('crate', 0, 0, toX(c.x), toZ(c.y), 0.65 * (1 + Math.sin(T * 2 + c.id) * 0.03), false, 1, 0, g, false); atmo.shadow(toX(c.x), toZ(c.y), 0.9, 1); }
       NB.end();
     }
+    // сундуки схватки: пиксель-арт сундук поверх пропсов (ореол: личный — золото, общий — серый, канал — пульс)
+    if (!this.chestSpr && this.chests.size) this.chestSpr = new ChestSprites(this.THREE, this.root);
+    if (this.chestSpr) { const CS = this.chestSpr; CS.begin(); for (const c of this.chests.values()) CS.push(toX(c.x), toZ(c.y), c, this.chestSt.chan === c.id ? 'chan' : this.chestSt.open === c.id ? 'open' : 'closed', T); CS.end(); }
     // телеграфы, эффекты навыков и метки — спрайты FX atlas v2 (телеграфы #dcd3e6, цвет задаёт код)
     const P = this.pfx;
     P.begin(dt);
@@ -356,7 +359,6 @@ export class ZoneView {
       else if (t.kind === 'slam') P.slam(X, Z, t.r / PX, t.t, 0.35);
       else if (t.kind === 'boom') P.boom(X, Z, (t.r / PX) * 0.8, kk, t.color || 0xf87171, t.color === 0xfde68a ? 'hit_holy' : 'hit_fire');
     }
-    for (const c of this.chests.values()) if (c.mine || c.pub) P.mark('loot', toX(c.x), toZ(c.y), 1.4 + Math.sin(T * 3 + c.id) * 0.1, 1, c.id); // сундук
     for (const b of this.bags.values()) P.mark('loot', toX(b.x), toZ(b.y), 0.9 + Math.sin(T * 4 + b.id) * 0.08, 1, b.id); // мешок
     for (const o of this.mobs.values()) {
       const X = toX(o.x), Z = toZ(o.y);
