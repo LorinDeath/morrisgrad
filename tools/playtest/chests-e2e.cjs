@@ -3,7 +3,7 @@
 const { chromium } = require('playwright-core');
 const { guardLocal, assertLocalUrl } = require('./_local.cjs');
 const fs = require('fs');
-const OUT = '/workspace/morrisgrad-round3/loot-chests';
+const OUT = process.env.OUT || '/workspace/morrisgrad-round3/loot-chests';
 const BASE = process.env.CH_BASE || 'http://127.0.0.1:5243/game.html', WS = process.env.CH_WS || 'ws://127.0.0.1:8799';
 fs.mkdirSync(OUT, { recursive: true });
 const R = { pass: [], fail: [], notes: [] };

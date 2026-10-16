@@ -1,0 +1,41 @@
+{
+ "cell": {
+  "w": 24,
+  "h": 22
+ },
+ "anchor": {
+  "x": 0.5,
+  "y": 1.0,
+  "px": [
+   12,
+   21
+  ]
+ },
+ "size_m": 1.8,
+ "anims": {
+  "idle_closed": {
+   "row": 0,
+   "frames": 4,
+   "fps": 4,
+   "loop": true
+  },
+  "shake": {
+   "row": 1,
+   "frames": 6,
+   "fps": 14,
+   "loop": false
+  },
+  "open": {
+   "row": 2,
+   "frames": 5,
+   "fps": 10,
+   "loop": false
+  },
+  "idle_open": {
+   "row": 3,
+   "frames": 4,
+   "fps": 5,
+   "loop": true
+  }
+ }
+}
