@@ -18,7 +18,7 @@ import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 export const SCHEMA_VERSION = 1;
 
 // uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
-export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1 } // hero — владелец-герой (у каждого героя своя сумка)
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1; lk?: 1 } // hero — владелец-герой (у каждого героя своя сумка)
 export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
@@ -405,10 +405,19 @@ export function unequip(h: Hero, slot: string): R {
   delete h.equip[slot];
   return { ok: true };
 }
+/** Закрепить/открепить экземпляр: закреплённый не разбирается ни поштучно, ни пачкой (проверяет сервер). */
+export function setLock(a: Account, cls: string | null, uid: string, on: boolean): R & { uid?: string; lk?: boolean } {
+  const it = a.inv.find((i) => i.uid === uid);
+  if (!it) return fail("Нет предмета");
+  if (it.hero && it.hero !== cls) return fail("Это предмет другого героя");
+  if (on) it.lk = 1; else delete it.lk;
+  return { ok: true, msg: on ? "Закреплено" : "Откреплено", uid, lk: on };
+}
 export function salvage(a: Account, heroes: Hero[], uid: string): R {
   const idx = a.inv.findIndex((i) => i.uid === uid);
   if (idx < 0) return fail("Нет предмета");
   if (heroes.some((h) => Object.values(h.equip).includes(uid))) return fail("Сначала снимите предмет");
+  if (a.inv[idx].lk) return fail("Предмет закреплён — сначала открепите");
   const got = salvageYield(a.inv[idx].id);
   a.inv.splice(idx, 1);
   for (const [r, n] of Object.entries(got)) addRes(a, r, n);
@@ -418,7 +427,7 @@ const yieldText = (g: Record<string, number>) => Object.entries(g).map(([r, n]) 
 /** Какие экземпляры можно разобрать «пачкой по редкости»: не надеты, свои/общие для героя cls, ровно этой редкости. */
 export function salvageCandidates(a: Account, heroes: Hero[], cls: string | null, rarity: string): InvItem[] {
   const worn = new Set(heroes.flatMap((h) => Object.values(h.equip || {})));
-  return a.inv.filter((i) => ITEM_BY_ID[i.id]?.rarity === rarity && !worn.has(i.uid) && (!i.hero || i.hero === cls));
+  return a.inv.filter((i) => ITEM_BY_ID[i.id]?.rarity === rarity && !i.lk && !worn.has(i.uid) && (!i.hero || i.hero === cls));
 }
 /** Превью массового разбора — считает сервер: ровно сумма одиночных разборов. */
 export function salvagePreview(a: Account, heroes: Hero[], cls: string | null, rarity: string) {
@@ -570,9 +579,14 @@ export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewa
   questRefresh(a, h);
   if (!q || !questComplete(a, qid)) return fail("Квест не выполнен");
   // «собрать предмет/ресурс»: сдаётся NPC
+  for (const o of q.objectives as any[]) if (o.type === "collect" && o.item) { // закреплённые не сдаются: если без них не хватает — просим открепить
+    const eq = new Set(Object.values(h?.equip || {}));
+    const free = a.inv.filter((i) => i.id === o.item && !i.lk && (!i.hero || i.hero === a.hero) && !eq.has(i.uid)).length;
+    if (free < o.count) return fail("Нужный предмет закреплён — открепите его для сдачи");
+  }
   for (const o of q.objectives as any[]) if (o.type === "collect") {
     if (o.res) a.res[o.res] = Math.max(0, (a.res[o.res] || 0) - o.count);
-    else { const eq = new Set(Object.values(h?.equip || {})); let n = o.count; a.inv = a.inv.filter((i) => { if (n > 0 && i.id === o.item && (!i.hero || i.hero === a.hero) && !eq.has(i.uid)) { n--; return false; } return true; }); }
+    else { const eq = new Set(Object.values(h?.equip || {})); let n = o.count; a.inv = a.inv.filter((i) => { if (n > 0 && i.id === o.item && !i.lk && (!i.hero || i.hero === a.hero) && !eq.has(i.uid)) { n--; return false; } return true; }); }
   }
   delete a.quests.active[qid];
   a.quests.done.push(qid);

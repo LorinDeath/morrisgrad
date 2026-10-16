@@ -850,3 +850,23 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-worldmap .wm-pop input { width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 5px 6px; background: #0c0915; color: #fff; border: 1px solid #c59b27; font: 12px monospace; }
 .mc-worldmap .wm-pop div { display: flex; gap: 6px; } .mc-worldmap .wm-pop button { min-width: 0; min-height: 30px; flex: 1; border-radius: 0; font: 12px monospace; }
 .mc-worldmap .wm-pop button.del { border-color: #b91c1c; background: #3b0d0d; color: #fecaca; }
+/* сравнение предмета с надетым (наведение / долгое нажатие) */
+.mc-cmp { position: fixed; z-index: 60; pointer-events: none; max-width: min(300px, 92vw); background: #0e0a19; border: 2px solid #3b2c52; border-radius: 6px; padding: 7px 9px; font-family: monospace; font-size: 11px; color: #e2e8f0; box-shadow: 0 4px 0 #000a, 0 0 12px #000c; image-rendering: pixelated; }
+.mc-cmp .nm { font-weight: bold; font-size: 12px; margin-bottom: 2px; }
+.mc-cmp .rr { color: #94a3b8; font-size: 10px; margin-bottom: 4px; }
+.mc-cmp .cmpw { border-top: 1px dashed #3b2c52; padding-top: 4px; margin: 3px 0; color: #cbd5e1; font-size: 10px; }
+.mc-cmp .row { line-height: 1.5; }
+.mc-cmp .row small { color: #94a3b8; }
+.mc-cmp .up { color: #4ade80; font-weight: bold; }
+.mc-cmp .dn { color: #f87171; font-weight: bold; }
+.mc-cmp .eqv { color: #94a3b8; }
+.mc-cmp .row.new { background: rgba(74, 222, 128, 0.08); }
+.mc-cmp .row.lost { color: #fca5a5; opacity: 0.85; }
+.mc-cmp .row.ls { color: #fca5a5; }
+.mc-cmp i.nw { color: #4ade80; font-style: normal; font-size: 9px; border: 1px solid #4ade80; padding: 0 3px; }
+.mc-cmp i.ls { color: #f87171; font-style: normal; font-size: 9px; border: 1px solid #f87171; padding: 0 3px; }
+.mc-cmp .row.rsk { color: #c4b5fd; margin-top: 3px; }
+.mc-cmp .cz { color: var(--curse, #a855f7); }
+.mc-cmp .hint { color: #64748b; font-size: 9px; margin-top: 5px; }
+.mc-item, .mc-gslot { position: relative; -webkit-touch-callout: none; user-select: none; }
+.mc-lk { position: absolute; top: 2px; left: 3px; font-size: 11px; font-style: normal; filter: drop-shadow(0 1px 0 #000); }
