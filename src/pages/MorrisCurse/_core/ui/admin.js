@@ -1,6 +1,7 @@
 // Админ-панель: полный доступ — роль admin; модератор видит только Бестиарий / Оружие / Предметы.
 // Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
 import { esc } from './overlay.js';
+import { regionMapHtml, mountRegionMap } from './regionMap.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
 import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
@@ -39,7 +40,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -229,6 +230,7 @@ export class AdminPanel {
     const e = this.cat.ent[kind].find((x) => x.id === id);
     if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
     this.entityForm(sec, kind, e);
+    if (kind === 'region') { sec.insertAdjacentHTML('beforeend', regionMapHtml()); this.rmap = mountRegionMap(sec, id, (rid) => { if (this.cat.ent.region.some((x) => x.id === rid)) { this.sel = 'region:' + rid; this.render(); this.el.querySelector('aside li.on')?.scrollIntoView({ block: 'nearest' }); } }); }
   }
   entityForm(sec, kind, e) {
     if (!this.full && !(this.kinds || ['mob','weapon','item']).includes(kind)) { sec.innerHTML = '<p>Недостаточно прав.</p>'; return; }
@@ -244,6 +246,7 @@ export class AdminPanel {
         inp = `<span class="mc-adm-skpick"><input type="search" class="mc-adm-sksearch" placeholder="поиск навыка…" data-for="${f.path}">`
           + `<select data-p="${f.path}"><option value="" ${!val ? 'selected' : ''}>— нет (как выпало)</option>${groups.map((g) => `<optgroup label="${esc(g)}">${f.optl.filter((o) => o.group === g).map(opt).join('')}</optgroup>`).join('')}</select></span>`;
       }
+      else if (f.t === 'text') inp = `<input type="text" maxlength="48" data-p="${f.path}" value="${esc(val ?? '')}">`;
       else if (f.t === 'color') inp = `<input type="color" data-p="${f.path}" value="${esc(val || '#a855f7')}">`;
       else if (f.t === 'enum') inp = `<select data-p="${f.path}">${f.opts.map((o) => `<option ${o === (val ?? '') ? 'selected' : ''} value="${o}">${o || '—'}</option>`).join('')}</select>`;
       else if (f.t === 'resmap') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>формат: soul_shard:2, iron:1 · пусто = ничего</small><input type="text" style="width:100%" list="mc-adm-res" data-rm="${f.path}" value="${esc(Object.entries(val || {}).map(([r, n]) => r + ':' + n).join(', '))}"><datalist id="mc-adm-res">${(this.cat.res || []).map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</datalist></div>`;
@@ -251,7 +254,7 @@ export class AdminPanel {
           const L = f.optl || this.cat.mobSkills.map((k) => ({ id: k, name: k, group: 'Навыки' }));
           return [...new Set(L.map((o) => o.group))].map((g) => `<div class="chips" data-g="${esc(g)}"><small class="mc-dim">${esc(g)}</small>${L.filter((o) => o.group === g).map((o) => `<label title="${esc(o.id)}"><input type="checkbox" data-sk="${esc(o.id)}" ${(val || []).includes(o.id) ? 'checked' : ''}>${esc(o.name)}</label>`).join('')}</div>`).join('');
         })()}</div>`;
-      else inp = `<input type="number" step="${f.t === 'int' ? 1 : 0.01}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="—">`;
+      else inp = `<input type="number" step="${f.t === 'int' ? 1 : 0.01}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="${esc(e.defs?.[f.path] ?? '—')}" title="${val == null && e.defs?.[f.path] ? 'Пусто — как в коде: ' + esc(e.defs[f.path]) : ''}">`;
       return `<label title="${f.path} · ${f.min ?? ''}…${f.max ?? ''}"><span>${ic}${esc(f.label)}</span>${inp}</label>`;
     };
     sec.innerHTML = `<h3>${esc(e.icon || '')} ${esc(e.name)} <small style="color:#9a8bb8">${esc(kind)}:${esc(e.id)}</small>${e.lvl ? ` <span class="lv" style="color:#86efac">ур. ${e.lvl}</span>` : ''}</h3>
@@ -288,7 +291,7 @@ export class AdminPanel {
       let patch = {};
       if (kind === 'loot') patch = this.readLoot(sec);
       else {
-        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' ? i.value : Number(i.value); });
+        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' || f.t === 'text' ? i.value : Number(i.value); else if (f.t === 'text') patch[f.path] = ''; });
         sec.querySelectorAll('input[data-rm]').forEach((i) => { const m = {}; for (const part of i.value.split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } patch[i.dataset.rm] = m; });
         if (S.fields.some((f) => f.t === 'skills')) patch.skills = [...sec.querySelectorAll('[data-sk]:checked')].map((i) => i.dataset.sk);
         if (S.traits) patch.traits = this.traits;

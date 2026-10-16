@@ -21,6 +21,11 @@ import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
 import { AdminStore, traitsFor, applyTraits } from "./admin";
 import { ExploreStore } from "./exploreDb";
 import { FOG_WORLDS } from "./explore";
+import { mapZones } from "./mapZones";
+import { MarkStore } from "./mapMarks";
+import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
+import { WORLD_GEN } from "./zoneGen";
+let MZ: { ver: number; z: any } | null = null;
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -122,6 +127,7 @@ export class MetaService {
   duelMem = new Map<string, { w: number; l: number; d: number }>(); // счёт дуэлей без D1 (локальные тесты без базы)
   onPlayersChanged: (() => void) | null = null; // GameRoom.broadcast — после телепортов дуэли
   explore: ExploreStore;
+  marks: MarkStore;
   admin: AdminStore;
   onVerified?: (ws: any, session: any, uid: string) => void;
   constructor(sql: any, env: any) {
@@ -132,6 +138,7 @@ export class MetaService {
     this.social = new Social(this, env?.GAME_DB);
     this.roles = new Roles(env?.GAME_DB);
     this.explore = new ExploreStore(env?.GAME_DB);
+    this.marks = new MarkStore(env?.GAME_DB);
     this.admin = new AdminStore(env?.GAME_DB);
     this.loot = new LootBags(); this.chests = new Chests(); this.enc = new Encounters(); this.db = env?.GAME_DB || null;
     { let t: any = null; this.admin.onChange = () => { if (!t) t = setTimeout(() => { t = null; this.broadcastConfig(); }, 50); }; } // правки — всем онлайн сразу
@@ -244,6 +251,7 @@ export class MetaService {
     s.questDialogues = QUEST_DIALOGUES; // диалоги-новеллы квестов (админка)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
+    if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); // карта M: биом · ур. мобов (живые уровни)
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
@@ -386,6 +394,25 @@ export class MetaService {
       // профиль ещё не загружен (или загрузка не удалась) — meta_get запускает повтор
       if (msg.type === "meta_get" && session) { this.retryJoin(ws, session); return true; }
       return false;
+    }
+    if (msg.type === "mark_add" || msg.type === "mark_del" || msg.type === "mark_rename" || msg.type === "mark_list") { // метки карты M: только свои, герой = класс сессии, мир = мир сессии
+      const cls = session.stats?.classId, w = session.world || "hellfire"; if (!cls) return true;
+      const t = Date.now(); if (msg.type !== "mark_list" && t - ((ms as any).markAt || 0) < 150) { this.send(ws, { type: "mark_err", message: "Слишком часто" }); return true; }
+      (ms as any).markAt = t; const P = ms.pkey, done = (r: any) => this.send(ws, r.ok ? { type: "mark_ok", op: msg.type, world: w, mark: r.mark, id: msg.id } : { type: "mark_err", message: r.err });
+      const fail = (e: any) => { console.error("[mc] marks", e?.message || e); this.send(ws, { type: "mark_err", message: "Не удалось сохранить метку" }); };
+      if (msg.type === "mark_list") this.marks.list(P, cls, w).then((a) => this.send(ws, { type: "marks", world: w, hero: cls, list: a })).catch(fail);
+      else if (msg.type === "mark_add") this.marks.add(P, cls, w, msg.x, msg.y, msg.n).then(done).catch(fail);
+      else if (msg.type === "mark_rename") this.marks.rename(P, cls, w, msg.id, msg.n).then(done).catch(fail);
+      else this.marks.del(P, cls, w, msg.id).then(done).catch(fail);
+      return true;
+    }
+    if (msg.type === "dash") { // рывок: перезарядка и неуязвимость — по часам сервера; мигание видят все в мире
+      const now = Date.now(), r = dashTry((ms as any).dashSt ||= {}, now);
+      if (!r.ok) { this.send(ws, { type: "dash_reject", left: Math.round(r.left) }); return true; }
+      if (DASH_CFG.invulnMs > 0) (ms as any).invulnUntil = Math.max((ms as any).invulnUntil || 0, r.invulnUntil);
+      const fx = { type: "dash_fx", id: session.id, ms: DASH_CFG.invulnMs, blink: DASH_CFG.blink !== false }, w = session.world || "hellfire";
+      for (const sid of this.ms.keys()) { const e = this.sessionLookup?.(sid); if (e && (e[1]?.world || "hellfire") === w) this.send(e[0], fx); }
+      return true;
     }
     if (MSG_SCHEMA[msg.type]) {
       const now = Date.now();
@@ -1326,7 +1353,7 @@ export class MetaService {
       zone.update(dt, now, players, (sid, dmg, src) => {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
-        if (((ms as any).invulnUntil || 0) > now) return; // неуязвимость навыка (прыжок, облако, рывок)
+        if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
         const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
         const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
@@ -1379,6 +1406,7 @@ export class MetaService {
     const key = cls + "|" + w;
     if (ms.fogKey !== key) {
       ms.fogKey = key; ms.fogAt = now;
+      this.marks.list(ms.pkey, cls, w).then((a) => { if (ms.fogKey === key) this.send(ws, { type: "marks", world: w, hero: cls, list: a }); }).catch(() => {}); // свои метки героя для этого мира
       if (!FOG_WORLDS.includes(w)) { this.send(ws, { type: "fog", world: w, none: true }); return; }
       this.explore.visit(ms.pkey, cls, w, s.x, s.y);
       this.explore.full(ms.pkey, cls, w).then((f) => { if (ms.fogKey === key) this.send(ws, { type: "fog", ...f, hero: cls }); }).catch((e) => console.error("[mc] fog", e?.message || e));

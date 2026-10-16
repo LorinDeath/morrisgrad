@@ -709,7 +709,7 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-worldmap canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: grab; }
 .mc-worldmap .wm-top { position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: linear-gradient(#0c0816ee, #0c081600); color: #fde68a; font-size: 14px; }
 .mc-worldmap .wm-info { color: #cbd5e1; font-size: 12px; } .mc-worldmap .wm-sp { flex: 1; }
-.mc-worldmap button { min-width: 44px; min-height: 44px; border-radius: 10px; border: 2px solid #3b2c52; background: rgba(18,13,32,.9); color: #fff; font-size: 18px; }
+.mc-worldmap button.wm-bm.on { border-color: #c59b27; background: #3a2a10; color: #fde68a; } .mc-worldmap button.wm-bm { font-size: 13px; font-family: monospace; padding: 0 10px; } .mc-worldmap button { min-width: 44px; min-height: 44px; border-radius: 10px; border: 2px solid #3b2c52; background: rgba(18,13,32,.9); color: #fff; font-size: 18px; }
 .mc-worldmap .wm-tip { position: absolute; display: none; padding: 4px 8px; background: #120c1fee; border: 1px solid #c59b27; color: #fde68a; font-size: 12px; border-radius: 6px; pointer-events: none; }
 .mm-btn.mm-map { width: auto; padding: 0 4px; }
 .mm-btn.mm-art { width: auto; padding: 0 4px; opacity: .65; }
@@ -845,3 +845,8 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-chest-chan .trk { height: 10px; margin: 6px 0 4px; background: #2a2010; border: 1px solid #5b4720; border-radius: 5px; overflow: hidden; } .mc-chest-chan .trk i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #b8913a, #fde68a); }
 .mc-chest-chan small { color: #a8977a; } .mc-chest-chan.fail { border-color: #f87171; color: #fca5a5; } .mc-chest-chan.fail .trk i { background: #f87171; }
 .mc-chest-lbl { color: #fde68a; } .mc-chest-lbl.pub { color: #e5e7eb; }
+.mc-worldmap .wm-pop { position: absolute; display: none; z-index: 3; min-width: 220px; max-width: 260px; padding: 8px; background: #120c1f; border: 2px solid #c59b27; box-shadow: 3px 3px 0 #000; color: #fde68a; font: 12px monospace; }
+.mc-worldmap .wm-pop b { display: block; margin-bottom: 6px; word-break: break-word; }
+.mc-worldmap .wm-pop input { width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 5px 6px; background: #0c0915; color: #fff; border: 1px solid #c59b27; font: 12px monospace; }
+.mc-worldmap .wm-pop div { display: flex; gap: 6px; } .mc-worldmap .wm-pop button { min-width: 0; min-height: 30px; flex: 1; border-radius: 0; font: 12px monospace; }
+.mc-worldmap .wm-pop button.del { border-color: #b91c1c; background: #3b0d0d; color: #fecaca; }
