@@ -658,6 +658,7 @@ export class MetaService {
         if (msg.hurtMe) { (ms as any).hurtAt = Date.now(); ms.zp.hp = Math.max(1, ms.zp.hp - 1); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
+        if (msg.setUp && typeof msg.setUp === "object") { const it = a.inv.find((i) => i.uid === String(msg.setUp.uid)); if (it) it.up = Math.max(0, Math.min(58, Number(msg.setUp.up) | 0)); } // тест значков улучшения (только dev)
         // стресс-тест анти-дюпа: забить сумку, освободить слоты, точный счёт предметов (только dev)
         if (msg.fill && ITEM_BY_ID[msg.fill.id]) for (let i = 0; i < Math.min(200, Number(msg.fill.n) || 0); i++) if (!addItem(a, String(msg.fill.id), "grant:fill")) break;
         if (msg.freeSlots) { let n = Math.min(200, Number(msg.freeSlots) || 0); for (let i = a.inv.length - 1; i >= 0 && n > 0; i--) if (a.inv[i].src === "grant:fill") { a.inv.splice(i, 1); n--; } }

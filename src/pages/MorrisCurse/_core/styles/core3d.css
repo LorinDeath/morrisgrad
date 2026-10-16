@@ -881,7 +881,6 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-upg .h { color: #cbd5e1; font-size: 11px; margin: 4px 0; }
 .mc-upg .mc-bag { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 5px; max-height: 60vh; overflow: auto; }
 .mc-upg .mc-item { min-height: 48px; position: relative; }
-.mc-upn { position: absolute; bottom: 1px; right: 3px; font-style: normal; font-size: 10px; color: #fbbf24; text-shadow: 0 1px 0 #000; font-weight: bold; }
 .mc-upg .dt .nm { font-weight: bold; font-size: 13px; }
 .mc-upg .dt .rr { font-size: 10px; color: #94a3b8; margin: 2px 0 6px; }
 .mc-upg .cz { color: var(--curse, #a855f7); }
@@ -897,3 +896,28 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-upg .sm { font-size: 9px; margin-top: 4px; }
 .mc-upg .per { font-size: 10px; }
 @media (max-width: 760px) { .mc-upg .bd { grid-template-columns: 1fr; } .mc-upg .pt { display: flex; gap: 8px; align-items: center; } .mc-upg .pt img { width: 72px; } }
+/* значок улучшения +N (ui/upBadge.js) */
+.mc-upb { position: absolute; right: 1px; bottom: 1px; z-index: 2; pointer-events: none; font: normal 700 9px/1 monospace; letter-spacing: -0.5px; padding: 2px 3px 1px; color: #fff7e6;
+  border: 1px solid #1a1626; border-radius: 0; background: var(--ub, #8a5a2b); box-shadow: inset 1px 1px 0 var(--ubh, #d9a066), inset -1px -1px 0 var(--ubs, #5a3414), 0 1px 0 #1a1626;
+  text-shadow: 1px 0 0 #1a1626, -1px 0 0 #1a1626, 0 1px 0 #1a1626, 0 -1px 0 #1a1626; image-rendering: pixelated; -webkit-font-smoothing: none; font-smooth: never; }
+.mc-upb.sm { position: static; display: inline-block; vertical-align: middle; margin-left: 4px; font-size: 9px; }
+.mc-upb.t1 { --ub: #9a6332; --ubh: #e0a86a; --ubs: #5e3816; color: #ffe9cc; }
+.mc-upb.t2 { --ub: #8d96a6; --ubh: #e6ecf5; --ubs: #4e5666; color: #ffffff; }
+.mc-upb.t3 { --ub: #c99a1c; --ubh: #ffe27a; --ubs: #7a5508; color: #fff8d6; }
+.mc-upb.t4 { --ub: #1f9e86; --ubh: #6ff0d0; --ubs: #0c5a4b; color: #e6fff8; filter: drop-shadow(0 0 2px rgba(80, 240, 200, 0.45)); }
+.mc-upb.t5 { --ub: #2f6fd6; --ubh: #8ec5ff; --ubs: #173b80; color: #eef6ff; filter: drop-shadow(0 0 2px rgba(110, 170, 255, 0.55)); }
+.mc-upb.t6 { --ub: #c0263e; --ubh: #ff8a9a; --ubs: #6e0f1e; color: #fff0f2; filter: drop-shadow(0 0 3px rgba(255, 80, 110, 0.6)); }
+/* проклятые: фиолетовая гамма, темнее → ярче по ступеням */
+.mc-upb.cz.t1 { --ub: #5b3a7a; --ubh: #9d78c2; --ubs: #321e47; }
+.mc-upb.cz.t2 { --ub: #6a45a0; --ubh: #b89ae6; --ubs: #3a2360; }
+.mc-upb.cz.t3 { --ub: #7d3fbf; --ubh: #c99cff; --ubs: #43207a; }
+.mc-upb.cz.t4 { --ub: #8e3ad6; --ubh: #d6a8ff; --ubs: #4c1a85; filter: drop-shadow(0 0 2px rgba(190, 120, 255, 0.5)); }
+.mc-upb.cz.t5 { --ub: #a234e0; --ubh: #e6b3ff; --ubs: #561a8a; filter: drop-shadow(0 0 2px rgba(210, 120, 255, 0.6)); }
+.mc-upb.cz.t6 { --ub: #b92ad8; --ubh: #f6b8ff; --ubs: #5e1270; filter: drop-shadow(0 0 3px rgba(230, 110, 255, 0.7)); }
+/* максимум: блик пробегает по плашке (дёшево: один градиент, шаговая анимация — «пиксельно») */
+.mc-upb.max { background: linear-gradient(100deg, var(--ub) 0 40%, var(--ubh) 45% 55%, var(--ub) 60% 100%) var(--ub); background-size: 300% 100%; animation: mc-upb-shine 2.4s steps(12) infinite; }
+@keyframes mc-upb-shine { 0% { background-position: 100% 0; } 60%, 100% { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .mc-upb.max { animation: none; } }
+/* «нужен ур.» переезжает влево, чтобы не спорить со значком */
+.mc-item .req { right: auto; left: 2px; }
+.mc-altar-item, .mc-altar-slot .ic, .mc-insp-slot .ic, .mc-gslot span { position: relative; }

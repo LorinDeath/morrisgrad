@@ -8,6 +8,7 @@ import { rsInfo } from '../../../../../server/meta/rsAny.ts';
 import { statIcon } from './statIcons.js';
 import { diffStats } from './itemCompare.js';
 import { fmtPct } from './fmtPct.js';
+import { upBadge } from './upBadge.js';
 import { upgStats } from '../../../../../server/meta/upgrade.ts';
 import {
   TALENTS, TALENT_TIER_REQ, TALENT_BRANCHES, TALENT_BY_ID, ABILITY_BY_ID, ABILITIES_DEF, RADIANCE_PROPS, RADIANCE_MAX, radianceCost, radianceColor,
@@ -172,7 +173,7 @@ export class Book {
       : `<div class="cmpw">Слот «${esc(SLOTS[d.slot])}» пуст — всё ниже будет прибавкой</div>`;
     const rsRow = d.slot === 'weapon' ? `<div class="row rsk">🌀 Навык R: <b>${R ? `${R.icon} ${esc(R.name)}` : 'нет'}</b>${cd && !worn ? (CR?.name === R?.name ? ' <small>(тот же)</small>' : ` <small>(сейчас: ${CR ? esc(CR.name) : 'нет'})</small>`) : ''}</div>` : '';
     const low = h && h.lvl < reqOf(d);
-    return `<div class="nm" style="color:${col(d)}">${iconHtml(d, 24)} ${esc(d.name)}${it.lk ? ' 🔒' : ''}</div>
+    return `<div class="nm" style="color:${col(d)}">${iconHtml(d, 24)} ${esc(d.up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(it.up, it.cursed, true)}${it.lk ? ' 🔒' : ''}</div>
       <div class="rr">${d.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot])} · ур. ${d.lvl || 1}${cd && lvlD ? ` ${arrow(lvlD)}` : ''}</div>
       ${head}<div class="rows">${rows || '<div class="mc-dim">Без характеристик</div>'}</div>${rsRow}
       ${low ? `<div class="row ls">Нужен ${reqOf(d)} уровень героя (у вас ${h.lvl})</div>` : ''}
@@ -473,14 +474,14 @@ export class Book {
       const it = uid && byUid.get(uid);
       const d = it && curseDef(ITEM_BY_ID[it.id], it);
       // клик по надетому — карточка статов (Снять только кнопкой в карточке); снятие drag'ом не меняем (его нет)
-      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d?.cursed ? 'cursed' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d?.cursed ? 'cursed' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) + upBadge(it.up, it.cursed) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
     const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = curseDef(ITEM_BY_ID[it.id], it);
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
-      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}" >${iconHtml(d, 40)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
+      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}" >${iconHtml(d, 40)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
     // массовый разбор по редкости: кнопка на каждую редкость, что есть в сумке → превью с сервера → окно подтверждения
     const rset = [...new Set(bagItems.filter((i) => !i.lk).map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
@@ -499,7 +500,7 @@ export class Book {
       const abNew = newAb && feats['ability:' + newAb] && !feats['ability:' + newAb].v;
       if (newProps.length || abNew) this.meta.markSeen('feats', [...newProps.map((k) => 'prop:' + k), ...(abNew ? ['ability:' + newAb] : [])]);
       const C = CURSE;
-      detail = `<div class="mc-tip ${d.cursed ? 'cursed' : ''}" ${d.cursed ? `style="--curse:${curseTint()}"` : ''}><div class="nm" style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${iconHtml(d, 32)} ${esc(d.name)}</div>
+      detail = `<div class="mc-tip ${d.cursed ? 'cursed' : ''}" ${d.cursed ? `style="--curse:${curseTint()}"` : ''}><div class="nm" style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${iconHtml(d, 32)} ${esc(d.up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(it.up, it.cursed, true)}</div>
         <div class="rr">${d.cursed ? `<b class="cz">☠ Проклятая</b> · ` : ''}${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
         ${d.cursed ? `<div class="ab cz">☠ Проклятие: все характеристики ×${C.statMult || 1.5}${d.slot === 'weapon' ? `, урон навыка R ×${C.rsMult || 2}` : ''}. Тот же уровень, что у обычной версии.</div>` : ''}
         <div class="ss">${itemStatsHtml(d, newProps)}</div>

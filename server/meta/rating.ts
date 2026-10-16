@@ -146,10 +146,10 @@ export async function loadPublicProfile(db: any, pkey: string): Promise<{ a: Acc
   const [accR, heroR, eqR] = (await db.batch([
     q("SELECT data FROM accounts WHERE pkey = ?"),
     q("SELECT hero, lvl, xp, talents, abil, loadout, max_dmg, max_dmg_where FROM heroes WHERE pkey = ?"),
-    q("SELECT e.hero, e.slot, e.instance_id, i.item_id FROM hero_equipment e JOIN item_instances i ON i.instance_id = e.instance_id AND i.owner = e.pkey AND i.state = 'inv' WHERE e.pkey = ?"),
+    q("SELECT e.hero, e.slot, e.instance_id, i.item_id, i.cursed, i.upg FROM hero_equipment e JOIN item_instances i ON i.instance_id = e.instance_id AND i.owner = e.pkey AND i.state = 'inv' WHERE e.pkey = ?"),
   ])).map((r: any) => r.results || []);
   if (!accR.length && !heroR.length) return null;
-  const a: Account = fixAccount({ ...newAccount(), ...(accR[0] ? JSON.parse(accR[0].data) : {}), inv: eqR.map((e: any) => ({ uid: e.instance_id, id: e.item_id })) } as Account);
+  const a: Account = fixAccount({ ...newAccount(), ...(accR[0] ? JSON.parse(accR[0].data) : {}), inv: eqR.map((e: any) => ({ uid: e.instance_id, id: e.item_id, ...(e.cursed ? { cursed: 1 } : {}), ...(e.upg ? { up: e.upg } : {}) })) } as Account);
   const heroes: Record<string, any> = {};
   for (const cls of HERO_IDS) {
     const r = heroR.find((x: any) => x.hero === cls);
@@ -166,7 +166,7 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
   const eff: any = heroEffective(a, h, cls, base);
   const gear = equippedItems(a, h).map((e) => {
     const it = ITEM_BY_ID[e.id];
-    return { slot: e.slot, n: ITEM_INDEX[e.id], id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}) };
+    return { slot: e.slot, n: ITEM_INDEX[e.id], id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}) };
   });
   return {
     name, cls, lvl: h.lvl, gear,

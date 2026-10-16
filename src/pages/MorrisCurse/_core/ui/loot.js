@@ -1,5 +1,6 @@
 // Окно мешка добычи (Albion-стиль): клик — взять предмет; зажать Shift и провести курсором — забрать всё, над чем прошли;
 // «Забрать всё». Внутри игрового контейнера, рамка как у игровых панелей. Сервер — авторитет (loot_take / loot_bag).
+import { upBadge } from './upBadge.js';
 import { esc } from './overlay.js';
 import { card, iconHtml } from '../meta/itemCards.js';
 import { curseTint } from './book.js';
@@ -51,7 +52,7 @@ export class LootWindow {
       if (e.k === 'res') { const r = RESOURCES[e.id] || {}; return `<div class="cell res" data-lid="${e.lid}" title="${esc(r.name || e.id)}"><span class="ic">${r.icon || '◆'}</span><span class="n">${e.n}</span><span class="nm">${esc(r.name || e.id)}</span></div>`; }
       const c = card(e.id) || { name: e.id }; const cursed = !!e.c; const nm = cursed ? ('Проклятый ' + String(c.name || e.id).charAt(0).toLowerCase() + String(c.name || e.id).slice(1)) : (c.name || e.id);
       const rc = cursed ? curseTint() : (RARITIES[c.rarity]?.color || '#9ca3af');
-      return `<div class="cell${cursed ? ' cursed' : ''}" data-lid="${e.lid}" data-cursed="${cursed ? 1 : 0}" style="--rc:${rc}" title="${esc(nm)}">${iconHtml(c, 36)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${c.lvl ? `<span class="lv">ур. ${c.lvl}</span>` : ''}${cursed ? '<span class="cz">☠</span>' : ''}</div>`;
+      return `<div class="cell${cursed ? ' cursed' : ''}" data-lid="${e.lid}" data-cursed="${cursed ? 1 : 0}" style="--rc:${rc}" title="${esc(nm)}">${iconHtml(c, 36)}${upBadge(e.up, cursed)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${c.lvl ? `<span class="lv">ур. ${c.lvl}</span>` : ''}${cursed ? '<span class="cz">☠</span>' : ''}</div>`;
     }).join('');
     g.querySelectorAll('[data-lid]').forEach((c) => {
       if (this.pending.has(Number(c.dataset.lid))) c.classList.add('taking');
