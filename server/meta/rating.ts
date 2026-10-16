@@ -171,7 +171,7 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
   return {
     name, cls, lvl: h.lvl, gear,
     stats: { maxHp: eff.maxHp, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, dmgPct: eff.dmgPct, critPct: eff.critPct, atkSpeedPct: eff.atkSpeedPct,
-      speedPct: eff.speedPct, regen: eff.regen, lifestealPct: eff.lifestealPct, cdrPct: eff.cdrPct, magnetPct: eff.magnetPct, revive: eff.revive },
+      speedPct: eff.speedPct, regen: eff.regen, lifestealPct: eff.lifestealPct, cdrPct: eff.cdrPct, magnetPct: eff.magnetPct, revive: eff.revive, armorPen: eff.armorPen || 0, armorPenPct: eff.armorPenPct || 0 },
     look: eff.look || null, wtype: eff.wtype, cg: eff.cursedGlow || 0,
     abilities: eff.abilities.map((x: any) => ({ id: x.id, rad: x.rad, power: x.power, cd: x.cd })),
     maxDmg: h.md ? { v: h.md, where: h.mdW || "" } : null,

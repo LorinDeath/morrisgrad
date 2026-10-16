@@ -12,7 +12,7 @@ import { esc, roleTag } from './overlay.js';
 
 const WORLD_RU = { hellfire: 'Поляна', arinar: 'Аринар' };
 const STAT_RU = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с',
-  cdrPct: 'Перезарядка −%', magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %' };
+  cdrPct: 'Перезарядка −%', magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %', armorPen: 'Пробитие брони', armorPenPct: 'Пробитие брони, %' };
 const heroLabel = (cls) => (cls ? displayClassName(cls, '—') : 'Душа');
 export function whereLabel(w) {
   const [world, mob] = String(w || '').split(':');
@@ -134,6 +134,7 @@ export class Social {
         P('❤️ Здоровье', s.maxHp), P('🛡️ Броня', `${s.armor} <small>(−${Math.round(s.dr * 100)}% урона)</small>`), P('⚔️ Урон оружия', `${s.wMin}–${s.wMax}`), P('💥 Урон', `+${s.dmgPct}%`),
         P('🎯 Крит', `${s.critPct}%`), P('⚡ Скорость атаки', `+${s.atkSpeedPct}%`), P('👟 Скорость', `${s.speedPct >= 0 ? '+' : ''}${s.speedPct}%`), P('💧 Регенерация', `${s.regen}/с`),
         P('🩸 Вампиризм', `${s.lifestealPct}%`), P('⏱️ Перезарядка', `−${s.cdrPct}%`), P('🧲 Радиус сбора', `+${s.magnetPct}%`),
+        ...((s.armorPen || s.armorPenPct) ? [P('🗡️ Пробитие брони', [s.armorPen ? `${s.armorPen}` : '', s.armorPenPct ? `${s.armorPenPct}%` : ''].filter(Boolean).join(' + '))] : []),
       ].join('');
       const abil = d.abilities.length ? d.abilities.map((a) => {
         const def = ABILITY_BY_ID[a.id] || { name: a.id, desc: '' };

@@ -10,7 +10,7 @@ import { statIcon } from './statIcons.js';
 import { upBadge } from './upBadge.js';
 
 const LBL = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с', cdrPct: 'Перезарядка −%',
-  magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %', armorPen: 'Пробивание брони', armorPenPct: 'Пробивание брони, %' };
+  magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %', armorPen: 'Пробитие брони', armorPenPct: 'Пробитие брони, %' };
 const SAY = { idle: 'Неси вещь — сделаю крепче. Мне нужен материал: каждый уровень — свой.', ok: 'Держи. Крепче прежнего.', max: 'Дальше некуда — это предел.', need: 'Материала не хватает. Сначала добудь.' };
 const fmt = (v) => (Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100));
 

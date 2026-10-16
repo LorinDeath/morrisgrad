@@ -32,7 +32,7 @@ const TABS = [
 ];
 const STAT_LABEL = {
   dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %',
-  regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %', armorPen: 'Пробивание брони', armorPenPct: 'Пробивание брони, %',
+  regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', magnetPct: 'Радиус сбора, %', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %', armorPen: 'Пробитие брони', armorPenPct: 'Пробитие брони, %',
 };
 const STAR_COL = { yellow: '#facc15', red: '#ef4444', purple: '#c084fc', black: '#94a3b8' };
 const star = (c, n = 1) => `<b style="color:${STAR_COL[c] || '#fff'}">${'★'.repeat(Math.max(0, n))}</b>`;
@@ -349,6 +349,7 @@ export class Book {
       ${stat('Здоровье', e.maxHp, 0, 'maxHp')}${stat('Броня', `${e.armor} (−${Math.round((e.damageReduction || 0) * 100)}%)`, 0, 'armor')}${stat('Оружие', `${e.weaponMin}–${e.weaponMax}`, 0, 'weaponMin')}
       ${stat('Урон', `+${e.dmgPct}%`, STAT_CAPS.dmgPct, 'dmgPct')}${stat('Крит', `${e.critPct}%`, STAT_CAPS.critPct, 'critPct')}${stat('Скор. атаки', `+${e.atkSpeedPct}%`, STAT_CAPS.atkSpeedPct, 'atkSpeedPct')}
       ${stat('Перезарядка', `−${e.cdrPct}%`, STAT_CAPS.cdrPct, 'cdrPct')}${stat('Вампиризм', `${e.lifestealPct}%`, STAT_CAPS.lifestealPct, 'lifestealPct')}${stat('Скорость', `+${e.speedPct}%`, STAT_CAPS.speedPct, 'speedPct')}
+      ${stat('Пробитие брони', `${e.armorPen || 0}`, STAT_CAPS.armorPen, 'armorPen')}${stat('Пробитие брони', `${e.armorPenPct || 0}%`, STAT_CAPS.armorPenPct, 'armorPenPct')}
     </div>`;
     const xpw = Math.min(100, (h.xp / (h.xpNeed || 1)) * 100);
     const open = this.meta.flag('talents_open');

@@ -7,6 +7,8 @@
 // темп ударов и перезарядки — серверные, попадание — по позициям сервера и форме удара оружия.
 // Клиентские числа урона и любые «duel_action» игнорируются. Счёт — в D1 (миграция 0005_duels.sql).
 import { isInvuln } from "./dash";
+import { effectiveArmor } from "./balance";
+import { armorToReduction } from "./shared";
 import { WEAPON_TYPES, ABILITY_BY_ID, ZONE_RESPAWN, volleyDirs } from "./defs";
 import { traitsFor, applyTraits } from "./admin";
 import { cryptoRand } from "./profile";
@@ -242,7 +244,10 @@ export class Pvp {
   private deal(c: any, session: any, dmg: number, crit: boolean, eff: any) {
     if (this.host.ally?.(session.id, c.os.id)) return; // союзники по отряду не наносят друг другу урон
     if (isInvuln(c.op)) { c.d.ev.push({ k: "phit", by: session.id, to: c.os.id, d: 0, immune: 1, x: Math.round(c.os.x), y: Math.round(c.os.y) }); return 0; } // неуязвимость рывка/навыка — по часам сервера
-    const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, c.op.zp.armorRed || 0))));
+    // пробитие брони атакующего (% затем плоское) снижает броню цели → её снижение урона пересчитывается
+    let red = c.op.zp.armorRed || 0;
+    if ((eff.armorPen || eff.armorPenPct) && typeof (c.op.zp as any).armor === "number") red = armorToReduction(effectiveArmor((c.op.zp as any).armor, eff.armorPen || 0, eff.armorPenPct || 0));
+    const real = Math.max(1, Math.round(dmg * (1 - Math.min(0.75, red))));
     c.op.zp.hp = Math.max(0, c.op.zp.hp - real);
     { const t = Date.now(); (c.op as any).hurtAt = t; (c.me as any).hitAt = t; } // бой → регенерация ×regenCombat
     c.d.hits[c.i] += real;

@@ -315,7 +315,7 @@ export class MetaService {
     const eff = this.effective(session);
     const wasFull = ms.zp.hp >= ms.zp.maxHp;
     ms.zp.maxHp = eff.maxHp;
-    ms.zp.armorRed = eff.damageReduction;
+    ms.zp.armorRed = eff.damageReduction; (ms.zp as any).armor = eff.armor || 0; // сырая броня — для пробития в дуэлях
     (ms as any).revive = (eff as any).revive || 0; // талант «встать с 40% ХП» (revive.ts)
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats

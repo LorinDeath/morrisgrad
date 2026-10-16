@@ -30,7 +30,9 @@
   "regen": 22,
   "revive": 23,
   "amount": 24,
-  "area": 25
+  "area": 25,
+  "armorPen": 26,
+  "armorPenPct": 27
  },
  "files": {
   "16": "stats_16.png",

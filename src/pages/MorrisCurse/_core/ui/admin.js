@@ -11,7 +11,7 @@ import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
 // краткое описание предмета для пикера наград квеста (уровень, редкость, слот, статы)
 const ITEM_STAT_RU = {
   dmgMin: 'урон мин', dmgMax: 'урон макс', hp: 'HP', armor: 'броня', critPct: 'крит%', speedPct: 'скор%',
-  regen: 'реген', cdrPct: 'КД−%', magnetPct: 'магнит%', lifestealPct: 'вампир%', atkSpeedPct: 'скор.атак%', dmgPct: 'урон%', armorPct: 'броня%',
+  regen: 'реген', cdrPct: 'КД−%', magnetPct: 'магнит%', lifestealPct: 'вампир%', atkSpeedPct: 'скор.атак%', dmgPct: 'урон%', armorPct: 'броня%', armorPen: 'пробитие', armorPenPct: 'пробитие%',
 };
 function itemStatsBrief(it) {
   if (!it) return '';
