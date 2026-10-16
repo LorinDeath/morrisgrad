@@ -1,6 +1,6 @@
 // LOCAL: сундук — вид в мире, свечение проклятых 1/3/5, приватность (чужой видит 0). Только localhost.
 const { chromium } = require('playwright-core'); const { guardLocal, assertLocalUrl } = require('./_local.cjs');
-const OUT = '/workspace/morrisgrad-round3/loot-chests', BASE = 'http://127.0.0.1:5243/game.html', WS = 'ws://127.0.0.1:8799';
+const OUT = process.env.OUT || '/workspace/morrisgrad-round3/loot-chests', BASE = 'http://127.0.0.1:5243/game.html', WS = 'ws://127.0.0.1:8799';
 let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + m); };
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
