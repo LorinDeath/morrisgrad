@@ -2,6 +2,7 @@
 import { ZONE_MOBS, ITEM_BY_ID } from "./defs";
 import { NPCS, RESOURCES } from "./shared";
 import { baseOf } from "./biomes";
+import { objConds, condText } from "./questConds";
 const WN: Record<string, string> = { arinar: "Аринар", hellfire: "Поляна" };
 const mobName = (id: string) => (ZONE_MOBS as any)[id]?.name || (ZONE_MOBS as any)[baseOf(id)]?.name || id;
 export function autoObjText(o: any): string {
@@ -18,3 +19,6 @@ export function autoObjText(o: any): string {
 }
 /** Текст для показа: свой текст автора, иначе — по типу цели (старые сохранения с «Цель» тоже чинятся). */
 export function objText(o: any): string { const t = String(o?.text || "").trim(); return t && t !== "Цель" ? t : autoObjText(o); }
+
+/** условия цели одной строкой («не применяя навыков · быстрее 60 с»), пусто — условий нет */
+export function condLine(o: any): string { return objConds(o).map(condText).join(" · "); }

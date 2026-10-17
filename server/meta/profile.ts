@@ -15,6 +15,8 @@ import { weaponType,
   radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
+import { condFail } from "./questConds";
+import { goalMatch } from "./biomes";
 
 export const SCHEMA_VERSION = 1;
 
@@ -558,6 +560,14 @@ export function questEvent(a: Account, ev: any, h: Hero | null = null): string[]
   for (const id of ch) { const q = QUEST_BY_ID[id]; if (q?.auto && questComplete(a, id)) turnInQuest(a, h, id); }
   return ch;
 }
+/** условия цели (админка: «не применяя навыков», «быстрее N с»…) — по фактам боя с сервера; провал → в ev.failed */
+function condsPass(qid: string, i: number, o: any, ev: any): boolean {
+  if (!o.conds?.length) return true;
+  const why = condFail(o.conds, ev.fight);
+  if (!why) return true;
+  ev.failed?.push({ qid, i, reason: why });
+  return false;
+}
 function questEventRaw(a: Account, ev: any): string[] {
   const changed: string[] = [];
   for (const [qid, st] of Object.entries(a.quests.active)) {
@@ -572,11 +582,11 @@ function questEventRaw(a: Account, ev: any): string[] {
         case "select_hero": if (ev.type === "select_hero") st.p[i] = 1; break;
         case "reach": if (ev.type === "reach" && ev.world === o.world) st.p[i] = 1; break;
         case "kill":
-          if (ev.type === "kill" && ev.mob === o.mob && (!o.cls || o.cls === ev.cls)) st.p[i] = Math.min(tgt, st.p[i] + 1);
+          if (ev.type === "kill" && goalMatch(o.mob, ev.kind || ev.mob) && (!o.cls || o.cls === ev.cls) && condsPass(qid, i, o, ev)) st.p[i] = Math.min(tgt, st.p[i] + 1);
           if (ev.type === "ability_used" && o.noAbilities && before < tgt) st.p[i] = 0; // нечестное условие звёздного квеста
           break;
         case "kill_boss":
-          if (ev.type === "kill_boss" && ev.mob === o.mob && !(o.noAbilities && ev.usedAbility)) st.p[i] = 1; break;
+          if (ev.type === "kill_boss" && goalMatch(o.mob, ev.kind || ev.mob) && !(o.noAbilities && ev.usedAbility) && condsPass(qid, i, o, ev)) st.p[i] = 1; break;
         case "gather": if (ev.type === "gather" && ev.res === o.res) st.p[i] = Math.min(tgt, st.p[i] + (ev.n || 1)); break;
         case "equip_monster": if (ev.type === "equip_monster" && ev.monster === o.monster) st.p[i] = 1; break;
         case "craft": if (ev.type === "craft") st.p[i] = Math.min(tgt, st.p[i] + 1); break;

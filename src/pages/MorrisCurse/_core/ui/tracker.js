@@ -1,9 +1,9 @@
-import { objText } from '../../../../../server/meta/objText.ts';
+import { objText, condLine } from '../../../../../server/meta/objText.ts';
 // Трекер задания (всегда виден): цель, прогресс, подсказка и стрелка-направление к цели.
 // Плюс пошаговое обучение для новичка — игрок всегда понимает, что делать дальше.
 import { QUEST_BY_ID, turninNpc } from '../../../../../server/meta/quests.ts';
-import { NPCS } from '../../../../../server/meta/shared.ts';
-import { baseOf } from '../../../../../server/meta/biomes.ts';
+import { NPCS, RESOURCES } from '../../../../../server/meta/shared.ts';
+import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
 import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { esc } from './overlay.js';
@@ -68,7 +68,10 @@ export class QuestTracker {
       const complete = st.complete.includes(qid);
       const obj = q.objectives.map((o, i) => {
         const need = o.count || 1, have = Math.min(need, p[i] || 0);
-        return `<li class="${have >= need ? 'ok' : ''}">${esc(objText(o))}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
+        const cl = have < need ? condLine(o) : '', cs = this.cond?.[qid + ':' + i];
+        const cst = !cl ? '' : cs && !cs.ok && Date.now() - cs.at < 90000 ? `<div class="qc bad">✖ условие нарушено: ${esc(cs.reason)}${cs.kill ? ' — убийство не засчитано' : ''}. Новая попытка — в следующем бою</div>`
+          : cs?.armed && Date.now() - cs.at < 600000 ? `<div class="qc arm">⚔ попытка идёт — условия соблюдены</div>` : '';
+        return `<li class="${have >= need ? 'ok' : ''}">${esc(objText(o))}${need > 1 ? ` <b>${have}/${need}</b>` : ''}${cl ? `<div class="qc">✦ ${esc(cl)}</div>` : ''}${cst}</li>`;
       }).join('');
       const tn = turninNpc(q), other = tn !== q.npc;
       // сдача другому NPC — подсказка говорит об этом явно (и в процессе, и после выполнения)
@@ -80,8 +83,17 @@ export class QuestTracker {
         return `<div class="t2">${c ? '✔' : '◇'} ${esc(x.title)}${!c && ob && (ob.count || 1) > 1 ? ` <b>${Math.min(ob.count, xp[o] || 0)}/${ob.count}</b>` : ''}</div>`; }).join('');
       html += more + (tracked.length > 4 ? `<div class="t2">… ещё ${tracked.length - 4}</div>` : '');
       this.target = this.meta.questTarget(qid);
+      { // «добыть ресурс»: компас — к ближайшему готовому узлу этого ресурса (узлы светятся), а не к центру пятна
+        const gi = q.objectives.findIndex((o, i) => o.type === 'gather' && (p[i] || 0) < (o.count || 1));
+        const res = gi >= 0 ? q.objectives[gi].res : null;
+        if (res && ctx.nodes && !complete) { let best = null, bd = 6000, alt = null, ad = 6000;
+          for (const n of ctx.nodes.values()) { if (n.def.res !== res) continue; const d = Math.hypot(n.def.x - ctx.x, n.def.y - ctx.y);
+            if (n.ready && d < bd) { bd = d; best = n; } else if (!n.ready && d < ad) { ad = d; alt = n; } }
+          const nd = best || alt, nm = RESOURCES[res]?.name || res;
+          if (nd) this.target = { world: ctx.world, x: nd.def.x, y: nd.def.y, label: best ? `✨ ${nm}` : `${nm} (вырастет)`, node: 1 }; }
+      }
       if (this.trackTypes.size) { // компас — к ближайшей видимой цели, иначе к ближайшему лагерю, где она водится
-        const isT = (t) => this.trackTypes.has(t) || this.trackTypes.has(baseOf(t));
+        const isT = (t) => { for (const g of this.trackTypes) if (goalMatch(g, t)) return true; return false; }; // вариант-босс ≠ базовый босс
         let best = null, bd = Infinity;
         for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: ZONE_MOBS[m.type]?.name || 'Цель', mob: 1 }; } }
         if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
@@ -112,7 +124,7 @@ export class QuestTracker {
     this.hunt = null;
     if (mt && (ZONE_MOBS[mt] || ZONE_MOBS[baseOf(mt)])) {
       this.trackTypes.add(mt);
-      const isT = (t) => t === mt || baseOf(t) === mt;
+      const isT = (t) => goalMatch(mt, t);
       const nm = ZONE_MOBS[mt]?.name || ZONE_MOBS[baseOf(mt)]?.name || mt;
       let best = null, bd = Infinity, where = '';
       for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: '🎯 ' + nm, mob: 1, hunt: 'mob' }; } }

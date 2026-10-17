@@ -1,13 +1,13 @@
 // Где водится моб (для «Отслеживать» из Бестиария): статические данные генерации мира — регионы, где тип в таблице спавна,
 // мировые боссы и редкие Отголоски. Общая часть сервера и клиента. Живые мобы/лагеря рядом уточняют цель на клиенте.
 import { WORLD_GEN } from "./zoneGen";
-import { baseOf } from "./biomes";
+import { goalMatch } from "./biomes";
 import { WORLD_PORTALS } from "../worlds/portals";
 
 export const WORLD_NAMES: Record<string, string> = { arinar: "Аринар", hellfire: "Поляна" };
 export interface MobHome { world: string; x: number; y: number; region: string; kind: "region" | "boss" | "rare" }
 const cache = new Map<string, MobHome[]>();
-const same = (t: string, id: string) => t === id || baseOf(t) === id || baseOf(id) === t;
+const same = (t: string, id: string) => goalMatch(id, t); // вариант-босс биома («Часовой Пустоты») — НЕ место обитания базового босса («Безветрие»)
 
 export function mobHomes(id: string): MobHome[] {
   if (cache.has(id)) return cache.get(id)!;

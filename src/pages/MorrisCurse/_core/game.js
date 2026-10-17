@@ -425,8 +425,12 @@ async function boot(canvasId, username, userId, api) {
   // --- мета-прогрессия, квесты, открытый мир ---
   net.on('salvage_preview', (d) => book.showSalvagePreview(d));
   net.on('upgrade_result', (d) => upgWin.onResult(d));
+  // условия целей квестов: сервер сообщает «попытка началась» (armed) или «✖ условие нарушено» (ok:false) — трекер показывает
+  net.on('quest_cond', (d) => { const k = d.qid + ':' + d.i; tracker.cond ||= {}; tracker.cond[k] = { ok: !!d.ok, armed: !!d.armed, reason: String(d.reason || ''), kill: !!d.kill, at: Date.now() };
+    if (!d.ok) overlay.toast(`✖ Условие задания нарушено: ${d.reason}${d.kill ? ' — убийство не засчитано' : ''}`, '#fca5a5'); tracker.sig = ''; });
   net.on('meta_state', (d) => {
     if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
+    if (d.gather) zone.setGlow(d.gather); // свечение узлов сбора (админка «⛏ Сбор»)
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
@@ -1302,6 +1306,8 @@ async function boot(canvasId, username, userId, api) {
     const npc = zone.nearestNpc(world, player.x, player.y);
     if (npc) { if (net.isOpen()) send({ type: 'npc_talk', npc: npc.id }); else overlay.toast('Персонажи говорят только при связи с сервером', '#fca5a5'); return; }
     const node = zone.nearestNode(player.x, player.y);
+    if (!node && !zoneSt.gather) { const nn = zone.nearestNode(player.x, player.y, true); // узел на восстановлении — сказать, когда вырастет (а не молчать)
+      if (nn && !nearestPortal() && !nearestFlower()) { const left = Math.max(1, Math.ceil(((nn.readyAt || 0) - Date.now()) / 1000)); overlay.toast(`${zone.resName(nn.def.res)}: уже собрано — вырастет через ≈${left} с`, '#c4b5fd'); return; } }
     if (node && !zoneSt.gather) {
       if (!player.stats.classId) { overlay.toast('Собирать может только герой — выберите оболочку у Алтаря', '#94a3b8'); return; }
       zoneSt.gather = { id: node.id, t: 0, x: player.x, y: player.y, res: node.def.res };
@@ -1682,7 +1688,7 @@ async function boot(canvasId, username, userId, api) {
       touch.setInteractHighlight(!!(npc || node || np || nf));
     }
     overlay.setPrompt(promptText);
-    tracker.update({ mobs: mode === 'hub' ? zone.mobs : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
+    tracker.update({ mobs: mode === 'hub' ? zone.mobs : null, nodes: mode === 'hub' ? zone.nodes : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
     party.setHub(mode === 'hub'); // панель отряда видна в мире и без отряда («＋ Пригласить»)
     zone.trackTypes = tracker.trackTypes; // подсветка мобов-целей квеста на экране
     refreshAbilityButtons();
@@ -1855,6 +1861,9 @@ async function boot(canvasId, username, userId, api) {
       minimap: () => hud.minimap?.stats,
       openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
+      nodesNear: (r = 900, res = null) => [...zone.nodes.values()].filter((n) => (!res || n.def.res === res) && Math.hypot(n.def.x - player.x, n.def.y - player.y) < r).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, res: n.def.res, type: n.def.type, ready: n.ready, readyIn: n.readyIn })),
+      nodesAll: (res) => [...zone.nodes.values()].filter((n) => !res || n.def.res === res).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, ready: n.ready })),
+      glowSet: (c) => zone.setGlow(c), glowCfg: () => zone.glowCfg, interact: () => interact(), questCond: () => tracker.cond || {},
       dashInfo: () => ({ cd: DASH.cooldown, invulnMs: DASH.invulnMs, blink: DASH.blink, blinking: [...ivBlink.keys()] }),
       biomes: () => ({ known: mapZonesKnown(), labels: biomeLabels(world).map((L) => L.key) }),
       worldMap: () => ({ open: worldMap.isOpen, ...(worldMap.stats || {}) }),

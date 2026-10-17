@@ -1,4 +1,5 @@
-import { baseOf as baseOfMob } from '../../../../server/meta/biomes.ts';
+import { goalMatch } from '../../../../server/meta/biomes.ts';
+const inTrack = (track, t) => { if (!track) return false; for (const g of track) if (goalMatch(g, t)) return true; return false; };
 import { WORLD_GEN } from '../../../../server/meta/zoneGen.ts';
 import { fog } from './map/fog.js';
 import { markersOf, MARKER_STYLE, bossStatus } from '../../../../server/meta/markers.ts';
@@ -313,7 +314,7 @@ export class Minimap {
     // 4a. Лагеря: круг = зона агро (радиус разброса пачки + агро самого «чуткого» моба); цвет — активность:
     // бой — красный, спит — оранжевый, пусто (ждёт респавна) — серый пунктир; лагерь с целью квеста — зелёный контур
     if (camps) {
-      const isT = (t) => track && (track.has(t) || track.has(baseOfMob(t)));
+      const isT = (t) => inTrack(track, t);
       for (const c of camps) {
         const x = cx + (c[1] - player.x) * scale, y = cy + (c[2] - player.y) * scale, r = Math.max(3, c[6] * scale);
         if (x < -r || y < -r || x > w + r || y > h + r) continue;
@@ -343,7 +344,7 @@ export class Minimap {
         } else if (m.cursed) { ctx.fillStyle = '#a855f7'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else if (m.elite) { ctx.fillStyle = '#facc15'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else { ctx.fillStyle = '#ef4444'; ctx.fillRect(mx - 1.5, my - 1.5, 3, 3); }
-        if (track && (track.has(m.type) || track.has(baseOfMob(m.type)))) { this.stats.track = (this.stats.track || 0) + 1; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI * 2); ctx.stroke(); } // цель квеста
+        if (inTrack(track, m.type)) { this.stats.track = (this.stats.track || 0) + 1; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI * 2); ctx.stroke(); } // цель квеста
       }
     }
 

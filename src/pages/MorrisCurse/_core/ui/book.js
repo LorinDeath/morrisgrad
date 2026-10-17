@@ -1,5 +1,5 @@
 import { CURSE } from '../meta/curseCfg.js';
-import { objText } from '../../../../../server/meta/objText.ts';
+import { objText, condLine } from '../../../../../server/meta/objText.ts';
 import { rsInfo } from '../../../../../server/meta/rsAny.ts';
 // «Книга Проклятого» — единое окно прогрессии: задания, герой и таланты, навыки и Сияние,
 // снаряжение (5 слотов) и сумка, ремесло, бестиарий, ветка души (только у Алтаря).
@@ -302,7 +302,7 @@ export class Book {
       const objs = q.objectives.map((o, i) => {
         const need = o.count || 1;
         const have = Math.min(need, p[i] || 0);
-        return `<li class="${have >= need ? 'ok' : ''}">${esc(objText(o))}${need > 1 ? ` <b>${have}/${need}</b>` : ''}</li>`;
+        return `<li class="${have >= need ? 'ok' : ''}">${esc(objText(o))}${need > 1 ? ` <b>${have}/${need}</b>` : ''}${condLine(o) ? `<small class="mc-qcond">✦ ${esc(condLine(o))}</small>` : ''}</li>`;
       }).join('');
       const npc = NPCS[q.turnin || q.npc], other = !!q.turnin && q.turnin !== q.npc; // сдача может быть другому NPC
       const tr = this.meta.isTracked ? this.meta.isTracked(id) : true;
