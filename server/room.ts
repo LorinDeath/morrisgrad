@@ -6,6 +6,12 @@ import { RunLobbies, type RunInstance } from "./runs";
 import { WORLD_PORTALS, MINI_GAMES, RUN_ROOMS, RUN_RELAY_MAX_BYTES } from "./config";
 import { worldSize, worldBounds, WORLD_CHUNK, ARINAR_LAYOUT_VER, OPEN_AOI } from "./worlds/sizes";
 const SMALL_MSG_CHARS = 16 * 1024;
+// Старые бои Поляны (WAP): цветы-вампиры, Кейт и Дар нападали при приближении и звали в пошаговую «дуэль» (duel_start
+// isBossFight), интерфейса для которой больше нет — клиент сразу «ускользал». Выключено: ИИ Кейт/Дар/цветов не видит игроков
+// (бродят и говорят сами по себе), старые бои не начинаются ни от сближения, ни от duel_invite. PvP-дуэли (meta/pvp.ts) и
+// боссы зон (meta) не затронуты. Вернуть — true.
+const LEGACY_HUB_FIGHTS = false;
+const NO_SESSIONS = new Map<WebSocket, Session>();
 const BIG_MSG_TYPES = new Set(["run_relay", "run_result", "admin_save", "admin_quest_save"]);
 const joinCoord = (v: any): number => { const n = Number(v); const [lo, hi] = worldBounds("hellfire"); return Number.isFinite(n) && n !== 0 ? Math.max(lo, Math.min(hi, n)) : 600; };
 import { ZONE_RESPAWN } from "./meta/shared";
@@ -102,10 +108,12 @@ export class GameRoom extends DurableObject {
         }
       }
 
+      // ИИ старых боёв Поляны видит игроков только при LEGACY_HUB_FIGHTS (иначе — пустой список: не агрится, не бьёт)
+      const aiSessions = LEGACY_HUB_FIGHTS ? hellfireSessions : NO_SESSIONS;
       // 2. Обновление Кейт (видит только hellfireSessions)
       this.boss.update(
         dt,
-        hellfireSessions,
+        aiSessions,
         this.activeDuels,
         (targetSession, ws) => this.startBossBattle(targetSession, ws),
         (duel, log) => this.broadcastDuelUpdate(duel, log),
@@ -139,7 +147,7 @@ export class GameRoom extends DurableObject {
       // 3. Обновление Дар (видит только hellfireSessions)
       this.dar.update(
         dt,
-        hellfireSessions,
+        aiSessions,
         this.activeDuels,
         this.flowers,
         (quote) => this.broadcastDarSay(quote),
@@ -164,7 +172,7 @@ export class GameRoom extends DurableObject {
       );
 
       // 4. Жизненный цикл и ИИ цветков-вампиров
-      this.updateFlowers(dt, now, hellfireSessions);
+      this.updateFlowers(dt, now, aiSessions);
 
       // 5. Автоматические атаки цветков в активных дуэлях
       for (const flower of this.flowers.values()) {
@@ -435,7 +443,7 @@ export class GameRoom extends DurableObject {
   }
 
   startFlowerBattle(initialPlayer: Session, initialWs: WebSocket, flower: FlowerState) {
-    if (!initialPlayer.stats.classId) return;
+    if (!LEGACY_HUB_FIGHTS || !initialPlayer.stats.classId) return;
 
     const duelId = "flower_duel_" + crypto.randomUUID();
     initialPlayer.inDuel = true;
@@ -602,6 +610,7 @@ export class GameRoom extends DurableObject {
   }
 
   startBossBattle(initialPlayer: Session, initialWs: WebSocket) {
+    if (!LEGACY_HUB_FIGHTS) { this.boss.state = "wander"; return; } // ИИ уже перевёл Кейт в «combat» — вернуть
     if (!initialPlayer.stats.classId) return;
 
     const duelId = "boss_duel_" + crypto.randomUUID();
@@ -662,7 +671,7 @@ export class GameRoom extends DurableObject {
   }
 
   startDarDuel(initialPlayer: Session, initialWs: WebSocket) {
-    if (!initialPlayer.stats.classId) return;
+    if (!LEGACY_HUB_FIGHTS || !initialPlayer.stats.classId) return;
 
     const duelId = "dar_duel_" + crypto.randomUUID();
     initialPlayer.inDuel = true;
@@ -1091,6 +1100,7 @@ export class GameRoom extends DurableObject {
           }
 
           if ((session.world || "hellfire") === "hellfire") {
+            if (!LEGACY_HUB_FIGHTS && (msg.targetId === "boss_dar" || this.flowers.has(msg.targetId))) return; // старые бои выключены
             if (msg.targetId === "boss_dar") {
               const roll = Math.random();
               if (roll < 0.2) {
