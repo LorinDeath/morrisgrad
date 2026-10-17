@@ -20,12 +20,16 @@ export const propHeightM = (key, s = 1) => { const d = propDef(key); return d ? 
 
 // Набор батчей на группу пропсов (чанк/сцена): 2 листа × (обычный + свечение)
 export class PropSprites {
-  constructor(THREE, tex, { max = 256, light = 1, parent = null } = {}) {
+  constructor(THREE, tex, { max = 256, light = 1, parent = null, outline = false } = {}) {
     this.b = {};
     for (const sh of ['p32', 'b64']) {
       const S = META.sheets[sh];
       this.b[sh] = new SpriteBatch(THREE, tex[sh], { cellW: S.frameW, cellH: S.frameH, cols: S.cols, rows: S.rows, max, light });
       this.b[sh + '_glow'] = new SpriteBatch(THREE, tex[sh + '_glow'], { cellW: S.frameW, cellH: S.frameH, cols: S.cols, rows: S.rows, max, light, additive: true });
+      if (outline) { // свечение узлов сбора: сплошной контур под спрайтом + аддитивная аура поверх (те же кадры атласа)
+        this.b[sh + '_sil'] = new SpriteBatch(THREE, tex[sh], { cellW: S.frameW, cellH: S.frameH, cols: S.cols, rows: S.rows, max, light, sil: true });
+        this.b[sh + '_aura'] = new SpriteBatch(THREE, tex[sh], { cellW: S.frameW, cellH: S.frameH, cols: S.cols, rows: S.rows, max, light, aura: true });
+      }
     }
     this.list = Object.values(this.b);
     if (parent) for (const B of this.list) parent.add(B.mesh);
@@ -41,6 +45,15 @@ export class PropSprites {
     const r = tint ? tint[0] : 1, g = tint ? tint[1] : 1, bb = tint ? tint[2] : 1;
     B.push(x, y, z, h, d.col, d.row, flip, r, g, bb, 0, alpha); if (d.frames > 1) B.anim(d.frames, d.fps, ph);
     if (d.glow) { const G = this.b[d.glow.sheet]; G.push(x, y, z, h, d.col, d.row, flip, 1, 1, 1, 0, alpha); if (d.frames > 1) G.anim(d.frames, d.fps, ph); }
+    return true;
+  }
+  // свечение узла: контур цветом rgb (масштаб size, альфа a) и аура (яркость k) — тот же кадр/вариант, что у push()
+  pushGlow(k, wx, wy, x, z, s, flip, rgb, size, a, auraK, variant = true) {
+    const key = variant ? propVariant(k, wx, wy) : (META.aliases[k] || k);
+    const d = key && propDef(key); if (!d || !this.b[d.sheet + '_sil']) return false;
+    const h = META.sheets[d.sheet].frameH / 10 * s, ph = phaseOf(wx, wy), S = this.b[d.sheet + '_sil'], A = this.b[d.sheet + '_aura'];
+    S.push(x, -h * (size - 1) * 0.12, z, h * size, d.col, d.row, flip, rgb[0], rgb[1], rgb[2], 0, a); if (d.frames > 1) S.anim(d.frames, d.fps, ph);
+    if (auraK > 0) { A.push(x, 0, z, h, d.col, d.row, flip, rgb[0] * auraK, rgb[1] * auraK, rgb[2] * auraK, 0, 1); if (d.frames > 1) A.anim(d.frames, d.fps, ph); }
     return true;
   }
   // плоская декаль (arena_sigil): кладётся на землю отдельным мешем — здесь только проверка ключа

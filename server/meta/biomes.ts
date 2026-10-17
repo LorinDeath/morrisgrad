@@ -43,6 +43,12 @@ export const VARIANTS: VariantDef[] = [
 export const VARIANT_BY_ID: Record<string, VariantDef> = Object.fromEntries(VARIANTS.map((v) => [v.id, v]));
 /** базовый моб бестиария (трофеи/бестиарий/квесты) */
 export const baseOf = (type: string) => VARIANT_BY_ID[type]?.base || type;
+/** Совпадает ли убитый/видимый моб type с целью квеста/охоты goal.
+ *  Обычный вариант биома (перекраска, «Чугунный голем») засчитывается как базовый Отголосок, но ВАРИАНТ-БОСС —
+ *  отдельный именной босс («Часовой Пустоты» ≠ «Безветрие»): только точное совпадение. Цель-вариант — тоже точно. */
+export const goalMatch = (goal: string, type: string) => type === goal || (!VARIANT_BY_ID[goal] && !VARIANT_BY_ID[type]?.boss && baseOf(type) === goal);
+/** запись Бестиария для типа: вариант-босс биома — отдельный босс без своей карточки (не засчитывается как базовый) */
+export const bestiaryKey = (type: string): string | null => (VARIANT_BY_ID[type]?.boss ? null : baseOf(type));
 /** ключ спрайта (атлас Отголосков) */
 export const sprOf = (type: string) => VARIANT_BY_ID[type]?.base || type;
 export const tintOf = (type: string): [number, number, number] | null => { const v = VARIANT_BY_ID[type]; return v ? BIOMES[v.biome].tint : null; };

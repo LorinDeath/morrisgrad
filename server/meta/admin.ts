@@ -6,6 +6,7 @@ import { autoObjText } from "./objText";
 import { ZONE_GEN } from "./zoneGen";
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
+import { validateConds, COND_DEFS } from "./questConds";
 import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, type Kind, type Trait } from "./overrides";
 import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOriginal, type QuestDef, type Objective } from "./quests";
 import { NPCS, RESOURCES } from "./shared";
@@ -19,7 +20,7 @@ function regionDefs(r: any) {
   return { dens: "1", "packs.0": "2", "packs.1": `3 (в ${Math.round(G.campPacks3 * 100)}% лагерей)`, "pack.0": pk.length ? String(Math.min(...pk.map((p: any) => p[0]))) : "—", "pack.1": pk.length ? String(Math.max(...pk.map((p: any) => p[1]))) : "—",
     eliteMax: "без лимита", elite: String(r.elite ?? 0) };
 }
-export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade"];
+export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
 const STR = (v: any, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const OBJ_TYPES = ["talk", "kill", "kill_boss", "gather", "collect", "level", "reach"] as const;
@@ -58,14 +59,19 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
     if (!(OBJ_TYPES as readonly string[]).includes(t)) return `тип цели ${t} недоступен`;
     if (cnt < 1 || cnt > 999) return "количество 1…999";
     if (t === "talk") { if (!NPCS[o.npc]) return "цель «поговорить»: NPC не найден"; objectives.push({ type: "talk", npc: o.npc, text }); }
-    else if (t === "kill" || t === "kill_boss") { if (!ZONE_MOBS[o.mob]) return `нет моба ${o.mob}`; objectives.push(t === "kill" ? { type: "kill", mob: o.mob, count: cnt, text } : { type: "kill_boss", mob: o.mob, text }); }
+    else if (t === "kill" || t === "kill_boss") { if (!ZONE_MOBS[o.mob]) return `нет моба ${o.mob}`;
+      if (t === "kill_boss" && !(ZONE_MOBS as any)[o.mob].boss) return `«${(ZONE_MOBS as any)[o.mob].name}» — не босс: для обычного моба выберите тип цели kill`; // kill_boss засчитывается только с боссов
+      const conds = validateConds(o.conds); if (typeof conds === "string") return `цель «${text || autoObjText({ type: t, mob: o.mob })}»: ${conds}`; // условия цели (админка «+ условие»)
+      const ob: any = t === "kill" ? { type: "kill", mob: o.mob, count: cnt, text } : { type: "kill_boss", mob: o.mob, text };
+      if (conds.length) ob.conds = conds;
+      objectives.push(ob); }
     else if (t === "gather") { if (!RESOURCES[o.res]) return `нет ресурса ${o.res}`; objectives.push({ type: "gather", res: o.res, count: cnt, text }); }
     else if (t === "collect") { if (o.item ? !ITEM_BY_ID[o.item] : !RESOURCES[o.res]) return "собрать: нужен предмет или ресурс"; objectives.push({ type: "collect", ...(o.item ? { item: o.item } : { res: o.res }), count: cnt, text }); }
     else if (t === "level") { if (cnt > 60) return "уровень до 60"; objectives.push({ type: "level", count: cnt, text }); }
     else if (t === "reach") { if (!["arinar", "hellfire"].includes(o.world)) return "мир: arinar/hellfire"; objectives.push({ type: "reach", world: o.world, text }); }
     // сюжетный квест: особые флаги цели из кода (noAbilities и т.п.) сохраняются, если тип цели тот же
     if (builtin) { const ob = builtin.objectives?.[objectives.length - 1] as any, nw = objectives[objectives.length - 1] as any;
-      if (ob && ob.type === nw.type) for (const [k, v] of Object.entries(ob)) if (!["type", "mob", "npc", "res", "item", "world", "count", "text"].includes(k) && nw[k] === undefined) nw[k] = v; }
+      if (ob && ob.type === nw.type) for (const [k, v] of Object.entries(ob)) if (!["type", "mob", "npc", "res", "item", "world", "count", "text", "conds"].includes(k) && nw[k] === undefined) nw[k] = v; }
   }
   for (const ob of objectives as any[]) if (!ob.text || ob.text === "Цель") ob.text = autoObjText(ob); // пусто — текст по типу цели
   const r = q.rewards || {}, rewards: QuestDef["rewards"] = {};
@@ -264,7 +270,7 @@ export class AdminStore {
     // уровень в строке списка: моб — lvl; предмет/оружие — требуемый уровень надевания itemReq = max(req, lvl);
     // навык — unlockLevel; таблица дропа — уровень моба-владельца
     const lvlOf = (k: string, id: string, o: any) => k === "mob" ? o.lvl : k === "item" ? itemReq(o) : k === "skill" ? o.unlockLevel : k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.lvl : undefined;
-    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
+    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
       quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),
@@ -274,8 +280,8 @@ export class AdminStore {
         rarity: o.rarity || "common", slot: o.slot || "", stats: { ...(o.stats || {}) },
       })),
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
-      mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl })),
-      objTypes: OBJ_TYPES,
+      mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl, boss: !!o.boss || undefined, base: o.variant ? o.base : undefined, baseName: o.variant ? (ZONE_MOBS as any)[o.base]?.name : undefined, biome: o.variant ? o.biome : undefined })),
+      objTypes: OBJ_TYPES, conds: COND_DEFS,
       vn: { chars: Object.values(VN_CHARS), emotions: VN_EMOTIONS.map((id) => ({ id, name: VN_EMOTION_NAMES[id] })), limits: VN_LIMITS, dialogues: { ...QUEST_DIALOGUES } },
       totals: { items: Object.keys(ITEM_BY_ID).length, weapons: Object.values(ITEM_BY_ID).filter((o: any) => o.slot === "weapon").length, res: Object.keys(RESOURCES).length }, // для проверки «ни один предмет не пропал»
     };

@@ -1,5 +1,5 @@
 import { ChestSprites } from '../engine/chestSprite.js';
-import { baseOf } from '../../../../../server/meta/biomes.ts';
+import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
 // одним батчем. Атака/навыки/сбор — запросы к серверу; урон, лут, респавн решает сервер.
@@ -67,10 +67,18 @@ export class ZoneView {
     this.d = new THREE.Object3D();
     this.col = new THREE.Color();
     // узлы ресурсов — пропсы v2 (engine/propAtlas.js) (тот же стиль, что земля и деревья)
+    this.setGlow(null);
     this.nodeBatch = null; this.chestSpr = null; this.chestSt = {}; // сундуки: {chan: id, open: id} — локальное состояние окна/канала
     this.beast = null;
     loadBeastBatch(THREE, 320).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
-    loadPropTextures(THREE).then((t) => { this.nodeBatch = new PropSprites(THREE, t, { max: 160, parent: this.root }); }).catch((e) => console.warn('[nodes]', e.message));
+    loadPropTextures(THREE).then((t) => { this.nodeBatch = new PropSprites(THREE, t, { max: 160, parent: this.root, outline: true }); }).catch((e) => console.warn('[nodes]', e.message));
+  }
+
+  // свечение узлов сбора из админки (snap.gather): цвет, яркость, пульс, размер
+  setGlow(c) {
+    const hex = /^#[0-9a-f]{6}$/i.test(c?.glowColor || '') ? c.glowColor : '#a855f7', v = parseInt(hex.slice(1), 16);
+    this.glowCfg = { on: c?.glowOn !== false && Number(c?.glowPower ?? 1) > 0, rgb: [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255],
+      power: Math.max(0, Math.min(3, Number(c?.glowPower ?? 1))), pulse: Math.max(0, Math.min(5, Number(c?.glowPulse ?? 1))), size: Math.max(1, Math.min(1.6, Number(c?.glowSize) || 1.18)) };
   }
 
   setWorld(world) {
@@ -113,7 +121,7 @@ export class ZoneView {
     for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
     if (Array.isArray(s.bags)) { const keep = new Set(); for (const [id, x, y, n] of s.bags) { keep.add(id); this.bags.set(id, { id, x, y, n }); } for (const id of [...this.bags.keys()]) if (!keep.has(id)) this.bags.delete(id); }
     if (Array.isArray(s.chests)) { const keep = new Set(); for (const [id, x, y, pub, left, mine, n, cz] of s.chests) { keep.add(id); this.chests.set(id, { id, x, y, pub: !!pub, left, mine, n, cz: cz | 0, at: Date.now() }); } for (const id of [...this.chests.keys()]) if (!keep.has(id)) this.chests.delete(id); }
-    for (const [id, ready] of s.n || []) { const n = this.nodes.get(id); if (n) n.ready = !!ready; }
+    for (const [id, ready, left] of s.n || []) { const n = this.nodes.get(id); if (n) { n.ready = !!ready; n.readyIn = ready ? 0 : left || 0; n.readyAt = ready ? 0 : Date.now() + (left || 0) * 1000; } } // left — через сколько с узел снова готов (личный таймер)
     if (s.me) this.me = s.me;
     this.tg = s.tg || null; // выбранная цель: точные ХП с сервера
     const out = [];
@@ -170,10 +178,11 @@ export class ZoneView {
     for (const b of this.bags.values()) { const d = Math.hypot(b.x - px, b.y - py); if (d < bd) { bd = d; best = b; } }
     return best;
   }
-  nearestNode(px, py) {
+  // all — и узлы на восстановлении (для подсказки «вырастет через N с»)
+  nearestNode(px, py, all = false) {
     let best = null, bd = GATHER_RANGE;
     for (const n of this.nodes.values()) {
-      if (!n.ready) continue;
+      if (!n.ready && !all) continue;
       const d = Math.hypot(n.def.x - px, n.def.y - py);
       if (d < bd) { bd = d; best = n; }
     }
@@ -322,12 +331,16 @@ export class ZoneView {
     const NB = this.nodeBatch;
     if (NB) {
       NB.begin();
+      const G = this.glowCfg; // свечение узлов сбора
       const V = this.view; // Аринар 48000: рисуем только узлы рядом с камерой (их сотни)
       for (const n of this.nodes.values()) {
         if (V && (Math.abs(n.def.x - V.x) > 1400 || Math.abs(n.def.y - V.y) > 1100)) continue;
         const sc = n.ready ? 1 + Math.sin(T * 3 + n.id) * 0.03 : 0.7;
         const k = n.ready ? 1.15 + Math.sin(T * 2.4 + n.id) * 0.12 : 0.45;
         NB.push(NODE_PROP[n.def.type] || 'ore_node', n.def.x, n.def.y, toX(n.def.x), toZ(n.def.y), sc, n.flip, n.ready ? 1 : 0.7, 0, [k, k, k]);
+        // готов к сбору — пиксельный фиолетовый контур + пульсирующая аура (админка «⛏ Сбор»); на восстановлении — без свечения
+        if (n.ready && G.on) { const pu = G.pulse > 0 ? 0.5 + 0.5 * Math.sin(T * 2.6 * G.pulse + n.id) : 0.7;
+          NB.pushGlow(NODE_PROP[n.def.type] || 'ore_node', n.def.x, n.def.y, toX(n.def.x), toZ(n.def.y), sc, n.flip, G.rgb, G.size + 0.04 * pu * Math.min(1, G.pulse), Math.min(1, (0.55 + 0.45 * pu) * Math.min(1.5, G.power)), (0.12 + 0.22 * pu) * G.power); }
         atmo.shadow(toX(n.def.x), toZ(n.def.y), n.def.type === 'tree' ? 1.3 : 0.6, n.ready ? 1 : 0.6);
       }
       // мешки добычи: ящик-мешок, покачивается
@@ -363,7 +376,7 @@ export class ZoneView {
     for (const o of this.mobs.values()) {
       const X = toX(o.x), Z = toZ(o.y);
       if (o.id === this.selected) P.mark('target', X, Z, Math.max(0.85, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2 * mobScale(o)), 1, o.id); // выбранная цель
-      if (this.trackTypes?.size && (this.trackTypes.has(o.type) || this.trackTypes.has(baseOf(o.type)))) P.mark('tracked', X, Z, 1.15 * mobScale(o), 1, o.id); // цель квеста (отслеживание)
+      if (this.trackTypes?.size && [...this.trackTypes].some((g) => goalMatch(g, o.type))) P.mark('tracked', X, Z, 1.15 * mobScale(o), 1, o.id); // цель квеста (отслеживание)
       if (o.cursed) P.mark('cursed', X, Z, 1.6 * mobScale(o), 1, o.id);
       if (ZONE_MOBS[o.type]?.boss) P.mark('boss', X, Z, 2.4 * MOB_VIS * 1.35, 1, o.id);
       else if (o.chief) P.mark('leader', X, Z, 1.9 * MOB_VIS * 1.6 / 1.45, 1, o.id); // вожак лагеря

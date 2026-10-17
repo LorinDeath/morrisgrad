@@ -5,7 +5,7 @@ import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
 import { NPCS } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
 import { QUEST_DIALOGUES, VN_CHARS, VN_HERO, vnImg, vnIcon, npcVnChar, questFlow } from '../../../../../server/meta/vnChars.ts';
-import { autoObjText } from '../../../../../server/meta/objText.ts';
+import { autoObjText, condLine } from '../../../../../server/meta/objText.ts';
 import { ITEM_BY_ID } from '../../../../../server/meta/defs.ts';
 import { RESOURCES } from '../../../../../server/meta/shared.ts';
 
@@ -14,7 +14,7 @@ const objTarget = (o) => (o.type === 'level' ? 1 : o.count || 1);
 /** цели с реальными именами целей и прогрессом: «Убить: Мошкара-Жнец 0/3» (+ текст автора, если свой) */
 export function objectivesHtml(q, p) {
   return `<ul class="vn-goals">${q.objectives.map((o, i) => { const n = objTarget(o), c = Math.min(n, p?.[i] || 0), own = objText(o), auto = autoObjText(o);
-    return `<li class="${c >= n ? 'ok' : ''}"><b>${esc(auto)}</b> <span class="vn-cnt">${c}/${n}</span>${own !== auto ? `<small>${esc(own)}</small>` : ''}</li>`; }).join('')}</ul>`;
+    return `<li class="${c >= n ? 'ok' : ''}"><b>${esc(auto)}</b> <span class="vn-cnt">${c}/${n}</span>${own !== auto ? `<small>${esc(own)}</small>` : ''}${condLine(o) ? `<small class="mc-qcond">✦ ${esc(condLine(o))}</small>` : ''}</li>`; }).join('')}</ul>`;
 }
 export function rewardsHtml(q) {
   const r = q.rewards || {}, out = [];
@@ -105,7 +105,7 @@ export class NpcDialog {
     if (st === 'active') return this.flowProgress(id);
     const q = QUEST_BY_ID[id], n = NPCS[this.npc], x = (this.list || []).find((y) => y.id === id) || {};
     const lines = st === 'done' ? (q.lore ? [q.lore] : q.done) : st === 'complete' ? q.done : st === 'active' ? [q.progress, q.hint ? `Подсказка: ${q.hint}` : ''].filter(Boolean) : q.offer;
-    const goals = q.objectives.map((o) => `<li>${esc(objText(o))}</li>`).join('');
+    const goals = q.objectives.map((o) => `<li>${esc(objText(o))}${condLine(o) ? `<small class="mc-qcond">✦ ${esc(condLine(o))}</small>` : ''}</li>`).join('');
     const btns = [];
     if (st === 'available') btns.push({ text: `Взять: ${q.title}`, cls: 'gold', id: 'npc-take', onClick: () => { this.meta.accept(q.id); this.close(); } });
     if (st === 'complete') btns.push({ text: `✔ Сдать`, cls: 'gold', onClick: () => { this.meta.turnIn(q.id); this.close(); } });

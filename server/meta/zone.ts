@@ -9,6 +9,7 @@ import { CURSE } from "./cursed";
 import { resolveWorld, freeSpot } from "./propCollision.ts";
 const MOB_R = 12;
 import { mobShot } from "./mobFamily";
+import { GATHER_CFG } from "./gatherCfg";
 import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
 import { ZONE_GEN, BOSS_TIMERS, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
@@ -34,7 +35,7 @@ const sk = (x: number, y: number) => Math.floor(x / SLEEP_CELL) * 4096 + Math.fl
 
 export interface ZCast { proj?: string; fx?: string; leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number }
 export interface ZMob { id: number; type: string; respawn: number; sx: number; sy: number; x: number; y: number; hp: number; maxHp: number; dead: boolean; respawnAt: number;
-  targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>;
+  targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>; qf?: Map<string, number>; // qf: начало боя игрока с мобом (условия квестов)
   windup: number; dashX: number; dashY: number; dashT: number;
   // процедурный спавн: регион, элита, простой вне боя (для деспавна); fixed — классическая точка респавна
   fixed: boolean; region: string | null; elite: boolean; idle: number; chief?: boolean;
@@ -48,7 +49,7 @@ export interface ZMob { id: number; type: string; respawn: number; sx: number; s
   mobTarget: number; scanAt: number; roam: { pts: [number, number][]; i: number; home: [number, number]; waitUntil: number } | null;
   // бродячий моб (ambient): sid игрока-«хозяина», охота до huntUntil, множитель респавна лагеря (rk × campRespawn — живая правка)
   ambient?: string; huntUntil?: number; bornAt?: number; rk?: number }
-export interface ZNode { id: number; type: string; res: string; respawn: number; x: number; y: number; readyAt: number; qty: [number, number] }
+export interface ZNode { id: number; type: string; res: string; respawn: number; x: number; y: number; readyAt: number; qty: [number, number]; by?: Map<string, number> } // by: личные таймеры (ключ игрока → когда снова готов)
 export interface ZPlayer { sid: string; x: number; y: number; hp: number; maxHp: number; armorRed: number; alive: boolean; respawnAt: number; lvl?: number }
 
 // ---------- фракции (бой моб↔моб) ----------
@@ -683,7 +684,7 @@ export class Zone {
     else if (c.kind === "ring") this.events.push({ k: "tele_ring", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r0: c.r0, r: c.r, t, fx: c.fx });
     else this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, nova: 1, fx: c.fx });
   }
-  resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string) => void) {
+  resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob) => void) {
     for (let i = m.casts.length - 1; i >= 0; i--) {
       const c = m.casts[i];
       if (now < c.at) continue;
@@ -691,7 +692,7 @@ export class Zone {
       if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); this.solid(m); }
       if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
         this.fire({ o: "m", mob: m.id, t: c.proj, x: m.x, y: m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: c.proj === "fireball" ? 480 : PROJ_SPEED.mob,
-          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type) });
+          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m) });
         continue;
       }
       for (const p of players.values()) {
@@ -700,7 +701,7 @@ export class Zone {
         const hit = c.kind === "circle" || c.kind === "nova" ? dist < c.r! + 8
           : c.kind === "ring" ? dist > c.r0! - 8 && dist < c.r! + 8
           : segDist(p.x, p.y, c.x, c.y, c.dx!, c.dy!, c.len!) < c.w! / 2 + 10;
-        if (hit) onHit(p.sid, c.dmg, m.type);
+        if (hit) onHit(p.sid, c.dmg, m.type, m);
       }
       if (c.kind === "line") this.events.push({ k: "mshot", id: m.id, x: Math.round(c.x), y: Math.round(c.y), tx: Math.round(c.x + c.dx! * c.len!), ty: Math.round(c.y + c.dy! * c.len!) });
       else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0, fx: c.fx, nova: c.kind === "nova" ? 1 : undefined }); // fx — спрайт атласа снарядов (метеор, копья, осколки…)
@@ -754,7 +755,7 @@ export class Zone {
   }
 
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
-  update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string) => void, onKill: (m: ZMob) => void) {
+  update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob) => void, onKill: (m: ZMob) => void) {
     this.now = now;
     if (this.projs.length) this.updateProjs(dt, players);
     const scale = Math.max(1, Math.min(4, players.size)); // ХП босса растёт с числом игроков (ограниченно)
@@ -826,7 +827,7 @@ export class Zone {
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
           if (m.camp && !m.chief) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
           this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp;
-          m.dmgBy.clear(); m.usedAbility.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
+          m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
         }
         continue;
       }
@@ -843,7 +844,7 @@ export class Zone {
         const sp = d.speed * ZONE_GEN.resetSpeed * dt;
         if (dist > sp) { m.x += (dx / dist) * sp; m.y += (dy / dist) * sp; } else { m.x = m.sx; m.y = m.sy; }
         m.hp = Math.min(m.maxHp, m.hp + m.maxHp * ZONE_GEN.resetRegen * dt);
-        if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.phase = 1; m.enraged = false; }
+        if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
         continue;
       }
       const aggro = d.aggro * (m.special ? 1.2 : 1) * (m.cursed ? 1.25 : 1);
@@ -884,7 +885,7 @@ export class Zone {
       if (m.dashT > 0) {
         const dsp = d.size === "s" ? 330 : 420;
         m.dashT -= dt; m.x += m.dashX * dsp * dt; m.y += m.dashY * dsp * dt; this.solid(m);
-        for (const p of players.values()) if (p.alive && Math.hypot(p.x - m.x, p.y - m.y) < d.radius + 12 && !m.usedAbility.has("dash:" + p.sid)) { onHit(p.sid, d.dmg * 1.5 * eliteDmg, m.type); m.usedAbility.add("dash:" + p.sid); }
+        for (const p of players.values()) if (p.alive && Math.hypot(p.x - m.x, p.y - m.y) < d.radius + 12 && !m.usedAbility.has("dash:" + p.sid)) { onHit(p.sid, d.dmg * 1.5 * eliteDmg, m.type, m); m.usedAbility.add("dash:" + p.sid); }
         if (m.dashT <= 0) for (const k of [...m.usedAbility]) if (k.startsWith("dash:")) m.usedAbility.delete(k);
         m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
         continue;
@@ -943,7 +944,7 @@ export class Zone {
         else if (want > d.radius + 14 && dist < want - 50) { m.x -= ux * sp * 0.6 * dt; m.y -= uy * sp * 0.6 * dt; } // держит дистанцию
         if (dist <= d.radius + 16 && m.atkCd <= 0) {
           const tank = d.role === "tank";
-          onHit(best.sid, d.dmg * eliteDmg * (tank ? 1.25 : d.role === "swarm" ? 0.9 : 1), m.type);
+          onHit(best.sid, d.dmg * eliteDmg * (tank ? 1.25 : d.role === "swarm" ? 0.9 : 1), m.type, m);
           m.atkCd = tank ? 1.4 : d.role === "swarm" ? 0.9 : 1.1;
         }
       } else {
@@ -958,7 +959,7 @@ export class Zone {
           }
           m.sx = m.x; m.sy = m.y;
           if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt);
-          if (m.hp >= m.maxHp) m.dmgBy.clear();
+          if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.qf?.clear(); }
           m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
           continue;
         }
@@ -967,7 +968,7 @@ export class Zone {
         const dx = m.wanderX - m.x, dy = m.wanderY - m.y, dist = Math.hypot(dx, dy);
         if (dist > 4) { m.x += (dx / dist) * d.speed * 0.4 * dt; m.y += (dy / dist) * d.speed * 0.4 * dt; }
         if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt); // горящий/отравленный не лечится
-        if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.usedAbility.clear(); m.phase = 1; m.enraged = false; }
+        if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
       }
       m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
     }
@@ -1053,6 +1054,7 @@ export class Zone {
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
     const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? CURSE.mobArmor : 1);
     const real = Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
+    if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
@@ -1067,10 +1069,23 @@ export class Zone {
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
     if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}» повержен!`, color: "#fde68a" });
     onKill(m);
+    m.qf?.clear();
   }
-  gatherCheck(p: ZPlayer, nodeId: number, startedAt: number, now: number): ZNode | null {
+  /** хук: игрок sid впервые вступил в бой с мобом m (удар по мобу или удар моба по игроку) — ставит m.qf */
+  onEngage: ((m: ZMob, sid: string) => void) | null = null;
+  /** когда узел снова готов для игрока who (личные узлы — свой таймер у каждого; иначе общий) */
+  nodeReadyAt(n: ZNode, who?: string) { return GATHER_CFG.personal !== false && who ? Math.max(n.readyAt, n.by?.get(who) || 0) : n.readyAt; }
+  /** отметить сбор: личный таймер (или общий, если «личные узлы» выключены в админке) */
+  nodeTaken(n: ZNode, who: string, now: number) {
+    const at = now + n.respawn * 1000 * Math.max(0.05, Number(GATHER_CFG.respawnMult) || 1);
+    if (GATHER_CFG.personal === false) { n.readyAt = at; return; }
+    const by = (n.by ||= new Map());
+    if (by.size > 64) for (const [k, t] of by) if (t <= now) by.delete(k); // старые таймеры не копятся
+    by.set(who, at);
+  }
+  gatherCheck(p: ZPlayer, nodeId: number, startedAt: number, now: number, who?: string): ZNode | null {
     const n = this.nodes.find((x) => x.id === nodeId);
-    if (!n || now < n.readyAt || !p.alive) return null;
+    if (!n || now < this.nodeReadyAt(n, who) || !p.alive) return null;
     if (Math.hypot(n.x - p.x, n.y - p.y) > GATHER_RANGE) return null;
     if (now - startedAt < GATHER_TIME_MS) return null;
     return n;
@@ -1081,7 +1096,7 @@ export class Zone {
     for (const e of ev) if (e.k === "proj" && e._b) { e.a = Math.max(0, Math.min(400, now - e._b)); delete e._b; }
     return ev;
   }
-  state(px: number, py: number, ev: any[], aoi = 700) {
+  state(px: number, py: number, ev: any[], aoi = 700, who?: string) {
     const m: number[] = [];
     const now = Date.now();
     for (const x of (this.gen.camps ? this.near(px, py, aoi * 1.15) : this.mobs)) {
@@ -1094,7 +1109,7 @@ export class Zone {
         (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0));
     }
     const nr = aoi * 2.2; // узлы — тоже по интересу (в Аринаре их сотни)
-    const n = this.nodes.filter((x) => !this.gen.camps || (Math.abs(x.x - px) < nr && Math.abs(x.y - py) < nr)).map((x) => [x.id, now >= x.readyAt ? 1 : 0]);
+    const n = this.nodes.filter((x) => !this.gen.camps || (Math.abs(x.x - px) < nr && Math.abs(x.y - py) < nr)).map((x) => { const r = this.nodeReadyAt(x, who); return r <= now ? [x.id, 1] : [x.id, 0, Math.ceil((r - now) / 1000)]; }); // [id, готов, через сколько с]
     const near = ev.filter((e) => e.x === undefined || (Math.abs(e.x - px) <= aoi * 1.4 && Math.abs(e.y - py) <= aoi * 1.4));
     return { w: this.world, m, n, ev: near, sd: this.proc ? this.seed : undefined };
   }

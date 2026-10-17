@@ -143,12 +143,12 @@ const KINDS: Record<string, Kind> = {
   stone: ELEM("stone", "Рудные ступени", "Литейная бездна", [[N("ore", "rot_ore", 1, 45)], [N("ore", "rot_ore", 1, 45, [2, 3])]]),
   air: ELEM("air", "Парящие острова", "Край пустоты", [[N("crystal", "starsilver", 1, 60)], [N("crystal", "starsilver", 1, 60, [2, 3])]]),
   gardens: LEG("gardens", "Дикие гранатовые сады", "Мэлвелдил II", 2, [6, 10], "garden", 0.06, { gardens: 3, gardens_edge: 1, meadow_far: 1, village_night: 0.4 }, [N("tree", "dreamwood", 1, 35, [1, 3]), N("flower", "moonpetal", 1, 40)]),
-  wastes: LEG("wastes", "Звёздные пустоши", "Мэлвелдил II", 2, [6, 10], "waste", 0.06, { wastes: 3, wastes_low: 0.8, ridge_low: 1.5 }, [N("crystal", "starsilver", 1, 60)]),
-  ridge: LEG("ridge", "Восточный кряж", "Мэлвелдил III", 3, [11, 15], "ridge", 0.07, { ridge: 3 }, [N("crystal", "starsilver", 1, 60)]),
-  mines: LEG("mines", "Гнилые копи", "Мэлвелдил III", 3, [11, 15], "rot", 0.07, { mines: 3 }, [N("ore", "rot_ore", 1, 45)]),
-  pylons: LEG("pylons", "Гудящие пилоны", "Мэлвелдил IV", 4, [16, 20], "pylon", 0.08, { pylons: 3 }, [N("crystal", "starsilver", 1, 60)]),
-  glitch: LEG("glitch", "Глитч-разлом", "Мэлвелдил IV", 4, [16, 20], "glitch", 0.08, { glitch: 3 }, [N("ore", "rot_ore", 1, 45)]),
-  crater: LEG("crater", "Лунный кратер", "Мэлвелдил V", 5, [21, 25], "crater", 0.1, { crater: 3, crater_edge: 1 }, [N("crystal", "starsilver", 1, 60, [2, 3])]),
+  wastes: LEG("wastes", "Звёздные пустоши", "Мэлвелдил II", 2, [6, 10], "waste", 0.06, { wastes: 3, wastes_low: 0.8, ridge_low: 1.5 }, [N("crystal", "starsilver", 3, 60)]),
+  ridge: LEG("ridge", "Восточный кряж", "Мэлвелдил III", 3, [11, 15], "ridge", 0.07, { ridge: 3 }, [N("crystal", "starsilver", 3, 60)]),
+  mines: LEG("mines", "Гнилые копи", "Мэлвелдил III", 3, [11, 15], "rot", 0.07, { mines: 3 }, [N("ore", "rot_ore", 3, 45)]),
+  pylons: LEG("pylons", "Гудящие пилоны", "Мэлвелдил IV", 4, [16, 20], "pylon", 0.08, { pylons: 3 }, [N("crystal", "starsilver", 3, 60)]),
+  glitch: LEG("glitch", "Глитч-разлом", "Мэлвелдил IV", 4, [16, 20], "glitch", 0.08, { glitch: 3 }, [N("ore", "rot_ore", 3, 45)]),
+  crater: LEG("crater", "Лунный кратер", "Мэлвелдил V", 5, [21, 25], "crater", 0.1, { crater: 3, crater_edge: 1 }, [N("crystal", "starsilver", 2, 60, [2, 3])]),
   thin: LEG("thin", "Тонкие земли", "Мэлвелдил V", 5, [21, 25], "thin", 0.1, { thin: 3 }, [N("flower", "moonpetal", 1, 40, [2, 3])]),
 };
 const DIRS = ["В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ", "С", "СВ"];

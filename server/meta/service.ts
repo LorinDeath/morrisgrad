@@ -4,10 +4,11 @@ import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
   HERO_IDS, ITEMS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
-  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES,
+  ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES, GATHER_RANGE,
 } from "./defs";
 import { ZONE_GEN, genOf } from "./zoneGen";
-import { baseOf } from "./biomes";
+import { baseOf, goalMatch, bestiaryKey } from "./biomes";
+import { condLive, type FightFacts } from "./questConds";
 import { mobXp, xpLevelMult, killXp, dotStackMax, weaponSkillPowerMult, levelGapDmgMult, levelGapHitMult } from "./balance";
 import { QUESTS, QUEST_BY_ID, turninNpc, setCustomQuests, builtinOverrides } from "./quests";
 import { QUEST_DIALOGUES } from "./vnChars";
@@ -25,9 +26,10 @@ import { mapZones } from "./mapZones";
 import { MarkStore } from "./mapMarks";
 import { PERF, perfServer, perfZone, wrapDb } from "./perf";
 import { ST } from "./stats";
-import { regionAt } from "./zoneGen";
+import { regionAt, isNight } from "./zoneGen";
 import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
+import { gatherClient } from "./gatherCfg";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
@@ -258,7 +260,7 @@ export class MetaService {
     s.questDialogues = QUEST_DIALOGUES; // диалоги-новеллы квестов (админка)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
-    if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); // карта M: биом · ур. мобов (живые уровни)
+    if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); s.gather = gatherClient(); // карта M: биом · ур. мобов (живые уровни)
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
@@ -320,7 +322,7 @@ export class MetaService {
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
     if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; session.stats.cg = (eff as any).cursedGlow || 0; } // cg — свечение проклятия (видно всем)
-    ms.wt = eff.wtype;
+    ms.wt = eff.wtype; if ((ms as any).q) (ms as any).q.wts.push([Date.now(), ms.wt || ""]); // смена оружия — для условия «только оружием»
     (ms.zp as any).lvl = eff.level || 1; ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
   }
 
@@ -416,6 +418,7 @@ export class MetaService {
     if (msg.type === "dash") { // рывок: перезарядка и неуязвимость — по часам сервера; мигание видят все в мире
       const now = Date.now(), r = dashTry((ms as any).dashSt ||= {}, now);
       if (!r.ok) { this.send(ws, { type: "dash_reject", left: Math.round(r.left) }); return true; }
+      this.qNote(ms, "dash", now); // условия квестов: «без рывка»
       if (DASH_CFG.invulnMs > 0) (ms as any).invulnUntil = Math.max((ms as any).invulnUntil || 0, r.invulnUntil);
       const fx = { type: "dash_fx", id: session.id, ms: DASH_CFG.invulnMs, blink: DASH_CFG.blink !== false }, w = session.world || "hellfire";
       for (const sid of this.ms.keys()) { const e = this.sessionLookup?.(sid); if (e && (e[1]?.world || "hellfire") === w) this.send(e[0], fx); }
@@ -954,6 +957,7 @@ export class MetaService {
     if (Math.hypot(dx, dy) < 0.01) return;
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     ms.lastAtk = Math.max(now, ms.lastAtk) + atkCd; // lastAtk хранит момент следующего разрешённого удара
+    { const q = (ms as any).q; if (q && q.wts[q.wts.length - 1]?.[1] !== wt) { q.wts.push([now, wt]); if (q.wts.length > 40) q.wts.shift(); } } // «только оружием»
     ms.wt = wt;
     // ближний бой (дуга) — мгновенно; стрелковое оружие (снаряд/линия) — НАСТОЯЩИЕ снаряды сервера: урон при попадании
     const reach = W.atk.kind === "arc" ? W.atk.range * 0.8 : W.atk.range;
@@ -963,7 +967,7 @@ export class MetaService {
     const traits = traitsFor(wt, this.equippedIds(session, a));
     const applyHit = (m: any, k: number) => {
       if (m.dead || !ms.zp.alive && W.atk.kind === "arc") return;
-      if (!a.bestiary[baseOf(m.type)]) { noteMob(a, baseOf(m.type), 0); ms.dirty = true; }
+      { const bk = bestiaryKey(m.type); if (bk && !a.bestiary[bk]) { noteMob(a, bk, 0); ms.dirty = true; } }
       const crit = cryptoRand() * 100 < eff.critPct;
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
       const gapHit = levelGapHitMult(ZONE_MOBS[m.type]?.lvl || 1, eff.level || 1);
@@ -1119,6 +1123,7 @@ export class MetaService {
       this.send(ws, { type: "buff", id: "swift", ms: 2000 });
     }
     void def;
+    this.qNote(ms, "ability", now);
     const a = this.store.account(ms.pkey);
     if (this.qev(a, session, { type: "ability_used" }).length) this.send(ws, { type: "toast_error", message: "Звёздный квест: навык применён — прогресс «без навыков» сброшен" });
   }
@@ -1126,17 +1131,64 @@ export class MetaService {
   gatherDone(ws: WebSocket, session: any, msg: any) {
     const ms = this.ms.get(session.id)!;
     const zone = this.zoneOf(session);
-    if (!zone || !ms.gather || ms.gather.node !== Number(msg.node)) return;
+    if (!zone || !ms.gather || ms.gather.node !== Number(msg.node)) { ms.gather = null; this.send(ws, { type: "toast_error", message: "Сбор не начался — нажмите ещё раз" }); return; }
     ms.zp.x = session.x; ms.zp.y = session.y;
-    const n = zone.gatherCheck(ms.zp, ms.gather.node, ms.gather.at, Date.now());
+    const now = Date.now(), nd = zone.nodes.find((x: any) => x.id === ms.gather!.node);
+    const n = zone.gatherCheck(ms.zp, ms.gather.node, ms.gather.at, now, ms.pkey);
     ms.gather = null;
-    if (!n) { this.send(ws, { type: "toast_error", message: "Сбор прерван" }); return; }
-    n.readyAt = Date.now() + n.respawn * 1000;
+    if (!n) { // понятная причина вместо тишины
+      const why = !nd ? "узел не найден" : zone.nodeReadyAt(nd, ms.pkey) > now ? `ещё не вырос (≈${Math.ceil((zone.nodeReadyAt(nd, ms.pkey) - now) / 1000)} с)` : !ms.zp.alive ? "герой мёртв" : Math.hypot(nd.x - ms.zp.x, nd.y - ms.zp.y) > GATHER_RANGE ? "слишком далеко" : "прервано";
+      this.send(ws, { type: "toast_error", message: "Сбор не удался: " + why }); return; }
+    zone.nodeTaken(n, ms.pkey, now);
     const qty = n.qty[0] + Math.floor(cryptoRand() * (n.qty[1] - n.qty[0] + 1));
     const a = this.store.account(ms.pkey);
     addRes(a, n.res, qty);
     this.qev(a, session, { type: "gather", res: n.res, n: qty });
     this.push(ws, session, { gathered: { res: n.res, n: qty } });
+  }
+
+  // ---------- условия целей квестов (questConds.ts): факты боя игрока с конкретным мобом ----------
+  // m.qf: sid → начало боя; ms.q: время последнего навыка/рывка, удары (t, % ОЗ после удара), смены оружия.
+  qs(ms: any) { return (ms.q ||= { ab: 0, dash: 0, hits: [] as [number, number][], wts: [] as [number, string][], fights: new Set<any>() }); }
+  /** начало боя sid с мобом m; если моб — цель задания с условиями, трекер «перезаряжает» попытку */
+  engage(m: any, sid: string) {
+    const ms: any = this.ms.get(sid); if (!ms || m.dead) return;
+    (m.qf ||= new Map()).set(sid, Date.now());
+    const q = this.qs(ms); for (const f of q.fights) if (f.dead || !f.qf?.has(sid)) q.fights.delete(f); q.fights.add(m);
+    q.wts.push([Date.now(), ms.wt || ""]); if (q.wts.length > 40) q.wts.splice(0, q.wts.length - 40);
+    const entry = this.sessionLookup?.(sid); if (!entry) return;
+    for (const t of this.condTargets(ms, m.type)) this.send(entry[0], { type: "quest_cond", qid: t.qid, i: t.i, ok: true, armed: 1, mob: m.type });
+  }
+  /** активные незакрытые цели kill/kill_boss с условиями, подходящие под тип моба */
+  condTargets(ms: any, type: string): { qid: string; i: number; conds: any[] }[] {
+    const a = this.store.accounts.get(ms.pkey); if (!a) return [];
+    const out: { qid: string; i: number; conds: any[] }[] = [];
+    for (const [qid, st] of Object.entries(a.quests.active) as [string, any][]) { const q = QUEST_BY_ID[qid]; if (!q) continue;
+      q.objectives.forEach((o: any, i: number) => { if ((o.type === "kill" || o.type === "kill_boss") && o.conds?.length && (st.p[i] || 0) < (o.count || 1) && goalMatch(o.mob, type)) out.push({ qid, i, conds: o.conds }); }); }
+    return out;
+  }
+  /** событие боя (навык/рывок/удар по герою): запомнить и сразу показать «✖ условие нарушено» по целям, с которыми идёт бой */
+  qNote(ms: any, kind: "ability" | "dash" | "hit", now: number) {
+    const q = this.qs(ms), pct = ms.zp.maxHp ? Math.max(0, ms.zp.hp) / ms.zp.maxHp * 100 : 100;
+    if (kind === "ability") q.ab = now; else if (kind === "dash") q.dash = now;
+    else { q.hits.push([now, pct]); if (q.hits.length > 600) q.hits.splice(0, q.hits.length - 600); }
+    if (!q.fights.size) return;
+    const entry = this.sessionLookup?.(ms.zp.sid); if (!entry) return;
+    const sent = (q.sent ||= new Map<string, number>());
+    for (const m of [...q.fights]) { if (m.dead || !m.qf?.has(ms.zp.sid)) { q.fights.delete(m); continue; }
+      for (const t of this.condTargets(ms, m.type)) { const why = condLive(t.conds, kind, pct); const key = `${t.qid}:${t.i}:${m.id}:${m.qf.get(ms.zp.sid)}`;
+        if (why && !sent.has(key)) { sent.set(key, now); if (sent.size > 50) sent.delete(sent.keys().next().value!); this.send(entry[0], { type: "quest_cond", qid: t.qid, i: t.i, ok: false, reason: why, mob: m.type }); } } }
+  }
+  /** факты боя sid с мобом m на момент смерти моба (для condFail) */
+  fightFacts(m: any, sid: string, session: any, ms: any, h: any): FightFacts | null {
+    if (!ms) return null;
+    const now = Date.now(), t0 = m.qf?.get(sid) ?? now, q = this.qs(ms);
+    const hits = q.hits.filter((x: [number, number]) => x[0] >= t0), hpNow = ms.zp.maxHp ? Math.max(0, ms.zp.hp) / ms.zp.maxHp * 100 : 100;
+    const wts = new Set<string>([ms.wt || ""]); for (const [t, w] of q.wts) if (t >= t0) wts.add(w);
+    const reg: any = regionAt(m.x, m.y, session.world || "arinar");
+    return { ability: q.ab >= t0 || m.usedAbility?.has(sid), dash: q.dash >= t0, hit: hits.length > 0, minHpPct: Math.min(hpNow, ...hits.map((x: [number, number]) => x[1])),
+      sec: (now - t0) / 1000, solo: [...m.dmgBy.keys()].every((k: string) => k === sid), wts: [...wts].filter(Boolean), cls: h?.cls || session.stats?.classId || null,
+      night: isNight(now), biome: typeof reg?.biome === "string" && reg.biome.startsWith("b_") ? reg.biome.slice(2) : null };
   }
 
   onMobKilled(m: any) {
@@ -1176,7 +1228,7 @@ export class MetaService {
       const cls = session.stats?.classId || null;
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       const base = baseOf(m.type); // вариант биома → трофеи/бестиарий/квесты базового Отголоска
-      noteMob(a, base, 1);
+      { const bk = bestiaryKey(m.type); if (bk) noteMob(a, bk, 1); } // вариант-босс («Часовой Пустоты») не идёт в карточку базового («Безветрие»)
       const lootKey = MONSTER_LOOT[m.type] ? m.type : base; // у каждого моба своя (правимая в админке) таблица
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
       const n = recv.get(sid) || 1;
@@ -1198,8 +1250,12 @@ export class MetaService {
       const bag = enc ? null : this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       if (enc) { let left = 0; for (const o of zone.mobs) if (o.camp === enc.camp && o.respawnAt !== -1 && !enc.killed.has(o.id)) left++; out.enc = left; } // добыча копится в сундук лагеря; осталось мобов
-      this.qev(a, session, { type: "kill", mob: base, cls });
-      if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, usedAbility: m.usedAbility.has(sid) });
+      // квесты: kind — настоящий тип (вариант биома), сопоставление цели — goalMatch (вариант-босс ≠ базовый босс)
+      const fight = this.fightFacts(m, sid, session, ms, h);
+      const qf: any[] = [];
+      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf });
+      if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, kind: m.type, usedAbility: m.usedAbility.has(sid), fight, failed: qf });
+      for (const f of qf) this.send(ws, { type: "quest_cond", qid: f.qid, i: f.i, ok: false, reason: f.reason, kill: 1 });
       this.push(ws, session, { loot: out });
     }
   }
@@ -1456,13 +1512,16 @@ export class MetaService {
     for (const [w, zone] of Object.entries(this.zones)) {
       const { players, socks } = byWorld[w];
       const zt0 = performance.now();
-      zone.update(dt, now, players, (sid, dmg, src) => {
+      if (!zone.onEngage) zone.onEngage = (m, sid) => this.engage(m, sid);
+      zone.update(dt, now, players, (sid, dmg, src, mob) => {
         const ms = this.ms.get(sid);
         if (!ms || !ms.zp.alive) return;
+        if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
         if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
         const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
         const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
+        this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
         else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); }
@@ -1473,12 +1532,12 @@ export class MetaService {
       const ev = zone.takeEvents();
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
-        const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
+        const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700, ms.pkey); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
         // Библиотека мобов: «встречен», когда моб оказался рядом (≈ на экране)
         const acc = this.store.accounts.get(ms.pkey);
         let met = false;
         if (acc) for (let i = 0; i < st.m.length; i += 6) {
-          const type = baseOf(MOB_TYPES[st.m[i + 1]] || "");
+          const type = bestiaryKey(MOB_TYPES[st.m[i + 1]] || "");
           if (type && !acc.bestiary[type] && Math.abs(st.m[i + 2] - s.x) < 420 && Math.abs(st.m[i + 3] - s.y) < 320) { noteMob(acc, type, 0); ms.dirty = true; met = true; }
         }
         if (met) this.send(ws, { type: "meta_state", ...this.snap(s) }); // новая запись Бестиария → счётчик «новое»
