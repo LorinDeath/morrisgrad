@@ -28,7 +28,8 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     rewards: { xp: 1100, stars: { yellow: 1 } }, offer: ['В последнее время Лэйр путает Безветрие и Часового!'], progress: 'Странно...', done: ['Ура!'] };
   const { p } = await open(ADMIN, { width: 1280, height: 760 }, false, async (p) => {
     await p.S({ type: 'dev_grant', xp: 20000 }); await p.S({ type: 'admin_quest_save', quest }); await sleep(1500); // квест с условиями — через админку (сервер проверяет)
-    await p.G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 460, y: 770 }); window.__game.debug.teleport(460, 770); }); await sleep(900);
+    // Пётр бродит вокруг точки появления — идём к нему туда, где он сейчас (npcPos), а не в точку появления
+    await p.G(() => { const n = window.__game.debug.npcPos?.('petr') || { x: 420, y: 760 }; window.__game.debug.rawSend({ type: 'dev_teleport', x: n.x, y: n.y + 36 }); window.__game.debug.teleport(n.x, n.y + 36); }); await sleep(900);
     await p.S({ type: 'quest_accept', id: 'c_fffff' }); await p.S({ type: 'meta_get' }); await sleep(1200);
     ok(!!p.st?.account?.quests?.active?.c_fffff, 'квест «Опять безветрие» принят у Петра; цели: ' + JSON.stringify(p.st?.customQuests?.find?.((q) => q.id === 'c_fffff')?.objectives));
   });
