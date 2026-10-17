@@ -172,7 +172,7 @@ export class ProfileStore {
     const res = await db.batch([
       q("SELECT data, verified FROM accounts WHERE pkey = ?"),
       q("SELECT hero, lvl, xp, talents, abil, loadout, talent_ver, max_dmg, max_dmg_at, max_dmg_where, home_portal FROM heroes WHERE pkey = ?"),
-      q("SELECT instance_id, item_id, acquired_at, source, viewed_at, hero, run_skill, cursed, locked, upg FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
+      q("SELECT instance_id, item_id, acquired_at, source, viewed_at, hero, run_skill, cursed, ench, locked, upg FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
       q("SELECT hero, slot, instance_id FROM hero_equipment WHERE pkey = ?"),
       q("SELECT res, qty FROM resources WHERE pkey = ?"),
       q("SELECT item_id, state, first_at, first_source, viewed_at FROM player_item_discovery WHERE pkey = ?"),
@@ -203,7 +203,7 @@ export class ProfileStore {
       return;
     }
     const a: Account = fixAccount({ ...newAccount(), ...JSON.parse(accR[0].data) });
-    a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0, hero: r.hero || null, ...(r.run_skill ? { rs: r.run_skill } : {}), ...(r.cursed ? { cursed: 1 } : {}), ...(r.locked ? { lk: 1 } : {}), ...(r.upg ? { up: r.upg } : {}) }));
+    a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0, hero: r.hero || null, ...(r.run_skill ? { rs: r.run_skill } : {}), ...(r.cursed ? { cursed: 1 } : {}), ...(r.ench >= 1 && r.ench <= 6 ? { ench: r.ench | 0 } : {}), ...(r.locked ? { lk: 1 } : {}), ...(r.upg ? { up: r.upg } : {}) }));
     a.res = Object.fromEntries(resR.map((r: any) => [r.res, r.qty]));
     a.bestiary = Object.fromEntries(mdR.map((r: any) => [r.mob_id, { seen: 1, kills: r.kills, at: r.seen_at, v: r.viewed_at == null ? 0 : 1 }]));
     a.disc = {
@@ -320,8 +320,8 @@ export class ProfileStore {
       if (old.inv.has(uid)) continue;
       const it = byUid.get(uid)!;
       const tx = `grant:${uid}`;
-      P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at, hero, run_skill, cursed, locked, upg) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?, ?, ?, ?, ?, ?)",
-        uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now, it.hero || null, it.rs || null, it.cursed ? 1 : 0, it.lk ? 1 : 0, it.up || 0);
+      P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at, hero, run_skill, cursed, ench, locked, upg) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now, it.hero || null, it.rs || null, it.cursed ? 1 : 0, it.ench | 0, it.lk ? 1 : 0, it.up || 0);
       P("INSERT OR IGNORE INTO grant_audit (ts, pkey, kind, item_id, instance_id, qty, source, tx_id, detail) VALUES (?, ?, 'grant', ?, ?, 1, ?, ?, NULL)", it.at || now, pkey, id, uid, it.src || "?", tx);
     }
     for (const [uid, id] of old.inv) if (!cur.inv.has(uid)) {

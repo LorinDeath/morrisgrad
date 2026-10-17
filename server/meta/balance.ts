@@ -43,11 +43,13 @@ export function xpLevelMult(mobL: number, heroL: number): number {
   return xpFrac(mobL, heroL) / 0.001;
 }
 export const KILL_XP = { elite: 1.5, cursed: 2, softMax: 2.5 };
-export function killXp(o: { xp: number; mobL: number; heroL: number; elite?: boolean; cursed?: boolean; boss?: boolean }): number {
+/** enchXp — опыт яруса зачарования, × (ENCH.tiers[].mobXp): ПОСЛЕ потолка softMax (иначе ×8 Чёрного съедал бы потолок 2.5). */
+export function killXp(o: { xp: number; mobL: number; heroL: number; elite?: boolean; cursed?: boolean; boss?: boolean; enchXp?: number }): number {
   let frac = xpFrac(o.mobL, o.heroL);
   if (o.boss) frac *= 10;
   let kind = (o.elite ? KILL_XP.elite : 1) * (o.cursed ? CURSE.mobXp : 1);
   if (kind > KILL_XP.softMax) kind = KILL_XP.softMax;
+  const ex = Number(o.enchXp); if (ex > 0 && Number.isFinite(ex)) kind *= ex;
   return Math.max(1, Math.round(xpNeed(o.heroL) * frac * kind));
 }
 

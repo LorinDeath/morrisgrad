@@ -1015,9 +1015,12 @@ export class GameRoom extends DurableObject {
           if (z && ZONE_MOBS[String(msg.mob)]) {
             const m = z.addMob(String(msg.mob), Number(msg.x) || session.x + 120, Number(msg.y) || session.y, { special: msg.special === "" || msg.special === "boss" || msg.special === "rare" ? msg.special : ZONE_MOBS[String(msg.mob)].boss ? "boss" : "" });
             // msg.cursed явно задаёт флаг (тесты): снять случайный rollCursed или наложить CURSE.mobHp
-            if (msg.cursed === true || msg.cursed === false) {
-              if (msg.cursed && !m.cursed) { m.cursed = true; m.maxHp = m.hp = Math.round(m.hp * CURSE.mobHp); z.rollSkills(m); }
-              else if (!msg.cursed && m.cursed) { m.cursed = false; m.maxHp = m.hp = Math.max(1, Math.round(m.hp / CURSE.mobHp)); z.rollSkills(m); }
+            // msg.ench (0…6) — ярус зачарования (только dev); ОЗ пересчитываются из флагов (hpOf: элита × проклятие × ярус)
+            const en = Number(msg.ench), setE = Number.isInteger(en) && en >= 0 && en <= 6;
+            if (msg.cursed === true || msg.cursed === false || setE) {
+              if (msg.cursed === true || msg.cursed === false) m.cursed = msg.cursed;
+              if (setE) m.ench = en;
+              m.maxHp = m.hp = Math.max(1, z.hpOf(m)); z.rollSkills(m);
             }
           }
           return;

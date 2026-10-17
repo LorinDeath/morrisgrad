@@ -6,6 +6,8 @@ import { CURSE, skillPowerMult } from "./cursed";
 import { validatePatch, applyOverride } from "./overrides";
 import { Pvp, DUEL_COUNTDOWN_MS } from "./pvp";
 import { ZONE_GEN } from "./zoneGen";
+import { ENCH } from "./enchant";
+ENCH.on = false; // счёт навыков — без случайного зачарования (свои навыки ярусов — enchant-test)
 let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
 const P = (sid: string, x: number, y: number): ZPlayer => ({ sid, x, y, hp: 1e9, maxHp: 1e9, armorRed: 0, alive: true, respawnAt: 0 } as any);
 const bosses = Object.keys(ZONE_MOBS).filter((k) => ZONE_MOBS[k].boss), small = Object.keys(ZONE_MOBS).find((k) => !ZONE_MOBS[k].boss && ZONE_MOBS[k].size === "s")!;

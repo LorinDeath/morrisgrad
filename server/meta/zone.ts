@@ -6,6 +6,7 @@ import { OUTLEVEL_SOLO_BOSS } from "./balance";
 // caster (круг-телеграф под целью), tank (медленный, не отбрасывается). Крупные/боссы — набор
 // телеграфируемых атак по фазам (60% / 30% ХП): круги, линии, кольцо, «волна» вокруг, призыв, ярость.
 import { CURSE } from "./cursed";
+import { ENCH, rollMobTier, tierDef, tierOk, mobRegenPct } from "./enchant";
 import { resolveWorld, freeSpot } from "./propCollision.ts";
 const MOB_R = 12;
 import { mobShot } from "./mobFamily";
@@ -40,9 +41,15 @@ export function bossSkillRange(m: { special?: string }, d: any): [number, number
   return [0, 0];
 }
 // ---------- множители силы моба (единая точка: урон, броня, ХП; панель «Цель» берёт отсюда же) ----------
-/** Ярус зачарования моба (будущая система «Зачарованные»): пока 0 — множители ×1. */
-export function enchTier(_m: { ench?: number }): number { return 0; }
-export function enchMul(_m: { ench?: number }, _what: "hp" | "dmg" | "armor"): number { return 1; }
+/** Ярус зачарования моба (0 — нет; 1…6 — ENCH.tiers, админка «✦ Зачарование»). */
+export function enchTier(m: { ench?: number }): number { return tierOk(m.ench) ? m.ench! : 0; }
+export function enchMul(m: { ench?: number }, what: "hp" | "dmg" | "armor" | "xp"): number {
+  const t = tierDef(m.ench); if (!t) return 1;
+  const v = Number(what === "hp" ? t.mobHp : what === "dmg" ? t.mobDmg : what === "armor" ? t.mobArmor : t.mobXp);
+  return Number.isFinite(v) && v >= 0 ? v : 1;
+}
+/** «Убийца»: проклятый или ярус с флагом killer (Чёрный) — скорость, рывок, агрессия и натиск как у проклятого. */
+export const isKiller = (m: { cursed?: boolean; ench?: number }) => !!m.cursed || !!tierDef(m.ench)?.killer;
 type MobFlags = { type: string; elite?: boolean; chief?: boolean; cursed?: boolean; enraged?: boolean; special?: string; ench?: number };
 /** Урон моба, ×: элита × вожак × проклятие × зачарование; enrage — ярость босса/мирового (как раньше, только у них). */
 export function mobDmgMul(m: MobFlags, enrage = true): number {
@@ -77,7 +84,7 @@ export interface ZMob { id: number; type: string; respawn: number; sx: number; s
   // телеграфы в полёте, фаза босса, ярость, особый тип (boss/rare), время жизни редкого
   casts: ZCast[]; phase: number; enraged: boolean; special: "" | "boss" | "rare"; expireAt: number; patIdx: number;
   // раунд Аринара: проклятый (10%), навыки и их кд, «сброс» поводка, рывок агрессии, лагерь
-  cursed: boolean; skills: string[]; skCd: Record<string, number>; reset: boolean; burstUntil: number; camp: number; leapCd: number; shieldUntil: number;
+  cursed: boolean; ench?: number; skills: string[]; skCd: Record<string, number>; reset: boolean; burstUntil: number; camp: number; leapCd: number; shieldUntil: number;
   // бой моб↔моб (кочевники и враждебные фракции): цель-моб, время следующего осмотра; маршрут кочевника
   mobTarget: number; scanAt: number; roam: { pts: [number, number][]; i: number; home: [number, number]; waitUntil: number } | null;
   // бродячий моб (ambient): sid игрока-«хозяина», охота до huntUntil, множитель респавна лагеря (rk × campRespawn — живая правка)
@@ -193,7 +200,7 @@ export class Zone {
   bossIds: Record<string, number> = {};
   rareAt: Record<string, number> = {};
   rareIds: Record<string, number> = {};
-  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, cursed: 0, roamers: 0, mobHits: 0, mobKills: 0 };
+  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
   byId = new Map<number, ZMob>();
   buckets = new Map<number, ZMob[]>(); // чанк WORLD_CHUNK → мобы (интерес/выборки)
   awake = new Set<number>();           // чанки рядом с игроками (остальные спят: без ИИ)
@@ -437,10 +444,11 @@ export class Zone {
   rollSkills(m: ZMob) {
     const d: any = ZONE_MOBS[m.type], own = ownSkills(d);
     const [lo, hi] = bossSkillRange(m, d), ri = (a: number, b: number) => { a = Math.max(0, Math.round(a)); b = Math.max(a, Math.round(b)); return a + Math.floor(this.rand() * (b - a + 1)); };
-    const boss = hi > 0, nBoss = boss ? ri(lo, hi) : 0, nCursed = m.cursed ? ri(2, 5) : 0;
-    // cap: сколько всего навыков (не меньше явных); у не-боссов — как раньше: явные + 2–5 случайных, всего ≤ 5
-    const cap = boss ? Math.min(10, Math.max(nBoss, nCursed, own.length)) : m.cursed ? 5 : own.length;
-    const need = boss ? Math.max(0, cap - own.length) : nCursed;
+    const et = tierDef(m.ench), nEnch = et ? ri(et.skMin, et.skMax) : 0;
+    const boss = hi > 0, nBoss = boss ? ri(lo, hi) : 0, nCursed = m.cursed ? ri(2, 5) : 0, nRand = Math.max(nCursed, nEnch);
+    // cap: сколько всего навыков (не меньше явных); у не-боссов — как раньше: явные + 2–5 случайных, всего ≤ 5 (ярус: ≤ max(5, его «до»))
+    const cap = boss ? Math.min(10, Math.max(nBoss, nRand, own.length)) : nRand ? Math.max(5, nEnch) : own.length;
+    const need = boss ? Math.max(0, cap - own.length) : nRand;
     const salt = (m.id * 2654435761) ^ Math.floor(this.rand() * 0x7fffffff);
     (m as any).skRand = need ? skillsFor(m.type, need + own.length, salt).filter((k) => !own.includes(k)).slice(0, need) : [];
     (m as any).skCap = cap;
@@ -452,10 +460,13 @@ export class Zone {
     const R: string[] = (m as any).skRand || [], cap = Math.max((m as any).skCap ?? 0, own.length);
     return [...new Set([...own, ...R])].slice(0, Math.max(cap, own.length));
   }
+  /** проклятие и ярус зачарования при появлении/возрождении (сервер); проклятый — только доп. шанс ENCH.comboPct */
   rollCursed(m: ZMob) {
     m.cursed = this.rand() * 100 < ZONE_GEN.cursedPct;
+    m.ench = rollMobTier(() => this.rand(), { boss: m.special === "boss" || !!ZONE_MOBS[m.type]?.boss, cursed: m.cursed });
     this.rollSkills(m);
     if (m.cursed) this.stats.cursed++;
+    if (m.ench) this.stats.ench++;
   }
   reindex() {
     this.buckets.clear();
@@ -598,7 +609,8 @@ export class Zone {
       const m = this.addMob(b.type, b.x, b.y, { region: null, hpMul: 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1), special: "boss" });
       (m as any).bossKey = bk; this.bossIds[bk] = m.id; this.bossAt[bk] = Number.MAX_SAFE_INTEGER;
       const d = ZONE_MOBS[b.type];
-      this.events.push({ k: "announce", text: `${m.cursed ? "☠️ ПРОКЛЯТЫЙ м" : "🌙 М"}ировой босс «${d.name}» (ур. ${d.lvl}) пробуждается ${b.where}!`, color: "#c084fc", x: undefined });
+      const et = tierDef(m.ench), etn = et ? `✦ ${String(et.name).toUpperCase()} ` : "";
+      this.events.push({ k: "announce", text: `${m.cursed ? "☠️ ПРОКЛЯТЫЙ " + etn + "м" : et ? etn + "м" : "🌙 М"}ировой босс «${d.name}» (ур. ${d.lvl}) пробуждается ${b.where}!`, color: et && et.color !== "#0a0a0a" ? et.color : "#c084fc", x: undefined });
     }
     for (const r of G.rares) {
       if (!this.rareAt[r.type]) this.rareAt[r.type] = now + (r.every[0] + this.rand() * (r.every[1] - r.every[0])) * 1000;
@@ -879,6 +891,8 @@ export class Zone {
         }
         continue;
       }
+      // регенерация проклятых и зачарованных — в бою тоже (анти-кайт): % макс. ОЗ в секунду (сброс лечит сам)
+      if (!m.reset && m.hp < m.maxHp) { const rp = mobRegenPct(m); if (rp > 0) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * rp / 100 * dt); }
       if (m.casts.length) this.resolveCasts(m, now, players, onHit);
       // цель
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
@@ -895,7 +909,7 @@ export class Zone {
         if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
         continue;
       }
-      const aggro = d.aggro * (m.special ? 1.2 : 1) * (m.cursed ? 1.25 : 1);
+      const aggro = d.aggro * (m.special ? 1.2 : 1) * (isKiller(m) ? 1.25 : 1);
       let best: ZPlayer | null = null, bd = aggro;
       if (m.targetSid) { const t = players.get(m.targetSid); if (t && t.alive) { const dd = Math.hypot(t.x - m.x, t.y - m.y); if (dd < aggro * (m.special ? 2.6 : 1.8) || (m.huntUntil && now < m.huntUntil && dd < ZONE_GEN.ambientDespawnDist)) { best = t; bd = dd; } } }
       if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
@@ -903,7 +917,7 @@ export class Zone {
       m.targetSid = best ? best.sid : null;
       if (best) m.mobTarget = 0; // игроки важнее драки с мобом
       if (fresh) {
-        m.burstUntil = now + (m.cursed ? 2800 : 1200); // проклятый дольше прессует — анти-kite
+        m.burstUntil = now + (isKiller(m) ? 2800 : 1200); // проклятый дольше прессует — анти-kite
         (m as any).combatSince = now; // старт боя (ярость мирового босса)
         if (m.camp) for (const o of this.near(m.x, m.y, 360)) if (o.camp === m.camp && !o.targetSid && !o.reset) { o.targetSid = m.targetSid; o.burstUntil = now + 1200; }
       }
@@ -945,7 +959,7 @@ export class Zone {
       if ((m as any).frozenUntil > now) continue; // заморожен: ни шага, ни удара, ни навыка
       if (best) {
         const dx = best.x - m.x, dy = best.y - m.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
-        const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? (isWorld ? ((ZONE_GEN as any).bossEnrageSpeed || 1.75) : 1.3) : 1) * (m.burstUntil > now ? 1.6 : 1) * (m.cursed ? (ZONE_GEN.cursedSpeed || 1.5) : 1) * (isWorld ? ((ZONE_GEN as any).bossCombatSpeed || 1.25) : 1);
+        const sp = d.speed * ((m as any).frozenUntil > now ? 0 : 1) * (m.slowUntil > now ? 0.55 : 1) * (m.elite ? 1.1 : 1) * (m.enraged ? (isWorld ? ((ZONE_GEN as any).bossEnrageSpeed || 1.75) : 1.3) : 1) * (m.burstUntil > now ? 1.6 : 1) * (isKiller(m) ? (ZONE_GEN.cursedSpeed || 1.5) : 1) * (isWorld ? ((ZONE_GEN as any).bossCombatSpeed || 1.25) : 1);
         let want = d.radius + 14; // желаемая дистанция
         // навыки боссов/проклятых (свои кд)
         if (m.skills.length && dist < 420) {
@@ -970,7 +984,7 @@ export class Zone {
         } else if ((d.role === "melee" || d.role === "swarm") && d.lvl >= 3 && dist > 80 && dist < 210 && m.leapCd <= 0) {
           // прыжок: круг-телеграф под целью, через 0.65 с моб приземляется туда (уклоняемо)
           this.cast(m, { kind: "circle", at: now + 650, x: best.x, y: best.y, r: 52, dmg: d.dmg * 1.3 * eliteDmg, leap: true });
-          m.leapCd = (d.role === "swarm" ? 7 : 5) * (m.cursed ? (ZONE_GEN.cursedLeap || 0.55) : 1); m.windup = m.cursed ? 0.4 : 0.65; m.dashX = 0; m.dashY = 0;
+          m.leapCd = (d.role === "swarm" ? 7 : 5) * (isKiller(m) ? (ZONE_GEN.cursedLeap || 0.55) : 1); m.windup = isKiller(m) ? 0.4 : 0.65; m.dashX = 0; m.dashY = 0;
           continue;
         } else if (d.role === "ranged") {
           want = 170;
@@ -1114,7 +1128,7 @@ export class Zone {
     m.dead = true; m.hp = 0; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.casts = [];
     m.respawnAt = Date.now() + (m.rk ? ZONE_GEN.campRespawn * m.rk : m.respawn) * 1000; // лагеря — живая правка админки
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
-    if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}» повержен!`, color: "#fde68a" });
+    if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}»${tierDef(m.ench) ? ` (✦ ${tierDef(m.ench)!.name})` : ""} повержен!`, color: "#fde68a" });
     onKill(m);
     m.qf?.clear();
   }
@@ -1153,7 +1167,7 @@ export class Zone {
       // статусы — битами (могут быть одновременно) + число стаков каждого (по 3 бита: поджог 13–15, яд 16–18, кровотечение 19–21)
       const st = mobStatusBits(x.dots, now);
       m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
-        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0));
+        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0) | (enchTier(x) << 23)); // ярус зачарования — биты 23–25
     }
     const nr = aoi * 2.2; // узлы — тоже по интересу (в Аринаре их сотни)
     const n = this.nodes.filter((x) => !this.gen.camps || (Math.abs(x.x - px) < nr && Math.abs(x.y - py) < nr)).map((x) => { const r = this.nodeReadyAt(x, who); return r <= now ? [x.id, 1] : [x.id, 0, Math.ceil((r - now) / 1000)]; }); // [id, готов, через сколько с]

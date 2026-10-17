@@ -14,24 +14,32 @@ export const UPG: any = {
   order: UPG_ORDER.slice(),        // материал уровня +1…+N
   costs: UPG_ORDER.map(() => 0),   // своё кол-во на уровень (0 — общее «cost»)
 };
+import { tierDef } from "./enchant";
 export const isPctStat = (k: string) => /Pct$/.test(k);
 const r1 = (x: number) => Math.round(x * 10) / 10;
 /** Статы экземпляра с улучшением +up. base — уже с проклятием (×statMult). Плоские: base × (1 + up·flat%); целые остаются целыми. */
-export function upgStats(base: Record<string, any>, up: number, cursed: boolean, cfg: any = UPG): Record<string, any> {
+/** ench — ярус зачарования (0 — нет): его upPct — ВЕСЬ прирост за уровень ко всем статам (плоским и %, от базы экземпляра),
+ *  вместо обычного; у проклято-зачарованной — проклятый прирост + upPct яруса. */
+export function upgStats(base: Record<string, any>, up: number, cursed: boolean, cfg: any = UPG, ench = 0): Record<string, any> {
+  cfg = cfg || UPG;
   up = Math.max(0, Math.min(cfg.maxLvl | 0, up | 0));
   if (!up) return base;
-  const fp = (cursed ? cfg.cFlatPct : cfg.flatPct) / 100, pp = cursed ? cfg.cPctPts : cfg.pctPts, o: any = {};
+  const tp = (Number(tierDef(ench)?.upPct) || 0) / 100, e = !!tierDef(ench);
+  const fp = (cursed ? cfg.cFlatPct / 100 : e ? 0 : cfg.flatPct / 100) + tp, pp = cursed ? cfg.cPctPts : e ? 0 : cfg.pctPts, o: any = {};
   for (const [k, v] of Object.entries(base || {})) {
     if (typeof v !== "number" || !v) { o[k] = v; continue; }
-    o[k] = isPctStat(k) ? r1(v + up * pp) : Number.isInteger(v) ? Math.round(v * (1 + up * fp)) : Math.round(v * (1 + up * fp) * 100) / 100;
+    o[k] = isPctStat(k) ? r1(v * (1 + up * tp) + up * pp) : Number.isInteger(v) ? Math.round(v * (1 + up * fp)) : Math.round(v * (1 + up * fp) * 100) / 100;
   }
   return o;
 }
 /** Стоимость перехода на уровень `to` (1…maxLvl): { ресурс: кол-во }. */
-export function upgCost(to: number, cursed: boolean, cfg: any = UPG): Record<string, number> | null {
+/** Материалы: обычная — ×1; проклятая — ×cursedMult (+второй материал); ярус — ×matMult яруса; проклятая+ярус — сумма (×cursedMult + ×matMult). */
+export function upgCost(to: number, cursed: boolean, cfg: any = UPG, ench = 0): Record<string, number> | null {
+  cfg = cfg || UPG;
   if (!(to >= 1 && to <= cfg.maxLvl)) return null;
   const ord: string[] = cfg.order, m1 = ord[to - 1]; if (!m1) return null;
-  const n = (cfg.costs?.[to - 1] || cfg.cost) * (cursed ? cfg.cursedMult : 1);
+  const tm = Number(tierDef(ench)?.matMult) || 0;
+  const n = (cfg.costs?.[to - 1] || cfg.cost) * (cursed && tm ? cfg.cursedMult + tm : cursed ? cfg.cursedMult : tm || 1);
   const out: Record<string, number> = { [m1]: Math.round(n) };
   if (cursed) { const m2 = ord[to] || ord[to - 2]; if (m2 && m2 !== m1) out[m2] = (out[m2] || 0) + Math.round(n); }
   return out;

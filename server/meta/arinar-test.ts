@@ -91,7 +91,7 @@ function ok2(c: boolean) { if (!c) ok(false, "reset mob retargeted player"); }
   const n = z.mobs.length, c = z.mobs.filter((m) => m.cursed).length;
   ok(c / n > 0.07 && c / n < 0.13, `cursed rate ${(100 * c / n).toFixed(1)}% (target ${ZONE_GEN.cursedPct}%)`);
   ok(z.mobs.filter((m) => m.cursed).every((m) => m.skills.length >= 2 && m.skills.length <= 5 && m.maxHp >= ZONE_MOBS[m.type].hp * 4), "cursed: 2–5 skills, ×5.2 HP");
-  ok(z.mobs.filter((m) => !m.cursed && !ZONE_MOBS[m.type].boss).every((m) => m.skills.length === 0), "regular mobs: no skills");
+  ok(z.mobs.filter((m) => !m.cursed && !m.ench && !ZONE_MOBS[m.type].boss).every((m) => m.skills.length === 0), "regular mobs: no skills");
   const bosses = Object.keys(ZONE_MOBS).filter((k) => ZONE_MOBS[k].boss);
   ok(bosses.every((k) => skillsFor(k, 1).length === 1), `every regular boss gets exactly 1 skill (${bosses.length} bosses; e.g. fire_warden: ${skillsFor("fire_warden", 1)})`);
   const zb = new Zone("hellfire", [], [], { proc: false });

@@ -1,3 +1,4 @@
+import { parseTag } from "./enchant";
 // Сундуки схватки (Albion-стиль). Сервер — авторитет.
 // Схватка: мобы, вступившие в бой вместе (пачка/лагерь, в радиусе linkRadius, с общими игроками) — одна схватка.
 // Дроп копится; когда умирает ПОСЛЕДНИЙ моб схватки — ОДИН сундук на месте его смерти. Одиночный моб — обычный мешок.
@@ -27,9 +28,9 @@ export const CHEST = {
   matDropMult: 1,        // шанс МАТЕРИАЛОВ × в открытом мире (мешки мобов; сундук лагеря и забеги — без него); количество не меняется
   campIdleSec: 600,      // с: зачистка лагеря без убийств столько времени — сбрасывается (накопленное пропадает)
 };
-export type ChestEntry = { lid: number; k: "item" | "res"; id: string; n: number; c?: 1; o: string }; // o — владелец (pkey) в личной фазе
+export type ChestEntry = { lid: number; k: "item" | "res"; id: string; n: number; c?: 1; e?: number; o: string }; // o — владелец (pkey) в личной фазе
 export type Chest = { keepEmpty?: 1; id: number; world: string; x: number; y: number; at: number; pubAt: number; exp: number; src: string; kind: string; mob: string; guardType: string; entries: ChestEntry[]; guarded?: 1 };
-export type Kill = { type: string; lootKey: string; elite: boolean; cursed: boolean; boss: boolean; rare: boolean; special: string; x: number; y: number };
+export type Kill = { type: string; lootKey: string; elite: boolean; cursed: boolean; ench?: number; boss: boolean; rare: boolean; special: string; x: number; y: number };
 export type Encounter = { id: number; world: string; watch: Set<number>; dmg: Map<string, number>; pkey: Map<string, string>; kills: Kill[]; x: number; y: number; lastAt: number; startAt: number; anyBoss: boolean };
 
 /** живые мобы, связанные с убитым: рядом и в бою с теми же игроками (или того же лагеря и в бою) */
@@ -140,7 +141,7 @@ export class Chests {
   seed(list: Chest[]) { for (const c of list) { this.chests.set(c.id, c); this.nextId = Math.max(this.nextId, c.id + 1); for (const e of c.entries) this.nextLid = Math.max(this.nextLid, e.lid + 1); } }
   spawn(world: string, x: number, y: number, ents: { o: string; id: string; k: "item" | "res"; n: number }[], src: string, kind: string, mob: string, guardType: string, now = Date.now(), keepEmpty = false): Chest | null {
     if (!ents.length && !keepEmpty) return null;
-    const entries: ChestEntry[] = ents.map((e) => { const c = e.k === "item" && e.id.endsWith("@c"); return { lid: this.nextLid++, k: e.k, id: c ? e.id.slice(0, -2) : e.id, n: e.n, o: e.o, ...(c ? { c: 1 as const } : {}) }; });
+    const entries: ChestEntry[] = ents.map((e) => { const tg = e.k === "item" ? parseTag(e.id) : { id: e.id, c: false, e: 0 }, c = tg.c; return { lid: this.nextLid++, k: e.k, id: tg.id, n: e.n, o: e.o, ...(tg.e ? { e: tg.e } : {}), ...(c ? { c: 1 as const } : {}) }; });
     const c: Chest = { id: this.nextId++, world, x: Math.round(x), y: Math.round(y), at: now, pubAt: now + CHEST.personalSec * 1000, exp: now + (CHEST.personalSec + CHEST.publicSec) * 1000, src, kind, mob, guardType, entries, ...(keepEmpty && !entries.length ? { keepEmpty: 1 as const } : {}) };
     this.chests.set(c.id, c); this.dirty.add(c.id); return c;
   }

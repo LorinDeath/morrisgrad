@@ -3,6 +3,7 @@
 // Проклятые вещи — НЕ отдельные предметы, а флаг экземпляра (item_instances.cursed / InvItem.cursed).
 // Статы считаются на лету от базового определения (с правками админки) × statMult — правка базы меняет и проклятую версию.
 import { upgStats } from "./upgrade";
+import { enchStats, tierOk } from "./enchant";
 export const CURSE = {
   equipDropMult: 10,     // шанс дропа ЭКИПИРОВКИ ×N во всех таблицах (материалы не трогаются), кламп 100%
   mobDropMult: 10,       // проклятый моб/босс: множитель шанса ОБЫЧНЫХ вещей и материалов
@@ -19,7 +20,7 @@ export const CURSE = {
   // предел силы навыка героя (×) в открытом мире и дуэлях; сила берётся только с сервера (статы/таланты), клиент её не шлёт
   skillPowerCap: 100,
   mobSkillPowerCap: 1.8,  // навык героя в руках моба: урон моба × сила, но не больше этого
-};
+} as any;
 /** множитель урона навыка героя по силе (power — только серверная, из статов/талантов): не меньше ×0.6, не больше CURSE.skillPowerCap */
 export function skillPowerMult(power: number): number {
   const cap = Math.max(1, Number(CURSE.skillPowerCap) || 100), p = Number(power);
@@ -34,8 +35,13 @@ export function cursedStats<T extends Record<string, any>>(st: T | undefined | n
   for (const [k, v] of Object.entries(st || {})) o[k] = typeof v === "number" ? (Number.isInteger(v) ? Math.round(v * k0) : Math.round(v * k0 * 10) / 10) : v;
   return o;
 }
-/** Статы экземпляра: база (с правками админки) → ×проклятие → +улучшение (+N у Петра). */
-export function instStats(def: any, inst?: { cursed?: any; up?: number } | null) { const b = inst?.cursed ? cursedStats(def?.stats) : def?.stats || {}; return inst?.up ? upgStats(b, inst.up, !!inst.cursed) : b; }
+/** Статы экземпляра: база (с правками админки) → ×проклятие → ×ярус зачарования → +улучшение (+N у Петра). */
+export function instStats(def: any, inst?: { cursed?: any; ench?: number; up?: number } | null) {
+  const e = tierOk(inst?.ench) ? inst!.ench! : 0;
+  let b = inst?.cursed ? cursedStats(def?.stats) : def?.stats || {};
+  if (e) b = enchStats(b, e);
+  return inst?.up ? upgStats(b, inst.up, !!inst.cursed, undefined, e) : b;
+}
 export const FULL_SET = 5; // слотов экипировки (SLOTS)
 /** Уровень свечения = число надетых проклятых (0..5); яркость — CURSE.glowN (клиент получает конфиг). */
 export function glowLevel(nCursed: number): number { return Math.max(0, Math.min(FULL_SET, nCursed | 0)); }

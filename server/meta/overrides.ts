@@ -14,10 +14,13 @@ import { RUN_SKILLS } from "./shared";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { CURSE } from "./cursed";
+import { ENCH, ENCH_N } from "./enchant";
+// шанс проклятого моба, % — живёт в ZONE_GEN.cursedPct (там его читают зона и тесты); правится во вкладке «☠ Проклятие» (curse.cursedPct)
+if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -59,7 +62,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "bossOn", label: "Мировой босс в локации", t: "bool" }] },
   boss: { name: "Мировые боссы", fields: [N("every", "Возрождение после смерти, с", 30, 86400, "int"), N("firstAfter", "Первое появление после старта, с", 0, 86400, "int")] },
   // «Проклятие» — только админ (модератору не отдаётся: roles.MOD_ADMIN_KINDS); одна запись id='main'
-  curse: { name: "Проклятие", fields: [N("equipDropMult", "Шанс дропа экипировки, × (открытый мир и забеги; сундук лагеря — по таблице)", 0, 100),
+  curse: { name: "Проклятие", fields: [N("cursedPct", "Шанс проклятого моба при появлении, %", 0, 100), N("equipDropMult", "Шанс дропа экипировки, × (открытый мир и забеги; сундук лагеря — по таблице)", 0, 100),
     N("mobDropMult", "Проклятый моб/босс: шанс обычных вещей и материалов, ×", 0, 100),
     N("itemChanceMult", "Проклятая версия вещи: шанс = базовый × (отдельный бросок)", 0, 100),
     { path: "bossOnly", label: "Проклятые вещи — только с проклятых боссов", t: "bool" },
@@ -73,6 +76,24 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_pow", label: "Сила навыков", t: "hdr" },
     N("skillPowerCap", "Предел силы навыка героя, × (мир и дуэли; 100 — без предела)", 1, 100),
     N("mobSkillPowerCap", "Навык героя у моба: предел силы, ×", 0.5, 20)] },
+  // «✦ Зачарование» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main', ярусы — tiers.0 … tiers.5
+  ench: { name: "Зачарование", fields: [
+    { path: "on", label: "Зачарованные мобы и дроп включены (выкл — не появляются и не падают; уже выпавшие вещи сохраняют статы)", t: "bool" },
+    N("comboPct", "Проклятый моб / проклятая копия: доп. шанс ещё и зачарования, % (ярус — по весам шансов ярусов)", 0, 100),
+    N("cursedRegen", "Регенерация проклятого моба, % макс. ОЗ/с (в бою тоже)", 0, 20),
+    { path: "dropLower", label: "Зачарованный моб роняет копии своего и младших ярусов", t: "bool" },
+    ...Array.from({ length: ENCH_N }, (_, i) => { const p = (k: string) => `tiers.${i}.${k}`; return [
+      { path: p("_h"), label: `Ярус ${i + 1}`, t: "hdr" as const },
+      { path: p("name"), label: "Название", t: "text" as const }, { path: p("color"), label: "Цвет", t: "color" as const },
+      N(p("stat"), "Статы вещи, × (плоские и %)", 1, 100),
+      N(p("spawnPct"), "Шанс моба при появлении, %", 0, 100), { path: p("boss"), label: "Может быть боссом / мировым боссом", t: "bool" as const },
+      N(p("mobHp"), "Моб: ОЗ, ×", 1, 200), N(p("mobDmg"), "Моб: урон, ×", 1, 200), N(p("mobArmor"), "Моб: броня, ×", 1, 200), N(p("mobXp"), "Моб: опыт, ×", 0, 100),
+      N(p("regen"), "Моб: регенерация, % макс. ОЗ/с (в бою тоже)", 0, 20),
+      N(p("dropMult"), "Моб: шанс обычных вещей и материалов, ×", 0, 100), N(p("itemChance"), "Копия этого яруса: шанс = шанс строки × (отдельный бросок)", 0, 100),
+      N(p("skMin"), "Случайных навыков: от", 0, 10, "int"), N(p("skMax"), "Случайных навыков: до", 0, 10, "int"),
+      { path: p("killer"), label: "Убийца: скорость, рывок и агрессия как у проклятого", t: "bool" as const },
+      N(p("upPct"), "Улучшение: +% ко всем статам за уровень (вместо обычного)", 0, 100), N(p("matMult"), "Улучшение: материалов ×", 1, 1000),
+    ]; }).flat()] },
   // «⚒ Улучшение» у Петра — только админ: материал и кол-во на каждый уровень, проклятые, прибавка статов (провалов/поломок нет)
   upgrade: { name: "Улучшение", fields: [N("maxLvl", `Максимальный уровень улучшения (≤ ${UPG_ORDER.length})`, 0, UPG_ORDER.length, "int"), N("cost", "Материалов за уровень (обычная вещь), если у уровня не задано своё", 1, 999, "int"),
     N("cursedMult", "Проклятая вещь: кол-во ×, плюс второй материал (следующий по редкости)", 1, 20),
@@ -112,7 +133,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -170,6 +191,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
   }
   if (kind === "region") { const R = TABLES.region[id]; for (const k of ["packs", "pack"]) { const a = out[k + ".0"] ?? R[k]?.[0], b = out[k + ".1"] ?? R[k]?.[1]; if (a != null && b != null && a > b) return `${k === "packs" ? "пачек" : "мобов"}: «от» больше «до»`; } }
   if (kind === "curse") { const C = TABLES.curse[id]; for (const k of ["bossSkills", "worldBossSkills"]) { const a = out[k + "Min"] ?? C[k + "Min"], b = out[k + "Max"] ?? C[k + "Max"]; if (a > b) return "навыков боссов: «от» больше «до»"; } }
+  if (kind === "ench") { const E = TABLES.ench[id]; for (let i = 0; i < ENCH_N; i++) { const a = out[`tiers.${i}.skMin`] ?? E.tiers[i].skMin, b = out[`tiers.${i}.skMax`] ?? E.tiers[i].skMax; if (a > b) return `ярус ${i + 1}: навыков «от» больше «до»`; } }
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
 }

@@ -16,6 +16,8 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 // спрайт снаряда автоатаки по типу оружия (FX atlas v2)
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
+import { parseTag, tierDef } from "./enchant";
+import { enchDropMult } from "./profile";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { CHEST, Chests, CampRuns, recipients, rollChest, type Chest, type CampRun } from "./chests";
 import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
@@ -38,7 +40,7 @@ import {
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh,
 } from "./profile";
-import { Zone, MOB_SKILLS, regSig, mobEffStats, type ZPlayer } from "./zone";
+import { Zone, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
@@ -232,11 +234,11 @@ export class MetaService {
       const equip: Record<string, { uid: string; id: string }> = {};
       for (const [slot, uid] of Object.entries(hh.equip || {})) {
         const it = a.inv.find((i) => i.uid === uid);
-        if (it) equip[slot] = { uid: String(uid), id: it.id, ...(it.cursed ? { cursed: 1 } : {}) };
+        if (it) equip[slot] = { uid: String(uid), id: it.id, ...(it.cursed ? { cursed: 1 } : {}), ...(it.ench ? { ench: it.ench } : {}) };
       }
       const bag = a.inv
         .filter((i) => (!i.hero || i.hero === id) && !eqUids.has(i.uid))
-        .map((i) => ({ uid: i.uid, id: i.id, ...(i.cursed ? { cursed: 1 } : {}) }));
+        .map((i) => ({ uid: i.uid, id: i.id, ...(i.cursed ? { cursed: 1 } : {}), ...(i.ench ? { ench: i.ench } : {}) }));
       const eff = heroEffective(a, hh, id, base);
       s.heroes[id] = {
         lvl: hh.lvl, xp: hh.xp, loadout: hh.loadout, equip, bag,
@@ -657,12 +659,12 @@ export class MetaService {
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
         if (msg.killNear || msg.killNearAny) { const z = this.zoneOf(session); const m = z?.mobs.filter((x: any) => !x.dead && (msg.killNearAny || !x.special) && (!msg.killType || x.type === msg.killType)).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
-          if (m && Math.hypot(m.x - session.x, m.y - session.y) < 500) { if (msg.cursed) m.cursed = true; z!.damage(m, session.id, m.hp + 1e6, (mm: any) => this.onMobKilled(mm)); } } // тест: настоящее убийство (обычный путь награды); killNearAny — и боссы (только MC_DEV); killType — фильтр вида
-        if (msg.mobInfo) { const z = this.zoneOf(session); const list = (z?.mobs || []).filter((x: any) => !x.dead).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y)); const m = msg.typeFilter ? list.find((x: any) => x.type === msg.typeFilter) : list[0]; if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, elite: !!m.elite, special: m.special || "" }); }
-        if (msg.bag && typeof msg.bag === "object") { const items = (Array.isArray(msg.bag.items) ? msg.bag.items : []).filter((id: any) => ITEM_BY_ID[untag(String(id))]).slice(0, 30); const res: Record<string, number> = {}; for (const [r, n] of Object.entries(msg.bag.res || {})) if (RESOURCES[r]) res[r] = Math.max(1, Math.min(99, Number(n) || 1)); this.loot.drop(session.world || "hellfire", session.x + 50, session.y, ms.pkey, { items, res }, "dev", "mob", "dev"); }
+          if (m && Math.hypot(m.x - session.x, m.y - session.y) < 500) { if (msg.cursed) m.cursed = true; if (Number.isInteger(msg.ench) && msg.ench >= 0 && msg.ench <= 6) m.ench = msg.ench; z!.damage(m, session.id, m.hp + 1e6, (mm: any) => this.onMobKilled(mm)); } } // тест: настоящее убийство (обычный путь награды); killNearAny — и боссы (только MC_DEV); killType — фильтр вида
+        if (msg.mobInfo) { const z = this.zoneOf(session); const list = (z?.mobs || []).filter((x: any) => !x.dead).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y)); const m = msg.typeFilter ? list.find((x: any) => x.type === msg.typeFilter) : list[0]; if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench || 0, elite: !!m.elite, special: m.special || "" }); }
+        if (msg.bag && typeof msg.bag === "object") { const items = (Array.isArray(msg.bag.items) ? msg.bag.items : []).filter((id: any) => ITEM_BY_ID[parseTag(String(id)).id]).slice(0, 30); const res: Record<string, number> = {}; for (const [r, n] of Object.entries(msg.bag.res || {})) if (RESOURCES[r]) res[r] = Math.max(1, Math.min(99, Number(n) || 1)); this.loot.drop(session.world || "hellfire", session.x + 50, session.y, ms.pkey, { items, res }, "dev", "mob", "dev"); }
         if (msg.engageNear) { const z = this.zoneOf(session); for (const m of z?.near(session.x, session.y, Number(msg.engageNear) || 300) || []) if (!m.dead && !m.special && Math.hypot(m.x - session.x, m.y - session.y) <= (Number(msg.engageNear) || 300)) { m.targetSid = session.id; m.dmgBy.set(session.id, (m.dmgBy.get(session.id) || 0) + 1); } } // тест сундуков: «пачка вступила в бой»
         if (msg.chestInfo) this.send(ws, { type: "dev_chests", list: [...this.chests.chests.values()].map((c) => ({ id: c.id, x: c.x, y: c.y, n: c.entries.length, owners: [...new Set(c.entries.map((e) => e.o))], per: c.entries.reduce((o: any, e) => ((o[e.o] = (o[e.o] || 0) + 1), o), {}), pub: Date.now() >= c.pubAt, guarded: !!c.guarded })), enc: this.camps.map.size });
-        if (msg.chestSpawn && typeof msg.chestSpawn === "object") { const ents: any[] = []; for (const [owner, ids] of Object.entries(msg.chestSpawn.by || {})) for (const id of (Array.isArray(ids) ? ids : []).slice(0, 30)) if (ITEM_BY_ID[untag(String(id))]) ents.push({ o: owner === "me" ? ms.pkey : String(owner), id: String(id), k: "item", n: 1 }); this.chests.spawn(session.world || "hellfire", session.x + (Number(msg.chestSpawn.dx) || 0), session.y + (Number(msg.chestSpawn.dy) || 0), ents, "dev", "mob", "dev", "dew_slime"); } // тест сундуков (только dev)
+        if (msg.chestSpawn && typeof msg.chestSpawn === "object") { const ents: any[] = []; for (const [owner, ids] of Object.entries(msg.chestSpawn.by || {})) for (const id of (Array.isArray(ids) ? ids : []).slice(0, 30)) if (ITEM_BY_ID[parseTag(String(id)).id]) ents.push({ o: owner === "me" ? ms.pkey : String(owner), id: String(id), k: "item", n: 1 }); this.chests.spawn(session.world || "hellfire", session.x + (Number(msg.chestSpawn.dx) || 0), session.y + (Number(msg.chestSpawn.dy) || 0), ents, "dev", "mob", "dev", "dew_slime"); } // тест сундуков (только dev)
         if (msg.hurtMe) { (ms as any).hurtAt = Date.now(); ms.zp.hp = Math.max(1, ms.zp.hp - 1); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
@@ -883,7 +885,7 @@ export class MetaService {
     const out: any = { xp: 0, items: [], res: {}, fromBag: b.id };
     const r = this.loot.take(b, lids, (e) => {
       if (e.k === "res") { addRes(a, e.id, e.n); out.res[e.id] = (out.res[e.id] || 0) + e.n; return true; }
-      const it = addItem(a, e.id, b.src, a.hero, !!e.c); if (!it) return false; // сумка полна — позиция остаётся в мешке
+      const it = addItem(a, e.id, b.src, a.hero, !!e.c, (e as any).e || 0); if (!it) return false; // сумка полна — позиция остаётся в мешке
       out.items.push(it); (out.cards = out.cards || {})[e.id] = itemCard(e.id); return true;
     }, budget);
     // редкое оружие несёт навык «Вампир-лайка» (бросок при подборе, только сервер)
@@ -1197,7 +1199,7 @@ export class MetaService {
   }
 
   onMobKilled(m: any) {
-    ST.inc("kills"); if (m.elite) ST.inc("kills_elite"); if (m.cursed) ST.inc("kills_cursed"); if (m.special === "boss" || ZONE_MOBS[m.type]?.boss) ST.inc("kills_boss");
+    ST.inc("kills"); if (m.elite) ST.inc("kills_elite"); if (m.cursed) ST.inc("kills_cursed"); if (m.ench) ST.inc("kills_ench"); if (m.special === "boss" || ZONE_MOBS[m.type]?.boss) ST.inc("kills_boss");
     const d = ZONE_MOBS[m.type];
     const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
     // мешок — ОДИН: больше всех урона, с шансом 10% — добившему (сервер); видит и открывает только владелец
@@ -1220,7 +1222,7 @@ export class MetaService {
     const zone: any = (this.zones as any)[zw];
     // сундук зачищенного лагеря: лагерный моб — добыча копится (мешка нет: без двойного броска); последний моб лагеря — ОДИН сундук
     const enc = zone ? this.camps.onKill(zw, m, (sid) => this.ms.get(sid)?.pkey || null) : null;
-    if (enc) { enc.kills.push({ type: m.type, lootKey: MONSTER_LOOT[m.type] ? m.type : baseOf(m.type), elite: !!m.elite, cursed: !!m.cursed, boss: !!d.boss || m.special === "boss", rare: !!d.rare, special: m.special || "", x: m.x, y: m.y }); if (d.boss) enc.anyBoss = true;
+    if (enc) { enc.kills.push({ type: m.type, lootKey: MONSTER_LOOT[m.type] ? m.type : baseOf(m.type), elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss || m.special === "boss", rare: !!d.rare, special: m.special || "", x: m.x, y: m.y }); if (d.boss) enc.anyBoss = true;
       for (const sid of recv.keys()) { const pk = this.ms.get(sid)?.pkey; if (pk && !enc.pkey.has(sid)) enc.pkey.set(sid, pk); } // отряд рядом
       if (this.camps.cleared(enc, zone.mobs)) { const c = (zone.camps || []).find((x: any) => x.id === enc.camp); if (c) { enc.x = c.x; enc.y = c.y; } else { enc.x = m.x; enc.y = m.y; } this.finishCamp(enc); } }
     let split: Map<string, { items: string[]; res: Record<string, number> }> | null = null;
@@ -1237,21 +1239,21 @@ export class MetaService {
       const lootKey = MONSTER_LOOT[m.type] ? m.type : base; // у каждого моба своя (правимая в админке) таблица
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
       const n = recv.get(sid) || 1;
-      const xp = Math.round(killXp({ xp: d.xp, mobL: d.lvl || 1, heroL: h?.lvl || 1, elite: m.elite, cursed: m.cursed, boss: !!d.boss }) * partyXpShare(n)); // balance.killXp: серые — 0, сильные — больше с потолком; отряд — доля
-      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed, party: n > 1 ? n : undefined };
+      const xp = Math.round(killXp({ xp: d.xp, mobL: d.lvl || 1, heroL: h?.lvl || 1, elite: m.elite, cursed: m.cursed, boss: !!d.boss, enchXp: enchMul(m, "xp") }) * partyXpShare(n)); // balance.killXp: серые — 0, сильные — больше с потолком; отряд — доля
+      const out: any = { xp, items: [], res: {}, mob: m.type, elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || undefined, party: n > 1 ? n : undefined };
       if (h && xp > 0) out.levelUps = gainXp(h, xp);
       const src = `${d.boss ? "boss" : d.rare ? "rare" : "kill"}:${m.type}`;
-      const lootMul = m.cursed ? CURSE.mobDropMult : 1; // проклятый: шансы обычных вещей/материалов × (только сервер)
+      const lootMul = (m.cursed ? CURSE.mobDropMult : 1) * enchDropMult(m.ench || 0); // проклятый/зачарованный: шансы обычных вещей/материалов × (только сервер)
       // проклятые ВЕРСИИ вещей: только с проклятых боссов (CURSE.bossOnly), отдельный независимый бросок по базовому шансу
       const cursedRoll = !!m.cursed && (!CURSE.bossOnly || !!d.boss || m.special === "boss");
       // добыча НЕ в сумку: личный мешок на земле у трупа (открыть кликом/E, забрать по одному, Shift-проводкой или всё)
       if (!enc && !split && ownerGrp.includes(sid)) { // один бросок на убийство (как раньше), затем — делёж в отряде владельца мешка
-        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll, "world"); // открытый мир: × equipDropMult и × matDropMult
-        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll, "world"); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
+        const roll = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll, "world", m.ench || 0); // открытый мир: × equipDropMult и × matDropMult
+        if (m.elite) { const l2 = rollMonsterLoot(lootKey, cryptoRand, lootMul, cursedRoll, "world", m.ench || 0); roll.items.push(...l2.items); for (const [r, k] of Object.entries(l2.res)) roll.res[r] = (roll.res[r] || 0) + k; } // элита: второй бросок
         split = splitLoot(roll, ownerGrp.filter((g) => recv.has(g)), cryptoRand);
       }
       const loot = split?.get(sid) || { items: [] as string[], res: {} as Record<string, number> };
-      if (loot.items.length) { ST.inc("items_drop", loot.items.length); for (const it of loot.items) if (String(it).includes("@c")) ST.inc("cursed_drop"); }
+      if (loot.items.length) { ST.inc("items_drop", loot.items.length); for (const it of loot.items) { const t = parseTag(String(it)); if (t.c) ST.inc("cursed_drop"); if (t.e) ST.inc("ench_drop"); } }
       const bag = enc ? null : this.loot.drop(session.world || "hellfire", m.x, m.y, ms.pkey, loot, src, d.boss ? "boss" : d.rare || m.elite ? "rare" : "mob", m.type);
       if (bag) out.bag = { id: bag.id, n: bag.entries.length, x: bag.x, y: bag.y };
       if (enc) { let left = 0; for (const o of zone.mobs) if (o.camp === enc.camp && o.respawnAt !== -1 && !enc.killed.has(o.id)) left++; out.enc = left; } // добыча копится в сундук лагеря; осталось мобов
@@ -1323,7 +1325,7 @@ export class MetaService {
     let any = false;
     for (let i = 0; i < n; i++) {
       const ents = rollChest(e, rec, groupOf, campRoll, cryptoRand);
-      for (const en of ents) if (en.k === "item") { ST.inc("items_drop"); if (en.id.endsWith("@c")) ST.inc("cursed_drop"); }
+      for (const en of ents) if (en.k === "item") { ST.inc("items_drop"); const t = parseTag(en.id); if (t.c) ST.inc("cursed_drop"); if (t.e) ST.inc("ench_drop"); }
       const c = this.chests.spawn(e.world, e.x + (i ? 70 : 0), e.y + (i ? 30 : 0), ents, `camp:${e.world}:${e.camp}`, kind, last.type, guardType, Date.now(), CHEST.campSpawnEmpty);
       if (!c) continue; any = true;
       for (const [sid, pk] of rec) { const en = this.sessionLookup?.(sid); const mine = c.entries.filter((x) => x.o === pk).length; if (en && (mine || c.keepEmpty)) this.send(en[0], { type: "chest_spawn", id: c.id, x: c.x, y: c.y, mine, kills: e.kills.length, second: i ? 1 : undefined }); }
@@ -1352,7 +1354,7 @@ export class MetaService {
     const a = this.store.account(ms.pkey), out: any = { xp: 0, items: [], res: {}, fromChest: c.id };
     const r = this.chests.take(c, ms.pkey, msg.lid, (e) => {
       if (e.k === "res") { addRes(a, e.id, e.n); out.res[e.id] = e.n; return true; }
-      const it = addItem(a, e.id, c.src, a.hero, !!e.c); if (!it) return false; out.items.push(it); (out.cards = {})[e.id] = itemCard(e.id); return true;
+      const it = addItem(a, e.id, c.src, a.hero, !!e.c, (e as any).e || 0); if (!it) return false; out.items.push(it); (out.cards = {})[e.id] = itemCard(e.id); return true;
     });
     if (r.err) return this.send(ws, { type: "chest_err", id: c.id, message: r.err, lid: Number(msg.lid) });
     for (const it of out.items) { const rs = rollRunSkill(a, it, c.kind as any); if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id, uid: it.uid }; break; } }
@@ -1438,7 +1440,7 @@ export class MetaService {
     td.peak = Math.max(td.peak || 0, live.online.total);
     const g = (d: string, k: string) => (d === today ? td[k] : daily[d]?.[k]) || 0, last7 = D.slice(-7);
     const hourRow = (d: string) => Array.from({ length: 24 }, (_, h) => Math.max(g(d, "h" + String(h).padStart(2, "0")), (ST.hourly as any)[d]?.[h] || 0));
-    const ECON = ["kills", "kills_elite", "kills_cursed", "kills_boss", "deaths", "chests_open", "items_drop", "cursed_drop", "quests"];
+    const ECON = ["kills", "kills_elite", "kills_cursed", "kills_ench", "kills_boss", "deaths", "chests_open", "items_drop", "cursed_drop", "ench_drop", "quests"];
     const perDay = (k: string) => D.map((d) => g(d, k));
     return { v: 1, at: new Date(now).toISOString(), tz: "Europe/Kiev", privacy: "только агрегаты; id игроков — анонимный солёный хеш, IP и ники не хранятся",
       server: perfServer(now),
@@ -1551,7 +1553,7 @@ export class MetaService {
         const tid = (ms as any).target, tm = tid ? zone.byId.get(tid) : null;
         const tg = tm && !tm.dead && Math.abs(tm.x - s.x) < 1600 && Math.abs(tm.y - s.y) < 1600
           ? { id: tm.id, type: tm.type, name: ZONE_MOBS[tm.type].name, lvl: ZONE_MOBS[tm.type].lvl, hp: Math.max(0, Math.ceil(tm.hp)), maxHp: tm.maxHp,
-              elite: tm.elite || undefined, cursed: tm.cursed || undefined, boss: tm.special === "boss" || undefined, reset: tm.reset || undefined,
+              elite: tm.elite || undefined, cursed: tm.cursed || undefined, ench: tm.ench || undefined, boss: tm.special === "boss" || undefined, reset: tm.reset || undefined,
               ...mobEffStats(tm), // armor/dmg — действующие на сервере (база × элита/вожак/проклятие/ярость), не база бестиария
               skills: tm.skills.length ? tm.skills.map((k) => MOB_SKILLS[k].name) : undefined,
               sts: tm.dots?.length ? tm.dots.filter((x) => x.until > now).reduce((o: any, x) => ((o[x.kind] = (o[x.kind] || 0) + 1), o), {}) : undefined } // стаки статусов цели
