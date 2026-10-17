@@ -80,6 +80,7 @@ const ALTAR = { x: 565, y: 600 };
 const NPC_LIST = NPCS;
 const ZONE_BOSS = Object.fromEntries(Object.entries(ZONE_MOBS).filter(([, m]) => m.boss).map(([k, m]) => [k, m.name]));
 const ZONE_ATK_MS = 480;
+const MOVE_SEND_S = 0.1; // позиция на сервер не чаще 10 Гц (было 0.066 ≈ 15 Гц)
 
 // Сессия Clerk (если игрок вошёл на сайте): короткоживущий JWT, сервер проверяет подпись
 async function clerkToken() {
@@ -1552,10 +1553,11 @@ async function boot(canvasId, username, userId, api) {
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
       if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }
-    // отправка позиции (как раньше: раз в 66 мс при изменении)
+    // отправка позиции: раз в MOVE_SEND_S (= такт сервера 100 мс) и только при изменении; -= без дрейфа частоты,
+    // кламп — после долгого кадра/скрытой вкладки не шлём пачку подряд
     moveAcc += dt;
-    if (moveAcc >= 0.066) {
-      moveAcc = 0;
+    if (moveAcc >= MOVE_SEND_S) {
+      moveAcc -= MOVE_SEND_S; if (moveAcc >= MOVE_SEND_S) moveAcc = 0;
       const cx = Math.round(player.x), cy = Math.round(player.y);
       if ((cx !== lastSentX || cy !== lastSentY) && net.isOpen() && myId) {
         lastSentX = cx; lastSentY = cy;

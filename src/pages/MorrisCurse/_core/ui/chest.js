@@ -1,6 +1,7 @@
 // Сундук схватки (Albion-стиль). Сервер — авторитет (chest_open / chest_take / chest_view / chest_channel).
-// Личная фаза: окно сразу, только свои позиции. Общая: канал открытия (полоса), урон прерывает; брать только Shift+клик по одной.
+// Личная фаза: окно сразу, только свои позиции. Общая: канал открытия (полоса), урон прерывает; брать по одной: двойной клик / двойной тап (телефон) или Shift+клик (ПК).
 import { upBadge } from './upBadge.js';
+import { TAKE_HINT, isDblTap, markDown, TOUCH } from './dblTap.js';
 import { esc } from './overlay.js';
 import { card, iconHtml } from '../meta/itemCards.js';
 import { curseTint } from './book.js';
@@ -33,7 +34,7 @@ export class ChestWindow {
     if (!this.el) {
       const el = document.createElement('div'); el.className = 'mc-loot mc-chest'; el.id = 'mc-chest';
       el.innerHTML = `<header><b>📦 Сундук схватки</b><small class="ttl"></small><button class="x" title="Закрыть (Esc)">✕</button></header>
-        <div class="grid"></div><footer><small>Shift + клик — забрать предмет (по одному)</small></footer><div class="msg"></div>`;
+        <div class="grid"></div><footer><small>${TAKE_HINT}</small></footer><div class="msg"></div>`;
       el.querySelector('.x').onclick = () => this.close();
       el.addEventListener('keydown', (e) => e.stopPropagation());
       this.host.appendChild(el); this.el = el;
@@ -43,9 +44,15 @@ export class ChestWindow {
   close(msg) { this.el?.remove(); this.el = null; this.c = null; this.pending.clear(); this.order = null; return msg; }
   msg(t, err) { const m = this.el?.querySelector('.msg'); if (m) { m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); } }
   error(d) { if (d.lid) { this.pending.delete(d.lid); this.el?.querySelector(`[data-lid="${d.lid}"]`)?.classList.remove('taking'); } this.msg(d.message, true); }
+  /** клик по клетке: Shift+клик (ПК) или второй клик/тап по той же клетке ≤ 450 мс — взять; одиночный — имя + подсказка */
+  click(lid, shift) {
+    if (shift || isDblTap(this, lid)) return this.take(lid, true);
+    const e = this.c?.entries.find((x) => x.lid === lid); const nm = e ? (e.k === 'res' ? (RESOURCES[e.id]?.name || e.id) : (e.c ? 'Проклятый ' + String(card(e.id)?.name || e.id).charAt(0).toLowerCase() + String(card(e.id)?.name || e.id).slice(1) : (card(e.id)?.name || e.id))) : '';
+    this.msg((nm ? `«${nm}» — ` : '') + (TOUCH ? 'нажмите дважды, чтобы забрать' : 'двойной клик или Shift + клик — забрать'));
+  }
   take(lid, shift) {
     if (!this.c || this.pending.has(lid)) return;
-    if (!shift) { this.msg('Зажмите Shift и кликните по предмету', true); return; }
+    if (!shift) return;
     this.pending.add(lid); this.el?.querySelector(`[data-lid="${lid}"]`)?.classList.add('taking');
     this.send({ type: 'chest_take', chest: this.c.id, lid });
     setTimeout(() => this.pending.delete(lid), 1500);
@@ -67,7 +74,7 @@ export class ChestWindow {
       const rc = cz ? curseTint() : RARITIES[cc.rarity]?.color || '#9ca3af';
       return `<div class="cell${cz ? ' cursed' : ''}${e.mine ? ' mine' : ''}" data-lid="${e.lid}" style="--rc:${rc}" title="${esc(nm)}">${iconHtml(cc, 36)}${upBadge(e.up, cz)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${cc.lvl ? `<span class="lv">ур. ${cc.lvl}</span>` : ''}${cz ? '<span class="cz">☠</span>' : ''}</div>`;
     }).join('');
-    g.querySelectorAll('[data-lid]').forEach((el) => { const lid = Number(el.dataset.lid); if (this.pending.has(lid)) el.classList.add('taking'); el.onclick = (ev) => this.take(lid, ev.shiftKey || this.shift); });
+    g.querySelectorAll('[data-lid]').forEach((el) => { const lid = Number(el.dataset.lid); if (this.pending.has(lid)) el.classList.add('taking'); el.onpointerdown = () => markDown(this, lid); el.onclick = (ev) => this.click(lid, ev.shiftKey || this.shift); });
   }
 }
 const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s} с`);

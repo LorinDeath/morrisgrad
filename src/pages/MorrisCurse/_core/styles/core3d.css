@@ -737,12 +737,13 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 .mc-loot .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; padding: 10px; max-height: 300px; overflow: auto; }
 .mc-loot .cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: 1px solid var(--rc, #6b5a2e); border-radius: 6px; background: #0e0b15; cursor: pointer; text-align: center; }
 .mc-loot .cell:hover { background: #2a2140; }
+.mc-loot .cell { touch-action: manipulation; -webkit-tap-highlight-color: transparent; } /* двойной тап — взять, не масштаб страницы */
 .mc-loot .cell.taking { opacity: .35; }
 .mc-loot .cell .ic { font-size: 26px; } .mc-loot .cell .n { position: absolute; right: 6px; top: 4px; font-weight: bold; color: #fde68a; }
 .mc-loot .cell .nm { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-loot .cell .lv { font-size: 10px; color: #a3e635; }
 .mc-loot footer { display: flex; align-items: center; gap: 8px; padding: 6px 10px 10px; } .mc-loot footer small { color: #a8977a; flex: 1; }
-.mc-loot .msg { padding: 0 10px 8px; color: #a3e635; min-height: 0; } .mc-loot .msg.err { color: #fca5a5; }
+.mc-loot .msg { padding: 0 10px 8px; color: #a3e635; min-height: 2.6em; max-height: 2.6em; overflow: hidden; } /* место под строку зарезервировано: окно не прыгает между тапами двойного тапа */ .mc-loot .msg.err { color: #fca5a5; }
 @media (max-width: 700px) { .mc-loot { top: auto; bottom: 120px; transform: translateX(-50%); } }
 .mc-loot .cell.empty { border-style: dashed; border-color: #3a3150; background: transparent; cursor: default; min-height: 64px; }
 .mc-loot .cell.cursed { box-shadow: 0 0 8px 1px #a855f7aa, inset 0 0 10px #a855f755; background: linear-gradient(180deg,#24113a,#120d20); }
