@@ -40,9 +40,9 @@ export class NpcWander {
     for (const [id, n] of Object.entries(NPCS)) this.st.set(id, { id, world: n.world, sx: n.x, sy: n.y, x: n.x, y: n.y, tx: n.x, ty: n.y, moving: false, pauseUntil: Date.now() + rnd(500, 4000), dir: 0, talk: new Map() });
   }
   pos(id: string) { return this.st.get(id); }
-  /** путь свободен: выборка по отрезку каждые 12 px */
+  /** путь свободен: выборка по отрезку каждые 4 px (шаг ≤ R_BODY − радиус проверки, чтобы между выборками тело не задевало углы) */
   clear(w: string, x0: number, y0: number, x1: number, y1: number) {
-    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(L / 12));
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(L / 4));
     for (let i = 1; i <= n; i++) { const k = i / n; try { if (this.blocked(w, x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, R_BODY)) return false; } catch { return false; } }
     return true;
   }
