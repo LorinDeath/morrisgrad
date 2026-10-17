@@ -1,0 +1,3691 @@
+{
+ "version": 3,
+ "scale": "1 m = 20 px",
+ "palette": "Единый стиль (37)",
+ "facing": "right",
+ "frames_per_anim": 30,
+ "fps_suggested": 30,
+ "layout": "one row per (key, anim), 30 columns; use anims[].x/y/w/h",
+ "sheets": {
+  "s32": {
+   "image": "fx30_s32.png",
+   "frameW": 32,
+   "frameH": 32,
+   "cols": 30,
+   "rows": 87
+  },
+  "s64": {
+   "image": "fx30_s64.png",
+   "frameW": 64,
+   "frameH": 64,
+   "cols": 30,
+   "rows": 24
+  },
+  "w64": {
+   "image": "fx30_w64.png",
+   "frameW": 64,
+   "frameH": 32,
+   "cols": 30,
+   "rows": 6
+  },
+  "t32": {
+   "image": "fx30_t32.png",
+   "frameW": 32,
+   "frameH": 64,
+   "cols": 30,
+   "rows": 4
+  },
+  "a96": {
+   "image": "fx30_a96.png",
+   "frameW": 96,
+   "frameH": 96,
+   "cols": 30,
+   "rows": 4
+  },
+  "r128": {
+   "image": "fx30_r128.png",
+   "frameW": 128,
+   "frameH": 128,
+   "cols": 30,
+   "rows": 6
+  },
+  "c128": {
+   "image": "fx30_c128.png",
+   "frameW": 128,
+   "frameH": 64,
+   "cols": 30,
+   "rows": 4
+  }
+ },
+ "keys": {
+  "war_axe": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard_spin_baked",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.5,
+   "tint": false,
+   "usage": "R-навык секиры (spin запечён, 4×90°)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 32,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "fire_spark": {
+   "blend": "additive",
+   "glow": "#e3b04b",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "R-навык fire_spark",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 64,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 96,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "moon_orb": {
+   "blend": "normal",
+   "glow": "#a99cb8",
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.4,
+   "tint": false,
+   "usage": "R-навык moon_orb; ricochet в забеге (единый вид: серебряная луна)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 4,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 128,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 5,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 160,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "split_shard": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "R-навык split_shard; split в забеге (кровавый кристалл, удар = 3 осколка)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 6,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 192,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 7,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 224,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "split_shard_frag": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "осколок split_shard после разлёта",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 8,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 256,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 9,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 288,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "thorn_bow": {
+   "blend": "normal",
+   "glow": "#7aa356",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.6,
+   "tint": false,
+   "usage": "R-навык лука thorn_bow; arrow в забеге (терновая стрела с кровавым наконечником)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 10,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 320,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 11,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 352,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "spear": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 2.0,
+   "tint": false,
+   "usage": "R-навык копья (line насквозь)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 12,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 384,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 13,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 416,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "daggers": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "R-навык кинжалов; trick_strike (кольцо из 16); ab_trick",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 14,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 448,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 15,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 480,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "sun_beam_start": {
+   "blend": "additive",
+   "glow": "#e3b04b",
+   "mode": "beam_part",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "часть луча sun_beam",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 16,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 512,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "sun_beam_mid": {
+   "blend": "additive",
+   "glow": "#e3b04b",
+   "mode": "beam_part",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "часть луча sun_beam — бесшовный тайл, период 32 px",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 17,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 544,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "sun_beam_end": {
+   "blend": "additive",
+   "glow": "#e3b04b",
+   "mode": "beam_part",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "часть луча sun_beam",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 18,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 576,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "sun_beam": {
+   "blend": "additive",
+   "glow": "#e3b04b",
+   "mode": "beam",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": 1.8,
+   "tint": false,
+   "usage": "R-навык sun_beam: луч = start + middle (ТАЙЛИТЬ по X, не растягивать) + end; в мире и в забеге",
+   "parts": [
+    "sun_beam_start",
+    "sun_beam_mid",
+    "sun_beam_end"
+   ],
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 19,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 608,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "chain_zap_mid": {
+   "blend": "additive",
+   "glow": "#7fb0d0",
+   "mode": "beam_part",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "молния-цепь между целями chain_bolt (тайл по X)",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 20,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 640,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 4,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 16
+    }
+   }
+  },
+  "ice_fan": {
+   "blend": "normal",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "R-навык ice_fan (осколок; конус = ice_fan_cone); frost_nova даёт кольцо осколков",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 21,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 672,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 22,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 704,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "chain_bolt": {
+   "blend": "additive",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "R-навык chain_bolt (шар-молния; rain = chain_bolt_strike; цепь = chain_zap_mid)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 23,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 736,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 4,
+     "fps_match_original_timing": 26.25,
+     "src_frames": 4,
+     "src_fps": 14
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 24,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 768,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "plague_flask": {
+   "blend": "normal",
+   "glow": "#7aa356",
+   "mode": "billboard_spin_baked",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "R-навык plague_flask; poison_glob в забеге (бросок по дуге, spin запечён) → plague_puddle",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 25,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 800,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 26,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 832,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "orbit_skulls": {
+   "blend": "normal",
+   "glow": "#a3302a",
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.4,
+   "tint": false,
+   "usage": "R-навык orbit_skulls (череп с призрачным пламенем; аура = orbit_skulls_aura)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 27,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 864,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 28,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 896,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "dew_splash": {
+   "blend": "normal",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "навык монстров (Росяной слизень и др.); конус = dew_splash_cone",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 29,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 928,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 30,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 960,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "auto_staff": {
+   "blend": "normal",
+   "glow": "#c46ad8",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "авто-атака посох/книга (staff_bolt в забеге)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 31,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 992,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 32,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1024,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "auto_bow": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.5,
+   "tint": false,
+   "usage": "авто-атака лук",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 33,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1056,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 34,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1088,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "auto_daggers": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard_spin_baked",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.0,
+   "tint": false,
+   "usage": "авто-атака кинжалы (вращение запечено)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 35,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1120,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 4,
+     "fps_match_original_timing": 26.25,
+     "src_frames": 4,
+     "src_fps": 14
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 36,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1152,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "auto_claws": {
+   "blend": "additive",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "авто-атака когти (взмах)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 37,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1184,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 120.0,
+     "src_frames": 4,
+     "src_fps": 16
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 38,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1216,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "soul_spark": {
+   "blend": "additive",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.95,
+   "tint": false,
+   "usage": "soul_spark (забег) — душа-огонёк",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 39,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1248,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 40,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1280,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "fly_blade": {
+   "blend": "normal",
+   "glow": "#7aa356",
+   "mode": "billboard_spin_baked",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.3,
+   "tint": false,
+   "usage": "fly_blades (летающий клинок, spin запечён 4×22.5°, 4-кратная симметрия)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 41,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1312,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 4,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 16
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 42,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1344,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "backstab": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.5,
+   "tint": false,
+   "usage": "backstab / ab_backstab: теневой полумесяц-разрез (рывок = shadow_step_trail)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 43,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1376,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 4,
+     "fps_match_original_timing": 26.25,
+     "src_frames": 4,
+     "src_fps": 14
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 44,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1408,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_acid": {
+   "blend": "normal",
+   "glow": "#7aa356",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: кислота/слизь (бывш. enemy, дефолт)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 45,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1440,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 46,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1472,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_bone": {
+   "blend": "normal",
+   "glow": "#a99cb8",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: нежить/скелеты — костяной шип",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 47,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1504,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 48,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1536,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_fire": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: огонь/демоны — уголь",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 49,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1568,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 50,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1600,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_frost": {
+   "blend": "normal",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: лёд — сосулька",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 51,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1632,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 52,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1664,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_shadow": {
+   "blend": "normal",
+   "glow": "#a3302a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: тьма/проклятые — сгусток с алым ядром",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 53,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1696,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 54,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1728,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_arcane": {
+   "blend": "normal",
+   "glow": "#c46ad8",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: маги/культисты — фиолетовый болт",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 55,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1760,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 56,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1792,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_blood": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: вампиры/кровь — кровавая капля",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 57,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1824,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 58,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1856,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_rock": {
+   "blend": "normal",
+   "glow": "#6b4a3a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: големы/звери — камень (spin запечён)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 59,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1888,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 60,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1920,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_lightning": {
+   "blend": "normal",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: буря — искра-молния",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 61,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1952,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 62,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1984,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_web": {
+   "blend": "normal",
+   "glow": "#a99cb8",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: пауки — паутина (замедление)",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 63,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2016,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 64,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2048,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "enemy_water": {
+   "blend": "normal",
+   "glow": "#7fb0d0",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.1,
+   "tint": false,
+   "usage": "монстры: вода/росa — пузырь",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 65,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2080,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 66,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2112,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 105.0,
+     "src_frames": 4,
+     "src_fps": 14
+    }
+   }
+  },
+  "hit": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: физический удар",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 67,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2144,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_fire": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: огонь",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 68,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2176,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_ice": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: лёд",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 69,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2208,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_arcane": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: магия",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 70,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2240,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_acid": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: кислота",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 71,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2272,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_poison": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: яд",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 72,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2304,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_bleed": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: кровь",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 73,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2336,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_shadow": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: тьма",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 74,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2368,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_lightning": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: молния",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 75,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2400,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_holy": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": false,
+   "usage": "вспышка попадания: свет/золото",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 76,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2432,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "hit_white": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.2,
+   "tint": true,
+   "usage": "вспышка попадания: нейтральный — ТИНТ кодом",
+   "anims": {
+    "hit": {
+     "sheet": "s32",
+     "row": 77,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2464,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "status_burn": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: burn",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 78,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2496,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "status_poison": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: poison",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 79,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2528,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "status_bleed": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: bleed",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 80,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2560,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "status_freeze": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: freeze",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 81,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2592,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "status_slow": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: slow",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 82,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2624,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "status_stun": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: stun",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 83,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2656,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "status_curse": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 0.8,
+   "tint": false,
+   "usage": "значок статуса над целью: curse",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 84,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2688,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 4,
+     "src_fps": 6
+    }
+   }
+  },
+  "tele_line_tile": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "ТЕЛЕГРАФ линии: тайл по длине (шевроны едут вперёд, период 16) — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 85,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2720,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "tele_line_end": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "ТЕЛЕГРАФ линии: наконечник — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s32",
+     "row": 86,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 2752,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "fireball": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 2.8,
+   "tint": false,
+   "usage": "маг fireball; ab_fireball в забеге; дефолт-фолбэк. Крупный 64×64, не растягивать.",
+   "anims": {
+    "fly": {
+     "sheet": "s64",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "s64",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 64,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "plague_puddle": {
+   "blend": "normal",
+   "glow": "#5e8a3c",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 3.0,
+   "tint": false,
+   "usage": "лужа plague_flask на земле: loop + fade (масштаб ×r/50 кодом)",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 128,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    },
+    "fade": {
+     "sheet": "s64",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 192,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "plague_cloud": {
+   "blend": "normal",
+   "glow": "#5e8a3c",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 5.2,
+   "tint": false,
+   "usage": "ядовитое облако (cloud в забеге, plague_flask)",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 4,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 256,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    },
+    "fade": {
+     "sheet": "s64",
+     "row": 5,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 320,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "smoke_bomb": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 7.5,
+   "tint": false,
+   "usage": "навык smoke_bomb (cloud r150): дымовая завеса",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 6,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 384,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    },
+    "fade": {
+     "sheet": "s64",
+     "row": 7,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 448,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "glyph_mine": {
+   "blend": "additive",
+   "glow": "#c46ad8",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 2.4,
+   "tint": false,
+   "usage": "R-навык glyph_mine; mine в забеге (лежит на земле, НЕ вращать)",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 8,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 512,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    },
+    "hit": {
+     "sheet": "s64",
+     "row": 9,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 576,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "meteor": {
+   "blend": "normal",
+   "glow": "#d9573a",
+   "mode": "fall",
+   "anchor": [
+    0.625,
+    0.812
+   ],
+   "size_m": 3.2,
+   "tint": false,
+   "usage": "маг meteor; монстры/боссы. fall 32×64 (диагональ запечена, якорь = точка удара) + hit 64×64",
+   "anims": {
+    "hit": {
+     "sheet": "s64",
+     "row": 10,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 640,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    },
+    "fall": {
+     "sheet": "t32",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 64,
+     "w": 32,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "spear_rain": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "fall",
+   "anchor": [
+    0.5,
+    0.98
+   ],
+   "size_m": 2.0,
+   "tint": false,
+   "usage": "воин spear_rain (rain n18): fall 32×64 вниз + hit 64×64 (копьё воткнуто)",
+   "anims": {
+    "hit": {
+     "sheet": "s64",
+     "row": 11,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 704,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 6,
+     "src_fps": 12
+    },
+    "fall": {
+     "sheet": "t32",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 128,
+     "w": 32,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "enemy_boss": {
+   "blend": "normal",
+   "glow": "#c46ad8",
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 2.4,
+   "tint": false,
+   "usage": "снаряд босса (64×64, spin-руны запечены)",
+   "anims": {
+    "fly": {
+     "sheet": "s64",
+     "row": 12,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 768,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 37.5,
+     "src_frames": 4,
+     "src_fps": 10
+    },
+    "hit": {
+     "sheet": "s64",
+     "row": 13,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 832,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "tele_circle_ring": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "ТЕЛЕГРАФ круга: кольцо R (вращение штрихов) — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 14,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 896,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "tele_circle_fill": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "ТЕЛЕГРАФ круга: дизер-заливка + кольцо, сходящееся к центру — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 15,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 960,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_target": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер выбранной цели — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 16,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1024,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_tracked": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер отслеживаемой цели — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 17,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1088,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_cursed": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер проклятого — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 18,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1152,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_boss": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер босса — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 19,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1216,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_leader": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер вожака (корона сверху) — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 20,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1280,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_elite": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер элиты — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 21,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1344,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_loot": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "маркер мешка добычи / выбор в забеге — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 22,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1408,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "mark_magnet": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "кольцо магнита в забеге — белый, цвет задаёт код",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 23,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 1472,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  },
+  "pierce": {
+   "blend": "normal",
+   "glow": "#e3b04b",
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 3.2,
+   "tint": false,
+   "usage": "навык pierce / ab_pierce (крупное 64×32 копьё-пронзатель)",
+   "anims": {
+    "fly": {
+     "sheet": "w64",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 64,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "w64",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 32,
+     "w": 64,
+     "h": 32,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "shadow_step_trail": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "trail",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "след рывка shadow_step / backstab (тайл 64×32 по длине)",
+   "anims": {
+    "loop": {
+     "sheet": "w64",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 64,
+     "w": 64,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "fly_blade_dash_trail": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "trail",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "след fly_blade_dash (тайл)",
+   "anims": {
+    "loop": {
+     "sheet": "w64",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 96,
+     "w": 64,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "leap_strike": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "trail",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "leap_strike (leap r120): след-тайл пыли + приземление 128",
+   "anims": {
+    "trail": {
+     "sheet": "w64",
+     "row": 4,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 128,
+     "w": 64,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "land": {
+     "sheet": "r128",
+     "row": 5,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 640,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "dash_trail": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "trail",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "общий след рывка (белый, тинт кодом)",
+   "anims": {
+    "loop": {
+     "sheet": "w64",
+     "row": 5,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 160,
+     "w": 64,
+     "h": 32,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    }
+   }
+  },
+  "chain_bolt_strike": {
+   "blend": "additive",
+   "glow": "#7fb0d0",
+   "mode": "fall",
+   "anchor": [
+    0.5,
+    0.906
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "удар молнии с неба (rain chain_bolt), падение запечено, не вращать",
+   "anims": {
+    "fall": {
+     "sheet": "t32",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 32,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 120.0,
+     "src_frames": 4,
+     "src_fps": 16
+    }
+   }
+  },
+  "warden_slam": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "fall",
+   "anchor": [
+    0.5,
+    0.92
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "warden_slam (meteor-тип): падающий молот 32×64 + удар 128 (трещины, пыль)",
+   "anims": {
+    "fall": {
+     "sheet": "t32",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 192,
+     "w": 32,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 3,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 12
+    },
+    "hit": {
+     "sheet": "r128",
+     "row": 4,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 512,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 52.5,
+     "src_frames": 8,
+     "src_fps": 14
+    }
+   }
+  },
+  "orbit_skulls_aura": {
+   "blend": "additive",
+   "glow": "#a3302a",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 7,
+   "tint": false,
+   "usage": "аура orbit_skulls (nova r130, тики) — 8 loop, 3-кратная симметрия",
+   "anims": {
+    "loop": {
+     "sheet": "a96",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 96,
+     "h": 96,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 22.5,
+     "src_frames": 8,
+     "src_fps": 12
+    }
+   }
+  },
+  "whirlwind": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "whirlwind (nova): вихрь лезвий, 8 loop",
+   "anims": {
+    "loop": {
+     "sheet": "a96",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 96,
+     "w": 96,
+     "h": 96,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 26.25,
+     "src_frames": 8,
+     "src_fps": 14
+    }
+   }
+  },
+  "shield_wall": {
+   "blend": "normal",
+   "glow": "#e3b04b",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "shield_wall: кольцо щитов (блик бежит по кругу), 8 loop",
+   "anims": {
+    "loop": {
+     "sheet": "a96",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 192,
+     "w": 96,
+     "h": 96,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": 37.5,
+     "src_frames": 8,
+     "src_fps": 10
+    }
+   }
+  },
+  "shield_bubble": {
+   "blend": "additive",
+   "glow": "#7fb0d0",
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "пузырь неуязвимости (замена fx_shield.png), 8 loop",
+   "anims": {
+    "loop": {
+     "sheet": "a96",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 288,
+     "w": 96,
+     "h": 96,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": 37.5,
+     "src_frames": 8,
+     "src_fps": 10
+    }
+   }
+  },
+  "boom": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "«boom»-кольцо (замена RingGeometry boom), белое — тинт кодом",
+   "anims": {
+    "burst": {
+     "sheet": "r128",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 80.0,
+     "src_frames": 6,
+     "src_fps": 16
+    }
+   }
+  },
+  "nova_burst": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "общая nova / дефолт навыков монстров без формы — белая, ТИНТ кодом",
+   "anims": {
+    "burst": {
+     "sheet": "r128",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 128,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60.0,
+     "src_frames": 8,
+     "src_fps": 16
+    }
+   }
+  },
+  "frost_nova": {
+   "blend": "additive",
+   "glow": "#7fb0d0",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "frost_nova (кольцо из 20 осколков)",
+   "anims": {
+    "burst": {
+     "sheet": "r128",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 256,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 52.5,
+     "src_frames": 8,
+     "src_fps": 14
+    }
+   }
+  },
+  "level_shockwave": {
+   "blend": "additive",
+   "glow": "#e3b04b",
+   "mode": "ground",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "волна уровня (замена fx_shockwave.png)",
+   "anims": {
+    "burst": {
+     "sheet": "r128",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 384,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 52.5,
+     "src_frames": 8,
+     "src_fps": 14
+    }
+   }
+  },
+  "ice_fan_cone": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "ground_cone",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "конус ice_fan (cone len260 arc1.0); нарисован на 90°, код сжимает по arc",
+   "anims": {
+    "cast": {
+     "sheet": "c128",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 0,
+     "w": 128,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "dew_splash_cone": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "ground_cone",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "конус dew_splash; нарисован на 90°, код сжимает по arc",
+   "anims": {
+    "cast": {
+     "sheet": "c128",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 64,
+     "w": 128,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "gear_spin_cone": {
+   "blend": "additive",
+   "glow": null,
+   "mode": "ground_cone",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "конус gear_spin (стальные зубья+искры); нарисован на 90°, код сжимает по arc",
+   "anims": {
+    "cast": {
+     "sheet": "c128",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 128,
+     "w": 128,
+     "h": 64,
+     "fps": 30,
+     "loop": false,
+     "seamless": false,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 70.0,
+     "src_frames": 6,
+     "src_fps": 14
+    }
+   }
+  },
+  "tele_cone": {
+   "blend": "normal",
+   "glow": null,
+   "mode": "ground_cone",
+   "anchor": [
+    0,
+    0.5
+   ],
+   "size_m": null,
+   "tint": true,
+   "usage": "ТЕЛЕГРАФ конуса (белый, цвет задаёт код), 90°",
+   "anims": {
+    "loop": {
+     "sheet": "c128",
+     "row": 3,
+     "col": 0,
+     "frames": 30,
+     "x": 0,
+     "y": 192,
+     "w": 128,
+     "h": 64,
+     "fps": 30,
+     "loop": true,
+     "seamless": true,
+     "cycles_in_loop": 2,
+     "fps_match_original_timing": 30.0,
+     "src_frames": 4,
+     "src_fps": 8
+    }
+   }
+  }
+ },
+ "aliases": {
+  "soul_spark": "soul_spark",
+  "arrow": "thorn_bow",
+  "ricochet": "moon_orb",
+  "mine": "glyph_mine",
+  "split": "split_shard",
+  "poison_glob": "plague_flask",
+  "fly_blade": "fly_blade",
+  "staff_bolt": "auto_staff",
+  "ab_backstab": "backstab",
+  "ab_pierce": "pierce",
+  "ab_trick": "daggers",
+  "trick_strike": "daggers",
+  "ab_fireball": "fireball",
+  "enemy": "enemy_acid",
+  "beam": "sun_beam",
+  "cloud": "plague_cloud",
+  "sun_beam_segment": "sun_beam_mid",
+  "fx_shield": "shield_bubble",
+  "fx_shockwave": "level_shockwave",
+  "whirlwind": "whirlwind",
+  "fly_blades": "fly_blade",
+  "fly_blade_dash": "fly_blade_dash_trail",
+  "shadow_step": "shadow_step_trail",
+  "gear_spin": "gear_spin_cone",
+  "frost_nova": "frost_nova"
+ }
+}

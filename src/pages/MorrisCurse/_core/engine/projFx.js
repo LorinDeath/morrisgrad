@@ -1,4 +1,4 @@
-// Рендер снарядов и эффектов забега и открытого мира — поверх FX atlas v2 (engine/fxAtlas.js, assets/mc/fx2/).
+// Рендер снарядов и эффектов забега и открытого мира — поверх FX atlas v3 fx30 (engine/fxAtlas.js, assets/mc/fx30/).
 // API прежний (shot / hit / boom / cloud / beam / zap / status) + метки и телеграфы спрайтами (mark / teleLine / teleCircle / teleCone)
 // и навыковые эффекты (nova / cone / dash / slam). Старый proj_atlas.png больше не используется.
 import { GLOW } from './projBatch.js';

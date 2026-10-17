@@ -84,7 +84,7 @@ export interface CastCtx {
 }
 
 const R = (n: number) => Math.round(n);
-// ключи FX atlas v2 (src/assets/mc/fx2/fx_atlas.json): id навыка/оружия → спрайт
+// ключи FX atlas v2 (src/assets/mc/fx30/fx30_atlas.json; те же ключи, что в fx2): id навыка/оружия → спрайт
 export const PROJ_SPRITES = new Set(["fireball", "war_axe", "fire_spark", "moon_orb", "split_shard", "thorn_bow", "spear", "pierce", "daggers", "sun_beam", "ice_fan", "chain_bolt",
   "plague_flask", "plague_puddle", "glyph_mine", "orbit_skulls", "meteor", "spear_rain", "dew_splash", "auto_staff", "auto_bow", "auto_daggers", "auto_claws", ...ENEMY_SPRITES]);
 // спрайт снаряда автоатаки по типу оружия (открытый мир и дуэли)

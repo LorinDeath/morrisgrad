@@ -1,6 +1,6 @@
 # props v2 — MAPPING
 
-Sheets: `props_p32.png` (cells 32×48 = 3.2×4.8 m), `props_b64.png` (cells 64×64 = 6.4×6.4 m), 8 columns; frames run left to right along the key's row. `*_glow.png` uses the same layout, holds only the emissive pixels, blend additive. ~10 px/m, anchor = bottom center (the bottom row is the ground contact; outline 1 px), no shadow drawn. Palette: Единый стиль (37), every pixel quantized to it.
+Sheets: `props_p32.png` (cells 32×48 = 3.2×4.8 m), `props_b64.png` (cells 64×64 = 6.4×6.4 m), 8 columns; frames run left to right along the key's row (a longer loop continues on the next rows — the 60-frame campfire). `*_glow.png` uses the same layout, holds only the emissive pixels, blend additive. ~10 px/m, anchor = bottom center (the bottom row is the ground contact; outline 1 px), no shadow drawn. Palette: Единый стиль (37), every pixel quantized to it.
 
 ## Old key → new
 | old key / mesh | new key | variants |
@@ -52,7 +52,7 @@ Sheets: `props_p32.png` (cells 32×48 = 3.2×4.8 m), `props_b64.png` (cells 64×
 ## All keys
 | key | sheet | row | frames | fps | glow | height_m | kind |
 |---|---|---|---|---|---|---|---|
-| campfire | p32 | 0 | 8 | 12 | #ff8a2a | 2.6 | prop |
+| campfire | p32 | 43–50 (60 frames, 8 per row, wraps) | 60 | 30 | #ff8a2a | 2.6 | prop |
 | torch | p32 | 1 | 6 | 10 | #ff9a3c | 3.4 | prop |
 | lantern | p32 | 2 | 4 | 8 | #ffd27a | 4.6 | prop |
 | crystal | p32 | 3 | 6 | 6 | #9be8ff | 3.2 | prop |
@@ -134,3 +134,7 @@ Sheets: `props_p32.png` (cells 32×48 = 3.2×4.8 m), `props_b64.png` (cells 64×
 - Arenas: arena_column_{crypt,abyss,mirror,abode}, arena_wall_{…}, arena_sigil, heart_of_abode (replaces the octahedron in runView.js).
 - The altar is unchanged: the separate altar.png / altar_flash.png. Tulips are unchanged.
 - Generator: `timeout 600 nice -n 19 python3 gen_props_v2.py` (about 4 s); `test` renders only 6 keys.
+
+
+## 2026-10-17: campfire 60 frames
+New seamless 60-frame campfire from Художник (`anim60/campfire_60*.png`, 10×6 grid) repacked into `props_p32.png` / `props_p32_glow.png` rows 43–50 (frame k → row 43 + k//8, col k%8); sheet grew 43 → 51 rows (256×2448). Old 8-frame campfire cells in row 0 are kept but unused. Cell 32×48, anchor, size_m and collider (SOLID 0.45) unchanged.

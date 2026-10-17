@@ -1,8 +1,8 @@
-// Настоящие летящие снаряды открытого мира (и дуэлей) — спрайты FX atlas v2 (engine/fxAtlas.js, assets/mc/fx2/).
+// Настоящие летящие снаряды открытого мира (и дуэлей) — спрайты FX atlas v3 fx30 (engine/fxAtlas.js, assets/mc/fx30/).
 // Сервер (server/meta/zone.ts) ведёт снаряд и считает попадания; клиент получает {k:'proj'} при вылете
 // и {k:'pend'} при попадании/конце полёта и только рисует: анимация fly (цикл), затем hit; у падающих — fall → hit.
 // Режимы из атласа: directional — поворот по полёту; billboard / billboard_spin_baked — к камере (вращение уже в кадрах);
-// ground — на земле; fall — без поворота, метеор зеркалится по X. Смешивание и ореол — из fx_atlas.json
+// ground — на земле; fall — без поворота, метеор зеркалится по X. Смешивание и ореол — из fx30_atlas.json
 // (огненный шар и метеор — normal + glow, как просила художница).
 import { FxAtlas, fxDef, fxDur } from './fxAtlas.js';
 import { GLOW } from './projBatch.js';

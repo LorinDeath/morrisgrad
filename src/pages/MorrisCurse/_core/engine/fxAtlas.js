@@ -1,20 +1,23 @@
-// FX atlas v2 (утверждённые листы художницы, assets/mc/fx2/, см. MAPPING.md там же) — ЕДИНЫЙ источник спрайтов снарядов,
+// FX atlas v3 «fx30» (Художник, 2026-10-17: те же 93 ключа и псевдонимы, что в fx2, перерисованы по 30 кадров; assets/mc/fx30/README.md) — ЕДИНЫЙ источник спрайтов снарядов,
 // попаданий, статусов, телеграфов, меток и навыковых эффектов для мира, забегов, дуэлей и хаба.
 // 7 листов с равномерной сеткой (s32, s64, w64, t32, a96, r128, c128): на каждый лист и вид смешивания — свой ProjBatch
 // (батч создаётся лениво при первом использовании), плюс один аддитивный батч мягкого ореола (glow из json).
-// Ключ → keys[key].anims[anim] = {sheet,row,col,frames,fps,loop}; псевдонимы старых ключей — aliases.
+// Ключ → keys[key].anims[anim] = {sheet,x,y,w,h,frames,fps,loop,fps_match_original_timing}; псевдонимы старых ключей — aliases.
+// Раскладка v3: одна строка листа на пару (ключ, анимация), 30 кадров вправо от (x,y). Кадр выбирается по времени
+// (floor(t·fps)), поэтому 30 кадров не прореживаем: fps = fps_match_original_timing — длительность ровно как у fx2
+// (удары/касты/взрывы 52–120 к/с → прежние 0,25–0,5 с; ауры/статусы/круги — цикл, обычно 30 к/с).
 // anchor [ax, ay]: точка привязки внутри кадра (0..1, x вдоль направления, y сверху вниз) — центр квада смещаем так,
 // чтобы привязка попала в (x, z): луч/шлейф/конус начинаются в точке, метеор/копьё падают остриём в цель.
 import { ProjBatch, glowTexture, GLOW } from './projBatch.js';
 import { loadAtlasTexture } from './spriteBatch.js';
-import META from '../../../../assets/mc/fx2/fx_atlas.json';
-import s32 from '../../../../assets/mc/fx2/fx_s32.png';
-import s64 from '../../../../assets/mc/fx2/fx_s64.png';
-import w64 from '../../../../assets/mc/fx2/fx_w64.png';
-import t32 from '../../../../assets/mc/fx2/fx_t32.png';
-import a96 from '../../../../assets/mc/fx2/fx_a96.png';
-import r128 from '../../../../assets/mc/fx2/fx_r128.png';
-import c128 from '../../../../assets/mc/fx2/fx_c128.png';
+import META from '../../../../assets/mc/fx30/fx30_atlas.json';
+import s32 from '../../../../assets/mc/fx30/fx30_s32.png';
+import s64 from '../../../../assets/mc/fx30/fx30_s64.png';
+import w64 from '../../../../assets/mc/fx30/fx30_w64.png';
+import t32 from '../../../../assets/mc/fx30/fx30_t32.png';
+import a96 from '../../../../assets/mc/fx30/fx30_a96.png';
+import r128 from '../../../../assets/mc/fx30/fx30_r128.png';
+import c128 from '../../../../assets/mc/fx30/fx30_c128.png';
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s); // Astro: импорт PNG — объект с .src
 const SRC = { s32: url(s32), s64: url(s64), w64: url(w64), t32: url(t32), a96: url(a96), r128: url(r128), c128: url(c128) };
@@ -30,7 +33,7 @@ export function fxKey(k) {
   if (META.keys[k]) return k;
   const a = META.aliases[k];
   if (a && META.keys[a]) return a;
-  if (!missing.has(k)) { missing.add(k); if (typeof console !== 'undefined') console.warn('[fx2] нет ключа', k); }
+  if (!missing.has(k)) { missing.add(k); if (typeof console !== 'undefined') console.warn('[fx30] нет ключа', k); }
   return null;
 }
 export const fxMissing = () => [...missing];
@@ -43,7 +46,16 @@ export function fxDef(k) {
   if (!key) return null;
   if (DEFS[key]) return DEFS[key];
   const d = META.keys[key];
-  return (DEFS[key] = { key, add: d.blend === 'additive', glow: d.glow ? hexRGB(d.glow) : null, mode: d.mode, anchor: d.anchor || [0.5, 0.5], size: d.size_m || 1.3, tint: !!d.tint, anims: d.anims });
+  return (DEFS[key] = { key, add: d.blend === 'additive', glow: d.glow ? hexRGB(d.glow) : null, mode: d.mode, anchor: d.anchor || [0.5, 0.5], size: d.size_m || 1.3, tint: !!d.tint, anims: animsOf(d.anims) });
+}
+// анимации ключа: ячейка из пиксельных x/y (раскладка v3), fps под исходную длительность
+function animsOf(src) {
+  const out = {};
+  for (const [name, a] of Object.entries(src)) {
+    const S = META.sheets[a.sheet];
+    out[name] = { sheet: a.sheet, col: Math.round(a.x / S.frameW), row: Math.round(a.y / S.frameH), frames: a.frames, fps: a.fps_match_original_timing || a.fps, loop: !!a.loop };
+  }
+  return out;
 }
 // кадр анимации в момент t (сек); loop=false — держит последний кадр
 export function fxFrame(an, t, loop = an.loop) {
@@ -54,14 +66,21 @@ export function fxFrame(an, t, loop = an.loop) {
 export function fxDur(k, anim) { const d = fxDef(k), an = d?.anims[anim]; return an ? an.frames / an.fps : 0; }
 export function fxAspect(an) { const s = META.sheets[an.sheet]; return s.frameW / s.frameH; }
 
+// листы грузятся один раз на страницу (не на каждый экземпляр FxAtlas)
+let texP = null;
+function sharedTextures(THREE) {
+  if (!texP) texP = Promise.all(Object.keys(META.sheets).map((s) => loadAtlasTexture(THREE, SRC[s]).then((t) => [s, t]).catch((e) => { console.warn('[fx30]', e.message); return [s, null]; })))
+    .then((a) => Object.fromEntries(a.filter((e) => e[1])));
+  return texP;
+}
+
 export class FxAtlas {
   constructor(THREE, parent, { max = 900, glowMax = 900, order = 4 } = {}) {
     this.THREE = THREE; this.parent = parent; this.max = max; this.order = order;
     this.tex = {}; this.batches = {}; this.list = []; this.time = 0; this.ready = false;
     this.glow = new ProjBatch(THREE, glowTexture(THREE), { cols: 4, rows: 1, max: glowMax, additive: true, nearest: false, renderOrder: order - 1 });
     parent.add(this.glow.mesh);
-    const ps = Object.keys(META.sheets).map((s) => loadAtlasTexture(THREE, SRC[s]).then((t) => { this.tex[s] = t; }).catch((e) => console.warn('[fx2]', e.message)));
-    this.loading = Promise.all(ps).then(() => { this.ready = true; });
+    this.loading = sharedTextures(THREE).then((tex) => { this.tex = tex; this.ready = true; });
   }
   _batch(sheet, add) {
     const id = sheet + (add ? '+' : '');
@@ -69,8 +88,10 @@ export class FxAtlas {
     if (b) return b;
     const tex = this.tex[sheet];
     if (!tex) return null;
-    const S = META.sheets[sheet], t = add ? tex.clone() : tex; t.needsUpdate = true;
-    b = new ProjBatch(this.THREE, t, { cols: S.cols, rows: S.rows, max: this.max, additive: add, renderOrder: this.order + (add ? 1 : 0) });
+    // одна текстура на лист для обычного и аддитивного батча и для всех FxAtlas (хаб: ProjFx + ProjAtlasFx) —
+    // фильтры одинаковые (Nearest), поэтому без clone(): каждый лист грузится в видеопамять один раз
+    const S = META.sheets[sheet];
+    b = new ProjBatch(this.THREE, tex, { cols: S.cols, rows: S.rows, max: this.max, additive: add, renderOrder: this.order + (add ? 1 : 0) });
     this.parent.add(b.mesh); this.list.push(b); this.batches[id] = b; b.begin();
     return b;
   }

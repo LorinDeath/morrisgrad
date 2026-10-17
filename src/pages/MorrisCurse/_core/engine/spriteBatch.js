@@ -43,7 +43,11 @@ void main() {
   mvPosition.xy += vec2(position.x * iSize.x, position.y * iSize.y);
   float u = iSize.z < 0.0 ? 1.0 - uv.x : uv.x;
   float fr = iAnim.x > 1.5 ? floor(mod((uTime + iAnim.z) * iAnim.y, iAnim.x)) : 0.0;
-  vUv = vec2(iUV.x + (fr + u) * iUV.z, iUV.y + uv.y * iUV.w);
+  // кадры идут вправо от ячейки; длинные циклы (костёр 60 кадров) переносятся на следующие строки листа
+  float cols = floor(1.0 / iUV.z + 0.5);
+  float cc = floor(iUV.x / iUV.z + 0.5) + fr;
+  float wr = floor(cc / cols);
+  vUv = vec2((cc - wr * cols + u) * iUV.z, iUV.y - wr * iUV.w + uv.y * iUV.w);
   vTint = iTint;
   vAlpha = iAlpha;
   gl_Position = projectionMatrix * mvPosition;
@@ -138,7 +142,7 @@ export class SpriteBatch {
   // ключ сортировки последнего спрайта по id сущности (стабилен при движении)
   sortId(id) { const i = this.n - 1; if (i >= 0) this.aPos.array[i * 3 + 1] = sortKey(id); }
 
-  // анимация последнего добавленного спрайта: frames кадров подряд вправо от col, fps, фаза (сек)
+  // анимация последнего добавленного спрайта: frames кадров подряд вправо от col (с переносом на след. строку), fps, фаза (сек)
   anim(frames, fps, phase = 0) { const i = this.n - 1; if (i < 0) return; const an = this.aAnim.array; an[i * 3] = frames; an[i * 3 + 1] = fps; an[i * 3 + 2] = phase; }
 
   end() {

@@ -10,14 +10,14 @@
    "frameW": 32,
    "frameH": 48,
    "cols": 8,
-   "rows": 43
+   "rows": 51
   },
   "p32_glow": {
    "image": "props_p32_glow.png",
    "frameW": 32,
    "frameH": 48,
    "cols": 8,
-   "rows": 43,
+   "rows": 51,
    "blend": "additive"
   },
   "b64": {
@@ -39,13 +39,13 @@
  "keys": {
   "campfire": {
    "sheet": "p32",
-   "row": 0,
+   "row": 43,
    "col": 0,
-   "frames": 8,
-   "fps": 12,
+   "frames": 60,
+   "fps": 30,
    "loop": true,
    "x": 0,
-   "y": 0,
+   "y": 2064,
    "w": 32,
    "h": 48,
    "glow": {
@@ -63,7 +63,9 @@
    ],
    "height_m": 2.6,
    "kind": "prop",
-   "variant_of": null
+   "variant_of": null,
+   "wrap": true,
+   "source": "anim60/campfire_60 (Художник, 2026-10-17): 60 кадров, бесшовный цикл; кадры построчно с переносом (8 в строке), строки 43–50"
   },
   "torch": {
    "sheet": "p32",

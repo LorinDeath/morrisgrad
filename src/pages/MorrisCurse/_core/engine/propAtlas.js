@@ -77,5 +77,5 @@ export function propObject(THREE, k, { s = 1, tint = null, glowTint = null } = {
     set(base, tex[d.sheet]); if (glow) set(glow, tex[d.glow.sheet]);
   });
   const ph = Math.random() * 5;
-  return { group: g, key, update(t) { if (d.frames < 2) return; const f = Math.floor((t + ph) * d.fps) % d.frames; for (const m of maps) m.offset.x = (d.col + f) / S.cols; } };
+  return { group: g, key, update(t) { if (d.frames < 2) return; const f = Math.floor((t + ph) * d.fps) % d.frames, c = d.col + f, r = d.row + Math.floor(c / S.cols); for (const m of maps) { m.offset.x = (c % S.cols) / S.cols; m.offset.y = 1 - (r + 1) / S.rows; } } };
 }
