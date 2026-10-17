@@ -909,7 +909,7 @@ export class Zone {
         if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
         continue;
       }
-      const aggro = d.aggro * (m.special ? 1.2 : 1) * (isKiller(m) ? 1.25 : 1);
+      const aggro = (m as any).devCalm ? 0 : d.aggro * (m.special ? 1.2 : 1) * (isKiller(m) ? 1.25 : 1); // devCalm — только dev_spawn_mob (скриншоты)
       let best: ZPlayer | null = null, bd = aggro;
       if (m.targetSid) { const t = players.get(m.targetSid); if (t && t.alive) { const dd = Math.hypot(t.x - m.x, t.y - m.y); if (dd < aggro * (m.special ? 2.6 : 1.8) || (m.huntUntil && now < m.huntUntil && dd < ZONE_GEN.ambientDespawnDist)) { best = t; bd = dd; } } }
       if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }

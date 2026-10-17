@@ -1022,6 +1022,7 @@ export class GameRoom extends DurableObject {
               if (setE) m.ench = en;
               m.maxHp = m.hp = Math.max(1, z.hpOf(m)); z.rollSkills(m);
             }
+            if (msg.calm === true) (m as any).devCalm = true; // не агрится (скриншоты витрины, только dev)
           }
           return;
         }
