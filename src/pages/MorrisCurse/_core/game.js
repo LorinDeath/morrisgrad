@@ -22,6 +22,7 @@ import { UPG } from '../../../../server/meta/upgrade.ts';
 import { setCurse, glowK } from './meta/curseCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
+import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
@@ -217,6 +218,9 @@ async function boot(canvasId, username, userId, api) {
   dialog.onCraft = () => book.open('craft');
   const upgWin = new UpgradeWin(overlay, meta, { nearPetr: () => mode === 'hub' && zone.nearestNpc(world, player.x, player.y)?.id === 'petr' });
   dialog.onUpgrade = () => upgWin.open();
+  // NPC стоит, пока открыто окно его услуги; закрыли — может снова гулять
+  { const uc = upgWin.close.bind(upgWin); upgWin.close = (...a) => { uc(...a); dialog.svcDone(); };
+    const bc = book.close.bind(book); book.close = (...a) => { bc(...a); dialog.svcDone(); }; }
   api.upgWin = upgWin;
   const zoneSt = { lastAtk: 0, gather: null, abilCd: {}, abilSrv: {}, abilPend: {}, hurtShown: 0 };
   dpsMeter.mount(overlay.layer);
@@ -717,6 +721,7 @@ async function boot(canvasId, username, userId, api) {
   const lsPop = { acc: 0, at: 0 };
   const lsAdd = (n) => { lsPop.acc += n; const t = performance.now(); if (t - lsPop.at >= 500 && lsPop.acc >= 1) { overlay.float(toX(player.x), 2.9, toZ(player.y), `+${Math.floor(lsPop.acc)} HP`, '#4ade80'); lsPop.acc -= Math.floor(lsPop.acc); lsPop.at = t; } };
   net.on('zone_state', (d) => {
+    if (d.npc) npcUpdate(d.npc); // NPC бродят: позиции с сервера
     if (Array.isArray(d.wb)) setBossState(d.wb);
     for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
     if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
@@ -1129,7 +1134,7 @@ async function boot(canvasId, username, userId, api) {
     const o = zone.mobs.get(ct.id); return o && !o.dead ? { x: o.x, y: o.y, mob: ct.id } : null;
   }
   function clickHitsInteractive(px, py) {
-    for (const n of Object.values(NPCS)) if (n.world === world && Math.hypot(n.x - px, n.y - py) < 40) return true;
+    for (const [id, n] of Object.entries(NPCS)) { const p = npcPos(id); if (n.world === world && Math.hypot(p.x - px, p.y - py) < 40) return true; }
     for (const n of zone.nodes.values()) if (Math.hypot(n.def.x - px, n.def.y - py) < 40) return true;
     for (const p of portals) if ((p.world || 'hellfire') === world && Math.hypot(p.x - px, p.y - py) < 45) return true;
     if (world === 'hellfire') for (const f of flowers.values()) if (Math.hypot(f.x - px, f.y - py) < 36) return true;
@@ -1646,7 +1651,8 @@ async function boot(canvasId, username, userId, api) {
     // NPC: имя и значок задания (❕ — есть задание, ✔ — можно сдать)
     for (const [id, n] of Object.entries(NPC_LIST)) {
       if (n.world !== world) continue;
-      const q = stage.project(toX(n.x), 3.0, toZ(n.y));
+      const np = npcPos(id); // NPC бродят — имя и значок задания идут за ним
+      const q = stage.project(toX(np.x), 3.0, toZ(np.y));
       if (!q) continue;
       const mark = npcMark(id), ic = npcIconUrl(id); // портрет квестодателя (арт VN) рядом с именем
       overlay.label('npc_' + id, q.x, q.y, `${mark ? `<b class="mc-npc-mark">${mark}</b>` : ''}${ic ? `<img class="mc-npc-ic${mark ? ' q' : ''}" src="${ic}" alt="">` : ''}${esc(n.name)}<small>${esc(n.title)}</small>`, n.color);
@@ -1924,6 +1930,7 @@ async function boot(canvasId, username, userId, api) {
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
       openUpgrade: () => upgWin.open(),
+      npcPos: (id) => npcPos(id), npcServer: (id) => npcServer(id), npcSpawn: (id) => NPCS[id] && { x: NPCS[id].x, y: NPCS[id].y }, nearestNpc: () => zone.nearestNpc(world, player.x, player.y)?.id || null,
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
       overlay, runUI, zone,
       WEAPONS,

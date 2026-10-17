@@ -6,7 +6,7 @@ import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { BEAST_ROW, BEAST_H, beastTop as BEAST_TOP, beastFlying, loadBeastBatch } from '../engine/beastSprites.js';
-import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING, HERO_HD, HERO_CELL, HERO_H_M, NPC_ROWS } from '../engine/pixSprites.js';
+import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING, HERO_HD, HERO_CELL, HERO_H_M, NPC_ROWS, HERO_FRAMES } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
   MOB_INFO as ZONE_MOBS, NPCS, NPC_RANGE, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, RESOURCES, WEAPON_TYPES, CLASS_WTYPE,
@@ -23,6 +23,7 @@ const DASH_FX = { backstab: 'shadow_step_trail', shadow_step: 'shadow_step_trail
 const NOVA_FX = { shield_wall: 'shield_wall', whirlwind: 'whirlwind', frost_nova: 'frost_nova', orbit_skulls: 'orbit_skulls_aura' };
 const CONE_FX = { ice_fan: 'ice_fan_cone', dew_splash: 'dew_splash_cone', gear_spin: 'gear_spin_cone' };
 import { atmo } from '../engine/atmosphere.js';
+import { npcPos, npcStep } from '../meta/npcLive.js';
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
@@ -192,8 +193,9 @@ export class ZoneView {
     let best = null, bd = NPC_RANGE - 5;
     for (const [id, n] of Object.entries(NPCS)) {
       if (n.world !== world) continue;
-      const d = Math.hypot(n.x - px, n.y - py);
-      if (d < bd) { bd = d; best = { id, ...n }; }
+      const p = npcPos(id); // NPC бродят — живая позиция
+      const d = Math.hypot(p.x - px, p.y - py);
+      if (d < bd) { bd = d; best = { id, ...n, x: p.x, y: p.y }; }
     }
     return best;
   }
@@ -247,6 +249,7 @@ export class ZoneView {
 
   update(dt, world) {
     this.time += dt;
+    npcStep(dt); // NPC бродят: плавно догоняем серверную позицию
     const T = this.time, B = this.batch;
     const k = Math.min(1, dt * 8);
     for (const o of this.mobs.values()) {
@@ -312,8 +315,9 @@ export class ZoneView {
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || MOB_ROWS[id] === undefined) continue;
         if (this.npcBatch && NPC_ROWS[id] !== undefined) continue; // рисует npcBatch (HD)
-        B.push(toX(n.x), 0, toZ(n.y), MOB_HEIGHT[id] || 2.5, (Math.floor(T * 2.5 + n.x) & 3), MOB_ROWS[id], false, 1, 1, 1, 0, 1);
-        atmo.shadow(toX(n.x), toZ(n.y), 0.6);
+        const p = npcPos(id);
+        B.push(toX(p.x), 0, toZ(p.y), MOB_HEIGHT[id] || 2.5, (Math.floor(T * (p.moving ? 8 : 2.5) + n.x) & 3), MOB_ROWS[id], p.dir === 1, 1, 1, 1, 0, 1);
+        atmo.shadow(toX(p.x), toZ(p.y), 0.6);
       }
       B.end();
     }
@@ -322,8 +326,10 @@ export class ZoneView {
       NPB.begin();
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || NPC_ROWS[id] === undefined) continue;
-        NPB.push(toX(n.x), 0, toZ(n.y), HERO_H_M * 1.08, (Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1, NPC_ROWS[id], false, 1, 1, 1, 0, 1);
-        atmo.shadow(toX(n.x), toZ(n.y), 0.6);
+        // кадры героя: направление (0 вниз, 1 влево, 2 вправо, 3 вверх) × 6 (шаг A, стойка, шаг B, вдох, …): ходьба A-стойка-B-стойка, стоя — дыхание
+        const p = npcPos(id), col = p.dir * HERO_FRAMES + (p.moving ? [0, 1, 2, 1][Math.floor(T * 7 + n.x) & 3] : ((Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1));
+        NPB.push(toX(p.x), 0, toZ(p.y), HERO_H_M * 1.08, col, NPC_ROWS[id], false, 1, 1, 1, 0, 1);
+        atmo.shadow(toX(p.x), toZ(p.y), 0.6);
       }
       NPB.end();
     }
