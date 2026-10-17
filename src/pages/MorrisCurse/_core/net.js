@@ -15,6 +15,8 @@ export function resolveWsUrl() {
   return PROD_WS_URL;
 }
 
+export const PING_MS = 5000;
+
 export class NetClient {
   constructor({ username, userId, getJoinState, getToken, guestId }) {
     this.username = username;
@@ -31,12 +33,16 @@ export class NetClient {
     this.kicked = false;
     this.url = resolveWsUrl();
     this.connect();
-    this.pingTimer = setInterval(() => {
-      if (this.isOpen() && !this.kicked) {
-        this.lastPingAt = performance.now();
-        this.send({ type: 'ping' });
-      }
-    }, 2000);
+    // пинг раз в PING_MS (только для замера задержки; таймаутов на нём нет ни у клиента, ни у сервера).
+    // Скрытая вкладка — не пингуем (каждое входящее сообщение — платный запрос DO); вернулись — пинг сразу.
+    this.pingTimer = setInterval(() => this.sendPing(), PING_MS);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) this.sendPing(); });
+  }
+
+  sendPing() {
+    if (!this.isOpen() || this.kicked || (typeof document !== 'undefined' && document.hidden)) return;
+    this.lastPingAt = performance.now();
+    this.send({ type: 'ping' });
   }
 
   connect() {
