@@ -28,6 +28,17 @@ export function skillsFor(type: string, n: number, salt = 0): string[] {
   while (out.length < n && pool.length) out.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
   return out;
 }
+/** явные навыки моба из админки (Бестиарий); случайные добираются в Zone.rollSkills */
+export function ownSkills(d: any): string[] {
+  return ((d?.skills as string[] | undefined) || []).filter((k) => MOB_SKILLS[k]).slice(0, 5);
+}
+/** сколько случайных навыков у босса: мировой (special=boss) — CURSE.worldBossSkills*, обычный босс — CURSE.bossSkills*, остальные — 0 */
+export function bossSkillRange(m: { special?: string }, d: any): [number, number] {
+  const C: any = CURSE;
+  if (m.special === "boss") return [C.worldBossSkillsMin ?? 5, C.worldBossSkillsMax ?? 10];
+  if (d?.boss) return [C.bossSkillsMin ?? 1, C.bossSkillsMax ?? 3];
+  return [0, 0];
+}
 const ck = (x: number, y: number) => Math.floor(x / WORLD_CHUNK) * 4096 + Math.floor(y / WORLD_CHUNK);
 // ячейка сна мельче чанка интереса: камера 30 клеток (AOI ±607 px) — бодрствует 3×3 ячейки по 1000 px вокруг игрока (≥1000 px во все стороны)
 const SLEEP_CELL = 1000;
@@ -391,22 +402,37 @@ export class Zone {
   syncMobSkills(): number {
     let n = 0;
     for (const m of this.mobs) { if (m.dead) continue;
-      const own = (ZONE_MOBS[m.type] as any)?.skills as string[] | undefined, sig = JSON.stringify(own || null);
+      const d: any = ZONE_MOBS[m.type], own = ownSkills(d), sig = JSON.stringify(own);
       if ((m as any).skSig === undefined || (m as any).skSig === sig) continue;
-      const d: any = ZONE_MOBS[m.type], extra = m.cursed ? m.skills.filter((k) => !JSON.parse((m as any).skSig || "[]")?.includes?.(k)) : [];
-      m.skills = m.cursed ? [...new Set([...(own || []), ...extra])].slice(0, 5) : own ? [...own] : d.boss ? skillsFor(m.type, 1) : [];
+      m.skills = this.mergeSkills(m, own);
       for (const k of m.skills) if (m.skCd[k] == null) m.skCd[k] = 1.5;
       (m as any).skSig = sig; n++;
     }
     return n;
   }
-  rollCursed(m: ZMob) {
-    const d = ZONE_MOBS[m.type];
-    m.cursed = this.rand() * 100 < ZONE_GEN.cursedPct;
-    const own = (d as any).skills as string[] | undefined; // навыки из админ-панели
-    m.skills = m.cursed ? [...new Set([...(own || []), ...skillsFor(m.type, 2 + Math.floor(this.rand() * 4), m.id)])].slice(0, 5) : own ? [...own] : d.boss ? skillsFor(m.type, 1) : [];
+  /** Случайные навыки: проклятый — 2–5 (как раньше), обычный босс — CURSE.bossSkillsMin…Max (1–3), мировой — worldBossSkillsMin…Max (5–10).
+   *  Явные навыки из Бестиария всегда есть и добавляются к случайным (случайные добирают до выпавшего числа). */
+  rollSkills(m: ZMob) {
+    const d: any = ZONE_MOBS[m.type], own = ownSkills(d);
+    const [lo, hi] = bossSkillRange(m, d), ri = (a: number, b: number) => { a = Math.max(0, Math.round(a)); b = Math.max(a, Math.round(b)); return a + Math.floor(this.rand() * (b - a + 1)); };
+    const boss = hi > 0, nBoss = boss ? ri(lo, hi) : 0, nCursed = m.cursed ? ri(2, 5) : 0;
+    // cap: сколько всего навыков (не меньше явных); у не-боссов — как раньше: явные + 2–5 случайных, всего ≤ 5
+    const cap = boss ? Math.min(10, Math.max(nBoss, nCursed, own.length)) : m.cursed ? 5 : own.length;
+    const need = boss ? Math.max(0, cap - own.length) : nCursed;
+    const salt = (m.id * 2654435761) ^ Math.floor(this.rand() * 0x7fffffff);
+    (m as any).skRand = need ? skillsFor(m.type, need + own.length, salt).filter((k) => !own.includes(k)).slice(0, need) : [];
+    (m as any).skCap = cap;
+    m.skills = this.mergeSkills(m, own);
     m.skCd = Object.fromEntries(m.skills.map((k, i) => [k, 2 + i * 1.5]));
-    (m as any).skSig = JSON.stringify(own || null);
+    (m as any).skSig = JSON.stringify(own);
+  }
+  mergeSkills(m: ZMob, own: string[]): string[] {
+    const R: string[] = (m as any).skRand || [], cap = Math.max((m as any).skCap ?? 0, own.length);
+    return [...new Set([...own, ...R])].slice(0, Math.max(cap, own.length));
+  }
+  rollCursed(m: ZMob) {
+    m.cursed = this.rand() * 100 < ZONE_GEN.cursedPct;
+    this.rollSkills(m);
     if (m.cursed) this.stats.cursed++;
   }
   reindex() {
@@ -994,9 +1020,9 @@ export class Zone {
   }
 
   /** Навык героя в руках моба: та же форма (abilityShapes.shapeOf), но по игрокам и с телеграфом (от удара можно уйти).
-   *  Урон — урон моба × сила навыка (не больше ×1.8). */
+   *  Урон — урон моба × сила навыка (не больше CURSE.mobSkillPowerCap, по умолчанию ×1.8). */
   heroCast(m: ZMob, d: any, id: string, t: ZPlayer, players: Map<string, ZPlayer>, now: number, dmg: number, big: number, tele: number, ux: number, uy: number) {
-    const s: any = shapeOf(id), pw = Math.min(1.8, Math.max(0.8, (ABILITY_BY_ID as any)[id]?.power || 1)), D = dmg * pw, k = Math.max(0.8, big);
+    const s: any = shapeOf(id), pw = Math.min(Math.max(0.8, Number((CURSE as any).mobSkillPowerCap) || 1.8), Math.max(0.8, (ABILITY_BY_ID as any)[id]?.power || 1)), D = dmg * pw, k = Math.max(0.8, big);
     switch (s.k) {
       case "line": this.cast(m, { kind: "line", at: now + tele, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round((s.w || 44) * k), dmg: D }); break;
       case "proj": this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round(40 * k), dmg: D, proj: id === "fireball" ? "fireball" : "fire_spark" }); break;

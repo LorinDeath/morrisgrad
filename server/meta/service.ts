@@ -15,7 +15,7 @@ import { QUEST_DIALOGUES } from "./vnChars";
 import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../worlds/portals";
 // спрайт снаряда автоатаки по типу оружия (FX atlas v2)
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
-import { CURSE, curseClient, isCursedTag, untag } from "./cursed";
+import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
 import { CHEST, Chests, CampRuns, recipients, rollChest, type Chest, type CampRun } from "./chests";
 import { Parties, PARTY_MAX, partyXpShare, splitLoot } from "./party";
@@ -1090,7 +1090,7 @@ export class MetaService {
     const tmods = ab.props.filter((p: string) => p.startsWith("t_")).length;
     const radiusMult = (ab.props.includes("extend") ? 200 / 140 : 1) * (1 + 0.15 * tmods);
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
-    const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods);
+    const dmg = avg * skillPowerMult(ab.power) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods);
     // направление от клиента — только единичный вектор; дальность/цели/позиции — сервер (meta/abilityShapes.ts)
     let dx = aimR.dx, dy = aimR.dy;
     if (Math.hypot(dx, dy) < 0.01) { dx = 0; dy = 1; }

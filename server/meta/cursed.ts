@@ -13,7 +13,18 @@ export const CURSE = {
   mobHp: 4.5, mobDmg: 2.2, mobArmor: 1.45, mobXp: 2, // проклятый моб: ОЗ/урон/броня/опыт ×
   glow1: 0.3, glow2: 0.5, glow3: 0.65, glow4: 0.8, glow5: 1, // яркость свечения героя по числу надетых проклятых вещей (5 = полный комплект, пульсирует)
   tint: "#a855f7",       // цвет проклятия (рамка, свечение, шейдер навыка)
+  // случайные навыки боссов (из общего пула навыков мобов); явные навыки моба в «Бестиарии» добавляются к ним
+  bossSkillsMin: 1, bossSkillsMax: 3,             // обычный босс (не мировой)
+  worldBossSkillsMin: 5, worldBossSkillsMax: 10,  // мировой босс (по таймеру биома)
+  // предел силы навыка героя (×) в открытом мире и дуэлях; сила берётся только с сервера (статы/таланты), клиент её не шлёт
+  skillPowerCap: 100,
+  mobSkillPowerCap: 1.8,  // навык героя в руках моба: урон моба × сила, но не больше этого
 };
+/** множитель урона навыка героя по силе (power — только серверная, из статов/талантов): не меньше ×0.6, не больше CURSE.skillPowerCap */
+export function skillPowerMult(power: number): number {
+  const cap = Math.max(1, Number(CURSE.skillPowerCap) || 100), p = Number(power);
+  return Math.max(0.6, Math.min(cap, Number.isFinite(p) ? p : 1));
+}
 export const CURSED_TAG = "@c"; // пометка в броске/мешке: "item_id@c" (только сервер)
 export const isCursedTag = (s: string) => typeof s === "string" && s.endsWith(CURSED_TAG);
 export const untag = (s: string) => (isCursedTag(s) ? s.slice(0, -CURSED_TAG.length) : s);
