@@ -35,6 +35,12 @@ const IDLE = {
   kyut: ['Отражение не жалеет. Сразись с ним — или с другом.', 'Арена дуэлей — к северо-востоку от меня. Войди в розовый портал.'],
 };
 
+// Услуги NPC (не зависят от квестов): показываются в диалоге при ЛЮБОМ состоянии — квест предложен/в процессе/к сдаче/нет квестов.
+// key → { text, cb } — cb: имя колбэка NpcDialog (назначается в game.js). Новая услуга NPC — одна строка здесь.
+export const NPC_SERVICES = {
+  petr: [{ id: 'npc-svc-craft', text: '⚒️ Ремесло', cb: 'onCraft' }, { id: 'npc-svc-upgrade', text: '🔨 Улучшение', cb: 'onUpgrade' }],
+};
+
 // звёздный квест: «N ★» после названия (N — сколько звёзд даёт награда)
 export const starCount = (q) => Object.values(q?.rewards?.stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 const starTag = (q) => { const n = starCount(q); return n ? ` <span class="q-stars">${n} ★</span>` : ''; };
@@ -76,8 +82,7 @@ export class NpcDialog {
     } else {
       const idle = IDLE[npc] || ['…'];
       lines = [idle[Math.floor(Math.random() * idle.length)]];
-      if (npc === 'petr') btns.push({ text: '⚒️ Ремесло', cls: 'gold', onClick: () => { this.close(); this.onCraft?.(); } }, { text: '🔨 Улучшение', cls: 'gold', onClick: () => { this.close(); this.onUpgrade?.(); } });
-      btns.push(close);
+      btns.push(...this.btnSvc(), close);
     }
     if (list.some((x) => QUEST_BY_ID[x.id])) btns.splice(btns.indexOf(close), 0, all);
     const q = (complete || avail || active) && QUEST_BY_ID[(complete || avail || active).id];
@@ -95,7 +100,7 @@ export class NpcDialog {
     const html = G.map(([st, title]) => { const xs = list.filter((x) => x.state === st || (st === 'done' && x.state === 'elsewhere')); if (!xs.length) return '';
       return `<div class="qa-grp"><b>${title}</b>${xs.map((x) => { const q = QUEST_BY_ID[x.id]; return `<button class="mc3d-btn qa-row qa-${st}" data-q="${esc(x.id)}" data-st="${st}">${esc(q.title)}${starTag(q)}${x.reason ? `<small> — ${esc(x.reason)}</small>` : ''}</button>`; }).join('')}</div>`; }).join('');
     const el = this.ov.showScreen(`<div class="mc-dialog mc-qall"><div class="who" style="color:${n.color}">${esc(n.name)} · Все квесты</div>${html || '<p>Пока нечего предложить.</p>'}</div>`,
-      [{ text: '← Назад', onClick: () => this.open(this.npc, this.list) }, { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }], 'mc-dialog-screen');
+      [{ text: '← Назад', onClick: () => this.open(this.npc, this.list) }, ...this.btnSvc(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }], 'mc-dialog-screen');
     el.querySelectorAll('.qa-row').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); this.showQuest(b.dataset.q, b.dataset.st); }));
     this.isOpen = true;
   }
@@ -109,7 +114,7 @@ export class NpcDialog {
     const btns = [];
     if (st === 'available') btns.push({ text: `Взять: ${q.title}`, cls: 'gold', id: 'npc-take', onClick: () => { this.meta.accept(q.id); this.close(); } });
     if (st === 'complete') btns.push({ text: `✔ Сдать`, cls: 'gold', onClick: () => { this.meta.turnIn(q.id); this.close(); } });
-    btns.push({ text: '← Все квесты', onClick: () => this.showAll() }, { text: 'Уйти', cls: 'ghost', onClick: () => this.close() });
+    btns.push({ text: '← Все квесты', onClick: () => this.showAll() }, ...this.btnSvc(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() });
     this.ov.showScreen(`<div class="mc-dialog"><div class="who" style="color:${n.color}">${esc(n.name)}</div><div class="qt">${esc(q.title)}${starTag(q)} · <small>${esc(q.chapter || '')}</small></div>
       ${st === 'locked' ? `<p class="qa-lock">🔒 ${esc(x.reason || 'Пока недоступно')} — можно только прочитать.</p>` : ''}${st === 'done' ? '<p class="qa-lock">📖 Выполнено. Лор:</p>' : ''}
       ${lines.map((l) => `<p>${esc(l)}</p>`).join('')}${st !== 'done' ? `<ul class="qa-goals">${goals}</ul>` : ''}</div>`, btns, 'mc-dialog-screen');
@@ -122,25 +127,30 @@ export class NpcDialog {
     const c = VN_CHARS[id]; return c ? { id, name: c.name, color: c.color } : { id: null, name: '…', color: '#e2e8f0' };
   }
   flow(id) { const q = QUEST_BY_ID[id]; return q && { q, f: questFlow(q, QUEST_DIALOGUES[id]), x: (this.list || []).find((y) => y.id === id) || {} }; }
+  /** кнопки услуг NPC (Пётр: Ремесло/Улучшение) — во всех окнах диалога, рядом с квестами */
+  // окно услуги открыто — NPC продолжает стоять (сервер держит его до npc_talk_end, который шлёт game.js при закрытии окна услуги)
+  btnSvc() { return (NPC_SERVICES[this.npc] || []).map((s) => ({ text: s.text, cls: 'svc', id: s.id, onClick: () => { const npc = this.npc; this.close(true); this.svcNpc = npc; this[s.cb]?.(); } })); }
+  /** «Все квесты» + услуги — для промежуточных окон VN и концовок */
+  btnMid() { return [...this.btnAll(), ...this.btnSvc()]; }
   btnAll() { return (this.list || []).some((x) => QUEST_BY_ID[x.id]) ? [{ text: '📜 Все квесты', id: 'npc-all-quests', onClick: () => this.showAll() }] : []; }
   // 1) окна пояснения → 2) окно получения
   flowOffer(id) { const F = this.flow(id); if (!F) return;
     if (!F.f.offer.length) return this.flowAccept(id);
-    this.playVN(F.f.offer, F.q, [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.flowAccept(id) }, ...this.btnAll(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }], { mid: this.btnAll() }); }
+    this.playVN(F.f.offer, F.q, [{ text: 'Дальше ▸', cls: 'gold', id: 'vn-next', onClick: () => this.flowAccept(id) }, ...this.btnMid(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }], { mid: this.btnMid() }); }
   // 2) окно получения: говорящий + текст, цели с реальными именами, награда, «Взять»/«Уйти»
   flowAccept(id) { const F = this.flow(id); if (!F) return;
-    this.playVN([F.f.accept], F.q, [{ text: `Взять: ${F.q.title}`, cls: 'gold', id: 'vn-accept', onClick: () => { this.meta.accept(F.q.id); this.close(); } }, ...this.btnAll(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
+    this.playVN([F.f.accept], F.q, [{ text: `Взять: ${F.q.title}`, cls: 'gold', id: 'vn-accept', onClick: () => { this.meta.accept(F.q.id); this.close(); } }, ...this.btnMid(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
       { kind: 'accept', extra: `<div class="vn-step">📜 Задание</div>${objectivesHtml(F.q, null)}${rewardsHtml(F.q)}` }); }
   // 3) «В процессе»: одно окно + прогресс целей
   flowProgress(id) { const F = this.flow(id); if (!F) return;
     const w = F.f.progress || { who: npcVnChar(F.q.npc) || VN_HERO, emo: 'think', text: F.q.progress || '…' };
-    this.playVN([w], F.q, [...this.btnAll(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
+    this.playVN([w], F.q, [...this.btnMid(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
       { kind: 'progress', extra: `${objectivesHtml(F.q, F.x.p)}${F.q.hint ? `<small class="vn-hintq">Подсказка: ${esc(F.q.hint)}</small>` : ''}` }); }
   // 4) окна сдачи, на последнем — награда и «Сдать»
   flowDone(id) { const F = this.flow(id); if (!F) return;
     const wins = F.f.done.length ? F.f.done : [{ who: npcVnChar(F.q.turnin || F.q.npc) || VN_HERO, emo: 'joy', text: 'Готово.' }];
-    this.playVN(wins, F.q, [{ text: `✔ Сдать: ${F.q.title}`, cls: 'gold', id: 'vn-turnin', onClick: () => { this.meta.turnIn(F.q.id); this.close(); } }, { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
-      { kind: 'done', extra: rewardsHtml(F.q) }); }
+    this.playVN(wins, F.q, [{ text: `✔ Сдать: ${F.q.title}`, cls: 'gold', id: 'vn-turnin', onClick: () => { this.meta.turnIn(F.q.id); this.close(); } }, ...this.btnMid(), { text: 'Уйти', cls: 'ghost', onClick: () => this.close() }],
+      { kind: 'done', extra: rewardsHtml(F.q), mid: this.btnMid() }); }
   playVN(wins, q, endBtns, opt = {}) {
     this.vn = { wins, q, endBtns, i: 0, opt };
     for (const w of wins) { const sp = this.speaker(w); if (sp.id) { const im = new Image(); im.src = vnImg(sp.id, w.emo); } } // предзагрузка
@@ -162,5 +172,8 @@ export class NpcDialog {
     el.querySelector('.vn-box').onclick = (e) => { e.stopPropagation(); if (!last) this.vnNext(); };
     this.isOpen = true;
   }
-  close() { if (this.isOpen) this.ov.hideScreen(); this.isOpen = false; this.vn = null; }
+  // keep — не отпускать NPC (открывается окно его услуги); иначе NPC снова может гулять
+  close(keep = false) { const was = this.isOpen; if (this.isOpen) this.ov.hideScreen(); this.isOpen = false; this.vn = null; if (was && !keep && this.npc) this.meta?.send?.({ type: 'npc_talk_end', npc: this.npc }); }
+  /** окно услуги (Кузня/Ремесло) закрыто — отпустить NPC */
+  svcDone() { if (this.svcNpc && !this.isOpen) this.meta?.send?.({ type: 'npc_talk_end', npc: this.svcNpc }); this.svcNpc = null; }
 }

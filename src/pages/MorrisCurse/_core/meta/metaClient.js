@@ -3,6 +3,7 @@
 import { patchOf } from '../../../../../server/meta/zoneGen.ts';
 import { QUEST_BY_ID, turninNpc } from '../../../../../server/meta/quests.ts';
 import { NPCS, HERO_NAMES } from '../../../../../server/meta/shared.ts';
+import { npcPos } from './npcLive.js';
 import { addCards } from './itemCards.js';
 
 export class MetaClient {
@@ -68,10 +69,10 @@ export class MetaClient {
     const complete = this.state.complete.includes(qid);
     if (complete) { // сдавать — NPC сдачи (может отличаться от выдавшего)
       const n = NPCS[turninNpc(q)];
-      if (n) return { world: n.world, x: n.x, y: n.y, label: n.name, other: turninNpc(q) !== q.npc };
+      if (n) { const p = npcPos(turninNpc(q)); return { world: n.world, x: p.x, y: p.y, label: n.name, other: turninNpc(q) !== q.npc }; }
     }
     const talk = q.objectives.find((o) => o.type === 'talk');
-    if (talk) { const n = NPCS[talk.npc || q.npc]; if (n) return { world: n.world, x: n.x, y: n.y, label: n.name }; }
+    if (talk) { const n = NPCS[talk.npc || q.npc]; if (n) { const p = npcPos(talk.npc || q.npc); return { world: n.world, x: p.x, y: p.y, label: n.name }; } }
     return QUEST_WAYPOINTS[qid] || null;
   }
   heroName(cls) { return HERO_NAMES[cls] || 'Душа'; }

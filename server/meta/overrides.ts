@@ -2,6 +2,7 @@ import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
 import { GATHER_CFG } from "./gatherCfg";
+import { NPC_CFG } from "./npcWander";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
@@ -16,7 +17,7 @@ import { CURSE } from "./cursed";
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -82,6 +83,11 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("glowPulse", "Скорость пульсации (0 — без пульса)", 0, 5), N("glowSize", "Размер ореола, × спрайта", 1, 1.6),
     { path: "personal", label: "Личные узлы: собранный одним игроком остаётся доступным другим", t: "bool" },
     N("respawnMult", "Восстановление узла, × (1 — как в коде)", 0.05, 20)] },
+  // «🚶 NPC» — только админ: прогулка NPC вокруг точки появления (сервер двигает, все видят одно и то же)
+  npc: { name: "NPC: прогулка", fields: [{ path: "on", label: "NPC ходят вокруг точки появления (выкл — стоят на месте)", t: "bool" },
+    N("radiusTiles", "Радиус прогулки, клеток (1 клетка = 32 px)", 0, 30), N("speed", "Скорость шага, px/с (герой ≈ 160)", 5, 200),
+    N("pauseMin", "Пауза между прогулками, мин. с", 0, 120), N("pauseMax", "Пауза между прогулками, макс. с", 0, 300),
+    N("talkHoldSec", "Стоит у собеседника, если окно не закрыли, макс. с", 5, 600, "int")] },
   // «Сундуки схватки» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main'
   chest: { name: "Сундуки", fields: [{ path: "_h_camp", label: "Лагерь", t: "hdr" },
     { path: "on", label: "Сундук зачищенного лагеря включён (выкл — мешок с каждого моба)", t: "bool" },
@@ -100,7 +106,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

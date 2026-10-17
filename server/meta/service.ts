@@ -30,6 +30,7 @@ import { regionAt, isNight } from "./zoneGen";
 import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { gatherClient } from "./gatherCfg";
+import { NpcWander } from "./npcWander";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
@@ -81,7 +82,7 @@ export interface MetaSess {
 const S = (o: Record<string, "s" | "n" | "b" | "o" | "a" | "s?" | "n?" | "b?" | "o?" | "a?">) => o;
 const MSG_SCHEMA: Record<string, Record<string, string>> = {
   meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
-  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), item_upgrade: S({ uid: "s", at: "n?" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }),
+  soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), item_upgrade: S({ uid: "s", at: "n?" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }), npc_talk_end: S({ npc: "s?" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
   loot_open: S({ bag: "n" }), chest_open: S({ chest: "n" }), chest_take: S({ chest: "n", lid: "n" }), loot_take: S({ bag: "n", lids: "a?", all: "b?" }),
   zone_attack: S({}), zone_ability: S({}), zone_target: S({}), gather_start: S({}), gather_done: S({}), dev_grant: S({}),
@@ -391,9 +392,11 @@ export class MetaService {
     return questEvent(a, ev, ms && cls ? this.store.hero(ms.pkey, cls) : null);
   }
 
+  npcs = new NpcWander(); // NPC бродят вокруг точки появления (позиции — сервер, рассылка в zone_state.npc)
   nearNpc(session: any, npc: string) {
-    const n = NPCS[npc];
-    return n && (session.world || "hellfire") === n.world && Math.hypot(session.x - n.x, session.y - n.y) <= NPC_RANGE;
+    const n = NPCS[npc], p = this.npcs.pos(npc) || n;
+    // +20 px запаса: клиент видит NPC с интерполяцией (до ~0,2 с отставания), NPC мог чуть отойти
+    return n && (session.world || "hellfire") === n.world && Math.hypot(session.x - p.x, session.y - p.y) <= NPC_RANGE + 20;
   }
 
   // ---------- сообщения ----------
@@ -497,9 +500,11 @@ export class MetaService {
         if (r.ok) this.qev(a, session, { type: "craft" });
         reply(r, "Создано!"); return true;
       }
+      case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); return true; }
       case "npc_talk": {
         const npc = String(msg.npc);
         if (!this.nearNpc(session, npc)) { this.send(ws, { type: "toast_error", message: "Подойдите ближе" }); return true; }
+        this.npcs.talkStart(npc, session.id, session.x, session.y); // стоит, пока открыт диалог (npc_talk_end / таймаут)
         this.questEv(ws, session, { type: "talk", npc });
         questRefresh(a, h);
         // все квесты персонажа: доступные, закрытые (с причиной), активные, готовые к сдаче, выполненные (лор читается)
@@ -1472,6 +1477,7 @@ export class MetaService {
     if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.syncRegions(); } // правки плотности локаций → пересборка лагерей
     if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
+    try { this.npcs.tick(now, Math.min(0.5, dt)); } catch (e: any) { console.error("[mc] npc tick", e?.message || e); }
     const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};
     for (const w of Object.keys(this.zones)) byWorld[w] = { players: new Map(), socks: [] };
     for (const [ws, s] of sessions) {
@@ -1530,6 +1536,7 @@ export class MetaService {
       if (!sendNow) continue;
       if (!socks.length) { zone.events.length = 0; continue; }
       const ev = zone.takeEvents();
+      const npc = this.npcs.snapshot(w); // [id, x, y, dir, moving] — все NPC мира (их единицы)
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
         const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700, ms.pkey); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
@@ -1560,7 +1567,7 @@ export class MetaService {
         // лагеря рядом (мини-карта: зоны агро и активность; трекер квеста: где искать цель) — раз в 2 с
         let cp: any;
         if (zone.camps.length && now - ((ms as any).cpAt || 0) > 2000) { (ms as any).cpAt = now; cp = zone.campSummary(now).filter((c: any) => Math.abs(c[1] - s.x) < 6000 && Math.abs(c[2] - s.y) < 6000); }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }
@@ -1590,6 +1597,7 @@ export class MetaService {
 
   onClose(session: any) {
     ST.leave(session?.id);
+    this.npcs.talkEnd(null, session?.id);
     this.pvpGone(session);
     { const p = this.party.leave(session?.id); this.partySend(p); } // отключился — выходит из отряда
     const ms = this.ms.get(session?.id);
