@@ -6,6 +6,7 @@ import { markersOf, MARKER_STYLE, bossStatus } from '../../../../server/meta/mar
 import { BIOMES } from '../../../../server/meta/biomes.ts';
 import { mapImage, drawMarkerIcon, drawFog } from './map/mapArt.js';
 import { FOG_N, getBit } from '../../../../server/meta/explore.ts';
+import { enchColor } from './meta/enchCfg.js';
 // подложка мини-карты Аринара: регионы цветом биома (240×240, рисуется один раз)
 const REG_COL = { grove: '#2f5a3a', meadow: '#4b4a7a', garden: '#6a3a44', waste: '#3a4458', rot: '#3d4426', ridge: '#4a4038', pylon: '#3c3a62', glitch: '#24502e', crater: '#3a3a5a', thin: '#4a4260' };
 function arinarMinimapBg(size) {
@@ -339,9 +340,10 @@ export class Minimap {
         this.stats.mobs++;
         if (mobInfo[m.type]?.boss) {
           this.stats.bosses++;
-          ctx.fillStyle = '#e879f9'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+          ctx.fillStyle = '#e879f9'; ctx.strokeStyle = m.ench ? (m.ench === 6 ? '#ff2d55' : enchColor(m.ench)) : '#ffffff'; ctx.lineWidth = m.ench ? 2 : 1;
           ctx.beginPath(); ctx.moveTo(mx, my - 5); ctx.lineTo(mx + 5, my); ctx.lineTo(mx, my + 5); ctx.lineTo(mx - 5, my); ctx.closePath(); ctx.fill(); ctx.stroke();
-        } else if (m.cursed) { ctx.fillStyle = '#a855f7'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
+        } else if (m.ench) { ctx.fillStyle = m.ench === 6 ? (Math.floor(performance.now() / 120) & 1 ? '#ff2d55' : '#22d3ee') : enchColor(m.ench); ctx.fillRect(mx - 2.5, my - 2.5, 5, 5); if (m.cursed) { ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1; ctx.strokeRect(mx - 3, my - 3, 6, 6); } } // зачарованный — цвет яруса
+        else if (m.cursed) { ctx.fillStyle = '#a855f7'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else if (m.elite) { ctx.fillStyle = '#facc15'; ctx.fillRect(mx - 2, my - 2, 4, 4); }
         else { ctx.fillStyle = '#ef4444'; ctx.fillRect(mx - 1.5, my - 1.5, 3, 3); }
         if (inTrack(track, m.type)) { this.stats.track = (this.stats.track || 0) + 1; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI * 2); ctx.stroke(); } // цель квеста

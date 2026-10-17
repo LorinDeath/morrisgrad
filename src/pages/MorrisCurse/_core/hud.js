@@ -182,6 +182,7 @@ export class GameHUD {
     this.$('ghud-target-details').style.display = t ? '' : 'none';
     if (t) {
       this.txt('ghud-target-name', t.name);
+      { const el = this.$('ghud-target-name'); if (el) { el.style.color = t.color || ''; el.className = 'hud-target-title' + (t.glitch ? ' mc-glitch-txt' : ''); if (t.glitch) el.dataset.t = t.name; } } // ярус зачарования: цвет, у Чёрного — глитч
       this.txt('ghud-target-class', t.typeLabel || '-');
       this.txt('ghud-target-hp', t.hp ?? '-');
       this.txt('ghud-target-armor', t.armor ?? '-');

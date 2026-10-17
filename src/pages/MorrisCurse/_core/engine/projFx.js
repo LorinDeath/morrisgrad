@@ -124,7 +124,7 @@ export class ProjFx {
   }
 
   // Метка под целью (mark_*), R — радиус, м
-  mark(kind, x, z, R, a = 1, seed = 0) { const D = R * 2; this.fx.draw(MARK[kind] || kind, 'loop', this.time + seed * 0.13, x, 0.05, z, D, D, 2, 0, 0, 0, null, a, 0); }
+  mark(kind, x, z, R, a = 1, seed = 0, col = null) { const D = R * 2; this.fx.draw(MARK[kind] || kind, 'loop', this.time + seed * 0.13, x, 0.05, z, D, D, 2, 0, 0, 0, col, a, 0); } // col [r,g,b] — для белых меток (target: ярус зачарования)
   // Телеграфы — нейтральный #dcd3e6 из атласа, цвет задаёт код (col — [r,g,b])
   teleLine(x, z, dx, dz, len, width, col = [1, 0.3, 0.3], a = 1) {
     const L = Math.hypot(dx, dz) || 1, cap = Math.min(width, len * 0.3);

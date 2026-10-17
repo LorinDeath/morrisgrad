@@ -1,5 +1,6 @@
 import { upBadge } from './upBadge.js';
 import { curseTint } from './book.js';
+import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
 import { grimGet, grimReset, grimSet } from './grim.js';
 // Рейтинг игроков (топ-100 по уровню / по рекорду урона) и просмотр персонажа (только чтение).
 // Все данные — от сервера (rating / inspect); клиент ничего не считает и не хранит.
@@ -123,10 +124,10 @@ export class Social {
         const rar = RARITIES[g.rarity] || RARITIES.common;
         const st = Object.entries(g.stats || {}).filter(([, v]) => v);
         const stHtml = (g.stats?.dmgMin || g.stats?.dmgMax ? `${statIcon('dmgMin')}Урон: <b>${g.stats.dmgMin}–${g.stats.dmgMax}</b><br>` : '') + st.filter(([k]) => k !== 'dmgMin' && k !== 'dmgMax').map(([k, v]) => `${statIcon(k)}${STAT_RU[k] || esc(k)}: <b>+${v}</b>`).join('<br>');
-        const cz = !!g.cursed, rc = cz ? curseTint() : rar.color;
-        const nm = cz ? 'Проклятый ' + g.name.charAt(0).toLowerCase() + g.name.slice(1) : g.name;
-        return `<div class="mc-insp-slot${cz ? ' cursed' : ''}" tabindex="0" style="--rc:${rc}" title="${esc(nm)}${g.up ? ' +' + g.up : ''}"><div class="ic">${iconHtml(g, 40)}${upBadge(g.up, g.cursed)}</div><span>${esc(SLOTS[s])}</span>
-          <div class="tip${cz ? ' cursed' : ''}"><b style="color:${rc}">${esc(nm)}</b>${upBadge(g.up, g.cursed, true)}<br><small>${cz ? '<b class="cz">☠ Проклятая</b> · ' : ''}${esc(rar.name)} · ур. ${g.req}</small><br>${stHtml || '—'}</div></div>`;
+        const cz = !!g.cursed, en = tierOf(g), rc = en ? enchText(en) : cz ? curseTint() : rar.color;
+        const nm = lookName(g.name, cz, en);
+        return `<div class="mc-insp-slot${lookCls(cz, en)}" tabindex="0" style="--rc:${rc};${lookStyle(en)}" title="${esc(nm)}${g.up ? ' +' + g.up : ''}">${en ? '<i class="mc-eg" aria-hidden="true"></i>' : ''}<div class="ic">${iconHtml(g, 40)}${upBadge(g.up, g.cursed)}</div><span>${esc(SLOTS[s])}</span>
+          <div class="tip${cz ? ' cursed' : ''}${en ? ' ench' : ''}" style="${lookStyle(en)}"><b style="color:${rc}">${esc(nm)}</b>${upBadge(g.up, g.cursed, true)}<br><small>${cz ? '<b class="cz">☠ Проклятая</b> · ' : ''}${en ? enchBadge(en) + ' · ' : ''}${esc(rar.name)} · ур. ${g.req}</small><br>${stHtml || '—'}</div></div>`;
       }).join('');
       const s = d.stats;
       const P = (k, v) => `<div class="mc-insp-st"><span>${k}</span><b>${v}</b></div>`;

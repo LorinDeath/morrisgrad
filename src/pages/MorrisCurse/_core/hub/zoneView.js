@@ -24,6 +24,22 @@ const NOVA_FX = { shield_wall: 'shield_wall', whirlwind: 'whirlwind', frost_nova
 const CONE_FX = { ice_fan: 'ice_fan_cone', dew_splash: 'dew_splash_cone', gear_spin: 'gear_spin_cone' };
 import { atmo } from '../engine/atmosphere.js';
 import { npcPos, npcStep } from '../meta/npcLive.js';
+import { enchRGB } from '../meta/enchCfg.js';
+// ── Зачарованные мобы (ярус 1…6 в битах 23–25 флага zone_state): оттенок, у Чёрного — мерцание, дрожь, двойник ──
+const enchHash = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
+function enchTint(o, T, r, g, bl) {
+  if (o.ench === 6) { const fl = enchHash(Math.floor(T * 11) + o.id) > 0.85 ? 1.7 : 0.38; return [r * 0.32 * fl + 0.04, g * 0.26 * fl, bl * 0.34 * fl + 0.05]; }
+  const [er, eg, eb] = enchRGB(o.ench), p = 0.78 + Math.sin(T * 3 + o.id) * 0.22;
+  return [r * (0.45 + 0.95 * er * p), g * (0.45 + 0.95 * eg * p), bl * (0.45 + 0.95 * eb * p)];
+}
+const enchJit = (o, T) => (o.ench === 6 && enchHash(Math.floor(T * 14) + o.id * 3) > 0.7 ? (enchHash(Math.floor(T * 14) + o.id) - 0.5) * 0.22 : 0);
+const enchA = (o, T) => (o.ench === 6 ? (enchHash(Math.floor(T * 17) + o.id * 7) > 0.93 ? 0.55 : 1) : 1);
+function enchGhosts(b, x, y, z, h, col, row, flip, id, T) {
+  const d = 0.07 + enchHash(Math.floor(T * 9) + id) * 0.08;
+  b.push(x - d, y, z, h, col, row, flip, 2.2, 0.15, 0.2, 0, 0.32); b.sortId(id);
+  b.push(x + d, y, z, h, col, row, flip, 0.15, 1.9, 2.2, 0, 0.32); b.sortId(id);
+}
+
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
@@ -115,7 +131,7 @@ export class ZoneView {
       if (!o) { o = { id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false }; this.mobs.set(id, o); }
       if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
-      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096); o.frozen = !!(f & (1 << 22)); o.flagRaw = f;
+      o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096); o.frozen = !!(f & (1 << 22)); o.ench = (f >> 23) & 7; o.flagRaw = f;
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
       o.sts = f & 56 ? { burn: (f >> 13) & 7, poison: (f >> 16) & 7, bleed: (f >> 19) & 7 } : null; // стаки статусов (одновременно несколько видов)
     }
@@ -270,9 +286,12 @@ export class ZoneView {
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
         if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
         if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
+        if (o.ench) [r, g, bl] = enchTint(o, T, r, g, bl); // зачарованный: оттенок яруса; Чёрный — тёмный, мерцает
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
         if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; } // лёд: ярко-голубой, как в забеге
-        BB.push(toX(o.x), fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, toZ(o.y), BEAST_H * mobScale(o), col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1); BB.sortId(o.id);
+        { const jx = enchJit(o, T), y0 = fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, hh = BEAST_H * mobScale(o);
+          BB.push(toX(o.x) + jx, y0, toZ(o.y), hh, col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, enchA(o, T)); BB.sortId(o.id);
+          if (o.ench === 6) enchGhosts(BB, toX(o.x) + jx, y0, toZ(o.y), hh, col, row, o.flip, o.id, T); } // Чёрный: красно-голубой двойник
         atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.35, (ZONE_MOBS[o.type]?.radius || 12) / PX * 1.1) * mobScale(o) / MOB_VIS * 0.85, fly ? 0.55 : 1);
       }
       for (const dd of this.dying) {
@@ -298,9 +317,12 @@ export class ZoneView {
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
         if (o.tint) { r *= o.tint[0]; g *= o.tint[1]; bl *= o.tint[2]; }
         if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; } // проклятый: фиолетовое свечение
+        if (o.ench) [r, g, bl] = enchTint(o, T, r, g, bl); // зачарованный: оттенок яруса; Чёрный — тёмный, мерцает
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
         if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; } // лёд: ярко-голубой, как в забеге
-        B.push(toX(o.x), fly ? fly + Math.sin(T * 7 + o.id) * 0.18 : 0, toZ(o.y), h, col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, 1); B.sortId(o.id);
+        { const jx = enchJit(o, T), y0 = fly ? fly + Math.sin(T * 7 + o.id) * 0.18 : 0;
+          B.push(toX(o.x) + jx, y0, toZ(o.y), h, col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, enchA(o, T)); B.sortId(o.id);
+          if (o.ench === 6) enchGhosts(B, toX(o.x) + jx, y0, toZ(o.y), h, col, row, o.flip, o.id, T); }
       }
       for (let i = this.dying.length - 1; i >= 0; i--) {
         const dd = this.dying[i];
@@ -384,6 +406,7 @@ export class ZoneView {
       if (o.id === this.selected) P.mark('target', X, Z, Math.max(0.85, (ZONE_MOBS[o.type]?.radius || 12) / PX * 2.2 * mobScale(o)), 1, o.id); // выбранная цель
       if (this.trackTypes?.size && [...this.trackTypes].some((g) => goalMatch(g, o.type))) P.mark('tracked', X, Z, 1.15 * mobScale(o), 1, o.id); // цель квеста (отслеживание)
       if (o.cursed) P.mark('cursed', X, Z, 1.6 * mobScale(o), 1, o.id);
+      if (o.ench) { const c = o.ench === 6 ? (Math.floor(T * 9 + o.id) & 1 ? [1, 0.15, 0.2] : [0.1, 0.9, 1]) : enchRGB(o.ench); P.mark('target', X, Z, 1.35 * mobScale(o) * (1 + Math.sin(T * 3 + o.id) * 0.05), 0.9, o.id, c); } // кольцо цвета яруса (Чёрный — красно-голубое)
       if (ZONE_MOBS[o.type]?.boss) P.mark('boss', X, Z, 2.4 * MOB_VIS * 1.35, 1, o.id);
       else if (o.chief) P.mark('leader', X, Z, 1.9 * MOB_VIS * 1.6 / 1.45, 1, o.id); // вожак лагеря
       else if (o.elite) P.mark('elite', X, Z, 1.3 * MOB_VIS * 1.1, 1, o.id);

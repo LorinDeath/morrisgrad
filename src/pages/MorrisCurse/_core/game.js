@@ -20,6 +20,7 @@ import { Book } from './ui/book.js';
 import { UpgradeWin } from './ui/upgradeWin.js';
 import { UPG } from '../../../../server/meta/upgrade.ts';
 import { setCurse, glowK } from './meta/curseCfg.js';
+import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
@@ -437,6 +438,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.gather) zone.setGlow(d.gather); // свечение узлов сбора (админка «⛏ Сбор»)
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
+    if (d.ench) setEnch(d.ench); // ярусы зачарования (админка «✦ Зачарование») — цвета, имена, множители для подписей
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -1362,11 +1364,12 @@ async function boot(canvasId, username, userId, api) {
   function stsLabel(s) { if (!s) return ''; const t = [['burn', '🔥'], ['bleed', '🩸'], ['poison', '☣']].filter(([k]) => s[k] > 0).map(([k, i]) => `${i}×${s[k]}`).join(' '); return t ? ' · ' + t : ''; }
   function mobTarget(o, tg) {
     const info = ZONE_MOBS[o.type] || {};
-    const tags = [tg?.cursed || o.cursed ? '☠ Проклятый' : '', tg?.boss || info.boss ? '👑 Босс' : '', tg?.elite || o.elite ? '★ Элита' : '', tg?.reset ? '↩ сброс' : ''].filter(Boolean).join(' · ');
+    const en = tierOf(tg?.ench ?? o.ench);
+    const tags = [en ? '✦ ' + enchName(en) : '', tg?.cursed || o.cursed ? '☠ Проклятый' : '', tg?.boss || info.boss ? '👑 Босс' : '', tg?.elite || o.elite ? '★ Элита' : '', tg?.reset ? '↩ сброс' : ''].filter(Boolean).join(' · ');
     return {
-      kind: 'mob', id: o.id, name: tg?.name || info.name || o.type,
-      typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · ✦ ' + tg.skills.join(', ') : ''}${stsLabel(tg?.sts || o.sts)}`,
-      hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: tg?.armor ?? (o.cursed || o.elite ? '…' : info.armor ?? '-'), atk: tg?.dmg ?? (o.cursed || o.elite ? '…' : info.dmg ?? '-'), // с сервера — с множителями (элита, вожак, проклятие, ярость)
+      kind: 'mob', id: o.id, name: tg?.name || info.name || o.type, color: en ? enchText(en) : '', glitch: en === 6,
+      typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · 🌀 ' + tg.skills.join(', ') : ''}${stsLabel(tg?.sts || o.sts)}`,
+      hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: tg?.armor ?? (o.cursed || o.elite || en ? '…' : info.armor ?? '-'), atk: tg?.dmg ?? (o.cursed || o.elite || en ? '…' : info.dmg ?? '-'), // с сервера — с множителями (элита, вожак, проклятие, ярость)
     };
   }
   function selectMob(o) { zone.selected = o.id; send({ type: 'zone_target', id: o.id }); hud.setTarget(mobTarget(o, null)); }
@@ -1905,10 +1908,10 @@ async function boot(canvasId, username, userId, api) {
       mobStatusRow: (o) => mobStatusRow(o),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
-      devSpawn: (type, x, y, cursed) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed }),
+      devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),
       target: () => hud.currentTarget,
       zoneFrozen: (list) => { const f = [...zone.mobs.values()].filter((m) => m.frozen); return list ? f.map((m) => ({ id: m.id, x: m.tx, y: m.ty })) : f.length; },
-      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, elite: !!m.elite, boss: !!(m.flagRaw & 256) })),
+      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench | 0, elite: !!m.elite, boss: !!(m.flagRaw & 256) })),
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,

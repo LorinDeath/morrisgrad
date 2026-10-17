@@ -1,5 +1,5 @@
 import { upBadge } from './upBadge.js';
-import { curseDef, curseTint } from './book.js';
+import { curseDef, curseTint, itemColor, itemCls, itemStyle, gems, lookBadges } from './book.js';
 import { glowK } from '../meta/curseCfg.js';
 // Выбор тела у Алтаря (portal_class_select → open_class_selection → select_class{classId}).
 // Слева — полный портрет выбранного героя; справа — карточки, статы, экипировка и сумка из сохранения.
@@ -74,10 +74,10 @@ export class ClassSelect {
     const slots = SLOT_ORDER.map((slot) => {
       const e = equip[slot];
       const d = e && curseDef(ITEM_BY_ID[e.id], e);
-      const rar = d ? (d.cursed ? { color: curseTint() } : RARITIES[d.rarity] || {}) : {};
+      const rar = d ? { color: itemColor(d) } : {};
       const on = this.tipKey === `eq:${slot}`;
       const tip = d ? `data-tip="eq:${slot}" data-item="${esc(d.id)}"` : '';
-      return `<button type="button" class="mc-altar-slot ${d ? 'filled' : ''} ${d?.cursed ? "cursed " : ""}${on ? 'on' : ''}" ${tip} title="${d ? esc(d.name) + ' — статы' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')}"` : ''}>
+      return `<button type="button" class="mc-altar-slot ${d ? 'filled' : ''}${itemCls(d)} ${on ? 'on' : ''}" ${tip} title="${d ? esc(d.name) + ' — статы' : esc(SLOTS[slot]) + ': пусто'}" ${d ? `style="border-color:${esc(rar.color || '#3b2c52')};${itemStyle(d)}"` : ''}>${gems(d)}
         <span class="ic">${d ? iconHtml(d, 28) + upBadge(e.up, e.cursed) : '·'}</span>
         <small>${esc(SLOTS[slot])}</small>
         ${d ? `<b style="color:${esc(rar.color || '#e2e8f0')}">${esc(d.name)}</b>` : ''}
@@ -93,9 +93,9 @@ export class ClassSelect {
       ? bag.map((it) => {
           const d = curseDef(ITEM_BY_ID[it.id], it);
           if (!d) return '';
-          const rar = d.cursed ? { color: curseTint() } : RARITIES[d.rarity] || {};
+          const rar = { color: itemColor(d) };
           const on = this.tipKey === `bag:${it.uid}`;
-          return `<button type="button" class="mc-altar-item filled ${on ? 'on' : ''}" data-tip="bag:${esc(it.uid)}" data-item="${esc(d.id)}" title="${esc(d.name)} — статы" style="border-color:${esc(rar.color || '#3b2c52')}">${iconHtml(d, 28)}${upBadge(it.up, it.cursed)}</button>`;
+          return `<button type="button" class="mc-altar-item filled${itemCls(d)} ${on ? 'on' : ''}" data-tip="bag:${esc(it.uid)}" data-item="${esc(d.id)}" title="${esc(d.name)} — статы" style="border-color:${esc(rar.color || '#3b2c52')};${itemStyle(d)}">${gems(d)}${iconHtml(d, 28)}${upBadge(it.up, it.cursed)}</button>`;
         }).join('')
       : '<p class="mc-altar-empty">Сумка пуста</p>';
 
@@ -112,9 +112,9 @@ export class ClassSelect {
       }
       const d = inst && curseDef(ITEM_BY_ID[inst.id], inst);
       if (d) {
-        const rar = d.cursed ? { color: curseTint(), name: '☠ Проклятая · ' + (RARITIES[d.rarity] || RARITIES.common).name } : RARITIES[d.rarity] || RARITIES.common;
+        const rar = { color: itemColor(d), name: (RARITIES[d.rarity] || RARITIES.common).name };
         tipHtml = `<div class="mc-altar-tip"><div class="nm" style="color:${esc(rar.color)}">${iconHtml(d, 28)} ${esc(d.name)}</div>
-          <div class="rr">${esc(rar.name)} · ${esc(SLOTS[d.slot] || d.slot)} · ур. ${d.lvl || 1}</div>
+          <div class="rr">${lookBadges(d)}${esc(rar.name)} · ${esc(SLOTS[d.slot] || d.slot)} · ур. ${d.lvl || 1}</div>
           <div class="ss">${itemStatsHtml(d) || '<span class="mc-altar-empty">без статов</span>'}</div>
           <div class="fx">Требуется уровень героя: ${Math.max(1, d.req || 1, d.lvl || 1)}. Только просмотр — надеть/снять в Книге (I).</div>
           ${d.lore ? `<div class="lore">${esc(d.lore)}</div>` : ''}</div>`;

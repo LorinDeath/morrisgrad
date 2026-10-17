@@ -4,7 +4,7 @@ const SUBS = [['server', '🖥 Сервер'], ['online', '👥 Онлайн'], 
 import { CLASSES } from '../classes.js';
 const CLS = new Proxy({}, { get: (_, k) => CLASSES[k]?.name || (k === '?' ? 'не выбран' : k) });
 const WORLD = { hellfire: 'Адское пекло', arinar: 'Аринар', hub: 'Город', arena: 'Арена' };
-const ECON = { kills: 'Убийств мобов', kills_elite: '…элиты', kills_cursed: '…проклятых', kills_boss: '…боссов', deaths: 'Смертей героев', chests_open: 'Открыто сундуков', items_drop: 'Выпало предметов', cursed_drop: 'Проклятых дропов', quests: 'Сдано квестов' };
+const ECON = { kills: 'Убийств мобов', kills_elite: '…элиты', kills_cursed: '…проклятых', kills_ench: '…зачарованных', ench_drop: 'Зачарованных вещей выпало', kills_boss: '…боссов', deaths: 'Смертей героев', chests_open: 'Открыто сундуков', items_drop: 'Выпало предметов', cursed_drop: 'Проклятых дропов', quests: 'Сдано квестов' };
 const num = (v, d = 1) => (v == null ? '—' : typeof v === 'number' ? (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('ru-RU') : String(+v.toFixed(d))) : esc(v));
 const kb = (b) => (b >= 1048576 ? (b / 1048576).toFixed(2) + ' МБ' : (b / 1024).toFixed(1) + ' КБ');
 const dur = (s) => { s = Math.round(s || 0); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? `${h} ч ${m} мин` : m ? `${m} мин ${s % 60} с` : `${s} с`; };

@@ -931,3 +931,59 @@ html[data-biome] #ghud-rating-btn, html[data-biome] .mc-ratebtn, html[data-biome
 /* «нужен ур.» переезжает влево, чтобы не спорить со значком */
 .mc-item .req { right: auto; left: 2px; }
 .mc-altar-item, .mc-altar-slot .ic, .mc-insp-slot .ic, .mc-gslot span { position: relative; }
+
+/* ── ✦ Зачарованные вещи (ярус 1…6, цвет — админка «✦ Зачарование», --ec/--et ставит JS) ──
+   рамка цвета яруса + 4 самоцвета по углам (.mc-eg); проклятая+зачарованная (.czen) — переливы; Чёрный (.glitch) — глитч */
+.ench { position: relative; border-color: var(--ec) !important; box-shadow: 0 0 7px 1px color-mix(in srgb, var(--ec) 60%, transparent), inset 0 0 9px color-mix(in srgb, var(--ec) 30%, transparent); }
+.mc-tip.ench { border: 2px solid var(--ec); position: relative; }
+.mc-loot .cell.ench, .mc-insp-slot.ench { --rc: var(--ec); }
+.mc-eg { position: absolute; inset: 1px; pointer-events: none; z-index: 1; border-radius: inherit;
+  background:
+    radial-gradient(circle at 4px 4px, #fff 0 1px, var(--ec) 1.5px 3px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 4px) 4px, #fff 0 1px, var(--ec) 1.5px 3px, transparent 3.5px),
+    radial-gradient(circle at 4px calc(100% - 4px), #fff 0 1px, var(--ec) 1.5px 3px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 4px) calc(100% - 4px), #fff 0 1px, var(--ec) 1.5px 3px, transparent 3.5px); }
+.mc-tip > .mc-eg { inset: 2px; }
+b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, var(--et, #fff) 45%, transparent); }
+.ab.ez { border-left: 2px solid var(--et, #fff); padding-left: 6px; margin: 4px 0; font-size: 12px; }
+.mc-loot .cell b.ez { font-size: 10px; line-height: 1; }
+/* проклятая + зачарованная: переливающаяся рамка (фиолетовый ↔ цвет яруса ↔ радуга) */
+.ench.czen { animation: mcIris 3.2s linear infinite; background: linear-gradient(180deg,#24113a,#120d20); }
+.ench.czen > .mc-eg { animation: mcIrisHue 3.2s linear infinite; }
+@keyframes mcIris {
+  0%, 100% { border-color: #a855f7 !important; box-shadow: 0 0 9px 2px #a855f7aa, inset 0 0 10px #a855f755; }
+  33% { border-color: var(--ec) !important; box-shadow: 0 0 9px 2px var(--ec), inset 0 0 10px color-mix(in srgb, var(--ec) 40%, transparent); }
+  66% { border-color: #22d3ee !important; box-shadow: 0 0 9px 2px #22d3eeaa, inset 0 0 10px #f472b655; }
+}
+@keyframes mcIrisHue { to { filter: hue-rotate(360deg); } }
+/* Чёрный: чёрная рамка, красно-голубое расслоение, рывки */
+.ench.glitch { background: #050505 !important; border-color: #000 !important; animation: mcGlitchBox 2.4s steps(1) infinite; }
+.ench.glitch > .mc-eg { filter: drop-shadow(-1px 0 #ff2d55) drop-shadow(1px 0 #22d3ee); }
+.ench.glitch img, .ench.glitch .mc-ico { animation: mcGlitchImg 2.4s steps(1) infinite; }
+.ench.glitch.czen { animation: mcGlitchBox 2.4s steps(1) infinite, mcIrisHue 3.2s linear infinite; }
+@keyframes mcGlitchBox {
+  0%, 100% { box-shadow: -2px 0 0 #ff2d55, 2px 0 0 #22d3ee, 0 0 8px #000; transform: none; }
+  8% { box-shadow: -3px 1px 0 #ff2d55, 3px -1px 0 #22d3ee, 0 0 10px #ff2d5566; transform: translate(1px, 0); }
+  10% { box-shadow: 2px 0 0 #ff2d55, -2px 0 0 #22d3ee; transform: translate(-1px, 1px); }
+  12% { box-shadow: -2px 0 0 #ff2d55, 2px 0 0 #22d3ee, 0 0 8px #000; transform: none; }
+  57% { box-shadow: -1px 0 0 #ff2d55, 4px 0 0 #22d3ee; transform: skewX(-4deg); }
+  59% { box-shadow: -2px 0 0 #ff2d55, 2px 0 0 #22d3ee, 0 0 8px #000; transform: none; }
+}
+@keyframes mcGlitchImg {
+  0%, 100% { filter: drop-shadow(-1px 0 #ff2d55aa) drop-shadow(1px 0 #22d3eeaa); transform: none; }
+  8% { filter: drop-shadow(-3px 0 #ff2d55) drop-shadow(3px 0 #22d3ee) brightness(1.4); transform: translateX(2px); clip-path: inset(10% 0 40% 0); }
+  10% { transform: translateX(-2px); clip-path: inset(50% 0 5% 0); }
+  12% { clip-path: none; transform: none; }
+  57% { filter: drop-shadow(-2px 0 #ff2d55) drop-shadow(2px 0 #22d3ee) invert(0.15); transform: skewX(6deg); }
+  59% { transform: none; }
+}
+.mc-tip.glitch .nm, .ench.glitch b:not(.ez), .mc-glitch-txt { animation: mcGlitchTxt 2.4s steps(1) infinite; color: #f4f4f5 !important; }
+@keyframes mcGlitchTxt {
+  0%, 100% { text-shadow: -1px 0 #ff2d55, 1px 0 #22d3ee; transform: none; }
+  8% { text-shadow: -3px 0 #ff2d55, 3px 0 #22d3ee; transform: translateX(1px); }
+  10% { text-shadow: 2px 0 #ff2d55, -2px 0 #22d3ee; transform: translateX(-1px); }
+  12% { text-shadow: -1px 0 #ff2d55, 1px 0 #22d3ee; transform: none; }
+  57% { text-shadow: -2px 1px #ff2d55, 2px -1px #22d3ee; transform: skewX(-8deg); }
+  59% { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ench.czen, .ench.czen > .mc-eg, .ench.glitch, .ench.glitch img, .mc-glitch-txt, .mc-tip.glitch .nm { animation: none !important; } }

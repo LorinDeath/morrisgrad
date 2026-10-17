@@ -5,6 +5,7 @@ import { TOUCH } from './dblTap.js';
 import { esc } from './overlay.js';
 import { card, iconHtml } from '../meta/itemCards.js';
 import { curseTint } from './book.js';
+import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
 import { RESOURCES, RARITIES } from '../../../../../server/meta/shared.ts';
 
 export class LootWindow {
@@ -51,9 +52,9 @@ export class LootWindow {
     g.innerHTML = this.order.map((lid) => byLid.get(lid) || { empty: true, lid }).map((e) => {
       if (e.empty) return `<div class="cell empty"></div>`;
       if (e.k === 'res') { const r = RESOURCES[e.id] || {}; return `<div class="cell res" data-lid="${e.lid}" title="${esc(r.name || e.id)}"><span class="ic">${r.icon || '◆'}</span><span class="n">${e.n}</span><span class="nm">${esc(r.name || e.id)}</span></div>`; }
-      const c = card(e.id) || { name: e.id }; const cursed = !!e.c; const nm = cursed ? ('Проклятый ' + String(c.name || e.id).charAt(0).toLowerCase() + String(c.name || e.id).slice(1)) : (c.name || e.id);
-      const rc = cursed ? curseTint() : (RARITIES[c.rarity]?.color || '#9ca3af');
-      return `<div class="cell${cursed ? ' cursed' : ''}" data-lid="${e.lid}" data-cursed="${cursed ? 1 : 0}" style="--rc:${rc}" title="${esc(nm)}">${iconHtml(c, 36)}${upBadge(e.up, cursed)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${c.lvl ? `<span class="lv">ур. ${c.lvl}</span>` : ''}${cursed ? '<span class="cz">☠</span>' : ''}</div>`;
+      const c = card(e.id) || { name: e.id }; const cursed = !!e.c, en = tierOf(e); const nm = lookName(c.name || e.id, cursed, en);
+      const rc = en ? enchText(en) : cursed ? curseTint() : (RARITIES[c.rarity]?.color || '#9ca3af');
+      return `<div class="cell${lookCls(cursed, en)}" data-lid="${e.lid}" data-cursed="${cursed ? 1 : 0}" data-ench="${en}" style="--rc:${rc};${lookStyle(en)}" title="${esc(nm)}">${en ? '<i class="mc-eg" aria-hidden="true"></i>' : ''}${iconHtml(c, 36)}${upBadge(e.up, cursed)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${c.lvl ? `<span class="lv">ур. ${c.lvl}</span>` : ''}${cursed ? '<span class="cz">☠</span>' : ''}${en ? enchBadge(en) : ''}</div>`;
     }).join('');
     g.querySelectorAll('[data-lid]').forEach((c) => {
       if (this.pending.has(Number(c.dataset.lid))) c.classList.add('taking');

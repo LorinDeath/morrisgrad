@@ -5,7 +5,8 @@ import { ITEM_BY_ID, iconHtml } from '../meta/itemCards.js';
 import { RARITIES, SLOTS, RESOURCES } from '../../../../../server/meta/shared.ts';
 import { UPG, upgCost, upgStats, isPctStat } from '../../../../../server/meta/upgrade.ts';
 import { vnImg } from '../../../../../server/meta/vnChars.ts';
-import { curseDef, curseTint } from './book.js';
+import { curseDef, curseTint, itemColor, itemCls, itemStyle, gems, lookBadges } from './book.js';
+import { ENCH } from '../meta/enchCfg.js';
 import { statIcon } from './statIcons.js';
 import { upBadge } from './upBadge.js';
 
@@ -50,25 +51,25 @@ export class UpgradeWin {
   render() {
     const a = this.meta.account, list = this.items();
     if (!this.sel || !list.some((x) => x.it.uid === this.sel)) this.sel = list[0]?.it.uid || null;
-    const col = (d) => (d.cursed ? curseTint() : RARITIES[d.rarity]?.color || '#fff');
+    const col = itemColor;
     const cells = list.map(({ it, worn }) => { const d = curseDef(ITEM_BY_ID[it.id], it);
-      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${this.sel === it.uid ? 'on' : ''} ${worn ? 'eq' : ''}" data-u="sel" data-v="${it.uid}" style="border-color:${col(d)}">${iconHtml(d, 32)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk">🔒</i>' : ''}</button>`; }).join('');
+      return `<button class="mc-item${itemCls(d)} ${this.sel === it.uid ? 'on' : ''} ${worn ? 'eq' : ''}" data-u="sel" data-v="${it.uid}" style="border-color:${col(d)};${itemStyle(d)}">${gems(d)}${iconHtml(d, 32)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk">🔒</i>' : ''}</button>`; }).join('');
     let right = '<p class="mc-dim">В сумке нет вещей.</p>';
     const sel = this.sel && list.find((x) => x.it.uid === this.sel);
     if (sel) {
-      const it = sel.it, d = curseDef(ITEM_BY_ID[it.id], it), up = it.up | 0, max = UPG.maxLvl | 0, cz = !!it.cursed;
-      const base = d.baseStats || d.stats || {}, next = up < max ? upgStats(base, up + 1, cz, UPG) : null, cost = up < max ? upgCost(up + 1, cz, UPG) : null;
+      const it = sel.it, d = curseDef(ITEM_BY_ID[it.id], it), up = it.up | 0, max = UPG.maxLvl | 0, cz = !!it.cursed, en = d.ench | 0, T = en ? ENCH.tiers[en - 1] : null;
+      const base = d.baseStats || d.stats || {}, next = up < max ? upgStats(base, up + 1, cz, UPG, en) : null, cost = up < max ? upgCost(up + 1, cz, UPG, en) : null;
       const rows = Object.keys(base).filter((k) => typeof base[k] === 'number' && base[k]).map((k) => {
         const c = d.stats[k], n = next?.[k], dv = n != null ? Math.round((n - c) * 100) / 100 : 0;
         return `<tr><td>${statIcon(k)}${esc(LBL[k] || k)}</td><td><b>${fmt(c)}</b></td>${next ? `<td>→</td><td><b class="${dv > 0 ? 'up' : ''}">${fmt(n)}</b> ${dv > 0 ? `<span class="up">▲ +${fmt(dv)}</span>` : '<span class="mc-dim">=</span>'}</td>` : ''}</tr>`; }).join('');
       const can = cost && Object.entries(cost).every(([r, n]) => (a.res?.[r] || 0) >= n);
       const costHtml = cost ? Object.entries(cost).map(([r, n]) => { const have = a.res?.[r] || 0; return `<div class="cost ${have >= n ? 'ok' : 'no'}">${RESOURCES[r]?.icon || '•'} ${esc(RESOURCES[r]?.name || r)} <b>${have}/${n}</b></div>`; }).join('') : '';
-      const per = cz ? `+${UPG.cFlatPct}% к числам и +${UPG.cPctPts} п.п. к процентам за уровень` : `+${UPG.flatPct}% к числам и +${UPG.pctPts} п.п. к процентам за уровень`;
+      const per = cz ? `+${UPG.cFlatPct}% к числам и +${UPG.cPctPts} п.п. к процентам за уровень${T ? ` · зачарование «${esc(T.name)}»: ещё +${T.upPct}% ко всем характеристикам` : ''}` : T ? `зачарование «${esc(T.name)}»: +${T.upPct}% ко всем характеристикам за уровень` : `+${UPG.flatPct}% к числам и +${UPG.pctPts} п.п. к процентам за уровень`;
       right = `<div class="nm" style="color:${col(d)}">${iconHtml(d, 32)} ${esc(up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(up, cz, true)}</div>
-        <div class="rr">${cz ? '<b class="cz">☠ Проклятая</b> · ' : ''}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot] || '')} · ур. ${d.lvl || 1}${sel.worn ? ' · <i>надето</i>' : ''}</div>
+        <div class="rr">${lookBadges(d)}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot] || '')} · ур. ${d.lvl || 1}${sel.worn ? ' · <i>надето</i>' : ''}</div>
         <div class="lv"><span>Улучшение: <b>+${up}</b> / +${max}</span><span class="bar"><i style="width:${max ? (up / max) * 100 : 0}%"></i></span></div>
         <table class="st">${rows || '<tr><td class="mc-dim">Без характеристик</td></tr>'}</table>
-        <div class="per mc-dim">${per}${cz ? ' · проклятая: материалов ×' + UPG.cursedMult + ' и второй материал' : ''}. Итог героя — с учётом капов.</div>
+        <div class="per mc-dim">${per}${cz ? ' · проклятая: материалов ×' + UPG.cursedMult + ' и второй материал' : ''}${T ? ` · ${cz ? '+' : ''}материалов ×${T.matMult} за ярус` : ''}. Итог героя — с учётом капов.</div>
         ${cost ? `<div class="h">Нужно для +${up + 1}:</div>${costHtml}
           <button class="mc-btn gold big" data-u="go" data-v="${it.uid}" ${can && !this.busy ? '' : 'disabled'}>🔨 Улучшить до +${up + 1}</button>
           <div class="mc-dim sm">Улучшение всегда успешно — провалов и поломок нет.</div>` : `<div class="h">Достигнут предел +${max}.</div>`}`;

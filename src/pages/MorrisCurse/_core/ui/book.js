@@ -1,4 +1,5 @@
 import { CURSE } from '../meta/curseCfg.js';
+import { tierOf, enchStats, lookName, enchText, enchName, enchFem, lookCls, lookStyle, enchBadge, ENCH } from '../meta/enchCfg.js';
 import { objText, condLine } from '../../../../../server/meta/objText.ts';
 import { rsInfo } from '../../../../../server/meta/rsAny.ts';
 // «Книга Проклятого» — единое окно прогрессии: задания, герой и таланты, навыки и Сияние,
@@ -73,14 +74,25 @@ const sortBtn = (d) => `<button class="mc-btn sm" data-act="lvlsort" title="Со
 // Проклятый экземпляр: та же вещь (id), статы — cstats с сервера (база с правками админки × statMult), имя с приставкой
 export const curseTint = () => CURSE.tint;
 // Улучшение +N (Пётр): статы — от базы/проклятой базы по конфигу сервера (meta_state.upg), имя с «+N»
+// Зачарованный (it.ench 1…6): статы × ярус (конфиг meta_state.ench), приставка яруса, цвет/рамка яруса (enchCfg)
 export function curseDef(d, it) {
   if (!d) return d;
-  const up = it?.up | 0;
-  if (!it?.cursed && !up) return d;
-  const st = !it?.cursed ? d.stats || {} : d.cstats || Object.fromEntries(Object.entries(d.stats || {}).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * CURSE.statMult * 10) / 10 : v]));
-  const nm = it?.cursed ? 'Проклятый ' + d.name.charAt(0).toLowerCase() + d.name.slice(1) : d.name;
-  return { ...d, name: up ? `${nm} +${up}` : nm, stats: up ? upgStats(st, up, !!it.cursed) : st, ...(it?.cursed ? { cursed: 1 } : {}), up, baseStats: st };
+  const up = it?.up | 0, n = tierOf(it);
+  if (!it?.cursed && !up && !n) return d;
+  let st = !it?.cursed ? d.stats || {} : d.cstats || Object.fromEntries(Object.entries(d.stats || {}).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * CURSE.statMult * 10) / 10 : v]));
+  if (n) st = enchStats(st, n);
+  const nm = lookName(d.name, !!it?.cursed, n);
+  return { ...d, name: up ? `${nm} +${up}` : nm, stats: up ? upgStats(st, up, !!it.cursed, undefined, n) : st, ...(it?.cursed ? { cursed: 1 } : {}), ...(n ? { ench: n } : {}), up, baseStats: st };
 }
+/** цвет имени/рамки вещи: ярус → проклятие → редкость */
+export const itemColor = (d) => (d?.ench ? enchText(d.ench) : d?.cursed ? curseTint() : RARITIES[d?.rarity]?.color || '#fff');
+/** классы и стиль рамки (сумка, слоты, подсказки): cursed / ench eN / czen / glitch */
+export const itemCls = (d) => lookCls(!!d?.cursed, tierOf(d));
+export const itemStyle = (d) => lookStyle(tierOf(d));
+/** строка «☠ Проклятая · ✦ Легендарная · » перед редкостью */
+/** четыре самоцвета цвета яруса в углах рамки */
+export const gems = (d) => (d?.ench ? '<i class="mc-eg" aria-hidden="true"></i>' : '');
+export const lookBadges = (d) => `${d?.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${d?.ench ? enchBadge(d.ench) + ' · ' : ''}`;
 
 export class Book {
   constructor(overlay, meta, { canSoul, nearPetr }) {
@@ -154,7 +166,7 @@ export class Book {
     const curUid = h?.equip?.[d.slot], worn = curUid === uid;
     const cit = !worn && curUid ? a.inv.find((i) => i.uid === curUid) : null;
     const cd = cit ? curseDef(ITEM_BY_ID[cit.id], cit) : null;
-    const col = (x) => (x.cursed ? curseTint() : RARITIES[x.rarity]?.color || '#fff');
+    const col = itemColor;
     const rsOf = (x) => { const L = this.meta.library?.inv?.[x.uid], rs = L ? L.rs : x.rs; return rs ? rsInfo(rs) : null; };
     const R = rsOf(it), CR = cit ? rsOf(cit) : null;
     const fmt = (v) => (Number.isInteger(v) ? v : v.toFixed(1));
@@ -169,12 +181,12 @@ export class Book {
     }).join('');
     const lvlD = cd ? (d.lvl || 1) - (cd.lvl || 1) : 0;
     const head = worn ? '<div class="cmpw">Надето сейчас</div>' : !h ? '' : cd
-      ? `<div class="cmpw">Сравнение с надетым: <b style="color:${col(cd)}">${esc(cd.name)}</b> <small>(ур. ${cd.lvl || 1}${cd.cursed ? ', ☠' : ''})</small></div>`
+      ? `<div class="cmpw">Сравнение с надетым: <b style="color:${col(cd)}">${esc(cd.name)}</b> <small>(ур. ${cd.lvl || 1}${cd.cursed ? ', ☠' : ''}${cd.ench ? ', ✦ ' + esc(enchFem(cd.ench)) : ''})</small></div>`
       : `<div class="cmpw">Слот «${esc(SLOTS[d.slot])}» пуст — всё ниже будет прибавкой</div>`;
     const rsRow = d.slot === 'weapon' ? `<div class="row rsk">🌀 Навык R: <b>${R ? `${R.icon} ${esc(R.name)}` : 'нет'}</b>${cd && !worn ? (CR?.name === R?.name ? ' <small>(тот же)</small>' : ` <small>(сейчас: ${CR ? esc(CR.name) : 'нет'})</small>`) : ''}</div>` : '';
     const low = h && h.lvl < reqOf(d);
     return `<div class="nm" style="color:${col(d)}">${iconHtml(d, 24)} ${esc(d.up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(it.up, it.cursed, true)}${it.lk ? ' 🔒' : ''}</div>
-      <div class="rr">${d.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot])} · ур. ${d.lvl || 1}${cd && lvlD ? ` ${arrow(lvlD)}` : ''}</div>
+      <div class="rr">${lookBadges(d)}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot])} · ур. ${d.lvl || 1}${cd && lvlD ? ` ${arrow(lvlD)}` : ''}</div>
       ${head}<div class="rows">${rows || '<div class="mc-dim">Без характеристик</div>'}</div>${rsRow}
       ${low ? `<div class="row ls">Нужен ${reqOf(d)} уровень героя (у вас ${h.lvl})</div>` : ''}
       <div class="hint">${worn ? 'Нажмите — карточка предмета' : 'Нажмите — карточка · двойной клик — надеть'}</div>`;
@@ -475,14 +487,14 @@ export class Book {
       const it = uid && byUid.get(uid);
       const d = it && curseDef(ITEM_BY_ID[it.id], it);
       // клик по надетому — карточка статов (Снять только кнопкой в карточке); снятие drag'ом не меняем (его нет)
-      return `<button class="mc-gslot ${d ? 'filled' : ''} ${d?.cursed ? 'cursed' : ''} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}"` : ''}><span>${d ? iconHtml(d, 40) + upBadge(it.up, it.cursed) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${esc(d.name)}</b>` : ''}</button>`;
+      return `<button class="mc-gslot ${d ? 'filled' : ''}${itemCls(d)} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${itemColor(d)};${itemStyle(d)}"` : ''}>${gems(d)}<span>${d ? iconHtml(d, 40) + upBadge(it.up, it.cursed) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${itemColor(d)}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
     const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {
       const d = curseDef(ITEM_BY_ID[it.id], it);
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
-      return `<button class="mc-item ${d.cursed ? 'cursed' : ''} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}" >${iconHtml(d, 40)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
+      return `<button class="mc-item${itemCls(d)} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${itemColor(d)};${itemStyle(d)}" >${gems(d)}${iconHtml(d, 40)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
     }).join('');
     // массовый разбор по редкости: кнопка на каждую редкость, что есть в сумке → превью с сервера → окно подтверждения
     const rset = [...new Set(bagItems.filter((i) => !i.lk).map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));
@@ -501,9 +513,10 @@ export class Book {
       const abNew = newAb && feats['ability:' + newAb] && !feats['ability:' + newAb].v;
       if (newProps.length || abNew) this.meta.markSeen('feats', [...newProps.map((k) => 'prop:' + k), ...(abNew ? ['ability:' + newAb] : [])]);
       const C = CURSE;
-      detail = `<div class="mc-tip ${d.cursed ? 'cursed' : ''}" ${d.cursed ? `style="--curse:${curseTint()}"` : ''}><div class="nm" style="color:${d.cursed ? curseTint() : RARITIES[d.rarity].color}">${iconHtml(d, 32)} ${esc(d.up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(it.up, it.cursed, true)}</div>
-        <div class="rr">${d.cursed ? `<b class="cz">☠ Проклятая</b> · ` : ''}${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
+      detail = `<div class="mc-tip${itemCls(d)}" style="--curse:${curseTint()};${itemStyle(d)}">${gems(d)}<div class="nm" style="color:${itemColor(d)}">${iconHtml(d, 32)} ${esc(d.up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(it.up, it.cursed, true)}</div>
+        <div class="rr">${lookBadges(d)}${esc(RARITIES[d.rarity].name)} · ${esc(SLOTS[d.slot])}${d.band ? ` · ${esc(d.band)}` : ''}</div>
         ${d.cursed ? `<div class="ab cz">☠ Проклятие: все характеристики ×${C.statMult || 1.5}${d.slot === 'weapon' ? `, урон навыка R ×${C.rsMult || 2}` : ''}. Тот же уровень, что у обычной версии.</div>` : ''}
+        ${d.ench ? `<div class="ab ez" style="--et:${enchText(d.ench)}">✦ Зачарование «${esc(enchName(d.ench))}»: все характеристики ×${ENCH.tiers[d.ench - 1]?.stat ?? 1}${d.cursed ? ' (поверх проклятия)' : ''}. Улучшение у Петра: +${ENCH.tiers[d.ench - 1]?.upPct ?? 0}% за уровень.</div>` : ''}
         <div class="ss">${itemStatsHtml(d, newProps)}</div>
         <div class="fx">Ур. предмета ${d.lvl || 1}. ${reqHtml(d, h)}. Характеристики фиксированные — не растут с уровнем.</div>
         ${(() => { // действующий навык и выход разбора — с сервера (правки админки), иначе выпавший навык экземпляра
