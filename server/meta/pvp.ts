@@ -6,6 +6,7 @@
 // Урон считает сервер: статы героев (снаряжение, таланты) — с сервера, разброс/крит — криптографический ГСЧ,
 // темп ударов и перезарядки — серверные, попадание — по позициям сервера и форме удара оружия.
 // Клиентские числа урона и любые «duel_action» игнорируются. Счёт — в D1 (миграция 0005_duels.sql).
+import { skillPowerMult } from "./cursed";
 import { isInvuln } from "./dash";
 import { effectiveArmor } from "./balance";
 import { armorToReduction } from "./shared";
@@ -369,7 +370,7 @@ export class Pvp {
     if (Math.hypot(dx, dy) < 0.01) { dx = c.os.x - session.x; dy = c.os.y - session.y; }
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     const avg = (eff.weaponMin + eff.weaponMax) / 2;
-    const dmg = avg * Math.max(0.6, Math.min(4, ab.power)) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods) * PVP_ABIL_MULT;
+    const dmg = avg * skillPowerMult(ab.power) * 2.2 * (1 + eff.dmgPct / 100) * (1 + 0.15 * tmods) * PVP_ABIL_MULT;
     const d = c.d, opp = { id: -1, get x() { return c.os.x; }, get y() { return c.os.y; }, hp: 1, dead: false, usedAbility: new Set() };
     const live = () => this.duels.has(d.id) && c.op.zp.hp > 0;
     const zone = { mobsAround: (x: number, y: number, r: number) => (live() && Math.hypot(c.os.x - x, c.os.y - y) <= r + HERO_R ? [opp] : []) };

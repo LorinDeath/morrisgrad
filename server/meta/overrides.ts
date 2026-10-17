@@ -66,7 +66,13 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("statMult", "Статы проклятой вещи, ×", 1, 10), N("rsMult", "Урон навыка R проклятого оружия, ×", 1, 10),
     N("mobHp", "Проклятый моб: ОЗ, ×", 1, 50), N("mobDmg", "Проклятый моб: урон, ×", 1, 50), N("mobArmor", "Проклятый моб: броня, ×", 1, 20), N("mobXp", "Проклятый моб: опыт, ×", 0, 50),
     N("glow1", "Свечение: 1 вещь (0…1)", 0, 1), N("glow2", "Свечение: 2 вещи", 0, 1), N("glow3", "Свечение: 3 вещи", 0, 1), N("glow4", "Свечение: 4 вещи", 0, 1), N("glow5", "Свечение: полный комплект (пульсирует)", 0, 1),
-    { path: "tint", label: "Цвет проклятия", t: "color" }] },
+    { path: "tint", label: "Цвет проклятия", t: "color" },
+    { path: "_h_bsk", label: "Навыки боссов (случайные из пула; явные навыки моба в «Бестиарии» добавляются)", t: "hdr" },
+    N("bossSkillsMin", "Обычный босс: навыков от", 0, 10, "int"), N("bossSkillsMax", "Обычный босс: навыков до", 0, 10, "int"),
+    N("worldBossSkillsMin", "Мировой босс: навыков от", 0, 10, "int"), N("worldBossSkillsMax", "Мировой босс: навыков до", 0, 10, "int"),
+    { path: "_h_pow", label: "Сила навыков", t: "hdr" },
+    N("skillPowerCap", "Предел силы навыка героя, × (мир и дуэли; 100 — без предела)", 1, 100),
+    N("mobSkillPowerCap", "Навык героя у моба: предел силы, ×", 0.5, 20)] },
   // «⚒ Улучшение» у Петра — только админ: материал и кол-во на каждый уровень, проклятые, прибавка статов (провалов/поломок нет)
   upgrade: { name: "Улучшение", fields: [N("maxLvl", `Максимальный уровень улучшения (≤ ${UPG_ORDER.length})`, 0, UPG_ORDER.length, "int"), N("cost", "Материалов за уровень (обычная вещь), если у уровня не задано своё", 1, 999, "int"),
     N("cursedMult", "Проклятая вещь: кол-во ×, плюс второй материал (следующий по редкости)", 1, 20),
@@ -163,6 +169,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }
   }
   if (kind === "region") { const R = TABLES.region[id]; for (const k of ["packs", "pack"]) { const a = out[k + ".0"] ?? R[k]?.[0], b = out[k + ".1"] ?? R[k]?.[1]; if (a != null && b != null && a > b) return `${k === "packs" ? "пачек" : "мобов"}: «от» больше «до»`; } }
+  if (kind === "curse") { const C = TABLES.curse[id]; for (const k of ["bossSkills", "worldBossSkills"]) { const a = out[k + "Min"] ?? C[k + "Min"], b = out[k + "Max"] ?? C[k + "Max"]; if (a > b) return "навыков боссов: «от» больше «до»"; } }
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
 }
