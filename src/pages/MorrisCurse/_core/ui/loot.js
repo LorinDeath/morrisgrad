@@ -1,6 +1,7 @@
 // Окно мешка добычи (Albion-стиль): клик — взять предмет; зажать Shift и провести курсором — забрать всё, над чем прошли;
 // «Забрать всё». Внутри игрового контейнера, рамка как у игровых панелей. Сервер — авторитет (loot_take / loot_bag).
 import { upBadge } from './upBadge.js';
+import { TOUCH } from './dblTap.js';
 import { esc } from './overlay.js';
 import { card, iconHtml } from '../meta/itemCards.js';
 import { curseTint } from './book.js';
@@ -19,7 +20,7 @@ export class LootWindow {
     if (!this.el) {
       const el = document.createElement('div'); el.className = 'mc-loot'; el.id = 'mc-loot';
       el.innerHTML = `<header><b>💰 Добыча</b><small class="ttl"></small><button class="x" title="Закрыть (Esc)">✕</button></header>
-        <div class="grid"></div><footer><small>Клик — взять · Shift + провести — забрать много</small><button class="btn gold all">Забрать всё</button></footer><div class="msg"></div>`;
+        <div class="grid"></div><footer><small>${TOUCH ? 'Тап — взять · «Забрать всё» — всё сразу' : 'Клик — взять · Shift + провести — забрать много'}</small><button class="btn gold all">Забрать всё</button></footer><div class="msg"></div>`;
       el.querySelector('.x').onclick = () => this.close();
       el.querySelector('.all').onclick = () => this.send({ type: 'loot_take', bag: this.bag.id, all: true });
       el.addEventListener('keydown', (e) => e.stopPropagation());
