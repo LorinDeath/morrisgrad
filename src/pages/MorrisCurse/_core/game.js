@@ -1366,7 +1366,7 @@ async function boot(canvasId, username, userId, api) {
     return {
       kind: 'mob', id: o.id, name: tg?.name || info.name || o.type,
       typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · ✦ ' + tg.skills.join(', ') : ''}${stsLabel(tg?.sts || o.sts)}`,
-      hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: info.armor ?? '-', atk: info.dmg ?? '-',
+      hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: tg?.armor ?? (o.cursed || o.elite ? '…' : info.armor ?? '-'), atk: tg?.dmg ?? (o.cursed || o.elite ? '…' : info.dmg ?? '-'), // с сервера — с множителями (элита, вожак, проклятие, ярость)
     };
   }
   function selectMob(o) { zone.selected = o.id; send({ type: 'zone_target', id: o.id }); hud.setTarget(mobTarget(o, null)); }

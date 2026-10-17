@@ -39,6 +39,28 @@ export function bossSkillRange(m: { special?: string }, d: any): [number, number
   if (d?.boss) return [C.bossSkillsMin ?? 1, C.bossSkillsMax ?? 3];
   return [0, 0];
 }
+// ---------- множители силы моба (единая точка: урон, броня, ХП; панель «Цель» берёт отсюда же) ----------
+/** Ярус зачарования моба (будущая система «Зачарованные»): пока 0 — множители ×1. */
+export function enchTier(_m: { ench?: number }): number { return 0; }
+export function enchMul(_m: { ench?: number }, _what: "hp" | "dmg" | "armor"): number { return 1; }
+type MobFlags = { type: string; elite?: boolean; chief?: boolean; cursed?: boolean; enraged?: boolean; special?: string; ench?: number };
+/** Урон моба, ×: элита × вожак × проклятие × зачарование; enrage — ярость босса/мирового (как раньше, только у них). */
+export function mobDmgMul(m: MobFlags, enrage = true): number {
+  const d: any = ZONE_MOBS[m.type], G: any = ZONE_GEN;
+  let k = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? CURSE.mobDmg : 1) * enchMul(m, "dmg");
+  if (enrage && m.enraged && (m.special === "boss" || d?.boss)) k *= G.bossEnrageDmg || 2.8;
+  return k;
+}
+/** Броня моба, ×: элита × проклятие × зачарование. vsMob — удар другого моба: проклятие ослаблено (×(1+(N−1)·0.67), как было). */
+export function mobArmorMul(m: MobFlags, vsMob = false): number {
+  const c = m.cursed ? (vsMob ? 1 + (CURSE.mobArmor - 1) * 0.67 : CURSE.mobArmor) : 1;
+  return (m.elite ? ZONE_GEN.eliteArmor : 1) * c * enchMul(m, "armor");
+}
+/** Действующие броня и урон удара (для панели «Цель»): база бестиария (с правками админки) × множители. */
+export function mobEffStats(m: MobFlags): { armor: number; dmg: number } {
+  const d: any = ZONE_MOBS[m.type] || {}, r1 = (x: number) => Math.round(x * 10) / 10;
+  return { armor: r1((d.armor || 0) * mobArmorMul(m)), dmg: r1((d.dmg || 0) * mobDmgMul(m)) };
+}
 const ck = (x: number, y: number) => Math.floor(x / WORLD_CHUNK) * 4096 + Math.floor(y / WORLD_CHUNK);
 // ячейка сна мельче чанка интереса: камера 30 клеток (AOI ±607 px) — бодрствует 3×3 ячейки по 1000 px вокруг игрока (≥1000 px во все стороны)
 const SLEEP_CELL = 1000;
@@ -352,7 +374,7 @@ export class Zone {
   mobHit(src: ZMob, t: ZMob, dmg: number, onKill: (m: ZMob) => void) {
     if (t.dead || t.reset) return 0;
     const d = ZONE_MOBS[t.type];
-    const armor = d.armor * (t.elite ? ZONE_GEN.eliteArmor : 1) * (t.cursed ? 1 + (CURSE.mobArmor - 1) * 0.67 : 1);
+    const armor = d.armor * mobArmorMul(t, true);
     const real = Math.max(1, Math.round(mitigateDamage(dmg, armor) * (t.shieldUntil > this.now ? 0.5 : 1)));
     t.hp -= real; t.dmgBy.set("mob:" + src.id, (t.dmgBy.get("mob:" + src.id) || 0) + real);
     if (!t.targetSid && !t.mobTarget) { t.mobTarget = src.id; this.rally(t, src.id); }
@@ -396,7 +418,7 @@ export class Zone {
   /** множитель ХП моба по его флагам */
   hpOf(m: ZMob, scale = 1) {
     const d = ZONE_MOBS[m.type];
-    return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? CURSE.mobHp : 1) * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
+    return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp") * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
   }
   /** Правка навыков моба в админке — сразу у живых мобов этого вида (без ожидания респавна). Возвращает число обновлённых. */
   syncMobSkills(): number {
@@ -489,7 +511,7 @@ export class Zone {
       fixed: !!o.fixed, region: o.region || null, elite: !!o.elite, idle: 0, dot: null, slowUntil: 0, kbx: 0, kby: 0,
       casts: [], phase: 1, enraged: false, special: o.special || "", expireAt: 0, patIdx: 0 };
     this.rollCursed(m);
-    if (m.cursed) { m.maxHp = m.hp = Math.round(hp * CURSE.mobHp); }
+    if (m.cursed || enchTier(m)) { m.maxHp = m.hp = Math.round(hp * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp")); }
     this.mobs.push(m);
     this.byId.set(m.id, m);
     const k = ck(x, y); const b = this.buckets.get(k); if (b) b.push(m); else this.buckets.set(k, [m]);
@@ -737,7 +759,7 @@ export class Zone {
   // атаки крупных и боссов: по кругу набора, набор зависит от фазы
   bossPattern(m: ZMob, d: any, best: ZPlayer, players: Map<string, ZPlayer>, now: number) {
     const big = d.size === "huge" ? 1.35 : d.size === "boss" ? 1.15 : 1;
-    const dmg = d.dmg * (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1);
+    const dmg = d.dmg * mobDmgMul(m); // было без проклятия и ярости — серия босса била базой
     const tele = (m.enraged ? 0.8 : 1) * (d.size === "l" ? 1.1 : 1.25) * 1000;
     const pats = d.size === "l" ? ["circle", d.role === "charger" ? "dash" : d.role === "caster" ? "triple" : "nova"]
       : m.phase === 1 ? ["circle", "line", "nova"] : m.phase === 2 ? ["triple", "line3", "ring", "circle"] : ["triple", "ring", "line3", "nova", "circle"];
@@ -905,8 +927,7 @@ export class Zone {
           this.events.push({ k: "phase", id: m.id, x: Math.round(m.x), y: Math.round(m.y), p: m.phase, text: `«${d.name}» разъярён временем боя!` });
         }
       }
-      let eliteDmg = (m.elite ? ZONE_GEN.eliteDmg : 1) * (m.chief ? ZONE_GEN.chiefDmg : 1) * (m.cursed ? CURSE.mobDmg : 1);
-      if (isWorld && m.enraged) eliteDmg *= (ZONE_GEN as any).bossEnrageDmg || 2.8;
+      const eliteDmg = mobDmgMul(m); // элита × вожак × проклятие × зачарование × ярость (мировой/босс)
       // рывок (charger и крупные): замах (телеграф) → рывок
       if (m.dashT > 0) {
         const dsp = d.size === "s" ? 330 : 420;
@@ -1078,7 +1099,7 @@ export class Zone {
     if (m.dead) return;
     const d = ZONE_MOBS[m.type];
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
-    const armor = d.armor * (m.elite ? ZONE_GEN.eliteArmor : 1) * (m.cursed ? CURSE.mobArmor : 1);
+    const armor = d.armor * mobArmorMul(m);
     const real = Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
     if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
     m.hp -= real;
