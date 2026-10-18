@@ -43,6 +43,8 @@ export function bossSkillRange(m: { special?: string }, d: any): [number, number
 // ---------- множители силы моба (единая точка: урон, броня, ХП; панель «Цель» берёт отсюда же) ----------
 /** Ярус зачарования моба (0 — нет; 1…6 — ENCH.tiers, админка «✦ Зачарование»). */
 export function enchTier(m: { ench?: number }): number { return tierOk(m.ench) ? m.ench! : 0; }
+/** ОЗ моба без верхнего предела в бестиарии: произведение множителей (проклятие × ярус × элита × отряд) держим целым и в пределах точных целых JS. */
+export const capHp = (v: number) => Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.round(Number(v) || 0)));
 export function enchMul(m: { ench?: number }, what: "hp" | "dmg" | "armor" | "xp"): number {
   const t = tierDef(m.ench); if (!t) return 1;
   const v = Number(what === "hp" ? t.mobHp : what === "dmg" ? t.mobDmg : what === "armor" ? t.mobArmor : t.mobXp);
@@ -426,7 +428,7 @@ export class Zone {
   /** множитель ХП моба по его флагам */
   hpOf(m: ZMob, scale = 1) {
     const d = ZONE_MOBS[m.type];
-    return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp") * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
+    return capHp(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp") * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
   }
   /** Правка ОЗ моба в админке (или перечитанный набор правок) — сразу у живых мобов этого вида, без ожидания респавна.
    *  maxHp живого моба = ОЗ бестиария × множители экземпляра (элита/вожак/проклятие/ярус/игроки у босса); меняем только базу:
@@ -441,7 +443,7 @@ export class Zone {
       m.hpBase = cur; if (m.dead) continue; // мёртвый получит новые ОЗ при респавне (hpOf)
       const frac = m.maxHp > 0 ? Math.max(0, Math.min(1, m.hp / m.maxHp)) : 1;
       // обычный моб — точно как при спавне (hpOf: элита/вожак/проклятие/ярус); босс — пропорционально (множитель отряда на момент появления)
-      m.maxHp = Math.max(1, !d.boss && !m.special ? this.hpOf(m) : Math.round(m.maxHp * cur / base));
+      m.maxHp = !d.boss && !m.special ? this.hpOf(m) : capHp(m.maxHp * cur / base);
       m.hp = Math.max(1, Math.min(m.maxHp, Math.round(m.maxHp * frac)));
       n++;
     }
@@ -536,13 +538,13 @@ export class Zone {
   }
   addMob(type: string, x: number, y: number, o: { fixed?: boolean; respawn?: number; region?: string | null; elite?: boolean; hpMul?: number; special?: "" | "boss" | "rare" } = {}) {
     const d = ZONE_MOBS[type];
-    const hp = Math.round(d.hp * (o.elite ? ZONE_GEN.eliteHp : 1) * (o.hpMul || 1));
+    const hp = capHp(d.hp * (o.elite ? ZONE_GEN.eliteHp : 1) * (o.hpMul || 1));
     const m: ZMob = { mobTarget: 0, scanAt: 0, roam: null, cursed: false, skills: [], skCd: {}, reset: false, burstUntil: 0, camp: 0, leapCd: 0, shieldUntil: 0, id: this.nextId++, type, respawn: o.respawn || 0, sx: x, sy: y, x, y, hp, maxHp: hp, dead: false, respawnAt: 0, targetSid: null,
       wanderX: x, wanderY: y, nextWander: 0, atkCd: 0, dmgBy: new Map(), usedAbility: new Set(), windup: 0, dashX: 0, dashY: 0, dashT: 0,
       fixed: !!o.fixed, region: o.region || null, elite: !!o.elite, idle: 0, dot: null, slowUntil: 0, kbx: 0, kby: 0,
       casts: [], phase: 1, enraged: false, special: o.special || "", expireAt: 0, patIdx: 0 };
     this.rollCursed(m);
-    if (m.cursed || enchTier(m)) { m.maxHp = m.hp = Math.round(hp * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp")); }
+    if (m.cursed || enchTier(m)) { m.maxHp = m.hp = capHp(hp * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp")); }
     m.hpBase = d.hp;
     this.mobs.push(m);
     this.byId.set(m.id, m);

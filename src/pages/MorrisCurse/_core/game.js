@@ -3,6 +3,7 @@
 // Хаб: общий мир сервера (Адское Пламя / Аринар) в 3D, тот же WebSocket-протокол (join/move/use_portal/...).
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
+import { fmtBig } from './fmtNum.js';
 import { resolveWorld } from '../../../../server/meta/propCollision.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
@@ -1369,7 +1370,7 @@ async function boot(canvasId, username, userId, api) {
     return {
       kind: 'mob', id: o.id, name: tg?.name || info.name || o.type, color: en ? enchText(en) : '', glitch: en === 6,
       typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · 🌀 ' + tg.skills.join(', ') : ''}${stsLabel(tg?.sts || o.sts)}`,
-      hp: tg ? `${tg.hp} / ${tg.maxHp}` : `${o.hp ?? '?'}%`, armor: tg?.armor ?? (o.cursed || o.elite || en ? '…' : info.armor ?? '-'), atk: tg?.dmg ?? (o.cursed || o.elite || en ? '…' : info.dmg ?? '-'), // с сервера — с множителями (элита, вожак, проклятие, ярость)
+      hp: tg ? `${fmtBig(tg.hp)} / ${fmtBig(tg.maxHp)}` : `${o.hp ?? '?'}%`, armor: tg?.armor ?? (o.cursed || o.elite || en ? '…' : info.armor ?? '-'), atk: tg?.dmg ?? (o.cursed || o.elite || en ? '…' : info.dmg ?? '-'), // с сервера — с множителями (элита, вожак, проклятие, ярость)
     };
   }
   function selectMob(o) { zone.selected = o.id; send({ type: 'zone_target', id: o.id }); hud.setTarget(mobTarget(o, null)); }

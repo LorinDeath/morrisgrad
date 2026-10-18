@@ -28,7 +28,8 @@ ok(!isDevRequest({ MC_DEV_TRUST_USERID: "1" }, { url: "http://localhost.evil.com
 // 4. правки админки
 const mobId = Object.keys(TABLES.mob)[0];
 ok(typeof validatePatch("mob", mobId, { hp: 777 }) === "object", "моб hp 777 — ок");
-ok(typeof validatePatch("mob", mobId, { hp: 1e12 }) === "string", "hp вне диапазона — отказ");
+ok(typeof validatePatch("mob", mobId, { hp: 1e12 }) === "object", "hp 1e12 — ок (предела ОЗ мобов нет, до точных целых JS)");
+ok(typeof validatePatch("mob", mobId, { hp: Number.MAX_SAFE_INTEGER * 2 }) === "string" && typeof validatePatch("mob", mobId, { hp: Infinity }) === "string" && typeof validatePatch("mob", mobId, { hp: 0 }) === "string", "hp вне диапазона (больше точных целых / ∞ / 0) — отказ");
 ok(typeof validatePatch("mob", mobId, { hp: "NaN" }) === "string", "hp NaN — отказ");
 ok(typeof validatePatch("mob", mobId, JSON.parse('{"__proto__":{"x":1}}')) === "string", "__proto__ — отказ");
 ok(typeof validatePatch("mob", "nope'; DROP TABLE x;--", { hp: 5 }) === "string", "чужой id — отказ");

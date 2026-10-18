@@ -1,3 +1,4 @@
+import { fmtBig } from '../fmtNum.js';
 import { CURSE } from '../meta/curseCfg.js';
 import { tierOf, enchStats, lookName, enchText, enchName, enchFem, lookCls, lookStyle, enchBadge, ENCH } from '../meta/enchCfg.js';
 import { objText, condLine } from '../../../../../server/meta/objText.ts';
@@ -640,7 +641,7 @@ export class Book {
         const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${fmtPct(m.chance)}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
         const S = lm?.st || info; // сервер: статы с правками админки
         const canTrack = !id.startsWith('run_');
-        body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${S.hp} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>
+        body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${fmtBig(S.hp)} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>
           ${lm?.st?.skills?.length ? `<div class="h">Навыки: ${lm.st.skills.map(esc).join(', ')}</div>` : ''}
           ${canTrack ? `<button class="mc-btn sm ${this.meta.mobTrack === id ? 'gold' : ''}" data-act="mtrack" data-v="${id}">${this.meta.mobTrack === id ? '🧭 Не отслеживать' : '🧭 Отслеживать'}</button>` : ''}
           ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
