@@ -1,4 +1,6 @@
 import { CURSE } from "./cursed";
+import { LEVEL_GAP } from "./levelGap";
+export { LEVEL_GAP };
 // Баланс прогрессии «Проклятых» (уровни 1–25): единые кривые для мобов, предметов, опыта и шансов дропа.
 // Всё здесь — чистые функции без зависимостей: их используют bestiary.ts (генерация статов), сервер и
 // симуляция tools/sim/progression.mjs. Таблицы и обоснование — docs/MORRISCURSE-BALANCE.md («Кривые 1–25»).
@@ -261,13 +263,12 @@ export const SIZE_MULT: Record<string, { hp: number; dmg: number; xp: number }> 
 /** Соло vs мировой босс: нужно опережать уровень на OUTLEVEL_SOLO_BOSS (kite/пробитие). */
 export const OUTLEVEL_SOLO_BOSS = 9;
 /** Урон моба по герою от разницы уровней: герой выше — ×0.8/ур. (мин 0.1), ниже — ×1.12/ур. (макс 2.5). */
-/** Урон героя по мобу выше уровнем: −18%/ур. (мин 0.35) — gap hard. */
+/** Урон героя по мобу выше уровнем — LEVEL_GAP (админка «Спавн»): +1 → ×0.6, +2 → ×0.08, +3 и выше → ×0.02. Ниже/равный — ×1. */
 export function levelGapHitMult(mobL: number, heroL: number): number {
   const g = (mobL || 1) - (heroL || 1);
   if (g <= 0) return 1;
-  // ранние уровни: сильнее режет удар (длинный gap-бой); к 25 — мягче
-  const per = 0.65 + 0.32 * Math.max(0, (heroL || 1) - 1) / 24;
-  return Math.max(0.35, Math.pow(per, g));
+  const v = g === 1 ? LEVEL_GAP.hit1 : g === 2 ? LEVEL_GAP.hit2 : LEVEL_GAP.hit3;
+  return Math.max(0, Math.min(1, Number(v) || 0));
 }
 export function levelGapDmgMult(mobL: number, heroL: number): number {
   const g = (heroL || 1) - (mobL || 1);

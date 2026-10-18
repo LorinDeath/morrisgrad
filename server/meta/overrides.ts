@@ -48,6 +48,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   loot: { name: "Дроп", fields: [] }, // gear/materials — таблицы, проверяются отдельно (validateLoot)
   // спавн Аринара (живые: сервер читает ZONE_GEN на каждом респавне/проверке) — лагеря и бродячие мобы
   spawn: { name: "Спавн", fields: [N("regenCombat", "Восстановление ХП в бою, × (вне боя — полное)", 0, 1), N("regenCombatSec", "«В бою» после удара/урона, с", 0, 60),
+    N("levelGap.hit1", "Урон героя по мобу на 1 ур. выше, ×", 0, 1), N("levelGap.hit2", "Урон героя по мобу на 2 ур. выше, ×", 0, 1), N("levelGap.hit3", "Урон героя по мобу на 3+ ур. выше, ×", 0, 1),
     N("campRespawn", "Респавн лагеря, с (вожак ×2, кочевник ×1.5)", 5, 3600, "int"),
     { path: "ambientOn", label: "Бродячие мобы включены", t: "bool" }, N("ambientEvery", "Бродячие: проверка раз в, с", 2, 600, "int"),
     N("ambientChance", "Бродячие: шанс одиночки, %", 0, 100), N("ambientGroupChance", "Бродячие: шанс группы с элитой, %", 0, 100),

@@ -4,6 +4,7 @@
 // Всё детерминировано сидом экземпляра зоны (mulberry32), чтобы баги воспроизводились.
 // Параметры и обоснование — docs/MORRISCURSE-BALANCE.md, раздел «Открытый мир: спавн».
 import { NPCS, ZONE_RESPAWN } from "./shared";
+import { LEVEL_GAP } from "./levelGap";
 import { WORLD_SIZES, ARINAR_HUB } from "../worlds/sizes";
 import { BIOMES, VARIANTS, VARIANT_BY_ID, type BiomeId } from "./biomes";
 
@@ -44,6 +45,7 @@ export interface WorldGen {
 export const ZONE_GEN = {
   regenCombat: 0.1,          // множитель восстановления ХП в бою (нанёс/получил урон за последние regenCombatSec)
   regenCombatSec: 5,         // «в бою» столько секунд после последнего удара
+  levelGap: LEVEL_GAP,       // урон героя по мобу выше уровнем: +1/+2/+3… (тот же объект, что в balance.ts)
   seed: 0x4d454c56,          // «MELV»: сид экземпляра Аринара по умолчанию
   globalCap: 60,             // все мобы зоны (без боссов и редких) — для режиссёра (Поляна)
   nearBase: 6,               // мобов в радиусе nearR вокруг игрока, если он один
