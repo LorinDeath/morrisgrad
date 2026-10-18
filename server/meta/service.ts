@@ -1271,6 +1271,7 @@ export class MetaService {
   /** пересобрать лагеря локаций, чьи настройки плотности изменились (админка → D1 → applyOverride на этом экземпляре) */
   syncRegions() {
     for (const z of Object.values(this.zones as any) as any[]) z?.syncMobSkills?.(); // навыки мобов из админки — сразу у живых
+    for (const z of Object.values(this.zones as any) as any[]) { const n = z?.syncMobStats?.() || 0; if (n) console.log(`[mc] ОЗ мобов из админки: обновлено живых ${n}`); } // ОЗ — тоже сразу у живых
     const z: any = (this.zones as any).arinar; if (!z?.gen?.camps) return;
     for (const r of z.gen.regions) { if (!r.table?.length) continue;
       if (z.regBuilt[r.id] !== regSig(r)) { const n = z.regenRegion(r.id); console.log(`[mc] регион ${r.id}: лагеря пересобраны (снято ${n})`); }
@@ -1476,7 +1477,7 @@ export class MetaService {
     }
     if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); this.chestTick(now); }
     this.chestChan(now);
-    if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.syncRegions(); } // правки плотности локаций → пересборка лагерей
+    if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.admin.sync().catch(() => {}); this.syncRegions(); } // набор правок (D1, не чаще раза в 10 с — внутри sync) + пересборка лагерей / ОЗ живых мобов
     if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
     try { this.npcs.tick(now, Math.min(0.5, dt)); } catch (e: any) { console.error("[mc] npc tick", e?.message || e); }

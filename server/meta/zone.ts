@@ -77,6 +77,7 @@ export interface ZCast { proj?: string; fx?: string; leap?: boolean; kind: "circ
 export interface ZMob { id: number; type: string; respawn: number; sx: number; sy: number; x: number; y: number; hp: number; maxHp: number; dead: boolean; respawnAt: number;
   targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>; qf?: Map<string, number>; // qf: начало боя игрока с мобом (условия квестов)
   windup: number; dashX: number; dashY: number; dashT: number;
+  hpBase?: number; // ОЗ бестиария (d.hp), от которых посчитаны maxHp: правка ОЗ в админке пересчитывает живых мобов (syncMobStats)
   // процедурный спавн: регион, элита, простой вне боя (для деспавна); fixed — классическая точка респавна
   fixed: boolean; region: string | null; elite: boolean; idle: number; chief?: boolean;
   // статусы от оружия игроков (сервер-авторитет): урон по времени, замедление, отбрасывание
@@ -291,7 +292,7 @@ export class Zone {
         for (let c = 0; c < nChief; c++) {
           const [qx, qy] = spot(x + (nChief > 1 ? (c ? 26 : -26) : 0), y);
           const m = this.addMob(strong, qx, qy, { fixed: true, respawn: G.campRespawn * 2, region: reg.id, elite: true });
-          m.chief = true; m.rk = 2; m.camp = camp.id; m.maxHp = m.hp = this.hpOf(m, 1); camp.types.push(strong); camp.chiefs++;
+          m.chief = true; m.rk = 2; m.camp = camp.id; m.maxHp = m.hp = this.hpOf(m, 1); m.hpBase = ZONE_MOBS[strong].hp; camp.types.push(strong); camp.chiefs++;
         }
       }
     }
@@ -427,6 +428,25 @@ export class Zone {
     const d = ZONE_MOBS[m.type];
     return Math.round(d.hp * (m.chief ? ZONE_GEN.chiefHp : 1) * (m.elite ? ZONE_GEN.eliteHp : 1) * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp") * (d.boss ? 1 + ZONE_GEN.bossScalePerPlayer * (scale - 1) : 1));
   }
+  /** Правка ОЗ моба в админке (или перечитанный набор правок) — сразу у живых мобов этого вида, без ожидания респавна.
+   *  maxHp живого моба = ОЗ бестиария × множители экземпляра (элита/вожак/проклятие/ярус/игроки у босса); меняем только базу:
+   *  maxHp ×(новые/старые ОЗ), текущие ОЗ — та же доля. Урон и броня берутся из бестиария на каждом ударе — им синхронизация не нужна. */
+  syncMobStats(): number {
+    let n = 0;
+    for (const m of this.mobs) {
+      const d: any = ZONE_MOBS[m.type]; if (!d) continue;
+      const cur = Number(d.hp) || 0, base = m.hpBase;
+      if (base === undefined || base <= 0) { m.hpBase = cur; continue; }
+      if (base === cur || cur <= 0) continue;
+      m.hpBase = cur; if (m.dead) continue; // мёртвый получит новые ОЗ при респавне (hpOf)
+      const frac = m.maxHp > 0 ? Math.max(0, Math.min(1, m.hp / m.maxHp)) : 1;
+      // обычный моб — точно как при спавне (hpOf: элита/вожак/проклятие/ярус); босс — пропорционально (множитель отряда на момент появления)
+      m.maxHp = Math.max(1, !d.boss && !m.special ? this.hpOf(m) : Math.round(m.maxHp * cur / base));
+      m.hp = Math.max(1, Math.min(m.maxHp, Math.round(m.maxHp * frac)));
+      n++;
+    }
+    return n;
+  }
   /** Правка навыков моба в админке — сразу у живых мобов этого вида (без ожидания респавна). Возвращает число обновлённых. */
   syncMobSkills(): number {
     let n = 0;
@@ -523,6 +543,7 @@ export class Zone {
       casts: [], phase: 1, enraged: false, special: o.special || "", expireAt: 0, patIdx: 0 };
     this.rollCursed(m);
     if (m.cursed || enchTier(m)) { m.maxHp = m.hp = Math.round(hp * (m.cursed ? CURSE.mobHp : 1) * enchMul(m, "hp")); }
+    m.hpBase = d.hp;
     this.mobs.push(m);
     this.byId.set(m.id, m);
     const k = ck(x, y); const b = this.buckets.get(k); if (b) b.push(m); else this.buckets.set(k, [m]);
@@ -886,7 +907,7 @@ export class Zone {
           if (m.roam) { m.sx = m.roam.home[0]; m.sy = m.roam.home[1]; m.roam.i = 1; (m as any).spOk = 0; }
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
           if (m.camp && !m.chief) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
-          this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp;
+          this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp; m.hpBase = ZONE_MOBS[m.type].hp;
           m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
         }
         continue;
