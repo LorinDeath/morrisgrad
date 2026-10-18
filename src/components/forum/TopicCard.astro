@@ -1,0 +1,31 @@
+---
+import Author from "./Author.astro";
+import { ago, media, plural } from "../../lib/forum/fmt";
+interface Props { t: any; showSection?: boolean; viewerUid?: string | null }
+const { t, showSection = true, viewerUid = null } = Astro.props;
+const url = `/forum/t/${t.id}`;
+const isArticle = t.kind === "article";
+---
+<article class={`f-card${isArticle ? " f-card-article" : ""}${t.pinned ? " f-card-pinned" : ""}${t.hidden ? " f-card-hidden" : ""}`} data-topic={t.id}>
+  <header class="f-card-head">
+    {showSection && <a class="f-chip" href={`/forum/s/${t.s_slug}`}>{t.s_icon} {t.s_title}</a>}
+    <Author a={t.author} />
+    <span class="f-dot">·</span>
+    <time class="f-time" datetime={new Date(t.created_at).toISOString()}>{ago(t.created_at)}</time>
+    {t.featured ? <span class="f-badge f-badge-feat" title="Выбор редакции">★ Выбор редакции</span> : null}
+    {t.pinned ? <span class="f-badge" title="Закреплено">📌</span> : null}
+    {t.locked ? <span class="f-badge" title="Тема закрыта">🔒</span> : null}
+    {t.hidden ? <span class="f-badge f-badge-warn">скрыто</span> : null}
+  </header>
+  <a href={url} class="f-card-link">
+    <h3 class="f-card-title">{isArticle && <span class="f-kind">Статья</span>}{t.title}</h3>
+    {t.excerpt && <p class="f-card-excerpt">{t.excerpt}</p>}
+    {t.cover_key && <div class="f-card-cover"><img src={media(t.cover_key)} alt="" loading="lazy" decoding="async" /></div>}
+  </a>
+  <footer class="f-card-foot">
+    <button type="button" class={`f-like${t.liked ? " on" : ""}`} data-like="t" data-id={t.id} data-own={t.user_id === viewerUid ? "1" : null} aria-pressed={t.liked ? "true" : "false"} title="Нравится">
+      <span class="f-heart">♥</span> <span class="f-like-n">{t.likes_count}</span>
+    </button>
+    <a href={`${url}#comments`} class="f-cc" title="Комментарии">💬 {t.comments_count} <span class="f-cc-word">{plural(t.comments_count, "комментарий", "комментария", "комментариев")}</span></a>
+  </footer>
+</article>

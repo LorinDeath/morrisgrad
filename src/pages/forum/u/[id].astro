@@ -1,0 +1,56 @@
+---
+import ForumShell from "../../../components/forum/ForumShell.astro";
+import TopicCard from "../../../components/forum/TopicCard.astro";
+import { forumPage } from "../../../lib/forum/page";
+import { getAuthor, isMod } from "../../../lib/forum/service";
+import { date, ago, initial, hue, roleLabel, plural } from "../../../lib/forum/fmt";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+const uid = decodeURIComponent(String(Astro.params.id));
+const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
+const a = await getAuthor(db, v, uid, page);
+if (!a) return new Response("Пользователь не найден", { status: 404 });
+const u = a.user;
+const self = v.uid === uid;
+const mod = isMod(v);
+const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
+---
+<ForumShell title={u.nick} viewer={v} active={self ? "me" : ""}>
+  <div class="f-grid">
+    <main>
+      <div class="f-box" style="margin-bottom:1rem">
+        <div class="f-profile">
+          <span class="f-author f-author-l"><span class="f-ava" style={`--h:${hue(u.user_id)}`}>{initial(u.nick)}</span></span>
+          <div style="flex:1;min-width:220px">
+            <h1 class="f-h1" style="font-family:var(--font-body)!important;letter-spacing:0">{u.nick} {u.role && <span class={`f-role f-role-${u.role}`} style="font-size:.8rem;vertical-align:middle">{roleLabel(u.role)}</span>}</h1>
+            <div class="f-muted"><span class="f-rank" style="font-size:.85rem">{u.rank}</span> · на форуме с {date(u.first_seen)} · {onlineNow ? <span style="color:#4ade80">● сейчас на форуме</span> : <>был(а) {ago(u.last_seen)}</>}</div>
+            <div class="f-pstats">
+              <span class="f-pstat"><b>{u.topics_count}</b>{plural(u.topics_count, "тема", "темы", "тем")}</span>
+              <span class="f-pstat"><b>{u.posts_count}</b>{plural(u.posts_count, "сообщение", "сообщения", "сообщений")}</span>
+              <span class="f-pstat"><b style="color:var(--f-red)">♥ {u.karma}</b>карма</span>
+            </div>
+            {u.signature && <div class="f-sig" style="margin-top:.8rem">{u.signature}</div>}
+          </div>
+        </div>
+        <div class="f-actions">
+          {self && <a class="f-btn" href="/forum/me">⚙ Настройки профиля</a>}
+          {!self && v.uid && <button class="f-btn f-btn-s" data-block={uid} data-value={a.blocked ? "0" : "1"}>{a.blocked ? "Показывать записи" : "Скрыть записи автора"}</button>}
+          {mod && !self && u.role !== "admin" && (a.ban
+            ? <><span class="f-badge f-badge-warn">ограничен {a.ban.until ? "до " + new Date(a.ban.until).toLocaleString("ru-RU", { timeZone: "Europe/Kiev" }) : "бессрочно"}</span><button class="f-btn f-btn-s" data-unban={uid}>Снять ограничение</button></>
+            : <button class="f-btn f-btn-s f-btn-danger" data-ban={uid}>Ограничить на форуме</button>)}
+        </div>
+      </div>
+      <h2 style="font-size:1.2rem">Записи автора</h2>
+      <div class="f-feed">
+        {a.items.length ? a.items.map((t: any) => <TopicCard t={t} viewerUid={v.uid} />) : <div class="f-empty">Пока ни одной темы.</div>}
+      </div>
+      {(page > 1 || a.more) && <div class="f-pager">{page > 1 && <a class="f-btn" href={`?page=${page - 1}`}>← Назад</a>}{a.more && <a class="f-btn" href={`?page=${page + 1}`}>Дальше →</a>}</div>}
+    </main>
+    <aside class="f-side">
+      <div class="f-box">
+        <h3>Звания форума</h3>
+        <p class="f-muted" style="margin:0">Звание растёт с числом сообщений, карма — с лайками от других участников.</p>
+      </div>
+    </aside>
+  </div>
+</ForumShell>

@@ -44,6 +44,11 @@
     {
       "binding": "ARTCOLLECTION_BUCKET",
       "bucket_name": "artcollection"
+    },
+    {
+      // Картинки форума (/api/forum/media/*). Бакет нужно создать до деплоя: wrangler r2 bucket create morrisgrad-forum-media
+      "binding": "FORUM_MEDIA",
+      "bucket_name": "morrisgrad-forum-media"
     }
   ],
 

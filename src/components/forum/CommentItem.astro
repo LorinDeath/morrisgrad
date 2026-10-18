@@ -1,0 +1,46 @@
+---
+import { ago, dateTime, userUrl, initial, hue, roleLabel } from "../../lib/forum/fmt";
+interface Props { c: any; viewer: any; topicLocked: boolean }
+const { c, viewer, topicLocked } = Astro.props;
+const mod = !!c.can_mod; // модератор этого раздела или админ (решает сервер)
+const admin = viewer?.role === "admin";
+const gone = (c.deleted && !admin) || (c.hidden && !c.body_html);
+---
+<div class="f-cm" id={`c${c.id}`}>
+  <div class="f-cm-ava"><a href={userUrl(c.author.id)} class="f-ava" style={`--h:${hue(c.author.id)}`} tabindex="-1" aria-hidden="true">{initial(c.author.nick)}</a></div>
+  <div>
+    <div class="f-cm-head">
+      <a href={userUrl(c.author.id)} class="f-nick">{c.author.nick}</a>
+      {c.author.role && <span class={`f-role f-role-${c.author.role}`}>{roleLabel(c.author.role)}</span>}
+      <span class="f-rank">{c.author.rank}</span>
+      <span class="f-astats">✉ {c.author.posts}</span>
+      {c.reply_nick && <span class="f-replyto">→ {c.reply_nick}</span>}
+      <a href={`#c${c.id}`} class="f-time" style="text-decoration:none" title={dateTime(c.created_at)}>{ago(c.created_at)}</a>
+      {c.updated_at - c.created_at > 60000 && !c.deleted && <span class="f-dim" title={dateTime(c.updated_at)}>· изм.</span>}
+      {c.hidden && !c.deleted ? <span class="f-badge f-badge-warn">скрыт</span> : null}
+    </div>
+    {c.deleted && admin ? <>
+        <div class="f-cm-gone">Комментарий удалён{c.deleted_reason ? ` · причина: ${c.deleted_reason}` : ""} — видно только администратору <button type="button" class="f-btn f-btn-s" data-restore="comment" data-id={c.id}>↺ Восстановить</button></div>
+        <div class="f-cm-body" style="opacity:.55" set:html={c.body_html} />
+      </>
+      : c.deleted ? <div class="f-cm-gone">Комментарий удалён</div>
+      : gone ? <div class="f-cm-gone">Комментарий скрыт модератором</div>
+      : c.blocked ? <>
+          <div class="f-blocked-note">Скрыто: вы скрыли записи этого автора. <button type="button" class="f-link" data-show-blocked>Показать</button></div>
+          <div class="f-cm-body" data-blocked-content hidden set:html={c.body_html} />
+        </>
+      : <div class="f-cm-body" set:html={c.body_html} />}
+    {c.body !== undefined && !c.deleted && <template data-src>{c.body}</template>}
+    {!c.deleted && (
+      <div class="f-cm-foot">
+        <button type="button" class={`f-like${c.liked ? " on" : ""}`} data-like="c" data-id={c.id} data-own={c.mine ? "1" : null} aria-pressed={c.liked ? "true" : "false"}><span class="f-heart">♥</span> <span class="f-like-n">{c.likes_count}</span></button>
+        {!topicLocked && <button type="button" class="f-link" data-reply={c.id} data-nick={c.author.nick}>Ответить</button>}
+        {!c.mine && viewer?.uid && <button type="button" class="f-link" data-report="c" data-id={c.id}>Пожаловаться</button>}
+        {(c.mine || mod) && <button type="button" class="f-link" data-edit={c.id}>Изменить</button>}
+        {(c.mine || mod) && <button type="button" class="f-link f-link-danger" data-del="comment" data-id={c.id} data-ask-reason={!c.mine ? "1" : null}>Удалить</button>}
+        {mod && <button type="button" class="f-link" data-hide-c={c.id} data-value={c.hidden ? "0" : "1"}>{c.hidden ? "Вернуть" : "Скрыть"}</button>}
+      </div>
+    )}
+    {c.replies?.map((r: any) => <Astro.self c={r} viewer={viewer} topicLocked={topicLocked} />)}
+  </div>
+</div>

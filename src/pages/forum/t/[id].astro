@@ -1,0 +1,92 @@
+---
+import ForumShell from "../../../components/forum/ForumShell.astro";
+import Author from "../../../components/forum/Author.astro";
+import CommentItem from "../../../components/forum/CommentItem.astro";
+import { forumPage } from "../../../lib/forum/page";
+import { getTopic, getComments, isMod } from "../../../lib/forum/service";
+import { getSettings } from "../../../lib/forum/settings";
+import { dateTime, ago, media, plural } from "../../../lib/forum/fmt";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+const t = await getTopic(db, v, Number(Astro.params.id));
+if (!t) return new Response("Тема не найдена", { status: 404 });
+const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
+const [cm, s] = await Promise.all([getComments(db, v, t.id, page), getSettings(db)]);
+const mod = !!t.can_mod; // админ или модератор этого раздела (проверено на сервере)
+const mine = t.user_id === v.uid;
+const roots = t.comments_count; // приблизительно для пагинации
+---
+<ForumShell title={t.title} viewer={v} active="feed">
+  <div class="f-grid" style="grid-template-columns:minmax(0,1fr)">
+    <main style="max-width:860px;margin:0 auto;width:100%">
+      <div class="f-crumbs"><a href="/forum">Форум</a> › <a href={`/forum/s/${t.s_slug}`}>{t.s_icon} {t.s_title}</a></div>
+      {t.hidden ? <div class="f-alert f-alert-warn">Тема скрыта модерацией{mine ? " — её видите только вы и модераторы" : ""}.</div> : null}
+      {t.deleted ? <div class="f-alert f-alert-warn">Тема удалена{t.deleted_reason ? ` (причина: ${t.deleted_reason})` : ""} — видна только модераторам. {v.role === "admin" && <button type="button" class="f-btn f-btn-s" data-restore="topic" data-id={t.id}>↺ Восстановить тему</button>}</div> : null}
+      <article class="f-post">
+        <header class="f-card-head">
+          <Author a={t.author} size="m" showStats />
+          <span class="f-dot">·</span>
+          <time title={dateTime(t.created_at)}>{ago(t.created_at)}</time>
+          {t.updated_at - t.created_at > 60000 && <span class="f-dim" title={dateTime(t.updated_at)}>· изменено</span>}
+          {t.featured ? <span class="f-badge f-badge-feat">★ Выбор редакции</span> : null}
+          {t.pinned ? <span class="f-badge">📌 Закреплено</span> : null}
+          {t.locked ? <span class="f-badge">🔒 Закрыто</span> : null}
+        </header>
+        <h1 class="f-post-title">{t.kind === "article" && <span class="f-kind">Статья</span>}{t.title}</h1>
+        {t.blocked && <div class="f-blocked-note" style="margin-bottom:1rem">Вы скрыли записи этого автора. <button type="button" class="f-link" data-show-blocked>Показать</button></div>}
+        <div data-blocked-content hidden={t.blocked}>
+          {t.kind === "article" && t.cover_key && !t.body.includes(t.cover_key) && <div class="f-post-cover"><img src={media(t.cover_key)} alt="" decoding="async" /></div>}
+          <div class="f-post-body" set:html={t.body_html} />
+        </div>
+        {t.author.sig && <div class="f-sig">{t.author.sig}</div>}
+        <div class="f-actions">
+          <button type="button" class={`f-like${t.liked ? " on" : ""}`} data-like="t" data-id={t.id} data-own={mine ? "1" : null} aria-pressed={t.liked ? "true" : "false"}><span class="f-heart">♥</span> <span class="f-like-n">{t.likes_count}</span></button>
+          <a class="f-cc" href="#comments">💬 {t.comments_count}</a>
+          <span style="flex:1"></span>
+          {(mine || mod) && <a class="f-link" href={`/forum/edit/${t.id}`}>✎ Изменить</a>}
+          {(mine || mod) && <button type="button" class="f-link f-link-danger" data-del="topic" data-id={t.id} data-back={`/forum/s/${t.s_slug}`} data-ask-reason={!mine ? "1" : null}>Удалить</button>}
+          {!mine && v.uid && <button type="button" class="f-link" data-report="t" data-id={t.id}>⚑ Пожаловаться</button>}
+          {!mine && v.uid && <button type="button" class="f-link" data-block={t.user_id} data-value={t.blocked ? "0" : "1"}>{t.blocked ? "Показывать автора" : "Скрыть автора"}</button>}
+        </div>
+        {mod && (
+          <div class="f-modbar">
+            <b>Модерация:</b>
+            <button class="f-btn f-btn-s" data-flag="featured" data-id={t.id} data-value={t.featured ? "0" : "1"}>{t.featured ? "★ Убрать из рекомендованного" : "★ В рекомендованное"}</button>
+            <button class="f-btn f-btn-s" data-flag="pinned" data-id={t.id} data-value={t.pinned ? "0" : "1"}>{t.pinned ? "Открепить" : "📌 Закрепить"}</button>
+            <button class="f-btn f-btn-s" data-flag="locked" data-id={t.id} data-value={t.locked ? "0" : "1"}>{t.locked ? "Открыть" : "🔒 Закрыть"}</button>
+            <button class="f-btn f-btn-s" data-flag="hidden" data-id={t.id} data-value={t.hidden ? "0" : "1"}>{t.hidden ? "Вернуть" : "Скрыть"}</button>
+            {!t.deleted && <button class="f-btn f-btn-s f-btn-danger" data-del="topic" data-id={t.id} data-back={`/forum/s/${t.s_slug}`} data-ask-reason={!mine ? "1" : null}>🗑 Удалить тему</button>}
+            {!mine && t.author.role !== "admin" && <button class="f-btn f-btn-s f-btn-danger" data-ban={t.user_id}>Ограничить автора</button>}
+          </div>
+        )}
+      </article>
+
+      <section class="f-comments" id="comments">
+        <h2>{t.comments_count} {plural(t.comments_count, "комментарий", "комментария", "комментариев")}</h2>
+        {cm.items.map((c: any) => <CommentItem c={c} viewer={v} topicLocked={!!t.locked && !mod} />)}
+        {(page > 1 || cm.more) && (
+          <div class="f-pager">
+            {page > 1 && <a class="f-btn" href={`?page=${page - 1}#comments`}>← Раньше</a>}
+            <span class="f-muted" style="align-self:center">стр. {page}</span>
+            {cm.more && <a class="f-btn" href={`?page=${page + 1}#comments`}>Дальше →</a>}
+          </div>
+        )}
+        <div id="f-quick-home">
+          {t.locked && !mod ? <div class="f-alert">🔒 Тема закрыта для новых комментариев.</div>
+          : !v.uid ? <div class="f-alert f-alert-info">Чтобы комментировать, войдите в аккаунт МоррисГрада (кнопка «Войти» вверху страницы).</div>
+          : (
+            <form data-astro-reload class="f-quick" data-quick={t.id} data-lastpage={cm.more ? undefined : String(page)}>
+              <div class="f-replying" hidden>Ответ для <b></b> · <button type="button" class="f-link" data-cancel-reply>отменить</button></div>
+              <input type="hidden" name="reply_to" value="" />
+              <textarea name="body" rows="3" maxlength={s.comment_max} placeholder="Быстрый ответ… (**жирный**, *курсив*, > цитата, ссылки)"></textarea>
+              <div class="f-quick-bar">
+                <span class="f-hint"><span data-count></span> · Ctrl+Enter — отправить</span>
+                <button type="submit" class="f-btn f-btn-primary">Отправить</button>
+              </div>
+            </form>
+          )}
+        </div>
+      </section>
+    </main>
+  </div>
+</ForumShell>

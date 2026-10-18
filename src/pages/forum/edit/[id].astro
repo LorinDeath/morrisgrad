@@ -1,0 +1,19 @@
+---
+import ForumShell from "../../../components/forum/ForumShell.astro";
+import Editor from "../../../components/forum/Editor.astro";
+import { forumPage } from "../../../lib/forum/page";
+import { listSections, getTopic, isMod } from "../../../lib/forum/service";
+import { getSettings } from "../../../lib/forum/settings";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+const t = await getTopic(db, v, Number(Astro.params.id));
+if (!t || !v.uid || (t.user_id !== v.uid && !isMod(v))) return new Response("Нет доступа", { status: 403 });
+const [sections, s] = await Promise.all([listSections(db), getSettings(db)]);
+---
+<ForumShell title="Правка" viewer={v} active="feed">
+  <div style="max-width:1100px;margin:0 auto">
+    <div class="f-crumbs"><a href="/forum">Форум</a> › <a href={`/forum/t/${t.id}`}>{t.title}</a> › Правка</div>
+    <h1 class="f-h1" style="margin-bottom:1rem">Правка записи</h1>
+    <Editor sections={sections} settings={s} viewer={v} topic={t} />
+  </div>
+</ForumShell>

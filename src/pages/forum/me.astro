@@ -1,0 +1,35 @@
+---
+import ForumShell from "../../components/forum/ForumShell.astro";
+import { forumPage } from "../../lib/forum/page";
+import { listBlocks } from "../../lib/forum/service";
+import { getSettings } from "../../lib/forum/settings";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+if (!v.uid) return Astro.redirect("/forum");
+const [blocks, s] = await Promise.all([listBlocks(db, v), getSettings(db)]);
+---
+<ForumShell title="Настройки профиля" viewer={v} active="me">
+  <div style="max-width:640px;margin:0 auto">
+    <h1 class="f-h1">Настройки профиля</h1>
+    <form data-astro-reload class="f-box" data-me-form style="margin:1rem 0">
+      <label class="f-field"><span>Ник на форуме</span><input name="nick" value={v.user.nick} maxlength="24" minlength="3" required /></label>
+      <label class="f-field"><span>Подпись (под вашими темами)</span><input name="signature" value={v.user.signature} maxlength={s.signature_max} placeholder="Например: «Маг огня, 60 уровень»" /></label>
+      <p class="f-muted" style="margin-top:0">Другие участники видят только ник, звание, подпись и статистику. Почта и другие личные данные на форуме не показываются.</p>
+      <button class="f-btn f-btn-primary" type="submit">Сохранить</button>
+    </form>
+    <div class="f-box">
+      <h3>Скрытые авторы</h3>
+      {blocks.length ? blocks.map((b: any) => <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--f-line2)"><span>{b.nick || b.blocked_id}</span><button class="f-link" data-block={b.blocked_id} data-value="0">вернуть</button></div>) : <p class="f-muted" style="margin:0">Никого. Скрыть автора можно на странице его темы или профиля — его записи пропадут из вашей ленты.</p>}
+    </div>
+  </div>
+</ForumShell>
+<script>
+  import { api, toast } from "../../scripts/forum";
+  document.addEventListener("submit", async (ev) => {
+    const f = ev.target as HTMLFormElement;
+    if (!f.matches("form[data-me-form]")) return;
+    ev.preventDefault();
+    const fd = new FormData(f);
+    try { await api("PUT", "me", { nick: fd.get("nick"), signature: fd.get("signature") }); toast("Сохранено"); } catch (e: any) { toast(e.message, true); }
+  });
+</script>

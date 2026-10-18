@@ -1,0 +1,114 @@
+---
+// Редактор темы/статьи: панель разметки, живой предпросмотр, картинки (загрузка, вставка из буфера,
+// перетаскивание), обложка, черновик в localStorage, счётчик символов, Ctrl+Enter.
+import { media } from "../../lib/forum/fmt";
+interface Props { sections: any[]; topic?: any; settings: any; viewer: any; defaultSection?: number }
+const { sections, topic = null, settings, viewer, defaultSection } = Astro.props;
+const mod = viewer?.role === "admin" || viewer?.role === "moderator";
+const avail = sections.filter((s) => !s.admin_only || mod || (topic && topic.section_id === s.id));
+const sel = topic?.section_id ?? defaultSection ?? avail.find((s) => s.slug === "talk")?.id ?? avail[0]?.id;
+const kind = topic?.kind || "discussion";
+---
+<form data-astro-reload class="f-editor" data-editor data-topic={topic?.id || ""} data-maxmb={settings.upload_max_mb} data-maximg={settings.images_per_post}>
+  <div class="f-ed-kind" role="radiogroup" aria-label="Тип записи">
+    <label class={kind === "discussion" ? "on" : ""}><input type="radio" name="kind" value="discussion" checked={kind === "discussion"} /> 💬 Обсуждение <small>вопрос, мысль, идея</small></label>
+    <label class={kind === "article" ? "on" : ""}><input type="radio" name="kind" value="article" checked={kind === "article"} /> 📰 Статья <small>гайд, обзор, история — с обложкой</small></label>
+  </div>
+  <div class="f-ed-row">
+    <label class="f-field" style="flex:1;min-width:200px">
+      <span>Раздел</span>
+      <select name="section_id">{avail.map((s) => <option value={s.id} selected={s.id === sel}>{s.icon} {s.title}</option>)}</select>
+    </label>
+  </div>
+  <label class="f-field">
+    <span>Заголовок</span>
+    <input name="title" maxlength={settings.topic_title_max} required placeholder="О чём ваша запись?" value={topic?.title || ""} autocomplete="off" />
+  </label>
+  <div class="f-field f-ed-cover" data-cover-box hidden={kind !== "article"}>
+    <span>Обложка статьи</span>
+    <input type="hidden" name="cover" value={topic?.cover_key && topic.kind === "article" ? topic.cover_key : ""} />
+    <div class="f-ed-cover-drop" data-cover-drop>
+      {topic?.cover_key && topic.kind === "article" ? <img src={media(topic.cover_key)} alt="" /> : <span>🖼 Нажмите или перетащите картинку для обложки</span>}
+    </div>
+    <button type="button" class="f-link" data-cover-clear>убрать обложку</button>
+  </div>
+  <div class="f-field">
+    <span>Текст</span>
+    <div class="f-ed">
+      <div class="f-ed-bar" role="toolbar" aria-label="Форматирование">
+        <button type="button" data-md="b" title="Жирный (Ctrl+B)"><b>Ж</b></button>
+        <button type="button" data-md="i" title="Курсив (Ctrl+I)"><i>К</i></button>
+        <button type="button" data-md="s" title="Зачёркнутый"><s>З</s></button>
+        <span class="f-ed-sep"></span>
+        <button type="button" data-md="h2" title="Заголовок">H1</button>
+        <button type="button" data-md="h3" title="Подзаголовок">H2</button>
+        <span class="f-ed-sep"></span>
+        <button type="button" data-md="ul" title="Список">• —</button>
+        <button type="button" data-md="ol" title="Нумерованный список">1.</button>
+        <button type="button" data-md="quote" title="Цитата">❝</button>
+        <button type="button" data-md="code" title="Код">{"</>"}</button>
+        <button type="button" data-md="spoiler" title="Спойлер">▒</button>
+        <button type="button" data-md="hr" title="Разделитель">—</button>
+        <span class="f-ed-sep"></span>
+        <button type="button" data-md="link" title="Ссылка (Ctrl+K)">🔗</button>
+        <button type="button" data-md="img" title="Загрузить картинку">🖼 Фото</button>
+        <button type="button" data-md="yt" title="Видео YouTube">▶ YouTube</button>
+        <span style="flex:1"></span>
+        <button type="button" class="f-ed-mode" data-mode="split" title="Текст и предпросмотр рядом">◫</button>
+        <button type="button" class="f-ed-mode" data-mode="preview" title="Только предпросмотр">👁</button>
+      </div>
+      <div class="f-ed-panes">
+        <textarea name="body" rows="18" maxlength={settings.topic_body_max} required placeholder={"Пишите здесь. Поддерживается простая разметка:\n**жирный**, *курсив*, # Заголовок, - список, > цитата, [текст](https://ссылка)\nКартинки — кнопкой «Фото», вставкой из буфера (Ctrl+V) или перетаскиванием."}>{topic?.body || ""}</textarea>
+        <div class="f-ed-preview f-post-body" aria-live="polite"></div>
+      </div>
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-file />
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-cover-file />
+    </div>
+  </div>
+  <div class="f-ed-foot">
+    <span class="f-hint"><span data-count>0</span> / {settings.topic_body_max} · <span data-draft>черновик сохраняется автоматически</span> · Ctrl+Enter — опубликовать</span>
+    <span style="flex:1"></span>
+    {topic && <a class="f-btn" href={`/forum/t/${topic.id}`}>Отмена</a>}
+    <button type="submit" class="f-btn f-btn-primary">{topic ? "Сохранить" : "Опубликовать"}</button>
+  </div>
+</form>
+
+<script>
+  import "../../scripts/forum-editor";
+</script>
+
+<style is:global>
+  .f-editor { background: var(--f-bg); border: 1px solid var(--f-line); border-radius: var(--f-radius); padding: 1.2rem; }
+  .f-ed-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1rem; }
+  .f-ed-kind label { border: 1px solid var(--f-line2); border-radius: 10px; padding: .7rem .9rem; cursor: pointer; font-weight: 700; display: flex; flex-direction: column; gap: 2px; }
+  .f-ed-kind label input { display: none; }
+  .f-ed-kind label small { font-weight: 400; color: var(--f-muted); font-size: .78rem; }
+  .f-ed-kind label.on { border-color: var(--f-red); background: rgba(225,29,72,.1); }
+  .f-ed-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .f-editor .f-field input[name=title] { font-size: 1.25rem; font-weight: 700; }
+  .f-ed { border: 1px solid var(--f-line2); border-radius: 10px; overflow: hidden; }
+  .f-ed-bar { display: flex; gap: 2px; flex-wrap: wrap; padding: 5px; background: var(--f-bg2); border-bottom: 1px solid var(--f-line2); }
+  .f-ed-bar button { background: transparent; border: 1px solid transparent; color: var(--f-text); border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; font-size: .85rem; min-width: 32px; }
+  .f-ed-bar button:hover, .f-ed-bar button.on { border-color: var(--f-line); color: var(--f-acc); background: rgba(0,0,0,.2); }
+  .f-ed-sep { width: 1px; background: var(--f-line2); margin: 3px 4px; }
+  .f-ed-panes { display: grid; grid-template-columns: 1fr 1fr; min-height: 380px; }
+  .f-ed-panes textarea { border: 0 !important; border-radius: 0 !important; background: rgba(0,0,0,.25); color: var(--f-text); padding: .9rem 1rem; font: inherit; font-size: .95rem; line-height: 1.6; resize: vertical; min-height: 380px; width: 100%; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .forum.f-light .f-ed-panes textarea { background: #fff; }
+  .f-ed-panes textarea:focus { outline: none; }
+  .f-ed-panes textarea.drag { background: rgba(201,168,108,.12); }
+  .f-ed-preview { padding: .9rem 1.1rem; border-left: 1px solid var(--f-line2); overflow: auto; max-height: 70vh; }
+  .f-ed-preview:empty::before { content: "Здесь появится предпросмотр"; color: var(--f-dim); font-style: italic; }
+  .f-ed[data-mode=preview] .f-ed-panes { grid-template-columns: 1fr; }
+  .f-ed[data-mode=preview] textarea { display: none; }
+  .f-ed[data-mode=preview] .f-ed-preview { border-left: 0; }
+  .f-ed-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: .4rem; }
+  .f-ed-cover-drop { border: 1px dashed var(--f-line); border-radius: 10px; min-height: 120px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; color: var(--f-muted); }
+  .f-ed-cover-drop img { width: 100%; max-height: 260px; object-fit: cover; display: block; }
+  .f-ed-cover-drop.busy { opacity: .6; }
+  @media (max-width: 800px) {
+    .f-ed-panes { grid-template-columns: 1fr; }
+    .f-ed-preview { display: none; border-left: 0; }
+    .f-ed[data-mode=preview] .f-ed-preview { display: block; }
+    .f-ed-kind { grid-template-columns: 1fr; }
+  }
+</style>

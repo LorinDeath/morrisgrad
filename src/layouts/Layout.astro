@@ -71,6 +71,9 @@ const { title, viewportFit = false } = Astro.props;
           <a href="/arts" class="header-nav-btn" title="Галерея персонажей">
             <span class="nav-icon">🖼</span> <span class="nav-btn-text">Галерея</span>
           </a>
+          <a href="/forum" class="header-nav-btn" title="Форум жителей МоррисГрада">
+            <span class="nav-icon">🗨</span> <span class="nav-btn-text">Форум</span>
+          </a>
         </nav>
       </div>
 
@@ -455,6 +458,22 @@ const { title, viewportFit = false } = Astro.props;
     color: var(--accent-gold);
     border-color: var(--accent-gold);
     box-shadow: 0 0 12px var(--gold-glow);
+  }
+
+  /* Узкие экраны: шапка не должна раздвигать страницу (кнопки — только иконки) */
+  @media (max-width: 720px) {
+    .header { padding: 0.6rem 0.7rem; gap: 0.5rem; }
+    .header-controls, .auth-controls { gap: 0.45rem; }
+    .header-nav-links { margin-left: 0; gap: 4px; }
+    .header-nav-btn { padding: 5px 8px; }
+    .header-nav-btn .nav-btn-text, .chat-text, .version-chip { display: none; }
+    .logo-crest { width: 36px; height: 36px; }
+    .site-name { font-size: 1rem; }
+    .header-chat-link, .profile-link { padding: 6px 9px; }
+    .login-btn { padding: 0.4rem 0.7rem; }
+  }
+  @media (max-width: 420px) {
+    .brand-text { display: none; }
   }
 
   .container {

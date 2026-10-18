@@ -1,0 +1,20 @@
+---
+import ForumShell from "../../components/forum/ForumShell.astro";
+import SectionsTable from "../../components/forum/SectionsTable.astro";
+import { forumPage } from "../../lib/forum/page";
+import { listSections, online, stats } from "../../lib/forum/service";
+import { userUrl, roleLabel, plural } from "../../lib/forum/fmt";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+const [sections, on, st] = await Promise.all([listSections(db), online(db), stats(db)]);
+---
+<ForumShell title="Разделы" viewer={v} active="sections">
+  <h1 class="f-h1">Разделы форума</h1>
+  <p class="f-muted" style="margin-top:0">Классический вид: все разделы, число тем и сообщений, последнее сообщение.</p>
+  <SectionsTable sections={sections} />
+  <div class="f-box" style="margin-top:1rem">
+    <h3>Кто на форуме ({on.length})</h3>
+    {on.length ? <div class="f-online">{on.map((u: any) => <a href={userUrl(u.user_id)} class={u.role ? `f-on-${u.role}` : ""} title={roleLabel(u.role)}>{u.nick}</a>)}</div> : <p class="f-muted">Сейчас никого</p>}
+    <p class="f-muted" style="margin:.6rem 0 0">Тем: {st.topics} · Сообщений: {st.posts} · {plural(st.users, "Участник", "Участника", "Участников")}: {st.users}</p>
+  </div>
+</ForumShell>

@@ -1,0 +1,36 @@
+---
+import ForumShell from "../../components/forum/ForumShell.astro";
+import TopicCard from "../../components/forum/TopicCard.astro";
+import Sidebar from "../../components/forum/Sidebar.astro";
+import { forumPage } from "../../lib/forum/page";
+import { feed, type FeedTab } from "../../lib/forum/service";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+const q = Astro.url.searchParams;
+const tab = (["rec", "new", "top"].includes(q.get("tab") || "") ? q.get("tab") : "rec") as FeedTab;
+const page = Math.max(1, Number(q.get("page")) | 0 || 1);
+const data = await feed(db, v, tab, page);
+const tabs: [FeedTab, string][] = [["rec", "Рекомендованное"], ["new", "Свежее"], ["top", "Популярное"]];
+const qs = (p: number) => `?tab=${tab}&page=${p}`;
+---
+<ForumShell title="Лента" viewer={v} active="feed">
+  <div class="f-grid">
+    <main>
+      <nav class="f-tabs" aria-label="Лента">
+        {tabs.map(([k, label]) => <a class={`f-tab${tab === k ? " on" : ""}`} href={`/forum?tab=${k}`}>{label}</a>)}
+      </nav>
+      {tab === "top" && <p class="f-muted" style="margin:-.4rem 0 .8rem">Самое оценённое за 30 дней</p>}
+      <div class="f-feed">
+        {data.items.length ? data.items.map((t: any) => <TopicCard t={t} viewerUid={v.uid} />) : <div class="f-empty">Здесь пока пусто. <a href="/forum/new" style="color:var(--f-acc)">Напишите первую тему!</a></div>}
+      </div>
+      {(page > 1 || data.more) && (
+        <div class="f-pager">
+          {page > 1 && <a class="f-btn" href={qs(page - 1)}>← Назад</a>}
+          <span class="f-muted" style="align-self:center">стр. {page}</span>
+          {data.more && <a class="f-btn" href={qs(page + 1)}>Дальше →</a>}
+        </div>
+      )}
+    </main>
+    <Sidebar db={db} />
+  </div>
+</ForumShell>

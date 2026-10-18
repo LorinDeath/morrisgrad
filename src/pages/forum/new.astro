@@ -1,0 +1,21 @@
+---
+import ForumShell from "../../components/forum/ForumShell.astro";
+import Editor from "../../components/forum/Editor.astro";
+import { forumPage } from "../../lib/forum/page";
+import { listSections } from "../../lib/forum/service";
+import { getSettings } from "../../lib/forum/settings";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+const [sections, s] = await Promise.all([listSections(db), getSettings(db)]);
+const def = Number(Astro.url.searchParams.get("section")) || undefined;
+---
+<ForumShell title="Новая запись" viewer={v} active="feed">
+  <div style="max-width:1100px;margin:0 auto">
+    <div class="f-crumbs"><a href="/forum">Форум</a> › Новая запись</div>
+    <h1 class="f-h1" style="margin-bottom:1rem">Новая запись</h1>
+    {!v.uid ? <div class="f-alert f-alert-info">Чтобы написать тему, войдите в аккаунт МоррисГрада — кнопка «Войти» вверху страницы.</div>
+     : v.ban ? <div class="f-alert f-alert-warn">Сейчас вы не можете создавать темы.</div>
+     : <Editor sections={sections} settings={s} viewer={v} defaultSection={def} />}
+    <p class="f-muted" style="margin-top:1rem">Перед публикацией загляните в <a href="/forum/rules" style="color:var(--f-acc)">правила форума</a>. Мат и оскорбления автоматически скрываются.</p>
+  </div>
+</ForumShell>

@@ -1,0 +1,21 @@
+---
+import { ago, plural } from "../../lib/forum/fmt";
+interface Props { sections: any[] }
+const { sections } = Astro.props;
+---
+<div class="f-sec-table">
+  <div class="f-sec-row f-sec-head" style="padding-top:.5rem;padding-bottom:.5rem"><span></span><span>Раздел</span><span style="text-align:center">Темы / сообщ.</span><span class="f-sec-last">Последнее</span></div>
+  {sections.map((s) => (
+    <a class="f-sec-row" href={`/forum/s/${s.slug}`}>
+      <span class="f-sec-icon">{s.icon}</span>
+      <span>
+        <span class="f-sec-title">{s.title}{s.admin_only ? " 🔒" : ""}</span><br />
+        <span class="f-sec-desc">{s.description}</span>
+      </span>
+      <span class="f-sec-cnt"><b>{s.topics_count}</b> {plural(s.topics_count, "тема", "темы", "тем")}<br /><b>{s.posts_count}</b> {plural(s.posts_count, "сообщ.", "сообщ.", "сообщ.")}</span>
+      <span class="f-sec-last">
+        {s.last_post_at ? <><span><b>{s.last_title || "—"}</b></span><span>{s.last_nick || "—"}, {ago(s.last_post_at)}</span></> : <span>пока пусто</span>}
+      </span>
+    </a>
+  ))}
+</div>

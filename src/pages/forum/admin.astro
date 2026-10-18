@@ -1,0 +1,268 @@
+---
+import ForumShell from "../../components/forum/ForumShell.astro";
+import { forumPage } from "../../lib/forum/page";
+import { isMod, isAdmin, listReports, listSections, listBans, modlog, listModerators } from "../../lib/forum/service";
+import { getSettings, NUM_SCHEMA } from "../../lib/forum/settings";
+import { dateTime, ago, userUrl } from "../../lib/forum/fmt";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+if (!isMod(v)) return new Response("Только для модераторов форума", { status: 403 });
+const admin = isAdmin(v);
+const tabs: [string, string, boolean][] = [["reports", "Жалобы", true], ["sections", "Разделы", admin], ["users", "Ограничения", true], ["mods", "Модераторы", admin], ["filter", "Фильтр мата", admin], ["settings", "Лимиты", admin], ["log", "Журнал", true]];
+let tab = Astro.url.searchParams.get("tab") || "reports";
+if (!tabs.some(([k, , ok]) => k === tab && ok)) tab = "reports";
+const status = Astro.url.searchParams.get("status") === "resolved" ? "resolved" : "open";
+const reports = tab === "reports" ? await listReports(db, v, status) : [];
+const sections = tab === "sections" ? await listSections(db) : [];
+const bans = tab === "users" ? await listBans(db, v) : [];
+const log = tab === "log" ? await modlog(db, v) : [];
+const mods = tab === "mods" ? await listModerators(db, v) : null;
+const modSections = tab === "mods" ? await listSections(db) : [];
+const s = admin && (tab === "filter" || tab === "settings") ? await getSettings(db) : null;
+const ACTIONS: Record<string, string> = {
+  ban: "ограничил", unban: "снял ограничение", auto_hide: "автоскрытие по жалобам", report_hide: "скрыл по жалобе", report_unhide: "вернул", report_dismiss: "отклонил жалобу",
+  topic_delete: "удалил тему", comment_delete: "удалил комментарий", topic_delete_own: "удалил свою тему", comment_delete_own: "удалил свой комментарий",
+  topic_restore: "восстановил тему", comment_restore: "восстановил комментарий", mod_add: "назначил модератора", mod_remove: "снял модератора", topic_edit: "изменил тему", comment_edit: "изменил комментарий", comment_hide: "скрыл комментарий", comment_unhide: "вернул комментарий",
+  featured_on: "в рекомендованное", featured_off: "убрал из рекомендованного", pinned_on: "закрепил", pinned_off: "открепил", locked_on: "закрыл тему", locked_off: "открыл тему", hidden_on: "скрыл тему", hidden_off: "вернул тему",
+  section_create: "создал раздел", section_edit: "изменил раздел", section_delete: "удалил раздел", section_reorder: "порядок разделов", settings: "настройки",
+};
+---
+<ForumShell title="Модерация" viewer={v} active="admin" wide>
+  <h1 class="f-h1">Модерация форума</h1>
+  <p class="f-muted" style="margin-top:0">{admin ? "Администратор" : "Модератор"} · зона: {admin ? "весь форум" : v.scope === "all" ? "весь форум" : "свои разделы"}. Права проверяются на сервере. Модераторы удаляют и скрывают темы и комментарии, разбирают жалобы и ограничивают участников; разделы, фильтр, лимиты и модераторов меняет только админ. Удаление мягкое — админ может восстановить.</p>
+  <nav class="f-tabs" style="overflow-x:auto">
+    {tabs.filter(([, , ok]) => ok).map(([k, label]) => <a class={`f-tab${tab === k ? " on" : ""}`} href={`?tab=${k}`} style="white-space:nowrap">{label}</a>)}
+  </nav>
+
+  {tab === "reports" && (
+    <section>
+      <div style="display:flex;gap:8px;margin-bottom:.8rem"><a class={`f-btn f-btn-s${status === "open" ? " f-btn-primary" : ""}`} href="?tab=reports">Открытые</a><a class={`f-btn f-btn-s${status === "resolved" ? " f-btn-primary" : ""}`} href="?tab=reports&status=resolved">Решённые</a></div>
+      {reports.length ? reports.map((r: any) => (
+        <div class="f-box" style="margin-bottom:.7rem">
+          <div class="f-card-head">
+            <span class="f-badge f-badge-warn">⚑ {r.n}</span>
+            <span>{r.target_type === "t" ? "Тема" : "Комментарий"}</span>
+            {r.target && <>от <a class="f-nick" href={userUrl(r.target.user_id)}>{r.target.nick}</a></>}
+            <span class="f-dot">·</span><span>{ago(r.last_at)}</span>
+            {r.target?.hidden ? <span class="f-badge">скрыто</span> : null}
+            {r.target?.deleted ? <span class="f-badge">удалено</span> : null}
+          </div>
+          {r.target ? <>
+            <div style="margin:.5rem 0;font-weight:700"><a href={r.target_type === "t" ? `/forum/t/${r.target.id}` : `/forum/t/${r.target.topic_id}#c${r.target.id}`} style="text-decoration:none">{r.target.title}</a></div>
+            <div class="f-muted" style="white-space:pre-wrap;max-height:6em;overflow:hidden;border-left:3px solid var(--f-line);padding-left:.6rem">{r.target.text}</div>
+          </> : <div class="f-muted">Запись не найдена</div>}
+          {r.reasons && <div style="margin-top:.4rem;font-size:.85rem">Причины: <i>{r.reasons}</i></div>}
+          {status === "open" && r.target && (
+            <div class="f-actions">
+              <button class="f-btn f-btn-s" data-resolve="hide" data-type={r.target_type} data-id={r.target_id}>Скрыть</button>
+              {r.target.hidden ? <button class="f-btn f-btn-s" data-resolve="unhide" data-type={r.target_type} data-id={r.target_id}>Вернуть и закрыть жалобу</button> : null}
+              <button class="f-btn f-btn-s f-btn-danger" data-resolve="delete" data-type={r.target_type} data-id={r.target_id}>Удалить</button>
+              <button class="f-btn f-btn-s" data-resolve="dismiss" data-type={r.target_type} data-id={r.target_id}>Отклонить жалобу</button>
+              <button class="f-btn f-btn-s f-btn-danger" data-ban={r.target.user_id}>Ограничить автора</button>
+            </div>
+          )}
+        </div>
+      )) : <div class="f-empty">Жалоб нет 🎉</div>}
+    </section>
+  )}
+
+  {tab === "sections" && (
+    <section>
+      <div class="f-box" style="margin-bottom:1rem">
+        <h3>Разделы (перетаскивать не нужно — стрелки ↑↓ меняют порядок)</h3>
+        <div data-sections>
+          {sections.map((x: any) => (
+            <form data-astro-reload class="f-sec-edit" data-sec-form={x.id}>
+              <span class="f-sec-order"><button type="button" class="f-btn f-btn-s" data-move="-1" title="Выше">↑</button><button type="button" class="f-btn f-btn-s" data-move="1" title="Ниже">↓</button></span>
+              <input name="icon" value={x.icon} maxlength="4" style="width:3.2em;text-align:center" aria-label="Иконка" />
+              <input name="title" value={x.title} maxlength="60" aria-label="Название" />
+              <input name="slug" value={x.slug} maxlength="32" aria-label="Адрес" style="width:8em" />
+              <input name="description" value={x.description} maxlength="200" aria-label="Описание" class="f-sec-desc-in" />
+              <label class="f-muted" title="Новые темы — только админы и модераторы"><input type="checkbox" name="admin_only" checked={!!x.admin_only} /> 🔒</label>
+              <span class="f-muted" style="white-space:nowrap">{x.topics_count} тем</span>
+              <button class="f-btn f-btn-s" type="submit">Сохранить</button>
+              <button class="f-btn f-btn-s f-btn-danger" type="button" data-sec-del={x.id} data-count={x.topics_count}>Удалить</button>
+            </form>
+          ))}
+        </div>
+      </div>
+      <form data-astro-reload class="f-box f-sec-edit" data-sec-new>
+        <b style="color:var(--f-acc)">Новый раздел:</b>
+        <input name="icon" value="❖" maxlength="4" style="width:3.2em;text-align:center" />
+        <input name="title" placeholder="Название" maxlength="60" required />
+        <input name="slug" placeholder="адрес-латиницей" maxlength="32" required style="width:9em" />
+        <input name="description" placeholder="Описание" maxlength="200" class="f-sec-desc-in" />
+        <label class="f-muted"><input type="checkbox" name="admin_only" /> 🔒</label>
+        <button class="f-btn f-btn-s f-btn-primary" type="submit">Создать</button>
+      </form>
+    </section>
+  )}
+
+  {tab === "users" && (
+    <section>
+      <form data-astro-reload class="f-box f-sec-edit" data-ban-nick style="margin-bottom:1rem">
+        <b style="color:var(--f-acc)">Ограничить по нику:</b>
+        <input name="nick" placeholder="Ник участника" required />
+        <select name="minutes"><option value="60">1 час</option><option value="1440" selected>1 сутки</option><option value="10080">7 дней</option><option value="43200">30 дней</option><option value="0">Бессрочно</option></select>
+        <input name="reason" placeholder="Причина" maxlength="200" class="f-sec-desc-in" />
+        <button class="f-btn f-btn-s f-btn-danger" type="submit">Ограничить</button>
+      </form>
+      <div class="f-rows">
+        {bans.length ? bans.map((b: any) => (
+          <div class="f-row" style="grid-template-columns:minmax(0,1fr) auto">
+            <div><a class="f-row-title" href={userUrl(b.user_id)}>{b.nick || b.user_id}</a>
+              <div class="f-row-meta">{b.until ? "до " + dateTime(b.until) : "бессрочно"} · {b.reason || "без причины"} · выдал {b.by_nick || "—"}</div></div>
+            <button class="f-btn f-btn-s" data-unban={b.user_id}>Снять</button>
+          </div>
+        )) : <div class="f-empty" style="border:0">Активных ограничений нет</div>}
+      </div>
+    </section>
+  )}
+
+  {tab === "mods" && mods && (
+    <section>
+      <form data-astro-reload class="f-box f-sec-edit" data-mod-add style="margin-bottom:1rem">
+        <b style="color:var(--f-acc)">Назначить модератора:</b>
+        <input name="nick" placeholder="Ник участника" required />
+        <select name="section_id"><option value="0">Весь форум</option>{modSections.map((x: any) => <option value={x.id}>Раздел: {x.icon} {x.title}</option>)}</select>
+        <button class="f-btn f-btn-s f-btn-primary" type="submit">Назначить</button>
+      </form>
+      <div class="f-rows">
+        {mods.forum.length ? mods.forum.map((m: any) => (
+          <div class="f-row" style="grid-template-columns:minmax(0,1fr) auto">
+            <div><a class="f-row-title" href={userUrl(m.user_id)}>{m.nick || m.user_id}</a> <span class="f-role f-role-moderator">Модератор</span>
+              <div class="f-row-meta">{m.section_id ? `раздел «${m.s_title || "#" + m.section_id}»` : "весь форум"} · назначил {m.by_nick || "—"} · {dateTime(m.granted_at)}</div></div>
+            <button class="f-btn f-btn-s f-btn-danger" data-mod-remove={m.user_id} data-section={m.section_id}>Снять</button>
+          </div>
+        )) : <div class="f-empty" style="border:0">Модераторов форума пока нет</div>}
+      </div>
+      <div class="f-box" style="margin-top:1rem">
+        <h3>Роли из игры «Проклятые»</h3>
+        <p class="f-muted" style="margin-top:0">Админы и модераторы игры автоматически модерируют весь форум. Эти роли меняются в игре, не здесь.</p>
+        {mods.game.map((g: any) => <div style="padding:4px 0">{g.nick || g.user_id} <span class={`f-role f-role-${g.role}`}>{g.role === "admin" ? "Админ" : "Модератор"}</span></div>)}
+      </div>
+    </section>
+  )}
+
+  {tab === "filter" && s && (
+    <form data-astro-reload class="f-box" data-settings-form>
+      <h3>Фильтр мата и оскорблений</h3>
+      <label class="f-field"><span>Режим</span>
+        <select name="filter_mode">
+          <option value="mask" selected={s.filter_mode === "mask"}>Маскировать (х***) — запись публикуется</option>
+          <option value="block" selected={s.filter_mode === "block"}>Не пропускать — просить перефразировать</option>
+          <option value="off" selected={s.filter_mode === "off"}>Выключен</option>
+        </select>
+      </label>
+      <label class="f-field"><span>Словарь — по строке на корень. «корень» — слово начинается с корня (приставки по-, за-, на-… учитываются); «*корень» — где угодно в слове; «=слово» — только целое слово. Обходы (латиница, цифры, х.у.й, повторы) ловятся автоматически.</span>
+        <textarea name="filter_words" rows="14" style="font-family:ui-monospace,monospace">{s.filter_words.join("\n")}</textarea>
+      </label>
+      <div class="f-field"><span>Проверить фразу</span><div style="display:flex;gap:8px"><input data-filter-test placeholder="Введите текст…" /><span data-filter-out class="f-muted" style="align-self:center;min-width:40%"></span></div></div>
+      <button class="f-btn f-btn-primary" type="submit">Сохранить фильтр</button>
+    </form>
+  )}
+
+  {tab === "settings" && s && (
+    <form data-astro-reload class="f-box" data-settings-form>
+      <h3>Лимиты и анти-спам</h3>
+      <div class="f-set-grid">
+        {Object.entries(NUM_SCHEMA).map(([k, sc]) => (
+          <label class="f-field"><span>{sc.label} <small class="f-dim">({sc.min}–{sc.max})</small></span><input type="number" name={k} value={(s as any)[k]} min={sc.min} max={sc.max} step="1" required /></label>
+        ))}
+      </div>
+      <label class="f-field"><span>Звания (по строке: «число сообщений = название»)</span>
+        <textarea name="ranks" rows="6">{s.ranks.map(([n, t]) => `${n} = ${t}`).join("\n")}</textarea>
+      </label>
+      <button class="f-btn f-btn-primary" type="submit">Сохранить</button>
+    </form>
+  )}
+
+  {tab === "log" && (
+    <div class="f-rows">
+      {log.length ? log.map((l: any) => (
+        <div class="f-row" style="grid-template-columns:150px minmax(0,1fr)">
+          <span class="f-muted" style="font-size:.8rem">{dateTime(l.created_at)}</span>
+          <span><b>{l.actor === "system" ? "Система" : l.actor_nick || l.actor}</b> — {ACTIONS[l.action] || l.action}
+            {l.target_type === "t" && <> <a href={`/forum/t/${l.target_id}`} style="color:var(--f-acc)">тема #{l.target_id}</a></>}
+            {l.target_type === "c" && <> комментарий #{l.target_id}</>}
+            {l.target_type === "u" && <> <a href={userUrl(l.target_id)} style="color:var(--f-acc)">участник</a></>}
+            {l.details && <span class="f-muted"> · {l.details}</span>}
+            {admin && (l.action === "topic_delete" || l.action === "topic_delete_own") && <button class="f-btn f-btn-s" style="margin-left:6px" data-restore="topic" data-id={l.target_id}>↺ Восстановить</button>}
+            {admin && (l.action === "comment_delete" || l.action === "comment_delete_own") && <button class="f-btn f-btn-s" style="margin-left:6px" data-restore="comment" data-id={l.target_id}>↺ Восстановить</button>}</span>
+        </div>
+      )) : <div class="f-empty" style="border:0">Журнал пуст</div>}
+    </div>
+  )}
+</ForumShell>
+
+<script>
+  import { api, toast } from "../../scripts/forum";
+  import { filterText, compileWords } from "../../lib/forum/profanity";
+  const run = async (fn: () => Promise<any>, msg: string, reload = true) => { try { await fn(); toast(msg); if (reload) setTimeout(() => location.reload(), 500); } catch (e: any) { toast(e.message, true); } };
+  const secData = (f: HTMLFormElement) => { const d = new FormData(f); return { icon: d.get("icon"), title: d.get("title"), slug: d.get("slug"), description: d.get("description"), admin_only: d.get("admin_only") === "on" }; };
+  if (!(window as any).__forumAdmin) {
+    (window as any).__forumAdmin = true;
+    document.addEventListener("click", (ev) => {
+      const el = (ev.target as HTMLElement).closest<HTMLElement>("[data-resolve],[data-move],[data-sec-del],[data-mod-remove]");
+      if (!el) return;
+      if (el.dataset.modRemove) { if (confirm("Снять модератора?")) run(() => api("POST", "moderators/remove", { user_id: el.dataset.modRemove, section_id: Number(el.dataset.section) }), "Модератор снят"); return; }
+      if (el.dataset.resolve) {
+        if (el.dataset.resolve === "delete" && !confirm("Удалить запись?")) return;
+        run(() => api("POST", "reports/resolve", { type: el.dataset.type, id: Number(el.dataset.id), action: el.dataset.resolve }), "Готово");
+      } else if (el.dataset.move) {
+        const f = el.closest("form")!; const box = f.parentElement!;
+        if (el.dataset.move === "-1" && f.previousElementSibling) box.insertBefore(f, f.previousElementSibling);
+        else if (el.dataset.move === "1" && f.nextElementSibling) box.insertBefore(f.nextElementSibling, f);
+        const ids = Array.from(box.querySelectorAll<HTMLElement>("[data-sec-form]")).map((x) => Number(x.dataset.secForm));
+        run(() => api("POST", "sections/order", { ids }), "Порядок сохранён", false);
+      } else if (el.dataset.secDel) {
+        const n = Number(el.dataset.count);
+        let q = "";
+        if (n > 0) {
+          const to = prompt(`В разделе ${n} тем. Введите адрес раздела, куда их перенести:`);
+          if (!to) return;
+          const target = document.querySelector<HTMLInputElement>(`[data-sec-form] input[name=slug][value="${CSS.escape(to.trim())}"]`)?.closest<HTMLElement>("[data-sec-form]");
+          if (!target) { toast("Раздел с таким адресом не найден", true); return; }
+          q = "?move_to=" + target.dataset.secForm;
+        } else if (!confirm("Удалить пустой раздел?")) return;
+        run(() => api("DELETE", "section/" + el.dataset.secDel + q), "Раздел удалён");
+      }
+    });
+    document.addEventListener("submit", (ev) => {
+      const f = ev.target as HTMLFormElement;
+      if (f.matches("[data-sec-form]")) { ev.preventDefault(); run(() => api("PUT", "section/" + f.dataset.secForm, secData(f)), "Раздел сохранён", false); }
+      else if (f.matches("[data-sec-new]")) { ev.preventDefault(); run(() => api("POST", "sections", secData(f)), "Раздел создан"); }
+      else if (f.matches("[data-mod-add]")) { ev.preventDefault(); const d = new FormData(f); run(() => api("POST", "moderators", { nick: d.get("nick"), section_id: Number(d.get("section_id")) }), "Модератор назначен"); }
+      else if (f.matches("[data-ban-nick]")) { ev.preventDefault(); const d = new FormData(f); run(() => api("POST", "ban", { nick: d.get("nick"), minutes: Number(d.get("minutes")), reason: d.get("reason") }), "Ограничение установлено"); }
+      else if (f.matches("[data-settings-form]")) {
+        ev.preventDefault();
+        const d = new FormData(f); const patch: any = {};
+        for (const [k, val] of d.entries()) {
+          if (k === "filter_words") patch[k] = String(val).split("\n");
+          else if (k === "filter_mode") patch[k] = val;
+          else if (k === "ranks") patch[k] = String(val).split("\n").map((l) => l.split("=")).filter((p) => p.length >= 2).map((p) => [Number(p[0].trim()), p.slice(1).join("=").trim()]);
+          else patch[k] = Number(val);
+        }
+        run(() => api("PUT", "settings", patch), "Настройки сохранены", false);
+      }
+    });
+    document.addEventListener("input", (ev) => {
+      const el = ev.target as HTMLInputElement;
+      if (!el.matches("[data-filter-test]")) return;
+      const words = (document.querySelector("textarea[name=filter_words]") as HTMLTextAreaElement).value.split("\n");
+      const r = filterText(el.value, compileWords(words));
+      const out = document.querySelector("[data-filter-out]")!;
+      out.textContent = el.value ? (r.clean ? "✓ чисто" : "✗ " + r.text) : "";
+    });
+  }
+</script>
+
+<style is:global>
+  .f-sec-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-top: 1px dashed var(--f-line2); }
+  .f-sec-edit:first-child { border-top: 0; }
+  .f-sec-edit input:not([type=checkbox]), .f-sec-edit select, .f-settings input { background: rgba(0,0,0,.35); color: var(--f-text); border: 1px solid var(--f-line2); border-radius: 7px; padding: 5px 8px; font: inherit; font-size: .88rem; }
+  .f-sec-desc-in { flex: 1; min-width: 160px; }
+  .f-sec-order { display: inline-flex; gap: 2px; }
+  .f-set-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0 1rem; }
+  .f-box textarea { width: 100%; }
+</style>
