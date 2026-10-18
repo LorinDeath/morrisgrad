@@ -3,6 +3,7 @@ import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
 import { GATHER_CFG } from "./gatherCfg";
 import { NPC_CFG } from "./npcWander";
+import { BM_CFG } from "./bmCfg";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
@@ -20,7 +21,7 @@ if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -131,10 +132,43 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "partyNear", label: "Отряд участника рядом тоже получает добычу", t: "bool" },
     { path: "partyMode", label: "Режим отряда: personal — свои броски; rr — общий бросок по кругу; roll — общий бросок, случайному", t: "enum", opts: ["personal", "rr", "roll"] },
     { path: "guard", label: "Стража у общего сундука", t: "bool" }, N("guardN", "Стражей", 0, 8, "int"), N("takeRate", "Взятий в секунду (двойной клик / Shift+клик)", 1, 30)] },
+  // «🌑 Чёрный маг» — только админ (не в roles.MOD_ADMIN_KINDS); одна запись id='main' (bmCfg.ts)
+  bmage: { name: "Чёрный маг", fields: [{ path: "on", label: "Чёрный маг в Аринаре (выкл — исчезает, купола и розы остаются)", t: "bool" },
+    { path: "_h_move", label: "Перемещение", t: "hdr" },
+    N("tpEveryMin", "Телепорт в случайную точку Аринара раз в, мин", 1, 1440), N("hubPadTiles", "Не ближе к центральной площади, клеток (к радиусу хаба)", 0, 200, "int"),
+    N("speed", "Скорость шага, px/с (герой ≈ 160)", 5, 200), N("wanderTiles", "Прогулка вокруг точки телепорта, клеток", 0, 40),
+    N("protectTiles", "Идёт на бой, если бой ближе, клеток", 0, 40), { path: "stepBetween", label: "Встаёт между нападающим и защищаемым", t: "bool" },
+    { path: "_h_dome", label: "Купола", t: "hdr" },
+    N("domeTiles", "Радиус купола, клеток", 1, 20), N("domeLifeSec", "Купол живёт, с", 10, 86400, "int"),
+    N("domeCdMin", "Боевой купол: перезарядка, мин. с", 1, 3600, "int"), N("domeCdMax", "Боевой купол: перезарядка, макс. с", 1, 3600, "int"),
+    { path: "smallDomeOn", label: "Малая сфера вокруг мага (Ø5): игрок рядом бьёт мага или моба возле него", t: "bool" },
+    N("smallDomeTiles", "Малая сфера: радиус, клеток", 0.5, 10), N("smallDomeLifeSec", "Малая сфера живёт, с", 2, 3600, "int"), N("smallDomeCdSec", "Малая сфера: перерыв, с", 0, 3600, "int"), N("smallTriggerTiles", "Малая сфера, если маг→защищаемый ближе, клеток (дальше — большой)", 1, 30), N("smallCastTiles", "Малая сфера: подходит к цели до, клеток", 0, 30),
+    N("bigCastTiles", "Большой купол: подходит к цели до, клеток (маг в центре)", 1, 30), N("bigCastMinTiles", "Большой купол: если цель отходит — догоняет до, клеток", 1, 30),
+    N("worldDomesMax", "Случайных куполов в мире, макс.", 0, 50, "int"), N("worldDomeEveryMin", "Случайный купол раз в, мин. мин", 1, 1440), N("worldDomeEveryMax", "Случайный купол раз в, макс. мин", 1, 1440),
+    N("domesHardCap", "Всего куполов (страховка производительности)", 1, 500, "int"),
+    { path: "domeAggro", label: "Удар из/в купол = нападение на мага", t: "bool" },
+    { path: "_h_atk", label: "Чёрная магия", t: "hdr" },
+    N("compressTiles", "Сжатие пространства: радиус, клеток (убивает любого моба в куполе)", 0, 10),
+    N("arrowPct", "Стрела вне купола: урон, % макс. ОЗ", 0, 100), N("arrowRate", "Стрел в секунду вне купола", 0.1, 30), N("arrowTiles", "Размер стрелы вне купола, клеток", 0.05, 3),
+    N("arrowDomePct", "Стрела в куполе: урон, % макс. ОЗ", 0, 100), N("arrowDomeRate", "Стрел в секунду в куполе", 0.1, 30), N("arrowDomeTiles", "Размер стрелы в куполе, клеток", 0.05, 3),
+    N("arrowSpeed", "Скорость стрел, px/с", 100, 3000, "int"), N("rangeTiles", "Дальность стрельбы, клеток", 2, 60),
+    N("volleyMin", "Залп длится, мин. с", 0.2, 120), N("volleyMax", "Залп длится, макс. с", 0.2, 120), N("volleyGapMin", "Пауза между залпами, мин. с", 0, 120), N("volleyGapMax", "Пауза между залпами, макс. с", 0, 120),
+    N("explTiles", "Взрыв стрелы: радиус, клеток", 0, 10), N("explPct", "Взрыв: урон другим игрокам, % макс. ОЗ", 0, 100), N("explBlk", "Взрыв: очернение надетых вещей, %", 0, 100),
+    { path: "_h_pvp", label: "Выстрелы игроков из купола (купол исходящие не гасит)", t: "hdr" },
+    { path: "pvpShot", label: "Выстрел, вылетевший из купола, становится чёрным", t: "bool" },
+    N("pvpShotPct", "Чёрный выстрел по игроку: урон, % макс. ОЗ", 0, 100), N("pvpExplPct", "Чёрный взрыв: урон игрокам рядом, % макс. ОЗ", 0, 100), N("pvpExplBlk", "Чёрный взрыв: очернение надетых вещей, %", 0, 100),
+    N("aggroForgetSec", "Забывает напавшего через, с", 5, 3600, "int"), N("leashTiles", "Перестаёт преследовать дальше, клеток", 5, 200),
+    N("hitsForgetSec", "Счёт попаданий (очернение при смерти) сгорает через, с", 10, 86400, "int"),
+    { path: "_h_blk", label: "Очернение и проклятая земля", t: "hdr" },
+    N("blkK", "k очернённых статов: стат = база × очернение% × k", 0, 10),
+    { path: "groundTalentsOff", label: "На проклятой земле не работают и таланты/ветка души", t: "bool" },
+    N("sproutDays", "Роза: росток, дней", 0, 365), N("budDays", "Роза: бутон, дней", 0, 365), N("openDays", "Роза: раскрытие, дней", 0, 365),
+    N("curseTilesPerDay", "Проклятая земля: рост радиуса, клеток/день", 0, 50), N("curseMaxTiles", "Проклятая земля: макс. радиус, клеток", 0, 500),
+    N("trailSec", "Чёрный след мага (визуал), с", 0, 10)] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

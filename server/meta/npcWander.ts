@@ -2,7 +2,7 @@
 // Простой цикл: пауза → выбор свободной точки в радиусе → ход по прямой (путь проверен по коллизиям пропсов) → пауза.
 // Пока с NPC разговаривает игрок (npc_talk … npc_talk_end, или таймаут) — стоит и смотрит на собеседника.
 // Админка «🚶 NPC» (kind='npc', id='main') — правка применяется живьём.
-import { NPCS } from "./shared";
+import { STATIC_NPCS as NPCS } from "./shared";
 import { blockedWorld } from "./propCollision";
 import { HELLFIRE_MAP_TILES } from "../maps/hellfireMap";
 import { worldBounds } from "../worlds/sizes";

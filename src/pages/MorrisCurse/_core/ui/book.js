@@ -78,6 +78,13 @@ export const curseTint = () => CURSE.tint;
 // Зачарованный (it.ench 1…6): статы × ярус (конфиг meta_state.ench), приставка яруса, цвет/рамка яруса (enchCfg)
 export function curseDef(d, it) {
   if (!d) return d;
+  const blk = Math.max(0, Math.min(100, Number(it?.blk) || 0));
+  if (blk > 0) { const r = curseDef0(d, it), k = 1 - blk / 100; // очернение (Чёрный маг): −blk% ко всем статам; 100% — вещь не работает
+    const cut = (st) => Object.fromEntries(Object.entries(st || {}).map(([kk, v]) => [kk, typeof v === 'number' ? (Number.isInteger(v) ? Math.round(v * k) : Math.round(v * k * 10) / 10) : v]));
+    return { ...r, stats: cut(r.stats), blk }; }
+  return curseDef0(d, it);
+}
+function curseDef0(d, it) {
   const up = it?.up | 0, n = tierOf(it);
   if (!it?.cursed && !up && !n) return d;
   let st = !it?.cursed ? d.stats || {} : d.cstats || Object.fromEntries(Object.entries(d.stats || {}).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * CURSE.statMult * 10) / 10 : v]));
@@ -93,7 +100,7 @@ export const itemStyle = (d) => lookStyle(tierOf(d));
 /** строка «☠ Проклятая · ✦ Легендарная · » перед редкостью */
 /** четыре самоцвета цвета яруса в углах рамки */
 export const gems = (d) => (d?.ench ? '<i class="mc-eg" aria-hidden="true"></i>' : '');
-export const lookBadges = (d) => `${d?.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${d?.ench ? enchBadge(d.ench) + ' · ' : ''}`;
+export const lookBadges = (d) => `${d?.blk ? `<b class="bk" style="color:#a78bfa">🌑 ${d.blk >= 100 ? 'Сломано очернением — не работает' : `Очернение −${+d.blk.toFixed(1)}%`}</b> · ` : ''}${d?.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${d?.ench ? enchBadge(d.ench) + ' · ' : ''}`;
 
 export class Book {
   constructor(overlay, meta, { canSoul, nearPetr }) {
@@ -346,6 +353,7 @@ export class Book {
     for (const [c, n] of Object.entries(r.stars || {})) parts.push(`${star(c, n)}`);
     for (const id of r.items || []) { const d = ITEM_BY_ID[id]; if (d) parts.push(`<span style="color:${RARITIES[d.rarity].color}">${iconHtml(d, 20)} ${esc(d.name)}</span>`); }
     for (const [k, n] of Object.entries(r.res || {})) parts.push(`${RESOURCES[k]?.icon || ''}×${n}`);
+    if (r.blkFix > 0) parts.push(`🌑 Очищение снаряжения ${r.blkFix}%`);
     if (r.flag === 'talents_open') parts.push('🔓 Дерево талантов');
     if (r.flag === 'radiance_open') parts.push('🔓 Сияние навыков');
     return parts.length ? `<div class="r">Награда: ${parts.join(' · ')}</div>` : '';

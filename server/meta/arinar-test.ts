@@ -3,7 +3,7 @@
 import { Zone, skillsFor, type ZPlayer } from "./zone";
 import { ZONE_GEN, WORLD_GEN, regionAt, inSafe, ARINAR_PATCHES } from "./zoneGen";
 import { ZONE_MOBS } from "./defs";
-import { MOB_INFO, ZONE_RESPAWN, NPCS } from "./shared";
+import { MOB_INFO, ZONE_RESPAWN, STATIC_NPCS as NPCS } from "./shared";
 import { BIOMES, VARIANTS, baseOf } from "./biomes";
 import { killXp, xpNeed, mobXp } from "./balance";
 import { WORLD_SIZES, ARINAR_HUB } from "../worlds/sizes";

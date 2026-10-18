@@ -1,0 +1,242 @@
+{
+ "version": 1,
+ "name": "bm_small_dome",
+ "parent_note": "Отдельный пакет малой защитной сферы Чёрного мага. Большой случайный купол — в /workspace/black_mage/fx/ (bm_dome.*, радиус 8 тайлов). Ключи не пересекаются.",
+ "scale": "1 m = 20 px",
+ "palette": "Единый стиль (37)",
+ "facing": "right",
+ "frames_per_anim": "varies (see anims[].frames); default 30",
+ "fps_suggested": 30,
+ "layout": "each (key, anim) starts on a new row at col 0; sd160/sg160: 24 columns. Frame i: x = anims.x + (i % cols)*w, y = anims.y + (i // cols)*h",
+ "glow": "<sheet>_glow.png — same layout, additive",
+ "world": {
+  "tile_px": 32,
+  "tile_m": 1.6,
+  "px_per_m": 20,
+  "camera_pitch_rad": 1.02,
+  "source": "mg-blackmage: server/meta/bmCfg.ts BM_TILE=32; engine/fxAtlas.js PX_PER_M=20; engine/stage.js pitch=1.02"
+ },
+ "dome_notes": [
+  "bm_small_dome + bm_small_dome_ring: footprint = circle of diameter 5 tiles (radius 2.5 tiles = 80 world px = 4 m).",
+  "Trigger: player within 5 tiles attacks the Black Mage or a monster near him.",
+  "Draw quads at size_m (8.1 x 7.6 m dome billboard, 8.1 x 8.1 m ground ring); anchor = base-circle centre.",
+  "Opacity per viewer (engine): local player OUTSIDE -> 0.9; INSIDE -> 0.5. Glow scaled by same opacity.",
+  "sd160/sg160 have 24 columns: frame i -> col i%24, row anims.row + i//24.",
+  "Depth-test caveat (same as big dome): billboard centre sits on the ground with depth test on; lower part may be clipped by terrain and players in the front half may draw over the dome. Prefer drawing the dome after characters without depth test, or use a 3D hemisphere.",
+  "Do NOT collide with bm_dome / bm_dome_ring keys from the big-dome atlas (radius 8 tiles)."
+ ],
+ "sheets": {
+  "sd160": {
+   "image": "bm_fx_sd160.png",
+   "glow": "bm_fx_sd160_glow.png",
+   "frameW": 162,
+   "frameH": 152,
+   "cols": 24,
+   "rows": 11,
+   "width": 3888,
+   "height": 1672
+  },
+  "sg160": {
+   "image": "bm_fx_sg160.png",
+   "glow": "bm_fx_sg160_glow.png",
+   "frameW": 162,
+   "frameH": 162,
+   "cols": 24,
+   "rows": 11,
+   "width": 3888,
+   "height": 1782
+  }
+ },
+ "keys": {
+  "bm_small_dome": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "billboard_scalable",
+   "anchor": [
+    0.5,
+    0.5329
+   ],
+   "size_m": [
+    8.1,
+    7.6
+   ],
+   "tint": false,
+   "usage": "Чёрный маг: МАЛАЯ защитная сфера. Триггер: игрок в пределах 5 тайлов атакует мага или монстра рядом с магом. Основание = круг диаметром 5 тайлов (радиус 2.5 тайла = 80 px мира = 4 м), над ним полусфера в проекции камеры (pitch 1.02). Игнорирует урон игрока, снаряды не проходят. Прозрачность по зрителю: снаружи opacity 0.9, внутри 0.5. МЕДЛЕННЫЙ: loop 4 с, spawn 2 с, collapse 1.8 с. Не путать с большим случайным куполом bm_dome (радиус 8 тайлов).",
+   "anchor_px": [
+    81,
+    81
+   ],
+   "anchor_note": "anchor = centre of the base circle on the ground; quad w x h = 8.1 x 7.6 m (cell 162x152 px at 20 px/m, 1 px empty border)",
+   "camera_pitch_rad": 1.02,
+   "projection": "orthographic approx: upper semicircle R=80 px + front half-ellipse ry=R*sin(pitch)=68.2 px",
+   "draw_alpha": 0.9,
+   "draw_alpha_outside": 0.9,
+   "draw_alpha_inside": 0.5,
+   "draw_alpha_rule": "per viewer, engine side: local player outside the dome -> opacity 0.9 (10% transparent, inside faintly visible); local player inside -> opacity 0.5",
+   "footprint_tiles": 5,
+   "footprint_shape": "circle",
+   "footprint_diameter_px": 160,
+   "footprint_diameter_m": 8.0,
+   "tile_px": 32,
+   "tile_m": 1.6,
+   "px_per_m": 20,
+   "anims": {
+    "loop": {
+     "sheet": "sd160",
+     "row": 0,
+     "col": 0,
+     "frames": 120,
+     "cols": 24,
+     "rows": 5,
+     "x": 0,
+     "y": 0,
+     "w": 162,
+     "h": 152,
+     "fps": 30,
+     "duration_s": 4.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    },
+    "spawn": {
+     "sheet": "sd160",
+     "row": 5,
+     "col": 0,
+     "frames": 60,
+     "cols": 24,
+     "rows": 3,
+     "x": 0,
+     "y": 760,
+     "w": 162,
+     "h": 152,
+     "fps": 30,
+     "duration_s": 2.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    },
+    "collapse": {
+     "sheet": "sd160",
+     "row": 8,
+     "col": 0,
+     "frames": 54,
+     "cols": 24,
+     "rows": 3,
+     "x": 0,
+     "y": 1216,
+     "w": 162,
+     "h": 152,
+     "fps": 30,
+     "duration_s": 1.8,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   },
+   "trigger": "cast when a player within 5 tiles attacks the Black Mage or a monster near him; footprint diameter 5 tiles / radius 2.5 tiles",
+   "trigger_ru": "игрок в пределах 5 тайлов атакует мага или монстра рядом с магом",
+   "footprint_diameter_tiles": 5,
+   "radius_tiles": 2.5,
+   "radius_px": 80,
+   "radius_m": 4.0
+  },
+  "bm_small_dome_ring": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "ground_decal_scalable",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    8.1,
+    8.1
+   ],
+   "tint": false,
+   "usage": "Чёрный маг: кольцо МАЛОЙ защитной сферы на земле (декаль), внешний край = круг диаметром 5 тайлов (радиус 2.5 тайла = 80 px = 4 м). МЕДЛЕННОЕ: loop 4 с, spawn 2 с, collapse 1.8 с. Пара к bm_small_dome. Не путать с bm_dome_ring (радиус 8 тайлов).",
+   "anchor_px": [
+    81,
+    81
+   ],
+   "anchor_note": "anchor = centre of the circle; quad 8.1 x 8.1 m flat on the ground (cell 162 px incl. 1 px border), circle = 8.0 m",
+   "footprint_tiles": 5,
+   "footprint_shape": "circle",
+   "footprint_diameter_px": 160,
+   "footprint_diameter_m": 8.0,
+   "tile_px": 32,
+   "tile_m": 1.6,
+   "px_per_m": 20,
+   "anims": {
+    "loop": {
+     "sheet": "sg160",
+     "row": 0,
+     "col": 0,
+     "frames": 120,
+     "cols": 24,
+     "rows": 5,
+     "x": 0,
+     "y": 0,
+     "w": 162,
+     "h": 162,
+     "fps": 30,
+     "duration_s": 4.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    },
+    "spawn": {
+     "sheet": "sg160",
+     "row": 5,
+     "col": 0,
+     "frames": 60,
+     "cols": 24,
+     "rows": 3,
+     "x": 0,
+     "y": 810,
+     "w": 162,
+     "h": 162,
+     "fps": 30,
+     "duration_s": 2.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    },
+    "collapse": {
+     "sheet": "sg160",
+     "row": 8,
+     "col": 0,
+     "frames": 54,
+     "cols": 24,
+     "rows": 3,
+     "x": 0,
+     "y": 1296,
+     "w": 162,
+     "h": 162,
+     "fps": 30,
+     "duration_s": 1.8,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   },
+   "trigger": "cast when a player within 5 tiles attacks the Black Mage or a monster near him; footprint diameter 5 tiles / radius 2.5 tiles",
+   "trigger_ru": "игрок в пределах 5 тайлов атакует мага или монстра рядом с магом",
+   "footprint_diameter_tiles": 5,
+   "radius_tiles": 2.5,
+   "radius_px": 80,
+   "radius_m": 4.0
+  }
+ }
+}

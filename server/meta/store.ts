@@ -23,7 +23,7 @@ export function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promis
 }
 
 type Shadow = {
-  acc: string; heroes: Record<string, string>; inv: Map<string, string>; invHero: Map<string, string>; invSeen: Map<string, number>; invLock?: Map<string, number>; invUp?: Map<string, number>; res: Map<string, number>;
+  acc: string; heroes: Record<string, string>; inv: Map<string, string>; invHero: Map<string, string>; invSeen: Map<string, number>; invLock?: Map<string, number>; invUp?: Map<string, number>; invBlk?: Map<string, number>; res: Map<string, number>;
   equip: Map<string, string>; mobs: Map<string, string>; idisc: Map<string, string>; fdisc: Map<string, number>;
 };
 
@@ -35,7 +35,7 @@ const accData = (a: Account) => {
 const heroData = (h: Hero) => JSON.stringify({ lvl: h.lvl, xp: h.xp, talents: h.talents, abil: h.abil, loadout: h.loadout, tv: h.tv || 1, md: h.md || 0, mdAt: h.mdAt || null, mdW: h.mdW || null, portal: h.portal || null });
 
 function snapshotOf(a: Account, heroes: Record<string, Hero>): Shadow {
-  const s: Shadow = { acc: accData(a), heroes: {}, invHero: new Map(), inv: new Map(), invSeen: new Map(), invLock: new Map(), invUp: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() };
+  const s: Shadow = { acc: accData(a), heroes: {}, invHero: new Map(), inv: new Map(), invSeen: new Map(), invLock: new Map(), invUp: new Map(), invBlk: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() };
   for (const [cls, h] of Object.entries(heroes)) {
     s.heroes[cls] = heroData(h);
     for (const [slot, uid] of Object.entries(h.equip || {})) {
@@ -44,14 +44,14 @@ function snapshotOf(a: Account, heroes: Record<string, Hero>): Shadow {
       s.equip.set(`${cls}|${slot}`, uid);
     }
   }
-  for (const it of a.inv) { s.inv.set(it.uid, it.id); s.invHero.set(it.uid, it.hero || ""); s.invSeen.set(it.uid, it.n ? 0 : 1); s.invLock!.set(it.uid, it.lk ? 1 : 0); s.invUp!.set(it.uid, it.up || 0); }
+  for (const it of a.inv) { s.inv.set(it.uid, it.id); s.invHero.set(it.uid, it.hero || ""); s.invSeen.set(it.uid, it.n ? 0 : 1); s.invLock!.set(it.uid, it.lk ? 1 : 0); s.invUp!.set(it.uid, it.up || 0); s.invBlk!.set(it.uid, it.blk || 0); }
   for (const [r, q] of Object.entries(a.res)) s.res.set(r, q);
   for (const [m, b] of Object.entries(a.bestiary)) s.mobs.set(m, `${b.kills}|${b.v ? 1 : 0}|${b.at || 0}`);
   for (const [id, d] of Object.entries(a.disc?.items || {})) s.idisc.set(id, `${d.st}|${d.v ? 1 : 0}`);
   for (const [f, d] of Object.entries(a.disc?.feats || {})) s.fdisc.set(f, d.v ? 1 : 0);
   return s;
 }
-const emptyShadow = (): Shadow => ({ acc: "", heroes: {}, invHero: new Map(), inv: new Map(), invSeen: new Map(), invLock: new Map(), invUp: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() });
+const emptyShadow = (): Shadow => ({ acc: "", heroes: {}, invHero: new Map(), inv: new Map(), invSeen: new Map(), invLock: new Map(), invUp: new Map(), invBlk: new Map(), res: new Map(), equip: new Map(), mobs: new Map(), idisc: new Map(), fdisc: new Map() });
 
 export class ProfileStore {
   sql: any;
@@ -172,7 +172,7 @@ export class ProfileStore {
     const res = await db.batch([
       q("SELECT data, verified FROM accounts WHERE pkey = ?"),
       q("SELECT hero, lvl, xp, talents, abil, loadout, talent_ver, max_dmg, max_dmg_at, max_dmg_where, home_portal FROM heroes WHERE pkey = ?"),
-      q("SELECT instance_id, item_id, acquired_at, source, viewed_at, hero, run_skill, cursed, ench, locked, upg FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
+      q("SELECT instance_id, item_id, acquired_at, source, viewed_at, hero, run_skill, cursed, ench, locked, upg, blk FROM item_instances WHERE owner = ? AND state = 'inv' ORDER BY acquired_at"),
       q("SELECT hero, slot, instance_id FROM hero_equipment WHERE pkey = ?"),
       q("SELECT res, qty FROM resources WHERE pkey = ?"),
       q("SELECT item_id, state, first_at, first_source, viewed_at FROM player_item_discovery WHERE pkey = ?"),
@@ -203,7 +203,7 @@ export class ProfileStore {
       return;
     }
     const a: Account = fixAccount({ ...newAccount(), ...JSON.parse(accR[0].data) });
-    a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0, hero: r.hero || null, ...(r.run_skill ? { rs: r.run_skill } : {}), ...(r.cursed ? { cursed: 1 } : {}), ...(r.ench >= 1 && r.ench <= 6 ? { ench: r.ench | 0 } : {}), ...(r.locked ? { lk: 1 } : {}), ...(r.upg ? { up: r.upg } : {}) }));
+    a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0, hero: r.hero || null, ...(r.run_skill ? { rs: r.run_skill } : {}), ...(r.cursed ? { cursed: 1 } : {}), ...(r.ench >= 1 && r.ench <= 6 ? { ench: r.ench | 0 } : {}), ...(r.locked ? { lk: 1 } : {}), ...(r.upg ? { up: r.upg } : {}), ...(r.blk > 0 ? { blk: Math.min(100, Number(r.blk)) } : {}) }));
     a.res = Object.fromEntries(resR.map((r: any) => [r.res, r.qty]));
     a.bestiary = Object.fromEntries(mdR.map((r: any) => [r.mob_id, { seen: 1, kills: r.kills, at: r.seen_at, v: r.viewed_at == null ? 0 : 1 }]));
     a.disc = {
@@ -320,8 +320,8 @@ export class ProfileStore {
       if (old.inv.has(uid)) continue;
       const it = byUid.get(uid)!;
       const tx = `grant:${uid}`;
-      P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at, hero, run_skill, cursed, ench, locked, upg) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now, it.hero || null, it.rs || null, it.cursed ? 1 : 0, it.ench | 0, it.lk ? 1 : 0, it.up || 0);
+      P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at, hero, run_skill, cursed, ench, locked, upg, blk) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now, it.hero || null, it.rs || null, it.cursed ? 1 : 0, it.ench | 0, it.lk ? 1 : 0, it.up || 0, it.blk || 0);
       P("INSERT OR IGNORE INTO grant_audit (ts, pkey, kind, item_id, instance_id, qty, source, tx_id, detail) VALUES (?, ?, 'grant', ?, ?, 1, ?, ?, NULL)", it.at || now, pkey, id, uid, it.src || "?", tx);
     }
     for (const [uid, id] of old.inv) if (!cur.inv.has(uid)) {
@@ -330,6 +330,7 @@ export class ProfileStore {
     }
     for (const [uid, hr] of cur.invHero) if (old.inv.has(uid) && (old.invHero.get(uid) ?? "") !== hr) P("UPDATE item_instances SET hero = ?, updated_at = ? WHERE instance_id = ? AND owner = ?", hr || null, now, uid, pkey);
     for (const [uid, up] of cur.invUp || []) if (old.inv.has(uid) && (old.invUp?.get(uid) ?? 0) !== up) P("UPDATE item_instances SET upg = ?, updated_at = ? WHERE instance_id = ? AND owner = ?", up, now, uid, pkey);
+    for (const [uid, b] of cur.invBlk || []) if (old.inv.has(uid) && (old.invBlk?.get(uid) ?? 0) !== b) P("UPDATE item_instances SET blk = ?, updated_at = ? WHERE instance_id = ? AND owner = ?", b, now, uid, pkey); // очернение (Чёрный маг)
     for (const [uid, lk] of cur.invLock || []) if (old.inv.has(uid) && (old.invLock?.get(uid) ?? 0) !== lk) P("UPDATE item_instances SET locked = ?, updated_at = ? WHERE instance_id = ? AND owner = ?", lk, now, uid, pkey);
     for (const [uid, seen] of cur.invSeen) if (old.inv.has(uid) && old.invSeen.get(uid) !== seen && seen) P("UPDATE item_instances SET viewed_at = ? WHERE instance_id = ? AND owner = ? AND viewed_at IS NULL", now, uid, pkey);
     for (const [k, uid] of cur.equip) if (old.equip.get(k) !== uid) {

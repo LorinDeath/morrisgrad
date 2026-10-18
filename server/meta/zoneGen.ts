@@ -3,7 +3,7 @@
 // Общий для сервера (Zone — авторитет) и клиента (те же узлы ресурсов и регионы из того же сида — без пересылки).
 // Всё детерминировано сидом экземпляра зоны (mulberry32), чтобы баги воспроизводились.
 // Параметры и обоснование — docs/MORRISCURSE-BALANCE.md, раздел «Открытый мир: спавн».
-import { NPCS, ZONE_RESPAWN } from "./shared";
+import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from "./shared";
 import { LEVEL_GAP } from "./levelGap";
 import { WORLD_SIZES, ARINAR_HUB } from "../worlds/sizes";
 import { BIOMES, VARIANTS, VARIANT_BY_ID, type BiomeId } from "./biomes";

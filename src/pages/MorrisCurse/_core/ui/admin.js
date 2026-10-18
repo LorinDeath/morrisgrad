@@ -42,7 +42,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -376,6 +376,7 @@ export class AdminPanel {
           <div class="box grid"><b style="grid-column:1/-1">🎁 Награда</b>
       <label><span>${statIcon('luck', 16)}Опыт</span><input type="number" data-q="xp" min="0" value="${q.rewards?.xp ?? 0}"></label><div class="box" style="grid-column:1/-1"><b>🎁 Предметы-награды</b> <small>(до 4; поиск по названию или id)</small><div class="chips" data-qitems>${(q.rewards?.items || []).map((id) => { const it = this.cat.items.find((x) => x.id === id); const rar = RARITIES[it?.rarity] || RARITIES.common; const meta = itemMetaLine(it); return `<span class="chip" data-qi="${esc(id)}" title="${esc(itemMetaTitle(it) || id)}" style="border-color:${rar.color}"><span>${esc(it?.name || id)} <small style="color:${rar.color}">${esc(id)}</small> <button class="btn red" data-qirm="${esc(id)}">✕</button></span>${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</span>`; }).join('') || '<small>нет</small>'}</div>
         <input type="search" data-qisearch placeholder="🔎 найти предмет…" style="width:100%"><div class="pick" data-qipick style="max-height:220px;overflow:auto"></div></div>
+      <label><span>🌑 Очищение снаряжения, %<br><small>снимает очернение со всех НАДЕТЫХ вещей (0 — нет)</small></span><input type="number" data-q="blkFix" min="0" max="100" step="0.5" value="${q.rewards?.blkFix || 0}"></label>
       <label><span>★ Звёзды-награда</span><span>${[['yellow', '#fbbf24'], ['red', '#f87171'], ['purple', '#c084fc'], ['black', '#9ca3af']].map(([c, col]) => `<span style="color:${col}">★</span><input type="number" data-star="${c}" min="0" max="5" style="width:44px" value="${q.rewards?.stars?.[c] || ''}">`).join('')}</span></label>          </div></div>
         <div class="vn-stepbox"><h4>3 · В процессе (необязательно)</h4><small>Одно окно, когда игрок говорит с NPC до выполнения. Пусто — короткая фраза по умолчанию.</small><div data-vnone="progress"></div></div>
         <div class="vn-stepbox"><h4>4 · Сдача (окна)</h4><small>На последнем окне — награда и «Сдать».</small><div data-vnlist="done"></div></div>
@@ -387,7 +388,7 @@ export class AdminPanel {
           return d?.p ? { k, v: d.p.t === 'num' ? Number(v?.value) : v?.value } : { k }; });
         return { type: s('[data-ot]'), mob: s('[data-om]'), npc: s('[data-on]'), res: s('[data-or]'), item: s('[data-oc]') || undefined, world: s('[data-ow]'), count: Number(s('[data-ocnt]') || 1), text: s('[data-otext]'), conds: conds.length ? conds : undefined }; });
       return { id: g('id').trim(), title: g('title'), npc: g('npc'), turnin: g('turnin') || undefined, minLevel: g('minLevel') || undefined, requires: [...sec.querySelector('[data-q="requires"]').selectedOptions].map((o) => o.value),
-        objectives, rewards: { xp: Number(g('xp') || 0), items: [...sec.querySelectorAll('[data-qi]')].map((x) => x.dataset.qi), stars: Object.fromEntries([...sec.querySelectorAll('[data-star]')].filter((i) => Number(i.value) > 0).map((i) => [i.dataset.star, Number(i.value)])) }, lore: g('lore'), dialogue: this.vnOut(), track: sec.querySelector('[data-q="track"]').checked };
+        objectives, rewards: { xp: Number(g('xp') || 0), items: [...sec.querySelectorAll('[data-qi]')].map((x) => x.dataset.qi), stars: Object.fromEntries([...sec.querySelectorAll('[data-star]')].filter((i) => Number(i.value) > 0).map((i) => [i.dataset.star, Number(i.value)])), blkFix: Number(g('blkFix') || 0) || undefined }, lore: g('lore'), dialogue: this.vnOut(), track: sec.querySelector('[data-q="track"]').checked };
     };
     const rerender = (q2) => { this.vnSync(sec); this.questForm(sec, q2); };
     sec.querySelector('[data-totree]').onclick = () => { this.sel = '__tree'; this.render(); };

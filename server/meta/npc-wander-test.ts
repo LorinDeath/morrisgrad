@@ -1,6 +1,6 @@
 // NPC бродят: в радиусе от точки появления, не сквозь твёрдое, стоят во время разговора, админка (kind npc) живьём.
 import { NpcWander, NPC_CFG, TILE_PX, npcBlocked } from "./npcWander";
-import { NPCS } from "./shared";
+import { STATIC_NPCS as NPCS } from "./shared";
 import { validatePatch, applyOverride, TABLES } from "./overrides";
 let pass = 0, fail = 0; const ok = (c: any, m: string) => { c ? pass++ : fail++; console.log((c ? "PASS " : "FAIL ") + m); };
 ok(NPC_CFG.radiusTiles === 10 && TILE_PX === 32, "по умолчанию радиус 10 клеток (320 px)");

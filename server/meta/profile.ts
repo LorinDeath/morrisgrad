@@ -1,6 +1,7 @@
 import { isRs, rsCodexId } from "./rsAny";
 import { CHEST } from "./chests";
 import { UPG, upgCost, upgClient } from "./upgrade";
+import { BM_CFG } from "./bmCfg";
 import { CURSE, CURSED_TAG, isCursedTag, untag, instStats, glowLevel, curseClient } from "./cursed";
 import { ENCH, parseTag, tagOf, tierDef, tierOk, weightedTier, enchClient } from "./enchant";
 // Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
@@ -22,7 +23,7 @@ import { goalMatch } from "./biomes";
 export const SCHEMA_VERSION = 1;
 
 // uid — instance_id (crypto.randomUUID() сервера), at — когда получен, src — источник, n — «новое» (ещё не просмотрено)
-export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1; ench?: number; lk?: 1; up?: number } // hero — владелец-герой (у каждого героя своя сумка)
+export interface InvItem { uid: string; id: string; at?: number; src?: string; n?: number; hero?: string | null; rs?: string; cursed?: 1; ench?: number; lk?: 1; up?: number; blk?: number } // blk — очернение 0…100 % (Чёрный маг, только сервер) // hero — владелец-герой (у каждого героя своя сумка)
 export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number; src: string; v: number }>; feats: Record<string, { at: number; v: number }> }
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
@@ -57,16 +58,30 @@ export function talentPoints(h: Hero): number { return talentPointsForLevel(h.lv
 
 export function itemReq(def: { lvl?: number; req?: number }): number { return Math.max(1, def.req || 1, def.lvl || 1); }
 
-export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1; ench?: number; up?: number }[] {
-  const out: { slot: string; uid: string; id: string; cursed?: 1; ench?: number; up?: number }[] = [];
+export function equippedItems(a: Account, h: Hero): { slot: string; uid: string; id: string; cursed?: 1; ench?: number; up?: number; blk?: number }[] {
+  const out: { slot: string; uid: string; id: string; cursed?: 1; ench?: number; up?: number; blk?: number }[] = [];
   for (const [slot, uid] of Object.entries(h.equip)) {
     const it = a.inv.find((i) => i.uid === uid);
     const def = it && ITEM_BY_ID[it.id];
-    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}), ...(tierOk(it.ench) ? { ench: it.ench } : {}), ...(it.up ? { up: it.up } : {}) }); // надетое не по уровню (старые сохранения) не действует
+    if (def && h.lvl >= itemReq(def)) out.push({ slot, uid, id: it.id, ...(it.cursed ? { cursed: 1 as const } : {}), ...(tierOk(it.ench) ? { ench: it.ench } : {}), ...(it.up ? { up: it.up } : {}), ...(it.blk ? { blk: it.blk } : {}) }); // надетое не по уровню (старые сохранения) не действует
   }
   return out;
 }
 
+/** снять N % очернения с надетых вещей героя (награда квеста). Возвращает, сколько вещей очищено. */
+export function repairBlackened(a: Account, h: Hero, pct: number): number {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0)); let n = 0;
+  if (!p) return 0;
+  for (const uid of Object.values(h.equip || {})) { const it = a.inv.find((i) => i.uid === uid); if (it && (it.blk || 0) > 0) { const v = Math.max(0, Math.round(((it.blk || 0) - p) * 10) / 10); if (v > 0) it.blk = v; else delete it.blk; n++; } }
+  return n;
+}
+/** очернить надетые вещи героя на +add % (смерть от мага — число его попаданий; взрыв — explBlk). Возвращает число вещей. */
+export function blackenEquipped(a: Account, h: Hero, add: number): number {
+  const p = Math.max(0, Number(add) || 0); let n = 0;
+  if (!p) return 0;
+  for (const uid of Object.values(h.equip || {})) { const it = a.inv.find((i) => i.uid === uid); if (it && ITEM_BY_ID[it.id]) { it.blk = Math.min(100, Math.round(((it.blk || 0) + p) * 10) / 10); n++; } }
+  return n;
+}
 export function activeLook(a: Account, h: Hero): string | null {
   const ids = new Set(equippedItems(a, h).map((e) => e.id));
   for (const look of Object.values(LOOKS)) if (look.parts.every((p) => ids.has(p))) return look.id;
@@ -74,24 +89,25 @@ export function activeLook(a: Account, h: Hero): string | null {
 }
 
 // Итоговые статы героя — то, что ОДНОСТОРОННЕ передаётся в забег/мини-игру/открытый мир.
-export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: number; armor: number; minAtk: number; maxAtk: number }) {
+export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: number; armor: number; minAtk: number; maxAtk: number }, opt?: { dark?: boolean }) {
+  const dark = !!opt?.dark; // проклятая земля Чёрного мага: у вещей работают только очернённые статы (игроку не сообщается)
   const raw: Record<string, number> = { hp: 0, armor: 0, dmgPct: 0, speedPct: 0, regen: 0, magnetPct: 0, cdrPct: 0, critPct: 0, lifestealPct: 0, atkSpeedPct: 0, revive: 0, armorPen: 0, armorPenPct: 0 };
-  for (const [id, r] of Object.entries(h.talents)) {
+  if (!(dark && BM_CFG.groundTalentsOff)) for (const [id, r] of Object.entries(h.talents)) {
     const t = TALENT_BY_ID[id];
     if (t) for (const [k, v] of Object.entries(t.per)) raw[k] += (v || 0) * r;
   }
-  for (const id of a.soul) { const n = SOUL_BRANCH.find((s) => s.id === id); if (n) for (const [k, v] of Object.entries(n.per)) raw[k] += v || 0; }
+  if (!(dark && BM_CFG.groundTalentsOff)) for (const id of a.soul) { const n = SOUL_BRANCH.find((s) => s.id === id); if (n) for (const [k, v] of Object.entries(n.per)) raw[k] += v || 0; }
   let wMin = 0, wMax = 0, weaponId: string | null = null;
   const items = equippedItems(a, h);
   for (const e of items) {
-    const st: any = instStats(ITEM_BY_ID[e.id], e); // проклятый экземпляр: статы базы ×1.5 на лету
+    const st: any = instStats(ITEM_BY_ID[e.id], e, dark); // проклятый экземпляр: статы базы ×1.5 на лету; очернение — bmCfg
     if (ITEM_BY_ID[e.id].slot === "weapon") weaponId = e.id;
     wMin += st.dmgMin || 0; wMax += st.dmgMax || 0;
     for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct", "armorPen", "armorPenPct"]) raw[k] += (st as any)[k] || 0;
   }
   // полный комплект моба: облик + бонус комплекта (bestiary.ts → look.stat)
   const look = activeLook(a, h);
-  const lookStat = look ? LOOKS[look]?.stat : null;
+  const lookStat = look && !dark ? LOOKS[look]?.stat : null; // на проклятой земле бонус комплекта — обычный стат, не действует
   if (lookStat) for (const [k, v] of Object.entries(lookStat)) raw[k] = (raw[k] || 0) + (v || 0);
   // капы и убывающая отдача (см. docs/MORRISCURSE-BALANCE.md)
   const eff = {
@@ -642,6 +658,8 @@ export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewa
   for (const id of q.rewards.items || []) { const it = addItem(a, id, `quest:${qid}`); if (it) got.items.push(it); }
   for (const [r, n] of Object.entries(q.rewards.res || {})) addRes(a, r, n);
   if (q.rewards.flag) a.flags[q.rewards.flag] = true;
+  // «Очищение снаряжения» (Чёрный маг): −N % очернения у каждой НАДЕТОЙ вещи героя, сдающего квест (не ниже 0)
+  if ((q.rewards as any).blkFix > 0 && h) got.blkFix = repairBlackened(a, h, (q.rewards as any).blkFix);
   // авто-принятие следующего авто-квеста (пролог)
   for (const nq of QUESTS) if (nq.auto && questAvailable(a, nq)) acceptQuest(a, nq.id);
   return { ok: true, rewards: got };

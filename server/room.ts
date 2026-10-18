@@ -932,7 +932,8 @@ export class GameRoom extends DurableObject {
           nx = Math.max(lo, Math.min(hi, nx)); ny = Math.max(lo, Math.min(hi, ny));
           // Твёрдые пропсы v2 (деревья, камни, бочки, края порталов…): сервер выталкивает тело так же, как клиент
           // предсказывает (propCollision.ts); заметное расхождение — коррекция клиенту
-          const [rx, ry] = resolveWorld(session.world || "hellfire", nx, ny);
+          let [rx, ry] = resolveWorld(session.world || "hellfire", nx, ny);
+          { const c = this.meta.bmClampMove(session, rx, ry); if (c) { rx = c[0]; ry = c[1]; } } // купол Чёрного мага не впускает напавшего
           session.x = Math.max(lo, Math.min(hi, rx));
           session.y = Math.max(lo, Math.min(hi, ry));
           if (Math.hypot(rx - nx, ry - ny) > 16) server.send(JSON.stringify({ type: "pos_fix", x: Math.round(session.x), y: Math.round(session.y) }));

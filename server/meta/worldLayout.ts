@@ -3,7 +3,7 @@
 // Вынесено из worlds/terrain.js без изменений логики.
 import tilesMeta from '../../src/assets/mc/tiles_atlas.json';
 import { WORLD_GEN, rng } from './zoneGen.ts';
-import { NPCS, ZONE_RESPAWN } from './shared.ts';
+import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from './shared.ts';
 import { worldSize } from '../worlds/sizes.ts';
 import { WORLD_PORTALS as PORTALS } from '../worlds/portals.ts';
 import { HELLFIRE_MAP_TILES } from '../maps/hellfireMap.ts';

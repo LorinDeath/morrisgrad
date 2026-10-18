@@ -4,6 +4,7 @@
 // Статы считаются на лету от базового определения (с правками админки) × statMult — правка базы меняет и проклятую версию.
 import { upgStats } from "./upgrade";
 import { enchStats, tierOk } from "./enchant";
+import { blkOf, blkNormal, blkDark } from "./bmCfg";
 export const CURSE = {
   equipDropMult: 10,     // шанс дропа ЭКИПИРОВКИ ×N во всех таблицах (материалы не трогаются), кламп 100%
   mobDropMult: 10,       // проклятый моб/босс: множитель шанса ОБЫЧНЫХ вещей и материалов
@@ -36,11 +37,15 @@ export function cursedStats<T extends Record<string, any>>(st: T | undefined | n
   return o;
 }
 /** Статы экземпляра: база (с правками админки) → ×проклятие → ×ярус зачарования → +улучшение (+N у Петра). */
-export function instStats(def: any, inst?: { cursed?: any; ench?: number; up?: number } | null) {
+export function instStats(def: any, inst?: { cursed?: any; ench?: number; up?: number; blk?: number } | null, dark = false) {
   const e = tierOk(inst?.ench) ? inst!.ench! : 0;
   let b = inst?.cursed ? cursedStats(def?.stats) : def?.stats || {};
   if (e) b = enchStats(b, e);
-  return inst?.up ? upgStats(b, inst.up, !!inst.cursed, undefined, e) : b;
+  const full = inst?.up ? upgStats(b, inst.up, !!inst.cursed, undefined, e) : b;
+  // очернение (Чёрный маг, bmCfg.ts): обычные статы −blk% (100 — вещь не работает);
+  // dark — проклятая земля: работают ТОЛЬКО очернённые статы (полные × blk% × blkK), обычные — нет
+  const bl = blkOf(inst);
+  return dark ? blkDark(full, bl) : bl ? blkNormal(full, bl) : full;
 }
 export const FULL_SET = 5; // слотов экипировки (SLOTS)
 /** Уровень свечения = число надетых проклятых (0..5); яркость — CURSE.glowN (клиент получает конфиг). */

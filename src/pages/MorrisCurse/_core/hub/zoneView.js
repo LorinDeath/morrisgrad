@@ -1,4 +1,5 @@
 import { ChestSprites } from '../engine/chestSprite.js';
+import { BmView } from './bmView.js';
 import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
@@ -79,6 +80,7 @@ export class ZoneView {
     // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
     this.pfx = new ProjFx(THREE, this.root, { max: 600, glowMax: 600 });
     this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (FX atlas v2)
+    this.bmv = new BmView(THREE, this.root); // Чёрный маг: маг, купола, стрелы, взрывы, розы, проклятая земля (hub/bmView.js)
     this.hits = [];
     this.seed = ZONE_GEN.seed;
     this.d = new THREE.Object3D();
@@ -101,7 +103,7 @@ export class ZoneView {
   setWorld(world) {
     if (world === this.world) return;
     this.world = world;
-    this.mobs.clear(); this.dying.length = 0; this.teles.length = 0;
+    this.mobs.clear(); this.dying.length = 0; this.teles.length = 0; this.bmv?.apply(null); this.bmv?.roses.clear();
     this.nodes.clear(); this.bags.clear(); this.chests.clear();
     if (world === 'arinar') this.buildNodes(this.seed);
   }
@@ -142,7 +144,10 @@ export class ZoneView {
     if (s.me) this.me = s.me;
     this.tg = s.tg || null; // выбранная цель: точные ХП с сервера
     const out = [];
+    if (this.world === 'arinar') this.bmv.apply(s.bm);
     for (const e of s.ev || []) {
+      if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
+      if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
       if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = 0.15; out.push({ k: 'float', x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : '#fff' }); } }
       else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
       else if (e.k === 'mskill') out.push({ k: 'float', x: e.x, y: e.y - 20, text: `✦ ${e.name}`, color: '#f0abfc' });
@@ -441,6 +446,7 @@ export class ZoneView {
     }
     P.end();
     this.pax.update(dt);
+    this.bmv.update(dt, this.view);
   }
 
   dispose() { this.pax?.dispose(); this.root.parent?.remove(this.root); }

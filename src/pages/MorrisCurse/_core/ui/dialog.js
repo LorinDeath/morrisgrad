@@ -22,6 +22,7 @@ export function rewardsHtml(q) {
   for (const [c, n] of Object.entries(r.stars || {})) if (n) out.push(`★ ${n} ${STAR_NAMES[c] || c}`);
   for (const id of r.items || []) out.push(`🎁 ${ITEM_BY_ID[id]?.name || id}`);
   for (const [id, n] of Object.entries(r.res || {})) out.push(`${RESOURCES[id]?.icon || '🪨'} ${RESOURCES[id]?.name || id} ×${n}`);
+  if (r.blkFix > 0) out.push(`🌑 Очищение надетого снаряжения ${r.blkFix}%`);
   return out.length ? `<div class="vn-rew"><b>Награда:</b> ${out.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : '';
 }
 
@@ -32,6 +33,7 @@ const IDLE = {
   alzi: ['Слышишь гул? Это не гроза. Это вентиляторы. …Забудь, что я сказал.', 'Мир держится на опорах. Иногда опоры — это люди.'],
   leyr: ['Пахнет фиалками. Ты чувствуешь? Значит, мир ещё жив.', 'Ветер… я так долго его ждала.'],
   petr: ['Принёс архивы? Распакую. Хитин, крылья, серебро — всё в дело.', 'Без материалов даже я не сошью сапоги из мухи.'],
+  black_mage: ['…', 'Тише. Здесь кто-то спит.', 'Не трогай то, что под куполом.'],
   kyut: ['Отражение не жалеет. Сразись с ним — или с другом.', 'Арена дуэлей — к северо-востоку от меня. Войди в розовый портал.'],
 };
 

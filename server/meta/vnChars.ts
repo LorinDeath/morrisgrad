@@ -20,6 +20,8 @@ export const VN_CHARS: Record<string, VnChar> = {
   kyut: { id: "kyut", name: "Кьют", color: "#f472b6", npc: "kyut" },
   alzi: { id: "alzi", name: "Алзи", color: "#fde68a", npc: "alzi" },
   leyr: { id: "leyr", name: "Лэйр", color: "#f9a8d4", npc: "leyr" },
+  // Чёрный маг (blackMage.ts): портреты Художника /workspace/vn_art/black_mage → public/mc-vn/black_mage (tools/vn-convert.mjs)
+  black_mage: { id: "black_mage", name: "Чёрный маг", color: "#a78bfa", npc: "black_mage" },
 };
 /** спец-говорящий «hero» — оболочка, которую сейчас носит игрок (подставляется на клиенте) */
 export const VN_HERO = "hero";

@@ -20,7 +20,7 @@ function regionDefs(r: any) {
   return { dens: "1", "packs.0": "2", "packs.1": `3 (в ${Math.round(G.campPacks3 * 100)}% лагерей)`, "pack.0": pk.length ? String(Math.min(...pk.map((p: any) => p[0]))) : "—", "pack.1": pk.length ? String(Math.max(...pk.map((p: any) => p[1]))) : "—",
     eliteMax: "без лимита", elite: String(r.elite ?? 0) };
 }
-export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather", "npc", "ench"];
+export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather", "npc", "ench", "bmage"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
 const STR = (v: any, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const OBJ_TYPES = ["talk", "kill", "kill_boss", "gather", "collect", "level", "reach"] as const;
@@ -89,6 +89,7 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
     for (const [k, v] of Object.entries(r.res)) { const n = Math.round(Number(v)); if (!RESOURCES[k] || !(n >= 1 && n <= 999)) return `ресурс ${k}: 1…999`; res[k] = n; }
     if (Object.keys(res).length) rewards.res = res;
   }
+  if (r.blkFix != null && r.blkFix !== "" && Number(r.blkFix) !== 0) { const n = Math.round(Number(r.blkFix) * 10) / 10; if (!(n > 0 && n <= 100)) return "починка очернения: 0…100 %"; (rewards as any).blkFix = n; } // Чёрный маг: очищение надетых вещей
   if (builtin && (builtin.rewards as any)?.flag) (rewards as any).flag = (builtin.rewards as any).flag; // сюжетный флаг награды — не редактируется
   const lines = (v: any, n: number) => (Array.isArray(v) ? v : [v]).map((x) => STR(x, 400).trim()).filter(Boolean).slice(0, n);
   const offer = lines(q.offer, 6), done = lines(q.done, 6);
@@ -270,7 +271,7 @@ export class AdminStore {
     // уровень в строке списка: моб — lvl; предмет/оружие — требуемый уровень надевания itemReq = max(req, lvl);
     // навык — unlockLevel; таблица дропа — уровень моба-владельца
     const lvlOf = (k: string, id: string, o: any) => k === "mob" ? o.lvl : k === "item" ? itemReq(o) : k === "skill" ? o.unlockLevel : k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.lvl : undefined;
-    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "ench" ? "✦ Зачарование: ярусы вещей и мобов, регенерация, дроп, улучшение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "npc" ? "🚶 NPC: прогулка вокруг точки появления" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
+    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "ench" ? "✦ Зачарование: ярусы вещей и мобов, регенерация, дроп, улучшение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "npc" ? "🚶 NPC: прогулка вокруг точки появления" : k === "bmage" ? "🌑 Чёрный маг: купола, чёрная магия, очернение, розы" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, values: currentValues(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
       quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),

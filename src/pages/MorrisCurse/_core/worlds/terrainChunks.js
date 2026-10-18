@@ -12,7 +12,7 @@ import tAir from '../../../../assets/mc/tiles_air.png';
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
 import { markersOf } from '../../../../../server/meta/markers.ts';
-import { NPCS, ZONE_RESPAWN } from '../../../../../server/meta/shared.ts';
+import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from '../../../../../server/meta/shared.ts';
 import { BIOMES } from '../../../../../server/meta/biomes.ts';
 import { worldSize, ARINAR_HUB } from '../../../../../server/worlds/sizes.ts';
 import { WORLD_PORTALS as PORTALS } from '../../../../../server/worlds/portals.ts';

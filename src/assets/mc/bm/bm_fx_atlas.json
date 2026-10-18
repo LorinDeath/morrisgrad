@@ -1,0 +1,607 @@
+{
+ "version": 4,
+ "scale": "1 m = 20 px",
+ "palette": "Единый стиль (37)",
+ "facing": "right",
+ "frames_per_anim": "varies (see anims[].frames); default 30",
+ "fps_suggested": 30,
+ "layout": "each (key, anim) starts on a new row at col 0; 30 columns per row (d256/g256/g256x: 15, see sheets[].cols / anims[].cols); anims with more than 30 frames wrap onto the next rows. Frame i: x = anims.x + (i % cols)*w, y = anims.y + (i // cols)*h",
+ "glow": "<sheet>_glow.png — same layout, additive",
+ "world": {
+  "tile_px": 32,
+  "tile_m": 1.6,
+  "px_per_m": 20,
+  "camera_pitch_rad": 1.02,
+  "source": "mg-blackmage: server/meta/bmCfg.ts BM_TILE=32; engine/fxAtlas.js PX_PER_M=20; engine/stage.js pitch=1.02"
+ },
+ "dome_notes": [
+  "bm_dome + bm_dome_ring: footprint = circle of RADIUS 8 tiles (diameter 16 tiles = 512 world px = 25.6 m). Server/engine radius must be 256 px (bmCfg.domeTiles = 8 as radius) both for rendering and for inDome.",
+  "art_scale 2: 1 art px = 2 world px. Draw quads at size_m (dome billboard 25.8 x 24.0 m, ground ring 25.8 x 25.8 m; circle inside = 25.6 m) with NearestFilter; anchor = base-circle centre. Billboard centre sits (anchor_y-0.5)*h = 0.9 m above the anchor in screen-up.",
+  "Opacity per viewer (engine side): local player OUTSIDE the dome -> opacity 0.9 (10% transparent, inside faintly visible); local player INSIDE -> opacity 0.5. Glow layer scaled by the same opacity.",
+  "d256/g256/g256x have 15 columns: frame i -> col i%15, row anims.row + i//15 on the sheet named in anims.sheet. Ring loop is on g256, ring spawn+collapse on g256x (split to keep sheets <= 4096 px)."
+ ],
+ "sheets": {
+  "s32": {
+   "image": "bm_fx_s32.png",
+   "glow": "bm_fx_s32_glow.png",
+   "frameW": 32,
+   "frameH": 32,
+   "cols": 30,
+   "rows": 3,
+   "width": 960,
+   "height": 96
+  },
+  "s64": {
+   "image": "bm_fx_s64.png",
+   "glow": "bm_fx_s64_glow.png",
+   "frameW": 64,
+   "frameH": 64,
+   "cols": 30,
+   "rows": 7,
+   "width": 1920,
+   "height": 448
+  },
+  "r128": {
+   "image": "bm_fx_r128.png",
+   "glow": "bm_fx_r128_glow.png",
+   "frameW": 128,
+   "frameH": 128,
+   "cols": 30,
+   "rows": 2,
+   "width": 3840,
+   "height": 256
+  },
+  "d256": {
+   "image": "bm_fx_d256.png",
+   "glow": "bm_fx_d256_glow.png",
+   "frameW": 258,
+   "frameH": 240,
+   "cols": 15,
+   "rows": 16,
+   "width": 3870,
+   "height": 3840
+  },
+  "g256": {
+   "image": "bm_fx_g256.png",
+   "glow": "bm_fx_g256_glow.png",
+   "frameW": 258,
+   "frameH": 258,
+   "cols": 15,
+   "rows": 8,
+   "width": 3870,
+   "height": 2064
+  },
+  "g256x": {
+   "image": "bm_fx_g256x.png",
+   "glow": "bm_fx_g256x_glow.png",
+   "frameW": 258,
+   "frameH": 258,
+   "cols": 15,
+   "rows": 8,
+   "width": 3870,
+   "height": 2064
+  },
+  "t64": {
+   "image": "bm_fx_t64.png",
+   "glow": "bm_fx_t64_glow.png",
+   "frameW": 64,
+   "frameH": 96,
+   "cols": 30,
+   "rows": 2,
+   "width": 1920,
+   "height": 192
+  }
+ },
+ "keys": {
+  "bm_arrow_small": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.6,
+   "tint": false,
+   "usage": "Чёрный маг: чёрная магическая стрела (вне купола), 10 выстр/с, 1% max HP",
+   "anims": {
+    "fly": {
+     "sheet": "s32",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 0,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    },
+    "hit": {
+     "sheet": "s32",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 32,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 90
+    }
+   }
+  },
+  "bm_trail_decal": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "ground_decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 1.6,
+   "tint": false,
+   "usage": "Чёрный маг: заражённое пятно на земле под следом, гаснет за 1 с",
+   "anims": {
+    "decal": {
+     "sheet": "s32",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 64,
+     "w": 32,
+     "h": 32,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   }
+  },
+  "bm_arrow_big": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "directional",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 3.2,
+   "tint": false,
+   "usage": "Чёрный маг: большая стрела x2 (в куполе, размер полтайла), 7 выстр/с, 2% max HP",
+   "anims": {
+    "fly": {
+     "sheet": "s64",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 0,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    },
+    "hit": {
+     "sheet": "s64",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 64,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 90
+    }
+   }
+  },
+  "bm_trail": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": 3.2,
+   "tint": false,
+   "usage": "Чёрный маг: короткий чёрный дымный след за магом (спавнить каждые ~0.15 с на позиции мага)",
+   "anims": {
+    "puff": {
+     "sheet": "s64",
+     "row": 2,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 128,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   }
+  },
+  "bm_dome_surface": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "tileable_texture",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": null,
+   "tint": false,
+   "usage": "Чёрный маг: бесшовная (тайлящаяся) текстура поверхности купола для 3D-полусферы, alpha≈0.5. Цикл 4 с",
+   "anims": {
+    "loop": {
+     "sheet": "s64",
+     "row": 3,
+     "col": 0,
+     "frames": 120,
+     "cols": 30,
+     "rows": 4,
+     "x": 0,
+     "y": 192,
+     "w": 64,
+     "h": 64,
+     "fps": 30,
+     "duration_s": 4.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    }
+   }
+  },
+  "bm_explosion": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 6.4,
+   "tint": false,
+   "usage": "Чёрный маг: взрыв от большой стрелы (бьёт других игроков, 5% max HP, ломает вещи на 2%)",
+   "anims": {
+    "boom": {
+     "sheet": "r128",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 0,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 60
+    }
+   }
+  },
+  "bm_compress": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "ground_decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": 6.4,
+   "tint": false,
+   "usage": "Чёрный маг: сжатие пространства вокруг себя, радиус 2 тайла (в куполе убивает любого моба)",
+   "anims": {
+    "cast": {
+     "sheet": "r128",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 128,
+     "w": 128,
+     "h": 128,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": 45
+    }
+   }
+  },
+  "bm_dome": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "billboard_scalable",
+   "anchor": [
+    0.5,
+    0.5375
+   ],
+   "size_m": [
+    25.8,
+    24.0
+   ],
+   "tint": false,
+   "usage": "Чёрный маг: купол-барьер, основание = круг радиусом 8 тайлов (Ø16 тайлов = 512 px мира = 25.6 м), над ним полусфера в проекции игровой камеры (наклон 1.02 рад ≈ 58.4°). Игнорирует любой урон игрока, снаряды не проходят. Прозрачность по зрителю (движок): игрок снаружи — opacity 0.9, внутри — 0.5. МЕДЛЕННЫЙ: loop 4 с, spawn 2 с, collapse 1.8 с",
+   "anchor_px": [
+    129,
+    129
+   ],
+   "anchor_note": "anchor = centre of the base circle on the ground; quad w x h = 25.8 x 24.0 m (cell 258x240 art px, art_scale 2 -> 516x480 world px at 20 px/m, 1 art px empty border)",
+   "camera_pitch_rad": 1.02,
+   "projection": "orthographic approx: upper semicircle R=128 art px + front half-ellipse ry=R*sin(pitch)=109.1 art px",
+   "draw_alpha": 0.9,
+   "draw_alpha_outside": 0.9,
+   "draw_alpha_inside": 0.5,
+   "draw_alpha_rule": "per viewer, engine side: local player outside the dome -> opacity 0.9 (10% transparent, inside faintly visible); local player inside -> opacity 0.5",
+   "footprint_shape": "circle",
+   "radius_tiles": 8,
+   "diameter_tiles": 16,
+   "radius_px": 256,
+   "diameter_px": 512,
+   "diameter_m": 25.6,
+   "tile_px": 32,
+   "tile_m": 1.6,
+   "px_per_m": 20,
+   "art_scale": 2,
+   "art_scale_note": "1 art px = 2 world px: draw the quad at size_m (stretch x2, NearestFilter)",
+   "anims": {
+    "loop": {
+     "sheet": "d256",
+     "row": 0,
+     "col": 0,
+     "frames": 120,
+     "cols": 15,
+     "rows": 8,
+     "x": 0,
+     "y": 0,
+     "w": 258,
+     "h": 240,
+     "fps": 30,
+     "duration_s": 4.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    },
+    "spawn": {
+     "sheet": "d256",
+     "row": 8,
+     "col": 0,
+     "frames": 60,
+     "cols": 15,
+     "rows": 4,
+     "x": 0,
+     "y": 1920,
+     "w": 258,
+     "h": 240,
+     "fps": 30,
+     "duration_s": 2.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    },
+    "collapse": {
+     "sheet": "d256",
+     "row": 12,
+     "col": 0,
+     "frames": 54,
+     "cols": 15,
+     "rows": 4,
+     "x": 0,
+     "y": 2880,
+     "w": 258,
+     "h": 240,
+     "fps": 30,
+     "duration_s": 1.8,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   }
+  },
+  "bm_dome_ring": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "ground_decal_scalable",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    25.8,
+    25.8
+   ],
+   "tint": false,
+   "usage": "Чёрный маг: кольцо купола на земле (декаль), внешний край = круг радиусом 8 тайлов (Ø 512 px мира = 25.6 м). МЕДЛЕННОЕ: loop 4 с, spawn 2 с, collapse 1.8 с",
+   "anchor_px": [
+    129,
+    129
+   ],
+   "anchor_note": "anchor = centre of the circle; quad 25.8 x 25.8 m flat on the ground (cell 258 art px incl. 1 px border, art_scale 2), circle = 25.6 m",
+   "footprint_shape": "circle",
+   "radius_tiles": 8,
+   "diameter_tiles": 16,
+   "radius_px": 256,
+   "diameter_px": 512,
+   "diameter_m": 25.6,
+   "tile_px": 32,
+   "tile_m": 1.6,
+   "px_per_m": 20,
+   "art_scale": 2,
+   "art_scale_note": "1 art px = 2 world px: draw the quad at size_m (stretch x2, NearestFilter)",
+   "anims": {
+    "loop": {
+     "sheet": "g256",
+     "row": 0,
+     "col": 0,
+     "frames": 120,
+     "cols": 15,
+     "rows": 8,
+     "x": 0,
+     "y": 0,
+     "w": 258,
+     "h": 258,
+     "fps": 30,
+     "duration_s": 4.0,
+     "loop": true,
+     "seamless": true,
+     "seam_diff_px": 0,
+     "cycles_in_loop": 1,
+     "fps_match_original_timing": null
+    },
+    "spawn": {
+     "sheet": "g256x",
+     "row": 0,
+     "col": 0,
+     "frames": 60,
+     "cols": 15,
+     "rows": 4,
+     "x": 0,
+     "y": 0,
+     "w": 258,
+     "h": 258,
+     "fps": 30,
+     "duration_s": 2.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    },
+    "collapse": {
+     "sheet": "g256x",
+     "row": 4,
+     "col": 0,
+     "frames": 54,
+     "cols": 15,
+     "rows": 4,
+     "x": 0,
+     "y": 1032,
+     "w": 258,
+     "h": 258,
+     "fps": 30,
+     "duration_s": 1.8,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   }
+  },
+  "bm_teleport": {
+   "blend": "normal",
+   "glow_layer": true,
+   "mode": "billboard",
+   "anchor": [
+    0.5,
+    0.9375
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "tint": false,
+   "usage": "Чёрный маг: телепорт (раз в 50 мин в случайную точку Аринара, кроме центральной площади)",
+   "anims": {
+    "out": {
+     "sheet": "t64",
+     "row": 0,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 0,
+     "w": 64,
+     "h": 96,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    },
+    "in": {
+     "sheet": "t64",
+     "row": 1,
+     "col": 0,
+     "frames": 30,
+     "cols": 30,
+     "rows": 1,
+     "x": 0,
+     "y": 96,
+     "w": 64,
+     "h": 96,
+     "fps": 30,
+     "duration_s": 1.0,
+     "loop": false,
+     "seamless": false,
+     "seam_diff_px": null,
+     "cycles_in_loop": null,
+     "fps_match_original_timing": null
+    }
+   }
+  }
+ }
+}

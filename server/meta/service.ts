@@ -33,12 +33,14 @@ import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { gatherClient } from "./gatherCfg";
 import { NpcWander } from "./npcWander";
+import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
+import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN } from "./zoneGen";
 let MZ: { ver: number; z: any } | null = null;
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
-  questLockReason, questRefresh,
+  questLockReason, questRefresh, blackenEquipped,
 } from "./profile";
 import { Zone, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
@@ -55,8 +57,10 @@ import { tryRevive } from "./revive";
 /** восстановление в бою для клиента (забеги считают ХП у себя) */
 export function regenCfg() { const G: any = ZONE_GEN; return { mul: G.regenCombat ?? 0.1, sec: G.regenCombatSec ?? 5 }; }
 /** заморозка моба: боссы — 0.6 с, элита/редкие — половина; после — 1.5 с устойчивости (нельзя держать вечно) */
+export const FREEZE_GUARD: { inDome?: (x: number, y: number) => any } = {}; // купол Чёрного мага: заморозка игроков не проходит
 export function freezeMob(m: any, ms: number, now = Date.now()) {
   if ((m.frzImmune || 0) > now) return 0;
+  if (FREEZE_GUARD.inDome?.(m.x, m.y)) return 0;
   const d = ZONE_MOBS[m.type]?.boss || m.special === "boss" ? Math.min(600, ms) : m.elite || m.special === "rare" ? ms * 0.5 : ms;
   m.frozenUntil = Math.max(m.frozenUntil || 0, now + d); m.frzImmune = m.frozenUntil + 1500;
   return d;
@@ -234,7 +238,7 @@ export class MetaService {
       const equip: Record<string, { uid: string; id: string }> = {};
       for (const [slot, uid] of Object.entries(hh.equip || {})) {
         const it = a.inv.find((i) => i.uid === uid);
-        if (it) equip[slot] = { uid: String(uid), id: it.id, ...(it.cursed ? { cursed: 1 } : {}), ...(it.ench ? { ench: it.ench } : {}) };
+        if (it) equip[slot] = { uid: String(uid), id: it.id, ...(it.cursed ? { cursed: 1 } : {}), ...(it.ench ? { ench: it.ench } : {}), ...(it.blk ? { blk: it.blk } : {}) };
       }
       const bag = a.inv
         .filter((i) => (!i.hero || i.hero === id) && !eqUids.has(i.uid))
@@ -334,7 +338,7 @@ export class MetaService {
     const cls = session.stats?.classId || null;
     const a = this.store.account(ms.pkey);
     if (!cls) return { ...heroBase(null), damageReduction: 0, dmgPct: 0, critPct: 5, lifestealPct: 0, regen: 0, cdrPct: 0, armorPen: 0, armorPenPct: 0, weaponMin: 6, weaponMax: 9, abilities: [] as any[], speedPct: 0, magnetPct: 0, atkSpeedPct: 0, revive: 0, look: null, level: 0, weaponId: null, wtype: weaponType(null, null), cursedGlow: 0, weaponCursed: 0 };
-    return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls));
+    return heroEffective(a, this.store.hero(ms.pkey, cls), cls, heroBase(cls), { dark: !!(ms as any).dark }); // проклятая земля (Чёрный маг): только очернённые статы
   }
 
   // ——— PvP / публичные статы ———
@@ -394,9 +398,11 @@ export class MetaService {
     return questEvent(a, ev, ms && cls ? this.store.hero(ms.pkey, cls) : null);
   }
 
+  bm = new BlackMage("arinar"); bmLoaded = false; bmSaving = false; bmDirty = false; bmSaveAt = 0; // Чёрный маг (blackMage.ts) — один на Аринар
   npcs = new NpcWander(); // NPC бродят вокруг точки появления (позиции — сервер, рассылка в zone_state.npc)
   nearNpc(session: any, npc: string) {
-    const n = NPCS[npc], p = this.npcs.pos(npc) || n;
+    const n = NPCS[npc], p = npc === BM_NPC ? { x: this.bm.x, y: this.bm.y } : this.npcs.pos(npc) || n; // Чёрный маг — живая позиция (телепорт)
+    if (npc === BM_NPC && (BM_CFG.on === false || this.bm.aggro.has(session.id))) return false; // выключен / этот игрок с ним в бою — ни взять, ни сдать
     // +20 px запаса: клиент видит NPC с интерполяцией (до ~0,2 с отставания), NPC мог чуть отойти
     return n && (session.world || "hellfire") === n.world && Math.hypot(session.x - p.x, session.y - p.y) <= NPC_RANGE + 20;
   }
@@ -502,11 +508,13 @@ export class MetaService {
         if (r.ok) this.qev(a, session, { type: "craft" });
         reply(r, "Создано!"); return true;
       }
-      case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); return true; }
+      case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); if (!msg.npc || msg.npc === BM_NPC) this.bm.talkEnd(session.id); return true; }
       case "npc_talk": {
         const npc = String(msg.npc);
+        if (npc === BM_NPC && this.bm.aggro.has(session.id)) { this.send(ws, { type: "toast_error", message: "Чёрный маг не станет говорить с тем, кто на него напал" }); return true; } // с остальными говорит и во время боя
         if (!this.nearNpc(session, npc)) { this.send(ws, { type: "toast_error", message: "Подойдите ближе" }); return true; }
         this.npcs.talkStart(npc, session.id, session.x, session.y); // стоит, пока открыт диалог (npc_talk_end / таймаут)
+        if (npc === BM_NPC) this.bm.talkStart(session.id); // Чёрный маг тоже стоит и смотрит (если на него никто не напал)
         this.questEv(ws, session, { type: "talk", npc });
         questRefresh(a, h);
         // все квесты персонажа: доступные, закрытые (с причиной), активные, готовые к сдаче, выполненные (лор читается)
@@ -665,6 +673,7 @@ export class MetaService {
         if (msg.engageNear) { const z = this.zoneOf(session); for (const m of z?.near(session.x, session.y, Number(msg.engageNear) || 300) || []) if (!m.dead && !m.special && Math.hypot(m.x - session.x, m.y - session.y) <= (Number(msg.engageNear) || 300)) { m.targetSid = session.id; m.dmgBy.set(session.id, (m.dmgBy.get(session.id) || 0) + 1); } } // тест сундуков: «пачка вступила в бой»
         if (msg.chestInfo) this.send(ws, { type: "dev_chests", list: [...this.chests.chests.values()].map((c) => ({ id: c.id, x: c.x, y: c.y, n: c.entries.length, owners: [...new Set(c.entries.map((e) => e.o))], per: c.entries.reduce((o: any, e) => ((o[e.o] = (o[e.o] || 0) + 1), o), {}), pub: Date.now() >= c.pubAt, guarded: !!c.guarded })), enc: this.camps.map.size });
         if (msg.chestSpawn && typeof msg.chestSpawn === "object") { const ents: any[] = []; for (const [owner, ids] of Object.entries(msg.chestSpawn.by || {})) for (const id of (Array.isArray(ids) ? ids : []).slice(0, 30)) if (ITEM_BY_ID[parseTag(String(id)).id]) ents.push({ o: owner === "me" ? ms.pkey : String(owner), id: String(id), k: "item", n: 1 }); this.chests.spawn(session.world || "hellfire", session.x + (Number(msg.chestSpawn.dx) || 0), session.y + (Number(msg.chestSpawn.dy) || 0), ents, "dev", "mob", "dev", "dew_slime"); } // тест сундуков (только dev)
+        if (msg.bm && typeof msg.bm === "object") this.bmDev(ws, session, ms, a, h, msg.bm); // Чёрный маг (только dev)
         if (msg.hurtMe) { (ms as any).hurtAt = Date.now(); ms.zp.hp = Math.max(1, ms.zp.hp - 1); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
@@ -957,7 +966,9 @@ export class MetaService {
     if (now < ms.lastAtk - atkCd * 0.15) return;
     let dx = aimR.dx, dy = aimR.dy;
     const lockId = Number(msg.mob);
-    if (lockId) { // выбранная цель: точно в неё (сервер-авторитет: моб жив и в пределах дальности оружия ×1.6)
+    if (lockId === BM_LOCK && zone.guard === this.bm) { // цель — Чёрный маг (бессмертен; удар = нападение)
+      if (Math.hypot(this.bm.x - ox, this.bm.y - oy) <= Math.max(160, W.atk.range * 1.6)) { dx = this.bm.x - ox; dy = this.bm.y - oy; }
+    } else if (lockId) { // выбранная цель: точно в неё (сервер-авторитет: моб жив и в пределах дальности оружия ×1.6)
       const m0 = zone.byId.get(lockId);
       if (m0 && !m0.dead && Math.hypot(m0.x - ox, m0.y - oy) <= Math.max(160, W.atk.range * 1.6)) { dx = m0.x - ox; dy = m0.y - oy; }
     }
@@ -991,6 +1002,7 @@ export class MetaService {
         const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
         zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt });
         targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
+        if (zone.guard === this.bm && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
       } else {
         const line = W.atk.kind === "line";
         zone.fire({ o: "p", sid: session.id, t: AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1,
@@ -1374,6 +1386,7 @@ export class MetaService {
   }
   chestTick(now: number) {
     if (!this.chestLoaded) { this.chestLoaded = true; this.chestLoad().catch((e) => console.error("[mc] chest load", e?.message || e)); }
+    if (!this.bmLoaded) { this.bmLoaded = true; this.bmInit(); this.bmLoad().catch((e) => { this.bm.loaded = true; console.error("[mc] black mage load", e?.message || e); }); }
     this.camps.expire(now); // зачистки без убийств дольше campIdleSec — сброс
     this.chests.expire(now);
     for (const c of this.chests.chests.values()) if (CHEST.guard && !c.guarded && now >= c.pubAt && c.entries.length) this.guardChest(c);
@@ -1385,6 +1398,103 @@ export class MetaService {
     const z: any = (this.zones as any)[c.world]; if (!z || !ZONE_MOBS[c.guardType] || !CHEST.guardN) return;
     if (z.near(c.x, c.y, 400).some((m: any) => !m.dead && Math.hypot(m.x - c.x, m.y - c.y) < 400)) return;
     for (let i = 0; i < CHEST.guardN; i++) { const a = (i / CHEST.guardN) * Math.PI * 2, mm = z.addMob(c.guardType, c.x + Math.cos(a) * 70, c.y + Math.sin(a) * 70, { fixed: false, respawn: 0 }); (mm as any).chestGuard = c.id; }
+  }
+
+  // ——— Чёрный маг: связь с зоной, урон игрокам, смерть, очернение, сохранение ———
+  bmInit() {
+    const z = this.zones.arinar; if (!z) return;
+    z.guard = this.bm; FREEZE_GUARD.inDome = (x, y) => this.bm.inDome(x, y);
+    this.bm.host = {
+      hurt: (sid, pct, src, blkAdd) => this.bmHurt(sid, pct, src, blkAdd),
+      push: (sid, x, y) => { const e = this.sessionLookup?.(sid); const ms = this.ms.get(sid); if (!e) return; const s2 = e[1]; s2.x = x; s2.y = y; (s2 as any).lastMoveAt = Date.now(); if (ms) { ms.zp.x = x; ms.zp.y = y; } this.send(e[0], { type: "pos_fix", x: Math.round(x), y: Math.round(y), bm: 1 }); },
+      pkeyOf: (sid) => this.ms.get(sid)?.pkey || null,
+      dirty: () => { this.bmDirty = true; },
+      roseAdded: (r) => { if (this.db) this.db.prepare("INSERT OR IGNORE INTO black_roses (id, world, x, y, born, pkey) VALUES (?, ?, ?, ?, ?, ?)").bind(r.id, "arinar", r.x, r.y, r.born, r.pkey || null).run().catch((e: any) => console.error("[mc] rose save", e?.message || e)); },
+    };
+  }
+  /** урон мага: pct % макс. ОЗ (истинный — броня не режет), неуязвимость рывка/навыка работает (уклониться можно) */
+  bmHurt(sid: string, pct: number, src: "arrow" | "expl", blkAdd: number) {
+    const ms = this.ms.get(sid); if (!ms || !ms.zp.alive) return;
+    const now = Date.now(), z = this.zones.arinar;
+    if (isInvuln(ms, now)) return;
+    if (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y)) return;
+    const real = Math.max(1, Math.round(ms.zp.maxHp * Math.max(0, pct) / 100));
+    ms.zp.hp -= real; (ms as any).hurtAt = now;
+    this.qNote(ms, "hit", now);
+    z?.events.push({ k: "phit", sid, d: real, src: "black_mage", bm: src === "expl" ? 2 : 1 });
+    if (blkAdd > 0) { const e = this.sessionLookup?.(sid), cls = e?.[1]?.stats?.classId; if (cls && blackenEquipped(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls), blkAdd)) { ms.dirty = true; (ms as any).bmMeta = true; } }
+    if (ms.zp.hp <= 0 && tryRevive(ms as any)) z?.events.push({ k: "previve", sid, hp: ms.zp.hp });
+    else if (ms.zp.hp <= 0) {
+      ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid, bm: 1 }); ST.inc("deaths");
+      this.bmDeath(sid, ms);
+    }
+  }
+  /** смерть от мага: надетым вещам +N % очернения (N — попадания мага с прошлой смерти), роза на месте смерти */
+  bmDeath(sid: string, ms: any) {
+    const n = this.bm.onPlayerDeath(sid, ms.zp.x, ms.zp.y);
+    const e = this.sessionLookup?.(sid), cls = e?.[1]?.stats?.classId;
+    if (n > 0 && cls && blackenEquipped(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls), n)) { ms.dirty = true; (ms as any).bmMeta = true; }
+    if (e) this.send(e[0], { type: "toast", text: "Что-то тёмное въелось в снаряжение…", color: "#a78bfa" });
+  }
+  /** проклятая земля под игроком (раз в 0,5 с): меняет статы молча (refreshZonePlayer), игроку не сообщается */
+  bmGround(s: any, ms: any, now: number) {
+    if (now - ((ms as any).bmGrAt || 0) < 500) return; (ms as any).bmGrAt = now;
+    const on = (s.world || "hellfire") === "arinar" && this.bm.cursedAt(s.x, s.y);
+    if (on !== !!(ms as any).dark) { (ms as any).dark = on; this.refreshZonePlayer(s); this.bmGroundHook(s, on); }
+  }
+  /** хук на будущее (развитие проклятой земли): вошёл/вышел */
+  bmGroundHook(_s: any, _on: boolean) {}
+  /** движение игрока (room.ts): напавший не войдёт в купол */
+  bmClampMove(session: any, x: number, y: number): [number, number] | null { return (session.world || "hellfire") === "arinar" ? this.bm.clampMove(session.id, x, y) : null; }
+  async bmLoad() {
+    if (!this.db) { this.bm.loaded = true; return; }
+    await this.db.prepare("CREATE TABLE IF NOT EXISTS bm_state (k TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL)").run();
+    await this.db.prepare("CREATE TABLE IF NOT EXISTS black_roses (id INTEGER PRIMARY KEY, world TEXT NOT NULL, x INTEGER NOT NULL, y INTEGER NOT NULL, born INTEGER NOT NULL, pkey TEXT)").run();
+    const st = await this.db.prepare("SELECT data FROM bm_state WHERE k = 'arinar'").first().catch(() => null);
+    if (st?.data) { try { this.bm.restore(JSON.parse(st.data)); } catch {} }
+    const r = await this.db.prepare("SELECT id, x, y, born, pkey FROM black_roses WHERE world = 'arinar'").all();
+    for (const row of r?.results || []) if (!this.bm.roses.some((q) => q.id === row.id)) this.bm.addRose({ id: Number(row.id), x: Number(row.x), y: Number(row.y), born: Number(row.born), pkey: row.pkey || null });
+    this.bm.loaded = true;
+    console.log(`[mc] Чёрный маг: розы ${this.bm.roses.length}, купола ${this.bm.domes.length}`);
+  }
+  async bmSave() {
+    this.bmDirty = false; if (!this.db) return; this.bmSaving = true;
+    try { await this.db.prepare("INSERT INTO bm_state (k, data, updated_at) VALUES ('arinar', ?, ?) ON CONFLICT(k) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at").bind(JSON.stringify(this.bm.serialize()), Date.now()).run(); }
+    finally { this.bmSaving = false; }
+  }
+  /** dev (MC_DEV_TRUST_USERID=1 + localhost): управление магом для плейтестов */
+  bmDev(ws: WebSocket, session: any, ms: any, a: Account, h: Hero | null, o: any) {
+    const bm = this.bm, now = bmClock.now();
+    if (o.here) { bm.x = bm.homeX = bm.tx = session.x + (Number(o.dx) || 160); bm.y = bm.homeY = bm.ty = session.y + (Number(o.dy) || 0); bm.moving = false; bm.pauseUntil = now + 60000; }
+    if (o.tp) bm.teleport(now);
+    if (o.at) { bm.x = bm.homeX = bm.tx = Number(o.at.x) || bm.x; bm.y = bm.homeY = bm.ty = Number(o.at.y) || bm.y; bm.moving = false; bm.pauseUntil = now + 60000; }
+    if (o.clearMobs) { const z = this.zones.arinar as any; for (const m of z.near(session.x, session.y, Math.min(1500, Number(o.clearMobs) || 600))) if (!m.dead && (!m.special || o.clearBoss)) z.kill(m, () => {}); } // dev: убрать мобов вокруг (без наград)
+    let spot: any = null; // плейтест: открытое место (вся окрестность R проходима, мобов нет, вне хаба)
+    if (o.openSpot) { const R = Math.min(1200, Number(o.openSpot) || 600), z = this.zones.arinar as any; let best = Infinity;
+      for (let i = 0; i < 1500; i++) { const x = 3000 + Math.random() * 42000, y = 3000 + Math.random() * 42000;
+        if (Math.hypot(x - 24000, y - 24000) < 1200 + R + 400 || bm.blocked("arinar", x, y, 24)) continue;
+        let n = 0, all = 0; for (let dx = -R; dx <= R; dx += 64) for (let dy = -R; dy <= R; dy += 64) if (dx * dx + dy * dy <= R * R) { all++; if (bm.blocked("arinar", x + dx, y + dy, 16)) n++; }
+        if (n > all * 0.04) continue;
+        const mobs = z.near(x, y, R + 200).filter((m: any) => !m.dead && !m.special).length, sc = mobs * 10 + n; // меньше мобов, потом — меньше преград
+        if (sc < best) { best = sc; spot = { x: Math.round(x), y: Math.round(y), blockedPct: Math.round(n / all * 100), mobs }; } }
+      // мобов в окрестности убрать (dev, без наград) — лагеря вернутся по своему таймеру
+      if (spot) for (const m of z.near(spot.x, spot.y, R + 200)) if (!m.dead && !m.special) z.kill(m, () => {}); }
+    if (o.walk) { bm.tx = bm.x + (Number(o.walk.dx) || 0); bm.ty = bm.y + (Number(o.walk.dy) || 0); bm.moving = true; bm.pauseUntil = 0; } // шаг к точке (скриншот ходьбы)
+    if (o.aggro) bm.hitMage(session.id);
+    if (o.calm) { bm.aggro.clear(); bm.volley = null; bm.fights.clear(); }
+    if (o.dome) bm.castDome(o.dome === "me" ? session.x : bm.x, o.dome === "me" ? session.y : bm.y, o.kind === "c" ? "c" : o.kind === "s" ? "s" : "w", this.zones.arinar.pl || new Map(), now);
+    if (o.clearDomes) bm.domes = [];
+    if (o.smallCd === 0) bm.smallCdAt = 0;
+    if (o.domeCd === 0) bm.domeCdAt = 0;
+    if (Number.isFinite(Number(o.days))) bmClock.offset += Number(o.days) * DAY_MS; // «перемотка» часов мага (рост роз, купола)
+    if (o.resetClock) bmClock.offset = 0;
+    if (o.rose) { const id = Date.now() * 1000 + Math.floor(Math.random() * 1000); bm.addRose({ id, x: Math.round(session.x + (Number(o.rose.dx) || 0)), y: Math.round(session.y + (Number(o.rose.dy) || 0)), born: now - (Number(o.rose.ageDays) || 0) * DAY_MS, pkey: ms.pkey }, true); }
+    if (o.blk != null && h) { const v = Math.max(0, Math.min(100, Number(o.blk) || 0)); for (const uid of Object.values(h.equip || {})) { const it = a.inv.find((i) => i.uid === uid); if (it) { if (v > 0) it.blk = v; else delete it.blk; } } }
+    if (o.blkUid) { const it = a.inv.find((i) => i.uid === String(o.blkUid.uid)); if (it) { const v = Math.max(0, Math.min(100, Number(o.blkUid.v) || 0)); if (v > 0) it.blk = v; else delete it.blk; } }
+    if (o.hits) bm.hits.set(session.id, { n: Number(o.hits) | 0, at: now });
+    if (o.mortal) { ms.invulnUntil = 0; ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp; }
+    if (Number(o.hp) > 0 && ms.zp.alive) ms.zp.hp = Math.min(ms.zp.maxHp, Number(o.hp)); // dev: задать ОЗ (сцена смерти) // снять dev-неуязвимость (dev_teleport god)
+    this.send(ws, { type: "dev_bm", info: bm.info(), cursed: bm.cursedAt(session.x, session.y), dark: !!ms.dark, eff: this.effective(session), offset: bmClock.offset, me: { x: Math.round(session.x), y: Math.round(session.y) }, spot, mobs: ((this.zones.arinar as any)?.near(session.x, session.y, 500) || []).filter((m: any) => !m.dead).map((m: any) => [m.id, m.type, Math.round(m.x), Math.round(m.y)]) });
   }
   async chestLoad() {
     if (!this.db) return;
@@ -1527,19 +1637,27 @@ export class MetaService {
         if (!ms || !ms.zp.alive) return;
         if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
         if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
+        if (w === "arinar" && this.bm.playerSafe(sid, ms.zp.x, ms.zp.y)) return; // купол Чёрного мага: кто был внутри до нападения — неуязвим
         const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
         const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
         this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
         zone.events.push({ k: "phit", sid, d: real, src });
         if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
-        else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); }
+        else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
       }, (mm) => this.onMobKilled(mm));
+      if (w === "arinar" && this.bm.loaded && zone.guard === this.bm) {
+        try { this.bm.tick(Math.min(0.5, dt), zone as any, players as any); } catch (e: any) { console.error("[mc] black mage tick", e?.message || e); }
+        for (const [, s] of socks) { const ms = this.ms.get(s.id); if (ms) { this.bmGround(s, ms, now); if ((ms as any).bmMeta && now - ((ms as any).bmMetaAt || 0) > 1500) { (ms as any).bmMeta = false; (ms as any).bmMetaAt = now; const e = this.sessionLookup?.(s.id); if (e) this.send(e[0], { type: "meta_state", ...this.snap(s) }); } } }
+        if ((this.bmDirty || now - this.bmSaveAt > 60000) && !this.bmSaving && now - this.bmSaveAt > 10000) { this.bmSaveAt = now; this.bmSave().catch((e) => console.error("[mc] black mage save", e?.message || e)); }
+      }
       perfZone(w, performance.now() - zt0);
       if (!sendNow) continue;
       if (!socks.length) { zone.events.length = 0; continue; }
       const ev = zone.takeEvents();
-      const npc = this.npcs.snapshot(w); // [id, x, y, dir, moving] — все NPC мира (их единицы)
+      const npc: any[] = this.npcs.snapshot(w); // [id, x, y, dir, moving] — все NPC мира (их единицы)
+      const bmOn = w === "arinar" && this.bm.loaded && BM_CFG.on !== false, bmE = bmOn ? this.bm.npcEntry() : null;
+      if (bmE) npc.push(bmE); // Чёрный маг — НПС квестов (позиция живая)
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
         const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700, ms.pkey); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
@@ -1571,7 +1689,12 @@ export class MetaService {
         // лагеря рядом (мини-карта: зоны агро и активность; трекер квеста: где искать цель) — раз в 2 с
         let cp: any;
         if (zone.camps.length && now - ((ms as any).cpAt || 0) > 2000) { (ms as any).cpAt = now; cp = zone.campSummary(now).filter((c: any) => Math.abs(c[1] - s.x) < 6000 && Math.abs(c[2] - s.y) < 6000); }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        // Чёрный маг рядом: m — [x,y,dir,moving,state]; d — купола; ro — розы (раз в 2 с и при посадке): [id,x,y,возраст мс]
+        let bm: any;
+        if (bmOn) { bm = { m: this.bm.mageNear(s.x, s.y), d: this.bm.domesNear(s.x, s.y) };
+          if (now - ((ms as any).roAt || 0) > 2000 || (ms as any).roVer !== this.bm.roseVer) { (ms as any).roAt = now; (ms as any).roVer = this.bm.roseVer; bm.ro = this.bm.rosesSnap(s.x, s.y); bm.cfg = bmClient(); }
+          if (!bm.m && !bm.d.length && !bm.ro) bm = undefined; }
+        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }

@@ -2,7 +2,7 @@
 import { blockedWorld, worldGrid } from './propCollision.ts';
 import { layoutWorld } from './worldLayout.ts';
 import { propColliders } from './propsV2.ts';
-import { ZONE_RESPAWN, NPCS } from './shared.ts';
+import { ZONE_RESPAWN, STATIC_NPCS as NPCS } from './shared.ts';
 import { WORLD_PORTALS } from '../worlds/portals.ts';
 export { blockedWorld };
 export const PORTALS = WORLD_PORTALS;

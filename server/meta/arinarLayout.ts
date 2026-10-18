@@ -4,7 +4,7 @@
 import tilesMeta from "../../src/assets/mc/tiles_atlas.json";
 import { WORLD_GEN, regionAt } from "./zoneGen";
 import { markersOf } from "./markers";
-import { NPCS, ZONE_RESPAWN } from "./shared";
+import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from "./shared";
 import { worldSize, ARINAR_HUB } from "../worlds/sizes";
 import { WORLD_PORTALS as PORTALS } from "../worlds/portals";
 export const CELL = 32, CH = 32;

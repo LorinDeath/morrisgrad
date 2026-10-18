@@ -1,7 +1,7 @@
 // «Проклятые»: общий реестр объектов карты (сервер и клиент). Любой объект, внесённый сюда (registerMarker),
 // автоматически появляется на большой карте (M) и мини-карте — под туманом войны, т.е. только в разведанных местах.
 // Сейчас: таблички (по одной у «семени» каждого пятна биома + в хабе), порталы, NPC, логова мировых боссов.
-import { NPCS } from "./shared";
+import { STATIC_NPCS as NPCS } from "./shared";
 import { WORLD_GEN, ARINAR_PATCHES } from "./zoneGen";
 import { WORLD_PORTALS } from "../worlds/portals";
 import { ARINAR_HUB } from "../worlds/sizes";

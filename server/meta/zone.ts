@@ -131,7 +131,7 @@ export interface Proj {
   max: number; flown: number; hit: Set<number | string>; n: number; arc?: boolean; delay?: number; born: number;
   onHit?: (target: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void;
 }
-export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420 };
+export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420, bm_arrow_small: 620, bm_arrow_big: 620 };
 
 /** Биты статусов моба для снимка: вид (8/16/32 — поджог/яд/кровотечение) + стаки каждого вида по 3 бита (13–15, 16–18, 19–21; максимум 7). */
 export function mobStatusBits(dots: { kind: string; until: number }[] | undefined, now: number): number {
@@ -141,6 +141,9 @@ export function mobStatusBits(dots: { kind: string; until: number }[] | undefine
 }
 export class Zone {
   projs: Proj[] = []; private nextProj = 1;
+  /** Чёрный маг (blackMage.ts): купола гасят урон игроков и снаряды; null — мира без мага */
+  guard: { guardMobHit(m: any, sid: string, ax: number, ay: number): boolean; noteFight(m: any, sid: string): void; guardProj(p: any, x0: number, y0: number, x1: number, y1: number): boolean; inDome(x: number, y: number): any; blackHit?(p: any, pl: any): boolean } | null = null;
+  pl: Map<string, ZPlayer> | null = null; // игроки последнего такта (позиция атакующего для купола)
   /** выпустить снаряд (сервер); событие proj — клиентам для отрисовки (траектория детерминирована) */
   fire(o: Partial<Proj> & { o: "p" | "m"; t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number }) {
     if (this.projs.length > 600) return null; // предохранитель
@@ -160,7 +163,9 @@ export class Zone {
         if (p.flown >= p.range - 0.5) done = true;
       } else while (left > 0 && !done) {
         const st = Math.min(left, Math.max(6, p.w * 0.5)); left -= st;
+        const x0 = p.x, y0 = p.y;
         p.x += p.dx * st; p.y += p.dy * st; p.flown += st;
+        if (this.guard && this.guard.guardProj(p, x0, y0, p.x, p.y)) { done = true; break; } // купол / тело Чёрного мага
         if (p.o === "p") {
           for (const m of this.near(p.x, p.y, p.w + 60)) {
             if (m.dead || p.hit.has(m.id)) continue;
@@ -168,9 +173,16 @@ export class Zone {
             p.hit.add(m.id); const k = p.n++; p.onHit?.(m, k); // n считаем и без onHit (взрыв в onEnd)
             if (p.n >= p.max) { done = true; break; }
           }
+          // «чёрный» выстрел игрока, вылетевший из купола (blackMage.ts blackShot): бьёт и других игроков — как стрела мага
+          if (!done && (p as any).blk && this.guard?.blackHit) for (const pl of players.values()) {
+            if (!pl.alive || pl.sid === p.sid || p.hit.has(pl.sid) || Math.hypot(pl.x - p.x, pl.y - p.y) > 14 + p.w / 2) continue;
+            if (!this.guard.blackHit(p, pl)) continue;
+            p.hit.add(pl.sid); const k = p.n++; void k;
+            if (p.n >= p.max) { done = true; break; }
+          }
         } else {
           for (const pl of players.values()) {
-            if (!pl.alive || p.hit.has(pl.sid)) continue;
+            if (!pl.alive || p.hit.has(pl.sid) || ((p as any).only && (p as any).only !== pl.sid)) continue; // only — стрела мага летит только в напавшего
             if (Math.hypot(pl.x - p.x, pl.y - p.y) > 14 + p.w / 2) continue;
             p.hit.add(pl.sid); const k = p.n++; p.onHit?.(pl, k);
             if (p.n >= p.max) { done = true; break; }
@@ -180,7 +192,7 @@ export class Zone {
       }
       if (done) {
         this.projs.splice(i, 1);
-        this.events.push({ k: "pend", id: p.id, x: Math.round(p.x), y: Math.round(p.y), hit: p.n > 0 ? 1 : undefined, t: p.t });
+        this.events.push({ k: "pend", id: p.id, x: Math.round(p.x), y: Math.round(p.y), hit: p.n > 0 ? 1 : undefined, t: (p as any).blk ? "bm_arrow_small" : p.t }); // чёрный выстрел — конец рисует клиент мага
         p.onEnd?.(p.x, p.y, p.n > 0);
       }
     }
@@ -738,6 +750,7 @@ export class Zone {
 
   // ---------- статусы от оружия игроков ----------
   applyStatus(m: ZMob, sid: string, st: { kind?: string; dps?: number; dur?: number; slow?: number | boolean; knock?: number }, fromX: number, fromY: number, maxStacks = DOT_STACK_MAX) {
+    if (this.guard && sid && !sid.startsWith("mob:") && this.guard.inDome(m.x, m.y)) return; // купол Чёрного мага: статусы игроков не проходят
     const now = Date.now();
     const d = ZONE_MOBS[m.type];
     if (st.kind && st.dps && st.dur) {
@@ -839,7 +852,7 @@ export class Zone {
 
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
   update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob) => void, onKill: (m: ZMob) => void) {
-    this.now = now;
+    this.now = now; this.pl = players;
     if (this.projs.length) this.updateProjs(dt, players);
     const scale = Math.max(1, Math.min(4, players.size)); // ХП босса растёт с числом игроков (ограниченно)
     if (this.proc) {
@@ -884,7 +897,7 @@ export class Zone {
       awake++;
       if (!(m as any).spOk) this.spawnFix(m); // дом/спавн — вне твёрдых пропсов (лениво: только бодрствующие, сетка Аринара строится по чанкам)
       if (!m.dead && m.dots?.length) {
-        m.dots = m.dots.filter((x) => x.until > now);
+        m.dots = m.dots.filter((x) => x.until > now && !(this.guard && this.guard.inDome(m.x, m.y))); // в куполе Чёрного мага урон игроков (и по времени) не действует
         if (!m.dots.length) m.dot = null;
         else {
           let killer = "";
@@ -1136,6 +1149,7 @@ export class Zone {
     if (m.dead) return;
     const d = ZONE_MOBS[m.type];
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
+    if (this.guard && sid) { const a = this.pl?.get(sid); if (this.guard.guardMobHit(m, sid, a ? a.x : NaN, a ? a.y : NaN)) { this.events.push({ k: "hit", id: m.id, d: 0, dome: 1 }); return 0; } } // купол Чёрного мага
     const armor = d.armor * mobArmorMul(m);
     const real = Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
     if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
@@ -1143,6 +1157,7 @@ export class Zone {
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);
     if (!m.targetSid) m.targetSid = sid;
     this.events.push({ k: "hit", id: m.id, d: real, by: sid }); // by — для счётчика DPS у клиента
+    if (this.guard && sid) this.guard.noteFight(m, sid); // «рядом идёт бой» — Чёрный маг идёт защищать
     if (m.hp <= 0) { (m as any).killer = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);
     return real;

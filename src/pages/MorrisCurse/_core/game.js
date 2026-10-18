@@ -580,6 +580,7 @@ async function boot(canvasId, username, userId, api) {
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); }
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты
+  net.on('dev_bm', (d) => { window.__devBm = d; }); // Чёрный маг: только локальные тесты (MC_DEV)
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('admin_perf', (d) => adminPanel.onPerf(d.data));
   net.on('role_changed', (d) => social.onRoleChanged(d));
@@ -733,6 +734,7 @@ async function boot(canvasId, username, userId, api) {
     if (mode !== 'hub') return;
     const evs = zone.applyState(d, myId) || [];
     const ct = hud.currentTarget;
+    if (ct?.kind === 'bmage' && !zone.bmv?.mage) hud.clearTarget(); // маг ушёл (телепорт) — цель снята
     if (ct?.kind === 'mob') {
       const o = zone.mobs.get(ct.id);
       if (!o || d.tg?.gone) { hud.clearTarget(); zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
@@ -1133,7 +1135,9 @@ async function boot(canvasId, username, userId, api) {
   // выбранный враг (клик по мобу → панель «Цель»; на арене — соперник): автоатака бьёт точно в него
   function lockedTarget() {
     if (world === 'arena') { const o = others.get(duel.oppSid?.()); return o ? { x: o.x, y: o.y, mob: -1 } : null; }
-    const ct = hud.currentTarget; if (ct?.kind !== 'mob') return null;
+    const ct = hud.currentTarget;
+    if (ct?.kind === 'bmage') { const m = zone.bmv?.mage; return m ? { x: m.x, y: m.y, mob: -7 } : null; } // Чёрный маг (BM_LOCK): удар = нападение
+    if (ct?.kind !== 'mob') return null;
     const o = zone.mobs.get(ct.id); return o && !o.dead ? { x: o.x, y: o.y, mob: ct.id } : null;
   }
   function clickHitsInteractive(px, py) {
@@ -1373,6 +1377,7 @@ async function boot(canvasId, username, userId, api) {
       hp: tg ? `${fmtBig(tg.hp)} / ${fmtBig(tg.maxHp)}` : `${o.hp ?? '?'}%`, armor: tg?.armor ?? (o.cursed || o.elite || en ? '…' : info.armor ?? '-'), atk: tg?.dmg ?? (o.cursed || o.elite || en ? '…' : info.dmg ?? '-'), // с сервера — с множителями (элита, вожак, проклятие, ярость)
     };
   }
+  function bmTarget() { return { kind: 'bmage', id: -7, name: 'Чёрный маг', color: '#a78bfa', typeLabel: 'ур. ? · ???', hp: '? / ?', armor: '?', atk: '?' }; }
   function selectMob(o) { zone.selected = o.id; send({ type: 'zone_target', id: o.id }); hud.setTarget(mobTarget(o, null)); }
   // Панель «ЦЕЛЬ» для игрока: только статы, посчитанные сервером (players_state.sv — как в просмотре персонажа)
   function playerTarget(o) {
@@ -1398,6 +1403,7 @@ async function boot(canvasId, username, userId, api) {
     for (const p of portals) if ((p.world || 'hellfire') === world) cands.push({ kind: 'portal', o: p, x: p.x, y: p.y });
     for (const c of zone.chests.values()) cands.push({ kind: 'chest', o: c, x: c.x, y: c.y, pad: 22 });
     for (const b of zone.bags.values()) cands.push({ kind: 'bag', o: b, x: b.x, y: b.y, pad: 14 });
+    if (world === 'arinar' && zone.bmv?.mage) cands.push({ kind: 'bmage', o: zone.bmv.mage, x: zone.bmv.mage.x, y: zone.bmv.mage.y, pad: 6 });
     for (const m of zone.mobs.values()) cands.push({ kind: 'mob', o: m, x: m.x, y: m.y, pad: Math.max(0, (ZONE_MOBS[m.type]?.radius || 12) * mobScale(m) - 10) }); // зона клика = видимый размер (мобы ×0.75)
 
     let best = null, bd = 40;
@@ -1407,6 +1413,7 @@ async function boot(canvasId, username, userId, api) {
     if (best?.kind !== 'mob' && zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); }
     if (!best) { hud.clearTarget(); return; }
     if (best.kind === 'mob') { selectMob(best.o); return; }
+    if (best.kind === 'bmage') { hud.setTarget(bmTarget()); return; } // Чёрный маг: ни ОЗ, ни атаки игрок не знает
     if (best.kind === 'bag') { openBag(best.o); return; }
     if (best.kind === 'chest') { openChest(best.o); return; }
     const o = best.o;
@@ -1655,7 +1662,8 @@ async function boot(canvasId, username, userId, api) {
     // NPC: имя и значок задания (❕ — есть задание, ✔ — можно сдать)
     for (const [id, n] of Object.entries(NPC_LIST)) {
       if (n.world !== world) continue;
-      const np = npcPos(id); // NPC бродят — имя и значок задания идут за ним
+      let np = npcPos(id); // NPC бродят — имя и значок задания идут за ним
+      if (n.mobile) { const bmm = zone.bmv?.mage; if (!bmm) continue; np = { x: bmm.x, y: bmm.y }; } // Чёрный маг — только когда он рядом
       const q = stage.project(toX(np.x), 3.0, toZ(np.y));
       if (!q) continue;
       const mark = npcMark(id), ic = npcIconUrl(id); // портрет квестодателя (арт VN) рядом с именем
@@ -1936,6 +1944,7 @@ async function boot(canvasId, username, userId, api) {
       openUpgrade: () => upgWin.open(),
       npcPos: (id) => npcPos(id), npcServer: (id) => npcServer(id), npcSpawn: (id) => NPCS[id] && { x: NPCS[id].x, y: NPCS[id].y }, nearestNpc: () => zone.nearestNpc(world, player.x, player.y)?.id || null,
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
+      bm: () => zone.bmv?.debug() || null, target: () => hud.currentTarget, // Чёрный маг (hub/bmView.js): маг, купола, розы, земля
       overlay, runUI, zone,
       WEAPONS,
     };
