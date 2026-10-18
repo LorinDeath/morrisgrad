@@ -91,8 +91,11 @@ const { title, viewportFit = false } = Astro.props;
         </SignedOut>
 
         <SignedIn>
+          <a href="/forum/notifications" class="site-bell" title="Уведомления форума" aria-label="Уведомления форума">
+            <span aria-hidden="true">🔔</span><span class="site-bell-n" data-bell-n hidden></span>
+          </a>
           <a href="/profile" class="profile-link">
-            <span class="profile-icon">⚜</span> Профиль
+            <span class="profile-icon">⚜</span> <span class="profile-text">Профиль</span>
           </a>
           <div class="user-btn-wrapper">
             <UserButton />
@@ -165,6 +168,35 @@ const { title, viewportFit = false } = Astro.props;
         };
         checkChat();
       });
+
+      // Колокольчик форума: один лёгкий запрос раз в минуту и только пока вкладка видна.
+      type BellWin = Window & { __bellBound?: boolean; __bellAt?: number };
+      const w = window as BellWin;
+      if (!w.__bellBound) {
+        w.__bellBound = true;
+        const paint = (n: number | null) => {
+          document.querySelectorAll<HTMLElement>('[data-bell-n]').forEach((el) => {
+            el.textContent = n && n > 99 ? '99+' : String(n || '');
+            el.hidden = !n;
+          });
+        };
+        const poll = async (force = false) => {
+          if (document.visibilityState !== 'visible') return;
+          if (!document.querySelector('[data-bell-n]')) return;
+          if (!force && w.__bellAt && Date.now() - w.__bellAt < 55000) return;
+          w.__bellAt = Date.now();
+          try {
+            const r = await fetch('/api/forum/notifs/count', { credentials: 'same-origin', cache: 'no-store' });
+            if (!r.ok) return;
+            const d = await r.json();
+            if (d && typeof d.n === 'number') paint(d.n);
+          } catch (_) {}
+        };
+        (window as any).__bellPaint = paint;
+        document.addEventListener('astro:page-load', () => poll(true));
+        document.addEventListener('visibilitychange', () => poll());
+        setInterval(() => poll(), 60000);
+      }
     </script>
   </body>
 </html>
@@ -460,6 +492,19 @@ const { title, viewportFit = false } = Astro.props;
     box-shadow: 0 0 12px var(--gold-glow);
   }
 
+  .site-bell {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 34px; border-radius: 8px; text-decoration: none; font-size: 1rem;
+    border: 1px solid rgba(212, 175, 55, 0.25); transition: all 0.25s;
+  }
+  .site-bell:hover { border-color: var(--accent-gold); box-shadow: 0 0 12px var(--gold-glow); }
+  .site-bell-n {
+    position: absolute; top: -6px; right: -7px; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 9px; background: #e11d48; color: #fff; font-size: 0.68rem; font-weight: 700;
+    line-height: 18px; text-align: center; box-shadow: 0 0 0 2px #0b0710;
+  }
+  .site-bell-n[hidden] { display: none; }
+
   /* Узкие экраны: шапка не должна раздвигать страницу (кнопки — только иконки) */
   @media (max-width: 720px) {
     .header { padding: 0.6rem 0.7rem; gap: 0.5rem; }
@@ -470,6 +515,8 @@ const { title, viewportFit = false } = Astro.props;
     .logo-crest { width: 36px; height: 36px; }
     .site-name { font-size: 1rem; }
     .header-chat-link, .profile-link { padding: 6px 9px; }
+    .profile-link .profile-text { display: none; }
+    .site-bell { width: 32px; height: 32px; }
     .login-btn { padding: 0.4rem 0.7rem; }
   }
   @media (max-width: 420px) {

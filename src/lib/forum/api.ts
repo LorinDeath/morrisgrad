@@ -2,6 +2,7 @@
 // Защита: запись только POST/PUT/DELETE с заголовком X-Forum: 1 и Origin своего сайта (CSRF);
 // JSON-тело ограничено по размеру; права/лимиты проверяет service.ts.
 import * as F from "./service";
+import * as N from "./notify";
 import { sniff, stripMeta, imageSize, EXT, type Mime } from "./media";
 import { getSettings, NUM_SCHEMA } from "./settings";
 
@@ -77,6 +78,10 @@ export async function handleForumApi(req: Request, env: ForumEnv, uid: string | 
     if (method !== "GET") {
       if (!sameOrigin(req) || req.headers.get("x-forum") !== "1") return json({ error: "Запрос отклонён (CSRF)" }, 403);
     }
+    // --- счётчик непрочитанных: самый частый запрос (опрос раз в минуту) — без загрузки профиля ---
+    if (method === "GET" && parts[0] === "notifs" && parts[1] === "count") {
+      return json({ n: uid ? await N.unreadCount(db, uid) : null }, 200, { "cache-control": "private, no-store" });
+    }
     const v = await F.loadViewer(db, uid, { touch: method !== "GET", name: opts.name });
     const u = new URL(req.url);
     const page = Number(u.searchParams.get("page") || 1) | 0 || 1;
@@ -109,6 +114,10 @@ export async function handleForumApi(req: Request, env: ForumEnv, uid: string | 
           return a ? json(a) : json({ error: "Пользователь не найден" }, 404);
         }
         case "online": return json({ online: await F.online(db) });
+        case "notifs": {
+          if (!v.uid || !v.user) return json({ error: "Войдите, чтобы видеть уведомления", code: "auth" }, 401);
+          return json(await N.listNotifs(db, v.uid, page));
+        }
         case "team": return json({ team: await F.forumTeam(db) }, 200, cacheH);
         case "users": return json({ users: await F.searchUsers(db, v, u.searchParams.get("q")) });
         case "reports": return json({ reports: await F.listReports(db, v, u.searchParams.get("status") === "resolved" ? "resolved" : "open") });
@@ -197,6 +206,12 @@ export async function handleForumApi(req: Request, env: ForumEnv, uid: string | 
       case "POST sections/order": return json(await F.reorderSections(db, v, b.ids));
       case "PUT settings": return json(await F.updateSettings(db, v, b));
       case "PUT me": return json(await F.updateMe(db, v, b));
+      case "POST notifs/read": {
+        if (!v.uid || !v.user) return json({ error: "Войдите", code: "auth" }, 401);
+        await N.markRead(db, v.uid, b.ids, b.all === true);
+        return json({ ok: true, n: await N.unreadCount(db, v.uid) });
+      }
+      case "POST sub": return json(await F.subscribe(db, v, b.kind, b.id, b.value !== false));
       case "POST block": return json(await F.setBlock(db, v, target(b), b.value !== false));
     }
     return json({ error: "Не найдено" }, 404);

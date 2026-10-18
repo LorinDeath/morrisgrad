@@ -1,0 +1,78 @@
+---
+import ForumShell from "../../components/forum/ForumShell.astro";
+import Ava from "../../components/forum/Ava.astro";
+import { forumPage } from "../../lib/forum/page";
+import { listNotifs } from "../../lib/forum/notify";
+import { ago, plural } from "../../lib/forum/fmt";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+if (!v.uid || !v.user) return Astro.redirect("/forum");
+const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
+const data = await listNotifs(db, v.uid, page);
+const ICON: Record<string, string> = { reply: "↩", comment: "💬", like: "♥", mention: "@", sub_topic: "🔖", sub_section: "📰", mod: "🛡", ban: "⛔", mod_assign: "⚜" };
+function line(n: any) {
+  const who = n.actor?.nick || "Кто-то";
+  const more = Math.max(0, (n.actors || 1) - 1);
+  const many = more > 0 ? ` и ещё ${more} ${plural(more, "участник", "участника", "участников")}` : "";
+  const t = n.topic_title ? `«${n.topic_title}»` : "";
+  switch (n.type) {
+    case "reply": return `${who} ответил(а) на ваш комментарий в теме ${t}`;
+    case "comment": return `${who}${many} ${more ? "прокомментировали" : "прокомментировал(а)"} вашу тему ${t}`;
+    case "like": return `${who}${many} ${more ? "оценили" : "оценил(а)"} ${n.comment_id ? "ваш комментарий в теме " + t : "вашу тему " + t}`;
+    case "mention": return `${who} упомянул(а) вас в теме ${t}`;
+    case "sub_topic": return `${who}${many} ${more ? "написали" : "написал(а)"} в теме ${t}`;
+    case "sub_section": return more ? `Новые темы в разделе, за которым вы следите: ${who}${many}` : `${who} создал(а) тему ${t}`;
+    default: return n.text;
+  }
+}
+const quote = (n: any) => (["mod", "ban", "mod_assign", "sub_section"].includes(n.type) ? (n.type === "sub_section" ? n.text : "") : n.text);
+const unread = data.items.filter((x: any) => !x.read).length;
+---
+<ForumShell title="Уведомления" viewer={v} active="notifs">
+  <div class="f-crumbs"><a href="/forum">Форум</a> › Уведомления</div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+    <div>
+      <h1 class="f-h1">🔔 Уведомления</h1>
+      <p class="f-muted" style="margin:0">Ответы, оценки, упоминания и сообщения модераторов. Прочитанные хранятся 60 дней.</p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      {(v.unread || unread) ? <button type="button" class="f-btn f-btn-primary" data-notif-all>✓ Прочитать все</button> : null}
+      <a class="f-btn" href="/forum/me#notif-settings">⚙ Настройки</a>
+    </div>
+  </div>
+  {data.items.length ? (
+    <div class="f-notifs">
+      {data.items.map((n: any) => (
+        <a href={`/forum/n/${n.id}`} data-astro-reload data-astro-prefetch="false" rel="nofollow" class={`f-notif${n.read ? "" : " unread"}`} data-notif={n.id}>
+          {n.actor ? <Ava u={n.actor} link={false} /> : <span class="f-notif-ico" aria-hidden="true">{ICON[n.type] || "•"}</span>}
+          <span>
+            <span class="f-notif-t">{line(n)}{!n.read && <span class="f-notif-dot" title="Новое"></span>}</span>
+            {quote(n) && <span class="f-notif-q" style="display:-webkit-box">{quote(n)}</span>}
+          </span>
+          <span class="f-notif-m">{ICON[n.type]} {ago(n.updated_at)}</span>
+        </a>
+      ))}
+    </div>
+  ) : <div class="f-empty">{page > 1 ? "Здесь пусто." : "Пока ничего нового. Когда вам ответят, оценят запись или упомянут по нику — уведомление появится здесь."}</div>}
+  {(page > 1 || data.more) && <div class="f-pager">{page > 1 && <a class="f-btn" href={`?page=${page - 1}`}>← Новее</a>}{data.more && <a class="f-btn" href={`?page=${page + 1}`}>Старее →</a>}</div>}
+</ForumShell>
+<script>
+  import { api, toast } from "../../scripts/forum";
+  type W = Window & { __notifBound?: boolean };
+  if (!(window as W).__notifBound) {
+    (window as W).__notifBound = true;
+    document.addEventListener("click", async (ev) => {
+      const b = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-notif-all]");
+      if (!b) return;
+      b.disabled = true;
+      try {
+        await api("POST", "notifs/read", { all: true });
+        document.querySelectorAll(".f-notif.unread").forEach((el) => el.classList.remove("unread"));
+        document.querySelectorAll(".f-notif-dot").forEach((el) => el.remove());
+        (window as any).__bellPaint?.(0);
+        b.remove();
+        toast("Все уведомления прочитаны");
+      } catch (e: any) { toast(e.message, true); b.disabled = false; }
+    });
+  }
+</script>

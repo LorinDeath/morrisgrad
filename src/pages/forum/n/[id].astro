@@ -1,0 +1,12 @@
+---
+// Переход по уведомлению: отмечаем прочитанным и ведём к нужному комментарию (страница + якорь).
+import { forumPage } from "../../../lib/forum/page";
+import { getSettings } from "../../../lib/forum/settings";
+import { notifTarget } from "../../../lib/forum/notify";
+export const prerender = false;
+const { db, v } = await forumPage(Astro);
+if (!v.uid) return Astro.redirect("/forum");
+const s = await getSettings(db);
+const to = await notifTarget(db, v.uid, Number(Astro.params.id) | 0, s.comments_page_size);
+return Astro.redirect(to, 302);
+---

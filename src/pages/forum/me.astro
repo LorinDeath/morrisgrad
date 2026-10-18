@@ -4,10 +4,12 @@ import { forumPage } from "../../lib/forum/page";
 import { listBlocks } from "../../lib/forum/service";
 import { getSettings } from "../../lib/forum/settings";
 import Ava from "../../components/forum/Ava.astro";
+import { TOGGLABLE, NOTIF_TYPES } from "../../lib/forum/notify";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 if (!v.uid) return Astro.redirect("/forum");
 const [blocks, s] = await Promise.all([listBlocks(db, v), getSettings(db)]);
+const off = new Set(String(v.user?.notif_off || "").split(",").filter(Boolean));
 ---
 <ForumShell title="Настройки профиля" viewer={v} active="me">
   <div style="max-width:640px;margin:0 auto">
@@ -42,6 +44,16 @@ const [blocks, s] = await Promise.all([listBlocks(db, v), getSettings(db)]);
       <p class="f-muted" style="margin-top:0">Ник: 3–24 символа, без мата, оскорблений и «служебных» имён. Другие участники видят только аватар, ник, звание, подпись и статистику. Почта и другие личные данные на форуме не показываются.</p>
       <button class="f-btn f-btn-primary" type="submit">Сохранить</button>
     </form>
+    <form data-astro-reload class="f-box" data-notif-form style="margin:0 0 1rem" id="notif-settings">
+      <h3 style="margin-top:0">🔔 Уведомления</h3>
+      <p class="f-muted" style="margin-top:0">Только на сайте — колокольчик в шапке. Никаких писем и пушей. Сообщения модераторов о ваших записях и ограничениях приходят всегда.</p>
+      <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.8rem">
+        {TOGGLABLE.map((k) => (
+          <label style="display:flex;gap:.55rem;align-items:center;cursor:pointer"><input type="checkbox" name="on" value={k} checked={!off.has(k)} /> {NOTIF_TYPES[k]}</label>
+        ))}
+      </div>
+      <button class="f-btn f-btn-primary" type="submit">Сохранить</button>
+    </form>
     <div class="f-box">
       <h3>Скрытые авторы</h3>
       {blocks.length ? blocks.map((b: any) => <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--f-line2)"><span style="display:inline-flex;gap:6px;align-items:center"><Ava u={b} />{b.nick}</span><button class="f-link" data-block={b.pid} data-value="0">вернуть</button></div>) : <p class="f-muted" style="margin:0">Никого. Скрыть автора можно на странице его темы или профиля — его записи пропадут из вашей ленты.</p>}
@@ -56,6 +68,14 @@ const [blocks, s] = await Promise.all([listBlocks(db, v), getSettings(db)]);
     ev.preventDefault();
     const fd = new FormData(f);
     try { await api("PUT", "me", { nick: fd.get("nick"), signature: fd.get("signature") }); toast("Сохранено"); } catch (e: any) { toast(e.message, true); }
+  });
+  document.addEventListener("submit", async (ev) => {
+    const f = ev.target as HTMLFormElement;
+    if (!f.matches("form[data-notif-form]")) return;
+    ev.preventDefault();
+    const on = new Set(new FormData(f).getAll("on").map(String));
+    const all = [...f.querySelectorAll<HTMLInputElement>('input[name="on"]')].map((i) => i.value);
+    try { await api("PUT", "me", { notif_off: all.filter((k) => !on.has(k)) }); toast("Настройки уведомлений сохранены"); } catch (e: any) { toast(e.message, true); }
   });
 
   // --- аватар: обрезка до квадрата в браузере, 256×256 WebP (EXIF не переносится; сервер ещё раз проверяет и чистит) ---

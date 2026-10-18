@@ -24,6 +24,7 @@ const links = [
           {isMod && <a href="/forum/admin" class={`f-nav-a f-nav-admin${active === "admin" ? " on" : ""}`}>Модерация</a>}
         </nav>
         <div class="f-top-right">
+          {viewer?.uid && viewer.user && <a href="/forum/notifications" class={`f-bell${active === "notifs" ? " on" : ""}`} title="Уведомления" aria-label={`Уведомления${viewer.unread ? ": " + viewer.unread + " новых" : ""}`}>🔔<span class="f-bell-n" data-bell-n hidden={!viewer.unread}>{(viewer.unread || 0) > 99 ? "99+" : viewer.unread}</span></a>}
           <button type="button" class="f-tog" data-toggle="compact" title="Компактный вид (как на старых WAP-форумах)">▤ <span>Компактно</span></button>
           <button type="button" class="f-tog" data-toggle="light" title="Светлая тема форума">◐ <span>Светлая</span></button>
           <a href="/forum/new" class="f-btn f-btn-primary f-write">✎ Написать</a>
@@ -103,6 +104,35 @@ const links = [
   .f-nav-a.on { color: var(--f-text) !important; background: var(--f-bg2); border-color: var(--f-line); }
   .f-nav-admin { color: #4ade80 !important; }
   .f-top-right { display: flex; gap: 6px; align-items: center; }
+  .f-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; border: 1px solid var(--f-line); border-radius: 8px; text-decoration: none; font-size: .95rem; }
+  .f-bell:hover, .f-bell.on { border-color: var(--f-acc); }
+  .f-bell-n { position: absolute; top: -6px; right: -7px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e11d48; color: #fff; font-size: .68rem; font-weight: 700; line-height: 18px; text-align: center; }
+  .f-bell-n[hidden] { display: none; }
+  .f-cm { scroll-margin-top: 90px; }
+  .f-cm:target { animation: f-hl 2.6s ease-out 1; box-shadow: 0 0 0 2px var(--f-acc); }
+  @keyframes f-hl { 0% { background: rgba(212,175,55,.28); } 100% { background: var(--f-bg); } }
+  .f-cm .f-cm:target { animation-name: f-hl2; }
+  @keyframes f-hl2 { 0% { background: rgba(212,175,55,.28); } 100% { background: transparent; } }
+  .f-notifs { display: flex; flex-direction: column; gap: .45rem; }
+  .f-notif { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; gap: 10px; align-items: start; padding: .75rem .9rem; border: 1px solid var(--f-line); border-radius: var(--f-radius); background: var(--f-bg); text-decoration: none; color: inherit; }
+  .f-notif.unread { border-color: rgba(212,175,55,.55); background: linear-gradient(90deg, rgba(212,175,55,.09), transparent 70%), var(--f-bg); }
+  .f-notif:hover { border-color: var(--f-acc); }
+  .f-notif-ico { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.15rem; background: rgba(255,255,255,.05); }
+  .f-notif-t { line-height: 1.4; }
+  .f-notif-q { color: var(--f-muted); font-size: .86rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .f-notif-m { color: var(--f-muted); font-size: .76rem; white-space: nowrap; text-align: right; }
+  .f-notif-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e11d48; margin-left: 4px; }
+  .f-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .5rem; margin: .8rem 0; }
+  .f-stat { border: 1px solid var(--f-line); border-radius: var(--f-radius); padding: .6rem .75rem; background: var(--f-bg); }
+  .f-stat b { display: block; font-size: 1.25rem; color: var(--f-acc); }
+  .f-stat span { color: var(--f-muted); font-size: .78rem; }
+  .f-rankbar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.07); overflow: hidden; margin: .35rem 0 .2rem; }
+  .f-rankbar i { display: block; height: 100%; background: linear-gradient(90deg, #a16207, var(--f-acc)); }
+  .f-chart { width: 100%; height: auto; display: block; }
+  .f-achs { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .f-ach { border: 1px solid var(--f-line); border-radius: 999px; padding: 3px 10px; font-size: .8rem; }
+  .f-ach.off { opacity: .38; filter: grayscale(1); }
+  .f-ach.on { border-color: rgba(212,175,55,.5); }
   .f-tog { background: transparent; border: 1px solid var(--f-line); color: var(--f-muted); border-radius: 8px; padding: 6px 9px; cursor: pointer; font: inherit; font-size: .8rem; }
   .f-tog.on, .f-tog:hover { color: var(--f-acc); border-color: var(--f-acc); }
   .f-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--f-line); background: var(--f-bg2); color: var(--f-text) !important; text-decoration: none; font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; transition: .15s; }
@@ -334,6 +364,9 @@ const links = [
     .f-post-title { font-size: 1.5rem; }
     .f-post-body { font-size: 1rem; }
     .f-cm { padding: .7rem; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
+    .f-notif { grid-template-columns: 32px minmax(0,1fr); padding: .6rem .7rem; }
+    .f-notif-ico { width: 32px; height: 32px; font-size: 1rem; }
+    .f-notif-m { grid-column: 2; text-align: left; }
     .f-cm-ava .f-ava, .f-cm .f-cm .f-cm-ava .f-ava { width: 32px; height: 32px; }
     .f-cm .f-cm { grid-template-columns: 28px minmax(0, 1fr); }
     .f-cm .f-cm .f-cm-ava .f-ava { width: 28px; height: 28px; }

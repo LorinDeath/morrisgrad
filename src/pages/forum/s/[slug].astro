@@ -2,7 +2,7 @@
 import ForumShell from "../../../components/forum/ForumShell.astro";
 import Author from "../../../components/forum/Author.astro";
 import { forumPage } from "../../../lib/forum/page";
-import { getSection, sectionTopics, isMod } from "../../../lib/forum/service";
+import { getSection, sectionTopics, isMod, sectionSubscribed } from "../../../lib/forum/service";
 import { ago, plural } from "../../../lib/forum/fmt";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
@@ -12,6 +12,7 @@ const sort = Astro.url.searchParams.get("sort") === "top" ? "top" : "new";
 const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
 const data = await sectionTopics(db, v, sec.id, sort, page);
 const canPost = !sec.admin_only || isMod(v);
+const subbed = await sectionSubscribed(db, v, sec.id);
 ---
 <ForumShell title={sec.title} viewer={v} active="sections">
   <div class="f-crumbs"><a href="/forum">Форум</a> › <a href="/forum/sections">Разделы</a> › {sec.title}</div>
@@ -20,7 +21,10 @@ const canPost = !sec.admin_only || isMod(v);
       <h1 class="f-h1">{sec.icon} {sec.title}</h1>
       <p class="f-muted" style="margin:0">{sec.description} · {sec.topics_count} {plural(sec.topics_count, "тема", "темы", "тем")}, {sec.posts_count} {plural(sec.posts_count, "сообщение", "сообщения", "сообщений")}</p>
     </div>
-    {canPost ? <a class="f-btn f-btn-primary" href={`/forum/new?section=${sec.id}`}>✎ Новая тема</a> : <span class="f-muted">🔒 Темы создают администраторы</span>}
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      {v.uid && v.user && <button type="button" class={`f-btn f-sub${subbed ? " on" : ""}`} data-sub="s" data-id={sec.id} data-value={subbed ? "0" : "1"} title="Уведомлять о новых темах в разделе">{subbed ? "🔕 Не следить" : "🔔 Следить за разделом"}</button>}
+      {canPost ? <a class="f-btn f-btn-primary" href={`/forum/new?section=${sec.id}`}>✎ Новая тема</a> : <span class="f-muted">🔒 Темы создают администраторы</span>}
+    </div>
   </div>
   <nav class="f-tabs" style="max-width:420px">
     <a class={`f-tab${sort === "new" ? " on" : ""}`} href="?sort=new">Последние</a>

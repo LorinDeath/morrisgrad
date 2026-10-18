@@ -26,6 +26,7 @@ function d1() {
   db.exec(readFileSync(root + "0008_roles.sql", "utf8"));
   db.exec(readFileSync(root + "0021_forum.sql", "utf8"));
   db.exec(readFileSync(root + "0022_forum_profiles.sql", "utf8"));
+  db.exec(readFileSync(root + "0023_forum_notify_stats.sql", "utf8"));
   db.exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT, avatar_url TEXT)");
   db.exec("INSERT INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:admin1','admin','t',0),('uid:mod1','moderator','t',0)");
   return {
@@ -400,6 +401,182 @@ await fresh();
   await call("u5", "POST", "avatar", png(64, 64), H); await call("u5", "POST", "avatar", png(64, 64), H);
   r = await call("u5", "POST", "avatar", png(64, 64), H); ok(r.status === 429, "лимит смен аватара в сутки");
   r = await call("u5", "POST", "upload", png(64, 64), H); ok(r.status === 200, "лимит аватаров не трогает загрузку картинок в посты");
+}
+
+// ===== Уведомления и статистика (0023) =====
+{
+  await fresh({ comments_page_size: 10 });
+  const raw = env.PROFILES_DB.raw;
+  raw.query("INSERT INTO users (id, username) VALUES ('n1','Алиса'),('n2','Борис'),('n3','Вера'),('n4','Глеб')").run();
+  for (const u of ["n1", "n2", "n3", "n4", "mod1", "admin1"]) await call(u, "PUT", "me", {});
+  const cnt = async (u: string) => (await call(u, "GET", "notifs/count")).data.n;
+  const list = async (u: string) => (await call(u, "GET", "notifs")).data.items;
+  let r: any = await call(null, "GET", "notifs/count");
+  ok(r.status === 200 && r.data.n === null && (r.res.headers.get("cache-control") || "").includes("no-store"), "счётчик для гостя: null, no-store");
+  r = await call(null, "GET", "notifs"); ok(r.status === 401, "список уведомлений гостю не отдаётся");
+  const tid = (await call("n1", "POST", "topics", { section_id: 2, title: "Тема Алисы", body: "привет" })).data.id;
+  ok(raw.query("SELECT COUNT(*) AS n FROM forum_subs WHERE user_id='n1' AND kind='t' AND target_id=?").get(tid).n === 1, "автор автоматически следит за своей темой");
+  ok(await cnt("n1") === 0, "своя тема не даёт уведомлений себе");
+  // комментарий в теме → автору
+  const c1 = (await call("n2", "POST", "topic/" + tid + "/comments", { body: "первый коммент" })).data.id;
+  ok(await cnt("n1") === 1, "комментарий в моей теме → уведомление");
+  await call("n3", "POST", "topic/" + tid + "/comments", { body: "второй коммент" });
+  let L = await list("n1");
+  ok(L.length === 1 && L[0].type === "comment" && L[0].actors === 2, "комментарии в теме агрегируются (X и ещё N)");
+  // ответ на комментарий → автору комментария (type reply), автор темы получает comment
+  const c3 = (await call("n1", "POST", "topic/" + tid + "/comments", { body: "отвечаю Борису", reply_to: c1 })).data.id;
+  L = await list("n2");
+  ok(L.some((x: any) => x.type === "reply" && x.comment_id === c3), "ответ на мой комментарий → уведомление reply");
+  ok(!L.some((x: any) => x.type === "sub_topic"), "без подписки на тему — нет sub_topic");
+  ok((await list("n1")).length === 1, "свой ответ в своей теме — не уведомляет себя");
+  // упоминание
+  await call("n2", "POST", "topic/" + tid + "/comments", { body: "@Глеб посмотри, и @Борис тоже (это я)" });
+  L = await list("n4");
+  ok(L.length === 1 && L[0].type === "mention", "упоминание по нику → уведомление");
+  ok(!(await list("n2")).some((x: any) => x.type === "mention"), "упоминание себя не уведомляет");
+  // подписка на тему
+  r = await call("n4", "POST", "sub", { kind: "t", id: tid, value: true }); ok(r.status === 200 && r.data.subscribed, "подписка на тему");
+  r = await call("n4", "GET", "topic/" + tid); ok(r.data.topic.subscribed === true, "тема показывает, что я подписан");
+  await call("n3", "POST", "topic/" + tid + "/comments", { body: "новость для подписчиков" });
+  await call("n2", "POST", "topic/" + tid + "/comments", { body: "и ещё" });
+  L = await list("n4");
+  const st = L.find((x: any) => x.type === "sub_topic");
+  ok(st && st.actors === 2, "активность в теме → подписчику, агрегировано");
+  await call("n4", "POST", "sub", { kind: "t", id: tid, value: false });
+  r = await call("n4", "GET", "topic/" + tid); ok(r.data.topic.subscribed === false, "отписка от темы");
+  r = await call("n4", "POST", "sub", { kind: "t", id: 99999, value: true }); ok(r.status === 404, "подписка на несуществующую тему — 404");
+  r = await call(null, "POST", "sub", { kind: "t", id: tid, value: true }); ok(r.status === 401, "гость не подписывается");
+  // подписка на раздел
+  await call("n4", "POST", "sub", { kind: "s", id: 2, value: true });
+  const tid2 = (await call("n3", "POST", "topics", { section_id: 2, title: "Новая тема Веры", body: "текст" })).data.id;
+  ok((await list("n4")).some((x: any) => x.type === "sub_section" && x.topic_id === tid2), "новая тема в разделе → подписчику раздела");
+  ok(!(await list("n3")).some((x: any) => x.type === "sub_section"), "автор новой темы не получает её же уведомление");
+  // лайки
+  const before = await cnt("n1");
+  await call("n2", "POST", "like", { type: "t", id: tid });
+  await call("n3", "POST", "like", { type: "t", id: tid });
+  await call("n4", "POST", "like", { type: "t", id: tid });
+  L = await list("n1");
+  const lk = L.filter((x: any) => x.type === "like");
+  ok(lk.length === 1 && lk[0].actors === 3 && lk[0].actor && !("actor_id" in lk[0]), "лайки агрегируются: «X и ещё 2 оценили»");
+  await call("n2", "POST", "like", { type: "t", id: tid }); await call("n2", "POST", "like", { type: "t", id: tid });
+  ok((await list("n1")).filter((x: any) => x.type === "like")[0].actors === 3, "снял и снова поставил лайк — без дубля");
+  ok(await cnt("n1") === before + 1, "три лайка — одно непрочитанное");
+  await call("n1", "POST", "like", { type: "c", id: c1 });
+  ok((await list("n2")).some((x: any) => x.type === "like" && x.comment_id === c1), "лайк комментария → его автору");
+  // нет утечки id
+  r = await call("n1", "GET", "notifs");
+  ok(!/user_id|actor_id|actor_ids|agg_key|"n[1-4]"/.test(JSON.stringify(r.data)), "в API уведомлений нет внутренних id");
+  // отметка прочитанного
+  const one = r.data.items[0].id;
+  r = await call("n1", "POST", "notifs/read", { ids: [one] }); ok(r.status === 200 && r.data.n === (await cnt("n1")), "отметить одно прочитанным");
+  r = await call("n2", "POST", "notifs/read", { ids: [one] });
+  ok(raw.query("SELECT read FROM forum_notifs WHERE id=?").get(one).read === 1, "чужое уведомление отметить нельзя (и не нужно)");
+  r = await call("n1", "POST", "notifs/read", { all: true }); ok(r.data.n === 0 && await cnt("n1") === 0, "прочитать все");
+  r = await call("n1", "POST", "notifs/read", { all: true }, { "x-forum": "" }); ok(r.status === 403, "отметка прочитанного требует CSRF-заголовок");
+  // после прочтения — новая строка, а не агрегация в прочитанную
+  await call("n4", "POST", "topic/" + tid + "/comments", { body: "после прочтения" });
+  ok(await cnt("n1") === 1, "после прочтения новое уведомление снова непрочитанное");
+  // блокировка
+  await call("n1", "POST", "block", { pid: pidOf("n4"), value: true });
+  await call("n1", "POST", "notifs/read", { all: true });
+  await call("n4", "POST", "topic/" + tid + "/comments", { body: "@Алиса ты меня скрыла" });
+  ok(await cnt("n1") === 0, "от скрытого автора уведомлений нет");
+  // настройки
+  r = await call("n1", "PUT", "me", { notif_off: ["comment", "like", "mod", "bogus"] }); ok(r.status === 200, "сохранение настроек уведомлений");
+  ok(raw.query("SELECT notif_off FROM forum_users WHERE user_id='n1'").get().notif_off === "comment,like", "в настройках только отключаемые типы");
+  await call("n2", "POST", "topic/" + tid + "/comments", { body: "отключено" });
+  ok(await cnt("n1") === 0, "выключенный тип не приходит");
+  await call("n1", "PUT", "me", { notif_off: [] });
+  // удалённое/скрытое содержимое
+  await call("n1", "POST", "block", { pid: pidOf("n4"), value: false });
+  const cx = (await call("n3", "POST", "topic/" + tid + "/comments", { body: "@Алиса будет удалено" })).data.id;
+  ok((await list("n1")).some((x: any) => x.comment_id === cx), "уведомление о комментарии есть");
+  r = await call("mod1", "DELETE", "comment/" + cx + "?reason=" + encodeURIComponent("флуд"));
+  ok(!(await list("n1")).some((x: any) => x.comment_id === cx && x.type !== "mod"), "комментарий удалён — уведомления о нём убраны");
+  L = await list("n3");
+  ok(L.some((x: any) => x.type === "mod" && x.text.includes("флуд") && !x.actor), "автору: модератор удалил с причиной, модератор не раскрыт");
+  // скрытие комментария модератором
+  const cy = (await call("n2", "POST", "topic/" + tid + "/comments", { body: "спорное" })).data.id;
+  await call("mod1", "POST", "comment/" + cy + "/hide", { value: true });
+  ok((await list("n2")).some((x: any) => x.type === "mod" && x.text.includes("скрыл")), "автору: модератор скрыл комментарий");
+  // свои действия модератора с собственным — без уведомлений
+  const cm = (await call("mod1", "POST", "topic/" + tid + "/comments", { body: "мой" })).data.id;
+  await call("mod1", "DELETE", "comment/" + cm);
+  ok(!(await list("mod1")).some((x: any) => x.type === "mod"), "удаление своего — без уведомления о модерации");
+  // бан / разбан / назначение модератором
+  await call("mod1", "POST", "ban", { pid: pidOf("n3"), minutes: 60, reason: "спам" });
+  ok((await list("n3")).some((x: any) => x.type === "ban" && x.text.includes("спам")), "ограничение → уведомление с причиной");
+  await call("mod1", "POST", "unban", { pid: pidOf("n3") });
+  ok((await list("n3")).filter((x: any) => x.type === "ban").length === 2, "снятие ограничения → уведомление");
+  r = await call("admin1", "POST", "moderators", { nick: "Борис", section_id: 0 });
+  ok(r.status === 200 && (await list("n2")).some((x: any) => x.type === "mod_assign"), "назначение модератором → уведомление");
+  // модерация не отключается и игнорирует блок
+  await call("n2", "PUT", "me", { notif_off: ["reply", "comment", "like", "mention", "sub_topic", "sub_section"] });
+  await call("n2", "POST", "block", { pid: pidOf("admin1"), value: true });
+  const tz = (await call("n2", "POST", "topics", { section_id: 2, title: "Тема Бориса", body: "текст темы" })).data.id;
+  await call("admin1", "POST", "topic/" + tz + "/flag", { flag: "locked", value: true });
+  ok((await list("n2")).some((x: any) => x.type === "mod" && x.text.includes("закрыл")), "сообщения модерации приходят всегда");
+  // скрытие темы → уведомления о ней убираются
+  await call("n1", "POST", "like", { type: "t", id: tz });
+  await call("admin1", "POST", "topic/" + tz + "/flag", { flag: "hidden", value: true });
+  ok(!raw.query("SELECT COUNT(*) AS n FROM forum_notifs WHERE topic_id=? AND type='like'").get(tz).n, "тема скрыта — уведомления-оценки о ней удалены");
+  // переход к комментарию: страница + якорь
+  const tp = (await call("n1", "POST", "topics", { section_id: 2, title: "Длинная тема", body: "текст темы" })).data.id;
+  let last = 0;
+  for (let i = 0; i < 12; i++) last = (await call("n4", "POST", "topic/" + tp + "/comments", { body: "к " + i })).data.id;
+  const { notifTarget, cleanup, extractMentions } = await import("../../src/lib/forum/notify");
+  const nid = raw.query("SELECT id FROM forum_notifs WHERE user_id='n1' AND topic_id=? ORDER BY id DESC").get(tp).id;
+  const url = await notifTarget(env.PROFILES_DB, "n1", nid, 10);
+  ok(url === `/forum/t/${tp}?page=2#c${last}`, "переход: нужная страница комментариев и якорь (" + url + ")");
+  ok(raw.query("SELECT read FROM forum_notifs WHERE id=?").get(nid).read === 1, "переход отмечает прочитанным");
+  ok(await notifTarget(env.PROFILES_DB, "n2", nid, 10) === "/forum/notifications", "чужое уведомление — без перехода");
+  // лимит частоты
+  const tq = (await call("n1", "POST", "topics", { section_id: 2, title: "Флуд-тест", body: "текст темы" })).data.id;
+  await call("n1", "PUT", "me", { notif_off: ["comment"] });
+  for (let i = 0; i < 35; i++) await call("n3", "POST", "topic/" + tq + "/comments", { body: "@Алиса " + i });
+  const fromN3 = raw.query("SELECT COUNT(*) AS n FROM forum_notifs WHERE user_id='n1' AND actor_id='n3' AND updated_at > ?").get(Date.now() - 3600_000).n;
+  ok(fromN3 <= 30, "лимит: не больше 30 уведомлений от одного участника в час (" + fromN3 + ")");
+  // очистка старых прочитанных
+  raw.query("UPDATE forum_notifs SET read=1, updated_at=? WHERE user_id='n1' AND topic_id=?").run(Date.now() - 61 * 86400_000, tq);
+  await cleanup(env.PROFILES_DB, "n1");
+  ok(!raw.query("SELECT COUNT(*) AS n FROM forum_notifs WHERE user_id='n1' AND topic_id=?").get(tq).n, "прочитанные старше 60 дней удаляются");
+  ok(extractMentions("email a@b.ru и @Ёжик, @ab, (@Вася.)").join() === "ежик,вася", "разбор упоминаний: e-mail и короткие не считаются");
+  // статистика
+  r = await call(null, "GET", "user/" + pidOf("n1"));
+  const S = r.data.stats;
+  const real = raw.query("SELECT COUNT(*) AS n FROM forum_comments WHERE user_id='n1' AND deleted=0").get().n;
+  ok(S && S.comments === real && S.topics === 3 && S.likes_given === 2, "статистика: темы, комментарии, оценки поставлены (" + JSON.stringify([S?.topics, S?.comments, S?.likes_given]) + ")");
+  ok(S.likes_received === 3 && S.best_topic?.id === tid && S.top_section?.slug, "статистика: карма, лучшая тема, любимый раздел");
+  ok(S.activity.length === 30 && S.activity_total >= 4 && S.activity[29].n >= 4, "график активности за 30 дней");
+  ok(S.rank.name && typeof S.rank.pct === "number" && S.rank.next && S.rank.next.left > 0, "звание и прогресс до следующего");
+  ok(S.achievements.find((a: any) => a.id === "first_topic").got && !S.achievements.find((a: any) => a.id === "liked100").got, "достижения");
+  ok(!/"n[1-4]"|user_id/.test(JSON.stringify(r.data)), "в профиле со статистикой нет внутренних id");
+  // счётчики при удалении/восстановлении
+  const cc0 = raw.query("SELECT comments_count FROM forum_users WHERE user_id='n2'").get().comments_count;
+  const cz = (await call("n2", "POST", "topic/" + tid + "/comments", { body: "счётчик" })).data.id;
+  ok(raw.query("SELECT comments_count FROM forum_users WHERE user_id='n2'").get().comments_count === cc0 + 1, "comments_count растёт");
+  await call("n2", "DELETE", "comment/" + cz);
+  ok(raw.query("SELECT comments_count FROM forum_users WHERE user_id='n2'").get().comments_count === cc0, "comments_count уменьшается при удалении");
+  await call("n2", "POST", "like", { type: "t", id: tid });
+  ok(raw.query("SELECT likes_given FROM forum_users WHERE user_id='n2'").get().likes_given === 0, "likes_given уменьшается при снятии оценки");
+  // бэкфилл миграции на «старых» данных
+  const db2 = new (await import("bun:sqlite")).Database(":memory:");
+  const root = import.meta.dir + "/../../server/migrations/";
+  for (const f of ["0008_roles.sql", "0021_forum.sql", "0022_forum_profiles.sql"]) db2.exec(readFileSync(root + f, "utf8"));
+  db2.exec("INSERT INTO forum_users (user_id, nick, nick_key, first_seen, last_seen, pid) VALUES ('a','A','a',0,0,1),('b','B','b',0,0,2)");
+  db2.exec("INSERT INTO forum_topics (id, section_id, user_id, title, body, body_html, created_at, updated_at, last_activity) VALUES (1,1,'a','t','b','b',5,5,5),(2,1,'a','t2','b','b',6,6,6)");
+  db2.exec("UPDATE forum_topics SET deleted=1 WHERE id=2");
+  db2.exec("INSERT INTO forum_comments (topic_id, user_id, body, body_html, created_at, updated_at) VALUES (1,'b','x','x',7,7),(1,'b','y','y',8,8),(1,'a','z','z',9,9)");
+  db2.exec("UPDATE forum_comments SET deleted=1 WHERE body='y'");
+  db2.exec("INSERT INTO forum_likes (user_id, target_type, target_id, created_at) VALUES ('b','t',1,1),('b','c',3,1)");
+  const secBefore = db2.query("SELECT COUNT(*) AS n FROM forum_sections").get() as any;
+  db2.exec(readFileSync(root + "0023_forum_notify_stats.sql", "utf8"));
+  const q = (sql: string) => db2.query(sql).get() as any;
+  ok(q("SELECT comments_count FROM forum_users WHERE user_id='b'").comments_count === 1 && q("SELECT comments_count FROM forum_users WHERE user_id='a'").comments_count === 1, "бэкфилл comments_count (без удалённых)");
+  ok(q("SELECT likes_given FROM forum_users WHERE user_id='b'").likes_given === 2, "бэкфилл likes_given");
+  ok(q("SELECT COUNT(*) AS n FROM forum_subs").n === 1, "бэкфилл подписок авторов (только неудалённые темы)");
+  ok(q("SELECT COUNT(*) AS n FROM forum_sections").n === secBefore.n && q("SELECT COUNT(*) AS n FROM forum_topics").n === 2, "миграция не трогает разделы и темы");
 }
 
 console.log(`\nforum-test: ${passes} PASS, ${fails} FAIL`);

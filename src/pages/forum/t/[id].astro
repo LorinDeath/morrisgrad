@@ -42,6 +42,7 @@ const roots = t.comments_count; // приблизительно для паги�
         <div class="f-actions">
           <button type="button" class={`f-like${t.liked ? " on" : ""}`} data-like="t" data-id={t.id} data-own={mine ? "1" : null} aria-pressed={t.liked ? "true" : "false"}><span class="f-heart">♥</span> <span class="f-like-n">{t.likes_count}</span></button>
           <a class="f-cc" href="#comments">💬 {t.comments_count}</a>
+          {v.uid && v.user && <button type="button" class={`f-btn f-btn-s f-sub${t.subscribed ? " on" : ""}`} data-sub="t" data-id={t.id} data-value={t.subscribed ? "0" : "1"} title="Уведомлять о новых комментариях в этой теме">{t.subscribed ? "🔕 Не следить" : "🔔 Следить"}</button>}
           <span style="flex:1"></span>
           {(mine || v.role === "admin") && <a class="f-link" href={`/forum/edit/${t.id}`}>✎ Изменить</a>}
           {(mine || mod) && <button type="button" class="f-link f-link-danger" data-del="topic" data-id={t.id} data-back={`/forum/s/${t.s_slug}`} data-ask-reason={!mine ? "1" : null}>Удалить</button>}

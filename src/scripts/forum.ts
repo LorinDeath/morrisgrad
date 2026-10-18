@@ -198,7 +198,7 @@ if (!(window as any).__forumBound) {
   document.addEventListener("astro:page-load", applyToggles);
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
-    const el = t.closest<HTMLElement>("[data-like],[data-report],[data-reply],[data-edit],[data-del],[data-restore],[data-flag],[data-hide-c],[data-block],[data-ban],[data-unban],[data-ava-remove],[data-toggle],.f-spoiler,.f-yt,[data-show-blocked],[data-cancel-reply]");
+    const el = t.closest<HTMLElement>("[data-like],[data-report],[data-reply],[data-edit],[data-del],[data-restore],[data-flag],[data-hide-c],[data-block],[data-sub],[data-ban],[data-unban],[data-ava-remove],[data-toggle],.f-spoiler,.f-yt,[data-show-blocked],[data-cancel-reply]");
     if (!el || !root()?.contains(el)) return;
     if (el.matches("[data-like]")) { ev.preventDefault(); onLike(el); }
     else if (el.matches("[data-report]")) onReport(el);
@@ -209,6 +209,16 @@ if (!(window as any).__forumBound) {
     else if (el.matches("[data-restore]")) simple(() => api("POST", `${el.dataset.restore}/${el.dataset.id}/restore`, {}), "Восстановлено");
     else if (el.matches("[data-flag]")) simple(() => api("POST", `topic/${el.dataset.id}/flag`, { flag: el.dataset.flag, value: el.dataset.value === "1" }), "Готово");
     else if (el.matches("[data-hide-c]")) simple(() => api("POST", `comment/${el.dataset.hideC}/hide`, { value: el.dataset.value === "1" }), "Готово");
+    else if (el.matches("[data-sub]")) {
+      if (needLogin()) return;
+      const on = el.dataset.value === "1", kind = el.dataset.sub!;
+      (el as HTMLButtonElement).disabled = true;
+      api("POST", "sub", { kind, id: Number(el.dataset.id), value: on }).then(() => {
+        el.dataset.value = on ? "0" : "1"; el.classList.toggle("on", on);
+        el.textContent = on ? "🔕 Не следить" : kind === "s" ? "🔔 Следить за разделом" : "🔔 Следить";
+        toast(on ? (kind === "s" ? "Вы следите за разделом — новые темы придут в уведомления" : "Вы следите за темой") : "Больше не следите");
+      }).catch((e) => toast(e.message, true)).finally(() => ((el as HTMLButtonElement).disabled = false));
+    }
     else if (el.matches("[data-block]")) { if (!needLogin()) simple(() => api("POST", "block", { pid: Number(el.dataset.block), value: el.dataset.value === "1" }), el.dataset.value === "1" ? "Записи автора скрыты для вас" : "Автор снова виден"); }
     else if (el.matches("[data-ban]")) onBan(el);
     else if (el.matches("[data-ava-remove]")) {

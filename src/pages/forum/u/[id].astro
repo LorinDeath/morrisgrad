@@ -17,6 +17,11 @@ if (!/^\d+$/.test(key)) return Astro.redirect(`/forum/u/${u.pid}${page > 1 ? "?p
 const self = a.self;
 const mod = isMod(v);
 const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
+const st: any = a.stats;
+// Мини-график активности за 30 дней (inline SVG, без библиотек)
+const W = 600, Hh = 70, bw = W / 30;
+const maxN = Math.max(1, ...(st?.activity || []).map((x: any) => x.n));
+const dLabel = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 ---
 <ForumShell title={u.nick} viewer={v} active={self ? "me" : ""}>
   <div class="f-grid">
@@ -44,6 +49,45 @@ const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
           {mod && !self && u.avatar && (u.role !== "admin" && (u.role !== "moderator" || v.role === "admin")) && <button class="f-btn f-btn-s f-btn-danger" data-ava-remove={u.pid}>🖼 Убрать аватар</button>}
         </div>
       </div>
+      {st && (
+        <div class="f-box" style="margin-bottom:1rem" data-stats>
+          <h2 style="font-size:1.1rem;margin-top:0">Статистика</h2>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap"><span>Звание: <b class="f-rank">{st.rank.name}</b></span>
+              <span class="f-muted" style="font-size:.85rem">{st.rank.next ? `до «${st.rank.next.name}» — ещё ${st.rank.next.left} ${plural(st.rank.next.left, "сообщение", "сообщения", "сообщений")} (${st.rank.pct}%)` : "высшее звание ✦"}</span></div>
+            <div class="f-rankbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={st.rank.pct}><i style={`width:${st.rank.pct}%`}></i></div>
+          </div>
+          <div class="f-stats">
+            <div class="f-stat"><b>{st.topics}</b><span>{plural(st.topics, "тема", "темы", "тем")}</span></div>
+            <div class="f-stat"><b>{st.comments}</b><span>{plural(st.comments, "комментарий", "комментария", "комментариев")}</span></div>
+            <div class="f-stat"><b style="color:var(--f-red)">♥ {st.likes_received}</b><span>оценок получено (карма)</span></div>
+            <div class="f-stat"><b>{st.likes_given}</b><span>оценок поставлено</span></div>
+            <div class="f-stat"><b style="font-size:.95rem">{date(st.first_seen)}</b><span>на форуме с</span></div>
+            <div class="f-stat"><b style="font-size:.95rem">{onlineNow ? "сейчас" : ago(st.last_seen)}</b><span>последний визит</span></div>
+          </div>
+          {(st.best_topic || st.top_section) && (
+            <div class="f-muted" style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:.7rem">
+              {st.best_topic && <span>🏆 Лучшая тема: <a href={`/forum/t/${st.best_topic.id}`}>{st.best_topic.title}</a> · ♥ {st.best_topic.likes} · 💬 {st.best_topic.comments}</span>}
+              {st.top_section && <span>📍 Чаще всего пишет в разделе <a href={`/forum/s/${st.top_section.slug}`}>{st.top_section.icon} {st.top_section.title}</a></span>}
+            </div>
+          )}
+          <div style="margin-bottom:.7rem">
+            <div class="f-muted" style="font-size:.82rem;margin-bottom:.25rem">Активность за 30 дней: {st.activity_total} {plural(st.activity_total, "запись", "записи", "записей")}</div>
+            <svg class="f-chart" viewBox={`0 0 ${W} ${Hh + 16}`} role="img" aria-label={`Активность за 30 дней: ${st.activity_total}`}>
+              <line x1="0" x2={W} y1={Hh + .5} y2={Hh + .5} stroke="currentColor" stroke-opacity=".15" />
+              {st.activity.map((x: any, i: number) => {
+                const h = x.n ? Math.max(3, Math.round((x.n / maxN) * (Hh - 4))) : 1.5;
+                return <rect x={i * bw + 1} y={Hh - h} width={bw - 2} height={h} rx="1.5" fill={x.n ? "#d4af37" : "currentColor"} fill-opacity={x.n ? .85 : .12}><title>{dLabel(x.d)}: {x.n}</title></rect>;
+              })}
+              <text x="0" y={Hh + 14} font-size="13" fill="currentColor" fill-opacity=".5">{dLabel(st.activity[0].d)}</text>
+              <text x={W} y={Hh + 14} font-size="13" fill="currentColor" fill-opacity=".5" text-anchor="end">сегодня</text>
+            </svg>
+          </div>
+          <div class="f-achs">
+            {st.achievements.map((x: any) => <span class={`f-ach ${x.got ? "on" : "off"}`} title={x.got ? x.title : "Пока не получено: " + x.title}>{x.icon} {x.title}</span>)}
+          </div>
+        </div>
+      )}
       <h2 style="font-size:1.2rem">Записи автора</h2>
       <div class="f-feed">
         {a.items.length ? a.items.map((t: any) => <TopicCard t={t} viewerUid={v.uid} />) : <div class="f-empty">Пока ни одной темы.</div>}

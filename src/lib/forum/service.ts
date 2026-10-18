@@ -3,6 +3,7 @@
 import { renderMd, plainText, firstMediaKey, isMediaKey, MEDIA_PREFIX } from "./md";
 import { compileWords, filterText } from "./profanity";
 import { getSettings, validateSettings, clearSettingsCache, rankOf, type ForumSettings } from "./settings";
+import { notify, purgeFor, extractMentions, setSub, isSub, subscribers, TOGGLABLE } from "./notify";
 
 export class ForumError extends Error {
   constructor(public status: number, message: string, public code = "") { super(message); }
@@ -18,6 +19,7 @@ export interface Viewer {
   gameRole?: Role; // роль из игры (player_roles)
   ban: { until: number; reason: string } | null;
   user: any | null; // строка forum_users
+  unread?: number; // непрочитанные уведомления (ставит forumPage)
 }
 export const isMod = (v: Viewer) => v.role === "admin" || v.role === "moderator";
 /** Может ли модерировать конкретный раздел (админ и модератор всего форума — везде). */
@@ -234,6 +236,7 @@ export async function getTopic(db: any, v: Viewer, id: number) {
   decorate([t], s, v);
   await attachLiked(db, v, "t", [t]);
   t.blocked = v.uid ? !!(await db.prepare("SELECT 1 AS x FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, t.user_id).first()) : false;
+  t.subscribed = await isSub(db, v.uid, "t", t.id);
   return t;
 }
 
@@ -288,8 +291,9 @@ export async function getAuthor(db: any, v: Viewer, key: number | string, page =
   await attachLiked(db, v, "t", items);
   const ban = isMod(v) ? await db.prepare("SELECT until, reason FROM forum_bans WHERE user_id = ?").bind(uid).first() : null;
   const blocked = v.uid ? !!(await db.prepare("SELECT 1 AS x FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, uid).first()) : false;
+  const stats = await authorStats(db, uid, s);
   delete u.user_id;
-  return { user: u, self, items, more: rows.length > size, ban: ban && (ban.until === 0 || ban.until > now()) ? ban : null, blocked };
+  return { user: u, stats, self, items, more: rows.length > size, ban: ban && (ban.until === 0 || ban.until > now()) ? ban : null, blocked };
 }
 
 export async function online(db: any) {
@@ -302,6 +306,19 @@ export async function online(db: any) {
 export async function stats(db: any) {
   const r = await db.prepare("SELECT (SELECT COALESCE(SUM(topics_count),0) FROM forum_sections) AS topics, (SELECT COALESCE(SUM(posts_count),0) FROM forum_sections) AS posts, (SELECT COUNT(*) FROM forum_users) AS users").first();
   return r || { topics: 0, posts: 0, users: 0 };
+}
+
+// ---------- уведомления: упоминания ----------
+
+async function notifyMentions(db: any, actor: string, text: string, topicId: number, commentId: number | null, skip: Set<string>) {
+  const keys = extractMentions(text);
+  if (!keys.length) return;
+  const r = await db.prepare(`SELECT user_id FROM forum_users WHERE nick_key IN (${keys.map(() => "?").join(",")})`).bind(...keys).all();
+  for (const u of r.results || []) {
+    if (skip.has(u.user_id)) continue;
+    skip.add(u.user_id);
+    await notify(db, { to: u.user_id, type: "mention", actor, topicId, commentId, text: plainText(text, 140) });
+  }
 }
 
 // ---------- запись: темы ----------
@@ -344,7 +361,14 @@ export async function createTopic(db: any, v: Viewer, input: any) {
   await db.batch([
     db.prepare("UPDATE forum_sections SET topics_count = topics_count + 1, posts_count = posts_count + 1, last_topic_id = ?, last_post_at = ?, last_post_user = ? WHERE id = ?").bind(id, t, v.uid, sec.id),
     db.prepare("UPDATE forum_users SET topics_count = topics_count + 1, posts_count = posts_count + 1, last_post_at = ? WHERE user_id = ?").bind(t, v.uid),
+    db.prepare("INSERT OR IGNORE INTO forum_subs (user_id, kind, target_id, created_at) VALUES (?, 't', ?, ?)").bind(v.uid, id, t), // автор следит за своей темой
   ]);
+  const told = new Set<string>([v.uid!]);
+  await notifyMentions(db, v.uid!, `${title}\n${body}`, id, null, told);
+  for (const to of await subscribers(db, "s", sec.id)) {
+    if (told.has(to)) continue; told.add(to);
+    await notify(db, { to, type: "sub_section", actor: v.uid, topicId: id, text: `${sec.title}: ${title}`, agg: `sec:${sec.id}` });
+  }
   return { id };
 }
 
@@ -403,6 +427,8 @@ export async function deleteTopic(db: any, v: Viewer, id: number, reason: any = 
     db.prepare("UPDATE forum_reports SET status = 'resolved' WHERE target_type = 't' AND target_id = ?").bind(t.id),
   ]);
   await log(db, v.uid!, t.user_id === v.uid ? "topic_delete_own" : "topic_delete", "t", t.id, `«${t.title}»${why ? " · причина: " + why : ""}`);
+  await purgeFor(db, { topicId: t.id });
+  if (t.user_id !== v.uid) await notify(db, { to: t.user_id, type: "mod", actor: v.uid, showActor: false, topicId: t.id, text: `Модератор удалил вашу тему «${t.title}»${why ? ". Причина: " + why : ""}` });
   return { ok: true, section: t.section_id };
 }
 /** Восстановление мягко удалённой темы — только админ. */
@@ -453,9 +479,22 @@ export async function createComment(db: any, v: Viewer, topicId: number, input: 
   await db.batch([
     db.prepare("UPDATE forum_topics SET comments_count = comments_count + 1, last_activity = ?, last_comment_user = ?, hot = ? WHERE id = ?").bind(tm, v.uid, hotScore(t.likes_count, cc, t.created_at), t.id),
     db.prepare("UPDATE forum_sections SET posts_count = posts_count + 1, last_topic_id = ?, last_post_at = ?, last_post_user = ? WHERE id = ?").bind(t.id, tm, v.uid, t.section_id),
-    db.prepare("UPDATE forum_users SET posts_count = posts_count + 1, last_post_at = ? WHERE user_id = ?").bind(tm, v.uid),
+    db.prepare("UPDATE forum_users SET posts_count = posts_count + 1, comments_count = comments_count + 1, last_post_at = ? WHERE user_id = ?").bind(tm, v.uid),
   ]);
-  return { id: r.meta?.last_row_id };
+  const cid = r.meta?.last_row_id;
+  const told = new Set<string>([v.uid!]);
+  const snippet = plainText(body, 140);
+  if (replyTo) {
+    const rc = await db.prepare("SELECT user_id, deleted, hidden FROM forum_comments WHERE id = ?").bind(replyTo).first();
+    if (rc && !rc.deleted && !rc.hidden && !told.has(rc.user_id)) { told.add(rc.user_id); await notify(db, { to: rc.user_id, type: "reply", actor: v.uid, topicId: t.id, commentId: cid, text: snippet }); }
+  }
+  if (!told.has(t.user_id)) { told.add(t.user_id); await notify(db, { to: t.user_id, type: "comment", actor: v.uid, topicId: t.id, commentId: cid, text: snippet, agg: `com:${t.id}` }); }
+  await notifyMentions(db, v.uid!, body, t.id, cid, told);
+  for (const to of await subscribers(db, "t", t.id)) {
+    if (told.has(to)) continue; told.add(to);
+    await notify(db, { to, type: "sub_topic", actor: v.uid, topicId: t.id, commentId: cid, text: snippet, agg: `sub:${t.id}` });
+  }
+  return { id: cid };
 }
 
 async function ownComment(db: any, v: Viewer, id: number) {
@@ -483,6 +522,8 @@ export async function deleteComment(db: any, v: Viewer, id: number, reason: any 
     db.prepare("UPDATE forum_reports SET status = 'resolved' WHERE target_type = 'c' AND target_id = ?").bind(c.id),
   ]);
   await log(db, v.uid!, c.user_id === v.uid ? "comment_delete_own" : "comment_delete", "c", c.id, `${String(c.body).slice(0, 120)}${why ? " · причина: " + why : ""}`);
+  await purgeFor(db, { commentId: c.id });
+  if (c.user_id !== v.uid) await notify(db, { to: c.user_id, type: "mod", actor: v.uid, showActor: false, topicId: c.topic_id, text: `Модератор удалил ваш комментарий «${plainText(c.body, 60)}»${why ? ". Причина: " + why : ""}` });
   return { ok: true };
 }
 /** Восстановление комментария — только админ. */
@@ -501,7 +542,7 @@ async function countComment(db: any, topicId: number, userId: string, d: number,
     ...extra,
     db.prepare("UPDATE forum_topics SET comments_count = ?, hot = ? WHERE id = ?").bind(cc, hotScore(t?.likes_count || 0, cc, t?.created_at || 0), topicId),
     db.prepare("UPDATE forum_sections SET posts_count = MAX(0, posts_count + ?) WHERE id = ?").bind(d, t?.section_id ?? -1),
-    db.prepare("UPDATE forum_users SET posts_count = MAX(0, posts_count + ?) WHERE user_id = ?").bind(d, userId),
+    db.prepare("UPDATE forum_users SET posts_count = MAX(0, posts_count + ?), comments_count = MAX(0, comments_count + ?) WHERE user_id = ?").bind(d, d, userId),
   ]);
 }
 
@@ -518,7 +559,7 @@ export async function toggleLike(db: any, v: Viewer, type: "t" | "c", id: number
   arr.push(tm); likeBurst.set(v.uid!, arr);
   if (likeBurst.size > 5000) likeBurst.clear();
   const table = type === "t" ? "forum_topics" : "forum_comments";
-  const row = await db.prepare(`SELECT id, user_id, likes_count, deleted, hidden${type === "t" ? ", comments_count, created_at" : ""} FROM ${table} WHERE id = ?`).bind(id | 0).first();
+  const row = await db.prepare(`SELECT id, user_id, likes_count, deleted, hidden${type === "t" ? ", comments_count, created_at, title" : ", topic_id, body"} FROM ${table} WHERE id = ?`).bind(id | 0).first();
   if (!row || row.deleted || row.hidden) fail(404, "Запись не найдена");
   if (row.user_id === v.uid) fail(400, "Свои записи оценивать нельзя");
   const ins = await db.prepare("INSERT OR IGNORE INTO forum_likes (user_id, target_type, target_id, created_at) VALUES (?, ?, ?, ?)").bind(v.uid, type, row.id, tm).run();
@@ -540,8 +581,11 @@ export async function toggleLike(db: any, v: Viewer, type: "t" | "c", id: number
       ? db.prepare("UPDATE forum_topics SET likes_count = MAX(0, likes_count + ?), hot = ? WHERE id = ?").bind(delta, hotScore(likes, row.comments_count, row.created_at), row.id)
       : db.prepare("UPDATE forum_comments SET likes_count = MAX(0, likes_count + ?) WHERE id = ?").bind(delta, row.id),
     db.prepare("UPDATE forum_users SET karma = karma + ? WHERE user_id = ?").bind(delta, row.user_id),
+    db.prepare("UPDATE forum_users SET likes_given = MAX(0, likes_given + ?) WHERE user_id = ?").bind(delta, v.uid),
   ];
   await db.batch(stmts);
+  if (liked) await notify(db, { to: row.user_id, type: "like", actor: v.uid, topicId: type === "t" ? row.id : row.topic_id, commentId: type === "c" ? row.id : null,
+    text: type === "t" ? row.title : plainText(row.body || "", 80), agg: `like:${type}:${row.id}` });
   return { liked, likes };
 }
 
@@ -567,10 +611,22 @@ export async function report(db: any, v: Viewer, type: "t" | "c", id: number, re
     await db.prepare(`UPDATE ${table} SET hidden = 1 WHERE id = ?`).bind(row.id).run();
     await log(db, "system", "auto_hide", type, row.id, `жалоб: ${open?.n}`);
     autoHidden = true;
+    await purgeFor(db, type === "t" ? { topicId: row.id } : { commentId: row.id });
+    await notify(db, { to: row.user_id, type: "mod", showActor: false, topicId: (await targetRefs(db, type, row.id)).topicId, commentId: type === "c" ? row.id : null, text: `Ваш${type === "t" ? "а тема скрыта" : " комментарий скрыт"} до проверки модератором (несколько жалоб)` });
   }
   return { ok: true, autoHidden };
 }
 
+async function targetRefs(db: any, type: string, id: number): Promise<{ topicId: number | null; commentId: number | null; author: string | null; label: string }> {
+  if (type === "t") { const t = await db.prepare("SELECT id, user_id, title FROM forum_topics WHERE id = ?").bind(id | 0).first(); return { topicId: t?.id ?? null, commentId: null, author: t?.user_id ?? null, label: `вашу тему «${t?.title ?? ""}»` }; }
+  const c = await db.prepare("SELECT id, topic_id, user_id, body FROM forum_comments WHERE id = ?").bind(id | 0).first();
+  return { topicId: c?.topic_id ?? null, commentId: c?.id ?? null, author: c?.user_id ?? null, label: `ваш комментарий «${plainText(c?.body || "", 60)}»` };
+}
+async function notifyHidden(db: any, v: Viewer, type: string, id: number, reason = "") {
+  const r = await targetRefs(db, type, id);
+  await purgeFor(db, type === "t" ? { topicId: id } : { commentId: id });
+  if (r.author && r.author !== v.uid) await notify(db, { to: r.author, type: "mod", actor: v.uid, showActor: false, topicId: r.topicId, commentId: r.commentId, text: `Модератор скрыл ${r.label}${reason ? ". Причина: " + reason : ""}` });
+}
 async function sectionOfTarget(db: any, type: string, id: number): Promise<number | null> {
   const r = type === "t"
     ? await db.prepare("SELECT section_id FROM forum_topics WHERE id = ?").bind(id | 0).first()
@@ -603,6 +659,7 @@ export async function resolveReport(db: any, v: Viewer, type: "t" | "c", id: num
   const table = type === "t" ? "forum_topics" : "forum_comments";
   if (action === "hide" || action === "unhide") {
     await db.prepare(`UPDATE ${table} SET hidden = ? WHERE id = ?`).bind(action === "hide" ? 1 : 0, id | 0).run();
+    if (action === "hide") await notifyHidden(db, v, type, id, String(reason ?? "").trim().slice(0, 200));
   } else if (action === "delete") {
     if (type === "t") await deleteTopic(db, v, id, reason || "по жалобе"); else await deleteComment(db, v, id, reason || "по жалобе");
   } else if (action !== "dismiss") fail(400, "Неизвестное действие");
@@ -618,6 +675,11 @@ export async function setTopicFlag(db: any, v: Viewer, id: number, flag: string,
   const r = await db.prepare(`UPDATE forum_topics SET ${flag} = ? WHERE id = ? AND deleted = 0`).bind(value ? 1 : 0, id | 0).run();
   if (!r.meta?.changes) fail(404, "Тема не найдена");
   await log(db, v.uid!, `${flag}_${value ? "on" : "off"}`, "t", id);
+  if (value && flag === "hidden") await notifyHidden(db, v, "t", id);
+  else if (value && (flag === "featured" || flag === "locked")) {
+    const r = await targetRefs(db, "t", id);
+    if (r.author !== v.uid) await notify(db, { to: r.author, type: "mod", actor: v.uid, showActor: false, topicId: id, text: flag === "featured" ? `Модератор добавил ${r.label} в «Рекомендованное» ✦` : `Модератор закрыл ${r.label} для новых комментариев` });
+  }
   return { ok: true };
 }
 export async function setCommentHidden(db: any, v: Viewer, id: number, value: boolean) {
@@ -625,6 +687,7 @@ export async function setCommentHidden(db: any, v: Viewer, id: number, value: bo
   if (!canMod(v, await sectionOfTarget(db, "c", id))) fail(403, "Этот раздел вне вашей зоны модерации");
   await db.prepare("UPDATE forum_comments SET hidden = ? WHERE id = ?").bind(value ? 1 : 0, id | 0).run();
   await log(db, v.uid!, value ? "comment_hide" : "comment_unhide", "c", id);
+  if (value) await notifyHidden(db, v, "c", id);
   return { ok: true };
 }
 
@@ -642,6 +705,7 @@ export async function banUser(db: any, v: Viewer, target: any, minutes: number, 
   const why = String(reason ?? "").trim().slice(0, 200);
   await db.prepare("INSERT INTO forum_bans (user_id, until, reason, by_user, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET until = excluded.until, reason = excluded.reason, by_user = excluded.by_user, created_at = excluded.created_at").bind(uid, until, why, v.uid, now()).run();
   await log(db, v.uid!, "ban", "u", uid, `${tu.nick} · ${m === 0 ? "бессрочно" : m + " мин"}${why ? " · " + why : ""}`);
+  await notify(db, { to: uid, type: "ban", actor: v.uid, showActor: false, text: `Модератор ограничил вам возможность писать на форуме ${m === 0 ? "бессрочно" : "до " + new Date(until).toLocaleString("ru-RU", { timeZone: "Europe/Kiev", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${why ? ". Причина: " + why : ""}` });
   return { ok: true, until };
 }
 export async function unbanUser(db: any, v: Viewer, target: any) {
@@ -650,6 +714,7 @@ export async function unbanUser(db: any, v: Viewer, target: any) {
   if (!tu) fail(404, "Участник не найден");
   await db.prepare("DELETE FROM forum_bans WHERE user_id = ?").bind(tu.user_id).run();
   await log(db, v.uid!, "unban", "u", tu.user_id, tu.nick);
+  await notify(db, { to: tu.user_id, type: "ban", actor: v.uid, showActor: false, text: "Ограничение на форуме снято — снова можно писать" });
   return { ok: true };
 }
 export async function listBans(db: any, v: Viewer) {
@@ -738,7 +803,14 @@ export async function updateSettings(db: any, v: Viewer, patch: any) {
 // ---------- свой профиль, блокировки ----------
 
 export async function updateMe(db: any, v: Viewer, x: any) {
-  needUser(v); needNotBanned(v);
+  needUser(v);
+  // настройки уведомлений можно менять и при ограничении на форуме
+  if (Array.isArray(x?.notif_off)) {
+    const off = [...new Set(x.notif_off.map(String).filter((k: string) => (TOGGLABLE as readonly string[]).includes(k)))].join(",");
+    await db.prepare("UPDATE forum_users SET notif_off = ? WHERE user_id = ?").bind(off, v.uid).run();
+    if (x?.nick == null && x?.signature == null) return { ok: true };
+  }
+  needNotBanned(v);
   const s = await getSettings(db);
   const out: any = {};
   if (x?.nick != null) {
@@ -840,6 +912,8 @@ export async function addModerator(db: any, v: Viewer, target: any, sectionId: a
   if (sid) { const sec = await db.prepare("SELECT id FROM forum_sections WHERE id = ?").bind(sid).first(); if (!sec) fail(400, "Раздел не найден"); }
   await db.prepare("INSERT OR IGNORE INTO forum_moderators (user_id, section_id, granted_by, granted_at) VALUES (?, ?, ?, ?)").bind(u.user_id, sid, v.uid, now()).run();
   await log(db, v.uid!, "mod_add", "u", u.user_id, `${u.nick}${sid ? " · раздел #" + sid : " · весь форум"}`);
+  const secT = sid ? await db.prepare("SELECT title FROM forum_sections WHERE id = ?").bind(sid).first() : null;
+  await notify(db, { to: u.user_id, type: "mod_assign", actor: v.uid, showActor: false, text: `Вас назначили модератором форума: ${sid ? "раздел «" + (secT?.title || "#" + sid) + "»" : "весь форум"}` });
   return { ok: true };
 }
 export async function removeModerator(db: any, v: Viewer, target: any, sectionId: any) {
@@ -895,5 +969,72 @@ export async function removeAvatar(db: any, v: Viewer, target: any | null, reaso
   await db.prepare("UPDATE forum_users SET avatar_key = NULL, avatar_at = ? WHERE user_id = ?").bind(now(), tu.user_id).run();
   const why = String(reason ?? "").trim().slice(0, 200);
   await log(db, v.uid!, "avatar_remove", "u", tu.user_id, `${tu.nick} · файл ${tu.avatar_key}${why ? " · причина: " + why : ""}`);
+  await notify(db, { to: tu.user_id, type: "mod", actor: v.uid, showActor: false, text: `Модератор убрал ваш аватар${why ? ". Причина: " + why : ""}` });
   return { ok: true, old: null }; // файл оставляем в хранилище — для разбора по журналу
+}
+
+// ---------- подписки ----------
+
+export async function subscribe(db: any, v: Viewer, kind: any, id: any, on: boolean) {
+  needUser(v);
+  if (kind !== "t" && kind !== "s") fail(400, "Неверная подписка");
+  const exists = kind === "t"
+    ? await db.prepare("SELECT id FROM forum_topics WHERE id = ? AND deleted = 0").bind(Number(id) | 0).first()
+    : await db.prepare("SELECT id FROM forum_sections WHERE id = ?").bind(Number(id) | 0).first();
+  if (!exists) fail(404, kind === "t" ? "Тема не найдена" : "Раздел не найден");
+  if (on) {
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM forum_subs WHERE user_id = ?").bind(v.uid).first();
+    if ((n?.n || 0) >= 1000) fail(400, "Слишком много подписок");
+  }
+  await setSub(db, v.uid!, kind, exists.id, on);
+  return { ok: true, subscribed: on };
+}
+export const sectionSubscribed = (db: any, v: Viewer, sectionId: number) => isSub(db, v.uid, "s", sectionId);
+
+// ---------- статистика участника ----------
+
+const ACHIEVEMENTS: { id: string; icon: string; title: string; test: (s: any) => boolean }[] = [
+  { id: "first_topic", icon: "✍", title: "Первая тема", test: (s) => s.topics >= 1 },
+  { id: "talker", icon: "💬", title: "Собеседник — 50 комментариев", test: (s) => s.comments >= 50 },
+  { id: "liked10", icon: "♥", title: "10 оценок от других", test: (s) => s.karma >= 10 },
+  { id: "liked100", icon: "❤", title: "Любимец публики — 100 оценок", test: (s) => s.karma >= 100 },
+  { id: "kind", icon: "🤝", title: "Щедрая душа — поставил(а) 50 оценок", test: (s) => s.given >= 50 },
+  { id: "hit", icon: "🔥", title: "Хит — тема с 10+ оценками", test: (s) => s.bestLikes >= 10 },
+  { id: "author", icon: "📚", title: "Летописец — 10 тем", test: (s) => s.topics >= 10 },
+  { id: "old", icon: "🕯", title: "Старожил — месяц на форуме", test: (s) => s.days >= 30 },
+];
+
+/** Статистика для страницы автора: счётчики из forum_users + несколько дешёвых запросов по индексам user_id. */
+export async function authorStats(db: any, uid: string, s: ForumSettings) {
+  const u = await db.prepare("SELECT topics_count, comments_count, posts_count, karma, likes_given, first_seen, last_seen FROM forum_users WHERE user_id = ?").bind(uid).first();
+  if (!u) return null;
+  const since = now() - 30 * 24 * H;
+  const [best, sec, acts] = await Promise.all([
+    db.prepare("SELECT id, title, likes_count, comments_count FROM forum_topics WHERE user_id = ? AND deleted = 0 AND hidden = 0 ORDER BY likes_count DESC, comments_count DESC, id DESC LIMIT 1").bind(uid).first(),
+    db.prepare(`SELECT s.slug, s.title, s.icon, COUNT(*) AS n FROM (SELECT section_id FROM forum_topics WHERE user_id = ? AND deleted = 0
+        UNION ALL SELECT t.section_id FROM forum_comments c JOIN forum_topics t ON t.id = c.topic_id WHERE c.user_id = ? AND c.deleted = 0) x
+      JOIN forum_sections s ON s.id = x.section_id GROUP BY s.id ORDER BY n DESC LIMIT 1`).bind(uid, uid).first(),
+    db.prepare("SELECT created_at FROM forum_topics WHERE user_id = ? AND created_at > ? AND deleted = 0 UNION ALL SELECT created_at FROM forum_comments WHERE user_id = ? AND created_at > ? AND deleted = 0 LIMIT 5000").bind(uid, since, uid, since).all(),
+  ]);
+  // активность по дням (киевское время), последние 30 дней
+  const dayKey = (ms: number) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "Europe/Kiev" });
+  const days: { d: string; n: number }[] = [];
+  for (let i = 29; i >= 0; i--) days.push({ d: dayKey(now() - i * 24 * H), n: 0 });
+  const idx = new Map(days.map((x, i) => [x.d, i]));
+  for (const r of acts.results || []) { const i = idx.get(dayKey(r.created_at)); if (i != null) days[i].n++; }
+  // звание и прогресс до следующего
+  const ranks = [...s.ranks].sort((a, b) => a[0] - b[0]);
+  let cur = ranks[0], next: any = null;
+  for (let i = 0; i < ranks.length; i++) if (u.posts_count >= ranks[i][0]) { cur = ranks[i]; next = ranks[i + 1] || null; }
+  const pct = next ? Math.max(0, Math.min(100, Math.round(((u.posts_count - cur[0]) / (next[0] - cur[0])) * 100))) : 100;
+  const base = { topics: u.topics_count, comments: u.comments_count, karma: u.karma, given: u.likes_given, bestLikes: best?.likes_count || 0, days: Math.floor((now() - u.first_seen) / (24 * H)) };
+  return {
+    topics: u.topics_count, comments: u.comments_count, posts: u.posts_count, likes_received: u.karma, likes_given: u.likes_given, karma: u.karma,
+    first_seen: u.first_seen, last_seen: u.last_seen,
+    rank: { name: cur?.[1] || "", next: next ? { name: next[1], at: next[0], left: next[0] - u.posts_count } : null, pct },
+    best_topic: best ? { id: best.id, title: best.title, likes: best.likes_count, comments: best.comments_count } : null,
+    top_section: sec ? { slug: sec.slug, title: sec.title, icon: sec.icon, n: sec.n } : null,
+    activity: days, activity_total: days.reduce((a, x) => a + x.n, 0),
+    achievements: ACHIEVEMENTS.map((a) => ({ id: a.id, icon: a.icon, title: a.title, got: a.test(base) })),
+  };
 }
