@@ -1,7 +1,6 @@
 import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import clerk from '@clerk/astro';
-import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
   // Указываем домен для sitemap
@@ -21,6 +20,6 @@ export default defineConfig({
   // Все интеграции в одном массиве
   integrations: [
     clerk(),
-    sitemap(),
+    // карта сайта — динамическая: src/pages/sitemap*.xml.ts (с темами форума)
   ],
 });

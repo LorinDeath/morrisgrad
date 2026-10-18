@@ -21,7 +21,8 @@ try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0"
 const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
 
 if (!user) {
-    return new Response("Пользователь не найден", { status: 404 });
+    (Astro.locals as any).notFound = { title: "Игрок не найден", text: "Такого профиля нет." };
+    return Astro.rewrite("/404");
 }
 
 // 3. Загрузка инвентаря (Последние 10)

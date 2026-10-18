@@ -3,25 +3,27 @@ import { ViewTransitions } from 'astro:transitions';
 import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/astro/components";
 import RadioPlayer from '../components/RadioPlayer.astro';
 import '../styles/tokens.css';
+import SeoHead from '../components/seo/SeoHead.astro';
+import type { SeoInput } from '../lib/seo';
 
-interface Props {
+interface Props extends Partial<Omit<SeoInput, 'title'>> {
   title: string;
   viewportFit?: boolean; // игра: viewport-fit=cover, чтобы safe-area-inset (вырез, полоска «домой») работали
 }
 
-const { title, viewportFit = false } = Astro.props;
+const { title, viewportFit = false, ...seo } = Astro.props;
 ---
 
 <!doctype html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="description" content="МоррисГрад — интерактивная вселенная тёмного фэнтези" />
     <meta name="google-site-verification" content="btZYW-SgLGLi6YgpZtgNR7AjM1iU3GqUYuTpHilFd8U" />
     <meta name="viewport" content={`width=device-width, initial-scale=1.0${viewportFit ? ', viewport-fit=cover' : ''}`} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <SeoHead title={title} {...seo} />
     <ViewTransitions />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,7 +46,7 @@ const { title, viewportFit = false } = Astro.props;
           </svg>
         </button>
 
-        <a href="/" class="logo-area" title="На главную МоррисГрад">
+        <a href="/" class="logo-area" title="На главную МоррисГрад" aria-label="МоррисГрад — на главную">
           <div class="logo-crest">
             <svg viewBox="0 0 40 40" width="34" height="34" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M20 2L36 9V21C36 30 29 36.5 20 39C11 36.5 4 30 4 21V9L20 2Z" fill="url(#crest-grad)" stroke="#c9a86c" stroke-width="1.5" stroke-opacity="0.8"/>
@@ -65,21 +67,21 @@ const { title, viewportFit = false } = Astro.props;
           </div>
         </a>
 
-        <nav class="header-nav-links">
-          <a href="/books" class="header-nav-btn" title="Летописи и книги вселенной">
+        <nav class="header-nav-links" aria-label="Основные разделы">
+          <a href="/books" class="header-nav-btn" title="Летописи и книги вселенной" aria-label="Книги">
             <span class="nav-icon">📖</span> <span class="nav-btn-text">Книги</span>
           </a>
-          <a href="/arts" class="header-nav-btn" title="Галерея персонажей">
+          <a href="/arts" class="header-nav-btn" title="Галерея персонажей" aria-label="Галерея">
             <span class="nav-icon">🖼</span> <span class="nav-btn-text">Галерея</span>
           </a>
-          <a href="/forum" class="header-nav-btn" title="Форум жителей МоррисГрада">
+          <a href="/forum" class="header-nav-btn" title="Форум жителей МоррисГрада" aria-label="Форум">
             <span class="nav-icon">🗨</span> <span class="nav-btn-text">Форум</span>
           </a>
         </nav>
       </div>
 
       <div class="auth-controls">
-        <a href="/chat" class="header-chat-link" title="Открыть чат жителей">
+        <a href="/chat" class="header-chat-link" title="Открыть чат жителей" aria-label="Чат" rel="nofollow">
           <span class="chat-icon">💬</span>
           <span class="chat-text">Чат</span>
           <span id="chat-notify-dot" class="notify-dot hidden" aria-label="Новые сообщения"></span>
@@ -130,6 +132,17 @@ const { title, viewportFit = false } = Astro.props;
           <span class="social-icon">⚡</span> Boosty
         </a>
       </div>
+
+      <nav class="footer-nav" aria-label="Разделы сайта">
+        <a href="/MorrisCurse">Игра «Проклятые»</a>
+        <a href="/forum">Форум</a>
+        <a href="/books">Книги</a>
+        <a href="/heroes">Герои</a>
+        <a href="/games">Мини-игры</a>
+        <a href="/music">Музыка</a>
+        <a href="/cities">Города</a>
+        <a href="/worlds">Миры</a>
+      </nav>
 
       <p class="copy">&copy; 2026 Lorin Death • Alex Seylor production</p>
       <div class="footer-links">
@@ -493,6 +506,11 @@ const { title, viewportFit = false } = Astro.props;
     box-shadow: 0 0 12px var(--gold-glow);
   }
 
+  .footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem 1.1rem; margin: 0 auto 1.2rem; max-width: 760px; font-size: 0.9rem; }
+  .footer-nav a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; display: inline-block; min-height: 24px; padding: 0.2rem 0.15rem; line-height: 1.4; }
+  .footer-nav a:hover { color: var(--accent-gold); }
+  /* Только для читалок и поисковиков (заголовок страницы без визуального дубля) */
+  .sr-only, .f-sr { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .site-bell {
     position: relative; display: inline-flex; align-items: center; justify-content: center;
     width: 36px; height: 34px; border-radius: 8px; text-decoration: none; font-size: 1rem;

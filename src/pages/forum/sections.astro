@@ -5,11 +5,12 @@ import { forumPage } from "../../lib/forum/page";
 import { listSections, online, stats } from "../../lib/forum/service";
 import { userUrl, roleLabel, plural } from "../../lib/forum/fmt";
 import Ava from "../../components/forum/Ava.astro";
+import { breadcrumbs } from "../../lib/seo";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 const [sections, on, st] = await Promise.all([listSections(db), online(db), stats(db)]);
 ---
-<ForumShell title="Разделы" viewer={v} active="sections">
+<ForumShell title="Разделы" viewer={v} active="sections" jsonLd={[breadcrumbs([["Форум", "/forum"], ["Разделы", "/forum/sections"]])]}>
   <h1 class="f-h1">Разделы форума</h1>
   <p class="f-muted" style="margin-top:0">Классический вид: все разделы, число тем и сообщений, последнее сообщение.</p>
   <SectionsTable sections={sections} />

@@ -5,12 +5,13 @@ import { forumPage } from "../../../lib/forum/page";
 import { getAuthor, isMod } from "../../../lib/forum/service";
 import { date, ago, roleLabel, plural } from "../../../lib/forum/fmt";
 import Ava from "../../../components/forum/Ava.astro";
+import { breadcrumbs, abs } from "../../../lib/seo";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 const key = decodeURIComponent(String(Astro.params.id));
 const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
 const a = await getAuthor(db, v, key, page);
-if (!a) return new Response("Пользователь не найден", { status: 404 });
+if (!a) { (Astro.locals as any).notFound = { title: "Участник не найден", text: "Такого профиля на форуме нет.", back: ["/forum", "← На форум"] }; return Astro.rewrite("/404"); }
 const u = a.user;
 // Старые адреса /forum/u/<Clerk id> → постоянный публичный /forum/u/<номер>
 if (!/^\d+$/.test(key)) return Astro.redirect(`/forum/u/${u.pid}${page > 1 ? "?page=" + page : ""}`, 301);
@@ -18,12 +19,21 @@ const self = a.self;
 const mod = isMod(v);
 const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
 const st: any = a.stats;
+// Профили без записей — «тонкие» страницы: noindex (ссылки всё равно проходят)
+const thin = !((u.topics_count || 0) + (st?.comments || 0));
+const profPath = `/forum/u/${u.pid}`;
+const profDesc = `${u.nick} — ${u.rank || "участник"} форума МоррисГрада: ${u.topics_count} ${plural(u.topics_count, "тема", "темы", "тем")}, ${st?.comments ?? 0} ${plural(st?.comments ?? 0, "комментарий", "комментария", "комментариев")}, карма ${u.karma}.`;
+const profLd = [{ "@context": "https://schema.org", "@type": "ProfilePage", url: abs(profPath), dateCreated: new Date(u.first_seen).toISOString(),
+  mainEntity: { "@type": "Person", name: u.nick, url: abs(profPath), ...(u.avatar ? { image: abs("/api/forum/media/" + u.avatar) } : {}),
+    interactionStatistic: [{ "@type": "InteractionCounter", interactionType: "https://schema.org/WriteAction", userInteractionCount: (u.topics_count || 0) + (st?.comments || 0) },
+      { "@type": "InteractionCounter", interactionType: "https://schema.org/LikeAction", userInteractionCount: u.karma || 0 }] } },
+  breadcrumbs([["Форум", "/forum"], [u.nick, profPath]])];
 // Мини-график активности за 30 дней (inline SVG, без библиотек)
 const W = 600, Hh = 70, bw = W / 30;
 const maxN = Math.max(1, ...(st?.activity || []).map((x: any) => x.n));
 const dLabel = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 ---
-<ForumShell title={u.nick} viewer={v} active={self ? "me" : ""}>
+<ForumShell title={page > 1 ? `${u.nick} — страница ${page}` : u.nick} viewer={v} active={self ? "me" : ""} description={profDesc} canonical={page > 1 ? `${profPath}?page=${page}` : profPath} type="profile" image={u.avatar ? "/api/forum/media/" + u.avatar : null} imageAlt={u.nick} robots={thin ? "noindex,follow" : null} jsonLd={thin ? [] : profLd}>
   <div class="f-grid">
     <main>
       <div class="f-box" style="margin-bottom:1rem">

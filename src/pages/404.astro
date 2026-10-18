@@ -1,0 +1,33 @@
+---
+// Страница «не найдено»: настоящий статус 404 + оформление сайта. Форум передаёт уточнение через Astro.locals.notFound.
+import Layout from '../layouts/Layout.astro';
+export const prerender = false;
+Astro.response.status = 404;
+Astro.response.headers.set('cache-control', 'no-store');
+const what = (Astro.locals as any)?.notFound as { title?: string; text?: string; back?: [string, string] } | undefined;
+const title = what?.title || 'Страница не найдена';
+const back = what?.back;
+---
+<Layout title={`${title} — 404 | МоррисГрад`} robots="noindex,follow" canonical={false} description="Такой страницы в МоррисГраде нет.">
+  <main class="nf">
+    <div class="nf-rune" aria-hidden="true">✦ 404 ✦</div>
+    <h1>{title}</h1>
+    <p>{what?.text || 'Похоже, эта тропа заросла: страницу удалили, переименовали или в ссылке опечатка.'}</p>
+    <nav class="nf-links" aria-label="Куда пойти">
+      {back && <a class="nf-btn nf-btn-main" href={back[0]}>{back[1]}</a>}
+      <a class={`nf-btn${back ? '' : ' nf-btn-main'}`} href="/">На главную</a>
+      <a class="nf-btn" href="/forum">Форум</a>
+      <a class="nf-btn" href="/MorrisCurse">Играть в «Проклятых»</a>
+    </nav>
+  </main>
+</Layout>
+<style>
+  .nf { max-width: 680px; margin: 0 auto; padding: 4.5rem 1.5rem 5rem; text-align: center; }
+  .nf-rune { font-family: var(--font-heading, 'Cinzel', serif); color: var(--accent-gold, #d4af37); letter-spacing: .35em; font-size: 1.05rem; opacity: .85; margin-bottom: .8rem; }
+  .nf h1 { font-family: var(--font-heading, 'Cinzel', serif); color: var(--text-main, #eee); font-size: clamp(1.6rem, 4vw, 2.4rem); margin: 0 0 .8rem; }
+  .nf p { color: var(--text-muted, #aaa); line-height: 1.6; margin: 0 0 2rem; }
+  .nf-links { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+  .nf-btn { display: inline-flex; align-items: center; padding: .6rem 1.1rem; border-radius: 10px; border: 1px solid rgba(212,175,55,.35); color: var(--text-main, #eee); text-decoration: none; font-weight: 600; transition: border-color .2s, box-shadow .2s; }
+  .nf-btn:hover { border-color: var(--accent-gold, #d4af37); box-shadow: 0 0 12px rgba(212,175,55,.25); }
+  .nf-btn-main { background: linear-gradient(135deg, #9f1239, #e11d48); border-color: transparent; color: #fff; }
+</style>

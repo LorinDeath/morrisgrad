@@ -1,0 +1,29 @@
+---
+// Мета-теги для поисковиков и соцсетей. Вставляется в <head> (Layout и отдельные страницы игр).
+import { resolveSeo, ldJson, iso, SITE_NAME, type SeoInput } from "../../lib/seo";
+type Props = SeoInput;
+const p = Astro.props as SeoInput;
+const s = resolveSeo(Astro.url.pathname, p);
+const ld = (p.jsonLd || []).filter(Boolean);
+---
+<meta name="description" content={s.description} />
+{s.canonical && <link rel="canonical" href={s.canonical} />}
+<meta name="robots" content={s.robots} />
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:locale" content="ru_RU" />
+<meta property="og:type" content={s.type} />
+<meta property="og:title" content={p.title} />
+<meta property="og:description" content={s.description} />
+{s.canonical && <meta property="og:url" content={s.canonical} />}
+<meta property="og:image" content={s.image} />
+<meta property="og:image:alt" content={s.imageAlt} />
+{s.defaultImage && <meta property="og:image:width" content="1200" />}
+{s.defaultImage && <meta property="og:image:height" content="630" />}
+{s.type === "article" && p.publishedTime && <meta property="article:published_time" content={iso(p.publishedTime)} />}
+{s.type === "article" && p.modifiedTime && <meta property="article:modified_time" content={iso(p.modifiedTime)} />}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={p.title} />
+<meta name="twitter:description" content={s.description} />
+<meta name="twitter:image" content={s.image} />
+<meta name="twitter:image:alt" content={s.imageAlt} />
+{ld.map((o) => <script type="application/ld+json" set:html={ldJson(o)} />)}

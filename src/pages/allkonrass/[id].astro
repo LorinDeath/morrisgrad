@@ -28,7 +28,8 @@ const storyMeta = (await db.prepare(
 ).bind(id).first()) as KonkursRow | null;
 
 if (!storyMeta) {
-  return Astro.redirect('/404');
+  (Astro.locals as any).notFound = { title: 'Рассказ не найден', text: 'Такого рассказа в конкурсе нет.', back: ['/allkonrass', '← Все рассказы'] };
+  return Astro.rewrite('/404');
 }
 
 // Забираем JSON текста из бакета konkursbook
@@ -46,7 +47,7 @@ try {
 }
 ---
 
-<Layout title={`${storyMeta.name} — ${storyMeta.author} | Моррис Град`}>
+<Layout title={`${storyMeta.name} — ${storyMeta.author} | Моррис Град`} description={`Рассказ «${storyMeta.name}» (автор: ${storyMeta.author}) — литературный конкурс МоррисГрада. Читать онлайн.`} type="article">
   <main class="container story-view">
     <nav class="breadcrumb">
       <a href="/allkonrass" class="back-link">← Ко всем рассказам</a>

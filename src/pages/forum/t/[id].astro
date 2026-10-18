@@ -6,17 +6,34 @@ import { forumPage } from "../../../lib/forum/page";
 import { getTopic, getComments, isMod } from "../../../lib/forum/service";
 import { getSettings } from "../../../lib/forum/settings";
 import { dateTime, ago, media, plural } from "../../../lib/forum/fmt";
+import { plainText } from "../../../lib/forum/md";
+import { topicLd, breadcrumbs, htmlText, abs } from "../../../lib/seo";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 const t = await getTopic(db, v, Number(Astro.params.id));
-if (!t) return new Response("Тема не найдена", { status: 404 });
+if (!t) { (Astro.locals as any).notFound = { title: "Тема не найдена", text: "Тема удалена, скрыта модерацией или ссылка неверная.", back: ["/forum", "← К ленте форума"] }; return Astro.rewrite("/404"); }
 const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
 const [cm, s] = await Promise.all([getComments(db, v, t.id, page), getSettings(db)]);
 const mod = !!t.can_mod; // админ или модератор этого раздела (проверено на сервере)
 const mine = !!t.mine;
 const roots = t.comments_count; // приблизительно для пагинации
+// --- SEO: описание из анонса, картинка — обложка или первая картинка темы, каноникал без лишних параметров ---
+const path = `/forum/t/${t.id}`;
+const canon = page > 1 ? `${path}?page=${page}` : path;
+t.plain = plainText(t.body || "", 4000);
+const firstImg = (String(t.body_html || "").match(/<img[^>]+src="(\/api\/forum\/media\/[^"]+)"/) || [])[1];
+const ogImg = t.cover_key ? media(t.cover_key) : firstImg || null;
+for (const c of cm.items) c.plain = htmlText(c.body_html || "");
+const seoDesc = (t.excerpt || plainText(t.body || "", 200)) || `Обсуждение «${t.title}» на форуме МоррисГрада.`;
+const seoLd = [
+  topicLd(t, { url: abs(path), image: ogImg, comments: page === 1 ? cm.items : [] }),
+  breadcrumbs([["Форум", "/forum"], [t.s_title, `/forum/s/${t.s_slug}`], [t.title, path]]),
+];
+const robots = t.hidden || t.deleted ? "noindex,nofollow" : null;
 ---
-<ForumShell title={t.title} viewer={v} active="feed">
+<ForumShell title={page > 1 ? `${t.title} — страница ${page}` : t.title} viewer={v} active="feed"
+  description={seoDesc} canonical={canon} image={ogImg} imageAlt={t.title} type="article" robots={robots}
+  publishedTime={t.created_at} modifiedTime={Math.max(t.updated_at || 0, t.created_at)} jsonLd={robots ? [] : seoLd}>
   <div class="f-grid" style="grid-template-columns:minmax(0,1fr)">
     <main style="max-width:860px;margin:0 auto;width:100%">
       <div class="f-crumbs"><a href="/forum">Форум</a> › <a href={`/forum/s/${t.s_slug}`}>{t.s_icon} {t.s_title}</a></div>
@@ -35,7 +52,7 @@ const roots = t.comments_count; // приблизительно для паги�
         <h1 class="f-post-title">{t.kind === "article" && <span class="f-kind">Статья</span>}{t.title}</h1>
         {t.blocked && <div class="f-blocked-note" style="margin-bottom:1rem">Вы скрыли записи этого автора. <button type="button" class="f-link" data-show-blocked>Показать</button></div>}
         <div data-blocked-content hidden={t.blocked}>
-          {t.kind === "article" && t.cover_key && !t.body.includes(t.cover_key) && <div class="f-post-cover"><img src={media(t.cover_key)} alt="" decoding="async" /></div>}
+          {t.kind === "article" && t.cover_key && !t.body.includes(t.cover_key) && <div class="f-post-cover"><img src={media(t.cover_key)} alt={`Обложка: ${t.title}`} decoding="async" /></div>}
           <div class="f-post-body" set:html={t.body_html} />
         </div>
         {t.author.sig && <div class="f-sig">{t.author.sig}</div>}

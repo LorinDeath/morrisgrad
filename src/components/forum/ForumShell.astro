@@ -1,8 +1,9 @@
 ---
 // Оболочка форума: шапка раздела, переключатели вида, общие стили и клиентский скрипт (без фреймворков).
 import Layout from "../../layouts/Layout.astro";
-interface Props { title: string; viewer: any; active?: string; wide?: boolean }
-const { title, viewer, active = "", wide = false } = Astro.props;
+import type { SeoInput } from "../../lib/seo";
+interface Props extends Partial<Omit<SeoInput, "title">> { title: string; viewer: any; active?: string; wide?: boolean; fullTitle?: string }
+const { title, viewer, active = "", wide = false, fullTitle, ...seo } = Astro.props;
 const isMod = viewer?.role === "admin" || viewer?.role === "moderator";
 const links = [
   ["feed", "/forum", "Лента"],
@@ -10,7 +11,7 @@ const links = [
   ["rules", "/forum/rules", "Правила"],
 ];
 ---
-<Layout title={`${title} — Форум МоррисГрада`}>
+<Layout title={fullTitle || `${title} — Форум МоррисГрада`} {...seo}>
   <div class="forum" id="forum-root" data-uid={viewer?.uid ? String(viewer.user?.pid ?? 1) : ""} data-role={viewer?.role || ""}>
     <script is:inline>
       (function () { try { var r = document.currentScript.parentElement; if (localStorage.getItem("forum_compact") === "1") r.classList.add("f-compact"); if (localStorage.getItem("forum_light") === "1") r.classList.add("f-light"); } catch (e) {} })();

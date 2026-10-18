@@ -1,4 +1,5 @@
 ---
+import SeoHead from '../../components/seo/SeoHead.astro';
 import { ClientRouter } from 'astro:transitions';
 import DungeonGatheringGame from '../../components/DungeonGatheringGame.astro';
 ---
@@ -12,6 +13,7 @@ import DungeonGatheringGame from '../../components/DungeonGatheringGame.astro';
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <title>Dungeon Gathering: Катакомбы Склепа | Моррис Град</title>
+    <SeoHead title="Dungeon Gathering: Катакомбы Склепа | Моррис Град" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <ClientRouter />
     <style>

@@ -4,17 +4,22 @@ import Author from "../../../components/forum/Author.astro";
 import { forumPage } from "../../../lib/forum/page";
 import { getSection, sectionTopics, isMod, sectionSubscribed } from "../../../lib/forum/service";
 import { ago, plural } from "../../../lib/forum/fmt";
+import { breadcrumbs } from "../../../lib/seo";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 const sec = await getSection(db, String(Astro.params.slug));
-if (!sec) return new Response("Раздел не найден", { status: 404 });
+if (!sec) { (Astro.locals as any).notFound = { title: "Раздел не найден", text: "Такого раздела на форуме нет — возможно, его переименовали.", back: ["/forum/sections", "← Все разделы"] }; return Astro.rewrite("/404"); }
 const sort = Astro.url.searchParams.get("sort") === "top" ? "top" : "new";
 const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
 const data = await sectionTopics(db, v, sec.id, sort, page);
 const canPost = !sec.admin_only || isMod(v);
 const subbed = await sectionSubscribed(db, v, sec.id);
+const base = `/forum/s/${sec.slug}`;
+// «Популярные» — вариант сортировки той же страницы: не индексируем, каноникал на основной адрес
+const seo = sort === "top" ? { canonical: base, robots: "noindex,follow" } : { canonical: page > 1 ? `${base}?page=${page}` : base };
+const seoDesc = `${sec.description ? sec.description + ". " : ""}Раздел форума МоррисГрада: ${sec.topics_count} ${plural(sec.topics_count, "тема", "темы", "тем")}, ${sec.posts_count} ${plural(sec.posts_count, "сообщение", "сообщения", "сообщений")}.`;
 ---
-<ForumShell title={sec.title} viewer={v} active="sections">
+<ForumShell title={page > 1 ? `${sec.title} — страница ${page}` : sec.title} viewer={v} active="sections" description={seoDesc} {...seo} jsonLd={[breadcrumbs([["Форум", "/forum"], ["Разделы", "/forum/sections"], [sec.title, base]])]}>
   <div class="f-crumbs"><a href="/forum">Форум</a> › <a href="/forum/sections">Разделы</a> › {sec.title}</div>
   <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
     <div>
