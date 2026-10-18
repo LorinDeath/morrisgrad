@@ -3,6 +3,7 @@ import ForumShell from "../../components/forum/ForumShell.astro";
 import { forumPage } from "../../lib/forum/page";
 import { listBlocks } from "../../lib/forum/service";
 import { getSettings } from "../../lib/forum/settings";
+import Ava from "../../components/forum/Ava.astro";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 if (!v.uid) return Astro.redirect("/forum");
@@ -11,15 +12,39 @@ const [blocks, s] = await Promise.all([listBlocks(db, v), getSettings(db)]);
 <ForumShell title="Настройки профиля" viewer={v} active="me">
   <div style="max-width:640px;margin:0 auto">
     <h1 class="f-h1">Настройки профиля</h1>
+    <div class="f-box" style="margin:1rem 0" data-ava-box data-maxkb={s.avatar_max_kb}>
+      <h3>Аватар</h3>
+      <div class="f-ava-row">
+        <span class="f-author f-author-l"><Ava u={{ pid: v.user.pid, nick: v.user.nick, avatar: v.user.avatar_key }} link={false} eager /></span>
+        <div style="flex:1;min-width:200px">
+          <div class="f-actions" style="margin-top:0">
+            <label class="f-btn f-btn-primary" style="cursor:pointer">📷 {v.user.avatar_key ? "Заменить" : "Загрузить"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden data-ava-file /></label>
+            {v.user.avatar_key && <button type="button" class="f-btn" data-ava-del>Удалить</button>}
+          </div>
+          <p class="f-muted" style="margin:.5rem 0 0">JPEG, PNG или WebP. Картинку можно подвинуть и приблизить — сохранится квадрат 256×256 без метаданных (геопозиция и т. п. удаляются). Без аватара показывается узор с первой буквой ника. Неуместные аватары модераторы убирают.</p>
+        </div>
+      </div>
+      <div class="f-crop" data-crop hidden>
+        <div class="f-crop-frame"><canvas width="256" height="256" data-crop-canvas></canvas></div>
+        <div style="flex:1;min-width:200px">
+          <label class="f-field"><span>Масштаб</span><input type="range" min="1" max="4" step="0.01" value="1" data-crop-zoom /></label>
+          <p class="f-muted" style="margin:.2rem 0 .6rem">Перетащите картинку, чтобы выбрать область.</p>
+          <div class="f-actions" style="margin-top:0">
+            <button type="button" class="f-btn f-btn-primary" data-crop-save>Сохранить аватар</button>
+            <button type="button" class="f-btn" data-crop-cancel>Отмена</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <form data-astro-reload class="f-box" data-me-form style="margin:1rem 0">
       <label class="f-field"><span>Ник на форуме</span><input name="nick" value={v.user.nick} maxlength="24" minlength="3" required /></label>
       <label class="f-field"><span>Подпись (под вашими темами)</span><input name="signature" value={v.user.signature} maxlength={s.signature_max} placeholder="Например: «Маг огня, 60 уровень»" /></label>
-      <p class="f-muted" style="margin-top:0">Другие участники видят только ник, звание, подпись и статистику. Почта и другие личные данные на форуме не показываются.</p>
+      <p class="f-muted" style="margin-top:0">Ник: 3–24 символа, без мата, оскорблений и «служебных» имён. Другие участники видят только аватар, ник, звание, подпись и статистику. Почта и другие личные данные на форуме не показываются.</p>
       <button class="f-btn f-btn-primary" type="submit">Сохранить</button>
     </form>
     <div class="f-box">
       <h3>Скрытые авторы</h3>
-      {blocks.length ? blocks.map((b: any) => <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--f-line2)"><span>{b.nick || b.blocked_id}</span><button class="f-link" data-block={b.blocked_id} data-value="0">вернуть</button></div>) : <p class="f-muted" style="margin:0">Никого. Скрыть автора можно на странице его темы или профиля — его записи пропадут из вашей ленты.</p>}
+      {blocks.length ? blocks.map((b: any) => <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--f-line2)"><span style="display:inline-flex;gap:6px;align-items:center"><Ava u={b} />{b.nick}</span><button class="f-link" data-block={b.pid} data-value="0">вернуть</button></div>) : <p class="f-muted" style="margin:0">Никого. Скрыть автора можно на странице его темы или профиля — его записи пропадут из вашей ленты.</p>}
     </div>
   </div>
 </ForumShell>
@@ -32,4 +57,83 @@ const [blocks, s] = await Promise.all([listBlocks(db, v), getSettings(db)]);
     const fd = new FormData(f);
     try { await api("PUT", "me", { nick: fd.get("nick"), signature: fd.get("signature") }); toast("Сохранено"); } catch (e: any) { toast(e.message, true); }
   });
+
+  // --- аватар: обрезка до квадрата в браузере, 256×256 WebP (EXIF не переносится; сервер ещё раз проверяет и чистит) ---
+  const S = 256;
+  let img: CanvasImageSource | null = null, iw = 0, ih = 0, zoom = 1, ox = 0, oy = 0;
+  const q = <T extends Element>(sel: string) => document.querySelector<T>(sel);
+  function base() { return S / Math.min(iw, ih); }
+  function clamp() {
+    const sc = base() * zoom, w = iw * sc, h = ih * sc;
+    ox = Math.min(0, Math.max(S - w, ox)); oy = Math.min(0, Math.max(S - h, oy));
+  }
+  function draw() {
+    const c = q<HTMLCanvasElement>("[data-crop-canvas]"); if (!c || !img) return;
+    const g = c.getContext("2d")!; const sc = base() * zoom;
+    g.clearRect(0, 0, S, S); g.imageSmoothingQuality = "high";
+    g.drawImage(img, ox, oy, iw * sc, ih * sc);
+  }
+  async function load(file: File) {
+    const box = q<HTMLElement>("[data-ava-box]")!;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { toast("Аватар: только JPEG, PNG или WebP", true); return; }
+    if (file.size > 15 * 1024 * 1024) { toast("Файл слишком большой", true); return; }
+    try {
+      const bm = await createImageBitmap(file, { imageOrientation: "from-image" } as any);
+      img = bm; iw = bm.width; ih = bm.height;
+    } catch { toast("Не удалось открыть картинку", true); return; }
+    if (Math.min(iw, ih) < 32) { toast("Картинка слишком маленькая", true); return; }
+    zoom = 1; const sc = base(); ox = (S - iw * sc) / 2; oy = (S - ih * sc) / 2;
+    q<HTMLInputElement>("[data-crop-zoom]")!.value = "1";
+    q<HTMLElement>("[data-crop]")!.hidden = false; draw();
+    box.scrollIntoView({ block: "nearest" });
+  }
+  function toBlob(c: HTMLCanvasElement, type: string, qual: number) { return new Promise<Blob | null>((r) => c.toBlob(r, type, qual)); }
+  async function save() {
+    const c = q<HTMLCanvasElement>("[data-crop-canvas]")!;
+    const maxKb = Number(q<HTMLElement>("[data-ava-box]")!.dataset.maxkb || 400);
+    let b = await toBlob(c, "image/webp", 0.86);
+    if (!b || b.type !== "image/webp") b = await toBlob(c, "image/jpeg", 0.9); // старый Safari не умеет WebP
+    if (!b) { toast("Не удалось подготовить картинку", true); return; }
+    if (b.size > maxKb * 1024) { toast(`Аватар больше ${maxKb} КБ`, true); return; }
+    const btn = q<HTMLButtonElement>("[data-crop-save]")!; btn.disabled = true;
+    try {
+      const res = await fetch("/api/forum/avatar", { method: "POST", headers: { "x-forum": "1", "content-type": b.type }, body: b, credentials: "same-origin" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Ошибка " + res.status);
+      toast("Аватар сохранён"); setTimeout(() => location.reload(), 500);
+    } catch (e: any) { toast(e.message, true); btn.disabled = false; }
+  }
+  if (!(window as any).__forumAvaBound) {
+    (window as any).__forumAvaBound = true;
+    document.addEventListener("change", (ev) => {
+      const el = ev.target as HTMLInputElement;
+      if (el.matches?.("[data-ava-file]") && el.files?.[0]) { load(el.files[0]); el.value = ""; }
+    });
+    document.addEventListener("input", (ev) => {
+      const el = ev.target as HTMLInputElement;
+      if (!el.matches?.("[data-crop-zoom]") || !img) return;
+      const old = base() * zoom; zoom = Number(el.value); const nw = base() * zoom;
+      ox = S / 2 - ((S / 2 - ox) * nw) / old; oy = S / 2 - ((S / 2 - oy) * nw) / old; clamp(); draw();
+    });
+    let drag: { x: number; y: number } | null = null;
+    document.addEventListener("pointerdown", (ev) => {
+      const c = (ev.target as Element)?.closest?.("[data-crop-canvas]") as HTMLCanvasElement | null;
+      if (!c) return; drag = { x: ev.clientX, y: ev.clientY }; c.setPointerCapture(ev.pointerId); ev.preventDefault();
+    });
+    document.addEventListener("pointermove", (ev) => {
+      if (!drag) return;
+      const c = q<HTMLCanvasElement>("[data-crop-canvas]")!; const k = S / c.getBoundingClientRect().width;
+      ox += (ev.clientX - drag.x) * k; oy += (ev.clientY - drag.y) * k; drag = { x: ev.clientX, y: ev.clientY }; clamp(); draw();
+    });
+    document.addEventListener("pointerup", () => (drag = null));
+    document.addEventListener("click", async (ev) => {
+      const el = (ev.target as Element)?.closest?.("[data-crop-save],[data-crop-cancel],[data-ava-del]") as HTMLElement | null;
+      if (!el) return;
+      if (el.matches("[data-crop-save]")) save();
+      else if (el.matches("[data-crop-cancel]")) { q<HTMLElement>("[data-crop]")!.hidden = true; img = null; }
+      else if (confirm("Удалить аватар? Будет показан узор с буквой ника.")) {
+        try { await api("DELETE", "me/avatar"); toast("Аватар удалён"); setTimeout(() => location.reload(), 400); } catch (e: any) { toast(e.message, true); }
+      }
+    });
+  }
 </script>

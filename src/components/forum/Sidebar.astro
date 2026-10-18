@@ -1,6 +1,7 @@
 ---
 import { online, stats, listSections } from "../../lib/forum/service";
 import { roleLabel, userUrl, plural } from "../../lib/forum/fmt";
+import Ava from "./Ava.astro";
 interface Props { db: any; sections?: any[] }
 const { db } = Astro.props;
 const [sections, on, st] = await Promise.all([Astro.props.sections ? Promise.resolve(Astro.props.sections) : listSections(db), online(db), stats(db)]);
@@ -14,7 +15,7 @@ const [sections, on, st] = await Promise.all([Astro.props.sections ? Promise.res
   </div>
   <div class="f-box">
     <h3>Кто на форуме <span class="f-muted">({on.length})</span></h3>
-    {on.length ? <div class="f-online">{on.map((u: any) => <a href={userUrl(u.user_id)} class={u.role ? `f-on-${u.role}` : ""} title={roleLabel(u.role)}>{u.nick}</a>)}</div> : <p class="f-muted">Сейчас никого — будьте первым!</p>}
+    {on.length ? <div class="f-online">{on.map((u: any) => <a href={userUrl(u.pid)} class={u.role ? `f-on-${u.role}` : ""} title={roleLabel(u.role)}><Ava u={u} link={false} />{u.nick}</a>)}</div> : <p class="f-muted">Сейчас никого — будьте первым!</p>}
     <p class="f-muted" style="margin:.7rem 0 0">Всего: {st.topics} {plural(st.topics, "тема", "темы", "тем")}, {st.posts} {plural(st.posts, "сообщение", "сообщения", "сообщений")}, {st.users} {plural(st.users, "участник", "участника", "участников")}</p>
   </div>
   <div class="f-box">

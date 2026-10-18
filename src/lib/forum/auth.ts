@@ -13,3 +13,12 @@ export function forumUid(locals: any, request: Request): string | null {
   } catch { return null; }
 }
 export function forumEnv(locals: any) { return (locals?.runtime?.env || {}) as any; }
+/** Имя из Clerk (username → имя) — только для ника по умолчанию при первом входе на форум. Никогда не id. */
+export function clerkName(locals: any): () => Promise<string | null> {
+  return async () => {
+    try {
+      const u = typeof locals?.currentUser === "function" ? await locals.currentUser() : null;
+      return (u?.username || u?.firstName || null) as string | null;
+    } catch { return null; }
+  };
+}

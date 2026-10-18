@@ -24,7 +24,7 @@ export function toast(msg: string, err = false) {
   (t as any)._h = setTimeout(() => t.classList.remove("show"), 3200);
 }
 const root = () => document.getElementById("forum-root");
-const uid = () => root()?.dataset.uid || "";
+const uid = () => root()?.dataset.uid || ""; // публичный номер участника (не Clerk id); пусто — гость
 function needLogin(): boolean {
   if (uid()) return false;
   toast("Войдите в аккаунт МоррисГрада (кнопка «Войти» вверху), чтобы участвовать", true);
@@ -93,7 +93,7 @@ async function onBan(el: HTMLElement) {
   const fd = await ask("f-ban-dialog");
   if (!fd) return;
   try {
-    await api("POST", "ban", { user_id: el.dataset.ban, minutes: Number(fd.get("minutes")), reason: String(fd.get("reason") || "") });
+    await api("POST", "ban", { pid: Number(el.dataset.ban), minutes: Number(fd.get("minutes")), reason: String(fd.get("reason") || "") });
     toast("Ограничение установлено"); setTimeout(() => location.reload(), 600);
   } catch (e: any) { toast(e.message, true); }
 }
@@ -198,7 +198,7 @@ if (!(window as any).__forumBound) {
   document.addEventListener("astro:page-load", applyToggles);
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
-    const el = t.closest<HTMLElement>("[data-like],[data-report],[data-reply],[data-edit],[data-del],[data-restore],[data-flag],[data-hide-c],[data-block],[data-ban],[data-unban],[data-toggle],.f-spoiler,.f-yt,[data-show-blocked],[data-cancel-reply]");
+    const el = t.closest<HTMLElement>("[data-like],[data-report],[data-reply],[data-edit],[data-del],[data-restore],[data-flag],[data-hide-c],[data-block],[data-ban],[data-unban],[data-ava-remove],[data-toggle],.f-spoiler,.f-yt,[data-show-blocked],[data-cancel-reply]");
     if (!el || !root()?.contains(el)) return;
     if (el.matches("[data-like]")) { ev.preventDefault(); onLike(el); }
     else if (el.matches("[data-report]")) onReport(el);
@@ -209,9 +209,13 @@ if (!(window as any).__forumBound) {
     else if (el.matches("[data-restore]")) simple(() => api("POST", `${el.dataset.restore}/${el.dataset.id}/restore`, {}), "Восстановлено");
     else if (el.matches("[data-flag]")) simple(() => api("POST", `topic/${el.dataset.id}/flag`, { flag: el.dataset.flag, value: el.dataset.value === "1" }), "Готово");
     else if (el.matches("[data-hide-c]")) simple(() => api("POST", `comment/${el.dataset.hideC}/hide`, { value: el.dataset.value === "1" }), "Готово");
-    else if (el.matches("[data-block]")) { if (!needLogin()) simple(() => api("POST", "block", { user_id: el.dataset.block, value: el.dataset.value === "1" }), el.dataset.value === "1" ? "Записи автора скрыты для вас" : "Автор снова виден"); }
+    else if (el.matches("[data-block]")) { if (!needLogin()) simple(() => api("POST", "block", { pid: Number(el.dataset.block), value: el.dataset.value === "1" }), el.dataset.value === "1" ? "Записи автора скрыты для вас" : "Автор снова виден"); }
     else if (el.matches("[data-ban]")) onBan(el);
-    else if (el.matches("[data-unban]")) simple(() => api("POST", "unban", { user_id: el.dataset.unban }), "Ограничение снято");
+    else if (el.matches("[data-ava-remove]")) {
+      const reason = prompt("Убрать аватар участника. Причина (видна в журнале):", "неуместная картинка");
+      if (reason !== null) simple(() => api("POST", `user/${el.dataset.avaRemove}/avatar-remove`, { reason }), "Аватар убран");
+    }
+    else if (el.matches("[data-unban]")) simple(() => api("POST", "unban", { pid: Number(el.dataset.unban) }), "Ограничение снято");
     else if (el.matches("[data-show-blocked]")) { const c = el.closest(".f-cm, .f-post"); c?.querySelectorAll<HTMLElement>("[data-blocked-content]").forEach((x) => (x.hidden = false)); el.parentElement!.remove(); }
     else if (el.matches("[data-toggle]")) {
       const cls = "f-" + el.dataset.toggle;

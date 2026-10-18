@@ -84,3 +84,33 @@ export function stripMeta(b: Uint8Array, mime: Mime): Uint8Array {
   } catch {}
   return b;
 }
+
+/** Размер картинки по заголовку (без декодирования). null — не удалось разобрать. */
+export function imageSize(b: Uint8Array, mime: Mime): { w: number; h: number } | null {
+  const u16be = (i: number) => (b[i] << 8) | b[i + 1];
+  const u16le = (i: number) => b[i] | (b[i + 1] << 8);
+  const u24le = (i: number) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
+  const u32be = (i: number) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+  try {
+    if (mime === "image/png") return b.length >= 24 ? { w: u32be(16), h: u32be(20) } : null;
+    if (mime === "image/gif") return b.length >= 10 ? { w: u16le(6), h: u16le(8) } : null;
+    if (mime === "image/webp") {
+      const fmt = String.fromCharCode(b[12], b[13], b[14], b[15]);
+      if (fmt === "VP8 " && b.length >= 30) return { w: u16le(26) & 0x3fff, h: u16le(28) & 0x3fff };
+      if (fmt === "VP8L" && b.length >= 25) { const x = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24); return { w: (x & 0x3fff) + 1, h: ((x >>> 14) & 0x3fff) + 1 }; }
+      if (fmt === "VP8X" && b.length >= 30) return { w: u24le(24) + 1, h: u24le(27) + 1 };
+      return null;
+    }
+    if (mime === "image/jpeg") {
+      let i = 2;
+      while (i + 9 < b.length) {
+        if (b[i] !== 0xff) return null;
+        const m = b[i + 1];
+        if (m === 0xd8 || (m >= 0xd0 && m <= 0xd7) || m === 0x01 || m === 0xff) { i += m === 0xff ? 1 : 2; continue; }
+        if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: u16be(i + 5), w: u16be(i + 7) };
+        i += 2 + u16be(i + 2);
+      }
+    }
+  } catch {}
+  return null;
+}

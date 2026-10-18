@@ -1,12 +1,13 @@
 ---
-import { userUrl, initial, hue, roleLabel } from "../../lib/forum/fmt";
+import { userUrl, roleLabel } from "../../lib/forum/fmt";
+import Ava from "./Ava.astro";
 interface Props { a: any; size?: "s" | "m" | "l"; showStats?: boolean }
 const { a, size = "s", showStats = false } = Astro.props;
 ---
 <span class={`f-author f-author-${size}`}>
-  <a href={userUrl(a.id)} class="f-ava" style={`--h:${hue(a.id)}`} aria-hidden="true" tabindex="-1">{initial(a.nick)}</a>
+  <Ava u={a} />
   <span class="f-author-txt">
-    <a href={userUrl(a.id)} class="f-nick">{a.nick}</a>
+    <a href={userUrl(a.pid)} class="f-nick">{a.nick}</a>
     {a.role && <span class={`f-role f-role-${a.role}`}>{roleLabel(a.role)}</span>}
     <span class="f-rank" title={`Сообщений: ${a.posts} · карма ${a.karma}`}>{a.rank}</span>
     {showStats && <span class="f-astats">✉ {a.posts} · ♥ {a.karma}</span>}

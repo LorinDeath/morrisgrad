@@ -1,8 +1,12 @@
 ---
 import ForumShell from "../../components/forum/ForumShell.astro";
 import { forumPage } from "../../lib/forum/page";
+import { forumTeam } from "../../lib/forum/service";
+import { userUrl, roleLabel } from "../../lib/forum/fmt";
+import Ava from "../../components/forum/Ava.astro";
 export const prerender = false;
-const { v } = await forumPage(Astro);
+const { db, v } = await forumPage(Astro);
+const team = await forumTeam(db).catch(() => []);
 ---
 <ForumShell title="Правила" viewer={v} active="rules">
   <article class="f-post" style="max-width:820px;margin:0 auto">
@@ -36,6 +40,13 @@ const { v } = await forumPage(Astro);
         <li>Если автор вам неприятен, его записи можно скрыть только для себя: «Скрыть автора».</li>
         <li>Не согласны с решением? Напишите в раздел «Помощь и идеи» спокойно и по делу.</li>
       </ul>
+      <h2>5. Команда форума</h2>
+      <p>Админы и модераторы игры «Проклятые» автоматически модерируют весь форум; модераторов форума назначает администратор — на весь форум или на отдельный раздел.</p>
+      {team.length ? <div class="f-team">{team.map((m: any) => (
+        <a class="f-team-item" href={userUrl(m.pid)}>
+          <span class="f-author f-author-m"><Ava u={m} link={false} /></span>
+          <span><b class="f-nick">{m.nick}</b> <span class={`f-role f-role-${m.role}`}>{roleLabel(m.role)}</span><br /><span class="f-muted" style="font-size:.82rem">{m.scope}</span></span>
+        </a>))}</div> : <p class="f-muted">Список скоро появится.</p>}
       <blockquote>Главное правило: ведите себя так, как хотели бы, чтобы вели себя с вами. Приятного общения! ✦</blockquote>
     </div>
   </article>

@@ -4,6 +4,7 @@ import { forumPage } from "../../lib/forum/page";
 import { isMod, isAdmin, listReports, listSections, listBans, modlog, listModerators } from "../../lib/forum/service";
 import { getSettings, NUM_SCHEMA } from "../../lib/forum/settings";
 import { dateTime, ago, userUrl } from "../../lib/forum/fmt";
+import Ava from "../../components/forum/Ava.astro";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 if (!isMod(v)) return new Response("Только для модераторов форума", { status: 403 });
@@ -24,7 +25,7 @@ const ACTIONS: Record<string, string> = {
   topic_delete: "удалил тему", comment_delete: "удалил комментарий", topic_delete_own: "удалил свою тему", comment_delete_own: "удалил свой комментарий",
   topic_restore: "восстановил тему", comment_restore: "восстановил комментарий", mod_add: "назначил модератора", mod_remove: "снял модератора", topic_edit: "изменил тему", comment_edit: "изменил комментарий", comment_hide: "скрыл комментарий", comment_unhide: "вернул комментарий",
   featured_on: "в рекомендованное", featured_off: "убрал из рекомендованного", pinned_on: "закрепил", pinned_off: "открепил", locked_on: "закрыл тему", locked_off: "открыл тему", hidden_on: "скрыл тему", hidden_off: "вернул тему",
-  section_create: "создал раздел", section_edit: "изменил раздел", section_delete: "удалил раздел", section_reorder: "порядок разделов", settings: "настройки",
+  section_create: "создал раздел", section_edit: "изменил раздел", section_delete: "удалил раздел", section_reorder: "порядок разделов", settings: "настройки", avatar_remove: "убрал аватар",
 };
 ---
 <ForumShell title="Модерация" viewer={v} active="admin" wide>
@@ -42,7 +43,7 @@ const ACTIONS: Record<string, string> = {
           <div class="f-card-head">
             <span class="f-badge f-badge-warn">⚑ {r.n}</span>
             <span>{r.target_type === "t" ? "Тема" : "Комментарий"}</span>
-            {r.target && <>от <a class="f-nick" href={userUrl(r.target.user_id)}>{r.target.nick}</a></>}
+            {r.target && <>от <Ava u={r.target} /> <a class="f-nick" href={userUrl(r.target.pid)}>{r.target.nick}</a></>}
             <span class="f-dot">·</span><span>{ago(r.last_at)}</span>
             {r.target?.hidden ? <span class="f-badge">скрыто</span> : null}
             {r.target?.deleted ? <span class="f-badge">удалено</span> : null}
@@ -58,7 +59,7 @@ const ACTIONS: Record<string, string> = {
               {r.target.hidden ? <button class="f-btn f-btn-s" data-resolve="unhide" data-type={r.target_type} data-id={r.target_id}>Вернуть и закрыть жалобу</button> : null}
               <button class="f-btn f-btn-s f-btn-danger" data-resolve="delete" data-type={r.target_type} data-id={r.target_id}>Удалить</button>
               <button class="f-btn f-btn-s" data-resolve="dismiss" data-type={r.target_type} data-id={r.target_id}>Отклонить жалобу</button>
-              <button class="f-btn f-btn-s f-btn-danger" data-ban={r.target.user_id}>Ограничить автора</button>
+              <button class="f-btn f-btn-s f-btn-danger" data-ban={r.target.pid}>Ограничить автора</button>
             </div>
           )}
         </div>
@@ -102,7 +103,7 @@ const ACTIONS: Record<string, string> = {
     <section>
       <form data-astro-reload class="f-box f-sec-edit" data-ban-nick style="margin-bottom:1rem">
         <b style="color:var(--f-acc)">Ограничить по нику:</b>
-        <input name="nick" placeholder="Ник участника" required />
+        <input name="nick" placeholder="Начните вводить ник…" required list="f-users-dl" autocomplete="off" data-user-search />
         <select name="minutes"><option value="60">1 час</option><option value="1440" selected>1 сутки</option><option value="10080">7 дней</option><option value="43200">30 дней</option><option value="0">Бессрочно</option></select>
         <input name="reason" placeholder="Причина" maxlength="200" class="f-sec-desc-in" />
         <button class="f-btn f-btn-s f-btn-danger" type="submit">Ограничить</button>
@@ -110,9 +111,9 @@ const ACTIONS: Record<string, string> = {
       <div class="f-rows">
         {bans.length ? bans.map((b: any) => (
           <div class="f-row" style="grid-template-columns:minmax(0,1fr) auto">
-            <div><a class="f-row-title" href={userUrl(b.user_id)}>{b.nick || b.user_id}</a>
-              <div class="f-row-meta">{b.until ? "до " + dateTime(b.until) : "бессрочно"} · {b.reason || "без причины"} · выдал {b.by_nick || "—"}</div></div>
-            <button class="f-btn f-btn-s" data-unban={b.user_id}>Снять</button>
+            <div style="display:flex;gap:8px;align-items:flex-start"><Ava u={b} /><div><a class="f-row-title" href={userUrl(b.pid)}>{b.nick}</a>
+              <div class="f-row-meta">{b.until ? "до " + dateTime(b.until) : "бессрочно"} · {b.reason || "без причины"} · выдал {b.by_nick || "—"}</div></div></div>
+            <button class="f-btn f-btn-s" data-unban={b.pid}>Снять</button>
           </div>
         )) : <div class="f-empty" style="border:0">Активных ограничений нет</div>}
       </div>
@@ -123,23 +124,23 @@ const ACTIONS: Record<string, string> = {
     <section>
       <form data-astro-reload class="f-box f-sec-edit" data-mod-add style="margin-bottom:1rem">
         <b style="color:var(--f-acc)">Назначить модератора:</b>
-        <input name="nick" placeholder="Ник участника" required />
+        <input name="nick" placeholder="Начните вводить ник…" required list="f-users-dl" autocomplete="off" data-user-search />
         <select name="section_id"><option value="0">Весь форум</option>{modSections.map((x: any) => <option value={x.id}>Раздел: {x.icon} {x.title}</option>)}</select>
         <button class="f-btn f-btn-s f-btn-primary" type="submit">Назначить</button>
       </form>
       <div class="f-rows">
         {mods.forum.length ? mods.forum.map((m: any) => (
           <div class="f-row" style="grid-template-columns:minmax(0,1fr) auto">
-            <div><a class="f-row-title" href={userUrl(m.user_id)}>{m.nick || m.user_id}</a> <span class="f-role f-role-moderator">Модератор</span>
-              <div class="f-row-meta">{m.section_id ? `раздел «${m.s_title || "#" + m.section_id}»` : "весь форум"} · назначил {m.by_nick || "—"} · {dateTime(m.granted_at)}</div></div>
-            <button class="f-btn f-btn-s f-btn-danger" data-mod-remove={m.user_id} data-section={m.section_id}>Снять</button>
+            <div style="display:flex;gap:8px;align-items:flex-start"><Ava u={m} /><div><a class="f-row-title" href={userUrl(m.pid)}>{m.nick}</a> <span class="f-role f-role-moderator">Модератор</span>
+              <div class="f-row-meta">{m.section_id ? `раздел «${m.s_title || "#" + m.section_id}»` : "весь форум"} · назначил {m.by_nick || "—"} · {dateTime(m.granted_at)}</div></div></div>
+            <button class="f-btn f-btn-s f-btn-danger" data-mod-remove={m.pid} data-section={m.section_id}>Снять</button>
           </div>
         )) : <div class="f-empty" style="border:0">Модераторов форума пока нет</div>}
       </div>
       <div class="f-box" style="margin-top:1rem">
         <h3>Роли из игры «Проклятые»</h3>
         <p class="f-muted" style="margin-top:0">Админы и модераторы игры автоматически модерируют весь форум. Эти роли меняются в игре, не здесь.</p>
-        {mods.game.map((g: any) => <div style="padding:4px 0">{g.nick || g.user_id} <span class={`f-role f-role-${g.role}`}>{g.role === "admin" ? "Админ" : "Модератор"}</span></div>)}
+        {mods.game.map((g: any) => <div style="padding:4px 0;display:flex;gap:8px;align-items:center"><Ava u={g} /><a class="f-nick" href={userUrl(g.pid)}>{g.nick}</a> <span class={`f-role f-role-${g.role}`}>{g.role === "admin" ? "Админ" : "Модератор"}</span></div>)}
       </div>
     </section>
   )}
@@ -182,10 +183,10 @@ const ACTIONS: Record<string, string> = {
       {log.length ? log.map((l: any) => (
         <div class="f-row" style="grid-template-columns:150px minmax(0,1fr)">
           <span class="f-muted" style="font-size:.8rem">{dateTime(l.created_at)}</span>
-          <span><b>{l.actor === "system" ? "Система" : l.actor_nick || l.actor}</b> — {ACTIONS[l.action] || l.action}
+          <span><b>{l.actor === "system" ? "Система" : l.actor_nick || "—"}</b> — {ACTIONS[l.action] || l.action}
             {l.target_type === "t" && <> <a href={`/forum/t/${l.target_id}`} style="color:var(--f-acc)">тема #{l.target_id}</a></>}
             {l.target_type === "c" && <> комментарий #{l.target_id}</>}
-            {l.target_type === "u" && <> <a href={userUrl(l.target_id)} style="color:var(--f-acc)">участник</a></>}
+            {l.target_type === "u" && <> <a href={userUrl(l.target_id)} style="color:var(--f-acc)">{l.target_nick || "участник"}</a></>}
             {l.details && <span class="f-muted"> · {l.details}</span>}
             {admin && (l.action === "topic_delete" || l.action === "topic_delete_own") && <button class="f-btn f-btn-s" style="margin-left:6px" data-restore="topic" data-id={l.target_id}>↺ Восстановить</button>}
             {admin && (l.action === "comment_delete" || l.action === "comment_delete_own") && <button class="f-btn f-btn-s" style="margin-left:6px" data-restore="comment" data-id={l.target_id}>↺ Восстановить</button>}</span>
@@ -205,7 +206,7 @@ const ACTIONS: Record<string, string> = {
     document.addEventListener("click", (ev) => {
       const el = (ev.target as HTMLElement).closest<HTMLElement>("[data-resolve],[data-move],[data-sec-del],[data-mod-remove]");
       if (!el) return;
-      if (el.dataset.modRemove) { if (confirm("Снять модератора?")) run(() => api("POST", "moderators/remove", { user_id: el.dataset.modRemove, section_id: Number(el.dataset.section) }), "Модератор снят"); return; }
+      if (el.dataset.modRemove) { if (confirm("Снять модератора?")) run(() => api("POST", "moderators/remove", { pid: Number(el.dataset.modRemove), section_id: Number(el.dataset.section) }), "Модератор снят"); return; }
       if (el.dataset.resolve) {
         if (el.dataset.resolve === "delete" && !confirm("Удалить запись?")) return;
         run(() => api("POST", "reports/resolve", { type: el.dataset.type, id: Number(el.dataset.id), action: el.dataset.resolve }), "Готово");
@@ -227,6 +228,23 @@ const ACTIONS: Record<string, string> = {
         } else if (!confirm("Удалить пустой раздел?")) return;
         run(() => api("DELETE", "section/" + el.dataset.secDel + q), "Раздел удалён");
       }
+    });
+    // Поиск участника по нику (подсказки), без ввода id
+    let searchT: any = 0;
+    document.addEventListener("input", (ev) => {
+      const el = ev.target as HTMLInputElement;
+      if (!el.matches?.("[data-user-search]")) return;
+      clearTimeout(searchT);
+      const q = el.value.trim();
+      if (!q) return;
+      searchT = setTimeout(async () => {
+        try {
+          const r = await fetch("/api/forum/users?q=" + encodeURIComponent(q), { credentials: "same-origin" }).then((x) => x.json());
+          let dl = document.getElementById("f-users-dl");
+          if (!dl) { dl = document.createElement("datalist"); dl.id = "f-users-dl"; document.body.append(dl); }
+          dl.replaceChildren(...(r.users || []).map((x: any) => { const o = document.createElement("option"); o.value = x.nick; return o; }));
+        } catch {}
+      }, 200);
     });
     document.addEventListener("submit", (ev) => {
       const f = ev.target as HTMLFormElement;

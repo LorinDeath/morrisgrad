@@ -1,5 +1,6 @@
 ---
-import { ago, dateTime, userUrl, initial, hue, roleLabel } from "../../lib/forum/fmt";
+import { ago, dateTime, userUrl, roleLabel } from "../../lib/forum/fmt";
+import Ava from "./Ava.astro";
 interface Props { c: any; viewer: any; topicLocked: boolean }
 const { c, viewer, topicLocked } = Astro.props;
 const mod = !!c.can_mod; // модератор этого раздела или админ (решает сервер)
@@ -7,10 +8,10 @@ const admin = viewer?.role === "admin";
 const gone = (c.deleted && !admin) || (c.hidden && !c.body_html);
 ---
 <div class="f-cm" id={`c${c.id}`}>
-  <div class="f-cm-ava"><a href={userUrl(c.author.id)} class="f-ava" style={`--h:${hue(c.author.id)}`} tabindex="-1" aria-hidden="true">{initial(c.author.nick)}</a></div>
+  <div class="f-cm-ava"><Ava u={c.author} /></div>
   <div>
     <div class="f-cm-head">
-      <a href={userUrl(c.author.id)} class="f-nick">{c.author.nick}</a>
+      <a href={userUrl(c.author.pid)} class="f-nick">{c.author.nick}</a>
       {c.author.role && <span class={`f-role f-role-${c.author.role}`}>{roleLabel(c.author.role)}</span>}
       <span class="f-rank">{c.author.rank}</span>
       <span class="f-astats">✉ {c.author.posts}</span>

@@ -11,7 +11,7 @@ const links = [
 ];
 ---
 <Layout title={`${title} — Форум МоррисГрада`}>
-  <div class="forum" id="forum-root" data-uid={viewer?.uid || ""} data-role={viewer?.role || ""}>
+  <div class="forum" id="forum-root" data-uid={viewer?.uid ? String(viewer.user?.pid ?? 1) : ""} data-role={viewer?.role || ""}>
     <script is:inline>
       (function () { try { var r = document.currentScript.parentElement; if (localStorage.getItem("forum_compact") === "1") r.classList.add("f-compact"); if (localStorage.getItem("forum_light") === "1") r.classList.add("f-light"); } catch (e) {} })();
     </script>
@@ -20,7 +20,7 @@ const links = [
         <a href="/forum" class="f-brand"><span class="f-brand-rune">❖</span> Форум <span class="f-brand-sub">МоррисГрада</span></a>
         <nav class="f-nav" aria-label="Форум">
           {links.map(([k, href, label]) => <a href={href} class={`f-nav-a${active === k ? " on" : ""}`}>{label}</a>)}
-          {viewer?.uid && <a href={`/forum/u/${encodeURIComponent(viewer.uid)}`} class={`f-nav-a${active === "me" ? " on" : ""}`}>Мой профиль</a>}
+          {viewer?.uid && <a href={`/forum/u/${viewer.user?.pid ?? ""}`} class={`f-nav-a${active === "me" ? " on" : ""}`}>Мой профиль</a>}
           {isMod && <a href="/forum/admin" class={`f-nav-a f-nav-admin${active === "admin" ? " on" : ""}`}>Модерация</a>}
         </nav>
         <div class="f-top-right">
@@ -157,9 +157,20 @@ const links = [
 
   /* автор */
   .f-author { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-  .f-ava { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; color: #fff !important; text-decoration: none; background: hsl(var(--h) 45% 32%); border: 1px solid hsl(var(--h) 50% 50% / .6); flex: none; }
+  .f-ava { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; color: #fff !important; text-decoration: none; background: hsl(var(--h) 45% 32%); border: 1px solid hsl(var(--h) 50% 50% / .6); flex: none; position: relative; overflow: hidden; }
+  .f-ava-geo { position: absolute; inset: 14%; width: 72%; height: 72%; fill: hsl(var(--h) 60% 62% / .38); shape-rendering: crispEdges; }
+  .f-ava-ch { position: relative; text-shadow: 0 1px 2px rgba(0,0,0,.6); line-height: 1; }
+  .f-ava-img { background: #120d14; }
+  .f-ava-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .f-ava-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  .f-crop { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--f-line2); }
+  .f-crop-frame { width: 200px; height: 200px; border-radius: 50%; overflow: hidden; border: 2px solid var(--accent-gold); box-shadow: 0 0 0 4px rgba(0,0,0,.35); flex: none; touch-action: none; cursor: grab; background: repeating-conic-gradient(#221a26 0 25%, #1a141d 0 50%) 0 0 / 16px 16px; }
+  .f-crop-frame canvas { width: 100%; height: 100%; display: block; }
+  .f-team { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .6rem; margin: .6rem 0 1.2rem; }
+  .f-team-item { display: flex; gap: .6rem; align-items: center; padding: .55rem .7rem; border: 1px solid var(--f-line); border-radius: 10px; text-decoration: none !important; color: inherit !important; background: rgba(255,255,255,.02); }
+  .f-team-item:hover { border-color: var(--f-acc); }
   .f-author-m .f-ava { width: 34px; height: 34px; font-size: .95rem; }
-  .f-author-l .f-ava { width: 64px; height: 64px; font-size: 1.8rem; }
+  .f-author-l .f-ava { width: 84px; height: 84px; font-size: 2.3rem; }
   .f-author-txt { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .f-nick { font-weight: 700; text-decoration: none; color: var(--f-text) !important; }
   .f-nick:hover { color: var(--f-acc) !important; }
@@ -245,9 +256,13 @@ const links = [
   /* комментарии */
   .f-comments { margin-top: 1.4rem; }
   .f-comments h2 { font-size: 1.25rem; margin: 0 0 .8rem; }
-  .f-cm { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: .9rem 1rem; background: var(--f-bg); border: 1px solid var(--f-line); border-radius: var(--f-radius); margin-bottom: .6rem; }
+  .f-cm { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; padding: .9rem 1rem; background: var(--f-bg); border: 1px solid var(--f-line); border-radius: var(--f-radius); margin-bottom: .6rem; }
   .f-cm .f-cm { background: transparent; border: 0; border-left: 2px solid var(--f-line); border-radius: 0; padding: .6rem 0 .2rem .8rem; margin: .5rem 0 0; }
   .f-cm-ava { padding-top: 2px; }
+  .f-cm-ava .f-ava { width: 40px; height: 40px; font-size: 1rem; }
+  .f-cm .f-cm { grid-template-columns: 32px minmax(0, 1fr); }
+  .f-cm .f-cm .f-cm-ava .f-ava { width: 32px; height: 32px; font-size: .85rem; }
+  .f-card-head .f-author-s .f-ava { width: 26px; height: 26px; font-size: .78rem; }
   .f-cm-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: .82rem; color: var(--f-muted); }
   .f-cm-body { margin-top: .3rem; line-height: 1.6; overflow-wrap: anywhere; font-size: .98rem; }
   .f-cm-body p { margin: 0 0 .5em; }
@@ -276,7 +291,8 @@ const links = [
   .f-pstat b { display: block; font-size: 1.3rem; color: var(--f-text); }
   .f-pstat { font-size: .8rem; color: var(--f-muted); }
   .f-online { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .88rem; }
-  .f-online a { text-decoration: none; }
+  .f-online a { text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+  .f-online .f-ava { width: 18px; height: 18px; font-size: .6rem; }
   .f-online .f-on-admin { color: #f87171 !important; font-weight: 700; }
   .f-online .f-on-moderator { color: #4ade80 !important; font-weight: 700; }
 
@@ -317,8 +333,10 @@ const links = [
     .f-post-cover { margin: 0 -1rem 1rem; }
     .f-post-title { font-size: 1.5rem; }
     .f-post-body { font-size: 1rem; }
-    .f-cm { padding: .7rem; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; }
-    .f-cm .f-ava { width: 26px; height: 26px; }
+    .f-cm { padding: .7rem; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
+    .f-cm-ava .f-ava, .f-cm .f-cm .f-cm-ava .f-ava { width: 32px; height: 32px; }
+    .f-cm .f-cm { grid-template-columns: 28px minmax(0, 1fr); }
+    .f-cm .f-cm .f-cm-ava .f-ava { width: 28px; height: 28px; }
     .f-cc-word { display: none; }
   }
 </style>

@@ -38,39 +38,59 @@ export async function roleOf(db: any, uid: string | null): Promise<Role> {
   } catch { return null; }
 }
 
-function hashTag(uid: string) {
-  let h = 2166136261;
-  for (let i = 0; i < uid.length; i++) { h ^= uid.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return (h >>> 0).toString(36).slice(-4).toUpperCase();
+const CLERKISH = /^user_[A-Za-z0-9]{6,}$/;
+/** Ник допустим: формат, не похож на служебный/Clerk id, без мата и оскорблений (всегда, даже если фильтр текстов выключен). */
+function nickProblem(n: string, s: ForumSettings): string | null {
+  const e = validNick(n); if (e) return e;
+  if (!filterText(n, compileWords(s.filter_words)).clean) return "Такой ник не подойдёт";
+  return null;
 }
+const selUser = (db: any, uid: string) => db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(uid).first();
 
-export async function ensureUser(db: any, uid: string): Promise<any> {
-  let u = await db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(uid).first();
+export interface EnsureOpts { name?: () => Promise<string | null | undefined>; seen?: boolean }
+/**
+ * Профиль форума. Ник по умолчанию: ник на сайте/в игре (users.username) → имя в Clerk (username/имя) → «Игрок #<pid>».
+ * pid — публичный номер участника (адреса /forum/u/<pid>); Clerk userId наружу не отдаётся.
+ */
+export async function ensureUser(db: any, uid: string, opts: EnsureOpts = {}): Promise<any> {
+  let u = await selUser(db, uid);
   const t = now();
+  const seen = opts.seen === false ? 0 : t;
   if (!u) {
-    let nick = "";
-    try {
-      const s = await db.prepare("SELECT username FROM users WHERE id = ?").bind(uid).first();
-      const n = String(s?.username || "").trim();
-      if (n && n !== "Новичок" && validNick(n) === null) nick = n;
-    } catch {}
-    if (!nick) nick = "Житель-" + hashTag(uid);
-    for (let i = 0; i < 5; i++) {
-      const tryNick = i === 0 ? nick : `${nick.slice(0, 18)}-${hashTag(uid + i)}`;
-      const r = await db.prepare("INSERT OR IGNORE INTO forum_users (user_id, nick, nick_key, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)").bind(uid, tryNick, nickKey(tryNick), t, t).run();
+    const s = await getSettings(db);
+    const cands: string[] = [];
+    try { const g = await db.prepare("SELECT username FROM users WHERE id = ?").bind(uid).first(); if (g?.username) cands.push(String(g.username)); } catch {}
+    if (opts.name) { try { const n = await opts.name(); if (n) cands.push(String(n)); } catch {} }
+    const good = cands.map((n) => n.trim().replace(/\s+/g, " ")).filter((n) => n && n !== "Новичок" && !nickProblem(n, s));
+    for (const nick of [...good, null]) {
+      const r = await db.prepare(`INSERT OR IGNORE INTO forum_users (user_id, nick, nick_key, pid, first_seen, last_seen)
+        SELECT ?, COALESCE(?, 'Игрок #' || n), COALESCE(?, 'игрок #' || n), n, ?, ? FROM (SELECT COALESCE(MAX(pid), 0) + 1 AS n FROM forum_users)`)
+        .bind(uid, nick, nick ? nickKey(nick) : null, t, seen).run();
       if (r.meta?.changes) break;
-      const again = await db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(uid).first();
-      if (again) return again;
+      const again = await selUser(db, uid);
+      if (again) { u = again; break; }
     }
-    u = await db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(uid).first();
-  } else if (t - u.last_seen > 60_000) {
+    u = u || (await selUser(db, uid));
+  } else if (opts.seen !== false && t - u.last_seen > 60_000) {
     await db.prepare("UPDATE forum_users SET last_seen = ? WHERE user_id = ?").bind(t, uid).run();
     u.last_seen = t;
+  }
+  if (u && u.pid == null) { // страховка для строк, созданных до миграции 0022
+    await db.prepare("UPDATE forum_users SET pid = (SELECT COALESCE(MAX(pid), 0) + 1 FROM forum_users) WHERE user_id = ? AND pid IS NULL").bind(uid).run();
+    u = await selUser(db, uid);
   }
   return u;
 }
 
-export async function loadViewer(db: any, uid: string | null, opts: { touch?: boolean } = {}): Promise<Viewer> {
+/** Найти участника по публичному номеру (pid), нику или (внутренне) userId. */
+export async function resolveUser(db: any, x: { pid?: any; nick?: any; user_id?: any }): Promise<any | null> {
+  if (x?.pid != null && /^\d+$/.test(String(x.pid))) return db.prepare("SELECT * FROM forum_users WHERE pid = ?").bind(Number(x.pid)).first();
+  if (x?.nick) return db.prepare("SELECT * FROM forum_users WHERE nick_key = ?").bind(nickKey(String(x.nick))).first();
+  if (x?.user_id) return db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(String(x.user_id)).first();
+  return null;
+}
+
+export async function loadViewer(db: any, uid: string | null, opts: { touch?: boolean; name?: EnsureOpts["name"] } = {}): Promise<Viewer> {
   if (!uid) return { uid: null, role: null, ban: null, user: null, scope: null };
   const [gameRole, banRow, fm] = await Promise.all([
     roleOf(db, uid),
@@ -80,7 +100,7 @@ export async function loadViewer(db: any, uid: string | null, opts: { touch?: bo
   let role: Role = gameRole, scope: Viewer["scope"] = gameRole ? "all" : null;
   if (!role && fm.length) { role = "moderator"; scope = fm.some((x: any) => x.section_id === 0) ? "all" : fm.map((x: any) => x.section_id); }
   const ban = banRow && (banRow.until === 0 || banRow.until > now()) ? { until: banRow.until, reason: banRow.reason } : null;
-  const user = opts.touch === false ? await db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(uid).first() : await ensureUser(db, uid);
+  const user = opts.touch === false ? await db.prepare("SELECT * FROM forum_users WHERE user_id = ?").bind(uid).first() : await ensureUser(db, uid, { name: opts.name });
   return { uid, role, ban, user, scope, gameRole };
 }
 
@@ -89,7 +109,7 @@ export function validNick(n: string): string | null {
   const s = String(n ?? "").trim();
   if (s.length < 3 || s.length > 24) return "Ник: от 3 до 24 символов";
   if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_\- .]+$/.test(s)) return "Ник: буквы, цифры, пробел, «_», «-», «.»";
-  if (/^(админ|admin|модер|moder|система|system)/i.test(s)) return "Такой ник занят системой";
+  if (/^(админ|admin|модер|moder|система|system)/i.test(s) || /^игрок\s*#?\s*\d+$/i.test(s) || CLERKISH.test(s)) return "Такой ник занят системой";
   return null;
 }
 
@@ -137,14 +157,16 @@ async function log(db: any, actor: string, action: string, type: string | null, 
 
 // ---------- чтение ----------
 
-const AUTHOR_COLS = `u.nick AS a_nick, u.posts_count AS a_posts, u.karma AS a_karma, u.signature AS a_sig, COALESCE(r.role, CASE WHEN fm.user_id IS NOT NULL THEN 'moderator' END) AS a_role`;
+const AUTHOR_COLS = `u.pid AS a_pid, u.avatar_key AS a_ava, u.nick AS a_nick, u.posts_count AS a_posts, u.karma AS a_karma, u.signature AS a_sig, COALESCE(r.role, CASE WHEN fm.user_id IS NOT NULL THEN 'moderator' END) AS a_role`;
 const AUTHOR_JOIN = (alias: string) => `LEFT JOIN forum_users u ON u.user_id = ${alias}.user_id LEFT JOIN player_roles r ON r.pkey = 'uid:' || ${alias}.user_id LEFT JOIN forum_moderators fm ON fm.user_id = ${alias}.user_id AND fm.section_id = 0`;
 const TOPIC_CARD = `t.id, t.section_id, t.user_id, t.kind, t.title, t.excerpt, t.cover_key, t.likes_count, t.comments_count, t.pinned, t.featured, t.locked, t.hidden, t.created_at, t.last_activity, t.last_comment_user, s.slug AS s_slug, s.title AS s_title, s.icon AS s_icon`;
 
-function decorate(rows: any[], s: ForumSettings) {
+export const displayNick = (nick: any, pid: any) => (nick ? String(nick) : pid != null ? `Игрок #${pid}` : "Участник");
+function decorate(rows: any[], s: ForumSettings, v?: Viewer) {
   for (const x of rows) {
-    x.author = { id: x.user_id, nick: x.a_nick || "Житель", posts: x.a_posts || 0, karma: x.a_karma || 0, role: x.a_role || null, rank: rankOf(x.a_posts || 0, s.ranks), sig: x.a_sig || "" };
-    delete x.a_nick; delete x.a_posts; delete x.a_karma; delete x.a_role; delete x.a_sig;
+    x.mine = !!(v?.uid && x.user_id === v.uid);
+    x.author = { pid: x.a_pid ?? null, nick: displayNick(x.a_nick, x.a_pid), avatar: x.a_ava || null, posts: x.a_posts || 0, karma: x.a_karma || 0, role: x.a_role || null, rank: rankOf(x.a_posts || 0, s.ranks), sig: x.a_sig || "" };
+    delete x.a_pid; delete x.a_ava; delete x.a_nick; delete x.a_posts; delete x.a_karma; delete x.a_role; delete x.a_sig;
   }
   return rows;
 }
@@ -153,7 +175,9 @@ const blockFilter = (alias: string, v: Viewer) => (v.uid ? ` AND ${alias}.user_i
 export async function listSections(db: any) {
   const r = await db.prepare(`SELECT s.*, lt.title AS last_title, lu.nick AS last_nick FROM forum_sections s
     LEFT JOIN forum_topics lt ON lt.id = s.last_topic_id LEFT JOIN forum_users lu ON lu.user_id = s.last_post_user ORDER BY s.sort, s.id`).all();
-  return r.results || [];
+  const rows = r.results || [];
+  for (const x of rows) delete x.last_post_user;
+  return rows;
 }
 export async function getSection(db: any, slug: string) {
   return db.prepare("SELECT * FROM forum_sections WHERE slug = ?").bind(String(slug)).first();
@@ -172,7 +196,7 @@ export async function feed(db: any, v: Viewer, tab: FeedTab, page = 1, sectionId
   sql += " LIMIT ? OFFSET ?"; args.push(size + 1, off);
   const rows = (await db.prepare(sql).bind(...args).all()).results || [];
   const more = rows.length > size;
-  const items = decorate(rows.slice(0, size), s);
+  const items = decorate(rows.slice(0, size), s, v);
   await attachLiked(db, v, "t", items);
   return { items, more, page: Math.floor(off / size) + 1 };
 }
@@ -187,7 +211,7 @@ export async function sectionTopics(db: any, v: Viewer, sectionId: number, sort:
   sql += sort === "top" ? " ORDER BY t.likes_count DESC, t.id DESC" : " ORDER BY t.pinned DESC, t.last_activity DESC";
   sql += " LIMIT ? OFFSET ?"; args.push(size + 1, off);
   const rows = (await db.prepare(sql).bind(...args).all()).results || [];
-  const items = decorate(rows.slice(0, size), s);
+  const items = decorate(rows.slice(0, size), s, v);
   await attachLiked(db, v, "t", items);
   return { items, more: rows.length > size, page: Math.floor(off / size) + 1 };
 }
@@ -207,7 +231,7 @@ export async function getTopic(db: any, v: Viewer, id: number) {
   if (!t || (t.deleted && !canMod(v, t.section_id))) return null;
   if (t.hidden && !canMod(v, t.section_id) && t.user_id !== v.uid) return null;
   t.can_mod = canMod(v, t.section_id);
-  decorate([t], s);
+  decorate([t], s, v);
   await attachLiked(db, v, "t", [t]);
   t.blocked = v.uid ? !!(await db.prepare("SELECT 1 AS x FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, t.user_id).first()) : false;
   return t;
@@ -227,7 +251,7 @@ export async function getComments(db: any, v: Viewer, topicId: number, page = 1)
     const ids = list.map((x: any) => x.id);
     replies = (await db.prepare(`SELECT ${cols}, ru.nick AS reply_nick FROM forum_comments c ${AUTHOR_JOIN("c")} LEFT JOIN forum_comments rc ON rc.id = c.reply_to_id LEFT JOIN forum_users ru ON ru.user_id = rc.user_id WHERE c.parent_id IN (${ids.map(() => "?").join(",")}) ORDER BY c.id LIMIT 1000`).bind(...ids).all()).results || [];
   }
-  const all = decorate([...list, ...replies], s);
+  const all = decorate([...list, ...replies], s, v);
   await attachLiked(db, v, "c", all);
   let blocked = new Set<string>();
   if (v.uid) blocked = new Set(((await db.prepare("SELECT blocked_id FROM forum_blocks WHERE user_id = ?").bind(v.uid).all()).results || []).map((x: any) => x.blocked_id));
@@ -245,25 +269,33 @@ export async function getComments(db: any, v: Viewer, topicId: number, page = 1)
   return { items: list, more, page: Math.floor(off / size) + 1, pages: null as any };
 }
 
-export async function getAuthor(db: any, v: Viewer, uid: string, page = 1) {
+/** Страница автора по публичному номеру (pid). Строковый ключ — старый адрес с userId (для редиректа). */
+export async function getAuthor(db: any, v: Viewer, key: number | string, page = 1) {
   const s = await getSettings(db);
-  const u = await db.prepare("SELECT u.user_id, u.nick, u.signature, u.topics_count, u.posts_count, u.karma, u.first_seen, u.last_seen, r.role FROM forum_users u LEFT JOIN player_roles r ON r.pkey = 'uid:' || u.user_id WHERE u.user_id = ?").bind(uid).first();
+  const byPid = typeof key === "number" || /^\d+$/.test(String(key));
+  const u = await db.prepare(`SELECT u.user_id, u.pid, u.nick, u.avatar_key, u.signature, u.topics_count, u.posts_count, u.karma, u.first_seen, u.last_seen, r.role FROM forum_users u LEFT JOIN player_roles r ON r.pkey = 'uid:' || u.user_id WHERE ${byPid ? "u.pid = ?" : "u.user_id = ?"}`).bind(byPid ? Number(key) : String(key)).first();
   if (!u) return null;
+  const uid = u.user_id;
   if (!u.role && (await db.prepare("SELECT 1 AS x FROM forum_moderators WHERE user_id = ? AND section_id = 0").bind(uid).first())) u.role = "moderator";
   u.rank = rankOf(u.posts_count, s.ranks);
+  u.nick = displayNick(u.nick, u.pid);
+  u.avatar = u.avatar_key || null;
+  delete u.avatar_key;
+  const self = !!v.uid && v.uid === uid;
   const size = s.page_size, off = (Math.max(1, page | 0) - 1) * size;
-  const rows = (await db.prepare(`SELECT ${TOPIC_CARD}, ${AUTHOR_COLS} FROM forum_topics t JOIN forum_sections s ON s.id = t.section_id ${AUTHOR_JOIN("t")} WHERE t.user_id = ? AND t.deleted = 0${isMod(v) || v.uid === uid ? "" : " AND t.hidden = 0"} ORDER BY t.created_at DESC LIMIT ? OFFSET ?`).bind(uid, size + 1, off).all()).results || [];
-  const items = decorate(rows.slice(0, size), s);
+  const rows = (await db.prepare(`SELECT ${TOPIC_CARD}, ${AUTHOR_COLS} FROM forum_topics t JOIN forum_sections s ON s.id = t.section_id ${AUTHOR_JOIN("t")} WHERE t.user_id = ? AND t.deleted = 0${isMod(v) || self ? "" : " AND t.hidden = 0"} ORDER BY t.created_at DESC LIMIT ? OFFSET ?`).bind(uid, size + 1, off).all()).results || [];
+  const items = decorate(rows.slice(0, size), s, v);
   await attachLiked(db, v, "t", items);
   const ban = isMod(v) ? await db.prepare("SELECT until, reason FROM forum_bans WHERE user_id = ?").bind(uid).first() : null;
   const blocked = v.uid ? !!(await db.prepare("SELECT 1 AS x FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, uid).first()) : false;
-  return { user: u, items, more: rows.length > size, ban: ban && (ban.until === 0 || ban.until > now()) ? ban : null, blocked };
+  delete u.user_id;
+  return { user: u, self, items, more: rows.length > size, ban: ban && (ban.until === 0 || ban.until > now()) ? ban : null, blocked };
 }
 
 export async function online(db: any) {
   const s = await getSettings(db);
   const since = now() - s.online_minutes * 60_000;
-  const r = await db.prepare("SELECT u.user_id, u.nick, COALESCE(r.role, CASE WHEN fm.user_id IS NOT NULL THEN 'moderator' END) AS role FROM forum_users u LEFT JOIN player_roles r ON r.pkey = 'uid:' || u.user_id LEFT JOIN forum_moderators fm ON fm.user_id = u.user_id AND fm.section_id = 0 WHERE u.last_seen > ? ORDER BY u.last_seen DESC LIMIT 40").bind(since).all();
+  const r = await db.prepare("SELECT u.pid, u.nick, u.avatar_key AS avatar, COALESCE(r.role, CASE WHEN fm.user_id IS NOT NULL THEN 'moderator' END) AS role FROM forum_users u LEFT JOIN player_roles r ON r.pkey = 'uid:' || u.user_id LEFT JOIN forum_moderators fm ON fm.user_id = u.user_id AND fm.section_id = 0 WHERE u.last_seen > ? ORDER BY u.last_seen DESC LIMIT 40").bind(since).all();
   return r.results || [];
 }
 
@@ -552,10 +584,10 @@ export async function listReports(db: any, v: Viewer, status: "open" | "resolved
   const items = r.results || [];
   for (const it of items) {
     if (it.target_type === "t") {
-      const t = await db.prepare("SELECT t.id, t.title, t.excerpt AS text, t.hidden, t.deleted, t.user_id, u.nick FROM forum_topics t LEFT JOIN forum_users u ON u.user_id = t.user_id WHERE t.id = ?").bind(it.target_id).first();
+      const t = await db.prepare("SELECT t.id, t.title, t.excerpt AS text, t.hidden, t.deleted, u.pid, u.nick, u.avatar_key AS avatar FROM forum_topics t LEFT JOIN forum_users u ON u.user_id = t.user_id WHERE t.id = ?").bind(it.target_id).first();
       it.target = t;
     } else {
-      const c = await db.prepare("SELECT c.id, c.topic_id, substr(c.body, 1, 300) AS text, c.hidden, c.deleted, c.user_id, u.nick, t.title FROM forum_comments c LEFT JOIN forum_users u ON u.user_id = c.user_id LEFT JOIN forum_topics t ON t.id = c.topic_id WHERE c.id = ?").bind(it.target_id).first();
+      const c = await db.prepare("SELECT c.id, c.topic_id, substr(c.body, 1, 300) AS text, c.hidden, c.deleted, u.pid, u.nick, u.avatar_key AS avatar, t.title FROM forum_comments c LEFT JOIN forum_users u ON u.user_id = c.user_id LEFT JOIN forum_topics t ON t.id = c.topic_id WHERE c.id = ?").bind(it.target_id).first();
       it.target = c;
     }
     it.section_id = await sectionOfTarget(db, it.target_type, it.target_id);
@@ -596,15 +628,12 @@ export async function setCommentHidden(db: any, v: Viewer, id: number, value: bo
   return { ok: true };
 }
 
-export async function banUser(db: any, v: Viewer, uid: string, minutes: number, reason: any, nick?: any) {
+export async function banUser(db: any, v: Viewer, target: any, minutes: number, reason: any) {
   needMod(v);
-  uid = String(uid || "");
-  if (!uid && nick) {
-    const u = await db.prepare("SELECT user_id FROM forum_users WHERE nick_key = ?").bind(nickKey(String(nick))).first();
-    if (!u) fail(404, "Участник с таким ником не найден");
-    uid = u.user_id;
-  }
-  if (!uid || uid === v.uid) fail(400, "Неверный пользователь");
+  const tu = await resolveUser(db, target || {});
+  if (!tu) fail(404, "Участник не найден");
+  const uid = tu.user_id;
+  if (uid === v.uid) fail(400, "Неверный пользователь");
   const tv = await loadViewer(db, uid, { touch: false });
   if (tv.role === "admin" || (tv.role === "moderator" && !isAdmin(v))) fail(403, "Нельзя ограничить администратора или модератора");
   const m = Number(minutes);
@@ -612,23 +641,27 @@ export async function banUser(db: any, v: Viewer, uid: string, minutes: number, 
   const until = m === 0 ? 0 : now() + Math.round(m) * 60_000;
   const why = String(reason ?? "").trim().slice(0, 200);
   await db.prepare("INSERT INTO forum_bans (user_id, until, reason, by_user, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET until = excluded.until, reason = excluded.reason, by_user = excluded.by_user, created_at = excluded.created_at").bind(uid, until, why, v.uid, now()).run();
-  await log(db, v.uid!, "ban", "u", uid, `${m === 0 ? "бессрочно" : m + " мин"}${why ? " · " + why : ""}`);
+  await log(db, v.uid!, "ban", "u", uid, `${tu.nick} · ${m === 0 ? "бессрочно" : m + " мин"}${why ? " · " + why : ""}`);
   return { ok: true, until };
 }
-export async function unbanUser(db: any, v: Viewer, uid: string) {
+export async function unbanUser(db: any, v: Viewer, target: any) {
   needMod(v);
-  await db.prepare("DELETE FROM forum_bans WHERE user_id = ?").bind(String(uid)).run();
-  await log(db, v.uid!, "unban", "u", uid);
+  const tu = await resolveUser(db, target || {});
+  if (!tu) fail(404, "Участник не найден");
+  await db.prepare("DELETE FROM forum_bans WHERE user_id = ?").bind(tu.user_id).run();
+  await log(db, v.uid!, "unban", "u", tu.user_id, tu.nick);
   return { ok: true };
 }
 export async function listBans(db: any, v: Viewer) {
   needMod(v);
-  const r = await db.prepare("SELECT b.*, u.nick, bu.nick AS by_nick FROM forum_bans b LEFT JOIN forum_users u ON u.user_id = b.user_id LEFT JOIN forum_users bu ON bu.user_id = b.by_user WHERE b.until = 0 OR b.until > ? ORDER BY b.created_at DESC LIMIT 200").bind(now()).all();
+  const r = await db.prepare("SELECT b.until, b.reason, b.created_at, u.pid, u.nick, bu.nick AS by_nick FROM forum_bans b LEFT JOIN forum_users u ON u.user_id = b.user_id LEFT JOIN forum_users bu ON bu.user_id = b.by_user WHERE b.until = 0 OR b.until > ? ORDER BY b.created_at DESC LIMIT 200").bind(now()).all();
   return r.results || [];
 }
 export async function modlog(db: any, v: Viewer) {
   needMod(v);
-  const r = await db.prepare("SELECT l.*, u.nick AS actor_nick FROM forum_modlog l LEFT JOIN forum_users u ON u.user_id = l.actor ORDER BY l.id DESC LIMIT 200").all();
+  const r = await db.prepare(`SELECT l.id, l.action, l.target_type, CASE WHEN l.target_type = 'u' THEN CAST(tu.pid AS TEXT) ELSE l.target_id END AS target_id, tu.nick AS target_nick,
+    l.details, l.created_at, CASE WHEN l.actor = 'system' THEN 'system' END AS actor, u.pid AS actor_pid, u.nick AS actor_nick
+    FROM forum_modlog l LEFT JOIN forum_users u ON u.user_id = l.actor LEFT JOIN forum_users tu ON l.target_type = 'u' AND tu.user_id = l.target_id ORDER BY l.id DESC LIMIT 200`).all();
   return r.results || [];
 }
 
@@ -710,8 +743,7 @@ export async function updateMe(db: any, v: Viewer, x: any) {
   const out: any = {};
   if (x?.nick != null) {
     const nick = String(x.nick).trim().replace(/\s+/g, " ");
-    const e = validNick(nick); if (e) fail(400, e);
-    if (s.filter_mode !== "off" && !filterText(nick, compileWords(s.filter_words)).clean) fail(400, "Такой ник не подойдёт");
+    const e = nickProblem(nick, s); if (e) fail(400, e);
     out.nick = nick;
   }
   if (x?.signature != null) {
@@ -725,20 +757,28 @@ export async function updateMe(db: any, v: Viewer, x: any) {
   if (out.signature != null) await db.prepare("UPDATE forum_users SET signature = ? WHERE user_id = ?").bind(out.signature, v.uid).run();
   return { ok: true };
 }
-export async function setBlock(db: any, v: Viewer, uid: string, on: boolean) {
+export async function setBlock(db: any, v: Viewer, target: any, on: boolean) {
   needUser(v);
-  uid = String(uid || "");
-  if (!uid || uid === v.uid) fail(400, "Неверный пользователь");
+  const tu = await resolveUser(db, target || {});
+  if (!tu || tu.user_id === v.uid) fail(400, "Неверный пользователь");
   if (on) {
     const n = await db.prepare("SELECT COUNT(*) AS n FROM forum_blocks WHERE user_id = ?").bind(v.uid).first();
     if ((n?.n || 0) >= 500) fail(400, "Слишком длинный список скрытых");
-    await db.prepare("INSERT OR IGNORE INTO forum_blocks (user_id, blocked_id, created_at) VALUES (?, ?, ?)").bind(v.uid, uid, now()).run();
-  } else await db.prepare("DELETE FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, uid).run();
+    await db.prepare("INSERT OR IGNORE INTO forum_blocks (user_id, blocked_id, created_at) VALUES (?, ?, ?)").bind(v.uid, tu.user_id, now()).run();
+  } else await db.prepare("DELETE FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, tu.user_id).run();
   return { ok: true, blocked: on };
 }
 export async function listBlocks(db: any, v: Viewer) {
   needUser(v);
-  const r = await db.prepare("SELECT b.blocked_id, u.nick FROM forum_blocks b LEFT JOIN forum_users u ON u.user_id = b.blocked_id WHERE b.user_id = ? ORDER BY b.created_at DESC").bind(v.uid).all();
+  const r = await db.prepare("SELECT u.pid, u.nick, u.avatar_key AS avatar FROM forum_blocks b JOIN forum_users u ON u.user_id = b.blocked_id WHERE b.user_id = ? ORDER BY b.created_at DESC").bind(v.uid).all();
+  return r.results || [];
+}
+/** Поиск участников по началу ника (для модераторов: назначение, ограничения). */
+export async function searchUsers(db: any, v: Viewer, q: any) {
+  needMod(v);
+  const k = nickKey(String(q ?? "")).replace(/[%_\\]/g, "");
+  if (k.length < 1) return [];
+  const r = await db.prepare("SELECT pid, nick, avatar_key AS avatar FROM forum_users WHERE nick_key LIKE ? ORDER BY posts_count DESC, nick_key LIMIT 10").bind(k + "%").all();
   return r.results || [];
 }
 
@@ -750,7 +790,7 @@ export async function checkUploadAllowed(db: any, v: Viewer, size: number) {
   await needAge(db, v, s);
   if (size > s.upload_max_mb * 1024 * 1024) fail(413, `Картинка больше ${s.upload_max_mb} МБ`);
   if (!isMod(v)) {
-    const n = await db.prepare("SELECT COUNT(*) AS n FROM forum_media WHERE user_id = ? AND created_at > ?").bind(v.uid, now() - H).first();
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM forum_media WHERE user_id = ? AND kind = 'post' AND created_at > ?").bind(v.uid, now() - H).first();
     if ((n?.n || 0) >= s.uploads_per_hour) fail(429, `Лимит: ${s.uploads_per_hour} картинок в час`, "rate");
   }
   return s;
@@ -761,17 +801,40 @@ export async function recordUpload(db: any, v: Viewer, key: string, mime: string
 
 // ---------- модераторы форума (назначает админ) ----------
 
+/** Профили для ролей из игры, которые ещё не заходили на форум (чтобы показывать ник/аватар, а не id). */
+async function ensureStaffProfiles(db: any) {
+  const miss = (await db.prepare("SELECT substr(r.pkey, 5) AS uid FROM player_roles r LEFT JOIN forum_users u ON u.user_id = substr(r.pkey, 5) WHERE r.pkey LIKE 'uid:%' AND u.user_id IS NULL LIMIT 50").all()).results || [];
+  for (const m of miss) await ensureUser(db, m.uid, { seen: false });
+}
+/** Команда форума (публично): админы и модераторы игры + модераторы форума. Только ник, аватар, роль, зона. */
+export async function forumTeam(db: any) {
+  await ensureStaffProfiles(db);
+  const game = (await db.prepare("SELECT u.pid, u.nick, u.avatar_key AS avatar, r.role FROM player_roles r JOIN forum_users u ON u.user_id = substr(r.pkey, 5) WHERE r.pkey LIKE 'uid:%' ORDER BY r.role, u.nick_key").all()).results || [];
+  const fm = (await db.prepare("SELECT u.pid, u.nick, u.avatar_key AS avatar, m.section_id, s.title AS s_title, s.icon AS s_icon FROM forum_moderators m JOIN forum_users u ON u.user_id = m.user_id LEFT JOIN forum_sections s ON s.id = m.section_id ORDER BY u.nick_key").all()).results || [];
+  const out: any[] = game.map((g: any) => ({ pid: g.pid, nick: displayNick(g.nick, g.pid), avatar: g.avatar || null, role: g.role, scope: "весь форум", source: "game" }));
+  const seen = new Set(out.map((x) => x.pid));
+  const byPid = new Map<number, any>();
+  for (const m of fm) {
+    if (seen.has(m.pid)) continue;
+    let x = byPid.get(m.pid);
+    if (!x) { x = { pid: m.pid, nick: displayNick(m.nick, m.pid), avatar: m.avatar || null, role: "moderator", scopes: [] as string[], source: "forum" }; byPid.set(m.pid, x); out.push(x); }
+    x.scopes.push(m.section_id === 0 ? "весь форум" : `${m.s_icon || ""} ${m.s_title || "раздел #" + m.section_id}`.trim());
+  }
+  for (const x of out) if (x.scopes) { x.scope = x.scopes.includes("весь форум") ? "весь форум" : x.scopes.join(", "); delete x.scopes; }
+  return out;
+}
 export async function listModerators(db: any, v: Viewer) {
   needAdmin(v);
-  const forum = (await db.prepare("SELECT m.user_id, m.section_id, m.granted_at, u.nick, s.title AS s_title, g.nick AS by_nick FROM forum_moderators m LEFT JOIN forum_users u ON u.user_id = m.user_id LEFT JOIN forum_sections s ON s.id = m.section_id LEFT JOIN forum_users g ON g.user_id = m.granted_by ORDER BY m.granted_at DESC").all()).results || [];
-  const game = (await db.prepare("SELECT substr(r.pkey, 5) AS user_id, r.role, u.nick FROM player_roles r LEFT JOIN forum_users u ON u.user_id = substr(r.pkey, 5) WHERE r.pkey LIKE 'uid:%'").all()).results || [];
+  await ensureStaffProfiles(db);
+  const forum = (await db.prepare("SELECT u.pid, u.nick, u.avatar_key AS avatar, m.section_id, m.granted_at, s.title AS s_title, g.nick AS by_nick FROM forum_moderators m JOIN forum_users u ON u.user_id = m.user_id LEFT JOIN forum_sections s ON s.id = m.section_id LEFT JOIN forum_users g ON g.user_id = m.granted_by ORDER BY m.granted_at DESC").all()).results || [];
+  const game = (await db.prepare("SELECT u.pid, u.nick, u.avatar_key AS avatar, r.role FROM player_roles r JOIN forum_users u ON u.user_id = substr(r.pkey, 5) WHERE r.pkey LIKE 'uid:%' ORDER BY r.role, u.nick_key").all()).results || [];
+  for (const x of [...forum, ...game]) x.nick = displayNick(x.nick, x.pid);
   return { forum, game };
 }
-export async function addModerator(db: any, v: Viewer, nickOrId: any, sectionId: any) {
+export async function addModerator(db: any, v: Viewer, target: any, sectionId: any) {
   needAdmin(v);
-  const q = String(nickOrId ?? "").trim();
-  if (!q) fail(400, "Укажите ник участника");
-  const u = await db.prepare("SELECT user_id, nick FROM forum_users WHERE nick_key = ? OR user_id = ?").bind(nickKey(q), q).first();
+  if (!target?.nick && target?.pid == null) fail(400, "Укажите ник участника");
+  const u = await resolveUser(db, { pid: target.pid, nick: target.nick });
   if (!u) fail(404, "Участник не найден (он должен хотя бы раз зайти на форум)");
   const sid = Number(sectionId) | 0;
   if (sid) { const sec = await db.prepare("SELECT id FROM forum_sections WHERE id = ?").bind(sid).first(); if (!sec) fail(400, "Раздел не найден"); }
@@ -779,11 +842,58 @@ export async function addModerator(db: any, v: Viewer, nickOrId: any, sectionId:
   await log(db, v.uid!, "mod_add", "u", u.user_id, `${u.nick}${sid ? " · раздел #" + sid : " · весь форум"}`);
   return { ok: true };
 }
-export async function removeModerator(db: any, v: Viewer, uid: any, sectionId: any) {
+export async function removeModerator(db: any, v: Viewer, target: any, sectionId: any) {
   needAdmin(v);
   const sid = Number(sectionId) | 0;
-  const r = await db.prepare("DELETE FROM forum_moderators WHERE user_id = ? AND section_id = ?").bind(String(uid), sid).run();
+  const tu = await resolveUser(db, target || {});
+  if (!tu) fail(404, "Участник не найден");
+  const r = await db.prepare("DELETE FROM forum_moderators WHERE user_id = ? AND section_id = ?").bind(tu.user_id, sid).run();
   if (!r.meta?.changes) fail(404, "Такого назначения нет");
-  await log(db, v.uid!, "mod_remove", "u", String(uid), sid ? "раздел #" + sid : "весь форум");
+  await log(db, v.uid!, "mod_remove", "u", tu.user_id, `${tu.nick} · ${sid ? "раздел #" + sid : "весь форум"}`);
   return { ok: true };
+}
+
+// ---------- аватары ----------
+
+export async function checkAvatarAllowed(db: any, v: Viewer, size: number) {
+  needUser(v); needNotBanned(v);
+  const s = await getSettings(db);
+  if (size > s.avatar_max_kb * 1024) fail(413, `Аватар больше ${s.avatar_max_kb} КБ`);
+  if (!isAdmin(v)) {
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM forum_media WHERE user_id = ? AND kind = 'avatar' AND created_at > ?").bind(v.uid, now() - 24 * H).first();
+    if ((n?.n || 0) >= s.avatars_per_day) fail(429, `Аватар можно менять не чаще ${s.avatars_per_day} раз в сутки`, "rate");
+  }
+  return s;
+}
+/** Новый аватар; возвращает ключ старого (его файл можно удалить из хранилища). */
+export async function setAvatar(db: any, v: Viewer, key: string, mime: string, size: number) {
+  const old = v.user?.avatar_key || null;
+  const t = now();
+  await db.batch([
+    db.prepare("INSERT INTO forum_media (key, user_id, mime, size, created_at, kind) VALUES (?, ?, ?, ?, ?, 'avatar')").bind(key, v.uid, mime, size, t),
+    db.prepare("UPDATE forum_users SET avatar_key = ?, avatar_at = ? WHERE user_id = ?").bind(key, t, v.uid),
+  ]);
+  if (v.user) v.user.avatar_key = key;
+  return { old };
+}
+/** Убрать аватар: свой — всегда; чужой — модератор/админ (модератор не трогает админов и других модераторов), с записью в журнал. */
+export async function removeAvatar(db: any, v: Viewer, target: any | null, reason: any = "") {
+  needUser(v);
+  if (!target) {
+    const old = v.user?.avatar_key || null;
+    if (!old) return { ok: true, old: null };
+    await db.prepare("UPDATE forum_users SET avatar_key = NULL, avatar_at = ? WHERE user_id = ?").bind(now(), v.uid).run();
+    return { ok: true, old };
+  }
+  needMod(v);
+  const tu = await resolveUser(db, target);
+  if (!tu) fail(404, "Участник не найден");
+  if (tu.user_id === v.uid) return removeAvatar(db, v, null);
+  const tv = await loadViewer(db, tu.user_id, { touch: false });
+  if (tv.role === "admin" || (tv.role === "moderator" && !isAdmin(v))) fail(403, "Аватар администратора или модератора может убрать только админ");
+  if (!tu.avatar_key) fail(404, "У участника нет своего аватара");
+  await db.prepare("UPDATE forum_users SET avatar_key = NULL, avatar_at = ? WHERE user_id = ?").bind(now(), tu.user_id).run();
+  const why = String(reason ?? "").trim().slice(0, 200);
+  await log(db, v.uid!, "avatar_remove", "u", tu.user_id, `${tu.nick} · файл ${tu.avatar_key}${why ? " · причина: " + why : ""}`);
+  return { ok: true, old: null }; // файл оставляем в хранилище — для разбора по журналу
 }

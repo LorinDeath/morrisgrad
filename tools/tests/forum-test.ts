@@ -25,6 +25,8 @@ function d1() {
   const root = import.meta.dir + "/../../server/migrations/";
   db.exec(readFileSync(root + "0008_roles.sql", "utf8"));
   db.exec(readFileSync(root + "0021_forum.sql", "utf8"));
+  db.exec(readFileSync(root + "0022_forum_profiles.sql", "utf8"));
+  db.exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT, avatar_url TEXT)");
   db.exec("INSERT INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:admin1','admin','t',0),('uid:mod1','moderator','t',0)");
   return {
     raw: db,
@@ -32,7 +34,7 @@ function d1() {
     batch: async (st: Stmt[]) => { db.transaction(() => { for (const s of st) s.runSync(); })(); return st.map(() => ({ success: true })); },
   };
 }
-const r2 = () => { const m = new Map<string, any>(); return { m, put: async (k: string, v: Uint8Array, o: any) => { m.set(k, { v, o }); }, get: async (k: string) => { const x = m.get(k); return x ? { body: x.v, httpMetadata: x.o.httpMetadata, httpEtag: "e" } : null; } }; };
+const r2 = () => { const m = new Map<string, any>(); return { m, put: async (k: string, v: Uint8Array, o: any) => { m.set(k, { v, o }); }, delete: async (k: string) => { m.delete(k); }, get: async (k: string) => { const x = m.get(k); return x ? { body: x.v, httpMetadata: x.o.httpMetadata, httpEtag: "e" } : null; } }; };
 
 const ORIGIN = "https://morrisgrad.com";
 let env: any;
@@ -46,6 +48,7 @@ async function call(uid: string | null, method: string, path: string, body?: any
   let data: any = null; try { data = await res.clone().json(); } catch {}
   return { status: res.status, data, res };
 }
+const pidOf = (uid: string) => env.PROFILES_DB.raw.query("SELECT pid FROM forum_users WHERE user_id = ?").get(uid)?.pid;
 const fresh = async (settings: any = {}) => {
   clearSettingsCache();
   env = { PROFILES_DB: d1(), FORUM_MEDIA: r2() };
@@ -116,7 +119,7 @@ await fresh();
   const tid = r.data.id;
   r = await call(null, "GET", "topic/" + tid);
   ok(r.status === 200 && !r.data.topic.body_html.includes("<script") && r.data.topic.body_html.includes("<strong>мир</strong>") && r.data.topic.body === undefined, "тема отдаётся с безопасным HTML, исходник гостю не отдаётся");
-  ok(r.data.topic.author.nick.startsWith("Житель-") && !("email" in r.data.topic.author), "автор: ник без персональных данных");
+  ok(/^Игрок #\d+$/.test(r.data.topic.author.nick) && !("email" in r.data.topic.author), "автор: ник без персональных данных");
   const sec = env.PROFILES_DB.raw.query("SELECT topics_count, posts_count FROM forum_sections WHERE id = 2").get();
   ok(sec.topics_count === 1 && sec.posts_count === 1, "счётчики раздела обновлены (денормализация)");
 
@@ -200,8 +203,8 @@ await fresh();
 
   // блокировка автора для себя
   await call("u2", "POST", "block", { user_id: "u1" });
-  r = await call("u2", "GET", "feed?tab=new"); ok(!r.data.items.some((x: any) => x.user_id === "u1"), "скрытый автор пропал из ленты у того, кто скрыл");
-  r = await call("u3", "GET", "feed?tab=new"); ok(r.data.items.some((x: any) => x.user_id === "u1"), "у остальных автор виден");
+  r = await call("u2", "GET", "feed?tab=new"); ok(!r.data.items.some((x: any) => x.author.pid === pidOf("u1")), "скрытый автор пропал из ленты у того, кто скрыл");
+  r = await call("u3", "GET", "feed?tab=new"); ok(r.data.items.some((x: any) => x.author.pid === pidOf("u1")), "у остальных автор виден");
 
   // ник
   r = await call("u2", "PUT", "me", { nick: "Админ" }); ok(r.status === 400, "системный ник запрещён");
@@ -238,7 +241,7 @@ await fresh();
   r = await call("fm_all", "PUT", "settings", { filter_mode: "off" }); ok(r.status === 403, "модератор форума не меняет фильтр/лимиты");
   r = await call("admin1", "GET", "modlog");
   const del = r.data.log.find((x: any) => x.action === "topic_delete" && x.target_id === String(tB));
-  ok(del && del.actor === "fm_all" && del.details.includes("спам") && del.created_at > 0, "удаление в журнале: кто, что, когда, причина");
+  ok(del && del.actor_pid === pidOf("fm_all") && del.details.includes("спам") && del.created_at > 0, "удаление в журнале: кто, что, когда, причина");
   ok(r.data.log.some((x: any) => x.action === "comment_delete" && x.details.includes("оффтоп")), "удаление комментария записано с причиной");
   const row = env.PROFILES_DB.raw.query("SELECT deleted, body, deleted_by FROM forum_topics WHERE id = ?").get(tB);
   ok(row.deleted === 1 && row.body === "текст" && row.deleted_by === "fm_all", "удаление мягкое: текст сохранён");
@@ -255,7 +258,7 @@ await fresh();
   r = await call("fm_sec", "POST", "comment/" + cA + "/hide", { value: true }); ok(r.status === 403, "после снятия права пропали");
   r = await call(null, "GET", "topic/" + tA); ok(r.status === 200, "чтение работает");
   const t2 = await call(null, "GET", "topic/" + tB); ok(t2.data.topic.author.nick === "Ник_w1", "автор не меняется при восстановлении");
-  r = await call("admin1", "GET", "moderators"); ok(r.data.forum.length === 1 && r.data.forum[0].user_id === "fm_all", "список модераторов форума");
+  r = await call("admin1", "GET", "moderators"); ok(r.data.forum.length === 1 && r.data.forum[0].pid === pidOf("fm_all") && r.data.forum[0].nick === "Ник_fm_all", "список модераторов форума");
 }
 
 // ===== 5. Фильтр в API: маска и блок =====
@@ -297,6 +300,106 @@ await fresh();
   ok(g.status === 200 && g.res.headers.get("content-type") === "image/png" && (g.res.headers.get("cache-control") || "").includes("immutable") && g.res.headers.get("x-content-type-options") === "nosniff", "картинка отдаётся с верным типом, долгим кэшем и nosniff");
   r = await call("u1", "POST", "upload", new Uint8Array(6 * 1024 * 1024), { "content-type": "image/png" }); ok(r.status === 413, "больше 5 МБ → 413");
   r = await call("u1", "POST", "topics", { section_id: 2, title: "С обложкой", body: "текст", cover: "u/202601/zzzzzzzzzzzzzzzz.png" }); ok(r.status === 400, "обложка — только своя загруженная картинка");
+}
+
+// ===== 8. Публичные профили: никаких Clerk id наружу, адреса по номеру, ники =====
+await fresh();
+{
+  const CLERK = "user_3DXwtZDrVvY5qUFE09zD0z6fhtY", MOD = "user_2ModeratorGameAbCdEf123";
+  env.PROFILES_DB.raw.exec(`INSERT INTO users (id, username) VALUES ('${CLERK}', 'Тёмный_Рыцарь'), ('${MOD}', NULL), ('u_bad', 'хуйло'), ('u_cl', 'user_abcdefgh12')`);
+  env.PROFILES_DB.raw.exec(`INSERT INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:${MOD}', 'moderator', 't', 0)`);
+  let r = await call(CLERK, "POST", "topics", { section_id: 2, title: "Тема от игрока", body: "текст" });
+  const tid = r.data.id;
+  await call("u2", "POST", "topic/" + tid + "/comments", { body: "ответ" });
+  await call(CLERK, "POST", "topic/" + tid + "/comments", { body: "и я" });
+  r = await call(CLERK, "GET", "me");
+  ok(r.data.pid > 0 && r.data.user.nick === "Тёмный_Рыцарь" && !JSON.stringify(r.data).includes(CLERK), "ник берётся из игры, /me без Clerk id");
+  const p = r.data.pid;
+  r = await call("u_bad", "GET", "me"); await call("u_bad", "PUT", "me", { signature: "" });
+  ok(/^Игрок #\d+$/.test((await call("u_bad", "GET", "me")).data.user.nick), "грубый ник из игры не берётся → «Игрок #N»");
+  await call("u_cl", "PUT", "me", { signature: "" });
+  ok(/^Игрок #\d+$/.test((await call("u_cl", "GET", "me")).data.user.nick), "ник, похожий на Clerk id, не берётся");
+  r = await call("u2", "PUT", "me", { nick: "user_abcdef1234" }); ok(r.status === 400, "ник в виде Clerk id запрещён");
+  r = await call("u2", "PUT", "me", { nick: "Игрок #1" }); ok(r.status === 400, "ник «Игрок #N» занят системой");
+  r = await call("u2", "PUT", "me", { nick: "Мудила" }); ok(r.status === 400, "ник с оскорблением запрещён");
+  await call("admin1", "PUT", "settings", { filter_mode: "off" });
+  r = await call("u2", "PUT", "me", { nick: "Мудила" }); ok(r.status === 400, "ник проверяется даже при выключенном фильтре текстов");
+  await call("admin1", "PUT", "settings", { filter_mode: "mask" });
+  await call("mod1", "POST", "ban", { pid: pidOf("u_bad"), minutes: 5, reason: "тест" });
+  await call("admin1", "POST", "moderators", { nick: "Тёмный_Рыцарь", section_id: 2 });
+  await call(MOD, "POST", "topic/" + tid + "/flag", { flag: "pinned", value: true }); // игровой модератор действует → журнал
+  await call(CLERK, "POST", "report", { type: "c", id: 1, reason: "x" });
+  const pub = ["feed?tab=new", "feed?tab=rec", "sections", "section/curse", "topic/" + tid, "comments/" + tid, "user/" + p, "online", "team"];
+  let leaks: string[] = [];
+  for (const path of pub) for (const who of [null, "u2", CLERK]) {
+    const x = await call(who, "GET", path);
+    const txt = JSON.stringify(x.data);
+    if (x.status !== 200) leaks.push(path + ":" + x.status);
+    for (const id of [CLERK, MOD, "u2", "admin1", "mod1"]) if (txt.includes(`"${id}"`)) leaks.push(path + "→" + id);
+    if (/"user_id"|"last_post_user"|"last_comment_user"|"deleted_by"/.test(txt)) leaks.push(path + "→field");
+  }
+  for (const path of ["bans", "modlog", "reports", "moderators", "users?q=т", "blocks"]) {
+    const x = await call("admin1", "GET", path);
+    const txt = JSON.stringify(x.data);
+    for (const id of [CLERK, MOD, "u2", "u_bad", "admin1", "mod1"]) if (txt.includes(`"${id}"`)) leaks.push("admin " + path + "→" + id);
+  }
+  ok(leaks.length === 0, "публичные и админские ответы API не содержат Clerk id: " + leaks.slice(0, 5).join(", "));
+  r = await call(null, "GET", "team");
+  ok(r.data.team.some((m: any) => m.role === "moderator" && /^Игрок #\d+$/.test(m.nick) && m.pid > 0), "команда: игровой модератор без профиля показан как «Игрок #N», не id");
+  ok(r.data.team.some((m: any) => m.nick === "Тёмный_Рыцарь" && m.scope.includes("Проклятые")), "команда: модератор раздела с зоной");
+  r = await call(null, "GET", "user/" + p); ok(r.status === 200 && r.data.user.pid === p && r.data.user.nick === "Тёмный_Рыцарь", "профиль по номеру");
+  r = await call(null, "GET", "user/" + encodeURIComponent(CLERK)); ok(r.status === 200 && r.data.user.pid === p, "старый адрес по userId находит профиль (для редиректа)");
+  r = await call("admin1", "GET", "modlog");
+  ok(r.data.log.some((l: any) => l.action === "ban" && l.target_id === String(pidOf("u_bad")) && l.target_nick), "журнал: цель — номер и ник участника");
+  r = await call("u2", "GET", "users?q=т"); ok(r.status === 403, "поиск участников — только модераторам");
+  r = await call("admin1", "GET", "users?q=тём"); ok(r.data.users.length === 1 && r.data.users[0].nick === "Тёмный_Рыцарь" && r.data.users[0].pid === p, "поиск по началу ника");
+  r = await call("u2", "POST", "block", { pid: p }); ok(r.status === 200, "скрыть автора по номеру");
+  r = await call("u2", "GET", "blocks"); ok(r.data.blocks[0].pid === p && !JSON.stringify(r.data).includes(CLERK), "список скрытых — без id");
+  r = await call("admin1", "POST", "moderators/remove", { pid: p, section_id: 2 }); ok(r.status === 200, "снять модератора по номеру");
+}
+
+// ===== 9. Аватары =====
+await fresh();
+{
+  const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const chunk = (type: string, data: number[]) => [...be32(data.length), ...Array.from(type, (c) => c.charCodeAt(0)), ...data, 0, 0, 0, 0];
+  const png = (w: number, h: number, meta = false) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ...chunk("IHDR", [...be32(w), ...be32(h), 8, 6, 0, 0, 0]),
+    ...(meta ? chunk("tEXt", Array.from("GPS\u000050.45,30.52", (c) => c.charCodeAt(0))) : []),
+    ...chunk("IDAT", [1, 2, 3]), ...chunk("IEND", [])]);
+  const H = { "content-type": "image/png" };
+  let r = await call(null, "POST", "avatar", png(256, 256), H); ok(r.status === 401, "гость не ставит аватар");
+  r = await call("u1", "POST", "avatar", new TextEncoder().encode("<svg onload=alert(1)>"), H); ok(r.status === 415, "аватар: проверка сигнатуры");
+  r = await call("u1", "POST", "avatar", new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 1, 1, 1, 0, 0, 0]), { "content-type": "image/gif" }); ok(r.status === 415, "аватар: GIF не принимается");
+  r = await call("u1", "POST", "avatar", png(400, 200), H); ok(r.status === 400, "аватар: только квадрат");
+  r = await call("u1", "POST", "avatar", png(4000, 4000), H); ok(r.status === 400, "аватар: не больше 1024px");
+  r = await call("u1", "POST", "avatar", new Uint8Array(500 * 1024), H); ok(r.status === 413, "аватар: лимит размера");
+  r = await call("u1", "POST", "avatar", png(256, 256, true), H);
+  ok(r.status === 200 && /^a\/\d{6}\/[a-z0-9]{16}\.png$/.test(r.data.avatar), "аватар загружен, ключ случайный и без id");
+  const k1 = r.data.avatar;
+  const stored = env.FORUM_MEDIA.m.get(k1).v as Uint8Array;
+  ok(!new TextDecoder().decode(stored).includes("GPS"), "метаданные из аватара удалены");
+  r = await call(null, "GET", "media/" + k1); ok(r.status === 200 && (r.res.headers.get("cache-control") || "").includes("immutable"), "аватар отдаётся с долгим кэшем");
+  const tid = (await call("u1", "POST", "topics", { section_id: 2, title: "С аватаром", body: "текст" })).data.id;
+  await call("u1", "POST", "topic/" + tid + "/comments", { body: "коммент" });
+  r = await call(null, "GET", "topic/" + tid);
+  ok(r.data.topic.author.avatar === k1 && r.data.comments.items[0].author.avatar === k1, "аватар у темы и комментария");
+  r = await call(null, "GET", "feed?tab=new"); ok(r.data.items[0].author.avatar === k1, "аватар в ленте");
+  r = await call(null, "GET", "online"); ok(r.data.online.some((x: any) => x.avatar === k1), "аватар в «Кто на форуме»");
+  r = await call("u1", "POST", "avatar", png(128, 128), H); const k2 = r.data.avatar;
+  ok(r.status === 200 && k2 !== k1 && !env.FORUM_MEDIA.m.has(k1), "замена аватара удаляет старый файл");
+  r = await call("u2", "POST", "user/" + pidOf("u1") + "/avatar-remove", { reason: "x" }); ok(r.status === 403, "обычный участник не убирает чужой аватар");
+  await call("admin1", "GET", "me");
+  await call("admin1", "POST", "avatar", png(64, 64), H);
+  r = await call("mod1", "POST", "user/" + pidOf("admin1") + "/avatar-remove", { reason: "x" }); ok(r.status === 403, "модератор не убирает аватар админа");
+  r = await call("mod1", "POST", "user/" + pidOf("u1") + "/avatar-remove", { reason: "неуместно" }); ok(r.status === 200, "модератор убирает неуместный аватар");
+  r = await call(null, "GET", "user/" + pidOf("u1")); ok(r.data.user.avatar === null, "аватар убран — показывается сгенерированный");
+  r = await call("admin1", "GET", "modlog"); ok(r.data.log.some((l: any) => l.action === "avatar_remove" && l.details.includes("неуместно") && l.target_id === String(pidOf("u1"))), "удаление аватара в журнале");
+  r = await call("admin1", "DELETE", "me/avatar"); ok(r.status === 200 && (await call("admin1", "GET", "me")).data.user.avatar === null, "свой аватар можно удалить");
+  await fresh({ avatars_per_day: 2 });
+  await call("u5", "POST", "avatar", png(64, 64), H); await call("u5", "POST", "avatar", png(64, 64), H);
+  r = await call("u5", "POST", "avatar", png(64, 64), H); ok(r.status === 429, "лимит смен аватара в сутки");
+  r = await call("u5", "POST", "upload", png(64, 64), H); ok(r.status === 200, "лимит аватаров не трогает загрузку картинок в посты");
 }
 
 console.log(`\nforum-test: ${passes} PASS, ${fails} FAIL`);

@@ -1,0 +1,13 @@
+---
+// Аватар участника: загруженная картинка или сгенерированный узор с первой буквой ника (по публичному номеру).
+import { media, initial, hue, avaPattern, userUrl } from "../../lib/forum/fmt";
+interface Props { u: { pid?: number | null; nick?: string; avatar?: string | null }; link?: boolean; cls?: string; eager?: boolean }
+const { u, link = true, cls = "", eager = false } = Astro.props;
+const seed = u?.pid ?? u?.nick ?? "";
+const Tag = link && u?.pid != null ? "a" : "span";
+---
+<Tag href={Tag === "a" ? userUrl(u.pid) : undefined} class={`f-ava${u?.avatar ? " f-ava-img" : ""} ${cls}`} style={`--h:${hue(seed)}`} aria-hidden="true" tabindex={Tag === "a" ? -1 : undefined}>
+  {u?.avatar
+    ? <img src={media(u.avatar)} alt="" loading={eager ? "eager" : "lazy"} decoding="async" width="64" height="64" />
+    : <><svg viewBox="0 0 5 5" class="f-ava-geo" aria-hidden="true"><path d={avaPattern(seed)} /></svg><span class="f-ava-ch">{initial(u?.nick || "?")}</span></>}
+</Tag>

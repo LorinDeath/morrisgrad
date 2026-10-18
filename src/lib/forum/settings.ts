@@ -6,7 +6,7 @@ export type Rank = [number, string];
 export interface ForumSettings {
   topic_title_max: number; topic_body_max: number; comment_max: number; signature_max: number;
   topic_cooldown_sec: number; comment_cooldown_sec: number; topics_per_day: number; comments_per_hour: number;
-  likes_per_min: number; reports_per_hour: number; uploads_per_hour: number; upload_max_mb: number; images_per_post: number;
+  likes_per_min: number; reports_per_hour: number; uploads_per_hour: number; upload_max_mb: number; images_per_post: number; avatars_per_day: number; avatar_max_kb: number;
   min_account_age_min: number; reports_autohide: number; page_size: number; comments_page_size: number; online_minutes: number;
   filter_mode: "mask" | "block" | "off"; filter_words: string[]; ranks: Rank[];
 }
@@ -24,6 +24,8 @@ export const NUM_SCHEMA: Record<string, { min: number; max: number; label: strin
   reports_per_hour: { min: 1, max: 500, label: "Жалоб в час" },
   uploads_per_hour: { min: 0, max: 500, label: "Загрузок картинок в час" },
   upload_max_mb: { min: 1, max: 20, label: "Размер картинки, МБ" },
+  avatars_per_day: { min: 1, max: 100, label: "Смен аватара в сутки" },
+  avatar_max_kb: { min: 50, max: 2048, label: "Размер аватара, КБ" },
   images_per_post: { min: 0, max: 100, label: "Картинок в одной записи" },
   min_account_age_min: { min: 0, max: 100000, label: "Минут на форуме до первой записи" },
   reports_autohide: { min: 1, max: 100, label: "Жалоб до автоскрытия" },
@@ -35,7 +37,7 @@ export const NUM_SCHEMA: Record<string, { min: number; max: number; label: strin
 export const DEFAULTS: ForumSettings = {
   topic_title_max: 140, topic_body_max: 40000, comment_max: 4000, signature_max: 160,
   topic_cooldown_sec: 60, comment_cooldown_sec: 8, topics_per_day: 15, comments_per_hour: 120,
-  likes_per_min: 40, reports_per_hour: 20, uploads_per_hour: 40, upload_max_mb: 5, images_per_post: 20,
+  likes_per_min: 40, reports_per_hour: 20, uploads_per_hour: 40, upload_max_mb: 5, images_per_post: 20, avatars_per_day: 10, avatar_max_kb: 400,
   min_account_age_min: 0, reports_autohide: 3, page_size: 20, comments_page_size: 50, online_minutes: 5,
   filter_mode: "mask", filter_words: DEFAULT_WORDS,
   ranks: [[0, "Новичок"], [10, "Странник"], [50, "Житель"], [150, "Ветеран"], [400, "Хранитель"], [1000, "Легенда МоррисГрада"]],

@@ -3,15 +3,18 @@ import ForumShell from "../../../components/forum/ForumShell.astro";
 import TopicCard from "../../../components/forum/TopicCard.astro";
 import { forumPage } from "../../../lib/forum/page";
 import { getAuthor, isMod } from "../../../lib/forum/service";
-import { date, ago, initial, hue, roleLabel, plural } from "../../../lib/forum/fmt";
+import { date, ago, roleLabel, plural } from "../../../lib/forum/fmt";
+import Ava from "../../../components/forum/Ava.astro";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
-const uid = decodeURIComponent(String(Astro.params.id));
+const key = decodeURIComponent(String(Astro.params.id));
 const page = Math.max(1, Number(Astro.url.searchParams.get("page")) | 0 || 1);
-const a = await getAuthor(db, v, uid, page);
+const a = await getAuthor(db, v, key, page);
 if (!a) return new Response("Пользователь не найден", { status: 404 });
 const u = a.user;
-const self = v.uid === uid;
+// Старые адреса /forum/u/<Clerk id> → постоянный публичный /forum/u/<номер>
+if (!/^\d+$/.test(key)) return Astro.redirect(`/forum/u/${u.pid}${page > 1 ? "?page=" + page : ""}`, 301);
+const self = a.self;
 const mod = isMod(v);
 const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
 ---
@@ -20,7 +23,7 @@ const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
     <main>
       <div class="f-box" style="margin-bottom:1rem">
         <div class="f-profile">
-          <span class="f-author f-author-l"><span class="f-ava" style={`--h:${hue(u.user_id)}`}>{initial(u.nick)}</span></span>
+          <span class="f-author f-author-l"><Ava u={u} link={false} eager /></span>
           <div style="flex:1;min-width:220px">
             <h1 class="f-h1" style="font-family:var(--font-body)!important;letter-spacing:0">{u.nick} {u.role && <span class={`f-role f-role-${u.role}`} style="font-size:.8rem;vertical-align:middle">{roleLabel(u.role)}</span>}</h1>
             <div class="f-muted"><span class="f-rank" style="font-size:.85rem">{u.rank}</span> · на форуме с {date(u.first_seen)} · {onlineNow ? <span style="color:#4ade80">● сейчас на форуме</span> : <>был(а) {ago(u.last_seen)}</>}</div>
@@ -34,10 +37,11 @@ const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
         </div>
         <div class="f-actions">
           {self && <a class="f-btn" href="/forum/me">⚙ Настройки профиля</a>}
-          {!self && v.uid && <button class="f-btn f-btn-s" data-block={uid} data-value={a.blocked ? "0" : "1"}>{a.blocked ? "Показывать записи" : "Скрыть записи автора"}</button>}
+          {!self && v.uid && <button class="f-btn f-btn-s" data-block={u.pid} data-value={a.blocked ? "0" : "1"}>{a.blocked ? "Показывать записи" : "Скрыть записи автора"}</button>}
           {mod && !self && u.role !== "admin" && (a.ban
-            ? <><span class="f-badge f-badge-warn">ограничен {a.ban.until ? "до " + new Date(a.ban.until).toLocaleString("ru-RU", { timeZone: "Europe/Kiev" }) : "бессрочно"}</span><button class="f-btn f-btn-s" data-unban={uid}>Снять ограничение</button></>
-            : <button class="f-btn f-btn-s f-btn-danger" data-ban={uid}>Ограничить на форуме</button>)}
+            ? <><span class="f-badge f-badge-warn">ограничен {a.ban.until ? "до " + new Date(a.ban.until).toLocaleString("ru-RU", { timeZone: "Europe/Kiev" }) : "бессрочно"}</span><button class="f-btn f-btn-s" data-unban={u.pid}>Снять ограничение</button></>
+            : <button class="f-btn f-btn-s f-btn-danger" data-ban={u.pid}>Ограничить на форуме</button>)}
+          {mod && !self && u.avatar && (u.role !== "admin" && (u.role !== "moderator" || v.role === "admin")) && <button class="f-btn f-btn-s f-btn-danger" data-ava-remove={u.pid}>🖼 Убрать аватар</button>}
         </div>
       </div>
       <h2 style="font-size:1.2rem">Записи автора</h2>
