@@ -324,8 +324,12 @@ async function ownTopic(db: any, v: Viewer, id: number) {
   return t;
 }
 
+/** Править запись может только автор (и админ). Модераторы — только удаляют/скрывают. */
+const canEdit = (v: Viewer, authorId: string) => authorId === v.uid || isAdmin(v);
+
 export async function updateTopic(db: any, v: Viewer, id: number, input: any) {
   const t = await ownTopic(db, v, id);
+  if (!canEdit(v, t.user_id)) fail(403, "Модераторы не правят чужие записи — можно скрыть или удалить");
   if (t.user_id === v.uid) needNotBanned(v);
   if (t.locked && !canMod(v, t.section_id)) fail(403, "Тема закрыта");
   const s = await getSettings(db);
@@ -431,6 +435,7 @@ async function ownComment(db: any, v: Viewer, id: number) {
 }
 export async function updateComment(db: any, v: Viewer, id: number, input: any) {
   const c = await ownComment(db, v, id);
+  if (!canEdit(v, c.user_id)) fail(403, "Модераторы не правят чужие комментарии — можно скрыть или удалить");
   if (c.user_id === v.uid) needNotBanned(v);
   const s = await getSettings(db);
   const body = await moderateText(s, str(input?.body, s.comment_max, "Комментарий", 1));

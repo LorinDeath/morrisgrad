@@ -2,12 +2,12 @@
 import ForumShell from "../../../components/forum/ForumShell.astro";
 import Editor from "../../../components/forum/Editor.astro";
 import { forumPage } from "../../../lib/forum/page";
-import { listSections, getTopic, isMod } from "../../../lib/forum/service";
+import { listSections, getTopic, isAdmin } from "../../../lib/forum/service";
 import { getSettings } from "../../../lib/forum/settings";
 export const prerender = false;
 const { db, v } = await forumPage(Astro);
 const t = await getTopic(db, v, Number(Astro.params.id));
-if (!t || !v.uid || (t.user_id !== v.uid && !isMod(v))) return new Response("Нет доступа", { status: 403 });
+if (!t || !v.uid || (t.user_id !== v.uid && !isAdmin(v))) return new Response("Нет доступа", { status: 403 });
 const [sections, s] = await Promise.all([listSections(db), getSettings(db)]);
 ---
 <ForumShell title="Правка" viewer={v} active="feed">

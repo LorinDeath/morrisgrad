@@ -36,7 +36,7 @@ const gone = (c.deleted && !admin) || (c.hidden && !c.body_html);
         <button type="button" class={`f-like${c.liked ? " on" : ""}`} data-like="c" data-id={c.id} data-own={c.mine ? "1" : null} aria-pressed={c.liked ? "true" : "false"}><span class="f-heart">♥</span> <span class="f-like-n">{c.likes_count}</span></button>
         {!topicLocked && <button type="button" class="f-link" data-reply={c.id} data-nick={c.author.nick}>Ответить</button>}
         {!c.mine && viewer?.uid && <button type="button" class="f-link" data-report="c" data-id={c.id}>Пожаловаться</button>}
-        {(c.mine || mod) && <button type="button" class="f-link" data-edit={c.id}>Изменить</button>}
+        {(c.mine || admin) && <button type="button" class="f-link" data-edit={c.id}>Изменить</button>}
         {(c.mine || mod) && <button type="button" class="f-link f-link-danger" data-del="comment" data-id={c.id} data-ask-reason={!c.mine ? "1" : null}>Удалить</button>}
         {mod && <button type="button" class="f-link" data-hide-c={c.id} data-value={c.hidden ? "0" : "1"}>{c.hidden ? "Вернуть" : "Скрыть"}</button>}
       </div>
