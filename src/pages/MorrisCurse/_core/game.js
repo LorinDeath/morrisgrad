@@ -1835,7 +1835,7 @@ async function boot(canvasId, username, userId, api) {
     api.debug = {
       inspect: (sid) => inspectPlayer(sid), charSheet: () => toggleCharSheet(),
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
-      charsBlk: () => Object.fromEntries([...hub.chars].map(([k, c]) => [k, { bk: c.bk | 0, on: !!c.ch?.blk?.visible }])), // очернение героев на экране (плейтест)
+      charsBlk: () => !/^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? null : Object.fromEntries([...hub.chars].map(([k, c]) => [k, { bk: c.bk | 0, on: !!c.ch?.blk?.visible }])), // очернение героев на экране (плейтест)
       myGlow: () => { const c = hub.chars.get('__me')?.ch; return c?.glow?.visible ? { k: c.glowK, pulse: !!c.glowPulse } : null; },
       othersGlow: () => [...hub.chars.entries()].filter(([k]) => k.startsWith('p_')).map(([k, c]) => ({ k: c.ch.glow?.visible ? c.ch.glowK : 0, pulse: !!c.ch.glowPulse })),
       // витрина навыка R: слева обычный, справа проклятый (cz — как в событиях сервера)
