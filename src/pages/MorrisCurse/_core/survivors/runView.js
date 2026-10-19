@@ -340,7 +340,7 @@ export class RunView {
     // герои
     const me = run.me;
     const meP = this.playerModel(run.myId, run.classKey, run.color, true, run.meta?.look);
-    this.curseGlow(meP, run.meta?.cursedGlow || 0);
+    this.curseGlow(meP, run.meta?.cursedGlow || 0); this.blacken(meP, run.meta?.blkVis || 0);
     this.placePlayer(meP, me, dt, t, me.iframes > 0 && !me.dead && Math.floor(this.time * 20) % 2 === 0);
     if (me.fireT !== undefined && me.fireT !== this.lastFireT) { this.lastFireT = me.fireT; if (!me.moving || Math.random() < 0.5) meP.ch.attack?.(); }
     this.meLight.position.set(me.x, 3, me.z);
@@ -351,7 +351,7 @@ export class RunView {
     for (const [id, r] of run.remotes) {
       alive.add(id);
       const p = this.playerModel(id, r.classKey || 'soul', r.color, false, r.look);
-      this.curseGlow(p, r.cg || 0);
+      this.curseGlow(p, r.cg || 0); this.blacken(p, r.bk || 0);
       this.placePlayer(p, r, dt, t, false);
       p.ch.group.visible = !r.stale;
     }
@@ -408,6 +408,7 @@ export class RunView {
     this.arena.setLights?.(this.LL || [], this.nL || 0, run.me); // свет пола тёмной арены
   }
 
+  blacken(p, bk) { bk = Math.max(0, Math.min(100, bk | 0)); if (p.bk !== bk) { p.bk = bk; p.ch.setBlacken?.(bk / 100); } }
   curseGlow(p, cg) { if (p.cg !== cg) { p.cg = cg; p.ch.setCurseGlow?.(glowK(cg), curseRGB(), cg >= 5); } }
   placePlayer(p, s, dt, t, blink) {
     const g = p.ch.group;

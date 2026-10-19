@@ -48,7 +48,7 @@ const T = (n: number) => (Number(n) || 0) * BM_TILE;
 export class BlackMage {
   world: string;
   x: number; y: number; dir = 0; moving = false; state = 0; // 0 гуляет/стоит, 1 идёт на бой, 2 стреляет, 3 разговор
-  homeX: number; homeY: number; tx: number; ty: number; pauseUntil = 0; smallCdAt = 0; lastBD: number | undefined;
+  homeX: number; homeY: number; tx: number; ty: number; pauseUntil = 0; smallCdAt = 0; selfCdAt = 0; blinkAt = 0; lastBD: number | undefined;
   tpAt = 0; wDomeAt = 0; domeCdAt = 0;
   aggro = new Map<string, number>();                    // напавший → до какого момента помнит
   fights = new Map<string, { mob: number; pl?: string; at: number }>(); // кто кого бьёт (из зоны: удачный удар по мобу)
@@ -77,9 +77,9 @@ export class BlackMage {
   isAttacker(d: Dome, sid: string, now = bmClock.now()) { const u = d.att.get(sid); return u !== undefined && u > now; }
   /** игрок неуязвим: стоит в куполе и не нападал на него */
   playerSafe(sid: string, x: number, y: number, now = bmClock.now()) { for (const d of this.domesAt(x, y, now)) if (!this.isAttacker(d, sid, now)) return true; return false; }
-  castDome(x: number, y: number, kind: "c" | "w" | "s", players: Map<string, BmPlayer>, now = bmClock.now()): Dome | null {
+  castDome(x: number, y: number, kind: "c" | "w" | "s", players: Map<string, BmPlayer>, now = bmClock.now(), lifeSec?: number): Dome | null {
     if (this.domes.length >= Math.max(1, BM_CFG.domesHardCap)) return null;
-    const small = kind === "s", r = Math.round(T(small ? BM_CFG.smallDomeTiles : BM_CFG.domeTiles)), life = small ? BM_CFG.smallDomeLifeSec : BM_CFG.domeLifeSec;
+    const small = kind === "s", r = Math.round(T(small ? BM_CFG.smallDomeTiles : BM_CFG.domeTiles)), life = Number(lifeSec) > 0 ? Number(lifeSec) : small ? BM_CFG.smallDomeLifeSec : BM_CFG.domeLifeSec;
     const d: Dome = { id: this.nextDome++, x: Math.round(x), y: Math.round(y), r, born: now, exp: now + Math.max(2, life) * 1000, kind, att: new Map() };
     this.domes.push(d); this.stats.domes++; this.stats.lastCast = this.stats["cast_" + kind] = { kind, x: d.x, y: d.y, mx: Math.round(this.x), my: Math.round(this.y) };
     // кто в этот момент бил кого-то внутри (или изнутри) — напавший: вытолкнуть; остальные внутри — под защитой
@@ -97,7 +97,7 @@ export class BlackMage {
     const until = now + Math.max(5, BM_CFG.aggroForgetSec) * 1000;
     d.att.set(sid, until);
     if (aggro) this.aggro.set(sid, until);
-    const dx = px - d.x, dy = py - d.y, L = Math.hypot(dx, dy) || 1, k = d.r + 28;
+    const dx = px - d.x, dy = py - d.y, L = Math.hypot(dx, dy) || 1, k = d.r + 28 + T(Math.max(0, Number(BM_CFG.pushExtraTiles) || 0));
     if (L < k) { const nx = d.x + (L > 1 ? dx / L : 1) * k, ny = d.y + (L > 1 ? dy / L : 0) * k; this.host?.push(sid, nx, ny); this.ev({ k: "bmpush", sid, x: Math.round(nx), y: Math.round(ny), dx: Math.round(d.x), dy: Math.round(d.y) }); }
   }
   /** движение игрока: напавший не может войти в купол, пока маг его помнит → точка за краем (или null — можно) */
@@ -137,7 +137,25 @@ export class BlackMage {
     if (!sid || sid.startsWith("mob:")) return;
     this.aggro.set(sid, bmClock.now() + Math.max(5, BM_CFG.aggroForgetSec) * 1000);
     this.ev({ k: "bmimm", x: Math.round(this.x), y: Math.round(this.y) });
-    this.smallDome(sid);
+    this.selfGuard(sid);
+  }
+  /** нападение на САМОГО мага: барьер вокруг мага и напавшего — вон (как при защите моба).
+   *  Маг уже в куполе — напавший помечен и вытолкнут из всех куполов на месте мага. Иначе (раз в selfDomeCdSec):
+   *  напавший ближе smallTriggerTiles — малая сфера, дальше (до domeTiles+2) — большой купол с магом в центре. */
+  selfGuard(sid: string, now = bmClock.now()) {
+    if (BM_CFG.on === false) return;
+    if (BM_CFG.selfDomeOn === false) { this.smallDome(sid, now); return; }
+    const pl = this.zone?.pl, p = pl?.get(sid); if (!p || !p.alive) return;
+    if (Math.hypot(this.x - ARINAR_HUB.x, this.y - ARINAR_HUB.y) < ARINAR_HUB.r) return;
+    const here = this.domesAt(this.x, this.y, now);
+    if (here.length) { for (const d of here) this.markAttack(d, sid, p.x, p.y, now, false); return; }
+    const D = Math.hypot(p.x - this.x, p.y - this.y);
+    if (D > T(BM_CFG.domeTiles + 2)) return; // далеко: барьер не нужен — гонится и стреляет
+    // большой купол — не чаще selfDomeCdSec; на перерыве (или вблизи) — малая сфера: маг всегда под барьером, напавший всегда вон
+    const big = BM_CFG.selfBigDome !== false && now >= this.selfCdAt && D > T(BM_CFG.smallTriggerTiles);
+    const d = this.castDome(this.x, this.y, big ? "c" : "s", pl || new Map(), now, big ? Number(BM_CFG.selfDomeLifeSec) || undefined : undefined); if (!d) return;
+    if (big) this.selfCdAt = now + Math.max(0, Number(BM_CFG.selfDomeCdSec) || 0) * 1000; else this.stats.small = (this.stats.small || 0) + 1; this.stats.self = (this.stats.self || 0) + 1;
+    this.markAttack(d, sid, p.x, p.y, now, false);
   }
   /** снаряд на отрезке (x0,y0)→(x1,y1): true — погас (купол/тело мага). Стрелы мага (p.bm) проходят */
   guardProj(p: any, x0: number, y0: number, x1: number, y1: number): boolean {
@@ -245,6 +263,23 @@ export class BlackMage {
     return true;
   }
 
+  /** рывок к убегающему: точка в blinkToTiles от цели на линии цель→маг (не на площади, проходимая); true — прыгнул */
+  blink(foe: BmPlayer, now = bmClock.now()): boolean {
+    const dx = this.x - foe.x, dy = this.y - foe.y, L = Math.hypot(dx, dy) || 1, k = T(BM_CFG.blinkToTiles);
+    for (const a of [0, 0.5, -0.5, 1, -1]) {
+      const c = Math.cos(a), sn = Math.sin(a), ux = (dx / L) * c - (dy / L) * sn, uy = (dx / L) * sn + (dy / L) * c;
+      let x = foe.x + ux * k, y = foe.y + uy * k;
+      try { [x, y] = resolveWorld(this.world, x, y, R_BODY); } catch {}
+      const [lo, hi] = worldBounds(this.world); x = Math.max(lo + 20, Math.min(hi - 20, x)); y = Math.max(lo + 20, Math.min(hi - 20, y));
+      if (Math.hypot(ARINAR_HUB.x - x, ARINAR_HUB.y - y) < ARINAR_HUB.r) continue;
+      this.blinkAt = now + Math.max(0.5, Number(BM_CFG.blinkCdSec) || 5) * 1000; this.stats.blinks = (this.stats.blinks || 0) + 1;
+      this.ev({ k: "bmtp", x: Math.round(this.x), y: Math.round(this.y), o: 1 });
+      this.x = this.tx = x; this.y = this.ty = y; this.moving = false; this.dir = dirOf(foe.x - x, foe.y - y, this.dir);
+      this.ev({ k: "bmtp", x: Math.round(x), y: Math.round(y), i: 1 });
+      return true;
+    }
+    return false;
+  }
   ev(e: any) { this.zone?.events.push(e); }
   zone: BmZone | null = null;
 
@@ -338,7 +373,9 @@ export class BlackMage {
     this.dir = dirOf(foe.x - this.x, foe.y - this.y, this.dir);
     if (!this.volley && now >= this.gapUntil && dist <= range) this.volley = { sid: foe.sid, until: now + rnd(BM_CFG.volleyMin, BM_CFG.volleyMax) * 1000, acc: 1 };
     if (this.volley && (this.volley.sid !== foe.sid || now >= this.volley.until)) { this.volley = null; this.gapUntil = now + rnd(BM_CFG.volleyGapMin, BM_CFG.volleyGapMax) * 1000; }
-    if (!this.volley) { this.state = 1; if (dist > range * 0.75) this.step(foe.x, foe.y, dt); else this.moving = false; return; }
+    // погоня: напавший убегает — маг ускоряется (chaseSpeedMul), а дальше blinkTriggerTiles — «рывок» к нему (blinkToTiles от цели)
+    if (BM_CFG.blinkOn !== false && dist > T(BM_CFG.blinkTriggerTiles) && now >= this.blinkAt && this.blink(foe, now)) return;
+    if (!this.volley) { this.state = 1; if (dist > range * 0.75) this.step(foe.x, foe.y, dt, Math.max(1, Number(BM_CFG.chaseSpeedMul) || 1)); else this.moving = false; return; }
     this.state = 2; this.moving = false;
     const inD = !!this.inDome(this.x, this.y, now);
     const rate = Math.max(0.5, inD ? BM_CFG.arrowDomeRate : BM_CFG.arrowRate);

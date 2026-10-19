@@ -52,11 +52,30 @@ export const BM_CFG = {
   pvpShotPct: 2,            // попадание чёрного выстрела по другому игроку, % макс. ОЗ (как стрела мага из купола) + счёт попаданий
   pvpExplPct: 5,            // чёрный взрыв в конце полёта: урон игрокам рядом (кроме стрелка), % макс. ОЗ
   pvpExplBlk: 2,            //   +% очернения надетым вещам задетых
-  aggroForgetSec: 60,       // забывает напавшего, если тот не нападал, с
-  leashTiles: 30,           // дальше — не преследует
+  aggroForgetSec: 180,      // забывает напавшего, если тот не нападал, с (было 60)
+  leashTiles: 120,          // дальше — не преследует, клеток (было 30)
+  chaseSpeedMul: 3,         // погоня за напавшим: скорость × N (38 → 114 px/с; было ×1)
+  blinkOn: true,            // рывок к убегающему напавшему
+  blinkTriggerTiles: 12,    //   напавший дальше N клеток — рывок
+  blinkToTiles: 6,          //   приземляется в N клетках от него
+  blinkCdSec: 5,            //   не чаще раза в N с
+  selfDomeOn: true,         // нападение на самого мага: барьер вокруг мага + напавший вытолкнут (выкл — как раньше: малая сфера только вблизи)
+  selfBigDome: true,        //   напавший дальше smallTriggerTiles (до радиуса купола+2) — большой купол с магом в центре, ближе — малая сфера
+  selfDomeLifeSec: 120,     //   большой купол от нападения на мага живёт, с (защитные — domeLifeSec)
+  selfDomeCdSec: 8,         //   большой купол от нападения не чаще раза в N с (на перерыве — малая сфера; стоящий купол и так выталкивает)
+  pushExtraTiles: 1,        // выталкивание: за край купола + N клеток (было 0 — край + 28 px)
   hitsForgetSec: 600,       // счётчик попаданий мага по игроку сгорает без новых попаданий, с
   // ——— очернение вещей ———
   blkK: 1,                  // очернённые статы = статы вещи × очернение% × k (то, что ушло из обычных)
+  // ——— вид очернения (только отрисовка; уровень героя считает сервер и рассылает всем в players_state.stats.bk) ———
+  blkVisOn: true,           // выкл — ни значки, ни герой не темнеют (цифры в подсказках остаются)
+  blkVisItemMax: 0.85,      // значок вещи при 100%: сила затемнения 0…1
+  blkVisCharMax: 1,         // герой при полном очернении: сила затемнения 0…1 (1 — чёрный силуэт с фиолетовым ободком)
+  blkVisCurve: 0.7,         // кривая: сила = max × (очернение/100)^кривая (<1 — заметно уже на малых, >1 — копится к концу)
+  blkGlitch: true,          // глитч чёрной половины героя: строки сдвигаются на 1 px вправо
+  blkGlitchHz: 0.7,         //   раз в секунду
+  heroLight: 0.82,          // яркость спрайтов героев (было 1 — ярче освещённой земли)
+  blkVisMode: "avg",      // очернение героя: slots — Σ по 5 слотам / 5 (пустой слот = 0), avg — среднее надетых, max — самая чёрная вещь
   // ——— чёрные розы ———
   sproutDays: 3,            // росток, реальных дней
   budDays: 2,               // бутон
@@ -102,6 +121,23 @@ export function blkDark<T extends Record<string, any>>(st: T, blk: number): T {
   for (const [key, v] of Object.entries(st || {})) o[key] = typeof v === "number" ? (Number.isInteger(v) ? Math.round(v * k) : Math.round(v * k * 10) / 10) : v;
   return o;
 }
+/** очернение героя (0…100) по надетому — режим blkVisMode; FULL = число слотов (5) */
+export function charBlk(items: { blk?: number }[], slots = 5): number {
+  const v = (items || []).map(blkOf).filter((x) => x > 0); if (!v.length) return 0;
+  const m = BM_CFG.blkVisMode, sum = v.reduce((a, b) => a + b, 0);
+  const r = m === "max" ? Math.max(...v) : m === "avg" ? sum / v.length : sum / Math.max(1, slots);
+  return Math.round(Math.max(0, Math.min(100, r)) * 10) / 10;
+}
+/** сила затемнения 0…1 по очернению 0…100 (кривая и предел из админки) */
+export function blkVisK(pct: number, max: number): number {
+  if (BM_CFG.blkVisOn === false) return 0; const x = Math.max(0, Math.min(100, Number(pct) || 0)) / 100; if (!(x > 0)) return 0;
+  return Math.max(0, Math.min(1, (Number(max) || 0) * Math.pow(x, Math.max(0.1, Number(BM_CFG.blkVisCurve) || 1))));
+}
+/** уровень затемнения героя для всех клиентов: 0…100 (= blkVisK × 100) */
+// герой: чёрная правая половина тела, доля половины = очернение% × blkVisCharMax (линейно: 100 % — ровно половина)
+export const charBlkVis = (items: { blk?: number }[]) => BM_CFG.blkVisOn === false ? 0 : Math.round(Math.max(0, Math.min(1, Number(BM_CFG.blkVisCharMax) || 0)) * charBlk(items));
+/** клиенту (meta_state.bmv): отрисовка значков */
+export const blkVisClient = () => ({ on: BM_CFG.blkVisOn !== false, itemMax: Number(BM_CFG.blkVisItemMax) || 0, charMax: Number(BM_CFG.blkVisCharMax) || 0, curve: Number(BM_CFG.blkVisCurve) || 1, heroLight: Number(BM_CFG.heroLight) || 1, glitch: BM_CFG.blkGlitch !== false, hz: Number(BM_CFG.blkGlitchHz) || 0 });
 /** клиенту — только видимое (без blkK и без розы/земли как механики): длительности роста для отрисовки */
 export const bmClient = () => ({ on: BM_CFG.on !== false, domeR: BM_CFG.domeTiles * BM_TILE, sproutDays: BM_CFG.sproutDays, budDays: BM_CFG.budDays, openDays: BM_CFG.openDays,
   curseTilesPerDay: BM_CFG.curseTilesPerDay, curseMaxTiles: BM_CFG.curseMaxTiles, trailSec: BM_CFG.trailSec, compressR: BM_CFG.compressTiles * BM_TILE });

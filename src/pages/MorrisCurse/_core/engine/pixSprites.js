@@ -5,6 +5,8 @@
 // Оба листа генерируются скриптами tools/mc-sprites/ (см. README там же).
 import { sortKey, depthZ } from './spriteBatch.js';
 let PIX_SEQ = 0;
+// вид героев с сервера (meta_state.bmv): яркость неосвещённого спрайта героя (было 1 — ярче освещённой земли), глитч очернения
+export const BLK_FX = { heroLight: 0.82, glitch: true, hz: 0.7 };
 import charsSrc from '../../../../assets/mc/chars_atlas.png';
 import heroesHdSrc from '../../../../assets/mc/heroes_atlas.png';
 import { GRADE } from './atmosphere.js';
@@ -103,7 +105,7 @@ export class PixCharacter {
 
   update(dt, moving, t, dirX = 0, dirY = 1) {
     { const gz = this.group.position.z; this.sprite.position.z = depthZ(gz, this.key) - gz; } // стабильный порядок слоёв (как SpriteBatch)
-    if (!this.tinted && GRADE.value) this.sprite.material.color.copy(GRADE.value);  // тон зоны (atmosphere.js)
+    if (!this.tinted && GRADE.value) { this.sprite.material.color.copy(GRADE.value); if (!this.mobType) this.sprite.material.color.multiplyScalar(BLK_FX.heroLight); } // тон зоны (atmosphere.js) × яркость героев (админка)
     this.phase += dt * (moving ? 8 : 0);
     if (Math.abs(dirX) + Math.abs(dirY) > 0.01) this.dRow = dirRow(dirX, dirY);
     if (this.mobType) {
@@ -124,6 +126,7 @@ export class PixCharacter {
       this.sprite.position.y = moving ? Math.abs(Math.sin(this.phase * Math.PI / 2)) * 0.05 : 0;
     }
     this._glowTick(t);
+    this._blkTick(t);
   }
 
   // короткая анимация атаки (замах/удар), направление — текущее
@@ -160,6 +163,51 @@ export class PixCharacter {
     if (!this.glow?.visible) return;
     this.glow.position.copy(this.sprite.position); this.glow.position.z += 0.002; this.glow.center.copy(this.sprite.center);
     this.glowU.uK.value = Math.min(1, this.glowK * (this.glowPulse ? 0.8 + 0.35 * Math.sin(t * 4) : 1) * 1.15);
+  }
+
+  // Очернение (Чёрный маг) — как у самого мага: чёрная ПРАВАЯ (на экране, лицом к камере) половина тела. Та же сторона, что у мага:
+  // анатомически — левая сторона героя; со спины — слева на экране, в профиль — от левого края (влево — сторона к нам, вправо — дальняя, уже).
+  // k 0…1 — доля половины: 0.3 — 30 % половины от края, 1 — ровно половина (сервер: players_state.stats.bk / 100).
+  // Третий спрайт с тем же кадром ПОВЕРХ героя (после тона зоны), fog/toneMapped выкл. — по-настоящему чёрный.
+  // Шов — фиолетовая глитч-полоса с рваными строками; глитч: иногда строки чёрной части сдвигаются на 1 px вправо (BLK_FX.glitch / hz).
+  setBlacken(k) {
+    k = Math.max(0, Math.min(1, Number(k) || 0));
+    if (!(k > 0.005)) { if (this.blk) this.blk.visible = false; this.blkK = 0; return; }
+    if (!this.blk) {
+      const T = this.THREE, img = this.tex.image || {};
+      const mat = new T.SpriteMaterial({ map: this.tex, transparent: true, depthWrite: false, toneMapped: false, fog: false });
+      const U = { uK: { value: k }, uT: { value: 0 }, uDir: { value: 0 }, uGl: { value: 1 }, uHz: { value: 0.7 }, uOff: { value: new T.Vector2() }, uRep: { value: new T.Vector2(1, 1) },
+        uGrid: { value: new T.Vector2(this.cell.w, this.cell.h) }, uTexel: { value: new T.Vector2(1 / (img.width || 1024), 1 / (img.height || 1024)) }, uHw: { value: this.mobType ? 0.36 : 0.3 } };
+      mat.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, U);
+        sh.fragmentShader = 'uniform float uK; uniform float uT; uniform float uDir; uniform float uGl; uniform float uHz; uniform vec2 uOff; uniform vec2 uRep; uniform vec2 uGrid; uniform vec2 uTexel; uniform float uHw;\nfloat bkH(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+          vec2 lc0 = (vUv - uOff) / uRep; vec2 px0 = floor(lc0 * uGrid);
+          float tick = floor(uT * max(uHz, 0.01) * 4.0);                         // 4 «кадра» на период
+          float gOn = uGl * step(0.75, fract(uT * max(uHz, 0.01))) * step(0.45, bkH(vec2(px0.y, tick)));   // эта строка сдвинута на 1 px
+          vec2 uv = vUv - vec2(gOn * uTexel.x * sign(uRep.x), 0.0);
+          float a = step(0.3, texture2D(map, uv).a);
+          vec2 lc = (uv - uOff) / uRep; vec2 px = floor(lc * uGrid);
+          float u = (lc.x - 0.5) / uHw;
+          float sd = uDir < 0.5 ? u : -u;                                        // лицом к камере — справа; спиной/в профиль — слева
+          float f = uK * (uDir > 1.5 && uDir < 2.5 ? 0.6 : 1.0);                 // в профиль вправо видна дальняя сторона — уже
+          float rowN = bkH(vec2(px.y, floor(uT * 6.0))), rowS = bkH(vec2(px.y, 7.0));
+          float b = 1.0 - f * 1.0 + (rowN - 0.5) * 0.1 * min(1.0, f * 4.0) - step(0.86, rowS) * 0.18 * min(1.0, f * 3.0);
+          float blk = a * step(b, sd);
+          float seam = a * (1.0 - blk) * step(b - 0.16, sd) * (0.6 + 0.4 * step(0.5, rowN));
+          float spark = blk * step(0.975, bkH(px + vec2(floor(uT * 3.0), 0.0)));
+          vec3 col = mix(vec3(0.008, 0.0, 0.016), vec3(0.55, 0.22, 0.85), max(seam, spark * 0.8));
+          diffuseColor = vec4(col, clamp(max(blk, seam * 0.85), 0.0, 1.0));`);
+      };
+      this.blkU = U;
+      const g = new T.Sprite(mat); g.center.copy(this.sprite.center); g.scale.copy(this.sprite.scale); g.renderOrder = (this.sprite.renderOrder || 0) + 1;
+      this.blk = g; this.group.add(g);
+    }
+    this.blk.visible = true; this.blkK = k; this.blkU.uK.value = k;
+  }
+  _blkTick(t) {
+    if (!this.blk?.visible) return;
+    this.blk.position.copy(this.sprite.position); this.blk.position.z += 0.001; this.blk.center.copy(this.sprite.center);
+    this.blkU.uOff.value.set(this.tex.offset.x, this.tex.offset.y); this.blkU.uRep.value.set(this.tex.repeat.x, this.tex.repeat.y); this.blkU.uT.value = t; this.blkU.uDir.value = this.mobType ? 0 : this.dRow; this.blkU.uGl.value = BLK_FX.glitch ? 1 : 0; this.blkU.uHz.value = BLK_FX.hz;
   }
 
   setTint(hex, k = 0) {

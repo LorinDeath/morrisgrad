@@ -1610,7 +1610,7 @@ export class RunSession {
         this.send({
           k: 'me', iv: this.invulnLeft() > 0 ? 1 : undefined, x: r1(m.x), z: r1(m.z), dx: r1(m.dirX), dz: r1(m.dirZ), mv: m.moving ? 1 : 0,
           hp: Math.round(m.hp), mh: Math.round(m.maxHp), dead: m.dead ? 1 : 0, mag: r1(m.magnet),
-          cls: this.classKey, lk: this.meta?.look || undefined, cg: this.meta?.cursedGlow || undefined, kills: m.stats.kills, dmg: Math.round(m.stats.damage), shots: this.outShots.slice(0, 40),
+          cls: this.classKey, lk: this.meta?.look || undefined, cg: this.meta?.cursedGlow || undefined, bk: this.meta?.blkVis || undefined, kills: m.stats.kills, dmg: Math.round(m.stats.damage), shots: this.outShots.slice(0, 40),
         });
       }
       this.outShots.length = 0;
@@ -1733,7 +1733,7 @@ export class RunSession {
       }
       r.tx = d.x; r.tz = d.z; r.dirX = d.dx; r.dirZ = d.dz; r.moving = !!d.mv;
       if (r.x === undefined) { r.x = d.x; r.z = d.z; }
-      r.hp = d.hp; r.maxHp = d.mh; r.dead = !!d.dead; r.magnet = d.mag || 2.4; r.classKey = d.cls; r.look = d.lk || null; r.cg = Math.max(0, Math.min(5, d.cg | 0));
+      r.hp = d.hp; r.maxHp = d.mh; r.dead = !!d.dead; r.magnet = d.mag || 2.4; r.classKey = d.cls; r.look = d.lk || null; r.cg = Math.max(0, Math.min(5, d.cg | 0)); r.bk = Math.max(0, Math.min(100, d.bk | 0));
       r.damage = d.dmg; r.age = 0; // убийства считает хост (killCredit)
       // неуязвимость союзника хост признаёт только в окне LVL_INVULN после уровня отряда (гостям — список iv в снапшоте)
       if (this.isHost) r.inv = !!d.iv && this.t - this.hostLvlAt <= LVL_INVULN + 0.5;

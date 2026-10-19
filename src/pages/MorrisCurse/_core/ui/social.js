@@ -8,6 +8,7 @@ import { statIcon } from './statIcons.js';
 import { ABILITY_BY_ID, RADIANCE_PROPS, radianceProps, RARITIES, SLOTS, SLOT_ORDER, MOB_INFO } from '../../../../../server/meta/shared.ts';
 import { displayClassName } from '../survivors/data.js';
 import { iconHtml } from '../meta/itemCards.js';
+import { drawHeroPreview } from './heroPreview.js';
 import { skillIcon, radColor } from './actionBar.js';
 import { esc, roleTag } from './overlay.js';
 
@@ -99,7 +100,7 @@ export class Social {
   }
   // ответ сервера на role_set: обновить карточку и списки
   onRoleChanged(d) { if (this.insp && this.insp.id === d.id) { this.insp.role = d.role || undefined; if (this.view === 'inspect') this.renderInspect(); } }
-  onInspect(d) { if (this.view === 'inspect') { this.insp = d; if (this.isSelfOpen()) { const c = this.overlay.screen.querySelector('.mc-cs-card'); if (c) { c.innerHTML = this.inspBody(); return; } } this.renderInspect(); } }
+  onInspect(d) { if (this.view === 'inspect') { this.insp = d; if (this.isSelfOpen()) { const c = this.overlay.screen.querySelector('.mc-cs-card'); if (c) { c.innerHTML = this.inspBody(); this.drawPv(c); return; } } this.renderInspect(); } }
   onInspectErr(d) { if (this.view === 'inspect') { this.inspErr = d.message; this.renderInspect(); } }
 
   renderInspect() {
@@ -109,8 +110,10 @@ export class Social {
           <div class="mc-cs-cols"><div class="mc-cs-card">${body}</div><div class="mc-cs-tal">${this.self.talentHtml()}</div></div></div>`
       : `<div class="mc-soc mc-insp"><div class="mc-soc-head">${this.back ? '<button class="mc-soc-back" title="Назад">←</button>' : ''}<h2>👤 ПЕРСОНАЖ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${body}</div>`;
     this.overlay.showScreen(html, [], 'mc-social');
+    this.drawPv(this.overlay.screen);
     this.bindInspect();
   }
+  drawPv(root) { root?.querySelectorAll?.('canvas.mc-insp-pv').forEach((c) => drawHeroPreview(c, c.dataset.cls, Number(c.dataset.bk) / 100)); }
   inspBody() {
     const d = this.insp;
     let body;
@@ -127,7 +130,7 @@ export class Social {
         const cz = !!g.cursed, en = tierOf(g), rc = en ? enchText(en) : cz ? curseTint() : rar.color;
         const nm = lookName(g.name, cz, en);
         return `<div class="mc-insp-slot${lookCls(cz, en)}" tabindex="0" style="--rc:${rc};${lookStyle(en)}" title="${esc(nm)}${g.up ? ' +' + g.up : ''}">${en ? '<i class="mc-eg" aria-hidden="true"></i>' : ''}<div class="ic">${iconHtml(g, 40)}${upBadge(g.up, g.cursed)}</div><span>${esc(SLOTS[s])}</span>
-          <div class="tip${cz ? ' cursed' : ''}${en ? ' ench' : ''}" style="${lookStyle(en)}"><b style="color:${rc}">${esc(nm)}</b>${upBadge(g.up, g.cursed, true)}<br><small>${cz ? '<b class="cz">☠ Проклятая</b> · ' : ''}${en ? enchBadge(en) + ' · ' : ''}${esc(rar.name)} · ур. ${g.req}</small><br>${stHtml || '—'}</div></div>`;
+          <div class="tip${cz ? ' cursed' : ''}${en ? ' ench' : ''}" style="${lookStyle(en)}"><b style="color:${rc}">${esc(nm)}</b>${upBadge(g.up, g.cursed, true)}<br><small>${cz ? '<b class="cz">☠ Проклятая</b> · ' : ''}${en ? enchBadge(en) + ' · ' : ''}${esc(rar.name)} · ур. ${g.req}</small>${g.blk ? `<br><b class="bk" style="color:#a78bfa">🌑 ${g.blk >= 100 ? 'Сломано очернением — не работает' : `Очернение −${+Number(g.blk).toFixed(1)}%`}</b>` : ''}<br>${stHtml || '—'}</div></div>`;
       }).join('');
       const s = d.stats;
       const P = (k, v) => `<div class="mc-insp-st"><span>${k}</span><b>${v}</b></div>`;
@@ -137,18 +140,23 @@ export class Social {
         P('🩸 Вампиризм', `${s.lifestealPct}%`), P('⏱️ Перезарядка', `−${s.cdrPct}%`), P('🧲 Радиус сбора', `+${s.magnetPct}%`),
         ...((s.armorPen || s.armorPenPct) ? [P('🗡️ Пробитие брони', [s.armorPen ? `${s.armorPen}` : '', s.armorPenPct ? `${s.armorPenPct}%` : ''].filter(Boolean).join(' + '))] : []),
       ].join('');
+      // очернение (Чёрный маг): общий % по надетому (как считает сервер) и сила, ушедшая «в тень» (статы вещей × очернение%) — без объяснений
+      const bl = d.blk, sh = Object.entries(bl?.shadow || {}).filter(([, v]) => v);
+      const shTxt = (sh.some(([k]) => k === 'dmgMin' || k === 'dmgMax') ? [`${statIcon('dmgMin')}${bl.shadow.dmgMin || 0}–${bl.shadow.dmgMax || 0}`] : [])
+        .concat(sh.filter(([k]) => k !== 'dmgMin' && k !== 'dmgMax').map(([k, v]) => `<span title="${esc(STAT_RU[k] || k)}">${statIcon(k)}+${v}</span>`)).join(' · ');
+      const blkRows = bl && bl.avg > 0 ? P('🌑 Очернение снаряжения', `${+Number(bl.avg).toFixed(1)}%`) + (shTxt ? `<div class="mc-insp-st mc-insp-blk" style="grid-column:1/-1" title="Очернённая сила надетых вещей"><span>🌑 Ушло в тень</span><b style="color:#c4b5fd">${shTxt}</b></div>` : '') : '';
       const abil = d.abilities.length ? d.abilities.map((a) => {
         const def = ABILITY_BY_ID[a.id] || { name: a.id, desc: '' };
         const props = radianceProps(a.id, a.rad).map((p) => RADIANCE_PROPS[p]?.name).filter(Boolean);
         return `<div class="mc-insp-ab" tabindex="0" style="--rc:${radColor(a.rad)}">${skillIcon(a.id, 40)}<div><b>${esc(def.name)}</b><small>Сияние ${a.rad}${props.length ? ' · ' + esc(props.join(', ')) : ''} · сила ×${a.power} · кд ${a.cd} с</small></div>
           <div class="tip">${esc(def.desc || '')}</div></div>`;
       }).join('') : '<div class="mc-soc-empty">Навыки не выбраны</div>';
-      body = `<div class="mc-insp-top"><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div>
+      body = `<div class="mc-insp-top"><div class="mc-insp-who"><canvas class="mc-insp-pv" width="72" height="90" data-cls="${esc(d.cls)}" data-bk="${Math.max(0, Math.min(100, d.bk | 0))}" title="${d.bk ? 'Очернение героя' : esc(heroLabel(d.cls))}"></canvas><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div></div>
           <div class="mc-insp-recs">${d.maxDmg ? `<div class="mc-insp-rec">Рекорд удара<br><b>${d.maxDmg.v}</b><small>${esc(whereLabel(d.maxDmg.where))}</small></div>` : ''}
           ${d.duel ? `<div class="mc-insp-rec duel">Дуэли<br><b>${d.duel.w}–${d.duel.l}</b><small>победы–поражения${d.duel.d ? ` · ничьи ${d.duel.d}` : ''}</small></div>` : ''}</div></div>
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
         <div class="mc-insp-h">Снаряжение</div><div class="mc-insp-gear">${gear}</div>
-        <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}</div>
+        <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}${blkRows}</div>
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
     }
     // только серверно проверенный админ получает canMod; сервер всё равно проверяет права на role_set

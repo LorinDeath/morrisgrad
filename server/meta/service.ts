@@ -328,7 +328,7 @@ export class MetaService {
     (ms as any).revive = (eff as any).revive || 0; // талант «встать с 40% ХП» (revive.ts)
     if (wasFull || ms.zp.hp > eff.maxHp) ms.zp.hp = eff.maxHp;
     // облик («забери всё») и уровень героя видны другим игрокам через players_state.stats
-    if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; session.stats.cg = (eff as any).cursedGlow || 0; } // cg — свечение проклятия (видно всем)
+    if (session.stats && cls) { session.stats.look = eff.look || null; session.stats.lvl = eff.level || 1; session.stats.cg = (eff as any).cursedGlow || 0; session.stats.bk = (eff as any).blkVis || 0; } // cg — свечение проклятия (видно всем)
     ms.wt = eff.wtype; if ((ms as any).q) (ms as any).q.wts.push([Date.now(), ms.wt || ""]); // смена оружия — для условия «только оружием»
     (ms.zp as any).lvl = eff.level || 1; ms.pub = cls ? { cls, lvl: eff.level || 1, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, critPct: eff.critPct, wt: eff.wtype } : null;
   }
@@ -1492,6 +1492,8 @@ export class MetaService {
     if (o.blk != null && h) { const v = Math.max(0, Math.min(100, Number(o.blk) || 0)); for (const uid of Object.values(h.equip || {})) { const it = a.inv.find((i) => i.uid === uid); if (it) { if (v > 0) it.blk = v; else delete it.blk; } } }
     if (o.blkUid) { const it = a.inv.find((i) => i.uid === String(o.blkUid.uid)); if (it) { const v = Math.max(0, Math.min(100, Number(o.blkUid.v) || 0)); if (v > 0) it.blk = v; else delete it.blk; } }
     if (o.hits) bm.hits.set(session.id, { n: Number(o.hits) | 0, at: now });
+    if (o.hurt) this.bmHurt(session.id, Number(o.hurt.pct) || 0, o.hurt.src === "arrow" ? "arrow" : "expl", Number(o.hurt.blk) || 0); // dev: урон/очернение мага по себе (как взрыв)
+    if (o.die) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = Date.now() + 5000; this.bmDeath(session.id, ms); } // dev: смерть от мага (+N очернения, N — попадания)
     if (o.mortal) { ms.invulnUntil = 0; ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp; }
     if (Number(o.hp) > 0 && ms.zp.alive) ms.zp.hp = Math.min(ms.zp.maxHp, Number(o.hp)); // dev: задать ОЗ (сцена смерти) // снять dev-неуязвимость (dev_teleport god)
     this.send(ws, { type: "dev_bm", info: bm.info(), cursed: bm.cursedAt(session.x, session.y), dark: !!ms.dark, eff: this.effective(session), offset: bmClock.offset, me: { x: Math.round(session.x), y: Math.round(session.y) }, spot, mobs: ((this.zones.arinar as any)?.near(session.x, session.y, 500) || []).filter((m: any) => !m.dead).map((m: any) => [m.id, m.type, Math.round(m.x), Math.round(m.y)]) });
@@ -1648,7 +1650,7 @@ export class MetaService {
       }, (mm) => this.onMobKilled(mm));
       if (w === "arinar" && this.bm.loaded && zone.guard === this.bm) {
         try { this.bm.tick(Math.min(0.5, dt), zone as any, players as any); } catch (e: any) { console.error("[mc] black mage tick", e?.message || e); }
-        for (const [, s] of socks) { const ms = this.ms.get(s.id); if (ms) { this.bmGround(s, ms, now); if ((ms as any).bmMeta && now - ((ms as any).bmMetaAt || 0) > 1500) { (ms as any).bmMeta = false; (ms as any).bmMetaAt = now; const e = this.sessionLookup?.(s.id); if (e) this.send(e[0], { type: "meta_state", ...this.snap(s) }); } } }
+        for (const [, s] of socks) { const ms = this.ms.get(s.id); if (ms) { this.bmGround(s, ms, now); if ((ms as any).bmMeta && now - ((ms as any).bmMetaAt || 0) > 1500) { (ms as any).bmMeta = false; (ms as any).bmMetaAt = now; this.refreshZonePlayer(s); const e = this.sessionLookup?.(s.id); if (e) this.send(e[0], { type: "meta_state", ...this.snap(s) }); } } }
         if ((this.bmDirty || now - this.bmSaveAt > 60000) && !this.bmSaving && now - this.bmSaveAt > 10000) { this.bmSaveAt = now; this.bmSave().catch((e) => console.error("[mc] black mage save", e?.message || e)); }
       }
       perfZone(w, performance.now() - zt0);

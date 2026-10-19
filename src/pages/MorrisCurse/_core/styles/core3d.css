@@ -486,6 +486,8 @@
 .mc-soc-tbl tr.me td:first-child { box-shadow: inset 3px 0 #fbbf24; }
 .mc-soc-mine { color: #cbd5e1; font-size: 12px; border-top: 1px dashed #4c3a6b; padding-top: 6px; }
 .mc-insp-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.mc-insp-who { display: flex; align-items: center; gap: 10px; }
+.mc-insp-pv { width: 72px; height: 90px; image-rendering: pixelated; background: radial-gradient(ellipse at 50% 88%, #2a2140 0%, #15101f 60%, transparent 75%); border-radius: 8px; flex: none; }
 .mc-insp-name { font: 700 18px system-ui, sans-serif; color: #fde68a; }
 .mc-insp-cls { color: #cbd5e1; }
 .mc-insp-rec { text-align: right; color: #94a3b8; font-size: 10px; } .mc-insp-rec b { display: block; color: #fca5a5; font-size: 18px; } .mc-insp-rec small { color: #a5b4fc; }

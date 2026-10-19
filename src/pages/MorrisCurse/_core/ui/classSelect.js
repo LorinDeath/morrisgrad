@@ -131,8 +131,9 @@ export class ClassSelect {
         <p>Выберите тело. У каждого героя своё сохранение: уровень, таланты, сумка и надетое.</p></div>
       <div class="mc-altar-body">
         <aside class="mc-altar-portrait" style="--c:${esc(color)}">
-          <img src="${PORTRAIT(id)}" alt="${esc(name)}" data-portrait="${esc(id)}" ${(() => { const cg = eff?.cursedGlow | 0, k = glowK(cg); if (!k) return ''; const c = curseTint(); // свечение проклятия по контуру портрета (drop-shadow повторяет альфу)
-            return `class="mc-cursed-glow ${cg >= 5 ? 'pulse' : ''}" style="filter:drop-shadow(0 0 ${Math.round(2 + 6 * k)}px ${c}) drop-shadow(0 0 ${Math.round(1 + 3 * k)}px ${c}) drop-shadow(0 0 1px ${c})"`; })()}>
+          <img src="${PORTRAIT(id)}" alt="${esc(name)}" data-portrait="${esc(id)}" ${(() => { const cg = eff?.cursedGlow | 0, k = glowK(cg), bk = Math.max(0, Math.min(100, eff?.blkVis | 0)) / 100; const bf = bk ? `brightness(${Math.round((1 - 0.75 * bk) * 100) / 100}) saturate(${Math.round((1 - 0.6 * bk) * 100) / 100}) ` : ''; // очернение — темнее/серее
+            if (!k) return bf ? `style="filter:${bf}"` : ''; const c = curseTint(); // свечение проклятия по контуру портрета (drop-shadow повторяет альфу)
+            return `class="mc-cursed-glow ${cg >= 5 ? 'pulse' : ''}" style="filter:${bf}drop-shadow(0 0 ${Math.round(2 + 6 * k)}px ${c}) drop-shadow(0 0 ${Math.round(1 + 3 * k)}px ${c}) drop-shadow(0 0 1px ${c})"`; })()}>
           <div class="mc-altar-pname" style="color:${esc(color)}">${esc(name)} <small>· ${esc(clsName)}</small></div>
         </aside>
         <div class="mc-altar-right">

@@ -32,6 +32,10 @@ t("земля: потолок", roseCurseR(1000 * DAY_MS) === BM_CFG.curseMaxTil
 { const a: any = { inv: [{ uid: "u1", id: ITEMS[0].id }, { uid: "u2", id: ITEMS[1].id, blk: 99.5 }, { uid: "u3", id: ITEMS[2].id }] }, h: any = { equip: { a: "u1", b: "u2" } };
   blackenEquipped(a, h, 7); t("очернение: только надетые, потолок 100", a.inv[0].blk === 7 && a.inv[1].blk === 100 && !a.inv[2].blk);
   repairBlackened(a, h, 10); t("починка надетых на N%", !a.inv[0].blk && a.inv[1].blk === 90); }
+{ const ids = ITEMS.slice(0, 5).map((i: any) => i.id), a: any = { inv: ids.map((id: string, i: number) => ({ uid: "q" + i, id, ...(i === 2 ? { blk: 35 } : {}) })) }, h: any = { equip: Object.fromEntries(ids.map((_: string, i: number) => ["s" + i, "q" + i])) };
+  const n = blackenEquipped(a, h, 2);
+  t("регрессия: одна вещь 35%, остальные 0 → +2% КАЖДОЙ надетой", n === 5 && a.inv.every((it: any, i: number) => it.blk === (i === 2 ? 37 : 2)));
+  blackenEquipped(a, h, 2); t("регрессия: повторно — снова всем (4 / 39)", a.inv.every((it: any, i: number) => it.blk === (i === 2 ? 39 : 4))); }
 t("админка: правка «Чёрный маг» проходит", typeof validatePatch("bmage", "main", { blkK: 2, domeTiles: 6 } as any) !== "string");
 t("админка: вне пределов — отказ", typeof validatePatch("bmage", "main", { domeTiles: 999 } as any) === "string");
 
@@ -92,16 +96,35 @@ t("невиновный входит свободно", !bm.clampMove("B", d0!.x
   pm.delete("C"); pm.delete("D"); hurt.length = 0; }
 // малая сфера Ø5 вокруг мага: игрок ближе 5 клеток бьёт мага
 { const E = mk("E", bm.x + 60, bm.y), F = mk("F", bm.x - 30, bm.y + 20), G = mk("G", bm.x + 400, bm.y); pm.set("E", E); pm.set("F", F); pm.set("G", G); z.pl = pm; pushed.length = 0;
-  const n0 = bm.domes.length; bm.smallCdAt = 0; bm.hitMage("G");
+  const keep = bm.domes; bm.domes = []; const n0 = 0; bm.smallCdAt = 0; bm.selfCdAt = 0; bm.hitMage("G");
   t("дальний (>5 клеток) удар по магу — малой сферы нет", bm.domes.length === n0);
   bm.hitMage("E"); const sd = bm.domes.find((d) => d.kind === "s");
   t("ближний удар по магу → малая сфера вокруг мага, R 2.5 клетки (80 px)", !!sd && sd.r === 80 && Math.hypot(sd.x - bm.x, sd.y - bm.y) < 2);
   t("малая сфера: напавший E вытолкнут", pushed.some((q) => q.sid === "E") && Math.hypot(E.x - sd!.x, E.y - sd!.y) >= sd!.r);
   t("малая сфера: F внутри — под защитой; E — нет", bm.playerSafe("F", F.x, F.y) && !bm.clampMove("F", sd!.x, sd!.y) && !!bm.clampMove("E", sd!.x, sd!.y));
   t("малая сфера живёт smallDomeLifeSec", Math.abs((sd!.exp - sd!.born) / 1000 - BM_CFG.smallDomeLifeSec) < 1);
-  bm.hitMage("E"); t("перезарядка малой сферы", bm.domes.filter((d) => d.kind === "s").length === 1);
+  pushed.length = 0; E.x = sd!.x + 20; E.y = sd!.y; bm.hitMage("E"); t("повторный удар из сферы: новой нет, напавший снова вытолкнут", bm.domes.filter((d) => d.kind === "s").length === 1 && pushed.some((q) => q.sid === "E") && Math.hypot(E.x - sd!.x, E.y - sd!.y) >= sd!.r + 28);
   const r2 = new BlackMage("arinar"); r2.restore(JSON.parse(JSON.stringify(bm.serialize()))); t("малая сфера переживает перезапуск (kind s)", r2.domes.some((d) => d.kind === "s" && d.r === 80));
-  bm.domes = bm.domes.filter((d) => d !== sd); bm.aggro.clear(); pm.delete("E"); pm.delete("F"); pm.delete("G"); }
+  bm.domes = keep; bm.aggro.clear(); pm.delete("E"); pm.delete("F"); pm.delete("G"); }
+// нападение на самого мага с 5–10 клеток: большой купол с магом в центре, напавший вытолкнут за край + pushExtraTiles
+{ const keep = bm.domes; bm.domes = []; bm.selfCdAt = 0; pushed.length = 0;
+  const H = mk("H", bm.x + 7 * BM_TILE, bm.y); pm.set("H", H); z.pl = pm; bm.hitMage("H");
+  const d = bm.domes.find((x) => x.kind === "c");
+  t("удар по магу с 7 клеток → большой купол, маг в центре", !!d && Math.hypot(d.x - bm.x, d.y - bm.y) < 2 && d.r === BM_CFG.domeTiles * BM_TILE);
+  t("большой купол: напавший вытолкнут за край (+1 клетка)", pushed.some((q) => q.sid === "H") && Math.hypot(H.x - d!.x, H.y - d!.y) >= d!.r + 28 + BM_CFG.pushExtraTiles * BM_TILE - 1);
+  t("большой купол от нападения живёт selfDomeLifeSec", Math.abs((d!.exp - d!.born) / 1000 - BM_CFG.selfDomeLifeSec) < 1);
+  t("напавший не войдёт обратно", !!bm.clampMove("H", d!.x, d!.y));
+  // выкл selfDomeOn — старое поведение (только малая сфера вблизи)
+  bm.domes = []; const o = BM_CFG.selfDomeOn; BM_CFG.selfDomeOn = false; H.x = bm.x + 7 * BM_TILE; bm.hitMage("H"); t("selfDomeOn выкл: с 7 клеток барьера нет", bm.domes.length === 0); BM_CFG.selfDomeOn = o;
+  bm.domes = keep; bm.aggro.clear(); pm.delete("H"); }
+// погоня: убегающий напавший — рывок к нему (blinkToTiles), не чаще blinkCdSec
+{ const J = mk("J", bm.x + 20 * BM_TILE, bm.y); pm.set("J", J); z.pl = pm; bm.blinkAt = 0;
+  const x0 = bm.x; bm.fightFoe(J, Math.hypot(J.x - bm.x, J.y - bm.y), 0.05, bmClock.now(), pm);
+  const dd = Math.hypot(J.x - bm.x, J.y - bm.y);
+  t(`рывок к убегающему: было 20 клеток, стало ${(dd / BM_TILE).toFixed(1)}`, Math.abs(dd - BM_CFG.blinkToTiles * BM_TILE) < BM_TILE * 1.5 && bm.x !== x0);
+  J.x = bm.x + 20 * BM_TILE; const x1 = bm.x; bm.fightFoe(J, 20 * BM_TILE, 0.05, bmClock.now(), pm); t("рывок: перезарядка (второй сразу — нет)", Math.abs(bm.x - x1) < BM_TILE);
+  t(`поводок ${BM_CFG.leashTiles} клеток, забывает через ${BM_CFG.aggroForgetSec} с, погоня ×${BM_CFG.chaseSpeedMul}`, BM_CFG.leashTiles >= 120 && BM_CFG.aggroForgetSec >= 180 && BM_CFG.chaseSpeedMul >= 3);
+  pm.delete("J"); bm.volley = null; }
 { const H = mk("H", d0!.x, d0!.y + 20); pm.set("H", H); pushed.length = 0; const mo = { x: d0!.x + d0!.r + 100, y: d0!.y };
   t("удар ИЗ купола по мобу снаружи проходит", !bm.guardMobHit(mo, "H", H.x, H.y));
   t("…но стрелок теряет защиту купола и вытолкнут (купол — не неуязвимая башня)", !bm.playerSafe("H", d0!.x, d0!.y) && pushed.some((q) => q.sid === "H"));

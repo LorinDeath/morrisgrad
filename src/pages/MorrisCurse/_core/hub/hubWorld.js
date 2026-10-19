@@ -121,13 +121,14 @@ export class HubWorld {
       c.ch.group.visible = !s.blink;
       c.ch.group.scale.setScalar(s.scale || 1);
       const cg = s.cg | 0; if (c.cg !== cg) { c.cg = cg; c.ch.setCurseGlow?.(glowK(cg), curseRGB(), cg >= 5); } // свечение проклятия: 1 — слабо … 5 (комплект) — пульс
+      const bk = Math.max(0, Math.min(100, s.bk | 0)); if (c.bk !== bk) { c.bk = bk; c.ch.setBlacken?.(bk / 100); } // очернение (сервер: stats.bk 0…100)
       return c;
     };
 
     const me = state.me;
     place('__me', kindFromClass(me.classId, me.look), me, me.color);
     (state.others || []).forEach((p) => {
-      place('p_' + p.key, kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink, cg: p.stats?.cg }, p.color);
+      place('p_' + p.key, kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink, cg: p.stats?.cg, bk: p.stats?.bk }, p.color);
     });
     if (state.boss && state.boss.state !== 'dead') place('boss_keyt', 'keyt', state.boss);
     if (state.dar && state.dar.state !== 'dead') place('boss_dar', 'dar', state.dar);

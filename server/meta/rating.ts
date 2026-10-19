@@ -1,4 +1,5 @@
 import { instStats } from "./cursed";
+import { blkOf } from "./bmCfg";
 // «Проклятые»: рейтинг игроков и просмотр персонажа (только публичные данные).
 // • Рейтинг считается на сервере из D1 (heroes + accounts), кэшируется на экземпляр не дольше RATING_TTL_MS.
 //   Игрок = лучший из его героев (уровень, затем опыт). Имя — из таблицы сайта users (по Clerk uid),
@@ -166,13 +167,16 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
   const eff: any = heroEffective(a, h, cls, base);
   const gear = equippedItems(a, h).map((e) => {
     const it = ITEM_BY_ID[e.id];
-    return { slot: e.slot, n: ITEM_INDEX[e.id], id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}), ...((e as any).ench ? { ench: (e as any).ench } : {}) };
+    return { slot: e.slot, n: ITEM_INDEX[e.id], id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}), ...((e as any).ench ? { ench: (e as any).ench } : {}), ...(blkOf(e) ? { blk: blkOf(e) } : {}) };
   });
+  // очернение: сколько ушло «в тень» (статы вещей × очернение%) — показываем как есть, без объяснения, где они действуют
+  const shadow: Record<string, number> = {};
+  for (const e of equippedItems(a, h)) { const b = blkOf(e); if (!b) continue; for (const [k, v] of Object.entries(instStats(ITEM_BY_ID[e.id], e, true) || {})) if (typeof v === "number" && v) shadow[k] = Math.round(((shadow[k] || 0) + v) * 10) / 10; }
   return {
     name, cls, lvl: h.lvl, gear,
     stats: { maxHp: eff.maxHp, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, dmgPct: eff.dmgPct, critPct: eff.critPct, atkSpeedPct: eff.atkSpeedPct,
       speedPct: eff.speedPct, regen: eff.regen, lifestealPct: eff.lifestealPct, cdrPct: eff.cdrPct, magnetPct: eff.magnetPct, revive: eff.revive, armorPen: eff.armorPen || 0, armorPenPct: eff.armorPenPct || 0 },
-    look: eff.look || null, wtype: eff.wtype, cg: eff.cursedGlow || 0,
+    look: eff.look || null, wtype: eff.wtype, cg: eff.cursedGlow || 0, bk: eff.blkVis || 0, blk: eff.blkAvg ? { avg: eff.blkAvg, shadow } : null,
     abilities: eff.abilities.map((x: any) => ({ id: x.id, rad: x.rad, power: x.power, cd: x.cd })),
     maxDmg: h.md ? { v: h.md, where: h.mdW || "" } : null,
   };

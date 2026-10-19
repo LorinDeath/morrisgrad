@@ -21,6 +21,7 @@ import { Book } from './ui/book.js';
 import { UpgradeWin } from './ui/upgradeWin.js';
 import { UPG } from '../../../../server/meta/upgrade.ts';
 import { setCurse, glowK } from './meta/curseCfg.js';
+import { setBlkVis } from './meta/blkVis.js';
 import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
@@ -440,6 +441,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
     if (d.ench) setEnch(d.ench); // ярусы зачарования (админка «✦ Зачарование») — цвета, имена, множители для подписей
+    if (d.bmv) setBlkVis(d.bmv); // вид очернения (админка «Чёрный маг»)
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -1601,7 +1603,7 @@ async function boot(canvasId, username, userId, api) {
 
     const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom);
     hub.update(dt, {
-      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0 },
+      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0, bk: meta.hero?.effective?.blkVis || 0 },
       others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color, blink: blinkOn(o.id) })),
       boss: world === 'hellfire' ? boss : null,
       dar: world === 'hellfire' ? dar : null,
@@ -1833,6 +1835,7 @@ async function boot(canvasId, username, userId, api) {
     api.debug = {
       inspect: (sid) => inspectPlayer(sid), charSheet: () => toggleCharSheet(),
       // витрина FX v2: семейства снарядов монстров + эффекты навыков (конусы, новы, рывки, удар стража, телеграфы); возвращает ключи без спрайта
+      charsBlk: () => Object.fromEntries([...hub.chars].map(([k, c]) => [k, { bk: c.bk | 0, on: !!c.ch?.blk?.visible }])), // очернение героев на экране (плейтест)
       myGlow: () => { const c = hub.chars.get('__me')?.ch; return c?.glow?.visible ? { k: c.glowK, pulse: !!c.glowPulse } : null; },
       othersGlow: () => [...hub.chars.entries()].filter(([k]) => k.startsWith('p_')).map(([k, c]) => ({ k: c.ch.glow?.visible ? c.ch.glowK : 0, pulse: !!c.ch.glowPulse })),
       // витрина навыка R: слева обычный, справа проклятый (cz — как в событиях сервера)
