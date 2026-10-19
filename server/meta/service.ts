@@ -1433,8 +1433,7 @@ export class MetaService {
   bmDeath(sid: string, ms: any) {
     const n = this.bm.onPlayerDeath(sid, ms.zp.x, ms.zp.y);
     const e = this.sessionLookup?.(sid), cls = e?.[1]?.stats?.classId;
-    if (n > 0 && cls && blackenEquipped(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls), n)) { ms.dirty = true; (ms as any).bmMeta = true; }
-    if (e) this.send(e[0], { type: "toast", text: "Что-то тёмное въелось в снаряжение…", color: "#a78bfa" });
+    void n; void cls; // очернение теперь — сразу за каждое попадание (bmHurt, hitBlk); смерть — только роза
   }
   /** проклятая земля под игроком (раз в 0,5 с): меняет статы молча (refreshZonePlayer), игроку не сообщается */
   bmGround(s: any, ms: any, now: number) {

@@ -143,6 +143,7 @@ bm.hitMage("A"); hurt.length = 0;
 const fired: any[] = []; const realFire = z.fire.bind(z); (z as any).fire = (o: any) => { fired.push(o); return realFire(o); };
 for (let i = 0; i < 20; i++) { now += 100; z.update(0.1, now, pm, noop, noop); bm.tick(0.1, z as any, pm as any); }
 t(`маг стреляет в напавшего (${fired.length} стрел)`, fired.length > 0 && fired.every((f) => f.only === "A" && f.bm));
+t(`попадание стрелы: +${BM_CFG.hitBlk}% очернения сразу`, hurt.some((h) => h.sid === "A" && h.src === "arrow" && h.blk === BM_CFG.hitBlk) && BM_CFG.hitBlk === 0.1 && BM_CFG.explBlk === 0.2 && BM_CFG.pvpExplBlk === 0.2);
 t("стрелы — урон % ОЗ (1% вне купола / 2% в куполе)", hurt.some((h) => h.sid === "A" && h.src === "arrow" && (h.pct === BM_CFG.arrowPct || h.pct === BM_CFG.arrowDomePct)));
 t("B (в куполе, не напавший) не получил урона", !hurt.some((h) => h.sid === "B"));
 // взрыв: третий игрок рядом с целью получает 5% и очернение 2%

@@ -392,7 +392,7 @@ export class BlackMage {
     z.fire({ o: "m", t: inD ? "bm_arrow_big" : "bm_arrow_small", x: this.x, y: this.y, dx: foe.x - this.x, dy: foe.y - this.y, range: T(BM_CFG.rangeTiles) + 40, w: Math.max(4, w), max: 1, spd: Math.max(100, BM_CFG.arrowSpeed), bm: 1, only: sid,
       onHit: (pl: BmPlayer) => {
         if (!pl.alive) return; const h = this.hits.get(pl.sid) || { n: 0, at: now }; h.n++; h.at = bmClock.now(); this.hits.set(pl.sid, h);
-        this.lastHurt.set(pl.sid, bmClock.now()); this.host?.hurt(pl.sid, pct, "arrow", 0);
+        this.lastHurt.set(pl.sid, bmClock.now()); this.host?.hurt(pl.sid, pct, "arrow", Math.max(0, Number(BM_CFG.hitBlk) || 0)); // +hitBlk % очернения всем надетым — сразу, за каждое попадание
       },
       onEnd: (x: number, y: number) => this.explode(x, y, sid, inD, players) });
   }

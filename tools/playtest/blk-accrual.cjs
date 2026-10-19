@@ -29,13 +29,13 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   w = worn(); console.log('  до:', w.map((x) => `${x.id}:${x.blk}`).join(' '));
   ok(w.find((x) => x.uid === legs.uid).blk === 35 && w.filter((x) => x.uid !== legs.uid).every((x) => x.blk === 0), 'исходно: ноги 35%, остальные 0');
   await S({ type: 'dev_grant', bm: { mortal: 1 } }); await sleep(300);
-  for (let i = 0; i < 3; i++) { await S({ type: 'dev_grant', bm: { hurt: { pct: 1, blk: 2 } } }); await sleep(250); }
+  for (let i = 0; i < 3; i++) { await S({ type: 'dev_grant', bm: { hurt: { pct: 1, blk: 0.2 } } }); await sleep(250); }
   await sleep(2500);
   w = worn(); console.log('  после 3 взрывов:', w.map((x) => `${x.id}:${x.blk}`).join(' '));
-  ok(w.every((x) => x.blk === (x.uid === legs.uid ? 41 : 6)), '3 взрыва по +2%: ноги 41%, остальные 6%');
+  ok(w.every((x) => x.blk === (x.uid === legs.uid ? 35.6 : 0.6)), '3 взрыва по +0.2%: ноги 35.6%, остальные 0.6%');
   await S({ type: 'dev_grant', bm: { hits: 5 } }); await sleep(200); await S({ type: 'dev_grant', bm: { die: 1 } }); await sleep(2500);
   w = worn(); console.log('  после смерти (5 попаданий):', w.map((x) => `${x.id}:${x.blk}`).join(' '));
-  ok(w.every((x) => x.blk === (x.uid === legs.uid ? 46 : 11)), 'смерть после 5 попаданий: +5% всем');
+  ok(w.every((x) => x.blk === (x.uid === legs.uid ? 35.6 : 0.6)), 'смерть больше не очерняет (только попадания/взрывы)');
   await sleep(7000);
   const out = require('child_process').execSync(`cd /workspace/mg-blackmage/server && nice ../node_modules/.bin/wrangler d1 execute morrisgrad_db --local --persist-to ${PERSIST} --json --command "SELECT instance_id, item_id, blk FROM item_instances WHERE owner = 'uid:${UID}' AND state = 'inv'"`, { encoding: 'utf8' });
   const rows = JSON.parse(out)[0].results; console.log('  D1:', rows.map((r) => `${r.item_id}:${r.blk}`).join(' '));
