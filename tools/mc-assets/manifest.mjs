@@ -12,6 +12,7 @@ export const GROUP_RULES = [ // [регэксп исходного пути, г�
   [/assets\/mc\/tiles32_|tilesets_32/, 'tiles32'],
   [/assets\/mc\/tiles_/, 'tiles16'],
   [/assets\/mc\/(worldmap_|wm_)/, 'map'],
+  [/src\/scripts\/mcAuthGate/, 'auth'],      // оверлей входа гостя (+ русский Clerk): лениво, только гостю — вошедший его не качает (guest-login)
   [/\.(js|mjs|css)$/i, 'core'],
   [/^public\/js\//, 'core'],
   [/^public\/mc-vn\//, 'vn'],

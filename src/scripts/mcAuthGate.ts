@@ -151,10 +151,17 @@ function showNote(code: string | null, bad = false, text?: string) {
   const n = root?.querySelector<HTMLElement>("[data-note]"); if (!n) return;
   if (!code && !text) { n.hidden = true; return; }
   n.hidden = false; n.classList.toggle("bad", bad);
-  n.innerHTML = `<span>${esc(text || (code ? codeInfo(code).msg : ""))}</span>`;
-  // код — окном реестра поверх формы: код + «Скопировать код» + «Повторить»; A01/A05 (форма не загрузилась) — перезагрузка,
-  // A02/A03 (сессия истекла / сервер не принял вход) — заново открыть форму, игра и связь не теряются
-  if (code) showError(code, { host: root!, soft: true, detail: text || "", onRetry: code === "MC-A01" || code === "MC-A05" ? () => location.reload() : () => selectTab(curTab) });
+  const retry = code === "MC-A01" || code === "MC-A05";
+  // текст — из общего реестра кодов (src/errors/codes.js), код виден в самой форме и копируется
+  n.innerHTML = `<span>${esc(text || (code ? codeInfo(code).msg : ""))}</span>${code ? `<button class="mc-auth-code" title="Скопировать код ошибки">${esc(code)} · копировать</button>` : ""}${retry ? `<button class="mc-auth-code" data-retry>Повторить</button>` : ""}`;
+  n.querySelector<HTMLButtonElement>("[data-retry]")?.addEventListener("click", () => location.reload());
+  n.querySelector<HTMLButtonElement>(".mc-auth-code:not([data-retry])")?.addEventListener("click", async (ev) => {
+    const b = ev.currentTarget as HTMLButtonElement;
+    try { await navigator.clipboard.writeText(code!); b.textContent = code + " · скопировано"; } catch (_) { b.textContent = code!; }
+  });
+  // сбой формы (A01 — Clerk не загрузился, A05 — форма не открылась): окно реестра с кодом, «Повторить» и записью в журнал ошибок сервера.
+  // A02/A03 — штатные состояния оверлея («Сессия истекла», «Сервер не принял вход»): только строка в форме
+  if (retry) showError(code!, { host: root!, soft: true, autoClose: 10000, detail: text || "", onRetry: () => location.reload() });
 }
 
 function teardown() {
