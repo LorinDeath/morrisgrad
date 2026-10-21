@@ -1,6 +1,6 @@
 // Форум МоррисГрада: серверная логика (D1). Все проверки прав, лимитов и фильтров — здесь, на сервере.
 // Роли: админ/модератор — из player_roles ('uid:<Clerk userId>'), как в админке игры.
-import { renderMd, plainText, firstMediaKey, isMediaKey, MEDIA_PREFIX } from "./md";
+import { renderMd, freshHtml, plainText, firstMediaKey, isMediaKey, MEDIA_PREFIX } from "./md";
 import { compileWords, filterText } from "./profanity";
 import { getSettings, validateSettings, clearSettingsCache, rankOf, type ForumSettings } from "./settings";
 import { notify, purgeFor, extractMentions, setSub, isSub, subscribers, TOGGLABLE } from "./notify";
@@ -233,6 +233,7 @@ export async function getTopic(db: any, v: Viewer, id: number) {
   if (!t || (t.deleted && !canMod(v, t.section_id))) return null;
   if (t.hidden && !canMod(v, t.section_id) && t.user_id !== v.uid) return null;
   t.can_mod = canMod(v, t.section_id);
+  t.body_html = freshHtml(t.body_html, t.body); // старые записи с внешними картинками → ссылки «🖼 …»
   decorate([t], s, v);
   await attachLiked(db, v, "t", [t]);
   t.blocked = v.uid ? !!(await db.prepare("SELECT 1 AS x FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, t.user_id).first()) : false;
@@ -259,6 +260,7 @@ export async function getComments(db: any, v: Viewer, topicId: number, page = 1)
   let blocked = new Set<string>();
   if (v.uid) blocked = new Set(((await db.prepare("SELECT blocked_id FROM forum_blocks WHERE user_id = ?").bind(v.uid).all()).results || []).map((x: any) => x.blocked_id));
   for (const c of all) {
+    c.body_html = freshHtml(c.body_html, c.body, { headings: false }); // внешние картинки старых комментариев → ссылки
     c.mine = c.user_id === v.uid;
     c.blocked = blocked.has(c.user_id);
     c.can_mod = cm;
@@ -276,6 +278,7 @@ export async function getComments(db: any, v: Viewer, topicId: number, page = 1)
 export async function getAuthor(db: any, v: Viewer, key: number | string, page = 1) {
   const s = await getSettings(db);
   const byPid = typeof key === "number" || /^\d+$/.test(String(key));
+  if (!byPid && !/^user_[A-Za-z0-9]{8,64}$/.test(String(key))) return null; // строковый ключ — только старый адрес /forum/u/<id Clerk> (редирект)
   const u = await db.prepare(`SELECT u.user_id, u.pid, u.nick, u.avatar_key, u.signature, u.topics_count, u.posts_count, u.karma, u.first_seen, u.last_seen, r.role FROM forum_users u LEFT JOIN player_roles r ON r.pkey = 'uid:' || u.user_id WHERE ${byPid ? "u.pid = ?" : "u.user_id = ?"}`).bind(byPid ? Number(key) : String(key)).first();
   if (!u) return null;
   const uid = u.user_id;
@@ -292,8 +295,11 @@ export async function getAuthor(db: any, v: Viewer, key: number | string, page =
   const ban = isMod(v) ? await db.prepare("SELECT until, reason FROM forum_bans WHERE user_id = ?").bind(uid).first() : null;
   const blocked = v.uid ? !!(await db.prepare("SELECT 1 AS x FROM forum_blocks WHERE user_id = ? AND blocked_id = ?").bind(v.uid, uid).first()) : false;
   const stats = await authorStats(db, uid, s);
+  // Есть ли профиль на сайте (/u/<тот же номер>) — для ссылки «Профиль на сайте»; таблицы users может не быть (тесты форума)
+  let site = false;
+  try { site = !!(await db.prepare("SELECT 1 AS x FROM users WHERE id = ?").bind(uid).first()); } catch { /* нет таблицы */ }
   delete u.user_id;
-  return { user: u, stats, self, items, more: rows.length > size, ban: ban && (ban.until === 0 || ban.until > now()) ? ban : null, blocked };
+  return { user: u, stats, self, items, more: rows.length > size, ban: ban && (ban.until === 0 || ban.until > now()) ? ban : null, blocked, site };
 }
 
 export async function online(db: any) {

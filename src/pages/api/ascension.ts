@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { envOf } from '../../lib/cfEnv';
 
 export const prerender = false;
 interface Env {
@@ -6,7 +7,7 @@ interface Env {
 }
 
 export const POST: APIRoute = async ({ locals, request }) => {
-    const cfRuntime = (locals as any)?.runtime;
+    const cfRuntime = { env: envOf(locals) };
     const env = cfRuntime?.env as Env;
     const db = env?.PROFILES_DB;
 
@@ -18,7 +19,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
     }
     if (!db) {
         console.error("[Ascension API] Server configuration error: DB not connected.");
-        return new Response(JSON.stringify({ error: "Server configuration error: DB or R2 Bucket not connected." }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
     }
 
     try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
@@ -63,6 +64,6 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
     } catch (e: any) {
         console.error("[Ascension API] Error:", e);
-        return new Response(JSON.stringify({ error: "Server error processing ascension.", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Server error processing ascension." }), { status: 500 });
     }
 };

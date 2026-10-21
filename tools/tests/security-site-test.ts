@@ -1,0 +1,113 @@
+// Тесты безопасности сайта (чистые функции). Запуск: bun tools/tests/security-site-test.ts
+import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS, siteNickProblem } from "../../src/lib/security";
+import { readFileSync } from "fs";
+import { cleanInventoryItem } from "../../src/lib/inventoryItem";
+import { avatarsBase, artBase, avatarKeyFromUrl, newAvatarKey, R2DEV_AVATARS } from "../../src/lib/media";
+import { cspMode, cspPolicy, addNonce, parseCspReports, newNonce } from "../../src/lib/csp";
+import { rateLimit, guardAnonWrite, checkTurnstile, memLimit, _resetMem, LIMITS } from "../../src/lib/antiabuse";
+
+let fails = 0, passes = 0;
+const ok = (c: any, m: string) => { if (c) passes++; else { fails++; console.log("FAIL " + m); } };
+const H = (o: Record<string, string>) => new Headers(o);
+const U = "https://morrisgrad.com/api/chat";
+
+// --- CSRF ---
+ok(!isCrossSiteWrite("GET", U, H({ origin: "https://evil.example" })), "GET не проверяется");
+ok(!isCrossSiteWrite("POST", U, H({ origin: "https://morrisgrad.com" })), "свой Origin — можно");
+ok(isCrossSiteWrite("POST", U, H({ origin: "https://evil.example" })), "чужой Origin — отказ");
+ok(isCrossSiteWrite("DELETE", U, H({ origin: "https://morrisgrad.com.evil.example" })), "похожий домен — отказ");
+ok(isCrossSiteWrite("POST", U, H({ origin: "http://morrisgrad.com" })), "другая схема — отказ");
+ok(isCrossSiteWrite("POST", U, H({ origin: "null" })), "Origin null (sandbox/data:) — отказ");
+ok(isCrossSiteWrite("PUT", U, H({ "sec-fetch-site": "cross-site" })), "без Origin, Sec-Fetch-Site cross-site — отказ");
+ok(isCrossSiteWrite("PUT", U, H({ "sec-fetch-site": "same-site" })), "поддомен (same-site) — отказ");
+ok(!isCrossSiteWrite("POST", U, H({ "sec-fetch-site": "same-origin" })), "same-origin без Origin — можно");
+ok(!isCrossSiteWrite("POST", U, H({})), "без заголовков (не браузер) — пропуск");
+ok(!isCrossSiteWrite("POST", "http://localhost:4321/profile", H({ origin: "http://localhost:4321" })), "локальная разработка");
+
+// --- заголовки безопасности ---
+{
+  const r = withSecurityHeaders(new Response("x"), true);
+  for (const k of Object.keys(SECURITY_HEADERS)) ok(r.headers.get(k), "заголовок " + k);
+  ok(/frame-ancestors 'self'/.test(r.headers.get("content-security-policy") || ""), "CSP frame-ancestors");
+  const media = withSecurityHeaders(new Response("x", { headers: { "content-security-policy": "default-src 'none'; sandbox" } }), true);
+  ok(media.headers.get("content-security-policy") === "default-src 'none'; sandbox", "своя CSP ответа не перетирается");
+  const red = withSecurityHeaders(Response.redirect("https://morrisgrad.com/", 302), true);
+  ok(red.status === 302 && red.headers.get("location") && red.headers.get("x-frame-options") === "SAMEORIGIN", "редирект (неизменяемые заголовки) — копия с заголовками");
+  ok(!withSecurityHeaders(new Response("x"), false).headers.has("strict-transport-security"), "HSTS только по https");
+  // public/_headers совпадает с SECURITY_HEADERS
+  const hf = readFileSync(new URL("../../public/_headers", import.meta.url), "utf8").toLowerCase();
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) ok(hf.includes(`${k}: ${v}`.toLowerCase()), "_headers: " + k);
+}
+
+// --- ник сайта ---
+ok(siteNickProblem("Лорин Death_1.") === null, "обычный ник");
+for (const bad of ["<svg onload=alert()>", 'a"b', "a'b", "x&y", "a<b", "tab\there", "emoji😀"]) ok(siteNickProblem(bad), "запрещён: " + bad);
+
+// --- предметы /api/inventory ---
+{
+  const x = cleanInventoryItem({ id: "sw1", name: "Меч", source: "Neon", type: "weapon", rarity: "epic", icon: "⚔️", stats: { atk: 5, "<b>": 1, hp: "NaN", big: 1e12 }, setStats: null, extra: "x" })!;
+  ok(x && x.name === "Меч" && x.stats.atk === 5 && !("<b>" in x.stats) && !("hp" in x.stats) && !("big" in x.stats) && !("extra" in (x as any)), "чистка статов и лишних полей");
+  ok(cleanInventoryItem({ name: "a", icon: "javascript:alert(1)" })!.icon.length <= 16, "иконка не-https режется до короткого текста");
+  ok(cleanInventoryItem({ name: "a", icon: "http://x.example/a.png" })!.icon === "📦", "http-иконка отклонена");
+  ok(cleanInventoryItem({ name: "a", icon: "https://x.example/a.png" })!.icon === "https://x.example/a.png", "https-иконка принята");
+  ok(cleanInventoryItem({ name: "a", rarity: "<script>" })!.rarity === "common", "rarity из списка");
+  ok(cleanInventoryItem({ name: "x".repeat(1000), source: "y".repeat(1000) })!.name.length === 80, "длина имени");
+  ok(cleanInventoryItem({ name: "" }) === null && cleanInventoryItem(null) === null && cleanInventoryItem([1]) === null, "пустые/не объекты отклонены");
+}
+
+// --- анонимные записи: лимит по IP + Turnstile по флагу ---
+{
+  _resetMem();
+  const req = (ip: string, h: Record<string, string> = {}) => new Request("https://morrisgrad.com/api/scores", { method: "POST", headers: { "cf-connecting-ip": ip, ...h } });
+  let n = 0; for (let i = 0; i < 10; i++) if (await rateLimit({}, "scores", req("1.1.1.1"))) n++;
+  ok(n === LIMITS.scores, `рекорды: не больше ${LIMITS.scores}/мин с одного IP (запасной счётчик)`);
+  ok(await rateLimit({}, "scores", req("2.2.2.2")), "другой IP — свой лимит");
+  ok(memLimit("x", 1, 0) && !memLimit("x", 1, 1000) && memLimit("x", 1, 61_000), "окно минута");
+  let bindKey = ""; const env = { RL_KONKURS: { limit: async ({ key }: any) => { bindKey = key; return { success: false }; } } };
+  ok(!(await rateLimit(env, "konkurs", req("3.3.3.3"))) && bindKey === "konkurs:3.3.3.3", "привязка Cloudflare Rate Limiting используется, ключ по IP");
+  const r429 = await guardAnonWrite(env, "konkurs", req("3.3.3.3")); ok(r429?.status === 429, "лимит → 429");
+  ok(await checkTurnstile({}, req("4.4.4.4")) === null, "Turnstile выключен по умолчанию");
+  ok((await checkTurnstile({ TURNSTILE_ENABLED: "1" }, req("4.4.4.4")))?.status === 503, "флаг включён без ключей — отказ (не пропускаем молча)");
+  const tsEnv = { TURNSTILE_ENABLED: "1", PUBLIC_TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "sec" };
+  const r1 = await checkTurnstile(tsEnv, req("4.4.4.4")); const j1: any = await r1?.json();
+  ok(r1?.status === 403 && j1.turnstile === true && j1.sitekey === "site" && !JSON.stringify(j1).includes("sec\""), "без токена → 403 + публичный sitekey, секрет не отдаётся");
+  const fake = (success: boolean) => (async () => new Response(JSON.stringify({ success }))) as any;
+  ok(await checkTurnstile(tsEnv, req("4.4.4.4", { "x-turnstile": "t" }), fake(true)) === null, "верный токен — пропуск");
+  ok((await checkTurnstile(tsEnv, req("4.4.4.4", { "x-turnstile": "t" }), fake(false)))?.status === 403, "неверный токен — отказ");
+  ok((await checkTurnstile(tsEnv, req("4.4.4.4", { "x-turnstile": "t" }), (async () => { throw new Error("net"); }) as any))?.status === 403, "сбой проверки — отказ");
+  const wj = readFileSync("wrangler.jsonc", "utf8");
+  ok(/"RL_SCORES"[^}]*"limit": 6/.test(wj) && /"RL_KONKURS"[^}]*"limit": 2/.test(wj) && /"RL_CHAT"[^}]*"limit": 20/.test(wj) && LIMITS.scores === 6 && LIMITS.konkurs === 2 && LIMITS.chat === 20, "лимиты в wrangler.jsonc совпадают с кодом");
+  ok(!/TURNSTILE_SECRET_KEY/.test(wj), "секрет Turnstile не в wrangler.jsonc");
+}
+
+// --- адреса R2: домен переменной, ключи аватаров без id игрока ---
+{
+  ok(avatarsBase({}) === R2DEV_AVATARS && avatarsBase({ AVATARS_PUBLIC_BASE: "https://media.morrisgrad.com/" }) === "https://media.morrisgrad.com", "домен аватаров: по умолчанию r2.dev, переменной — свой");
+  ok(avatarsBase({ AVATARS_PUBLIC_BASE: "javascript:alert(1)" }) === R2DEV_AVATARS && artBase({ ART_PUBLIC_BASE: "http://x" }).startsWith("https://pub-"), "мусор в переменной — игнор");
+  const k = newAvatarKey("image/png");
+  ok(/^a\/\d{6}\/[a-z0-9]{12}\.png$/.test(k) && !k.includes("user_"), "новый ключ аватара случайный, без id");
+  ok(avatarKeyFromUrl({}, R2DEV_AVATARS + "/user_abc-1") === "user_abc-1" && avatarKeyFromUrl({ AVATARS_PUBLIC_BASE: "https://media.morrisgrad.com" }, "https://media.morrisgrad.com/a/202610/x.png") === "a/202610/x.png", "старый и новый адрес → ключ (удаление прежнего аватара)");
+  ok(avatarKeyFromUrl({}, "https://evil.example/x") === null && avatarKeyFromUrl({}, R2DEV_AVATARS + "/../x") === null, "чужой адрес/.. — не наш ключ");
+  const prof = readFileSync("src/pages/profile.astro", "utf8");
+  ok(!/\$\{userId\}-\$\{Date\.now\(\)\}/.test(prof) && /newAvatarKey\(avatarMime\)/.test(prof), "профиль: ключ аватара не содержит id");
+}
+
+// --- CSP со script-src ---
+{
+  ok(cspMode({}) === "report-only" && cspMode({ CSP_MODE: "enforce" }) === "enforce" && cspMode({ CSP_MODE: "x" }) === "report-only", "CSP: по умолчанию report-only, enforce по переменной");
+  const n = newNonce(); ok(/^[A-Za-z0-9+/]{20,}$/.test(n) && n !== newNonce(), "nonce случайный");
+  const pol = cspPolicy("N");
+  ok(/script-src 'nonce-N' 'strict-dynamic'/.test(pol) && /script-src-attr 'none'/.test(pol) && /object-src 'none'/.test(pol) && /frame-ancestors 'self'/.test(pol) && /report-uri \/api\/csp-report/.test(pol), "политика: nonce + strict-dynamic, без встроенных обработчиков");
+  const h = addNonce('<script>a()</script><script type="module" src="/x.js"></script><SCRIPT>b</SCRIPT><script nonce="old">c</script><scripts>', "N");
+  ok(h === '<script nonce="N">a()</script><script nonce="N" type="module" src="/x.js"></script><SCRIPT nonce="N">b</SCRIPT><script nonce="old">c</script><scripts>', "nonce ставится всем <script>, существующий не трогается");
+  const r1 = parseCspReports({ "csp-report": { "document-uri": "https://morrisgrad.com/forum?token=SECRET", "blocked-uri": "https://evil.example/a.js?x=1", "effective-directive": "script-src-elem", "source-file": "https://morrisgrad.com/x.js", "line-number": 3 } });
+  ok(r1.length === 1 && r1[0].page === "https://morrisgrad.com/forum" && r1[0].blocked === "https://evil.example/a.js" && r1[0].dir === "script-src-elem" && !JSON.stringify(r1).includes("SECRET"), "отчёт: без ?query (токены), директива");
+  const r2 = parseCspReports([{ type: "csp-violation", body: { documentURL: "https://morrisgrad.com/", blockedURL: "inline", effectiveDirective: "<x>" } }]);
+  ok(r2.length === 1 && r2[0].dir === "?" , "отчёт reports+json: мусор в директиве отбрасывается");
+  ok(parseCspReports("x").length === 0 && parseCspReports(null).length === 0, "мусор — пусто");
+  const mw = readFileSync("src/middleware.ts", "utf8"); ok(/pathname !== "\/api\/csp-report" && isCrossSiteWrite/.test(mw), "приёмник отчётов не режется CSRF-проверкой (браузер шлёт без Origin)");
+  ok(/"CSP_MODE": "report-only"/.test(readFileSync("wrangler.jsonc", "utf8")), "wrangler.jsonc: CSP_MODE report-only");
+}
+
+console.log(`security-site-test: ${passes} PASS, ${fails} FAIL`);
+if (fails) process.exit(1);

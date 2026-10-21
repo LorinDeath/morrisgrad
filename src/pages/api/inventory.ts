@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+import { cleanInventoryItem, INV_MAX_BATCH } from '../../lib/inventoryItem';
+import { envOf } from '../../lib/cfEnv';
 
 export const prerender = false;
 
@@ -7,7 +9,7 @@ interface Env {
 }
 
 export const GET: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -71,7 +73,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
 };
 
 export const POST: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -101,44 +103,47 @@ export const POST: APIRoute = async ({ locals, request }) => {
         const body = await request.json();
         const { items } = body; // Ожидаем массив предметов
 
-        if (!items || !Array.isArray(items)) {
+        if (!items || !Array.isArray(items) || items.length === 0 || items.length > INV_MAX_BATCH) {
             return new Response(JSON.stringify({ error: "Invalid data" }), { status: 400 });
         }
+        // поля предмета — от клиента: длина/тип/иконка проверяются, лишнее отбрасывается (виден в публичном профиле)
+        const clean = items.map(cleanInventoryItem);
+        if (clean.some((x) => !x)) return new Response(JSON.stringify({ error: "Invalid item" }), { status: 400 });
 
         const stmt = db.prepare(`
             INSERT INTO user_items (uuid, user_id, item_id, name, description, source, type, rarity, stats, icon, created_at, set_id, set_stats)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
-        const batch = items.map((item: any) => {
+        const batch = clean.map((item: any) => {
             return stmt.bind(
                 crypto.randomUUID(),
                 userId,
-                item.id || 'unknown',
+                item.item_id,
                 item.name,
-                item.desc || '',
-                item.source || 'Unknown',
+                item.desc,
+                item.source,
                 item.type,
                 item.rarity,
-                JSON.stringify(item.stats || {}),
-                item.icon || '📦',
+                JSON.stringify(item.stats),
+                item.icon,
                 Date.now(),
-                item.setId || null,
-                JSON.stringify(item.setStats || {})
+                item.setId,
+                JSON.stringify(item.setStats)
             );
         });
 
         await db.batch(batch);
 
-        return new Response(JSON.stringify({ success: true, count: items.length }), { status: 200 });
+        return new Response(JSON.stringify({ success: true, count: clean.length }), { status: 200 });
     } catch (e: any) {
         console.error("Inventory Save Error:", e);
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
     }
 };
 
 export const DELETE: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -154,7 +159,7 @@ export const DELETE: APIRoute = async ({ locals, request }) => {
     if (!item) return new Response(JSON.stringify({ error: "Item not found" }), { status: 404 });
 
     // Удаляем из базы (перенос в игру)
-    await db.prepare('DELETE FROM user_items WHERE uuid = ?').bind(uuid).run();
+    await db.prepare('DELETE FROM user_items WHERE uuid = ? AND user_id = ?').bind(uuid, userId).run();
 
     // Форматируем для игры
     const formattedItem = {

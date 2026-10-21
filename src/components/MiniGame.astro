@@ -427,6 +427,7 @@
 </style>
 
 <script>
+  import { anonPost } from '../scripts/antiabuse';
     // Переменная для хранения обработчика, чтобы его можно было удалить
   let keydownHandlerInstance: any = null;
 
@@ -513,7 +514,9 @@
         }
         items.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="score-name">${item.name}</td><td class="score-val text-right">${item.score}</td>`;
+            tr.innerHTML = `<td class="score-name"></td><td class="score-val text-right"></td>`;
+            (tr.children[0] as HTMLElement).textContent = String(item.name ?? ''); // имя вводит игрок — только как текст
+            (tr.children[1] as HTMLElement).textContent = String(item.score ?? '');
             el.appendChild(tr);
         });
     }
@@ -1622,11 +1625,7 @@
 
             finalSubmitBtn.disabled = true;
             try {
-                await fetch('/api/scores', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, score: 0, type: 'glush', difficulty: difficultyMultiplier })
-                });
+                await anonPost('/api/scores', { name, score: 0, type: 'glush', difficulty: difficultyMultiplier });
                 
                 finalInputOverlay?.classList.add('hidden');
                 const msg = document.getElementById('final-success-msg');
@@ -1680,11 +1679,7 @@
             submitBtn.textContent = "Отправка...";
 
             try {
-                const res = await fetch('/api/scores', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, score })
-                });
+                const res = await anonPost('/api/scores', { name, score });
 
                 const result = await res.json();
 

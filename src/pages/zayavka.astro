@@ -93,6 +93,7 @@ const contestInfo = {
 </Layout>
 
 <script>
+  import { anonPost } from '../scripts/antiabuse';
   const form = document.getElementById('zayavka-form') as HTMLFormElement;
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
   const btnText = submitBtn.querySelector('.btn-text') as HTMLElement;
@@ -161,11 +162,7 @@ const contestInfo = {
     btnLoader.style.display = 'inline';
 
     try {
-      const response = await fetch('/api/konkurs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author, name, text })
-      });
+      const response = await anonPost('/api/konkurs', { author, name, text });
 
       const result = await response.json();
 

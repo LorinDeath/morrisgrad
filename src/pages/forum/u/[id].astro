@@ -3,7 +3,7 @@ import ForumShell from "../../../components/forum/ForumShell.astro";
 import TopicCard from "../../../components/forum/TopicCard.astro";
 import { forumPage } from "../../../lib/forum/page";
 import { getAuthor, isMod } from "../../../lib/forum/service";
-import { date, ago, roleLabel, plural } from "../../../lib/forum/fmt";
+import { date, ago, roleLabel, plural, validTs } from "../../../lib/forum/fmt";
 import Ava from "../../../components/forum/Ava.astro";
 import { breadcrumbs, abs } from "../../../lib/seo";
 export const prerender = false;
@@ -17,13 +17,14 @@ const u = a.user;
 if (!/^\d+$/.test(key)) return Astro.redirect(`/forum/u/${u.pid}${page > 1 ? "?page=" + page : ""}`, 301);
 const self = a.self;
 const mod = isMod(v);
-const onlineNow = Date.now() - u.last_seen < 5 * 60_000;
+const hasLast = validTs(u.last_seen), hasFirst = validTs(u.first_seen); // нет отметки — поле скрыто (не «1970»)
+const onlineNow = hasLast && Date.now() - u.last_seen < 5 * 60_000;
 const st: any = a.stats;
 // Профили без записей — «тонкие» страницы: noindex (ссылки всё равно проходят)
 const thin = !((u.topics_count || 0) + (st?.comments || 0));
 const profPath = `/forum/u/${u.pid}`;
 const profDesc = `${u.nick} — ${u.rank || "участник"} форума МоррисГрада: ${u.topics_count} ${plural(u.topics_count, "тема", "темы", "тем")}, ${st?.comments ?? 0} ${plural(st?.comments ?? 0, "комментарий", "комментария", "комментариев")}, карма ${u.karma}.`;
-const profLd = [{ "@context": "https://schema.org", "@type": "ProfilePage", url: abs(profPath), dateCreated: new Date(u.first_seen).toISOString(),
+const profLd = [{ "@context": "https://schema.org", "@type": "ProfilePage", url: abs(profPath), ...(hasFirst ? { dateCreated: new Date(u.first_seen).toISOString() } : {}),
   mainEntity: { "@type": "Person", name: u.nick, url: abs(profPath), ...(u.avatar ? { image: abs("/api/forum/media/" + u.avatar) } : {}),
     interactionStatistic: [{ "@type": "InteractionCounter", interactionType: "https://schema.org/WriteAction", userInteractionCount: (u.topics_count || 0) + (st?.comments || 0) },
       { "@type": "InteractionCounter", interactionType: "https://schema.org/LikeAction", userInteractionCount: u.karma || 0 }] } },
@@ -41,7 +42,7 @@ const dLabel = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("ru-
           <span class="f-author f-author-l"><Ava u={u} link={false} eager /></span>
           <div style="flex:1;min-width:220px">
             <h1 class="f-h1" style="font-family:var(--font-body)!important;letter-spacing:0">{u.nick} {u.role && <span class={`f-role f-role-${u.role}`} style="font-size:.8rem;vertical-align:middle">{roleLabel(u.role)}</span>}</h1>
-            <div class="f-muted"><span class="f-rank" style="font-size:.85rem">{u.rank}</span> · на форуме с {date(u.first_seen)} · {onlineNow ? <span style="color:#4ade80">● сейчас на форуме</span> : <>был(а) {ago(u.last_seen)}</>}</div>
+            <div class="f-muted"><span class="f-rank" style="font-size:.85rem">{u.rank}</span>{hasFirst && <> · на форуме с {date(u.first_seen)}</>}{onlineNow ? <> · <span style="color:#4ade80">● сейчас на форуме</span></> : hasLast && <> · был(а) {ago(u.last_seen)}</>}</div>
             <div class="f-pstats">
               <span class="f-pstat"><b>{u.topics_count}</b>{plural(u.topics_count, "тема", "темы", "тем")}</span>
               <span class="f-pstat"><b>{u.posts_count}</b>{plural(u.posts_count, "сообщение", "сообщения", "сообщений")}</span>
@@ -51,6 +52,7 @@ const dLabel = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("ru-
           </div>
         </div>
         <div class="f-actions">
+          {a.site && <a class="f-btn f-btn-s" href={`/u/${u.pid}`} data-site-profile>👤 Профиль на сайте</a>}
           {self && <a class="f-btn" href="/forum/me">⚙ Настройки профиля</a>}
           {!self && v.uid && <button class="f-btn f-btn-s" data-block={u.pid} data-value={a.blocked ? "0" : "1"}>{a.blocked ? "Показывать записи" : "Скрыть записи автора"}</button>}
           {mod && !self && u.role !== "admin" && (a.ban
@@ -72,8 +74,8 @@ const dLabel = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("ru-
             <div class="f-stat"><b>{st.comments}</b><span>{plural(st.comments, "комментарий", "комментария", "комментариев")}</span></div>
             <div class="f-stat"><b style="color:var(--f-red)">♥ {st.likes_received}</b><span>оценок получено (карма)</span></div>
             <div class="f-stat"><b>{st.likes_given}</b><span>оценок поставлено</span></div>
-            <div class="f-stat"><b style="font-size:.95rem">{date(st.first_seen)}</b><span>на форуме с</span></div>
-            <div class="f-stat"><b style="font-size:.95rem">{onlineNow ? "сейчас" : ago(st.last_seen)}</b><span>последний визит</span></div>
+            {validTs(st.first_seen) && <div class="f-stat"><b style="font-size:.95rem">{date(st.first_seen)}</b><span>на форуме с</span></div>}
+            {(onlineNow || validTs(st.last_seen)) && <div class="f-stat"><b style="font-size:.95rem">{onlineNow ? "сейчас" : ago(st.last_seen)}</b><span>последний визит</span></div>}
           </div>
           {(st.best_topic || st.top_section) && (
             <div class="f-muted" style="display:flex;flex-direction:column;gap:.25rem;margin-bottom:.7rem">

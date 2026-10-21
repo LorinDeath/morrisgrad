@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { guardAnonWrite, envOf } from '../../lib/antiabuse';
 
 // Обязательно: отключаем статический рендер для этого файла, чтобы работал POST
 export const prerender = false;
@@ -27,7 +28,7 @@ function getKeys() {
 
 // Получаем доступ к KV через locals (предоставляется адаптером Cloudflare)
 const getKV = (locals: any) => {
-    return locals?.runtime?.env?.MORRISGRAD_DB;
+    return envOf(locals)?.MORRISGRAD_DB;
 };
 
 // GET: Получение рекордов (Топ за день и Топ за неделю)
@@ -57,23 +58,33 @@ export const GET: APIRoute = async ({ locals }) => {
 // POST: Сохранение нового рекорда
 export const POST: APIRoute = async ({ request, locals }) => {
     try {
-        const body = await request.json();
+        // анонимная запись: лимит с одного IP (+ Turnstile по флагу TURNSTILE_ENABLED)
+        const denied = await guardAnonWrite(envOf(locals), 'scores', request);
+        if (denied) return denied;
+        const raw = await request.text();
+        if (raw.length > 2048) return new Response(JSON.stringify({ error: "Слишком большой запрос" }), { status: 413 });
+        const body = JSON.parse(raw);
+        if (!body || typeof body !== 'object' || Array.isArray(body)) return new Response(JSON.stringify({ error: "Некорректный запрос" }), { status: 400 });
         const { name, score, type, difficulty } = body;
 
         // Логика для "Glush" (Финал игры)
         if (type === 'glush') {
             // Валидация для финала (помягче)
-            if (!name || typeof name !== 'string' || name.length < 1 || name.length > 20) {
+            // только буквы (кириллица/латиница), цифры, пробел, дефис, подчёркивание, точка; 1–20 символов
+            const safeName = typeof name === 'string' ? name.trim() : '';
+            if (!/^[\p{L}\p{N} _.\-]{1,20}$/u.test(safeName)) {
                 return new Response(JSON.stringify({ error: "Некорректное имя" }), { status: 400 });
             }
-            // Разрешаем кириллицу, латиницу, цифры и базовые символы
-            const safeName = name.replace(/[<>]/g, '').trim(); 
+            const diff = Number(difficulty);
+            if (!Number.isFinite(diff) || diff < 0 || diff > 100) {
+                return new Response(JSON.stringify({ error: "Некорректная сложность" }), { status: 400 });
+            }
 
             const kv = getKV(locals);
             if (kv) {
                 const key = 'glush_records';
                 let list: ScoreRecord[] = (await kv.get(key, { type: 'json' })) || [];
-                list.push({ name: safeName, score: 0, difficulty: Number(difficulty), date: Date.now() });
+                list.push({ name: safeName, score: 0, difficulty: Math.round(diff * 100) / 100, date: Date.now() });
                 // Храним последние 50 героев
                 if (list.length > 50) list = list.slice(list.length - 50);
                 await kv.put(key, JSON.stringify(list));
@@ -89,9 +100,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
             }
         }
 
+        // очки — конечное целое в разумных пределах (раньше NaN/Infinity/1e308 ломали таблицу)
+        if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 1e9) {
+            return new Response(JSON.stringify({ error: "Invalid score" }), { status: 400 });
+        }
         const newRecord: ScoreRecord = {
             name: name.toUpperCase(),
-            score: Number(score),
+            score: Math.floor(Number(score)),
             date: Date.now()
         };
 

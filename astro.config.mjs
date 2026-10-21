@@ -13,11 +13,12 @@ export default defineConfig({
 
   // Адаптер Cloudflare
   adapter: cloudflare({
-    imageService: 'compile',
-    platformProxy: {
-      enabled: true,
-    },
+    imageService: 'compile', // картинки только при сборке (sharp), без привязки Cloudflare Images
+
   }),
+
+  // Сессии Astro не используются — без KV-привязки SESSION (иначе адаптер требует её создать)
+  session: false,
 
   // Все интеграции в одном массиве
   integrations: [

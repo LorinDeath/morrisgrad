@@ -1,16 +1,41 @@
 import type { APIRoute } from 'astro';
+import { guardAnonWrite, envOf } from '../../lib/antiabuse';
 
 const PROFANITY_PATTERN = /(?:ху[йиеяю]|пизд|бля[дт]|еба[тьнл]|ёб|муда[кч]|говн|дроч)/i;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const data = await request.json();
+    // анонимная запись: не больше 2 заявок в минуту с одного IP (+ Turnstile по флагу TURNSTILE_ENABLED)
+    const denied = await guardAnonWrite(envOf(locals), 'konkurs', request);
+    if (denied) return denied;
+    const raw = await request.text();
+    if (raw.length > 1_000_000) {
+      return new Response(JSON.stringify({ error: 'Слишком большой текст.' }), { status: 413, headers: { 'Content-Type': 'application/json' } });
+    }
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return new Response(JSON.stringify({ error: 'Все поля обязательны для заполнения.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
     const { author, name, text } = data;
 
-    // Валидация
+    // Валидация (поля — только строки: объект/число раньше роняли обработчик в 500)
+    if (typeof author !== 'string' || typeof name !== 'string' || typeof text !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Все поля обязательны для заполнения.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     if (!author?.trim() || !name?.trim() || !text?.trim()) {
       return new Response(
         JSON.stringify({ error: 'Все поля обязательны для заполнения.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // строки и длина: заявка анонимная, без ограничений R2 можно было забить гигабайтами
+    if (author.trim().length > 60 || name.trim().length > 150 || text.length > 200_000) {
+      return new Response(
+        JSON.stringify({ error: 'Слишком длинное поле (автор до 60, название до 150, текст до 200 000 символов).' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -24,14 +49,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Получаем окружение Cloudflare
     const localsAny = locals as any;
-    const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+    const env = envOf(localsAny);
 
     const db = env.PROFILES_DB;
     const bucket = env.konkursbook;
 
     if (!db || !bucket) {
       return new Response(
-        JSON.stringify({ error: 'Ошибка доступа к PROFILES_DB или бакету konkursbook.' }),
+        JSON.stringify({ error: 'Хранилище недоступно.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -62,8 +87,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
 
   } catch (err: any) {
+    console.error('[konkurs]', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Ошибка сервера.' }),
+      JSON.stringify({ error: 'Ошибка сервера.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

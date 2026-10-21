@@ -1,18 +1,28 @@
 import { clerkMiddleware } from "@clerk/astro/server";
+import { env as cfWorkerEnv } from "cloudflare:workers";
 import { defineMiddleware } from "astro:middleware";
 import { isPrivatePath } from "./lib/seo";
 import { isCookielessPublicGet } from "./lib/guest";
+import { isCrossSiteWrite, withSecurityHeaders } from "./lib/security";
+import { cspMode, cspPolicy, newNonce, addNonce } from "./lib/csp";
+import { envOf } from './lib/cfEnv';
 
 const clerk = clerkMiddleware();
 
 // Локальные плейтесты форума: только `astro dev` (import.meta.env.DEV) + FORUM_DEV_AUTH=1 в .dev.vars + dev-cookie.
 // Тогда Clerk пропускается (локально нет секретного ключа). В production-сборке ветка вырезается целиком.
 export const onRequest = defineMiddleware((ctx, next) => {
-  if (import.meta.env.DEV && (ctx.locals as any)?.runtime?.env?.FORUM_DEV_AUTH === "1" && /(?:^|;\s*)mg_dev_(uid|noclerk)=/.test(ctx.request.headers.get("cookie") || "")) {
-    (ctx.locals as any).auth = () => ({ userId: null });
-    return withRobots(ctx.url.pathname, next());
+  (ctx.locals as any).cfEnv = cfWorkerEnv; // Astro 6+: привязки Cloudflare (src/lib/cfEnv.ts)
+  // CSRF: запись (POST/PUT/PATCH/DELETE) только со своего сайта — для всех API и форм страниц (профиль и т.п.)
+  // (отчёты CSP браузер шлёт без Origin/с Origin: null — приёмник ничего не меняет, CSRF ему не страшен)
+  if (ctx.url.pathname !== "/api/csp-report" && isCrossSiteWrite(ctx.request.method, ctx.request.url, ctx.request.headers)) {
+    return new Response(JSON.stringify({ error: "Запрос отклонён (CSRF)" }), { status: 403, headers: { "content-type": "application/json; charset=utf-8", "x-content-type-options": "nosniff" } });
   }
-  return withRobots(ctx.url.pathname, clerk(guestWithoutHandshake(ctx), next));
+  if (import.meta.env.DEV && envOf(ctx.locals)?.FORUM_DEV_AUTH === "1" && /(?:^|;\s*)mg_dev_(uid|noclerk)=/.test(ctx.request.headers.get("cookie") || "")) {
+    (ctx.locals as any).auth = () => ({ userId: null });
+    return withCsp(ctx, withRobots(ctx.url.pathname, next(), ctx.url.protocol === "https:"));
+  }
+  return withCsp(ctx, withRobots(ctx.url.pathname, clerk(guestWithoutHandshake(ctx), next), ctx.url.protocol === "https:"));
 });
 
 // Поисковые роботы и первый заход без cookie: у dev-инстанса Clerk каждый «документный» запрос без cookie
@@ -38,10 +48,26 @@ function guestWithoutHandshake<T extends { request: Request; url: URL }>(ctx: T)
 }
 
 // Личные и служебные адреса: X-Robots-Tag (работает и для редиректов, и для не-HTML ответов)
-async function withRobots(path: string, res: unknown): Promise<Response> {
+// + заголовки безопасности (CSP frame-ancestors, nosniff, HSTS, Referrer/Permissions-Policy) — src/lib/security.ts
+async function withRobots(path: string, res: unknown, isHttps = true): Promise<Response> {
   const r = (await res) as Response;
   if (r && isPrivatePath(path) && !path.startsWith("/api/forum/media/")) {
     try { r.headers.set("x-robots-tag", "noindex, follow"); } catch { /* неизменяемые заголовки (редирект) — пропускаем */ }
   }
-  return r;
+  return r ? withSecurityHeaders(r, isHttps) : r;
+}
+
+// CSP со script-src для HTML-страниц (src/lib/csp.ts): nonce всем <script> страницы + заголовок по режиму CSP_MODE
+// (по умолчанию Report-Only — ничего не блокирует, только отчёты в /api/csp-report).
+async function withCsp(ctx: { locals: any }, res: Promise<Response>): Promise<Response> {
+  const r = await res;
+  const mode = cspMode(envOf(ctx.locals));
+  if (!r || mode === "off" || !(r.headers.get("content-type") || "").includes("text/html") || !r.body) return r;
+  const nonce = newNonce();
+  const html = addNonce(await r.text(), nonce);
+  const h = new Headers(r.headers);
+  h.delete("content-length");
+  if (mode === "enforce") h.set("content-security-policy", cspPolicy(nonce));
+  else h.set("content-security-policy-report-only", cspPolicy(nonce));
+  return new Response(html, { status: r.status, statusText: r.statusText, headers: h });
 }

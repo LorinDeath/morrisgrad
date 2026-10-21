@@ -1,5 +1,5 @@
 {
-  "main": "dist/_worker.js/index.js",
+  "main": "@astrojs/cloudflare/entrypoints/server",
   "name": "morrisgrad",
   "compatibility_date": "2026-01-07",
   "compatibility_flags": [
@@ -8,7 +8,9 @@
   ],
   // 1. Добавляем переменные здесь, чтобы они не стирались при деплое
   "vars": {
-    "PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bWlnaHR5LXN0YXJsaW5nLTY4LmNsZXJrLmFjY291bnRzLmRldiQ"
+    "PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bWlnaHR5LXN0YXJsaW5nLTY4LmNsZXJrLmFjY291bnRzLmRldiQ",
+    // CSP со script-src (src/lib/csp.ts): "report-only" — только отчёты (по умолчанию), "enforce" — блокировать, "off" — выключить
+    "CSP_MODE": "report-only"
   },
 
   "kv_namespaces": [
@@ -50,6 +52,14 @@
       "binding": "FORUM_MEDIA",
       "bucket_name": "morrisgrad-forum-media"
     }
+  ],
+
+  // Лимиты анонимных записей по IP (src/lib/antiabuse.ts LIMITS — держать в синхроне). Счёт ведёт Cloudflare, IP не храним.
+  // namespace_id — любое уникальное в аккаунте число; создаётся при деплое, отдельной настройки не требует.
+  "ratelimits": [
+    { "name": "RL_SCORES", "namespace_id": "4101", "simple": { "limit": 6, "period": 60 } },
+    { "name": "RL_KONKURS", "namespace_id": "4102", "simple": { "limit": 2, "period": 60 } },
+    { "name": "RL_CHAT", "namespace_id": "4103", "simple": { "limit": 20, "period": 60 } }
   ],
 
   "assets": {

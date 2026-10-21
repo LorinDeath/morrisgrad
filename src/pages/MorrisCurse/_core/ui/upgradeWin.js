@@ -76,8 +76,11 @@ export class UpgradeWin {
     }
     const fl = this.flash && Date.now() - this.flash < 900 ? 'flash' : '';
     this.el.innerHTML = `<div class="mc-upg-box ${fl}"><div class="hd"><b>⚒ Кузня Петра · Улучшение</b><button class="mc-book-x" data-u="x" title="Закрыть (Esc)">✕</button></div>
-      <div class="bd"><aside class="pt"><img src="${vnImg('petr', this.emo)}" alt="Пётр" onerror="this.src='${vnImg('petr', 'calm')}'"><div class="say">«${esc(this.say)}»</div></aside>
+      <div class="bd"><aside class="pt"><img src="${vnImg('petr', this.emo)}" alt="Пётр" data-fallback="${vnImg('petr', 'calm')}"><div class="say">«${esc(this.say)}»</div></aside>
       <section class="ls"><div class="h">Вещи героя · ${list.length}</div><div class="mc-bag">${cells}</div></section>
       <section class="dt">${right}</section></div></div>`;
+    // запасной портрет — обработчиком, а не атрибутом onerror (CSP запрещает встроенные обработчики)
+    const pi = this.el.querySelector('img[data-fallback]');
+    if (pi) pi.addEventListener('error', () => { const f = pi.getAttribute('data-fallback'); if (f && pi.getAttribute('src') !== f) pi.setAttribute('src', f); }, { once: true });
   }
 }

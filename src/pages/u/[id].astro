@@ -1,12 +1,16 @@
 ---
+import { envOf } from '../../lib/cfEnv';
 import Layout from '../../layouts/Layout.astro';
+import { pidFor, uidForPid, PID_RE, CLERK_ID_RE, defaultAvatar } from '../../lib/publicId';
+import { publicItem } from '../../lib/api/profileFields';
+import { validTs } from '../../lib/forum/fmt';
 
 export const prerender = false;
 
-const { id } = Astro.params;
+const { id: rawId } = Astro.params;
 
 // 1. Подключение к БД
-const cfRuntime = (Astro.locals as any)?.runtime;
+const cfRuntime = { env: envOf(Astro.locals) }; // Astro 6+: env из cloudflare:workers (src/lib/cfEnv.ts)
 const env = cfRuntime?.env as any;
 const db = env?.PROFILES_DB;
 
@@ -17,23 +21,26 @@ if (!db) {
 // МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует (для старых баз)
 try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
-// 2. Загрузка данных (Только чтение)
-const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
-
-if (!user) {
-    (Astro.locals as any).notFound = { title: "Игрок не найден", text: "Такого профиля нет." };
-    return Astro.rewrite("/404");
+// 2. Адрес — публичный номер игрока (/u/<номер>). Старые ссылки /u/user_… → 301 на новый адрес (ссылки не ломаются).
+const notFound = () => { (Astro.locals as any).notFound = { title: "Игрок не найден", text: "Такого профиля нет." }; return Astro.rewrite("/404"); };
+const key = String(rawId || '');
+if (CLERK_ID_RE.test(key)) {
+    const exists = await db.prepare('SELECT id FROM users WHERE id = ?').bind(key).first();
+    const pid = exists ? await pidFor(db, key) : null;
+    if (!pid) return notFound();
+    return new Response(null, { status: 301, headers: { Location: `/u/${pid}`, 'Cache-Control': 'public, max-age=86400' } });
 }
+const uid = PID_RE.test(key) ? await uidForPid(db, key) : null;
+const user: any = uid ? await db.prepare('SELECT * FROM users WHERE id = ?').bind(uid).first() : null;
+if (!user) return notFound();
+const pid = Number(key);
 
-// 3. Загрузка инвентаря (Последние 10)
-const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
-const inventory = (invRes?.results || []).map((item: any) => ({
-    ...item,
-    stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {}),
-    setId: item.set_id,
-    setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {}),
-    isCorrupted: !!item.is_corrupted
-}));
+// 3. Инвентарь (последние 10) — только публичные поля предмета (без user_id и служебных)
+const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(uid).all();
+const inventory = (invRes?.results || []).map((row: any) => {
+    const item: any = publicItem(row);
+    return { ...item, setId: item.set_id, setStats: item.set_stats || {}, isCorrupted: !!item.is_corrupted, stats: item.stats || {} };
+});
 ---
 
 <Layout title={`Профиль: ${user.username}`}>
@@ -42,12 +49,13 @@ const inventory = (invRes?.results || []).map((item: any) => ({
         <!-- Шапка профиля (Только просмотр) -->
         <div class="profile-header">
             <div class="avatar-section">
-                <img src={user.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${id}`} alt="Avatar" class="profile-avatar" />
+                <img src={user.avatar_url || defaultAvatar(pid)} alt="Avatar" class="profile-avatar" />
             </div>
             
             <div class="info-section">
                 <h1 class="username">{user.username || 'Без имени'}</h1>
-                <p class="user-id">ID: <span class="code">{id?.slice(0, 10)}...</span></p>
+                <p class="user-id">Игрок № <span class="code">{pid}</span></p>
+                <p style="margin:.2rem 0 .8rem"><a href={`/forum/u/${pid}`} data-forum-profile style="color:#c4b5fd">💬 Профиль на форуме</a></p>
                 
                 <div class="bio-box">
                     <span class="bio-label">ЛИЧНОЕ ДЕЛО:</span>
@@ -57,14 +65,14 @@ const inventory = (invRes?.results || []).map((item: any) => ({
                 <div style="color: #a020f0; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #a020f0;">🔥 АДСКИЙ ОГОНЬ: {user.hellfire || 0}</div>
 
                 <div class="stats-row">
-                    <div class="stat">
+                    {validTs(user.created_at) && <div class="stat" data-created>
                         <span class="label">В городе с:</span>
-                        <span class="val">{user.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : 'Неизвестно'}</span>
-                    </div>
-                    <div class="stat">
+                        <span class="val">{new Date(user.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Kiev' })}</span>
+                    </div>}
+                    {validTs(user.last_seen) && <div class="stat" data-last-seen>
                         <span class="label">Был(а):</span>
-                        <span class="val">{user.last_seen ? new Date(user.last_seen).toLocaleDateString('ru-RU') : 'Давно'}</span>
-                    </div>
+                        <span class="val">{new Date(user.last_seen).toLocaleDateString('ru-RU', { timeZone: 'Europe/Kiev' })}</span>
+                    </div>}
                 </div>
             </div>
         </div>
@@ -195,6 +203,8 @@ const inventory = (invRes?.results || []).map((item: any) => ({
 </style>
 
 <script>
+    // XSS: поля предметов (название, источник, иконка, статы) задаёт игрок через /api/inventory — в HTML только экранированными
+    const escH = (v: any) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
 document.addEventListener('astro:page-load', () => {
     const modal = document.getElementById('item-modal');
     const closeBtn = document.querySelector('.close-modal');
@@ -226,7 +236,7 @@ document.addEventListener('astro:page-load', () => {
         
         if (iconEl) {
             if (item.icon && item.icon.startsWith('http')) {
-                iconEl.innerHTML = `<img src="${item.icon}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
+                iconEl.innerHTML = `<img src="${escH(item.icon)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
             } else {
                 iconEl.innerText = item.icon || '📦';
             }
@@ -245,9 +255,9 @@ document.addEventListener('astro:page-load', () => {
             rarityEl.style.background = 'rgba(0,0,0,0.5)';
         }
         if (sourceEl) {
-            sourceEl.innerHTML = `Источник: ${item.source || 'Неизвестно'}`;
+            sourceEl.innerHTML = `Источник: ${escH(item.source || 'Неизвестно')}`;
             if (item.setId) {
-                sourceEl.innerHTML += `<br><span style="color:#0f0; font-weight:bold; text-shadow: 0 0 5px #0f0;">СЕТ: ${item.setId.toUpperCase()}</span>`;
+                sourceEl.innerHTML += `<br><span style="color:#0f0; font-weight:bold; text-shadow: 0 0 5px #0f0;">СЕТ: ${escH(String(item.setId).toUpperCase())}</span>`;
             }
         }
         if (descEl) descEl.innerText = item.description || "Нет описания";
@@ -258,7 +268,7 @@ document.addEventListener('astro:page-load', () => {
                 for (const [key, val] of Object.entries(item.stats)) {
                     const row = document.createElement('div');
                     row.className = 'stat-row';
-                    row.innerHTML = `<span class="stat-key">${key.toUpperCase()}</span><span class="stat-val">+${val}</span>`;
+                    row.innerHTML = `<span class="stat-key">${escH(key.toUpperCase())}</span><span class="stat-val">+${escH(val)}</span>`;
                     statsEl.appendChild(row);
                 }
             }
@@ -269,7 +279,7 @@ document.addEventListener('astro:page-load', () => {
                 for (const [key, val] of Object.entries(item.setStats)) {
                     const r = document.createElement('div');
                     r.className = 'stat-row';
-                    r.innerHTML = `<span class="stat-key" style="color:#0f0">${key.toUpperCase()}</span><span class="stat-val" style="color:#0f0">+${val}</span>`;
+                    r.innerHTML = `<span class="stat-key" style="color:#0f0">${escH(key.toUpperCase())}</span><span class="stat-val" style="color:#0f0">+${escH(val)}</span>`;
                     statsEl.appendChild(r);
                 }
             }

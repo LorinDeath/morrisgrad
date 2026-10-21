@@ -1,10 +1,11 @@
 ---
+import { envOf } from '../lib/cfEnv';
 import Layout from '../layouts/Layout.astro';
 
 export const prerender = false;
 
 const localsAny = Astro.locals as any;
-const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+const env = envOf(localsAny);
 const db = env.PROFILES_DB;
 
 let stories: Array<{ rowid: number; author: string; name: string; created_at: string }> = [];

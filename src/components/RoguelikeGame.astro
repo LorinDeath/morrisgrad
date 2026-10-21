@@ -984,6 +984,7 @@
 </style>
 
 <script>
+  import { anonPost } from '../scripts/antiabuse';
   // --- CONSTANTS ---
   const CANVAS_W = 1040;
   const CANVAS_H = 720;
@@ -4390,8 +4391,8 @@
       el.innerHTML = list.map((item, i) => `
           <div class="lb-item ${item.name === meta.username ? 'me' : ''}">
               <span class="rank">#${i+1}</span>
-              <span class="name">${item.name}</span>
-              <span class="score">${item.score}</span>
+              <span class="name">${String(item.name ?? '').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';')}</span>
+              <span class="score">${Number(item.score) || 0}</span>
           </div>
       `).join('');
   }
@@ -4415,11 +4416,7 @@
   }
 
   async function postScore(name: string, score: number) {
-      await fetch('/api/scores_nl', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, score })
-      });
+      await anonPost('/api/scores_nl', { name, score });
   }
 
   // --- MAIN GAME CLASS ---

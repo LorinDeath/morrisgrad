@@ -25,13 +25,14 @@ async function getJwks(issuer: string): Promise<any[]> {
   return jwksCache.keys;
 }
 
-export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISSUER): Promise<string | null> {
-  return (await verifyClerkTokenEx(token, issuer)).uid;
+/** isParty(azp) — для какого сайта выпущен токен (claim azp); токен без azp или с чужим azp не принимается. */
+export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISSUER, isParty?: (azp: string) => boolean): Promise<string | null> {
+  return (await verifyClerkTokenEx(token, issuer, isParty)).uid;
 }
 
 /** как verifyClerkToken, но с причиной отказа: expired — истёк, invalid — подпись/издатель/формат, jwks — не смогли получить ключи (сбой у нас/сети, не вина игрока) */
 export type TokenCheck = { uid: string | null; reason?: "expired" | "invalid" | "jwks" };
-export async function verifyClerkTokenEx(token: string, issuer = DEFAULT_CLERK_ISSUER): Promise<TokenCheck> {
+export async function verifyClerkTokenEx(token: string, issuer = DEFAULT_CLERK_ISSUER, isParty?: (azp: string) => boolean): Promise<TokenCheck> {
   let header: any, payload: any, h: string, p: string, s: string;
   try {
     [h, p, s] = String(token || "").split(".");
@@ -40,8 +41,10 @@ export async function verifyClerkTokenEx(token: string, issuer = DEFAULT_CLERK_I
     payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
   } catch (_) { return { uid: null, reason: "invalid" }; }
   if (header.alg !== "RS256" || payload.iss !== issuer) return { uid: null, reason: "invalid" };
+  if (isParty && (typeof payload.azp !== "string" || !isParty(payload.azp))) return { uid: null, reason: "invalid" }; // токен другого сайта
   const now = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp === "number" && payload.exp < now - 5) return { uid: null, reason: "expired" };
+  if (typeof payload.exp !== "number") return { uid: null, reason: "invalid" }; // без exp — вечный токен, не принимаем
+  if (payload.exp < now - 5) return { uid: null, reason: "expired" };
   if (typeof payload.nbf === "number" && payload.nbf > now + 5) return { uid: null, reason: "invalid" };
   let keys: any[];
   try { keys = await getJwks(issuer); } catch (_) { return { uid: null, reason: "jwks" }; }

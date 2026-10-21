@@ -7,6 +7,11 @@ export function plural(n: number, one: string, few: string, many: string) {
   if (b === 1) return one;
   return many;
 }
+/** Настоящая отметка времени (мс)? 0/пусто/мусор (тихий профиль ещё не заходившего на форум — last_seen = 0) → false: такое поле не показываем вместо «1 янв. 1970». */
+export const MIN_TS = Date.UTC(2020, 0, 1);
+export function validTs(ms: unknown, nowMs = Date.now()): ms is number {
+  return typeof ms === "number" && Number.isFinite(ms) && ms >= MIN_TS && ms <= nowMs + 86_400_000;
+}
 export function ago(ms: number, nowMs = Date.now()) {
   const d = Math.max(0, nowMs - ms) / 1000;
   if (d < 60) return "только что";

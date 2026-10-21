@@ -41,11 +41,13 @@
       return;
     }
 
+    // имена в таблице рекордов вводят игроки — только экранированными
+    const esc = (v: any) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
     el.innerHTML = items.map((item: any) => `
       <li>
-        <span class="name">${item.name}</span>
+        <span class="name">${esc(item.name)}</span>
         <span class="dots"></span>
-        <span class="score">${item.score}</span>
+        <span class="score">${esc(item.score)}</span>
       </li>
     `).join('');
   }

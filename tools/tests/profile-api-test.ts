@@ -14,7 +14,7 @@ const rows: Record<string, any> = {
 const items = [{ uuid: "i1", user_id: "user_b", item_id: "sw", name: "Меч", description: "d", source: "s", type: "weapon", rarity: "rare", icon: "x", stats: '{"atk":3}', is_transferred: 1, created_at: 5 }];
 const writes: any[] = [];
 const db = { prepare: (sql: string) => ({ bind: (...a: any[]) => ({
-  first: async () => (/FROM users WHERE id/.test(sql) ? rows[a[0]] || null : null),
+  first: async () => (/FROM users WHERE id/.test(sql) ? rows[a[0]] || null : /FROM forum_users WHERE pid/.test(sql) ? ({ 1: { user_id: "user_a" }, 2: { user_id: "user_b" } } as any)[a[0]] || null : null),
   all: async () => ({ results: /user_items/.test(sql) ? items.filter((i) => i.user_id === a[0]) : [] }),
   run: async () => { writes.push([sql, a]); return {}; },
 }), run: async () => ({}) }) };
@@ -41,12 +41,14 @@ r = await profilePOST({ locals: locals("user_a"), request: req("/api/profile", {
 ok(r.status === 200 && writes.length === 1 && writes[0][1][1] === "user_a", "profile POST: пишет только в свой профиль (userId из тела игнорируется)");
 
 // публичный профиль: любой игрок без входа, только публичные поля
-r = await publicProfileResponse(req("/api/public-profile?id=user_b", { headers: { "cf-connecting-ip": "1.1.1.1" } }), { runtime: { env: { morrisgrad_db: db } } }); j = await r.json();
-ok(r.status === 200 && j.user.username === "Боб", "public-profile: чужой профиль без входа");
+r = await publicProfileResponse(req("/api/public-profile?pid=2", { headers: { "cf-connecting-ip": "1.1.1.1" } }), { runtime: { env: { morrisgrad_db: db } } }); j = await r.json();
+ok(r.status === 200 && j.user.username === "Боб" && j.user.pid === 2, "public-profile: чужой профиль без входа по номеру");
+ok(!JSON.stringify(j).includes("user_b"), "public-profile: внутренний id Clerk не отдаётся");
 ok(PUBLIC_USER_FIELDS.every((k) => k in j.user) && PRIVATE_USER_FIELDS.every((k) => !(k in j.user)), `public-profile: все публичные поля, личных нет (${Object.keys(j.user).join(",")})`);
 ok(j.items.length === 1 && j.items[0].stats.atk === 3 && !("is_transferred" in j.items[0]) && !("user_id" in j.items[0]), "public-profile: предметы как на /u/<id>, служебные поля скрыты");
 ok(/public/.test(r.headers.get("cache-control") || ""), "public-profile: публичный кэш 60 с");
-r = await publicProfileResponse(req("/api/public-profile?id=nope"), { runtime: { env: { morrisgrad_db: db } } }); ok(r.status === 404, "public-profile: нет игрока — 404");
+r = await publicProfileResponse(req("/api/public-profile?pid=99"), { runtime: { env: { morrisgrad_db: db } } }); ok(r.status === 404, "public-profile: нет игрока — 404");
+r = await publicProfileResponse(req("/api/public-profile?id=user_b"), { runtime: { env: { morrisgrad_db: db } } }); ok(r.status === 400, "public-profile: по id Clerk — 400 (только номер)");
 r = await publicProfileResponse(req("/api/public-profile?id=%27%20OR%201"), { runtime: { env: { morrisgrad_db: db } } }); ok(r.status === 400, "public-profile: мусорный id — 400");
 let lim = false; for (let i = 0; i < 61; i++) lim = rateLimited("9.9.9.9", 60, 1000); ok(lim && !rateLimited("8.8.8.8", 60, 1000), "public-profile: 61-й запрос за минуту с одного IP — 429, другой IP — ок");
 ok(!rateLimited("9.9.9.9", 60, 62_000), "public-profile: через минуту снова можно");

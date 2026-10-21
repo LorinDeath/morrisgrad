@@ -1,4 +1,7 @@
 import type { APIRoute } from 'astro';
+import { rateLimit } from '../../lib/antiabuse';
+import { pidsFor } from '../../lib/publicId';
+import { envOf } from '../../lib/cfEnv';
 
 export const prerender = false;
 
@@ -7,7 +10,7 @@ interface Env {
 }
 
 export const GET: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -103,7 +106,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
         
         if (after) {
             // Polling: Get only NEW messages
-            query += ` WHERE m.created_at > ? ORDER BY m.created_at ASC`;
+            query += ` WHERE m.created_at > ? ORDER BY m.created_at ASC LIMIT 100`; // не больше 100 за опрос (after=0 раньше отдавал всю неделю)
             const res = await db.prepare(query).bind(Number(after)).all();
             results = res.results || [];
         } else if (before) {
@@ -122,27 +125,33 @@ export const GET: APIRoute = async ({ locals, request }) => {
         const onlineRes = await db.prepare('SELECT COUNT(*) as count FROM users WHERE last_seen > ?').bind(oneMinuteAgo).first();
         const onlineCount = onlineRes?.count || 0;
 
+        // наружу — публичный номер автора (pid), не внутренний id Clerk
+        const pids = await pidsFor(db, results.map((m: any) => m.user_id));
+        const messages = results.map((m: any) => ({ id: m.id, message: m.message, created_at: m.created_at, pid: pids.get(m.user_id) ?? null, username: m.username, avatar_url: m.avatar_url, last_seen: m.last_seen }));
+
         return new Response(JSON.stringify({ 
-            messages: results,
+            messages,
             onlineCount 
         }), { status: 200 });
     } catch (e: any) {
         console.error("Chat API Error:", e);
-        return new Response(JSON.stringify({ error: "Server Error", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Server Error" }), { status: 500 });
     }
 };
 
 export const POST: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
     if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     if (!db) return new Response(JSON.stringify({ error: "DB error" }), { status: 500 });
+    // лимит с одного IP (несколько аккаунтов с одного адреса не обходят анти-спам)
+    if (!(await rateLimit(env, 'chat', request))) return new Response(JSON.stringify({ error: "Слишком часто. Подождите минуту." }), { status: 429, headers: { "retry-after": "60" } });
 
     try {
         const body = await request.json();
-        const message = body.message?.trim();
+        const message = typeof body?.message === 'string' ? body.message.trim() : '';
 
         // Валидация
         if (!message || message.length === 0 || message.length > 500) {
@@ -173,12 +182,12 @@ export const POST: APIRoute = async ({ locals, request }) => {
         return new Response(JSON.stringify({ success: true }), { status: 200 });
     } catch (e: any) {
         console.error("Chat Post Error:", e);
-        return new Response(JSON.stringify({ error: "Failed to send", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Failed to send" }), { status: 500 });
     }
 };
 
 export const DELETE: APIRoute = async ({ locals }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -197,6 +206,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
 
     } catch (e: any) {
         console.error("Chat Delete Error:", e);
-        return new Response(JSON.stringify({ error: "Failed to delete messages", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Failed to delete messages" }), { status: 500 });
     }
 };

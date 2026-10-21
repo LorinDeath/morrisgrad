@@ -2,6 +2,7 @@
 // onJoin / handle(msg) / tick / onClose. Старые сообщения протокола не меняются.
 import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, verifyClerkTokenEx, DEFAULT_CLERK_ISSUER } from "./auth";
+import { originAllowed, isLocalRequest } from "../limits";
 import {
   HERO_IDS, ITEMS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES, GATHER_RANGE,
@@ -188,7 +189,7 @@ export class MetaService {
     // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
     if (session.metaUid) uid = session.metaUid;
     else if (msg.token) {
-      const chk = await verifyClerkTokenEx(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+      const chk = await verifyClerkTokenEx(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER, (azp) => originAllowed(this.env, azp, session.localConn === true));
       uid = chk.uid;
       if (!uid && !(session.dev === true && msg.userId)) {
         // Игрок прислал токен, но он не прошёл: раньше молча становился гостем (прогресс уходил в чужой guest-профиль).
@@ -687,6 +688,8 @@ export class MetaService {
         if (!target) { this.send(ws, { type: "toast_error", message: "Игрок не найден" }); return true; }
         this.roles.setModerator(ms.pkey, target, !!msg.moderator).then((r) => {
           if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err }); return; }
+          // журнал выдачи/снятия модератора (в player_roles остаётся только текущее состояние, история терялась)
+          this.store.audit(ms.pkey, "role_set", `role:${opaqueId(target!)}:${Date.now()}`, { target: opaqueId(target!), role: r.role || null });
           this.send(ws, { type: "role_changed", id: opaqueId(target!), role: r.role || null });
           this.push(ws, session, { toast: r.role ? "Модерка выдана" : "Модерка снята" });
           const osid = this.social.onlineSid(target!); const oe = osid ? this.sessionLookup?.(osid) : null;
@@ -1860,7 +1863,8 @@ export class MetaService {
     const h = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
     const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     if (!tok) return new Response(JSON.stringify({ error: "нужен токен" }), { status: 401, headers: h });
-    const uid = await verifyClerkToken(tok, this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER).catch(() => null);
+    const local = isLocalRequest(req);
+    const uid = await verifyClerkToken(tok, this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER, (azp) => originAllowed(this.env, azp, local)).catch(() => null);
     if (!uid) return new Response(JSON.stringify({ error: "токен недействителен" }), { status: 401, headers: h });
     await this.roles.ensure().catch(() => {});
     if (!this.roles.canAdminFull({ pkey: "uid:" + uid, verified: true } as any)) return new Response(JSON.stringify({ error: "только админ" }), { status: 403, headers: h });

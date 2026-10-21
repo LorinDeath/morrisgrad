@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 
 export const prerender = false;
 
-const R2_PUBLIC_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+import { artBase } from '../../lib/media';
+import { envOf } from '../../lib/cfEnv';
 
 export interface ArtItem {
   id: string;
@@ -18,13 +19,13 @@ export interface ArtItem {
 export const GET: APIRoute = async ({ locals }) => {
   try {
     const localsAny = locals as any;
-    const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+    const env = envOf(localsAny);
     const bucket = env.ARTCOLLECTION_BUCKET;
 
     if (!bucket) {
       return new Response(
         JSON.stringify({
-          error: 'ARTCOLLECTION_BUCKET not found in runtime environment',
+          error: 'Хранилище недоступно',
           items: [],
         }),
         {
@@ -96,7 +97,7 @@ export const GET: APIRoute = async ({ locals }) => {
         id: `art-${index + 1}`,
         name: cleanName || `Экспонат #${index + 1}`,
         filename,
-        url: `${R2_PUBLIC_BASE}/${encodedKey}`,
+        url: `${artBase(env)}/${encodedKey}`,
         category,
         tag,
         size: obj.size,
@@ -122,9 +123,10 @@ export const GET: APIRoute = async ({ locals }) => {
       }
     );
   } catch (err: any) {
+    console.error('[arts]', err);
     return new Response(
       JSON.stringify({
-        error: err.message || 'Внутренняя ошибка R2',
+        error: 'Внутренняя ошибка',
         items: [],
       }),
       {
