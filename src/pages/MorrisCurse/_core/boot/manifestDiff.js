@@ -6,7 +6,8 @@ export const CACHE_ASSETS = 'mc-assets-v1', CACHE_META = 'mc-meta-v1', META_KEY 
 /** URL, по которому файл качается и лежит в кэше: у файлов vite (/_astro/имя.ХЕШ.ext) хеш уже в имени, у прочих — ?v=хеш (CDN не отдаст старое) */
 export const assetUrl = (e) => (e.p.startsWith('/_astro/') ? e.p : `${e.p}?v=${e.h}`);
 /** группы, нужные этой загрузке страницы (eager): core всегда; набор пропсов и тайлов — по настройкам устройства */
-export function eagerGroups({ props = 'props2', tiles = 'tiles16', mobs = false } = {}) { return ['core', 'sprites', 'ui', props, tiles, ...(mobs ? ['mobs32'] : [])]; }
+// мобы 32 (mobs32, 4.5 МБ) заранее не качаются: листы тиров грузятся по радиусу (mobLoadR) через сервис-воркер и кэшируются один раз
+export function eagerGroups({ props = 'props2', tiles = 'tiles16' } = {}) { return ['core', 'sprites', 'ui', props, tiles]; }
 /**
  * Сравнение: next — новый манифест, have — Map(url → {s, h}) того, что реально лежит в кэше (не прошлый манифест: так кэш «лечит себя»),
  * groups — какие группы качать сейчас. Возвращает { fetch: [записи], evict: [url], keep, bytes, files }.

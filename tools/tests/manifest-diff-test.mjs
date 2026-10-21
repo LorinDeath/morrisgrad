@@ -45,8 +45,8 @@ ok(indexOf(A).get('/js/three.min.js').h === 't1', 'индекс сервис-в�
 ok(groupOf('src/assets/mc/props3/props32_p64.png') === 'props3' && groupOf('src/assets/mc/props2/props_p32.png') === 'props2', 'группы props3/props2');
 ok(groupOf('src/assets/mc/tiles32_atlas.png') === 'tiles32' && groupOf('src/assets/mc/tiles_ice.png') === 'tiles16', 'группы тайлов');
 ok(groupOf('src/assets/mc/bestiary32/bestiary32_t1_p1.png') === 'mobs32' && groupOf('src/pages/MorrisCurse/_core/survivors/arena32Set.js') === 'core', 'мобы 32 — своя группа (код арены — core)');
-ok(eagerGroups({ props: 'props3', tiles: 'tiles32', mobs: true }).join() === 'core,sprites,ui,props3,tiles32,mobs32' && !eagerGroups({ props: 'props2', tiles: 'tiles16' }).includes('mobs32'), 'мобы 32 заранее — только при новых мобах');
-ok(groupOf('src/scripts/mcAuthGate.ts') === 'auth' && !eagerGroups({ props: 'props3', tiles: 'tiles32', mobs: true }).includes('auth'), 'оверлей входа — ленивая группа auth (вошедший не качает)');
+ok(!eagerGroups({ props: 'props3', tiles: 'tiles32' }).includes('mobs32'), 'мобы 32 — по требованию (не в первой загрузке)');
+ok(groupOf('src/scripts/mcAuthGate.ts') === 'auth' && !eagerGroups({ props: 'props3', tiles: 'tiles32' }).includes('auth'), 'оверлей входа — ленивая группа auth (вошедший не качает)');
 ok(groupOf('src/music/x.mp3') === null, 'музыка не в манифесте (стрим по Range)');
 ok(groupOf('src/assets/mc/worldmap_arinar_4096.webp') === 'map' && groupOf('public/mc-vn/a/b.webp') === 'vn', 'карта мира и VN — ленивые');
 // граф vite: ассеты из текста чанков, имена с пробелом

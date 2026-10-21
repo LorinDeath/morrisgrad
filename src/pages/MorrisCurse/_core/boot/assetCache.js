@@ -16,9 +16,7 @@ export function deviceGroups() {
   let tex = isMob() ? '16' : '32', gfx = {}, props = null;
   try { const q = location.search.match(/[?&]tex=(16|32)/); const v = localStorage.getItem('mc_tex'); tex = q ? q[1] : v === '16' || v === '32' ? v : tex; gfx = JSON.parse(localStorage.getItem('mc_gfx') || '{}') || {}; const pq = location.search.match(/[?&]props=(2|3)/); if (pq) props = pq[1] === '3' ? 'props3' : 'props2'; } catch (_) {}
   if (!props) props = tex === '32' && (isMob() ? gfx.props3Mobile === true : gfx.props3Pc !== false) ? 'props3' : 'props2';
-  // мобы 32 (engine/mobPref.js: mc_mobs игрока → умолчание платформы из «🖼 Графика»; общий выключатель mobs32 сильнее)
-  let mobs = false; try { const mv = localStorage.getItem('mc_mobs'), mq = location.search.match(/[?&]mobs=(new|old)/); const pref = mq ? mq[1] : mv === 'new' || mv === 'old' ? mv : ((isMob() ? gfx.mobs32Mobile === true : gfx.mobs32Pc !== false) ? 'new' : 'old'); mobs = gfx.mobs32 !== false && pref === 'new'; } catch (_) {}
-  return { props, tiles: tex === '32' ? 'tiles32' : 'tiles16', mobs };
+  return { props, tiles: tex === '32' ? 'tiles32' : 'tiles16' };
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function fetchJson(url, ms) { const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms); try { const r = await fetch(url, { cache: 'no-store', signal: ac.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); const tx = await r.text(); AC.stats.manifestBytes = tx.length; return JSON.parse(tx); } finally { clearTimeout(t); } }

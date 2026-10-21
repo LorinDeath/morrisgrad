@@ -7,7 +7,7 @@ import { join, resolve } from 'path';
 export const GROUP_RULES = [ // [регэксп исходного пути, группа] — первая подходящая
   [/\.(mp3|ogg|wav|m4a)$/i, null],
   [/assets\/mc\/props3\//, 'props3'],
-  [/assets\/mc\/bestiary32\//, 'mobs32'],   // мобы 32 (mobs32): заранее — только если у устройства включены новые мобы (ПК по умолчанию), иначе по требованию
+  [/assets\/mc\/bestiary32\//, 'mobs32'],   // мобы 32 (mobs32): по требованию (листы тиров по радиусу), кэшируются сервис-воркером
   [/assets\/mc\/props2\//, 'props2'],
   [/assets\/mc\/tiles32_|tilesets_32/, 'tiles32'],
   [/assets\/mc\/tiles_/, 'tiles16'],
