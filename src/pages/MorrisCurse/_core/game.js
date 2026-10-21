@@ -6,7 +6,7 @@
 import { fmtBig } from './fmtNum.js';
 import { showError, hookGlobalErrors, setErrSink } from './boot/errorBox.js'; // коды ошибок (src/errors/codes.js)
 import { resolveWorld } from '../../../../server/meta/propCollision.ts';
-import { tickSpriteTime } from './engine/spriteBatch.js';
+import { tickSpriteTime, loadAtlasTexture } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
 import { fog } from './map/fog.js';
@@ -1907,6 +1907,9 @@ async function boot(canvasId, username, userId, api) {
       bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),
+      dropWs: () => net.socket?.close(4000, 'test'),
+      loadAtlas: (u) => loadAtlasTexture(THREE, u).then(() => 'ok', () => 'rejected'),
+      closeAdmin: () => adminPanel.close?.(),
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       altarFlash: () => hub.portalObjs?.get('portal_class_select')?.flash?.(),
