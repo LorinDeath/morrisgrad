@@ -6,9 +6,9 @@
 import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
-import { DayNight } from './engine/dayNight.js';
+import { DayNight, lightOf } from './engine/dayNight.js';
 import { CityView } from './hub/cityView.js';
-import { emptyCellsInDome } from '../../../../server/meta/cityMap.ts';
+import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
 import { CityHud } from './ui/cityHud.js';
 import { CITY_CFG, inCity } from '../../../../server/meta/city.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
@@ -1523,6 +1523,7 @@ async function boot(canvasId, username, userId, api) {
 
   // день и ночь: только открытый мир Аринар (не забег, не дом города); источники света — герои, мобы, огни пропсов, FX
   const DN_FX = { mage: [0x9a6bff, 6, 0.8], dome: [0x8a5cff, 0, 0.45], rose: [0xff4d7a, 2.4, 0.6] };
+  const dnCity = { key: '', list: [] }; // кэш огней города для маски ночи
   function dnFrame() {
     const on = mode !== 'run' && world === 'arinar' && !inRoomPt(player.x, player.y) && !cityRoom.inside;
     if (!on) { dayNight.frame(false, {}); return; }
@@ -1538,8 +1539,19 @@ async function boot(canvasId, username, userId, api) {
     for (const p of zone.pax?.live?.values?.() || []) { const t = p.age || 0, x = p.x0 + (p.dx || 0) * (p.s || 0) * t, y = p.y0 + (p.dy || 0) * (p.s || 0) * t; if (near(x, y) && fx.length < 140) fx.push({ x, y, c: 0xffd9a0, r: 1.6, k: 0.55 }); }
     // купол Альказака светится изнутри мягко; фонтан — огни города (_glow-слои Историка придут с артом)
     if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 7, k: 0.5 });
+    // огни Альказака: фонари/костры карты Историка (их рисует cityView, в чанках их нет) + тёплый свет из дверей домов
+    let extra = [];
+    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) {
+      const key = `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles}`;
+      if (dnCity.key !== key) {
+        const L = []; for (const q of mapProps()) { const l = lightOf(q.k); if (l) L.push([toX(q.x), toZ(q.y), l[1], l[2] * (q.s || 1), l[3]]); }
+        const [sx, sy] = mapShiftPx(); for (const b of mapBuildings()) { const e = b.exit_world_px; if (e) L.push([toX(e[0] + sx), toZ(e[1] + sy - 10), 0xffc879, b.interior === 'shop_tavern' ? 4.2 : 3.2, 0.75]); }
+        dnCity.key = key; dnCity.list = L;
+      }
+      extra = dnCity.list;
+    }
     const t = hub.env?.terrain;
-    dayNight.frame(true, { players, mobs, fx, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
+    dayNight.frame(true, { players, mobs, fx, extra, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
     dayNight.render(stage.renderer, cam);
   }
   function frame(now) {
@@ -1984,6 +1996,7 @@ async function boot(canvasId, username, userId, api) {
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),
+      dnObj: () => dayNight, // отладка маски света (плейтест)
       dn: (o = {}) => api.dn(o), // день/ночь для плейтеста (то же, что api.dn)
       cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
       city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),

@@ -11,10 +11,10 @@ import { toX, toZ } from './geometry.js';
 // источники света среди пропсов мира: ключ/шаблон → [цвет, радиус м, сила]
 const PROP_LIGHT = [
   [/^(lantern|dm_lantern|dm_lamp)/, 0xffc36b, 4.2, 0.95], [/^(torch|dm_torch)/, 0xff9a3c, 3.8, 1], [/^(campfire|dm_campfire|dm_brazier|dm_fire)/, 0xff8a2a, 5.2, 1.1],
-  [/^dm_hearth/, 0xff9a4a, 4.5, 1], [/^dm_candle/, 0xffd08a, 2.2, 0.7], [/window/, 0xffcf7a, 3.0, 0.7], [/^dm_fountain/, 0x8fb6ff, 4.0, 0.55],
+  [/^dm_hearth/, 0xff9a4a, 4.5, 1], [/^dm_cookfire/, 0xff8a2a, 4.6, 1], [/^dm_cauldron/, 0xffa860, 2.4, 0.6], [/^dm_glitch_sprout/, 0x7fe0ff, 1.4, 0.35], [/^dm_candle/, 0xffd08a, 2.2, 0.7], [/window/, 0xffcf7a, 3.0, 0.7], [/^dm_fountain/, 0x8fb6ff, 4.0, 0.55],
   [/^(crystal|star_crystal)/, 0x9be8ff, 2.6, 0.5], [/^(portal|altar|obelisk)/, 0xb38bff, 4.5, 0.7], [/^pylon/, 0xa78bfa, 3.6, 0.7], [/^glitch_shard/, 0x7fe0ff, 2.0, 0.45],
 ];
-const lightOf = (k) => { for (const L of PROP_LIGHT) if (L[0].test(k)) return L; return null; };
+export const lightOf = (k) => { for (const L of PROP_LIGHT) if (L[0].test(k)) return L; return null; };
 const KEY = 'mc-dn-reduce';
 /** «Смягчить ночь» 0…100 (Настройки, на этом устройстве): меньше темноты для читаемости */
 export function dnReduceGet() { try { const v = localStorage.getItem(KEY); return v == null ? 0 : Math.max(0, Math.min(100, Number(v) || 0)); } catch (_) { return 0; } }
@@ -25,14 +25,16 @@ export class DayNight {
     this.THREE = THREE; this.stage = stage; this.mobile = mobile; this.q = 0;
     this.base = { min: 12 * 60, rate: 1, t: performance.now() }; this.state = dnAt(720); this.active = false; this.stats = { lights: 0, ms: 0 };
     this.rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
-    // пятна света на земле: один InstancedMesh, цвет × сила на экземпляр (аддитивно в маску)
-    const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
-    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.62)'); gr.addColorStop(0.7, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    // пятна света на земле: один InstancedMesh, свой атрибут цвета × силы на экземпляр (instanceColor в three r128 давал чёрный — пятна не светили)
     const geo = new THREE.PlaneBufferGeometry(1, 1); geo.rotateX(-Math.PI / 2);
-    this.lmat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    this.lcol = new THREE.InstancedBufferAttribute(new Float32Array(384 * 3), 3); this.lcol.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aCol', this.lcol);
+    this.lmat = new THREE.ShaderMaterial({
+      vertexShader: 'attribute vec3 aCol; varying vec3 vC; varying vec2 vUv; void main(){ vUv = uv; vC = aCol; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }',
+      // мягкое пятно: плотное ядро и длинный спад (как прежний радиальный градиент 1 → 0.62 → 0.18 → 0)
+      fragmentShader: 'varying vec3 vC; varying vec2 vUv; void main(){ float r = length(vUv - 0.5) * 2.0; float a = clamp(1.0 - r, 0.0, 1.0); a = a * a * (3.0 - 2.0 * a); gl_FragColor = vec4(vC * a, 1.0); }',
+      transparent: true, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+    });
     this.lights = new THREE.InstancedMesh(geo, this.lmat, 384); this.lights.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.lights.frustumCulled = false; this.lights.count = 0;
-    this.lights.setColorAt(0, new THREE.Color(1, 1, 1));
     this.lscene = new THREE.Scene(); this.lscene.add(this.lights);
     // умножение кадра на маску
     this.cmat = new THREE.ShaderMaterial({
@@ -68,7 +70,7 @@ export class DayNight {
     if (!this.active) { this.lights.count = 0; return; }
     const T0 = performance.now(), L = this.lights, d = this.d, c = this.c; let n = 0;
     const lk = s.lights, dark = 1 - Math.min(col[0], col[1], col[2]);
-    const put = (x, z, color, rM, k, h = 0.02) => { if (n >= L.instanceMatrix.count || k <= 0.01) return; d.position.set(x, h, z); d.scale.set(rM * 2, 1, rM * 2); d.updateMatrix(); L.setMatrixAt(n, d.matrix); c.set(color).multiplyScalar(k); L.setColorAt(n, c); n++; };
+    const put = (x, z, color, rM, k, h = 0.02) => { if (n >= L.instanceMatrix.count || k <= 0.01) return; d.position.set(x, h, z); d.scale.set(rM * 2, 1, rM * 2); d.updateMatrix(); L.setMatrixAt(n, d.matrix); c.set(color).multiplyScalar(k); this.lcol.setXYZ(n, c.r, c.g, c.b); n++; };
     // герои: мягкий личный свет (всегда, пока темно) — герой не темнее ~0.82 (BLK_FX.heroLight)
     const pr = Number(DN_CFG.playerLightM) || 6, pk = Math.min(1, 0.95 * dark + 0.05);
     for (const p of src.players || []) put(toX(p.x), toZ(p.y), p.me ? 0xfff1dc : 0xe8e4ff, p.me ? pr : pr * 0.8, p.me ? pk : pk * 0.8);
@@ -80,7 +82,7 @@ export class DayNight {
     if (tk > 0.01) for (const q of this.propLights(src)) { const fl = 0.9 + 0.1 * Math.sin(T0 / 130 + q[0] * 3.1); put(q[0], q[1], q[2], q[3], q[4] * tk * fl); }
     // FX: маг, купола, розы, снаряды — светятся сами
     for (const f of src.fx || []) put(toX(f.x), toZ(f.y), f.c, f.r, f.k * Math.max(0.3, dark));
-    L.count = n; L.instanceMatrix.needsUpdate = true; if (L.instanceColor) L.instanceColor.needsUpdate = true;
+    L.count = n; L.instanceMatrix.needsUpdate = true; this.lcol.needsUpdate = true;
     this.stats.lights = n; this.stats.ms = +(performance.now() - T0).toFixed(2);
   }
   /** огни пропсов из видимых чанков (кэш по чанку) */
