@@ -48,22 +48,23 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
     await p.evaluate(() => { document.querySelector('.mc-admin section').scrollTop = 0; }); return hs; };
   await openUi(); await shots('defaults');
   const labels = await p.evaluate(() => [...document.querySelectorAll('.mc-admin section [data-p]')].map((i) => i.dataset.p));
-  const NEWF = ['plate', 'mmX', 'mmY', 'mmZoom', 'mmRound', 'tgtSide', 'tgtTop', 'tgtHide', 'atmo', 'vig', 'grade', 'parts', 'atmoMobile', 'partsMobile', 'loc.hub.vig', 'loc.ice.grade', 'loc.air.parts', 'loc.arinar.vig', 'sfx', 'sfxVol', 'trans', 'transMs', 'loadScreen', 'texPc', 'texMobile', 'hudIngame', 'hudOldDefault', 'mmSize'];
+  const NEWF = ['plate', 'mmX', 'mmY', 'mmZoom', 'mmRound', 'tgtSide', 'tgtTop', 'tgtHide', 'atmo', 'vig', 'grade', 'parts', 'atmoMobile', 'partsMobile', 'loc.hub.vig', 'loc.ice.grade', 'loc.air.parts', 'loc.arinar.vig', 'sfx', 'sfxVol', 'trans', 'transMs', 'loadScreen', 'texPc', 'texMobile', 'scalePc', 'scaleMobile', 'scaleMin', 'scaleMax', 'hudIngame', 'hudOldDefault', 'mmSize'];
   const miss = NEWF.filter((f) => !labels.includes(f)); ok(!miss.length, `в админке есть все новые поля (${NEWF.length})${miss.length ? ': нет ' + miss.join(', ') : ''}`);
   const ru = await p.evaluate(() => [...document.querySelectorAll('.mc-admin section [data-p]')].map((i) => (i.closest('label, tr, .row, div')?.textContent || '').trim()).filter((t) => !/[а-яё]/i.test(t)));
   ok(!ru.length, `подписи полей по-русски${ru.length ? ': ' + ru.slice(0, 3).join(' | ') : ''}`);
   const setMany = async (o) => { await p.evaluate((o) => { for (const [k, v] of Object.entries(o)) { const i = document.querySelector(`.mc-admin section [data-p="${k}"]`); if (!i) continue; if (i.type === 'checkbox') i.checked = !!v; else i.value = String(v); } document.querySelector('.mc-admin section [data-save]').click(); }, o); await sleep(3500); };
-  const SET = { mmSize: 200, mmX: 40, mmY: 30, mmZoom: 2, mmRound: false, tgtSide: 'right', tgtTop: 150, tgtHide: 5, plate: 60, vig: 80, grade: 60, parts: 90, atmoMobile: 20, partsMobile: 30, 'loc.hub.vig': 150, 'loc.hub.parts': 50, sfxVol: 70, transMs: 300, loadScreen: false, texPc: '16', texMobile: '32' };
+  const SET = { mmSize: 200, mmX: 40, mmY: 30, mmZoom: 2, mmRound: false, tgtSide: 'right', tgtTop: 150, tgtHide: 5, plate: 60, vig: 80, grade: 60, parts: 90, atmoMobile: 20, partsMobile: 30, 'loc.hub.vig': 150, 'loc.hub.parts': 50, sfxVol: 70, transMs: 300, loadScreen: false, texPc: '16', texMobile: '32', scalePc: 120, scaleMobile: 90, scaleMin: 80, scaleMax: 130 };
   await setMany(SET);
   const live = () => p.evaluate(() => { const r = document.documentElement, cs = getComputedStyle(r), L = (c) => document.querySelector('.mc-atmo-ui.' + c);
     return { mm: cs.getPropertyValue('--ig-mm').trim(), x: cs.getPropertyValue('--ig-mm-x').trim(), y: cs.getPropertyValue('--ig-mm-y').trim(), tt: cs.getPropertyValue('--ig-tgt-top').trim(), pl: cs.getPropertyValue('--ui-plate').trim(), sq: r.classList.contains('mc-ig-sq'), side: r.dataset.igTgt,
       tr: cs.getPropertyValue('--mc-tr').trim(), zoom: document.getElementById('mm-zoom-text')?.textContent, load: localStorage.getItem('mc_ui_load'), tex: localStorage.getItem('mc_tex_def'),
-      vig: L('vig') ? +getComputedStyle(L('vig')).opacity : -1, tone: L('tone') ? +getComputedStyle(L('tone')).opacity : -1 }; });
+      vig: L('vig') ? +getComputedStyle(L('vig')).opacity : -1, uis: window.__mcUiScale?.get(), uisMin: window.__mcUiScale && localStorage.getItem('mc_ui_scale_pc'), tone: L('tone') ? +getComputedStyle(L('tone')).opacity : -1 }; });
   await sleep(1600); // переход тона/виньетки 1.4 с
   let v = await live();
   const want = (v) => v.mm === '200px' && v.x === '40px' && v.y === '30px' && v.tt === '150px' && v.sq && v.side === 'right' && v.tr === '300ms' && v.pl === '0.60';
   ok(want(v), `HUD сразу: мини-карта ${v.mm}, отступы ${v.x}/${v.y}, квадратная ${v.sq}, «Цель» ${v.side} ${v.tt}, переход окна ${v.tr}`);
   ok(v.zoom === '2x', `зум мини-карты по умолчанию → ${v.zoom}`);
+  ok(v.uis?.def === 120 && v.uis?.want === 120 && v.uis?.eff === 120, `«🔍 Размер интерфейса» на ПК по умолчанию сразу → ${v.uis?.want}% (факт. ${v.uis?.eff}%)`);
   ok(Math.abs(v.vig - 1) < 0.02 && Math.abs(v.tone - 0.36) < 0.02, `атмосфера сразу (Поляна: виньетка 80%×150% → ${v.vig.toFixed(2)}, тон 60% → ${v.tone.toFixed(2)})`);
   ok(v.load === '0' && v.tex === JSON.stringify({ pc: '16', mob: '32' }), `экран загрузки выкл и текстуры по умолчанию запомнены на следующую загрузку (${v.load}, ${v.tex})`);
   await p.screenshot({ path: `${ADM}/live-after-save.png` });
@@ -73,6 +74,7 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
   await openUi(); await setMany({ mmSize: 999 });
   const msg = await p.evaluate(() => document.querySelector('.mc-admin')?.innerText.match(/Диаметр[^\n]*120…240|120…240/)?.[0] || '');
   v = await live(); ok(v.mm === '200px' && !!msg, `вне диапазона (999) — отказ «${msg}», мини-карта осталась ${v.mm}`);
+  await setMany({ scaleMax: 300 }); const msg3 = await p.evaluate(() => /Ползунок: максимум[^\n]*100…200/.test(document.querySelector('.mc-admin')?.innerText || '')); v = await live(); ok(msg3 && v.uis?.want === 120, 'размер интерфейса: максимум 300% — отказ (100…200)');
   await setMany({ mmSize: 200, 'loc.ice.vig': 500 }); const msg2 = await p.evaluate(() => /лёд: виньетка[^\n]*0…200/.test(document.querySelector('.mc-admin')?.innerText || '')); await setMany({ 'loc.ice.vig': 100 }); ok(msg2, 'сила локации 500% — отказ (0…200)');
   // перезагрузка: из D1
   await p.reload(); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await sleep(3500);
@@ -81,6 +83,7 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
   const ld = await p.evaluate(() => !!document.querySelector('.mc-load')); ok(!ld, 'экран загрузки выключен — нового экрана нет');
   await p.keyboard.press('Escape'); await sleep(400); for (let i = 0; i < 3 && !(await p.$('[data-sfx]')); i++) { await p.click('.mc-setbtn').catch(() => {}); await sleep(1000); }
   const sv = await p.evaluate(() => document.querySelector('[data-sfx]')?.value); ok(sv === '70', `Настройки: громкость звуков по умолчанию из админки — ${sv}%`);
+  const us = await p.evaluate(() => { const r = document.querySelector('[data-uis]'); return r && `${r.min}-${r.max}:${r.value}`; }); ok(us === '80-130:120', `Настройки: ползунок «Размер интерфейса» в пределах из админки, по умолчанию 120 — ${us}`);
   await p.keyboard.press('Escape'); await sleep(500);
   await openUi(); await shots('edited');
   // «↺ Вернуть исходное» — значения из кода
@@ -88,6 +91,7 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
   v = await live(); ok(v.mm === '176px' && v.x === '10px' && v.y === '10px' && v.tt === '100px' && !v.sq && v.side === 'left' && v.tr === '160ms' && v.pl === '0.88' && v.load === '1' && v.tex === JSON.stringify({ pc: '32', mob: '16' }),
     `«Вернуть исходное»: ${v.mm}, ${v.x}/${v.y}, квадратная ${v.sq}, «Цель» ${v.side} ${v.tt}, переход ${v.tr}, загрузка ${v.load}, текстуры ${v.tex}`);
   ok(Math.abs(v.vig - 0.45) < 0.02 && Math.abs(v.tone - 0.18) < 0.02, `атмосфера по умолчанию (${v.vig.toFixed(2)}, ${v.tone.toFixed(2)})`);
+  ok(v.uis?.def === 100 && v.uis?.eff === 100, `«Вернуть исходное»: размер интерфейса 100% (${v.uis?.eff}%)`);
   await p.evaluate(() => { localStorage.removeItem('mc_tex_def'); localStorage.removeItem('mc_ui_load'); });
   await openUi(); await setMany({ glitch: 1 });
   ok(await gl() === '1' && await p.evaluate(() => document.documentElement.classList.contains('mc-ui')), 'вернули исходное');
