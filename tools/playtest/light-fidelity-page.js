@@ -103,6 +103,15 @@ export async function run(opts = {}) {
   for (let i = 0; i < 60 && V3 && gfx?.GFX.lightSprites && !atmo.lightSpr; i++) await new Promise((r) => setTimeout(r, 100)); // пиксельные ореолы (x64_glow)
   for (let i = 0; i < 100; i++) { let ok = true; for (const o of [portal, altar]) o.group.traverse((x) => { if (x.isSprite && !x.material.map?.image?.width) ok = false; }); if (ok) break; await new Promise((r) => setTimeout(r, 100)); }
   focus.x = X0; focus.z = Z0; stage.view.zoom = stage.view.targetZoom = opts.zoom || 0.5;
+  // мобы bestiary32 (если модуль есть в этой копии движка): свой SpriteBatch страницы + аддитивный _glow; ждём листы тиров
+  const b32m = await imp('engine/beast32.js').catch(() => null), B32L = [];
+  if (b32m) {
+    const bv = new b32m.Beast32View(THREE, stage.scene, { max: 16 }); bv.radii();
+    const pick = [['grass_imp', 'idle', 3], ['lantern_ghost', 'atk', 7], ['imp', 'walk', 4], ['spark_imp', 'idle', 0], ['fallen_star', 'hurt', 2], ['void_eye', 'die', 4]].filter(([id]) => b32m.B32_META.mobs[id]);
+    for (let i = 0; i < 200; i++) { bv.t = performance.now() / 1000; let ok = true; for (const [id] of pick) if (bv.use(id, 0) < 0) ok = false; if (ok) break; await new Promise((r) => setTimeout(r, 100)); }
+    pick.forEach(([id, a, f], i) => B32L.push({ id, f: b32m.B32_META.anims[a].off + f, x: X0 + 31 + i * 3.6, page: b32m.B32_META.mobs[id].page }));
+    var B32V = bv;
+  }
 
   for (const mood of moods) {
     atmo.moodFor = () => mood; atmo.t = 0;
@@ -115,6 +124,7 @@ export async function run(opts = {}) {
     props.begin(); for (const [k, x, z] of PL) props.push(k, wpx(x), wpx(z), x, z, 1); props.end();
     mobB.begin(); mobB.push(X0 - 8, 0, Z0 + 8.5, pix.MOB_HEIGHT.imp, 1, pix.MOB_ROWS.imp); mobB.push(X0 - 4, 0, Z0 + 8.5, pix.MOB_HEIGHT.ghoul, 1, pix.MOB_ROWS.ghoul); mobB.end();
     npcB.begin(); npcB.push(X0, 0, Z0 + 8.5, pix.HERO_H_M, 1, pix.NPC_ROWS.alzi); npcB.end();
+    if (B32L.length) { B32V.begin(); for (const m of B32L) { B32V.use(m.id, 0); B32V.push(m.page, m.id, m.f, m.x, 0, Z0 + 3.5, b32m.B32.H, false, 1, 1, 1, 0, 1, 1); } B32V.end(); }
     atmo.parts.visible = false; atmo.end = ((f) => function (...a) { f.apply(this, a); this.parts.visible = false; })(atmo.end); // частицы (светлячки, искры) — эффект, не свет на спрайте
     frame(0.016); const buf0 = readAll(); let buf2 = null, gFar = g;
     if (PL.some((q) => q[3])) { focus.x = X0 + 20; for (let i = 0; i < 3; i++) frame(100); frame(0.016); buf2 = readAll(); gFar = [GRADE.value.r, GRADE.value.g, GRADE.value.b]; focus.x = X0; for (let i = 0; i < 3; i++) frame(100); frame(0.016); }
@@ -159,6 +169,15 @@ export async function run(opts = {}) {
     }
     for (const [nm, x, row, hh, B, cell] of [['mob:imp', X0 - 8, pix.MOB_ROWS.imp, pix.MOB_HEIGHT.imp, atl.mobs, pix.MOB_CELL], ['mob:ghoul', X0 - 4, pix.MOB_ROWS.ghoul, pix.MOB_HEIGHT.ghoul, atl.mobs, pix.MOB_CELL], ['npc:alzi', X0, pix.NPC_ROWS.alzi, pix.HERO_H_M, atl.heroes, pix.HERO_CELL]])
       R.push(measure(nm, new THREE.Vector3(x, 0, Z0 + 8.5), hh * cell.w / cell.h, hh, 0.5, 0, [{ img: B.image, fx: 1 * cell.w, fy: row * cell.h, fw: cell.w, fh: cell.h, mul: g }], buf));
+    // мобы bestiary32: основа × тон зоны + свечение _glow × тон × сила (админка mobGlow); вторая точка камеры (правее), как у дальних пропсов
+    if (B32L.length) {
+      focus.x = X0 + 40; for (let i = 0; i < 3; i++) frame(100); frame(0.016); const bufM = readAll(), gm = [GRADE.value.r, GRADE.value.g, GRADE.value.b], gk = gfx?.MOB_GLOW?.value ?? 1;
+      for (const m of B32L) {
+        const T2 = b32m.b32Page(m.page), A = b32m.B32_META, idx = A.mobs[m.id].start + m.f, C = A.cell, fx = (idx % A.cols) * C, fy = Math.floor(idx / A.cols) * C;
+        R.push(measure('mob32:' + m.id + '#' + m.f, new THREE.Vector3(m.x, 0, Z0 + 3.5), b32m.B32.H, b32m.B32.H, 0.5, 0, [{ img: T2.base.image, fx, fy, fw: C, fh: C, mul: gm }, { img: T2.glow.image, glow: true, fx, fy, fw: C, fh: C, mul: gm.map((v) => v * gk) }], bufM));
+      }
+      focus.x = X0; for (let i = 0; i < 3; i++) frame(100);
+    }
     results.push({ mood, grade: g.map((x) => +x.toFixed(3)), items: R });
   }
   // земля: настоящая Поляна (terrain.js), пропсы скрыты; ожидание = тайл × LIGHT.ground

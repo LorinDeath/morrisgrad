@@ -65,6 +65,8 @@ function freePage(i) {
 const VIEWS = new Set();
 /** выгрузить всё (смена режима на «Старые», выключатель админки) — сначала батчи видов, потом текстуры */
 export function b32FreeAll() { GEN++; for (const v of VIEWS) v.releaseAll(); for (let i = 0; i < NP; i++) freePage(i); }
+/** текстуры страницы (тесты light-fidelity): { base, glow } или null */
+export const b32Page = (i) => (P[i]?.st === 2 ? { base: P[i].base, glow: P[i].glow } : null);
 export const b32Bytes = () => P.reduce((a, p) => a + (p.st === 2 ? p.bytes : 0), 0);
 export function b32Stats() {
   return { pages: P.map((p) => ({ page: p.i, tier: p.tier, st: ['none', 'loading', 'ready', 'error'][p.st], mb: +(p.bytes / 1048576).toFixed(1), views: p.views, ms: p.ms })),

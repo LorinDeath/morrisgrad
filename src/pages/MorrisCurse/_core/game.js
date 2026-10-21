@@ -1944,6 +1944,7 @@ async function boot(canvasId, username, userId, api) {
         for (const d of list) { const id = 900000 + n++; const x = player.x + (d.dx || 0), y = player.y + (d.dy || 0);
           zone.mobs.set(id, initState({ id, type: d.type, sk: d.type, tint: null, x, y, tx: x, ty: y, hp: 1, flag: 0, flash: 0, flip: !!d.flip, mvT: 9, hitN: false, strN: false, ph: d.ph ?? (id * 0.618) % 1, demo: true, forceA: d.anim || 'idle', fa0: T - (d.t0 || 0), elite: !!d.elite, cursed: !!d.cursed, ench: 0, frozen: false })); }
         return n; },
+      mobDemoAt: (t) => { for (const m of zone.mobs.values()) if (m.demo) m.faFix = t == null ? -1 : t; }, // кадр показа «на паузе» (GIF по кадрам)
       mobTypes32: () => B32_META.rows.slice(),
       zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench | 0, elite: !!m.elite, boss: !!(m.flagRaw & 256) })),
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),

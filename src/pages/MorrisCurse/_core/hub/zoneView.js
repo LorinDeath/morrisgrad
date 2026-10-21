@@ -301,14 +301,14 @@ export class ZoneView {
         const fly = beastFlying(o.sk);
         // новые мобы: шаг состояния всегда (кадры не «прыгают», когда лист догрузился), рисуем — если лист страницы уже в видеопамяти
         o.moving = o.mvT < 0.3 && !o.frozen;
-        if (o.forceA) { forceState(B32, o, o.forceA, T - o.fa0, fm); o.flash = o.forceA === 'hurt' && o.hurtT < 0.1 ? 0.1 : 0; } // показ: заданная анимация по кругу
+        if (o.forceA) { forceState(B32, o, o.forceA, o.faFix >= 0 ? o.faFix : T - o.fa0, fm); o.flash = o.forceA === 'hurt' && o.hurtT < 0.1 ? 0.1 : 0; } // показ: заданная анимация по кругу
         else stepZone(B32, o, dt, o.flag, o.hitN, o.strN, fm);
         o.hitN = false; o.strN = false;
         const pg = NV ? NV.use(o.sk, V ? (o.x - V.x) * (o.x - V.x) + (o.y - V.y) * (o.y - V.y) : 0) : -1;
         if (!BB && pg < 0) continue;
         let col = o.frozen ? 0 : (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3; // заморожен — кадр стоит
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
-        if (o.forceA && pg < 0) col = OLD_COL(o.forceA, T - o.fa0, o.id); // показ старыми листами — те же состояния
+        if (o.forceA && pg < 0) col = OLD_COL(o.forceA, o.faFix >= 0 ? o.faFix : T - o.fa0, o.id); // показ старыми листами — те же состояния
         let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
         if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
@@ -318,7 +318,7 @@ export class ZoneView {
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
         if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; } // лёд: ярко-голубой, как в забеге
         if (pg >= 0) {
-          const f = mobFrame(B32, o, T, (fly ? 10 : 7) * 3, fm, o.ph), jx = enchJit(o, T), y0 = fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, hh = B32.H * mobScale(o), ea = enchA(o, T);
+          const f = mobFrame(B32, o, o.faFix >= 0 ? o.faFix : T, (fly ? 10 : 7) * 3, fm, o.ph), jx = enchJit(o, T), y0 = fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, hh = B32.H * mobScale(o), ea = enchA(o, T);
           NV.push(pg, o.sk, f, toX(o.x) + jx, y0, toZ(o.y), hh, o.flip, r, g, bl, o.flash > 0.05 ? hf : 0, ea, o.id);
           if (o.ench === 6) { const idx = NV.mobStart(o.sk) + f; enchGhosts(NV.B[pg].base, toX(o.x) + jx, y0, toZ(o.y), hh, idx % B32.cols, Math.floor(idx / B32.cols), o.flip, o.id, T); }
         } else
