@@ -172,7 +172,7 @@ export class RunArena {
     const MAXL = DARK.maxLights;
     const U = this.darkU = {
       uAmb: { value: DARK.amb * (TILE_DARK[this.tiles] ?? 1) }, uSig: { value: new THREE.Color(sigilHex) }, uR: { value: R },
-      uMe: { value: new THREE.Vector2(0, 0) }, uN: { value: 0 }, uWallK: { value: 0 },
+      uMe: { value: new THREE.Vector2(0, 0) }, uN: { value: 0 }, uWallK: { value: 0 }, uFloorK: { value: 1 },
       uL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4()) }, uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color()) },
     };
     const m = new THREE.MeshBasicMaterial({ map: tex });
@@ -180,7 +180,7 @@ export class RunArena {
       Object.assign(sh.uniforms, U);
       sh.vertexShader = 'varying vec2 vW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vW = (modelMatrix * vec4(position, 1.0)).xz;');
       sh.fragmentShader = `varying vec2 vW;
-uniform float uAmb; uniform vec3 uSig; uniform float uR; uniform vec2 uMe; uniform int uN; uniform float uWallK;
+uniform float uAmb; uniform vec3 uSig; uniform float uR; uniform vec2 uMe; uniform int uN; uniform float uWallK; uniform float uFloorK;
 uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
 ` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   {
@@ -190,6 +190,7 @@ uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
     float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
     for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
     li *= mix(1.0, ${DARK.edge.toFixed(2)}, smoothstep(uR * 0.5, uR + 1.5, dc)); // виньетка к стене
+    li *= uFloorK; // arena32: яркость пола под старую арену (A32_FLOOR_K темы × админка arena3Floor)
     // arena32, парапет запечён в пол: его пиксели помечены альфой 254 — свет стены (как у спрайтов, DARK.wallLight), без виньетки
     float wm = step(0.5, diffuseColor.a) * step(diffuseColor.a, 0.998) * step(0.001, uWallK);
     li = mix(li, max(li, vec3(uWallK)), wm); diffuseColor.a = mix(diffuseColor.a, 1.0, wm);

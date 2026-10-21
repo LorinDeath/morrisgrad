@@ -19,6 +19,7 @@ export const GFX_CFG: any = {
   arena3TallGap: 1.5,  // насколько кольцо arena_wall_* дальше парапета, м
   arena3Rim: false,    // тонкая подсветка-обод (торус) поверх кромки
   arena3Cracks: 18,    // трещин на полу (декали arena32)
+  arena3Floor: 1,      // яркость пола арены 32, × (1 — как старая арена; подбор по темам — survivors/arena32.js A32_FLOOR_K)
   arena3GlowW: 0.5,    // вес светящихся анимированных вариантов пола (README: 0.5, иначе руны рябят)
   fpsMul: 1,           // скорость анимации пропсов, ×
   glow: 1,             // сила свечения *_glow пропсов, ×
@@ -31,7 +32,7 @@ export const gfxClient = () => {
   const G = GFX_CFG;
   return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true), fallbackV2: b(G.fallbackV2, true), arena3: b(G.arena3, false),
     arena3Wall: ["auto", "sprites", "baked"].includes(G.arena3Wall) ? G.arena3Wall : "auto", arena3Posts: Math.round(cl(G.arena3Posts, 1, 6, 1)), arena3Tall: b(G.arena3Tall, true),
-    arena3TallGap: cl(G.arena3TallGap, 0, 8, 1.5), arena3Rim: b(G.arena3Rim, false), arena3Cracks: Math.round(cl(G.arena3Cracks, 0, 80, 18)), arena3GlowW: cl(G.arena3GlowW, 0, 3, 0.5),
+    arena3TallGap: cl(G.arena3TallGap, 0, 8, 1.5), arena3Rim: b(G.arena3Rim, false), arena3Cracks: Math.round(cl(G.arena3Cracks, 0, 80, 18)), arena3GlowW: cl(G.arena3GlowW, 0, 3, 0.5), arena3Floor: cl(G.arena3Floor, 0.2, 3, 1),
     fpsMul: cl(G.fpsMul, 0.25, 3, 1), glow: cl(G.glow, 0, 3, 1),
     lt: Object.fromEntries(LIGHT_TYPES.map((t) => { const o = G.lt?.[t] || {}; return [t, { haloS: cl(o.haloS, 0.2, 3, 1), haloK: cl(o.haloK, 0, 3, 1), poolS: cl(o.poolS, 0.2, 3, 1), poolK: cl(o.poolK, 0, 3, 1) }]; })),
     em: Object.fromEntries(["v3", "v2"].map((s) => [s, Object.fromEntries(EMIT_KEYS.map((k) => { const o = G.em?.[s]?.[k] || {}; return [k, { x: cl(o.x, -1, 128, -1), y: cl(o.y, -1, 128, -1) }]; }))])) };
