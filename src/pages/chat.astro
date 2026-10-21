@@ -247,7 +247,7 @@ const { userId } = (Astro.locals as any).auth ? (Astro.locals as any).auth() : {
             // XSS: ник, текст и аватар приходят от других игроков — только экранированными; аватар — только https
             const esc = (v: any) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
             const rawAva = typeof m.avatar_url === 'string' && /^https:\/\//i.test(m.avatar_url) ? m.avatar_url : '';
-            const avatar = esc(rawAva || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=mg${encodeURIComponent(String(m.pid ?? '0'))}`);
+            const avatar = esc(rawAva || `/api/avatar/${encodeURIComponent(String(m.pid ?? '0'))}`);
             
             const div = document.createElement('div');
             div.className = 'msg-row';

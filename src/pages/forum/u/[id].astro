@@ -51,6 +51,7 @@ const dLabel = (d: string) => new Date(d + "T12:00:00Z").toLocaleDateString("ru-
           </div>
         </div>
         <div class="f-actions">
+          {a.site && <a class="f-btn f-btn-s" href={`/u/${u.pid}`} data-site-profile>👤 Профиль на сайте</a>}
           {self && <a class="f-btn" href="/forum/me">⚙ Настройки профиля</a>}
           {!self && v.uid && <button class="f-btn f-btn-s" data-block={u.pid} data-value={a.blocked ? "0" : "1"}>{a.blocked ? "Показывать записи" : "Скрыть записи автора"}</button>}
           {mod && !self && u.role !== "admin" && (a.ban

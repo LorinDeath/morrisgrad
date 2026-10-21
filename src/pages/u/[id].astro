@@ -54,6 +54,7 @@ const inventory = (invRes?.results || []).map((row: any) => {
             <div class="info-section">
                 <h1 class="username">{user.username || 'Без имени'}</h1>
                 <p class="user-id">Игрок № <span class="code">{pid}</span></p>
+                <p style="margin:.2rem 0 .8rem"><a href={`/forum/u/${pid}`} data-forum-profile style="color:#c4b5fd">💬 Профиль на форуме</a></p>
                 
                 <div class="bio-box">
                     <span class="bio-label">ЛИЧНОЕ ДЕЛО:</span>
