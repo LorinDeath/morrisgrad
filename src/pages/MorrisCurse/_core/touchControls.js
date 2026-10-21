@@ -1,4 +1,5 @@
 import { skillIcon, radColor } from './ui/actionBar.js';
+import { uiTouchScale } from './ui/uiScale.js';
 // Тач-управление: плавающий джойстик в левой части экрана + кнопки (рывок, действие, душа, чат, зум).
 // Навык класса в забеге — круглая кнопка HUD забега (runUI). Монтируется в DOM-слой поверх канваса.
 export function isMobileDevice() {
@@ -58,11 +59,12 @@ export class TouchControls {
   }
 
   bindEvents() {
-    const R = 50;
+    const R0 = 50; let R = R0; // ход ручки растёт вместе с джойстиком («🔍 Размер интерфейса», --ui-st)
     const start = (e) => {
       if (this.touchId !== null) return;
       e.preventDefault();
       this.touchId = e.pointerId;
+      R = R0 * uiTouchScale(); // без чтения стилей
       const rect = this.joy.getBoundingClientRect();
       this.origin = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       [this.base, this.knob].forEach((el) => { el.style.display = 'block'; });

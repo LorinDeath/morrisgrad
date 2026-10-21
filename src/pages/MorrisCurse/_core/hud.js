@@ -1,10 +1,13 @@
 // Боковые панели (видны в полноэкранном режиме на десктопе): тело/HP, рывок, сеть, мини-карта,
 // цель, объекты рядом, комнаты забегов. Дуэльные кнопки (WAP) удалены.
+// Внутриигровой режим (html.mc-hud-ig, настройка «Старые панели: Выкл»): колонки скрыты, поле на всю ширину,
+// те же узлы (мини-карта, цель, забеги, рядом) переезжают в слой поверх игры и возвращаются на место при «Вкл».
 import { CLASSES } from './classes.js';
 import { Minimap } from './minimap.js';
 import { worldSize } from '../../../../server/worlds/sizes.ts';
 import { RUN_ROOMS, RUN_CLASSES, ABILITIES, displayClassName } from './survivors/data.js';
 import { esc } from './ui/overlay.js';
+import { avatarUrl, hudIngame, UI as UI_SKIN } from './ui/uiSkin.js';
 import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
@@ -25,8 +28,9 @@ export class GameHUD {
     left.innerHTML = `
       <div class="hud-card">
         <div class="hud-header" id="ghud-my-head">ГЕРОЙ</div>
+        <div class="hud-who"><span class="mc-av s64" id="ghud-my-av" style="display:none"><i></i></span><div>
         <div class="hud-player-name" id="ghud-my-name">Странник</div>
-        <div class="hud-player-class" id="ghud-my-class">Душа [T]</div>
+        <div class="hud-player-class" id="ghud-my-class">Душа [T]</div></div></div>
         <div class="hud-bar-bg"><div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width:100%"></div></div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
         <div class="hud-row"><span>Навык:</span><b id="ghud-my-skill">—</b></div>
@@ -126,6 +130,93 @@ export class GameHUD {
       if (!b) return;
       if (b.dataset.leave) this.cb.onLeaveRun?.(); else this.cb.onEnterRun?.(b.dataset.room);
     });
+    this.mountIngame();
+  }
+
+  // ——— HUD внутри игрового поля ———
+  mountIngame() {
+    this.mobile = this.container.classList.contains('mc3d-mobile');
+    const ig = document.createElement('div');
+    ig.className = 'mc-ighud' + (this.mobile ? ' mob' : '');
+    ig.innerHTML = `
+      <div class="ig-mm"><div class="ig-mm-disc"></div>
+        <div class="ig-row ig-acts"><span class="ig-net" title="Сеть"><i class="ig-dot"></i><b class="ig-ping">--</b><small>мс</small><span class="ig-on">· <b>1</b></span></span><span class="ig-tg"></span>
+          <button class="ig-b" data-ig="runs" title="Забеги (co-op)">⚔️</button><button class="ig-b" data-ig="near" title="Рядом">👁️</button><button class="ig-b" data-ig="help" title="Управление (? / F1)">?</button></div></div>
+      <div class="ig-pop" data-pop="runs"><div class="ig-pop-h">Забеги (co-op)<button class="ig-x" data-ig="runs" title="Закрыть">✕</button></div></div>
+      <div class="ig-pop" data-pop="near"><div class="ig-pop-h">Рядом<button class="ig-x" data-ig="near" title="Закрыть">✕</button></div></div>
+      <div class="ig-tgt"></div>
+      <div class="ig-help" data-pop="help"><div class="ig-help-w"><div class="ig-pop-h">Управление<button class="ig-x" data-ig="help" title="Закрыть (Esc)">✕</button></div>
+        <div class="ig-help-l">${this.left.querySelector('.hud-controls')?.innerHTML.replace(/<div class="hud-header">[^<]*<\/div>/, '') || ''}
+        <div class="hud-ctrl-item">Эта подсказка <span>? / F1</span></div></div></div></div>`;
+    (this.container.querySelector('.mc3d-layer') || this.container).appendChild(ig);
+    this.igEl = ig;
+    const q = (s) => ig.querySelector(s);
+    this.igNet = { ping: q('.ig-ping'), on: q('.ig-on b'), dot: q('.ig-dot'), box: q('.ig-net') };
+    // что куда переезжает: [узел, новое место]; на старом месте — метка, чтобы вернуть ровно туда же
+    const roomsCard = this.roomsBox.closest('.hud-card'), nearCard = this.$('ghud-nearby-list').closest('.hud-card');
+    const tgl = (id) => this.minimap.container.querySelector('#' + id);
+    this.moves = [[this.minimap.container, q('.ig-mm-disc')], [tgl('mm-toggle-players'), q('.ig-tg'), '👥'], [tgl('mm-toggle-portals'), q('.ig-tg'), '🌀'],
+      [this.$('ghud-target-card'), q('.ig-tgt')], [roomsCard, q('[data-pop="runs"]')], [nearCard, q('[data-pop="near"]')]]
+      .map(([el, to, icon]) => { const mark = document.createComment('ig'); el.parentNode.insertBefore(mark, el); return { el, to, mark, icon, full: el.textContent }; });
+    ig.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ig]'); if (!b) return;
+      e.stopPropagation(); this.igToggle(b.dataset.ig);
+    });
+    ig.addEventListener('pointerdown', (e) => e.stopPropagation()); // клик по HUD — не ход/атака в мире
+    if (this.mobile) this.minimap.canvas.addEventListener('click', () => { if (this.igOn) this.minimap.onOpenMap?.(); }); // телефон: тап по круглой карте — карта мира
+    q('.ig-help').addEventListener('click', (e) => { if (e.target.classList.contains('ig-help')) this.igToggle('help', false); });
+    this.onKey = (e) => {
+      if (!this.igOn || e.target?.closest?.('input, textarea, [contenteditable]')) return;
+      if (e.key === '?' || e.code === 'F1') { e.preventDefault(); this.igToggle('help'); }
+      else if (e.key === 'Escape' && ig.querySelector('.open')) { this.igToggle(null, false); e.stopPropagation(); }
+    };
+    window.addEventListener('keydown', this.onKey, true);
+    this.onIg = () => this.setIngame(hudIngame());
+    window.addEventListener('mc-hud-ig', this.onIg);
+    this.setIngame(hudIngame());
+  }
+
+  // открыть/закрыть всплывающее окно (одно за раз); id=null — закрыть все
+  igToggle(id, force) {
+    for (const el of this.igEl.querySelectorAll('[data-pop]')) {
+      const on = id && el.dataset.pop === id ? (force ?? !el.classList.contains('open')) : false;
+      el.classList.toggle('open', on);
+      this.igEl.querySelector(`.ig-b[data-ig="${el.dataset.pop}"]`)?.classList.toggle('on', on);
+    }
+  }
+
+  setIngame(on) {
+    on = !!on && !(this.mobile && !UI_SKIN.mmMobile);
+    if (on === this.igOn) return;
+    this.igOn = on;
+    for (const m of this.moves) {
+      if (on) m.to.appendChild(m.el); else m.mark.parentNode.insertBefore(m.el, m.mark.nextSibling);
+      if (m.icon) { m.el.textContent = on ? m.icon : m.full; m.el.title = on ? m.full.replace(/^\S+\s*/, '') + ' на мини-карте' : ''; } // в ряду под картой — только значок
+    }
+    if (!on) this.igToggle(null, false);
+    // круглая мини-карта — квадратный холст (рисование берёт размеры холста), обычная — 220×150 как было
+    this.igSize();
+    this.cache = {}; // перерисовать тексты/списки в новом месте
+  }
+
+  // «Цель» гаснет, если у неё tgtHide с ничего не менялось (ОЗ, имя, статус — по тексту карточки); 0 — не скрывать
+  igTgtIdle() {
+    const N = Number(UI_SKIN.tgtHide) || 0, card = this.$('ghud-target-card');
+    if (!N || !this.currentTarget || !card) { this.igEl.classList.remove('tgt-idle'); this.tgtSig = null; return; }
+    const sig = card.textContent, now = performance.now();
+    if (sig !== this.tgtSig) { this.tgtSig = sig; this.tgtAt = now; }
+    this.igEl.classList.toggle('tgt-idle', now - this.tgtAt > N * 1000);
+  }
+  // зум мини-карты по умолчанию (админка mmZoom 1…3): при входе в HUD-в-поле и когда админ его поменял; выбор игрока кнопками ± дальше не трогаем
+  igZoomDef() {
+    const z = Math.max(1, Math.min(3, Math.round(Number(UI_SKIN.mmZoom) || 1))) - 1, mm = this.minimap;
+    if (this.zoomDefApplied === z || !mm?.zoomLevels) return;
+    this.zoomDefApplied = z; mm.zoomIndex = Math.min(z, mm.zoomLevels.length - 1);
+    const t = document.getElementById('mm-zoom-text'); if (t && mm.zoomLabels) t.textContent = mm.zoomLabels[mm.zoomIndex];
+  }
+  igSize() { // админка может поменять диаметр на лету (mmSize) — холст подгоняем без пересоздания
+    const cv = this.minimap.canvas, d = Math.round((Number(UI_SKIN.mmSize) || 176) * (this.mobile ? 0.6 : 1)) - 12;
+    if (this.igOn) { if (cv.width !== d || cv.height !== d) cv.width = cv.height = d; } else if (cv.width !== 220 || cv.height !== 150) { cv.width = 220; cv.height = 150; }
   }
 
   setTarget(target) { this.currentTarget = target; }
@@ -141,7 +232,7 @@ export class GameHUD {
   }
 
   update(d) {
-    if (!this.left.offsetParent) return; // панели скрыты (не fullscreen / мобильный) — не тратим время
+    if (!this.igOn && !this.left.offsetParent) return; // панели скрыты (не fullscreen / мобильный) — не тратим время
     const { player, username, mode, run, ping = 0, online = 1, zoom = 0.5, roomCounts = {}, nearby = [], dash } = d;
     const st = player.stats || {};
     const cls = CLASSES[st.classId];
@@ -149,6 +240,7 @@ export class GameHUD {
     this.txt('ghud-my-name', username);
     this.txt('ghud-my-class', `${cls ? displayClassName(st.classId, cls.name) : 'Душа'} [C]`);
     this.txt('ghud-my-head', cls ? 'ГЕРОЙ · ТЕЛО' : 'ДУША (без тела)'); // душа вселилась в тело — карточка героя
+    { const u = avatarUrl(st.classId, d.eff?.blkVis | 0, 64), av = this.$('ghud-my-av'); if (av && av.dataset.u !== u) { av.dataset.u = u; av.style.display = u ? '' : 'none'; av.style.setProperty('--av', u ? `url('${u}')` : 'none'); av.classList.toggle('cz', u.includes('_cursed')); } } // аватар (обычный / очернённый по порогу админки)
     if (mode === 'run' && run) {
       this.txt('ghud-my-hp-bar', `${Math.max(0, (run.me.hp / run.me.maxHp) * 100)}%`, 'width');
       this.txt('ghud-my-hp-val', `${Math.ceil(run.me.hp)} / ${run.me.maxHp} HP (забег)`);
@@ -171,6 +263,12 @@ export class GameHUD {
     this.txt('ghud-net-quality', q[0]);
     this.$('ghud-net-quality').style.color = q[1];
     this.txt('ghud-zoom', `x${zoom.toFixed(2)}`);
+    if (this.igOn) { // компактный индикатор сети: точка цвета качества, пинг, онлайн; подробности — во всплывающей подсказке
+      const n = this.igNet, sig = [ping, online, q[0], zoom.toFixed(2), Math.round(player.x / 32), Math.round(player.y / 32)].join('|');
+      if (n.sig !== sig) { n.sig = sig; n.ping.textContent = ping || '--'; n.on.textContent = online; n.dot.style.background = q[1]; n.ping.style.color = q[1];
+        n.box.title = `Сеть: ${q[0].replace('📶 ', '')} · пинг ${ping || '--'} мс · в сети ${online}\nЗум x${zoom.toFixed(2)} · X ${Math.round(player.x)} · Y ${Math.round(player.y)}`; }
+      this.igEl.classList.toggle('tgt', !!this.currentTarget); this.igSize(); this.igTgtIdle(); this.igZoomDef();
+    }
     this.txt('ghud-coords', mode === 'run' && run ? `${run.me.x.toFixed(0)} м | ${run.me.z.toFixed(0)} м` : `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`);
 
     if (mode === 'run' && run) this.minimap.updateRun(run);

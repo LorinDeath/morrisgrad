@@ -1,0 +1,652 @@
+/* ════════════════════════════════════════════════════════════════════════════════════════════════════════
+   ИНТЕРФЕЙС «ПРОКЛЯТОЕ + ОЧЕРНЁННОЕ» (реворк UI). Слой поверх core3d.css — старые стили НЕ удалены:
+   - тема активна только при html.mc-ui (uiSkin.js: админка «🎨 Интерфейс» × выбор игрока «Интерфейс: новый/старый» × не забег);
+   - без класса — прежний вид целиком (старая тема работает как раньше, новые элементы — рамка героя, аватары — скрыты).
+   Пиксель-арт кита Художника (/mc-ui, 1 px арта = 2 CSS px, image-rendering: pixelated, только целые размеры).
+   Металл рамок тонируется под локацию (uiSkin.js → --ui-<кусок> = dataURL); чёрное и фиолетовое не тонируются.
+   Цвета состояний (Сияние, редкость, проклятие, зачарование, очернение) — смысловые, остаются как были.
+   Анимации — только transform/opacity/background-position со steps(), без filter/blur в кадре.
+   ════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+@font-face { font-family: 'Shket'; src: url('/fonts/Shket-Regular.otf') format('opentype'); font-display: swap; }
+:root {
+  /* — палитра кита — */
+  --ui-outline: #1a1626; --ui-black: #000; --ui-face0: #0b0a12; --ui-face1: #120e1c; --ui-face2: #1b1529;
+  --ui-v0: #2e1640; --ui-v1: #7a2e8a; --ui-v2: #c46ad8; --ui-v3: #e2b6ee;
+  --ui-dis0: #2b2438; --ui-dis1: #3f3550; --ui-dis2: #5a4d6e;
+  --ui-metal: #8a6aa6; --ui-metal-hi: #b29cc4; --ui-metal-lo: #5b4776; /* uiSkin.js перекрашивает под биом */
+  /* — текст — */
+  --ui-text: #dcd3e6; --ui-text2: #a99cb8; --ui-text3: #7d7090; --ui-head: #e2b6ee; --ui-accent: #c46ad8;
+  --ui-gold: #e9c98a; --ui-gold2: #c9a25a; /* редкие «тёплые» акценты: ключи, задания, награда */
+  --ui-good: #8fd6a0; --ui-bad: #f08a8a; --ui-warn: #f0c070;
+  --ui-shadow: 0 1px 0 #000, 1px 0 0 #000; /* тень текста 1 CSS px */
+  /* — шрифты и шкала — */
+  --ui-font: ui-monospace, 'Cascadia Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+  --ui-font-head: 'Shket', var(--ui-font);
+  --ui-fs-xs: 10px; --ui-fs-sm: 11px; --ui-fs-md: 12px; --ui-fs-lg: 14px; --ui-fs-xl: 18px;
+  --ui-px: 2px; /* 1 px арта */
+  --ui-s1: 2px; --ui-s2: 4px; --ui-s3: 6px; --ui-s4: 8px; --ui-s5: 12px; --ui-s6: 16px;
+  /* — куски кита (полноцветные по умолчанию; uiSkin.js подменяет тонированными) — */
+  --ui-frame-window: url(/mc-ui/frame_window.png); --ui-frame-panel: url(/mc-ui/frame_panel.png);
+  --ui-frame-small: url(/mc-ui/frame_small.png); --ui-frame-tooltip: url(/mc-ui/frame_tooltip.png);
+  --ui-corner-tl: url(/mc-ui/corner_tl.png); --ui-corner-tr: url(/mc-ui/corner_tr.png); --ui-corner-bl: url(/mc-ui/corner_bl.png); --ui-corner-br: url(/mc-ui/corner_br.png);
+  --ui-divider-h: url(/mc-ui/divider_h.png); --ui-divider-v: url(/mc-ui/divider_v.png); --ui-divider-ornament: url(/mc-ui/divider_ornament.png);
+  --ui-slot-normal-normal: url(/mc-ui/slot_normal_normal.png); --ui-slot-normal-hover: url(/mc-ui/slot_normal_hover.png); --ui-slot-normal-selected: url(/mc-ui/slot_normal_selected.png);
+  --ui-button-normal: url(/mc-ui/button_normal.png); --ui-button-hover: url(/mc-ui/button_hover.png); --ui-button-pressed: url(/mc-ui/button_pressed.png);
+  --ui-bar-frame: url(/mc-ui/bar_frame.png);
+  --ui-bg: url(/mc-ui/bg_dark.png); --ui-bg-cracks: url(/mc-ui/bg_cracks.png); --ui-bg-haze: url(/mc-ui/bg_haze.png);
+}
+/* старая тема: новые элементы не показываем — прежний вид без изменений */
+html:not(.mc-ui) .mc-pframe, html:not(.mc-ui) .mc-av, html:not(.mc-ui) .hud-who > .mc-av { display: none !important; }
+
+/* ─────────────────────────── 0. общие куски (миксины через группы селекторов) ─────────────────────────── */
+/* большое окно: frame_window (кольцо 7 px арта = 14 CSS; рисунок 16 → 32 CSS заходит на поля), фон — тёмный тайл */
+html.mc-ui :is(.mc-book, .mc-soc, .mc-upg-box, .mc3d-results, .mc-lobby, .mc-altar, .mc-qall-win, .mc-modal-card) {
+  border-style: solid !important; border-width: 14px !important; border-radius: 0 !important;
+  border-image: var(--ui-frame-window) 16 fill / 32px stretch !important;
+  background: var(--ui-bg) 0 0 / 128px 128px repeat, var(--ui-face1) !important; background-clip: padding-box !important;
+  image-rendering: pixelated; color: var(--ui-text); font-family: var(--ui-font);
+  box-shadow: 0 0 0 2px #000, 0 12px 40px rgba(0, 0, 0, .75) !important;
+}
+/* панель внутри окна: frame_panel (кольцо 5 → 10 CSS) */
+html.mc-ui :is(.mc-altar-panel, .mc-upg .say, .mc-reward, .mc-lock, .mc-soc-scroll) {
+  border-style: solid !important; border-width: 8px !important; border-radius: 0 !important;
+  border-image: var(--ui-frame-panel) 8 / 16px stretch !important; background: rgba(11, 10, 18, .72) !important; background-clip: padding-box !important; image-rendering: pixelated;
+}
+/* малая рамка (центр залит): frame_small (кольцо 3 → 6 CSS) */
+html.mc-ui :is(.mc-tracker .q, .mc-tracker .arrow, .mc-party, .mc-pframe, .mc-bookbtn, .mc-ratebtn, .mc-quest, .mc-beast, .mc-recipe, .mc-abil, .mc-tal,
+  .mc-soc-pl, .mc-lobby-row, .mc-wallet, .mc-aslot, .mc3d-choice, .mc3d-class, .mc3d-toast, .mc3d-prompt, .mc-chest-chan, .mc-duel-hud .bars, .mc-tchip,
+  .mc-soul, .mc-insp-ab, .mc-heroes span, .mc-duel-res .nums div, .mc-qtrack, .mc-tracker .tut) {
+  border-style: solid !important; border-width: 6px !important; border-radius: 0 !important;
+  border-image: var(--ui-frame-small) 5 fill / 10px stretch !important; background: none !important; image-rendering: pixelated;
+}
+/* подсказки: frame_tooltip (кольцо 5 → 10 CSS, центр почти чёрный) */
+html.mc-ui :is(.mc-cmp, .mc-as .tip, .mc-insp-slot .tip, .mc-insp-ab .tip, .mc-tn .tip, .mc-pmenu, .mc-altar-tip, .mc-worldmap .wm-pop, .mc-worldmap .wm-tip, .mc3d-bubble, .mc-tip, .mc-tt-tip) {
+  border-style: solid !important; border-width: 8px !important; border-radius: 0 !important;
+  border-image: var(--ui-frame-tooltip) 7 fill / 14px stretch !important; background: none !important; image-rendering: pixelated;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, .55), 0 0 18px rgba(0, 0, 0, .6) !important; color: var(--ui-text);
+}
+/* диалоговые карточки (окно поменьше): frame_panel + застёжки */
+html.mc-ui :is(.mc-dialog, .mc-ask-box, .mc-party-ask, .mc-duel-card, .mc-loot) {
+  border-style: solid !important; border-width: 10px !important; border-radius: 0 !important;
+  border-image: var(--ui-frame-panel) 8 fill / 16px stretch !important;
+  background: var(--ui-bg) 0 0 / 128px 128px repeat, var(--ui-face1) !important; background-clip: padding-box !important; image-rendering: pixelated;
+  box-shadow: 0 0 0 2px #000, 0 10px 30px rgba(0, 0, 0, .7) !important; color: var(--ui-text);
+}
+/* застёжки-ромбы на углах больших окон (одним псевдоэлементом, 4 фона) */
+html.mc-ui.mc-ui-orn :is(.mc-book, .mc-soc.mc-charsheet, .mc-upg-box, .mc-dialog.vn-box)::after {
+  content: ''; position: absolute; inset: -24px; pointer-events: none; z-index: 3; image-rendering: pixelated;
+  background: var(--ui-corner-tl) 0 0 / 40px 40px no-repeat, var(--ui-corner-tr) 100% 0 / 40px 40px no-repeat,
+              var(--ui-corner-bl) 0 100% / 40px 40px no-repeat, var(--ui-corner-br) 100% 100% / 40px 40px no-repeat;
+}
+html.mc-ui :is(.mc-soc, .mc-upg-box, .mc-dialog:not(.vn-box)) { position: relative; } /* .mc-book и VN уже absolute */
+/* кнопки: button_* 9-slice (рамка 5/6 → 10/12 CSS), высота кратна 2 px */
+html.mc-ui :is(.mc-btn, .mc3d-btn, .mc-soc-tabs button, .mc-book-tabs button, .mc-pmenu button, .mc-loot .all, .mc-tchip .x, .mc-soc-x, .mc-soc-back, .mc-book-x,
+  .mc-modal-btn, .mc-party .pm .x, .mm-btn, .hud-duel-btn, .mc-worldmap .wm-top button, .mc-worldmap .wm-pop button) {
+  border-style: solid !important; border-width: 6px 8px !important; border-radius: 0 !important;
+  border-image: var(--ui-button-normal) 5 6 fill / 10px 12px stretch !important; background: none !important;
+  color: var(--ui-text2) !important; font-family: var(--ui-font); image-rendering: pixelated; text-shadow: var(--ui-shadow);
+  min-height: 24px; line-height: 12px; padding: 0 4px; box-shadow: none !important; cursor: pointer;
+}
+html.mc-ui :is(.mc-btn, .mc3d-btn, .mc-soc-tabs button, .mc-book-tabs button, .mc-pmenu button, .mc-loot .all, .mc-tchip .x, .mc-soc-x, .mc-soc-back, .mc-book-x, .mc-modal-btn, .mm-btn, .hud-duel-btn, .mc-worldmap button):hover:not(:disabled) {
+  border-image-source: var(--ui-button-hover) !important; color: var(--ui-v3) !important;
+}
+html.mc-ui :is(.mc-btn, .mc3d-btn, .mc-soc-tabs button, .mc-book-tabs button, .mc-pmenu button, .mc-loot .all, .mc-soc-x, .mc-book-x, .mc-modal-btn, .mm-btn, .hud-duel-btn, .mc-worldmap button):active:not(:disabled),
+html.mc-ui :is(.mc-btn.on, .mc-btn.gold, .mc3d-btn.gold, .mc-soc-tabs button.on, .mc-book-tabs button.on, .mm-btn.mm-art-on, .mc-worldmap button.wm-bm.on) {
+  border-image-source: var(--ui-button-pressed) !important; color: var(--ui-text) !important; padding-top: 2px;
+}
+html.mc-ui :is(.mc-btn.gold, .mc3d-btn.gold, .mc-soc-tabs button.on, .mc-book-tabs button.on) { color: var(--ui-head) !important; }
+html.mc-ui :is(.mc-btn, .mc3d-btn, .mc-modal-btn, .mc-pmenu button):disabled { border-image-source: url(/mc-ui/button_disabled.png) !important; color: var(--ui-dis2) !important; opacity: 1 !important; cursor: not-allowed; }
+html.mc-ui :is(.mc-btn.danger) { color: var(--ui-bad) !important; }
+html.mc-ui :is(.mc3d-btn) { min-height: 32px; padding: 0 10px; font-size: var(--ui-fs-md); font-weight: bold; }
+html.mc-ui :is(.mc3d-btn.svc) { color: var(--ui-gold) !important; }
+html.mc-ui :is(.mc-btn, .mc3d-btn, button):focus-visible { outline: 2px solid var(--ui-v2); outline-offset: 2px; }
+/* разделитель-заголовок: текст + divider_h с ромбом (заголовки секций окон) */
+html.mc-ui :is(.mc-insp-h, .mc-book-body h3, .mc-cs-tal h3, .mc-altar-panel h3, .hud-header) {
+  position: relative; color: var(--ui-head) !important; font-family: var(--ui-font); font-weight: bold; font-size: var(--ui-fs-sm) !important;
+  letter-spacing: 2px; text-transform: uppercase; text-shadow: var(--ui-shadow); border: 0 !important; padding: 0 0 12px !important; margin: 14px 0 6px !important;
+}
+html.mc-ui :is(.mc-insp-h, .mc-book-body h3, .mc-cs-tal h3, .mc-altar-panel h3, .hud-header)::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 10px; image-rendering: pixelated;
+  border-style: solid; border-width: 0 16px; border-image: var(--ui-divider-h) 0 8 fill / 0 16px stretch;
+}
+html.mc-ui :is(.mc-insp-h, .mc-book-body h3):first-child { margin-top: 2px !important; }
+
+/* ─────────────────────────── 1. HUD: панель навыков, быстрые кнопки, трекер, отряд, рамка героя ─────────────────────────── */
+/* ячейки навыков: слот кита 9-slice + внутреннее кольцо цвета Сияния (2 px), иконка 48 px (24 арта × 2) — без дробного масштаба */
+html.mc-ui .mc-as {
+  border-width: 0 !important; border-style: solid !important; border-radius: 0 !important; background: none !important; box-shadow: 0 2px 0 rgba(0,0,0,.6) !important;
+  border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; image-rendering: pixelated; width: 60px; height: 60px;
+}
+html.mc-ui .mc-as::before { content: ''; position: absolute; inset: 4px; border: 2px solid var(--rc, var(--ui-dis1)); pointer-events: none; z-index: 0; opacity: .9; }
+html.mc-ui .mc-as > .mc-sic, html.mc-ui .mc-as > .mc-as-emo { position: relative; z-index: 1; }
+html.mc-ui .mc-as.atk, html.mc-ui .mc-as.dash { width: 48px; height: 48px; }
+html.mc-ui .mc-as:hover { border-image-source: var(--ui-slot-normal-hover); }
+html.mc-ui .mc-as .sw { inset: 6px; border-radius: 0; z-index: 2; }
+html.mc-ui .mc-as .cd { z-index: 3; color: var(--ui-text); font-family: var(--ui-font); }
+html.mc-ui .mc-as .key { z-index: 3; left: 6px; top: 4px; color: var(--ui-v3); font-family: var(--ui-font); }
+html.mc-ui .mc-as.locked, html.mc-ui .mc-as.empty { border-image-source: url(/mc-ui/button_disabled.png); border-image-slice: 5 6 fill; border-image-width: 10px 12px; }
+html.mc-ui .mc-as.locked::before, html.mc-ui .mc-as.empty::before { border: 2px dashed var(--ui-dis1); }
+html.mc-ui .mc-as .tip { bottom: 70px; font-family: var(--ui-font); }
+html.mc-ui .mc-abar-main { gap: 4px; align-items: flex-end; }
+/* быстрые кнопки (Книга, Персонаж, Рейтинг, Онлайн, Друзья, Настройки, Портал): слот кита */
+html.mc-ui :is(.mc-bookbtn, .mc-ratebtn) { border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch !important; border-width: 0 !important; width: 44px; height: 44px; }
+html.mc-ui :is(.mc-bookbtn, .mc-ratebtn):hover { border-image-source: var(--ui-slot-normal-hover) !important; }
+html.mc-ui :is(.mc-bookbtn, .mc-ratebtn):active { border-image-source: var(--ui-slot-normal-selected) !important; }
+/* иконка-глиф строго по центру внутренней области рамки: без отступов кнопки и межстрочного «воздуха» шрифта,
+   эмодзи-шрифт явно (у Arial/системного шрифта разные метрики — иконка уезжала вверх-влево) */
+html.mc-ui :is(.mc-bookbtn, .mc-ratebtn) { padding: 0 !important; line-height: 1 !important; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important; text-align: center; }
+html.mc-ui .mc-onlinebtn { width: 44px !important; min-width: 44px; padding-bottom: 3px !important; } /* у глифа 👥 рисунок ниже середины em-квадрата */
+html.mc-ui .mc-touch .mc3d-tbtn[data-act="people"] { padding-bottom: 3px; box-sizing: border-box; }
+html.mc-ui .mc-onlinebtn b { position: absolute; left: 0; right: 0; bottom: -7px; margin: 0; text-align: center; font: 700 11px/1 var(--ui-font); color: #86efac; text-shadow: 0 0 2px #000, 0 1px 0 #000; pointer-events: none; }
+html.mc-ui .mc-bookbtn.isnew { animation: none; border-image-source: var(--ui-slot-normal-selected) !important; }
+html.mc-ui .mc-cnt { border-radius: 0; background: var(--ui-v1); color: var(--ui-text); box-shadow: 0 0 0 2px #000; font-family: var(--ui-font); }
+/* трекер заданий */
+html.mc-ui .mc-tracker { gap: 4px; font-family: var(--ui-font); color: var(--ui-text); }
+html.mc-ui .mc-tracker .q { padding: 2px 4px !important; position: relative; }
+html.mc-ui .mc-tracker .q::before { content: ''; position: absolute; left: -2px; top: 2px; bottom: 2px; width: 2px; background: var(--ui-gold2); } /* «следим» — тёплая метка */
+html.mc-ui .mc-tracker .q .t { color: var(--ui-gold); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-tracker .q ul { color: var(--ui-text2); padding-left: 12px; }
+html.mc-ui .mc-tracker .q li::marker { color: var(--ui-v2); }
+html.mc-ui .mc-tracker .q li b { color: var(--ui-text); }
+html.mc-ui .mc-tracker .q .hunt.sep { border-top: 2px solid var(--ui-outline); }
+html.mc-ui .mc-tracker .arrow { padding: 0 4px !important; color: var(--ui-text2); }
+html.mc-ui .mc-tracker .arrow i, html.mc-ui .mc-tracker .arrow .d { color: var(--ui-v3); }
+html.mc-ui .mc-tracker .tut { padding: 2px 4px !important; color: var(--ui-v3); border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+/* отряд */
+html.mc-ui .mc-party { padding: 0 2px !important; font-family: var(--ui-font); color: var(--ui-text); }
+html.mc-ui .mc-party .hd { color: var(--ui-head); }
+html.mc-ui .mc-party .hp { height: 8px; border-radius: 0; background: #000; box-shadow: 0 0 0 2px var(--ui-outline); }
+/* рамка героя (лево-верх) */
+.mc-pframe { position: absolute; left: 10px; top: 10px; z-index: 30; display: flex; align-items: center; gap: 8px; padding: 2px 8px 2px 2px; pointer-events: auto; cursor: pointer; font-family: var(--ui-font); color: var(--ui-text); min-width: 236px; }
+.mc-pframe .pf-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mc-pframe .pf-nm { font-weight: bold; font-size: var(--ui-fs-md); color: var(--ui-head); text-shadow: var(--ui-shadow); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-pframe .pf-cl { font-size: var(--ui-fs-xs); color: var(--ui-text2); }
+.mc-pframe.noav { padding-left: 8px; }
+.mc-pframe.noav .mc-av { display: none; }
+.mc-pframe:hover { border-image-source: var(--ui-slot-normal-hover) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+.mc-touch .mc-pframe { display: none !important; } /* телефон: место занято джойстиком/кнопками; ОЗ — над героем */
+/* полоска кита: bar_frame 9-slice (3/7 → 6/14 CSS), заливка — тайл 16×6 → 32×12 */
+.mc-uibar { position: relative; height: 24px; box-sizing: border-box; border-style: solid; border-width: 6px 14px; border-image: var(--ui-bar-frame) 3 7 / 6px 14px stretch;
+  background: url(/mc-ui/bar_fill_track.png) 0 6px / 32px 12px repeat-x; background-origin: border-box; background-clip: border-box; image-rendering: pixelated; }
+.mc-uibar > i { display: block; height: 12px; margin-left: -8px; max-width: calc(100% + 16px); background: url(/mc-ui/bar_fill_hp.png) 0 0 / 32px 12px repeat-x; image-rendering: pixelated; transition: width .2s steps(6); }
+.mc-uibar.mana > i { background-image: url(/mc-ui/bar_fill_mana.png); }
+.mc-uibar > span { position: absolute; inset: -6px 0; display: flex; align-items: center; justify-content: center; font-size: var(--ui-fs-xs); font-weight: bold; color: var(--ui-text); text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; pointer-events: none; }
+.mc-pframe.low .mc-uibar > i::after { content: ''; display: block; height: 100%; background: url(/mc-ui/bar_glitch_strip.png) 0 0 / 128px 12px; animation: uiStrip .5s steps(4) infinite; }
+@keyframes uiStrip { to { background-position: -128px 0; } }
+/* аватары 64/128 (1:1) в слоте кита; очернённый — фиолетовый отсвет (без filter) */
+.mc-av { position: relative; display: inline-block; flex: none; image-rendering: pixelated; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; border-style: solid; border-width: 0; box-sizing: content-box; }
+.mc-av.s64 { width: 64px; height: 64px; padding: 4px; }
+.mc-av.s128 { width: 128px; height: 128px; padding: 6px; }
+.mc-av > i { position: absolute; inset: 4px; background: var(--av) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.mc-av.s128 > i { inset: 6px; image-rendering: auto; } /* 128 — родной размер; auto = тот же результат без «зубцов» на HiDPI */
+.mc-av.cz { border-image-source: url(/mc-ui/slot_blackened_normal.png); }
+.mc-av.cz::after { content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: plus-lighter; background: url(/mc-ui/slot_blackened_normal_glow.png) 0 0 / 100% 100%; image-rendering: pixelated; }
+
+/* ─────────────────────────── 2. Окно «Мой персонаж» (C) и просмотр игрока ─────────────────────────── */
+html.mc-ui .mc-soc { padding: 4px 8px !important; gap: 6px; font-size: var(--ui-fs-md); }
+html.mc-ui .mc-soc-head h2 { font-family: var(--ui-font-head); font-weight: normal; font-size: 22px; letter-spacing: 2px; color: var(--ui-head); text-shadow: 0 2px 0 #000, 0 0 12px rgba(196, 106, 216, .35); margin: 0; }
+html.mc-ui .mc-charsheet .mc-soc-head h2 small { border: 0; border-image: var(--ui-frame-small) 5 fill / 10px stretch; border-style: solid; border-width: 4px; padding: 0 4px; color: var(--ui-text2); font-family: var(--ui-font); font-size: var(--ui-fs-xs); vertical-align: 4px; }
+html.mc-ui :is(.mc-soc-x, .mc-soc-back) { min-width: 36px; height: 32px; font-size: 14px; }
+html.mc-ui .mc-cs-tal { border-left: 0 !important; padding-left: 18px !important; position: relative; }
+html.mc-ui .mc-cs-tal::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 10px; border-style: solid; border-width: 16px 0; border-image: var(--ui-divider-v) 8 0 fill / 16px 0 stretch; image-rendering: pixelated; }
+html.mc-ui .mc-insp-top { align-items: flex-start; }
+html.mc-ui .mc-insp-who { gap: 12px; align-items: flex-end; }
+html.mc-ui .mc-insp-who .mc-av.small { display: none; }
+@container (max-width: 520px) { html.mc-ui .mc-insp-who .mc-av.big { display: none; } html.mc-ui .mc-insp-who .mc-av.small { display: inline-block; } }
+html.mc-ui .mc-insp:not(.mc-charsheet) .mc-insp-who .mc-av.big { display: none; } /* чужой профиль в узком окне — 64 */
+html.mc-ui .mc-insp:not(.mc-charsheet) .mc-insp-who .mc-av.small { display: inline-block; }
+html.mc-ui .mc-insp-pv { background: radial-gradient(ellipse at 50% 88%, #241a35 0%, #0b0a12 62%, transparent 76%); border-radius: 0; }
+html.mc-ui .mc-insp-name { font-family: var(--ui-font); font-size: var(--ui-fs-xl); color: var(--ui-head); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-insp-cls { color: var(--ui-text2); } html.mc-ui .mc-insp-cls b { color: var(--ui-text); }
+html.mc-ui .mc-insp-rec { color: var(--ui-text3); } html.mc-ui .mc-insp-rec b { color: var(--ui-bad); } html.mc-ui .mc-insp-rec small { color: var(--ui-text2); }
+html.mc-ui .mc-insp-rec.duel b { color: var(--ui-gold); }
+/* слоты снаряжения: карточка — малая рамка, «колодец» иконки — слот кита (обычный / проклятый / очернённый), лента цвета редкости */
+html.mc-ui :is(.mc-insp-slot, .mc-gslot, .mc-altar-slot) {
+  border-style: solid !important; border-width: 6px !important; border-radius: 0 !important;
+  border-image: var(--ui-frame-small) 5 fill / 10px stretch !important; background: none !important; image-rendering: pixelated;
+  color: var(--ui-text2) !important; font-family: var(--ui-font); box-shadow: none !important; padding: 2px 2px 6px !important; position: relative;
+}
+html.mc-ui :is(.mc-insp-slot, .mc-gslot, .mc-altar-slot):hover { border-image-source: var(--ui-slot-normal-hover) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui :is(.mc-insp-slot.sel, .mc-gslot.on, .mc-altar-slot.on) { border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui :is(.mc-insp-slot.empty, .mc-gslot:not(.filled), .mc-altar-slot:not(.filled)) { opacity: .7; }
+/* лента редкости/проклятия/яруса: наследует цвет рамки (--rc у окна C, border-color у книги) — смысл цвета сохранён */
+html.mc-ui :is(.mc-insp-slot:not(.empty), .mc-gslot.filled)::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 0; height: 2px; background: var(--rc, currentColor); pointer-events: none; }
+html.mc-ui .mc-gslot.filled::after { background: none; border-top: 2px solid; border-color: inherit; }
+html.mc-ui :is(.mc-insp-slot .ic, .mc-gslot > span) {
+  width: 48px !important; height: 48px !important; display: flex !important; align-items: center; justify-content: center; margin: 0 auto 2px;
+  border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; border-style: solid; border-width: 0; image-rendering: pixelated; font-size: 20px;
+}
+html.mc-ui :is(.mc-insp-slot.cursed .ic, .mc-gslot.cursed > span) { border-image-source: url(/mc-ui/slot_cursed_normal.png); }
+html.mc-ui :is(.mc-insp-slot.cursed:hover .ic, .mc-gslot.cursed:hover > span) { border-image-source: url(/mc-ui/slot_cursed_hover.png); }
+html.mc-ui :is(.mc-insp-slot.cursed, .mc-gslot.cursed) { color: #d8b4fe !important; }
+html.mc-ui :is(.mc-insp-slot .ic:has(.mc-blk), .mc-gslot > span:has(.mc-blk)) { border-image-source: url(/mc-ui/slot_blackened_normal.png); }
+html.mc-ui :is(.mc-insp-slot:hover .ic:has(.mc-blk), .mc-gslot:hover > span:has(.mc-blk)) { border-image-source: url(/mc-ui/slot_blackened_hover.png); }
+/* очернённая вещь: иконка-глитч кита в правом верхнем углу колодца (8 кадров, 10 fps; глитч 0 — неподвижна) */
+html.mc-ui :is(.mc-insp-slot .ic, .mc-gslot > span):has(.mc-blk)::before { content: ''; position: absolute; right: -6px; top: -6px; width: 16px; height: 16px; z-index: 4; pointer-events: none;
+  background: url(/mc-ui/glitch_icon_strip.png) 0 0 / 128px 16px; image-rendering: pixelated; animation: uiGlitchIcon .8s steps(8) infinite; }
+html[data-ui-glitch="0"] :is(.mc-insp-slot .ic, .mc-gslot > span)::before { animation: none; }
+@keyframes uiGlitchIcon { to { background-position: -128px 0; } }
+html.mc-ui :is(.mc-insp-slot, .mc-gslot) > span, html.mc-ui .mc-insp-slot > span { font-size: var(--ui-fs-xs); }
+html.mc-ui .mc-gslot b { font-size: var(--ui-fs-xs); }
+html.mc-ui .mc-gslot small { color: var(--ui-text3); }
+/* зачарованные: свои рамки/самоцветы/переливы остаются — не перекрываем border-image */
+html.mc-ui :is(.mc-insp-slot.ench, .mc-gslot.ench) { border-image: none !important; border-width: 2px !important; padding: 6px 6px 10px !important; background: var(--ui-face1) !important; }
+html.mc-ui :is(.mc-gslot.ench.glitch, .mc-insp-slot.ench.glitch) { background: #050505 !important; }
+/* параметры */
+html.mc-ui .mc-insp-stats { gap: 0 16px; }
+html.mc-ui .mc-insp-st { border-bottom: 2px solid var(--ui-face2); padding: 3px 0; color: var(--ui-text2); }
+html.mc-ui .mc-insp-st b { color: var(--ui-text); font-weight: bold; } html.mc-ui .mc-insp-st small { color: var(--ui-text3); }
+html.mc-ui .mc-insp-st.mc-insp-blk, html.mc-ui .mc-insp-st:has(b[style*="c4b5fd"]) { background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .55) 60%, #000); }
+html.mc-ui .mc-insp-ab { padding: 0 4px !important; color: var(--ui-text); }
+html.mc-ui .mc-insp-ab::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--rc); }
+html.mc-ui .mc-insp-ab small { color: var(--ui-text3); }
+html.mc-ui .mc-insp-slot .tip, html.mc-ui .mc-insp-ab .tip { font-family: var(--ui-font); padding: 2px 4px !important; }
+html.mc-ui .mc-insp-slot .tip.cursed { border-image-source: var(--ui-frame-tooltip) !important; box-shadow: 0 0 0 2px var(--ui-v1), 0 0 14px rgba(196, 106, 216, .35) !important; }
+html.mc-ui .mc-insp-duel { border-image: none !important; }
+/* дерево талантов — узлы в цветах темы (формы и смысл — прежние) */
+html.mc-ui .mc-tree line { stroke: var(--ui-dis1); } html.mc-ui .mc-tree line.ready { stroke: var(--ui-metal); } html.mc-ui .mc-tree line.on { stroke: var(--ui-gold); filter: none; }
+html.mc-ui .mc-tn { border-color: var(--ui-dis1); background: radial-gradient(circle at 50% 35%, #1b1529, #0b0a12 80%); box-shadow: 0 0 0 2px #000; }
+html.mc-ui .mc-tn .nm { color: var(--ui-text3); font-family: var(--ui-font); }
+html.mc-ui .mc-tn em { background: #000; border-color: var(--ui-dis1); color: var(--ui-text2); border-radius: 0; }
+html.mc-ui .mc-tn.avail { border-color: var(--ui-v3); box-shadow: 0 0 0 2px #000, 0 0 10px rgba(226, 182, 238, .55); }
+html.mc-ui .mc-tn.has, html.mc-ui .mc-tn.max { border-color: var(--ui-gold); box-shadow: 0 0 0 2px #000, 0 0 8px rgba(233, 201, 138, .45); }
+
+/* ─────────────────────────── 3. Книга (Задания/Герой/Навыки/Снаряжение/Библиотека/Бестиарий/Кодекс) ─────────────────────────── */
+html.mc-ui .mc-book { inset: 4% 6%; inset: round(4%, 2px) round(6%, 2px); font-family: var(--ui-font); }
+html.mc-ui .mc-book-head { border-bottom: 0; padding: 2px 2px 14px; position: relative; gap: 4px; }
+html.mc-ui .mc-book-head::after { content: ''; position: absolute; left: 0; right: 0; bottom: 2px; height: 10px; border-style: solid; border-width: 0 16px; border-image: var(--ui-divider-h) 0 8 fill / 0 16px stretch; image-rendering: pixelated;
+  background: var(--ui-divider-ornament) 50% 50% / 80px 22px no-repeat; }
+html.mc-ui .mc-book-tabs { gap: 2px; flex-wrap: wrap; overflow: visible; }
+html.mc-ui .mc-book-tabs button { font-size: var(--ui-fs-sm); padding: 0 6px; min-height: 28px; }
+html.mc-ui .mc-book-x { width: 36px; height: 30px; min-height: 30px; color: var(--ui-text2) !important; }
+html.mc-ui .mc-book-body { padding: 4px 8px 8px; color: var(--ui-text); }
+html.mc-ui .mc-dim { color: var(--ui-text3); }
+html.mc-ui .mc-gear { gap: 12px; }
+html.mc-ui .mc-gslots { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 4px; }
+html.mc-ui .mc-bag { gap: 4px; }
+html.mc-ui .mc-item { border-style: solid !important; border-width: 6px !important; border-radius: 0 !important; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch !important; background: none !important; image-rendering: pixelated; padding: 2px !important; }
+html.mc-ui .mc-item:hover { border-image-source: var(--ui-slot-normal-hover) !important; }
+html.mc-ui .mc-item.on { outline: 0; border-image-source: var(--ui-slot-normal-selected) !important; }
+html.mc-ui .mc-item.eq { box-shadow: inset 0 0 0 2px rgba(233, 201, 138, .35) !important; }
+html.mc-ui .mc-item.cursed { border-image-source: url(/mc-ui/slot_cursed_normal.png) !important; }
+html.mc-ui .mc-item.cursed:hover { border-image-source: url(/mc-ui/slot_cursed_hover.png) !important; }
+html.mc-ui .mc-item:has(.mc-blk) { border-image-source: url(/mc-ui/slot_blackened_normal.png) !important; }
+html.mc-ui .mc-item.ench { border-image: none !important; border-width: 2px !important; background: var(--ui-face1) !important; }
+/* карточка предмета справа (detail) и всплывающая подсказка сравнения */
+html.mc-ui .mc-tip { padding: 4px 6px !important; }
+html.mc-ui .mc-tip.cursed { box-shadow: 0 0 0 2px var(--ui-v1), 0 0 16px rgba(196, 106, 216, .3) !important; }
+html.mc-ui .mc-tip.ench { border-image: none !important; border-width: 2px !important; background: var(--ui-face0) !important; }
+html.mc-ui .mc-tip .nm, html.mc-ui .mc-cmp .nm { text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-cmp { padding: 2px 4px !important; font-family: var(--ui-font); }
+html.mc-ui .mc-cmp .rr, html.mc-ui .mc-cmp .row small, html.mc-ui .mc-cmp .eqv { color: var(--ui-text3); }
+html.mc-ui .mc-cmp .cmpw { border-top: 2px solid var(--ui-face2); color: var(--ui-text2); }
+html.mc-ui .mc-cmp .up { color: var(--ui-good); } html.mc-ui .mc-cmp .dn { color: var(--ui-bad); }
+html.mc-ui .mc-cmp .hint { color: var(--ui-text3); }
+/* прочие карточки книги */
+html.mc-ui :is(.mc-quest, .mc-beast, .mc-recipe, .mc-abil, .mc-soul) { padding: 2px 6px !important; margin: 4px 0; }
+html.mc-ui .mc-quest .t, html.mc-ui .mc-beast .h, html.mc-ui .mc-tal b { color: var(--ui-gold); }
+html.mc-ui .mc-quest.done { border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui .mc-quest.avail { opacity: .92; }
+html.mc-ui :is(.mc-quest p, .mc-beast summary small, .mc-recipe small, .mc-tal small) { color: var(--ui-text3); }
+html.mc-ui .mc-soul.has { border-image-source: url(/mc-ui/slot_cursed_normal.png) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui .mc-lib { border-radius: 0; border: 0 solid transparent; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; image-rendering: pixelated; background: none; }
+html.mc-ui .mc-lib.own { border-image-source: var(--ui-slot-normal-hover); }
+html.mc-ui .mc-lib.on { outline: 0; border-image-source: var(--ui-slot-normal-selected); }
+html.mc-ui .mc-lib.lock { border-image-source: url(/mc-ui/button_disabled.png); border-image-slice: 5 6 fill; border-image-width: 10px 12px; }
+html.mc-ui .mc-xp, html.mc-ui .mc-upg .bar { border-radius: 0; background: #000; border: 0; box-shadow: 0 0 0 2px var(--ui-outline), 0 0 0 4px var(--ui-metal-lo); }
+html.mc-ui .mc-xp i { background: linear-gradient(180deg, var(--ui-v2), var(--ui-v1)); }
+html.mc-ui .mc-stats span { color: var(--ui-text2); } html.mc-ui .mc-stats b { color: var(--ui-text); }
+html.mc-ui .mc-tal { padding: 2px 4px !important; color: var(--ui-text); }
+html.mc-ui .mc-tal.has { border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui .mc-wallet { padding: 0 6px !important; color: var(--ui-text2); }
+html.mc-ui .mc-heroes span { padding: 0 6px !important; } html.mc-ui .mc-heroes span.on { color: var(--ui-head); }
+html.mc-ui .mc-new { border-radius: 0; background: var(--ui-gold); color: #1a1626; box-shadow: 0 0 0 1px #000; }
+html.mc-ui .isnew:not(.mc-bookbtn) { animation: uiNew 1.6s steps(2) infinite; }
+@keyframes uiNew { 50% { box-shadow: 0 0 0 2px var(--ui-v2); } }
+html.mc-ui .mc-qtrack { padding: 0 6px !important; color: var(--ui-text2); }
+html.mc-ui .mc-qtrack.on { color: var(--ui-gold); border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+
+/* ─────────────────────────── 4. Диалоги NPC / новелла, вопросы, сундуки, добыча, улучшение, алтарь, меню ─────────────────────────── */
+html.mc-ui .mc-dialog { padding: 6px 12px !important; font-family: var(--ui-font); }
+html.mc-ui .mc-dialog .who { color: var(--ui-head); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-dialog .qt { color: var(--ui-gold); }
+html.mc-ui .mc-dialog p { color: var(--ui-text); }
+html.mc-ui .mc-dialog .who .npc-ic { border-radius: 0; border: 2px solid var(--ui-metal); }
+html.mc-ui .mc-vn .vn-goals li { border-bottom: 2px solid var(--ui-face2); }
+html.mc-ui .mc-vn .vn-goals li::before { color: var(--ui-v2); }
+html.mc-ui .mc-vn .vn-rew span { border-radius: 0; background: rgba(0, 0, 0, .45); border: 0; box-shadow: inset 0 0 0 2px var(--ui-v0); color: var(--ui-gold); }
+html.mc-ui .mc-vn .vn-step { color: var(--ui-head); }
+html.mc-ui :is(.mc-vn .vn-n, .mc-vn .vn-hint, .mc-vn .vn-hintq) { color: var(--ui-text3); }
+html.mc-ui .mc-ask-box h3 { color: var(--ui-head); }
+html.mc-ui .mc-loot { font-family: var(--ui-font); }
+html.mc-ui .mc-loot header { background: none; border-bottom: 0; padding: 2px 4px 8px; color: var(--ui-head); }
+html.mc-ui .mc-loot header .x { color: var(--ui-text2); }
+html.mc-ui .mc-loot .cell { border-radius: 0; border: 0 solid transparent; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; background: none; image-rendering: pixelated; }
+html.mc-ui .mc-loot .cell:hover { background: none; border-image-source: var(--ui-slot-normal-hover); }
+html.mc-ui .mc-loot .cell.cursed { box-shadow: none; border-image-source: url(/mc-ui/slot_cursed_normal.png); }
+html.mc-ui .mc-loot .cell.empty { border-image-source: url(/mc-ui/button_disabled.png); border-image-slice: 5 6 fill; border-image-width: 10px 12px; }
+html.mc-ui .mc-loot .cell::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: 4px; height: 2px; background: var(--rc, transparent); }
+html.mc-ui .mc-loot footer small { color: var(--ui-text3); }
+html.mc-ui .mc-upg { font-family: var(--ui-font); color: var(--ui-text); }
+html.mc-ui .mc-upg .hd { border-bottom: 0; color: var(--ui-head); }
+html.mc-ui .mc-upg .bar i { background: linear-gradient(180deg, var(--ui-gold), var(--ui-gold2)); }
+html.mc-ui .mc-upg .pt img { border-radius: 0; border: 0; box-shadow: 0 0 0 2px var(--ui-outline), 0 0 0 4px var(--ui-metal-lo); image-rendering: pixelated; }
+html.mc-ui .mc-upg-box.flash { box-shadow: 0 0 0 2px #000, 0 0 24px var(--ui-gold) !important; }
+html.mc-ui .mc-altar { padding: 6px 10px !important; }
+html.mc-ui .mc-altar-item { border-radius: 0; border: 0 solid transparent; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; background: none; image-rendering: pixelated; }
+html.mc-ui .mc-altar-item.filled:hover, html.mc-ui .mc-altar-item.on { outline: 0; border-image-source: var(--ui-slot-normal-selected); }
+html.mc-ui .mc-altar-kv span, html.mc-ui .mc-altar-tip .rr, html.mc-ui .mc-altar-tip .fx { color: var(--ui-text3); }
+html.mc-ui .mc-pmenu { padding: 2px 4px !important; font-family: var(--ui-font); }
+html.mc-ui .mc-pmenu button { display: block; width: 100%; text-align: left; margin-top: 4px; }
+html.mc-ui .mc-pmenu .t { color: var(--ui-head); }
+html.mc-ui .mc-tchip { padding: 0 4px !important; }
+html.mc-ui .mc-chest-chan { color: var(--ui-gold); }
+html.mc-ui .mc-chest-chan .trk { border-radius: 0; background: #000; border: 0; box-shadow: 0 0 0 2px var(--ui-outline); }
+html.mc-ui .mc-chest-chan .trk i { background: linear-gradient(180deg, var(--ui-gold), var(--ui-gold2)); }
+
+/* ─────────────────────────── 5. Экраны, тосты, подсказка «E», чат, выбор тела, лобби, дуэли, настройки ─────────────────────────── */
+html.mc-ui .mc3d-screen { background: radial-gradient(ellipse at 50% 45%, rgba(18, 14, 28, .72), rgba(0, 0, 0, .9)); font-family: var(--ui-font); }
+html.mc-ui .mc3d-screen.mc-social, html.mc-ui .mc3d-screen.mc-dialog-screen, html.mc-ui .mc3d-screen.mc-vn-screen { background: rgba(0, 0, 0, .55); }
+html.mc-ui .mc3d-screen h2 { font-family: var(--ui-font-head); font-weight: normal; color: var(--ui-head); text-shadow: 0 2px 0 #000, 0 0 14px rgba(196, 106, 216, .35); letter-spacing: 3px; }
+html.mc-ui .mc3d-screen p { color: var(--ui-text2); }
+html.mc-ui .mc3d-toast { padding: 0 8px !important; color: var(--ui-text); font-family: var(--ui-font); }
+html.mc-ui .mc3d-prompt { padding: 0 8px !important; color: var(--ui-gold); font-family: var(--ui-font); }
+html.mc-ui .mc3d-chat input { border-radius: 0; border: 0; box-shadow: 0 0 0 2px var(--ui-outline), 0 0 0 4px var(--ui-metal); background: var(--ui-face0); color: var(--ui-text); }
+html.mc-ui .mc3d-bubble { padding: 0 4px !important; font-family: var(--ui-font); }
+html.mc-ui .mc3d-choice { padding: 4px 6px !important; }
+html.mc-ui .mc3d-choice:hover, html.mc-ui .mc3d-choice:focus { border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; box-shadow: none !important; }
+html.mc-ui .mc3d-class { padding: 4px 6px !important; color: var(--ui-text); }
+html.mc-ui .mc3d-class:hover { border-image-source: var(--ui-slot-normal-hover) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui .mc3d-class.active { border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui .mc3d-class .sk { color: var(--ui-gold); } html.mc-ui .mc3d-class .ds { color: var(--ui-text3); }
+html.mc-ui .mc3d-results th { color: var(--ui-head); } html.mc-ui .mc3d-results td, html.mc-ui .mc3d-results th { border-bottom: 2px solid var(--ui-face2); }
+html.mc-ui .mc-lobby-row { padding: 0 6px !important; }
+html.mc-ui .mc-lobby-form { border-top: 2px solid var(--ui-face2); }
+html.mc-ui .mc-lobby-form input[type=text] { border-radius: 0; border: 0; box-shadow: 0 0 0 2px var(--ui-outline), 0 0 0 4px var(--ui-metal-lo); background: var(--ui-face0); }
+html.mc-ui .mc-soc-tabs { gap: 2px; }
+html.mc-ui .mc-soc-tabs button { min-height: 32px; font-family: var(--ui-font); font-size: var(--ui-fs-md); }
+html.mc-ui .mc-soc-tbl th { background: var(--ui-face0); color: var(--ui-head); }
+html.mc-ui .mc-soc-tbl td { border-top: 2px solid var(--ui-face2); }
+html.mc-ui .mc-soc-tbl tbody tr:hover { background: rgba(196, 106, 216, .08); }
+html.mc-ui .mc-soc-tbl tr.me td { background: rgba(233, 201, 138, .12); color: var(--ui-text); }
+html.mc-ui .mc-soc-tbl tr.me td:first-child { box-shadow: inset 2px 0 var(--ui-gold); }
+html.mc-ui .mc-soc-pl { padding: 0 6px !important; }
+html.mc-ui .mc-soc-pl.me { border-image-source: var(--ui-slot-normal-selected) !important; border-image-slice: 6 fill !important; border-image-width: 12px !important; }
+html.mc-ui .mc-soc-pl .dot { border-radius: 0; box-shadow: 0 0 0 1px #000; }
+html.mc-ui .mc-soc-note, html.mc-ui .mc-soc-empty { color: var(--ui-text3); }
+html.mc-ui .mc-set-row { padding: 4px 0; border-bottom: 2px solid var(--ui-face2); }
+html.mc-ui .mc-set-row > span { color: var(--ui-text); }
+html.mc-ui .mc-set input[type=range] { accent-color: var(--ui-v2); }
+html.mc-ui .mc-grim-v { color: var(--ui-head); }
+html.mc-ui .mc-duel-card .t { color: var(--ui-bad); }
+html.mc-ui .mc-duel-hud .hp { border-radius: 0; border: 0; box-shadow: 0 0 0 2px var(--ui-outline); }
+html.mc-ui .mc-duel-res .nums div { padding: 2px 4px !important; }
+html.mc-ui .mc-modal-overlay { background: rgba(0, 0, 0, .82); backdrop-filter: none; }
+
+/* ─────────────────────────── 6. Мини-карта, боковые панели (полный экран ПК), админка (слегка) ─────────────────────────── */
+html.mc-ui .game-hud-panel { background: var(--ui-bg) 0 0 / 128px 128px repeat, #07060c !important; }
+html.mc-ui .game-hud-panel .hud-card { border-style: solid !important; border-width: 10px !important; border-radius: 0 !important; border-image: var(--ui-frame-panel) 8 fill / 16px stretch !important;
+  background: none !important; box-shadow: none !important; padding: 4px 6px !important; image-rendering: pixelated; }
+html.mc-ui .game-hud-panel .hud-header { margin: 0 0 2px !important; }
+html.mc-ui .game-hud-panel :is(.hud-player-name, .hud-target-title) { color: var(--ui-head); text-shadow: var(--ui-shadow) !important; }
+html.mc-ui .game-hud-panel .hud-player-class { color: var(--ui-text2); }
+html.mc-ui .game-hud-panel .hud-bar-bg { border-radius: 0; border: 0; background: #000; box-shadow: 0 0 0 2px var(--ui-outline), 0 0 0 4px var(--ui-metal-lo); height: 8px; margin: 4px 0; }
+html.mc-ui .game-hud-panel .hud-hp-fill { background: linear-gradient(180deg, #d9573a, #8a2a1f); }
+html.mc-ui .game-hud-panel .hud-dash-fill { background: linear-gradient(180deg, #7fb0d0, #3a5a80); }
+html.mc-ui .game-hud-panel :is(.hud-row, .hud-ctrl-item, .hud-bar-val) { color: var(--ui-text2); }
+html.mc-ui .game-hud-panel :is(.hud-row b, .hud-ctrl-item span) { color: var(--ui-text); }
+html.mc-ui .hud-who { display: flex; align-items: center; gap: 8px; }
+html.mc-ui .game-window:fullscreen #game-canvas { border-left-color: var(--ui-metal) !important; border-right-color: var(--ui-metal) !important; }
+html.mc-ui .hud-nearby-item { border-radius: 0; }
+html.mc-ui .mc-admin { font-family: var(--ui-font); }
+html.mc-ui .mc-admin .chip { border-radius: 0; }
+
+/* ─────────────────────────── 7. Глитч (админка «🎨 Интерфейс» → 0/1/2) ─────────────────────────── */
+/* 1: под курсором шов «вздрагивает» — сдвиг на 1 px арта вправо, 2 px, обратно (3 кадра, ~180 мс), затем покой */
+html.mc-ui:is([data-ui-glitch="1"], [data-ui-glitch="2"]) :is(.mc-btn, .mc3d-btn, .mc-book-tabs button, .mc-soc-tabs button, .mc-as, .mc-bookbtn, .mc-ratebtn, .mc-insp-slot, .mc-gslot, .mc-item, .mc-lib):hover:not(:disabled) {
+  animation: uiTwitch .18s steps(1) 1;
+}
+@keyframes uiTwitch { 0% { translate: 2px 0; } 33% { translate: 4px 0; } 66% { translate: 2px 0; } 100% { translate: 0 0; } }
+/* 2: ещё редкие вздрагивания больших окон (раз в ~11 с, 2 кадра) и моргание глаз-застёжек */
+html.mc-ui[data-ui-glitch="2"] :is(.mc-book, .mc-soc.mc-charsheet)::after { animation: uiEye 11s steps(1) infinite; }
+@keyframes uiEye { 0%, 96% { translate: 0 0; opacity: 1; } 97% { translate: 2px 0; opacity: .55; } 98% { translate: 0 0; opacity: 1; } 99% { translate: 2px 0; } }
+@media (prefers-reduced-motion: reduce) { html.mc-ui * { animation-duration: 0s !important; animation-iteration-count: 1 !important; } }
+
+/* ─────────────────────────── 8. Телефон / маленькое окно ─────────────────────────── */
+@media (max-width: 700px), (max-height: 520px) {
+  html.mc-ui .mc-book { inset: 0; border-width: 10px !important; border-image-width: 24px !important; }
+  html.mc-ui.mc-ui-orn .mc-book::after { display: none; }
+  html.mc-ui .mc-book-tabs button { padding: 0 6px; font-size: 16px; }
+  html.mc-ui .mc-soc { border-width: 10px !important; }
+  html.mc-ui .mc-soc-head h2 { font-size: 17px; }
+  html.mc-ui .mc-as { width: 56px; height: 56px; }
+}
+html.mc-ui .mc-touch .mc3d-tbtn { border-radius: 0; border: 0 solid transparent; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; background: none; image-rendering: pixelated; }
+html.mc-ui .mc-touch .mc3d-tbtn.hl { border-image-source: var(--ui-slot-normal-selected); box-shadow: none; }
+html.mc-ui .mc-touch .mc3d-tbtn.atk { border-image-source: url(/mc-ui/slot_cursed_normal.png); }
+html.mc-ui .mc-touch .mc3d-joy-base { border-color: var(--ui-metal); background: rgba(11, 10, 18, .45); }
+html.mc-ui .mc-touch .mc3d-joy-knob { background: color-mix(in srgb, var(--ui-v2) 65%, transparent); }
+
+/* NPC-портрет 64×64 (Историк) в обычном диалоге: вместо кружка-иконки, только в новой теме */
+html.mc-ui .mc-dialog .who:has(.mc-av) { display: flex; align-items: center; gap: 10px; }
+html.mc-ui .mc-dialog .who:has(.mc-av) .npc-ic { display: none; }
+html.mc-ui .mc-dialog .who .who-t small { display: block; margin-top: 2px; }
+/* карта мира: верхняя панель и кнопки — кит (сама карта рисуется в canvas, её не трогаем) */
+html.mc-ui .mc-worldmap .wm-top { font-family: var(--ui-font); color: var(--ui-head); background: linear-gradient(#08060ef0, #08060e00); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-worldmap .wm-top b { font-family: var(--ui-font-head); letter-spacing: 2px; text-transform: uppercase; font-weight: normal; }
+html.mc-ui .mc-worldmap .wm-info { color: var(--ui-text2); font-family: var(--ui-font); }
+html.mc-ui .mc-worldmap .wm-top button { min-height: 32px; padding: 0 8px; }
+/* Алтарь тел: портрет и карточки героев — рамки кита; цвет героя (--c) остаётся лентой снизу, выбранный — «selected» */
+html.mc-ui .mc-altar-portrait { border-radius: 0; border: 0 solid transparent; border-image: var(--ui-frame-panel) 8 fill / 16px stretch; image-rendering: pixelated; box-shadow: none; }
+html.mc-ui .mc-altar-portrait img { image-rendering: auto; }
+html.mc-ui .mc-altar-pname { font-family: var(--ui-font); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-altar-card { border-radius: 0; border: 0 solid transparent; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch; background: none; box-shadow: none !important; image-rendering: pixelated; font-family: var(--ui-font); padding: 10px 6px 12px; }
+html.mc-ui .mc-altar-card:hover { border-image-source: var(--ui-slot-normal-hover); }
+html.mc-ui .mc-altar-card.on { border-image-source: var(--ui-slot-normal-selected); }
+html.mc-ui .mc-altar-card::before { content: ''; position: absolute; left: 12px; right: 12px; bottom: 6px; height: 2px; background: var(--c, transparent); opacity: .85; }
+html.mc-ui .mc-altar-card.worn::after { border-radius: 0; box-shadow: none; }
+html.mc-ui .mc-altar-card-ic { border-radius: 0; box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--ui-dis1); image-rendering: auto; }
+html.mc-ui .mc-altar-card .lv { color: var(--ui-gold); }
+html.mc-ui .mc-altar-card .tag { color: var(--ui-good); }
+html.mc-ui .mc-altar-head h2 { font-family: var(--ui-font-head); font-weight: normal; letter-spacing: 3px; color: var(--ui-head); text-shadow: var(--ui-shadow); }
+html.mc-ui .mc-altar-head p { color: var(--ui-text2); }
+/* навыки в книге: метки «классовый», «🔒 дерево», цвета сияния — отступ, как в старой теме */
+html.mc-ui .mc-abil .t em { margin-left: 8px; color: var(--ui-text3); }
+/* телефон: «Отряд» не налезает на трекер заданий (раньше оба лежали в левом верху — теперь и в старой теме: «ничего не
+   перекрывается» при любом размере интерфейса). Альбомная — сверху по центру, портретная — под трекером (max-height: 30%) */
+@media (orientation: landscape) { .mc-touch:not(.mc-run) .mc-party { left: 50%; transform: translateX(-50%); } }
+@media (orientation: portrait) { .mc-touch:not(.mc-run) .mc-party { top: calc(var(--st, 0px) + 30% + 16px); } }
+.mc-set-note { color: #94a3b8; font-size: 10px; font-weight: normal; }
+/* ПК: диалог NPC и его кнопки — над панелью навыков (панель: 10 px от низа + слот 60 px), а не поверх неё; на тач-раскладке панели внизу нет */
+html.mc-ui .mc3d-screen.mc-dialog-screen { padding-bottom: 82px; }
+html.mc-ui .mc-touch .mc3d-screen.mc-dialog-screen { padding-bottom: 16px; }
+/* лобби: кнопки внутри окна; окно не выше экрана — список прокручивается, кнопки прилипают к низу окна */
+html.mc-ui .mc-lobby-screen { justify-content: safe center; overflow: hidden; }
+html.mc-ui .mc-lobby { max-height: 100%; overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; }
+html.mc-ui .mc-lobby-acts { position: sticky; bottom: -2px; margin-top: 10px; padding: 8px 0 2px; background: linear-gradient(transparent, var(--ui-face0) 30%); }
+
+/* ─────────────────────────── 7. HUD внутри игрового поля (html.mc-hud-ig: новый интерфейс + «Старые панели: Выкл») ───────────────────────────
+   Колонки скрыты, поле на всю ширину. Мини-карта — круглая в правом верхнем углу, под ней ряд кнопок кита и индикатор сети;
+   «Цель» — панель кита слева под рамкой героя (только когда есть цель); «Забеги», «Рядом», «Управление» — всплывающие окна. */
+.mc-ighud { display: none; }
+html.mc-hud-ig .game-hud-panel { display: none !important; }
+html.mc-hud-ig .game-window:fullscreen #game-canvas { border-left: 0 !important; border-right: 0 !important; max-width: none !important; }
+html.mc-hud-ig .mc-ighud { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 6; font-family: var(--ui-font); color: var(--ui-text); font-size: var(--ui-fs-xs, 11px); }
+html.mc-hud-ig .mc-ighud :is(.ig-mm, .ig-tgt, .ig-pop.open, .ig-help.open) { pointer-events: auto; }
+/* — круглая мини-карта — */
+html.mc-hud-ig .ig-mm { position: absolute; right: var(--ig-mm-x, 10px); top: var(--ig-mm-y, 10px); width: calc(var(--ig-mm) + 34px); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+html.mc-hud-ig .ig-mm-disc { position: relative; width: var(--ig-mm); }
+html.mc-hud-ig .ig-mm .hud-minimap-card { position: relative; display: flex !important; flex-direction: column; align-items: center; gap: 6px; padding: 0 !important; margin: 0 !important; border: 0 !important; border-image: none !important; background: none !important; box-shadow: none !important; }
+html.mc-hud-ig .ig-mm .hud-minimap-card > div:nth-child(2) { order: 1; margin: 0 !important; width: var(--ig-mm) !important; height: var(--ig-mm); display: grid !important; place-items: center; border-radius: 50%;
+  /* кольцо из металла кита: контур — светлая грань — металл — тёмная грань — контур (ступенями, без сглаживания) */
+  background: radial-gradient(circle closest-side, transparent calc(100% - 8px), var(--ui-outline, #1a1626) calc(100% - 8px) calc(100% - 7px), var(--ui-metal-lo) calc(100% - 7px) calc(100% - 5px), var(--ui-metal) calc(100% - 5px) calc(100% - 3px), var(--ui-metal-hi) calc(100% - 3px) calc(100% - 2px), var(--ui-outline, #1a1626) calc(100% - 2px) 100%, transparent 100%);
+  filter: drop-shadow(0 2px 0 #000); }
+html.mc-hud-ig .ig-mm #mm-canvas { border: 0 !important; border-radius: 50% !important; background: #07050d !important; }
+html.mc-hud-ig .ig-mm .hud-minimap-card > div:nth-child(2)::after { content: ''; position: absolute; left: 50%; top: -3px; width: 14px; height: 14px; margin-left: -7px; background: var(--ui-v1, #6a3d8a); transform: rotate(45deg); box-shadow: 0 0 0 2px var(--ui-outline, #1a1626), inset 0 0 0 2px var(--ui-metal-hi); } /* застёжка-ромб «север» */
+/* зум, вид, карта мира — столбиком слева от круга */
+html.mc-hud-ig .ig-mm .hud-minimap-card > .hud-header { position: absolute; left: -34px; top: 0; border: 0 !important; padding: 0 !important; margin: 0 !important; }
+html.mc-hud-ig .ig-mm .hud-minimap-card > .hud-header > span { display: none; }
+html.mc-hud-ig .ig-mm .hud-minimap-card > .hud-header > div { flex-direction: column; gap: 2px !important; }
+html.mc-hud-ig .ig-mm #mm-btn-minus { order: 3; } html.mc-hud-ig .ig-mm #mm-zoom-text { order: 2; line-height: 18px; } html.mc-hud-ig .ig-mm #mm-btn-plus { order: 1; } html.mc-hud-ig .ig-mm #mm-btn-art { order: 4; margin-top: 6px !important; } html.mc-hud-ig .ig-mm #mm-btn-map { order: 5; }
+html.mc-hud-ig .ig-mm .hud-minimap-card > div:last-child { order: 3; display: none !important; } /* «Игроки»/«Порталы» уехали в ряд кнопок */
+html.mc-hud-ig .ig-mm .hud-header #mm-zoom-text { min-width: 26px !important; background: rgba(9, 7, 15, .8); box-shadow: 0 0 0 2px var(--ui-outline, #1a1626); font-size: var(--ui-fs-xs, 11px) !important; color: var(--ui-gold, #e7c66a) !important; text-shadow: 0 1px 0 #000; }
+html.mc-hud-ig .mc-ighud :is(.mm-btn, .mm-toggle-btn, .ig-b) { width: 26px !important; min-width: 26px; height: 26px; padding: 0 !important; margin: 0; display: inline-grid; place-items: center; font: 13px/1 "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--ui-font) !important; color: var(--ui-text) !important;
+  border: 0 solid transparent !important; border-radius: 0 !important; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch !important; background: none !important; box-shadow: none !important; image-rendering: pixelated; cursor: pointer; opacity: 1 !important; }
+html.mc-hud-ig .mc-ighud :is(.mm-btn, .mm-toggle-btn, .ig-b):hover { border-image-source: var(--ui-slot-normal-hover) !important; }
+html.mc-hud-ig .mc-ighud :is(.mm-btn.mm-art-on, .ig-b.on) { border-image-source: var(--ui-slot-normal-selected) !important; }
+html.mc-hud-ig .mc-ighud .ig-b[data-ig="help"] { font: 700 14px/1 var(--ui-font) !important; color: var(--ui-gold, #e7c66a) !important; }
+/* — ряд под картой: сеть + забеги/рядом/помощь — */
+html.mc-hud-ig .ig-acts { display: flex; gap: 2px; align-items: center; justify-content: flex-end; width: 100%; }
+html.mc-hud-ig .ig-net { display: inline-flex; align-items: center; gap: 3px; height: 26px; padding: 0 5px; margin-right: 4px; border: 0 solid transparent; border-image: var(--ui-frame-small) 5 fill / 10px stretch; image-rendering: pixelated; white-space: nowrap; cursor: help; }
+html.mc-hud-ig .ig-net .ig-dot { width: 6px; height: 6px; background: #94a3b8; box-shadow: 0 0 0 1px #000; }
+html.mc-hud-ig .ig-net b { font-weight: 700; }
+html.mc-hud-ig .ig-net small { color: var(--ui-text2); margin-right: 2px; }
+html.mc-hud-ig .ig-net .ig-on { color: var(--ui-text2); font-size: 10px; } html.mc-hud-ig .ig-net .ig-on b { color: var(--ui-text); }
+/* — всплывающие окна (забеги, рядом) — слева от мини-карты — */
+html.mc-hud-ig .ig-pop { display: none; position: absolute; right: calc(var(--ig-mm) + 12px + var(--ig-mm-x, 10px)); top: var(--ig-mm-y, 10px); width: 250px; max-height: calc(100% - 120px); overflow-y: auto; padding: 4px 8px 8px;
+  border: 10px solid transparent; border-image: var(--ui-frame-panel) 8 fill / 16px stretch; image-rendering: pixelated; }
+html.mc-hud-ig .ig-pop.open { display: block; }
+html.mc-hud-ig .ig-pop-h { display: flex; justify-content: space-between; align-items: center; color: var(--ui-head); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-shadow: var(--ui-shadow); margin-bottom: 6px; padding-bottom: 4px; border-bottom: 2px solid var(--ui-face2, #2a2238); }
+html.mc-hud-ig .ig-x { width: 20px; height: 20px; padding: 0; border: 0; background: none; color: var(--ui-text2); cursor: pointer; font: 12px/1 var(--ui-font); }
+html.mc-hud-ig .ig-x:hover { color: var(--ui-head); }
+html.mc-hud-ig .ig-pop .hud-card { display: block !important; padding: 0 !important; margin: 0 !important; border: 0 !important; border-image: none !important; background: none !important; box-shadow: none !important; }
+html.mc-hud-ig .mc-ighud .hud-card > .hud-header { display: none; }
+html.mc-hud-ig .mc-ighud :is(.hud-row, .hud-ctrl-item) { display: flex; justify-content: space-between; gap: 8px; color: var(--ui-text2); font-size: var(--ui-fs-xs, 11px); margin: 3px 0; }
+html.mc-hud-ig .mc-ighud :is(.hud-row b, .hud-ctrl-item span) { color: var(--ui-text); }
+html.mc-hud-ig .mc-ighud .hud-empty { color: var(--ui-text3, #8a7f99); font-style: italic; }
+/* — «Цель»: панель кита слева под рамкой героя, только когда цель выбрана — */
+html.mc-hud-ig .ig-tgt { display: none; position: absolute; left: 10px; top: var(--ig-tgt-top, 100px); width: 270px; transition: opacity .4s; }
+/* положение «Цели» — админка tgtSide; «справа» — под мини-картой, трекер заданий уезжает ниже панели */
+html.mc-hud-ig[data-ig-tgt="center"] .ig-tgt { left: 50%; margin-left: -135px; }
+html.mc-hud-ig[data-ig-tgt="right"] .ig-tgt { left: auto; right: var(--ig-mm-x, 10px); }
+html.mc-hud-ig[data-ig-tgt="right"] :not(.mc3d-mobile) > .mc3d-layer:has(.mc-ighud.tgt:not(.tgt-idle)) .mc-tracker { top: calc(var(--ig-tgt-top, 100px) + 150px); }
+/* автоскрытие (tgtHide): цель есть, но у неё давно ничего не менялось — панель гаснет; наведение возвращает */
+html.mc-hud-ig .mc-ighud.tgt.tgt-idle .ig-tgt:not(:hover) { opacity: 0; pointer-events: none; }
+html.mc-hud-ig .mc-ighud.tgt .ig-tgt { display: block; }
+html.mc-hud-ig .ig-tgt .hud-card { display: block !important; margin: 0 !important; padding: 2px 6px 6px !important; border: 10px solid transparent !important; border-radius: 0 !important; border-image: var(--ui-frame-panel) 8 fill / 16px stretch !important; background: none !important; box-shadow: none !important; image-rendering: pixelated; }
+html.mc-hud-ig .ig-tgt .hud-card > .hud-header { display: block; color: var(--ui-text3, #8a7f99); font-size: 10px; letter-spacing: 2px; border: 0; padding: 0; margin: 0 0 2px; }
+html.mc-hud-ig .ig-tgt .hud-target-title { font-size: var(--ui-fs-md, 13px); font-weight: 700; color: var(--ui-head); text-shadow: var(--ui-shadow); margin-bottom: 2px; }
+html.mc-hud-ig .ig-tgt #ghud-target-empty { display: none !important; }
+html.mc-hud-ig .ig-tgt .hud-duel-btn { display: block; width: 100%; margin: 6px 0 0 !important; }
+/* — «Управление» (? / F1) — окно кита по центру — */
+html.mc-hud-ig .ig-help { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
+html.mc-hud-ig .ig-help.open { display: grid; place-items: center; }
+html.mc-hud-ig .ig-help-w { background: rgba(9, 7, 15, .96); background-clip: padding-box; width: min(420px, 92%); max-height: 86%; overflow-y: auto; padding: 6px 14px 12px; border: 16px solid transparent; border-image: var(--ui-frame-window) 16 fill / 32px stretch; image-rendering: pixelated; }
+html.mc-hud-ig .ig-help-l .hud-ctrl-item { padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, .04); }
+html.mc-hud-ig .ig-help-l .hud-ctrl-item span { color: var(--ui-gold, #e7c66a); }
+/* трекер заданий (ПК) — под мини-картой и её кнопками */
+html.mc-hud-ig :not(.mc3d-mobile) > .mc3d-layer .mc-tracker { top: calc(var(--ig-mm) + 44px + var(--ig-mm-y, 10px)); width: min(250px, 30%); }
+/* — телефон: только маленькая круглая карта (кнопки зума уже есть на тач-раскладке), тап — карта мира — */
+html.mc-hud-ig .mc-ighud.mob { --ig-mm-m: calc(var(--ig-mm) * .6); }
+html.mc-hud-ig .mc-ighud.mob .ig-mm { width: var(--ig-mm-m); right: calc(var(--sr, 0px) + 8px); top: calc(var(--st, 0px) + 8px); }
+html.mc-hud-ig .mc-ighud.mob :is(.ig-acts, .ig-tgt, .ig-pop, .ig-help) { display: none !important; }
+html.mc-hud-ig .mc-ighud.mob .ig-mm .hud-minimap-card > .hud-header { display: none !important; }
+html.mc-hud-ig .mc-ighud.mob .ig-mm .hud-minimap-card > div:nth-child(2) { width: var(--ig-mm-m) !important; height: var(--ig-mm-m); }
+html.mc-hud-ig .mc-ighud .ig-tg { display: contents; }
+html.mc-hud-ig .mc-ighud .mm-toggle-btn.mm-toggle-inactive { filter: grayscale(1) brightness(.6); }
+html.mc-hud-ig .mc-ighud .ig-acts .ig-b[data-ig="runs"] { margin-left: 6px; }
+html.mc-hud-ig .ig-tgt .hud-row { align-items: baseline; } html.mc-hud-ig .ig-tgt .hud-row > span { flex: none; } html.mc-hud-ig .ig-tgt .hud-row b { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+
+/* ─────────────────────────── 8. атмосфера нового интерфейса (ui/atmoUi.js) ─────────────────────────── */
+/* экранные слои между холстом и интерфейсом (соседи холста, z-index 1 как у мрачной дымки): только multiply —
+   затемняют/окрашивают, никогда не высветляют спрайты */
+.mc-atmo-ui { display: none; }
+html.mc-ui .mc-atmo-ui { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+html.mc-ui .mc-atmo-ui.tone { mix-blend-mode: multiply; opacity: 0; transition: background-color 1.4s, opacity 1.4s; }
+html.mc-ui .mc-atmo-ui.vig { mix-blend-mode: multiply; opacity: 0; transition: opacity 1.4s; }
+/* трещины «порчи» из кита — только по углам (маска), тоже multiply */
+html.mc-ui .mc-atmo-ui.crk { mix-blend-mode: multiply; opacity: 0; background: var(--ui-bg-cracks) 0 0 / 128px 128px repeat; image-rendering: pixelated;
+  -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 66%, #000 100%); mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 66%, #000 100%); transition: opacity 1.4s; }
+html.mc-ui .mc-atmo-ui.parts { image-rendering: pixelated; }
+
+/* плавные окна: фон-затемнение проявляется, окно чуть «всплывает»; закрытие — призрак окна гаснет (overlay.hideScreen) */
+@keyframes mc-scr-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mc-scr-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mc-win-in { from { transform: translateY(8px) scale(.975); } to { transform: none; } }
+@keyframes mc-win-out { from { transform: none; } to { transform: translateY(4px) scale(.985); } }
+html.mc-atmo-tr .mc3d-screen:not(.mc-noanim):not(.mc-ghost) { animation: mc-scr-in var(--mc-tr, 160ms) ease-out var(--mc-tr-d, 0ms) both; }
+html.mc-atmo-tr .mc3d-screen:not(.mc-noanim):not(.mc-ghost) > :first-child { animation: mc-win-in var(--mc-tr, 160ms) cubic-bezier(.2, .8, .3, 1) var(--mc-tr-d, 0ms) both; }
+html.mc-atmo-tr .mc3d-screen.mc-ghost { animation: mc-scr-out calc(var(--mc-tr, 160ms) * .8) ease-in both; pointer-events: none !important; }
+html.mc-atmo-tr .mc3d-screen.mc-ghost > :first-child { animation: mc-win-out calc(var(--mc-tr, 160ms) * .8) ease-in both; }
+/* остальные окна, что показываются через display (книга, подсказка HUD…): только проявление */
+html.mc-atmo-tr :is(.mc-book, .ig-help-w, .ig-pop) { animation: mc-scr-in var(--mc-tr, 160ms) ease-out both; }
+@media (prefers-reduced-motion: reduce) { html.mc-atmo-tr * { animation-duration: 1ms !important; } }
+
+/* экран загрузки (новый интерфейс): знак проклятия, полоса из кита, шаг и подсказка */
+html.mc-ui .mc3d-screen.mc3d-loading { background: var(--ui-bg) 0 0 / 128px 128px repeat, #07050c; }
+html.mc-ui .mc-load { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(420px, 90%); font-family: var(--ui-font); color: var(--ui-text); }
+html.mc-ui .mc-load h2 { margin: 6px 0 0; letter-spacing: .32em; color: #d9c8ef; text-shadow: 0 0 10px rgba(138, 106, 166, .7), 2px 2px 0 #000; }
+html.mc-ui .mc-load .sig { position: relative; width: 92px; height: 92px; }
+html.mc-ui .mc-load .sig > * { position: absolute; inset: 0; display: block; }
+html.mc-ui .mc-load .sig i { border: 3px solid #8a6aa6; border-radius: 50%; box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #000, 0 0 18px rgba(138, 106, 166, .55); animation: mc-sig-rot 9s linear infinite;
+  background: conic-gradient(from 0deg, transparent 0 10%, rgba(138, 106, 166, .35) 10% 12%, transparent 12% 35%, rgba(138, 106, 166, .35) 35% 37%, transparent 37% 60%, rgba(138, 106, 166, .35) 60% 62%, transparent 62% 85%, rgba(138, 106, 166, .35) 85% 87%, transparent 87%); }
+html.mc-ui .mc-load .sig b { inset: 22px; background: #1a1626; transform: rotate(45deg); border: 3px solid #b39ad1; box-shadow: 0 0 0 2px #000, 0 0 14px rgba(179, 154, 209, .6); animation: mc-sig-pulse 1.8s ease-in-out infinite; }
+html.mc-ui .mc-load .sig s { inset: 40px; background: #0b0910; border-radius: 50%; box-shadow: 0 0 6px 2px rgba(110, 60, 160, .9); }
+@keyframes mc-sig-rot { to { transform: rotate(360deg); } }
+@keyframes mc-sig-pulse { 50% { box-shadow: 0 0 0 2px #000, 0 0 26px rgba(179, 154, 209, .95); } }
+html.mc-ui .mc-load .bar { width: 100%; height: 24px; border-style: solid; border-width: 6px 14px; border-color: transparent; border-image: var(--ui-bar-frame) 3 7 / 6px 14px stretch; image-rendering: pixelated; background: #0b0910; background-clip: padding-box; box-sizing: border-box; }
+html.mc-ui .mc-load .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #4a2d6a, #8a6aa6); transition: width .35s ease-out; }
+html.mc-ui .mc-load .st { margin: 0; font-size: 13px; color: #cbb8e6; }
+html.mc-ui .mc-load .hint { margin: 6px 0 0; font-size: 12px; color: #9a8fae; font-style: italic; max-width: 360px; }
+html.mc-ui:not(.mc-atmo-tr) .mc-load .sig * { animation: none; }
+
+/* ─────────────────────────── 9. слот PK у рамки героя (ui/playerFrame.js pkSlot; кнопку монтирует dome-city) ─────────────────────────── */
+/* пустой — скрыт в обеих темах (вид рамок не меняется); с кнопкой — квадрат 36×36 (рамка + кольцо прогресса) рядом с ОЗ */
+.mc-pf-pk-slot { flex: 0 0 auto; width: 36px; height: 36px; position: relative; pointer-events: auto; box-sizing: border-box; }
+.mc-pf-pk-slot:empty { display: none !important; }
+.mc-pframe > .mc-pf-pk-slot { align-self: flex-end; margin: 0 0 1px 2px; }
+/* прежняя карточка «ГЕРОЙ»: справа от полоски ОЗ (полоска укорачивается только когда кнопка есть) */
+.hud-card:has(> .mc-pf-pk-slot:not(:empty)) { position: relative; }
+.hud-card > .mc-pf-pk-slot { position: absolute; right: 8px; margin-top: -26px; }
+.hud-card:has(> .mc-pf-pk-slot:not(:empty)) > .mc-pk-near, .hud-card:has(> .mc-pf-pk-slot:not(:empty)) > .hud-bar-val { margin-right: 44px; }
+
+/* квадратная мини-карта (админка mmRound = выкл): рамка кита вместо кольца, без застёжки «север» */
+html.mc-hud-ig.mc-ig-sq .ig-mm #mm-canvas { border-radius: 0 !important; }
+html.mc-hud-ig.mc-ig-sq .ig-mm .hud-minimap-card > div:nth-child(2) { border-radius: 0; background: none; box-sizing: border-box; border: 6px solid transparent; border-image: var(--ui-frame-small) 5 fill / 10px stretch; image-rendering: pixelated; }
+html.mc-hud-ig.mc-ig-sq .ig-mm .hud-minimap-card > div:nth-child(2)::after { display: none; }
+/* телефон: полоска «ОЗ + PK» слева сверху (обе темы). Только когда в слоте есть кнопка и рамка героя была бы видна (.on);
+   трекер заданий (и отряд старой темы) уезжают ниже на высоту полоски — с пустым слотом раскладка как раньше */
+.mc-pf-mob { display: none; }
+.mc-touch .mc-pf-mob.on:has(> .mc-pf-pk-slot:not(:empty)) { display: flex; align-items: center; gap: 6px; position: absolute; left: calc(var(--sl, 0px) + 8px); top: calc(var(--st, 0px) + 8px); z-index: 13; pointer-events: auto; }
+.mc-touch .mc-pf-mob > .mc-pf-pk-slot { width: 44px; height: 44px; display: grid; place-items: center; }
+.mc-touch .mc-pf-mob > .mc-pf-pk-slot > * { min-width: 44px; min-height: 44px; } /* цель для пальца ≥ 44 px */
+.mc-touch .mc-pf-mob .mhp { width: 120px; flex: 0 0 auto; }
+/* старая тема: полоска ОЗ в прежнем стиле карточки «ГЕРОЙ» */
+html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp { position: relative; height: 16px; box-sizing: border-box; background: rgba(12, 8, 22, .82); border: 1px solid #3b2c52; border-radius: 6px; overflow: hidden; }
+html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > i { display: block; height: 100%; background: linear-gradient(90deg, #b91c1c, #ef4444); }
+html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > span { position: absolute; inset: 0; display: grid; place-items: center; font: bold 10px monospace; color: #fff; text-shadow: 0 1px 0 #000; }
+/* сдвиг под полоску «ОЗ + PK»: 52 px полоски (масштаб тач-кнопок --ui-st) в собственном масштабе элемента (--ui-s) */
+.mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) :is(.mc-tracker, .mc-party) { margin-top: calc(52px * var(--ui-st, 1) / var(--ui-s, 1)); }
+@media (orientation: landscape) { .mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) .mc-party { margin-top: 0; } } /* альбом: отряд по центру сверху — не мешает */
+
+/* ─────────────────────────── 10. плотность плашек в поле (админка plate) ─────────────────────────── */
+/* «Цель» и всплывающие окна (рамка frame_panel — полупрозрачная середина): под рамкой тёмный фон, иначе на льду/снегу/
+   в воздухе светлая земля просвечивает и текст не читается. Трекер, кнопки и сеть — на frame_small/слотах (уже плотные) */
+html.mc-hud-ig :is(.ig-tgt .hud-card, .ig-pop) { background: rgba(9, 7, 15, var(--ui-plate, .88)) !important; background-clip: padding-box !important; }
+
+/* ─────────────────────────── 11. «🔍 Размер интерфейса» (ui/uiScale.js) ─────────────────────────── */
+/* Обе темы; только вне забега (класс html.mc-uis ставит uiScale). --ui-s — фактический масштаб (выбор игрока, урезанный
+   по размеру поля), --ui-st — масштаб тач-управления (не меньше 1: цель для пальца ≥ 44 px). CSS zoom (а не transform)
+   — вёрстка пересчитывается сама, отступы от краёв растут вместе с плашкой, клики попадают куда видно. Холст мира,
+   подписи над головами, карта мира и админка не масштабируются. */
+html.mc-uis :is(.mc-tracker, .mc-abar, .mc-party, .mc-party-ask, .mc-pmenu, .mc-ratebtn, .mc-bookbtn, .mc-tchip, .mc-pframe,
+  .mc3d-toasts, .mc3d-prompt, .mc3d-chat, .mc-book, .mc-upg-box, .ig-mm, .ig-tgt, .ig-pop, .ig-help-w, .mc-duel-card, .mc-duel-hud,
+  .mc3d-screen > *) { zoom: var(--ui-s, 1); }
+/* боковые панели (ПК, «Старые панели»/старая тема): ширина колонки фиксирована — текст крупнее не больше чем на 10% */
+html.mc-uis .game-hud-panel > * { zoom: min(var(--ui-s, 1), 1.1); }
+/* % в zoom-элементе — от реального размера родителя, а px и vw/vh растут с масштабом: окно не шире экрана/поля */
+html.mc-uis .mc3d-screen > * { max-width: 100%; }
+html.mc-uis .mc-upg-box { max-width: 96%; max-height: 92%; }
+html.mc-uis .mc-touch :is(.mc3d-tbtns > .mc3d-tbtn, .mc3d-ttop, .mc3d-joy-hint, .mc-pf-mob) { zoom: var(--ui-st, 1); }
+/* джойстик: основание и ручка стоят в точке касания (left/top из JS в пикселях поля) — их не zoom-им, а растим размер */
+html.mc-uis .mc-touch .mc3d-joy-base { width: calc(110px * var(--ui-st, 1)); height: calc(110px * var(--ui-st, 1)); margin: calc(-55px * var(--ui-st, 1)) 0 0 calc(-55px * var(--ui-st, 1)); }
+html.mc-uis .mc-touch .mc3d-joy-knob { width: calc(46px * var(--ui-st, 1)); height: calc(46px * var(--ui-st, 1)); margin: calc(-23px * var(--ui-st, 1)) 0 0 calc(-23px * var(--ui-st, 1)); }
+/* второстепенные тач-кнопки (книга, чат, зум…): если колонка/ряд не помещается — переносятся во вторую колонку/ряд, а не
+   уезжают за край и не наезжают на мини-карту (портрет) или джойстик (альбом). Обе темы, вне забега: на 640×360 они уходили за экран */
+html .mc-touch:not(.mc-run) .mc3d-ttop { flex-wrap: wrap-reverse; align-content: flex-end; max-height: calc(100% - 204px - var(--ttop-res, 0px)); }
+@media (orientation: portrait) { html .mc-touch:not(.mc-run) .mc3d-ttop { bottom: calc(var(--sb, 0px) + 196px); } } /* сразу над F (дуга до 191 px), две колонки по 4 влезают и на 360×640 */
+html.mc-hud-ig .mc-touch { --ttop-res: calc(var(--ig-mm, 176px) * .6 + 8px); }
+@media (orientation: landscape) and (max-height: 560px) { html .mc-touch:not(.mc-run) .mc3d-ttop { max-height: none; max-width: calc(100% - 440px); } }
+/* диалог (VN) не шире поля: 94vw считались от окна браузера — на 360 px и в поле между боковыми панелями (776 px)
+   окно вылезало за край (обе темы, любой масштаб) */
+.mc3d-screen > .mc-vn { max-width: 100%; box-sizing: border-box; }

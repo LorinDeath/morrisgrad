@@ -4,6 +4,7 @@ import { objText } from '../../../../../server/meta/objText.ts';
 import { QUEST_BY_ID } from '../../../../../server/meta/quests.ts';
 import { NPCS } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
+import { avatarHtml } from './uiSkin.js';
 import { QUEST_DIALOGUES, VN_CHARS, VN_HERO, vnImg, vnIcon, npcVnChar, questFlow } from '../../../../../server/meta/vnChars.ts';
 import { autoObjText, condLine } from '../../../../../server/meta/objText.ts';
 import { ITEM_BY_ID } from '../../../../../server/meta/defs.ts';
@@ -89,7 +90,7 @@ export class NpcDialog {
     if (list.some((x) => QUEST_BY_ID[x.id])) btns.splice(btns.indexOf(close), 0, all);
     const q = (complete || avail || active) && QUEST_BY_ID[(complete || avail || active).id];
     const ic = npcIconUrl(npc);
-    this.ov.showScreen(`<div class="mc-dialog"><div class="who" style="color:${n.color}">${ic ? `<img class="npc-ic" src="${ic}" alt="">` : ''}${esc(n.name)} <small>${esc(n.title)}</small></div>
+    this.ov.showScreen(`<div class="mc-dialog"><div class="who" style="color:${n.color}">${avatarHtml(npc, 0, 64, 'npc')}${ic ? `<img class="npc-ic" src="${ic}" alt="">` : ''}<span class="who-t">${esc(n.name)} <small>${esc(n.title)}</small></span></div>
       ${q ? `<div class="qt">${esc(q.title)}${starTag(q)} · <small>${esc(q.chapter || '')}</small></div>` : ''}
       ${lines.map((l) => `<p>${esc(l)}</p>`).join('')}</div>`, btns, 'mc-dialog-screen');
     this.isOpen = true;

@@ -26,7 +26,9 @@ const run = async (b, label, ctxOpts, pc) => {
   const esc = async () => { await p.keyboard.press('Escape'); await sleep(400); };
   // админка «✦ Зачарование»
   if (pc) {
-    for (let i = 0; i < 6 && !(await G(() => document.querySelectorAll('.mc-admin [data-tab]').length)); i++) { await sleep(1500); await G(() => window.__game.debug.openAdmin()); await sleep(1500); } // роль приходит с сервера чуть позже входа
+    for (let i = 0; i < 20 && !(await G(() => document.querySelectorAll('.mc-admin [data-tab]').length)); i++) { // роль приходит с сервера позже входа (под нагрузкой — до десятков секунд); на 10-й попытке — перезаход
+      if (i === 10) { await p.reload(); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); }
+      await sleep(1500); await G(() => window.__game.debug.openAdmin()); await sleep(1500); }
     const tabs = await G(() => [...document.querySelectorAll('.mc-admin [data-tab]')].map((x) => x.dataset.tab));
     ok(tabs.includes('ench'), `${label}: вкладка «✦ Зачарование» есть`);
     await G(() => document.querySelector('.mc-admin [data-tab="ench"]')?.click()); await sleep(600);
@@ -40,7 +42,8 @@ const run = async (b, label, ctxOpts, pc) => {
     await G(() => document.querySelector('.mc-admin [data-tab="curse"]')?.click()); await sleep(500);
     await G(() => { const r = [...document.querySelectorAll('.mc-admin aside [data-id], .mc-admin aside [data-sel], .mc-admin aside li, .mc-admin aside button')].find((e) => /Проклят/.test(e.textContent)); r?.click(); }); await sleep(700);
     const cp2 = await G(() => !!document.querySelector('.mc-admin section [data-p="cursedPct"]'));
-    ok(cp2, `${label}: в «☠ Проклятие» есть поле cursedPct`); await shot('14-admin-curse-cursedPct');
+    ok(cp2, `${label}: в «☠ Проклятие» есть поле cursedPct`);
+    p.curseHp = +(await G(() => document.querySelector('.mc-admin section [data-p="mobHp"]')?.value)) || 0; // живой множитель ОЗ проклятых (локально 4.5, на проде своё) await shot('14-admin-curse-cursedPct');
     await esc();
   }
   await G(() => window.__game.debug.selectClass('warrior')); await sleep(2000);
@@ -97,7 +100,8 @@ const run = async (b, label, ctxOpts, pc) => {
   await p.waitForFunction(([x, y]) => window.__game.debug.zoneMobsFull().filter((m) => m.ench && Math.hypot(m.x - x, m.y - y) < 450).length >= 8, [P.x, P.y], { timeout: 5000, polling: 30 }).catch(() => {}); await sleep(1500); await shot('09-mobs-tiers');
   const mobs = await G(([x, y]) => window.__game.debug.zoneMobsFull().filter((m) => m.ench && Math.hypot(m.x - x, m.y - y) < 400), [P.x, P.y]);
   ok([1, 2, 3, 4, 5, 6].every((e) => mobs.some((m) => m.ench === e)), `${label}: мобы ярусов 1…6 у клиента (флаг 23–25): ${mobs.map((m) => m.ench + (m.cursed ? 'c' : '')).join(' ')}`);
-  const maxHpOf = async (id) => { if (!id) return 0; await G((x) => window.__game.debug.selectMobId(x), id); await sleep(1300); return +(/\/\s*(\d+)/.exec(await G(() => document.getElementById('ghud-target-hp')?.textContent || ''))?.[1] || 0); };
+  // ОЗ вида «2 142 / 2 142» — с разделителем тысяч
+  const maxHpOf = async (id) => { if (!id) return 0; await G((x) => window.__game.debug.selectMobId(x), id); await sleep(1300); return +(/\/\s*([\d\s\u00a0\u202f]+)/.exec(await G(() => document.getElementById('ghud-target-hp')?.textContent || ''))?.[1].replace(/\D/g, '') || 0); };
   const black = mobs.filter((m) => m.ench === 6 && !m.cursed && !m.boss).sort((m, n) => Math.hypot(m.x - P.x + 120, m.y - P.y - 70) - Math.hypot(n.x - P.x + 120, n.y - P.y - 70))[0];
   if (black) { await G((id) => window.__game.debug.selectMobId(id), black.id); await sleep(2200); }
   const panel = await G(() => { const t = (id) => document.getElementById(id)?.textContent || ''; const n = document.getElementById('ghud-target-name'); return { name: t('ghud-target-name'), cls: t('ghud-target-class'), hp: t('ghud-target-hp'), armor: t('ghud-target-armor'), atk: t('ghud-target-atk'), color: n?.style.color, glitch: n?.classList.contains('mc-glitch-txt'), shown: !!document.getElementById('ghud-target-armor')?.offsetParent }; });
@@ -115,7 +119,7 @@ const run = async (b, label, ctxOpts, pc) => {
     const h1 = await maxHpOf(at(-240, -110, 1)), h6 = await maxHpOf(at(-120, 70, 6)), h4 = await maxHpOf(at(120, -110, 4)), h4c = await maxHpOf(at(-240, 70, 4, true));
     const base = h1 / 1.5; console.log('hp', { base, h1, h4, h4c, h6 });
     ok(h1 > 0 && Math.abs(h6 / base - 40) < 0.5 && Math.abs(h4 / base - 7) < 0.2, `${label}: ОЗ ярусов ×1.5 / ×7 / ×40 (база ${Math.round(base)}: ${h1} / ${h4} / ${h6})`);
-    ok(h4c > h4 * 5, `${label}: проклятый+легендарный — множители складываются (${h4c} vs ${h4})`);
+    ok(p.curseHp > 1 ? Math.abs(h4c / h4 - p.curseHp) < 0.05 : h4c > h4 * 2, `${label}: проклятый+легендарный — множители складываются (${h4c} = ${h4} × ${(h4c / h4).toFixed(2)}, ×ОЗ проклятых в админке ${p.curseHp})`);
   }
   if (bb && pc) { await G((id) => window.__game.debug.selectMobId(id), bb.id); await sleep(2000); await shot('11-target-black-boss'); }
   ok(!blocked.length, `${label}: нет запросов наружу`); ok(!errs.length, `${label}: без ошибок страницы ${errs.join(' | ')}`);

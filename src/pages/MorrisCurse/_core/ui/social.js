@@ -1,4 +1,9 @@
+import { avatarHtml, uiPref, setUiPref, UI as UI_SKIN, hudOldPanels, setHudOldPanels, uiActive } from './uiSkin.js';
+import { sfxVol, setSfxVol, uiSfx } from './atmoUi.js';
+import { uiScaleChosen, uiScaleEffective, uiScalePref, uiScaleRange, uiScaleMobile, setUiScale } from './uiScale.js';
+const uisTxt = () => { const w = uiScaleChosen(), e = uiScaleEffective(); return e < w ? `${w}% <small title="Больше на этот экран не помещается">(${e}%)</small>` : `${w}%`; };
 import { upBadge } from './upBadge.js';
+import { texPref, setTexPref, TEX_MODE } from '../worlds/texPref.js';
 import { curseTint } from './book.js';
 import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
 import { grimGet, grimReset, grimSet } from './grim.js';
@@ -151,7 +156,7 @@ export class Social {
         return `<div class="mc-insp-ab" tabindex="0" style="--rc:${radColor(a.rad)}">${skillIcon(a.id, 40)}<div><b>${esc(def.name)}</b><small>Сияние ${a.rad}${props.length ? ' · ' + esc(props.join(', ')) : ''} · сила ×${a.power} · кд ${a.cd} с</small></div>
           <div class="tip">${esc(def.desc || '')}</div></div>`;
       }).join('') : '<div class="mc-soc-empty">Навыки не выбраны</div>';
-      body = `<div class="mc-insp-top"><div class="mc-insp-who"><canvas class="mc-insp-pv" width="72" height="90" data-cls="${esc(d.cls)}" data-bk="${Math.max(0, Math.min(100, d.bk | 0))}" title="${d.bk ? 'Очернение героя' : esc(heroLabel(d.cls))}"></canvas><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div></div>
+      body = `<div class="mc-insp-top"><div class="mc-insp-who">${avatarHtml(d.cls, d.bk, 128, 'big')}${avatarHtml(d.cls, d.bk, 64, 'small')}<canvas class="mc-insp-pv" width="72" height="90" data-cls="${esc(d.cls)}" data-bk="${Math.max(0, Math.min(100, d.bk | 0))}" title="${d.bk ? 'Очернение героя' : esc(heroLabel(d.cls))}"></canvas><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div></div>
           <div class="mc-insp-recs">${d.maxDmg ? `<div class="mc-insp-rec">Рекорд удара<br><b>${d.maxDmg.v}</b><small>${esc(whereLabel(d.maxDmg.where))}</small></div>` : ''}
           ${d.duel ? `<div class="mc-insp-rec duel">Дуэли<br><b>${d.duel.w}–${d.duel.l}</b><small>победы–поражения${d.duel.d ? ` · ничьи ${d.duel.d}` : ''}</small></div>` : ''}</div></div>
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
@@ -224,6 +229,10 @@ export class Social {
       else if (act === 'freq') this.send({ type: 'settings_set', freq: !this.settings?.freq });
       else if (act === 'dnd') this.send({ type: 'settings_set', dnd: !(this.settings?.dnd > 0) });
       else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
+      else if (act === 'uitheme') { setUiPref(b.dataset.v); this.renderSettings(); }
+      else if (act === 'hudold') { setHudOldPanels(b.dataset.v === '1'); this.renderSettings(); } // только это устройство; применяется сразу
+      else if (act === 'tex') { setTexPref(b.dataset.v); this.renderSettings(); } // только это устройство; земля перепекается после перезагрузки
+      else if (act === 'texreload') location.reload(); // только это устройство, применяется сразу
     });
   }
   renderOnline() {
@@ -254,7 +263,8 @@ export class Social {
     const opt = (v, t) => `<button class="mc-btn sm ${st.duel === v ? 'gold' : ''}" data-act="duelset" data-v="${v}">${t}</button>`;
     const dndMin = st.dnd > 0 ? Math.ceil(st.dnd / 60000) : 0;
     this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>⚙️ НАСТРОЙКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('settings')}
-      <div class="mc-set"><div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
+      <div class="mc-set"><div class="mc-set-row"><span>🖥 Интерфейс</span><div class="grp"><button class="mc-btn sm ${uiPref() === 'new' && UI_SKIN.on ? 'gold' : ''}" data-act="uitheme" data-v="new"${UI_SKIN.on ? '' : ' disabled title="Новый интерфейс сейчас выключен администратором"'}>Новый</button><button class="mc-btn sm ${uiPref() === 'old' || !UI_SKIN.on ? 'gold' : ''}" data-act="uitheme" data-v="old">Старый</button></div></div>${(() => { const can = UI_SKIN.on && UI_SKIN.hudIngame && uiPref() === 'new', old = !can || hudOldPanels(), why = !can ? ` disabled title="${uiPref() === 'new' && UI_SKIN.on ? 'HUD внутри поля выключен администратором' : 'Только с новым интерфейсом'}"` : ''; return `<div class="mc-set-row"><span>🧭 Старые панели <small class="mc-set-note">боковые колонки HUD</small></span><div class="grp"><button class="mc-btn sm ${old ? 'gold' : ''}" data-act="hudold" data-v="1"${why}>Вкл</button><button class="mc-btn sm ${!old ? 'gold' : ''}" data-act="hudold" data-v="0"${why}>Выкл</button></div></div>`; })()}<div class="mc-set-row"><span>🧱 Текстуры${texPref() !== TEX_MODE ? ' <small class="mc-set-note">— после перезагрузки</small>' : ''}</span><div class="grp"><button class="mc-btn sm ${texPref() === '32' ? 'gold' : ''}" data-act="tex" data-v="32" title="Тайлсеты 32 px: больше детали, ×4 памяти на землю">Новые (32)</button><button class="mc-btn sm ${texPref() === '16' ? 'gold' : ''}" data-act="tex" data-v="16" title="Прежние 16 px: легче для телефона">Старые (16)</button>${texPref() !== TEX_MODE ? '<button class="mc-btn sm" data-act="texreload" title="Перезагрузить страницу сейчас">↻</button>' : ''}</div></div>
+      <div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>${(() => { const can = uiActive() && UI_SKIN.sfx !== false, why = can ? '' : ` disabled title="${UI_SKIN.sfx === false ? 'Звуки интерфейса выключены администратором' : 'Только с новым интерфейсом'}"`, v = sfxVol(); return `<div class="mc-set-row"><span>🔔 Звуки интерфейса <small class="mc-set-note">клик, окна</small></span><div class="grp"><input type="range" min="0" max="100" step="5" value="${v}" data-sfx${why}><b class="mc-grim-v" data-sfxv>${v ? v + '%' : 'выкл'}</b></div></div>`; })()}${(() => { const r = uiScaleRange(), v = uiScaleChosen(); return `<div class="mc-set-row" data-uisrow><span>🔍 Размер интерфейса <small class="mc-set-note">${uiScaleMobile() ? 'на этом телефоне' : 'на этом ПК'}</small></span><div class="grp"><input type="range" min="${r.min}" max="${r.max}" step="5" value="${v}" data-uis><b class="mc-grim-v" data-uisv>${uisTxt()}</b><button class="mc-btn sm${uiScalePref() == null ? ' gold' : ''}" data-uisdef title="Вернуть размер по умолчанию${uiScaleMobile() ? ' (авто по экрану)' : ''}">${uiScaleMobile() ? 'Авто' : '100%'}</button></div></div>`; })()}
       <div class="mc-set-row"><span>🌑 Мрачность</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"><b class="mc-grim-v" data-grimv="grim">${grimGet('grim')}%</b></div></div>
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"><b class="mc-grim-v" data-grimv="fog">${grimGet('fog')}%</b></div></div>
       <div class="mc-set-row"><span>🎨 Единый стиль</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('style')}" data-grim="style"><b class="mc-grim-v" data-grimv="style">${grimGet('style')}%</b></div></div>
@@ -265,6 +275,15 @@ export class Social {
       <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук и картинка (мрачность, дымка, единый стиль) — на этом устройстве, у каждого игрока свои.</p></div></div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);
     // картинка — на этом устройстве (localStorage), у каждого игрока своя; 0 = эффект выключен
+    // звуки интерфейса — на этом устройстве; 0 = выкл; при отпускании — пробный клик
+    { // «🔍 Размер интерфейса»: живой предпросмотр; окно настроек держим в прежнем масштабе, пока ползунок тянут
+      const sc = this.overlay.screen, box = sc.firstElementChild, upd = () => { const v = sc.querySelector('[data-uisv]'); if (v) v.innerHTML = uisTxt(); const d = sc.querySelector('[data-uisdef]'); if (d) d.classList.toggle('gold', uiScalePref() == null); };
+      sc.querySelectorAll('[data-uis]').forEach((r) => {
+        let raf = 0; r.addEventListener('input', () => { if (box && !box.style.zoom) box.style.zoom = String(uiScaleEffective() / 100); if (!raf) raf = requestAnimationFrame(() => { raf = 0; setUiScale(Number(r.value)); upd(); }); }); // не чаще кадра
+        r.addEventListener('change', () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } setUiScale(Number(r.value)); if (box) box.style.zoom = ''; upd(); uiSfx('click'); }); });
+      sc.querySelector('[data-uisdef]')?.addEventListener('click', () => { setUiScale(null); const r = sc.querySelector('[data-uis]'); if (r) r.value = String(uiScaleChosen()); upd(); });
+    }
+    this.overlay.screen.querySelectorAll('[data-sfx]').forEach((r) => { r.addEventListener('input', () => { setSfxVol(Number(r.value)); const v = this.overlay.screen.querySelector('[data-sfxv]'); if (v) v.textContent = Number(r.value) ? `${r.value}%` : 'выкл'; }); r.addEventListener('change', () => uiSfx('click')); });
     this.overlay.screen.querySelectorAll('[data-grim]').forEach((r) => r.addEventListener('input', () => { grimSet(r.dataset.grim, Number(r.value)); const v = this.overlay.screen.querySelector(`[data-grimv="${r.dataset.grim}"]`); if (v) v.textContent = `${r.value}%`; }));
     this.overlay.screen.querySelector('[data-act="grimreset"]')?.addEventListener('click', (e) => { e.stopPropagation(); grimReset(); this.renderSettings(); });
   }

@@ -1,8 +1,8 @@
 // Пиксельная земля и пропсы открытых миров (единый масштаб: 10 px арта = 1 м = 20 px мира; тайл 16×16 = 32 px мира).
 // Раскладка детерминирована (тот же сид для всех клиентов) и строится из регионов zoneGen (биом региона → семейство тайлов).
 // Земля запекается в ОДНУ текстуру (canvas из tiles_atlas) на плоскости мира + поля по краям; пропсы — один SpriteBatch.
-import tilesSrc from '../../../../assets/mc/tiles_atlas.png';
-import tilesMeta from '../../../../assets/mc/tiles_atlas.json';
+import { TILES } from './texPref.js';
+const tilesSrc = TILES.main, tilesMeta = TILES.meta; // 16 или 32 px — настройка «Текстуры» (texPref.js)
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ, PX } from '../engine/geometry.js';
@@ -11,7 +11,7 @@ import { ArinarTerrain } from './terrainChunks.js';
 
 import { CELL, MARGIN, layoutWorld } from '../../../../../server/meta/worldLayout.ts';
 export { CELL, layoutWorld };
-const TEX = tilesMeta.tile;     // 16 px текстуры на тайл
+const TEX = tilesMeta.tile;     // 16 или 32 px текстуры на тайл (масштаб мира тот же: CELL/TILE_M не меняются)
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s);
 function loadImg(src) {

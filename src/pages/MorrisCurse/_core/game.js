@@ -38,6 +38,8 @@ import { RunSession, LVL_INVULN } from './survivors/run.js';
 import { RunView } from './survivors/runView.js';
 import { RunArena } from './survivors/arena.js';
 import { atmo } from './engine/atmosphere.js';
+import { initUiScale } from './ui/uiScale.js';
+import { initAtmoUi, loadingHtml, loadScreenOn, setLoadStep } from './ui/atmoUi.js';
 import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, PASSIVES, displayClassName } from './survivors/data.js';
 import { ActionBar } from './ui/actionBar.js';
 import { Overlay, esc, roleTag } from './ui/overlay.js';
@@ -52,6 +54,12 @@ import { CLASSES, syncClassesFromServer } from './classes.js';
 import { WORLD_PORTALS as OFFLINE_PORTALS, HOME_PORTAL_HUB } from '../../../../server/worlds/portals.ts';
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
+import './styles/ui-cursed.css'; // реворк UI «проклятое + очернённое» (поверх core3d.css, html.mc-ui)
+import { initUiSkin, setUiMode, setUiCfg } from './ui/uiSkin.js';
+import { PlayerFrame } from './ui/playerFrame.js';
+import { TEX_MODE } from './worlds/texPref.js';
+import { TERRAIN_CFG } from '../../../../server/meta/terrainCfg.ts';
+import { liquidAt, inLiquid, resolveLiquid } from '../../../../server/meta/liquid.ts';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
 import { ChestWindow } from './ui/chest.js';
@@ -136,16 +144,23 @@ async function boot(canvasId, username, userId, api) {
   window.__CURRENT_USERNAME__ = username;
 
   const overlay = new Overlay(canvas, container);
-  overlay.showScreen('<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
+  initUiSkin(); // тема интерфейса: html.mc-ui, металл рамок под локацию
+  initUiScale(overlay.layer, { mobile }); // «🔍 Размер интерфейса» (ui/uiScale.js)
+  // экран загрузки: новый интерфейс — знак, полоса и шаги (ui/atmoUi.js); старая тема — как было
+  const ldScr = overlay.showScreen(loadScreenOn() ? loadingHtml() : '<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
 
   const THREE = await loadThree();
+  setLoadStep(1, ldScr);
   initModelMode();
   await Promise.all([preloadCharacterSheets(), loadPixAtlases(THREE)]);
+  setLoadStep(2, ldScr);
   const stage = new Stage(THREE, canvas, { mobile });
   stage.unify = new UnifyPass(THREE, stage.renderer); onGrimStyle((v) => { stage.unify.strength = v; }); // единый стиль (engine/unify.js)
   initGrim(canvas); // мрачная цветокоррекция + дымка к краям (ui/grim.js; сила — Настройки)
   atmo.init(THREE, stage, { mobile });
+  initAtmoUi(canvas, { mobile }); // атмосфера нового интерфейса: виньетка/тон локации, частицы, звуки (ui/atmoUi.js)
   let atmoWorld = null; // 'run_crypt' | 'run_abyss' в забеге
+  setLoadStep(3, ldScr);
   overlay.hideScreen();
 
   // ---------------- состояние ----------------
@@ -438,6 +453,8 @@ async function boot(canvasId, username, userId, api) {
     if (!d.ok) overlay.toast(`✖ Условие задания нарушено: ${d.reason}${d.kill ? ' — убийство не засчитано' : ''}`, '#fca5a5'); tracker.sig = ''; });
   net.on('meta_state', (d) => {
     if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
+    if (d.ui) setUiCfg(d.ui); // вид интерфейса (админка «🎨 Интерфейс»)
+    if (d.terrain) Object.assign(TERRAIN_CFG, d.terrain); // непроходимая вода/лава — предсказание как у сервера (админка «🌊 Рельеф»)
     if (d.gather) zone.setGlow(d.gather); // свечение узлов сбора (админка «⛏ Сбор»)
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
@@ -635,6 +652,7 @@ async function boot(canvasId, username, userId, api) {
     if (book.isOpen) book.close();
     social.openSelf(myId, { talentHtml: () => book.talentPanel(), onTalent: (id) => meta.talentLearn(id) });
   }
+  api.toggleCharSheet = toggleCharSheet; // C — и для плейтестов (ui-scale)
   function inspectPlayer(sid) {
     if (!net.isOpen() || !sid) return;
     if (book.isOpen) book.close();
@@ -716,6 +734,8 @@ async function boot(canvasId, username, userId, api) {
   charBtn.className = 'mc-bookbtn mc-charbtn'; charBtn.title = 'Персонаж (C)'; charBtn.textContent = '🧙';
   charBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); tracker.tutDone('book'); toggleCharSheet(); });
   overlay.layer.appendChild(charBtn);
+  // рамка героя (лево-верх): аватар, имя, уровень, ОЗ — когда нет боковой карточки «ГЕРОЙ»
+  const pframe = new PlayerFrame(overlay.layer, { onClick: () => toggleCharSheet() });
   function updateBookBadge() {
     const n = meta.unread().total;
     const em = bookBtn.querySelector('em');
@@ -950,7 +970,7 @@ async function boot(canvasId, username, userId, api) {
     runView = new RunView(THREE, stage.scene, run, arena);
     stage.setEnvironment(arena);
     atmoWorld = 'run_' + (arena.theme || 'crypt'); atmo.setScene(atmoWorld, null, []);
-    mode = 'run';
+    mode = 'run'; setUiMode('run'); // забег — без темы реворка (там всё как было)
     runUI.show(true);
     runUI.setAbilities(run.me.abilities);
     run.resultSent = false;
@@ -995,7 +1015,7 @@ async function boot(canvasId, username, userId, api) {
     overlay.clearFloats();
     hub.attach();
     touch.setMode('hub');
-    mode = 'hub';
+    mode = 'hub'; setUiMode('hub');
     stage.follow(toX(player.x), toZ(player.y), 0, true);
   }
 
@@ -1515,6 +1535,8 @@ async function boot(canvasId, username, userId, api) {
     if (hudAcc > 0.15) {
       hudAcc = 0;
       updateTargetChip();
+      pframe.update({ show: mode === 'hub' && !!meta.hero && !hud.left.offsetParent, name: username, cls: meta.hero?.cls || player.stats.classId, lvl: meta.hero?.lvl,
+        heroName: meta.hero ? meta.heroName(meta.hero.cls || player.stats.classId) : '', hp: zone.me?.maxHp ? zone.me.hp : meta.hero?.effective?.maxHp, maxHp: zone.me?.maxHp || meta.hero?.effective?.maxHp, bk: meta.hero?.effective?.blkVis | 0 });
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
         roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes, hunt: tracker.hunt?.target || null,
@@ -1579,6 +1601,8 @@ async function boot(canvasId, username, userId, api) {
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
       if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }
+    // стоит в воде/лаве без движения (телепорт, старая позиция, админка включила рельеф) — мягко на ближайшую сушу; сервер сделает так же
+    else if (mode === 'hub' && (world !== 'arena' || !duel.inArena) && inLiquid(world, player.x, player.y)) { const [px, py] = resolveLiquid(world, player.x, player.y); player.x = px; player.y = py; }
     // отправка позиции: раз в MOVE_SEND_S (= такт сервера 100 мс) и только при изменении; -= без дрейфа частоты,
     // кламп — после долгого кадра/скрытой вкладки не шлём пачку подряд
     moveAcc += dt;
@@ -1931,6 +1955,9 @@ async function boot(canvasId, username, userId, api) {
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
+      // настройка «Текстуры»: режим и оценка памяти канвасов земли (RGBA, без мипмапов) — для замеров 16 vs 32
+      liquid: (x, y) => ({ kind: liquidAt(world, x ?? player.x, y ?? player.y), blocked: inLiquid(world, x ?? player.x, y ?? player.y), cfg: { ...TERRAIN_CFG } }),
+      tex: () => { const t = hub.env?.terrain; let px = 0, n = 0; const add = (im) => { if (im) { px += im.width * im.height; n++; } }; if (t?.chunks) for (const c of t.chunks.values()) add(c.mesh?.material?.map?.image); else add(t?.ground?.material?.map?.image); return { mode: TEX_MODE, canvases: n, mb: Math.round(px * 4 * 4 / 3 / 1048576 * 10) / 10 }; }, // RGBA + мипмапы
       biomeVars: () => ({ biome: document.documentElement.dataset.biome || '', col: getComputedStyle(document.documentElement).getPropertyValue('--mc-biome').trim() }),
       pos: () => ({ x: player.x, y: player.y }),
       // экранная точка мировой позиции (px мира) — для тестов клика мышью
@@ -1948,6 +1975,9 @@ async function boot(canvasId, username, userId, api) {
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
       openUpgrade: () => upgWin.open(),
+      lobby: (roomId) => openBrowser(roomId || Object.keys(RUN_ROOMS)[0]),
+      clearTarget: () => { hud.clearTarget(); if (zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); } },
+      vn: (who, emo = 'calm', text = '…') => dialog.playVN([{ who, emo, text }], { id: 'dbg', title: 'Сцена', chapter: '' }, [{ text: 'Уйти', cls: 'ghost', onClick: () => dialog.close() }]), // скриншоты VN-арта
       npcPos: (id) => npcPos(id), npcServer: (id) => npcServer(id), npcSpawn: (id) => NPCS[id] && { x: NPCS[id].x, y: NPCS[id].y }, nearestNpc: () => zone.nearestNpc(world, player.x, player.y)?.id || null,
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
       bm: () => zone.bmv?.debug() || null, target: () => hud.currentTarget, // Чёрный маг (hub/bmView.js): маг, купола, розы, земля

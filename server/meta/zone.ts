@@ -8,6 +8,9 @@ import { OUTLEVEL_SOLO_BOSS } from "./balance";
 import { CURSE } from "./cursed";
 import { ENCH, rollMobTier, tierDef, tierOk, mobRegenPct } from "./enchant";
 import { resolveWorld, freeSpot } from "./propCollision.ts";
+import { wetNear } from "./liquid.ts";
+import { WET } from "./zoneGen";
+WET.f = wetNear; // узлы сбора — не в воде/лаве
 const MOB_R = 12;
 import { mobShot } from "./mobFamily";
 import { GATHER_CFG } from "./gatherCfg";
@@ -270,6 +273,7 @@ export class Zone {
         const minD = G.campMinDist * Math.max(0.5, minMul) * (1 + (1 - dn) * 1.8 * R() + (R() < 0.15 ? 0.6 : 0));       // в густых пятнах — ближе (но ≥ campMinDist)
         if (inSafe(x, y, 300, this.world) || this.gen.bosses.some((b) => Math.hypot(b.x - x, b.y - y) < 700)) continue;
         if (tooClose(x, y, minD)) continue;
+        if (wetNear(this.world, x, y, G.campRing + 40)) continue; // лагерь целиком на суше (вода/лава непроходимы — liquid.ts)
         let tw = reg.table.reduce((a, b) => a + b.w, 0) * R(), row = reg.table[0];
         for (const tr of reg.table) { tw -= tr.w; if (tw <= 0) { row = tr; break; } }
         // БОЛЬШОЙ лагерь: 2–3 пачки по кругу (радиус campRing) + вожак в центре (иногда два вожака)

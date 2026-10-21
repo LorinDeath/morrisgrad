@@ -6,6 +6,7 @@ import { ColliderGrid, propColliders, resolveCircle, blocked } from './propsV2.t
 import { layoutWorld } from './worldLayout.ts';
 import { CELL as A_CELL, CH, arinarPlan, layoutChunk } from './arinarLayout.ts';
 import { WORLD_PORTALS } from '../worlds/portals.ts';
+import { inLiquid, resolveLiquid } from './liquid.ts';
 
 export const BODY_R = 10;              // радиус тела героя (как прежний hub.map.isBlocked(…, 10))
 const ALTAR_EDGE = { o: 22, r: 9 };    // алтарь Перевоплощения: основание ~60 px — твёрдые края, центр активируем
@@ -55,11 +56,14 @@ export function worldGrid(world: string, x = 0, y = 0): ColliderGrid | null {
 }
 
 /** Вытолкнуть тело радиуса r из твёрдых пропсов мира */
+// + непроходимые жидкости (liquid.ts: вода/лава по типу тайла, выключатели — админка «Рельеф»)
 export function resolveWorld(world: string, x: number, y: number, r = BODY_R): [number, number] {
-  return resolveCircle(worldGrid(world, x, y), x, y, r);
+  const [px, py] = resolveCircle(worldGrid(world, x, y), x, y, r);
+  const [lx, ly] = resolveLiquid(world, px, py);
+  return lx === px && ly === py ? [px, py] : resolveCircle(worldGrid(world, lx, ly), lx, ly, r);
 }
 export function blockedWorld(world: string, x: number, y: number, r = BODY_R): boolean {
-  return blocked(worldGrid(world, x, y), x, y, r);
+  return blocked(worldGrid(world, x, y), x, y, r) || inLiquid(world, x, y);
 }
 /** Ближайшая свободная точка (для спавнов): спираль от (x, y) */
 export function freeSpot(world: string, x: number, y: number, r = BODY_R): [number, number] {

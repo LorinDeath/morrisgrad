@@ -2,6 +2,8 @@ import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
 import { GATHER_CFG } from "./gatherCfg";
+import { UI_CFG } from "./uiCfg";
+import { TERRAIN_CFG } from "./terrainCfg";
 import { NPC_CFG } from "./npcWander";
 import { BM_CFG } from "./bmCfg";
 import { LIGHT_CFG } from "./lightCfg";
@@ -22,7 +24,7 @@ if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -183,10 +185,51 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("pool", "Световые пятна огней на земле: сила, ×", 0, 2), N("halo", "Ореолы огней и порталов: сила, ×", 0, 2),
     { path: "haloBehind", label: "Ореол за источником (не засвечивает спрайт; выкл — поверх, как раньше)", t: "bool" },
     N("shadow", "Тени под героями, мобами и пропсами: плотность, ×", 0, 1.5)] },
+  ui: { name: "Интерфейс", fields: [{ path: "_h_ui", label: "Стиль", t: "hdr" },
+    { path: "on", label: "Новый стиль интерфейса «проклятое + очернённое» (выкл — прежний вид)", t: "bool" },
+    N("glitch", "Глитч рамок: 0 — нет, 1 — под курсором, 2 — ещё редкие вздрагивания окон", 0, 2, "int"),
+    N("biomeMix", "Цвет локации в металле рамок, % (0 — всегда фиолет проклятия)", 0, 100, "int"),
+    { path: "ornaments", label: "Ромбы-застёжки на углах больших окон", t: "bool" },
+    { path: "avatars", label: "Аватары героев (окно C, карточка героя, просмотр игрока)", t: "bool" },
+    N("avatarCursedAt", "Очернённый аватар с очернения героя, %", 0, 100, "int"),
+    { path: "_h_hud", label: "HUD в игровом поле", t: "hdr" },
+    { path: "hudIngame", label: "HUD внутри игрового поля: круглая мини-карта, панель цели, компактные кнопки (выкл — боковые колонки у всех)", t: "bool" },
+    { path: "hudOldDefault", label: "«Старые панели» по умолчанию (пока игрок не выбрал сам)", t: "bool" },
+    { path: "mmMobile", label: "Круглая мини-карта на телефоне", t: "bool" },
+    N("mmSize", "Диаметр мини-карты на ПК, px (телефон ×0.6)", 120, 240, "int"),
+    N("mmX", "Мини-карта: отступ от правого края, px", 0, 200, "int"), N("mmY", "Мини-карта: отступ сверху, px", 0, 200, "int"),
+    N("mmZoom", "Мини-карта: зум по умолчанию (1 — 1x, 2 — 2x, 3 — 3x)", 1, 3, "int"),
+    { path: "mmRound", label: "Мини-карта круглая (выкл — квадратная в рамке)", t: "bool" },
+    { path: "tgtSide", label: "Панель «Цель»: где", t: "enum", opts: ["left", "center", "right"], optn: { left: "слева, под рамкой героя", center: "по центру сверху", right: "справа, под мини-картой" } },
+    N("tgtTop", "Панель «Цель»: отступ сверху, px", 40, 500, "int"),
+    N("plate", "Плашки в поле («Цель», всплывающие окна): плотность тёмного фона, % (читаемость на льду/снегу)", 50, 100, "int"),
+    N("tgtHide", "Панель «Цель»: скрыть, если у цели ничего не меняется, с (0 — не скрывать)", 0, 60, "int"),
+    { path: "_h_atmo", label: "Атмосфера (только новый интерфейс, не в забеге)", t: "hdr" },
+    { path: "atmo", label: "Атмосфера: виньетка и тон по локации, частицы поверх экрана", t: "bool" },
+    N("vig", "Виньетка-«порча» по краям в цвет локации, %", 0, 100, "int"), N("grade", "Тон локации (лёгкий оттенок, не высветляет), %", 0, 100, "int"),
+    N("parts", "Частицы интерфейса (пепел, снег, угли…), % плотности", 0, 100, "int"),
+    N("atmoMobile", "Телефон: сила виньетки и тона, % от ПК (0 — атмосфера выкл)", 0, 100, "int"),
+    N("partsMobile", "Телефон: плотность частиц, % от ПК", 0, 100, "int"),
+    ...([["hub", "Поляна"], ["ice", "Аринар · лёд"], ["fire", "Аринар · огонь"], ["stone", "Аринар · камень"], ["air", "Аринар · воздух"], ["arinar", "Аринар · прочие края"]] as const).flatMap(([k, nm]) => [
+      { path: `_h_loc_${k}`, label: `Локация: ${nm} (% от общих значений)`, t: "hdr" as const },
+      N(`loc.${k}.vig`, `${nm}: виньетка, %`, 0, 200, "int"), N(`loc.${k}.grade`, `${nm}: тон, %`, 0, 200, "int"), N(`loc.${k}.parts`, `${nm}: частицы, %`, 0, 200, "int")]),
+    { path: "_h_sfx", label: "Звуки и окна", t: "hdr" },
+    { path: "sfx", label: "Звуки интерфейса (клик, открытие/закрытие окон)", t: "bool" }, N("sfxVol", "Громкость звуков интерфейса по умолчанию, % (0 — по умолчанию выкл)", 0, 100, "int"),
+    { path: "trans", label: "Плавное открытие/закрытие окон", t: "bool" }, N("transMs", "Длительность перехода окна, мс", 60, 400, "int"),
+    { path: "loadScreen", label: "Экран загрузки в стиле нового интерфейса", t: "bool" },
+    { path: "_h_tex", label: "Текстуры по умолчанию (пока игрок не выбрал сам; со следующей загрузки)", t: "hdr" },
+    { path: "texPc", label: "ПК", t: "enum", opts: ["32", "16"], optn: { "32": "новые (32 px)", "16": "старые (16 px)" } },
+    { path: "texMobile", label: "Телефон", t: "enum", opts: ["32", "16"], optn: { "32": "новые (32 px)", "16": "старые (16 px)" } },
+    { path: "_h_scale", label: "🔍 Размер интерфейса (пока игрок не выбрал сам; не больше, чем помещается на экран)", t: "hdr" },
+    N("scalePc", "ПК: по умолчанию, %", 50, 200, "int"), N("scaleMobile", "Телефон: по умолчанию, % (0 — авто по размеру экрана)", 0, 200, "int"),
+    N("scaleMin", "Ползунок: минимум, %", 50, 100, "int"), N("scaleMax", "Ползунок: максимум, %", 100, 200, "int")] },
+  terrain: { name: "Рельеф", fields: [{ path: "waterBlock", label: "Вода и глубокая вода непроходимы для героев и ходячих мобов (берега и мостки — проходимы)", t: "bool" },
+    { path: "lavaBlock", label: "Лава непроходима", t: "bool" },
+    N("edge", "Полоса берега, px: насколько тело заходит на клетку жидкости со стороны суши", 0, 16, "int")] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

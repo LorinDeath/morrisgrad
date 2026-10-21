@@ -32,6 +32,8 @@ import { regionAt, isNight } from "./zoneGen";
 import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { gatherClient } from "./gatherCfg";
+import { uiClient } from "./uiCfg";
+import { terrainClient } from "./terrainCfg";
 import { NpcWander } from "./npcWander";
 import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
@@ -267,7 +269,7 @@ export class MetaService {
     s.questDialogues = QUEST_DIALOGUES; // диалоги-новеллы квестов (админка)
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
-    if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); s.gather = gatherClient(); // карта M: биом · ур. мобов (живые уровни)
+    if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); s.gather = gatherClient(); s.ui = uiClient(); s.terrain = terrainClient(); // вид интерфейса (админка «🎨 Интерфейс») // карта M: биом · ур. мобов (живые уровни)
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
