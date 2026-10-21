@@ -447,6 +447,8 @@ try {
 </style>
 
 <script>
+    // XSS: поля предметов (название, источник, иконка, статы) задаёт игрок через /api/inventory — в HTML только экранированными
+    const escH = (v: any) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
 document.addEventListener('astro:page-load', () => {
     // Проверка размера файла на клиенте
     const fileInput = document.getElementById('avatar_file') as HTMLInputElement | null;
@@ -567,7 +569,7 @@ document.addEventListener('astro:page-load', () => {
         
         if (iconEl) {
             if (item.icon && item.icon.startsWith('http')) {
-                iconEl.innerHTML = `<img src="${item.icon}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
+                iconEl.innerHTML = `<img src="${escH(item.icon)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">`;
             } else {
                 iconEl.innerText = item.icon || '📦';
             }
@@ -586,9 +588,9 @@ document.addEventListener('astro:page-load', () => {
             rarityEl.style.background = 'rgba(0,0,0,0.5)';
         }
         if (sourceEl) {
-            sourceEl.innerHTML = `Источник: ${item.source || 'Неизвестно'}`;
+            sourceEl.innerHTML = `Источник: ${escH(item.source || 'Неизвестно')}`;
             if (item.setId) {
-                sourceEl.innerHTML += `<br><span style="color:#0f0; font-weight:bold; text-shadow: 0 0 5px #0f0;">СЕТ: ${item.setId.toUpperCase()}</span>`;
+                sourceEl.innerHTML += `<br><span style="color:#0f0; font-weight:bold; text-shadow: 0 0 5px #0f0;">СЕТ: ${escH(String(item.setId).toUpperCase())}</span>`;
             }
         }
         if (descEl) descEl.innerText = item.description || "Нет описания";
@@ -599,7 +601,7 @@ document.addEventListener('astro:page-load', () => {
                 for (const [key, val] of Object.entries(item.stats)) {
                     const row = document.createElement('div');
                     row.className = 'stat-row';
-                    row.innerHTML = `<span class="stat-key">${key.toUpperCase()}</span><span class="stat-val">+${val}</span>`;
+                    row.innerHTML = `<span class="stat-key">${escH(key.toUpperCase())}</span><span class="stat-val">+${escH(val)}</span>`;
                     statsEl.appendChild(row);
                 }
             }
@@ -610,7 +612,7 @@ document.addEventListener('astro:page-load', () => {
                 for (const [key, val] of Object.entries(item.setStats)) {
                     const r = document.createElement('div');
                     r.className = 'stat-row';
-                    r.innerHTML = `<span class="stat-key" style="color:#0f0">${key.toUpperCase()}</span><span class="stat-val" style="color:#0f0">+${val}</span>`;
+                    r.innerHTML = `<span class="stat-key" style="color:#0f0">${escH(key.toUpperCase())}</span><span class="stat-val" style="color:#0f0">+${escH(val)}</span>`;
                     statsEl.appendChild(r);
                 }
             }

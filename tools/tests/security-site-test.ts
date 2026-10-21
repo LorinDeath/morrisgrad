@@ -1,6 +1,7 @@
 // Тесты безопасности сайта (чистые функции). Запуск: bun tools/tests/security-site-test.ts
 import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS, siteNickProblem } from "../../src/lib/security";
 import { readFileSync } from "fs";
+import { cleanInventoryItem } from "../../src/lib/inventoryItem";
 
 let fails = 0, passes = 0;
 const ok = (c: any, m: string) => { if (c) passes++; else { fails++; console.log("FAIL " + m); } };
@@ -38,6 +39,18 @@ ok(!isCrossSiteWrite("POST", "http://localhost:4321/profile", H({ origin: "http:
 // --- ник сайта ---
 ok(siteNickProblem("Лорин Death_1.") === null, "обычный ник");
 for (const bad of ["<svg onload=alert()>", 'a"b', "a'b", "x&y", "a<b", "tab\there", "emoji😀"]) ok(siteNickProblem(bad), "запрещён: " + bad);
+
+// --- предметы /api/inventory ---
+{
+  const x = cleanInventoryItem({ id: "sw1", name: "Меч", source: "Neon", type: "weapon", rarity: "epic", icon: "⚔️", stats: { atk: 5, "<b>": 1, hp: "NaN", big: 1e12 }, setStats: null, extra: "x" })!;
+  ok(x && x.name === "Меч" && x.stats.atk === 5 && !("<b>" in x.stats) && !("hp" in x.stats) && !("big" in x.stats) && !("extra" in (x as any)), "чистка статов и лишних полей");
+  ok(cleanInventoryItem({ name: "a", icon: "javascript:alert(1)" })!.icon.length <= 16, "иконка не-https режется до короткого текста");
+  ok(cleanInventoryItem({ name: "a", icon: "http://x.example/a.png" })!.icon === "📦", "http-иконка отклонена");
+  ok(cleanInventoryItem({ name: "a", icon: "https://x.example/a.png" })!.icon === "https://x.example/a.png", "https-иконка принята");
+  ok(cleanInventoryItem({ name: "a", rarity: "<script>" })!.rarity === "common", "rarity из списка");
+  ok(cleanInventoryItem({ name: "x".repeat(1000), source: "y".repeat(1000) })!.name.length === 80, "длина имени");
+  ok(cleanInventoryItem({ name: "" }) === null && cleanInventoryItem(null) === null && cleanInventoryItem([1]) === null, "пустые/не объекты отклонены");
+}
 
 console.log(`security-site-test: ${passes} PASS, ${fails} FAIL`);
 if (fails) process.exit(1);
