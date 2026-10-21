@@ -1,7 +1,8 @@
 // Форум: безопасная «лёгкая разметка» (markdown-lite) → HTML. Общий код для сервера (рендер при записи)
 // и клиента (живой предпросмотр в редакторе). Сырой HTML не поддерживается: весь текст сначала экранируется,
 // затем узнаются только разрешённые конструкции. Ссылки — только https/http и внутренние «/…»,
-// картинки — только https или свои загрузки (/api/forum/media/…). Внешним ссылкам — rel="nofollow noopener ugc".
+// картинки — только свои загрузки (/api/forum/media/…): внешняя картинка показывается обычной ссылкой «🖼 …»
+// (чужой сайт не видит IP читателей и не может подменить картинку). Внешним ссылкам — rel="nofollow noopener ugc".
 
 export const MEDIA_PREFIX = "/api/forum/media/";
 
@@ -26,12 +27,25 @@ export function safeLinkUrl(raw: string): string | null {
     return p.toString();
   } catch { return null; }
 }
-/** Картинка: своя загрузка или https. */
+/** Картинка: только своя загрузка форума. Внешние адреса картинкой не показываются. */
 export function safeImageUrl(raw: string): string | null {
   const u = unesc(raw).trim();
   if (u.startsWith(MEDIA_PREFIX)) return MEDIA_KEY_RE.test(u.slice(MEDIA_PREFIX.length)) ? u : null;
-  if (u.length > 500 || /[\s"'<>\\`]/.test(u)) return null;
-  try { const p = new URL(u); return p.protocol === "https:" && !p.username && !p.password ? p.toString() : null; } catch { return null; }
+  return null;
+}
+/** Внешняя «картинка» ![подпись](https://…) → обычная ссылка «🖼 подпись» (alt уже экранирован). */
+function extImageLink(altEsc: string, rawUrl: string): string | null {
+  const u = safeLinkUrl(rawUrl);
+  if (!u || isInternal(u)) return null;
+  let label = altEsc;
+  if (!label) { try { label = esc(new URL(u).hostname); } catch { label = "картинка"; } }
+  return `<a href="${esc(u)}" class="f-extimg" target="_blank" rel="nofollow noopener noreferrer ugc">🖼 ${label}</a>`;
+}
+/** Сохранённый HTML старых записей мог содержать внешние <img> (до запрета) — такие перерисовываем из исходника при чтении. */
+const EXT_IMG_RE = /<img src="(?!\/api\/forum\/media\/|https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg")/;
+export function hasExternalImg(html: string): boolean { return EXT_IMG_RE.test(String(html || "")); }
+export function freshHtml(html: string, body: string | null | undefined, opts: RenderOpts = {}): string {
+  return hasExternalImg(html) && typeof body === "string" ? renderMd(body, opts) : html;
 }
 export function youtubeId(raw: string): string | null {
   const u = unesc(raw).trim();
@@ -49,7 +63,9 @@ function inline(text: string): string {
   s = s.replace(/`([^`\n]{1,300})`/g, (_, c) => keep(`<code>${c}</code>`));
   s = s.replace(/!\[([^\]\n]{0,120})\]\(([^)\s]{1,500})\)/g, (m, alt, url) => {
     const u = safeImageUrl(url);
-    return u ? keep(`<img src="${esc(u)}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`) : m;
+    if (u) return keep(`<img src="${esc(u)}" alt="${alt}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`);
+    const a = extImageLink(alt, url);
+    return a ? keep(a) : m;
   });
   s = s.replace(/\[([^\]\n]{1,200})\]\(([^)\s]{1,500})\)/g, (m, label, url) => {
     const u = safeLinkUrl(url);
@@ -107,6 +123,7 @@ export function renderMd(src: string, opts: RenderOpts = {}): string {
       if ((m = t.match(/^!\[([^\]\n]{0,120})\]\(([^)\s]{1,500})\)$/))) {
         const u = safeImageUrl(m[2]);
         if (u) { flush(); out.push(`<figure class="f-fig"><img src="${esc(u)}" alt="${esc(m[1])}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${m[1] ? `<figcaption>${esc(m[1])}</figcaption>` : ""}</figure>`); continue; }
+        // внешняя картинка — дальше обычным абзацем: inline() превратит её в ссылку «🖼 …»
       }
     }
     if (t.startsWith(">")) {

@@ -3,7 +3,7 @@
 import { Database } from "bun:sqlite";
 import { readFileSync } from "fs";
 import { handleForumApi } from "../../src/lib/forum/api";
-import { renderMd, plainText } from "../../src/lib/forum/md";
+import { renderMd, plainText, freshHtml, hasExternalImg } from "../../src/lib/forum/md";
 import { filterText, compileWords, DEFAULT_WORDS } from "../../src/lib/forum/profanity";
 import { clearSettingsCache } from "../../src/lib/forum/settings";
 import { sniff, stripMeta } from "../../src/lib/forum/media";
@@ -72,6 +72,16 @@ const fresh = async (settings: any = {}) => {
   ok(y.includes('data-yt="dQw4w9WgXcQ"') && !y.includes("<iframe"), "YouTube: лёгкая заглушка без iframe до клика");
   ok(renderMd("![](/api/forum/media/u/202610/abcdefgh12345678.webp)").includes('<figure class="f-fig"><img src="/api/forum/media/u/202610/abcdefgh12345678.webp"'), "своя картинка → figure");
   ok(!renderMd("![](/api/forum/media/../../secret)").includes("<img"), "чужой путь в медиа отклоняется");
+  // внешние картинки — не картинкой, а ссылкой «🖼 …» (только свои загрузки)
+  const e1 = renderMd("![кот](https://evil.example/cat.png)"), e2 = renderMd("смотри ![](https://evil.example/x.png) тут"), e3 = renderMd("![\"><x](https://e.example/a.png)");
+  ok(!e1.includes("<img") && e1.includes('<a href="https://evil.example/cat.png" class="f-extimg"') && e1.includes("🖼 кот") && /rel="nofollow noopener noreferrer ugc"/.test(e1), "внешняя картинка блоком → ссылка «🖼 подпись»");
+  ok(!e2.includes("<img") && e2.includes("🖼 evil.example</a>"), "внешняя картинка в строке → ссылка с именем сайта");
+  ok(!e3.includes("<img") && !e3.includes("<x") && e3.includes("&quot;&gt;&lt;x"), "подпись внешней картинки экранируется");
+  ok(!renderMd("![a](javascript:alert(1))").includes("href=\"javascript"), "javascript: в картинке — не ссылка");
+  const old = '<figure class="f-fig"><img src="https://evil.example/cat.png" alt="кот" loading="lazy"></figure>';
+  ok(hasExternalImg(old) && !freshHtml(old, "![кот](https://evil.example/cat.png)").includes("<img"), "старый сохранённый HTML с внешней картинкой перерисовывается при чтении");
+  const own = renderMd("![](/api/forum/media/u/202610/abcdefgh12345678.webp)\nhttps://youtu.be/dQw4w9WgXcQ");
+  ok(!hasExternalImg(own) && freshHtml(own, "x") === own, "свои картинки и превью YouTube не перерисовываются");
   ok(plainText("## Тема\n**жирно** [ссылка](https://x.y) ![](https://x/y.png)") === "Тема жирно ссылка", "анонс без разметки");
 }
 
