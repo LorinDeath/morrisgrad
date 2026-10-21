@@ -48,3 +48,10 @@ export function withSecurityHeaders(res: Response, isHttps: boolean): Response {
   catch { r = new Response(r.body, r); apply(r.headers); } // неизменяемые заголовки (Response.redirect / fetch) — копия
   return r;
 }
+
+/** Ник сайта (users.username): виден в чате, игре и профилях. Те же символы, что у ника форума. null — ник годится. */
+export function siteNickProblem(n: string): string | null {
+  const s = String(n ?? "");
+  if (!/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_\- .]+$/.test(s)) return "Никнейм: буквы, цифры, пробел, «_», «-», «.»";
+  return null;
+}

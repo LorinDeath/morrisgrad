@@ -1,5 +1,5 @@
 // Тесты безопасности сайта (чистые функции). Запуск: bun tools/tests/security-site-test.ts
-import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS } from "../../src/lib/security";
+import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS, siteNickProblem } from "../../src/lib/security";
 import { readFileSync } from "fs";
 
 let fails = 0, passes = 0;
@@ -34,6 +34,10 @@ ok(!isCrossSiteWrite("POST", "http://localhost:4321/profile", H({ origin: "http:
   const hf = readFileSync(new URL("../../public/_headers", import.meta.url), "utf8").toLowerCase();
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) ok(hf.includes(`${k}: ${v}`.toLowerCase()), "_headers: " + k);
 }
+
+// --- ник сайта ---
+ok(siteNickProblem("Лорин Death_1.") === null, "обычный ник");
+for (const bad of ["<svg onload=alert()>", 'a"b', "a'b", "x&y", "a<b", "tab\there", "emoji😀"]) ok(siteNickProblem(bad), "запрещён: " + bad);
 
 console.log(`security-site-test: ${passes} PASS, ${fails} FAIL`);
 if (fails) process.exit(1);

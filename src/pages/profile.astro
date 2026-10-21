@@ -1,5 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { sniff } from '../lib/forum/media';
+import { siteNickProblem } from '../lib/security';
 
 // 1. Получаем доступ к базе данных Cloudflare D1
 const cfRuntime = (Astro.locals as any)?.runtime;
@@ -130,6 +132,10 @@ try {
                 } else if (newName.length < 3 || newName.length > 20) {
                     message = "Никнейм должен быть от 3 до 20 символов.";
                     messageType = "error";
+                } else if (siteNickProblem(newName)) {
+                    // ник показывается в чате, игре, профилях — только буквы/цифры/пробел/_-. (без < > " ' и т.п.)
+                    message = siteNickProblem(newName)!;
+                    messageType = "error";
                 } else {
                     // Проверка на уникальность (игнорируем регистр)
                     const existing = await db.prepare('SELECT id FROM users WHERE lower(username) = lower(?) AND id != ?').bind(newName, userId).first();
@@ -152,16 +158,22 @@ try {
                 //    message = "Аватар можно менять не чаще 1 раза в сутки.";
                 //    messageType = "error";
                 // } else 
+                // тип файла — по сигнатуре, а не по заявленному браузером (иначе можно залить HTML/SVG со скриптом)
+                const avatarBytes = avatarFile.size <= 5 * 1024 * 1024 ? new Uint8Array(await avatarFile.arrayBuffer()) : null;
+                const avatarMime = avatarBytes ? sniff(avatarBytes) : null;
                 if (avatarFile.size > 5 * 1024 * 1024) {
                     message = "Файл слишком большой (макс 5МБ).";
+                    messageType = "error";
+                } else if (!avatarMime) {
+                    message = "Аватар: только JPEG, PNG, WebP или GIF.";
                     messageType = "error";
                 } else {
                     // Загрузка в R2
                     if (bucket) {
                         try {
                             const key = `${userId}-${Date.now()}`;
-                            await bucket.put(key, await avatarFile.arrayBuffer(), {
-                                httpMetadata: { contentType: avatarFile.type }
+                            await bucket.put(key, avatarBytes, {
+                                httpMetadata: { contentType: avatarMime, contentDisposition: 'inline' }
                             });
 
                             // Удаляем старый аватар из R2, если он там есть, чтобы не занимать место
@@ -184,7 +196,6 @@ try {
                     } else {
                         console.error("[Profile] Ошибка: R2 Bucket не найден в env.");
                         // Вывод доступных ключей для отладки
-                        console.log("[Profile] Доступные ключи env:", env ? Object.keys(env) : "env is undefined");
                         
                         message = "Ошибка сервера: Хранилище файлов (R2) не подключено. Попробуйте 'wrangler dev --remote'";
                         messageType = "error";
