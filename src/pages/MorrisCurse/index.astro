@@ -96,7 +96,7 @@ import './_core/styles/game-modals.css';
           const data = await res.json();
           if (data.username) username = data.username;
           userId = data.userId || data.id || null; // <--- Получение ID из базы
-        }).catch((err) => { console.warn('Не удалось загрузить пользователя', err); showError('MC-A01', { soft: true, autoClose: 8000, detail: String(err?.message || err) }); });
+        }).catch((err) => { console.warn('Не удалось загрузить пользователя', err); showError('MC-A06', { soft: true, autoClose: 8000, detail: String(err?.message || err) }); });
         await syncAssets();
         await userP;
         const ld = AC.loader && AC.loader.el.isConnected ? AC.loader : null; // экран первого визита/обновления: последняя стадия

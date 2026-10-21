@@ -190,7 +190,7 @@ async function boot(canvasId, username, userId, api) {
   // ---------------- сеть ----------------
   const net = new NetClient({
     username, userId,
-    getToken: async () => { const t = await clerkToken(); if (userId && !t) showError('MC-A01', { soft: true, autoClose: 8000, detail: 'Clerk: пустой токен при входе ' + (window.Clerk ? (window.Clerk.loaded ? 'loaded' : 'not loaded') : 'no Clerk') }); return t; },
+    getToken: async () => { const t = await clerkToken(); if (userId && !t) showError('MC-A04', { soft: true, autoClose: 8000, detail: 'Clerk: пустой токен при входе ' + (window.Clerk ? (window.Clerk.loaded ? 'loaded' : 'not loaded') : 'no Clerk') }); return t; },
     guestId: guestId(),
     getJoinState: () => ({
       x: player.x, y: player.y,
@@ -332,7 +332,7 @@ async function boot(canvasId, username, userId, api) {
 
   net.on('kicked', () => showError('MC-S02', { onRetry: () => location.reload() }));
   net.on('welcome', () => setErrSink((r) => send({ type: 'client_err', ...r }))); // коды ошибок → журнал сервера (без личных данных)
-  net.on('auth_err', (d) => showError('MC-A02', { soft: true, autoClose: 8000, detail: d?.why || '' }));
+  net.on('auth_err', (d) => showError('MC-A03', { soft: true, autoClose: 8000, detail: d?.why || '' }));
   net.on('offline', (d) => {
     if (net.kicked) return;
     setErrSink(null);
@@ -407,8 +407,8 @@ async function boot(canvasId, username, userId, api) {
     }
   });
   net.on('toast_error', (d) => {
-    if (d.code === 'MC-A03' && /^admin/.test(d.for || '')) { try { if (adminPanel.isOpen) { adminPanel.onDenied(d); return; } } catch (_) {} } // окно админки: код вместо вечной «Загрузки данных»
-    if (d.code && d.code !== 'MC-A03') showError(d.code, { soft: true, autoClose: 6000, detail: d.message }); else overlay.toast(d.message || 'Ошибка', '#fca5a5');
+    if (d.code === 'MC-A07' && /^admin/.test(d.for || '')) { try { if (adminPanel.isOpen) { adminPanel.onDenied(d); return; } } catch (_) {} } // окно админки: код вместо вечной «Загрузки данных»
+    if (d.code && d.code !== 'MC-A07') showError(d.code, { soft: true, autoClose: 6000, detail: d.message }); else overlay.toast(d.message || 'Ошибка', '#fca5a5');
   });
   // Профиль: сервер может не успеть загрузить его (meta_error) — повторяем meta_get с нарастающей паузой,
   // и сторож: если после welcome нет meta_state за 8 с — тоже запрос.
@@ -1973,7 +1973,7 @@ async function boot(canvasId, username, userId, api) {
       vram: () => ({ ...VRAM.inst?.stats, ...VRAM.inst?.measure(), cfg: vcfg(), radius: hub.env?.terrain?.radius || null, pending: VRAM.inst?.pending || 0 }),
       upLog: () => VRAM.inst?.upLog || [],
       setVram: (v) => { setVramCfg(v); return vcfg(); },
-      vramTop: (n = 12) => [...VRAM.inst.seen.entries()].filter(([t]) => VRAM.inst.onGpu(t)).map(([t, e]) => ({ mb: Math.round(texBytes(t) / 104857.6) / 10, w: t.image?.width, h: t.image?.height, src: String(t.image?.src || t.image?.currentSrc || t.image?.constructor?.name || '').split('/').pop().slice(0, 40), idle: Math.round(performance.now() - e.last) })).sort((a, b) => b.mb - a.mb).slice(0, n),
+      vramTop: (n = 12) => [...VRAM.inst.seen.entries()].filter(([t]) => VRAM.inst.onGpu(t)).map(([t, e]) => ({ mb: Math.round(texBytes(t) / 104857.6) / 10, w: t.image?.width, h: t.image?.height, src: String(t.image?.src || t.image?.currentSrc || t.image?.constructor?.name || '').split('/').pop().slice(0, 40), idle: Math.round(performance.now() - e.last), chunk: !!t.userData?.mcChunk })).sort((a, b) => b.mb - a.mb).slice(0, n),
       vramTick: () => { VRAM.inst._scanAt = 0; VRAM.inst.tick(); return VRAM.inst.stats; },
       cache: () => cacheSummary(),
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },

@@ -45,7 +45,7 @@ const inHub = (p) => p.waitForFunction(() => window.__MC3D_GAME__?.state?.().mod
   const errShot = async (code, fn) => { await G(p, () => document.querySelectorAll('.mcl-err').forEach((e) => e.remove())); await fn(); const okk = await waitSel(p, `.mcl-err[data-code="${code}"]`, 15000); if (okk) { await L.sleep(400); await shot(p, code, EOUT); } console.log((okk ? 'PASS ' : 'FAIL ') + code); };
   await errShot('MC-G03', async () => { await p.route(/missing_atlas/, (rt) => rt.fulfill({ status: 404, body: 'x' })); await G(p, () => window.__MC3D_GAME__.debug.loadAtlas?.('/_astro/missing_atlas.png')); });
   await p.unrouteAll({ behavior: 'ignoreErrors' });
-  await errShot('MC-A03', async () => { await G(p, () => window.__MC3D_GAME__.debug.openAdmin()); });
+  await errShot('MC-A07', async () => { await G(p, () => window.__MC3D_GAME__.debug.openAdmin()); });
   await G(p, () => { try { window.__MC3D_GAME__.debug.closeAdmin?.(); } catch (_) {} document.querySelector('.adm-close, [data-adm-close]')?.click(); });
   // обрыв связи: сокет закрывается со стороны «сервера» (маршрут Playwright стоит между страницей и локальным сервером)
   let wsr = null; await p.routeWebSocket(/127\.0\.0\.1:8951/, (ws) => { ws.connectToServer(); wsr = ws; });
