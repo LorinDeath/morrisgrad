@@ -279,8 +279,8 @@ export class Social {
     { // «🔍 Размер интерфейса»: живой предпросмотр; окно настроек держим в прежнем масштабе, пока ползунок тянут
       const sc = this.overlay.screen, box = sc.firstElementChild, upd = () => { const v = sc.querySelector('[data-uisv]'); if (v) v.innerHTML = uisTxt(); const d = sc.querySelector('[data-uisdef]'); if (d) d.classList.toggle('gold', uiScalePref() == null); };
       sc.querySelectorAll('[data-uis]').forEach((r) => {
-        r.addEventListener('input', () => { if (box && !box.style.zoom) box.style.zoom = String(uiScaleEffective() / 100); setUiScale(Number(r.value)); upd(); });
-        r.addEventListener('change', () => { if (box) box.style.zoom = ''; upd(); uiSfx('click'); }); });
+        let raf = 0; r.addEventListener('input', () => { if (box && !box.style.zoom) box.style.zoom = String(uiScaleEffective() / 100); if (!raf) raf = requestAnimationFrame(() => { raf = 0; setUiScale(Number(r.value)); upd(); }); }); // не чаще кадра
+        r.addEventListener('change', () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } setUiScale(Number(r.value)); if (box) box.style.zoom = ''; upd(); uiSfx('click'); }); });
       sc.querySelector('[data-uisdef]')?.addEventListener('click', () => { setUiScale(null); const r = sc.querySelector('[data-uis]'); if (r) r.value = String(uiScaleChosen()); upd(); });
     }
     this.overlay.screen.querySelectorAll('[data-sfx]').forEach((r) => { r.addEventListener('input', () => { setSfxVol(Number(r.value)); const v = this.overlay.screen.querySelector('[data-sfxv]'); if (v) v.textContent = Number(r.value) ? `${r.value}%` : 'выкл'; }); r.addEventListener('change', () => uiSfx('click')); });
