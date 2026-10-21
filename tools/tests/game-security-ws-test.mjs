@@ -54,6 +54,12 @@ const rows = JSON.parse(out)[0]?.results || [];
 ok(rows.length === 2 && rows.some((r) => /"role":"moderator"/.test(r.detail)) && rows.some((r) => /"role":null/.test(r.detail)), "журнал: выдача и снятие модератора записаны");
 ok(rows.every((r) => !String(r.detail).includes("sec_target_pt")), "журнал: цель — непрозрачный id, не uid");
 
+// 4. осмотр игрока в игре («Посмотреть персонажа»): гость видит другого игрока, но без его внутреннего id
+G.send({ type: "inspect_player", sid: String(tw.myId) });
+const ins = await G.wait((m) => m.type === "inspect" || m.type === "inspect_err", 5000);
+ok(ins && ins.type === "inspect", "осмотр игрока: гость получает карточку (" + (ins && ins.type) + ")");
+ok(ins && !JSON.stringify(ins).includes("sec_target_pt") && !/user_[A-Za-z0-9]{8}/.test(JSON.stringify(ins)), "осмотр игрока: в ответе нет внутреннего id");
+
 // Origin: чужой сайт — отказ (403) даже на локальном сервере; morrisgrad.com и localhost-страница — подключаются
 async function tryOrigin(origin) {
   return new Promise((r) => { const ws = new WebSocket(WS, origin ? { headers: { Origin: origin } } : {}); ws.on("open", () => { ws.close(); r(true); }); ws.on("unexpected-response", (_q, res) => r(res.statusCode)); ws.on("error", () => r(false)); });

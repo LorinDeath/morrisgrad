@@ -26,7 +26,15 @@ ok(m.get("user_aaaaaaaaaaaa") === 2 && m.get("user_bbbbbbbbbbbb") === 3 && m.get
 ok(await uidForPid(db, 3) === "user_bbbbbbbbbbbb" && await uidForPid(db, "99") === null, "номер → игрок");
 ok(await uidForPid(db, "1 OR 1=1") === null && await uidForPid(db, "0") === null && await uidForPid(db, "01") === null, "мусор вместо номера — не найдено");
 ok(PID_RE.test("12") && !PID_RE.test("user_x") && CLERK_ID_RE.test("user_3DXwtZDrVvY5qUFE09zD0z6fhtY") && !CLERK_ID_RE.test("user_<x>"), "форматы номера и старого id");
-ok(!defaultAvatar(5).includes("user_") && defaultAvatar(5).endsWith("seed=mg5"), "аватар по умолчанию — без id Clerk");
+ok(defaultAvatar(5) === "/api/avatar/5", "аватар по умолчанию — /api/avatar/<номер>, без id Clerk");
+{
+  const { safeSvg } = await import("../../src/lib/defaultAvatar");
+  const good = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><metadata><dc:source>https://x</dc:source></metadata><rect width="9" height="9" fill="#fff"/></svg>';
+  ok(!!safeSvg(good), "SVG DiceBear (фигуры + metadata) проходит");
+  for (const bad of ['<svg><script>alert(1)</script></svg>', '<svg onload="alert(1)"></svg>', '<svg><image href="https://evil/x.png"/></svg>', '<svg><a href="javascript:alert(1)">x</a></svg>',
+    '<svg><foreignObject><div/></foreignObject></svg>', '<svg><use href="//evil/s.svg#a"/></svg>', '<html><svg></svg></html>', '<svg><style>@import "https://evil";</style></svg>', '<svg>' + "x".repeat(200000) + '</svg>'])
+    ok(safeSvg(bad) === null, "SVG отклоняется: " + bad.slice(0, 40));
+}
 // исходники: id Clerk не попадает в публичные ответы/страницы
 const chatApi = readFileSync(import.meta.dir + "/../../src/pages/api/chat.ts", "utf8");
 ok(/messages = results\.map\(\(m: any\) => \(\{ id: m\.id, message: m\.message, created_at: m\.created_at, pid:/.test(chatApi) && !/user_id: m\.user_id/.test(chatApi), "чат: наружу номер автора, без user_id");

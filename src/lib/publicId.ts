@@ -35,5 +35,5 @@ export async function uidForPid(db: any, pid: string | number): Promise<string |
   try { const r = await db.prepare("SELECT user_id FROM forum_users WHERE pid = ?").bind(Number(pid)).first(); return r?.user_id || null; } catch { return null; }
 }
 
-/** Картинка по умолчанию без внутреннего id (сид — номер игрока). */
-export const defaultAvatar = (pid: number | string | null) => `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=mg${encodeURIComponent(String(pid ?? "0"))}`;
+/** Картинка по умолчанию: тот же робот, что и раньше, но через /api/avatar/<номер> (id наружу не уходит). */
+export { avatarPath as defaultAvatar } from "./defaultAvatar";
