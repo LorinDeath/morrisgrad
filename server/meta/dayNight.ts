@@ -22,6 +22,11 @@ export const DN_CFG: any = {
   lampFade: 8,             // мин — плавное загорание/угасание одного огня
   force: "",               // «HH:MM» — принудительное время (тест); пусто — реальное
   speed: 1,                // ускорение часов в режиме force (60 — минута за секунду)
+  reduceMax: 100,          // «Смягчить ночь» (ползунок игрока в настройках): максимум, %
+  // огни: вид (клиент engine/dayNight.js LT — те же ключи); k* — сила пятна по виду огня, pool — размер пятна ×
+  lt: { flickFire: 0.22, flickLamp: 0.06, flickSpeed: 1, halo: 1, pool: 1, poolEl: 1.22, kFire: 1, kLamp: 1, kWindow: 1,
+    haloFire: 0.34, haloLamp: 0.6, haloWindow: 0.22, haloDoor: 0.36, glowFire: 0.32, glowLamp: 0.7, glowWindow: 0.3, nightLamp: 0.5, nightWindow: 0.25 },
+  emitters: "",            // правки точек огня (JSON { "city:dm_lantern_pole": [ex, ey] } — арт-px от низа-центра спрайта, ey вверх)
   // ключевые цвета (умножение на сцену). Закат: день → золото → розово-фиолетовый → глубокая синяя ночь
   cDay: "#ffffff", cGolden: "#ffc27a", cPink: "#c77aa8", cNight: "#2a3a7a",
   // рассвет: ночь → холодный фиолет/розовый → мягкое тепло → нейтральный день
@@ -103,6 +108,6 @@ export function dnMinutes(now = Date.now(), cfg = DN_CFG): number {
 /** клиенту: настройки + текущая минута и скорость хода часов (клиент интерполирует между сообщениями) */
 export function dnClient(now = Date.now()) {
   const c = DN_CFG, rate = String(c.force || "").trim() ? spd(c.speed) : 1;
-  return { cfg: { on: c.on, duskStart: c.duskStart, night: c.night, dawnStart: c.dawnStart, day: c.day, nightDark: c.nightDark, lightsOn: c.lightsOn, lightsFull: c.lightsFull, playerLightM: c.playerLightM, mobLight: c.mobLight, townLight: c.townLight, lampStagger: c.lampStagger, lampFade: c.lampFade,
+  return { cfg: { on: c.on, duskStart: c.duskStart, night: c.night, dawnStart: c.dawnStart, day: c.day, nightDark: c.nightDark, lightsOn: c.lightsOn, lightsFull: c.lightsFull, playerLightM: c.playerLightM, mobLight: c.mobLight, townLight: c.townLight, lampStagger: c.lampStagger, lampFade: c.lampFade, reduceMax: c.reduceMax, lt: c.lt, emitters: c.emitters,
     cDay: c.cDay, cGolden: c.cGolden, cPink: c.cPink, cNight: c.cNight, cDawnViolet: c.cDawnViolet, cDawnPink: c.cDawnPink, cDawnWarm: c.cDawnWarm }, min: dnMinutes(now), rate, at: now };
 }

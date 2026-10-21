@@ -6,8 +6,9 @@
 import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
-import { DayNight, lightOf, lampHash, lampGlowK, nightGlow } from './engine/dayNight.js';
-import { setEmitterCamera } from './engine/lightEmitter.js';
+import { DayNight, lightOf, lampHash, lampGlowK, nightGlow, LT } from './engine/dayNight.js';
+import { setEmitterCamera, lightEmitter, emitterVersion } from './engine/lightEmitter.js';
+import { DN_CFG } from '../../../../server/meta/dayNight.ts';
 import { pkTagHtml, pkTrackOf, pkMarked, pkUi, setPkUi } from './ui/pkBar.js';
 import { CityView } from './hub/cityView.js';
 import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
@@ -1972,7 +1973,7 @@ async function boot(canvasId, username, userId, api) {
       grim: (g, f) => { grimSet('grim', g); grimSet('fog', f); },
       style: (v) => grimSet('style', v),
       minimap: () => hud.minimap?.stats,
-      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      openAdmin: () => adminPanel.open(), closeAdmin: () => adminPanel.close(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       nodesNear: (r = 900, res = null) => [...zone.nodes.values()].filter((n) => (!res || n.def.res === res) && Math.hypot(n.def.x - player.x, n.def.y - player.y) < r).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, res: n.def.res, type: n.def.type, ready: n.ready, readyIn: n.readyIn })),
       nodesAll: (res) => [...zone.nodes.values()].filter((n) => !res || n.def.res === res).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, ready: n.ready })),
@@ -2026,6 +2027,11 @@ async function boot(canvasId, username, userId, api) {
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,
+      // админка: что применилось у клиента вживую (плейтест city-admin)
+      cfgLive: () => { const t = hub.env?.terrain, cv = cityView.cfg || {};
+        return { gl: CITY_CFG.groundLight, fade: cv.fade, fadeBand: cv.fadeBand, blight: cv.blight, blightScale: cityView.blightG ? +cityView.blightG.scale.x.toFixed(3) : null, blightVis: cityView.blightG?.visible ?? null,
+          cityChunksGl: t ? [...t.chunks.values()].filter((c) => c.city).map((c) => c.gl) : [], pk: pkUi(), reduceMax: DN_CFG.reduceMax, lt: { ...LT }, emitters: DN_CFG.emitters,
+          lantern: lightEmitter('dm_lantern_pole', null, 'city'), emV: emitterVersion(), cityEmV: cityView.emV, cityLights: cityView.lights?.length || 0 }; },
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
       biomeVars: () => ({ biome: document.documentElement.dataset.biome || '', col: getComputedStyle(document.documentElement).getPropertyValue('--mc-biome').trim() }),
       pos: () => ({ x: player.x, y: player.y }),

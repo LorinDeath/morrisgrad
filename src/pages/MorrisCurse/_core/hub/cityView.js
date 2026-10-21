@@ -6,7 +6,7 @@
 // заливка — отдельный меш opacity 0.02 (ProjBatch отбрасывает a < 0.04). Позиция блока = якорь + world_offset_m (камера: right/up/forward
 // из city_dome.json) — НЕ сдвиг по мировому Y, как FxAtlas.draw (квад к камере ужимается на cos p и блоки разъезжаются).
 import { lightOf, lampHash, FIRE, flickerOf, LT } from '../engine/dayNight.js';
-import { emitterOffsetM, emitterSpotsM, emitterWorld, emitterBasis } from '../engine/lightEmitter.js';
+import { emitterOffsetM, emitterSpotsM, emitterWorld, emitterBasis, emitterVersion } from '../engine/lightEmitter.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
@@ -79,7 +79,7 @@ export class CityView {
   apply(c) {
     if (!c) return;
     const moved = !this.cfg || this.cfg.x !== c.x || this.cfg.y !== c.y || this.cfg.cp !== c.cp;
-    this.cfg = c; Object.assign(CITY_CFG, { name: c.name, x: c.x, y: c.y, alphaIn: c.aIn, centerpiece: c.cp, plazaTiles: c.plaza, on: c.on });
+    this.cfg = c; Object.assign(CITY_CFG, { name: c.name, x: c.x, y: c.y, alphaIn: c.aIn, centerpiece: c.cp, plazaTiles: c.plaza, on: c.on, groundLight: Number(c.gl) || 1 });
     this.group.visible = !!c.on;
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
@@ -97,7 +97,7 @@ export class CityView {
   // ——— карта Историка: здания bld_* (+glow) и пропсы dm_* (+glow, анимации) — спрайты к камере, якорь — низ по центру ———
   buildMap() {
     const THREE = this.THREE, c = this.cfg; if (!c) return;
-    const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig;
+    const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); }
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
     const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; this.lights = []; this.halos = [];
@@ -107,7 +107,7 @@ export class CityView {
       const t = new THREE.CanvasTexture(cv); return t; })();
     // огонь: q = [x0, z0, цвет, радиус пятна м, сила, -, хэш, смещение огня [вправо, вверх] м, живой огонь, мерцание] (формат маски dayNight)
     const addLight = (x0, z0, col, rM, k, off, fire, haloM, kind = fire ? 'fire' : 'lamp') => {
-      const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1]);
+      const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1, kind]);
       const m = new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, fog: false, opacity: 0 });
       const sp = new THREE.Sprite(m); sp.scale.set(haloM, haloM, 1); sp.renderOrder = 2; gg.add(sp);
       this.glows.push({ m, lamp: true, h, halo: true, fire, kind, x0, z0, off, sp, haloM, k });
@@ -196,7 +196,7 @@ export class CityView {
     const tex = (c) => { const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
     const wM = (W * 2) / PX, hM = (H * 2) / PX, G = new THREE.Group(); G.name = 'city-rose-blight'; this.blightG = G;
     const geo = new THREE.PlaneGeometry(wM, hM); geo.rotateX(-Math.PI / 2);
-    const base = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false })); base.renderOrder = 1;
+    const base = new THREE.Mesh(geo, (this.blightBase = new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false }))); base.renderOrder = 1;
     this.blightSpark = new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 });
     const sp = new THREE.Mesh(geo, this.blightSpark); sp.renderOrder = 2; sp.position.y = 0.004;
     G.add(base, sp); G.position.set(toX(r.x), 0.013, toZ(r.y - 6)); this.group.add(G); // сердце пятна — у основания стебля
@@ -232,6 +232,7 @@ export class CityView {
   inCity(px, py) { const c = this.cfg; return !!(c && c.on && (px - c.x) ** 2 + (py - c.y) ** 2 <= c.r * c.r); }
   /** кадр: view = фокус камеры (свой герой) */
   update(dt, view) {
+    if (this.mapSig && this.emV !== emitterVersion()) { this.mapSig = null; this.buildMap(); } // админка: точки огня — вживую (смещения считаются при сборке)
     { const F = this.fenceRails, B = emitterBasis(); // жерди вертикального забора — по базису камеры (пересчёт при его смене)
       const sig = F && `${B.rx.toFixed(4)},${B.ux.toFixed(4)},${B.uy.toFixed(4)},${B.uz.toFixed(4)}`;
       if (F && sig !== F.sig) { F.sig = sig; const P = F.mesh.geometry.attributes.position, a = P.array, u = 0.1 * SIN_P, w = 0.13, bk = 0.04; let k = 0;
@@ -265,9 +266,9 @@ export class CityView {
     // оболочка: цель по расстоянию зрителя (свой герой) до центра, плавно (README купола §2)
     if (this.shell) {
       const aIn = Number.isFinite(Number(c.aIn)) ? Number(c.aIn) : SHELL.opacity_inside, aOut = Number.isFinite(Number(c.aOut)) ? Number(c.aOut) : SHELL.opacity_outside;
-      const d = view ? Math.hypot(view.x - c.x, view.y - c.y) : 1e9, k = sstep(c.r - 32, c.r + 32, d), target = aIn + (aOut - aIn) * k;
+      const d = view ? Math.hypot(view.x - c.x, view.y - c.y) : 1e9, bd = Number(c.fadeBand) || 32, k = sstep(c.r - bd, c.r + bd, d), target = aIn + (aOut - aIn) * k;
       const tn = performance.now(), rdt = Math.min(0.5, Math.max(0, (tn - (this.fadeT || tn)) / 1000)); this.fadeT = tn; // реальное время: кадр игры обрезан до 0.05 с, а переход должен длиться 0.6–0.8 с на любом FPS
-      const a0 = this.shellA; this.shellA += (target - this.shellA) * (1 - Math.exp(-rdt / 0.2)); this.shellMat.opacity = this.shellA;
+      const a0 = this.shellA; this.shellA += (target - this.shellA) * (1 - Math.exp(-rdt / Math.max(0.03, (Number(c.fade) || 0.6) / 3))); this.shellMat.opacity = this.shellA;
       { // метрика для плейтеста: переход по пересечениям уровней (вход 0.8→0.05, выход 0.1→0.85) в реальном времени + наибольший шаг за кадр
         const F = this.fade || (this.fade = { t: {}, last: null, step: 0, n: 0 }), a1 = this.shellA, X = (lv, up) => (up ? a0 < lv && a1 >= lv : a0 > lv && a1 <= lv);
         if (X(0.8, false)) { F.t.inAt = tn - rdt * 1000 * (a0 - 0.8) / Math.max(1e-6, a0 - a1); F.step = 0; F.n = 0; }
@@ -280,7 +281,9 @@ export class CityView {
       this.shell.visible = this.shellA > 0.003;
     }
     if (this.glows?.length) { const W = this._w3 ||= [0, 0, 0], Tm = performance.now(); for (const q of this.glows) if (q.halo) { emitterWorld(q.x0, 0, q.z0, q.off, 0.18, W); q.sp.position.set(W[0], W[1], W[2]); q.fl = flickerOf(Tm, q.x0, q.z0, q.fire); const hs = q.haloM * LT.halo * (0.94 + 0.06 * q.fl); q.sp.scale.set(hs, hs, 1); } } // ореол — в точке огня, чуть «за» спрайтом
-    if (this.blightSpark) this.blightSpark.opacity = 0.32 + 0.22 * Math.sin(T * 2.3) * Math.sin(T * 3.7 + 1.1); // искры порчи мерцают
+    { const B = this.cfg?.blight || {}, bk = Number(B.k ?? 1), bs = Number(B.size) || 1; // админка: пятно порчи — вкл/размер/сила (вживую)
+      if (this.blightG) { this.blightG.visible = B.on !== false && bk > 0.01; this.blightG.scale.set(bs, 1, bs); if (this.blightBase) this.blightBase.opacity = Math.min(1, bk); }
+      if (this.blightSpark) this.blightSpark.opacity = (0.32 + 0.22 * Math.sin(T * 2.3) * Math.sin(T * 3.7 + 1.1)) * bk; } // искры порчи мерцают
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
   }

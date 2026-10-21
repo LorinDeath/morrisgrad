@@ -6,6 +6,7 @@ import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from 
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
 import { walkable } from "./walkable";
 import { validatePatch } from "./overrides";
+import { dnClient } from "./dayNight";
 import { emptyCellsInDome, cityGround, walkCell, walkColliders, mapProps, DARK_INDEX, roseBedPx, ROSE_BED, MAP, WELL_MOVES, WALK_SHIFT, fenceRuns } from "./cityMap";
 let ok = 0, bad = 0; const t = (n: string, c: any, x?: any) => { c ? (ok++, console.log("ok  ", n)) : (bad++, console.log("FAIL", n, x ?? "")); };
 const cfg0 = JSON.parse(JSON.stringify({ ...CITY_CFG, npc: undefined })); const npc0 = JSON.parse(JSON.stringify(CITY_CFG.npc));
@@ -182,4 +183,18 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const gi = Math.floor(WELL_MOVES[0].to[0] / CITY_TILE), gj = Math.floor(WELL_MOVES[0].to[1] / CITY_TILE), gi0 = Math.floor(WELL_MOVES[0].from[0] / CITY_TILE), gj0 = Math.floor(WELL_MOVES[0].from[1] / CITY_TILE);
   t("колодец: твёрдый на новом месте, старое проходимо", walkCell(gi, gj) === "#" && walkCell(gi0, gj0) === ".", [walkCell(gi, gj), walkCell(gi0, gj0)]);
   const g = cityGround(gi, gj) as any, nm = JSON.stringify(g); t("колодец: под ним нет мощения/тропы", !/cobble|plaza|path/.test(nm), nm); }
+{ // админка: аудит параметров (город, PK, день/ночь → огни)
+  const V = (k: any, patch: any) => validatePatch(k, "main", patch);
+  t("город: переход купола/полоса/пятно/яркость земли — принимаются", typeof V("city", { fadeSec: 1.2, fadeBandPx: 48, blightOn: false, blightSize: 1.5, blightK: 0.5, groundLight: 1.4 }) !== "string", V("city", { fadeSec: 1.2 }));
+  t("город: яркость земли вне 0.4…2.5 — отказ", typeof V("city", { groundLight: 9 }) === "string");
+  t("город: переход купола вне 0.1…5 с — отказ", typeof V("city", { fadeSec: 0 }) === "string");
+  const cc: any = cityClient(); t("cityClient: fade, fadeBand, gl, blight", cc.fade > 0 && cc.fadeBand > 0 && cc.gl > 0 && cc.blight && "on" in cc.blight, [cc.fade, cc.fadeBand, cc.gl, cc.blight]);
+  t("PK: правила сброса отсчёта (получил/нанёс) — переключатели", typeof V("pk", { cancelOnHit: false, cancelOnDeal: true }) !== "string" && PK_CFG.cancelOnHit === true && PK_CFG.cancelOnDeal === true);
+  t("ночь: максимум ползунка игрока", typeof V("dn", { reduceMax: 60 }) !== "string" && typeof V("dn", { reduceMax: 160 }) === "string");
+  t("огни: мерцание/ореол/пятно/сила по видам", typeof V("dn", { "lt.flickFire": 0.4, "lt.kLamp": 1.6, "lt.pool": 1.3, "lt.halo": 1.2 }) !== "string", V("dn", { "lt.flickFire": 0.4 }));
+  t("огни: вне диапазона — отказ", typeof V("dn", { "lt.kFire": 7 }) === "string");
+  t("точки огня: JSON-правки принимаются", typeof V("dn", { emitters: '{"city:dm_lantern_pole":[5,27],"torch":{"ex":0,"ey":30}}' }) !== "string");
+  t("точки огня: неверный JSON / не числа / далеко — отказ", ["{x", '{"a":[1]}', '{"a":[1,999]}', "[1,2]"].every((e) => typeof V("dn", { emitters: e }) === "string"));
+  t("точки огня: пусто — авто", typeof V("dn", { emitters: "" }) !== "string");
+  const dc: any = dnClient().cfg; t("dnClient: reduceMax, lt, emitters", dc.reduceMax === 100 && dc.lt?.kFire === 1 && dc.emitters === "", dc.lt); }
 console.log(`\n${ok} ok, ${bad} fail`); if (bad) process.exit(1);
