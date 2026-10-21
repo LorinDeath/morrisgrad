@@ -43,6 +43,11 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
       await p.screenshot({ path: `${OUT}/arena-${room}-${TAG}.png` });
       await p.evaluate(() => window.__game.debug.setZoom(0.4)).catch(() => {}); await sleep(2500);
       await p.screenshot({ path: `${OUT}/arena-${room}-wide-${TAG}.png` });
+      // стены и колонны: свободная камера (debug.freeCam) у северной стены и у первой колонны
+      const pil = await p.evaluate(async () => { try { const m = await import('/@fs/workspace/mg-props/src/pages/MorrisCurse/_core/survivors/run.js'); return m.PILLARS.slice(0, 2).map((q) => ({ x: q.x, z: q.z })); } catch (e) { return []; } });
+      const cams = [['wall', { x: 0, z: -54, zoom: 0.45 }], ...pil.slice(0, 1).map((q) => ['column', { x: q.x, z: q.z + 3, zoom: 0.7 }])];
+      for (const [nm, c] of cams) { await p.evaluate((c) => window.__game.debug.freeCam(c), c); await sleep(3000); await p.screenshot({ path: `${OUT}/arena-${room}-${nm}-${TAG}.png` }); }
+      await p.evaluate(() => window.__game.debug.freeCam(null));
       const ar = await p.evaluate(() => { const g = window.__game; const st = g.state(); return { mode: st.mode, enemies: st.run?.enemies, sheets: Object.keys(g.debug.props().sheets) }; });
       console.log('arena', room, JSON.stringify(ar));
     }

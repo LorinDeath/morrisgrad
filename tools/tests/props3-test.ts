@@ -57,4 +57,7 @@ ok(ne > 300, `проверено кадров огней: ${ne}`);
 const lv3: any = lightEmitter("lantern", 0, "v3"), lv2: any = lightEmitter("lantern", 0, "v2");
 ok(lv3.h > 2.4 && Math.abs(lv3.dx) > 0.3, `v3 фонарь: dx ${lv3.dx.toFixed(2)} м, h ${lv3.h.toFixed(2)} м (не центр кадра 0 / 2.4)`);
 ok(lv2.h > 3, `v2 фонарь: h ${lv2.h.toFixed(2)} м (голова фонаря)`);
+// линт необъявленных имён клиента (debug.lightSources падал на HALF_M только при вызове)
+{ let out = ""; let code = 0; try { out = execSync("node tools/tests/undef-lint.mjs", { encoding: "utf8" }); } catch (e: any) { out = String(e.stdout || e.message); code = 1; }
+  ok(code === 0, "undef-lint: нет необъявленных идентификаторов в src/pages/MorrisCurse/_core\n" + out.trim()); }
 console.log(`props3-test: ${passes} ok, ${fails} fail`); process.exit(fails ? 1 : 0);

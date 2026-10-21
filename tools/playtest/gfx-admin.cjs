@@ -21,7 +21,10 @@ const d1 = (sql) => cp.execSync(`cd ${__dirname}/../../server && CI=1 nice ../no
   const P = () => p.evaluate(() => window.__game.debug.props());
   const lantern = () => p.evaluate(() => window.__game.debug.lightSources().find((s) => s.k === 'lantern') || null);
   const open = async () => {
-    for (let i = 0; i < 10 && !(await p.$('.mc-admin section [data-p="fpsMul"]')); i++) {
+    // роль выдаётся записью в локальную D1 прямо перед входом, а сервер кэширует роли до 60 с (roles.ts) — admin_open может получить
+    // «Недостаточно прав» (панель так и висит на «Загрузка данных…»). Только для харнесса: ждём каталог, переоткрываем до 75 с.
+    for (let i = 0; i < 25 && !(await p.$('.mc-admin section [data-p="fpsMul"]')); i++) {
+      if (i && !(await p.evaluate(() => window.__game.debug.admin().loaded))) { await p.evaluate(() => document.querySelector('.mc-admin [data-x]')?.click()); await sleep(1500); }
       if (!(await p.evaluate(() => document.querySelectorAll('.mc-admin [data-tab]').length))) await p.evaluate(() => window.__game.debug.openAdmin());
       await sleep(1500); await p.evaluate(() => document.querySelector('.mc-admin [data-tab="gfx"]')?.click()); await sleep(800);
       await p.evaluate(() => { const r = [...document.querySelectorAll('.mc-admin aside [data-id], .mc-admin aside li, .mc-admin aside button')].find((e) => /main|Графика/.test(e.textContent)); r?.click(); }); await sleep(800);
