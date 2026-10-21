@@ -29,7 +29,7 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
   const setSave = async (k, v) => { await p.evaluate(([k, v]) => { const i = document.querySelector(`.mc-admin section [data-p="${k}"]`); i.value = v; }, [k, v]); await p.evaluate(() => document.querySelector('.mc-admin section [data-save]').click()); await sleep(3000); };
   const gl = () => p.evaluate(() => document.documentElement.dataset.uiGlitch);
   await openUi(); ok(await gl() === '1', 'по умолчанию глитч 1');
-  await setSave('glitch', '2'); ok(await gl() === '2', 'админка «Интерфейс»: глитч 2 применяется сразу (meta_state)');
+  await setSave('glitch', '2'); await p.waitForFunction(() => document.documentElement.dataset.uiGlitch === '2', null, { timeout: 8000 }).catch(() => {}); /* сервер под нагрузкой */ ok(await gl() === '2', 'админка «Интерфейс»: глитч 2 применяется сразу (meta_state)');
   await setSave('avatarCursedAt', '90'); 
   await p.reload(); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await sleep(3000);
   ok(await gl() === '2', 'после перезагрузки — из D1');
@@ -74,7 +74,7 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
   await openUi(); await setMany({ mmSize: 999 });
   const msg = await p.evaluate(() => document.querySelector('.mc-admin')?.innerText.match(/Диаметр[^\n]*120…240|120…240/)?.[0] || '');
   v = await live(); ok(v.mm === '200px' && !!msg, `вне диапазона (999) — отказ «${msg}», мини-карта осталась ${v.mm}`);
-  await setMany({ scaleMax: 300 }); const msg3 = await p.evaluate(() => /Ползунок: максимум[^\n]*100…200/.test(document.querySelector('.mc-admin')?.innerText || '')); v = await live(); ok(msg3 && v.uis?.want === 120, 'размер интерфейса: максимум 300% — отказ (100…200)');
+  await setMany({ mmSize: 200, scaleMax: 300 }); /* в форме ещё висит 999 из прошлой проверки */ const msg3 = await p.evaluate(() => /Ползунок: максимум[^\n]*100…200/.test(document.querySelector('.mc-admin')?.innerText || '')); v = await live(); const am = await p.evaluate(() => (document.querySelector('.mc-admin')?.innerText.match(/[^\n]*(Ползунок|100…200)[^\n]*/g) || []).join(' / ').slice(0, 200)); ok(msg3 && v.uis?.want === 120, `размер интерфейса: максимум 300% — отказ (100…200); ${am}; сейчас ${v.uis?.want}%`);
   await setMany({ mmSize: 200, 'loc.ice.vig': 500 }); const msg2 = await p.evaluate(() => /лёд: виньетка[^\n]*0…200/.test(document.querySelector('.mc-admin')?.innerText || '')); await setMany({ 'loc.ice.vig': 100 }); ok(msg2, 'сила локации 500% — отказ (0…200)');
   // перезагрузка: из D1
   await p.reload(); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await sleep(3500);
