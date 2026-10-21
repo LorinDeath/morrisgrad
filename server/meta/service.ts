@@ -600,6 +600,8 @@ export class MetaService {
         if (!target) { this.send(ws, { type: "toast_error", message: "Игрок не найден" }); return true; }
         this.roles.setModerator(ms.pkey, target, !!msg.moderator).then((r) => {
           if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err }); return; }
+          // журнал выдачи/снятия модератора (в player_roles остаётся только текущее состояние, история терялась)
+          this.store.audit(ms.pkey, "role_set", `role:${opaqueId(target!)}:${Date.now()}`, { target: opaqueId(target!), role: r.role || null });
           this.send(ws, { type: "role_changed", id: opaqueId(target!), role: r.role || null });
           this.push(ws, session, { toast: r.role ? "Модерка выдана" : "Модерка снята" });
           const osid = this.social.onlineSid(target!); const oe = osid ? this.sessionLookup?.(osid) : null;
