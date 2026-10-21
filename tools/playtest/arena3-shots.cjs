@@ -79,7 +79,9 @@ async function perf(p) { // общий вид, свободная камера: 
       const a = L[1].hub, z = L[L.length - 1].hub; R.leak[tag + 'Grow'] = { tex: (z.tex - a.tex) / 4, geo: (z.geo - a.geo) / 4 };
       console.log(`INFO ${PF} ${tag}: за вход-выход (crypt ×6) в хабе текстур +${(z.tex - a.tex) / 4}, геометрий +${(z.geo - a.geo) / 4}; в забеге − в хабе = ${L.map((q) => q.run.tex - q.hub.tex).join(',')}`);
     }
-    if (R.leak.oldGrow && R.leak.newGrow) ok(R.leak.newGrow.tex <= R.leak.oldGrow.tex + 0.25 && R.leak.newGrow.geo <= R.leak.oldGrow.geo + 0.25, `${PF}: арена 32 не добавляет утечек к старой (за вход: текстур +${R.leak.newGrow.tex} против +${R.leak.oldGrow.tex}, геометрий +${R.leak.newGrow.geo} против +${R.leak.oldGrow.geo})`);
+    // хаб сам догружает текстуры со временем (ресурсы по радиусу, игроки: +9 за 30 с простоя без входов), поэтому рост хаба — только INFO;
+    // утечка арены = рост разницы «в забеге − в хабе» от входа к входу (текстуры арены не освобождаются)
+    for (const tag of ['old', 'new']) { const d = (R.leak[tag] || []).map((q) => q.run.tex - q.hub.tex).slice(1); if (d.length) ok(Math.max(...d) - Math.min(...d) <= 1 && d[d.length - 1] - d[0] <= 1, `${PF} ${tag}: текстуры арены освобождаются при выходе (в забеге − в хабе: ${d.join(',')})`); }
   }
   R.errs = { old: P[2].errs.filter((e) => !/GL Driver/.test(e)), new: P[3].errs.filter((e) => !/GL Driver/.test(e)) };
   ok(!R.errs.new.length, `${PF}: ошибок страницы нет (${R.errs.new.join(' | ').slice(0, 300)})`);

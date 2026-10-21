@@ -77,10 +77,11 @@ export class RunArena {
     if (this.tiles && !A32) {
       const img = new Image();
       img.onload = () => {
+        if (this.gone) return; // арену уже закрыли — не создавать текстуру-сироту
         const t2 = new THREE.CanvasTexture(bakeTileFloor(img, R, this.tiles.length * 31));
         t2.magFilter = THREE.NearestFilter; t2.minFilter = THREE.NearestFilter; t2.generateMipmaps = false;
         if (THREE.sRGBEncoding) t2.encoding = THREE.sRGBEncoding;
-        floor.material.map = t2; floor.material.needsUpdate = true; this.floorReady = true;
+        const prev = floor.material.map; floor.material.map = t2; floor.material.needsUpdate = true; if (prev && prev !== t2) prev.dispose(); /* каменный холст больше не нужен */ this.floorReady = true;
       };
       img.src = srcUrl(TILE_SRC[this.tiles]);
     }
@@ -284,7 +285,7 @@ uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
   }
 
   /** освободить то, что не убирает RunView.dispose (канвас пола arena32) */
-  dispose() { this.a32?.dispose(); this.a32 = null; }
+  dispose() { this.gone = true; this.a32?.dispose(); this.a32 = null; }
 
   update(dt) {
     this.time += dt;
