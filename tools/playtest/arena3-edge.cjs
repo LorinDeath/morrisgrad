@@ -29,6 +29,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await p.waitForFunction(() => window.__game.state().mode === 'run', null, { timeout: 60000 });
     for (let i = 0; i < 60; i++) { const a = await D('arena32'); if (!a || a.ready) break; await sleep(250); }
     await sleep(3000); const th = TH[room]; info[th] = await D('arena32');
+    // снимки кромки без интерфейса: окно уровня / смерти не закрывает арену (канвас остаётся видимым)
+    if (process.env.HIDEUI !== '0') await p.addStyleTag({ content: 'body * { visibility: hidden !important; } canvas { visibility: visible !important; }' });
     for (const pt of PTS) for (const z of ZS) {
       const a = ANG[pt] * Math.PI / 180, r = z >= 2 ? 60.6 : z >= 1 ? 59.5 : 57;
       await D('freeCam', { x: Math.cos(a) * r, z: Math.sin(a) * r, zoom: z }); await sleep(1600); await p.mouse.move(5, 5);
