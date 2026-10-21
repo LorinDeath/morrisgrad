@@ -203,7 +203,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
       { path: p("_h"), label: `NPC — место ${i + 1}`, t: "hdr" as const }, { path: p("on"), label: "Стоит в городе (квесты — во вкладке «📜 Квесты», NPC city_" + (i + 1) + ")", t: "bool" as const },
       { path: p("name"), label: "Имя", t: "text" as const }, { path: p("title"), label: "Подпись", t: "text" as const },
       { path: p("look"), label: "Вид (временный, лист NPC)", t: "enum" as const, opts: CITY_LOOKS },
-      N(p("dx"), "Снаружи: точка X, клеток от центра (при R = 32, растягивается)", -60, 60), N(p("dy"), "Снаружи: точка Y, клеток от центра", -60, 60),
+      N(p("dx"), "Снаружи: точка X, клеток от центра (по умолчанию — точки карты Историка)", -60, 60), N(p("dy"), "Снаружи: точка Y, клеток от центра", -60, 60),
       { path: p("house"), label: "В здании (пусто — снаружи, по точке X/Y)", t: "enum" as const, opts: ["", ...BUILD_DEF.map((h) => h.id)], optn: Object.fromEntries([["", "— снаружи"], ...BUILD_DEF.map((h) => [h.id, h.name])]) },
       { path: p("spot"), label: "Место в здании: " + [...new Set(Object.values(ROOMS).flatMap((r: any) => (r.npc_spots || []).map((s: any) => s.id)))].join(" / "), t: "text" as const },
     ]; }).flat()] },

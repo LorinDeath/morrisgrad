@@ -568,6 +568,12 @@ export class MetaService {
         this.pkSend(ws, ms); return true;
       }
       case "pk_get": { this.pkSend(ws, ms); return true; }
+      case "city_knock": { // клиент упёрся в купол (убийцу не пускает — шаг внутрь не предсказан): плашка с причиной и отсчётом
+        if ((session.world || "hellfire") !== "arinar" || CITY_CFG.on === false) return true;
+        const now = Date.now(), k = this.killerOf(ms, now); if (k.killer && !inCity(session.x, session.y) && Math.hypot(session.x - CITY_CFG.x, session.y - CITY_CFG.y) < cityR() + 160) this.cityDenyMsg(session, ms, k, now);
+        else this.pkSend(ws, ms); // клиент думал, что он убийца, а это уже не так — обновить состояние
+        return true;
+      }
       case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); if (!msg.npc || msg.npc === BM_NPC) this.bm.talkEnd(session.id); return true; }
       case "npc_talk": {
         const npc = String(msg.npc);
@@ -1671,14 +1677,20 @@ export class MetaService {
   cityDev(ws: WebSocket, session: any, ms: any, a: any, o: any) {
     const now = Date.now(), P = this.pkOf(ms);
     if (o.pk !== undefined) { P.pk = !!o.pk; P.to = null; if (session.stats) session.stats.pk = P.pk ? 1 : 0; a.pk = P.pk ? 1 : undefined; this.pkSend(ws, ms); }
+    if (Array.isArray(o.mobAt)) { // плейтест: ближайший моб — в точку (за край купола) и в бой с игроком
+      const z = this.zones.arinar; const m = (z?.mobs || []).filter((x: any) => !x.dead && !x.special).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
+      if (m) { m.x = Number(o.mobAt[0]); m.y = Number(o.mobAt[1]); m.targetSid = session.id; m.dmgBy?.set(session.id, (m.dmgBy.get(session.id) || 0) + 1); (ms as any).devMob = m.id; }
+    }
     if (o.fastPk) { (PK_CFG as any).enterSec = Number(o.fastPk.enter ?? PK_CFG.enterSec); (PK_CFG as any).exitSec = Number(o.fastPk.exit ?? PK_CFG.exitSec); }
     if (o.mobKills) for (let i = 0; i < Number(o.mobKills); i++) this.killLog.note(ms.pkey, "m", false, now - i);
     if (o.pvpKills) for (let i = 0; i < Number(o.pvpKills); i++) this.killLog.note(ms.pkey, "p", false, now - i);
+    if (o.domeKill) { const ud = this.underDome(session.x, session.y); this.killLog.note(ms.pkey, "m", ud, now); this.killLog.note(ms.pkey, "p", ud, now); } // плейтест: тот же путь, что onMobKilled/onPvpKill
     if (o.clearKills) { this.killLog.m.delete(ms.pkey); this.killLog.p.delete(ms.pkey); delete a.klp; }
     if (Array.isArray(o.npcOn)) { (CITY_CFG.npc as any[]).forEach((sl, i) => (sl.on = o.npcOn.includes(i))); syncCityNpcs(NPCS as any); this.cityVer++; }
     if (o.posNow) this.posNote(session, ms, true);
     const k = this.killerOf(ms, now);
-    this.send(ws, { type: "dev_city", inCity: inCity(session.x, session.y), me: { x: Math.round(session.x), y: Math.round(session.y), w: session.world }, pk: P.pk, to: P.to, left: pkLeft(P, now), killer: k,
+    const dm = (ms as any).devMob != null ? this.zones.arinar?.byId?.get((ms as any).devMob) : null;
+    this.send(ws, { type: "dev_city", blocked: (this as any).cityBlocked || 0, mob: dm && !dm.dead ? { x: Math.round(dm.x), y: Math.round(dm.y), t: dm.type, tg: dm.targetSid || null } : null, inCity: inCity(session.x, session.y), me: { x: Math.round(session.x), y: Math.round(session.y), w: session.world }, pk: P.pk, to: P.to, left: pkLeft(P, now), killer: k,
       m: this.killLog.count(ms.pkey, "m", now), p: this.killLog.count(ms.pkey, "p", now), kst: a.kst || null, lastPos: a.lastPos || null, city: cityClient(), hp: Math.round(ms.zp.hp), alive: ms.zp.alive });
   }
   cityVer = 1;
@@ -1879,6 +1891,7 @@ export class MetaService {
         if (!ms || !ms.zp.alive) return;
         if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
         if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
+        if (w === "arinar" && this.citySafe(ms)) { (this as any).cityBlocked = ((this as any).cityBlocked || 0) + 1; return; } // город: урон 0 (счётчик — для плейтеста)
         if (w === "arinar" && (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms))) return; // купол Чёрного мага / город: неуязвим
         if (w === "arinar") this.pkCombat(sid); // получил урон — PK-отсчёт сброшен
         const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней

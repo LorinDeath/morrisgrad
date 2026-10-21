@@ -7,8 +7,8 @@ import { markersOf } from "./markers";
 import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from "./shared";
 import { worldSize, ARINAR_HUB } from "../worlds/sizes";
 import { WORLD_PORTALS as PORTALS } from "../worlds/portals";
-import { CITY_CFG, CITY_TILE, cityCell, cityProps, cityWallColliders } from "./city";
-import { nearBuilding } from "./cityBuild";
+import { CITY_CFG, CITY_TILE } from "./city";
+import { cityGround, walkColliders } from "./cityMap";
 export const CELL = 32, CH = 32;
 const T = tilesMeta.index;
 const SHEET = { b_ice: 1, b_fire: 2, b_stone: 3, b_air: 4 };
@@ -97,9 +97,9 @@ export function arinarPlan() {
   }
   // город под куполом (city.ts): клетки внутри радиуса — своя земля, свои пропсы, стены домов (одинаково у сервера и клиента)
   const city = CITY_CFG.on !== false ? { x: CITY_CFG.x, y: CITY_CFG.y, ci: Math.floor(CITY_CFG.x / CITY_TILE), cj: Math.floor(CITY_CFG.y / CITY_TILE), r: Number(CITY_CFG.rTiles) || 32 } : null;
-  const cityAt = (i, j) => city && (i - city.ci + 0.5) ** 2 + (j - city.cj + 0.5) ** 2 <= city.r * city.r;
+  const cityAt = (i, j) => !!city && Math.abs(i - city.ci) < city.r + 50 && Math.abs(j - city.cj) < city.r + 50 && !!cityGround(i, j, city.r); // земля Альказака по карте Историка (cityMap.ts)
   const keepClear = (x, y) => pois.some((p) => Math.abs(x - p.x) < 100 && Math.abs(y - p.y) < 100) || Math.hypot(x - center.x, y - center.y) < plazaR + 40;
-  const cityP = city ? cityProps(city.x, city.y, city.r).filter((p: any) => !nearBuilding(p.x, p.y)) : [], cityW = city ? cityWallColliders(city.x, city.y) : [];
+  const cityP = [], cityW = city ? walkColliders() : []; // пропсы/здания города рисует клиент (hub/cityView.js), коллизия — сетка walk карты
   return { size, seed, center, portals, npcs, pois, plazaR, biomeAt, keepClear, n: Math.ceil(size / CELL), city, cityP, cityW };
 }
 
@@ -108,12 +108,12 @@ export function layoutChunk(plan, ci, cj) {
   const i0 = ci * CH, j0 = cj * CH, W = CH + 2;
   const bio = new Array(W * W);
   for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) bio[j * W + i] = plan.biomeAt(i0 + i - 1, j0 + j - 1);
-  const sheet = new Uint8Array(CH * CH), base = new Uint16Array(CH * CH), over = [], props = [], cols = [];
+  const sheet = new Uint8Array(CH * CH), base = new Uint16Array(CH * CH), over = [], dover = [], props = [], cols = []; // dover — тройки (i, j, индекс tiles_dark) города
   let cmask = null; // маска оттенка клеток города (клиент: очернённая земля), null — в чанке нет города
   const at = (i, j) => bio[(j + 1) * W + (i + 1)];
   for (let j = 0; j < CH; j++) for (let i = 0; i < CH; i++) {
     const b = at(i, j), fam = FAM[b] || FAM.grass, gi = i0 + i, gj = j0 + j;
-    if (b === 'city') { const c = cityCell(gi - plan.city.ci, gj - plan.city.cj, plan.city.r); if (c) { base[j * CH + i] = T[c.t] ?? 0; (cmask ??= new Uint8Array(CH * CH))[j * CH + i] = c.m; continue; } }
+    if (b === 'city') { const g = cityGround(gi, gj, plan.city.r); if (g) { base[j * CH + i] = T[g.base] ?? 0; for (const t of g.dover) dover.push(i, j, t); (cmask ??= new Uint8Array(CH * CH))[j * CH + i] = 3; continue; } }
     let name;
     if (b === 'plaza') { const d = Math.hypot((gi + 0.5) * CELL - plan.center.x, (gj + 0.5) * CELL - plan.center.y); name = Math.abs(d - plan.plazaR * 0.6) < 18 || d < 30 ? 'plaza_rune' : fam[(gi & 1) + 2 * (gj & 1)]; }
     else name = fam[Math.floor(hash2(gi, gj, plan.seed) * fam.length) % fam.length];
@@ -146,6 +146,6 @@ export function layoutChunk(plan, ci, cj) {
   for (const p of extra) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1) props.push(p);
   if (plan.city) { for (const p of plan.cityP) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1) props.push(p); for (const c of plan.cityW) if (c.x >= x0 && c.x < x1 && c.y >= y0 && c.y < y1) cols.push(c); }
   props.sort((a, b) => a.y - b.y);
-  return { ci, cj, sheet, base, over, props, cols, cmask };
+  return { ci, cj, sheet, base, over, dover, props, cols, cmask };
 }
 

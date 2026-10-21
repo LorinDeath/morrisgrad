@@ -10,6 +10,7 @@
 import PROPS from "../../src/assets/mc/city/props_dark_atlas.json";
 import ROOMS_J from "../../src/assets/mc/city/interiors_dark.json";
 import { CITY_CFG, CITY_TILE, cityR, cityOn, CITY_SLOTS, CITY_LOOKS, ROOM_LIMIT, ROOM_OUT } from "./city";
+import { mapBuildings, mapShiftPx, walkColliders, mapPoint } from "./cityMap";
 
 export const PXM = 20;                               // px мира на метр
 export { ROOM_LIMIT };                               // x и y меньше — интерьер
@@ -19,43 +20,31 @@ export const DARK_PROPS: any = PROPS;
 export const ROOMS: Record<string, any> = (ROOMS_J as any).interiors || {};
 const RT = Number((ROOMS_J as any).tile) || 32;      // px клетки комнаты
 
-/** здания города (якорь — низ спрайта по центру; клетки от центра при R = 32, растягиваются по rTiles) */
-export interface CityBuildingDef { id: string; name: string; key: string; ax: number; ay: number; interior?: string }
-export const BUILD_DEF: CityBuildingDef[] = [
-  { id: "elder", name: "Дом старосты", key: "dm_house_log", ax: -10, ay: -9 },
-  { id: "scribe", name: "Дом писаря", key: "dm_house_plank", ax: -19, ay: -9, interior: "house_living" },
-  { id: "smith", name: "Кузня", key: "dm_house_plank", ax: 10, ay: -9, interior: "house_living" },
-  { id: "store", name: "Лавка", key: "dm_house_plank", ax: 19, ay: -9 },
-  { id: "healer", name: "Дом знахарки", key: "dm_house_log", ax: -10, ay: 11 },
-  { id: "inn", name: "Трактир «Последний приют»", key: "dm_house_log", ax: 10, ay: 11, interior: "shop_tavern" },
-  { id: "tentN1", name: "Шатёр беженцев", key: "dm_tent_hide", ax: 14, ay: -19 },
-  { id: "tentN2", name: "Палатка беженцев", key: "dm_tent_canvas", ax: 20, ay: -16 },
-  { id: "tentN3", name: "Палатка беженцев", key: "dm_tent_canvas", ax: 8, ay: -22 },
-  { id: "tentS1", name: "Палатка беженцев", key: "dm_tent_canvas", ax: -14, ay: 20 },
-  { id: "tentS2", name: "Шатёр беженцев", key: "dm_tent_hide", ax: -20, ay: 17 },
-  { id: "tentS3", name: "Палатка беженцев", key: "dm_tent_canvas", ax: -8, ay: 23 },
-];
-/** растяжение раскладки: координаты при R = 32 × (rTiles / 32) — город растёт вместе с куполом */
-export const cityScale = () => Math.max(0.25, (Number(CITY_CFG.rTiles) || 32) / 32);
-/** интерьер здания: явный interior, иначе door.interior пропса через CITY_CFG.interiorOf, иначе одноимённая комната */
+/** здания города — из карты Историка (alkazak_map.json → buildings): спрайт bld_*, основание = интерьер, дверь, выход наружу.
+ *  Все 11 зданий используют 3 шаблона интерьера (house_living / shop_tavern / tent), но у каждого — СВОЙ экземпляр комнаты
+ *  (своё место за пределами мира) и свои места NPC. */
+export interface CityBuildingDef { id: string; name: string; key: string; interior?: string }
+const NAMES: Record<string, string> = { tavern: "Таверна «У чёрной розы»", house_elder: "Дом старосты" };
+export const BUILD_DEF: CityBuildingDef[] = mapBuildings().map((b: any) => ({ id: b.id, name: NAMES[b.id] || (b.interior === "tent" ? "Шатёр беженцев" : "Жилой дом"), key: b.key, interior: b.interior, role: b.role }));
+/** раскладка зданий — авторская (карта), радиус купола её не растягивает */
+export const cityScale = () => 1;
 export function roomKeyOf(b: CityBuildingDef): string | null {
-  if (b.interior && ROOMS[b.interior]) return b.interior;
-  const d = DARK_PROPS.keys?.[b.key]?.door; if (!d) return null;
-  const m = (CITY_CFG.interiorOf || {})[d.interior] || d.interior; return ROOMS[m] ? m : null;
+  const m = (CITY_CFG.interiorOf || {})[b.interior || ""] || b.interior; return m && ROOMS[m] ? m : null;
 }
-export interface CityBuilding extends CityBuildingDef { i: number; x: number; y: number; door: { x: number; y: number; hw: number } | null; room: string | null; ox: number; oy: number; w: number; h: number }
+export interface CityBuilding extends CityBuildingDef { i: number; x: number; y: number; door: { x: number; y: number; hw: number; y0: number; y1: number } | null; exit: [number, number]; room: string | null; ox: number; oy: number; w: number; h: number; rect: number[]; spawn: number[] | null; exits: number[][] }
 let CACHE: { sig: string; list: CityBuilding[] } | null = null;
-/** здания с мировыми координатами (px): якорь, дверь (триггер), комната */
+/** здания с мировыми координатами (px, со сдвигом карты): якорь, дверь (триггер), выход, комната */
 export function cityBuildings(): CityBuilding[] {
-  const sig = `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles},${JSON.stringify(CITY_CFG.interiorOf || {})},${CITY_CFG.on}`;
+  const sig = `${CITY_CFG.x},${CITY_CFG.y},${JSON.stringify(CITY_CFG.interiorOf || {})},${CITY_CFG.on}`;
   if (CACHE && CACHE.sig === sig) return CACHE.list;
-  const k = cityScale(), out: CityBuilding[] = [];
+  const [sx, sy] = mapShiftPx(), out: CityBuilding[] = [], M = mapBuildings();
   BUILD_DEF.forEach((b, i) => {
-    const x = Math.round(CITY_CFG.x + b.ax * k * T), y = Math.round(CITY_CFG.y + b.ay * k * T);
-    const pd = DARK_PROPS.keys?.[b.key], d = pd?.door, room = roomKeyOf(b), R = room ? ROOMS[room] : null;
-    const o = ROOM_BASE - i * ROOM_STEP;
-    out.push({ ...b, i, x, y, room, ox: o, oy: o, w: R ? R.size[0] * RT : 0, h: R ? R.size[1] * RT : 0,
-      door: d ? { x: Math.round(x + (Number(d.dx) || 0) * PXM), y: Math.round(y + (Number(d.dy) || 0) * PXM), hw: Math.max(12, ((Number(d.w) || 1) * PXM) / 2 + 4) } : null });
+    const m = M[i], room = roomKeyOf(b), R = room ? ROOMS[room] : null, o = ROOM_BASE - i * ROOM_STEP;
+    const [ax, ay] = m.anchor_world_px, tr = m.door_trigger_world_px; // [x, y, w, h]
+    out.push({ ...b, i, x: ax + sx, y: ay + sy, room, ox: o, oy: o, w: R ? R.size[0] * RT : 0, h: R ? R.size[1] * RT : 0,
+      rect: [m.world_rect_px[0] + sx, m.world_rect_px[1] + sy, m.world_rect_px[2], m.world_rect_px[3]],
+      door: tr ? { x: tr[0] + tr[2] / 2 + sx, y: tr[1] + tr[3] / 2 + sy, hw: tr[2] / 2 + 2, y0: tr[1] + sy - 6, y1: tr[1] + tr[3] + sy + 6 } : null,
+      exit: [m.exit_world_px[0] + sx, m.exit_world_px[1] + sy], spawn: m.interior_spawn?.px || null, exits: m.interior_exit_tiles || [] });
   });
   CACHE = { sig, list: out }; return out;
 }
@@ -82,7 +71,8 @@ export function fenceColliders(key: string, x: number, y: number, s = 1, out: an
   for (let t = -half; t <= half + 0.1; t += 10) { if (key === "dm_fence_broken" && Math.abs(t) < 12) continue; out.push({ x: x + t, y, rx: 6, ry: 5 }); }
   return out;
 }
-export function buildingColliders(): any[] { const out: any[] = []; if (!cityOn()) return out; for (const b of cityBuildings()) darkColliders(b.key, b.x, b.y, 1, out); return out; }
+/** стены зданий, заборы и твёрдые пропсы города — сетка walk карты (arinarLayout кладёт их в чанки; здесь — для тестов/старых вызовов) */
+export function buildingColliders(): any[] { return cityOn() ? walkColliders() : []; }
 
 // ——— интерьеры ———
 export const inRoomArea = (x: number, y: number) => x < ROOM_LIMIT && y < ROOM_LIMIT;
@@ -125,21 +115,17 @@ export function resolveRoom(x: number, y: number, r = 10): [number, number] {
 }
 export const roomWalkable = (x: number, y: number, r = 10) => { const b = roomAt(x, y); if (!b) return false; const [a, c] = resolveRoom(x, y, r); return Math.hypot(a - x, c - y) < 1 && roomCell(b, Math.floor((x - b.ox) / RT), Math.floor((y - b.oy) / RT)) !== "#"; };
 /** спавн комнаты (px мира) */
-export function roomSpawn(b: CityBuilding): [number, number] { const R = ROOMS[b.room!]; const p = R?.spawn?.px || [R.size[0] * RT / 2, (R.size[1] - 2) * RT]; return [b.ox + p[0], b.oy + p[1]]; }
+export function roomSpawn(b: CityBuilding): [number, number] { const R = ROOMS[b.room!]; const p = b.spawn || R?.spawn?.px || [R.size[0] * RT / 2, (R.size[1] - 2) * RT]; return [b.ox + p[0], b.oy + p[1]]; }
 /** стоит на клетке выхода */
-export function onExit(b: CityBuilding, x: number, y: number) { const R = ROOMS[b.room!]; const cx = Math.floor((x - b.ox) / RT), cy = Math.floor((y - b.oy) / RT); return (R?.exit || []).some(([ex, ey]) => ex === cx && ey === cy) || roomCell(b, cx, cy) === "E"; }
+export function onExit(b: CityBuilding, x: number, y: number) { const R = ROOMS[b.room!]; const cx = Math.floor((x - b.ox) / RT), cy = Math.floor((y - b.oy) / RT); return [...(b.exits || []), ...(R?.exit || []).map((e: any) => (Array.isArray(e) ? e : e.tile || []))].some(([ex, ey]) => ex === cx && ey === cy) || roomCell(b, cx, cy) === "E"; }
 /** точка снаружи у двери: на шаг южнее триггера */
-export function outsideDoor(b: CityBuilding): [number, number] { const d = b.door || { x: b.x, y: b.y }; return [d.x, d.y + 40]; }
+export function outsideDoor(b: CityBuilding): [number, number] { return [b.exit[0], b.exit[1] + 8]; } // exit_world_px карты (лицом вниз), на полшага ниже триггера
 /** игрок у двери (снаружи): упёрся в стену здания у проёма */
-export function atDoor(b: CityBuilding, x: number, y: number) { const d = b.door; return !!d && !!b.room && Math.abs(x - d.x) <= d.hw && y >= d.y - 14 && y <= d.y + 22; }
+export function atDoor(b: CityBuilding, x: number, y: number) { const d = b.door; return !!d && !!b.room && Math.abs(x - d.x) <= d.hw && y >= d.y0 && y <= d.y1; }
 /** пропсы-заглушки и декор не ставим на здания и подход к двери (arinarLayout фильтрует cityP) */
 export function nearBuilding(x: number, y: number, pad = 16): boolean {
   if (!cityOn()) return false;
-  for (const b of cityBuildings()) {
-    const d = DARK_PROPS.keys?.[b.key], hw = d ? (d.size_m[0] * PXM) / 2 : 48;
-    if (Math.abs(x - b.x) < hw + pad && y > b.y - hw * 1.2 - pad && y < b.y + pad) return true; // само здание
-    if (b.door && Math.abs(x - b.door.x) < 40 + pad && y >= b.door.y - 8 && y < b.door.y + 72 + pad) return true; // подход к двери
-  }
+  for (const b of cityBuildings()) { const r = b.rect; if (x > r[0] - pad && x < r[0] + r[2] + pad && y > r[1] - pad && y < r[1] + r[3] + pad) return true; if (b.door && Math.abs(x - b.door.x) < 40 + pad && y >= b.door.y - 8 && y < b.door.y + 72 + pad) return true; }
   return false;
 }
 ROOM_OUT.f = (x, y) => { const b = roomAt(x, y); return b ? outsideDoor(b) : null; };
@@ -152,7 +138,8 @@ export const cityNpcId = (i: number) => `city_${i + 1}`;
 /** точка места NPC (px) или null — место выключено/недоступно */
 export function slotPos(s: any): [number, number, string] | null {
   if (s.house) { const b = buildingById(s.house); if (b?.room) { const p = roomNpcSpot(b, s.spot || "") || (ROOMS[b.room].npc_spots?.[0] ? roomNpcSpot(b, ROOMS[b.room].npc_spots[0].id) : null); if (p) return p; } }
-  const k = cityScale(); return [Math.round(CITY_CFG.x + s.dx * k * T), Math.round(CITY_CFG.y + s.dy * k * T), "down"];
+  if (s.pt) { const p = mapPoint(s.pt); if (p) return [p[0], p[1], s.f || "down"]; } // точка карты Историка (npc_elder…)
+  return [Math.round(CITY_CFG.x + s.dx * T), Math.round(CITY_CFG.y + s.dy * T), s.f || "down"];
 }
 /** реестр NPC (shared.ts NPCS): места города — «мобильные» (не в раскладке), world '-' пока место выключено */
 export function cityNpcDefs(): Record<string, any> {
@@ -162,7 +149,7 @@ export function cityNpcDefs(): Record<string, any> {
 }
 export function syncCityNpcs(NPCS: Record<string, any>) { for (const [id, d] of Object.entries(cityNpcDefs())) { if (NPCS[id]) Object.assign(NPCS[id], d); else NPCS[id] = d; } }
 /** клиенту: что рисовать (без правил убийц) */
-export const cityClient = () => ({ on: cityOn(), name: CITY_CFG.name, cp: CITY_CFG.centerpiece, x: CITY_CFG.x, y: CITY_CFG.y, r: cityR(), rTiles: Number(CITY_CFG.rTiles) || 32, aIn: CITY_CFG.alphaIn, aOut: CITY_CFG.alphaOut, rim: CITY_CFG.rim, color: CITY_CFG.color, tint: CITY_CFG.groundTint,
+export const cityClient = () => ({ on: cityOn(), name: CITY_CFG.name, cp: CITY_CFG.centerpiece, x: CITY_CFG.x, y: CITY_CFG.y, r: cityR(), rTiles: Number(CITY_CFG.rTiles) || 32, aIn: CITY_CFG.alphaIn, aOut: CITY_CFG.alphaOut, rim: CITY_CFG.rim, color: CITY_CFG.color, tint: CITY_CFG.groundTint, rose: CITY_CFG.roseId && Array.isArray(CITY_CFG.rosePos) ? { id: String(CITY_CFG.roseId), x: CITY_CFG.rosePos[0] + mapShiftPx()[0], y: CITY_CFG.rosePos[1] + mapShiftPx()[1] } : null,
   b: cityBuildings().map((b) => [b.id, b.key, b.x, b.y, b.room || "", b.ox, b.oy, b.name, b.door ? b.door.x : 0, b.door ? b.door.y : 0]), // + дверь (триггер)
   npc: (CITY_CFG.npc as any[]).map((s, i) => { const p = s.on ? slotPos(s) : null; return p ? { id: cityNpcId(i), name: s.name, title: s.title, look: s.look, x: p[0], y: p[1], f: p[2], house: s.house || "" } : null; }).filter(Boolean) });
 export { CITY_SLOTS, CITY_LOOKS };

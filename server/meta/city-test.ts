@@ -1,11 +1,12 @@
 // Город Альказак (city.ts + cityBuild.ts): журнал убийц, PK-режим, PvP, купол (в т.ч. интерьеры), розы, здания/двери/комнаты,
 // места NPC, масштаб по rTiles, схемы админки. Запуск: esbuild --bundle → node.
 import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT } from "./city";
-import { cityBuildings, buildingById, roomAt, roomSpawn, onExit, outsideDoor, atDoor, doorNear, resolveRoom, roomWalkable, roomBounds, roomCell, slotPos, cityClient, cityNpcDefs, ROOMS, BUILD_DEF, buildingColliders, inRoomArea, ROOM_SPAN } from "./cityBuild";
+import { cityBuildings, buildingById, roomAt, roomSpawn, onExit, outsideDoor, atDoor, doorNear, resolveRoom, roomWalkable, roomBounds, roomCell, slotPos, cityClient, cityNpcDefs, ROOMS, BUILD_DEF, buildingColliders, inRoomArea, ROOM_SPAN, DARK_PROPS } from "./cityBuild";
 import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from "./bmCfg";
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
 import { walkable } from "./walkable";
 import { validatePatch } from "./overrides";
+import { emptyCellsInDome, cityGround, walkCell, walkColliders, mapProps, DARK_INDEX } from "./cityMap";
 let ok = 0, bad = 0; const t = (n: string, c: any, x?: any) => { c ? (ok++, console.log("ok  ", n)) : (bad++, console.log("FAIL", n, x ?? "")); };
 const cfg0 = JSON.parse(JSON.stringify({ ...CITY_CFG, npc: undefined })); const npc0 = JSON.parse(JSON.stringify(CITY_CFG.npc));
 const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0))); CITY_CFG.npc = JSON.parse(JSON.stringify(npc0)); };
@@ -44,7 +45,7 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("центр — в городе, за краем — нет", inCity(CITY_CFG.x, CITY_CFG.y) && !inCity(CITY_CFG.x + R + 1, CITY_CFG.y));
   t("интерьеры — тоже город", inCity(ROOM_LIMIT - 100, ROOM_LIMIT - 100));
   const [px, py] = pushOut(CITY_CFG.x + 10, CITY_CFG.y + 5, 24); t("выталкивание: за край", !inCity(px, py) && Math.hypot(px - CITY_CFG.x, py - CITY_CFG.y) <= R + 30);
-  const inn = buildingById("inn")!; const [qx, qy] = pushOut(inn.ox + 100, inn.oy + 100, 24);
+  const inn = buildingById("tavern")!; const [qx, qy] = pushOut(inn.ox + 100, inn.oy + 100, 24);
   t("выталкивание из дома: за край со стороны двери", !inCity(qx, qy) && Math.sign(qx - CITY_CFG.x) === Math.sign(inn.door!.x - CITY_CFG.x) && Math.sign(qy - CITY_CFG.y) === Math.sign(inn.door!.y - CITY_CFG.y), [qx, qy]);
   CITY_CFG.rTiles = 48; t("rTiles 48 → R = 1536 px", cityR() === 1536 && inCity(CITY_CFG.x + 1500, CITY_CFG.y)); reset(); }
 
@@ -90,12 +91,27 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const d = cityNpcDefs(); t("реестр NPC: выключенные — world '-'", Object.values(d).every((n: any) => (n.world === "-") === !(CITY_CFG.npc as any[])[n.city - 1].on));
   const c = cityClient(); t("клиенту: здания с комнатами", c.b.length === BUILD_DEF.length && c.b.some((x: any) => x[4])); }
 
-// ——— rTiles растягивает раскладку ———
-{ reset(); CITY_CFG.rTiles = 32; const a = buildingById("inn")!; const d32 = Math.hypot(a.x - CITY_CFG.x, a.y - CITY_CFG.y);
-  CITY_CFG.rTiles = 64; const b = buildingById("inn")!; const d64 = Math.hypot(b.x - CITY_CFG.x, b.y - CITY_CFG.y);
-  t("rTiles 64: здания вдвое дальше от центра", Math.abs(d64 / d32 - 2) < 0.05, [d32, d64]);
-  t("rTiles 64: здания в куполе", cityBuildings().every((x) => inCity(x.x, x.y, -2 * CITY_TILE)));
-  t("rTiles 64: комнаты те же", b.ox === a.ox && b.room === a.room); reset(); }
+// ——— карта Историка (alkazak_map.json): авторская раскладка, радиус купола настраивается ———
+{ reset(); const a = buildingById("tavern")!; CITY_CFG.rTiles = 48; const b = buildingById("tavern")!;
+  t("rTiles 48: раскладка не растягивается (карта — источник правды)", a.x === b.x && a.y === b.y && b.ox === a.ox && b.room === a.room);
+  for (const r of [36, 40, 48, 56]) { CITY_CFG.rTiles = r; t(`R ${r}: пустых клеток внутри купола — 0`, emptyCellsInDome(r) === 0, emptyCellsInDome(r)); }
+  reset();
+  t("11 зданий карты: таверна, 7 домов, 3 шатра", cityBuildings().length === 11 && cityBuildings().filter((b) => b.room === "shop_tavern").length === 1 && cityBuildings().filter((b) => b.room === "tent").length === 3 && cityBuildings().filter((b) => b.room === "house_living").length === 7);
+  t("у каждого здания свой экземпляр комнаты", new Set(cityBuildings().map((b) => b.ox)).size === 11);
+  t("основание здания = интерьер (9×8 / 12×10 / 8×7)", cityBuildings().every((b) => b.rect[2] === b.w && b.rect[3] === b.h), cityBuildings().map((b) => [b.id, b.rect[2], b.w, b.rect[3], b.h]));
+  t("дверь таверны — клетки (778,94)–(779,94)", (() => { const d = buildingById("tavern")!.door!; return walkCell(778, 94) === "D" && walkCell(779, 94) === "D" && Math.floor(d.x / 32) === 779 && Math.floor(d.y / 32) === 94; })());
+  t("застройка не дальше r 37.7 клетки", cityBuildings().every((b) => [[b.rect[0], b.rect[1]], [b.rect[0] + b.rect[2], b.rect[1]], [b.rect[0], b.rect[1] + b.rect[3]], [b.rect[0] + b.rect[2], b.rect[1] + b.rect[3]]].every(([x, y]) => Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) <= 37.7 * 32)));
+  t("за куполом нет черноты без льда (кромка обрезана)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d <= 40) continue; const g = cityGround(gi, gj); if (g && !g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
+  t("внутри купола лёд карты убран (только у кромки снаружи)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d > 40) continue; const g = cityGround(gi, gj); if (!g || g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
+  t("пропсы карты: 253, все в атласе", mapProps().length === 253 && mapProps().every((p) => DARK_PROPS.keys?.[p.k]), mapProps().filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k));
+  t("стены/заборы из сетки walk — коллайдеры", walkColliders().length > 500 && !walkable("arinar", ...((): [number, number] => { const b = buildingById("house_elder")!; return [b.rect[0] + 100, b.rect[1] + 100]; })()));
+  const rp = cityClient().rose; t("роза города рисуется в точке карты (24624, 3248)", rp && rp.x === 24624 && rp.y === 3248 && rp.id === "1792366351175927", rp);
+  const pts: Record<string, [number, number]> = { "Староста": [24496, 3192], "Хозяин таверны": [24896, 3092], "Торговка": [24496, 3320], "Огородник": [24240, 3480], "Беженка": [25584, 3864], "Дозорный": [23504, 3448] };
+  for (const [nm, w] of Object.entries(pts)) { const s = (CITY_CFG.npc as any[]).find((x) => x.name === nm && !x.house); const p = s && slotPos(s); t(`NPC «${nm}» — в точке карты`, p && p[0] === w[0] && p[1] === w[1], p); }
+  const spotsOk = (CITY_CFG.npc as any[]).filter((s) => s.house).every((s) => { const b = buildingById(s.house); return b && (ROOMS[b.room!].npc_spots || []).some((q: any) => q.id === s.spot); });
+  t("места NPC в зданиях — существующие npc_spots своего интерьера", spotsOk);
+  t("в каждом здании есть своё место NPC", cityBuildings().every((b) => (CITY_CFG.npc as any[]).some((s) => s.house === b.id)));
+  const P1 = slotPos({ house: "house_n1", spot: "table" })!, P2 = slotPos({ house: "house_n2", spot: "table" })!; t("одинаковые шаблоны — разные экземпляры мест", P1[0] !== P2[0] && roomAt(P1[0], P1[1])?.id === "house_n1" && roomAt(P2[0], P2[1])?.id === "house_n2"); }
 
 // ——— узлы ресурсов: под куполом — за край (кристалл 1113 и др.) ———
 { reset(); const { genNodes, ZONE_GEN } = await import("./zoneGen");

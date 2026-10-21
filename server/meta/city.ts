@@ -11,7 +11,7 @@
 //  • убийства, сделанные из-под любого купола (город, купол/сфера мага), не считаются.
 import { ROSE_ADJ } from "./bmCfg";
 export const CITY_TILE = 32;
-export const CITY_SLOTS = 12; // мест для NPC (админка: включить, имя, вид, точка, дом)
+export const CITY_SLOTS = 24; // мест для NPC (админка: включить, имя, вид, точка, дом)
 export const CITY_LOOKS = ["petr", "kyut", "alzi", "leyr"]; // вид NPC-заглушки (листы героев NPC_ROWS) — пока нет своих спрайтов жителей
 
 // ——— раскладка (клетки от центра; +x — восток, +y — юг) ———
@@ -19,95 +19,20 @@ const R2 = (x: number, y: number) => x * x + y * y;
 /** чёрная роза (первая, prod) — клумба на севере площади; центр города смещён на 4 клетки к югу, чтобы в самом центре встал фонтан */
 export const ROSE_DX = 0, ROSE_DY = -4;
 const H = (x: number, y: number, s: number) => { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-/** поля (вспаханные борозды), огороды, кладбище — прямоугольники в клетках */
-const FIELDS = [{ x0: 9, y0: 14, x1: 22, y1: 22 }, { x0: -25, y0: -22, x1: -14, y1: -15 }];
-const GARDENS = [{ x0: -4, y0: -12, x1: -2, y1: -8 }, { x0: -16, y0: 5, x1: -14, y1: 9 }, { x0: 14, y0: 6, x1: 16, y1: 10 }, { x0: 11, y0: -11, x1: 13, y1: -8 }];
-const GRAVES = { x0: -7, y0: -26, x1: -2, y1: -21 };
-const inR = (r: any, x: number, y: number) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
-/** тропинки от дверей до главных дорог (крест |dx|≤1 / |dy|≤1) */
-function pathCells(): Set<number> {
-  const s = new Set<number>(), k = (x: number, y: number) => (x + 512) * 1024 + (y + 512);
-  // к палаткам и полям
-  for (let x = 2; x <= 15; x++) s.add(k(x, -15)); for (let y = 2; y <= 13; y++) s.add(k(17, y));
-  for (let x = -16; x <= -2; x++) s.add(k(x, 15)); for (let y = -14; y <= -2; y++) s.add(k(-19, y));
-  return s;
-}
-let PATHS: Set<number> | null = null;
-export type CityCell = { t: string; m: number; wall?: 1 }; // t — тайл (имя в tiles_atlas), m — маска оттенка: 1 очернённая земля, 2 пробивается трава, 3 пол/камень (без оттенка), 4 поле
-/** клетка (dx, dy) от центра: что лежит (тайл + маска); null — вне купола */
-export function cityCell(dx: number, dy: number, rTiles = CITY_CFG.rTiles): CityCell | null {
-  if (R2(dx + 0.5, dy + 0.5) > rTiles * rTiles) return null;
-  PATHS ??= pathCells();
-  const h = H(dx, dy, 31), pick = (a: string[]) => a[Math.floor(H(dx, dy, 7) * a.length) % a.length];
-  const rr = R2(dx, dy);
-  const PR = Math.max(4, Number(CITY_CFG.plazaTiles) || 6);
-  if (rr <= PR * PR) { // центральная площадь: в центре — фонтан (позже статуя), вокруг — кольцо рун; клумба у розы (север площади)
-    const fr = Math.max(1, Number(CITY_CFG.centerFreeTiles) || 3);
-    if (rr <= fr * fr) return { t: Math.abs(Math.sqrt(rr) - (fr - 0.6)) < 0.6 ? "plaza_rune" : pick(["plaza0", "plaza2", "plaza3"]), m: 3 };
-    if (R2(dx - ROSE_DX, dy - ROSE_DY) <= 1.6 * 1.6) return { t: pick(["garden0", "garden1"]), m: 2 };
-    return { t: pick(["cobble0", "cobble1", "cobble2", "plaza1"]), m: 3 };
-  }
-  if ((Math.abs(dx) <= 1 || Math.abs(dy) <= 1)) return { t: pick(["dirt0", "dirt1", "dirt2"]), m: 1 };   // главные дороги к четырём воротам
-  if (PATHS.has((dx + 512) * 1024 + (dy + 512))) return { t: pick(["dirt0", "dirt1", "dirt2"]), m: 1 };
-  for (const f of FIELDS) if (inR(f, dx, dy)) return { t: (dy & 1) ? "dirt2" : pick(["dirt0", "dirt1"]), m: 4 }; // борозды через ряд
-  for (const g of GARDENS) if (inR(g, dx, dy)) return { t: pick(["garden0", "garden1", "garden2"]), m: 2 };
-  if (inR(GRAVES, dx, dy)) return { t: pick(["rot1", "rot2", "waste1"]), m: 1 };
-  // трава пробивается: чаще у колодцев, огородов и домов, реже к краю купола
-  const near = Math.max(0, 1 - Math.sqrt(rr) / rTiles), gp = (CITY_CFG.grassPct / 100) * (0.55 + near * 0.9);
-  if (h < gp) return { t: pick(["grass0", "grass1", "grass2", "grass3"]), m: 2 };
-  return { t: pick(["rot0", "rot1", "rot2", "rot3", "crater0", "waste2"]), m: 1 };
-}
-export interface CityProp { k: string; x: number; y: number; s: number; f: boolean } // как пропсы раскладки (px мира)
-/** все пропсы города (px мира от центра cx, cy) — детерминированно */
-export function cityProps(cx: number, cy: number, rTiles = CITY_CFG.rTiles): CityProp[] {
-  const T = CITY_TILE, out: CityProp[] = [], P = (k: string, tx: number, ty: number, s = 1, f = false) => out.push({ k, x: cx + tx * T, y: cy + ty * T, s, f });
-  // площадь «от центра»: фонтан (отдельный объект CENTERPIECE — рисует клиент, коллайдер — cityWallColliders), фонари кольцом,
-  // низкая ограда-клумба вокруг розы на севере площади, скамьи-ящики, колодцы — на дорогах за площадью
-  const PR = Math.max(4, Number(CITY_CFG.plazaTiles) || 6);
-  for (let a = 0; a < 8; a++) { const g = (a / 8) * Math.PI * 2 + Math.PI / 8; P("lantern", Math.cos(g) * (PR - 0.6) + 0.5, Math.sin(g) * (PR - 0.6) + 0.5); }
-  for (let a = 0; a < 7; a++) { const g = (a / 7) * Math.PI * 2 + 0.45; P("fence", ROSE_DX + 0.5 + Math.cos(g) * 1.7, ROSE_DY + 0.9 + Math.sin(g) * 1.5, 0.7, a % 2 === 0); }
-  P("banner", -1.6, -PR + 0.4, 1.05); P("banner", 2.6, -PR + 0.4, 1.05, true);
-  P("crate", -4.2, 2.2, 0.75); P("crate", 4.8, 2.2, 0.75, true); P("barrel", -4.4, -2.0, 0.7);
-  P("well", 3.6, PR + 2.6); P("well", 14.5, 2.6); P("campfire", -PR - 1.5, 3.8, 0.9);
-  // фонари вдоль дорог, флаги у ворот
-  for (let d = 8; d < rTiles - 3; d += 6) { P("lantern", 2.2, d + 0.5); P("lantern", -1.7, -d); P("lantern", d, -1.6); P("lantern", -d - 0.5, 2.3); }
-  for (const [x, y] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) { const r = rTiles - 2.2; P("banner", x * r + y * 2.6, y * r + x * 2.6 + 0.4); P("banner", x * r - y * 2.6, y * r - x * 2.6 + 0.4, 1, true); }
-  P("signpost", 2.6, rTiles - 4); P("signpost", -2.6, -rTiles + 4.5, 1, true);
-  // палатки беженцев (СВ и ЮЗ) с кострами
-  for (const [x, y, f] of [[12, -19, 0], [16.5, -20, 1], [19.5, -16, 0], [13, -13.5, 1], [18, -12, 0]] as [number, number, number][]) P("tent", x, y, 1, !!f);
-  P("campfire", 15.5, -16); P("crate", 14.4, -15.2, 0.9); P("barrel", 17.2, -17.6, 0.9);
-  for (const [x, y, f] of [[-18.5, 13.5, 1], [-13.5, 18.5, 0], [-19.5, 19, 0], [-10.5, 13, 1]] as [number, number, number][]) P("tent", x, y, 1, !!f);
-  P("campfire", -15.5, 16.2); P("crate", -16.8, 15, 0.85);
-  // поля: ограда по периметру, огородные кусты
-  for (const f of FIELDS) {
-    for (let x = f.x0; x <= f.x1 + 1; x += 2) { P("fence", x, f.y0 - 0.2, 0.8); P("fence", x, f.y1 + 1.1, 0.8, true); }
-    for (let y = f.y0 + 1; y <= f.y1; y += 2) { P("fence", f.x0 - 0.3, y, 0.8); P("fence", f.x1 + 1.2, y, 0.8, true); }
-  }
-  for (const g of GARDENS) for (let x = g.x0; x <= g.x1; x++) for (let y = g.y0; y <= g.y1; y += 2) if (H(x, y, 5) < 0.55) P(H(x, y, 6) < 0.5 ? "bush" : "violets", x + 0.5, y + 0.6, 0.6 + H(x, y, 8) * 0.25);
-  // кладбище: надгробия рядами
-  for (let x = GRAVES.x0; x <= GRAVES.x1; x += 2) for (let y = GRAVES.y0; y <= GRAVES.y1; y += 2) if (H(x, y, 9) < 0.8) P("tombstone", x + 0.5, y + 0.8, 0.8 + H(x, y, 10) * 0.2, H(x, y, 11) < 0.5);
-  P("dead_tree", GRAVES.x0 - 1.5, GRAVES.y0 + 1);
-  // окраина: сухие деревья, кусты, грибы (кое-где жизнь)
-  for (let i = 0; i < 60; i++) {
-    const a = H(i, 1, 21) * Math.PI * 2, r = (0.72 + H(i, 2, 22) * 0.24) * rTiles, x = Math.cos(a) * r, y = Math.sin(a) * r;
-    const cell = cityCell(Math.floor(x), Math.floor(y), rTiles); if (!cell || cell.m === 3 || cell.m === 4 || Math.abs(x) < 3 || Math.abs(y) < 3) continue;
-    const q = H(i, 3, 23); P(q < 0.45 ? "dead_tree" : q < 0.7 ? "bush" : q < 0.85 ? "mushroom" : "rock", x, y, 0.8 + H(i, 4, 24) * 0.3, H(i, 5, 25) < 0.5);
-  }
-  return out.filter((p) => R2(p.x - cx, p.y - cy) < (rTiles * T - 20) ** 2);
-}
+// земля, пропсы, здания и проходимость — карта Историка (cityMap.ts ← alkazak_map.json); прежняя процедурная раскладка удалена
 /** центральный объект площади: сейчас фонтан, позже статуя — меняется в админке (centerpiece), место вокруг свободно */
 export const CENTERPIECES: Record<string, { name: string; r: number }> = { fountain: { name: "Фонтан", r: 1.6 }, statue: { name: "Статуя (место зарезервировано)", r: 1.2 }, none: { name: "Пусто", r: 0 } };
-/** центральный объект → коллайдер (здания и пропсы dm_* — cityBuild.ts → buildingColliders) */
-export function cityWallColliders(cx: number, cy: number): { x: number; y: number; rx: number; ry: number }[] {
-  const T = CITY_TILE, out: any[] = [], ci = Math.floor(cx / T), cj = Math.floor(cy / T);
-  const cp = CENTERPIECES[CITY_CFG.centerpiece] || CENTERPIECES.fountain; if (cp.r > 0) out.push({ x: (ci + 0.5) * T, y: (cj + 0.5) * T, rx: cp.r * T, ry: cp.r * T * 0.8 });
-  return out;
-}
-/** места NPC по умолчанию (клетки от центра): у дверей, на площади, у палаток, у полей */
-const SLOT_DEF: [number, number, string, string, string][] = [
-  [0, 0, "elder", "table", "Староста"], [0, 0, "smith", "hearth", "Кузнец"], [0, 0, "healer", "hearth", "Знахарка"], [0, 0, "inn", "merchant", "Трактирщица"],
-  [2.5, -6.5, "", "", "Сторож у розы"], [16, -14.5, "", "", "Беженец"], [-15, 14.5, "", "", "Беженка"], [12, 13.5, "", "", "Пахарь"],
-  [0, 0, "scribe", "table", "Писарь"], [0, 0, "inn", "patron", "Бард"], [0, 0, "store", "merchant", "Лавочник"], [-3.5, -21.5, "", "", "Могильщик"],
+/** места NPC по умолчанию: снаружи — точки карты Историка (клетки от центра, alkazak_map.json → points), внутри — здание + npc_spots
+ *  его интерьера. У каждого здания — свой экземпляр комнаты и свои места (шаблонов интерьера 3, зданий 11). */
+const SLOT_DEF: [number, number, string, string, string, boolean, string?][] = [
+  [-4, -5.75, "", "", "Староста", true, "right"], [8.5, -8.875, "", "", "Хозяин таверны", true, "down"], [-4, -1.75, "", "", "Торговка", true, "right"],
+  [-12, 3.25, "", "", "Огородник", true, "down"], [30, 15.25, "", "", "Беженка", true, "up"], [-35, 2.25, "", "", "Дозорный", true, "left"],
+  [0, 0, "tavern", "merchant", "Хозяйка таверны", true], [0, 0, "tavern", "patron", "Бард", true], [0, 0, "house_elder", "hearth", "Жена старосты", true],
+  [0, 0, "tent_e1", "bedroll", "Беженец", true], [0, 0, "tent_s1", "supplies", "Беженка с ребёнком", true], [0, 0, "house_sw1", "table", "Охотник", true],
+  [0, 0, "house_nw2", "table", "Жилец", false], [0, 0, "house_n1", "hearth", "Жилица", false], [0, 0, "house_n2", "table", "Жилец", false],
+  [0, 0, "house_se1", "hearth", "Жилица", false], [0, 0, "house_s1", "table", "Жилец", false], [0, 0, "tent_s2", "bedroll", "Беженец", false],
+  [0, 0, "tavern", "customer", "Посетитель", false], [0, 0, "tavern", "hearth", "Путник", false], [0, 0, "house_elder", "table", "Писарь", false],
+  [0, 0, "house_nw2", "bed", "Больной", false], [0, 0, "house_n1", "bed", "Старик", false], [0, 0, "house_s1", "hearth", "Жилица", false],
 ];
 
 // ——— настройки (админка) ———
@@ -120,7 +45,7 @@ export const CITY_CFG: any = {
   centerFreeTiles: 3,       // свободное место вокруг центрального объекта, клеток
   rTiles: 40,               // радиус купола, клеток (80×80 клеток, финальный купол Историка R = 40 → 1280 px). Земля/дома строятся при старте сервера
   alphaIn: 0.02,            // купол изнутри: непрозрачность (0.02 = прозрачность 98 %)
-  alphaOut: 0.28,           // купол снаружи
+  alphaOut: 0.9,            // купол снаружи (финальная оболочка Историка: 0.9 снаружи, 0.02 изнутри, переход ≈ 0.7 с)
   rim: 0.55,                // яркость ободка (френель)
   color: "#8b5cf6",         // цвет купола
   noDamage: true,           // внутри — урон 0 (атаки, навыки, снаряды, статусы — в обе стороны)
@@ -140,8 +65,9 @@ export const CITY_CFG: any = {
   // роза в центре (prod black_roses id 1792366351175927 — первая роза, вокруг неё город): сразу раскрыта, без проклятой земли.
   // Только в коде (данные prod не меняются); остальные розы растут и проклинают как обычно. Внутри купола проклятая земля любых роз не действует.
   roseId: "1792366351175927", roseBloom: true, roseNoCurse: true, noCurseIn: true,
+  rosePos: [24624, 3248],   // где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
   // места NPC: npc.N.on / name / title / look / house + spot (место в комнате, npc_spots интерьера) или dx / dy (клетки от центра при R = 32, снаружи)
-  npc: SLOT_DEF.map(([dx, dy, house, spot, name]) => ({ on: false, name, title: "житель города", look: CITY_LOOKS[0], dx, dy, house, spot })),
+  npc: SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot })),
 };
 export const PK_CFG: any = {
   on: true,                 // PK-режим доступен
