@@ -4,6 +4,7 @@
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
 import { fmtBig } from './fmtNum.js';
+import { showError, hookGlobalErrors, setErrSink } from './boot/errorBox.js'; // коды ошибок (src/errors/codes.js)
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
 import { DayNight, lightOf, lampHash, lampGlowK, nightGlow, LT } from './engine/dayNight.js';
@@ -14,7 +15,7 @@ import { CityView } from './hub/cityView.js';
 import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
 import { CityHud } from './ui/cityHud.js';
 import { CITY_CFG, inCity } from '../../../../server/meta/city.ts';
-import { tickSpriteTime } from './engine/spriteBatch.js';
+import { tickSpriteTime, loadAtlasTexture } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
 import { fog } from './map/fog.js';
@@ -37,6 +38,9 @@ import { b32Stats, B32_META } from './engine/beast32.js';
 import { setMobPref, mobPref, MOBS_ON } from './engine/mobPref.js';
 import { initState } from './engine/beastFrames.js';
 import { PROP_STATS } from './engine/propAtlas.js';
+import { VramStream, VRAM, setVramCfg, vcfg, texBytes } from './engine/vramStream.js'; // видеопамять по требованию («🖼 Графика → Видеопамять»)
+import { disableCache, enableCache, cacheSummary } from './boot/assetCache.js';
+import { veil } from './boot/loaderUI.js';
 import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
@@ -133,16 +137,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   if (window.__MC3D_GAME__) return window.__MC3D_GAME__;
   const api = { ready: null };
   window.__MC3D_GAME__ = api;
+  hookGlobalErrors(); // непредвиденные ошибки → MC-X00 с кодом контекста (boot/errorBox.js)
   api.ready = boot(canvasId, username || 'Игрок', userId || '', api).catch((err) => {
     console.error('[MorrisCurse 3D] не удалось запустить игру', err);
-    const canvas = document.getElementById(canvasId);
-    const host = canvas?.parentElement;
-    if (host) {
-      const box = document.createElement('div');
-      box.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fca5a5;font:12px monospace;text-align:center;padding:16px;z-index:40;background:#050408';
-      box.textContent = 'Не удалось запустить 3D (WebGL недоступен?). ' + (err?.message || '');
-      host.appendChild(box);
-    }
+    const gl = /webgl|context|renderer/i.test(String(err?.message || err));
+    showError(gl ? 'MC-G02' : 'MC-X00', { detail: String(err?.stack || err).slice(0, 300), step: gl ? null : 'запуск игры' });
   });
   return api;
 }
@@ -163,7 +162,7 @@ async function boot(canvasId, username, userId, api) {
   // экран загрузки: новый интерфейс — знак, полоса и шаги (ui/atmoUi.js); старая тема — как было
   const ldScr = overlay.showScreen(loadScreenOn() ? loadingHtml() : '<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
 
-  const THREE = await loadThree();
+  const THREE = await loadThree().catch((e) => { throw new Error('three.min.js: ' + (e?.message || e)); });
   setLoadStep(1, ldScr);
   initModelMode();
   await Promise.all([preloadCharacterSheets(), loadPixAtlases(THREE)]);
@@ -175,7 +174,11 @@ async function boot(canvasId, username, userId, api) {
   initAtmoUi(canvas, { mobile }); // атмосфера нового интерфейса: виньетка/тон локации, частицы, звуки (ui/atmoUi.js)
   let atmoWorld = null; // 'run_crypt' | 'run_abyss' в забеге
   setLoadStep(3, ldScr);
+  // видеоконтекст отобран браузером (мало видеопамяти, сброс драйвера) → MC-G01; вернулся — перезагрузка надёжнее частичного восстановления
+  VRAM.inst = new VramStream(stage.renderer, stage.scene);
+  stage.renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); showError('MC-G01', { detail: 'webglcontextlost' }); }, false);
   overlay.hideScreen();
+  requestAnimationFrame(() => requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mc:first-frame')))); // index.astro закрывает экран загрузки
 
   // ---------------- состояние ----------------
   const player = {
@@ -216,7 +219,7 @@ async function boot(canvasId, username, userId, api) {
   // ---------------- сеть ----------------
   const net = new NetClient({
     username, userId,
-    getToken: clerkToken,
+    getToken: async () => { const t = await clerkToken(); if (userId && !t) showError('MC-A04', { soft: true, autoClose: 8000, detail: 'Clerk: пустой токен при входе ' + (window.Clerk ? (window.Clerk.loaded ? 'loaded' : 'not loaded') : 'no Clerk') }); return t; },
     guestId: guestId(),
     getJoinState: () => ({
       x: player.x, y: player.y,
@@ -356,12 +359,13 @@ async function boot(canvasId, username, userId, api) {
     for (const id of flowers.keys()) if (!ids.has(id)) flowers.delete(id);
   });
 
-  net.on('kicked', () => {
-    overlay.showScreen('<h2>Сессия закрыта</h2><p>Вы вошли в игру с другого устройства или вкладки.</p>', [{ text: 'Перезагрузить', onClick: () => location.reload() }]);
-  });
+  net.on('kicked', () => showError('MC-S02', { onRetry: () => location.reload() }));
+  net.on('welcome', () => setErrSink((r) => send({ type: 'client_err', ...r }))); // коды ошибок → журнал сервера (без личных данных)
+  net.on('auth_err', (d) => showError('MC-A03', { soft: true, autoClose: 8000, detail: d?.why || '' }));
   net.on('offline', (d) => {
     if (net.kicked) return;
-    if (!offlineToastShown) overlay.toast(`${d.reason}. Офлайн-режим: соло-забеги доступны у порталов.`, '#fca5a5');
+    setErrSink(null);
+    if (!offlineToastShown) showError(d.code || 'MC-N01', { soft: true, detail: d.reason, onRetry: () => location.reload() }); // офлайн-режим: соло-забеги у порталов
     offlineToastShown = true;
     if (mode === 'run' && run) { run.setMembers([], null); }
   });
@@ -371,7 +375,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('mark_err', (d) => overlay.toast(d.message || 'Ошибка метки', '#fca5a5'));
   net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
   net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
-  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; if (d.door || d.city) stage.follow(toX(player.x), toZ(player.y), 0, true); if (d.city) cityView.repel(d.x, d.y); } });
+  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; if (d.door || d.city) stage.follow(toX(player.x), toZ(player.y), 0, true); if (d.city) cityView.repel(d.x, d.y); } else showError('MC-D01', { soft: true, autoClose: 6000, detail: 'pos_fix ' + JSON.stringify(d).slice(0, 80) }); });
   // город Альказак: двери зданий (интерьер), PK-режим, купол не пускает убийц (server/meta/city.ts, cityBuild.ts)
   const dayNight = new DayNight(THREE, stage, { mobile }); // смена дня и ночи в Аринаре (engine/dayNight.js; часы — с сервера)
   const cityHud = new CityHud(container, { send: (m) => send(m), toast: (t, c) => overlay.toast(t, c) });
@@ -397,14 +401,25 @@ async function boot(canvasId, username, userId, api) {
   net.on('city_deny', (d) => { cityHud.onDeny(d); cityView.repel(player.x, player.y); });
   net.on('pvp_kill', (d) => cityHud.onKill(d));
   net.on('pvp_death', (d) => cityHud.onDeath(d));
+  // переход между зонами: текстуры новой сцены — в очередь загрузки на GPU (≤ upMs мс/кадр), подпись «Готовим мир…» до готовности (≤ 4 с)
+  const WNAME = { arinar: 'Аринар', hellfire: 'Поляна перевоплощения', arena: 'арена' };
+  const prewarmWorld = (w) => {
+    const vs = VRAM.inst; if (!vs) return; vs.zoneFlush();
+    const seen = new Set(); stage.scene.traverse((o) => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) { for (const k in m) if (m[k]?.isTexture) seen.add(m[k]); for (const k in m.uniforms || {}) if (m.uniforms[k]?.value?.isTexture) seen.add(m.uniforms[k].value); } });
+    for (const t of seen) if (t.image && !vs.onGpu(t)) vs.prewarm(t);
+    // подпись держится, пока очередь не пуста (её пополняют и чанки земли, и листы мага на следующем кадре), но не дольше 6 с
+    veil(`Готовим мир: ${WNAME[w] || w}…`); const t0 = performance.now(); let empty = 0;
+    const chk = () => { empty = vs.pending ? 0 : empty + 1; if (empty > 10 || performance.now() - t0 > 6000) veil(null); else requestAnimationFrame(chk); }; requestAnimationFrame(chk);
+  };
   net.on('world_switched', (d) => {
     if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
     if (d.homePortal === 'home_portal_back') overlay.toast('🌀 Вы вернулись туда, где открыли портал', '#c4b5fd');
     world = d.world || 'hellfire';
-    player.x = d.x; player.y = d.y;
+    if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } else showError('MC-D01', { soft: true, autoClose: 6000, detail: 'world_switched ' + world });
     hub.setWorld(world, portals);
     zone.setWorld(world);
     stage.follow(toX(player.x), toZ(player.y), 0, true);
+    prewarmWorld(world);
     if (world !== 'arena') overlay.toast(world === 'arinar' ? 'Аринар · государство Мэлвелдил' : world === 'hellfire' ? 'Поляна перевоплощения' : `Мир: ${world}`, '#c084fc');
   });
   net.on('open_class_selection', () => { hub.portalObjs?.get('portal_class_select')?.flash?.(); classSelect.open(player.stats.classId); });
@@ -445,7 +460,10 @@ async function boot(canvasId, username, userId, api) {
       overlay.float(toX(player.x), 2.6, toZ(player.y), '+20 🛡️', '#38bdf8');
     }
   });
-  net.on('toast_error', (d) => overlay.toast(d.message || 'Ошибка', '#fca5a5'));
+  net.on('toast_error', (d) => {
+    if (d.code === 'MC-A07' && /^admin/.test(d.for || '')) { try { if (adminPanel.isOpen) { adminPanel.onDenied(d); return; } } catch (_) {} } // окно админки: код вместо вечной «Загрузки данных»
+    if (d.code && d.code !== 'MC-A07') showError(d.code, { soft: true, autoClose: 6000, detail: d.message }); else overlay.toast(d.message || 'Ошибка', '#fca5a5');
+  });
   // Профиль: сервер может не успеть загрузить его (meta_error) — повторяем meta_get с нарастающей паузой,
   // и сторож: если после welcome нет meta_state за 8 с — тоже запрос.
   const metaLoad = { got: false, n: 0, t: 0 };
@@ -460,6 +478,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('welcome', () => { metaLoad.got = false; metaLoad.n = 0; metaRetry(8000); });
   net.on('meta_error', (d) => {
     if (metaLoad.n === 0) overlay.toast(d.message || 'Профиль загружается…', '#fca5a5');
+    else if (metaLoad.n === 3) showError('MC-D02', { soft: true, step: 'профиль с сервера', onRetry: () => { metaLoad.n = 0; send({ type: 'meta_get' }); } });
     if (!metaLoad.got) metaRetry(Math.min(15000, 1000 * 2 ** Math.min(metaLoad.n, 4)));
   });
   net.on('offline', () => clearTimeout(metaLoad.t));
@@ -502,6 +521,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.ench) setEnch(d.ench); // ярусы зачарования (админка «✦ Зачарование») — цвета, имена, множители для подписей
     if (d.bmv) setBlkVis(d.bmv); // вид очернения (админка «Чёрный маг»)
     if (d.light) setLightCfg(d.light); // свет мира (админка «💡 Свет», engine/pixColor.js)
+    if (d.gfx) { setVramCfg(d.gfx.vram); if (d.gfx.assetCache === false) disableCache(); else if (d.gfx.assetCache === true) enableCache(); } // «🖼 Графика»: видеопамять (сразу), кэш ресурсов (выкл — снять воркер и стереть кэш)
     if (d.gfx) setGfxCfg(d.gfx); // графика пропсов (админка «🖼 Графика») — кэш, со следующей загрузки
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
@@ -606,7 +626,7 @@ async function boot(canvasId, username, userId, api) {
     let b = document.getElementById('ghud-admin-btn');
     if (canPanel && !b) {
       b = document.createElement('button'); b.id = 'ghud-admin-btn'; b.className = 'hud-duel-btn'; b.textContent = '🛠';
-      b.onclick = () => adminPanel.open();
+      b.onclick = () => uiSafe('админка', () => adminPanel.open());
       document.getElementById('ghud-set-btn')?.insertAdjacentElement('afterend', b);
     }
     if (b) {
@@ -689,7 +709,8 @@ async function boot(canvasId, username, userId, api) {
     const it = MOB_ST.filter(([k]) => n[k] > 0).map(([k, ic, t]) => `<b class="mc-mst ${k}" title="${t}">${ic}${n[k] > 1 ? `<sub>×${n[k]}</sub>` : ''}</b>`);
     return it.length ? `<div class="mc-msts">${it.join('')}</div>` : '';
   }
-  function toggleCharSheet() {
+  function toggleCharSheet() { uiSafe('лист персонажа', toggleCharSheet0); }
+  function toggleCharSheet0() {
     if (social.isSelfOpen()) { social.close(); return; }
     if (!net.isOpen() || !myId) return;
     if (book.isOpen) book.close();
@@ -1510,6 +1531,12 @@ async function boot(canvasId, username, userId, api) {
   let last = performance.now();
   let moveAcc = 0, lastSentX = -1, lastSentY = -1, hudAcc = 0;
   const fpsS = { n: 0, t: 0, fps: 0, cpu: 0, cpuAcc: 0 };
+  // худший кадр (мс CPU кадра и интервал rAF) — для замеров рывков при стриме (debug.frames)
+  const FS = { n: 0, cpuMax: 0, gapMax: 0, cpu: [], gap: [] };
+  const frameStat = (cpu, gap) => { FS.n++; if (cpu > FS.cpuMax) FS.cpuMax = cpu; if (gap > FS.gapMax && gap < 1000) FS.gapMax = gap; if (FS.cpu.length < 20000) { FS.cpu.push(cpu); FS.gap.push(gap); } if (cpu > 50 && (FS.slow ||= []).length < 40) FS.slow.push({ cpu: Math.round(cpu), render: Math.round(FS.rMs || 0), newTex: FS.rTex || 0, up: Math.round(VRAM.inst?.frameUp || 0), bake: Math.round(VRAM.inst?.frameBake || 0) }); if (VRAM.inst) VRAM.inst.frameBake = 0; };
+  let autoMv = null;
+  // окно интерфейса упало при открытии → MC-U01 (с названием окна в шаге), игра идёт дальше
+  function uiSafe(name, fn) { try { return fn(); } catch (e) { showError('MC-U01', { soft: true, autoClose: 8000, step: name, detail: String(e?.stack || e).slice(0, 300), onRetry: () => uiSafe(name, fn) }); return null; } }
   // Адаптивное качество: держим ≥ ~45 fps — сначала снижаем разрешение рендера, потом выключаем тени.
   // Возвращаем качество, если долго стабильно ≥ 57 fps. ?q=low|high фиксирует уровень.
   const maxPR = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 2);
@@ -1631,9 +1658,10 @@ async function boot(canvasId, username, userId, api) {
     }
     try { atmo.end(dt, mode === 'run' && run ? atmoWorld : world, player.x, player.y); } catch (err) { console.warn('[atmo]', err); }
     try { updateActionBar(); } catch (err) { console.warn('[abar]', err); }
-    stage.render();
+    try { VRAM.inst?.tick(now); } catch (err) { console.warn('[vram]', err); } // загрузка в GPU заранее (≤ upMs) и выгрузка ненужного
+    const rTex0 = stage.renderer.info.memory.textures, r0 = performance.now(); VRAM.inst?.hideEmpty(); try { stage.render(); } finally { VRAM.inst?.restoreEmpty(); } FS.rMs = performance.now() - r0; FS.rTex = stage.renderer.info.memory.textures - rTex0;
     try { dnFrame(); } catch (err) { console.warn('[dayNight]', err); }
-    fpsS.cpuAcc += performance.now() - cpu0;
+    { const ft = performance.now() - cpu0; fpsS.cpuAcc += ft; frameStat(ft, realDt * 1000); }
     hudAcc += dt;
     if (hudAcc > 0.15) {
       hudAcc = 0;
@@ -1672,7 +1700,7 @@ async function boot(canvasId, username, userId, api) {
   function hubFrame(dt, now) {
     // движение
     const blocked = overlay.screen || overlay.chatOpen || net.kicked;
-    const mv = blocked ? { x: 0, y: 0 } : moveVector();
+    const mv = blocked ? { x: 0, y: 0 } : autoMv || moveVector(); // autoMv — плейтест «прогулка по чанкам» (debug.walk)
     dash.cd = Math.max(0, dash.cd - dt);
     if (input.dashPressed && !blocked && dash.cd <= 0 && !dash.active) {
       dash.active = true; dash.timer = DASH.duration; dash.cd = DASH.cooldown; dash.max = DASH.cooldown;
@@ -2012,6 +2040,9 @@ async function boot(canvasId, username, userId, api) {
       bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),
+      dropWs: () => net.socket?.close(4000, 'test'),
+      loadAtlas: (u) => loadAtlasTexture(THREE, u).then(() => 'ok', () => 'rejected'),
+      closeAdmin: () => adminPanel.close?.(),
       arena: () => ({ tiles: runView?.arena?.tiles || null, ready: !!runView?.arena?.floorReady, theme: runView?.arena?.theme }),
       openAltar: () => classSelect.open(player.stats.classId),
       altarFlash: () => hub.portalObjs?.get('portal_class_select')?.flash?.(),
@@ -2094,6 +2125,16 @@ async function boot(canvasId, username, userId, api) {
         return { gl: CITY_CFG.groundLight, fade: cv.fade, fadeBand: cv.fadeBand, blight: cv.blight, blightScale: cityView.blightG ? +cityView.blightG.scale.x.toFixed(3) : null, blightVis: cityView.blightG?.visible ?? null,
           cityChunksGl: t ? [...t.chunks.values()].filter((c) => c.city).map((c) => c.gl) : [], pk: pkUi(), reduceMax: DN_CFG.reduceMax, lt: { ...LT }, emitters: DN_CFG.emitters,
           lantern: lightEmitter('dm_lantern_pole', null, 'city'), emV: emitterVersion(), cityEmV: cityView.emV, cityLights: cityView.lights?.length || 0 }; },
+      walk: (x, y) => { autoMv = x || y ? { x, y } : null; return autoMv; }, // идти в направлении (плейтест стрима), 0,0 — стоп
+      frames: (reset) => { const q = (a, k) => { if (!a.length) return 0; const b = [...a].sort((u, v) => u - v); return Math.round(b[Math.min(b.length - 1, Math.floor(b.length * k))] * 10) / 10; };
+        const o = { n: FS.n, cpuMax: Math.round(FS.cpuMax * 10) / 10, cpuP99: q(FS.cpu, 0.99), cpuP50: q(FS.cpu, 0.5), gapMax: Math.round(FS.gapMax), gapP99: q(FS.gap, 0.99), gapP50: q(FS.gap, 0.5) };
+        o.slow = FS.slow || []; if (reset) { FS.n = 0; FS.cpuMax = 0; FS.gapMax = 0; FS.cpu = []; FS.gap = []; FS.slow = []; } return o; },
+      vram: () => ({ ...VRAM.inst?.stats, ...VRAM.inst?.measure(), cfg: vcfg(), radius: hub.env?.terrain?.radius || null, pending: VRAM.inst?.pending || 0 }),
+      upLog: () => VRAM.inst?.upLog || [],
+      setVram: (v) => { setVramCfg(v); return vcfg(); },
+      vramTop: (n = 12) => [...VRAM.inst.seen.entries()].filter(([t]) => VRAM.inst.onGpu(t)).map(([t, e]) => ({ mb: Math.round(texBytes(t) / 104857.6) / 10, w: t.image?.width, h: t.image?.height, src: String(t.image?.src || t.image?.currentSrc || t.image?.constructor?.name || '').split('/').pop().slice(0, 40), idle: Math.round(performance.now() - e.last), chunk: !!t.userData?.mcChunk })).sort((a, b) => b.mb - a.mb).slice(0, n),
+      vramTick: () => { VRAM.inst._scanAt = 0; VRAM.inst.tick(); return VRAM.inst.stats; },
+      cache: () => cacheSummary(),
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
       // настройка «Текстуры»: режим и оценка памяти канвасов земли (RGBA, без мипмапов) — для замеров 16 vs 32
       liquid: (x, y) => ({ kind: liquidAt(world, x ?? player.x, y ?? player.y), blocked: inLiquid(world, x ?? player.x, y ?? player.y), cfg: { ...TERRAIN_CFG } }),

@@ -1,5 +1,6 @@
 import { admitMessage, isDevRequest, MSG_BURST } from "./limits";
-import { PERF, perfTick, perfMsgIn, perfErr, wrapSend, perfBoot } from "./meta/perf";
+import { CODE_RE } from "../src/errors/codes.js";
+import { PERF, perfTick, perfMsgIn, perfErr, perfClientErr, wrapSend, perfBoot } from "./meta/perf";
 import { resolveWorld, boundsAt } from "./meta/propCollision.ts";
 import { DurableObject } from "cloudflare:workers";
 import { RunLobbies, type RunInstance } from "./runs";
@@ -824,6 +825,17 @@ export class GameRoom extends DurableObject {
 
         if (msg.type === "ping") {
           server.send(JSON.stringify({ type: "pong" }));
+          return;
+        }
+        // код ошибки клиента (src/errors/codes.js) → журнал: код + контекст + версия + мир; без ников/текста. Не чаще 1 раза в 5 с и 20 за сокет
+        if (msg.type === "client_err") {
+          const now = Date.now(), r = ((server as any).__errLim ||= { n: 0, at: 0 });
+          if (r.n >= 20 || now - r.at < 5000) return;
+          const code = String(msg.code || ""), ctx = String(msg.ctx || ""), ver = String(msg.ver || "").slice(0, 20).replace(/[^\w.-]/g, ""), step = String(msg.step || "").slice(0, 40).replace(/[^\p{L}\p{N} ._:-]/gu, "");
+          if (!CODE_RE.test(code) || !/^[a-z0-9]{6,12}$/.test(ctx)) return;
+          r.n++; r.at = now;
+          const line = `client ${code} ${ctx} v${ver} ${this.sessions.get(server)?.world || "-"}${step ? " · " + step : ""}`;
+          console.log("[mc-err]", line); perfClientErr(line);
           return;
         }
 

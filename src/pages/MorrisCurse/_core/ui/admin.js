@@ -1,5 +1,6 @@
 // Админ-панель: полный доступ — роль admin; модератор видит только Бестиарий / Оружие / Предметы.
 // Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
+import { showError } from '../boot/errorBox.js';
 import { esc } from './overlay.js';
 import { cleanNum } from './fmtPct.js';
 import { regionMapHtml, mountRegionMap } from './regionMap.js';
@@ -159,11 +160,19 @@ export class AdminPanel {
     el.querySelector('[data-x]').onclick = () => this.close();
     this.openTabs();
     el.querySelector('aside input').oninput = (e) => { this.q = e.target.value.toLowerCase(); this.list(); };
-    this.send({ type: 'admin_open' });
+    this.requestOpen();
   }
-  close() { this.el?.remove(); this.el = null; }
+  /** запрос каталога со сторожем: нет ответа 10 с → MC-S01 с шагом и «Повторить» (раньше окно молча висело на «Загрузка данных с сервера…») */
+  requestOpen() {
+    clearTimeout(this.openT); this.errBox?.close(); this.send({ type: 'admin_open' });
+    const sec = this.el?.querySelector('main section'); if (sec && !this.cat) sec.innerHTML = '<p>Загрузка данных с сервера… <span class="mc-dim">(каталог админки)</span></p>';
+    this.openT = setTimeout(() => { if (this.el && !this.cat) this.errBox = showError('MC-S01', { host: this.el, step: 'каталог админки (admin_open)', onRetry: () => this.requestOpen() }); }, 10000);
+  }
+  /** сервер отказал (toast_error с кодом MC-A07, deny "not_panel") — код вместо вечной загрузки */
+  onDenied(d) { if (!this.el) return; clearTimeout(this.openT); if (!this.cat) { this.errBox?.close(); this.errBox = showError(d.code || 'MC-A07', { host: this.el, detail: `${d.for || ''} ${d.why || ''}` }); } else this.msg(`✖ ${d.code || ''} Недостаточно прав`, true); }
+  close() { clearTimeout(this.openT); this.errBox?.close(); this.errBox = null; this.el?.remove(); this.el = null; }
   msg(t, err) { const m = this.el?.querySelector('.msg'); if (m) { m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); } }
-  onCatalog(d) { this.cat = d; this.render(); }
+  onCatalog(d) { this.cat = d; clearTimeout(this.openT); this.errBox?.close(); this.errBox = null; this.render(); }
   onResult(r) {
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
     if (!this.cat) { if (r.op === 'dialogue' || (r.op === 'quest' && r.withDialogue)) this.onDialogueApplied?.(r); if (r.op === 'quest' && r.quest) this.onQuestApplied?.(r); return; } // каталог не загружен (окно закрыто; правка из плейтеста/другой вкладки) — без падения

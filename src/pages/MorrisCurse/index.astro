@@ -33,8 +33,35 @@ import './_core/styles/game-modals.css';
   </main>
 </Layout>
 
+<!-- Сторож запуска (MC-L09): если сам загрузчик игры (модуль ниже) не скачался — связь оборвалась на первой загрузке страницы,
+     — кода, который покажет ошибку, ещё нет. Этот крошечный встроенный скрипт показывает окно с кодом и «Повторить», а не пустой экран. -->
+<script is:inline>
+  (function () {
+    if (window.__mcGuard) return; window.__mcGuard = 1;
+    var shown = false, t0 = Date.now();
+    function box(why) {
+      if (shown || window.__mcLaunch) return; shown = true;
+      var d = document.createElement('div'); d.setAttribute('role', 'alertdialog'); d.className = 'mcl-err mcl-guard'; d.dataset.code = 'MC-L09';
+      d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;max-width:min(92vw,380px);padding:18px 20px;background:#160c10;color:#e8d8c0;border:2px solid #7a2a2a;font:15px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 0 0 100vmax rgba(0,0,0,.55)';
+      var code = 'MC-L09', line = code + ' · ' + why + ' · ' + new Date().toISOString();
+      d.innerHTML = '<div style="font:700 28px/1 monospace;letter-spacing:2px;color:#ff8a6a">' + code + '</div><div style="margin:10px 0 14px">Страница загрузилась не полностью</div>';
+      var b1 = document.createElement('button'), b2 = document.createElement('button');
+      [b1, b2].forEach(function (b) { b.style.cssText = 'margin:4px;padding:8px 14px;font:inherit;background:#2a1418;color:inherit;border:1px solid #7a2a2a;cursor:pointer'; d.appendChild(b); });
+      b1.textContent = 'Скопировать код'; b1.onclick = function () { try { navigator.clipboard.writeText(line); b1.textContent = 'Скопировано'; } catch (_) {} };
+      b2.textContent = 'Повторить'; b2.onclick = function () { location.reload(); };
+      (document.body || document.documentElement).appendChild(d);
+    }
+    // модуль загрузчика (/_astro/*.js) не скачался — сразу; иначе — если за 20 с загрузчик так и не запустился
+    document.addEventListener('error', function (e) { var t = e.target; if (t && t.tagName === 'SCRIPT' && /\/_astro\//.test(t.src || '')) setTimeout(function () { box('script ' + (t.src || '').split('/').pop()); }, 300); }, true);
+    window.addEventListener('load', function () { setTimeout(function () { box('timeout ' + Math.round((Date.now() - t0) / 1000) + 's'); }, 20000); });
+  })();
+</script>
+
 <script>
-  function initLauncher() {
+  (window as any).__mcLaunch = 1; // сторож MC-L09 выше: загрузчик дошёл
+  import { syncAssets, AC } from './_core/boot/assetCache.js';
+  import { showError, hookGlobalErrors } from './_core/boot/errorBox.js';
+    function initLauncher() {
     const startBtn = document.getElementById('btn-start');
     const overlay = document.getElementById('launcher-overlay');
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -62,18 +89,22 @@ import './_core/styles/game-modals.css';
         let username = 'Странник';
         let userId = null;
 
-        try {
-          const res = await fetch('/api/get-user');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.username) username = data.username;
-            userId = data.userId || data.id || null; // <--- Получение ID из базы
-          }
-        } catch (err) {
-          console.warn('Не удалось загрузить пользователя');
-        }
-
-        const { initGame } = await import('./_core/game.js');
+        hookGlobalErrors(); // коды ошибок (src/errors/codes.js): непредвиденное → MC-X00
+        // ресурсы: один раз скачать, дальше — только изменения (boot/assetCache.js + public/mc-sw.js); параллельно — кто вошёл
+        const userP = fetch('/api/get-user').then(async (res) => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+          if (data.username) username = data.username;
+          userId = data.userId || data.id || null; // <--- Получение ID из базы
+        }).catch((err) => { console.warn('Не удалось загрузить пользователя', err); showError('MC-A06', { soft: true, autoClose: 8000, detail: String(err?.message || err) }); });
+        await syncAssets();
+        await userP;
+        const ld = AC.loader && AC.loader.el.isConnected ? AC.loader : null; // экран первого визита/обновления: последняя стадия
+        ld?.stage('world');
+        let initGame;
+        try { ({ initGame } = await import('./_core/game.js')); }
+        catch (err) { ld?.close(); showError('MC-L05', { detail: String(err?.message || err) }); return; } // «Повторить» = перезагрузка (неудачный import браузер запоминает)
+        if (ld) { const done = () => ld.close(); window.addEventListener('mc:first-frame', done, { once: true }); setTimeout(done, 20000); }
         // Передача userId третьим аргументом обязательна!
         (initGame)(canvas.id, username, userId);
       }

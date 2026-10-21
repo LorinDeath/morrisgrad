@@ -1,0 +1,7 @@
+# Cloudflare static assets: файлы vite с хешем в имени — навсегда; манифест и сервис-воркер — всегда свежие (иначе старый воркер/список держат игрока на старом).
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+/mc-assets/manifest.json
+  Cache-Control: no-cache
+/mc-sw.js
+  Cache-Control: no-cache

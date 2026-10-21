@@ -52,6 +52,8 @@ export function perfTick(t0: number, t1: number) {
   PERF.tickDur.push(now, t1 - t0);
 }
 export function perfZone(w: string, ms: number) { (PERF.zone[w] ||= new Series()).push(Date.now(), ms); }
+/** код ошибки клиента — в тот же список «последние ошибки», но без счётчика ошибок сервера */
+export function perfClientErr(m: string) { if (PERF.errLast.length >= 20) PERF.errLast.shift(); PERF.errLast.push({ at: Date.now(), m: m.slice(0, 160) }); }
 export function perfErr(m: string) { PERF.sec.add("err"); if (PERF.errLast.length >= 20) PERF.errLast.shift(); PERF.errLast.push({ at: Date.now(), m: m.slice(0, 160) }); }
 export function perfMsgIn(type: string, bytes: number) { PERF.sec.add("msgIn"); PERF.sec.add("bytesIn", bytes); if (PERF.msgTypes.size < 200 || PERF.msgTypes.has(type)) PERF.msgTypes.set(type, (PERF.msgTypes.get(type) || 0) + 1); }
 /** обёртка сокета: считает исходящие сообщения/байты (одно сложение на send) */
