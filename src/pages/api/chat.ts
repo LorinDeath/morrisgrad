@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
         
         if (after) {
             // Polling: Get only NEW messages
-            query += ` WHERE m.created_at > ? ORDER BY m.created_at ASC`;
+            query += ` WHERE m.created_at > ? ORDER BY m.created_at ASC LIMIT 100`; // не больше 100 за опрос (after=0 раньше отдавал всю неделю)
             const res = await db.prepare(query).bind(Number(after)).all();
             results = res.results || [];
         } else if (before) {
