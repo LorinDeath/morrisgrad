@@ -1947,6 +1947,7 @@ async function boot(canvasId, username, userId, api) {
       aim: () => ({ ...aim, autoAttack }),
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
+      mood: (k) => { atmo.moodOverride = k || null; return atmo.moodOverride; }, // настроение сцены принудительно (hub — ночь, b_stone — нейтральный «день»); null — по зоне
       freeCam: (o) => { stage.freeCam = o && Number.isFinite(o.x) && Number.isFinite(o.z) ? { x: o.x, z: o.z, zoom: o.zoom || 0 } : null; return stage.freeCam; }, // свободная камера (сцена, м); null — снова за героем
       setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
       cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)),

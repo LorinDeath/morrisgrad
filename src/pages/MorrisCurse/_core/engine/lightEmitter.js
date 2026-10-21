@@ -1,6 +1,7 @@
 // Точка излучения огня (фонарь — у головы фонаря, факел — у пламени, костёр — у огня), а не центр текстуры спрайта.
 // Источник — центроид светящихся пикселей кадра *_glow (вес = яркость × альфа), посчитан по кадрам генератором
 // tools/mc-sprites/light-emitters.mjs → assets/mc/light_emitters.json (оба набора: v2 props2 и v3 props3). OVERRIDE — ручные правки.
+// Статичные огни (static: все, кроме качающихся MOVING) — одна точка u: центроид объединения всех кадров (README §7b), остальные — по кадрам.
 // Ореол ставится в эту точку (за спрайтом), пятно света — на землю прямо под ней (atmosphere.js).
 import E from '../../../../assets/mc/light_emitters.json';
 import { PROP_SET, GFX } from './gfxCfg.js';
@@ -20,7 +21,7 @@ export function lightEmitter(key, frame = 0, set = PROP_SET) {
   const S = E.sets[set], d = S?.keys[key]; if (!d) return null;
   const f = ((Math.floor(frame) % d.frames) + d.frames) % d.frames;
   const ov = adminOv(set, key) || OVERRIDE[`${set}:${key}`];
-  const p = (Array.isArray(ov) ? ov : ov?.[f]) || d.pts[f] || d.pts.find(Boolean); if (!p) return null;
+  const p = (Array.isArray(ov) ? ov : ov?.[f]) || (d.static && d.u) || d.pts[f] || d.pts.find(Boolean); if (!p) return null; // статичный — общий центроид всех кадров
   return { dx: (p[0] - d.fw / 2) / S.pxm, h: (d.fh - p[1]) / S.pxm, px: p[0], py: p[1], frames: d.frames, fps: d.fps };
 }
 /** есть ли у ключа таблица точек (источник света с *_glow) */

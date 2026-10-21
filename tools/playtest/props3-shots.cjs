@@ -24,6 +24,13 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
   if (SH.includes('stats')) { await sleep(3000); const st = await p.evaluate(() => window.__game.debug.props()); st.tHubMs = tHub; st.requests = reqs; require('fs').writeFileSync(`${OUT}/stats-${TAG}.json`, JSON.stringify(st, null, 1)); console.log('stats', JSON.stringify(st).slice(0, 1500)); }
   if (SH.includes('hub')) await shot('hub-wide', 300, 640, 0.5);
   if (SH.includes('portal')) await shot('portal-close', 212, 622, 1.6);
+  if (SH.includes('portalfix')) { // портал крупно: «день» (нейтральное b_stone) и ночь (hub); свободная камера
+    const P = (await p.evaluate(() => window.__game.debug.lightSources())).filter((s) => s.k === 'portal' || (!s.k && Math.hypot(s.px - 240, s.py - 600) < 30)).sort((a, b) => Math.hypot(a.px - 240, a.py - 600) - Math.hypot(b.px - 240, b.py - 600))[0] || { x: -18, z: 0, px: 240, py: 600 };
+    for (let i = 0; i < 2; i++) { await p.evaluate(([x, y]) => window.__game.debug.tp(x, y, true), [P.px + 120, P.py + 80]); await sleep(1200); }
+    for (const [nm, m] of [['day', 'b_stone'], ['night', 'hub']]) {
+      await p.evaluate((m) => window.__game.debug.mood(m), m); await p.evaluate((c) => window.__game.debug.freeCam(c), { x: P.x, z: P.z - 3.5, zoom: 0.95 }); await sleep(4500); await p.mouse.move(5, 5);
+      await p.screenshot({ path: `${OUT}/portal-${nm}-${TAG}.png` }); }
+    await p.evaluate(() => { window.__game.debug.mood(null); window.__game.debug.freeCam(null); }); }
   if (SH.includes('portalfb')) { // портал целиком: свободная камера на вихре (точка излучения), герой в стороне
     const P = (await p.evaluate(() => window.__game.debug.lightSources())).filter((s) => s.k === 'portal').sort((a, b) => Math.hypot(a.px - 212, a.py - 600) - Math.hypot(b.px - 212, b.py - 600))[0];
     console.log('portal', JSON.stringify(P));

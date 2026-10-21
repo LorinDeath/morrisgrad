@@ -206,6 +206,7 @@ class Atmosphere {
   }
 
   moodFor(world, px, py) {
+    if (this.moodOverride && MOOD[this.moodOverride]) return this.moodOverride; // только debug.mood (снимки «день/ночь»)
     if (world === 'run_crypt') return 'crypt';
     if (world === 'run_abyss') return 'abyss';
     if (world !== 'arinar') return 'hub';
