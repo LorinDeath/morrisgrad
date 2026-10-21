@@ -11,7 +11,6 @@ export const GROUP_RULES = [ // [регэксп исходного пути, г�
   [/assets\/mc\/tiles32_|tilesets_32/, 'tiles32'],
   [/assets\/mc\/tiles_/, 'tiles16'],
   [/assets\/mc\/(worldmap_|wm_)/, 'map'],
-  [/assets\/mc\/bm\//, 'bm'],
   [/\.(js|mjs|css)$/i, 'core'],
   [/^public\/js\//, 'core'],
   [/^public\/mc-vn\//, 'vn'],
@@ -28,7 +27,7 @@ export function reachable(vm, entries, readText) {
     if (c.file) out.set(c.file, c.src || key); for (const f of c.css || []) out.set(f, key + ':css'); for (const f of c.assets || []) if (!out.has(f)) out.set(f, null);
     for (const i of [...(c.imports || []), ...(c.dynamicImports || [])]) visit(i); };
   for (const e of entries) visit(e);
-  for (const f of [...out.keys()]) if (/\.(js|css)$/.test(f)) for (const m of (readText(f) || '').matchAll(/_astro\/[^"'`)\s?#]+\.[a-z0-9]+/gi)) if (!out.has(m[0])) out.set(m[0], null);
+  for (const f of [...out.keys()]) if (/\.(js|css)$/.test(f)) for (const m of (readText(f) || '').matchAll(/_astro\/[^"'`)?#\n]+?\.(?:png|webp|jpe?g|gif|svg|json|css|js|mp3|ogg|wav|woff2?|otf|ttf)(?=["'`)?#])/gi)) if (!out.has(m[0])) out.set(m[0], null);
   return out;
 }
 /** исходники по хешу содержимого: собранный ассет vite = байт-в-байт исходник → знаем его путь и группу */
@@ -55,11 +54,16 @@ export default function mcAssets() {
     'astro:build:done': ({ dir, logger }) => {
       const dist = resolve(dir.pathname), vmf = [join(dist, '.vite/manifest.json'), join(dist, 'manifest.json')].find(existsSync);
       if (!vmf) { logger.warn('mc-assets: нет vite manifest — манифест игры не создан'); return; }
-      const vm = JSON.parse(readFileSync(vmf, 'utf8')), entries = Object.keys(vm).filter((k) => /MorrisCurse\/index\.astro/.test(k));
+      const vm = JSON.parse(readFileSync(vmf, 'utf8')), entries = Object.keys(vm).filter((k) => /MorrisCurse\/index\.astro|ClientRouter\.astro|^astro:scripts\/page\.js$/.test(k)); // скрипты страницы игры (+ общие скрипты макета)
       const pub = ['js/three.min.js', ...(existsSync(join(dist, 'mc-vn')) ? walk(join(dist, 'mc-vn')).map((f) => 'mc-vn/' + f) : [])];
       const m = buildManifest({ dist, viteManifest: vmf, entries, publicFiles: pub, srcRoot: resolve(dist, '../src/assets') });
       try { const rp = join(dist, '_routes.json'), r = JSON.parse(readFileSync(rp, 'utf8')); for (const x of ['/mc-assets/*', '/mc-sw.js']) if (!r.exclude.includes(x)) r.exclude.push(x); writeFileSync(rp, JSON.stringify(r, null, 2)); } catch (_) {} // статикой, мимо воркера SSR
       mkdirSync(join(dist, 'mc-assets'), { recursive: true }); writeFileSync(join(dist, 'mc-assets/manifest.json'), JSON.stringify(m));
       logger.info(`mc-assets: ${m.files.length} файлов, ${(m.files.reduce((a, f) => a + f.s, 0) / 1048576).toFixed(1)} МБ, версия ${m.version} (${Object.entries(m.groups).map(([g, x]) => `${g} ${x.files}/${(x.bytes / 1048576).toFixed(1)} МБ`).join(', ')})`);
     } } };
+}
+// CLI: node tools/mc-assets/manifest.mjs [dist] — пересобрать только манифест (плейтесты: «изменённый/удалённый файл»)
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()) && process.argv[1].includes('mc-assets')) {
+  const dist = resolve(process.argv[2] || 'dist');
+  mcAssets().hooks['astro:build:done']({ dir: new URL('file://' + dist + '/'), logger: { info: console.log, warn: console.warn } });
 }

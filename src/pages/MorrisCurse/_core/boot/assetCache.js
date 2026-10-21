@@ -32,8 +32,11 @@ export async function disableCache(persist = true) {
 export function enableCache() { try { localStorage.removeItem(OFF_KEY); } catch (_) {} }
 async function registerSW() {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) throw new Error('no-sw');
+  // повторный визит: воркер уже управляет страницей — не ждём проверку его обновления (до 2–3 с), она идёт в фоне через 3 с;
+  // новый деплой воркера ставится сам (skipWaiting + claim), а индекс файлов мы всё равно шлём свежий (tellSW)
+  const c = navigator.serviceWorker.controller;
+  if (c && c.scriptURL.endsWith('/mc-sw.js')) { const r = await navigator.serviceWorker.getRegistration('/MorrisCurse'); if (r?.active) { setTimeout(() => r.update().catch(() => {}), 3000); return r; } }
   const reg = await navigator.serviceWorker.register('/mc-sw.js', { scope: '/MorrisCurse', updateViaCache: 'none' });
-  reg.update?.().catch(() => {}); // новый деплой: свежий воркер (no-cache) ставится сразу (skipWaiting)
   const ready = await Promise.race([navigator.serviceWorker.ready, sleep(5000).then(() => null)]);
   if (!ready) throw new Error('sw-timeout');
   return ready;
@@ -99,8 +102,8 @@ function gpu() { return isMob() ? 'phone' : 'pc'; }
 export async function syncAssets() {
   const t0 = performance.now();
   if (/[?&]nocache=1/.test(location.search)) { await disableCache(false); AC.stats.ms = performance.now() - t0; return AC; }
-  let m = null, mErr = null;
-  try { m = await fetchJson(MANIFEST_URL, 8000); } catch (err) { mErr = err; }
+  let m = null, mErr = null; const T = (AC.stats.t = {}), mark = (k) => { T[k] = Math.round(performance.now() - t0); };
+  try { m = await fetchJson(MANIFEST_URL, 8000); } catch (err) { mErr = err; } mark('manifest');
   const off = (() => { try { return localStorage.getItem(OFF_KEY) === '1'; } catch (_) { return false; } })();
   if (m && (m.flags?.cache === false || off)) { await disableCache(m.flags?.cache === false ? false : true); window.__MC_VER__ = m.version; AC.version = m.version; AC.stats.ms = performance.now() - t0; return AC; }
   if (!cachesOk()) { AC.mode = 'net'; if (m) window.__MC_VER__ = m.version; showError('MC-L04', { detail: 'Cache Storage недоступен (приватный режим?)', soft: true, autoClose: 5000 }); AC.stats.ms = performance.now() - t0; return AC; }
@@ -114,10 +117,10 @@ export async function syncAssets() {
   }
   window.__MC_VER__ = m.version; AC.version = m.version; AC.manifest = m;
   let reg = null;
-  try { reg = await registerSW(); } catch (err) { showError('MC-L04', { detail: 'SW: ' + (err?.message || err), soft: true, autoClose: 5000 }); }
+  try { reg = await registerSW(); } catch (err) { showError('MC-L04', { detail: 'SW: ' + (err?.message || err), soft: true, autoClose: 5000 }); } mark('sw');
   const dg = deviceGroups(), groups = eagerGroups(dg); groups.forEach((g) => AC.groups.add(g));
   const have = await cachedMap(cache, prev), d = diffManifest(m, have, groups);
-  for (const u of d.evict) if (await cache.delete(u)) AC.stats.evicted++;
+  for (const u of d.evict) if (await cache.delete(u)) AC.stats.evicted++; mark('diff');
   let ui = null;
   if (d.files) {
     const first = !prev || have.size === 0 || d.bytes > 0.5 * m.files.filter((e) => AC.groups.has(e.g)).reduce((a, e) => a + e.s, 0);
@@ -135,9 +138,10 @@ export async function syncAssets() {
     ui.stage?.('snd'); ui.stage?.('world');
   }
   // манифест пишем после загрузки: недокачанное останется «отсутствующим» и докачается в следующий раз (продолжение)
+  mark('download');
   try { await meta.put(META_KEY, new Response(JSON.stringify(m), { headers: { 'content-type': 'application/json' } })); } catch (_) {}
   if (reg) { await tellSW(reg, m); if (!navigator.serviceWorker.controller) await Promise.race([new Promise((r) => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), sleep(1500)]); }
-  AC.mode = reg ? 'sw' : 'net';
+  mark('claim'); AC.mode = reg ? 'sw' : 'net';
   if (!d.files && prev) flashOk(); else if (ui && !ui.el.dataset.full) { if (ui.el.dataset.mcl === 'update') setTimeout(() => ui.close(), 600); }
   AC.loader = ui; // полный экран закрывает index.astro, когда игра стартовала («Готовим мир…»)
   try { navigator.storage?.persist?.(); } catch (_) {}
