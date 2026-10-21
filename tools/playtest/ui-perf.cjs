@@ -23,7 +23,7 @@ const CONF = [['pc-new', 1280, 720, 0, 'new'], ['pc-old', 1280, 720, 0, 'old'], 
     const p = await ctx.newPage(); const errs = [];
     p.on('pageerror', (e) => errs.push('page: ' + String(e).slice(0, 160)));
     p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|favicon|net::ERR|Failed to load resource/.test(m.text())) errs.push('console: ' + m.text().slice(0, 160)); });
-    await p.goto(assertLocalUrl(`${mob ? BASE.replace('game-panel.html', 'game.html') : BASE}?name=Перф&uid=perf_${tag}${Date.now().toString(36)}&ws=${WS}&fs=1&debug=1${mob ? '&mobile=1' : ''}`));
+    await p.goto(assertLocalUrl(`${mob ? BASE.replace('game-panel.html', 'game.html') : BASE}?name=Перф&uid=perf_${tag}${Date.now().toString(36)}&ws=${WS}&fs=1&debug=1${mob ? '&mobile=1' : ''}`), { timeout: 180000, waitUntil: 'domcontentloaded' });
     await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 });
     const G = (f, a) => p.evaluate(f, a);
     await G(() => window.__game.debug.selectClass('warrior')); await sleep(4000);
