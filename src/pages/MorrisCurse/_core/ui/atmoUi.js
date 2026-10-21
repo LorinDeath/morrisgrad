@@ -61,9 +61,12 @@ function apply() {
   if (!vis) { cancelAnimationFrame(raf); raf = 0; return; }
   moodKey = ''; size(); loop();
 }
+// локация для админки (сила по локациям, % от общих): Поляна, четыре края Аринара, прочие края
+const locOf = (key) => (key === 'hub' ? 'hub' : key === 'b_ice' ? 'ice' : key === 'b_fire' ? 'fire' : key === 'b_stone' ? 'stone' : key === 'b_air' ? 'air' : 'arinar');
+const locK = (key, f) => { const v = Number(UI.loc?.[locOf(key)]?.[f]); return Number.isFinite(v) ? Math.max(0, Math.min(200, v)) / 100 : 1; };
 function setMood(key) {
   moodKey = key; const M = MOOD[key] || MOOD.hub, s = k();
-  const vig = (Number(UI.vig) || 0) / 100 * s, grade = (Number(UI.grade) || 0) / 100 * s;
+  const vig = Math.min(1, (Number(UI.vig) || 0) / 100 * s * locK(key, 'vig')), grade = Math.min(1, (Number(UI.grade) || 0) / 100 * s * locK(key, 'grade'));
   vigEl.style.background = `radial-gradient(ellipse 78% 72% at 50% 50%, transparent 58%, ${M.vig} 100%)`;
   vigEl.style.opacity = vig.toFixed(3);
   crackEl.style.opacity = (vig * 0.35).toFixed(3);
@@ -92,7 +95,8 @@ function loop() {
   raf = requestAnimationFrame(step);
 }
 function draw(dt, T) {
-  const P = PART[kind] || PART.ash, n = Math.round(MAXN * (Number(UI.parts) || 0) / 100 * k() * (mobile ? 0.6 : 1));
+  const P = PART[kind] || PART.ash, pm = mobile ? Math.max(0, Math.min(100, Number(UI.partsMobile) || 0)) / 100 : 1;
+  const n = Math.min(MAXN * 2, Math.round(MAXN * (Number(UI.parts) || 0) / 100 * k() * pm * locK(moodKey, 'parts')));
   g.clearRect(0, 0, W, H);
   if (!n) return;
   while (ps.length < n) ps.push(spawn(P, true));

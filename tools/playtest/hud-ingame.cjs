@@ -80,6 +80,19 @@ const inter = (a, b) => a && b && a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && 
       const tgt = await R(wantIg ? '.ig-tgt' : '#ghud-target-details'), nm = await G(() => document.getElementById('ghud-target-name')?.textContent || '');
       ok(!!m && !!tgt && nm.length > 1 && nm !== 'Цель', `цель выбрана — панель «Цель» видна: ${nm} (${await G(() => document.getElementById('ghud-target-hp')?.textContent)})`);
       if (wantIg) { const pf = await R('.mc-pframe'); ok(!!tgt && tgt.x < W * 0.3 && !inter(tgt, pf), 'панель «Цель» слева под рамкой героя'); }
+      // настройки админки на лету (как meta_state.ui): квадратная карта, отступы, «Цель» справа с автоскрытием через 3 с
+      if (wantIg) {
+        const setCfg = (c) => G(async (c) => { const u = performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\/ui\/uiSkin\.js/.test(n)); const m = await import(u); m.setUiCfg(c); }, c);
+        await setCfg({ mmRound: false, mmX: 30, mmY: 24, tgtSide: 'right', tgtTop: 300, tgtHide: 3 }); await sleep(800);
+        const ly = await R('.mc-ighud'), mm2 = await R('.ig-mm'), t2 = await R('.ig-tgt'), cr = await G(() => getComputedStyle(document.querySelector('#mm-canvas')).borderRadius);
+        const rx = mm2 && ly && Math.round(ly.x + ly.w - (mm2.x + mm2.w)), ry = mm2 && ly && Math.round(mm2.y - ly.y);
+        ok(cr === '0px' && rx === 30 && ry === 24, `админка: квадратная мини-карта (${cr}), отступы от края поля ${rx}/${ry}`);
+        ok(!!t2 && t2.x > W * 0.6 && Math.round(t2.y) === 300, `админка: «Цель» справа, сверху 300 (${t2 && Math.round(t2.x)},${t2 && Math.round(t2.y)})`);
+        await p.mouse.move(W / 2, H / 3); await shot('admin-square-right');
+        await sleep(4200); const idle = await G(() => +getComputedStyle(document.querySelector('.ig-tgt')).opacity);
+        ok(idle === 0, `автоскрытие «Цели» через 3 с без изменений (прозрачность ${idle})`); await shot('admin-target-idle');
+        await setCfg({ mmRound: true, mmX: 10, mmY: 10, tgtSide: 'left', tgtTop: 100, tgtHide: 0 }); await sleep(600);
+      }
       await G(() => window.__game.debug.clearTarget()); await sleep(900);
       if (wantIg) ok(!(await R('.ig-tgt')), 'цель снята — панель «Цель» исчезла');
     }

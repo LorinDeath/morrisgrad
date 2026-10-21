@@ -7,7 +7,9 @@
 // - Настройки — админка «🎨 Интерфейс» (meta_state.ui): вкл/выкл, глитч 0/1/2, доля цвета локации, застёжки, аватары.
 export const UI_BASE = '/mc-ui/';
 export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176,
-  atmo: true, vig: 45, grade: 30, parts: 50, atmoMobile: 40, sfx: true, sfxVol: 40, trans: true, transMs: 160, loadScreen: true };
+  mmX: 10, mmY: 10, mmZoom: 1, mmRound: true, tgtSide: 'left', tgtTop: 100, tgtHide: 0,
+  atmo: true, vig: 45, grade: 30, parts: 50, atmoMobile: 40, partsMobile: 60, loc: {}, sfx: true, sfxVol: 40, trans: true, transMs: 160, loadScreen: true,
+  texPc: '32', texMobile: '16' };
 const CURSED = '#8a6aa6';
 const TINTABLE = ['frame_window', 'frame_panel', 'frame_small', 'frame_tooltip', 'corner_tl', 'corner_tr', 'corner_bl', 'corner_br',
   'divider_h', 'divider_v', 'divider_ornament', 'slot_normal_normal', 'slot_normal_hover', 'slot_normal_selected',
@@ -76,7 +78,11 @@ function applyClasses() {
   c.toggle('mc-ui', on); c.toggle('mc-ui-orn', on && UI.ornaments);
   document.documentElement.dataset.uiGlitch = on ? String(UI.glitch) : '0';
   const ig = hudIngame(); c.toggle('mc-hud-ig', ig);
-  document.documentElement.style.setProperty('--ig-mm', (Math.max(120, Math.min(240, Number(UI.mmSize) || 176)) | 0) + 'px');
+  const rs = document.documentElement.style, cl = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : d; };
+  rs.setProperty('--ig-mm', cl(UI.mmSize, 120, 240, 176) + 'px');
+  rs.setProperty('--ig-mm-x', cl(UI.mmX, 0, 200, 10) + 'px'); rs.setProperty('--ig-mm-y', cl(UI.mmY, 0, 200, 10) + 'px'); rs.setProperty('--ig-tgt-top', cl(UI.tgtTop, 40, 500, 100) + 'px');
+  c.toggle('mc-ig-sq', UI.mmRound === false);
+  document.documentElement.dataset.igTgt = ['left', 'center', 'right'].includes(UI.tgtSide) ? UI.tgtSide : 'left';
   if (ig !== hudWas) { hudWas = ig; window.dispatchEvent(new CustomEvent('mc-hud-ig', { detail: ig })); }
   // плавные окна (overlay.showScreen/hideScreen) — класс на <html>; длительность из админки
   const reduce = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } })();
@@ -99,6 +105,8 @@ export function setUiCfg(c) {
   for (const k of Object.keys(UI)) if (c[k] != null) UI[k] = c[k];
   // экран загрузки показывается до прихода настроек с сервера — запоминаем выбор админки на следующую загрузку
   try { localStorage.setItem('mc_ui_load', UI.on !== false && UI.loadScreen !== false ? '1' : '0'); } catch (_) {}
+  // «Текстуры» по умолчанию для ПК/телефона (worlds/texPref.js texDefault) — тоже до прихода настроек, со следующей загрузки
+  try { localStorage.setItem('mc_tex_def', JSON.stringify({ pc: UI.texPc === '16' ? '16' : '32', mob: UI.texMobile === '32' ? '32' : '16' })); } catch (_) {}
   applyClasses(); if (UI.biomeMix !== mix) { curT = ''; retint(); }
 }
 // ——— аватары (Историк, /mc-ui/avatars): 64/128 px, показываем 1:1 (без дробного масштаба) ———

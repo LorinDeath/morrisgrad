@@ -17,7 +17,12 @@ import t32Air from '../../../../assets/mc/tiles32_air.png';
 
 export const TEX_KEY = 'mc_tex';
 const isMobile = () => { try { const ua = navigator.userAgent || ''; return /Mobi|Android|iPhone|iPad/i.test(ua) || (navigator.maxTouchPoints > 1 && matchMedia('(pointer: coarse)').matches) || /[?&]mobile=1/.test(location.search); } catch (_) { return false; } };
-export function texDefault() { return isMobile() ? '16' : '32'; }
+// по умолчанию — из админки «Интерфейс → Текстуры по умолчанию» (uiSkin.setUiCfg кладёт в localStorage mc_tex_def), иначе ПК 32 / телефон 16
+export function texDefault() {
+  const mob = isMobile();
+  try { const d = JSON.parse(localStorage.getItem('mc_tex_def') || 'null'); const v = d && (mob ? d.mob : d.pc); if (v === '16' || v === '32') return v; } catch (_) {}
+  return mob ? '16' : '32';
+}
 export function texPref() {
   try { const q = location.search.match(/[?&]tex=(16|32)/); if (q) return q[1]; const v = localStorage.getItem(TEX_KEY); if (v === '16' || v === '32') return v; } catch (_) {}
   return texDefault();

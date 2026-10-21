@@ -199,6 +199,21 @@ export class GameHUD {
     this.cache = {}; // перерисовать тексты/списки в новом месте
   }
 
+  // «Цель» гаснет, если у неё tgtHide с ничего не менялось (ОЗ, имя, статус — по тексту карточки); 0 — не скрывать
+  igTgtIdle() {
+    const N = Number(UI_SKIN.tgtHide) || 0, card = this.$('ghud-target-card');
+    if (!N || !this.currentTarget || !card) { this.igEl.classList.remove('tgt-idle'); this.tgtSig = null; return; }
+    const sig = card.textContent, now = performance.now();
+    if (sig !== this.tgtSig) { this.tgtSig = sig; this.tgtAt = now; }
+    this.igEl.classList.toggle('tgt-idle', now - this.tgtAt > N * 1000);
+  }
+  // зум мини-карты по умолчанию (админка mmZoom 1…3): при входе в HUD-в-поле и когда админ его поменял; выбор игрока кнопками ± дальше не трогаем
+  igZoomDef() {
+    const z = Math.max(1, Math.min(3, Math.round(Number(UI_SKIN.mmZoom) || 1))) - 1, mm = this.minimap;
+    if (this.zoomDefApplied === z || !mm?.zoomLevels) return;
+    this.zoomDefApplied = z; mm.zoomIndex = Math.min(z, mm.zoomLevels.length - 1);
+    const t = document.getElementById('mm-zoom-text'); if (t && mm.zoomLabels) t.textContent = mm.zoomLabels[mm.zoomIndex];
+  }
   igSize() { // админка может поменять диаметр на лету (mmSize) — холст подгоняем без пересоздания
     const cv = this.minimap.canvas, d = Math.round((Number(UI_SKIN.mmSize) || 176) * (this.mobile ? 0.6 : 1)) - 12;
     if (this.igOn) { if (cv.width !== d || cv.height !== d) cv.width = cv.height = d; } else if (cv.width !== 220 || cv.height !== 150) { cv.width = 220; cv.height = 150; }
@@ -252,7 +267,7 @@ export class GameHUD {
       const n = this.igNet, sig = [ping, online, q[0], zoom.toFixed(2), Math.round(player.x / 32), Math.round(player.y / 32)].join('|');
       if (n.sig !== sig) { n.sig = sig; n.ping.textContent = ping || '--'; n.on.textContent = online; n.dot.style.background = q[1]; n.ping.style.color = q[1];
         n.box.title = `Сеть: ${q[0].replace('📶 ', '')} · пинг ${ping || '--'} мс · в сети ${online}\nЗум x${zoom.toFixed(2)} · X ${Math.round(player.x)} · Y ${Math.round(player.y)}`; }
-      this.igEl.classList.toggle('tgt', !!this.currentTarget); this.igSize();
+      this.igEl.classList.toggle('tgt', !!this.currentTarget); this.igSize(); this.igTgtIdle(); this.igZoomDef();
     }
     this.txt('ghud-coords', mode === 'run' && run ? `${run.me.x.toFixed(0)} м | ${run.me.z.toFixed(0)} м` : `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`);
 
