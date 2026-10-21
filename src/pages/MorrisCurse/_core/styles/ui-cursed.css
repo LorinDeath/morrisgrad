@@ -647,3 +647,6 @@ html .mc-touch:not(.mc-run) .mc3d-ttop { flex-wrap: wrap-reverse; align-content:
 @media (orientation: portrait) { html .mc-touch:not(.mc-run) .mc3d-ttop { bottom: calc(var(--sb, 0px) + 196px); } } /* сразу над F (дуга до 191 px), две колонки по 4 влезают и на 360×640 */
 html.mc-hud-ig .mc-touch { --ttop-res: calc(var(--ig-mm, 176px) * .6 + 8px); }
 @media (orientation: landscape) and (max-height: 560px) { html .mc-touch:not(.mc-run) .mc3d-ttop { max-height: none; max-width: calc(100% - 440px); } }
+/* диалог (VN) не шире поля: 94vw считались от окна браузера — на 360 px и в поле между боковыми панелями (776 px)
+   окно вылезало за край (обе темы, любой масштаб) */
+.mc3d-screen > .mc-vn { max-width: 100%; box-sizing: border-box; }
