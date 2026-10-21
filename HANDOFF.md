@@ -28,7 +28,9 @@ Do not touch `/workspace/mg-ui` (branch ui-cursed-rework, 10 commits); it is mer
 - `tools/playtest/city-dome.cjs`: 24/0.
 - `city-logic.cjs`: 28/0.
 - `city-hero.cjs`: overview shots.
-- `day-night.cjs`: stages × places plus a GIF.
+- `day-night.cjs`: 10/0.
+  - Light spots now actually glow: the r128 instanceColor came out black, so they use a custom aCol attribute.
+  - City lights come from map lanterns, fires and doorways (66 sources in the city at night).
 
 ## How to run
 - Server: `wrangler dev --local` on port 8883; PID in `/workspace/mc-harness-city/wrangler.pid`.
@@ -41,6 +43,6 @@ Do not touch `/workspace/mg-ui` (branch ui-cursed-rework, 10 commits); it is mer
 - Output: `/workspace/morrisgrad-round3/dome-city/{dome,logic,hero,daynight}`
 
 ## Remaining
-- Day/night: review the screenshots and the GIF, and tune the look.
+- Day/night: possible look polish. Lantern light sits at the base of the post; dusk at 19:40 has few lights (lightsOn ramps from 19:45).
 - Polish: NPC visuals at the slots, and the city's whitish tint in daylight.
 - Final dome previews and environment coordinates from Историк, when they arrive.
