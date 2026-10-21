@@ -197,7 +197,9 @@ export class Overlay {
         if (b.id) btn.id = b.id;
         row.appendChild(btn);
       });
-      el.appendChild(row);
+      // новый интерфейс: кнопки лобби — внутри рамки окна (а не отдельной строкой под ним), всегда видны внизу окна
+      const win = document.documentElement.classList.contains('mc-ui') && /\bmc-lobby-screen\b/.test(cls) ? el.querySelector('.mc-lobby') : null;
+      if (win) { row.classList.add('mc-lobby-acts'); win.appendChild(row); } else el.appendChild(row);
     }
     this.layer.appendChild(el);
     this.screen = el;
