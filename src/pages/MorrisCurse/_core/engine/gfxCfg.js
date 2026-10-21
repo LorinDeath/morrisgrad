@@ -8,7 +8,10 @@ const KEY = 'mc_gfx';
 const LT = ['warm', 'fire', 'cool', 'violet', 'lime', 'portal'];
 const lt = () => ({ haloS: 1, haloK: 1, poolS: 1, poolK: 1 });
 export const GFX = { props3Pc: true, props3Mobile: false, pack16: false, packGlow: true, lightSprites: true, fallbackV2: true, arena3: false, arena3Wall: 'auto', arena3Posts: 1, arena3Tall: true, arena3TallGap: 1.5, arena3Rim: false, arena3Cracks: 18, arena3GlowW: 0.5, arena3Floor: 1, arena3Amb: { crypt: 0.5, abyss: 0.62, mirror: 0.42, abode: 0.48 }, arena3Lit: 1, arena3Edge: 0.75, arena3WallL: 0.85, fpsMul: 1, glow: 1,
-  lt: Object.fromEntries(LT.map((t) => [t, lt()])), em: { v3: {}, v2: {} } };
+  lt: Object.fromEntries(LT.map((t) => [t, lt()])), em: { v3: {}, v2: {} },
+  // мобы bestiary32 (Художник) — все поля живые (engine/mobPref.js, engine/beast32.js): mobs32 — общий выключатель (сильнее настройки игрока)
+  mobs32: true, mobs32Pc: true, mobs32Mobile: false, mobs32Run: false, mobFps: 1, mobGlow: 1, mobHurtFlash: 0, mobGrace: 20, mobLoadR: 50, mobPackGlow: true };
+
 // свет арены 32 по темам (экранный множитель пиксель-арта, 1 — как превью Художника): общий фон; огни (колонны, сигил, свечи, кристаллы, кромка) — сверху
 export const A3_THEMES = ['crypt', 'abyss', 'mirror', 'abode'], A3_AMB = { crypt: 0.5, abyss: 0.62, mirror: 0.42, abode: 0.48 };
 const ARENA3_KEYS = ['arena3', 'arena3Wall', 'arena3Posts', 'arena3Tall', 'arena3TallGap', 'arena3Rim', 'arena3Cracks', 'arena3GlowW', 'arena3Floor', 'arena3Amb', 'arena3Lit', 'arena3Edge', 'arena3WallL']; // живые, со следующей арены
@@ -16,6 +19,12 @@ const LOAD_KEYS = ['props3Pc', 'props3Mobile', 'pack16', 'packGlow', 'lightSprit
 const cl = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 /** живые множители — общие uniform-объекты SpriteBatch пропсов (propAtlas.js) */
 export const PROP_FPS = { value: 1 }, PROP_GLOW = { value: 1 };
+/** сила свечения _glow мобов bestiary32 — общий uniform glow-батчей (beast32.js) */
+export const MOB_GLOW = { value: 1 };
+const MOB_BOOL = ['mobs32', 'mobs32Pc', 'mobs32Mobile', 'mobs32Run', 'mobPackGlow'];
+const GFX_SUBS = new Set();
+/** подписка на живые поля (смена выключателя мобов и т. п.); возвращает отписку */
+export function onGfx(fn) { GFX_SUBS.add(fn); return () => GFX_SUBS.delete(fn); }
 function applyLive(c) {
   if (c.fpsMul != null) GFX.fpsMul = cl(c.fpsMul, 0.25, 3, 1);
   if (c.glow != null) GFX.glow = cl(c.glow, 0, 3, 1);
@@ -34,7 +43,14 @@ function applyLive(c) {
   if (c.arena3Lit != null) GFX.arena3Lit = cl(c.arena3Lit, 0, 3, 1);
   if (c.arena3Edge != null) GFX.arena3Edge = cl(c.arena3Edge, 0, 1, 0.75);
   if (c.arena3WallL != null) GFX.arena3WallL = cl(c.arena3WallL, 0.2, 1.5, 0.85);
-  PROP_FPS.value = GFX.fpsMul; PROP_GLOW.value = GFX.glow;
+  for (const k of MOB_BOOL) if (typeof c[k] === 'boolean') GFX[k] = c[k];
+  if (c.mobFps != null) GFX.mobFps = cl(c.mobFps, 0.25, 3, 1);
+  if (c.mobGlow != null) GFX.mobGlow = cl(c.mobGlow, 0, 3, 1);
+  if (c.mobHurtFlash != null) GFX.mobHurtFlash = cl(c.mobHurtFlash, 0, 1, 0);
+  if (c.mobGrace != null) GFX.mobGrace = cl(c.mobGrace, 2, 600, 20);
+  if (c.mobLoadR != null) GFX.mobLoadR = cl(c.mobLoadR, 10, 200, 50);
+  PROP_FPS.value = GFX.fpsMul; PROP_GLOW.value = GFX.glow; MOB_GLOW.value = GFX.mobGlow;
+  for (const f of GFX_SUBS) { try { f(GFX); } catch (e) { console.warn('[gfx]', e); } }
 }
 try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && typeof v === 'object') { for (const k of LOAD_KEYS) if (typeof v[k] === 'boolean') GFX[k] = v[k]; applyLive(v); } } catch (_) {}
 export const GFX_NEXT = { value: null };
@@ -43,7 +59,7 @@ export function setGfxCfg(c) {
   if (!c || typeof c !== 'object') return;
   applyLive(c);
   const next = {}; for (const k of LOAD_KEYS) next[k] = typeof c[k] === 'boolean' ? c[k] : GFX[k];
-  try { localStorage.setItem(KEY, JSON.stringify({ ...next, ...ARENA3_KEYS.reduce((o, k) => ((o[k] = GFX[k]), o), {}), fpsMul: GFX.fpsMul, glow: GFX.glow, lt: GFX.lt, em: GFX.em })); } catch (_) {}
+  try { localStorage.setItem(KEY, JSON.stringify({ ...next, ...ARENA3_KEYS.reduce((o, k) => ((o[k] = GFX[k]), o), {}), fpsMul: GFX.fpsMul, glow: GFX.glow, lt: GFX.lt, em: GFX.em, ...Object.fromEntries([...MOB_BOOL, 'mobFps', 'mobGlow', 'mobHurtFlash', 'mobGrace', 'mobLoadR'].map((k) => [k, GFX[k]])) })); } catch (_) {}
   GFX_NEXT.value = next;
 }
 export function propsQuery() { try { const q = location.search.match(/[?&]props=(2|3)/); return q ? q[1] : null; } catch (_) { return null; } }

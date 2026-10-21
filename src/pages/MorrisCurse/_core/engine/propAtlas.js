@@ -28,7 +28,7 @@ const setInfo = (set) => (set === 'v3'
 // WebGL при загрузке в 5551 отбрасывает младшие биты (усечение → всё темнее до 1/31, тёмные тона теряют насыщенность), поэтому
 // лист заранее округляем до ближайшего уровня 5 бит и пишем значение, которое после усечения даёт именно этот уровень: ошибка ≤ 1/62, без сдвига.
 let Q5 = null;
-function quant5(img) {
+export function quant5(img) {
   if (!Q5) { Q5 = new Uint8Array(256); for (let v = 0; v < 256; v++) Q5[v] = Math.min(255, Math.ceil(Math.round(v * 31 / 255) * 255 / 31)); }
   const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height; const g = cv.getContext('2d', { willReadFrequently: true });
   g.drawImage(img, 0, 0); const D = g.getImageData(0, 0, cv.width, cv.height), a = D.data;

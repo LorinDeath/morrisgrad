@@ -11,6 +11,11 @@ import { SpriteBatch } from '../engine/spriteBatch.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING } from '../engine/pixSprites.js';
 import { ENEMIES, WEAPONS } from './data.js';
 import { BEAST_ROW, beastFlying, beastHeightFor, loadBeastBatch } from '../engine/beastSprites.js';
+import { Beast32View, B32, b32On, b32HeightFor } from '../engine/beast32.js';
+import { mobFrame, stepZone, initState } from '../engine/beastFrames.js';
+import { GFX } from '../engine/gfxCfg.js';
+const RUN_H32 = {};
+const runH32 = (t) => (RUN_H32[t] ??= b32HeightFor(t, RUN_VIS[t] ?? 1.5));
 // видимый рост тела в забеге (м) — как у прежних спрайтов арены; остальные Отголоски — 1.5 м
 const RUN_VIS = { imp: 1.4, bat: 0.9, ghoul: 1.8, spitter: 1.2, golem: 2.8, warden: 4.4, blade_fly: 1.35, dream_moth: 1.1, rot_glitch: 1.1, moon_sentinel: 4.9 };
 const RUN_H = {};
@@ -67,6 +72,8 @@ export class RunView {
       // единый атлас Отголосков (как в открытом мире); старый 14-типовой — только для отсутствующих (зеркало Кьют)
       this.beast = null;
       loadBeastBatch(THREE, MOB_MAX).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
+      // мобы bestiary32 — только при «Мобы: Новые» и админке «🖼 Графика» → mobs32Run (по умолчанию выкл); вся арена = «текущая зона» (без радиуса)
+      this.b32 = new Beast32View(THREE, this.root, { max: MOB_MAX, run: true });
     }
     // Телеграфы (круги/линии на земле), ауры элиты, лужи — по одному InstancedMesh
     const decal = (geo, cap, opacity) => {
@@ -163,8 +170,9 @@ export class RunView {
   // 2.5D-орда: один батч, кадры по состоянию, распад исчезнувших врагов
   drawHorde(dt) {
     const run = this.run, B = this.mobBatch, BB = this.beast, T = this.time;
+    const NV = this.b32 && b32On(true) ? this.b32 : null, fm = GFX.mobFps || 1, hf = GFX.mobHurtFlash || 0, me = run.me;
     const fno = ++this.frameNo;
-    B.begin(); BB?.begin();
+    B.begin(); BB?.begin(); NV?.begin();
     for (const e of run.enemies.values()) {
       if (e.dead) continue;
       const brow = BB ? BEAST_ROW[e.type] : undefined;
@@ -181,8 +189,38 @@ export class RunView {
       else col = (Math.floor(T * (fly ? 12 : 7) + e.id * 0.7)) & 3;
       const sx = Math.sin(e.face || 0);
       let rec = this.lastSeen.get(e.id);
-      if (!rec) { rec = { type: e.type, x: 0, z: 0, s: 1, flip: false, f: 0, elite: false }; this.lastSeen.set(e.id, rec); }
+      if (!rec) { rec = initState({ type: e.type, x: e.x, z: e.z, s: 1, flip: false, f: 0, elite: false, mvT: 9, wasW: false, ctT: 9, ph: (e.id * 0.618) % 1 }); this.lastSeen.set(e.id, rec); }
       if (Math.abs(sx) > 0.15) rec.flip = sx < 0;
+      // новые мобы: состояние кадров — в записи вида (rec), объекты симуляции забега не трогаем
+      const pg = NV ? NV.use(e.type, 0) : -1;
+      if (NV) {
+        if (Math.abs(e.x - rec.x) + Math.abs(e.z - rec.z) > 0.004) rec.mvT = 0; else rec.mvT += dt;
+        rec.moving = rec.mvT < 0.2; rec.frozen = e.frzU > run.t;
+        // удар: конец замаха (круг/пыль бьёт в этот момент), рывок (dashT) или касание героя (урон касанием — мгновенный, раз в ≈0.6 с)
+        const W = e.wind > 0, ctR = (ENEMIES[e.type].radius || 0.5) * s + 0.6;
+        rec.ctT += dt; let str = rec.wasW && !W && !(e.dashT > 0);
+        if (!str && me && !W && !(e.dashT > 0) && rec.ctT > 0.6 && (e.x - me.x) * (e.x - me.x) + (e.z - me.z) * (e.z - me.z) < ctR * ctR) str = true;
+        if (str) rec.ctT = 0; rec.wasW = W;
+        const fl = e.flash || 0, hit = fl > (rec.fl || 0) + 0.001; rec.fl = fl; // попадание — по фронту вспышки (симуляция ставит 0.12)
+        stepZone(B32, rec, dt, W ? 1 : e.dashT > 0 ? 2 : 0, hit, str, fm);
+      }
+      if (pg >= 0) {
+        const h32 = runH32(e.type) * s, f = mobFrame(B32, rec, T, (fly ? 12 : 7) * 3, fm, rec.ph);
+        rec.x = e.x; rec.z = e.z; rec.s = s; rec.f = fno; rec.elite = e.elite; rec.boss = e.boss;
+        let r = 1, g = 1, b = 1;
+        if (e.elite) { const p = 0.85 + Math.sin(T * 5 + e.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; b = 0.6; }
+        if (e.slowUntil > run.t) { r *= 0.7; g *= 0.9; b = 1.5; }
+        if (e.frzU > run.t) { r = 0.75; g = 1.15; b = 1.9; }
+        else if (e.burnU > run.t) { const q = 0.5 + 0.5 * Math.sin(T * 18 + e.id); r *= 1.25 + 0.25 * q; g *= 0.85; b *= 0.6; }
+        else if (e.poisonU > run.t) { r *= 0.75; g *= 1.2; b *= 0.6; }
+        else if (e.bleedU > run.t) { r *= 1.3; g *= 0.7; b *= 0.7; }
+        if (e.wind > 0) r = Math.max(r, 1.35);
+        NV.push(pg, e.type, f, e.x, y, e.z, h32, rec.flip, r, g, b, e.flash > 0.05 ? hf : 0, 1, e.id);
+        atmo.shadow(e.x, e.z, Math.max(0.35, h32 * 0.26), fly ? 0.55 : 1);
+        if (e.boss || e.elite) this.light(e.x, e.z, 2.6 * s, e.boss ? 0.42 : 0.3, e.boss ? 0xff4d6d : 0xffc95a);
+        else if ((this.nL || 0) < 26) this.light(e.x, e.z, 1.7 * s, 0.16, 0x9d8cff);
+        continue;
+      }
       rec.x = e.x; rec.z = e.z; rec.s = s; rec.f = fno; rec.elite = e.elite; rec.boss = e.boss;
       const shake = e.wind > 0 ? Math.sin(T * 60 + e.id) * 0.06 : 0;
       let r = 1, g = 1, b = 1;
@@ -210,13 +248,15 @@ export class RunView {
       const life = dd.elite ? 0.8 : 0.45;
       if (dd.t >= life) { this.dying.splice(i, 1); continue; }
       const k = dd.t / life;
+      const pg = NV ? NV.use(dd.type, 0) : -1;
+      if (pg >= 0) { if (dd.dieK === undefined) initState(dd); dd.dieK = k; NV.push(pg, dd.type, mobFrame(B32, dd, T, 21, fm, 0), dd.x, 0, dd.z, runH32(dd.type) * dd.s, dd.flip, 1, 1, 1, 0, 1, dd.x * 7 + dd.z, 1 - k * 0.4); continue; }
       const brow = BB ? BEAST_ROW[dd.type] : undefined;
       if (brow !== undefined) { BB.push(dd.x, 0, dd.z, runH(dd.type) * dd.s, 8 + Math.min(3, Math.floor(k * 4)), brow, dd.flip, 1.2, 1.1, 1.3, k < 0.15 ? 0.6 : 0, 1 - k * 0.6); continue; }
       if (MOB_ROWS[dd.type] === undefined) continue;
       const fly = MOB_FLYING[dd.type] || 0;
       B.push(dd.x, fly * dd.s * (1 - k), dd.z, (MOB_HEIGHT[dd.type] || 2) * dd.s, 8 + Math.min(3, Math.floor(k * 4)), MOB_ROWS[dd.type], dd.flip, 1.2, 1.1, 1.3, k < 0.15 ? 0.6 : 0, 1 - k * 0.6);
     }
-    B.end(); BB?.end();
+    B.end(); BB?.end(); NV?.end();
   }
 
   // Телеграфы атак, ауры элиты/босса, лужи гнили, метки метеора — спрайты FX atlas v2 (tele_*, mark_*, plague_puddle)
@@ -422,6 +462,7 @@ export class RunView {
   }
 
   dispose() {
+    this.b32?.dispose(); // батчи страниц bestiary32 — отдать счётчик страниц (листы выгружаются по grace или сразу, если ничьи)
     // модели героев используют общий кэш геометрий — не уничтожаем их
     for (const p of this.players.values()) this.root.remove(p.ch.group);
     this.players.clear();
