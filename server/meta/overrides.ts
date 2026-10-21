@@ -10,6 +10,7 @@ import { LIGHT_CFG } from "./lightCfg";
 import { DN_CFG } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, CITY_SLOTS, CITY_LOOKS, CENTERPIECES } from "./city";
 import { BUILD_DEF, ROOMS } from "./cityBuild";
+import { GFX_CFG, LIGHT_TYPES, EMIT_KEYS } from "./gfxCfg";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
@@ -27,7 +28,7 @@ if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -287,10 +288,41 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "cDawnViolet", label: "Рассвет: холодный фиолет", t: "color" }, { path: "cDawnPink", label: "Рассвет: розовый", t: "color" }, { path: "cDawnWarm", label: "Рассвет: тёплый", t: "color" },
     { path: "_h_f", label: "Тест", t: "hdr" },
     { path: "force", label: "Форс-время ЧЧ:ММ (пусто — реальное)", t: "text" }, N("speed", "Ускорение часов при форсе (60 = минута за секунду)", 0, 1440)] },
+  // «🖼 Графика» — только админ; одна запись id='main' (gfxCfg.ts). Только отрисовка. Живые поля — сразу; набор листов — со следующей загрузки
+  gfx: { name: "Графика", fields: [{ path: "_h0", label: "Пропсы 32 (props3) — со следующей загрузки страницы", t: "hdr" },
+    { path: "props3Pc", label: "ПК: пропсы 32 при «Текстуры: Новые (32)»", t: "bool" },
+    { path: "props3Mobile", label: "Телефон: пропсы 32 при «Текстуры: Новые (32)» (по умолчанию выкл)", t: "bool" },
+    { path: "pack16", label: "Основные листы 16 бит/пиксель (RGBA 5551) — −70 МБ видеопамяти, цвет чуть тусклее", t: "bool" },
+    { path: "packGlow", label: "Листы свечения 16 бит/пиксель (RGBA 5551) — −55 МБ видеопамяти", t: "bool" },
+    { path: "lightSprites", label: "Ореолы и пятна огней — пиксельные спрайты; выкл — гладкий градиент", t: "bool" },
+    { path: "fallbackV2", label: "Портал при пропсах 32 — из старых (props2), пока нет нового арта (список: props3/fallback_v2.json)", t: "bool" },
+    { path: "arena3", label: "Арена забега: спрайты props3 вместо 3D-мешей + пол, кромка и парапет 32 (со следующей арены; механика не меняется)", t: "bool" },
+    { path: "arena3Wall", label: "Арена 32: парапет — auto (ПК спрайтами, телефон запечён в пол) / sprites (объёмнее) / baked (дешевле)", t: "enum", opts: ["auto", "sprites", "baked"], optn: { auto: "авто: ПК — спрайты, телефон — в полу", sprites: "спрайты (объёмнее)", baked: "запечь в пол (дешевле)" } },
+    N("arena3Posts", "Арена 32: угловые столбы на диагоналях — каждый n-й (1 — все)", 1, 6, "int"),
+    { path: "arena3Tall", label: "Арена 32: высокая стена arena_wall_* за парапетом", t: "bool" },
+    N("arena3TallGap", "Арена 32: высокая стена дальше парапета, м", 0, 8),
+    { path: "arena3Rim", label: "Арена 32: тонкий светящийся обод поверх кромки (как раньше)", t: "bool" },
+    N("arena3Cracks", "Арена 32: трещин на полу, шт.", 0, 80, "int"),
+    N("arena3Floor", "Арена 32: яркость пола поверх света, × (1 — без поправки)", 0.2, 3),
+    { path: "_h_a3l", label: "Арена 32: свет (экранный ×, 1 — как превью Художника; со следующей арены)", t: "hdr" },
+    N("arena3Amb.crypt", "Свет арены 32 · Склеп: общий фон", 0, 1.5), N("arena3Amb.abyss", "Свет арены 32 · Бездна: общий фон", 0, 1.5),
+    N("arena3Amb.mirror", "Свет арены 32 · Отражения: общий фон", 0, 1.5), N("arena3Amb.abode", "Свет арены 32 · Обитель: общий фон", 0, 1.5),
+    N("arena3Lit", "Свет арены 32: огни (колонны, сигил, свечи, кристаллы, кромка), ×", 0, 3),
+    N("arena3Edge", "Свет арены 32: пол у стены (1 — без затемнения, 0 — чёрный)", 0, 1),
+    N("arena3WallL", "Свет арены 32: парапет, колонны и декор, × (свечение огней — полное)", 0.2, 1.5),
+    N("arena3GlowW", "Арена 32: доля светящихся плит пола (вес варианта)", 0, 3),
+    { path: "_h1", label: "Анимация и свечение — сразу", t: "hdr" },
+    N("fpsMul", "Скорость анимации пропсов, × (1 — как в атласе)", 0.25, 3), N("glow", "Сила свечения пропсов (*_glow), ×", 0, 3),
+    ...LIGHT_TYPES.flatMap((t) => { const nm = ({ warm: "фонари", fire: "факелы и костры", cool: "кристаллы", violet: "звёздные кристаллы", lime: "пилоны", portal: "порталы и алтарь" } as any)[t];
+      return [{ path: "_h_" + t, label: `Огни: ${nm}`, t: "hdr" as const }, N(`lt.${t}.haloS`, `${nm}: размер ореола, ×`, 0.2, 3), N(`lt.${t}.haloK`, `${nm}: сила ореола, ×`, 0, 3),
+        N(`lt.${t}.poolS`, `${nm}: размер пятна на земле, ×`, 0.2, 3), N(`lt.${t}.poolK`, `${nm}: сила пятна на земле, ×`, 0, 3)]; }),
+    { path: "_h2", label: "Точка излучения (px кадра; −1 — авто по свечению)", t: "hdr" },
+    ...(["v3", "v2"] as const).flatMap((s) => EMIT_KEYS.flatMap((k) => { const nm = ({ lantern: "фонарь", torch: "факел", campfire: "костёр", crystal: "кристалл", star_crystal: "звёздный кристалл", pylon: "пилон" } as any)[k] || k, pre = s === "v3" ? "Пропсы 32" : "Пропсы 16";
+      return [N(`em.${s}.${k}.x`, `${pre} · ${nm}: x`, -1, 128, "int"), N(`em.${s}.${k}.y`, `${pre} · ${nm}: y`, -1, 128, "int")]; }))] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

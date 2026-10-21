@@ -87,6 +87,8 @@ export class Stage {
     return (lo + hi) / 2;
   }
   follow(x, z, dt, snap = false) {
+    const fc = this.freeCam; // только debug.freeCam (плейтесты/снимки): камера в заданной точке, игрок не двигает её
+    if (fc) { x = fc.x; z = fc.z; snap = true; if (fc.zoom) this.view.zoom = this.view.targetZoom = fc.zoom; }
     const k = snap ? 1 : Math.min(1, dt * 9);
     this.view.zoom += (this.view.targetZoom - this.view.zoom) * Math.min(1, dt * 10);
     this.focus.x += (x - this.focus.x) * k;

@@ -32,6 +32,8 @@ import { UPG } from '../../../../server/meta/upgrade.ts';
 import { setCurse, glowK } from './meta/curseCfg.js';
 import { setBlkVis } from './meta/blkVis.js';
 import { setLightCfg, LIGHT } from './engine/pixColor.js';
+import { setGfxCfg, GFX, GFX_NEXT } from './engine/gfxCfg.js';
+import { PROP_STATS } from './engine/propAtlas.js';
 import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
@@ -497,6 +499,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.ench) setEnch(d.ench); // ярусы зачарования (админка «✦ Зачарование») — цвета, имена, множители для подписей
     if (d.bmv) setBlkVis(d.bmv); // вид очернения (админка «Чёрный маг»)
     if (d.light) setLightCfg(d.light); // свет мира (админка «💡 Свет», engine/pixColor.js)
+    if (d.gfx) setGfxCfg(d.gfx); // графика пропсов (админка «🖼 Графика») — кэш, со следующей загрузки
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -2010,7 +2013,8 @@ async function boot(canvasId, username, userId, api) {
       openAltar: () => classSelect.open(player.stats.classId),
       altarFlash: () => hub.portalObjs?.get('portal_class_select')?.flash?.(),
       grim: (g, f) => { grimSet('grim', g); grimSet('fog', f); },
-      light: (c) => { if (c) setLightCfg(c); return { ...LIGHT }; }, // свет мира (engine/pixColor.js): тесты и подбор значений админки «💡 Свет»
+      light: (c) => { if (c) setLightCfg(c); return { ...LIGHT }; },
+      props: () => ({ ...PROP_STATS, gfx: { ...GFX }, next: GFX_NEXT.value }), // набор пропсов (props2/props3), листы, байты VRAM, мс загрузки // свет мира (engine/pixColor.js): тесты и подбор значений админки «💡 Свет»
       style: (v) => grimSet('style', v),
       minimap: () => hud.minimap?.stats,
       openAdmin: () => adminPanel.open(), closeAdmin: () => adminPanel.close(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
@@ -2048,6 +2052,7 @@ async function boot(canvasId, username, userId, api) {
       flowerVisible: (id) => { const o = hub.flowerObjs.get(id); if (!o || !o.group.visible || !o.group.parent) return false; const p = o.group.position; const s = stage.project(p.x, 0.5, p.z); return !!s && s.x >= 0 && s.y >= 0 && s.x <= stage.width && s.y <= stage.height; },
       flowerHighlighted: (id) => !!hub.flowerObjs.get(id)?.ring?.visible,
       prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
+      lightSources: () => (atmo.sources || []).map((s) => ({ k: s.ek || null, x: Math.round(s.x * 20) / 20, z: Math.round(s.z * 20) / 20, ex: s.ex, ey: s.ey, ez: s.ez, gx: s.gx, gz: s.gz, px: Math.round((s.x - toX(0)) * 20), py: Math.round((s.z - toZ(0)) * 20) })), // огни сцены и точки излучения (lightEmitter)
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),
@@ -2088,6 +2093,16 @@ async function boot(canvasId, username, userId, api) {
       aim: () => ({ ...aim, autoAttack }),
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
+      mood: (k) => { atmo.moodOverride = k || null; return atmo.moodOverride; }, // настроение сцены принудительно (hub — ночь, b_stone — нейтральный «день»); null — по зоне
+      gfxLocal: (c) => { setGfxCfg(c); return { ...GFX }; }, // локально (плейтест): поля «🖼 Графика» без админки; arena3* — со следующей арены
+      frameStats: (ms = 1500) => new Promise((res) => { // draw calls/треугольники на кадр основной сцены (среднее за ms): info копится без сброса, кадры считаются по render(scene)
+        const R = stage.renderer, I = R.info, orig = R.render; let frames = 0; I.autoReset = false; I.reset();
+        R.render = function (sc, c) { if (sc === stage.scene) frames++; return orig.call(this, sc, c); };
+        setTimeout(() => { R.render = orig; const o = { frames, calls: frames ? +(I.render.calls / frames).toFixed(1) : 0, tris: frames ? Math.round(I.render.triangles / frames) : 0, fps: +(frames / (ms / 1000)).toFixed(1) }; I.autoReset = true; I.reset(); res(o); }, ms); }),
+      glMem: () => ({ ...stage.renderer.info.memory, programs: stage.renderer.info.programs?.length || 0, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles }),
+      arena32: () => (runView?.arena?.a32 ? { ready: runView.arena.a32.ready, ...(runView.arena.a32.stats || {}) } : null),
+      leaveRun: () => { if (mode === 'run') leaveRun(); return mode; },
+      freeCam: (o) => { stage.freeCam = o && Number.isFinite(o.x) && Number.isFinite(o.z) ? { x: o.x, z: o.z, zoom: o.zoom || 0 } : null; return stage.freeCam; }, // свободная камера (сцена, м); null — снова за героем
       setCells: (c, wide) => { if (wide) stage.view.minZoom = Math.min(stage.view.minZoom, stage.zoomForCells(c)); /* снимки: обзор шире игрового */ const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
       cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)),
         d: stage.distance(), near: stage.camera.near, far: stage.camera.far, fogFar: stage.scene.fog?.far, shadowHalf: stage.sun.shadow.camera.right, pitch: stage.pitch, fov: stage.camera.fov }),

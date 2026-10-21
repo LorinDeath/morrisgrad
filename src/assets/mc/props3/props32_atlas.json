@@ -1,0 +1,3185 @@
+{
+ "version": 3,
+ "scale": "1 m = 20 px world; 20 px texture per 1 m (как tilesets_32). Было 10 px/м (props v2).",
+ "tex_px_per_m": 20,
+ "palette": "рампы tilesets_32 + огонь/магия; контур #1a1626; свет сверху-слева",
+ "shadow": "none (code draws PROP_SHADOW)",
+ "glow_note": "glow sheet = same layout, emissive pixels only, blend additive",
+ "sheets": {
+  "p64": {
+   "image": "props32_p64.png",
+   "frameW": 64,
+   "frameH": 96,
+   "cols": 64,
+   "rows": 21,
+   "tex_px_per_m": 20
+  },
+  "p64_glow": {
+   "image": "props32_p64_glow.png",
+   "frameW": 64,
+   "frameH": 96,
+   "cols": 64,
+   "rows": 21,
+   "tex_px_per_m": 20,
+   "blend": "additive"
+  },
+  "b128": {
+   "image": "props32_b128.png",
+   "frameW": 128,
+   "frameH": 128,
+   "cols": 32,
+   "rows": 32,
+   "tex_px_per_m": 20
+  },
+  "b128_glow": {
+   "image": "props32_b128_glow.png",
+   "frameW": 128,
+   "frameH": 128,
+   "cols": 32,
+   "rows": 32,
+   "tex_px_per_m": 20,
+   "blend": "additive"
+  },
+  "x64": {
+   "image": "props32_x64.png",
+   "frameW": 64,
+   "frameH": 64,
+   "cols": 64,
+   "rows": 10,
+   "tex_px_per_m": 20
+  },
+  "x64_glow": {
+   "image": "props32_x64_glow.png",
+   "frameW": 64,
+   "frameH": 64,
+   "cols": 64,
+   "rows": 10,
+   "tex_px_per_m": 20,
+   "blend": "additive"
+  }
+ },
+ "keys": {
+  "campfire": {
+   "sheet": "p64",
+   "row": 0,
+   "col": 0,
+   "frames": 48,
+   "fps": 24,
+   "loop": true,
+   "x": 0,
+   "y": 0,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#ff8a2a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.2,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 60,
+    "fps": 30
+   }
+  },
+  "torch": {
+   "sheet": "p64",
+   "row": 0,
+   "col": 48,
+   "frames": 36,
+   "fps": 24,
+   "loop": true,
+   "x": 3072,
+   "y": 0,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#ff9a3c",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.7,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 6,
+    "fps": 10
+   }
+  },
+  "lantern": {
+   "sheet": "p64",
+   "row": 1,
+   "col": 20,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 1280,
+   "y": 96,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#ffd27a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.95,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 8
+   }
+  },
+  "crystal": {
+   "sheet": "p64",
+   "row": 1,
+   "col": 52,
+   "frames": 36,
+   "fps": 12,
+   "loop": true,
+   "x": 3328,
+   "y": 96,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#9be8ff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.1,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "star_crystal": {
+   "sheet": "p64",
+   "row": 2,
+   "col": 24,
+   "frames": 36,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 192,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#dcd3e6",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.1,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "bush": {
+   "sheet": "p64",
+   "row": 2,
+   "col": 60,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 3840,
+   "y": 192,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.6,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "bush_2": {
+   "sheet": "p64",
+   "row": 3,
+   "col": 28,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 1792,
+   "y": 288,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.4,
+   "kind": "prop",
+   "variant_of": "bush",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "bush_3": {
+   "sheet": "p64",
+   "row": 3,
+   "col": 60,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 3840,
+   "y": 288,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.75,
+   "kind": "prop",
+   "variant_of": "bush",
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "violets": {
+   "sheet": "p64",
+   "row": 4,
+   "col": 28,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 1792,
+   "y": 384,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.95,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "violets_2": {
+   "sheet": "p64",
+   "row": 4,
+   "col": 60,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 3840,
+   "y": 384,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.95,
+   "kind": "prop",
+   "variant_of": "violets",
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "rock": {
+   "sheet": "p64",
+   "row": 5,
+   "col": 28,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1792,
+   "y": 480,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.85,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "rock_2": {
+   "sheet": "p64",
+   "row": 5,
+   "col": 52,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3328,
+   "y": 480,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.25,
+   "kind": "prop",
+   "variant_of": "rock",
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "rock_3": {
+   "sheet": "p64",
+   "row": 6,
+   "col": 12,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 768,
+   "y": 576,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.55,
+   "kind": "prop",
+   "variant_of": "rock",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "ruin_pillar": {
+   "sheet": "p64",
+   "row": 6,
+   "col": 36,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2304,
+   "y": 576,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.35,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "ruin_pillar_2": {
+   "sheet": "p64",
+   "row": 6,
+   "col": 60,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3840,
+   "y": 576,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.85,
+   "kind": "prop",
+   "variant_of": "ruin_pillar",
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "obelisk": {
+   "sheet": "p64",
+   "row": 7,
+   "col": 20,
+   "frames": 36,
+   "fps": 12,
+   "loop": true,
+   "x": 1280,
+   "y": 672,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.55,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "pylon": {
+   "sheet": "p64",
+   "row": 7,
+   "col": 56,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 3584,
+   "y": 672,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#b5cf7a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.65,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 6
+   }
+  },
+  "glitch_shard": {
+   "sheet": "p64",
+   "row": 8,
+   "col": 24,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 1536,
+   "y": 768,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.4,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 8
+   }
+  },
+  "barrel": {
+   "sheet": "p64",
+   "row": 8,
+   "col": 56,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 768,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.1,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "barrel_2": {
+   "sheet": "p64",
+   "row": 9,
+   "col": 24,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 864,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.1,
+   "kind": "prop",
+   "variant_of": "barrel",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "crate": {
+   "sheet": "p64",
+   "row": 9,
+   "col": 56,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 864,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.5,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "crate_2": {
+   "sheet": "p64",
+   "row": 10,
+   "col": 16,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1024,
+   "y": 960,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.5,
+   "kind": "prop",
+   "variant_of": "crate",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "fence": {
+   "sheet": "p64",
+   "row": 10,
+   "col": 40,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2560,
+   "y": 960,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.35,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "fence_2": {
+   "sheet": "p64",
+   "row": 11,
+   "col": 0,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 1056,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.35,
+   "kind": "prop",
+   "variant_of": "fence",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "signpost": {
+   "sheet": "p64",
+   "row": 11,
+   "col": 24,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 1056,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.35,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "mushroom": {
+   "sheet": "p64",
+   "row": 11,
+   "col": 48,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 3072,
+   "y": 1056,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.2,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "mushroom_2": {
+   "sheet": "p64",
+   "row": 12,
+   "col": 16,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 1024,
+   "y": 1152,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.9,
+   "kind": "prop",
+   "variant_of": "mushroom",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "tombstone": {
+   "sheet": "p64",
+   "row": 12,
+   "col": 48,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3072,
+   "y": 1152,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#ffffff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.5,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "tombstone_2": {
+   "sheet": "p64",
+   "row": 13,
+   "col": 8,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 512,
+   "y": 1248,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#ffffff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.5,
+   "kind": "prop",
+   "variant_of": "tombstone",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "tombstone_3": {
+   "sheet": "p64",
+   "row": 13,
+   "col": 32,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 1248,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.5,
+   "kind": "prop",
+   "variant_of": "tombstone",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "ore_node": {
+   "sheet": "p64",
+   "row": 13,
+   "col": 56,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 1248,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#e3b04b",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.4,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 5,
+    "fps": 6
+   }
+  },
+  "ore_node_2": {
+   "sheet": "p64",
+   "row": 14,
+   "col": 24,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 1344,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#7fb0d0",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.5,
+   "kind": "prop",
+   "variant_of": "ore_node",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 5,
+    "fps": 6
+   }
+  },
+  "totem": {
+   "sheet": "p64",
+   "row": 14,
+   "col": 56,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 1344,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.55,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 6
+   }
+  },
+  "bones": {
+   "sheet": "p64",
+   "row": 15,
+   "col": 24,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 1440,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.2,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "bones_2": {
+   "sheet": "p64",
+   "row": 15,
+   "col": 48,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3072,
+   "y": 1440,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 1.85,
+   "kind": "camp",
+   "variant_of": "bones",
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "skull_pile": {
+   "sheet": "p64",
+   "row": 16,
+   "col": 8,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 512,
+   "y": 1536,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.2,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "cage": {
+   "sheet": "p64",
+   "row": 16,
+   "col": 32,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 1536,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.45,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "banner": {
+   "sheet": "p64",
+   "row": 17,
+   "col": 0,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 0,
+   "y": 1632,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.7,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 6
+   }
+  },
+  "banner_2": {
+   "sheet": "p64",
+   "row": 17,
+   "col": 32,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 2048,
+   "y": 1632,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.7,
+   "kind": "camp",
+   "variant_of": "banner",
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 4,
+    "fps": 6
+   }
+  },
+  "spikes": {
+   "sheet": "p64",
+   "row": 18,
+   "col": 0,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 1728,
+   "w": 64,
+   "h": 96,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.5,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "lava_vent": {
+   "sheet": "p64",
+   "row": 18,
+   "col": 24,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 1536,
+   "y": 1728,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 2.35,
+   "kind": "hellfire",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 6,
+    "fps": 8
+   }
+  },
+  "hell_flame": {
+   "sheet": "p64",
+   "row": 19,
+   "col": 8,
+   "frames": 36,
+   "fps": 24,
+   "loop": true,
+   "x": 512,
+   "y": 1824,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 3.9,
+   "kind": "hellfire",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "p32",
+    "frames": 8,
+    "fps": 12
+   }
+  },
+  "brazier": {
+   "sheet": "p64",
+   "row": 19,
+   "col": 44,
+   "frames": 36,
+   "fps": 24,
+   "loop": true,
+   "x": 2816,
+   "y": 1824,
+   "w": 64,
+   "h": 96,
+   "glow": {
+    "sheet": "p64_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    4.8
+   ],
+   "height_m": 4.35,
+   "kind": "hellfire",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "p32",
+    "frames": 8,
+    "fps": 12
+   }
+  },
+  "tree": {
+   "sheet": "b128",
+   "row": 0,
+   "col": 0,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 0,
+   "y": 0,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.95,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 5
+   }
+  },
+  "tree_2": {
+   "sheet": "b128",
+   "row": 1,
+   "col": 16,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 2048,
+   "y": 128,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.3,
+   "kind": "prop",
+   "variant_of": "tree",
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 5
+   }
+  },
+  "tree_3": {
+   "sheet": "b128",
+   "row": 3,
+   "col": 0,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 0,
+   "y": 384,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.9,
+   "kind": "prop",
+   "variant_of": "tree",
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "pome_tree": {
+   "sheet": "b128",
+   "row": 4,
+   "col": 16,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 2048,
+   "y": 512,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.55,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 5
+   }
+  },
+  "pome_tree_2": {
+   "sheet": "b128",
+   "row": 6,
+   "col": 0,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 0,
+   "y": 768,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.4,
+   "kind": "prop",
+   "variant_of": "pome_tree",
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 5
+   }
+  },
+  "dead_tree": {
+   "sheet": "b128",
+   "row": 7,
+   "col": 16,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 2048,
+   "y": 896,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 6.05,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "dead_tree_2": {
+   "sheet": "b128",
+   "row": 9,
+   "col": 0,
+   "frames": 48,
+   "fps": 16,
+   "loop": true,
+   "x": 0,
+   "y": 1152,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 6.05,
+   "kind": "prop",
+   "variant_of": "dead_tree",
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "portal_arch": {
+   "sheet": "b128",
+   "row": 10,
+   "col": 16,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 1280,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.4,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "portal_swirl": {
+   "sheet": "b128",
+   "row": 11,
+   "col": 16,
+   "frames": 32,
+   "fps": 16,
+   "loop": true,
+   "x": 2048,
+   "y": 1408,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 4.3,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 8,
+    "fps": 10
+   }
+  },
+  "portal": {
+   "sheet": "b128",
+   "row": 12,
+   "col": 16,
+   "frames": 48,
+   "fps": 24,
+   "loop": true,
+   "x": 2048,
+   "y": 1536,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.4,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": true,
+   "old": {
+    "sheet": "b64",
+    "frames": 8,
+    "fps": 10
+   }
+  },
+  "well": {
+   "sheet": "b128",
+   "row": 14,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 1792,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.65,
+   "kind": "prop",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "tent": {
+   "sheet": "b128",
+   "row": 15,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 1920,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 4.95,
+   "kind": "camp",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "tent_2": {
+   "sheet": "b128",
+   "row": 16,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2048,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 4.95,
+   "kind": "camp",
+   "variant_of": "tent",
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "hell_spire": {
+   "sheet": "b128",
+   "row": 17,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2176,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.15,
+   "kind": "hellfire",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "hell_spire_2": {
+   "sheet": "b128",
+   "row": 18,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2304,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 4.25,
+   "kind": "hellfire",
+   "variant_of": "hell_spire",
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "hell_crag": {
+   "sheet": "b128",
+   "row": 19,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2432,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 3.1,
+   "kind": "hellfire",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "hell_crag_2": {
+   "sheet": "b128",
+   "row": 20,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2560,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 3.1,
+   "kind": "hellfire",
+   "variant_of": "hell_crag",
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "hell_wall": {
+   "sheet": "b128",
+   "row": 21,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2688,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 5.15,
+   "kind": "hellfire",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "arena_column_crypt": {
+   "sheet": "b128",
+   "row": 22,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2816,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#ff9a3c",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 6.05,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "arena_column_abyss": {
+   "sheet": "b128",
+   "row": 23,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 2944,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 6.05,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 5,
+    "fps": 6
+   }
+  },
+  "arena_column_mirror": {
+   "sheet": "b128",
+   "row": 24,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3072,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#7fb0d0",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 6.05,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 5,
+    "fps": 6
+   }
+  },
+  "arena_column_abode": {
+   "sheet": "b128",
+   "row": 25,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3200,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#e3b04b",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 6.05,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 5,
+    "fps": 6
+   }
+  },
+  "arena_wall_crypt": {
+   "sheet": "b128",
+   "row": 26,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3328,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 3.45,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 1,
+    "fps": 0
+   }
+  },
+  "arena_wall_abyss": {
+   "sheet": "b128",
+   "row": 27,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3456,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 3.45,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "arena_wall_mirror": {
+   "sheet": "b128",
+   "row": 28,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3584,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 3.45,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "arena_wall_abode": {
+   "sheet": "b128",
+   "row": 29,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3712,
+   "w": 128,
+   "h": 128,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 3.45,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 4,
+    "fps": 4
+   }
+  },
+  "arena_sigil": {
+   "sheet": "b128",
+   "row": 30,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3840,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#dcd3e6",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": null,
+   "kind": "ground_decal",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 8,
+    "fps": 8
+   }
+  },
+  "heart_of_abode": {
+   "sheet": "b128",
+   "row": 31,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 3968,
+   "w": 128,
+   "h": 128,
+   "glow": {
+    "sheet": "b128_glow",
+    "color": "#d9573a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    6.4,
+    6.4
+   ],
+   "height_m": 4.6,
+   "kind": "arena",
+   "variant_of": null,
+   "wrap": false,
+   "old": {
+    "sheet": "b64",
+    "frames": 6,
+    "fps": 6
+   }
+  },
+  "arena_rubble_crypt": {
+   "sheet": "x64",
+   "row": 0,
+   "col": 0,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 0,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 1.5,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "rubble (Dodecahedron ×70, все темы)"
+  },
+  "arena_rubble_abyss": {
+   "sheet": "x64",
+   "row": 0,
+   "col": 24,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 0,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 1.5,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "rubble (Dodecahedron ×70, все темы)"
+  },
+  "arena_rubble_mirror": {
+   "sheet": "x64",
+   "row": 0,
+   "col": 48,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3072,
+   "y": 0,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 1.5,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": true,
+   "replaces_mesh": "rubble (Dodecahedron ×70, все темы)"
+  },
+  "arena_rubble_abode": {
+   "sheet": "x64",
+   "row": 1,
+   "col": 8,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 512,
+   "y": 64,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 1.5,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "rubble (Dodecahedron ×70, все темы)"
+  },
+  "arena_crystal_abyss": {
+   "sheet": "x64",
+   "row": 1,
+   "col": 32,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 64,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#67e8f9",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 2.7,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "crystals (Octahedron ×28, abyss)"
+  },
+  "arena_crystal_mirror": {
+   "sheet": "x64",
+   "row": 2,
+   "col": 0,
+   "frames": 32,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 128,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#9be8ff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 2.7,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "crystals (Octahedron, вариант для mirror)"
+  },
+  "arena_tombstone_crypt": {
+   "sheet": "x64",
+   "row": 2,
+   "col": 32,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 128,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 2.2,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "graves (Box 0.9×1.2×0.25 ×22, crypt/не-abyss)"
+  },
+  "arena_tombstone_abode": {
+   "sheet": "x64",
+   "row": 2,
+   "col": 56,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 128,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 2.2,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": true,
+   "replaces_mesh": "graves (вариант для abode)"
+  },
+  "arena_candles": {
+   "sheet": "x64",
+   "row": 3,
+   "col": 16,
+   "frames": 24,
+   "fps": 24,
+   "loop": true,
+   "x": 1024,
+   "y": 192,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ffc46b",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 2.2,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "candles (Cylinder+Sphere ×40, crypt/не-abyss)"
+  },
+  "arena_candles_abode": {
+   "sheet": "x64",
+   "row": 3,
+   "col": 40,
+   "frames": 24,
+   "fps": 24,
+   "loop": true,
+   "x": 2560,
+   "y": 192,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#e3b04b",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 2.2,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "candles (вариант abode)"
+  },
+  "arena_bones": {
+   "sheet": "x64",
+   "row": 4,
+   "col": 0,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 256,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 1.1,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "bones (Cylinder ×50, плоские, crypt/не-abyss)"
+  },
+  "arena_tuft_crypt": {
+   "sheet": "x64",
+   "row": 4,
+   "col": 24,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 256,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 0.8,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "replaces_mesh": "tufts (Cone ×6 у колонн, crypt/mirror/abode)"
+  },
+  "arena_tuft_abyss": {
+   "sheet": "x64",
+   "row": 4,
+   "col": 48,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3072,
+   "y": 256,
+   "w": 64,
+   "h": 64,
+   "glow": null,
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": 0.8,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": true,
+   "replaces_mesh": "tufts (Cone, abyss — 0x3730a3)"
+  },
+  "arena_stardot": {
+   "sheet": "x64",
+   "row": 5,
+   "col": 8,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 512,
+   "y": 320,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#818cf8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "arena_extra",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true,
+   "replaces_mesh": "floor dots (Circle ×60, abyss) — только _glow"
+  },
+  "light_halo_neutral": {
+   "sheet": "x64",
+   "row": 5,
+   "col": 32,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 320,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ffffff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_pool_neutral": {
+   "sheet": "x64",
+   "row": 5,
+   "col": 56,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 320,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ffffff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": true,
+   "glow_only": true
+  },
+  "light_halo_warm": {
+   "sheet": "x64",
+   "row": 6,
+   "col": 16,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1024,
+   "y": 384,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ffd27a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_pool_warm": {
+   "sheet": "x64",
+   "row": 6,
+   "col": 40,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2560,
+   "y": 384,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ffd27a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_halo_fire": {
+   "sheet": "x64",
+   "row": 7,
+   "col": 0,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 0,
+   "y": 448,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ff8a2a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_pool_fire": {
+   "sheet": "x64",
+   "row": 7,
+   "col": 24,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1536,
+   "y": 448,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#ff8a2a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_halo_cool": {
+   "sheet": "x64",
+   "row": 7,
+   "col": 48,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3072,
+   "y": 448,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#9be8ff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": true,
+   "glow_only": true
+  },
+  "light_pool_cool": {
+   "sheet": "x64",
+   "row": 8,
+   "col": 8,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 512,
+   "y": 512,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#9be8ff",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_halo_violet": {
+   "sheet": "x64",
+   "row": 8,
+   "col": 32,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2048,
+   "y": 512,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_pool_violet": {
+   "sheet": "x64",
+   "row": 8,
+   "col": 56,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 3584,
+   "y": 512,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#c46ad8",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": true,
+   "glow_only": true
+  },
+  "light_halo_lime": {
+   "sheet": "x64",
+   "row": 9,
+   "col": 16,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 1024,
+   "y": 576,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#b5cf7a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  },
+  "light_pool_lime": {
+   "sheet": "x64",
+   "row": 9,
+   "col": 40,
+   "frames": 24,
+   "fps": 12,
+   "loop": true,
+   "x": 2560,
+   "y": 576,
+   "w": 64,
+   "h": 64,
+   "glow": {
+    "sheet": "x64_glow",
+    "color": "#b5cf7a",
+    "blend": "additive"
+   },
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "light",
+   "variant_of": null,
+   "wrap": false,
+   "glow_only": true
+  }
+ },
+ "aliases": {
+  "campfire": "campfire",
+  "torch": "torch",
+  "lantern": "lantern",
+  "crystal": "crystal",
+  "star_crystal": "star_crystal",
+  "bush": "bush",
+  "violets": "violets",
+  "rock": "rock",
+  "ruin_pillar": "ruin_pillar",
+  "obelisk": "obelisk",
+  "pylon": "pylon",
+  "glitch_shard": "glitch_shard",
+  "barrel": "barrel",
+  "crate": "crate",
+  "fence": "fence",
+  "signpost": "signpost",
+  "mushroom": "mushroom",
+  "tombstone": "tombstone",
+  "ore_node": "ore_node",
+  "mesh:hellfire lava cracks": "lava_vent",
+  "mesh:hellfire flame cones": "hell_flame",
+  "tree": "tree",
+  "pome_tree": "pome_tree",
+  "dead_tree": "dead_tree",
+  "portal_arch": "portal_arch",
+  "mesh:makePortal frame": "portal_arch",
+  "portal_swirl": "portal_swirl",
+  "mesh:makePortal swirl": "portal_swirl",
+  "mesh:makePortal": "portal",
+  "well": "well",
+  "mesh:hellfire obsidian spire": "hell_spire",
+  "mesh:hellfire ConeGeometry rocks": "hell_crag",
+  "mesh:hellfire wall Box + gold trim": "hell_wall",
+  "mesh:arena.js column (crypt)": "arena_column_crypt",
+  "mesh:arena.js column (abyss)": "arena_column_abyss",
+  "mesh:arena.js column (mirror)": "arena_column_mirror",
+  "mesh:arena.js column (abode)": "arena_column_abode",
+  "mesh:arena.js wall cylinder (crypt)": "arena_wall_crypt",
+  "mesh:arena.js wall cylinder (abyss)": "arena_wall_abyss",
+  "mesh:arena.js wall cylinder (mirror)": "arena_wall_mirror",
+  "mesh:arena.js wall cylinder (abode)": "arena_wall_abode",
+  "mesh:arena.js sigil rings": "arena_sigil",
+  "mesh:runView.js Сердце Обители": "heart_of_abode"
+ },
+ "variants": {
+  "bush": [
+   "bush",
+   "bush_2",
+   "bush_3"
+  ],
+  "violets": [
+   "violets",
+   "violets_2"
+  ],
+  "rock": [
+   "rock",
+   "rock_2",
+   "rock_3"
+  ],
+  "ruin_pillar": [
+   "ruin_pillar",
+   "ruin_pillar_2"
+  ],
+  "barrel": [
+   "barrel",
+   "barrel_2"
+  ],
+  "crate": [
+   "crate",
+   "crate_2"
+  ],
+  "fence": [
+   "fence",
+   "fence_2"
+  ],
+  "mushroom": [
+   "mushroom",
+   "mushroom_2"
+  ],
+  "tombstone": [
+   "tombstone",
+   "tombstone_2",
+   "tombstone_3"
+  ],
+  "ore_node": [
+   "ore_node",
+   "ore_node_2"
+  ],
+  "bones": [
+   "bones",
+   "bones_2"
+  ],
+  "banner": [
+   "banner",
+   "banner_2"
+  ],
+  "tree": [
+   "tree",
+   "tree_2",
+   "tree_3"
+  ],
+  "pome_tree": [
+   "pome_tree",
+   "pome_tree_2"
+  ],
+  "dead_tree": [
+   "dead_tree",
+   "dead_tree_2"
+  ],
+  "tent": [
+   "tent",
+   "tent_2"
+  ],
+  "hell_spire": [
+   "hell_spire",
+   "hell_spire_2"
+  ],
+  "hell_crag": [
+   "hell_crag",
+   "hell_crag_2"
+  ]
+ }
+}

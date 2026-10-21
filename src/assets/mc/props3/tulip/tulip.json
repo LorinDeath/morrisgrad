@@ -1,0 +1,19 @@
+{
+ "cell": {
+  "w": 32,
+  "h": 40
+ },
+ "rows": {
+  "bud": 0,
+  "mature": 1,
+  "active": 2
+ },
+ "frames": 24,
+ "fps": 12,
+ "fps_moving": 20,
+ "tex_px_per_m": 20,
+ "anchor": [
+  0.5,
+  1.0
+ ]
+}

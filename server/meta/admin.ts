@@ -20,7 +20,7 @@ function regionDefs(r: any) {
   return { dens: "1", "packs.0": "2", "packs.1": `3 (в ${Math.round(G.campPacks3 * 100)}% лагерей)`, "pack.0": pk.length ? String(Math.min(...pk.map((p: any) => p[0]))) : "—", "pack.1": pk.length ? String(Math.max(...pk.map((p: any) => p[1]))) : "—",
     eliteMax: "без лимита", elite: String(r.elite ?? 0) };
 }
-export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather", "npc", "ench", "bmage", "light", "ui", "terrain", "city", "pk", "pos", "dn"];
+export const KINDS: Kind[] = ["mob", "weapon", "item", "skill", "loot", "spawn", "region", "boss", "rare", "curse", "chest", "dash", "biome", "upgrade", "gather", "npc", "ench", "bmage", "light", "ui", "terrain", "city", "pk", "pos", "dn", "gfx"];
 const ID_RE = /^[a-z0-9_:-]{1,48}$/i;
 const STR = (v: any, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const OBJ_TYPES = ["talk", "kill", "kill_boss", "gather", "collect", "level", "reach"] as const;
