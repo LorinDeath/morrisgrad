@@ -1,0 +1,19 @@
+синхронизировано 2026-10-21T11:47:54.171Z из /workspace/city_dome
+city_dome_rim_0.png 692120 B
+city_dome_rim_0_glow.png 315019 B
+city_dome_rim_flash.png 35373 B
+city_dome_rim_flash_glow.png 37834 B
+city_dome_repel.png 28504 B
+city_dome_repel_glow.png 23757 B
+city_dome_back.png 2851 B
+city_dome_shell_q4.png 957401 B
+city_dome_fill_mask.png 38220 B
+tiles_dark.png 48702 B
+fountain_dark_anim.png 4268 B
+fountain_dark_anim_glow.png 680 B
+props_dark_b64.png 14797 B
+props_dark_b64_glow.png 1990 B
+props_dark_p32.png 13923 B
+props_dark_p32_glow.png 2852 B
+tiles_dark.png 48702 B
+interiors_dark.json

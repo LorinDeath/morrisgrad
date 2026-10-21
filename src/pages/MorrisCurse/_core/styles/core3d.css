@@ -989,3 +989,10 @@ b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, v
   59% { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ench.czen, .ench.czen > .mc-eg, .ench.glitch, .ench.glitch img, .mc-glitch-txt, .mc-tip.glitch .nm { animation: none !important; } }
+
+/* счёт убийств (C и просмотр игрока): пожизненно — server/meta/profile.ts killStats */
+.mc-insp-kills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mc-insp-kill { background: rgba(15, 12, 24, .55); border: 1px solid rgba(148, 163, 184, .18); border-radius: 6px; padding: 6px 8px; text-align: center; }
+.mc-insp-kill b { display: block; font-size: 18px; color: #e2e8f0; } .mc-insp-kill small { color: #94a3b8; font-size: 10px; }
+.mc-insp-kill.k-p b { color: #f87171; } .mc-insp-kill.k-d b { color: #cbd5e1; } .mc-insp-kill.k-m b { color: #fde68a; }
+.mc3d-label .mc3d-pk { margin-right: 3px; filter: drop-shadow(0 0 3px rgba(239, 68, 68, .8)); }

@@ -23,6 +23,7 @@ export function whereLabel(w) {
 }
 const fmtDate = (t) => { if (!t) return ''; const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
+const fmtKill = (v) => { const n = Math.max(0, Number(v) || 0); return n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${+(n / 1e3).toFixed(1)}k` : String(n); };
 export class Social {
   constructor({ overlay, send, onDuel, canDuel, onParty, canParty }) {
     this.onParty = onParty; this.canParty = canParty || (() => false);
@@ -157,6 +158,7 @@ export class Social {
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
         <div class="mc-insp-h">Снаряжение</div><div class="mc-insp-gear">${gear}</div>
         <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}${blkRows}</div>
+        ${d.kills ? `<div class="mc-insp-h">Счёт убийств</div><div class="mc-insp-kills">${[['⚔️', 'Игроков убито', d.kills.p, 'p'], ['💀', 'Пал от игроков', d.kills.d, 'd'], ['👹', 'Чудовищ убито', d.kills.m, 'm']].map(([ic, t, v, k]) => `<div class="mc-insp-kill k-${k}"><b>${fmtKill(v)}</b><small>${ic} ${t}</small></div>`).join('')}</div>` : ''}
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
     }
     // только серверно проверенный админ получает canMod; сервер всё равно проверяет права на role_set

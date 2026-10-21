@@ -4,7 +4,10 @@
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
 import { fmtBig } from './fmtNum.js';
-import { resolveWorld } from '../../../../server/meta/propCollision.ts';
+import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
+import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
+import { CityHud } from './ui/cityHud.js';
+import { CITY_CFG } from '../../../../server/meta/city.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
@@ -177,6 +180,7 @@ async function boot(canvasId, username, userId, api) {
   const hub = new HubWorld(THREE, stage);
   const zone = new ZoneView(THREE, hub.root);
   const dpsMeter = new DpsMeter(); // DPS / DPM героя (по событиям сервера)
+  const cityRoom = new CityRoomView(THREE, hub.root); // интерьеры зданий города (server/meta/cityBuild.ts)
   hub.setWorld(world, portals);
   zone.setWorld(world);
   hub.attach();
@@ -339,7 +343,29 @@ async function boot(canvasId, username, userId, api) {
   net.on('mark_err', (d) => overlay.toast(d.message || 'Ошибка метки', '#fca5a5'));
   net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
   net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
-  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
+  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; if (d.door || d.city) stage.follow(toX(player.x), toZ(player.y), 0, true); } });
+  // город Альказак: двери зданий (интерьер), PK-режим, купол не пускает убийц (server/meta/city.ts, cityBuild.ts)
+  const cityHud = new CityHud(container, { send: (m) => send(m), toast: (t, c) => overlay.toast(t, c) });
+  net.on('city_room', (d) => {
+    cityRoom.set(d);
+    if (d.how === 'enter' && d.name) overlay.toast(`🚪 ${d.name}`, '#e9d5ff');
+    else if (d.how === 'exit') overlay.toast('Вы вышли на улицу', '#cbd5e1');
+    else if (d.how === 'kick') overlay.toast('Купол выставил вас из дома', '#fca5a5');
+  });
+  // настройки города с сервера (админка): центр/радиус — от них узлы ресурсов (за край купола) и места NPC
+  let citySig = '';
+  function citySync(c) {
+    for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
+    for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '' });
+    const k = `${c.x},${c.y},${c.rTiles},${c.on}`; if (k === citySig) return; const first = !citySig; citySig = k;
+    const ch = CITY_CFG.x !== c.x || CITY_CFG.y !== c.y || CITY_CFG.rTiles !== c.rTiles || CITY_CFG.on !== c.on;
+    Object.assign(CITY_CFG, { x: c.x, y: c.y, rTiles: c.rTiles, on: c.on, name: c.name });
+    if (ch && world === 'arinar' && zone.seed !== undefined && (!first || ch)) zone.buildNodes(zone.seed);
+  }
+  net.on('pk_state', (d) => cityHud.onPk(d));
+  net.on('city_deny', (d) => cityHud.onDeny(d));
+  net.on('pvp_kill', (d) => cityHud.onKill(d));
+  net.on('pvp_death', (d) => cityHud.onDeath(d));
   net.on('world_switched', (d) => {
     if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
     if (d.homePortal === 'home_portal_back') overlay.toast('🌀 Вы вернулись туда, где открыли портал', '#c4b5fd');
@@ -583,6 +609,7 @@ async function boot(canvasId, username, userId, api) {
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты
   net.on('dev_bm', (d) => { window.__devBm = d; }); // Чёрный маг: только локальные тесты (MC_DEV)
+  net.on('dev_city', (d) => { window.__devCity = d; }); // город/PK: только локальные тесты (MC_DEV)
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('admin_perf', (d) => adminPanel.onPerf(d.data));
   net.on('role_changed', (d) => social.onRoleChanged(d));
@@ -728,6 +755,7 @@ async function boot(canvasId, username, userId, api) {
   const lsAdd = (n) => { lsPop.acc += n; const t = performance.now(); if (t - lsPop.at >= 500 && lsPop.acc >= 1) { overlay.float(toX(player.x), 2.9, toZ(player.y), `+${Math.floor(lsPop.acc)} HP`, '#4ade80'); lsPop.acc -= Math.floor(lsPop.acc); lsPop.at = t; } };
   net.on('zone_state', (d) => {
     if (d.npc) npcUpdate(d.npc); // NPC бродят: позиции с сервера
+    if (d.city) citySync(d.city);
     if (Array.isArray(d.wb)) setBossState(d.wb);
     for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
     if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
@@ -1569,11 +1597,11 @@ async function boot(canvasId, username, userId, api) {
     player.moving = Math.hypot(vx, vy) > 1;
     if (player.moving) {
       if (!dash.active) { const l = Math.hypot(mv.x, mv.y) || 1; player.dirX = mv.x / l; player.dirY = mv.y / l; }
-      const [blo, bhi] = worldBounds(world), lo = Math.max(16, blo), hi = Math.min(worldSize(world) - 16, bhi); // арена: стены
+      const [blo, bhi] = boundsAt(world, player.x, player.y), inRm = world === 'arinar' && inRoomPt(player.x, player.y), lo = inRm ? blo : Math.max(16, blo), hi = inRm ? bhi : Math.min(worldSize(world) - 16, bhi); // арена: стены; дом города — комната
       const nx = Math.max(lo, Math.min(hi, player.x + vx * dt));
       const ny = Math.max(lo, Math.min(hi, player.y + vy * dt));
-      if (!hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
-      if (!hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
+      if (inRm || !hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
+      if (inRm || !hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
       if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }
@@ -1601,7 +1629,8 @@ async function boot(canvasId, username, userId, api) {
     if (boss) lerp(boss);
     if (dar) lerp(dar);
 
-    const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom);
+    const mySpace = spaceOf(player.x, player.y); // в доме города видно только тех, кто в той же комнате (и снаружи — не видно тех, кто в домах)
+    const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom && spaceOf(o.x, o.y) === mySpace);
     hub.update(dt, {
       me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0, bk: meta.hero?.effective?.blkVis || 0 },
       others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color, blink: blinkOn(o.id) })),
@@ -1622,6 +1651,8 @@ async function boot(canvasId, username, userId, api) {
 
     // подписи
     overlay.beginFrame();
+    cityHud.setWorld(mode === 'hub' ? world : ''); cityHud.tick();
+    if (cityRoom.inside && (world !== 'arinar' || !inRoomPt(player.x, player.y))) cityRoom.clear(); // ушли из дома (мир сменился, смерть, выставили)
     dpsMeter.render();
     const head = (x, y, h = 2.5) => stage.project(toX(x), h, toZ(y));
     const alive = new Set(['__me']);
@@ -1629,7 +1660,7 @@ async function boot(canvasId, username, userId, api) {
     if (p) {
       const zm = zone.me;
       const hpBar = player.stats.classId && zm && zm.maxHp && zm.hp < zm.maxHp ? `<div class="mc3d-mini-hp"><i style="width:${Math.max(0, Math.round((zm.hp / zm.maxHp) * 100))}%"></i></div>` : '';
-      overlay.label('me', p.x, p.y, `${roleTag(myRole)}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}`, '#ffd700');
+      overlay.label('me', p.x, p.y, `${roleTag(myRole)}${cityHud.pk ? '<span class="mc3d-pk">⚔</span>' : ''}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}`, cityHud.pk && world === 'arinar' ? cityHud.color : '#ffd700');
       overlay.placeBubble('__me', p.x, p.y - 26);
     }
     visibleOthers.forEach((o) => {
@@ -1639,7 +1670,8 @@ async function boot(canvasId, username, userId, api) {
       // союзник по отряду — фиолетовая полоска ОЗ (данные отряда); остальные игроки — без изменений
       const pm = party.has(o.id) ? party.state.members.find((m) => m.sid === o.id) : null;
       const pBar = pm && pm.maxHp ? `<div class="mc3d-mini-hp party"><i style="width:${Math.max(0, Math.round((pm.hp / pm.maxHp) * 100))}%"></i></div>` : '';
-      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}`, o.color);
+      const opk = world === 'arinar' && o.stats?.pk; // PK-режим — красное имя (видят все)
+      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${opk ? '<span class="mc3d-pk">⚔</span>' : ''}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}`, opk ? cityHud.color : o.color);
       overlay.placeBubble(o.id, q.x, q.y - 26);
     });
     [[boss, 'boss_keyt', 'Кейт', '#f472b6'], [dar, 'boss_dar', 'Дар', '#fb923c']].forEach(([b, id, nm, col]) => {
@@ -1918,6 +1950,7 @@ async function boot(canvasId, username, userId, api) {
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),
+      city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),
