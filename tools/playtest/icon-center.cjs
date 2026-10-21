@@ -68,6 +68,9 @@ async function measure(p, group, nm) {
   await S({ type: 'dev_grant', xp: 60000 }); for (const id of ['dew_slime_helmet', 'dew_slime_armor', 'dew_slime_legs', 'dew_slime_hands']) await S({ type: 'dev_grant', item: id });
   await sleep(1500); for (const it of (p.st?.account?.inv || [])) { await S({ type: 'equip', uid: it.uid }); await sleep(250); }
   await sleep(1500); await p.mouse.move(mob ? 420 : 640, mob ? 150 : 300);
+  // центровка не должна «включать» скрытые кнопки: на тач-раскладке быстрых кнопок ПК нет, «домой» видна только в Аринаре
+  const shown = await G(() => [...document.querySelectorAll('.mc-bookbtn, .mc-ratebtn')].filter((e) => e.offsetParent).map((e) => e.className));
+  ok(mob ? shown.length === 0 : !shown.some((c) => /mc-homebtn/.test(c)), `${VIEW}: скрытые кнопки остаются скрытыми (${shown.length ? shown.join(', ') : 'нет видимых'})`);
   await measure(p, 'hud', 'hud'); if (!mob) await measure(p, 'abil', 'abil');
   await G(() => window.__game.debug.charSheet()); await p.waitForSelector('.mc-charsheet .mc-insp-gear', { timeout: 10000 }); await sleep(1200); await p.mouse.move(2, 2);
   await measure(p, 'C', 'C'); await measure(p, 'talents', 'talents');

@@ -134,7 +134,7 @@ html.mc-ui :is(.mc-bookbtn, .mc-ratebtn):hover { border-image-source: var(--ui-s
 html.mc-ui :is(.mc-bookbtn, .mc-ratebtn):active { border-image-source: var(--ui-slot-normal-selected) !important; }
 /* иконка-глиф строго по центру внутренней области рамки: без отступов кнопки и межстрочного «воздуха» шрифта,
    эмодзи-шрифт явно (у Arial/системного шрифта разные метрики — иконка уезжала вверх-влево) */
-html.mc-ui :is(.mc-bookbtn, .mc-ratebtn) { display: grid !important; place-items: center; padding: 0 !important; line-height: 1 !important; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important; text-align: center; }
+html.mc-ui :is(.mc-bookbtn, .mc-ratebtn) { padding: 0 !important; line-height: 1 !important; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important; text-align: center; }
 html.mc-ui .mc-onlinebtn { width: 44px !important; min-width: 44px; padding-bottom: 3px !important; } /* у глифа 👥 рисунок ниже середины em-квадрата */
 html.mc-ui .mc-touch .mc3d-tbtn[data-act="people"] { padding-bottom: 3px; box-sizing: border-box; }
 html.mc-ui .mc-onlinebtn b { position: absolute; left: 0; right: 0; bottom: -7px; margin: 0; text-align: center; font: 700 11px/1 var(--ui-font); color: #86efac; text-shadow: 0 0 2px #000, 0 1px 0 #000; pointer-events: none; }
