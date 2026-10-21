@@ -34,5 +34,15 @@ if (existsSync(TS)) {
   writeFileSync(join(OUT, 'props_dark_atlas.json'), JSON.stringify(pj));
   for (const f of readdirSync(TS)) if (f.endsWith('.json') && !['tiles_dark.json', 'props_dark_atlas.json'].includes(f)) { writeFileSync(join(OUT, f), JSON.stringify(JSON.parse(readFileSync(join(TS, f), 'utf8')))); log.push(f); } // interiors_dark.json и др.
 }
+// карта города (alkazak_map): данные раскладки (земля, пропсы, здания, точки, проходимость) + спрайты зданий (+glow, buildings.json)
+const MAP = join(SRC, 'alkazak_map');
+if (existsSync(join(MAP, 'alkazak_map.json'))) {
+  const mj = JSON.parse(readFileSync(join(MAP, 'alkazak_map.json'), 'utf8'));
+  const keep = ['format', 'tile', 'N', 'center_world_px', 'center_world_cell', 'center_tile', 'world_origin_px', 'world_first_cell', 'dome', 'nearby', 'base', 'over', 'props', 'buildings', 'points', 'gates', 'trails_outside', 'walk'];
+  writeFileSync(join(OUT, 'alkazak_map.json'), JSON.stringify(Object.fromEntries(keep.filter((k) => k in mj).map((k) => [k, mj[k]]))));
+  log.push(`alkazak_map.json ${statSync(join(MAP, 'alkazak_map.json')).size} B → slim`);
+  const BD = join(MAP, 'buildings');
+  if (existsSync(BD)) { for (const f of readdirSync(BD)) if (f.endsWith('.png')) cp(join(BD, f)); if (existsSync(join(BD, 'buildings.json'))) { writeFileSync(join(OUT, 'buildings.json'), JSON.stringify(JSON.parse(readFileSync(join(BD, 'buildings.json'), 'utf8')))); log.push('buildings.json'); } }
+}
 writeFileSync(join(OUT, 'SYNC.txt'), `синхронизировано ${new Date().toISOString()} из ${SRC}\n` + log.join('\n') + '\n');
 console.log(log.join('\n'));

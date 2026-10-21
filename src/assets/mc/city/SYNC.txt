@@ -1,4 +1,4 @@
-синхронизировано 2026-10-21T11:47:54.171Z из /workspace/city_dome
+синхронизировано 2026-10-21T12:42:39.377Z из /workspace/city_dome
 city_dome_rim_0.png 692120 B
 city_dome_rim_0_glow.png 315019 B
 city_dome_rim_flash.png 35373 B
@@ -7,13 +7,28 @@ city_dome_repel.png 28504 B
 city_dome_repel_glow.png 23757 B
 city_dome_back.png 2851 B
 city_dome_shell_q4.png 957401 B
-city_dome_fill_mask.png 38220 B
-tiles_dark.png 48702 B
+tiles_dark.png 61333 B
 fountain_dark_anim.png 4268 B
 fountain_dark_anim_glow.png 680 B
 props_dark_b64.png 14797 B
 props_dark_b64_glow.png 1990 B
 props_dark_p32.png 13923 B
 props_dark_p32_glow.png 2852 B
-tiles_dark.png 48702 B
+tiles_dark.png 61333 B
 interiors_dark.json
+alkazak_map.json 261984 B → slim
+bld_house_log_slate.png 12125 B
+bld_house_log_slate_glow.png 1048 B
+bld_house_log_thatch.png 18983 B
+bld_house_log_thatch_glow.png 912 B
+bld_house_plank_thatch.png 20066 B
+bld_house_plank_thatch_glow.png 1061 B
+bld_house_timber_slate.png 13844 B
+bld_house_timber_slate_glow.png 871 B
+bld_tavern.png 17790 B
+bld_tavern_glow.png 1469 B
+bld_tent_canvas.png 7057 B
+bld_tent_canvas_glow.png 819 B
+bld_tent_hide.png 8429 B
+bld_tent_hide_glow.png 773 B
+buildings.json
