@@ -12,8 +12,8 @@ import { toX, toZ } from './geometry.js';
 import { emitterOffsetM, emitterWorld, emitterGround, setEmitterCamera } from './lightEmitter.js';
 const PROP_LIGHT = [
   [/^(dm_lantern_pole)/, 0xffbf66, 5.2, 1.08, 3.4], [/^(lantern|dm_lantern|dm_lamp)/, 0xffc36b, 4.6, 1.0, 1.6], [/^(torch|dm_torch)/, 0xff9a3c, 4.0, 1, 1.4],
-  [/^(campfire|dm_campfire|dm_cookfire|dm_brazier|dm_fire)/, 0xff8a2a, 5.6, 1.15, 0.7],
-  [/^dm_hearth/, 0xff9a4a, 4.5, 1, 0.8], [/^dm_candle/, 0xffd08a, 2.2, 0.7, 0.6], [/^dm_cauldron/, 0xffa860, 2.6, 0.6, 0.6], [/window/, 0xffcf7a, 3.0, 0.7, 1.4], [/^dm_fountain/, 0x8fb6ff, 4.0, 0.55, 0],
+  [/^(campfire|dm_campfire|dm_cookfire|dm_brazier|dm_fire)/, 0xff7a22, 6.0, 0.88, 0.7],
+  [/^dm_hearth/, 0xff9a4a, 4.5, 1, 0.8], [/^dm_candle/, 0xffd08a, 2.2, 0.7, 0.6], [/^dm_cauldron/, 0xffa860, 2.6, 0.6, 0.6], [/window/, 0xffcf7a, 3.0, 0.7, 1.4], [/^dm_fountain/, 0x8fb6ff, 4.0, 0.35, 0],
   [/^dm_glitch_sprout/, 0x7fe0ff, 1.5, 0.38, 0], [/^(crystal|star_crystal)/, 0x9be8ff, 2.6, 0.5, 0], [/^(portal|altar|obelisk)/, 0xb38bff, 4.5, 0.7, 0], [/^pylon/, 0xa78bfa, 3.6, 0.7, 0], [/^glitch_shard/, 0x7fe0ff, 2.0, 0.45, 0],
 ];
 /** «характер» огня 0…1 по месту: когда он загорится/погаснет (вразнобой) */
@@ -22,7 +22,13 @@ export const lightOf = (k) => { for (const L of PROP_LIGHT) if (L[0].test(k)) re
 /** живой огонь (костёр/факел/жаровня) — мерцает заметно; фонари/окна — едва */
 export const FIRE = /campfire|cookfire|torch|brazier|_fire|hearth|candle|hell_flame/;
 /** настройки огней (админка «Огни», kind lamps): мерцание, ореол, вытянутость пятна */
-export const LT = { flickFire: 0.22, flickLamp: 0.06, flickSpeed: 1, halo: 1, poolEl: 1.22 };
+export const LT = { flickFire: 0.22, flickLamp: 0.06, flickSpeed: 1, halo: 1, poolEl: 1.22,
+  // сила поверх маски ночи (аддитивно, без пересвета): ореолы и _glow-слои по виду огня
+  haloFire: 0.34, haloLamp: 0.6, haloWindow: 0.22, haloDoor: 0.36, glowFire: 0.32, glowLamp: 0.7, glowWindow: 0.3, nightFire: 0, nightLamp: 0.5, nightWindow: 0.25 };
+/** _glow-слой в основном кадре ночью (под маской): у огня — 0, иначе пятно маски пересвечивает его до белого */
+export const nightGlow = (kind) => LT[{ fire: 'nightFire', window: 'nightWindow' }[kind] || 'nightLamp'] ?? 0.35;
+/** сила ореола/свечения огня над маской: kind — fire | lamp | window | door */
+export const lampGlowK = (kind, halo) => (halo ? LT[{ fire: 'haloFire', window: 'haloWindow', door: 'haloDoor' }[kind] || 'haloLamp'] : LT[{ fire: 'glowFire', window: 'glowWindow' }[kind] || 'glowLamp']) ?? 0.5;
 export function flickerOf(T, x, z, fire) {
   const sp = LT.flickSpeed || 1, a = fire ? LT.flickFire : LT.flickLamp;
   const w = fire ? 0.55 * Math.sin(T * 0.0112 * sp + x * 3.1) + 0.3 * Math.sin(T * 0.0291 * sp + z * 5.3) + 0.15 * Math.sin(T * 0.0613 * sp + x * 1.7)

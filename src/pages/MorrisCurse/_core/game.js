@@ -6,7 +6,7 @@
 import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
-import { DayNight, lightOf, lampHash } from './engine/dayNight.js';
+import { DayNight, lightOf, lampHash, lampGlowK, nightGlow } from './engine/dayNight.js';
 import { setEmitterCamera } from './engine/lightEmitter.js';
 import { CityView } from './hub/cityView.js';
 import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
@@ -1540,10 +1540,10 @@ async function boot(canvasId, username, userId, api) {
     for (const r of bm?.roses?.values?.() || []) if (near(r.x, r.y)) fx.push({ x: r.x, y: r.y, c: DN_FX.rose[0], r: DN_FX.rose[1], k: DN_FX.rose[2] });
     for (const p of zone.pax?.live?.values?.() || []) { const t = p.age || 0, x = p.x0 + (p.dx || 0) * (p.s || 0) * t, y = p.y0 + (p.dy || 0) * (p.s || 0) * t; if (near(x, y) && fx.length < 140) fx.push({ x, y, c: 0xffd9a0, r: 1.6, k: 0.55 }); }
     // купол Альказака светится изнутри мягко; фонтан — огни города (_glow-слои Историка придут с артом)
-    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 7, k: 0.5 });
+    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 9, k: 0.18 }); // мягко, без пересвета фонтана
     // огни Альказака: фонари/костры карты Историка (их рисует cityView, в чанках их нет) + тёплый свет из дверей домов
     let extra = [];
-    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) {
+    if (CITY_CFG.on !== false && Math.hypot(player.x - CITY_CFG.x, player.y - CITY_CFG.y) < (Number(CITY_CFG.rTiles) || 40) * 32 + viewM * 20) { // весь город, не только у центра
       const key = `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles}`;
       if (cityView.lights?.length) { extra = cityView.lights; } // огни города — из cityView (точки излучения по _glow: lightEmitter.js)
       else if (dnCity.key !== key) {
@@ -1559,11 +1559,11 @@ async function boot(canvasId, username, userId, api) {
       // свечение огней города (_glow-слои Историка) — излучает само: ещё раз поверх маски, сила — по своему огню (вразнобой);
       // глубина кадра сохранена — спрайты перед огнём его закрывают (ореол «за» спрайтами, без засветки)
       const R = stage.renderer, ac = R.autoClear, gl = cityView.glows;
-      for (const g of gl) g.m.opacity = g.halo ? Math.min(1, dayNight.lamp(g.h)) * 0.62 * (g.fl ?? 1) * Math.min(1, 0.4 + g.k) : g.lamp ? Math.min(1, dayNight.lamp(g.h)) : 0.55 * Math.min(1, dayNight.state.dark * 1.2);
+      for (const g of gl) g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * lampGlowK(g.kind, g.halo) * (g.fl ?? 1) : 0.55 * Math.min(1, dayNight.state.dark * 1.2); // без пересвета: ореол/свечение — по виду огня (админка «Огни»)
       R.autoClear = false; R.render(cityView.glowG, cam); R.autoClear = ac;
     }
     // днём фонари не горят: их свечение в основном кадре — по силе своего огня (следующий кадр)
-    if (cityView.glows?.length) for (const g of cityView.glows) g.m.opacity = g.halo ? 0 : g.lamp ? 0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h)) : 1;
+    if (cityView.glows?.length) { const na = dayNight.active; for (const g of cityView.glows) g.m.opacity = g.halo ? 0 : g.lamp ? (0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h))) * (na ? nightGlow(g.kind) : 1) : 1; } // ночью _glow под маской — слабее (поверх маски он и так добавляется)
   }
   function frame(now) {
     requestAnimationFrame(frame);

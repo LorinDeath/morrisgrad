@@ -105,19 +105,19 @@ export class CityView {
       gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.18, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
       const t = new THREE.CanvasTexture(cv); return t; })();
     // огонь: q = [x0, z0, цвет, радиус пятна м, сила, -, хэш, смещение огня [вправо, вверх] м, живой огонь, мерцание] (формат маски dayNight)
-    const addLight = (x0, z0, col, rM, k, off, fire, haloM) => {
+    const addLight = (x0, z0, col, rM, k, off, fire, haloM, kind = fire ? 'fire' : 'lamp') => {
       const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1]);
       const m = new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, fog: false, opacity: 0 });
       const sp = new THREE.Sprite(m); sp.scale.set(haloM, haloM, 1); sp.renderOrder = 2; gg.add(sp);
-      this.glows.push({ m, lamp: true, h, halo: true, fire, x0, z0, off, sp, haloM, k });
+      this.glows.push({ m, lamp: true, h, halo: true, fire, kind, x0, z0, off, sp, haloM, k });
     }; // свечение (_glow) отдельно: ночью рисуется ещё раз поверх маски темноты (game.js)
     const L = (src) => (this._tex ||= {})[src] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
-    const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0, lamp = false) => {
+    const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0, lamp = false, kind = 'lamp') => {
       const mk = (tp, add) => tp.then((t0) => {
         const t = t0.clone(); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / cols, 1 / rows); t.offset.set((col + (flip ? 1 : 0)) / cols, 1 - (row + 1) / rows);
         const m = new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: add ? 0 : 0.04, depthWrite: !add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false });
         const sp = new THREE.Sprite(m); sp.center.set(an[0], 1 - an[1]); sp.scale.set(wM, hM * SIN_P, 1); sp.position.set(toX(x), add ? 0.02 : 0, toZ(y) + (add ? 0.01 : 0)); sp.renderOrder = add ? 4 : 3;
-        (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, h: lampHash(toX(x), toZ(y)) }); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
+        (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, kind, h: lampHash(toX(x), toZ(y)) }); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
       });
       mk(L(base), false); if (glow && this.glowOn) mk(L(glow), true);
     };
@@ -125,17 +125,17 @@ export class CityView {
     const [sx, sy] = mapShiftPx();
     for (const b of MAP.buildings || []) {
       const k = BLD.keys?.[b.key]; const src = k && bldUrl(k.image); if (!src) continue;
-      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true);
+      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true, 'window');
       { const x0 = toX(b.anchor_world_px[0] + sx), z0 = toZ(b.anchor_world_px[1] + sy), tav = b.interior === 'shop_tavern';
-        for (const sp of emitterSpotsM(b.key, { wM: k.w / PX, hM: (k.h / PX) * SIN_P, max: tav ? 6 : 3 })) addLight(x0, z0, 0xffc477, 1.6 + Math.min(1.4, sp[2] / 40), 0.62, [sp[0], sp[1]], false, 1.5 + Math.min(1.5, sp[2] / 30));
-        const e = b.exit_world_px; if (e) addLight(toX(e[0] + sx), toZ(e[1] + sy - 10), 0xffc879, tav ? 4.4 : 3.4, 0.8, [0, 0.9], false, tav ? 3.2 : 2.6); } // дверь: проём над порогом // окна — «огни»: загораются вразнобой
+        for (const sp of emitterSpotsM(b.key, { wM: k.w / PX, hM: (k.h / PX) * SIN_P, max: tav ? 6 : 3 })) addLight(x0, z0, 0xffc477, 1.6 + Math.min(1.4, sp[2] / 40), 0.62, [sp[0], sp[1]], false, 1.5 + Math.min(1.5, sp[2] / 30), 'window');
+        const e = b.exit_world_px; if (e) addLight(toX(e[0] + sx), toZ(e[1] + sy - 10), 0xffc879, tav ? 4.4 : 3.4, 0.8, [0, 0.9], false, tav ? 3.2 : 2.6, 'door'); } // дверь: проём над порогом // окна — «огни»: загораются вразнобой
     }
     // пропсы dm_*
     const SH = { p32: p32Src, b64: b64Src, p32_glow: p32GSrc, b64_glow: b64GSrc };
     for (const p of mapProps(c.rTiles)) {
       const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
       const [wM, hM] = k.size_m || [k.w / 10, k.h / 10];
-      sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k));
+      sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k), FIRE.test(p.k) ? 'fire' : 'lamp');
       const Lp = lightOf(p.k); if (Lp) { const sc = p.s || 1, off = emitterOffsetM(p.k, { wM: wM * sc, hM: hM * sc * SIN_P, flip: !!p.f, set: 'city' }) || [0, (Lp[4] || 1) * SIN_P], fire = FIRE.test(p.k);
         addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }

@@ -1,6 +1,6 @@
 // Город Альказак (city.ts + cityBuild.ts): журнал убийц, PK-режим, PvP, купол (в т.ч. интерьеры), розы, здания/двери/комнаты,
 // места NPC, масштаб по rTiles, схемы админки. Запуск: esbuild --bundle → node.
-import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT } from "./city";
+import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT } from "./city";
 import { cityBuildings, buildingById, roomAt, roomSpawn, onExit, outsideDoor, atDoor, doorNear, resolveRoom, roomWalkable, roomBounds, roomCell, slotPos, cityClient, cityNpcDefs, ROOMS, BUILD_DEF, buildingColliders, inRoomArea, ROOM_SPAN, DARK_PROPS } from "./cityBuild";
 import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from "./bmCfg";
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
@@ -150,4 +150,17 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("роза: столбики и ведро клумбы убраны", !mapProps(40).some((p) => /^dm_(fence|bucket)/.test(p.k) && p.x > bx0 - 32 && p.x < bx1 + 32 && p.y > by0 - 32 && p.y < by1 + 32));
   t("фонтан на месте", mapProps(40).some((p) => p.k === "dm_fountain" && p.x === 24624 && p.y === 3400));
   t("роза: клетка проходима вокруг (клумба не стена)", walkable("arinar", rp[0] + 40, rp[1] + 30)); }
+// ——— PK: публичное состояние (видят все) — полоса отсчёта над героем, значок PK ———
+{ const P = newPk(), st: any = {}, t0 = 1_000_000; PK_CFG.enterSec = 7; PK_CFG.exitSec = 30;
+  pkPublic(st, P, false, t0); t("PK публично: покой — pkT 0, pk 0", st.pkT === 0 && st.pk === 0 && st.pkP === 0, st);
+  pkToggle(P, t0); pkPublic(st, P, false, t0 + 3500); t("вход в PK: pkT 1, 7 с, доля 0.5 через 3.5 с", st.pkT === 1 && st.pkD === 7 && Math.abs(st.pkP - 0.5) < 0.01, st);
+  pkInterrupt(P); pkPublic(st, P, false, t0 + 3600); t("бой сбросил отсчёт — pkT 0, счётчик сбросов +1 (полоса гаснет у всех)", st.pkT === 0 && st.pkC === 1, st);
+  pkToggle(P, t0 + 5000); pkTick(P, t0 + 12001); pkPublic(st, P, false, t0 + 12001); t("PK включён — pk 1, pkT 0", st.pk === 1 && st.pkT === 0, st);
+  pkToggle(P, t0 + 13000); pkPublic(st, P, false, t0 + 28000); t("выход из PK: pkT 2, 30 с, доля 0.5 через 15 с", st.pkT === 2 && st.pkD === 30 && Math.abs(st.pkP - 0.5) < 0.01, st);
+  pkToggle(P, t0 + 29000); pkPublic(st, P, false, t0 + 29000); t("повторное нажатие — отмена, счётчик сбросов +1", st.pkT === 0 && st.pkC === 2 && st.pk === 1, st);
+  pkPublic(st, newPk(), true, t0); t("убийца (журнал купола) — pkK 1 без PK-режима", st.pkK === 1 && st.pk === 0);
+  const u = pkUi(); t("вид PK для клиента: цвета полосы, значок «PK», ширина", u.tagText === "PK" && /^#/.test(u.barFrom) && /^#/.test(u.barTo) && u.barW > 0 && u.enterSec === 7 && u.exitSec === 30, u);
+  t("cityClient несёт pkUi", !!(cityClient() as any).pkUi?.barTo);
+  const v = validatePatch("pk", "main", { barTo: "#123456", barW: 80, tagText: "УБИЙЦА" } as any); t("админка PK: цвета/ширина/значок принимаются", typeof v !== "string" && (v as any).barTo === "#123456" && (v as any).barW === 80, v);
+  t("админка PK: ширина полосы вне 24…140 — отказ", typeof validatePatch("pk", "main", { barW: 999 } as any) === "string"); }
 console.log(`\n${ok} ok, ${bad} fail`); if (bad) process.exit(1);

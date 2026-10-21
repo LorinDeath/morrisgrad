@@ -78,7 +78,26 @@ export const PK_CFG: any = {
   defendSec: 30,            // право ответа длится N с после удара PK
   dmgMult: 1,               // урон по игрокам, × (от урона по мобу без разницы уровней)
   color: "#ef4444",         // цвет имени PK (видят все)
+  barFrom: "#f8fafc",       // полоса отсчёта над героем: вход — из этого цвета в barTo, выход — обратно
+  barTo: "#dc2626",
+  barCancel: "#94a3b8",     // сброс отсчёта боем — полоса гаснет этим цветом
+  barW: 54,                 // ширина полосы над героем, px экрана
+  tagText: "PK",            // значок слева от имени (PK-режим и убийцы); порядок: PK → АДМИН → имя
+  tagBg: "#7f1d1d",
+  tagFg: "#fee2e2",
+  tagGlow: "#ef4444",
+  tagKiller: true,          // значок и красное имя — также у убийц (убил игрока / N мобов за окно), не только в PK-режиме
 };
+/** вид PK для клиентов (cityClient): цвета/подписи из админки */
+export const pkUi = () => ({ color: PK_CFG.color, barFrom: PK_CFG.barFrom, barTo: PK_CFG.barTo, barCancel: PK_CFG.barCancel, barW: Number(PK_CFG.barW) || 54, tagText: String(PK_CFG.tagText || "PK").slice(0, 6), tagBg: PK_CFG.tagBg, tagFg: PK_CFG.tagFg, tagGlow: PK_CFG.tagGlow, tagKiller: PK_CFG.tagKiller !== false, enterSec: Number(PK_CFG.enterSec) || 0, exitSec: Number(PK_CFG.exitSec) || 0 });
+/** публичное состояние PK для всех (stats игрока в снимке): pkT 0 — нет отсчёта, 1 — входит, 2 — выходит; pkP — доля 0…1; pkD — длительность, с;
+ *  pkC — счётчик сбросов (боем/отменой — клиент показывает гаснущую полосу); pkK — убийца по журналу купола */
+export function pkPublic(st: any, s: PkState, killer: boolean, now = Date.now()) {
+  const t = s.to === null ? 0 : s.to ? 1 : 2;
+  st.pk = s.pk ? 1 : 0; st.pkT = t; st.pkD = t ? Math.round(s.dur / 100) / 10 : 0;
+  st.pkP = t && s.dur > 0 ? Math.min(1, Math.round(((now - s.at) / s.dur) * 1000) / 1000) : 0;
+  st.pkC = (s as any).cancels || 0; st.pkK = killer ? 1 : 0;
+}
 export const POS_CFG: any = {
   on: true,                 // вход/переподключение — в том же мире и точке (выкл — как раньше, в хабе)
   saveSec: 60,              // позиция пишется не чаще раза в N с (и всегда при смене мира и выходе)
@@ -137,12 +156,12 @@ export const newPk = (): PkState => ({ pk: false, to: null, at: 0, dur: 0, def: 
 /** нажатие кнопки: старт отсчёта (к противоположному) или отмена идущего; возвращает событие для клиента */
 export function pkToggle(s: PkState, now = Date.now()): { k: "start" | "cancel" | "off"; to?: boolean; sec?: number } {
   if (PK_CFG.on === false && !s.pk) return { k: "off" };
-  if (s.to !== null) { s.to = null; return { k: "cancel" }; }
+  if (s.to !== null) { s.to = null; (s as any).cancels = ((s as any).cancels || 0) + 1; return { k: "cancel" }; }
   s.to = !s.pk; s.at = now; s.dur = Math.max(0, Number(s.to ? PK_CFG.enterSec : PK_CFG.exitSec) || 0) * 1000;
   return { k: "start", to: s.to, sec: s.dur / 1000 };
 }
 /** бой (нанёс или получил урон): отсчёт сбрасывается; true — был отсчёт */
-export function pkInterrupt(s: PkState): boolean { if (s.to === null) return false; s.to = null; return true; }
+export function pkInterrupt(s: PkState): boolean { if (s.to === null) return false; s.to = null; (s as any).cancels = ((s as any).cancels || 0) + 1; return true; }
 /** такт: отсчёт дошёл — режим сменился (true) */
 export function pkTick(s: PkState, now = Date.now()): boolean {
   if (s.to === null) return false;
