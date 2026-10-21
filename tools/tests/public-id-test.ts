@@ -42,4 +42,9 @@ const chatPage = readFileSync(import.meta.dir + "/../../src/pages/chat.astro", "
 ok(!/m\.user_id/.test(chatPage), "страница чата не использует user_id");
 const uPage = readFileSync(import.meta.dir + "/../../src/pages/u/[id].astro", "utf8");
 ok(/status: 301/.test(uPage) && /publicItem\(row\)/.test(uPage) && !/seed=\$\{id\}/.test(uPage), "/u/: 301 со старого адреса, предметы без служебных полей, аватар без id");
+{
+  const { validTs } = await import("../../src/lib/forum/fmt");
+  const n = Date.UTC(2026, 9, 21);
+  ok(validTs(n - 1000, n) && !validTs(0, n) && !validTs(null, n) && !validTs(undefined, n) && !validTs(NaN, n) && !validTs("1792607869000", n) && !validTs(86_400_000, n) && !validTs(n + 3 * 86_400_000, n), "отметка времени: 0/пусто/мусор/будущее → не показывать (вместо 1970)");
+}
 console.log(`public-id-test: ${pass} PASS, ${fail} FAIL`); if (fail) process.exit(1);

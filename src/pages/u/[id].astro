@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { pidFor, uidForPid, PID_RE, CLERK_ID_RE, defaultAvatar } from '../../lib/publicId';
 import { publicItem } from '../../lib/api/profileFields';
+import { validTs } from '../../lib/forum/fmt';
 
 export const prerender = false;
 
@@ -63,14 +64,14 @@ const inventory = (invRes?.results || []).map((row: any) => {
                 <div style="color: #a020f0; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #a020f0;">🔥 АДСКИЙ ОГОНЬ: {user.hellfire || 0}</div>
 
                 <div class="stats-row">
-                    <div class="stat">
+                    {validTs(user.created_at) && <div class="stat" data-created>
                         <span class="label">В городе с:</span>
-                        <span class="val">{user.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : 'Неизвестно'}</span>
-                    </div>
-                    <div class="stat">
+                        <span class="val">{new Date(user.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Kiev' })}</span>
+                    </div>}
+                    {validTs(user.last_seen) && <div class="stat" data-last-seen>
                         <span class="label">Был(а):</span>
-                        <span class="val">{user.last_seen ? new Date(user.last_seen).toLocaleDateString('ru-RU') : 'Давно'}</span>
-                    </div>
+                        <span class="val">{new Date(user.last_seen).toLocaleDateString('ru-RU', { timeZone: 'Europe/Kiev' })}</span>
+                    </div>}
                 </div>
             </div>
         </div>
