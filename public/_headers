@@ -1,0 +1,10 @@
+# Заголовки безопасности для статики (файлы из dist отдаются Cloudflare без воркера).
+# Те же значения, что в src/lib/security.ts (SSR-ответы воркера). Меняйте синхронно.
+/*
+  Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; object-src 'none'
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), browsing-topics=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups

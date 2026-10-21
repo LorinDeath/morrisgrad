@@ -2,7 +2,7 @@ import { clerkMiddleware } from "@clerk/astro/server";
 import { defineMiddleware } from "astro:middleware";
 import { isPrivatePath } from "./lib/seo";
 import { isCookielessPublicGet } from "./lib/guest";
-import { isCrossSiteWrite } from "./lib/security";
+import { isCrossSiteWrite, withSecurityHeaders } from "./lib/security";
 
 const clerk = clerkMiddleware();
 
@@ -15,9 +15,9 @@ export const onRequest = defineMiddleware((ctx, next) => {
   }
   if (import.meta.env.DEV && (ctx.locals as any)?.runtime?.env?.FORUM_DEV_AUTH === "1" && /(?:^|;\s*)mg_dev_(uid|noclerk)=/.test(ctx.request.headers.get("cookie") || "")) {
     (ctx.locals as any).auth = () => ({ userId: null });
-    return withRobots(ctx.url.pathname, next());
+    return withRobots(ctx.url.pathname, next(), ctx.url.protocol === "https:");
   }
-  return withRobots(ctx.url.pathname, clerk(guestWithoutHandshake(ctx), next));
+  return withRobots(ctx.url.pathname, clerk(guestWithoutHandshake(ctx), next), ctx.url.protocol === "https:");
 });
 
 // Поисковые роботы и первый заход без cookie: у dev-инстанса Clerk каждый «документный» запрос без cookie
@@ -43,10 +43,11 @@ function guestWithoutHandshake<T extends { request: Request; url: URL }>(ctx: T)
 }
 
 // Личные и служебные адреса: X-Robots-Tag (работает и для редиректов, и для не-HTML ответов)
-async function withRobots(path: string, res: unknown): Promise<Response> {
+// + заголовки безопасности (CSP frame-ancestors, nosniff, HSTS, Referrer/Permissions-Policy) — src/lib/security.ts
+async function withRobots(path: string, res: unknown, isHttps = true): Promise<Response> {
   const r = (await res) as Response;
   if (r && isPrivatePath(path) && !path.startsWith("/api/forum/media/")) {
     try { r.headers.set("x-robots-tag", "noindex, follow"); } catch { /* неизменяемые заголовки (редирект) — пропускаем */ }
   }
-  return r;
+  return r ? withSecurityHeaders(r, isHttps) : r;
 }
