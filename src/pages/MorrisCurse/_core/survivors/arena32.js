@@ -14,6 +14,8 @@ export const TPX = 32, PXM = 20;
 // яркость пола 32 относительно старой арены: средняя линейная яркость старых тайлов (cobble/dirt/brick × TILE_DARK) / вариантов arena32
 // (crypt 2.1, abyss 10.8 → ограничено 3: «Бездна» Художника нарочно почти чёрная, mirror 2.25, abode 0.85); × админка arena3Floor
 export const A32_FLOOR_K = { crypt: 2.1, abyss: 3, mirror: 2.25, abode: 0.85 };
+// запечённый парапет: шейдер пола умножает линейный цвет (и ACES), спрайты — экранный; ×0.7 — та же яркость, что у спрайтов (замер north crypt/abode, ПК)
+export const A32_BAKED_WALL_K = 0.7;
 const GROUND_Y = 57; // земля у лицевой стороны парапета, px ячейки 32×64 (атлас: ground_y)
 const W_LIFT = -(64 - GROUND_Y) / PXM; // низ ячейки под землёй: -0.35 м
 
@@ -82,7 +84,7 @@ export function buildArena32(THREE, A, g, { AT, R, Rf = R + TILE_M }) {
     // пол: квадрат N·1.6 м (тайл ровно 1.6 м), снаружи кромки — прозрачно (alphaTest); материал — тот же тёмный шейдер + метка стены
     const F = A.floor; F.geometry.dispose(); F.geometry = new THREE.PlaneGeometry(N * TILE_M, N * TILE_M);
     const m = F.material, prevMap = m.map; m.map = tex; if (prevMap && prevMap !== tex) prevMap.dispose(); // каменный холст до загрузки — освободить
-    m.alphaTest = 0.5; m.transparent = false; if (A.darkU) { A.darkU.uWallK.value = st.mode === 'baked' ? A.wallLight : 0; A.darkU.uFloorK.value = (A32_FLOOR_K[AT] ?? 1) * GFX.arena3Floor; } m.needsUpdate = true;
+    m.alphaTest = 0.5; m.transparent = false; if (A.darkU) { A.darkU.uWallK.value = st.mode === 'baked' ? A.wallLight * A32_BAKED_WALL_K : 0; A.darkU.uFloorK.value = (A32_FLOOR_K[AT] ?? 1) * GFX.arena3Floor; } m.needsUpdate = true;
     // свечение пола и декалей: InstancedMesh на ключ, кадры — полоса keyStrip листа _glow (общая фаза)
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sv = new THREE.Vector3();
     for (const [key, list] of Object.entries(glowAt)) {
