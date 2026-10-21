@@ -36,6 +36,8 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   await sleep(1500);
   for (const it of (p.st?.account?.inv || [])) { await S({ type: 'equip', uid: it.uid }); await sleep(250); }
   ok((await hasUi()) === (THEME === 'new'), `тема ${THEME}: html.mc-ui ${THEME === 'new' ? 'есть' : 'нет'}`);
+  { const hi = await G(() => ({ ig: document.documentElement.classList.contains('mc-hud-ig'), mm: !!document.querySelector('.mc3d-layer .mc-ighud #mm-canvas') }));
+    ok(hi.ig === (THEME === 'new') && hi.mm === (THEME === 'new'), `HUD в игровом поле (круглая мини-карта): ${THEME === 'new' ? 'есть' : 'нет — старая тема'} ${JSON.stringify(hi)}`); }
   if (LOC !== 'hub') {
     const SP = { ice: [25154, 28989], fire: [18261, 20917], stone: [16222, 23693], air: [26175, 18540] }[LOC];
     for (let i = 0; i < 8 && (await G(() => window.__game.state().world)) !== 'arinar'; i++) { await G(() => window.__game.debug.teleport(240, 600)); await sleep(700); await G(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(1800); }
@@ -77,6 +79,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     const want = THEME === 'new' ? 'old' : 'new';
     await G((v) => document.querySelector(`[data-act="uitheme"][data-v="${v}"]`)?.click(), want); await sleep(600);
     ok((await hasUi()) === (want === 'new'), `переключатель «Интерфейс» → ${want}`);
+    if (want === 'old') ok(!(await G(() => document.documentElement.classList.contains('mc-hud-ig'))), 'старая тема — без HUD в поле (прежние колонки)');
     await shot('settings-switched');
     await G((v) => document.querySelector(`[data-act="uitheme"][data-v="${v}"]`)?.click(), THEME); await sleep(400); await esc();
   }

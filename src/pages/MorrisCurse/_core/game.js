@@ -1964,6 +1964,7 @@ async function boot(canvasId, username, userId, api) {
       openBook: (tab) => book.open(tab),
       openUpgrade: () => upgWin.open(),
       lobby: (roomId) => openBrowser(roomId || Object.keys(RUN_ROOMS)[0]),
+      clearTarget: () => { hud.clearTarget(); if (zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); } },
       vn: (who, emo = 'calm', text = '…') => dialog.playVN([{ who, emo, text }], { id: 'dbg', title: 'Сцена', chapter: '' }, [{ text: 'Уйти', cls: 'ghost', onClick: () => dialog.close() }]), // скриншоты VN-арта
       npcPos: (id) => npcPos(id), npcServer: (id) => npcServer(id), npcSpawn: (id) => NPCS[id] && { x: NPCS[id].x, y: NPCS[id].y }, nearestNpc: () => zone.nearestNpc(world, player.x, player.y)?.id || null,
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)

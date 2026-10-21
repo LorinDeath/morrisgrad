@@ -6,7 +6,7 @@
 // - Забег (режим «выживание») тему не получает: setUiMode('run') снимает html.mc-ui — там всё как было.
 // - Настройки — админка «🎨 Интерфейс» (meta_state.ui): вкл/выкл, глитч 0/1/2, доля цвета локации, застёжки, аватары.
 export const UI_BASE = '/mc-ui/';
-export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true };
+export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176 };
 const CURSED = '#8a6aa6';
 const TINTABLE = ['frame_window', 'frame_panel', 'frame_small', 'frame_tooltip', 'corner_tl', 'corner_tr', 'corner_bl', 'corner_br',
   'divider_h', 'divider_v', 'divider_ornament', 'slot_normal_normal', 'slot_normal_hover', 'slot_normal_selected',
@@ -61,10 +61,22 @@ let pref = (() => { try { return localStorage.getItem(PREF_KEY) === 'old' ? 'old
 export const uiPref = () => pref;
 export const uiActive = () => UI.on && pref === 'new' && mode !== 'run';
 export function setUiPref(v) { pref = v === 'old' ? 'old' : 'new'; try { localStorage.setItem(PREF_KEY, pref); } catch (_) {} applyClasses(); }
+// «Старые панели: Вкл/Выкл» — боковые колонки HUD (как раньше) или всё внутри игрового поля (круглая мини-карта, цель,
+// компактные кнопки). На этом устройстве; пока игрок не выбрал — по умолчанию из админки (hudOldDefault).
+// Внутриигровой HUD — только с новым интерфейсом и не в забеге: старая тема и забег = прежние колонки без изменений.
+const HUD_KEY = 'mc_hud_old';
+let hudPref = (() => { try { const v = localStorage.getItem(HUD_KEY); return v === '1' ? true : v === '0' ? false : null; } catch (_) { return null; } })();
+export const hudOldPanels = () => (hudPref == null ? !!UI.hudOldDefault : hudPref);
+export const hudIngame = () => uiActive() && !!UI.hudIngame && !hudOldPanels();
+export function setHudOldPanels(v) { hudPref = !!v; try { localStorage.setItem(HUD_KEY, hudPref ? '1' : '0'); } catch (_) {} applyClasses(); }
+let hudWas = null;
 function applyClasses() {
   const c = document.documentElement.classList, on = uiActive();
   c.toggle('mc-ui', on); c.toggle('mc-ui-orn', on && UI.ornaments);
   document.documentElement.dataset.uiGlitch = on ? String(UI.glitch) : '0';
+  const ig = hudIngame(); c.toggle('mc-hud-ig', ig);
+  document.documentElement.style.setProperty('--ig-mm', (Math.max(120, Math.min(240, Number(UI.mmSize) || 176)) | 0) + 'px');
+  if (ig !== hudWas) { hudWas = ig; window.dispatchEvent(new CustomEvent('mc-hud-ig', { detail: ig })); }
 }
 export function initUiSkin() {
   if (inited) return; inited = true;
