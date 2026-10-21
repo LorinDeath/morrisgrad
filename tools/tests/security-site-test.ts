@@ -2,6 +2,7 @@
 import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS, siteNickProblem } from "../../src/lib/security";
 import { readFileSync } from "fs";
 import { cleanInventoryItem } from "../../src/lib/inventoryItem";
+import { rateLimit, guardAnonWrite, checkTurnstile, memLimit, _resetMem, LIMITS } from "../../src/lib/antiabuse";
 
 let fails = 0, passes = 0;
 const ok = (c: any, m: string) => { if (c) passes++; else { fails++; console.log("FAIL " + m); } };
@@ -50,6 +51,31 @@ for (const bad of ["<svg onload=alert()>", 'a"b', "a'b", "x&y", "a<b", "tab\ther
   ok(cleanInventoryItem({ name: "a", rarity: "<script>" })!.rarity === "common", "rarity из списка");
   ok(cleanInventoryItem({ name: "x".repeat(1000), source: "y".repeat(1000) })!.name.length === 80, "длина имени");
   ok(cleanInventoryItem({ name: "" }) === null && cleanInventoryItem(null) === null && cleanInventoryItem([1]) === null, "пустые/не объекты отклонены");
+}
+
+// --- анонимные записи: лимит по IP + Turnstile по флагу ---
+{
+  _resetMem();
+  const req = (ip: string, h: Record<string, string> = {}) => new Request("https://morrisgrad.com/api/scores", { method: "POST", headers: { "cf-connecting-ip": ip, ...h } });
+  let n = 0; for (let i = 0; i < 10; i++) if (await rateLimit({}, "scores", req("1.1.1.1"))) n++;
+  ok(n === LIMITS.scores, `рекорды: не больше ${LIMITS.scores}/мин с одного IP (запасной счётчик)`);
+  ok(await rateLimit({}, "scores", req("2.2.2.2")), "другой IP — свой лимит");
+  ok(memLimit("x", 1, 0) && !memLimit("x", 1, 1000) && memLimit("x", 1, 61_000), "окно минута");
+  let bindKey = ""; const env = { RL_KONKURS: { limit: async ({ key }: any) => { bindKey = key; return { success: false }; } } };
+  ok(!(await rateLimit(env, "konkurs", req("3.3.3.3"))) && bindKey === "konkurs:3.3.3.3", "привязка Cloudflare Rate Limiting используется, ключ по IP");
+  const r429 = await guardAnonWrite(env, "konkurs", req("3.3.3.3")); ok(r429?.status === 429, "лимит → 429");
+  ok(await checkTurnstile({}, req("4.4.4.4")) === null, "Turnstile выключен по умолчанию");
+  ok((await checkTurnstile({ TURNSTILE_ENABLED: "1" }, req("4.4.4.4")))?.status === 503, "флаг включён без ключей — отказ (не пропускаем молча)");
+  const tsEnv = { TURNSTILE_ENABLED: "1", PUBLIC_TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "sec" };
+  const r1 = await checkTurnstile(tsEnv, req("4.4.4.4")); const j1: any = await r1?.json();
+  ok(r1?.status === 403 && j1.turnstile === true && j1.sitekey === "site" && !JSON.stringify(j1).includes("sec\""), "без токена → 403 + публичный sitekey, секрет не отдаётся");
+  const fake = (success: boolean) => (async () => new Response(JSON.stringify({ success }))) as any;
+  ok(await checkTurnstile(tsEnv, req("4.4.4.4", { "x-turnstile": "t" }), fake(true)) === null, "верный токен — пропуск");
+  ok((await checkTurnstile(tsEnv, req("4.4.4.4", { "x-turnstile": "t" }), fake(false)))?.status === 403, "неверный токен — отказ");
+  ok((await checkTurnstile(tsEnv, req("4.4.4.4", { "x-turnstile": "t" }), (async () => { throw new Error("net"); }) as any))?.status === 403, "сбой проверки — отказ");
+  const wj = readFileSync("wrangler.jsonc", "utf8");
+  ok(/"RL_SCORES"[^}]*"limit": 6/.test(wj) && /"RL_KONKURS"[^}]*"limit": 2/.test(wj) && /"RL_CHAT"[^}]*"limit": 20/.test(wj) && LIMITS.scores === 6 && LIMITS.konkurs === 2 && LIMITS.chat === 20, "лимиты в wrangler.jsonc совпадают с кодом");
+  ok(!/TURNSTILE_SECRET_KEY/.test(wj), "секрет Turnstile не в wrangler.jsonc");
 }
 
 console.log(`security-site-test: ${passes} PASS, ${fails} FAIL`);

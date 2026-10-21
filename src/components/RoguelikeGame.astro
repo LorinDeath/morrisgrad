@@ -984,6 +984,7 @@
 </style>
 
 <script>
+  import { anonPost } from '../scripts/antiabuse';
   // --- CONSTANTS ---
   const CANVAS_W = 1040;
   const CANVAS_H = 720;
@@ -4415,11 +4416,7 @@
   }
 
   async function postScore(name: string, score: number) {
-      await fetch('/api/scores_nl', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, score })
-      });
+      await anonPost('/api/scores_nl', { name, score });
   }
 
   // --- MAIN GAME CLASS ---

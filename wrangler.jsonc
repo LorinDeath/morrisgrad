@@ -52,6 +52,14 @@
     }
   ],
 
+  // Лимиты анонимных записей по IP (src/lib/antiabuse.ts LIMITS — держать в синхроне). Счёт ведёт Cloudflare, IP не храним.
+  // namespace_id — любое уникальное в аккаунте число; создаётся при деплое, отдельной настройки не требует.
+  "ratelimits": [
+    { "name": "RL_SCORES", "namespace_id": "4101", "simple": { "limit": 6, "period": 60 } },
+    { "name": "RL_KONKURS", "namespace_id": "4102", "simple": { "limit": 2, "period": 60 } },
+    { "name": "RL_CHAT", "namespace_id": "4103", "simple": { "limit": 20, "period": 60 } }
+  ],
+
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist"

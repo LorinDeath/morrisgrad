@@ -1,10 +1,21 @@
 import type { APIRoute } from 'astro';
+import { guardAnonWrite, envOf } from '../../lib/antiabuse';
 
 const PROFANITY_PATTERN = /(?:ху[йиеяю]|пизд|бля[дт]|еба[тьнл]|ёб|муда[кч]|говн|дроч)/i;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const data = await request.json();
+    // анонимная запись: не больше 2 заявок в минуту с одного IP (+ Turnstile по флагу TURNSTILE_ENABLED)
+    const denied = await guardAnonWrite(envOf(locals), 'konkurs', request);
+    if (denied) return denied;
+    const raw = await request.text();
+    if (raw.length > 1_000_000) {
+      return new Response(JSON.stringify({ error: 'Слишком большой текст.' }), { status: 413, headers: { 'Content-Type': 'application/json' } });
+    }
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return new Response(JSON.stringify({ error: 'Все поля обязательны для заполнения.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
     const { author, name, text } = data;
 
     // Валидация (поля — только строки: объект/число раньше роняли обработчик в 500)

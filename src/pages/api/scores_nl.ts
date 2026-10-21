@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { guardAnonWrite, envOf } from '../../lib/antiabuse';
 
 export const prerender = false;
 
@@ -43,7 +44,13 @@ export const GET: APIRoute = async ({ locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
     try {
-        const body = await request.json();
+        // анонимная запись: лимит с одного IP (+ Turnstile по флагу TURNSTILE_ENABLED)
+        const denied = await guardAnonWrite(envOf(locals), 'scores', request);
+        if (denied) return denied;
+        const raw = await request.text();
+        if (raw.length > 2048) return new Response(JSON.stringify({ error: "Слишком большой запрос" }), { status: 413 });
+        const body = JSON.parse(raw);
+        if (!body || typeof body !== 'object' || Array.isArray(body)) return new Response(JSON.stringify({ error: "Некорректный запрос" }), { status: 400 });
         const { name, score } = body;
 
         // Валидация: 2-6 символов, только латиница

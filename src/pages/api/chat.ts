@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { rateLimit } from '../../lib/antiabuse';
 
 export const prerender = false;
 
@@ -139,10 +140,12 @@ export const POST: APIRoute = async ({ locals, request }) => {
 
     if (!userId) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     if (!db) return new Response(JSON.stringify({ error: "DB error" }), { status: 500 });
+    // лимит с одного IP (несколько аккаунтов с одного адреса не обходят анти-спам)
+    if (!(await rateLimit(env, 'chat', request))) return new Response(JSON.stringify({ error: "Слишком часто. Подождите минуту." }), { status: 429, headers: { "retry-after": "60" } });
 
     try {
         const body = await request.json();
-        const message = body.message?.trim();
+        const message = typeof body?.message === 'string' ? body.message.trim() : '';
 
         // Валидация
         if (!message || message.length === 0 || message.length > 500) {
