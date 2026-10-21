@@ -7,7 +7,8 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(BASE)) { console.log("FAI
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log("FAIL " + m); } };
 const DEV = { cookie: "mg_dev_noclerk=1" }; // локально без ключей Clerk (ветка только для astro dev)
-const req = (path, o = {}) => fetch(BASE + path, { redirect: "manual", ...o, headers: { ...DEV, ...(o.headers || {}) } });
+const RUN_IP = `10.77.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`; // свой «IP» на прогон — лимиты по IP не копятся между запусками
+const req = (path, o = {}) => fetch(BASE + path, { redirect: "manual", ...o, headers: { ...DEV, "cf-connecting-ip": RUN_IP, ...(o.headers || {}) } });
 const J = { "content-type": "application/json" };
 
 // 1. CSRF: чужой Origin → 403 до любой логики; свой Origin → дальше (401 без входа)
@@ -64,5 +65,40 @@ if (process.env.XSS === "1") {
   ok(r.nick.includes("<svg onload="), "чат: ник показан как текст");
   await b.close();
 }
+// 8. лимит анонимных записей по IP: 6/мин на рекорды, 2/мин на конкурс → дальше 429
+{
+  const ip = "10.9." + Math.floor(Math.random() * 250) + "." + Math.floor(Math.random() * 250);
+  const codes = [];
+  for (let i = 0; i < 8; i++) codes.push((await req("/api/scores", { method: "POST", headers: { ...J, origin: BASE, "cf-connecting-ip": ip }, body: JSON.stringify({ name: "ABC", score: -1 }) })).status);
+  ok(codes.slice(0, 6).every((c) => c === 400) && codes.slice(6).every((c) => c === 429), "scores: 7-я запись за минуту с одного IP → 429 (" + codes.join(",") + ")");
+  const k = []; for (let i = 0; i < 3; i++) k.push((await req("/api/konkurs", { method: "POST", headers: { ...J, origin: BASE, "cf-connecting-ip": ip }, body: "[]" })).status);
+  ok(k[0] === 400 && k[1] === 400 && k[2] === 429, "konkurs: 3-я заявка за минуту → 429 (" + k.join(",") + ")");
+  const g = await req("/api/scores", { method: "POST", headers: { ...J, origin: BASE, "cf-connecting-ip": ip + "1" }, body: JSON.stringify({ name: "<b>x</b>", score: 0, type: "glush", difficulty: 1 }) });
+  ok(g.status === 400, "glush: имя с HTML → 400 (" + g.status + ")");
+}
+
+// 9. CSP Report-Only со script-src и nonce на страницах
+{
+  const r = await req("/forum"); const t = await r.text(); const h = r.headers.get("content-security-policy-report-only") || "";
+  const n = (h.match(/'nonce-([^']+)'/) || [])[1];
+  ok(n && /'strict-dynamic'/.test(h) && t.includes(`<script nonce="${n}"`) && !/<script(?![^>]*nonce=)[\s>]/i.test(t), "CSP Report-Only: nonce у всех <script> страницы");
+  const rep = await fetch(BASE + "/api/csp-report", { method: "POST", headers: { "content-type": "application/csp-report", cookie: DEV.cookie }, body: JSON.stringify({ "csp-report": { "document-uri": BASE + "/", "blocked-uri": "inline", "effective-directive": "script-src-attr" } }) });
+  ok(rep.status === 204, "приёмник отчётов CSP → 204 без Origin (" + rep.status + ")");
+}
+
+// 10. публичный номер вместо id Clerk
+{
+  const r = await req("/api/chat"); const j = await r.json(); const t = JSON.stringify(j);
+  ok(Array.isArray(j.messages) && !/user_[A-Za-z0-9]{8}/.test(t) && !t.includes('"user_id"'), "чат: в JSON нет id Clerk");
+  const withPid = j.messages.find((m) => m.pid);
+  if (withPid) {
+    const p = await req("/u/" + withPid.pid); ok(p.status === 200 && !/user_[A-Za-z0-9]{8}/.test(await p.text()), "/u/<номер>: 200, на странице нет id Clerk");
+    const pp = await req("/api/public-profile?pid=" + withPid.pid); const pj = await pp.json(); ok(pp.status === 200 && pj.user.pid === withPid.pid && !/user_[A-Za-z0-9]{8}/.test(JSON.stringify(pj)), "public-profile по номеру без id Clerk");
+  } else ok(false, "в локальном чате нет сообщений для проверки /u/<номер>");
+  const old = await req("/u/user_cspTestAAAAAAAA"); ok(old.status === 301 && /^\/u\/\d+$/.test(old.headers.get("location") || ""), "старый /u/user_… → 301 на /u/<номер> (" + old.status + " " + old.headers.get("location") + ")");
+  const bad = await req("/api/public-profile?id=user_cspTestAAAAAAAA"); ok(bad.status === 400, "public-profile по id Clerk → 400");
+  const fu = await req("/api/forum/user/user_cspTestAAAAAAAA", { headers: { "x-forum": "1" } }); ok(fu.status === 404, "форум API по id Clerk → 404 (" + fu.status + ")");
+}
+
 console.log(`security-http-test: ${pass} PASS, ${fail} FAIL`);
 if (fail) process.exit(1);
