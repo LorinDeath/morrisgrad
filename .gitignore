@@ -25,3 +25,11 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# секреты локальной разработки wrangler (MC_DEV_TRUST_USERID, FORUM_DEV_AUTH, ключи) — никогда в git
+.dev.vars
+.dev.vars.*
+**/.dev.vars
+**/.dev.vars.*
+.env.*
+!.env.example
