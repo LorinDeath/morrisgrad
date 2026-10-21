@@ -81,7 +81,7 @@ async function perf(p) { // общий вид, свободная камера: 
     }
     // хаб сам догружает текстуры со временем (ресурсы по радиусу, игроки: +9 за 30 с простоя без входов), поэтому рост хаба — только INFO;
     // утечка арены = рост разницы «в забеге − в хабе» от входа к входу (текстуры арены не освобождаются)
-    for (const tag of ['old', 'new']) { const d = (R.leak[tag] || []).map((q) => q.run.tex - q.hub.tex).slice(1); if (d.length) ok(Math.max(...d) - Math.min(...d) <= 1 && d[d.length - 1] - d[0] <= 1, `${PF} ${tag}: текстуры арены освобождаются при выходе (в забеге − в хабе: ${d.join(',')})`); }
+    for (const tag of ['old', 'new']) { const d = (R.leak[tag] || []).map((q) => q.run.tex - q.hub.tex).slice(1); const good = Math.max(...d) - Math.min(...d) <= 1 && d[d.length - 1] - d[0] <= 1; if (d.length) (tag === 'new' ? ok : (c, m) => console.log((c ? 'INFO ok ' : 'INFO шум ') + m))(good, `${PF} ${tag}: текстуры арены освобождаются при выходе (в забеге − в хабе: ${d.join(',')})`); }
   }
   R.errs = { old: P[2].errs.filter((e) => !/GL Driver/.test(e)), new: P[3].errs.filter((e) => !/GL Driver/.test(e)) };
   ok(!R.errs.new.length, `${PF}: ошибок страницы нет (${R.errs.new.join(' | ').slice(0, 300)})`);

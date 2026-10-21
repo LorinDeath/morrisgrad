@@ -25,7 +25,7 @@ def grid(rows, cols, title, out, scale, crop=None):
 made = []
 for pf in ['pc', 'phone']:
     if not os.path.exists(f'{RAW}/{pf}-crypt-new-north.png'): continue
-    sc = 0.5 if pf == 'pc' else 0.75
+    sc = 0.5 if pf == 'pc' else 0.4  # телефон: снимки 1081×2202 (DPR 2.6) — листы не шире ~1800 px
     for th in TH:
         if not os.path.exists(f'{RAW}/{pf}-{th}-new-north.png'): continue
         rows = [(t, [f'{RAW}/{pf}-{th}-{k}-{v}.png' for v in VIEWS]) for k, t in [('old', 'было'), ('new', 'стало')]]
@@ -35,11 +35,11 @@ for pf in ['pc', 'phone']:
         rows = [(lab, [f'{RAW}/{pf}-{th}-mode-{m}-{v}.png' for v in ['north', 'diag']]) for m, lab in [('sprites', 'спрайты'), ('baked', 'в полу')]]
         made.append(grid(rows, [VIEWS['north'], VIEWS['diag']], f'Парапет: спрайтами (объёмнее) / запечён в пол (дешевле) · {TH[th]} · {"ПК" if pf == "pc" else "телефон"}', f'{OUT}/{pf}-{th}-parapet-sprites-vs-baked.png', sc * 1.3))
         rows = [(lab, [f'{RAW}/{pf}-{th}-mode-{m}-diag.png']) for m, lab in [('sprites' if pf == 'pc' else 'baked', 'все столбы'), ('posts2', 'каждый 2-й')]]
-        made.append(grid(rows, ['диагональ (северо-запад)'], f'Угловые столбы на диагоналях · {TH[th]} · {"ПК" if pf == "pc" else "телефон"}', f'{OUT}/{pf}-{th}-diag-posts.png', 1.0))
+        made.append(grid(rows, ['диагональ (северо-запад)'], f'Угловые столбы на диагоналях · {TH[th]} · {"ПК" if pf == "pc" else "телефон"}', f'{OUT}/{pf}-{th}-diag-posts.png', 1.0 if pf == 'pc' else 0.5))
     # крупно: кромка (север) и диагональ, новые, 4 темы; центр кадра ×2
     cn = lambda im: (im.width // 4, 0, im.width * 3 // 4, im.height // 2)  # север: парапет у верхнего края кадра
     cd = lambda im: (0, 0, im.width // 2, im.height // 2)                 # диагональ: северо-запад — левый верх
     if all(os.path.exists(f'{RAW}/{pf}-{th}-new-diag.png') for th in TH):
         rows = [(th, [f'{RAW}/{pf}-{th}-new-north.png', f'{RAW}/{pf}-{th}-new-diag.png']) for th in TH]
-        made.append(grid(rows, ['кромка и парапет (север), ×2', 'диагональ, ×2'], f'Крупно: кромка и диагонали · {"ПК" if pf == "pc" else "телефон"}', f'{OUT}/{pf}-closeup-edge-diag.png', 1.0 if pf == 'pc' else 1.4, crop=[cn, cd]))
+        made.append(grid(rows, ['кромка и парапет (север), ×2', 'диагональ, ×2'], f'Крупно: кромка и диагонали · {"ПК" if pf == "pc" else "телефон"}', f'{OUT}/{pf}-closeup-edge-diag.png', 1.0 if pf == 'pc' else 0.75, crop=[cn, cd]))
 print('\n'.join(m for m in made if m))
