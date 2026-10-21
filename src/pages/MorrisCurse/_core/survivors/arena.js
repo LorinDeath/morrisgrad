@@ -178,7 +178,7 @@ export class RunArena {
       // arena32: карта света арены (arena32.js bakeArenaLight: сигил, колонны, свечи, кристаллы, кромка) — экранный множитель, одна выборка
       uLM: { value: null }, uLMS: { value: 1 }, uLMK: { value: 0 }, uEdge: { value: DARK.edge },
     };
-    if (a32) { const t = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; U.uLM.value = t; U.uAmb.value = GFX.arena3Amb[this.propTheme] ?? 0.5; U.uEdge.value = GFX.arena3Edge; }
+    if (a32) { const t = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; U.uLM.value = t; U.uAmb.value = GFX.arena3Amb[this.propTheme] ?? 0.85; U.uEdge.value = GFX.arena3Edge; }
     const m = new THREE.MeshBasicMaterial({ map: tex });
     // arena32 (pixColor.js): свет — экранный множитель пиксель-арта (как у спрайтов), без ACES; li = 1 → пиксель как в атласе/превью
     if (a32) pixMat(m);
@@ -188,10 +188,10 @@ export class RunArena {
     float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
     for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
     li *= mix(1.0, uEdge, smoothstep(uR * 0.6, uR + 1.5, dc)); // к стене — мягче, чем у старой арены (кромку подсвечивает карта света)
-    li = min(li * uFloorK, vec3(1.3));
+    li = min(li * uFloorK, vec3(1.6));
     float wm = step(0.5, diffuseColor.a) * step(diffuseColor.a, 0.998) * step(0.001, uWallK);
     li = mix(li, max(li, vec3(uWallK)), wm); diffuseColor.a = mix(diffuseColor.a, 1.0, wm);
-    diffuseColor.rgb *= pow(li, vec3(2.2)); // экранный × → линейный (decode(пиксель) × lin(свет) → encode = пиксель × свет)`;
+    diffuseColor.rgb = sRGBToLinear(vec4(LinearTosRGB(vec4(diffuseColor.rgb, 1.0)).rgb * li, 1.0)).rgb; // точно экранный ×: encode(результат) = пиксель атласа × свет (pow 2.2 врёт в тёмном «носке» sRGB)`;
     const LIGHT = `
     vec3 li = vec3(uAmb);
     float sg = 1.0 - smoothstep(0.0, ${DARK.sigilR.toFixed(1)}, dc); li += uSig * (sg * sg * ${DARK.sigilK.toFixed(2)});

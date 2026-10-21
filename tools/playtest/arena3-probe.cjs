@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await p.goto(assertLocalUrl(`${BASE}?name=${uid}&uid=${uid}&ws=${WS}&fs=1&debug=1&props=3&arena=${process.env.ARENA || 3}${mob ? '&mobile=1' : ''}`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 240000 });
   await sleep(1200); await p.evaluate(() => window.__game.debug.selectClass('mage')).catch(() => {}); await sleep(2000);
-  await p.evaluate((w) => window.__game.debug.gfxLocal({ arena3Wall: w[0], arena3Posts: w[1] }), [process.env.WALL || 'auto', +(process.env.POSTS || 1)]);
+  await p.evaluate((w) => window.__game.debug.gfxLocal({ arena3Wall: w[0], arena3Posts: w[1], ...w[2] }), [process.env.WALL || 'auto', +(process.env.POSTS || 1), JSON.parse(process.env.CFG || '{}')]);
   await p.evaluate((r) => window.__game.startRun(r), process.env.ROOM || 'crypt');
   await p.waitForFunction(() => window.__game.state().mode === 'run', null, { timeout: 60000 });
   await sleep(7000); await p.mouse.move(5, 5);

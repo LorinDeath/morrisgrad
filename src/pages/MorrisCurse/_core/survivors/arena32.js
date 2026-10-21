@@ -111,7 +111,7 @@ export function buildArena32(THREE, A, g, { AT, R, Rf = R + TILE_M }) {
     // карта света арены (одна выборка в шейдере пола; огни боя — по-прежнему uL)
     if (A.darkU) { const S = N * TILE_M, lm = bakeArenaLight(S, { R, accent: parseInt(String(TH.accent || '#c59b27').slice(1), 16), decor: A.decor || [], pillars: PILLARS, k: GFX.arena3Lit });
       const lt = st.lmTex = new THREE.CanvasTexture(lm.canvas); lt.magFilter = lt.minFilter = THREE.LinearFilter; lt.generateMipmaps = false;
-      const old = A.darkU.uLM.value; A.darkU.uLM.value = lt; old?.dispose?.(); A.darkU.uLMS.value = 1 / S; A.darkU.uLMK.value = lm.K; st.lights = lm.lights; lm.canvas.width = lm.canvas.height = 0; }
+      const old = A.darkU.uLM.value; A.darkU.uLM.value = lt; old?.dispose?.(); A.darkU.uLMS.value = 1 / S; A.darkU.uLMK.value = lm.K; st.lights = lm.lights; lt.onUpdate = () => { lt.onUpdate = null; lm.canvas.width = lm.canvas.height = 0; }; /* канвас — после загрузки в видеопамять */ }
     // свечение пола и декалей: InstancedMesh на ключ, кадры — полоса keyStrip листа _glow (общая фаза)
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sv = new THREE.Vector3();
     for (const [key, list] of Object.entries(glowAt)) {

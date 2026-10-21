@@ -1954,7 +1954,7 @@ async function boot(canvasId, username, userId, api) {
         R.render = function (sc, c) { if (sc === stage.scene) frames++; return orig.call(this, sc, c); };
         setTimeout(() => { R.render = orig; const o = { frames, calls: frames ? +(I.render.calls / frames).toFixed(1) : 0, tris: frames ? Math.round(I.render.triangles / frames) : 0, fps: +(frames / (ms / 1000)).toFixed(1) }; I.autoReset = true; I.reset(); res(o); }, ms); }),
       glMem: () => ({ ...stage.renderer.info.memory, programs: stage.renderer.info.programs?.length || 0, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles }),
-      arena32: () => (runView?.arena?.a32 ? { ready: runView.arena.a32.ready, ...(runView.arena.a32.stats || {}) } : null),
+      arena32: () => { const A = runView?.arena; if (!A?.a32) return null; const U = A.darkU, m = A.floor?.material; return { ready: A.a32.ready, ...(A.a32.stats || {}), u: U && { amb: U.uAmb.value, lmk: U.uLMK.value, edge: U.uEdge.value, floorK: U.uFloorK.value, wallK: U.uWallK.value, toneMapped: m?.toneMapped, fog: m?.fog }, fog: stage?.scene?.fog && { near: stage.scene.fog.near, far: stage.scene.fog.far } }; },
       leaveRun: () => { if (mode === 'run') leaveRun(); return mode; },
       freeCam: (o) => { stage.freeCam = o && Number.isFinite(o.x) && Number.isFinite(o.z) ? { x: o.x, z: o.z, zoom: o.zoom || 0 } : null; return stage.freeCam; }, // свободная камера (сцена, м); null — снова за героем
       setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
