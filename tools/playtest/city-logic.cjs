@@ -34,30 +34,30 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   const A = await open('city_admin'); await toArinar(A); t('A в Аринаре', (await pos(A)).w === 'arinar');
   const d0 = await dev(A, { pk: false, clearKills: true }); R = d0.city.r;
   const bd = (id) => { const b = d0.city.b.find((x) => x[0] === id); return { door: { x: b[8], y: b[9] }, out: [b[8], b[9] + 40], ox: b[5] }; };
-  INN = bd('inn'); ELDER = bd('elder'); console.log('R', R, 'inn', JSON.stringify(INN), 'elder', JSON.stringify(ELDER));
+  INN = bd('tavern'); ELDER = bd('house_elder'); console.log('R', R, 'inn', JSON.stringify(INN), 'elder', JSON.stringify(ELDER));
   // ——— 1. дверь трактира: вход ———
   await tp(A, INN.door.x, INN.door.y + 70); await shot(A, '10-door-inn-outside', 12);
   await walk(A, 'w', 1600); await sleep(600);
   let c = await city(A), q = await pos(A);
-  t('дверь: вошёл в трактир (сервер перенёс в комнату)', c.room?.id === 'inn' && q.x < -10000 && q.y < -10000, { c, q });
+  t('дверь: вошёл в трактир (сервер перенёс в комнату)', c.room?.id === 'tavern' && q.x < -10000 && q.y < -10000, { c, q });
   await sleep(1500); c = await city(A); t('интерьер построен из interiors_dark.json (пол + пропсы)', c.room?.built && c.room.props > 5, c.room);
   await shot(A, '11-inn-interior', 12);
   // ходьба внутри: стены держат
-  await walk(A, 'a', 2500); const qa = await pos(A); t('в комнате: стена держит (не вышел за комнату)', qa.x >= INN.ox + 32 && qa.x <= INN.ox + 15 * 32 && qa.y > INN.ox && qa.y < INN.ox + 13 * 32, qa);
+  await walk(A, 'a', 2500); const qa = await pos(A); t('в комнате: стена держит (не вышел за комнату)', qa.x >= INN.ox + 10 && qa.x <= INN.ox + 12 * 32 - 10 && qa.y > INN.ox && qa.y < INN.ox + 10 * 32 /* таверна 12×10 (interiors_dark.json) */, qa);
   await walk(A, 'd', 900);
   // ——— 2. выход: вниз через порог E ———
-  for (let i = 0; i < 12 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = INN.ox + 7.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 450); }
+  for (let i = 0; i < 12 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = INN.ox + 6 * 32; /* выход таверны — колонки 5–6 */ await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 450); }
   q = await pos(A); c = await city(A);
   t('выход: снова на улице у двери трактира', q.x > 20000 && Math.hypot(q.x - INN.out[0], q.y - INN.out[1]) < 80 && !c.room, { q, c });
   await shot(A, '12-inn-exit-outside', 12);
   await sleep(800); q = await pos(A); t('после выхода не затягивает обратно', q.x > 20000, q);
   // ——— 3. другой дом (староста) ———
   await tp(A, ELDER.door.x, ELDER.door.y + 70); await walk(A, 'w', 1600); await sleep(1500); c = await city(A);
-  t('дом старосты: вход', c.room?.id === 'elder', c); await shot(A, '13-elder-interior', 12);
+  t('дом старосты: вход', c.room?.id === 'house_elder', c); await shot(A, '13-elder-interior', 12);
   // ——— 4. переподключение в доме: вернуло в комнату ———
   await dev(A, { posNow: true }); await A.reload(); await A.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 120000 }); await sleep(4000);
   q = await pos(A); c = await city(A);
-  t('переподключение в доме: снова в комнате старосты', q.w === 'arinar' && c.room?.id === 'elder' && q.x < -10000, { q, c });
+  t('переподключение в доме: снова в комнате старосты', q.w === 'arinar' && c.room?.id === 'house_elder' && q.x < -10000, { q, c });
   await shot(A, '14-reconnect-in-house', 12);
   // выйти
   for (let i = 0; i < 6 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = ELDER.ox + 6.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 1400); }
@@ -82,9 +82,9 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   await tp(A, vx - 50, vy); await A.G(() => window.__game.debug.rawSend({ type: 'dev_grant', bm: { mortal: true } })); await sleep(900);
   const lB = (await city(B)).labels; t('B видит A красным', lB.some((l) => /city_admin/.test(l.text)), lB);
   await shot(B, '23-victim-sees-red-pk', 12);
-  let killed = false;
-  for (let i = 0; i < 30 && !killed; i++) { await A.G(([x, y]) => window.__game.debug.rawSend({ type: 'zone_attack', dx: 1, dy: 0, ox: x - 50, oy: y, tx: x, ty: y, cid: Date.now() % 1e6 }), [vx, vy]); await sleep(700); const d = await dev(A, {}); killed = (d?.kst?.pk || 0) > 0; }
-  const dA = await dev(A, {}); t('PvP: A убил B (пожизненно +1)', killed && dA.kst.pk >= 1, dA?.kst);
+  const pk0 = (await dev(A, {}))?.kst?.pk || 0; let killed = false; // пожизненный счёт копится между прогонами — сравниваем с началом
+  for (let i = 0; i < 30 && !killed; i++) { await A.G(([x, y]) => window.__game.debug.rawSend({ type: 'zone_attack', dx: 1, dy: 0, ox: x - 50, oy: y, tx: x, ty: y, cid: Date.now() % 1e6 }), [vx, vy]); await sleep(700); const d = await dev(A, {}); killed = (d?.kst?.pk || 0) > pk0; }
+  const dA = await dev(A, {}); t('PvP: A убил B (пожизненно +1)', killed && dA.kst.pk >= pk0 + 1, dA?.kst);
   t('PvP: A теперь убийца по журналу', dA.killer?.killer && dA.p >= 1, dA?.killer);
   await shot(A, '24-pvp-kill', 12);
   // ——— 8. счёт убийств: C (свой) и просмотр игрока ———
@@ -103,7 +103,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   t('5 мобов за 10 мин — купол не пускает', Math.hypot(q.x - CX, q.y - CY) > R && /мобов/.test(h.deny || ''), { q, h });
   await dev(A, { clearKills: true }); await walk(A, 'a', 2200); q = await spos(A); t('без убийств — пускает', Math.hypot(q.x - CX, q.y - CY) < R, q);
   // ——— 11. убийца внутри дома — выставляет наружу за купол ———
-  await tp(A, INN.door.x, INN.door.y + 70); await walk(A, 'w', 1600); await sleep(900); t('снова в трактире', (await city(A)).room?.id === 'inn');
+  await tp(A, INN.door.x, INN.door.y + 70); await walk(A, 'w', 1600); await sleep(900); t('снова в трактире', (await city(A)).room?.id === 'tavern');
   await dev(A, { mobKills: 5 }); await sleep(1500); q = await pos(A); c = await city(A);
   t('стал убийцей в доме — выставлен за купол', q.x > 20000 && Math.hypot(q.x - CX, q.y - CY) > R && !c.room, { q, c });
   await shot(A, '28-killer-kicked-from-house', 14);
