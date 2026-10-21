@@ -667,11 +667,17 @@ export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewa
   return { ok: true, rewards: got };
 }
 
+/** пожизненные убийства: p — игроков (PvP), d — смертей от игроков, m — мобов (Σ убийств бестиария: открытый мир и забеги, с начала игры) */
+export function killStats(a: Account): { p: number; d: number; m: number } {
+  let m = 0; for (const b of Object.values(a.bestiary || {})) m += Number((b as any).kills) || 0;
+  if (!m && (a as any)._mk) m = Number((a as any)._mk) || 0; // публичный профиль: сумма из D1 (бестиарий не загружается)
+  const k = (a as any).kst || {}; return { p: Number(k.pk) || 0, d: Number(k.pd) || 0, m };
+}
 // Снимок профиля для клиента
 export function snapshot(a: Account, h: Hero | null, cls: string | null, base: any, verified: boolean) {
   const heroes: Record<string, any> = {};
   return {
-    verified,
+    verified, kst: killStats(a), // пожизненная статистика: игроков убито / смертей от игроков / мобов убито
     weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), bmv: blkVisClient(), light: lightClient(), ench: enchClient(), upg: upgClient(), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,

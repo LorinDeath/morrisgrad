@@ -4,7 +4,16 @@
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
 import { fmtBig } from './fmtNum.js';
-import { resolveWorld } from '../../../../server/meta/propCollision.ts';
+import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
+import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
+import { DayNight, lightOf, lampHash, lampGlowK, nightGlow, LT } from './engine/dayNight.js';
+import { setEmitterCamera, lightEmitter, emitterVersion } from './engine/lightEmitter.js';
+import { DN_CFG } from '../../../../server/meta/dayNight.ts';
+import { pkTagHtml, pkTrackOf, pkMarked, pkUi, setPkUi } from './ui/pkBar.js';
+import { CityView } from './hub/cityView.js';
+import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
+import { CityHud } from './ui/cityHud.js';
+import { CITY_CFG, inCity } from '../../../../server/meta/city.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
@@ -192,7 +201,9 @@ async function boot(canvasId, username, userId, api) {
 
   const hub = new HubWorld(THREE, stage);
   const zone = new ZoneView(THREE, hub.root);
+  const cityView = new CityView(THREE, hub.root); // купол Альказака (арт Историка): оболочка 0.9/0.02 с переходом, обод, отталкивание
   const dpsMeter = new DpsMeter(); // DPS / DPM героя (по событиям сервера)
+  const cityRoom = new CityRoomView(THREE, hub.root); // интерьеры зданий города (server/meta/cityBuild.ts)
   hub.setWorld(world, portals);
   zone.setWorld(world);
   hub.attach();
@@ -355,7 +366,32 @@ async function boot(canvasId, username, userId, api) {
   net.on('mark_err', (d) => overlay.toast(d.message || 'Ошибка метки', '#fca5a5'));
   net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
   net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
-  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
+  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; if (d.door || d.city) stage.follow(toX(player.x), toZ(player.y), 0, true); if (d.city) cityView.repel(d.x, d.y); } });
+  // город Альказак: двери зданий (интерьер), PK-режим, купол не пускает убийц (server/meta/city.ts, cityBuild.ts)
+  const dayNight = new DayNight(THREE, stage, { mobile }); // смена дня и ночи в Аринаре (engine/dayNight.js; часы — с сервера)
+  const cityHud = new CityHud(container, { send: (m) => send(m), toast: (t, c) => overlay.toast(t, c) });
+  net.on('city_room', (d) => {
+    cityRoom.set(d);
+    if (d.how === 'enter' && d.name) overlay.toast(`🚪 ${d.name}`, '#e9d5ff');
+    else if (d.how === 'exit') overlay.toast('Вы вышли на улицу', '#cbd5e1');
+    else if (d.how === 'kick') overlay.toast('Купол выставил вас из дома', '#fca5a5');
+  });
+  // настройки города с сервера (админка): центр/радиус — от них узлы ресурсов (за край купола) и места NPC
+  let citySig = '';
+  function citySync(c) {
+    cityView.apply(c); setPkUi(c.pkUi); // вид PK (полоса, значок) — из админки
+    if (zone.bmv) { zone.bmv.roseAt = c.rose ? { [c.rose.id]: [c.rose.x, c.rose.y] } : {}; const r = c.rose && zone.bmv.roses.get(Number(c.rose.id)); if (r) { r.x = c.rose.x; r.y = c.rose.y; } } // роза города — в точке карты (только отрисовка)
+    for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
+    for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '' });
+    const k = `${c.x},${c.y},${c.rTiles},${c.on}`; if (k === citySig) return; const first = !citySig; citySig = k;
+    const ch = CITY_CFG.x !== c.x || CITY_CFG.y !== c.y || CITY_CFG.rTiles !== c.rTiles || CITY_CFG.on !== c.on;
+    Object.assign(CITY_CFG, { x: c.x, y: c.y, rTiles: c.rTiles, on: c.on, name: c.name });
+    if (ch && world === 'arinar' && zone.seed !== undefined && (!first || ch)) zone.buildNodes(zone.seed);
+  }
+  net.on('pk_state', (d) => cityHud.onPk(d));
+  net.on('city_deny', (d) => { cityHud.onDeny(d); cityView.repel(player.x, player.y); });
+  net.on('pvp_kill', (d) => cityHud.onKill(d));
+  net.on('pvp_death', (d) => cityHud.onDeath(d));
   net.on('world_switched', (d) => {
     if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
     if (d.homePortal === 'home_portal_back') overlay.toast('🌀 Вы вернулись туда, где открыли портал', '#c4b5fd');
@@ -602,6 +638,7 @@ async function boot(canvasId, username, userId, api) {
     addCards(d.cards); window.dispatchEvent(new CustomEvent('mc-config', { detail: d.ver })); });
   net.on('dev_stats', (d) => { window.__devStats = d; }); // только локальные тесты
   net.on('dev_bm', (d) => { window.__devBm = d; }); // Чёрный маг: только локальные тесты (MC_DEV)
+  net.on('dev_city', (d) => { window.__devCity = d; }); // город/PK: только локальные тесты (MC_DEV)
   net.on('admin_audit', (d) => adminPanel.onAudit(d.rows || []));
   net.on('admin_perf', (d) => adminPanel.onPerf(d.data));
   net.on('role_changed', (d) => social.onRoleChanged(d));
@@ -750,6 +787,8 @@ async function boot(canvasId, username, userId, api) {
   const lsAdd = (n) => { lsPop.acc += n; const t = performance.now(); if (t - lsPop.at >= 500 && lsPop.acc >= 1) { overlay.float(toX(player.x), 2.9, toZ(player.y), `+${Math.floor(lsPop.acc)} HP`, '#4ade80'); lsPop.acc -= Math.floor(lsPop.acc); lsPop.at = t; } };
   net.on('zone_state', (d) => {
     if (d.npc) npcUpdate(d.npc); // NPC бродят: позиции с сервера
+    if (d.city) citySync(d.city);
+    if (d.dn) dayNight.setServer(d.dn);
     if (Array.isArray(d.wb)) setBossState(d.wb);
     for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
     if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
@@ -767,6 +806,7 @@ async function boot(canvasId, username, userId, api) {
     for (const e of evs) {
       if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color);
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
+      else if (e.k === 'dome_repel') cityView.repel(e.x, e.y); // тот же эффект, что у игрока (сервер: не чаще раза в 3 с на моба)
       else if (e.k === 'hurt') { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, '#f87171'); }
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
@@ -1483,10 +1523,10 @@ async function boot(canvasId, username, userId, api) {
       stage.scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
     }
     stage.resize(true);
-    atmo.setQuality(quality.level);
+    atmo.setQuality(quality.level); dayNight.setQuality(quality.level); cityView.setQuality(quality.level);
   }
   if (quality.level) applyQuality();
-  atmo.setQuality(quality.level);
+  atmo.setQuality(quality.level); dayNight.setQuality(quality.level); cityView.setQuality(quality.level);
   function adaptQuality(realDt) {
     if (qForced) return;
     quality.cooldown -= realDt;
@@ -1496,7 +1536,8 @@ async function boot(canvasId, username, userId, api) {
     if (quality.low > 2.5 && quality.level < QUALITY.length - 1) { quality.level++; applyQuality(); quality.low = 0; quality.cooldown = 4; }
     else if (quality.high > 12 && quality.level > 0) { quality.level--; applyQuality(); quality.high = 0; quality.cooldown = 8; }
   }
-  api.perf = () => ({ fps: fpsS.fps, cpuMs: +fpsS.cpu.toFixed(2), quality: quality.level, pixelRatio: stage.renderer.getPixelRatio(), shadows: stage.renderer.shadowMap.enabled, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles, enemies: run ? run.enemies.size : 0 });
+  api.dn = (o = {}) => { if ('pin' in o) dayNight.pinAt(o.pin); return dayNight.debug(); }; // день/ночь: состояние; {pin:'HH:MM'|мин|null} — локально для снимков
+  api.perf = () => ({ fps: fpsS.fps, cpuMs: +fpsS.cpu.toFixed(2), quality: quality.level, pixelRatio: stage.renderer.getPixelRatio(), shadows: stage.renderer.shadowMap.enabled, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles, geos: stage.renderer.info.memory.geometries, texs: stage.renderer.info.memory.textures, progs: stage.renderer.info.programs?.length || 0, dnLights: dayNight.stats?.lights || 0, dnMs: dayNight.stats?.ms || 0, cityGlows: cityView.glows?.length || 0, cityLights: cityView.lights?.length || 0, heap: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 0, enemies: run ? run.enemies.size : 0 });
   // «📊 Нагрузка»: раз в минуту — fps/пинг/тип устройства/браузер (без идентификаторов; сервер обрезает значения)
   { const ua = navigator.userAgent || '', br = /YaBrowser/.test(ua) ? 'yandex' : /SamsungBrowser/.test(ua) ? 'samsung' : /Edg\//.test(ua) ? 'edge' : /OPR\//.test(ua) ? 'opera' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'other';
     const mobile = /Mobi|Android|iPhone|iPad/.test(ua) || (navigator.maxTouchPoints > 1 && matchMedia('(pointer:coarse)').matches);
@@ -1506,12 +1547,57 @@ async function boot(canvasId, username, userId, api) {
   debugEl.style.cssText = 'position:absolute;left:6px;bottom:6px;font:10px monospace;color:#a3e635;text-shadow:0 1px 2px #000;pointer-events:none;white-space:pre';
   overlay.layer.appendChild(debugEl);
 
+  // день и ночь: только открытый мир Аринар (не забег, не дом города); источники света — герои, мобы, огни пропсов, FX
+  const DN_FX = { mage: [0x9a6bff, 6, 0.8], dome: [0x8a5cff, 0, 0.45], rose: [0xff4d7a, 2.4, 0.6] };
+  const dnCity = { key: '', list: [] }; // кэш огней города для маски ночи
+  function dnFrame() {
+    const on = mode !== 'run' && world === 'arinar' && !inRoomPt(player.x, player.y) && !cityRoom.inside;
+    if (!on) { dayNight.frame(false, {}); return; }
+    const cam = stage.activeCamera(); setEmitterCamera(cam); const fx0 = toX(player.x), fz0 = toZ(player.y), viewM = Math.max(40, stage.viewCells() * 1.6 + 20), V2 = (viewM * 20) ** 2;
+    const near = (x, y) => (x - player.x) ** 2 + (y - player.y) ** 2 < V2;
+    const players = [{ x: player.x, y: player.y, me: true }];
+    for (const o of others.values()) if (o.world === world && !o.runRoom && !inRoomPt(o.x, o.y) && near(o.x, o.y)) players.push({ x: o.x, y: o.y });
+    const npcs = []; for (const [id, n] of Object.entries(NPCS)) { if (n.world !== world) continue; const q = npcPos(id); if (q && near(q.x, q.y) && npcs.length < 40) npcs.push({ x: q.x, y: q.y }); }
+    const mobs = []; for (const m of zone.mobs.values()) if (near(m.x, m.y)) mobs.push({ x: m.x, y: m.y, boss: !!(m.chief || m.elite) });
+    const fx = [], bm = zone.bmv;
+    if (bm?.mage) fx.push({ x: bm.mage.x, y: bm.mage.y, c: DN_FX.mage[0], r: DN_FX.mage[1], k: DN_FX.mage[2] });
+    for (const d of bm?.domes?.values?.() || []) if (near(d.x, d.y)) fx.push({ x: d.x, y: d.y, c: DN_FX.dome[0], r: Math.max(3, (d.r || 200) / 20 * 1.1), k: DN_FX.dome[2] });
+    for (const r of bm?.roses?.values?.() || []) if (near(r.x, r.y)) fx.push({ x: r.x, y: r.y, c: DN_FX.rose[0], r: DN_FX.rose[1], k: DN_FX.rose[2] });
+    for (const p of zone.pax?.live?.values?.() || []) { const t = p.age || 0, x = p.x0 + (p.dx || 0) * (p.s || 0) * t, y = p.y0 + (p.dy || 0) * (p.s || 0) * t; if (near(x, y) && fx.length < 140) fx.push({ x, y, c: 0xffd9a0, r: 1.6, k: 0.55 }); }
+    // купол Альказака светится изнутри мягко; фонтан — огни города (_glow-слои Историка придут с артом)
+    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 9, k: 0.18 }); // мягко, без пересвета фонтана
+    // огни Альказака: фонари/костры карты Историка (их рисует cityView, в чанках их нет) + тёплый свет из дверей домов
+    let extra = [];
+    if (CITY_CFG.on !== false && Math.hypot(player.x - CITY_CFG.x, player.y - CITY_CFG.y) < (Number(CITY_CFG.rTiles) || 40) * 32 + viewM * 20) { // весь город, не только у центра
+      const key = `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles}`;
+      if (cityView.lights?.length) { extra = cityView.lights; } // огни города — из cityView (точки излучения по _glow: lightEmitter.js)
+      else if (dnCity.key !== key) {
+        const L = []; for (const q of mapProps()) { const l = lightOf(q.k); if (l) { const x = toX(q.x), z = toZ(q.y); L.push([x, z, l[1], l[2] * (q.s || 1), l[3], (l[4] || 0) * (q.s || 1), lampHash(x, z)]); } }
+        const [sx, sy] = mapShiftPx(); for (const b of mapBuildings()) { const e = b.exit_world_px; if (e) { const x = toX(e[0] + sx), z = toZ(e[1] + sy - 10); L.push([x, z, 0xffc879, b.interior === 'shop_tavern' ? 4.4 : 3.4, 0.8, 1.3, lampHash(x, z)]); } }
+        dnCity.key = key; dnCity.list = L;
+      }
+      if (!cityView.lights?.length) extra = dnCity.list;
+    }
+    const t = hub.env?.terrain;
+    dayNight.frame(true, { players, npcs, mobs, fx, extra, chunks: chunkList(t), fx0, fz0, viewM });
+    if (dayNight.render(stage.renderer, cam) && cityView.group.visible && cityView.glows?.length) {
+      // свечение огней города (_glow-слои Историка) — излучает само: ещё раз поверх маски, сила — по своему огню (вразнобой);
+      // глубина кадра сохранена — спрайты перед огнём его закрывают (ореол «за» спрайтами, без засветки)
+      const R = stage.renderer, ac = R.autoClear, gl = cityView.glows;
+      for (const g of gl) { g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * lampGlowK(g.kind, g.halo) * (g.fl ?? 1) : 0.55 * Math.min(1, dayNight.state.dark * 1.2); g.m.visible = g.m.opacity > 0.003; } // без пересвета: ореол/свечение — по виду огня (админка «Огни»)
+      R.autoClear = false; R.render(cityView.glowG, cam); R.autoClear = ac;
+    }
+    // днём фонари не горят: их свечение в основном кадре — по силе своего огня (следующий кадр)
+    if (cityView.glows?.length) { const na = dayNight.active; for (const g of cityView.glows) { g.m.opacity = g.halo ? 0 : g.lamp ? (0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h))) * (na ? nightGlow(g.kind) : 1) : 1; g.m.visible = g.m.opacity > 0.003; } } // невидимые (ореолы днём) — без вызова отрисовки // ночью _glow под маской — слабее (поверх маски он и так добавляется)
+  }
+  const chunkArr = []; const chunkList = (t) => { chunkArr.length = 0; if (t?.chunks) for (const c of t.chunks.values()) chunkArr.push(c); return chunkArr; }; // без нового массива каждый кадр
   function frame(now) {
     requestAnimationFrame(frame);
     const realDt = Math.max(0, (now - last) / 1000);
     const dt = Math.min(0.05, realDt);
     last = now;
     tickSpriteTime(dt); // кадры анимированных пропсов v2 (шейдер SpriteBatch)
+    { const RI = stage.renderer.info; RI.autoReset = false; RI.reset(); } // calls/tris — за весь кадр (сцена + маска ночи + свечение огней), не за последний проход
     fpsS.n++; fpsS.t += realDt;
     if (fpsS.t >= 0.5) { fpsS.fps = Math.round(fpsS.n / fpsS.t); fpsS.cpu = fpsS.cpuAcc / fpsS.n; fpsS.n = 0; fpsS.t = 0; fpsS.cpuAcc = 0; }
     if (realDt < 1) adaptQuality(realDt);
@@ -1530,6 +1616,7 @@ async function boot(canvasId, username, userId, api) {
     try { atmo.end(dt, mode === 'run' && run ? atmoWorld : world, player.x, player.y); } catch (err) { console.warn('[atmo]', err); }
     try { updateActionBar(); } catch (err) { console.warn('[abar]', err); }
     stage.render();
+    try { dnFrame(); } catch (err) { console.warn('[dayNight]', err); }
     fpsS.cpuAcc += performance.now() - cpu0;
     hudAcc += dt;
     if (hudAcc > 0.15) {
@@ -1593,11 +1680,13 @@ async function boot(canvasId, username, userId, api) {
     player.moving = Math.hypot(vx, vy) > 1;
     if (player.moving) {
       if (!dash.active) { const l = Math.hypot(mv.x, mv.y) || 1; player.dirX = mv.x / l; player.dirY = mv.y / l; }
-      const [blo, bhi] = worldBounds(world), lo = Math.max(16, blo), hi = Math.min(worldSize(world) - 16, bhi); // арена: стены
+      const [blo, bhi] = boundsAt(world, player.x, player.y), inRm = world === 'arinar' && inRoomPt(player.x, player.y), lo = inRm ? blo : Math.max(16, blo), hi = inRm ? bhi : Math.min(worldSize(world) - 16, bhi); // арена: стены; дом города — комната
       const nx = Math.max(lo, Math.min(hi, player.x + vx * dt));
       const ny = Math.max(lo, Math.min(hi, player.y + vy * dt));
-      if (!hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
-      if (!hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
+      const barred = world === 'arinar' && !inRm && cityHud.barred && !inCity(player.x, player.y, 12); // убийце купол не даст войти — не шагаем внутрь (без рывков pos_fix)
+      if (barred && (inCity(nx, player.y, 12) || inCity(player.x, ny, 12)) && now - (cityHud.knockAt || 0) > 1200) { cityHud.knockAt = now; send({ type: 'city_knock' }); cityView.repel(nx, ny); } // сервер ответит плашкой с причиной и отсчётом
+      if ((inRm || !hub.map.isBlocked(nx, player.y, 10)) && !(barred && inCity(nx, player.y, 12))) player.x = nx;
+      if ((inRm || !hub.map.isBlocked(player.x, ny, 10)) && !(barred && inCity(player.x, ny, 12))) player.y = ny;
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
       if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }
@@ -1627,7 +1716,8 @@ async function boot(canvasId, username, userId, api) {
     if (boss) lerp(boss);
     if (dar) lerp(dar);
 
-    const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom);
+    const mySpace = spaceOf(player.x, player.y); // в доме города видно только тех, кто в той же комнате (и снаружи — не видно тех, кто в домах)
+    const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom && spaceOf(o.x, o.y) === mySpace);
     hub.update(dt, {
       me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0, bk: meta.hero?.effective?.blkVis || 0 },
       others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color, blink: blinkOn(o.id) })),
@@ -1644,10 +1734,13 @@ async function boot(canvasId, username, userId, api) {
 
     // открытый мир: мобы/ресурсы/NPC сервера, атака по клику, сбор
     zone.view = player; zone.update(dt, world);
+    { const on = world === 'arinar' && !inRoomPt(player.x, player.y); cityView.group.visible = on && cityView.group.visible; if (on) { try { cityView.update(dt, player); } catch (err) { console.warn('[city]', err); } } else cityView.group.visible = false; }
     zoneTick(dt, now);
 
     // подписи
     overlay.beginFrame();
+    cityHud.setWorld(mode === 'hub' ? world : ''); cityHud.tick();
+    if (cityRoom.inside && (world !== 'arinar' || !inRoomPt(player.x, player.y))) cityRoom.clear(); // ушли из дома (мир сменился, смерть, выставили)
     dpsMeter.render();
     const head = (x, y, h = 2.5) => stage.project(toX(x), h, toZ(y));
     const alive = new Set(['__me']);
@@ -1655,7 +1748,8 @@ async function boot(canvasId, username, userId, api) {
     if (p) {
       const zm = zone.me;
       const hpBar = player.stats.classId && zm && zm.maxHp && zm.hp < zm.maxHp ? `<div class="mc3d-mini-hp"><i style="width:${Math.max(0, Math.round((zm.hp / zm.maxHp) * 100))}%"></i></div>` : '';
-      overlay.label('me', p.x, p.y, `${roleTag(myRole)}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}`, '#ffd700');
+      const myPk = world === 'arinar' && pkMarked(cityHud.pk, cityHud.killer), myBar = world === 'arinar' ? cityHud.track.html() : ''; // PK → АДМИН → имя; полоса отсчёта PK под именем
+      overlay.label('me', p.x, p.y, `${myPk ? pkTagHtml() : ''}${roleTag(myRole)}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}${myBar}`, myPk ? pkUi().color || cityHud.color : '#ffd700');
       overlay.placeBubble('__me', p.x, p.y - 26);
     }
     visibleOthers.forEach((o) => {
@@ -1665,7 +1759,9 @@ async function boot(canvasId, username, userId, api) {
       // союзник по отряду — фиолетовая полоска ОЗ (данные отряда); остальные игроки — без изменений
       const pm = party.has(o.id) ? party.state.members.find((m) => m.sid === o.id) : null;
       const pBar = pm && pm.maxHp ? `<div class="mc3d-mini-hp party"><i style="width:${Math.max(0, Math.round((pm.hp / pm.maxHp) * 100))}%"></i></div>` : '';
-      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}`, o.color);
+      const opk = world === 'arinar' && pkMarked(o.stats?.pk, o.stats?.pkK); // PK-режим или убийца — значок PK и красное имя (видят все)
+      const oBar = world === 'arinar' ? pkTrackOf(o.id, o.stats).html() : '';
+      overlay.label('p_' + o.id, q.x, q.y, `${opk ? pkTagHtml() : ''}${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}${oBar}`, opk ? pkUi().color || cityHud.color : o.color);
       overlay.placeBubble(o.id, q.x, q.y - 26);
     });
     [[boss, 'boss_keyt', 'Кейт', '#f472b6'], [dar, 'boss_dar', 'Дар', '#fb923c']].forEach(([b, id, nm, col]) => {
@@ -1907,7 +2003,7 @@ async function boot(canvasId, username, userId, api) {
       light: (c) => { if (c) setLightCfg(c); return { ...LIGHT }; }, // свет мира (engine/pixColor.js): тесты и подбор значений админки «💡 Свет»
       style: (v) => grimSet('style', v),
       minimap: () => hud.minimap?.stats,
-      openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
+      openAdmin: () => adminPanel.open(), closeAdmin: () => adminPanel.close(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       nodesNear: (r = 900, res = null) => [...zone.nodes.values()].filter((n) => (!res || n.def.res === res) && Math.hypot(n.def.x - player.x, n.def.y - player.y) < r).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, res: n.def.res, type: n.def.type, ready: n.ready, readyIn: n.readyIn })),
       nodesAll: (res) => [...zone.nodes.values()].filter((n) => !res || n.def.res === res).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, ready: n.ready })),
@@ -1945,6 +2041,14 @@ async function boot(canvasId, username, userId, api) {
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),
+      dnObj: () => dayNight,
+      cityLamps: () => (cityView.glows || []).filter((g) => g.lamp).map((g) => +dayNight.lamp(g.h).toFixed(3)), // сила каждого огня города сейчас // отладка маски света (плейтест)
+      dn: (o = {}) => api.dn(o), // день/ночь для плейтеста (то же, что api.dn)
+      cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
+      myId: () => myId,
+      blight: () => { const b = cityView.blightG; return b ? { x: b.position.x, z: b.position.z, vis: b.visible, inScene: !!b.parent, n: b.children.length, rose: cityView.cfg?.rose } : { none: true, rose: cityView.cfg?.rose, sig: cityView.blightSig }; },
+      domeMobs: () => { const c = cityView.cfg; if (!c) return []; return [...zone.mobs.values()].map((m) => ({ id: m.id, d: Math.round(Math.hypot(m.x - c.x, m.y - c.y)) })).sort((a, b) => a.d - b.d).slice(0, 5); }, // плейтест купол↔моб: ближайшие к центру
+      city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc-pk-tag, .mc-pkbar')).map((l) => { const tag = l.querySelector('.mc-pk-tag'), bar = l.querySelector('.mc-pkbar'), r = l.querySelector('.mc-role:not(.mc-pk-tag)'); const kids = [...l.querySelectorAll('.mc-role')].map((e) => e.textContent); return { key: l.dataset.key || '', text: l.textContent.slice(0, 40), color: l.style.color, tag: tag?.textContent || null, tagBg: tag?.style.background || null, order: kids, bar: bar ? { t: bar.dataset.t, p: Number(bar.dataset.p || 0), col: bar.querySelector('i')?.style.background || '', w: bar.querySelector('i')?.style.width || '' } : null }; }) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),
@@ -1954,6 +2058,11 @@ async function boot(canvasId, username, userId, api) {
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,
+      // админка: что применилось у клиента вживую (плейтест city-admin)
+      cfgLive: () => { const t = hub.env?.terrain, cv = cityView.cfg || {};
+        return { gl: CITY_CFG.groundLight, fade: cv.fade, fadeBand: cv.fadeBand, blight: cv.blight, blightScale: cityView.blightG ? +cityView.blightG.scale.x.toFixed(3) : null, blightVis: cityView.blightG?.visible ?? null,
+          cityChunksGl: t ? [...t.chunks.values()].filter((c) => c.city).map((c) => c.gl) : [], pk: pkUi(), reduceMax: DN_CFG.reduceMax, lt: { ...LT }, emitters: DN_CFG.emitters,
+          lantern: lightEmitter('dm_lantern_pole', null, 'city'), emV: emitterVersion(), cityEmV: cityView.emV, cityLights: cityView.lights?.length || 0 }; },
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
       // настройка «Текстуры»: режим и оценка памяти канвасов земли (RGBA, без мипмапов) — для замеров 16 vs 32
       liquid: (x, y) => ({ kind: liquidAt(world, x ?? player.x, y ?? player.y), blocked: inLiquid(world, x ?? player.x, y ?? player.y), cfg: { ...TERRAIN_CFG } }),
@@ -1969,7 +2078,7 @@ async function boot(canvasId, username, userId, api) {
       aim: () => ({ ...aim, autoAttack }),
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
-      setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
+      setCells: (c, wide) => { if (wide) stage.view.minZoom = Math.min(stage.view.minZoom, stage.zoomForCells(c)); /* снимки: обзор шире игрового */ const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
       cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)),
         d: stage.distance(), near: stage.camera.near, far: stage.camera.far, fogFar: stage.scene.fog?.far, shadowHalf: stage.sun.shadow.camera.right, pitch: stage.pitch, fov: stage.camera.fov }),
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },

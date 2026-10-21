@@ -121,6 +121,10 @@ export const regSig = (r: any) => JSON.stringify([r.dens, r.packs, r.pack, r.eli
 export const DOT_STACK_MAX = 5; // стаков одного статуса на цели
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 // выстрел дальнобойного моба: спрайт по стихии
+/** вспышка купола при выталкивании моба: не чаще раза в столько мс на моба */
+export const DOME_FLASH_CD_MS = 3000;
+/** …и не больше стольких вспышек в секунду на всю зону (толпа у купола — без потока событий) */
+export const DOME_FLASH_PER_SEC = 12;
 const KNOCK_IMMUNE = (d: any) => !!d.boss || d.size !== "s" || d.role === "tank";
 const segDist = (px: number, py: number, x: number, y: number, dx: number, dy: number, len: number) => {
   const t = Math.max(0, Math.min(len, (px - x) * dx + (py - y) * dy));
@@ -145,7 +149,19 @@ export function mobStatusBits(dots: { kind: string; until: number }[] | undefine
 export class Zone {
   projs: Proj[] = []; private nextProj = 1;
   /** Чёрный маг (blackMage.ts): купола гасят урон игроков и снаряды; null — мира без мага */
-  guard: { guardMobHit(m: any, sid: string, ax: number, ay: number): boolean; noteFight(m: any, sid: string): void; guardProj(p: any, x0: number, y0: number, x1: number, y1: number): boolean; inDome(x: number, y: number): any; blackHit?(p: any, pl: any): boolean } | null = null;
+  guard: { guardMobHit(m: any, sid: string, ax: number, ay: number): boolean; noteFight(m: any, sid: string): void; guardProj(p: any, x0: number, y0: number, x1: number, y1: number): boolean; inDome(x: number, y: number): any; blackHit?(p: any, pl: any): boolean; pvpHit?(p: any, pl: any): boolean } | null = null;
+  /** город под куполом (city.ts): мобы внутрь не заходят, спавнов внутри нет; null — в мире нет города */
+  keepOut: { inside(x: number, y: number, pad?: number): boolean; out(x: number, y: number): [number, number]; skip?(m: ZMob, boss: boolean): boolean; around?(x: number, y: number, dx: number, dy: number): [number, number]; aggroPad?(): number; flash?(): boolean } | null = null; // skip — моб не выталкивается (боссы при mobBossesOut=false); aggroPad — запас сброса агро у края; flash — вспышка купола при выталкивании
+  domeFlashWin = { t: 0, n: 0 };
+  safeAt(x: number, y: number, pad = 0) { return inSafe(x, y, pad, this.world) || !!this.keepOut?.inside(x, y, pad); }
+  /** убрать лагеря и мобов, чей дом внутри купола (после постройки лагерей — сид и порядок лагерей остального мира не меняются) */
+  pruneKeepOut() {
+    const K = this.keepOut; if (!K) return 0; let n = 0;
+    const gone = new Set(this.camps.filter((c) => K.inside(c.x, c.y, 200)).map((c) => c.id));
+    for (const m of this.mobs) if (!m.dead && m.respawnAt !== -1 && ((m.camp && gone.has(m.camp)) || (m.special !== "boss" && K.inside(m.sx ?? m.x, m.sy ?? m.y, 60)))) { m.dead = true; m.respawnAt = -1; m.camp = 0; n++; }
+    this.camps = this.camps.filter((c) => !gone.has(c.id)); (this as any).campCache && ((this as any).campCache.at = 0);
+    return n;
+  }
   pl: Map<string, ZPlayer> | null = null; // игроки последнего такта (позиция атакующего для купола)
   /** выпустить снаряд (сервер); событие proj — клиентам для отрисовки (траектория детерминирована) */
   fire(o: Partial<Proj> & { o: "p" | "m"; t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number }) {
@@ -174,6 +190,13 @@ export class Zone {
             if (m.dead || p.hit.has(m.id)) continue;
             if (Math.hypot(m.x - p.x, m.y - p.y) > ZONE_MOBS[m.type].radius + p.w / 2) continue;
             p.hit.add(m.id); const k = p.n++; p.onHit?.(m, k); // n считаем и без onHit (взрыв в onEnd)
+            if (p.n >= p.max) { done = true; break; }
+          }
+          // PK: автоатака игрока задевает игроков (решает guard.pvpHit: PK-режим, самооборона, безопасные зоны)
+          if (!done && (p as any).pv && !(p as any).blk && this.guard?.pvpHit) for (const pl of players.values()) {
+            if (!pl.alive || pl.sid === p.sid || p.hit.has(pl.sid) || Math.hypot(pl.x - p.x, pl.y - p.y) > 14 + p.w / 2) continue;
+            if (!this.guard.pvpHit(p, pl)) continue;
+            p.hit.add(pl.sid); p.n++;
             if (p.n >= p.max) { done = true; break; }
           }
           // «чёрный» выстрел игрока, вылетевший из купола (blackMage.ts blackShot): бьёт и других игроков — как стрела мага
@@ -373,7 +396,7 @@ export class Zone {
         for (let k = 0, n = 2 + Math.floor(R() * 2); k < n; k++) { const pool = foe.length && R() < 0.5 ? foe : cand; const c = pool[Math.floor(R() * pool.length)]; if (!pick.includes(c)) pick.push(c); }
         // точка у лагеря, не в центре (кочевник проходит мимо — агрится/агрит, если враждебны)
         const pts: [number, number][] = [[start.x, start.y], ...pick].map((c: any) => { const a = R() * 6.283, r = 140 + R() * 120; return [this.clamp(Math.round((c.x ?? c[0]) + Math.cos(a) * r)), this.clamp(Math.round((c.y ?? c[1]) + Math.sin(a) * r))] as [number, number]; })
-          .filter((p) => !inSafe(p[0], p[1], 120, this.world));
+          .filter((p) => !this.safeAt(p[0], p[1], 120));
         if (pts.length < 2) continue;
         const k = Math.min(quota, R() < 0.55 ? 1 : 2);
         for (let i = 0; i < k; i++) {
@@ -545,7 +568,13 @@ export class Zone {
   clamp(v: number) { return Math.max(20, Math.min(this.size - 20, v)); }
 
   /** Выталкивание моба из твёрдых пропсов (скользит вдоль ствола/камня). Возврат домой (reset) — без коллизий: поводок не застревает */
-  solid(m: ZMob) { if (m.reset) return; const [x, y] = resolveWorld(this.world, m.x, m.y, MOB_R); m.x = this.clamp(x); m.y = this.clamp(y); }
+  solid(m: ZMob) {
+    const K = this.keepOut;
+    if (K && !K.skip?.(m, m.special === "boss" || !!(ZONE_MOBS as any)[m.type]?.boss) && K.inside(m.x, m.y, MOB_R)) { // город: мобы не заходят
+      const [ox, oy] = K.out(m.x, m.y); m.x = this.clamp(ox); m.y = this.clamp(oy);
+      if (K.flash?.()) { const now = Date.now(), mm = m as any; const W = this.domeFlashWin; if (now - W.t >= 1000) { W.t = now; W.n = 0; } if (W.n < DOME_FLASH_PER_SEC && now - (mm.domeFlashAt || 0) >= DOME_FLASH_CD_MS) { mm.domeFlashAt = now; W.n++; this.events.push({ k: "dome_repel", id: m.id, x: Math.round(m.x), y: Math.round(m.y) }); } } // вспышка купола (не чаще раза в 3 с на моба)
+    }
+    if (m.reset) return; const [x, y] = resolveWorld(this.world, m.x, m.y, MOB_R); m.x = this.clamp(x); m.y = this.clamp(y); }
   spawnFix(m: ZMob) {
     (m as any).spOk = 1;
     const [sx, sy] = freeSpot(this.world, m.sx, m.sy, MOB_R);
@@ -597,7 +626,7 @@ export class Zone {
       if (now < due) continue;
       this.ambNext.set(p.sid, now + Math.max(2, G.ambientEvery) * 1000);
       this.ambStats.checks++;
-      if ((own.get(p.sid) || 0) >= G.ambientCap || inSafe(p.x, p.y, 200, this.world)) continue;
+      if ((own.get(p.sid) || 0) >= G.ambientCap || this.safeAt(p.x, p.y, 200)) continue;
       if (this.near(p.x, p.y, G.ambientNear).some((m) => !m.dead && Math.hypot(m.x - p.x, m.y - p.y) < G.ambientNear)) continue;
       const roll = this.rand() * 100;
       const group = roll < G.ambientGroupChance, single = !group && roll < G.ambientGroupChance + G.ambientChance;
@@ -610,7 +639,7 @@ export class Zone {
       let pos: [number, number] | null = null;
       for (let t = 0; t < 10 && !pos; t++) {
         const a = this.rand() * Math.PI * 2, x = this.clamp(p.x + Math.cos(a) * G.ambientEdge), y = this.clamp(p.y + Math.sin(a) * G.ambientEdge);
-        if (!inSafe(x, y, 60, this.world) && Math.hypot(x - p.x, y - p.y) > G.ambientEdge * 0.7) pos = [x, y];
+        if (!this.safeAt(x, y, 60) && Math.hypot(x - p.x, y - p.y) > G.ambientEdge * 0.7) pos = [x, y];
       }
       if (!pos) continue;
       const n = group ? Math.min(G.ambientCap - (own.get(p.sid) || 0), Math.max(1, Math.round(G.ambientGroup)) + 1) : 1;
@@ -665,7 +694,7 @@ export class Zone {
       if (!reg) continue;
       for (let t = 0; t < 12; t++) {
         const x = reg.rect[0] + 60 + this.rand() * (reg.rect[2] - reg.rect[0] - 120), y = reg.rect[1] + 60 + this.rand() * (reg.rect[3] - reg.rect[1] - 120);
-        if (inSafe(x, y, 40, this.world) || [...players.values()].some((p) => Math.hypot(p.x - x, p.y - y) < 260)) continue;
+        if (this.safeAt(x, y, 40) || [...players.values()].some((p) => Math.hypot(p.x - x, p.y - y) < 260)) continue;
         const m = this.addMob(r.type, x, y, { region: null, special: "rare" });
         m.expireAt = now + r.life * 1000;
         this.rareIds[r.type] = m.id; this.rareAt[r.type] = Number.MAX_SAFE_INTEGER;
@@ -725,7 +754,7 @@ export class Zone {
     let pos: { x: number; y: number } | null = null;
     for (let t = 0; t < G.tries && !pos; t++) {
       const x = reg.rect[0] + R() * (reg.rect[2] - reg.rect[0]), y = reg.rect[1] + R() * (reg.rect[3] - reg.rect[1]);
-      if (inSafe(x, y, 0, this.world)) continue;
+      if (this.safeAt(x, y, 0)) continue;
       let dmin = Infinity;
       for (const p of players.values()) dmin = Math.min(dmin, Math.hypot(p.x - x, p.y - y));
       if (dmin < (t < G.tries / 2 ? G.spawnMinDist : G.spawnMinDistCrowded) || dmin > G.spawnMaxDist) continue;
@@ -745,7 +774,7 @@ export class Zone {
     for (let i = 0; i < room; i++) {
       const a = R() * Math.PI * 2, rr = i ? 18 + R() * 26 : 0;
       const x = this.clamp(pos.x + Math.cos(a) * rr), y = this.clamp(pos.y + Math.sin(a) * rr);
-      if (i && inSafe(x, y, 0, this.world)) continue; // член стаи не должен оказаться в безопасной зоне
+      if (i && this.safeAt(x, y, 0)) continue; // член стаи не должен оказаться в безопасной зоне
       this.addMob(row.type, x, y, { region: reg.id, elite });
       this.stats.spawned++;
     }
@@ -937,14 +966,18 @@ export class Zone {
       // цель
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
-      if (!m.reset && (m.targetSid || m.mobTarget) && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
+      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, this.keepOut!.aggroPad?.() ?? 24); })()); // цель ушла под купол города (+ запас mobAggroPadPx) — моб сбрасывается
+      if (!m.reset && (m.targetSid || m.mobTarget) && (tIn || homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash))) {
         m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
       }
       if (m.reset) {
         const dx = m.sx - m.x, dy = m.sy - m.y, dist = Math.hypot(dx, dy);
         const sp = d.speed * ZONE_GEN.resetSpeed * dt;
-        if (dist > sp) { m.x += (dx / dist) * sp; m.y += (dy / dist) * sp; } else { m.x = m.sx; m.y = m.sy; }
+        let ux = dist > 0 ? dx / dist : 0, uy = dist > 0 ? dy / dist : 0; const K = this.keepOut;
+        if (K?.around && dist > sp && K.inside(m.x + ux * sp, m.y + uy * sp, MOB_R) && !K.inside(m.sx, m.sy, MOB_R)) [ux, uy] = K.around(m.x, m.y, dx, dy); // путь домой через купол — в обход по ободу
+        if (dist > sp) { m.x += ux * sp; m.y += uy * sp; } else { m.x = m.sx; m.y = m.sy; }
+        if (K) this.solid(m); // домой — тоже не через купол города (solid при reset — только купол, без коллизий пропсов): скользит по ободу
         m.hp = Math.min(m.maxHp, m.hp + m.maxHp * ZONE_GEN.resetRegen * dt);
         if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
         continue;

@@ -7,6 +7,8 @@ import { markersOf } from "./markers";
 import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from "./shared";
 import { worldSize, ARINAR_HUB } from "../worlds/sizes";
 import { WORLD_PORTALS as PORTALS } from "../worlds/portals";
+import { CITY_CFG, CITY_TILE } from "./city";
+import { cityGround, walkColliders } from "./cityMap";
 export const CELL = 32, CH = 32;
 const T = tilesMeta.index;
 const SHEET = { b_ice: 1, b_fire: 2, b_stone: 3, b_air: 4 };
@@ -79,6 +81,7 @@ export function arinarPlan() {
     }
   });
   function biomeAt(i, j) {
+    if (cityAt(i, j)) return 'city';
     const x = (i + 0.5) * CELL, y = (j + 0.5) * CELL;
     const outside = x < 0 || y < 0 || x > size || y > size;
     const jx = x + (vnoise(x / 180, y / 180, seed) - 0.5) * 220, jy = y + (vnoise(x / 180, y / 180, seed + 11) - 0.5) * 220;
@@ -92,8 +95,12 @@ export function arinarPlan() {
     if (portals.some((p) => Math.hypot(x - p.x, y - p.y) < 64)) return 'cobble';
     return b;
   }
+  // город под куполом (city.ts): клетки внутри радиуса — своя земля, свои пропсы, стены домов (одинаково у сервера и клиента)
+  const city = CITY_CFG.on !== false ? { x: CITY_CFG.x, y: CITY_CFG.y, ci: Math.floor(CITY_CFG.x / CITY_TILE), cj: Math.floor(CITY_CFG.y / CITY_TILE), r: Number(CITY_CFG.rTiles) || 32 } : null;
+  const cityAt = (i, j) => !!city && Math.abs(i - city.ci) < city.r + 50 && Math.abs(j - city.cj) < city.r + 50 && !!cityGround(i, j, city.r); // земля Альказака по карте Историка (cityMap.ts)
   const keepClear = (x, y) => pois.some((p) => Math.abs(x - p.x) < 100 && Math.abs(y - p.y) < 100) || Math.hypot(x - center.x, y - center.y) < plazaR + 40;
-  return { size, seed, center, portals, npcs, pois, plazaR, biomeAt, keepClear, n: Math.ceil(size / CELL), waters }; // waters — быстрый отсев в liquid.ts
+  const cityP = [], cityW = city ? walkColliders() : []; // пропсы/здания города рисует клиент (hub/cityView.js), коллизия — сетка walk карты
+  return { size, seed, center, portals, npcs, pois, plazaR, biomeAt, keepClear, n: Math.ceil(size / CELL), city, cityP, cityW, waters }; // waters — быстрый отсев в liquid.ts (ui)
 }
 
 /** чанк (ci,cj): тайлы [лист, индекс] на CH×CH клеток + оверлеи + пропсы (px мира) */
@@ -101,10 +108,12 @@ export function layoutChunk(plan, ci, cj) {
   const i0 = ci * CH, j0 = cj * CH, W = CH + 2;
   const bio = new Array(W * W);
   for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) bio[j * W + i] = plan.biomeAt(i0 + i - 1, j0 + j - 1);
-  const sheet = new Uint8Array(CH * CH), base = new Uint16Array(CH * CH), over = [], props = [];
+  const sheet = new Uint8Array(CH * CH), base = new Uint16Array(CH * CH), over = [], dover = [], props = [], cols = []; // dover — тройки (i, j, индекс tiles_dark) города
+  let cmask = null; // маска оттенка клеток города (клиент: очернённая земля), null — в чанке нет города
   const at = (i, j) => bio[(j + 1) * W + (i + 1)];
   for (let j = 0; j < CH; j++) for (let i = 0; i < CH; i++) {
     const b = at(i, j), fam = FAM[b] || FAM.grass, gi = i0 + i, gj = j0 + j;
+    if (b === 'city') { const g = cityGround(gi, gj, plan.city.r); if (g) { base[j * CH + i] = T[g.base] ?? 0; for (const t of g.dover) dover.push(i, j, t); (cmask ??= new Uint8Array(CH * CH))[j * CH + i] = 3; continue; } }
     let name;
     if (b === 'plaza') { const d = Math.hypot((gi + 0.5) * CELL - plan.center.x, (gj + 0.5) * CELL - plan.center.y); name = Math.abs(d - plan.plazaR * 0.6) < 18 || d < 30 ? 'plaza_rune' : fam[(gi & 1) + 2 * (gj & 1)]; }
     else name = fam[Math.floor(hash2(gi, gj, plan.seed) * fam.length) % fam.length];
@@ -134,8 +143,9 @@ export function layoutChunk(plan, ci, cj) {
   plan.portals.forEach((p) => extra.push({ k: 'torch', x: p.x - 50, y: p.y + 6, s: 1, f: false }, { k: 'torch', x: p.x + 50, y: p.y + 6, s: 1, f: true }));
   plan.npcs.forEach((p, idx) => extra.push({ k: idx % 2 ? 'crate' : 'barrel', x: p.x - 40, y: p.y - 14, s: 1, f: false }, { k: 'campfire', x: p.x + 42, y: p.y - 10, s: 1, f: false }));
   const x0 = i0 * CELL, y0 = j0 * CELL, x1 = x0 + CH * CELL, y1 = y0 + CH * CELL;
-  for (const p of extra) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1) props.push(p);
+  for (const p of extra) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1 && !(plan.city && cityGround(Math.floor(p.x / CELL), Math.floor(p.y / CELL), plan.city.r))) props.push(p); // в Альказаке ставит только карта Историка (табличка маркера города не закрывает розу)
+  if (plan.city) { for (const p of plan.cityP) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1) props.push(p); for (const c of plan.cityW) if (c.x >= x0 && c.x < x1 && c.y >= y0 && c.y < y1) cols.push(c); }
   props.sort((a, b) => a.y - b.y);
-  return { ci, cj, sheet, base, over, props };
+  return { ci, cj, sheet, base, over, dover, props, cols, cmask };
 }
 

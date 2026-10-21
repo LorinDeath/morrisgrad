@@ -10,7 +10,7 @@ import { blkOf } from "./bmCfg";
 //   броня моба). Забеги симулируются на клиенте ведущего — их удары сервер проверить не может, поэтому в рекорд
 //   не идут (кап «максимально возможным уроном» сделал бы рекорд у всех одинаковым и подделываемым до капа).
 import { HERO_IDS, ITEM_BY_ID } from "./defs";
-import { heroEffective, equippedItems, fixAccount, newAccount, newHero, type Account, type Hero } from "./profile";
+import { heroEffective, equippedItems, fixAccount, newAccount, newHero, killStats, type Account, type Hero } from "./profile";
 import { ITEM_INDEX } from "./library";
 import { guestDisplay, guestNameFor, isGuestName } from "./guestNames";
 
@@ -144,13 +144,15 @@ export class Rating {
 // Профиль игрока «вне сети» — только для просмотра (в кэш профилей не попадает)
 export async function loadPublicProfile(db: any, pkey: string): Promise<{ a: Account; heroes: Record<string, Hero & { md?: number; mdW?: string }> } | null> {
   const q = (sql: string) => db.prepare(sql).bind(pkey);
-  const [accR, heroR, eqR] = (await db.batch([
+  const [accR, heroR, eqR, mkR] = (await db.batch([
     q("SELECT data FROM accounts WHERE pkey = ?"),
     q("SELECT hero, lvl, xp, talents, abil, loadout, max_dmg, max_dmg_where FROM heroes WHERE pkey = ?"),
     q("SELECT e.hero, e.slot, e.instance_id, i.item_id, i.cursed, i.ench, i.upg, i.blk FROM hero_equipment e JOIN item_instances i ON i.instance_id = e.instance_id AND i.owner = e.pkey AND i.state = 'inv' WHERE e.pkey = ?"),
+    q("SELECT COALESCE(SUM(kills), 0) AS k FROM player_mob_discovery WHERE pkey = ?"), // пожизненно убито мобов (Σ бестиария)
   ])).map((r: any) => r.results || []);
   if (!accR.length && !heroR.length) return null;
   const a: Account = fixAccount({ ...newAccount(), ...(accR[0] ? JSON.parse(accR[0].data) : {}), inv: eqR.map((e: any) => ({ uid: e.instance_id, id: e.item_id, ...(e.cursed ? { cursed: 1 } : {}), ...(e.ench >= 1 && e.ench <= 6 ? { ench: e.ench | 0 } : {}), ...(e.upg ? { up: e.upg } : {}), ...(e.blk > 0 ? { blk: Math.min(100, Number(e.blk)) } : {}) })) } as Account);
+  (a as any)._mk = Number(mkR?.[0]?.k) || 0;
   const heroes: Record<string, any> = {};
   for (const cls of HERO_IDS) {
     const r = heroR.find((x: any) => x.hero === cls);
@@ -179,6 +181,7 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
     look: eff.look || null, wtype: eff.wtype, cg: eff.cursedGlow || 0, bk: eff.blkVis || 0, blk: eff.blkAvg ? { avg: eff.blkAvg, shadow } : null,
     abilities: eff.abilities.map((x: any) => ({ id: x.id, rad: x.rad, power: x.power, cd: x.cd })),
     maxDmg: h.md ? { v: h.md, where: h.mdW || "" } : null,
+    kills: killStats(a), // пожизненно: игроков / смертей от игроков / мобов
   };
 }
 

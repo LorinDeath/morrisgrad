@@ -7,6 +7,9 @@ import { TERRAIN_CFG } from "./terrainCfg";
 import { NPC_CFG } from "./npcWander";
 import { BM_CFG } from "./bmCfg";
 import { LIGHT_CFG } from "./lightCfg";
+import { DN_CFG } from "./dayNight";
+import { CITY_CFG, PK_CFG, POS_CFG, CITY_SLOTS, CITY_LOOKS, CENTERPIECES } from "./city";
+import { BUILD_DEF, ROOMS } from "./cityBuild";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
@@ -24,7 +27,7 @@ if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -226,10 +229,68 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   terrain: { name: "Рельеф", fields: [{ path: "waterBlock", label: "Вода и глубокая вода непроходимы для героев и ходячих мобов (берега и мостки — проходимы)", t: "bool" },
     { path: "lavaBlock", label: "Лава непроходима", t: "bool" },
     N("edge", "Полоса берега, px: насколько тело заходит на клетку жидкости со стороны суши", 0, 16, "int")] },
+  // «🏰 Альказак» — только админ: город под куполом (city.ts). Раскладка земли/домов строится при запуске сервера (центр/радиус — после перезапуска)
+  city: { name: "Город Альказак", fields: [{ path: "on", label: "Город включён (купол, безопасная зона, NPC)", t: "bool" }, { path: "name", label: "Название города", t: "text" },
+    { path: "_h_dome", label: "Купол", t: "hdr" },
+    N("x", "Центр X, px мира (после перезапуска)", 0, 48000, "int"), N("y", "Центр Y, px мира (после перезапуска)", 0, 48000, "int"), N("rTiles", "Радиус купола, клеток (32 = 64×64; раскладка города растягивается; после перезапуска)", 8, 160, "int"),
+    N("alphaIn", "Купол изнутри: непрозрачность (0.02 = прозрачность 98 %)", 0, 1), N("fadeSec", "Переход прозрачности при входе/выходе, с", 0.1, 5), N("fadeBandPx", "…полоса перехода у края купола, px", 4, 200, "int"), N("alphaOut", "Купол снаружи: непрозрачность", 0, 1), N("rim", "Яркость ободка", 0, 2), { path: "color", label: "Цвет купола", t: "color" },
+    { path: "_h_safe", label: "Безопасная зона", t: "hdr" },
+    { path: "noDamage", label: "Внутри урон 0 (атаки, навыки, снаряды, статусы — в обе стороны)", t: "bool" }, { path: "mobsOut", label: "Мобы не заходят внутрь", t: "bool" }, N("mobPushPx", "…моб у купола выталкивается за край на, px", 0, 400, "int"), N("mobAggroPadPx", "…цель под куполом глубже края на столько px — моб сбрасывает агро", 0, 200, "int"), { path: "mobBossesOut", label: "…боссы тоже не заходят", t: "bool" }, { path: "mobDomeFlash", label: "…вспышка купола, когда он выталкивает моба (не чаще раза в 3 с на моба)", t: "bool" }, { path: "nodesOut", label: "Узлы ресурсов под куполом — переносить за край (после перезапуска)", t: "bool" },
+    { path: "_h_kill", label: "Убийцы: купол не пускает (выталкивает)", t: "hdr" },
+    { path: "pkBlocked", label: "PK-режим — убийца", t: "bool" },
+    { path: "killerPOn", label: "Убийца: убил игроков", t: "bool" }, N("killerP", "…игроков (1 — сразу)", 1, 100, "int"),
+    { path: "killerMOn", label: "Убийца: убил мобов", t: "bool" }, N("killerM", "…мобов", 1, 1000, "int"),
+    N("windowMin", "…за последние, мин", 0.5, 1440), N("pushExtraTiles", "Выталкивание: за край ещё на, клеток", 0, 10), N("denyMsgSec", "Сообщение «не пускает» не чаще раза в, с", 0.5, 60),
+    { path: "_h_rose", label: "Роза в центре города", t: "hdr" },
+    { path: "roseId", label: "id розы (black_roses)", t: "text" }, { path: "roseBloom", label: "Сразу раскрыта (стадия 6)", t: "bool" }, { path: "roseNoCurse", label: "Без проклятой земли", t: "bool" },
+    { path: "noCurseIn", label: "Внутри купола проклятая земля роз не действует", t: "bool" },
+    { path: "blightOn", label: "Пятно порчи под розой (только вид)", t: "bool" }, N("blightSize", "…размер пятна, ×", 0.3, 3), N("blightK", "…сила пятна (непрозрачность, искры), ×", 0, 2),
+    { path: "_h_look", label: "Вид", t: "hdr" },
+    N("plazaTiles", "Площадь: радиус, клеток (после перезапуска)", 4, 12, "int"),
+    { path: "centerpiece", label: "Центр площади: fountain — фонтан, statue — статуя (место зарезервировано), none — пусто (коллизия — после перезапуска)", t: "enum", opts: Object.keys(CENTERPIECES) },
+    N("centerFreeTiles", "Свободно вокруг центра, клеток (после перезапуска)", 1, 6),
+    N("groundLight", "Яркость земли города (1 — как тайлы; больше — светлее днём и ночью; вживую)", 0.4, 2.5),
+    ...Array.from({ length: CITY_SLOTS }, (_, i) => { const p = (k: string) => `npc.${i}.${k}`; return [
+      { path: p("_h"), label: `NPC — место ${i + 1}`, t: "hdr" as const }, { path: p("on"), label: "Стоит в городе (квесты — во вкладке «📜 Квесты», NPC city_" + (i + 1) + ")", t: "bool" as const },
+      { path: p("name"), label: "Имя", t: "text" as const }, { path: p("title"), label: "Подпись", t: "text" as const },
+      { path: p("look"), label: "Вид (временный, лист NPC)", t: "enum" as const, opts: CITY_LOOKS },
+      N(p("dx"), "Снаружи: точка X, клеток от центра (по умолчанию — точки карты Историка)", -60, 60), N(p("dy"), "Снаружи: точка Y, клеток от центра", -60, 60),
+      { path: p("house"), label: "В здании (пусто — снаружи, по точке X/Y)", t: "enum" as const, opts: ["", ...BUILD_DEF.map((h) => h.id)], optn: Object.fromEntries([["", "— снаружи"], ...BUILD_DEF.map((h) => [h.id, h.name])]) },
+      { path: p("spot"), label: "Место в здании: " + [...new Set(Object.values(ROOMS).flatMap((r: any) => (r.npc_spots || []).map((s: any) => s.id)))].join(" / "), t: "text" as const },
+    ]; }).flat()] },
+  // «⚔ PK» — только админ: PK-режим (кнопка у полоски ОЗ), PvP в открытом мире
+  pk: { name: "PK-режим", fields: [{ path: "on", label: "PK-режим доступен", t: "bool" }, N("enterSec", "Включить: ждать без боя, с", 0, 600, "int"), N("exitSec", "Выключить: ждать без боя, с", 0, 3600, "int"),
+    { path: "defense", label: "Самооборона: retaliate — не-PK отвечает напавшему PK (не становится убийцей), none — не может", t: "enum", opts: ["retaliate", "none"] },
+    N("defendSec", "Право ответа длится, с", 1, 600, "int"), N("dmgMult", "Урон по игрокам, ×", 0, 5), { path: "color", label: "Цвет имени PK", t: "color" },
+    { path: "barFrom", label: "Полоса над героем: цвет «мирный» (вход начинается с него, выход им кончается)", t: "color" }, { path: "barTo", label: "Полоса над героем: цвет «PK»", t: "color" },
+    { path: "barCancel", label: "Полоса: цвет сброса боем", t: "color" }, N("barW", "Полоса: ширина, px", 24, 140, "int"),
+    { path: "tagText", label: "Значок слева от имени (PK → АДМИН → имя)", t: "text" }, { path: "tagBg", label: "Значок: фон", t: "color" }, { path: "tagFg", label: "Значок: текст", t: "color" }, { path: "tagGlow", label: "Значок: свечение", t: "color" },
+    { path: "cancelOnHit", label: "Отсчёт PK сбрасывает ПОЛУЧЕННЫЙ урон", t: "bool" }, { path: "cancelOnDeal", label: "Отсчёт PK сбрасывает НАНЕСЁННЫЙ урон", t: "bool" },
+    { path: "tagKiller", label: "Значок и красное имя — и у убийц (не только PK-режим)", t: "bool" }] },
+  // «📍 Вход» — позиция между входами
+  pos: { name: "Вход: позиция", fields: [{ path: "on", label: "Вход/переподключение — туда, где был (выкл — в хабе)", t: "bool" }, N("saveSec", "Позиция пишется не чаще раза в, с (и при смене мира/выходе)", 5, 3600, "int")] },
+  // «🌗 День и ночь» — только мир Аринар (забеги не трогаем). Время — реальное по часовому поясу; переходы плавные
+  dn: { name: "День и ночь", fields: [{ path: "on", label: "Смена дня и ночи (выкл — всегда день)", t: "bool" },
+    { path: "_h_t", label: "Время (ЧЧ:ММ, часовой пояс ниже)", t: "hdr" },
+    { path: "duskStart", label: "Закат начинается", t: "text" }, { path: "night", label: "Полная ночь с", t: "text" },
+    { path: "dawnStart", label: "Рассвет начинается", t: "text" }, { path: "day", label: "Полный день с", t: "text" },
+    { path: "tz", label: "Часовой пояс (IANA, напр. Europe/Kiev)", t: "text" }, N("utcOffsetH", "Смещение от UTC, ч (если пояс не поддержан)", -12, 14, "num"),
+    { path: "_h_l", label: "Свет", t: "hdr" },
+    N("nightDark", "Темнота полной ночи (0 — нет, 1 — чёрная)", 0, 0.95), N("lightsOn", "Огни загораются с доли заката", 0, 0.95), N("lightsFull", "Огни в полную силу с доли заката", 0.05, 1),
+    N("playerLightM", "Свет героя, радиус м", 2, 16), N("mobLight", "Свечение мобов, ×", 0, 3), N("townLight", "Огни города/лагерей, ×", 0, 3), N("lampStagger", "Огни вразнобой: разброс старта, мин", 0, 25), N("lampFade", "Огонь загорается/гаснет за, мин", 1, 20),
+    N("reduceMax", "«Смягчить ночь» (ползунок игрока): максимум, %", 0, 100, "int"),
+    { path: "_h_lt", label: "Огни: вид (мерцание, ореолы, пятна, сила по видам)", t: "hdr" },
+    N("lt.flickFire", "Мерцание: костры/факелы (0 — ровно)", 0, 1), N("lt.flickLamp", "Мерцание: фонари/окна", 0, 1), N("lt.flickSpeed", "Мерцание: скорость, ×", 0.1, 5), N("lt.kFire", "Сила пятна света: огонь (костры, факелы), ×", 0, 3), N("lt.kLamp", "Сила пятна: фонари, ×", 0, 3), N("lt.kWindow", "Сила пятна: окна и двери, ×", 0, 3), N("lt.pool", "Пятно на земле: размер, ×", 0.3, 3), N("lt.poolEl", "Пятно: вытянутость по горизонтали (3/4), ×", 1, 2.5), N("lt.halo", "Ореол у огня: размер, ×", 0.2, 3), N("lt.haloFire", "Ореол поверх темноты: огонь", 0, 1.5), N("lt.haloLamp", "…фонари", 0, 1.5), N("lt.haloWindow", "…окна", 0, 1.5), N("lt.haloDoor", "…двери", 0, 1.5), N("lt.glowFire", "Свечение спрайта (_glow) поверх темноты: огонь", 0, 1.5), N("lt.glowLamp", "…фонари", 0, 1.5), N("lt.glowWindow", "…окна", 0, 1.5), N("lt.nightLamp", "Свечение спрайта ночью под маской: фонари", 0, 1.5), N("lt.nightWindow", "…окна", 0, 1.5),
+    { path: "emitters", label: "Точки огня — правки (JSON {\"city:dm_lantern_pole\": [ex, ey]}, арт-px от низа-центра, ey вверх; пусто — авто по _glow)", t: "text" },
+    { path: "_h_c", label: "Цвета (ключевые кадры)", t: "hdr" },
+    { path: "cDay", label: "День", t: "color" }, { path: "cGolden", label: "Закат: золото", t: "color" }, { path: "cPink", label: "Закат: розово-фиолетовый", t: "color" }, { path: "cNight", label: "Ночь (оттенок)", t: "color" },
+    { path: "cDawnViolet", label: "Рассвет: холодный фиолет", t: "color" }, { path: "cDawnPink", label: "Рассвет: розовый", t: "color" }, { path: "cDawnWarm", label: "Рассвет: тёплый", t: "color" },
+    { path: "_h_f", label: "Тест", t: "hdr" },
+    { path: "force", label: "Форс-время ЧЧ:ММ (пусто — реальное)", t: "text" }, N("speed", "Ускорение часов при форсе (60 = минута за секунду)", 0, 1440)] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -280,7 +341,11 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
       for (const [r, n] of Object.entries(v as any)) { const q = Math.round(Number(n)); if (!RESOURCES[r]) return `нет ресурса ${r}`; if (!(q >= 0 && q <= 999)) return "кол-во 0…999"; if (q) m[r] = q; }
       out[p] = m;
     }
-    else if (f.t === "text") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (t.length > 48) return `${f.label}: до 48 символов`; if (!t && p === "name") return `${f.label}: не пусто`; out[p] = t; }
+    else if (f.t === "text" && kind === "dn" && p === "emitters") { const t = String(v ?? "").trim(); if (t.length > 4000) return `${f.label}: до 4000 символов`;
+      if (t) { let o: any; try { o = JSON.parse(t); } catch { return `${f.label}: неверный JSON`; } if (!o || typeof o !== "object" || Array.isArray(o)) return `${f.label}: нужен объект`;
+        for (const [k, e] of Object.entries(o)) { const a: any = Array.isArray(e) ? e : [(e as any)?.ex, (e as any)?.ey]; if (!/^[\w:.-]{1,64}$/.test(k) || !(a.length >= 2 && a.slice(0, 2).every((x: any) => Number.isFinite(+x) && Math.abs(+x) <= 300))) return `${f.label}: ${k} — [ex, ey], числа ±300`; } }
+      out[p] = t; }
+    else if (f.t === "text") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (kind === "dn" && ["duskStart", "night", "dawnStart", "day", "force"].includes(p) && !(p === "force" && !t) && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(t)) return `${f.label}: ЧЧ:ММ`; if (kind === "dn" && p === "tz" && t) { try { new Intl.DateTimeFormat("en", { timeZone: t }); } catch { return `${f.label}: неизвестный пояс`; } } if (t.length > 48) return `${f.label}: до 48 символов`; if (!t && p === "name") return `${f.label}: не пусто`; out[p] = t; }
     else if (f.t === "color") { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) return `${f.label}: #rrggbb`; out[p] = String(v).toLowerCase(); }
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }

@@ -12,8 +12,9 @@
 // попаданий мага было по игроку (копится между смертями), на месте смерти — чёрная роза (растёт реальные дни, потом проклинает землю).
 // Каждые tpEveryMin — телепорт в случайную свободную точку Аринара, кроме центральной площади.
 // Хуки на будущее: onCursedEnter/onCursedLeave (проклятая земля), trail (след «заражает» на trailSec — пока визуал).
-import { BM_CFG, BM_TILE, bmClock, roseCurseR, roseMaxR, roseStage } from "./bmCfg";
+import { BM_CFG, BM_TILE, bmClock, roseCurseR, roseMaxR, roseStage, roseCurseOf, roseAgeOf, ROSE_ADJ } from "./bmCfg";
 import { blockedWorld, resolveWorld } from "./propCollision";
+import { inCity } from "./city";
 import { ARINAR_HUB, worldBounds } from "../worlds/sizes";
 
 export const BM_NPC = "black_mage";      // id НПС (квесты, разговор)
@@ -224,7 +225,8 @@ export class BlackMage {
   /** проклятая земля в точке: раскрытая роза, радиус растёт по дням (без строк на клетку — от списка роз и времени) */
   cursedAt(x: number, y: number, now = bmClock.now()): boolean {
     const M = roseMaxR(); if (!(M > 0) || !this.roses.length) return false;
-    for (const r of this.rosesNear(x, y, M)) { const cr = roseCurseR(now - r.born); if (cr > 0 && (x - r.x) ** 2 + (y - r.y) ** 2 <= cr * cr) return true; }
+    if (ROSE_ADJ.noCurseAt?.(x, y)) return false; // купол города: проклятая земля роз внутри не действует
+    for (const r of this.rosesNear(x, y, M)) { const cr = roseCurseOf(r, now); if (cr > 0 && (x - r.x) ** 2 + (y - r.y) ** 2 <= cr * cr) return true; }
     return false;
   }
   /** смерть игрока от мага: роза на месте смерти (кроме центральной площади), счётчик попаданий → хосту (очернение) */
@@ -247,6 +249,7 @@ export class BlackMage {
     for (let i = 0; i < 80; i++) {
       const x = rnd(lo + pad, hi - pad), y = rnd(lo + pad, hi - pad);
       if (Math.hypot(x - ARINAR_HUB.x, y - ARINAR_HUB.y) < hubR) continue;
+      if (this.world === "arinar" && inCity(x, y, 300)) continue; // не под куполом города Альказак (и не у самого края)
       try { if (this.blocked(this.world, x, y, R_BODY + 4)) continue; } catch { continue; }
       return [Math.round(x), Math.round(y)];
     }
@@ -272,6 +275,7 @@ export class BlackMage {
       try { [x, y] = resolveWorld(this.world, x, y, R_BODY); } catch {}
       const [lo, hi] = worldBounds(this.world); x = Math.max(lo + 20, Math.min(hi - 20, x)); y = Math.max(lo + 20, Math.min(hi - 20, y));
       if (Math.hypot(ARINAR_HUB.x - x, ARINAR_HUB.y - y) < ARINAR_HUB.r) continue;
+      if (this.world === "arinar" && inCity(x, y, 40)) continue; // в город — нельзя
       this.blinkAt = now + Math.max(0.5, Number(BM_CFG.blinkCdSec) || 5) * 1000; this.stats.blinks = (this.stats.blinks || 0) + 1;
       this.ev({ k: "bmtp", x: Math.round(this.x), y: Math.round(this.y), o: 1 });
       this.x = this.tx = x; this.y = this.ty = y; this.moving = false; this.dir = dirOf(foe.x - x, foe.y - y, this.dir);
@@ -426,7 +430,7 @@ export class BlackMage {
   mageNear(px: number, py: number, R = 2600) { return BM_CFG.on !== false && Math.abs(this.x - px) < R && Math.abs(this.y - py) < R ? [Math.round(this.x), Math.round(this.y), this.dir, this.moving ? 1 : 0, this.state] : null; }
   domesNear(px: number, py: number, R = 3000) { const now = bmClock.now(); return this.domes.filter((d) => d.exp > now && Math.abs(d.x - px) < R + d.r && Math.abs(d.y - py) < R + d.r).map((d) => [d.id, d.x, d.y, d.r, Math.round((d.exp - now) / 1000), d.kind === "w" ? 1 : d.kind === "s" ? 2 : 0]); }
   /** розы рядом: [id, x, y, возраст мс] — клиент сам считает стадию и проклятую землю */
-  rosesSnap(px: number, py: number, R = 2600) { const now = bmClock.now(); return this.rosesNear(px, py, R + roseMaxR()).map((r) => [r.id, r.x, r.y, Math.max(0, now - r.born)]); }
+  rosesSnap(px: number, py: number, R = 2600) { const now = bmClock.now(); return this.rosesNear(px, py, R + roseMaxR()).map((r) => [r.id, r.x, r.y, roseAgeOf(r, now), ROSE_ADJ.f?.(r.id)?.nc ? 1 : 0]); } // 5-й — без проклятой земли (роза города)
   npcEntry(): [string, number, number, number, number] | null { return BM_CFG.on !== false ? [BM_NPC, Math.round(this.x), Math.round(this.y), this.dir, this.moving ? 1 : 0] : null; }
 
   // ——— сохранение (D1 bm_state / black_roses) ———

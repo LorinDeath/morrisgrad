@@ -10,6 +10,7 @@
 //    сюжет/квесты, бестиарий. Баланс и капы — docs/MORRISCURSE-BALANCE.md.
 
 import { xpNeed } from "./balance";
+import { cityNpcDefs } from "./cityBuild";
 import { MOBS_PUBLIC_ALL } from "./biomes";
 import { MOBS_PUBLIC, MONSTER_ABILITIES, MOB_RESOURCES, type MobPublic } from "./generated/public";
 
@@ -288,6 +289,7 @@ export const NPCS: Record<string, { name: string; title: string; world: string; 
   petr: { name: "Петр", title: "Распаковщик архивов · ремесло", world: "hellfire", x: 420, y: 760, color: "#fbbf24", role: "craft" },
   kyut: { name: "Кьют", title: "Испытание отражений (дуэли)", world: "hellfire", x: 780, y: 760, color: "#f472b6", role: "arena" },
   black_mage: { name: "Чёрный маг", title: "???", world: "arinar", x: -100000, y: -100000, color: "#a78bfa", role: "story", mobile: true },
+  ...cityNpcDefs(), // места NPC города Альказак (city_1…12): «мобильные» (не в раскладке); выключенное место — world '-'
 };
 /** НПС с постоянной точкой (раскладка, коллизии, безопасные зоны) — без «мобильных» */
 export const STATIC_NPCS = Object.fromEntries(Object.entries(NPCS).filter(([, n]) => !n.mobile)) as typeof NPCS;

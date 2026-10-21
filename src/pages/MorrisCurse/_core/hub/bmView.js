@@ -8,7 +8,8 @@ import { ProjBatch } from '../engine/projBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
 import { atmo } from '../engine/atmosphere.js';
 import { HERO_H_M } from '../engine/pixSprites.js';
-import { BM_CFG, roseStage, roseCurseR, DAY_MS } from '../../../../../server/meta/bmCfg.ts';
+import { BM_CFG, roseStage, roseCurseR, DAY_MS, ROSE_ADJ } from '../../../../../server/meta/bmCfg.ts';
+import { CITY_CFG } from '../../../../../server/meta/city.ts'; // купол города: проклятая земля роз под ним не рисуется (как и не действует на сервере)
 import META0 from '../../../../assets/mc/bm/bm_fx_atlas.json';
 import SMALL from '../../../../assets/mc/bm/bm_small_dome_atlas.json'; // малая сфера (отдельный пакет fx_small_dome, ключи не пересекаются)
 import sd160 from '../../../../assets/mc/bm/bm_fx_sd160.png';
@@ -56,6 +57,7 @@ const DOME = META.keys.bm_dome, A_OUT = DOME.draw_alpha_outside ?? 0.9, A_IN = D
 // купол: квад 25.8×24 м на круг Ø25.6 м (art_scale 2) — масштаб от радиуса сервера
 const domeK = (r) => (r * 2 / PX) / 25.6, sDomeK = (r) => (r * 2 / PX) / 8.0; // малая: квад 8.1×7.6 м на круг Ø8 м
 
+const citySig = () => `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles},${CITY_CFG.on},${CITY_CFG.noCurseIn}`;
 export class BmView {
   constructor(THREE, root) {
     this.THREE = THREE; this.root = root; this.ready = false;
@@ -94,7 +96,7 @@ export class BmView {
     const now = Date.now(), keep = new Set();
     for (const [id, x, y, r, left, w] of bm.d || []) { keep.add(id); const d = this.domes.get(id); if (d) { d.exp = now + left * 1000; continue; } this.domes.set(id, { id, x, y, r, exp: now + left * 1000, world: w === 1, small: w === 2, born: this.time - 99 }); }
     for (const [id, d] of this.domes) if (!keep.has(id)) { this.domes.delete(id); this.gone.push({ ...d, t: 0 }); }
-    if (Array.isArray(bm.ro)) { const k2 = new Set(); for (const [id, x, y, age] of bm.ro) { k2.add(id); const r = this.roses.get(id); const born = now - age; if (r) r.born = born; else this.roses.set(id, { id, x, y, born, ph: (id % 997) / 97 }); }
+    if (Array.isArray(bm.ro)) { const k2 = new Set(); for (const [id, x, y, age, nc] of bm.ro) { k2.add(id); const r = this.roses.get(id); const born = now - age; const ov = this.roseAt?.[String(id)]; const rx = ov ? ov[0] : x, ry = ov ? ov[1] : y; if (r) { r.born = born; r.nc = !!nc; r.x = rx; r.y = ry; } else this.roses.set(id, { id, x: rx, y: ry, born, nc: !!nc, ph: (id % 997) / 97 }); } // nc — роза города: без проклятой земли
       for (const id of [...this.roses.keys()]) if (!k2.has(id)) this.roses.delete(id); }
   }
   event(e) {
@@ -109,7 +111,7 @@ export class BmView {
       case 'bmblk': this.arrows.set(e.id, { x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 620, r: e.r || 300, age: 0, big: !!e.b, pl: 1 }); this.fx.push({ an: A.arrowSHit, x: e.x, y: e.y, t: 0, h: 1 }); this.stats.black = (this.stats.black || 0) + 1; return true;
       case 'bmimm': if (this.mage) this.mage.flash = 0.25; return true;
       case 'bmpush': return true;
-      case 'bmrose': if (!this.roses.has(e.id)) this.roses.set(e.id, { id: e.id, x: e.x, y: e.y, born: Date.now(), ph: (e.id % 997) / 97, plant: this.time }); return true;
+      case 'bmrose': if (!this.roses.has(e.id)) this.roses.set(e.id, { id: e.id, x: this.roseAt?.[String(e.id)]?.[0] ?? e.x, y: this.roseAt?.[String(e.id)]?.[1] ?? e.y, born: Date.now(), ph: (e.id % 997) / 97, plant: this.time }); return true;
     }
     return false;
   }
@@ -171,20 +173,20 @@ export class BmView {
     for (const [id, g] of this.ground) if (!this.roses.has(id)) { this.dropGround(id, g); }
     const disks = [];
     for (const r of this.roses.values()) {
-      const R = roseCurseR(now - r.born), g = this.ground.get(r.id);
+      const R = r.nc ? 0 : roseCurseR(now - r.born), g = this.ground.get(r.id), cs = citySig();
       if (R > 0) disks.push([r.x, r.y, R]);
-      if (g && g.r === R) continue;
+      if (g && g.r === R && g.cs === cs) continue;
       if (g) this.dropGround(r.id, g);
       if (R <= 0) continue;
-      const mesh = this.groundMesh(r.x, r.y, R); this.root.add(mesh); this.ground.set(r.id, { mesh, r: R });
+      const mesh = this.groundMesh(r.x, r.y, R); this.root.add(mesh); this.ground.set(r.id, { mesh, r: R, cs });
     }
     // пульс вен: тайлы 16 px рядом со своим героем (до 24 тайлов), объединение всех кругов; список — при смене тайла/радиусов
     const P = this.pulseB; P.begin();
     if (view && disks.length) {
-      const T16 = 16, vx = Math.floor(view.x / T16), vy = Math.floor(view.y / T16), sig = vx + ',' + vy + '|' + disks.map((d) => d.join(':')).join(';');
+      const T16 = 16, vx = Math.floor(view.x / T16), vy = Math.floor(view.y / T16), sig = vx + ',' + vy + '|' + disks.map((d) => d.join(':')).join(';') + '|' + citySig();
       if (sig !== this.pulseSig) { this.pulseSig = sig; const L = []; const N = 24;
         const near = disks.filter(([x, y, R]) => Math.abs(x - view.x) < R + N * T16 + 32 && Math.abs(y - view.y) < R + N * T16 + 32);
-        const cur = (i, j) => { const x = (i + 0.5) * T16, y = (j + 0.5) * T16; for (const [cx, cy, R] of near) if ((x - cx) ** 2 + (y - cy) ** 2 <= R * R) return true; return false; };
+        const cur = (i, j) => { const x = (i + 0.5) * T16, y = (j + 0.5) * T16; if (ROSE_ADJ.noCurseAt?.(x, y)) return false; for (const [cx, cy, R] of near) if ((x - cx) ** 2 + (y - cy) ** 2 <= R * R) return true; return false; };
         if (near.length) for (let j = vy - N; j <= vy + N; j++) for (let i = vx - N; i <= vx + N; i++) { if (!cur(i, j)) continue;
           const mask = (cur(i, j - 1) ? 1 : 0) | (cur(i + 1, j) ? 2 : 0) | (cur(i, j + 1) ? 4 : 0) | (cur(i - 1, j) ? 8 : 0);
           L.push([(i + 0.5) * T16, (j + 0.5) * T16, mask, (((j % 4) + 4) % 4) * 4 + (((i % 4) + 4) % 4)]); if (L.length >= 2400) break; }
@@ -199,7 +201,7 @@ export class BmView {
   groundMesh(cx, cy, R) {
     const THREE = this.THREE, T16 = 16, n = Math.ceil(R / T16) + 1, size = n * 2 * T16;
     const tx0 = Math.floor(cx / T16) - n, ty0 = Math.floor(cy / T16) - n;
-    const inside = (i, j) => { const x = (tx0 + i + 0.5) * T16, y = (ty0 + j + 0.5) * T16; return (x - cx) ** 2 + (y - cy) ** 2 <= R * R; };
+    const inside = (i, j) => { const x = (tx0 + i + 0.5) * T16, y = (ty0 + j + 0.5) * T16; return (x - cx) ** 2 + (y - cy) ** 2 <= R * R && !ROSE_ADJ.noCurseAt?.(x, y); }; // под куполом города проклятой земли нет
     const cv = document.createElement('canvas'); cv.width = cv.height = size; const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
     for (let j = 0; j < n * 2; j++) for (let i = 0; i < n * 2; i++) {
       if (!inside(i, j)) continue;
@@ -218,6 +220,6 @@ export class BmView {
     mesh.position.set(toX(tx0 * T16 + size / 2), 0.03, toZ(ty0 * T16 + size / 2));
     return mesh;
   }
-  debug() { return { mage: this.mage && { x: Math.round(this.mage.x), y: Math.round(this.mage.y), state: this.mage.state, moving: this.mage.moving }, domes: [...this.domes.values()].map((d) => ({ id: d.id, x: d.x, y: d.y, r: d.r, world: d.world, small: !!d.small })), roses: [...this.roses.values()].map((r) => ({ id: r.id, x: r.x, y: r.y, stage: roseStage(Date.now() - r.born), days: +((Date.now() - r.born) / DAY_MS).toFixed(2), curseR: roseCurseR(Date.now() - r.born) })), ground: this.ground.size, pulse: this.pulseL?.length || 0, arrows: this.arrows.size, stats: this.stats }; }
+  debug() { return { mage: this.mage && { x: Math.round(this.mage.x), y: Math.round(this.mage.y), state: this.mage.state, moving: this.mage.moving }, domes: [...this.domes.values()].map((d) => ({ id: d.id, x: d.x, y: d.y, r: d.r, world: d.world, small: !!d.small })), roses: [...this.roses.values()].map((r) => ({ id: r.id, x: r.x, y: r.y, stage: roseStage(Date.now() - r.born), days: +((Date.now() - r.born) / DAY_MS).toFixed(2), curseR: r.nc ? 0 : roseCurseR(Date.now() - r.born), nc: !!r.nc })), ground: this.ground.size, pulse: this.pulseL?.length || 0, arrows: this.arrows.size, stats: this.stats }; }
   dispose() { for (const g of this.ground.values()) this.root.remove(g.mesh); this.ground.clear(); }
 }

@@ -1,0 +1,30 @@
+/* HUD города и PK (ui/cityHud.js). Только токены --ch-* — при слиянии с ui-cursed-rework меняются здесь. */
+.ch-root {
+  --ch-bg: rgba(14, 10, 20, .82); --ch-border: rgba(148, 163, 184, .28); --ch-text: #e2e8f0; --ch-muted: #94a3b8;
+  --ch-pk: #ef4444; --ch-wait: #fbbf24; --ch-radius: 8px; --ch-font: inherit; --ch-z: 29; /* под окнами (книга 30, C/профиль 40, карта 60) */
+  position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); z-index: var(--ch-z); pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; font-family: var(--ch-font);
+}
+.ch-root.ch-hidden .ch-pk { display: none; }
+.ch-pk { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; min-height: 32px; border-radius: var(--ch-radius);
+  background: var(--ch-bg); color: var(--ch-text); border: 1px solid var(--ch-border); font: 600 12px/1 var(--ch-font); letter-spacing: .04em; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, color .15s; }
+.ch-pk:hover { border-color: var(--ch-pk); }
+.ch-pk:focus-visible { outline: 2px solid var(--ch-pk); outline-offset: 2px; }
+.ch-pk-ic { font-size: 14px; filter: grayscale(.6); }
+.ch-pk.ch-on { color: #fff; border-color: var(--ch-pk); box-shadow: 0 0 0 1px var(--ch-pk) inset, 0 0 14px color-mix(in srgb, var(--ch-pk) 55%, transparent); background: color-mix(in srgb, var(--ch-pk) 28%, var(--ch-bg)); }
+.ch-pk.ch-on .ch-pk-ic { filter: none; }
+.ch-pk.ch-wait { border-color: var(--ch-wait); color: var(--ch-wait); }
+.ch-pk.ch-off { opacity: .5; }
+.ch-pk-n { font-variant-numeric: tabular-nums; min-width: 0; }
+.ch-deny { pointer-events: none; max-width: min(92vw, 460px); text-align: center; padding: 8px 14px; border-radius: var(--ch-radius);
+  background: var(--ch-bg); border: 1px solid var(--ch-pk); color: var(--ch-text); font-size: 12px; line-height: 1.35; box-shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  display: flex; flex-direction: column; gap: 2px; animation: ch-in .18s ease-out; }
+.ch-deny[hidden] { display: none; }
+.ch-deny-h { color: var(--ch-pk); font-size: 13px; letter-spacing: .03em; }
+.ch-deny-n { color: var(--ch-wait); font-variant-numeric: tabular-nums; }
+@keyframes ch-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 700px) { .ch-root { bottom: 150px; } }
+/* маленький индикатор отсчёта на кнопке (главный — полоса над героем, ui/pkBar.js) */
+.ch-pk { position: relative; overflow: hidden; }
+.ch-pk.ch-wait::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: calc(var(--ch-p, 0) * 100%); background: var(--ch-pc, var(--ch-wait)); }

@@ -105,6 +105,12 @@ export function roseCurseR(ageMs: number): number {
   const tiles = Math.min(Math.max(0, BM_CFG.curseMaxTiles), BM_CFG.curseTilesPerDay * (1 + Math.floor(t / DAY_MS)));
   return Math.max(0, tiles) * BM_TILE;
 }
+/** поправки отдельных роз (город Альказак, city.ts): bloom — сразу раскрыта (стадия 6), nc — без проклятой земли; noCurseAt — зона без проклятия (купол города) */
+export const ROSE_ADJ: { f: null | ((id: number) => null | { bloom?: boolean; nc?: boolean }); noCurseAt: null | ((x: number, y: number) => boolean) } = { f: null, noCurseAt: null };
+/** возраст розы с поправкой (раскрытая — не младше момента раскрытия) */
+export function roseAgeOf(r: { id: number; born: number }, now: number): number { const a = Math.max(0, now - r.born), o = ROSE_ADJ.f?.(r.id); return o?.bloom ? Math.max(a, roseOpenMs() + 1) : a; }
+/** радиус проклятой земли розы с поправкой, px */
+export function roseCurseOf(r: { id: number; born: number }, now: number): number { const o = ROSE_ADJ.f?.(r.id); return o?.nc ? 0 : roseCurseR(roseAgeOf(r, now)); }
 /** самый большой возможный радиус (для пространственного индекса), px */
 export const roseMaxR = () => Math.max(0, BM_CFG.curseMaxTiles) * BM_TILE;
 

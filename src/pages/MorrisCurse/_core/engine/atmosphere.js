@@ -8,6 +8,8 @@
 //    цвета и сила — экранные значения (pixColor.js: setDisplayRGB, без ACES), сила — LIGHT.pool / LIGHT.halo из админки «💡 Свет»;
 //  • частицы зоны рядом с камерой: светлячки, лепестки, пыль, фиолетовые искры у алтаря.
 // Всё зависит от уровня качества (setQuality): на мобильных/низком — меньше частиц, без PointLight и без blend-тона.
+import { emitterOffsetM, emitterWorld, emitterGround, setEmitterCamera } from './lightEmitter.js';
+import { flickerOf, FIRE as FIRE_RE, LT as LT_CFG } from './dayNight.js';
 import { toX, toZ } from './geometry.js';
 import { LIGHT, pixMat, setDisplayHex, setDisplayRGB } from './pixColor.js';
 import { regionAt } from '../../../../../server/meta/zoneGen.ts';
@@ -145,7 +147,7 @@ class Atmosphere {
         d.position.set(toX(p.x) + r * 0.06, 0.025, toZ(p.y) - r * 0.18); d.rotation.set(0, 0, 0); d.scale.set(r * 2.1, 1, r * 1.1); d.updateMatrix();
         im.setMatrixAt(n++, d.matrix);
         const L = LIGHT_PROPS[p.k];
-        if (L) this.sources.push({ x: toX(p.x), z: toZ(p.y), col: new THREE.Color(L[0]), r: L[1] * (p.s || 1), h: L[2] * (p.s || 1), k: L[3], ph: Math.random() * 10, fire: p.k === 'torch' || p.k === 'campfire' || p.k === 'lantern' });
+        if (L) this.sources.push({ x: toX(p.x), z: toZ(p.y), col: new THREE.Color(L[0]), r: L[1] * (p.s || 1), h: L[2] * (p.s || 1), k: L[3], ph: Math.random() * 10, fire: FIRE_RE.test(p.k), off: emitterOffsetM(p.k, { s: p.s || 1, flip: !!p.f, set: 'world' }) }); // off — точка огня у спрайта (центроид _glow)
       }
       im.count = n; im.frustumCulled = false; im.renderOrder = 1;
       this.staticShadows = im; this.stage.scene.add(im);
@@ -216,6 +218,7 @@ class Atmosphere {
     const moon = key === 'hub' ? 0.03 * Math.sin(T * 0.05) : 0;
     GRADE.value.r += (M.grade[0] - moon - GRADE.value.r) * k; GRADE.value.g += (M.grade[1] - GRADE.value.g) * k; GRADE.value.b += (M.grade[2] + moon - GRADE.value.b) * k;
     // --- источники света рядом с камерой: ореолы, пятна, мерцание, N ближайших PointLight
+    setEmitterCamera(st.camera);
     const fx = st.focus.x, fz = st.focus.z, R2 = 34 * 34;
     const near = [];
     for (const s of this.sources) { const dx = s.x - fx, dz = s.z - fz, dd = dx * dx + dz * dz; if (dd < R2) near.push([dd, s]); }
@@ -225,14 +228,16 @@ class Atmosphere {
     const cam = st.camera.position; st.camera.getWorldDirection(this.fw);
     for (const [, s] of near) {
       if (np >= 160) break;
-      const fl = s.fire ? 0.82 + 0.1 * Math.sin(T * 9 + s.ph) + 0.08 * Math.sin(T * 23.7 + s.ph * 3) : 0.85 + 0.15 * Math.sin(T * 2 + s.ph);
+      const fl = flickerOf(T * 1000, s.x + s.ph, s.z, s.fire); // огонь мерцает сильнее, фонари — едва (админка «Огни»)
       s.f = fl;
-      // пятно — у самой земли (0.012 м): выше — оно перекрывало нижние ряды пикселей спрайта у «ног» (основание алтаря)
-      d.position.set(s.x, 0.012, s.z); d.rotation.set(0, 0, 0); d.scale.set(s.r * 2 * fl, 1, s.r * 2 * fl); d.updateMatrix();
+      // точка огня у спрайта (lightEmitter.js: центроид _glow; у фонаря на кронштейне — голова фонаря, не центр текстуры)
+      const off = s.off || [0, s.h], G = emitterGround(s.x, s.z, off, this._g2 ||= [0, 0]), W = emitterWorld(s.x, 0, s.z, off, 0, this._w3 ||= [0, 0, 0]);
+      // пятно — у самой земли (0.012 м) прямо под огнём, чуть вытянуто по горизонтали (3/4); выше — перекрывало бы нижние ряды пикселей у «ног»
+      d.position.set(G[0], 0.012, G[1]); d.rotation.set(0, 0, 0); d.scale.set(s.r * 2 * fl * (LT_CFG.poolEl || 1), 1, s.r * 2 * fl); d.updateMatrix();
       this.pools.setMatrixAt(np, d.matrix); this.pools.setColorAt(np++, setDisplayRGB(this.c, s.col.r * s.k * fl, s.col.g * s.k * fl, s.col.b * s.k * fl));
-      // ореол у огня — квад, повёрнутый к камере
-      const hs = (s.fire ? 1.5 : 2.2) * fl * (0.7 + 0.3 * s.k);
-      d.position.set(s.x, s.h, s.z); d.quaternion.copy(st.camera.quaternion);
+      // ореол — квад к камере в точке огня
+      const hs = (s.fire ? 1.5 : 2.2) * fl * (0.7 + 0.3 * s.k) * (LT_CFG.halo || 1);
+      d.position.set(W[0], W[1], W[2]); d.quaternion.copy(st.camera.quaternion);
       if (LIGHT.haloBehind) {
         // по лучу из камеры (на экране там же) — на глубину «ног» источника + 0.25 м: спрайт источника (квад на глубине ног)
         // закрывает ореол своими пикселями, ореол виден только вокруг силуэта и не высветляет арку/вихрь/пламя
@@ -249,7 +254,7 @@ class Atmosphere {
     this.lights.forEach((l, i) => {
       const s = near[i]?.[1];
       if (!s || this.qLevel >= 2) { l.intensity = 0; return; }
-      l.position.set(s.x, s.h + 0.4, s.z); l.color.copy(s.col); l.intensity = 1.4 * s.k * (s.f || 1); l.distance = s.r * 3;
+      const W = emitterWorld(s.x, 0, s.z, s.off || [0, s.h], -0.4, this._w3 ||= [0, 0, 0]); l.position.set(W[0], W[1], W[2]); /* свет — из огня (чуть к камере) */ l.color.copy(s.col); l.intensity = 1.4 * s.k * (s.f || 1); l.distance = s.r * 3;
     });
     // --- частицы
     this.updateParticles(dt, M.parts, fx, fz);

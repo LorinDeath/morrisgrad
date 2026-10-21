@@ -4,6 +4,7 @@ import { uiScaleChosen, uiScaleEffective, uiScalePref, uiScaleRange, uiScaleMobi
 const uisTxt = () => { const w = uiScaleChosen(), e = uiScaleEffective(); return e < w ? `${w}% <small title="Больше на этот экран не помещается">(${e}%)</small>` : `${w}%`; };
 import { upBadge } from './upBadge.js';
 import { texPref, setTexPref, TEX_MODE } from '../worlds/texPref.js';
+import { dnReduceGet, dnReduceSet } from '../engine/dayNight.js';
 import { curseTint } from './book.js';
 import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
 import { grimGet, grimReset, grimSet } from './grim.js';
@@ -28,6 +29,7 @@ export function whereLabel(w) {
 }
 const fmtDate = (t) => { if (!t) return ''; const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
+const fmtKill = (v) => { const n = Math.max(0, Number(v) || 0); return n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${+(n / 1e3).toFixed(1)}k` : String(n); };
 export class Social {
   constructor({ overlay, send, onDuel, canDuel, onParty, canParty }) {
     this.onParty = onParty; this.canParty = canParty || (() => false);
@@ -162,6 +164,7 @@ export class Social {
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
         <div class="mc-insp-h">Снаряжение</div><div class="mc-insp-gear">${gear}</div>
         <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}${blkRows}</div>
+        ${d.kills ? `<div class="mc-insp-h">Счёт убийств</div><div class="mc-insp-kills">${[['⚔️', 'Игроков убито', d.kills.p, 'p'], ['💀', 'Пал от игроков', d.kills.d, 'd'], ['👹', 'Чудовищ убито', d.kills.m, 'm']].map(([ic, t, v, k]) => `<div class="mc-insp-kill k-${k}"><b>${fmtKill(v)}</b><small>${ic} ${t}</small></div>`).join('')}</div>` : ''}
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
     }
     // только серверно проверенный админ получает canMod; сервер всё равно проверяет права на role_set
@@ -268,11 +271,12 @@ export class Social {
       <div class="mc-set-row"><span>🌑 Мрачность</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"><b class="mc-grim-v" data-grimv="grim">${grimGet('grim')}%</b></div></div>
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"><b class="mc-grim-v" data-grimv="fog">${grimGet('fog')}%</b></div></div>
       <div class="mc-set-row"><span>🎨 Единый стиль</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('style')}" data-grim="style"><b class="mc-grim-v" data-grimv="style">${grimGet('style')}%</b></div></div>
+      <div class="mc-set-row"><span>🌗 Смягчить ночь</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${dnReduceGet()}" data-dnr><b class="mc-grim-v" data-dnrv>${dnReduceGet()}%</b></div></div>
       <div class="mc-set-row"><span>🖼 Картинка</span><button class="mc-btn sm" data-act="grimreset">Сбросить к стандартным</button></div>
       <div class="mc-set-row"><span>⚔️ Вызовы на дуэль</span><div class="grp">${opt('all', 'От всех')}${opt('friends', 'Только друзья')}${opt('none', 'Никто')}</div></div>
       <div class="mc-set-row"><span>🤝 Заявки в друзья</span><button class="mc-btn sm ${st.freq ? 'gold' : ''}" data-act="freq">${st.freq ? 'Принимать' : 'Не принимать'}</button></div>
       <div class="mc-set-row"><span>🌙 Не беспокоить (5 минут)</span><button class="mc-btn sm ${dndMin ? 'gold' : ''}" data-act="dnd">${dndMin ? `Включено · ещё ${dndMin} мин` : 'Выключено'}</button></div>
-      <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук и картинка (мрачность, дымка, единый стиль) — на этом устройстве, у каждого игрока свои.</p></div></div>`, [], 'mc-social');
+      <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук и картинка (мрачность, дымка, единый стиль, ночь) — на этом устройстве, у каждого игрока свои.</p></div></div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);
     // картинка — на этом устройстве (localStorage), у каждого игрока своя; 0 = эффект выключен
     // звуки интерфейса — на этом устройстве; 0 = выкл; при отпускании — пробный клик
@@ -285,6 +289,7 @@ export class Social {
     }
     this.overlay.screen.querySelectorAll('[data-sfx]').forEach((r) => { r.addEventListener('input', () => { setSfxVol(Number(r.value)); const v = this.overlay.screen.querySelector('[data-sfxv]'); if (v) v.textContent = Number(r.value) ? `${r.value}%` : 'выкл'; }); r.addEventListener('change', () => uiSfx('click')); });
     this.overlay.screen.querySelectorAll('[data-grim]').forEach((r) => r.addEventListener('input', () => { grimSet(r.dataset.grim, Number(r.value)); const v = this.overlay.screen.querySelector(`[data-grimv="${r.dataset.grim}"]`); if (v) v.textContent = `${r.value}%`; }));
+    this.overlay.screen.querySelector('[data-dnr]')?.addEventListener('input', (e) => { dnReduceSet(Number(e.target.value)); const v = this.overlay.screen.querySelector('[data-dnrv]'); if (v) v.textContent = `${e.target.value}%`; });
     this.overlay.screen.querySelector('[data-act="grimreset"]')?.addEventListener('click', (e) => { e.stopPropagation(); grimReset(); this.renderSettings(); });
   }
 
