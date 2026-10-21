@@ -1,4 +1,4 @@
-синхронизировано 2026-10-21T12:42:39.377Z из /workspace/city_dome
+синхронизировано 2026-10-21T13:58:34.232Z из /workspace/city_dome
 city_dome_rim_0.png 692120 B
 city_dome_rim_0_glow.png 315019 B
 city_dome_rim_flash.png 35373 B
