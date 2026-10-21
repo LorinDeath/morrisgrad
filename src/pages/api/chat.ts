@@ -128,7 +128,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
         }), { status: 200 });
     } catch (e: any) {
         console.error("Chat API Error:", e);
-        return new Response(JSON.stringify({ error: "Server Error", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Server Error" }), { status: 500 });
     }
 };
 
@@ -173,7 +173,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
         return new Response(JSON.stringify({ success: true }), { status: 200 });
     } catch (e: any) {
         console.error("Chat Post Error:", e);
-        return new Response(JSON.stringify({ error: "Failed to send", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Failed to send" }), { status: 500 });
     }
 };
 
@@ -197,6 +197,6 @@ export const DELETE: APIRoute = async ({ locals }) => {
 
     } catch (e: any) {
         console.error("Chat Delete Error:", e);
-        return new Response(JSON.stringify({ error: "Failed to delete messages", details: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Failed to delete messages" }), { status: 500 });
     }
 };

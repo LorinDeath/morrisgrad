@@ -15,6 +15,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
+    // строки и длина: заявка анонимная, без ограничений R2 можно было забить гигабайтами
+    if (typeof author !== 'string' || typeof name !== 'string' || typeof text !== 'string' ||
+        author.trim().length > 60 || name.trim().length > 150 || text.length > 200_000) {
+      return new Response(
+        JSON.stringify({ error: 'Слишком длинное поле (автор до 60, название до 150, текст до 200 000 символов).' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (PROFANITY_PATTERN.test(name) || PROFANITY_PATTERN.test(text) || PROFANITY_PATTERN.test(author)) {
       return new Response(
         JSON.stringify({ error: 'Текст или поля содержат недопустимую лексику.' }),
@@ -31,7 +40,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (!db || !bucket) {
       return new Response(
-        JSON.stringify({ error: 'Ошибка доступа к PROFILES_DB или бакету konkursbook.' }),
+        JSON.stringify({ error: 'Хранилище недоступно.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -62,8 +71,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
 
   } catch (err: any) {
+    console.error('[konkurs]', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Ошибка сервера.' }),
+      JSON.stringify({ error: 'Ошибка сервера.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

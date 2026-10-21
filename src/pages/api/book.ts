@@ -23,8 +23,8 @@ export const GET: APIRoute = async ({ url }) => {
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Ошибка загрузки книги';
-    return new Response(JSON.stringify({ error: message }), {
+    console.error('[book]', err); // текст ошибки (пути файлов) — только в лог
+    return new Response(JSON.stringify({ error: 'Ошибка загрузки книги' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });

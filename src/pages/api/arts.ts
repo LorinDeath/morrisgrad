@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ locals }) => {
     if (!bucket) {
       return new Response(
         JSON.stringify({
-          error: 'ARTCOLLECTION_BUCKET not found in runtime environment',
+          error: 'Хранилище недоступно',
           items: [],
         }),
         {
@@ -122,9 +122,10 @@ export const GET: APIRoute = async ({ locals }) => {
       }
     );
   } catch (err: any) {
+    console.error('[arts]', err);
     return new Response(
       JSON.stringify({
-        error: err.message || 'Внутренняя ошибка R2',
+        error: 'Внутренняя ошибка',
         items: [],
       }),
       {
