@@ -1935,7 +1935,8 @@ async function boot(canvasId, username, userId, api) {
       target: () => hud.currentTarget,
       zoneFrozen: (list) => { const f = [...zone.mobs.values()].filter((m) => m.frozen); return list ? f.map((m) => ({ id: m.id, x: m.tx, y: m.ty })) : f.length; },
       // мобы bestiary32: снимок видеопамяти/страниц, настройка игрока, показ (фальшивые мобы клиента в мире — для снимков; сервер не знает)
-      mobs32: () => ({ ...b32Stats(), on: { ...MOBS_ON }, pref: mobPref(), calls: zone.b32?.calls || 0, drawn: zone.b32?.count() || 0 }),
+      mobs32: () => ({ ...b32Stats(), on: { ...MOBS_ON }, pref: mobPref(), calls: zone.b32?.calls || 0, drawn: zone.b32?.count() || 0, tex: stage.renderer.info.memory.textures, geo: stage.renderer.info.memory.geometries }),
+      mobFrames: () => [...zone.mobs.values()].filter((o) => !o.demo).map((o) => ({ id: o.id, sk: o.sk, f: o.f32, flag: o.flag, hp: o.hp })),
       mobPref: (v) => setMobPref(v),
       gfxLocal: (c) => setGfxCfg({ ...GFX, ...c }), // только этот клиент (плейтест «выключателя»), админка не меняется
       mobDemo: (list = [], o = {}) => { // [{ type, anim, dx, dy, flip, elite, cursed }] относительно героя (единицы сервера)
