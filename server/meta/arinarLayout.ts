@@ -93,7 +93,7 @@ export function arinarPlan() {
     return b;
   }
   const keepClear = (x, y) => pois.some((p) => Math.abs(x - p.x) < 100 && Math.abs(y - p.y) < 100) || Math.hypot(x - center.x, y - center.y) < plazaR + 40;
-  return { size, seed, center, portals, npcs, pois, plazaR, biomeAt, keepClear, n: Math.ceil(size / CELL) };
+  return { size, seed, center, portals, npcs, pois, plazaR, biomeAt, keepClear, n: Math.ceil(size / CELL), waters }; // waters — быстрый отсев в liquid.ts
 }
 
 /** чанк (ci,cj): тайлы [лист, индекс] на CH×CH клеток + оверлеи + пропсы (px мира) */

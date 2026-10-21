@@ -21,7 +21,9 @@ function worldMap(world) {
   try {
     if (world === 'arinar') {
       const plan = arinarPlan(), n = plan.n, cache = new Uint8Array(n * n); // 0 — не считали, иначе kind+1
-      m = { cell: A_CELL, get: (i, j) => { if (i < 0 || j < 0 || i >= n || j >= n) return 0; const k = j * n + i; let v = cache[k]; if (!v) cache[k] = v = kindOf(plan.biomeAt(i, j)) + 1; return v - 1; } };
+      const W = plan.waters || null; // быстрый отсев: клетка дальше r+64 от всех озёр — суша без biomeAt (мобы в тике)
+      const near = (i, j) => { if (!W) return true; const x = (i + 0.5) * A_CELL, y = (j + 0.5) * A_CELL; for (const w of W) if (Math.abs(x - w.x) < w.r + 64 && Math.abs(y - w.y) < w.r + 64) return true; return false; };
+      m = { cell: A_CELL, get: (i, j) => { if (i < 0 || j < 0 || i >= n || j >= n) return 0; const k = j * n + i; let v = cache[k]; if (!v) cache[k] = v = (near(i, j) ? kindOf(plan.biomeAt(i, j)) : 0) + 1; return v - 1; } };
     } else if (world === 'hellfire') {
       const L = layoutWorld(world), N = L.N, bio = L.biome;
       if (bio) m = { cell: CELL, get: (i, j) => { const ii = i + MARGIN, jj = j + MARGIN; return ii < 0 || jj < 0 || ii >= N || jj >= N ? 0 : kindOf(bio[jj * N + ii]); } };
