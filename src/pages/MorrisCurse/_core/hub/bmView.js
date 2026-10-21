@@ -4,6 +4,7 @@
 // Арт: src/assets/mc/bm/* (художник, /workspace/black_mage): листы 48×60 мага, FX bm_fx_atlas.json, роза 64×64 (7 стадий × 60 кадров), земля 16 px.
 import { pixTex, pixMat } from '../engine/pixColor.js';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
+import { VRAM } from '../engine/vramStream.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
 import { atmo } from '../engine/atmosphere.js';
@@ -68,7 +69,7 @@ export class BmView {
     this.stats = { proj: 0, boom: 0, compress: 0, tp: 0, domes: 0 };
     const L = (s) => loadAtlasTexture(THREE, s);
     Promise.all([L(mageSrc), L(idleSrc), L(roseSrc), ...Object.values(SH).flatMap(([a, b]) => [L(a), L(b)]), L(groundSrc), L(pulseGlowSrc)]).then((tx) => {
-      const [mt, it, rt] = tx; let i = 3;
+      const [mt, it, rt] = tx; let i = 3; this.texs = tx; // для VRAM: «рядом маг — держать листы на GPU» (engine/vramStream.js)
       this.mageB = new SpriteBatch(THREE, mt, { cellW: 48, cellH: 60, cols: 6, rows: 4, max: 4 }); root.add(this.mageB.mesh);
       this.idleB = new SpriteBatch(THREE, it, { cellW: 48, cellH: 60, cols: 8, rows: 4, max: 4 }); root.add(this.idleB.mesh);
       this.roseB = new SpriteBatch(THREE, rt, { cellW: 64, cellH: 64, cols: 30, rows: 15, max: 512 }); root.add(this.roseB.mesh);
@@ -120,6 +121,9 @@ export class BmView {
     this.time += dt; const T = this.time;
     if (!this.ready) return;
     const m = this.mage, k = Math.min(1, dt * 7);
+    // листы FX (≈400 МБ на GPU) нужны только в мире мага (Аринар): там они держатся на GPU и догружаются заранее — очередью
+    // во время перехода «Готовим мир…» (game.js prewarmWorld), а не первым взрывом посреди боя; в хабе и забегах — выгружаются (vramStream)
+    if (this.world === 'arinar') VRAM.inst?.need(this.texs);
     if (m) { m.x += (m.tx - m.x) * k; m.y += (m.ty - m.y) * k; m.flash = Math.max(0, m.flash - dt);
       // короткий чёрный след (bm_trail + пятно bm_trail_decal), гаснет за trailSec
       if ((m.moving || Math.hypot(m.tx - m.x, m.ty - m.y) > 3) && T - this.trailAt > 0.15 && BM_CFG.trailSec > 0) { this.trailAt = T; this.trail.push({ x: m.x, y: m.y, t: 0 }); } }

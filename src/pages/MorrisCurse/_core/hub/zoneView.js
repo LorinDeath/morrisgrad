@@ -446,7 +446,7 @@ export class ZoneView {
     }
     P.end();
     this.pax.update(dt);
-    this.bmv.update(dt, this.view);
+    this.bmv.world = this.world; this.bmv.update(dt, this.view);
   }
 
   dispose() { this.pax?.dispose(); this.root.parent?.remove(this.root); }

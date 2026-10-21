@@ -4,6 +4,8 @@
 // чтобы на границе стрима не было дыр. Раскладка детерминирована (одинакова у всех клиентов): биом клетки —
 // регион zoneGen (пятна Вороного, как в Minecraft) + шум границ; биомы Аринара рисуются своими тайлсетами (tiles_<ice|fire|stone|air>.png).
 import { TILES, TEX_MODE } from './texPref.js';
+import { VRAM, vcfg } from '../engine/vramStream.js';
+import { VIEW_CELLS } from '../../../../../server/worlds/sizes.ts';
 const tilesMeta = TILES.meta; // 16 или 32 px — настройка «Текстуры» (texPref.js); все 5 листов одного размера
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
@@ -36,7 +38,7 @@ export class ArinarTerrain {
     this.layout = { world: 'arinar', props: [], size: this.plan.size, chunked: true };
     this.light = 1;
     this.stats = { baked: 0, live: 0, evicted: 0, bakeMs: 0 };
-    this.maxLive = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '') ? (TEX_MODE === '32' ? 26 : 28) : 42; // запас над видимыми (~25 при 30 клетках): без выгрузки/перебейка при ходьбе
+    this.maxLive = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '') ? (TEX_MODE === '32' ? 26 : 28) : 42; // аварийный потолок: радиус 56 клеток ≈ 12–16 чанков, с grace — до ~25
     this.ground = null; this.batch = null;
   }
   async init(px = ZONE_RESPAWN.x, py = ZONE_RESPAWN.y) {
@@ -94,23 +96,37 @@ export class ArinarTerrain {
     if (c.batch) c.batch.dispose(this.group);
     this.chunks.delete(c.key); this.stats.evicted++;
   }
-  /** кадр: px,py — фокус камеры (px мира). Бакает недостающие видимые чанки (бюджет), выгружает дальние */
+  /** кадр: px,py — фокус (герой, px мира). Радиус-стрим (engine/vramStream.js, «🖼 Графика → Видеопамять»):
+   *  чанк нужен, если его ближайшая точка не дальше loadR = max(loadTiles, обзор камеры + marginTiles) клеток; выгружается,
+   *  если дальше loadR + hystTiles дольше grace; maxLive — аварийный потолок. Новый чанк сразу ставится в очередь загрузки
+   *  на GPU (prewarm, ≤ upMs мс/кадр) — к моменту, когда он въедет в кадр, текстура уже там (без рывка). */
   update(px, py, budget = 1, view = null) {
-    // область стрима — от фактического обзора камеры (+запас 1 чанк), не меньше прежних ±1900×±1600
-    const S = CH * CELL, rx = Math.max(1900, (view?.rx || 0) + S), ry = Math.max(1600, (view?.ry || 0) + S), now = performance.now();
-    const c0 = Math.floor((px - rx) / S), c1 = Math.floor((px + rx) / S), r0 = Math.floor((py - ry) / S), r1 = Math.floor((py + ry) / S);
+    const S = CH * CELL, now = performance.now(), cfg = vcfg();
+    const viewR = Math.max(view?.rx || 0, view?.ry || 0, (VIEW_CELLS.max * CELL) / 2);
+    const loadR = Math.max(cfg.loadTiles * CELL, viewR + cfg.marginTiles * CELL), dropR = loadR + cfg.hystTiles * CELL;
+    this.radius = { loadTiles: Math.round(loadR / CELL), dropTiles: Math.round(dropR / CELL), viewTiles: Math.round(viewR / CELL) };
+    const dist = (ci, cj) => { const dx = Math.max(ci * S - px, 0, px - (ci + 1) * S), dy = Math.max(cj * S - py, 0, py - (cj + 1) * S); return Math.hypot(dx, dy); };
+    const c0 = Math.floor((px - loadR) / S), c1 = Math.floor((px + loadR) / S), r0 = Math.floor((py - loadR) / S), r1 = Math.floor((py + loadR) / S);
     const want = [];
     for (let ci = c0; ci <= c1; ci++) for (let cj = r0; cj <= r1; cj++) {
       if (ci < -1 || cj < -1 || ci * S > this.plan.size + S || cj * S > this.plan.size + S) continue;
-      const c = this.chunks.get(ci * 1000 + cj);
-      if (c) c.used = now; else want.push([ci, cj, Math.hypot((ci + 0.5) * S - px, (cj + 0.5) * S - py)]);
+      const d = dist(ci, cj); if (d > loadR) continue;
+      if (!this.chunks.has(ci * 1000 + cj)) want.push([ci, cj, d]);
     }
     want.sort((a, b) => a[2] - b[2]);
-    for (let k = 0; k < Math.min(budget, want.length); k++) this.bake(want[k][0], want[k][1]).used = now;
-    if (this.chunks.size > this.maxLive) {
-      const old = [...this.chunks.values()].sort((a, b) => a.used - b.used);
-      for (const c of old.slice(0, this.chunks.size - this.maxLive)) if (c.used < now) this.drop(c);
+    const vs = VRAM.inst;
+    // запекание (канвас) — не больше budget чанков и ~6 мс за кадр; ближние — первыми
+    const tb = performance.now(); if (vs) vs.frameBake = 0;
+    for (let k = 0; k < Math.min(budget + (want.length && want[0][2] === 0 ? 1 : 0), want.length) && (k === 0 || performance.now() - tb < 6); k++) {
+      const c = this.bake(want[k][0], want[k][1]); c.used = now; if (vs) { vs.busy = true; vs.frameBake = performance.now() - tb; /* кадр запекания — без загрузки в GPU (разнести по кадрам) */ vs.prewarm(c.tex); for (const B of c.batch?.list || []) for (const t of [B.mesh?.material?.map, B.mesh?.material?.uniforms?.map?.value]) if (t) vs.prewarm(t); }
     }
+    let far = [];
+    for (const c of this.chunks.values()) {
+      const d = dist(c.ci, c.cj);
+      if (d <= dropR) { c.used = now; c.farAt = 0; } else { c.farAt ||= now; far.push([c, d]); }
+    }
+    far.sort((a, b) => b[1] - a[1]);
+    for (const [c] of far) if (now - c.farAt > cfg.graceMs || this.chunks.size > this.maxLive) this.drop(c);
     this.stats.live = this.chunks.size;
   }
   setLight(k) {
