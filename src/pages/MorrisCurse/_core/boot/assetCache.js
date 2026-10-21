@@ -99,6 +99,7 @@ async function download(cache, list, ui) {
     const ac = new AbortController(), dog = setInterval(() => { if (performance.now() - last > 15000) { ui?.wait?.('ответ сервера ресурсов (нет данных 15 с)'); ac.abort(); } }, 1000);
     const left = queue.splice(0), retry = [];
     const worker = async () => { for (let e; (e = left.shift());) {
+      ui?.what?.(GROUP_LABEL[e.g] || e.g);
       try { await fetchOne(cache, e, (d) => { done += d; last = performance.now(); ui?.progress(done, total); }, ac.signal); AC.stats.fetched++; AC.stats.fetchedBytes += e.s; (AC.stats.list ||= []).length < 12 && AC.stats.list.push(e.p); }
       catch (err) { if (err instanceof QuotaErr) { clearInterval(dog); throw err; } (ac.signal.aborted ? retry : failed).push(e); console.warn('[mc-assets]', e.p, err?.message || err); }
     } };
@@ -164,7 +165,7 @@ export async function syncAssets() {
   AC.stats.ms = performance.now() - t0; AC.stats.groups = [...AC.groups]; AC.stats.device = gpu();
   return AC;
 }
-const GROUP_LABEL = { props3: 'новые пропсы (32)', props2: 'пропсы (16)', tiles32: 'тайлы (32)', tiles16: 'тайлы (16)', map: 'карта мира', bm: 'эффекты Чёрного мага', vn: 'сцены', sprites: 'спрайты', core: 'код игры' };
+const GROUP_LABEL = { props3: 'предметы мира (чёткие, 32)', props2: 'предметы мира (16)', tiles32: 'земля (чёткая, 32)', tiles16: 'земля (16)', map: 'карта мира', bm: 'эффекты Чёрного мага', vn: 'сцены квестов', sprites: 'герои, мобы и эффекты', core: 'код игры', ui: 'интерфейс' };
 const PENDING = new Map();
 /** догрузить ленивую группу в кэш в фоне (индикатор в углу). Повторный вызов — тот же промис */
 export function ensureGroup(g) {

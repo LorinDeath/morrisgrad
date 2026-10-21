@@ -23,6 +23,7 @@ html.mc-ui .mcl-box { border: 12px solid transparent; border-image: var(--ui-fra
 .mcl-nums { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--ui-text2, #a99cb8); flex-wrap: wrap; }
 .mcl-note { margin: 10px 0 0; font-size: 11px; line-height: 1.4; color: var(--ui-text3, #7d7090); }
 .mcl-step { margin: 8px 0 0; font-size: 11px; color: var(--ui-warn, #f0c070); min-height: 14px; }
+.mcl-what { margin: 6px 0 0; font-size: 11px; color: var(--ui-text2, #a99cb8); }
 /* обновление: плашка сверху по центру */
 .mcl-toast { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(340px, calc(100% - 20px)); box-sizing: border-box; pointer-events: auto; padding: 8px 10px;
   background: var(--ui-face1, #120e1c); border: 2px solid var(--ui-metal-lo, #5b4776); box-shadow: 0 0 0 2px var(--ui-outline, #1a1626), 0 4px 16px rgba(0,0,0,.6); font-size: 12px; }

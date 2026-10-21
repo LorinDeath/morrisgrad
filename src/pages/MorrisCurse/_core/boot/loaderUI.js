@@ -20,7 +20,9 @@ export function mclRoot(host) {
   r.style.setProperty('--mcl-zoom', String(uiZoom()));
   return r;
 }
-const fmtSpeed = (bps) => (bps >= 1048576 ? `${(bps / 1048576).toFixed(1)} МБ/с` : `${Math.max(1, Math.round(bps / 1024))} КБ/с`);
+/** «1,2 МБ» / «35 КБ» — по-русски, с запятой */
+export const mb = (b) => (b < 102400 ? `${Math.max(1, Math.round(b / 1024))} КБ` : `${fmtMB(b).replace('.', ',')} МБ`);
+const fmtSpeed = (bps) => (bps >= 1048576 ? `${(bps / 1048576).toFixed(1).replace('.', ',')} МБ/с` : `${Math.max(1, Math.round(bps / 1024))} КБ/с`);
 const fmtEta = (s) => (!Number.isFinite(s) || s <= 0 ? '' : s < 60 ? `≈ ${Math.ceil(s)} с` : `≈ ${Math.floor(s / 60)} мин ${Math.round(s % 60)} с`);
 /** скорость — скользящее окно 2 с (без скачков от первого маленького файла) */
 export function speedMeter() {
@@ -34,15 +36,16 @@ export function fullLoader({ kind = 'first', files = 0, bytes = 0 } = {}) {
   el.innerHTML = `<div class="mcl-box"><h2 class="mcl-title">ПРОКЛЯТЫЕ</h2><p class="mcl-sub">${kind === 'first' ? 'первый запуск' : 'обновление игры'}</p>
     <ul class="mcl-stages">${STAGES.map(([k, t]) => `<li data-s="${k}">${t}</li>`).join('')}</ul>
     <div class="mcl-bar ind"><i></i></div><div class="mcl-nums"><span class="a">—</span><span class="b"></span><span class="c"></span></div>
+    <p class="mcl-what" style="display:none"></p>
     <p class="mcl-step" style="display:none"></p>
-    <p class="mcl-note">${kind === 'first' ? `Игра скачивает ресурсы один раз (${files ? `${files} файлов, ` : ''}${bytes ? fmtMB(bytes) + ' МБ' : 'несколько МБ'}) и хранит их на устройстве. Следующие входы — быстрые: проверяется только список изменений.` : 'Скачиваются только изменённые файлы — остальное уже есть на устройстве.'}</p></div>`;
+    <p class="mcl-note">${kind === 'first' ? `Игра скачивает ресурсы один раз (${files ? `${files} ${plural(files, 'файл', 'файла', 'файлов')}, ` : ''}${bytes ? mb(bytes) : 'несколько МБ'}) и хранит их на устройстве. Следующие входы — быстрые: проверяется только список изменений.` : 'Скачиваются только изменённые файлы — остальное уже есть на устройстве.'}</p></div>`;
   mclRoot().appendChild(el);
   return ctrl(el);
 }
 /** короткая плашка обновления «Загружаем обновление: N файлов, X МБ» */
 export function updateToast({ files, bytes }) {
   const el = document.createElement('div'); el.className = 'mcl-toast mcl-z'; el.dataset.mcl = 'update';
-  el.innerHTML = `<div>Загружаем обновление: ${files} ${plural(files, 'файл', 'файла', 'файлов')}, ${fmtMB(bytes)} МБ</div><div class="mcl-bar"><i></i></div><div class="mcl-nums"><span class="a"></span><span class="b"></span><span class="c"></span></div><p class="mcl-step" style="display:none"></p>`;
+  el.innerHTML = `<div>Загружаем обновление: ${files} ${plural(files, 'файл', 'файла', 'файлов')}, ${mb(bytes)}</div><div class="mcl-bar"><i></i></div><div class="mcl-nums"><span class="a"></span><span class="b"></span><span class="c"></span></div><p class="mcl-what" style="display:none"></p><p class="mcl-step" style="display:none"></p>`;
   mclRoot().appendChild(el);
   return ctrl(el);
 }
@@ -57,9 +60,11 @@ function ctrl(el) {
     progress(done, total) {
       if (!bar) return; bar.classList.toggle('ind', !total); sp.add(done); last = performance.now(); c.wait(null);
       if (total) fill.style.width = `${Math.min(100, (done / total) * 100).toFixed(1)}%`;
-      A.textContent = total ? `${fmtMB(done)} / ${fmtMB(total)} МБ` : '';
-      const bps = sp.bps(); B.textContent = bps ? fmtSpeed(bps) : ''; C.textContent = bps && total ? `осталось ${fmtEta((total - done) / bps)}` : '';
+      A.textContent = total ? `${mb(done)} из ${mb(total)}` : '';
+      const bps = sp.bps(); B.textContent = bps ? fmtSpeed(bps) : ''; const left = Math.max(0, total - done), eta = bps && total ? fmtEta(left / bps) : ''; C.textContent = total && left > 0 ? `осталось ${mb(left)}${eta ? ', ' + eta : ''}` : '';
     },
+    /** что качается прямо сейчас («Сейчас: спрайты героев и мобов») */
+    what(text) { const w = el.querySelector('.mcl-what'); if (!w) return; w.textContent = text ? `Сейчас: ${text}` : ''; w.style.display = text ? '' : 'none'; },
     /** какой шаг ждём (видно игроку, если шаг затянулся) */
     wait(text) { if (!step) return; step.textContent = text ? `Ждём: ${text}` : ''; step.style.display = text ? '' : 'none'; },
     /** сторож: нет прогресса ms → onStall(шаг) (показать шаг и «Повторить»), опрос раз в секунду */
@@ -80,7 +85,7 @@ function renderCorner() {
     CORNER.addEventListener('click', () => CORNER.classList.toggle('tipon')); mclRoot().appendChild(CORNER); }
   const js = [...JOBS.values()], d = js.reduce((a, j) => a + j.done, 0), t = js.reduce((a, j) => a + j.total, 0);
   CORNER.querySelector('.t').textContent = t ? `загрузка ${Math.round((d / t) * 100)}%` : 'загрузка…';
-  CORNER.querySelector('.tip').textContent = 'Догружаем в фоне: ' + js.map((j) => j.label + (j.total ? ` (${fmtMB(j.done)}/${fmtMB(j.total)} МБ)` : '')).join('; ') + '. Играть можно — это не мешает.';
+  CORNER.querySelector('.tip').textContent = 'Догружаем в фоне: ' + js.map((j) => j.label + (j.total ? ` (${mb(j.done)} из ${mb(j.total)})` : '')).join('; ') + '. Играть можно — это не мешает.';
 }
 /** подпись на переходе между зонами («Готовим мир: Аринар…»), пока прогреваются текстуры следующей зоны */
 let VEIL = null;
