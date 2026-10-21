@@ -35,7 +35,8 @@ import { gatherClient } from "./gatherCfg";
 import { NpcWander } from "./npcWander";
 import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
-import { WORLD_GEN } from "./zoneGen";
+import { WORLD_GEN, inSafe } from "./zoneGen";
+import { CITY_CFG, PK_CFG, POS_CFG, CITY_HOUSES, houseAt, KillLog, inCity, pushOut, cityClient, cityR, syncCityNpcs, cityNpcId, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, type PkState } from "./city";
 let MZ: { ver: number; z: any } | null = null;
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
@@ -71,7 +72,8 @@ export function regenRate(now: number, hurtAt: number, hitAt: number, maxHp: num
   return inCombat ? (statRegen + (hub ? 2 : 0.3)) * (G.regenCombat ?? 0.1) : full;
 }
 import { castShape } from "./abilityShapes";
-import { worldBounds, OPEN_AOI } from "../worlds/sizes";
+import { worldBounds, OPEN_AOI, ARINAR_LAYOUT_VER } from "../worlds/sizes";
+import { walkable, freeWalk, POS_WORLDS } from "./walkable";
 import { GUEST_NAMES, guestDisplay, isGuestName } from "./guestNames";
 
 export interface MetaSess {
@@ -216,6 +218,45 @@ export class MetaService {
     if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
     this.refreshZonePlayer(session);
     this.send(ws, { type: "meta_state", ...this.snap(session) });
+    this.restorePos(ws, session, ms, a); // вход/переподключение: туда, где был (мир и точка; невалидная — ближайшая допустимая)
+    { const P = this.pkOf(ms); if (session.stats) session.stats.pk = P.pk ? 1 : 0; if (P.pk || P.to !== null) this.pkSend(ws, ms); }
+  }
+
+  // ——— позиция между входами (админка «🏰 Город» → posOn): аккаунт хранит lastPos = { w, x, y, at, h? } ———
+  /** запомнить (не чаще posSaveSec; force — смена мира/выход). Мёртвых и забеги не трогаем */
+  posNote(session: any, ms: any, force = false, now = Date.now()) {
+    if (POS_CFG.on === false || !ms || !ms.zp.alive || session.runRoom || session.inDuel) return;
+    const w = session.world || "hellfire"; if (!POS_WORLDS.has(w)) return;
+    if (!force && now - ((ms as any).posAt || 0) < Math.max(5, Number(POS_CFG.saveSec) || 60) * 1000) return;
+    const a = this.store.account(ms.pkey), o = a.lastPos as any;
+    if (o && o.w === w && Math.abs(o.x - session.x) < 16 && Math.abs(o.y - session.y) < 16) { (ms as any).posAt = now; return; } // не двигался — без записи
+    const h = w === "arinar" ? houseAt(session.x, session.y) : null;
+    (a as any).lastPos = { w, x: Math.round(session.x), y: Math.round(session.y), at: now, h: h?.id || undefined };
+    (ms as any).posAt = now; ms.dirty = true;
+  }
+  /** точка входа по сохранённой: проверки (мир, границы, проходимость/вода/лава, купол города для убийц, купол мага, исчезнувший дом) */
+  posFix(ms: any, p: any): { w: string; x: number; y: number; why: string } | null {
+    if (!p || !POS_WORLDS.has(p.w) || !Number.isFinite(Number(p.x)) || !Number.isFinite(Number(p.y))) return null;
+    const w = String(p.w), [lo, hi] = worldBounds(w); let x = Math.max(lo + 16, Math.min(hi - 16, Number(p.x))), y = Math.max(lo + 16, Math.min(hi - 16, Number(p.y))), why = "";
+    if (w === "arinar") {
+      if (p.h && !CITY_HOUSES.some((b) => b.id === p.h)) { x = CITY_CFG.x; y = CITY_CFG.y + (Math.max(4, Number(CITY_CFG.plazaTiles) || 6) - 1) * CITY_TILE; why = "house"; } // дома больше нет — на площадь
+      for (const d of this.bm.domesAt(x, y)) { const a = Math.atan2(y - d.y, x - d.x) || Math.PI / 2; x = d.x + Math.cos(a) * (d.r + 48); y = d.y + Math.sin(a) * (d.r + 48); why = "bmdome"; }
+      if (inCity(x, y, 12) && this.killerOf(ms).killer) { [x, y] = pushOut(x, y, 48); why = "killer"; }
+    }
+    if (!walkable(w, x, y)) { const f = freeWalk(w, x, y); if (!f) return null; [x, y] = f; why = why || "blocked"; }
+    return { w, x: Math.round(x), y: Math.round(y), why };
+  }
+  restorePos(ws: WebSocket, session: any, ms: any, a: any) {
+    if (a.klp && !this.killLog.p.has(ms.pkey)) this.killLog.p.set(ms.pkey, (a.klp as number[]).filter((t) => Number.isFinite(t)));
+    if (POS_CFG.on === false || (session as any).posRestored || session.runRoom || session.inDuel) return;
+    (session as any).posRestored = true;
+    const f = this.posFix(ms, a.lastPos); if (!f) return;
+    if (f.w === "hellfire" && (session.world || "hellfire") === "hellfire" && Math.hypot(f.x - session.x, f.y - session.y) < 24) return;
+    session.world = f.w; session.x = f.x; session.y = f.y; (session as any).lastMoveAt = Date.now();
+    if (f.w === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
+    session.dismoraleUntil = 0; session.escapedUntil = 0;
+    this.send(ws, { type: "world_switched", world: f.w, x: f.x, y: f.y, restored: 1, why: f.why || undefined });
+    this.onWorldChange(ws, session);
   }
 
   applyHeroToSession(session: any, cls: string) {
@@ -508,6 +549,13 @@ export class MetaService {
         if (r.ok) this.qev(a, session, { type: "craft" });
         reply(r, "Создано!"); return true;
       }
+      case "pk_toggle": { // кнопка PK у полоски ОЗ: отсчёт без боя (enterSec / exitSec), повторное нажатие — отмена
+        if ((session.world || "hellfire") !== "arinar") { this.send(ws, { type: "toast_error", message: "PK-режим — только в Аринаре" }); return true; }
+        const r = pkToggle(this.pkOf(ms));
+        if (r.k === "off") this.send(ws, { type: "toast_error", message: "PK-режим сейчас отключён" });
+        this.pkSend(ws, ms); return true;
+      }
+      case "pk_get": { this.pkSend(ws, ms); return true; }
       case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); if (!msg.npc || msg.npc === BM_NPC) this.bm.talkEnd(session.id); return true; }
       case "npc_talk": {
         const npc = String(msg.npc);
@@ -674,6 +722,7 @@ export class MetaService {
         if (msg.chestInfo) this.send(ws, { type: "dev_chests", list: [...this.chests.chests.values()].map((c) => ({ id: c.id, x: c.x, y: c.y, n: c.entries.length, owners: [...new Set(c.entries.map((e) => e.o))], per: c.entries.reduce((o: any, e) => ((o[e.o] = (o[e.o] || 0) + 1), o), {}), pub: Date.now() >= c.pubAt, guarded: !!c.guarded })), enc: this.camps.map.size });
         if (msg.chestSpawn && typeof msg.chestSpawn === "object") { const ents: any[] = []; for (const [owner, ids] of Object.entries(msg.chestSpawn.by || {})) for (const id of (Array.isArray(ids) ? ids : []).slice(0, 30)) if (ITEM_BY_ID[parseTag(String(id)).id]) ents.push({ o: owner === "me" ? ms.pkey : String(owner), id: String(id), k: "item", n: 1 }); this.chests.spawn(session.world || "hellfire", session.x + (Number(msg.chestSpawn.dx) || 0), session.y + (Number(msg.chestSpawn.dy) || 0), ents, "dev", "mob", "dev", "dew_slime"); } // тест сундуков (только dev)
         if (msg.bm && typeof msg.bm === "object") this.bmDev(ws, session, ms, a, h, msg.bm); // Чёрный маг (только dev)
+        if (msg.city && typeof msg.city === "object") this.cityDev(ws, session, ms, a, msg.city); // город/PK/позиция (только dev)
         if (msg.hurtMe) { (ms as any).hurtAt = Date.now(); ms.zp.hp = Math.max(1, ms.zp.hp - 1); }
         if (msg.flags) for (const f of Object.keys(msg.flags)) a.flags[f] = true;
         if (msg.item) addItem(a, String(msg.item), "grant:dev");
@@ -754,6 +803,8 @@ export class MetaService {
     const ms = this.ms.get(session.id);
     if (!ms) return;
     ms.zp.x = session.x; ms.zp.y = session.y;
+    (ms as any).cityVer = 0; // город: настройки отрисовки — заново
+    this.posNote(session, ms, true);
     const a = this.store.account(ms.pkey);
     if (this.qev(a, session, { type: "reach", world: session.world }).length) { this.autoTurnInPrologue(a, session); this.push(ws, session); }
   }
@@ -966,7 +1017,7 @@ export class MetaService {
     if (now < ms.lastAtk - atkCd * 0.15) return;
     let dx = aimR.dx, dy = aimR.dy;
     const lockId = Number(msg.mob);
-    if (lockId === BM_LOCK && zone.guard === this.bm) { // цель — Чёрный маг (бессмертен; удар = нападение)
+    if (lockId === BM_LOCK && zone.guard === this.guardMux) { // цель — Чёрный маг (бессмертен; удар = нападение)
       if (Math.hypot(this.bm.x - ox, this.bm.y - oy) <= Math.max(160, W.atk.range * 1.6)) { dx = this.bm.x - ox; dy = this.bm.y - oy; }
     } else if (lockId) { // выбранная цель: точно в неё (сервер-авторитет: моб жив и в пределах дальности оружия ×1.6)
       const m0 = zone.byId.get(lockId);
@@ -1002,10 +1053,11 @@ export class MetaService {
         const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
         zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt });
         targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
-        if (zone.guard === this.bm && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
+        if ((session.world || "hellfire") === "arinar") this.pvpArc(session, ms, ox, oy, vx, vy, W.atk, per); // PK-режим: удар задевает и игроков
+        if (zone.guard === this.guardMux && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
       } else {
         const line = W.atk.kind === "line";
-        zone.fire({ o: "p", sid: session.id, t: AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1,
+        zone.fire({ o: "p", sid: session.id, t: AUTO_SPRITE[wt] || "auto_staff", x: ox, y: oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
           onHit: (m: any, i: number) => applyHit(m, per * (i === 0 ? 1 : line ? 0.7 : 0.8)) });
       }
     }
@@ -1014,6 +1066,7 @@ export class MetaService {
   // Рекорд одиночного удара: только удары, посчитанные сервером в открытом мире (см. rating.ts)
   noteHit(session: any, real: number, mobType: string) {
     { const m0 = this.ms.get(session.id); if (m0) (m0 as any).hitAt = Date.now(); } // бой — для портала домой
+    if (real > 0) this.pkCombat(session.id); // нанёс урон — PK-отсчёт сброшен
     const ms = this.ms.get(session.id);
     const cls = session.stats?.classId;
     if (!ms || !cls || !(real > 0)) return;
@@ -1211,6 +1264,8 @@ export class MetaService {
   }
 
   onMobKilled(m: any) {
+    { const ks = m.killer && String(m.killer), km = ks && !ks.startsWith("mob:") ? this.ms.get(ks) : null; // убийца по журналу купола (не из-под купола)
+      if (km) this.killLog.note(km.pkey, "m", this.underDome(km.zp.x, km.zp.y)); }
     ST.inc("kills"); if (m.elite) ST.inc("kills_elite"); if (m.cursed) ST.inc("kills_cursed"); if (m.ench) ST.inc("kills_ench"); if (m.special === "boss" || ZONE_MOBS[m.type]?.boss) ST.inc("kills_boss");
     const d = ZONE_MOBS[m.type];
     const total = [...m.dmgBy.values()].reduce((x: number, y: number) => x + y, 0) || 1;
@@ -1403,7 +1458,10 @@ export class MetaService {
   // ——— Чёрный маг: связь с зоной, урон игрокам, смерть, очернение, сохранение ———
   bmInit() {
     const z = this.zones.arinar; if (!z) return;
-    z.guard = this.bm; FREEZE_GUARD.inDome = (x, y) => this.bm.inDome(x, y);
+    z.guard = this.guardMux; FREEZE_GUARD.inDome = (x, y) => this.guardMux.inDome(x, y);
+    // город под куполом (city.ts): мобы не заходят, лагеря/мобы с домом внутри — убраны; места NPC — в реестр
+    z.keepOut = { inside: (x, y, pad = 0) => CITY_CFG.mobsOut !== false && inCity(x, y, pad), out: (x, y) => pushOut(x, y, 40) };
+    const pruned = z.pruneKeepOut(); syncCityNpcs(NPCS as any); console.log(`[mc] город: убрано мобов под куполом ${pruned}`);
     this.bm.host = {
       hurt: (sid, pct, src, blkAdd) => this.bmHurt(sid, pct, src, blkAdd),
       push: (sid, x, y) => { const e = this.sessionLookup?.(sid); const ms = this.ms.get(sid); if (!e) return; const s2 = e[1]; s2.x = x; s2.y = y; (s2 as any).lastMoveAt = Date.now(); if (ms) { ms.zp.x = x; ms.zp.y = y; } this.send(e[0], { type: "pos_fix", x: Math.round(x), y: Math.round(y), bm: 1 }); },
@@ -1417,7 +1475,8 @@ export class MetaService {
     const ms = this.ms.get(sid); if (!ms || !ms.zp.alive) return;
     const now = Date.now(), z = this.zones.arinar;
     if (isInvuln(ms, now)) return;
-    if (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y)) return;
+    if (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms)) return;
+    this.pkCombat(sid);
     const real = Math.max(1, Math.round(ms.zp.maxHp * Math.max(0, pct) / 100));
     ms.zp.hp -= real; (ms as any).hurtAt = now;
     this.qNote(ms, "hit", now);
@@ -1444,7 +1503,146 @@ export class MetaService {
   /** хук на будущее (развитие проклятой земли): вошёл/вышел */
   bmGroundHook(_s: any, _on: boolean) {}
   /** движение игрока (room.ts): напавший не войдёт в купол */
-  bmClampMove(session: any, x: number, y: number): [number, number] | null { return (session.world || "hellfire") === "arinar" ? this.bm.clampMove(session.id, x, y) : null; }
+  bmClampMove(session: any, x: number, y: number): [number, number] | null {
+    if ((session.world || "hellfire") !== "arinar") return null;
+    const c = this.bm.clampMove(session.id, x, y); if (c) return c;
+    return this.cityClamp(session, x, y);
+  }
+
+  // ——— Город под куполом (city.ts) и PK-режим: всё решает сервер ———
+  killLog = new KillLog();
+  /** guard зоны Аринара: купола мага + город (урон 0 внутри, снаряды через край гаснут) + PvP-попадания */
+  guardMux: any = {
+    guardMobHit: (m: any, sid: string, ax: number, ay: number) => {
+      if (CITY_CFG.noDamage !== false && sid && !sid.startsWith("mob:") && (inCity(m.x, m.y) || (Number.isFinite(ax) && inCity(ax, ay)))) return true;
+      return this.bm.guardMobHit(m, sid, ax, ay);
+    },
+    noteFight: (m: any, sid: string) => this.bm.noteFight(m, sid),
+    guardProj: (p: any, x0: number, y0: number, x1: number, y1: number) => {
+      if (CITY_CFG.noDamage !== false && inCity(x0, y0) !== inCity(x1, y1)) { this.zones.arinar?.events.push({ k: "cityblock", x: Math.round(x1), y: Math.round(y1) }); return true; } // край купола гасит любой снаряд (и стрелы мага)
+      return this.bm.guardProj(p, x0, y0, x1, y1);
+    },
+    inDome: (x: number, y: number) => this.bm.inDome(x, y) || (CITY_CFG.noDamage !== false && inCity(x, y)),
+    blackHit: (p: any, pl: any) => (inCity(pl.x, pl.y) ? false : this.bm.blackHit(p, pl)),
+    pvpHit: (p: any, pl: any) => this.pvpStrike(p.sid, pl.sid, p.pvk || 1, p),
+  };
+  citySafe(ms: any) { return CITY_CFG.noDamage !== false && inCity(ms.zp.x, ms.zp.y); }
+  pkMap = new Map<string, PkState>();
+  /** PK-состояние — по ключу игрока (переподключение не сбрасывает; флаг pk хранится в аккаунте) */
+  pkOf(ms: any): PkState {
+    let P = this.pkMap.get(ms.pkey);
+    if (!P) { P = newPk(); P.pk = !!(this.store.account(ms.pkey) as any).pk; this.pkMap.set(ms.pkey, P); }
+    ms.pk = P; return P;
+  }
+  /** «под куполом» (город или купол/сфера мага) — убийства оттуда не считаются */
+  underDome(x: number, y: number) { return inCity(x, y) || !!this.bm.inDome(x, y); }
+  /** безопасная зона для PvP: город, купол мага (кто не нападал), хаб и места NPC */
+  pvpSafe(sid: string, ms: any) { const x = ms.zp.x, y = ms.zp.y; return inCity(x, y) || this.bm.playerSafe(sid, x, y) || inSafe(x, y, 0, "arinar"); }
+  /** убийца: PK-режим или журнал убийств; until — мс (PK — 0: пока режим включён) */
+  killerOf(ms: any, now = Date.now()): { killer: boolean; until: number; why: string } {
+    const st = this.killLog.status(ms.pkey, now), pk = this.pkOf(ms).pk && CITY_CFG.pkBlocked !== false;
+    return { killer: pk || st.killer, until: st.until, why: pk ? "pk" : st.why };
+  }
+  cityDenyMsg(session: any, ms: any, k: { until: number; why: string }, now: number) {
+    if (now - ((ms as any).cityDenyAt || 0) < Math.max(0.3, Number(CITY_CFG.denyMsgSec) || 2) * 1000) return; (ms as any).cityDenyAt = now;
+    const e = this.sessionLookup?.(session.id); if (!e) return;
+    const sec = k.until > now ? Math.ceil((k.until - now) / 1000) : 0;
+    const why = k.why === "pk" ? "Вы в PK-режиме — купол не пускает убийц. Выключите PK (30 с без боя)" + (sec ? `, а затем ещё ${Math.ceil(sec / 60)} мин.` : ".")
+      : k.why === "p" ? `Купол не пускает убийц: вы убили игрока за последние ${CITY_CFG.windowMin} мин.` : `Купол не пускает убийц: вы убили ${CITY_CFG.killerM}+ мобов за последние ${CITY_CFG.windowMin} мин.`;
+    this.send(e[0], { type: "city_deny", why: k.why, sec, until: k.until, message: why });
+  }
+  /** движение: убийца не войдёт в купол (точка за краем) */
+  cityClamp(session: any, x: number, y: number): [number, number] | null {
+    if (!inCity(x, y, 12)) return null;
+    const ms = this.ms.get(session.id); if (!ms) return null;
+    const now = Date.now(), k = this.killerOf(ms, now); if (!k.killer) return null;
+    this.cityDenyMsg(session, ms, k, now);
+    return pushOut(x, y, 24 + CITY_TILE * Math.max(0, Number(CITY_CFG.pushExtraTiles) || 0));
+  }
+  /** такт игрока Аринара: PK-отсчёт, убийцу внутри — за край (стал убийцей внутри, телепорт, вход в игру) */
+  cityTick(ws: WebSocket, s: any, ms: any, now: number) {
+    const P = this.pkOf(ms);
+    if (pkTick(P, now)) { this.pkSend(ws, ms, now); if (s.stats) s.stats.pk = P.pk ? 1 : 0; ST.inc(P.pk ? "pk_on" : "pk_off"); (this.store.account(ms.pkey) as any).pk = P.pk ? 1 : undefined; ms.dirty = true;
+      this.send(ws, { type: "toast", message: P.pk ? "⚔ PK-режим включён: вы можете нападать на игроков. Купол Альказака вас не пустит." : "PK-режим выключен", color: P.pk ? PK_CFG.color : "#a7f3d0" }); }
+    if (s.stats && (s.stats.pk ? 1 : 0) !== (P.pk ? 1 : 0)) s.stats.pk = P.pk ? 1 : 0;
+    if (!ms.zp.alive || !inCity(s.x, s.y)) return;
+    const k = this.killerOf(ms, now); if (!k.killer) return;
+    const [nx, ny] = pushOut(s.x, s.y, 24 + CITY_TILE * Math.max(0, Number(CITY_CFG.pushExtraTiles) || 0));
+    s.x = nx; s.y = ny; ms.zp.x = nx; ms.zp.y = ny; (s as any).lastMoveAt = now;
+    this.send(ws, { type: "pos_fix", x: Math.round(nx), y: Math.round(ny), city: 1 }); this.cityDenyMsg(s, ms, k, now);
+  }
+  pkSend(ws: WebSocket, ms: any, now = Date.now()) {
+    const P = this.pkOf(ms), k = this.killLog.status(ms.pkey, now);
+    this.send(ws, { type: "pk_state", pk: P.pk, to: P.to, left: pkLeft(P, now), dur: Math.round(P.dur / 1000), on: PK_CFG.on !== false, killer: k.killer ? { until: k.until, why: k.why, sec: Math.ceil((k.until - now) / 1000) } : null, color: PK_CFG.color });
+  }
+  /** бой (нанёс/получил урон): PK-отсчёт сбрасывается */
+  pkCombat(sid: string) {
+    const ms = this.ms.get(sid); if (!ms || !(ms as any).pk) return;
+    if (pkInterrupt((ms as any).pk)) { const e = this.sessionLookup?.(sid); if (e) { this.pkSend(e[0], ms); this.send(e[0], { type: "toast_error", message: "Бой — отсчёт PK-режима сброшен" }); } }
+  }
+  /** удар игрока a по игроку v (автоатака: дуга или снаряд). true — попадание засчитано (снаряд гаснет) */
+  pvpStrike(aSid: string, vSid: string, k: number, proj?: any): boolean {
+    if (!aSid || !vSid || aSid === vSid) return false;
+    const ams = this.ms.get(aSid), vms = this.ms.get(vSid); if (!ams || !vms || !ams.zp.alive || !vms.zp.alive) return false;
+    const ea = this.sessionLookup?.(aSid), ev = this.sessionLookup?.(vSid); if (!ea || !ev) return false;
+    const sa = ea[1], sv = ev[1]; if ((sa.world || "hellfire") !== "arinar" || (sv.world || "hellfire") !== "arinar" || sa.inDuel || sv.inDuel) return false;
+    if (PK_CFG.on === false) return false;
+    const now = Date.now(), A = this.pkOf(ams), V = this.pkOf(vms);
+    const how = pvpAllowed(A, V, vSid, this.pvpSafe(aSid, ams), this.pvpSafe(vSid, vms), now); if (!how) return false;
+    const z = this.zones.arinar; this.pkCombat(aSid); this.pkCombat(vSid); (ams as any).hitAt = now;
+    if (how === "pk" && !V.pk) pkGrantDefense(V, aSid, now); // жертва может ответить (самооборона)
+    if (isInvuln(vms, now)) return true;
+    const eff = this.effective(sa), crit = cryptoRand() * 100 < eff.critPct;
+    const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
+    const real = Math.max(1, Math.round(raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k * Math.max(0, Number(PK_CFG.dmgMult) || 0) * (1 - vms.zp.armorRed)));
+    vms.zp.hp -= real; (vms as any).hurtAt = now; this.qNote(vms, "hit", now);
+    z?.events.push({ k: "phit", sid: vSid, d: real, src: "pvp", by: aSid, crit: crit ? 1 : undefined });
+    if (vms.zp.hp <= 0 && tryRevive(vms as any)) { z?.events.push({ k: "previve", sid: vSid, hp: vms.zp.hp }); return true; }
+    if (vms.zp.hp > 0) return true;
+    // смерть — обычная (как от моба): без новых потерь
+    vms.zp.hp = 0; vms.zp.alive = false; vms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid: vSid, pvp: aSid }); ST.inc("deaths"); ST.inc("pvp_kills"); this.bm.hits.delete(vSid);
+    this.onPvpKill(aSid, ams, sa, vSid, vms, sv, how, now);
+    return true;
+  }
+  /** убийство игрока: пожизненная статистика обоим, журнал убийц — только за PK-убийство не из-под купола (самооборона не делает убийцей) */
+  onPvpKill(aSid: string, ams: any, sa: any, vSid: string, vms: any, sv: any, how: "pk" | "def", now: number) {
+    const aa = this.store.account(ams.pkey), va = this.store.account(vms.pkey);
+    const ka = ((aa as any).kst ??= { pk: 0, pd: 0 }), kv = ((va as any).kst ??= { pk: 0, pd: 0 });
+    ka.pk = (ka.pk || 0) + 1; kv.pd = (kv.pd || 0) + 1; ams.dirty = true; vms.dirty = true;
+    const counted = how === "pk" && this.killLog.note(ams.pkey, "p", this.underDome(ams.zp.x, ams.zp.y), now);
+    if (counted) (aa as any).klp = (this.killLog.p.get(ams.pkey) || []).slice(-20); // убийства игроков — переживают перезапуск сервера
+    const ea = this.sessionLookup?.(aSid), ev = this.sessionLookup?.(vSid);
+    if (ea) { this.send(ea[0], { type: "pvp_kill", victim: this.displayName(sv), counted, self: how === "def" }); this.pkSend(ea[0], ams, now); }
+    if (ev) this.send(ev[0], { type: "pvp_death", killer: this.displayName(sa) });
+  }
+  /** PvP-дуга (ближний удар): игроки в секторе — как цели моба */
+  pvpArc(session: any, ms: any, ox: number, oy: number, vx: number, vy: number, atk: any, per: number) {
+    if (PK_CFG.on === false) return;
+    const R = atk.range + 14, arc = atk.arc || 1;
+    for (const m2 of this.ms.values()) {
+      if (m2.sid === session.id || !m2.zp.alive) continue;
+      const ex = m2.zp.x - ox, ey = m2.zp.y - oy, d = Math.hypot(ex, ey); if (d > R) continue;
+      if (d > 16 && Math.acos(Math.max(-1, Math.min(1, (ex * vx + ey * vy) / (d || 1)))) > arc) continue;
+      this.pvpStrike(session.id, m2.sid, per);
+    }
+  }
+  /** dev (MC_DEV_TRUST_USERID): PK сразу, накрутить убийства, включить места NPC, статус */
+  cityDev(ws: WebSocket, session: any, ms: any, a: any, o: any) {
+    const now = Date.now(), P = this.pkOf(ms);
+    if (o.pk !== undefined) { P.pk = !!o.pk; P.to = null; if (session.stats) session.stats.pk = P.pk ? 1 : 0; a.pk = P.pk ? 1 : undefined; this.pkSend(ws, ms); }
+    if (o.fastPk) { (PK_CFG as any).enterSec = Number(o.fastPk.enter ?? PK_CFG.enterSec); (PK_CFG as any).exitSec = Number(o.fastPk.exit ?? PK_CFG.exitSec); }
+    if (o.mobKills) for (let i = 0; i < Number(o.mobKills); i++) this.killLog.note(ms.pkey, "m", false, now - i);
+    if (o.pvpKills) for (let i = 0; i < Number(o.pvpKills); i++) this.killLog.note(ms.pkey, "p", false, now - i);
+    if (o.clearKills) { this.killLog.m.delete(ms.pkey); this.killLog.p.delete(ms.pkey); delete a.klp; }
+    if (Array.isArray(o.npcOn)) { (CITY_CFG.npc as any[]).forEach((sl, i) => (sl.on = o.npcOn.includes(i))); syncCityNpcs(NPCS as any); this.cityVer++; }
+    if (o.posNow) this.posNote(session, ms, true);
+    const k = this.killerOf(ms, now);
+    this.send(ws, { type: "dev_city", inCity: inCity(session.x, session.y), me: { x: Math.round(session.x), y: Math.round(session.y), w: session.world }, pk: P.pk, to: P.to, left: pkLeft(P, now), killer: k,
+      m: this.killLog.count(ms.pkey, "m", now), p: this.killLog.count(ms.pkey, "p", now), kst: a.kst || null, lastPos: a.lastPos || null, city: cityClient(), hp: Math.round(ms.zp.hp), alive: ms.zp.alive });
+  }
+  cityVer = 1;
+  /** «📊» и клиенту: настройки города (отрисовка) */
+  cityView() { return cityClient(); }
   async bmLoad() {
     if (!this.db) { this.bm.loaded = true; return; }
     await this.db.prepare("CREATE TABLE IF NOT EXISTS bm_state (k TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at INTEGER NOT NULL)").run();
@@ -1615,6 +1813,8 @@ export class MetaService {
           if ((ms as any).reviveUsed && R > eff.regen + 1) (ms as any).reviveUsed = false; // вне боя (полная регенерация) — талант снова готов
           ms.zp.hp = Math.min(ms.zp.maxHp, ms.zp.hp + R * dt);
         }
+        if (w === "arinar") this.cityTick(ws, s, ms, now); // город под куполом: PK-отсчёт, убийцу — за край
+        this.posNote(s, ms, false, now); // позиция для переподключения (не чаще POS_CFG.saveSec)
         // в хабе боевое состояние только у тех, у кого есть оболочка
         if (w !== "hellfire" || s.stats?.classId) byWorld[w].players.set(s.id, ms.zp);
         byWorld[w].socks.push([ws, s]);
@@ -1638,7 +1838,8 @@ export class MetaService {
         if (!ms || !ms.zp.alive) return;
         if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
         if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
-        if (w === "arinar" && this.bm.playerSafe(sid, ms.zp.x, ms.zp.y)) return; // купол Чёрного мага: кто был внутри до нападения — неуязвим
+        if (w === "arinar" && (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms))) return; // купол Чёрного мага / город: неуязвим
+        if (w === "arinar") this.pkCombat(sid); // получил урон — PK-отсчёт сброшен
         const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
         const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
         ms.zp.hp -= real; (ms as any).hurtAt = now;
@@ -1647,7 +1848,7 @@ export class MetaService {
         if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
         else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
       }, (mm) => this.onMobKilled(mm));
-      if (w === "arinar" && this.bm.loaded && zone.guard === this.bm) {
+      if (w === "arinar" && this.bm.loaded && zone.guard === this.guardMux) {
         try { this.bm.tick(Math.min(0.5, dt), zone as any, players as any); } catch (e: any) { console.error("[mc] black mage tick", e?.message || e); }
         for (const [, s] of socks) { const ms = this.ms.get(s.id); if (ms) { this.bmGround(s, ms, now); if ((ms as any).bmMeta && now - ((ms as any).bmMetaAt || 0) > 1500) { (ms as any).bmMeta = false; (ms as any).bmMetaAt = now; this.refreshZonePlayer(s); const e = this.sessionLookup?.(s.id); if (e) this.send(e[0], { type: "meta_state", ...this.snap(s) }); } } }
         if ((this.bmDirty || now - this.bmSaveAt > 60000) && !this.bmSaving && now - this.bmSaveAt > 10000) { this.bmSaveAt = now; this.bmSave().catch((e) => console.error("[mc] black mage save", e?.message || e)); }
@@ -1659,6 +1860,9 @@ export class MetaService {
       const npc: any[] = this.npcs.snapshot(w); // [id, x, y, dir, moving] — все NPC мира (их единицы)
       const bmOn = w === "arinar" && this.bm.loaded && BM_CFG.on !== false, bmE = bmOn ? this.bm.npcEntry() : null;
       if (bmE) npc.push(bmE); // Чёрный маг — НПС квестов (позиция живая)
+      if (w === "arinar" && CITY_CFG.on !== false) (CITY_CFG.npc as any[]).forEach((sl, i) => { if (sl.on) npc.push([cityNpcId(i), Math.round(CITY_CFG.x + sl.dx * CITY_TILE), Math.round(CITY_CFG.y + sl.dy * CITY_TILE), 0, 0]); }); // места NPC города
+      const cityCfgSig = w === "arinar" ? JSON.stringify(cityClient()) : "";
+      if (cityCfgSig && cityCfgSig !== (this as any).citySig) { (this as any).citySig = cityCfgSig; this.cityVer++; syncCityNpcs(NPCS as any); }
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
         const st = zone.state(s.x, s.y, ev, zone.gen.camps ? OPEN_AOI : 700, ms.pkey); // Аринар: интерес = самый дальний зум камеры (VIEW_CELLS.max), не больше
@@ -1695,7 +1899,9 @@ export class MetaService {
         if (bmOn) { bm = { m: this.bm.mageNear(s.x, s.y), d: this.bm.domesNear(s.x, s.y) };
           if (now - ((ms as any).roAt || 0) > 2000 || (ms as any).roVer !== this.bm.roseVer) { (ms as any).roAt = now; (ms as any).roVer = this.bm.roseVer; bm.ro = this.bm.rosesSnap(s.x, s.y); bm.cfg = bmClient(); }
           if (!bm.m && !bm.d.length && !bm.ro) bm = undefined; }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        // город под куполом: настройки отрисовки и места NPC — при входе в мир и при правке в админке (версия)
+        let city: any; if (w === "arinar" && (ms as any).cityVer !== this.cityVer && Math.abs(s.x - CITY_CFG.x) < 9000 && Math.abs(s.y - CITY_CFG.y) < 9000) { (ms as any).cityVer = this.cityVer; city = cityClient(); }
+        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, city, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }
@@ -1730,6 +1936,7 @@ export class MetaService {
     { const p = this.party.leave(session?.id); this.partySend(p); } // отключился — выходит из отряда
     const ms = this.ms.get(session?.id);
     if (!ms) return;
+    this.posNote(session, ms, true); // выход: точка для следующего входа
     this.save(session);
     this.ms.delete(session.id);
     if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.explore.flushKey(ms.pkey).catch(() => {});

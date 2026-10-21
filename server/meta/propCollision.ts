@@ -30,7 +30,9 @@ class ArinarGrid {
       this.done.add(k);
       if (!this.plan) { this.plan = arinarPlan(); addPortals(this.grid, 'arinar'); }
       if (i * this.span >= this.plan.size || j * this.span >= this.plan.size) continue;
-      for (const p of layoutChunk(this.plan, i, j).props) for (const c of propColliders(p.k, p.x, p.y, p.s)) this.grid.add(c);
+      const L = layoutChunk(this.plan, i, j);
+      for (const p of L.props) for (const c of propColliders(p.k, p.x, p.y, p.s)) this.grid.add(c);
+      for (const c of L.cols || []) this.grid.add(c); // стены домов города (city.ts)
     }
     return this.grid;
   }
