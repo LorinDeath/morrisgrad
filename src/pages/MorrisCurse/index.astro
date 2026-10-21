@@ -34,7 +34,9 @@ import './_core/styles/game-modals.css';
 </Layout>
 
 <script>
-  function initLauncher() {
+  import { syncAssets, AC } from './_core/boot/assetCache.js';
+  import { showError, hookGlobalErrors } from './_core/boot/errorBox.js';
+    function initLauncher() {
     const startBtn = document.getElementById('btn-start');
     const overlay = document.getElementById('launcher-overlay');
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -62,18 +64,22 @@ import './_core/styles/game-modals.css';
         let username = 'Странник';
         let userId = null;
 
-        try {
-          const res = await fetch('/api/get-user');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.username) username = data.username;
-            userId = data.userId || data.id || null; // <--- Получение ID из базы
-          }
-        } catch (err) {
-          console.warn('Не удалось загрузить пользователя');
-        }
-
-        const { initGame } = await import('./_core/game.js');
+        hookGlobalErrors(); // коды ошибок (src/errors/codes.js): непредвиденное → MC-X00
+        // ресурсы: один раз скачать, дальше — только изменения (boot/assetCache.js + public/mc-sw.js); параллельно — кто вошёл
+        const userP = fetch('/api/get-user').then(async (res) => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+          if (data.username) username = data.username;
+          userId = data.userId || data.id || null; // <--- Получение ID из базы
+        }).catch((err) => { console.warn('Не удалось загрузить пользователя', err); showError('MC-A01', { soft: true, autoClose: 8000, detail: String(err?.message || err) }); });
+        await syncAssets();
+        await userP;
+        const ld = AC.loader && AC.loader.el.isConnected ? AC.loader : null; // экран первого визита/обновления: последняя стадия
+        ld?.stage('world');
+        let initGame;
+        try { ({ initGame } = await import('./_core/game.js')); }
+        catch (err) { ld?.close(); showError('MC-L05', { detail: String(err?.message || err) }); return; } // «Повторить» = перезагрузка (неудачный import браузер запоминает)
+        if (ld) { const done = () => ld.close(); window.addEventListener('mc:first-frame', done, { once: true }); setTimeout(done, 20000); }
         // Передача userId третьим аргументом обязательна!
         (initGame)(canvas.id, username, userId);
       }

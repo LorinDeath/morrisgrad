@@ -50,12 +50,12 @@ export class NetClient {
     try {
       socket = new WebSocket(this.url);
     } catch (err) {
-      this.goOffline('WebSocket недоступен');
+      this.goOffline('WebSocket недоступен', 'MC-N01');
       return;
     }
     this.socket = socket;
     const failTimer = setTimeout(() => {
-      if (!this.connected) this.goOffline('Сервер не отвечает');
+      if (!this.connected) this.goOffline('Сервер не отвечает', 'MC-N01');
     }, 6000);
     socket.onopen = async () => {
       clearTimeout(failTimer);
@@ -91,19 +91,21 @@ export class NetClient {
       this.emit(data.type, data);
       this.emit('*', data);
     };
-    socket.onclose = () => {
+    socket.onclose = (ev) => {
       clearTimeout(failTimer);
       const wasConnected = this.connected;
       this.connected = false;
-      if (!this.kicked) this.goOffline(wasConnected ? 'Соединение потеряно' : 'Нет связи с сервером');
+      if (this.socket !== socket) return; // старый сокет (после повторного connect)
+      // коды ошибок (src/errors/codes.js): не открылось — N01, оборвалось — N02, сервер закрыл за флуд (1008) — N03
+      if (!this.kicked) this.goOffline(wasConnected ? 'Соединение потеряно' : 'Нет связи с сервером', ev?.code === 1008 ? 'MC-N03' : wasConnected ? 'MC-N02' : 'MC-N01');
     };
     socket.onerror = () => {};
   }
 
-  goOffline(reason) {
+  goOffline(reason, code = 'MC-N01') {
     if (this.offline) return;
     this.offline = true;
-    this.emit('offline', { reason });
+    this.emit('offline', { reason, code });
   }
 
   isOpen() {

@@ -1,3 +1,4 @@
+import { showError } from '../boot/errorBox.js';
 // 2.5D-билборды из атласа: один InstancedMesh (= один draw call) на атлас.
 // Каждый экземпляр: позиция «ног», размер в метрах, ячейка атласа, отражение по X, тон, вспышка, прозрачность.
 // Квад всегда повёрнут к камере (в пространстве вида), низ квада — в точке ног, поэтому спрайт «стоит» на земле.
@@ -163,9 +164,10 @@ export const assetUrl = (s) => (typeof s === 'object' && s !== null ? (s.src || 
 export function loadAtlasTexture(THREE, src) {
   src = assetUrl(src);
   return new Promise((resolve, reject) => {
-    const img = new Image();
+    let tries = 0; const img = new Image();
     img.onload = () => { const t = new THREE.Texture(img); t.needsUpdate = true; resolve(t); };
-    img.onerror = () => reject(new Error('атлас не загрузился: ' + src));
+    // сбой сети/кэша: ещё раз мимо кэша браузера, затем код MC-G03 (окно-плашка) и reject — как раньше
+    img.onerror = () => { if (!tries++) { img.src = src + (src.includes('?') ? '&' : '?') + 'r=1'; return; } showError('MC-G03', { soft: true, autoClose: 8000, detail: src }); reject(new Error('атлас не загрузился: ' + src)); };
     img.src = src;
   });
 }

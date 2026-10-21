@@ -4,6 +4,7 @@
 // Забег: Vampire Survivors-подобный режим в отдельной 3D-арене; вход через порталы-комнаты (run_join),
 // co-op синхронизация через run_relay (ведущий — авторитет орды). См. survivors/run.js.
 import { fmtBig } from './fmtNum.js';
+import { showError, hookGlobalErrors, setErrSink } from './boot/errorBox.js'; // коды ошибок (src/errors/codes.js)
 import { resolveWorld } from '../../../../server/meta/propCollision.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
@@ -113,16 +114,11 @@ export function initGame(canvasId, username = 'Игрок', userId = '') {
   if (window.__MC3D_GAME__) return window.__MC3D_GAME__;
   const api = { ready: null };
   window.__MC3D_GAME__ = api;
+  hookGlobalErrors(); // непредвиденные ошибки → MC-X00 с кодом контекста (boot/errorBox.js)
   api.ready = boot(canvasId, username || 'Игрок', userId || '', api).catch((err) => {
     console.error('[MorrisCurse 3D] не удалось запустить игру', err);
-    const canvas = document.getElementById(canvasId);
-    const host = canvas?.parentElement;
-    if (host) {
-      const box = document.createElement('div');
-      box.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fca5a5;font:12px monospace;text-align:center;padding:16px;z-index:40;background:#050408';
-      box.textContent = 'Не удалось запустить 3D (WebGL недоступен?). ' + (err?.message || '');
-      host.appendChild(box);
-    }
+    const gl = /webgl|context|renderer/i.test(String(err?.message || err));
+    showError(gl ? 'MC-G02' : 'MC-X00', { detail: String(err?.stack || err).slice(0, 300), step: gl ? null : 'запуск игры' });
   });
   return api;
 }
@@ -140,7 +136,7 @@ async function boot(canvasId, username, userId, api) {
   const overlay = new Overlay(canvas, container);
   overlay.showScreen('<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
 
-  const THREE = await loadThree();
+  const THREE = await loadThree().catch((e) => { throw new Error('three.min.js: ' + (e?.message || e)); });
   initModelMode();
   await Promise.all([preloadCharacterSheets(), loadPixAtlases(THREE)]);
   const stage = new Stage(THREE, canvas, { mobile });
@@ -148,7 +144,10 @@ async function boot(canvasId, username, userId, api) {
   initGrim(canvas); // мрачная цветокоррекция + дымка к краям (ui/grim.js; сила — Настройки)
   atmo.init(THREE, stage, { mobile });
   let atmoWorld = null; // 'run_crypt' | 'run_abyss' в забеге
+  // видеоконтекст отобран браузером (мало видеопамяти, сброс драйвера) → MC-G01; вернулся — перезагрузка надёжнее частичного восстановления
+  stage.renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); showError('MC-G01', { detail: 'webglcontextlost' }); }, false);
   overlay.hideScreen();
+  requestAnimationFrame(() => requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('mc:first-frame')))); // index.astro закрывает экран загрузки
 
   // ---------------- состояние ----------------
   const player = {
@@ -187,7 +186,7 @@ async function boot(canvasId, username, userId, api) {
   // ---------------- сеть ----------------
   const net = new NetClient({
     username, userId,
-    getToken: clerkToken,
+    getToken: async () => { const t = await clerkToken(); if (userId && !t) showError('MC-A01', { soft: true, autoClose: 8000, detail: 'Clerk: пустой токен при входе ' + (window.Clerk ? (window.Clerk.loaded ? 'loaded' : 'not loaded') : 'no Clerk') }); return t; },
     guestId: guestId(),
     getJoinState: () => ({
       x: player.x, y: player.y,
@@ -327,12 +326,13 @@ async function boot(canvasId, username, userId, api) {
     for (const id of flowers.keys()) if (!ids.has(id)) flowers.delete(id);
   });
 
-  net.on('kicked', () => {
-    overlay.showScreen('<h2>Сессия закрыта</h2><p>Вы вошли в игру с другого устройства или вкладки.</p>', [{ text: 'Перезагрузить', onClick: () => location.reload() }]);
-  });
+  net.on('kicked', () => showError('MC-S02', { onRetry: () => location.reload() }));
+  net.on('welcome', () => setErrSink((r) => send({ type: 'client_err', ...r }))); // коды ошибок → журнал сервера (без личных данных)
+  net.on('auth_err', (d) => showError('MC-A02', { soft: true, autoClose: 8000, detail: d?.why || '' }));
   net.on('offline', (d) => {
     if (net.kicked) return;
-    if (!offlineToastShown) overlay.toast(`${d.reason}. Офлайн-режим: соло-забеги доступны у порталов.`, '#fca5a5');
+    setErrSink(null);
+    if (!offlineToastShown) showError(d.code || 'MC-N01', { soft: true, detail: d.reason, onRetry: () => location.reload() }); // офлайн-режим: соло-забеги у порталов
     offlineToastShown = true;
     if (mode === 'run' && run) { run.setMembers([], null); }
   });
@@ -342,12 +342,12 @@ async function boot(canvasId, username, userId, api) {
   net.on('mark_err', (d) => overlay.toast(d.message || 'Ошибка метки', '#fca5a5'));
   net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
   net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
-  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } });
+  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } else showError('MC-D01', { soft: true, autoClose: 6000, detail: 'pos_fix ' + JSON.stringify(d).slice(0, 80) }); });
   net.on('world_switched', (d) => {
     if (d.homePortal === 'home_portal') overlay.toast('🌀 Портал домой открыт — возвратный портал ждёт вас в хабе', '#c4b5fd');
     if (d.homePortal === 'home_portal_back') overlay.toast('🌀 Вы вернулись туда, где открыли портал', '#c4b5fd');
     world = d.world || 'hellfire';
-    player.x = d.x; player.y = d.y;
+    if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; } else showError('MC-D01', { soft: true, autoClose: 6000, detail: 'world_switched ' + world });
     hub.setWorld(world, portals);
     zone.setWorld(world);
     stage.follow(toX(player.x), toZ(player.y), 0, true);
@@ -391,7 +391,10 @@ async function boot(canvasId, username, userId, api) {
       overlay.float(toX(player.x), 2.6, toZ(player.y), '+20 🛡️', '#38bdf8');
     }
   });
-  net.on('toast_error', (d) => overlay.toast(d.message || 'Ошибка', '#fca5a5'));
+  net.on('toast_error', (d) => {
+    if (d.code === 'MC-A03' && /^admin/.test(d.for || '')) { try { if (adminPanel.isOpen) { adminPanel.onDenied(d); return; } } catch (_) {} } // окно админки: код вместо вечной «Загрузки данных»
+    if (d.code && d.code !== 'MC-A03') showError(d.code, { soft: true, autoClose: 6000, detail: d.message }); else overlay.toast(d.message || 'Ошибка', '#fca5a5');
+  });
   // Профиль: сервер может не успеть загрузить его (meta_error) — повторяем meta_get с нарастающей паузой,
   // и сторож: если после welcome нет meta_state за 8 с — тоже запрос.
   const metaLoad = { got: false, n: 0, t: 0 };
@@ -406,6 +409,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('welcome', () => { metaLoad.got = false; metaLoad.n = 0; metaRetry(8000); });
   net.on('meta_error', (d) => {
     if (metaLoad.n === 0) overlay.toast(d.message || 'Профиль загружается…', '#fca5a5');
+    else if (metaLoad.n === 3) showError('MC-D02', { soft: true, step: 'профиль с сервера', onRetry: () => { metaLoad.n = 0; send({ type: 'meta_get' }); } });
     if (!metaLoad.got) metaRetry(Math.min(15000, 1000 * 2 ** Math.min(metaLoad.n, 4)));
   });
   net.on('offline', () => clearTimeout(metaLoad.t));

@@ -182,6 +182,7 @@ export class MetaService {
     // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
     if (session.metaUid) uid = session.metaUid;
     else if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+    if (!uid && msg.token && !session.metaUid) this.send(ws, { type: "auth_err", code: "MC-A02" }); // токен не прошёл проверку → гость (коды: src/errors/codes.js)
     if (!uid && session.dev === true && msg.userId) uid = String(msg.userId).slice(0, 128);
     if (uid) session.metaUid = uid;
     const verified = !!uid;
@@ -576,7 +577,7 @@ export class MetaService {
       case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
         // роли из D1 + verified; id/роль из сообщения клиента игнорируются.
         // Админ — всё. Модератор — только admin_open + admin_save/reset для mob/weapon/item. Остальное — отказ.
-        const deny = (why: string) => { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why, type: msg.type, kind: (msg as any).kind }); return true; };
+        const deny = (why: string) => { this.send(ws, { type: "toast_error", message: "Недостаточно прав", code: "MC-A03", for: String(msg.type || "").slice(0, 40), why }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why, type: msg.type, kind: (msg as any).kind }); return true; };
         if (msg.type === "admin_open") {
           if (!this.roles.canOpenAdmin(ms)) return deny("not_panel");
         } else if (msg.type === "admin_save" || msg.type === "admin_reset") {
