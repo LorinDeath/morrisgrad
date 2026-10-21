@@ -53,3 +53,17 @@ Do not touch `/workspace/mg-ui` (branch ui-cursed-rework, 10 commits); it is mer
 - Consumers: `engine/atmosphere.js` (world halos, pools, desktop PointLights), `engine/dayNight.js` (night mask: pool on the ground under the emitter, elongated by `LT.poolEl`; halo at the emitter), `hub/cityView.js` (city lamp halos behind sprites, window/door lights).
 - The props3 branch (Художник's light_* sprites replacing radialTex halos) should call `lightEmitter(key, frame)` / `emitterWorld()` and draw its sprite there.
 - Test: `tools/light-emitters/run-test.sh` checks emitter world position == glow centroid ±1 px for every key and frame, mirroring, pool under emitter, building spots and overrides.
+
+## Альказак: вертикальный забор и колодец (правки поверх alkazak_map.json)
+- В атласе `props_dark` (и в props3: только `fence`/`fence_2`) нет вертикального пролёта забора: `dm_fence` — горизонтальный,
+  `dm_fence_post` — узловой столб с обрубками жердей влево/вправо. Колонны таких столбов через 32 px торчали обрубками вбок.
+- `server/meta/cityMap.ts fenceRuns()`: колонна узловых столбов (шаг ≤34 px, ≥2) → `dm_fence_vpost` через ~64 px + `dm_fence_vrail`
+  (len — пролёт). Концы колонны стыкуются с крайним колышком горизонтального пролёта (`FENCE_END_DX` = −25/+27 px): x — на колышек,
+  y — до основания пролёта (жерди стык в стык). Если колонна съехала в соседнюю клетку — стена `#` проходимости едет за ней (`WALK_SHIFT`).
+- Клиент `hub/cityView.js`: столб — спрайт (колышек dm_fence без перекладин, `src/assets/mc/city/fence_v.png`, `tools/city-fence/gen.py`);
+  жердь — 3D-полоса от столба до столба вдоль «вверх» камеры (не ломается лесенкой в перспективе), вершины — по базису камеры.
+- **Для Художника (по желанию, чтобы заменить временный кадр):** `dm_fence_v` — вертикальный пролёт забора в 3/4 для сетки 32 px:
+  2 столба (ближний у основания кадра, дальний на 32 px мира выше = ~16 арт-px выше на экране) и 1–2 жерди между ними, уходящие вглубь;
+  тот же стиль/палитра, что `dm_fence` (пики колышков, контур #0b0a12, дерево #b08a70/#6b4a3a). Плюс угловой колышек `dm_fence_corner`.
+- Колодец: `WELL_MOVES` — с мощёной площади (24758, 3468) на траву (24758, 3692), проходимость переезжает; ведро — часть кадра `dm_well`.
+- Тесты: `server/meta/city-test.ts` (забор: нет колонн узловых столбов, стыки, без щелей, стены; колодец: на траве, твёрдый). Скрины: `polish/fence-well/`.

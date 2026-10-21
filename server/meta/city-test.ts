@@ -6,7 +6,7 @@ import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from 
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
 import { walkable } from "./walkable";
 import { validatePatch } from "./overrides";
-import { emptyCellsInDome, cityGround, walkCell, walkColliders, mapProps, DARK_INDEX, roseBedPx, ROSE_BED } from "./cityMap";
+import { emptyCellsInDome, cityGround, walkCell, walkColliders, mapProps, DARK_INDEX, roseBedPx, ROSE_BED, MAP, WELL_MOVES, WALK_SHIFT, fenceRuns } from "./cityMap";
 let ok = 0, bad = 0; const t = (n: string, c: any, x?: any) => { c ? (ok++, console.log("ok  ", n)) : (bad++, console.log("FAIL", n, x ?? "")); };
 const cfg0 = JSON.parse(JSON.stringify({ ...CITY_CFG, npc: undefined })); const npc0 = JSON.parse(JSON.stringify(CITY_CFG.npc));
 const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0))); CITY_CFG.npc = JSON.parse(JSON.stringify(npc0)); };
@@ -103,7 +103,8 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("застройка не дальше r 37.7 клетки", cityBuildings().every((b) => [[b.rect[0], b.rect[1]], [b.rect[0] + b.rect[2], b.rect[1]], [b.rect[0], b.rect[1] + b.rect[3]], [b.rect[0] + b.rect[2], b.rect[1] + b.rect[3]]].every(([x, y]) => Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) <= 37.7 * 32)));
   t("за куполом нет черноты без льда (кромка обрезана)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d <= 40) continue; const g = cityGround(gi, gj); if (g && !g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
   t("внутри купола лёд карты убран (только у кромки снаружи)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d > 40) continue; const g = cityGround(gi, gj); if (!g || g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
-  t("пропсы карты: 253 минус клумба розы (−5), все в атласе", mapProps().length === 248 && mapProps().every((p) => DARK_PROPS.keys?.[p.k]), mapProps().filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k));
+  { const FV = /^dm_fence_v(post|rail)$/, M = mapProps(), base = M.filter((p) => !FV.test(p.k));
+    t("пропсы карты: 253 − клумба розы (−5) − 60 узловых столбов колонн (4 одиночных — в клумбе) (→ вертикальный забор), остальные в атласе", base.length === 248 - 60 && base.every((p) => DARK_PROPS.keys?.[p.k]), base.filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k)); }
   t("стены/заборы из сетки walk — коллайдеры", walkColliders().length > 500 && !walkable("arinar", ...((): [number, number] => { const b = buildingById("house_elder")!; return [b.rect[0] + 100, b.rect[1] + 100]; })()));
   const rp = cityClient().rose; t("роза города рисуется в точке карты (24608, 3232) — центр травяной клумбы", rp && rp.x === 24608 && rp.y === 3232 && rp.id === "1792366351175927", rp);
   const pts: Record<string, [number, number]> = { "Староста": [24496, 3192], "Хозяин таверны": [24896, 3092], "Торговка": [24496, 3320], "Огородник": [24240, 3480], "Беженка": [25584, 3864], "Дозорный": [23504, 3448] };
@@ -163,4 +164,22 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("cityClient несёт pkUi", !!(cityClient() as any).pkUi?.barTo);
   const v = validatePatch("pk", "main", { barTo: "#123456", barW: 80, tagText: "УБИЙЦА" } as any); t("админка PK: цвета/ширина/значок принимаются", typeof v !== "string" && (v as any).barTo === "#123456" && (v as any).barW === 80, v);
   t("админка PK: ширина полосы вне 24…140 — отказ", typeof validatePatch("pk", "main", { barW: 999 } as any) === "string"); }
+{ // вертикальный забор и колодец (правки поверх карты Историка)
+  const P = mapProps(), col = P.filter((p: any) => p.k === "dm_fence_post"), vp = P.filter((p: any) => p.k === "dm_fence_vpost"), vr = P.filter((p: any) => p.k === "dm_fence_vrail");
+  const xs = new Map<number, number[]>(); for (const p of col) (xs.get(p.x) || xs.set(p.x, []).get(p.x))!.push(p.y);
+  t("забор: колонн узловых столбов (с обрубками вбок) не осталось", [...xs.values()].every((ys) => ys.sort((a, b) => a - b).every((y, i) => !i || y - ys[i - 1] > 34)), [...xs.entries()].slice(0, 3));
+  t("забор: вертикальные пролёты — столбы и жерди", vp.length >= 20 && vr.length >= 30, [vp.length, vr.length]);
+  t("забор: жердь — пролёт 48…80 px (столб через ~64 px)", vr.every((r: any) => r.len >= 48 && r.len <= 80), vr.slice(0, 3));
+  const H = P.filter((p: any) => /^dm_fence(_gate|_broken)?$/.test(p.k)), ends = H.flatMap((h: any) => [h.x - 25, h.x + 27]);
+  t("забор: каждая колонна стыкуется с крайним колышком горизонтального пролёта (x ±1)", [...new Set(vr.map((r: any) => r.x))].every((x) => ends.some((e) => Math.abs(e - x) <= 1)), [...new Set(vr.map((r: any) => r.x))]);
+  const ys = (x: number) => vr.filter((r: any) => r.x === x).map((r: any) => [r.y - r.len, r.y]).sort((a: any, b: any) => a[0] - b[0]);
+  // на одном x бывает две колонны (разные огороды) — между ними разрыв > 100 px; внутри колонны — стык в стык
+  t("забор: жерди колонны без щелей (конец одной — начало следующей)", [...new Set(vr.map((r: any) => r.x))].every((x) => ys(x).every((s: any, i: number, a: any[]) => !i || Math.abs(s[0] - a[i - 1][1]) <= 1 || s[0] - a[i - 1][1] > 100)), [...new Set(vr.map((r: any) => r.x))].map((x) => ys(x)));
+  t("забор: стена (#) сдвинутых колонн переехала в клетку столбов", WALK_SHIFT.length === 2 && WALK_SHIFT.every((m) => walkCell(m.to, m.j0 + 1) === "#" && walkCell(m.from, m.j0 + 1) !== "#"), WALK_SHIFT);
+  t("fenceRuns: одиночный столб не трогается", fenceRuns([{ k: "dm_fence_post", x: 10, y: 10 }]).length === 1);
+  const w = P.find((p: any) => p.k === "dm_well" && p.x === WELL_MOVES[0].to[0] && p.y === WELL_MOVES[0].to[1]);
+  t("колодец перенесён на траву (с площади)", !!w && !P.some((p: any) => p.k === "dm_well" && p.x === WELL_MOVES[0].from[0] && p.y === WELL_MOVES[0].from[1]));
+  const gi = Math.floor(WELL_MOVES[0].to[0] / CITY_TILE), gj = Math.floor(WELL_MOVES[0].to[1] / CITY_TILE), gi0 = Math.floor(WELL_MOVES[0].from[0] / CITY_TILE), gj0 = Math.floor(WELL_MOVES[0].from[1] / CITY_TILE);
+  t("колодец: твёрдый на новом месте, старое проходимо", walkCell(gi, gj) === "#" && walkCell(gi0, gj0) === ".", [walkCell(gi, gj), walkCell(gi0, gj0)]);
+  const g = cityGround(gi, gj) as any, nm = JSON.stringify(g); t("колодец: под ним нет мощения/тропы", !/cobble|plaza|path/.test(nm), nm); }
 console.log(`\n${ok} ok, ${bad} fail`); if (bad) process.exit(1);

@@ -6,7 +6,7 @@
 // заливка — отдельный меш opacity 0.02 (ProjBatch отбрасывает a < 0.04). Позиция блока = якорь + world_offset_m (камера: right/up/forward
 // из city_dome.json) — НЕ сдвиг по мировому Y, как FxAtlas.draw (квад к камере ужимается на cos p и блоки разъезжаются).
 import { lightOf, lampHash, FIRE, flickerOf, LT } from '../engine/dayNight.js';
-import { emitterOffsetM, emitterSpotsM, emitterWorld } from '../engine/lightEmitter.js';
+import { emitterOffsetM, emitterSpotsM, emitterWorld, emitterBasis } from '../engine/lightEmitter.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
@@ -18,6 +18,7 @@ import DOME from '../../../../assets/mc/city/city_dome.json';
 import PROPS from '../../../../assets/mc/city/props_dark_atlas.json';
 import BLD from '../../../../assets/mc/city/buildings.json';
 import p32Src from '../../../../assets/mc/city/props_dark_p32.png';
+import fenceVSrc from '../../../../assets/mc/city/fence_v.png'; // вертикальный забор (tools/city-fence/gen.py) — до арта Художника
 import p32GSrc from '../../../../assets/mc/city/props_dark_p32_glow.png';
 import b64Src from '../../../../assets/mc/city/props_dark_b64.png';
 import b64GSrc from '../../../../assets/mc/city/props_dark_b64_glow.png';
@@ -132,13 +133,31 @@ export class CityView {
     }
     // пропсы dm_*
     const SH = { p32: p32Src, b64: b64Src, p32_glow: p32GSrc, b64_glow: b64GSrc };
+    // вертикальный забор (cityMap.fenceRuns): столбы — спрайты (колышек dm_fence без перекладин); жерди — 3D-полосы ОТ столба ДО столба
+    //   (одна, 8…12 арт-px над землёй — две жерди вдоль глубины на экране почти совпадают и рябят; темнее и тоньше столба, вдоль «вверх» камеры как у спрайтов), поэтому в перспективе колонна
+    //   не ломается лесенкой и жердь всегда упирается в соседний столб / крайний колышек пролёта. Вершины — в update (базис камеры)
+    const fenceV = (p) => L(fenceVSrc).then((t0) => {
+      const t = t0.clone(); t.needsUpdate = true; t.repeat.set(7 / 12, 1); t.offset.set(0, 0);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.04, fog: false }));
+      sp.center.set(0.5, 0); sp.scale.set(0.7, 1.8 * SIN_P, 1); sp.position.set(toX(p.x), 0, toZ(p.y)); sp.renderOrder = 3; sp.name = p.k; g.add(sp); });
+    const rails = [];
     for (const p of mapProps(c.rTiles)) {
+      if (p.k === 'dm_fence_vpost') { fenceV(p); continue; }
+      if (p.k === 'dm_fence_vrail') { rails.push([toX(p.x), toZ(p.y), toZ(p.y - (p.len || 64))]); continue; }
       const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
       const [wM, hM] = k.size_m || [k.w / 10, k.h / 10];
       sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k), FIRE.test(p.k) ? 'fire' : 'lamp');
       const Lp = lightOf(p.k); if (Lp) { const sc = p.s || 1, off = emitterOffsetM(p.k, { wM: wM * sc, hM: hM * sc * SIN_P, flip: !!p.f, set: 'city' }) || [0, (Lp[4] || 1) * SIN_P], fire = FIRE.test(p.k);
         addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }
+    this.fenceRails = null; if (rails.length) L(fenceVSrc).then((t0) => {
+      const t = t0.clone(); t.needsUpdate = true; t.repeat.set(4 / 12, 4 / 18); t.offset.set(7 / 12, 1 - 4 / 18);
+      const n = rails.length, pos = new Float32Array(n * 12), uv = new Float32Array(n * 8), idx = [];
+      for (let i = 0; i < n; i++) { uv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8); const o = i * 4; idx.push(o, o + 1, o + 2, o, o + 2, o + 3); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: t, color: 0xa09088, transparent: true, alphaTest: 0.04, side: THREE.DoubleSide, fog: false }));
+      mesh.name = 'city-fence-rails'; mesh.renderOrder = 3; mesh.frustumCulled = false; g.add(mesh); this.fenceRails = { mesh, rails, sig: '' }; this.stats.fenceRails = rails.length;
+    });
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
   }
   // ——— пятно порчи под розой города: очернённая проклятая земля расползается в траву (рваный край, тёмные жилы, искры).
@@ -213,6 +232,13 @@ export class CityView {
   inCity(px, py) { const c = this.cfg; return !!(c && c.on && (px - c.x) ** 2 + (py - c.y) ** 2 <= c.r * c.r); }
   /** кадр: view = фокус камеры (свой герой) */
   update(dt, view) {
+    { const F = this.fenceRails, B = emitterBasis(); // жерди вертикального забора — по базису камеры (пересчёт при его смене)
+      const sig = F && `${B.rx.toFixed(4)},${B.ux.toFixed(4)},${B.uy.toFixed(4)},${B.uz.toFixed(4)}`;
+      if (F && sig !== F.sig) { F.sig = sig; const P = F.mesh.geometry.attributes.position, a = P.array, u = 0.1 * SIN_P, w = 0.13, bk = 0.04; let k = 0;
+        const v = (x, z, h, r) => { a[k++] = x + B.rx * r + B.ux * h + B.vx * bk; a[k++] = B.ry * r + B.uy * h + B.vy * bk; a[k++] = z + B.rz * r + B.uz * h + B.vz * bk; };
+        // полоса: от низа перекладины у ближнего столба до её верха у дальнего (на экране — сплошная жердь между ними), ширина 2.6 арт-px
+        for (const [x, z1, z0] of F.rails) for (const [h0, h1] of [[8, 12]]) { v(x, z1, h0 * u, -w); v(x, z1, h0 * u, w); v(x, z0, h1 * u, w); v(x, z0, h1 * u, -w); }
+        P.needsUpdate = true; F.mesh.geometry.computeBoundingSphere(); } }
     this.time += dt; const T = this.time, c = this.cfg;
     if (!c || !c.on || !this.ready) return;
     const near = view && Math.abs(view.x - c.x) < c.r + 2600 && Math.abs(view.y - c.y) < c.r + 2600;
