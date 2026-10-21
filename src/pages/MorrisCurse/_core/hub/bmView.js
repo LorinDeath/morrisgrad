@@ -95,7 +95,7 @@ export class BmView {
     const now = Date.now(), keep = new Set();
     for (const [id, x, y, r, left, w] of bm.d || []) { keep.add(id); const d = this.domes.get(id); if (d) { d.exp = now + left * 1000; continue; } this.domes.set(id, { id, x, y, r, exp: now + left * 1000, world: w === 1, small: w === 2, born: this.time - 99 }); }
     for (const [id, d] of this.domes) if (!keep.has(id)) { this.domes.delete(id); this.gone.push({ ...d, t: 0 }); }
-    if (Array.isArray(bm.ro)) { const k2 = new Set(); for (const [id, x, y, age, nc] of bm.ro) { k2.add(id); const r = this.roses.get(id); const born = now - age; if (r) { r.born = born; r.nc = !!nc; } else this.roses.set(id, { id, x, y, born, nc: !!nc, ph: (id % 997) / 97 }); } // nc — роза города: без проклятой земли
+    if (Array.isArray(bm.ro)) { const k2 = new Set(); for (const [id, x, y, age, nc] of bm.ro) { k2.add(id); const r = this.roses.get(id); const born = now - age; const ov = this.roseAt?.[String(id)]; const rx = ov ? ov[0] : x, ry = ov ? ov[1] : y; if (r) { r.born = born; r.nc = !!nc; r.x = rx; r.y = ry; } else this.roses.set(id, { id, x: rx, y: ry, born, nc: !!nc, ph: (id % 997) / 97 }); } // nc — роза города: без проклятой земли
       for (const id of [...this.roses.keys()]) if (!k2.has(id)) this.roses.delete(id); }
   }
   event(e) {
@@ -110,7 +110,7 @@ export class BmView {
       case 'bmblk': this.arrows.set(e.id, { x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 620, r: e.r || 300, age: 0, big: !!e.b, pl: 1 }); this.fx.push({ an: A.arrowSHit, x: e.x, y: e.y, t: 0, h: 1 }); this.stats.black = (this.stats.black || 0) + 1; return true;
       case 'bmimm': if (this.mage) this.mage.flash = 0.25; return true;
       case 'bmpush': return true;
-      case 'bmrose': if (!this.roses.has(e.id)) this.roses.set(e.id, { id: e.id, x: e.x, y: e.y, born: Date.now(), ph: (e.id % 997) / 97, plant: this.time }); return true;
+      case 'bmrose': if (!this.roses.has(e.id)) this.roses.set(e.id, { id: e.id, x: this.roseAt?.[String(e.id)]?.[0] ?? e.x, y: this.roseAt?.[String(e.id)]?.[1] ?? e.y, born: Date.now(), ph: (e.id % 997) / 97, plant: this.time }); return true;
     }
     return false;
   }

@@ -6,6 +6,9 @@
 import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
+import { DayNight } from './engine/dayNight.js';
+import { CityView } from './hub/cityView.js';
+import { emptyCellsInDome } from '../../../../server/meta/cityMap.ts';
 import { CityHud } from './ui/cityHud.js';
 import { CITY_CFG, inCity } from '../../../../server/meta/city.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
@@ -179,6 +182,7 @@ async function boot(canvasId, username, userId, api) {
 
   const hub = new HubWorld(THREE, stage);
   const zone = new ZoneView(THREE, hub.root);
+  const cityView = new CityView(THREE, hub.root); // купол Альказака (арт Историка): оболочка 0.9/0.02 с переходом, обод, отталкивание
   const dpsMeter = new DpsMeter(); // DPS / DPM героя (по событиям сервера)
   const cityRoom = new CityRoomView(THREE, hub.root); // интерьеры зданий города (server/meta/cityBuild.ts)
   hub.setWorld(world, portals);
@@ -343,8 +347,9 @@ async function boot(canvasId, username, userId, api) {
   net.on('mark_err', (d) => overlay.toast(d.message || 'Ошибка метки', '#fca5a5'));
   net.on('dash_fx', (d) => { if (d.blink && d.ms > 0) ivBlink.set(d.id === myId ? 'me' : d.id, performance.now() + Math.max(d.ms, 34)); });
   net.on('dash_reject', (d) => { dash.cd = Math.max(dash.cd, (d.left || 0) / 1000); });
-  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; if (d.door || d.city) stage.follow(toX(player.x), toZ(player.y), 0, true); } });
+  net.on('pos_fix', (d) => { if (Number.isFinite(d.x) && Number.isFinite(d.y)) { player.x = d.x; player.y = d.y; if (d.door || d.city) stage.follow(toX(player.x), toZ(player.y), 0, true); if (d.city) cityView.repel(d.x, d.y); } });
   // город Альказак: двери зданий (интерьер), PK-режим, купол не пускает убийц (server/meta/city.ts, cityBuild.ts)
+  const dayNight = new DayNight(THREE, stage, { mobile }); // смена дня и ночи в Аринаре (engine/dayNight.js; часы — с сервера)
   const cityHud = new CityHud(container, { send: (m) => send(m), toast: (t, c) => overlay.toast(t, c) });
   net.on('city_room', (d) => {
     cityRoom.set(d);
@@ -355,6 +360,8 @@ async function boot(canvasId, username, userId, api) {
   // настройки города с сервера (админка): центр/радиус — от них узлы ресурсов (за край купола) и места NPC
   let citySig = '';
   function citySync(c) {
+    cityView.apply(c);
+    if (zone.bmv) { zone.bmv.roseAt = c.rose ? { [c.rose.id]: [c.rose.x, c.rose.y] } : {}; const r = c.rose && zone.bmv.roses.get(Number(c.rose.id)); if (r) { r.x = c.rose.x; r.y = c.rose.y; } } // роза города — в точке карты (только отрисовка)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
     for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '' });
     const k = `${c.x},${c.y},${c.rTiles},${c.on}`; if (k === citySig) return; const first = !citySig; citySig = k;
@@ -363,7 +370,7 @@ async function boot(canvasId, username, userId, api) {
     if (ch && world === 'arinar' && zone.seed !== undefined && (!first || ch)) zone.buildNodes(zone.seed);
   }
   net.on('pk_state', (d) => cityHud.onPk(d));
-  net.on('city_deny', (d) => cityHud.onDeny(d));
+  net.on('city_deny', (d) => { cityHud.onDeny(d); cityView.repel(player.x, player.y); });
   net.on('pvp_kill', (d) => cityHud.onKill(d));
   net.on('pvp_death', (d) => cityHud.onDeath(d));
   net.on('world_switched', (d) => {
@@ -756,6 +763,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('zone_state', (d) => {
     if (d.npc) npcUpdate(d.npc); // NPC бродят: позиции с сервера
     if (d.city) citySync(d.city);
+    if (d.dn) dayNight.setServer(d.dn);
     if (Array.isArray(d.wb)) setBossState(d.wb);
     for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
     if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
@@ -1489,10 +1497,10 @@ async function boot(canvasId, username, userId, api) {
       stage.scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
     }
     stage.resize(true);
-    atmo.setQuality(quality.level);
+    atmo.setQuality(quality.level); dayNight.setQuality(quality.level); cityView.setQuality(quality.level);
   }
   if (quality.level) applyQuality();
-  atmo.setQuality(quality.level);
+  atmo.setQuality(quality.level); dayNight.setQuality(quality.level); cityView.setQuality(quality.level);
   function adaptQuality(realDt) {
     if (qForced) return;
     quality.cooldown -= realDt;
@@ -1502,6 +1510,7 @@ async function boot(canvasId, username, userId, api) {
     if (quality.low > 2.5 && quality.level < QUALITY.length - 1) { quality.level++; applyQuality(); quality.low = 0; quality.cooldown = 4; }
     else if (quality.high > 12 && quality.level > 0) { quality.level--; applyQuality(); quality.high = 0; quality.cooldown = 8; }
   }
+  api.dn = (o = {}) => { if ('pin' in o) dayNight.pinAt(o.pin); return dayNight.debug(); }; // день/ночь: состояние; {pin:'HH:MM'|мин|null} — локально для снимков
   api.perf = () => ({ fps: fpsS.fps, cpuMs: +fpsS.cpu.toFixed(2), quality: quality.level, pixelRatio: stage.renderer.getPixelRatio(), shadows: stage.renderer.shadowMap.enabled, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles, enemies: run ? run.enemies.size : 0 });
   // «📊 Нагрузка»: раз в минуту — fps/пинг/тип устройства/браузер (без идентификаторов; сервер обрезает значения)
   { const ua = navigator.userAgent || '', br = /YaBrowser/.test(ua) ? 'yandex' : /SamsungBrowser/.test(ua) ? 'samsung' : /Edg\//.test(ua) ? 'edge' : /OPR\//.test(ua) ? 'opera' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'other';
@@ -1512,6 +1521,27 @@ async function boot(canvasId, username, userId, api) {
   debugEl.style.cssText = 'position:absolute;left:6px;bottom:6px;font:10px monospace;color:#a3e635;text-shadow:0 1px 2px #000;pointer-events:none;white-space:pre';
   overlay.layer.appendChild(debugEl);
 
+  // день и ночь: только открытый мир Аринар (не забег, не дом города); источники света — герои, мобы, огни пропсов, FX
+  const DN_FX = { mage: [0x9a6bff, 6, 0.8], dome: [0x8a5cff, 0, 0.45], rose: [0xff4d7a, 2.4, 0.6] };
+  function dnFrame() {
+    const on = mode !== 'run' && world === 'arinar' && !inRoomPt(player.x, player.y) && !cityRoom.inside;
+    if (!on) { dayNight.frame(false, {}); return; }
+    const cam = stage.activeCamera(), fx0 = toX(player.x), fz0 = toZ(player.y), viewM = Math.max(40, stage.viewCells() * 1.6 + 20), V2 = (viewM * 20) ** 2;
+    const near = (x, y) => (x - player.x) ** 2 + (y - player.y) ** 2 < V2;
+    const players = [{ x: player.x, y: player.y, me: true }];
+    for (const o of others.values()) if (o.world === world && !o.runRoom && !inRoomPt(o.x, o.y) && near(o.x, o.y)) players.push({ x: o.x, y: o.y });
+    const mobs = []; for (const m of zone.mobs.values()) if (near(m.x, m.y)) mobs.push({ x: m.x, y: m.y, boss: !!(m.chief || m.elite) });
+    const fx = [], bm = zone.bmv;
+    if (bm?.mage) fx.push({ x: bm.mage.x, y: bm.mage.y, c: DN_FX.mage[0], r: DN_FX.mage[1], k: DN_FX.mage[2] });
+    for (const d of bm?.domes?.values?.() || []) if (near(d.x, d.y)) fx.push({ x: d.x, y: d.y, c: DN_FX.dome[0], r: Math.max(3, (d.r || 200) / 20 * 1.1), k: DN_FX.dome[2] });
+    for (const r of bm?.roses?.values?.() || []) if (near(r.x, r.y)) fx.push({ x: r.x, y: r.y, c: DN_FX.rose[0], r: DN_FX.rose[1], k: DN_FX.rose[2] });
+    for (const p of zone.pax?.live?.values?.() || []) { const t = p.age || 0, x = p.x0 + (p.dx || 0) * (p.s || 0) * t, y = p.y0 + (p.dy || 0) * (p.s || 0) * t; if (near(x, y) && fx.length < 140) fx.push({ x, y, c: 0xffd9a0, r: 1.6, k: 0.55 }); }
+    // купол Альказака светится изнутри мягко; фонтан — огни города (_glow-слои Историка придут с артом)
+    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 7, k: 0.5 });
+    const t = hub.env?.terrain;
+    dayNight.frame(true, { players, mobs, fx, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
+    dayNight.render(stage.renderer, cam);
+  }
   function frame(now) {
     requestAnimationFrame(frame);
     const realDt = Math.max(0, (now - last) / 1000);
@@ -1536,6 +1566,7 @@ async function boot(canvasId, username, userId, api) {
     try { atmo.end(dt, mode === 'run' && run ? atmoWorld : world, player.x, player.y); } catch (err) { console.warn('[atmo]', err); }
     try { updateActionBar(); } catch (err) { console.warn('[abar]', err); }
     stage.render();
+    try { dnFrame(); } catch (err) { console.warn('[dayNight]', err); }
     fpsS.cpuAcc += performance.now() - cpu0;
     hudAcc += dt;
     if (hudAcc > 0.15) {
@@ -1601,6 +1632,7 @@ async function boot(canvasId, username, userId, api) {
       const nx = Math.max(lo, Math.min(hi, player.x + vx * dt));
       const ny = Math.max(lo, Math.min(hi, player.y + vy * dt));
       const barred = world === 'arinar' && !inRm && cityHud.barred && !inCity(player.x, player.y, 12); // убийце купол не даст войти — не шагаем внутрь (без рывков pos_fix)
+      if (barred && (inCity(nx, player.y, 12) || inCity(player.x, ny, 12)) && now - (cityHud.knockAt || 0) > 1200) { cityHud.knockAt = now; send({ type: 'city_knock' }); cityView.repel(nx, ny); } // сервер ответит плашкой с причиной и отсчётом
       if ((inRm || !hub.map.isBlocked(nx, player.y, 10)) && !(barred && inCity(nx, player.y, 12))) player.x = nx;
       if ((inRm || !hub.map.isBlocked(player.x, ny, 10)) && !(barred && inCity(player.x, ny, 12))) player.y = ny;
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
@@ -1648,6 +1680,7 @@ async function boot(canvasId, username, userId, api) {
 
     // открытый мир: мобы/ресурсы/NPC сервера, атака по клику, сбор
     zone.view = player; zone.update(dt, world);
+    { const on = world === 'arinar' && !inRoomPt(player.x, player.y); cityView.group.visible = on && cityView.group.visible; if (on) { try { cityView.update(dt, player); } catch (err) { console.warn('[city]', err); } } else cityView.group.visible = false; }
     zoneTick(dt, now);
 
     // подписи
@@ -1951,7 +1984,8 @@ async function boot(canvasId, username, userId, api) {
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),
-      city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),
+      cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
+      city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),
@@ -1973,7 +2007,7 @@ async function boot(canvasId, username, userId, api) {
       aim: () => ({ ...aim, autoAttack }),
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
-      setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
+      setCells: (c, wide) => { if (wide) stage.view.minZoom = Math.min(stage.view.minZoom, stage.zoomForCells(c)); /* снимки: обзор шире игрового */ const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
       cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)),
         d: stage.distance(), near: stage.camera.near, far: stage.camera.far, fogFar: stage.scene.fog?.far, shadowHalf: stage.sun.shadow.camera.right, pitch: stage.pitch, fov: stage.camera.fov }),
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },

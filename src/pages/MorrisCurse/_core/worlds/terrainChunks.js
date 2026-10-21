@@ -9,6 +9,8 @@ import tIce from '../../../../assets/mc/tiles_ice.png';
 import tFire from '../../../../assets/mc/tiles_fire.png';
 import tStone from '../../../../assets/mc/tiles_stone.png';
 import tAir from '../../../../assets/mc/tiles_air.png';
+import tDark from '../../../../assets/mc/city/tiles_dark.png';
+import darkMeta from '../../../../assets/mc/city/tiles_dark.json';
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
 import { markersOf } from '../../../../../server/meta/markers.ts';
@@ -25,7 +27,7 @@ const TEX = tilesMeta.tile, T = tilesMeta.index, COLS = tilesMeta.cols;
 const SHEET = { b_ice: 1, b_fire: 2, b_stone: 3, b_air: 4 };
 const FAR_COL = { grass: '#3d5a3a', grove: '#2f4d33', meadow: '#4a4f70', garden: '#5a3a3a', waste: '#3a4458', rot: '#3d4426', ridge: '#4a4038', pylon: '#3c3a52',
   glitch: '#24402e', crater: '#3a3a4a', thin: '#4a4250', dirt: '#5a4a34', cobble: '#55525a', plaza: '#6a6270', water: '#203a5a',
-  b_ice: '#7a8fb0', b_fire: '#1d3060', b_stone: '#5c636e', b_air: '#2a1f4a' };;
+  b_ice: '#7a8fb0', b_fire: '#1d3060', b_stone: '#5c636e', b_air: '#2a1f4a', city: '#1d1a26' };
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s);
 const loadImg = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('img ' + src)); im.src = src; });
@@ -45,6 +47,7 @@ export class ArinarTerrain {
   async init(px = ZONE_RESPAWN.x, py = ZONE_RESPAWN.y) {
     const THREE = this.THREE;
     this.sheets = await Promise.all([tilesSrc, tIce, tFire, tStone, tAir].map((s) => loadImg(url(s))));
+    this.dark = await loadImg(url(tDark)).catch(() => null); // Альказак: тайлсет «очернённое средневековье» 32 px (карта Историка)
     this.ptex = await loadPropTextures(THREE); // пропсы v2 (props_p32/b64 + свечение)
     // дальняя плоскость: 1 px = 1 клетка, цвет биома
     const n = this.plan.n, cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(n / 4); // 375×375: 1 px = 4×4 клетки
@@ -67,10 +70,13 @@ export class ArinarTerrain {
     if (this.chunks.has(key)) return this.chunks.get(key);
     const t0 = performance.now(), THREE = this.THREE;
     const L = layoutChunk(this.plan, ci, cj);
-    const cv = document.createElement('canvas'); cv.width = cv.height = CH * TEX;
+    // чанк с городом — в родной плотности тайлов города (32 px на клетку), остальные — 16
+    const DK = this.dark && L.dover?.length ? (darkMeta.tile || 32) : 0, TX = DK || TEX, DC = darkMeta.cols || 16;
+    const cv = document.createElement('canvas'); cv.width = cv.height = CH * TX;
     const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
-    for (let j = 0; j < CH; j++) for (let i = 0; i < CH; i++) { const idx = L.base[j * CH + i], im = this.sheets[L.sheet[j * CH + i]]; g.drawImage(im, (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, i * TEX, j * TEX, TEX, TEX); }
-    for (let k = 0; k < L.over.length; k += 3) { const idx = L.over[k + 2]; if (idx === undefined) continue; g.drawImage(this.sheets[0], (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, L.over[k] * TEX, L.over[k + 1] * TEX, TEX, TEX); }
+    for (let j = 0; j < CH; j++) for (let i = 0; i < CH; i++) { const idx = L.base[j * CH + i], im = this.sheets[L.sheet[j * CH + i]]; g.drawImage(im, (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, i * TX, j * TX, TX, TX); }
+    for (let k = 0; k < L.over.length; k += 3) { const idx = L.over[k + 2]; if (idx === undefined) continue; g.drawImage(this.sheets[0], (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, L.over[k] * TX, L.over[k + 1] * TX, TX, TX); }
+    if (DK) for (let k = 0; k < L.dover.length; k += 3) { const idx = L.dover[k + 2]; g.drawImage(this.dark, (idx % DC) * DK, Math.floor(idx / DC) * DK, DK, DK, L.dover[k] * TX, L.dover[k + 1] * TX, TX, TX); }
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipMapLinearFilter;
     const mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xd6d2e0 }); mat.color.setScalar(0.84 * this.light);
     const sp = (CH * CELL) / PX;

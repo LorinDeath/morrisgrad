@@ -13,16 +13,28 @@ import { NPCS } from '../../../../../server/meta/shared.ts';
 import { CITY_CFG, CITY_TILE } from '../../../../../server/meta/city.ts';
 import { registerMarker } from '../../../../../server/meta/markers.ts';
 import DOME from '../../../../assets/mc/city/city_dome.json';
+import PROPS from '../../../../assets/mc/city/props_dark_atlas.json';
+import BLD from '../../../../assets/mc/city/buildings.json';
+import p32Src from '../../../../assets/mc/city/props_dark_p32.png';
+import p32GSrc from '../../../../assets/mc/city/props_dark_p32_glow.png';
+import b64Src from '../../../../assets/mc/city/props_dark_b64.png';
+import b64GSrc from '../../../../assets/mc/city/props_dark_b64_glow.png';
+import { MAP, mapProps, mapShiftPx } from '../../../../../server/meta/cityMap.ts';
 import rimSrc from '../../../../assets/mc/city/city_dome_rim_0.png';
 import rimGSrc from '../../../../assets/mc/city/city_dome_rim_0_glow.png';
 import backSrc from '../../../../assets/mc/city/city_dome_back.png';
-import fillSrc from '../../../../assets/mc/city/city_dome_fill_mask.png';
+import shellSrc from '../../../../assets/mc/city/city_dome_shell_q4.png';
 import repSrc from '../../../../assets/mc/city/city_dome_repel.png';
 import repGSrc from '../../../../assets/mc/city/city_dome_repel_glow.png';
 import flSrc from '../../../../assets/mc/city/city_dome_rim_flash.png';
 import flGSrc from '../../../../assets/mc/city/city_dome_rim_flash_glow.png';
 
+const BLD_SRC = import.meta.glob('../../../../assets/mc/city/bld_*.png', { eager: true, query: '?url', import: 'default' });
+const bldUrl = (f) => BLD_SRC[`../../../../assets/mc/city/${f}`] || null;
+const SIN_P = Math.sin(1.02); // камера 58°: арт 3/4 (1 px = 1 px мира на экране) → высота спрайта × sin(pitch), основание совпадает с землёй
 const PX = 20, BLOCK_M = 1.6, FLASH = DOME.sheets?.rim_flash?.alpha_curve_30fps || [0, 1, 0.85, 0.65, 0.45, 0.3, 0.18, 0.08, 0];
+const RIM = DOME.sheets?.rim || { cols: 128, frames: 16, fps: 8 }, RIM0 = DOME.sheets?.rim_0 || { cols: 128, rows: 74 }, SHELL = DOME.sheets?.shell || null, REP = DOME.sheets?.repel || { cols: 18, frames: 18, fps: 30, size_m: [9.6, 9.6] };
+const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const MOBILE = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '');
 const hex = (c, d = 0x8b5cf6) => (/^#[0-9a-f]{6}$/i.test(c || '') ? parseInt(c.slice(1), 16) : d);
 
@@ -33,23 +45,29 @@ export class CityView {
     this.fx = []; this.flashAt = -9; this.houses = []; this.inside = false; this.inHouse = null; this.stats = { repel: 0 };
     this.glowOn = !MOBILE; // аддитивный слой обода (≈ треть видеопамяти купола): на телефонах — без него
     const L = (s) => loadAtlasTexture(THREE, s);
-    const want = [rimSrc, backSrc, fillSrc, repSrc, flSrc, ...(this.glowOn ? [rimGSrc, repGSrc, flGSrc] : [])];
+    const want = [rimSrc, backSrc, shellSrc, repSrc, flSrc, ...(this.glowOn ? [rimGSrc, repGSrc, flGSrc] : [])];
+    this.shellA = SHELL?.opacity_outside ?? 0.9; // текущая непрозрачность оболочки (плавно к цели)
     Promise.all(want.map(L)).then((tx) => {
-      const [rim, back, fill, rep, fl, rimG, repG, flG] = tx;
+      const [rim, back, shell, rep, fl, rimG, repG, flG] = tx;
       for (const t of tx) { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; }
       const NB = DOME.b.length, NBB = DOME.bb.length;
-      // порядок: задняя дуга → обод → glow; depthTest — персонажи перед передней дугой её закрывают
-      this.back = new ProjBatch(THREE, back, { cols: 128, rows: 1, max: NBB, renderOrder: 6 });
-      this.rim = new ProjBatch(THREE, rim, { cols: DOME.rim.cols, rows: DOME.rim.rows, max: NB, renderOrder: 7 });
-      this.flash = new ProjBatch(THREE, fl, { cols: 128, rows: 5, max: NB, additive: true, renderOrder: 8 });
-      this.rep = new ProjBatch(THREE, rep, { cols: 18, rows: 1, max: 16, renderOrder: 8 });
-      if (rimG) { this.rimG = new ProjBatch(THREE, rimG, { cols: DOME.rim.cols, rows: DOME.rim.rows, max: NB, additive: true, renderOrder: 8 }); this.repG = new ProjBatch(THREE, repG, { cols: 18, rows: 1, max: 16, additive: true, renderOrder: 9 }); this.flashG = new ProjBatch(THREE, flG, { cols: 128, rows: 5, max: NB, additive: true, renderOrder: 9 }); }
+      // порядок (README купола): оболочка → задняя дуга → обод → glow; depthTest — персонажи перед передней дугой её закрывают
+      this.back = new ProjBatch(THREE, back, { cols: DOME.sheets?.back?.cols || 128, rows: 1, max: NBB, renderOrder: 6 });
+      this.rim = new ProjBatch(THREE, rim, { cols: RIM0.cols, rows: RIM0.rows, max: NB, renderOrder: 7 });
+      this.flash = new ProjBatch(THREE, fl, { cols: DOME.sheets?.rim_flash?.cols || 128, rows: DOME.sheets?.rim_flash?.rows || 5, max: NB, additive: true, renderOrder: 8 });
+      this.rep = new ProjBatch(THREE, rep, { cols: REP.cols, rows: 1, max: 16, renderOrder: 8 });
+      if (rimG) { this.rimG = new ProjBatch(THREE, rimG, { cols: RIM0.cols, rows: RIM0.rows, max: NB, additive: true, renderOrder: 8 }); this.repG = new ProjBatch(THREE, repG, { cols: REP.cols, rows: 1, max: 16, additive: true, renderOrder: 9 }); this.flashG = new ProjBatch(THREE, flG, { cols: DOME.sheets?.rim_flash?.cols || 128, rows: DOME.sheets?.rim_flash?.rows || 5, max: NB, additive: true, renderOrder: 9 }); }
       for (const b of [this.back, this.rim, this.flash, this.rep, this.rimG, this.repG, this.flashG]) if (b) { b.mesh.name = 'city-dome'; this.group.add(b.mesh); }
-      // заливка 2 %: квад 102.5×95 м к камере (нормаль = −forward), центр на 3.75 м выше якоря по экрану
-      const [w, h] = DOME.dome.size_m || [102.5, 95];
-      this.fillMat = new THREE.MeshBasicMaterial({ map: fill, transparent: true, opacity: 0.02, depthWrite: false, depthTest: false, color: 0xffffff });
-      this.fill = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.fillMat); this.fill.rotation.x = -Math.acos(DOME.cam.up[1]); this.fill.renderOrder = 6; this.fill.name = 'city-dome-fill';
-      this.group.add(this.fill);
+      // оболочка — ОТДЕЛЬНЫЙ меш (ProjBatch отбрасывает a < 0.04, а изнутри нужно 0.02): квад к камере, 16 кадров 8 fps,
+      // снаружи 0.9 / изнутри 0.02, переход плавный (экспонента 0.25 с ≈ 0.6–0.8 с). Центр = якорь + world_offset_m
+      if (SHELL) {
+        shell.repeat.set(1 / SHELL.cols, 1 / SHELL.rows);
+        const [w, h] = SHELL.size_m;
+        this.shellMat = new THREE.MeshBasicMaterial({ map: shell, transparent: true, opacity: this.shellA, depthTest: true, depthWrite: false, fog: false });
+        this.shell = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.shellMat); this.shell.renderOrder = 5; this.shell.name = 'city-dome-shell';
+        this.shell.rotation.x = Math.atan2(DOME.cam.up[2], DOME.cam.up[1]); // плоскость: «вверх» = cam.up, нормаль = −forward (к камере)
+        this.group.add(this.shell);
+      }
       this.ready = true; this.place();
     }).catch((e) => console.warn('[city]', e.message));
   }
@@ -60,7 +78,6 @@ export class CityView {
     const moved = !this.cfg || this.cfg.x !== c.x || this.cfg.y !== c.y || this.cfg.cp !== c.cp;
     this.cfg = c; Object.assign(CITY_CFG, { name: c.name, x: c.x, y: c.y, alphaIn: c.aIn, centerpiece: c.cp, plazaTiles: c.plaza, on: c.on });
     this.group.visible = !!c.on;
-    if (this.fillMat) this.fillMat.opacity = Math.max(0, Math.min(1, Number(c.aIn) || 0.02));
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
     for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
@@ -70,16 +87,46 @@ export class CityView {
   place() {
     const c = this.cfg; if (!c) return;
     this.ax = toX(c.x); this.az = toZ(c.y);
-    if (this.fill) { const u = DOME.cam.up; this.fill.position.set(this.ax + 0, u[1] * 3.75, this.az + u[2] * 3.75); }
-    this.buildHouses(); this.buildCenter();
+    if (this.shell) { const o = SHELL.world_offset_m; this.shell.position.set(this.ax + o[0], o[1], this.az + o[2]); }
+    this.buildHouses(); this.buildCenter(); this.buildMap();
   }
-  // дома — пропсы dm_house_* с интерьерами (server/meta/cityBuild.ts, hub/cityRoom.js); раскладка/отрисовка — этап арта
   buildHouses() {}
+  // ——— карта Историка: здания bld_* (+glow) и пропсы dm_* (+glow, анимации) — спрайты к камере, якорь — низ по центру ———
+  buildMap() {
+    const THREE = this.THREE, c = this.cfg; if (!c) return;
+    const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig;
+    if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); }
+    const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
+    const L = (src) => (this._tex ||= {})[src] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
+    const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0) => {
+      const mk = (tp, add) => tp.then((t0) => {
+        const t = t0.clone(); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / cols, 1 / rows); t.offset.set((col + (flip ? 1 : 0)) / cols, 1 - (row + 1) / rows);
+        const m = new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: add ? 0 : 0.04, depthWrite: !add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false });
+        const sp = new THREE.Sprite(m); sp.center.set(an[0], 1 - an[1]); sp.scale.set(wM, hM * SIN_P, 1); sp.position.set(toX(x), add ? 0.02 : 0, toZ(y) + (add ? 0.01 : 0)); sp.renderOrder = add ? 4 : 3;
+        g.add(sp); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
+      });
+      mk(L(base), false); if (glow && this.glowOn) mk(L(glow), true);
+    };
+    // здания: картинка целиком (основание + крыша), ширина footprint·32 px
+    const [sx, sy] = mapShiftPx();
+    for (const b of MAP.buildings || []) {
+      const k = BLD.keys?.[b.key]; const src = k && bldUrl(k.image); if (!src) continue;
+      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1]);
+    }
+    // пропсы dm_*
+    const SH = { p32: p32Src, b64: b64Src, p32_glow: p32GSrc, b64_glow: b64GSrc };
+    for (const p of mapProps(c.rTiles)) {
+      const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
+      const [wM, hM] = k.size_m || [k.w / 10, k.h / 10];
+      sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0);
+    }
+    this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
+  }
   // ——— центральный объект площади: фонтан (заглушка-меш до арта) / статуя (зарезервировано) / пусто ———
   buildCenter() {
     const THREE = this.THREE;
     if (this.center) { this.group.remove(this.center); this.center.traverse((o) => o.geometry?.dispose?.()); this.center = null; }
-    const kind = this.cfg.cp || 'fountain'; if (kind === 'none') return;
+    const kind = this.cfg.cp || 'fountain'; if (kind === 'none' || kind === 'fountain') return; // фонтан — пропс dm_fountain карты Историка (alkazak_map.json)
     const g = new THREE.Group(); g.name = 'city-center ' + kind; const stone = new THREE.MeshBasicMaterial({ color: 0x5b5566 }), dark = new THREE.MeshBasicMaterial({ color: 0x38323f });
     const T = CITY_TILE, cx = toX((Math.floor(this.cfg.x / T) + 0.5) * T), cz = toZ((Math.floor(this.cfg.y / T) + 0.5) * T);
     if (kind === 'fountain') {
@@ -110,7 +157,7 @@ export class CityView {
     if (!c || !c.on || !this.ready) return;
     const near = view && Math.abs(view.x - c.x) < c.r + 2600 && Math.abs(view.y - c.y) < c.r + 2600;
     this.group.visible = !!near; if (!near) return;
-    const ax = this.ax, az = this.az, f = Math.floor(T * (DOME.rim.fps || 8)) % (DOME.rim.frames || 16), F = DOME.rim.frames || 16, cols = DOME.rim.cols || 128;
+    const ax = this.ax, az = this.az, f = Math.floor(T * (RIM.fps || 8)) % (RIM.frames || 16), F = RIM.frames || 16, cols = RIM0.cols || 128;
     const glow = this.glowOn && this.quality < 2;
     this.back.begin(); for (const [i, ox, oy, oz] of DOME.bb) this.back.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, i % 128, 0); this.back.end();
     this.rim.begin(); this.rimG?.begin();
@@ -118,6 +165,7 @@ export class CityView {
       this.rim.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, col, row);
       if (glow) this.rimG?.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, col, row, 1, 1, 1, 0.75); }
     this.rim.end(); this.rimG?.end();
+    for (const a of this.anim || []) { const f = Math.floor(T * a.fps + a.ph * a.frames) % a.frames; a.t.offset.x = (a.col + f + (a.flip ? 1 : 0)) / a.cols; }
     // вспышка обода при отталкивании: 0.3 с по кривой (30 fps)
     const fk = Math.floor((T - this.flashAt) * 30), fa = fk >= 0 && fk < FLASH.length ? FLASH[fk] : 0;
     this.flash.begin(); this.flashG?.begin();
@@ -125,12 +173,19 @@ export class CityView {
     this.flash.end(); this.flashG?.end();
     // отталкивание: 18 кадров 30 fps, квад 9.6 м, mode 1 по направлению наружу
     this.rep.begin(); this.repG?.begin();
-    for (let i = this.fx.length - 1; i >= 0; i--) { const e = this.fx[i]; e.t += dt; const k = Math.floor(e.t * 30); if (k >= 18) { this.fx.splice(i, 1); continue; }
-      this.rep.push(toX(e.x), 0.8, toZ(e.y), 9.6, 9.6, 1, 0, e.dx, e.dy, k, 0); if (glow) this.repG?.push(toX(e.x), 0.8, toZ(e.y), 9.6, 9.6, 1, 0, e.dx, e.dy, k, 0); }
+    for (let i = this.fx.length - 1; i >= 0; i--) { const e = this.fx[i]; e.t += dt; const k = Math.floor(e.t * (REP.fps || 30)); if (k >= (REP.frames || 18)) { this.fx.splice(i, 1); continue; }
+      this.rep.push(toX(e.x), 0.8, toZ(e.y), REP.size_m[0], REP.size_m[1], 1, 0, e.dx, e.dy, k, 0); if (glow) this.repG?.push(toX(e.x), 0.8, toZ(e.y), REP.size_m[0], REP.size_m[1], 1, 0, e.dx, e.dy, k, 0); }
     this.rep.end(); this.repG?.end();
-    this.fillMat.opacity = Math.max(0, (Number(c.aIn) || 0.02) + 0.005 * Math.sin(2 * Math.PI * T / 4));
+    // оболочка: цель по расстоянию зрителя (свой герой) до центра, плавно (README купола §2)
+    if (this.shell) {
+      const aIn = Number.isFinite(Number(c.aIn)) ? Number(c.aIn) : SHELL.opacity_inside, aOut = Number.isFinite(Number(c.aOut)) ? Number(c.aOut) : SHELL.opacity_outside;
+      const d = view ? Math.hypot(view.x - c.x, view.y - c.y) : 1e9, k = sstep(c.r - 48, c.r + 48, d), target = aIn + (aOut - aIn) * k;
+      this.shellA += (target - this.shellA) * (1 - Math.exp(-dt / 0.25)); this.shellMat.opacity = this.shellA;
+      const sf = Math.floor(T * (SHELL.fps || 8)) % (SHELL.frames || 16); this.shellMat.map.offset.set((sf % SHELL.cols) / SHELL.cols, 1 - (Math.floor(sf / SHELL.cols) + 1) / SHELL.rows);
+      this.shell.visible = this.shellA > 0.003;
+    }
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
   }
-  debug() { return this.cfg ? { on: this.cfg.on, name: this.cfg.name, x: this.cfg.x, y: this.cfg.y, r: this.cfg.r, ready: this.ready, glow: !!this.rimG, inHouse: this.inHouse, houses: this.houses.length, center: this.center?.name || null, repel: this.stats.repel, npc: (this.cfg.npc || []).length } : null; }
+  debug() { return this.cfg ? { on: this.cfg.on, name: this.cfg.name, x: this.cfg.x, y: this.cfg.y, r: this.cfg.r, ready: this.ready, glow: !!this.rimG, shellA: +(this.shellA ?? 0).toFixed(3), inHouse: this.inHouse, houses: this.houses.length, props: this.mapG ? this.mapG.children.length : 0, anim: (this.anim || []).length, center: this.center?.name || null, repel: this.stats.repel, npc: (this.cfg.npc || []).length } : null; }
 }
