@@ -105,6 +105,13 @@ const HUD = ['.mc-tracker', '.mc-abar', '.mc-party', '.mc-ratebtn', '.mc-bookbtn
     const rs = await G(() => ({ s: window.__mcUiScale.get(), k: localStorage.getItem(window.__mcUiScale.get().mobile ? 'mc_ui_scale_mob' : 'mc_ui_scale_pc'), v: document.querySelector('[data-uis]')?.value }));
     ok(rs.k == null && rs.s.want === rs.s.def && +rs.v === rs.s.def, `${tag}: «${mob ? 'Авто' : '100%'}» — вернулось к ${rs.s.def}%`);
     await G(() => { const o = window.__game.debug.overlay; if (o.screen) o.hideScreen(true); }); await sleep(300);
+    if (vt === 'pc1280' || vt === 'l390') { // забег: масштаб не действует (раскладка забега как была)
+      await G(() => window.__mcUiScale.set(130)); await G(() => window.__game.startRun('crypt'));
+      const inRun = await p.waitForFunction(() => window.__game.state().mode === 'run', null, { timeout: 30000 }).then(() => true).catch(() => false); await sleep(1500);
+      const rs2 = await G(() => ({ cls: document.documentElement.classList.contains('mc-uis'), s: getComputedStyle(document.documentElement).getPropertyValue('--ui-s').trim(), st: getComputedStyle(document.documentElement).getPropertyValue('--ui-st').trim() }));
+      ok(inRun && !rs2.cls && rs2.s === '1' && rs2.st === '1', `${tag}: в забеге масштаб выключен (выбрано 130%, mc-uis=${rs2.cls}, --ui-s=${rs2.s}, --ui-st=${rs2.st})`);
+      await G(() => window.__game.leaveRun?.()); await G(() => window.__mcUiScale.set(null));
+    }
     ok(!errs.length, `${tag}: без ошибок страницы ${errs.join(' | ')}`);
     await ctx.close();
   }
