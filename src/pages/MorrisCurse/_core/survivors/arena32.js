@@ -73,10 +73,10 @@ export const shapeMode = () => (GFX.arena3Shape === 'tiles' ? 'tiles' : 'round')
 /**
  * Круглая граница, проход по полосе у стены (px холста пола): обрезка пола по кругу Ro (пиксель в пиксель, снаружи — прозрачно),
  * контактная тень у ноги лица (footShade) и — в запечённом режиме — сама стена в виде 3/4 (wallPixel) из пикселей куска h, альфа 254.
- * Обрабатываются только кольцо [Rw − 6 px, Ro + H + 72 px] полосами по 64 строки (без копии всего холста 2592²).
+ * Обрабатываются только кольцо [Rw − 6 px (запечённый: − H), Ro + H + 72 px] полосами по 64 строки (без копии всего холста 2592²).
  */
 function bakeRoundEdge(gx, W, ring, hPix, baked) {
-  const P = { rw: ring.Rw * PXM, ro: ring.Ro * PXM, h: ring.H * PXM }, C = W / 2, rIn = P.rw - 6, rOut = P.ro + P.h + 72;
+  const P = { rw: ring.Rw * PXM, ro: ring.Ro * PXM, h: ring.H * PXM }, C = W / 2, rIn = P.rw - (baked ? P.h + 2 : 6), rOut = P.ro + P.h + 72; // юг: крышка 3/4 лежит внутри Rw на высоту лица
   const hd = hPix?.data, hw = hPix?.width || 32;
   for (let y0 = 0; y0 < W; y0 += 64) {
     const S = Math.min(64, W - y0), D = gx.getImageData(0, y0, W, S), o = D.data;
