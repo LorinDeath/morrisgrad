@@ -18,7 +18,7 @@ export const GFX_CFG: any = {
   arena3Shape: "round", // граница arena32: round — настоящий круг (парапет из куска h по дуге), tiles — автотайл README §4 (ступеньки)
   arena3Wall: "auto",  // парапет arena32: auto — ПК спрайты, телефон запечён в пол; sprites; baked
   arena3Posts: 1,      // угловые столбы на диагоналях: 1 — все, n — каждый n-й (остальные — стык «на ус» без столба)
-  arena3Tall: true,    // высокое кольцо arena_wall_* за парапетом
+  arena3Tall: true,    // высокое кольцо arena_wall_* за парапетом (только arena3Shape tiles: у круга кольца нет)
   arena3TallGap: 1.5,  // насколько кольцо arena_wall_* дальше парапета, м
   arena3Rim: false,    // тонкая подсветка-обод (торус) поверх кромки
   arena3Cracks: 18,    // трещин на полу (декали arena32)

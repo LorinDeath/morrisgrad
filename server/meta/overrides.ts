@@ -196,7 +196,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "arena3Shape", label: "Арена 32: граница — round (ровный круг) / tiles (ступеньки по клеткам, как в README Художника)", t: "enum", opts: ["round", "tiles"], optn: { round: "круг", tiles: "клетки" } },
     { path: "arena3Wall", label: "Арена 32: парапет — auto (ПК спрайтами, телефон запечён в пол) / sprites (объёмнее) / baked (дешевле)", t: "enum", opts: ["auto", "sprites", "baked"], optn: { auto: "авто: ПК — спрайты, телефон — в полу", sprites: "спрайты (объёмнее)", baked: "запечь в пол (дешевле)" } },
     N("arena3Posts", "Арена 32: угловые столбы на диагоналях — каждый n-й (1 — все)", 1, 6, "int"),
-    { path: "arena3Tall", label: "Арена 32: высокая стена arena_wall_* за парапетом", t: "bool" },
+    { path: "arena3Tall", label: "Арена 32: высокая стена arena_wall_* за парапетом (только у границы «клетки»)", t: "bool" },
     N("arena3TallGap", "Арена 32: высокая стена дальше парапета, м", 0, 8),
     { path: "arena3Rim", label: "Арена 32: тонкий светящийся обод поверх кромки (как раньше)", t: "bool" },
     N("arena3Cracks", "Арена 32: трещин на полу, шт.", 0, 80, "int"),
