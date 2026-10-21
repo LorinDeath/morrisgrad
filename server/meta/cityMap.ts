@@ -42,12 +42,18 @@ export function fillTile(gi: number, gj: number): number {
 }
 export interface CityGround { base: string; dover: number[]; fill: boolean; map: boolean }
 /** земля клетки мира (gi, gj) под куполом/у кромки или null — обычный биом мира */
+/** клумба розы на карте (клетки 767..770 × 99..102, «tilled_rot» + столбики) — по решению пользователя роза стоит на ТРАВЕ:
+ *  клетки клумбы — трава (оверлеи карты сняты), столбики/ведро вокруг убраны; под розой клиент рисует пятно порчи (cityView) */
+export const ROSE_BED = { i0: 767, i1: 770, j0: 99, j1: 102 };
+const inRoseBed = (i: number, j: number) => { const [a, b] = [MAP_CELL0[0], MAP_CELL0[1]]; const ci = i + a, cj = j + b; return ci >= ROSE_BED.i0 && ci <= ROSE_BED.i1 && cj >= ROSE_BED.j0 && cj <= ROSE_BED.j1; };
+/** прямоугольник клумбы в px мира (со сдвигом карты) */
+export function roseBedPx(): [number, number, number, number] { const [a, b] = mapShiftPx(); return [ROSE_BED.i0 * T + a, ROSE_BED.j0 * T + b, (ROSE_BED.i1 + 1) * T + a, (ROSE_BED.j1 + 1) * T + b]; }
 export function cityGround(gi: number, gj: number, rTiles = Number(CITY_CFG.rTiles) || 40): CityGround | null {
   if (CITY_CFG.on === false) return null;
   const d = Math.hypot((gi + 0.5) * T - CITY_CFG.x, (gj + 0.5) * T - CITY_CFG.y) / T;
   if (d > rTiles + 2 && d > 48) return null;
   const [sx, sy] = mapShift(), i = gi - MAP_CELL0[0] - sx, j = gj - MAP_CELL0[1] - sy, inGrid = i >= 0 && j >= 0 && i < N && j < N;
-  const ov = inGrid ? over().get(j * N + i) || [] : [];
+  const ov = inGrid && !inRoseBed(i, j) ? over().get(j * N + i) || [] : []; // клумба розы — трава
   const base = inGrid ? `grass${(MAP.base?.[j * N + i] ?? 0) & 3}` : "grass0";
   const pathOv = ov.filter((x) => /^path/.test(nameOf(x)));
   if (d <= rTiles) { // под куполом: карта в приоритете; лёд карты внутри R и пустые клетки — очернённая земля (тропы карты поверх)
@@ -82,7 +88,8 @@ export function emptyCellsInDome(rTiles = Number(CITY_CFG.rTiles) || 40): number
 const sh = (x: number, y: number): [number, number] => { const [a, b] = mapShiftPx(); return [x + a, y + b]; };
 export function mapProps(rTiles = Number(CITY_CFG.rTiles) || 40): { k: string; x: number; y: number; s: number; f: boolean }[] {
   const out: any[] = [];
-  for (const p of MAP.props || []) { const [x, y] = sh(p.x, p.y), d = Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) / T; if (d <= rTiles + EDGE_PAD + 3) out.push({ k: p.k, x, y, s: p.s || 1, f: !!p.f }); }
+  const [bx0, by0, bx1, by1] = roseBedPx(), bed = (x: number, y: number) => x > bx0 - T && x < bx1 + T && y > by0 - T && y < by1 + T;
+  for (const p of MAP.props || []) { const [x, y] = sh(p.x, p.y); if (bed(x, y) && /^dm_(fence|bucket)/.test(p.k)) continue; const d = Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) / T; if (d <= rTiles + EDGE_PAD + 3) out.push({ k: p.k, x, y, s: p.s || 1, f: !!p.f }); }
   return out;
 }
 export function mapPoint(id: string): [number, number] | null { const p = MAP.points?.[id]; return p?.world ? sh(p.world[0], p.world[1]) : null; }

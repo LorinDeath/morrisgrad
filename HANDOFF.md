@@ -16,7 +16,7 @@ Do not touch `/workspace/mg-ui` (branch ui-cursed-rework, 10 commits); it is mer
 - **Interiors.** 11 buildings, each its own instance (house 9×8, tavern 12×10, tent 8×7), with doors and exits.
 - **Other.**
   - NPC slots: 24.
-  - The rose renders at (24624, 3248), stage 6, with no curse.
+  - The rose renders at (24608, 3232) — centre of the grass bed (the wooden tilled_rot planter, its fence posts and bucket are removed), stage 6, no curse; a purely visual corruption decal (cityView.buildBlight) sits under it.
   - PK button (7 s / 30 s) and red names.
   - Kill stats (C window).
   - Position restore, including inside a house.

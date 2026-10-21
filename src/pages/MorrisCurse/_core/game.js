@@ -2009,6 +2009,7 @@ async function boot(canvasId, username, userId, api) {
       cityLamps: () => (cityView.glows || []).filter((g) => g.lamp).map((g) => +dayNight.lamp(g.h).toFixed(3)), // сила каждого огня города сейчас // отладка маски света (плейтест)
       dn: (o = {}) => api.dn(o), // день/ночь для плейтеста (то же, что api.dn)
       cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
+      blight: () => { const b = cityView.blightG; return b ? { x: b.position.x, z: b.position.z, vis: b.visible, inScene: !!b.parent, n: b.children.length, rose: cityView.cfg?.rose } : { none: true, rose: cityView.cfg?.rose, sig: cityView.blightSig }; },
       city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере

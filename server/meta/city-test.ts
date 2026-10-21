@@ -6,7 +6,7 @@ import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from 
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
 import { walkable } from "./walkable";
 import { validatePatch } from "./overrides";
-import { emptyCellsInDome, cityGround, walkCell, walkColliders, mapProps, DARK_INDEX } from "./cityMap";
+import { emptyCellsInDome, cityGround, walkCell, walkColliders, mapProps, DARK_INDEX, roseBedPx, ROSE_BED } from "./cityMap";
 let ok = 0, bad = 0; const t = (n: string, c: any, x?: any) => { c ? (ok++, console.log("ok  ", n)) : (bad++, console.log("FAIL", n, x ?? "")); };
 const cfg0 = JSON.parse(JSON.stringify({ ...CITY_CFG, npc: undefined })); const npc0 = JSON.parse(JSON.stringify(CITY_CFG.npc));
 const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0))); CITY_CFG.npc = JSON.parse(JSON.stringify(npc0)); };
@@ -103,9 +103,9 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("застройка не дальше r 37.7 клетки", cityBuildings().every((b) => [[b.rect[0], b.rect[1]], [b.rect[0] + b.rect[2], b.rect[1]], [b.rect[0], b.rect[1] + b.rect[3]], [b.rect[0] + b.rect[2], b.rect[1] + b.rect[3]]].every(([x, y]) => Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) <= 37.7 * 32)));
   t("за куполом нет черноты без льда (кромка обрезана)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d <= 40) continue; const g = cityGround(gi, gj); if (g && !g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
   t("внутри купола лёд карты убран (только у кромки снаружи)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d > 40) continue; const g = cityGround(gi, gj); if (!g || g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
-  t("пропсы карты: 253, все в атласе", mapProps().length === 253 && mapProps().every((p) => DARK_PROPS.keys?.[p.k]), mapProps().filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k));
+  t("пропсы карты: 253 минус клумба розы (−5), все в атласе", mapProps().length === 248 && mapProps().every((p) => DARK_PROPS.keys?.[p.k]), mapProps().filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k));
   t("стены/заборы из сетки walk — коллайдеры", walkColliders().length > 500 && !walkable("arinar", ...((): [number, number] => { const b = buildingById("house_elder")!; return [b.rect[0] + 100, b.rect[1] + 100]; })()));
-  const rp = cityClient().rose; t("роза города рисуется в точке карты (24624, 3248)", rp && rp.x === 24624 && rp.y === 3248 && rp.id === "1792366351175927", rp);
+  const rp = cityClient().rose; t("роза города рисуется в точке карты (24608, 3232) — центр травяной клумбы", rp && rp.x === 24608 && rp.y === 3232 && rp.id === "1792366351175927", rp);
   const pts: Record<string, [number, number]> = { "Староста": [24496, 3192], "Хозяин таверны": [24896, 3092], "Торговка": [24496, 3320], "Огородник": [24240, 3480], "Беженка": [25584, 3864], "Дозорный": [23504, 3448] };
   for (const [nm, w] of Object.entries(pts)) { const s = (CITY_CFG.npc as any[]).find((x) => x.name === nm && !x.house); const p = s && slotPos(s); t(`NPC «${nm}» — в точке карты`, p && p[0] === w[0] && p[1] === w[1], p); }
   const spotsOk = (CITY_CFG.npc as any[]).filter((s) => s.house).every((s) => { const b = buildingById(s.house); return b && (ROOMS[b.room!].npc_spots || []).some((q: any) => q.id === s.spot); });
@@ -139,4 +139,15 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("админка: rTiles до 160, поля розы", typeof v === "object", v);
   const v2 = validatePatch("city", "main", { rTiles: 500 } as any); t("админка: rTiles > 160 — отказ или кламп", typeof v2 === "string" || (v2 as any).rTiles <= 160, v2); }
 
+// ——— решения пользователя: NPC в городе нет; роза — на траве (клумба снята), фонтан на месте ———
+{ CITY_CFG.x = 24624; CITY_CFG.y = 3376; CITY_CFG.rTiles = 40;
+  t("NPC: все места выключены (данные есть, жителей нет)", (CITY_CFG.npc as any[]).length === 24 && (CITY_CFG.npc as any[]).every((n) => !n.on));
+  t("NPC: клиенту не уходит ни одного жителя", (cityClient().npc || []).length === 0, cityClient().npc);
+  let bedOk = true; for (let i = ROSE_BED.i0; i <= ROSE_BED.i1; i++) for (let j = ROSE_BED.j0; j <= ROSE_BED.j1; j++) { const g: any = cityGround(i, j, 40); if (!g || !/^grass/.test(g.base) || (g.dover || []).length) bedOk = false; }
+  t("роза: клумба стала травой (без оверлеев tilled_rot/blight)", bedOk);
+  const [bx0, by0, bx1, by1] = roseBedPx(); const rp = (CITY_CFG as any).rosePos;
+  t("роза: точка розы — на траве клумбы", rp[0] >= bx0 && rp[0] < bx1 && rp[1] >= by0 && rp[1] < by1, { rp, bed: [bx0, by0, bx1, by1] });
+  t("роза: столбики и ведро клумбы убраны", !mapProps(40).some((p) => /^dm_(fence|bucket)/.test(p.k) && p.x > bx0 - 32 && p.x < bx1 + 32 && p.y > by0 - 32 && p.y < by1 + 32));
+  t("фонтан на месте", mapProps(40).some((p) => p.k === "dm_fountain" && p.x === 24624 && p.y === 3400));
+  t("роза: клетка проходима вокруг (клумба не стена)", walkable("arinar", rp[0] + 40, rp[1] + 30)); }
 console.log(`\n${ok} ok, ${bad} fail`); if (bad) process.exit(1);

@@ -24,11 +24,12 @@ const H = (x: number, y: number, s: number) => { let h = (Math.imul(x | 0, 37476
 export const CENTERPIECES: Record<string, { name: string; r: number }> = { fountain: { name: "Фонтан", r: 1.6 }, statue: { name: "Статуя (место зарезервировано)", r: 1.2 }, none: { name: "Пусто", r: 0 } };
 /** места NPC по умолчанию: снаружи — точки карты Историка (клетки от центра, alkazak_map.json → points), внутри — здание + npc_spots
  *  его интерьера. У каждого здания — свой экземпляр комнаты и свои места (шаблонов интерьера 3, зданий 11). */
+// NPC в городе пока НЕТ (решение пользователя): места — только данные, все выключены (включаются в админке, когда появятся настоящие жители)
 const SLOT_DEF: [number, number, string, string, string, boolean, string?][] = [
-  [-4, -5.75, "", "", "Староста", true, "right"], [8.5, -8.875, "", "", "Хозяин таверны", true, "down"], [-4, -1.75, "", "", "Торговка", true, "right"],
-  [-12, 3.25, "", "", "Огородник", true, "down"], [30, 15.25, "", "", "Беженка", true, "up"], [-35, 2.25, "", "", "Дозорный", true, "left"],
-  [0, 0, "tavern", "merchant", "Хозяйка таверны", true], [0, 0, "tavern", "patron", "Бард", true], [0, 0, "house_elder", "hearth", "Жена старосты", true],
-  [0, 0, "tent_e1", "bedroll", "Беженец", true], [0, 0, "tent_s1", "supplies", "Беженка с ребёнком", true], [0, 0, "house_sw1", "table", "Охотник", true],
+  [-4, -5.75, "", "", "Староста", false, "right"], [8.5, -8.875, "", "", "Хозяин таверны", false, "down"], [-4, -1.75, "", "", "Торговка", false, "right"],
+  [-12, 3.25, "", "", "Огородник", false, "down"], [30, 15.25, "", "", "Беженка", false, "up"], [-35, 2.25, "", "", "Дозорный", false, "left"],
+  [0, 0, "tavern", "merchant", "Хозяйка таверны", false], [0, 0, "tavern", "patron", "Бард", false], [0, 0, "house_elder", "hearth", "Жена старосты", false],
+  [0, 0, "tent_e1", "bedroll", "Беженец", false], [0, 0, "tent_s1", "supplies", "Беженка с ребёнком", false], [0, 0, "house_sw1", "table", "Охотник", false],
   [0, 0, "house_nw2", "table", "Жилец", false], [0, 0, "house_n1", "hearth", "Жилица", false], [0, 0, "house_n2", "table", "Жилец", false],
   [0, 0, "house_se1", "hearth", "Жилица", false], [0, 0, "house_s1", "table", "Жилец", false], [0, 0, "tent_s2", "bedroll", "Беженец", false],
   [0, 0, "tavern", "customer", "Посетитель", false], [0, 0, "tavern", "hearth", "Путник", false], [0, 0, "house_elder", "table", "Писарь", false],
@@ -65,7 +66,7 @@ export const CITY_CFG: any = {
   // роза в центре (prod black_roses id 1792366351175927 — первая роза, вокруг неё город): сразу раскрыта, без проклятой земли.
   // Только в коде (данные prod не меняются); остальные розы растут и проклинают как обычно. Внутри купола проклятая земля любых роз не действует.
   roseId: "1792366351175927", roseBloom: true, roseNoCurse: true, noCurseIn: true,
-  rosePos: [24624, 3248],   // где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
+  rosePos: [24608, 3232],   // центр травяной клумбы (решение пользователя: роза на траве, не на досках); где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
   // места NPC: npc.N.on / name / title / look / house + spot (место в комнате, npc_spots интерьера) или dx / dy (клетки от центра при R = 32, снаружи)
   npc: SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot })),
 };

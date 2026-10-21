@@ -22,6 +22,7 @@ const SHOTS = JSON.parse(process.env.SHOTS || '[["01-spot-center",24624,3376,20]
     await G((n) => window.__game.debug.setCells(n), cells); await sleep(4500);
     await p.screenshot({ path: `${OUT}/${name}.png` }); console.log('shot', name, JSON.stringify(await G(() => { const s = window.__game.state(); return { x: Math.round(s.player?.x ?? 0), y: Math.round(s.player?.y ?? 0) }; })));
   }
+  if (process.env.EVAL) console.log('eval', JSON.stringify(await G(new Function(process.env.EVAL))));
   console.log('errors', errs.slice(0, 5));
   await b.close();
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

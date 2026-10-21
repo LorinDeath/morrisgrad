@@ -89,7 +89,7 @@ export class CityView {
     const c = this.cfg; if (!c) return;
     this.ax = toX(c.x); this.az = toZ(c.y);
     if (this.shell) { const o = SHELL.world_offset_m; this.shell.position.set(this.ax + o[0], o[1], this.az + o[2]); }
-    this.buildHouses(); this.buildCenter(); this.buildMap();
+    this.buildHouses(); this.buildCenter(); this.buildMap(); this.buildBlight();
   }
   buildHouses() {}
   // ——— карта Историка: здания bld_* (+glow) и пропсы dm_* (+glow, анимации) — спрайты к камере, якорь — низ по центру ———
@@ -123,6 +123,47 @@ export class CityView {
       sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k));
     }
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
+  }
+  // ——— пятно порчи под розой города: очернённая проклятая земля расползается в траву (рваный край, тёмные жилы, искры).
+  //      Только вид — механики проклятия нет (city.ts noCurseIn). Пиксель-арт: 1 арт-px = 2 px мира, сид — позиция розы ———
+  buildBlight() {
+    const THREE = this.THREE, r = this.cfg?.rose; if (!r) return;
+    const sig = `${r.x},${r.y}`; if (this.blightSig === sig && this.blightG?.parent === this.group) return; this.blightSig = sig; // группа города пересобирается — пятно вешаем заново
+    if (this.blightG) { this.blightG.parent?.remove(this.blightG); this.blightG.traverse((o) => { o.material?.map?.dispose?.(); o.material?.dispose?.(); }); }
+    let seed = (Math.round(r.x) * 73856093) ^ (Math.round(r.y) * 19349663); const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return ((seed >>> 8) & 0xffffff) / 0x1000000; };
+    const W = 72, H = 64, cx = W / 2, cy = H / 2 + 2;
+    const lat = Array.from({ length: 9 * 9 }, rnd), vn = (x, y) => { // значение-шум на решётке 8×8 (гладко)
+      const gx = Math.min(7.999, Math.max(0, x)), gy = Math.min(7.999, Math.max(0, y)), i = Math.floor(gx), j = Math.floor(gy), fx = gx - i, fy = gy - j, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      const a = lat[j * 9 + i], b = lat[j * 9 + i + 1], c = lat[(j + 1) * 9 + i], d = lat[(j + 1) * 9 + i + 1]; return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; };
+    const lat2 = Array.from({ length: 17 * 17 }, rnd), vn2 = (x, y) => { const gx = Math.min(15.999, Math.max(0, x)), gy = Math.min(15.999, Math.max(0, y)), i = Math.floor(gx), j = Math.floor(gy), fx = gx - i, fy = gy - j;
+      const a = lat2[j * 17 + i], b = lat2[j * 17 + i + 1], c = lat2[(j + 1) * 17 + i], d = lat2[(j + 1) * 17 + i + 1]; return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy; };
+    const field = (x, y) => { const dx = (x - cx) / (W * 0.40), dy = (y - cy) / (H * 0.40), d = Math.hypot(dx, dy); return 1 - d + (vn(x / W * 8, y / H * 8) - 0.5) * 0.55 + (vn2(x / W * 16, y / H * 16) - 0.5) * 0.22; };
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'); const img = g.createImageData(W, H), D = img.data;
+    const put = (x, y, c, a = 255) => { if (x < 0 || y < 0 || x >= W || y >= H) return; const k = (y * W + x) * 4; D[k] = c[0]; D[k + 1] = c[1]; D[k + 2] = c[2]; D[k + 3] = Math.max(D[k + 3], a); };
+    const CORE = [11, 7, 16], MID = [24, 14, 30], EDGE = [38, 26, 40], ROT = [36, 34, 24], VEIN = [40, 16, 50], VEIN2 = [62, 22, 78];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const f = field(x, y), dth = ((x * 7 + y * 13) % 4) / 4; // упорядоченный дизеринг края — пиксель-арт без размытия
+      if (f > 0.62) put(x, y, CORE); else if (f > 0.47) put(x, y, (f - 0.47) / 0.15 > dth ? CORE : MID); else if (f > 0.37) put(x, y, (f - 0.37) / 0.1 > dth ? MID : EDGE);
+      else if (f > 0.3 && dth < (f - 0.3) / 0.07 * 0.6) put(x, y, rnd() < 0.35 ? ROT : EDGE, 210); // рваный край: клочья гнили в траве
+    }
+    const veins = 7 + Math.floor(rnd() * 3), sparks = [];
+    for (let v = 0; v < veins; v++) { // жилы: от сердца наружу, за край пятна — в траву
+      let a = (v / veins) * Math.PI * 2 + (rnd() - 0.5) * 0.6, x = cx + Math.cos(a) * 6, y = cy + Math.sin(a) * 5; const len = 14 + rnd() * 14;
+      for (let t = 0; t < len; t++) { a += (rnd() - 0.5) * 0.5; x += Math.cos(a); y += Math.sin(a) * 0.88; const f = field(x | 0, y | 0); put(x | 0, y | 0, t < len * 0.45 ? VEIN2 : VEIN, f > 0.3 ? 255 : 200);
+        if (t > 8 && rnd() < 0.06) { let b = a + (rnd() < 0.5 ? 0.9 : -0.9), bx = x, by = y; for (let u = 0; u < 6 + rnd() * 8; u++) { b += (rnd() - 0.5) * 0.6; bx += Math.cos(b); by += Math.sin(b) * 0.88; put(bx | 0, by | 0, VEIN); } }
+        if (t > 4 && rnd() < 0.05 && sparks.length < 8) sparks.push([x | 0, y | 0]); }
+    }
+    g.putImageData(img, 0, 0);
+    const sc = document.createElement('canvas'); sc.width = W; sc.height = H; const sg = sc.getContext('2d');
+    for (let i = 0; i < 6; i++) { let x, y; do { x = (rnd() * W) | 0; y = (rnd() * H) | 0; } while (field(x, y) < 0.5); sparks.push([x, y]); }
+    for (const [x, y] of sparks) { sg.fillStyle = rnd() < 0.5 ? '#c04cf0' : '#ff6ad8'; sg.fillRect(x, y, 1, 1); if (rnd() < 0.35) { sg.fillStyle = 'rgba(176,60,220,0.45)'; sg.fillRect(x - 1, y, 3, 1); sg.fillRect(x, y - 1, 1, 3); } }
+    const tex = (c) => { const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
+    const wM = (W * 2) / PX, hM = (H * 2) / PX, G = new THREE.Group(); G.name = 'city-rose-blight'; this.blightG = G;
+    const geo = new THREE.PlaneGeometry(wM, hM); geo.rotateX(-Math.PI / 2);
+    const base = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false })); base.renderOrder = 1;
+    this.blightSpark = new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 });
+    const sp = new THREE.Mesh(geo, this.blightSpark); sp.renderOrder = 2; sp.position.y = 0.004;
+    G.add(base, sp); G.position.set(toX(r.x), 0.013, toZ(r.y - 6)); this.group.add(G); // сердце пятна — у основания стебля
   }
   // ——— центральный объект площади: фонтан (заглушка-меш до арта) / статуя (зарезервировано) / пусто ———
   buildCenter() {
@@ -195,6 +236,7 @@ export class CityView {
       const sf = Math.floor(T * (SHELL.fps || 8)) % (SHELL.frames || 16); this.shellMat.map.offset.set((sf % SHELL.cols) / SHELL.cols, 1 - (Math.floor(sf / SHELL.cols) + 1) / SHELL.rows);
       this.shell.visible = this.shellA > 0.003;
     }
+    if (this.blightSpark) this.blightSpark.opacity = 0.32 + 0.22 * Math.sin(T * 2.3) * Math.sin(T * 3.7 + 1.1); // искры порчи мерцают
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
   }
