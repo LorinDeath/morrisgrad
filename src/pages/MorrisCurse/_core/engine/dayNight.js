@@ -9,6 +9,7 @@ import { dnAt, DN_CFG, hex3, lampK } from '../../../../../server/meta/dayNight.t
 import { toX, toZ } from './geometry.js';
 
 // источники света среди пропсов мира: ключ/шаблон → [цвет, радиус пятна м, сила, высота головы м (ореол у огня; 0 — только пятно)]
+import { emitterOffsetM, emitterWorld, emitterGround, setEmitterCamera } from './lightEmitter.js';
 const PROP_LIGHT = [
   [/^(dm_lantern_pole)/, 0xffbf66, 5.2, 1.08, 3.4], [/^(lantern|dm_lantern|dm_lamp)/, 0xffc36b, 4.6, 1.0, 1.6], [/^(torch|dm_torch)/, 0xff9a3c, 4.0, 1, 1.4],
   [/^(campfire|dm_campfire|dm_cookfire|dm_brazier|dm_fire)/, 0xff8a2a, 5.6, 1.15, 0.7],
@@ -18,6 +19,17 @@ const PROP_LIGHT = [
 /** «характер» огня 0…1 по месту: когда он загорится/погаснет (вразнобой) */
 export const lampHash = (x, z) => { const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return v - Math.floor(v); };
 export const lightOf = (k) => { for (const L of PROP_LIGHT) if (L[0].test(k)) return L; return null; };
+/** живой огонь (костёр/факел/жаровня) — мерцает заметно; фонари/окна — едва */
+export const FIRE = /campfire|cookfire|torch|brazier|_fire|hearth|candle|hell_flame/;
+/** настройки огней (админка «Огни», kind lamps): мерцание, ореол, вытянутость пятна */
+export const LT = { flickFire: 0.22, flickLamp: 0.06, flickSpeed: 1, halo: 1, poolEl: 1.22 };
+export function flickerOf(T, x, z, fire) {
+  const sp = LT.flickSpeed || 1, a = fire ? LT.flickFire : LT.flickLamp;
+  const w = fire ? 0.55 * Math.sin(T * 0.0112 * sp + x * 3.1) + 0.3 * Math.sin(T * 0.0291 * sp + z * 5.3) + 0.15 * Math.sin(T * 0.0613 * sp + x * 1.7)
+                 : Math.sin(T / 130 * sp + x * 3.1) * Math.sin(T / 217 * sp + z * 1.7);
+  return 1 - a * (0.5 - 0.5 * w);
+}
+const G2 = [0, 0], W3 = [0, 0, 0];
 const KEY = 'mc-dn-reduce';
 /** «Смягчить ночь» 0…100 (Настройки, на этом устройстве): меньше темноты для читаемости */
 export function dnReduceGet() { try { const v = localStorage.getItem(KEY); return v == null ? 0 : Math.max(0, Math.min(100, Number(v) || 0)); } catch (_) { return 0; } }
@@ -73,7 +85,7 @@ export class DayNight {
     if (!this.active) { this.lights.count = 0; return; }
     const T0 = performance.now(), L = this.lights, d = this.d, c = this.c; let n = 0;
     const dark = 1 - Math.min(col[0], col[1], col[2]);
-    const put = (x, z, color, rM, k, h = 0.02) => { if (n >= L.instanceMatrix.count || k <= 0.01) return; d.position.set(x, h, z); d.scale.set(rM * 2, 1, rM * 2); d.updateMatrix(); L.setMatrixAt(n, d.matrix); c.set(color).multiplyScalar(k); this.lcol.setXYZ(n, c.r, c.g, c.b); n++; };
+    const put = (x, z, color, rM, k, h = 0.02, el = 1) => { if (n >= L.instanceMatrix.count || k <= 0.01) return; d.position.set(x, h, z); d.scale.set(rM * 2 * el, 1, rM * 2); d.updateMatrix(); L.setMatrixAt(n, d.matrix); c.set(color).multiplyScalar(k); this.lcol.setXYZ(n, c.r, c.g, c.b); n++; };
     // герои: мягкий личный свет (всегда, пока темно) — герой не темнее ~0.82 (BLK_FX.heroLight)
     const pr = Number(DN_CFG.playerLightM) || 6, pk = Math.min(1, 0.95 * dark + 0.05);
     for (const p of src.players || []) put(toX(p.x), toZ(p.y), p.me ? 0xfff1dc : 0xe8e4ff, p.me ? pr : pr * 0.8, p.me ? pk : pk * 0.8);
@@ -87,9 +99,14 @@ export class DayNight {
     const tl = Number(DN_CFG.townLight) || 0, mins = this.minutes();
     if (tl > 0.01) for (const q of this.propLights(src)) {
       const lk = lampK(mins, q[6] ?? lampHash(q[0], q[1]), DN_CFG) * tl; if (lk <= 0.01) continue;
-      const fl = 0.92 + 0.08 * Math.sin(T0 / 130 + q[0] * 3.1) * Math.sin(T0 / 217 + q[1] * 1.7);
-      put(q[0], q[1], q[2], q[3], q[4] * lk * fl);
-      if (q[5] > 0) put(q[0], q[1], q[2], Math.max(1.2, q[3] * 0.34), Math.min(1, q[4] * 0.95) * lk * fl, q[5]);
+      const fl = flickerOf(T0, q[0], q[1], !!q[8]); // огонь (костёр/факел) мерцает сильнее, фонари — едва
+      // q[7] — смещение огня в плоскости спрайта [вправо, вверх] м (lightEmitter): пятно — на земле ПРЯМО ПОД огнём (чуть вытянуто
+      // по горизонтали в 3/4), ореол — в самой точке огня; без q[7] (старые источники) — по центру, ореол на высоте q[5]
+      const fk = q[9] ?? 1, flk = 1 - fk * (1 - fl);
+      if (q[7]) { emitterGround(q[0], q[1], q[7], G2); put(G2[0], G2[1], q[2], q[3], q[4] * lk * flk, 0.02, LT.poolEl);
+        emitterWorld(q[0], 0, q[1], q[7], 0, W3); put(W3[0], W3[2], q[2], Math.max(1.0, q[3] * 0.3 * LT.halo), Math.min(1, q[4] * 0.95) * lk * flk, W3[1]); }
+      else { put(q[0], q[1], q[2], q[3], q[4] * lk * flk);
+        if (q[5] > 0) put(q[0], q[1], q[2], Math.max(1.2, q[3] * 0.34), Math.min(1, q[4] * 0.95) * lk * flk, q[5]); }
     }
     // FX: маг, купола, розы, снаряды — светятся сами
     for (const f of src.fx || []) put(toX(f.x), toZ(f.y), f.c, f.r, f.k * Math.max(0.3, dark));
@@ -103,7 +120,7 @@ export class DayNight {
     const out = [], fx = src.fx0 || 0, fz = src.fz0 || 0, R2 = (src.viewM || 60) ** 2;
     for (const ch of src.chunks || []) {
       let a = this.propCache.get(ch.key);
-      if (!a) { a = []; for (const p of ch.props || []) { const L = lightOf(String(p.k || '')); if (L) { const x = toX(p.x), z = toZ(p.y); a.push([x, z, L[1], L[2] * (p.s || 1), L[3], (L[4] || 0) * (p.s || 1), lampHash(x, z)]); } } this.propCache.set(ch.key, a); if (this.propCache.size > 200) this.propCache.delete(this.propCache.keys().next().value); }
+      if (!a) { a = []; for (const p of ch.props || []) { const L = lightOf(String(p.k || '')); if (L) { const x = toX(p.x), z = toZ(p.y), sc = p.s || 1, off = emitterOffsetM(String(p.k), { s: sc, flip: !!p.f, set: 'world' }); a.push([x, z, L[1], L[2] * sc, L[3], (L[4] || 0) * sc, lampHash(x, z), off, FIRE.test(String(p.k)), 1]); } } this.propCache.set(ch.key, a); if (this.propCache.size > 200) this.propCache.delete(this.propCache.keys().next().value); }
       for (const q of a) if ((q[0] - fx) ** 2 + (q[1] - fz) ** 2 < R2) out.push(q);
     }
     for (const q of src.extra || []) out.push(q);

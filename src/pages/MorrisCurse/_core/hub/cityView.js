@@ -5,7 +5,8 @@
 // Купол: 526 блоков обода 32×32 арт-px (1 арт-px = 1 px мира = 1/20 м), 16 кадров 8 fps + аддитивный glow; задняя дуга — 84 статичных блока;
 // заливка — отдельный меш opacity 0.02 (ProjBatch отбрасывает a < 0.04). Позиция блока = якорь + world_offset_m (камера: right/up/forward
 // из city_dome.json) — НЕ сдвиг по мировому Y, как FxAtlas.draw (квад к камере ужимается на cos p и блоки разъезжаются).
-import { lightOf, lampHash } from '../engine/dayNight.js';
+import { lightOf, lampHash, FIRE, flickerOf, LT } from '../engine/dayNight.js';
+import { emitterOffsetM, emitterSpotsM, emitterWorld } from '../engine/lightEmitter.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
@@ -98,7 +99,18 @@ export class CityView {
     const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig;
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); }
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
-    const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; // свечение (_glow) отдельно: ночью рисуется ещё раз поверх маски темноты (game.js)
+    const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; this.lights = []; this.halos = [];
+    // ореол огня: мягкое тёплое пятно (за спрайтом), в точке излучения (engine/lightEmitter.js — центроид _glow)
+    const haloTex = this._haloTex ||= (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.18, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+      const t = new THREE.CanvasTexture(cv); return t; })();
+    // огонь: q = [x0, z0, цвет, радиус пятна м, сила, -, хэш, смещение огня [вправо, вверх] м, живой огонь, мерцание] (формат маски dayNight)
+    const addLight = (x0, z0, col, rM, k, off, fire, haloM) => {
+      const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1]);
+      const m = new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, fog: false, opacity: 0 });
+      const sp = new THREE.Sprite(m); sp.scale.set(haloM, haloM, 1); sp.renderOrder = 2; gg.add(sp);
+      this.glows.push({ m, lamp: true, h, halo: true, fire, x0, z0, off, sp, haloM, k });
+    }; // свечение (_glow) отдельно: ночью рисуется ещё раз поверх маски темноты (game.js)
     const L = (src) => (this._tex ||= {})[src] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
     const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0, lamp = false) => {
       const mk = (tp, add) => tp.then((t0) => {
@@ -113,7 +125,10 @@ export class CityView {
     const [sx, sy] = mapShiftPx();
     for (const b of MAP.buildings || []) {
       const k = BLD.keys?.[b.key]; const src = k && bldUrl(k.image); if (!src) continue;
-      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true); // окна — «огни»: загораются вразнобой
+      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true);
+      { const x0 = toX(b.anchor_world_px[0] + sx), z0 = toZ(b.anchor_world_px[1] + sy), tav = b.interior === 'shop_tavern';
+        for (const sp of emitterSpotsM(b.key, { wM: k.w / PX, hM: (k.h / PX) * SIN_P, max: tav ? 6 : 3 })) addLight(x0, z0, 0xffc477, 1.6 + Math.min(1.4, sp[2] / 40), 0.62, [sp[0], sp[1]], false, 1.5 + Math.min(1.5, sp[2] / 30));
+        const e = b.exit_world_px; if (e) addLight(toX(e[0] + sx), toZ(e[1] + sy - 10), 0xffc879, tav ? 4.4 : 3.4, 0.8, [0, 0.9], false, tav ? 3.2 : 2.6); } // дверь: проём над порогом // окна — «огни»: загораются вразнобой
     }
     // пропсы dm_*
     const SH = { p32: p32Src, b64: b64Src, p32_glow: p32GSrc, b64_glow: b64GSrc };
@@ -121,6 +136,8 @@ export class CityView {
       const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
       const [wM, hM] = k.size_m || [k.w / 10, k.h / 10];
       sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k));
+      const Lp = lightOf(p.k); if (Lp) { const sc = p.s || 1, off = emitterOffsetM(p.k, { wM: wM * sc, hM: hM * sc * SIN_P, flip: !!p.f, set: 'city' }) || [0, (Lp[4] || 1) * SIN_P], fire = FIRE.test(p.k);
+        addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
   }
@@ -236,6 +253,7 @@ export class CityView {
       const sf = Math.floor(T * (SHELL.fps || 8)) % (SHELL.frames || 16); this.shellMat.map.offset.set((sf % SHELL.cols) / SHELL.cols, 1 - (Math.floor(sf / SHELL.cols) + 1) / SHELL.rows);
       this.shell.visible = this.shellA > 0.003;
     }
+    if (this.glows?.length) { const W = this._w3 ||= [0, 0, 0], Tm = performance.now(); for (const q of this.glows) if (q.halo) { emitterWorld(q.x0, 0, q.z0, q.off, 0.18, W); q.sp.position.set(W[0], W[1], W[2]); q.fl = flickerOf(Tm, q.x0, q.z0, q.fire); const hs = q.haloM * LT.halo * (0.94 + 0.06 * q.fl); q.sp.scale.set(hs, hs, 1); } } // ореол — в точке огня, чуть «за» спрайтом
     if (this.blightSpark) this.blightSpark.opacity = 0.32 + 0.22 * Math.sin(T * 2.3) * Math.sin(T * 3.7 + 1.1); // искры порчи мерцают
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
