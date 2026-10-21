@@ -44,6 +44,8 @@ ok(indexOf(A).get('/js/three.min.js').h === 't1', 'индекс сервис-в�
 // группы по исходникам
 ok(groupOf('src/assets/mc/props3/props32_p64.png') === 'props3' && groupOf('src/assets/mc/props2/props_p32.png') === 'props2', 'группы props3/props2');
 ok(groupOf('src/assets/mc/tiles32_atlas.png') === 'tiles32' && groupOf('src/assets/mc/tiles_ice.png') === 'tiles16', 'группы тайлов');
+ok(groupOf('src/assets/mc/bestiary32/bestiary32_t1_p1.png') === 'mobs32' && groupOf('src/pages/MorrisCurse/_core/survivors/arena32Set.js') === 'core', 'мобы 32 — своя группа (код арены — core)');
+ok(eagerGroups({ props: 'props3', tiles: 'tiles32', mobs: true }).join() === 'core,sprites,ui,props3,tiles32,mobs32' && !eagerGroups({ props: 'props2', tiles: 'tiles16' }).includes('mobs32'), 'мобы 32 заранее — только при новых мобах');
 ok(groupOf('src/music/x.mp3') === null, 'музыка не в манифесте (стрим по Range)');
 ok(groupOf('src/assets/mc/worldmap_arinar_4096.webp') === 'map' && groupOf('public/mc-vn/a/b.webp') === 'vn', 'карта мира и VN — ленивые');
 // граф vite: ассеты из текста чанков, имена с пробелом
@@ -52,7 +54,7 @@ const txt = { '_astro/g.2.js': 'const a="/_astro/props32_p64.Po2.png", b="/_astr
 const r = reachable(vm, ['e.ts'], (f) => txt[f] || '');
 ok(['_astro/e.1.js', '_astro/g.2.js', '_astro/h.4.js', '_astro/g.3.css', '_astro/props32_p64.Po2.png', '_astro/character_1 2.C4A.png', '_astro/m.Q.webp'].every((f) => r.has(f)) && !r.has('_astro/x.5.js'), 'граф от входа: импорты, динамические, css, ассеты из текста (и с пробелом в имени); чужие чанки — нет');
 // собранный манифест (если есть dist)
-const mp = new URL('../../dist/mc-assets/manifest.json', import.meta.url);
+const mp = [new URL('../../dist/client/mc-assets/manifest.json', import.meta.url), new URL('../../dist/mc-assets/manifest.json', import.meta.url)].find((u) => existsSync(u)) || new URL('../../dist/mc-assets/manifest.json', import.meta.url); // Astro 7: dist/client
 if (existsSync(mp)) { const m = JSON.parse(readFileSync(mp, 'utf8')), ps = new Set(m.files.map((f) => f.p));
   ok(m.files.every((f) => /^[0-9a-f]{16}$/.test(f.h) && f.s > 0 && f.g), `dist: ${m.files.length} записей с хешем/размером/группой`);
   ok(ps.size === m.files.length, 'dist: пути уникальны');

@@ -4,7 +4,7 @@ const fs = require('fs');
 const { chromium } = require('playwright-core');
 const { guardLocal, assertLocalUrl, LOCAL } = require('./_local.cjs');
 const SITE = process.env.AC_SITE || 'http://127.0.0.1:8952', WS = process.env.AC_WS || 'ws://127.0.0.1:8951', LOG = process.env.AC_LOG || '/workspace/mc-harness-assets/site.log';
-const DIST = process.env.AC_DIST || __dirname + '/../../dist';
+const DIST = process.env.AC_DIST || (fs.existsSync(__dirname + '/../../dist/client/mc-assets') ? __dirname + '/../../dist/client' : __dirname + '/../../dist'); // Astro 7: статика в dist/client
 assertLocalUrl(SITE); assertLocalUrl(WS);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const manifest = () => JSON.parse(fs.readFileSync(DIST + '/mc-assets/manifest.json', 'utf8'));

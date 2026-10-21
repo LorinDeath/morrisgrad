@@ -1,12 +1,13 @@
 // Сборка манифеста ресурсов «Проклятых»: после astro build обходит граф модулей игры (vite manifest клиента) от входа
 // src/pages/MorrisCurse/index.astro и пишет dist/mc-assets/manifest.json: путь → sha256(16) + размер + группа.
 // Музыка (mp3, ~860 МБ) — не в манифесте: стримится по Range с HTTP-кэшем (immutable), в Cache Storage её не кладём.
-import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, readdirSync, rmSync } from 'fs';
 import { createHash } from 'crypto';
 import { join, resolve } from 'path';
 export const GROUP_RULES = [ // [регэксп исходного пути, группа] — первая подходящая
   [/\.(mp3|ogg|wav|m4a)$/i, null],
   [/assets\/mc\/props3\//, 'props3'],
+  [/assets\/mc\/bestiary32\//, 'mobs32'],   // мобы 32 (mobs32): заранее — только если у устройства включены новые мобы (ПК по умолчанию), иначе по требованию
   [/assets\/mc\/props2\//, 'props2'],
   [/assets\/mc\/tiles32_|tilesets_32/, 'tiles32'],
   [/assets\/mc\/tiles_/, 'tiles16'],
@@ -50,17 +51,26 @@ export function buildManifest({ dist, viteManifest, entries, publicFiles = [], s
 }
 const walk = (d, base = d) => readdirSync(d, { withFileTypes: true }).flatMap((x) => x.isDirectory() ? walk(join(d, x.name), base) : [join(d, x.name).slice(base.length + 1)]);
 /** Astro-интеграция: vite manifest у клиентской сборки + манифест игры после сборки */
+let ROOT = null;
 export default function mcAssets() {
   return { name: 'mc-assets', hooks: {
-    'astro:build:setup': ({ vite, target }) => { if (target === 'client') { vite.build = vite.build || {}; vite.build.manifest = true; } },
+    'astro:config:setup': ({ updateConfig }) => { // Astro 7 (окружения vite): manifest только у клиентского окружения, рядом с dist/client (dist/client/mc-vite-manifest.json; .vite Astro удаляет) — после сборки манифеста игры файл стирается, наружу не выкладывается
+      updateConfig({ vite: { plugins: [{ name: 'mc-assets:client-manifest', configEnvironment: (name) => (name === 'client' ? { build: { manifest: 'mc-vite-manifest.json' } } : undefined) }] } }); },
+    'astro:config:done': ({ config }) => { ROOT = resolve(config.root.pathname); },
+    // Astro 5: отдельный вызов на клиентскую сборку (target client); Astro 7: один вызов (target server) с окружениями vite — manifest клиенту
+    'astro:build:setup': ({ vite, target, updateConfig }) => {
+      if (target === 'client') { vite.build = vite.build || {}; vite.build.manifest = true; }
+    },
     'astro:build:done': ({ dir, logger }) => {
-      const dist = resolve(dir.pathname), vmf = [join(dist, '.vite/manifest.json'), join(dist, 'manifest.json')].find(existsSync);
+      // dir — клиентская сборка: Astro 5 — dist/, Astro 7 + @astrojs/cloudflare 14 — dist/client/
+      const dist = resolve(dir.pathname), vmf = [join(dist, 'mc-vite-manifest.json'), join(dist, '.vite/manifest.json'), join(dist, 'manifest.json')].find(existsSync);
       if (!vmf) { logger.warn('mc-assets: нет vite manifest — манифест игры не создан'); return; }
       const vm = JSON.parse(readFileSync(vmf, 'utf8')), entries = Object.keys(vm).filter((k) => /MorrisCurse\/index\.astro|ClientRouter\.astro|^astro:scripts\/page\.js$/.test(k)); // скрипты страницы игры (+ общие скрипты макета)
       const pub = ['js/three.min.js', ...(existsSync(join(dist, 'mc-vn')) ? walk(join(dist, 'mc-vn')).map((f) => 'mc-vn/' + f) : [])];
-      const m = buildManifest({ dist, viteManifest: vmf, entries, publicFiles: pub, srcRoot: resolve(dist, '../src/assets') });
+      const m = buildManifest({ dist, viteManifest: vmf, entries, publicFiles: pub, srcRoot: resolve(ROOT || process.cwd(), 'src/assets') });
       try { const rp = join(dist, '_routes.json'), r = JSON.parse(readFileSync(rp, 'utf8')); for (const x of ['/mc-assets/*', '/mc-sw.js']) if (!r.exclude.includes(x)) r.exclude.push(x); writeFileSync(rp, JSON.stringify(r, null, 2)); } catch (_) {} // статикой, мимо воркера SSR
       mkdirSync(join(dist, 'mc-assets'), { recursive: true }); writeFileSync(join(dist, 'mc-assets/manifest.json'), JSON.stringify(m));
+      if (!process.env.MC_KEEP_VITE_MANIFEST) { try { if (vmf.endsWith('mc-vite-manifest.json')) rmSync(vmf, { force: true }); else if (vmf.endsWith('.vite/manifest.json')) rmSync(join(dist, '.vite'), { recursive: true, force: true }); } catch (_) {} } // vite manifest (пути исходников) — не выкладываем
       logger.info(`mc-assets: ${m.files.length} файлов, ${(m.files.reduce((a, f) => a + f.s, 0) / 1048576).toFixed(1)} МБ, версия ${m.version} (${Object.entries(m.groups).map(([g, x]) => `${g} ${x.files}/${(x.bytes / 1048576).toFixed(1)} МБ`).join(', ')})`);
     } } };
 }
