@@ -37,7 +37,7 @@ import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN, inSafe } from "./zoneGen";
 import { dnClient, DN_CFG } from "./dayNight";
-import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, pkPublic, type PkState } from "./city";
+import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
 import {
@@ -2006,7 +2006,8 @@ export class MetaService {
     this.posNote(session, ms, true); // выход: точка для следующего входа
     this.save(session);
     this.ms.delete(session.id);
-    if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.explore.flushKey(ms.pkey).catch(() => {});
+    if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) { this.explore.flushKey(ms.pkey).catch(() => {});
+      const P = this.pkMap.get(ms.pkey); if (P && pkIdle(P)) this.pkMap.delete(ms.pkey); } // PK без отсчёта — выгрузить (иначе карта растёт с каждым гостем); идёт отсчёт — переживёт переподключение
     // выгружаем кэш, если других сессий с этим ключом нет
     if (![...this.ms.values()].some((x) => x.pkey === ms.pkey)) this.store.evict(ms.pkey, () => [...this.ms.values()].some((x) => x.pkey === ms.pkey)).catch((e) => console.error("[mc] evict", e?.message || e));
   }

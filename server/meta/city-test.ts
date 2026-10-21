@@ -1,6 +1,6 @@
 // Город Альказак (city.ts + cityBuild.ts): журнал убийц, PK-режим, PvP, купол (в т.ч. интерьеры), розы, здания/двери/комнаты,
 // места NPC, масштаб по rTiles, схемы админки. Запуск: esbuild --bundle → node.
-import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT, cityKeepOut, cityMobPushPx, cityMobAggroPadPx } from "./city";
+import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT, pkIdle, cityKeepOut, cityMobPushPx, cityMobAggroPadPx } from "./city";
 import { cityBuildings, buildingById, roomAt, roomSpawn, onExit, outsideDoor, atDoor, doorNear, resolveRoom, roomWalkable, roomBounds, roomCell, slotPos, cityClient, cityNpcDefs, ROOMS, BUILD_DEF, buildingColliders, inRoomArea, ROOM_SPAN, DARK_PROPS } from "./cityBuild";
 import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from "./bmCfg";
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
@@ -159,6 +159,12 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   CITY_CFG.mobBossesOut = false; t("купол/моб: mobBossesOut выкл — босс не выталкивается", b && put(b) < R); t("купол/моб: …а обычный — да", put(m) > R);
   CITY_CFG.mobsOut = false; t("купол/моб: mobsOut выкл — никого не выталкивает", put(m) < R);
   reset(); }
+
+// ——— PK: выгрузка при выходе, права ответа не копятся ———
+{ reset(); const s = newPk(), T0 = 9_000_000; t("PK: без отсчёта — можно выгрузить", pkIdle(s, T0));
+  pkToggle(s, T0); t("PK: идёт отсчёт — держим (переживёт переподключение)", !pkIdle(s, T0 + 1000)); s.to = null;
+  pkGrantDefense(s, "a", T0); t("PK: живое право ответа — держим", !pkIdle(s, T0 + 1000)); t("PK: право истекло — выгрузить", pkIdle(s, T0 + 3_600_000));
+  for (let i = 0; i < 200; i++) pkGrantDefense(s, "x" + i, T0 + i * 3_600_000); t("PK: истёкшие права ответа не копятся (200 нападавших в разное время → ≤ 17)", s.def.size <= 17, s.def.size); }
 
 // ——— админка ———
 { const v = validatePatch("city", "main", { rTiles: 96, roseBloom: false, roseId: "123" } as any);

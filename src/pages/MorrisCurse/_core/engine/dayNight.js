@@ -130,7 +130,7 @@ export class DayNight {
   lamp(h) { return lampK(this.minutes(), h, DN_CFG) * (Number(DN_CFG.townLight) || 0); }
   /** огни пропсов из видимых чанков (кэш по чанку) */
   propLights(src) {
-    const out = [], fx = src.fx0 || 0, fz = src.fz0 || 0, R2 = (src.viewM || 60) ** 2;
+    const out = this._plOut || (this._plOut = []), fx = src.fx0 || 0, fz = src.fz0 || 0, R2 = (src.viewM || 60) ** 2; out.length = 0; // один массив на все кадры
     for (const ch of src.chunks || []) {
       let a = this.propCache.get(ch.key);
       if (!a) { a = []; for (const p of ch.props || []) { const L = lightOf(String(p.k || '')); if (L) { const x = toX(p.x), z = toZ(p.y), sc = p.s || 1, off = emitterOffsetM(String(p.k), { s: sc, flip: !!p.f, set: 'world' }); a.push([x, z, L[1], L[2] * sc, L[3], (L[4] || 0) * sc, lampHash(x, z), off, FIRE.test(String(p.k)), 1]); } } this.propCache.set(ch.key, a); if (this.propCache.size > 200) this.propCache.delete(this.propCache.keys().next().value); }

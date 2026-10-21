@@ -206,4 +206,8 @@ export function pvpAllowed(a: PkState, b: PkState, bSid: string, safeA: boolean,
   return "";
 }
 /** PK ударил не-PK: у того появляется право ответа */
-export function pkGrantDefense(victim: PkState, attackerSid: string, now = Date.now()) { victim.def.set(attackerSid, now + Math.max(1, Number(PK_CFG.defendSec) || 30) * 1000); }
+export function pkGrantDefense(victim: PkState, attackerSid: string, now = Date.now()) {
+  if (victim.def.size > 16) for (const [sid, t] of victim.def) if (t <= now) victim.def.delete(sid); // истёкшие права ответа — не копятся
+  victim.def.set(attackerSid, now + Math.max(1, Number(PK_CFG.defendSec) || 30) * 1000); }
+/** PK-состояние можно выгрузить (последняя сессия вышла): нет отсчёта и живых прав ответа; флаг pk — в аккаунте */
+export function pkIdle(s: PkState, now = Date.now()) { if (s.to !== null) return false; for (const t of s.def.values()) if (t > now) return false; return true; }

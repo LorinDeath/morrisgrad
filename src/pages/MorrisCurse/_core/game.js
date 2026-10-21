@@ -1517,7 +1517,7 @@ async function boot(canvasId, username, userId, api) {
     else if (quality.high > 12 && quality.level > 0) { quality.level--; applyQuality(); quality.high = 0; quality.cooldown = 8; }
   }
   api.dn = (o = {}) => { if ('pin' in o) dayNight.pinAt(o.pin); return dayNight.debug(); }; // день/ночь: состояние; {pin:'HH:MM'|мин|null} — локально для снимков
-  api.perf = () => ({ fps: fpsS.fps, cpuMs: +fpsS.cpu.toFixed(2), quality: quality.level, pixelRatio: stage.renderer.getPixelRatio(), shadows: stage.renderer.shadowMap.enabled, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles, enemies: run ? run.enemies.size : 0 });
+  api.perf = () => ({ fps: fpsS.fps, cpuMs: +fpsS.cpu.toFixed(2), quality: quality.level, pixelRatio: stage.renderer.getPixelRatio(), shadows: stage.renderer.shadowMap.enabled, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles, geos: stage.renderer.info.memory.geometries, texs: stage.renderer.info.memory.textures, progs: stage.renderer.info.programs?.length || 0, dnLights: dayNight.stats?.lights || 0, dnMs: dayNight.stats?.ms || 0, cityGlows: cityView.glows?.length || 0, cityLights: cityView.lights?.length || 0, heap: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : 0, enemies: run ? run.enemies.size : 0 });
   // «📊 Нагрузка»: раз в минуту — fps/пинг/тип устройства/браузер (без идентификаторов; сервер обрезает значения)
   { const ua = navigator.userAgent || '', br = /YaBrowser/.test(ua) ? 'yandex' : /SamsungBrowser/.test(ua) ? 'samsung' : /Edg\//.test(ua) ? 'edge' : /OPR\//.test(ua) ? 'opera' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'other';
     const mobile = /Mobi|Android|iPhone|iPad/.test(ua) || (navigator.maxTouchPoints > 1 && matchMedia('(pointer:coarse)').matches);
@@ -1568,24 +1568,26 @@ async function boot(canvasId, username, userId, api) {
       if (!cityView.lights?.length) extra = dnCity.list;
     }
     const t = hub.env?.terrain;
-    dayNight.frame(true, { players, npcs, mobs, fx, extra, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
+    dayNight.frame(true, { players, npcs, mobs, fx, extra, chunks: chunkList(t), fx0, fz0, viewM });
     if (dayNight.render(stage.renderer, cam) && cityView.group.visible && cityView.glows?.length) {
       // свечение огней города (_glow-слои Историка) — излучает само: ещё раз поверх маски, сила — по своему огню (вразнобой);
       // глубина кадра сохранена — спрайты перед огнём его закрывают (ореол «за» спрайтами, без засветки)
       const R = stage.renderer, ac = R.autoClear, gl = cityView.glows;
-      for (const g of gl) g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * lampGlowK(g.kind, g.halo) * (g.fl ?? 1) : 0.55 * Math.min(1, dayNight.state.dark * 1.2); // без пересвета: ореол/свечение — по виду огня (админка «Огни»)
+      for (const g of gl) { g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * lampGlowK(g.kind, g.halo) * (g.fl ?? 1) : 0.55 * Math.min(1, dayNight.state.dark * 1.2); g.m.visible = g.m.opacity > 0.003; } // без пересвета: ореол/свечение — по виду огня (админка «Огни»)
       R.autoClear = false; R.render(cityView.glowG, cam); R.autoClear = ac;
     }
     // днём фонари не горят: их свечение в основном кадре — по силе своего огня (следующий кадр)
-    if (cityView.glows?.length) { const na = dayNight.active; for (const g of cityView.glows) g.m.opacity = g.halo ? 0 : g.lamp ? (0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h))) * (na ? nightGlow(g.kind) : 1) : 1; } // ночью _glow под маской — слабее (поверх маски он и так добавляется)
+    if (cityView.glows?.length) { const na = dayNight.active; for (const g of cityView.glows) { g.m.opacity = g.halo ? 0 : g.lamp ? (0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h))) * (na ? nightGlow(g.kind) : 1) : 1; g.m.visible = g.m.opacity > 0.003; } } // невидимые (ореолы днём) — без вызова отрисовки // ночью _glow под маской — слабее (поверх маски он и так добавляется)
   }
   const cityAmbFx = []; // ночной фон города: пятна для маски (переиспользуются)
+  const chunkArr = []; const chunkList = (t) => { chunkArr.length = 0; if (t?.chunks) for (const c of t.chunks.values()) chunkArr.push(c); return chunkArr; }; // без нового массива каждый кадр
   function frame(now) {
     requestAnimationFrame(frame);
     const realDt = Math.max(0, (now - last) / 1000);
     const dt = Math.min(0.05, realDt);
     last = now;
     tickSpriteTime(dt); // кадры анимированных пропсов v2 (шейдер SpriteBatch)
+    { const RI = stage.renderer.info; RI.autoReset = false; RI.reset(); } // calls/tris — за весь кадр (сцена + маска ночи + свечение огней), не за последний проход
     fpsS.n++; fpsS.t += realDt;
     if (fpsS.t >= 0.5) { fpsS.fps = Math.round(fpsS.n / fpsS.t); fpsS.cpu = fpsS.cpuAcc / fpsS.n; fpsS.n = 0; fpsS.t = 0; fpsS.cpuAcc = 0; }
     if (realDt < 1) adaptQuality(realDt);

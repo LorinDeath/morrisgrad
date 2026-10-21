@@ -100,7 +100,7 @@ export class CityView {
   buildMap() {
     const THREE = this.THREE, c = this.cfg; if (!c) return;
     const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
-    if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); }
+    if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } if (o.isMesh) o.geometry?.dispose?.(); }); } // у Sprite геометрия общая (three) — только у мешей (пролёты забора)
     this.toneMats = []; this.toneSig = '';
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
     const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; this.lights = []; this.halos = [];
@@ -161,7 +161,7 @@ export class CityView {
   buildBlight() {
     const THREE = this.THREE, r = this.cfg?.rose; if (!r) return;
     const sig = `${r.x},${r.y}`; if (this.blightSig === sig && this.blightG?.parent === this.group) return; this.blightSig = sig; // группа города пересобирается — пятно вешаем заново
-    if (this.blightG) { this.blightG.parent?.remove(this.blightG); this.blightG.traverse((o) => { o.material?.map?.dispose?.(); o.material?.dispose?.(); }); }
+    if (this.blightG) { this.blightG.parent?.remove(this.blightG); this.blightG.traverse((o) => { o.material?.map?.dispose?.(); o.material?.dispose?.(); if (o.isMesh) o.geometry?.dispose?.(); }); }
     let seed = (Math.round(r.x) * 73856093) ^ (Math.round(r.y) * 19349663); const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return ((seed >>> 8) & 0xffffff) / 0x1000000; };
     const W = 72, H = 64, cx = W / 2, cy = H / 2 + 2;
     const lat = Array.from({ length: 9 * 9 }, rnd), vn = (x, y) => { // значение-шум на решётке 8×8 (гладко)
