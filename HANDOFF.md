@@ -68,6 +68,18 @@
   - Настройка «🧭 Старые панели» (`localStorage mc_hud_old`), админка: `hudIngame`, `hudOldDefault`, `mmMobile`, `mmSize`.
   - Плейтест `hud-ingame.cjs` (VIEW / HUD / THEME). Скриншоты: `ui-rework/hud-ingame/`.
 
+Тесты (пункт 4, 21.10):
+- Прошли: quest-cond ok, enchant ok, liquid 10/0, duel 41/0, social 25/0, rating 18/0, полный прогон ui-fixes / hud-ingame / ui-tour ×5 / ui-admin ok.
+  - ui-tour LOC=ice один раз упал по таймауту под нагрузкой, при повторе ok.
+- protocol 39/6 и talent-migrate 6/2 падают одинаково на базе: worktree `/workspace/mg-ui-basecheck` на merge-base `dda459c`. Это не регрессия ветки.
+- duel падал только на «грязной» локальной D1 (игрок «повержен» после прошлых тестов). На свежей D1 41/0. Старое состояние отложено в `mc-harness-ui/t8787/state.used-*`.
+- roam-test «32 spread players < 8 мс»: нагрузка от чужих процессов, результат плавает.
+  - Попеременно база / ветка: база 8.0–11.5 мс, ветка 7.8–10.9 мс.
+  - Без проверки жидкостей 7.7–10.9 мс.
+  - Микробенч `resolveLiquid` (900 мобов): ~0.08 мс на тик, < 1 % тика.
+  - Добавлен одноэлементный кэш карты мира: 90 → 84 нс на вызов.
+  - Превышение порога — шум машины, а не путь проверки воды.
+
 Харнесс:
 - `vite.config.mjs`: `usePolling`. Без него vite иногда отдавал устаревший CSS после `sed -i`.
 - `game-panel.html` — страница с колонками.

@@ -13,10 +13,12 @@ const LAVA = new Set(['lava']);
 const maps = new Map(); // world → { cell, i0, n, get(i, j) → 0 суша / 1 вода / 2 лава }
 
 function kindOf(b) { return WATER.has(b) ? 1 : LAVA.has(b) ? 2 : 0; }
+let lastW = null, lastM = null; // одноэлементный кэш: в тике подряд идут вызовы одного мира
 function worldMap(world) {
   world = world || 'hellfire';
+  if (world === lastW) return lastM;
   let m = maps.get(world);
-  if (m !== undefined) return m;
+  if (m !== undefined) { lastW = world; lastM = m; return m; }
   m = null;
   try {
     if (world === 'arinar') {
@@ -29,7 +31,7 @@ function worldMap(world) {
       if (bio) m = { cell: CELL, get: (i, j) => { const ii = i + MARGIN, jj = j + MARGIN; return ii < 0 || jj < 0 || ii >= N || jj >= N ? 0 : kindOf(bio[jj * N + ii]); } };
     }
   } catch { m = null; }
-  maps.set(world, m);
+  maps.set(world, m); lastW = world; lastM = m;
   return m;
 }
 const on = (k) => (k === 1 && TERRAIN_CFG.waterBlock !== false) || (k === 2 && TERRAIN_CFG.lavaBlock !== false);
