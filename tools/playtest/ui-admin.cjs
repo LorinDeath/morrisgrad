@@ -8,6 +8,9 @@ const cp = require('child_process'); const sleep = (ms) => new Promise((r) => se
 (async () => {
   const uid = 'uiadm_' + Date.now().toString(36);
   cp.execSync(`cd ${__dirname}/../../server && CI=1 nice ../node_modules/.bin/wrangler d1 execute morrisgrad_db --local --persist-to ${WR} --command "INSERT OR REPLACE INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:${uid}','admin','local-test',0)"`, { stdio: 'ignore' });
+  // локальная D1 харнесса: убрать оставшийся от прерванного прогона оверрайд ui (только --local)
+  const resetUi = () => cp.execSync(`cd ${__dirname}/../../server && CI=1 nice ../node_modules/.bin/wrangler d1 execute morrisgrad_db --local --persist-to ${WR} --command "DELETE FROM game_overrides WHERE kind='ui'"`, { stdio: 'ignore' });
+  resetUi(); process.on('exit', () => { try { resetUi(); } catch {} });
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } }); await guardLocal(ctx);
   const p = await ctx.newPage(); const rx = [];
