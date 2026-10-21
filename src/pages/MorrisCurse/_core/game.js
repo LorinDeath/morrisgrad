@@ -1047,6 +1047,7 @@ async function boot(canvasId, username, userId, api) {
     stage.setEnvironment(arena);
     atmoWorld = 'run_' + (arena.theme || 'crypt'); atmo.setScene(atmoWorld, null, []);
     mode = 'run'; setUiMode('run'); // забег — без темы реворка (там всё как было)
+    cityHud.setWorld(''); // кнопка ⚔ PK — только в мире (в забеге кадр хаба не идёт и мир не сбрасывался)
     runUI.show(true);
     runUI.setAbilities(run.me.abilities);
     run.resultSent = false;
