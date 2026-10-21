@@ -25,18 +25,34 @@ const cachesOk = () => { try { return typeof caches !== 'undefined' && !!caches.
 /** полностью выключить кэш: снять воркер, стереть кэши (аварийный выключатель) */
 export async function disableCache(persist = true) {
   if (persist) try { localStorage.setItem(OFF_KEY, '1'); } catch (_) {}
+  // текущую вкладку воркер продолжает обслуживать и после unregister — сначала велим ему не трогать запросы (иначе он заново создаст кэш)
+  try { const c = navigator.serviceWorker?.controller; if (c) await new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = res; c.postMessage({ type: 'mc-off' }, [ch.port2]); setTimeout(res, 500); }); } catch (_) {}
   try { for (const r of (await navigator.serviceWorker?.getRegistrations?.()) || []) if (r.active?.scriptURL?.endsWith('/mc-sw.js') || r.installing?.scriptURL?.endsWith('/mc-sw.js')) await r.unregister(); } catch (_) {}
   try { if (cachesOk()) for (const k of await caches.keys()) if (/^mc-(assets|meta)-v/.test(k)) await caches.delete(k); } catch (_) {}
   AC.mode = 'off';
 }
 export function enableCache() { try { localStorage.removeItem(OFF_KEY); } catch (_) {} }
-async function registerSW() {
+// проверка нового воркера в фоне (через 3 с, чтобы не мешать запуску): новый деплой воркера ставится сам (skipWaiting + claim)
+function laterUpdate(r) { setTimeout(() => r.update().then(() => { AC.stats.swUpd = 'ok'; }, (e) => { AC.stats.swUpd = 'err ' + (e?.message || e); }), 3000); }
+const swVer = (w) => (w ? Promise.race([new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = (e) => res(e.data?.ver || 0); w.postMessage({ type: 'mc-ping' }, [ch.port2]); }), sleep(800).then(() => 0)]) : Promise.resolve(0));
+async function registerSW(m) {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) throw new Error('no-sw');
   // повторный визит: воркер уже управляет страницей — не ждём проверку его обновления (до 2–3 с), она идёт в фоне через 3 с;
   // новый деплой воркера ставится сам (skipWaiting + claim), а индекс файлов мы всё равно шлём свежий (tellSW)
   const c = navigator.serviceWorker.controller;
-  if (c && c.scriptURL.endsWith('/mc-sw.js')) { const r = await navigator.serviceWorker.getRegistration('/MorrisCurse'); if (r?.active) { setTimeout(() => r.update().catch(() => {}), 3000); return r; } }
+  if (c && c.scriptURL.endsWith('/mc-sw.js')) {
+    const r = await navigator.serviceWorker.getRegistration('/MorrisCurse');
+    if (r?.active) {
+      // новый деплой воркера (manifest.sw ≠ версия работающего): обновить сейчас, пока игра не запущена — позже, при работающей
+      // игре, Chrome откладывает update() (замечено в стенде); старый воркер всё равно не отдаст старые файлы (проверка хеша)
+      const want = m?.sw || 0, have = want ? await swVer(c) : 0;
+      if (want && have !== want) { AC.stats.swFrom = have; try { await Promise.race([r.update(), sleep(4000)]); } catch (_) {} if (r.installing || r.waiting) await Promise.race([new Promise((ok) => navigator.serviceWorker.addEventListener('controllerchange', ok, { once: true })), sleep(2500)]); AC.stats.swTo = await swVer(navigator.serviceWorker.controller); }
+      else laterUpdate(r);
+      return r;
+    }
+  }
   const reg = await navigator.serviceWorker.register('/mc-sw.js', { scope: '/MorrisCurse', updateViaCache: 'none' });
+  if (reg.active) laterUpdate(reg); // воркер уже был (вкладка без управления: вход через переход по сайту) — тоже проверить обновление
   const ready = await Promise.race([navigator.serviceWorker.ready, sleep(5000).then(() => null)]);
   if (!ready) throw new Error('sw-timeout');
   return ready;
@@ -48,7 +64,7 @@ async function tellSW(reg, manifest) {
 /** что реально лежит в кэше: url → { s, h } (h и s — из прошлого манифеста; файла, которого нет в кэше, тут нет → докачается) */
 async function cachedMap(cache, prev) {
   const byUrl = new Map(); for (const e of prev?.files || []) byUrl.set(assetUrl(e), e);
-  const have = new Map(); for (const req of await cache.keys()) { const u = new URL(req.url), k = u.pathname + u.search, e = byUrl.get(k); have.set(k, e ? { s: e.s, h: e.h } : { s: -1, h: 'x' }); }
+  const have = new Map(); for (const req of await cache.keys()) { const u = new URL(req.url); let pn = u.pathname; try { pn = decodeURIComponent(pn); } catch (_) {} const k = pn + u.search, e = byUrl.get(k); have.set(k, e ? { s: e.s, h: e.h } : { s: -1, h: 'x' }); }
   return have;
 }
 class QuotaErr extends Error {}
@@ -83,7 +99,7 @@ async function download(cache, list, ui) {
     const ac = new AbortController(), dog = setInterval(() => { if (performance.now() - last > 15000) { ui?.wait?.('ответ сервера ресурсов (нет данных 15 с)'); ac.abort(); } }, 1000);
     const left = queue.splice(0), retry = [];
     const worker = async () => { for (let e; (e = left.shift());) {
-      try { await fetchOne(cache, e, (d) => { done += d; last = performance.now(); ui?.progress(done, total); }, ac.signal); AC.stats.fetched++; AC.stats.fetchedBytes += e.s; }
+      try { await fetchOne(cache, e, (d) => { done += d; last = performance.now(); ui?.progress(done, total); }, ac.signal); AC.stats.fetched++; AC.stats.fetchedBytes += e.s; (AC.stats.list ||= []).length < 12 && AC.stats.list.push(e.p); }
       catch (err) { if (err instanceof QuotaErr) { clearInterval(dog); throw err; } (ac.signal.aborted ? retry : failed).push(e); console.warn('[mc-assets]', e.p, err?.message || err); }
     } };
     try { await Promise.all([worker(), worker(), worker(), worker()]); } finally { clearInterval(dog); }
@@ -117,10 +133,10 @@ export async function syncAssets() {
   }
   window.__MC_VER__ = m.version; AC.version = m.version; AC.manifest = m;
   let reg = null;
-  try { reg = await registerSW(); } catch (err) { showError('MC-L04', { detail: 'SW: ' + (err?.message || err), soft: true, autoClose: 5000 }); } mark('sw');
+  try { reg = await registerSW(m); } catch (err) { showError('MC-L04', { detail: 'SW: ' + (err?.message || err), soft: true, autoClose: 5000 }); } mark('sw');
   const dg = deviceGroups(), groups = eagerGroups(dg); groups.forEach((g) => AC.groups.add(g));
   const have = await cachedMap(cache, prev), d = diffManifest(m, have, groups);
-  for (const u of d.evict) if (await cache.delete(u)) AC.stats.evicted++; mark('diff');
+  for (const u of d.evict) if (await cache.delete(u)) { AC.stats.evicted++; (AC.stats.evList ||= []).length < 12 && AC.stats.evList.push(u); } mark('diff');
   let ui = null;
   if (d.files) {
     const first = !prev || have.size === 0 || d.bytes > 0.5 * m.files.filter((e) => AC.groups.has(e.g)).reduce((a, e) => a + e.s, 0);

@@ -44,7 +44,9 @@ export function buildManifest({ dist, viteManifest, entries, publicFiles = [], s
   files.sort((a, b) => a.p.localeCompare(b.p));
   const version = sha(Buffer.from(files.map((f) => f.p + f.h).join('\n')));
   const groups = {}; for (const f of files) { const G = (groups[f.g] ||= { files: 0, bytes: 0 }); G.files++; G.bytes += f.s; }
-  return { v: 1, version, built: new Date().toISOString(), flags: { cache: true }, groups, files };
+  // версия сервис-воркера: страница сравнивает её с работающим воркером и при расхождении обновляет его сразу (на экране загрузки)
+  let sw = 0; try { sw = +(readFileSync(join(dist, 'mc-sw.js'), 'utf8').match(/SW_VER\s*=\s*(\d+)/) || [])[1] || 0; } catch (_) {}
+  return { v: 1, version, built: new Date().toISOString(), sw, flags: { cache: true }, groups, files };
 }
 const walk = (d, base = d) => readdirSync(d, { withFileTypes: true }).flatMap((x) => x.isDirectory() ? walk(join(d, x.name), base) : [join(d, x.name).slice(base.length + 1)]);
 /** Astro-интеграция: vite manifest у клиентской сборки + манифест игры после сборки */

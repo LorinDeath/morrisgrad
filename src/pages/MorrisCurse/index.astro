@@ -33,7 +33,32 @@ import './_core/styles/game-modals.css';
   </main>
 </Layout>
 
+<!-- Сторож запуска (MC-L09): если сам загрузчик игры (модуль ниже) не скачался — связь оборвалась на первой загрузке страницы,
+     — кода, который покажет ошибку, ещё нет. Этот крошечный встроенный скрипт показывает окно с кодом и «Повторить», а не пустой экран. -->
+<script is:inline>
+  (function () {
+    if (window.__mcGuard) return; window.__mcGuard = 1;
+    var shown = false, t0 = Date.now();
+    function box(why) {
+      if (shown || window.__mcLaunch) return; shown = true;
+      var d = document.createElement('div'); d.setAttribute('role', 'alertdialog'); d.className = 'mcl-err mcl-guard'; d.dataset.code = 'MC-L09';
+      d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;max-width:min(92vw,380px);padding:18px 20px;background:#160c10;color:#e8d8c0;border:2px solid #7a2a2a;font:15px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 0 0 100vmax rgba(0,0,0,.55)';
+      var code = 'MC-L09', line = code + ' · ' + why + ' · ' + new Date().toISOString();
+      d.innerHTML = '<div style="font:700 28px/1 monospace;letter-spacing:2px;color:#ff8a6a">' + code + '</div><div style="margin:10px 0 14px">Страница загрузилась не полностью</div>';
+      var b1 = document.createElement('button'), b2 = document.createElement('button');
+      [b1, b2].forEach(function (b) { b.style.cssText = 'margin:4px;padding:8px 14px;font:inherit;background:#2a1418;color:inherit;border:1px solid #7a2a2a;cursor:pointer'; d.appendChild(b); });
+      b1.textContent = 'Скопировать код'; b1.onclick = function () { try { navigator.clipboard.writeText(line); b1.textContent = 'Скопировано'; } catch (_) {} };
+      b2.textContent = 'Повторить'; b2.onclick = function () { location.reload(); };
+      (document.body || document.documentElement).appendChild(d);
+    }
+    // модуль загрузчика (/_astro/*.js) не скачался — сразу; иначе — если за 20 с загрузчик так и не запустился
+    document.addEventListener('error', function (e) { var t = e.target; if (t && t.tagName === 'SCRIPT' && /\/_astro\//.test(t.src || '')) setTimeout(function () { box('script ' + (t.src || '').split('/').pop()); }, 300); }, true);
+    window.addEventListener('load', function () { setTimeout(function () { box('timeout ' + Math.round((Date.now() - t0) / 1000) + 's'); }, 20000); });
+  })();
+</script>
+
 <script>
+  (window as any).__mcLaunch = 1; // сторож MC-L09 выше: загрузчик дошёл
   import { syncAssets, AC } from './_core/boot/assetCache.js';
   import { showError, hookGlobalErrors } from './_core/boot/errorBox.js';
     function initLauncher() {

@@ -12,7 +12,7 @@ function report(r) {
   if (SINK) { try { SINK(r); } catch (_) {} return; }
   Q.push(r); try { localStorage.setItem('mc_err_q', JSON.stringify(Q.slice(-10))); } catch (_) {}
 }
-let CUR = null; export const ERR_LOG = []; // для плейтестов: какие коды показаны
+let CUR = null; export const ERR_LOG = []; if (typeof window !== 'undefined') window.__mcErrLog = ERR_LOG; // для плейтестов: какие коды показаны
 /**
  * Показать ошибку. code — из реестра; opt: { detail (только в консоль/сервер), step (видно игроку — какой шаг ждём), onRetry, soft (без затемнения, плашкой сверху), host }
  * Повторный показ того же кода, пока окно открыто, не плодит окна. Возвращает { ctx, close }.

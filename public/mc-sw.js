@@ -18,16 +18,20 @@ self.addEventListener('activate', (ev) => ev.waitUntil((async () => {
 self.addEventListener('message', (ev) => {
   const d = ev.data || {};
   if (d.type === 'mc-index') { setIndex(d.manifest); ev.ports?.[0]?.postMessage({ ok: true, ver: SW_VER, files: IX.size }); }
+  if (d.type === 'mc-off') { OFF = true; ev.ports?.[0]?.postMessage({ ok: true }); }
   if (d.type === 'mc-ping') ev.ports?.[0]?.postMessage({ ok: true, ver: SW_VER, files: IX ? IX.size : -1, off: OFF });
 });
 self.addEventListener('fetch', (ev) => {
   const req = ev.request;
   if (req.method !== 'GET' || req.headers.has('range')) return;
   const u = new URL(req.url); if (u.origin !== self.location.origin) return;
-  if (IX) { const e = IX.get(u.pathname); if (!e || OFF) return; ev.respondWith(serve(req, e)); return; }
+  let path = u.pathname; try { path = decodeURIComponent(path); } catch (_) {} // в манифесте пути как есть (с пробелами)
+  // запрос другой версии (?v=хеш не из нашего индекса: страница уже знает новый манифест, а воркер ещё нет) — только сеть, не старый кэш
+  const vq = u.searchParams.get('v'), fits = (e) => e && !OFF && (!vq || vq === e.h);
+  if (IX) { const e = IX.get(path); if (!fits(e)) return; ev.respondWith(serve(req, e)); return; }
   // индекс ещё не загружен (воркер только что проснулся): решаем после чтения индекса, но только для путей игры
-  if (!/^\/(_astro|js|mc-vn)\//.test(u.pathname)) return;
-  ev.respondWith(loadIndex().then((ix) => { const e = ix.get(u.pathname); return e && !OFF ? serve(req, e) : fetch(req); }));
+  if (!/^\/(_astro|js|mc-vn|images|props[23])\//.test(path)) return;
+  ev.respondWith(loadIndex().then((ix) => { const e = ix.get(path); return fits(e) ? serve(req, e) : fetch(req); }));
 });
 async function serve(req, e) {
   let c = null;

@@ -2,7 +2,7 @@
 // Счёт трафика — по журналу сайта (wrangler: строки «GET /путь 200»): это то, что реально дошло до сервера, мимо SW и кэшей.
 const fs = require('fs');
 const { chromium } = require('playwright-core');
-const { guardLocal, assertLocalUrl } = require('./_local.cjs');
+const { guardLocal, assertLocalUrl, LOCAL } = require('./_local.cjs');
 const SITE = process.env.AC_SITE || 'http://127.0.0.1:8952', WS = process.env.AC_WS || 'ws://127.0.0.1:8951', LOG = process.env.AC_LOG || '/workspace/mc-harness-assets/site.log';
 const DIST = process.env.AC_DIST || __dirname + '/../../dist';
 assertLocalUrl(SITE); assertLocalUrl(WS);
@@ -21,10 +21,15 @@ function bytesOf(reqs) {
   for (const r of reqs) { if (r.st !== 200 || r.m !== 'GET') continue; const p = decodeURIComponent(r.path.split('?')[0]); let s = by.get(p); if (s == null) { try { s = fs.statSync(DIST + p).size; } catch (_) { s = 0; } } b += s; }
   return b;
 }
-async function launch(dir, { mobile = false, init = null } = {}) {
+// netGuard: «только локально» силами самого Chrome (всё не-локальное → мёртвый прокси 127.0.0.1:9), без ctx.route —
+// перехват Playwright подвешивает проверку обновления сервис-воркера (registration.update() не завершается).
+async function launch(dir, { mobile = false, init = null, netGuard = false } = {}) {
   const opt = { executablePath: '/usr/bin/google-chrome', headless: true, args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
     viewport: mobile ? { width: 390, height: 800 } : { width: 1280, height: 760 }, ...(mobile ? { userAgent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36', isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) };
-  const ctx = await chromium.launchPersistentContext(dir, opt); await guardLocal(ctx);
+  if (netGuard) opt.args.push('--proxy-server=http://127.0.0.1:9', '--proxy-bypass-list=127.0.0.1;localhost', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost');
+  const ctx = await chromium.launchPersistentContext(dir, opt);
+  if (!netGuard) await guardLocal(ctx);
+  else ctx.on('page', (p) => p.on('request', (r) => { if (!LOCAL.test(r.url()) && !/^(data|blob|about|chrome):/.test(r.url())) console.log('  (net-guard: не локальный запрос оборван Chrome) ' + r.url().slice(0, 80)); }));
   if (init) await ctx.addInitScript(init);
   return ctx;
 }
@@ -43,5 +48,5 @@ async function visit(ctx, q = '', { wait = 'hub', timeout = 180000 } = {}) {
   return { page: p, errs, cons, ffMs: ff ? Math.round(ff - t0) : null };
 }
 const acState = (p) => p.evaluate(() => window.__mcAssets ? window.__mcAssets.cacheSummary() : null);
-const cacheKeys = (p) => p.evaluate(async () => { const c = await caches.open('mc-assets-v1'); return (await c.keys()).map((r) => { const u = new URL(r.url); return u.pathname + u.search; }); });
+const cacheKeys = (p) => p.evaluate(async () => { const c = await caches.open('mc-assets-v1'); return (await c.keys()).map((r) => { const u = new URL(r.url); return decodeURIComponent(u.pathname) + u.search; }); });
 module.exports = { SITE, WS, LOG, DIST, sleep, manifest, logMark, logSince, bytesOf, launch, visit, acState, cacheKeys };
