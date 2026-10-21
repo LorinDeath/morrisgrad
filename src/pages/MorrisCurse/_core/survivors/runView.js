@@ -43,7 +43,7 @@ export class RunView {
       // Сердце Обители (Испытание): кристалл в центре, тускнеет с потерей здоровья
       const hg = new THREE.Group();
       // Сердце Обители — анимированный спрайт пропсов v2 heart_of_abode (вместо октаэдра), тускнеет с потерей здоровья
-      const core = propObject(THREE, 'heart_of_abode', { s: 0.8 });
+      const core = propObject(THREE, 'heart_of_abode', { s: 0.8, set: 'v2' });
       const ring = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03;
       const light = new THREE.PointLight(0xfbbf24, 1.4, 14, 1.8); light.position.y = 2.4;

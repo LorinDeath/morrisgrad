@@ -1,6 +1,8 @@
 // Процедурные low-poly модели: герои классов, Кейт, Дар, тюльпаны, порталы, орда, лут.
 // Никаких внешних ассетов — всё строится из примитивов Three.js r128.
-import { propObject } from './propAtlas.js';
+import { propObject, PROP_SET } from './propAtlas.js';
+import { PROP_FPS } from './gfxCfg.js';
+import altar3Src from '../../../../assets/mc/props3/altar/altar.png'; // props3: 32 кадра 64×96 @16 (грузится только при наборе v3)
 import { GRADE } from './atmosphere.js';
 import { LIGHT, pixTex, setDisplayRGB } from './pixColor.js';
 import { mergeParts, flatMat, PX as PX_M } from './geometry.js';
@@ -305,7 +307,8 @@ export function makePortal(THREE, portal) {
       pixTex(THREE, tex); tex.repeat.set(1 / n, 1); return tex; }; // sRGB-лист: без двойного кодирования (pixColor.js)
     // в сборке Astro импорт PNG — объект { src }, в Vite — строка
     const aUrl = (x) => (typeof x === 'object' && x ? x.src || x.default?.src || x.default || '' : x);
-    const idleTex = mkSheet(aUrl(altarSrc), 8), flashTex = mkSheet(aUrl(altarFlashSrc), 6);
+    const A3 = PROP_SET === 'v3', AN = A3 ? 32 : 8, AFPS = A3 ? 16 : 8; // v3 — тот же рисунок, кадров вчетверо больше, плавнее
+    const idleTex = mkSheet(aUrl(A3 ? altar3Src : altarSrc), AN), flashTex = mkSheet(aUrl(altarFlashSrc), 6);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: idleTex, transparent: true, alphaTest: 0.3, toneMapped: false }));
     sp.center.set(0.5, (FH - GROUND) / FH); sp.scale.set(FW * M, FH * M, 1); sp.renderOrder = 2;
     g.add(sp);
@@ -316,7 +319,7 @@ export function makePortal(THREE, portal) {
       { const G = GRADE.value || { r: 1, g: 1, b: 1 }, k = LIGHT.props; setDisplayRGB(sp.material.color, G.r * k, G.g * k, G.b * k); } // тон зоны, как у пропсов
       const fl = flashAt >= 0 ? Math.floor((t - flashAt) * 12) : -1; // вспышка 12 к/с, один раз
       if (fl >= 0 && fl < 6) { if (sp.material.map !== flashTex) { sp.material.map = flashTex; sp.material.needsUpdate = true; } flashTex.offset.x = fl / 6; }
-      else { if (flashAt >= 0) flashAt = -1; if (sp.material.map !== idleTex) { sp.material.map = idleTex; sp.material.needsUpdate = true; } idleTex.offset.x = (Math.floor(t * 8) % 8) / 8; }
+      else { if (flashAt >= 0) flashAt = -1; if (sp.material.map !== idleTex) { sp.material.map = idleTex; sp.material.needsUpdate = true; } idleTex.offset.x = (Math.floor(t * AFPS * PROP_FPS.value) % AN) / AN; }
     });
     const light = new THREE.PointLight(0xa855f7, 2.2, 14, 1.6);
     light.position.y = 2;

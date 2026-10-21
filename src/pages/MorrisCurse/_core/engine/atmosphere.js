@@ -6,11 +6,20 @@
 //    с мерцанием («блум» без пост-обработки) и пул из N настоящих PointLight на ближайших источниках (desktop);
 //    ореол стоит по глубине ЗА спрайтом источника (LIGHT.haloBehind) — светится вокруг арки/огня, а не поверх пикселей;
 //    цвета и сила — экранные значения (pixColor.js: setDisplayRGB, без ACES), сила — LIGHT.pool / LIGHT.halo из админки «💡 Свет»;
+//    на props3 ореол и пятно — пиксельные спрайты Художника (light_halo/pool_neutral, админка «🖼 Графика» → lightSprites);
 //  • частицы зоны рядом с камерой: светлячки, лепестки, пыль, фиолетовые искры у алтаря.
 // Всё зависит от уровня качества (setQuality): на мобильных/низком — меньше частиц, без PointLight и без blend-тона.
 import { toX, toZ } from './geometry.js';
-import { LIGHT, pixMat, setDisplayHex, setDisplayRGB } from './pixColor.js';
+import { LIGHT, pixMat, pixTex, setDisplayHex, setDisplayRGB } from './pixColor.js';
 import { regionAt } from '../../../../../server/meta/zoneGen.ts';
+import { propVariant } from '../../../../../server/meta/propsV2.ts';
+import { lightEmitter, hasEmitter } from './lightEmitter.js';
+import { PROP_SET, GFX } from './gfxCfg.js';
+// тип огня → строка админки «🖼 Графика» (lt.<тип>: размер/сила ореола и пятна)
+const LIGHT_TYPE = { lantern: 'warm', torch: 'fire', campfire: 'fire', crystal: 'cool', star_crystal: 'violet', pylon: 'lime' };
+import { SPRITE_TIME } from './spriteBatch.js';
+// фаза анимации экземпляра пропса — та же, что у PropSprites (propAtlas.js phaseOf): кадр огня = кадр на экране
+const phaseOf = (x, y) => { const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return (h - Math.floor(h)) * 10; };
 
 // оттенок спрайтов (общий uniform — SpriteBatch подключает его в шейдер)
 export const GRADE = { value: null };
@@ -115,10 +124,42 @@ class Atmosphere {
       this.vigEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:1;transition:background 1.2s';
       host.insertBefore(this.tintEl, stage.canvas.nextSibling); host.insertBefore(this.vigEl, this.tintEl.nextSibling);
     }
+    // props3: ореол и пятно — пиксельные спрайты Художника light_halo_neutral / light_pool_neutral (24 кадра @12, лист x64_glow),
+    // окраска та же (setColorAt, экранные значения); до загрузки и на props2 — радиальный градиент
+    this.lightSpr = null;
+    import('./propAtlas.js').then((m) => { if (m.PROP_SET !== 'v3') return null; return import('./gfxCfg.js').then((g) => (g.GFX.lightSprites ? m.loadPropTextures(THREE, { extra: ['x64_glow'] }) : null)); })
+      .then((tex) => { if (tex?.x64_glow) this.useLightSprites(tex); }).catch((e) => console.warn('[atmo light sprites]', e.message));
     this.sources = []; this.altar = null; this.t = 0;
     this.d = new THREE.Object3D(); this.c = new THREE.Color(); this.v3 = new THREE.Vector3(); this.fw = new THREE.Vector3(); this.v4 = new THREE.Vector3();
     this.enabled = true; this.ready = true;
     this.begin();
+  }
+
+  // пиксельные ореолы/пятна (props3): полоса 24×2 кадров из x64_glow, кадр — атрибут экземпляра iF (своя фаза у каждого огня)
+  useLightSprites(tex) {
+    const THREE = this.THREE, M = tex.META, img = tex.x64_glow.userData?.src || tex.x64_glow.image, dh = M.keys.light_halo_neutral, dp = M.keys.light_pool_neutral;
+    if (!dh || !dp || !img) return;
+    const S = M.sheets[dh.glow?.sheet || 'x64_glow'] || M.sheets.x64, fw = S.frameW, fh = S.frameH, NF = Math.min(dh.frames, dp.frames);
+    const cv = document.createElement('canvas'); cv.width = fw * NF; cv.height = fh * 2; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+    [dh, dp].forEach((d, r) => { for (let f = 0; f < NF; f++) { const c = d.col + f, rr = d.row + Math.floor(c / S.cols); g.drawImage(img, (c % S.cols) * fw, rr * fh, fw, fh, f * fw, r * fh, fw, fh); } });
+    // сплюснутость эллипса пятна в кадре (нарисован «как с камеры»): на плоскости земли растягиваем по глубине на 1/ELL
+    const a = g.getImageData(0, fh, fw, fh).data; let y0 = fh, y1 = -1, x0 = fw, x1 = -1;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) if (a[(y * fw + x) * 4 + 3] > 0) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    const ell = y1 > y0 && x1 > x0 ? (y1 - y0 + 1) / (x1 - x0 + 1) : 1;
+    const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; pixTex(THREE, t); t.needsUpdate = true;
+    const patch = (mat, row) => {
+      mat.map = t; mat.userData.uRow = { value: row };
+      mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uRow = mat.userData.uRow;
+        sh.vertexShader = 'attribute float iF;\nuniform float uRow;\n' + sh.vertexShader.replace('#include <uv_vertex>', `vUv = vec2((iF + uv.x) / ${NF.toFixed(1)}, (uRow + uv.y) * 0.5);`);
+      };
+      mat.customProgramCacheKey = () => 'mc-light-spr-' + NF; mat.needsUpdate = true;
+    };
+    for (const [im, row] of [[this.halos, 1], [this.pools, 0]]) {
+      const at = new THREE.InstancedBufferAttribute(new Float32Array(160), 1).setUsage(THREE.DynamicDrawUsage);
+      im.geometry.setAttribute('iF', at); patch(im.material, row);
+    }
+    this.lightSpr = { nf: NF, fps: dh.fps || 12, ell, fill: (x1 - x0 + 1) / fw };
   }
 
   setQuality(level) {
@@ -145,7 +186,10 @@ class Atmosphere {
         d.position.set(toX(p.x) + r * 0.06, 0.025, toZ(p.y) - r * 0.18); d.rotation.set(0, 0, 0); d.scale.set(r * 2.1, 1, r * 1.1); d.updateMatrix();
         im.setMatrixAt(n++, d.matrix);
         const L = LIGHT_PROPS[p.k];
-        if (L) this.sources.push({ x: toX(p.x), z: toZ(p.y), col: new THREE.Color(L[0]), r: L[1] * (p.s || 1), h: L[2] * (p.s || 1), k: L[3], ph: Math.random() * 10, fire: p.k === 'torch' || p.k === 'campfire' || p.k === 'lantern' });
+        // точка излучения — у огня в кадре (lightEmitter: центроид свечения *_glow по кадрам), а не центр текстуры
+        const ek = L && propVariant(p.k, p.x, p.y), em = ek && hasEmitter(ek, PROP_SET) ? ek : null;
+        if (L) this.sources.push({ x: toX(p.x), z: toZ(p.y), col: new THREE.Color(L[0]), r: L[1] * (p.s || 1), h: L[2] * (p.s || 1), k: L[3], ph: Math.random() * 10, fire: p.k === 'torch' || p.k === 'campfire' || p.k === 'lantern',
+          ek: em, es: p.s || 1, ef: p.f ? -1 : 1, eph: phaseOf(p.x, p.y), lt: LIGHT_TYPE[p.k] || 'warm' });
       }
       im.count = n; im.frustumCulled = false; im.renderOrder = 1;
       this.staticShadows = im; this.stage.scene.add(im);
@@ -154,7 +198,7 @@ class Atmosphere {
     for (const p of portals || []) {
       if ((p.world || 'hellfire') !== world) continue;
       const altar = p.id === 'portal_class_select';
-      const s = { x: toX(p.x), z: toZ(p.y), col: new THREE.Color(altar ? 0xc084fc : 0xa855f7), r: altar ? 5 : 3.8, h: 1.6, k: altar ? 1.3 : 0.9, ph: Math.random() * 10, fire: false };
+      const s = { x: toX(p.x), z: toZ(p.y), col: new THREE.Color(altar ? 0xc084fc : 0xa855f7), r: altar ? 5 : 3.8, h: 1.6, k: altar ? 1.3 : 0.9, ph: Math.random() * 10, fire: false, lt: 'portal' };
       this.sources.push(s);
       if (altar) this.altar = s;
     }
@@ -223,16 +267,29 @@ class Atmosphere {
     const d = this.d; let np = 0, nh = 0;
     this.poolMat.opacity = 0.45 * LIGHT.pool; this.haloMat.opacity = 0.8 * LIGHT.halo; this.shMat.opacity = 0.85 * LIGHT.shadow;
     const cam = st.camera.position; st.camera.getWorldDirection(this.fw);
+    const cq = st.camera.quaternion, cr = (this.cr || (this.cr = new THREE.Vector3())).set(1, 0, 0).applyQuaternion(cq), cu = (this.cu || (this.cu = new THREE.Vector3())).set(0, 1, 0).applyQuaternion(cq);
+    const ST = SPRITE_TIME.value;
     for (const [, s] of near) {
       if (np >= 160) break;
+      // точка излучения этого кадра: билборд стоит в плоскости вида → смещение по «вправо/вверх» камеры от ног
+      s.ex = s.x; s.ey = s.h; s.ez = s.z; s.gx = s.x; s.gz = s.z;
+      if (s.ek) { const e0 = lightEmitter(s.ek, 0, PROP_SET), fr0 = e0.frames > 1 && e0.fps ? Math.floor((ST + s.eph) * e0.fps) : 0, e = fr0 ? lightEmitter(s.ek, fr0, PROP_SET) : e0;
+        const dx = e.dx * s.es * s.ef, hh = e.h * s.es;
+        s.ex = s.x + cr.x * dx + cu.x * hh; s.ey = cr.y * dx + cu.y * hh; s.ez = s.z + cr.z * dx + cu.z * hh;
+        s.gx = s.x + cr.x * dx; s.gz = s.z + cr.z * dx; } // пятно — на земле прямо под огнём
       const fl = s.fire ? 0.82 + 0.1 * Math.sin(T * 9 + s.ph) + 0.08 * Math.sin(T * 23.7 + s.ph * 3) : 0.85 + 0.15 * Math.sin(T * 2 + s.ph);
       s.f = fl;
+      const LT = GFX.lt[s.lt] || GFX.lt.warm, pS = LT.poolS, pK = LT.poolK, hS = LT.haloS, hK = LT.haloK;
       // пятно — у самой земли (0.012 м): выше — оно перекрывало нижние ряды пикселей спрайта у «ног» (основание алтаря)
-      d.position.set(s.x, 0.012, s.z); d.rotation.set(0, 0, 0); d.scale.set(s.r * 2 * fl, 1, s.r * 2 * fl); d.updateMatrix();
-      this.pools.setMatrixAt(np, d.matrix); this.pools.setColorAt(np++, setDisplayRGB(this.c, s.col.r * s.k * fl, s.col.g * s.k * fl, s.col.b * s.k * fl));
+      const LS = this.lightSpr, fr = LS ? Math.floor((T + s.ph) * LS.fps) % LS.nf : 0;
+      // спрайт: эллипс занимает LS.fill ширины кадра и сплюснут в кадре (LS.ell) → на земле тот же круг радиуса r
+      if (LS) { const w = s.r * 2 * fl * pS / LS.fill; d.position.set(s.gx, 0.012, s.gz); d.rotation.set(0, 0, 0); d.scale.set(w, 1, w / LS.ell); this.pools.geometry.attributes.iF.array[np] = fr; }
+      else { d.position.set(s.gx, 0.012, s.gz); d.rotation.set(0, 0, 0); d.scale.set(s.r * 2 * fl * pS, 1, s.r * 2 * fl * pS); }
+      d.updateMatrix();
+      this.pools.setMatrixAt(np, d.matrix); this.pools.setColorAt(np++, setDisplayRGB(this.c, s.col.r * s.k * fl * pK, s.col.g * s.k * fl * pK, s.col.b * s.k * fl * pK));
       // ореол у огня — квад, повёрнутый к камере
-      const hs = (s.fire ? 1.5 : 2.2) * fl * (0.7 + 0.3 * s.k);
-      d.position.set(s.x, s.h, s.z); d.quaternion.copy(st.camera.quaternion);
+      const hs = (s.fire ? 1.5 : 2.2) * fl * (0.7 + 0.3 * s.k) * hS;
+      d.position.set(s.ex, s.ey, s.ez); d.quaternion.copy(st.camera.quaternion);
       if (LIGHT.haloBehind) {
         // по лучу из камеры (на экране там же) — на глубину «ног» источника + 0.25 м: спрайт источника (квад на глубине ног)
         // закрывает ореол своими пикселями, ореол виден только вокруг силуэта и не высветляет арку/вихрь/пламя
@@ -242,14 +299,15 @@ class Atmosphere {
         d.position.addScaledVector(this.v3, t); const ks = (dist + t) / dist; d.scale.set(hs * ks, hs * ks, hs * ks);
       } else { this.v3.subVectors(cam, d.position).normalize(); d.position.addScaledVector(this.v3, 0.9); d.scale.set(hs, hs, hs); }
       d.updateMatrix();
-      this.halos.setMatrixAt(nh, d.matrix); this.halos.setColorAt(nh++, setDisplayRGB(this.c, s.col.r * 0.8 * fl, s.col.g * 0.8 * fl, s.col.b * 0.8 * fl));
+      if (LS) this.halos.geometry.attributes.iF.array[nh] = (fr + 7) % LS.nf; // ореол и пятно — разные фазы
+      this.halos.setMatrixAt(nh, d.matrix); this.halos.setColorAt(nh++, setDisplayRGB(this.c, s.col.r * 0.8 * fl * hK, s.col.g * 0.8 * fl * hK, s.col.b * 0.8 * fl * hK));
     }
     this.pools.count = np; this.halos.count = nh;
-    for (const im of [this.pools, this.halos]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+    for (const im of [this.pools, this.halos]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; if (im.geometry.attributes.iF) im.geometry.attributes.iF.needsUpdate = true; }
     this.lights.forEach((l, i) => {
       const s = near[i]?.[1];
       if (!s || this.qLevel >= 2) { l.intensity = 0; return; }
-      l.position.set(s.x, s.h + 0.4, s.z); l.color.copy(s.col); l.intensity = 1.4 * s.k * (s.f || 1); l.distance = s.r * 3;
+      l.position.set(s.ex ?? s.x, (s.ek ? s.ey : s.h + 0.4), s.ez ?? s.z); l.color.copy(s.col); l.intensity = 1.4 * s.k * (s.f || 1); l.distance = s.r * 3;
     });
     // --- частицы
     this.updateParticles(dt, M.parts, fx, fz);

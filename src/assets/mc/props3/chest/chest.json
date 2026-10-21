@@ -1,0 +1,47 @@
+{
+ "cell": {
+  "w": 48,
+  "h": 44
+ },
+ "cols": 24,
+ "anchor": {
+  "x": 0.5,
+  "y": 1.0,
+  "px": [
+   24,
+   42
+  ]
+ },
+ "size_m": 1.8,
+ "tex_px_per_m": 20,
+ "glow": {
+  "image": "chest_glow.png",
+  "blend": "additive"
+ },
+ "anims": {
+  "idle_closed": {
+   "row": 0,
+   "frames": 24,
+   "fps": 12,
+   "loop": true
+  },
+  "shake": {
+   "row": 1,
+   "frames": 12,
+   "fps": 24,
+   "loop": false
+  },
+  "open": {
+   "row": 2,
+   "frames": 15,
+   "fps": 20,
+   "loop": false
+  },
+  "idle_open": {
+   "row": 3,
+   "frames": 24,
+   "fps": 12,
+   "loop": true
+  }
+ }
+}

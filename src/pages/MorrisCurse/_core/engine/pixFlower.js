@@ -3,15 +3,34 @@
 // Интерфейс как у makeFlower: { group, set(fl), update(dt, moving, t), setHighlight(on) }.
 // Утверждённые спрайты тюльпана Дара (props_new/flowers, NOTE_pixFlower.md): tulip_sheet.png 64×60 —
 // ряды bud / mature / active × 4 кадра покачивания 16×20, низ стебля = земля. Пока PNG грузится — запасной рисунок ниже.
-import tulipSrc from '../../../../assets/mc/tulip_sheet.png';
+import tulip2 from '../../../../assets/mc/tulip_sheet.png';
+// props3 (Художник): ячейка 32×40 (вдвое детальнее), 24 кадра @12 (в движении 20) + своё свечение; размер в мире тот же
+import tulip3 from '../../../../assets/mc/props3/tulip/tulip_sheet.png';
+import tulip3g from '../../../../assets/mc/props3/tulip/tulip_sheet_glow.png';
+import T3 from '../../../../assets/mc/props3/tulip/tulip.json';
 import { pixTex } from './pixColor.js';
+import { PROP_SET } from './propAtlas.js';
+import { PROP_FPS } from './gfxCfg.js';
+const HI = PROP_SET === 'v3';
+const tulipSrc = HI ? tulip3 : tulip2, NF = HI ? T3.frames : 4, FPS = HI ? T3.fps : 4, FPS_MOVE = HI ? T3.fps_moving : 10;
 const SHEET_ROW = { bud: 0, mature: 1, active: 2 };
-let sheetImg = null, sheetReady = false;
+const srcOf = (x) => (typeof x === 'object' && x ? (x.src || x.default || '') : x);
+let sheetImg = null, sheetReady = false, glowImg = null, glowReady = false;
 function loadSheet() {
   if (sheetImg || typeof Image === 'undefined') return;
   sheetImg = new Image();
   sheetImg.onload = () => { sheetReady = true; };
-  sheetImg.src = typeof tulipSrc === 'object' && tulipSrc ? (tulipSrc.src || tulipSrc.default || '') : tulipSrc;
+  sheetImg.src = srcOf(tulipSrc);
+  if (HI) { glowImg = new Image(); glowImg.onload = () => { glowReady = true; }; glowImg.src = srcOf(tulip3g); }
+}
+const glowTex = {};
+function sheetGlow(THREE, stage) {
+  if (!glowReady) return null;
+  if (glowTex[stage]) return glowTex[stage];
+  const t = new THREE.Texture(glowImg);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  pixTex(THREE, t); t.repeat.set(1 / NF, 1 / 3); t.offset.set(0, 1 - (SHEET_ROW[stage] + 1) / 3);
+  return (glowTex[stage] = t);
 }
 const sheetTex = {};
 function sheetTexture(THREE, stage) {
@@ -20,7 +39,7 @@ function sheetTexture(THREE, stage) {
   const t = new THREE.Texture(sheetImg);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
   pixTex(THREE, t); // sRGB-лист (pixColor.js)
-  t.repeat.set(0.25, 1 / 3); t.offset.set(0, 1 - (SHEET_ROW[stage] + 1) / 3);
+  t.repeat.set(1 / NF, 1 / 3); t.offset.set(0, 1 - (SHEET_ROW[stage] + 1) / 3);
   return (sheetTex[stage] = t);
 }
 const PAL = { o: '#2a1430', g: '#3f9b4a', G: '#2a6b36', l: '#7bd389', p: '#f472b6', P: '#be185d', h: '#fbcfe8', c: '#7dd3fc', C: '#0369a1', w: '#e0f2fe', r: '#f43f5e', R: '#9f1239', f: '#fef3c7', y: '#facc15' };
@@ -91,13 +110,17 @@ export function makePixFlower(THREE) {
   const mat = new THREE.SpriteMaterial({ map: tex(THREE, 'bud'), transparent: true, alphaTest: 0.3, toneMapped: false });
   const sp = new THREE.Sprite(mat); sp.center.set(0.5, 0); sp.scale.set(1.12, 1.4, 1);
   g.add(sp);
+  // v3: свечение кадров (tulip_sheet_glow) — аддитивный спрайт поверх, тот же кадр
+  const gmat = HI ? new THREE.SpriteMaterial({ transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }) : null;
+  const gsp = gmat ? new THREE.Sprite(gmat) : null; if (gsp) { gsp.center.set(0.5, 0); gsp.visible = false; gsp.renderOrder = 3; sp.renderOrder = 2; g.add(gsp); }
   const sh = new THREE.Mesh(new THREE.CircleBufferGeometry(0.4, 12), new THREE.MeshBasicMaterial({ color: 0x0a0614, transparent: true, opacity: 0.35, depthWrite: false }));
   sh.rotation.x = -Math.PI / 2; sh.scale.set(1.2, 0.6, 1); sh.position.y = 0.025; g.add(sh);
   const ring = new THREE.Mesh(new THREE.RingBufferGeometry(0.62, 0.74, 28), new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; ring.visible = false; g.add(ring);
   let state = '', t0 = Math.random() * 10, hi = false, stage = 'bud', usingSheet = false, frame = -1;
   // одна текстура-лист на стадию, кадр — offset.x (общий у цветков одной стадии — покачивание синхронно, это дёшево)
-  const applyTex = () => { const st = sheetTexture(THREE, stage); if (st) { mat.map = st; usingSheet = true; } else { mat.map = tex(THREE, stage); usingSheet = false; } mat.needsUpdate = true; };
+  const applyTex = () => { const st = sheetTexture(THREE, stage); if (st) { mat.map = st; usingSheet = true; } else { mat.map = tex(THREE, stage); usingSheet = false; } mat.needsUpdate = true;
+    if (gsp) { const gt = usingSheet && sheetGlow(THREE, stage); gsp.visible = !!gt; if (gt) { gmat.map = gt; gmat.needsUpdate = true; } } };
   return {
     group: g, sprite: sp, ring,
     set(fl) {
@@ -106,14 +129,14 @@ export function makePixFlower(THREE) {
       state = key; stage = fl.stage;
       stage = fl.stage === 'active' ? 'active' : fl.stage === 'mature' ? 'mature' : 'bud'; applyTex();
       const h = fl.stage === 'active' ? 1.9 : fl.stage === 'mature' ? 1.55 : 1.4;
-      sp.scale.set(h * 0.8, h, 1);
+      sp.scale.set(h * 0.8, h, 1); gsp?.scale.copy(sp.scale);
     },
     setHighlight(on) { hi = !!on; ring.visible = hi; },
     update(dt, moving, t) {
       t0 += dt;
-      if (!usingSheet && sheetReady) applyTex();
-      if (usingSheet) { const f = Math.floor(t0 * (moving ? 10 : 4)) & 3; if (f !== frame) { frame = f; mat.map.offset.x = f * 0.25; } }
-      sp.position.y = Math.abs(Math.sin(t0 * (moving ? 8 : 1.5))) * (moving ? 0.12 : 0.03);
+      if ((!usingSheet && sheetReady) || (gsp && usingSheet && !gsp.visible && glowReady)) applyTex();
+      if (usingSheet) { const f = Math.floor(t0 * (moving ? FPS_MOVE : FPS) * PROP_FPS.value) % NF; if (f !== frame) { frame = f; mat.map.offset.x = f / NF; if (gsp?.visible) gmat.map.offset.x = f / NF; } }
+      sp.position.y = Math.abs(Math.sin(t0 * (moving ? 8 : 1.5))) * (moving ? 0.12 : 0.03); if (gsp) gsp.position.y = sp.position.y;
       if (hi) { const k = 1 + Math.sin(t0 * 5) * 0.06; ring.scale.set(k, k, k); }
       if (stage === 'mature' && !usingSheet) mat.color.setScalar(1 + 0.15 * Math.sin(t0 * 3)); // в листе мерцание уже в кадрах
     },

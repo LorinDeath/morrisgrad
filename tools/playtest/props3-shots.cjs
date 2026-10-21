@@ -1,0 +1,39 @@
+// LOCAL ONLY: пропсы 32 (props3) — снимки до/после и замеры. PROPS=2|3 (набор), MOBILE=1 (как телефон), TAG — суффикс.
+// SHOTS=hub,portal,lights,arinar,stats … ; вывод — OUT (по умолчанию /workspace/morrisgrad-round3/props3).
+const { chromium, devices } = require('playwright-core');
+const { guardLocal, assertLocalUrl } = require('./_local.cjs');
+const OUT = process.env.OUT || '/workspace/morrisgrad-round3/props3', TAG = process.env.TAG || ('p' + (process.env.PROPS || '3'));
+const BASE = process.env.LF_BASE || 'http://127.0.0.1:5331/game.html', WS = process.env.LF_WS || 'ws://127.0.0.1:8931';
+assertLocalUrl(BASE); assertLocalUrl(WS);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const mob = !!process.env.MOBILE;
+  const ctx = await b.newContext(mob ? { ...devices['Pixel 7'], viewport: { width: 412, height: 839 } } : { viewport: { width: 1280, height: 760 } }); await guardLocal(ctx);
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(String(e).slice(0, 300))); p.on('console', (m) => { if (m.type() === 'error' || /props|atmo/.test(m.text())) errs.push('console: ' + m.text().slice(0, 200)); });
+  const reqs = []; p.on('request', (r) => { if (/props[23]|props32|light_emitters/.test(r.url())) reqs.push(r.url().replace(/^.*\/src\/assets\//, '')); });
+  const t0 = Date.now();
+  const q = process.env.PROPS ? `&props=${process.env.PROPS}` : '';
+  const uid = 'p3_' + (mob ? 'm' : 'pc') + '_' + TAG;
+  await p.goto(assertLocalUrl(`${BASE}?name=${uid}&uid=${uid}&ws=${WS}&fs=1&debug=1${q}${mob ? '&mobile=1' : ''}`));
+  await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 180000 }).catch(async (e) => { console.log('errs', errs.join(' | ')); await p.screenshot({ path: `${OUT}/boot-fail-${TAG}.png` }); throw e; }); const tHub = Date.now() - t0;
+  await sleep(1200);
+  await p.evaluate(() => window.__game.debug.selectClass('mage')).catch(() => {}); await sleep(2500);
+  const shot = async (name, x, y, z, wait = 2600) => { await p.evaluate(([x, y]) => window.__game.debug.tp(x, y, true), [x, y]); await p.evaluate((z) => window.__game.debug.setZoom(z), z); await sleep(wait); await p.mouse.move(5, 5); await p.screenshot({ path: `${OUT}/${name}-${TAG}.png` }); };
+  if (SH.includes('stats')) { await sleep(3000); const st = await p.evaluate(() => window.__game.debug.props()); st.tHubMs = tHub; st.requests = reqs; require('fs').writeFileSync(`${OUT}/stats-${TAG}.json`, JSON.stringify(st, null, 1)); console.log('stats', JSON.stringify(st).slice(0, 1500)); }
+  if (SH.includes('hub')) await shot('hub-wide', 300, 640, 0.5);
+  if (SH.includes('portal')) await shot('portal-close', 212, 622, 1.6);
+  if (SH.includes('lights')) {
+    const L = await p.evaluate(() => window.__game.debug.lightSources()); console.log('lights', JSON.stringify(L.slice(0, 20)));
+    const by = {}; for (const s of L) if (s.k && !by[s.k.replace(/_\d+$/, '')]) by[s.k.replace(/_\d+$/, '')] = s;
+    for (const [k, s] of Object.entries(by)) await shot('night-' + k, s.px, s.py + 40, 2.2);
+  }
+  if (SH.includes('arinar')) {
+    for (let i = 0; i < 8 && (await p.evaluate(() => window.__game.state().world)) !== 'arinar'; i++) { await p.evaluate(() => window.__game.debug.tp(240, 610, true)); await sleep(700); await p.evaluate(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
+    for (const [n, x, y] of [['ice', 20400, 1200], ['fire', 6000, 8400], ['stone', 13200, 1200], ['air', 34800, 3600]]) await shot('arinar-' + n, x, y, 0.8, 6000);
+    const L = await p.evaluate(() => window.__game.debug.lightSources()); const s = L.find((s) => s.k); if (s) await shot('arinar-light-' + s.k, s.px, s.py + 40, 2.2, 4000);
+  }
+  const fin = await p.evaluate(() => window.__game.debug.props()); console.log('final sheets', JSON.stringify(fin.sheets));
+  console.log('errs', errs.join(' | ') || 0); await b.close();
+})().catch((e) => { console.error(e); process.exit(2); });

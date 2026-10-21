@@ -27,6 +27,7 @@ attribute vec4 iTint;   // r, g, b, flash
 attribute float iAlpha;
 attribute vec3 iAnim;   // кадров, к/с, сдвиг фазы (сек) — анимация пропсов на GPU (статичные батчи чанков тоже «живут»)
 uniform float uTime;
+uniform float uFps;   // множитель скорости анимации (админка «🖼 Графика» → fpsMul; у не-пропсов 1)
 varying vec2 vUv;
 varying vec4 vTint;
 varying float vAlpha;
@@ -42,7 +43,7 @@ void main() {
   mvPosition.z = (modelViewMatrix * vec4(iPos.x, 0.0, zq, 1.0)).z;
   mvPosition.xy += vec2(position.x * iSize.x, position.y * iSize.y);
   float u = iSize.z < 0.0 ? 1.0 - uv.x : uv.x;
-  float fr = iAnim.x > 1.5 ? floor(mod((uTime + iAnim.z) * iAnim.y, iAnim.x)) : 0.0;
+  float fr = iAnim.x > 1.5 ? floor(mod((uTime * uFps + iAnim.z) * iAnim.y, iAnim.x)) : 0.0;
   // кадры идут вправо от ячейки; длинные циклы (костёр 60 кадров) переносятся на следующие строки листа
   float cols = floor(1.0 / iUV.z + 0.5);
   float cc = floor(iUV.x / iUV.z + 0.5) + fr;
@@ -63,12 +64,13 @@ varying vec4 vTint;
 varying float vAlpha;
 #include <fog_pars_fragment>
 uniform float uAdd;
+uniform float uGlow; // сила свечения *_glow (админка «🖼 Графика» → glow; у не-пропсов 1)
 void main() {
   vec4 c = texture2D(map, vUv);
   if (uAdd > 3.5) { gl_FragColor = vec4(vTint.rgb * step(0.3, c.a) * vAlpha * uGrade, 1.0); return; } // аура силуэта (узлы сбора), аддитивно
   if (uAdd > 2.5) { if (c.a < 0.3) discard; gl_FragColor = vec4(vTint.rgb, vAlpha); return; } // сплошной силуэт цветом (пиксельный контур под спрайтом)
   if (uAdd > 1.5) { gl_FragColor = vec4(mix(vTint.rgb, vec3(1.0), c.r), c.a * vAlpha); return; } // мягкое свечение (ореол проклятия): R — подмес белого, A — плотность
-  if (uAdd > 0.5) { gl_FragColor = vec4(c.rgb * vTint.rgb * c.a * vAlpha * uGrade, 1.0); return; } // свечение (*_glow.png), аддитивно
+  if (uAdd > 0.5) { gl_FragColor = vec4(c.rgb * vTint.rgb * c.a * vAlpha * uGrade * uGlow, 1.0); return; } // свечение (*_glow.png), аддитивно
   if (c.a < 0.3) discard;
   vec3 col = c.rgb * vTint.rgb * uLight * uGrade;
   col = mix(col, vec3(1.0), clamp(vTint.a, 0.0, 1.0));
@@ -85,7 +87,7 @@ export class SpriteBatch {
    * @param texture THREE.Texture атласа
    * @param opts { cellW, cellH, cols, rows, max }
    */
-  constructor(THREE, texture, { cellW, cellH, cols, rows, max = 512, light = 1, additive = false, soft = false, sil = false, aura = false }) {
+  constructor(THREE, texture, { cellW, cellH, cols, rows, max = 512, light = 1, additive = false, soft = false, sil = false, aura = false, fpsU = null, glowU = null }) {
     this.THREE = THREE;
     this.cols = cols; this.rows = rows; this.max = max;
     this.du = 1 / cols; this.dv = 1 / rows;
@@ -110,7 +112,8 @@ export class SpriteBatch {
     // общий тон зоны (engine/atmosphere.js) — один объект uniform на все батчи
     if (!GRADE.value) GRADE.value = new THREE.Color(1, 1, 1);
     uniforms.uGrade = GRADE;
-    uniforms.uTime = SPRITE_TIME; // общее время анимации (обновляет игровой цикл: tickSpriteTime)
+    uniforms.uTime = SPRITE_TIME;
+    uniforms.uFps = fpsU || { value: 1 }; uniforms.uGlow = glowU || { value: 1 }; // общие объекты пропсов (gfxCfg.js PROP_FPS/PROP_GLOW) // общее время анимации (обновляет игровой цикл: tickSpriteTime)
     if (aura) additive = true;
     uniforms.uAdd = { value: aura ? 4 : sil ? 3 : soft ? 2 : additive ? 1 : 0 };
     this.material = new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG, fog: true, transparent: true, depthWrite: !additive && !sil, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });

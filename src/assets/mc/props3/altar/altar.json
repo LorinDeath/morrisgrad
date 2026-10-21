@@ -1,0 +1,8 @@
+{
+ "frameW": 64,
+ "frameH": 96,
+ "frames": 32,
+ "fps": 16,
+ "ground_y": 93,
+ "note": "\u0432 models.js: mkSheet(altarSrc, 32), idleTex.offset.x = (floor(t*16)%32)/32"
+}

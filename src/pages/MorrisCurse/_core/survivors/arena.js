@@ -93,7 +93,7 @@ export class RunArena {
     sigil2.rotation.x = -Math.PI / 2; sigil2.position.y = 0.02;
     g.add(sigil2);
     const sd = propDef('arena_sigil'), SS = PROPS_META.sheets[sd.sheet];
-    loadPropTextures(THREE).then((tex) => {
+    loadPropTextures(THREE, { set: 'v2' }).then((tex) => { // забег — всегда прежние props2 (не трогаем режим забега)
       const t = tex[sd.sheet].clone(); t.needsUpdate = true; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
       t.repeat.set(1 / SS.cols, 1 / SS.rows); t.offset.set(sd.col / SS.cols, 1 - (sd.row + 1) / SS.rows);
       sigil.material.map = t; sigil.material.needsUpdate = true; this.sigilTex = t; this.sigilDef = sd; this.sigilCols = SS.cols;

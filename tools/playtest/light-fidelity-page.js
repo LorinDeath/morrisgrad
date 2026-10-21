@@ -27,7 +27,7 @@ export async function run(opts = {}) {
   const pix = await imp('engine/pixSprites.js');
   const { makePortal } = await imp('engine/models.js');
   const { loadPropTextures, PropSprites } = await imp('engine/propAtlas.js');
-  const { SpriteBatch } = await imp('engine/spriteBatch.js');
+  const { SpriteBatch, SPRITE_TIME } = await imp('engine/spriteBatch.js');
   const { buildTerrain } = await imp('worlds/terrain.js');
   const pc = await imp('engine/pixColor.js').catch(() => null); // в «до» модуля нет
   const LIGHT = pc?.LIGHT || { hero: 1, props: 1, glow: 1, ground: 0.84 };
@@ -41,6 +41,9 @@ export async function run(opts = {}) {
   stage.setEnvironment({ sky: 0x17122e, fog: { color: 0x1d1538, near: 400, far: 900 }, hemi: { sky: 0xb7a2ff, ground: 0x2c3a3a, intensity: 0.95 }, sun: { color: 0xc4b0ff, intensity: 0.6 } });
   atmo.init(THREE, stage, { mobile: !!opts.mobile });
   const atl = await pix.loadPixAtlases(THREE); const ptex = await loadPropTextures(THREE);
+  // набор пропсов страницы (?props=3 — props3, 20 px/м): размеры и кадры — из его атласа
+  const PM = ptex.META || PROPS_META, PXM = ptex.pxm || 10, V3 = ptex.set === 'v3';
+  const gfx = await imp('engine/gfxCfg.js').catch(() => null);
   const gl = stage.renderer.getContext();
   // сцена: тёмная земля (непрозрачная, пишет глубину — как тайлы) + объекты в ряд
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshBasicMaterial({ color: 0x101418 }));
@@ -88,13 +91,16 @@ export async function run(opts = {}) {
   const portal = makePortal(THREE, { id: 'portal_arinar', color: '#818cf8' }); portal.group.position.set(X0 - 6, 0, Z0 - 3); stage.scene.add(portal.group);
   const altar = makePortal(THREE, { id: 'portal_class_select', color: '#38bdf8' }); altar.group.position.set(X0 + 0, 0, Z0 - 3); stage.scene.add(altar.group);
   // пропсы SpriteBatch (факел, бочка, обелиск) + мобы/NPC SpriteBatch — контроль: свой шейдер всегда был верным
-  const props = new PropSprites(THREE, ptex, { max: 16, parent: stage.scene });
   const PL = [['torch', X0 + 4, Z0 - 3], ['barrel', X0 + 6, Z0 - 3], ['obelisk', X0 + 8, Z0 - 3]];
+  // props3: почти все пропсы анимированы — меряем кадр, который сейчас показывает шейдер (uTime фиксирован), со свечением *_glow
+  if (V3) PL.push(['rock', X0 + 11, Z0 - 3], ['tombstone', X0 + 14, Z0 - 3], ['lantern', X0 + 18, Z0 - 3, 1], ['campfire', X0 + 21.5, Z0 - 3, 1], ['crystal', X0 + 25, Z0 - 3, 1], ['tent', X0 - 14, Z0 - 3]); // в один ряд, без перекрытий; 1 — второй кадр камеры (правее)
+  const props = new PropSprites(THREE, ptex, { max: 32, parent: stage.scene });
   const mobB = new SpriteBatch(THREE, atl.mobs, { cellW: pix.MOB_CELL.w, cellH: pix.MOB_CELL.h, cols: pix.MOB_CELL.cols, rows: pix.MOB_CELL.rows, max: 8 }); stage.scene.add(mobB.mesh);
   const npcB = new SpriteBatch(THREE, atl.heroes, { cellW: pix.HERO_CELL.w, cellH: pix.HERO_CELL.h, cols: pix.HERO_CELL.cols, rows: pix.HERO_CELL.rows, max: 8 }); stage.scene.add(npcB.mesh);
   // источники света сцены: портал, алтарь и факел (ореолы + пятна, как в игре)
   const wpx = (x) => (x + 30) * 20;
   atmo.setScene('hellfire', { props: PL.map(([k, x, z]) => ({ k, x: wpx(x), y: wpx(z), s: 1 })) }, [{ id: 'portal_arinar', world: 'hellfire', x: wpx(X0 - 6), y: wpx(Z0 - 3) }, { id: 'portal_class_select', world: 'hellfire', x: wpx(X0), y: wpx(Z0 - 3) }]);
+  for (let i = 0; i < 60 && V3 && gfx?.GFX.lightSprites && !atmo.lightSpr; i++) await new Promise((r) => setTimeout(r, 100)); // пиксельные ореолы (x64_glow)
   for (let i = 0; i < 100; i++) { let ok = true; for (const o of [portal, altar]) o.group.traverse((x) => { if (x.isSprite && !x.material.map?.image?.width) ok = false; }); if (ok) break; await new Promise((r) => setTimeout(r, 100)); }
   focus.x = X0; focus.z = Z0; stage.view.zoom = stage.view.targetZoom = opts.zoom || 0.5;
 
@@ -105,11 +111,14 @@ export async function run(opts = {}) {
     const T = 1.234;
     for (const { c } of chars) c.update(0, false, T, 0, 1);
     portal.update(T); altar.update(T);
+    if (SPRITE_TIME) SPRITE_TIME.value = T;
     props.begin(); for (const [k, x, z] of PL) props.push(k, wpx(x), wpx(z), x, z, 1); props.end();
     mobB.begin(); mobB.push(X0 - 8, 0, Z0 + 8.5, pix.MOB_HEIGHT.imp, 1, pix.MOB_ROWS.imp); mobB.push(X0 - 4, 0, Z0 + 8.5, pix.MOB_HEIGHT.ghoul, 1, pix.MOB_ROWS.ghoul); mobB.end();
     npcB.begin(); npcB.push(X0, 0, Z0 + 8.5, pix.HERO_H_M, 1, pix.NPC_ROWS.alzi); npcB.end();
     atmo.parts.visible = false; atmo.end = ((f) => function (...a) { f.apply(this, a); this.parts.visible = false; })(atmo.end); // частицы (светлячки, искры) — эффект, не свет на спрайте
-    frame(0.016); const buf = readAll();
+    frame(0.016); const buf0 = readAll(); let buf2 = null, gFar = g;
+    if (PL.some((q) => q[3])) { focus.x = X0 + 20; for (let i = 0; i < 3; i++) frame(100); frame(0.016); buf2 = readAll(); gFar = [GRADE.value.r, GRADE.value.g, GRADE.value.b]; focus.x = X0; for (let i = 0; i < 3; i++) frame(100); frame(0.016); }
+    const buf = buf0;
     const R = [];
     // персонажи THREE.Sprite
     for (const { k, c } of chars) {
@@ -132,13 +141,21 @@ export async function run(opts = {}) {
       R.push(measure(name, a, base.scale.x, base.scale.y, base.center.x, base.center.y, L, buf));
     }
     // SpriteBatch (контроль): пропсы с *_glow, мобы, NPC
-    for (const [k, x, z] of PL) {
-      const key = propVariant(k, wpx(x), wpx(z)), d = key && PROPS_META.keys[key]; if (!d) continue; // тот же вариант, что выбрал PropSprites.push
-      const S = PROPS_META.sheets[d.sheet], img = ptex[d.sheet].image, h = S.frameH / 10, w = h * S.frameW / S.frameH;
-      if (d.frames > 1) continue; // кадр анимации считает шейдер по uTime — меряем только статичные пропсы
-      const L = [{ img, fx: d.col * S.frameW, fy: d.row * S.frameH, fw: S.frameW, fh: S.frameH, mul: g }];
-      if (d.glow) L.push({ img: ptex[d.glow.sheet].image, glow: true, fx: d.col * S.frameW, fy: d.row * S.frameH, fw: S.frameW, fh: S.frameH, mul: g });
-      R.push(measure('prop:' + k, new THREE.Vector3(x, 0, z), w, h, 0.5, 0, L, buf));
+    const phaseOf = (x, y) => { const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return (h - Math.floor(h)) * 10; };
+    for (const [k, x, z, far] of PL) {
+      const key = propVariant(k, wpx(x), wpx(z)), d = key && PM.keys[key]; if (!d) continue; // тот же вариант, что выбрал PropSprites.push
+      const S = PM.sheets[d.sheet], img = ptex[d.sheet].userData?.src || ptex[d.sheet].image, h = S.frameH / PXM, w = h * S.frameW / S.frameH;
+      let f = 0;
+      if (d.frames > 1) { if (!V3 || !SPRITE_TIME) continue; // v2: как раньше — только статичные
+        const u = (T * (gfx?.PROP_FPS?.value || 1) + phaseOf(wpx(x), wpx(z))) * d.fps, fr = u - Math.floor(u); if (fr < 0.03 || fr > 0.97) continue; // у границы кадра float шейдера может разойтись
+        f = Math.floor(u % d.frames); }
+      const c = d.col + f, fx = (c % S.cols) * S.frameW, fy = (d.row + Math.floor(c / S.cols)) * S.frameH;
+      const gg = far ? gFar : g;
+      const L = [{ img, fx, fy, fw: S.frameW, fh: S.frameH, mul: gg }];
+      if (d.glow && ptex[d.glow.sheet]) L.push({ img: ptex[d.glow.sheet].userData?.src || ptex[d.glow.sheet].image, glow: true, fx, fy, fw: S.frameW, fh: S.frameH, mul: gg.map((v) => v * (gfx?.PROP_GLOW?.value ?? 1)) });
+      if (far) { focus.x = X0 + 20; stage.follow(focus.x, focus.z, 100, true); stage.camera.updateMatrixWorld(); }
+      R.push(measure('prop:' + k + (f ? '#' + f : ''), new THREE.Vector3(x, 0, z), w, h, 0.5, 0, L, far ? buf2 : buf));
+      if (far) { focus.x = X0; stage.follow(focus.x, focus.z, 100, true); stage.camera.updateMatrixWorld(); }
     }
     for (const [nm, x, row, hh, B, cell] of [['mob:imp', X0 - 8, pix.MOB_ROWS.imp, pix.MOB_HEIGHT.imp, atl.mobs, pix.MOB_CELL], ['mob:ghoul', X0 - 4, pix.MOB_ROWS.ghoul, pix.MOB_HEIGHT.ghoul, atl.mobs, pix.MOB_CELL], ['npc:alzi', X0, pix.NPC_ROWS.alzi, pix.HERO_H_M, atl.heroes, pix.HERO_CELL]])
       R.push(measure(nm, new THREE.Vector3(x, 0, Z0 + 8.5), hh * cell.w / cell.h, hh, 0.5, 0, [{ img: B.image, fx: 1 * cell.w, fy: row * cell.h, fw: cell.w, fh: cell.h, mul: g }], buf));
@@ -174,5 +191,5 @@ export async function run(opts = {}) {
     }
     results.push({ mood: 'ground(hub)', grade: [LIGHT.ground], items: gr });
   }
-  return { repo: REPO, light: { ...LIGHT }, heroLight: pix.BLK_FX.heroLight, results };
+  return { repo: REPO, props: ptex.set || 'v2', lightSprites: !!atmo.lightSpr, light: { ...LIGHT }, heroLight: pix.BLK_FX.heroLight, results };
 }
