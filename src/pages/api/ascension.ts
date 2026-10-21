@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { envOf } from '../../lib/cfEnv';
 
 export const prerender = false;
 interface Env {
@@ -6,7 +7,7 @@ interface Env {
 }
 
 export const POST: APIRoute = async ({ locals, request }) => {
-    const cfRuntime = (locals as any)?.runtime;
+    const cfRuntime = { env: envOf(locals) };
     const env = cfRuntime?.env as Env;
     const db = env?.PROFILES_DB;
 

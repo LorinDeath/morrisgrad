@@ -2,6 +2,7 @@
 // строка берётся из таблицы users по этому id. Любой id от клиента (?userId=, ?id=, тело) игнорируется.
 // Без входа — 401. Чужие профили — /api/public-profile?id= (только публичные поля, profileFields.ts) и страница /u/<id>.
 import { ownUser } from "./profileFields";
+import { envOf } from '../cfEnv';
 
 const NO_STORE = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store", Vary: "Cookie" };
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: NO_STORE });
@@ -10,8 +11,9 @@ export function sessionUserId(locals: any): string | null {
   try { const a = locals?.auth?.(); return a && typeof a.userId === "string" && a.userId ? a.userId : null; } catch { return null; }
 }
 export function findDb(locals: any): any {
-  const env = locals?.runtime?.env || {};
-  return env.morrisgrad_db || env.DB || Object.values(env).find((v: any) => typeof v?.prepare === "function") || null;
+  const env = envOf(locals);
+  // Только явная привязка D1: перебор env с проверкой .prepare ловил RPC-привязки (RL_*), у которых «есть» любое свойство
+  return env.PROFILES_DB || env.morrisgrad_db || env.DB || null;
 }
 
 export async function currentUserResponse(locals: any): Promise<Response> {

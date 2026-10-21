@@ -1,4 +1,5 @@
 ---
+import { envOf } from '../lib/cfEnv';
 import Layout from '../layouts/Layout.astro';
 import { homeLd } from '../lib/seo';
 import { artBase } from '../lib/media';
@@ -20,7 +21,7 @@ const mainCategories = [
   { title: "Архив", img: "/images/7.jpeg", url: "/allkonrass" },
 ];
 
-const R2_BASE = artBase((Astro.locals as any)?.runtime?.env); // src/lib/media.ts (ART_PUBLIC_BASE)
+const R2_BASE = artBase(envOf(Astro.locals)); // src/lib/media.ts (ART_PUBLIC_BASE)
 
 // Активности и интерактивные модули с фоновыми артами персонажей
 const activities = [

@@ -49,7 +49,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Получаем окружение Cloudflare
     const localsAny = locals as any;
-    const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+    const env = envOf(localsAny);
 
     const db = env.PROFILES_DB;
     const bucket = env.konkursbook;

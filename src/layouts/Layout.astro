@@ -1,6 +1,6 @@
 ---
-import { ViewTransitions } from 'astro:transitions';
-import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/astro/components";
+import { ClientRouter } from "astro:transitions";
+import { Show, UserButton, SignInButton } from "@clerk/astro/components";
 import RadioPlayer from '../components/RadioPlayer.astro';
 import '../styles/tokens.css';
 import SeoHead from '../components/seo/SeoHead.astro';
@@ -24,7 +24,7 @@ const { title, viewportFit = false, ...seo } = Astro.props;
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <SeoHead title={title} {...seo} />
-    <ViewTransitions />
+    <ClientRouter />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -87,13 +87,13 @@ const { title, viewportFit = false, ...seo } = Astro.props;
           <span id="chat-notify-dot" class="notify-dot hidden" aria-label="Новые сообщения"></span>
         </a>
 
-        <SignedOut>
+        <Show when="signed-out">
           <SignInButton mode="modal" class="login-btn">
             <span class="btn-rune">✦</span> Войти
           </SignInButton>
-        </SignedOut>
+        </Show>
 
-        <SignedIn>
+        <Show when="signed-in">
           <a href="/forum/notifications" class="site-bell" title="Уведомления форума" aria-label="Уведомления форума">
             <span aria-hidden="true">🔔</span><span class="site-bell-n" data-bell-n hidden></span>
           </a>
@@ -103,7 +103,7 @@ const { title, viewportFit = false, ...seo } = Astro.props;
           <div class="user-btn-wrapper">
             <UserButton />
           </div>
-        </SignedIn>
+        </Show>
       </div>
     </header>
 

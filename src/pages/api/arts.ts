@@ -3,6 +3,7 @@ import type { APIRoute } from 'astro';
 export const prerender = false;
 
 import { artBase } from '../../lib/media';
+import { envOf } from '../../lib/cfEnv';
 
 export interface ArtItem {
   id: string;
@@ -18,7 +19,7 @@ export interface ArtItem {
 export const GET: APIRoute = async ({ locals }) => {
   try {
     const localsAny = locals as any;
-    const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+    const env = envOf(localsAny);
     const bucket = env.ARTCOLLECTION_BUCKET;
 
     if (!bucket) {

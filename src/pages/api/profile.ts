@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sessionUserId } from '../../lib/api/currentUser';
 import { ownUser } from '../../lib/api/profileFields';
+import { envOf } from '../../lib/cfEnv';
 
 export const prerender = false;
 
@@ -9,7 +10,7 @@ export const prerender = false;
 // Чужие профили — /api/public-profile?id= (только публичные поля).
 const H = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-store', Vary: 'Cookie' };
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: H });
-const dbOf = (locals: any) => locals?.runtime?.env?.PROFILES_DB || locals?.runtime?.env?.morrisgrad_db || null;
+const dbOf = (locals: any) => envOf(locals)?.PROFILES_DB || envOf(locals)?.morrisgrad_db || null;
 
 export const GET: APIRoute = async ({ locals }) => {
     const userId = sessionUserId(locals);

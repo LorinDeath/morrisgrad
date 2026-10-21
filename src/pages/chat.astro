@@ -1,8 +1,9 @@
 ---
+import { envOf } from '../lib/cfEnv';
 import Layout from '../layouts/Layout.astro';
 
 // Подключение к БД для создания таблицы при первом запуске
-const cfRuntime = (Astro.locals as any)?.runtime;
+const cfRuntime = { env: envOf(Astro.locals) }; // Astro 6+: env из cloudflare:workers (src/lib/cfEnv.ts)
 const env = cfRuntime?.env as any;
 const db = env?.PROFILES_DB;
 

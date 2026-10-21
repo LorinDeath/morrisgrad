@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { cleanInventoryItem, INV_MAX_BATCH } from '../../lib/inventoryItem';
+import { envOf } from '../../lib/cfEnv';
 
 export const prerender = false;
 
@@ -8,7 +9,7 @@ interface Env {
 }
 
 export const GET: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -72,7 +73,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
 };
 
 export const POST: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 
@@ -142,7 +143,7 @@ export const POST: APIRoute = async ({ locals, request }) => {
 };
 
 export const DELETE: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
+    const env = envOf(locals) as Env;
     const db = env?.PROFILES_DB;
     const { userId } = (locals as any).auth ? (locals as any).auth() : { userId: null };
 

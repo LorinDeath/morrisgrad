@@ -1,8 +1,9 @@
 ---
+import { envOf } from '../lib/cfEnv';
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
 import { artBase } from '../lib/media';
-const ART = artBase((Astro.locals as any)?.runtime?.env);
+const ART = artBase(envOf(Astro.locals));
 import zaglushImg from '../assets/Zaglush.png';
 import etoMiImg from '../assets/Eto_mi_s_toboy.png';
 import rogalikImg from '../assets/Rogalik.png';

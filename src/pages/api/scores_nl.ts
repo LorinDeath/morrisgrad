@@ -23,7 +23,7 @@ function getKeys() {
 }
 
 const getKV = (locals: any) => {
-    return locals?.runtime?.env?.MORRISGRAD_DB;
+    return envOf(locals)?.MORRISGRAD_DB;
 };
 
 export const GET: APIRoute = async ({ locals }) => {

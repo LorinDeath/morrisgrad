@@ -28,7 +28,7 @@ function getKeys() {
 
 // Получаем доступ к KV через locals (предоставляется адаптером Cloudflare)
 const getKV = (locals: any) => {
-    return locals?.runtime?.env?.MORRISGRAD_DB;
+    return envOf(locals)?.MORRISGRAD_DB;
 };
 
 // GET: Получение рекордов (Топ за день и Топ за неделю)

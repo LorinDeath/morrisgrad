@@ -1,11 +1,12 @@
 ---
+import { envOf } from '../lib/cfEnv';
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
 import { artBase } from '../lib/media';
 
 export const prerender = false;
 
-const R2_PUBLIC_BASE = artBase((Astro.locals as any)?.runtime?.env); // src/lib/media.ts (ART_PUBLIC_BASE)
+const R2_PUBLIC_BASE = artBase(envOf(Astro.locals)); // src/lib/media.ts (ART_PUBLIC_BASE)
 
 export interface ArtItem {
   id: string;
@@ -23,7 +24,7 @@ let galleryItems: ArtItem[] = [];
 // Динамическое получение актуального списка артов из Cloudflare R2 на сервере
 try {
   const localsAny = Astro.locals as any;
-  const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+  const env = envOf(localsAny);
   const bucket = env.ARTCOLLECTION_BUCKET;
 
   if (bucket) {

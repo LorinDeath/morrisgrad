@@ -1,4 +1,5 @@
 ---
+import { envOf } from '../lib/cfEnv';
 import Layout from '../layouts/Layout.astro';
 import { sniff } from '../lib/forum/media';
 import { siteNickProblem } from '../lib/security';
@@ -6,7 +7,7 @@ import { pidFor, defaultAvatar } from '../lib/publicId';
 import { avatarsBase, avatarKeyFromUrl, newAvatarKey } from '../lib/media';
 
 // 1. Получаем доступ к базе данных Cloudflare D1
-const cfRuntime = (Astro.locals as any)?.runtime;
+const cfRuntime = { env: envOf(Astro.locals) }; // Astro 6+: env из cloudflare:workers (src/lib/cfEnv.ts)
 const env = cfRuntime?.env as any;
 const db = env?.PROFILES_DB;
 const bucket = env?.AVATARS_BUCKET;

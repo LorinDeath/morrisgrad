@@ -1,11 +1,12 @@
 ---
+import { envOf } from '../../lib/cfEnv';
 import Layout from '../../layouts/Layout.astro';
 
 export const prerender = false;
 
 const { id } = Astro.params;
 const localsAny = Astro.locals as any;
-const env = localsAny.runtime?.env || localsAny.cloudflare?.env || localsAny.env || {};
+const env = envOf(localsAny);
 
 const db = env.PROFILES_DB;
 const bucket = env.konkursbook;

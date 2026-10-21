@@ -68,4 +68,4 @@ export async function guardAnonWrite(env: any, bucket: Bucket, request: Request)
 export function json(o: unknown, status = 200, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extra } });
 }
-export function envOf(locals: any): any { return locals?.runtime?.env || locals?.cloudflare?.env || locals?.env || {}; }
+export { envOf } from './cfEnv';
