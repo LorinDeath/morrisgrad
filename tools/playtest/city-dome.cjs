@@ -67,8 +67,8 @@ const gif = (dir, name, fps = 10) => { try { execFileSync('nice', ['ffmpeg', '-y
   for (let i = 0; i < 8; i++) { await sleep(120); await p.screenshot({ path: `${g2}/f${String(fi++).padStart(3, '0')}.png` }); }
   t('GIF отталкивания', gif(g2, 'dome-killer-repel', 12) > 20000);
   // PK-режим — тоже отталкивает
-  await dev({ clearKills: true, pk: true }); await tp(CX + R + 90, CY); await p.keyboard.down('a'); await sleep(1800); await p.keyboard.up('a'); await sleep(500);
-  const pq = (await dev({})).me, ph = await hud(); t('PK: купол не пускает', Math.hypot(pq.x - CX, pq.y - CY) > R, pq);
+  await dev({ clearKills: true, pk: true }); await tp(CX + R + 90, CY); await p.keyboard.down('a'); let pkDeny = null; for (let i = 0; i < 12; i++) { await sleep(150); const h = await hud(); pkDeny = pkDeny || h.deny; } await p.keyboard.up('a'); await sleep(500);
+  const pq = (await dev({})).me, ph = { ...(await hud()), seen: pkDeny }; ph.deny = ph.deny || pkDeny; t('PK: купол не пускает', Math.hypot(pq.x - CX, pq.y - CY) > R, pq);
   t('PK: плашка про PK-режим', /PK/.test(ph.deny || ''), ph); await p.screenshot({ path: `${OUT}/06-pk-repelled.png` });
   await dev({ pk: false, clearKills: true });
   // ——— 4. моб атакует у края: внутри урон 0 ———
