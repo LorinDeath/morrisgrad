@@ -1548,11 +1548,13 @@ async function boot(canvasId, username, userId, api) {
     if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 9, k: 0.18 }); // мягко, без пересвета фонтана
     // ночной «лунный» фон города (админка «День и ночь» → огни → lt.cityAmb): 15 мягких пятен (центр + 2 кольца) — ровно по всему
     // куполу, холодный фиолет; город ночью читается (дома, тропы, огороды), но тёмный — огни остаются главными. Мир — без изменений
-    { const ca = Number(LT.cityAmb ?? 0), Rm = (Number(cityView.cfg?.r) || 1280) / 20;
-      if (ca > 0.005 && CITY_CFG.on !== false && inCity(player.x, player.y, 900)) { const cx = CITY_CFG.x, cy = CITY_CFG.y, rr = (Number(cityView.cfg?.r) || 1280) * 0.55;
-        fx.push({ x: cx, y: cy, c: 0x8a92d8, r: Rm * 0.8, k: ca });
-        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; fx.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr, c: 0x8a92d8, r: Rm * 0.72, k: ca * 0.85 }); }
-        for (let i = 0; i < 8; i++) { const a = ((i + 0.5) / 8) * Math.PI * 2, r2 = rr * 1.53; fx.push({ x: cx + Math.cos(a) * r2, y: cy + Math.sin(a) * r2, c: 0x8a92d8, r: Rm * 0.62, k: ca * 1.7 }); } } } // + внешнее кольцо (0.84 R): огороды/дома у купола
+    { const ca = Number(LT.cityAmb ?? 0), R = Number(cityView.cfg?.r) || 1280, Rm = R / 20;
+      if (ca > 0.005 && CITY_CFG.on !== false && inCity(player.x, player.y, 900)) { // 15 пятен (центр + кольцо 0.55 R + внешнее 0.84 R: огороды/дома у купола) — объекты один раз на все кадры
+        const A = cityAmbFx, cx = CITY_CFG.x, cy = CITY_CFG.y, rr = R * 0.55, r2 = rr * 1.53; let i = 0;
+        const put = (x, y, r, k) => { const o = A[i] || (A[i] = { x: 0, y: 0, c: 0x8a92d8, r: 0, k: 0 }); o.x = x; o.y = y; o.r = r; o.k = k; fx.push(o); i++; };
+        put(cx, cy, Rm * 0.8, ca);
+        for (let j = 0; j < 6; j++) { const a = (j / 6) * Math.PI * 2; put(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, Rm * 0.72, ca * 0.85); }
+        for (let j = 0; j < 8; j++) { const a = ((j + 0.5) / 8) * Math.PI * 2; put(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2, Rm * 0.62, ca * 1.7); } } }
     // огни Альказака: фонари/костры карты Историка (их рисует cityView, в чанках их нет) + тёплый свет из дверей домов
     let extra = [];
     if (CITY_CFG.on !== false && Math.hypot(player.x - CITY_CFG.x, player.y - CITY_CFG.y) < (Number(CITY_CFG.rTiles) || 40) * 32 + viewM * 20) { // весь город, не только у центра
@@ -1577,6 +1579,7 @@ async function boot(canvasId, username, userId, api) {
     // днём фонари не горят: их свечение в основном кадре — по силе своего огня (следующий кадр)
     if (cityView.glows?.length) { const na = dayNight.active; for (const g of cityView.glows) g.m.opacity = g.halo ? 0 : g.lamp ? (0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h))) * (na ? nightGlow(g.kind) : 1) : 1; } // ночью _glow под маской — слабее (поверх маски он и так добавляется)
   }
+  const cityAmbFx = []; // ночной фон города: пятна для маски (переиспользуются)
   function frame(now) {
     requestAnimationFrame(frame);
     const realDt = Math.max(0, (now - last) / 1000);
