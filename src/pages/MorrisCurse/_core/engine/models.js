@@ -1,6 +1,8 @@
 // Процедурные low-poly модели: герои классов, Кейт, Дар, тюльпаны, порталы, орда, лут.
 // Никаких внешних ассетов — всё строится из примитивов Three.js r128.
 import { propObject } from './propAtlas.js';
+import { GRADE } from './atmosphere.js';
+import { LIGHT, pixTex, setDisplayRGB } from './pixColor.js';
 import { mergeParts, flatMat, PX as PX_M } from './geometry.js';
 import altarSrc from '../../../../assets/mc/altar.png';
 import altarFlashSrc from '../../../../assets/mc/altar_flash.png';
@@ -300,7 +302,7 @@ export function makePortal(THREE, portal) {
     // Низ привязан к земле (линия земли в кадре — y=93), 1 px арта ≈ 1 px мира (20 px/м) → основание ~60 px ≈ 2.9 м
     const FW = 64, FH = 96, GROUND = 93, M = 1 / PX_M;
     const mkSheet = (src, n) => { const tex = new THREE.TextureLoader().load(src); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
-      if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace; tex.repeat.set(1 / n, 1); return tex; };
+      pixTex(THREE, tex); tex.repeat.set(1 / n, 1); return tex; }; // sRGB-лист: без двойного кодирования (pixColor.js)
     // в сборке Astro импорт PNG — объект { src }, в Vite — строка
     const aUrl = (x) => (typeof x === 'object' && x ? x.src || x.default?.src || x.default || '' : x);
     const idleTex = mkSheet(aUrl(altarSrc), 8), flashTex = mkSheet(aUrl(altarFlashSrc), 6);
@@ -311,6 +313,7 @@ export function makePortal(THREE, portal) {
     flash = () => { flashAt = nowT; };
     anim.push((t) => {
       nowT = t;
+      { const G = GRADE.value || { r: 1, g: 1, b: 1 }, k = LIGHT.props; setDisplayRGB(sp.material.color, G.r * k, G.g * k, G.b * k); } // тон зоны, как у пропсов
       const fl = flashAt >= 0 ? Math.floor((t - flashAt) * 12) : -1; // вспышка 12 к/с, один раз
       if (fl >= 0 && fl < 6) { if (sp.material.map !== flashTex) { sp.material.map = flashTex; sp.material.needsUpdate = true; } flashTex.offset.x = fl / 6; }
       else { if (flashAt >= 0) flashAt = -1; if (sp.material.map !== idleTex) { sp.material.map = idleTex; sp.material.needsUpdate = true; } idleTex.offset.x = (Math.floor(t * 8) % 8) / 8; }

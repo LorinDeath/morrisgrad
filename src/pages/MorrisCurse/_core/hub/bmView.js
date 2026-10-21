@@ -2,6 +2,7 @@
 // zone_state.bm = { m: [x,y,dir,moving,state] | null, d: [[id,x,y,r,leftSec,isWorld]…], ro?: [[id,x,y,ageMs]…], cfg? }
 // События зоны: bmdome / bmtp / bmx (взрыв) / bmc (сжатие) / bmblock / bmpush / bmimm / bmrose; снаряды proj/pend с t = bm_arrow_*.
 // Арт: src/assets/mc/bm/* (художник, /workspace/black_mage): листы 48×60 мага, FX bm_fx_atlas.json, роза 64×64 (7 стадий × 60 кадров), земля 16 px.
+import { pixTex, pixMat } from '../engine/pixColor.js';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
@@ -211,7 +212,7 @@ export class BmView {
       c.drawImage(this.groundImg, col * T16, row * T16, T16, T16, i * T16, j * T16, T16, T16);
     }
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
-    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.92 });
+    const mat = pixMat(new THREE.MeshBasicMaterial({ map: pixTex(THREE, tex), transparent: true, depthWrite: false, opacity: 0.92 })); // тайлы как в листе (pixColor.js)
     const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(size / PX, size / PX), mat);
     mesh.rotation.x = -Math.PI / 2; mesh.renderOrder = 1;
     mesh.position.set(toX(tx0 * T16 + size / 2), 0.03, toZ(ty0 * T16 + size / 2));
