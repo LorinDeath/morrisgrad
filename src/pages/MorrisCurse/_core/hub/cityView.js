@@ -142,7 +142,7 @@ export class CityView {
     //   (одна, 8…12 арт-px над землёй — две жерди вдоль глубины на экране почти совпадают и рябят; темнее и тоньше столба, вдоль «вверх» камеры как у спрайтов), поэтому в перспективе колонна
     //   не ломается лесенкой и жердь всегда упирается в соседний столб / крайний колышек пролёта. Вершины — в update (базис камеры)
     const fenceV = (p) => L(fenceVSrc).then((t0) => {
-      const t = t0.clone(); t.needsUpdate = true; t.repeat.set(7 / 12, 1); t.offset.set(0, 0);
+      const t = pixTex(THREE, t0.clone()); t.needsUpdate = true; t.repeat.set(7 / 12, 1); t.offset.set(0, 0);
       const sp = new THREE.Sprite(pixMat(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.04, fog: false })));
       sp.center.set(0.5, 0); sp.scale.set(0.7, 1.8 * SIN_P, 1); sp.position.set(toX(p.x), 0, toZ(p.y)); sp.renderOrder = 3; sp.name = p.k; g.add(sp); });
     const rails = [];
@@ -156,7 +156,7 @@ export class CityView {
         addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }
     this.fenceRails = null; if (rails.length) L(fenceVSrc).then((t0) => {
-      const t = t0.clone(); t.needsUpdate = true; t.repeat.set(4 / 12, 4 / 18); t.offset.set(7 / 12, 1 - 4 / 18);
+      const t = pixTex(THREE, t0.clone()); t.needsUpdate = true; t.repeat.set(4 / 12, 4 / 18); t.offset.set(7 / 12, 1 - 4 / 18);
       const n = rails.length, pos = new Float32Array(n * 12), uv = new Float32Array(n * 8), idx = [];
       for (let i = 0; i < n; i++) { uv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8); const o = i * 4; idx.push(o, o + 1, o + 2, o, o + 2, o + 3); }
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
@@ -198,11 +198,11 @@ export class CityView {
     const sc = document.createElement('canvas'); sc.width = W; sc.height = H; const sg = sc.getContext('2d');
     for (let i = 0; i < 6; i++) { let x, y; do { x = (rnd() * W) | 0; y = (rnd() * H) | 0; } while (field(x, y) < 0.5); sparks.push([x, y]); }
     for (const [x, y] of sparks) { sg.fillStyle = rnd() < 0.5 ? '#c04cf0' : '#ff6ad8'; sg.fillRect(x, y, 1, 1); if (rnd() < 0.35) { sg.fillStyle = 'rgba(176,60,220,0.45)'; sg.fillRect(x - 1, y, 3, 1); sg.fillRect(x, y - 1, 1, 3); } }
-    const tex = (c) => { const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
+    const tex = (c) => { const t = pixTex(THREE, new THREE.CanvasTexture(c)); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; }; // sRGB-канвас (pixColor)
     const wM = (W * 2) / PX, hM = (H * 2) / PX, G = new THREE.Group(); G.name = 'city-rose-blight'; this.blightG = G;
     const geo = new THREE.PlaneGeometry(wM, hM); geo.rotateX(-Math.PI / 2);
-    const base = new THREE.Mesh(geo, (this.blightBase = new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false }))); base.renderOrder = 1;
-    this.blightSpark = new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 });
+    const base = new THREE.Mesh(geo, (this.blightBase = pixMat(new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false })))); base.renderOrder = 1;
+    this.blightSpark = pixMat(new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 })); // экранные цвета (pixColor), как у остального города
     const sp = new THREE.Mesh(geo, this.blightSpark); sp.renderOrder = 2; sp.position.y = 0.004;
     G.add(base, sp); G.position.set(toX(r.x), 0.013, toZ(r.y - 6)); this.group.add(G); // сердце пятна — у основания стебля
   }

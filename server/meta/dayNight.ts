@@ -25,7 +25,7 @@ export const DN_CFG: any = {
   speed: 1,                // ускорение часов в режиме force (60 — минута за секунду)
   reduceMax: 100,          // «Смягчить ночь» (ползунок игрока в настройках): максимум, %
   // огни: вид (клиент engine/dayNight.js LT — те же ключи); k* — сила пятна по виду огня, pool — размер пятна ×
-  lt: { flickFire: 0.22, flickLamp: 0.06, flickSpeed: 1, halo: 1, pool: 1, poolEl: 1.22, kFire: 1, kLamp: 1, kWindow: 1,
+  lt: { flickFire: 0.22, flickLamp: 0.06, flickSpeed: 1, halo: 1, pool: 1.3, poolEl: 1.22, kFire: 1.15, kLamp: 1.45, kWindow: 1.5, cityAmb: 0.3,
     haloFire: 0.34, haloLamp: 0.6, haloWindow: 0.22, haloDoor: 0.36, glowFire: 0.32, glowLamp: 0.7, glowWindow: 0.3, nightLamp: 0.5, nightWindow: 0.25 },
   emitters: "",            // правки точек огня (JSON { "city:dm_lantern_pole": [ex, ey] } — арт-px от низа-центра спрайта, ey вверх)
   // ключевые цвета (умножение на сцену). Закат: день → золото → розово-фиолетовый → глубокая синяя ночь

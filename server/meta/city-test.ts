@@ -196,5 +196,5 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("точки огня: JSON-правки принимаются", typeof V("dn", { emitters: '{"city:dm_lantern_pole":[5,27],"torch":{"ex":0,"ey":30}}' }) !== "string");
   t("точки огня: неверный JSON / не числа / далеко — отказ", ["{x", '{"a":[1]}', '{"a":[1,999]}', "[1,2]"].every((e) => typeof V("dn", { emitters: e }) === "string"));
   t("точки огня: пусто — авто", typeof V("dn", { emitters: "" }) !== "string");
-  const dc: any = dnClient().cfg; t("dnClient: reduceMax, lt, emitters", dc.reduceMax === 100 && dc.lt?.kFire === 1 && dc.emitters === "", dc.lt); }
+  const dc: any = dnClient().cfg; t("dnClient: reduceMax, lt, emitters", dc.reduceMax === 100 && typeof dc.lt?.kFire === "number" && typeof dc.lt?.cityAmb === "number" && dc.emitters === "", dc.lt); }
 console.log(`\n${ok} ok, ${bad} fail`); if (bad) process.exit(1);
