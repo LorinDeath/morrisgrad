@@ -3,6 +3,7 @@ import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
 import { GATHER_CFG } from "./gatherCfg";
 import { UI_CFG } from "./uiCfg";
+import { TERRAIN_CFG } from "./terrainCfg";
 import { NPC_CFG } from "./npcWander";
 import { BM_CFG } from "./bmCfg";
 import { mobSkillOptions } from "./mobSkills";
@@ -22,7 +23,7 @@ if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "ui";
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "ui" | "terrain";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -183,10 +184,13 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "ornaments", label: "Ромбы-застёжки на углах больших окон", t: "bool" },
     { path: "avatars", label: "Аватары героев (окно C, карточка героя, просмотр игрока)", t: "bool" },
     N("avatarCursedAt", "Очернённый аватар с очернения героя, %", 0, 100, "int")] },
+  terrain: { name: "Рельеф", fields: [{ path: "waterBlock", label: "Вода и глубокая вода непроходимы для героев и ходячих мобов (берега и мостки — проходимы)", t: "bool" },
+    { path: "lavaBlock", label: "Лава непроходима", t: "bool" },
+    N("edge", "Полоса берега, px: насколько тело заходит на клетку жидкости со стороны суши", 0, 16, "int")] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, ui: { main: UI_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

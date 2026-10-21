@@ -306,6 +306,8 @@ export function regionAt(x: number, y: number, world = "arinar"): Region | null 
 export function isNight(now: number) { return Math.floor(now / 60000) % 20 >= 15; }
 
 // Узлы ресурсов из сида: одинаково на сервере и клиенте (id 1000+i)
+/** проверка «в жидкости рядом» (liquid.ts wetNear) — подставляет zone.ts; прямой импорт дал бы цикл zoneGen → layout → markers → zoneGen */
+export const WET: { f: null | ((w: string, x: number, y: number, r: number) => boolean) } = { f: null };
 export function genNodes(seed: number, world = "arinar") {
   const G = genOf(world);
   const R = rng(seed ^ 0x9e3779b9);
@@ -317,6 +319,7 @@ export function genNodes(seed: number, world = "arinar") {
           const x = Math.round(reg.rect[0] + 30 + R() * (reg.rect[2] - reg.rect[0] - 60));
           const y = Math.round(reg.rect[1] + 30 + R() * (reg.rect[3] - reg.rect[1] - 60));
           if (inSafe(x, y, 20, world) || G.bosses.some((b) => Math.hypot(x - b.x, y - b.y) < 130)) continue;
+          if (WET.f?.(world, x, y, 24)) continue; // не в воде/лаве (liquid.ts подключает zone.ts — без циклического импорта)
           if (out.some((o) => Math.hypot(o.x - x, o.y - y) < ZONE_GEN.nodeMinDist)) continue;
           out.push({ id: 1000 + out.length, type: nd.type, res: nd.res, x, y, respawn: nd.respawn, qty: nd.qty });
           break;

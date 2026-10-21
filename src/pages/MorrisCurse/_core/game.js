@@ -54,6 +54,9 @@ import './styles/core3d.css';
 import './styles/ui-cursed.css'; // реворк UI «проклятое + очернённое» (поверх core3d.css, html.mc-ui)
 import { initUiSkin, setUiMode, setUiCfg } from './ui/uiSkin.js';
 import { PlayerFrame } from './ui/playerFrame.js';
+import { TEX_MODE } from './worlds/texPref.js';
+import { TERRAIN_CFG } from '../../../../server/meta/terrainCfg.ts';
+import { liquidAt, inLiquid, resolveLiquid } from '../../../../server/meta/liquid.ts';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
 import { ChestWindow } from './ui/chest.js';
@@ -442,6 +445,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('meta_state', (d) => {
     if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
     if (d.ui) setUiCfg(d.ui); // вид интерфейса (админка «🎨 Интерфейс»)
+    if (d.terrain) Object.assign(TERRAIN_CFG, d.terrain); // непроходимая вода/лава — предсказание как у сервера (админка «🌊 Рельеф»)
     if (d.gather) zone.setGlow(d.gather); // свечение узлов сбора (админка «⛏ Сбор»)
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
@@ -1586,6 +1590,8 @@ async function boot(canvasId, username, userId, api) {
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
       if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }
+    // стоит в воде/лаве без движения (телепорт, старая позиция, админка включила рельеф) — мягко на ближайшую сушу; сервер сделает так же
+    else if (mode === 'hub' && (world !== 'arena' || !duel.inArena) && inLiquid(world, player.x, player.y)) { const [px, py] = resolveLiquid(world, player.x, player.y); player.x = px; player.y = py; }
     // отправка позиции: раз в MOVE_SEND_S (= такт сервера 100 мс) и только при изменении; -= без дрейфа частоты,
     // кламп — после долгого кадра/скрытой вкладки не шлём пачку подряд
     moveAcc += dt;
@@ -1937,6 +1943,9 @@ async function boot(canvasId, username, userId, api) {
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,
       chunks: () => { const t = hub.env?.terrain; return t?.stats ? { ...t.stats, keys: [...t.chunks.keys()].length } : null; },
+      // настройка «Текстуры»: режим и оценка памяти канвасов земли (RGBA, без мипмапов) — для замеров 16 vs 32
+      liquid: (x, y) => ({ kind: liquidAt(world, x ?? player.x, y ?? player.y), blocked: inLiquid(world, x ?? player.x, y ?? player.y), cfg: { ...TERRAIN_CFG } }),
+      tex: () => { const t = hub.env?.terrain; let px = 0, n = 0; const add = (im) => { if (im) { px += im.width * im.height; n++; } }; if (t?.chunks) for (const c of t.chunks.values()) add(c.mesh?.material?.map?.image); else add(t?.ground?.material?.map?.image); return { mode: TEX_MODE, canvases: n, mb: Math.round(px * 4 * 4 / 3 / 1048576 * 10) / 10 }; }, // RGBA + мипмапы
       biomeVars: () => ({ biome: document.documentElement.dataset.biome || '', col: getComputedStyle(document.documentElement).getPropertyValue('--mc-biome').trim() }),
       pos: () => ({ x: player.x, y: player.y }),
       // экранная точка мировой позиции (px мира) — для тестов клика мышью
