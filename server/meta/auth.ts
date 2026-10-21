@@ -33,7 +33,7 @@ export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISS
     const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
     if (header.alg !== "RS256") return null;
     const now = Math.floor(Date.now() / 1000);
-    if (typeof payload.exp === "number" && payload.exp < now - 5) return null;
+    if (typeof payload.exp !== "number" || payload.exp < now - 5) return null; // без exp — отказ (вечный токен не принимаем)
     if (typeof payload.nbf === "number" && payload.nbf > now + 5) return null;
     if (payload.iss !== issuer) return null;
     const keys = await getJwks(issuer);
