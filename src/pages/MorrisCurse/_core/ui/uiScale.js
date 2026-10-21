@@ -46,7 +46,7 @@ export function uiScaleFitMax() {
   const ref = !MOB ? REF.pc : W >= H ? REF.land : REF.port;
   return Math.max(50, Math.floor(Math.min(W / ref[0], H / ref[1]) * 20) * 5); // шаг 5%
 }
-let eff = 100, touch = 100;
+let eff = 100, touch = 100, lastSig = '';
 export const uiScaleEffective = () => eff;
 /** масштаб тач-управления (джойстик, тач-кнопки): не меньше 1 */
 export const uiTouchScale = () => touch / 100;
@@ -55,7 +55,10 @@ export function applyUiScale() {
   const want = uiScaleChosen(), fit = uiScaleFitMax();
   eff = on ? Math.min(want, fit) : 100;
   touch = Math.max(100, eff);
-  root.classList.toggle('mc-uis', on && eff !== 100 || on && MOB && touch !== 100);
+  const sig = `${on && eff !== 100}|${eff}|${touch}`;
+  if (sig === lastSig) return; // ничего не поменялось — ни записи в стили, ни пересчёта раскладки (resize, ResizeObserver, mc-ui-cfg)
+  lastSig = sig;
+  root.classList.toggle('mc-uis', on && eff !== 100);
   root.style.setProperty('--ui-s', String(eff / 100)); root.style.setProperty('--ui-st', String(touch / 100));
   root.dataset.uiScale = String(eff);
   window.dispatchEvent(new CustomEvent('mc-ui-scale', { detail: { want, eff, fit } }));
@@ -65,7 +68,7 @@ export function initUiScale(fieldEl, opt = {}) {
   field = fieldEl || null;
   if (typeof opt.mobile === 'boolean') { MOB = opt.mobile; KEY = MOB ? 'mc_ui_scale_mob' : 'mc_ui_scale_pc'; }
   if (inited) { applyUiScale(); return; } inited = true;
-  let t = 0; const later = () => { clearTimeout(t); t = setTimeout(applyUiScale, 120); };
+  let t = 0; const later = () => { clearTimeout(t); t = setTimeout(() => requestAnimationFrame(applyUiScale), 120); }; // пачкой, после шторма resize
   window.addEventListener('resize', later); window.addEventListener('orientationchange', later);
   window.addEventListener('mc-ui-cfg', applyUiScale); // админка (пределы/по умолчанию), смена режима (забег)
   try { new ResizeObserver(later).observe(field || document.documentElement); } catch (_) {}
