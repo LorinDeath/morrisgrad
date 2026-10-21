@@ -23,6 +23,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const pos0 = await G(() => window.__MC3D_GAME__.debug.pos());
   await G(() => window.__MC3D_GAME__.debug.vramTick()); const v0 = await G(() => window.__MC3D_GAME__.debug.vram()), c0 = await G(() => window.__MC3D_GAME__.debug.chunks());
   console.log('start', JSON.stringify({ pos0, v0, c0 }));
+  const top0 = await G(() => window.__MC3D_GAME__.debug.vramTop(400));
   await G(() => window.__MC3D_GAME__.debug.frames(true));
   const leg = async (x, y) => { await G(([x, y]) => window.__MC3D_GAME__.debug.walk(x, y), [x, y]); const t0 = Date.now(); let mx = 0; while (Date.now() - t0 < SECS * 1000) { await L.sleep(2000); const v = await G(() => window.__MC3D_GAME__.debug.vram()); mx = Math.max(mx, v.gpuMB); } await G(() => window.__MC3D_GAME__.debug.walk(0, 0)); return mx; };
   const peakOut = await leg(1, 0);
@@ -39,11 +40,18 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   const v1 = await G(() => window.__MC3D_GAME__.debug.vram()), c1 = await G(() => window.__MC3D_GAME__.debug.chunks());
   console.log('walk', JSON.stringify({ distPx: Math.round(posFar.x - pos0.x), posBack: Math.round(posBack.x - pos0.x), cFar, fOut, fBack, peakOut, peakBack }));
   console.log('end', JSON.stringify({ v1, c1 }));
+  { const top1 = await G(() => window.__MC3D_GAME__.debug.vramTop(400)); const k = (t) => `${t.src} ${t.w}x${t.h}`; const cnt = (L) => L.reduce((m, t) => m.set(k(t), (m.get(k(t)) || 0) + 1), new Map());
+    const a = cnt(top0), b = cnt(top1), d = []; for (const [x, n] of b) if (n > (a.get(x) || 0)) d.push(`+${n - (a.get(x) || 0)} ${x}`); for (const [x, n] of a) if (n > (b.get(x) || 0)) d.push(`-${n - (b.get(x) || 0)} ${x}`);
+    console.log('texdiff', JSON.stringify(d)); }
   console.log('uploads', JSON.stringify(await G(() => window.__MC3D_GAME__.debug.upLog())));
   ok(fOut.n > 50 && fBack.n > 50, `кадры записаны: туда ${fOut.n}, обратно ${fBack.n}`);
   ok(Math.max(fOut.cpuP99, fBack.cpuP99) < 50, `p99 CPU кадра при стриме: ${fOut.cpuP99}/${fBack.cpuP99} мс (худший ${fOut.cpuMax}/${fBack.cpuMax})`);
   if (!BEFORE) {
-    ok(v1.gpuTex <= v0.gpuTex + 2, `нет утечки: текстур на GPU в начале ${v0.gpuTex}, после прогулки и возврата ${v1.gpuTex} (three: ${v0.three} → ${v1.three})`);
+    // чанки земли считаются отдельно: живой чанк, хоть раз попавший в кадр, держит свою текстуру, пока он жив (его выгрузка — terrainChunks);
+    // утечка чанков = текстур чанков на GPU больше, чем живых чанков. Остальные текстуры (атласы, спрайты) должны вернуться к началу.
+    const top1 = await G(() => window.__MC3D_GAME__.debug.vramTop(400)); const chGpu = top1.filter((t) => t.chunk).length, other1 = top1.length - chGpu, other0 = top0.filter((t) => !t.chunk).length;
+    ok(chGpu <= c1.live, `нет утечки чанков: текстур чанков на GPU ${chGpu}, живых чанков ${c1.live}`);
+    ok(other1 <= other0 + 2, `нет утечки остальных текстур: в начале ${other0}, после прогулки и возврата ${other1} (всего на GPU ${v0.gpuTex} → ${v1.gpuTex}, three: ${v0.three} → ${v1.three})`);
     ok(v1.gpuMB <= v0.gpuMB + Math.max(8, v0.gpuMB * 0.1), `VRAM не выросла после возврата: ${v0.gpuMB} → ${v1.gpuMB} МБ (пик ${Math.max(peakOut, peakBack)} МБ)`);
     ok(c1.live <= c0.live + 2 && c1.evicted > 0, `чанки: в начале ${c0.live}, в конце ${c1.live}, выгружено ${c1.evicted}, запечено ${c1.baked}`);
     ok(v1.radius && v1.radius.loadTiles >= 50 && v1.radius.loadTiles >= v1.radius.viewTiles, `радиус ${JSON.stringify(v1.radius)}`);

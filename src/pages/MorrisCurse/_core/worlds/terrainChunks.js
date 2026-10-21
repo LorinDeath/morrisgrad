@@ -74,6 +74,7 @@ export class ArinarTerrain {
     for (let k = 0; k < L.over.length; k += 3) { const idx = L.over[k + 2]; if (idx === undefined) continue; g.drawImage(this.sheets[0], (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, L.over[k] * TEX, L.over[k + 1] * TEX, TEX, TEX); }
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipMapLinearFilter;
     const mat = pixMat(new THREE.MeshBasicMaterial({ map: pixTex(THREE, tex) })); setDisplayRGB(mat.color, LIGHT.ground * this.light);
+    (tex.userData ||= {}).mcChunk = 1; // учёт VRAM: текстура чанка земли (живёт ровно столько, сколько чанк)
     const sp = (CH * CELL) / PX;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sp, sp), mat);
     mesh.rotation.x = -Math.PI / 2; const cx = (ci + 0.5) * CH * CELL, cy = (cj + 0.5) * CH * CELL;

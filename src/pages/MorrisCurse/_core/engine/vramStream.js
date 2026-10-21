@@ -3,14 +3,14 @@
 //    байты на GPU = Σ ширина×высота×(4 или 2 у RGBA5551)×(4/3 с мипами) по текстурам, которые three уже загрузил (__webglInit);
 //  • выгрузка: текстура не нужна сцене дольше grace (ПК 20 с, телефон 10 с) → texture.dispose() — освобождается только копия
 //    на GPU, картинка остаётся в памяти, и three сам загрузит её снова при следующем показе (сервер и мир не трогаются);
-//    сверх бюджета (ПК 1024 МБ, телефон 320 МБ) — сначала самые давно ненужные, без ожидания grace;
+//    сверх бюджета (ПК 1024 МБ, телефон 512 МБ) — сначала самые давно ненужные, без ожидания grace;
 //  • без рывков: новые текстуры (чанки земли, следующая зона) грузятся на GPU заранее очередью prewarm() — не больше
 //    upMs мс за кадр (renderer.initTexture), а не в момент, когда объект впервые попал в кадр;
 //  • радиус: земля Аринара держит чанки в радиусе loadTiles (50 клеток) от героя, выгружает дальше loadTiles+hystTiles
 //    (56) через grace — worlds/terrainChunks.js. Радиус не меньше обзора камеры + запас.
 import { showError } from '../boot/errorBox.js';
 const MOB = (() => { try { return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '') || /[?&]mobile=1/.test(location.search); } catch (_) { return false; } })();
-export const VRAM_DEF = { budgetPc: 1024, budgetMob: 320, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 };
+export const VRAM_DEF = { budgetPc: 1024, budgetMob: 512, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 };
 const C = { ...VRAM_DEF };
 try { if (/[?&]vramLegacy=1/.test(location.search)) Object.assign(C, { legacy: true, loadTilesPc: 59, loadTilesMob: 59, budgetPc: 8192, budgetMob: 4096 }); } catch (_) {} // замер «как раньше» (плейтест ac-vram BEFORE=1)
 const cl = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };

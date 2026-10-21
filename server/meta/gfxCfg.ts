@@ -15,7 +15,7 @@ export const GFX_CFG: any = {
   arena3: false,       // забег: замены 3D-мешей арены спрайтами props3 (x64), со следующей арены; только при props3 на странице
   assetCache: true,    // кэш ресурсов у игрока (public/mc-sw.js + boot/assetCache.js); выкл — аварийно: снять воркер и стереть кэш у всех, кто зайдёт
   // видеопамять по требованию (engine/vramStream.js): бюджет МБ, grace с, радиус загрузки и гистерезис в клетках, загрузка в GPU мс/кадр
-  vram: { budgetPc: 1024, budgetMob: 320, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 },
+  vram: { budgetPc: 1024, budgetMob: 512, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 },
   fpsMul: 1,           // скорость анимации пропсов, ×
   glow: 1,             // сила свечения *_glow пропсов, ×
   lt: Object.fromEntries(LIGHT_TYPES.map((t) => [t, lt()])), // ореол/пятно по типу огня: размер и сила, ×
@@ -27,7 +27,7 @@ export const gfxClient = () => {
   const G = GFX_CFG;
   return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true), fallbackV2: b(G.fallbackV2, true), arena3: b(G.arena3, false),
     assetCache: b(G.assetCache, true),
-    vram: (() => { const v = G.vram || {}; return { budgetPc: cl(v.budgetPc, 128, 8192, 1024), budgetMob: cl(v.budgetMob, 64, 4096, 320), gracePc: cl(v.gracePc, 1, 600, 20), graceMob: cl(v.graceMob, 1, 600, 10),
+    vram: (() => { const v = G.vram || {}; return { budgetPc: cl(v.budgetPc, 128, 8192, 1024), budgetMob: cl(v.budgetMob, 64, 4096, 512), gracePc: cl(v.gracePc, 1, 600, 20), graceMob: cl(v.graceMob, 1, 600, 10),
       loadTilesPc: cl(v.loadTilesPc, 20, 150, 50), loadTilesMob: cl(v.loadTilesMob, 20, 150, 50), hystTiles: cl(v.hystTiles, 1, 40, 6), marginTiles: cl(v.marginTiles, 0, 20, 4), upMsPc: cl(v.upMsPc, 0.5, 16, 4), upMsMob: cl(v.upMsMob, 0.5, 16, 2) }; })(),
     fpsMul: cl(G.fpsMul, 0.25, 3, 1), glow: cl(G.glow, 0, 3, 1),
     lt: Object.fromEntries(LIGHT_TYPES.map((t) => { const o = G.lt?.[t] || {}; return [t, { haloS: cl(o.haloS, 0.2, 3, 1), haloK: cl(o.haloK, 0, 3, 1), poolS: cl(o.poolS, 0.2, 3, 1), poolK: cl(o.poolK, 0, 3, 1) }]; })),
