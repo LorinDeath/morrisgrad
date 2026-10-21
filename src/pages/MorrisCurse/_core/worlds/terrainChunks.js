@@ -3,12 +3,8 @@
 // за кадр), LRU-кэш выгружает дальние. Под чанками — дешёвая «дальняя» плоскость 750×750 (1 px = клетка, цвет биома),
 // чтобы на границе стрима не было дыр. Раскладка детерминирована (одинакова у всех клиентов): биом клетки —
 // регион zoneGen (пятна Вороного, как в Minecraft) + шум границ; биомы Аринара рисуются своими тайлсетами (tiles_<ice|fire|stone|air>.png).
-import tilesSrc from '../../../../assets/mc/tiles_atlas.png';
-import tilesMeta from '../../../../assets/mc/tiles_atlas.json';
-import tIce from '../../../../assets/mc/tiles_ice.png';
-import tFire from '../../../../assets/mc/tiles_fire.png';
-import tStone from '../../../../assets/mc/tiles_stone.png';
-import tAir from '../../../../assets/mc/tiles_air.png';
+import { TILES, TEX_MODE } from './texPref.js';
+const tilesMeta = TILES.meta; // 16 или 32 px — настройка «Текстуры» (texPref.js); все 5 листов одного размера
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { WORLD_GEN, regionAt } from '../../../../../server/meta/zoneGen.ts';
 import { markersOf } from '../../../../../server/meta/markers.ts';
@@ -39,12 +35,12 @@ export class ArinarTerrain {
     this.layout = { world: 'arinar', props: [], size: this.plan.size, chunked: true };
     this.light = 1;
     this.stats = { baked: 0, live: 0, evicted: 0, bakeMs: 0 };
-    this.maxLive = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '') ? 28 : 42; // запас над видимыми (~25 при 30 клетках): без выгрузки/перебейка при ходьбе
+    this.maxLive = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '') ? (TEX_MODE === '32' ? 26 : 28) : 42; // запас над видимыми (~25 при 30 клетках): без выгрузки/перебейка при ходьбе
     this.ground = null; this.batch = null;
   }
   async init(px = ZONE_RESPAWN.x, py = ZONE_RESPAWN.y) {
     const THREE = this.THREE;
-    this.sheets = await Promise.all([tilesSrc, tIce, tFire, tStone, tAir].map((s) => loadImg(url(s))));
+    this.sheets = await Promise.all(TILES.sheets.map((s) => loadImg(url(s))));
     this.ptex = await loadPropTextures(THREE); // пропсы v2 (props_p32/b64 + свечение)
     // дальняя плоскость: 1 px = 1 клетка, цвет биома
     const n = this.plan.n, cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(n / 4); // 375×375: 1 px = 4×4 клетки
