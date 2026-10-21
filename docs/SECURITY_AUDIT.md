@@ -62,7 +62,25 @@ Line numbers refer to `main` unless noted. One commit per finding so each can be
 - **D9** Check JWT `azp` against an allowlist of site origins (env `CLERK_AUTHORIZED_PARTIES`); needs the list of every domain the game runs on.
 - **Clerk prod keys** (pk_test in prod): separate task, not touched.
 
+## Round 2 — approved fixes (2026-10-21, branch `security-audit`, majors in `deps-major`)
+
+Owner approved all seven items. Defaults chosen: deny-by-default, strict validation, least privilege; public profiles stay viewable by everyone.
+
+1. **Majors** (`deps-major`, commit 2784862, based on `security-audit` 642b7c7): astro 7.4, @astrojs/cloudflare 14.4, @clerk/astro 4.1, sharp 0.35 (+check/node/sitemap). `npm audit`: 11 (1 critical, 9 high, 1 low) → 0. Migration: bindings via `cloudflare:workers` (`src/lib/cfEnv.ts`, `Astro.locals.runtime` now throws), wrangler `main` = `@astrojs/cloudflare/entrypoints/server`, `ViewTransitions` → `ClientRouter`, `SignedIn/SignedOut` → `<Show when>`, `session:false`, no `platformProxy`. Needs **Node ≥ 22.23** for build/dev (local copy `/workspace/tools/node22`). Deploy now uses the generated `dist/server/wrangler.json` (redirect `.wrangler/deploy/config.json`); bindings/ratelimits/vars are carried over. Known local-only issue: with the new Vite→workerd proxy a POST right after a rejected POST (403/429) sometimes gets 500 "fetch failed" in `astro dev`/`astro preview` (miniflare); prod unaffected; retry works.
+2. **CSP** (2b2689d): `script-src 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval' https: 'unsafe-inline'; script-src-attr 'none'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action …; report-uri /api/csp-report`. `CSP_MODE` = `report-only` (default) | `enforce` | `off`. Local collection (60 pages + game, both branches): 0 violations. Enforce only after a week of clean `[csp]` logs in prod (Clerk was not loaded locally).
+3. **Public numbers** (5658e02, 6666281, 9a8cf21): `/u/<number>` (= forum pid), `/u/user_…` → 301, chat JSON carries `pid` only, `/api/public-profile?pid=`, forum API accepts digits only. `findDb` now uses the explicit `PROFILES_DB` binding (scanning env for `.prepare` picked RPC ratelimit bindings).
+4. **Anonymous writes** (546d27d): per-IP limits (scores 6/min, konkurs 2/min, chat 20/min; Workers Rate Limiting `RL_*` + in-memory fallback), body caps and validation; Turnstile behind `TURNSTILE_ENABLED=1` (needs var `PUBLIC_TURNSTILE_SITE_KEY` + secret `TURNSTILE_SECRET_KEY`; fail-closed 503 without keys).
+5. **Avatars** (e0290c2): all 15 avatar URLs from the D1 backup fetched read-only — 14 JPEG + 1 PNG, magic bytes match, 0 suspicious (full bucket listing needs dashboard or a read-only token). Code ready for `media.morrisgrad.com` / `art.morrisgrad.com` (`AVATARS_PUBLIC_BASE`, `ART_PUBLIC_BASE`), new keys `a/YYYYMM/<random>`; steps in `docs/MEDIA_DOMAIN.md`; `tools/r2/avatar-rekey.mjs` dry-run by default.
+6. **Forum images**: only own uploads render as `<img>`; external images become a plain nofollow link «🖼 alt (host)»; stored HTML re-rendered on read. Backup 19.10: 0 posts/comments with external images. YouTube thumbnails (i.ytimg.com) still allowed.
+7. **Game WS origin + azp** (2f9b2a6): prod accepts only `https://morrisgrad.com`, `https://www.morrisgrad.com` (override `MC_ALLOWED_ORIGINS`); localhost/no Origin only when the server itself is local; Clerk token must carry a site `azp`.
+
+Questions for the owner: default robot avatar now seeded by the player number (7 players without an avatar get a different robot); keep or drop YouTube thumbnails on the forum; switch CSP to enforce after the observation week; turn on Turnstile.
+
 ## Tests
+
+Round 2 (both branches unless noted): security-site 72/72, forum 274/274, public-id 12/12, profile-api OK, guest 44/44, seo 59/59, auth-security 21/21, server security 32/32, roles-admin 33/33, game-security-ws 13/13, security-http 53/53 on `security-audit` (`astro dev`), 49/49 HTTP part on the `deps-major` production build (`astro preview`), csp-collect 0 violations. Screenshots before/after (PC + phone: home, forum, topic, /u/, MorrisCurse): `/workspace/morrisgrad-round3/sec2/`.
+
+Round 1:
 
 - `bun tools/tests/security-site-test.ts` — 44/44 (CSRF, headers, `_headers` in sync, nick charset, inventory item cleaning)
 - `bun tools/tests/forum-test.ts` — 266/266
