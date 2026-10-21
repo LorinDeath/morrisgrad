@@ -4,13 +4,14 @@
 //  • плашка «купол не пускает» (city_deny) с обратным отсчётом; «вы в городе» (city_room/зона) — подсказка;
 //  • тосты pvp_kill / pvp_death.
 import './../styles/cityHud.css';
+import { PkTrack, pkBarColor } from './pkBar.js';
 
 const fmt = (s) => { s = Math.max(0, Math.ceil(s)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s} с`; };
 
 export class CityHud {
   constructor(root, { send, toast }) {
     this.send = send; this.toast = toast; this.st = { pk: false, to: null, endAt: 0, on: true, killer: null, color: '#ef4444' };
-    this.deny = null; this.world = '';
+    this.deny = null; this.world = ''; this.track = new PkTrack(); // свой отсчёт — полоса над героем (game.js)
     const el = (this.el = document.createElement('div')); el.className = 'ch-root'; el.innerHTML = `
       <button type="button" class="ch-pk" aria-pressed="false" title="PK-режим: нападать на игроков (вне куполов). Купол города не пускает убийц."><span class="ch-pk-ic">⚔</span><span class="ch-pk-t">PK</span><span class="ch-pk-n"></span></button>
       <div class="ch-deny" role="status" hidden><b class="ch-deny-h">Купол Альказака не пускает</b><span class="ch-deny-m"></span><span class="ch-deny-n"></span></div>`;
@@ -26,8 +27,12 @@ export class CityHud {
   /** купол не пустит (PK или убийца по журналу) — клиент не предсказывает шаг внутрь (сервер всё равно решает) */
   get barred() { const k = this.st.killer; return !!this.st.pk || !!(k && k.endAt > performance.now()); }
   get color() { return this.st.color || '#ef4444'; }
+  /** убийца по журналу купола (не PK-режим) — значок PK и красное имя */
+  get killer() { const k = this.st.killer; return !!(k && k.endAt > performance.now()); }
   onPk(d) {
     const was = this.st;
+    { const t = d.to === null || d.to === undefined ? 0 : d.to ? 1 : 2, dur = (d.durMs ?? (d.dur || 0) * 1000) / 1000, left = (d.leftMs ?? (d.left || 0) * 1000) / 1000;
+      this.track.set(t, t && dur > 0 ? Math.max(0, Math.min(1, 1 - left / dur)) : 0, dur, d.cancels | 0, d.pk ? 1 : 0); }
     this.st = { pk: !!d.pk, to: d.to ?? null, endAt: d.to !== null && d.to !== undefined ? performance.now() + (d.left || 0) * 1000 : 0, dur: d.dur || 0, on: d.on !== false, killer: d.killer ? { ...d.killer, endAt: performance.now() + (d.killer.sec || 0) * 1000 } : null, color: d.color || '#ef4444' };
     if (was.to === null && this.st.to !== null) this.toast(this.st.to ? `⚔ PK-режим включится через ${fmt(d.left)} — без боя. Нажмите ещё раз — отмена.` : `PK-режим выключится через ${fmt(d.left)} — без боя.`, this.st.to ? '#fca5a5' : '#cbd5e1');
     else if (was.to !== null && this.st.to === null && was.pk === this.st.pk) this.toast('Отсчёт PK-режима отменён', '#94a3b8');
@@ -38,7 +43,8 @@ export class CityHud {
   onDeath(d) { this.toast(`💀 Вас убил ${d.killer}`, '#fca5a5'); }
   tick() {
     const t = performance.now();
-    if (this.st.to !== null) { const n = this.btn.querySelector('.ch-pk-n'); const s = Math.max(0, (this.st.endAt - t) / 1000); n.textContent = fmt(s); }
+    if (this.st.to !== null) { const n = this.btn.querySelector('.ch-pk-n'); const s = Math.max(0, (this.st.endAt - t) / 1000); n.textContent = fmt(s);
+      const p = this.track.cur(t); this.btn.style.setProperty('--ch-p', p.toFixed(3)); this.btn.style.setProperty('--ch-pc', pkBarColor(this.track.t, p)); }
     if (this.deny) {
       if (t > this.deny.hideAt) { this.deny = null; this.render(); return; }
       this.denyEl.querySelector('.ch-deny-n').textContent = this.deny.endAt > t ? `ещё ${fmt((this.deny.endAt - t) / 1000)}` : '';
@@ -54,5 +60,5 @@ export class CityHud {
     b.style.setProperty('--ch-pk', s.color || '#ef4444');
     this.denyEl.hidden = !this.deny; if (this.deny) this.denyEl.querySelector('.ch-deny-m').textContent = this.deny.msg;
   }
-  debug() { return { pk: this.st.pk, to: this.st.to, deny: this.deny?.msg || null, shown: !this.el.classList.contains('ch-hidden'), label: this.btn.textContent.trim() }; }
+  debug() { return { pk: this.st.pk, to: this.st.to, bar: this.track.html(), barT: this.track.t, barP: +this.track.cur(performance.now()).toFixed(3), deny: this.deny?.msg || null, shown: !this.el.classList.contains('ch-hidden'), label: this.btn.textContent.trim() }; }
 }

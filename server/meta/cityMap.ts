@@ -44,6 +44,48 @@ export interface CityGround { base: string; dover: number[]; fill: boolean; map:
 /** земля клетки мира (gi, gj) под куполом/у кромки или null — обычный биом мира */
 /** клумба розы на карте (клетки 767..770 × 99..102, «tilled_rot» + столбики) — по решению пользователя роза стоит на ТРАВЕ:
  *  клетки клумбы — трава (оверлеи карты сняты), столбики/ведро вокруг убраны; под розой клиент рисует пятно порчи (cityView) */
+// ——— правки карты поверх alkazak_map.json (карта Историка не меняется; правки — данные здесь) ———
+/** колодец с мощёной площади — на траву (7 клеток к югу: ближайшее место 5×4 без мощения/тропы); проходимость (#) переезжает вместе с ним. Ведро — часть кадра dm_well */
+export const WELL_MOVES: { from: [number, number]; to: [number, number] }[] = [{ from: [24758, 3468], to: [24758, 3692] }];
+{ const W: string[] = MAP.walk || [], [ox, oy] = MAP.world_origin_px || [23136, 1888];
+  for (const m of WELL_MOVES) { const p = (MAP.props || []).find((q: any) => q.k === "dm_well" && q.x === m.from[0] && q.y === m.from[1]); if (!p) continue; // уже перенесён (модуль грузится раз)
+    const i0 = Math.floor((m.from[0] - ox) / T), j0 = Math.floor((m.from[1] - oy) / T), di = Math.round((m.to[0] - m.from[0]) / T), dj = Math.round((m.to[1] - m.from[1]) / T);
+    const cells: [number, number][] = []; for (let j = j0 - 2; j <= j0 + 1; j++) for (let i = i0 - 2; i <= i0 + 2; i++) if (W[j]?.[i] === "#") cells.push([i, j]);
+    const set = (i: number, j: number, c: string) => { if (W[j] && i >= 0 && i < W[j].length) W[j] = W[j].slice(0, i) + c + W[j].slice(i + 1); };
+    for (const [i, j] of cells) set(i, j, "."); for (const [i, j] of cells) set(i + di, j + dj, "#");
+    p.x = m.to[0]; p.y = m.to[1]; } }
+/** вертикальный забор: в атласе только горизонтальный пролёт dm_fence и узловой столб dm_fence_post (с обрубками жердей вбок).
+ *  Колонна столбов через 32 px торчала обрубками → колонна пересобирается: столбы без перекладин (dm_fence_vpost) через ~64 px
+ *  и жердь вдоль глубины (dm_fence_vrail, растягивается между столбами; len — длина пролёта px). Концы колонны
+ *  стыкуются с крайним колышком горизонтального пролёта (x — на его колышек, y — до его основания). Арт: tools/city-fence/gen.py */
+export const FENCE_END_DX = [-25, 27]; // крайние колышки dm_fence от центра, px мира (кадр 32 px × 2)
+export function fenceRuns(props: any[]): any[] {
+  const H_RE = /^dm_fence(_gate|_broken)?$/, hor = props.filter((p) => H_RE.test(p.k)), posts = props.filter((p) => p.k === "dm_fence_post");
+  const byX = new Map<number, any[]>(); for (const p of posts) { let a = byX.get(p.x); if (!a) byX.set(p.x, (a = [])); a.push(p); }
+  const drop = new Set<any>(), out: any[] = [];
+  for (const [x, col] of byX) {
+    col.sort((a, b) => a.y - b.y);
+    const runs: any[][] = []; for (const p of col) { const r = runs[runs.length - 1]; if (r && p.y - r[r.length - 1].y <= 34) r.push(p); else runs.push([p]); }
+    for (const r of runs) { if (r.length < 2) continue; const y0 = r[0].y, y1 = r[r.length - 1].y;
+      // стык с горизонтальным пролётом: крайний колышек в пределах 28 px по x, основание — в 48 px над/под колонной
+      const end = (fy: (h: any) => boolean) => { let best: any = null; for (const h of hor) if (fy(h)) for (const dx of FENCE_END_DX) { const d = Math.abs(h.x + dx - x); if (d <= 28 && (!best || d < best.d)) best = { d, x: h.x + dx, y: h.y }; } return best; };
+      const top = end((h) => h.y < y0 && y0 - h.y <= 48), bot = end((h) => h.y > y1 && h.y - y1 <= 48);
+      const X = top ? top.x : bot ? bot.x : x, yA = top ? top.y : y0, yB = bot ? bot.y : y1, n = Math.max(1, Math.round((yB - yA) / 64)), st = (yB - yA) / n;
+      for (let i = 0; i <= n; i++) { const y = Math.round(yA + st * i);
+        if ((i > 0 || !top) && (i < n || !bot)) out.push({ k: "dm_fence_vpost", x: X, y, s: 1, f: false });  // столб (на стыке — колышек пролёта)
+        if (i > 0) out.push({ k: "dm_fence_vrail", x: X, y, s: 1, f: false, len: Math.round(st) }); }     // жердь от этого столба вглубь до предыдущего
+      for (const p of r) drop.add(p);
+      if (Math.floor(X / T) !== Math.floor(x / T)) WALK_SHIFT.push({ from: Math.floor(x / T), to: Math.floor(X / T), j0: Math.floor(yA / T) + 1, j1: Math.floor(yB / T) - 1 }); }
+  }
+  return props.filter((p) => !drop.has(p)).concat(out);
+}
+/** колонна сдвинута на соседнюю клетку (стык с колышком) — стена проходимости (#) едет за ней (клетки мира карты, без сдвига) */
+export const WALK_SHIFT: { from: number; to: number; j0: number; j1: number }[] = [];
+const PROPS_FIX: any[] = fenceRuns(MAP.props || []);
+{ const W: string[] = MAP.walk || [], [ox, oy] = MAP.world_origin_px || [23136, 1888], c0 = Math.floor(ox / T), r0 = Math.floor(oy / T);
+  const set = (i: number, j: number, c: string) => { if (W[j] && i >= 0 && i < W[j].length) W[j] = W[j].slice(0, i) + c + W[j].slice(i + 1); };
+  for (const m of WALK_SHIFT) for (let gj = m.j0; gj <= m.j1; gj++) { const j = gj - r0; if (W[j]?.[m.from - c0] === "#" && W[j]?.[m.to - c0] === ".") { set(m.from - c0, j, "."); set(m.to - c0, j, "#"); } } }
+const propsFixed = () => PROPS_FIX;
 export const ROSE_BED = { i0: 767, i1: 770, j0: 99, j1: 102 };
 const inRoseBed = (i: number, j: number) => { const [a, b] = [MAP_CELL0[0], MAP_CELL0[1]]; const ci = i + a, cj = j + b; return ci >= ROSE_BED.i0 && ci <= ROSE_BED.i1 && cj >= ROSE_BED.j0 && cj <= ROSE_BED.j1; };
 /** прямоугольник клумбы в px мира (со сдвигом карты) */
@@ -89,7 +131,7 @@ const sh = (x: number, y: number): [number, number] => { const [a, b] = mapShift
 export function mapProps(rTiles = Number(CITY_CFG.rTiles) || 40): { k: string; x: number; y: number; s: number; f: boolean }[] {
   const out: any[] = [];
   const [bx0, by0, bx1, by1] = roseBedPx(), bed = (x: number, y: number) => x > bx0 - T && x < bx1 + T && y > by0 - T && y < by1 + T;
-  for (const p of MAP.props || []) { const [x, y] = sh(p.x, p.y); if (bed(x, y) && /^dm_(fence|bucket)/.test(p.k)) continue; const d = Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) / T; if (d <= rTiles + EDGE_PAD + 3) out.push({ k: p.k, x, y, s: p.s || 1, f: !!p.f }); }
+  for (const p of propsFixed()) { const [x, y] = sh(p.x, p.y); if (bed(x, y) && /^dm_(fence|bucket)/.test(p.k)) continue; const d = Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) / T; if (d <= rTiles + EDGE_PAD + 3) out.push(p.len ? { k: p.k, x, y, s: p.s || 1, f: !!p.f, len: p.len } : { k: p.k, x, y, s: p.s || 1, f: !!p.f }); }
   return out;
 }
 export function mapPoint(id: string): [number, number] | null { const p = MAP.points?.[id]; return p?.world ? sh(p.world[0], p.world[1]) : null; }

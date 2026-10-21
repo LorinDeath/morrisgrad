@@ -10,7 +10,10 @@ import EMIT from '../../../../assets/mc/light_emitters.json';
 const KEYS = EMIT.keys || {};
 let OVR = {};
 /** правки якорей (админка): { "set:key" | "key": [ex, ey] | { ex, ey, f } } */
-export function setEmitterOverrides(o) { OVR = o && typeof o === 'object' ? o : {}; }
+let VER = 0;
+export function setEmitterOverrides(o) { OVR = o && typeof o === 'object' ? o : {}; VER++; }
+/** версия правок — потребители, посчитавшие смещения заранее (город), пересобираются при смене */
+export const emitterVersion = () => VER;
 export const emitterOverrides = () => OVR;
 
 /** запись emitter'а по ключу: set — 'city' | 'world' (без набора — сначала city, потом world) */

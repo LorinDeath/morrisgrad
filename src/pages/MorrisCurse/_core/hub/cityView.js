@@ -8,7 +8,7 @@
 import { LIGHT, pixTex, pixMat, setDisplayRGB, setDisplayHex } from '../engine/pixColor.js';
 import { GRADE } from '../engine/atmosphere.js';
 import { lightOf, lampHash, FIRE, flickerOf, LT } from '../engine/dayNight.js';
-import { emitterOffsetM, emitterSpotsM, emitterWorld } from '../engine/lightEmitter.js';
+import { emitterOffsetM, emitterSpotsM, emitterWorld, emitterBasis, emitterVersion } from '../engine/lightEmitter.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
@@ -20,6 +20,7 @@ import DOME from '../../../../assets/mc/city/city_dome.json';
 import PROPS from '../../../../assets/mc/city/props_dark_atlas.json';
 import BLD from '../../../../assets/mc/city/buildings.json';
 import p32Src from '../../../../assets/mc/city/props_dark_p32.png';
+import fenceVSrc from '../../../../assets/mc/city/fence_v.png'; // вертикальный забор (tools/city-fence/gen.py) — до арта Художника
 import p32GSrc from '../../../../assets/mc/city/props_dark_p32_glow.png';
 import b64Src from '../../../../assets/mc/city/props_dark_b64.png';
 import b64GSrc from '../../../../assets/mc/city/props_dark_b64_glow.png';
@@ -81,7 +82,7 @@ export class CityView {
   apply(c) {
     if (!c) return;
     const moved = !this.cfg || this.cfg.x !== c.x || this.cfg.y !== c.y || this.cfg.cp !== c.cp;
-    this.cfg = c; Object.assign(CITY_CFG, { name: c.name, x: c.x, y: c.y, alphaIn: c.aIn, centerpiece: c.cp, plazaTiles: c.plaza, on: c.on });
+    this.cfg = c; Object.assign(CITY_CFG, { name: c.name, x: c.x, y: c.y, alphaIn: c.aIn, centerpiece: c.cp, plazaTiles: c.plaza, on: c.on, groundLight: Number(c.gl) || 1 });
     this.group.visible = !!c.on;
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
@@ -99,7 +100,7 @@ export class CityView {
   // ——— карта Историка: здания bld_* (+glow) и пропсы dm_* (+glow, анимации) — спрайты к камере, якорь — низ по центру ———
   buildMap() {
     const THREE = this.THREE, c = this.cfg; if (!c) return;
-    const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig;
+    const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); }
     this.toneMats = []; this.toneSig = '';
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
@@ -110,7 +111,7 @@ export class CityView {
       const t = new THREE.CanvasTexture(cv); return t; })();
     // огонь: q = [x0, z0, цвет, радиус пятна м, сила, -, хэш, смещение огня [вправо, вверх] м, живой огонь, мерцание] (формат маски dayNight)
     const addLight = (x0, z0, col, rM, k, off, fire, haloM, kind = fire ? 'fire' : 'lamp') => {
-      const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1]);
+      const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1, kind]);
       const m = pixMat(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, fog: false, opacity: 0 })); setDisplayHex(m.color, col); // экранный цвет (pixColor)
       const sp = new THREE.Sprite(m); sp.scale.set(haloM, haloM, 1); sp.renderOrder = 2; gg.add(sp);
       this.glows.push({ m, lamp: true, h, halo: true, fire, kind, x0, z0, off, sp, haloM, k });
@@ -137,13 +138,31 @@ export class CityView {
     }
     // пропсы dm_*
     const SH = { p32: p32Src, b64: b64Src, p32_glow: p32GSrc, b64_glow: b64GSrc };
+    // вертикальный забор (cityMap.fenceRuns): столбы — спрайты (колышек dm_fence без перекладин); жерди — 3D-полосы ОТ столба ДО столба
+    //   (одна, 8…12 арт-px над землёй — две жерди вдоль глубины на экране почти совпадают и рябят; темнее и тоньше столба, вдоль «вверх» камеры как у спрайтов), поэтому в перспективе колонна
+    //   не ломается лесенкой и жердь всегда упирается в соседний столб / крайний колышек пролёта. Вершины — в update (базис камеры)
+    const fenceV = (p) => L(fenceVSrc).then((t0) => {
+      const t = t0.clone(); t.needsUpdate = true; t.repeat.set(7 / 12, 1); t.offset.set(0, 0);
+      const sp = new THREE.Sprite(pixMat(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.04, fog: false })));
+      sp.center.set(0.5, 0); sp.scale.set(0.7, 1.8 * SIN_P, 1); sp.position.set(toX(p.x), 0, toZ(p.y)); sp.renderOrder = 3; sp.name = p.k; g.add(sp); });
+    const rails = [];
     for (const p of mapProps(c.rTiles)) {
+      if (p.k === 'dm_fence_vpost') { fenceV(p); continue; }
+      if (p.k === 'dm_fence_vrail') { rails.push([toX(p.x), toZ(p.y), toZ(p.y - (p.len || 64))]); continue; }
       const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
       const [wM, hM] = k.size_m || [k.w / 10, k.h / 10];
       sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k), FIRE.test(p.k) ? 'fire' : 'lamp');
       const Lp = lightOf(p.k); if (Lp) { const sc = p.s || 1, off = emitterOffsetM(p.k, { wM: wM * sc, hM: hM * sc * SIN_P, flip: !!p.f, set: 'city' }) || [0, (Lp[4] || 1) * SIN_P], fire = FIRE.test(p.k);
         addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }
+    this.fenceRails = null; if (rails.length) L(fenceVSrc).then((t0) => {
+      const t = t0.clone(); t.needsUpdate = true; t.repeat.set(4 / 12, 4 / 18); t.offset.set(7 / 12, 1 - 4 / 18);
+      const n = rails.length, pos = new Float32Array(n * 12), uv = new Float32Array(n * 8), idx = [];
+      for (let i = 0; i < n; i++) { uv.set([0, 0, 1, 0, 1, 1, 0, 1], i * 8); const o = i * 4; idx.push(o, o + 1, o + 2, o, o + 2, o + 3); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, pixMat(new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.04, side: THREE.DoubleSide, fog: false }))); setDisplayHex(mesh.material.color, 0xa09088); // экранный цвет (pixColor)
+      mesh.name = 'city-fence-rails'; mesh.renderOrder = 3; mesh.frustumCulled = false; g.add(mesh); this.fenceRails = { mesh, rails, sig: '' }; this.stats.fenceRails = rails.length;
+    });
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
   }
   // ——— пятно порчи под розой города: очернённая проклятая земля расползается в траву (рваный край, тёмные жилы, искры).
@@ -182,7 +201,7 @@ export class CityView {
     const tex = (c) => { const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
     const wM = (W * 2) / PX, hM = (H * 2) / PX, G = new THREE.Group(); G.name = 'city-rose-blight'; this.blightG = G;
     const geo = new THREE.PlaneGeometry(wM, hM); geo.rotateX(-Math.PI / 2);
-    const base = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false })); base.renderOrder = 1;
+    const base = new THREE.Mesh(geo, (this.blightBase = new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false }))); base.renderOrder = 1;
     this.blightSpark = new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 });
     const sp = new THREE.Mesh(geo, this.blightSpark); sp.renderOrder = 2; sp.position.y = 0.004;
     G.add(base, sp); G.position.set(toX(r.x), 0.013, toZ(r.y - 6)); this.group.add(G); // сердце пятна — у основания стебля
@@ -218,6 +237,14 @@ export class CityView {
   inCity(px, py) { const c = this.cfg; return !!(c && c.on && (px - c.x) ** 2 + (py - c.y) ** 2 <= c.r * c.r); }
   /** кадр: view = фокус камеры (свой герой) */
   update(dt, view) {
+    if (this.mapSig && this.emV !== emitterVersion()) { this.mapSig = null; this.buildMap(); } // админка: точки огня — вживую (смещения считаются при сборке)
+    { const F = this.fenceRails, B = emitterBasis(); // жерди вертикального забора — по базису камеры (пересчёт при его смене)
+      const sig = F && `${B.rx.toFixed(4)},${B.ux.toFixed(4)},${B.uy.toFixed(4)},${B.uz.toFixed(4)}`;
+      if (F && sig !== F.sig) { F.sig = sig; const P = F.mesh.geometry.attributes.position, a = P.array, u = 0.1 * SIN_P, w = 0.13, bk = 0.04; let k = 0;
+        const v = (x, z, h, r) => { a[k++] = x + B.rx * r + B.ux * h + B.vx * bk; a[k++] = B.ry * r + B.uy * h + B.vy * bk; a[k++] = z + B.rz * r + B.uz * h + B.vz * bk; };
+        // полоса: от низа перекладины у ближнего столба до её верха у дальнего (на экране — сплошная жердь между ними), ширина 2.6 арт-px
+        for (const [x, z1, z0] of F.rails) for (const [h0, h1] of [[8, 12]]) { v(x, z1, h0 * u, -w); v(x, z1, h0 * u, w); v(x, z0, h1 * u, w); v(x, z0, h1 * u, -w); }
+        P.needsUpdate = true; F.mesh.geometry.computeBoundingSphere(); } }
     this.time += dt; const T = this.time, c = this.cfg;
     // тон зоны (GRADE) и свет (LIGHT, админка «💡 Свет») — множители в экранном пространстве, как у пропсов чанков (propAtlas.js)
     if (this.toneMats?.length) { const G = GRADE.value || { r: 1, g: 1, b: 1 }, sig = `${G.r},${G.g},${G.b},${LIGHT.props},${LIGHT.glow}`;
@@ -247,9 +274,9 @@ export class CityView {
     // оболочка: цель по расстоянию зрителя (свой герой) до центра, плавно (README купола §2)
     if (this.shell) {
       const aIn = Number.isFinite(Number(c.aIn)) ? Number(c.aIn) : SHELL.opacity_inside, aOut = Number.isFinite(Number(c.aOut)) ? Number(c.aOut) : SHELL.opacity_outside;
-      const d = view ? Math.hypot(view.x - c.x, view.y - c.y) : 1e9, k = sstep(c.r - 32, c.r + 32, d), target = aIn + (aOut - aIn) * k;
+      const d = view ? Math.hypot(view.x - c.x, view.y - c.y) : 1e9, bd = Number(c.fadeBand) || 32, k = sstep(c.r - bd, c.r + bd, d), target = aIn + (aOut - aIn) * k;
       const tn = performance.now(), rdt = Math.min(0.5, Math.max(0, (tn - (this.fadeT || tn)) / 1000)); this.fadeT = tn; // реальное время: кадр игры обрезан до 0.05 с, а переход должен длиться 0.6–0.8 с на любом FPS
-      const a0 = this.shellA; this.shellA += (target - this.shellA) * (1 - Math.exp(-rdt / 0.2)); this.shellMat.opacity = this.shellA;
+      const a0 = this.shellA; this.shellA += (target - this.shellA) * (1 - Math.exp(-rdt / Math.max(0.03, (Number(c.fade) || 0.6) / 3))); this.shellMat.opacity = this.shellA;
       { // метрика для плейтеста: переход по пересечениям уровней (вход 0.8→0.05, выход 0.1→0.85) в реальном времени + наибольший шаг за кадр
         const F = this.fade || (this.fade = { t: {}, last: null, step: 0, n: 0 }), a1 = this.shellA, X = (lv, up) => (up ? a0 < lv && a1 >= lv : a0 > lv && a1 <= lv);
         if (X(0.8, false)) { F.t.inAt = tn - rdt * 1000 * (a0 - 0.8) / Math.max(1e-6, a0 - a1); F.step = 0; F.n = 0; }
@@ -262,7 +289,9 @@ export class CityView {
       this.shell.visible = this.shellA > 0.003;
     }
     if (this.glows?.length) { const W = this._w3 ||= [0, 0, 0], Tm = performance.now(); for (const q of this.glows) if (q.halo) { emitterWorld(q.x0, 0, q.z0, q.off, 0.18, W); q.sp.position.set(W[0], W[1], W[2]); q.fl = flickerOf(Tm, q.x0, q.z0, q.fire); const hs = q.haloM * LT.halo * (0.94 + 0.06 * q.fl); q.sp.scale.set(hs, hs, 1); } } // ореол — в точке огня, чуть «за» спрайтом
-    if (this.blightSpark) this.blightSpark.opacity = 0.32 + 0.22 * Math.sin(T * 2.3) * Math.sin(T * 3.7 + 1.1); // искры порчи мерцают
+    { const B = this.cfg?.blight || {}, bk = Number(B.k ?? 1), bs = Number(B.size) || 1; // админка: пятно порчи — вкл/размер/сила (вживую)
+      if (this.blightG) { this.blightG.visible = B.on !== false && bk > 0.01; this.blightG.scale.set(bs, 1, bs); if (this.blightBase) this.blightBase.opacity = Math.min(1, bk); }
+      if (this.blightSpark) this.blightSpark.opacity = (0.32 + 0.22 * Math.sin(T * 2.3) * Math.sin(T * 3.7 + 1.1)) * bk; } // искры порчи мерцают
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
   }

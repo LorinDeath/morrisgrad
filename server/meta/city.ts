@@ -60,6 +60,12 @@ export const CITY_CFG: any = {
   windowMin: 10,            //   за последние N минут
   pkBlocked: true,          // в PK-режиме внутрь нельзя
   denyMsgSec: 2,            // сообщение «купол не пускает» не чаще раза в N с
+  groundLight: 1,           // яркость земли города (тайлы tiles_dark): 1 — как нарисовано, >1 светлее (днём не «чёрная»), <1 темнее; вживую
+  fadeSec: 0.6,             // купол: переход прозрачности при входе/выходе, с (до ~95 %)
+  fadeBandPx: 32,           // …полоса перехода у края, px (по обе стороны радиуса)
+  blightOn: true,           // пятно порчи под розой (только вид)
+  blightSize: 1,            // …размер, ×
+  blightK: 1,               // …сила (непрозрачность и искры), ×
   groundTint: 0.55,         // очернение земли (0 — как тайлы, 1 — почти чёрная)
   grassPct: 16,             // трава пробивается: %
   interiorOf: { house_log: "house_living", house_plank: "shop_tavern", tent: "tent" }, // дверь пропса (door.interior) → комната interiors_dark.json
@@ -86,7 +92,9 @@ export const PK_CFG: any = {
   tagBg: "#7f1d1d",
   tagFg: "#fee2e2",
   tagGlow: "#ef4444",
-  tagKiller: true,          // значок и красное имя — также у убийц (убил игрока / N мобов за окно), не только в PK-режиме
+  tagKiller: true,
+  cancelOnHit: true,        // отсчёт PK (вход/выход) сбрасывает полученный урон
+  cancelOnDeal: true,       // …и нанесённый урон          // значок и красное имя — также у убийц (убил игрока / N мобов за окно), не только в PK-режиме
 };
 /** вид PK для клиентов (cityClient): цвета/подписи из админки */
 export const pkUi = () => ({ color: PK_CFG.color, barFrom: PK_CFG.barFrom, barTo: PK_CFG.barTo, barCancel: PK_CFG.barCancel, barW: Number(PK_CFG.barW) || 54, tagText: String(PK_CFG.tagText || "PK").slice(0, 6), tagBg: PK_CFG.tagBg, tagFg: PK_CFG.tagFg, tagGlow: PK_CFG.tagGlow, tagKiller: PK_CFG.tagKiller !== false, enterSec: Number(PK_CFG.enterSec) || 0, exitSec: Number(PK_CFG.exitSec) || 0 });

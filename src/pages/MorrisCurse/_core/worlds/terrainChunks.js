@@ -23,6 +23,7 @@ import { toX, toZ, PX } from '../engine/geometry.js';
 import { LIGHT, onLight, pixTex, pixMat, setDisplayRGB, setDisplayHex } from '../engine/pixColor.js';
 
 import { CELL, CH, arinarPlan, layoutChunk } from '../../../../../server/meta/arinarLayout.ts';
+import { CITY_CFG } from '../../../../../server/meta/city.ts';
 export { CELL, CH, arinarPlan, layoutChunk };
 const TEX = tilesMeta.tile, T = tilesMeta.index, COLS = tilesMeta.cols;
 const SHEET = { b_ice: 1, b_fire: 2, b_stone: 3, b_air: 4 };
@@ -80,6 +81,12 @@ export class ArinarTerrain {
     for (let j = 0; j < CH; j++) for (let i = 0; i < CH; i++) { const idx = L.base[j * CH + i], im = this.sheets[L.sheet[j * CH + i]]; g.drawImage(im, (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, i * TX, j * TX, TX, TX); }
     for (let k = 0; k < L.over.length; k += 3) { const idx = L.over[k + 2]; if (idx === undefined) continue; g.drawImage(this.sheets[0], (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, L.over[k] * TX, L.over[k + 1] * TX, TX, TX); }
     if (DK) for (let k = 0; k < L.dover.length; k += 3) { const idx = L.dover[k + 2]; g.drawImage(this.dark, (idx % DC) * DK, Math.floor(idx / DC) * DK, DK, DK, L.dover[k] * TX, L.dover[k + 1] * TX, TX, TX); }
+    // яркость земли города (админка «Город» → groundLight): >1 — те же тайлы ещё раз «осветлением» (lighter), <1 — затемнение; только клетки города
+    const gl = DK ? Math.max(0.2, Math.min(3, Number(CITY_CFG.groundLight) || 1)) : 1;
+    if (DK && Math.abs(gl - 1) > 0.01) { g.save();
+      if (gl > 1) { g.globalCompositeOperation = 'lighter'; for (let pass = gl - 1; pass > 0.001; pass -= 1) { g.globalAlpha = Math.min(1, pass); for (let k = 0; k < L.dover.length; k += 3) { const idx = L.dover[k + 2]; g.drawImage(this.dark, (idx % DC) * DK, Math.floor(idx / DC) * DK, DK, DK, L.dover[k] * TX, L.dover[k + 1] * TX, TX, TX); } } }
+      else { g.fillStyle = `rgba(0,0,0,${(1 - gl).toFixed(3)})`; for (let k = 0; k < L.dover.length; k += 3) g.fillRect(L.dover[k] * TX, L.dover[k + 1] * TX, TX, TX); }
+      g.restore(); }
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipMapLinearFilter;
     const mat = pixMat(new THREE.MeshBasicMaterial({ map: pixTex(THREE, tex) })); setDisplayRGB(mat.color, LIGHT.ground * this.light);
     const sp = (CH * CELL) / PX;
@@ -94,7 +101,7 @@ export class ArinarTerrain {
       for (const p of L.props) batch.push(p.k, p.x, p.y, toX(p.x), toZ(p.y), p.s, p.f);
       batch.end(); batch.setLight(this.light); for (const B of batch.list) B.mesh.name = 'props';
     }
-    const c = { key, ci, cj, mesh, mat, tex, batch, used: performance.now(), props: L.props };
+    const c = { key, ci, cj, mesh, mat, tex, batch, used: performance.now(), props: L.props, city: !!DK, gl };
     this.chunks.set(key, c);
     this.stats.baked++; this.stats.bakeMs = Math.round((this.stats.bakeMs * 0.8 + (performance.now() - t0) * 0.2) * 10) / 10;
     return c;
@@ -107,6 +114,7 @@ export class ArinarTerrain {
   /** кадр: px,py — фокус камеры (px мира). Бакает недостающие видимые чанки (бюджет), выгружает дальние */
   update(px, py, budget = 1, view = null) {
     // область стрима — от фактического обзора камеры (+запас 1 чанк), не меньше прежних ±1900×±1600
+    { const gl = Number(CITY_CFG.groundLight) || 1; if (this.gl !== undefined && Math.abs(gl - this.gl) > 0.001) for (const c of [...this.chunks.values()]) if (c.city) this.drop(c); this.gl = gl; } // админка: яркость земли — вживую
     const S = CH * CELL, rx = Math.max(1900, (view?.rx || 0) + S), ry = Math.max(1600, (view?.ry || 0) + S), now = performance.now();
     const c0 = Math.floor((px - rx) / S), c1 = Math.floor((px + rx) / S), r0 = Math.floor((py - ry) / S), r1 = Math.floor((py + ry) / S);
     const want = [];

@@ -1084,7 +1084,7 @@ export class MetaService {
   // Рекорд одиночного удара: только удары, посчитанные сервером в открытом мире (см. rating.ts)
   noteHit(session: any, real: number, mobType: string) {
     { const m0 = this.ms.get(session.id); if (m0) (m0 as any).hitAt = Date.now(); } // бой — для портала домой
-    if (real > 0) this.pkCombat(session.id); // нанёс урон — PK-отсчёт сброшен
+    if (real > 0) this.pkCombat(session.id, "deal"); // нанёс урон — PK-отсчёт сброшен
     const ms = this.ms.get(session.id);
     const cls = session.stats?.classId;
     if (!ms || !cls || !(real > 0)) return;
@@ -1494,7 +1494,7 @@ export class MetaService {
     const now = Date.now(), z = this.zones.arinar;
     if (isInvuln(ms, now)) return;
     if (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms)) return;
-    this.pkCombat(sid);
+    this.pkCombat(sid, "hit");
     const real = Math.max(1, Math.round(ms.zp.maxHp * Math.max(0, pct) / 100));
     ms.zp.hp -= real; (ms as any).hurtAt = now;
     this.qNote(ms, "hit", now);
@@ -1625,7 +1625,8 @@ export class MetaService {
     this.send(ws, { type: "pk_state", pk: P.pk, to: P.to, left: pkLeft(P, now), leftMs: P.to === null ? 0 : Math.max(0, P.at + P.dur - now), durMs: P.dur, cancels: (P as any).cancels || 0, dur: Math.round(P.dur / 1000), on: PK_CFG.on !== false, killer: k.killer ? { until: k.until, why: k.why, sec: Math.ceil((k.until - now) / 1000) } : null, color: PK_CFG.color });
   }
   /** бой (нанёс/получил урон): PK-отсчёт сбрасывается */
-  pkCombat(sid: string) {
+  pkCombat(sid: string, kind: "hit" | "deal" = "hit") {
+    if ((kind === "hit" ? PK_CFG.cancelOnHit : PK_CFG.cancelOnDeal) === false) return; // админка: этот вид боя отсчёт не сбрасывает
     const ms = this.ms.get(sid); if (!ms || !(ms as any).pk) return;
     if (pkInterrupt((ms as any).pk)) { const e = this.sessionLookup?.(sid); if (e) { this.pkSend(e[0], ms); this.send(e[0], { type: "toast_error", message: "Бой — отсчёт PK-режима сброшен" }); } }
   }
@@ -1638,7 +1639,7 @@ export class MetaService {
     if (PK_CFG.on === false) return false;
     const now = Date.now(), A = this.pkOf(ams), V = this.pkOf(vms);
     const how = pvpAllowed(A, V, vSid, this.pvpSafe(aSid, ams), this.pvpSafe(vSid, vms), now); if (!how) return false;
-    const z = this.zones.arinar; this.pkCombat(aSid); this.pkCombat(vSid); (ams as any).hitAt = now;
+    const z = this.zones.arinar; this.pkCombat(aSid, "deal"); this.pkCombat(vSid, "hit"); (ams as any).hitAt = now;
     if (how === "pk" && !V.pk) pkGrantDefense(V, aSid, now); // жертва может ответить (самооборона)
     if (isInvuln(vms, now)) return true;
     const eff = this.effective(sa), crit = cryptoRand() * 100 < eff.critPct;
@@ -1683,7 +1684,7 @@ export class MetaService {
     if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
     if (w === "arinar" && this.citySafe(ms)) { (this as any).cityBlocked = ((this as any).cityBlocked || 0) + 1; return; } // город: урон 0 (счётчик — для плейтеста)
     if (w === "arinar" && (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms))) return; // купол Чёрного мага / город: неуязвим
-    if (w === "arinar") this.pkCombat(sid); // получил урон — PK-отсчёт сброшен
+    if (w === "arinar") this.pkCombat(sid, "hit"); // получил урон — PK-отсчёт сброшен
     const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
     const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
     ms.zp.hp -= real; (ms as any).hurtAt = now;
@@ -1708,7 +1709,8 @@ export class MetaService {
     if (o.mobKills) for (let i = 0; i < Number(o.mobKills); i++) this.killLog.note(ms.pkey, "m", false, now - i);
     if (o.pvpKills) for (let i = 0; i < Number(o.pvpKills); i++) this.killLog.note(ms.pkey, "p", false, now - i);
     if (o.domeKill) { const ud = this.underDome(session.x, session.y); this.killLog.note(ms.pkey, "m", ud, now); this.killLog.note(ms.pkey, "p", ud, now); } // плейтест: тот же путь, что onMobKilled/onPvpKill
-    if (o.clearKills) { this.killLog.m.delete(ms.pkey); this.killLog.p.delete(ms.pkey); delete a.klp; }
+    if (o.clearKills) { this.killLog.m.delete(ms.pkey); this.killLog.p.delete(ms.pkey); delete a.klp; this.pkSend(ws, ms, now); }
+    if (o.mobKills || o.pvpKills) this.pkSend(ws, ms, now); // клиенту — новый статус убийцы (значок PK)
     if (Array.isArray(o.npcOn)) { (CITY_CFG.npc as any[]).forEach((sl, i) => (sl.on = o.npcOn.includes(i))); syncCityNpcs(NPCS as any); this.cityVer++; }
     if (o.posNow) this.posNote(session, ms, true);
     const k = this.killerOf(ms, now);

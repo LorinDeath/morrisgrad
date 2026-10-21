@@ -9,7 +9,7 @@ import { dnAt, DN_CFG, hex3, lampK } from '../../../../../server/meta/dayNight.t
 import { toX, toZ } from './geometry.js';
 
 // источники света среди пропсов мира: ключ/шаблон → [цвет, радиус пятна м, сила, высота головы м (ореол у огня; 0 — только пятно)]
-import { emitterOffsetM, emitterWorld, emitterGround, setEmitterCamera } from './lightEmitter.js';
+import { emitterOffsetM, emitterWorld, emitterGround, setEmitterCamera, setEmitterOverrides } from './lightEmitter.js';
 const PROP_LIGHT = [
   [/^(dm_lantern_pole)/, 0xffbf66, 5.2, 1.08, 3.4], [/^(lantern|dm_lantern|dm_lamp)/, 0xffc36b, 4.6, 1.0, 1.6], [/^(torch|dm_torch)/, 0xff9a3c, 4.0, 1, 1.4],
   [/^(campfire|dm_campfire|dm_cookfire|dm_brazier|dm_fire)/, 0xff7a22, 6.0, 0.88, 0.7],
@@ -79,7 +79,8 @@ export class DayNight {
   /** dn с сервера: { cfg, min, rate } — минута суток и скорость хода часов */
   setServer(d) {
     if (!d) return;
-    if (d.cfg) Object.assign(DN_CFG, d.cfg);
+    if (d.cfg) { Object.assign(DN_CFG, d.cfg); if (d.cfg.lt && typeof d.cfg.lt === 'object') Object.assign(LT, d.cfg.lt); // админка «День и ночь» → огни: вживую
+      if ('emitters' in d.cfg) { let o = {}; try { o = d.cfg.emitters ? JSON.parse(d.cfg.emitters) : {}; } catch (_) {} const s = JSON.stringify(o); if (s !== this.emSig) { this.emSig = s; setEmitterOverrides(o); this.propCache?.clear?.(); this.emVer = (this.emVer || 0) + 1; } } }
     if (Number.isFinite(d.min)) this.base = { min: d.min, rate: Number(d.rate) || 1, t: performance.now() };
   }
   /** отладка/скриншоты: закрепить минуту суток локально (null — снова часы сервера) */
@@ -90,7 +91,7 @@ export class DayNight {
   /** кадр: active — открытый мир (Аринар, не в доме); src — откуда брать источники */
   frame(active, src) {
     const s = (this.state = dnAt(this.minutes(), DN_CFG));
-    const red = dnReduceGet() / 100;
+    const red = Math.min(dnReduceGet(), Math.max(0, Math.min(100, Number(DN_CFG.reduceMax ?? 100)))) / 100; // админка: максимум ползунка
     const col = s.color.map((c) => c + (1 - c) * red * 0.65);
     this.active = !!active && DN_CFG.on !== false && (col[0] < 0.995 || col[1] < 0.995 || col[2] < 0.995);
     this.col = col;
@@ -114,11 +115,11 @@ export class DayNight {
       const fl = flickerOf(T0, q[0], q[1], !!q[8]); // огонь (костёр/факел) мерцает сильнее, фонари — едва
       // q[7] — смещение огня в плоскости спрайта [вправо, вверх] м (lightEmitter): пятно — на земле ПРЯМО ПОД огнём (чуть вытянуто
       // по горизонтали в 3/4), ореол — в самой точке огня; без q[7] (старые источники) — по центру, ореол на высоте q[5]
-      const fk = q[9] ?? 1, flk = 1 - fk * (1 - fl);
-      if (q[7]) { emitterGround(q[0], q[1], q[7], G2); put(G2[0], G2[1], q[2], q[3], q[4] * lk * flk, 0.02, LT.poolEl);
-        emitterWorld(q[0], 0, q[1], q[7], 0, W3); put(W3[0], W3[2], q[2], Math.max(1.0, q[3] * 0.3 * LT.halo), Math.min(1, q[4] * 0.95) * lk * flk, W3[1]); }
-      else { put(q[0], q[1], q[2], q[3], q[4] * lk * flk);
-        if (q[5] > 0) put(q[0], q[1], q[2], Math.max(1.2, q[3] * 0.34), Math.min(1, q[4] * 0.95) * lk * flk, q[5]); }
+      const fk = q[9] ?? 1, flk = 1 - fk * (1 - fl), kk = Number(LT[q[8] ? 'kFire' : q[10] === 'window' || q[10] === 'door' ? 'kWindow' : 'kLamp'] ?? 1), pr0 = q[3] * (Number(LT.pool) || 1); if (kk <= 0.001) continue;
+      if (q[7]) { emitterGround(q[0], q[1], q[7], G2); put(G2[0], G2[1], q[2], pr0, q[4] * lk * flk * kk, 0.02, LT.poolEl);
+        emitterWorld(q[0], 0, q[1], q[7], 0, W3); put(W3[0], W3[2], q[2], Math.max(1.0, q[3] * 0.3 * LT.halo), Math.min(1, q[4] * 0.95 * kk) * lk * flk, W3[1]); }
+      else { put(q[0], q[1], q[2], pr0, q[4] * lk * flk * kk);
+        if (q[5] > 0) put(q[0], q[1], q[2], Math.max(1.2, q[3] * 0.34 * LT.halo), Math.min(1, q[4] * 0.95 * kk) * lk * flk, q[5]); }
     }
     // FX: маг, купола, розы, снаряды — светятся сами
     for (const f of src.fx || []) put(toX(f.x), toZ(f.y), f.c, f.r, f.k * Math.max(0.3, dark));
