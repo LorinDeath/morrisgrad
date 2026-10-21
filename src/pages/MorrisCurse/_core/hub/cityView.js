@@ -180,12 +180,21 @@ export class CityView {
     if (this.shell) {
       const aIn = Number.isFinite(Number(c.aIn)) ? Number(c.aIn) : SHELL.opacity_inside, aOut = Number.isFinite(Number(c.aOut)) ? Number(c.aOut) : SHELL.opacity_outside;
       const d = view ? Math.hypot(view.x - c.x, view.y - c.y) : 1e9, k = sstep(c.r - 48, c.r + 48, d), target = aIn + (aOut - aIn) * k;
-      this.shellA += (target - this.shellA) * (1 - Math.exp(-dt / 0.25)); this.shellMat.opacity = this.shellA;
+      const tn = performance.now(), rdt = Math.min(0.5, Math.max(0, (tn - (this.fadeT || tn)) / 1000)); this.fadeT = tn; // реальное время: кадр игры обрезан до 0.05 с, а переход должен длиться 0.6–0.8 с на любом FPS
+      const a0 = this.shellA; this.shellA += (target - this.shellA) * (1 - Math.exp(-rdt / 0.25)); this.shellMat.opacity = this.shellA;
+      { // метрика для плейтеста: переход по пересечениям уровней (вход 0.8→0.05, выход 0.1→0.85) в реальном времени + наибольший шаг за кадр
+        const F = this.fade || (this.fade = { t: {}, last: null, step: 0, n: 0 }), a1 = this.shellA, X = (lv, up) => (up ? a0 < lv && a1 >= lv : a0 > lv && a1 <= lv);
+        if (X(0.8, false)) { F.t.inAt = tn - rdt * 1000 * (a0 - 0.8) / Math.max(1e-6, a0 - a1); F.step = 0; F.n = 0; }
+        if (X(0.1, true)) { F.t.outAt = tn - rdt * 1000 * (0.1 - a0) / Math.max(1e-6, a1 - a0); F.step = 0; F.n = 0; }
+        F.step = Math.max(F.step, Math.abs(a1 - a0)); F.n++;
+        if (X(0.05, false) && F.t.inAt) { F.last = { dir: 'in', from: 0.8, to: 0.05, ms: Math.round(tn - F.t.inAt), frames: F.n, maxStep: +F.step.toFixed(3) }; F.t.inAt = 0; }
+        if (X(0.85, true) && F.t.outAt) { F.last = { dir: 'out', from: 0.1, to: 0.85, ms: Math.round(tn - F.t.outAt), frames: F.n, maxStep: +F.step.toFixed(3) }; F.t.outAt = 0; }
+      }
       const sf = Math.floor(T * (SHELL.fps || 8)) % (SHELL.frames || 16); this.shellMat.map.offset.set((sf % SHELL.cols) / SHELL.cols, 1 - (Math.floor(sf / SHELL.cols) + 1) / SHELL.rows);
       this.shell.visible = this.shellA > 0.003;
     }
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
   }
-  debug() { return this.cfg ? { on: this.cfg.on, name: this.cfg.name, x: this.cfg.x, y: this.cfg.y, r: this.cfg.r, ready: this.ready, glow: !!this.rimG, shellA: +(this.shellA ?? 0).toFixed(3), inHouse: this.inHouse, houses: this.houses.length, props: this.mapG ? this.mapG.children.length : 0, anim: (this.anim || []).length, center: this.center?.name || null, repel: this.stats.repel, npc: (this.cfg.npc || []).length } : null; }
+  debug() { return this.cfg ? { on: this.cfg.on, name: this.cfg.name, x: this.cfg.x, y: this.cfg.y, r: this.cfg.r, ready: this.ready, glow: !!this.rimG, shellA: +(this.shellA ?? 0).toFixed(3), fade: this.fade?.last || null, inHouse: this.inHouse, houses: this.houses.length, props: this.mapG ? this.mapG.children.length : 0, anim: (this.anim || []).length, center: this.center?.name || null, repel: this.stats.repel, npc: (this.cfg.npc || []).length } : null; }
 }
