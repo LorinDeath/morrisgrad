@@ -143,7 +143,7 @@ export function layoutChunk(plan, ci, cj) {
   plan.portals.forEach((p) => extra.push({ k: 'torch', x: p.x - 50, y: p.y + 6, s: 1, f: false }, { k: 'torch', x: p.x + 50, y: p.y + 6, s: 1, f: true }));
   plan.npcs.forEach((p, idx) => extra.push({ k: idx % 2 ? 'crate' : 'barrel', x: p.x - 40, y: p.y - 14, s: 1, f: false }, { k: 'campfire', x: p.x + 42, y: p.y - 10, s: 1, f: false }));
   const x0 = i0 * CELL, y0 = j0 * CELL, x1 = x0 + CH * CELL, y1 = y0 + CH * CELL;
-  for (const p of extra) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1) props.push(p);
+  for (const p of extra) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1 && !(plan.city && cityGround(Math.floor(p.x / CELL), Math.floor(p.y / CELL), plan.city.r))) props.push(p); // в Альказаке ставит только карта Историка (табличка маркера города не закрывает розу)
   if (plan.city) { for (const p of plan.cityP) if (p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1) props.push(p); for (const c of plan.cityW) if (c.x >= x0 && c.x < x1 && c.y >= y0 && c.y < y1) cols.push(c); }
   props.sort((a, b) => a.y - b.y);
   return { ci, cj, sheet, base, over, dover, props, cols, cmask };
