@@ -5,6 +5,7 @@ import { Minimap } from './minimap.js';
 import { worldSize } from '../../../../server/worlds/sizes.ts';
 import { RUN_ROOMS, RUN_CLASSES, ABILITIES, displayClassName } from './survivors/data.js';
 import { esc } from './ui/overlay.js';
+import { avatarUrl } from './ui/uiSkin.js';
 import { fmtTime } from './ui/runUI.js';
 
 export class GameHUD {
@@ -25,8 +26,9 @@ export class GameHUD {
     left.innerHTML = `
       <div class="hud-card">
         <div class="hud-header" id="ghud-my-head">ГЕРОЙ</div>
+        <div class="hud-who"><span class="mc-av s64" id="ghud-my-av" style="display:none"><i></i></span><div>
         <div class="hud-player-name" id="ghud-my-name">Странник</div>
-        <div class="hud-player-class" id="ghud-my-class">Душа [T]</div>
+        <div class="hud-player-class" id="ghud-my-class">Душа [T]</div></div></div>
         <div class="hud-bar-bg"><div class="hud-bar-fill hud-hp-fill" id="ghud-my-hp-bar" style="width:100%"></div></div>
         <div class="hud-bar-val" id="ghud-my-hp-val">100 / 100 HP</div>
         <div class="hud-row"><span>Навык:</span><b id="ghud-my-skill">—</b></div>
@@ -149,6 +151,7 @@ export class GameHUD {
     this.txt('ghud-my-name', username);
     this.txt('ghud-my-class', `${cls ? displayClassName(st.classId, cls.name) : 'Душа'} [C]`);
     this.txt('ghud-my-head', cls ? 'ГЕРОЙ · ТЕЛО' : 'ДУША (без тела)'); // душа вселилась в тело — карточка героя
+    { const u = avatarUrl(st.classId, d.eff?.blkVis | 0, 64), av = this.$('ghud-my-av'); if (av && av.dataset.u !== u) { av.dataset.u = u; av.style.display = u ? '' : 'none'; av.style.setProperty('--av', u ? `url('${u}')` : 'none'); av.classList.toggle('cz', u.includes('_cursed')); } } // аватар (обычный / очернённый по порогу админки)
     if (mode === 'run' && run) {
       this.txt('ghud-my-hp-bar', `${Math.max(0, (run.me.hp / run.me.maxHp) * 100)}%`, 'width');
       this.txt('ghud-my-hp-val', `${Math.ceil(run.me.hp)} / ${run.me.maxHp} HP (забег)`);

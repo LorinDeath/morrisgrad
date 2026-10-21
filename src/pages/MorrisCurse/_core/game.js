@@ -51,6 +51,9 @@ import { CLASSES, syncClassesFromServer } from './classes.js';
 import { WORLD_PORTALS as OFFLINE_PORTALS, HOME_PORTAL_HUB } from '../../../../server/worlds/portals.ts';
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
+import './styles/ui-cursed.css'; // реворк UI «проклятое + очернённое» (поверх core3d.css, html.mc-ui)
+import { initUiSkin, setUiMode, setUiCfg } from './ui/uiSkin.js';
+import { PlayerFrame } from './ui/playerFrame.js';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
 import { ChestWindow } from './ui/chest.js';
@@ -135,6 +138,7 @@ async function boot(canvasId, username, userId, api) {
   window.__CURRENT_USERNAME__ = username;
 
   const overlay = new Overlay(canvas, container);
+  initUiSkin(); // тема интерфейса: html.mc-ui, металл рамок под локацию
   overlay.showScreen('<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
 
   const THREE = await loadThree();
@@ -437,6 +441,7 @@ async function boot(canvasId, username, userId, api) {
     if (!d.ok) overlay.toast(`✖ Условие задания нарушено: ${d.reason}${d.kill ? ' — убийство не засчитано' : ''}`, '#fca5a5'); tracker.sig = ''; });
   net.on('meta_state', (d) => {
     if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
+    if (d.ui) setUiCfg(d.ui); // вид интерфейса (админка «🎨 Интерфейс»)
     if (d.gather) zone.setGlow(d.gather); // свечение узлов сбора (админка «⛏ Сбор»)
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
@@ -714,6 +719,8 @@ async function boot(canvasId, username, userId, api) {
   charBtn.className = 'mc-bookbtn mc-charbtn'; charBtn.title = 'Персонаж (C)'; charBtn.textContent = '🧙';
   charBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); tracker.tutDone('book'); toggleCharSheet(); });
   overlay.layer.appendChild(charBtn);
+  // рамка героя (лево-верх): аватар, имя, уровень, ОЗ — когда нет боковой карточки «ГЕРОЙ»
+  const pframe = new PlayerFrame(overlay.layer, { onClick: () => toggleCharSheet() });
   function updateBookBadge() {
     const n = meta.unread().total;
     const em = bookBtn.querySelector('em');
@@ -948,7 +955,7 @@ async function boot(canvasId, username, userId, api) {
     runView = new RunView(THREE, stage.scene, run, arena);
     stage.setEnvironment(arena);
     atmoWorld = 'run_' + (arena.theme || 'crypt'); atmo.setScene(atmoWorld, null, []);
-    mode = 'run';
+    mode = 'run'; setUiMode('run'); // забег — без темы реворка (там всё как было)
     runUI.show(true);
     runUI.setAbilities(run.me.abilities);
     run.resultSent = false;
@@ -993,7 +1000,7 @@ async function boot(canvasId, username, userId, api) {
     overlay.clearFloats();
     hub.attach();
     touch.setMode('hub');
-    mode = 'hub';
+    mode = 'hub'; setUiMode('hub');
     stage.follow(toX(player.x), toZ(player.y), 0, true);
   }
 
@@ -1513,6 +1520,8 @@ async function boot(canvasId, username, userId, api) {
     if (hudAcc > 0.15) {
       hudAcc = 0;
       updateTargetChip();
+      pframe.update({ show: mode === 'hub' && !!meta.hero && !hud.left.offsetParent, name: username, cls: meta.hero?.cls || player.stats.classId, lvl: meta.hero?.lvl,
+        heroName: meta.hero ? meta.heroName(meta.hero.cls || player.stats.classId) : '', hp: zone.me?.maxHp ? zone.me.hp : meta.hero?.effective?.maxHp, maxHp: zone.me?.maxHp || meta.hero?.effective?.maxHp, bk: meta.hero?.effective?.blkVis | 0 });
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
         roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes, hunt: tracker.hunt?.target || null,

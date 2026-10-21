@@ -1,3 +1,4 @@
+import { avatarHtml, uiPref, setUiPref, UI as UI_SKIN } from './uiSkin.js';
 import { upBadge } from './upBadge.js';
 import { curseTint } from './book.js';
 import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
@@ -151,7 +152,7 @@ export class Social {
         return `<div class="mc-insp-ab" tabindex="0" style="--rc:${radColor(a.rad)}">${skillIcon(a.id, 40)}<div><b>${esc(def.name)}</b><small>Сияние ${a.rad}${props.length ? ' · ' + esc(props.join(', ')) : ''} · сила ×${a.power} · кд ${a.cd} с</small></div>
           <div class="tip">${esc(def.desc || '')}</div></div>`;
       }).join('') : '<div class="mc-soc-empty">Навыки не выбраны</div>';
-      body = `<div class="mc-insp-top"><div class="mc-insp-who"><canvas class="mc-insp-pv" width="72" height="90" data-cls="${esc(d.cls)}" data-bk="${Math.max(0, Math.min(100, d.bk | 0))}" title="${d.bk ? 'Очернение героя' : esc(heroLabel(d.cls))}"></canvas><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div></div>
+      body = `<div class="mc-insp-top"><div class="mc-insp-who">${avatarHtml(d.cls, d.bk, 128, 'big')}${avatarHtml(d.cls, d.bk, 64, 'small')}<canvas class="mc-insp-pv" width="72" height="90" data-cls="${esc(d.cls)}" data-bk="${Math.max(0, Math.min(100, d.bk | 0))}" title="${d.bk ? 'Очернение героя' : esc(heroLabel(d.cls))}"></canvas><div><div class="mc-insp-name">${roleTag(d.role)}${esc(d.name)}</div><div class="mc-insp-cls">${esc(heroLabel(d.cls))} · <b>ур. ${d.lvl}</b></div></div></div>
           <div class="mc-insp-recs">${d.maxDmg ? `<div class="mc-insp-rec">Рекорд удара<br><b>${d.maxDmg.v}</b><small>${esc(whereLabel(d.maxDmg.where))}</small></div>` : ''}
           ${d.duel ? `<div class="mc-insp-rec duel">Дуэли<br><b>${d.duel.w}–${d.duel.l}</b><small>победы–поражения${d.duel.d ? ` · ничьи ${d.duel.d}` : ''}</small></div>` : ''}</div></div>
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
@@ -224,6 +225,7 @@ export class Social {
       else if (act === 'freq') this.send({ type: 'settings_set', freq: !this.settings?.freq });
       else if (act === 'dnd') this.send({ type: 'settings_set', dnd: !(this.settings?.dnd > 0) });
       else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
+      else if (act === 'uitheme') { setUiPref(b.dataset.v); this.renderSettings(); } // только это устройство, применяется сразу
     });
   }
   renderOnline() {
@@ -254,7 +256,8 @@ export class Social {
     const opt = (v, t) => `<button class="mc-btn sm ${st.duel === v ? 'gold' : ''}" data-act="duelset" data-v="${v}">${t}</button>`;
     const dndMin = st.dnd > 0 ? Math.ceil(st.dnd / 60000) : 0;
     this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>⚙️ НАСТРОЙКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('settings')}
-      <div class="mc-set"><div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
+      <div class="mc-set"><div class="mc-set-row"><span>🖥 Интерфейс</span><div class="grp"><button class="mc-btn sm ${uiPref() === 'new' && UI_SKIN.on ? 'gold' : ''}" data-act="uitheme" data-v="new"${UI_SKIN.on ? '' : ' disabled title="Новый интерфейс сейчас выключен администратором"'}>Новый</button><button class="mc-btn sm ${uiPref() === 'old' || !UI_SKIN.on ? 'gold' : ''}" data-act="uitheme" data-v="old">Старый</button></div></div>
+      <div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
       <div class="mc-set-row"><span>🌑 Мрачность</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"><b class="mc-grim-v" data-grimv="grim">${grimGet('grim')}%</b></div></div>
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"><b class="mc-grim-v" data-grimv="fog">${grimGet('fog')}%</b></div></div>
       <div class="mc-set-row"><span>🎨 Единый стиль</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('style')}" data-grim="style"><b class="mc-grim-v" data-grimv="style">${grimGet('style')}%</b></div></div>
