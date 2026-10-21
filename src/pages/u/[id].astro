@@ -1,9 +1,11 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { pidFor, uidForPid, PID_RE, CLERK_ID_RE, defaultAvatar } from '../../lib/publicId';
+import { publicItem } from '../../lib/api/profileFields';
 
 export const prerender = false;
 
-const { id } = Astro.params;
+const { id: rawId } = Astro.params;
 
 // 1. Подключение к БД
 const cfRuntime = (Astro.locals as any)?.runtime;
@@ -17,23 +19,26 @@ if (!db) {
 // МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует (для старых баз)
 try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
-// 2. Загрузка данных (Только чтение)
-const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
-
-if (!user) {
-    (Astro.locals as any).notFound = { title: "Игрок не найден", text: "Такого профиля нет." };
-    return Astro.rewrite("/404");
+// 2. Адрес — публичный номер игрока (/u/<номер>). Старые ссылки /u/user_… → 301 на новый адрес (ссылки не ломаются).
+const notFound = () => { (Astro.locals as any).notFound = { title: "Игрок не найден", text: "Такого профиля нет." }; return Astro.rewrite("/404"); };
+const key = String(rawId || '');
+if (CLERK_ID_RE.test(key)) {
+    const exists = await db.prepare('SELECT id FROM users WHERE id = ?').bind(key).first();
+    const pid = exists ? await pidFor(db, key) : null;
+    if (!pid) return notFound();
+    return new Response(null, { status: 301, headers: { Location: `/u/${pid}`, 'Cache-Control': 'public, max-age=86400' } });
 }
+const uid = PID_RE.test(key) ? await uidForPid(db, key) : null;
+const user: any = uid ? await db.prepare('SELECT * FROM users WHERE id = ?').bind(uid).first() : null;
+if (!user) return notFound();
+const pid = Number(key);
 
-// 3. Загрузка инвентаря (Последние 10)
-const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(id).all();
-const inventory = (invRes?.results || []).map((item: any) => ({
-    ...item,
-    stats: typeof item.stats === 'string' ? JSON.parse(item.stats) : (item.stats || {}),
-    setId: item.set_id,
-    setStats: typeof item.set_stats === 'string' ? JSON.parse(item.set_stats) : (item.set_stats || {}),
-    isCorrupted: !!item.is_corrupted
-}));
+// 3. Инвентарь (последние 10) — только публичные поля предмета (без user_id и служебных)
+const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(uid).all();
+const inventory = (invRes?.results || []).map((row: any) => {
+    const item: any = publicItem(row);
+    return { ...item, setId: item.set_id, setStats: item.set_stats || {}, isCorrupted: !!item.is_corrupted, stats: item.stats || {} };
+});
 ---
 
 <Layout title={`Профиль: ${user.username}`}>
@@ -42,12 +47,12 @@ const inventory = (invRes?.results || []).map((item: any) => ({
         <!-- Шапка профиля (Только просмотр) -->
         <div class="profile-header">
             <div class="avatar-section">
-                <img src={user.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${id}`} alt="Avatar" class="profile-avatar" />
+                <img src={user.avatar_url || defaultAvatar(pid)} alt="Avatar" class="profile-avatar" />
             </div>
             
             <div class="info-section">
                 <h1 class="username">{user.username || 'Без имени'}</h1>
-                <p class="user-id">ID: <span class="code">{id?.slice(0, 10)}...</span></p>
+                <p class="user-id">Игрок № <span class="code">{pid}</span></p>
                 
                 <div class="bio-box">
                     <span class="bio-label">ЛИЧНОЕ ДЕЛО:</span>

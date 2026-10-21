@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { rateLimit } from '../../lib/antiabuse';
+import { pidsFor } from '../../lib/publicId';
 
 export const prerender = false;
 
@@ -123,8 +124,12 @@ export const GET: APIRoute = async ({ locals, request }) => {
         const onlineRes = await db.prepare('SELECT COUNT(*) as count FROM users WHERE last_seen > ?').bind(oneMinuteAgo).first();
         const onlineCount = onlineRes?.count || 0;
 
+        // наружу — публичный номер автора (pid), не внутренний id Clerk
+        const pids = await pidsFor(db, results.map((m: any) => m.user_id));
+        const messages = results.map((m: any) => ({ id: m.id, message: m.message, created_at: m.created_at, pid: pids.get(m.user_id) ?? null, username: m.username, avatar_url: m.avatar_url, last_seen: m.last_seen }));
+
         return new Response(JSON.stringify({ 
-            messages: results,
+            messages,
             onlineCount 
         }), { status: 200 });
     } catch (e: any) {

@@ -40,8 +40,8 @@ async function body(req: Request, max = 256 * 1024): Promise<any> {
   try { return JSON.parse(txt || "{}"); } catch { throw new F.ForumError(400, "Неверный JSON"); }
 }
 
-/** Цель действия над участником: публичный pid или ник (userId принимается только для совместимости, наружу не отдаётся). */
-const target = (b: any) => ({ pid: b?.pid, nick: b?.nick, user_id: b?.user_id });
+/** Цель действия над участником: только публичный pid или ник (внутренний userId Clerk от клиента не принимается). */
+const target = (b: any) => ({ pid: b?.pid, nick: b?.nick });
 
 function randKey(n = 16) {
   const a = new Uint8Array(n); crypto.getRandomValues(a);
@@ -110,7 +110,9 @@ export async function handleForumApi(req: Request, env: ForumEnv, uid: string | 
         }
         case "comments": return json(await F.getComments(db, v, Number(parts[1]), page), 200, cacheH);
         case "user": {
-          const a = await F.getAuthor(db, v, decodeURIComponent(parts[1] || ""), page);
+          const key = decodeURIComponent(parts[1] || "");
+          // только публичный номер; по id Clerk API не ищет (иначе по нему можно узнать номер и связать аккаунты)
+          const a = /^[1-9]\d{0,8}$/.test(key) ? await F.getAuthor(db, v, Number(key), page) : null;
           return a ? json(a) : json({ error: "Пользователь не найден" }, 404);
         }
         case "online": return json({ online: await F.online(db) });

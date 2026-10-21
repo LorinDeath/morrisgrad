@@ -278,6 +278,7 @@ export async function getComments(db: any, v: Viewer, topicId: number, page = 1)
 export async function getAuthor(db: any, v: Viewer, key: number | string, page = 1) {
   const s = await getSettings(db);
   const byPid = typeof key === "number" || /^\d+$/.test(String(key));
+  if (!byPid && !/^user_[A-Za-z0-9]{8,64}$/.test(String(key))) return null; // строковый ключ — только старый адрес /forum/u/<id Clerk> (редирект)
   const u = await db.prepare(`SELECT u.user_id, u.pid, u.nick, u.avatar_key, u.signature, u.topics_count, u.posts_count, u.karma, u.first_seen, u.last_seen, r.role FROM forum_users u LEFT JOIN player_roles r ON r.pkey = 'uid:' || u.user_id WHERE ${byPid ? "u.pid = ?" : "u.user_id = ?"}`).bind(byPid ? Number(key) : String(key)).first();
   if (!u) return null;
   const uid = u.user_id;

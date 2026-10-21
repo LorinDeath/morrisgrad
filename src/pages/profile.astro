@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { sniff } from '../lib/forum/media';
 import { siteNickProblem } from '../lib/security';
+import { pidFor, defaultAvatar } from '../lib/publicId';
 
 // 1. Получаем доступ к базе данных Cloudflare D1
 const cfRuntime = (Astro.locals as any)?.runtime;
@@ -30,6 +31,7 @@ if (!db) {
 let message = "";
 let messageType = ""; // 'success' | 'error'
 let user = null;
+let myPid: number | null = null; // публичный номер (адрес /u/<номер>)
 let inventory = [];
 
 try {
@@ -225,6 +227,8 @@ try {
         }
     }
 
+    myPid = await pidFor(db, userId);
+
     // 5. Загружаем инвентарь
     const invRes = await db.prepare('SELECT * FROM user_items WHERE user_id = ? ORDER BY created_at DESC LIMIT 10').bind(userId).all();
     inventory = (invRes?.results || []).map((item: any) => ({
@@ -237,7 +241,7 @@ try {
 
 } catch (e: any) {
     console.error("Profile Error:", e);
-    return new Response(`Ошибка загрузки профиля: ${e.message || e}. \n\nВозможно, не созданы таблицы в базе данных. Попробуйте выполнить команды создания таблиц (users, inventory).`, { status: 500 });
+    return new Response('Ошибка загрузки профиля. Попробуйте обновить страницу позже.', { status: 500 });
 }
 ---
 
@@ -248,19 +252,19 @@ try {
         <div class="profile-header">
             <div class="avatar-section">
                 <!-- Генерируем аватар по ID, если нет своего -->
-                <img src={user.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${userId}`} alt="Avatar" class="profile-avatar" />
+                <img src={user.avatar_url || defaultAvatar(myPid)} alt="Avatar" class="profile-avatar" />
             </div>
             
             <div class="info-section">
                 <h1 class="username">{user.username || 'Без имени'}</h1>
-                <p class="user-id">ID: <span class="code">{userId.slice(0, 10)}...</span></p>
+                {myPid && <p class="user-id">Игрок № <span class="code">{myPid}</span></p>}
                 
                 <!-- Отображение описания текстом -->
                 <p class="user-bio">{user.description || "Нет описания"}</p>
 
                 <div style="color: #a020f0; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #a020f0;">🔥 АДСКИЙ ОГОНЬ: {user.hellfire || 0}</div>
 
-                <a href={`/u/${userId}`} class="public-btn" target="_blank">👁️ Посмотреть как видят другие</a>
+                {myPid && <a href={`/u/${myPid}`} class="public-btn" target="_blank">👁️ Посмотреть как видят другие</a>}
                 <a href="/inventory" class="public-btn" style="border-color: #ffd700; color: #ffd700; margin-left: 10px;">📦 Полный Инвентарь</a>
                 
                 {message && (

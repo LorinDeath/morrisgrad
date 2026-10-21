@@ -7,6 +7,7 @@ import { renderMd, plainText, freshHtml, hasExternalImg } from "../../src/lib/fo
 import { filterText, compileWords, DEFAULT_WORDS } from "../../src/lib/forum/profanity";
 import { clearSettingsCache } from "../../src/lib/forum/settings";
 import { sniff, stripMeta } from "../../src/lib/forum/media";
+import { getAuthor } from "../../src/lib/forum/service";
 
 let fails = 0, passes = 0;
 const ok = (c: any, m: string) => { if (c) passes++; else { fails++; console.log("FAIL " + m); } };
@@ -203,17 +204,17 @@ await fresh();
   r = await call("mod1", "GET", "reports"); ok(r.data.reports.length === 0, "очередь пуста после решения");
 
   // бан
-  r = await call("u4", "POST", "ban", { user_id: "u1", minutes: 60 }); ok(r.status === 403, "пользователь не может банить");
-  r = await call("mod1", "POST", "ban", { user_id: "admin1", minutes: 60 }); ok(r.status === 403, "модератор не может забанить админа");
-  r = await call("mod1", "POST", "ban", { user_id: "u4", minutes: 60, reason: "спам" }); ok(r.status === 200, "модератор ограничивает пользователя на 60 мин");
+  r = await call("u4", "POST", "ban", { pid: pidOf("u1"), minutes: 60 }); ok(r.status === 403, "пользователь не может банить");
+  r = await call("mod1", "POST", "ban", { pid: pidOf("admin1"), minutes: 60 }); ok(r.status === 403, "модератор не может забанить админа");
+  r = await call("mod1", "POST", "ban", { pid: pidOf("u4"), minutes: 60, reason: "спам" }); ok(r.status === 200, "модератор ограничивает пользователя на 60 мин");
   r = await call("u4", "POST", "topic/" + tid + "/comments", { body: "я снова тут" }); ok(r.status === 403 && r.data.code === "banned", "забаненный не пишет");
   r = await call("u4", "POST", "like", { type: "t", id: tid }); ok(r.status === 403, "забаненный не лайкает");
   r = await call(null, "GET", "topic/" + tid); ok(r.status === 200, "читать форум забаненный/гость может");
-  await call("mod1", "POST", "unban", { user_id: "u4" });
+  await call("mod1", "POST", "unban", { pid: pidOf("u4") });
   r = await call("u4", "POST", "topic/" + tid + "/comments", { body: "спасибо" }); ok(r.status === 200, "после снятия ограничения снова пишет");
 
   // блокировка автора для себя
-  await call("u2", "POST", "block", { user_id: "u1" });
+  await call("u2", "POST", "block", { pid: pidOf("u1") });
   r = await call("u2", "GET", "feed?tab=new"); ok(!r.data.items.some((x: any) => x.author.pid === pidOf("u1")), "скрытый автор пропал из ленты у того, кто скрыл");
   r = await call("u3", "GET", "feed?tab=new"); ok(r.data.items.some((x: any) => x.author.pid === pidOf("u1")), "у остальных автор виден");
 
@@ -263,9 +264,9 @@ await fresh();
   r = await call("admin1", "POST", "comment/" + cA + "/restore", {}); ok(r.status === 200, "админ восстанавливает комментарий");
   r = await call(null, "GET", "comments/" + tA); ok(r.data.items[0].body_html.includes("коммент A"), "комментарий снова виден");
   r = await call("fm_sec", "GET", "reports"); ok(r.status === 200, "модератор раздела видит очередь жалоб (своих разделов)");
-  r = await call("fm_sec", "POST", "ban", { user_id: "fm_all", minutes: 10 }); ok(r.status === 403, "модератор не может ограничить другого модератора");
-  r = await call("fm_sec", "POST", "ban", { user_id: "w2", minutes: 10 }); ok(r.status === 200, "модератор ограничивает участника");
-  r = await call("admin1", "POST", "moderators/remove", { user_id: "fm_sec", section_id: 3 }); ok(r.status === 200, "админ снимает модератора");
+  r = await call("fm_sec", "POST", "ban", { pid: pidOf("fm_all"), minutes: 10 }); ok(r.status === 403, "модератор не может ограничить другого модератора");
+  r = await call("fm_sec", "POST", "ban", { pid: pidOf("w2"), minutes: 10 }); ok(r.status === 200, "модератор ограничивает участника");
+  r = await call("admin1", "POST", "moderators/remove", { pid: pidOf("fm_sec"), section_id: 3 }); ok(r.status === 200, "админ снимает модератора");
   r = await call("fm_sec", "POST", "comment/" + cA + "/hide", { value: true }); ok(r.status === 403, "после снятия права пропали");
   r = await call(null, "GET", "topic/" + tA); ok(r.status === 200, "чтение работает");
   const t2 = await call(null, "GET", "topic/" + tB); ok(t2.data.topic.author.nick === "Ник_w1", "автор не меняется при восстановлении");
@@ -359,7 +360,9 @@ await fresh();
   ok(r.data.team.some((m: any) => m.role === "moderator" && /^Игрок #\d+$/.test(m.nick) && m.pid > 0), "команда: игровой модератор без профиля показан как «Игрок #N», не id");
   ok(r.data.team.some((m: any) => m.nick === "Тёмный_Рыцарь" && m.scope.includes("Проклятые")), "команда: модератор раздела с зоной");
   r = await call(null, "GET", "user/" + p); ok(r.status === 200 && r.data.user.pid === p && r.data.user.nick === "Тёмный_Рыцарь", "профиль по номеру");
-  r = await call(null, "GET", "user/" + encodeURIComponent(CLERK)); ok(r.status === 200 && r.data.user.pid === p, "старый адрес по userId находит профиль (для редиректа)");
+  r = await call(null, "GET", "user/" + encodeURIComponent(CLERK)); ok(r.status === 404, "API не ищет по id Clerk (нельзя связать id Clerk с номером)");
+  { const a: any = await getAuthor(env.PROFILES_DB, { uid: null } as any, CLERK); ok(a && a.user.pid === p, "страница: старый адрес /forum/u/<id Clerk> находит профиль (для 301)"); }
+  ok(await getAuthor(env.PROFILES_DB, { uid: null } as any, "Тёмный_Рыцарь") === null, "страница: произвольная строка (ник) — не найдено");
   r = await call("admin1", "GET", "modlog");
   ok(r.data.log.some((l: any) => l.action === "ban" && l.target_id === String(pidOf("u_bad")) && l.target_nick), "журнал: цель — номер и ник участника");
   r = await call("u2", "GET", "users?q=т"); ok(r.status === 403, "поиск участников — только модераторам");
