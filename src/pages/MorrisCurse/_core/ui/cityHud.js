@@ -23,6 +23,8 @@ export class CityHud {
   /** мир сменился: кнопка — только в Аринаре */
   setWorld(w) { if (w === this.world) return; this.world = w; this.render(); }
   get pk() { return !!this.st.pk; }
+  /** купол не пустит (PK или убийца по журналу) — клиент не предсказывает шаг внутрь (сервер всё равно решает) */
+  get barred() { const k = this.st.killer; return !!this.st.pk || !!(k && k.endAt > performance.now()); }
   get color() { return this.st.color || '#ef4444'; }
   onPk(d) {
     const was = this.st;

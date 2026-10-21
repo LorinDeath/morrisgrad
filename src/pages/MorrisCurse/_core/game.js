@@ -7,7 +7,7 @@ import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
 import { CityHud } from './ui/cityHud.js';
-import { CITY_CFG } from '../../../../server/meta/city.ts';
+import { CITY_CFG, inCity } from '../../../../server/meta/city.ts';
 import { tickSpriteTime } from './engine/spriteBatch.js';
 import { initGrim, grimSet, onGrimStyle } from './ui/grim.js';
 import { UnifyPass } from './engine/unify.js';
@@ -1600,8 +1600,9 @@ async function boot(canvasId, username, userId, api) {
       const [blo, bhi] = boundsAt(world, player.x, player.y), inRm = world === 'arinar' && inRoomPt(player.x, player.y), lo = inRm ? blo : Math.max(16, blo), hi = inRm ? bhi : Math.min(worldSize(world) - 16, bhi); // арена: стены; дом города — комната
       const nx = Math.max(lo, Math.min(hi, player.x + vx * dt));
       const ny = Math.max(lo, Math.min(hi, player.y + vy * dt));
-      if (inRm || !hub.map.isBlocked(nx, player.y, 10)) player.x = nx;
-      if (inRm || !hub.map.isBlocked(player.x, ny, 10)) player.y = ny;
+      const barred = world === 'arinar' && !inRm && cityHud.barred && !inCity(player.x, player.y, 12); // убийце купол не даст войти — не шагаем внутрь (без рывков pos_fix)
+      if ((inRm || !hub.map.isBlocked(nx, player.y, 10)) && !(barred && inCity(nx, player.y, 12))) player.x = nx;
+      if ((inRm || !hub.map.isBlocked(player.x, ny, 10)) && !(barred && inCity(player.x, ny, 12))) player.y = ny;
       // твёрдые пропсы v2 — то же выталкивание, что делает сервер (предсказание без рывков)
       if (world !== 'arena' || !duel.inArena) { const [px, py] = resolveWorld(world, player.x, player.y); player.x = Math.max(lo, Math.min(hi, px)); player.y = Math.max(lo, Math.min(hi, py)); }
     }

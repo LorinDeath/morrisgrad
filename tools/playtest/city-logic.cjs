@@ -7,8 +7,7 @@ const OUT = process.env.OUT || '/workspace/morrisgrad-round3/dome-city/logic';
 const BASE = process.env.C_BASE || 'http://127.0.0.1:5297/game.html', WS = process.env.C_WS || 'ws://127.0.0.1:8883';
 assertLocalUrl(BASE); assertLocalUrl(WS);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CX = 24624, CY = 3376, R = 1024;
-const INN = { door: { x: 24944, y: 3733 }, out: [24944, 3773] }, ELDER = { door: { x: 24304, y: 3093 } };
+const CX = 24624, CY = 3376; let R = 1280, INN, ELDER; // радиус и двери — с сервера (dev_city.city): раскладка растягивается по rTiles
 let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n)) : (bad++, console.log('FAIL', n, x === undefined ? '' : JSON.stringify(x))); };
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -25,6 +24,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
     for (let i = 0; i < 8 && (await p.G(() => window.__game.state().world)) !== 'arinar'; i++) { await p.G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 240, y: 600 }); window.__game.debug.teleport(240, 600); }); await sleep(1200); await p.G(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
   };
   const pos = (p) => p.G(() => { const s = window.__game.state(); return { x: Math.round(s.player.x), y: Math.round(s.player.y), w: s.world }; });
+  const spos = async (p) => { const d = await dev(p, {}); return d ? { x: d.me.x, y: d.me.y, w: d.me.w } : await pos(p); }; // позиция на сервере (авторитет)
   const city = (p) => p.G(() => window.__game.debug.city());
   const dev = async (p, o) => { await p.G((o) => { window.__devCity = null; window.__game.debug.rawSend({ type: 'dev_grant', city: o }); }, o); await p.waitForFunction(() => window.__devCity, null, { timeout: 5000 }).catch(() => {}); return p.G(() => window.__devCity); };
   const walk = async (p, key, ms) => { await p.mouse.move(640, 380); await p.keyboard.down(key); await sleep(ms); await p.keyboard.up(key); await sleep(400); };
@@ -32,7 +32,9 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   const shot = async (p, n, cells = 14) => { await p.G((c) => window.__game.debug.setCells(c), cells); await sleep(1800); await p.screenshot({ path: `${OUT}/${n}.png` }); console.log('shot', n); };
 
   const A = await open('city_admin'); await toArinar(A); t('A в Аринаре', (await pos(A)).w === 'arinar');
-  await dev(A, { pk: false, clearKills: true });
+  const d0 = await dev(A, { pk: false, clearKills: true }); R = d0.city.r;
+  const bd = (id) => { const b = d0.city.b.find((x) => x[0] === id); return { door: { x: b[8], y: b[9] }, out: [b[8], b[9] + 40], ox: b[5] }; };
+  INN = bd('inn'); ELDER = bd('elder'); console.log('R', R, 'inn', JSON.stringify(INN), 'elder', JSON.stringify(ELDER));
   // ——— 1. дверь трактира: вход ———
   await tp(A, INN.door.x, INN.door.y + 70); await shot(A, '10-door-inn-outside', 12);
   await walk(A, 'w', 1600); await sleep(600);
@@ -41,10 +43,10 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   await sleep(1500); c = await city(A); t('интерьер построен из interiors_dark.json (пол + пропсы)', c.room?.built && c.room.props > 5, c.room);
   await shot(A, '11-inn-interior', 12);
   // ходьба внутри: стены держат
-  await walk(A, 'a', 2500); const qa = await pos(A); t('в комнате: стена держит (не вышел за комнату)', qa.x >= -25000 + 32 && qa.x <= -25000 + 15 * 32 && qa.y > -25000 && qa.y < -25000 + 13 * 32, qa);
+  await walk(A, 'a', 2500); const qa = await pos(A); t('в комнате: стена держит (не вышел за комнату)', qa.x >= INN.ox + 32 && qa.x <= INN.ox + 15 * 32 && qa.y > INN.ox && qa.y < INN.ox + 13 * 32, qa);
   await walk(A, 'd', 900);
   // ——— 2. выход: вниз через порог E ———
-  for (let i = 0; i < 6 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = -25000 + 7.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 1400); }
+  for (let i = 0; i < 12 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = INN.ox + 7.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 450); }
   q = await pos(A); c = await city(A);
   t('выход: снова на улице у двери трактира', q.x > 20000 && Math.hypot(q.x - INN.out[0], q.y - INN.out[1]) < 80 && !c.room, { q, c });
   await shot(A, '12-inn-exit-outside', 12);
@@ -58,7 +60,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   t('переподключение в доме: снова в комнате старосты', q.w === 'arinar' && c.room?.id === 'elder' && q.x < -10000, { q, c });
   await shot(A, '14-reconnect-in-house', 12);
   // выйти
-  for (let i = 0; i < 6 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = -20000 + 6.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 1400); }
+  for (let i = 0; i < 6 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = ELDER.ox + 6.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 1400); }
   t('из дома старосты вышел', (await pos(A)).x > 20000, await pos(A));
 
   // ——— 5. PK-кнопка: отсчёт 7 с, красное имя ———
@@ -70,7 +72,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   const lab = (await city(A)).labels; t('PK: имя красное с ⚔', lab.some((l) => /city_admin/.test(l.text) && /239, 68, 68|ef4444/i.test(l.color)), lab);
   await shot(A, '21-pk-on-red-name', 12);
   // ——— 6. убийца у купола: не пускает, плашка с причиной ———
-  await tp(A, CX + R + 60, CY); await walk(A, 'a', 2200); q = await pos(A); h = (await city(A)).hud;
+  await tp(A, CX + R + 60, CY); await walk(A, 'a', 2200); await sleep(500); q = await spos(A); h = (await city(A)).hud;
   t('PK не пускает в купол: остался снаружи', Math.hypot(q.x - CX, q.y - CY) > R, q);
   t('плашка «купол не пускает»', /PK/.test(h.deny || ''), h); await sleep(200); await shot(A, '22-pk-denied-dome', 14);
 
@@ -93,13 +95,13 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   // ——— 9. выключить PK: 30 с; убийца по журналу — купол всё равно не пускает (10 мин) ———
   await A.click('.ch-pk'); await sleep(1000); h = (await city(A)).hud; t('PK: отсчёт выключения 30 с', h.to === false && /Выход/.test(h.label), h);
   await shot(A, '26-pk-exit-countdown', 12);
-  await dev(A, { pk: false }); await tp(A, CX + R + 60, CY); await walk(A, 'a', 2200); q = await pos(A); h = (await city(A)).hud;
+  await dev(A, { pk: false }); await tp(A, CX + R + 60, CY); await walk(A, 'a', 2200); await sleep(500); q = await spos(A); h = (await city(A)).hud;
   t('убийца игрока (без PK) — купол не пускает', Math.hypot(q.x - CX, q.y - CY) > R && /убили игрока/.test(h.deny || ''), { q, h });
   await shot(A, '27-killer-denied', 14);
   // ——— 10. мобы: 5 за 10 мин ———
-  await dev(A, { clearKills: true }); await dev(A, { mobKills: 5 }); await tp(A, CX + R + 60, CY); await walk(A, 'a', 2200); q = await pos(A); h = (await city(A)).hud;
+  await dev(A, { clearKills: true }); await dev(A, { mobKills: 5 }); await tp(A, CX + R + 60, CY); await walk(A, 'a', 2200); await sleep(500); q = await spos(A); h = (await city(A)).hud;
   t('5 мобов за 10 мин — купол не пускает', Math.hypot(q.x - CX, q.y - CY) > R && /мобов/.test(h.deny || ''), { q, h });
-  await dev(A, { clearKills: true }); await walk(A, 'a', 2200); q = await pos(A); t('без убийств — пускает', Math.hypot(q.x - CX, q.y - CY) < R, q);
+  await dev(A, { clearKills: true }); await walk(A, 'a', 2200); q = await spos(A); t('без убийств — пускает', Math.hypot(q.x - CX, q.y - CY) < R, q);
   // ——— 11. убийца внутри дома — выставляет наружу за купол ———
   await tp(A, INN.door.x, INN.door.y + 70); await walk(A, 'w', 1600); await sleep(900); t('снова в трактире', (await city(A)).room?.id === 'inn');
   await dev(A, { mobKills: 5 }); await sleep(1500); q = await pos(A); c = await city(A);
@@ -112,7 +114,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   console.log('roses', JSON.stringify(rs)?.slice(0, 600));
   if (rs) { const cr = rs.find((r) => String(r.id) === '1792366351175927'); t('роза города: стадия 6, земли нет (nc)', cr && cr.stage === 6 && cr.nc && !cr.curseR, cr);
     const inR = rs.find((r) => String(r.id) === '900000000000002'); t('другая роза под куполом — раскрыта по возрасту, земля не рисуется (сервер: не проклинает)', inR && inR.stage === 6, inR); }
-  await tp(A, 25900, 3376); await sleep(2500); await shot(A, '31-rose-outside-normal-curse', 16);
+  await tp(A, 26150, 3376); await sleep(2500); await shot(A, '31-rose-outside-normal-curse', 16);
   await tp(A, 24900, 3480); await sleep(2500); await shot(A, '32-rose-inside-dome-no-curse', 14);
   console.log('errors A', A.errs.slice(0, 5), 'B', B.errs.slice(0, 5));
   console.log(`\n${ok} ok, ${bad} fail`);

@@ -163,6 +163,6 @@ export function cityNpcDefs(): Record<string, any> {
 export function syncCityNpcs(NPCS: Record<string, any>) { for (const [id, d] of Object.entries(cityNpcDefs())) { if (NPCS[id]) Object.assign(NPCS[id], d); else NPCS[id] = d; } }
 /** клиенту: что рисовать (без правил убийц) */
 export const cityClient = () => ({ on: cityOn(), name: CITY_CFG.name, cp: CITY_CFG.centerpiece, x: CITY_CFG.x, y: CITY_CFG.y, r: cityR(), rTiles: Number(CITY_CFG.rTiles) || 32, aIn: CITY_CFG.alphaIn, aOut: CITY_CFG.alphaOut, rim: CITY_CFG.rim, color: CITY_CFG.color, tint: CITY_CFG.groundTint,
-  b: cityBuildings().map((b) => [b.id, b.key, b.x, b.y, b.room || "", b.ox, b.oy, b.name]),
+  b: cityBuildings().map((b) => [b.id, b.key, b.x, b.y, b.room || "", b.ox, b.oy, b.name, b.door ? b.door.x : 0, b.door ? b.door.y : 0]), // + дверь (триггер)
   npc: (CITY_CFG.npc as any[]).map((s, i) => { const p = s.on ? slotPos(s) : null; return p ? { id: cityNpcId(i), name: s.name, title: s.title, look: s.look, x: p[0], y: p[1], f: p[2], house: s.house || "" } : null; }).filter(Boolean) });
 export { CITY_SLOTS, CITY_LOOKS };
