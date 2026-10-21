@@ -5,11 +5,12 @@
 // Оба листа генерируются скриптами tools/mc-sprites/ (см. README там же).
 import { sortKey, depthZ } from './spriteBatch.js';
 let PIX_SEQ = 0;
-// вид героев с сервера (meta_state.bmv): яркость неосвещённого спрайта героя (было 1 — ярче освещённой земли), глитч очернения
-export const BLK_FX = { heroLight: 0.82, glitch: true, hz: 0.7 };
+// вид героев с сервера (meta_state.bmv): яркость спрайта героя (1 — как в атласе; 0.82 раньше гасило засвет, см. pixColor.js), глитч очернения
+export const BLK_FX = { heroLight: 1, glitch: true, hz: 0.7 };
 import charsSrc from '../../../../assets/mc/chars_atlas.png';
 import heroesHdSrc from '../../../../assets/mc/heroes_atlas.png';
 import { GRADE } from './atmosphere.js';
+import { LIGHT, pixTex, setDisplayRGB, setDisplayHex } from './pixColor.js';
 import mobsSrc from '../../../../assets/mc/mobs_atlas.png';
 import { loadAtlasTexture } from './spriteBatch.js';
 
@@ -65,7 +66,7 @@ export class PixCharacter {
     this.mobType = isLook ? kind.slice(5) : null;
     const base = isLook ? atlases.mobs : atlases.heroes;
     if (!base) throw new Error('атлас не загружен');
-    const tex = nearest(THREE, base.clone());
+    const tex = pixTex(THREE, nearest(THREE, base.clone())); // sRGB-атлас: SpriteMaterial декодирует → на экране пиксель как в листе (pixColor.js)
     tex.needsUpdate = true;
     const cell = isLook ? MOB_CELL : HERO_CELL;
     tex.repeat.set(1 / cell.cols, 1 / cell.rows);
@@ -81,7 +82,8 @@ export class PixCharacter {
     const g = new THREE.Group();
     g.add(sp);
     // мягкая тень-«блоб»
-    const sh = new THREE.Mesh(new THREE.CircleBufferGeometry(0.55, 14), new THREE.MeshBasicMaterial({ color: 0x0a0614, transparent: true, opacity: 0.38, depthWrite: false }));
+    const sh = new THREE.Mesh(new THREE.CircleBufferGeometry(0.55, 14), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.38, depthWrite: false, toneMapped: false }));
+    setDisplayHex(sh.material.color, 0x0a0614); this.shMat = sh.material;
     sh.rotation.x = -Math.PI / 2; sh.scale.set(1.1, 0.6, 1); sh.position.set(0.06, 0.03, 0.03); sh.renderOrder = 1;
     g.add(sh);
     this.group = g;
@@ -105,7 +107,8 @@ export class PixCharacter {
 
   update(dt, moving, t, dirX = 0, dirY = 1) {
     { const gz = this.group.position.z; this.sprite.position.z = depthZ(gz, this.key) - gz; } // стабильный порядок слоёв (как SpriteBatch)
-    if (!this.tinted && GRADE.value) { this.sprite.material.color.copy(GRADE.value); if (!this.mobType) this.sprite.material.color.multiplyScalar(BLK_FX.heroLight); } // тон зоны (atmosphere.js) × яркость героев (админка)
+    if (!this.tinted && GRADE.value) { const G = GRADE.value, k = this.mobType ? LIGHT.hero : BLK_FX.heroLight * LIGHT.hero; setDisplayRGB(this.sprite.material.color, G.r * k, G.g * k, G.b * k); } // тон зоны × яркость (админка) — экранный множитель, как uGrade у SpriteBatch
+    this.shMat.opacity = 0.38 * LIGHT.shadow;
     this.phase += dt * (moving ? 8 : 0);
     if (Math.abs(dirX) + Math.abs(dirY) > 0.01) this.dRow = dirRow(dirX, dirY);
     if (this.mobType) {
@@ -212,7 +215,7 @@ export class PixCharacter {
 
   setTint(hex, k = 0) {
     this.tinted = k > 0 && hex != null;
-    if (this.tinted) this.sprite.material.color.setHex(hex).lerp(new this.THREE.Color(1, 1, 1), 1 - k);
+    if (this.tinted) { const c = this.sprite.material.color.setHex(hex).lerp(new this.THREE.Color(1, 1, 1), 1 - k); setDisplayRGB(c, c.r, c.g, c.b); }
     else this.sprite.material.color.setRGB(1, 1, 1);
   }
 }

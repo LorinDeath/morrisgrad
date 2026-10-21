@@ -6,6 +6,7 @@ import tilesMeta from '../../../../assets/mc/tiles_atlas.json';
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ, PX } from '../engine/geometry.js';
+import { LIGHT, onLight, pixTex, pixMat, setDisplayRGB } from '../engine/pixColor.js';
 import { ArinarTerrain } from './terrainChunks.js';
 
 import { CELL, MARGIN, layoutWorld } from '../../../../../server/meta/worldLayout.ts';
@@ -53,7 +54,9 @@ export async function buildTerrain(THREE, world) {
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipMapLinearFilter; tex.anisotropy = 4;
   const span = (L.N * CELL) / PX; // метры
   // пиксели «как есть» (без пересвета от hemi/sun), общий тон — множителем; туман применяется
-  const mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xd6d2e0 });
+  // цвет: тайл × LIGHT.ground × k — экранный множитель (sRGB-канвас декодируется, без ACES — engine/pixColor.js)
+  const mat = pixMat(new THREE.MeshBasicMaterial({ map: pixTex(THREE, tex) }));
+  let lightK = 1; const paint = () => setDisplayRGB(mat.color, LIGHT.ground * lightK); paint(); onLight(paint);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(span, span), mat);
   ground.rotation.x = -Math.PI / 2;
   const c0 = -MARGIN * CELL + (L.N * CELL) / 2;
@@ -69,5 +72,5 @@ export async function buildTerrain(THREE, world) {
   for (const p of L.props) batch.push(p.k, p.x, p.y, toX(p.x), toZ(p.y), p.s, p.f);
   batch.end();
   for (const B of batch.list) B.mesh.name = 'props';
-  return { group, layout: L, ground, batch, setLight: (k) => { batch.setLight(k); mat.color.setScalar(0.84 * k); } };
+  return { group, layout: L, ground, batch, setLight: (k) => { batch.setLight(k); lightK = k; paint(); } };
 }
