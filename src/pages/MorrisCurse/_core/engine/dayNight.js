@@ -27,7 +27,11 @@ export class DayNight {
   constructor(THREE, stage, { mobile = false } = {}) {
     this.THREE = THREE; this.stage = stage; this.mobile = mobile; this.q = 0;
     this.base = { min: 12 * 60, rate: 1, t: performance.now() }; this.state = dnAt(720); this.active = false; this.stats = { lights: 0, ms: 0 };
-    this.rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+    // маска в half-float: под огнями она может быть > 1 (тёплое пятно светлее дня, до MASK_MAX), без засветки в белый
+    const R0 = stage.renderer, X = R0?.extensions, has = (e) => { try { return !!X?.has?.(e); } catch (_) { return false; } };
+    const hf = !!R0 && (R0.capabilities?.isWebGL2 ? has('EXT_color_buffer_float') || has('EXT_color_buffer_half_float') : has('OES_texture_half_float') && has('EXT_color_buffer_half_float')); // иначе 8 бит (маска ≤ 1)
+    this.hdr = hf;
+    this.rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, type: hf ? THREE.HalfFloatType : THREE.UnsignedByteType });
     // пятна света на земле: один InstancedMesh, свой атрибут цвета × силы на экземпляр (instanceColor в three r128 давал чёрный — пятна не светили)
     const geo = new THREE.PlaneBufferGeometry(1, 1); geo.rotateX(-Math.PI / 2);
     this.lcol = new THREE.InstancedBufferAttribute(new Float32Array(384 * 3), 3); this.lcol.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aCol', this.lcol);
@@ -41,11 +45,13 @@ export class DayNight {
     this.lscene = new THREE.Scene(); this.lscene.add(this.lights);
     // умножение кадра на маску
     this.cmat = new THREE.ShaderMaterial({
-      uniforms: { tMask: { value: this.rt.texture } },
+      uniforms: { tMask: { value: this.rt.texture }, uMax: { value: hf ? Number(DN_CFG.maskMax) || 1.45 : 1 } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-      fragmentShader: 'uniform sampler2D tMask; varying vec2 vUv; void main(){ gl_FragColor = vec4(texture2D(tMask, vUv).rgb, 1.0); }',
+      // кадр × маска в экранном (sRGB) пространстве — как GRADE/LIGHT (engine/pixColor.js). Маска до 2: выход = маска/2,
+      // смешивание src·dst + dst·src = маска·dst (буфер кадра 8 бит режет выход шейдера до 1 — так множитель > 1 проходит)
+      fragmentShader: 'uniform sampler2D tMask; uniform float uMax; varying vec2 vUv; void main(){ gl_FragColor = vec4(min(texture2D(tMask, vUv).rgb, vec3(uMax)) * 0.5, 1.0); }',
       transparent: true, depthTest: false, depthWrite: false,
-      blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.SrcColorFactor,
+      blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.DstColorFactor, blendDst: THREE.SrcColorFactor,
     });
     const quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.cmat); quad.frustumCulled = false;
     this.cscene = new THREE.Scene(); this.cscene.add(quad); this.ccam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -112,6 +118,7 @@ export class DayNight {
   /** после кадра: маска → умножение. Возвращает true, если проход выполнен */
   render(renderer, camera) {
     if (!this.active) return false;
+    this.cmat.uniforms.uMax.value = this.hdr ? Math.max(1, Math.min(2, Number(DN_CFG.maskMax) || 1.45)) : 1;
     const T = this.THREE, s = renderer.getDrawingBufferSize(this._v || (this._v = new T.Vector2()));
     const k = this.mobile || this.q >= 2 ? 0.25 : this.q === 1 ? 0.34 : 0.5;
     const w = Math.max(16, Math.round(s.x * k)), h = Math.max(16, Math.round(s.y * k));
@@ -125,6 +132,6 @@ export class DayNight {
     renderer.autoClear = prevAuto; renderer.toneMapping = tm; renderer.setClearColor(prevClear, prevA);
     return true;
   }
-  debug() { const s = this.state, m = this.minutes(); return { time: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`, min: +m.toFixed(2), phase: s.phase, p: +s.p.toFixed(3), dark: +s.dark.toFixed(3), lights: +s.lights.toFixed(3), color: this.col?.map((x) => +x.toFixed(3)), active: this.active, n: this.stats.lights, ms: this.stats.ms, reduce: dnReduceGet() }; }
+  debug() { const s = this.state, m = this.minutes(); return { time: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`, min: +m.toFixed(2), phase: s.phase, p: +s.p.toFixed(3), dark: +s.dark.toFixed(3), lights: +s.lights.toFixed(3), color: this.col?.map((x) => +x.toFixed(3)), active: this.active, n: this.stats.lights, ms: this.stats.ms, reduce: dnReduceGet(), hdr: this.hdr }; }
 }
 export { hex3 };

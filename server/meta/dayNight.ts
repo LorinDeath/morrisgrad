@@ -12,18 +12,19 @@ export const DN_CFG: any = {
   night: "20:00",          // полная ночь
   dawnStart: "05:30",      // рассвет: 30 мин плавно
   day: "06:00",            // полный день
-  nightDark: 0.84,         // темнота полной ночи (0 — нет, 1 — чёрная); свет — только у источников
+  nightDark: 0.7,          // темнота полной ночи (0 — нет, 1 — чёрная); свет — только у источников (sRGB-конвейер pixColor: кадр без «засвета» — ночь мягче)
   lightsOn: 0.35,          // на закате огни начинают загораться с этой доли перехода…
   lightsFull: 0.85,        // …и горят в полную силу отсюда (на рассвете — обратно)
   playerLightM: 6,         // радиус личного света героя, м
   mobLight: 1,             // свечение мобов (глаза/огни), ×
   townLight: 1,            // огни города/лагерей/пропсов, ×
+  maskMax: 1.45,           // огни могут быть светлее дня: множитель маски под огнём до N (1 — не светлее дня)
   lampStagger: 18,         // огни загораются вразнобой: старт каждого — в первые N мин заката (и гаснут так же на рассвете)
   lampFade: 8,             // мин — плавное загорание/угасание одного огня
   force: "",               // «HH:MM» — принудительное время (тест); пусто — реальное
   speed: 1,                // ускорение часов в режиме force (60 — минута за секунду)
   // ключевые цвета (умножение на сцену). Закат: день → золото → розово-фиолетовый → глубокая синяя ночь
-  cDay: "#ffffff", cGolden: "#ffc27a", cPink: "#c77aa8", cNight: "#2a3a7a",
+  cDay: "#ffffff", cGolden: "#ffc27a", cPink: "#c77aa8", cNight: "#3a4c96",
   // рассвет: ночь → холодный фиолет/розовый → мягкое тепло → нейтральный день
   cDawnViolet: "#7d6cc4", cDawnPink: "#d89ab8", cDawnWarm: "#ffe2b8",
 };
@@ -103,6 +104,6 @@ export function dnMinutes(now = Date.now(), cfg = DN_CFG): number {
 /** клиенту: настройки + текущая минута и скорость хода часов (клиент интерполирует между сообщениями) */
 export function dnClient(now = Date.now()) {
   const c = DN_CFG, rate = String(c.force || "").trim() ? spd(c.speed) : 1;
-  return { cfg: { on: c.on, duskStart: c.duskStart, night: c.night, dawnStart: c.dawnStart, day: c.day, nightDark: c.nightDark, lightsOn: c.lightsOn, lightsFull: c.lightsFull, playerLightM: c.playerLightM, mobLight: c.mobLight, townLight: c.townLight, lampStagger: c.lampStagger, lampFade: c.lampFade,
+  return { cfg: { on: c.on, duskStart: c.duskStart, night: c.night, dawnStart: c.dawnStart, day: c.day, nightDark: c.nightDark, lightsOn: c.lightsOn, lightsFull: c.lightsFull, playerLightM: c.playerLightM, mobLight: c.mobLight, townLight: c.townLight, lampStagger: c.lampStagger, maskMax: c.maskMax, lampFade: c.lampFade,
     cDay: c.cDay, cGolden: c.cGolden, cPink: c.cPink, cNight: c.cNight, cDawnViolet: c.cDawnViolet, cDawnPink: c.cDawnPink, cDawnWarm: c.cDawnWarm }, min: dnMinutes(now), rate, at: now };
 }
