@@ -5,6 +5,7 @@
 // Купол: 526 блоков обода 32×32 арт-px (1 арт-px = 1 px мира = 1/20 м), 16 кадров 8 fps + аддитивный glow; задняя дуга — 84 статичных блока;
 // заливка — отдельный меш opacity 0.02 (ProjBatch отбрасывает a < 0.04). Позиция блока = якорь + world_offset_m (камера: right/up/forward
 // из city_dome.json) — НЕ сдвиг по мировому Y, как FxAtlas.draw (квад к камере ужимается на cos p и блоки разъезжаются).
+import { lightOf, lampHash } from '../engine/dayNight.js';
 import { ProjBatch } from '../engine/projBatch.js';
 import { loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
@@ -97,13 +98,14 @@ export class CityView {
     const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig;
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); }
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
+    const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; // свечение (_glow) отдельно: ночью рисуется ещё раз поверх маски темноты (game.js)
     const L = (src) => (this._tex ||= {})[src] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
-    const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0) => {
+    const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0, lamp = false) => {
       const mk = (tp, add) => tp.then((t0) => {
         const t = t0.clone(); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / cols, 1 / rows); t.offset.set((col + (flip ? 1 : 0)) / cols, 1 - (row + 1) / rows);
         const m = new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: add ? 0 : 0.04, depthWrite: !add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false });
         const sp = new THREE.Sprite(m); sp.center.set(an[0], 1 - an[1]); sp.scale.set(wM, hM * SIN_P, 1); sp.position.set(toX(x), add ? 0.02 : 0, toZ(y) + (add ? 0.01 : 0)); sp.renderOrder = add ? 4 : 3;
-        g.add(sp); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
+        (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, h: lampHash(toX(x), toZ(y)) }); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
       });
       mk(L(base), false); if (glow && this.glowOn) mk(L(glow), true);
     };
@@ -111,14 +113,14 @@ export class CityView {
     const [sx, sy] = mapShiftPx();
     for (const b of MAP.buildings || []) {
       const k = BLD.keys?.[b.key]; const src = k && bldUrl(k.image); if (!src) continue;
-      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1]);
+      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true); // окна — «огни»: загораются вразнобой
     }
     // пропсы dm_*
     const SH = { p32: p32Src, b64: b64Src, p32_glow: p32GSrc, b64_glow: b64GSrc };
     for (const p of mapProps(c.rTiles)) {
       const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
       const [wM, hM] = k.size_m || [k.w / 10, k.h / 10];
-      sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0);
+      sprite(SH[k.sheet], k.glow ? SH[k.glow.sheet] : null, 0, S.cols, S.rows, k.col, k.row, wM * (p.s || 1), hM * (p.s || 1), p.x, p.y, !!p.f, k.anchor || [0.5, 1], k.frames || 1, k.fps || 0, !!lightOf(p.k));
     }
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
   }

@@ -1,5 +1,5 @@
 // Тест смены дня и ночи: фазы, ключевые цвета, непрерывность и монотонность, огни, форс-время, часовой пояс.
-import { dnAt, dnMinutes, dnClient, zoneMinutes, DN_CFG, hex3, easeIO } from "./dayNight";
+import { dnAt, dnMinutes, dnClient, zoneMinutes, DN_CFG, hex3, easeIO, lampK } from "./dayNight";
 import { validatePatch as validate } from "./overrides";
 let ok = 0, bad = 0; const t = (c: any, m: string) => { if (c) ok++; else { bad++; console.log("FAIL", m); } };
 const H = (h: number, m = 0) => h * 60 + m, lum = (c: number[]) => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
@@ -53,4 +53,15 @@ t(typeof validate("dn", "main", { force: "" }) === "object", "админка: ф
 t(typeof validate("dn", "main", { cGolden: "orange" }) === "string", "админка: цвет #rrggbb");
 t(typeof validate("dn", "main", { tz: "Mars/Base" }) === "string", "админка: пояс");
 t(typeof validate("dn", "main", { nightDark: 1.5 }) === "string", "админка: темнота 0…0.95");
+// огни: вразнобой с 19:30, все горят к 20:00, ночью 1, гаснут вразнобой 05:30–06:00, днём 0
+{ const H = (h: number, hh: number, mm: number) => lampK(hh * 60 + mm, h);
+  t(H(0, 12, 0) === 0 && H(1, 12, 0) === 0, "огни: днём выключены");
+  t(H(0, 19, 29) === 0, "огни: до заката выключены");
+  t(H(0, 19, 34) > 0.2 && H(0, 19, 34) < 0.8 && H(1, 19, 34) === 0, "огни: загораются вразнобой (ранний уже теплится, поздний ещё нет)", [H(0, 19, 34), H(1, 19, 34)]);
+  t([0, 0.3, 0.7, 1].every((h) => H(h, 20, 0) > 0.99), "огни: к 20:00 горят все");
+  t(H(0.5, 23, 0) === 1 && H(0.5, 3, 0) === 1, "огни: ночью полная сила (через полночь)");
+  t(H(0, 5, 40) < 0.2 && H(1, 5, 40) === 1, "огни: гаснут вразнобой на рассвете", [H(0, 5, 40), H(1, 5, 40)]);
+  t([0, 0.5, 1].every((h) => H(h, 6, 0) < 0.01), "огни: к 06:00 погашены все");
+  let mono = true; for (let m = 19 * 60 + 30; m < 20 * 60; m++) if (lampK(m + 1, 0.4) < lampK(m, 0.4) - 1e-9) mono = false; t(mono, "огни: на закате только разгораются (без мигания)");
+}
 console.log(`dayNight: ${ok} ok, ${bad} fail`); if (bad) process.exit(1);

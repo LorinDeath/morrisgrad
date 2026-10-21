@@ -221,7 +221,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "tz", label: "Часовой пояс (IANA, напр. Europe/Kiev)", t: "text" }, N("utcOffsetH", "Смещение от UTC, ч (если пояс не поддержан)", -12, 14, "num"),
     { path: "_h_l", label: "Свет", t: "hdr" },
     N("nightDark", "Темнота полной ночи (0 — нет, 1 — чёрная)", 0, 0.95), N("lightsOn", "Огни загораются с доли заката", 0, 0.95), N("lightsFull", "Огни в полную силу с доли заката", 0.05, 1),
-    N("playerLightM", "Свет героя, радиус м", 2, 16), N("mobLight", "Свечение мобов, ×", 0, 3), N("townLight", "Огни города/лагерей, ×", 0, 3),
+    N("playerLightM", "Свет героя, радиус м", 2, 16), N("mobLight", "Свечение мобов, ×", 0, 3), N("townLight", "Огни города/лагерей, ×", 0, 3), N("lampStagger", "Огни вразнобой: разброс старта, мин", 0, 25), N("lampFade", "Огонь загорается/гаснет за, мин", 1, 20),
     { path: "_h_c", label: "Цвета (ключевые кадры)", t: "hdr" },
     { path: "cDay", label: "День", t: "color" }, { path: "cGolden", label: "Закат: золото", t: "color" }, { path: "cPink", label: "Закат: розово-фиолетовый", t: "color" }, { path: "cNight", label: "Ночь (оттенок)", t: "color" },
     { path: "cDawnViolet", label: "Рассвет: холодный фиолет", t: "color" }, { path: "cDawnPink", label: "Рассвет: розовый", t: "color" }, { path: "cDawnWarm", label: "Рассвет: тёплый", t: "color" },

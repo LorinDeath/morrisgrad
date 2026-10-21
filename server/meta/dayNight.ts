@@ -18,6 +18,8 @@ export const DN_CFG: any = {
   playerLightM: 6,         // радиус личного света героя, м
   mobLight: 1,             // свечение мобов (глаза/огни), ×
   townLight: 1,            // огни города/лагерей/пропсов, ×
+  lampStagger: 18,         // огни загораются вразнобой: старт каждого — в первые N мин заката (и гаснут так же на рассвете)
+  lampFade: 8,             // мин — плавное загорание/угасание одного огня
   force: "",               // «HH:MM» — принудительное время (тест); пусто — реальное
   speed: 1,                // ускорение часов в режиме force (60 — минута за секунду)
   // ключевые цвета (умножение на сцену). Закат: день → золото → розово-фиолетовый → глубокая синяя ночь
@@ -51,6 +53,20 @@ export function zoneMinutes(ms: number, cfg = DN_CFG): number {
 const inArc = (m: number, a: number, b: number) => (a <= b ? m >= a && m < b : m >= a || m < b);
 const arcP = (m: number, a: number, b: number) => { const L = (b - a + 1440) % 1440 || 1440; return ((m - a + 1440) % 1440) / L; };
 
+/** сила одного огня 0…1 в минуту m; h — его «характер» 0…1 (хэш позиции).
+ *  Закат: загорается вразнобой — старт в duskStart + h·lampStagger, плавно за lampFade мин; ночью горят все.
+ *  Рассвет: гаснет вразнобой — старт в dawnStart + h·lampStagger, за lampFade мин; к day погашены все. */
+export function lampK(m: number, h: number, cfg = DN_CFG): number {
+  const ds = hm(cfg.duskStart, 1170), ws = hm(cfg.dawnStart, 330), dy = hm(cfg.day, 360);
+  const rel = (a: number, b: number) => (((a - b) % 1440) + 1440) % 1440; // минут от b до a (по кругу суток)
+  const fade = Math.max(1, Number(cfg.lampFade) || 8), stg = Math.max(0, Number.isFinite(Number(cfg.lampStagger)) ? Number(cfg.lampStagger) : 18);
+  const N = rel(dy, ds), W = rel(ws, ds), dawnLen = rel(dy, ws), t = rel(m, ds);
+  if (t >= N) return 0; // день
+  const st1 = Math.min(stg, Math.max(0, rel(hm(cfg.night, 1200), ds) - fade)), st2 = Math.min(stg, Math.max(0, dawnLen - fade));
+  const on = smooth((t - h * st1) / fade);
+  const off = t >= W ? 1 - smooth((t - W - h * st2) / fade) : 1;
+  return on * off;
+}
 export interface DnState { phase: "day" | "dusk" | "night" | "dawn"; p: number; dark: number; color: [number, number, number]; lights: number; min: number }
 /** состояние неба в минуту суток m: цвет-умножение (грейд + темнота), сила огней 0…1, темнота 0…1 */
 export function dnAt(m: number, cfg = DN_CFG): DnState {
@@ -87,6 +103,6 @@ export function dnMinutes(now = Date.now(), cfg = DN_CFG): number {
 /** клиенту: настройки + текущая минута и скорость хода часов (клиент интерполирует между сообщениями) */
 export function dnClient(now = Date.now()) {
   const c = DN_CFG, rate = String(c.force || "").trim() ? spd(c.speed) : 1;
-  return { cfg: { on: c.on, duskStart: c.duskStart, night: c.night, dawnStart: c.dawnStart, day: c.day, nightDark: c.nightDark, lightsOn: c.lightsOn, lightsFull: c.lightsFull, playerLightM: c.playerLightM, mobLight: c.mobLight, townLight: c.townLight,
+  return { cfg: { on: c.on, duskStart: c.duskStart, night: c.night, dawnStart: c.dawnStart, day: c.day, nightDark: c.nightDark, lightsOn: c.lightsOn, lightsFull: c.lightsFull, playerLightM: c.playerLightM, mobLight: c.mobLight, townLight: c.townLight, lampStagger: c.lampStagger, lampFade: c.lampFade,
     cDay: c.cDay, cGolden: c.cGolden, cPink: c.cPink, cNight: c.cNight, cDawnViolet: c.cDawnViolet, cDawnPink: c.cDawnPink, cDawnWarm: c.cDawnWarm }, min: dnMinutes(now), rate, at: now };
 }

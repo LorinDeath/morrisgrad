@@ -6,7 +6,7 @@
 import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
-import { DayNight, lightOf } from './engine/dayNight.js';
+import { DayNight, lightOf, lampHash } from './engine/dayNight.js';
 import { CityView } from './hub/cityView.js';
 import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
 import { CityHud } from './ui/cityHud.js';
@@ -1544,15 +1544,23 @@ async function boot(canvasId, username, userId, api) {
     if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) {
       const key = `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles}`;
       if (dnCity.key !== key) {
-        const L = []; for (const q of mapProps()) { const l = lightOf(q.k); if (l) L.push([toX(q.x), toZ(q.y), l[1], l[2] * (q.s || 1), l[3]]); }
-        const [sx, sy] = mapShiftPx(); for (const b of mapBuildings()) { const e = b.exit_world_px; if (e) L.push([toX(e[0] + sx), toZ(e[1] + sy - 10), 0xffc879, b.interior === 'shop_tavern' ? 4.2 : 3.2, 0.75]); }
+        const L = []; for (const q of mapProps()) { const l = lightOf(q.k); if (l) { const x = toX(q.x), z = toZ(q.y); L.push([x, z, l[1], l[2] * (q.s || 1), l[3], (l[4] || 0) * (q.s || 1), lampHash(x, z)]); } }
+        const [sx, sy] = mapShiftPx(); for (const b of mapBuildings()) { const e = b.exit_world_px; if (e) { const x = toX(e[0] + sx), z = toZ(e[1] + sy - 10); L.push([x, z, 0xffc879, b.interior === 'shop_tavern' ? 4.4 : 3.4, 0.8, 1.3, lampHash(x, z)]); } }
         dnCity.key = key; dnCity.list = L;
       }
       extra = dnCity.list;
     }
     const t = hub.env?.terrain;
     dayNight.frame(true, { players, mobs, fx, extra, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
-    dayNight.render(stage.renderer, cam);
+    if (dayNight.render(stage.renderer, cam) && cityView.group.visible && cityView.glows?.length) {
+      // свечение огней города (_glow-слои Историка) — излучает само: ещё раз поверх маски, сила — по своему огню (вразнобой);
+      // глубина кадра сохранена — спрайты перед огнём его закрывают (ореол «за» спрайтами, без засветки)
+      const R = stage.renderer, ac = R.autoClear, gl = cityView.glows;
+      for (const g of gl) g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * 0.9 : 0.55 * Math.min(1, dayNight.state.dark * 1.2);
+      R.autoClear = false; R.render(cityView.glowG, cam); R.autoClear = ac;
+    }
+    // днём фонари не горят: их свечение в основном кадре — по силе своего огня (следующий кадр)
+    if (cityView.glows?.length) for (const g of cityView.glows) g.m.opacity = g.lamp ? 0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h)) : 1;
   }
   function frame(now) {
     requestAnimationFrame(frame);
@@ -1996,7 +2004,8 @@ async function boot(canvasId, username, userId, api) {
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),
-      dnObj: () => dayNight, // отладка маски света (плейтест)
+      dnObj: () => dayNight,
+      cityLamps: () => (cityView.glows || []).filter((g) => g.lamp).map((g) => +dayNight.lamp(g.h).toFixed(3)), // сила каждого огня города сейчас // отладка маски света (плейтест)
       dn: (o = {}) => api.dn(o), // день/ночь для плейтеста (то же, что api.dn)
       cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
       city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),

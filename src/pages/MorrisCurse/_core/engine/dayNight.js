@@ -5,15 +5,18 @@
 // Свет — маска: буфер (¼…½ экрана) заливается «цветом неба» (грейд × темнота), поверх аддитивно рисуются пятна света
 // (герои, мобы, огни пропсов и города, маг/купола/розы, снаряды), затем полноэкранный квад УМНОЖАЕТ кадр на маску.
 // Днём (темнота 0, цвет белый) проход не выполняется вовсе. Интерфейс (DOM) не затрагивается. Забеги — не трогаем.
-import { dnAt, DN_CFG, hex3 } from '../../../../../server/meta/dayNight.ts';
+import { dnAt, DN_CFG, hex3, lampK } from '../../../../../server/meta/dayNight.ts';
 import { toX, toZ } from './geometry.js';
 
-// источники света среди пропсов мира: ключ/шаблон → [цвет, радиус м, сила]
+// источники света среди пропсов мира: ключ/шаблон → [цвет, радиус пятна м, сила, высота головы м (ореол у огня; 0 — только пятно)]
 const PROP_LIGHT = [
-  [/^(lantern|dm_lantern|dm_lamp)/, 0xffc36b, 4.2, 0.95], [/^(torch|dm_torch)/, 0xff9a3c, 3.8, 1], [/^(campfire|dm_campfire|dm_brazier|dm_fire)/, 0xff8a2a, 5.2, 1.1],
-  [/^dm_hearth/, 0xff9a4a, 4.5, 1], [/^dm_cookfire/, 0xff8a2a, 4.6, 1], [/^dm_cauldron/, 0xffa860, 2.4, 0.6], [/^dm_glitch_sprout/, 0x7fe0ff, 1.4, 0.35], [/^dm_candle/, 0xffd08a, 2.2, 0.7], [/window/, 0xffcf7a, 3.0, 0.7], [/^dm_fountain/, 0x8fb6ff, 4.0, 0.55],
-  [/^(crystal|star_crystal)/, 0x9be8ff, 2.6, 0.5], [/^(portal|altar|obelisk)/, 0xb38bff, 4.5, 0.7], [/^pylon/, 0xa78bfa, 3.6, 0.7], [/^glitch_shard/, 0x7fe0ff, 2.0, 0.45],
+  [/^(dm_lantern_pole)/, 0xffbf66, 5.2, 1.08, 3.4], [/^(lantern|dm_lantern|dm_lamp)/, 0xffc36b, 4.6, 1.0, 1.6], [/^(torch|dm_torch)/, 0xff9a3c, 4.0, 1, 1.4],
+  [/^(campfire|dm_campfire|dm_cookfire|dm_brazier|dm_fire)/, 0xff8a2a, 5.6, 1.15, 0.7],
+  [/^dm_hearth/, 0xff9a4a, 4.5, 1, 0.8], [/^dm_candle/, 0xffd08a, 2.2, 0.7, 0.6], [/^dm_cauldron/, 0xffa860, 2.6, 0.6, 0.6], [/window/, 0xffcf7a, 3.0, 0.7, 1.4], [/^dm_fountain/, 0x8fb6ff, 4.0, 0.55, 0],
+  [/^dm_glitch_sprout/, 0x7fe0ff, 1.5, 0.38, 0], [/^(crystal|star_crystal)/, 0x9be8ff, 2.6, 0.5, 0], [/^(portal|altar|obelisk)/, 0xb38bff, 4.5, 0.7, 0], [/^pylon/, 0xa78bfa, 3.6, 0.7, 0], [/^glitch_shard/, 0x7fe0ff, 2.0, 0.45, 0],
 ];
+/** «характер» огня 0…1 по месту: когда он загорится/погаснет (вразнобой) */
+export const lampHash = (x, z) => { const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return v - Math.floor(v); };
 export const lightOf = (k) => { for (const L of PROP_LIGHT) if (L[0].test(k)) return L; return null; };
 const KEY = 'mc-dn-reduce';
 /** «Смягчить ночь» 0…100 (Настройки, на этом устройстве): меньше темноты для читаемости */
@@ -69,28 +72,36 @@ export class DayNight {
     this.col = col;
     if (!this.active) { this.lights.count = 0; return; }
     const T0 = performance.now(), L = this.lights, d = this.d, c = this.c; let n = 0;
-    const lk = s.lights, dark = 1 - Math.min(col[0], col[1], col[2]);
+    const dark = 1 - Math.min(col[0], col[1], col[2]);
     const put = (x, z, color, rM, k, h = 0.02) => { if (n >= L.instanceMatrix.count || k <= 0.01) return; d.position.set(x, h, z); d.scale.set(rM * 2, 1, rM * 2); d.updateMatrix(); L.setMatrixAt(n, d.matrix); c.set(color).multiplyScalar(k); this.lcol.setXYZ(n, c.r, c.g, c.b); n++; };
     // герои: мягкий личный свет (всегда, пока темно) — герой не темнее ~0.82 (BLK_FX.heroLight)
     const pr = Number(DN_CFG.playerLightM) || 6, pk = Math.min(1, 0.95 * dark + 0.05);
     for (const p of src.players || []) put(toX(p.x), toZ(p.y), p.me ? 0xfff1dc : 0xe8e4ff, p.me ? pr : pr * 0.8, p.me ? pk : pk * 0.8);
-    // мобы: небольшое свечение (глаза/огни)
+    // мобы: слабое читаемое свечение (силуэт не теряется в темноте)
     const mk = (Number(DN_CFG.mobLight) || 0) * dark;
-    if (mk > 0.01) for (const m of src.mobs || []) put(toX(m.x), toZ(m.y), m.boss ? 0xff6a8a : 0xb48cff, m.boss ? 3.2 : 1.6, (m.boss ? 0.55 : 0.32) * mk);
-    // огни пропсов/города — загораются на закате с lightsOn и гаснут на рассвете
-    const tk = (Number(DN_CFG.townLight) || 0) * lk;
-    if (tk > 0.01) for (const q of this.propLights(src)) { const fl = 0.9 + 0.1 * Math.sin(T0 / 130 + q[0] * 3.1); put(q[0], q[1], q[2], q[3], q[4] * tk * fl); }
+    if (mk > 0.01) for (const m of src.mobs || []) put(toX(m.x), toZ(m.y), m.boss ? 0xff6a8a : 0xb48cff, m.boss ? 3.4 : 2.3, (m.boss ? 0.6 : 0.42) * mk);
+    // огни пропсов/города — каждый загорается сам (вразнобой с начала заката) и гаснет вразнобой на рассвете;
+    // пятно у основания + ореол у головы фонаря (высота h — пятно проецируется туда, где на экране огонь)
+    const tl = Number(DN_CFG.townLight) || 0, mins = this.minutes();
+    if (tl > 0.01) for (const q of this.propLights(src)) {
+      const lk = lampK(mins, q[6] ?? lampHash(q[0], q[1]), DN_CFG) * tl; if (lk <= 0.01) continue;
+      const fl = 0.92 + 0.08 * Math.sin(T0 / 130 + q[0] * 3.1) * Math.sin(T0 / 217 + q[1] * 1.7);
+      put(q[0], q[1], q[2], q[3], q[4] * lk * fl);
+      if (q[5] > 0) put(q[0], q[1], q[2], Math.max(1.2, q[3] * 0.34), Math.min(1, q[4] * 0.95) * lk * fl, q[5]);
+    }
     // FX: маг, купола, розы, снаряды — светятся сами
     for (const f of src.fx || []) put(toX(f.x), toZ(f.y), f.c, f.r, f.k * Math.max(0.3, dark));
     L.count = n; L.instanceMatrix.needsUpdate = true; this.lcol.needsUpdate = true;
     this.stats.lights = n; this.stats.ms = +(performance.now() - T0).toFixed(2);
   }
+  /** сила огня 0…1 сейчас (h — его хэш): для ореолов/свечения спрайтов поверх маски */
+  lamp(h) { return lampK(this.minutes(), h, DN_CFG) * (Number(DN_CFG.townLight) || 0); }
   /** огни пропсов из видимых чанков (кэш по чанку) */
   propLights(src) {
     const out = [], fx = src.fx0 || 0, fz = src.fz0 || 0, R2 = (src.viewM || 60) ** 2;
     for (const ch of src.chunks || []) {
       let a = this.propCache.get(ch.key);
-      if (!a) { a = []; for (const p of ch.props || []) { const L = lightOf(String(p.k || '')); if (L) a.push([toX(p.x), toZ(p.y), L[1], L[2] * (p.s || 1), L[3]]); } this.propCache.set(ch.key, a); if (this.propCache.size > 200) this.propCache.delete(this.propCache.keys().next().value); }
+      if (!a) { a = []; for (const p of ch.props || []) { const L = lightOf(String(p.k || '')); if (L) { const x = toX(p.x), z = toZ(p.y); a.push([x, z, L[1], L[2] * (p.s || 1), L[3], (L[4] || 0) * (p.s || 1), lampHash(x, z)]); } } this.propCache.set(ch.key, a); if (this.propCache.size > 200) this.propCache.delete(this.propCache.keys().next().value); }
       for (const q of a) if ((q[0] - fx) ** 2 + (q[1] - fz) ** 2 < R2) out.push(q);
     }
     for (const q of src.extra || []) out.push(q);
