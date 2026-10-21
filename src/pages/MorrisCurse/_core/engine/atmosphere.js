@@ -4,9 +4,12 @@
 //    общий тон спрайтов (uniform uGrade во всех SpriteBatch) + CSS-виньетка и цветокоррекция поверх канваса;
 //  • источники света (фонари, факелы, костры, порталы, алтарь): аддитивные ореолы + световые пятна на земле
 //    с мерцанием («блум» без пост-обработки) и пул из N настоящих PointLight на ближайших источниках (desktop);
+//    ореол стоит по глубине ЗА спрайтом источника (LIGHT.haloBehind) — светится вокруг арки/огня, а не поверх пикселей;
+//    цвета и сила — экранные значения (pixColor.js: setDisplayRGB, без ACES), сила — LIGHT.pool / LIGHT.halo из админки «💡 Свет»;
 //  • частицы зоны рядом с камерой: светлячки, лепестки, пыль, фиолетовые искры у алтаря.
 // Всё зависит от уровня качества (setQuality): на мобильных/низком — меньше частиц, без PointLight и без blend-тона.
 import { toX, toZ } from './geometry.js';
+import { LIGHT, pixMat, setDisplayHex, setDisplayRGB } from './pixColor.js';
 import { regionAt } from '../../../../../server/meta/zoneGen.ts';
 
 // оттенок спрайтов (общий uniform — SpriteBatch подключает его в шейдер)
@@ -68,23 +71,24 @@ class Atmosphere {
     const flat = (n) => { const g = new THREE.PlaneBufferGeometry(1, 1); g.rotateX(-Math.PI / 2); return g; };
     // тени-капли
     const shTex = radialTex(THREE, [[0, 'rgba(0,0,0,0.75)'], [0.5, 'rgba(0,0,0,0.5)'], [1, 'rgba(0,0,0,0)']]);
-    this.shMat = new THREE.MeshBasicMaterial({ map: shTex, color: 0x0a0614, transparent: true, depthWrite: false, opacity: 0.85 });
+    this.shMat = pixMat(new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false, opacity: 0.85 })); setDisplayHex(this.shMat.color, 0x0a0614);
     this.shadows = new THREE.InstancedMesh(flat(), this.shMat, 768);
     this.shadows.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.shadows.frustumCulled = false; this.shadows.count = 0; this.shadows.renderOrder = 1;
     stage.scene.add(this.shadows);
     this.staticShadows = null;
     // ореолы и световые пятна (аддитивно)
     const glowTex = radialTex(THREE, [[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,255,255,0.55)'], [1, 'rgba(255,255,255,0)']]);
-    this.poolMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.45, fog: false });
+    this.poolMat = pixMat(new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.45, fog: false }));
     this.pools = new THREE.InstancedMesh(flat(), this.poolMat, 160);
-    this.pools.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.pools.frustumCulled = false; this.pools.count = 0; this.pools.renderOrder = 2;
-    this.pools.setColorAt(0, new THREE.Color(1, 1, 1));
+    this.pools.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.pools.frustumCulled = false; this.pools.renderOrder = 2;
+    // буфер цветов — на всю ёмкость (r128 setColorAt выделяет его по ТЕКУЩЕМУ count: при count = 0 он был пустым → цвет 0, пятна и ореолы не было видно)
+    this.pools.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(160 * 3), 3).setUsage(THREE.DynamicDrawUsage); this.pools.count = 0;
     stage.scene.add(this.pools);
     const halo = new THREE.PlaneBufferGeometry(1, 1);
-    this.haloMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, opacity: 0.8, fog: false });
+    this.haloMat = pixMat(new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, opacity: 0.8, fog: false }));
     this.halos = new THREE.InstancedMesh(halo, this.haloMat, 160);
-    this.halos.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.halos.frustumCulled = false; this.halos.count = 0; this.halos.renderOrder = 3;
-    this.halos.setColorAt(0, new THREE.Color(1, 1, 1));
+    this.halos.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.halos.frustumCulled = false; this.halos.renderOrder = 3;
+    this.halos.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(160 * 3), 3).setUsage(THREE.DynamicDrawUsage); this.halos.count = 0;
     stage.scene.add(this.halos);
     // настоящие точечные огни (фиксированный пул — число огней не меняется, шейдеры не перекомпилируются)
     this.lights = [];
@@ -112,7 +116,7 @@ class Atmosphere {
       host.insertBefore(this.tintEl, stage.canvas.nextSibling); host.insertBefore(this.vigEl, this.tintEl.nextSibling);
     }
     this.sources = []; this.altar = null; this.t = 0;
-    this.d = new THREE.Object3D(); this.c = new THREE.Color(); this.v3 = new THREE.Vector3();
+    this.d = new THREE.Object3D(); this.c = new THREE.Color(); this.v3 = new THREE.Vector3(); this.fw = new THREE.Vector3(); this.v4 = new THREE.Vector3();
     this.enabled = true; this.ready = true;
     this.begin();
   }
@@ -217,15 +221,28 @@ class Atmosphere {
     for (const s of this.sources) { const dx = s.x - fx, dz = s.z - fz, dd = dx * dx + dz * dz; if (dd < R2) near.push([dd, s]); }
     near.sort((a, b) => a[0] - b[0]);
     const d = this.d; let np = 0, nh = 0;
+    this.poolMat.opacity = 0.45 * LIGHT.pool; this.haloMat.opacity = 0.8 * LIGHT.halo; this.shMat.opacity = 0.85 * LIGHT.shadow;
+    const cam = st.camera.position; st.camera.getWorldDirection(this.fw);
     for (const [, s] of near) {
       if (np >= 160) break;
       const fl = s.fire ? 0.82 + 0.1 * Math.sin(T * 9 + s.ph) + 0.08 * Math.sin(T * 23.7 + s.ph * 3) : 0.85 + 0.15 * Math.sin(T * 2 + s.ph);
       s.f = fl;
-      d.position.set(s.x, 0.04, s.z); d.rotation.set(0, 0, 0); d.scale.set(s.r * 2 * fl, 1, s.r * 2 * fl); d.updateMatrix();
-      this.pools.setMatrixAt(np, d.matrix); this.pools.setColorAt(np++, this.c.copy(s.col).multiplyScalar(s.k * fl));
+      // пятно — у самой земли (0.012 м): выше — оно перекрывало нижние ряды пикселей спрайта у «ног» (основание алтаря)
+      d.position.set(s.x, 0.012, s.z); d.rotation.set(0, 0, 0); d.scale.set(s.r * 2 * fl, 1, s.r * 2 * fl); d.updateMatrix();
+      this.pools.setMatrixAt(np, d.matrix); this.pools.setColorAt(np++, setDisplayRGB(this.c, s.col.r * s.k * fl, s.col.g * s.k * fl, s.col.b * s.k * fl));
       // ореол у огня — квад, повёрнутый к камере
-      d.position.set(s.x, s.h, s.z); this.v3.subVectors(st.camera.position, d.position).normalize(); d.position.addScaledVector(this.v3, 0.9); d.quaternion.copy(st.camera.quaternion); const hs = (s.fire ? 1.5 : 2.2) * fl * (0.7 + 0.3 * s.k); d.scale.set(hs, hs, hs); d.updateMatrix();
-      this.halos.setMatrixAt(nh, d.matrix); this.halos.setColorAt(nh++, this.c.copy(s.col).multiplyScalar(0.8 * fl));
+      const hs = (s.fire ? 1.5 : 2.2) * fl * (0.7 + 0.3 * s.k);
+      d.position.set(s.x, s.h, s.z); d.quaternion.copy(st.camera.quaternion);
+      if (LIGHT.haloBehind) {
+        // по лучу из камеры (на экране там же) — на глубину «ног» источника + 0.25 м: спрайт источника (квад на глубине ног)
+        // закрывает ореол своими пикселями, ореол виден только вокруг силуэта и не высветляет арку/вихрь/пламя
+        const dFeet = this.v4.set(s.x - cam.x, -cam.y, s.z - cam.z).dot(this.fw);
+        this.v3.subVectors(d.position, cam); const dist = this.v3.length(); this.v3.divideScalar(dist);
+        const dPt = (dist * this.v3.dot(this.fw)), t = (dFeet + 0.25 - dPt) / Math.max(0.2, this.v3.dot(this.fw));
+        d.position.addScaledVector(this.v3, t); const ks = (dist + t) / dist; d.scale.set(hs * ks, hs * ks, hs * ks);
+      } else { this.v3.subVectors(cam, d.position).normalize(); d.position.addScaledVector(this.v3, 0.9); d.scale.set(hs, hs, hs); }
+      d.updateMatrix();
+      this.halos.setMatrixAt(nh, d.matrix); this.halos.setColorAt(nh++, setDisplayRGB(this.c, s.col.r * 0.8 * fl, s.col.g * 0.8 * fl, s.col.b * 0.8 * fl));
     }
     this.pools.count = np; this.halos.count = nh;
     for (const im of [this.pools, this.halos]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }

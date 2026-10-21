@@ -20,6 +20,7 @@ import { worldSize, ARINAR_HUB } from '../../../../../server/worlds/sizes.ts';
 import { WORLD_PORTALS as PORTALS } from '../../../../../server/worlds/portals.ts';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ, PX } from '../engine/geometry.js';
+import { LIGHT, onLight, pixTex, pixMat, setDisplayRGB, setDisplayHex } from '../engine/pixColor.js';
 
 import { CELL, CH, arinarPlan, layoutChunk } from '../../../../../server/meta/arinarLayout.ts';
 export { CELL, CH, arinarPlan, layoutChunk };
@@ -54,7 +55,9 @@ export class ArinarTerrain {
     const g = cv.getContext('2d');
     for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) { g.fillStyle = FAR_COL[this.plan.biomeAt(i * 4, j * 4)] || '#334'; g.fillRect(i, j, 1, 1); }
     const ft = new THREE.CanvasTexture(cv); ft.magFilter = THREE.LinearFilter;
-    this.farMat = new THREE.MeshBasicMaterial({ map: ft, color: 0xb8b4c8 });
+    // земля — пиксели тайлов × LIGHT.ground × свет (экранный множитель, без ACES и двойного sRGB — engine/pixColor.js)
+    this.farMat = pixMat(new THREE.MeshBasicMaterial({ map: pixTex(THREE, ft) })); setDisplayHex(this.farMat.color, 0xb8b4c8, this.light * LIGHT.ground / 0.84);
+    onLight(() => this.setLight(this.light));
     const span = this.plan.size / PX;
     const far = new THREE.Mesh(new THREE.PlaneGeometry(span, span), this.farMat);
     far.rotation.x = -Math.PI / 2; far.position.set(toX(this.plan.size / 2), -0.25, toZ(this.plan.size / 2)); far.name = 'ground-far'; far.renderOrder = -1; // ниже чанков с запасом — без z-конфликта на дальнем зуме
@@ -78,7 +81,7 @@ export class ArinarTerrain {
     for (let k = 0; k < L.over.length; k += 3) { const idx = L.over[k + 2]; if (idx === undefined) continue; g.drawImage(this.sheets[0], (idx % COLS) * TEX, Math.floor(idx / COLS) * TEX, TEX, TEX, L.over[k] * TX, L.over[k + 1] * TX, TX, TX); }
     if (DK) for (let k = 0; k < L.dover.length; k += 3) { const idx = L.dover[k + 2]; g.drawImage(this.dark, (idx % DC) * DK, Math.floor(idx / DC) * DK, DK, DK, L.dover[k] * TX, L.dover[k + 1] * TX, TX, TX); }
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipMapLinearFilter;
-    const mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xd6d2e0 }); mat.color.setScalar(0.84 * this.light);
+    const mat = pixMat(new THREE.MeshBasicMaterial({ map: pixTex(THREE, tex) })); setDisplayRGB(mat.color, LIGHT.ground * this.light);
     const sp = (CH * CELL) / PX;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sp, sp), mat);
     mesh.rotation.x = -Math.PI / 2; const cx = (ci + 0.5) * CH * CELL, cy = (cj + 0.5) * CH * CELL;
@@ -122,7 +125,7 @@ export class ArinarTerrain {
   }
   setLight(k) {
     this.light = k;
-    for (const c of this.chunks.values()) { c.mat.color.setScalar(0.84 * k); c.batch?.setLight?.(k); }
-    this.farMat.color.setScalar(0.72 * k);
+    for (const c of this.chunks.values()) { setDisplayRGB(c.mat.color, LIGHT.ground * k); c.batch?.setLight?.(k); }
+    setDisplayHex(this.farMat.color, 0xb8b4c8, k * LIGHT.ground / 0.84);
   }
 }

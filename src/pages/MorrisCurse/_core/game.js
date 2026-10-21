@@ -28,6 +28,7 @@ import { UpgradeWin } from './ui/upgradeWin.js';
 import { UPG } from '../../../../server/meta/upgrade.ts';
 import { setCurse, glowK } from './meta/curseCfg.js';
 import { setBlkVis } from './meta/blkVis.js';
+import { setLightCfg, LIGHT } from './engine/pixColor.js';
 import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
@@ -475,6 +476,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
     if (d.ench) setEnch(d.ench); // ярусы зачарования (админка «✦ Зачарование») — цвета, имена, множители для подписей
     if (d.bmv) setBlkVis(d.bmv); // вид очернения (админка «Чёрный маг»)
+    if (d.light) setLightCfg(d.light); // свет мира (админка «💡 Свет», engine/pixColor.js)
     if (d.curse) setCurse(d.curse); // конфиг проклятия (админка) — цвет, яркость свечения, множители для подписей
     setTimeout(() => social.refreshSelf(), 0); // лист персонажа (C): таланты/параметры после изменения
     if (run && d.runTraits) run.traits = d.runTraits; // правки черт в админке — сразу и в забеге
@@ -1964,6 +1966,7 @@ async function boot(canvasId, username, userId, api) {
       openAltar: () => classSelect.open(player.stats.classId),
       altarFlash: () => hub.portalObjs?.get('portal_class_select')?.flash?.(),
       grim: (g, f) => { grimSet('grim', g); grimSet('fog', f); },
+      light: (c) => { if (c) setLightCfg(c); return { ...LIGHT }; }, // свет мира (engine/pixColor.js): тесты и подбор значений админки «💡 Свет»
       style: (v) => grimSet('style', v),
       minimap: () => hud.minimap?.stats,
       openAdmin: () => adminPanel.open(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),

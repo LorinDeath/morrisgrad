@@ -2,6 +2,7 @@ import { isRs, rsCodexId } from "./rsAny";
 import { CHEST } from "./chests";
 import { UPG, upgCost, upgClient } from "./upgrade";
 import { BM_CFG, charBlk, charBlkVis, blkVisClient } from "./bmCfg";
+import { lightClient } from "./lightCfg";
 import { CURSE, CURSED_TAG, isCursedTag, untag, instStats, glowLevel, curseClient } from "./cursed";
 import { ENCH, parseTag, tagOf, tierDef, tierOk, weightedTier, enchClient } from "./enchant";
 // Серверный профиль «Проклятых»: модель аккаунта/героя и вся игровая логика над ней.
@@ -677,7 +678,7 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified, kst: killStats(a), // пожизненная статистика: игроков убито / смертей от игроков / мобов убито
-    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), bmv: blkVisClient(), ench: enchClient(), upg: upgClient(), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), bmv: blkVisClient(), light: lightClient(), ench: enchClient(), upg: upgClient(), account: { mobTrack: a.mobTrack || null, runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
       slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),

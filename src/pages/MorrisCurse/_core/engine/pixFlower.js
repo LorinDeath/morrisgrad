@@ -4,6 +4,7 @@
 // Утверждённые спрайты тюльпана Дара (props_new/flowers, NOTE_pixFlower.md): tulip_sheet.png 64×60 —
 // ряды bud / mature / active × 4 кадра покачивания 16×20, низ стебля = земля. Пока PNG грузится — запасной рисунок ниже.
 import tulipSrc from '../../../../assets/mc/tulip_sheet.png';
+import { pixTex } from './pixColor.js';
 const SHEET_ROW = { bud: 0, mature: 1, active: 2 };
 let sheetImg = null, sheetReady = false;
 function loadSheet() {
@@ -18,6 +19,7 @@ function sheetTexture(THREE, stage) {
   if (sheetTex[stage]) return sheetTex[stage];
   const t = new THREE.Texture(sheetImg);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  pixTex(THREE, t); // sRGB-лист (pixColor.js)
   t.repeat.set(0.25, 1 / 3); t.offset.set(0, 1 - (SHEET_ROW[stage] + 1) / 3);
   return (sheetTex[stage] = t);
 }
@@ -79,6 +81,7 @@ function tex(THREE, stage) {
   rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') { g.fillStyle = PAL[ch]; g.fillRect(x, y, 1, 1); } }));
   const t = new THREE.CanvasTexture(cv);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  pixTex(THREE, t); // sRGB-канвас: цвета как в палитре (pixColor.js)
   return (texCache[stage] = t);
 }
 
