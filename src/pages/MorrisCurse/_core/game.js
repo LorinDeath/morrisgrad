@@ -1922,7 +1922,7 @@ async function boot(canvasId, username, userId, api) {
       flowerVisible: (id) => { const o = hub.flowerObjs.get(id); if (!o || !o.group.visible || !o.group.parent) return false; const p = o.group.position; const s = stage.project(p.x, 0.5, p.z); return !!s && s.x >= 0 && s.y >= 0 && s.x <= stage.width && s.y <= stage.height; },
       flowerHighlighted: (id) => !!hub.flowerObjs.get(id)?.ring?.visible,
       prompt: () => (overlay.prompt.style.display === 'none' ? '' : overlay.prompt.textContent),
-      lightSources: () => (atmo.sources || []).map((s) => ({ k: s.ek || null, x: Math.round(s.x * 20) / 20, z: Math.round(s.z * 20) / 20, ex: s.ex, ey: s.ey, ez: s.ez, gx: s.gx, gz: s.gz, px: Math.round((s.x + HALF_M) * 20), py: Math.round((s.z + HALF_M) * 20) })), // огни сцены и точки излучения (lightEmitter)
+      lightSources: () => (atmo.sources || []).map((s) => ({ k: s.ek || null, x: Math.round(s.x * 20) / 20, z: Math.round(s.z * 20) / 20, ex: s.ex, ey: s.ey, ez: s.ez, gx: s.gx, gz: s.gz, px: Math.round((s.x - toX(0)) * 20), py: Math.round((s.z - toZ(0)) * 20) })), // огни сцены и точки излучения (lightEmitter)
       atmo: () => ({ mood: atmo.moodKey, sh: atmo.shadows?.count, st: atmo.staticShadows?.count || 0, src: atmo.sources?.length || 0, pools: atmo.pools?.count, parts: atmo.partN, lights: atmo.lights.filter((l) => l.intensity > 0).length }),
       teleport: (x, y) => { player.x = x; player.y = y; },
       mobStatusRow: (o) => mobStatusRow(o),

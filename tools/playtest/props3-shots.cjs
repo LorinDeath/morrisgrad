@@ -12,7 +12,7 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
   const mob = !!process.env.MOBILE;
   const ctx = await b.newContext(mob ? { ...devices['Pixel 7'], viewport: { width: 412, height: 839 } } : { viewport: { width: 1280, height: 760 } }); await guardLocal(ctx);
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(String(e).slice(0, 300))); p.on('console', (m) => { if (m.type() === 'error' || /props|atmo/.test(m.text())) errs.push('console: ' + m.text().slice(0, 200)); });
-  const reqs = []; p.on('request', (r) => { if (/props[23]|props32|light_emitters/.test(r.url())) reqs.push(r.url().replace(/^.*\/src\/assets\//, '')); });
+  const reqs = []; p.on('request', (r) => { if (/props[23]|props32|light_emitters/.test(r.url())) reqs.push((/[?&]import/.test(r.url()) ? 'stub ' : r.resourceType() + ' ') + r.url().replace(/^.*\/src\/assets\//, '')); });
   const t0 = Date.now();
   const q = (process.env.PROPS ? `&props=${process.env.PROPS}` : '') + (process.env.ARENA ? `&arena=${process.env.ARENA}` : '');
   const uid = 'p3_' + (mob ? 'm' : 'pc') + '_' + TAG;
@@ -27,12 +27,12 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
   if (SH.includes('lights')) {
     const L = await p.evaluate(() => window.__game.debug.lightSources()); console.log('lights', JSON.stringify(L.slice(0, 20)));
     const by = {}; for (const s of L) if (s.k && !by[s.k.replace(/_\d+$/, '')]) by[s.k.replace(/_\d+$/, '')] = s;
-    for (const [k, s] of Object.entries(by)) await shot('night-' + k, s.px, s.py + 40, 2.2);
+    for (const [k, s] of Object.entries(by)) await shot('night-' + k, s.px - 60, s.py - 40, 1.3);
   }
   if (SH.includes('arinar')) {
     for (let i = 0; i < 8 && (await p.evaluate(() => window.__game.state().world)) !== 'arinar'; i++) { await p.evaluate(() => window.__game.debug.tp(240, 610, true)); await sleep(700); await p.evaluate(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
     for (const [n, x, y] of [['ice', 20400, 1200], ['fire', 6000, 8400], ['stone', 13200, 1200], ['air', 34800, 3600]]) await shot('arinar-' + n, x, y, 0.8, 6000);
-    const L = await p.evaluate(() => window.__game.debug.lightSources()); const s = L.find((s) => s.k); if (s) await shot('arinar-light-' + s.k, s.px, s.py + 40, 2.2, 4000);
+    const L = await p.evaluate(() => window.__game.debug.lightSources()); const s = L.find((s) => s.k); if (s) await shot('arinar-light-' + s.k, s.px - 60, s.py - 40, 1.3, 4000);
   }
   if (SH.includes('arena')) { // комнаты забега: тот же сид декора → одинаковые позиции в v2/v3
     for (const room of (process.env.ROOMS || 'crypt,abyss,trial').split(',')) {

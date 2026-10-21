@@ -198,7 +198,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
       return [{ path: "_h_" + t, label: `Огни: ${nm}`, t: "hdr" as const }, N(`lt.${t}.haloS`, `${nm}: размер ореола, ×`, 0.2, 3), N(`lt.${t}.haloK`, `${nm}: сила ореола, ×`, 0, 3),
         N(`lt.${t}.poolS`, `${nm}: размер пятна на земле, ×`, 0.2, 3), N(`lt.${t}.poolK`, `${nm}: сила пятна на земле, ×`, 0, 3)]; }),
     { path: "_h2", label: "Точка излучения (px кадра; −1 — авто по свечению)", t: "hdr" },
-    ...(["v3", "v2"] as const).flatMap((s) => EMIT_KEYS.flatMap((k) => [N(`em.${s}.${k}.x`, `${s === "v3" ? "Пропсы 32" : "Пропсы 16"} · ${k}: x`, -1, 128, "int"), N(`em.${s}.${k}.y`, `${s === "v3" ? "Пропсы 32" : "Пропсы 16"} · ${k}: y`, -1, 128, "int")]))] },
+    ...(["v3", "v2"] as const).flatMap((s) => EMIT_KEYS.flatMap((k) => { const nm = ({ lantern: "фонарь", torch: "факел", campfire: "костёр", crystal: "кристалл", star_crystal: "звёздный кристалл", pylon: "пилон" } as any)[k] || k, pre = s === "v3" ? "Пропсы 32" : "Пропсы 16";
+      return [N(`em.${s}.${k}.x`, `${pre} · ${nm}: x`, -1, 128, "int"), N(`em.${s}.${k}.y`, `${pre} · ${nm}: y`, -1, 128, "int")]; }))] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
