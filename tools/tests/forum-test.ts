@@ -579,5 +579,7 @@ await fresh();
   ok(q("SELECT COUNT(*) AS n FROM forum_sections").n === secBefore.n && q("SELECT COUNT(*) AS n FROM forum_topics").n === 2, "миграция не трогает разделы и темы");
 }
 
+// маркер подстановки \u0000 из текста пользователя не подставляет чужие фрагменты
+{ const h = renderMd("[a](https://x.example) \u00000\u0000 \u00009\u0000"); ok(!h.includes("undefined") && (h.match(/<a /g) || []).length === 1, "NUL-маркеры в тексте игнорируются"); }
 console.log(`\nforum-test: ${passes} PASS, ${fails} FAIL`);
 process.exit(fails ? 1 : 0);

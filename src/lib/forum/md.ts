@@ -81,7 +81,8 @@ export interface RenderOpts { headings?: boolean; media?: boolean }
 
 export function renderMd(src: string, opts: RenderOpts = {}): string {
   const headings = opts.headings !== false, media = opts.media !== false;
-  const lines = String(src ?? "").replace(/\r\n?/g, "\n").split("\n");
+  // \u0000 — служебный маркер подстановок inline(); в тексте пользователя его быть не должно
+  const lines = String(src ?? "").replace(/\u0000/g, "").replace(/\r\n?/g, "\n").split("\n");
   const out: string[] = [];
   let para: string[] = [];
   const flush = () => { if (para.length) { out.push(`<p>${para.map((l) => inline(esc(l))).join("<br>")}</p>`); para = []; } };
