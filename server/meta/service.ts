@@ -36,7 +36,8 @@ import { NpcWander } from "./npcWander";
 import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN, inSafe } from "./zoneGen";
-import { CITY_CFG, PK_CFG, POS_CFG, CITY_HOUSES, houseAt, KillLog, inCity, pushOut, cityClient, cityR, syncCityNpcs, cityNpcId, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, type PkState } from "./city";
+import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, type PkState } from "./city";
+import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
@@ -230,16 +231,25 @@ export class MetaService {
     if (!force && now - ((ms as any).posAt || 0) < Math.max(5, Number(POS_CFG.saveSec) || 60) * 1000) return;
     const a = this.store.account(ms.pkey), o = a.lastPos as any;
     if (o && o.w === w && Math.abs(o.x - session.x) < 16 && Math.abs(o.y - session.y) < 16) { (ms as any).posAt = now; return; } // не двигался — без записи
-    const h = w === "arinar" ? houseAt(session.x, session.y) : null;
-    (a as any).lastPos = { w, x: Math.round(session.x), y: Math.round(session.y), at: now, h: h?.id || undefined };
+    const h = w === "arinar" ? roomAt(session.x, session.y) : null; // в здании города: id здания + точка в комнате (раскладка комнаты может смениться)
+    (a as any).lastPos = h ? { w, x: Math.round(h.x), y: Math.round(h.y), at: now, h: h.id, rx: Math.round(session.x - h.ox), ry: Math.round(session.y - h.oy) } : { w, x: Math.round(session.x), y: Math.round(session.y), at: now };
     (ms as any).posAt = now; ms.dirty = true;
   }
   /** точка входа по сохранённой: проверки (мир, границы, проходимость/вода/лава, купол города для убийц, купол мага, исчезнувший дом) */
   posFix(ms: any, p: any): { w: string; x: number; y: number; why: string } | null {
     if (!p || !POS_WORLDS.has(p.w) || !Number.isFinite(Number(p.x)) || !Number.isFinite(Number(p.y))) return null;
     const w = String(p.w), [lo, hi] = worldBounds(w); let x = Math.max(lo + 16, Math.min(hi - 16, Number(p.x))), y = Math.max(lo + 16, Math.min(hi - 16, Number(p.y))), why = "";
+    if (w === "arinar" && p.h) { // вышел из игры в здании города
+      const b = buildingById(String(p.h));
+      if (b?.room && CITY_CFG.on !== false && !this.killerOf(ms).killer) {
+        let rx = b.ox + Number(p.rx), ry = b.oy + Number(p.ry);
+        if (!Number.isFinite(rx) || !Number.isFinite(ry) || !roomWalkable(rx, ry)) { [rx, ry] = roomSpawn(b); why = "room"; }
+        return { w, x: Math.round(rx), y: Math.round(ry), why };
+      }
+      if (b) { [x, y] = outsideDoor(b); why = b.room ? "killer" : "house"; } // комнаты больше нет / убийца — у двери (дальше — проверки ниже)
+      else { x = CITY_CFG.x; y = CITY_CFG.y + 8 * CITY_TILE; why = "house"; } // здания больше нет — у фонтана
+    }
     if (w === "arinar") {
-      if (p.h && !CITY_HOUSES.some((b) => b.id === p.h)) { x = CITY_CFG.x; y = CITY_CFG.y + (Math.max(4, Number(CITY_CFG.plazaTiles) || 6) - 1) * CITY_TILE; why = "house"; } // дома больше нет — на площадь
       for (const d of this.bm.domesAt(x, y)) { const a = Math.atan2(y - d.y, x - d.x) || Math.PI / 2; x = d.x + Math.cos(a) * (d.r + 48); y = d.y + Math.sin(a) * (d.r + 48); why = "bmdome"; }
       if (inCity(x, y, 12) && this.killerOf(ms).killer) { [x, y] = pushOut(x, y, 48); why = "killer"; }
     }
@@ -257,6 +267,7 @@ export class MetaService {
     session.dismoraleUntil = 0; session.escapedUntil = 0;
     this.send(ws, { type: "world_switched", world: f.w, x: f.x, y: f.y, restored: 1, why: f.why || undefined });
     this.onWorldChange(ws, session);
+    if (f.w === "arinar") this.cityRoomNote(ws, session, "restore");
   }
 
   applyHeroToSession(session: any, cls: string) {
@@ -1567,9 +1578,38 @@ export class MetaService {
     if (s.stats && (s.stats.pk ? 1 : 0) !== (P.pk ? 1 : 0)) s.stats.pk = P.pk ? 1 : 0;
     if (!ms.zp.alive || !inCity(s.x, s.y)) return;
     const k = this.killerOf(ms, now); if (!k.killer) return;
+    const wasRoom = inRoomArea(s.x, s.y);
     const [nx, ny] = pushOut(s.x, s.y, 24 + CITY_TILE * Math.max(0, Number(CITY_CFG.pushExtraTiles) || 0));
     s.x = nx; s.y = ny; ms.zp.x = nx; ms.zp.y = ny; (s as any).lastMoveAt = now;
     this.send(ws, { type: "pos_fix", x: Math.round(nx), y: Math.round(ny), city: 1 }); this.cityDenyMsg(s, ms, k, now);
+    if (wasRoom) this.cityRoomNote(ws, s, "kick");
+  }
+  /** двери зданий города (room.ts → после шага): снаружи у двери — в комнату; в комнате на клетке выхода — наружу */
+  cityDoors(ws: WebSocket, session: any) {
+    if (CITY_CFG.on === false) return;
+    const ms = this.ms.get(session.id); if (!ms || !ms.zp.alive) return;
+    const now = Date.now(), x = session.x, y = session.y;
+    const inR = roomAt(x, y);
+    if (inR) {
+      if (!onExit(inR, x, y)) return;
+      const [ox, oy] = outsideDoor(inR); this.cityTeleport(ws, session, ms, ox, oy, now); (ms as any).doorAt = now; (ms as any).doorOut = inR.id;
+      ST.inc("city_room_out"); this.cityRoomNote(ws, session, "exit", inR.id); return;
+    }
+    const b = doorNear(x, y);
+    if (!b) { (ms as any).doorOut = ""; return; }
+    if ((ms as any).doorOut === b.id || now - ((ms as any).doorAt || 0) < 600) return; // только что вышел — сперва отойти от двери
+    if (this.killerOf(ms, now).killer) return; // убийцу купол и так не пустит
+    const [sx, sy] = roomSpawn(b); this.cityTeleport(ws, session, ms, sx, sy, now); (ms as any).doorAt = now;
+    ST.inc("city_room_in"); this.cityRoomNote(ws, session, "enter", b.id);
+  }
+  cityTeleport(ws: WebSocket, session: any, ms: any, x: number, y: number, now: number) {
+    session.x = x; session.y = y; ms.zp.x = x; ms.zp.y = y; (session as any).lastMoveAt = now;
+    this.send(ws, { type: "pos_fix", x: Math.round(x), y: Math.round(y), door: 1 });
+  }
+  /** клиенту: в каком здании герой (null — снаружи); комнату он рисует сам по interiors_dark.json */
+  cityRoomNote(ws: WebSocket, session: any, how: string, id?: string) {
+    const b = roomAt(session.x, session.y);
+    this.send(ws, { type: "city_room", how, id: b?.id || null, room: b?.room || null, ox: b?.ox, oy: b?.oy, name: b?.name || (id ? buildingById(id)?.name : "") || "" });
   }
   pkSend(ws: WebSocket, ms: any, now = Date.now()) {
     const P = this.pkOf(ms), k = this.killLog.status(ms.pkey, now);
@@ -1860,7 +1900,7 @@ export class MetaService {
       const npc: any[] = this.npcs.snapshot(w); // [id, x, y, dir, moving] — все NPC мира (их единицы)
       const bmOn = w === "arinar" && this.bm.loaded && BM_CFG.on !== false, bmE = bmOn ? this.bm.npcEntry() : null;
       if (bmE) npc.push(bmE); // Чёрный маг — НПС квестов (позиция живая)
-      if (w === "arinar" && CITY_CFG.on !== false) (CITY_CFG.npc as any[]).forEach((sl, i) => { if (sl.on) npc.push([cityNpcId(i), Math.round(CITY_CFG.x + sl.dx * CITY_TILE), Math.round(CITY_CFG.y + sl.dy * CITY_TILE), 0, 0]); }); // места NPC города
+      if (w === "arinar" && CITY_CFG.on !== false) (CITY_CFG.npc as any[]).forEach((sl, i) => { const p = sl.on ? slotPos(sl) : null; if (p) npc.push([cityNpcId(i), p[0], p[1], 0, 0]); }); // места NPC города (снаружи и в комнатах зданий)
       const cityCfgSig = w === "arinar" ? JSON.stringify(cityClient()) : "";
       if (cityCfgSig && cityCfgSig !== (this as any).citySig) { (this as any).citySig = cityCfgSig; this.cityVer++; syncCityNpcs(NPCS as any); }
       for (const [ws, s] of socks) {
@@ -1900,7 +1940,7 @@ export class MetaService {
           if (now - ((ms as any).roAt || 0) > 2000 || (ms as any).roVer !== this.bm.roseVer) { (ms as any).roAt = now; (ms as any).roVer = this.bm.roseVer; bm.ro = this.bm.rosesSnap(s.x, s.y); bm.cfg = bmClient(); }
           if (!bm.m && !bm.d.length && !bm.ro) bm = undefined; }
         // город под куполом: настройки отрисовки и места NPC — при входе в мир и при правке в админке (версия)
-        let city: any; if (w === "arinar" && (ms as any).cityVer !== this.cityVer && Math.abs(s.x - CITY_CFG.x) < 9000 && Math.abs(s.y - CITY_CFG.y) < 9000) { (ms as any).cityVer = this.cityVer; city = cityClient(); }
+        let city: any; if (w === "arinar" && (ms as any).cityVer !== this.cityVer && ((Math.abs(s.x - CITY_CFG.x) < 9000 && Math.abs(s.y - CITY_CFG.y) < 9000) || inRoomArea(s.x, s.y))) { (ms as any).cityVer = this.cityVer; city = cityClient(); }
         this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, city, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }

@@ -4,7 +4,8 @@ import { DASH_CFG } from "./dash";
 import { GATHER_CFG } from "./gatherCfg";
 import { NPC_CFG } from "./npcWander";
 import { BM_CFG } from "./bmCfg";
-import { CITY_CFG, PK_CFG, POS_CFG, CITY_SLOTS, CITY_LOOKS, CITY_HOUSES, CENTERPIECES } from "./city";
+import { CITY_CFG, PK_CFG, POS_CFG, CITY_SLOTS, CITY_LOOKS, CENTERPIECES } from "./city";
+import { BUILD_DEF, ROOMS } from "./cityBuild";
 import { mobSkillOptions } from "./mobSkills";
 // «Проклятые»: правки игровых данных из админ-панели — общая часть сервера и клиента (без D1).
 // Схема полей (тип, диапазон) — ЕДИНСТВЕННЫЙ список того, что можно менять; патч вне схемы отклоняется.
@@ -180,26 +181,30 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   // «🏰 Альказак» — только админ: город под куполом (city.ts). Раскладка земли/домов строится при запуске сервера (центр/радиус — после перезапуска)
   city: { name: "Город Альказак", fields: [{ path: "on", label: "Город включён (купол, безопасная зона, NPC)", t: "bool" }, { path: "name", label: "Название города", t: "text" },
     { path: "_h_dome", label: "Купол", t: "hdr" },
-    N("x", "Центр X, px мира (после перезапуска)", 0, 48000, "int"), N("y", "Центр Y, px мира (после перезапуска)", 0, 48000, "int"), N("rTiles", "Радиус купола, клеток (32 = 64×64; после перезапуска)", 8, 64, "int"),
+    N("x", "Центр X, px мира (после перезапуска)", 0, 48000, "int"), N("y", "Центр Y, px мира (после перезапуска)", 0, 48000, "int"), N("rTiles", "Радиус купола, клеток (32 = 64×64; раскладка города растягивается; после перезапуска)", 8, 160, "int"),
     N("alphaIn", "Купол изнутри: непрозрачность (0.02 = прозрачность 98 %)", 0, 1), N("alphaOut", "Купол снаружи: непрозрачность", 0, 1), N("rim", "Яркость ободка", 0, 2), { path: "color", label: "Цвет купола", t: "color" },
     { path: "_h_safe", label: "Безопасная зона", t: "hdr" },
-    { path: "noDamage", label: "Внутри урон 0 (атаки, навыки, снаряды, статусы — в обе стороны)", t: "bool" }, { path: "mobsOut", label: "Мобы не заходят внутрь", t: "bool" },
+    { path: "noDamage", label: "Внутри урон 0 (атаки, навыки, снаряды, статусы — в обе стороны)", t: "bool" }, { path: "mobsOut", label: "Мобы не заходят внутрь", t: "bool" }, { path: "nodesOut", label: "Узлы ресурсов под куполом — переносить за край (после перезапуска)", t: "bool" },
     { path: "_h_kill", label: "Убийцы: купол не пускает (выталкивает)", t: "hdr" },
     { path: "pkBlocked", label: "PK-режим — убийца", t: "bool" },
     { path: "killerPOn", label: "Убийца: убил игроков", t: "bool" }, N("killerP", "…игроков (1 — сразу)", 1, 100, "int"),
     { path: "killerMOn", label: "Убийца: убил мобов", t: "bool" }, N("killerM", "…мобов", 1, 1000, "int"),
     N("windowMin", "…за последние, мин", 0.5, 1440), N("pushExtraTiles", "Выталкивание: за край ещё на, клеток", 0, 10), N("denyMsgSec", "Сообщение «не пускает» не чаще раза в, с", 0.5, 60),
+    { path: "_h_rose", label: "Роза в центре города", t: "hdr" },
+    { path: "roseId", label: "id розы (black_roses)", t: "text" }, { path: "roseBloom", label: "Сразу раскрыта (стадия 6)", t: "bool" }, { path: "roseNoCurse", label: "Без проклятой земли", t: "bool" },
+    { path: "noCurseIn", label: "Внутри купола проклятая земля роз не действует", t: "bool" },
     { path: "_h_look", label: "Вид", t: "hdr" },
     N("plazaTiles", "Площадь: радиус, клеток (после перезапуска)", 4, 12, "int"),
     { path: "centerpiece", label: "Центр площади: fountain — фонтан, statue — статуя (место зарезервировано), none — пусто (коллизия — после перезапуска)", t: "enum", opts: Object.keys(CENTERPIECES) },
     N("centerFreeTiles", "Свободно вокруг центра, клеток (после перезапуска)", 1, 6),
-    N("groundTint", "Очернение земли (0…1)", 0, 1), N("grassPct", "Трава пробивается, % (после перезапуска)", 0, 100), N("roofFade", "Крыша, когда герой в доме: непрозрачность", 0, 1),
+    N("groundTint", "Очернение земли (0…1)", 0, 1), N("grassPct", "Трава пробивается, % (после перезапуска)", 0, 100),
     ...Array.from({ length: CITY_SLOTS }, (_, i) => { const p = (k: string) => `npc.${i}.${k}`; return [
       { path: p("_h"), label: `NPC — место ${i + 1}`, t: "hdr" as const }, { path: p("on"), label: "Стоит в городе (квесты — во вкладке «📜 Квесты», NPC city_" + (i + 1) + ")", t: "bool" as const },
       { path: p("name"), label: "Имя", t: "text" as const }, { path: p("title"), label: "Подпись", t: "text" as const },
       { path: p("look"), label: "Вид (временный, лист NPC)", t: "enum" as const, opts: CITY_LOOKS },
-      N(p("dx"), "Точка X, клеток от центра", -40, 40), N(p("dy"), "Точка Y, клеток от центра", -40, 40),
-      { path: p("house"), label: "Дом (для справки)", t: "enum" as const, opts: ["", ...CITY_HOUSES.map((h) => h.id)], optn: Object.fromEntries([["", "—"], ...CITY_HOUSES.map((h) => [h.id, h.name])]) },
+      N(p("dx"), "Снаружи: точка X, клеток от центра (при R = 32, растягивается)", -60, 60), N(p("dy"), "Снаружи: точка Y, клеток от центра", -60, 60),
+      { path: p("house"), label: "В здании (пусто — снаружи, по точке X/Y)", t: "enum" as const, opts: ["", ...BUILD_DEF.map((h) => h.id)], optn: Object.fromEntries([["", "— снаружи"], ...BUILD_DEF.map((h) => [h.id, h.name])]) },
+      { path: p("spot"), label: "Место в здании: " + [...new Set(Object.values(ROOMS).flatMap((r: any) => (r.npc_spots || []).map((s: any) => s.id)))].join(" / "), t: "text" as const },
     ]; }).flat()] },
   // «⚔ PK» — только админ: PK-режим (кнопка у полоски ОЗ), PvP в открытом мире
   pk: { name: "PK-режим", fields: [{ path: "on", label: "PK-режим доступен", t: "bool" }, N("enterSec", "Включить: ждать без боя, с", 0, 600, "int"), N("exitSec", "Выключить: ждать без боя, с", 0, 3600, "int"),

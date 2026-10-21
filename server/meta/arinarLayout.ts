@@ -8,6 +8,7 @@ import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from "./shared";
 import { worldSize, ARINAR_HUB } from "../worlds/sizes";
 import { WORLD_PORTALS as PORTALS } from "../worlds/portals";
 import { CITY_CFG, CITY_TILE, cityCell, cityProps, cityWallColliders } from "./city";
+import { nearBuilding } from "./cityBuild";
 export const CELL = 32, CH = 32;
 const T = tilesMeta.index;
 const SHEET = { b_ice: 1, b_fire: 2, b_stone: 3, b_air: 4 };
@@ -98,7 +99,7 @@ export function arinarPlan() {
   const city = CITY_CFG.on !== false ? { x: CITY_CFG.x, y: CITY_CFG.y, ci: Math.floor(CITY_CFG.x / CITY_TILE), cj: Math.floor(CITY_CFG.y / CITY_TILE), r: Number(CITY_CFG.rTiles) || 32 } : null;
   const cityAt = (i, j) => city && (i - city.ci + 0.5) ** 2 + (j - city.cj + 0.5) ** 2 <= city.r * city.r;
   const keepClear = (x, y) => pois.some((p) => Math.abs(x - p.x) < 100 && Math.abs(y - p.y) < 100) || Math.hypot(x - center.x, y - center.y) < plazaR + 40;
-  const cityP = city ? cityProps(city.x, city.y, city.r) : [], cityW = city ? cityWallColliders(city.x, city.y) : [];
+  const cityP = city ? cityProps(city.x, city.y, city.r).filter((p: any) => !nearBuilding(p.x, p.y)) : [], cityW = city ? cityWallColliders(city.x, city.y) : [];
   return { size, seed, center, portals, npcs, pois, plazaR, biomeAt, keepClear, n: Math.ceil(size / CELL), city, cityP, cityW };
 }
 

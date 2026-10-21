@@ -6,6 +6,8 @@ import { ColliderGrid, propColliders, resolveCircle, blocked } from './propsV2.t
 import { layoutWorld } from './worldLayout.ts';
 import { CELL as A_CELL, CH, arinarPlan, layoutChunk } from './arinarLayout.ts';
 import { WORLD_PORTALS } from '../worlds/portals.ts';
+import { worldBounds } from '../worlds/sizes.ts';
+import { inRoomArea, resolveRoom, roomAt, roomBounds, roomWalkable, buildingColliders } from './cityBuild.ts';
 
 export const BODY_R = 10;              // радиус тела героя (как прежний hub.map.isBlocked(…, 10))
 const ALTAR_EDGE = { o: 22, r: 9 };    // алтарь Перевоплощения: основание ~60 px — твёрдые края, центр активируем
@@ -28,11 +30,11 @@ class ArinarGrid {
       const i = ci + di, j = cj + dj, k = i * 4096 + j;
       if (i < 0 || j < 0 || this.done.has(k)) continue;
       this.done.add(k);
-      if (!this.plan) { this.plan = arinarPlan(); addPortals(this.grid, 'arinar'); }
+      if (!this.plan) { this.plan = arinarPlan(); addPortals(this.grid, 'arinar'); for (const c of buildingColliders()) this.grid.add(c); } // здания города
       if (i * this.span >= this.plan.size || j * this.span >= this.plan.size) continue;
       const L = layoutChunk(this.plan, i, j);
       for (const p of L.props) for (const c of propColliders(p.k, p.x, p.y, p.s)) this.grid.add(c);
-      for (const c of L.cols || []) this.grid.add(c); // стены домов города (city.ts)
+      for (const c of L.cols || []) this.grid.add(c); // центральный объект города, пропсы dm_* (city.ts / cityBuild.ts)
     }
     return this.grid;
   }
@@ -58,10 +60,17 @@ export function worldGrid(world: string, x = 0, y = 0): ColliderGrid | null {
 
 /** Вытолкнуть тело радиуса r из твёрдых пропсов мира */
 export function resolveWorld(world: string, x: number, y: number, r = BODY_R): [number, number] {
+  if (world === 'arinar' && inRoomArea(x, y)) return resolveRoom(x, y, r); // интерьер здания города (cityBuild.ts)
   return resolveCircle(worldGrid(world, x, y), x, y, r);
 }
 export function blockedWorld(world: string, x: number, y: number, r = BODY_R): boolean {
+  if (world === 'arinar' && inRoomArea(x, y)) return !roomWalkable(x, y, r);
   return blocked(worldGrid(world, x, y), x, y, r);
+}
+/** границы перемещения [lo, hi] в точке: в интерьере — комната, иначе мир (worldBounds) */
+export function boundsAt(world: string, x: number, y: number): [number, number] {
+  if (world === 'arinar' && inRoomArea(x, y)) { const b = roomAt(x, y); if (b) return roomBounds(b); }
+  return worldBounds(world);
 }
 /** Ближайшая свободная точка (для спавнов): спираль от (x, y) */
 export function freeSpot(world: string, x: number, y: number, r = BODY_R): [number, number] {

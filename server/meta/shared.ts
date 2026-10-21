@@ -10,7 +10,7 @@
 //    сюжет/квесты, бестиарий. Баланс и капы — docs/MORRISCURSE-BALANCE.md.
 
 import { xpNeed } from "./balance";
-import { cityNpcDefs } from "./city";
+import { cityNpcDefs } from "./cityBuild";
 import { MOBS_PUBLIC_ALL } from "./biomes";
 import { MOBS_PUBLIC, MONSTER_ABILITIES, MOB_RESOURCES, type MobPublic } from "./generated/public";
 

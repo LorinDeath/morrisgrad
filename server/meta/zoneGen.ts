@@ -7,6 +7,7 @@ import { STATIC_NPCS as NPCS, ZONE_RESPAWN } from "./shared";
 import { LEVEL_GAP } from "./levelGap";
 import { WORLD_SIZES, ARINAR_HUB } from "../worlds/sizes";
 import { BIOMES, VARIANTS, VARIANT_BY_ID, type BiomeId } from "./biomes";
+import { cityNodeSpot } from "./city";
 
 export function rng(seed: number) {
   let a = seed >>> 0;
@@ -318,7 +319,8 @@ export function genNodes(seed: number, world = "arinar") {
           const y = Math.round(reg.rect[1] + 30 + R() * (reg.rect[3] - reg.rect[1] - 60));
           if (inSafe(x, y, 20, world) || G.bosses.some((b) => Math.hypot(x - b.x, y - b.y) < 130)) continue;
           if (out.some((o) => Math.hypot(o.x - x, o.y - y) < ZONE_GEN.nodeMinDist)) continue;
-          out.push({ id: 1000 + out.length, type: nd.type, res: nd.res, x, y, respawn: nd.respawn, qty: nd.qty });
+          const cs = world === "arinar" ? cityNodeSpot(x, y) : null; // под куполом города — за край (сид/порядок остальных не меняются)
+          out.push({ id: 1000 + out.length, type: nd.type, res: nd.res, x: cs ? cs[0] : x, y: cs ? cs[1] : y, respawn: nd.respawn, qty: nd.qty });
           break;
         }
       }

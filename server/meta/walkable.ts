@@ -1,13 +1,13 @@
 // Проходимость точки мира для входа/телепорта: твёрдые пропсы (propCollision.ts) + подключаемые проверки.
 // WALK_HOOKS — сюда регистрируются новые запреты (вода/лава с ветки ui-cursed-rework: WALK_HOOKS.push((w, x, y) => !isWater(w, x, y))).
-import { blockedWorld, BODY_R } from "./propCollision";
-import { worldBounds } from "../worlds/sizes";
+import { blockedWorld, BODY_R, boundsAt } from "./propCollision";
+import { inRoomArea } from "./cityBuild";
 export const WALK_HOOKS: ((world: string, x: number, y: number) => boolean)[] = [];
 export const POS_WORLDS = new Set(["arinar", "hellfire"]); // мир, куда можно вернуть при входе (арена/забеги — нет)
 export function walkable(world: string, x: number, y: number, r = BODY_R): boolean {
-  const [lo, hi] = worldBounds(world); if (!(x >= lo && x <= hi && y >= lo && y <= hi)) return false;
+  const [lo, hi] = boundsAt(world, x, y); if (!(x >= lo && x <= hi && y >= lo && y <= hi)) return false;
   try { if (blockedWorld(world, x, y, r)) return false; } catch { return false; }
-  for (const h of WALK_HOOKS) { try { if (!h(world, x, y)) return false; } catch { return false; } }
+  if (!inRoomArea(x, y)) for (const h of WALK_HOOKS) { try { if (!h(world, x, y)) return false; } catch { return false; } }
   return true;
 }
 /** ближайшая проходимая точка: спираль до maxR px (null — не нашли) */
