@@ -54,11 +54,12 @@ export const WELL_MOVES: { from: [number, number]; to: [number, number] }[] = [{
     const set = (i: number, j: number, c: string) => { if (W[j] && i >= 0 && i < W[j].length) W[j] = W[j].slice(0, i) + c + W[j].slice(i + 1); };
     for (const [i, j] of cells) set(i, j, "."); for (const [i, j] of cells) set(i + di, j + dj, "#");
     p.x = m.to[0]; p.y = m.to[1]; } }
-/** вертикальный забор: в атласе только горизонтальный пролёт dm_fence и узловой столб dm_fence_post (с обрубками жердей вбок).
- *  Колонна столбов через 32 px торчала обрубками → колонна пересобирается: столбы без перекладин (dm_fence_vpost) через ~64 px
- *  и жердь вдоль глубины (dm_fence_vrail, растягивается между столбами; len — длина пролёта px). Концы колонны
- *  стыкуются с крайним колышком горизонтального пролёта (x — на его колышек, y — до его основания). Арт: tools/city-fence/gen.py */
+/** вертикальный забор (арт Художника, /workspace/city_dome_fence/README): в карте колонна узловых dm_fence_post через 32 px (обрубки вбок)
+ *  → пересобирается по правилам README: dm_fence_corner на концах (крайние колышки горизонтальных пролётов, y + 0.5 — рисуется после
+ *  пролёта с тем же y), dm_fence_v (пролёт 64 px, якорь — южный конец) от нижнего угла вверх; остаток < 64 — последний пролёт якорем
+ *  в Y_верх + 64 (перекрытие уходит внутрь колонны). Левая колонна f: false, правая f: true (жерди — внутрь огорода) */
 export const FENCE_END_DX = [-25, 27]; // крайние колышки dm_fence от центра, px мира (кадр 32 px × 2)
+export const FENCE_V_SPAN = 64;        // пролёт dm_fence_v, px мира (3.2 м)
 export function fenceRuns(props: any[]): any[] {
   const H_RE = /^dm_fence(_gate|_broken)?$/, hor = props.filter((p) => H_RE.test(p.k)), posts = props.filter((p) => p.k === "dm_fence_post");
   const byX = new Map<number, any[]>(); for (const p of posts) { let a = byX.get(p.x); if (!a) byX.set(p.x, (a = [])); a.push(p); }
@@ -68,14 +69,14 @@ export function fenceRuns(props: any[]): any[] {
     const runs: any[][] = []; for (const p of col) { const r = runs[runs.length - 1]; if (r && p.y - r[r.length - 1].y <= 34) r.push(p); else runs.push([p]); }
     for (const r of runs) { if (r.length < 2) continue; const y0 = r[0].y, y1 = r[r.length - 1].y;
       // стык с горизонтальным пролётом: крайний колышек в пределах 28 px по x, основание — в 48 px над/под колонной
-      const end = (fy: (h: any) => boolean) => { let best: any = null; for (const h of hor) if (fy(h)) for (const dx of FENCE_END_DX) { const d = Math.abs(h.x + dx - x); if (d <= 28 && (!best || d < best.d)) best = { d, x: h.x + dx, y: h.y }; } return best; };
+      const end = (fy: (h: any) => boolean) => { let best: any = null; for (const h of hor) if (fy(h)) for (const dx of FENCE_END_DX) { const d = Math.abs(h.x + dx - x); if (d <= 28 && (!best || d < best.d)) best = { d, x: h.x + dx, y: h.y, dx }; } return best; };
       const top = end((h) => h.y < y0 && y0 - h.y <= 48), bot = end((h) => h.y > y1 && h.y - y1 <= 48);
-      const X = top ? top.x : bot ? bot.x : x, yA = top ? top.y : y0, yB = bot ? bot.y : y1, n = Math.max(1, Math.round((yB - yA) / 64)), st = (yB - yA) / n;
-      for (let i = 0; i <= n; i++) { const y = Math.round(yA + st * i);
-        if ((i > 0 || !top) && (i < n || !bot)) out.push({ k: "dm_fence_vpost", x: X, y, s: 1, f: false });  // столб (на стыке — колышек пролёта)
-        if (i > 0) out.push({ k: "dm_fence_vrail", x: X, y, s: 1, f: false, len: Math.round(st) }); }     // жердь от этого столба вглубь до предыдущего
+      const X = top ? top.x : bot ? bot.x : x, yT = top ? top.y : y0, yB = bot ? bot.y : y1, f = ((top || bot)?.dx ?? -1) > 0; // крайний колышек справа у пролёта → правая колонна
+      let y = yB; for (; y - FENCE_V_SPAN >= yT - 0.5; y -= FENCE_V_SPAN) out.push({ k: "dm_fence_v", x: X, y, s: 1, f });
+      if (y > yT + 0.5) out.push({ k: "dm_fence_v", x: X, y: yT + FENCE_V_SPAN, s: 1, f }); // остаток: северный конец — ровно в угол
+      out.push({ k: "dm_fence_corner", x: X, y: yT + 0.5, s: 1, f: false }, { k: "dm_fence_corner", x: X, y: yB + 0.5, s: 1, f: false });
       for (const p of r) drop.add(p);
-      if (Math.floor(X / T) !== Math.floor(x / T)) WALK_SHIFT.push({ from: Math.floor(x / T), to: Math.floor(X / T), j0: Math.floor(yA / T) + 1, j1: Math.floor(yB / T) - 1 }); }
+      if (Math.floor(X / T) !== Math.floor(x / T)) WALK_SHIFT.push({ from: Math.floor(x / T), to: Math.floor(X / T), j0: Math.floor(yT / T) + 1, j1: Math.floor(yB / T) - 1 }); }
   }
   return props.filter((p) => !drop.has(p)).concat(out);
 }

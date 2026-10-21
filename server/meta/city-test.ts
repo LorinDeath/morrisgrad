@@ -104,7 +104,7 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("застройка не дальше r 37.7 клетки", cityBuildings().every((b) => [[b.rect[0], b.rect[1]], [b.rect[0] + b.rect[2], b.rect[1]], [b.rect[0], b.rect[1] + b.rect[3]], [b.rect[0] + b.rect[2], b.rect[1] + b.rect[3]]].every(([x, y]) => Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) <= 37.7 * 32)));
   t("за куполом нет черноты без льда (кромка обрезана)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d <= 40) continue; const g = cityGround(gi, gj); if (g && !g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
   t("внутри купола лёд карты убран (только у кромки снаружи)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d > 40) continue; const g = cityGround(gi, gj); if (!g || g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
-  { const FV = /^dm_fence_v(post|rail)$/, M = mapProps(), base = M.filter((p) => !FV.test(p.k));
+  { const FV = /^dm_fence_(v|corner)$/, M = mapProps(), base = M.filter((p) => !FV.test(p.k));
     t("пропсы карты: 253 − клумба розы (−5) − 60 узловых столбов колонн (4 одиночных — в клумбе) (→ вертикальный забор), остальные в атласе", base.length === 248 - 60 && base.every((p) => DARK_PROPS.keys?.[p.k]), base.filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k)); }
   t("стены/заборы из сетки walk — коллайдеры", walkColliders().length > 500 && !walkable("arinar", ...((): [number, number] => { const b = buildingById("house_elder")!; return [b.rect[0] + 100, b.rect[1] + 100]; })()));
   const rp = cityClient().rose; t("роза города рисуется в точке карты (24608, 3232) — центр травяной клумбы", rp && rp.x === 24608 && rp.y === 3232 && rp.id === "1792366351175927", rp);
@@ -194,16 +194,23 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const v = validatePatch("pk", "main", { barTo: "#123456", barW: 80, tagText: "УБИЙЦА" } as any); t("админка PK: цвета/ширина/значок принимаются", typeof v !== "string" && (v as any).barTo === "#123456" && (v as any).barW === 80, v);
   t("админка PK: ширина полосы вне 24…140 — отказ", typeof validatePatch("pk", "main", { barW: 999 } as any) === "string"); }
 { // вертикальный забор и колодец (правки поверх карты Историка)
-  const P = mapProps(), col = P.filter((p: any) => p.k === "dm_fence_post"), vp = P.filter((p: any) => p.k === "dm_fence_vpost"), vr = P.filter((p: any) => p.k === "dm_fence_vrail");
+  const P = mapProps(), col = P.filter((p: any) => p.k === "dm_fence_post"), vs = P.filter((p: any) => p.k === "dm_fence_v"), cr = P.filter((p: any) => p.k === "dm_fence_corner");
   const xs = new Map<number, number[]>(); for (const p of col) (xs.get(p.x) || xs.set(p.x, []).get(p.x))!.push(p.y);
   t("забор: колонн узловых столбов (с обрубками вбок) не осталось", [...xs.values()].every((ys) => ys.sort((a, b) => a - b).every((y, i) => !i || y - ys[i - 1] > 34)), [...xs.entries()].slice(0, 3));
-  t("забор: вертикальные пролёты — столбы и жерди", vp.length >= 20 && vr.length >= 30, [vp.length, vr.length]);
-  t("забор: жердь — пролёт 48…80 px (столб через ~64 px)", vr.every((r: any) => r.len >= 48 && r.len <= 80), vr.slice(0, 3));
+  t("забор: временный арт снят (vpost/vrail нет), пролёты dm_fence_v + углы dm_fence_corner", !P.some((p: any) => /^dm_fence_v(post|rail)$/.test(p.k)) && vs.length >= 20 && cr.length >= 8, [vs.length, cr.length]);
   const H = P.filter((p: any) => /^dm_fence(_gate|_broken)?$/.test(p.k)), ends = H.flatMap((h: any) => [h.x - 25, h.x + 27]);
-  t("забор: каждая колонна стыкуется с крайним колышком горизонтального пролёта (x ±1)", [...new Set(vr.map((r: any) => r.x))].every((x) => ends.some((e) => Math.abs(e - x) <= 1)), [...new Set(vr.map((r: any) => r.x))]);
-  const ys = (x: number) => vr.filter((r: any) => r.x === x).map((r: any) => [r.y - r.len, r.y]).sort((a: any, b: any) => a[0] - b[0]);
-  // на одном x бывает две колонны (разные огороды) — между ними разрыв > 100 px; внутри колонны — стык в стык
-  t("забор: жерди колонны без щелей (конец одной — начало следующей)", [...new Set(vr.map((r: any) => r.x))].every((x) => ys(x).every((s: any, i: number, a: any[]) => !i || Math.abs(s[0] - a[i - 1][1]) <= 1 || s[0] - a[i - 1][1] > 100)), [...new Set(vr.map((r: any) => r.x))].map((x) => ys(x)));
+  t("забор: каждая колонна — на крайнем колышке горизонтального пролёта (x ±1)", [...new Set(vs.map((r: any) => r.x))].every((x) => ends.some((e) => Math.abs(e - x) <= 1)), [...new Set(vs.map((r: any) => r.x))]);
+  // README: от нижнего угла вверх по 64 px; северный конец последнего — ровно в верхний угол; щелей нет (перекрытие — только внутрь)
+  const colsV = new Map<number, any[]>(); for (const v of vs) (colsV.get(v.x) || colsV.set(v.x, []).get(v.x))!.push(v);
+  let gapOk = true, endsOk = true; const bad: any[] = [];
+  for (const [x, a] of colsV) { const cs = cr.filter((c: any) => c.x === x).map((c: any) => c.y - 0.5).sort((p: number, q: number) => p - q);
+    for (let i = 0; i + 1 < cs.length; i += 2) { const yT = cs[i], yB = cs[i + 1], sp = a.filter((v: any) => v.y > yT && v.y <= yB).map((v: any) => v.y).sort((p: number, q: number) => q - p);
+      if (sp[0] !== yB || Math.min(...sp) - 64 !== yT) { endsOk = false; bad.push([x, yT, yB, sp]); }
+      for (let k = 1; k < sp.length; k++) if (sp[k - 1] - sp[k] > 64) { gapOk = false; bad.push([x, sp[k - 1], sp[k]]); } } }
+  t("забор: пролёт от нижнего угла, северный конец — в верхнем углу", endsOk, bad.slice(0, 3));
+  t("забор: пролёты без щелей (шаг ≤ 64 px)", gapOk, bad.slice(0, 3));
+  t("забор: левая колонна f:false, правая f:true (жерди внутрь)", [...colsV.entries()].every(([x, a]) => { const f = a[0].f; const pair = [...colsV.keys()].find((x2) => x2 !== x && Math.abs(x2 - x) < 500 && a.some((v: any) => colsV.get(x2)!.some((w: any) => w.y === v.y))); return pair === undefined || (x < pair ? f === false : f === true); }));
+  t("забор: угол рисуется после пролёта с тем же y (y + 0.5)", cr.every((c: any) => c.y % 1 === 0.5));
   t("забор: стена (#) сдвинутых колонн переехала в клетку столбов", WALK_SHIFT.length === 2 && WALK_SHIFT.every((m) => walkCell(m.to, m.j0 + 1) === "#" && walkCell(m.from, m.j0 + 1) !== "#"), WALK_SHIFT);
   t("fenceRuns: одиночный столб не трогается", fenceRuns([{ k: "dm_fence_post", x: 10, y: 10 }]).length === 1);
   const w = P.find((p: any) => p.k === "dm_well" && p.x === WELL_MOVES[0].to[0] && p.y === WELL_MOVES[0].to[1]);
