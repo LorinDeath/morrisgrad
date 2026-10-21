@@ -426,6 +426,7 @@ export class RunView {
     for (const p of this.players.values()) this.root.remove(p.ch.group);
     this.players.clear();
     this.scene.remove(this.root);
+    this.arena.dispose?.();
     this.root.traverse((o) => {
       if (o.geometry) o.geometry.dispose?.();
       if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });

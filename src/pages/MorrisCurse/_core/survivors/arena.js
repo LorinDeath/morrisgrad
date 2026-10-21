@@ -1,6 +1,7 @@
 // 3D-арена комнаты забега: «Склеп» (адский камень) и «Бездна» (осколок Аринара).
 import { loadPropTextures, PropSprites, keyStrip, stripFrame } from '../engine/propAtlas.js';
-import { arenaSet } from '../engine/gfxCfg.js';
+import { arenaSet, GFX } from '../engine/gfxCfg.js';
+import { buildArena32, TILE_M as A32_TILE } from './arena32.js';
 import { pixTex } from '../engine/pixColor.js';
 import { PROPS_META, propDef } from '../../../../../server/meta/propsV2.ts';
 import { ARENA_RADIUS } from './data.js';
@@ -61,6 +62,10 @@ export class RunArena {
     const acc = this.tiles ? TILE_ACCENT[this.tiles] : null; // акцент тайлсета
     const g = new THREE.Group();
     const R = ARENA_RADIUS;
+    // набор листов арены: v2 (props2, по умолчанию) или v3 (props3 + x64 — замены 3D-мешей; админка «🖼 Графика» → arena3). Только отрисовка.
+    // v3 = ещё и пол/кромка/парапет/декали arena32 (arena32.js): до загрузки листов виден прежний каменный холст.
+    const AS = this.propSet = arenaSet(), A32 = AS === 'v3';
+    this.wallLight = DARK.wallLight;
     const tex = new THREE.CanvasTexture(createStoneCanvas(abyss
       ? { base: '#0d1026', motif: 'rgba(103,232,249,0.10)', crack: 'rgba(0,0,0,0.4)' }
       : { base: '#1a1212', motif: 'rgba(197,155,39,0.09)', moss: 'rgba(60,80,40,0.35)' }, abyss ? 11 : 5));
@@ -69,7 +74,7 @@ export class RunArena {
     tex.anisotropy = 4;
     if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
     // тайлсет темы (если есть): каменный холст — до загрузки PNG, потом запечённый пол из тайлов
-    if (this.tiles) {
+    if (this.tiles && !A32) {
       const img = new Image();
       img.onload = () => {
         const t2 = new THREE.CanvasTexture(bakeTileFloor(img, R, this.tiles.length * 31));
@@ -94,8 +99,6 @@ export class RunArena {
     const sigil2 = new THREE.Mesh(new THREE.RingGeometry(9, 9.2, 48), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
     sigil2.rotation.x = -Math.PI / 2; sigil2.position.y = 0.02;
     g.add(sigil2);
-    // набор листов арены: v2 (props2, по умолчанию) или v3 (props3 + x64 — замены 3D-мешей; админка «🖼 Графика» → arena3). Только отрисовка.
-    const AS = this.propSet = arenaSet();
     this.decor = null; // v3: спрайты вместо мешей buildProps (заполняется там же, выводится после загрузки листов)
     loadPropTextures(THREE, { set: AS, extra: AS === 'v3' ? ['x64', 'x64_glow'] : [] }).then((tex) => {
       if (AS === 'v3') { // сигил — своя полоса кадров (без клона листа b128 4096²)
@@ -108,7 +111,8 @@ export class RunArena {
         sigil.material.map = t; sigil.material.needsUpdate = true; this.sigilTex = t; this.sigilDef = sd; this.sigilCols = SS.cols;
       }
       const items = [];
-      const seg = 5.4, Rw = R + 1.6, n = Math.round((2 * Math.PI * Rw) / seg);
+      // arena32: высокое кольцо arena_wall_* — за парапетом (Rf + arena3TallGap) или убрано (arena3Tall выкл)
+      const seg = 5.4, Rw = A32 ? R + A32_TILE + GFX.arena3TallGap : R + 1.6, n = A32 && !GFX.arena3Tall ? 0 : Math.round((2 * Math.PI * Rw) / seg);
       for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; items.push(['arena_wall_' + AT, Math.cos(a) * Rw, Math.sin(a) * Rw, 0.9]); }
       PILLARS.forEach((p) => items.push(['arena_column_' + AT, p.x, p.z, p.r / 1.44])); // коллайдер колонны (run.js) = 45% ширины 6.4 м → 1.44 м при s=1
       const D = this.decor || [];
@@ -120,9 +124,12 @@ export class RunArena {
       this.props = B;
       if (this.decorDots?.length) this.buildDots(THREE, g, tex);
     }).catch((e) => console.warn('[arena props]', e.message));
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.2, 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xc59b27) }));
-    rim.rotation.x = Math.PI / 2; rim.position.y = 0.05;
-    g.add(rim);
+    // обод: arena32 заменяет его бордюром кромки (arena3Rim — оставить тонкой подсветкой по бордюру)
+    if (!A32 || GFX.arena3Rim) {
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(A32 ? R + A32_TILE - 0.3 : R + 0.2, A32 ? 0.05 : 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xc59b27) }));
+      rim.rotation.x = Math.PI / 2; rim.position.y = 0.05;
+      g.add(rim);
+    }
     // свет у колонн (сами колонны — спрайты v2 выше)
     this.flames = [];
     PILLARS.forEach((p, i) => {
@@ -132,7 +139,10 @@ export class RunArena {
         g.add(light);
       }
     });
+    this.floor = floor;
     this.buildProps(THREE, g, abyss, AT);
+    this.a32 = A32 ? buildArena32(THREE, this, g, { AT, R }) : null;
+    if (this.a32) this.a32.promise.catch((e) => console.warn('[arena32]', e.message));
     // Внешний мир
     if (abyss) {
       const N = 900; const pos = new Float32Array(N * 3);
@@ -162,7 +172,7 @@ export class RunArena {
     const MAXL = DARK.maxLights;
     const U = this.darkU = {
       uAmb: { value: DARK.amb * (TILE_DARK[this.tiles] ?? 1) }, uSig: { value: new THREE.Color(sigilHex) }, uR: { value: R },
-      uMe: { value: new THREE.Vector2(0, 0) }, uN: { value: 0 },
+      uMe: { value: new THREE.Vector2(0, 0) }, uN: { value: 0 }, uWallK: { value: 0 },
       uL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4()) }, uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color()) },
     };
     const m = new THREE.MeshBasicMaterial({ map: tex });
@@ -170,7 +180,7 @@ export class RunArena {
       Object.assign(sh.uniforms, U);
       sh.vertexShader = 'varying vec2 vW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vW = (modelMatrix * vec4(position, 1.0)).xz;');
       sh.fragmentShader = `varying vec2 vW;
-uniform float uAmb; uniform vec3 uSig; uniform float uR; uniform vec2 uMe; uniform int uN;
+uniform float uAmb; uniform vec3 uSig; uniform float uR; uniform vec2 uMe; uniform int uN; uniform float uWallK;
 uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
 ` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   {
@@ -180,6 +190,9 @@ uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
     float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
     for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
     li *= mix(1.0, ${DARK.edge.toFixed(2)}, smoothstep(uR * 0.5, uR + 1.5, dc)); // виньетка к стене
+    // arena32, парапет запечён в пол: его пиксели помечены альфой 254 — свет стены (как у спрайтов, DARK.wallLight), без виньетки
+    float wm = step(0.5, diffuseColor.a) * step(diffuseColor.a, 0.998) * step(0.001, uWallK);
+    li = mix(li, max(li, vec3(uWallK)), wm); diffuseColor.a = mix(diffuseColor.a, 1.0, wm);
     diffuseColor.rgb *= li;
   }`);
     };
@@ -247,9 +260,10 @@ uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
       // кости / черепки на полу (плоские)
       const boneMat = new THREE.MeshStandardMaterial({ color: 0x6b6152, roughness: 1 });
       inst(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 4), boneMat, 50, () => { const p = ring(7, R - 3); return { ...p, y: 0.04, s: 0.7 + rnd() * 0.6, rx: Math.PI / 2, rz: rnd() * 6 }; }, ['arena_bones', (o) => o.s * 0.35]);
-      // тёмные пятна (спрайта нет — остаются мешем в обоих наборах)
-      const stainMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
-      inst(new THREE.CircleGeometry(1, 10), stainMat, 26, () => { const p = ring(4, R - 2); return { ...p, y: 0.012, s: 0.8 + rnd() * 2.2, sz: 0.6 + rnd(), rx: -Math.PI / 2 }; });
+      // тёмные пятна: v2 — меш; v3 — декали arena32 на тех же местах (та же последовательность rnd(), запекаются в пол)
+      const stain = () => { const p = ring(4, R - 2); return { ...p, y: 0.012, s: 0.8 + rnd() * 2.2, sz: 0.6 + rnd(), rx: -Math.PI / 2 }; };
+      if (V3) { this.stains32 = Array.from({ length: 26 }, stain); }
+      else { const stainMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }); inst(new THREE.CircleGeometry(1, 10), stainMat, 26, stain); }
     }
     // мох/трава у колонн (Cone 0.45 м → арт 0.8 м)
     const tuftMat = new THREE.MeshStandardMaterial({ color: abyss ? 0x3730a3 : 0x3f4a2a, flatShading: true });
@@ -268,12 +282,16 @@ uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
     im.instanceMatrix.needsUpdate = true; im.renderOrder = 1; g.add(im); this.dotStrip = st; this.dotDef = d;
   }
 
+  /** освободить то, что не убирает RunView.dispose (канвас пола arena32) */
+  dispose() { this.a32?.dispose(); this.a32 = null; }
+
   update(dt) {
     this.time += dt;
     if (this.sigil) this.sigil.rotation.z += dt * 0.2;
     if (this.sigilTex) { const d = this.sigilDef; this.sigilTex.offset.x = (d.col + (Math.floor(this.time * d.fps) % d.frames)) / this.sigilCols; }
     if (this.sigilStrip) { const d = this.sigilDef; stripFrame(this.sigilStrip, Math.floor(this.time * d.fps) % d.frames); }
     if (this.dotStrip) { const d = this.dotDef; stripFrame(this.dotStrip, Math.floor(this.time * d.fps) % d.frames); }
+    this.a32?.update(this.time);
     this.flames?.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(this.time * 9 + i) * 0.25; });
     if (this.embers) {
       const a = this.embers.geometry.attributes.position;
