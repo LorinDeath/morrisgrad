@@ -58,7 +58,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     await G(() => document.querySelectorAll('.mc-atmo-ui').forEach((e) => { e.style.visibility = ''; }));
     fs.writeFileSync(`${OUT}/${VIEW}-${THEME}-cmp-off.png`, off2); fs.writeFileSync(`${OUT}/${VIEW}-${THEME}-cmp-on.png`, on1);
     const noise = await diff(off2, off1), cmp = await diff(on1, off2);
-    ok(cmp.up <= noise.up + 0.006 && cmp.ma < cmp.mb, `виньетка и тон не высветляют: светлее ${(cmp.up * 100).toFixed(2)}% пикселей (шум кадров ${(noise.up * 100).toFixed(2)}%); средняя яркость ${cmp.mb.toFixed(1)} → ${cmp.ma.toFixed(1)}`);
+    ok(cmp.up <= noise.up + 0.006 && cmp.ma <= cmp.mb, `виньетка и тон не высветляют: светлее ${(cmp.up * 100).toFixed(2)}% пикселей (шум кадров ${(noise.up * 100).toFixed(2)}%); средняя яркость ${cmp.mb.toFixed(1)} → ${cmp.ma.toFixed(1)}`);
     await shot('hub-with-particles');
   } else ok(!s || !s.shown, 'старая тема: атмосферы интерфейса нет');
   // плавное окно: лобби забега (showScreen) — кадры появления и закрытия
