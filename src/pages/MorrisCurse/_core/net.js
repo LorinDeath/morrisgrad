@@ -45,6 +45,16 @@ export class NetClient {
     this.send({ type: 'ping' });
   }
 
+  // Переподключение с новым токеном (вход/повторный вход в аккаунт во время игры, mcAuthGate): старый сокет закрываем
+  // «тихо» (его onclose не уводит в офлайн), новый присылает join с текущей позицией (getJoinState) и свежим токеном.
+  reconnect() {
+    const old = this.socket;
+    this.gen = (this.gen || 0) + 1;
+    this.kicked = false; this.offline = false; this.connected = false;
+    if (old) { old.__mcReplaced = true; try { old.close(1000, 'reauth'); } catch (_) {} }
+    this.connect();
+  }
+
   connect() {
     let socket;
     try {
@@ -55,7 +65,7 @@ export class NetClient {
     }
     this.socket = socket;
     const failTimer = setTimeout(() => {
-      if (!this.connected) this.goOffline('Сервер не отвечает');
+      if (!this.connected && socket === this.socket) this.goOffline('Сервер не отвечает');
     }, 6000);
     socket.onopen = async () => {
       clearTimeout(failTimer);
@@ -77,6 +87,7 @@ export class NetClient {
       this.emit('open', {});
     };
     socket.onmessage = (event) => {
+      if (socket !== this.socket) return;
       let data;
       try { data = JSON.parse(event.data); } catch (_) { return; }
       if (data.type === 'pong') {
@@ -93,6 +104,7 @@ export class NetClient {
     };
     socket.onclose = () => {
       clearTimeout(failTimer);
+      if (socket.__mcReplaced || socket !== this.socket) return; // заменён reconnect()
       const wasConnected = this.connected;
       this.connected = false;
       if (!this.kicked) this.goOffline(wasConnected ? 'Соединение потеряно' : 'Нет связи с сервером');
