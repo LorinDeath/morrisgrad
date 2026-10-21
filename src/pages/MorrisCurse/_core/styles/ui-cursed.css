@@ -457,3 +457,6 @@ html.mc-ui .mc-abil .t em { margin-left: 8px; color: var(--ui-text3); }
 @media (orientation: landscape) { html.mc-ui .mc-touch .mc-party { left: 50%; transform: translateX(-50%); } }
 @media (orientation: portrait) { html.mc-ui .mc-touch .mc-party { top: calc(var(--st, 0px) + 30% + 16px); } }
 .mc-set-note { color: #94a3b8; font-size: 10px; font-weight: normal; }
+/* ПК: диалог NPC и его кнопки — над панелью навыков (панель: 10 px от низа + слот 60 px), а не поверх неё; на тач-раскладке панели внизу нет */
+html.mc-ui .mc3d-screen.mc-dialog-screen { padding-bottom: 82px; }
+html.mc-ui .mc-touch .mc3d-screen.mc-dialog-screen { padding-bottom: 16px; }
