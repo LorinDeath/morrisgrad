@@ -11,7 +11,8 @@ export function sessionUserId(locals: any): string | null {
 }
 export function findDb(locals: any): any {
   const env = locals?.runtime?.env || {};
-  return env.morrisgrad_db || env.DB || Object.values(env).find((v: any) => typeof v?.prepare === "function") || null;
+  // Только явная привязка D1: перебор env с проверкой .prepare ловил RPC-привязки (RL_*), у которых «есть» любое свойство
+  return env.PROFILES_DB || env.morrisgrad_db || env.DB || null;
 }
 
 export async function currentUserResponse(locals: any): Promise<Response> {
