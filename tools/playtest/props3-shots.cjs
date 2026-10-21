@@ -24,6 +24,12 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
   if (SH.includes('stats')) { await sleep(3000); const st = await p.evaluate(() => window.__game.debug.props()); st.tHubMs = tHub; st.requests = reqs; require('fs').writeFileSync(`${OUT}/stats-${TAG}.json`, JSON.stringify(st, null, 1)); console.log('stats', JSON.stringify(st).slice(0, 1500)); }
   if (SH.includes('hub')) await shot('hub-wide', 300, 640, 0.5);
   if (SH.includes('portal')) await shot('portal-close', 212, 622, 1.6);
+  if (SH.includes('portalfb')) { // портал целиком: свободная камера на вихре (точка излучения), герой в стороне
+    const P = (await p.evaluate(() => window.__game.debug.lightSources())).filter((s) => s.k === 'portal').sort((a, b) => Math.hypot(a.px - 212, a.py - 600) - Math.hypot(b.px - 212, b.py - 600))[0];
+    console.log('portal', JSON.stringify(P));
+    await p.evaluate(([x, y]) => window.__game.debug.tp(x, y, true), [P.px + 120, P.py + 80]); await sleep(1500); await p.evaluate(([x, y]) => window.__game.debug.tp(x, y, true), [P.px + 120, P.py + 80]); await sleep(1500);
+    await p.evaluate((c) => window.__game.debug.freeCam(c), { x: P.x, z: P.z - 3.5, zoom: 0.95 }); await sleep(3000); await p.mouse.move(5, 5);
+    await p.screenshot({ path: `${OUT}/portal-full-${TAG}.png` }); await p.evaluate(() => window.__game.debug.freeCam(null)); }
   if (SH.includes('lights')) {
     const L = await p.evaluate(() => window.__game.debug.lightSources()); console.log('lights', JSON.stringify(L.slice(0, 20)));
     const by = {}; for (const s of L) if (s.k && !by[s.k.replace(/_\d+$/, '')]) by[s.k.replace(/_\d+$/, '')] = s;

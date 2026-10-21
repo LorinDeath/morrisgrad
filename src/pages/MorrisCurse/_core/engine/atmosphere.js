@@ -14,7 +14,7 @@ import { LIGHT, pixMat, pixTex, setDisplayHex, setDisplayRGB } from './pixColor.
 import { regionAt } from '../../../../../server/meta/zoneGen.ts';
 import { propVariant } from '../../../../../server/meta/propsV2.ts';
 import { lightEmitter, hasEmitter } from './lightEmitter.js';
-import { PROP_SET, GFX } from './gfxCfg.js';
+import { PROP_SET, GFX, propSetFor, PORTAL_S } from './gfxCfg.js';
 // тип огня → строка админки «🖼 Графика» (lt.<тип>: размер/сила ореола и пятна)
 const LIGHT_TYPE = { lantern: 'warm', torch: 'fire', campfire: 'fire', crystal: 'cool', star_crystal: 'violet', pylon: 'lime' };
 import { SPRITE_TIME } from './spriteBatch.js';
@@ -199,6 +199,7 @@ class Atmosphere {
       if ((p.world || 'hellfire') !== world) continue;
       const altar = p.id === 'portal_class_select';
       const s = { x: toX(p.x), z: toZ(p.y), col: new THREE.Color(altar ? 0xc084fc : 0xa855f7), r: altar ? 5 : 3.8, h: 1.6, k: altar ? 1.3 : 0.9, ph: Math.random() * 10, fire: false, lt: 'portal' };
+      if (!altar) { const es = propSetFor('portal'); if (hasEmitter('portal', es)) Object.assign(s, { ek: 'portal', eset: es, es: PORTAL_S, ef: 1, eph: 0 }); } // свет из вихря (models.js: portal, s = PORTAL_S); набор — с учётом отката на v2
       this.sources.push(s);
       if (altar) this.altar = s;
     }
@@ -273,7 +274,7 @@ class Atmosphere {
       if (np >= 160) break;
       // точка излучения этого кадра: билборд стоит в плоскости вида → смещение по «вправо/вверх» камеры от ног
       s.ex = s.x; s.ey = s.h; s.ez = s.z; s.gx = s.x; s.gz = s.z;
-      if (s.ek) { const e0 = lightEmitter(s.ek, 0, PROP_SET), fr0 = e0.frames > 1 && e0.fps ? Math.floor((ST + s.eph) * e0.fps) : 0, e = fr0 ? lightEmitter(s.ek, fr0, PROP_SET) : e0;
+      if (s.ek) { const e0 = lightEmitter(s.ek, 0, s.eset || PROP_SET), fr0 = e0.frames > 1 && e0.fps ? Math.floor((ST + s.eph) * e0.fps) : 0, e = fr0 ? lightEmitter(s.ek, fr0, s.eset || PROP_SET) : e0;
         const dx = e.dx * s.es * s.ef, hh = e.h * s.es;
         s.ex = s.x + cr.x * dx + cu.x * hh; s.ey = cr.y * dx + cu.y * hh; s.ez = s.z + cr.z * dx + cu.z * hh;
         s.gx = s.x + cr.x * dx; s.gz = s.z + cr.z * dx; } // пятно — на земле прямо под огнём

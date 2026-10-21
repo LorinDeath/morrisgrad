@@ -1,7 +1,8 @@
 // Процедурные low-poly модели: герои классов, Кейт, Дар, тюльпаны, порталы, орда, лут.
 // Никаких внешних ассетов — всё строится из примитивов Three.js r128.
 import { propObject, PROP_SET } from './propAtlas.js';
-import { PROP_FPS } from './gfxCfg.js';
+import { PROP_FPS, PORTAL_S } from './gfxCfg.js';
+import { lightEmitter } from './lightEmitter.js';
 import altar3Src from '../../../../assets/mc/props3/altar/altar.png'; // props3: 32 кадра 64×96 @16 (грузится только при наборе v3)
 import { GRADE } from './atmosphere.js';
 import { LIGHT, pixTex, setDisplayRGB } from './pixColor.js';
@@ -334,10 +335,10 @@ export function makePortal(THREE, portal) {
   } else {
     // Порталы (Фрактал Бабочки, разломы мини-игр и др.) — спрайт пропсов v2 «portal» (арка + вихрь, 8 кадров, свечение),
     // тон вихря — цвет портала. Коллизия — только «ноги» арки по краям (server/meta/propsV2.ts), центр проходим: портал активируется
-    const po = propObject(THREE, 'portal', { s: 0.75, glowTint: color });
+    const po = propObject(THREE, 'portal', { s: PORTAL_S, glowTint: color }); // набор — с откатом на props2 (fallback_v2.json)
     g.add(po.group);
     const light = new THREE.PointLight(color, 1.5, 10, 1.6);
-    light.position.y = 1.8;
+    const em = lightEmitter('portal', 0, po.set); light.position.set(em ? em.dx * PORTAL_S : 0, em ? em.h * PORTAL_S : 1.8, 0); // свет — из вихря
     g.add(light);
     anim.push((t) => { po.update(t); light.intensity = 1.4 + Math.sin(t * 4) * 0.25; });
   }

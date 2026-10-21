@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const sharp = require(process.env.SHARP || '/workspace/mc-ui-tools/node_modules/sharp');
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const LIGHT_BASE = ['lantern', 'torch', 'campfire', 'crystal', 'star_crystal', 'pylon'];
+export const EMIT_EXTRA = ['portal']; // не пропсы-огни, но со своим светом в atmosphere.js (порталы мира)
 const SETS = { v2: { dir: 'src/assets/mc/props2', atlas: 'props_atlas.json', pxm: 10 }, v3: { dir: 'src/assets/mc/props3', atlas: 'props32_atlas.json', pxm: 20 } };
 const imgs = {};
 async function raw(file) { if (!imgs[file]) { const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true }); imgs[file] = { data, w: info.width, h: info.height }; } return imgs[file]; }
@@ -29,7 +30,7 @@ export async function frameCentroid(setName, key, f) {
   const c = d.col + f, r = d.row + Math.floor(c / G.cols);
   return centroid(I, (c % G.cols) * G.frameW, r * G.frameH, G.frameW, G.frameH);
 }
-export function lightKeys(A) { return Object.keys(A.keys).filter((k) => LIGHT_BASE.includes(k) || LIGHT_BASE.includes(A.keys[k].variant_of)); }
+export function lightKeys(A) { return Object.keys(A.keys).filter((k) => LIGHT_BASE.includes(k) || LIGHT_BASE.includes(A.keys[k].variant_of) || EMIT_EXTRA.includes(k)); }
 async function main() {
   const out = { note: 'центроид светящихся пикселей *_glow по кадрам, px кадра; генератор tools/mc-sprites/light-emitters.mjs', sets: {} };
   for (const [sn, S] of Object.entries(SETS)) {

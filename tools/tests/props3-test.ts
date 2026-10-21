@@ -57,6 +57,12 @@ ok(ne > 300, `проверено кадров огней: ${ne}`);
 const lv3: any = lightEmitter("lantern", 0, "v3"), lv2: any = lightEmitter("lantern", 0, "v2");
 ok(lv3.h > 2.4 && Math.abs(lv3.dx) > 0.3, `v3 фонарь: dx ${lv3.dx.toFixed(2)} м, h ${lv3.h.toFixed(2)} м (не центр кадра 0 / 2.4)`);
 ok(lv2.h > 3, `v2 фонарь: h ${lv2.h.toFixed(2)} м (голова фонаря)`);
+// откат на props2 (fallback_v2.json): ключи есть в обоих атласах, размеры в метрах равны; свет портала — из вихря v2
+{ const FB = JSON.parse(readFileSync("src/assets/mc/props3/fallback_v2.json", "utf8"));
+  ok(Array.isArray(FB.keys) && ["portal", "portal_swirl", "portal_arch"].every((k) => FB.keys.includes(k)), "fallback_v2.json: portal, portal_swirl, portal_arch");
+  for (const k of FB.keys) ok((V2 as any).keys[k] && (V3 as any).keys[k] && JSON.stringify((V2 as any).keys[k].size_m) === JSON.stringify((V3 as any).keys[k].size_m), `откат ${k}: есть в v2 и v3, size_m равны`);
+  ok((V2 as any).aliases["mesh:makePortal"] === "portal", "портал хаба (mesh:makePortal) → portal — под откатом");
+  const pe: any = lightEmitter("portal", 0, "v2"); ok(pe && Math.abs(pe.h * 0.75 - 1.6) < 0.25 && Math.abs(pe.dx) < 0.2, `портал v2: свет из вихря h ${(pe?.h * 0.75).toFixed(2)} м (было 1.6), dx ${pe?.dx?.toFixed(2)}`); }
 // линт необъявленных имён клиента (debug.lightSources падал на HALF_M только при вызове)
 { let out = ""; let code = 0; try { out = execSync("node tools/tests/undef-lint.mjs", { encoding: "utf8" }); } catch (e: any) { out = String(e.stdout || e.message); code = 1; }
   ok(code === 0, "undef-lint: нет необъявленных идентификаторов в src/pages/MorrisCurse/_core\n" + out.trim()); }

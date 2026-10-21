@@ -9,7 +9,7 @@
 import { SpriteBatch, loadAtlasTexture, assetUrl } from './spriteBatch.js';
 import { GRADE } from './atmosphere.js';
 import { LIGHT, pixTex, setDisplayRGB } from './pixColor.js';
-import { GFX, PROP_SET, PROP_FPS, PROP_GLOW } from './gfxCfg.js';
+import { GFX, PROP_SET, PROP_FPS, PROP_GLOW, propSetFor } from './gfxCfg.js';
 import { PROPS_META as META, propVariant, propDef } from '../../../../../server/meta/propsV2.ts';
 import p32 from '../../../../assets/mc/props2/props_p32.png';
 import b64 from '../../../../assets/mc/props2/props_b64.png';
@@ -18,6 +18,7 @@ import b64g from '../../../../assets/mc/props2/props_b64_glow.png';
 
 const SRC = { p32, b64, p32_glow: p32g, b64_glow: b64g };
 export { PROP_SET };
+export { FALLBACK_V2, propSetFor } from './gfxCfg.js';
 const LAZY = new Set(['x64', 'x64_glow']); // лист арены/ореолов — только по запросу (extra)
 const SETS = {};
 const setInfo = (set) => (set === 'v3'
@@ -134,7 +135,7 @@ export function stripFrame(st, f) { if (st.frame === f) return; st.frame = f; st
 // Цвет — как у пропсов SpriteBatch: пиксель атласа × тон зоны (GRADE) × LIGHT.props (свечение × LIGHT.glow), см. pixColor.js.
 // set — набор листов ('v2'/'v3', по умолчанию — набор страницы; забег передаёт свой). Размер в метрах одинаков в обоих наборах.
 export function propObject(THREE, k, { s = 1, tint = null, glowTint = null, set = PROP_SET } = {}) {
-  const key = META.aliases[k] || k, d0 = propDef(key);
+  const key = META.aliases[k] || k, d0 = propDef(key); set = propSetFor(key, set);
   const g = new THREE.Group(); if (!d0) return { group: g, update() {} };
   const S0 = META.sheets[d0.sheet], h = S0.frameH / 10 * s, w = S0.frameW / 10 * s;
   const mk = (add) => { const m = new THREE.SpriteMaterial({ transparent: true, alphaTest: add ? 0 : 0.3, depthWrite: !add, toneMapped: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending }); const sp = new THREE.Sprite(m); sp.center.set(0.5, 0); sp.scale.set(w, h, 1); sp.renderOrder = add ? 3 : 2; return sp; };
@@ -161,7 +162,7 @@ export function propObject(THREE, k, { s = 1, tint = null, glowTint = null, set 
     set1(base, tex[d.sheet]); if (glow) set1(glow, tex[d.glow.sheet]);
   });
   const ph = Math.random() * 5;
-  return { group: g, key, base, glow, maps, update(t) { paint(); if (d.frames < 2) return; t *= PROP_FPS.value;
+  return { group: g, key, set, base, glow, maps, update(t) { paint(); if (d.frames < 2) return; t *= PROP_FPS.value;
     if (strips.length) { const f = Math.floor(t * d.fps) % d.frames; for (const st of strips) stripFrame(st, f); return; } // общая полоса — общая фаза
     const f = Math.floor((t + ph) * d.fps) % d.frames, c = d.col + f, r = d.row + Math.floor(c / S.cols); for (const m of maps) { m.offset.x = (c % S.cols) / S.cols; m.offset.y = 1 - (r + 1) / S.rows; } } };
 }
