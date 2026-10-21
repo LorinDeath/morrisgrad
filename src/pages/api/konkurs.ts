@@ -7,7 +7,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const data = await request.json();
     const { author, name, text } = data;
 
-    // Валидация
+    // Валидация (поля — только строки: объект/число раньше роняли обработчик в 500)
+    if (typeof author !== 'string' || typeof name !== 'string' || typeof text !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Все поля обязательны для заполнения.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     if (!author?.trim() || !name?.trim() || !text?.trim()) {
       return new Response(
         JSON.stringify({ error: 'Все поля обязательны для заполнения.' }),
@@ -16,8 +22,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // строки и длина: заявка анонимная, без ограничений R2 можно было забить гигабайтами
-    if (typeof author !== 'string' || typeof name !== 'string' || typeof text !== 'string' ||
-        author.trim().length > 60 || name.trim().length > 150 || text.length > 200_000) {
+    if (author.trim().length > 60 || name.trim().length > 150 || text.length > 200_000) {
       return new Response(
         JSON.stringify({ error: 'Слишком длинное поле (автор до 60, название до 150, текст до 200 000 символов).' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
