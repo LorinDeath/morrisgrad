@@ -73,7 +73,8 @@ export class PartyUI {
       <button data-m="insp">👤 Персонаж</button>${t.canDuel && !ally ? '<button data-m="duel">⚔️ Вызвать на дуэль</button>' : ''}
       ${inv ? '<button data-m="inv" class="gold">👥 Пригласить в отряд</button>' : ally ? '<div class="s">✔ в вашем отряде</div>' : this.state && !this.isLeader() ? '<div class="s">приглашает лидер отряда</div>' : this.full() ? '<div class="s">отряд полон (4)</div>' : ''}`;
     const W = window.innerWidth, H = window.innerHeight;
-    Object.assign(this.menuEl.style, { display: '', left: Math.min(x + 6, W - 200) + 'px', top: Math.min(y + 6, H - 150) + 'px' });
+    this.menuEl.style.display = ''; const z = this.menuEl.currentCSSZoom || 1, r = this.menuEl.getBoundingClientRect(); // «🔍 Размер интерфейса»
+    Object.assign(this.menuEl.style, { left: Math.max(0, Math.min(x + 6, W - Math.max(200, r.width) - 4)) / z + 'px', top: Math.max(0, Math.min(y + 6, H - Math.max(150, r.height) - 4)) / z + 'px' });
   }
   closeMenu() { if (this.menuEl.style.display !== 'none') this.menuEl.style.display = 'none'; this.menuT = null; }
   onMenu(e) {

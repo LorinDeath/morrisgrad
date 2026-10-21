@@ -35,6 +35,10 @@ export const UI_CFG = {
   loadScreen: true,      // экран загрузки в стиле нового интерфейса
   texPc: "32",           // «Текстуры» по умолчанию на ПК (пока игрок не выбрал сам; применяется со следующей загрузки)
   texMobile: "16",       // «Текстуры» по умолчанию на телефоне
+  scalePc: 100,          // «🔍 Размер интерфейса» по умолчанию на ПК, % (пока игрок не выбрал сам)
+  scaleMobile: 0,        // то же на телефоне, %; 0 — авто по размеру экрана
+  scaleMin: 70,          // нижний предел ползунка, % (50–100)
+  scaleMax: 150,         // верхний предел ползунка, % (100–200)
 };
 export const UI_LOCS = ["hub", "ice", "fire", "stone", "air", "arinar"] as const;
 const pct = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
@@ -50,4 +54,5 @@ export const uiClient = () => ({ on: UI_CFG.on !== false, glitch: Math.max(0, Ma
   transMs: Math.max(60, Math.min(400, Math.round(Number(UI_CFG.transMs) || 160))), loadScreen: UI_CFG.loadScreen !== false,
   mmX: rng(UI_CFG.mmX, 0, 200, 10), mmY: rng(UI_CFG.mmY, 0, 200, 10), mmZoom: rng(UI_CFG.mmZoom, 1, 3, 1), mmRound: UI_CFG.mmRound !== false,
   tgtSide: ["left", "center", "right"].includes(UI_CFG.tgtSide) ? UI_CFG.tgtSide : "left", tgtTop: rng(UI_CFG.tgtTop, 40, 500, 100), tgtHide: rng(UI_CFG.tgtHide, 0, 60, 0), plate: rng(UI_CFG.plate, 50, 100, 88),
-  partsMobile: pct(UI_CFG.partsMobile), loc: locs(), texPc: UI_CFG.texPc === "16" ? "16" : "32", texMobile: UI_CFG.texMobile === "32" ? "32" : "16" });
+  partsMobile: pct(UI_CFG.partsMobile), loc: locs(), texPc: UI_CFG.texPc === "16" ? "16" : "32", texMobile: UI_CFG.texMobile === "32" ? "32" : "16",
+  scalePc: rng(UI_CFG.scalePc, 50, 200, 100), scaleMobile: rng(UI_CFG.scaleMobile, 0, 200, 0), scaleMin: rng(UI_CFG.scaleMin, 50, 100, 70), scaleMax: rng(UI_CFG.scaleMax, 100, 200, 150) });

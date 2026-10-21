@@ -155,11 +155,12 @@ export class Book {
   }
   hideCmp() { if (this.cmpEl) this.cmpEl.style.display = 'none'; }
   placeCmp(x, y) {
-    const c = this.cmpEl, W = window.innerWidth, H = window.innerHeight, w = c.offsetWidth, hh = c.offsetHeight;
+    const c = this.cmpEl, W = window.innerWidth, H = window.innerHeight, rr = c.getBoundingClientRect(), w = rr.width, hh = rr.height;
+    const z = c.currentCSSZoom || 1; // «🔍 Размер интерфейса»: координаты внутри увеличенной книги — в её масштабе
     let L = x + 16, T = y + 12;
     if (L + w > W - 6) L = Math.max(6, x - w - 16);
     if (T + hh > H - 6) T = Math.max(6, H - hh - 6);
-    c.style.left = L + 'px'; c.style.top = T + 'px';
+    c.style.left = L / z + 'px'; c.style.top = T / z + 'px';
   }
   showCmp(uid, x, y) {
     const html = this.cmpHtml(uid);

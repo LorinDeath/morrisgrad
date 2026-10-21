@@ -9,7 +9,7 @@ export const UI_BASE = '/mc-ui/';
 export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176,
   mmX: 10, mmY: 10, mmZoom: 1, mmRound: true, tgtSide: 'left', tgtTop: 100, tgtHide: 0, plate: 88,
   atmo: true, vig: 45, grade: 30, parts: 50, atmoMobile: 40, partsMobile: 60, loc: {}, sfx: true, sfxVol: 40, trans: true, transMs: 160, loadScreen: true,
-  texPc: '32', texMobile: '16' };
+  texPc: '32', texMobile: '16', scalePc: 100, scaleMobile: 0, scaleMin: 70, scaleMax: 150 };
 const CURSED = '#8a6aa6';
 const TINTABLE = ['frame_window', 'frame_panel', 'frame_small', 'frame_tooltip', 'corner_tl', 'corner_tr', 'corner_bl', 'corner_br',
   'divider_h', 'divider_v', 'divider_ornament', 'slot_normal_normal', 'slot_normal_hover', 'slot_normal_selected',
@@ -98,6 +98,7 @@ export function initUiSkin() {
   // atmosphere.js меняет data-biome и --mc-biome на <html> — ловим это без опроса в кадре
   new MutationObserver(() => retint()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-biome', 'style'] });
 }
+export const uiMode = () => mode;
 export function setUiMode(m) { if (m === mode) return; mode = m; applyClasses(); }
 export function setUiCfg(c) {
   if (!c || typeof c !== 'object') return;

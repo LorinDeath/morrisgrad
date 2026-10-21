@@ -452,10 +452,10 @@ html.mc-ui .mc-altar-head h2 { font-family: var(--ui-font-head); font-weight: no
 html.mc-ui .mc-altar-head p { color: var(--ui-text2); }
 /* навыки в книге: метки «классовый», «🔒 дерево», цвета сияния — отступ, как в старой теме */
 html.mc-ui .mc-abil .t em { margin-left: 8px; color: var(--ui-text3); }
-/* телефон: «Отряд» не налезает на трекер заданий (старая тема клала оба в левый верх). Альбомная — сверху по центру,
-   портретная — под трекером (у трекера max-height: 30%) */
-@media (orientation: landscape) { html.mc-ui .mc-touch .mc-party { left: 50%; transform: translateX(-50%); } }
-@media (orientation: portrait) { html.mc-ui .mc-touch .mc-party { top: calc(var(--st, 0px) + 30% + 16px); } }
+/* телефон: «Отряд» не налезает на трекер заданий (раньше оба лежали в левом верху — теперь и в старой теме: «ничего не
+   перекрывается» при любом размере интерфейса). Альбомная — сверху по центру, портретная — под трекером (max-height: 30%) */
+@media (orientation: landscape) { .mc-touch:not(.mc-run) .mc-party { left: 50%; transform: translateX(-50%); } }
+@media (orientation: portrait) { .mc-touch:not(.mc-run) .mc-party { top: calc(var(--st, 0px) + 30% + 16px); } }
 .mc-set-note { color: #94a3b8; font-size: 10px; font-weight: normal; }
 /* ПК: диалог NPC и его кнопки — над панелью навыков (панель: 10 px от низа + слот 60 px), а не поверх неё; на тач-раскладке панели внизу нет */
 html.mc-ui .mc3d-screen.mc-dialog-screen { padding-bottom: 82px; }
@@ -615,10 +615,35 @@ html.mc-hud-ig.mc-ig-sq .ig-mm .hud-minimap-card > div:nth-child(2)::after { dis
 html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp { position: relative; height: 16px; box-sizing: border-box; background: rgba(12, 8, 22, .82); border: 1px solid #3b2c52; border-radius: 6px; overflow: hidden; }
 html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > i { display: block; height: 100%; background: linear-gradient(90deg, #b91c1c, #ef4444); }
 html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > span { position: absolute; inset: 0; display: grid; place-items: center; font: bold 10px monospace; color: #fff; text-shadow: 0 1px 0 #000; }
-.mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) :is(.mc-tracker, .mc-party) { margin-top: 52px; }
-html.mc-ui .mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) .mc-party { margin-top: 0; } /* новая тема: отряд по центру сверху — не мешает */
+/* сдвиг под полоску «ОЗ + PK»: 52 px полоски (масштаб тач-кнопок --ui-st) в собственном масштабе элемента (--ui-s) */
+.mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) :is(.mc-tracker, .mc-party) { margin-top: calc(52px * var(--ui-st, 1) / var(--ui-s, 1)); }
+@media (orientation: landscape) { .mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) .mc-party { margin-top: 0; } } /* альбом: отряд по центру сверху — не мешает */
 
 /* ─────────────────────────── 10. плотность плашек в поле (админка plate) ─────────────────────────── */
 /* «Цель» и всплывающие окна (рамка frame_panel — полупрозрачная середина): под рамкой тёмный фон, иначе на льду/снегу/
    в воздухе светлая земля просвечивает и текст не читается. Трекер, кнопки и сеть — на frame_small/слотах (уже плотные) */
 html.mc-hud-ig :is(.ig-tgt .hud-card, .ig-pop) { background: rgba(9, 7, 15, var(--ui-plate, .88)) !important; background-clip: padding-box !important; }
+
+/* ─────────────────────────── 11. «🔍 Размер интерфейса» (ui/uiScale.js) ─────────────────────────── */
+/* Обе темы; только вне забега (класс html.mc-uis ставит uiScale). --ui-s — фактический масштаб (выбор игрока, урезанный
+   по размеру поля), --ui-st — масштаб тач-управления (не меньше 1: цель для пальца ≥ 44 px). CSS zoom (а не transform)
+   — вёрстка пересчитывается сама, отступы от краёв растут вместе с плашкой, клики попадают куда видно. Холст мира,
+   подписи над головами, карта мира и админка не масштабируются. */
+html.mc-uis :is(.mc-tracker, .mc-abar, .mc-party, .mc-party-ask, .mc-pmenu, .mc-ratebtn, .mc-bookbtn, .mc-tchip, .mc-pframe,
+  .mc3d-toasts, .mc3d-prompt, .mc3d-chat, .mc-book, .mc-upg-box, .ig-mm, .ig-tgt, .ig-pop, .ig-help-w, .mc-duel-card, .mc-duel-hud,
+  .mc3d-screen > *) { zoom: var(--ui-s, 1); }
+/* боковые панели (ПК, «Старые панели»/старая тема): ширина колонки фиксирована — текст крупнее не больше чем на 10% */
+html.mc-uis .game-hud-panel > * { zoom: min(var(--ui-s, 1), 1.1); }
+/* % в zoom-элементе — от реального размера родителя, а px и vw/vh растут с масштабом: окно не шире экрана/поля */
+html.mc-uis .mc3d-screen > * { max-width: 100%; }
+html.mc-uis .mc-upg-box { max-width: 96%; max-height: 92%; }
+html.mc-uis .mc-touch :is(.mc3d-tbtns > .mc3d-tbtn, .mc3d-ttop, .mc3d-joy-hint, .mc-pf-mob) { zoom: var(--ui-st, 1); }
+/* джойстик: основание и ручка стоят в точке касания (left/top из JS в пикселях поля) — их не zoom-им, а растим размер */
+html.mc-uis .mc-touch .mc3d-joy-base { width: calc(110px * var(--ui-st, 1)); height: calc(110px * var(--ui-st, 1)); margin: calc(-55px * var(--ui-st, 1)) 0 0 calc(-55px * var(--ui-st, 1)); }
+html.mc-uis .mc-touch .mc3d-joy-knob { width: calc(46px * var(--ui-st, 1)); height: calc(46px * var(--ui-st, 1)); margin: calc(-23px * var(--ui-st, 1)) 0 0 calc(-23px * var(--ui-st, 1)); }
+/* второстепенные тач-кнопки (книга, чат, зум…): если колонка/ряд не помещается — переносятся во вторую колонку/ряд, а не
+   уезжают за край и не наезжают на мини-карту (портрет) или джойстик (альбом). Обе темы, вне забега: на 640×360 они уходили за экран */
+html .mc-touch:not(.mc-run) .mc3d-ttop { flex-wrap: wrap-reverse; align-content: flex-end; max-height: calc(100% - 204px - var(--ttop-res, 0px)); }
+@media (orientation: portrait) { html .mc-touch:not(.mc-run) .mc3d-ttop { bottom: calc(var(--sb, 0px) + 196px); } } /* сразу над F (дуга до 191 px), две колонки по 4 влезают и на 360×640 */
+html.mc-hud-ig .mc-touch { --ttop-res: calc(var(--ig-mm, 176px) * .6 + 8px); }
+@media (orientation: landscape) and (max-height: 560px) { html .mc-touch:not(.mc-run) .mc3d-ttop { max-height: none; max-width: calc(100% - 440px); } }

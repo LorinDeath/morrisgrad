@@ -58,11 +58,12 @@ export class TouchControls {
   }
 
   bindEvents() {
-    const R = 50;
+    const R0 = 50; let R = R0; // ход ручки растёт вместе с джойстиком («🔍 Размер интерфейса», --ui-st)
     const start = (e) => {
       if (this.touchId !== null) return;
       e.preventDefault();
       this.touchId = e.pointerId;
+      R = R0 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-st')) || 1);
       const rect = this.joy.getBoundingClientRect();
       this.origin = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       [this.base, this.knob].forEach((el) => { el.style.display = 'block'; });
