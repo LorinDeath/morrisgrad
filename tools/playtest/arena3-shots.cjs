@@ -61,7 +61,7 @@ async function perf(p) { // общий вид, свободная камера: 
   if (SH.includes('modes')) { // парапет: спрайты / в полу; прореживание столбов 2 — на crypt и abode
     const { p } = P[3];
     for (const room of ['crypt', 'trial']) { const th = TH[room];
-      for (const [nm, cfg] of [['sprites', { arena3Wall: 'sprites', arena3Posts: 1 }], ['baked', { arena3Wall: 'baked', arena3Posts: 1 }], ['posts2', { arena3Wall: MOB ? 'baked' : 'sprites', arena3Posts: 2 }]]) {
+      for (const [nm, cfg] of [['sprites', { arena3Wall: 'sprites', arena3Posts: 1 }], ['baked', { arena3Wall: 'baked', arena3Posts: 1 }], ['posts2', { arena3Wall: MOB ? 'baked' : 'sprites', arena3Posts: 2, arena3Shape: 'tiles' }]]) {
         await enter(p, room, cfg); const a = await D(p, 'arena32');
         ok(a.mode === cfg.arena3Wall, `${PF} ${th}: парапет ${nm} → ${a.mode}`);
         if (nm === 'posts2') ok(a.thinned > 0, `${PF} ${th}: прореживание — ${a.thinned} из ${a.tight} тесных столбов`);
