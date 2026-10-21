@@ -174,7 +174,7 @@ export function ensureGroup(g) {
   const p = (async () => {
     const cache = await caches.open(CACHE_ASSETS), have = await cachedMap(cache, AC.manifest), d = diffManifest(AC.manifest, have, [g]);
     AC.groups.add(g); if (!d.files) return true;
-    const job = cornerJob('g:' + g, GROUP_LABEL[g] || g);
+    const job = cornerJob('g:' + g, GROUP_LABEL[g] || g); job.progress(0, d.bytes);
     try { const failed = await download(cache, d.fetch, { progress: (a, b) => job.progress(a, b) }); if (failed.length) showError('MC-L08', { detail: g + ': ' + failed.length, soft: true, autoClose: 6000, onRetry: () => { AC.groups.delete(g); PENDING.delete(g); ensureGroup(g); } }); return !failed.length; }
     catch (_) { return false; } finally { job.end(); }
   })();

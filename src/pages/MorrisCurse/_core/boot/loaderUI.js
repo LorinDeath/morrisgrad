@@ -83,9 +83,20 @@ function renderCorner() {
   if (!JOBS.size) { CORNER?.remove(); CORNER = null; return; }
   if (!CORNER || !CORNER.isConnected) { CORNER = document.createElement('div'); CORNER.className = 'mcl-corner mcl-z'; CORNER.dataset.mcl = 'corner'; CORNER.innerHTML = '<span class="t"></span><div class="tip"></div>';
     CORNER.addEventListener('click', () => CORNER.classList.toggle('tipon')); mclRoot().appendChild(CORNER); }
+  placeCorner();
   const js = [...JOBS.values()], d = js.reduce((a, j) => a + j.done, 0), t = js.reduce((a, j) => a + j.total, 0);
   CORNER.querySelector('.t').textContent = t ? `загрузка ${Math.round((d / t) * 100)}%` : 'загрузка…';
   CORNER.querySelector('.tip').textContent = 'Догружаем в фоне: ' + js.map((j) => j.label + (j.total ? ` (${mb(j.done)} из ${mb(j.total)})` : '')).join('; ') + '. Играть можно — это не мешает.';
+}
+/** угол поля игры (канвас), а не всего окна: на ПК по бокам панели (иначе индикатор ложится на «Рейтинг игроков»).
+ *  ПК — правый нижний угол поля; телефон — правый верхний (внизу справа кнопка атаки), подсказка раскрывается вниз. */
+function placeCorner() {
+  const cv = document.getElementById('game-canvas'), root = CORNER?.parentElement; if (!cv || !root) return;
+  const a = cv.getBoundingClientRect(), b = root.getBoundingClientRect(); if (!a.width || !b.width) return;
+  const z = uiZoom() || 1, right = Math.max(0, b.right - a.right) / z + 8;
+  CORNER.style.right = right + 'px';
+  if (isMob()) { CORNER.classList.add('down'); CORNER.style.bottom = 'auto'; CORNER.style.top = Math.max(0, a.top - b.top) / z + 8 + 'px'; }
+  else { CORNER.style.top = 'auto'; CORNER.style.bottom = Math.max(0, b.bottom - a.bottom) / z + 26 + 'px'; } // +26: над строкой отладки/счётчиком FPS
 }
 /** подпись на переходе между зонами («Готовим мир: Аринар…»), пока прогреваются текстуры следующей зоны */
 let VEIL = null;

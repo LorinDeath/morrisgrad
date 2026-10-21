@@ -1,5 +1,7 @@
 // LOCAL ONLY: скриншоты экранов загрузки и окон ошибок (ПК и телефон) → /workspace/morrisgrad-round3/asset-cache/{,errors/}
 // MOBILE=1 — телефон (390×800, DPR 2, масштаб UI 1.25). Сеть замедляется маршрутом (задержка ответа), чтобы застать прогресс.
+// сетевые запросы сервис-воркера видны маршрутам контекста только с этим флагом (нужно для медленной докачки в углу)
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 const fs = require('fs'), crypto = require('crypto');
 const L = require('./ac-lib.cjs');
 const MOB = process.env.MOBILE === '1', DEV = MOB ? 'phone' : 'pc';
@@ -32,9 +34,13 @@ const inHub = (p) => p.waitForFunction(() => window.__MC3D_GAME__?.state?.().mod
   await start(p, uid); if (await waitSel(p, '[data-mcl="update"]', 15000)) { await L.sleep(600); await shot(p, '03-update-toast'); }
   await inHub(p); await p.unrouteAll({ behavior: 'ignoreErrors' }); await L.sleep(1500);
   // 4 угловой индикатор: ленивая группа «map», медленно
-  await slowAssets(p, 900);
+  // карту убираем из кэша и замедляем её файлы на уровне контекста (запросы идут через сервис-воркер)
+  await G(p, async () => { const M = window.__mcAssets.AC.manifest, c = await caches.open('mc-assets-v1'); for (const k of await c.keys()) if (M.files.some((f) => f.g === 'map' && k.url.includes(f.p))) await c.delete(k); });
+  const slowMap = async (rt) => { await L.sleep(rt.request().url().includes('_astro') ? 1500 + Math.random() * 3000 : 0); return rt.continue(); }; const mapRe = /\/_astro\/.*\.(png|webp|json)/;
+  await p.context().route(mapRe, slowMap);
   await G(p, () => { window.__mcAssets.AC.groups.delete('map'); window.__mcAssets.ensureGroup('map'); });
-  if (await waitSel(p, '.mcl-corner, [data-mcl="corner"]', 8000)) { await L.sleep(700); const c = await p.$('.mcl-corner, [data-mcl="corner"]'); await c.hover().catch(() => {}); await L.sleep(400); await shot(p, '04-corner-indicator'); }
+  if (await waitSel(p, '.mcl-corner, [data-mcl="corner"]', 8000)) { await L.sleep(1200); await shot(p, '04-corner-indicator'); const c = await p.$('.mcl-corner'); if (c && await c.isVisible()) { await c.click().catch(() => {}); await L.sleep(200); await shot(p, '04b-corner-indicator-tip'); } }
+  await p.context().unroute(mapRe, slowMap);
   await p.unrouteAll({ behavior: 'ignoreErrors' });
   // 5 подпись перехода между зонами (прогрев)
   await G(p, () => window.__MC3D_GAME__.debug.tp(240, 600)); await L.sleep(900);

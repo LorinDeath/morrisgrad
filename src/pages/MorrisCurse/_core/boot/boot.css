@@ -38,7 +38,7 @@ html.mc-ui .mcl-box { border: 12px solid transparent; border-image: var(--ui-fra
 .mcl-corner .tip { display: none; position: absolute; right: 0; bottom: calc(100% + 4px); width: 220px; padding: 6px 8px; font-size: 11px; line-height: 1.35; color: var(--ui-text, #dcd3e6);
   background: var(--ui-face1, #120e1c); border: 1px solid var(--ui-metal-lo, #5b4776); }
 .mcl-corner:hover .tip, .mcl-corner.tipon .tip { display: block; }
-.mc3d-mobile .mcl-corner { bottom: auto; top: 56px; right: 6px; }
+.mcl-corner.down .tip { bottom: auto; top: calc(100% + 4px); } /* телефон: индикатор вверху справа поля, подсказка вниз */
 .mcl-veil { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); padding: 6px 12px; font-size: 12px; letter-spacing: 1px; color: var(--ui-head, #e2b6ee); background: rgba(5, 3, 10, .8);
   border: 1px solid var(--ui-v0, #2e1640); }
 /* ошибка: компактное окно с кодом */
