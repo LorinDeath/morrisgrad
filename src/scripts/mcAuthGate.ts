@@ -2,7 +2,7 @@
 // Грузится ЛЕНИВО (import() из MorrisCurse/index.astro) — только когда вход нужен: вошедший игрок этот модуль,
 // русскую локализацию Clerk и стили не скачивает вовсе. Форма — тот же компонент Clerk <SignIn/>/<SignUp/>, что
 // в окне сайта (те же способы входа из панели Clerk), с нашим видом и языком (src/lib/clerkTheme.ts).
-import { mcClerkAppearance, mcClerkLocalization } from "../lib/clerkTheme";
+import { mcClerkAppearance } from "../lib/clerkTheme";
 import { authErr } from "../pages/MorrisCurse/_core/authCodes.js";
 
 export type GateMode = "start" | "expired" | "invalid" | "error";
@@ -16,7 +16,7 @@ const clerk = () => (window as any).Clerk;
 // В оверлее свои вкладки «Войти/Регистрация» — ссылку-переключатель в подвале формы прячем (иначе она уводит на страницу Clerk)
 const appearance = {
   ...mcClerkAppearance,
-  elements: { ...mcClerkAppearance.elements, footerAction: { display: "none" } },
+  elements: { ...mcClerkAppearance.elements, rootBox: { width: "100%" }, cardBox: { ...mcClerkAppearance.elements.cardBox, width: "100%", maxWidth: "100%", boxShadow: "none" }, footerAction: { display: "none" } },
 };
 
 const inAppBrowser = () => /FBAN|FBAV|Instagram|Telegram|Line\/|VKClient|; wv\)|MicroMessenger|YaBrowser\/[\d.]+ \(lite\)/i.test(navigator.userAgent || "");
@@ -159,19 +159,12 @@ function showNote(code: string | null, bad = false, text?: string) {
   });
 }
 
-// Язык — на время оверлея: clerk-js сливает options с текущими (routerPush и пр. из @clerk/astro сохраняются).
-// Пока оверлей открыт, по-русски и окно «Войти» из шапки (оно под оверлеем); закрыли — как было.
-function setLocalization(loc: any) {
-  try { clerk()?.__unstable__updateProps?.({ options: { localization: loc } })?.catch?.(() => {}); } catch (e) { console.warn("[mc-auth] localization", e); }
-}
-
 function teardown() {
   clearTimeout(mountTimer);
   const c = clerk();
   try { if (mounted.in) c?.unmountSignIn(root!.querySelector("#mc-auth-in")); } catch (_) {}
   try { if (mounted.up) c?.unmountSignUp(root!.querySelector("#mc-auth-up")); } catch (_) {}
   mounted = { in: false, up: false };
-  setLocalization(undefined); // окно входа в шапке сайта — как было (англ.)
   unlisten?.(); unlisten = null;
   window.removeEventListener("resize", applyScale);
   window.removeEventListener("mc-ui-scale", applyScale);
@@ -199,7 +192,7 @@ export function openAuthGate(opts: GateOpts): Promise<GateResult> {
   const c = clerk();
   if (!c?.loaded) { showNote("MC-A01", true); }
   else {
-    setLocalization(mcClerkLocalization);
+    // русский язык и вид — общие для сайта и игры: clerk({ appearance, localization }) в astro.config.mjs
     // invalid при живой сессии Clerk: сервер не принял её токен (тихий повтор уже был) — та же сессия не поможет,
     // нужен выход и новый вход; до этого присутствие user не считаем «вошёл»
     let stale = opts.mode === "invalid" && !!c.user;

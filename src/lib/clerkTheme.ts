@@ -1,7 +1,7 @@
 // Единый вид формы входа Clerk (тот же компонент <SignIn/>/<SignUp/> и те же способы входа, что в окне сайта:
 // Google, Discord, Twitch, почта/логин — их список задаёт панель Clerk, а не код). Здесь — только оформление и язык.
-// Сейчас применяется в игре (оверлей входа «Проклятых», src/scripts/mcAuthGate.ts). Окно входа сайта пока НЕ меняем:
-// когда решим — достаточно передать то же самое в astro.config.mjs → clerk({ appearance: mcClerkAppearance, localization: mcClerkLocalization }).
+// Применяется на всём сайте (astro.config.mjs → clerk({ appearance, localization }): окно «Войти», регистрация, меню профиля,
+// «Управление аккаунтом») и в оверлее входа игры (src/scripts/mcAuthGate.ts — тот же вид, плюс свои вкладки).
 import { ruRU } from "@clerk/localizations";
 
 // палитра проклятого интерфейса (styles/ui-cursed.css :root)
@@ -31,8 +31,15 @@ export const mcClerkAppearance = {
     borderRadius: "3px",
   },
   elements: {
-    rootBox: { width: "100%" },
-    cardBox: { width: "100%", maxWidth: "100%", boxShadow: "none", border: `1px solid ${C.v0}`, borderRadius: "4px" },
+    cardBox: { boxShadow: "0 0 0 2px #000, 0 12px 40px rgba(0,0,0,.75)", border: `1px solid ${C.v0}`, borderRadius: "4px" },
+    modalBackdrop: { background: "rgba(5,4,10,.82)" },
+    userButtonPopoverCard: { background: C.face1, border: `1px solid ${C.v0}` },
+    userButtonPopoverActionButton: { color: C.text },
+    userButtonPopoverFooter: { background: C.face0 },
+    navbar: { background: C.face0, borderRight: `1px solid ${C.v0}` },
+    navbarButton: { color: C.text2 },
+    profileSectionTitleText: { color: C.v3 },
+    badge: { background: C.v0, color: C.v3 },
     card: { background: `linear-gradient(180deg, ${C.face2}, ${C.face1})`, boxShadow: "none", border: "none" },
     headerTitle: { fontFamily: "'Shket', 'Cinzel', serif", letterSpacing: ".04em", color: C.v3, fontSize: "1.25rem" },
     headerSubtitle: { color: C.text2 },
