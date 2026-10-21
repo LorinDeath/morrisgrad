@@ -76,11 +76,13 @@ Owner approved all seven items. Defaults chosen: deny-by-default, strict validat
 
 **Both player profiles (site `/u/<n>` and forum `/forum/u/<n>`) follow the same rules** (e2cdbb9): same public number in URLs/JSON; old `/u/user_…` and `/forum/u/user_…` → 301; only public fields (moderator buttons only for moderators); nick/signature/bio escaped (HTML nick and `<script>` signature tested); open to guests and signed-in players. The site's default robot avatar is **unchanged** (same DiceBear picture, seeded by the internal id as before) but served via `/api/avatar/<n>` so the id no longer appears in pages; the response is checked to be a plain SVG and sent with `CSP: sandbox`. Forum default avatar (pattern by number) unchanged. Links: forum post author → forum profile, forum profile → «Профиль на сайте», site profile → «Профиль на форуме», chat nick → `/u/<n>`; in-game «Посмотреть персонажа» works for guests and carries no internal id. Test: `tools/tests/profiles-test.cjs` 69/69 (guest + signed-in, PC + phone; on `main` 36 of 69 fail), screenshots `{before,after}-{pc,phone}-{forumprofile,siteprofile}.png` (before = `main`; `main`'s `/u/3` is 404 because it used Clerk ids).
 
-Questions for the owner: keep or drop YouTube thumbnails on the forum; switch CSP to enforce after the observation week; turn on Turnstile.
+Owner's answers: keep YouTube thumbnails; CSP stays report-only, enforce after a week; Turnstile off.
+
+Fix 52eb600: a missing last-visit (silent forum profiles created for site players, `last_seen = 0`) was shown as «1 янв. 1970»; now the field is hidden on both profiles (`validTs`).
 
 ## Tests
 
-Round 2 (both branches unless noted): security-site 72/72, forum 274/274, public-id 22/22, profile-api OK, guest 44/44, seo 59/59, auth-security 21/21, server security 32/32, roles-admin 33/33, game-security-ws 15/15, profiles 69/69, security-http 53/53 on `security-audit` (`astro dev`), 49/49 HTTP part on the `deps-major` production build (`astro preview`), csp-collect 0 violations. Screenshots before/after (PC + phone: home, forum, topic, /u/, MorrisCurse): `/workspace/morrisgrad-round3/sec2/`.
+Round 2 (both branches unless noted): security-site 72/72, forum 274/274, public-id 23/23, profile-api OK, guest 44/44, seo 59/59, auth-security 21/21, server security 32/32, roles-admin 33/33, game-security-ws 15/15, profiles 72/72, security-http 53/53 on `security-audit` (`astro dev`), 49/49 HTTP part on the `deps-major` production build (`astro preview`), csp-collect 0 violations. Screenshots before/after (PC + phone: home, forum, topic, /u/, MorrisCurse): `/workspace/morrisgrad-round3/sec2/`.
 
 Round 1:
 
