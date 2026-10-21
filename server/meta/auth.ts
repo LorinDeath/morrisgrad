@@ -26,23 +26,30 @@ async function getJwks(issuer: string): Promise<any[]> {
 }
 
 export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISSUER): Promise<string | null> {
+  return (await verifyClerkTokenEx(token, issuer)).uid;
+}
+
+/** как verifyClerkToken, но с причиной отказа: expired — истёк, invalid — подпись/издатель/формат, jwks — не смогли получить ключи (сбой у нас/сети, не вина игрока) */
+export type TokenCheck = { uid: string | null; reason?: "expired" | "invalid" | "jwks" };
+export async function verifyClerkTokenEx(token: string, issuer = DEFAULT_CLERK_ISSUER): Promise<TokenCheck> {
+  let header: any, payload: any, h: string, p: string, s: string;
   try {
-    const [h, p, s] = String(token || "").split(".");
-    if (!h || !p || !s) return null;
-    const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h)));
-    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
-    if (header.alg !== "RS256") return null;
-    const now = Math.floor(Date.now() / 1000);
-    if (typeof payload.exp === "number" && payload.exp < now - 5) return null;
-    if (typeof payload.nbf === "number" && payload.nbf > now + 5) return null;
-    if (payload.iss !== issuer) return null;
-    const keys = await getJwks(issuer);
+    [h, p, s] = String(token || "").split(".");
+    if (!h || !p || !s) return { uid: null, reason: "invalid" };
+    header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h)));
+    payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
+  } catch (_) { return { uid: null, reason: "invalid" }; }
+  if (header.alg !== "RS256" || payload.iss !== issuer) return { uid: null, reason: "invalid" };
+  const now = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp === "number" && payload.exp < now - 5) return { uid: null, reason: "expired" };
+  if (typeof payload.nbf === "number" && payload.nbf > now + 5) return { uid: null, reason: "invalid" };
+  let keys: any[];
+  try { keys = await getJwks(issuer); } catch (_) { return { uid: null, reason: "jwks" }; }
+  try {
     const jwk = keys.find((k) => k.kid === header.kid) || (keys.length === 1 ? keys[0] : null);
-    if (!jwk) return null;
+    if (!jwk) return { uid: null, reason: "invalid" };
     const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
     const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, b64urlToBytes(s) as any, new TextEncoder().encode(`${h}.${p}`) as any);
-    return ok && typeof payload.sub === "string" ? payload.sub : null;
-  } catch (_) {
-    return null;
-  }
+    return ok && typeof payload.sub === "string" ? { uid: payload.sub } : { uid: null, reason: "invalid" };
+  } catch (_) { return { uid: null, reason: "invalid" }; }
 }

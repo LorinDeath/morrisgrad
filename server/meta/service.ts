@@ -1,7 +1,7 @@
 // Сервис мета-прогрессии, квестов и открытого мира Аринара. Подключается к GameRoom минимально:
 // onJoin / handle(msg) / tick / onClose. Старые сообщения протокола не меняются.
 import { CHARACTER_CLASSES } from "../classes";
-import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
+import { verifyClerkToken, verifyClerkTokenEx, DEFAULT_CLERK_ISSUER } from "./auth";
 import {
   HERO_IDS, ITEMS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES, GATHER_RANGE,
@@ -183,7 +183,18 @@ export class MetaService {
     let uid: string | null = null;
     // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
     if (session.metaUid) uid = session.metaUid;
-    else if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+    else if (msg.token) {
+      const chk = await verifyClerkTokenEx(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+      uid = chk.uid;
+      if (!uid && !(session.dev === true && msg.userId)) {
+        // Игрок прислал токен, но он не прошёл: раньше молча становился гостем (прогресс уходил в чужой guest-профиль).
+        // jwks — сбой у нас: повтор (meta_error → meta_get). Иначе — auth_invalid: клиент обновит токен и переподключится
+        // или покажет «Сессия истекла» (MC-A03, src/pages/MorrisCurse/_core/authCodes.js). Профиль не создаём.
+        if (chk.reason === "jwks") { this.send(ws, { type: "meta_error", retry: true, message: "Проверяем вход…" }); return; }
+        this.send(ws, { type: "auth_invalid", code: "MC-A03", reason: chk.reason || "invalid" });
+        return;
+      }
+    }
     if (!uid && session.dev === true && msg.userId) uid = String(msg.userId).slice(0, 128);
     if (uid) session.metaUid = uid;
     const verified = !!uid;
