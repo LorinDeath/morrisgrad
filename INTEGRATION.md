@@ -1,6 +1,6 @@
 # INTEGRATION — финальная сборка `integ-preview` (только локально: без push, без деплоя, без удалённых миграций)
 
-**Состояние на 22.10.2026 ~00:30 (Киев): HEAD `1b2c00c`, 187 коммитов поверх `origin/main` `dda459c`.** Готово к выкладке по
+**Состояние на 22.10.2026 ~00:30 (Киев): код `d2e84f7` (props3 5731676), ~190 коммитов поверх `origin/main` `dda459c`.** Готово к выкладке по
 `/workspace/morrisgrad-round3/final/deploy/DEPLOY.md` (скрипт `deploy.sh`). Обзор для Алекса — `final/ДЛЯ-АЛЕКСА.md`.
 
 ## Финальный состав (первый родитель, по порядку)
@@ -13,7 +13,7 @@
 | `37b76da` | guest-login 24cfd38 (оверлей входа; authErr → реестр showError, `_core/authCodes.js` удалён; .wrangler — бэкап `/workspace/mg-backups/wrangler-state-integ-20261021-232133`) |
 | `96060cd` | deps-major 306e7ab (Astro 7, @astrojs/cloudflare 14, Clerk 4, @clerk/localizations ~4.24.0; включает security-audit e7d7852; server/meta/auth.ts из mg-sec docs/merge с проверкой exp) |
 | `73542f3` `0f08316` `1b1a8a6` | манифест под Astro 7 (configEnvironment, `mc-vite-manifest.json` в dist/client, удаляется); группы `mobs32` и `auth` ленивые |
-| `de347d8` `fd63dcc` | props3 b011edf, затем 0531e3a (свет арены 32, круглая граница; arena3 по умолчанию выкл) |
+| `de347d8` `fd63dcc` `d2e84f7` | props3 b011edf, затем 0531e3a, 5731676 (свет арены 32, круглая граница; arena3 по умолчанию выкл) |
 | `a9a5d50` | `server:deploy` с `--config wrangler.json` (корневой .wrangler/deploy/config.json от Astro 7 перехватывал конфиг) |
 | `0bf029f` `1b2c00c` | atmo-ui на телефоне (проверка «не светлее»); кнопка ⚔ PK скрыта в забеге |
 
