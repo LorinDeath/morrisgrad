@@ -31,9 +31,10 @@ const gif = (dir, name, fps = 10) => { try { execFileSync('nice', ['ffmpeg', '-y
   // ——— NPC: все 24 места включены (заглушки — готовые листы NPC) ———
   const allOn = Array.from({ length: 24 }, (_, i) => i); const d1 = await dev({ npcOn: allOn }); await sleep(2500);
   await tp(CX, CY + 60); await G(() => window.__game.debug.setCells(34, true)); await pin('12:00'); await sleep(3500);
+  await shot('day-1200-wide');
   const npcN = await G(() => window.__game.state().npcs?.length ?? null).catch(() => null);
-  await shot('npc-slots-outdoor'); console.log('npc slots on', (d1.city.npc || []).filter((n) => n.on).length, 'visible', npcN);
-  t('NPC: все 24 места включены', (d1.city.npc || []).filter((n) => n.on).length === 24, (d1.city.npc || []).length);
+  await shot('npc-slots-outdoor'); const npcList = d1.city.npc || []; console.log('npc slots on', npcList.length, 'outdoor', npcList.filter((n) => !n.house).length);
+  t('NPC: все 24 места включены (клиенту приходят только включённые)', npcList.length === 24, npcList.length);
   // ——— день / закат / ночь / рассвет на площади с фонарями ———
   await G(() => window.__game.debug.setCells(24, true)); await sleep(1500);
   for (const s of ['12:00', '19:40', '19:50', '20:00', '23:00', '05:45']) {
@@ -45,6 +46,7 @@ const gif = (dir, name, fps = 10) => { try { execFileSync('nice', ['ffmpeg', '-y
     if (s === '23:00') t('ночью горят все огни', l.length > 20 && off === 0 && on === l.length, { on, mid, off, n: l.length });
     if (s === '05:45') t('05:45: гаснут вразнобой', on + mid > 0 && off + mid > 0, { on, mid, off });
     await shot(`city-${s.replace(':', '')}`);
+    if (s === '23:00') { const nl = await G(() => window.__game.debug.dn()); t('ночью NPC/герои/мобы светятся (есть источники)', nl.n > 60, nl.n); }
   }
   // ——— в доме (трактир, ночь): маски нет, интерьер ———
   const inn = d1.city.b.find((b) => b[0] === 'tavern'); await pin('23:00');

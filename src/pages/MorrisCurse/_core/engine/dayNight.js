@@ -77,6 +77,8 @@ export class DayNight {
     // герои: мягкий личный свет (всегда, пока темно) — герой не темнее ~0.82 (BLK_FX.heroLight)
     const pr = Number(DN_CFG.playerLightM) || 6, pk = Math.min(1, 0.95 * dark + 0.05);
     for (const p of src.players || []) put(toX(p.x), toZ(p.y), p.me ? 0xfff1dc : 0xe8e4ff, p.me ? pr : pr * 0.8, p.me ? pk : pk * 0.8);
+    // NPC: мягкий тёплый свет — жителей видно ночью (диалог, квесты)
+    for (const q of src.npcs || []) put(toX(q.x), toZ(q.y), 0xffe6c4, pr * 0.55, pk * 0.62);
     // мобы: слабое читаемое свечение (силуэт не теряется в темноте)
     const mk = (Number(DN_CFG.mobLight) || 0) * dark;
     if (mk > 0.01) for (const m of src.mobs || []) put(toX(m.x), toZ(m.y), m.boss ? 0xff6a8a : 0xb48cff, m.boss ? 3.4 : 2.3, (m.boss ? 0.6 : 0.42) * mk);
