@@ -1673,13 +1673,34 @@ export class MetaService {
       this.pvpStrike(session.id, m2.sid, per);
     }
   }
+  /** удар моба по игроку (zone.update): общий путь — им же пользуется плейтест купола (dev domeHit) */
+  zoneHit(w: string, zone: any, sid: string, dmg: number, src: string, mob: any, now: number) {
+    const ms = this.ms.get(sid);
+    if (!ms || !ms.zp.alive) return;
+    if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
+    if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
+    if (w === "arinar" && this.citySafe(ms)) { (this as any).cityBlocked = ((this as any).cityBlocked || 0) + 1; return; } // город: урон 0 (счётчик — для плейтеста)
+    if (w === "arinar" && (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms))) return; // купол Чёрного мага / город: неуязвим
+    if (w === "arinar") this.pkCombat(sid); // получил урон — PK-отсчёт сброшен
+    const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
+    const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
+    ms.zp.hp -= real; (ms as any).hurtAt = now;
+    this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
+    zone.events.push({ k: "phit", sid, d: real, src });
+    if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
+    else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
+  }
   /** dev (MC_DEV_TRUST_USERID): PK сразу, накрутить убийства, включить места NPC, статус */
   cityDev(ws: WebSocket, session: any, ms: any, a: any, o: any) {
     const now = Date.now(), P = this.pkOf(ms);
     if (o.pk !== undefined) { P.pk = !!o.pk; P.to = null; if (session.stats) session.stats.pk = P.pk ? 1 : 0; a.pk = P.pk ? 1 : undefined; this.pkSend(ws, ms); }
     if (Array.isArray(o.mobAt)) { // плейтест: ближайший моб — в точку (за край купола) и в бой с игроком
       const z = this.zones.arinar; const m = (z?.mobs || []).filter((x: any) => !x.dead && !x.special).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
-      if (m) { m.x = Number(o.mobAt[0]); m.y = Number(o.mobAt[1]); m.targetSid = session.id; m.dmgBy?.set(session.id, (m.dmgBy.get(session.id) || 0) + 1); (ms as any).devMob = m.id; }
+      if (m) { m.x = m.sx = Number(o.mobAt[0]); m.y = m.sy = Number(o.mobAt[1]); m.reset = false; m.targetSid = session.id; m.dmgBy?.set(session.id, (m.dmgBy.get(session.id) || 0) + 1); (ms as any).devMob = m.id; }
+    }
+    if (o.domeHit) { // плейтест: удар моба по игроку тем же путём, что в zone.update (внутри купола — урон 0, счётчик cityBlocked)
+      const z = this.zones.arinar, dm = z && (ms as any).devMob ? z.mobs.find((x: any) => x.id === (ms as any).devMob) : null;
+      for (let i = 0; i < Number(o.domeHit); i++) this.zoneHit("arinar", z, session.id, 25, dm?.type || "rot_glitch", dm || null, now);
     }
     if (o.fastPk) { (PK_CFG as any).enterSec = Number(o.fastPk.enter ?? PK_CFG.enterSec); (PK_CFG as any).exitSec = Number(o.fastPk.exit ?? PK_CFG.exitSec); }
     if (o.mobKills) for (let i = 0; i < Number(o.mobKills); i++) this.killLog.note(ms.pkey, "m", false, now - i);
@@ -1886,22 +1907,7 @@ export class MetaService {
       const { players, socks } = byWorld[w];
       const zt0 = performance.now();
       if (!zone.onEngage) zone.onEngage = (m, sid) => this.engage(m, sid);
-      zone.update(dt, now, players, (sid, dmg, src, mob) => {
-        const ms = this.ms.get(sid);
-        if (!ms || !ms.zp.alive) return;
-        if (mob && !mob.qf?.has(sid)) this.engage(mob, sid); // моб ударил первым — бой (условия квестов) начался
-        if (isInvuln(ms, now)) return; // неуязвимость навыка (прыжок, облако, рывок)
-        if (w === "arinar" && this.citySafe(ms)) { (this as any).cityBlocked = ((this as any).cityBlocked || 0) + 1; return; } // город: урон 0 (счётчик — для плейтеста)
-        if (w === "arinar" && (this.bm.playerSafe(sid, ms.zp.x, ms.zp.y) || this.citySafe(ms))) return; // купол Чёрного мага / город: неуязвим
-        if (w === "arinar") this.pkCombat(sid); // получил урон — PK-отсчёт сброшен
-        const gap = levelGapDmgMult(ZONE_MOBS[src]?.lvl || 1, ms.pub?.lvl || 1); // формула: разница уровней
-        const real = Math.max(1, Math.round(dmg * gap * (1 - ms.zp.armorRed) * (((ms as any).drUntil || 0) > now ? 0.5 : 1)));
-        ms.zp.hp -= real; (ms as any).hurtAt = now;
-        this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
-        zone.events.push({ k: "phit", sid, d: real, src });
-        if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
-        else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
-      }, (mm) => this.onMobKilled(mm));
+      zone.update(dt, now, players, (sid, dmg, src, mob) => this.zoneHit(w, zone, sid, dmg, src, mob, now), (mm) => this.onMobKilled(mm));
       if (w === "arinar" && this.bm.loaded && zone.guard === this.guardMux) {
         try { this.bm.tick(Math.min(0.5, dt), zone as any, players as any); } catch (e: any) { console.error("[mc] black mage tick", e?.message || e); }
         for (const [, s] of socks) { const ms = this.ms.get(s.id); if (ms) { this.bmGround(s, ms, now); if ((ms as any).bmMeta && now - ((ms as any).bmMetaAt || 0) > 1500) { (ms as any).bmMeta = false; (ms as any).bmMetaAt = now; this.refreshZonePlayer(s); const e = this.sessionLookup?.(s.id); if (e) this.send(e[0], { type: "meta_state", ...this.snap(s) }); } } }
