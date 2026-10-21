@@ -191,6 +191,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "pack16", label: "Основные листы 16 бит/пиксель (RGBA 5551) — −70 МБ видеопамяти, цвет чуть тусклее", t: "bool" },
     { path: "packGlow", label: "Листы свечения 16 бит/пиксель (RGBA 5551) — −55 МБ видеопамяти", t: "bool" },
     { path: "lightSprites", label: "Ореолы и пятна огней — пиксельные спрайты; выкл — гладкий градиент", t: "bool" },
+    { path: "arena3", label: "Арена забега: спрайты props3 вместо 3D-мешей (со следующей арены; механика не меняется)", t: "bool" },
     { path: "_h1", label: "Анимация и свечение — сразу", t: "hdr" },
     N("fpsMul", "Скорость анимации пропсов, × (1 — как в атласе)", 0.25, 3), N("glow", "Сила свечения пропсов (*_glow), ×", 0, 3),
     ...LIGHT_TYPES.flatMap((t) => { const nm = ({ warm: "фонари", fire: "факелы и костры", cool: "кристаллы", violet: "звёздные кристаллы", lime: "пилоны", portal: "порталы и алтарь" } as any)[t];

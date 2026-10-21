@@ -1,5 +1,7 @@
 // 3D-арена комнаты забега: «Склеп» (адский камень) и «Бездна» (осколок Аринара).
-import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
+import { loadPropTextures, PropSprites, keyStrip, stripFrame } from '../engine/propAtlas.js';
+import { arenaSet } from '../engine/gfxCfg.js';
+import { pixTex } from '../engine/pixColor.js';
 import { PROPS_META, propDef } from '../../../../../server/meta/propsV2.ts';
 import { ARENA_RADIUS } from './data.js';
 import { PILLARS } from './run.js';
@@ -92,19 +94,31 @@ export class RunArena {
     const sigil2 = new THREE.Mesh(new THREE.RingGeometry(9, 9.2, 48), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
     sigil2.rotation.x = -Math.PI / 2; sigil2.position.y = 0.02;
     g.add(sigil2);
-    const sd = propDef('arena_sigil'), SS = PROPS_META.sheets[sd.sheet];
-    loadPropTextures(THREE, { set: 'v2' }).then((tex) => { // забег — всегда прежние props2 (не трогаем режим забега)
-      const t = tex[sd.sheet].clone(); t.needsUpdate = true; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-      t.repeat.set(1 / SS.cols, 1 / SS.rows); t.offset.set(sd.col / SS.cols, 1 - (sd.row + 1) / SS.rows);
-      sigil.material.map = t; sigil.material.needsUpdate = true; this.sigilTex = t; this.sigilDef = sd; this.sigilCols = SS.cols;
+    // набор листов арены: v2 (props2, по умолчанию) или v3 (props3 + x64 — замены 3D-мешей; админка «🖼 Графика» → arena3). Только отрисовка.
+    const AS = this.propSet = arenaSet();
+    this.decor = null; // v3: спрайты вместо мешей buildProps (заполняется там же, выводится после загрузки листов)
+    loadPropTextures(THREE, { set: AS, extra: AS === 'v3' ? ['x64', 'x64_glow'] : [] }).then((tex) => {
+      if (AS === 'v3') { // сигил — своя полоса кадров (без клона листа b128 4096²)
+        const d = tex.META.keys.arena_sigil, st = keyStrip(THREE, tex[d.sheet].userData?.src || tex[d.sheet].image, tex.META.sheets[d.sheet], d);
+        pixTex(THREE, st.tex); sigil.material.map = st.tex; sigil.material.needsUpdate = true; this.sigilStrip = st; this.sigilDef = d;
+      } else {
+        const sd = propDef('arena_sigil'), SS = PROPS_META.sheets[sd.sheet];
+        const t = tex[sd.sheet].clone(); t.needsUpdate = true; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+        t.repeat.set(1 / SS.cols, 1 / SS.rows); t.offset.set(sd.col / SS.cols, 1 - (sd.row + 1) / SS.rows);
+        sigil.material.map = t; sigil.material.needsUpdate = true; this.sigilTex = t; this.sigilDef = sd; this.sigilCols = SS.cols;
+      }
       const items = [];
       const seg = 5.4, Rw = R + 1.6, n = Math.round((2 * Math.PI * Rw) / seg);
       for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; items.push(['arena_wall_' + AT, Math.cos(a) * Rw, Math.sin(a) * Rw, 0.9]); }
       PILLARS.forEach((p) => items.push(['arena_column_' + AT, p.x, p.z, p.r / 1.44])); // коллайдер колонны (run.js) = 45% ширины 6.4 м → 1.44 м при s=1
-      const B = new PropSprites(THREE, tex, { max: items.length + 4, parent: g });
-      B.begin(); for (const [k, x, z, sc] of items) B.push(k, x * 20, z * 20, x, z, sc, false, 1, 0, null, false); B.end();
-      B.setLight(DARK.wallLight); // стены/колонны — в полутьме, акцент только у огней
+      const D = this.decor || [];
+      const B = new PropSprites(THREE, tex, { max: items.length + D.length + 4, parent: g });
+      B.begin(); for (const [k, x, z, sc] of items) B.push(k, x * 20, z * 20, x, z, sc, false, 1, 0, null, false);
+      for (const [k, x, z, sc, y] of D) B.push(k, x * 20, z * 20, x, z, sc, false, 1, y || 0, null, false);
+      B.end();
+      B.setLight(DARK.wallLight); // стены/колонны/декор — в полутьме, акцент только у огней
       this.props = B;
+      if (this.decorDots?.length) this.buildDots(THREE, g, tex);
     }).catch((e) => console.warn('[arena props]', e.message));
     const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.2, 0.12, 4, 96), new THREE.MeshBasicMaterial({ color: acc ?? (abyss ? 0x22d3ee : 0xc59b27) }));
     rim.rotation.x = Math.PI / 2; rim.position.y = 0.05;
@@ -118,7 +132,7 @@ export class RunArena {
         g.add(light);
       }
     });
-    this.buildProps(THREE, g, abyss);
+    this.buildProps(THREE, g, abyss, AT);
     // Внешний мир
     if (abyss) {
       const N = 900; const pos = new Float32Array(N * 3);
@@ -182,61 +196,84 @@ uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
 
   // Декор (не влияет на коллизии): плоские детали пола + невысокие предметы у стены и у колонн.
   // Всё инстансами: 1 вызов отрисовки на тип.
-  buildProps(THREE, g, abyss) {
+  // v3 (this.propSet === 'v3'): те же позиции и та же последовательность rnd(), но вместо мешей — спрайты x64 (README §5, this.decor);
+  // пятна (stains) — по-прежнему меши, «звёзды» пола — плоские декали со свечением arena_stardot (buildDots).
+  buildProps(THREE, g, abyss, AT = abyss ? 'abyss' : 'crypt') {
     const R = ARENA_RADIUS;
     let seed = abyss ? 99 : 42;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
-    const inst = (geo, mat, n, place) => {
-      const im = new THREE.InstancedMesh(geo, mat, n);
+    const V3 = this.propSet === 'v3', D = V3 ? (this.decor = []) : null;
+    // spr: [ключ, масштаб спрайта от o, подъём] — v3 кладёт спрайт в (o.x, o.z) вместо экземпляра меша; высота видимого арта ≈ высоте меша
+    const inst = (geo, mat, n, place, spr) => {
+      const im = V3 && spr ? null : new THREE.InstancedMesh(geo, mat, n);
       for (let i = 0; i < n; i++) {
         const o = place(i);
+        if (!im) { D.push([spr[0], o.x, o.z, spr[1](o)]); continue; }
         e.set(o.rx || 0, o.ry || 0, o.rz || 0); q.setFromEuler(e);
         v.set(o.x, o.y || 0, o.z); sc.set(o.s, o.sy || o.s, o.sz || o.s);
         m4.compose(v, q, sc); im.setMatrixAt(i, m4);
       }
+      if (!im) { geo.dispose(); return null; }
       im.instanceMatrix.needsUpdate = true;
       im.receiveShadow = true;
       g.add(im);
       return im;
     };
     const ring = (rMin, rMax) => { const a = rnd() * Math.PI * 2, r = rMin + rnd() * (rMax - rMin); return { x: Math.cos(a) * r, z: Math.sin(a) * r, a }; };
-    // обломки/камни вдоль стены
+    // обломки/камни вдоль стены (Dodecahedron r0.5: высота ≈ s·sy → арт 1.5 м)
     const rubbleMat = new THREE.MeshStandardMaterial({ color: abyss ? 0x272552 : 0x2b2222, flatShading: true, roughness: 0.95 });
-    inst(new THREE.DodecahedronGeometry(0.5, 0), rubbleMat, 70, () => { const p = ring(R - 3.2, R + 0.5); return { ...p, y: 0.15, s: 0.4 + rnd() * 0.9, sy: 0.3 + rnd() * 0.5, ry: rnd() * 6 }; });
+    inst(new THREE.DodecahedronGeometry(0.5, 0), rubbleMat, 70, () => { const p = ring(R - 3.2, R + 0.5); return { ...p, y: 0.15, s: 0.4 + rnd() * 0.9, sy: 0.3 + rnd() * 0.5, ry: rnd() * 6 }; },
+      ['arena_rubble_' + AT, (o) => Math.max(0.35, o.s * 0.75)]);
     if (abyss) {
-      // кристаллы Аринара у стены
+      // кристаллы Аринара у стены (Octahedron: высота s·sy → арт 2.7 м)
       const crMat = new THREE.MeshStandardMaterial({ color: 0x67e8f9, emissive: 0x0e7490, emissiveIntensity: 0.6, roughness: 0.25, flatShading: true });
-      inst(new THREE.OctahedronGeometry(0.5, 0), crMat, 28, () => { const p = ring(R - 2.2, R + 1); return { ...p, y: 0.6, s: 0.5 + rnd() * 0.6, sy: 1 + rnd() * 1.6, rz: (rnd() - 0.5) * 0.5 }; });
+      inst(new THREE.OctahedronGeometry(0.5, 0), crMat, 28, () => { const p = ring(R - 2.2, R + 1); return { ...p, y: 0.6, s: 0.5 + rnd() * 0.6, sy: 1 + rnd() * 1.6, rz: (rnd() - 0.5) * 0.5 }; },
+        [AT === 'mirror' ? 'arena_crystal_mirror' : 'arena_crystal_abyss', (o) => (o.s * o.sy + 0.6) / 2.7]);
       // светящиеся пятна-«звёзды» на полу
       const dotMat = new THREE.MeshBasicMaterial({ color: 0x818cf8, transparent: true, opacity: 0.18, depthWrite: false });
-      inst(new THREE.CircleGeometry(0.5, 8), dotMat, 60, () => { const p = ring(6, R - 4); return { ...p, y: 0.015, s: 0.4 + rnd() * 1.4, rx: -Math.PI / 2 }; });
+      const dots = V3 ? (this.decorDots = []) : null;
+      inst(new THREE.CircleGeometry(0.5, 8), dotMat, 60, () => { const p = ring(6, R - 4); const o = { ...p, y: 0.015, s: 0.4 + rnd() * 1.4, rx: -Math.PI / 2 }; dots?.push(o); return o; }, V3 ? ['', () => 0] : null);
+      if (V3) D.splice(D.length - 60, 60); // «звёзды» — не стоячие спрайты, а декали (buildDots)
     } else {
-      // надгробия и свечи у стены
+      // надгробия и свечи у стены (Box 1.2 м → арт 2.2 м)
       const graveMat = new THREE.MeshStandardMaterial({ color: 0x3a3238, flatShading: true, roughness: 0.9 });
-      inst(new THREE.BoxGeometry(0.9, 1.2, 0.25), graveMat, 22, () => { const p = ring(R - 2.0, R - 0.8); return { ...p, y: 0.5, s: 0.8 + rnd() * 0.4, ry: -p.a + Math.PI / 2 + (rnd() - 0.5) * 0.4, rz: (rnd() - 0.5) * 0.25 }; });
+      inst(new THREE.BoxGeometry(0.9, 1.2, 0.25), graveMat, 22, () => { const p = ring(R - 2.0, R - 0.8); return { ...p, y: 0.5, s: 0.8 + rnd() * 0.4, ry: -p.a + Math.PI / 2 + (rnd() - 0.5) * 0.4, rz: (rnd() - 0.5) * 0.25 }; },
+        [AT === 'abode' ? 'arena_tombstone_abode' : 'arena_tombstone_crypt', (o) => o.s * 0.7]);
       const candles = Array.from({ length: 40 }, () => { const p = ring(R - 2.6, R - 0.6); return { ...p, s: 0.8 + rnd() * 0.8 }; });
-      inst(new THREE.CylinderGeometry(0.06, 0.07, 0.4, 5), new THREE.MeshStandardMaterial({ color: 0xe8dcc0 }), candles.length, (i) => ({ ...candles[i], y: 0.2 * candles[i].s }));
-      inst(new THREE.SphereGeometry(0.07, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffc46b }), candles.length, (i) => ({ x: candles[i].x, z: candles[i].z, y: 0.4 * candles[i].s + 0.06, s: 1, sy: 1.6 }));
+      const CK = AT === 'abode' ? 'arena_candles_abode' : 'arena_candles';
+      inst(new THREE.CylinderGeometry(0.06, 0.07, 0.4, 5), new THREE.MeshStandardMaterial({ color: 0xe8dcc0 }), candles.length, (i) => ({ ...candles[i], y: 0.2 * candles[i].s }), [CK, (o) => o.s * 0.3]);
+      if (!V3) inst(new THREE.SphereGeometry(0.07, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffc46b }), candles.length, (i) => ({ x: candles[i].x, z: candles[i].z, y: 0.4 * candles[i].s + 0.06, s: 1, sy: 1.6 })); // v3: огонёк уже в спрайте
       // кости / черепки на полу (плоские)
       const boneMat = new THREE.MeshStandardMaterial({ color: 0x6b6152, roughness: 1 });
-      inst(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 4), boneMat, 50, () => { const p = ring(7, R - 3); return { ...p, y: 0.04, s: 0.7 + rnd() * 0.6, rx: Math.PI / 2, rz: rnd() * 6 }; });
-      // тёмные пятна
+      inst(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 4), boneMat, 50, () => { const p = ring(7, R - 3); return { ...p, y: 0.04, s: 0.7 + rnd() * 0.6, rx: Math.PI / 2, rz: rnd() * 6 }; }, ['arena_bones', (o) => o.s * 0.35]);
+      // тёмные пятна (спрайта нет — остаются мешем в обоих наборах)
       const stainMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
       inst(new THREE.CircleGeometry(1, 10), stainMat, 26, () => { const p = ring(4, R - 2); return { ...p, y: 0.012, s: 0.8 + rnd() * 2.2, sz: 0.6 + rnd(), rx: -Math.PI / 2 }; });
     }
-    // мох/трава у колонн
+    // мох/трава у колонн (Cone 0.45 м → арт 0.8 м)
     const tuftMat = new THREE.MeshStandardMaterial({ color: abyss ? 0x3730a3 : 0x3f4a2a, flatShading: true });
     inst(new THREE.ConeGeometry(0.12, 0.45, 3), tuftMat, PILLARS.length * 6, (i) => {
       const p = PILLARS[Math.floor(i / 6)]; const a = rnd() * Math.PI * 2, r = p.r + 0.2 + rnd() * 0.6;
       return { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r, y: 0.2, s: 0.8 + rnd() * 0.8 };
-    });
+    }, [abyss ? 'arena_tuft_abyss' : 'arena_tuft_crypt', (o) => o.s * 0.5]);
+  }
+  // v3: «звёзды» пола — плоские аддитивные декали кадра arena_stardot (только _glow), общая полоса кадров
+  buildDots(THREE, g, tex) {
+    const d = tex.META.keys.arena_stardot, G = d && tex[d.glow?.sheet]; if (!G) return;
+    const st = keyStrip(THREE, G.userData?.src || G.image, tex.META.sheets[d.sheet], d); pixTex(THREE, st.tex);
+    const mat = new THREE.MeshBasicMaterial({ map: st.tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+    const L = this.decorDots, im = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.2, 3.2), mat, L.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+    L.forEach((o, i) => { m4.compose(new THREE.Vector3(o.x, o.y, o.z), q, new THREE.Vector3(o.s * 0.6, o.s * 0.6, 1)); im.setMatrixAt(i, m4); });
+    im.instanceMatrix.needsUpdate = true; im.renderOrder = 1; g.add(im); this.dotStrip = st; this.dotDef = d;
   }
 
   update(dt) {
     this.time += dt;
     if (this.sigil) this.sigil.rotation.z += dt * 0.2;
     if (this.sigilTex) { const d = this.sigilDef; this.sigilTex.offset.x = (d.col + (Math.floor(this.time * d.fps) % d.frames)) / this.sigilCols; }
+    if (this.sigilStrip) { const d = this.sigilDef; stripFrame(this.sigilStrip, Math.floor(this.time * d.fps) % d.frames); }
+    if (this.dotStrip) { const d = this.dotDef; stripFrame(this.dotStrip, Math.floor(this.time * d.fps) % d.frames); }
     this.flames?.forEach((f, i) => { f.scale.y = 0.8 + Math.sin(this.time * 9 + i) * 0.25; });
     if (this.embers) {
       const a = this.embers.geometry.attributes.position;

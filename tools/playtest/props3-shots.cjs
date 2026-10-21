@@ -1,5 +1,5 @@
 // LOCAL ONLY: пропсы 32 (props3) — снимки до/после и замеры. PROPS=2|3 (набор), MOBILE=1 (как телефон), TAG — суффикс.
-// SHOTS=hub,portal,lights,arinar,stats … ; вывод — OUT (по умолчанию /workspace/morrisgrad-round3/props3).
+// SHOTS=hub,portal,lights,arinar,stats,arena … ; ARENA=2|3 — набор арены забега (?arena=); вывод — OUT (по умолчанию /workspace/morrisgrad-round3/props3).
 const { chromium, devices } = require('playwright-core');
 const { guardLocal, assertLocalUrl } = require('./_local.cjs');
 const OUT = process.env.OUT || '/workspace/morrisgrad-round3/props3', TAG = process.env.TAG || ('p' + (process.env.PROPS || '3'));
@@ -14,7 +14,7 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(String(e).slice(0, 300))); p.on('console', (m) => { if (m.type() === 'error' || /props|atmo/.test(m.text())) errs.push('console: ' + m.text().slice(0, 200)); });
   const reqs = []; p.on('request', (r) => { if (/props[23]|props32|light_emitters/.test(r.url())) reqs.push(r.url().replace(/^.*\/src\/assets\//, '')); });
   const t0 = Date.now();
-  const q = process.env.PROPS ? `&props=${process.env.PROPS}` : '';
+  const q = (process.env.PROPS ? `&props=${process.env.PROPS}` : '') + (process.env.ARENA ? `&arena=${process.env.ARENA}` : '');
   const uid = 'p3_' + (mob ? 'm' : 'pc') + '_' + TAG;
   await p.goto(assertLocalUrl(`${BASE}?name=${uid}&uid=${uid}&ws=${WS}&fs=1&debug=1${q}${mob ? '&mobile=1' : ''}`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 180000 }).catch(async (e) => { console.log('errs', errs.join(' | ')); await p.screenshot({ path: `${OUT}/boot-fail-${TAG}.png` }); throw e; }); const tHub = Date.now() - t0;
@@ -33,6 +33,19 @@ const SH = (process.env.SHOTS || 'stats,hub,portal,lights,arinar').split(',');
     for (let i = 0; i < 8 && (await p.evaluate(() => window.__game.state().world)) !== 'arinar'; i++) { await p.evaluate(() => window.__game.debug.tp(240, 610, true)); await sleep(700); await p.evaluate(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
     for (const [n, x, y] of [['ice', 20400, 1200], ['fire', 6000, 8400], ['stone', 13200, 1200], ['air', 34800, 3600]]) await shot('arinar-' + n, x, y, 0.8, 6000);
     const L = await p.evaluate(() => window.__game.debug.lightSources()); const s = L.find((s) => s.k); if (s) await shot('arinar-light-' + s.k, s.px, s.py + 40, 2.2, 4000);
+  }
+  if (SH.includes('arena')) { // комнаты забега: тот же сид декора → одинаковые позиции в v2/v3
+    for (const room of (process.env.ROOMS || 'crypt,abyss,trial').split(',')) {
+      if ((await p.evaluate(() => window.__game.state().mode)) !== 'hub') { await p.goto(p.url()); await p.waitForFunction(() => window.__game?.state?.().mode === 'hub', null, { timeout: 180000 }); await sleep(2000); await p.evaluate(() => window.__game.debug.selectClass('mage')).catch(() => {}); await sleep(1500); }
+      await p.evaluate((r) => window.__game.startRun(r), room);
+      await p.waitForFunction(() => window.__game.state().mode === 'run', null, { timeout: 60000 }).catch(() => {});
+      await sleep(7000); await p.mouse.move(5, 5);
+      await p.screenshot({ path: `${OUT}/arena-${room}-${TAG}.png` });
+      await p.evaluate(() => window.__game.debug.setZoom(0.4)).catch(() => {}); await sleep(2500);
+      await p.screenshot({ path: `${OUT}/arena-${room}-wide-${TAG}.png` });
+      const ar = await p.evaluate(() => { const g = window.__game; const st = g.state(); return { mode: st.mode, enemies: st.run?.enemies, sheets: Object.keys(g.debug.props().sheets) }; });
+      console.log('arena', room, JSON.stringify(ar));
+    }
   }
   const fin = await p.evaluate(() => window.__game.debug.props()); console.log('final sheets', JSON.stringify(fin.sheets));
   console.log('errs', errs.join(' | ') || 0); await b.close();

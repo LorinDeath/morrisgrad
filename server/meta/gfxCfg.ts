@@ -1,6 +1,6 @@
 // Графика пропсов (только отрисовка у клиента, на механику и коллизии не влияет): админка «🖼 Графика» (kind='gfx', id='main').
 // Живые (применяются сразу): fpsMul, glow, lt.*, em.*. При загрузке страницы (клиент кэширует в localStorage, со следующей загрузки):
-// props3Pc / props3Mobile, pack16, packGlow, lightSprites, arena3.
+// props3Pc / props3Mobile, pack16, packGlow, lightSprites. arena3 — со следующей арены забега.
 export const LIGHT_TYPES = ["warm", "fire", "cool", "violet", "lime", "portal"] as const; // lantern; torch/campfire; crystal; star_crystal; pylon; порталы/алтарь
 export const EMIT_KEYS = ["lantern", "torch", "campfire", "crystal", "star_crystal", "pylon"] as const;
 const lt = () => ({ haloS: 1, haloK: 1, poolS: 1, poolK: 1 });
@@ -11,6 +11,7 @@ export const GFX_CFG: any = {
   pack16: false,       // базовые листы props3 как RGBA 5551 (вдвое меньше VRAM); выкл: на 5551 light-fidelity ловит ΔS≈−0.026 у обелиска
   packGlow: true,      // листы *_glow как RGBA 5551 (аддитивное свечение, разница не видна)
   lightSprites: true,  // ореолы и пятна огней — пиксельные спрайты light_halo/light_pool (props3); выкл — радиальный градиент
+  arena3: false,       // забег: замены 3D-мешей арены спрайтами props3 (x64), со следующей арены; только при props3 на странице
   fpsMul: 1,           // скорость анимации пропсов, ×
   glow: 1,             // сила свечения *_glow пропсов, ×
   lt: Object.fromEntries(LIGHT_TYPES.map((t) => [t, lt()])), // ореол/пятно по типу огня: размер и сила, ×
@@ -20,7 +21,7 @@ const cl = (v: any, a: number, b: number, d: number) => { const n = Number(v); r
 const b = (v: any, d: boolean) => (typeof v === "boolean" ? v : d);
 export const gfxClient = () => {
   const G = GFX_CFG;
-  return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true),
+  return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true), arena3: b(G.arena3, false),
     fpsMul: cl(G.fpsMul, 0.25, 3, 1), glow: cl(G.glow, 0, 3, 1),
     lt: Object.fromEntries(LIGHT_TYPES.map((t) => { const o = G.lt?.[t] || {}; return [t, { haloS: cl(o.haloS, 0.2, 3, 1), haloK: cl(o.haloK, 0, 3, 1), poolS: cl(o.poolS, 0.2, 3, 1), poolK: cl(o.poolK, 0, 3, 1) }]; })),
     em: Object.fromEntries(["v3", "v2"].map((s) => [s, Object.fromEntries(EMIT_KEYS.map((k) => { const o = G.em?.[s]?.[k] || {}; return [k, { x: cl(o.x, -1, 128, -1), y: cl(o.y, -1, 128, -1) }]; }))])) };
