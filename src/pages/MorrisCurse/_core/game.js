@@ -1963,6 +1963,7 @@ async function boot(canvasId, username, userId, api) {
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
       openUpgrade: () => upgWin.open(),
+      vn: (who, emo = 'calm', text = '…') => dialog.playVN([{ who, emo, text }], { id: 'dbg', title: 'Сцена', chapter: '' }, [{ text: 'Уйти', cls: 'ghost', onClick: () => dialog.close() }]), // скриншоты VN-арта
       npcPos: (id) => npcPos(id), npcServer: (id) => npcServer(id), npcSpawn: (id) => NPCS[id] && { x: NPCS[id].x, y: NPCS[id].y }, nearestNpc: () => zone.nearestNpc(world, player.x, player.y)?.id || null,
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
       bm: () => zone.bmv?.debug() || null, target: () => hud.currentTarget, // Чёрный маг (hub/bmView.js): маг, купола, розы, земля
