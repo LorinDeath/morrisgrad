@@ -90,7 +90,8 @@ export class PropSprites {
   }
   begin() { for (const B of this.list) B.begin(); }
   end() { for (const B of this.list) B.end(); }
-  setLight(k) { for (const B of this.list) B.setLight(k); }
+  /** свет спрайтов (экранный множитель); kGlow — отдельно для слоёв *_glow (огни не гаснут вместе с камнем), по умолчанию = k */
+  setLight(k, kGlow = k) { for (const [n, B] of Object.entries(this.b)) B.setLight(n.endsWith('_glow') ? kGlow : k); }
   // k — ключ (старый или v2); (wx, wy) — точка мира (для варианта и фазы); (x, z) — сцена; s — масштаб; y — подъём (м)
   push(k, wx, wy, x, z, s = 1, flip = false, alpha = 1, y = 0, tint = null, variant = true) {
     const key = variant ? propVariant(k, wx, wy) : (META.aliases[k] || k);

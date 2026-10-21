@@ -2,7 +2,7 @@
 import { loadPropTextures, PropSprites, keyStrip, stripFrame } from '../engine/propAtlas.js';
 import { arenaSet, GFX } from '../engine/gfxCfg.js';
 import { buildArena32, TILE_M as A32_TILE } from './arena32.js';
-import { pixTex } from '../engine/pixColor.js';
+import { pixTex, pixMat } from '../engine/pixColor.js';
 import { PROPS_META, propDef } from '../../../../../server/meta/propsV2.ts';
 import { ARENA_RADIUS } from './data.js';
 import { PILLARS } from './run.js';
@@ -65,7 +65,7 @@ export class RunArena {
     // набор листов арены: v2 (props2, по умолчанию) или v3 (props3 + x64 — замены 3D-мешей; админка «🖼 Графика» → arena3). Только отрисовка.
     // v3 = ещё и пол/кромка/парапет/декали arena32 (arena32.js): до загрузки листов виден прежний каменный холст.
     const AS = this.propSet = arenaSet(), A32 = AS === 'v3';
-    this.wallLight = DARK.wallLight;
+    this.wallLight = A32 ? GFX.arena3WallL : DARK.wallLight; // arena32: камень в свете арены (экранный ×), огни *_glow — полные
     const tex = new THREE.CanvasTexture(createStoneCanvas(abyss
       ? { base: '#0d1026', motif: 'rgba(103,232,249,0.10)', crack: 'rgba(0,0,0,0.4)' }
       : { base: '#1a1212', motif: 'rgba(197,155,39,0.09)', moss: 'rgba(60,80,40,0.35)' }, abyss ? 11 : 5));
@@ -85,14 +85,14 @@ export class RunArena {
       };
       img.src = srcUrl(TILE_SRC[this.tiles]);
     }
+    const AT = { stone: 'crypt', air: 'abyss', ice: 'mirror', fire: 'abode' }[this.tiles] || (abyss ? 'abyss' : 'crypt');
+    this.propTheme = AT;
     // Тёмный пол: без света сцены (MeshBasic) — освещают только сигил, мобы, снаряды/эффекты и слабый ореол героя (makeDarkFloor)
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(R + 2, 64), this.makeDarkFloor(THREE, tex, R, acc ?? (abyss ? 0x22d3ee : 0xef4444)));
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(R + 2, 64), this.makeDarkFloor(THREE, tex, R, acc ?? (abyss ? 0x22d3ee : 0xef4444), A32));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     g.add(floor);
     // Сигил, стена-кольцо и колонны — пропсы v2 (arena_sigil / arena_wall_<тема> / arena_column_<тема>): тема по тайлсету комнаты
-    const AT = { stone: 'crypt', air: 'abyss', ice: 'mirror', fire: 'abode' }[this.tiles] || (abyss ? 'abyss' : 'crypt');
-    this.propTheme = AT;
     const sigilCol = new THREE.Color(acc ?? (abyss ? 0x22d3ee : 0xef4444));
     const sigil = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ color: sigilCol, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
     sigil.rotation.x = -Math.PI / 2; sigil.position.y = 0.02;
@@ -121,7 +121,7 @@ export class RunArena {
       B.begin(); for (const [k, x, z, sc] of items) B.push(k, x * 20, z * 20, x, z, sc, false, 1, 0, null, false);
       for (const [k, x, z, sc, y] of D) B.push(k, x * 20, z * 20, x, z, sc, false, 1, y || 0, null, false);
       B.end();
-      B.setLight(DARK.wallLight); // стены/колонны/декор — в полутьме, акцент только у огней
+      B.setLight(this.wallLight, A32 ? 1 : this.wallLight); // стены/колонны/декор — в полутьме, акцент только у огней; arena32: свечение огней полное
       this.props = B;
       if (this.decorDots?.length) this.buildDots(THREE, g, tex);
     }).catch((e) => console.warn('[arena props]', e.message));
@@ -134,7 +134,7 @@ export class RunArena {
     // свет у колонн (сами колонны — спрайты v2 выше)
     this.flames = [];
     PILLARS.forEach((p, i) => {
-      if (i % 2 === 0) {
+      if (i % 2 === 0 && !A32) { // arena32: PointLight некому освещать (всё — спрайты и пол со своим светом) — огни колонн в карте света
         const light = new THREE.PointLight(acc ?? (abyss ? 0x67e8f9 : 0xff8a3c), 0.55, 9, 1.8);
         light.position.set(p.x, 4.4, p.z);
         g.add(light);
@@ -169,33 +169,46 @@ export class RunArena {
 
   /** Материал пола «тёмное подземелье»: яркость = ambient + свет сигила (центр) + ореол героя + до MAXL динамических огней,
    *  жёсткая виньетка к стене. Огни (мобы, снаряды, взрывы) задаёт RunView каждый кадр: setLights(). */
-  makeDarkFloor(THREE, tex, R, sigilHex) {
+  makeDarkFloor(THREE, tex, R, sigilHex, a32 = false) {
     const MAXL = DARK.maxLights;
     const U = this.darkU = {
       uAmb: { value: DARK.amb * (TILE_DARK[this.tiles] ?? 1) }, uSig: { value: new THREE.Color(sigilHex) }, uR: { value: R },
       uMe: { value: new THREE.Vector2(0, 0) }, uN: { value: 0 }, uWallK: { value: 0 }, uFloorK: { value: 1 },
       uL: { value: Array.from({ length: MAXL }, () => new THREE.Vector4()) }, uLC: { value: Array.from({ length: MAXL }, () => new THREE.Color()) },
+      // arena32: карта света арены (arena32.js bakeArenaLight: сигил, колонны, свечи, кристаллы, кромка) — экранный множитель, одна выборка
+      uLM: { value: null }, uLMS: { value: 1 }, uLMK: { value: 0 }, uEdge: { value: DARK.edge },
     };
+    if (a32) { const t = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; U.uLM.value = t; U.uAmb.value = GFX.arena3Amb[this.propTheme] ?? 0.5; U.uEdge.value = GFX.arena3Edge; }
     const m = new THREE.MeshBasicMaterial({ map: tex });
+    // arena32 (pixColor.js): свет — экранный множитель пиксель-арта (как у спрайтов), без ACES; li = 1 → пиксель как в атласе/превью
+    if (a32) pixMat(m);
+    m.customProgramCacheKey = () => (a32 ? 'arenaDark32' : 'arenaDark'); // r128: ключ программы — исходник onBeforeCompile, общий у обеих веток
+    const LIGHT32 = `
+    vec3 li = vec3(uAmb) + texture2D(uLM, vec2(vW.x, -vW.y) * uLMS + 0.5).rgb * uLMK;
+    float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
+    for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
+    li *= mix(1.0, uEdge, smoothstep(uR * 0.6, uR + 1.5, dc)); // к стене — мягче, чем у старой арены (кромку подсвечивает карта света)
+    li = min(li * uFloorK, vec3(1.3));
+    float wm = step(0.5, diffuseColor.a) * step(diffuseColor.a, 0.998) * step(0.001, uWallK);
+    li = mix(li, max(li, vec3(uWallK)), wm); diffuseColor.a = mix(diffuseColor.a, 1.0, wm);
+    diffuseColor.rgb *= pow(li, vec3(2.2)); // экранный × → линейный (decode(пиксель) × lin(свет) → encode = пиксель × свет)`;
+    const LIGHT = `
+    vec3 li = vec3(uAmb);
+    float sg = 1.0 - smoothstep(0.0, ${DARK.sigilR.toFixed(1)}, dc); li += uSig * (sg * sg * ${DARK.sigilK.toFixed(2)});
+    float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
+    for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
+    li *= mix(1.0, ${DARK.edge.toFixed(2)}, smoothstep(uR * 0.5, uR + 1.5, dc)); // виньетка к стене
+    diffuseColor.rgb *= li;`;
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, U);
       sh.vertexShader = 'varying vec2 vW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vW = (modelMatrix * vec4(position, 1.0)).xz;');
       sh.fragmentShader = `varying vec2 vW;
 uniform float uAmb; uniform vec3 uSig; uniform float uR; uniform vec2 uMe; uniform int uN; uniform float uWallK; uniform float uFloorK;
 uniform vec4 uL[${MAXL}]; uniform vec3 uLC[${MAXL}];
+uniform sampler2D uLM; uniform float uLMS; uniform float uLMK; uniform float uEdge;
 ` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   {
-    float dc = length(vW);
-    vec3 li = vec3(uAmb);
-    float sg = 1.0 - smoothstep(0.0, ${DARK.sigilR.toFixed(1)}, dc); li += uSig * (sg * sg * ${DARK.sigilK.toFixed(2)});
-    float dm = length(vW - uMe); float pm = 1.0 - smoothstep(0.0, ${DARK.meR.toFixed(1)}, dm); li += vec3(pm * pm * ${DARK.meK.toFixed(2)});
-    for (int i = 0; i < ${MAXL}; i++) { if (i >= uN) break; vec4 L = uL[i]; float a = max(0.0, 1.0 - length(vW - L.xy) / L.z); li += uLC[i] * (L.w * a * a); }
-    li *= mix(1.0, ${DARK.edge.toFixed(2)}, smoothstep(uR * 0.5, uR + 1.5, dc)); // виньетка к стене
-    li *= uFloorK; // arena32: яркость пола под старую арену (A32_FLOOR_K темы × админка arena3Floor)
-    // arena32, парапет запечён в пол: его пиксели помечены альфой 254 — свет стены (как у спрайтов, DARK.wallLight), без виньетки
-    float wm = step(0.5, diffuseColor.a) * step(diffuseColor.a, 0.998) * step(0.001, uWallK);
-    li = mix(li, max(li, vec3(uWallK)), wm); diffuseColor.a = mix(diffuseColor.a, 1.0, wm);
-    diffuseColor.rgb *= li;
+    float dc = length(vW);${a32 ? LIGHT32 : LIGHT}
   }`);
     };
     return m;
