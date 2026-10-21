@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 
 export const prerender = false;
 
-const R2_PUBLIC_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+import { artBase } from '../../lib/media';
 
 export interface ArtItem {
   id: string;
@@ -96,7 +96,7 @@ export const GET: APIRoute = async ({ locals }) => {
         id: `art-${index + 1}`,
         name: cleanName || `Экспонат #${index + 1}`,
         filename,
-        url: `${R2_PUBLIC_BASE}/${encodedKey}`,
+        url: `${artBase(env)}/${encodedKey}`,
         category,
         tag,
         size: obj.size,

@@ -1,10 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Notes from '../components/Notes.astro';
+import { artBase } from '../lib/media';
 
 export const prerender = false;
 
-const R2_PUBLIC_BASE = 'https://pub-becc7b2187614cf1bfb6cabab35271d2.r2.dev';
+const R2_PUBLIC_BASE = artBase((Astro.locals as any)?.runtime?.env); // src/lib/media.ts (ART_PUBLIC_BASE)
 
 export interface ArtItem {
   id: string;

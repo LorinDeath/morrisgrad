@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import { sniff } from '../lib/forum/media';
 import { siteNickProblem } from '../lib/security';
 import { pidFor, defaultAvatar } from '../lib/publicId';
+import { avatarsBase, avatarKeyFromUrl, newAvatarKey } from '../lib/media';
 
 // 1. Получаем доступ к базе данных Cloudflare D1
 const cfRuntime = (Astro.locals as any)?.runtime;
@@ -11,7 +12,7 @@ const db = env?.PROFILES_DB;
 const bucket = env?.AVATARS_BUCKET;
 
 // ВАЖНО: Вставьте сюда ваш публичный домен R2 (из настроек бакета в Cloudflare)
-const R2_PUBLIC_DOMAIN = "https://pub-c6960920bfb44496a89753f220db1147.r2.dev"; 
+const R2_PUBLIC_DOMAIN = avatarsBase(env); // src/lib/media.ts (r2.dev → media.morrisgrad.com переменной AVATARS_PUBLIC_BASE)
 
 // 2. Получаем ID пользователя через Clerk
 // Если middleware настроен, auth() вернет объект с userId
@@ -173,14 +174,14 @@ try {
                     // Загрузка в R2
                     if (bucket) {
                         try {
-                            const key = `${userId}-${Date.now()}`;
+                            const key = newAvatarKey(avatarMime); // случайный ключ, без id игрока
                             await bucket.put(key, avatarBytes, {
                                 httpMetadata: { contentType: avatarMime, contentDisposition: 'inline' }
                             });
 
                             // Удаляем старый аватар из R2, если он там есть, чтобы не занимать место
-                            if (user.avatar_url && user.avatar_url.startsWith(R2_PUBLIC_DOMAIN)) {
-                                const oldKey = user.avatar_url.slice(R2_PUBLIC_DOMAIN.length + 1);
+                            {
+                                const oldKey = avatarKeyFromUrl(env, user.avatar_url); // старый r2.dev или новый домен
                                 if (oldKey) {
                                     await bucket.delete(oldKey);
                                     console.log(`[Profile] Старый аватар удален: ${oldKey}`);

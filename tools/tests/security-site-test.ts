@@ -2,6 +2,7 @@
 import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS, siteNickProblem } from "../../src/lib/security";
 import { readFileSync } from "fs";
 import { cleanInventoryItem } from "../../src/lib/inventoryItem";
+import { avatarsBase, artBase, avatarKeyFromUrl, newAvatarKey, R2DEV_AVATARS } from "../../src/lib/media";
 import { rateLimit, guardAnonWrite, checkTurnstile, memLimit, _resetMem, LIMITS } from "../../src/lib/antiabuse";
 
 let fails = 0, passes = 0;
@@ -76,6 +77,18 @@ for (const bad of ["<svg onload=alert()>", 'a"b', "a'b", "x&y", "a<b", "tab\ther
   const wj = readFileSync("wrangler.jsonc", "utf8");
   ok(/"RL_SCORES"[^}]*"limit": 6/.test(wj) && /"RL_KONKURS"[^}]*"limit": 2/.test(wj) && /"RL_CHAT"[^}]*"limit": 20/.test(wj) && LIMITS.scores === 6 && LIMITS.konkurs === 2 && LIMITS.chat === 20, "лимиты в wrangler.jsonc совпадают с кодом");
   ok(!/TURNSTILE_SECRET_KEY/.test(wj), "секрет Turnstile не в wrangler.jsonc");
+}
+
+// --- адреса R2: домен переменной, ключи аватаров без id игрока ---
+{
+  ok(avatarsBase({}) === R2DEV_AVATARS && avatarsBase({ AVATARS_PUBLIC_BASE: "https://media.morrisgrad.com/" }) === "https://media.morrisgrad.com", "домен аватаров: по умолчанию r2.dev, переменной — свой");
+  ok(avatarsBase({ AVATARS_PUBLIC_BASE: "javascript:alert(1)" }) === R2DEV_AVATARS && artBase({ ART_PUBLIC_BASE: "http://x" }).startsWith("https://pub-"), "мусор в переменной — игнор");
+  const k = newAvatarKey("image/png");
+  ok(/^a\/\d{6}\/[a-z0-9]{12}\.png$/.test(k) && !k.includes("user_"), "новый ключ аватара случайный, без id");
+  ok(avatarKeyFromUrl({}, R2DEV_AVATARS + "/user_abc-1") === "user_abc-1" && avatarKeyFromUrl({ AVATARS_PUBLIC_BASE: "https://media.morrisgrad.com" }, "https://media.morrisgrad.com/a/202610/x.png") === "a/202610/x.png", "старый и новый адрес → ключ (удаление прежнего аватара)");
+  ok(avatarKeyFromUrl({}, "https://evil.example/x") === null && avatarKeyFromUrl({}, R2DEV_AVATARS + "/../x") === null, "чужой адрес/.. — не наш ключ");
+  const prof = readFileSync("src/pages/profile.astro", "utf8");
+  ok(!/\$\{userId\}-\$\{Date\.now\(\)\}/.test(prof) && /newAvatarKey\(avatarMime\)/.test(prof), "профиль: ключ аватара не содержит id");
 }
 
 console.log(`security-site-test: ${passes} PASS, ${fails} FAIL`);
