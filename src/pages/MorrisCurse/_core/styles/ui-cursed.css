@@ -584,3 +584,12 @@ html.mc-ui .mc-load .st { margin: 0; font-size: 13px; color: #cbb8e6; }
 html.mc-ui .mc-load .hint { margin: 6px 0 0; font-size: 12px; color: #9a8fae; font-style: italic; max-width: 360px; }
 html.mc-ui:not(.mc-atmo-tr) .mc-load .sig * { animation: none; }
 
+/* ─────────────────────────── 9. слот PK у рамки героя (ui/playerFrame.js pkSlot; кнопку монтирует dome-city) ─────────────────────────── */
+/* пустой — скрыт в обеих темах (вид рамок не меняется); с кнопкой — квадрат 36×36 (рамка + кольцо прогресса) рядом с ОЗ */
+.mc-pf-pk-slot { flex: 0 0 auto; width: 36px; height: 36px; position: relative; pointer-events: auto; box-sizing: border-box; }
+.mc-pf-pk-slot:empty { display: none !important; }
+.mc-pframe > .mc-pf-pk-slot { align-self: flex-end; margin: 0 0 1px 2px; }
+/* прежняя карточка «ГЕРОЙ»: справа от полоски ОЗ (полоска укорачивается только когда кнопка есть) */
+.hud-card:has(> .mc-pf-pk-slot:not(:empty)) { position: relative; }
+.hud-card > .mc-pf-pk-slot { position: absolute; right: 8px; margin-top: -26px; }
+.hud-card:has(> .mc-pf-pk-slot:not(:empty)) > .mc-pk-near, .hud-card:has(> .mc-pf-pk-slot:not(:empty)) > .hud-bar-val { margin-right: 44px; }
