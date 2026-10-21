@@ -24,6 +24,9 @@ const get = (p, h = {}) => fetch(BASE + p, { redirect: "manual", headers: { cook
   const av = await get("/api/avatar/3"); const at = await av.text();
   ok(av.status === 200 && /image\/svg\+xml/.test(av.headers.get("content-type") || "") && /sandbox/.test(av.headers.get("content-security-policy") || "") && !/<script|\son\w+=/i.test(at), "/api/avatar/<номер>: SVG с CSP sandbox, без скриптов");
   ok((await get("/api/avatar/user_xssTestBBBBBBBB")).status === 400, "/api/avatar по id Clerk → 400");
+  // нет отметки визита (тихий профиль, last_seen = 0) — поле скрыто, а не «1 янв. 1970»; у заходившего — показано
+  for (const p of ["/forum/u/3", "/u/3"]) { const t = await (await get(p)).text(); ok(!/1970/.test(t), `${p}: нет «1970» при пустой отметке визита`); }
+  { const t = await (await get("/forum/u/1", { cookie: "mg_dev_noclerk=1; mg_dev_uid=user_cspTestAAAAAAAA" })).text(); ok(/последний визит/.test(t) && /на форуме с/.test(t) && !/1970/.test(t), "/forum/u/1 (заходил): последний визит и «на форуме с» показаны"); }
 
   const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome" });
   for (const [dev, opt] of [["pc", { viewport: { width: 1366, height: 800 } }], ["phone", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]]) {
