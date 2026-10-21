@@ -17,6 +17,7 @@
     "@astrojs/sitemap": "^3.7.3",
     "@astrojs/ts-plugin": "^1.10.6",
     "@clerk/astro": "^2.16.13",
+    "@clerk/localizations": "~3.35.0",
     "astro": "^5.16.6",
     "sharp": "^0.34.5",
     "typescript": "^5.9.3"
