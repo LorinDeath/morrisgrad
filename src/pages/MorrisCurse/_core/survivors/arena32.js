@@ -19,7 +19,7 @@ export const A32_FLOOR_K = { crypt: 1, abyss: 1, mirror: 1, abode: 1 }; // по�
 // запечённый парапет: свет стены в том же экранном пространстве, что у спрайтов (A.wallLight) — поправка не нужна
 export const A32_BAKED_WALL_K = 1;
 // огни карты света: [цвет | null — акцент темы, радиус м, сила (экранный ×)]
-export const A32_LIGHTS = { sigil: [null, 11, 0.5], column: [null, 6.5, 0.42], candles: [0xffb45a, 3.4, 0.38], crystal_abyss: [0x5eead4, 4.2, 0.4], crystal_mirror: [0xbfdbfe, 4.2, 0.36], rim: [null, 3.2, 0.3] };
+export const A32_LIGHTS = { sigil: [null, 11, 0.5], column: [null, 6.5, 0.55], candles: [0xffb45a, 3.6, 0.5], crystal_abyss: [0x5eead4, 4.6, 0.55], crystal_mirror: [0xbfdbfe, 4.6, 0.5], rim: [null, 3.2, 0.3] };
 const LM_PX = 128, LM_K = 1.5; // карта света 128² на весь квадрат пола (~1 м/px, линейная фильтрация); 255 = LM_K
 
 /** Карта света арены: аддитивные радиальные пятна статичных огней (центроиды — места спрайтов buildProps/PILLARS) + кольцо кромки.
@@ -111,7 +111,7 @@ export function buildArena32(THREE, A, g, { AT, R, Rf = R + TILE_M }) {
     // карта света арены (одна выборка в шейдере пола; огни боя — по-прежнему uL)
     if (A.darkU) { const S = N * TILE_M, lm = bakeArenaLight(S, { R, accent: parseInt(String(TH.accent || '#c59b27').slice(1), 16), decor: A.decor || [], pillars: PILLARS, k: GFX.arena3Lit });
       const lt = st.lmTex = new THREE.CanvasTexture(lm.canvas); lt.magFilter = lt.minFilter = THREE.LinearFilter; lt.generateMipmaps = false;
-      const old = A.darkU.uLM.value; A.darkU.uLM.value = lt; old?.dispose?.(); A.darkU.uLMS.value = 1 / S; A.darkU.uLMK.value = lm.K; st.lights = lm.lights; lm.canvas.width = lm.canvas.height = 0; }
+      const old = A.darkU.uLM.value; A.darkU.uLM.value = lt; old?.dispose?.(); A.darkU.uLMS.value = 1 / S; A.darkU.uLMK.value = lm.K; st.lights = lm.lights; lt.onUpdate = () => { lt.onUpdate = null; lm.canvas.width = lm.canvas.height = 0; }; /* канвас — после загрузки в видеопамять */ }
     // свечение пола и декалей: InstancedMesh на ключ, кадры — полоса keyStrip листа _glow (общая фаза)
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sv = new THREE.Vector3();
     for (const [key, list] of Object.entries(glowAt)) {

@@ -3,7 +3,7 @@
 // props3Pc / props3Mobile, pack16, packGlow, lightSprites. arena3 — со следующей арены забега.
 export const LIGHT_TYPES = ["warm", "fire", "cool", "violet", "lime", "portal"] as const; // lantern; torch/campfire; crystal; star_crystal; pylon; порталы/алтарь
 export const A3_THEMES = ["crypt", "abyss", "mirror", "abode"] as const;
-const A3_AMB: Record<string, number> = { crypt: 0.5, abyss: 0.62, mirror: 0.42, abode: 0.48 };
+const A3_AMB: Record<string, number> = { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 };
 export const EMIT_KEYS = ["lantern", "torch", "campfire", "crystal", "star_crystal", "pylon"] as const;
 const lt = () => ({ haloS: 1, haloK: 1, poolS: 1, poolK: 1 });
 const em = () => Object.fromEntries(EMIT_KEYS.map((k) => [k, { x: -1, y: -1 }])) as Record<string, { x: number; y: number }>;
@@ -22,10 +22,10 @@ export const GFX_CFG: any = {
   arena3Rim: false,    // тонкая подсветка-обод (торус) поверх кромки
   arena3Cracks: 18,    // трещин на полу (декали arena32)
   arena3Floor: 1,      // яркость пола арены 32, × (1 — как старая арена; подбор по темам — survivors/arena32.js A32_FLOOR_K)
-  arena3Amb: { crypt: 0.5, abyss: 0.62, mirror: 0.42, abode: 0.48 }, // свет арены 32 по темам: общий фон, экранный × (1 — как превью Художника)
+  arena3Amb: { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 }, // свет арены 32 по темам: общий фон, экранный × (1 — как превью Художника)
   arena3Lit: 1,        // огни арены 32 (колонны, сигил, свечи, кристаллы, кромка): сила, ×
-  arena3Edge: 0.75,    // арена 32: затемнение пола у стены (1 — нет, 0 — чёрный край)
-  arena3WallL: 0.85,   // арена 32: яркость парапета, колонн и декора (свечение огней — полное)
+  arena3Edge: 0.8,    // арена 32: затемнение пола у стены (1 — нет, 0 — чёрный край)
+  arena3WallL: 1,   // арена 32: яркость парапета, колонн и декора (свечение огней — полное)
   arena3GlowW: 0.5,    // вес светящихся анимированных вариантов пола (README: 0.5, иначе руны рябят)
   assetCache: true,    // кэш ресурсов у игрока (public/mc-sw.js + boot/assetCache.js); выкл — аварийно: снять воркер и стереть кэш у всех, кто зайдёт
   // видеопамять по требованию (engine/vramStream.js): бюджет МБ, grace с, радиус загрузки и гистерезис в клетках, загрузка в GPU мс/кадр
@@ -53,7 +53,7 @@ export const gfxClient = () => {
   return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true), fallbackV2: b(G.fallbackV2, true), arena3: b(G.arena3, false),
     arena3Wall: ["auto", "sprites", "baked"].includes(G.arena3Wall) ? G.arena3Wall : "auto", arena3Posts: Math.round(cl(G.arena3Posts, 1, 6, 1)), arena3Tall: b(G.arena3Tall, true),
     arena3TallGap: cl(G.arena3TallGap, 0, 8, 1.5), arena3Rim: b(G.arena3Rim, false), arena3Cracks: Math.round(cl(G.arena3Cracks, 0, 80, 18)), arena3GlowW: cl(G.arena3GlowW, 0, 3, 0.5), arena3Floor: cl(G.arena3Floor, 0.2, 3, 1),
-    arena3Amb: Object.fromEntries(A3_THEMES.map((t) => [t, cl(G.arena3Amb?.[t], 0, 1.5, A3_AMB[t])])), arena3Lit: cl(G.arena3Lit, 0, 3, 1), arena3Edge: cl(G.arena3Edge, 0, 1, 0.75), arena3WallL: cl(G.arena3WallL, 0.2, 1.5, 0.85),
+    arena3Amb: Object.fromEntries(A3_THEMES.map((t) => [t, cl(G.arena3Amb?.[t], 0, 1.5, A3_AMB[t])])), arena3Lit: cl(G.arena3Lit, 0, 3, 1), arena3Edge: cl(G.arena3Edge, 0, 1, 0.8), arena3WallL: cl(G.arena3WallL, 0.2, 1.5, 1),
     assetCache: b(G.assetCache, true),
     vram: (() => { const v = G.vram || {}; return { budgetPc: cl(v.budgetPc, 128, 8192, 1024), budgetMob: cl(v.budgetMob, 64, 4096, 512), gracePc: cl(v.gracePc, 1, 600, 20), graceMob: cl(v.graceMob, 1, 600, 10),
       loadTilesPc: cl(v.loadTilesPc, 20, 150, 50), loadTilesMob: cl(v.loadTilesMob, 20, 150, 50), hystTiles: cl(v.hystTiles, 1, 40, 6), marginTiles: cl(v.marginTiles, 0, 20, 4), upMsPc: cl(v.upMsPc, 0.5, 16, 4), upMsMob: cl(v.upMsMob, 0.5, 16, 2) }; })(),

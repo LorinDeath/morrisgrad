@@ -7,13 +7,13 @@ import { PROPS_META } from '../../../../../server/meta/propsV2.ts';
 const KEY = 'mc_gfx';
 const LT = ['warm', 'fire', 'cool', 'violet', 'lime', 'portal'];
 const lt = () => ({ haloS: 1, haloK: 1, poolS: 1, poolK: 1 });
-export const GFX = { props3Pc: true, props3Mobile: false, pack16: false, packGlow: true, lightSprites: true, fallbackV2: true, arena3: false, arena3Wall: 'auto', arena3Posts: 1, arena3Tall: true, arena3TallGap: 1.5, arena3Rim: false, arena3Cracks: 18, arena3GlowW: 0.5, arena3Floor: 1, arena3Amb: { crypt: 0.5, abyss: 0.62, mirror: 0.42, abode: 0.48 }, arena3Lit: 1, arena3Edge: 0.75, arena3WallL: 0.85, fpsMul: 1, glow: 1,
+export const GFX = { props3Pc: true, props3Mobile: false, pack16: false, packGlow: true, lightSprites: true, fallbackV2: true, arena3: false, arena3Wall: 'auto', arena3Posts: 1, arena3Tall: true, arena3TallGap: 1.5, arena3Rim: false, arena3Cracks: 18, arena3GlowW: 0.5, arena3Floor: 1, arena3Amb: { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 }, arena3Lit: 1, arena3Edge: 0.8, arena3WallL: 1, fpsMul: 1, glow: 1,
   lt: Object.fromEntries(LT.map((t) => [t, lt()])), em: { v3: {}, v2: {} },
   // мобы bestiary32 (Художник) — все поля живые (engine/mobPref.js, engine/beast32.js): mobs32 — общий выключатель (сильнее настройки игрока)
   mobs32: true, mobs32Pc: true, mobs32Mobile: false, mobs32Run: false, mobFps: 1, mobGlow: 1, mobHurtFlash: 0, mobGrace: 20, mobLoadR: 50, mobPackGlow: true };
 
 // свет арены 32 по темам (экранный множитель пиксель-арта, 1 — как превью Художника): общий фон; огни (колонны, сигил, свечи, кристаллы, кромка) — сверху
-export const A3_THEMES = ['crypt', 'abyss', 'mirror', 'abode'], A3_AMB = { crypt: 0.5, abyss: 0.62, mirror: 0.42, abode: 0.48 };
+export const A3_THEMES = ['crypt', 'abyss', 'mirror', 'abode'], A3_AMB = { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 };
 const ARENA3_KEYS = ['arena3', 'arena3Wall', 'arena3Posts', 'arena3Tall', 'arena3TallGap', 'arena3Rim', 'arena3Cracks', 'arena3GlowW', 'arena3Floor', 'arena3Amb', 'arena3Lit', 'arena3Edge', 'arena3WallL']; // живые, со следующей арены
 const LOAD_KEYS = ['props3Pc', 'props3Mobile', 'pack16', 'packGlow', 'lightSprites', 'fallbackV2'];
 const cl = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
@@ -41,8 +41,8 @@ function applyLive(c) {
   if (c.arena3GlowW != null) GFX.arena3GlowW = cl(c.arena3GlowW, 0, 3, 0.5);
   if (c.arena3Amb && typeof c.arena3Amb === 'object') for (const t of A3_THEMES) if (c.arena3Amb[t] != null) GFX.arena3Amb[t] = cl(c.arena3Amb[t], 0, 1.5, A3_AMB[t]);
   if (c.arena3Lit != null) GFX.arena3Lit = cl(c.arena3Lit, 0, 3, 1);
-  if (c.arena3Edge != null) GFX.arena3Edge = cl(c.arena3Edge, 0, 1, 0.75);
-  if (c.arena3WallL != null) GFX.arena3WallL = cl(c.arena3WallL, 0.2, 1.5, 0.85);
+  if (c.arena3Edge != null) GFX.arena3Edge = cl(c.arena3Edge, 0, 1, 0.8);
+  if (c.arena3WallL != null) GFX.arena3WallL = cl(c.arena3WallL, 0.2, 1.5, 1);
   for (const k of MOB_BOOL) if (typeof c[k] === 'boolean') GFX[k] = c[k];
   if (c.mobFps != null) GFX.mobFps = cl(c.mobFps, 0.25, 3, 1);
   if (c.mobGlow != null) GFX.mobGlow = cl(c.mobGlow, 0, 3, 1);
