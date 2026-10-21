@@ -7,6 +7,9 @@ import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 import { SpriteBatch, loadAtlasTexture } from '../engine/spriteBatch.js';
 import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { BEAST_ROW, BEAST_H, beastTop as BEAST_TOP, beastFlying, loadBeastBatch } from '../engine/beastSprites.js';
+import { Beast32View, B32, b32On } from '../engine/beast32.js';
+import { mobFrame, stepZone, initState, forceState } from '../engine/beastFrames.js';
+import { GFX } from '../engine/gfxCfg.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING, HERO_HD, HERO_CELL, HERO_H_M, NPC_ROWS, HERO_FRAMES } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
@@ -43,6 +46,8 @@ function enchGhosts(b, x, y, z, h, col, row, flip, id, T) {
 
 
 const MOB_TYPES = Object.keys(ZONE_MOBS);
+// старые 12 кадров для показа (debug.mobDemo): ход 0–3 @7, замах 4, удар 5–6, урон 7, распад 8–11
+const OLD_COL = (a, t, id) => a === 'walk' ? (Math.floor(t * 7 + id * 0.7) & 3) : a === 'idle' ? 0 : a === 'hurt' ? 7 : a === 'die' ? 8 + Math.min(3, Math.floor(((t % 0.5) / 0.5) * 4)) : ((t % 0.6) < 0.3 ? 4 : 5 + (Math.floor(t * 12) & 1));
 const NODE_PROP = { tree: 'pome_tree', flower: 'violets', crystal: 'star_crystal', ore: 'ore_node' };
 const PX = 20;
 // Масштаб мобов открытого мира: общий ×0.75 (было крупно), вожаки/боссы/элита — относительно крупнее обычных
@@ -89,6 +94,7 @@ export class ZoneView {
     this.setGlow(null);
     this.nodeBatch = null; this.chestSpr = null; this.chestSt = {}; // сундуки: {chan: id, open: id} — локальное состояние окна/канала
     this.beast = null;
+    this.b32 = new Beast32View(THREE, this.root, { max: 320 }); // мобы bestiary32 (Художник): листы тиров грузятся по мере появления мобов рядом
     loadBeastBatch(THREE, 320).then((bb) => { this.beast = bb; this.root.add(bb.mesh); }).catch((e) => console.warn('[beast]', e.message));
     loadPropTextures(THREE).then((t) => { this.nodeBatch = new PropSprites(THREE, t, { max: 160, parent: this.root, outline: true }); }).catch((e) => console.warn('[nodes]', e.message));
   }
@@ -130,14 +136,14 @@ export class ZoneView {
       let o = this.mobs.get(id);
       const type = MOB_TYPES[m[i + 1]] || 'blade_fly';
       // варианты биомов: спрайт базового Отголоска (sk) + перекраска (tint) — server/meta/biomes.ts
-      if (!o) { o = { id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false }; this.mobs.set(id, o); }
+      if (!o) { o = initState({ id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false, mvT: 9, hitN: false, strN: false, ph: (id * 0.618) % 1 }); this.mobs.set(id, o); }
       if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
       o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096); o.frozen = !!(f & (1 << 22)); o.ench = (f >> 23) & 7; o.flagRaw = f;
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
       o.sts = f & 56 ? { burn: (f >> 13) & 7, poison: (f >> 16) & 7, bleed: (f >> 19) & 7 } : null; // стаки статусов (одновременно несколько видов)
     }
-    for (const [id, o] of this.mobs) if (!seen.has(id)) { this.mobs.delete(id); }
+    for (const [id, o] of this.mobs) if (!seen.has(id) && !o.demo) { this.mobs.delete(id); } // o.demo — показ (debug.mobDemo), не с сервера
     if (Array.isArray(s.bags)) { const keep = new Set(); for (const [id, x, y, n] of s.bags) { keep.add(id); this.bags.set(id, { id, x, y, n }); } for (const id of [...this.bags.keys()]) if (!keep.has(id)) this.bags.delete(id); }
     if (Array.isArray(s.chests)) { const keep = new Set(); for (const [id, x, y, pub, left, mine, n, cz] of s.chests) { keep.add(id); this.chests.set(id, { id, x, y, pub: !!pub, left, mine, n, cz: cz | 0, at: Date.now() }); } for (const id of [...this.chests.keys()]) if (!keep.has(id)) this.chests.delete(id); }
     for (const [id, ready, left] of s.n || []) { const n = this.nodes.get(id); if (n) { n.ready = !!ready; n.readyIn = ready ? 0 : left || 0; n.readyAt = ready ? 0 : Date.now() + (left || 0) * 1000; } } // left — через сколько с узел снова готов (личный таймер)
@@ -148,13 +154,13 @@ export class ZoneView {
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
-      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = 0.15; out.push({ k: 'float', x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : '#fff' }); } }
+      if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = 0.15; o.hitN = true; out.push({ k: 'float', x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d)), color: e.evade ? '#94a3b8' : '#fff' }); } }
       else if (e.k === 'evade') out.push({ k: 'float', x: e.x, y: e.y, text: '↩ сброс', color: '#94a3b8' });
       else if (e.k === 'mskill') out.push({ k: 'float', x: e.x, y: e.y - 20, text: `✦ ${e.name}`, color: '#f0abfc' });
       else if (e.k === 'shot') { if (e.sid !== myId) this.shoot(e.x, e.y, null, e.w, e.tx, e.ty); }
       else if (e.k === 'announce') out.push({ k: 'toast', text: e.text, color: e.color });
       else if (e.k === 'crit') out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' });
-      else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: false, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
+      else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: !!this.mobs.get(e.id)?.flip, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
       else if (e.k === 'slam') {
         if (e.nova && !e.fx) this.teles.push({ kind: 'nova', fx: 'nova_burst', x: e.x, y: e.y, r: e.r, t: 0, life: 0.5, col: [1, 0.45, 0.55] }); // навык монстра без формы — nova_burst (тинт)
         else if (e.fx === 'warden_slam') { /* удар уже рисует падение (tele_circle) */ }
@@ -179,7 +185,7 @@ export class ZoneView {
       else if (e.k === 'aline') { const id = String(e.id || '').replace(/^rs:/, ''); if (DASH_FX[id]) this.teles.push({ kind: 'dash', fx: DASH_FX[id], x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, col: e.cz ? curseRGB() : null }); else this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: 0.35, cz: !!e.cz }); }
       else if (e.k === 'aproj') this.shoot(e.x, e.y, null, e.w || 'staff', e.tx, e.ty, e.cz);
       else if (e.k === 'amark') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (String(e.id || '').replace(/^rs:/, '') === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.95 }); if (atlasId(e.id) === 'meteor') this.pax.fall('meteor', e.x, e.y, e.t || 1.2, e.fdx || 1, Math.max(1, e.r / 70)); }
-      else if (e.k === 'phit' && e.sid === myId) out.push({ k: 'hurt', d: e.d });
+      else if (e.k === 'phit' && e.sid === myId) { out.push({ k: 'hurt', d: e.d }); this.mobStruck(e.src); }
       else if (e.k === 'pdie' && e.sid === myId) out.push({ k: 'died' });
     }
     return out;
@@ -268,24 +274,41 @@ export class ZoneView {
   }
   myWeaponType(classId) { return this.me?.wt || CLASS_WTYPE[classId] || 'book'; }
 
+  // Обычный удар моба на сервере — мгновенный (без флага замаха): по событию phit «от типа» ищем ближайшего такого моба у героя
+  // и запускаем кадры удара с 6 (импакт = 7 через ≈0.075 с при 20 fps) — визуал отстаёт от урона на один кадр, а не на весь замах.
+  mobStruck(src) {
+    const V = this.view; if (!V || !src) return;
+    let best = null, bd = 1e9;
+    for (const o of this.mobs.values()) { if (o.type !== src) continue; const d = Math.hypot(o.x - V.x, o.y - V.y); if (d < bd) { bd = d; best = o; } }
+    if (best && bd < (ZONE_MOBS[src]?.radius || 14) + 60) best.strN = true;
+  }
+
   update(dt, world) {
     this.time += dt;
     npcStep(dt); // NPC бродят: плавно догоняем серверную позицию
     const T = this.time, B = this.batch;
     const k = Math.min(1, dt * 8);
     for (const o of this.mobs.values()) {
-      if (o.tx !== undefined) { o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
+      if (o.tx !== undefined) { if (Math.abs(o.tx - o.x) + Math.abs(o.ty - o.y) > 1.5) o.mvT = 0; else o.mvT += dt; o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
       o.flash = Math.max(0, o.flash - dt);
     }
-    const BB = this.beast;
-    if (BB) {
-      BB.begin();
+    const BB = this.beast, NV = b32On(false) ? this.b32 : null, V = this.view, fm = GFX.mobFps || 1, hf = GFX.mobHurtFlash || 0;
+    if (BB || NV) {
+      BB?.begin(); NV?.begin();
       for (const o of this.mobs.values()) {
         const row = BEAST_ROW[o.sk];
         if (row === undefined) continue;
         const fly = beastFlying(o.sk);
+        // новые мобы: шаг состояния всегда (кадры не «прыгают», когда лист догрузился), рисуем — если лист страницы уже в видеопамяти
+        o.moving = o.mvT < 0.3 && !o.frozen;
+        if (o.forceA) { forceState(B32, o, o.forceA, T - o.fa0, fm); o.flash = o.forceA === 'hurt' && o.hurtT < 0.1 ? 0.1 : 0; } // показ: заданная анимация по кругу
+        else stepZone(B32, o, dt, o.flag, o.hitN, o.strN, fm);
+        o.hitN = false; o.strN = false;
+        const pg = NV ? NV.use(o.sk, V ? (o.x - V.x) * (o.x - V.x) + (o.y - V.y) * (o.y - V.y) : 0) : -1;
+        if (!BB && pg < 0) continue;
         let col = o.frozen ? 0 : (Math.floor(T * (fly ? 10 : 7) + o.id * 0.7)) & 3; // заморожен — кадр стоит
         if (o.flash > 0.05) col = 7; else if (o.flag === 1) col = 4; else if (o.flag === 2) col = 5 + (Math.floor(T * 12) & 1);
+        if (o.forceA && pg < 0) col = OLD_COL(o.forceA, T - o.fa0, o.id); // показ старыми листами — те же состояния
         let r = o.flag === 1 ? 1.4 : 1, g = 1, bl = 1;
         if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.25 * p + 0.2; g = 1.05 * p + 0.1; bl = 0.6; }
         if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
@@ -294,6 +317,11 @@ export class ZoneView {
         if (o.ench) [r, g, bl] = enchTint(o, T, r, g, bl); // зачарованный: оттенок яруса; Чёрный — тёмный, мерцает
         if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
         if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; } // лёд: ярко-голубой, как в забеге
+        if (pg >= 0) {
+          const f = mobFrame(B32, o, T, (fly ? 10 : 7) * 3, fm, o.ph), jx = enchJit(o, T), y0 = fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, hh = B32.H * mobScale(o), ea = enchA(o, T);
+          NV.push(pg, o.sk, f, toX(o.x) + jx, y0, toZ(o.y), hh, o.flip, r, g, bl, o.flash > 0.05 ? hf : 0, ea, o.id);
+          if (o.ench === 6) { const idx = NV.mobStart(o.sk) + f; enchGhosts(NV.B[pg].base, toX(o.x) + jx, y0, toZ(o.y), hh, idx % B32.cols, Math.floor(idx / B32.cols), o.flip, o.id, T); }
+        } else
         { const jx = enchJit(o, T), y0 = fly && !o.frozen ? Math.sin(T * 5 + o.id) * 0.15 : 0, hh = BEAST_H * mobScale(o);
           BB.push(toX(o.x) + jx, y0, toZ(o.y), hh, col, row, o.flip, r, g, bl, o.flash > 0.05 ? 0.85 : 0, enchA(o, T)); BB.sortId(o.id);
           if (o.ench === 6) enchGhosts(BB, toX(o.x) + jx, y0, toZ(o.y), hh, col, row, o.flip, o.id, T); } // Чёрный: красно-голубой двойник
@@ -303,9 +331,16 @@ export class ZoneView {
         const row = BEAST_ROW[dd.sk];
         if (row === undefined) continue;
         const kk = Math.min(0.99, dd.t / (dd.boss ? 0.9 : 0.5));
+        const pg = NV ? NV.use(dd.sk, 0) : -1;
+        if (pg >= 0) { // распад нарисован в кадрах die (по прогрессу смерти); свечение искр гаснет к концу
+          if (dd.dieK === undefined) initState(dd); dd.dieK = kk;
+          NV.push(pg, dd.sk, mobFrame(B32, dd, T, 21, fm, 0), toX(dd.x), 0, toZ(dd.y), B32.H * MOB_VIS * (dd.boss ? 1.35 : 1), dd.flip, dd.tint?.[0] || 1, dd.tint?.[1] || 1, dd.tint?.[2] || 1, 0, 1, dd.x * 7 + dd.y, 1 - kk * 0.4);
+          continue;
+        }
+        if (!BB) continue;
         BB.push(toX(dd.x), 0, toZ(dd.y), BEAST_H * MOB_VIS * (dd.boss ? 1.35 : 1), 8 + Math.min(3, Math.floor(kk * 4)), row, dd.flip, 1.2 * (dd.tint?.[0] || 1), 1.1 * (dd.tint?.[1] || 1), 1.3 * (dd.tint?.[2] || 1), kk < 0.15 ? 0.6 : 0, 1 - kk * 0.5);
       }
-      BB.end();
+      BB?.end(); NV?.end();
     }
     if (B) {
       B.begin();

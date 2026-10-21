@@ -13,6 +13,9 @@ import { GRADE } from './atmosphere.js';
 import { LIGHT, pixTex, setDisplayRGB, setDisplayHex } from './pixColor.js';
 import mobsSrc from '../../../../assets/mc/mobs_atlas.png';
 import { loadAtlasTexture } from './spriteBatch.js';
+import { b32LookImage, b32HeightFor, b32Flying, B32, B32_META } from './beast32.js';
+import { mobFrame, initState } from './beastFrames.js';
+import { MOBS_ON } from './mobPref.js';
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default?.src || s.default || '') : s);
 
@@ -111,7 +114,18 @@ export class PixCharacter {
     this.shMat.opacity = 0.38 * LIGHT.shadow;
     this.phase += dt * (moving ? 8 : 0);
     if (Math.abs(dirX) + Math.abs(dirY) > 0.01) this.dRow = dirRow(dirX, dirY);
-    if (this.mobType) {
+    if (this.mobType) this._look32(MOBS_ON.zone ? b32LookImage(this.THREE, this.mobType) : null);
+    if (this.l32) {
+      // облик из bestiary32: кадр idle/walk рисуется в свой канвас 104×104 (одна ячейка) — перерисовка только при смене кадра/взгляда
+      const L = this.l32; L.st.moving = moving; const f = mobFrame(B32, L.st, t, 21, 1, L.ph);
+      if (Math.abs(dirX) > 0.05) L.flipW = dirX < 0;
+      if (f !== L.f || L.flipW !== L.flip) {
+        const idx = B32_META.mobs[this.mobType].start + f, C = B32.cell, col = idx % B32.cols, row = (idx - col) / B32.cols, g = L.g;
+        g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, C, C); if (L.flipW) g.setTransform(-1, 0, 0, 1, C, 0);
+        g.drawImage(L.img, col * C, row * C, C, C, 0, 0, C, C); L.tex.needsUpdate = true; L.f = f; L.flip = L.flipW;
+      }
+      this.sprite.center.y = -(this.lift + (this.lift ? Math.sin(t * 6) * 0.12 : 0)) / this.sprite.scale.y;
+    } else if (this.mobType) {
       const f = Math.floor(t * 8 + this.phase) % 4;
       this.setCell(f);
       // подъём летуна — смещением центра спрайта (якорь глубины остаётся на земле → правильный порядок слоёв)
@@ -130,6 +144,29 @@ export class PixCharacter {
     }
     this._glowTick(t);
     this._blkTick(t);
+  }
+
+  // включить/выключить облик bestiary32 (img — лист страницы моба, null — старый mobs_atlas); живое переключение «Мобы: Новые/Старые»
+  _look32(img) {
+    if (img && this.l32 && this.l32.img !== img) this._look32(null);
+    if (!!img === !!this.l32) return;
+    const T = this.THREE, sp = this.sprite;
+    const mats = () => [sp.material, this.glow?.material, this.blk?.material].filter(Boolean);
+    if (img) {
+      const C = B32.cell, cv = document.createElement('canvas'); cv.width = cv.height = C;
+      const tex = pixTex(T, nearest(T, new T.CanvasTexture(cv)));
+      this.l32 = { img, cv, g: cv.getContext('2d'), tex, f: -1, flip: null, flipW: false, st: initState({}), ph: Math.random(), old: { tex: this.tex, cell: this.cell, sx: sp.scale.x, sy: sp.scale.y, lift: this.lift } };
+      this.tex = tex; this.cell = { w: C, h: C, cols: 1, rows: 1 };
+      for (const m of mats()) m.map = tex;
+      const h = b32HeightFor(this.mobType, (MOB_HEIGHT[this.mobType] || 2) * 0.8); sp.scale.set(h, h, 1); // видимое тело — как у старого облика (фигура ≈80% кадра 48)
+      this.lift = b32Flying(this.mobType) ? (MOB_FLYING[this.mobType] || 0.5) : 0;
+    } else {
+      const L = this.l32, o = L.old; this.l32 = null;
+      this.tex = o.tex; this.cell = o.cell; for (const m of mats()) m.map = o.tex; sp.scale.set(o.sx, o.sy, 1); this.lift = o.lift; L.tex.dispose();
+    }
+    for (const x of [this.glow, this.blk]) if (x) x.scale.copy(sp.scale);
+    const img2 = this.tex.image || {}; if (this.glowU) this.glowU.uTexel.value.set(1 / (img2.width || 1024), 1 / (img2.height || 1024));
+    if (this.blkU) { this.blkU.uTexel.value.set(1 / (img2.width || 1024), 1 / (img2.height || 1024)); this.blkU.uGrid.value.set(this.cell.w, this.cell.h); }
   }
 
   // короткая анимация атаки (замах/удар), направление — текущее

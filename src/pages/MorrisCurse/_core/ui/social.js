@@ -1,5 +1,6 @@
 import { upBadge } from './upBadge.js';
 import { texPref, setTexPref, TEX_MODE } from '../worlds/texPref.js';
+import { setMobPref, mobSettingsRow } from '../engine/mobPref.js';
 import { curseTint } from './book.js';
 import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
 import { grimGet, grimReset, grimSet } from './grim.js';
@@ -227,6 +228,7 @@ export class Social {
       else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
       else if (act === 'tex') { setTexPref(b.dataset.v); this.renderSettings(); } // только это устройство; земля перепекается после перезагрузки
       else if (act === 'texreload') location.reload(); // только это устройство, применяется сразу
+      else if (act === 'mobs') { setMobPref(b.dataset.v); this.renderSettings(); } // только это устройство, сразу: старые листы мобов ↔ новые (beast32.js)
     });
   }
   renderOnline() {
@@ -257,7 +259,7 @@ export class Social {
     const opt = (v, t) => `<button class="mc-btn sm ${st.duel === v ? 'gold' : ''}" data-act="duelset" data-v="${v}">${t}</button>`;
     const dndMin = st.dnd > 0 ? Math.ceil(st.dnd / 60000) : 0;
     this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>⚙️ НАСТРОЙКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('settings')}
-      <div class="mc-set"><div class="mc-set-row"><span>🧱 Текстуры${texPref() !== TEX_MODE ? ' <small class="mc-set-note">— после перезагрузки</small>' : ''}</span><div class="grp"><button class="mc-btn sm ${texPref() === '32' ? 'gold' : ''}" data-act="tex" data-v="32" title="Тайлсеты 32 px: больше детали, ×4 памяти на землю">Новые (32)</button><button class="mc-btn sm ${texPref() === '16' ? 'gold' : ''}" data-act="tex" data-v="16" title="Прежние 16 px: легче для телефона">Старые (16)</button>${texPref() !== TEX_MODE ? '<button class="mc-btn sm" data-act="texreload" title="Перезагрузить страницу сейчас">↻</button>' : ''}</div></div>
+      <div class="mc-set"><div class="mc-set-row"><span>🧱 Текстуры${texPref() !== TEX_MODE ? ' <small class="mc-set-note">— после перезагрузки</small>' : ''}</span><div class="grp"><button class="mc-btn sm ${texPref() === '32' ? 'gold' : ''}" data-act="tex" data-v="32" title="Тайлсеты 32 px: больше детали, ×4 памяти на землю">Новые (32)</button><button class="mc-btn sm ${texPref() === '16' ? 'gold' : ''}" data-act="tex" data-v="16" title="Прежние 16 px: легче для телефона">Старые (16)</button>${texPref() !== TEX_MODE ? '<button class="mc-btn sm" data-act="texreload" title="Перезагрузить страницу сейчас">↻</button>' : ''}</div></div>${mobSettingsRow()}
       <div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>
       <div class="mc-set-row"><span>🌑 Мрачность</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"><b class="mc-grim-v" data-grimv="grim">${grimGet('grim')}%</b></div></div>
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"><b class="mc-grim-v" data-grimv="fog">${grimGet('fog')}%</b></div></div>

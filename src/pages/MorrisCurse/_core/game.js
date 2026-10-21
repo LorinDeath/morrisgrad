@@ -24,6 +24,9 @@ import { setCurse, glowK } from './meta/curseCfg.js';
 import { setBlkVis } from './meta/blkVis.js';
 import { setLightCfg, LIGHT } from './engine/pixColor.js';
 import { setGfxCfg, GFX, GFX_NEXT } from './engine/gfxCfg.js';
+import { b32Stats, B32_META } from './engine/beast32.js';
+import { setMobPref, mobPref, MOBS_ON } from './engine/mobPref.js';
+import { initState } from './engine/beastFrames.js';
 import { PROP_STATS } from './engine/propAtlas.js';
 import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
@@ -1931,6 +1934,17 @@ async function boot(canvasId, username, userId, api) {
       devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),
       target: () => hud.currentTarget,
       zoneFrozen: (list) => { const f = [...zone.mobs.values()].filter((m) => m.frozen); return list ? f.map((m) => ({ id: m.id, x: m.tx, y: m.ty })) : f.length; },
+      // мобы bestiary32: снимок видеопамяти/страниц, настройка игрока, показ (фальшивые мобы клиента в мире — для снимков; сервер не знает)
+      mobs32: () => ({ ...b32Stats(), on: { ...MOBS_ON }, pref: mobPref(), calls: zone.b32?.calls || 0, drawn: zone.b32?.count() || 0 }),
+      mobPref: (v) => setMobPref(v),
+      gfxLocal: (c) => setGfxCfg({ ...GFX, ...c }), // только этот клиент (плейтест «выключателя»), админка не меняется
+      mobDemo: (list = [], o = {}) => { // [{ type, anim, dx, dy, flip, elite, cursed }] относительно героя (единицы сервера)
+        for (const [id, m] of zone.mobs) if (m.demo) zone.mobs.delete(id);
+        const T = zone.time; let n = 0;
+        for (const d of list) { const id = 900000 + n++; const x = player.x + (d.dx || 0), y = player.y + (d.dy || 0);
+          zone.mobs.set(id, initState({ id, type: d.type, sk: d.type, tint: null, x, y, tx: x, ty: y, hp: 1, flag: 0, flash: 0, flip: !!d.flip, mvT: 9, hitN: false, strN: false, ph: d.ph ?? (id * 0.618) % 1, demo: true, forceA: d.anim || 'idle', fa0: T - (d.t0 || 0), elite: !!d.elite, cursed: !!d.cursed, ench: 0, frozen: false })); }
+        return n; },
+      mobTypes32: () => B32_META.rows.slice(),
       zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench | 0, elite: !!m.elite, boss: !!(m.flagRaw & 256) })),
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,

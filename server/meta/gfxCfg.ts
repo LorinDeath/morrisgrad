@@ -17,6 +17,17 @@ export const GFX_CFG: any = {
   glow: 1,             // сила свечения *_glow пропсов, ×
   lt: Object.fromEntries(LIGHT_TYPES.map((t) => [t, lt()])), // ореол/пятно по типу огня: размер и сила, ×
   em: { v3: em(), v2: em() }, // ручная точка излучения, px кадра (−1 — авто: центроид свечения)
+  // мобы bestiary32 (Художник, 64 кадра) — всё живое, без перезагрузки (engine/mobPref.js, engine/beast32.js)
+  mobs32: true,        // общий выключатель новых спрайтов мобов (выкл — у всех старые, сильнее настройки игрока «Мобы»)
+  mobs32Pc: true,      // «Мобы: Новые» по умолчанию на ПК
+  mobs32Mobile: false, // то же на телефоне (игрок может включить сам)
+  mobs32Run: false,    // забеги (Выживание/Испытание): новые мобы тоже (по умолчанию выкл — забег не трогаем)
+  mobFps: 1,           // скорость анимации мобов, ×
+  mobGlow: 1,          // сила свечения _glow мобов, ×
+  mobHurtFlash: 0,     // белая шейдерная вспышка при попадании поверх новых кадров (0 — нет: вспышка нарисована в кадрах hurt)
+  mobGrace: 20,        // страница тира выгружается из видеопамяти через столько секунд без мобов рядом
+  mobLoadR: 50,        // радиус подгрузки страниц, тайлов (выгрузка — на +6 тайлов дальше)
+  mobPackGlow: true,   // листы _glow мобов как RGBA 5551 (вдвое меньше видеопамяти; со следующей загрузки страницы тира)
 };
 const cl = (v: any, a: number, b: number, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 const b = (v: any, d: boolean) => (typeof v === "boolean" ? v : d);
@@ -24,6 +35,8 @@ export const gfxClient = () => {
   const G = GFX_CFG;
   return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true), fallbackV2: b(G.fallbackV2, true), arena3: b(G.arena3, false),
     fpsMul: cl(G.fpsMul, 0.25, 3, 1), glow: cl(G.glow, 0, 3, 1),
+    mobs32: b(G.mobs32, true), mobs32Pc: b(G.mobs32Pc, true), mobs32Mobile: b(G.mobs32Mobile, false), mobs32Run: b(G.mobs32Run, false), mobPackGlow: b(G.mobPackGlow, true),
+    mobFps: cl(G.mobFps, 0.25, 3, 1), mobGlow: cl(G.mobGlow, 0, 3, 1), mobHurtFlash: cl(G.mobHurtFlash, 0, 1, 0), mobGrace: cl(G.mobGrace, 2, 600, 20), mobLoadR: cl(G.mobLoadR, 10, 200, 50),
     lt: Object.fromEntries(LIGHT_TYPES.map((t) => { const o = G.lt?.[t] || {}; return [t, { haloS: cl(o.haloS, 0.2, 3, 1), haloK: cl(o.haloK, 0, 3, 1), poolS: cl(o.poolS, 0.2, 3, 1), poolK: cl(o.poolK, 0, 3, 1) }]; })),
     em: Object.fromEntries(["v3", "v2"].map((s) => [s, Object.fromEntries(EMIT_KEYS.map((k) => { const o = G.em?.[s]?.[k] || {}; return [k, { x: cl(o.x, -1, 128, -1), y: cl(o.y, -1, 128, -1) }]; }))])) };
 };
