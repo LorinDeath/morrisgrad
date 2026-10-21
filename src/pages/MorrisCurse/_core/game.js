@@ -116,10 +116,12 @@ const MOVE_SEND_S = 0.1; // позиция на сервер не чаще 10 Г
 // Сессия Clerk (если игрок вошёл на сайте): короткоживущий JWT, сервер проверяет подпись
 async function clerkToken() {
   try {
+    if (window.__MC_AUTH_GUEST__) return ''; // «Играть как гость» в оверлее входа (mcAuthGate)
     const c = window.Clerk;
     if (!c) return '';
     if (!c.loaded && c.load) await Promise.race([c.load(), new Promise((r) => setTimeout(r, 2500))]);
-    return (await c.session?.getToken?.()) || '';
+    const fresh = !!window.__MC_AUTH_FRESH__; window.__MC_AUTH_FRESH__ = false; // сервер отклонил прошлый токен — без кэша
+    return (await c.session?.getToken?.(fresh ? { skipCache: true } : undefined)) || '';
   } catch (_) { return ''; }
 }
 function guestId() {
@@ -227,6 +229,8 @@ async function boot(canvasId, username, userId, api) {
     }),
   });
   api.net = net;
+  // переподключение с текущей позицией и свежим токеном (после входа/повторного входа; страница не перезагружается)
+  api.reconnect = (o = {}) => { if ('userId' in o) net.userId = o.userId || ''; offlineToastShown = false; net.reconnect(); }; // userId — лишь подсказка (сервер верит токену)
   const send = (obj) => net.send(obj);
 
   // ---------------- UI ----------------
@@ -359,9 +363,14 @@ async function boot(canvasId, username, userId, api) {
     for (const id of flowers.keys()) if (!ids.has(id)) flowers.delete(id);
   });
 
+  // Вход в аккаунт (mcAuthGate, src/scripts/mcAuthGate.ts): сервер не принял токен Clerk (истёк/неверный) — профиль не грузим,
+  // оверлей входа решает: тихо обновить токен и переподключиться или показать «Сессия истекла» (MC-A02/MC-A03, реестр src/errors/codes.js).
+  net.on('auth_invalid', (d) => {
+    metaLoad.got = true; clearTimeout(metaLoad.t); // не долбим meta_get — ждём повторный вход
+    window.dispatchEvent(new CustomEvent('mc-auth', { detail: { state: 'invalid', code: d.code || 'MC-A03', reason: d.reason || '' } }));
+  });
   net.on('kicked', () => showError('MC-S02', { onRetry: () => location.reload() }));
   net.on('welcome', () => setErrSink((r) => send({ type: 'client_err', ...r }))); // коды ошибок → журнал сервера (без личных данных)
-  net.on('auth_err', (d) => showError('MC-A03', { soft: true, autoClose: 8000, detail: d?.why || '' }));
   net.on('offline', (d) => {
     if (net.kicked) return;
     setErrSink(null);

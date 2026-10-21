@@ -2,6 +2,9 @@
 import Layout from '../../layouts/Layout.astro';
 import './_core/styles/game-theme.css';
 import './_core/styles/game-modals.css';
+// вход: SSR уже знает, вошёл ли игрок (cookie Clerk) — вошедшему не ждём Clerk и не грузим оверлей входа вовсе
+let ssrSigned = false;
+try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
 ---
 
 <Layout title="Проклятые | Моррис Град" viewportFit>
@@ -10,7 +13,7 @@ import './_core/styles/game-modals.css';
     <div class="shimmer-line"></div>
 
     <div class="game-wrapper">
-      <div class="game-window" id="game-window">
+      <div class="game-window" id="game-window" data-signed={ssrSigned ? "1" : "0"}>
         <div class="game-header">
           <span class="game-title">Альказак // Viewport (300x300)</span>
           <button id="btn-fullscreen" class="btn-fullscreen" title="На весь экран" aria-label="Развернуть">
@@ -22,6 +25,7 @@ import './_core/styles/game-modals.css';
 
         <div class="game-screen" id="game-screen">
           <div class="launcher-overlay" id="launcher-overlay">
+            <span class="auth-back" id="auth-back" hidden>✓ Вход выполнен</span>
             <button class="btn-start" id="btn-start">Начать игру</button>
             <span class="hint">Управление: WASD / Зум: +/-</span>
           </div>
@@ -61,19 +65,103 @@ import './_core/styles/game-modals.css';
   (window as any).__mcLaunch = 1; // сторож MC-L09 выше: загрузчик дошёл
   import { syncAssets, AC } from './_core/boot/assetCache.js';
   import { showError, hookGlobalErrors } from './_core/boot/errorBox.js';
-    function initLauncher() {
+  // Вход (гости): оверлей с формой Clerk грузится лениво (src/scripts/mcAuthGate.ts) — только если входа нет.
+  // Вошедший игрок стартует как раньше: без ожидания Clerk и без лишнего кода.
+  const PENDING = 'mc-auth-pending';
+  const W = window as any;
+  const clerkReady = (ms: number) => new Promise<any>((res) => {
+    const t0 = performance.now();
+    const tick = () => { const c = W.Clerk; if (c?.loaded) return res(c); if (performance.now() - t0 > ms) return res(c?.loaded ? c : null); setTimeout(tick, 80); };
+    tick();
+  });
+  const gate = () => import('../../scripts/mcAuthGate');
+
+  // Во время игры: потеря сессии → «Сессия истекла» (связь и состояние игры сохраняются, перезаход — только если сменился аккаунт);
+  // гость вошёл (кнопка «Войти» в шапке или оверлей) → переподключение с токеном, без перезагрузки; сервер не принял токен → свежий токен, затем оверлей.
+  async function watchSession(api: any, gameWindow: HTMLElement, startedUid: string) {
+    if (W.__MC_AUTH_WATCH__) return; W.__MC_AUTH_WATCH__ = true;
+    const c = await clerkReady(20000); if (!c?.addListener) { W.__MC_AUTH_WATCH__ = false; return; }
+    // 'ssr' — вошёл по cookie, Clerk на клиенте ещё грузился: первый id просто запоминаем (без переподключения)
+    let uid = startedUid === 'ssr' ? (c.user?.id || '') : startedUid, asking = false, retryAt = 0;
+    const rejoin = () => { W.__MC_AUTH_GUEST__ = false; W.__MC_AUTH_FRESH__ = true; api.reconnect?.({ userId: W.Clerk?.user?.id || '' }); };
+    c.addListener(({ user }: any) => {
+      const now = user?.id || '';
+      if (now === uid || asking) return;
+      if (!now && uid) {
+        asking = true;
+        gate().then((g) => g.openAuthGate({ host: gameWindow, mode: 'expired', code: 'MC-A02' })).then((r) => {
+          asking = false;
+          const nu = W.Clerk?.user?.id || '';
+          if (r === 'signed-in' && nu && nu !== uid) { uid = nu; rejoin(); } else if (r === 'signed-in') uid = nu;
+        }).catch((e) => { asking = false; console.warn('[mc-auth]', e); });
+      } else { uid = now; rejoin(); } // гость → аккаунт или другой аккаунт
+    });
+    window.addEventListener('mc-auth', (ev: any) => {
+      if (ev.detail?.state !== 'invalid' || asking) return;
+      if (W.Clerk?.user && Date.now() - retryAt > 30000) { retryAt = Date.now(); rejoin(); return; } // один тихий повтор со свежим токеном
+      asking = true;
+      gate().then((g) => g.openAuthGate({ host: gameWindow, mode: 'invalid', code: ev.detail.code || 'MC-A03' })).then((r) => {
+        asking = false;
+        if (r === 'guest') { W.__MC_AUTH_GUEST__ = true; uid = ''; api.reconnect?.({ userId: '' }); }
+        else { uid = W.Clerk?.user?.id || ''; rejoin(); }
+      }).catch((e) => { asking = false; console.warn('[mc-auth]', e); });
+    });
+  }
+
+  function initLauncher() {
     const startBtn = document.getElementById('btn-start');
     const overlay = document.getElementById('launcher-overlay');
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     const gameWindow = document.getElementById('game-window');
     const fsBtn = document.getElementById('btn-fullscreen');
 
-    if (!startBtn || !canvas) return;
+    if (!startBtn || !canvas || !gameWindow) return;
 
-    let gameStarted = false;
+    let gameStarted = false, starting = false;
 
-    // Заменяем обычный addEventListener на проверку, чтобы избежать дублирования
+    // вернулись со входа через Google/Discord/Twitch (страница перезагрузилась) — «Продолжить» одним нажатием
+    let pending = false;
+    try { const t = Number(sessionStorage.getItem(PENDING)); pending = t > 0 && Date.now() - t < 20 * 60_000; } catch (_) {}
+    if (pending || location.hash === '#mc-auth-done') {
+      clerkReady(6000).then((c) => {
+        if (!c?.user) return;
+        try { sessionStorage.removeItem(PENDING); } catch (_) {}
+        if (location.hash === '#mc-auth-done') history.replaceState(history.state, '', location.pathname + location.search);
+        const b = document.getElementById('btn-start'); if (b) b.textContent = 'Продолжить';
+        const ok = document.getElementById('auth-back'); if (ok) ok.hidden = false;
+      });
+    }
+
+    const startGame = async () => {
+      gameStarted = true;
+      let username = 'Странник';
+      let userId = null;
+      hookGlobalErrors(); // коды ошибок (src/errors/codes.js): непредвиденное → MC-X00
+      // ник — только для вошедшего (свой профиль по сессии; гостю сервер ответит 401 — не спрашиваем)
+      const signed = !W.__MC_AUTH_GUEST__ && (!!W.Clerk?.user || gameWindow.dataset.signed === '1');
+      // ресурсы: один раз скачать, дальше — только изменения (boot/assetCache.js + public/mc-sw.js); параллельно — кто вошёл
+      const userP = !signed ? Promise.resolve() : fetch('/api/get-user', { credentials: 'same-origin' }).then(async (res) => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data.username) username = data.username;
+      }).catch((err) => { console.warn('Не удалось загрузить пользователя', err); showError('MC-A06', { soft: true, autoClose: 8000, detail: String(err?.message || err) }); });
+      await syncAssets();
+      await userP;
+      if (!userId && !W.__MC_AUTH_GUEST__ && W.Clerk?.user?.id) userId = W.Clerk.user.id; // только подсказка: сервер верит токену, не этому полю
+      const ld = AC.loader && AC.loader.el.isConnected ? AC.loader : null; // экран первого визита/обновления: последняя стадия
+      ld?.stage('world');
+      let initGame;
+      try { ({ initGame } = await import('./_core/game.js')); }
+      catch (err) { ld?.close(); showError('MC-L05', { detail: String(err?.message || err) }); return; } // «Повторить» = перезагрузка (неудачный import браузер запоминает)
+      if (ld) { const done = () => ld.close(); window.addEventListener('mc:first-frame', done, { once: true }); setTimeout(done, 20000); }
+      // Передача userId третьим аргументом обязательна!
+      const api = (initGame)(canvas.id, username, userId);
+      watchSession(api, gameWindow, W.__MC_AUTH_GUEST__ ? '' : (W.Clerk?.user?.id || (gameWindow.dataset.signed === '1' ? 'ssr' : '')));
+    };
+
     const handleStart = async () => {
+      if (gameStarted || starting) return;
+      starting = true;
       if (overlay) overlay.style.display = 'none';
       canvas?.focus();
 
@@ -83,31 +171,17 @@ import './_core/styles/game-modals.css';
         });
       }
 
-      if (!gameStarted) {
-        gameStarted = true;
-
-        let username = 'Странник';
-        let userId = null;
-
-        hookGlobalErrors(); // коды ошибок (src/errors/codes.js): непредвиденное → MC-X00
-        // ресурсы: один раз скачать, дальше — только изменения (boot/assetCache.js + public/mc-sw.js); параллельно — кто вошёл
-        const userP = fetch('/api/get-user').then(async (res) => {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const data = await res.json();
-          if (data.username) username = data.username;
-          userId = data.userId || data.id || null; // <--- Получение ID из базы
-        }).catch((err) => { console.warn('Не удалось загрузить пользователя', err); showError('MC-A06', { soft: true, autoClose: 8000, detail: String(err?.message || err) }); });
-        await syncAssets();
-        await userP;
-        const ld = AC.loader && AC.loader.el.isConnected ? AC.loader : null; // экран первого визита/обновления: последняя стадия
-        ld?.stage('world');
-        let initGame;
-        try { ({ initGame } = await import('./_core/game.js')); }
-        catch (err) { ld?.close(); showError('MC-L05', { detail: String(err?.message || err) }); return; } // «Повторить» = перезагрузка (неудачный import браузер запоминает)
-        if (ld) { const done = () => ld.close(); window.addEventListener('mc:first-frame', done, { once: true }); setTimeout(done, 20000); }
-        // Передача userId третьим аргументом обязательна!
-        (initGame)(canvas.id, username, userId);
-      }
+      try {
+        if (gameWindow.dataset.signed !== '1') {
+          const c = await clerkReady(5000);
+          if (!c?.user) {
+            const g = await gate();
+            const r = await g.openAuthGate({ host: gameWindow, mode: c ? 'start' : 'error', code: c ? undefined : 'MC-A01' });
+            W.__MC_AUTH_GUEST__ = r === 'guest';
+          }
+        }
+        await startGame();
+      } finally { starting = false; }
     };
 
     // Удаляем старые листенеры через клонирование, если они были, и вешаем новые
@@ -454,6 +528,9 @@ import './_core/styles/game-modals.css';
     transform: scale(1.05);
     box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
   }
+
+  .auth-back { font: 600 0.85rem 'Exo 2', system-ui, sans-serif; color: #8fd6a0; }
+  .auth-back[hidden] { display: none; }
 
   .hint {
     font-size: 0.85rem;

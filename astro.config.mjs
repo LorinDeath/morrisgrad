@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import clerk from '@clerk/astro';
 import mcAssets from './tools/mc-assets/manifest.mjs'; // манифест ресурсов «Проклятых» (кэш у игрока, public/mc-sw.js)
+import { mcClerkAppearance, mcClerkLocalization } from './src/lib/clerkTheme.ts';
 
 export default defineConfig({
   // Указываем домен для sitemap
@@ -20,7 +21,8 @@ export default defineConfig({
 
   // Все интеграции в одном массиве
   integrations: [
-    clerk(),
+    // вход Clerk на всём сайте и в игре: тёмный «проклятый» вид + русский язык (src/lib/clerkTheme.ts — один источник)
+    clerk({ appearance: mcClerkAppearance, localization: mcClerkLocalization }),
     mcAssets(),
     // карта сайта — динамическая: src/pages/sitemap*.xml.ts (с темами форума)
   ],
