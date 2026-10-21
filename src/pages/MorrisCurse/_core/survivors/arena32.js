@@ -19,7 +19,7 @@ export const A32_FLOOR_K = { crypt: 1, abyss: 1, mirror: 1, abode: 1 }; // по�
 // запечённый парапет: свет стены в том же экранном пространстве, что у спрайтов (A.wallLight) — поправка не нужна
 export const A32_BAKED_WALL_K = 1;
 // огни карты света: [цвет | null — акцент темы, радиус м, сила (экранный ×)]
-export const A32_LIGHTS = { sigil: [null, 11, 0.5], column: [null, 6.5, 0.42], candles: [0xffb45a, 3.4, 0.38], crystal_abyss: [0x5eead4, 4.2, 0.4], crystal_mirror: [0xbfdbfe, 4.2, 0.36], rim: [null, 3.2, 0.3] };
+export const A32_LIGHTS = { sigil: [null, 11, 0.5], column: [null, 6.5, 0.55], candles: [0xffb45a, 3.6, 0.5], crystal_abyss: [0x5eead4, 4.6, 0.55], crystal_mirror: [0xbfdbfe, 4.6, 0.5], rim: [null, 3.2, 0.3] };
 const LM_PX = 128, LM_K = 1.5; // карта света 128² на весь квадрат пола (~1 м/px, линейная фильтрация); 255 = LM_K
 
 /** Карта света арены: аддитивные радиальные пятна статичных огней (центроиды — места спрайтов buildProps/PILLARS) + кольцо кромки.
