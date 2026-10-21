@@ -1,3 +1,5 @@
+import { uiSfx } from './atmoUi.js';
+import { uiTrans } from './uiSkin.js';
 // DOM-слой поверх WebGL-канваса: подписи, пузыри чата, всплывающие цифры урона, тосты, подсказки,
 // поле чата и полноэкранные экраны (кик / офлайн). Слой повторяет положение канваса внутри .game-screen.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -182,7 +184,10 @@ export class Overlay {
 
   // Полноэкранный экран поверх игры (html + кнопки [{text, cls, onClick}])
   showScreen(html, buttons = [], cls = '') {
-    this.hideScreen();
+    // окно сменилось другим (вкладки, лобби) — без звука; появление: уже открытое окно — без анимации,
+    // только что открытое (перерисовка через миг, пришёл список) — анимация продолжается с того же места
+    const prev = this.screen, age = prev ? performance.now() - (prev._t || 0) : 0;
+    this.hideScreen(true);
     const el = document.createElement('div');
     el.className = 'mc3d-screen ' + cls;
     el.innerHTML = html;
@@ -201,12 +206,26 @@ export class Overlay {
       const win = document.documentElement.classList.contains('mc-ui') && /\bmc-lobby-screen\b/.test(cls) ? el.querySelector('.mc-lobby') : null;
       if (win) { row.classList.add('mc-lobby-acts'); win.appendChild(row); } else el.appendChild(row);
     }
+    el._t = prev && age < 400 ? prev._t : performance.now();
+    if (prev && age >= 400) el.classList.add('mc-noanim');
+    else if (prev) el.style.setProperty('--mc-tr-d', `-${Math.round(age)}ms`);
+    if (!prev) uiSfx('open');
     this.layer.appendChild(el);
     this.screen = el;
     return el;
   }
 
-  hideScreen() {
-    if (this.screen) { this.screen.remove(); this.screen = null; }
+  // instant — без «призрака» (showScreen меняет окно); иначе в новом интерфейсе окно плавно гаснет (ui-cursed.css §8)
+  hideScreen(instant = false) {
+    if (!this.screen) return;
+    const el = this.screen; this.screen = null;
+    if (instant || !uiTrans()) { el.remove(); if (!instant) uiSfx('close'); return; }
+    uiSfx('close');
+    // призрак: без id (getElementById находит только живые окна), без фокуса и кликов; удаляется по таймеру
+    if (el.contains(document.activeElement)) document.activeElement.blur?.();
+    el.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id')); el.removeAttribute('id');
+    el.classList.add('mc-ghost'); el.setAttribute('inert', ''); el.setAttribute('aria-hidden', 'true');
+    const ms = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mc-tr')) || 160) * 0.8 + 40;
+    setTimeout(() => el.remove(), ms);
   }
 }

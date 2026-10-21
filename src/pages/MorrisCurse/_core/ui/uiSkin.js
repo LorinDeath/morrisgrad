@@ -6,7 +6,8 @@
 // - Забег (режим «выживание») тему не получает: setUiMode('run') снимает html.mc-ui — там всё как было.
 // - Настройки — админка «🎨 Интерфейс» (meta_state.ui): вкл/выкл, глитч 0/1/2, доля цвета локации, застёжки, аватары.
 export const UI_BASE = '/mc-ui/';
-export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176 };
+export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176,
+  atmo: true, vig: 45, grade: 30, parts: 50, atmoMobile: 40, sfx: true, sfxVol: 40, trans: true, transMs: 160, loadScreen: true };
 const CURSED = '#8a6aa6';
 const TINTABLE = ['frame_window', 'frame_panel', 'frame_small', 'frame_tooltip', 'corner_tl', 'corner_tr', 'corner_bl', 'corner_br',
   'divider_h', 'divider_v', 'divider_ornament', 'slot_normal_normal', 'slot_normal_hover', 'slot_normal_selected',
@@ -77,7 +78,14 @@ function applyClasses() {
   const ig = hudIngame(); c.toggle('mc-hud-ig', ig);
   document.documentElement.style.setProperty('--ig-mm', (Math.max(120, Math.min(240, Number(UI.mmSize) || 176)) | 0) + 'px');
   if (ig !== hudWas) { hudWas = ig; window.dispatchEvent(new CustomEvent('mc-hud-ig', { detail: ig })); }
+  // плавные окна (overlay.showScreen/hideScreen) — класс на <html>; длительность из админки
+  const reduce = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } })();
+  c.toggle('mc-atmo-tr', on && !!UI.trans && !reduce);
+  document.documentElement.style.setProperty('--mc-tr', (Math.max(60, Math.min(400, Number(UI.transMs) || 160)) | 0) + 'ms');
+  window.dispatchEvent(new CustomEvent('mc-ui-cfg', { detail: on })); // атмосфера интерфейса (ui/atmoUi.js) пересобирается
 }
+/** окна открываются/закрываются плавно (новый интерфейс, не в забеге, админка «trans», без prefers-reduced-motion) */
+export const uiTrans = () => document.documentElement.classList.contains('mc-atmo-tr');
 export function initUiSkin() {
   if (inited) return; inited = true;
   applyClasses(); retint();
@@ -89,6 +97,8 @@ export function setUiCfg(c) {
   if (!c || typeof c !== 'object') return;
   const mix = UI.biomeMix;
   for (const k of Object.keys(UI)) if (c[k] != null) UI[k] = c[k];
+  // экран загрузки показывается до прихода настроек с сервера — запоминаем выбор админки на следующую загрузку
+  try { localStorage.setItem('mc_ui_load', UI.on !== false && UI.loadScreen !== false ? '1' : '0'); } catch (_) {}
   applyClasses(); if (UI.biomeMix !== mix) { curT = ''; retint(); }
 }
 // ——— аватары (Историк, /mc-ui/avatars): 64/128 px, показываем 1:1 (без дробного масштаба) ———

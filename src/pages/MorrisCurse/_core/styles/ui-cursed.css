@@ -540,3 +540,47 @@ html.mc-hud-ig .mc-ighud .ig-tg { display: contents; }
 html.mc-hud-ig .mc-ighud .mm-toggle-btn.mm-toggle-inactive { filter: grayscale(1) brightness(.6); }
 html.mc-hud-ig .mc-ighud .ig-acts .ig-b[data-ig="runs"] { margin-left: 6px; }
 html.mc-hud-ig .ig-tgt .hud-row { align-items: baseline; } html.mc-hud-ig .ig-tgt .hud-row > span { flex: none; } html.mc-hud-ig .ig-tgt .hud-row b { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+
+/* ─────────────────────────── 8. атмосфера нового интерфейса (ui/atmoUi.js) ─────────────────────────── */
+/* экранные слои между холстом и интерфейсом (соседи холста, z-index 1 как у мрачной дымки): только multiply —
+   затемняют/окрашивают, никогда не высветляют спрайты */
+.mc-atmo-ui { display: none; }
+html.mc-ui .mc-atmo-ui { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+html.mc-ui .mc-atmo-ui.tone { mix-blend-mode: multiply; opacity: 0; transition: background-color 1.4s, opacity 1.4s; }
+html.mc-ui .mc-atmo-ui.vig { mix-blend-mode: multiply; opacity: 0; transition: opacity 1.4s; }
+/* трещины «порчи» из кита — только по углам (маска), тоже multiply */
+html.mc-ui .mc-atmo-ui.crk { mix-blend-mode: multiply; opacity: 0; background: var(--ui-bg-cracks) 0 0 / 128px 128px repeat; image-rendering: pixelated;
+  -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 66%, #000 100%); mask-image: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 66%, #000 100%); transition: opacity 1.4s; }
+html.mc-ui .mc-atmo-ui.parts { image-rendering: pixelated; }
+
+/* плавные окна: фон-затемнение проявляется, окно чуть «всплывает»; закрытие — призрак окна гаснет (overlay.hideScreen) */
+@keyframes mc-scr-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mc-scr-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mc-win-in { from { transform: translateY(8px) scale(.975); } to { transform: none; } }
+@keyframes mc-win-out { from { transform: none; } to { transform: translateY(4px) scale(.985); } }
+html.mc-atmo-tr .mc3d-screen:not(.mc-noanim):not(.mc-ghost) { animation: mc-scr-in var(--mc-tr, 160ms) ease-out var(--mc-tr-d, 0ms) both; }
+html.mc-atmo-tr .mc3d-screen:not(.mc-noanim):not(.mc-ghost) > :first-child { animation: mc-win-in var(--mc-tr, 160ms) cubic-bezier(.2, .8, .3, 1) var(--mc-tr-d, 0ms) both; }
+html.mc-atmo-tr .mc3d-screen.mc-ghost { animation: mc-scr-out calc(var(--mc-tr, 160ms) * .8) ease-in both; pointer-events: none !important; }
+html.mc-atmo-tr .mc3d-screen.mc-ghost > :first-child { animation: mc-win-out calc(var(--mc-tr, 160ms) * .8) ease-in both; }
+/* остальные окна, что показываются через display (книга, подсказка HUD…): только проявление */
+html.mc-atmo-tr :is(.mc-book, .ig-help-w, .ig-pop) { animation: mc-scr-in var(--mc-tr, 160ms) ease-out both; }
+@media (prefers-reduced-motion: reduce) { html.mc-atmo-tr * { animation-duration: 1ms !important; } }
+
+/* экран загрузки (новый интерфейс): знак проклятия, полоса из кита, шаг и подсказка */
+html.mc-ui .mc3d-screen.mc3d-loading { background: var(--ui-bg) 0 0 / 128px 128px repeat, #07050c; }
+html.mc-ui .mc-load { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(420px, 90%); font-family: var(--ui-font); color: var(--ui-text); }
+html.mc-ui .mc-load h2 { margin: 6px 0 0; letter-spacing: .32em; color: #d9c8ef; text-shadow: 0 0 10px rgba(138, 106, 166, .7), 2px 2px 0 #000; }
+html.mc-ui .mc-load .sig { position: relative; width: 92px; height: 92px; }
+html.mc-ui .mc-load .sig > * { position: absolute; inset: 0; display: block; }
+html.mc-ui .mc-load .sig i { border: 3px solid #8a6aa6; border-radius: 50%; box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #000, 0 0 18px rgba(138, 106, 166, .55); animation: mc-sig-rot 9s linear infinite;
+  background: conic-gradient(from 0deg, transparent 0 10%, rgba(138, 106, 166, .35) 10% 12%, transparent 12% 35%, rgba(138, 106, 166, .35) 35% 37%, transparent 37% 60%, rgba(138, 106, 166, .35) 60% 62%, transparent 62% 85%, rgba(138, 106, 166, .35) 85% 87%, transparent 87%); }
+html.mc-ui .mc-load .sig b { inset: 22px; background: #1a1626; transform: rotate(45deg); border: 3px solid #b39ad1; box-shadow: 0 0 0 2px #000, 0 0 14px rgba(179, 154, 209, .6); animation: mc-sig-pulse 1.8s ease-in-out infinite; }
+html.mc-ui .mc-load .sig s { inset: 40px; background: #0b0910; border-radius: 50%; box-shadow: 0 0 6px 2px rgba(110, 60, 160, .9); }
+@keyframes mc-sig-rot { to { transform: rotate(360deg); } }
+@keyframes mc-sig-pulse { 50% { box-shadow: 0 0 0 2px #000, 0 0 26px rgba(179, 154, 209, .95); } }
+html.mc-ui .mc-load .bar { width: 100%; height: 24px; border-style: solid; border-width: 6px 14px; border-color: transparent; border-image: var(--ui-bar-frame) 3 7 / 6px 14px stretch; image-rendering: pixelated; background: #0b0910; background-clip: padding-box; box-sizing: border-box; }
+html.mc-ui .mc-load .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #4a2d6a, #8a6aa6); transition: width .35s ease-out; }
+html.mc-ui .mc-load .st { margin: 0; font-size: 13px; color: #cbb8e6; }
+html.mc-ui .mc-load .hint { margin: 6px 0 0; font-size: 12px; color: #9a8fae; font-style: italic; max-width: 360px; }
+html.mc-ui:not(.mc-atmo-tr) .mc-load .sig * { animation: none; }
+

@@ -37,6 +37,7 @@ import { RunSession, LVL_INVULN } from './survivors/run.js';
 import { RunView } from './survivors/runView.js';
 import { RunArena } from './survivors/arena.js';
 import { atmo } from './engine/atmosphere.js';
+import { initAtmoUi, loadingHtml, loadScreenOn, setLoadStep } from './ui/atmoUi.js';
 import { RUN_ROOMS, RUN_CLASSES, ENEMIES, WEAPONS, PASSIVES, displayClassName } from './survivors/data.js';
 import { ActionBar } from './ui/actionBar.js';
 import { Overlay, esc, roleTag } from './ui/overlay.js';
@@ -142,16 +143,21 @@ async function boot(canvasId, username, userId, api) {
 
   const overlay = new Overlay(canvas, container);
   initUiSkin(); // тема интерфейса: html.mc-ui, металл рамок под локацию
-  overlay.showScreen('<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
+  // экран загрузки: новый интерфейс — знак, полоса и шаги (ui/atmoUi.js); старая тема — как было
+  const ldScr = overlay.showScreen(loadScreenOn() ? loadingHtml() : '<h2>ПРОКЛЯТЫЕ</h2><p>Загрузка 3D-мира…</p>', [], 'mc3d-loading');
 
   const THREE = await loadThree();
+  setLoadStep(1, ldScr);
   initModelMode();
   await Promise.all([preloadCharacterSheets(), loadPixAtlases(THREE)]);
+  setLoadStep(2, ldScr);
   const stage = new Stage(THREE, canvas, { mobile });
   stage.unify = new UnifyPass(THREE, stage.renderer); onGrimStyle((v) => { stage.unify.strength = v; }); // единый стиль (engine/unify.js)
   initGrim(canvas); // мрачная цветокоррекция + дымка к краям (ui/grim.js; сила — Настройки)
   atmo.init(THREE, stage, { mobile });
+  initAtmoUi(canvas, { mobile }); // атмосфера нового интерфейса: виньетка/тон локации, частицы, звуки (ui/atmoUi.js)
   let atmoWorld = null; // 'run_crypt' | 'run_abyss' в забеге
+  setLoadStep(3, ldScr);
   overlay.hideScreen();
 
   // ---------------- состояние ----------------
