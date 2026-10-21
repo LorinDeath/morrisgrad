@@ -72,6 +72,9 @@ const G = (p, f, a) => p.evaluate(f, a);
     for (const mobile of [false, true]) {
       const tag = mobile ? 'phone' : 'pc';
       const s = await open(b, { mobile, name: tag });
+      // astro dev на медленном боксе: событие astro:page-load иногда приходит раньше, чем скрипт @clerk/astro на него подпишется
+      // (гонка только dev-сервера; в сборке сайта окно входа работает) — повторяем событие, если Clerk не появился
+      await sleep(6000); await s.p.evaluate(() => { if (!window.Clerk) document.dispatchEvent(new Event('astro:page-load')); });
       await s.p.waitForFunction(() => window.Clerk?.loaded, null, { timeout: 30000 }).catch(() => {});
       ok(await G(s.p, () => !!window.Clerk?.loaded), `${tag}: настоящий Clerk загрузился`);
       // окно входа сайта (как сейчас) — для сравнения
@@ -83,7 +86,8 @@ const G = (p, f, a) => p.evaluate(f, a);
       await sleep(2500);
       ok(await visible(s.p, '.mc-auth'), `${tag}: оверлей входа виден`);
       const txt = await G(s.p, () => document.querySelector('#mc-auth-in')?.innerText || '');
-      ok(/Вход в МоррисГрад/.test(txt) && /Google/.test(txt), `${tag}: форма Clerk по-русски, Google на месте`);
+      const prov = await G(s.p, () => [...document.querySelectorAll('#mc-auth-in [class*="cl-socialButtons"][class*="__"]')].map((e) => (e.className.match(/__(google|discord|twitch)/) || [])[1]).filter(Boolean));
+      ok(/Вход в МоррисГрад/.test(txt) && ['google', 'discord', 'twitch'].every((x) => prov.includes(x)), `${tag}: форма Clerk по-русски, способы входа как на сайте: ${[...new Set(prov)].join(', ')}`);
       await s.p.screenshot({ path: `${OUT}/${tag}-overlay-signin.png` });
       await s.p.click('[data-tab="up"]'); await s.p.waitForSelector('#mc-auth-up .cl-rootBox', { timeout: 20000 }).catch(() => {}); await sleep(2000);
       ok(/Регистрация в МоррисГраде/.test(await G(s.p, () => document.querySelector('#mc-auth-up')?.innerText || '')), `${tag}: вкладка «Регистрация» (SignUp)`);
@@ -93,6 +97,15 @@ const G = (p, f, a) => p.evaluate(f, a);
       await G(s.p, () => import('/src/scripts/mcAuthGate.ts').then((g) => { g.openAuthGate({ host: document.getElementById('game-window'), mode: 'expired', code: 'MC-A02' }); }));
       await s.p.waitForSelector('#mc-auth-in .cl-rootBox', { timeout: 20000 }).catch(() => {}); await sleep(2000);
       await s.p.screenshot({ path: `${OUT}/${tag}-overlay-expired.png` });
+      // окно сайта после оверлея — снова как было (англ.): язык включается только на время оверлея
+      await G(s.p, () => import('/src/scripts/mcAuthGate.ts').then((g) => g.closeAuthGate())); await sleep(500);
+      ok(!(await visible(s.p, '.mc-auth')), `${tag}: «Продолжить без входа» закрывает оверлей`);
+      await G(s.p, () => document.fullscreenElement && document.exitFullscreen()); await sleep(800);
+      await G(s.p, () => window.Clerk.openSignIn()); await sleep(2500);
+      const siteTxt = await G(s.p, () => [...document.querySelectorAll('.cl-headerTitle')].filter((e) => !e.closest('.mc-auth')).map((e) => e.innerText).join(' | '));
+      ok(/Sign in/.test(siteTxt), `${tag}: окно входа сайта после оверлея — прежнее (англ.): «${siteTxt.split('\n')[0]}»`);
+      await s.p.screenshot({ path: `${OUT}/${tag}-site-modal-after.png` });
+      await G(s.p, () => window.Clerk.closeSignIn()); await sleep(800);
       const site = await G(s.p, () => window.Clerk?.__unstable__updateProps ? 'ok' : '');
       ok(site === 'ok', `${tag}: updateProps доступен (локализация только на время оверлея)`);
       ok(s.errs.length === 0, `${tag}: ошибок в консоли нет${s.errs.length ? ' — ' + s.errs.join(' | ') : ''}`);
@@ -210,6 +223,18 @@ const G = (p, f, a) => p.evaluate(f, a);
     ok(/Продолжить/.test(await s.p.textContent('#btn-start')) && await visible(s.p, '#auth-back'), 'возврат после OAuth: «✓ Вход выполнен» и «Продолжить»');
     ok(!/#mc-auth-done/.test(s.p.url()), 'возврат после OAuth: служебный #mc-auth-done убран из адреса');
     await s.p.screenshot({ path: `${OUT}/stub-phone-4-oauth-return.png` });
+    await s.ctx.close();
+  }
+  // ── 5. «Размер интерфейса» (ui-cursed-rework): оверлей берёт выбранный масштаб, но не вылезает за экран ──
+  for (const [mobile, val] of [[false, 130], [false, 70], [true, 130], [true, 85]]) {
+    const tag = (mobile ? 'phone' : 'pc') + '-s' + val;
+    const s = await open(b, { mobile, stub: { user: null }, name: tag });
+    await s.p.evaluate(([k, v]) => localStorage.setItem(k, String(v)), [mobile ? 'mc_ui_scale_mob' : 'mc_ui_scale_pc', val]);
+    await s.p.click('#btn-start'); await s.p.waitForSelector('.mc-auth:not([hidden])'); await sleep(400);
+    const r = await G(s.p, () => { const e = document.querySelector('.mc-auth-panel'), q = e.getBoundingClientRect(); return { s: getComputedStyle(document.querySelector('.mc-auth')).getPropertyValue('--mc-auth-s'), l: q.left, r: q.right, w: innerWidth, tap: Math.min(...[...document.querySelectorAll('.mc-auth-tab, .mc-auth-guest')].map((x) => x.getBoundingClientRect().height)) }; });
+    ok(r.l >= -1 && r.r <= r.w + 1, `${tag}: масштаб ${r.s} — панель в экране (${Math.round(r.l)}…${Math.round(r.r)} из ${r.w})`);
+    if (mobile) ok(r.tap >= 44, `${tag}: кнопки вкладок/гостя ≥ 44 px (${Math.round(r.tap)})`);
+    await s.p.screenshot({ path: `${OUT}/stub-${tag}-scale.png` });
     await s.ctx.close();
   }
   await b.close();

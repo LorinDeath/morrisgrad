@@ -37,7 +37,7 @@ function applyScale() {
   if (!s) { try { const v = Number(localStorage.getItem(mob ? "mc_ui_scale_mob" : "mc_ui_scale_pc")); if (v > 0) s = v / 100; } catch (_) {} }
   if (!s) s = 1;
   const wide = innerWidth >= 860 && innerHeight >= 520;
-  const baseW = wide ? 820 : 420;
+  const baseW = wide ? 820 : 340; // узкий экран: панель сама сжимается до ширины (max-width 100%), масштаб — лишь бы ≥ 340 CSS px
   s = Math.max(0.7, Math.min(s, 1.5, (innerWidth - 16) / baseW));
   root.style.setProperty("--mc-auth-s", String(Math.round(s * 100) / 100));
   root.classList.toggle("wide", wide);
@@ -81,6 +81,7 @@ const CSS = `
 .mc-auth-guest{min-height:40px;background:transparent;border:1px dashed #5a4d6e;color:#a99cb8;font:13px 'Exo 2',system-ui,sans-serif;cursor:pointer;border-radius:2px}
 .mc-auth-guest:hover{color:#e2b6ee;border-color:#c46ad8}
 .mc-auth-hint{font-size:11px;color:#7d7090;text-align:center;line-height:1.4}
+@media (pointer:coarse){.mc-auth-tab,.mc-auth-guest,.mc-auth-code{min-height:max(44px,calc(44px / var(--mc-auth-s,1)))}} /* палец: ≥ 44 px при любом масштабе (как тач-кнопки игры) */
 @media (prefers-reduced-motion:reduce){.mc-auth{animation:none}.mc-auth-loading i{animation:none}}
 `;
 
@@ -150,11 +151,11 @@ function showNote(code: string | null, bad = false, text?: string) {
   const e = code ? authErr(code) : null;
   n.hidden = false; n.classList.toggle("bad", bad);
   const retry = code === "MC-A01" || code === "MC-A05";
-  n.innerHTML = `<span>${esc(text || e!.text)}</span>${code ? `<button class="mc-auth-code" title="Скопировать код ошибки">${esc(code)} ⧉</button>` : ""}${retry ? `<button class="mc-auth-code" data-retry>Повторить</button>` : ""}`;
+  n.innerHTML = `<span>${esc(text || e!.text)}</span>${code ? `<button class="mc-auth-code" title="Скопировать код ошибки">${esc(code)} · копировать</button>` : ""}${retry ? `<button class="mc-auth-code" data-retry>Повторить</button>` : ""}`;
   n.querySelector<HTMLButtonElement>("[data-retry]")?.addEventListener("click", () => location.reload());
   n.querySelector<HTMLButtonElement>(".mc-auth-code:not([data-retry])")?.addEventListener("click", async (ev) => {
     const b = ev.currentTarget as HTMLButtonElement;
-    try { await navigator.clipboard.writeText(code!); b.textContent = code + " ✓"; } catch (_) { b.textContent = code!; }
+    try { await navigator.clipboard.writeText(code!); b.textContent = code + " · скопировано"; } catch (_) { b.textContent = code!; }
   });
 }
 
@@ -206,7 +207,7 @@ export function openAuthGate(opts: GateOpts): Promise<GateResult> {
     unlisten = typeof off === "function" ? off : null;
     if (stale) showRelogin(c);
     else if (c.user) { queueMicrotask(() => done("signed-in")); return busy; }
-    else selectTab(opts.tab || curTab);
+    else selectTab(opts.tab || (opts.mode === "start" ? curTab : "in")); // «Сессия истекла» — сразу «Войти»
   }
   (el.querySelector("[data-inapp]") as HTMLElement).hidden = !inAppBrowser();
   setTimeout(() => el.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus({ preventScroll: true }), 50);
