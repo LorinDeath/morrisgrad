@@ -36,6 +36,7 @@ import { NpcWander } from "./npcWander";
 import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN, inSafe } from "./zoneGen";
+import { dnClient, DN_CFG } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
@@ -1902,6 +1903,7 @@ export class MetaService {
       if (bmE) npc.push(bmE); // Чёрный маг — НПС квестов (позиция живая)
       if (w === "arinar" && CITY_CFG.on !== false) (CITY_CFG.npc as any[]).forEach((sl, i) => { const p = sl.on ? slotPos(sl) : null; if (p) npc.push([cityNpcId(i), p[0], p[1], 0, 0]); }); // места NPC города (снаружи и в комнатах зданий)
       const cityCfgSig = w === "arinar" ? JSON.stringify(cityClient()) : "";
+      const dnSig = w === "arinar" ? JSON.stringify(DN_CFG) : "";
       if (cityCfgSig && cityCfgSig !== (this as any).citySig) { (this as any).citySig = cityCfgSig; this.cityVer++; syncCityNpcs(NPCS as any); }
       for (const [ws, s] of socks) {
         const ms = this.ms.get(s.id)!;
@@ -1941,7 +1943,9 @@ export class MetaService {
           if (!bm.m && !bm.d.length && !bm.ro) bm = undefined; }
         // город под куполом: настройки отрисовки и места NPC — при входе в мир и при правке в админке (версия)
         let city: any; if (w === "arinar" && (ms as any).cityVer !== this.cityVer && ((Math.abs(s.x - CITY_CFG.x) < 9000 && Math.abs(s.y - CITY_CFG.y) < 9000) || inRoomArea(s.x, s.y))) { (ms as any).cityVer = this.cityVer; city = cityClient(); }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, city, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        // день и ночь: часы и настройки — при входе, при правке в админке (подпись) и раз в 20 с (клиент ведёт часы сам)
+        let dn: any; if (w === "arinar" && ((ms as any).dnSig !== dnSig || now - ((ms as any).dnAt || 0) > 20000)) { (ms as any).dnSig = dnSig; (ms as any).dnAt = now; dn = dnClient(now); }
+        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, city, dn, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }
