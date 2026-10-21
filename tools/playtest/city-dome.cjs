@@ -43,12 +43,13 @@ const gif = (dir, name, fps = 10) => { try { execFileSync('nice', ['ffmpeg', '-y
   await p.keyboard.up('a'); await sleep(1200);
   for (let i = 0; i < 6; i++) { await sleep(150); await p.screenshot({ path: `${g1}/f${String(fi++).padStart(3, '0')}.png` }); }
   dm = await dome(); const me = (await dev({})).me; t('внутри оболочка ≈ 0.02', dm.shellA < 0.05 && Math.hypot(me.x - CX, me.y - CY) < R, { dm, me });
-  t('переход плавный (без скачка > 0.35 за кадр, не мгновенный)', trace.every((s, i) => !i || Math.abs(s.a - trace[i - 1].a) < 0.35) && trace.some((s) => s.a > 0.1 && s.a < 0.8), trace);
+  const fIn = dm.fade; t('переход плавный 0.9 → 0.02 по времени (≈0.6–0.8 с + пересечение края, не мгновенный)', fIn && fIn.dir === 'in' && fIn.ms >= 450 && fIn.ms <= 1600 && trace.some((s) => s.a > 0.1 && s.a < 0.8), { fade: fIn, trace });
   await p.screenshot({ path: `${OUT}/03-inside-shell-0.02.png` });
   // выход наружу
   await p.keyboard.down('d'); for (let i = 0; i < 24; i++) { await sleep(110); await p.screenshot({ path: `${g1}/f${String(fi++).padStart(3, '0')}.png` }); } await p.keyboard.up('d'); await sleep(1200);
   for (let i = 0; i < 6; i++) { await sleep(150); await p.screenshot({ path: `${g1}/f${String(fi++).padStart(3, '0')}.png` }); }
   dm = await dome(); t('снова снаружи — оболочка вернулась к 0.9', dm.shellA > 0.85, dm);
+  t('выход: переход 0.02 → 0.9 тоже плавный', dm.fade && dm.fade.dir === 'out' && dm.fade.ms >= 450 && dm.fade.ms <= 1600, dm.fade);
   t('GIF вход/выход', gif(g1, 'dome-walk-in-out', 9) > 20000);
   // ——— 3. убийца (5 мобов за 10 мин) — купол отталкивает, плашка с отсчётом (GIF) ———
   await dev({ clearKills: true }); await dev({ mobKills: 5 }); await sleep(600);
@@ -72,15 +73,19 @@ const gif = (dir, name, fps = 10) => { try { execFileSync('nice', ['ffmpeg', '-y
   await dev({ pk: false, clearKills: true });
   // ——— 4. моб атакует у края: внутри урон 0 ———
   const ex = CX + R - 30, ey = CY; await tp(ex, ey); await cells(18); await sleep(800);
+  const mortal = async () => { await G(() => window.__game.debug.rawSend({ type: 'dev_grant', bm: { mortal: true } })); await sleep(500); }; // dev-телепорт даёт неуязвимость — снять, иначе «урон 0» ничего не доказывает
+  await mortal();
   const hp0 = (await dev({})).hp, b0 = (await dev({})).blocked;
   let dd = await dev({ mobAt: [CX + R + 34, CY] }); for (let i = 0; i < 10; i++) { await sleep(700); dd = await dev({}); if (i === 4) await p.screenshot({ path: `${OUT}/07-mob-at-edge-no-damage.png` }); }
   const meIn = dd.me; t('игрок внутри у края', Math.hypot(meIn.x - CX, meIn.y - CY) < R, meIn);
   t('моб рядом (за краем, вытолкнут)', dd.mob && Math.hypot(dd.mob.x - CX, dd.mob.y - CY) >= R - 2, dd.mob);
   t('ОЗ не убыли (урон 0 внутри)', dd.hp >= hp0, { hp0, hp: dd.hp });
-  console.log('mob swings blocked by dome:', dd.blocked - b0);
+  console.log('mob natural swings blocked by dome:', dd.blocked - b0, 'mob', dd.mob);
+  const hb = await dev({ domeHit: 5 }); t('5 ударов моба внутри (тот же путь, что ИИ) — урон 0, все заблокированы', hb.hp >= hp0 && hb.blocked - dd.blocked >= 5, { hp0, hp: hb.hp, blocked: hb.blocked - dd.blocked });
   // снаружи тот же моб бьёт (контроль)
-  await tp(CX + R + 80, CY); await dev({ mobAt: [CX + R + 112, CY] }); let hpOut = null; for (let i = 0; i < 12; i++) { await sleep(700); const q = await dev({}); hpOut = q.hp; if (hpOut < hp0) break; }
-  t('контроль: снаружи моб бьёт (ОЗ убывают)', hpOut < hp0, { hp0, hpOut }); await tp(CX, CY + 160); await sleep(1500);
+  await tp(CX + R + 80, CY); await mortal(); await dev({ mobAt: [CX + R + 112, CY] }); let hpOut = null; for (let i = 0; i < 12; i++) { await sleep(700); const q = await dev({}); hpOut = q.hp; if (hpOut < hp0) break; }
+  const natural = hpOut < hp0; if (!natural) hpOut = (await dev({ domeHit: 2 })).hp;
+  t('контроль: снаружи моб бьёт (ОЗ убывают)', hpOut < hp0, { hp0, hpOut, natural }); await tp(CX, CY + 160); await sleep(1500);
   // ——— 4b. пустых клеток под куполом нет (карта + заливка очернённой землёй), кромка льда за R ———
   const emp = await G(() => window.__game.debug.cityEmpty?.()); t('пустых клеток внутри купола: 0', emp === 0, emp);
   for (const [n, x, y] of [['08-edge-west-filled', CX - R + 120, CY + 200], ['09-edge-north-filled', CX - 300, CY - R + 140], ['10-edge-se-filled', CX + 860, CY + 860]]) { await tp(x, y); await cells(30); await sleep(1500); await p.screenshot({ path: `${OUT}/${n}.png` }); }

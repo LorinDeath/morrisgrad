@@ -60,7 +60,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   t('переподключение в доме: снова в комнате старосты', q.w === 'arinar' && c.room?.id === 'house_elder' && q.x < -10000, { q, c });
   await shot(A, '14-reconnect-in-house', 12);
   // выйти
-  for (let i = 0; i < 6 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = ELDER.ox + 6.5 * 32; await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 1400); }
+  for (let i = 0; i < 6 && (await pos(A)).x < -10000; i++) { const p0 = await pos(A); const tx = ELDER.ox + 5 * 32; /* house_living 9×8: выход EE в колонках 4–5 */ await walk(A, p0.x < tx - 6 ? 'd' : p0.x > tx + 6 ? 'a' : 's', p0.x < tx - 6 || p0.x > tx + 6 ? Math.min(1200, Math.abs(p0.x - tx) * 5.5) : 1400); }
   t('из дома старосты вышел', (await pos(A)).x > 20000, await pos(A));
 
   // ——— 5. PK-кнопка: отсчёт 7 с, красное имя ———
@@ -84,6 +84,7 @@ let ok = 0, bad = 0; const t = (n, c, x) => { c ? (ok++, console.log('ok  ', n))
   await shot(B, '23-victim-sees-red-pk', 12);
   const pk0 = (await dev(A, {}))?.kst?.pk || 0; let killed = false; // пожизненный счёт копится между прогонами — сравниваем с началом
   for (let i = 0; i < 30 && !killed; i++) { await A.G(([x, y]) => window.__game.debug.rawSend({ type: 'zone_attack', dx: 1, dy: 0, ox: x - 50, oy: y, tx: x, ty: y, cid: Date.now() % 1e6 }), [vx, vy]); await sleep(700); const d = await dev(A, {}); killed = (d?.kst?.pk || 0) > pk0; }
+  { const dB0 = await dev(B, {}); console.log('pvp diag', JSON.stringify({ A: (await dev(A, {})).me, B: dB0.me, hpB: dB0.hp, pkA: (await dev(A, {})).pk, pk0 })); }
   const dA = await dev(A, {}); t('PvP: A убил B (пожизненно +1)', killed && dA.kst.pk >= pk0 + 1, dA?.kst);
   t('PvP: A теперь убийца по журналу', dA.killer?.killer && dA.p >= 1, dA?.killer);
   await shot(A, '24-pvp-kill', 12);
