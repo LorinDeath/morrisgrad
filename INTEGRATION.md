@@ -1,6 +1,6 @@
 # INTEGRATION — финальная сборка `integ-preview` (только локально: без push, без деплоя, без удалённых миграций)
 
-**Состояние на 22.10.2026 ~00:30 (Киев): код `d2e84f7` (props3 5731676), ~190 коммитов поверх `origin/main` `dda459c`.** Готово к выкладке по
+**Состояние на 22.10.2026 ~01:10 (Киев): код `045a3ee` (props3 98d72e9; код арены — как в 5731676, сверху только плейтест кромки), ~190 коммитов поверх `origin/main` `dda459c`.** Готово к выкладке по
 `/workspace/morrisgrad-round3/final/deploy/DEPLOY.md` (скрипт `deploy.sh`). Обзор для Алекса — `final/ДЛЯ-АЛЕКСА.md`.
 
 ## Финальный состав (первый родитель, по порядку)
@@ -13,12 +13,14 @@
 | `37b76da` | guest-login 24cfd38 (оверлей входа; authErr → реестр showError, `_core/authCodes.js` удалён; .wrangler — бэкап `/workspace/mg-backups/wrangler-state-integ-20261021-232133`) |
 | `96060cd` | deps-major 306e7ab (Astro 7, @astrojs/cloudflare 14, Clerk 4, @clerk/localizations ~4.24.0; включает security-audit e7d7852; server/meta/auth.ts из mg-sec docs/merge с проверкой exp) |
 | `73542f3` `0f08316` `1b1a8a6` | манифест под Astro 7 (configEnvironment, `mc-vite-manifest.json` в dist/client, удаляется); группы `mobs32` и `auth` ленивые |
-| `de347d8` `fd63dcc` `d2e84f7` | props3 b011edf, затем 0531e3a, 5731676 (свет арены 32, круглая граница; arena3 по умолчанию выкл) |
+| `de347d8` `fd63dcc` `d2e84f7` `045a3ee` | props3 b011edf, затем 0531e3a, 5731676, 98d72e9 (свет арены 32, круглая граница; arena3 по умолчанию выкл; плейтест кромки arena3-edge) |
 | `a9a5d50` | `server:deploy` с `--config wrangler.json` (корневой .wrangler/deploy/config.json от Astro 7 перехватывал конфиг) |
 | `0bf029f` `1b2c00c` | atmo-ui на телефоне (проверка «не светлее»); кнопка ⚔ PK скрыта в забеге |
 
 Если props3 получит новые коммиты: `git merge --no-ff props3`, затем `bun tools/tests/props3-test.ts`, `node tools/tests/arena32-test.mjs`,
-`node tools/tests/undef-lint.mjs`, `npx astro build` (Node 22).
+`node tools/tests/undef-lint.mjs`, `npx astro build` (Node 22). Серверные тесты — из `server/` (`cd server && bun meta/<имя>-test.ts`: vn-dialogue читает `../public`).
+
+Прогон 22.10 ~01:10 на `045a3ee`: arena32 10238/0, props3 1072/0, undef-lint ok (106 файлов), серверные 60/60 (roam 23/0), `astro build` ok, dry-run воркеров игры и сайта ok.
 
 ---
 ## История: первая локальная сборка (21.10, до финального состава)
