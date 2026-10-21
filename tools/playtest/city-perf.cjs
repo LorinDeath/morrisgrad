@@ -65,7 +65,7 @@ const row = (k) => d1(`SELECT data FROM game_overrides WHERE kind='${k}' AND id=
   await A.G(() => window.__game.debug.dn({ pin: '13:00' })); await tp(A, 24624, 3300); await sleep(2500);
   const LK = process.env.LEAK_KIND || 'city,dn';
   const round = async () => { for (let i = 0; i < 8; i++) { if (LK.includes('city')) { await save(A, 'city', { groundLight: i % 2 ? 1.2 : 1.4, blightSize: i % 2 ? 1.3 : 0.8 }); await sleep(700); }
-    if (LK.includes('dn')) { await save(A, 'dn', { emitters: JSON.stringify({ 'city:dm_lantern_pole': [5 + (i % 2), 28] }) }); await sleep(1600); } else await sleep(1600); } };
+    if (LK.includes('dn')) { await save(A, 'dn', { emitters: JSON.stringify({ 'city:dm_lantern_pole': [5 + (i % 2), 28] }) }); await sleep(1600); } else { if (LK.includes('noop')) await A.G(([kind, patch]) => { void kind; void patch; return 1; }, ['city', { groundLight: 1 }]); await sleep(1600); } } }; // noop — контроль: тот же evaluate плейтеста без правки
   await round(); await sleep(2000); const m0 = await mem(A); console.log('mem0 (после разогрева: 8 правок)', JSON.stringify(m0));
   await round(); await sleep(2000); const m1 = await mem(A); console.log('mem1 (+8 правок)', JSON.stringify(m1));
   let m2; for (let r = 2; r <= (Number(process.env.LEAK_ROUNDS) || 2); r++) { await round(); await sleep(2000); m2 = await mem(A); console.log(`mem${r} (+8 правок)`, JSON.stringify(m2)); }
