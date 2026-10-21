@@ -617,3 +617,8 @@ html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > i { display: block; height: 100%; b
 html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > span { position: absolute; inset: 0; display: grid; place-items: center; font: bold 10px monospace; color: #fff; text-shadow: 0 1px 0 #000; }
 .mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) :is(.mc-tracker, .mc-party) { margin-top: 52px; }
 html.mc-ui .mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) .mc-party { margin-top: 0; } /* новая тема: отряд по центру сверху — не мешает */
+
+/* ─────────────────────────── 10. плотность плашек в поле (админка plate) ─────────────────────────── */
+/* «Цель» и всплывающие окна (рамка frame_panel — полупрозрачная середина): под рамкой тёмный фон, иначе на льду/снегу/
+   в воздухе светлая земля просвечивает и текст не читается. Трекер, кнопки и сеть — на frame_small/слотах (уже плотные) */
+html.mc-hud-ig :is(.ig-tgt .hud-card, .ig-pop) { background: rgba(9, 7, 15, var(--ui-plate, .88)) !important; background-clip: padding-box !important; }

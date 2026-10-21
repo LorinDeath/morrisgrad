@@ -16,6 +16,7 @@ export const UI_CFG = {
   mmRound: true,         // круглая маска мини-карты (выкл — квадратная в рамке кита)
   tgtSide: "left",       // панель «Цель»: left — слева под рамкой героя, center — по центру сверху, right — справа под мини-картой
   tgtTop: 100,           // отступ панели «Цель» сверху, px
+  plate: 88,             // плотность тёмного фона плашек в поле («Цель», всплывающие окна), % (50–100)
   tgtHide: 0,            // скрыть панель «Цель», если у цели ничего не меняется N с (0 — не скрывать)
   // атмосфера нового интерфейса (ui/atmoUi.js): только html.mc-ui — старая тема и забег без изменений
   atmo: true,            // виньетка/тон по локации и частицы поверх экрана
@@ -48,5 +49,5 @@ export const uiClient = () => ({ on: UI_CFG.on !== false, glitch: Math.max(0, Ma
   sfx: UI_CFG.sfx !== false, sfxVol: pct(UI_CFG.sfxVol), trans: UI_CFG.trans !== false,
   transMs: Math.max(60, Math.min(400, Math.round(Number(UI_CFG.transMs) || 160))), loadScreen: UI_CFG.loadScreen !== false,
   mmX: rng(UI_CFG.mmX, 0, 200, 10), mmY: rng(UI_CFG.mmY, 0, 200, 10), mmZoom: rng(UI_CFG.mmZoom, 1, 3, 1), mmRound: UI_CFG.mmRound !== false,
-  tgtSide: ["left", "center", "right"].includes(UI_CFG.tgtSide) ? UI_CFG.tgtSide : "left", tgtTop: rng(UI_CFG.tgtTop, 40, 500, 100), tgtHide: rng(UI_CFG.tgtHide, 0, 60, 0),
+  tgtSide: ["left", "center", "right"].includes(UI_CFG.tgtSide) ? UI_CFG.tgtSide : "left", tgtTop: rng(UI_CFG.tgtTop, 40, 500, 100), tgtHide: rng(UI_CFG.tgtHide, 0, 60, 0), plate: rng(UI_CFG.plate, 50, 100, 88),
   partsMobile: pct(UI_CFG.partsMobile), loc: locs(), texPc: UI_CFG.texPc === "16" ? "16" : "32", texMobile: UI_CFG.texMobile === "32" ? "32" : "16" });

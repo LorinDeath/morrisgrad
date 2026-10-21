@@ -7,7 +7,7 @@
 // - Настройки — админка «🎨 Интерфейс» (meta_state.ui): вкл/выкл, глитч 0/1/2, доля цвета локации, застёжки, аватары.
 export const UI_BASE = '/mc-ui/';
 export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176,
-  mmX: 10, mmY: 10, mmZoom: 1, mmRound: true, tgtSide: 'left', tgtTop: 100, tgtHide: 0,
+  mmX: 10, mmY: 10, mmZoom: 1, mmRound: true, tgtSide: 'left', tgtTop: 100, tgtHide: 0, plate: 88,
   atmo: true, vig: 45, grade: 30, parts: 50, atmoMobile: 40, partsMobile: 60, loc: {}, sfx: true, sfxVol: 40, trans: true, transMs: 160, loadScreen: true,
   texPc: '32', texMobile: '16' };
 const CURSED = '#8a6aa6';
@@ -80,7 +80,7 @@ function applyClasses() {
   const ig = hudIngame(); c.toggle('mc-hud-ig', ig);
   const rs = document.documentElement.style, cl = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : d; };
   rs.setProperty('--ig-mm', cl(UI.mmSize, 120, 240, 176) + 'px');
-  rs.setProperty('--ig-mm-x', cl(UI.mmX, 0, 200, 10) + 'px'); rs.setProperty('--ig-mm-y', cl(UI.mmY, 0, 200, 10) + 'px'); rs.setProperty('--ig-tgt-top', cl(UI.tgtTop, 40, 500, 100) + 'px');
+  rs.setProperty('--ig-mm-x', cl(UI.mmX, 0, 200, 10) + 'px'); rs.setProperty('--ig-mm-y', cl(UI.mmY, 0, 200, 10) + 'px'); rs.setProperty('--ig-tgt-top', cl(UI.tgtTop, 40, 500, 100) + 'px'); rs.setProperty('--ui-plate', (cl(UI.plate, 50, 100, 88) / 100).toFixed(2));
   c.toggle('mc-ig-sq', UI.mmRound === false);
   document.documentElement.dataset.igTgt = ['left', 'center', 'right'].includes(UI.tgtSide) ? UI.tgtSide : 'left';
   if (ig !== hudWas) { hudWas = ig; window.dispatchEvent(new CustomEvent('mc-hud-ig', { detail: ig })); }
