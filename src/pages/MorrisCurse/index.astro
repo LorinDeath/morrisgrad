@@ -109,12 +109,13 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
       gameStarted = true;
       let username = 'Странник';
       let userId = null;
-      try {
-        const res = await fetch('/api/get-user');
+      // ник — только для вошедшего (свой профиль по сессии; гостю сервер ответит 401 — не спрашиваем)
+      const signed = !W.__MC_AUTH_GUEST__ && (!!W.Clerk?.user || gameWindow.dataset.signed === '1');
+      if (signed) try {
+        const res = await fetch('/api/get-user', { credentials: 'same-origin' });
         if (res.ok) {
           const data = await res.json();
           if (data.username) username = data.username;
-          userId = data.userId || data.id || null; // <--- Получение ID из базы
         }
       } catch (err) {
         console.warn('Не удалось загрузить пользователя');
