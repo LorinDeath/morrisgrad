@@ -118,6 +118,10 @@ export const regSig = (r: any) => JSON.stringify([r.dens, r.packs, r.pack, r.eli
 export const DOT_STACK_MAX = 5; // стаков одного статуса на цели
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 // выстрел дальнобойного моба: спрайт по стихии
+/** вспышка купола при выталкивании моба: не чаще раза в столько мс на моба */
+export const DOME_FLASH_CD_MS = 3000;
+/** …и не больше стольких вспышек в секунду на всю зону (толпа у купола — без потока событий) */
+export const DOME_FLASH_PER_SEC = 12;
 const KNOCK_IMMUNE = (d: any) => !!d.boss || d.size !== "s" || d.role === "tank";
 const segDist = (px: number, py: number, x: number, y: number, dx: number, dy: number, len: number) => {
   const t = Math.max(0, Math.min(len, (px - x) * dx + (py - y) * dy));
@@ -144,7 +148,8 @@ export class Zone {
   /** Чёрный маг (blackMage.ts): купола гасят урон игроков и снаряды; null — мира без мага */
   guard: { guardMobHit(m: any, sid: string, ax: number, ay: number): boolean; noteFight(m: any, sid: string): void; guardProj(p: any, x0: number, y0: number, x1: number, y1: number): boolean; inDome(x: number, y: number): any; blackHit?(p: any, pl: any): boolean; pvpHit?(p: any, pl: any): boolean } | null = null;
   /** город под куполом (city.ts): мобы внутрь не заходят, спавнов внутри нет; null — в мире нет города */
-  keepOut: { inside(x: number, y: number, pad?: number): boolean; out(x: number, y: number): [number, number] } | null = null;
+  keepOut: { inside(x: number, y: number, pad?: number): boolean; out(x: number, y: number): [number, number]; skip?(m: ZMob, boss: boolean): boolean; around?(x: number, y: number, dx: number, dy: number): [number, number]; aggroPad?(): number; flash?(): boolean } | null = null; // skip — моб не выталкивается (боссы при mobBossesOut=false); aggroPad — запас сброса агро у края; flash — вспышка купола при выталкивании
+  domeFlashWin = { t: 0, n: 0 };
   safeAt(x: number, y: number, pad = 0) { return inSafe(x, y, pad, this.world) || !!this.keepOut?.inside(x, y, pad); }
   /** убрать лагеря и мобов, чей дом внутри купола (после постройки лагерей — сид и порядок лагерей остального мира не меняются) */
   pruneKeepOut() {
@@ -560,7 +565,11 @@ export class Zone {
 
   /** Выталкивание моба из твёрдых пропсов (скользит вдоль ствола/камня). Возврат домой (reset) — без коллизий: поводок не застревает */
   solid(m: ZMob) {
-    if (this.keepOut && this.keepOut.inside(m.x, m.y, MOB_R)) { const [ox, oy] = this.keepOut.out(m.x, m.y); m.x = this.clamp(ox); m.y = this.clamp(oy); } // город: мобы не заходят
+    const K = this.keepOut;
+    if (K && !K.skip?.(m, m.special === "boss" || !!(ZONE_MOBS as any)[m.type]?.boss) && K.inside(m.x, m.y, MOB_R)) { // город: мобы не заходят
+      const [ox, oy] = K.out(m.x, m.y); m.x = this.clamp(ox); m.y = this.clamp(oy);
+      if (K.flash?.()) { const now = Date.now(), mm = m as any; const W = this.domeFlashWin; if (now - W.t >= 1000) { W.t = now; W.n = 0; } if (W.n < DOME_FLASH_PER_SEC && now - (mm.domeFlashAt || 0) >= DOME_FLASH_CD_MS) { mm.domeFlashAt = now; W.n++; this.events.push({ k: "dome_repel", id: m.id, x: Math.round(m.x), y: Math.round(m.y) }); } } // вспышка купола (не чаще раза в 3 с на моба)
+    }
     if (m.reset) return; const [x, y] = resolveWorld(this.world, m.x, m.y, MOB_R); m.x = this.clamp(x); m.y = this.clamp(y); }
   spawnFix(m: ZMob) {
     (m as any).spOk = 1;
@@ -953,7 +962,7 @@ export class Zone {
       // цель
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
-      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, 24); })()); // цель ушла под купол города — моб сбрасывается
+      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, this.keepOut!.aggroPad?.() ?? 24); })()); // цель ушла под купол города (+ запас mobAggroPadPx) — моб сбрасывается
       if (!m.reset && (m.targetSid || m.mobTarget) && (tIn || homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash))) {
         m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
@@ -961,7 +970,10 @@ export class Zone {
       if (m.reset) {
         const dx = m.sx - m.x, dy = m.sy - m.y, dist = Math.hypot(dx, dy);
         const sp = d.speed * ZONE_GEN.resetSpeed * dt;
-        if (dist > sp) { m.x += (dx / dist) * sp; m.y += (dy / dist) * sp; } else { m.x = m.sx; m.y = m.sy; }
+        let ux = dist > 0 ? dx / dist : 0, uy = dist > 0 ? dy / dist : 0; const K = this.keepOut;
+        if (K?.around && dist > sp && K.inside(m.x + ux * sp, m.y + uy * sp, MOB_R) && !K.inside(m.sx, m.sy, MOB_R)) [ux, uy] = K.around(m.x, m.y, dx, dy); // путь домой через купол — в обход по ободу
+        if (dist > sp) { m.x += ux * sp; m.y += uy * sp; } else { m.x = m.sx; m.y = m.sy; }
+        if (K) this.solid(m); // домой — тоже не через купол города (solid при reset — только купол, без коллизий пропсов): скользит по ободу
         m.hp = Math.min(m.maxHp, m.hp + m.maxHp * ZONE_GEN.resetRegen * dt);
         if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
         continue;

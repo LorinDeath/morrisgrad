@@ -107,7 +107,9 @@ const rgb = (s) => (String(s).match(/\d+/g) || []).map(Number);
   t('выход: цвет из красного в белый (зелёный канал рос)', H3.a.length >= 2 && H3.a[H3.a.length - 1][3] > H3.a[0][3] + 60, H3.a);
   t('выход: цвет каждой точки — по доле (красный→белый)', colOk(H3.a), H3.a);
   t('выход: B видел полосу выхода', H3.b.some((x) => x[1] === '2'), H3.b.slice(0, 3));
-  t('выход: длился ~30 с (не меньше 27)', H3.a.length && (H3.a[H3.a.length - 1][0] >= 26000), H3.a.slice(-1));
+  // длительность — по скорости полосы (опрос стартует уже после клика): (t_last − t_first) / (p_last − p_first)
+  { const a0 = H3.a[0], a1 = H3.a[H3.a.length - 1], est = a1 && a1[2] - a0[2] > 0.3 ? (a1[0] - a0[0]) / (a1[2] - a0[2]) : 0;
+    t('выход: длился ~30 с (по скорости полосы 27…33 с)', est >= 27000 && est <= 33000, { est: Math.round(est), a0, a1 }); }
   const h3 = (await city(A)).hud; t('PK выключен', h3.pk === false, h3);
   await sleep(1200); const a4 = await lab(A, 'city_admin'); t('после выхода значка PK нет', !a4?.tag, a4);
   for (let i = 0; i < 3; i++) await frame();

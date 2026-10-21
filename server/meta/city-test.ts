@@ -1,6 +1,6 @@
 // Город Альказак (city.ts + cityBuild.ts): журнал убийц, PK-режим, PvP, купол (в т.ч. интерьеры), розы, здания/двери/комнаты,
 // места NPC, масштаб по rTiles, схемы админки. Запуск: esbuild --bundle → node.
-import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT } from "./city";
+import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT, cityKeepOut, cityMobPushPx, cityMobAggroPadPx } from "./city";
 import { cityBuildings, buildingById, roomAt, roomSpawn, onExit, outsideDoor, atDoor, doorNear, resolveRoom, roomWalkable, roomBounds, roomCell, slotPos, cityClient, cityNpcDefs, ROOMS, BUILD_DEF, buildingColliders, inRoomArea, ROOM_SPAN, DARK_PROPS } from "./cityBuild";
 import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from "./bmCfg";
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
@@ -104,7 +104,7 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   t("застройка не дальше r 37.7 клетки", cityBuildings().every((b) => [[b.rect[0], b.rect[1]], [b.rect[0] + b.rect[2], b.rect[1]], [b.rect[0], b.rect[1] + b.rect[3]], [b.rect[0] + b.rect[2], b.rect[1] + b.rect[3]]].every(([x, y]) => Math.hypot(x - CITY_CFG.x, y - CITY_CFG.y) <= 37.7 * 32)));
   t("за куполом нет черноты без льда (кромка обрезана)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d <= 40) continue; const g = cityGround(gi, gj); if (g && !g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
   t("внутри купола лёд карты убран (только у кромки снаружи)", (() => { for (let gj = 59; gj < 152; gj++) for (let gi = 723; gi < 816; gi++) { const d = Math.hypot((gi + 0.5) * 32 - CITY_CFG.x, (gj + 0.5) * 32 - CITY_CFG.y) / 32; if (d > 40) continue; const g = cityGround(gi, gj); if (!g || g.dover.some((x) => /^ice_/.test(Object.keys(DARK_INDEX).find((k) => DARK_INDEX[k] === x) || ""))) return false; } return true; })());
-  { const FV = /^dm_fence_v(post|rail)$/, M = mapProps(), base = M.filter((p) => !FV.test(p.k));
+  { const FV = /^dm_fence_(v|corner)$/, M = mapProps(), base = M.filter((p) => !FV.test(p.k));
     t("пропсы карты: 253 − клумба розы (−5) − 60 узловых столбов колонн (4 одиночных — в клумбе) (→ вертикальный забор), остальные в атласе", base.length === 248 - 60 && base.every((p) => DARK_PROPS.keys?.[p.k]), base.filter((p) => !DARK_PROPS.keys?.[p.k]).map((p) => p.k)); }
   t("стены/заборы из сетки walk — коллайдеры", walkColliders().length > 500 && !walkable("arinar", ...((): [number, number] => { const b = buildingById("house_elder")!; return [b.rect[0] + 100, b.rect[1] + 100]; })()));
   const rp = cityClient().rose; t("роза города рисуется в точке карты (24608, 3232) — центр травяной клумбы", rp && rp.x === 24608 && rp.y === 3232 && rp.id === "1792366351175927", rp);
@@ -136,9 +136,37 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const boss = WORLD_GEN.arinar.bosses.find((b: any) => b.key === "ice_thorn_matron@24"); t("R40: логово Матроны (1838 px) снаружи", boss && !inCity(boss.x, boss.y, 200));
   t("R40: указатель sign:patch24 (22540, 3800) снаружи", !inCity(22540, 3800, 400)); reset(); }
 
+// ——— моб ↔ купол (админка: mobPushPx / mobAggroPadPx / mobBossesOut / mobDomeFlash); по умолчанию — прежнее поведение ———
+{ reset(); const { Zone } = await import("./zone"); const { ZONE_GEN } = await import("./zoneGen");
+  const z: any = new Zone("arinar", [], [], { proc: true, seed: ZONE_GEN.seed }); z.keepOut = cityKeepOut(); const R = cityR();
+  const m: any = z.mobs.find((q: any) => !q.dead && q.special !== "boss"), b: any = z.mobs.find((q: any) => !q.dead && q !== m && q.special !== "boss"); if (b) b.special = "boss"; // особый «босс» (в тестовой зоне боссы не заспавнены)
+  const put = (q: any) => { q.x = CITY_CFG.x + 100; q.y = CITY_CFG.y + 50; q.reset = true; z.events.length = 0; z.solid(q); return Math.hypot(q.x - CITY_CFG.x, q.y - CITY_CFG.y); };
+  t("купол/моб: по умолчанию 40 / 24 / боссы тоже / вспышка", CITY_CFG.mobPushPx === 40 && CITY_CFG.mobAggroPadPx === 24 && CITY_CFG.mobBossesOut === true && CITY_CFG.mobDomeFlash === true);
+  t("купол/моб: выталкивается на R + 40", m && Math.abs(put(m) - (R + 40)) < 1.5, m && put(m));
+  m.domeFlashAt = 0; put(m); const ev1 = z.events.filter((e: any) => e.k === "dome_repel").length; put(m); const ev2 = z.events.filter((e: any) => e.k === "dome_repel").length;
+  t("купол/моб: вспышка при выталкивании, повтор — не чаще раза в 3 с", ev1 === 1 && ev2 === 0, [ev1, ev2]);
+  CITY_CFG.mobDomeFlash = false; m.domeFlashAt = 0; put(m); t("купол/моб: вспышка выкл — события нет", !z.events.some((e: any) => e.k === "dome_repel"));
+  CITY_CFG.mobPushPx = 120; t("купол/моб: mobPushPx 120 → R + 120", Math.abs(put(m) - (R + 120)) < 1.5, put(m));
+  CITY_CFG.mobPushPx = 9999; t("купол/моб: mobPushPx в пределах 0…400", cityMobPushPx() === 400); CITY_CFG.mobPushPx = "x"; t("купол/моб: мусор → 40", cityMobPushPx() === 40);
+  CITY_CFG.mobAggroPadPx = 60; t("купол/моб: запас агро из админки", z.keepOut.aggroPad() === 60); CITY_CFG.mobAggroPadPx = -5; t("купол/моб: запас агро ≥ 0", cityMobAggroPadPx() === 0);
+  { const q: any = m; q.x = CITY_CFG.x - R - 80; q.y = CITY_CFG.y; q.sx = CITY_CFG.x + R + 80; q.sy = CITY_CFG.y + 30; q.reset = true; q.targetSid = null; let inside = 0; q.spOk = 1; const PL = new Map([["p1", { sid: "p1", x: CITY_CFG.x, y: CITY_CFG.y + R + 250, hp: 100, maxHp: 100, dead: false, lvl: 1 } as any]]), T0 = Date.now();
+    for (let i = 0; i < 400; i++) { z.update(0.05, T0 + i * 50, PL, () => {}, () => {}); if (Math.hypot(q.x - CITY_CFG.x, q.y - CITY_CFG.y) < R) inside++; }
+    t("купол/моб: сброшенный моб идёт домой в обход купола (по ободу, не внутри), за 20 с — на той стороне", inside === 0 && q.x > CITY_CFG.x, [inside, Math.round(q.x - CITY_CFG.x), Math.round(q.y - CITY_CFG.y)]); }
+  { const { DOME_FLASH_PER_SEC } = await import("./zone"); z.domeFlashWin = { t: 0, n: 0 }; z.events.length = 0; CITY_CFG.mobDomeFlash = true;
+    for (const q of z.mobs.slice(0, 300)) { q.domeFlashAt = 0; q.x = CITY_CFG.x + 100; q.y = CITY_CFG.y; q.reset = true; z.solid(q); }
+    t("купол/моб: толпа у купола — вспышек не больше лимита в секунду на зону", z.events.filter((e: any) => e.k === "dome_repel").length === DOME_FLASH_PER_SEC, z.events.length); }
+  reset(); t("купол/моб: босс по умолчанию тоже выталкивается", b && put(b) > R, b && b.type);
+  CITY_CFG.mobBossesOut = false; t("купол/моб: mobBossesOut выкл — босс не выталкивается", b && put(b) < R); t("купол/моб: …а обычный — да", put(m) > R);
+  CITY_CFG.mobsOut = false; t("купол/моб: mobsOut выкл — никого не выталкивает", put(m) < R);
+  reset(); }
+
 // ——— админка ———
 { const v = validatePatch("city", "main", { rTiles: 96, roseBloom: false, roseId: "123" } as any);
   t("админка: rTiles до 160, поля розы", typeof v === "object", v);
+  t("админка: поля моб↔купол принимаются", typeof validatePatch("city", "main", { mobPushPx: 80, mobAggroPadPx: 0, mobBossesOut: false, mobDomeFlash: false } as any) === "object");
+  t("админка: mobPushPx > 400 — отказ", typeof validatePatch("city", "main", { mobPushPx: 401 } as any) === "string");
+  t("админка: mobAggroPadPx < 0 / > 200 — отказ", typeof validatePatch("city", "main", { mobAggroPadPx: -1 } as any) === "string" && typeof validatePatch("city", "main", { mobAggroPadPx: 201 } as any) === "string");
+  t("админка: деспауна/убийства мобов у купола нет (фарм опыта)", typeof validatePatch("city", "main", { mobDespawn: true } as any) === "string" || !("mobDespawn" in (validatePatch("city", "main", { mobDespawn: true } as any) as any)));
   const v2 = validatePatch("city", "main", { rTiles: 500 } as any); t("админка: rTiles > 160 — отказ или кламп", typeof v2 === "string" || (v2 as any).rTiles <= 160, v2); }
 
 // ——— решения пользователя: NPC в городе нет; роза — на траве (клумба снята), фонтан на месте ———
@@ -166,16 +194,23 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const v = validatePatch("pk", "main", { barTo: "#123456", barW: 80, tagText: "УБИЙЦА" } as any); t("админка PK: цвета/ширина/значок принимаются", typeof v !== "string" && (v as any).barTo === "#123456" && (v as any).barW === 80, v);
   t("админка PK: ширина полосы вне 24…140 — отказ", typeof validatePatch("pk", "main", { barW: 999 } as any) === "string"); }
 { // вертикальный забор и колодец (правки поверх карты Историка)
-  const P = mapProps(), col = P.filter((p: any) => p.k === "dm_fence_post"), vp = P.filter((p: any) => p.k === "dm_fence_vpost"), vr = P.filter((p: any) => p.k === "dm_fence_vrail");
+  const P = mapProps(), col = P.filter((p: any) => p.k === "dm_fence_post"), vs = P.filter((p: any) => p.k === "dm_fence_v"), cr = P.filter((p: any) => p.k === "dm_fence_corner");
   const xs = new Map<number, number[]>(); for (const p of col) (xs.get(p.x) || xs.set(p.x, []).get(p.x))!.push(p.y);
   t("забор: колонн узловых столбов (с обрубками вбок) не осталось", [...xs.values()].every((ys) => ys.sort((a, b) => a - b).every((y, i) => !i || y - ys[i - 1] > 34)), [...xs.entries()].slice(0, 3));
-  t("забор: вертикальные пролёты — столбы и жерди", vp.length >= 20 && vr.length >= 30, [vp.length, vr.length]);
-  t("забор: жердь — пролёт 48…80 px (столб через ~64 px)", vr.every((r: any) => r.len >= 48 && r.len <= 80), vr.slice(0, 3));
+  t("забор: временный арт снят (vpost/vrail нет), пролёты dm_fence_v + углы dm_fence_corner", !P.some((p: any) => /^dm_fence_v(post|rail)$/.test(p.k)) && vs.length >= 20 && cr.length >= 8, [vs.length, cr.length]);
   const H = P.filter((p: any) => /^dm_fence(_gate|_broken)?$/.test(p.k)), ends = H.flatMap((h: any) => [h.x - 25, h.x + 27]);
-  t("забор: каждая колонна стыкуется с крайним колышком горизонтального пролёта (x ±1)", [...new Set(vr.map((r: any) => r.x))].every((x) => ends.some((e) => Math.abs(e - x) <= 1)), [...new Set(vr.map((r: any) => r.x))]);
-  const ys = (x: number) => vr.filter((r: any) => r.x === x).map((r: any) => [r.y - r.len, r.y]).sort((a: any, b: any) => a[0] - b[0]);
-  // на одном x бывает две колонны (разные огороды) — между ними разрыв > 100 px; внутри колонны — стык в стык
-  t("забор: жерди колонны без щелей (конец одной — начало следующей)", [...new Set(vr.map((r: any) => r.x))].every((x) => ys(x).every((s: any, i: number, a: any[]) => !i || Math.abs(s[0] - a[i - 1][1]) <= 1 || s[0] - a[i - 1][1] > 100)), [...new Set(vr.map((r: any) => r.x))].map((x) => ys(x)));
+  t("забор: каждая колонна — на крайнем колышке горизонтального пролёта (x ±1)", [...new Set(vs.map((r: any) => r.x))].every((x) => ends.some((e) => Math.abs(e - x) <= 1)), [...new Set(vs.map((r: any) => r.x))]);
+  // README: от нижнего угла вверх по 64 px; северный конец последнего — ровно в верхний угол; щелей нет (перекрытие — только внутрь)
+  const colsV = new Map<number, any[]>(); for (const v of vs) (colsV.get(v.x) || colsV.set(v.x, []).get(v.x))!.push(v);
+  let gapOk = true, endsOk = true; const bad: any[] = [];
+  for (const [x, a] of colsV) { const cs = cr.filter((c: any) => c.x === x).map((c: any) => c.y - 0.5).sort((p: number, q: number) => p - q);
+    for (let i = 0; i + 1 < cs.length; i += 2) { const yT = cs[i], yB = cs[i + 1], sp = a.filter((v: any) => v.y > yT && v.y <= yB).map((v: any) => v.y).sort((p: number, q: number) => q - p);
+      if (sp[0] !== yB || Math.min(...sp) - 64 !== yT) { endsOk = false; bad.push([x, yT, yB, sp]); }
+      for (let k = 1; k < sp.length; k++) if (sp[k - 1] - sp[k] > 64) { gapOk = false; bad.push([x, sp[k - 1], sp[k]]); } } }
+  t("забор: пролёт от нижнего угла, северный конец — в верхнем углу", endsOk, bad.slice(0, 3));
+  t("забор: пролёты без щелей (шаг ≤ 64 px)", gapOk, bad.slice(0, 3));
+  t("забор: левая колонна f:false, правая f:true (жерди внутрь)", [...colsV.entries()].every(([x, a]) => { const f = a[0].f; const pair = [...colsV.keys()].find((x2) => x2 !== x && Math.abs(x2 - x) < 500 && a.some((v: any) => colsV.get(x2)!.some((w: any) => w.y === v.y))); return pair === undefined || (x < pair ? f === false : f === true); }));
+  t("забор: угол рисуется после пролёта с тем же y (y + 0.5)", cr.every((c: any) => c.y % 1 === 0.5));
   t("забор: стена (#) сдвинутых колонн переехала в клетку столбов", WALK_SHIFT.length === 2 && WALK_SHIFT.every((m) => walkCell(m.to, m.j0 + 1) === "#" && walkCell(m.from, m.j0 + 1) !== "#"), WALK_SHIFT);
   t("fenceRuns: одиночный столб не трогается", fenceRuns([{ k: "dm_fence_post", x: 10, y: 10 }]).length === 1);
   const w = P.find((p: any) => p.k === "dm_well" && p.x === WELL_MOVES[0].to[0] && p.y === WELL_MOVES[0].to[1]);
