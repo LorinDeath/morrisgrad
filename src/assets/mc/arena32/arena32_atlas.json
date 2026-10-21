@@ -1,0 +1,5580 @@
+{
+ "version": 1,
+ "name": "arena32",
+ "scale": "1 м = 20 px; тайл 32 px = 1.6 м (TILE_M); scale ключа = 1.0 → размер в мире = frame/tex_px_per_m",
+ "tex_px_per_m": 20,
+ "tile": 32,
+ "tile_m": 1.6,
+ "palette": "рампы props_32/lib32 (как arena_wall_*), контур #1a1626, свет сверху-слева",
+ "glow_note": "glow-лист = та же раскладка, только излучающие пиксели (те же цвета, что в базе), blend additive; свет в базу не запечён",
+ "frames_note": "кадры ключа — подряд в ОДНОЙ строке, начиная с col 0; fps 8 у анимированных, 0 у статичных",
+ "sheets": {
+  "floor": {
+   "image": "arena32_floor.png",
+   "frameW": 32,
+   "frameH": 32,
+   "cols": 8,
+   "rows": 72,
+   "tex_px_per_m": 20
+  },
+  "floor_glow": {
+   "image": "arena32_floor_glow.png",
+   "frameW": 32,
+   "frameH": 32,
+   "cols": 8,
+   "rows": 72,
+   "tex_px_per_m": 20,
+   "blend": "additive"
+  },
+  "wall": {
+   "image": "arena32_wall.png",
+   "frameW": 32,
+   "frameH": 64,
+   "cols": 8,
+   "rows": 40,
+   "tex_px_per_m": 20
+  },
+  "decal": {
+   "image": "arena32_decal.png",
+   "frameW": 64,
+   "frameH": 64,
+   "cols": 8,
+   "rows": 16,
+   "tex_px_per_m": 20
+  },
+  "decal_glow": {
+   "image": "arena32_decal_glow.png",
+   "frameW": 64,
+   "frameH": 64,
+   "cols": 8,
+   "rows": 16,
+   "tex_px_per_m": 20,
+   "blend": "additive"
+  }
+ },
+ "keys": {
+  "arena_floor_crypt_0": {
+   "sheet": "floor",
+   "row": 0,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 0,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    0,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "floor",
+   "variant": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_crypt_1": {
+   "sheet": "floor",
+   "row": 1,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 32,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    32,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    32,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "floor",
+   "variant": 1,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_crypt_2": {
+   "sheet": "floor",
+   "row": 2,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 64,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    64,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    64,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "floor",
+   "variant": 2,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_crypt_3": {
+   "sheet": "floor",
+   "row": 3,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 96,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    96,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    96,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "floor",
+   "variant": 3,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_crypt_4": {
+   "sheet": "floor",
+   "row": 4,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 128,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    128,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    128,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "floor",
+   "variant": 4,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_crypt_5": {
+   "sheet": "floor",
+   "row": 5,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 160,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    160,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    160,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#ff9a3c",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "floor",
+   "variant": 5,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_edge_crypt_n": {
+   "sheet": "floor",
+   "row": 6,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 192,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    192,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    192,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "n",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_s": {
+   "sheet": "floor",
+   "row": 7,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 224,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    224,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    224,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "s",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_w": {
+   "sheet": "floor",
+   "row": 8,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 256,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    256,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    256,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "w",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_e": {
+   "sheet": "floor",
+   "row": 9,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 288,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    288,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    288,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "e",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_out_nw": {
+   "sheet": "floor",
+   "row": 10,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 320,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    320,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    320,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "out_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_out_ne": {
+   "sheet": "floor",
+   "row": 11,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 352,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    352,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    352,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "out_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_out_sw": {
+   "sheet": "floor",
+   "row": 12,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 384,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    384,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    384,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "out_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_out_se": {
+   "sheet": "floor",
+   "row": 13,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 416,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    416,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    416,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "out_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_in_nw": {
+   "sheet": "floor",
+   "row": 14,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 448,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    448,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    448,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "in_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_in_ne": {
+   "sheet": "floor",
+   "row": 15,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 480,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    480,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    480,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "in_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_in_sw": {
+   "sheet": "floor",
+   "row": 16,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 512,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    512,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    512,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "in_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_crypt_in_se": {
+   "sheet": "floor",
+   "row": 17,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 544,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    544,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    544,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "edge",
+   "edge": "in_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_floor_abyss_0": {
+   "sheet": "floor",
+   "row": 18,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 576,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    576,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    576,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "floor",
+   "variant": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abyss_1": {
+   "sheet": "floor",
+   "row": 19,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 608,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    608,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    608,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#c8c0e0",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "floor",
+   "variant": 1,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abyss_2": {
+   "sheet": "floor",
+   "row": 20,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 640,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    640,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    640,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "floor",
+   "variant": 2,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abyss_3": {
+   "sheet": "floor",
+   "row": 21,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 672,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    672,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    672,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#c8c0e0",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "floor",
+   "variant": 3,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abyss_4": {
+   "sheet": "floor",
+   "row": 22,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 704,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    704,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    704,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "floor",
+   "variant": 4,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abyss_5": {
+   "sheet": "floor",
+   "row": 23,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 736,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    736,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    736,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#c8c0e0",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "floor",
+   "variant": 5,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_edge_abyss_n": {
+   "sheet": "floor",
+   "row": 24,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 768,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    768,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    768,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "n",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_s": {
+   "sheet": "floor",
+   "row": 25,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 800,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    800,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    800,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "s",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_w": {
+   "sheet": "floor",
+   "row": 26,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 832,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    832,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    832,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "w",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_e": {
+   "sheet": "floor",
+   "row": 27,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 864,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    864,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    864,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "e",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_out_nw": {
+   "sheet": "floor",
+   "row": 28,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 896,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    896,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    896,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "out_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_out_ne": {
+   "sheet": "floor",
+   "row": 29,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 928,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    928,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    928,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "out_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_out_sw": {
+   "sheet": "floor",
+   "row": 30,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 960,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    960,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    960,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "out_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_out_se": {
+   "sheet": "floor",
+   "row": 31,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 992,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    992,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    992,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "out_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_in_nw": {
+   "sheet": "floor",
+   "row": 32,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1024,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1024,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1024,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "in_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_in_ne": {
+   "sheet": "floor",
+   "row": 33,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1056,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1056,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1056,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "in_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_in_sw": {
+   "sheet": "floor",
+   "row": 34,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1088,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1088,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1088,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "in_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abyss_in_se": {
+   "sheet": "floor",
+   "row": 35,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1120,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1120,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1120,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "edge",
+   "edge": "in_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_floor_mirror_0": {
+   "sheet": "floor",
+   "row": 36,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1152,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1152,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1152,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "floor",
+   "variant": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_mirror_1": {
+   "sheet": "floor",
+   "row": 37,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1184,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1184,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1184,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "floor",
+   "variant": 1,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_mirror_2": {
+   "sheet": "floor",
+   "row": 38,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1216,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1216,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1216,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "floor",
+   "variant": 2,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_mirror_3": {
+   "sheet": "floor",
+   "row": 39,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1248,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1248,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1248,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "floor",
+   "variant": 3,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_mirror_4": {
+   "sheet": "floor",
+   "row": 40,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1280,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1280,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1280,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "floor",
+   "variant": 4,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_mirror_5": {
+   "sheet": "floor",
+   "row": 41,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 1312,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1312,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1312,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#a8d4ec",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "floor",
+   "variant": 5,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_edge_mirror_n": {
+   "sheet": "floor",
+   "row": 42,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1344,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1344,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1344,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "n",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_s": {
+   "sheet": "floor",
+   "row": 43,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1376,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1376,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1376,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "s",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_w": {
+   "sheet": "floor",
+   "row": 44,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1408,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1408,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1408,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "w",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_e": {
+   "sheet": "floor",
+   "row": 45,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1440,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1440,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1440,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "e",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_out_nw": {
+   "sheet": "floor",
+   "row": 46,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1472,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1472,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1472,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "out_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_out_ne": {
+   "sheet": "floor",
+   "row": 47,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1504,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1504,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1504,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "out_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_out_sw": {
+   "sheet": "floor",
+   "row": 48,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1536,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1536,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1536,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "out_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_out_se": {
+   "sheet": "floor",
+   "row": 49,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1568,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1568,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1568,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "out_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_in_nw": {
+   "sheet": "floor",
+   "row": 50,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1600,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1600,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1600,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "in_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_in_ne": {
+   "sheet": "floor",
+   "row": 51,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1632,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1632,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1632,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "in_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_in_sw": {
+   "sheet": "floor",
+   "row": 52,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1664,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1664,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1664,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "in_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_mirror_in_se": {
+   "sheet": "floor",
+   "row": 53,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1696,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1696,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1696,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "edge",
+   "edge": "in_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_floor_abode_0": {
+   "sheet": "floor",
+   "row": 54,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1728,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1728,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1728,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "floor",
+   "variant": 0,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abode_1": {
+   "sheet": "floor",
+   "row": 55,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1760,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1760,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1760,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "floor",
+   "variant": 1,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abode_2": {
+   "sheet": "floor",
+   "row": 56,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1792,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1792,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1792,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "floor",
+   "variant": 2,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abode_3": {
+   "sheet": "floor",
+   "row": 57,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1824,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1824,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1824,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "floor",
+   "variant": 3,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abode_4": {
+   "sheet": "floor",
+   "row": 58,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 1856,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1856,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1856,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#ee7a24",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "floor",
+   "variant": 4,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_floor_abode_5": {
+   "sheet": "floor",
+   "row": 59,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 1888,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1888,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1888,
+    256,
+    32
+   ],
+   "glow": {
+    "sheet": "floor_glow",
+    "color": "#ee7a24",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "floor",
+   "variant": 5,
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null,
+   "seamless": true
+  },
+  "arena_edge_abode_n": {
+   "sheet": "floor",
+   "row": 60,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1920,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1920,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1920,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "n",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_s": {
+   "sheet": "floor",
+   "row": 61,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1952,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1952,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1952,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "s",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_w": {
+   "sheet": "floor",
+   "row": 62,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1984,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    1984,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    1984,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "w",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_e": {
+   "sheet": "floor",
+   "row": 63,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2016,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2016,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2016,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "e",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_out_nw": {
+   "sheet": "floor",
+   "row": 64,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2048,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2048,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2048,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "out_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_out_ne": {
+   "sheet": "floor",
+   "row": 65,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2080,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2080,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2080,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "out_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_out_sw": {
+   "sheet": "floor",
+   "row": 66,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2112,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2112,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2112,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "out_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_out_se": {
+   "sheet": "floor",
+   "row": 67,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2144,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2144,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2144,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "out_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_in_nw": {
+   "sheet": "floor",
+   "row": 68,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2176,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2176,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2176,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "in_nw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_in_ne": {
+   "sheet": "floor",
+   "row": 69,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2208,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2208,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2208,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "in_ne",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_in_sw": {
+   "sheet": "floor",
+   "row": 70,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2240,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2240,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2240,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "in_sw",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_edge_abode_in_se": {
+   "sheet": "floor",
+   "row": 71,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 2272,
+   "w": 32,
+   "h": 32,
+   "rect": [
+    0,
+    2272,
+    32,
+    32
+   ],
+   "strip": [
+    0,
+    2272,
+    32,
+    32
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "edge",
+   "edge": "in_se",
+   "anchor": [
+    0,
+    0
+   ],
+   "size_m": [
+    1.6,
+    1.6
+   ],
+   "height_m": null
+  },
+  "arena_parapet_crypt_h": {
+   "sheet": "wall",
+   "row": 0,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 0,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    0,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    0,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "h",
+   "arms": "WE",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_crypt_v": {
+   "sheet": "wall",
+   "row": 1,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 64,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    64,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    64,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "v",
+   "arms": "NS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_crypt_out_nw": {
+   "sheet": "wall",
+   "row": 2,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 128,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    128,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    128,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "out_nw",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_crypt_out_ne": {
+   "sheet": "wall",
+   "row": 3,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 192,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    192,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    192,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "out_ne",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_crypt_out_sw": {
+   "sheet": "wall",
+   "row": 4,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 256,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    256,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    256,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "out_sw",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_crypt_out_se": {
+   "sheet": "wall",
+   "row": 5,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 320,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    320,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    320,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "out_se",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_crypt_in_nw": {
+   "sheet": "wall",
+   "row": 6,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 384,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    384,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    384,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "in_nw",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_crypt_in_ne": {
+   "sheet": "wall",
+   "row": 7,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 448,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    448,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    448,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "in_ne",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_crypt_in_sw": {
+   "sheet": "wall",
+   "row": 8,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 512,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    512,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    512,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "in_sw",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_crypt_in_se": {
+   "sheet": "wall",
+   "row": 9,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 576,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    576,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    576,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "wall",
+   "piece": "in_se",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abyss_h": {
+   "sheet": "wall",
+   "row": 10,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 640,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    640,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    640,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "h",
+   "arms": "WE",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abyss_v": {
+   "sheet": "wall",
+   "row": 11,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 704,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    704,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    704,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "v",
+   "arms": "NS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abyss_out_nw": {
+   "sheet": "wall",
+   "row": 12,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 768,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    768,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    768,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "out_nw",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abyss_out_ne": {
+   "sheet": "wall",
+   "row": 13,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 832,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    832,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    832,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "out_ne",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abyss_out_sw": {
+   "sheet": "wall",
+   "row": 14,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 896,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    896,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    896,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "out_sw",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abyss_out_se": {
+   "sheet": "wall",
+   "row": 15,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 960,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    960,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    960,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "out_se",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abyss_in_nw": {
+   "sheet": "wall",
+   "row": 16,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1024,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1024,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1024,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "in_nw",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abyss_in_ne": {
+   "sheet": "wall",
+   "row": 17,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1088,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1088,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1088,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "in_ne",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abyss_in_sw": {
+   "sheet": "wall",
+   "row": 18,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1152,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1152,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1152,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "in_sw",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abyss_in_se": {
+   "sheet": "wall",
+   "row": 19,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1216,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1216,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1216,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "wall",
+   "piece": "in_se",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_mirror_h": {
+   "sheet": "wall",
+   "row": 20,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1280,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1280,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1280,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "h",
+   "arms": "WE",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_mirror_v": {
+   "sheet": "wall",
+   "row": 21,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1344,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1344,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1344,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "v",
+   "arms": "NS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_mirror_out_nw": {
+   "sheet": "wall",
+   "row": 22,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1408,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1408,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1408,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "out_nw",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_mirror_out_ne": {
+   "sheet": "wall",
+   "row": 23,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1472,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1472,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1472,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "out_ne",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_mirror_out_sw": {
+   "sheet": "wall",
+   "row": 24,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1536,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1536,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1536,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "out_sw",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_mirror_out_se": {
+   "sheet": "wall",
+   "row": 25,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1600,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1600,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1600,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "out_se",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_mirror_in_nw": {
+   "sheet": "wall",
+   "row": 26,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1664,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1664,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1664,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "in_nw",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_mirror_in_ne": {
+   "sheet": "wall",
+   "row": 27,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1728,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1728,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1728,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "in_ne",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_mirror_in_sw": {
+   "sheet": "wall",
+   "row": 28,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1792,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1792,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1792,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "in_sw",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_mirror_in_se": {
+   "sheet": "wall",
+   "row": 29,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1856,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1856,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1856,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "wall",
+   "piece": "in_se",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abode_h": {
+   "sheet": "wall",
+   "row": 30,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 1920,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1920,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1920,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "h",
+   "arms": "WE",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abode_v": {
+   "sheet": "wall",
+   "row": 31,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 1984,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    1984,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    1984,
+    32,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "v",
+   "arms": "NS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abode_out_nw": {
+   "sheet": "wall",
+   "row": 32,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2048,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2048,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2048,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "out_nw",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abode_out_ne": {
+   "sheet": "wall",
+   "row": 33,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2112,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2112,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2112,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "out_ne",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abode_out_sw": {
+   "sheet": "wall",
+   "row": 34,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2176,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2176,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2176,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "out_sw",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abode_out_se": {
+   "sheet": "wall",
+   "row": 35,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2240,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2240,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2240,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "out_se",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.6
+  },
+  "arena_parapet_abode_in_nw": {
+   "sheet": "wall",
+   "row": 36,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2304,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2304,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2304,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "in_nw",
+   "arms": "WN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abode_in_ne": {
+   "sheet": "wall",
+   "row": 37,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2368,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2368,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2368,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "in_ne",
+   "arms": "EN",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abode_in_sw": {
+   "sheet": "wall",
+   "row": 38,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2432,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2432,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2432,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "in_sw",
+   "arms": "WS",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_parapet_abode_in_se": {
+   "sheet": "wall",
+   "row": 39,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 2496,
+   "w": 32,
+   "h": 64,
+   "rect": [
+    0,
+    2496,
+    32,
+    64
+   ],
+   "strip": [
+    0,
+    2496,
+    256,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "wall",
+   "piece": "in_se",
+   "arms": "ES",
+   "anchor": [
+    0.5,
+    1.0
+   ],
+   "ground_y": 57,
+   "size_m": [
+    1.6,
+    3.2
+   ],
+   "height_m": 2.4
+  },
+  "arena_decal_crypt_crack_0": {
+   "sheet": "decal",
+   "row": 0,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 0,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_crypt_crack_1": {
+   "sheet": "decal",
+   "row": 1,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 64,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    64,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    64,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_crypt_stain_0": {
+   "sheet": "decal",
+   "row": 2,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 128,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    128,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    128,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_crypt_stain_1": {
+   "sheet": "decal",
+   "row": 3,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 192,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    192,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    192,
+    512,
+    64
+   ],
+   "glow": {
+    "sheet": "decal_glow",
+    "color": "#ff9a3c",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "crypt",
+   "tiles": "stone",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abyss_crack_0": {
+   "sheet": "decal",
+   "row": 4,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 256,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    256,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    256,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abyss_crack_1": {
+   "sheet": "decal",
+   "row": 5,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 320,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    320,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    320,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abyss_stain_0": {
+   "sheet": "decal",
+   "row": 6,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 384,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    384,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    384,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abyss_stain_1": {
+   "sheet": "decal",
+   "row": 7,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 448,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    448,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    448,
+    512,
+    64
+   ],
+   "glow": {
+    "sheet": "decal_glow",
+    "color": "#c8c0e0",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abyss",
+   "tiles": "air",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_mirror_crack_0": {
+   "sheet": "decal",
+   "row": 8,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 512,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    512,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    512,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_mirror_crack_1": {
+   "sheet": "decal",
+   "row": 9,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 576,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    576,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    576,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_mirror_stain_0": {
+   "sheet": "decal",
+   "row": 10,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 640,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    640,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    640,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_mirror_stain_1": {
+   "sheet": "decal",
+   "row": 11,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 704,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    704,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    704,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "mirror",
+   "tiles": "ice",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abode_crack_0": {
+   "sheet": "decal",
+   "row": 12,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 768,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    768,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    768,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abode_crack_1": {
+   "sheet": "decal",
+   "row": 13,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 832,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    832,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    832,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abode_stain_0": {
+   "sheet": "decal",
+   "row": 14,
+   "col": 0,
+   "frames": 1,
+   "fps": 0,
+   "loop": true,
+   "x": 0,
+   "y": 896,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    896,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    896,
+    64,
+    64
+   ],
+   "glow": null,
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  },
+  "arena_decal_abode_stain_1": {
+   "sheet": "decal",
+   "row": 15,
+   "col": 0,
+   "frames": 8,
+   "fps": 8,
+   "loop": true,
+   "x": 0,
+   "y": 960,
+   "w": 64,
+   "h": 64,
+   "rect": [
+    0,
+    960,
+    64,
+    64
+   ],
+   "strip": [
+    0,
+    960,
+    512,
+    64
+   ],
+   "glow": {
+    "sheet": "decal_glow",
+    "color": "#ee7a24",
+    "blend": "additive"
+   },
+   "tex_px_per_m": 20,
+   "scale": 1.0,
+   "theme": "abode",
+   "tiles": "fire",
+   "role": "decal",
+   "anchor": [
+    0.5,
+    0.5
+   ],
+   "size_m": [
+    3.2,
+    3.2
+   ],
+   "height_m": null,
+   "kind": "ground_decal"
+  }
+ },
+ "themes": {
+  "crypt": {
+   "tiles": "stone",
+   "accent": "#c59b27",
+   "floor": [
+    "arena_floor_crypt_0",
+    "arena_floor_crypt_1",
+    "arena_floor_crypt_2",
+    "arena_floor_crypt_3",
+    "arena_floor_crypt_4",
+    "arena_floor_crypt_5"
+   ],
+   "edge": {
+    "n": "arena_edge_crypt_n",
+    "s": "arena_edge_crypt_s",
+    "w": "arena_edge_crypt_w",
+    "e": "arena_edge_crypt_e",
+    "out_nw": "arena_edge_crypt_out_nw",
+    "out_ne": "arena_edge_crypt_out_ne",
+    "out_sw": "arena_edge_crypt_out_sw",
+    "out_se": "arena_edge_crypt_out_se",
+    "in_nw": "arena_edge_crypt_in_nw",
+    "in_ne": "arena_edge_crypt_in_ne",
+    "in_sw": "arena_edge_crypt_in_sw",
+    "in_se": "arena_edge_crypt_in_se"
+   },
+   "wall": {
+    "h": "arena_parapet_crypt_h",
+    "v": "arena_parapet_crypt_v",
+    "out_nw": "arena_parapet_crypt_out_nw",
+    "out_ne": "arena_parapet_crypt_out_ne",
+    "out_sw": "arena_parapet_crypt_out_sw",
+    "out_se": "arena_parapet_crypt_out_se",
+    "in_nw": "arena_parapet_crypt_in_nw",
+    "in_ne": "arena_parapet_crypt_in_ne",
+    "in_sw": "arena_parapet_crypt_in_sw",
+    "in_se": "arena_parapet_crypt_in_se"
+   },
+   "decal": [
+    "arena_decal_crypt_crack_0",
+    "arena_decal_crypt_crack_1",
+    "arena_decal_crypt_stain_0",
+    "arena_decal_crypt_stain_1"
+   ],
+   "props32": [
+    "arena_wall_crypt",
+    "arena_column_crypt",
+    "arena_sigil",
+    "arena_rubble_crypt",
+    "arena_tombstone_crypt",
+    "arena_candles",
+    "arena_bones",
+    "arena_tuft_crypt"
+   ]
+  },
+  "abyss": {
+   "tiles": "air",
+   "accent": "#22d3ee",
+   "floor": [
+    "arena_floor_abyss_0",
+    "arena_floor_abyss_1",
+    "arena_floor_abyss_2",
+    "arena_floor_abyss_3",
+    "arena_floor_abyss_4",
+    "arena_floor_abyss_5"
+   ],
+   "edge": {
+    "n": "arena_edge_abyss_n",
+    "s": "arena_edge_abyss_s",
+    "w": "arena_edge_abyss_w",
+    "e": "arena_edge_abyss_e",
+    "out_nw": "arena_edge_abyss_out_nw",
+    "out_ne": "arena_edge_abyss_out_ne",
+    "out_sw": "arena_edge_abyss_out_sw",
+    "out_se": "arena_edge_abyss_out_se",
+    "in_nw": "arena_edge_abyss_in_nw",
+    "in_ne": "arena_edge_abyss_in_ne",
+    "in_sw": "arena_edge_abyss_in_sw",
+    "in_se": "arena_edge_abyss_in_se"
+   },
+   "wall": {
+    "h": "arena_parapet_abyss_h",
+    "v": "arena_parapet_abyss_v",
+    "out_nw": "arena_parapet_abyss_out_nw",
+    "out_ne": "arena_parapet_abyss_out_ne",
+    "out_sw": "arena_parapet_abyss_out_sw",
+    "out_se": "arena_parapet_abyss_out_se",
+    "in_nw": "arena_parapet_abyss_in_nw",
+    "in_ne": "arena_parapet_abyss_in_ne",
+    "in_sw": "arena_parapet_abyss_in_sw",
+    "in_se": "arena_parapet_abyss_in_se"
+   },
+   "decal": [
+    "arena_decal_abyss_crack_0",
+    "arena_decal_abyss_crack_1",
+    "arena_decal_abyss_stain_0",
+    "arena_decal_abyss_stain_1"
+   ],
+   "props32": [
+    "arena_wall_abyss",
+    "arena_column_abyss",
+    "arena_sigil",
+    "arena_rubble_abyss",
+    "arena_crystal_abyss",
+    "arena_stardot",
+    "arena_tuft_abyss"
+   ]
+  },
+  "mirror": {
+   "tiles": "ice",
+   "accent": "#93c5fd",
+   "floor": [
+    "arena_floor_mirror_0",
+    "arena_floor_mirror_1",
+    "arena_floor_mirror_2",
+    "arena_floor_mirror_3",
+    "arena_floor_mirror_4",
+    "arena_floor_mirror_5"
+   ],
+   "edge": {
+    "n": "arena_edge_mirror_n",
+    "s": "arena_edge_mirror_s",
+    "w": "arena_edge_mirror_w",
+    "e": "arena_edge_mirror_e",
+    "out_nw": "arena_edge_mirror_out_nw",
+    "out_ne": "arena_edge_mirror_out_ne",
+    "out_sw": "arena_edge_mirror_out_sw",
+    "out_se": "arena_edge_mirror_out_se",
+    "in_nw": "arena_edge_mirror_in_nw",
+    "in_ne": "arena_edge_mirror_in_ne",
+    "in_sw": "arena_edge_mirror_in_sw",
+    "in_se": "arena_edge_mirror_in_se"
+   },
+   "wall": {
+    "h": "arena_parapet_mirror_h",
+    "v": "arena_parapet_mirror_v",
+    "out_nw": "arena_parapet_mirror_out_nw",
+    "out_ne": "arena_parapet_mirror_out_ne",
+    "out_sw": "arena_parapet_mirror_out_sw",
+    "out_se": "arena_parapet_mirror_out_se",
+    "in_nw": "arena_parapet_mirror_in_nw",
+    "in_ne": "arena_parapet_mirror_in_ne",
+    "in_sw": "arena_parapet_mirror_in_sw",
+    "in_se": "arena_parapet_mirror_in_se"
+   },
+   "decal": [
+    "arena_decal_mirror_crack_0",
+    "arena_decal_mirror_crack_1",
+    "arena_decal_mirror_stain_0",
+    "arena_decal_mirror_stain_1"
+   ],
+   "props32": [
+    "arena_wall_mirror",
+    "arena_column_mirror",
+    "arena_sigil",
+    "arena_rubble_mirror",
+    "arena_crystal_mirror",
+    "arena_tombstone_crypt",
+    "arena_candles",
+    "arena_bones",
+    "arena_tuft_crypt"
+   ]
+  },
+  "abode": {
+   "tiles": "fire",
+   "accent": "#ff6a1a",
+   "floor": [
+    "arena_floor_abode_0",
+    "arena_floor_abode_1",
+    "arena_floor_abode_2",
+    "arena_floor_abode_3",
+    "arena_floor_abode_4",
+    "arena_floor_abode_5"
+   ],
+   "edge": {
+    "n": "arena_edge_abode_n",
+    "s": "arena_edge_abode_s",
+    "w": "arena_edge_abode_w",
+    "e": "arena_edge_abode_e",
+    "out_nw": "arena_edge_abode_out_nw",
+    "out_ne": "arena_edge_abode_out_ne",
+    "out_sw": "arena_edge_abode_out_sw",
+    "out_se": "arena_edge_abode_out_se",
+    "in_nw": "arena_edge_abode_in_nw",
+    "in_ne": "arena_edge_abode_in_ne",
+    "in_sw": "arena_edge_abode_in_sw",
+    "in_se": "arena_edge_abode_in_se"
+   },
+   "wall": {
+    "h": "arena_parapet_abode_h",
+    "v": "arena_parapet_abode_v",
+    "out_nw": "arena_parapet_abode_out_nw",
+    "out_ne": "arena_parapet_abode_out_ne",
+    "out_sw": "arena_parapet_abode_out_sw",
+    "out_se": "arena_parapet_abode_out_se",
+    "in_nw": "arena_parapet_abode_in_nw",
+    "in_ne": "arena_parapet_abode_in_ne",
+    "in_sw": "arena_parapet_abode_in_sw",
+    "in_se": "arena_parapet_abode_in_se"
+   },
+   "decal": [
+    "arena_decal_abode_crack_0",
+    "arena_decal_abode_crack_1",
+    "arena_decal_abode_stain_0",
+    "arena_decal_abode_stain_1"
+   ],
+   "props32": [
+    "arena_wall_abode",
+    "arena_column_abode",
+    "arena_sigil",
+    "heart_of_abode",
+    "arena_rubble_abode",
+    "arena_tombstone_abode",
+    "arena_candles_abode",
+    "arena_bones",
+    "arena_tuft_crypt"
+   ]
+  }
+ },
+ "theme_by_tiles": {
+  "stone": "crypt",
+  "air": "abyss",
+  "ice": "mirror",
+  "fire": "abode"
+ },
+ "autotile": {
+  "note": "M[y][x] = клетка пола арены. Для клетки M: n,s,w,e = соседи НЕ пол; nw,ne,sw,se = диагонали НЕ пол.",
+  "order": [
+   "n&w→out_nw",
+   "n&e→out_ne",
+   "s&w→out_sw",
+   "s&e→out_se",
+   "n→n",
+   "s→s",
+   "w→w",
+   "e→e",
+   "nw→in_nw",
+   "ne→in_ne",
+   "sw→in_sw",
+   "se→in_se",
+   "иначе→floor 0..5"
+  ],
+  "wall_piece": {
+   "n": "h",
+   "s": "h",
+   "w": "v",
+   "e": "v",
+   "out_nw": "out_nw",
+   "out_ne": "out_ne",
+   "out_sw": "out_sw",
+   "out_se": "out_se",
+   "in_nw": "in_nw",
+   "in_ne": "in_ne",
+   "in_sw": "in_sw",
+   "in_se": "in_se"
+  },
+  "wall_place": "парапет ставится на ту же клетку кромки: левый верх ячейки 32×64 = (x*32, y*32-32); рисовать по возрастанию y (сверху вниз)",
+  "floor_weights": "варианты 0..5: 3,2,2,1.5,2,1.5; анимированные (со свечением) — 0.5, чтобы руны/жилы не рябили"
+ }
+}
