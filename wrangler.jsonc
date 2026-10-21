@@ -8,7 +8,9 @@
   ],
   // 1. Добавляем переменные здесь, чтобы они не стирались при деплое
   "vars": {
-    "PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bWlnaHR5LXN0YXJsaW5nLTY4LmNsZXJrLmFjY291bnRzLmRldiQ"
+    "PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_bWlnaHR5LXN0YXJsaW5nLTY4LmNsZXJrLmFjY291bnRzLmRldiQ",
+    // CSP со script-src (src/lib/csp.ts): "report-only" — только отчёты (по умолчанию), "enforce" — блокировать, "off" — выключить
+    "CSP_MODE": "report-only"
   },
 
   "kv_namespaces": [

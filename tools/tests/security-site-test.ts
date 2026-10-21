@@ -3,6 +3,7 @@ import { isCrossSiteWrite, withSecurityHeaders, SECURITY_HEADERS, siteNickProble
 import { readFileSync } from "fs";
 import { cleanInventoryItem } from "../../src/lib/inventoryItem";
 import { avatarsBase, artBase, avatarKeyFromUrl, newAvatarKey, R2DEV_AVATARS } from "../../src/lib/media";
+import { cspMode, cspPolicy, addNonce, parseCspReports, newNonce } from "../../src/lib/csp";
 import { rateLimit, guardAnonWrite, checkTurnstile, memLimit, _resetMem, LIMITS } from "../../src/lib/antiabuse";
 
 let fails = 0, passes = 0;
@@ -89,6 +90,23 @@ for (const bad of ["<svg onload=alert()>", 'a"b', "a'b", "x&y", "a<b", "tab\ther
   ok(avatarKeyFromUrl({}, "https://evil.example/x") === null && avatarKeyFromUrl({}, R2DEV_AVATARS + "/../x") === null, "чужой адрес/.. — не наш ключ");
   const prof = readFileSync("src/pages/profile.astro", "utf8");
   ok(!/\$\{userId\}-\$\{Date\.now\(\)\}/.test(prof) && /newAvatarKey\(avatarMime\)/.test(prof), "профиль: ключ аватара не содержит id");
+}
+
+// --- CSP со script-src ---
+{
+  ok(cspMode({}) === "report-only" && cspMode({ CSP_MODE: "enforce" }) === "enforce" && cspMode({ CSP_MODE: "x" }) === "report-only", "CSP: по умолчанию report-only, enforce по переменной");
+  const n = newNonce(); ok(/^[A-Za-z0-9+/]{20,}$/.test(n) && n !== newNonce(), "nonce случайный");
+  const pol = cspPolicy("N");
+  ok(/script-src 'nonce-N' 'strict-dynamic'/.test(pol) && /script-src-attr 'none'/.test(pol) && /object-src 'none'/.test(pol) && /frame-ancestors 'self'/.test(pol) && /report-uri \/api\/csp-report/.test(pol), "политика: nonce + strict-dynamic, без встроенных обработчиков");
+  const h = addNonce('<script>a()</script><script type="module" src="/x.js"></script><SCRIPT>b</SCRIPT><script nonce="old">c</script><scripts>', "N");
+  ok(h === '<script nonce="N">a()</script><script nonce="N" type="module" src="/x.js"></script><SCRIPT nonce="N">b</SCRIPT><script nonce="old">c</script><scripts>', "nonce ставится всем <script>, существующий не трогается");
+  const r1 = parseCspReports({ "csp-report": { "document-uri": "https://morrisgrad.com/forum?token=SECRET", "blocked-uri": "https://evil.example/a.js?x=1", "effective-directive": "script-src-elem", "source-file": "https://morrisgrad.com/x.js", "line-number": 3 } });
+  ok(r1.length === 1 && r1[0].page === "https://morrisgrad.com/forum" && r1[0].blocked === "https://evil.example/a.js" && r1[0].dir === "script-src-elem" && !JSON.stringify(r1).includes("SECRET"), "отчёт: без ?query (токены), директива");
+  const r2 = parseCspReports([{ type: "csp-violation", body: { documentURL: "https://morrisgrad.com/", blockedURL: "inline", effectiveDirective: "<x>" } }]);
+  ok(r2.length === 1 && r2[0].dir === "?" , "отчёт reports+json: мусор в директиве отбрасывается");
+  ok(parseCspReports("x").length === 0 && parseCspReports(null).length === 0, "мусор — пусто");
+  const mw = readFileSync("src/middleware.ts", "utf8"); ok(/pathname !== "\/api\/csp-report" && isCrossSiteWrite/.test(mw), "приёмник отчётов не режется CSRF-проверкой (браузер шлёт без Origin)");
+  ok(/"CSP_MODE": "report-only"/.test(readFileSync("wrangler.jsonc", "utf8")), "wrangler.jsonc: CSP_MODE report-only");
 }
 
 console.log(`security-site-test: ${passes} PASS, ${fails} FAIL`);
