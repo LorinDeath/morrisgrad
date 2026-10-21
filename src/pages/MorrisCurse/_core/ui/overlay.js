@@ -53,7 +53,7 @@ export class Overlay {
     let l = this.labels.get(key);
     if (!l) {
       const el = document.createElement('div');
-      el.className = 'mc3d-label';
+      el.className = 'mc3d-label'; el.dataset.key = key; // ключ (me / p_<sid>) — для плейтестов
       this.layer.appendChild(el);
       l = { el, html: '', color: '' };
       this.labels.set(key, l);

@@ -1708,7 +1708,8 @@ export class MetaService {
     if (o.mobKills) for (let i = 0; i < Number(o.mobKills); i++) this.killLog.note(ms.pkey, "m", false, now - i);
     if (o.pvpKills) for (let i = 0; i < Number(o.pvpKills); i++) this.killLog.note(ms.pkey, "p", false, now - i);
     if (o.domeKill) { const ud = this.underDome(session.x, session.y); this.killLog.note(ms.pkey, "m", ud, now); this.killLog.note(ms.pkey, "p", ud, now); } // плейтест: тот же путь, что onMobKilled/onPvpKill
-    if (o.clearKills) { this.killLog.m.delete(ms.pkey); this.killLog.p.delete(ms.pkey); delete a.klp; }
+    if (o.clearKills) { this.killLog.m.delete(ms.pkey); this.killLog.p.delete(ms.pkey); delete a.klp; this.pkSend(ws, ms, now); }
+    if (o.mobKills || o.pvpKills) this.pkSend(ws, ms, now); // клиенту — новый статус убийцы (значок PK)
     if (Array.isArray(o.npcOn)) { (CITY_CFG.npc as any[]).forEach((sl, i) => (sl.on = o.npcOn.includes(i))); syncCityNpcs(NPCS as any); this.cityVer++; }
     if (o.posNow) this.posNote(session, ms, true);
     const k = this.killerOf(ms, now);

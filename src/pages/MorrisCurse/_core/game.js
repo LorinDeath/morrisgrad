@@ -8,6 +8,7 @@ import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
 import { DayNight, lightOf, lampHash, lampGlowK, nightGlow } from './engine/dayNight.js';
 import { setEmitterCamera } from './engine/lightEmitter.js';
+import { pkTagHtml, pkTrackOf, pkMarked, pkUi, setPkUi } from './ui/pkBar.js';
 import { CityView } from './hub/cityView.js';
 import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
 import { CityHud } from './ui/cityHud.js';
@@ -361,7 +362,7 @@ async function boot(canvasId, username, userId, api) {
   // настройки города с сервера (админка): центр/радиус — от них узлы ресурсов (за край купола) и места NPC
   let citySig = '';
   function citySync(c) {
-    cityView.apply(c);
+    cityView.apply(c); setPkUi(c.pkUi); // вид PK (полоса, значок) — из админки
     if (zone.bmv) { zone.bmv.roseAt = c.rose ? { [c.rose.id]: [c.rose.x, c.rose.y] } : {}; const r = c.rose && zone.bmv.roses.get(Number(c.rose.id)); if (r) { r.x = c.rose.x; r.y = c.rose.y; } } // роза города — в точке карты (только отрисовка)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
     for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '' });
@@ -1717,7 +1718,8 @@ async function boot(canvasId, username, userId, api) {
     if (p) {
       const zm = zone.me;
       const hpBar = player.stats.classId && zm && zm.maxHp && zm.hp < zm.maxHp ? `<div class="mc3d-mini-hp"><i style="width:${Math.max(0, Math.round((zm.hp / zm.maxHp) * 100))}%"></i></div>` : '';
-      overlay.label('me', p.x, p.y, `${roleTag(myRole)}${cityHud.pk ? '<span class="mc3d-pk">⚔</span>' : ''}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}`, cityHud.pk && world === 'arinar' ? cityHud.color : '#ffd700');
+      const myPk = world === 'arinar' && pkMarked(cityHud.pk, cityHud.killer), myBar = world === 'arinar' ? cityHud.track.html() : ''; // PK → АДМИН → имя; полоса отсчёта PK под именем
+      overlay.label('me', p.x, p.y, `${myPk ? pkTagHtml() : ''}${roleTag(myRole)}${esc(username)}<small>${esc(displayClassName(player.stats.classId))}${meta.hero ? ` · ур. ${meta.hero.lvl}` : ''}${player.shield ? ` · 🛡️${player.shield}` : ''}</small>${hpBar}${myBar}`, myPk ? pkUi().color || cityHud.color : '#ffd700');
       overlay.placeBubble('__me', p.x, p.y - 26);
     }
     visibleOthers.forEach((o) => {
@@ -1727,8 +1729,9 @@ async function boot(canvasId, username, userId, api) {
       // союзник по отряду — фиолетовая полоска ОЗ (данные отряда); остальные игроки — без изменений
       const pm = party.has(o.id) ? party.state.members.find((m) => m.sid === o.id) : null;
       const pBar = pm && pm.maxHp ? `<div class="mc3d-mini-hp party"><i style="width:${Math.max(0, Math.round((pm.hp / pm.maxHp) * 100))}%"></i></div>` : '';
-      const opk = world === 'arinar' && o.stats?.pk; // PK-режим — красное имя (видят все)
-      overlay.label('p_' + o.id, q.x, q.y, `${roleTag(o.role)}${opk ? '<span class="mc3d-pk">⚔</span>' : ''}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}`, opk ? cityHud.color : o.color);
+      const opk = world === 'arinar' && pkMarked(o.stats?.pk, o.stats?.pkK); // PK-режим или убийца — значок PK и красное имя (видят все)
+      const oBar = world === 'arinar' ? pkTrackOf(o.id, o.stats).html() : '';
+      overlay.label('p_' + o.id, q.x, q.y, `${opk ? pkTagHtml() : ''}${roleTag(o.role)}${esc(o.username)}<small>${esc(displayClassName(o.stats?.classId))}${o.stats?.lvl ? ` · ур. ${o.stats.lvl}` : ''}</small>${pBar}${oBar}`, opk ? pkUi().color || cityHud.color : o.color);
       overlay.placeBubble(o.id, q.x, q.y - 26);
     });
     [[boss, 'boss_keyt', 'Кейт', '#f472b6'], [dar, 'boss_dar', 'Дар', '#fb923c']].forEach(([b, id, nm, col]) => {
@@ -2011,8 +2014,9 @@ async function boot(canvasId, username, userId, api) {
       cityLamps: () => (cityView.glows || []).filter((g) => g.lamp).map((g) => +dayNight.lamp(g.h).toFixed(3)), // сила каждого огня города сейчас // отладка маски света (плейтест)
       dn: (o = {}) => api.dn(o), // день/ночь для плейтеста (то же, что api.dn)
       cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
+      myId: () => myId,
       blight: () => { const b = cityView.blightG; return b ? { x: b.position.x, z: b.position.z, vis: b.visible, inScene: !!b.parent, n: b.children.length, rose: cityView.cfg?.rose } : { none: true, rose: cityView.cfg?.rose, sig: cityView.blightSig }; },
-      city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),
+      city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc-pk-tag, .mc-pkbar')).map((l) => { const tag = l.querySelector('.mc-pk-tag'), bar = l.querySelector('.mc-pkbar'), r = l.querySelector('.mc-role:not(.mc-pk-tag)'); const kids = [...l.querySelectorAll('.mc-role')].map((e) => e.textContent); return { key: l.dataset.key || '', text: l.textContent.slice(0, 40), color: l.style.color, tag: tag?.textContent || null, tagBg: tag?.style.background || null, order: kids, bar: bar ? { t: bar.dataset.t, p: Number(bar.dataset.p || 0), col: bar.querySelector('i')?.style.background || '', w: bar.querySelector('i')?.style.width || '' } : null }; }) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),

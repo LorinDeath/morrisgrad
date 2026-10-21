@@ -237,7 +237,7 @@ class Atmosphere {
     this.lights.forEach((l, i) => {
       const s = near[i]?.[1];
       if (!s || this.qLevel >= 2) { l.intensity = 0; return; }
-      const W = emitterWorld(s.x, 0, s.z, s.off || [0, s.h], -0.4, this._w3 ||= [0, 0, 0]); l.position.set(W[0], W[1], W[2]); // свет — из огня (чуть к камере) l.color.copy(s.col); l.intensity = 1.4 * s.k * (s.f || 1); l.distance = s.r * 3;
+      const W = emitterWorld(s.x, 0, s.z, s.off || [0, s.h], -0.4, this._w3 ||= [0, 0, 0]); l.position.set(W[0], W[1], W[2]); /* свет — из огня (чуть к камере) */ l.color.copy(s.col); l.intensity = 1.4 * s.k * (s.f || 1); l.distance = s.r * 3;
     });
     // --- частицы
     this.updateParticles(dt, M.parts, fx, fz);
