@@ -7,7 +7,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "server:deploy": "cd server && npx wrangler deploy",
+    "server:deploy": "cd server && npx wrangler deploy --config wrangler.json",
     "astro": "astro"
   },
   "dependencies": {
