@@ -2,6 +2,7 @@
 // (обе координаты < ROOM_LIMIT). Сервер переносит героя через дверь и шлёт city_room {id, room, ox, oy, name};
 // здесь только отрисовка по данным арта (interiors_dark.json: tiles/overlay → запекаем в одну текстуру пола,
 // props → вертикальные спрайты из props_dark_*). Никаких пиксельных сдвигов в коде — новая поставка арта = пересинк.
+import { pixTex, pixMat } from '../engine/pixColor.js';
 import { loadAtlasTexture } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
 import { ROOM_LIMIT, ROOM_STEP } from '../../../../../server/meta/cityBuild.ts';
@@ -52,7 +53,8 @@ export class CityRoomView {
     (R.tiles || []).forEach((row, y) => row.forEach((n, x) => put(n, x, y)));
     for (const o of R.overlay || []) put(o.name, o.tile[0], o.tile[1]);
     const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry((w * T) / PX, (h * T) / PX), new THREE.MeshBasicMaterial({ map: tex }));
+    pixTex(THREE, tex); // sRGB-канвас (engine/pixColor.js)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry((w * T) / PX, (h * T) / PX), pixMat(new THREE.MeshBasicMaterial({ map: tex })));
     floor.rotation.x = -Math.PI / 2; floor.position.set(toX(d.ox + (w * T) / 2), 0.01, toZ(d.oy + (h * T) / 2)); floor.renderOrder = 0; floor.name = 'city-room-floor';
     g.add(floor);
     // пропсы: спрайт к камере, якорь — низ по центру (anchor из атласа), размер — size_m
@@ -61,7 +63,7 @@ export class CityRoomView {
       const pc = document.createElement('canvas'); pc.width = k.w; pc.height = k.h; const pctx = pc.getContext('2d'); pctx.imageSmoothingEnabled = false;
       pctx.drawImage(im, k.x, k.y, k.w, k.h, 0, 0, k.w, k.h);
       const t = new THREE.CanvasTexture(pc); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.04 }));
+      const s = new THREE.Sprite(pixMat(new THREE.SpriteMaterial({ map: pixTex(THREE, t), transparent: true, alphaTest: 0.04 })));
       const [sw, sh] = k.size_m || [k.w / 10, k.h / 10], an = k.anchor || [0.5, 1];
       s.center.set(an[0], 1 - an[1]); s.scale.set(sw, sh, 1);
       const ax = d.ox + (p.anchor_px ? p.anchor_px[0] : (p.tile[0] + (p.w_tiles || 1) / 2) * T), ay = d.oy + (p.anchor_px ? p.anchor_px[1] : (p.tile[1] + 1) * T);

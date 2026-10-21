@@ -5,6 +5,8 @@
 // Купол: 526 блоков обода 32×32 арт-px (1 арт-px = 1 px мира = 1/20 м), 16 кадров 8 fps + аддитивный glow; задняя дуга — 84 статичных блока;
 // заливка — отдельный меш opacity 0.02 (ProjBatch отбрасывает a < 0.04). Позиция блока = якорь + world_offset_m (камера: right/up/forward
 // из city_dome.json) — НЕ сдвиг по мировому Y, как FxAtlas.draw (квад к камере ужимается на cos p и блоки разъезжаются).
+import { LIGHT, pixTex, pixMat, setDisplayRGB, setDisplayHex } from '../engine/pixColor.js';
+import { GRADE } from '../engine/atmosphere.js';
 import { lightOf, lampHash, FIRE, flickerOf, LT } from '../engine/dayNight.js';
 import { emitterOffsetM, emitterSpotsM, emitterWorld, emitterVersion } from '../engine/lightEmitter.js';
 import { ProjBatch } from '../engine/projBatch.js';
@@ -65,7 +67,8 @@ export class CityView {
       if (SHELL) {
         shell.repeat.set(1 / SHELL.cols, 1 / SHELL.rows);
         const [w, h] = SHELL.size_m;
-        this.shellMat = new THREE.MeshBasicMaterial({ map: shell, transparent: true, opacity: this.shellA, depthTest: true, depthWrite: false, fog: false });
+        pixTex(THREE, shell); shell.needsUpdate = true; // sRGB-лист (engine/pixColor.js): без двойного кодирования
+        this.shellMat = pixMat(new THREE.MeshBasicMaterial({ map: shell, transparent: true, opacity: this.shellA, depthTest: true, depthWrite: false, fog: false }));
         this.shell = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.shellMat); this.shell.renderOrder = 5; this.shell.name = 'city-dome-shell';
         this.shell.rotation.x = Math.atan2(DOME.cam.up[2], DOME.cam.up[1]); // плоскость: «вверх» = cam.up, нормаль = −forward (к камере)
         this.group.add(this.shell);
@@ -98,6 +101,7 @@ export class CityView {
     const THREE = this.THREE, c = this.cfg; if (!c) return;
     const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } if (o.isMesh) o.geometry?.dispose?.(); }); } // у Sprite геометрия общая (three) — только у мешей (пролёты забора)
+    this.toneMats = []; this.toneSig = '';
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
     const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; this.lights = []; this.halos = [];
     // ореол огня: мягкое тёплое пятно (за спрайтом), в точке излучения (engine/lightEmitter.js — центроид _glow)
@@ -107,15 +111,16 @@ export class CityView {
     // огонь: q = [x0, z0, цвет, радиус пятна м, сила, -, хэш, смещение огня [вправо, вверх] м, живой огонь, мерцание] (формат маски dayNight)
     const addLight = (x0, z0, col, rM, k, off, fire, haloM, kind = fire ? 'fire' : 'lamp') => {
       const h = lampHash(x0, z0); this.lights.push([x0, z0, col, rM, k, 0, h, off, fire, 1, kind]);
-      const m = new THREE.SpriteMaterial({ map: haloTex, color: col, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, fog: false, opacity: 0 });
+      const m = pixMat(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending, fog: false, opacity: 0 })); setDisplayHex(m.color, col); // экранный цвет (pixColor)
       const sp = new THREE.Sprite(m); sp.scale.set(haloM, haloM, 1); sp.renderOrder = 2; gg.add(sp);
       this.glows.push({ m, lamp: true, h, halo: true, fire, kind, x0, z0, off, sp, haloM, k });
     }; // свечение (_glow) отдельно: ночью рисуется ещё раз поверх маски темноты (game.js)
     const L = (src) => (this._tex ||= {})[src] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
     const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0, lamp = false, kind = 'lamp') => {
       const mk = (tp, add) => tp.then((t0) => {
-        const t = t0.clone(); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / cols, 1 / rows); t.offset.set((col + (flip ? 1 : 0)) / cols, 1 - (row + 1) / rows);
-        const m = new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: add ? 0 : 0.04, depthWrite: !add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false });
+        const t = pixTex(THREE, t0.clone()); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / cols, 1 / rows); t.offset.set((col + (flip ? 1 : 0)) / cols, 1 - (row + 1) / rows);
+        const m = pixMat(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: add ? 0 : 0.04, depthWrite: !add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false }));
+        (this.toneMats ||= []).push({ m, add }); this.toneSig = '';
         const sp = new THREE.Sprite(m); sp.center.set(an[0], 1 - an[1]); sp.scale.set(wM, hM * SIN_P, 1); sp.position.set(toX(x), add ? 0.02 : 0, toZ(y) + (add ? 0.01 : 0)); sp.renderOrder = add ? 4 : 3;
         (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, kind, h: lampHash(toX(x), toZ(y)) }); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
       });
@@ -138,8 +143,8 @@ export class CityView {
     //   северной точке (y−64); высота кадра 4.8 м на земле = 4.8·sin(тангажа) на экране — как у билборда (× SIN_P). Глубина — как у земли:
     //   герой у северной половины не перекрывается пролётом (README, риск 1)
     const fenceSpan = (base, S, k, wM, hM, x, y, flip) => L(base).then((t0) => {
-      const t = t0.clone(); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / S.cols, 1 / S.rows); t.offset.set((k.col + (flip ? 1 : 0)) / S.cols, 1 - (k.row + 1) / S.rows);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(wM, hM), new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.04, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      const t = pixTex(THREE, t0.clone()); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / S.cols, 1 / S.rows); t.offset.set((k.col + (flip ? 1 : 0)) / S.cols, 1 - (k.row + 1) / S.rows);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(wM, hM), pixMat(new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.04, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }))); // light-nowashout: sRGB-текстура, без тонмаппинга
       m.rotation.x = -Math.PI / 2; m.position.set(toX(x), 0.03, toZ(y) - hM / 2); m.renderOrder = 3; m.name = 'dm_fence_v'; g.add(m); });
     for (const p of mapProps(c.rTiles)) {
       const k = PROPS.keys?.[p.k]; if (!k) continue; const S = PROPS.sheets[k.sheet]; if (!S) continue;
@@ -184,11 +189,11 @@ export class CityView {
     const sc = document.createElement('canvas'); sc.width = W; sc.height = H; const sg = sc.getContext('2d');
     for (let i = 0; i < 6; i++) { let x, y; do { x = (rnd() * W) | 0; y = (rnd() * H) | 0; } while (field(x, y) < 0.5); sparks.push([x, y]); }
     for (const [x, y] of sparks) { sg.fillStyle = rnd() < 0.5 ? '#c04cf0' : '#ff6ad8'; sg.fillRect(x, y, 1, 1); if (rnd() < 0.35) { sg.fillStyle = 'rgba(176,60,220,0.45)'; sg.fillRect(x - 1, y, 3, 1); sg.fillRect(x, y - 1, 1, 3); } }
-    const tex = (c) => { const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
+    const tex = (c) => { const t = pixTex(THREE, new THREE.CanvasTexture(c)); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; }; // sRGB-канвас (pixColor)
     const wM = (W * 2) / PX, hM = (H * 2) / PX, G = new THREE.Group(); G.name = 'city-rose-blight'; this.blightG = G;
     const geo = new THREE.PlaneGeometry(wM, hM); geo.rotateX(-Math.PI / 2);
-    const base = new THREE.Mesh(geo, (this.blightBase = new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false }))); base.renderOrder = 1;
-    this.blightSpark = new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 });
+    const base = new THREE.Mesh(geo, (this.blightBase = pixMat(new THREE.MeshBasicMaterial({ map: tex(cv), transparent: true, depthWrite: false, fog: false })))); base.renderOrder = 1;
+    this.blightSpark = pixMat(new THREE.MeshBasicMaterial({ map: tex(sc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.6 })); // экранные цвета (pixColor), как у остального города
     const sp = new THREE.Mesh(geo, this.blightSpark); sp.renderOrder = 2; sp.position.y = 0.004;
     G.add(base, sp); G.position.set(toX(r.x), 0.013, toZ(r.y - 6)); this.group.add(G); // сердце пятна — у основания стебля
   }
@@ -225,6 +230,9 @@ export class CityView {
   update(dt, view) {
     if (this.mapSig && this.emV !== emitterVersion()) { this.mapSig = null; this.buildMap(); } // админка: точки огня — вживую (смещения считаются при сборке)
     this.time += dt; const T = this.time, c = this.cfg;
+    // тон зоны (GRADE) и свет (LIGHT, админка «💡 Свет») — множители в экранном пространстве, как у пропсов чанков (propAtlas.js)
+    if (this.toneMats?.length) { const G = GRADE.value || { r: 1, g: 1, b: 1 }, sig = `${G.r},${G.g},${G.b},${LIGHT.props},${LIGHT.glow}`;
+      if (sig !== this.toneSig) { this.toneSig = sig; for (const { m, add } of this.toneMats) { const k = add ? LIGHT.glow : LIGHT.props; setDisplayRGB(m.color, G.r * k, G.g * k, G.b * k); } } }
     if (!c || !c.on || !this.ready) return;
     const near = view && Math.abs(view.x - c.x) < c.r + 2600 && Math.abs(view.y - c.y) < c.r + 2600;
     this.group.visible = !!near; if (!near) return;
