@@ -513,7 +513,9 @@
         }
         items.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="score-name">${item.name}</td><td class="score-val text-right">${item.score}</td>`;
+            tr.innerHTML = `<td class="score-name"></td><td class="score-val text-right"></td>`;
+            (tr.children[0] as HTMLElement).textContent = String(item.name ?? ''); // имя вводит игрок — только как текст
+            (tr.children[1] as HTMLElement).textContent = String(item.score ?? '');
             el.appendChild(tr);
         });
     }

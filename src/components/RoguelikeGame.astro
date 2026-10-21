@@ -4390,8 +4390,8 @@
       el.innerHTML = list.map((item, i) => `
           <div class="lb-item ${item.name === meta.username ? 'me' : ''}">
               <span class="rank">#${i+1}</span>
-              <span class="name">${item.name}</span>
-              <span class="score">${item.score}</span>
+              <span class="name">${String(item.name ?? '').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';')}</span>
+              <span class="score">${Number(item.score) || 0}</span>
           </div>
       `).join('');
   }

@@ -89,9 +89,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
             }
         }
 
+        // очки — конечное целое в разумных пределах (раньше NaN/Infinity/1e308 ломали таблицу)
+        if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 1e9) {
+            return new Response(JSON.stringify({ error: "Invalid score" }), { status: 400 });
+        }
         const newRecord: ScoreRecord = {
             name: name.toUpperCase(),
-            score: Number(score),
+            score: Math.floor(Number(score)),
             date: Date.now()
         };
 
