@@ -56,7 +56,7 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
     const c = await clerkReady(20000); if (!c?.addListener) { W.__MC_AUTH_WATCH__ = false; return; }
     // 'ssr' — вошёл по cookie, Clerk на клиенте ещё грузился: первый id просто запоминаем (без переподключения)
     let uid = startedUid === 'ssr' ? (c.user?.id || '') : startedUid, asking = false, retryAt = 0;
-    const rejoin = () => { W.__MC_AUTH_GUEST__ = false; W.__MC_AUTH_FRESH__ = true; api.reconnect?.(); };
+    const rejoin = () => { W.__MC_AUTH_GUEST__ = false; W.__MC_AUTH_FRESH__ = true; api.reconnect?.({ userId: W.Clerk?.user?.id || '' }); };
     c.addListener(({ user }: any) => {
       const now = user?.id || '';
       if (now === uid || asking) return;
@@ -75,7 +75,7 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
       asking = true;
       gate().then((g) => g.openAuthGate({ host: gameWindow, mode: 'invalid', code: ev.detail.code || 'MC-A03' })).then((r) => {
         asking = false;
-        if (r === 'guest') { W.__MC_AUTH_GUEST__ = true; api.reconnect?.(); }
+        if (r === 'guest') { W.__MC_AUTH_GUEST__ = true; uid = ''; api.reconnect?.({ userId: '' }); }
         else { uid = W.Clerk?.user?.id || ''; rejoin(); }
       }).catch((e) => { asking = false; console.warn('[mc-auth]', e); });
     });

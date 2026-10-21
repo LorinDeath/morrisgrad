@@ -2,7 +2,6 @@
 // Грузится ЛЕНИВО (import() из MorrisCurse/index.astro) — только когда вход нужен: вошедший игрок этот модуль,
 // русскую локализацию Clerk и стили не скачивает вовсе. Форма — тот же компонент Clerk <SignIn/>/<SignUp/>, что
 // в окне сайта (те же способы входа из панели Clerk), с нашим видом и языком (src/lib/clerkTheme.ts).
-import { updateClerkOptions } from "@clerk/astro/client";
 import { mcClerkAppearance, mcClerkLocalization } from "../lib/clerkTheme";
 import { authErr } from "../pages/MorrisCurse/_core/authCodes.js";
 
@@ -142,9 +141,7 @@ function mountTab(t: "in" | "up") {
 }
 function selectTab(t: "in" | "up") {
   if (!root) return; curTab = t;
-  root.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
-  (root.querySelector("#mc-auth-in") as HTMLElement).hidden = t !== "in";
-  (root.querySelector("#mc-auth-up") as HTMLElement).hidden = t !== "up";
+  selectTabUi(t);
   mountTab(t);
 }
 function showNote(code: string | null, bad = false, text?: string) {
@@ -161,13 +158,19 @@ function showNote(code: string | null, bad = false, text?: string) {
   });
 }
 
+// Язык — на время оверлея: clerk-js сливает options с текущими (routerPush и пр. из @clerk/astro сохраняются).
+// Пока оверлей открыт, по-русски и окно «Войти» из шапки (оно под оверлеем); закрыли — как было.
+function setLocalization(loc: any) {
+  try { clerk()?.__unstable__updateProps?.({ options: { localization: loc } })?.catch?.(() => {}); } catch (e) { console.warn("[mc-auth] localization", e); }
+}
+
 function teardown() {
   clearTimeout(mountTimer);
   const c = clerk();
   try { if (mounted.in) c?.unmountSignIn(root!.querySelector("#mc-auth-in")); } catch (_) {}
   try { if (mounted.up) c?.unmountSignUp(root!.querySelector("#mc-auth-up")); } catch (_) {}
   mounted = { in: false, up: false };
-  try { updateClerkOptions({ localization: undefined } as any); } catch (_) {} // окно входа в шапке сайта — как было (англ.)
+  setLocalization(undefined); // окно входа в шапке сайта — как было (англ.)
   unlisten?.(); unlisten = null;
   window.removeEventListener("resize", applyScale);
   window.removeEventListener("mc-ui-scale", applyScale);
@@ -195,15 +198,36 @@ export function openAuthGate(opts: GateOpts): Promise<GateResult> {
   const c = clerk();
   if (!c?.loaded) { showNote("MC-A01", true); }
   else {
-    try { updateClerkOptions({ localization: mcClerkLocalization } as any); } catch (e) { console.warn("[mc-auth] localization", e); }
-    const off = c.addListener?.(({ user }: any) => { if (user && finish) done("signed-in"); });
+    setLocalization(mcClerkLocalization);
+    // invalid при живой сессии Clerk: сервер не принял её токен (тихий повтор уже был) — та же сессия не поможет,
+    // нужен выход и новый вход; до этого присутствие user не считаем «вошёл»
+    let stale = opts.mode === "invalid" && !!c.user;
+    const off = c.addListener?.(({ user }: any) => { if (!user) stale = false; else if (!stale && finish) done("signed-in"); });
     unlisten = typeof off === "function" ? off : null;
-    if (c.user) { queueMicrotask(() => done("signed-in")); return busy; }
-    selectTab(opts.tab || curTab);
+    if (stale) showRelogin(c);
+    else if (c.user) { queueMicrotask(() => done("signed-in")); return busy; }
+    else selectTab(opts.tab || curTab);
   }
   (el.querySelector("[data-inapp]") as HTMLElement).hidden = !inAppBrowser();
   setTimeout(() => el.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus({ preventScroll: true }), 50);
   return busy;
+}
+
+function showRelogin(c: any) {
+  const el = root!.querySelector<HTMLElement>("#mc-auth-in")!;
+  selectTabUi("in");
+  el.innerHTML = `<div class="mc-auth-loading" style="flex-direction:column"><span>Вход нужно обновить</span><button class="mc-auth-tab" data-relogin style="flex:none;padding:0 18px" aria-selected="true">Войти заново</button></div>`;
+  el.querySelector<HTMLButtonElement>("[data-relogin]")!.onclick = async () => {
+    const back = location.origin + location.pathname + location.search + "#mc-auth-out";
+    try { await c.signOut({ redirectUrl: back }); } catch (e) { console.warn("[mc-auth] signOut", e); }
+    if (location.hash === "#mc-auth-out") history.replaceState(history.state, "", location.pathname + location.search);
+    mounted.in = false; selectTab("in");
+  };
+}
+function selectTabUi(t: "in" | "up") {
+  root!.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+  (root!.querySelector("#mc-auth-in") as HTMLElement).hidden = t !== "in";
+  (root!.querySelector("#mc-auth-up") as HTMLElement).hidden = t !== "up";
 }
 
 function applyMode(o: GateOpts) {

@@ -210,7 +210,7 @@ async function boot(canvasId, username, userId, api) {
   });
   api.net = net;
   // переподключение с текущей позицией и свежим токеном (после входа/повторного входа; страница не перезагружается)
-  api.reconnect = () => { offlineToastShown = false; net.reconnect(); };
+  api.reconnect = (o = {}) => { if ('userId' in o) net.userId = o.userId || ''; offlineToastShown = false; net.reconnect(); }; // userId — лишь подсказка (сервер верит токену)
   const send = (obj) => net.send(obj);
 
   // ---------------- UI ----------------
