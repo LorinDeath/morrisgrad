@@ -1531,6 +1531,7 @@ async function boot(canvasId, username, userId, api) {
     const near = (x, y) => (x - player.x) ** 2 + (y - player.y) ** 2 < V2;
     const players = [{ x: player.x, y: player.y, me: true }];
     for (const o of others.values()) if (o.world === world && !o.runRoom && !inRoomPt(o.x, o.y) && near(o.x, o.y)) players.push({ x: o.x, y: o.y });
+    const npcs = []; for (const [id, n] of Object.entries(NPCS)) { if (n.world !== world) continue; const q = npcPos(id); if (q && near(q.x, q.y) && npcs.length < 40) npcs.push({ x: q.x, y: q.y }); }
     const mobs = []; for (const m of zone.mobs.values()) if (near(m.x, m.y)) mobs.push({ x: m.x, y: m.y, boss: !!(m.chief || m.elite) });
     const fx = [], bm = zone.bmv;
     if (bm?.mage) fx.push({ x: bm.mage.x, y: bm.mage.y, c: DN_FX.mage[0], r: DN_FX.mage[1], k: DN_FX.mage[2] });
@@ -1551,7 +1552,7 @@ async function boot(canvasId, username, userId, api) {
       extra = dnCity.list;
     }
     const t = hub.env?.terrain;
-    dayNight.frame(true, { players, mobs, fx, extra, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
+    dayNight.frame(true, { players, npcs, mobs, fx, extra, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
     if (dayNight.render(stage.renderer, cam) && cityView.group.visible && cityView.glows?.length) {
       // свечение огней города (_glow-слои Историка) — излучает само: ещё раз поверх маски, сила — по своему огню (вразнобой);
       // глубина кадра сохранена — спрайты перед огнём его закрывают (ореол «за» спрайтами, без засветки)
