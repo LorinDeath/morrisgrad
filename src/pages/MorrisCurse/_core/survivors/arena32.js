@@ -78,7 +78,7 @@ export function buildArena32(THREE, A, g, { AT, R, Rf = R + TILE_M }) {
     const tex = pixTex(THREE, new THREE.CanvasTexture(cv)); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
     // пол: квадрат N·1.6 м (тайл ровно 1.6 м), снаружи кромки — прозрачно (alphaTest); материал — тот же тёмный шейдер + метка стены
     const F = A.floor; F.geometry.dispose(); F.geometry = new THREE.PlaneGeometry(N * TILE_M, N * TILE_M);
-    const m = F.material; m.map = tex; m.alphaTest = 0.5; m.transparent = false; if (A.darkU) A.darkU.uWallK.value = st.mode === 'baked' ? Math.pow(A.wallLight, 2.2) : 0; m.needsUpdate = true;
+    const m = F.material; m.map = tex; m.alphaTest = 0.5; m.transparent = false; if (A.darkU) A.darkU.uWallK.value = st.mode === 'baked' ? A.wallLight : 0; m.needsUpdate = true;
     // свечение пола и декалей: InstancedMesh на ключ, кадры — полоса keyStrip листа _glow (общая фаза)
     const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sv = new THREE.Vector3();
     for (const [key, list] of Object.entries(glowAt)) {

@@ -1948,6 +1948,14 @@ async function boot(canvasId, username, userId, api) {
       selectClass: (id) => classSelect.onSelect(id),
       setZoom: (z) => { stage.view.targetZoom = z; stage.view.zoom = z; },
       mood: (k) => { atmo.moodOverride = k || null; return atmo.moodOverride; }, // настроение сцены принудительно (hub — ночь, b_stone — нейтральный «день»); null — по зоне
+      gfxLocal: (c) => { setGfxCfg(c); return { ...GFX }; }, // локально (плейтест): поля «🖼 Графика» без админки; arena3* — со следующей арены
+      frameStats: (ms = 1500) => new Promise((res) => { // draw calls/треугольники на кадр основной сцены (среднее за ms): info копится без сброса, кадры считаются по render(scene)
+        const R = stage.renderer, I = R.info, orig = R.render; let frames = 0; I.autoReset = false; I.reset();
+        R.render = function (sc, c) { if (sc === stage.scene) frames++; return orig.call(this, sc, c); };
+        setTimeout(() => { R.render = orig; const o = { frames, calls: frames ? +(I.render.calls / frames).toFixed(1) : 0, tris: frames ? Math.round(I.render.triangles / frames) : 0, fps: +(frames / (ms / 1000)).toFixed(1) }; I.autoReset = true; I.reset(); res(o); }, ms); }),
+      glMem: () => ({ ...stage.renderer.info.memory, programs: stage.renderer.info.programs?.length || 0, calls: stage.renderer.info.render.calls, tris: stage.renderer.info.render.triangles }),
+      arena32: () => (runView?.arena?.a32 ? { ready: runView.arena.a32.ready, ...(runView.arena.a32.stats || {}) } : null),
+      leaveRun: () => { if (mode === 'run') leaveRun(); return mode; },
       freeCam: (o) => { stage.freeCam = o && Number.isFinite(o.x) && Number.isFinite(o.z) ? { x: o.x, z: o.z, zoom: o.zoom || 0 } : null; return stage.freeCam; }, // свободная камера (сцена, м); null — снова за героем
       setCells: (c) => { const z = Math.max(stage.view.minZoom, Math.min(stage.view.maxZoom, stage.zoomForCells(c))); stage.view.targetZoom = stage.view.zoom = z; return Math.round(stage.viewCells(z)); },
       cam: () => ({ zoom: stage.view.zoom, cells: Math.round(stage.viewCells()), min: Math.round(stage.viewCells(stage.view.maxZoom)), max: Math.round(stage.viewCells(stage.view.minZoom)),
