@@ -1,4 +1,4 @@
-import { admitMessage, isDevRequest, MSG_BURST } from "./limits";
+import { admitMessage, isDevRequest, isLocalRequest, originAllowed, MSG_BURST } from "./limits";
 import { PERF, perfTick, perfMsgIn, perfErr, wrapSend, perfBoot } from "./meta/perf";
 import { resolveWorld } from "./meta/propCollision.ts";
 import { DurableObject } from "cloudflare:workers";
@@ -798,6 +798,12 @@ export class GameRoom extends DurableObject {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Ожидался WebSocket", { status: 426 });
     }
+    // Подключение только со страниц morrisgrad.com (Origin браузера); localhost — только к локальному серверу.
+    const localConn = isLocalRequest(request);
+    if (!originAllowed(this.env, request.headers.get("Origin"), localConn)) {
+      perfErr("ws: чужой Origin");
+      return new Response("Подключение с этого сайта запрещено", { status: 403 });
+    }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -858,6 +864,7 @@ export class GameRoom extends DurableObject {
             id: myId,
             dupKey,
             dev: devOk,
+            localConn, // для проверки azp токена: localhost-страницы только к локальному серверу
             userId: devOk ? String(msg.userId || "").slice(0, 128) : "", // реальный uid выставит мета-сервис после проверки токена
             username: cleanName,
             world: "hellfire",

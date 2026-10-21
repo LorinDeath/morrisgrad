@@ -25,7 +25,9 @@ async function getJwks(issuer: string): Promise<any[]> {
   return jwksCache.keys;
 }
 
-export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISSUER): Promise<string | null> {
+/** isParty(azp) — для какого сайта выпущен токен (claim azp = Origin страницы, где Clerk выдал токен).
+ *  Если передана — токен без azp или с чужим azp не принимается (токен, украденный/выпущенный на другом сайте). */
+export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISSUER, isParty?: (azp: string) => boolean): Promise<string | null> {
   try {
     const [h, p, s] = String(token || "").split(".");
     if (!h || !p || !s) return null;
@@ -36,6 +38,7 @@ export async function verifyClerkToken(token: string, issuer = DEFAULT_CLERK_ISS
     if (typeof payload.exp !== "number" || payload.exp < now - 5) return null; // без exp — отказ (вечный токен не принимаем)
     if (typeof payload.nbf === "number" && payload.nbf > now + 5) return null;
     if (payload.iss !== issuer) return null;
+    if (isParty && (typeof payload.azp !== "string" || !isParty(payload.azp))) return null;
     const keys = await getJwks(issuer);
     const jwk = keys.find((k) => k.kid === header.kid) || (keys.length === 1 ? keys[0] : null);
     if (!jwk) return null;

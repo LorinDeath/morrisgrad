@@ -54,6 +54,15 @@ const rows = JSON.parse(out)[0]?.results || [];
 ok(rows.length === 2 && rows.some((r) => /"role":"moderator"/.test(r.detail)) && rows.some((r) => /"role":null/.test(r.detail)), "журнал: выдача и снятие модератора записаны");
 ok(rows.every((r) => !String(r.detail).includes("sec_target_pt")), "журнал: цель — непрозрачный id, не uid");
 
+// Origin: чужой сайт — отказ (403) даже на локальном сервере; morrisgrad.com и localhost-страница — подключаются
+async function tryOrigin(origin) {
+  return new Promise((r) => { const ws = new WebSocket(WS, origin ? { headers: { Origin: origin } } : {}); ws.on("open", () => { ws.close(); r(true); }); ws.on("unexpected-response", (_q, res) => r(res.statusCode)); ws.on("error", () => r(false)); });
+}
+ok(await tryOrigin("https://evil.example") === 403, "WS с чужого Origin — 403");
+ok(await tryOrigin("https://morrisgrad.com.evil.example") === 403, "WS с похожего домена — 403");
+ok(await tryOrigin("https://morrisgrad.com") === true, "WS с morrisgrad.com — подключился");
+ok(await tryOrigin("http://localhost:4321") === true, "WS с localhost-страницы к локальному серверу — подключился");
+
 for (const c of [A, T, G]) c.ws.close();
 console.log(`game-security-ws-test: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

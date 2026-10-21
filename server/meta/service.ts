@@ -2,6 +2,7 @@
 // onJoin / handle(msg) / tick / onClose. Старые сообщения протокола не меняются.
 import { CHARACTER_CLASSES } from "../classes";
 import { verifyClerkToken, DEFAULT_CLERK_ISSUER } from "./auth";
+import { originAllowed, isLocalRequest } from "../limits";
 import {
   HERO_IDS, ITEMS, ITEM_BY_ID, salvageYield, RUN_SKILL_BY_ID, RUN_SKILLS, MONSTER_LOOT, NPCS, NPC_RANGE, ZONE_MOBS, ZONE_RESPAWN, ABILITY_BY_ID, REWARD_RULES, MINIGAMES,
   ZONE_SPAWNS, ZONE_NODES, HUB_SPAWNS, RUN_LOOT_KEY, RUN_BOSS_BY_ROOM, WEAPON_TYPES, volleyDirs, weaponType, RECIPES, RESOURCES, GATHER_RANGE,
@@ -177,7 +178,7 @@ export class MetaService {
     let uid: string | null = null;
     // повтор после неудачной загрузки: уже проверенный uid берём из сессии (токен Clerk мог истечь)
     if (session.metaUid) uid = session.metaUid;
-    else if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER);
+    else if (msg.token) uid = await verifyClerkToken(String(msg.token), this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER, (azp) => originAllowed(this.env, azp, session.localConn === true));
     if (!uid && session.dev === true && msg.userId) uid = String(msg.userId).slice(0, 128);
     if (uid) session.metaUid = uid;
     const verified = !!uid;
@@ -1462,7 +1463,8 @@ export class MetaService {
     const h = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
     const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     if (!tok) return new Response(JSON.stringify({ error: "нужен токен" }), { status: 401, headers: h });
-    const uid = await verifyClerkToken(tok, this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER).catch(() => null);
+    const local = isLocalRequest(req);
+    const uid = await verifyClerkToken(tok, this.env.CLERK_ISSUER || DEFAULT_CLERK_ISSUER, (azp) => originAllowed(this.env, azp, local)).catch(() => null);
     if (!uid) return new Response(JSON.stringify({ error: "токен недействителен" }), { status: 401, headers: h });
     await this.roles.ensure().catch(() => {});
     if (!this.roles.canAdminFull({ pkey: "uid:" + uid, verified: true } as any)) return new Response(JSON.stringify({ error: "только админ" }), { status: 403, headers: h });

@@ -17,3 +17,23 @@ export function isDevRequest(env: any, request: { url: string }): boolean {
   if (env?.MC_DEV_TRUST_USERID !== "1") return false;
   try { return DEV_HOSTS.has(new URL(request.url).hostname); } catch { return false; }
 }
+
+// Откуда разрешено подключаться к игре (WebSocket) и для какого сайта выпущен токен Clerk (JWT azp).
+// Единственный домен — morrisgrad.com (+ www на будущее). Переопределение: env MC_ALLOWED_ORIGINS="https://a,https://b".
+// localhost/127.0.0.1 разрешены только когда и сам игровой сервер локальный (wrangler dev) — плейтесты не ломаются,
+// а прод сайты с localhost не принимает.
+export const DEFAULT_ALLOWED_ORIGINS = ["https://morrisgrad.com", "https://www.morrisgrad.com"];
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
+export function isLocalRequest(request: { url: string }): boolean {
+  try { return DEV_HOSTS.has(new URL(request.url).hostname); } catch { return false; }
+}
+export function allowedOrigins(env: any): string[] {
+  const raw = typeof env?.MC_ALLOWED_ORIGINS === "string" && env.MC_ALLOWED_ORIGINS.trim() ? env.MC_ALLOWED_ORIGINS : "";
+  return raw ? raw.split(",").map((x: string) => x.trim().replace(/\/+$/, "")).filter(Boolean) : DEFAULT_ALLOWED_ORIGINS;
+}
+export function originAllowed(env: any, origin: string | null | undefined, local: boolean): boolean {
+  if (!origin) return local; // браузер всегда шлёт Origin; без него — только локальные тесты (node ws)
+  const o = String(origin).replace(/\/+$/, "");
+  if (allowedOrigins(env).includes(o)) return true;
+  return local && LOCAL_ORIGIN.test(o);
+}
