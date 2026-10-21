@@ -7,14 +7,14 @@ import { PROPS_META } from '../../../../../server/meta/propsV2.ts';
 const KEY = 'mc_gfx';
 const LT = ['warm', 'fire', 'cool', 'violet', 'lime', 'portal'];
 const lt = () => ({ haloS: 1, haloK: 1, poolS: 1, poolK: 1 });
-export const GFX = { props3Pc: true, props3Mobile: false, pack16: false, packGlow: true, lightSprites: true, fallbackV2: true, arena3: false, arena3Wall: 'auto', arena3Posts: 1, arena3Tall: true, arena3TallGap: 1.5, arena3Rim: false, arena3Cracks: 18, arena3GlowW: 0.5, arena3Floor: 1, arena3Amb: { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 }, arena3Lit: 1, arena3Edge: 0.8, arena3WallL: 1, fpsMul: 1, glow: 1,
+export const GFX = { props3Pc: true, props3Mobile: false, pack16: false, packGlow: true, lightSprites: true, fallbackV2: true, arena3: false, arena3Shape: 'round', arena3Wall: 'auto', arena3Posts: 1, arena3Tall: true, arena3TallGap: 1.5, arena3Rim: false, arena3Cracks: 18, arena3GlowW: 0.5, arena3Floor: 1, arena3Amb: { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 }, arena3Lit: 1, arena3Edge: 0.8, arena3WallL: 1, fpsMul: 1, glow: 1,
   lt: Object.fromEntries(LT.map((t) => [t, lt()])), em: { v3: {}, v2: {} },
   // мобы bestiary32 (Художник) — все поля живые (engine/mobPref.js, engine/beast32.js): mobs32 — общий выключатель (сильнее настройки игрока)
   mobs32: true, mobs32Pc: true, mobs32Mobile: false, mobs32Run: false, mobFps: 1, mobGlow: 1, mobHurtFlash: 0, mobGrace: 20, mobLoadR: 50, mobPackGlow: true };
 
 // свет арены 32 по темам (экранный множитель пиксель-арта, 1 — как превью Художника): общий фон; огни (колонны, сигил, свечи, кристаллы, кромка) — сверху
 export const A3_THEMES = ['crypt', 'abyss', 'mirror', 'abode'], A3_AMB = { crypt: 0.85, abyss: 1, mirror: 0.75, abode: 0.85 };
-const ARENA3_KEYS = ['arena3', 'arena3Wall', 'arena3Posts', 'arena3Tall', 'arena3TallGap', 'arena3Rim', 'arena3Cracks', 'arena3GlowW', 'arena3Floor', 'arena3Amb', 'arena3Lit', 'arena3Edge', 'arena3WallL']; // живые, со следующей арены
+const ARENA3_KEYS = ['arena3', 'arena3Shape', 'arena3Wall', 'arena3Posts', 'arena3Tall', 'arena3TallGap', 'arena3Rim', 'arena3Cracks', 'arena3GlowW', 'arena3Floor', 'arena3Amb', 'arena3Lit', 'arena3Edge', 'arena3WallL']; // живые, со следующей арены
 const LOAD_KEYS = ['props3Pc', 'props3Mobile', 'pack16', 'packGlow', 'lightSprites', 'fallbackV2'];
 const cl = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 /** живые множители — общие uniform-объекты SpriteBatch пропсов (propAtlas.js) */
@@ -31,6 +31,7 @@ function applyLive(c) {
   if (c.lt && typeof c.lt === 'object') for (const t of LT) { const o = c.lt[t]; if (o) GFX.lt[t] = { haloS: cl(o.haloS, 0.2, 3, 1), haloK: cl(o.haloK, 0, 3, 1), poolS: cl(o.poolS, 0.2, 3, 1), poolK: cl(o.poolK, 0, 3, 1) }; }
   if (c.em && typeof c.em === 'object') for (const s of ['v3', 'v2']) { const m = c.em[s]; if (m && typeof m === 'object') GFX.em[s] = Object.fromEntries(Object.entries(m).map(([k, o]) => [k, { x: cl(o?.x, -1, 128, -1), y: cl(o?.y, -1, 128, -1) }])); }
   if (typeof c.arena3 === 'boolean') GFX.arena3 = c.arena3;
+  if (['round', 'tiles'].includes(c.arena3Shape)) GFX.arena3Shape = c.arena3Shape;
   if (['auto', 'sprites', 'baked'].includes(c.arena3Wall)) GFX.arena3Wall = c.arena3Wall;
   if (c.arena3Posts != null) GFX.arena3Posts = Math.round(cl(c.arena3Posts, 1, 6, 1));
   if (typeof c.arena3Tall === 'boolean') GFX.arena3Tall = c.arena3Tall;

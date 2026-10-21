@@ -15,9 +15,10 @@ export const GFX_CFG: any = {
   lightSprites: true,  // ореолы и пятна огней — пиксельные спрайты light_halo/light_pool (props3); выкл — радиальный градиент
   fallbackV2: true,    // ключи из src/assets/mc/props3/fallback_v2.json (портал) при props3 рисуются из props2, пока нет нового арта
   arena3: false,       // забег: замены 3D-мешей арены спрайтами props3 (x64) + пол/кромка/парапет/декали arena32, со следующей арены; только при props3 на странице
+  arena3Shape: "round", // граница arena32: round — настоящий круг (парапет из куска h по дуге), tiles — автотайл README §4 (ступеньки)
   arena3Wall: "auto",  // парапет arena32: auto — ПК спрайты, телефон запечён в пол; sprites; baked
   arena3Posts: 1,      // угловые столбы на диагоналях: 1 — все, n — каждый n-й (остальные — стык «на ус» без столба)
-  arena3Tall: true,    // высокое кольцо arena_wall_* за парапетом
+  arena3Tall: true,    // высокое кольцо arena_wall_* за парапетом (только arena3Shape tiles: у круга кольца нет)
   arena3TallGap: 1.5,  // насколько кольцо arena_wall_* дальше парапета, м
   arena3Rim: false,    // тонкая подсветка-обод (торус) поверх кромки
   arena3Cracks: 18,    // трещин на полу (декали arena32)
@@ -51,7 +52,7 @@ const b = (v: any, d: boolean) => (typeof v === "boolean" ? v : d);
 export const gfxClient = () => {
   const G = GFX_CFG;
   return { props3Pc: b(G.props3Pc, true), props3Mobile: b(G.props3Mobile, false), pack16: b(G.pack16, false), packGlow: b(G.packGlow, true), lightSprites: b(G.lightSprites, true), fallbackV2: b(G.fallbackV2, true), arena3: b(G.arena3, false),
-    arena3Wall: ["auto", "sprites", "baked"].includes(G.arena3Wall) ? G.arena3Wall : "auto", arena3Posts: Math.round(cl(G.arena3Posts, 1, 6, 1)), arena3Tall: b(G.arena3Tall, true),
+    arena3Shape: G.arena3Shape === "tiles" ? "tiles" : "round", arena3Wall: ["auto", "sprites", "baked"].includes(G.arena3Wall) ? G.arena3Wall : "auto", arena3Posts: Math.round(cl(G.arena3Posts, 1, 6, 1)), arena3Tall: b(G.arena3Tall, true),
     arena3TallGap: cl(G.arena3TallGap, 0, 8, 1.5), arena3Rim: b(G.arena3Rim, false), arena3Cracks: Math.round(cl(G.arena3Cracks, 0, 80, 18)), arena3GlowW: cl(G.arena3GlowW, 0, 3, 0.5), arena3Floor: cl(G.arena3Floor, 0.2, 3, 1),
     arena3Amb: Object.fromEntries(A3_THEMES.map((t) => [t, cl(G.arena3Amb?.[t], 0, 1.5, A3_AMB[t])])), arena3Lit: cl(G.arena3Lit, 0, 3, 1), arena3Edge: cl(G.arena3Edge, 0, 1, 0.8), arena3WallL: cl(G.arena3WallL, 0.2, 1.5, 1),
     assetCache: b(G.assetCache, true),

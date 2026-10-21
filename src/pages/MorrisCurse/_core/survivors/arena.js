@@ -112,8 +112,9 @@ export class RunArena {
         sigil.material.map = t; sigil.material.needsUpdate = true; this.sigilTex = t; this.sigilDef = sd; this.sigilCols = SS.cols;
       }
       const items = [];
-      // arena32: высокое кольцо arena_wall_* — за парапетом (Rf + arena3TallGap) или убрано (arena3Tall выкл)
-      const seg = 5.4, Rw = A32 ? R + A32_TILE + GFX.arena3TallGap : R + 1.6, n = A32 && !GFX.arena3Tall ? 0 : Math.round((2 * Math.PI * Rw) / seg);
+      // arena32: высокое кольцо arena_wall_* — за парапетом (Rf + arena3TallGap) или убрано (arena3Tall выкл).
+      // У круглой границы (arena3Shape round) кольца нет: плоские билборды по 5.4 м не ложатся на дугу и на диагоналях стоят ступенями
+      const seg = 5.4, Rw = A32 ? R + A32_TILE + GFX.arena3TallGap : R + 1.6, n = A32 && (!GFX.arena3Tall || GFX.arena3Shape !== 'tiles') ? 0 : Math.round((2 * Math.PI * Rw) / seg);
       for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; items.push(['arena_wall_' + AT, Math.cos(a) * Rw, Math.sin(a) * Rw, 0.9]); }
       PILLARS.forEach((p) => items.push(['arena_column_' + AT, p.x, p.z, p.r / 1.44])); // коллайдер колонны (run.js) = 45% ширины 6.4 м → 1.44 м при s=1
       const D = this.decor || [];
