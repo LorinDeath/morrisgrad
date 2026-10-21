@@ -2,12 +2,17 @@ import { clerkMiddleware } from "@clerk/astro/server";
 import { defineMiddleware } from "astro:middleware";
 import { isPrivatePath } from "./lib/seo";
 import { isCookielessPublicGet } from "./lib/guest";
+import { isCrossSiteWrite } from "./lib/security";
 
 const clerk = clerkMiddleware();
 
 // Локальные плейтесты форума: только `astro dev` (import.meta.env.DEV) + FORUM_DEV_AUTH=1 в .dev.vars + dev-cookie.
 // Тогда Clerk пропускается (локально нет секретного ключа). В production-сборке ветка вырезается целиком.
 export const onRequest = defineMiddleware((ctx, next) => {
+  // CSRF: запись (POST/PUT/PATCH/DELETE) только со своего сайта — для всех API и форм страниц (профиль и т.п.)
+  if (isCrossSiteWrite(ctx.request.method, ctx.request.url, ctx.request.headers)) {
+    return new Response(JSON.stringify({ error: "Запрос отклонён (CSRF)" }), { status: 403, headers: { "content-type": "application/json; charset=utf-8", "x-content-type-options": "nosniff" } });
+  }
   if (import.meta.env.DEV && (ctx.locals as any)?.runtime?.env?.FORUM_DEV_AUTH === "1" && /(?:^|;\s*)mg_dev_(uid|noclerk)=/.test(ctx.request.headers.get("cookie") || "")) {
     (ctx.locals as any).auth = () => ({ userId: null });
     return withRobots(ctx.url.pathname, next());
