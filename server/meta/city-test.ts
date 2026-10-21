@@ -1,6 +1,6 @@
 // Город Альказак (city.ts + cityBuild.ts): журнал убийц, PK-режим, PvP, купол (в т.ч. интерьеры), розы, здания/двери/комнаты,
 // места NPC, масштаб по rTiles, схемы админки. Запуск: esbuild --bundle → node.
-import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT } from "./city";
+import { CITY_CFG, PK_CFG, CITY_TILE, KillLog, newPk, pkToggle, pkTick, pkInterrupt, pkLeft, pkPublic, pkUi, pvpAllowed, pkGrantDefense, inCity, pushOut, cityR, ROOM_LIMIT, cityKeepOut, cityMobPushPx, cityMobAggroPadPx } from "./city";
 import { cityBuildings, buildingById, roomAt, roomSpawn, onExit, outsideDoor, atDoor, doorNear, resolveRoom, roomWalkable, roomBounds, roomCell, slotPos, cityClient, cityNpcDefs, ROOMS, BUILD_DEF, buildingColliders, inRoomArea, ROOM_SPAN, DARK_PROPS } from "./cityBuild";
 import { ROSE_ADJ, roseAgeOf, roseCurseOf, roseOpenMs, roseStage, DAY_MS } from "./bmCfg";
 import { resolveWorld, blockedWorld, boundsAt } from "./propCollision";
@@ -136,9 +136,37 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const boss = WORLD_GEN.arinar.bosses.find((b: any) => b.key === "ice_thorn_matron@24"); t("R40: логово Матроны (1838 px) снаружи", boss && !inCity(boss.x, boss.y, 200));
   t("R40: указатель sign:patch24 (22540, 3800) снаружи", !inCity(22540, 3800, 400)); reset(); }
 
+// ——— моб ↔ купол (админка: mobPushPx / mobAggroPadPx / mobBossesOut / mobDomeFlash); по умолчанию — прежнее поведение ———
+{ reset(); const { Zone } = await import("./zone"); const { ZONE_GEN } = await import("./zoneGen");
+  const z: any = new Zone("arinar", [], [], { proc: true, seed: ZONE_GEN.seed }); z.keepOut = cityKeepOut(); const R = cityR();
+  const m: any = z.mobs.find((q: any) => !q.dead && q.special !== "boss"), b: any = z.mobs.find((q: any) => !q.dead && q !== m && q.special !== "boss"); if (b) b.special = "boss"; // особый «босс» (в тестовой зоне боссы не заспавнены)
+  const put = (q: any) => { q.x = CITY_CFG.x + 100; q.y = CITY_CFG.y + 50; q.reset = true; z.events.length = 0; z.solid(q); return Math.hypot(q.x - CITY_CFG.x, q.y - CITY_CFG.y); };
+  t("купол/моб: по умолчанию 40 / 24 / боссы тоже / вспышка", CITY_CFG.mobPushPx === 40 && CITY_CFG.mobAggroPadPx === 24 && CITY_CFG.mobBossesOut === true && CITY_CFG.mobDomeFlash === true);
+  t("купол/моб: выталкивается на R + 40", m && Math.abs(put(m) - (R + 40)) < 1.5, m && put(m));
+  m.domeFlashAt = 0; put(m); const ev1 = z.events.filter((e: any) => e.k === "dome_repel").length; put(m); const ev2 = z.events.filter((e: any) => e.k === "dome_repel").length;
+  t("купол/моб: вспышка при выталкивании, повтор — не чаще раза в 3 с", ev1 === 1 && ev2 === 0, [ev1, ev2]);
+  CITY_CFG.mobDomeFlash = false; m.domeFlashAt = 0; put(m); t("купол/моб: вспышка выкл — события нет", !z.events.some((e: any) => e.k === "dome_repel"));
+  CITY_CFG.mobPushPx = 120; t("купол/моб: mobPushPx 120 → R + 120", Math.abs(put(m) - (R + 120)) < 1.5, put(m));
+  CITY_CFG.mobPushPx = 9999; t("купол/моб: mobPushPx в пределах 0…400", cityMobPushPx() === 400); CITY_CFG.mobPushPx = "x"; t("купол/моб: мусор → 40", cityMobPushPx() === 40);
+  CITY_CFG.mobAggroPadPx = 60; t("купол/моб: запас агро из админки", z.keepOut.aggroPad() === 60); CITY_CFG.mobAggroPadPx = -5; t("купол/моб: запас агро ≥ 0", cityMobAggroPadPx() === 0);
+  { const q: any = m; q.x = CITY_CFG.x - R - 80; q.y = CITY_CFG.y; q.sx = CITY_CFG.x + R + 80; q.sy = CITY_CFG.y + 30; q.reset = true; q.targetSid = null; let inside = 0; q.spOk = 1; const PL = new Map([["p1", { sid: "p1", x: CITY_CFG.x, y: CITY_CFG.y + R + 250, hp: 100, maxHp: 100, dead: false, lvl: 1 } as any]]), T0 = Date.now();
+    for (let i = 0; i < 400; i++) { z.update(0.05, T0 + i * 50, PL, () => {}, () => {}); if (Math.hypot(q.x - CITY_CFG.x, q.y - CITY_CFG.y) < R) inside++; }
+    t("купол/моб: сброшенный моб идёт домой в обход купола (по ободу, не внутри), за 20 с — на той стороне", inside === 0 && q.x > CITY_CFG.x, [inside, Math.round(q.x - CITY_CFG.x), Math.round(q.y - CITY_CFG.y)]); }
+  { const { DOME_FLASH_PER_SEC } = await import("./zone"); z.domeFlashWin = { t: 0, n: 0 }; z.events.length = 0; CITY_CFG.mobDomeFlash = true;
+    for (const q of z.mobs.slice(0, 300)) { q.domeFlashAt = 0; q.x = CITY_CFG.x + 100; q.y = CITY_CFG.y; q.reset = true; z.solid(q); }
+    t("купол/моб: толпа у купола — вспышек не больше лимита в секунду на зону", z.events.filter((e: any) => e.k === "dome_repel").length === DOME_FLASH_PER_SEC, z.events.length); }
+  reset(); t("купол/моб: босс по умолчанию тоже выталкивается", b && put(b) > R, b && b.type);
+  CITY_CFG.mobBossesOut = false; t("купол/моб: mobBossesOut выкл — босс не выталкивается", b && put(b) < R); t("купол/моб: …а обычный — да", put(m) > R);
+  CITY_CFG.mobsOut = false; t("купол/моб: mobsOut выкл — никого не выталкивает", put(m) < R);
+  reset(); }
+
 // ——— админка ———
 { const v = validatePatch("city", "main", { rTiles: 96, roseBloom: false, roseId: "123" } as any);
   t("админка: rTiles до 160, поля розы", typeof v === "object", v);
+  t("админка: поля моб↔купол принимаются", typeof validatePatch("city", "main", { mobPushPx: 80, mobAggroPadPx: 0, mobBossesOut: false, mobDomeFlash: false } as any) === "object");
+  t("админка: mobPushPx > 400 — отказ", typeof validatePatch("city", "main", { mobPushPx: 401 } as any) === "string");
+  t("админка: mobAggroPadPx < 0 / > 200 — отказ", typeof validatePatch("city", "main", { mobAggroPadPx: -1 } as any) === "string" && typeof validatePatch("city", "main", { mobAggroPadPx: 201 } as any) === "string");
+  t("админка: деспауна/убийства мобов у купола нет (фарм опыта)", typeof validatePatch("city", "main", { mobDespawn: true } as any) === "string" || !("mobDespawn" in (validatePatch("city", "main", { mobDespawn: true } as any) as any)));
   const v2 = validatePatch("city", "main", { rTiles: 500 } as any); t("админка: rTiles > 160 — отказ или кламп", typeof v2 === "string" || (v2 as any).rTiles <= 160, v2); }
 
 // ——— решения пользователя: NPC в городе нет; роза — на траве (клумба снята), фонтан на месте ———

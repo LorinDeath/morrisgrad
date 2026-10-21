@@ -60,6 +60,18 @@ const row = (k) => d1(`SELECT data FROM game_overrides WHERE kind='${k}' AND id=
   t('Город: применилось вживую (земля перебакана 1.6, пятно ×1.8, переход 1.5 с)', c1.gl === 1.6 && c1.blightScale === 1.8 && c1.fade === 1.5 && c1.cityChunksGl.every((g) => g === 1.6), c1);
   t('Город: D1 game_overrides city/main', /"groundLight":1.6/.test(row('city')), row('city'));
   await A.screenshot({ path: `${OUT}/06-live-city-ground-1.6.png` });
+  // 1b) Город → моб ↔ купол: по умолчанию выталкивает на 40 px со вспышкой; 200 px без вспышки — вживую (сервер), в D1; вне пределов — отказ
+  t('вкладка «Город»: моб у купола (выталкивание, запас агро, боссы, вспышка)', await tabShot(A, 'city', 'city-mob-dome', 'mobPushPx', '01b'));
+  const R = (await city(A)).dome.r, CX = 24624, CY = 3376;
+  const lure = async (ms = 3500) => { await tp(A, CX + R - 140, CY); const rp0 = (await city(A)).dome.repel; await dev(A, { mobAt: [CX + R - 60, CY] }); let mx = 0, mn = 1e9; const T0 = Date.now();
+    while (Date.now() - T0 < ms) { const d = (await A.G(() => window.__game.debug.domeMobs()))[0]?.d || 0; if (d && Date.now() - T0 > 800) { mx = Math.max(mx, d); mn = Math.min(mn, d); } /* первые 0.8 с — моб ещё в точке постановки (до тика сервера) */ await sleep(200); }
+    return { mx, mn, flashes: (await city(A)).dome.repel - rp0 }; };
+  const m0 = await lure(); t(`моб↔купол по умолчанию: не заходит, выталкивается ≤ R+40 (R ${R}), вспышка купола`, m0.mn >= R && m0.mx <= R + 70 && m0.flashes >= 1, m0);
+  await save(A, 'city', { groundLight: 1.6, blightSize: 1.8, fadeSec: 1.5, mobPushPx: 200, mobDomeFlash: false }); // правка вкладки — целиком (сервер заменяет патч) await sleep(1500);
+  const m1 = await lure(); t('моб↔купол: mobPushPx 200 вживую (дальше R+120), вспышка выкл — купол не мигает', m1.mn >= R && m1.mx >= R + 120 && m1.flashes === 0, m1);
+  t('моб↔купол: D1 city/main', /"mobPushPx":200/.test(row('city')) && /"mobDomeFlash":false/.test(row('city')), row('city'));
+  await sleep(700); await save(A, 'city', { groundLight: 1.6, blightSize: 1.8, fadeSec: 1.5, mobPushPx: 9999 }); await sleep(1200); t('моб↔купол: 9999 px вне пределов — отказ, в D1 по-прежнему 200', /"mobPushPx":200/.test(row('city')), row('city'));
+  await A.screenshot({ path: `${OUT}/06b-live-mob-pushed-200.png` }); await sleep(700);
   // 2) PK: значок (цвет) вживую + правило «полученный урон не сбрасывает»
   await save(A, 'pk', { tagBg: '#1d4ed8', cancelOnHit: false });
   const p1 = await until(A, (v) => v.pk?.tagBg === '#1d4ed8');
@@ -86,6 +98,7 @@ const row = (k) => d1(`SELECT data FROM game_overrides WHERE kind='${k}' AND id=
   for (const k of ['city', 'pk', 'dn']) { await reset(A, k); await sleep(700); } // сервер: правки админки не чаще 300 мс
   const z1 = await until(A, (v) => v.gl === 1 && v.blightScale === 1 && v.fade === 0.6 && v.pk?.tagBg === '#7f1d1d' && v.reduceMax === 100 && v.lt.kLamp === 1 && !v.emitters && v.lantern?.[0] !== 6, 30000);
   t('«Вернуть исходное»: всё по умолчанию вживую', z1.gl === 1 && z1.blightScale === 1 && z1.fade === 0.6 && z1.pk?.tagBg === '#7f1d1d' && z1.reduceMax === 100 && z1.lt.kLamp === 1 && !z1.emitters && z1.lantern?.[0] !== 6, z1);
+  await tp(A, 24624, 3300); const m2 = await lure(); t('«Вернуть исходное»: моб снова ≤ R+40 со вспышкой', m2.mn >= R && m2.mx <= R + 70 && m2.flashes >= 1, m2);
   t('D1: правок city/pk/dn не осталось', !d1(`SELECT 1 FROM game_overrides WHERE kind IN ('city','pk','dn')`).length);
   console.log('errors', A.errs.slice(0, 5)); t('без ошибок страницы', !A.errs.length, A.errs);
   console.log(`\n${ok} ok, ${bad} fail`); await b.close(); process.exit(bad ? 1 : 0);

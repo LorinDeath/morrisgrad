@@ -37,7 +37,7 @@ import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN, inSafe } from "./zoneGen";
 import { dnClient, DN_CFG } from "./dayNight";
-import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, pkPublic, type PkState } from "./city";
+import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
 import {
@@ -1478,7 +1478,7 @@ export class MetaService {
     const z = this.zones.arinar; if (!z) return;
     z.guard = this.guardMux; FREEZE_GUARD.inDome = (x, y) => this.guardMux.inDome(x, y);
     // город под куполом (city.ts): мобы не заходят, лагеря/мобы с домом внутри — убраны; места NPC — в реестр
-    z.keepOut = { inside: (x, y, pad = 0) => CITY_CFG.mobsOut !== false && inCity(x, y, pad), out: (x, y) => pushOut(x, y, 40) };
+    z.keepOut = cityKeepOut();
     const pruned = z.pruneKeepOut(); syncCityNpcs(NPCS as any); console.log(`[mc] город: убрано мобов под куполом ${pruned}`);
     this.bm.host = {
       hurt: (sid, pct, src, blkAdd) => this.bmHurt(sid, pct, src, blkAdd),

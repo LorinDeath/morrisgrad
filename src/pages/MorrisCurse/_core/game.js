@@ -784,6 +784,7 @@ async function boot(canvasId, username, userId, api) {
     for (const e of evs) {
       if (e.k === 'float') overlay.float(toX(e.x), 2.4, toZ(e.y), e.text, e.color);
       else if (e.k === 'toast') overlay.toast(e.text, e.color);
+      else if (e.k === 'dome_repel') cityView.repel(e.x, e.y); // тот же эффект, что у игрока (сервер: не чаще раза в 3 с на моба)
       else if (e.k === 'hurt') { flashHurt(); overlay.float(toX(player.x), 2.6, toZ(player.y), `-${e.d}`, '#f87171'); }
       else if (e.k === 'died') overlay.toast('Вы пали! Возрождение через 5 с…', '#fca5a5');
     }
@@ -2017,6 +2018,7 @@ async function boot(canvasId, username, userId, api) {
       cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
       myId: () => myId,
       blight: () => { const b = cityView.blightG; return b ? { x: b.position.x, z: b.position.z, vis: b.visible, inScene: !!b.parent, n: b.children.length, rose: cityView.cfg?.rose } : { none: true, rose: cityView.cfg?.rose, sig: cityView.blightSig }; },
+      domeMobs: () => { const c = cityView.cfg; if (!c) return []; return [...zone.mobs.values()].map((m) => ({ id: m.id, d: Math.round(Math.hypot(m.x - c.x, m.y - c.y)) })).sort((a, b) => a.d - b.d).slice(0, 5); }, // плейтест купол↔моб: ближайшие к центру
       city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc-pk-tag, .mc-pkbar')).map((l) => { const tag = l.querySelector('.mc-pk-tag'), bar = l.querySelector('.mc-pkbar'), r = l.querySelector('.mc-role:not(.mc-pk-tag)'); const kids = [...l.querySelectorAll('.mc-role')].map((e) => e.textContent); return { key: l.dataset.key || '', text: l.textContent.slice(0, 40), color: l.style.color, tag: tag?.textContent || null, tagBg: tag?.style.background || null, order: kids, bar: bar ? { t: bar.dataset.t, p: Number(bar.dataset.p || 0), col: bar.querySelector('i')?.style.background || '', w: bar.querySelector('i')?.style.width || '' } : null }; }) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере

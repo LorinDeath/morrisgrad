@@ -51,6 +51,10 @@ export const CITY_CFG: any = {
   color: "#8b5cf6",         // цвет купола
   noDamage: true,           // внутри — урон 0 (атаки, навыки, снаряды, статусы — в обе стороны)
   mobsOut: true,            // мобы не заходят внутрь, лагеря внутри убраны
+  mobPushPx: 40,            //   моб у купола: выталкивается за край на столько px
+  mobAggroPadPx: 24,        //   цель ушла под купол глубже края на столько px — моб сбрасывает агро (уходит домой)
+  mobBossesOut: true,       //   боссы тоже не заходят (выкл — босс может войти; агро всё равно сбрасывается, урон внутри 0)
+  mobDomeFlash: true,       //   вспышка купола, когда он выталкивает моба (тот же эффект, что у игрока; не чаще раза в 3 с на моба)
   nodesOut: true,           // узлы ресурсов под куполом — сразу за край (после перезапуска)
   pushExtraTiles: 1,        // выталкивание убийцы: за край + N клеток
   killerPOn: true,          // убийца: убил игроков
@@ -121,6 +125,23 @@ export function pushOut(x: number, y: number, extraPx = 0): [number, number] {
   if (x < ROOM_LIMIT && y < ROOM_LIMIT) { const o = ROOM_OUT.f?.(x, y); [x, y] = o || [CITY_CFG.x, CITY_CFG.y + 1]; }
   const dx = x - CITY_CFG.x, dy = y - CITY_CFG.y, L = Math.hypot(dx, dy), k = cityR() + extraPx;
   const ux = L > 1 ? dx / L : 0, uy = L > 1 ? dy / L : 1; return [CITY_CFG.x + ux * k, CITY_CFG.y + uy * k];
+}
+
+/** запасы «моб ↔ купол» из админки (Город → Безопасная зона), в пределах — как в форме */
+export const cityMobPushPx = () => { const v = Number(CITY_CFG.mobPushPx); return Number.isFinite(v) ? Math.max(0, Math.min(400, v)) : 40; };
+export const cityMobAggroPadPx = () => { const v = Number(CITY_CFG.mobAggroPadPx); return Number.isFinite(v) ? Math.max(0, Math.min(200, v)) : 24; };
+/** купол для зоны мобов (Zone.keepOut): мобы не заходят, выталкиваются на mobPushPx; боссы — по mobBossesOut; агро — сброс с запасом
+ *  mobAggroPadPx; вспышка купола — mobDomeFlash. Деспауна/убийства у края нет намеренно (иначе фарм опыта, заманивая мобов к куполу) */
+export function cityKeepOut() {
+  return {
+    inside: (x: number, y: number, pad = 0) => CITY_CFG.mobsOut !== false && inCity(x, y, pad),
+    out: (x: number, y: number) => pushOut(x, y, cityMobPushPx()),
+    skip: (_m: unknown, boss: boolean) => CITY_CFG.mobBossesOut === false && boss, // boss — от зоны (ZONE_MOBS[тип].boss или особый «босс»)
+    aggroPad: () => cityMobAggroPadPx(),
+    around: (x: number, y: number, dx: number, dy: number): [number, number] => { // касательная к куполу в сторону цели (обход по ободу)
+      const rx = x - CITY_CFG.x, ry = y - CITY_CFG.y, L = Math.hypot(rx, ry) || 1; let tx = -ry / L, ty = rx / L; if (tx * dx + ty * dy < 0) { tx = -tx; ty = -ty; } return [tx, ty]; },
+    flash: () => CITY_CFG.mobDomeFlash !== false,
+  };
 }
 /** отрезок пересекает край купола (снаряд влетает/вылетает) */
 /** узел ресурса под куполом → сразу за край по тому же лучу (genNodes: одинаково на сервере и клиенте; растёт с rTiles) */
