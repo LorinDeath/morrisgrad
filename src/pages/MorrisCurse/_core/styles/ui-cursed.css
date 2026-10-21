@@ -604,3 +604,16 @@ html.mc-ui:not(.mc-atmo-tr) .mc-load .sig * { animation: none; }
 html.mc-hud-ig.mc-ig-sq .ig-mm #mm-canvas { border-radius: 0 !important; }
 html.mc-hud-ig.mc-ig-sq .ig-mm .hud-minimap-card > div:nth-child(2) { border-radius: 0; background: none; box-sizing: border-box; border: 6px solid transparent; border-image: var(--ui-frame-small) 5 fill / 10px stretch; image-rendering: pixelated; }
 html.mc-hud-ig.mc-ig-sq .ig-mm .hud-minimap-card > div:nth-child(2)::after { display: none; }
+/* телефон: полоска «ОЗ + PK» слева сверху (обе темы). Только когда в слоте есть кнопка и рамка героя была бы видна (.on);
+   трекер заданий (и отряд старой темы) уезжают ниже на высоту полоски — с пустым слотом раскладка как раньше */
+.mc-pf-mob { display: none; }
+.mc-touch .mc-pf-mob.on:has(> .mc-pf-pk-slot:not(:empty)) { display: flex; align-items: center; gap: 6px; position: absolute; left: calc(var(--sl, 0px) + 8px); top: calc(var(--st, 0px) + 8px); z-index: 13; pointer-events: auto; }
+.mc-touch .mc-pf-mob > .mc-pf-pk-slot { width: 44px; height: 44px; display: grid; place-items: center; }
+.mc-touch .mc-pf-mob > .mc-pf-pk-slot > * { min-width: 44px; min-height: 44px; } /* цель для пальца ≥ 44 px */
+.mc-touch .mc-pf-mob .mhp { width: 120px; flex: 0 0 auto; }
+/* старая тема: полоска ОЗ в прежнем стиле карточки «ГЕРОЙ» */
+html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp { position: relative; height: 16px; box-sizing: border-box; background: rgba(12, 8, 22, .82); border: 1px solid #3b2c52; border-radius: 6px; overflow: hidden; }
+html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > i { display: block; height: 100%; background: linear-gradient(90deg, #b91c1c, #ef4444); }
+html:not(.mc-ui) .mc-touch .mc-pf-mob .mhp > span { position: absolute; inset: 0; display: grid; place-items: center; font: bold 10px monospace; color: #fff; text-shadow: 0 1px 0 #000; }
+.mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) :is(.mc-tracker, .mc-party) { margin-top: 52px; }
+html.mc-ui .mc-touch:has(.mc-pf-mob.on > .mc-pf-pk-slot:not(:empty)) .mc-party { margin-top: 0; } /* новая тема: отряд по центру сверху — не мешает */
