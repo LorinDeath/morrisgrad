@@ -1,65 +1,46 @@
 import type { APIRoute } from 'astro';
+import { sessionUserId } from '../../lib/api/currentUser';
+import { ownUser } from '../../lib/api/profileFields';
 
 export const prerender = false;
 
-// Типизация для D1 (если не настроена глобально)
-interface Env {
-    PROFILES_DB: any; // Используем отдельный байндинг для D1, чтобы не ломать KV рекордов
-}
+// Свой профиль (владелец): кто — только из проверенной сессии Clerk (locals.auth().userId). Раньше id брался из ?userId= / тела
+// запроса — любой мог читать и МЕНЯТЬ чужое описание. Теперь ?userId= и userId в теле игнорируются; без входа — 401.
+// Чужие профили — /api/public-profile?id= (только публичные поля).
+const H = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-store', Vary: 'Cookie' };
+const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: H });
+const dbOf = (locals: any) => locals?.runtime?.env?.PROFILES_DB || locals?.runtime?.env?.morrisgrad_db || null;
 
-export const GET: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
-    const db = env?.PROFILES_DB;
-
-    if (!db) {
-        return new Response(JSON.stringify({ error: "Database not connected" }), { status: 500 });
-    }
-
-    // Получаем ID пользователя. 
-    // Если вы используете Clerk Middleware, id будет в locals.auth().userId
-    // Для примера берем из query параметра (чтобы можно было тестить), но в проде используйте auth
-    const url = new URL(request.url);
-    const userId = url.searchParams.get('userId'); // Или locals.auth().userId
-
-    if (!userId) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-    }
+export const GET: APIRoute = async ({ locals }) => {
+    const userId = sessionUserId(locals);
+    if (!userId) return json({ error: 'unauthorized' }, 401);
+    const db = dbOf(locals);
+    if (!db) return json({ error: 'Database not connected' }, 500);
 
     // МИГРАЦИЯ: Убеждаемся, что колонка hellfire существует
     try { await db.prepare("ALTER TABLE users ADD COLUMN hellfire INTEGER DEFAULT 0").run(); } catch (e) {}
 
-    // 1. Ищем пользователя
     let user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
-
-    // 2. Если нет - создаем (Регистрация в БД)
     if (!user) {
-        const now = Date.now();
-        await db.prepare(
-            'INSERT INTO users (id, username, description, last_seen, created_at) VALUES (?, ?, ?, ?, ?)'
-        ).bind(userId, 'Новичок', 'Житель МоррисГрада', now, now).run();
-        
+        // свой профиль создаём при первом обращении (как раньше), но только для вошедшего
+        await db.prepare('INSERT INTO users (id, username, description, last_seen, created_at) VALUES (?, ?, ?, ?, ?)')
+            .bind(userId, 'Новый Проклятый', 'Нет описания', Date.now(), Date.now()).run();
         user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
     } else {
-        // Обновляем "был в сети"
         await db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').bind(Date.now(), userId).run();
     }
-
-    // 3. Загружаем инвентарь
     const { results: inventory } = await db.prepare('SELECT * FROM inventory WHERE user_id = ?').bind(userId).all();
-
-    return new Response(JSON.stringify({ user, inventory }), { status: 200 });
+    return json({ user: ownUser(user), inventory: inventory || [] });
 };
 
 export const POST: APIRoute = async ({ locals, request }) => {
-    const env = (locals as any)?.runtime?.env as Env;
-    const db = env?.PROFILES_DB;
-    
-    const body = await request.json();
-    const { userId, description, username } = body; // В реальности userId берем из сессии!
-
-    if (description) {
-        await db.prepare('UPDATE users SET description = ? WHERE id = ?').bind(description, userId).run();
-    }
-
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    const userId = sessionUserId(locals);
+    if (!userId) return json({ error: 'unauthorized' }, 401);
+    const db = dbOf(locals);
+    if (!db) return json({ error: 'Database not connected' }, 500);
+    let body: any = {};
+    try { body = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+    const description = typeof body?.description === 'string' ? body.description.slice(0, 1000) : '';
+    if (description) await db.prepare('UPDATE users SET description = ? WHERE id = ?').bind(description, userId).run();
+    return json({ success: true });
 };

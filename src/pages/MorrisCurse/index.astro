@@ -63,7 +63,7 @@ import './_core/styles/game-modals.css';
         let userId = null;
 
         try {
-          const res = await fetch('/api/get-user');
+          const res = await fetch('/api/get-user', { credentials: 'same-origin' }) // свой профиль по сессии; гостю 401;
           if (res.ok) {
             const data = await res.json();
             if (data.username) username = data.username;
