@@ -211,7 +211,11 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   // «⚔ PK» — только админ: PK-режим (кнопка у полоски ОЗ), PvP в открытом мире
   pk: { name: "PK-режим", fields: [{ path: "on", label: "PK-режим доступен", t: "bool" }, N("enterSec", "Включить: ждать без боя, с", 0, 600, "int"), N("exitSec", "Выключить: ждать без боя, с", 0, 3600, "int"),
     { path: "defense", label: "Самооборона: retaliate — не-PK отвечает напавшему PK (не становится убийцей), none — не может", t: "enum", opts: ["retaliate", "none"] },
-    N("defendSec", "Право ответа длится, с", 1, 600, "int"), N("dmgMult", "Урон по игрокам, ×", 0, 5), { path: "color", label: "Цвет имени PK", t: "color" }] },
+    N("defendSec", "Право ответа длится, с", 1, 600, "int"), N("dmgMult", "Урон по игрокам, ×", 0, 5), { path: "color", label: "Цвет имени PK", t: "color" },
+    { path: "barFrom", label: "Полоса над героем: цвет «мирный» (вход начинается с него, выход им кончается)", t: "color" }, { path: "barTo", label: "Полоса над героем: цвет «PK»", t: "color" },
+    { path: "barCancel", label: "Полоса: цвет сброса боем", t: "color" }, N("barW", "Полоса: ширина, px", 24, 140, "int"),
+    { path: "tagText", label: "Значок слева от имени (PK → АДМИН → имя)", t: "text" }, { path: "tagBg", label: "Значок: фон", t: "color" }, { path: "tagFg", label: "Значок: текст", t: "color" }, { path: "tagGlow", label: "Значок: свечение", t: "color" },
+    { path: "tagKiller", label: "Значок и красное имя — и у убийц (не только PK-режим)", t: "bool" }] },
   // «📍 Вход» — позиция между входами
   pos: { name: "Вход: позиция", fields: [{ path: "on", label: "Вход/переподключение — туда, где был (выкл — в хабе)", t: "bool" }, N("saveSec", "Позиция пишется не чаще раза в, с (и при смене мира/выходе)", 5, 3600, "int")] },
   // «🌗 День и ночь» — только мир Аринар (забеги не трогаем). Время — реальное по часовому поясу; переходы плавные

@@ -25,3 +25,4 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+tools/light-emitters/.test-bundle.mjs

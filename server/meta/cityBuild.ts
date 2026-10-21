@@ -9,7 +9,7 @@
 // на шаг южнее двери (повторно не войдёт, пока не отойдёт от триггера).
 import PROPS from "../../src/assets/mc/city/props_dark_atlas.json";
 import ROOMS_J from "../../src/assets/mc/city/interiors_dark.json";
-import { CITY_CFG, CITY_TILE, cityR, cityOn, CITY_SLOTS, CITY_LOOKS, ROOM_LIMIT, ROOM_OUT } from "./city";
+import { CITY_CFG, CITY_TILE, cityR, cityOn, CITY_SLOTS, CITY_LOOKS, ROOM_LIMIT, ROOM_OUT, pkUi } from "./city";
 import { mapBuildings, mapShiftPx, walkColliders, mapPoint } from "./cityMap";
 
 export const PXM = 20;                               // px мира на метр
@@ -149,7 +149,7 @@ export function cityNpcDefs(): Record<string, any> {
 }
 export function syncCityNpcs(NPCS: Record<string, any>) { for (const [id, d] of Object.entries(cityNpcDefs())) { if (NPCS[id]) Object.assign(NPCS[id], d); else NPCS[id] = d; } }
 /** клиенту: что рисовать (без правил убийц) */
-export const cityClient = () => ({ on: cityOn(), name: CITY_CFG.name, cp: CITY_CFG.centerpiece, x: CITY_CFG.x, y: CITY_CFG.y, r: cityR(), rTiles: Number(CITY_CFG.rTiles) || 32, aIn: CITY_CFG.alphaIn, aOut: CITY_CFG.alphaOut, rim: CITY_CFG.rim, color: CITY_CFG.color, tint: CITY_CFG.groundTint, rose: CITY_CFG.roseId && Array.isArray(CITY_CFG.rosePos) ? { id: String(CITY_CFG.roseId), x: CITY_CFG.rosePos[0] + mapShiftPx()[0], y: CITY_CFG.rosePos[1] + mapShiftPx()[1] } : null,
+export const cityClient = () => ({ pkUi: pkUi(), on: cityOn(), name: CITY_CFG.name, cp: CITY_CFG.centerpiece, x: CITY_CFG.x, y: CITY_CFG.y, r: cityR(), rTiles: Number(CITY_CFG.rTiles) || 32, aIn: CITY_CFG.alphaIn, aOut: CITY_CFG.alphaOut, rim: CITY_CFG.rim, color: CITY_CFG.color, tint: CITY_CFG.groundTint, rose: CITY_CFG.roseId && Array.isArray(CITY_CFG.rosePos) ? { id: String(CITY_CFG.roseId), x: CITY_CFG.rosePos[0] + mapShiftPx()[0], y: CITY_CFG.rosePos[1] + mapShiftPx()[1] } : null,
   b: cityBuildings().map((b) => [b.id, b.key, b.x, b.y, b.room || "", b.ox, b.oy, b.name, b.door ? b.door.x : 0, b.door ? b.door.y : 0]), // + дверь (триггер)
   npc: (CITY_CFG.npc as any[]).map((s, i) => { const p = s.on ? slotPos(s) : null; return p ? { id: cityNpcId(i), name: s.name, title: s.title, look: s.look, x: p[0], y: p[1], f: p[2], house: s.house || "" } : null; }).filter(Boolean) });
 export { CITY_SLOTS, CITY_LOOKS };

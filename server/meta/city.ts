@@ -24,11 +24,12 @@ const H = (x: number, y: number, s: number) => { let h = (Math.imul(x | 0, 37476
 export const CENTERPIECES: Record<string, { name: string; r: number }> = { fountain: { name: "Фонтан", r: 1.6 }, statue: { name: "Статуя (место зарезервировано)", r: 1.2 }, none: { name: "Пусто", r: 0 } };
 /** места NPC по умолчанию: снаружи — точки карты Историка (клетки от центра, alkazak_map.json → points), внутри — здание + npc_spots
  *  его интерьера. У каждого здания — свой экземпляр комнаты и свои места (шаблонов интерьера 3, зданий 11). */
+// NPC в городе пока НЕТ (решение пользователя): места — только данные, все выключены (включаются в админке, когда появятся настоящие жители)
 const SLOT_DEF: [number, number, string, string, string, boolean, string?][] = [
-  [-4, -5.75, "", "", "Староста", true, "right"], [8.5, -8.875, "", "", "Хозяин таверны", true, "down"], [-4, -1.75, "", "", "Торговка", true, "right"],
-  [-12, 3.25, "", "", "Огородник", true, "down"], [30, 15.25, "", "", "Беженка", true, "up"], [-35, 2.25, "", "", "Дозорный", true, "left"],
-  [0, 0, "tavern", "merchant", "Хозяйка таверны", true], [0, 0, "tavern", "patron", "Бард", true], [0, 0, "house_elder", "hearth", "Жена старосты", true],
-  [0, 0, "tent_e1", "bedroll", "Беженец", true], [0, 0, "tent_s1", "supplies", "Беженка с ребёнком", true], [0, 0, "house_sw1", "table", "Охотник", true],
+  [-4, -5.75, "", "", "Староста", false, "right"], [8.5, -8.875, "", "", "Хозяин таверны", false, "down"], [-4, -1.75, "", "", "Торговка", false, "right"],
+  [-12, 3.25, "", "", "Огородник", false, "down"], [30, 15.25, "", "", "Беженка", false, "up"], [-35, 2.25, "", "", "Дозорный", false, "left"],
+  [0, 0, "tavern", "merchant", "Хозяйка таверны", false], [0, 0, "tavern", "patron", "Бард", false], [0, 0, "house_elder", "hearth", "Жена старосты", false],
+  [0, 0, "tent_e1", "bedroll", "Беженец", false], [0, 0, "tent_s1", "supplies", "Беженка с ребёнком", false], [0, 0, "house_sw1", "table", "Охотник", false],
   [0, 0, "house_nw2", "table", "Жилец", false], [0, 0, "house_n1", "hearth", "Жилица", false], [0, 0, "house_n2", "table", "Жилец", false],
   [0, 0, "house_se1", "hearth", "Жилица", false], [0, 0, "house_s1", "table", "Жилец", false], [0, 0, "tent_s2", "bedroll", "Беженец", false],
   [0, 0, "tavern", "customer", "Посетитель", false], [0, 0, "tavern", "hearth", "Путник", false], [0, 0, "house_elder", "table", "Писарь", false],
@@ -65,7 +66,7 @@ export const CITY_CFG: any = {
   // роза в центре (prod black_roses id 1792366351175927 — первая роза, вокруг неё город): сразу раскрыта, без проклятой земли.
   // Только в коде (данные prod не меняются); остальные розы растут и проклинают как обычно. Внутри купола проклятая земля любых роз не действует.
   roseId: "1792366351175927", roseBloom: true, roseNoCurse: true, noCurseIn: true,
-  rosePos: [24624, 3248],   // где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
+  rosePos: [24608, 3232],   // центр травяной клумбы (решение пользователя: роза на траве, не на досках); где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
   // места NPC: npc.N.on / name / title / look / house + spot (место в комнате, npc_spots интерьера) или dx / dy (клетки от центра при R = 32, снаружи)
   npc: SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot })),
 };
@@ -77,7 +78,26 @@ export const PK_CFG: any = {
   defendSec: 30,            // право ответа длится N с после удара PK
   dmgMult: 1,               // урон по игрокам, × (от урона по мобу без разницы уровней)
   color: "#ef4444",         // цвет имени PK (видят все)
+  barFrom: "#f8fafc",       // полоса отсчёта над героем: вход — из этого цвета в barTo, выход — обратно
+  barTo: "#dc2626",
+  barCancel: "#94a3b8",     // сброс отсчёта боем — полоса гаснет этим цветом
+  barW: 54,                 // ширина полосы над героем, px экрана
+  tagText: "PK",            // значок слева от имени (PK-режим и убийцы); порядок: PK → АДМИН → имя
+  tagBg: "#7f1d1d",
+  tagFg: "#fee2e2",
+  tagGlow: "#ef4444",
+  tagKiller: true,          // значок и красное имя — также у убийц (убил игрока / N мобов за окно), не только в PK-режиме
 };
+/** вид PK для клиентов (cityClient): цвета/подписи из админки */
+export const pkUi = () => ({ color: PK_CFG.color, barFrom: PK_CFG.barFrom, barTo: PK_CFG.barTo, barCancel: PK_CFG.barCancel, barW: Number(PK_CFG.barW) || 54, tagText: String(PK_CFG.tagText || "PK").slice(0, 6), tagBg: PK_CFG.tagBg, tagFg: PK_CFG.tagFg, tagGlow: PK_CFG.tagGlow, tagKiller: PK_CFG.tagKiller !== false, enterSec: Number(PK_CFG.enterSec) || 0, exitSec: Number(PK_CFG.exitSec) || 0 });
+/** публичное состояние PK для всех (stats игрока в снимке): pkT 0 — нет отсчёта, 1 — входит, 2 — выходит; pkP — доля 0…1; pkD — длительность, с;
+ *  pkC — счётчик сбросов (боем/отменой — клиент показывает гаснущую полосу); pkK — убийца по журналу купола */
+export function pkPublic(st: any, s: PkState, killer: boolean, now = Date.now()) {
+  const t = s.to === null ? 0 : s.to ? 1 : 2;
+  st.pk = s.pk ? 1 : 0; st.pkT = t; st.pkD = t ? Math.round(s.dur / 100) / 10 : 0;
+  st.pkP = t && s.dur > 0 ? Math.min(1, Math.round(((now - s.at) / s.dur) * 1000) / 1000) : 0;
+  st.pkC = (s as any).cancels || 0; st.pkK = killer ? 1 : 0;
+}
 export const POS_CFG: any = {
   on: true,                 // вход/переподключение — в том же мире и точке (выкл — как раньше, в хабе)
   saveSec: 60,              // позиция пишется не чаще раза в N с (и всегда при смене мира и выходе)
@@ -136,12 +156,12 @@ export const newPk = (): PkState => ({ pk: false, to: null, at: 0, dur: 0, def: 
 /** нажатие кнопки: старт отсчёта (к противоположному) или отмена идущего; возвращает событие для клиента */
 export function pkToggle(s: PkState, now = Date.now()): { k: "start" | "cancel" | "off"; to?: boolean; sec?: number } {
   if (PK_CFG.on === false && !s.pk) return { k: "off" };
-  if (s.to !== null) { s.to = null; return { k: "cancel" }; }
+  if (s.to !== null) { s.to = null; (s as any).cancels = ((s as any).cancels || 0) + 1; return { k: "cancel" }; }
   s.to = !s.pk; s.at = now; s.dur = Math.max(0, Number(s.to ? PK_CFG.enterSec : PK_CFG.exitSec) || 0) * 1000;
   return { k: "start", to: s.to, sec: s.dur / 1000 };
 }
 /** бой (нанёс или получил урон): отсчёт сбрасывается; true — был отсчёт */
-export function pkInterrupt(s: PkState): boolean { if (s.to === null) return false; s.to = null; return true; }
+export function pkInterrupt(s: PkState): boolean { if (s.to === null) return false; s.to = null; (s as any).cancels = ((s as any).cancels || 0) + 1; return true; }
 /** такт: отсчёт дошёл — режим сменился (true) */
 export function pkTick(s: PkState, now = Date.now()): boolean {
   if (s.to === null) return false;

@@ -6,7 +6,8 @@
 import { fmtBig } from './fmtNum.js';
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
-import { DayNight, lightOf, lampHash } from './engine/dayNight.js';
+import { DayNight, lightOf, lampHash, lampGlowK, nightGlow } from './engine/dayNight.js';
+import { setEmitterCamera } from './engine/lightEmitter.js';
 import { CityView } from './hub/cityView.js';
 import { emptyCellsInDome, mapProps, mapBuildings, mapShiftPx } from '../../../../server/meta/cityMap.ts';
 import { CityHud } from './ui/cityHud.js';
@@ -1529,7 +1530,7 @@ async function boot(canvasId, username, userId, api) {
   function dnFrame() {
     const on = mode !== 'run' && world === 'arinar' && !inRoomPt(player.x, player.y) && !cityRoom.inside;
     if (!on) { dayNight.frame(false, {}); return; }
-    const cam = stage.activeCamera(), fx0 = toX(player.x), fz0 = toZ(player.y), viewM = Math.max(40, stage.viewCells() * 1.6 + 20), V2 = (viewM * 20) ** 2;
+    const cam = stage.activeCamera(); setEmitterCamera(cam); const fx0 = toX(player.x), fz0 = toZ(player.y), viewM = Math.max(40, stage.viewCells() * 1.6 + 20), V2 = (viewM * 20) ** 2;
     const near = (x, y) => (x - player.x) ** 2 + (y - player.y) ** 2 < V2;
     const players = [{ x: player.x, y: player.y, me: true }];
     for (const o of others.values()) if (o.world === world && !o.runRoom && !inRoomPt(o.x, o.y) && near(o.x, o.y)) players.push({ x: o.x, y: o.y });
@@ -1541,17 +1542,18 @@ async function boot(canvasId, username, userId, api) {
     for (const r of bm?.roses?.values?.() || []) if (near(r.x, r.y)) fx.push({ x: r.x, y: r.y, c: DN_FX.rose[0], r: DN_FX.rose[1], k: DN_FX.rose[2] });
     for (const p of zone.pax?.live?.values?.() || []) { const t = p.age || 0, x = p.x0 + (p.dx || 0) * (p.s || 0) * t, y = p.y0 + (p.dy || 0) * (p.s || 0) * t; if (near(x, y) && fx.length < 140) fx.push({ x, y, c: 0xffd9a0, r: 1.6, k: 0.55 }); }
     // купол Альказака светится изнутри мягко; фонтан — огни города (_glow-слои Историка придут с артом)
-    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 7, k: 0.5 });
+    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) fx.push({ x: CITY_CFG.x, y: CITY_CFG.y, c: 0x9fc4ff, r: 9, k: 0.18 }); // мягко, без пересвета фонтана
     // огни Альказака: фонари/костры карты Историка (их рисует cityView, в чанках их нет) + тёплый свет из дверей домов
     let extra = [];
-    if (CITY_CFG.on !== false && near(CITY_CFG.x, CITY_CFG.y)) {
+    if (CITY_CFG.on !== false && Math.hypot(player.x - CITY_CFG.x, player.y - CITY_CFG.y) < (Number(CITY_CFG.rTiles) || 40) * 32 + viewM * 20) { // весь город, не только у центра
       const key = `${CITY_CFG.x},${CITY_CFG.y},${CITY_CFG.rTiles}`;
-      if (dnCity.key !== key) {
+      if (cityView.lights?.length) { extra = cityView.lights; } // огни города — из cityView (точки излучения по _glow: lightEmitter.js)
+      else if (dnCity.key !== key) {
         const L = []; for (const q of mapProps()) { const l = lightOf(q.k); if (l) { const x = toX(q.x), z = toZ(q.y); L.push([x, z, l[1], l[2] * (q.s || 1), l[3], (l[4] || 0) * (q.s || 1), lampHash(x, z)]); } }
         const [sx, sy] = mapShiftPx(); for (const b of mapBuildings()) { const e = b.exit_world_px; if (e) { const x = toX(e[0] + sx), z = toZ(e[1] + sy - 10); L.push([x, z, 0xffc879, b.interior === 'shop_tavern' ? 4.4 : 3.4, 0.8, 1.3, lampHash(x, z)]); } }
         dnCity.key = key; dnCity.list = L;
       }
-      extra = dnCity.list;
+      if (!cityView.lights?.length) extra = dnCity.list;
     }
     const t = hub.env?.terrain;
     dayNight.frame(true, { players, npcs, mobs, fx, extra, chunks: t?.chunks ? [...t.chunks.values()] : [], fx0, fz0, viewM });
@@ -1559,11 +1561,11 @@ async function boot(canvasId, username, userId, api) {
       // свечение огней города (_glow-слои Историка) — излучает само: ещё раз поверх маски, сила — по своему огню (вразнобой);
       // глубина кадра сохранена — спрайты перед огнём его закрывают (ореол «за» спрайтами, без засветки)
       const R = stage.renderer, ac = R.autoClear, gl = cityView.glows;
-      for (const g of gl) g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * 0.9 : 0.55 * Math.min(1, dayNight.state.dark * 1.2);
+      for (const g of gl) g.m.opacity = g.lamp ? Math.min(1, dayNight.lamp(g.h)) * lampGlowK(g.kind, g.halo) * (g.fl ?? 1) : 0.55 * Math.min(1, dayNight.state.dark * 1.2); // без пересвета: ореол/свечение — по виду огня (админка «Огни»)
       R.autoClear = false; R.render(cityView.glowG, cam); R.autoClear = ac;
     }
     // днём фонари не горят: их свечение в основном кадре — по силе своего огня (следующий кадр)
-    if (cityView.glows?.length) for (const g of cityView.glows) g.m.opacity = g.lamp ? 0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h)) : 1;
+    if (cityView.glows?.length) { const na = dayNight.active; for (const g of cityView.glows) g.m.opacity = g.halo ? 0 : g.lamp ? (0.15 + 0.85 * Math.min(1, dayNight.lamp(g.h))) * (na ? nightGlow(g.kind) : 1) : 1; } // ночью _glow под маской — слабее (поверх маски он и так добавляется)
   }
   function frame(now) {
     requestAnimationFrame(frame);
@@ -2012,6 +2014,7 @@ async function boot(canvasId, username, userId, api) {
       cityLamps: () => (cityView.glows || []).filter((g) => g.lamp).map((g) => +dayNight.lamp(g.h).toFixed(3)), // сила каждого огня города сейчас // отладка маски света (плейтест)
       dn: (o = {}) => api.dn(o), // день/ночь для плейтеста (то же, что api.dn)
       cityEmpty: () => emptyCellsInDome(), // клеток под куполом без земли (должно быть 0)
+      blight: () => { const b = cityView.blightG; return b ? { x: b.position.x, z: b.position.z, vis: b.visible, inScene: !!b.parent, n: b.children.length, rose: cityView.cfg?.rose } : { none: true, rose: cityView.cfg?.rose, sig: cityView.blightSig }; },
       city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc3d-pk')).map((l) => ({ text: l.textContent.slice(0, 40), color: l.style.color })) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере

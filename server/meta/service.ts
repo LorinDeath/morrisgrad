@@ -37,7 +37,7 @@ import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN, inSafe } from "./zoneGen";
 import { dnClient, DN_CFG } from "./dayNight";
-import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, type PkState } from "./city";
+import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
 import {
@@ -1582,9 +1582,10 @@ export class MetaService {
     const P = this.pkOf(ms);
     if (pkTick(P, now)) { this.pkSend(ws, ms, now); if (s.stats) s.stats.pk = P.pk ? 1 : 0; ST.inc(P.pk ? "pk_on" : "pk_off"); (this.store.account(ms.pkey) as any).pk = P.pk ? 1 : undefined; ms.dirty = true;
       this.send(ws, { type: "toast", message: P.pk ? "⚔ PK-режим включён: вы можете нападать на игроков. Купол Альказака вас не пустит." : "PK-режим выключен", color: P.pk ? PK_CFG.color : "#a7f3d0" }); }
-    if (s.stats && (s.stats.pk ? 1 : 0) !== (P.pk ? 1 : 0)) s.stats.pk = P.pk ? 1 : 0;
+    const k = this.killerOf(ms, now);
+    if (s.stats) pkPublic(s.stats, P, PK_CFG.tagKiller !== false && k.killer && !P.pk, now); // видят все: полоса отсчёта над героем, значок PK у убийц
     if (!ms.zp.alive || !inCity(s.x, s.y)) return;
-    const k = this.killerOf(ms, now); if (!k.killer) return;
+    if (!k.killer) return;
     const wasRoom = inRoomArea(s.x, s.y);
     const [nx, ny] = pushOut(s.x, s.y, 24 + CITY_TILE * Math.max(0, Number(CITY_CFG.pushExtraTiles) || 0));
     s.x = nx; s.y = ny; ms.zp.x = nx; ms.zp.y = ny; (s as any).lastMoveAt = now;
@@ -1620,7 +1621,8 @@ export class MetaService {
   }
   pkSend(ws: WebSocket, ms: any, now = Date.now()) {
     const P = this.pkOf(ms), k = this.killLog.status(ms.pkey, now);
-    this.send(ws, { type: "pk_state", pk: P.pk, to: P.to, left: pkLeft(P, now), dur: Math.round(P.dur / 1000), on: PK_CFG.on !== false, killer: k.killer ? { until: k.until, why: k.why, sec: Math.ceil((k.until - now) / 1000) } : null, color: PK_CFG.color });
+    { const e = this.sessionLookup?.(ms.sid || ms.id); const st = e?.[1]?.stats; if (st) pkPublic(st, P, PK_CFG.tagKiller !== false && k.killer && !P.pk, now); }
+    this.send(ws, { type: "pk_state", pk: P.pk, to: P.to, left: pkLeft(P, now), leftMs: P.to === null ? 0 : Math.max(0, P.at + P.dur - now), durMs: P.dur, cancels: (P as any).cancels || 0, dur: Math.round(P.dur / 1000), on: PK_CFG.on !== false, killer: k.killer ? { until: k.until, why: k.why, sec: Math.ceil((k.until - now) / 1000) } : null, color: PK_CFG.color });
   }
   /** бой (нанёс/получил урон): PK-отсчёт сбрасывается */
   pkCombat(sid: string) {
