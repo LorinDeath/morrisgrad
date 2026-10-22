@@ -241,7 +241,7 @@ export class Zone {
   bossIds: Record<string, number> = {};
   rareAt: Record<string, number> = {};
   rareIds: Record<string, number> = {};
-  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
+  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, domeDrops: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
   byId = new Map<number, ZMob>();
   buckets = new Map<number, ZMob[]>(); // чанк WORLD_CHUNK → мобы (интерес/выборки)
   awake = new Set<number>();           // чанки рядом с игроками (остальные спят: без ИИ)
@@ -966,8 +966,10 @@ export class Zone {
       // цель
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
-      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, this.keepOut!.aggroPad?.() ?? 24); })()); // цель ушла под купол города (+ запас mobAggroPadPx) — моб сбрасывается
-      if (!m.reset && (m.targetSid || m.mobTarget) && (tIn || homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash))) {
+      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, -(this.keepOut!.aggroPad?.() ?? 24)); })()); // цель ушла под купол глубже края на mobAggroPadPx (радиус R − запас; было R + запас — игрок СНАРУЖИ у края сбрасывал мобов) — моб теряет цель
+      // цель ушла под купол: моб просто теряет её (без «Уклонения» — не неуязвим, не бежит домой с лечением; дальше бродит у дома как обычно)
+      if (tIn && !m.reset) { m.targetSid = null; m.casts = []; m.windup = 0; m.dashT = 0; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.domeDrops++; }
+      if (!m.reset && (m.targetSid || m.mobTarget) && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
         m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
       }
@@ -985,7 +987,8 @@ export class Zone {
       const aggro = (m as any).devCalm ? 0 : d.aggro * (m.special ? 1.2 : 1) * (isKiller(m) ? 1.25 : 1); // devCalm — только dev_spawn_mob (скриншоты)
       let best: ZPlayer | null = null, bd = aggro;
       if (m.targetSid) { const t = players.get(m.targetSid); if (t && t.alive) { const dd = Math.hypot(t.x - m.x, t.y - m.y); if (dd < aggro * (m.special ? 2.6 : 1.8) || (m.huntUntil && now < m.huntUntil && dd < ZONE_GEN.ambientDespawnDist)) { best = t; bd = dd; } } }
-      if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
+      const KO = this.keepOut, kpad = KO ? -(KO.aggroPad?.() ?? 24) : 0; // игрока под куполом (глубже края на запас) не выбираем целью — иначе агро → потеря цели → агро по кругу
+      if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; if (KO && KO.inside(p.x, p.y, kpad)) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
       const fresh = !m.targetSid && best;
       m.targetSid = best ? best.sid : null;
       if (best) m.mobTarget = 0; // игроки важнее драки с мобом
