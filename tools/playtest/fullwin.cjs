@@ -12,25 +12,30 @@ let n = 0, bad = 0; const t = (m, c, d) => { n++; if (!c) bad++; console.log((c 
 const STUB = (init) => {
   const L = new Set(); const user = init.user ? { id: init.user } : null;
   const st = () => ({ user, session: user ? C.session : null, client: {}, organization: null });
-  const C = window.Clerk = { loaded: false, user, session: user ? { id: 's_' + user.id, getToken: async () => '' } : null,
+  const C = window.Clerk = { loaded: false, user, session: user ? { id: 's_' + user.id, getToken: async () => init.token || '' } : null,
     load() { this.loaded = true; setTimeout(() => L.forEach((f) => f(st())), 0); return Promise.resolve(); },
     addListener(f) { L.add(f); if (this.loaded) f(st()); return () => L.delete(f); },
     __unstable__updateProps() { return Promise.resolve(); },
     mountSignIn(el) { el.innerHTML = '<div class="cl-rootBox" style="padding:24px;color:#ccc">[заглушка Clerk]</div>'; }, mountSignUp() {}, unmountSignIn() {}, unmountSignUp() {}, openSignIn() {}, async signOut() {} };
   setTimeout(() => { if (!C.loaded) C.load({}); }, 300);
 };
-async function open(b, { mobile, user, tag }) {
-  const ctx = await b.newContext(mobile ? { viewport: { width: 844, height: 390 }, screen: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' } : { viewport: { width: 1366, height: 800 }, screen: { width: 1366, height: 800 } });
+const IOS = { viewport: { width: 390, height: 844 }, screen: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' };
+async function open(b, { mobile, user, tag, ios }) {
+  const ctx = await b.newContext(ios ? IOS : mobile ? { viewport: { width: 844, height: 390 }, screen: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' } : { viewport: { width: 1366, height: 800 }, screen: { width: 1366, height: 800 } });
   const blocked = [];
   await ctx.route('**/*', (r) => { const u = r.request().url(); if (LOCAL.test(u) || /^(data|blob|about|chrome|devtools):/.test(u)) return r.continue(); blocked.push(u); return r.abort(); });
   if (ctx.routeWebSocket) await ctx.routeWebSocket(/.*/, (ws) => { if (LOCAL.test(ws.url())) return ws.connectToServer(); blocked.push(ws.url()); ws.close(); });
   await ctx.addCookies([{ name: 'mg_dev_noclerk', value: '1', url: new URL(BASE).origin }]);
-  await ctx.addInitScript(STUB, { user });
-  const p = await ctx.newPage(); const errs = [];
-  p.on('pageerror', (e) => errs.push('pageerror: ' + String(e).slice(0, 200)));
-  p.on('console', (m) => { if (m.type() === 'error') { const x = m.text(); if (!/net::ERR_FAILED|ERR_BLOCKED|Failed to load resource/.test(x)) errs.push('console: ' + x.slice(0, 200)); } });
+  await ctx.addInitScript(STUB, { user, token: user ? 'fw-local-' + user : '' });
+  if (ios) await ctx.addInitScript(() => { delete Element.prototype.requestFullscreen; Element.prototype.requestFullscreen = undefined; Object.defineProperty(document, 'fullscreenEnabled', { value: false }); }); // iPhone Safari: Fullscreen API нет
+  const p = await ctx.newPage(); const errs = [], mcerr = [];
+  p.on('pageerror', (e) => { if (!/failed_to_load_clerk_ui/.test(String(e))) errs.push('pageerror: ' + String(e).slice(0, 200)); }); // настоящий Clerk UI с сети обрывается тестом (заглушка) — не ошибка страницы
+  p.on('console', (m) => { if (/\[mc-err\]/.test(m.text())) mcerr.push(m.text().slice(0, 300));  if (m.type() === 'error') { const x = m.text(); if (!/net::ERR_FAILED|ERR_BLOCKED|Failed to load resource|clerk/i.test(x)) errs.push('console: ' + x.slice(0, 200)); } });
+  const boxes = [];
+  await p.exposeFunction('__fwBox', (x) => boxes.push(x));
+  await p.addInitScript(() => { new MutationObserver(() => { for (const e of document.querySelectorAll('.mcl-err:not([data-fw])')) { e.dataset.fw = 1; e.style.setProperty('visibility', 'hidden', 'important'); window.__fwBox(e.innerText.replace(/\s+/g, ' ').slice(0, 300)); } }).observe(document, { childList: true, subtree: true }); });
   await p.goto(assertLocalUrl(`${BASE}?ws=${encodeURIComponent(WS)}&debug=1${mobile ? '&mobile=1' : ''}`));
-  return { ctx, p, errs, blocked, tag, mobile };
+  return { ctx, p, errs, blocked, tag, mobile, boxes, mcerr };
 }
 const G = (p, f, a) => p.evaluate(f, a);
 const geo = (p) => G(p, () => { const w = document.getElementById('game-window').getBoundingClientRect(), c = document.getElementById('game-canvas').getBoundingClientRect(), h = document.querySelector('.mc3d-hud, .mc-hud, #mc-hud')?.getBoundingClientRect?.();
@@ -38,9 +43,9 @@ const geo = (p) => G(p, () => { const w = document.getElementById('game-window')
 const full = (g) => g.w[0] === 0 && g.w[1] === 0 && Math.abs(g.w[2] - g.iw) <= 1 && Math.abs(g.w[3] - g.ih) <= 1 && Math.abs(g.c[2] - g.iw) <= 2 && Math.abs(g.c[3] - g.ih) <= 2;
 const waitGame = (p) => p.waitForFunction(() => window.__MC3D_GAME__?.state?.().myId && window.__MC3D_GAME__?.state?.().mode === 'hub', null, { timeout: 150000 });
 
-async function run(b, mobile) {
-  const tag = mobile ? 'mob' : 'pc';
-  const s = await open(b, { mobile, user: `user_fw_${tag}`, tag }); const p = s.p;
+async function run(b, mobile, ios = false) {
+  const tag = ios ? 'iphone13' : mobile ? 'mob' : 'pc';
+  const s = await open(b, { mobile, user: `user_fw_${tag}`, tag, ios }); const p = s.p;
   // 1. открытие — без нажатий
   const t0 = Date.now(); let started = true; await waitGame(p).catch(() => { started = false; });
   t(`${tag}: игра стартует сама, без нажатий (${Math.round((Date.now() - t0) / 1000)} с)`, started);
@@ -59,17 +64,18 @@ async function run(b, mobile) {
   if (mobile) await p.touchscreen.tap(g.iw / 2, g.ih / 2 - 40); else await p.mouse.click(g.iw / 2, g.ih / 2 - 40);
   await sleep(1200);
   const g1 = await geo(p), ac1 = await G(p, () => window.__mcAC?.state || null);
-  t(`${tag}: первый жест → полный экран`, g1.fs, g1);
+  if (ios) t(`${tag}: нет Fullscreen API — остаёмся на всё окно, без ошибок`, !g1.fs && full(g1), g1);
+  else t(`${tag}: первый жест → полный экран`, g1.fs, g1);
   t(`${tag}: первый жест → звук разблокирован (AudioContext)`, ac1 === 'running' || ac1 === 'suspended', ac1);
   t(`${tag}: в полном экране окно игры = всё окно`, full(g1), g1);
   await p.screenshot({ path: `${OUT}/${tag}-02-after-click.png` });
   // 3. Esc браузера: выход из полного экрана (браузер Esc не передаёт странице) — раскладка та же
-  const hud0 = await G(p, () => [...document.querySelectorAll('[data-ud]')].slice(0, 6).map((e) => { const r = e.getBoundingClientRect(); return [e.dataset.ud, Math.round(r.x), Math.round(r.y)]; }));
-  await G(p, () => document.exitFullscreen()); await sleep(1200);
+  const hud0 = await G(p, () => [...document.querySelectorAll('.mc-dr:not(.mc-dr-win)')].filter((e) => e.offsetParent).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0], Math.round(r.x), Math.round(r.y)]; }));
+  if (!ios) await G(p, () => document.exitFullscreen()); await sleep(1200);
   const g2 = await geo(p);
   t(`${tag}: после Esc — не полный экран, но всё окно, без сдвига`, !g2.fs && full(g2) && g2.sy === 0, g2);
-  const hud1 = await G(p, () => [...document.querySelectorAll('[data-ud]')].slice(0, 6).map((e) => { const r = e.getBoundingClientRect(); return [e.dataset.ud, Math.round(r.x), Math.round(r.y)]; }));
-  t(`${tag}: блоки HUD на тех же местах после Esc`, JSON.stringify(hud0) === JSON.stringify(hud1) || hud0.every((a, i) => hud1[i] && Math.abs(a[1] - hud1[i][1]) <= 2 && Math.abs(a[2] - hud1[i][2]) <= 2), { hud0, hud1 });
+  const hud1 = await G(p, () => [...document.querySelectorAll('.mc-dr:not(.mc-dr-win)')].filter((e) => e.offsetParent).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return [e.className.split(' ')[0], Math.round(r.x), Math.round(r.y)]; }));
+  t(`${tag}: блоки HUD на тех же местах после Esc`, hud0.length > 0 && (JSON.stringify(hud0) === JSON.stringify(hud1) || hud0.every((a, i) => hud1[i] && Math.abs(a[1] - hud1[i][1]) <= 2 && Math.abs(a[2] - hud1[i][2]) <= 2)), { hud0, hud1 });
   await p.screenshot({ path: `${OUT}/${tag}-03-after-esc.png` });
   // второй жест — полный экран повторно НЕ включается (один раз за загрузку)
   if (mobile) await p.touchscreen.tap(g.iw / 2 + 30, g.ih / 2 - 60); else await p.mouse.click(g.iw / 2 + 30, g.ih / 2 - 60);
@@ -85,7 +91,7 @@ async function run(b, mobile) {
     t(`${tag}: Esc в игре не включает полный экран и не сдвигает окно`, !(await geo(p)).fs && full(await geo(p)));
   }
   // 4. ресайз окна (ПК / телефон поворот / Яндекс-контейнер)
-  const sizes = mobile ? [[390, 844], [844, 390]] : [[1024, 640], [1600, 900], [820, 560]];
+  const sizes = ios ? [[844, 390], [390, 844]] : mobile ? [[390, 844], [844, 390]] : [[1024, 640], [1600, 900], [820, 560]];
   for (const [w, h] of sizes) {
     await p.setViewportSize({ width: w, height: h }); await sleep(1000);
     const gr = await geo(p);
@@ -93,6 +99,12 @@ async function run(b, mobile) {
     if (mobile && w < h) await p.screenshot({ path: `${OUT}/${tag}-04-portrait.png` });
   }
   t(`${tag}: без ошибок страницы`, s.errs.length === 0, s.errs.slice(0, 3));
+  // окна прячутся на снимках (visibility), но каждое регистрируется по коду в консоли и проверяется здесь
+  // стенд astro dev без сборки и без настоящего Clerk: манифест ресурсов (MC-L01, 404 — собирается при build), токен-заглушка (MC-A06, 401),
+  // скрипт Clerk UI с сети оборван тестом (MC-X00 «Clerk») — это не ошибки страницы; любые другие коды — провал
+  const HARN = /MC-L01 \S+ HTTP 404|MC-A06 \S+ HTTP 401|MC-X00 \S+ Clerk/;
+  const other = s.mcerr.filter((x) => !HARN.test(x));
+  t(`${tag}: окон ошибок игры не было (кроме ограничений стенда)`, other.length === 0, { other, harness: s.mcerr.length });
   console.log(`info ${tag}: оборвано не-локальных запросов ${s.blocked.length} (${[...new Set(s.blocked.map((u) => { try { return new URL(u).host; } catch (_) { return u; } }))].join(', ')})`);
   await s.ctx.close();
 }
@@ -122,6 +134,7 @@ async function guest(b) { // гость: окно «Войти / Играть г
   const only = process.env.ONLY || '';
   if (!only || only === 'pc') await run(b, false);
   if (!only || only === 'mob') await run(b, true);
+  if (!only || only === 'ios') await run(b, true, true);
   if (!only || only === 'adm') await adminOff(b);
   if (!only || only === 'guest') await guest(b);
   await b.close(); console.log(`fullwin ${n - bad}/${n}`); process.exit(bad ? 1 : 0);
