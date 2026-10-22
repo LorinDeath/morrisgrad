@@ -105,8 +105,7 @@ export class BchestWindow {
     const items = c.items || [];
     pane.innerHTML = `<div class="bc-head">${this.ico(c, 20, 1)} <b style="color:${esc(textCol(c.color))}">${esc(c.name)}</b><small>${esc(this.tag(c))} · внутри ${items.length}</small></div>
       <div class="grid mc-bag"></div>
-      <div class="bc-acts"><button class="btn" data-a="take" disabled>Забрать</button><button class="btn" data-a="equip" disabled>Надеть</button><button class="btn danger" data-a="salvage" disabled>Разобрать</button><button class="btn gold all" data-a="all"${mine ? '' : ' disabled'}>Забрать всё</button></div>
-      <footer><small>${TAKE_HINT}${TOUCH ? ' · долгое нажатие — сравнение' : ' · наведите — сравнение с надетым'}</small></footer>`;
+      <footer><div class="bc-acts"><button class="btn" data-a="take" disabled>Забрать</button><button class="btn" data-a="equip" disabled>Надеть</button><button class="btn danger" data-a="salvage" disabled>Разобрать</button><button class="btn gold all" data-a="all"${mine ? '' : ' disabled'}>Забрать всё</button></div><small>${TAKE_HINT}${TOUCH ? ' · долгое нажатие — сравнение' : ' · наведите — сравнение с надетым'}</small></footer>`;
     const g = pane.querySelector('.grid');
     const hl = this.meta?.hero?.lvl | 0; // та же ячейка, что в сумке (C): рамки редкости/✦, проклятие, очернение; «ур.» — только если не хватает уровня
     g.innerHTML = items.map((e) => { const it = bcInst(e), d = curseDef(ITEM_BY_ID[e.id], it); if (!d) return ''; const nm = d.name || e.id, low = hl && (d.lvl | 0) > hl;
