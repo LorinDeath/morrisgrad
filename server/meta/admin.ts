@@ -8,6 +8,7 @@ import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validateConds, COND_DEFS } from "./questConds";
 import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, type Kind, type Trait } from "./overrides";
+import { copyIds, copyPatch, isCopy } from "./variantCopy";
 import { migrateBchestPatch } from "./boardChestCfg";
 import { BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, BT_CATS_NEW, CAT_NAMES, GIVER_NAMES, NPC_GIVERS, CUSTOM_BT } from "./board";
 import { BIOMES } from "./biomes";
@@ -130,6 +131,24 @@ export class AdminStore {
   /** правка применилась (своя или подхваченная по версии) — разослать онлайн-игрокам */
   onChange?: () => void;
   touched = new Set<string>(); // kind:id всех когда-либо изменённых сущностей (чтобы сброс тоже дошёл до клиентов)
+  /** свои строки game_overrides у копий трофеев вариантов (variantCopy.ts): копия без строки наследует правку базы */
+  copyOwn = new Map<string, any>();
+  /** копии трофеев: унаследованное от ДЕЙСТВУЮЩЕЙ базы + своя строка поверх (своя правка важнее). Пересчёт — после
+   *  загрузки правок и после каждой правки предмета (правка базы сразу меняет наследующие копии). В D1 не пишет. */
+  applyCopies() {
+    const ids = copyIds();
+    for (const id of ids) applyOverride("item", id, null); // исходные копии (уровень варианта), кривые соседей копии не учитывают
+    const der = ids.map((id) => [id, copyPatch(id)] as const);
+    for (const [id, d] of der) { if (!d) continue; const own = this.copyOwn.get(id); applyOverride("item", id, own ? { ...d, ...own } : d); this.touched.add("item:" + id); }
+  }
+  /** копии, чьи значения изменились после правки предмета (для живого обновления списка в админке) */
+  private copyDiff(before: Record<string, string>, also?: string) {
+    const out: { id: string; values: any; inh: boolean; lvl: number }[] = [];
+    for (const id of copyIds()) { const v = currentValues("item", id), j = JSON.stringify(v);
+      if (j !== before[id] || id === also) out.push({ id, values: v, inh: !this.copyOwn.has(id), lvl: Math.max(1, v.req || 1, v.lvl || 1) }); }
+    return out;
+  }
+  private copySnap() { return Object.fromEntries(copyIds().map((id) => [id, JSON.stringify(currentValues("item", id))])); }
   constructor(db: any) { this.db = db; }
   /** перечитать правки, если версия набора в D1 изменилась (раз в 10 с; комнаты/воркеры — горячая перезагрузка) */
   async sync(force = false) {
@@ -142,9 +161,12 @@ export class AdminStore {
         const ver = Number(v?.v ?? 0); if (!force && ver === this.ver) return;
         const rows = (await this.db.prepare("SELECT kind, id, data FROM game_overrides").all()).results || [];
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
+        this.copyOwn.clear();
         for (const r of rows) { this.touched.add(r.kind + ":" + r.id); let raw = JSON.parse(r.data);
           if (r.kind === "bchest") { const mg = migrateBchestPatch(raw); raw = mg.patch; if (mg.changed.length) console.warn(`[admin] bchest:${r.id} миграция шанса ☠ сундуков: ${mg.changed.join(", ")}`); } // потолок 30 %, прежние значения по умолчанию → новые
-          const p = validatePatch(r.kind, r.id, raw); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
+          const p = validatePatch(r.kind, r.id, raw); if (typeof p === "string") continue;
+          if (r.kind === "item" && isCopy(r.id)) this.copyOwn.set(r.id, p); else applyOverride(r.kind, r.id, p); }
+        this.applyCopies();
         const qs = (await this.db.prepare("SELECT data FROM custom_quests WHERE enabled = 1").all()).results || [];
         // сюжетные квесты: сначала вернуть исходные, затем наложить правки (строки custom_quests с id сюжетного квеста)
         for (const q of QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null);
@@ -179,25 +201,27 @@ export class AdminStore {
     if (!this.db) return { ok: false, err: "База недоступна" };
     if (!KINDS.includes(kind) || !ID_RE.test(id)) return { ok: false, err: "неверная сущность" };
     const clean = validatePatch(kind, id, patch); if (typeof clean === "string") return { ok: false, err: clean };
-    const before = currentValues(kind, id);
+    const before = currentValues(kind, id), snap = kind === "item" ? this.copySnap() : null;
     const row = await this.db.prepare("SELECT version FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id).first();
     const version = Number(row?.version || 0) + 1;
     await this.db.prepare("INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at")
       .bind(kind, id, JSON.stringify(clean), version, by, Date.now()).run();
-    applyOverride(kind, id, clean);
+    if (kind === "item" && isCopy(id)) this.copyOwn.set(id, clean); else applyOverride(kind, id, clean);
+    if (kind === "item") this.applyCopies();
     const values = currentValues(kind, id);
     await this.bump(by, kind, id, before, values, version);
-    return { ok: true, values, version };
+    return { ok: true, values, version, ...(snap ? { copies: this.copyDiff(snap, isCopy(id) ? id : undefined) } : {}) };
   }
   async reset(by: string, kind: Kind, id: string) {
     if (!this.db) return { ok: false, err: "База недоступна" };
     if (!KINDS.includes(kind) || !TABLES[kind][id]) return { ok: false, err: "неверная сущность" };
-    const before = currentValues(kind, id);
+    const before = currentValues(kind, id), snap = kind === "item" ? this.copySnap() : null;
     await this.db.prepare("DELETE FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id).run();
     applyOverride(kind, id, null);
+    if (kind === "item") { this.copyOwn.delete(id); this.applyCopies(); } // копия без строки снова наследует базу
     const values = currentValues(kind, id);
     await this.bump(by, kind, id, before, values, 0);
-    return { ok: true, values, deleted: !TABLES[kind][id] || undefined }; // своё задание доски при сбросе удаляется целиком
+    return { ok: true, values, deleted: !TABLES[kind][id] || undefined, ...(snap ? { copies: this.copyDiff(snap, isCopy(id) ? id : undefined) } : {}) }; // своё задание доски при сбросе удаляется целиком
   }
   async saveQuest(by: string, raw: any) {
     if (!this.db) return { ok: false, err: "База недоступна" };
@@ -279,7 +303,7 @@ export class AdminStore {
     // уровень в строке списка: моб — lvl; предмет/оружие — требуемый уровень надевания itemReq = max(req, lvl);
     // навык — unlockLevel; таблица дропа — уровень моба-владельца
     const lvlOf = (k: string, id: string, o: any) => k === "btask" ? o.minLvl : k === "mob" ? o.lvl : k === "item" ? itemReq(o) : k === "skill" ? o.unlockLevel : k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.lvl : undefined;
-    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "ench" ? "✦ Зачарование: ярусы вещей и мобов, регенерация, дроп, улучшение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "npc" ? "🚶 NPC: прогулка вокруг точки появления" : k === "bmage" ? "🌑 Чёрный маг: купола, чёрная магия, очернение, розы" : k === "city" ? "🏰 Альказак: купол, безопасная зона, убийцы, вид, места NPC" : k === "pk" ? "⚔ PK-режим: отсчёт, самооборона, урон" : k === "pos" ? "📍 Вход: позиция между входами" : k === "dn" ? "🌗 День и ночь: время, цвета, огни, форс-время" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "board" ? "📋 Доска заданий: настройки, опыт, обучение, удобство" : k === "btask" ? o.title : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, cat: k === "btask" ? o.cat : undefined, values: currentValues(k, id) }));
+    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "ench" ? "✦ Зачарование: ярусы вещей и мобов, регенерация, дроп, улучшение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "npc" ? "🚶 NPC: прогулка вокруг точки появления" : k === "bmage" ? "🌑 Чёрный маг: купола, чёрная магия, очернение, розы" : k === "city" ? "🏰 Альказак: купол, безопасная зона, убийцы, вид, места NPC" : k === "pk" ? "⚔ PK-режим: отсчёт, самооборона, урон" : k === "pos" ? "📍 Вход: позиция между входами" : k === "dn" ? "🌗 День и ночь: время, цвета, огни, форс-время" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "board" ? "📋 Доска заданий: настройки, опыт, обучение, удобство" : k === "btask" ? o.title : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, part: k === "item" && o.part ? o.part : undefined, partName: k === "item" && o.part ? (TABLES.item[o.part] as any)?.name : undefined, inh: k === "item" && o.part ? !this.copyOwn.has(id) : undefined, cat: k === "btask" ? o.cat : undefined, values: currentValues(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
       quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),
