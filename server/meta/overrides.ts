@@ -18,7 +18,7 @@ import { mobSkillOptions } from "./mobSkills";
 // Черты (traits) — эффекты в духе RPG Maker MZ «Traits/Effects»: поджог, кровотечение, яд, заморозка, замедление,
 // отбрасывание, вампиризм — с параметрами; вешаются на оружие (тип), предмет и навык; применяет сервер при попадании.
 import { ZONE_MOBS, WEAPON_TYPES, ITEM_BY_ID, ABILITY_BY_ID, MONSTER_LOOT, RESOURCES, salvageDefault } from "./defs";
-import { RUN_SKILLS } from "./shared";
+import { RUN_SKILLS, HERO_NAMES } from "./shared";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { ZONE_GEN, BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { CURSE } from "./cursed";
@@ -370,6 +370,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_b3", label: "Опыт: % от опыта на уровень (по уровню цели × сложность)", t: "hdr" },
     ...[0, 1, 2, 3, 4, 5].flatMap((b) => [N(`bands.${b}`, `Полоса ${b + 1}: до уровня`, 1, 30, "int"), ...[0, 1, 2, 3, 4].map((d) => N(`xp.${b}.${d}`, `Полоса ${b + 1} · сложность ${d + 1}, %`, 0, 100))]),
     N("refPlus", "Устарело, не используется (опыт — число от уровня задания)", 0, 30, "int"),
+    { path: "xbody.on", label: "Задания на другое тело (случайно в наборе)", t: "bool" }, N("xbody.pct", "Доля заданий на другое тело, %", 0, 100),
+    N("mobWin", "Повторяющиеся на конкретного врага: враг не ниже уровня героя минус N", 0, 30, "int"),
     { path: "_h_b6", label: "Опыт по категориям: множитель к таблице и потолок за период (% опыта на уровень; 0 — без потолка)", t: "hdr" },
     ...CATS.flatMap((c): Field[] => [N(`xpMul.${c}`, `${CAT_NAMES[c]}: множитель опыта`, 0, 10),
       ...(c === "tut" ? [] : [N(`caps.${c}`, `${CAT_NAMES[c]}: потолок, % уровня ${c === "weekly" || c === "hard" ? "в неделю" : c === "monthly" ? "в месяц" : "в сутки"}`, 0, 500)])]),
@@ -387,6 +389,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "giver", label: "Кто выдаёт и принимает: персонаж — в своём диалоге, Доска объявлений — у доски, «—» — в окне «Задания»", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
     { path: "hl", label: "Подсветка (altar, mob, node, bag, npc:petr, btn:book…)", t: "text" },
     { path: "rmax", label: "Высший ранг при выпадении (пусто — S/SS только для боёв, забегов, испытаний)", t: "enum", opts: ["", ...RANKS], optn: { "": "по событию" } },
+    { path: "rb", label: "На каком теле выполнять условие (сдаёт и получает награду — тело-владелец)", t: "enum", opts: ["", "any", ...HERO_IDS], optn: { "": "на своём теле (владелец)", any: "на любом теле", ...HERO_NAMES } },
     N("ord", "Порядок", 0, 9999, "int"), N("minLvl", "Доступно с уровня", 1, 30, "int"), N("maxLvl", "До уровня (пул периодических)", 1, 30, "int"), N("lvl", "Уровень задания (от него опыт по таблице; 0 — подобрать по цели)", 0, 30, "int"),
     { path: "req", label: "Сначала выполнить (id через запятую, id@ступень)", t: "ltext" },
     { path: "m", label: "Цель (моб, ресурс, biome:ice, role:tank…)", t: "text" }, { path: "f", label: "Условия (elite, cursed, ench, e1…e6, e3up, ewear6, party, solo, rare, boss, wboss, lvl, min, night…)", t: "text" },
@@ -512,9 +515,10 @@ export const BT_FLAG_NAMES: Record<string, string> = {
   elite: "элитный враг", cursed: "проклятый (враг/вещь)", ench: "зачарованный (любой ярус)", rare: "редкий враг", boss: "босс", wboss: "мировой босс",
   party: "в отряде", solo: "в одиночку", lvl: "враг не ниже уровня героя − 2", night: "ночью", midnight: "в полночь", hp10: "на последних 10% ОЗ",
   min: "считать минуты забега", ewear6: "в «Чёрной» вещи", wearc: "в проклятой вещи", wearc5: "в 5 проклятых вещах", dark50: "чернота героя 50+", naked: "без снаряжения",
+  oneshot: "одним ударом (первый удар по целому врагу добил его)", skillonly: "только навыками (без автоатаки)", basiconly: "без навыков (только автоатака)",
   ...Object.fromEntries([1, 2, 3, 4, 5, 6].flatMap((t) => [[`e${t}`, `ярус ${t} ровно`], [`e${t}up`, `ярус ${t} и выше`]])),
 };
-const BT_FLAGS = new Set(["elite", "cursed", "ench", "ewear6", "party", "solo", "rare", "boss", "wboss", "lvl", "min", "night", "midnight", "hp10", "wearc", "wearc5", "dark50", "naked"]);
+const BT_FLAGS = new Set(["elite", "cursed", "ench", "ewear6", "party", "solo", "rare", "boss", "wboss", "lvl", "min", "night", "midnight", "hp10", "wearc", "wearc5", "dark50", "naked", "oneshot", "skillonly", "basiconly"]);
 function validateBtask(id: string, out: any): string | null {
   const T = TABLES.btask[id], get = (p: string, d: any) => (out[p] !== undefined ? out[p] : p.split(".").reduce((x: any, k) => x?.[k], T) ?? d);
   let prev = 0, end = false;

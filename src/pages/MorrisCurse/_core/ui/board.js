@@ -65,7 +65,7 @@ export class BoardWin {
     const ctl = !hid && o.ctl ? `<div class="ctl">${esc(o.ctl)}</div>` : '';
     return `<div class="mc-bd-row${r.ready && !r.done ? ' ready' : ''}${r.done ? ' done' : ''}${lk ? ' lock' : ''}${hid ? ' hid' : ''}" data-id="${t.id}">
       <div class="l"><div class="nm">${rankTag(t.rk)}${r.done ? '✔ ' : ''}${esc(S.title(t))} ${g}${t.rk === 'S' || t.rk === 'SS' ? ' <small class="grp">на отряд — зовите друзей</small>' : ''}</div>
-      ${why && !t.roll ? `<div class="w">${esc(why)}</div>` : ''}${ctl}${hid ? '' : this.condHtml(t, r)}
+      ${why && !t.roll ? `<div class="w">${esc(why)}</div>` : ''}${!hid && S.reqText(t) ? `<div class="mc-xb">↪ ${esc(S.reqText(t))} · сдать и получить награду — ${esc(S.bodyName(S.body))}</div>` : ''}${ctl}${hid ? '' : this.condHtml(t, r)}
       ${hid ? '' : `<div class="bar"><i style="width:${pct}%"></i><span>${r.done ? 'выполнено' : `${r.have} / ${r.n}`}</span></div>`}
       <div class="tr">${[tierTxt, lk ? '🔒 ' + esc(lk) : !r.done && !hid ? esc(this.rewardText(t, r.i)) : ''].filter(Boolean).join(' · ')} ${where}</div></div>
       <div class="r">${btn}</div></div>`;
@@ -148,7 +148,7 @@ export class BoardWin {
     const max = S.defs.cfg.huntMax, n = S.takenCount();
     const ready = orders.filter((t) => (!t.take || S.taken(t.id)) && S.tier(t).ready);
     const grid = (ts) => `<div class="mc-nb-grid">${ts.map((t) => this.sheet(t)).join('')}</div>`;
-    return `<div class="mc-nb-head"><span class="cnt${n >= max ? ' full' : ''}">Взято ${n} / ${max}</span><span>Новые заказы — через ${fmtLeft((S.st.reset?.daily || 0) - Date.now())}</span></div>` +
+    return `<div class="mc-nb-head"><span class="cnt${n >= max ? ' full' : ''}">Взято ${n} / ${max}</span>${S.body ? `<span>Заказы тела: ${esc(S.bodyName(S.body))}</span>` : ''}<span>Новые заказы — через ${fmtLeft((S.st.reset?.daily || 0) - Date.now())}</span></div>` +
       (ready.length ? `<div class="mc-nb-sec">Готово к сдаче</div>${grid(ready)}` : '') +
       `<div class="mc-nb-sec">Ваши заказы</div>${takenH.filter((t) => !S.tier(t).ready).length ? grid(takenH.filter((t) => !S.tier(t).ready)) : '<p class="mc-nb-empty">Пока ничего не взято. Выберите листок ниже.</p>'}` +
       `<div class="mc-nb-sec">Заказы охоты на сегодня</div>${offer.length ? grid(offer) : '<p class="mc-nb-empty">Сегодняшние заказы разобраны.</p>'}` +
@@ -159,7 +159,8 @@ export class BoardWin {
     const st = S.st, rs = st.reset || {};
     const PER = { daily: 'сегодня', hunt: 'сегодня', npc: 'сегодня', ach: 'сегодня', weekly: 'за неделю', hard: 'за неделю', monthly: 'за месяц' };
     const xs = st.xs?.[this.tab], xt = xs ? ` · опыт ${PER[this.tab] || ''}: ${xs[0]} / ${xs[1]}` : ''; // потолок категории за её период
-    el.innerHTML = this.mode === 'all' && PERIODIC.includes(this.tab) ? `Обновление через ${fmtLeft((rs[this.tab] || 0) - Date.now())} (по Киеву)${xt}` : this.mode === 'all' && xs ? xt.slice(3) : '';
+    const bn = S.body ? `Задания тела: ${S.bodyName(S.body)} · ` : '';
+    el.innerHTML = this.mode === 'all' && PERIODIC.includes(this.tab) ? `${bn}обновление через ${fmtLeft((rs[this.tab] || 0) - Date.now())} (по Киеву)${xt}` : this.mode === 'all' && xs ? xt.slice(3) : '';
   }
   render() {
     const S = this.s;

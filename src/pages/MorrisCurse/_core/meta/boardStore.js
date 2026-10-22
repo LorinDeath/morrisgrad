@@ -47,6 +47,20 @@ export class BoardStore {
       return { ...t, n: [r.n], d: [r.d], x: [r.x], rk: r.r, roll: r, ...(r.f ? { f: [t.f, r.f].filter(Boolean).join(','), m: r.f === 'wboss' ? undefined : t.m } : {}), lvl: r.L }; });
     this.defs = { ...this.base, tasks }; this.byId = new Map(tasks.map((t) => [t.id, t]));
   }
+  /** тело-владелец набора (ежедневные/еженедельные/ежемесячные/тяжёлые/заказы — у каждого тела свои) */
+  get body() { return this.st?.body || ''; }
+  bodyName(c) { return HERO_NAMES[c] || c || ''; }
+  /** на каком теле выполнять условие ('' — на своём) */
+  reqBody(t) { return t?.roll?.rb || (t?.rb && t.rb !== 'owner' ? t.rb : '') || ''; }
+  /** «Выполнить на: Мариэль» — если условие на другом теле */
+  reqText(t) { const rb = this.reqBody(t); if (!rb) return ''; return rb === 'any' ? 'Выполнить на любом теле' : rb === this.body ? '' : `Выполнить на: ${this.bodyName(rb)}`; }
+  /** задания других тел, условие которых — на текущем теле: [{ t (с выпавшим вариантом), o — владелец, p, c }] */
+  crossList() {
+    if (!this.base || !this.st?.xb) return [];
+    const by = new Map(this.base.tasks.map((t) => [t.id, t]));
+    return this.st.xb.map((x) => { const t0 = by.get(x.id); if (!t0) return null; const r = x.roll;
+      const t = r ? { ...t0, n: [r.n], d: [r.d], x: [r.x], rk: r.r, roll: r, lvl: r.L } : t0; return { t, o: x.o, p: x.p, c: x.c }; }).filter(Boolean);
+  }
   /** бонусы задания: [{k,v,xp,ok, st: 'ok'|'fail'|'wait'}] */
   bonuses(t) { const r = t.roll; if (!r) return []; return (r.bon || []).map((o) => ({ ...o, st: !o.ok ? 'fail' : r.done ? 'ok' : 'wait' })); }
   def(id) { return this.byId.get(id) || null; }

@@ -1050,6 +1050,9 @@ b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, v
 .mc-bd-cond .c.m { color: #e2e8f0; }
 .mc-bd-cond b { color: #fde68a; font-weight: 600; }
 .mc-bd-cond i { font-style: normal; font-size: 10px; margin-left: 4px; }
+.mc-xb { margin: 2px 0 1px; font-size: 11px; color: #93c5fd; }
+.mc-qt .bt .xb, .bt .xb { font-size: 10.5px; color: #93c5fd; margin: 1px 0 0 14px; }
+.bt.xbt { opacity: .92; border-left: 2px solid #3b82f6; padding-left: 4px; }
 .mc-bd-cond i.ok { color: #4ade80; } .mc-bd-cond i.no { color: #f87171; } .mc-bd-cond i.wt { color: #94a3b8; }
 .mc-bd-row .ctl { color: #a5f3fc; font-size: 11px; margin-top: 2px; }
 .mc-bd-row .tr { color: #94a3b8; font-size: 11px; margin-top: 3px; }
@@ -1184,3 +1187,4 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-touch .mc-prog .pss { grid-template-columns: 1fr 1fr; }
 /* кнопка PK не перекрывает открытую Книгу героя (Бестиарий, шкала) и админку */
 .mc-book-open .ch-root, :has(> .mc-admin) > .ch-root { display: none; }
+.mc-touch .mc-tracker .bq .bt.pin:has(.xb) { flex-wrap: wrap; } .mc-touch .mc-tracker .bq .bt.pin .xb { flex-basis: 100%; margin-left: 14px; }

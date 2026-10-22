@@ -6,6 +6,7 @@ import { esc } from './overlay.js';
 import { BoardStore, PERIODIC } from '../meta/boardStore.js';
 import { BoardWin } from './board.js';
 import { btDef, makeBtask, prepXp, tableXp, tierLvl, makeRoll, RANKS, BONUS_NAMES, BOARD_CFG } from '../../../../../server/meta/board.ts';
+import { HERO_NAMES } from '../../../../../server/meta/shared.ts';
 
 const NEW_IDS = { __btnew: 'daily', __achnew: 'ach' };
 const POOL_CATS = [['daily', 'Ежедневные', 'dailyMin', 'dailyMax'], ['weekly', 'Еженедельные', 'weeklyMin', 'weeklyMax'], ['monthly', 'Ежемесячные', 'monthlyMin', 'monthlyMax'], ['hard', 'Тяжёлые (на неделю)', 'hardMin', 'hardMax'], ['hunt', 'Заказы Доски объявлений', 'huntOffer', null]];
@@ -21,7 +22,7 @@ export function btTopItems() {
 /** значения шаблона (как с сервера currentValues) для нового задания */
 function blankValues(cat, ev) {
   const t = makeBtask('cx_tmp', cat, ev), v = {};
-  for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'w', 'rmax']) v[k] = t[k] ?? '';
+  for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'w', 'rmax', 'rb']) v[k] = t[k] ?? '';
   for (let i = 0; i < 5; i++) { v[`n.${i}`] = t.n[i] || 0; v[`d.${i}`] = t.d[i] || 0; v[`x.${i}`] = 0; }
   v.xm = false; v.lvl = 0;
   if (cat === 'npc') v.giver = 'petr';
@@ -57,7 +58,7 @@ export function checkValues(v, bt, ids) {
 /** какие условия имеют смысл для действия (как их проверяет сервер, board.ts amount) */
 const WEAR = ['wearc', 'wearc5', 'dark50', 'naked'], ENCHF = (k) => k === 'ench' || /^e[1-6](up)?$/.test(k);
 function flagFor(ev, k) {
-  if (ev === 'kill') return k !== 'min';
+  if (ev === 'kill') return k !== 'min'; // oneshot, skillonly, basiconly — тоже здесь
   if (ev === 'salvage' || ev === 'upgrade') return k === 'cursed' || ENCHF(k);
   if (ev === 'run') return k === 'solo' || k === 'min';
   if (ev === 'trial') return k === 'solo';
@@ -211,7 +212,8 @@ export function btaskForm(panel, sec, e, opts = {}) {
       <small class="mc-dim">Опыт — одно и то же число героям любого уровня. * по таблице «уровень задания × сложность» (вкладка «📋 Доска»); без «вручную» сервер сам держит опыт равным таблице.</small></div>
     <div class="box"><b>Доступность</b><div class="grid">${num('minLvl', 'Доступно с уровня', 1, 30)}${num('maxLvl', 'До уровня (для пула)', 1, 30)}${num('lvl', 'Уровень задания (от него опыт; 0 — подобрать по цели)', 0, 30)}
       ${pool ? `<label><span>Вес в случайном наборе (0 — не выпадает)</span><input type="number" min="0" max="100" step="0.5" data-v="w" value="${v.w ?? 1}"></label>
-      <label><span>Высший ранг при выпадении</span>${sel('rmax', [['', 'по событию (S/SS — бои, забеги, испытания)'], ...RANKS.map((r) => [r, 'до ' + r])], v.rmax || '')}</label>` : ''}</div>
+      <label><span>Высший ранг при выпадении</span>${sel('rmax', [['', 'по событию (S/SS — бои, забеги, испытания)'], ...RANKS.map((r) => [r, 'до ' + r])], v.rmax || '')}</label>
+      <label><span>Выполнить на теле (сдаёт и награждается тело-владелец)</span>${sel('rb', [['', 'на своём теле (владелец)'], ['any', 'на любом теле'], ...Object.entries(HERO_NAMES)], v.rb || '')}</label>` : ''}</div>
       ${pool ? '<small class="mc-dim">Повторяющееся: при выпадении сервер бросает ранг F…SS — он меняет количество, уровень врагов, опыт и бонусные условия (настройки рангов — «⚖ Пулы, веса и лимиты»). Числа выше — основа для ранга D.</small>' : ''}</div>
     ${reqHtml(cat, v, id)}
     ${rewardHtml(cat, v)}

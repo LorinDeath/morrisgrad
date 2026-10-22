@@ -216,9 +216,13 @@ export class QuestTracker {
       const cnt = r.done ? '✔' : r.ready && !(t.take && !B.taken(id)) ? (npcAt ? '✔ сдать' : '✔ забрать') : `${r.have}/${r.n}`;
       const n = tg ? ++k : 0, tn = n ? `<i class="tn" style="--c:${tColor(n - 1)}">${n}</i>` : '◇';
       if (tg) { this.targets.push({ ...tg, n, c: tColor(n - 1), kind: 'task', id }); }
-      if (pi < showP) rows.push(`<div class="bt pin" data-bt="${t.cat}"><div class="nm">${tn} ${rankTag(t.rk)}${esc(B.title(t))} <b>${cnt}</b></div>${tg ? `<div class="ra" data-i="${arrows.length}"><i>➤</i><span></span><b></b></div>` : ''}</div>`);
+      const xr = B.reqText(t);
+      if (pi < showP) rows.push(`<div class="bt pin" data-bt="${t.cat}"><div class="nm">${tn} ${rankTag(t.rk)}${esc(B.title(t))} <b>${cnt}</b></div>${xr ? `<div class="xb">↪ ${esc(xr)}</div>` : ''}${tg ? `<div class="ra" data-i="${arrows.length}"><i>➤</i><span></span><b></b></div>` : ''}</div>`);
       if (tg) { if (pi < showP) arrows.push(tg); if (!this.target && !this.boardTarget) this.boardTarget = tg; if (tg.mob || tg.via?.mob) this.trackTypes?.add(tg.mob || tg.via.mob); }
     });
+    // задания других тел, которые выполняются сейчас (на этом теле): сдать — на теле-владельце
+    for (const x of B.crossList().slice(0, this.mobile ? 2 : 6)) { const n = x.t.n?.[0] || 1, done = x.p >= n;
+      rows.push(`<div class="bt pin xbt" data-bt="${x.t.cat}"><div class="nm">◇ ${rankTag(x.t.rk)}${esc(B.title(x.t))} <b>${done ? '✔' : `${Math.min(x.p, n)}/${n}`}</b></div><div class="xb">Задание тела ${esc(B.bodyName(x.o))} · ${done ? 'выполнено — сдать на ' + esc(B.bodyName(x.o)) : 'выполняется здесь'}</div></div>`); }
     if (pins.length > showP) rows.push(`<div class="bt more" data-bt="${pins[showP].cat}">… ещё ${pins.length - showP} — в окне «Задания»</div>`);
     const html = rows.join('');
     if (html !== this.bsig) { this.bsig = html; this.bqEl.innerHTML = html; this.rowArrows = [...this.bqEl.querySelectorAll('.ra')]; }

@@ -49,7 +49,7 @@ import {
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh, blackenEquipped,
 } from "./profile";
-import { Zone, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
+import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
@@ -578,7 +578,7 @@ export class MetaService {
         { const at = BTASKS[bid] ? takeAt(BTASKS[bid]) : ""; if (at && at !== "board" && !this.nearNpc(session, at)) { this.send(ws, { type: "toast_error", message: `Личное задание сдаётся персонажу: ${NPCS[at]?.name || at}` }); return true; } }
         const r = boardClaim(a, h, bid, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
         if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err, code: "MC-B03" }); return true; }
-        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id });
+        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${(a as any).hero || ""}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id });
         this.push(ws, session, { boardClaimed: { id: r.id, title: r.title, xp: r.xp, res: r.res, item: r.item, tiers: r.tiers, capped: r.cappedXp || undefined, levelUps: r.levelUps || undefined } });
         if (r.levelUps) this.refreshZonePlayer(session);
         return true;
@@ -834,7 +834,7 @@ export class MetaService {
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
         if (msg.boardRoll && typeof msg.boardRoll === "object") { const br: any = msg.boardRoll; ms.dirty = true; // тест рангов: вариант задания с заданным рангом (и количеством)
-          const r = devBoardRoll(a, h, String(br.id || ""), String(br.r || ""), Number(br.n) || 0, Number.isFinite(br.minL) ? Number(br.minL) : -1, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) }); if (r) this.boardSoon(session); }
+          const r = devBoardRoll(a, h, String(br.id || ""), String(br.r || ""), Number(br.n) || 0, Number.isFinite(br.minL) ? Number(br.minL) : -1, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) }, String(br.rb || "")); if (r) this.boardSoon(session); }
         if (msg.killNear || msg.killNearAny) { const z = this.zoneOf(session); const m = z?.mobs.filter((x: any) => !x.dead && (msg.killNearAny || !x.special) && (!msg.killType || x.type === msg.killType)).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
           if (m && Math.hypot(m.x - session.x, m.y - session.y) < 500) { if (msg.cursed) m.cursed = true; if (Number.isInteger(msg.ench) && msg.ench >= 0 && msg.ench <= 6) m.ench = msg.ench; z!.damage(m, session.id, m.hp + 1e6, (mm: any) => this.onMobKilled(mm)); } } // тест: настоящее убийство (обычный путь награды); killNearAny — и боссы (только MC_DEV); killType — фильтр вида
         if (msg.mobInfo) { const z = this.zoneOf(session); const list = (z?.mobs || []).filter((x: any) => !x.dead).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y)); const m = msg.typeFilter ? list.find((x: any) => x.type === msg.typeFilter) : list[0]; if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench || 0, elite: !!m.elite, special: m.special || "" }); }
@@ -1165,7 +1165,7 @@ export class MetaService {
       const raw = eff.weaponMin + cryptoRand() * (eff.weaponMax - eff.weaponMin);
       const gapHit = levelGapHitMult(ZONE_MOBS[m.type]?.lvl || 1, eff.level || 1);
       const dmg = raw * (1 + eff.dmgPct / 100) * (crit ? 1.75 : 1) * k * gapHit;
-      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm), { penFlat: eff.armorPen || 0, penPct: eff.armorPenPct || 0 }) || 0;
+      const real = zone.damage(m, session.id, dmg, (mm) => this.onMobKilled(mm), { penFlat: eff.armorPen || 0, penPct: eff.armorPenPct || 0 }, "ba") || 0;
       this.noteHit(session, real, m.type);
       if (!m.dead && !statused.has(m.id) && statused.add(m.id)) zone.applyStatus(m, session.id, { kind: W.status.kind, dps: W.status.dpsPct ? real * W.status.dpsPct / 100 : 0, dur: W.status.dur, slow: W.status.slow, knock: W.status.knock }, ox, oy, dotStackMax(eff.level || 1));
       if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100);
@@ -1295,7 +1295,7 @@ export class MetaService {
         m.usedAbility.add(sid);
         const d = ZONE_MOBS[m.type];
         const raw = dmg * mult * (opts?.pierceArmor && d?.armor ? 1 + Math.min(0.5, d.armor / 100) : 1) * levelGapHitMult(d?.lvl || 1, eff.level || 1);
-        const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { penFlat: eff.armorPen || 0, penPct: eff.armorPenPct || 0 }) || 0;
+        const real = zone.damage(m, sid, raw, (mm: any) => this.onMobKilled(mm), { penFlat: eff.armorPen || 0, penPct: eff.armorPenPct || 0 }, "ab") || 0;
         this.noteHit(session, real, m.type);
         if (eff.lifestealPct && real) this.lifesteal(zone, session, ms, real * eff.lifestealPct / 100); // пассивный вампиризм и с навыков
         if (real) this.traitHit(zone, m, session, ms, real, traitsFor(null, [], ab.id));
@@ -1451,7 +1451,8 @@ export class MetaService {
       // квесты: kind — настоящий тип (вариант биома), сопоставление цели — goalMatch (вариант-босс ≠ базовый босс)
       const fight = this.fightFacts(m, sid, session, ms, h);
       const qf: any[] = [];
-      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf, lvl: d.lvl || 1, elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss, rare: !!d.rare, party: n,
+      const how = killHow(m, sid); // как убит (сервер считал каждый удар) — задания «одним ударом», «только навыками», «без навыков»
+      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf, lvl: d.lvl || 1, elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss, rare: !!d.rare, party: n, ...how,
         night: session.world === "arinar" && dnAt(dnMinutes()).phase === "night", hpPct: ms.zp?.maxHp ? Math.round((ms.zp.hp / ms.zp.maxHp) * 100) : 100 });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, kind: m.type, usedAbility: m.usedAbility.has(sid), fight, failed: qf });
       for (const f of qf) this.send(ws, { type: "quest_cond", qid: f.qid, i: f.i, ok: false, reason: f.reason, kill: 1 });

@@ -79,8 +79,17 @@ const SLEEP_CELL = 1000;
 const sk = (x: number, y: number) => Math.floor(x / SLEEP_CELL) * 4096 + Math.floor(y / SLEEP_CELL);
 
 export interface ZCast { proj?: string; fx?: string; leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number }
+/** удары игрока по мобу: всего, навыками, автоатакой; full — первый удар пришёлся по целому мобу без чужого урона */
+export type MobHits = { n: number; ab: number; ba: number; full: boolean };
+/** как игрок sid убил моба m (только по серверному учёту ударов): одним ударом — его первый и единственный удар по целому мобу,
+ *  других бойцов не было и добил именно он (не урон по времени); только навыками / только автоатакой — по видам его ударов */
+export function killHow(m: { hb?: Map<string, MobHits>; dmgBy: Map<string, number>; k1?: string; usedAbility: Set<string> }, sid: string) {
+  const hb = m.hb?.get(sid); if (!hb) return { oneshot: 0, skillOnly: 0, basicOnly: 0 };
+  const solo1 = [...m.dmgBy.keys()].every((k) => k === sid);
+  return { oneshot: hb.n === 1 && hb.full && m.k1 === sid && solo1 ? 1 : 0, skillOnly: hb.ab > 0 && hb.ba === 0 ? 1 : 0, basicOnly: hb.ba > 0 && hb.ab === 0 && !m.usedAbility.has(sid) ? 1 : 0 };
+}
 export interface ZMob { id: number; type: string; respawn: number; sx: number; sy: number; x: number; y: number; hp: number; maxHp: number; dead: boolean; respawnAt: number;
-  targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>; qf?: Map<string, number>; // qf: начало боя игрока с мобом (условия квестов)
+  targetSid: string | null; wanderX: number; wanderY: number; nextWander: number; atkCd: number; dmgBy: Map<string, number>; usedAbility: Set<string>; hb?: Map<string, MobHits>; k1?: string; qf?: Map<string, number>; // qf: начало боя игрока с мобом (условия квестов)
   windup: number; dashX: number; dashY: number; dashT: number;
   hpBase?: number; // ОЗ бестиария (d.hp), от которых посчитаны maxHp: правка ОЗ в админке пересчитывает живых мобов (syncMobStats)
   // процедурный спавн: регион, элита, простой вне боя (для деспавна); fixed — классическая точка респавна
@@ -943,7 +952,7 @@ export class Zone {
             const acc = ((m as any).dotAcc ||= {}); acc[x.sid] = (acc[x.sid] || 0) + dmg; // урон по времени — событием раз в ~1 с
             if (acc[x.sid] >= Math.max(1, x.dps)) { this.events.push({ k: "hit", id: m.id, d: Math.round(acc[x.sid]), by: x.sid, dot: 1 }); acc[x.sid] = 0; }
           }
-          if (m.hp <= 0) { (m as any).killer = killer; this.kill(m, onKill); continue; }
+          if (m.hp <= 0) { (m as any).killer = killer; m.k1 = ""; this.kill(m, onKill); continue; }
           this.checkPhase(m, d);
         }
       }
@@ -958,7 +967,7 @@ export class Zone {
           m.dead = false; m.x = m.sx; m.y = m.sy; m.reset = false; m.mobTarget = 0;
           if (m.camp && !m.chief) { m.elite = this.rand() < (this.gen.regions.find((r) => r.id === m.region)?.elite || 0); }
           this.rollCursed(m); m.maxHp = this.hpOf(m, scale); m.hp = m.maxHp; m.hpBase = ZONE_MOBS[m.type].hp;
-          m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
+          m.dmgBy.clear(); m.hb?.clear(); m.usedAbility.clear(); m.qf?.clear(); m.targetSid = null; m.phase = 1; m.enraged = false; m.casts = [];
         }
         continue;
       }
@@ -983,7 +992,7 @@ export class Zone {
         if (dist > sp) { m.x += ux * sp; m.y += uy * sp; } else { m.x = m.sx; m.y = m.sy; }
         if (K) this.solid(m); // домой — тоже не через купол города (solid при reset — только купол, без коллизий пропсов): скользит по ободу
         m.hp = Math.min(m.maxHp, m.hp + m.maxHp * ZONE_GEN.resetRegen * dt);
-        if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
+        if (dist <= sp && m.hp >= m.maxHp) { m.reset = false; m.dmgBy.clear(); m.hb?.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
         continue;
       }
       const aggro = (m as any).devCalm ? 0 : d.aggro * (m.special ? 1.2 : 1) * (isKiller(m) ? 1.25 : 1); // devCalm — только dev_spawn_mob (скриншоты)
@@ -1098,7 +1107,7 @@ export class Zone {
           }
           m.sx = m.x; m.sy = m.y;
           if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt);
-          if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.qf?.clear(); }
+          if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.hb?.clear(); m.qf?.clear(); }
           m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
           continue;
         }
@@ -1107,7 +1116,7 @@ export class Zone {
         const dx = m.wanderX - m.x, dy = m.wanderY - m.y, dist = Math.hypot(dx, dy);
         if (dist > 4) { m.x += (dx / dist) * d.speed * 0.4 * dt; m.y += (dy / dist) * d.speed * 0.4 * dt; }
         if (!m.dots?.length) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08 * dt); // горящий/отравленный не лечится
-        if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
+        if (m.hp >= m.maxHp) { m.dmgBy.clear(); m.hb?.clear(); m.usedAbility.clear(); m.qf?.clear(); m.phase = 1; m.enraged = false; }
       }
       m.x = this.clamp(m.x); m.y = this.clamp(m.y); this.solid(m);
     }
@@ -1187,8 +1196,12 @@ export class Zone {
   mobsAround(x: number, y: number, r: number): ZMob[] {
     return this.near(x, y, r + 60).filter((m) => Math.hypot(m.x - x, m.y - y) <= r + ZONE_MOBS[m.type].radius);
   }
-  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number }) {
+  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number }, src?: "ba" | "ab") {
     if (m.dead) return;
+    // удары игрока по мобу (задания доски: «одним ударом», «только навыками», «без навыков»): сколько ударов, какими, был ли моб цел
+    if (sid && !sid.startsWith("mob:") && !m.reset) { const hb = (m.hb ||= new Map()); let e = hb.get(sid);
+      if (!e) { e = { n: 0, ab: 0, ba: 0, full: m.hp >= m.maxHp && !m.dmgBy.size }; hb.set(sid, e); }
+      e.n++; if (src === "ab") e.ab++; else if (src === "ba") e.ba++; }
     const d = ZONE_MOBS[m.type];
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
     if (this.guard && sid) { const a = this.pl?.get(sid); if (this.guard.guardMobHit(m, sid, a ? a.x : NaN, a ? a.y : NaN)) { this.events.push({ k: "hit", id: m.id, d: 0, dome: 1 }); return 0; } } // купол Чёрного мага
@@ -1200,7 +1213,7 @@ export class Zone {
     if (!m.targetSid) m.targetSid = sid;
     this.events.push({ k: "hit", id: m.id, d: real, by: sid }); // by — для счётчика DPS у клиента
     if (this.guard && sid) this.guard.noteFight(m, sid); // «рядом идёт бой» — Чёрный маг идёт защищать
-    if (m.hp <= 0) { (m as any).killer = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
+    if (m.hp <= 0) { (m as any).killer = sid; m.k1 = sid; this.kill(m, onKill); } // добивший — для правила мешка (10%)
     else this.checkPhase(m, d);
     return real;
   }
@@ -1210,7 +1223,7 @@ export class Zone {
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
     if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}»${tierDef(m.ench) ? ` (✦ ${tierDef(m.ench)!.name})` : ""} повержен!`, color: "#fde68a" });
     onKill(m);
-    m.qf?.clear();
+    m.qf?.clear(); m.k1 = undefined;
   }
   /** хук: игрок sid впервые вступил в бой с мобом m (удар по мобу или удар моба по игроку) — ставит m.qf */
   onEngage: ((m: ZMob, sid: string) => void) | null = null;

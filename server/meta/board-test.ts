@@ -190,7 +190,7 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
 }
 // размер данных клиенту
 { const { a, h } = mk(); boardRefresh(a, h, ctx); const s = JSON.stringify(boardClient(a, h)).length, d = JSON.stringify(boardDefs()).length;
-  ok(s < 20000, `состояние ${s} байт`); ok(d < 200000, `определения ${d} байт (раз в сессию)`); }
+  ok(s < 20000, `состояние ${s} байт`); ok(d < 240000, `определения ${d} байт (раз в сессию; +5 КБ — новые условия «один удар/навыки/без навыков»)`); }
 // производительность события
 { const { a, h } = mk(); h.lvl = 10; boardRefresh(a, h, ctx); const t0 = performance.now();
   for (let i = 0; i < 20000; i++) boardEvent(a, h, { type: "kill", mob: "golem", kind: "stone_golem", lvl: 10, elite: i % 7 === 0 }, ctx);
