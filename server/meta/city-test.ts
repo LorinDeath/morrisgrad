@@ -128,13 +128,20 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
 
 // ——— R = 40 (по умолчанию): лагеря и мобы под куполом убраны, босс и указатель — снаружи ———
 { reset(); const { Zone } = await import("./zone"); const { ZONE_GEN, WORLD_GEN, genNodes } = await import("./zoneGen");
+  const pm0 = (ZONE_GEN as any).campPopMul; (ZONE_GEN as any).campPopMul = 1; // номера лагерей сверены при численности ×1 (×1.5 по умолчанию — другая раскладка мобов, купол проверяется ниже)
   const z: any = new Zone("arinar", [], genNodes(ZONE_GEN.seed), { proc: true, seed: ZONE_GEN.seed });
   z.keepOut = { inside: (x: number, y: number, pad = 0) => inCity(x, y, pad), out: (x: number, y: number) => pushOut(x, y, 40) };
   const before = new Set(z.camps.map((c: any) => c.id)); const n = z.pruneKeepOut(); const gone = [...before].filter((id) => !z.camps.some((c: any) => c.id === id)).sort((a: any, b: any) => a - b);
   t("R40: убраны лагеря 85, 142, 144", JSON.stringify(gone) === JSON.stringify([85, 142, 144]), gone);
   t("R40: мобов под куполом не осталось", z.mobs.filter((m: any) => !m.dead && m.respawnAt !== -1 && m.special !== "boss" && inCity(m.sx ?? m.x, m.sy ?? m.y)).length === 0, n);
   const boss = WORLD_GEN.arinar.bosses.find((b: any) => b.key === "ice_thorn_matron@24"); t("R40: логово Матроны (1838 px) снаружи", boss && !inCity(boss.x, boss.y, 200));
-  t("R40: указатель sign:patch24 (22540, 3800) снаружи", !inCity(22540, 3800, 400)); reset(); }
+  t("R40: указатель sign:patch24 (22540, 3800) снаружи", !inCity(22540, 3800, 400)); (ZONE_GEN as any).campPopMul = pm0; reset(); }
+// ×1.5 по умолчанию: под куполом тоже ни лагерей, ни мобов
+{ reset(); const { Zone } = await import("./zone"); const { ZONE_GEN, genNodes } = await import("./zoneGen");
+  const z: any = new Zone("arinar", [], genNodes(ZONE_GEN.seed), { proc: true, seed: ZONE_GEN.seed });
+  z.keepOut = { inside: (x: number, y: number, pad = 0) => inCity(x, y, pad), out: (x: number, y: number) => pushOut(x, y, 40) }; z.pruneKeepOut();
+  t("R40 ×1.5: лагерей под куполом нет", !z.camps.some((c: any) => inCity(c.x, c.y)));
+  t("R40 ×1.5: мобов под куполом нет", z.mobs.filter((m: any) => !m.dead && m.respawnAt !== -1 && m.special !== "boss" && inCity(m.sx ?? m.x, m.sy ?? m.y)).length === 0); reset(); }
 
 // ——— моб ↔ купол (админка: mobPushPx / mobAggroPadPx / mobBossesOut / mobDomeFlash); по умолчанию — прежнее поведение ———
 { reset(); const { Zone } = await import("./zone"); const { ZONE_GEN } = await import("./zoneGen");

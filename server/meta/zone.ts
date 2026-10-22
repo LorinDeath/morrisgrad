@@ -335,7 +335,7 @@ export class Zone {
           let n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
           const roll = R(); if (roll < 0.18) n = Math.min(6, n + 1); else if (roll < 0.3) n = Math.max(2, n - 1);
           if (reg.pack) n = reg.pack[0] + Math.floor(R() * (reg.pack[1] - reg.pack[0] + 1)); // админка: мобов в пачке
-          { const nm = n * popMul(); n = Math.max(1, Math.min(15, Math.floor(nm) + (R() < nm - Math.floor(nm) ? 1 : 0))); } // численность лагерей ×campPopMul (админка «Спавн»)
+          { const pm = popMul(); if (pm !== 1) { const nm = n * pm, fr = (Math.imul(x * 73856093 ^ y * 19349663 ^ (pk + 1) * 83492791, 2654435761) >>> 0) / 4294967296; n = Math.max(1, Math.min(15, Math.floor(nm) + (fr < nm - Math.floor(nm) ? 1 : 0))); } } // численность лагерей ×campPopMul (админка «Спавн»); дробь — по хешу места, R() не тратим: раскладка лагерей та же
           const eliteThis = R() < reg.elite && elites < eliteMax; if (eliteThis) elites++; // шанс элиты — на пачку, не больше eliteMax в лагере
           const prow = pk > 0 && R() < 0.35 ? reg.table[Math.floor(R() * reg.table.length)] : row; // соседняя пачка бывает другого вида
           const types: string[] = [];

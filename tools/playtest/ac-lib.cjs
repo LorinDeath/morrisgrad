@@ -41,8 +41,9 @@ async function visit(ctx, q = '', { wait = 'hub', timeout = 180000 } = {}) {
   p.on('console', (m) => { if (m.type() === 'error') cons.push(m.text().slice(0, 240)); });
   await p.addInitScript(() => { window.addEventListener('mc:first-frame', () => { window.__ff = performance.now(); }); });
   await p.goto(assertLocalUrl(`${SITE}/MorrisCurse/?debug=1&ws=${encodeURIComponent(WS)}${q}`), { waitUntil: 'domcontentloaded' });
-  await p.waitForSelector('#btn-start'); const t0 = await p.evaluate(() => performance.now());
-  await p.click('#btn-start');
+  // страница стартует сама (кнопки «Играть» больше нет); если старая сборка — жмём её
+  const t0 = await p.evaluate(() => performance.now());
+  if (await p.$('#btn-start')) await p.click('#btn-start');
   if (wait === 'hub') await p.waitForFunction(() => window.__MC3D_GAME__?.state?.().mode === 'hub' && window.__ff, null, { timeout });
   const ff = wait === 'hub' ? await p.evaluate(() => window.__ff) : 0;
   return { page: p, errs, cons, ffMs: ff ? Math.round(ff - t0) : null };

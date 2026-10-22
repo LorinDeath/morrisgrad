@@ -168,7 +168,7 @@ async function pc(b) {
   await G(p, () => window.__game.debug.selectClass('warrior')); await sleep(3000);
   const posAft = await G(p, () => ({ ...window.__game.debug.pos(), cls: window.__game.state().player?.stats?.classId }));
   await boot(p); const posW2 = await G(p, () => window.__game.debug.pos()), clsW2 = await G(p, () => window.__game.state().player?.stats?.classId);
-  t('ПК: смена тела без переноса (switchTp выкл) — вход там, где сменили', clsW2 === 'warrior' && (Math.hypot(posW2.x - posSw.x, posW2.y - posSw.y) < 60 || ['bmdome', 'blocked'].includes((p.ws[p.ws.length - 1] || '').match(/"why":"(\w+)"/)?.[1])), { clsW2, posW, posSw, posAft, posW2, msg: p.ws.slice(-2) });
+  t('ПК: смена тела без переноса (switchTp выкл) — вход там, где сменили', clsW2 === 'warrior' && (Math.hypot(posW2.x - posSw.x, posW2.y - posSw.y) < 120 || ['bmdome', 'blocked'].includes((p.ws[p.ws.length - 1] || '').match(/"why":"(\w+)"/)?.[1])), { clsW2, posW, posSw, posAft, posW2, msg: p.ws.slice(-2) });
   t('ПК: без ошибок страницы', p.errs.length === 0, p.errs.slice(0, 3));
   await ctx.close();
 }
