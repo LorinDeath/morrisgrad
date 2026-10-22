@@ -5,6 +5,8 @@ import { dropChance, matChance } from "./profile";
 // присылает клиенту ТОЛЬКО для открытых игроком предметов (встречен в добыче или получен).
 import { ITEMS, ITEM_BY_ID, MONSTER_LOOT, LOOKS, ZONE_MOBS, ABILITY_BY_ID, RECIPES, RARITIES, BALANCE, type ItemDef } from "./defs";
 import { MOB_SKILLS } from "./mobSkills";
+import ICON_ATLAS from "../../src/assets/mc/items_atlas.json";
+export const ICON_ATLAS_COUNT: number = (ICON_ATLAS as any).count || 0;
 
 // источники: какие мобы роняют предмет и с каким шансом (+ ремесло/квест)
 const SOURCES: Record<string, { mob: string; chance: number; kind: string }[]> = {};
@@ -68,7 +70,7 @@ export function itemCard(id: string) {
   const look = it.look ? LOOKS[it.look] : null;
   const ab = it.grantsAbility ? ABILITY_BY_ID[it.grantsAbility] : null;
   return {
-    n: ITEM_INDEX[it.id], id: it.id, name: it.name, slot: it.slot, rarity: it.rarity, lvl: it.lvl || 1, req: it.req || 1, wtype: it.wtype || null, stats: it.stats, cstats: cursedStats(it.stats), icon: it.icon, // cstats — статы проклятой версии (база × CURSE.statMult)
+    n: ITEM_INDEX[it.id], ic: iconIndex(it.id), id: it.id, name: it.name, slot: it.slot, rarity: it.rarity, lvl: it.lvl || 1, req: it.req || 1, wtype: it.wtype || null, stats: it.stats, cstats: cursedStats(it.stats), icon: it.icon, // cstats — статы проклятой версии (база × CURSE.statMult)
     lore: it.lore, classes: it.classes || null, band: it.band || null, monster: it.monster || null, monsterName: it.from || it.monster ? ZONE_MOBS[it.from || it.monster!]?.name || null : null,
     look: look ? { id: look.id, name: look.name, bonus: look.bonus, parts: look.parts.length } : null,
     ability: ab ? { id: ab.id, name: ab.name, icon: ab.icon, desc: ab.desc, cd: ab.cd } : null,
@@ -78,17 +80,27 @@ export function itemCard(id: string) {
 // Силуэт закрытого предмета: только слот и ярус (без id, имени, статов) — порядковый номер в пуле
 export function itemSilhouette(idx: number) {
   const it = ITEMS[idx];
-  return { n: idx, slot: it.slot, rarity: it.rarity, tier: Math.max(1, Math.min(5, Math.ceil((it.lvl || 1) / 5))) };
+  return { n: idx, ic: iconIndex(it.id), slot: it.slot, rarity: it.rarity, tier: Math.max(1, Math.min(5, Math.ceil((it.lvl || 1) / 5))) };
 }
 export const LIBRARY_SIZE = ITEMS.length;
 export const ITEM_INDEX: Record<string, number> = Object.fromEntries(ITEMS.map((it, i) => [it.id, i]));
+// Номер значка в атласе items_atlas.png (ic). У копий трофеев вариантов (поле part, дописаны в конец пула — за пределами
+// атласа) своей картинки нет: значок берётся у базового предмета. n (номер в пуле) остаётся своим — по нему Библиотека
+// раскладывает сетку. Клиент рисует ic ?? n.
+export function iconIndex(id: string): number {
+  const own = ITEM_INDEX[id], it: any = ITEM_BY_ID[id];
+  if (own == null) return own as any;
+  if (own < ICON_ATLAS_COUNT && !it?.part) return own;
+  const base = it?.part && ITEM_INDEX[it.part];
+  return base != null && base < ICON_ATLAS_COUNT ? base : own;
+}
 
 // Пул дропа моба для Библиотеки мобов: открытые предметы — по id, закрытые — только номер силуэта, слот, редкость и шанс
 export function mobDropView(mob: string, known: (id: string) => boolean) {
   const m = MONSTER_LOOT[mob];
   if (!m) return null;
   return {
-    gear: m.gear.map((g) => { const it = ITEM_BY_ID[g.item]; const chance = dropChance(g); return known(g.item) ? { id: g.item, chance } : { n: ITEM_INDEX[g.item], slot: it?.slot, rarity: it?.rarity, chance }; }),
+    gear: m.gear.map((g) => { const it = ITEM_BY_ID[g.item]; const chance = dropChance(g); return known(g.item) ? { id: g.item, chance } : { n: ITEM_INDEX[g.item], ic: iconIndex(g.item), slot: it?.slot, rarity: it?.rarity, chance }; }),
     res: m.materials.map((r) => ({ res: r.res, chance: matChance(r), qty: r.qty })),
   };
 }
@@ -99,4 +111,4 @@ export function mobStatView(mob: string) {
   if (l) return { lvl: l.lvl, hp: l.stats?.hp, dmg: l.stats?.dmg, armor: l.stats?.armor, skills: [] };
   return null;
 }
-export const SILHOUETTES = ITEMS.map((_, i) => { const s = itemSilhouette(i); return [s.slot, s.rarity, s.tier]; });
+export const SILHOUETTES = ITEMS.map((_, i) => { const s = itemSilhouette(i); return s.ic !== i ? [s.slot, s.rarity, s.tier, s.ic] : [s.slot, s.rarity, s.tier]; }); // 4-й элемент — свой значок (копии)

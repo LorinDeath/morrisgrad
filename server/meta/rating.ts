@@ -11,7 +11,7 @@ import { blkOf } from "./bmCfg";
 //   не идут (кап «максимально возможным уроном» сделал бы рекорд у всех одинаковым и подделываемым до капа).
 import { HERO_IDS, ITEM_BY_ID } from "./defs";
 import { heroEffective, equippedItems, fixAccount, newAccount, newHero, killStats, type Account, type Hero } from "./profile";
-import { ITEM_INDEX } from "./library";
+import { ITEM_INDEX, iconIndex } from "./library";
 import { guestDisplay, guestNameFor, isGuestName } from "./guestNames";
 
 export const RATING_TTL_MS = 60_000;
@@ -169,7 +169,7 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
   const eff: any = heroEffective(a, h, cls, base);
   const gear = equippedItems(a, h).map((e) => {
     const it = ITEM_BY_ID[e.id];
-    return { slot: e.slot, n: ITEM_INDEX[e.id], id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}), ...((e as any).ench ? { ench: (e as any).ench } : {}), ...(blkOf(e) ? { blk: blkOf(e) } : {}) };
+    return { slot: e.slot, n: ITEM_INDEX[e.id], ic: iconIndex(e.id), id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}), ...((e as any).ench ? { ench: (e as any).ench } : {}), ...(blkOf(e) ? { blk: blkOf(e) } : {}) };
   });
   // очернение: сколько ушло «в тень» (статы вещей × очернение%) — показываем как есть, без объяснения, где они действуют
   const shadow: Record<string, number> = {};

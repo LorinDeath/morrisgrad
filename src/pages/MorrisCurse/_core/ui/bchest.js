@@ -11,6 +11,7 @@ import { enchText, enchName } from '../meta/enchCfg.js';
 import { RARITIES, RESOURCES } from '../../../../../server/meta/shared.ts';
 import { loadAtlas, imageUrl, iconHtml as chestIco } from './chestArt.js';
 import { playOpen, poof, bcInst } from './bchestFx.js';
+import { fsLayer } from './fullscreen.js';
 
 const CAT = { daily: 'Ежедневное', weekly: 'Недельное', monthly: 'Месячное', hard: 'Испытание', hunt: 'Заказ' };
 const RAR_ORDER = Object.keys(RARITIES).sort((a, b) => RARITIES[a].order - RARITIES[b].order);
@@ -35,7 +36,7 @@ export class BchestWindow {
       el.querySelector('.x').onclick = () => this.close();
       el.addEventListener('keydown', (e) => e.stopPropagation());
       el.addEventListener('pointerdown', (e) => e.stopPropagation());
-      const cm = document.createElement('div'); cm.className = 'mc-cmp bc-cmp'; cm.style.display = 'none'; document.body.appendChild(cm); this.cmpEl = cm; // fixed — вне окна (у окна transform)
+      const cm = document.createElement('div'); cm.className = 'mc-cmp bc-cmp'; cm.style.display = 'none'; fsLayer().appendChild(cm); this.cmpEl = cm; // fixed — вне окна (у окна transform)
       this.host.appendChild(el); this.el = el;
     }
     this.send({ type: 'bchest_list' }); this.art(); this.render();
@@ -53,7 +54,7 @@ export class BchestWindow {
       this.sel = ev.id; const items = ev.chest.items || [];
       if (ev.fresh && this.el) { // свежее открытие — сцена; клетки появляются, когда в них «легла» вещь
         this.hidden = new Set(items.map((x) => x.lid)); this.render();
-        this.fx = playOpen(ev.chest, items, { host: document.body,
+        this.fx = playOpen(ev.chest, items, { host: fsLayer(),
           target: (i) => this.el?.querySelector(`.grid [data-lid="${items[i].lid}"]`)?.getBoundingClientRect() || this.el?.querySelector('.grid')?.getBoundingClientRect(),
           onLand: (i) => { this.hidden.delete(items[i].lid); const c = this.el?.querySelector(`.grid [data-lid="${items[i].lid}"]`); if (c) { c.classList.remove('hid'); c.classList.add('pop'); } },
           onDone: () => { this.fx = null; this.hidden.clear(); if (ev.gone) this.poofSel(ev.id); this.render(); } });

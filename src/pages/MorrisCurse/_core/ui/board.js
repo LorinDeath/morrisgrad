@@ -12,7 +12,7 @@ const SHORT = { tut: 'Обучение', npc: 'Персонажи', hunt: 'До�
 const AB_SECT = [
   ['body', 'Тела', (id) => id.startsWith('ach_cls_')],
   ['hunt', 'Охота', (id) => /^ach_(mob|wb|rare|biome|ench_kill)/.test(id) || ['ach_kills', 'ach_kills_lvl', 'ach_elite', 'ach_cursed', 'ach_ench', 'ach_party_k', 'ach_wboss', 'ach_rare', 'ach_solo_wb', 'ach_night', 'ach_wbosses_all', 'ach_bestiary'].includes(id)],
-  ['craft', 'Добыча и ремесло', (id) => /^ach_(gather|loot|bags|chests|craft|salvage|upgrade|upg|mat|items|equipped|monster|look|ench_|lock)/.test(id)],
+  ['craft', 'Добыча и ремесло', (id) => /^ach_(gather|loot|bags|chests|bch_|craft|salvage|upgrade|upg|mat|items|equipped|monster|look|ench_|lock)/.test(id)],
   ['trial', 'Испытания и бои', (id) => /^ach_(trial|runs|crypt|abyss|duel|pvp|pk|deaths)/.test(id)],
   ['world', 'Мир и герой', () => true],
 ];
@@ -46,7 +46,8 @@ export class BoardWin {
   rewardText(t, ti) { return this.s.rewardList(t, ti).join(' · '); }
   // ——— общий вид строки ———
   row(t, o = {}) {
-    const S = this.s, r = S.tier(t), lk = S.locked(t.id), hid = S.hiddenLocked(t);
+    const S = this.s; t = S.revealed(t); // скрытое выполненное: награда ступеней — из reveal
+    const r = S.tier(t), lk = S.locked(t.id), hid = S.hiddenLocked(t);
     const pct = r.done ? 100 : Math.round((r.have / Math.max(1, r.n)) * 100);
     const tierTxt = r.all > 1 ? `Ступень ${Math.min(r.c + 1, r.all)} из ${r.all}` : '';
     const g = t.g && t.g !== 'board' && this.mode !== 'nb' ? `<small class="g">${esc(S.giverName(t))}</small>` : '';
@@ -61,14 +62,36 @@ export class BoardWin {
       if (!needTake && t.cat !== 'tut') btn += `<button class="pin ${S.pinned(t.id) ? 'on' : ''}" data-b="pin" data-v="${t.id}" title="Показывать в трекере">${S.pinned(t.id) ? '✔ В трекере' : '＋ В трекер'}</button>`;
     }
     const where = !hid && !r.done && hasPlace(t) ? '<small class="pl" title="Трекер покажет стрелку">➤ есть место на карте</small>' : '';
-    const why = hid ? 'Скрытое достижение. Условие откроется, когда вы его выполните.' : S.why(t);
+    const why = hid ? (t.h || 'Скрытое достижение. Условие откроется, когда вы его выполните.') : S.why(t);
+    // раскрытое скрытое, все ступени закрыты: что получено (или «без награды», если было выполнено до запуска доски)
+    const preAll = (S.st?.pre?.[t.id] || 0) >= r.all;
+    const doneTxt = t.hid && !hid && r.done ? (preAll ? 'выполнено до запуска доски — без награды' : `получено: ${this.s.rewardList(t, r.all - 1).join(' · ') || '—'}`) : '';
     const ctl = !hid && o.ctl ? `<div class="ctl">${esc(o.ctl)}</div>` : '';
     return `<div class="mc-bd-row${r.ready && !r.done ? ' ready' : ''}${r.done ? ' done' : ''}${lk ? ' lock' : ''}${hid ? ' hid' : ''}" data-id="${t.id}">
       <div class="l"><div class="nm">${rankTag(t.rk)}${r.done ? '✔ ' : ''}${esc(S.title(t))} ${g}${t.rk === 'S' || t.rk === 'SS' ? ' <small class="grp">на отряд — зовите друзей</small>' : ''}</div>
-      ${why && !t.roll ? `<div class="w">${esc(why)}</div>` : ''}${!hid && S.reqText(t) ? `<div class="mc-xb">↪ ${esc(S.reqText(t))} · сдать и получить награду — ${esc(S.bodyName(S.body))}</div>` : ''}${ctl}${hid ? '' : this.condHtml(t, r)}
+      ${why && !t.roll ? `<div class="w">${esc(why)}</div>` : ''}${!hid && S.reqText(t) ? `<div class="mc-xb">↪ ${esc(S.reqText(t))} · сдать и получить награду — ${esc(S.bodyName(S.body))}</div>` : ''}${ctl}${hid ? '' : this.condHtml(t, r)}${hid ? '' : this.chestHtml(t, r)}
       ${hid ? '' : `<div class="bar"><i style="width:${pct}%"></i><span>${r.done ? 'выполнено' : `${r.have} / ${r.n}`}</span></div>`}
-      <div class="tr">${[tierTxt, lk ? '🔒 ' + esc(lk) : !r.done && !hid ? esc(this.rewardText(t, r.i)) : ''].filter(Boolean).join(' · ')} ${where}</div></div>
+      <div class="tr">${[tierTxt, lk ? '🔒 ' + esc(lk) : !r.done && !hid ? esc(this.rewardText(t, r.i)) : esc(doneTxt)].filter(Boolean).join(' · ')} ${where}</div></div>
       <div class="r">${btn}</div></div>`;
+  }
+  /** сундук за ранговое задание (выдаётся вместе с последней ступенью): ярус и шанс проклятого — от сервера (st.bc, админка «Сундуки наград»).
+   *  Рамка как у сундука в окне 🎁 (полоса цвета яруса слева), без свечения. Хранилище ограничено — сервер не даст сдать при полном. */
+  chestHtml(t, r) { return r.done ? '' : this.rankChestHtml(t) + this.specChestHtml(t); }
+  /** награда «Сундуки» из админки (st.bx[id]): ярус, сколько, уровень вещей, потолок чар, проклятость — та же рамка, что у сундука ранга */
+  specChestHtml(t) {
+    const st = this.s.st || {}, L = st.bx?.[t.id]; if (!Array.isArray(L) || !L.length) return '';
+    const mx = st.bcs?.max || 100, have = st.bcs?.n || 0, need = L.reduce((s, x) => s + (x.k || 1), 0), full = have + need > mx;
+    const lv = (x) => (x.L ? (x.L2 && x.L2 !== x.L ? `ур. ${x.L}–${x.L2}` : `ур. ${x.L}`) : 'ур. задания ±2');
+    return L.map((x, i) => { const nm = String(x.n || '').replace(/\s*сундук\s*/i, ' ').trim().toLowerCase() || 'сундук';
+      const cur = x.cp >= 100 ? '' : x.cp > 0 ? ` (шанс проклятого ${Math.round(x.cp * 10) / 10}%)` : '';
+      const ex = [lv(x), x.e === 0 ? 'без чар' : x.e > 0 ? `чары до яруса ${x.e}` : ''].filter(Boolean).join(' · ');
+      return `<div class="mc-bd-chest spec${full ? ' full' : ''}" style="--cc:${esc(x.c || '#999')}" title="${esc(`${x.cp > 0 && x.cp < 100 ? `Проклятый вариант: «${x.nc || ''}». ` : ''}Сундуков хранится не больше ${mx}.`)}">+ ${x.k > 1 ? `${x.k} × ` : ''}сундук: <b>${esc(nm)}</b>${esc(cur)} · ${esc(ex)}${i === L.length - 1 ? `<small>${full ? `хранилище полно (${have}/${mx}) — откройте сундуки 🎁, иначе задание не сдать` : `хранится до ${mx} сундуков · сейчас ${have}`}</small>` : ''}</div>`; }).join('');
+  }
+  rankChestHtml(t) {
+    const st = this.s.st || {}, c = st.bc?.[t.id]; if (!c) return '';
+    const nm = String(c.n || '').replace(/\s*сундук\s*/i, ' ').trim().toLowerCase() || 'сундук', mx = st.bcs?.max || 100, have = st.bcs?.n || 0;
+    const full = have >= mx, cnt = c.hi > 1 ? `${c.lo === c.hi ? c.lo : `${c.lo}–${c.hi}`} ${c.hi === 1 ? 'вещь' : 'вещей'}` : '';
+    return `<div class="mc-bd-chest${full ? ' full' : ''}" style="--cc:${esc(c.c || '#999')}" title="${esc(`Проклятый вариант: «${c.nc || ''}». Сундуков хранится не больше ${mx}.`)}">+ сундук: <b>${esc(nm)}</b> (шанс проклятого ${Math.max(0, Math.round(c.cp || 0))}%)${cnt ? ` · ${esc(cnt)}` : ''}<small>${full ? `хранилище полно (${have}/${mx}) — откройте сундуки 🎁, иначе задание не сдать` : `хранится до ${mx} сундуков · сейчас ${have}`}</small></div>`;
   }
   /** ранговое задание: основное условие и бонусные — с наградой и отметкой */
   condHtml(t, r) {
@@ -137,8 +160,8 @@ export class BoardWin {
     const rot = ((t.id.length * 37) % 5) - 2;
     return `<div class="mc-nb-sheet${taken ? ' tk' : ''}${r.ready ? ' ready' : ''}${boss ? ' boss' : ''}" style="--rot:${rot * 0.6}deg"><i class="pinh"></i>
       ${boss ? '<div class="stamp">босс</div>' : ''}
-      <div class="nm">${esc(S.title(t))}</div><div class="w">${esc(S.why(t))}</div>
-      ${taken || !t.take ? `<div class="bar"><i style="width:${pct}%"></i><span>${r.have} / ${r.n}</span></div>` : ''}
+      <div class="nm">${rankTag(t.rk)}${esc(S.title(t))}</div><div class="w">${esc(S.why(t))}</div>
+      ${taken || !t.take ? `<div class="bar"><i style="width:${pct}%"></i><span>${r.have} / ${r.n}</span></div>` : ''}${this.chestHtml(t, r)}
       <div class="tr">${r.all > 1 ? `Ступень ${Math.min(r.c + 1, r.all)} из ${r.all} · ` : ''}${esc(this.rewardText(t, r.i))}</div>
       <div class="r">${btn}</div></div>`;
   }

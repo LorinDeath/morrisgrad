@@ -161,11 +161,11 @@ export function chestOdds(tier: BcTier, L: number, cat: string, cur = false) {
 }
 export type BcRoll = { id: string; c?: 1; e?: number; b?: number };
 /** Бросок содержимого (rnd — ГСЧ; сервер передаёт cryptoRand). b — очернение %, целое 1…99. */
-export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => number, cur = false): BcRoll[] {
+export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => number, cur = false, emax = -1): BcRoll[] {
   const T = BCHEST.tiers[tier]; if (!T) return [];
   const [lo, hi] = countOf(cat), n = lo + Math.floor(rnd() * (hi - lo + 1));
   const P = chestPool(tier, L).items, sum = P.reduce((s, x) => s + x.w, 0);
-  const eo = enchOdds(tier), ek = Object.keys(eo).map(Number), es = ek.reduce((s, k) => s + eo[k], 0), ep = enchPctOf(tier), cp = cursePctOf(tier, cur), cap = enchCapOf(tier);
+  const eo = enchOdds(tier), ek = Object.keys(eo).map(Number), es = ek.reduce((s, k) => s + eo[k], 0), ep = enchPctOf(tier), cp = cursePctOf(tier, cur), cap = emax >= 0 ? Math.min(enchCapOf(tier), emax | 0) : enchCapOf(tier); // emax — потолок чар из награды задания (админка)
   const bp = pct(T.blkPct), [b0, b1] = blkRange(T), bc = Math.max(0.1, Number(T.blkCurve) || 1);
   const out: BcRoll[] = [];
   for (let k = 0; k < n && P.length && sum > 0; k++) {
@@ -182,6 +182,35 @@ export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => numbe
   }
   return out;
 }
+/** Награда задания «Сундуки» (админка, поле ch): [{ n, t, L, L2, e, c }] — сколько, ярус, уровень вещей (0 — уровень задания ±spread;
+ *  L2 > 0 — случайный в L…L2), потолок чар (-1 — по ярусу; не выше яруса сундука, у простого — 0), проклятый вариант: "no" | "yes" | шанс 1…30 %. */
+export type BcSpec = { n: number; t: BcTier; L?: number; L2?: number; e?: number; c?: "no" | "yes" | number };
+export const BC_SPEC_MAX = 5, BC_SPEC_N = 10;
+export function bcSpecErr(v: any): string | null {
+  if (v == null || v === "") return null;
+  if (!Array.isArray(v)) return "Сундуки: нужен список";
+  if (v.length > BC_SPEC_MAX) return `Сундуки: не больше ${BC_SPEC_MAX} строк`;
+  for (const [i, x] of v.entries()) {
+    const w = `Сундуки, строка ${i + 1}`;
+    if (!x || typeof x !== "object") return `${w}: пусто`;
+    if (!BC_TIERS.includes(x.t)) return `${w}: ярус — выберите из списка`;
+    const n = Number(x.n); if (!Number.isInteger(n) || n < 1 || n > BC_SPEC_N) return `${w}: сколько 1…${BC_SPEC_N}`;
+    const L = Number(x.L ?? 0), L2 = Number(x.L2 ?? 0);
+    if (!Number.isInteger(L) || L < 0 || L > 25) return `${w}: уровень 0 (по заданию) или 1…25`;
+    if (!Number.isInteger(L2) || L2 < 0 || L2 > 25 || (L2 && (!L || L2 < L))) return `${w}: уровень «до» — 0 или от «от» до 25`;
+    const e = Number(x.e ?? -1), cap = BC_ENCH_CAP[x.t as BcTier];
+    if (!Number.isInteger(e) || e < -1 || e > cap) return `${w}: потолок зачарования — по ярусу или 0…${cap}${cap ? "" : " (простой сундук без чар)"}`;
+    const c = x.c ?? "no"; if (!(c === "no" || c === "yes" || (typeof c === "number" && Number.isFinite(c) && c >= 0 && c <= BC_CURSE_MAX))) return `${w}: проклятый — нет, да или шанс 0…${BC_CURSE_MAX} %`;
+  }
+  return null;
+}
+export function bcSpecNorm(v: any): BcSpec[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x: any) => { const o: BcSpec = { n: Math.round(Number(x.n)), t: x.t };
+    if (Number(x.L) > 0) o.L = Math.round(Number(x.L)); if (Number(x.L2) > 0) o.L2 = Math.round(Number(x.L2));
+    if (Number(x.e ?? -1) >= 0) o.e = Math.round(Number(x.e)); o.c = x.c === "yes" ? "yes" : typeof x.c === "number" && x.c > 0 ? Math.round(x.c * 10) / 10 : "no"; return o; });
+}
+export const bcSpecCount = (v: any) => (Array.isArray(v) ? v.reduce((s: number, x: any) => s + (Number(x?.n) | 0), 0) : 0);
 /** Проверка правки админки (после наложения). */
 export function bchestErr(get: (p: string) => any): string | null {
   for (const r of BC_RANKS) { const v = Number(get(`rankCurse.${r}`)); if (v > BC_CURSE_MAX) return `Ранг ${r}: проклятый сундук не больше ${BC_CURSE_MAX} %`; }

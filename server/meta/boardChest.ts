@@ -2,13 +2,13 @@
 // пока не открыты и не опустошены. Открытие бросает содержимое ВНУТРЬ сундука (сохраняется: повторный вход
 // покажет те же вещи); забрать/разобрать/надеть — по одной или всё; не влезло в сумку — осталось в сундуке;
 // пустой сундук исчезает. Сундук принадлежит телу, которое сдало задание (как и сама награда).
-import { BCHEST, BC_TIERS, tierOfRank, artOf, chestOdds, rollItems, countOf, rankCursePct, type BcTier } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_CURSE_MAX, tierOfRank, artOf, chestOdds, rollItems, countOf, rankCursePct, bcSpecCount, type BcTier, type BcSpec } from "./boardChestCfg";
 import { ITEM_BY_ID, salvageYield, HERO_NAMES } from "./defs";
 import { addItem, addRes, equip, cryptoRand, type Account, type Hero } from "./profile";
 
 export interface BcItem { lid: number; id: string; c?: 1; e?: number; b?: number } // b — очернение %, переносится на экземпляр (InvItem.blk)
-export interface BcChest { id: number; tier: BcTier; cur?: 1; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number }
-export interface BcStore { seq: number; list: BcChest[]; v?: number }
+export interface BcChest { id: number; tier: BcTier; cur?: 1; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number; em?: number } // em — потолок чар из награды задания
+export interface BcStore { seq: number; list: BcChest[]; v?: number; op?: Record<string, number> } // op — счётчики открытых сундуков (достижения)
 const BAG = 120;
 export function chestsOf(a: Account): BcStore {
   const A = a as any; const s: BcStore = A.chests && typeof A.chests === "object" ? A.chests : (A.chests = { seq: 0, list: [], v: 2 });
@@ -20,6 +20,28 @@ export function chestsOf(a: Account): BcStore {
   s.list = s.list.filter((c) => c && BC_TIERS.includes(c.tier) && !(Array.isArray(c.items) && c.items.length === 0));
   return s;
 }
+/** Счётчики открытых сундуков для достижений: all, cur (любой проклятый), <ярус>, <ярус>:c (проклятый вариант), ench (вещей с чарами).
+ *  Первое обращение — задним числом по тому, что осталось в данных аккаунта: открытые, но не опустошённые сундуки в хранилище
+ *  и вещи из сундуков в сумках (InvItem.src = "bchest:<ярус>"; по вещам — не меньше 1 сундука яруса, по числу вещей / потолок «до»).
+ *  Опустошённые сундуки не хранятся — их можно досчитать только по журналу (audit «bchest … :open»), это не делается автоматически. */
+export function chestOps(a: Account): Record<string, number> {
+  const s = chestsOf(a); if (s.op && typeof s.op === "object") return s.op;
+  const op: Record<string, number> = {}; const add = (k: string, n: number) => { if (n > 0) op[k] = (op[k] || 0) + n; };
+  const opened = s.list.filter((c) => Array.isArray(c.items)), inv: any[] = (a as any).inv || [];
+  const hi = Math.max(1, ...Object.values(BCHEST.count || {}).map((x: any) => Number(x?.max) || 1));
+  for (const t of BC_TIERS) { // нижняя оценка: max(открытые в хранилище, вещи этого яруса в сумках / потолок «до») — без двойного счёта
+    const oc = opened.filter((c) => c.tier === t), its = inv.filter((i) => i && i.src === "bchest:" + t);
+    const n = Math.max(oc.length, its.length ? Math.ceil(its.length / hi) : 0); add(t, n); add("all", n);
+    const nc = oc.filter((c) => c.cur).length; add(t + ":c", nc); add("cur", nc);
+    add("ench", oc.reduce((k, c) => k + (c.items || []).filter((x) => (x.e | 0) > 0).length, 0) + its.filter((i) => (i.ench | 0) > 0).length);
+  }
+  s.op = op; return op;
+}
+function noteOpen(a: Account, c: BcChest) {
+  const op = chestOps(a), add = (k: string, n = 1) => { if (n > 0) op[k] = (op[k] || 0) + n; };
+  add("all"); add(c.tier); if (c.cur) { add("cur"); add(c.tier + ":c"); }
+  add("ench", (c.items || []).filter((x) => (x.e | 0) > 0).length);
+}
 /** вещь из сундука → сумка тела: проклятие, ярус и очернение переносятся на экземпляр */
 function give(a: Account, x: BcItem, c: BcChest, hero: string) {
   const it = addItem(a, x.id, "bchest:" + c.tier, hero, !!x.c, x.e || 0);
@@ -28,10 +50,10 @@ function give(a: Account, x: BcItem, c: BcChest, hero: string) {
 }
 const bagN = (a: Account, hero: string | null) => a.inv.filter((i) => (i.hero || null) === (hero || null)).length;
 /** Хватит ли места под новый сундук (проверка ДО записи ступени задания). */
-export function chestRoomErr(a: Account): string | null {
+export function chestRoomErr(a: Account, need = 1): string | null {
   if (BCHEST.on === false) return null;
   const mx = Math.max(1, BCHEST.maxStore | 0 || 100);
-  return chestsOf(a).list.length >= mx ? `Сундуков наград уже ${mx} — откройте или опустошите часть (🎁, клавиша Y), и сдайте задание снова` : null;
+  return chestsOf(a).list.length + Math.max(1, need) > mx ? `Сундуков наград уже ${mx} — откройте или опустошите часть (🎁, клавиша Y), и сдайте задание снова` : null;
 }
 /** Выдать сундук за ранг задания. null — ранг без сундука или выключено. */
 export function grantChest(a: Account, hero: string, rank: string, L: number, cat: string, src: string, rnd: () => number = cryptoRand, force?: boolean): BcChest | null {
@@ -41,6 +63,19 @@ export function grantChest(a: Account, hero: string, rank: string, L: number, ca
   const s = chestsOf(a); const c: BcChest = { id: ++s.seq, tier, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank, hero, src, at: Date.now() };
   s.list.push(c); return c;
 }
+/** Сундуки из награды задания (админка, поле ch): ярус, уровень, потолок чар, проклятость — как задано; потолок шанса BC_CURSE_MAX. */
+export function grantSpec(a: Account, hero: string, specs: BcSpec[], taskL: number, cat: string, src: string, rnd: () => number = cryptoRand): BcChest[] {
+  if (BCHEST.on === false || !Array.isArray(specs)) return [];
+  const s = chestsOf(a), out: BcChest[] = [];
+  for (const x of specs) { if (!BCHEST.tiers[x.t]) continue;
+    for (let k = 0; k < Math.min(10, x.n | 0); k++) {
+      const lo = x.L || taskL, hi = x.L && x.L2 ? x.L2 : lo, L = lo + Math.floor(rnd() * (hi - lo + 1));
+      const cur = x.c === "yes" ? true : typeof x.c === "number" ? rnd() * 100 < Math.min(BC_CURSE_MAX, x.c) : false;
+      const c: BcChest = { id: ++s.seq, tier: x.t, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank: "", hero, src, at: Date.now(), ...(Number.isInteger(x.e) && x.e! >= 0 ? { em: x.e } : {}) };
+      s.list.push(c); out.push(c); } }
+  return out;
+}
+export { bcSpecCount };
 function view(a: Account, c: BcChest) {
   const o = chestOdds(c.tier, c.L, c.cat, !!c.cur);
   return { id: c.id, tier: c.tier, cur: !!c.cur, dark: o.dark, art: artOf(c.tier, c.rank, !!c.cur), name: o.name, color: o.color, L: c.L, cat: c.cat, rank: c.rank, hero: c.hero, heroName: (HERO_NAMES as any)[c.hero] || c.hero,
@@ -62,7 +97,9 @@ export function chestOpen(a: Account, h: string | null, id: any, rnd: () => numb
   const f = find(a, h, id); if (f.err) return { ok: false, err: f.err }; const c = f.c!;
   let fresh = false;
   if (!Array.isArray(c.items)) {
-    let lid = 0; c.items = rollItems(c.tier, c.L, c.cat, rnd, !!c.cur).map((x) => ({ lid: ++lid, ...x })); c.n = c.items.length; fresh = true;
+    chestOps(a); // задним числом — до первого нового открытия, чтобы оно не посчиталось дважды
+    let lid = 0; c.items = rollItems(c.tier, c.L, c.cat, rnd, !!c.cur, Number.isInteger(c.em) ? c.em! : -1).map((x) => ({ lid: ++lid, ...x })); c.n = c.items.length; fresh = true;
+    noteOpen(a, c);
     if (!c.items.length) { const s = chestsOf(a); s.list = s.list.filter((x) => x !== c); return { ok: true, chest: { ...view(a, c), items: [] }, fresh, gone: true }; }
   }
   return { ok: true, chest: view(a, c), fresh };

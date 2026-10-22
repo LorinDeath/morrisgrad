@@ -26,7 +26,7 @@ import { ENCH, ENCH_N } from "./enchant";
 // шанс проклятого моба, % — живёт в ZONE_GEN.cursedPct (там его читают зона и тесты); правится во вкладке «☠ Проклятие» (curse.cursedPct)
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
-import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, BC_CURSE_MAX, bchestErr } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, BC_CURSE_MAX, bchestErr, bcSpecErr, bcSpecNorm } from "./boardChestCfg";
 import { RARITIES as RAR_NAMES } from "./shared";
 import { UPG, UPG_ORDER } from "./upgrade";
 import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, RANKS, RANK_CATS, BONUS_NAMES, reindexBtasks, type Cat } from "./board";
@@ -35,7 +35,7 @@ import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
 
 export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
-export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
+export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext" | "chests"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -443,8 +443,10 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("minT", "Забег не короче, с", 0, 3600, "int"),
     ...[0, 1, 2, 3, 4].flatMap((i) => [N(`n.${i}`, `Ступень ${i + 1}: сколько (0 — нет)`, 0, 1000000, "int"), N(`d.${i}`, `Ступень ${i + 1}: сложность 1–5`, 0, 5, "int")]),
     { path: "res", label: "Материалы за ступень (× номер ступени)", t: "resmap" }, { path: "item", label: "Предмет за последнюю ступень (id)", t: "text" },
+    { path: "ch", label: "Сундуки за последнюю ступень (ярус, сколько, уровень вещей, потолок чар, проклятость)", t: "chests" },
     { path: "auto", label: "Обучение: засчитать само (lvl:5, equipped:1…)", t: "text" },
     { path: "hidden", label: "Скрытое («???» до выполнения)", t: "bool" },
+    { path: "hint", label: "Скрытое: подсказка до выполнения (необязательно; пусто — «Условие откроется, когда вы его выполните»)", t: "ltext" },
     { path: "xm", label: "Опыт задан вручную (иначе — по таблице от уровня задания)", t: "bool" },
     ...[0, 1, 2, 3, 4].map((i) => N(`x.${i}`, `Ступень ${i + 1}: опыт (число)`, 0, 10000000, "int")),
     N("w", "Вес в случайном пуле (0 — не выпадает)", 0, 100),
@@ -535,6 +537,7 @@ function validatePatch0(kind: Kind, id: string, patch: any): any | string {
       out[p] = t; }
     else if (f.t === "text") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (kind === "dn" && ["duskStart", "night", "dawnStart", "day", "force"].includes(p) && !(p === "force" && !t) && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(t)) return `${f.label}: ЧЧ:ММ`; if (kind === "dn" && p === "tz" && t) { try { new Intl.DateTimeFormat("en", { timeZone: t }); } catch { return `${f.label}: неизвестный пояс`; } } if (t.length > 48) return `${f.label}: до 48 символов`; if (!t && p === "name") return `${f.label}: не пусто`; out[p] = t; }
     else if (f.t === "ltext") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (t.length > 160) return `${f.label}: до 160 символов`; if (!t && p === "title") return `${f.label}: не пусто`; out[p] = t; }
+    else if (f.t === "chests") { const e = bcSpecErr(v); if (e) return e; out[p] = bcSpecNorm(v); }
     else if (f.t === "color") { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) return `${f.label}: #rrggbb`; out[p] = String(v).toLowerCase(); }
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }

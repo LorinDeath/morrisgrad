@@ -8,6 +8,7 @@ import { card, iconHtml } from '../meta/itemCards.js';
 import { itemSlot } from './book.js';
 import { RARITIES } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
+import { fsLayer } from './fullscreen.js';
 
 const ART_RI = (art) => Math.max(0, ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'].indexOf(String(art).replace('cursed_', '')));
 const FR = [24, 34, 43, 53, 62, 72]; // кадров открытия у запасного сундука (как у художника)
@@ -24,7 +25,7 @@ export const MAX_FLY = 16; // столько иконок летит; остал
 export function playOpen(chest, items, opts = {}) {
   const root = document.createElement('div'); root.className = 'bc-fx'; root.innerHTML = `<canvas class="pt"></canvas><div class="sh"><canvas class="ch"></canvas><div class="its"></div></div><div class="cap"></div><div class="skip">${matchMedia('(hover: none)').matches ? 'Тап — пропустить' : 'Клик или пробел — пропустить'}</div>`;
   if (chest.dark) root.classList.add('dark'); // «Чёрный»: свой лист художника отсутствует — мифический рисунок в тёмном тоне
-  (opts.host || document.body).appendChild(root);
+  (opts.host || fsLayer()).appendChild(root);
   const pt = root.querySelector('.pt'), ptx = pt.getContext('2d'), shEl = root.querySelector('.sh'), cv = root.querySelector('.ch'), cx = cv.getContext('2d'), itsEl = root.querySelector('.its'), cap = root.querySelector('.cap');
   const art = chest.art || 'common', ri = ART_RI(art), cursed = String(art).startsWith('cursed_'), col = chest.color && chest.color !== '#1c1917' ? chest.color : (RARITIES[String(art).replace('cursed_', '')]?.color || '#9ca3af');
   const power = (ri + (cursed ? 1.5 : 0)) / 6.5; // 0…1 — размах всех эффектов
@@ -43,7 +44,7 @@ export function playOpen(chest, items, opts = {}) {
   let shake = 0, flash = 0;
   const finish = () => { if (dead) return; dead = true; for (const o of els) o.e.remove(); removeEventListener('resize', fit); removeEventListener('keydown', onKey, true); root.remove(); opts.onDone?.(); };
   const toTargets = () => { if (phase === 'fly' || phase === 'end') return; phase = 'fly'; flyT = performance.now(); cap.classList.add('out');
-    els.forEach((o, k) => { const r = opts.target?.(o.i); const b = o.e.getBoundingClientRect(); o.from = b.width ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : { x: CX, y: CY - 80 * S }; o.e.style.display = ''; document.body.appendChild(o.e); o.e.classList.add('fly'); /* вне сцены: сцена гаснет, а вещи долетают */ o.to = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: W / 2, y: H }; o.delay = skip ? 0 : k * 45; o.flown = false; }); };
+    els.forEach((o, k) => { const r = opts.target?.(o.i); const b = o.e.getBoundingClientRect(); o.from = b.width ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : { x: CX, y: CY - 80 * S }; o.e.style.display = ''; (root.parentNode || fsLayer()).appendChild(o.e); o.e.classList.add('fly'); /* вне сцены: сцена гаснет, а вещи долетают */ o.to = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: W / 2, y: H }; o.delay = skip ? 0 : k * 45; o.flown = false; }); };
   const onSkip = () => { if (phase === 'fly') { finishFly(); return; } skip = true; toTargets(); };
   const finishFly = () => { for (const o of els) if (!o.flown) { o.flown = true; opts.onLand?.(o.i); } for (const i of order.slice(MAX_FLY)) opts.onLand?.(i); phase = 'end'; finish(); };
   root.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); onSkip(); });
@@ -112,7 +113,7 @@ export function playOpen(chest, items, opts = {}) {
 }
 const plural = (n) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? 'вещь' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'вещи' : 'вещей'; };
 /** «пуф» опустевшего сундука: серый пиксельный дым из прямоугольника r (DOMRect), без свечения */
-export function poof(r, host = document.body) {
+export function poof(r, host = fsLayer()) {
   const c = document.createElement('canvas'), W = Math.round(r.width + 120), H = Math.round(r.height + 120); c.width = W; c.height = H; c.className = 'bc-poof'; c.style.left = r.left - 60 + 'px'; c.style.top = r.top - 60 + 'px'; host.appendChild(c);
   const x = c.getContext('2d'), P = []; for (let k = 0; k < 46; k++) { const a = Math.random() * Math.PI * 2, v = 0.6 + Math.random() * 2.2; P.push({ x: W / 2 + (Math.random() - 0.5) * r.width * 0.6, y: H / 2 + (Math.random() - 0.5) * r.height * 0.5, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.8, s: 3 + Math.random() * 5, c: ['#d6d3d1', '#a8a29e', '#78716c', '#57534e'][k % 4] }); }
   let t = 0; const tick = () => { t++; x.clearRect(0, 0, W, H); for (const p of P) { p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy = p.vy * 0.94 - 0.03; p.s += 0.25; x.globalAlpha = Math.max(0, 1 - t / 34); x.fillStyle = p.c; const z = Math.round(p.s); x.fillRect(Math.round(p.x - z / 2), Math.round(p.y - z / 2), z, z); } if (t < 34) requestAnimationFrame(tick); else c.remove(); };

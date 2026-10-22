@@ -1,9 +1,10 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
-import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS } from "./board";
+import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS, BTASK_LIST } from "./board";
+import { BCHEST, tierOfRank, rankCursePct } from "./boardChestCfg";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 import { heroXpNeed } from "./defs";
-let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
+let f = 0; const ok = (c: any, m: string, x?: any) => { console.log((c ? "PASS " : "FAIL ") + m + (!c && x !== undefined ? " " + JSON.stringify(x) : "")); if (!c) f++; };
 const C: any = boardCounts();
 ok(C.tasks >= 300, `заданий ${C.tasks} (без достижений)`); ok(C.ach >= 150, `достижений ${C.ach}`);
 for (const c of ["tut", "npc", "hunt", "daily", "weekly", "monthly", "hard"]) ok(C[c] > 0, `категория ${c}: ${C[c]}`);
@@ -170,7 +171,15 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
   ok(!st.reveal["ach_x_black_three"], "«Три тени» ещё скрыто (одна чёрная вещь)");
   const d = boardDefs().tasks.filter((t: any) => /^ach_x_(ench|black)/.test(t.id)); ok(d.length >= 30 && d.every((t: any) => t.t === "???"), `скрытых про чары и чёрные вещи: ${d.length}, все «???»`);
   const { a: a2, h: h2 } = mk(); h2.lvl = 20; a2.inv.push({ uid: "z", id: "fly_legs", ench: 5 } as any); boardRefresh(a2, h2, ctx);
-  ok((boardOf(a2).pre["ach_x_ench_t5"] || 0) === 1 && !boardClient(a2, h2).reveal["ach_x_ench_t5"], "вещь была до запуска — скрытое не открывается и не награждает");
+  { const b2 = boardOf(a2), rv = boardClient(a2, h2).reveal["ach_x_ench_t5"];
+    ok((b2.pre["ach_x_ench_t5"] || 0) === 1 && (b2.c["ach_x_ench_t5"] || 0) >= 1, "вещь была до запуска — ступень закрыта заранее, без награды");
+    ok(!!rv && rv.t === BTASKS["ach_x_ench_t5"].title && rv.w === BTASKS["ach_x_ench_t5"].why, "выполненное до запуска скрытое всё равно раскрыто (название и условие, не «✔ ???»)", rv); }
+  // любое выполненное скрытое раскрывается: прогресс ≥ первой ступени, полученная ступень или pre (даже если прогресс потом упал)
+  { const { a: a3, h: h3 } = mk(); boardRefresh(a3, h3, ctx); const b3 = boardOf(a3); const hs = BTASK_LIST().filter((t: any) => t.hidden && t.on);
+    for (const t of hs) { b3.c[t.id] = 1; b3.p[t.id] = 0; } const rv = boardClient(a3, h3).reveal;
+    const miss = hs.filter((t: any) => !rv[t.id]).map((t: any) => t.id); ok(!miss.length, `все ${hs.length} полученных скрытых раскрыты`, miss.slice(0, 5));
+    const { a: a4, h: h4 } = mk(); boardRefresh(a4, h4, ctx); ok(Object.keys(boardClient(a4, h4).reveal).length === 0, "невыполненные скрытые — «???» (ничего не раскрыто)");
+    const d0 = boardDefs().tasks.find((t: any) => t.id === hs[0].id); ok(d0 && d0.t === "???" && !d0.h, "подсказки по умолчанию нет (поле hint пустое)", d0); }
 }
 // админка
 { ok(typeof validatePatch("btask", "hunt_ice_crescent_wolf", { "n.1": 5 }) === "string", "ступени должны расти");
@@ -245,4 +254,14 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
   ok(boardTake(a, h, id, true).ok, "заказ взят"); b.p[id] = b.roll[id].n; const r = boardClaim(a, h, id, ctx);
   ok(r.ok && r.rank && !b.c[id] && !b.roll[id] && !(b.sel.hunt || []).includes(id), "сданный заказ вернулся в пул");
 }
+
+// сундук за ранговое задание: карточка знает ярус и шанс проклятого (от сервера, с правками админки); потолок хранилища
+{ const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const st: any = boardClient(a, h); const ids = Object.keys(st.roll || {});
+  const bad = ids.filter((id) => { const R = st.roll[id], t = BTASKS[id], c = st.bc[id]; const want = !!tierOfRank(R.r) && ["daily", "weekly", "monthly", "hard", "hunt"].includes(t.cat);
+    if (!want) return !!c; const T = BCHEST.tiers[tierOfRank(R.r)!]; return !c || c.n !== T.name || c.cp !== rankCursePct(R.r) || c.cp > 30; });
+  ok(ids.length > 0 && !bad.length, `сундук в карточке у ${ids.length} ранговых заданий: ярус и шанс проклятого по рангу`, bad.slice(0, 3));
+  const exp: Record<string, number> = { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 }; ok(Object.entries(exp).every(([r, v]) => rankCursePct(r) === v), "шанс проклятого F30 E25 D20 C15 B12 A10 S5 SS2");
+  ok(st.bcs && st.bcs.max === 100 && st.bcs.n === 0, "хранилище сундуков: 0 из 100", st.bcs);
+  const save = BCHEST.rankCurse.D; BCHEST.rankCurse.D = 7; const st2: any = boardClient(a, h); const dId = ids.find((id) => st.roll[id].r === "D");
+  ok(!dId || st2.bc[dId].cp === 7, "правка админки (rankCurse) сразу видна в карточке"); BCHEST.rankCurse.D = save; }
 console.log(f ? `FAILED ${f}` : "board ok"); if (f) process.exit(1);

@@ -91,7 +91,8 @@ export class UiDrag {
   put(el, x, y) {
     const z = el.currentCSSZoom || 1, v = x || y ? `${Math.round(x / z * 10) / 10}px ${Math.round(y / z * 10) / 10}px` : '';
     el._mcT = [x, y];
-    if (el.style.translate !== v) el.style.translate = v;
+    if (el.style.translate !== v) { el.style.translate = v; // смещение ещё и в переменных: анимации по translate (вздрагивание при наведении) строятся от него, иначе на миг возвращают блок на старое место и клик уходит мимо
+      if (v) { const [dx, dy] = v.split(' '); el.style.setProperty('--mc-dx', dx); el.style.setProperty('--mc-dy', dy); } else { el.style.removeProperty('--mc-dx'); el.style.removeProperty('--mc-dy'); } }
   }
   members(r) { const out = []; for (const [el, rr] of this.els) if (rr === r) out.push(el); return out; }
   /** прямоугольник блока без нашего сдвига (союз элементов группы); null — не виден */
@@ -115,6 +116,7 @@ export class UiDrag {
       const [x, y] = this.clampPx(n, C, o[0] * C.width, o[1] * C.height);
       for (const el of list) this.put(el, x, y);
     }
+    if (this.edit) this.placeBar();
     this.onMove?.();
   }
   canStart(hit, e) {
@@ -172,21 +174,89 @@ export class UiDrag {
     const fx = r4(d.x / C.width), fy = r4(d.y / C.height);
     if (Math.abs(fx) < 1e-3 && Math.abs(fy) < 1e-3) delete L.off[d.r.id]; else L.off[d.r.id] = [fx, fy];
     L.at = Date.now(); this.save(true);
+    if (this.edit) this.placeBar();
   }
   setEdit(v) {
     this.edit = !!v && this.enabled(); document.documentElement.classList.toggle('mc-uiedit', this.edit);
-    if (this.edit && !this.bar) {
-      const b = document.createElement('div'); b.className = 'mc-uiedit-bar';
-      b.innerHTML = `<span>✥ Перетащите блоки интерфейса${this.mobile ? '' : ' мышью'} · двойной щелчок — блок на место</span><button class="mc-btn sm" data-e="reset">Сбросить всё</button><button class="mc-btn sm gold" data-e="done">Готово</button>`;
-      b.addEventListener('click', (e) => { const k = e.target.closest('[data-e]')?.dataset.e; if (k === 'done') this.setEdit(false); else if (k === 'reset') this.reset(); e.stopPropagation(); });
-      this.layer.appendChild(b); this.bar = b;
-      this.dbl = (e) => { if (!this.edit) return; const h = this.find(e.target); if (!h) return; e.preventDefault(); e.stopPropagation(); const L = this.lay(); delete L.off[h.r.id]; L.at = Date.now(); this.save(true); this.scan(true); };
-      this.root.addEventListener('dblclick', this.dbl, true);
-    }
+    if (this.edit && !this.bar) this.mkBar();
     if (this.bar) this.bar.style.display = this.edit ? '' : 'none';
+    if (!this.edit) this.barUser = null; // новый сеанс настройки — панель снова сама ищет свободное место
     this.scan(true);
+    if (this.edit) requestAnimationFrame(() => this.placeBar());
   }
-  reset() { const L = this.lay(); L.off = {}; L.at = Date.now(); this.save(true); this.scan(true); }
+  /** Панель режима настройки. Не должна закрывать перетаскиваемые блоки: сама панель пропускает указатель
+   *  (pointer-events: none), ловят только её кнопки и ручка ✥; место выбирается свободное от блоков (placeBar),
+   *  её можно перетащить за ✥ и свернуть в маленький значок. */
+  mkBar() {
+    const b = document.createElement('div'); b.className = 'mc-uiedit-bar';
+    const how = this.mobile ? 'Перетащите блок пальцем · двойное касание — на место' : 'Перетащите блок мышью · двойной щелчок — на место';
+    b.innerHTML = `<button type="button" class="grip" data-e="grip" title="Перетащить эту панель" aria-label="Перетащить эту панель">✥</button>`
+      + `<span class="tx"><b>Настройка интерфейса</b><small>${how}</small></span>`
+      + `<button type="button" class="mc-btn sm" data-e="reset">Сбросить всё</button>`
+      + `<button type="button" class="mc-btn sm gold" data-e="done">Готово</button>`
+      + `<button type="button" class="mc-btn sm mn" data-e="min" title="Свернуть панель" aria-label="Свернуть панель">–</button>`;
+    b.addEventListener('click', (e) => {
+      const k = e.target.closest('[data-e]')?.dataset.e; e.stopPropagation();
+      if (performance.now() < (this.barSup || 0)) return;
+      if (k === 'done') this.setEdit(false); else if (k === 'reset') this.reset();
+      else if (k === 'min' || k === 'grip' && b.classList.contains('min')) { this.barMin(!b.classList.contains('min')); }
+    });
+    b.addEventListener('dblclick', (e) => e.stopPropagation());
+    const grip = b.querySelector('.grip');
+    grip.addEventListener('pointerdown', (e) => { // своя ручка: панель — не блок раскладки, её место не сохраняется на сервере
+      if (e.button > 0) return; e.preventDefault(); e.stopPropagation();
+      const r = b.getBoundingClientRect(), C = this.cont();
+      this.barDrag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: r.left - C.left, y: r.top - C.top, live: false };
+      try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    grip.addEventListener('pointermove', (e) => {
+      const d = this.barDrag; if (!d || e.pointerId !== d.id) return;
+      const dx = e.clientX - d.sx, dy = e.clientY - d.sy; if (!d.live && Math.hypot(dx, dy) < 5) return;
+      d.live = true; e.preventDefault(); this.barAt(d.x + dx, d.y + dy); this.barUser = this.barXY;
+    });
+    const end = (e) => { const d = this.barDrag; if (!d || e.pointerId !== d.id) return; this.barDrag = null; if (d.live) this.barSup = performance.now() + 300; };
+    grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+    this.layer.appendChild(b); this.bar = b;
+    this.dbl = (e) => { if (!this.edit) return; const h = this.find(e.target); if (!h) return; e.preventDefault(); e.stopPropagation(); const L = this.lay(); delete L.off[h.r.id]; L.at = Date.now(); this.save(true); this.scan(true); this.placeBar(); };
+    this.root.addEventListener('dblclick', this.dbl, true);
+  }
+  barMin(v) { if (!this.bar) return; this.bar.classList.toggle('min', !!v); const m = this.bar.querySelector('.mn'); if (m) { m.textContent = v ? '+' : '–'; m.title = m.ariaLabel = v ? 'Развернуть панель' : 'Свернуть панель'; } this.placeBar(); }
+  /** x, y — от левого верхнего угла окна игры; панель всегда целиком в окне */
+  barAt(x, y) {
+    const b = this.bar, C = this.cont(); if (!b) return;
+    const w = b.offsetWidth, h = b.offsetHeight;
+    x = Math.max(4, Math.min(C.width - w - 4, x)); y = Math.max(4, Math.min(C.height - h - 4, y));
+    b.style.left = Math.round(x) + 'px'; b.style.top = Math.round(y) + 'px'; this.barXY = [x, y];
+  }
+  /** видимые прямоугольники блоков раскладки (с учётом сдвига), относительно окна игры */
+  blockRects() {
+    const C = this.cont(), out = [];
+    for (const [el, r] of this.els) { if (r.win) continue; const q = el.getBoundingClientRect(); if (q.width < 2 || q.height < 2) continue;
+      const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      out.push({ id: r.id, L: q.left - C.left - 3, T: q.top - C.top - 3, R: q.right - C.left + 3, B: q.bottom - C.top + 3 }); }
+    return out;
+  }
+  /** свободное место: перебор позиций (верх по центру, ниже верхних блоков, над панелью умений, середина) —
+   *  первая, где панель не перекрывает ни один блок; иначе — с наименьшей площадью перекрытия. Своё место (перетащил) — уважаем, пока оно свободно. */
+  placeBar() {
+    const b = this.bar; if (!b || !this.edit) return; const C = this.cont(); if (C.width < 50) return;
+    const w = b.offsetWidth, h = b.offsetHeight, R = this.blockRects();
+    const over = (x, y) => { let s = 0; for (const q of R) { const ix = Math.min(x + w, q.R) - Math.max(x, q.L), iy = Math.min(y + h, q.B) - Math.max(y, q.T); if (ix > 0 && iy > 0) s += ix * iy; } return s; };
+    const cx = (C.width - w) / 2, cands = [];
+    // место, куда панель поставил сам игрок, не пересматриваем (иначе при следующем пересчёте она «отпрыгивает»), только держим в пределах экрана
+    if (this.barUser) { const [ux, uy] = this.barUser, x = Math.max(4, Math.min(C.width - w - 4, ux)), y = Math.max(4, Math.min(C.height - h - 4, uy)); this.barAt(x, y); this.barUser = this.barXY; b.dataset.over = over(x, y) > 0 ? '1' : ''; return; }
+    cands.push([cx, 8]);
+    const topB = Math.max(0, ...R.filter((q) => q.T < C.height * 0.3 && q.L < C.width / 2 + w / 2 && q.R > C.width / 2 - w / 2).map((q) => q.B));
+    cands.push([cx, topB + 6]);
+    const ab = R.find((q) => q.id === 'abar'); cands.push([cx, (ab ? ab.T : C.height - 90) - h - 8]);
+    cands.push([cx, C.height * 0.42], [cx, C.height * 0.6], [cx, C.height * 0.25]);
+    for (let y = 8; y < C.height - h; y += Math.max(24, h)) cands.push([cx, y]);
+    let best = null, bs = Infinity;
+    for (const [x0, y0] of cands) { const x = Math.max(4, Math.min(C.width - w - 4, x0)), y = Math.max(4, Math.min(C.height - h - 4, y0)), s = over(x, y); if (s < bs) { bs = s; best = [x, y]; } if (!s) break; }
+    if (best) this.barAt(best[0], best[1]);
+    b.dataset.over = bs > 0 ? '1' : '';
+  }
+  reset() { this.barUser = null; const L = this.lay(); L.off = {}; L.at = Date.now(); this.save(true); this.scan(true); this.placeBar(); }
   setLock(v) { const L = this.lay(); L.lock = v ? 1 : 0; L.at = Date.now(); if (v) this.setEdit(false); this.save(true); }
   state() { const L = this.lay(); return { dev: this.dev, edit: this.edit, lock: !!L.lock, enabled: this.enabled(), off: { ...(L.off || {}) }, ids: [...new Set([...this.els.values()].map((r) => r.id))] }; }
 }

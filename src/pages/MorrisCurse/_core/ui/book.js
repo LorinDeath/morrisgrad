@@ -588,7 +588,7 @@ export class Book {
     const cells = idx.map((n) => { const [slot, rar] = L.sil[n];
       const c = byN.get(n);
       if (f !== 'all' && f !== slot) return '';
-      if (!c) return `<div class="mc-lib lock" style="border-color:${RAR(rar).color}55" title="${esc(RAR(rar).name)} · ${esc(SLOTS[slot])} — ещё не открыт">${iconHtml({ n }, 32, 'sil')}</div>`;
+      if (!c) return `<div class="mc-lib lock" style="border-color:${RAR(rar).color}55" title="${esc(RAR(rar).name)} · ${esc(SLOTS[slot])} — ещё не открыт">${iconHtml({ n, ic: L.sil[n][3] }, 32, 'sil')}</div>`;
       return `<button class="mc-lib ${c.isNew ? 'isnew' : ''} ${this.lsel === c.id ? 'on' : ''} ${c.owned ? 'own' : ''}" data-act="lsel" data-v="${c.id}" style="border-color:${RAR(c.rarity).color}" title="${esc(c.name)}">${iconHtml(c, 32)}${c.isNew ? NEW_BADGE : ''}${c.owned ? `<small>×${c.owned}</small>` : ''}</button>`;
     }).join('');
     const opened = Object.keys(L.items).length;

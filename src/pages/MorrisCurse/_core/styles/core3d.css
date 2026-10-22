@@ -1006,8 +1006,9 @@ b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, v
 .mc3d-label .mc-pkbar.cancel > b { color: #cbd5e1; }
 
 /* ——— Задания и достижения (ui/board.js). Без свечения: только жёсткие тени в стиле пиксель-арта ——— */
-.mc-boardbtn { left: 156px; }
-.mc-helpbtn { left: 204px; font-size: 18px; }
+/* ряд кнопок ПК: 📖 10 · 🧙 60 · 🏆 108 · 👥 156 (Онлайн, было до доски) · 📋 204 · ❔ 252 · 🎁 300. Раньше 📋 стояла на 156 и закрывала 👥 */
+.mc-boardbtn { left: 204px; }
+.mc-helpbtn { left: 252px; font-size: 18px; }
 .mc-bd { position: fixed; inset: 0; z-index: 56; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(5, 3, 12, 0.55); font-family: monospace; color: #e2e8f0; }
 .mc-bd-box { width: min(860px, 96vw); max-height: 90vh; display: flex; flex-direction: column; background: #0e0a19; border: 3px solid #5b4a7a; border-radius: 6px; box-shadow: 0 6px 0 #000a, inset 0 0 0 2px #2a1f3d; }
 .mc-bd .hd { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 2px solid #2a1f3d; }
@@ -1055,6 +1056,12 @@ b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, v
 .mc-qt .bt .xb, .bt .xb { font-size: 10.5px; color: #93c5fd; margin: 1px 0 0 14px; }
 .bt.xbt { opacity: .92; border-left: 2px solid #3b82f6; padding-left: 4px; }
 .mc-bd-cond i.ok { color: #4ade80; } .mc-bd-cond i.no { color: #f87171; } .mc-bd-cond i.wt { color: #94a3b8; }
+/* сундук за ранговое задание: рамка как у строки сундука в окне 🎁 (.bc-row), без свечения */
+.mc-bd-chest { margin: 3px 0 1px; padding: 3px 7px; font-size: 11px; color: #eadfbf; border: 1px solid #3a3150; border-left: 4px solid var(--cc, #999); border-radius: 5px; background: #0e0b15; box-shadow: none; }
+.mc-bd-chest b { color: #fde68a; font-weight: 600; }
+.mc-bd-chest small { display: block; color: #a8977a; font-size: 10px; }
+.mc-bd-chest.full small { color: #fca5a5; }
+.mc-nb-sheet .mc-bd-chest { background: rgba(14, 11, 21, .82); }
 .mc-bd-row .ctl { color: #a5f3fc; font-size: 11px; margin-top: 2px; }
 .mc-bd-row .tr { color: #94a3b8; font-size: 11px; margin-top: 3px; }
 .mc-bd-row .tr .pl { color: #67e8f9; margin-left: 4px; }
@@ -1089,6 +1096,8 @@ b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, v
 .mc-nb-sheet.tk .pinh { background: #1d4ed8; border-color: #172554; }
 .mc-nb-sheet .stamp { position: absolute; right: 6px; top: 6px; border: 2px solid #991b1b; color: #991b1b; font-weight: bold; padding: 0 4px; transform: rotate(8deg); font-size: 10px; text-transform: uppercase; }
 .mc-nb-sheet .nm { font-weight: bold; font-size: 13px; color: #2b1d12; padding-right: 36px; }
+/* ранг на листке — тот же значок, что в окне «Задания» (тёмная плашка на бумаге), без свечения; штамп «БОСС» справа не задевает */
+.mc-nb-sheet .nm .mc-rank { margin-right: 6px; vertical-align: 1px; box-shadow: none; }
 .mc-nb-sheet .w { color: #57412b; margin: 3px 0; }
 .mc-nb-sheet .tr { color: #6b5238; font-size: 11px; margin: 4px 0; }
 .mc-nb-sheet .bar { background: #d6c7a1; border-color: #8a6f4a; }
@@ -1192,7 +1201,7 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-touch .mc-tracker .bq .bt.pin:has(.xb) { flex-wrap: wrap; } .mc-touch .mc-tracker .bq .bt.pin .xb { flex-basis: 100%; margin-left: 14px; }
 
 /* 🎁 Сундуки наград доски: окно (Y / 🎁) и сцена открытия. Без свечений и звёзд — плоские пиксельные вспышки. */
-.mc-bchestbtn { left: 252px; }
+.mc-bchestbtn { left: 300px; }
 .mc-loot.mc-bchest { width: min(760px, 96%); top: 50%; }
 .mc-bchest header small.ttl { color: #a8977a; }
 .mc-bchest .bc-body { display: grid; grid-template-columns: 270px 1fr; min-height: 300px; max-height: min(560px, 76vh); grid-template-rows: minmax(0, 1fr); }
@@ -1288,5 +1297,22 @@ html.mc-dragging, html.mc-dragging * { -webkit-user-select: none !important; use
 .mc-dr-win :is([class*="head"], h2):not(button) { cursor: grab; }
 html.mc-uiedit .mc-dr.mc-dr-edit { outline: 1px dashed #c084fc; outline-offset: 2px; cursor: grab; pointer-events: auto !important; }
 .mc-dr.mc-dr-live { outline: 1px solid #e9d5ff !important; outline-offset: 2px; opacity: .92; }
-.mc-uiedit-bar { position: absolute; z-index: 60; left: 50%; top: 8px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: rgba(10, 6, 20, .94); box-shadow: 0 0 0 1px #000, 0 0 0 2px #3b2a55; color: #e9d5ff; font: 12px/1.3 var(--ui-font, monospace); pointer-events: auto; white-space: nowrap; }
-.mc-touch .mc-uiedit-bar { top: calc(var(--st, 0px) + 6px); font-size: 11px; white-space: normal; max-width: 92vw; }
+/* «Сообщения» без сообщений — пустой блок нулевой высоты: в режиме настройки — подписанная плашка, чтобы его можно было схватить */
+html.mc-uiedit .mc3d-toasts.mc-dr-edit:empty { width: auto; min-width: 150px; min-height: 26px; justify-content: center; background: rgba(20, 12, 36, .72); }
+html.mc-uiedit .mc3d-toasts.mc-dr-edit:empty::before { content: 'Сообщения'; padding: 5px 12px; color: #c4b5fd; font: 12px/16px var(--ui-font, monospace); text-align: center; }
+/* панель режима настройки: сама пропускает указатель (под ней можно схватить блок), ловят только кнопки и ручка ✥;
+   место — свободное от блоков (uiDrag.placeBar), перетаскивается за ✥, сворачивается в значок «–» */
+.mc-uiedit-bar { position: absolute; z-index: 60; left: 50%; top: 8px; display: flex; gap: 6px; align-items: center; padding: 5px 6px 5px 4px; max-width: calc(100% - 8px); box-sizing: border-box;
+  background: rgba(10, 6, 20, .9); box-shadow: 0 0 0 1px #000, 0 0 0 2px #3b2a55; color: #e9d5ff; font: 12px/1.25 var(--ui-font, monospace); pointer-events: none; white-space: normal; }
+.mc-uiedit-bar > button { pointer-events: auto; flex: none; }
+.mc-uiedit-bar .tx { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.mc-uiedit-bar .tx b { font-weight: 700; color: #f5e9ff; white-space: nowrap; }
+.mc-uiedit-bar .tx small { font-size: 11px; color: #c4b5fd; overflow-wrap: anywhere; }
+.mc-uiedit-bar .grip { width: 26px; height: 26px; padding: 0; border: 1px solid #3b2a55; background: #1a1030; color: #e9d5ff; font: 14px/1 var(--ui-font, monospace); cursor: grab; touch-action: none; box-shadow: none; }
+.mc-uiedit-bar .grip:active { cursor: grabbing; }
+.mc-uiedit-bar .mn { min-width: 26px; padding-left: 0; padding-right: 0; }
+.mc-uiedit-bar.min { padding: 3px; gap: 4px; }
+.mc-uiedit-bar.min .tx, .mc-uiedit-bar.min [data-e="reset"] { display: none; }
+.mc-touch .mc-uiedit-bar { font-size: 11px; max-width: calc(100% - 8px); }
+.mc-touch .mc-uiedit-bar .tx small { font-size: 10px; }
+.mc-touch .mc-uiedit-bar .mc-btn.sm { padding: 3px 6px; font-size: 11px; }

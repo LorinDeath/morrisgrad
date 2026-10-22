@@ -406,7 +406,8 @@ html.mc-ui .mc-admin .chip { border-radius: 0; }
 html.mc-ui:is([data-ui-glitch="1"], [data-ui-glitch="2"]) :is(.mc-btn, .mc3d-btn, .mc-book-tabs button, .mc-soc-tabs button, .mc-as, .mc-bookbtn, .mc-ratebtn, .mc-insp-slot, .mc-gslot, .mc-item, .mc-lib):hover:not(:disabled) {
   animation: uiTwitch .18s steps(1) 1;
 }
-@keyframes uiTwitch { 0% { translate: 2px 0; } 33% { translate: 4px 0; } 66% { translate: 2px 0; } 100% { translate: 0 0; } }
+/* от текущего смещения блока (--mc-dx/--mc-dy ставит uiDrag), иначе перенесённая кнопка на время вздрагивания прыгает на старое место */
+@keyframes uiTwitch { 0% { translate: calc(var(--mc-dx, 0px) + 2px) var(--mc-dy, 0px); } 33% { translate: calc(var(--mc-dx, 0px) + 4px) var(--mc-dy, 0px); } 66% { translate: calc(var(--mc-dx, 0px) + 2px) var(--mc-dy, 0px); } 100% { translate: var(--mc-dx, 0px) var(--mc-dy, 0px); } }
 /* 2: ещё редкие вздрагивания больших окон (раз в ~11 с, 2 кадра) и моргание глаз-застёжек */
 html.mc-ui[data-ui-glitch="2"] :is(.mc-book, .mc-soc.mc-charsheet)::after { animation: uiEye 11s steps(1) infinite; }
 @keyframes uiEye { 0%, 96% { translate: 0 0; opacity: 1; } 97% { translate: 2px 0; opacity: .55; } 98% { translate: 0 0; opacity: 1; } 99% { translate: 2px 0; } }
@@ -494,6 +495,8 @@ html.mc-hud-ig .mc-ighud :is(.mm-btn, .mm-toggle-btn, .ig-b) { width: 26px !impo
   border: 0 solid transparent !important; border-radius: 0 !important; border-image: var(--ui-slot-normal-normal) 6 fill / 12px stretch !important; background: none !important; box-shadow: none !important; image-rendering: pixelated; cursor: pointer; opacity: 1 !important; }
 html.mc-hud-ig .mc-ighud :is(.mm-btn, .mm-toggle-btn, .ig-b):hover { border-image-source: var(--ui-slot-normal-hover) !important; }
 html.mc-hud-ig .mc-ighud :is(.mm-btn.mm-art-on, .ig-b.on) { border-image-source: var(--ui-slot-normal-selected) !important; }
+html.mc-hud-ig .mc-ighud .ig-fs { color: var(--ui-gold, #e7c66a) !important; } html.mc-hud-ig .mc-ighud .ig-fs[hidden] { display: none !important; }
+html.mc-hud-ig .mc-ighud .ig-fs svg { display: block; image-rendering: pixelated; } html.mc-hud-ig .mc-ighud .ig-fs .fs-out, html.mc-hud-ig .mc-ighud .ig-fs.on .fs-in { display: none; } html.mc-hud-ig .mc-ighud .ig-fs.on .fs-out { display: block; }
 html.mc-hud-ig .mc-ighud .ig-b[data-ig="help"] { font: 700 14px/1 var(--ui-font) !important; color: var(--ui-gold, #e7c66a) !important; }
 /* — ряд под картой: сеть + забеги/рядом/помощь — */
 html.mc-hud-ig .ig-acts { display: flex; gap: 2px; align-items: center; justify-content: flex-end; width: 100%; }
@@ -545,6 +548,7 @@ html.mc-hud-ig .mc-ighud.mob .ig-mm .hud-minimap-card > div:nth-child(2) { width
 html.mc-hud-ig .mc-ighud .ig-tg { display: contents; }
 html.mc-hud-ig .mc-ighud .mm-toggle-btn.mm-toggle-inactive { filter: grayscale(1) brightness(.6); }
 html.mc-hud-ig .mc-ighud .ig-acts .ig-b[data-ig="runs"] { margin-left: 6px; }
+html.mc-hud-ig .mc-ighud.mob .ig-mm { position: absolute; } html.mc-hud-ig .mc-ighud.mob .ig-mm > .ig-fs { position: absolute; left: -32px; top: 0; pointer-events: auto; }
 html.mc-hud-ig .ig-tgt .hud-row { align-items: baseline; } html.mc-hud-ig .ig-tgt .hud-row > span { flex: none; } html.mc-hud-ig .ig-tgt .hud-row b { min-width: 0; text-align: right; overflow-wrap: anywhere; }
 
 /* ─────────────────────────── 8. атмосфера нового интерфейса (ui/atmoUi.js) ─────────────────────────── */

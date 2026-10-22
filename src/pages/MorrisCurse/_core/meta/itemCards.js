@@ -39,7 +39,8 @@ export function blkOverlay(blk, px) {
   return `<i class="mc-blkd" style="${S}background:${shade}"></i><i class="mc-blk" data-blk="${f}" data-k="${Math.round(k * 100)}" style="${S}opacity:${Math.round((0.55 + 0.45 * Math.min(1, k / 0.85)) * 100) / 100};background:url('${U(big ? blk64Src : blkSrc)}') -${f * px}px 0/${px * 5}px ${px}px no-repeat"></i>${b >= 100 ? `<i class="mc-brk" style="${S}background:url('${U(big ? brk64Src : brkSrc)}') 0 0/${px}px ${px}px no-repeat"></i>` : ''}`;
 }
 export function iconHtml(d, px = 40, cls = '') {
-  const n = d && Number.isInteger(d.n) ? d.n : -1;
+  // ic — номер значка в атласе (у копий трофеев — значок базового предмета), иначе номер в пуле n
+  const n = d && Number.isInteger(d.ic) ? d.ic : d && Number.isInteger(d.n) ? d.n : -1;
   if (n < 0 || n >= ATLAS.count) return `<span class="mc-ic-fb">${d?.icon || '·'}</span>`;
   const k = px / ATLAS.cell, col = n % ATLAS.cols, row = Math.floor(n / ATLAS.cols);
   const ov = d.blk ? blkOverlay(d.blk, px) : '';

@@ -573,7 +573,7 @@ async function boot(canvasId, username, userId, api) {
     boardSt.apply(d);
     if (d.boardDefs) { zone.setBoards?.(d.boardDefs.props, d.boardDefs.on); const P = d.boardDefs.props || {}; setBoardCols(d.boardDefs.on ? [P.nb, P.ab].filter(Boolean) : []); } // доски непроходимы — как на сервере
     for (const g of d.boardGranted || []) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac');
-    if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}${c.chest ? ` · 🎁 ${c.chest.name} (ур. ${c.chest.L}, вещей ${c.chest.lo}–${c.chest.hi}) — откройте: Y / 🎁` : ''}`, '#86efac'); }
+    if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}${c.chest ? ` · 🎁 ${c.chest.name} (ур. ${c.chest.L}, вещей ${c.chest.lo}–${c.chest.hi}) — откройте: Y / 🎁` : ''}${c.chests?.length ? ` · 🎁 ${[...c.chests.reduce((m, x) => m.set(x.name, (m.get(x.name) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${k} × ` : '') + n).join(', ')}${c.chest ? '' : ' — откройте: Y / 🎁'}` : ''}`, '#86efac'); }
     if (d.bchest) bchestUi(d.bchest);
     if (d.toast) overlay.toast(d.toast, '#c4b5fd');
     qol.onState(d);

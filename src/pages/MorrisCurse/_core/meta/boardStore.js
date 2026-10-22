@@ -68,6 +68,8 @@ export class BoardStore {
   title(t) { const r = t.hid && this.st?.reveal?.[t.id]; return r ? r.t : t.t; }
   why(t) { const r = t.hid && this.st?.reveal?.[t.id]; return r ? r.w : t.w || ''; }
   hiddenLocked(t) { return !!t.hid && !this.st?.reveal?.[t.id]; }
+  /** скрытое раскрыто: награда ступеней приходит вместе с текстом (в определении её нет) */
+  revealed(t) { const r = t.hid && this.st?.reveal?.[t.id]; return r ? { ...t, x: r.x || t.x, res: r.res || t.res } : t; }
   giverName(t) { return this.defs?.givers?.[t.g] || ''; }
   prog(id) { return this.st?.p?.[id] || 0; }
   claimedTiers(id) { return this.st?.c?.[id] || 0; }

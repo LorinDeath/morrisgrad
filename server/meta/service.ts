@@ -599,8 +599,8 @@ export class MetaService {
         { const at = BTASKS[bid] ? takeAt(BTASKS[bid]) : ""; if (at && at !== "board" && !this.nearNpc(session, at)) { this.send(ws, { type: "toast_error", message: `Личное задание сдаётся персонажу: ${NPCS[at]?.name || at}` }); return true; } }
         const r = boardClaim(a, h, bid, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
         if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err, code: "MC-B03" }); return true; }
-        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${(a as any).hero || ""}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id, chest: r.chest?.tier });
-        this.push(ws, session, { boardClaimed: { id: r.id, title: r.title, xp: r.xp, res: r.res, item: r.item, chest: r.chest, tiers: r.tiers, capped: r.cappedXp || undefined, levelUps: r.levelUps || undefined } });
+        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${(a as any).hero || ""}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id, chest: r.chest?.tier, chests: r.chests?.map((c: any) => c.tier + (c.cur ? ":c" : "")) });
+        this.push(ws, session, { boardClaimed: { id: r.id, title: r.title, xp: r.xp, res: r.res, item: r.item, chest: r.chest, chests: r.chests, tiers: r.tiers, capped: r.cappedXp || undefined, levelUps: r.levelUps || undefined } });
         if (r.levelUps) this.refreshZonePlayer(session);
         return true;
       }
@@ -895,7 +895,7 @@ export class MetaService {
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
         if (msg.boardRoll && typeof msg.boardRoll === "object") { const br: any = msg.boardRoll; ms.dirty = true; // тест рангов: вариант задания с заданным рангом (и количеством)
-          const r = devBoardRoll(a, h, String(br.id || ""), String(br.r || ""), Number(br.n) || 0, Number.isFinite(br.minL) ? Number(br.minL) : -1, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) }, String(br.rb || "")); if (r) this.boardSoon(session); }
+          const r = devBoardRoll(a, h, String(br.id || ""), String(br.r || ""), Number(br.n) || 0, Number.isFinite(br.minL) ? Number(br.minL) : -1, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) }, String(br.rb || ""), Math.max(0, Number(br.p) || 0)); if (r) this.boardSoon(session); }
         if (msg.bchestGrant && typeof msg.bchestGrant === "object" && a.hero) { const g: any = msg.bchestGrant; ms.dirty = true; // тест сундуков наград (только dev): ранги → сундуки, как за сданное задание
           for (const r of (Array.isArray(g.ranks) ? g.ranks : [g.rank]).slice(0, 12)) grantChest(a, a.hero, String(r || "F"), Math.max(1, Math.min(25, Number(g.L) || 10)), String(g.cat || "daily"), "dev", undefined, typeof g.cur === "boolean" ? g.cur : undefined); }
         if (msg.killNear || msg.killNearAny) { const z = this.zoneOf(session); const m = z?.mobs.filter((x: any) => !x.dead && (msg.killNearAny || !x.special) && (!msg.killType || x.type === msg.killType)).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];

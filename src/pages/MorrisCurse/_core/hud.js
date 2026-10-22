@@ -9,6 +9,13 @@ import { RUN_ROOMS, RUN_CLASSES, ABILITIES, displayClassName } from './survivors
 import { esc } from './ui/overlay.js';
 import { avatarUrl, hudIngame, UI as UI_SKIN } from './ui/uiSkin.js';
 import { fmtTime } from './ui/runUI.js';
+import { fsSupported, fsActive, fsToggle } from './ui/fullscreen.js';
+// значки кнопки полного экрана: пиксельные уголки (наружу — войти, внутрь — выйти); цвет — currentColor, без свечения
+const FS_SVG = (d) => `<svg viewBox="0 0 12 12" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="${d}"/></svg>`;
+const FS_ICON = {
+  on: `<span class="fs-in">${FS_SVG('M0 0h4v1H1v3H0zM8 0h4v4h-1V1H8zM0 8h1v3h3v1H0zM11 8h1v4H8v-1h3z')}</span>`,
+  off: `<span class="fs-out">${FS_SVG('M3 0h1v4H0V3h3zM8 0h1v3h3v1H8zM0 8h4v4H3V9H0zM8 8h4v1H9v3H8z')}</span>`,
+};
 
 export class GameHUD {
   constructor(container, cb = {}) {
@@ -141,7 +148,7 @@ export class GameHUD {
     ig.innerHTML = `
       <div class="ig-mm"><div class="ig-mm-disc"></div>
         <div class="ig-row ig-acts"><span class="ig-net" title="Сеть"><i class="ig-dot"></i><b class="ig-ping">--</b><small>мс</small><span class="ig-on">· <b>1</b></span></span><span class="ig-tg"></span>
-          <button class="ig-b" data-ig="runs" title="Забеги (co-op)">⚔️</button><button class="ig-b" data-ig="near" title="Рядом">👁️</button><button class="ig-b" data-ig="help" title="Управление (? / F1)">?</button></div></div>
+          <button class="ig-b" data-ig="runs" title="Забеги (co-op)">⚔️</button><button class="ig-b" data-ig="near" title="Рядом">👁️</button><button class="ig-b" data-ig="help" title="Управление (? / F1)">?</button><button class="ig-b ig-fs" data-ig="fs" data-fs-btn="1" title="Полноэкранный режим" aria-label="Полноэкранный режим">${FS_ICON.on}${FS_ICON.off}</button></div></div>
       <div class="ig-pop" data-pop="runs"><div class="ig-pop-h">Забеги (co-op)<button class="ig-x" data-ig="runs" title="Закрыть">✕</button></div></div>
       <div class="ig-pop" data-pop="near"><div class="ig-pop-h">Рядом<button class="ig-x" data-ig="near" title="Закрыть">✕</button></div></div>
       <div class="ig-tgt"></div>
@@ -160,8 +167,16 @@ export class GameHUD {
       .map(([el, to, icon]) => { const mark = document.createComment('ig'); el.parentNode.insertBefore(mark, el); return { el, to, mark, icon, full: el.textContent }; });
     ig.addEventListener('click', (e) => {
       const b = e.target.closest('[data-ig]'); if (!b) return;
-      e.stopPropagation(); this.igToggle(b.dataset.ig);
+      e.stopPropagation();
+      if (b.dataset.ig === 'fs') { fsToggle().finally(() => this.fsSync()); return; } // ⛶ у карты: вход/выход из полного экрана браузера
+      this.igToggle(b.dataset.ig);
     });
+    // ⛶ полный экран: значок и подсказка — по фактическому состоянию (Esc, F11-выход, автовход по первому жесту — ui/fullscreen.js).
+    // Нет Fullscreen API (iPhone Safari) — кнопки нет: игра и так во всё окно.
+    this.fsBtn = q('.ig-fs'); if (this.mobile && this.fsBtn) q('.ig-mm').appendChild(this.fsBtn); // телефон: ряд под картой скрыт — кнопка слева от карты
+    this.fsSync = () => { const b = this.fsBtn; if (!b) return; const sup = fsSupported(), on = sup && fsActive();
+      b.hidden = !sup; b.classList.toggle('on', on); const tt = on ? 'Выйти из полноэкранного режима' : 'Полноэкранный режим'; b.title = tt; b.setAttribute('aria-label', tt); b.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    document.addEventListener('fullscreenchange', this.fsSync); document.addEventListener('webkitfullscreenchange', this.fsSync); this.fsSync();
     ig.addEventListener('pointerdown', (e) => e.stopPropagation()); // клик по HUD — не ход/атака в мире
     if (this.mobile) this.minimap.canvas.addEventListener('click', () => { if (this.igOn) this.minimap.onOpenMap?.(); }); // телефон: тап по круглой карте — карта мира
     q('.ig-help').addEventListener('click', (e) => { if (e.target.classList.contains('ig-help')) this.igToggle('help', false); });

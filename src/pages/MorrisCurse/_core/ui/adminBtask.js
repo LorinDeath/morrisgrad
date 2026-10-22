@@ -7,6 +7,7 @@ import { BoardStore, PERIODIC } from '../meta/boardStore.js';
 import { BoardWin } from './board.js';
 import { btDef, makeBtask, prepXp, tableXp, tierLvl, makeRoll, RANKS, BONUS_NAMES, BOARD_CFG } from '../../../../../server/meta/board.ts';
 import { HERO_NAMES } from '../../../../../server/meta/shared.ts';
+import { BCHEST, BC_TIERS, BC_ENCH_CAP, BC_CURSE_MAX, BC_SPEC_MAX, BC_SPEC_N, bcSpecErr } from '../../../../../server/meta/boardChestCfg.ts';
 
 const NEW_IDS = { __btnew: 'daily', __achnew: 'ach' };
 const POOL_CATS = [['daily', 'Ежедневные', 'dailyMin', 'dailyMax'], ['weekly', 'Еженедельные', 'weeklyMin', 'weeklyMax'], ['monthly', 'Ежемесячные', 'monthlyMin', 'monthlyMax'], ['hard', 'Тяжёлые (на неделю)', 'hardMin', 'hardMax'], ['hunt', 'Заказы Доски объявлений', 'huntOffer', null]];
@@ -22,7 +23,8 @@ export function btTopItems() {
 /** значения шаблона (как с сервера currentValues) для нового задания */
 function blankValues(cat, ev) {
   const t = makeBtask('cx_tmp', cat, ev), v = {};
-  for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'w', 'rmax', 'rb']) v[k] = t[k] ?? '';
+  for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'hint', 'w', 'rmax', 'rb']) v[k] = t[k] ?? '';
+  v.ch = [];
   for (let i = 0; i < 5; i++) { v[`n.${i}`] = t.n[i] || 0; v[`d.${i}`] = t.d[i] || 0; v[`x.${i}`] = 0; }
   v.xm = false; v.lvl = 0;
   if (cat === 'npc') v.giver = 'petr';
@@ -48,6 +50,7 @@ export function checkValues(v, bt, ids) {
     if (!(d >= 1 && d <= 5)) err.push(`Ступень ${i + 1}: сложность 1…5`);
     prev = n; }
   if ((+v.minLvl || 1) > (+v.maxLvl || 30)) err.push('«Доступно с уровня» больше «до уровня»');
+  { const e = bcSpecErr(Array.isArray(v.ch) && v.ch.length ? v.ch : null); if (e) err.push(e); }
   if (v.cat === 'npc' && !bt.npcGivers.includes(v.giver)) err.push('Задание персонажа: выберите, кто его выдаёт');
   const tg = bt.evs.find((e) => e.id === v.ev)?.target;
   if (tg === 'state' && !v.m) err.push('Выберите состояние');
@@ -122,7 +125,41 @@ function rewardHtml(cat, v) {
     <table class="rm">${res.map(([r, n], i) => `<tr><td><select data-rr="${i}">${rOpt(r)}</select></td><td><input type="number" min="1" max="999" data-rn="${i}" value="${n}"></td><td><button class="btn sm red" data-rdel="${i}">✕</button></td></tr>`).join('')}</table>
     <button class="btn sm" data-radd>＋ Материал</button>
     <label class="wide"><span>Предмет за последнюю ступень (расходник или вещь)</span><span class="pick1"><input type="search" placeholder="поиск предмета…" data-flt="item"><select data-v="item">${iOpt}</select></span></label>
+    ${chestsHtml(cat, v)}
     <div class="xpv"></div></div>`;
+}
+/** награда «Сундуки» (поле ch): строки { сколько, ярус, уровень вещей, потолок чар, проклятость }; сервер проверяет те же правила (boardChestCfg bcSpecErr) */
+const bcName = (cat, t, cur) => { const T = (cat.ent.bchest?.[0]?.values || {}); return (cur ? T[`tiers.${t}.nameC`] : T[`tiers.${t}.name`]) || (cur ? BCHEST.tiers[t]?.nameC : BCHEST.tiers[t]?.name) || t; };
+function chestsHtml(cat, v) {
+  const L = Array.isArray(v.ch) ? v.ch : [];
+  const row = (x, i) => { const cap = BC_ENCH_CAP[x.t] ?? 0, cm = x.c === 'yes' ? 'yes' : typeof x.c === 'number' && x.c > 0 ? 'pct' : 'no', lm = !x.L ? 'task' : x.L2 ? 'range' : 'fix';
+    return `<tr data-chr="${i}"><td><input type="number" min="1" max="${BC_SPEC_N}" data-ch="${i}.n" value="${x.n || 1}" title="Сколько сундуков"></td>
+      <td><select data-ch="${i}.t">${BC_TIERS.map((t) => `<option value="${t}" ${t === x.t ? 'selected' : ''}>${esc(bcName(cat, t, false))}</option>`).join('')}</select></td>
+      <td><select data-ch="${i}.lm"><option value="task" ${lm === 'task' ? 'selected' : ''}>по уровню задания ±2</option><option value="fix" ${lm === 'fix' ? 'selected' : ''}>ровно</option><option value="range" ${lm === 'range' ? 'selected' : ''}>от…до</option></select>
+        ${lm !== 'task' ? `<input type="number" min="1" max="25" data-ch="${i}.L" value="${x.L || 1}" class="n2">` : ''}${lm === 'range' ? `…<input type="number" min="1" max="25" data-ch="${i}.L2" value="${x.L2 || x.L || 1}" class="n2">` : ''}</td>
+      <td><select data-ch="${i}.e" ${cap ? '' : 'disabled title="Простой сундук не зачарован"'}><option value="-1" ${!(x.e >= 0) ? 'selected' : ''}>${cap ? `по ярусу (до ${cap})` : 'без чар'}</option>${cap ? Array.from({ length: cap + 1 }, (_, k) => `<option value="${k}" ${x.e === k ? 'selected' : ''}>${k ? `до яруса ${k}` : 'без чар'}</option>`).join('') : ''}</select></td>
+      <td><select data-ch="${i}.cm"><option value="no" ${cm === 'no' ? 'selected' : ''}>нет</option><option value="yes" ${cm === 'yes' ? 'selected' : ''}>да («${esc(bcName(cat, x.t, true))}»)</option><option value="pct" ${cm === 'pct' ? 'selected' : ''}>шанс, %</option></select>
+        ${cm === 'pct' ? `<input type="number" min="1" max="${BC_CURSE_MAX}" step="0.5" data-ch="${i}.c" value="${x.c}" class="n2">` : ''}</td>
+      <td><button class="btn sm red" data-chdel="${i}">✕</button></td></tr>`; };
+  return `<div class="bt-ch"><b>Сундуки</b> <small>за последнюю ступень, во вкладку 🎁; уровень вещей «по заданию» — уровень выпавшего ранга (или задания) ±2; чары — не выше яруса сундука (простой — без чар); проклятый — да или шанс до ${BC_CURSE_MAX} %; «чёрные проклятые» вещи (☠ + ✦6) — только из «Чёрного проклятого сундука». Хранилище — до ${BCHEST.maxStore || 100}: при полном задание не сдать, как ранговое. Сундук за ранг выдаётся как раньше.</small>
+    ${L.length ? `<table class="rm ch"><tr><th>Сколько</th><th>Сундук</th><th>Уровень вещей</th><th>Зачарование</th><th>Проклятый</th><th></th></tr>${L.map(row).join('')}</table>` : '<div class="mc-dim">— нет —</div>'}
+    ${L.length < BC_SPEC_MAX ? '<button class="btn sm" data-chadd>＋ Сундук</button>' : ''}</div>`;
+}
+function chestsBind(sec, v, redraw, upd) {
+  const $$ = (q) => [...sec.querySelectorAll(q)];
+  $$('[data-ch]').forEach((i) => i.addEventListener(i.tagName === 'SELECT' ? 'change' : 'input', () => {
+    const [k, f] = i.dataset.ch.split('.'), x = v.ch[+k]; if (!x) return; const n = Number(i.value);
+    if (f === 'n') x.n = Math.max(1, Math.min(BC_SPEC_N, Math.round(n) || 1));
+    else if (f === 't') { x.t = i.value; const cap = BC_ENCH_CAP[x.t] ?? 0; if (x.e > cap) x.e = cap; if (!cap) x.e = -1; redraw(); return; }
+    else if (f === 'lm') { if (i.value === 'task') { x.L = 0; x.L2 = 0; } else if (i.value === 'fix') { x.L = x.L || 10; x.L2 = 0; } else { x.L = x.L || 10; x.L2 = Math.max(x.L, x.L2 || x.L + 2); } redraw(); return; }
+    else if (f === 'L') { x.L = Math.max(1, Math.min(25, Math.round(n) || 1)); if (x.L2 && x.L2 < x.L) x.L2 = x.L; }
+    else if (f === 'L2') x.L2 = Math.max(1, Math.min(25, Math.round(n) || 1));
+    else if (f === 'e') x.e = Math.round(n);
+    else if (f === 'cm') { x.c = i.value === 'yes' ? 'yes' : i.value === 'pct' ? 10 : 'no'; redraw(); return; }
+    else if (f === 'c') x.c = Math.max(0, Math.min(BC_CURSE_MAX, n || 0));
+    upd(); }));
+  $$('[data-chdel]').forEach((b) => (b.onclick = () => { v.ch.splice(+b.dataset.chdel, 1); redraw(); }));
+  const add = sec.querySelector('[data-chadd]'); if (add) add.onclick = () => { if (!Array.isArray(v.ch)) v.ch = []; v.ch.push({ n: 1, t: 'rare', L: 0, L2: 0, e: -1, c: 'no' }); redraw(); };
 }
 
 /** шанс попасть в случайный набор периода: моделирование (те же веса и Min…Max, что на сервере) */
@@ -157,6 +194,7 @@ function previewHtml(panel, id, v) {
   const S = new BoardStore(() => {});
   S.defs = { ...(live?.defs || { on: true, givers: panel.cat.bt.givers, cfg: {} }), tasks: [def] }; S.byId = new Map([[def.id, def]]);
   S.st = { ...(live?.st || {}), p: { [id]: Math.floor((def.n[0] || 1) / 2) }, c: {}, tk: [], pin: [], lock: {}, reveal: {}, sel: { [def.cat]: [def.id] }, lvl: live?.st?.lvl || 10 };
+  if (Array.isArray(v.ch) && v.ch.length && !bcSpecErr(v.ch)) S.st.bx = { [id]: v.ch.map((x) => { const cp = x.c === 'yes' ? 100 : typeof x.c === 'number' ? Math.min(BC_CURSE_MAX, x.c) : 0; return { k: x.n, n: bcName(panel.cat, x.t, cp === 100), c: BCHEST.tiers[x.t]?.color, nc: bcName(panel.cat, x.t, true), L: x.L || 0, L2: x.L2 || 0, e: x.e >= 0 ? x.e : -1, cp }; }) };
   const W = Object.create(BoardWin.prototype); W.s = S; W.mode = ''; W.opt = { near: () => false, mobile: false };
   const row = (d) => { try { return W.row(d); } catch (e) { return `<p class="mc-dim">предпросмотр недоступен: ${esc(e.message)}</p>`; } };
   const g = v.giver, gName = panel.cat.bt.givers[g] || '';
@@ -200,6 +238,7 @@ export function btaskForm(panel, sec, e, opts = {}) {
       ${v.cat === 'ach' || v.cat === 'tut' ? '' : `<label class="wide"><span>Кто выдаёт и принимает</span>${sel('giver', gL, v.giver || '')}</label>`}
       <label><span>Включено</span><input type="checkbox" data-v="on" ${v.on ? 'checked' : ''}></label>
       <label><span>Скрытое («???» до получения)</span><input type="checkbox" data-v="hidden" ${v.hidden ? 'checked' : ''}></label>
+      ${v.hidden ? `<label class="wide"><span>Подсказка скрытого до выполнения (необязательно, пусто — стандартная строка)</span><input type="text" maxlength="160" data-v="hint" value="${esc(v.hint || '')}"></label>` : ''}
       ${num('ord', 'Порядок в списке', 0, 9999)}
     </div>${isNew ? '' : '<small class="mc-dim">Раздел и «что сделать» у сохранённого задания не меняются (на них завязан прогресс игроков) — нажмите «Копировать» и измените копию.</small>'}</div>
     <div class="box"><b>Цель и условия</b>${targetPicker(cat, v)}
@@ -255,6 +294,7 @@ export function btaskForm(panel, sec, e, opts = {}) {
   $$('[data-rn]').forEach((s) => s.addEventListener('input', () => { const a = resArr(); a[+s.dataset.rn][1] = Math.max(1, Math.min(999, +s.value || 1)); v.res = Object.fromEntries(a); upd(); }));
   $$('[data-rdel]').forEach((b) => (b.onclick = () => { const a = resArr(); a.splice(+b.dataset.rdel, 1); v.res = Object.fromEntries(a); redraw(); }));
   $('[data-radd]').onclick = () => { const free = (cat.res || []).find((r) => !(r.id in (v.res || {}))); if (!free) return; v.res = { ...(v.res || {}), [free.id]: 1 }; redraw(); };
+  chestsBind(sec, v, redraw, upd);
   // действия
   $('[data-bt-save]').onclick = () => {
     const er = checkValues(v, bt, ids); if (er.length) { panel.msg('✖ ' + er[0], true); upd(); return; }
@@ -336,6 +376,7 @@ export const BT_CSS = `
 .mc-admin .btf .flg{margin-top:6px}.mc-admin .btf .flg label{font-size:11px}
 .mc-admin .btf table.tiers input{width:100px}.mc-admin .btf table.tiers td.xp{font-size:11px}.mc-admin .btf td.xp{color:#86efac}
 .mc-admin .btf .box.err{border-color:#f87171;color:#fca5a5}
+.mc-admin .btf .bt-ch{margin-top:8px}.mc-admin .btf .bt-ch table.ch td{padding:2px 3px;white-space:nowrap}.mc-admin .btf .bt-ch input.n2{width:52px}.mc-admin .btf .bt-ch input[data-ch$='.n']{width:52px}
 .mc-admin .btf .chip{display:inline-flex;gap:4px;align-items:center;border:1px solid #3b2c52;border-radius:6px;padding:2px 6px;background:#140e24}
 .mc-admin .btf table.pool tr.off{opacity:.5}.mc-admin .btf table.rk input{width:58px}.mc-admin .btf table.pool input[type=number]{width:70px}
 .mc-admin .btf details>summary{cursor:pointer}.mc-admin .btf a{color:#c4b5fd}.mc-admin .btf .acts p{margin:4px 0 0}.mc-admin .btf .acts .box.err{margin:0}

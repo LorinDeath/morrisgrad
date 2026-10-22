@@ -7,8 +7,8 @@
 // Формулы опыта за мобов, регенерация и множитель элиты здесь не трогаются.
 import { ZONE_MOBS, MONSTER_LOOT, RESOURCES, RECIPES, ITEM_BY_ID, heroXpNeed, HERO_MAX_LEVEL, HERO_IDS } from "./defs";
 import { HERO_NAMES } from "./shared";
-import { BCHEST, BC_CATS, tierOfRank, countOf } from "./boardChestCfg";
-import { grantChest, chestRoomErr } from "./boardChest";
+import { BCHEST, BC_CATS, BC_TIERS, BC_CURSE_MAX, tierOfRank, countOf, rankCursePct, bcSpecCount, type BcSpec } from "./boardChestCfg";
+import { grantChest, grantSpec, chestRoomErr, chestsOf, chestOps } from "./boardChest";
 import { VARIANTS, VARIANT_BY_ID, BIOMES, baseOf, goalMatch, type BiomeId } from "./biomes";
 import { BOSS_TIMERS } from "./zoneGen";
 import { gainXp, addRes, addItem, talentSpent, equippedItems, activeLook, type Account, type Hero } from "./profile";
@@ -34,9 +34,11 @@ export interface BTask {
   res: Record<string, number>; item: string;                        // материалы за ступень (× номер ступени), предмет за последнюю
   auto: string;                                                     // обучение: состояние, при котором шаг засчитан сам
   hidden: boolean;                                                  // скрытое: до выполнения игрок видит «???» (текст не уходит клиенту)
+  hint: string;                                                     // скрытое: необязательная подсказка вместо «???»-текста (админка; пусто — стандартная строка)
   x: number[]; xm: boolean;                                       // опыт за ступень — число (от уровня задания по таблице); xm — задан вручную в админке
   rmax: string;                                                     // высший ранг при выпадении ("" — по событию: S/SS только для боёв, забегов, испытаний)
   w: number;                                                        // вес в случайном пуле (ежедневные/еженедельные/ежемесячные/заказы), 0 — не выпадает
+  ch?: BcSpec[];                                                    // награда «Сундуки» за последнюю ступень (админка): ярус, уровень, чары, проклятость; нет — как раньше
   rb: string;                                                       // на каком теле выполнять условие: "" — на своём (владелец), "any" — на любом, warrior/spearman/rogue/mage — на этом
 }
 export const BOARD_CFG: any = {
@@ -96,7 +98,7 @@ syncBoardCols();
 // ---------------- генерация ----------------
 const T = (o: Partial<BTask> & { id: string; cat: Cat; title: string; ev: string }): BTask => ({
   on: true, ord: 0, giver: "", why: "", pc: "", mob: "", hl: "", m: "", f: "", minT: 0, n: [1, 0, 0, 0, 0], d: [1, 0, 0, 0, 0],
-  lvl: 0, minLvl: 1, maxLvl: 30, req: "", res: {}, item: "", auto: "", hidden: false, w: 1, x: [0, 0, 0, 0, 0], xm: false, rmax: "", rb: "", ...o,
+  lvl: 0, minLvl: 1, maxLvl: 30, req: "", res: {}, item: "", auto: "", hidden: false, hint: "", w: 1, x: [0, 0, 0, 0, 0], xm: false, rmax: "", rb: "", ...o,
 } as BTask);
 const pad5 = (a: number[]) => [...a, 0, 0, 0, 0, 0].slice(0, 5); // всегда 5 ячеек: админка правит n.0…n.4 / d.0…d.4
 const mobName = (id: string) => ZONE_MOBS[id]?.name || id;
@@ -518,6 +520,18 @@ function genAch(): BTask[] {
     ["look", "Облик Отголоска", "Соберите полный трофейный облик", "st", "look", "", [1], [3]],
   );
   for (const r of M) A(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+  // 🎁 сундуки наград доски (ранговые задания): открытые сундуки по ярусам и проклятым вариантам. Считает сервер (chestOps),
+  // засчитываются и сундуки, открытые до появления достижений, если след остался в данных аккаунта. Награда — опыт + Осколки души (админка).
+  const CT = [1, 10, 50, 100, 500];
+  A("bch_all", "Охотник за сундуками", "Открытые сундуки наград доски", "st", "bch:all", "", CT, [1, 2, 3, 4, 5]);
+  A("bch_cur", "Проклятая добыча", "Открытые проклятые сундуки (любые)", "st", "bch:cur", "", CT, [2, 2, 3, 4, 5], 0, { soul_shard: 2 });
+  A("bch_ench", "Чары из сундука", "Зачарованные вещи из сундуков наград", "st", "bch:ench", "", [1, 10, 50, 100, 500], [1, 2, 3, 4, 5]);
+  const CD: Record<string, number[]> = { common: [1, 1, 2, 3, 4], uncommon: [1, 2, 2, 3, 4], rare: [1, 2, 3, 4, 5], strange: [2, 2, 3, 4, 5], legendary: [2, 3, 4, 5, 5], divine: [3, 3, 4, 5, 5], black: [3, 4, 5, 5, 5] };
+  for (const t of BC_TIERS) {
+    const T = BCHEST.tiers[t]; if (!T) continue; const sh = t === "divine" || t === "black" ? 3 : t === "legendary" || t === "strange" ? 2 : 1;
+    A(`bch_${t}`, `${T.name}`, `Открытые «${T.name}»`, "st", "bch:" + t, "", CT, CD[t] || [1, 2, 3, 4, 5], 0, { soul_shard: sh });
+    A(`bch_${t}_c`, `${T.nameC}`, `Открытые «${T.nameC}»`, "st", `bch:${t}:c`, "", CT, (CD[t] || [1, 2, 3, 4, 5]).map((d) => Math.min(5, d + 1)), 0, { soul_shard: sh + 1 });
+  }
   // ——— СКРЫТЫЕ (до выполнения — «???»). Проклятые вещи (флаг экземпляра, cursed.ts) и очернение (blk 0…100 %, bmCfg.ts;
   // у героя — глитч чёрной половины). Отдельных «глитч-вещей» в коде нет: глитч — вид очернения. Засчитывает сервер.
   const H = (id: string, title: string, why: string, ev: string, m: string, f: string, n: number, d: number) =>
@@ -536,6 +550,8 @@ function genAch(): BTask[] {
   H("cursed_black", "Чёрное проклятие", "Проклятая вещь 15+ уровня, очернённая на 80%+", "st", "cursed_black", "", 1, 5);
   H("cursed_ench", "Двойная печать", "Проклятая вещь с зачарованием 3+ яруса", "st", "cursed_ench", "", 1, 4);
   H("cursed_upg", "Закалённое проклятие", "Проклятая вещь, улучшенная до +5", "st", "cursed_upg", "", 1, 4);
+  H("bch_first_cur", "Печать на замке", "Откройте первый проклятый сундук", "st", "bch:cur", "", 1, 2);
+  H("bch_first_black_c", "Чёрная печать", "Откройте первый «Чёрный проклятый сундук»", "st", "bch:black:c", "", 1, 5);
   H("cursed_vs", "Проклятый против проклятого", "Победите проклятого врага в проклятой вещи", "kill", "", "cursed,wearc", 1, 3);
   H("cursed_boss", "Подобное к подобному", "Мировой босс с проклятием — в полном проклятом комплекте", "kill", "", "wboss,cursed,wearc5", 1, 5);
   H("dark_boss", "Тьма к тьме", "Мировой босс при очернении тела 50%+", "kill", "", "wboss,dark50", 1, 5);
@@ -854,14 +870,14 @@ function rollHeroes(a: Account, ctx: Ctx): string[] {
   return L;
 }
 /** только для локальных тестов (dev_grant): выпавший вариант с заданным рангом; задание — в набор периода */
-export function devBoardRoll(a: Account, h: Hero | null, id: string, r: string, n: number, minL: number, ctx: Ctx, rb = ""): boolean {
+export function devBoardRoll(a: Account, h: Hero | null, id: string, r: string, n: number, minL: number, ctx: Ctx, rb = "", p = 0): boolean {
   const t = BTASKS[id]; if (!t || !RANK_CATS.includes(t.cat)) return false;
   const b = boardOf(a), lvl = h?.lvl || 1, cat = t.cat === "hunt" ? "hunt" : t.cat;
   if (!(b.sel[cat] || []).includes(id)) b.sel[cat] = [id, ...(b.sel[cat] || [])];
   const heroes = rollHeroes(a, ctx);
   const R = makeRoll(t, lvl, ctx.pkey + "|dev|" + id + "|" + Date.now(), b.per[cat] || "dev", heroes, r, a.hero || "", heroLvls(a, ctx), HERO_IDS.includes(rb as any) && rb !== a.hero ? rb : "");
   if (n > 0) R.n = n; if (minL >= 0) { R.minL = minL; R.w = rollText(t, R); }
-  b.roll[id] = R; delete b.p[id]; delete b.c[id]; b.rev++; return true;
+  b.roll[id] = R; delete b.p[id]; delete b.c[id]; if (p > 0) b.p[id] = Math.min(p, R.n); b.rev++; return true; // p — сразу прогресс (плейтест сдачи)
 }
 /** основное условие словами (для окна и трекера) */
 function rollText(t: BTask, o: { r?: string; L?: number; minL: number; n: number; f: string }): string {
@@ -924,6 +940,7 @@ function stateVal(a: Account, h: Hero | null, key: string, ctx: Ctx): number {
     if (key === "look") return activeLook(a, h) ? 1 : 0;
     return Math.floor(charBlk(eq));
   }
+  if (key.startsWith("bch:")) return chestOps(a)[key.slice(4)] || 0; // 🎁 открытые сундуки наград (boardChest.chestOps, с учётом прошлого)
   if (key.startsWith("mob:")) return b.cnt["k:" + key.slice(4)] || 0;
   if (key.startsWith("hero:")) { const c = key.slice(5); return Math.max(ctx.heroes?.[c]?.lvl || 0, b.lv[c] || 0, h && a.hero === c ? h.lvl : 0); }
   if (key.startsWith("world:")) return b.cnt["w:" + key.slice(6)] ? 1 : 0;
@@ -1313,7 +1330,9 @@ function claimTiers(a: Account, h: Hero, b: BoardState, t0: BTask, ctx: Ctx): an
   const wantItem = !!(t.item && ITEM_BY_ID[t.item]) && last === tiers.length - 1;
   if (wantItem && (a.inv?.length || 0) >= BAG_LIMIT) return { ok: false, err: "Сумка полна — освободите место для награды" }; // проверка ДО записи ступени
   const wantChest = !!(R && R.r && tierOfRank(R.r)) && (BC_CATS as readonly string[]).includes(t.cat) && last === tiers.length - 1 && BCHEST.on !== false;
-  if (wantChest) { const e = chestRoomErr(a); if (e) return { ok: false, err: e }; } // хранилище сундуков полно — ступень не пишем, награда не пропадает
+  const wantSpec = Array.isArray(t.ch) && t.ch.length > 0 && last === tiers.length - 1 && BCHEST.on !== false;
+  const needCh = (wantChest ? 1 : 0) + (wantSpec ? bcSpecCount(t.ch) : 0);
+  if (needCh) { const e = chestRoomErr(a, needCh); if (e) return { ok: false, err: e }; } // хранилище сундуков полно — ступень не пишем, награда не пропадает
   const cp = capPeriod(t.cat), ck = cp ? periodKey(cp) : "", cap = catCap(t.cat, h.lvl);
   const xs = (b.xs[t.cat] && b.xs[t.cat].k === ck) ? b.xs[t.cat] : (b.xs[t.cat] = { k: ck, v: 0 });
   const r: any = { ok: true, id: t.id, title: t.title, cat: t.cat, rank: R?.r, bon: R ? R.bon.filter((o) => o.ok && R.done).length : undefined, xp: 0, res: {} as Record<string, number>, tiers: [] as number[], cappedXp: 0, levelUps: 0 };
@@ -1326,6 +1345,8 @@ function claimTiers(a: Account, h: Hero, b: BoardState, t0: BTask, ctx: Ctx): an
   }
   if (wantItem) { const it = addItem(a, t.item, "board:" + t.id, a.hero); if (it) r.item = { id: it.id, uid: it.uid }; }
   if (wantChest && a.hero) { const c = grantChest(a, a.hero, R!.r, R!.L, t.cat, "board:" + t.id); if (c) { const [lo, hi] = countOf(t.cat); r.chest = { id: c.id, tier: c.tier, cur: !!c.cur, name: (c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name), color: BCHEST.tiers[c.tier].color, L: c.L, lo, hi }; } }
+  if (wantSpec && a.hero) { const L = R?.L || t.lvl || h.lvl || 1; // «по уровню задания» — уровень выпавшего ранга, иначе уровень задания, иначе героя (±spread при открытии)
+    r.chests = grantSpec(a, a.hero, t.ch!, L, t.cat, "board:" + t.id).map((c) => ({ id: c.id, tier: c.tier, cur: !!c.cur, name: (c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name), color: BCHEST.tiers[c.tier].color, L: c.L })); }
   if (r.xp > 0) r.levelUps = gainXp(h, r.xp);
   if ((b.c[t.id] || 0) >= tiers.length) { b.tk = b.tk.filter((x) => x !== t.id); b.pin = b.pin.filter((x) => x !== t.id);
     if (t.cat === "hunt" && R) { delete b.c[t.id]; delete b.p[t.id]; delete b.roll[t.id]; b.sel.hunt = (b.sel.hunt || []).filter((x) => x !== t.id); } } // заказ повторяемый: сдан — снова в пуле (не сегодня)
@@ -1409,7 +1430,7 @@ export function boardTut(a: Account, mode: string): any {
 // ---------------- клиенту ----------------
 /** определения: раз в сессию и после правок в админке */
 /** задание → описание для клиента (скрытое — без текста). Его же использует предпросмотр в админке */
-export const btDef = (t: BTask): any => t.hidden ? { id: t.id, cat: t.cat, ord: t.ord, hid: 1, t: "???", n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length) } : ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
+export const btDef = (t: BTask): any => t.hidden ? { id: t.id, cat: t.cat, ord: t.ord, hid: 1, t: "???", h: String(t.hint || "").trim() || undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length) } : ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
       ev: t.ev, m: t.m || undefined, f: t.f || undefined, nb: atBoard(t) || undefined, at: takeAt(t) || undefined, take: needsTake(t) || undefined, wt: t.w !== 1 ? t.w : undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined, x: (t.x || []).slice(0, tiersOf(t).length) });
 export function boardDefs() {
   return {
@@ -1427,13 +1448,28 @@ export function boardClient(a: Account, h: Hero | null) {
   const b = boardOf(a), lvl = h?.lvl || 1;
   const lock: Record<string, string> = {};
   for (const t of BTASK_LIST()) if (t.on && catOn(t.cat) && !PERIODIC.includes(t.cat) && t.cat !== "ach" && t.cat !== "tut") { const r = lockReason(a, t, lvl); if (r) lock[t.id] = r; }
-  // скрытые: текст — только выполненным (условие игрок не видит до получения)
-  const reveal: Record<string, { t: string; w: string }> = {};
-  for (const t of BTASK_LIST()) if (t.hidden && t.on && (b.p[t.id] || 0) >= tiersOf(t)[0] && !((b.pre[t.id] || 0) >= tiersOf(t).length)) reveal[t.id] = { t: t.title, w: t.why };
+  // скрытые: текст — только выполненным (условие игрок не видит до получения). Выполненное раскрывается ВСЕГДА — и закрытое
+  // «заранее» (pre: было выполнено до запуска доски, без награды): раньше такие оставались «✔ ???» — непонятно, что сделано.
+  // Вместе с текстом — награда ступеней (x — опыт, res — материалы), её показывает строка.
+  const reveal: Record<string, { t: string; w: string; x?: number[]; res?: Record<string, number> }> = {};
+  for (const t of BTASK_LIST()) if (t.hidden && t.on && ((b.p[t.id] || 0) >= tiersOf(t)[0] || (b.c[t.id] || 0) > 0 || (b.pre[t.id] || 0) > 0))
+    reveal[t.id] = { t: t.title, w: t.why, x: (t.x || []).slice(0, tiersOf(t).length), ...(Object.keys(t.res || {}).length ? { res: t.res } : {}) };
   const xs: Record<string, [number, number]> = {};
   for (const c of CATS) { const cp = capPeriod(c); if (!cp) continue; const cap = catCap(c, lvl); if (!cap) continue; const v = b.xs[c]?.k === periodKey(cp) ? b.xs[c].v : 0; xs[c] = [v, cap]; }
   const roll: Record<string, Roll> = {};
   for (const id of new Set([...Object.values(b.sel).flat(), ...b.tk])) if (b.roll[id]) roll[id] = b.roll[id];
+  // сундук за задание с рангом (выдаёт claimTiers за последнюю ступень): ярус и шанс проклятого — из BCHEST (админка «🎁 Сундуки наград»,
+  // правки D1), клиент сам их не знает. bc[id] = { n: имя, c: цвет, cp: шанс проклятого %, nc: имя проклятого варианта, lo/hi: вещей }
+  const bc: Record<string, { n: string; c: string; cp: number; nc: string; lo: number; hi: number }> = {};
+  if (BCHEST.on !== false) for (const [id, R] of Object.entries(roll)) { const t = BTASKS[id], tr = R?.r ? tierOfRank(R.r) : null;
+    if (!t || !tr || !(BC_CATS as readonly string[]).includes(t.cat)) continue; const T = BCHEST.tiers[tr], [lo, hi] = countOf(t.cat);
+    bc[id] = { n: T.name, c: T.color, cp: rankCursePct(R.r), nc: T.nameC, lo, hi }; }
+  // награда «Сундуки» из админки (поле ch): для карточки и записки — имя яруса, цвет, уровень, потолок чар, проклятость
+  const bx: Record<string, any[]> = {};
+  if (BCHEST.on !== false) for (const t of BTASK_LIST()) { if (!t.on || !Array.isArray(t.ch) || !t.ch.length || (t.hidden && !reveal[t.id])) continue;
+    bx[t.id] = t.ch.filter((x) => BCHEST.tiers[x.t]).map((x) => { const T = BCHEST.tiers[x.t], cur = x.c === "yes" ? 100 : typeof x.c === "number" ? Math.min(BC_CURSE_MAX, x.c) : 0;
+      return { k: x.n, n: cur === 100 ? T.nameC : T.name, c: T.color, nc: T.nameC, L: x.L || 0, L2: x.L2 || 0, e: Number.isInteger(x.e) ? x.e : -1, cp: cur }; }); }
+  const bcs = { n: chestsOf(a).list.length, max: Math.max(1, BCHEST.maxStore | 0 || 100) };
   // задания других тел, которые выполняются на текущем: показать в трекере («для Велеса — сдать на Велесе»)
   const xb: any[] = [];
   if (a.hero && b.bod) for (const [o, S] of Object.entries(b.bod)) { if (o === a.hero || !S || !objOk(S.sel)) continue;
@@ -1441,7 +1477,7 @@ export function boardClient(a: Account, h: Hero | null) {
       const rb = reqBody(t0, R); if (rb !== a.hero) continue; if (needsTake(t0) && !(S.tk || []).includes(id)) continue;
       const tiers = tiersOf(effOf({ roll: S.roll || {} } as any, t0)); if ((S.c[id] || 0) >= tiers.length) continue;
       xb.push({ id, o, p: S.p[id] || 0, c: S.c[id] || 0, roll: R || undefined }); } }
-  return { body: a.hero || "", xb, reveal, roll, rev: b.rev, p: b.p, c: b.c, tk: b.tk.filter((x) => BTASKS[x]), pin: b.pin.filter((x) => BTASKS[x]), sel: b.sel, lock, reset: nextResets(), xd: xs.daily?.[0] || 0, cap: dayCap(lvl), xs, pre: b.pre, lvl,
+  return { body: a.hero || "", xb, reveal, roll, bc, bx, bcs, rev: b.rev, p: b.p, c: b.c, tk: b.tk.filter((x) => BTASKS[x]), pin: b.pin.filter((x) => BTASKS[x]), sel: b.sel, lock, reset: nextResets(), xd: xs.daily?.[0] || 0, cap: dayCap(lvl), xs, pre: b.pre, lvl,
     tut: { off: !!b.tut.off, skip: !!b.tut.skip, vet: !!b.tut.vet } };
 }
 
