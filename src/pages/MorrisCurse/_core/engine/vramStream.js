@@ -3,16 +3,18 @@
 //    байты на GPU = Σ ширина×высота×(4 или 2 у RGBA5551)×(4/3 с мипами) по текстурам, которые three уже загрузил (__webglInit);
 //  • выгрузка: текстура не нужна сцене дольше grace (ПК 20 с, телефон 10 с) → texture.dispose() — освобождается только копия
 //    на GPU, картинка остаётся в памяти, и three сам загрузит её снова при следующем показе (сервер и мир не трогаются);
-//    сверх бюджета (ПК 1024 МБ, телефон 512 МБ) — сначала самые давно ненужные, без ожидания grace;
+//    сверх бюджета (ПК 2048 МБ — Mac/ПК с общей памятью тянут спокойно; телефон 512 МБ) — сначала самые давно ненужные, без ожидания grace,
+//    но только то, что не было в кадре ≥ PRESS_IDLE_MS, и не общие атласы ≥ 16 МБ (их — только по grace×3); выгружаем до 90 % бюджета;
 //  • без рывков: новые текстуры (чанки земли, следующая зона) грузятся на GPU заранее очередью prewarm() — не больше
 //    upMs мс за кадр (renderer.initTexture), а не в момент, когда объект впервые попал в кадр;
 //  • радиус: земля Аринара держит чанки в радиусе loadTiles (50 клеток) от героя, выгружает дальше loadTiles+hystTiles
 //    (56) через grace — worlds/terrainChunks.js. Радиус не меньше обзора камеры + запас.
 import { showError } from '../boot/errorBox.js';
 const MOB = (() => { try { return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '') || /[?&]mobile=1/.test(location.search); } catch (_) { return false; } })();
-export const VRAM_DEF = { budgetPc: 1024, budgetMob: 512, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 };
+export const VRAM_DEF = { budgetPc: 2048, budgetMob: 512, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 };
 const C = { ...VRAM_DEF };
 try { if (/[?&]vramLegacy=1/.test(location.search)) Object.assign(C, { legacy: true, loadTilesPc: 59, loadTilesMob: 59, budgetPc: 8192, budgetMob: 4096 }); } catch (_) {} // замер «как раньше» (плейтест ac-vram BEFORE=1)
+const PRESS_IDLE_MS = 5000; // под давлением бюджета выгружать только то, чего не было в кадре дольше 5 с
 const cl = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 /** снимок админки (d.gfx.vram) — применяется сразу */
 export function setVramCfg(v) {
@@ -66,19 +68,26 @@ export class VramStream {
     if (this.busy && (this._skips = (this._skips || 0) + 1) <= 2) { this.busy = false; } else if ((this.busy = false, this._skips = 0, this.q.length)) { const t0 = performance.now(); while (this.q.length && performance.now() - t0 < cfg.upMs) { const t = this.q.shift(); this.qSet.delete(t); if (t.image && !this.onGpu(t)) { try { const u0 = performance.now(); this.r.initTexture(t); this.stats.prewarmed++; (this.upLog ||= []).push([Math.round((performance.now() - u0) * 10) / 10, t.image.width, t.image.height]); if (this.upLog.length > 200) this.upLog.shift(); } catch (e) { showError('MC-G03', { soft: true, autoClose: 6000, detail: 'initTexture: ' + (e?.message || e) }); } } } const dt = performance.now() - t0; this.frameUp = dt; if (dt > this.stats.upMsMax) this.stats.upMsMax = Math.round(dt * 10) / 10; }
     if (now - this._scanAt < 500) return; this._scanAt = now;
     this.scan(now);
-    let sum = 0, n = 0; const idle = [];
+    let sum = 0, n = 0, evicted = 0; const idle = [];
     for (const [t, e] of this.seen) { if (!this.onGpu(t)) continue; e.bytes = texBytes(t); sum += e.bytes; n++; if (!t.userData?.pin && now - e.last > 0 && !this.qSet.has(t)) idle.push([t, e]); }
     idle.sort((a, b) => a[1].last - b[1].last);
     const budget = cfg.budgetMB * 1048576; const flush = this.flushAt && now > this.flushAt; if (flush) this.flushAt = 0;
     for (const [t, e] of cfg.legacy ? [] : idle) {
       // большие общие атласы (≥16 МБ: листы пропсов/спрайтов) держим втрое дольше: их повторная загрузка — самый тяжёлый рывок,
       // а выпадают из кадра они ненадолго. Чанки земли (4 МБ) уходят по обычному grace.
-      const over = sum > budget, old = now - e.last > (flush ? 1500 : cfg.graceMs * (e.bytes >= 16777216 ? 3 : 1));
-      if (!old && !over) continue;
+      const old = now - e.last > (flush ? 1500 : cfg.graceMs * (e.bytes >= 16777216 ? 3 : 1));
+      // давление бюджета (hotfix 22.10): только давно не бывшие в кадре и не общие атласы — иначе под перебором
+      // каждые 0,5 с выгружались и тут же грузились снова текстуры, которые сцена ещё использует (рывки, «перемешанные» спрайты на Mac)
+      const press = sum > (this._press ? budget * 0.9 : budget) && now - e.last > PRESS_IDLE_MS && e.bytes < 16777216;
+      if (!old && !press) continue;
       if (now - e.last < 1000) continue; // нужна только что (не в кадре из-за visible-мигания) — не трогаем
-      t.dispose(); sum -= e.bytes; n--; this.stats.evicted++; if (over && !old) this.stats.overBudget++;
+      t.dispose(); sum -= e.bytes; n--; this.stats.evicted++; evicted++; if (press && !old) { this.stats.overBudget++; this._press = true; }
     }
-    if (sum > budget && !this._warned) { this._warned = true; showError('MC-G04', { soft: true, autoClose: 6000, detail: `${(sum / 1048576).toFixed(0)} МБ > ${cfg.budgetMB}` }); }
+    if (sum <= budget * 0.9) this._press = false;
+    // удалённые текстуры могли остаться «привязанными» в кэше состояния three (r128 не чистит его при deleteTexture) — сбросить кэш
+    if (evicted) { try { this.r.resetState?.(); } catch (_) {} }
+    // перебор бюджета — не ошибка игрока: тихо (консоль + журнал сервера, один раз за сессию), без плашки на экране
+    if (sum > budget && !this._warned) { this._warned = true; showError('MC-G04', { quiet: true, detail: `${(sum / 1048576).toFixed(0)} МБ > ${cfg.budgetMB}` }); }
     this.stats.gpuMB = Math.round((sum / 1048576) * 10) / 10; this.stats.gpuTex = n; this.stats.tracked = this.seen.size; this.stats.three = this.r.info?.memory?.textures ?? null;
   }
   /** вокруг рендера кадра: пустые пачки экземпляров (InstancedMesh.count 0, SpriteBatch instanceCount 0 — эффекты Чёрного мага, пустые пачки спрайтов) временно

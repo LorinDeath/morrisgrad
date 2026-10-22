@@ -30,7 +30,7 @@ export const GFX_CFG: any = {
   arena3GlowW: 0.5,    // вес светящихся анимированных вариантов пола (README: 0.5, иначе руны рябят)
   assetCache: true,    // кэш ресурсов у игрока (public/mc-sw.js + boot/assetCache.js); выкл — аварийно: снять воркер и стереть кэш у всех, кто зайдёт
   // видеопамять по требованию (engine/vramStream.js): бюджет МБ, grace с, радиус загрузки и гистерезис в клетках, загрузка в GPU мс/кадр
-  vram: { budgetPc: 1024, budgetMob: 512, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 },
+  vram: { budgetPc: 2048, budgetMob: 512, gracePc: 20, graceMob: 10, loadTilesPc: 50, loadTilesMob: 50, hystTiles: 6, marginTiles: 4, upMsPc: 4, upMsMob: 2 },
   fpsMul: 1,           // скорость анимации пропсов, ×
   glow: 1,             // сила свечения *_glow пропсов, ×
   lt: Object.fromEntries(LIGHT_TYPES.map((t) => [t, lt()])), // ореол/пятно по типу огня: размер и сила, ×
@@ -56,7 +56,7 @@ export const gfxClient = () => {
     arena3TallGap: cl(G.arena3TallGap, 0, 8, 1.5), arena3Rim: b(G.arena3Rim, false), arena3Cracks: Math.round(cl(G.arena3Cracks, 0, 80, 18)), arena3GlowW: cl(G.arena3GlowW, 0, 3, 0.5), arena3Floor: cl(G.arena3Floor, 0.2, 3, 1),
     arena3Amb: Object.fromEntries(A3_THEMES.map((t) => [t, cl(G.arena3Amb?.[t], 0, 1.5, A3_AMB[t])])), arena3Lit: cl(G.arena3Lit, 0, 3, 1), arena3Edge: cl(G.arena3Edge, 0, 1, 0.8), arena3WallL: cl(G.arena3WallL, 0.2, 1.5, 1),
     assetCache: b(G.assetCache, true),
-    vram: (() => { const v = G.vram || {}; return { budgetPc: cl(v.budgetPc, 128, 8192, 1024), budgetMob: cl(v.budgetMob, 64, 4096, 512), gracePc: cl(v.gracePc, 1, 600, 20), graceMob: cl(v.graceMob, 1, 600, 10),
+    vram: (() => { const v = G.vram || {}; return { budgetPc: cl(v.budgetPc, 128, 8192, 2048), budgetMob: cl(v.budgetMob, 64, 4096, 512), gracePc: cl(v.gracePc, 1, 600, 20), graceMob: cl(v.graceMob, 1, 600, 10),
       loadTilesPc: cl(v.loadTilesPc, 20, 150, 50), loadTilesMob: cl(v.loadTilesMob, 20, 150, 50), hystTiles: cl(v.hystTiles, 1, 40, 6), marginTiles: cl(v.marginTiles, 0, 20, 4), upMsPc: cl(v.upMsPc, 0.5, 16, 4), upMsMob: cl(v.upMsMob, 0.5, 16, 2) }; })(),
     fpsMul: cl(G.fpsMul, 0.25, 3, 1), glow: cl(G.glow, 0, 3, 1),
     mobs32: b(G.mobs32, true), mobs32Pc: b(G.mobs32Pc, true), mobs32Mobile: b(G.mobs32Mobile, false), mobs32Run: b(G.mobs32Run, false), mobPackGlow: b(G.mobPackGlow, true),
