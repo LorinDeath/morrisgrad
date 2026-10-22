@@ -17,7 +17,12 @@ const c1 = cnt(); ok(c1 > c0, `плотность ×2: лагерей ${c0} → 
 ok(z.camps.filter((c: any) => c.region === rid).every((c: any) => !ids0.has(c.id)), "новые id лагерей (без дублей)");
 const byCamp = new Map<number, any[]>(); for (const m of alive()) { const l = byCamp.get(m.camp) || []; l.push(m); byCamp.set(m.camp, l); }
 const sizes = [...byCamp.values()].map((l) => l.filter((m) => !m.chief).length);
-ok(sizes.every((n) => n === 9), `3 пачки × 2 моба × 1.5 (численность лагерей) = 9 в каждом лагере (${[...new Set(sizes)]})`);
+ok(sizes.every((n) => n === 6), `3 пачки × 2 моба = 6 в каждом лагере (${[...new Set(sizes)]})`);
+// численность ×1.5 из админки «Спавн» (значение БД) → лагеря пересобираются: 3 × (2 × 1.5) = 9
+applyOverride("spawn", "arinar", validatePatch("spawn", "arinar", { campPopMul: 1.5 }) as any); z.regenRegion(rid);
+{ const bc = new Map<number, any[]>(); for (const m of alive()) { const l = bc.get(m.camp) || []; l.push(m); bc.set(m.camp, l); }
+  const sz = [...bc.values()].map((l) => l.filter((m) => !m.chief).length); ok(sz.length > 0 && sz.every((n) => n === 9), `×1.5 из админки: 9 в каждом лагере (${[...new Set(sz)]})`); }
+applyOverride("spawn", "arinar", null);
 ok([...byCamp.values()].every((l) => l.filter((m) => m.elite && !m.chief).length <= 1), "элит в лагере ≤ 1 (кроме вожаков)");
 const stale = z.mobs.filter((m: any) => !m.dead && m.camp && !z.camps.some((c: any) => c.id === m.camp)).length;
 ok(stale === 0, "живых мобов от старых лагерей не осталось");

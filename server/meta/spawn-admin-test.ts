@@ -18,7 +18,12 @@ applyOverride("rare", rt, validatePatch("rare", rt, { "every.0": 100, "every.1":
 const z = new Zone("arinar", [], [], { proc: true, seed: 3 });
 const m = z.mobs.find((x) => x.rk === 1)!; const before = Date.now(); z.kill(m, () => {});
 t("лагерный моб: респавн 20 с из админки (от/до = 0 — старое поле)", Math.abs(m.respawnAt - before - 20000) < 1500);
-// новое: случайно от…до (по умолчанию 180…300 с) и численность ×campPopMul
+// БД — источник правды: в БД только campRespawn (как на проде: 120) → код-умолчания его не перебивают
+applyOverride("spawn", "arinar", null); applyOverride("spawn", "arinar", validatePatch("spawn", "arinar", { campRespawn: 120 }) as any);
+{ const mm = z.mobs.find((x) => x.rk === 1 && !x.dead)!; const b0 = Date.now(); z.kill(mm, () => {}); mm.dead = false; mm.hp = mm.maxHp;
+  t("БД: только campRespawn 120 → респавн 120 с (умолчания от/до = 0, ×1)", Math.abs(mm.respawnAt - b0 - 120000) < 1500 && (ZONE_GEN as any).campPopMul === 1); }
+// новое (значения выкладки пишутся в БД админкой): случайно от…до 180…300 с и численность ×1.5
+t("численность 1.5 — валидна", typeof validatePatch("spawn", "arinar", { campPopMul: 1.5, campRespawn: 120 }) === "object");
 t("численность 9 — отклонена (0.25…4)", typeof validatePatch("spawn", "arinar", { campPopMul: 9 }) === "string");
 applyOverride("spawn", "arinar", validatePatch("spawn", "arinar", { campRespawnMin: 180, campRespawnMax: 300 }) as any);
 { const rs: number[] = []; for (const mm of z.mobs.filter((x) => x.rk).slice(0, 400)) { const b0 = Date.now(); z.kill(mm, () => {}); rs.push((mm.respawnAt - b0) / 1000); mm.dead = false; mm.hp = mm.maxHp; }
@@ -30,5 +35,5 @@ z.kill(bm, () => {}); z.update(0.1, now + 10, new Map([["a", pl]]), () => {}, ()
 const st = z.bossStatus(now + 10).find((x) => x[0] === b.key)!;
 t(`после смерти таймер ≈120 с (${st[2]})`, st[1] === 0 && Math.abs(st[2] - 120) <= 2);
 applyOverride("spawn", "arinar", null); applyOverride("boss", bt, null);
-t("«Вернуть исходное»", ZONE_GEN.ambientChance === 10 && ZONE_GEN.campRespawn === 45 && (ZONE_GEN as any).campRespawnMin === 180 && (ZONE_GEN as any).campRespawnMax === 300 && (ZONE_GEN as any).campPopMul === 1.5 && BOSS_TIMERS[bt].every !== 120);
+t("«Вернуть исходное»", ZONE_GEN.ambientChance === 10 && ZONE_GEN.campRespawn === 45 && (ZONE_GEN as any).campRespawnMin === 0 && (ZONE_GEN as any).campRespawnMax === 0 && (ZONE_GEN as any).campPopMul === 1 && BOSS_TIMERS[bt].every !== 120);
 console.log(`spawn-admin ${ok}/${ok + bad}`); if (bad) process.exit(1);
