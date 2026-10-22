@@ -18,13 +18,14 @@ async function enter(ctx, label, { from = '/', reloadBypass = false, soft = fals
   const link = p.locator('a[href="/MorrisCurse"]').first();
   await Promise.all([p.waitForURL(/\/MorrisCurse/), link.click()]);
   if (reloadBypass) { const cdp = await ctx.newCDPSession(p); await cdp.send('Page.reload', { ignoreCache: true }); await p.waitForLoadState('domcontentloaded'); }
-  await p.waitForSelector('#btn-start');
-  const pre = await p.evaluate(() => ({ url: location.href, ctl: !!navigator.serviceWorker?.controller, doc: new URL(performance.getEntriesByType('navigation')[0].name).pathname }));
-  await p.click('#btn-start');
+  await p.waitForLoadState('domcontentloaded'); // ui-drag: автозапуск — кнопки «Начать игру» больше нет (если есть — жмём)
+  const ev = async (fn) => { for (let i = 0; ; i++) { try { return await p.evaluate(fn); } catch (e) { if (i > 5 || !/context was destroyed|navigation/i.test(String(e))) throw e; await p.waitForLoadState('domcontentloaded').catch(() => {}); await L.sleep(300); } } }; // автозапуск: загрузчик может перезагрузить страницу
+  const pre = await ev(() => ({ url: location.href, ctl: !!navigator.serviceWorker?.controller, doc: new URL(performance.getEntriesByType('navigation')[0].name).pathname }));
+  if (await p.locator('#btn-start').count()) await p.click('#btn-start');
   const g = p.locator('[data-guest]'); await g.waitFor({ state: 'visible', timeout: 15000 }).then(() => g.click()).catch(() => {}); // гость (Clerk в стенде заблокирован)
   await p.waitForFunction(() => window.__mcAssets && window.__mcAssets.AC.stats.t && 'claim' in window.__mcAssets.AC.stats.t, null, { timeout: 90000 }).catch(() => {});
   await L.sleep(600);
-  const st = await p.evaluate(() => ({ mode: window.__mcAssets?.AC.mode, t: window.__mcAssets?.AC.stats.t, errs: (window.__mcErrLog || []).map((e) => e.code), toast: document.querySelector('.mcl-err')?.dataset.code || null, ctl: !!navigator.serviceWorker?.controller, inScope: window.__mcAssets?.AC.stats.inScope, swWas: window.__mcAssets?.AC.stats.swWas || 0, quiet: (window.__mcErrLog || []).filter((e) => e.quiet).map((e) => e.code) }));
+  const st = await ev(() => ({ mode: window.__mcAssets?.AC.mode, t: window.__mcAssets?.AC.stats.t, errs: (window.__mcErrLog || []).map((e) => e.code), toast: document.querySelector('.mcl-err')?.dataset.code || null, ctl: !!navigator.serviceWorker?.controller, inScope: window.__mcAssets?.AC.stats.inScope, swWas: window.__mcAssets?.AC.stats.swWas || 0, quiet: (window.__mcErrLog || []).filter((e) => e.quiet).map((e) => e.code) }));
   await p.screenshot({ path: `${OUT}/${label}.png` });
   const l04 = logs.filter((s) => /MC-L04/.test(s)); st.l04toast = (st.errs || []).filter((c) => c === 'MC-L04').length > (st.quiet || []).filter((c) => c === 'MC-L04').length;
   console.log('·', label, JSON.stringify({ pre, ...st, l04 }));
