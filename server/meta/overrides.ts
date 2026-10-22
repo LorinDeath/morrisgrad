@@ -27,9 +27,10 @@ import { ENCH, ENCH_N } from "./enchant";
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
+import { BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES } from "./board";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx";
-export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
+export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
+export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -340,8 +341,40 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     ...(["v3", "v2"] as const).flatMap((s) => EMIT_KEYS.flatMap((k) => { const nm = ({ lantern: "фонарь", torch: "факел", campfire: "костёр", crystal: "кристалл", star_crystal: "звёздный кристалл", pylon: "пилон" } as any)[k] || k, pre = s === "v3" ? "Пропсы 32" : "Пропсы 16";
       return [N(`em.${s}.${k}.x`, `${pre} · ${nm}: x`, -1, 128, "int"), N(`em.${s}.${k}.y`, `${pre} · ${nm}: y`, -1, 128, "int")]; }))] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
+  // 📋 Доска заданий (board.ts): общие настройки, таблица опыта, обучение, QoL
+  board: { name: "📋 Доска заданий: настройки", fields: [
+    { path: "_h_b1", label: "Общее", t: "hdr" }, { path: "on", label: "Доска включена", t: "bool" },
+    ...CATS.map((c): Field => ({ path: `cats.${c}`, label: `Вкладка «${CAT_NAMES[c]}»`, t: "bool" })),
+    N("dailyN", "Ежедневных заданий в день", 0, 12, "int"), N("weeklyN", "Еженедельных в неделю", 0, 12, "int"), N("monthlyN", "Ежемесячных в месяц", 0, 12, "int"),
+    N("huntMax", "Доска объявлений: взятых заказов одновременно", 1, 20, "int"), N("huntOffer", "Доска объявлений: заказов охоты в день", 1, 30, "int"), N("huntBossOffer", "…из них боссов и редких", 0, 10, "int"),
+    { path: "_h_nb", label: "Доска объявлений (стартовая площадь Аринара) и Доска достижений (Алтарь тел)", t: "hdr" },
+    { path: "nbWorld", label: "Доска объявлений: мир", t: "enum", opts: ["arinar", "hellfire"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("nbX", "Доска объявлений: x", 0, 48000, "int"), N("nbY", "Доска объявлений: y", 0, 48000, "int"), N("nbRange", "Доска объявлений: радиус, px", 40, 300, "int"),
+    { path: "abWorld", label: "Доска достижений: мир", t: "enum", opts: ["hellfire", "arinar"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("abX", "Доска достижений: x", 0, 48000, "int"), N("abY", "Доска достижений: y", 0, 48000, "int"), N("abRange", "Доска достижений: радиус, px", 40, 300, "int"), N("pinMax", "Заданий в трекере", 1, 5, "int"),
+    { path: "_h_b2", label: "Сброс (часовой пояс — Киев)", t: "hdr" }, { path: "tz", label: "Часовой пояс", t: "text" }, N("resetHour", "Час сброса (0–23)", 0, 23, "int"), N("weekDay", "День недельного сброса (1 = пн … 7 = вс)", 1, 7, "int"),
+    { path: "_h_b3", label: "Опыт: % от опыта на уровень (по уровню цели × сложность)", t: "hdr" },
+    ...[0, 1, 2, 3, 4, 5].flatMap((b) => [N(`bands.${b}`, `Полоса ${b + 1}: до уровня`, 1, 30, "int"), ...[0, 1, 2, 3, 4].map((d) => N(`xp.${b}.${d}`, `Полоса ${b + 1} · сложность ${d + 1}, %`, 0, 100))]),
+    N("refPlus", "Уровень цели + N — потолок для опыта", 0, 30, "int"), N("capPct", "Потолок опыта доски в сутки, % уровня", 0, 500),
+    { path: "_h_b4", label: "Обучение", t: "hdr" }, { path: "tutOn", label: "Обучение включено", t: "bool" }, { path: "tutSkip", label: "Можно пропустить целиком", t: "bool" },
+    N("tutVetLvl", "Опытный игрок с уровня (обучение засчитано без наград)", 1, 31, "int"),
+    { path: "_h_b5", label: "Удобство (QoL)", t: "hdr" }, { path: "qol.help", label: "Справка по управлению (F1 / ❔)", t: "bool" }, { path: "qol.lowHp", label: "Предупреждение о низком ОЗ", t: "bool" },
+    N("qol.lowHpPct", "Низкое ОЗ, %", 5, 80, "int"), { path: "qol.lvlInfo", label: "Что открылось на новом уровне", t: "bool" }, { path: "qol.talentNag", label: "Напоминание о свободных очках талантов", t: "bool" },
+    { path: "qol.bmArrow", label: "Стрелка трекера к Чёрному магу (живая позиция)", t: "bool" },
+  ] },
+  btask: { name: "📋 Задание доски", fields: [
+    { path: "on", label: "Включено", t: "bool" }, { path: "title", label: "Название", t: "ltext" }, { path: "why", label: "Зачем (одна строка)", t: "ltext" },
+    { path: "pc", label: "Подсказка: ПК", t: "ltext" }, { path: "mob", label: "Подсказка: телефон", t: "ltext" },
+    { path: "giver", label: "Кто выдаёт (персонаж или Доска объявлений)", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
+    { path: "hl", label: "Подсветка (altar, mob, node, bag, npc:petr, btn:book…)", t: "text" },
+    N("ord", "Порядок", 0, 9999, "int"), N("minLvl", "Доступно с уровня", 1, 30, "int"), N("maxLvl", "До уровня (пул периодических)", 1, 30, "int"), N("lvl", "Уровень цели для опыта (0 — уровень героя)", 0, 30, "int"),
+    { path: "req", label: "Сначала выполнить (id через запятую, id@ступень)", t: "ltext" },
+    { path: "m", label: "Цель (моб, ресурс, biome:ice, role:tank…)", t: "text" }, { path: "f", label: "Условия (elite, cursed, ench, party, solo, rare, boss, wboss, lvl, min)", t: "text" },
+    N("minT", "Забег не короче, с", 0, 3600, "int"),
+    ...[0, 1, 2, 3, 4].flatMap((i) => [N(`n.${i}`, `Ступень ${i + 1}: сколько (0 — нет)`, 0, 1000000, "int"), N(`d.${i}`, `Ступень ${i + 1}: сложность 1–5`, 0, 5, "int")]),
+    { path: "res", label: "Материалы за ступень (× номер ступени)", t: "resmap" }, { path: "item", label: "Предмет за последнюю ступень (id)", t: "text" },
+    { path: "auto", label: "Обучение: засчитать само (lvl:5, equipped:1…)", t: "text" },
+  ] },
 };
-export const TABLES: Record<Kind, Record<string, any>> = { mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
+export const TABLES: Record<Kind, Record<string, any>> = { board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
   spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
@@ -398,6 +431,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
         for (const [k, e] of Object.entries(o)) { const a: any = Array.isArray(e) ? e : [(e as any)?.ex, (e as any)?.ey]; if (!/^[\w:.-]{1,64}$/.test(k) || !(a.length >= 2 && a.slice(0, 2).every((x: any) => Number.isFinite(+x) && Math.abs(+x) <= 300))) return `${f.label}: ${k} — [ex, ey], числа ±300`; } }
       out[p] = t; }
     else if (f.t === "text") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (kind === "dn" && ["duskStart", "night", "dawnStart", "day", "force"].includes(p) && !(p === "force" && !t) && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(t)) return `${f.label}: ЧЧ:ММ`; if (kind === "dn" && p === "tz" && t) { try { new Intl.DateTimeFormat("en", { timeZone: t }); } catch { return `${f.label}: неизвестный пояс`; } } if (t.length > 48) return `${f.label}: до 48 символов`; if (!t && p === "name") return `${f.label}: не пусто`; out[p] = t; }
+    else if (f.t === "ltext") { const t = String(v ?? "").replace(/[<>\u0000-\u001f]/g, "").trim(); if (t.length > 160) return `${f.label}: до 160 символов`; if (!t && p === "title") return `${f.label}: не пусто`; out[p] = t; }
     else if (f.t === "color") { if (!/^#[0-9a-fA-F]{6}$/.test(String(v))) return `${f.label}: #rrggbb`; out[p] = String(v).toLowerCase(); }
     else if (f.t === "skills") { if (!Array.isArray(v) || v.length > 5 || !v.every((s) => MOB_SKILLS_LIST.includes(s))) return "навыки моба: до 5 из списка"; out[p] = [...new Set(v as string[])]; }
     else { const n = Number(v); if (!Number.isFinite(n) || n < f.min! || n > f.max!) return `${f.label}: ${f.min}…${f.max}`; out[p] = f.t === "int" ? Math.round(n) : n; }
@@ -405,8 +439,36 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
   if (kind === "region") { const R = TABLES.region[id]; for (const k of ["packs", "pack"]) { const a = out[k + ".0"] ?? R[k]?.[0], b = out[k + ".1"] ?? R[k]?.[1]; if (a != null && b != null && a > b) return `${k === "packs" ? "пачек" : "мобов"}: «от» больше «до»`; } }
   if (kind === "curse") { const C = TABLES.curse[id]; for (const k of ["bossSkills", "worldBossSkills"]) { const a = out[k + "Min"] ?? C[k + "Min"], b = out[k + "Max"] ?? C[k + "Max"]; if (a > b) return "навыков боссов: «от» больше «до»"; } }
   if (kind === "ench") { const E = TABLES.ench[id]; for (let i = 0; i < ENCH_N; i++) { const a = out[`tiers.${i}.skMin`] ?? E.tiers[i].skMin, b = out[`tiers.${i}.skMax`] ?? E.tiers[i].skMax; if (a > b) return `ярус ${i + 1}: навыков «от» больше «до»`; } }
+  if (kind === "btask") { const r = validateBtask(id, out); if (r) return r; }
+  if (kind === "board") {
+    const C = TABLES.board[id]; let prev = 0;
+    for (let b = 0; b < 6; b++) { const x = out[`bands.${b}`] ?? C.bands?.[b]; if (!(x > prev)) return "полосы уровней должны расти"; prev = x; }
+    if (prev < 30) return "последняя полоса — до 30 уровня";
+    if (out.tz != null) { try { new Intl.DateTimeFormat("en", { timeZone: out.tz || "Europe/Kyiv" }); } catch { return "Часовой пояс: неизвестный"; } }
+  }
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
+}
+const BT_FLAGS = new Set(["elite", "cursed", "ench", "party", "solo", "rare", "boss", "wboss", "lvl", "min"]);
+function validateBtask(id: string, out: any): string | null {
+  const T = TABLES.btask[id], get = (p: string, d: any) => (out[p] !== undefined ? out[p] : p.split(".").reduce((x: any, k) => x?.[k], T) ?? d);
+  let prev = 0, end = false;
+  for (let i = 0; i < 5; i++) {
+    const n = get(`n.${i}`, 0), d = get(`d.${i}`, 0);
+    if (!n) { if (i === 0) return "ступень 1: нужно число больше 0"; end = true; continue; }
+    if (end) return `ступень ${i + 1}: после пустой ступени не может быть заполненной`;
+    if (n <= prev) return `ступень ${i + 1}: должно быть больше предыдущей`;
+    if (!(d >= 1 && d <= 5)) return `ступень ${i + 1}: сложность 1…5`;
+    prev = n;
+  }
+  if (get("minLvl", 1) > get("maxLvl", 30)) return "«доступно с» больше «до уровня»";
+  const f = String(get("f", "")); for (const x of f.split(",").map((s) => s.trim()).filter(Boolean)) if (!BT_FLAGS.has(x)) return `условие «${x}» неизвестно`;
+  if (!/^[\w:]{0,40}$/.test(String(get("m", "")))) return "цель: латиница, цифры, «_» и «:»";
+  const item = String(get("item", "")); if (item && !ITEM_BY_ID[item]) return `нет предмета ${item}`;
+  for (const r of String(get("req", "")).split(",").map((s) => s.trim()).filter(Boolean)) { const rid = r.split("@")[0]; if (!TABLES.btask[rid]) return `нет задания ${rid}`; if (rid === id) return "задание не может требовать само себя"; }
+  if (!/^[\w:]{0,40}$/.test(String(get("hl", "")))) return "подсветка: латиница, цифры, «_» и «:»";
+  if (!/^[\w:]{0,40}$/.test(String(get("auto", "")))) return "авто: латиница, цифры, «_» и «:»";
+  return null;
 }
 const ORIG = new Map<string, any>();
 /** Наложить правку (патч поверх значений из кода). patch=null — вернуть исходное. */

@@ -43,6 +43,7 @@ import { dnClient, DN_CFG } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
+import { boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, BTASKS } from "./board";
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -94,7 +95,7 @@ export interface MetaSess {
 // Схема входящих мета-сообщений: тип → поля и их типы (лишние поля игнорируются, неверные — отказ)
 const S = (o: Record<string, "s" | "n" | "b" | "o" | "a" | "s?" | "n?" | "b?" | "o?" | "a?">) => o;
 const MSG_SCHEMA: Record<string, Record<string, string>> = {
-  meta_get: S({}), lib_get: S({}), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
+  meta_get: S({}), lib_get: S({}), board_claim: S({ id: "s" }), board_take: S({ id: "s", on: "b" }), board_pin: S({ id: "s", on: "b" }), board_tut: S({ mode: "s" }), board_ui: S({ name: "s" }), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
   soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), item_upgrade: S({ uid: "s", at: "n?" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }), npc_talk_end: S({ npc: "s?" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
   loot_open: S({ bag: "n" }), chest_open: S({ chest: "n" }), chest_take: S({ chest: "n", lid: "n" }), loot_take: S({ bag: "n", lids: "a?", all: "b?" }),
@@ -296,7 +297,9 @@ export class MetaService {
     const a = this.store.account(ms.pkey);
     const cls = session.stats?.classId || null;
     const h = cls ? this.store.hero(ms.pkey, cls) : null;
+    const bs: any = {}; const bUps = this.boardSnap(ms, a, h, bs); // до снимка: награды шагов обучения уже в опыте/материалах
     const s: any = snapshot(a, h, cls, heroBase(cls), ms.verified);
+    Object.assign(s, bs); if (bUps) s.boardLevelUps = bUps;
     // Алтарь тел: у каждого героя — статы/экип/сумка для превью без смены оболочки
     for (const id of HERO_IDS) {
       const hh = this.store.hero(ms.pkey, id);
@@ -462,7 +465,50 @@ export class MetaService {
   qev(a: Account, session: any, ev: any): string[] {
     const ms = this.ms.get(session.id);
     const cls = session.stats?.classId;
-    return questEvent(a, ev, ms && cls ? this.store.hero(ms.pkey, cls) : null);
+    const h = ms && cls ? this.store.hero(ms.pkey, cls) : null;
+    const before = a.quests.done.length;
+    const out = questEvent(a, ev, h);
+    // доска заданий (board.ts): тот же поток событий; сданный сюжетный квест — отдельное событие
+    if (ms) {
+      try {
+        const ctx = { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) };
+        let ch = boardEvent(a, h, ev, ctx);
+        for (let i = before; i < a.quests.done.length; i++) ch = boardEvent(a, h, { type: "quest_done", id: a.quests.done[i] }, ctx) || ch;
+        if (ch) { ms.dirty = true; this.boardSoon(session); }
+      } catch (e: any) { console.error("[mc] MC-B01 board event", e?.message || e); }
+    }
+    return out;
+  }
+  /** событие только для доски (смерть, рывок, портал, отряд…) */
+  bev(session: any, ev: any) {
+    const ms = this.ms.get(session.id); if (!ms) return;
+    const a = this.store.account(ms.pkey), cls = session.stats?.classId;
+    const h = cls ? this.store.hero(ms.pkey, cls) : null;
+    try { if (boardEvent(a, h, ev, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) })) { ms.dirty = true; this.boardSoon(session); } }
+    catch (e: any) { console.error("[mc] MC-B01 board event", e?.message || e); }
+  }
+  bevSid(sid: string, ev: any) { const e = this.sessionLookup?.(sid); if (e?.[1]) this.bev(e[1], ev); }
+  /** прогресс доски без meta_state (рывки, навыки): не чаще раза в 0,5 с; ближайший push всё равно отправит состояние */
+  boardSoon(session: any) {
+    const ms: any = this.ms.get(session.id); if (!ms || ms.boardT) return;
+    ms.boardT = setTimeout(() => {
+      ms.boardT = null;
+      const e = this.sessionLookup?.(session.id); if (!e || !this.ms.has(session.id)) return;
+      const a = this.store.account(ms.pkey), cls = session.stats?.classId, h = cls ? this.store.hero(ms.pkey, cls) : null;
+      const st = boardClient(a, h); if (st.rev === ms.boardRev) return;
+      ms.boardRev = st.rev; this.send(e[0], { type: "board_state", board: st });
+    }, 500);
+  }
+  /** доска в meta_state: пересчёт состояний, определения (раз в сессию/после правок), состояние при смене rev */
+  boardSnap(ms: any, a: Account, h: Hero | null, s: any) {
+    try {
+      const r = boardRefresh(a, h, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
+      if (r.granted.length) { s.boardGranted = r.granted.map((g: any) => ({ id: g.id, title: g.title, cat: g.cat, xp: g.xp, res: g.res, capped: g.cappedXp || undefined })); ms.dirty = true; }
+      if (ms.boardDefsVer !== this.admin.ver) { s.boardDefs = boardDefs(); ms.boardDefsVer = this.admin.ver; ms.boardRev = -1; }
+      const st = boardClient(a, h);
+      if (st.rev !== ms.boardRev || st.lvl !== ms.boardLvl) { s.board = st; ms.boardRev = st.rev; ms.boardLvl = st.lvl; }
+      return r.levelUps;
+    } catch (e: any) { console.error("[mc] MC-B01 board snap", e?.message || e); return 0; }
   }
 
   bm = new BlackMage("arinar"); bmLoaded = false; bmSaving = false; bmDirty = false; bmSaveAt = 0; // Чёрный маг (blackMage.ts) — один на Аринар
@@ -497,6 +543,7 @@ export class MetaService {
       const now = Date.now(), r = dashTry((ms as any).dashSt ||= {}, now);
       if (!r.ok) { this.send(ws, { type: "dash_reject", left: Math.round(r.left) }); return true; }
       this.qNote(ms, "dash", now); // условия квестов: «без рывка»
+      this.bev(session, { type: "dash" });
       if (DASH_CFG.invulnMs > 0) (ms as any).invulnUntil = Math.max((ms as any).invulnUntil || 0, r.invulnUntil);
       const fx = { type: "dash_fx", id: session.id, ms: DASH_CFG.invulnMs, blink: DASH_CFG.blink !== false }, w = session.world || "hellfire";
       for (const sid of this.ms.keys()) { const e = this.sessionLookup?.(sid); if (e && (e[1]?.world || "hellfire") === w) this.send(e[0], fx); }
@@ -520,7 +567,26 @@ export class MetaService {
     };
     const needHero = () => { if (!h || !cls) { this.send(ws, { type: "toast_error", message: "Сначала выберите героя на Алтаре перевоплощения" }); return false; } return true; };
     switch (msg.type) {
-      case "meta_get": this.send(ws, { type: "meta_state", ...this.snap(session) }); return true;
+      case "meta_get": (ms as any).boardRev = -1; (ms as any).boardDefsVer = -2; this.send(ws, { type: "meta_state", ...this.snap(session) }); return true;
+      case "board_claim": {
+        const now = Date.now(); if (now - ((ms as any).bclAt || 0) < 150) return true; (ms as any).bclAt = now;
+        const bid = String(msg.id).slice(0, 64);
+        if (BTASKS[bid] && atBoard(BTASKS[bid]) && !nearBoard("nb", session.world || "hellfire", session.x, session.y)) { this.send(ws, { type: "toast_error", message: "Этот заказ сдаётся у Доски объявлений (Аринар, у портала)" }); return true; }
+        const r = boardClaim(a, h, bid, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
+        if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err }); return true; }
+        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id });
+        this.push(ws, session, { boardClaimed: { id: r.id, title: r.title, xp: r.xp, res: r.res, item: r.item, tiers: r.tiers, capped: r.cappedXp || undefined, levelUps: r.levelUps || undefined } });
+        if (r.levelUps) this.refreshZonePlayer(session);
+        return true;
+      }
+      case "board_take": { if (!nearBoard("nb", session.world || "hellfire", session.x, session.y)) { this.send(ws, { type: "toast_error", message: "Заказы берут и отменяют у Доски объявлений (Аринар, у портала)" }); return true; }
+        const r = boardTake(a, h, String(msg.id).slice(0, 64), !!msg.on); if (r.ok) this.push(ws, session, r.msg ? { toast: r.msg } : {}); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
+      case "board_pin": { const r = boardPin(a, String(msg.id).slice(0, 64), !!msg.on); if (r.ok) this.push(ws, session); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
+      case "board_tut": { const r = boardTut(a, String(msg.mode)); if (r.ok) this.push(ws, session); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
+      case "board_ui": { // клиентские «ui»-события: только шаги обучения (без ценности), имя — из белого списка
+        const name = String(msg.name); if (!["move", "book", "board", "map"].includes(name)) return true;
+        this.bev(session, { type: "ui", name }); return true;
+      }
       case "lib_get": this.send(ws, { type: "library", ...this.library(a, HERO_IDS.map((id) => this.store.hero(ms.pkey, id))) }); return true;
       case "mark_seen": {
         const n = markSeen(a, msg);
@@ -539,7 +605,7 @@ export class MetaService {
       case "equip": {
         if (!needHero()) return true;
         const r = equip(a, h!, cls!, String(msg.uid));
-        if (r.ok) { const it = a.inv.find((i) => i.uid === msg.uid); const mon = it && ITEM_BY_ID[it.id].monster; if (mon) this.qev(a, session, { type: "equip_monster", monster: mon }); }
+        if (r.ok) { const it = a.inv.find((i) => i.uid === msg.uid); const mon = it && ITEM_BY_ID[it.id].monster; if (mon) this.qev(a, session, { type: "equip_monster", monster: mon }); this.bev(session, { type: "equip" }); }
         reply(r, "Надето"); this.refreshZonePlayer(session); return true;
       }
       case "unequip": if (!needHero()) return true; reply(unequip(h!, String(msg.slot)), "Снято"); this.refreshZonePlayer(session); return true;
@@ -547,7 +613,8 @@ export class MetaService {
         const own = a.inv.find((i) => i.uid === String(msg.uid));
         if (own?.hero && own.hero !== cls) { this.send(ws, { type: "toast_error", message: "Это предмет другого героя" }); return true; }
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
-        reply(salvage(a, heroes, String(msg.uid))); return true;
+        const sr: any = salvage(a, heroes, String(msg.uid)); if (sr.ok) this.bev(session, { type: "salvage", n: 1 });
+        reply(sr); return true;
       }
       case "item_lock": { // закрепление экземпляра (флаг в D1: item_instances.locked)
         reply(setLock(a, cls || null, String(msg.uid), !!msg.on)); return true;
@@ -556,7 +623,7 @@ export class MetaService {
         if (!this.nearNpc(session, "petr")) { this.send(ws, { type: "toast_error", message: "Улучшение — у Петра (хаб, юго-запад)" }); return true; }
         const now = Date.now(); if (now - ((ms as any).upgAt || 0) < 250) return true; (ms as any).upgAt = now;
         const r: any = upgradeItem(a, cls || null, String(msg.uid), msg.at == null ? undefined : Number(msg.at));
-        if (r.ok) this.store.audit(ms.pkey, "upgrade", `upg:${msg.uid}:${r.up}`, { uid: msg.uid, up: r.up, cost: r.cost });
+        if (r.ok) { this.store.audit(ms.pkey, "upgrade", `upg:${msg.uid}:${r.up}`, { uid: msg.uid, up: r.up, cost: r.cost }); this.bev(session, { type: "upgrade", up: r.up | 0 }); }
         this.send(ws, { type: "upgrade_result", ok: !!r.ok, uid: String(msg.uid), up: r.up, err: r.err });
         reply(r); if (r.ok) this.refreshZonePlayer(session); return true;
       }
@@ -567,12 +634,13 @@ export class MetaService {
       case "salvage_many": {
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
         const uids = Array.isArray(msg.uids) ? msg.uids.slice(0, 500).map(String) : [];
-        reply(salvageMany(a, heroes, cls || null, String(msg.rarity), uids)); return true;
+        const sr: any = salvageMany(a, heroes, cls || null, String(msg.rarity), uids); if (sr.ok && sr.n) this.bev(session, { type: "salvage", n: sr.n });
+        reply(sr); return true;
       }
       case "craft": {
         if (!this.nearNpc(session, "petr")) { this.send(ws, { type: "toast_error", message: "Ремесло — у Петра (хаб, юго-запад)" }); return true; }
         const r = craft(a, String(msg.recipe));
-        if (r.ok) this.qev(a, session, { type: "craft" });
+        if (r.ok) this.qev(a, session, { type: "craft", recipe: String(msg.recipe) });
         reply(r, "Создано!"); return true;
       }
       case "pk_toggle": { // кнопка PK у полоски ОЗ: отсчёт без боя (enterSec / exitSec), повторное нажатие — отмена
@@ -914,10 +982,12 @@ export class MetaService {
       const won = !!msg.won && time >= 10;
       out.xp = won ? REWARD_RULES.duel.winXp : (time >= 10 ? REWARD_RULES.duel.lossXp : 0);
       if (won) this.qev(a, session, { type: "duel_win", hpCapPct: Math.max(1, Math.min(100, Number(msg.hpCapPct) || 100)) });
+      if (time >= 10) this.bev(session, { type: "duel" }); // любая честная дуэль (не короче 10 с)
     } else if (mode === "trial") {
       const waves = Math.min(REWARD_RULES.trial.maxWaves, Math.floor(time / 20), Math.max(0, Math.floor(Number(msg.wave) || 0)));
       out.xp = waves * REWARD_RULES.trial.perWaveXp;
       out.waves = waves;
+      if (time >= 20) this.bev(session, { type: "trial", waves, players });
     }
     if (h && out.xp) out.levelUps = gainXp(h, out.xp);
     this.store.audit(ms.pkey, "run_reward", `run:${runId}`, { xp: out.xp, items: out.items.map((i: any) => i.id), res: out.res, time: out.time }, { qty: out.xp, source: `run:${run.room}` });
@@ -942,6 +1012,7 @@ export class MetaService {
       if ((P.cd || 0) > now) return { ok: false, err: `Портал перезаряжается: ${Math.ceil(((P.cd || 0) - now) / 1000)} с` };
       if (now - Math.max((ms as any).hurtAt || 0, (ms as any).hitAt || 0) < HOME_PORTAL_COMBAT_MS) return { ok: false, err: "Нельзя открыть портал в бою" };
       h.portal = { x: Math.round(session.x), y: Math.round(session.y), at: now, cd: now + HOME_PORTAL_CD_MS };
+      this.bev(session, { type: "portal" });
     } else if (op === "enter") { // портал в поле ещё раз ведёт домой
       if (session.world !== "arinar" || P.x == null || Math.hypot(session.x - P.x, session.y - (P.y || 0)) > 90) return { ok: false, err: "Подойдите к своему порталу" };
     } else {
@@ -990,7 +1061,7 @@ export class MetaService {
     }
     const epic = out.items.find((it: any) => ["epic", "legendary", "mythic"].includes(ITEM_BY_ID[it.id]?.rarity));
     if (epic) this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `💎 ${session.username || "Игрок"} добывает «${ITEM_BY_ID[epic.id].name}»!`, color: "#f0abfc" });
-    if (r.got.length) { ms.dirty = true; this.push(ws, session, { loot: out }); }
+    if (r.got.length) { ms.dirty = true; this.bev(session, { type: "loot", items: out.items.length, res: out.res, bag: !r.left }); this.push(ws, session, { loot: out }); }
     this.send(ws, { ...this.bagView(b, ms), taken: r.got.map((e) => e.lid), full: r.full || undefined, gone: !r.left || undefined });
   }
 
@@ -1361,7 +1432,7 @@ export class MetaService {
       // квесты: kind — настоящий тип (вариант биома), сопоставление цели — goalMatch (вариант-босс ≠ базовый босс)
       const fight = this.fightFacts(m, sid, session, ms, h);
       const qf: any[] = [];
-      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf });
+      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf, lvl: d.lvl || 1, elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss, rare: !!d.rare, party: n });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, kind: m.type, usedAbility: m.usedAbility.has(sid), fight, failed: qf });
       for (const f of qf) this.send(ws, { type: "quest_cond", qid: f.qid, i: f.i, ok: false, reason: f.reason, kill: 1 });
       this.push(ws, session, { loot: out });
@@ -1403,6 +1474,7 @@ export class MetaService {
         const from = String(msg.from || "");
         if (!msg.accept) { P.decline(me, from); const e = this.sessionLookup?.(from); if (e) this.send(e[0], { type: "toast", message: `${this.displayName(session)} отклонил(а) приглашение` }); return; }
         const r = P.accept(me, from); if (typeof r === "string") return err(r);
+        this.bev(session, { type: "party" }); { const e = this.sessionLookup?.(from); if (e) this.bev(e[1], { type: "party" }); }
         this.partySend(r); return;
       }
       case "party_leave": { const p = P.leave(me); this.send(ws, { type: "party_state", id: null }); this.partySend(p); return; }
@@ -1462,6 +1534,7 @@ export class MetaService {
     for (const it of out.items) { const rs = rollRunSkill(a, it, c.kind as any); if (rs) { out.runSkill = { ...RUN_SKILL_BY_ID[rs], from: it.id, uid: it.uid }; break; } }
     const epic = out.items.find((it: any) => ["epic", "legendary", "mythic"].includes(ITEM_BY_ID[it.id]?.rarity));
     if (epic) this.zones[session.world || "hellfire"]?.events.push({ k: "announce", text: `💎 ${session.username || "Игрок"} добывает «${ITEM_BY_ID[epic.id].name}»!`, color: "#f0abfc" });
+    { const seen: Set<number> = ((ms as any).chestSeen ||= new Set()); if (!seen.has(c.id)) { seen.add(c.id); this.bev(session, { type: "chest" }); } } // сундук считается один раз
     ms.dirty = true; this.push(ws, session, { loot: out });
     // всем, у кого этот сундук открыт — обновлённый вид (конкурентный доступ: позицию получает ровно один)
     for (const v of this.chests.viewers(c.id)) { const en = this.sessionLookup?.(v.sid), m2 = this.ms.get(v.sid); if (en && m2) this.send(en[0], this.chestView(c, m2, v.sid === session.id ? { taken: r.got!.lid } : { gone: r.got!.lid })); }
@@ -1518,7 +1591,7 @@ export class MetaService {
     if (blkAdd > 0) { const e = this.sessionLookup?.(sid), cls = e?.[1]?.stats?.classId; if (cls && blackenEquipped(this.store.account(ms.pkey), this.store.hero(ms.pkey, cls), blkAdd)) { ms.dirty = true; (ms as any).bmMeta = true; } }
     if (ms.zp.hp <= 0 && tryRevive(ms as any)) z?.events.push({ k: "previve", sid, hp: ms.zp.hp });
     else if (ms.zp.hp <= 0) {
-      ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid, bm: 1 }); ST.inc("deaths");
+      ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; z?.events.push({ k: "pdie", sid, bm: 1 }); ST.inc("deaths"); this.bevSid(sid, { type: "death" });
       this.bmDeath(sid, ms);
     }
   }
@@ -1707,7 +1780,7 @@ export class MetaService {
     this.qNote(ms, "hit", now); // условия квестов: удар получен, минимум ОЗ
     zone.events.push({ k: "phit", sid, d: real, src });
     if (ms.zp.hp <= 0 && tryRevive(ms as any)) zone.events.push({ k: "previve", sid, hp: ms.zp.hp }); // талант: раз за бой
-    else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
+    else if (ms.zp.hp <= 0) { ms.zp.hp = 0; ms.zp.alive = false; ms.zp.respawnAt = now + 5000; zone.events.push({ k: "pdie", sid }); ST.inc("deaths"); this.bevSid(sid, { type: "death" }); if (w === "arinar") this.bm.hits.delete(sid); } // умер не от мага — счёт попаданий мага сгорает
   }
   /** dev (MC_DEV_TRUST_USERID): PK сразу, накрутить убийства, включить места NPC, статус */
   cityDev(ws: WebSocket, session: any, ms: any, a: any, o: any) {
