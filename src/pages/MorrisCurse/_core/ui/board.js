@@ -39,7 +39,7 @@ export class BoardWin {
       else if (mode === 'all') { const st = this.s.tutStep(); this.tab = st ? 'tut' : this.tab === 'tut' ? 'daily' : this.tab; }
       this.isOpen = true; this.el.style.display = ''; this.render(); this.s.ui('board'); this.opt.onShow?.(true);
       clearInterval(this.timer); this.timer = setInterval(() => { if (this.isOpen) this.renderInfo(); }, 30000);
-    } catch (e) { console.error('[board] MC-B02', e); this.close(); this.ov.toast('Окно заданий не открылось (MC-B02)', '#fca5a5'); }
+    } catch (e) { const code = 'MC-B02'; console.error('[board]', code, e); this.close(); this.ov.toast(`Окно заданий не открылось (${code})`, '#fca5a5'); }
   }
   close() { this.isOpen = false; this.el.style.display = 'none'; clearInterval(this.timer); this.opt.onShow?.(false); }
   toggle(mode, tab) { if (this.isOpen && this.mode === mode && (!tab || tab === this.tab)) this.close(); else this.open(mode, tab); }

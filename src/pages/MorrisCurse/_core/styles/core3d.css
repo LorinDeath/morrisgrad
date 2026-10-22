@@ -1129,3 +1129,4 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-touch .mc-tracker .bq .bt.pin .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-touch .mc-tracker .bq .bt.pin .ra { flex: none; }
 .mc-touch .mc-tracker .bq .bt.pin .ra span { display: none; }
+.mc-help-open .ch-root { display: none; }

@@ -27,7 +27,7 @@ export class QolHud {
   on(k) { return this.board.defs ? this.cfg[k] !== false : k !== 'lvlInfo'; }
   toggleHelp(on = !this.helpOpen) {
     if (on && !this.on('help')) return;
-    this.helpOpen = on; this.help.style.display = on ? '' : 'none'; if (!on) return;
+    this.helpOpen = on; this.help.style.display = on ? '' : 'none'; this.ov.layer.parentElement?.classList.toggle('mc-help-open', on); if (!on) return;
     const rows = (this.mobile ? HELP_MOB : HELP_PC).map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`).join('');
     this.help.innerHTML = `<div class="box"><div class="hd"><b>Управление</b><button data-x>✕</button></div><table>${rows}</table><p class="mc-dim">Не знаете, что делать? Откройте «Задания» (${this.mobile ? '📋' : 'U'}) — вкладка «Обучение».</p></div>`;
   }
