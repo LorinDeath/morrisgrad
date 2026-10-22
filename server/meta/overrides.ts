@@ -27,7 +27,7 @@ import { ENCH, ENCH_N } from "./enchant";
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
-import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, reindexBtasks, type Cat } from "./board";
+import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, RANKS, RANK_CATS, BONUS_NAMES, reindexBtasks, type Cat } from "./board";
 import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
@@ -352,6 +352,15 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("dailyMin", "Ежедневных в день: от", 0, 12, "int"), N("dailyMax", "Ежедневных в день: до", 0, 12, "int"),
     N("weeklyMin", "Еженедельных в неделю: от", 0, 12, "int"), N("weeklyMax", "Еженедельных в неделю: до", 0, 12, "int"),
     N("monthlyMin", "Ежемесячных в месяц: от", 0, 12, "int"), N("monthlyMax", "Ежемесячных в месяц: до", 0, 12, "int"),
+    N("hardMin", "Тяжёлых в неделю: от", 0, 12, "int"), N("hardMax", "Тяжёлых в неделю: до", 0, 12, "int"),
+    { path: "_h_br", label: "Ранги F…SS повторяющихся заданий: вес выпадения, +уровней врагов к уровню героя, множитель опыта, множитель количества, бонусных условий", t: "hdr" },
+    ...RANKS.flatMap((r): Field[] => [N(`ranks.${r}.w`, `${r}: вес выпадения`, 0, 1000), N(`ranks.${r}.plus`, `${r}: +уровней врагов/задания`, -10, 20, "int"),
+      N(`ranks.${r}.mul`, `${r}: множитель опыта`, 0, 50), N(`ranks.${r}.cnt`, `${r}: множитель количества`, 0.1, 10), N(`ranks.${r}.bon`, `${r}: бонусных условий (0–3)`, 0, 3, "int")]),
+    ...RANK_CATS.flatMap((c): Field[] => [{ path: `rankOn.${c}`, label: `Ранги: ${CAT_NAMES[c]}`, t: "bool" }, N(`catPlus.${c}`, `${CAT_NAMES[c]}: +уровней сверх ранга`, -5, 10, "int")]),
+    { path: "_h_bb", label: "Бонусные условия (проверяет только сервер)", t: "hdr" }, N("bonusXp", "Опыт за каждое выполненное бонусное, % от опыта ранга", 0, 500),
+    ...Object.keys(BONUS_NAMES).map((k): Field => ({ path: `bonus.${k}.on`, label: `Бонус в пуле: ${BONUS_NAMES[k]}`, t: "bool" })),
+    N("bonus.higher.n", "«Враги выше вас»: на сколько уровней", 1, 15, "int"),
+    ...RANK_CATS.map((c) => N(`bonus.fast.${c}`, `«Уложиться»: ${CAT_NAMES[c]}, минут`, 5, 10000, "int")),
     N("npcMax", "Личных заданий персонажей взято одновременно", 1, 30, "int"),
     N("huntMax", "Доска объявлений: взятых заказов одновременно", 1, 20, "int"), N("huntOffer", "Доска объявлений: заказов охоты в день", 1, 30, "int"), N("huntBossOffer", "…из них боссов и редких", 0, 10, "int"),
     { path: "_h_nb", label: "Доска объявлений (стартовая площадь Аринара) и Доска достижений (Алтарь тел)", t: "hdr" },
@@ -377,6 +386,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "pc", label: "Подсказка: ПК", t: "ltext" }, { path: "mob", label: "Подсказка: телефон", t: "ltext" },
     { path: "giver", label: "Кто выдаёт и принимает: персонаж — в своём диалоге, Доска объявлений — у доски, «—» — в окне «Задания»", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
     { path: "hl", label: "Подсветка (altar, mob, node, bag, npc:petr, btn:book…)", t: "text" },
+    { path: "rmax", label: "Высший ранг при выпадении (пусто — S/SS только для боёв, забегов, испытаний)", t: "enum", opts: ["", ...RANKS], optn: { "": "по событию" } },
     N("ord", "Порядок", 0, 9999, "int"), N("minLvl", "Доступно с уровня", 1, 30, "int"), N("maxLvl", "До уровня (пул периодических)", 1, 30, "int"), N("lvl", "Уровень задания (от него опыт по таблице; 0 — подобрать по цели)", 0, 30, "int"),
     { path: "req", label: "Сначала выполнить (id через запятую, id@ступень)", t: "ltext" },
     { path: "m", label: "Цель (моб, ресурс, biome:ice, role:tank…)", t: "text" }, { path: "f", label: "Условия (elite, cursed, ench, e1…e6, e3up, ewear6, party, solo, rare, boss, wboss, lvl, min, night…)", t: "text" },
@@ -481,6 +491,10 @@ function validatePatch0(kind: Kind, id: string, patch: any): any | string {
   }
   if (kind === "region") { const R = TABLES.region[id]; for (const k of ["packs", "pack"]) { const a = out[k + ".0"] ?? R[k]?.[0], b = out[k + ".1"] ?? R[k]?.[1]; if (a != null && b != null && a > b) return `${k === "packs" ? "пачек" : "мобов"}: «от» больше «до»`; } }
   if (kind === "curse") { const C = TABLES.curse[id]; for (const k of ["bossSkills", "worldBossSkills"]) { const a = out[k + "Min"] ?? C[k + "Min"], b = out[k + "Max"] ?? C[k + "Max"]; if (a > b) return "навыков боссов: «от» больше «до»"; } }
+  if (kind === "board") { // набор периода «от» ≤ «до»; хотя бы один ранг с весом
+    for (const c of ["daily", "weekly", "monthly", "hard"]) { const lo = out[`${c}Min`] ?? BOARD_CFG[`${c}Min`], hi = out[`${c}Max`] ?? BOARD_CFG[`${c}Max`]; if (lo > hi) return `${CAT_NAMES[c as Cat]}: «от» больше «до»`; }
+    if (!RANKS.some((r) => (out[`ranks.${r}.w`] ?? BOARD_CFG.ranks?.[r]?.w ?? 0) > 0)) return "Ранги: хотя бы у одного ранга вес должен быть больше 0";
+  }
   if (kind === "ench") { const E = TABLES.ench[id]; for (let i = 0; i < ENCH_N; i++) { const a = out[`tiers.${i}.skMin`] ?? E.tiers[i].skMin, b = out[`tiers.${i}.skMax`] ?? E.tiers[i].skMax; if (a > b) return `ярус ${i + 1}: навыков «от» больше «до»`; } }
   if (kind === "btask") { const r = validateBtask(id, out); if (r) return r; }
   if (kind === "board") {

@@ -5,10 +5,10 @@
 import { esc } from './overlay.js';
 import { BoardStore, PERIODIC } from '../meta/boardStore.js';
 import { BoardWin } from './board.js';
-import { btDef, makeBtask, prepXp, tableXp, tierLvl } from '../../../../../server/meta/board.ts';
+import { btDef, makeBtask, prepXp, tableXp, tierLvl, makeRoll, RANKS, BONUS_NAMES, BOARD_CFG } from '../../../../../server/meta/board.ts';
 
 const NEW_IDS = { __btnew: 'daily', __achnew: 'ach' };
-const POOL_CATS = [['daily', 'Ежедневные', 'dailyMin', 'dailyMax'], ['weekly', 'Еженедельные', 'weeklyMin', 'weeklyMax'], ['monthly', 'Ежемесячные', 'monthlyMin', 'monthlyMax'], ['hunt', 'Заказы Доски объявлений', 'huntOffer', null]];
+const POOL_CATS = [['daily', 'Ежедневные', 'dailyMin', 'dailyMax'], ['weekly', 'Еженедельные', 'weeklyMin', 'weeklyMax'], ['monthly', 'Ежемесячные', 'monthlyMin', 'monthlyMax'], ['hard', 'Тяжёлые (на неделю)', 'hardMin', 'hardMax'], ['hunt', 'Заказы Доски объявлений', 'huntOffer', null]];
 const TG_LABEL = { mob: 'Какие враги', res: 'Какой ресурс', loot: 'Что забрать', recipe: 'Какой рецепт', upmax: 'Что считать', room: 'Где', trial: 'Что считать', pvp: 'Какие бои', cat: 'Задания какого раздела', world: 'Куда прийти', state: 'Какое состояние' };
 export const isCustom = (id) => /^cx_[a-z0-9_]{2,40}$/.test(String(id || ''));
 export const newBtId = () => 'cx_' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
@@ -21,7 +21,7 @@ export function btTopItems() {
 /** значения шаблона (как с сервера currentValues) для нового задания */
 function blankValues(cat, ev) {
   const t = makeBtask('cx_tmp', cat, ev), v = {};
-  for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'w']) v[k] = t[k];
+  for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'w', 'rmax']) v[k] = t[k] ?? '';
   for (let i = 0; i < 5; i++) { v[`n.${i}`] = t.n[i] || 0; v[`d.${i}`] = t.d[i] || 0; v[`x.${i}`] = 0; }
   v.xm = false; v.lvl = 0;
   if (cat === 'npc') v.giver = 'petr';
@@ -135,6 +135,15 @@ function poolChance(rows, kMin, kMax, runs = 3000) {
   return hit;
 }
 function boardVals(cat) { return (cat.ent.board || [])[0]?.values || {}; }
+/** настройки Доски с сервера (и черновик) → копия BOARD_CFG в браузере: предпросмотр опыта и рангов считается по ним */
+function syncCfg(cat, extra = {}) {
+  for (const [path, val] of Object.entries({ ...boardVals(cat), ...extra })) {
+    if (path.startsWith('_') || val === undefined || val === null) continue;
+    const ks = path.split('.'); let o = BOARD_CFG;
+    for (let i = 0; i < ks.length - 1; i++) { if (o[ks[i]] == null || typeof o[ks[i]] !== 'object') o[ks[i]] = /^\d+$/.test(ks[i + 1]) ? [] : {}; o = o[ks[i]]; }
+    o[ks[ks.length - 1]] = val;
+  }
+}
 /** полный патч из значений (без заголовков и пустых): сервер заменяет правку целиком */
 export function cleanPatch(cat, kind, values) {
   const out = {}; for (const f of cat.schema[kind]?.fields || []) { if (f.t === 'hdr') continue; const x = values[f.path]; if (x !== null && x !== undefined) out[f.path] = x; }
@@ -151,13 +160,22 @@ function previewHtml(panel, id, v) {
   const row = (d) => { try { return W.row(d); } catch (e) { return `<p class="mc-dim">предпросмотр недоступен: ${esc(e.message)}</p>`; } };
   const g = v.giver, gName = panel.cat.bt.givers[g] || '';
   const where = v.cat === 'ach' ? 'Окно «Задания» → «Достижения» и Доска достижений' : v.cat === 'tut' ? 'Обучение' : panel.cat.bt.npcGivers.includes(g) ? `Диалог персонажа «${gName}»: над ним «❕», когда можно взять, и «✔», когда можно сдать` : g === 'board' || v.cat === 'hunt' ? 'Доска объявлений в Аринаре (взять и сдать — у доски)' : 'Окно «Задания» → «' + (panel.cat.bt.cats.find((c) => c.id === v.cat)?.name || v.cat) + '»';
-  const per = PERIODIC.includes(v.cat) ? ' · случайный набор периода (вес ' + (+v.w || 0) + ')' : '';
+  const per = PERIODIC.includes(v.cat) ? ' · случайный набор периода (вес ' + (+v.w || 0) + ')' : '', pool = PERIODIC.includes(v.cat) || v.cat === 'hunt';
+  let ranked = '';
+  if (pool) { // примеры выпадения: те же формулы, что на сервере (makeRoll), герой уровня «доступно с» (или 10)
+    const hl = Math.max(+v.minLvl || 1, Math.min(+v.maxLvl || 30, 10)), want = ['F', 'D', 'A', 'S', 'SS'], got = {};
+    for (let i = 0; i < 6000 && Object.keys(got).length < want.length; i++) { const R = makeRoll(t, hl, 'pv' + i, 'pv', ['warrior', 'mage']); if (want.includes(R.r) && !got[R.r]) got[R.r] = R; }
+    const S2 = new BoardStore(() => {}); S2.base = { ...(live?.defs || { on: true, givers: panel.cat.bt.givers, cfg: {} }), tasks: [def] };
+    ranked = want.filter((r) => got[r]).map((r) => { S2.st = { ...(live?.st || {}), p: { [id]: 0 }, c: {}, tk: [], pin: [], lock: {}, reveal: {}, sel: { [def.cat]: [def.id] }, roll: { [id]: got[r] } }; S2.merge(); const W2 = Object.create(BoardWin.prototype); W2.s = S2; W2.mode = ''; W2.opt = W.opt; try { return W2.row(S2.def(id)); } catch (e) { return ''; } }).join('');
+    ranked = ranked ? `<div class="mc-dim">Примеры выпадения у героя ${hl} ур. (ранги F, D, A, S, SS):</div>${ranked}` : '';
+  }
   return `<div class="bt-prev">${hdef ? `<div class="mc-dim">До получения:</div>${row(hdef)}<div class="mc-dim">После получения:</div>` : ''}${row(def)}</div>
-    <p class="mc-dim">Где игрок его видит: ${esc(where)}${esc(per)}${v.on ? '' : ' · <b>выключено — игроки не видят</b>'}</p>`;
+    <p class="mc-dim">Где игрок его видит: ${esc(where)}${esc(per)}${v.on ? '' : ' · <b>выключено — игроки не видят</b>'}</p>${ranked}`;
 }
 
 /** форма задания/достижения */
 export function btaskForm(panel, sec, e, opts = {}) {
+  syncCfg(panel.cat);
   const cat = panel.cat, bt = cat.bt, isNew = !e, D0 = panel.btDraft, id = isNew ? (opts.id || (D0?.isNew && D0.at === panel.sel ? D0.id : newBtId())) : e.id, custom = isCustom(id);
   const v = panel.btDraft && panel.btDraft.id === id ? panel.btDraft.v : JSON.parse(JSON.stringify(isNew ? opts.values || blankValues(opts.cat || 'daily', opts.ev || 'kill') : e.values));
   panel.btDraft = { id, v, isNew, at: panel.sel };
@@ -192,7 +210,9 @@ export function btaskForm(panel, sec, e, opts = {}) {
       <p><label style="display:inline-flex"><span>Опыт задан вручную</span><input type="checkbox" data-v="xm" ${v.xm ? 'checked' : ''}></label> <button class="btn sm" data-xrecalc>↻ Пересчитать по таблице</button></p>
       <small class="mc-dim">Опыт — одно и то же число героям любого уровня. * по таблице «уровень задания × сложность» (вкладка «📋 Доска»); без «вручную» сервер сам держит опыт равным таблице.</small></div>
     <div class="box"><b>Доступность</b><div class="grid">${num('minLvl', 'Доступно с уровня', 1, 30)}${num('maxLvl', 'До уровня (для пула)', 1, 30)}${num('lvl', 'Уровень задания (от него опыт; 0 — подобрать по цели)', 0, 30)}
-      ${pool ? `<label><span>Вес в случайном наборе (0 — не выпадает)</span><input type="number" min="0" max="100" step="0.5" data-v="w" value="${v.w ?? 1}"></label>` : ''}</div></div>
+      ${pool ? `<label><span>Вес в случайном наборе (0 — не выпадает)</span><input type="number" min="0" max="100" step="0.5" data-v="w" value="${v.w ?? 1}"></label>
+      <label><span>Высший ранг при выпадении</span>${sel('rmax', [['', 'по событию (S/SS — бои, забеги, испытания)'], ...RANKS.map((r) => [r, 'до ' + r])], v.rmax || '')}</label>` : ''}</div>
+      ${pool ? '<small class="mc-dim">Повторяющееся: при выпадении сервер бросает ранг F…SS — он меняет количество, уровень врагов, опыт и бонусные условия (настройки рангов — «⚖ Пулы, веса и лимиты»). Числа выше — основа для ранга D.</small>' : ''}</div>
     ${reqHtml(cat, v, id)}
     ${rewardHtml(cat, v)}
     <details class="box"><summary><b>Подсказки и обучение</b></summary><div class="grid">
@@ -261,24 +281,44 @@ export function poolsForm(panel, sec) {
       <table class="pool"><tr><th>Вкл.</th><th>Задание</th><th>Уровни</th><th>Вес</th><th>Шанс попасть в набор*</th></tr>${rows.sort((a, b) => b.w - a.w || a.t.localeCompare(b.t, 'ru')).map((r) => `<tr class="${r.on ? '' : 'off'}"><td><input type="checkbox" data-pon="${r.id}" ${r.on ? 'checked' : ''}></td><td><a href="#" data-pgo="${r.id}">${esc(r.t)}</a> <small>${esc(r.id)}</small></td><td>${r.lvl}</td><td><input type="number" min="0" max="100" step="0.5" data-pw="${r.id}" value="${r.w}"></td><td>${r.on && r.w > 0 ? (ch.get(r.id) ?? 0) + '%' : '—'}</td></tr>`).join('')}</table></details>`;
   }).join('');
   const changed = Object.keys(d.b).length + Object.keys(d.w).length + Object.keys(d.on).length;
+  // ранги: веса, +уровней, множители, бонусы (те же поля, что «📋 Доска»); пример — еженедельное «Неделя охоты» у героя 10 ур.
+  syncCfg(cat, d.b);
+  const W = RANKS.reduce((a, r) => a + Math.max(0, +val(`ranks.${r}.w`) || 0), 0) || 1, ex = {};
+  const tpl = makeBtask('cx_ex', 'weekly', 'kill'); tpl.n = [400, 0, 0, 0, 0]; tpl.d = [3, 0, 0, 0, 0]; tpl.f = 'lvl'; tpl.why = 'Враги';
+  for (let i = 0; i < 20000 && Object.keys(ex).length < RANKS.length; i++) { const R = makeRoll(tpl, 10, 'ex' + i, 'ex', ['warrior', 'mage']); if (!ex[R.r]) ex[R.r] = R; }
+  const rin = (k, a, b, st = 1) => `<input type="number" min="${a}" max="${b}" step="${st}" data-pb="${k}" value="${val(k) ?? ''}">`;
+  const rankBox = `<details class="box" ${panel.poolOpen === 'ranks' ? 'open' : ''} data-pc="ranks"><summary><b>Ранги F…SS</b> · вес выпадения, сложность, опыт, бонусы</summary>
+    <table class="pool rk"><tr><th>Ранг</th><th>Вес</th><th>Шанс</th><th>+уровней врагов</th><th>× опыта</th><th>× количества</th><th>Бонусов</th><th>Пример: неделя, герой 10 ур.</th></tr>
+    ${RANKS.map((r) => { const R = ex[r]; return `<tr><td><b class="mc-rank r-${r}">${r}</b></td><td>${rin(`ranks.${r}.w`, 0, 1000, 0.1)}</td><td>${Math.round((Math.max(0, +val(`ranks.${r}.w`) || 0) / W) * 1000) / 10}%</td><td>${rin(`ranks.${r}.plus`, -10, 20)}</td><td>${rin(`ranks.${r}.mul`, 0, 50, 0.1)}</td><td>${rin(`ranks.${r}.cnt`, 0.1, 10, 0.1)}</td><td>${rin(`ranks.${r}.bon`, 0, 3)}</td>
+      <td><small>${R ? esc(`${R.f === 'wboss' ? 'мировые боссы ×' + R.n : `${R.n} врагов ${R.minL}+ ур.`} · +${R.x} опыта${R.bon.length ? ` · бонусы ${R.bon.length}×+${R.bon[0].xp}` : ''}`) : '—'}</small></td></tr>`; }).join('')}</table>
+    <div class="grid">${['daily', 'weekly', 'monthly', 'hard', 'hunt'].map((c) => `<label><span>${esc({ daily: 'Ежедневные', weekly: 'Еженедельные', monthly: 'Ежемесячные', hard: 'Тяжёлые', hunt: 'Заказы Доски' }[c])}: ранги</span><input type="checkbox" data-pbb="rankOn.${c}" ${val(`rankOn.${c}`) !== false ? 'checked' : ''}></label><label><span>+уровней сверх ранга</span>${rin(`catPlus.${c}`, -5, 10)}</label>`).join('')}</div>
+    <small class="mc-dim">Уровень врагов = уровень героя при выпадении + «+уровней» ранга + «сверх ранга» раздела. S и SS — только для боёв, забегов и испытаний; SS у героя 8+ — мировые боссы (звать отряд). Прогресс засчитывается всем членам отряда рядом. Изменения — для новых выпадений (со следующего периода).</small></details>
+  <details class="box" ${panel.poolOpen === 'bonus' ? 'open' : ''} data-pc="bonus"><summary><b>Бонусные условия</b> · пул, опыт</summary>
+    <div class="grid"><label><span>Опыт за каждое выполненное бонусное, % от опыта ранга</span>${rin('bonusXp', 0, 500)}</label>
+    ${Object.entries(BONUS_NAMES).map(([k, n]) => `<label><span>${esc(n)}</span><input type="checkbox" data-pbb="bonus.${k}.on" ${val(`bonus.${k}.on`) !== false ? 'checked' : ''}></label>`).join('')}
+    <label><span>«Враги выше вас»: на сколько уровней</span>${rin('bonus.higher.n', 1, 15)}</label>
+    ${['daily', 'weekly', 'monthly', 'hard', 'hunt'].map((c) => `<label><span>«Уложиться»: ${c === 'daily' ? 'ежедневные' : c === 'weekly' ? 'еженедельные' : c === 'monthly' ? 'ежемесячные' : c === 'hard' ? 'тяжёлые' : 'заказы'}, мин</span>${rin(`bonus.fast.${c}`, 5, 10000)}</label>`).join('')}</div>
+    <small class="mc-dim">Все условия проверяет сервер: смерть, время, тело героя, уровень и элитность врага, отряд, ночь. Условий, которые знает только клиент (например, «без зелий»), нет.</small></details>`;
   sec.innerHTML = `<div class="btf"><h3>⚖ Пулы, веса и лимиты</h3>
     <p class="mc-dim">Каждому игроку на период (день/неделю/месяц, сброс по Киеву) выпадает случайный набор, одинаковый для него весь период. Вероятность задания — его вес; 0 — не выпадает. * шанс — моделирование 3000 наборов без учёта уровня героя.</p>
     ${part}
+    ${rankBox}
     <div class="box"><b>Лимиты и шкалы</b><div class="grid">${[['pinMax', 'Отслеживаемых заданий (трекер, стрелки, карта)', 1, 30], ['trackMax', 'Отслеживаемых врагов из Бестиария', 1, 30], ['huntMax', 'Взятых заказов Доски', 1, 30], ['npcMax', 'Взятых личных заданий персонажей', 1, 30]].map(([k, n, a, b]) => `<label><span>${esc(n)}</span><input type="number" min="${a}" max="${b}" data-pb="${k}" value="${val(k)}"></label>`).join('')}
       <label><span>Шкала прогресса достижений</span><input type="checkbox" data-pbb="bars.ach" ${val('bars.ach') !== false ? 'checked' : ''}></label><label><span>Шкала прогресса Бестиария</span><input type="checkbox" data-pbb="bars.lib" ${val('bars.lib') !== false ? 'checked' : ''}></label></div>
       <small class="mc-dim">Таблица опыта, множители и дневные пороги опыта по разделам — вкладка «📋 Доска» → «Доска заданий: настройки…».</small></div>
     <p class="acts"><button class="btn gold" data-psave ${changed ? '' : 'disabled'}>💾 Сохранить изменения (${changed})</button> <button class="btn" data-pundo ${changed ? '' : 'disabled'}>Отменить</button></p></div>`;
   const $$ = (s) => [...sec.querySelectorAll(s)], keep = () => { panel.poolOpen = sec.querySelector('details[open][data-pc]')?.dataset.pc || panel.poolOpen; };
+  $$('details[data-pc]').forEach((x) => x.addEventListener('toggle', () => { if (x.open) panel.poolOpen = x.dataset.pc; }));
   const re = () => { keep(); const y = sec.scrollTop; poolsForm(panel, sec); sec.scrollTop = y; };
   $$('[data-pb]').forEach((i) => i.addEventListener('change', () => { d.b[i.dataset.pb] = Number(i.value); re(); }));
   $$('[data-pbb]').forEach((i) => i.addEventListener('change', () => { d.b[i.dataset.pbb] = i.checked; re(); }));
   $$('[data-pw]').forEach((i) => i.addEventListener('change', () => { d.w[i.dataset.pw] = Math.max(0, Math.min(100, Number(i.value) || 0)); re(); }));
   $$('[data-pon]').forEach((i) => i.addEventListener('change', () => { d.on[i.dataset.pon] = i.checked; re(); }));
-  $$('[data-pgo]').forEach((a) => (a.onclick = (ev) => { ev.preventDefault(); panel.sel = a.dataset.pgo; panel.render(); }));
+  $$('[data-pgo]').forEach((a) => (a.onclick = (ev) => { ev.preventDefault(); panel.sel = a.dataset.pgo; panel.btJump = true; panel.render(); }));
   sec.querySelector('[data-pundo]').onclick = () => { panel.poolDraft = null; re(); };
   sec.querySelector('[data-psave]').onclick = () => {
     const q = [];
-    for (const [k, mn, mx] of [['daily', 'dailyMin', 'dailyMax'], ['weekly', 'weeklyMin', 'weeklyMax'], ['monthly', 'monthlyMin', 'monthlyMax']]) if (+val(mn) > +val(mx)) { panel.msg(`✖ ${k}: «от» больше «до»`, true); return; }
+    for (const [k, mn, mx] of [['daily', 'dailyMin', 'dailyMax'], ['weekly', 'weeklyMin', 'weeklyMax'], ['monthly', 'monthlyMin', 'monthlyMax'], ['hard', 'hardMin', 'hardMax']]) if (+val(mn) > +val(mx)) { panel.msg(`✖ ${k}: «от» больше «до»`, true); return; }
     if (Object.keys(d.b).length) q.push({ type: 'admin_save', kind: 'board', id: 'main', patch: cleanPatch(cat, 'board', { ...bv, ...d.b }) });
     for (const id of new Set([...Object.keys(d.w), ...Object.keys(d.on)])) { const x = ent.find((y) => y.id === id); if (x) q.push({ type: 'admin_save', kind: 'btask', id, patch: { ...cleanPatch(cat, 'btask', x.values), ...(id in d.w ? { w: d.w[id] } : {}), ...(id in d.on ? { on: d.on[id] } : {}) } }); }
     panel.poolDraft = null; panel.sendQueue(q, `Пулы: сохранено ${q.length}`);
@@ -295,7 +335,7 @@ export const BT_CSS = `
 .mc-admin .btf table.tiers input{width:100px}.mc-admin .btf table.tiers td.xp{font-size:11px}.mc-admin .btf td.xp{color:#86efac}
 .mc-admin .btf .box.err{border-color:#f87171;color:#fca5a5}
 .mc-admin .btf .chip{display:inline-flex;gap:4px;align-items:center;border:1px solid #3b2c52;border-radius:6px;padding:2px 6px;background:#140e24}
-.mc-admin .btf table.pool tr.off{opacity:.5}.mc-admin .btf table.pool input[type=number]{width:70px}
+.mc-admin .btf table.pool tr.off{opacity:.5}.mc-admin .btf table.rk input{width:58px}.mc-admin .btf table.pool input[type=number]{width:70px}
 .mc-admin .btf details>summary{cursor:pointer}.mc-admin .btf a{color:#c4b5fd}.mc-admin .btf .acts p{margin:4px 0 0}.mc-admin .btf .acts .box.err{margin:0}
 .mc-admin .btf .acts{position:sticky;bottom:0;background:rgba(10,7,20,.95);padding:6px 0;margin:0}
 /* телефон: вкладки админки — одной прокручиваемой строкой, больше места форме */

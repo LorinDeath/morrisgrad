@@ -1,5 +1,5 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
-import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt } from "./board";
+import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS } from "./board";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 import { heroXpNeed } from "./defs";
@@ -53,7 +53,7 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
   ok(r2.ok && r2.xp === tierXp(BTASKS.ach_elite, 0) && !r2.cappedXp, `достижения без потолка (дано ${r2.xp})`);
   const did = (b.sel.daily || []).find((id: string) => id !== "d_bmage")!;
   b.xs.daily = { k: periodKey("daily"), v: 10 ** 9 }; b.p[did] = 10 ** 6; const r3 = boardClaim(a, h, did, ctx);
-  ok(r3.ok && r3.xp === tierXp(BTASKS[did], 0) && !r3.cappedXp, `ежедневные без потолка (дано ${r3.xp})`);
+  ok(r3.ok && r3.xp === tierXp(effOf(b, BTASKS[did]), 0) && !r3.cappedXp, `ежедневные без потолка (дано ${r3.xp})`);
   // включённый потолок по-прежнему режет
   const q0 = validatePatch("board", "main", { "caps.daily": 10 }); applyOverride("board", "main", q0);
   ok(dayCap(12) === Math.round(heroXpNeed(12) * 10 / 100), "потолок можно включить в админке");
@@ -195,4 +195,49 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
 { const { a, h } = mk(); h.lvl = 10; boardRefresh(a, h, ctx); const t0 = performance.now();
   for (let i = 0; i < 20000; i++) boardEvent(a, h, { type: "kill", mob: "golem", kind: "stone_golem", lvl: 10, elite: i % 7 === 0 }, ctx);
   const us = (performance.now() - t0) * 1000 / 20000; ok(us < 50, `событие kill: ${us.toFixed(1)} мкс`); }
+// ═══ ранги и бонусные условия ═══
+{ // распределение рангов: SS очень редкий; S/SS только у боёв, забегов, испытаний
+  const cnt: any = {}; for (let i = 0; i < 20000; i++) { const R = makeRoll(BTASKS.w_kill_b, 10, "p" + i, "k", ["warrior", "mage"]); cnt[R.r] = (cnt[R.r] || 0) + 1; }
+  ok(cnt.F > cnt.D && cnt.D > cnt.B && cnt.B > cnt.S && cnt.S > cnt.SS && cnt.SS > 0 && cnt.SS / 20000 < 0.01, `веса рангов: ${RANKS.map((r) => r + " " + (cnt[r] || 0)).join(", ")}`);
+  let grp = 0; for (let i = 0; i < 3000; i++) { const R = makeRoll(BTASKS.d_craft, 10, "c" + i, "k", ["warrior"]); if (R.r === "S" || R.r === "SS") grp++; }
+  ok(grp === 0, "ремесло: без S/SS (отряд не поможет)");
+  // неделя: герой 10, ранг D → враги не ниже 12 (пример Алекса)
+  let R: any = null; for (let i = 0; i < 500 && !R; i++) { const x = makeRoll(BTASKS.w_kill_b, 10, "w" + i, "k", ["warrior"]); if (x.r === "D") R = x; }
+  ok(R && R.minL === 12 && R.n >= 400, `еженедельное D у героя 10: враги ${R?.minL}+ ×${R?.n}`);
+  // SS: мировые боссы, звать отряд; опыт больше S, S больше A
+  let SS: any = null; for (let i = 0; i < 20000 && !SS; i++) { const x = makeRoll(BTASKS.w_kill_b, 12, "s" + i, "k", ["warrior"]); if (x.r === "SS") SS = x; }
+  ok(SS && SS.f === "wboss" && SS.n >= 1 && /отряд/.test(SS.w), `SS: ${SS?.w}`);
+  const xr = (r: string) => { for (let i = 0; i < 40000; i++) { const x = makeRoll(BTASKS.w_kill_b, 12, "x" + i, "k", ["warrior"]); if (x.r === r) return x.x; } return 0; };
+  const [xa, xs, xss] = [xr("A"), xr("S"), xr("SS")]; ok(xa > 0 && xs > xa && xss > xs, `опыт A ${xa} < S ${xs} < SS ${xss}`);
+  // опыт — число от уровня задания: одинаков для героя любого уровня при одном выпадении
+  ok(makeRoll(BTASKS.pd_dew_slime, 3, "z", "k", []).x === makeRoll(BTASKS.pd_dew_slime, 3, "z", "k", []).x, "детерминированно");
+}
+{ // выпадение детерминировано для игрока и периода, у всех выбранных есть ранг
+  const m1 = mk(), m2 = mk(); m1.h.lvl = 10; m2.h.lvl = 10; boardRefresh(m1.a, m1.h, ctx); boardRefresh(m2.a, m2.h, ctx);
+  const b1 = boardOf(m1.a), b2 = boardOf(m2.a);
+  ok(JSON.stringify(b1.sel.weekly) === JSON.stringify(b2.sel.weekly) && JSON.stringify(b1.roll) === JSON.stringify(b2.roll), "тот же игрок/период — тот же набор и ранги");
+  ok(["daily", "weekly", "monthly", "hard"].every((c) => (b1.sel[c] || []).length > 0 && (b1.sel[c] || []).every((id: string) => b1.roll[id]?.r)), "у всех выпавших есть ранг");
+  ok((b1.sel.hunt || []).every((id: string) => b1.roll[id]?.r), "у заказов Доски — ранг");
+  ok(!!boardClient(m1.a, m1.h).roll && Object.keys(boardClient(m1.a, m1.h).roll).length >= (b1.sel.daily || []).length, "ранги уходят клиенту");
+}
+{ // уровень врагов от ранга, бонусы: смерть, «выше уровнем», опыт за выполненные
+  const { a, h } = mk(); h.lvl = 10; boardRefresh(a, h, ctx); const b = boardOf(a);
+  b.sel.daily = ["d_kill_b"]; b.roll.d_kill_b = { r: "B", L: 12, minL: 12, n: 3, d: 2, x: 1000, f: "", k: "t", w: "x", bon: [{ k: "nodeath", xp: 250, ok: 1 }, { k: "higher", v: 2, xp: 250, ok: 1 }] };
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 11 }, ctx); ok(!b.p.d_kill_b, "враг ниже уровня ранга не засчитан");
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12 }, ctx); ok(b.p.d_kill_b === 1 && b.roll.d_kill_b.bon[1].ok === 1, "12-й засчитан, «на 2 выше» цел");
+  boardEvent(a, h, { type: "death" }, ctx); ok(b.roll.d_kill_b.bon[0].ok === 0, "смерть срывает «без смерти»");
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 13 }, ctx); boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12 }, ctx);
+  ok(b.p.d_kill_b === 3 && b.roll.d_kill_b.done, "основное выполнено");
+  const r = boardClaim(a, h, "d_kill_b", ctx); ok(r.ok && r.xp === 1250 && r.rank === "B" && r.bon === 1, `опыт: ранг 1000 + 1 бонус 250 = ${r.xp}`);
+  // отряд: «только в отряде»
+  b.sel.daily = ["d_kill_a"]; b.roll.d_kill_a = { r: "S", L: 12, minL: 0, n: 2, d: 2, x: 100, f: "", k: "t", w: "x", bon: [{ k: "party", xp: 10, ok: 1 }, { k: "fast", v: 1, xp: 10, ok: 1 }] }; delete b.c.d_kill_a; delete b.p.d_kill_a;
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12, party: 3 }, ctx); boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12, party: 1 }, ctx);
+  ok(b.roll.d_kill_a.bon[0].ok === 0 && b.roll.d_kill_a.bon[1].ok === 1, "убийство без отряда срывает «в отряде»; «на время» уложился");
+  const r2 = boardClaim(a, h, "d_kill_a", ctx); ok(r2.xp === 110, `только основное + «на время»: ${r2.xp}`);
+}
+{ // заказ Доски с рангом: сдан — снова может выпасть (не сегодня)
+  const { a, h } = mk(); h.lvl = 10; boardRefresh(a, h, ctx); const b = boardOf(a); const id = (b.sel.hunt || [])[0];
+  ok(boardTake(a, h, id, true).ok, "заказ взят"); b.p[id] = b.roll[id].n; const r = boardClaim(a, h, id, ctx);
+  ok(r.ok && r.rank && !b.c[id] && !b.roll[id] && !(b.sel.hunt || []).includes(id), "сданный заказ вернулся в пул");
+}
 console.log(f ? `FAILED ${f}` : "board ok"); if (f) process.exit(1);

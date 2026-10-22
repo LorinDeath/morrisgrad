@@ -5,7 +5,7 @@
 // Без «сияния» и «звёзд». Только показ: что засчитать и что выдать — решает сервер (board_claim/take/pin/tut).
 import { esc } from './overlay.js';
 import { hasPlace } from './boardLoc.js';
-import { UI_CATS, PERIODIC } from '../meta/boardStore.js';
+import { UI_CATS, PERIODIC, rankTag, bonusText } from '../meta/boardStore.js';
 
 const TAB_IC = { tut: '🧭', npc: '🗣', hunt: '📌', daily: '☀', weekly: '📅', monthly: '🗓', hard: '⚔', ach: '🏆' };
 const SHORT = { tut: 'Обучение', npc: 'Персонажи', hunt: 'Доска охоты', daily: 'День', weekly: 'Неделя', monthly: 'Месяц', hard: 'Тяжёлые', ach: 'Достижения' };
@@ -64,11 +64,18 @@ export class BoardWin {
     const why = hid ? 'Скрытое достижение. Условие откроется, когда вы его выполните.' : S.why(t);
     const ctl = !hid && o.ctl ? `<div class="ctl">${esc(o.ctl)}</div>` : '';
     return `<div class="mc-bd-row${r.ready && !r.done ? ' ready' : ''}${r.done ? ' done' : ''}${lk ? ' lock' : ''}${hid ? ' hid' : ''}" data-id="${t.id}">
-      <div class="l"><div class="nm">${r.done ? '✔ ' : ''}${esc(S.title(t))} ${g}</div>
-      ${why ? `<div class="w">${esc(why)}</div>` : ''}${ctl}
+      <div class="l"><div class="nm">${rankTag(t.rk)}${r.done ? '✔ ' : ''}${esc(S.title(t))} ${g}${t.rk === 'S' || t.rk === 'SS' ? ' <small class="grp">на отряд — зовите друзей</small>' : ''}</div>
+      ${why && !t.roll ? `<div class="w">${esc(why)}</div>` : ''}${ctl}${hid ? '' : this.condHtml(t, r)}
       ${hid ? '' : `<div class="bar"><i style="width:${pct}%"></i><span>${r.done ? 'выполнено' : `${r.have} / ${r.n}`}</span></div>`}
       <div class="tr">${[tierTxt, lk ? '🔒 ' + esc(lk) : !r.done && !hid ? esc(this.rewardText(t, r.i)) : ''].filter(Boolean).join(' · ')} ${where}</div></div>
       <div class="r">${btn}</div></div>`;
+  }
+  /** ранговое задание: основное условие и бонусные — с наградой и отметкой */
+  condHtml(t, r) {
+    const S = this.s, B = S.bonuses(t); if (!t.roll) return '';
+    const mk = (st) => (st === 'ok' ? '<i class="ok">✔ выполнено</i>' : st === 'fail' ? '<i class="no">✖ сорвано</i>' : '<i class="wt">в процессе</i>');
+    const main = `<div class="c m">Основное: ${esc(t.roll.w || S.why(t) || '')} — ${r.n} · <b>+${S.xpOf(t, 0)} опыта</b> ${mk(r.done || r.ready ? 'ok' : 'wait')}</div>`;
+    return `<div class="mc-bd-cond">${main}${B.map((o) => `<div class="c">Бонус: ${esc(bonusText(o))} · <b>+${o.xp} опыта</b> ${mk(o.st)}</div>`).join('')}</div>`;
   }
   // ——— вкладка «Обучение» ———
   tutBody() {

@@ -44,6 +44,12 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
+// задания доски в списке админки: разделы и ранги (как server/meta/board.ts RANKS, RANK_CATS, GROUP_EVS)
+const BT_CN = { tut: 'Обучение', npc: 'Персонажи', hunt: 'Доска охоты', daily: 'Ежедневные', weekly: 'Еженедельные', monthly: 'Ежемесячные', hard: 'Тяжёлые', ach: 'Достижения' };
+const BT_RANKS = ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS'];
+/** высший ранг, который может выпасть заданию ('' — у раздела нет рангов) */
+const rankTop = (e) => (['daily', 'weekly', 'monthly', 'hard', 'hunt'].includes(e.cat) ? e.values?.rmax || (['kill', 'run', 'trial'].includes(e.values?.ev) ? 'SS' : 'A') : '');
+const rankCan = (e, r) => { const t = rankTop(e); return !!t && BT_RANKS.indexOf(r) <= BT_RANKS.indexOf(t); };
 const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
@@ -97,7 +103,7 @@ const css = `
 .mc-admin .trait .tn{color:#fb923c;min-width:110px}
 .mc-admin .msg{margin-left:auto;color:#a7f3d0}.mc-admin .msg.err{color:#fca5a5}
 .mc-admin table{border-collapse:collapse;width:100%}.mc-admin td,.mc-admin th{border-bottom:1px solid #241a3a;padding:3px 6px;text-align:left;vertical-align:top}
-.mc-admin .chips{display:flex;flex-wrap:wrap;gap:4px}.mc-admin .chips label{padding:2px 6px}
+.mc-admin .chips{display:flex;flex-wrap:wrap;gap:4px}.mc-admin .btflt{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}.mc-admin .btflt select,.mc-admin .btflt input{max-width:150px}.mc-admin .btflt input{width:80px}.mc-admin li.pager{display:flex;gap:6px;align-items:center;justify-content:center}.mc-admin .chips label{padding:2px 6px}
 .mc-admin .chips .chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:5px 8px;border:1px solid #3b2c52;border-radius:6px;background:#140e24;max-width:280px}
 .mc-admin .chips .chip > span{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
 .mc-admin .chips .chip .meta{color:#9a8bb8;font-size:10px;line-height:1.3}
@@ -180,7 +186,7 @@ export class AdminPanel {
     if (r.kind === 'btask') { // своё задание: новое — в список, удалённое — из списка
       const L = this.cat.ent.btask || (this.cat.ent.btask = []), i = L.findIndex((x) => x.id === r.id);
       if (r.deleted) { if (i >= 0) L.splice(i, 1); if (this.sel === r.id) this.sel = null; }
-      else if (r.values) { if (i >= 0) { L[i].values = r.values; L[i].name = r.values.title; } else { L.push({ id: r.id, name: r.values.title, cat: r.values.cat, lvl: r.values.minLvl, values: r.values }); } if (this.btPending === r.id) { this.sel = r.id; this.btPending = null; } }
+      else if (r.values) { if (i >= 0) { L[i].values = r.values; L[i].name = r.values.title; } else { L.push({ id: r.id, name: r.values.title, cat: r.values.cat, lvl: r.values.minLvl, values: r.values }); } if (this.btPending === r.id) { this.sel = r.id; this.btJump = true; this.btPending = null; } }
       this.btDraft = null;
     }
     if (r.kind === 'board' && r.values) { const e = this.cat.ent.board?.[0]; if (e) e.values = r.values; }
@@ -226,14 +232,26 @@ export class AdminPanel {
       }
       return out;
     }
-    if (this.tab === 'btask') { // ~450 заданий и достижений: группы по категории (сворачиваются), внутри — по порядку/уровню
-      const CN = { tut: 'Обучение', npc: 'Персонажи', hunt: 'Доска охоты', daily: 'Ежедневные', weekly: 'Еженедельные', monthly: 'Ежемесячные', hard: 'Тяжёлые', ach: 'Достижения' };
-      const col = this.btCol || (this.btCol = new Set(['npc', 'hunt', 'daily', 'weekly', 'monthly', 'hard', 'ach'])), out = btTopItems(), groups = {};
-      for (const e of this.cat.ent.btask || []) (groups[e.cat || 'ach'] ||= []).push({ ...row(e, 'btask'), name: `${isCustom(e.id) ? '✚ ' : ''}${e.values?.on === false ? '⏻ ' : ''}${e.values?.title || e.name}`, sub: `${e.id}${e.values?.hidden ? ' · скрытое' : ''}${e.values?.giver ? ' · ' + e.values.giver : ''}` });
-      for (const g of Object.keys(CN)) { const rows = groups[g]; if (!rows) continue;
-        if (rows.some((r) => r.id === this.sel)) col.delete(g); // выбранное (в т.ч. только что созданное) — группа раскрыта
-        out.push({ grp: 1, g: 'bt:' + g, id: '__bt_' + g, name: `${col.has(g) ? '▸' : '▾'} ${CN[g]} · ${rows.length}` });
-        if (!col.has(g) || this.q) out.push(...rows.sort((a, b) => (a.lvl || 0) - (b.lvl || 0) || a.id.localeCompare(b.id))); }
+    if (this.tab === 'btask') { // 700+ заданий и достижений: поиск, фильтры (раздел, ранг, уровень, кто выдаёт), постранично
+      const CN = BT_CN, F = this.btF || (this.btF = { cat: '', rk: '', lv: '', g: '', page: 0 }), bt = this.cat.bt || {};
+      const norm = (t) => String(t || '').toLowerCase().replace(/ё/g, 'е'), q = norm(this.q).trim(), lv = +F.lv || 0;
+      const order = Object.keys(CN);
+      let L = (this.cat.ent.btask || []).filter((e) => { const v = e.values || {};
+        if (F.cat && e.cat !== F.cat) return false;
+        if (F.g && (v.giver || '') !== (F.g === '-' ? '' : F.g)) return false;
+        if (lv && !((+v.minLvl || 1) <= lv && lv <= (+v.maxLvl || 30))) return false;
+        if (F.rk && !rankCan(e, F.rk, bt)) return false;
+        return !q || norm(`${v.title} ${e.id} ${v.why || ''} ${bt.givers?.[v.giver] || ''}`).includes(q); });
+      L.sort((a, b) => order.indexOf(a.cat) - order.indexOf(b.cat) || (a.values?.minLvl || 0) - (b.values?.minLvl || 0) || (a.values?.ord || 0) - (b.values?.ord || 0) || a.id.localeCompare(b.id));
+      const PS = 50, pages = Math.max(1, Math.ceil(L.length / PS)); F.page = Math.max(0, Math.min(pages - 1, F.page | 0));
+      const si = L.findIndex((e) => e.id === this.sel); if (si >= 0 && this.btJump) { F.page = Math.floor(si / PS); this.btJump = false; } // выбранное (новое, из пулов) — на его страницу
+      const out = btTopItems(); out.push({ grp: 1, id: '__btcount', name: `Найдено: ${L.length} · страница ${F.page + 1} из ${pages}` });
+      let last = '';
+      for (const e of L.slice(F.page * PS, F.page * PS + PS)) { const v = e.values || {};
+        if (e.cat !== last) { out.push({ grp: 1, id: '__bt_' + e.cat, name: CN[e.cat] || e.cat }); last = e.cat; }
+        const top = rankTop(e, bt);
+        out.push({ ...row(e, 'btask'), lvl: v.minLvl, name: `${isCustom(e.id) ? '✚ ' : ''}${v.on === false ? '⏻ ' : ''}${v.title || e.name}`, sub: `${e.id} · ур. ${v.minLvl || 1}–${v.maxLvl || 30}${top ? ' · F…' + top : ''}${v.hidden ? ' · скрытое' : ''}${v.giver ? ' · ' + (bt.givers?.[v.giver] || v.giver) : ''}` }); }
+      if (pages > 1) out.push({ pager: 1, id: '__pager', page: F.page, pages });
       return out;
     }
     if (this.tab === 'spawn') return [{ grp: 1, id: '__gs', name: 'Лагеря и бродячие мобы' }, ...(this.cat.ent.spawn || []).map((e) => ({ ...row(e, 'spawn', 'spawn:'), name: '⏱ ' + e.name })),
@@ -250,11 +268,21 @@ export class AdminPanel {
     const norm = (t) => String(t || '').toLowerCase().replace(/ё/g, 'е');
     const q = norm(this.q).trim();
     const hit = (x) => !q || x.grp || x.id.startsWith('__') || norm(`${x.name} ${x.id} ${x.sub || ''}`).includes(q);
-    ul.innerHTML = this.items().filter(hit).slice(0, 1200)
-      .map((x) => x.grp ? `<li class="grp" data-grp="1"${x.g ? ` data-g="${esc(x.g)}" style="cursor:pointer"` : ''}>${esc(x.name)}</li>` : `<li data-id="${esc(x.id)}" class="${x.id === this.sel ? 'on' : ''}"><span class="nm">${esc(x.name)}${x.stars ? ` <span class="stars">${x.stars} ★</span>` : ''} ${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.lvl ? `<span class="lv">ур. ${x.lvl}</span>` : ''}</li>`).join('');
+    ul.innerHTML = this.items().filter((x) => this.tab === 'btask' || hit(x)).slice(0, 1200)
+      .map((x) => x.pager ? `<li class="grp pager"><button class="btn sm" data-pg="-1" ${x.page ? '' : 'disabled'}>← назад</button> ${x.page + 1} / ${x.pages} <button class="btn sm" data-pg="1" ${x.page + 1 < x.pages ? '' : 'disabled'}>вперёд →</button></li>` : x.grp ? `<li class="grp" data-grp="1"${x.g ? ` data-g="${esc(x.g)}" style="cursor:pointer"` : ''}>${esc(x.name)}</li>` : `<li data-id="${esc(x.id)}" class="${x.id === this.sel ? 'on' : ''}"><span class="nm">${esc(x.name)}${x.stars ? ` <span class="stars">${x.stars} ★</span>` : ''} ${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.lvl ? `<span class="lv">ур. ${x.lvl}</span>` : ''}</li>`).join('');
     ul.querySelectorAll('li[data-g]').forEach((li) => (li.onclick = () => { let g = li.dataset.g, c = this.collapsed || (this.collapsed = new Set()); if (g.startsWith('bt:')) { g = g.slice(3); c = this.btCol; } c.has(g) ? c.delete(g) : c.add(g); this.list(); }));
+    ul.querySelectorAll('[data-pg]').forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); this.btF.page += +b.dataset.pg; this.list(); ul.scrollTop = 0; }));
     const chips = this.el.querySelector('.chips');
-    if (chips) { chips.style.display = this.tab === 'item' ? '' : 'none';
+    if (chips && this.tab === 'btask') { chips.style.display = ''; const F = this.btF, bt = this.cat.bt || {};
+      const o = (v, n, cur) => `<option value="${esc(v)}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(n)}</option>`;
+      chips.innerHTML = `<div class="btflt"><select data-bf="cat" title="Раздел">${o('', 'Все разделы', F.cat)}${Object.entries(BT_CN).map(([k, n]) => o(k, n, F.cat)).join('')}</select>
+        <select data-bf="rk" title="Может выпасть ранг">${o('', 'Любой ранг', F.rk)}${BT_RANKS.map((r) => o(r, 'может выпасть ' + r, F.rk)).join('')}</select>
+        <input type="number" min="1" max="30" placeholder="ур. героя" data-bf="lv" value="${esc(F.lv || '')}" title="Доступно герою этого уровня">
+        <select data-bf="g" title="Кто выдаёт">${o('', 'Кто выдаёт: все', F.g)}${o('-', '— окно «Задания»', F.g)}${Object.entries(bt.givers || {}).filter(([k]) => k).map(([k, n]) => o(k, n, F.g)).join('')}</select>
+        ${F.cat || F.rk || F.lv || F.g ? '<button class="btn sm" data-bf-clear>✕ сброс</button>' : ''}</div>`;
+      chips.querySelectorAll('[data-bf]').forEach((i) => i.addEventListener('change', () => { F[i.dataset.bf] = i.value; F.page = 0; this.list(); }));
+      chips.querySelector('[data-bf-clear]')?.addEventListener('click', () => { Object.assign(F, { cat: '', rk: '', lv: '', g: '', page: 0 }); this.list(); });
+    } else if (chips) { chips.style.display = this.tab === 'item' ? '' : 'none';
       if (this.tab === 'item') { const gs = ['', ...new Set(this.cat.ent.item.filter((e) => e.slot !== 'weapon').map((e) => e.slot)), '__res'].sort((a, b) => (SLOT_ORDER.indexOf(a) + 99) % 99 - (SLOT_ORDER.indexOf(b) + 99) % 99);
         chips.innerHTML = gs.map((g) => `<button class="chip ${(this.chip || '') === g ? 'on' : ''}" data-chip="${g}">${g ? SLOT_NAMES[g] || g : 'Все'}</button>`).join('');
         chips.querySelectorAll('[data-chip]').forEach((b) => (b.onclick = () => { this.chip = b.dataset.chip || null; this.list(); })); } }

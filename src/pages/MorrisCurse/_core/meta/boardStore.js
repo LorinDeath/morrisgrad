@@ -1,10 +1,27 @@
 // Доска заданий и достижений — клиентская копия (только показ). Всё считает и выдаёт сервер (server/meta/board.ts):
 // defs — определения (раз в сессию и после правок админки), st — состояние игрока (прогресс, взятые, отслеживаемые).
 // meta.state заменяется каждым meta_state, поэтому доска хранится отдельно здесь.
-import { RESOURCES } from '../../../../../server/meta/shared.ts';
+import { RESOURCES, HERO_NAMES } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from './itemCards.js';
 export const UI_CATS = ['tut', 'npc', 'hunt', 'daily', 'weekly', 'monthly', 'hard', 'ach'];
-export const PERIODIC = ['daily', 'weekly', 'monthly'];
+export const PERIODIC = ['daily', 'weekly', 'monthly', 'hard'];
+export const RANKS = ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS'];
+/** плашка ранга: буква в строгой цветной рамке (без свечения); S/SS — «на отряд» */
+export const rankTag = (r) => (r ? `<b class="mc-rank r-${r}" title="Ранг ${r}${r === 'S' || r === 'SS' ? ' — на отряд' : ''}">${r}</b>` : '');
+/** бонусное условие словами (сервер: board.ts BONUS_NAMES) */
+export function bonusText(o) {
+  switch (o.k) {
+    case 'nodeath': return 'Без единой смерти';
+    case 'fast': return `Уложиться в ${o.v} мин с первого засчитанного`;
+    case 'body': return `Только в теле: ${HERO_NAMES[o.v] || o.v}`;
+    case 'higher': return `Только враги на ${o.v}+ ур. выше вас`;
+    case 'party': return 'Только в отряде';
+    case 'solo': return 'Только в одиночку';
+    case 'night': return 'Только ночью (Аринар)';
+    case 'elite': return 'Только элитные враги';
+    default: return o.k;
+  }
+}
 
 export class BoardStore {
   constructor(send) {
@@ -18,10 +35,20 @@ export class BoardStore {
   /** из meta_state / board_state */
   apply(d) {
     let ch = false;
-    if (d.boardDefs) { this.defs = d.boardDefs; this.byId = new Map(this.defs.tasks.map((t) => [t.id, t])); ch = true; }
+    if (d.boardDefs) { this.base = d.boardDefs; ch = true; }
     if (d.board) { this.st = d.board; ch = true; }
-    if (ch) this.emit();
+    if (ch) { this.merge(); this.emit(); }
   }
+  /** выпавший вариант (ранг, количество, бонусы) поверх определения — как effOf на сервере */
+  merge() {
+    if (!this.base) return;
+    const R = this.st?.roll || {};
+    const tasks = this.base.tasks.map((t) => { const r = R[t.id]; if (!r) return t;
+      return { ...t, n: [r.n], d: [r.d], x: [r.x], rk: r.r, roll: r, ...(r.f ? { f: [t.f, r.f].filter(Boolean).join(','), m: r.f === 'wboss' ? undefined : t.m } : {}), lvl: r.L }; });
+    this.defs = { ...this.base, tasks }; this.byId = new Map(tasks.map((t) => [t.id, t]));
+  }
+  /** бонусы задания: [{k,v,xp,ok, st: 'ok'|'fail'|'wait'}] */
+  bonuses(t) { const r = t.roll; if (!r) return []; return (r.bon || []).map((o) => ({ ...o, st: !o.ok ? 'fail' : r.done ? 'ok' : 'wait' })); }
   def(id) { return this.byId.get(id) || null; }
   /** название/условие; скрытое — «???», пока не получено */
   title(t) { const r = t.hid && this.st?.reveal?.[t.id]; return r ? r.t : t.t; }
@@ -81,6 +108,7 @@ export class BoardStore {
   }
   rewardList(t, ti) {
     const out = [], xp = this.xpOf(t, ti); if (xp) out.push(`+${xp} опыта`);
+    const bx = this.bonuses(t).filter((o) => o.st !== 'fail').reduce((a, o) => a + o.xp, 0); if (bx) out.push(`бонусы до +${bx}`);
     for (const [k, v] of Object.entries(t.res || {})) out.push(`${RESOURCES[k]?.icon || ''}${v} ${RESOURCES[k]?.name || k}`);
     if (t.item && ti === (t.n.length - 1)) out.push(`🎁 ${ITEM_BY_ID[t.item]?.name || 'предмет'}`);
     return out;

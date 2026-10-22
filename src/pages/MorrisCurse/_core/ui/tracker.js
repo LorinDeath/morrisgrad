@@ -7,6 +7,7 @@ import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
 import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { esc } from './overlay.js';
+import { rankTag } from '../meta/boardStore.js';
 import { taskTarget, hasPlace, viaPortal } from './boardLoc.js';
 
 const TUT_KEY = 'mc-tut-v2';
@@ -215,7 +216,7 @@ export class QuestTracker {
       const cnt = r.done ? '✔' : r.ready && !(t.take && !B.taken(id)) ? (npcAt ? '✔ сдать' : '✔ забрать') : `${r.have}/${r.n}`;
       const n = tg ? ++k : 0, tn = n ? `<i class="tn" style="--c:${tColor(n - 1)}">${n}</i>` : '◇';
       if (tg) { this.targets.push({ ...tg, n, c: tColor(n - 1), kind: 'task', id }); }
-      if (pi < showP) rows.push(`<div class="bt pin" data-bt="${t.cat}"><div class="nm">${tn} ${esc(B.title(t))} <b>${cnt}</b></div>${tg ? `<div class="ra" data-i="${arrows.length}"><i>➤</i><span></span><b></b></div>` : ''}</div>`);
+      if (pi < showP) rows.push(`<div class="bt pin" data-bt="${t.cat}"><div class="nm">${tn} ${rankTag(t.rk)}${esc(B.title(t))} <b>${cnt}</b></div>${tg ? `<div class="ra" data-i="${arrows.length}"><i>➤</i><span></span><b></b></div>` : ''}</div>`);
       if (tg) { if (pi < showP) arrows.push(tg); if (!this.target && !this.boardTarget) this.boardTarget = tg; if (tg.mob || tg.via?.mob) this.trackTypes?.add(tg.mob || tg.via.mob); }
     });
     if (pins.length > showP) rows.push(`<div class="bt more" data-bt="${pins[showP].cat}">… ещё ${pins.length - showP} — в окне «Задания»</div>`);
