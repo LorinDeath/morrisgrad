@@ -52,11 +52,25 @@ async function registerSW(m) {
     }
   }
   const reg = await navigator.serviceWorker.register('/mc-sw.js', { scope: '/MorrisCurse', updateViaCache: 'none' });
-  if (reg.active) laterUpdate(reg); // воркер уже был (вкладка без управления: вход через переход по сайту) — тоже проверить обновление
-  const ready = await Promise.race([navigator.serviceWorker.ready, sleep(5000).then(() => null)]);
-  if (!ready) throw new Error('sw-timeout');
-  return ready;
+  if (reg.active) { laterUpdate(reg); AC.stats.swWas = 1; return reg; } // воркер уже был (вкладка без управления: Ctrl+F5 или документ сайта) — проверить обновление в фоне
+  // ждём активации САМОЙ регистрации, а не navigator.serviceWorker.ready: ready смотрит на адрес, с которым документ СОЗДАН.
+  // Документ, пришедший мягким переходом сайта (ClientRouter, создан на «/»), вне scope /MorrisCurse — ready не наступит никогда (MC-L04 22.10).
+  const ok = await Promise.race([activated(reg), sleep(SW_WAIT).then(() => false)]);
+  if (!ok) throw new Error('sw-timeout');
+  return reg;
 }
+const SW_WAIT = 8000;
+/** промис: у регистрации появился активный воркер (installing/waiting → activated) */
+function activated(reg) {
+  if (reg.active) return Promise.resolve(true);
+  return new Promise((res) => {
+    const watch = (w) => w && w.addEventListener('statechange', () => { if (w.state === 'activated' || reg.active) res(true); else if (w.state === 'redundant' && !reg.installing && !reg.waiting && !reg.active) res(false); });
+    watch(reg.installing); watch(reg.waiting);
+    reg.addEventListener('updatefound', () => watch(reg.installing));
+  });
+}
+/** документ создан в scope воркера (может стать управляемым)? Документ мягкого перехода сайта создан на другом адресе */
+const docInScope = () => { try { const n = performance.getEntriesByType('navigation')[0]; return !n || new URL(n.name).pathname.startsWith('/MorrisCurse'); } catch (_) { return true; } };
 async function tellSW(reg, manifest) {
   const sw = navigator.serviceWorker.controller || reg?.active; if (!sw) return false;
   return Promise.race([new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = (e) => res(!!e.data?.ok); sw.postMessage({ type: 'mc-index', manifest }, [ch.port2]); }), sleep(2000).then(() => false)]);
@@ -134,7 +148,10 @@ export async function syncAssets() {
   }
   window.__MC_VER__ = m.version; AC.version = m.version; AC.manifest = m;
   let reg = null;
-  try { reg = await registerSW(m); } catch (err) { showError('MC-L04', { detail: 'SW: ' + (err?.message || err), soft: true, autoClose: 5000 }); } mark('sw');
+  // нет воркера в браузере (старый/встроенный браузер) — плашка MC-L04; воркер есть, но не успел включиться — тихо (консоль + журнал сервера):
+  // игра всё равно идёт из сети, файлы ложатся в кэш, со следующего входа — из кэша
+  try { reg = await registerSW(m); } catch (err) { const msg = String(err?.message || err); showError('MC-L04', { detail: 'SW: ' + msg, soft: true, autoClose: 5000, quiet: msg === 'sw-timeout' }); } mark('sw');
+  AC.stats.inScope = docInScope();
   const dg = deviceGroups(), groups = eagerGroups(dg); groups.forEach((g) => AC.groups.add(g));
   const have = await cachedMap(cache, prev), d = diffManifest(m, have, groups);
   for (const u of d.evict) if (await cache.delete(u)) { AC.stats.evicted++; (AC.stats.evList ||= []).length < 12 && AC.stats.evList.push(u); } mark('diff');
@@ -157,7 +174,9 @@ export async function syncAssets() {
   // манифест пишем после загрузки: недокачанное останется «отсутствующим» и докачается в следующий раз (продолжение)
   mark('download');
   try { await meta.put(META_KEY, new Response(JSON.stringify(m), { headers: { 'content-type': 'application/json' } })); } catch (_) {}
-  if (reg) { await tellSW(reg, m); if (!navigator.serviceWorker.controller) await Promise.race([new Promise((r) => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), sleep(1500)]); }
+  // ждать claim нового воркера имеет смысл, только если он включился сейчас и документ в его scope (иначе controllerchange не придёт — минус 1.5 с)
+  if (reg) { await tellSW(reg, m); if (!navigator.serviceWorker.controller && !AC.stats.swWas && AC.stats.inScope) await Promise.race([new Promise((r) => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })), sleep(1500)]); }
+  AC.stats.ctl = !!navigator.serviceWorker?.controller;
   mark('claim'); AC.mode = reg ? 'sw' : 'net';
   if (!d.files && prev) flashOk(); else if (ui && !ui.el.dataset.full) { if (ui.el.dataset.mcl === 'update') setTimeout(() => ui.close(), 600); }
   AC.loader = ui; // полный экран закрывает index.astro, когда игра стартовала («Готовим мир…»)

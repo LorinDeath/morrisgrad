@@ -25,6 +25,15 @@ const { title, viewportFit = false, ...seo } = Astro.props;
     <title>{title}</title>
     <SeoHead title={title} {...seo} />
     <ClientRouter />
+    <script>
+      // «Проклятые» (/MorrisCurse) — всегда полной загрузкой, не мягким переходом ClientRouter: документ, созданный на другой странице сайта,
+      // вне scope сервис-воркера кэша (/MorrisCurse) — воркер не управляет им и navigator.serviceWorker.ready не наступает (MC-L04, 22.10).
+      // Отмена подготовки → роутер Astro сам делает location.href = to (ссылки, формы, navigate(), назад/вперёд).
+      document.addEventListener('astro:before-preparation', (ev) => {
+        const to = (ev as Event & { to?: URL }).to;
+        if (to && /^\/MorrisCurse(\/|$)/.test(to.pathname)) ev.preventDefault();
+      });
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
