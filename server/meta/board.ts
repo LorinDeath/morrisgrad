@@ -81,7 +81,7 @@ export const BOARD_CFG: any = {
   refPlus: 2,      // устарело (не используется): опыт теперь — число от уровня задания; было: задание с уровнем цели L даёт опыт не выше уровня L + refPlus (низкие задания на высоком уровне — мало)
   // множитель к таблице по категории и потолок опыта категории за её период (% опыта на уровень; 0 — без потолка).
   // День — ежедневные, заказы Доски объявлений, личные задания персонажей, достижения; неделя — еженедельные и тяжёлые; месяц — ежемесячные.
-  xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 0.3333, monthly: 1, hard: 0.6, ach: 0.25 },
+  xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 1 / 3, monthly: 1, hard: 0.6, ach: 0.25 },
   caps: { tut: 0, npc: 0, hunt: 0, daily: 0, weekly: 0, monthly: 0, hard: 0, ach: 0 }, // решение Алекса: потолков нет (механизм оставлен выключенным — число > 0 в админке включит)
   tutOn: true, tutVetLvl: 10, tutSkip: true,
   qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30 },
@@ -1325,7 +1325,7 @@ function claimTiers(a: Account, h: Hero, b: BoardState, t0: BTask, ctx: Ctx): an
     for (const [res, n] of Object.entries(t.res || {})) if (RESOURCES[res] && n > 0) { const q = Math.round(n * (ti + 1)); addRes(a, res, q); r.res[res] = (r.res[res] || 0) + q; }
   }
   if (wantItem) { const it = addItem(a, t.item, "board:" + t.id, a.hero); if (it) r.item = { id: it.id, uid: it.uid }; }
-  if (wantChest && a.hero) { const c = grantChest(a, a.hero, R!.r, R!.L, t.cat, "board:" + t.id); if (c) { const [lo, hi] = countOf(t.cat); r.chest = { id: c.id, tier: c.tier, name: BCHEST.tiers[c.tier].name, color: BCHEST.tiers[c.tier].color, L: c.L, lo, hi }; } }
+  if (wantChest && a.hero) { const c = grantChest(a, a.hero, R!.r, R!.L, t.cat, "board:" + t.id); if (c) { const [lo, hi] = countOf(t.cat); r.chest = { id: c.id, tier: c.tier, cur: !!c.cur, name: (c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name), color: BCHEST.tiers[c.tier].color, L: c.L, lo, hi }; } }
   if (r.xp > 0) r.levelUps = gainXp(h, r.xp);
   if ((b.c[t.id] || 0) >= tiers.length) { b.tk = b.tk.filter((x) => x !== t.id); b.pin = b.pin.filter((x) => x !== t.id);
     if (t.cat === "hunt" && R) { delete b.c[t.id]; delete b.p[t.id]; delete b.roll[t.id]; b.sel.hunt = (b.sel.hunt || []).filter((x) => x !== t.id); } } // заказ повторяемый: сдан — снова в пуле (не сегодня)

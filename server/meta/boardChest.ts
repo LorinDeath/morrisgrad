@@ -2,17 +2,20 @@
 // пока не открыты и не опустошены. Открытие бросает содержимое ВНУТРЬ сундука (сохраняется: повторный вход
 // покажет те же вещи); забрать/разобрать/надеть — по одной или всё; не влезло в сумку — осталось в сундуке;
 // пустой сундук исчезает. Сундук принадлежит телу, которое сдало задание (как и сама награда).
-import { BCHEST, BC_TIERS, tierOfRank, artOf, chestOdds, rollItems, countOf, type BcTier } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, tierOfRank, artOf, chestOdds, rollItems, countOf, rankCursePct, type BcTier } from "./boardChestCfg";
 import { ITEM_BY_ID, salvageYield, HERO_NAMES } from "./defs";
 import { addItem, addRes, equip, cryptoRand, type Account, type Hero } from "./profile";
 
 export interface BcItem { lid: number; id: string; c?: 1; e?: number; b?: number } // b — очернение %, переносится на экземпляр (InvItem.blk)
-export interface BcChest { id: number; tier: BcTier; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number }
-export interface BcStore { seq: number; list: BcChest[] }
+export interface BcChest { id: number; tier: BcTier; cur?: 1; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number }
+export interface BcStore { seq: number; list: BcChest[]; v?: number }
 const BAG = 120;
 export function chestsOf(a: Account): BcStore {
-  const A = a as any; const s: BcStore = A.chests && typeof A.chests === "object" ? A.chests : (A.chests = { seq: 0, list: [] });
+  const A = a as any; const s: BcStore = A.chests && typeof A.chests === "object" ? A.chests : (A.chests = { seq: 0, list: [], v: 2 });
   if (!Array.isArray(s.list)) s.list = []; s.seq = s.seq | 0;
+  if ((s.v | 0) < 2) { // до ☠ вариантов: ярус «Проклятый» → проклятый божественный; старый «Чёрный» был всегда проклятым
+    for (const c of s.list) if (c && (c.tier as string) === "cursed") { c.tier = "divine"; c.cur = 1; } else if (c && c.tier === "black") c.cur = 1;
+    s.v = 2; }
   for (const c of s.list) if (c && Array.isArray(c.items)) c.items = c.items.filter((x) => x && ITEM_BY_ID[x.id]); // вещь удалили из игры — пропадает
   s.list = s.list.filter((c) => c && BC_TIERS.includes(c.tier) && !(Array.isArray(c.items) && c.items.length === 0));
   return s;
@@ -31,15 +34,16 @@ export function chestRoomErr(a: Account): string | null {
   return chestsOf(a).list.length >= mx ? `Сундуков наград уже ${mx} — откройте или опустошите часть (🎁, клавиша Y), и сдайте задание снова` : null;
 }
 /** Выдать сундук за ранг задания. null — ранг без сундука или выключено. */
-export function grantChest(a: Account, hero: string, rank: string, L: number, cat: string, src: string): BcChest | null {
+export function grantChest(a: Account, hero: string, rank: string, L: number, cat: string, src: string, rnd: () => number = cryptoRand, force?: boolean): BcChest | null {
   if (BCHEST.on === false) return null;
   const tier = tierOfRank(rank); if (!tier) return null;
-  const s = chestsOf(a); const c: BcChest = { id: ++s.seq, tier, L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank, hero, src, at: Date.now() };
+  const cur = typeof force === "boolean" ? force : rnd() * 100 < rankCursePct(rank); // проклятый вариант — отдельный бросок по рангу
+  const s = chestsOf(a); const c: BcChest = { id: ++s.seq, tier, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank, hero, src, at: Date.now() };
   s.list.push(c); return c;
 }
 function view(a: Account, c: BcChest) {
-  const o = chestOdds(c.tier, c.L, c.cat);
-  return { id: c.id, tier: c.tier, art: artOf(c.tier, c.rank), name: o.name, color: o.color, L: c.L, cat: c.cat, rank: c.rank, hero: c.hero, heroName: (HERO_NAMES as any)[c.hero] || c.hero,
+  const o = chestOdds(c.tier, c.L, c.cat, !!c.cur);
+  return { id: c.id, tier: c.tier, cur: !!c.cur, dark: o.dark, art: artOf(c.tier, c.rank, !!c.cur), name: o.name, color: o.color, L: c.L, cat: c.cat, rank: c.rank, hero: c.hero, heroName: (HERO_NAMES as any)[c.hero] || c.hero,
     src: c.src, at: c.at, opened: Array.isArray(c.items), items: c.items || null, odds: o };
 }
 export function chestList(a: Account) {
@@ -58,7 +62,7 @@ export function chestOpen(a: Account, h: string | null, id: any, rnd: () => numb
   const f = find(a, h, id); if (f.err) return { ok: false, err: f.err }; const c = f.c!;
   let fresh = false;
   if (!Array.isArray(c.items)) {
-    let lid = 0; c.items = rollItems(c.tier, c.L, c.cat, rnd).map((x) => ({ lid: ++lid, ...x })); c.n = c.items.length; fresh = true;
+    let lid = 0; c.items = rollItems(c.tier, c.L, c.cat, rnd, !!c.cur).map((x) => ({ lid: ++lid, ...x })); c.n = c.items.length; fresh = true;
     if (!c.items.length) { const s = chestsOf(a); s.list = s.list.filter((x) => x !== c); return { ok: true, chest: { ...view(a, c), items: [] }, fresh, gone: true }; }
   }
   return { ok: true, chest: view(a, c), fresh };

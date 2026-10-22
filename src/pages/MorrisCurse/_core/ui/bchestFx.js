@@ -23,6 +23,7 @@ export const MAX_FLY = 16; // столько иконок летит; остал
  *  opts.target(i) → DOMRect клетки в окне (куда прилетит вещь), opts.onLand(i) — вещь «легла» в клетку, opts.onDone() */
 export function playOpen(chest, items, opts = {}) {
   const root = document.createElement('div'); root.className = 'bc-fx'; root.innerHTML = `<canvas class="pt"></canvas><div class="sh"><canvas class="ch"></canvas><div class="its"></div></div><div class="cap"></div><div class="skip">${matchMedia('(hover: none)').matches ? 'Тап — пропустить' : 'Клик или пробел — пропустить'}</div>`;
+  if (chest.dark) root.classList.add('dark'); // «Чёрный»: свой лист художника отсутствует — мифический рисунок в тёмном тоне
   (opts.host || document.body).appendChild(root);
   const pt = root.querySelector('.pt'), ptx = pt.getContext('2d'), shEl = root.querySelector('.sh'), cv = root.querySelector('.ch'), cx = cv.getContext('2d'), itsEl = root.querySelector('.its'), cap = root.querySelector('.cap');
   const art = chest.art || 'common', ri = ART_RI(art), cursed = String(art).startsWith('cursed_'), col = chest.color && chest.color !== '#1c1917' ? chest.color : (RARITIES[String(art).replace('cursed_', '')]?.color || '#9ca3af');

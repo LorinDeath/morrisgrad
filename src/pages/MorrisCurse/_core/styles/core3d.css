@@ -1258,3 +1258,7 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .bc-fx .bc-more { position: absolute; left: 50%; top: 20%; transform: translateX(-50%); font: bold 14px monospace; color: #fde68a; text-shadow: 2px 2px 0 #000; }
 .bc-poof { position: fixed; pointer-events: none; z-index: 210; image-rendering: pixelated; }
 .mc3d-ttop .mc3d-tbtn { position: relative; } .mc3d-ttop .mc3d-tbtn .mc-cnt { position: absolute; top: -6px; right: -6px; margin: 0; font-size: 10px; }
+
+/* «Чёрный» сундук: мифический рисунок в тёмном тоне (без свечения) */
+.bc-dark .bc-ico, .bc-dark canvas, .bc-dark img, .bc-fx.dark canvas.ch { filter: brightness(.55) saturate(.3) contrast(1.15); }
+.mc-bchest .bc-curn { color: #d8b4fe; }

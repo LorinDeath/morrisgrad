@@ -26,7 +26,7 @@ import { ENCH, ENCH_N } from "./enchant";
 // шанс проклятого моба, % — живёт в ZONE_GEN.cursedPct (там его читают зона и тесты); правится во вкладке «☠ Проклятие» (curse.cursedPct)
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
-import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, bchestErr } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, bchestErr } from "./boardChestCfg";
 import { RARITIES as RAR_NAMES } from "./shared";
 import { UPG, UPG_ORDER } from "./upgrade";
 import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, RANKS, RANK_CATS, BONUS_NAMES, reindexBtasks, type Cat } from "./board";
@@ -354,6 +354,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("maxItems", "Потолок вещей в одном сундуке", 1, 200, "int"),
     { path: "_h_bc1", label: "Ранг задания → сундук", t: "hdr" },
     ...BC_RANKS.map((r): Field => ({ path: `rankTier.${r}`, label: `Ранг ${r}`, t: "enum", opts: [...BC_TIERS], optn: Object.fromEntries(BC_TIERS.map((t) => [t, BCHEST.tiers[t].name])) })),
+    { path: "_h_bc1c", label: "Ранг → шанс, что сундук — ПРОКЛЯТЫЙ вариант своего яруса (тот же потолок чар, больше проклятых вещей), %", t: "hdr" },
+    ...BC_RANKS.map((r): Field => N(`rankCurse.${r}`, `Ранг ${r}: проклятый сундук, %`, 0, 100)),
     { path: "_h_bc1a", label: "Вид сундука по рангу — только если нужно отличие от яруса (по умолчанию «как у яруса»: вид = содержимое)", t: "hdr" },
     ...BC_RANKS.map((r): Field => ({ path: `rankArt.${r}`, label: `Ранг ${r} — вид`, t: "enum", ...{ opts: ["", ...BC_ART], optn: { "": "как у яруса", ...Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) } } })),
     { path: "_h_bc2", label: "Сколько вещей (от/до) по разделам", t: "hdr" },
@@ -364,9 +366,13 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
       { path: `tiers.${t}.minRar`, label: "Мин. редкость вещей (если в окне уровней таких нет — опускается)", t: "enum", opts: [...BC_RARS], optn: Object.fromEntries(BC_RARS.map((r) => [r, RAR_NAMES[r]?.name || r])) },
       { path: `tiers.${t}.maxRar`, label: "Макс. редкость вещей (качество не выше)", t: "enum", opts: [...BC_RARS], optn: Object.fromEntries(BC_RARS.map((r) => [r, RAR_NAMES[r]?.name || r])) },
       N(`tiers.${t}.boost`, "Сдвиг редкости: вес вещи = общий шанс дропа × boost^ступень редкости (1 — как с мобов)", 0.1, 50),
-      N(`tiers.${t}.enchMult`, "Зачарование: × общий шанс зачарованного моба (Σ «появление» ярусов ✦), по шансам — не упирается в 100 %", 0, 50), N(`tiers.${t}.enchMax`, "Ярус зачарования не выше (0 — нет, 6 — «Чёрный»)", 0, 6, "int"),
+      N(`tiers.${t}.enchMult`, "Зачарование: × общий шанс зачарованного моба (Σ «появление» ярусов ✦), по шансам — не упирается в 100 %", 0, 50), N(`tiers.${t}.enchMax`, `Ярус зачарования не выше (0 — нет; потолок яруса — ${BC_ENCH_CAP[t] ? `${BC_ENCH_CAP[t]} «${ENCH.tiers[BC_ENCH_CAP[t] - 1].name}»` : "0, без чар"})`, 0, BC_ENCH_CAP[t], "int"),
       N(`tiers.${t}.enchBoost`, "Сдвиг яруса зачарования: вес = «появление» × boost^(ярус−1)", 0.1, 50),
       N(`tiers.${t}.curseMult`, "Проклятие: × общая доля проклятых в дропе проклятого босса (☠ Проклятие), по шансам — не упирается в 100 %", 0, 100),
+      { path: `tiers.${t}.nameC`, label: "☠ Проклятый вариант: название", t: "text" },
+      { path: `tiers.${t}.artC`, label: "☠ Проклятый вариант: анимация и иконка", t: "enum", opts: [...BC_ART], optn: Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) },
+      N(`tiers.${t}.cCurseMult`, "☠ Проклятый вариант: × общая доля проклятых (вместо обычного множителя)", 0, 100),
+      { path: `tiers.${t}.dark`, label: "Тёмный тон рисунка (оба варианта; у «Чёрного» своего листа нет)", t: "bool" },
       N(`tiers.${t}.blkPct`, "Очернение (Чёрный маг): шанс очернённой вещи, %", 0, 100), N(`tiers.${t}.blkMin`, "Очернение: от, %", 1, 99, "int"), N(`tiers.${t}.blkMax`, "Очернение: до, %", 1, 99, "int"),
       N(`tiers.${t}.blkCurve`, "Очернение: перекос (>1 — чаще малое, редко большое)", 0.2, 10),
     ]),

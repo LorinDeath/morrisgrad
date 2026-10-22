@@ -1,7 +1,7 @@
 // 🎁 Сундуки наград доски: ранг → ярус, уровень вещей ±spread, потолок редкости/зачарования, количество по разделам,
 // выдача за сданное задание, хранилище (полно — задание не сдаётся), открытие (вещи внутри, переживают перезаход),
 // забрать по одной/всё при полной сумке, разобрать и надеть — проверяет сервер.
-import { BCHEST, BC_TIERS, BC_CATS, BC_RARS, BC_RANKS, rarIdx, chestOdds, rollItems, countOf, rarOdds, bchestPreview, artOf, lvlWindow, chestPool, cursePctOf, tierOfRank } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_CATS, BC_RARS, BC_RANKS, rarIdx, chestOdds, rollItems, countOf, rarOdds, bchestPreview, artOf, lvlWindow, chestPool, cursePctOf, tierOfRank, BC_ENCH_CAP, enchCapOf, rankCursePct } from "./boardChestCfg";
 import { ITEMS } from "./defs";
 import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
 import { BTASKS, boardRefresh, boardOf, boardClaim, makeRoll } from "./board";
@@ -56,7 +56,7 @@ a.hero = "warrior"; boardRefresh(a, W, ctx);
 const prep = (rank: string) => { const b = boardOf(a); const id = b.sel.daily.find((x: string) => BTASKS[x].ev === "kill" && !BTASKS[x].f && !BTASKS[x].m && W.lvl <= BTASKS[x].maxLvl) || "d_kill_b";
   if (!b.sel.daily.includes(id)) b.sel.daily.push(id); delete b.c[id];
   b.roll[id] = makeRoll(BTASKS[id], W.lvl, "x|" + id + rank, id, ["warrior"], rank, "warrior", { warrior: W.lvl }); b.p[id] = b.roll[id].n; return id; };
-{ const id = prep("S"); const r = boardClaim(a, W, id, ctx); ok(r.ok && r.chest?.tier === "cursed", `ранг S → ${r.chest?.tier} (${r.err || ""})`);
+{ const id = prep("S"); const r = boardClaim(a, W, id, ctx); ok(r.ok && r.chest?.tier === "divine", `ранг S → ${r.chest?.tier} (${r.err || ""})`);
   const c0 = chestsOf(a).list[0], rl = boardOf(a).roll[id];
   ok(chestsOf(a).list.length === 1 && rl && c0.L === rl.L && r.chest.L === rl.L && c0.hero === "warrior", `сундук в хранилище тела, уровень = уровню броска задания (${c0.L} = ${rl?.L})`); }
 // уровень задания у другого тела — свой (по телу), сундук берёт именно его
@@ -72,7 +72,7 @@ const prep = (rank: string) => { const b = boardOf(a); const id = b.sel.daily.fi
 { const id = prep("F"); const r = boardClaim(a, W, id, ctx); ok(r.ok && r.chest?.tier === "common", `ранг F → ${r.chest?.tier}`); }
 { const mx = BCHEST.maxStore; BCHEST.maxStore = 2; const id = prep("B"); const r = boardClaim(a, W, id, ctx);
   ok(!r.ok && /Сундуков наград уже 2/.test(r.err) && !boardOf(a).c[id], "хранилище полно: задание не сдано, ступень не записана: " + r.err); BCHEST.maxStore = mx;
-  const r2 = boardClaim(a, W, id, ctx); ok(r2.ok && r2.chest?.tier === "rare", "место есть — сдано, ранг B → rare"); }
+  const r2 = boardClaim(a, W, id, ctx); ok(r2.ok && r2.chest?.tier === "strange", "место есть — сдано, ранг B → strange"); }
 // 3) открытие: вещи внутри и переживают перезаход (JSON аккаунта как в store.accData)
 const relog = (x: any) => { const { inv, res, bestiary, disc, ...rest } = x; const y: any = fixAccount({ ...newAccount(), ...JSON.parse(JSON.stringify(rest)) }); y.inv = inv; y.res = res; y.bestiary = bestiary; y.disc = disc; return y; };
 let A: any = a; const big = grantChest(A, "warrior", "SS", 10, "monthly", "test")!;
@@ -111,8 +111,34 @@ ok(chestList(A).list.length === 3, "в списке остальные сунд�
   ok(pv.tiers.every((t: any) => Array.isArray(t.sample) && t.sample.length >= t.cmin && t.ranks), "пример содержимого и ранги по ярусам");
   const bad: any = bchestPreview({ "count.weekly.min": 9, "count.weekly.max": 2 }, 5, "weekly"); ok(!bad.ok && /больше/.test(bad.err), "ошибка формы: " + bad.err); }
 // 8) вид сундука: ранг → рисунок (12 вариантов), пусто — по ярусу
-ok(artOf("common", "F") === "common" && artOf("black", "SS") === "cursed_mythic" && artOf("cursed", "S") === "cursed_legendary", "вид по рангу");
+ok(artOf("common", "F") === "common" && artOf("black", "SS") === "mythic" && artOf("black", "SS", true) === "cursed_mythic" && artOf("divine", "S") === "mythic" && artOf("divine", "S", true) === "cursed_mythic" && artOf("uncommon", "D", true) === "cursed_uncommon", "вид по рангу");
 ok(BC_RANKS.every((r) => { const t = tierOfRank(r)!; return artOf(t, r) === BCHEST.tiers[t].art; }), "вид сундука = вид его яруса для всех рангов: " + BC_RANKS.map((r) => `${r}→${artOf(tierOfRank(r)!, r)}`).join(" "));
 { const keep = BCHEST.rankArt.C; BCHEST.rankArt.C = "mythic"; ok(artOf("uncommon", "C") === "mythic", "админка может задать вид рангу отдельно"); BCHEST.rankArt.C = keep; }
 { const keep = BCHEST.rankArt.C; BCHEST.rankArt.C = ""; ok(artOf("uncommon", "C") === BCHEST.tiers.uncommon.art, "пустой вид — как у яруса"); BCHEST.rankArt.C = keep; }
+// 9) потолок зачарования по ярусу сундука (1:1 с ярусами ✦) и ☠ вариант каждого яруса
+ok(BC_TIERS.join() === "common,uncommon,rare,strange,legendary,divine,black" && BC_TIERS.every((t, i) => BC_ENCH_CAP[t] === i && enchCapOf(t) === i), "7 ярусов, потолок ✦ = 0…6: " + BC_TIERS.map((t) => `${t}:${enchCapOf(t)}`).join(" "));
+ok(BC_TIERS.slice(1).every((t, i) => ENCH.tiers[enchCapOf(t) - 1].name === ["Необычный", "Редкий", "Странный", "Легендарный", "Божественный", "Чёрный"][i]), "потолок = ярусы зачарования: Необычный … Чёрный");
+{ const per: Record<string, { n: number; e: number; over: number; c: number; bc: number }> = {};
+  for (const t of BC_TIERS) for (const cur of [false, true]) { const k = t + (cur ? "☠" : ""), r = (per[k] = { n: 0, e: 0, over: 0, c: 0, bc: 0 });
+    for (let i = 0; i < 1500; i++) for (const x of rollItems(t, 22, "weekly", rnd, cur)) { r.n++; if (x.e) r.e++; if ((x.e || 0) > enchCapOf(t)) r.over++; if (x.c) r.c++; if (x.c && x.e === 6) r.bc++; } }
+  ok(per.common.e === 0 && per["common☠"].e === 0, `простой и проклятый простой: 0 зачарованных из ${per.common.n} + ${per["common☠"].n}`);
+  ok(Object.values(per).every((r) => r.over === 0), "выше потолка яруса — 0 вещей во всех 14 вариантах");
+  ok(BC_TIERS.slice(1).every((t) => per[t].e > 0), "у ярусов с потолком ≥ 1 зачарованные выпадают");
+  ok(BC_TIERS.every((t) => per[t + "☠"].c > per[t].c * 1.5 || per[t].c === 0 && per[t + "☠"].c > 0), "☠ вариант: проклятых заметно больше: " + BC_TIERS.map((t) => `${t} ${(per[t].c / per[t].n * 100).toFixed(1)}→${(per[t + "☠"].c / per[t + "☠"].n * 100).toFixed(1)}%`).join(", "));
+  ok(BC_TIERS.every((t) => t === "black" || per[t].bc + per[t + "☠"].bc === 0) && per["black☠"].bc > per.black.bc, `чёрные проклятые (☠+✦6) — только в «Чёрном» (☠ ${per["black☠"].bc} > обычный ${per.black.bc})`);
+  ok(BC_TIERS.every((t) => cursePctOf(t, true) > cursePctOf(t)), "формула: ☠ вариант > обычного для всех ярусов"); }
+// бросок ☠ по рангу: шанс из админки, SS — всегда
+ok(rankCursePct("F") === 0 && rankCursePct("SS") === 100 && BC_RANKS.every((r, i) => i === 0 || rankCursePct(r) >= rankCursePct(BC_RANKS[i - 1])), "шанс ☠ растёт с рангом, F 0 %, SS 100 %: " + BC_RANKS.map((r) => `${r} ${rankCursePct(r)}%`).join(" "));
+{ const A2: any = newAccount(); const n0 = 3000; let cu = 0; BCHEST.maxStore = 99999;
+  for (let i = 0; i < n0; i++) { const c = grantChest(A2, "warrior", "S", 10, "daily", "t", rnd)!; if (c.cur) cu++; }
+  ok(Math.abs(cu / n0 * 100 - rankCursePct("S")) < 3, `ранг S: проклятых сундуков ${(cu / n0 * 100).toFixed(1)}% ≈ ${rankCursePct("S")}%`);
+  const ss = grantChest(A2, "warrior", "SS", 10, "daily", "t", rnd)!; ok(ss.tier === "black" && ss.cur === 1, "SS → «Чёрный проклятый сундук»");
+  const f0 = grantChest(A2, "warrior", "F", 10, "daily", "t", rnd)!; ok(f0.tier === "common" && !f0.cur, "F → простой, не проклятый");
+  const fc = grantChest(A2, "warrior", "F", 10, "daily", "t", rnd, true)!; ok(fc.cur === 1, "принудительно ☠ (dev)");
+  { const k = BCHEST.rankCurse.D; BCHEST.rankCurse.D = 100; ok(grantChest(A2, "warrior", "D", 10, "daily", "t", rnd)!.cur === 1, "админка: шанс ☠ ранга D = 100 %"); BCHEST.rankCurse.D = k; }
+  const v = chestList(A2, "warrior").list.find((x: any) => x.id === ss.id); ok(v && v.cur && v.dark && v.art === "cursed_mythic" && /проклятый/i.test(v.name) && v.odds?.enchCap === 6, `вид ☠ чёрного: ${v?.name} [${v?.art}] ✦≤${v?.odds?.enchCap}`);
+  const o = chestOpen(A2, "warrior", fc.id) as any; ok(o.ok && o.chest.items.every((x: any) => !x.e), "проклятый простой открыт: без чар"); }
+// старые сундуки в хранилище: ярус «cursed» → проклятый божественный, «black» → чёрный проклятый
+{ const A3: any = newAccount(); A3.chests = { seq: 3, list: [{ id: 1, tier: "cursed", L: 5, cat: "daily", rank: "S", hero: "warrior", src: "x", at: 1 }, { id: 2, tier: "black", L: 5, cat: "daily", rank: "SS", hero: "warrior", src: "x", at: 1 }, { id: 3, tier: "rare", L: 5, cat: "daily", rank: "C", hero: "warrior", src: "x", at: 1 }] };
+  const L3 = chestsOf(A3).list; ok(L3.length === 3 && L3[0].tier === "divine" && L3[0].cur === 1 && L3[1].tier === "black" && L3[1].cur === 1 && !L3[2].cur, "миграция старых ярусов: " + L3.map((c: any) => c.tier + (c.cur ? "☠" : "")).join(", ")); }
 console.log(f ? `FAILED ${f}` : "bchest ok"); process.exit(f ? 1 : 0);

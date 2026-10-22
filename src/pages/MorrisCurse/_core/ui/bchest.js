@@ -71,7 +71,7 @@ export class BchestWindow {
   }
   poofSel(id) { const r = this.el?.querySelector(`.bc-list [data-id="${id}"]`)?.getBoundingClientRect() || this.el?.querySelector('.bc-pane')?.getBoundingClientRect(); if (r) poof(r); if (this.sel === id) this.sel = null; this.cell = null; }
   /** иконка сундука + значок уровня (= уровень задания) */
-  ico(c, size, scale = 1, badge = true) { const i = this.ico0(c, size, scale); return badge && c.L ? `<span class="bc-icw" title="${esc(this.tag(c))}">${i}<b class="bc-lv${size * scale < 30 ? ' s' : ''}">${c.L}</b></span>` : i; }
+  ico(c, size, scale = 1, badge = true) { const i0 = this.ico0(c, size, scale), i = c.dark ? `<span class="bc-dark">${i0}</span>` : i0; return badge && c.L ? `<span class="bc-icw" title="${esc(this.tag(c))}">${i}<b class="bc-lv${size * scale < 30 ? ' s' : ''}">${c.L}</b></span>` : i; }
   /** «SS · Ур. 12 · вещи 10–14» */
   tag(c) { const o = c.odds || {}; return `${c.rank} · Ур. ${c.L} · вещи ${o.lo === o.hi ? o.lo : `${o.lo}–${o.hi}`}`; }
   ico0(c, size, scale = 1) { return chestIco(this.A, this.icoUrl[size], c.art, c.opened ? 'open' : 'closed', size, scale) || `<i class="bc-ico fb" style="--cc:${esc(c.color)};width:${size * scale}px;height:${size * scale}px"></i>`; }
@@ -83,7 +83,7 @@ export class BchestWindow {
     list.innerHTML = L.length ? L.map((c) => `<button class="bc-row${c.id === this.sel ? ' on' : ''}${c.hero !== me ? ' other' : ''}" data-id="${c.id}" style="--cc:${esc(c.color)}">${this.ico(c, 40)}
         <span class="t"><b style="color:${esc(textCol(c.color))}">${esc(c.name)}</b><small class="lvl">${esc(this.tag(c))}</small><small>${esc(CAT[c.cat] || c.cat)}</small>
         <small>${c.opened ? `открыт · внутри ${c.items?.length || 0}` : `вещей ${c.odds.cmin}–${c.odds.cmax}`}${c.hero !== me ? ` · 🔒 ${esc(c.heroName)}` : ''}</small></span></button>`).join('')
-      : `<div class="bc-empty">Сундуков пока нет.<br><small>Сдайте задание с рангом (доска 📋, клавиша U) — за ранг дают сундук: F–E простой … SS чёрный проклятый.</small></div>`;
+      : `<div class="bc-empty">Сундуков пока нет.<br><small>Сдайте задание с рангом (доска 📋, клавиша U) — за ранг дают сундук: F–E простой, D добротный, C редкий, B странный, A легендарный, S божественный, SS чёрный; иногда — проклятый вариант (у SS всегда).</small></div>`;
     list.querySelectorAll('[data-id]').forEach((b) => { b.onclick = () => { this.sel = Number(b.dataset.id); this.cell = null; this.hideCmp(); this.msg(''); this.render(); }; });
     const pane = this.el.querySelector('.bc-pane'), c = this.cur();
     if (!c) { pane.innerHTML = L.length ? '<div class="bc-empty">Выберите сундук слева</div>' : ''; return; }
@@ -95,8 +95,8 @@ export class BchestWindow {
           <small>Тело: ${esc(c.heroName)}${mine ? '' : ' — откройте, играя им'}</small></div></div>
         <div class="bc-odds"><div class="row">Вещей: <b>${o.cmin === o.cmax ? o.cmin : `${o.cmin}–${o.cmax}`}</b> · уровень вещей <b>${o.lo}–${o.hi}</b></div>
           <div class="row mc-dim">Качество (шанс на каждую вещь):</div>${rar || '<div class="mc-dim">нет подходящих вещей</div>'}
-          <div class="row">✦ Зачарование: <b>${fmtP(o.enchPct)}</b>${en ? ` <small>(${en})</small>` : ''}</div>
-          <div class="row">☠ Проклятые вещи: <b>${fmtP(o.cursePct)}</b>${o.blackCursed > 0 ? ` <small>· из них чёрные проклятые (☠ + «${esc(enchName(6))}») ≈ ${o.blackCursed >= 1 ? fmtP(o.blackCursed) : (+o.blackCursed).toFixed(2) + '%'} от всех вещей</small>` : ''}</div>
+          <div class="row">✦ Зачарование: ${o.enchCap ? `<b>${fmtP(o.enchPct)}</b>${en ? ` <small>(${en})</small>` : ''} <small>· не выше «<span style="color:${enchText(o.enchCap)}">${esc(enchName(o.enchCap))}</span>»</small>` : '<b>нет</b> <small>· в простом сундуке вещи без зачарования</small>'}</div>
+          ${c.cur ? `<div class="row bc-curn">☠ <b>Проклятый сундук</b> <small>· тот же потолок зачарования, что у яруса, но проклятых вещей больше</small></div>` : ''}<div class="row">☠ Проклятые вещи: <b>${fmtP(o.cursePct)}</b>${o.blackCursed > 0 ? ` <small>· из них чёрные проклятые (☠ + «${esc(enchName(6))}») ≈ ${o.blackCursed >= 1 ? fmtP(o.blackCursed) : (+o.blackCursed).toFixed(2) + '%'} от всех вещей</small>` : ''}</div>
           <div class="row">🌑 Очернённые (Чёрный маг): ${o.blkPct > 0 ? `<b>${fmtP(o.blkPct)}</b> <small>· статы −${o.blkMin}…${o.blkMax}%, чаще малое</small>` : '<b>нет</b>'}</div></div>
         <footer><button class="btn gold all bc-open"${mine ? '' : ' disabled'}>Открыть</button><small>${mine ? 'Вещи бросаются при открытии и ждут в сундуке, пока не заберёте' : `Сундук героя ${esc(c.heroName)}`}</small></footer>`;
       pane.querySelector('.bc-open').onclick = () => { if (!mine || this.fx) return; this.msg('Открываем…'); this.send({ type: 'bchest_open', id: c.id }); };
