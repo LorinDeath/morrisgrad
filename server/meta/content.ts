@@ -34,7 +34,7 @@ const BAND = (L: number) => `Мэлвелдил ${["I", "II", "III", "IV", "V"][
 function hash(s: string): number { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
-function statRound(k: string, v: number): number {
+export function statRound(k: string, v: number): number {
   if (k === "armor" || k === "hp" || k === "magnetPct") return Math.max(1, Math.round(v));
   if (k === "regen") return Math.max(0.1, r1(v));
   if (k === "lifestealPct") return Math.max(0.5, Math.round(v * 2) / 2);

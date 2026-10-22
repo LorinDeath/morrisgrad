@@ -230,6 +230,8 @@ export class AdminPanel {
     }
     if (r.kind === 'board' && r.values) { const e = this.cat.ent.board?.[0]; if (e) e.values = r.values; }
     if (r.kind && r.values) { const e = this.cat.ent?.[r.kind]?.find((x) => x.id === r.id); if (e) { e.values = r.values; if (r.kind === 'item') e.lvl = Math.max(1, r.values.req || 1, r.values.lvl || 1); if (r.kind === 'mob') e.lvl = r.values.lvl; } }
+    // копии трофеев вариантов: правка базы сразу меняет наследующие копии; своя правка копии — «своя строка»
+    if (Array.isArray(r.copies)) for (const c of r.copies) { const e = this.cat.ent?.item?.find((x) => x.id === c.id); if (e) { e.values = c.values; e.inh = c.inh; e.lvl = c.lvl; } }
     if (r.op === 'quest' && r.withDialogue) { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
     if (r.op === 'quest' && r.quest) { this.onQuestApplied?.(r); const i = this.cat.quests.findIndex((x) => x.id === r.quest.id); const row = { id: r.quest.id, title: r.quest.title, npc: r.quest.npc, custom: !r.builtin, edited: r.builtin && !r.reset, requires: r.quest.requires || [], minLevel: r.quest.minLevel, stars: Object.values(r.quest.rewards?.stars || {}).reduce((a, b) => a + b, 0), def: r.quest }; if (i >= 0) this.cat.quests[i] = row; else this.cat.quests.push(row); this.sel = r.quest.id; }
     if (r.op === 'dialogue') { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
@@ -300,7 +302,7 @@ export class AdminPanel {
   onAudit(rows) { this.audit = rows; if (this.tab === 'audit') this.render(); }
   items() {
     if (!this.cat) return [];
-    const row = (e, kind, pre = '') => ({ id: pre + e.id, name: `${e.icon || ''} ${e.name}`.trim(), sub: e.id, lvl: e.lvl, kind });
+    const row = (e, kind, pre = '') => ({ id: pre + e.id, name: `${e.icon || ''} ${e.name}`.trim(), sub: e.part ? `${e.id} · ${e.inh ? 'наследует от' : 'копия'} ${e.part}` : e.id, lvl: e.lvl, kind });
     if (this.tab === 'quest') return [{ id: '__tree', name: '🌳 Дерево квестов' }, { id: '__new', name: '＋ Новый квест' }, ...this.cat.quests.map((q) => ({ id: q.id, name: q.title, stars: q.stars, lvl: q.minLevel, sub: (q.custom ? '✚ ' : q.edited ? '✎ ' : '📖 ') + q.npc }))];
     if (this.tab === 'audit' || this.tab === 'perf') return [];
     // Оружие: типы (форма удара, черты) + конкретное оружие-предметы с требуемым уровнем надевания (item.req/lvl)
@@ -431,6 +433,7 @@ export class AdminPanel {
       return `<label title="${f.path} · ${f.min ?? ''}…${f.max ?? ''}"><span>${ic}${esc(f.label)}</span>${inp}</label>`;
     };
     sec.innerHTML = `<h3>${esc(e.icon || '')} ${esc(e.name)} <small style="color:#9a8bb8">${esc(kind)}:${esc(e.id)}</small>${e.lvl ? ` <span class="lv" style="color:#86efac">ур. ${e.lvl}</span>` : ''}</h3>
+      ${kind === 'item' && e.part ? `<p class="inh"><small>${e.inh ? `🔗 <b>наследует от ${esc(e.part)}</b> (${esc(e.partName || '')}): навык R, черты и разбор — как у базы, уровень — уровень моба-варианта, статы — профиль базы по силе соседей этого уровня. Правка базы сразу меняет эту копию. «Сохранить» создаст свою строку копии в D1 (она важнее наследования); «Вернуть исходное» — снова наследовать.` : `✎ копия ${esc(e.part)} (${esc(e.partName || '')}) — <b>своя строка в D1</b>, важнее наследования от базы; «Вернуть исходное» удалит её, и копия снова будет наследовать базу.`}</small></p>` : ''}
       ${kind === 'item' && e.slot === 'weapon' ? `<p><small>Оружие: требуемый уровень надевания = max(«Треб. уровень» <code>req</code>, «Ур. предмета» <code>lvl</code>); проверяет сервер при экипировке. Тип: ${esc(e.wtype || '—')}</small></p>` : ''}
       ${kind === 'loot' ? this.lootHtml(v) : `<div class="grid">${mainHdr}${S.fields.map(field).join('')}</div>`}
       ${S.traits ? `<div class="box"><b>Черты / эффекты</b> <small>(как Traits в RPG Maker MZ — срабатывают на сервере при попадании)</small><div class="traits"></div>
