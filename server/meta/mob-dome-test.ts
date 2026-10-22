@@ -33,4 +33,14 @@ t("под куполом: моб не берёт игрока целью", d.tgt
 { const m: any = pool[k++]; m.x = 20000; m.y = 9000; m.sx = 20000; m.sy = 9000 - ZONE_GEN.leash - 200; m.reset = false; m.spOk = 1; m.dead = false; m.hp = m.maxHp; m.targetSid = "p1";
   const PL = new Map([["p1", { sid: "p1", x: 20000, y: 9050, hp: 1e12, maxHp: 1e12, alive: true, lvl: 5 } as any]]); z.pl = PL; z.update(0.05, Date.now(), PL, () => {}, () => {});
   t("поводок: утащенный далеко моб сбрасывается как раньше", m.reset === true); }
+
+// у самого края изнутри: моб не «висит» на кольце с целью (урон там 0 в обе стороны) — теряет её
+t("у края изнутри (R-10): моб без цели, урона игроку нет", a3.tgt <= 2 && a3.got === 0, a3);
+// дома мобов: пересборка лагерей (админка) и новые мобы — не под куполом
+{ const regs = z.gen.regions.filter((r: any) => r.table.length && r.rect[0] < CITY_CFG.x + R && r.rect[2] > CITY_CFG.x - R && r.rect[1] < CITY_CFG.y + R && r.rect[3] > CITY_CFG.y - R);
+  for (const r of regs) z.regenRegion(r.id);
+  const bad2 = z.mobs.filter((m: any) => !m.dead && m.respawnAt !== -1 && m.special !== "boss" && Math.hypot(m.sx - CITY_CFG.x, m.sy - CITY_CFG.y) < R + 60);
+  t("пересборка лагерей у города: ни одного дома моба под куполом (R+60)", regs.length > 0 && bad2.length === 0, [regs.length, bad2.length]);
+  const nm: any = z.addMob(pool[0].type, CITY_CFG.x + 200, CITY_CFG.y + 100, {});
+  t("новый моб с точкой под куполом — дом за краем", Math.hypot(nm.sx - CITY_CFG.x, nm.sy - CITY_CFG.y) > R + 60 && nm.x === nm.sx, Math.round(Math.hypot(nm.sx - CITY_CFG.x, nm.sy - CITY_CFG.y))); }
 console.log(`\n${ok} ok, ${bad} fail`); if (bad) process.exit(1);

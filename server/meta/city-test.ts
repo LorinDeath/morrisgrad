@@ -141,7 +141,7 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
   const z: any = new Zone("arinar", [], [], { proc: true, seed: ZONE_GEN.seed }); z.keepOut = cityKeepOut(); const R = cityR();
   const m: any = z.mobs.find((q: any) => !q.dead && q.special !== "boss"), b: any = z.mobs.find((q: any) => !q.dead && q !== m && q.special !== "boss"); if (b) b.special = "boss"; // особый «босс» (в тестовой зоне боссы не заспавнены)
   const put = (q: any) => { q.x = CITY_CFG.x + 100; q.y = CITY_CFG.y + 50; q.reset = true; z.events.length = 0; z.solid(q); return Math.hypot(q.x - CITY_CFG.x, q.y - CITY_CFG.y); };
-  t("купол/моб: по умолчанию 40 / 24 / боссы тоже / вспышка", CITY_CFG.mobPushPx === 40 && CITY_CFG.mobAggroPadPx === 24 && CITY_CFG.mobBossesOut === true && CITY_CFG.mobDomeFlash === true);
+  t("купол/моб: по умолчанию 40 / 0 / боссы тоже / вспышка", CITY_CFG.mobPushPx === 40 && CITY_CFG.mobAggroPadPx === 0 && CITY_CFG.mobBossesOut === true && CITY_CFG.mobDomeFlash === true);
   t("купол/моб: выталкивается на R + 40", m && Math.abs(put(m) - (R + 40)) < 1.5, m && put(m));
   m.domeFlashAt = 0; put(m); const ev1 = z.events.filter((e: any) => e.k === "dome_repel").length; put(m); const ev2 = z.events.filter((e: any) => e.k === "dome_repel").length;
   t("купол/моб: вспышка при выталкивании, повтор — не чаще раза в 3 с", ev1 === 1 && ev2 === 0, [ev1, ev2]);

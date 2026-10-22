@@ -52,7 +52,7 @@ export const CITY_CFG: any = {
   noDamage: true,           // внутри — урон 0 (атаки, навыки, снаряды, статусы — в обе стороны)
   mobsOut: true,            // мобы не заходят внутрь, лагеря внутри убраны
   mobPushPx: 40,            //   моб у купола: выталкивается за край на столько px
-  mobAggroPadPx: 24,        //   цель ушла под купол глубже края на столько px — моб сбрасывает агро (уходит домой)
+  mobAggroPadPx: 0,         //   цель ушла под купол глубже края на столько px — моб теряет цель (0 — сразу за кольцом: внутри урон 0 в обе стороны, моб не «висит» на краю)
   mobBossesOut: true,       //   боссы тоже не заходят (выкл — босс может войти; агро всё равно сбрасывается, урон внутри 0)
   mobDomeFlash: true,       //   вспышка купола, когда он выталкивает моба (тот же эффект, что у игрока; не чаще раза в 3 с на моба)
   nodesOut: true,           // узлы ресурсов под куполом — сразу за край (после перезапуска)
@@ -129,7 +129,7 @@ export function pushOut(x: number, y: number, extraPx = 0): [number, number] {
 
 /** запасы «моб ↔ купол» из админки (Город → Безопасная зона), в пределах — как в форме */
 export const cityMobPushPx = () => { const v = Number(CITY_CFG.mobPushPx); return Number.isFinite(v) ? Math.max(0, Math.min(400, v)) : 40; };
-export const cityMobAggroPadPx = () => { const v = Number(CITY_CFG.mobAggroPadPx); return Number.isFinite(v) ? Math.max(0, Math.min(200, v)) : 24; };
+export const cityMobAggroPadPx = () => { const v = Number(CITY_CFG.mobAggroPadPx); return Number.isFinite(v) ? Math.max(0, Math.min(200, v)) : 0; };
 /** купол для зоны мобов (Zone.keepOut): мобы не заходят, выталкиваются на mobPushPx; боссы — по mobBossesOut; агро — сброс с запасом
  *  mobAggroPadPx; вспышка купола — mobDomeFlash. Деспауна/убийства у края нет намеренно (иначе фарм опыта, заманивая мобов к куполу) */
 export function cityKeepOut() {
