@@ -240,6 +240,7 @@ export interface ItemDef {
   id: string; name: string; slot: string; rarity: string; classes?: HeroId[]; stats: ItemStats; lore: string; icon: string;
   monster?: string; look?: string; grantsAbility?: string; band?: string; // band — зона/полоса силы
   lvl?: number; req?: number; wtype?: string; // уровень предмета (= уровень моба-источника), требуемый уровень героя, тип оружия
+  from?: string; part?: string; // копия трофея варианта биома: from — вариант-источник, part — базовый предмет комплекта
 }
 
 // Тип оружия героя в открытом мире: визуал выстрела (спрайт FX atlas v2 у клиента) и статус (сервер-авторитет).

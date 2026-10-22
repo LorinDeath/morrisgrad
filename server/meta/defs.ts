@@ -28,6 +28,8 @@ export const ITEMS: ItemDef[] = [
   { id: "aezer_staff", name: "Посох эфира Аезера", slot: "weapon", rarity: "rare", classes: ["mage"], stats: { dmgMin: 8, dmgMax: 11, cdrPct: 3 }, icon: "🪄", band: "ремесло", lvl: 6, req: 6, wtype: "staff", lore: "Белые маги не любили вопросов." },
   { id: "padded_coat", name: "Стёганая куртка", slot: "armor", rarity: "common", stats: { armor: 2, hp: 5 }, icon: "🧥", band: "старт", lvl: 1, req: 1, lore: "Тёплая. Это главное." },
   { id: "melveldil_sandals", name: "Сандалии Мэлвелдила", slot: "legs", rarity: "rare", stats: { speedPct: 7, regen: 0.2 }, icon: "👡", band: "ремесло", lvl: 5, req: 5, lore: "Лэйр говорит: в них земля сама толкает вперёд." },
+  // копии трофеев вариантов биомов под их уровень (content.ts) — строго в конце: номера старых предметов в пуле не меняются
+  ...(CONTENT.variantItems as ItemDef[]),
 ];
 // требование уровня = уровень предмета (если не задано строже); попадает в D1 items.req_level через library.ts
 for (const it of ITEMS) { it.lvl = Math.max(1, it.lvl || 1); it.req = Math.max(it.req || 1, it.lvl); }
@@ -100,14 +102,28 @@ export function weaponType(itemId: string | null | undefined, cls: string | null
 
 
 // Таблица трофеев есть у КАЖДОГО моба открытого мира (у вариантов биомов — копия базовой), чтобы в админке «Дроп»
-// редактировался любой из ZONE_MOBS отдельно. Без правок админа дроп варианта совпадает с базовым (как было).
+// редактировался любой из ZONE_MOBS отдельно. Шансы варианта — как у базы, но предметы — копии под уровень варианта
+// (VARIANT_GEAR): уровень вещи = уровню моба-источника, как у всех Отголосков.
+export const VARIANT_GEAR: Record<string, Record<string, string>> = CONTENT.variantGear;
 for (const [k, d] of Object.entries(ZONE_MOBS)) {
   if (MONSTER_LOOT[k]) continue;
   const b = MONSTER_LOOT[(d as any).base || ""];
   MONSTER_LOOT[k] = b
-    ? { ...b, name: d.name, lvl: d.lvl, gear: b.gear.map((g) => ({ ...g })), materials: b.materials.map((r) => ({ ...r, qty: [...r.qty] as any })) }
+    ? { ...b, name: d.name, lvl: d.lvl, gear: b.gear.map((g) => ({ ...g, item: VARIANT_GEAR[k]?.[g.item] || g.item })), materials: b.materials.map((r) => ({ ...r, qty: [...r.qty] as any })) }
     : { name: d.name, kind: "zone", lvl: d.lvl, stats: { hp: d.hp, dmg: d.dmg, armor: d.armor || 0, speed: String(d.speed) }, abilitiesText: [], gear: [], materials: [] } as any;
 }
+
+// «Свой» трофей моба по слоту (таблицы БЕЗ правок админа): страж уровня добычи (profile.ts lootLvlFit) подменяет
+// вещь вне окна уровня моба на его собственную вещь того же слота.
+export const OWN_GEAR: Record<string, Record<string, string>> = {};
+for (const [k, m] of Object.entries(MONSTER_LOOT)) {
+  const o: Record<string, string> = (OWN_GEAR[k] = {});
+  for (const g of m.gear) { const it = ITEM_BY_ID[g.item]; if (it?.slot && !o[it.slot]) o[it.slot] = g.item; }
+}
+/** уровень моба для окна добычи: ZONE_MOBS (варианты — свой), иначе таблица (забеги run_*) */
+export function lootMobLvl(key: string): number { return ZONE_MOBS[key]?.lvl || MONSTER_LOOT[key]?.lvl || 0; }
+/** базовый предмет комплекта (копия варианта → предмет базы; облик и цели «надеть трофей» считаются по нему) */
+export const partOf = (id: string): string => (ITEM_BY_ID[id] as any)?.part || id;
 
 // Разбор предмета: что даёт. По умолчанию — осколки души по редкости (как было); админка может задать
 // своё (поле предмета «salvage»: { ресурс: кол-во }). Источник правды для разбора, массового разбора и превью.

@@ -69,7 +69,7 @@ export function itemCard(id: string) {
   const ab = it.grantsAbility ? ABILITY_BY_ID[it.grantsAbility] : null;
   return {
     n: ITEM_INDEX[it.id], id: it.id, name: it.name, slot: it.slot, rarity: it.rarity, lvl: it.lvl || 1, req: it.req || 1, wtype: it.wtype || null, stats: it.stats, cstats: cursedStats(it.stats), icon: it.icon, // cstats — статы проклятой версии (база × CURSE.statMult)
-    lore: it.lore, classes: it.classes || null, band: it.band || null, monster: it.monster || null, monsterName: it.monster ? ZONE_MOBS[it.monster]?.name || null : null,
+    lore: it.lore, classes: it.classes || null, band: it.band || null, monster: it.monster || null, monsterName: it.from || it.monster ? ZONE_MOBS[it.from || it.monster!]?.name || null : null,
     look: look ? { id: look.id, name: look.name, bonus: look.bonus, parts: look.parts.length } : null,
     ability: ab ? { id: ab.id, name: ab.name, icon: ab.icon, desc: ab.desc, cd: ab.cd } : null,
     sources: itemSources(id).map((s) => ({ mob: s.mob, name: s.mob.startsWith("craft:") ? "Ремесло у Петра" : (ZONE_MOBS[s.mob.replace(/^run_/, "")]?.name || s.mob) + (s.mob.startsWith("run_") ? " (забег)" : ""), chance: s.mob.startsWith("craft:") ? s.chance : Math.min(100, s.chance * CURSE.equipDropMult) })),

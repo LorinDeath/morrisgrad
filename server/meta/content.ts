@@ -2,11 +2,13 @@
 // фиксированными статами по уровню источника и редкости), таблицы добычи, материалы, облики и навыки монстров.
 // Детерминированно (без случайности): одинаковый результат на сервере и клиенте.
 import { BESTIARY, type MobSpec } from "./bestiary";
+import { VARIANTS } from "./biomes";
 import { weaponHitMult, AFFIX_MAX_SHARE, ITEM_LINE_CAP, mobStats, itemBudget, weaponAvg, STAT_COST, SLOT_PROFILE, ARCHETYPE_SLOT, itemReqLevel, DROP_PCT, BOSS_DROP_PCT, RARE_DROP_PCT, SET_PIECE_MULT, tierOf, type GearArchetype } from "./balance";
 
 export interface GenItem {
   id: string; name: string; slot: string; rarity: string; stats: Record<string, number>; lore: string; icon: string;
   monster: string; look?: string; grantsAbility?: string; band: string; lvl: number; req: number; wtype?: string;
+  from?: string; part?: string; // копия трофея под уровень варианта биома: from — вариант-источник, part — базовый предмет комплекта
 }
 export interface GenLoot {
   name: string; kind: "zone" | "run" | "boss"; lvl: number; tier: number; size: string; role: string; rare: boolean; where: string[];
@@ -126,7 +128,28 @@ export function buildContent() {
         materials: L.kind === "boss" ? materials : materials.map((x) => ({ ...x, chance: Math.round(x.chance * 0.15 * 10) / 10, qty: [1, 1] as [number, number] })) };
     }
   }
-  return { items, loot, runLoot, zoneMobs, resources, abilities };
+  // Варианты биомов («Стальной паук» 9 ур. от «Паука-гнильца» 13 ур.): раньше роняли ПРЕДМЕТЫ БАЗЫ — с её уровнем
+  // (сундук лагеря 9–10 ур. давал вещи 12–14 ур.). Теперь у варианта, чей уровень отличается от базы, — свои копии
+  // трофеев: те же имя/слот/редкость/тип оружия/архетип/облик, статы и уровень — по уровню варианта.
+  // Копии дописываются В КОНЕЦ пула (defs.ts), порядковые номера старых предметов не меняются.
+  const variantItems: GenItem[] = [];
+  const variantGear: Record<string, Record<string, string>> = {}; // вариант → { базовый предмет → копия }
+  const byId = Object.fromEntries(BESTIARY.map((m) => [m.id, m]));
+  for (const v of VARIANTS) {
+    const m = byId[v.base];
+    if (!m || m.lvl === v.lvl) continue;
+    const map: Record<string, string> = (variantGear[v.id] = {});
+    SLOT_KEYS.forEach(([k, slot], si) => {
+      const baseId = m.legacy?.[k] || `${m.id}_${slot}`;
+      const b = items.find((x) => x.id === baseId);
+      if (!b) return;
+      const id = `${v.id}_${slot}`;
+      variantItems.push({ ...b, id, stats: genItemStats(slot, v.lvl, b.rarity, hash(m.id) + si, b.wtype, archetypeOf(hash(m.id))),
+        lore: `${SLOT_LORE[slot]}: «${v.name}». ${m.lore}`, band: BAND(v.lvl), lvl: v.lvl, req: itemReqLevel(v.lvl), from: v.id, part: baseId });
+      map[baseId] = id;
+    });
+  }
+  return { items, loot, runLoot, zoneMobs, resources, abilities, variantItems, variantGear };
 }
 
 export const CONTENT = buildContent();

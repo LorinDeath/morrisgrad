@@ -16,7 +16,7 @@ import { ENCH, parseTag, tagOf, tierDef, tierOk, weightedTier, enchClient } from
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
-  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS,
+  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS, OWN_GEAR, lootMobLvl, partOf,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
 import { condFail } from "./questConds";
@@ -86,7 +86,7 @@ export function blackenEquipped(a: Account, h: Hero, add: number): number {
   return n;
 }
 export function activeLook(a: Account, h: Hero): string | null {
-  const ids = new Set(equippedItems(a, h).map((e) => e.id));
+  const ids = new Set(equippedItems(a, h).map((e) => partOf(e.id))); // копия трофея варианта биома — та же часть комплекта
   for (const look of Object.values(LOOKS)) if (look.parts.every((p) => ids.has(p))) return look.id;
   return null;
 }
@@ -510,10 +510,25 @@ export type LootMode = "world" | "base" | "raw";
  *   выпавшая проклятая копия с шансом ENCH.comboPct ещё и зачарована (ярус — по весам).
  * ench — ярус моба: каждая экипировка отдельно бросается как копия яруса (шанс строки × itemChance яруса), при неудаче — младшего
  *   (ENCH.dropLower), не больше одной копии на строку. */
+/** Страж уровня добычи (CHEST.lvlGuard, окно lvlDown…lvlUp вокруг уровня моба): вещь вне окна (например, правка
+ *  «Дроп» в админке со старым предметом базы) — подменяется «своей» вещью моба того же слота, а если и её нет в окне —
+ *  не выпадает. Без правок админа все вещи и так ровно уровня моба. null — не ронять. */
+export function lootLvlFit(item: string, monster: string): string | null {
+  const it = ITEM_BY_ID[item];
+  if (!CHEST.lvlGuard || !it?.slot) return item;
+  const L = lootMobLvl(monster);
+  if (!L) return item;
+  const ok = (x: string | undefined) => { const l = (x && ITEM_BY_ID[x]?.lvl) || 1; return l <= L + Math.max(0, Number(CHEST.lvlUp) || 0) && l >= L - Math.max(0, Number(CHEST.lvlDown) || 0); };
+  if (ok(item)) return item;
+  const own = OWN_GEAR[monster]?.[it.slot];
+  return own && ok(own) ? own : null;
+}
 export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1, cursedRoll = false, mode: LootMode = "base", ench = 0): { items: string[]; res: Record<string, number> } {
-  const m = MONSTER_LOOT[monster];
+  const m0 = MONSTER_LOOT[monster];
   const out = { items: [] as string[], res: {} as Record<string, number> };
-  if (!m) return out;
+  if (!m0) return out;
+  // таблица со стражем уровня: шанс строки сохраняется, предмет — в окне уровня моба
+  const m = { ...m0, gear: m0.gear.flatMap((g) => { const x = lootLvlFit(g.item, monster); return x ? [x === g.item ? g : { ...g, item: x }] : []; }) };
   const gc = (g: { item: string; chance: number }) => (mode === "raw" ? g.chance : dropChance(g));
   const mc = (r: { chance: number }) => (mode === "world" ? matChance(r) : r.chance);
   for (const g of m.gear) if (rng() * 100 < Math.min(100, gc(g) * mul)) out.items.push(g.item);
