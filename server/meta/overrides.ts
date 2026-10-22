@@ -355,7 +355,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     ...[0, 1, 2, 3, 4, 5].flatMap((b) => [N(`bands.${b}`, `Полоса ${b + 1}: до уровня`, 1, 30, "int"), ...[0, 1, 2, 3, 4].map((d) => N(`xp.${b}.${d}`, `Полоса ${b + 1} · сложность ${d + 1}, %`, 0, 100))]),
     N("refPlus", "Уровень цели + N — потолок для опыта", 0, 30, "int"), N("capPct", "Потолок опыта доски в сутки, % уровня", 0, 500),
     { path: "_h_b4", label: "Обучение", t: "hdr" }, { path: "tutOn", label: "Обучение включено", t: "bool" }, { path: "tutSkip", label: "Можно пропустить целиком", t: "bool" },
-    N("tutVetLvl", "Опытный игрок с уровня (обучение засчитано без наград)", 1, 31, "int"),
+    { path: "dailyFixed", label: "Ежедневные у всех каждый день (id через запятую)", t: "ltext" }, N("tutVetLvl", "Опытный игрок с уровня (обучение засчитано без наград)", 1, 31, "int"),
     { path: "_h_b5", label: "Удобство (QoL)", t: "hdr" }, { path: "qol.help", label: "Справка по управлению (F1 / ❔)", t: "bool" }, { path: "qol.lowHp", label: "Предупреждение о низком ОЗ", t: "bool" },
     N("qol.lowHpPct", "Низкое ОЗ, %", 5, 80, "int"), { path: "qol.lvlInfo", label: "Что открылось на новом уровне", t: "bool" }, { path: "qol.talentNag", label: "Напоминание о свободных очках талантов", t: "bool" },
     { path: "qol.bmArrow", label: "Стрелка трекера к Чёрному магу (живая позиция)", t: "bool" },
@@ -372,6 +372,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     ...[0, 1, 2, 3, 4].flatMap((i) => [N(`n.${i}`, `Ступень ${i + 1}: сколько (0 — нет)`, 0, 1000000, "int"), N(`d.${i}`, `Ступень ${i + 1}: сложность 1–5`, 0, 5, "int")]),
     { path: "res", label: "Материалы за ступень (× номер ступени)", t: "resmap" }, { path: "item", label: "Предмет за последнюю ступень (id)", t: "text" },
     { path: "auto", label: "Обучение: засчитать само (lvl:5, equipped:1…)", t: "text" },
+    { path: "hidden", label: "Скрытое («???» до выполнения)", t: "bool" },
   ] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
@@ -449,7 +450,7 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
 }
-const BT_FLAGS = new Set(["elite", "cursed", "ench", "party", "solo", "rare", "boss", "wboss", "lvl", "min"]);
+const BT_FLAGS = new Set(["elite", "cursed", "ench", "party", "solo", "rare", "boss", "wboss", "lvl", "min", "night", "midnight", "hp10", "wearc", "wearc5", "dark50", "naked"]);
 function validateBtask(id: string, out: any): string | null {
   const T = TABLES.btask[id], get = (p: string, d: any) => (out[p] !== undefined ? out[p] : p.split(".").reduce((x: any, k) => x?.[k], T) ?? d);
   let prev = 0, end = false;

@@ -138,7 +138,7 @@ export class Social {
         if (msg.accept) {
           const c = await this.fr.count(me);
           if (c.friends >= MAX_FRIENDS) return err(`Друзей не больше ${MAX_FRIENDS}`);
-          await this.fr.addFriend(me, from); ok("Теперь вы друзья!");
+          await this.fr.addFriend(me, from); ok("Теперь вы друзья!"); try { (this as any).onFriend?.(me, from); } catch (_) {}
         } else await this.fr.delReq(from, me);
         await this.refresh(me); await this.refresh(from);
         return;

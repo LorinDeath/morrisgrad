@@ -1364,6 +1364,7 @@ export class GameRoom extends DurableObject {
               role: this.meta.roleOfSid(session.id),
               text: cleanText,
             });
+            if (Date.now() - ((session as any).chatBoardAt || 0) > 10000) { (session as any).chatBoardAt = Date.now(); this.meta.bev(session, { type: "chat" }); } // доска заданий: не чаще раза в 10 с
             for (const [ws, s] of this.sessions.entries()) {
               if ((s.world || "hellfire") === (session.world || "hellfire")) {
                 try { ws.send(chatPayload); } catch (_) { this.sessions.delete(ws); }

@@ -58,7 +58,7 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
 // периоды: смена суток по Киеву
 { const { a, h } = mk(); h.lvl = 10; const t0 = Date.UTC(2026, 9, 22, 20, 59); // 23:59 Киев
   boardRefresh(a, h, ctx, t0); const b = boardOf(a);
-  ok((b.sel.daily || []).length === BOARD_CFG.dailyN, `ежедневных выбрано ${b.sel.daily?.length}`);
+  ok((b.sel.daily || []).length === BOARD_CFG.dailyN + 1 && b.sel.daily.includes("d_bmage"), `ежедневных выбрано ${b.sel.daily?.length} (+«Найти Чёрного мага» у всех)`);
   ok(new Set(b.sel.daily.map((id: string) => BTASKS[id].ev + BTASKS[id].f)).size === b.sel.daily.length, "ежедневные разные по типу");
   const d0 = b.sel.daily[0]; b.p[d0] = 1; b.c[d0] = 1;
   boardRefresh(a, h, ctx, t0 + 30e3); ok(b.c[d0] === 1, "до полуночи — без сброса");
@@ -88,6 +88,16 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
 { const { a, h } = mk(); h.lvl = 5; boardRefresh(a, h, ctx); const before = JSON.stringify(Object.entries(boardOf(a).p).filter(([k]) => !k.startsWith("tut_")));
   for (const n of ["move", "book", "board", "map"]) boardEvent(a, h, { type: "ui", name: n }, ctx);
   ok(JSON.stringify(Object.entries(boardOf(a).p).filter(([k]) => !k.startsWith("tut_"))) === before, "ui — только обучение");
+}
+// скрытые: текст не уходит клиенту до выполнения; проклятые вещи считаются по сумке/надетому
+{ const { a, h } = mk(); h.lvl = 10; boardRefresh(a, h, ctx);
+  const d = boardDefs().tasks.find((t: any) => t.id === "ach_x_cursed_first"); ok(d && d.t === "???" && !d.w, "скрытое — «???» без условия");
+  ok(!JSON.stringify(boardDefs()).includes("Альказак"), "про Альказак в определениях ничего нет");
+  a.inv.push({ uid: "u1", id: Object.keys((globalThis as any).ITEMS || {})[0] || "fly_legs", cursed: 1, blk: 60 } as any);
+  boardRefresh(a, h, ctx); const st: any = boardClient(a, h);
+  ok(st.reveal["ach_x_cursed_first"]?.t === "Тяжёлая находка", "после получения — название открыто");
+  ok(st.reveal["ach_x_blk_half"] && !st.reveal["ach_x_blk_full"], "очернение 60% — «наполовину чёрная», но не «чёрная»");
+  boardEvent(a, h, { type: "city" }, ctx); boardEvent(a, h, { type: "city" }, ctx); ok(boardOf(a).p["ach_x_alkazak"] === 1, "Альказак — один раз");
 }
 // опыт строго по таблице
 { const t = BTASKS["hunt_ice_crescent_wolf"]; const L = Math.min(20, t.lvl + BOARD_CFG.refPlus);

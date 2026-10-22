@@ -9,7 +9,8 @@ import { ZONE_MOBS, MONSTER_LOOT, RESOURCES, RECIPES, ITEM_BY_ID, heroXpNeed, HE
 import { HERO_NAMES } from "./shared";
 import { VARIANTS, VARIANT_BY_ID, BIOMES, baseOf, goalMatch, type BiomeId } from "./biomes";
 import { BOSS_TIMERS } from "./zoneGen";
-import { gainXp, addRes, addItem, talentSpent, type Account, type Hero } from "./profile";
+import { gainXp, addRes, addItem, talentSpent, equippedItems, activeLook, type Account, type Hero } from "./profile";
+import { charBlk, blkOf } from "./bmCfg";
 
 export type Cat = "tut" | "npc" | "hunt" | "daily" | "weekly" | "monthly" | "hard" | "ach";
 export const CATS: Cat[] = ["tut", "npc", "hunt", "daily", "weekly", "monthly", "hard", "ach"];
@@ -27,6 +28,7 @@ export interface BTask {
   lvl: number; minLvl: number; maxLvl: number; req: string;         // уровень цели (для опыта), доступность, предусловия
   res: Record<string, number>; item: string;                        // материалы за ступень (× номер ступени), предмет за последнюю
   auto: string;                                                     // обучение: состояние, при котором шаг засчитан сам
+  hidden: boolean;                                                  // скрытое: до выполнения игрок видит «???» (текст не уходит клиенту)
 }
 export const BOARD_CFG: any = {
   on: true,
@@ -35,6 +37,7 @@ export const BOARD_CFG: any = {
   // Доска объявлений — объект на стартовой площади Аринара (не персонаж и не Альказак): заказы с неё берут, отменяют и сдают
   // рядом с ней. Заказы охоты обновляются каждый игровой день (сброс ежедневных); взятые остаются до сдачи или отмены.
   huntOffer: 8, huntBossOffer: 2,
+  dailyFixed: "d_bmage",   // ежедневные, которые есть у всех каждый день (сверх dailyN), id через запятую
   nbWorld: "arinar", nbX: 24130, nbY: 24300, nbRange: 110,
   // Доска достижений — у Алтаря тел в хабе (достижения открываются и с неё, и из общего окна)
   abWorld: "hellfire", abX: 690, abY: 600, abRange: 110,
@@ -51,7 +54,7 @@ export const BOARD_CFG: any = {
 // ---------------- генерация ----------------
 const T = (o: Partial<BTask> & { id: string; cat: Cat; title: string; ev: string }): BTask => ({
   on: true, ord: 0, giver: "", why: "", pc: "", mob: "", hl: "", m: "", f: "", minT: 0, n: [1, 0, 0, 0, 0], d: [1, 0, 0, 0, 0],
-  lvl: 0, minLvl: 1, maxLvl: 30, req: "", res: {}, item: "", auto: "", ...o,
+  lvl: 0, minLvl: 1, maxLvl: 30, req: "", res: {}, item: "", auto: "", hidden: false, ...o,
 } as BTask);
 const pad5 = (a: number[]) => [...a, 0, 0, 0, 0, 0].slice(0, 5); // всегда 5 ячеек: админка правит n.0…n.4 / d.0…d.4
 const mobName = (id: string) => ZONE_MOBS[id]?.name || id;
@@ -227,6 +230,8 @@ function genPeriodic(): BTask[] {
     ["d_chest", "daily", "Сундук лагеря", "Зачистите лагерь до сундука", "chest", "", 1, 2, 4, 30, { soul_shard: 1 }],
     ["w_chest", "weekly", "Пять сундуков", "Сундуки лагерей", "chest", "", 5, 3, 4, 30, { soul_shard: 3 }],
     ["m_chest", "monthly", "Двадцать сундуков", "Сундуки лагерей", "chest", "", 20, 4, 4, 30, { soul_shard: 8 }],
+    ["d_bmage", "daily", "Найти Чёрного мага", "Трекер ведёт к нему или его куполу — дойдите", "bm_find", "", 1, 1, 1, 30],
+    ["d_explore", "daily", "Разведка", "Откройте 30 клеток карты", "explore", "", 30, 1, 1, 30],
     ["d_res", "daily", "Материалы", "Материалы из мешков", "loot", "res", 30, 1, 1, 30],
     ["w_wboss", "weekly", "Боссы недели", "Мировые боссы", "kill", "|wboss", 3, 4, 8, 30, { soul_shard: 5 }],
     ["w_rare", "weekly", "Редкие недели", "Редкие Отголоски", "kill", "|rare", 3, 4, 8, 30, { soul_shard: 4 }],
@@ -375,7 +380,58 @@ function genAch(): BTask[] {
     ["deaths", "Встать и идти", "Возрождения после поражения", "death", "", "", [1, 10, 50, 150, 400], [1, 1, 1, 2, 2]],
     ["wbosses_all", "Каждый босс", "Разные мировые боссы", "st", "wbosses", "", [1, 3, 6, 9, 13], [2, 3, 4, 4, 5]],
   ];
+  M.push(
+    ["explore", "Картограф", "Открытые клетки карты (туман)", "explore", "", "", [100, 500, 2000, 5000, 10000], [1, 2, 3, 4, 5]],
+    ["marks", "Свои метки", "Метки на карте M", "mark", "", "", [1, 5, 20], [1, 1, 2]],
+    ["chat", "Голос в толпе", "Сообщения в чате", "chat", "", "", [1, 20, 100], [1, 1, 2]],
+    ["friends", "Друзья", "Принятые заявки в друзья", "friend", "", "", [1, 3, 10], [1, 2, 3]],
+    ["inspect", "Любопытство", "Осмотренные игроки", "inspect", "", "", [1, 10, 50], [1, 1, 2]],
+    ["rating", "Табель", "Загляните в рейтинг", "rating", "", "", [1], [1]],
+    ["track", "Следопыт бестиария", "Отслеживание цели из Бестиария", "track", "", "", [1, 5, 20], [1, 1, 2]],
+    ["lock", "Не продаётся", "Закреплённые вещи", "lock", "", "", [1, 5, 20], [1, 1, 2]],
+    ["soul", "Ветка души", "Узлы ветки души у Алтаря", "soul", "", "", [1, 3, 6, 10], [1, 2, 3, 4]],
+    ["radiance", "Сила навыка", "Усиления навыков", "radiance", "", "", [1, 5, 15, 30], [1, 2, 3, 4]],
+    ["loadout", "Своя раскладка", "Сохранённые раскладки навыков", "loadout", "", "", [1, 5, 20], [1, 1, 2]],
+    ["pvp", "Поединщик", "Дуэли с игроками (не короче 15 с)", "pvp", "", "", [1, 10, 50, 150], [1, 2, 3, 4]],
+    ["pvp_win", "Победитель поединков", "Победы над игроками в дуэлях", "pvp", "win", "", [1, 5, 25, 100], [2, 2, 3, 4]],
+    ["pk", "Риск — дело благородное", "Включите PK-режим в Аринаре", "pk", "", "", [1], [1]],
+    ["runskill", "Навыки забегов", "Новые навыки «Вампир-лайка» с оружия", "runskill", "", "", [1, 3, 6, 10], [2, 3, 4, 5]],
+    ["bm_find", "Встреча в тумане", "Найдите Чёрного мага или его купол", "bm_find", "", "", [1, 5, 20, 50], [1, 2, 3, 4]],
+    ["night", "Ночная охота", "Победы ночью", "kill", "", "night", [50, 500, 2000, 5000], [1, 2, 3, 4]],
+    ["ench_eq", "Зачарованное снаряжение", "Надетые зачарованные вещи", "st", "ench_eq", "", [1, 3, 5], [1, 2, 3]],
+    ["look", "Облик Отголоска", "Соберите полный трофейный облик", "st", "look", "", [1], [3]],
+  );
   for (const r of M) A(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+  // ——— СКРЫТЫЕ (до выполнения — «???»). Проклятые вещи (флаг экземпляра, cursed.ts) и очернение (blk 0…100 %, bmCfg.ts;
+  // у героя — глитч чёрной половины). Отдельных «глитч-вещей» в коде нет: глитч — вид очернения. Засчитывает сервер.
+  const H = (id: string, title: string, why: string, ev: string, m: string, f: string, n: number, d: number) =>
+    out.push(T({ id: "ach_x_" + id, cat: "ach", title, why, ev, m, f, n: pad5([n]), d: pad5([d]), hidden: true, res: { soul_shard: 2 } }));
+  H("cursed_first", "Тяжёлая находка", "Получите первую проклятую вещь", "st", "cursed_own", "", 1, 2);
+  H("cursed_hoard", "Коллекция проклятий", "Храните 5 проклятых вещей одновременно", "st", "cursed_own", "", 5, 4);
+  H("cursed_wear", "Примерка", "Наденьте проклятую вещь", "st", "cursed_eq", "", 1, 2);
+  H("cursed_three", "Под тяжестью", "Носите 3 проклятые вещи одновременно", "st", "cursed_eq", "", 3, 4);
+  H("cursed_full", "Полный комплект проклятия", "Все 5 слотов — проклятые вещи", "st", "cursed_eq", "", 5, 5);
+  H("blk_touch", "Тронутая тьмой", "Вещь очернена на 10%", "st", "blk_item", "", 10, 1);
+  H("blk_half", "Наполовину чёрная", "Вещь очернена на 50%", "st", "blk_item", "", 50, 3);
+  H("blk_full", "Чёрная вещь", "Вещь очернена полностью", "st", "blk_item", "", 100, 4);
+  H("char_shadow", "Тень на теле", "Очернение тела 25%", "st", "blk_char", "", 25, 2);
+  H("char_half", "Половина во тьме", "Очернение тела 50% (глитч заметен)", "st", "blk_char", "", 50, 4);
+  H("char_black", "Чёрный силуэт", "Очернение тела 90%", "st", "blk_char", "", 90, 5);
+  H("cursed_black", "Чёрное проклятие", "Проклятая вещь 15+ уровня, очернённая на 80%+", "st", "cursed_black", "", 1, 5);
+  H("cursed_ench", "Двойная печать", "Проклятая вещь с зачарованием 3+ яруса", "st", "cursed_ench", "", 1, 4);
+  H("cursed_upg", "Закалённое проклятие", "Проклятая вещь, улучшенная до +5", "st", "cursed_upg", "", 1, 4);
+  H("cursed_vs", "Проклятый против проклятого", "Победите проклятого врага в проклятой вещи", "kill", "", "cursed,wearc", 1, 3);
+  H("cursed_boss", "Подобное к подобному", "Мировой босс с проклятием — в полном проклятом комплекте", "kill", "", "wboss,cursed,wearc5", 1, 5);
+  H("dark_boss", "Тьма к тьме", "Мировой босс при очернении тела 50%+", "kill", "", "wboss,dark50", 1, 5);
+  H("cursed_death", "Проклятие не отпускает", "Падите в полном проклятом комплекте — и вернитесь", "death", "", "wearc5", 1, 3);
+  H("bm_death", "Отмечен магом", "Падите от Чёрного мага", "death", "bm", "", 1, 2);
+  H("revive", "Второе дыхание", "Талант вернул вас в бой", "revive", "", "", 1, 2);
+  H("naked_boss", "Без доспехов", "Мировой босс без единой надетой вещи", "kill", "", "wboss,naked", 1, 5);
+  H("last_breath", "На волоске", "Добейте босса, имея меньше 10% ОЗ", "kill", "", "boss,hp10", 1, 4);
+  H("midnight", "Полуночник", "Победа ровно в полночь по Киеву (00:00–00:59)", "kill", "", "midnight", 1, 2);
+  H("bag_full", "Барахольщик до краёв", "Забейте сумку до отказа", "st", "bag_full", "", 1, 1);
+  H("ench6", "Высший ярус", "Вещь с зачарованием 6 яруса", "st", "ench6", "", 1, 5);
+  H("alkazak", "Под куполом", "Впервые попасть в Альказак (под купол)", "city", "", "", 1, 2); // единственное про Альказак: первый вход под купол
   for (const r of ["dreamwood", "moonpetal", "rot_ore", "starsilver"]) A("gather_" + r, `Сбор: ${resName(r)}`, "С узлов на карте", "gather", r, "", [20, 100, 400, 1500, 4000], [1, 2, 3, 4, 5]);
   for (const r of RECIPES) A("craft_" + r.id, `Рецепт: ${ITEM_BY_ID[r.item]?.name || r.item}`, "Создано у Петра", "craft", r.id, "", [1, 3, 10], [1, 2, 3]);
   const seen = new Set<string>();
@@ -409,6 +465,10 @@ function fmtOf(tz: string) {
 function kyivDay(t: number): number {
   const p: any = Object.fromEntries(fmtOf(BOARD_CFG.tz || "Europe/Kyiv").formatToParts(new Date(t - (BOARD_CFG.resetHour | 0) * 3600e3)).map((x) => [x.type, x.value]));
   return Math.floor(Date.UTC(+p.year, +p.month - 1, +p.day) / 864e5);
+}
+export function kyivHour(t: number): number {
+  const f = FMT.get("h:" + (BOARD_CFG.tz || "Europe/Kyiv")) || (() => { let x: Intl.DateTimeFormat; try { x = new Intl.DateTimeFormat("en-GB", { timeZone: BOARD_CFG.tz || "Europe/Kyiv", hour: "2-digit", hourCycle: "h23" }); } catch { x = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", hour: "2-digit", hourCycle: "h23" }); } FMT.set("h:" + (BOARD_CFG.tz || "Europe/Kyiv"), x); return x; })();
+  return Number(f.format(new Date(t))) % 24;
 }
 export function periodKey(cat: Cat, t = Date.now()): string {
   const d = kyivDay(t);
@@ -466,6 +526,20 @@ function stateVal(a: Account, h: Hero | null, key: string, ctx: Ctx): number {
   if (key === "kills") return Object.values(a.bestiary || {}).reduce((s, x) => s + (x.kills || 0), 0);
   if (key === "heroes15") return HERO_IDS.filter((c) => Math.max(ctx.heroes?.[c]?.lvl || 0, b.lv[c] || 0) >= 15).length;
   if (key === "wbosses") return Object.keys(BOSS_TIMERS).filter((id) => (b.cnt["wb:" + id] || 0) > 0).length;
+  if (key === "cursed_own") return (a.inv || []).filter((i: any) => i.cursed).length;
+  if (key === "bag_full") return (a.inv?.length || 0) >= 120 ? 1 : 0;
+  if (key === "ench6") return (a.inv || []).some((i: any) => (i.ench | 0) >= 6) ? 1 : 0;
+  if (key === "cursed_black") return (a.inv || []).some((i: any) => i.cursed && blkOf(i) >= 80 && (ITEM_BY_ID[i.id]?.lvl || 0) >= 15) ? 1 : 0;
+  if (key === "cursed_ench") return (a.inv || []).some((i: any) => i.cursed && (i.ench | 0) >= 3) ? 1 : 0;
+  if (key === "cursed_upg") return (a.inv || []).some((i: any) => i.cursed && (i.up | 0) >= 5) ? 1 : 0;
+  if (key === "blk_item") return Math.floor(Math.max(0, ...(a.inv || []).map((i: any) => blkOf(i))));
+  if (key === "cursed_eq" || key === "blk_char" || key === "ench_eq" || key === "look") {
+    if (!h) return 0; const eq = equippedItems(a, h);
+    if (key === "cursed_eq") return eq.filter((e) => e.cursed).length;
+    if (key === "ench_eq") return eq.filter((e) => (e.ench | 0) > 0).length;
+    if (key === "look") return activeLook(a, h) ? 1 : 0;
+    return Math.floor(charBlk(eq));
+  }
   if (key.startsWith("mob:")) return a.bestiary?.[key.slice(4)]?.kills || 0;
   if (key.startsWith("hero:")) { const c = key.slice(5); return Math.max(ctx.heroes?.[c]?.lvl || 0, b.lv[c] || 0, h && a.hero === c ? h.lvl : 0); }
   if (key.startsWith("world:")) return b.cnt["w:" + key.slice(6)] ? 1 : 0;
@@ -516,9 +590,10 @@ function rollPeriods(a: Account, b: BoardState, lvl: number, ctx: Ctx, now: numb
     const n = Math.max(0, Math.min(12, (BOARD_CFG[c === "daily" ? "dailyN" : c === "weekly" ? "weeklyN" : "monthlyN"] | 0)));
     const sorted = pool.map((t) => ({ t, h: hash(ctx.pkey + "|" + k + "|" + t.id) })).sort((x, y) => x.h - y.h).map((x) => x.t);
     const pick: string[] = [], sigs = new Set<string>();
-    for (const t of sorted) { if (pick.length >= n) break; const sig = t.ev + ":" + t.f; if (sigs.has(sig)) continue; sigs.add(sig); pick.push(t.id); } // разнообразие
+    const fixed = c === "daily" ? String(BOARD_CFG.dailyFixed || "").split(",").map((x) => x.trim()).filter((id) => BTASKS[id]?.cat === "daily" && pool.some((t) => t.id === id)) : [];
+    for (const t of sorted) { if (pick.length >= n) break; if (fixed.includes(t.id)) continue; const sig = t.ev + ":" + t.f; if (sigs.has(sig)) continue; sigs.add(sig); pick.push(t.id); } // разнообразие
     for (const t of sorted) { if (pick.length >= n) break; if (!pick.includes(t.id)) pick.push(t.id); }
-    b.sel[c] = pick; b.per[c] = k; ch = true;
+    b.sel[c] = [...fixed, ...pick]; b.per[c] = k; ch = true;
   }
   // заказы охоты на Доске объявлений: новые каждый игровой день; взятые не пропадают. Часть мест — боссам и редким.
   const hk = "h" + periodKey("daily", now);
@@ -535,6 +610,16 @@ function rollPeriods(a: Account, b: BoardState, lvl: number, ctx: Ctx, now: numb
 }
 
 // ---------------- события ----------------
+/** условия по надетому (проклятые, очернение, «без вещей») — ev.wear считает boardEvent */
+function wearOk(F: Set<string>, ev: any): boolean {
+  if (!(F.has("wearc") || F.has("wearc5") || F.has("dark50") || F.has("naked"))) return true;
+  const w = ev.wear || { c: 0, blk: 0, n: 0 };
+  if (F.has("wearc") && !(w.c >= 1)) return false;
+  if (F.has("wearc5") && !(w.c >= 5)) return false;
+  if (F.has("dark50") && !(w.blk >= 50)) return false;
+  if (F.has("naked") && w.n > 0) return false;
+  return true;
+}
 /** насколько событие продвигает задание (0 — не подходит); max — прогресс = лучший результат */
 function amount(t: BTask, ev: any, lvl: number): { v: number; max?: boolean } {
   const F = flags(t), ty = ev.type, NO = { v: 0 };
@@ -557,6 +642,10 @@ function amount(t: BTask, ev: any, lvl: number): { v: number; max?: boolean } {
       if (F.has("boss") && !ev.boss) return NO;
       if (F.has("wboss") && !(ev.boss && BOSS_TIMERS[kind])) return NO;
       if (F.has("lvl") && !((ev.lvl || 0) >= lvl - 2)) return NO;
+      if (F.has("night") && !ev.night) return NO;
+      if (F.has("midnight") && !ev.midnight) return NO;
+      if (F.has("hp10") && !(ev.hpPct > 0 && ev.hpPct < 10)) return NO;
+      if (!wearOk(F, ev)) return NO;
       return { v: 1 };
     }
     case "gather": return ty === "gather" && (!t.m || ev.res === t.m) ? { v: Math.max(1, Math.min(99, ev.n | 0)) } : NO;
@@ -598,7 +687,11 @@ function amount(t: BTask, ev: any, lvl: number): { v: number; max?: boolean } {
     case "reach": return ty === "reach" && (!t.m || ev.world === t.m) ? { v: 1 } : NO;
     case "ability": return ty === "ability_used" ? { v: 1 } : NO;
     case "lvlup": return ty === "lvlup" ? { v: Math.max(1, Math.min(30, ev.n | 0)) } : NO;
-    case "select_hero": case "dash": case "talent": case "equip": case "equip_monster": case "chest": case "portal": case "party": case "death":
+    case "death": return ty === "death" && (!t.m || ev.by === t.m) && wearOk(F, ev) ? { v: 1 } : NO;
+    case "pvp": return ty === "pvp" && (t.m !== "win" || ev.win) ? { v: 1 } : NO;
+    case "explore": return ty === "explore" ? { v: Math.max(1, Math.min(500, ev.n | 0)) } : NO;
+    case "select_hero": case "dash": case "talent": case "equip": case "equip_monster": case "chest": case "portal": case "party":
+    case "mark": case "chat": case "friend": case "inspect": case "rating": case "track": case "lock": case "soul": case "radiance": case "loadout": case "pk": case "runskill": case "bm_find": case "revive": case "city":
       return ty === t.ev ? { v: 1 } : NO;
   }
   return NO;
@@ -612,6 +705,9 @@ export function boardEvent(a: Account, h: Hero | null, ev: any, ctx: Ctx): boole
   // счётчики для состояний: разные мировые боссы, посещённые миры
   if (ev.type === "kill" && ev.boss && BOSS_TIMERS[ev.kind]) { b.cnt["wb:" + ev.kind] = (b.cnt["wb:" + ev.kind] || 0) + 1; ch = true; }
   if (ev.type === "reach" && ev.world && !b.cnt["w:" + ev.world]) { b.cnt["w:" + ev.world] = 1; ch = true; }
+  if ((ev.type === "kill" || ev.type === "death") && h && !ev.wear) { const eq = equippedItems(a, h); ev.wear = { c: eq.filter((e) => e.cursed).length, blk: charBlk(eq), n: eq.length }; }
+  if (ev.type === "kill" && ev.midnight === undefined) ev.midnight = kyivHour(Date.now()) === 0;
+  if (ev.type === "city") { if (b.cnt.city) return false; b.cnt.city = 1; ch = true; }
   for (const t of BY_EV.get(ev.type) || []) {
     if (ev.type === "ui" && t.cat !== "tut") continue; // «ui» присылает клиент — только для шагов обучения
     const r = amount(t, ev, lvl); if (!(r.v > 0)) continue;
@@ -747,7 +843,7 @@ export function boardDefs() {
   return {
     v: 1, on: BOARD_CFG.on !== false,
     cats: CATS.filter(catOn), names: CAT_NAMES,
-    tasks: BTASK_LIST().filter((t) => t.on && catOn(t.cat)).map((t) => ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, t: t.title, w: t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
+    tasks: BTASK_LIST().filter((t) => t.on && catOn(t.cat)).map((t) => ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
       ev: t.ev, take: needsTake(t) || undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined })),
     xp: { t: BOARD_CFG.xp, bands: BOARD_CFG.bands, refPlus: BOARD_CFG.refPlus | 0, need: Array.from({ length: HERO_MAX_LEVEL }, (_, i) => heroXpNeed(i + 1)), capPct: BOARD_CFG.capPct, capCats: ["npc", "hunt", "daily", "ach"] },
     givers: GIVER_NAMES,
@@ -761,6 +857,16 @@ export function boardClient(a: Account, h: Hero | null) {
   const lock: Record<string, string> = {};
   for (const t of BTASK_LIST()) if (t.on && catOn(t.cat) && !PERIODIC.includes(t.cat) && t.cat !== "ach" && t.cat !== "tut") { const r = lockReason(a, t, lvl); if (r) lock[t.id] = r; }
   const dk = periodKey("daily");
-  return { rev: b.rev, p: b.p, c: b.c, tk: b.tk, pin: b.pin, sel: b.sel, lock, reset: nextResets(), xd: b.xd.k === dk ? b.xd.v : 0, cap: dayCap(lvl), lvl,
+  // скрытые: текст — только выполненным (условие игрок не видит до получения)
+  const reveal: Record<string, { t: string; w: string }> = {};
+  for (const t of BTASK_LIST()) if (t.hidden && t.on && (b.p[t.id] || 0) >= tiersOf(t)[0]) reveal[t.id] = { t: t.title, w: t.why };
+  return { reveal, rev: b.rev, p: b.p, c: b.c, tk: b.tk, pin: b.pin, sel: b.sel, lock, reset: nextResets(), xd: b.xd.k === dk ? b.xd.v : 0, cap: dayCap(lvl), lvl,
     tut: { off: !!b.tut.off, skip: !!b.tut.skip, vet: !!b.tut.vet } };
+}
+
+/** нужно ли искать Чёрного мага сегодня (ежедневное выбрано и не выполнено) — сервер проверяет близость раз в 2 с */
+export function bmWanted(a: Account): boolean {
+  const b = (a as any).board; if (!b || !BOARD_CFG.on) return false;
+  const t = BTASKS["d_bmage"]; if (!t || !t.on) return false;
+  return (b.sel?.daily || []).includes("d_bmage") && (b.p?.["d_bmage"] || 0) < 1;
 }
