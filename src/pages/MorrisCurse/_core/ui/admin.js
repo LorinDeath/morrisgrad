@@ -52,6 +52,32 @@ const rankTop = (e) => (['daily', 'weekly', 'monthly', 'hard', 'hunt'].includes(
 const rankCan = (e, r) => { const t = rankTop(e); return !!t && BT_RANKS.indexOf(r) <= BT_RANKS.indexOf(t); };
 const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['bchest', '🎁 Сундуки наград'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
+/** нет ответа на сохранение за это время — ошибка в окне (раньше «Сохранение…» висело навсегда) */
+export const SAVE_TIMEOUT_MS = 12000;
+// разделы формы (заголовки t:"hdr") сохраняются по отдельности: admin_save_sec — только изменённые поля раздела (как server/meta/overrides.ts sectionMap)
+export const SEC_MAIN = '_main';
+const SEC_KINDS_NO = new Set(['loot', 'btask']); // свои формы, сохраняются целиком (admin_save)
+export function sectionMap(S) { const m = { traits: SEC_MAIN }; let cur = SEC_MAIN; for (const f of S?.fields || []) { if (f.t === 'hdr') { cur = f.path; continue; } m[f.path] = cur; } return m; }
+const sortKeys = (o) => JSON.stringify(Object.keys(o || {}).sort().map((k) => [k, o[k]]));
+/** значение поля формы → значение патча (undefined — пусто: числа «как в коде») */
+export function readInput(i, f) {
+  if (i.type === 'checkbox') return i.checked;
+  if (i.value !== '') return f.t === 'enum' || f.t === 'color' || f.t === 'text' || f.t === 'ltext' ? i.value : Number(i.value);
+  if (f.t === 'text' || f.t === 'ltext' || (f.t === 'enum' && f.opts?.includes(''))) return ''; // пустой вариант списка — тоже значение («как у яруса», «снаружи»)
+  return undefined;
+}
+const parseResmap = (t) => { const m = {}; for (const part of String(t || '').split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } return m; };
+/** изменилось ли поле относительно текущего значения сервера */
+export function changed(f, nv, cur) {
+  if (f.t === 'bool') return !!nv !== !!cur;
+  if (f.t === 'resmap') return sortKeys(Object.fromEntries(Object.entries(nv || {}).filter(([, n]) => Math.round(n) > 0))) !== sortKeys(cur || {});
+  if (f.t === 'skills') return JSON.stringify([...(nv || [])].sort()) !== JSON.stringify([...(cur || [])].sort());
+  if (nv === undefined) return cur != null && cur !== '';
+  if (f.t === 'color') return String(nv).toLowerCase() !== String(cur ?? '#a855f7').toLowerCase(); // пустое значение показано как #a855f7
+  if (f.t === 'enum' && cur == null && !f.optl && !f.opts?.includes('')) return String(nv) !== String(f.opts?.[0] ?? ''); // пустое — список показывает первый вариант
+  if (f.t === 'enum' || f.t === 'text' || f.t === 'ltext') return String(nv).trim() !== String(cur ?? '').trim();
+  return Number(nv) !== Number(cur ?? NaN);
+}
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
 .mc-admin .qconds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-left:2px solid #7c3aed;padding-left:8px}.mc-admin .qcond{display:flex;gap:6px;align-items:center;background:rgba(124,58,237,.12);border:1px solid #5b21b6;border-radius:6px;padding:2px 6px}.mc-admin .qcond span{color:#c4b5fd}.mc-admin .btn.sm{padding:2px 8px;font-size:12px}
@@ -101,7 +127,9 @@ const css = `
 .mc-admin .box > b{color:#c4b5fd}
 .mc-admin .trait{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px;border-bottom:1px dashed #2c2145}
 .mc-admin .trait .tn{color:#fb923c;min-width:110px}
-.mc-admin .msg{margin-left:auto;color:#a7f3d0}.mc-admin .msg.err{color:#fca5a5}
+.mc-admin .msg{margin-left:auto;color:#a7f3d0;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mc-admin .msg.err{color:#fca5a5;white-space:normal}
+.mc-admin .sechd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mc-admin .sechd .btn.sm{padding:2px 8px;font-size:11px}
+.mc-admin .smsg{font-size:11px;color:#a7f3d0}.mc-admin .smsg.err{color:#fca5a5}
 .mc-admin table{border-collapse:collapse;width:100%}.mc-admin td,.mc-admin th{border-bottom:1px solid #241a3a;padding:3px 6px;text-align:left;vertical-align:top}
 .mc-admin .chips{display:flex;flex-wrap:wrap;gap:4px}.mc-admin .btflt{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}.mc-admin .btflt select,.mc-admin .btflt input{max-width:150px}.mc-admin .btflt input{width:80px}.mc-admin li.pager{display:flex;gap:6px;align-items:center;justify-content:center}.mc-admin .chips label{padding:2px 6px}
 .mc-admin .chips .chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:5px 8px;border:1px solid #3b2c52;border-radius:6px;background:#140e24;max-width:280px}
@@ -176,11 +204,22 @@ export class AdminPanel {
     this.openT = setTimeout(() => { if (this.el && !this.cat) this.errBox = showError('MC-S01', { host: this.el, step: 'каталог админки (admin_open)', onRetry: () => this.requestOpen() }); }, 10000);
   }
   /** сервер отказал (toast_error с кодом MC-A07, deny "not_panel") — код вместо вечной загрузки */
-  onDenied(d) { if (!this.el) return; clearTimeout(this.openT); if (!this.cat) { this.errBox?.close(); this.errBox = showError(d.code || 'MC-A07', { host: this.el, detail: `${d.for || ''} ${d.why || ''}` }); } else this.msg(`✖ ${d.code || ''} Недостаточно прав`, true); }
+  onDenied(d) { if (!this.el) return; clearTimeout(this.openT); this.secQ = null; if (!this.cat) { this.errBox?.close(); this.errBox = showError(d.code || 'MC-A07', { host: this.el, detail: `${d.for || ''} ${d.why || ''}` }); } else this.msg(`✖ ${d.code || ''} Недостаточно прав`, true); }
   close() { clearTimeout(this.openT); this.errBox?.close(); this.errBox = null; this.el?.remove(); this.el = null; }
-  msg(t, err) { const m = this.el?.querySelector('.msg'); if (m) { m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); } }
+  /** строка состояния в шапке. «Сохранение…/Сброс…/Удаление…» — со сторожем: нет ответа сервера за SAVE_TIMEOUT_MS → ошибка вместо вечного «Сохранение…» */
+  msg(t, err) {
+    clearTimeout(this.saveT); this.saveT = null;
+    const m = this.el?.querySelector('.msg'); if (m) { m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); m.title = t; }
+    if (/^(Сохранение|Сброс|Удаление)…/.test(t || '')) this.saveT = setTimeout(() => { this.saveT = null; this.secQ = null; this.secMark(null, '✖ нет ответа', true); this.msg(`✖ Нет ответа сервера за ${SAVE_TIMEOUT_MS / 1000} с — не сохранено. Проверьте связь и нажмите ещё раз`, true); }, SAVE_TIMEOUT_MS);
+  }
+  /** ждём ответа на сохранение (для всплывашек-ошибок сервера: показать их в окне, а не за ним) */
+  get waiting() { return !!this.saveT; }
+  onToastError(d) { if (!this.el || !this.saveT) return false; this.secQ = null; this.secMark(null, '✖ ' + (d.message || 'ошибка'), true); this.msg('✖ ' + (d.message || 'Ошибка сервера'), true); return true; }
+  /** отметка у кнопки раздела (sec=null — у раздела, который сейчас сохраняется) */
+  secMark(sec, t, err) { const k = sec ?? this.secCur; if (!this.el || k == null) return; const n = this.el.querySelector(`[data-smsg="${CSS.escape(k)}"]`); if (n) { n.textContent = t; n.className = 'smsg' + (err ? ' err' : ' ok'); } }
   onCatalog(d) { this.cat = d; clearTimeout(this.openT); this.errBox?.close(); this.errBox = null; this.render(); }
   onResult(r) {
+    if (r.sec != null || this.secQ) { if (this.onSecResult(r)) return; }
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
     if (!this.cat) { if (r.op === 'dialogue' || (r.op === 'quest' && r.withDialogue)) this.onDialogueApplied?.(r); if (r.op === 'quest' && r.quest) this.onQuestApplied?.(r); return; } // каталог не загружен (окно закрыто; правка из плейтеста/другой вкладки) — без падения
     if (r.kind === 'btask') { // своё задание: новое — в список, удалённое — из списка
@@ -196,6 +235,28 @@ export class AdminPanel {
     if (r.op === 'dialogue') { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
     if (r.op === 'quest_delete') { this.cat.quests = this.cat.quests.filter((x) => x.id !== r.id); this.sel = null; }
     this.msg(r.deleted ? '✔ Удалено' : r.op === 'reset' ? '✔ Возвращено исходное' : `✔ Сохранено в D1${r.version ? ` (версия ${r.version})` : ''}`); this.render();
+  }
+  /** ответ на сохранение раздела: форма НЕ перерисовывается (несохранённые правки в других разделах остаются), очередь — дальше */
+  onSecResult(r) {
+    const Q = this.secQ;
+    if (!Q) { // ответ пришёл после сторожа/ошибки — показать честно, что вышло
+      if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return true; }
+      const e = this.cat?.ent?.[r.kind]?.find((x) => x.id === r.id); if (e && r.values) e.values = r.values;
+      this.secMark(r.sec, `✔ сохранено${r.version ? ` (в. ${r.version})` : ''}`); this.msg('✔ Сохранено в D1 (ответ сервера пришёл с опозданием)'); return true;
+    }
+    if (!r.ok) { this.secMark(r.sec ?? Q.cur?.sec, '✖ ' + (r.err || 'ошибка'), true); this.secQ = null; this.msg(`✖ «${Q.cur?.label || 'раздел'}»: ${r.err || 'ошибка'}${Q.done.length ? ` (сохранено: ${Q.done.join(', ')})` : ''}`, true); return true; }
+    const e = this.cat?.ent?.[r.kind]?.find((x) => x.id === r.id); if (e && r.values) { e.values = r.values; if (r.kind === 'item') e.lvl = Math.max(1, r.values.req || 1, r.values.lvl || 1); if (r.kind === 'mob') e.lvl = r.values.lvl; }
+    this.secMark(r.sec, `✔ сохранено${r.version ? ` (в. ${r.version})` : ''}`); Q.done.push(Q.cur?.label || r.sec);
+    this.list();
+    this.secNext(); return true;
+  }
+  /** очередь сохранения разделов: по одному сообщению, следующее — после ответа и не раньше 350 мс (сервер: не чаще раза в 300 мс) */
+  secNext() {
+    const Q = this.secQ; if (!Q) return;
+    const it = Q.items.shift();
+    if (!it) { this.secQ = null; this.secCur = null; this.msg(`✔ Сохранено в D1: ${Q.done.join(', ')}`); return; }
+    const go = () => { if (this.secQ !== Q) return; Q.cur = it; this.secCur = it.sec; Q.at = Date.now(); this.secMark(it.sec, 'сохранение…'); this.msg(`Сохранение… «${it.label}»${Q.items.length ? ` (ещё ${Q.items.length})` : ''}`); this.send({ type: 'admin_save_sec', kind: Q.kind, id: Q.id, sec: it.sec, patch: it.patch }); };
+    const wait = Math.max(0, 350 - (Date.now() - (Q.at || 0))); if (wait) setTimeout(go, wait); else go();
   }
   /** несколько правок подряд (сервер принимает не чаще раза в 300 мс) */
   sendQueue(q, done) {
@@ -342,8 +403,12 @@ export class AdminPanel {
     if (!this.full && !(this.kinds || ['mob','weapon','item']).includes(kind)) { sec.innerHTML = '<p>Недостаточно прав.</p>'; return; }
     const S = this.cat.schema[kind], v = e.values || {};
     if (!S) { sec.innerHTML = '<p>Схема недоступна.</p>'; return; }
+    const secOn = !SEC_KINDS_NO.has(kind), hasHdr = S.fields.some((f) => f.t === 'hdr'), SM = sectionMap(S);
+    const secLabel = (k) => (k === SEC_MAIN ? 'Основное' : S.fields.find((f) => f.path === k)?.label || k);
+    // поля до первого заголовка (и черты) — раздел «Основное»: свой заголовок с кнопкой, если в форме есть разделы
+    const mainHdr = secOn && hasHdr && S.fields[0]?.t !== 'hdr' ? `<div class="box sechd" style="grid-column:1/-1;background:none;border:none;padding:0"><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">Основное</b><button class="btn sm" data-ssave="${SEC_MAIN}" title="Сохранить только изменённые поля этого раздела">💾 Сохранить раздел</button><span class="smsg" data-smsg="${SEC_MAIN}"></span></div>` : '';
     const field = (f) => {
-      if (f.t === 'hdr') return `<div class="box" style="grid-column:1/-1;background:none;border:none;padding:6px 0 0"><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">${esc(f.label)}</b></div>`;
+      if (f.t === 'hdr') return `<div class="box sechd" style="grid-column:1/-1;background:none;border:none;padding:6px 0 0"><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">${esc(f.label)}</b>${secOn ? `<button class="btn sm" data-ssave="${esc(f.path)}" title="Сохранить только изменённые поля этого раздела">💾 Сохранить раздел</button><span class="smsg" data-smsg="${esc(f.path)}"></span>` : ''}</div>`;
       const val = v[f.path], ic = STAT_OF(f.path) ? statIcon(STAT_OF(f.path), 16) : '';
       let inp;
       if (f.t === 'bool') inp = `<input type="checkbox" data-p="${f.path}" ${val ? 'checked' : ''}>`;
@@ -367,10 +432,10 @@ export class AdminPanel {
     };
     sec.innerHTML = `<h3>${esc(e.icon || '')} ${esc(e.name)} <small style="color:#9a8bb8">${esc(kind)}:${esc(e.id)}</small>${e.lvl ? ` <span class="lv" style="color:#86efac">ур. ${e.lvl}</span>` : ''}</h3>
       ${kind === 'item' && e.slot === 'weapon' ? `<p><small>Оружие: требуемый уровень надевания = max(«Треб. уровень» <code>req</code>, «Ур. предмета» <code>lvl</code>); проверяет сервер при экипировке. Тип: ${esc(e.wtype || '—')}</small></p>` : ''}
-      ${kind === 'loot' ? this.lootHtml(v) : `<div class="grid">${S.fields.map(field).join('')}</div>`}
+      ${kind === 'loot' ? this.lootHtml(v) : `<div class="grid">${mainHdr}${S.fields.map(field).join('')}</div>`}
       ${S.traits ? `<div class="box"><b>Черты / эффекты</b> <small>(как Traits в RPG Maker MZ — срабатывают на сервере при попадании)</small><div class="traits"></div>
         <select class="addk">${Object.entries(this.cat.traits).map(([k, d]) => `<option value="${k}">${esc(d.name)}</option>`).join('')}</select> <button class="btn" data-addt>＋ Добавить эффект</button></div>` : ''}
-      <p><button class="btn gold" data-save>💾 Сохранить в D1</button> <button class="btn red" data-reset>↺ Вернуть исходное</button></p>`;
+      <p><button class="btn gold" data-save title="${secOn ? 'Сохраняет только изменённые поля — каждый изменённый раздел отдельно' : ''}">💾 ${secOn ? 'Сохранить изменения в D1' : 'Сохранить в D1'}</button> <button class="btn red" data-reset>↺ Вернуть исходное</button>${secOn && !hasHdr ? `<span class="smsg" data-smsg="${SEC_MAIN}"></span>` : ''}</p>`;
     this.traits = JSON.parse(JSON.stringify(v.traits || []));
     const drawTraits = () => {
       const box = sec.querySelector('.traits'); if (!box) return;
@@ -395,7 +460,25 @@ export class AdminPanel {
     }));
     sec.querySelector('[data-addt]')?.addEventListener('click', () => { const k = sec.querySelector('.addk').value; const d = this.cat.traits[k]; this.traits.push({ k, ...Object.fromEntries(d.params.map((p) => [p.k, p.def])) }); drawTraits(); });
     if (kind === 'loot') this.bindLoot(sec, v);
+    /** изменённые поля по разделам (сравнение с текущими значениями сервера e.values) */
+    const deltas = (only) => {
+      const cur = e.values || {}, out = {}, put = (path, val) => { const k = SM[path] ?? SEC_MAIN; if (only != null && k !== only) return; (out[k] || (out[k] = {}))[path] = val; };
+      sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (!f) return; const nv = readInput(i, f); if (changed(f, nv, cur[f.path])) put(f.path, nv === undefined ? null : nv); });
+      sec.querySelectorAll('input[data-rm]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.rm); const nv = parseResmap(i.value); if (f && changed(f, nv, cur[f.path])) put(f.path, nv); });
+      const fs = S.fields.find((f) => f.t === 'skills'); if (fs) { const nv = [...sec.querySelectorAll('[data-sk]:checked')].map((i) => i.dataset.sk); if (changed(fs, nv, cur[fs.path])) put(fs.path, nv); }
+      if (S.traits && JSON.stringify(this.traits || []) !== JSON.stringify(cur.traits || [])) put('traits', this.traits);
+      return out;
+    };
+    const saveSecs = (only) => {
+      if (this.secQ) { this.msg('Подождите: предыдущее сохранение ещё идёт'); return; }
+      const d = deltas(only), keys = Object.keys(d).sort((a, b) => (a === SEC_MAIN ? -1 : b === SEC_MAIN ? 1 : 0));
+      if (!keys.length) { if (only != null) this.secMark(only, 'без изменений'); this.msg('Нет изменений — сохранять нечего'); return; }
+      this.secQ = { kind, id: e.id, items: keys.map((k) => ({ sec: k, label: secLabel(k), patch: d[k] })), done: [] };
+      this.secNext();
+    };
+    sec.querySelectorAll('[data-ssave]').forEach((b) => (b.onclick = () => saveSecs(b.dataset.ssave)));
     sec.querySelector('[data-save]').onclick = () => {
+      if (secOn) { saveSecs(null); return; }
       let patch = {};
       if (kind === 'loot') patch = this.readLoot(sec);
       else {

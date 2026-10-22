@@ -489,6 +489,7 @@ async function boot(canvasId, username, userId, api) {
   });
   net.on('toast_error', (d) => {
     if (d.code === 'MC-A07' && /^admin/.test(d.for || '')) { try { if (adminPanel.isOpen) { adminPanel.onDenied(d); return; } } catch (_) {} } // окно админки: код вместо вечной «Загрузки данных»
+    try { if (adminPanel.isOpen && adminPanel.waiting) adminPanel.onToastError(d); } catch (_) {} // ошибка во время сохранения — видна в окне админки (всплывашка — за окном)
     if (d.code && d.code !== 'MC-A07') showError(d.code, { soft: true, autoClose: 6000, detail: d.message }); else overlay.toast(d.message || 'Ошибка', '#fca5a5');
   });
   // Профиль: сервер может не успеть загрузить его (meta_error) — повторяем meta_get с нарастающей паузой,
