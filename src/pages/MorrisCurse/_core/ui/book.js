@@ -103,6 +103,13 @@ export const itemStyle = (d) => lookStyle(tierOf(d));
 export const gems = (d) => (d?.ench ? '<i class="mc-eg" aria-hidden="true"></i>' : '');
 export const lookBadges = (d) => `${d?.blk ? `<b class="bk" style="color:#a78bfa">🌑 ${d.blk >= 100 ? 'Сломано очернением — не работает' : `Очернение −${+d.blk.toFixed(1)}%`}</b> · ` : ''}${d?.cursed ? '<b class="cz">☠ Проклятая</b> · ' : ''}${d?.ench ? enchBadge(d.ench) + ' · ' : ''}`;
 
+/** Ячейка вещи сумки — одна на всю игру (сумка C, сундуки наград): рамка редкости/яруса ✦, проклятие, очернение (blacken),
+ *  значки +N / 🔒 / «новое» / требуемый уровень. it — экземпляр { id, cursed, ench, up, blk, lk, n }; d — curseDef (если уже есть). */
+export function itemSlot(it, d = curseDef(ITEM_BY_ID[it?.id], it), { cls = '', attrs = '', req = 0, tag = 'button', px = 40 } = {}) {
+  if (!d) return '';
+  return `<${tag} class="mc-item${itemCls(d)}${cls}" ${attrs} style="border-color:${itemColor(d)};${itemStyle(d)}">${gems(d)}${iconHtml(d, px)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${req ? `<small class="req">${req}</small>` : ''}</${tag}>`;
+}
+
 export class Book {
   constructor(overlay, meta, { canSoul, nearPetr }) {
     this.ov = overlay;
@@ -506,7 +513,7 @@ export class Book {
       const d = curseDef(ITEM_BY_ID[it.id], it);
       if (!d) return '';
       const low = h && h.lvl < reqOf(d);
-      return `<button class="mc-item${itemCls(d)} ${low ? 'unmet' : ''} ${equippedUids.has(it.uid) ? 'eq' : ''} ${this.sel === it.uid ? 'on' : ''} ${it.n ? 'isnew' : ''}" data-act="sel" data-v="${it.uid}" style="border-color:${itemColor(d)};${itemStyle(d)}" >${gems(d)}${iconHtml(d, 40)}${upBadge(it.up, it.cursed)}${it.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${it.n ? NEW_BADGE : ''}${low ? `<small class="req">${reqOf(d)}</small>` : ''}</button>`;
+      return itemSlot(it, d, { cls: `${low ? ' unmet' : ''}${equippedUids.has(it.uid) ? ' eq' : ''}${this.sel === it.uid ? ' on' : ''}${it.n ? ' isnew' : ''}`, attrs: `data-act="sel" data-v="${it.uid}"`, req: low ? reqOf(d) : 0 });
     }).join('');
     // массовый разбор по редкости: кнопка на каждую редкость, что есть в сумке → превью с сервера → окно подтверждения
     const rset = [...new Set(bagItems.filter((i) => !i.lk).map((i) => ITEM_BY_ID[i.id]?.rarity).filter(Boolean))].sort((x, y) => (RARITIES[x]?.order || 0) - (RARITIES[y]?.order || 0));

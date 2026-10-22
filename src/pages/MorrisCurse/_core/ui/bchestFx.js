@@ -1,10 +1,11 @@
 // 🎁 Сцена открытия сундука награды. Рисунок художника (chestArt.js: лист открытия 224×224, 24 к/с, события
 // flash / lid_off / items_out / idle_start, треки вылета предметов) или процедурный запасной сундук.
 // Поверх: тряска (сильнее у высоких ярусов), плоская вспышка цветом редкости, обломки-пиксели, НАСТОЯЩИЕ иконки
-// выпавших вещей летят по трекам художника, у проклятых — чёрный дым и трещины. Без свечения и звёздочек:
+// выпавших вещей (в ячейках сумки — itemSlot) летят по трекам художника, у проклятых — чёрный дым и трещины. Без свечения и звёздочек:
 // только плоские заливки и квадратные пиксели. Тап/клик/пробел — пропустить к концу.
 import { openAnim } from './chestArt.js';
 import { card, iconHtml } from '../meta/itemCards.js';
+import { itemSlot } from './book.js';
 import { RARITIES } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
 
@@ -14,6 +15,8 @@ const rarOf = (x) => card(x.id)?.rarity || 'common';
 const rcol = (x) => (x.c ? '#a855f7' : RARITIES[rarOf(x)]?.color || '#9ca3af');
 const rord = (x) => (RARITIES[rarOf(x)]?.order ?? 0) + (x.e ? 0.5 : 0);
 const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } })();
+/** предмет сундука { id, c, e, b } → экземпляр как в сумке (для itemSlot / сравнения) */
+export const bcInst = (e) => ({ id: e.id, cursed: e.c ? 1 : 0, ...(e.e ? { ench: e.e } : {}), ...(e.b ? { blk: e.b } : {}) });
 export const MAX_FLY = 16; // столько иконок летит; остальное — «+N»
 
 /** Полноэкранная сцена открытия. chest: { art, color, name, tier }, items: [{lid,id,c,e}].
@@ -30,7 +33,7 @@ export function playOpen(chest, items, opts = {}) {
   fit(); addEventListener('resize', fit);
   const order = items.map((x, i) => i).sort((a, b) => rord(items[b]) - rord(items[a])); // лучшие вылетают первыми — по главным трекам
   const shown = order.slice(0, MAX_FLY), extra = items.length - shown.length;
-  const els = shown.map((i, j) => { const x = items[i], cc = card(x.id) || { name: x.id }; const e = document.createElement('div'); e.className = 'bc-it' + (x.c ? ' cz' : ''); e.style.setProperty('--rc', rcol(x)); e.innerHTML = iconHtml(cc, 32); e.style.display = 'none'; itsEl.appendChild(e); return { e, i, j, landed: false }; });
+  const els = shown.map((i, j) => { const x = items[i], cc = card(x.id) || { name: x.id }; const e = document.createElement('div'); e.className = 'bc-it' + (x.c ? ' cz' : ''); e.style.setProperty('--rc', rcol(x)); e.innerHTML = itemSlot(bcInst(x), undefined, { tag: 'div', px: 32 }) || iconHtml(cc, 32); /* та же ячейка, что в сумке */ e.style.display = 'none'; itsEl.appendChild(e); return { e, i, j, landed: false }; });
   const best = items.length ? items[order[0]] : null;
   // ---- частицы: квадратные пиксели (обломки, дым, «всплеск» редкости). Без свечения ----
   const burst = (x, y, n, c, sp = 3, up = 1) => { for (let k = 0; k < n; k++) { const a = Math.random() * Math.PI * 2, v = (0.4 + Math.random()) * sp; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up * 2, g: 0.18, s: (1 + Math.floor(Math.random() * 3)) * Math.max(1, S), c, life: 30 + Math.random() * 30, t: 0 }); } };

@@ -1,17 +1,16 @@
 // 🎁 Окно «Сундуки наград» (Y / кнопка 🎁 / на телефоне — кнопка в верхнем ряду). Сундуки за сданные задания с рангом
 // хранятся на сервере (JSON аккаунта), пока не открыты и не опустошены. Слева — список (вид, ярус, уровень, сколько
-// вещей, тело). Справа — шансы и «Открыть»; после открытия — сетка как у сундука схватки: подсказка-сравнение,
+// вещей, тело). Справа — шансы и «Открыть»; после открытия — сетка из тех же ячеек, что сумка C (itemSlot): подсказка-сравнение,
 // Shift+клик / двойной клик / двойной тап — забрать одну, «Забрать всё», «Надеть», «Разобрать».
 // Всё решает сервер (bchest_*); клиент только показывает. Пустой сундук исчезает с «пуфом».
-import { upBadge } from './upBadge.js';
 import { TAKE_HINT, isDblTap, markDown, TOUCH } from './dblTap.js';
 import { esc } from './overlay.js';
-import { card, iconHtml, addCards } from '../meta/itemCards.js';
-import { curseTint } from './book.js';
-import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge, enchName } from '../meta/enchCfg.js';
+import { card, addCards, ITEM_BY_ID } from '../meta/itemCards.js';
+import { itemSlot, curseDef } from './book.js';
+import { enchText, enchName } from '../meta/enchCfg.js';
 import { RARITIES, RESOURCES } from '../../../../../server/meta/shared.ts';
 import { loadAtlas, imageUrl, iconHtml as chestIco } from './chestArt.js';
-import { playOpen, poof } from './bchestFx.js';
+import { playOpen, poof, bcInst } from './bchestFx.js';
 
 const CAT = { daily: 'Ежедневное', weekly: 'Недельное', monthly: 'Месячное', hard: 'Испытание', hunt: 'Заказ' };
 const RAR_ORDER = Object.keys(RARITIES).sort((a, b) => RARITIES[a].order - RARITIES[b].order);
@@ -105,13 +104,13 @@ export class BchestWindow {
     }
     const items = c.items || [];
     pane.innerHTML = `<div class="bc-head">${this.ico(c, 20, 1)} <b style="color:${esc(textCol(c.color))}">${esc(c.name)}</b><small>${esc(this.tag(c))} · внутри ${items.length}</small></div>
-      <div class="grid"></div>
+      <div class="grid mc-bag"></div>
       <div class="bc-acts"><button class="btn" data-a="take" disabled>Забрать</button><button class="btn" data-a="equip" disabled>Надеть</button><button class="btn danger" data-a="salvage" disabled>Разобрать</button><button class="btn gold all" data-a="all"${mine ? '' : ' disabled'}>Забрать всё</button></div>
       <footer><small>${TAKE_HINT}${TOUCH ? ' · долгое нажатие — сравнение' : ' · наведите — сравнение с надетым'}</small></footer>`;
     const g = pane.querySelector('.grid');
-    g.innerHTML = items.map((e) => { const cc = card(e.id) || { name: e.id }, cz = !!e.c, en = tierOf(e), nm = lookName(cc.name || e.id, cz, en);
-      const rc = en ? enchText(en) : cz ? curseTint() : RARITIES[cc.rarity]?.color || '#9ca3af';
-      return `<div class="cell${lookCls(cz, en)}${this.hidden.has(e.lid) ? ' hid' : ''}${this.cell === e.lid ? ' sel' : ''}${this.pending.has(e.lid) ? ' taking' : ''}" data-lid="${e.lid}" style="--rc:${rc};${lookStyle(en)}">${en ? '<i class="mc-eg" aria-hidden="true"></i>' : ''}${iconHtml(cc, 36)}${upBadge(0, cz)}<span class="nm" style="color:${rc}">${esc(nm)}</span>${cc.lvl ? `<span class="lv">ур. ${cc.lvl}</span>` : ''}${cz ? '<span class="cz">☠</span>' : ''}${en ? enchBadge(en) : ''}${e.b ? `<span class="bk" title="Очернение −${e.b}%">🌑${e.b}%</span>` : ''}</div>`; }).join('');
+    const hl = this.meta?.hero?.lvl | 0; // та же ячейка, что в сумке (C): рамки редкости/✦, проклятие, очернение; «ур.» — только если не хватает уровня
+    g.innerHTML = items.map((e) => { const it = bcInst(e), d = curseDef(ITEM_BY_ID[e.id], it); if (!d) return ''; const nm = d.name || e.id, low = hl && (d.lvl | 0) > hl;
+      return itemSlot(it, d, { tag: 'div', cls: `${this.hidden.has(e.lid) ? ' hid' : ''}${this.cell === e.lid ? ' on' : ''}${this.pending.has(e.lid) ? ' taking' : ''}${low ? ' unmet' : ''}`, attrs: `data-lid="${e.lid}" aria-label="${esc(nm)}"`, req: low ? d.lvl : 0 }); }).join('');
     g.querySelectorAll('[data-lid]').forEach((el) => { const lid = Number(el.dataset.lid);
       el.onpointerdown = (ev) => { markDown(this, lid); if (ev.pointerType !== 'mouse') { clearTimeout(this.lpT); this.lpT = setTimeout(() => this.showCmp(lid, ev.clientX, ev.clientY), 420); } };
       el.onpointerup = el.onpointercancel = () => clearTimeout(this.lpT);
@@ -130,7 +129,7 @@ export class BchestWindow {
     this.msg(this.cell ? `«${nm}» — ${TOUCH ? 'двойной тап — забрать' : 'двойной клик или Shift + клик — забрать'}` : ''); this.render();
   }
   showCmp(lid, x, y) { const it = this.cur()?.items?.find((i) => i.lid === lid); if (!it || !this.book) return;
-    const html = this.book.cmpHtml(null, { uid: 'bc' + lid, id: it.id, cursed: it.c ? 1 : 0, ench: it.e || 0, blk: it.b || 0, hint: TOUCH ? 'Двойной тап — забрать · кнопки внизу — надеть/разобрать' : 'Shift + клик — забрать · выделите — «Надеть» / «Разобрать»' });
+    const html = this.book.cmpHtml(null, { uid: 'bc' + lid, ...bcInst(it), hint: TOUCH ? 'Двойной тап — забрать · кнопки внизу — надеть/разобрать' : 'Shift + клик — забрать · выделите — «Надеть» / «Разобрать»' });
     if (!html || !this.cmpEl) return; this.cmpEl.innerHTML = html; this.cmpEl.style.display = ''; this.placeCmp(x, y); }
   placeCmp(x, y) { const b = this.cmpEl, w = b.offsetWidth, h = b.offsetHeight; let L = x + 16, T = y + 12; if (L + w > innerWidth - 6) L = Math.max(6, x - w - 16); if (T + h > innerHeight - 6) T = Math.max(6, innerHeight - h - 6); b.style.left = L + 'px'; b.style.top = T + 'px'; }
   hideCmp() { clearTimeout(this.lpT); if (this.cmpEl) this.cmpEl.style.display = 'none'; }

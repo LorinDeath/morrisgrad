@@ -1210,10 +1210,11 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-bchest .od em { font-style: normal; text-align: right; color: #eadfbf; }
 .mc-bchest .bc-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; } .mc-bchest .bc-head small { color: #a8977a; margin-left: auto; }
 .mc-bchest .grid { max-height: none; flex: 1; align-content: start; }
-.mc-bchest .cell.cursed { box-shadow: none; border: 1px solid #a855f7; background: #1c1030; } /* без свечения */
-.mc-bchest .cell.sel { outline: 2px solid #fbbf24; outline-offset: -2px; }
-.mc-bchest .cell.hid { visibility: hidden; }
-.mc-bchest .cell.pop { animation: bcPop .22s steps(4) both; }
+.mc-bchest .grid.mc-bag { grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); } /* ячейки — те же .mc-item, что в сумке C (itemSlot) */
+.mc-bchest .grid .mc-item { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.mc-bchest .grid .mc-item.taking { opacity: .35; }
+.mc-bchest .grid .mc-item.hid { visibility: hidden; }
+.mc-bchest .grid .mc-item.pop { animation: bcPop .22s steps(4) both; }
 @keyframes bcPop { 0% { transform: scale(.4); } 60% { transform: scale(1.15); } 100% { transform: none; } }
 .mc-bchest .bc-acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px; }
 .mc-bchest .btn { font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 5px; border: 1px solid #5b4720; background: #2a2010; color: #eadfbf; cursor: pointer; touch-action: manipulation; }
@@ -1223,14 +1224,12 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .bc-icw .bc-lv { position: absolute; right: -3px; bottom: -3px; min-width: 14px; padding: 0 3px; box-sizing: border-box; font: 700 10px/14px system-ui, sans-serif; text-align: center; color: #fde68a; background: #1a1208; border: 1px solid #b8913a; border-radius: 3px; }
 .bc-icw .bc-lv.s { font-size: 8px; line-height: 10px; min-width: 10px; padding: 0 2px; right: -4px; bottom: -2px; }
 .mc-bchest .bc-row small.lvl, .mc-bchest .bc-big small.lvl { color: #fde68a; font-weight: 600; }
-.mc-bchest .grid .cell .bk { position: absolute; left: 2px; bottom: 14px; font-size: 9px; color: #c4b5fd; background: #0008; border-radius: 3px; padding: 0 2px; }
 .bc-ico.fb { background: var(--cc, #999); border: 2px solid #000; box-sizing: border-box; }
 .mc-touch .mc-loot.mc-bchest, .mc-bchest.mob { width: 98%; top: 50%; }
 @media (max-width: 640px), (max-height: 520px) and (pointer: coarse) {
   .mc-bchest .bc-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; max-height: 82vh; }
   .mc-bchest .bc-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid #3d2f12; }
   .mc-bchest .bc-row { flex: none; width: 200px; }
-  .mc-bchest .grid { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); }
   .mc-bchest .btn { padding: 8px 12px; }
 }
 @media (max-height: 520px) and (orientation: landscape) { .mc-bchest .bc-body { grid-template-columns: 220px 1fr; grid-template-rows: none; } .mc-bchest .bc-list { flex-direction: column; overflow-y: auto; border-right: 1px solid #3d2f12; border-bottom: 0; } .mc-bchest .bc-row { width: auto; } }
@@ -1240,9 +1239,9 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .bc-fx .sh { position: absolute; left: 0; top: 0; will-change: transform; }
 .bc-fx canvas.ch { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
 .bc-fx .its { position: absolute; left: 0; top: 0; }
-.bc-it { position: absolute; left: 0; top: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--rc, #9ca3af); background: #0e0b15; box-sizing: border-box; will-change: transform; pointer-events: none; }
+.bc-it { position: absolute; left: 0; top: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; will-change: transform; pointer-events: none; }
+.bc-it > .mc-item { width: 100%; height: 100%; min-height: 0; padding: 0; box-sizing: border-box; justify-content: center; }
 .bc-it.fly { position: fixed; z-index: 205; }
-.bc-it .cz { position: absolute; left: 1px; top: -2px; font-size: 10px; color: #c084fc; }
 .bc-fx .cap { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); text-align: center; font-family: monospace; color: #eadfbf; text-shadow: 2px 2px 0 #000; opacity: 0; transition: opacity .2s; white-space: nowrap; }
 .bc-fx .cap.in { opacity: 1; } .bc-fx .cap.out { opacity: 0; }
 .bc-fx .cap b { display: block; font-size: 22px; } .bc-fx .cap em { font-style: normal; } .bc-fx .cap span, .bc-fx .cap em { display: block; font-size: 13px; color: #d6d3d1; margin-top: 3px; }
