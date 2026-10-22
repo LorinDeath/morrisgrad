@@ -8,6 +8,7 @@ import { perfHtml, mountPerf } from './perfTab.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
 import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
+import { btTopItems, btaskForm, poolsForm, BT_CSS, isCustom } from './adminBtask.js';
 
 // краткое описание предмета для пикера наград квеста (уровень, редкость, слот, статы)
 const ITEM_STAT_RU = {
@@ -140,7 +141,7 @@ export class AdminPanel {
   get isOpen() { return !!this.el; }
   open() {
     if (this.el) return;
-    if (!document.getElementById('mc-admin-css')) { const s = document.createElement('style'); s.id = 'mc-admin-css'; s.textContent = css; document.head.appendChild(s); }
+    if (!document.getElementById('mc-admin-css')) { const s = document.createElement('style'); s.id = 'mc-admin-css'; s.textContent = css + BT_CSS; document.head.appendChild(s); }
     const el = this.el = document.createElement('div'); el.className = 'mc-admin' + (this.full ? '' : ' mod');
     if (this.host.clientWidth < 760 || /Mobi|Android|iPhone/i.test(navigator.userAgent)) el.classList.add('sheet');
     if (getComputedStyle(this.host).position === 'static') this.host.style.position = 'relative';
@@ -176,12 +177,24 @@ export class AdminPanel {
   onResult(r) {
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
     if (!this.cat) { if (r.op === 'dialogue' || (r.op === 'quest' && r.withDialogue)) this.onDialogueApplied?.(r); if (r.op === 'quest' && r.quest) this.onQuestApplied?.(r); return; } // каталог не загружен (окно закрыто; правка из плейтеста/другой вкладки) — без падения
+    if (r.kind === 'btask') { // своё задание: новое — в список, удалённое — из списка
+      const L = this.cat.ent.btask || (this.cat.ent.btask = []), i = L.findIndex((x) => x.id === r.id);
+      if (r.deleted) { if (i >= 0) L.splice(i, 1); if (this.sel === r.id) this.sel = null; }
+      else if (r.values) { if (i >= 0) { L[i].values = r.values; L[i].name = r.values.title; } else { L.push({ id: r.id, name: r.values.title, cat: r.values.cat, lvl: r.values.minLvl, values: r.values }); } if (this.btPending === r.id) { this.sel = r.id; this.btPending = null; } }
+      this.btDraft = null;
+    }
+    if (r.kind === 'board' && r.values) { const e = this.cat.ent.board?.[0]; if (e) e.values = r.values; }
     if (r.kind && r.values) { const e = this.cat.ent?.[r.kind]?.find((x) => x.id === r.id); if (e) { e.values = r.values; if (r.kind === 'item') e.lvl = Math.max(1, r.values.req || 1, r.values.lvl || 1); if (r.kind === 'mob') e.lvl = r.values.lvl; } }
     if (r.op === 'quest' && r.withDialogue) { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
     if (r.op === 'quest' && r.quest) { this.onQuestApplied?.(r); const i = this.cat.quests.findIndex((x) => x.id === r.quest.id); const row = { id: r.quest.id, title: r.quest.title, npc: r.quest.npc, custom: !r.builtin, edited: r.builtin && !r.reset, requires: r.quest.requires || [], minLevel: r.quest.minLevel, stars: Object.values(r.quest.rewards?.stars || {}).reduce((a, b) => a + b, 0), def: r.quest }; if (i >= 0) this.cat.quests[i] = row; else this.cat.quests.push(row); this.sel = r.quest.id; }
     if (r.op === 'dialogue') { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
     if (r.op === 'quest_delete') { this.cat.quests = this.cat.quests.filter((x) => x.id !== r.id); this.sel = null; }
-    this.msg(`✔ Сохранено в D1${r.version ? ` (версия ${r.version})` : ''}`); this.render();
+    this.msg(r.deleted ? '✔ Удалено' : r.op === 'reset' ? '✔ Возвращено исходное' : `✔ Сохранено в D1${r.version ? ` (версия ${r.version})` : ''}`); this.render();
+  }
+  /** несколько правок подряд (сервер принимает не чаще раза в 300 мс) */
+  sendQueue(q, done) {
+    const step = () => { const m = q.shift(); if (!m) { this.msg('✔ ' + (done || 'Сохранено')); return; } this.send(m); this.msg(`Сохранение… осталось ${q.length}`); setTimeout(step, 380); };
+    step();
   }
   onPerf(data) { this.perf = data; this.perfAt = Date.now(); if (this.tab === 'perf' && this.el) this.renderPerf(this.el.querySelector('section')); }
   renderPerf(sec) {
@@ -215,9 +228,10 @@ export class AdminPanel {
     }
     if (this.tab === 'btask') { // ~450 заданий и достижений: группы по категории (сворачиваются), внутри — по порядку/уровню
       const CN = { tut: 'Обучение', npc: 'Персонажи', hunt: 'Доска охоты', daily: 'Ежедневные', weekly: 'Еженедельные', monthly: 'Ежемесячные', hard: 'Тяжёлые', ach: 'Достижения' };
-      const col = this.btCol || (this.btCol = new Set(['npc', 'hunt', 'daily', 'weekly', 'monthly', 'hard', 'ach'])), out = [], groups = {};
-      for (const e of this.cat.ent.btask || []) (groups[e.cat || 'ach'] ||= []).push({ ...row(e, 'btask'), sub: `${e.id}${e.values?.hidden ? ' · скрытое' : ''}${e.values?.giver ? ' · ' + e.values.giver : ''}` });
+      const col = this.btCol || (this.btCol = new Set(['npc', 'hunt', 'daily', 'weekly', 'monthly', 'hard', 'ach'])), out = btTopItems(), groups = {};
+      for (const e of this.cat.ent.btask || []) (groups[e.cat || 'ach'] ||= []).push({ ...row(e, 'btask'), name: `${isCustom(e.id) ? '✚ ' : ''}${e.values?.on === false ? '⏻ ' : ''}${e.values?.title || e.name}`, sub: `${e.id}${e.values?.hidden ? ' · скрытое' : ''}${e.values?.giver ? ' · ' + e.values.giver : ''}` });
       for (const g of Object.keys(CN)) { const rows = groups[g]; if (!rows) continue;
+        if (rows.some((r) => r.id === this.sel)) col.delete(g); // выбранное (в т.ч. только что созданное) — группа раскрыта
         out.push({ grp: 1, g: 'bt:' + g, id: '__bt_' + g, name: `${col.has(g) ? '▸' : '▾'} ${CN[g]} · ${rows.length}` });
         if (!col.has(g) || this.q) out.push(...rows.sort((a, b) => (a.lvl || 0) - (b.lvl || 0) || a.id.localeCompare(b.id))); }
       return out;
@@ -256,6 +270,12 @@ export class AdminPanel {
     if (this.tab === 'audit') { if (!this.full) { sec.innerHTML = '<p>Журнал доступен только админу.</p>'; return; } if (!this.audit) this.send({ type: 'admin_audit' }); sec.innerHTML = this.auditHtml(); return; }
     if (this.tab === 'perf') { if (!this.perf || Date.now() - (this.perfAt || 0) > 5000) this.send({ type: 'admin_perf' }); this.renderPerf(sec); return; }
     if (this.tab === 'quest') { if (!this.full) { sec.innerHTML = '<p>Квесты доступны только админу.</p>'; return; } if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }
+    if (this.tab === 'btask' && this.full) { // задания доски: своя форма (создать/копировать/удалить, выбор из списков, предпросмотр)
+      if (this.sel === '__pools') { poolsForm(this, sec); return; }
+      if (this.sel === '__btnew' || this.sel === '__achnew') { btaskForm(this, sec, null, { cat: this.sel === '__achnew' ? 'ach' : 'daily', ev: 'kill' }); return; }
+      if (this.sel === '__copy' && this.btCopy) { btaskForm(this, sec, null, { id: this.btCopy.id, values: this.btCopy.values }); return; }
+      const be = (this.cat.ent.btask || []).find((x) => x.id === this.sel); if (be) { btaskForm(this, sec, be); return; }
+    }
     const pre = /^(item|spawn|boss|rare|region):/.exec(String(this.sel || ''));
     const kind = pre ? pre[1] : this.tab, id = pre ? this.sel.slice(pre[0].length) : this.sel;
     if (String(this.sel || '').startsWith('res:')) { const r = (this.cat.res || []).find((x) => 'res:' + x.id === this.sel); sec.innerHTML = r ? `<h3>${esc(r.icon || '')} ${esc(r.name)}</h3><p>Материал <code>${esc(r.id)}</code> — выпадает с мобов и из сбора; редактируется через таблицы дропа (вкладка «Дроп»).</p>` : ''; return; }

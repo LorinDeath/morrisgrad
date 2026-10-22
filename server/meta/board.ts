@@ -40,7 +40,7 @@ export const BOARD_CFG: any = {
   // случайный пул: на период каждому игроку выдаётся от Min до Max заданий категории (детерминированно: игрок + период, сброс по Киеву);
   // вероятность задания — его вес w (админка «Задания доски»), 0 — не выпадает. Тяжёлые не случайны: это разовые личные задания персонажей.
   dailyMin: 4, dailyMax: 6, weeklyMin: 3, weeklyMax: 4, monthlyMin: 2, monthlyMax: 3,
-  huntMax: 6, npcMax: 8, pinMax: 10, trackMax: 10,
+  huntMax: 6, npcMax: 8, pinMax: 10, trackMax: 10, bars: { ach: true, lib: true } as Record<string, boolean>,
   // Доска объявлений — объект на стартовой площади Аринара (не персонаж и не Альказак): заказы с неё берут, отменяют и сдают
   // рядом с ней. Заказы охоты обновляются каждый игровой день (сброс ежедневных); взятые остаются до сдачи или отмены.
   huntOffer: 8, huntBossOffer: 2,
@@ -513,7 +513,44 @@ export const BTASKS: Record<string, BTask> = {};
 for (const t of [...genTut(), ...genNpc(), ...genHunt(), ...genPeriodic(), ...genHard(), ...genAch()]) BTASKS[t.id] = t;
 export const BTASK_LIST = () => Object.values(BTASKS);
 const BY_EV = new Map<string, BTask[]>();
-for (const t of BTASK_LIST()) { const k = t.ev === "ability" ? "ability_used" : t.ev === "claim" ? "board_claim" : t.ev === "quest" ? "quest_done" : t.ev; (BY_EV.get(k) || BY_EV.set(k, []).get(k)!).push(t); }
+/** индекс «событие → задания»; пересобирается после любой правки задания в админке (новое, удалённое, сменилось событие) */
+export function reindexBtasks() {
+  BY_EV.clear();
+  for (const t of BTASK_LIST()) { const k = t.ev === "ability" ? "ability_used" : t.ev === "claim" ? "board_claim" : t.ev === "quest" ? "quest_done" : t.ev; (BY_EV.get(k) || BY_EV.set(k, []).get(k)!).push(t); }
+}
+reindexBtasks();
+// ── задания и достижения, созданные в админке (id «cx_…»): шаблон создаётся при сохранении, поля — правка game_overrides ──
+export const CUSTOM_BT = /^cx_[a-z0-9_]{2,40}$/;
+export const BT_CATS_NEW: Cat[] = ["npc", "hunt", "daily", "weekly", "monthly", "hard", "ach"];
+/** события, на которые можно повесить задание; target — из какого списка выбирается цель в админке */
+export const BT_EVS: { id: string; name: string; target: string; hint?: string }[] = [
+  { id: "kill", name: "Победить врагов", target: "mob" }, { id: "gather", name: "Собрать ресурс", target: "res" },
+  { id: "loot", name: "Забрать добычу", target: "loot" }, { id: "craft", name: "Создать вещь (ремесло)", target: "recipe" },
+  { id: "salvage", name: "Разобрать вещи", target: "" }, { id: "upgrade", name: "Улучшить вещь", target: "upmax" },
+  { id: "run", name: "Забег (Склеп/Бездна)", target: "room" }, { id: "trial", name: "Испытание волн", target: "trial" },
+  { id: "duel", name: "Сыграть дуэль", target: "" }, { id: "duel_win", name: "Победить в дуэли", target: "" },
+  { id: "pvp", name: "Бой с игроком", target: "pvp" }, { id: "claim", name: "Сдать задания доски", target: "cat" },
+  { id: "quest", name: "Выполнить сюжетный квест", target: "" }, { id: "reach", name: "Прийти в мир", target: "world" },
+  { id: "ability", name: "Применить умение", target: "" }, { id: "lvlup", name: "Получить уровни", target: "" },
+  { id: "death", name: "Пасть в бою", target: "mob" }, { id: "st", name: "Достичь состояния (уровень, бестиарий, вещи…)", target: "state" },
+];
+export const ROOM_NAMES: Record<string, string> = { crypt: "Склеп", abyss: "Бездна" };
+export const BT_ROLE_NAMES = ROLE_NAMES;
+/** состояния для события «st» (что можно проверить по аккаунту) */
+export const BT_STATES: Record<string, string> = {
+  lvl: "Уровень героя", talents: "Потрачено очков талантов", equipped: "Надето вещей", bestiary: "Разных врагов побеждено (с запуска)", items: "Открыто разных предметов",
+  heroes15: "Героев 15+ уровня", wbosses: "Разных мировых боссов побеждено", cursed_own: "Проклятых вещей в сумке", bag_full: "Сумка полна", look: "Активен облик",
+  cursed_eq: "Надето проклятых вещей", blk_char: "Чернота персонажа", blk_item: "Чернота лучшей вещи", cursed_black: "Проклятая вещь 15+ с чернотой 80+",
+  cursed_ench: "Проклятая вещь с ярусом 3+", cursed_upg: "Проклятая вещь +5", ench6: "Есть «Чёрная» вещь", ench_own: "Зачарованных вещей", ench_tiers: "Разных ярусов зачарования",
+  ench_up10: "Зачарованная вещь +10", ench6_up5: "«Чёрная» вещь +5", ench6_hi20: "«Чёрная» вещь 20+ ур.", ench_hi25: "Ярус 4+ на вещи 25+ ур.",
+  ench_eq: "Надето зачарованных", ench_eq_kinds: "Надето разных ярусов", ench_eq_same: "Надето одного яруса",
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].flatMap((t) => [[`ench_own:${t}`, `Вещей яруса ${t} в сумке`], [`ench_eq_t:${t}`, `Надето яруса ${t}`], [`ench_cursed:${t}`, `Проклятая вещь яруса ${t}`]])),
+  ...Object.fromEntries(HERO_IDS.map((c) => [`hero:${c}`, `Уровень героя «${(HERO_NAMES as any)[c] || c}»`])),
+};
+export function makeBtask(id: string, cat: Cat, ev: string): BTask {
+  return T({ id, cat, ev, title: cat === "ach" ? "Новое достижение" : "Новое задание", giver: cat === "hunt" ? "board" : "", ord: 9000, w: 1 });
+}
+export function delBtask(id: string) { if (CUSTOM_BT.test(id)) delete BTASKS[id]; }
 export function boardCounts() {
   const c: Record<string, number> = {}; let tiers = 0;
   for (const t of BTASK_LIST()) { c[t.cat] = (c[t.cat] || 0) + 1; tiers += tiersOf(t).length; }
@@ -1001,16 +1038,18 @@ export function boardTut(a: Account, mode: string): any {
 
 // ---------------- клиенту ----------------
 /** определения: раз в сессию и после правок в админке */
+/** задание → описание для клиента (скрытое — без текста). Его же использует предпросмотр в админке */
+export const btDef = (t: BTask): any => t.hidden ? { id: t.id, cat: t.cat, ord: t.ord, hid: 1, t: "???", n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length) } : ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
+      ev: t.ev, m: t.m || undefined, f: t.f || undefined, nb: atBoard(t) || undefined, at: takeAt(t) || undefined, take: needsTake(t) || undefined, wt: t.w !== 1 ? t.w : undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined });
 export function boardDefs() {
   return {
     v: 1, on: BOARD_CFG.on !== false,
     cats: CATS.filter(catOn), names: CAT_NAMES,
-    tasks: BTASK_LIST().filter((t) => t.on && catOn(t.cat)).map((t) => t.hidden ? { id: t.id, cat: t.cat, ord: t.ord, hid: 1, t: "???", n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length) } : ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
-      ev: t.ev, m: t.m || undefined, f: t.f || undefined, nb: atBoard(t) || undefined, at: takeAt(t) || undefined, take: needsTake(t) || undefined, wt: t.w !== 1 ? t.w : undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined })),
+    tasks: BTASK_LIST().filter((t) => t.on && catOn(t.cat)).map(btDef),
     xp: { t: BOARD_CFG.xp, bands: BOARD_CFG.bands, refPlus: BOARD_CFG.refPlus | 0, need: Array.from({ length: HERO_MAX_LEVEL }, (_, i) => heroXpNeed(i + 1)), mul: BOARD_CFG.xpMul, caps: BOARD_CFG.caps },
     givers: GIVER_NAMES,
     props: { nb: { world: BOARD_CFG.nbWorld, x: BOARD_CFG.nbX, y: BOARD_CFG.nbY, r: BOARD_CFG.nbRange }, ab: { world: BOARD_CFG.abWorld, x: BOARD_CFG.abX, y: BOARD_CFG.abY, r: BOARD_CFG.abRange } },
-    cfg: { huntMax: BOARD_CFG.huntMax, npcMax: BOARD_CFG.npcMax, huntOffer: BOARD_CFG.huntOffer, pinMax: pinLimit(), trackMax: Math.max(1, Math.min(30, (BOARD_CFG.trackMax | 0) || 10)), tutSkip: BOARD_CFG.tutSkip !== false, tutOn: BOARD_CFG.tutOn !== false, qol: BOARD_CFG.qol },
+    cfg: { huntMax: BOARD_CFG.huntMax, npcMax: BOARD_CFG.npcMax, huntOffer: BOARD_CFG.huntOffer, pinMax: pinLimit(), trackMax: Math.max(1, Math.min(30, (BOARD_CFG.trackMax | 0) || 10)), bars: { ach: BOARD_CFG.bars?.ach !== false, lib: BOARD_CFG.bars?.lib !== false }, tutSkip: BOARD_CFG.tutSkip !== false, tutOn: BOARD_CFG.tutOn !== false, qol: BOARD_CFG.qol },
   };
 }
 /** состояние игрока: в meta_state, когда меняется rev */
@@ -1023,7 +1062,7 @@ export function boardClient(a: Account, h: Hero | null) {
   for (const t of BTASK_LIST()) if (t.hidden && t.on && (b.p[t.id] || 0) >= tiersOf(t)[0] && !((b.pre[t.id] || 0) >= tiersOf(t).length)) reveal[t.id] = { t: t.title, w: t.why };
   const xs: Record<string, [number, number]> = {};
   for (const c of CATS) { const cp = capPeriod(c); if (!cp) continue; const cap = catCap(c, lvl); if (!cap) continue; const v = b.xs[c]?.k === periodKey(cp) ? b.xs[c].v : 0; xs[c] = [v, cap]; }
-  return { reveal, rev: b.rev, p: b.p, c: b.c, tk: b.tk, pin: b.pin, sel: b.sel, lock, reset: nextResets(), xd: xs.daily?.[0] || 0, cap: dayCap(lvl), xs, pre: b.pre, lvl,
+  return { reveal, rev: b.rev, p: b.p, c: b.c, tk: b.tk.filter((x) => BTASKS[x]), pin: b.pin.filter((x) => BTASKS[x]), sel: b.sel, lock, reset: nextResets(), xd: xs.daily?.[0] || 0, cap: dayCap(lvl), xs, pre: b.pre, lvl,
     tut: { off: !!b.tut.off, skip: !!b.tut.skip, vet: !!b.tut.vet } };
 }
 

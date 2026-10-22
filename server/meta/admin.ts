@@ -7,7 +7,12 @@ import { ZONE_GEN } from "./zoneGen";
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validateConds, COND_DEFS } from "./questConds";
-import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, type Kind, type Trait } from "./overrides";
+import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, type Kind, type Trait } from "./overrides";
+import { BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, BT_CATS_NEW, CAT_NAMES, GIVER_NAMES, NPC_GIVERS, CUSTOM_BT } from "./board";
+import { BIOMES } from "./biomes";
+import { RECIPES, HERO_IDS, RESOURCES as RES_ALL } from "./defs";
+import { HERO_NAMES } from "./shared";
+import { WORLD_NAMES } from "./mobHome";
 import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOriginal, type QuestDef, type Objective } from "./quests";
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
@@ -189,7 +194,7 @@ export class AdminStore {
     applyOverride(kind, id, null);
     const values = currentValues(kind, id);
     await this.bump(by, kind, id, before, values, 0);
-    return { ok: true, values };
+    return { ok: true, values, deleted: !TABLES[kind][id] || undefined }; // своё задание доски при сбросе удаляется целиком
   }
   async saveQuest(by: string, raw: any) {
     if (!this.db) return { ok: false, err: "База недоступна" };
@@ -283,6 +288,11 @@ export class AdminStore {
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
       mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl, boss: !!o.boss || undefined, base: o.variant ? o.base : undefined, baseName: o.variant ? (ZONE_MOBS as any)[o.base]?.name : undefined, biome: o.variant ? o.biome : undefined })),
       objTypes: OBJ_TYPES, conds: COND_DEFS,
+      // задания доски: списки для выбора цели/условий/предусловий (без ввода id руками)
+      bt: { evs: BT_EVS, states: BT_STATES, flags: BT_FLAG_NAMES, cats: BT_CATS_NEW.map((id) => ({ id, name: CAT_NAMES[id] })), givers: GIVER_NAMES, npcGivers: NPC_GIVERS, custom: CUSTOM_BT.source,
+        roles: BT_ROLE_NAMES, rooms: ROOM_NAMES, worlds: WORLD_NAMES, biomes: Object.fromEntries(Object.values(BIOMES).map((b: any) => [b.id, b.name])),
+        heroes: Object.fromEntries(HERO_IDS.map((c) => [c, (HERO_NAMES as any)[c] || c])), recipes: RECIPES.map((r) => ({ id: r.id, name: (ITEM_BY_ID as any)[r.item]?.name || r.id })),
+        loot: { bag: "мешок (любой)", item: "вещи из мешков", res: "материалы (любые)", ...Object.fromEntries(Object.entries(RES_ALL).map(([k, o]: [string, any]) => [k, o.name])) } },
       vn: { chars: Object.values(VN_CHARS), emotions: VN_EMOTIONS.map((id) => ({ id, name: VN_EMOTION_NAMES[id] })), limits: VN_LIMITS, dialogues: { ...QUEST_DIALOGUES } },
       totals: { items: Object.keys(ITEM_BY_ID).length, weapons: Object.values(ITEM_BY_ID).filter((o: any) => o.slot === "weapon").length, res: Object.keys(RESOURCES).length }, // для проверки «ни один предмет не пропал»
     };

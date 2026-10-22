@@ -27,7 +27,10 @@ import { ENCH, ENCH_N } from "./enchant";
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
-import { BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols } from "./board";
+import { BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, reindexBtasks, type Cat } from "./board";
+import { BIOMES } from "./biomes";
+import { RECIPES, HERO_IDS } from "./defs";
+import { WORLD_NAMES } from "./mobHome";
 
 export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
@@ -353,7 +356,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("huntMax", "Доска объявлений: взятых заказов одновременно", 1, 20, "int"), N("huntOffer", "Доска объявлений: заказов охоты в день", 1, 30, "int"), N("huntBossOffer", "…из них боссов и редких", 0, 10, "int"),
     { path: "_h_nb", label: "Доска объявлений (стартовая площадь Аринара) и Доска достижений (Алтарь тел)", t: "hdr" },
     { path: "nbWorld", label: "Доска объявлений: мир", t: "enum", opts: ["arinar", "hellfire"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("nbX", "Доска объявлений: x", 0, 48000, "int"), N("nbY", "Доска объявлений: y", 0, 48000, "int"), N("nbRange", "Доска объявлений: радиус, px", 40, 300, "int"),
-    { path: "abWorld", label: "Доска достижений: мир", t: "enum", opts: ["hellfire", "arinar"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("abX", "Доска достижений: x", 0, 48000, "int"), N("abY", "Доска достижений: y", 0, 48000, "int"), N("abRange", "Доска достижений: радиус, px", 40, 300, "int"), N("pinMax", "Отслеживаемых заданий (трекер, стрелки, карта)", 1, 30, "int"), N("trackMax", "Отслеживаемых врагов из Бестиария", 1, 30, "int"),
+    { path: "abWorld", label: "Доска достижений: мир", t: "enum", opts: ["hellfire", "arinar"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("abX", "Доска достижений: x", 0, 48000, "int"), N("abY", "Доска достижений: y", 0, 48000, "int"), N("abRange", "Доска достижений: радиус, px", 40, 300, "int"), N("pinMax", "Отслеживаемых заданий (трекер, стрелки, карта)", 1, 30, "int"), N("trackMax", "Отслеживаемых врагов из Бестиария", 1, 30, "int"), { path: "bars.ach", label: "Шкала прогресса достижений", t: "bool" }, { path: "bars.lib", label: "Шкала прогресса Бестиария", t: "bool" },
     { path: "_h_b2", label: "Сброс (часовой пояс — Киев)", t: "hdr" }, { path: "tz", label: "Часовой пояс", t: "text" }, N("resetHour", "Час сброса (0–23)", 0, 23, "int"), N("weekDay", "День недельного сброса (1 = пн … 7 = вс)", 1, 7, "int"),
     { path: "_h_b3", label: "Опыт: % от опыта на уровень (по уровню цели × сложность)", t: "hdr" },
     ...[0, 1, 2, 3, 4, 5].flatMap((b) => [N(`bands.${b}`, `Полоса ${b + 1}: до уровня`, 1, 30, "int"), ...[0, 1, 2, 3, 4].map((d) => N(`xp.${b}.${d}`, `Полоса ${b + 1} · сложность ${d + 1}, %`, 0, 100))]),
@@ -368,6 +371,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "qol.bmArrow", label: "Стрелка трекера к Чёрному магу (живая позиция)", t: "bool" },
   ] },
   btask: { name: "📋 Задание доски", fields: [
+    { path: "cat", label: "Раздел (выбирается при создании)", t: "enum", opts: CATS, optn: CAT_NAMES },
+    { path: "ev", label: "Что нужно сделать (выбирается при создании)", t: "enum", opts: [...BT_EVS.map((e) => e.id), "ui"], optn: { ...Object.fromEntries(BT_EVS.map((e) => [e.id, e.name])), ui: "Действие в интерфейсе (обучение)" } },
     { path: "on", label: "Включено", t: "bool" }, { path: "title", label: "Название", t: "ltext" }, { path: "why", label: "Зачем (одна строка)", t: "ltext" },
     { path: "pc", label: "Подсказка: ПК", t: "ltext" }, { path: "mob", label: "Подсказка: телефон", t: "ltext" },
     { path: "giver", label: "Кто выдаёт и принимает: персонаж — в своём диалоге, Доска объявлений — у доски, «—» — в окне «Задания»", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
@@ -419,7 +424,34 @@ function validateLoot(patch: any): any | string {
   return out;
 }
 /** Проверка патча: только поля схемы, числа в диапазоне. Возвращает очищенный патч или текст ошибки. */
+/** Проверка правки. Задание доски с id «cx_…», которого ещё нет, — новое (из админки): шаблон создаётся на время проверки
+ *  и удаляется, если правка не прошла. Раздел и событие встроенного задания менять нельзя (на них завязаны счётчики игроков). */
 export function validatePatch(kind: Kind, id: string, patch: any): any | string {
+  if (kind !== "btask") return validatePatch0(kind, id, patch);
+  let made = false;
+  if (!TABLES.btask[id]) {
+    if (!CUSTOM_BT.test(id)) return "нет такой сущности";
+    if (Object.keys(BTASKS).filter((k) => CUSTOM_BT.test(k)).length >= 400) return "новых заданий не больше 400";
+    const cat = String(patch?.cat || ""), ev = String(patch?.ev || "");
+    if (!BT_CATS_NEW.includes(cat as Cat)) return "раздел: выберите из списка";
+    if (!BT_EVS.some((e) => e.id === ev)) return "что нужно сделать: выберите из списка";
+    BTASKS[id] = makeBtask(id, cat as Cat, ev); made = true;
+  }
+  const T = TABLES.btask[id], custom = CUSTOM_BT.test(id);
+  if (patch && typeof patch === "object") {
+    for (const p of ["cat", "ev"]) if (patch[p] !== undefined && String(patch[p]) !== String(T[p]) && !(made)) {
+      if (!custom) { if (made) delBtask(id); return "раздел и «что сделать» у встроенного задания не меняются — сделайте копию"; }
+      return "раздел и «что сделать» задаются при создании — сделайте копию";
+    }
+    if (custom && patch.cat === "tut") { if (made) delBtask(id); return "обучение — только встроенные шаги"; }
+  }
+  const r = validatePatch0(kind, id, patch);
+  if (typeof r === "string") { if (made) delBtask(id); return r; }
+  if (custom) { r.cat = T.cat; r.ev = T.ev; } // для пересоздания при загрузке правок
+  if (made) delBtask(id); // создаст applyOverride
+  return r;
+}
+function validatePatch0(kind: Kind, id: string, patch: any): any | string {
   const S = SCHEMA[kind]; if (!S || !TABLES[kind][id]) return "нет такой сущности";
   if (!patch || typeof patch !== "object") return "пустой патч";
   if (kind === "loot") return validateLoot(patch);
@@ -459,6 +491,13 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
 }
+/** условия задания — названия для админки (флажки вместо ввода) */
+export const BT_FLAG_NAMES: Record<string, string> = {
+  elite: "элитный враг", cursed: "проклятый (враг/вещь)", ench: "зачарованный (любой ярус)", rare: "редкий враг", boss: "босс", wboss: "мировой босс",
+  party: "в отряде", solo: "в одиночку", lvl: "враг не ниже уровня героя − 2", night: "ночью", midnight: "в полночь", hp10: "на последних 10% ОЗ",
+  min: "считать минуты забега", ewear6: "в «Чёрной» вещи", wearc: "в проклятой вещи", wearc5: "в 5 проклятых вещах", dark50: "чернота героя 50+", naked: "без снаряжения",
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].flatMap((t) => [[`e${t}`, `ярус ${t} ровно`], [`e${t}up`, `ярус ${t} и выше`]])),
+};
 const BT_FLAGS = new Set(["elite", "cursed", "ench", "ewear6", "party", "solo", "rare", "boss", "wboss", "lvl", "min", "night", "midnight", "hp10", "wearc", "wearc5", "dark50", "naked"]);
 function validateBtask(id: string, out: any): string | null {
   const T = TABLES.btask[id], get = (p: string, d: any) => (out[p] !== undefined ? out[p] : p.split(".").reduce((x: any, k) => x?.[k], T) ?? d);
@@ -474,16 +513,38 @@ function validateBtask(id: string, out: any): string | null {
   if (get("minLvl", 1) > get("maxLvl", 30)) return "«доступно с» больше «до уровня»";
   const f = String(get("f", "")); for (const x of f.split(",").map((s) => s.trim()).filter(Boolean)) if (!BT_FLAGS.has(x) && !isEnchFlag(x)) return `условие «${x}» неизвестно`;
   if (!/^[\w:]{0,40}$/.test(String(get("m", "")))) return "цель: латиница, цифры, «_» и «:»";
+  { const m = String(get("m", "")), ev = String(get("ev", "")), orig = ORIG.get("btask:" + id)?.m ?? T.m; if (m !== orig || CUSTOM_BT.test(id)) { const e = btTargetErr(ev, m); if (e) return e; } }
+  if (CUSTOM_BT.test(id) && T.cat === "npc" && !NPC_GIVERS.includes(String(get("giver", "")))) return "задание персонажа: выберите, кто его выдаёт (Петр, Кьют, Алзи или Лэйр)";
   const item = String(get("item", "")); if (item && !ITEM_BY_ID[item]) return `нет предмета ${item}`;
   for (const r of String(get("req", "")).split(",").map((s) => s.trim()).filter(Boolean)) { const rid = r.split("@")[0]; if (!TABLES.btask[rid]) return `нет задания ${rid}`; if (rid === id) return "задание не может требовать само себя"; }
   if (!/^[\w:]{0,40}$/.test(String(get("hl", "")))) return "подсветка: латиница, цифры, «_» и «:»";
   if (!/^[\w:]{0,40}$/.test(String(get("auto", "")))) return "авто: латиница, цифры, «_» и «:»";
   return null;
 }
+/** цель задания — только из списков (то же, что предлагает админка) */
+export function btTargetErr(ev: string, m: string): string | null {
+  const tg = BT_EVS.find((e) => e.id === ev)?.target ?? (ev === "ui" ? "ui" : "");
+  if (tg === "ui") return null;
+  if (tg === "state") return BT_STATES[m] || (m.startsWith("mob:") && ZONE_MOBS[m.slice(4)]) || (m.startsWith("world:") && WORLD_NAMES[m.slice(6)]) ? null : "состояние: выберите из списка";
+  if (!m) return null;
+  const ok: Record<string, (x: string) => boolean> = {
+    mob: (x) => !!ZONE_MOBS[x] || (x.startsWith("biome:") && !!(BIOMES as any)[x.slice(6)]) || (x.startsWith("role:") && !!BT_ROLE_NAMES[x.slice(5)]) || (x.startsWith("cls:") && HERO_IDS.includes(x.slice(4) as any)),
+    res: (x) => !!RESOURCES[x], loot: (x) => ["bag", "item", "res"].includes(x) || !!RESOURCES[x], recipe: (x) => RECIPES.some((r) => r.id === x),
+    upmax: (x) => x === "max", room: (x) => !!ROOM_NAMES[x], trial: (x) => x === "full" || x === "max", pvp: (x) => x === "win",
+    cat: (x) => (CATS as string[]).includes(x), world: (x) => !!WORLD_NAMES[x],
+  };
+  return ok[tg] ? (ok[tg](m) ? null : "цель: выберите из списка") : "у этого действия нет цели — оставьте пустой";
+}
 const ORIG = new Map<string, any>();
 /** Наложить правку (патч поверх значений из кода). patch=null — вернуть исходное. */
 export function applyOverride(kind: Kind, id: string, patch: any | null) {
+  if (kind === "btask" && CUSTOM_BT.test(id)) { // своё задание: правка — создать по шаблону, сброс — удалить целиком
+    ORIG.delete("btask:" + id); delBtask(id);
+    if (patch) { BTASKS[id] = makeBtask(id, patch.cat, patch.ev); applyOverride0(kind, id, patch); }
+    reindexBtasks(); return;
+  }
   applyOverride0(kind, id, patch);
+  if (kind === "btask") reindexBtasks();
   if (kind === "board") syncBoardCols(); // доски передвинули/выключили — коллизии за ними
 }
 function applyOverride0(kind: Kind, id: string, patch: any | null) {

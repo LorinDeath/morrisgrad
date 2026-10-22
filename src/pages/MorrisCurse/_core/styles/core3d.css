@@ -1149,3 +1149,21 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-in-duel .mc-tptr, .mc-bd-open .mc-tptr { display: none !important; }
 /* любое окно поверх игры (диалог персонажа, настройки…) — кнопка PK не перекрывает его текст и кнопки */
 :has(.mc3d-screen) > .ch-root { display: none; }
+/* шкалы прогресса: достижения (окно «Задания», Доска достижений) и бестиарий (Книга) — без сияния */
+.mc-prog { border: 1px solid #3b2c52; border-radius: 6px; background: rgba(10, 6, 20, .6); padding: 6px 8px; margin: 0 0 8px; display: flex; flex-direction: column; gap: 4px; }
+.mc-prog .pt { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.mc-prog .pt b { color: #fde68a; }
+.mc-prog .pt span { color: #cbd5e1; font-size: .92em; }
+.mc-prog .pb { position: relative; height: 8px; border-radius: 4px; background: #1f1630; overflow: hidden; }
+.mc-prog .pb i { position: absolute; left: 0; top: 0; bottom: 0; background: #4ade80; z-index: 1; }
+.mc-prog .pb u { position: absolute; left: 0; top: 0; bottom: 0; background: #4b5563; text-decoration: none; }
+.mc-prog .pb.sm { height: 5px; flex: 1; min-width: 60px; }
+.mc-prog .pss { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 3px 12px; }
+.mc-prog .ps { display: flex; align-items: center; gap: 6px; font-size: .9em; color: #cbd5e1; }
+.mc-prog .ps span { min-width: 92px; }
+.mc-prog .ps b { color: #e5e7eb; font-size: .9em; min-width: 34px; text-align: right; }
+.mc-prog .pd summary { cursor: pointer; color: #c4b5fd; font-size: .9em; }
+.mc-prog .mc-bfilt { display: flex; gap: 4px; flex-wrap: wrap; }
+.mc-touch .mc-prog .pss { grid-template-columns: 1fr 1fr; }
+/* кнопка PK не перекрывает открытую Книгу героя (Бестиарий, шкала) и админку */
+.mc-book-open .ch-root, :has(> .mc-admin) > .ch-root { display: none; }

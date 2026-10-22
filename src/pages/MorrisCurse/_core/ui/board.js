@@ -94,12 +94,28 @@ export class BoardWin {
     if (cat === 'hard') return L.map((t) => this.row(t)).join('');
     return L.map((t) => this.row(t)).join('');
   }
+  /** шкала прогресса достижений: всё считается от текущего списка (новые достижения сами увеличивают знаменатель);
+   *  скрытые входят в счёт без раскрытия условий. Отсчёт — с запуска доски; закрытое при запуске (уже было) — без награды, но в счёте */
+  achProgress(L) {
+    const S = this.s, pre = S.st?.pre || {}; let n = 0, done = 0, ti = 0, tAll = 0, preN = 0;
+    for (const t of L) { const r = S.tier(t); n++; if (r.done) done++; ti += Math.min(r.c, r.all); tAll += r.all; if (pre[t.id]) preN++; }
+    return { n, done, ti, tAll, preN, pct: n ? Math.floor((ti / Math.max(1, tAll)) * 100) : 0 };
+  }
+  achBar(L) {
+    if (this.s.defs?.cfg?.bars?.ach === false) return '';
+    const P = this.achProgress(L), S = this.s, secs = [...AB_SECT.map((s) => [s[0], s[1]]), ['hidden', 'Скрытые']];
+    const bySec = secs.map(([k, nm]) => { const p = this.achProgress(L.filter((t) => secOf(t) === k)); return p.n ? `<div class="ps"><span>${esc(nm)}</span><div class="pb sm"><i style="width:${p.pct}%"></i></div><b>${p.pct}%</b></div>` : ''; }).join('');
+    void S;
+    return `<div class="mc-prog"><div class="pt"><b>Пройдено ${P.pct}%</b><span>получено ${P.done} из ${P.n} · ступеней ${P.ti} из ${P.tAll}</span></div><div class="pb"><i style="width:${P.pct}%"></i></div>
+      <details class="pd"><summary>По разделам</summary><div class="pss">${bySec}</div></details>
+      <small class="mc-dim">Скрытые входят в счёт, условия откроются после получения. Счёт идёт с запуска доски${P.preN ? `; ${P.preN} закрыто при запуске (уже было выполнено) — без награды` : ''}.</small></div>`;
+  }
   achBody(L) {
     const S = this.s, sec = this.abSec, secs = [...AB_SECT.map((s) => [s[0], s[1]]), ['hidden', 'Скрытые']];
     const cnt = (k) => { const ts = L.filter((t) => secOf(t) === k); return `${ts.filter((t) => S.tier(t).done).length}/${ts.length}`; };
     const nav = `<div class="mc-bd-sub">${secs.map(([k, n]) => `<button class="${k === sec ? 'on' : ''}" data-b="sec" data-v="${k}">${esc(n)} <small>${cnt(k)}</small></button>`).join('')}</div>`;
     const ts = L.filter((t) => secOf(t) === sec).sort((a, b) => +S.tier(b).ready - +S.tier(a).ready || +S.tier(a).done - +S.tier(b).done);
-    return nav + ts.map((t) => this.row(t)).join('');
+    return this.achBar(L) + nav + ts.map((t) => this.row(t)).join('');
   }
   // ——— Доска объявлений: листки ———
   sheet(t) {

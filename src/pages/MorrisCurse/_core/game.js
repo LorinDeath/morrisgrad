@@ -684,6 +684,7 @@ async function boot(canvasId, username, userId, api) {
   function openChest(c) { if (Math.hypot(c.x - player.x, c.y - player.y) > 110) { overlay.toast('Подойдите ближе к сундуку', '#94a3b8'); return; } send({ type: 'chest_open', chest: c.id }); }
   const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
+  adminPanel.board = boardSt; // предпросмотр заданий доски (опыт, строка как у игрока)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
   adminPanel.onDialogueApplied = (r) => { if (r.dialogue) QUEST_DIALOGUES[r.questId] = r.dialogue; else delete QUEST_DIALOGUES[r.questId]; };
   adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
