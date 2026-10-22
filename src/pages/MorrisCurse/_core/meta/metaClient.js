@@ -71,7 +71,9 @@ export class MetaClient {
       const n = NPCS[turninNpc(q)];
       if (n) { const p = npcPos(turninNpc(q)); return { world: n.world, x: p.x, y: p.y, label: n.name, other: turninNpc(q) !== q.npc }; }
     }
-    const talk = q.objectives.find((o) => o.type === 'talk');
+    // первая НЕвыполненная цель «поговорить» (раньше — первая любая: стрелка вела к уже пройденному NPC)
+    const pr = this.state.account?.quests?.active?.[qid]?.p || [];
+    const talk = q.objectives.find((o, i) => o.type === 'talk' && (pr[i] || 0) < (o.count || 1));
     if (talk) { const n = NPCS[talk.npc || q.npc]; if (n) { const p = npcPos(talk.npc || q.npc); return { world: n.world, x: p.x, y: p.y, label: n.name }; } }
     return QUEST_WAYPOINTS[qid] || null;
   }

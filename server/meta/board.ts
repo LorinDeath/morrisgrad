@@ -40,7 +40,7 @@ export const BOARD_CFG: any = {
   dailyFixed: "d_bmage",   // ежедневные, которые есть у всех каждый день (сверх dailyN), id через запятую
   nbWorld: "arinar", nbX: 24130, nbY: 24300, nbRange: 110,
   // Доска достижений — у Алтаря тел в хабе (достижения открываются и с неё, и из общего окна)
-  abWorld: "hellfire", abX: 690, abY: 600, abRange: 110,
+  abWorld: "hellfire", abX: 720, abY: 590, abRange: 110,
   tz: "Europe/Kyiv", resetHour: 0, weekDay: 1,
   // % от опыта на уровень (heroXpNeed) по полосам уровней и сложности 1…5
   xp: [[3, 6, 10, 16, 25], [2, 4, 7, 12, 20], [2, 4, 7, 12, 20], [1.5, 3, 5, 9, 15], [1, 2, 4, 7, 12], [1, 2, 4, 7, 12]],
@@ -72,19 +72,19 @@ function genTut(): BTask[] {
     // id, заголовок, зачем, ПК, телефон, событие, цель, n, уровень шага, подсветка, авто-засчёт
     ["move", "Пройдитесь немного", "Так вы перемещаетесь по миру", "W A S D или стрелки", "Левый джойстик внизу экрана", "ui", "move", 1, 1, "", "lvl:2"],
     ["hero", "Выберите героя у Алтаря", "Без героя нельзя сражаться", "Подойдите к Алтарю и нажмите E", "Подойдите к Алтарю и нажмите ✋", "select_hero", "", 1, 1, "altar", "hero"],
-    ["book", "Откройте Книгу героя", "В ней снаряжение, таланты и задания", "Клавиша J", "Кнопка 📖 на панели", "ui", "book", 1, 1, "btn:book", ""],
-    ["board", "Откройте доску заданий", "Охота, ежедневные задания и достижения", "Клавиша U", "Кнопка 📋 на панели", "ui", "board", 1, 1, "btn:board", ""],
+    ["book", "Откройте Книгу героя", "В ней снаряжение, таланты и задания", "Клавиша B (или J — задания)", "Кнопка 📖 сверху", "ui", "book", 1, 1, "btn:book", ""],
+    ["board", "Откройте доску заданий", "Охота, ежедневные задания и достижения", "Клавиша U или кнопка 📋 внизу слева", "Кнопка 📋 сверху", "ui", "board", 1, 1, "btn:board", ""],
     ["arinar", "Пройдите в Аринар", "Там водятся Отголоски и лежат ресурсы", "Шагните в портал", "Шагните в портал", "reach", "arinar", 1, 1, "portal_arinar", "world:arinar"],
-    ["kill", "Победите 3 Отголосков", "За победы растёт уровень героя", "ЛКМ по врагу или V — автоатака", "Кнопка атаки справа внизу", "kill", "", 3, 1, "mob", "kills:3"],
+    ["kill", "Победите 3 Отголосков", "За победы растёт уровень героя", "ЛКМ в сторону врага (удерживайте) или V — автоатака", "Кнопка атаки справа внизу", "kill", "", 3, 1, "mob", "kills:3"],
     ["loot", "Заберите добычу из мешка", "Вещи и материалы падают в мешок у врага", "Клик по мешку или E рядом с ним", "Нажмите на мешок рядом с собой", "loot", "bag", 1, 1, "bag", ""],
     ["ability", "Примените навык", "Навыки сильнее обычной атаки", "Q, G, F или R", "Круглые кнопки навыков справа", "ability", "", 1, 1, "", ""],
     ["dash", "Сделайте рывок", "Рывком уходят от ударов", "Пробел или Shift", "Кнопка рывка справа", "dash", "", 1, 1, "", ""],
-    ["equip", "Наденьте найденную вещь", "Снаряжение прибавляет урон и защиту", "J → «Снаряжение» → нажмите на вещь", "📖 → «Снаряжение» → нажмите на вещь", "equip", "", 1, 1, "btn:book", "equipped:1"],
+    ["equip", "Наденьте найденную вещь", "Снаряжение прибавляет урон и защиту", "Клавиша I (снаряжение) → нажмите на вещь", "📖 → «Снаряжение» → нажмите на вещь", "equip", "", 1, 1, "btn:book", "equipped:1"],
     ["gather", "Соберите ресурс", "Ресурсы нужны для ремесла и улучшений", "Подойдите к цветку или дереву и нажмите E", "Подойдите и нажмите ✋", "gather", "", 1, 1, "node", ""],
-    ["map", "Откройте карту", "На ней видно, куда идти", "Клавиша M", "Нажмите на мини-карту", "ui", "map", 1, 1, "btn:map", ""],
+    ["map", "Откройте карту", "На ней видно, куда идти", "Клавиша M", "Кнопка 🗺 сверху", "ui", "map", 1, 1, "btn:map", ""],
     ["lvl3", "Дорастите до 3 уровня", "Каждый уровень даёт очко таланта", "Побеждайте Отголосков своего уровня", "Побеждайте Отголосков своего уровня", "lvl", "", 3, 1, "", "lvl:3"],
-    ["talent", "Изучите талант", "Таланты усиливают героя навсегда", "J → «Таланты» → выберите узел", "📖 → «Таланты» → выберите узел", "talent", "", 1, 2, "btn:book", "talents:1"],
-    ["portal", "Откройте портал домой", "Быстрый путь в хаб и обратно", "Клавиша H", "Кнопка 🏠", "portal", "", 1, 3, "", ""],
+    ["talent", "Изучите талант", "Таланты усиливают героя навсегда", "Клавиша T (герой) → дерево талантов", "📖 → «Герой» → дерево талантов", "talent", "", 1, 2, "btn:book", "talents:1"],
+    ["portal", "Откройте портал домой", "Быстрый путь в хаб и обратно", "Клавиша H", "Кнопка 🌀 (сверху)", "portal", "", 1, 3, "", ""],
     ["lvl5", "Дорастите до 5 уровня", "Откроется третья ячейка навыка", "Охотьтесь на Отголосков чуть сильнее себя", "Охотьтесь на Отголосков чуть сильнее себя", "lvl", "", 5, 3, "", "lvl:5"],
     ["salvage", "Разберите ненужную вещь у Петра", "Разбор даёт материалы для улучшений", "Подойдите к Петру и нажмите E", "Подойдите к Петру и нажмите ✋", "salvage", "", 1, 4, "npc:petr", ""],
     ["upgrade", "Улучшите вещь у Петра", "Улучшение — главный способ стать сильнее", "Петр → «Улучшение» → выберите вещь", "Петр → «Улучшение» → выберите вещь", "upgrade", "", 1, 5, "npc:petr", ""],
@@ -822,6 +822,7 @@ export function nearBoard(kind: "nb" | "ab", world: string, x: number, y: number
 }
 export function boardPin(a: Account, id: string, on: boolean): any {
   if (!BTASKS[id]) return { ok: false, err: "Нет такого задания" };
+  if (on && BTASKS[id].hidden) return { ok: false, err: "Скрытое достижение нельзя отслеживать" };
   const b = boardOf(a), max = (BOARD_CFG.pinMax | 0) || 3;
   b.pin = b.pin.filter((x) => x !== id && BTASKS[x]);
   if (on) { if (b.pin.length >= max) return { ok: false, err: `В трекере не больше ${max} заданий` }; b.pin.push(id); }
@@ -843,8 +844,8 @@ export function boardDefs() {
   return {
     v: 1, on: BOARD_CFG.on !== false,
     cats: CATS.filter(catOn), names: CAT_NAMES,
-    tasks: BTASK_LIST().filter((t) => t.on && catOn(t.cat)).map((t) => ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
-      ev: t.ev, take: needsTake(t) || undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined })),
+    tasks: BTASK_LIST().filter((t) => t.on && catOn(t.cat)).map((t) => t.hidden ? { id: t.id, cat: t.cat, ord: t.ord, hid: 1, t: "???", n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length) } : ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
+      ev: t.ev, m: t.m || undefined, f: t.f || undefined, nb: atBoard(t) || undefined, take: needsTake(t) || undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined })),
     xp: { t: BOARD_CFG.xp, bands: BOARD_CFG.bands, refPlus: BOARD_CFG.refPlus | 0, need: Array.from({ length: HERO_MAX_LEVEL }, (_, i) => heroXpNeed(i + 1)), capPct: BOARD_CFG.capPct, capCats: ["npc", "hunt", "daily", "ach"] },
     givers: GIVER_NAMES,
     props: { nb: { world: BOARD_CFG.nbWorld, x: BOARD_CFG.nbX, y: BOARD_CFG.nbY, r: BOARD_CFG.nbRange }, ab: { world: BOARD_CFG.abWorld, x: BOARD_CFG.abX, y: BOARD_CFG.abY, r: BOARD_CFG.abRange } },
@@ -869,4 +870,11 @@ export function bmWanted(a: Account): boolean {
   const b = (a as any).board; if (!b || !BOARD_CFG.on) return false;
   const t = BTASKS["d_bmage"]; if (!t || !t.on) return false;
   return (b.sel?.daily || []).includes("d_bmage") && (b.p?.["d_bmage"] || 0) < 1;
+}
+
+/** есть шаг обучения, выполненный, но без награды (выдаёт boardRefresh в meta_state) — тогда шлём полный meta_state */
+export function tutPending(a: Account): boolean {
+  const b = (a as any).board; if (!b || b.tut?.skip || b.tut?.vet) return false;
+  for (const t of BTASK_LIST()) if (t.cat === "tut" && t.on && (b.p[t.id] || 0) >= tiersOf(t)[0] && !(b.c[t.id] > 0)) return true;
+  return false;
 }

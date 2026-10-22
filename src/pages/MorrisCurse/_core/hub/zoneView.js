@@ -29,6 +29,7 @@ const CONE_FX = { ice_fan: 'ice_fan_cone', dew_splash: 'dew_splash_cone', gear_s
 import { atmo } from '../engine/atmosphere.js';
 import { npcPos, npcStep } from '../meta/npcLive.js';
 import { enchRGB } from '../meta/enchCfg.js';
+import boardsAtlasSrc from '../../../../assets/mc/board/boards_atlas.png'; // ВРЕМЕННЫЙ рисунок досок (нужен художник)
 // ── Зачарованные мобы (ярус 1…6 в битах 23–25 флага zone_state): оттенок, у Чёрного — мерцание, дрожь, двойник ──
 const enchHash = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
 function enchTint(o, T, r, g, bl) {
@@ -217,6 +218,14 @@ export class ZoneView {
     }
     return best;
   }
+  /** доски из определений сервера (props: nb/ab — world, x, y, r) */
+  setBoards(props, on = true) {
+    this.boards = on && props ? [props.nb, props.ab] : null;
+    if (this.boards && !this.boardB && !this.boardLoading) {
+      this.boardLoading = true;
+      loadAtlasTexture(this.THREE, boardsAtlasSrc).then((tex) => { this.boardB = new SpriteBatch(this.THREE, tex, { cellW: 64, cellH: 64, cols: 2, rows: 1, max: 2 }); this.root.add(this.boardB.mesh); }).catch(() => { this.boardLoading = false; });
+    }
+  }
   nearestNpc(world, px, py) {
     let best = null, bd = NPC_RANGE - 5;
     for (const [id, n] of Object.entries(NPCS)) {
@@ -383,6 +392,12 @@ export class ZoneView {
         atmo.shadow(toX(p.x), toZ(p.y), 0.6);
       }
       B.end();
+    }
+    // Доски: объявлений (Аринар, у места появления) и достижений (Поляна, у Алтаря). Без свечения.
+    if (this.boardB && this.boards) {
+      const BB2 = this.boardB; BB2.begin();
+      this.boards.forEach((p, i) => { if (p && p.world === world) { BB2.push(toX(p.x), 0, toZ(p.y), i ? 2.9 : 2.6, i, 0, false, 1, 1, 1, 0, 1); atmo.shadow(toX(p.x), toZ(p.y), 1.1); } });
+      BB2.end();
     }
     const NPB = this.npcBatch;
     if (NPB) {

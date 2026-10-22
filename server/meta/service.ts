@@ -43,7 +43,7 @@ import { dnClient, DN_CFG, dnAt, dnMinutes } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
-import { bmWanted, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, BTASKS } from "./board";
+import { BOARD_CFG, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, BTASKS } from "./board";
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -497,6 +497,7 @@ export class MetaService {
       ms.boardT = null;
       const e = this.sessionLookup?.(session.id); if (!e || !this.ms.has(session.id)) return;
       const a = this.store.account(ms.pkey), cls = session.stats?.classId, h = cls ? this.store.hero(ms.pkey, cls) : null;
+      if (h && tutPending(a)) { this.push(e[0], session); return; } // шаг обучения выполнен — награда выдаётся сразу (полный meta_state)
       const st = boardClient(a, h); if (st.rev === ms.boardRev) return;
       ms.boardRev = st.rev; this.send(e[0], { type: "board_state", board: st });
     }, 500);
@@ -1990,7 +1991,12 @@ export class MetaService {
         if (w === "arinar") this.cityTick(ws, s, ms, now);
         if (w === "arinar" && ms.zp?.alive && now - ((ms as any).bmfAt || 0) > 2000) { // доска: «Найти Чёрного мага» — рядом с ним или в его куполе
           (ms as any).bmfAt = now; const acc = this.store.account(ms.pkey);
-          if (acc && bmWanted(acc) && BM_CFG.on !== false && ((Number.isFinite(this.bm.x) && Math.hypot(s.x - this.bm.x, s.y - this.bm.y) <= 220) || this.bm.inDome(s.x, s.y))) this.bev(s, { type: "bm_find" });
+          const want = !!acc && bmWanted(acc) && BM_CFG.on !== false;
+          if (want && ((Number.isFinite(this.bm.x) && Math.hypot(s.x - this.bm.x, s.y - this.bm.y) <= 220) || this.bm.inDome(s.x, s.y))) this.bev(s, { type: "bm_find" });
+          // трекер «Найти Чёрного мага»: примерное место (±100 px) — только тем, у кого задание сегодня не выполнено
+          if (want && (BOARD_CFG.qol as any)?.bmArrow !== false && Number.isFinite(this.bm.x)) this.send(ws, { type: "bm_hint", x: Math.round(this.bm.x / 100) * 100, y: Math.round(this.bm.y / 100) * 100 });
+          else if ((ms as any).bmHint !== want) this.send(ws, { type: "bm_hint", off: 1 });
+          (ms as any).bmHint = want;
         } // город под куполом: PK-отсчёт, убийцу — за край
         this.posNote(s, ms, false, now); // позиция для переподключения (не чаще POS_CFG.saveSec)
         // в хабе боевое состояние только у тех, у кого есть оболочка

@@ -43,7 +43,7 @@ function itemMetaTitle(it) {
   return lines.join('\n');
 }
 
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -213,6 +213,15 @@ export class AdminPanel {
       }
       return out;
     }
+    if (this.tab === 'btask') { // ~450 заданий и достижений: группы по категории (сворачиваются), внутри — по порядку/уровню
+      const CN = { tut: 'Обучение', npc: 'Персонажи', hunt: 'Доска охоты', daily: 'Ежедневные', weekly: 'Еженедельные', monthly: 'Ежемесячные', hard: 'Тяжёлые', ach: 'Достижения' };
+      const col = this.btCol || (this.btCol = new Set(['npc', 'hunt', 'daily', 'weekly', 'monthly', 'hard', 'ach'])), out = [], groups = {};
+      for (const e of this.cat.ent.btask || []) (groups[e.cat || 'ach'] ||= []).push({ ...row(e, 'btask'), sub: `${e.id}${e.values?.hidden ? ' · скрытое' : ''}${e.values?.giver ? ' · ' + e.values.giver : ''}` });
+      for (const g of Object.keys(CN)) { const rows = groups[g]; if (!rows) continue;
+        out.push({ grp: 1, g: 'bt:' + g, id: '__bt_' + g, name: `${col.has(g) ? '▸' : '▾'} ${CN[g]} · ${rows.length}` });
+        if (!col.has(g) || this.q) out.push(...rows.sort((a, b) => (a.lvl || 0) - (b.lvl || 0) || a.id.localeCompare(b.id))); }
+      return out;
+    }
     if (this.tab === 'spawn') return [{ grp: 1, id: '__gs', name: 'Лагеря и бродячие мобы' }, ...(this.cat.ent.spawn || []).map((e) => ({ ...row(e, 'spawn', 'spawn:'), name: '⏱ ' + e.name })),
       { grp: 1, id: '__gl', name: 'Локации — плотность мобов (лагеря пересобираются сразу)' }, ...(this.cat.ent.region || []).map((e) => ({ ...row(e, 'region', 'region:'), name: '🗺 ' + e.name, sub: `${e.values.dens != null ? '×' + e.values.dens : 'как в коде'}${e.values.bossOn === false ? ' · без босса' : ''} · ${e.id}` })),
       { grp: 1, id: '__gb', name: 'Мировые боссы — таймеры' }, ...(this.cat.ent.boss || []).map((e) => ({ ...row(e, 'boss', 'boss:'), sub: `${Math.round(e.values.every / 60)} мин · ${e.id}` })),
@@ -227,9 +236,9 @@ export class AdminPanel {
     const norm = (t) => String(t || '').toLowerCase().replace(/ё/g, 'е');
     const q = norm(this.q).trim();
     const hit = (x) => !q || x.grp || x.id.startsWith('__') || norm(`${x.name} ${x.id} ${x.sub || ''}`).includes(q);
-    ul.innerHTML = this.items().filter(hit).slice(0, 500)
+    ul.innerHTML = this.items().filter(hit).slice(0, 1200)
       .map((x) => x.grp ? `<li class="grp" data-grp="1"${x.g ? ` data-g="${esc(x.g)}" style="cursor:pointer"` : ''}>${esc(x.name)}</li>` : `<li data-id="${esc(x.id)}" class="${x.id === this.sel ? 'on' : ''}"><span class="nm">${esc(x.name)}${x.stars ? ` <span class="stars">${x.stars} ★</span>` : ''} ${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.lvl ? `<span class="lv">ур. ${x.lvl}</span>` : ''}</li>`).join('');
-    ul.querySelectorAll('li[data-g]').forEach((li) => (li.onclick = () => { const g = li.dataset.g, c = this.collapsed; c.has(g) ? c.delete(g) : c.add(g); this.list(); }));
+    ul.querySelectorAll('li[data-g]').forEach((li) => (li.onclick = () => { let g = li.dataset.g, c = this.collapsed || (this.collapsed = new Set()); if (g.startsWith('bt:')) { g = g.slice(3); c = this.btCol; } c.has(g) ? c.delete(g) : c.add(g); this.list(); }));
     const chips = this.el.querySelector('.chips');
     if (chips) { chips.style.display = this.tab === 'item' ? '' : 'none';
       if (this.tab === 'item') { const gs = ['', ...new Set(this.cat.ent.item.filter((e) => e.slot !== 'weapon').map((e) => e.slot)), '__res'].sort((a, b) => (SLOT_ORDER.indexOf(a) + 99) % 99 - (SLOT_ORDER.indexOf(b) + 99) % 99);
@@ -271,6 +280,7 @@ export class AdminPanel {
           + `<select data-p="${f.path}"><option value="" ${!val ? 'selected' : ''}>— нет (как выпало)</option>${groups.map((g) => `<optgroup label="${esc(g)}">${f.optl.filter((o) => o.group === g).map(opt).join('')}</optgroup>`).join('')}</select></span>`;
       }
       else if (f.t === 'text') inp = `<input type="text" maxlength="48" data-p="${f.path}" value="${esc(val ?? '')}">`;
+      else if (f.t === 'ltext') inp = `<textarea maxlength="160" rows="2" style="width:100%;min-width:220px" data-p="${f.path}">${esc(val ?? '')}</textarea>`;
       else if (f.t === 'color') inp = `<input type="color" data-p="${f.path}" value="${esc(val || '#a855f7')}">`;
       else if (f.t === 'enum') inp = `<select data-p="${f.path}">${f.opts.map((o) => `<option ${o === (val ?? '') ? 'selected' : ''} value="${o}">${esc(f.optn?.[o] || o || '—')}</option>`).join('')}</select>`;
       else if (f.t === 'resmap') return `<div class="box" style="grid-column:1/-1"><b>${esc(f.label)}</b> <small>формат: soul_shard:2, iron:1 · пусто = ничего</small><input type="text" style="width:100%" list="mc-adm-res" data-rm="${f.path}" value="${esc(Object.entries(val || {}).map(([r, n]) => r + ':' + n).join(', '))}"><datalist id="mc-adm-res">${(this.cat.res || []).map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</datalist></div>`;
@@ -315,7 +325,7 @@ export class AdminPanel {
       let patch = {};
       if (kind === 'loot') patch = this.readLoot(sec);
       else {
-        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' || f.t === 'text' ? i.value : Number(i.value); else if (f.t === 'text') patch[f.path] = ''; });
+        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' || f.t === 'text' || f.t === 'ltext' ? i.value : Number(i.value); else if (f.t === 'text' || f.t === 'ltext') patch[f.path] = ''; });
         sec.querySelectorAll('input[data-rm]').forEach((i) => { const m = {}; for (const part of i.value.split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } patch[i.dataset.rm] = m; });
         if (S.fields.some((f) => f.t === 'skills')) patch.skills = [...sec.querySelectorAll('[data-sk]:checked')].map((i) => i.dataset.sk);
         if (S.traits) patch.traits = this.traits;

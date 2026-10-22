@@ -232,6 +232,7 @@ export class Social {
       else if (act === 'duelset') this.send({ type: 'settings_set', duel: b.dataset.v });
       else if (act === 'freq') this.send({ type: 'settings_set', freq: !this.settings?.freq });
       else if (act === 'dnd') this.send({ type: 'settings_set', dnd: !(this.settings?.dnd > 0) });
+      else if (act === 'tutset' && this.tutCtl) { const v = b.dataset.v; if (v === 'fold' || v === 'unfold') this.tutCtl.setFold(v === 'fold'); else this.tutCtl.set(v); setTimeout(() => this.view === 'settings' && this.renderSettings(), 400); }
       else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
       else if (act === 'uitheme') { setUiPref(b.dataset.v); this.renderSettings(); }
       else if (act === 'hudold') { setHudOldPanels(b.dataset.v === '1'); this.renderSettings(); } // только это устройство; применяется сразу
@@ -263,6 +264,12 @@ export class Social {
       <div class="mc-soc-scroll mc-soc-list">${body}</div></div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);
   }
+  tutRow() { // 🧭 обучение (доска заданий): свернуть подсказки / выключить / пропустить
+    const T = this.tutCtl, st = T?.state(); if (!st) return '';
+    const b = (v, t, on) => `<button class="mc-btn sm ${on ? 'gold' : ''}" data-act="tutset" data-v="${v}">${t}</button>`;
+    return `<div class="mc-set-row"><span>🧭 Обучение</span><div class="grp">${st.done ? '<b class="mc-dim">пройдено</b>' : st.skip ? b('restart', 'Вернуть', false)
+      : `${st.off ? b('on', 'Включить', false) : b('off', 'Выключить', false)}${b(T.fold() ? 'unfold' : 'fold', T.fold() ? 'Развернуть' : 'Свернуть', T.fold())}${st.canSkip ? b('skip', 'Пропустить всё', false) : ''}`}</div></div>`;
+  }
   renderSettings() {
     const st = this.settings || { duel: 'all', freq: true, dnd: 0 };
     const opt = (v, t) => `<button class="mc-btn sm ${st.duel === v ? 'gold' : ''}" data-act="duelset" data-v="${v}">${t}</button>`;
@@ -278,6 +285,8 @@ export class Social {
       <div class="mc-set-row"><span>⚔️ Вызовы на дуэль</span><div class="grp">${opt('all', 'От всех')}${opt('friends', 'Только друзья')}${opt('none', 'Никто')}</div></div>
       <div class="mc-set-row"><span>🤝 Заявки в друзья</span><button class="mc-btn sm ${st.freq ? 'gold' : ''}" data-act="freq">${st.freq ? 'Принимать' : 'Не принимать'}</button></div>
       <div class="mc-set-row"><span>🌙 Не беспокоить (5 минут)</span><button class="mc-btn sm ${dndMin ? 'gold' : ''}" data-act="dnd">${dndMin ? `Включено · ещё ${dndMin} мин` : 'Выключено'}</button></div>
+      ${this.tutRow()}
+      <p class="mc-dim">Обучение: «Свернуть» — только на этом устройстве; «Выключить» и «Пропустить» хранит сервер.</p>
       <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук и картинка (мрачность, дымка, единый стиль, ночь) — на этом устройстве, у каждого игрока свои.</p></div></div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);
     // картинка — на этом устройстве (localStorage), у каждого игрока своя; 0 = эффект выключен

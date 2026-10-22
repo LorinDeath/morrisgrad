@@ -1003,3 +1003,129 @@ b.ez, .ab.ez { color: var(--et, #fff); text-shadow: 0 0 6px color-mix(in srgb, v
 .mc3d-label .mc-pkbar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
 .mc3d-label .mc-pkbar > b { position: absolute; left: 100%; top: 50%; transform: translate(4px, -50%); font-size: 9px; line-height: 1; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
 .mc3d-label .mc-pkbar.cancel > b { color: #cbd5e1; }
+
+/* ——— Задания и достижения (ui/board.js). Без свечения: только жёсткие тени в стиле пиксель-арта ——— */
+.mc-boardbtn { left: 156px; }
+.mc-helpbtn { left: 204px; font-size: 18px; }
+.mc-bd { position: fixed; inset: 0; z-index: 56; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(5, 3, 12, 0.55); font-family: monospace; color: #e2e8f0; }
+.mc-bd-box { width: min(860px, 96vw); max-height: 90vh; display: flex; flex-direction: column; background: #0e0a19; border: 3px solid #5b4a7a; border-radius: 6px; box-shadow: 0 6px 0 #000a, inset 0 0 0 2px #2a1f3d; }
+.mc-bd .hd { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 2px solid #2a1f3d; }
+.mc-bd .hd b { color: #fde68a; font-size: 15px; }
+.mc-bd .hd .mc-bd-info { flex: 1; color: #94a3b8; font-size: 11px; text-align: right; }
+.mc-bd .hd button { background: #1a1230; border: 1px solid #3b2c52; color: #e2e8f0; border-radius: 4px; width: 30px; height: 28px; cursor: pointer; }
+.mc-bd .sub { padding: 4px 10px; color: #a8a29e; font-size: 11px; }
+.mc-bd-tabs { display: flex; gap: 4px; padding: 6px 8px 0; flex-wrap: wrap; border-bottom: 2px solid #2a1f3d; }
+.mc-bd-tabs button { position: relative; background: #150f26; color: #cbd5e1; border: 1px solid #3b2c52; border-bottom: none; border-radius: 5px 5px 0 0; padding: 5px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.mc-bd-tabs button.on { background: #2a1f3d; color: #fde68a; }
+.mc-bd-tabs .nb, .mc-bd-sub small { margin-left: 4px; background: #166534; color: #dcfce7; border-radius: 8px; padding: 0 5px; font-size: 10px; font-style: normal; }
+.mc-bd-sub small { background: #2a1f3d; color: #cbd5e1; }
+.mc-bd .bd { overflow: auto; padding: 8px 10px 12px; overscroll-behavior: contain; }
+.mc-bd .sec { color: #fbbf24; margin: 10px 0 4px; font-weight: bold; border-bottom: 1px solid #3b2c52; }
+.mc-bd .sm { font-size: 11px; margin: 2px 0 6px; }
+.mc-bd-sub { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.mc-bd-sub button { background: #150f26; color: #cbd5e1; border: 1px solid #3b2c52; border-radius: 4px; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.mc-bd-sub button.on { border-color: #fbbf24; color: #fde68a; }
+.mc-bd-row { display: flex; gap: 8px; align-items: center; background: #140e24; border: 1px solid #2a1f3d; border-left: 3px solid #5b4a7a; border-radius: 4px; padding: 6px 8px; margin-bottom: 5px; }
+.mc-bd-row.ready { border-left-color: #4ade80; background: #0f1d18; }
+.mc-bd-row.done { opacity: .62; border-left-color: #475569; }
+.mc-bd-row.lock { opacity: .55; }
+.mc-bd-row.hid { border-left-style: dashed; }
+.mc-bd-row .l { flex: 1; min-width: 0; }
+.mc-bd-row .nm { color: #f1f5f9; font-weight: bold; font-size: 13px; }
+.mc-bd-row .nm .g { color: #a78bfa; font-weight: normal; margin-left: 4px; }
+.mc-bd-row .w { color: #a8a29e; font-size: 11px; margin-top: 1px; }
+.mc-bd-row .ctl { color: #a5f3fc; font-size: 11px; margin-top: 2px; }
+.mc-bd-row .tr { color: #94a3b8; font-size: 11px; margin-top: 3px; }
+.mc-bd-row .tr .pl { color: #67e8f9; margin-left: 4px; }
+.mc-bd .bar { position: relative; height: 12px; background: #0a0714; border: 1px solid #3b2c52; border-radius: 3px; margin-top: 4px; max-width: 360px; }
+.mc-bd .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: #7c3aed; border-radius: 2px; }
+.mc-bd-row.ready .bar i { background: #16a34a; }
+.mc-bd .bar span { position: relative; display: block; text-align: center; font-size: 10px; line-height: 12px; color: #f8fafc; }
+.mc-bd-row .r, .mc-nb-sheet .r { display: flex; flex-direction: column; gap: 4px; align-items: stretch; flex: none; }
+.mc-bd button[data-b="claim"], .mc-bd button[data-b="take"], .mc-bd button[data-b="pin"], .mc-bd button[data-b="drop"], .mc-bd button[data-b="tut"] { font: inherit; font-size: 12px; padding: 5px 9px; border-radius: 4px; cursor: pointer; border: 1px solid #5b4a7a; background: #221838; color: #e2e8f0; }
+.mc-bd button.go { background: #166534; border-color: #22c55e; color: #f0fdf4; font-weight: bold; }
+.mc-bd button.ghost { background: transparent; color: #cbd5e1; }
+.mc-bd button.pin.on { border-color: #facc15; color: #fde68a; }
+.mc-bd .hint { color: #94a3b8; font-size: 11px; max-width: 140px; text-align: right; }
+.mc-bd-tut { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; background: #1a1230; border: 1px solid #3b2c52; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; }
+.mc-bd-tut .st { color: #fde68a; }
+.mc-bd-tut .bt { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Доска объявлений: пробковая доска в деревянной раме, листки бумаги на кнопках */
+.mc-bd-box.mode-nb { background: #3b2618; border-color: #6b4423; box-shadow: 0 6px 0 #000a, inset 0 0 0 3px #2a1a10; }
+.mc-bd-box.mode-nb .hd { border-color: #2a1a10; background: #4a2f1c; }
+.mc-bd-box.mode-nb .sub { color: #e7d3b0; }
+.mc-bd-box.mode-nb .bd { background: repeating-linear-gradient(35deg, #8a5a33 0 3px, #845530 3px 7px, #8f5f37 7px 9px); border-top: 3px solid #2a1a10; }
+.mc-nb-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #2a1a10; color: #e7d3b0; padding: 4px 8px; border-radius: 3px; font-size: 12px; }
+.mc-nb-head .cnt { color: #fde68a; font-weight: bold; }
+.mc-nb-head .cnt.full { color: #fca5a5; }
+.mc-nb-sec { display: inline-block; margin: 12px 0 6px; background: #f1e6c8; color: #3b2618; font-weight: bold; padding: 2px 10px; border: 2px solid #2a1a10; box-shadow: 2px 2px 0 #0006; }
+.mc-nb-empty { color: #f1e6c8; font-size: 12px; margin: 4px 2px; }
+.mc-nb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.mc-nb-sheet { position: relative; background: #efe3c4; color: #2b1d12; border: 1px solid #b89f74; padding: 12px 9px 8px; transform: rotate(var(--rot, 0deg)); box-shadow: 3px 3px 0 #0005; font-size: 12px; }
+.mc-nb-sheet.tk { background: #e6edd0; }
+.mc-nb-sheet.ready { background: #dff0d2; border-color: #4d7c0f; }
+.mc-nb-sheet .pinh { position: absolute; top: 3px; left: 50%; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #b91c1c; border: 1px solid #450a0a; }
+.mc-nb-sheet.tk .pinh { background: #1d4ed8; border-color: #172554; }
+.mc-nb-sheet .stamp { position: absolute; right: 6px; top: 6px; border: 2px solid #991b1b; color: #991b1b; font-weight: bold; padding: 0 4px; transform: rotate(8deg); font-size: 10px; text-transform: uppercase; }
+.mc-nb-sheet .nm { font-weight: bold; font-size: 13px; color: #2b1d12; padding-right: 36px; }
+.mc-nb-sheet .w { color: #57412b; margin: 3px 0; }
+.mc-nb-sheet .tr { color: #6b5238; font-size: 11px; margin: 4px 0; }
+.mc-nb-sheet .bar { background: #d6c7a1; border-color: #8a6f4a; }
+.mc-nb-sheet .bar i { background: #a16207; }
+.mc-nb-sheet .bar span { color: #1c1208; }
+.mc-nb-sheet .r { flex-direction: row; flex-wrap: wrap; }
+.mc-nb-sheet button[data-b] { background: #3b2618 !important; color: #f1e6c8 !important; border-color: #2a1a10 !important; }
+.mc-nb-sheet button.go { background: #3f6212 !important; }
+.mc-nb-sheet button.ghost { background: transparent !important; color: #3b2618 !important; }
+.mc-nb-sheet button.pin.on { color: #fde68a !important; }
+.mc-nb-sheet .hint { color: #6b5238; text-align: left; }
+/* Доска достижений: тёмный камень, бронзовые таблички */
+.mc-bd-box.mode-ab { background: #24212c; border-color: #6b6478; box-shadow: 0 6px 0 #000a, inset 0 0 0 3px #17151d; }
+.mc-bd-box.mode-ab .hd { background: #2e2a38; border-color: #17151d; }
+.mc-bd-box.mode-ab .mc-bd-row { background: #2e2a38; border: 2px solid #17151d; border-left: 6px solid #a67a3a; }
+.mc-bd-box.mode-ab .mc-bd-row .nm { color: #f4d9a4; }
+.mc-bd-box.mode-ab .mc-bd-row.done { border-left-color: #6b7280; }
+.mc-bd-box.mode-ab .mc-bd-row.hid .nm { color: #9ca3af; letter-spacing: 2px; }
+.mc-bd-box.mode-ab .bar i { background: #a67a3a; }
+.mc-bd-box.mode-ab .mc-bd-sub button.on { border-color: #a67a3a; color: #f4d9a4; }
+/* мобильный: на весь экран, крупные кнопки */
+.mc-bd-box.mob { width: 100vw; max-height: 100%; height: 100%; border-radius: 0; padding: var(--st, 0) var(--sr, 0) var(--sb, 0) var(--sl, 0); }
+.mc-bd-box.mob .mc-bd-tabs { flex-wrap: nowrap; overflow-x: auto; }
+.mc-bd-box.mob .mc-bd-tabs button { flex: none; padding: 8px 10px; }
+.mc-bd-box.mob .hd button { width: 40px; height: 36px; }
+.mc-bd-box.mob .mc-bd-row { flex-wrap: wrap; }
+.mc-bd-box.mob .mc-bd-row .r { flex-direction: row; width: 100%; justify-content: flex-end; }
+.mc-bd-box.mob button[data-b] { padding: 8px 12px; font-size: 13px; }
+.mc-bd-box.mob .mc-nb-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+/* трекер: шаг обучения и отслеживаемые задания доски — в стиле трекера квестов */
+.mc-tracker .bq { background: rgba(10, 6, 20, 0.78); border: 1px solid #3b2c52; border-left: 3px solid #a78bfa; border-radius: 6px; padding: 4px 8px; display: flex; flex-direction: column; gap: 3px; }
+.mc-tracker .bq .bt .nm { color: #e5e7eb; }
+.mc-tracker .bq .bt .nm b { color: #fff; }
+.mc-tracker .bq .tutr .nm { color: #fde68a; font-weight: bold; }
+.mc-tracker .bq .bt .fd, .mc-tracker .bq .fold b { float: right; color: #c4b5fd; padding: 0 4px; cursor: pointer; }
+.mc-tracker .bq .hk { color: #a5f3fc; }
+.mc-tracker .bq .wy { color: #a8a29e; font-size: .92em; }
+.mc-tracker .bq .ra { display: flex; gap: 5px; align-items: center; color: #a5f3fc; font-size: .92em; }
+.mc-tracker .bq .ra i { font-style: normal; color: #facc15; display: inline-block; transition: transform .15s; }
+.mc-tracker .bq .ra span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-touch .mc-tracker .bq .hk, .mc-touch .mc-tracker .bq .wy { display: none; }
+.mc-touch .mc-tracker .bq .tutr .hk { display: block; }
+html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
+/* QoL: низкое здоровье (рамка без мигания), напоминание о талантах, справка */
+.mc-lowhp { position: absolute; inset: 0; pointer-events: none; border: 6px solid rgba(185, 28, 28, .55); z-index: 4; }
+.mc-lowhp span { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); background: rgba(69, 10, 10, .85); color: #fecaca; padding: 3px 10px; border-radius: 4px; font: 12px monospace; white-space: nowrap; }
+.mc-talnag { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); background: rgba(18, 13, 32, .9); border: 1px solid #facc15; color: #fde68a; padding: 4px 10px; border-radius: 6px; font: 12px monospace; pointer-events: auto; cursor: pointer; z-index: 5; }
+.mc-touch .mc-talnag { bottom: auto; top: calc(var(--st, 0px) + 8px); }
+.mc-help { position: fixed; inset: 0; z-index: 57; display: flex; align-items: center; justify-content: center; background: rgba(5, 3, 12, .55); pointer-events: auto; font-family: monospace; }
+.mc-help .box { background: #0e0a19; border: 3px solid #5b4a7a; border-radius: 6px; padding: 8px 12px; max-width: 94vw; max-height: 90vh; overflow: auto; color: #e2e8f0; }
+.mc-help .hd { display: flex; justify-content: space-between; align-items: center; color: #fde68a; margin-bottom: 6px; }
+.mc-help .hd button { background: #1a1230; border: 1px solid #3b2c52; color: #e2e8f0; border-radius: 4px; width: 30px; height: 28px; }
+.mc-help td { padding: 2px 10px 2px 0; font-size: 12px; vertical-align: top; }
+.mc-help td b { color: #a5f3fc; white-space: nowrap; }
+.mc-bd-open .ch-root { display: none; }
+.mc-tracker .bq .ra b { flex: none; color: #facc15; font-weight: bold; white-space: nowrap; }
+/* телефон: стрелка задания — в строке с названием (только направление и метры), чтобы трекер не рос вниз */
+.mc-touch .mc-tracker .bq .bt.pin { display: flex; align-items: baseline; gap: 4px; }
+.mc-touch .mc-tracker .bq .bt.pin .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-touch .mc-tracker .bq .bt.pin .ra { flex: none; }
+.mc-touch .mc-tracker .bq .bt.pin .ra span { display: none; }

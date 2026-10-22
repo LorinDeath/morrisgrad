@@ -43,6 +43,9 @@ import { disableCache, enableCache, cacheSummary } from './boot/assetCache.js';
 import { veil } from './boot/loaderUI.js';
 import { setEnch, enchName, enchText, tierOf } from './meta/enchCfg.js';
 import { QuestTracker } from './ui/tracker.js';
+import { BoardStore } from './meta/boardStore.js';
+import { BoardWin } from './ui/board.js';
+import { QolHud } from './ui/qol.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
@@ -255,7 +258,15 @@ async function boot(canvasId, username, userId, api) {
     canSoul: () => mode === 'hub' && world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) <= 110,
     nearPetr: () => mode === 'hub' && !!zone.nearestNpc(world, player.x, player.y) && zone.nearestNpc(world, player.x, player.y).id === 'petr',
   });
-  const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), mobile });
+  // Доска заданий и достижений (server/meta/board.ts): окно U/📋, Доска объявлений (Аринар), Доска достижений (у Алтаря)
+  const boardSt = new BoardStore(send);
+  api.board = boardSt;
+  const nearBoard = (k) => { const p = boardSt.defs?.props?.[k]; return !!p && mode === 'hub' && world === p.world && Math.hypot(player.x - p.x, player.y - p.y) <= p.r; };
+  const boardWin = new BoardWin(overlay, boardSt, { mobile, near: nearBoard, onTrack: () => { tracker.bsig = ''; }, onShow: (on) => container.classList.toggle('mc-bd-open', on) }); // открыто окно — кнопка PK (над слоем окон) прячется
+  api.boardWin = boardWin;
+  queueMicrotask(() => { api.tracker = tracker; api.social = social; api.overlay = overlay; }); // для локальных плейтестов (debug)
+  const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), onOpenBoard: (tab) => boardWin.open('all', tab === 'tut' ? 'tut' : tab), mobile, board: boardSt });
+  { const bo = book.open.bind(book); book.open = (...a) => { tracker.tutDone('book'); return bo(...a); }; }
   const dialog = new NpcDialog(overlay, meta);
   dialog.onCraft = () => book.open('craft');
   const upgWin = new UpgradeWin(overlay, meta, { nearPetr: () => mode === 'hub' && zone.nearestNpc(world, player.x, player.y)?.id === 'petr' });
@@ -290,7 +301,7 @@ async function boot(canvasId, username, userId, api) {
   const touch = new TouchControls(overlay.layer, {
     onHome: () => openHomePortal(),
     onRating: () => openRating(),
-    onMap: () => { if (mode === 'hub') worldMap.toggle(); },
+    onMap: () => { if (mode === 'hub') { if (!worldMap.isOpen) tracker.tutDone('map'); worldMap.toggle(); } },
     onPeople: () => openPeople('online'),
     onDash: () => { input.dashPressed = true; },
     onWskill: () => useWeaponSkill(),
@@ -298,6 +309,7 @@ async function boot(canvasId, username, userId, api) {
     onAttack: (on) => { aim.touch = !!on; },
     onSoul: () => book.toggle('hero'),
     onBook: () => book.toggle(),
+    onBoard: () => boardWin.toggle('all'),
     onAbility: (slot) => useAbility(slot ?? 0),
     onChat: () => openChat(),
     onZoomIn: () => zoomBy(1.2),
@@ -544,6 +556,12 @@ async function boot(canvasId, username, userId, api) {
     const prevLvl = meta.hero?.lvl;
     addCards(d.loot?.cards); addCards(d.reward?.cards);
     meta.apply(d);
+    boardSt.apply(d);
+    if (d.boardDefs) zone.setBoards?.(d.boardDefs.props, d.boardDefs.on);
+    for (const g of d.boardGranted || []) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac');
+    if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}`, '#86efac'); }
+    if (d.toast) overlay.toast(d.toast, '#c4b5fd');
+    qol.onState(d);
     updateBookBadge();
     if (d.loot) showLoot(d.loot, `☠ ${esc(d.loot.mob ? (d.loot.mob) : '')}`);
     if (d.reward) showRunReward(d.reward);
@@ -556,6 +574,8 @@ async function boot(canvasId, username, userId, api) {
     if (meta.hero && prevLvl && meta.hero.lvl > prevLvl) overlay.toast(`${HERO_NAMES[meta.hero.cls]}: уровень ${meta.hero.lvl}! +очко таланта`, '#facc15');
     refreshAbilityButtons();
   });
+  net.on('board_state', (d) => boardSt.apply({ board: d.board }));
+  net.on('bm_hint', (d) => { boardSt.bmHint = d.off ? null : { x: Number(d.x) || 0, y: Number(d.y) || 0 }; });
   net.on('quest_progress', (d) => {
     meta.applyProgress(d.quests);
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
@@ -570,6 +590,9 @@ async function boot(canvasId, username, userId, api) {
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
   // Рейтинг и просмотр персонажа (данные — только от сервера)
   const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), onParty: (sid) => party.invite(sid), canParty: (sid) => !!sid && sid !== myId && party.canInvite(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
+  social.tutCtl = { // настройки → 🧭 Обучение
+    state: () => boardSt.ready ? { off: !!boardSt.st.tut.off, skip: !!(boardSt.st.tut.skip || boardSt.st.tut.vet), done: !boardSt.tutLeft(), canSkip: boardSt.defs.cfg.tutSkip !== false } : null,
+    set: (m) => boardSt.tut(m), fold: () => tracker.fold, setFold: (on) => tracker.setFold(on) };
   // ——— PvP-дуэли ———
   const duel = new DuelUI({ overlay, send });
   // ——— Отряд (до 4) ———
@@ -807,6 +830,16 @@ async function boot(canvasId, username, userId, api) {
   charBtn.className = 'mc-bookbtn mc-charbtn'; charBtn.title = 'Персонаж (C)'; charBtn.textContent = '🧙';
   charBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); tracker.tutDone('book'); toggleCharSheet(); });
   overlay.layer.appendChild(charBtn);
+  // Задания (U): доска заданий, достижения, обучение — со счётчиком «можно забрать»
+  const boardBtn = document.createElement('button');
+  boardBtn.className = 'mc-bookbtn mc-boardbtn'; boardBtn.title = 'Задания и достижения (U)'; boardBtn.innerHTML = '📋<em class="mc-cnt" style="display:none"></em>';
+  boardBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); boardWin.toggle('all'); });
+  overlay.layer.appendChild(boardBtn);
+  boardSt.on(() => { const n = boardSt.readyCount(), em = boardBtn.querySelector('em'); em.style.display = n ? '' : 'none'; em.textContent = n > 99 ? '99+' : String(n); boardBtn.style.display = boardSt.defs?.on === false ? 'none' : '';
+    const tb = overlay.layer.querySelector('.mc3d-tbtn[data-act="board"]'); if (tb) { tb.dataset.cnt = n ? String(Math.min(99, n)) : ''; tb.classList.toggle('hascnt', n > 0); tb.style.display = boardSt.defs?.on === false ? 'none' : ''; } });
+  const qol = new QolHud(overlay, meta, boardSt, { mobile });
+  qol.onNag = () => book.open('hero');
+  api.qol = qol;
   // рамка героя (лево-верх): аватар, имя, уровень, ОЗ — когда нет боковой карточки «ГЕРОЙ»
   const pframe = new PlayerFrame(overlay.layer, { onClick: () => toggleCharSheet() });
   function updateBookBadge() {
@@ -1152,6 +1185,10 @@ async function boot(canvasId, username, userId, api) {
     if (isTyping(e) || net.kicked) return;
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && upgWin.isOpen) { upgWin.close(); return; }
+    if (e.key === 'Escape' && boardWin.isOpen) { boardWin.close(); return; }
+    if (e.key === 'Escape' && qol.helpOpen) { qol.toggleHelp(false); return; }
+    if (e.key === 'F1' && !e.repeat) { e.preventDefault(); qol.toggleHelp(); return; }
+    if ((k === 'u' || k === 'г') && !e.repeat && !overlay.chatOpen) { boardWin.toggle('all'); return; } // U — общее окно; доски открываются E рядом с ними
     if (e.key === 'Escape' && worldMap.isOpen) { worldMap.close(); return; }
     if (worldMap.isOpen && (k === 'n' || k === 'т') && !e.repeat) { worldMap.toggleBiome(); return; } // N — карта биомов
     if (worldMap.isOpen && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd')) { worldMap.zoomBy(1.5); return; } // +/− — зум карты
@@ -1166,7 +1203,7 @@ async function boot(canvasId, username, userId, api) {
     }
     if (e.key === 'Enter') { e.preventDefault(); openChat(); return; }
     if ((k === 'h' || k === 'р') && mode === 'hub' && !e.repeat) { openHomePortal(); return; }
-    if ((k === 'm' || k === 'ь') && mode === 'hub') { worldMap.toggle(); return; }
+    if ((k === 'm' || k === 'ь') && mode === 'hub') { if (!worldMap.isOpen) tracker.tutDone('map'); worldMap.toggle(); return; }
     if (runUI.choiceOpen) return; // 1–3 обрабатывает модалка
     keys.add(e.code);
     if ((lootWin.isOpen || chestWin.isOpen) && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) return; // Shift в окне добычи — проводка
@@ -1418,6 +1455,9 @@ async function boot(canvasId, username, userId, api) {
     { const b = zone.nearestBag(player.x, player.y, 100); if (b) { if (lootWin.isOpen) lootWin.close(); else openBag(b); return; } }
     const npc = zone.nearestNpc(world, player.x, player.y);
     if (npc) { if (net.isOpen()) send({ type: 'npc_talk', npc: npc.id }); else overlay.toast('Персонажи говорят только при связи с сервером', '#fca5a5'); return; }
+    { const bk = nearBoard('nb') ? 'nb' : nearBoard('ab') ? 'ab' : null; // доски: ближе портала (Алтарь рядом с Доской достижений)
+      if (bk) { const p = boardSt.defs.props[bk], bp = nearestPortal(), dB = Math.hypot(player.x - p.x, player.y - p.y);
+        if (!bp || dB < Math.hypot(player.x - bp.x, player.y - bp.y)) { boardWin.toggle(bk); return; } } }
     const node = zone.nearestNode(player.x, player.y);
     if (!node && !zoneSt.gather) { const nn = zone.nearestNode(player.x, player.y, true); // узел на восстановлении — сказать, когда вырастет (а не молчать)
       if (nn && !nearestPortal() && !nearestFlower()) { const left = Math.max(1, Math.ceil(((nn.readyAt || 0) - Date.now()) / 1000)); overlay.toast(`${zone.resName(nn.def.res)}: уже собрано — вырастет через ≈${left} с`, '#c4b5fd'); return; } }
@@ -1877,14 +1917,17 @@ async function boot(canvasId, username, userId, api) {
       else if (bagN && !lootWin.isOpen) promptText = `${key} — открыть добычу (${bagN.n})`;
       else if (zoneSt.gather) promptText = `Сбор: ${zone.resName(zoneSt.gather.res)} ${Math.round(Math.min(1, zoneSt.gather.t / (zone.gatherTime() / 1000)) * 100)}%`;
       else if (npc) promptText = `${key} — поговорить: ${npc.name}`;
+      else if (nearBoard('nb') && (!np || Math.hypot(player.x - boardSt.defs.props.nb.x, player.y - boardSt.defs.props.nb.y) < Math.hypot(player.x - np.x, player.y - np.y))) promptText = `${key} — Доска объявлений (заказы охоты)`;
+      else if (nearBoard('ab') && (!np || Math.hypot(player.x - boardSt.defs.props.ab.x, player.y - boardSt.defs.props.ab.y) < Math.hypot(player.x - np.x, player.y - np.y))) promptText = `${key} — Доска достижений`;
       else if (node) promptText = `${key} — собрать: ${zone.resName(node.def.res)}`;
       else if (np) promptText = `${key} — ${np.runRoom ? 'войти: ' : ''}${np.name}${np.id === 'portal_class_select' ? ' (выбор героя · ветка души)' : ''}`;
       else if (nf) promptText = `${key} — ${nf.stage === 'bud' ? 'тронуть бутон (-1 HP)' : 'сорвать цветок (+20 щит)'}`;
       if (nearAltar && !np && (meta.account?.creation || meta.account?.soul?.length)) promptText += ' · 🜏 ветка души — Книга';
-      touch.setInteractHighlight(!!(npc || node || np || nf));
+      touch.setInteractHighlight(!!(npc || node || np || nf || nearBoard('nb') || nearBoard('ab')));
     }
     overlay.setPrompt(promptText);
-    tracker.update({ mobs: mode === 'hub' ? zone.mobs : null, nodes: mode === 'hub' ? zone.nodes : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
+    qol.tick(zone.me, mode);
+    tracker.update({ bmDomes: world === 'arinar' && zone.bmv ? [...zone.bmv.domes.values()] : null, mobs: mode === 'hub' ? zone.mobs : null, nodes: mode === 'hub' ? zone.nodes : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
     party.setHub(mode === 'hub'); // панель отряда видна в мире и без отряда («＋ Пригласить»)
     zone.trackTypes = tracker.trackTypes; // подсветка мобов-целей квеста на экране
     refreshAbilityButtons();
