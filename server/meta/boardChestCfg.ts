@@ -2,7 +2,8 @@
 // Ранг → ярус сундука; ярус ограничивает редкость, зачарование и проклятие. Всё — BCHEST (админка «🎁 Сундуки наград»,
 // kind='bchest' id='main' в game_overrides). Здесь — только исходные значения и чистые функции (их же видит клиент:
 // шансы в окне сундуков и предпросмотр в админке). Бросок — только сервер (boardChest.ts, cryptoRand).
-import { ITEMS, RARITIES as RAR_DEF } from "./defs";
+import { ITEMS, RARITIES as RAR_DEF, BALANCE } from "./defs";
+import { CURSE } from "./cursed";
 import { ENCH, ENCH_N } from "./enchant";
 
 /** редкости по порядку: common … mythic */
@@ -13,34 +14,45 @@ export const BC_RANKS = ["F", "E", "D", "C", "B", "A", "S", "SS"] as const;
 export const BC_CATS = ["daily", "weekly", "monthly", "hard", "hunt"] as const;
 /** ключи анимации/иконок художника (/workspace/art/chests → public/mc/chests): редкость или cursed_<редкость> */
 export const BC_ART = ["common", "uncommon", "rare", "epic", "legendary", "mythic", "cursed_common", "cursed_uncommon", "cursed_rare", "cursed_epic", "cursed_legendary", "cursed_mythic"];
-export type BcTierCfg = { art: string; name: string; color: string; maxRar: string; w: Record<string, number>; enchPct: number; enchMax: number; cursePct: number };
-const TC = (art: string, name: string, color: string, maxRar: string, w: Record<string, number>, enchPct: number, enchMax: number, cursePct: number): BcTierCfg =>
-  ({ art, name, color, maxRar, w: Object.fromEntries(BC_RARS.map((r) => [r, w[r] || 0])), enchPct, enchMax, cursePct });
+// ОСНОВА — ОБЩИЕ таблицы игры (не таблицы конкретных мобов):
+//  • редкость: BALANCE.DROP_PCT — общий шанс дропа экипировки моба по редкости (обычный 5.5 % … мифический 0.12 %);
+//    каждая вещь пула весит DROP_PCT[её редкость] × boost^(номер редкости) — ярус сундука сдвигает шансы вверх;
+//  • проклятие: доля проклятых копий в дропе проклятого босса = itemChanceMult / (mobDropMult + itemChanceMult)
+//    (админка «☠ Проклятие»), × curseMult яруса — множитель по «шансам» (odds), чтобы не упираться в 100 %;
+//  • зачарование: шанс зачарованного моба Σ spawnPct ярусов (админка «✦ Зачарование») × enchMult (тоже по odds); ярус — по весам
+//    spawnPct × enchBoost^(ярус−1), не выше enchMax (6 — «Чёрный»: проклятая + Чёрный = чёрная проклятая вещь);
+//  • очернение (Чёрный маг) — свой слой: blkPct % вещей очернены на blkMin…blkMax %, распределение min+(max−min)·u^blkCurve.
+// Пул вещей — ВСЯ экипировка игры с уровнем в окне L ± spread (любой моб/биом/ремесло), в пределах редкостей яруса.
+export type BcTierCfg = { art: string; name: string; color: string; minRar: string; maxRar: string; boost: number;
+  enchMult: number; enchMax: number; enchBoost: number; curseMult: number; blkPct: number; blkMin: number; blkMax: number; blkCurve: number };
+const TC = (art: string, name: string, color: string, minRar: string, maxRar: string, boost: number, enchMult: number, enchMax: number, enchBoost: number,
+  curseMult: number, blkPct: number, blkMin: number, blkMax: number, blkCurve = 2.5): BcTierCfg =>
+  ({ art, name, color, minRar, maxRar, boost, enchMult, enchMax, enchBoost, curseMult, blkPct, blkMin, blkMax, blkCurve });
 export const BCHEST: {
   on: boolean; spread: number; maxStore: number; maxItems: number;
   rankTier: Record<string, BcTier>; rankArt: Record<string, string>; tiers: Record<BcTier, BcTierCfg>; count: Record<string, { min: number; max: number }>;
 } = {
   on: true,
-  spread: 2,        // уровень вещи = уровень задания ± spread (1…25)
+  spread: 2,        // уровень вещи = уровень сундука (= уровень задания) ± spread, в пределах существующих уровней вещей
   maxStore: 100,    // сколько неоткрытых/недобранных сундуков хранится; полон — задание с рангом не сдаётся (награда не пропадает)
   maxItems: 60,     // потолок вещей в одном сундуке (страховка от правок «от/до»)
   rankTier: { F: "common", E: "common", D: "uncommon", C: "uncommon", B: "rare", A: "strange", S: "cursed", SS: "black" },
-  // вид сундука по рангу (12 рисунков художника); "" — как у яруса (tiers.<ярус>.art). Только внешний вид: содержимое решает ярус
-  rankArt: { F: "common", E: "uncommon", D: "rare", C: "epic", B: "legendary", A: "mythic", S: "cursed_legendary", SS: "cursed_mythic" },
+  // вид сундука по рангу; "" — как у яруса (tiers.<ярус>.art) — по умолчанию у всех, чтобы вид всегда совпадал с содержимым
+  rankArt: { F: "", E: "", D: "", C: "", B: "", A: "", S: "", SS: "" },
   tiers: {
-    //          имя                     цвет       макс. редкость  веса редкостей                                              зач.%  ярус≤ прокл.%
-    common:   TC("common", "Простой сундук",       "#a8a29e", "uncommon",  { common: 70, uncommon: 30 },                                  0,  0, 0),
-    uncommon: TC("uncommon", "Добротный сундук",     "#4ade80", "rare",      { common: 40, uncommon: 45, rare: 15 },                        8,  1, 0),
-    rare:     TC("rare", "Редкий сундук",        "#3b82f6", "epic",      { common: 15, uncommon: 40, rare: 35, epic: 10 },              15, 2, 0),
-    strange:  TC("epic", "Странный сундук",      "#ec4899", "legendary", { uncommon: 25, rare: 40, epic: 28, legendary: 7 },            25, 3, 3),
-    cursed:   TC("cursed_legendary", "Проклятый сундук",     "#ef4444", "mythic",    { rare: 35, epic: 40, legendary: 18, mythic: 7 },              35, 5, 25),
-    black:    TC("cursed_mythic", "Чёрный проклятый сундук", "#1c1917", "mythic", { rare: 15, epic: 40, legendary: 30, mythic: 15 },             50, 6, 60),
+    //          вид               имя                        цвет      мин.редк.  макс.редк.  boost зач.× ярус≤ зач.boost прокл.× очерн.% от до
+    common:   TC("common",           "Простой сундук",          "#a8a29e", "common", "uncommon",  1,   0,   0, 1,   0,    0,  0,  0),
+    uncommon: TC("uncommon",         "Добротный сундук",        "#4ade80", "common", "rare",      1.5, 0.68, 1, 1,   0.05, 1,  1,  10),
+    rare:     TC("rare",             "Редкий сундук",           "#3b82f6", "common", "epic",      2,   1.38, 2, 1.2, 0.14, 2,  1,  15),
+    strange:  TC("epic",             "Странный сундук",         "#ec4899", "common", "legendary", 2.6, 2.6, 3, 1.5, 0.33, 4,  1,  25),
+    cursed:   TC("cursed_legendary", "Проклятый сундук",        "#ef4444", "common", "mythic",    3.2, 4.2, 6, 2,   3.33, 8,  2,  50),
+    black:    TC("cursed_mythic",    "Чёрный проклятый сундук", "#1c1917", "common", "mythic",    4,   7.8, 6, 3.5, 15,   12, 5,  80),
   },
   count: { daily: { min: 1, max: 3 }, weekly: { min: 3, max: 7 }, monthly: { min: 10, max: 30 }, hard: { min: 1, max: 5 }, hunt: { min: 1, max: 5 } },
 };
 export const BC_CAT_NAMES: Record<string, string> = { daily: "Ежедневное", weekly: "Недельное", monthly: "Месячное", hard: "Испытание", hunt: "Заказ" };
 export const rarIdx = (r: string) => Math.max(0, BC_RARS.indexOf(r));
-/** ключ рисунка сундука: по рангу (rankArt), иначе по ярусу */
+/** ключ рисунка сундука: по рангу (rankArt, если задан), иначе по ярусу */
 export function artOf(tier: BcTier, rank?: string): string { const r = rank ? BCHEST.rankArt?.[rank] : ""; if (r && BC_ART.includes(r)) return r; const a = BCHEST.tiers[tier]?.art; return a && BC_ART.includes(a) ? a : "common"; }
 export const tierOfRank = (rank: string): BcTier | null => { const t = BCHEST.rankTier[rank]; return t && BCHEST.tiers[t] ? t : null; };
 export function countOf(cat: string): [number, number] {
@@ -48,73 +60,102 @@ export function countOf(cat: string): [number, number] {
   const lo = Math.max(1, Math.min(M, c.min | 0)), hi = Math.max(lo, Math.min(M, c.max | 0));
   return [lo, hi];
 }
-const lvlOf = (L: number) => Math.max(1, Math.min(25, Math.round(L) || 1));
-// пул: только трофеи монстров (как дроп в мире); ремесло/старт — нет
-const POOL = () => ITEMS.filter((i) => i.monster && i.slot);
-/** Вещи нужной редкости в окне уровней L ± s (строго). */
-export function candidates(rar: string, L: number, s = BCHEST.spread): { ids: string[]; lo: number; hi: number } {
-  const l = lvlOf(L), lo = Math.max(1, l - Math.max(0, s | 0)), hi = Math.min(25, l + Math.max(0, s | 0));
-  return { ids: POOL().filter((i) => i.rarity === rar && (i.lvl || 1) >= lo && (i.lvl || 1) <= hi).map((i) => i.id), lo, hi };
+// пул: ВСЯ экипировка игры (трофеи любых мобов, ремесло, стартовые) — без привязки к мобу/биому
+const POOL = () => ITEMS.filter((i) => i.slot);
+const ilvl = (i: any) => Math.max(1, Math.round(i.lvl || 1));
+export const itemLvlRange = (): [number, number] => { let lo = 99, hi = 1; for (const i of POOL()) { const l = ilvl(i); if (l < lo) lo = l; if (l > hi) hi = l; } return [Math.min(lo, hi), hi]; };
+const lvlOf = (L: number) => { const [a, b] = itemLvlRange(); return Math.max(a, Math.min(b, Math.round(L) || 1)); };
+/** окно уровней сундука уровня L: L ± spread, обрезанное по существующим уровням вещей */
+export function lvlWindow(L: number): { L: number; lo: number; hi: number } {
+  const [a, b] = itemLvlRange(), l = lvlOf(L), s = Math.max(0, BCHEST.spread | 0);
+  return { L: l, lo: Math.max(a, l - s), hi: Math.min(b, l + s) };
 }
-/** Реальные шансы редкости для яруса и уровня. Нет вещей этой редкости в окне ±spread — её вес уходит на ближайшую
- *  младшую, где вещи есть (выше «макс. редкости» — никогда). Совсем пусто — окно расширяется на 1, пока не найдётся. */
-export function rarOdds(tier: BcTier, L: number): { odds: Record<string, number>; s: number } {
-  const T = BCHEST.tiers[tier]; if (!T) return { odds: {}, s: 0 };
-  const cap = rarIdx(T.maxRar || "common");
-  for (let s = Math.max(0, BCHEST.spread | 0); s <= 24; s++) {
-    const out: Record<string, number> = {}; let sum = 0;
-    for (let i = 0; i <= cap; i++) {
-      const w = Math.max(0, Number(T.w[BC_RARS[i]]) || 0); if (!w) continue;
-      let j = i; while (j >= 0 && !candidates(BC_RARS[j], L, s).ids.length) j--;
-      if (j < 0) continue;
-      out[BC_RARS[j]] = (out[BC_RARS[j]] || 0) + w; sum += w;
-    }
-    if (!sum) continue;
-    for (const k of Object.keys(out)) out[k] = Math.round((out[k] / sum) * 1000) / 10;
-    return { odds: out, s };
+/** Общая таблица редкости (BALANCE.DROP_PCT) — основа. */
+export const baseRarPct = (): Record<string, number> => Object.fromEntries(BC_RARS.map((r) => [r, Math.max(0, Number((BALANCE.DROP_PCT as any)[r]) || 0)]));
+/** Общая доля проклятых: проклятый босс роняет обычные × mobDropMult и проклятые копии × itemChanceMult → доля проклятых, %. */
+export const baseCursePct = () => { const m = Math.max(0, Number(CURSE.mobDropMult) || 0), c = Math.max(0, Number(CURSE.itemChanceMult) || 0); return m + c > 0 ? (c / (m + c)) * 100 : 0; };
+/** Общий шанс зачарования: шанс, что моб зачарован (Σ spawnPct ярусов), %. */
+export const baseEnchPct = () => (ENCH.on === false ? 0 : Math.min(100, ENCH.tiers.reduce((s, t) => s + Math.max(0, Number(t.spawnPct) || 0), 0)));
+/** Пул сундука: вещи окна уровней с весами. Нет ни одной вещи в редкостях яруса — нижняя граница редкости опускается
+ *  Выше «макс. редкости» — только если в окне ниже ничего нет (тогда — самая низкая редкость окна). Уровень — всегда строго в окне. */
+export function chestPool(tier: BcTier, L: number): { items: { id: string; rar: string; w: number }[]; lo: number; hi: number; L: number } {
+  const T = BCHEST.tiers[tier], W = lvlWindow(L); if (!T) return { items: [], ...W };
+  const base = baseRarPct(), b = Math.max(0.01, Number(T.boost) || 1), cap = rarIdx(T.maxRar || "mythic");
+  const inWin: any[] = POOL().filter((i) => ilvl(i) >= W.lo && ilvl(i) <= W.hi && rarIdx(i.rarity) <= cap);
+  if (!inWin.length) { // в окне нет вещей не выше «макс. редкости» (L23–25 у простого) — берётся самая низкая редкость окна; уровень не расширяется
+    const all = POOL().filter((i) => ilvl(i) >= W.lo && ilvl(i) <= W.hi), lo = Math.min(...all.map((i) => rarIdx(i.rarity)));
+    inWin.push(...all.filter((i) => rarIdx(i.rarity) === lo));
   }
-  return { odds: {}, s: 0 };
+  for (let mn = rarIdx(T.minRar || "common"); mn >= 0; mn--) {
+    const items = inWin.filter((i) => rarIdx(i.rarity) >= mn).map((i) => ({ id: i.id, rar: i.rarity, w: (base[i.rarity] || 0) * Math.pow(b, rarIdx(i.rarity)) })).filter((x) => x.w > 0);
+    if (items.length) return { items, ...W };
+  }
+  return { items: [], ...W };
 }
-/** Ярусы зачарования, доступные сундуку (1…enchMax), с весами ENCH.spawnPct → % от «зачарована». */
+/** Совместимость: вещи нужной редкости в окне сундука. */
+export function candidates(rar: string, L: number): { ids: string[]; lo: number; hi: number } {
+  const W = lvlWindow(L); return { ids: POOL().filter((i) => i.rarity === rar && ilvl(i) >= W.lo && ilvl(i) <= W.hi).map((i) => i.id), lo: W.lo, hi: W.hi };
+}
+/** Реальные шансы редкости для яруса и уровня (сумма весов вещей пула по редкостям), %. s — использованный разброс. */
+export function rarOdds(tier: BcTier, L: number): { odds: Record<string, number>; s: number } {
+  const P = chestPool(tier, L), sum = P.items.reduce((s, x) => s + x.w, 0), out: Record<string, number> = {};
+  if (!sum) return { odds: {}, s: Math.max(0, BCHEST.spread | 0) };
+  for (const x of P.items) out[x.rar] = (out[x.rar] || 0) + x.w;
+  for (const k of Object.keys(out)) out[k] = Math.round((out[k] / sum) * 1000) / 10;
+  return { odds: out, s: Math.max(0, BCHEST.spread | 0) };
+}
+/** Ярусы зачарования, доступные сундуку (1…enchMax): веса spawnPct × enchBoost^(ярус−1) → % от «зачарована». */
 export function enchOdds(tier: BcTier): Record<number, number> {
   const T = BCHEST.tiers[tier], mx = Math.max(0, Math.min(ENCH_N, (T?.enchMax | 0) || 0)), out: Record<number, number> = {};
-  if (!T || !mx || !(T.enchPct > 0) || ENCH.on === false) return out;
-  const ws = ENCH.tiers.slice(0, mx).map((t) => Math.max(0, Number(t.spawnPct) || 0)), sum = ws.reduce((s, w) => s + w, 0) || 1;
+  if (!T || !mx || !(enchPctOf(tier) > 0)) return out;
+  const eb = Math.max(0.01, Number(T.enchBoost) || 1);
+  const ws = ENCH.tiers.slice(0, mx).map((t, i) => Math.max(0, Number(t.spawnPct) || 0) * Math.pow(eb, i)), sum = ws.reduce((s, w) => s + w, 0) || 1;
   ws.forEach((w, i) => { if (w > 0) out[i + 1] = Math.round((w / sum) * 1000) / 10; });
   return out;
 }
+const pct = (v: number) => Math.max(0, Math.min(100, Number(v) || 0));
+/** множитель шанса — по «шансам» (odds), чтобы не упираться в 100 %: p' = o·m / (1 + o·m), o = p / (100 − p) */
+const oddsMul = (p: number, m: number) => { p = pct(p); m = Math.max(0, Number(m) || 0); if (!m || !p) return 0; if (p >= 100) return 100; const o = (p / (100 - p)) * m; return (o / (1 + o)) * 100; };
+export const enchPctOf = (tier: BcTier) => { const T = BCHEST.tiers[tier]; return !T || ENCH.on === false || !(T.enchMax > 0) ? 0 : oddsMul(baseEnchPct(), T.enchMult); };
+export const cursePctOf = (tier: BcTier) => { const T = BCHEST.tiers[tier]; return T ? oddsMul(baseCursePct(), T.curseMult) : 0; };
+const blkRange = (T: BcTierCfg): [number, number] => { const a = Math.max(1, Math.min(99, Number(T.blkMin) || 1)), b = Math.max(a, Math.min(99, Number(T.blkMax) || a)); return [a, b]; };
 /** Сводка шансов для окна и админки. */
 export function chestOdds(tier: BcTier, L: number, cat: string) {
-  const T = BCHEST.tiers[tier]; const [cmin, cmax] = countOf(cat), l = lvlOf(L), ro = rarOdds(tier, L), s = ro.s;
-  return { tier, art: BC_ART.includes(T?.art) ? T.art : "common", name: T?.name || tier, color: T?.color || "#999", L: l, lo: Math.max(1, l - s), hi: Math.min(25, l + s), cmin, cmax,
-    rar: ro.odds, enchPct: ENCH.on === false ? 0 : Math.max(0, Math.min(100, Number(T?.enchPct) || 0)), ench: enchOdds(tier),
-    cursePct: Math.max(0, Math.min(100, Number(T?.cursePct) || 0)) };
+  const T = BCHEST.tiers[tier]; const [cmin, cmax] = countOf(cat), W = lvlWindow(L), ro = rarOdds(tier, L);
+  const eo = enchOdds(tier), ep = enchPctOf(tier), cp = cursePctOf(tier), [b0, b1] = T ? blkRange(T) : [0, 0];
+  // чёрная проклятая (проклятая + ярус «Чёрный»): доля от всех вещей
+  const blackCursed = Math.round(cp / 100 * ep / 100 * (eo[ENCH_N] || 0) * 100) / 100;
+  return { tier, art: BC_ART.includes(T?.art) ? T.art : "common", name: T?.name || tier, color: T?.color || "#999", L: W.L, lo: W.lo, hi: W.hi, cmin, cmax,
+    rar: ro.odds, enchPct: Math.round(ep * 10) / 10, ench: eo, cursePct: Math.round(cp * 10) / 10, blackCursed,
+    blkPct: pct(T?.blkPct || 0), blkMin: b0, blkMax: b1,
+    base: { rar: baseRarPct(), cursePct: Math.round(baseCursePct() * 100) / 100, enchPct: Math.round(baseEnchPct() * 100) / 100, boost: T?.boost || 1, curseMult: T?.curseMult || 0, enchMult: T?.enchMult || 0 } };
 }
-/** Бросок содержимого (rnd — ГСЧ; сервер передаёт cryptoRand). Возвращает [{id,c?,e?}]. */
-export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => number): { id: string; c?: 1; e?: number }[] {
+export type BcRoll = { id: string; c?: 1; e?: number; b?: number };
+/** Бросок содержимого (rnd — ГСЧ; сервер передаёт cryptoRand). b — очернение %, целое 1…99. */
+export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => number): BcRoll[] {
   const T = BCHEST.tiers[tier]; if (!T) return [];
   const [lo, hi] = countOf(cat), n = lo + Math.floor(rnd() * (hi - lo + 1));
-  const { odds, s } = rarOdds(tier, L), keys = Object.keys(odds), sum = keys.reduce((s, k) => s + odds[k], 0);
-  const eo = enchOdds(tier), ek = Object.keys(eo).map(Number), es = ek.reduce((s, k) => s + eo[k], 0);
-  const out: { id: string; c?: 1; e?: number }[] = [];
-  for (let k = 0; k < n && keys.length && sum > 0; k++) {
-    let x = rnd() * sum, rar = keys[keys.length - 1];
-    for (const r of keys) { if (x < odds[r]) { rar = r; break; } x -= odds[r]; }
-    const ids = candidates(rar, L, s).ids; if (!ids.length) continue;
-    const id = ids[Math.floor(rnd() * ids.length)], o: { id: string; c?: 1; e?: number } = { id };
-    if (ek.length && rnd() * 100 < (Number(T.enchPct) || 0)) { let y = rnd() * es; o.e = ek[ek.length - 1]; for (const t of ek) { if (y < eo[t]) { o.e = t; break; } y -= eo[t]; } }
-    if (rnd() * 100 < (Number(T.cursePct) || 0)) o.c = 1;
+  const P = chestPool(tier, L).items, sum = P.reduce((s, x) => s + x.w, 0);
+  const eo = enchOdds(tier), ek = Object.keys(eo).map(Number), es = ek.reduce((s, k) => s + eo[k], 0), ep = enchPctOf(tier), cp = cursePctOf(tier);
+  const bp = pct(T.blkPct), [b0, b1] = blkRange(T), bc = Math.max(0.1, Number(T.blkCurve) || 1);
+  const out: BcRoll[] = [];
+  for (let k = 0; k < n && P.length && sum > 0; k++) {
+    let x = rnd() * sum, id = P[P.length - 1].id;
+    for (const it of P) { if (x < it.w) { id = it.id; break; } x -= it.w; }
+    const o: BcRoll = { id };
+    if (ek.length && rnd() * 100 < ep) { let y = rnd() * es; o.e = ek[ek.length - 1]; for (const t of ek) { if (y < eo[t]) { o.e = t; break; } y -= eo[t]; } }
+    if (rnd() * 100 < cp) o.c = 1;
+    if (bp > 0 && rnd() * 100 < bp) o.b = Math.max(1, Math.round(b0 + (b1 - b0) * Math.pow(rnd(), bc)));
     out.push(o);
   }
   return out;
 }
-/** Проверка правки админки (после наложения): ошибки «от > до», макс. редкость ниже всех весов и т.п. */
+/** Проверка правки админки (после наложения). */
 export function bchestErr(get: (p: string) => any): string | null {
   for (const c of BC_CATS) { const lo = Number(get(`count.${c}.min`)), hi = Number(get(`count.${c}.max`)); if (lo > hi) return `${BC_CAT_NAMES[c]}: «вещей от» больше «до»`; }
   for (const t of BC_TIERS) {
-    const cap = rarIdx(String(get(`tiers.${t}.maxRar`))); let any = false;
-    for (let i = 0; i <= cap; i++) if ((Number(get(`tiers.${t}.w.${BC_RARS[i]}`)) || 0) > 0) any = true;
-    if (!any) return `${BCHEST.tiers[t].name}: нужен хотя бы один вес редкости не выше «макс. редкости»`;
+    if (rarIdx(String(get(`tiers.${t}.minRar`))) > rarIdx(String(get(`tiers.${t}.maxRar`)))) return `${BCHEST.tiers[t].name}: мин. редкость выше макс.`;
+    if (Number(get(`tiers.${t}.blkMin`)) > Number(get(`tiers.${t}.blkMax`))) return `${BCHEST.tiers[t].name}: очернение «от» больше «до»`;
   }
   return null;
 }
@@ -132,7 +173,7 @@ export function bchestPreview(patch: Record<string, any>, L: number, cat: string
     const err = bchestErr((p) => getP0(BCHEST, p)); if (err) return { ok: false, err };
     const rank: Record<string, string[]> = {}; for (const [r, t] of Object.entries(BCHEST.rankTier)) (rank[t] ||= []).push(r);
     return { ok: true, L, cat, tiers: BC_TIERS.map((t) => { const o = chestOdds(t, L, cat);
-      const sample = rollItems(t, L, cat, rnd).map((x) => { const d: any = ITEMS.find((i: any) => i.id === x.id) || {}; return { id: x.id, name: d.name || x.id, rarity: d.rarity, lvl: d.lvl || 1, c: x.c, e: x.e }; });
+      const sample = rollItems(t, L, cat, rnd).map((x) => { const d: any = ITEMS.find((i: any) => i.id === x.id) || {}; return { id: x.id, name: d.name || x.id, rarity: d.rarity, lvl: d.lvl || 1, c: x.c, e: x.e, b: x.b }; });
       return { ...o, ranks: rank[t] || [], sample }; }) };
   } finally { restoreInto(BCHEST, save); }
 }

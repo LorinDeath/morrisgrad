@@ -1193,7 +1193,8 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-bchestbtn { left: 252px; }
 .mc-loot.mc-bchest { width: min(760px, 96%); top: 50%; }
 .mc-bchest header small.ttl { color: #a8977a; }
-.mc-bchest .bc-body { display: grid; grid-template-columns: 270px 1fr; min-height: 300px; max-height: min(560px, 76vh); }
+.mc-bchest .bc-body { display: grid; grid-template-columns: 270px 1fr; min-height: 300px; max-height: min(560px, 76vh); grid-template-rows: minmax(0, 1fr); }
+.mc-bchest .bc-list, .mc-bchest .bc-pane { min-height: 0; }
 .mc-bchest .bc-list { overflow: auto; border-right: 1px solid #3d2f12; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
 .mc-bchest .bc-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid #3a3150; border-left: 4px solid var(--cc, #999); border-radius: 5px; background: #0e0b15; color: inherit; font: inherit; text-align: left; cursor: pointer; touch-action: manipulation; }
 .mc-bchest .bc-row:hover { background: #221a33; } .mc-bchest .bc-row.on { background: #2a2140; border-color: #b8913a; border-left-color: var(--cc, #999); }
@@ -1218,6 +1219,11 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-bchest .btn { font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 5px; border: 1px solid #5b4720; background: #2a2010; color: #eadfbf; cursor: pointer; touch-action: manipulation; }
 .mc-bchest .btn:disabled { opacity: .4; cursor: default; } .mc-bchest .btn.danger { border-color: #7f1d1d; color: #fca5a5; } .mc-bchest .bc-acts .all { margin-left: auto; }
 .bc-ico { display: inline-block; flex: none; image-rendering: pixelated; background-repeat: no-repeat; }
+.bc-icw { position: relative; display: inline-block; flex: none; line-height: 0; }
+.bc-icw .bc-lv { position: absolute; right: -3px; bottom: -3px; min-width: 14px; padding: 0 3px; box-sizing: border-box; font: 700 10px/14px system-ui, sans-serif; text-align: center; color: #fde68a; background: #1a1208; border: 1px solid #b8913a; border-radius: 3px; }
+.bc-icw .bc-lv.s { font-size: 8px; line-height: 10px; min-width: 10px; padding: 0 2px; right: -4px; bottom: -2px; }
+.mc-bchest .bc-row small.lvl, .mc-bchest .bc-big small.lvl { color: #fde68a; font-weight: 600; }
+.mc-bchest .grid .cell .bk { position: absolute; left: 2px; bottom: 14px; font-size: 9px; color: #c4b5fd; background: #0008; border-radius: 3px; padding: 0 2px; }
 .bc-ico.fb { background: var(--cc, #999); border: 2px solid #000; box-sizing: border-box; }
 .mc-touch .mc-loot.mc-bchest, .mc-bchest.mob { width: 98%; top: 50%; }
 @media (max-width: 640px), (max-height: 520px) and (pointer: coarse) {

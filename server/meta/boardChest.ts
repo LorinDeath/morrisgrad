@@ -6,7 +6,7 @@ import { BCHEST, BC_TIERS, tierOfRank, artOf, chestOdds, rollItems, countOf, typ
 import { ITEM_BY_ID, salvageYield, HERO_NAMES } from "./defs";
 import { addItem, addRes, equip, cryptoRand, type Account, type Hero } from "./profile";
 
-export interface BcItem { lid: number; id: string; c?: 1; e?: number }
+export interface BcItem { lid: number; id: string; c?: 1; e?: number; b?: number } // b — очернение %, переносится на экземпляр (InvItem.blk)
 export interface BcChest { id: number; tier: BcTier; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number }
 export interface BcStore { seq: number; list: BcChest[] }
 const BAG = 120;
@@ -16,6 +16,12 @@ export function chestsOf(a: Account): BcStore {
   for (const c of s.list) if (c && Array.isArray(c.items)) c.items = c.items.filter((x) => x && ITEM_BY_ID[x.id]); // вещь удалили из игры — пропадает
   s.list = s.list.filter((c) => c && BC_TIERS.includes(c.tier) && !(Array.isArray(c.items) && c.items.length === 0));
   return s;
+}
+/** вещь из сундука → сумка тела: проклятие, ярус и очернение переносятся на экземпляр */
+function give(a: Account, x: BcItem, c: BcChest, hero: string) {
+  const it = addItem(a, x.id, "bchest:" + c.tier, hero, !!x.c, x.e || 0);
+  if (it && Number(x.b) > 0) it.blk = Math.max(1, Math.min(99, Math.round(Number(x.b))));
+  return it;
 }
 const bagN = (a: Account, hero: string | null) => a.inv.filter((i) => (i.hero || null) === (hero || null)).length;
 /** Хватит ли места под новый сундук (проверка ДО записи ступени задания). */
@@ -66,7 +72,7 @@ export function chestTake(a: Account, h: string | null, id: any, lid: any, all: 
   const got: any[] = []; let full = false;
   for (const x of want) {
     if (bagN(a, c.hero) >= BAG) { full = true; break; }
-    const it = addItem(a, x.id, "bchest:" + c.tier, c.hero, !!x.c, x.e || 0); if (!it) { full = true; break; }
+    const it = give(a, x, c, c.hero); if (!it) { full = true; break; }
     c.items = c.items.filter((y) => y !== x); got.push({ lid: x.lid, uid: it.uid, id: it.id });
   }
   drop(a, c);
@@ -93,7 +99,7 @@ export function chestEquip(a: Account, hero: Hero, cls: string, id: any, lid: an
   const def = ITEM_BY_ID[x.id]; const req = Math.max(def?.req || 1, def?.lvl || 1);
   if (hero.lvl < req) return { ok: false, err: `Нужен ${req} уровень героя (у героя ${hero.lvl})` };
   if (bagN(a, cls) >= BAG) return { ok: false, err: "Сумка полна — снятая вещь не поместится" };
-  const it = addItem(a, x.id, "bchest:" + c.tier, cls, !!x.c, x.e || 0); if (!it) return { ok: false, err: "Сумка полна" };
+  const it = give(a, x, c, cls); if (!it) return { ok: false, err: "Сумка полна" };
   const r = equip(a, hero, cls, it.uid);
   if (!r.ok) { a.inv = a.inv.filter((i) => i.uid !== it.uid); return { ok: false, err: (r as any).err || "Не удалось надеть" }; }
   c.items = c.items.filter((y) => y !== x); drop(a, c);
