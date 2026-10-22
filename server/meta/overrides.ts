@@ -627,3 +627,22 @@ export function currentValues(kind: Kind, id: string) {
   if (SCHEMA[kind].traits) v.traits = TRAITS[kind][id] || [];
   return v;
 }
+
+// ── разделы формы админки (заголовки t:"hdr"): каждый раздел сохраняется отдельно — своя строка game_overrides ──
+// Строка раздела: (kind, "<id>@<путь заголовка>"), например ("city", "main@_h_kill"), ("city", "main@npc.3._h").
+// Поля до первого заголовка, черты (traits) и сущности без заголовков — раздел "_main" = прежняя строка (kind, id).
+// Старые воркеры строки с «@» пропускают (validatePatch → «нет такой сущности»), поэтому формат совместим.
+export const SEC_MAIN = "_main";
+export const SEC_SEP = "@";
+/** kinds с отдельным сохранением раздела (loot/btask — свои формы с полным патчем) */
+export function sectionable(kind: Kind) { return kind !== "loot" && kind !== "btask" && !!SCHEMA[kind]; }
+/** путь поля → раздел (путь заголовка или SEC_MAIN) */
+export function sectionMap(kind: Kind): Record<string, string> {
+  const m: Record<string, string> = { traits: SEC_MAIN }; let cur = SEC_MAIN;
+  for (const f of SCHEMA[kind]?.fields || []) { if (f.t === "hdr") { cur = f.path; continue; } m[f.path] = cur; }
+  return m;
+}
+export function sectionIds(kind: Kind): string[] { return [SEC_MAIN, ...(SCHEMA[kind]?.fields || []).filter((f) => f.t === "hdr").map((f) => f.path)]; }
+export const secRowId = (id: string, sec: string) => (sec === SEC_MAIN ? id : id + SEC_SEP + sec);
+/** "main@_h_kill" → ["main", "_h_kill"]; "main" → ["main", SEC_MAIN] */
+export function splitRowId(rowId: string): [string, string] { const i = rowId.indexOf(SEC_SEP); return i < 0 ? [rowId, SEC_MAIN] : [rowId.slice(0, i), rowId.slice(i + 1)]; }

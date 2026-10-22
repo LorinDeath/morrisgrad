@@ -7,7 +7,7 @@ import { ZONE_GEN } from "./zoneGen";
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validateConds, COND_DEFS } from "./questConds";
-import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, type Kind, type Trait } from "./overrides";
+import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, SEC_MAIN, SEC_SEP, sectionable, sectionMap, sectionIds, secRowId, splitRowId, type Kind, type Trait } from "./overrides";
 import { migrateBchestPatch } from "./boardChestCfg";
 import { BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, BT_CATS_NEW, CAT_NAMES, GIVER_NAMES, NPC_GIVERS, CUSTOM_BT } from "./board";
 import { BIOMES } from "./biomes";
@@ -125,6 +125,31 @@ export function applyTraits(traits: Trait[], real: number, rand: () => number, f
   }
 }
 
+const UPSERT = (db: any, kind: string, id: string, data: any, version: number, by: string) => db.prepare("INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at")
+  .bind(kind, id, JSON.stringify(data), version, by, Date.now());
+const DEL = (db: any, kind: string, id: string) => db.prepare("DELETE FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id);
+/** все строки разделов сущности: id «<id>@…» (substr, а не LIKE: «_» в id — подстановочный знак LIKE) */
+const DEL_SECS = (db: any, kind: string, id: string) => db.prepare("DELETE FROM game_overrides WHERE kind = ? AND substr(id, 1, ?) = ?").bind(kind, id.length + 1, id + SEC_SEP);
+/** основная строка + строки разделов (по id, чтобы порядок не зависел от БД) → один патч */
+function mergeEntity(legacy: any, secs: [string, any][]) {
+  const out: any = { ...(legacy || {}) };
+  for (const [, d] of [...secs].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) Object.assign(out, d);
+  return out;
+}
+/** строки game_overrides → «kind:id» → слитый патч (строки разделов «id@раздел» поверх основной) */
+export function mergeRows(rows: { kind: string; id: string; data: string }[]): Map<string, any> {
+  const g = new Map<string, { legacy: any; secs: [string, any][] }>();
+  for (const r of rows) {
+    let d: any; try { d = JSON.parse(r.data); } catch { console.warn(`[admin] ${r.kind}:${r.id}: неверный JSON — пропуск`); continue; }
+    const [base] = splitRowId(String(r.id)), key = r.kind + ":" + base;
+    const e = g.get(key) || { legacy: undefined, secs: [] }; g.set(key, e);
+    if (base === r.id) e.legacy = d; else if (d && typeof d === "object" && !Array.isArray(d)) e.secs.push([r.id, d]);
+  }
+  const out = new Map<string, any>();
+  for (const [k, e] of g) out.set(k, e.secs.length ? mergeEntity(e.legacy, e.secs) : e.legacy);
+  return out;
+}
+
 export class AdminStore {
   db: any; ver = -1; checkedAt = 0; loading: Promise<void> | null = null;
   /** правка применилась (своя или подхваченная по версии) — разослать онлайн-игрокам */
@@ -142,9 +167,10 @@ export class AdminStore {
         const ver = Number(v?.v ?? 0); if (!force && ver === this.ver) return;
         const rows = (await this.db.prepare("SELECT kind, id, data FROM game_overrides").all()).results || [];
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
-        for (const r of rows) { this.touched.add(r.kind + ":" + r.id); let raw = JSON.parse(r.data);
-          if (r.kind === "bchest") { const mg = migrateBchestPatch(raw); raw = mg.patch; if (mg.changed.length) console.warn(`[admin] bchest:${r.id} миграция шанса ☠ сундуков: ${mg.changed.join(", ")}`); } // потолок 30 %, прежние значения по умолчанию → новые
-          const p = validatePatch(r.kind, r.id, raw); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
+        // строки разделов («main@_h_kill») сливаются с основной строкой сущности: сначала основная, затем разделы
+        for (const [key, raw0] of mergeRows(rows)) { const i = key.indexOf(":"), kind = key.slice(0, i) as Kind, id = key.slice(i + 1); this.touched.add(key); let raw = raw0;
+          if (kind === "bchest") { const mg = migrateBchestPatch(raw); raw = mg.patch; if (mg.changed.length) console.warn(`[admin] bchest:${id} миграция шанса ☠ сундуков: ${mg.changed.join(", ")}`); } // потолок 30 %, прежние значения по умолчанию → новые
+          const p = validatePatch(kind, id, raw); if (typeof p !== "string") applyOverride(kind, id, p); else console.warn(`[admin] ${key}: правка пропущена — ${p}`); }
         const qs = (await this.db.prepare("SELECT data FROM custom_quests WHERE enabled = 1").all()).results || [];
         // сюжетные квесты: сначала вернуть исходные, затем наложить правки (строки custom_quests с id сюжетного квеста)
         for (const q of QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null);
@@ -172,7 +198,7 @@ export class AdminStore {
       this.db.prepare("UPDATE game_config_version SET v = v + 1 WHERE k = 'overrides'"),
     ]);
     this.ver++; // своё изменение уже применено в памяти
-    if (kind !== "quest" && kind !== "dialogue") this.touched.add(kind + ":" + target);
+    if (kind !== "quest" && kind !== "dialogue") this.touched.add(kind + ":" + splitRowId(target)[0]); // строка раздела → сама сущность
     this.onChange?.();
   }
   async save(by: string, kind: Kind, id: string, patch: any): Promise<{ ok: boolean; err?: string; values?: any; version?: number }> {
@@ -182,18 +208,60 @@ export class AdminStore {
     const before = currentValues(kind, id);
     const row = await this.db.prepare("SELECT version FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id).first();
     const version = Number(row?.version || 0) + 1;
-    await this.db.prepare("INSERT INTO game_overrides (kind, id, data, version, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(kind, id) DO UPDATE SET data = excluded.data, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at")
-      .bind(kind, id, JSON.stringify(clean), version, by, Date.now()).run();
+    // полная правка (прежний admin_save: плейтесты, доска/дроп) заменяет и строки разделов этой сущности
+    await this.db.batch([UPSERT(this.db, kind, id, clean, version, by), ...(id.includes(SEC_SEP) ? [] : [DEL_SECS(this.db, kind, id)])]);
     applyOverride(kind, id, clean);
     const values = currentValues(kind, id);
     await this.bump(by, kind, id, before, values, version);
     return { ok: true, values, version };
   }
+  /** сохранить ОДИН раздел формы: delta — только изменённые поля этого раздела (null — убрать правку поля, будет значение из кода).
+   *  Раздел хранится своей строкой (kind, "<id>@<раздел>"); поля раздела, лежавшие в старой общей строке, переносятся в неё. */
+  async saveSection(by: string, kind: Kind, id: string, sec: string, delta: any): Promise<{ ok: boolean; err?: string; values?: any; version?: number; sec?: string; changed?: string[] }> {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    if (!KINDS.includes(kind) || !ID_RE.test(id) || !TABLES[kind]?.[id]) return { ok: false, err: "неверная сущность" };
+    if (!sectionable(kind)) return { ok: false, err: "этот раздел сохраняется целиком" };
+    if (!sectionIds(kind).includes(sec)) return { ok: false, err: "нет такого раздела" };
+    if (!delta || typeof delta !== "object" || Array.isArray(delta)) return { ok: false, err: "пустой патч" };
+    const map = sectionMap(kind), keys = Object.keys(delta);
+    if (!keys.length) return { ok: false, err: "нет изменений" };
+    for (const k of keys) if (map[k] !== sec) return { ok: false, err: `поле ${k} не из этого раздела` };
+    const rows = ((await this.db.prepare("SELECT id, data, version FROM game_overrides WHERE kind = ? AND (id = ? OR substr(id, 1, ?) = ?)").bind(kind, id, id.length + 1, id + SEC_SEP).all()).results || []) as any[];
+    const byId = new Map<string, any>(rows.map((r) => [r.id, r]));
+    // устаревшие поля (их нет в схеме — applyOverride их и так пропускает) выбрасываются, иначе проверка отклонила бы всю правку
+    const parse = (r: any) => { try { const o = r ? JSON.parse(r.data) : {}; return o && typeof o === "object" && !Array.isArray(o) ? Object.fromEntries(Object.entries(o).filter(([k]) => k in map)) : {}; } catch { return {}; } };
+    const rawKeys = (r: any) => { try { return Object.keys(JSON.parse(r.data) || {}).length; } catch { return -1; } };
+    const legacy = parse(byId.get(id)), rid = secRowId(id, sec), own = sec === SEC_MAIN ? {} : parse(byId.get(rid));
+    // данные раздела = (поля раздела из общей строки) + (своя строка) + изменения; null — убрать
+    const secData: any = {};
+    for (const [k, v] of Object.entries(legacy)) if (map[k] === sec) secData[k] = v;
+    Object.assign(secData, own);
+    for (const [k, v] of Object.entries(delta)) { if (v === null) delete secData[k]; else secData[k] = v; }
+    const cleanSec = Object.keys(secData).length ? validatePatch(kind, id, secData) : {};
+    if (typeof cleanSec === "string") return { ok: false, err: cleanSec };
+    const legacyRest: any = {}; for (const [k, v] of Object.entries(legacy)) if (map[k] !== sec) legacyRest[k] = v;
+    // итог сущности = все строки (с новой строкой раздела) — проверяется целиком, как при загрузке
+    const others: [string, any][] = rows.filter((r) => r.id !== id && r.id !== rid).map((r) => [r.id, parse(r)]);
+    const merged = mergeEntity(sec === SEC_MAIN ? { ...legacyRest, ...cleanSec } : legacyRest, [...others, ...(sec === SEC_MAIN ? [] : [[rid, cleanSec] as [string, any]])]);
+    const full = validatePatch(kind, id, merged); if (typeof full === "string") return { ok: false, err: full };
+    const before = currentValues(kind, id), version = Number(byId.get(rid)?.version || 0) + 1, empty = (o: any) => !Object.keys(o).length;
+    const st: any[] = [];
+    if (sec === SEC_MAIN) { const L = { ...legacyRest, ...cleanSec }; st.push(empty(L) ? DEL(this.db, kind, id) : UPSERT(this.db, kind, id, L, version, by)); }
+    else {
+      st.push(empty(cleanSec) ? DEL(this.db, kind, rid) : UPSERT(this.db, kind, rid, cleanSec, version, by));
+      if (byId.has(id) && (Object.keys(legacyRest).length !== Object.keys(legacy).length || Object.keys(legacy).length !== rawKeys(byId.get(id)))) st.push(empty(legacyRest) ? DEL(this.db, kind, id) : UPSERT(this.db, kind, id, legacyRest, Number(byId.get(id).version || 0) + 1, by)); // перенос полей раздела из общей строки
+    }
+    await this.db.batch(st);
+    applyOverride(kind, id, full);
+    const values = currentValues(kind, id), pick = (o: any) => o && Object.fromEntries(Object.entries(o).filter(([k]) => (map[k] ?? SEC_MAIN) === sec));
+    await this.bump(by, kind, rid, pick(before), pick(values), version);
+    return { ok: true, values, version, sec, changed: keys };
+  }
   async reset(by: string, kind: Kind, id: string) {
     if (!this.db) return { ok: false, err: "База недоступна" };
     if (!KINDS.includes(kind) || !TABLES[kind][id]) return { ok: false, err: "неверная сущность" };
     const before = currentValues(kind, id);
-    await this.db.prepare("DELETE FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id).run();
+    await this.db.batch([this.db.prepare("DELETE FROM game_overrides WHERE kind = ? AND id = ?").bind(kind, id), DEL_SECS(this.db, kind, id)]); // и все разделы
     applyOverride(kind, id, null);
     const values = currentValues(kind, id);
     await this.bump(by, kind, id, before, values, 0);

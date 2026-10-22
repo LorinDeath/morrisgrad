@@ -108,11 +108,14 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   party_invite: S({ sid: "s" }), party_respond: S({ from: "s", accept: "b" }), party_leave: S({}), party_kick: S({ sid: "s" }), party_promote: S({ sid: "s" }), party_get: S({}),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
-  admin_bchest_preview: S({ patch: "o", L: "n", cat: "s" }), admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
+  admin_bchest_preview: S({ patch: "o", L: "n", cat: "s" }), admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_save_sec: S({ kind: "s", id: "s", sec: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
   bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
 };
-function validMsg(msg: any): boolean {
+const ADMIN_PATCH_TYPES = new Set(["admin_save", "admin_save_sec", "admin_bchest_preview"]), ADMIN_PATCH_KEYS = 600;
+/** сохранения админки ждут admin_result: любой отказ (схема, частота, размер) — ответом, а не только всплывашкой (панель не висит) */
+const ADMIN_RESULT_TYPES = new Set(["admin_save", "admin_save_sec", "admin_reset", "admin_quest_save", "admin_quest_delete", "admin_quest_reset", "admin_dialogue_save"]);
+export function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
   if (!sch) return true; // не мета-сообщение — его разберёт GameRoom
   for (const [k, t] of Object.entries(sch)) {
@@ -121,7 +124,8 @@ function validMsg(msg: any): boolean {
     if (b === "s" && (typeof v !== "string" || v.length > 64)) return false;
     if (b === "n" && (typeof v !== "number" || !Number.isFinite(v))) return false;
     if (b === "b" && typeof v !== "boolean") return false;
-    if (b === "o" && (typeof v !== "object" || Array.isArray(v) || Object.keys(v).length > 200)) return false;
+    // патч админки: вкладка «Альказак» — 233 поля (24 места NPC), лимит 200 молча ронял сохранение («Сохранение…» навсегда)
+    if (b === "o" && (typeof v !== "object" || Array.isArray(v) || Object.keys(v).length > (ADMIN_PATCH_TYPES.has(msg.type) ? ADMIN_PATCH_KEYS : 200))) return false;
     if (b === "a" && (!Array.isArray(v) || v.length > 200)) return false;
   }
   return true;
@@ -562,9 +566,11 @@ export class MetaService {
       if (now - ms.rl.t > RATE.windowMs) { ms.rl.t = now; ms.rl.n = 0; }
       if (++ms.rl.n > RATE.max) {
         if (now - ms.rl.warned > 10000) { ms.rl.warned = now; this.store.audit(ms.pkey, "reject", `rl:${ms.pkey}:${Math.floor(now / 10000)}`, { why: "rate", type: msg.type }); }
+        if (ADMIN_RESULT_TYPES.has(msg.type)) this.send(ws, { type: "admin_result", ok: false, op: "reject", kind: msg.kind, id: msg.id, sec: msg.sec, err: "Слишком много запросов — повторите через секунду" });
         return true;
       }
-      if (!validMsg(msg)) { this.send(ws, { type: "toast_error", message: "Неверный запрос" }); this.store.audit(ms.pkey, "reject", `schema:${ms.pkey}:${now}`, { why: "schema", type: msg.type }); return true; }
+      if (!validMsg(msg)) { this.send(ws, { type: "toast_error", message: "Неверный запрос" });
+        if (ADMIN_RESULT_TYPES.has(msg.type)) this.send(ws, { type: "admin_result", ok: false, op: "reject", kind: msg.kind, id: msg.id, sec: msg.sec, err: "Неверный запрос (сервер отклонил формат сохранения)" }); this.store.audit(ms.pkey, "reject", `schema:${ms.pkey}:${now}`, { why: "schema", type: msg.type }); return true; }
     }
     const a = this.store.account(ms.pkey);
     const cls: string | null = session.stats?.classId || null;
@@ -766,25 +772,27 @@ export class MetaService {
         if (Date.now() - ((ms as any).cstAt || 0) < 20000) return true; (ms as any).cstAt = Date.now();
         ST.clientStats(session.id, msg); return true;
       }
-      case "admin_open": case "admin_audit": case "admin_save": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
+      case "admin_open": case "admin_audit": case "admin_save": case "admin_save_sec": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
         // роли из D1 + verified; id/роль из сообщения клиента игнорируются.
         // Админ — всё. Модератор — только admin_open + admin_save/reset для mob/weapon/item. Остальное — отказ.
         const deny = (why: string) => { this.send(ws, { type: "toast_error", message: "Недостаточно прав", code: "MC-A07", for: String(msg.type || "").slice(0, 40), why }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why, type: msg.type, kind: (msg as any).kind }); return true; };
         if (msg.type === "admin_open") {
           if (!this.roles.canOpenAdmin(ms)) return deny("not_panel");
-        } else if (msg.type === "admin_save" || msg.type === "admin_reset") {
+        } else if (msg.type === "admin_save" || msg.type === "admin_save_sec" || msg.type === "admin_reset") {
           if (!this.roles.canAdminWrite(ms, String((msg as any).kind || ""))) return deny("not_write_kind");
         } else {
           // audit / quests / dialogues — только полный админ
           if (!this.roles.canAdminFull(ms)) return deny("admin_only");
         }
-        const t = Date.now(); if (msg.type !== "admin_open" && t - ((ms as any).admAt || 0) < 300) { this.send(ws, { type: "toast_error", message: "Слишком часто" }); return true; }
+        const rej = (err: string) => { this.send(ws, { type: "toast_error", message: err }); if (ADMIN_RESULT_TYPES.has(msg.type)) this.send(ws, { type: "admin_result", ok: false, op: "reject", kind: (msg as any).kind, id: (msg as any).id, sec: (msg as any).sec, err }); return true; };
+        const t = Date.now(); if (msg.type !== "admin_open" && t - ((ms as any).admAt || 0) < 300) return rej("Слишком часто — повторите через секунду");
         (ms as any).admAt = t;
-        if (JSON.stringify(msg).length > 24000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
+        if (JSON.stringify(msg).length > 24000) return rej("Слишком большой запрос");
         const fail = (e: any) => { console.error("[mc] admin", e?.message || e); this.send(ws, { type: "admin_result", ok: false, err: "Ошибка сохранения" }); };
         if (msg.type === "admin_open") this.admin.sync(true).then(() => this.send(ws, { type: "admin_catalog", ...this.admin.catalogFor(this.roles.isAdmin(ms) ? "admin" : "moderator") })).catch(fail);
         else if (msg.type === "admin_audit") this.admin.audit(60).then((rows) => this.send(ws, { type: "admin_audit", rows })).catch(fail);
         else if (msg.type === "admin_save") this.admin.save(ms.pkey, msg.kind, msg.id, msg.patch).then((r) => this.send(ws, { type: "admin_result", op: "save", kind: msg.kind, id: msg.id, ...r })).catch(fail);
+        else if (msg.type === "admin_save_sec") this.admin.saveSection(ms.pkey, msg.kind, msg.id, msg.sec, msg.patch).then((r) => this.send(ws, { type: "admin_result", op: "save", kind: msg.kind, id: msg.id, sec: msg.sec, ...r })).catch(fail);
         else if (msg.type === "admin_reset") this.admin.reset(ms.pkey, msg.kind, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "reset", kind: msg.kind, id: msg.id, ...r })).catch(fail);
         else if (msg.type === "admin_quest_reset") this.admin.resetQuest(ms.pkey, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "quest", reset: true, ...r })).catch(fail);
         else if (msg.type === "admin_dialogue_save") this.admin.saveDialogue(ms.pkey, msg.questId, msg.dialogue).then((r) => this.send(ws, { type: "admin_result", op: "dialogue", ...r })).catch(fail);
