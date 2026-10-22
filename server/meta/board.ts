@@ -56,7 +56,7 @@ export const BOARD_CFG: any = {
   // множитель к таблице по категории и потолок опыта категории за её период (% опыта на уровень; 0 — без потолка).
   // День — ежедневные, заказы Доски объявлений, личные задания персонажей, достижения; неделя — еженедельные и тяжёлые; месяц — ежемесячные.
   xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 1, monthly: 1, hard: 0.6, ach: 0.25 },
-  caps: { tut: 0, npc: 6, hunt: 5, daily: 10, weekly: 20, monthly: 35, hard: 15, ach: 4 },
+  caps: { tut: 0, npc: 0, hunt: 0, daily: 10, weekly: 20, monthly: 35, hard: 0, ach: 0 }, // решение Алекса: потолок только у ежедневных/еженедельных/ежемесячных
   tutOn: true, tutVetLvl: 10, tutSkip: true,
   qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30 },
 };

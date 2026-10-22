@@ -2,7 +2,7 @@
 // Запуск: bun tools/sim/board-xp.ts [часов игры в день=1.5]. Темп без доски — tools/sim/progression.mjs (часов на уровень).
 // Модель «активного игрока»: каждый день — все случайные ежедневные (ступень 1), 3 заказа охоты (ступень 1), 1 личное задание
 // персонажа, 3 ступени достижений; раз в неделю — все еженедельные (все ступени) и 2 тяжёлых; раз в месяц — все ежемесячные.
-// Всё режется потолками разделов (caps, % уровня за период) — как на сервере (board.ts catCap).
+// Потолки (caps) — как на сервере (board.ts catCap); 0 = без потолка.
 import { BTASKS, BOARD_CFG, boardRefresh, boardOf, tierXp, tiersOf, catCap } from "../../server/meta/board";
 import { newAccount, newHero } from "../../server/meta/profile";
 import { heroXpNeed } from "../../server/meta/defs";
@@ -31,8 +31,23 @@ for (const L of L_LIST) {
   const total = Object.values(day).reduce((s, x) => s + x, 0), base = (H / PER_LEVEL[L]) * 100;
   rows.push({ L, day, total, base, plus: (total / base) * 100 });
 }
+// Без потолка (решение Алекса): охота — фарм, пока есть заказы; тяжёлые, достижения, личные задания — разовые (запас на всю игру).
+// Охота: опыт заказа на одно убийство (все ступени / убийств до последней ступени) × убийств в час (progression.mjs: ~425/ч).
+const KPH = 425, farm: any[] = [];
+for (const L of L_LIST) {
+  const need = heroXpNeed(L), H0 = (1 / PER_LEVEL[L]) * 100; // % уровня в час без доски
+  const hk = Object.values(BTASKS).filter((t) => t.cat === "hunt" && t.on && t.ev === "kill" && t.minLvl <= L && (t.lvl <= 0 || t.lvl <= L + 6));
+  const perKill = avg(hk.map((t) => sumT(t, L, true) / tiersOf(t)[tiersOf(t).length - 1]));
+  const one = (c: string) => Object.values(BTASKS).filter((t) => t.cat === c && t.on).reduce((s, t) => s + sumT(t, Math.max(L, t.minLvl), true), 0) / need * 100;
+  farm.push({ L, base: H0, h1: (perKill * KPH / need) * 100, h6: (perKill * KPH * 6 / need) * 100, hard: one("hard"), ach: one("ach"), npc: one("npc"), hunt: one("hunt") });
+}
 const f = (x: number) => x.toFixed(1);
 console.log(`Потолки (% уровня за период): ${JSON.stringify(BOARD_CFG.caps)} · множители: ${JSON.stringify(BOARD_CFG.xpMul)} · игра ${H} ч/день`);
 console.log("| Ур. | Ежедн./день | Охота/день | Персонажи/день | Достиж./день | Еженед./неделя | Тяжёлые/неделя | Ежемес./месяц | Доска всего/день | Доска/неделя | Доска/месяц | Игра без доски/день | Прибавка |");
 console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 for (const r of rows) console.log(`| ${r.L} | ${f(r.day.daily)}% | ${f(r.day.hunt)}% | ${f(r.day.npc)}% | ${f(r.day.ach)}% | ${f(r.day.weekly * 7)}% | ${f(r.day.hard * 7)}% | ${f(r.day.monthly * 30)}% | ${f(r.total)}% | ${f(r.total * 7)}% | ${f(r.total * 30)}% | ${f(r.base)}% | +${f(r.plus)}% |`);
+console.log("");
+console.log("Фарм без потолка, % уровня в час игры (охота) и разовый запас (тяжёлые, достижения, персонажи — сумма всех ступеней, в уровнях героя данного уровня):");
+console.log("| Ур. | Игра без доски, %/ч | Охота: 1 заказ на цель, %/ч | Охота: 6 заказов сразу (верхняя граница), %/ч | Прибавка охоты (1 / 6) | Охота, всего (заказ не повторяется после последней ступени) | Тяжёлые, всего | Достижения, всего | Персонажи, всего |");
+console.log("|---|---|---|---|---|---|---|---|---|");
+for (const r of farm) console.log(`| ${r.L} | ${f(r.base)}% | ${f(r.h1)}% | ${f(r.h6)}% | +${f(r.h1 / r.base * 100)}% / +${f(r.h6 / r.base * 100)}% | ${f(r.hunt)}% | ${f(r.hard)}% | ${f(r.ach)}% | ${f(r.npc)}% |`);

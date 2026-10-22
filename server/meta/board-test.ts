@@ -46,15 +46,18 @@ const mk = () => { const a: any = newAccount(); a.hero = "warrior"; const h: any
 function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 5 }, ctx); return (boardOf(a).p["npc_a01"] || 0) > 0; }
 // потолок опыта в сутки
 { const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const b = boardOf(a);
-  const cap = catCap("ach", 12); ok(cap === Math.round(heroXpNeed(12) * BOARD_CFG.caps.ach / 100), "потолок = % уровня");
+  // решение Алекса: потолок только у ежедневных (10%/сутки), еженедельных (20%/нед), ежемесячных (35%/мес); охота, достижения, тяжёлые, персонажи — без потолка
+  for (const c of ["hunt", "ach", "hard", "npc"] as const) ok(catCap(c, 12) === 0, `${c}: без потолка опыта`);
+  ok(catCap("weekly", 12) === Math.round(heroXpNeed(12) * 20 / 100) && catCap("monthly", 12) === Math.round(heroXpNeed(12) * 35 / 100), "еженедельные 20%, ежемесячные 35%");
   ok(dayCap(12) === Math.round(heroXpNeed(12) * 10 / 100), "ежедневные: не больше 10% уровня в сутки");
-  const ach = BTASKS["ach_kills"]; let total = 0;
   for (let i = 0; i < 1000; i++) boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12 }, ctx);
-  const r = boardClaim(a, h, "ach_kills", ctx); total += r.xp || 0;
-  b.xs.ach = { k: periodKey("daily"), v: cap - 10 }; b.p["ach_elite"] = 10; const r2 = boardClaim(a, h, "ach_elite", ctx);
-  ok(r2.ok && r2.xp <= 10 && r2.cappedXp > 0, `сверх потолка опыт не даётся (дано ${r2.xp}, срезано ${r2.cappedXp})`);
-  ok(b.xs.ach.v <= cap, "дневной счётчик не выше потолка");
-  void ach; void total;
+  b.xs.ach = { k: periodKey("daily"), v: 10 ** 9 }; b.p["ach_elite"] = 10; const r2 = boardClaim(a, h, "ach_elite", ctx);
+  ok(r2.ok && r2.xp > 0 && !r2.cappedXp, `достижения без потолка (дано ${r2.xp}, срезано ${r2.cappedXp})`);
+  const did = (b.sel.daily || []).find((id: string) => id !== "d_bmage")!, cap = dayCap(12);
+  b.xs.daily = { k: periodKey("daily"), v: cap - 10 }; b.p[did] = 10 ** 6; const r3 = boardClaim(a, h, did, ctx);
+  ok(r3.ok && r3.xp <= 10 && r3.cappedXp > 0, `ежедневные сверх потолка опыт не дают (дано ${r3.xp}, срезано ${r3.cappedXp})`);
+  ok(b.xs.daily.v <= cap, "дневной счётчик не выше потолка");
+
 }
 // периоды: смена суток по Киеву
 { const { a, h } = mk(); h.lvl = 10; const t0 = Date.UTC(2026, 9, 22, 20, 59); // 23:59 Киев
