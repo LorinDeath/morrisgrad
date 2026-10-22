@@ -4,8 +4,6 @@
 //  ab  — Доска достижений (Поляна, у Алтаря тел): таблички по разделам, «Тела» — уровни каждого героя.
 // Без «сияния» и «звёзд». Только показ: что засчитать и что выдать — решает сервер (board_claim/take/pin/tut).
 import { esc } from './overlay.js';
-import { RESOURCES } from '../../../../../server/meta/shared.ts';
-import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { hasPlace } from './boardLoc.js';
 import { UI_CATS, PERIODIC } from '../meta/boardStore.js';
 
@@ -13,8 +11,8 @@ const TAB_IC = { tut: '🧭', npc: '🗣', hunt: '📌', daily: '☀', weekly: '
 const SHORT = { tut: 'Обучение', npc: 'Персонажи', hunt: 'Доска охоты', daily: 'День', weekly: 'Неделя', monthly: 'Месяц', hard: 'Тяжёлые', ach: 'Достижения' };
 const AB_SECT = [
   ['body', 'Тела', (id) => id.startsWith('ach_cls_')],
-  ['hunt', 'Охота', (id) => /^ach_(mob|wb|rare|biome)_/.test(id) || ['ach_kills', 'ach_kills_lvl', 'ach_elite', 'ach_cursed', 'ach_ench', 'ach_party_k', 'ach_wboss', 'ach_rare', 'ach_solo_wb', 'ach_night', 'ach_wbosses_all', 'ach_bestiary'].includes(id)],
-  ['craft', 'Добыча и ремесло', (id) => /^ach_(gather|loot|bags|chests|craft|salvage|upgrade|upg|mat|items|equipped|monster|look|ench_eq|lock)/.test(id)],
+  ['hunt', 'Охота', (id) => /^ach_(mob|wb|rare|biome|ench_kill)/.test(id) || ['ach_kills', 'ach_kills_lvl', 'ach_elite', 'ach_cursed', 'ach_ench', 'ach_party_k', 'ach_wboss', 'ach_rare', 'ach_solo_wb', 'ach_night', 'ach_wbosses_all', 'ach_bestiary'].includes(id)],
+  ['craft', 'Добыча и ремесло', (id) => /^ach_(gather|loot|bags|chests|craft|salvage|upgrade|upg|mat|items|equipped|monster|look|ench_|lock)/.test(id)],
   ['trial', 'Испытания и бои', (id) => /^ach_(trial|runs|crypt|abyss|duel|pvp|pk|deaths)/.test(id)],
   ['world', 'Мир и герой', () => true],
 ];
@@ -44,32 +42,22 @@ export class BoardWin {
   close() { this.isOpen = false; this.el.style.display = 'none'; clearInterval(this.timer); this.opt.onShow?.(false); }
   toggle(mode, tab) { if (this.isOpen && this.mode === mode && (!tab || tab === this.tab)) this.close(); else this.open(mode, tab); }
 
-  xpOf(t, ti) { // как на сервере (tierXp): % от опыта уровня по таблице «уровень × сложность»
-    const X = this.s.defs?.xp, hl = this.s.st?.lvl || 1; if (!X) return 0;
-    const L0 = t.lvl > 0 ? Math.max(1, Math.min(hl, t.lvl + (X.refPlus | 0))) : hl, L = Math.min(X.need.length, L0);
-    let b = X.bands.findIndex((v) => L <= v); if (b < 0) b = X.bands.length - 1;
-    const pct = Number(X.t?.[b]?.[Math.max(0, Math.min(4, ((t.d?.[ti] | 0) || 1) - 1))]) || 0;
-    return Math.round((X.need[L - 1] || 0) * pct / 100);
-  }
-  rewardText(t, ti) {
-    const out = [], xp = this.xpOf(t, ti); if (xp) out.push(`+${xp} опыта`);
-    for (const [k, v] of Object.entries(t.res || {})) out.push(`${RESOURCES[k]?.icon || ''}${v} ${RESOURCES[k]?.name || k}`);
-    if (t.item && ti === (t.n.length - 1)) out.push(`🎁 ${ITEM_BY_ID[t.item]?.name || 'предмет'}`);
-    return out.join(' · ');
-  }
+  xpOf(t, ti) { return this.s.xpOf(t, ti); }
+  rewardText(t, ti) { return this.s.rewardList(t, ti).join(' · '); }
   // ——— общий вид строки ———
   row(t, o = {}) {
     const S = this.s, r = S.tier(t), lk = S.locked(t.id), hid = S.hiddenLocked(t);
     const pct = r.done ? 100 : Math.round((r.have / Math.max(1, r.n)) * 100);
     const tierTxt = r.all > 1 ? `Ступень ${Math.min(r.c + 1, r.all)} из ${r.all}` : '';
     const g = t.g && t.g !== 'board' && this.mode !== 'nb' ? `<small class="g">${esc(S.giverName(t))}</small>` : '';
-    const needTake = t.take && !S.taken(t.id), atNb = t.nb && !this.opt.near('nb');
+    const needTake = t.take && !S.taken(t.id), atNb = t.nb && !this.opt.near('nb'), atNpc = !!t.at && t.at !== 'board';
     let btn = '';
     if (!hid && !r.done && !lk) {
-      if (needTake) btn += this.opt.near('nb') ? `<button data-b="take" data-v="${t.id}">Взять</button>` : `<span class="hint">Взять — у Доски объявлений</span>`;
+      const who = atNpc ? S.giverName(t) || 'персонажа' : ''; // личное задание: берут и сдают в диалоге персонажа, как квест
+      if (needTake) btn += atNpc ? `<span class="hint">Взять — у ${esc(who)}</span>` : this.opt.near('nb') ? `<button data-b="take" data-v="${t.id}">Взять</button>` : `<span class="hint">Взять — у Доски объявлений</span>`;
       else if (r.ready && t.cat === 'tut') btn += `<span class="hint">Засчитано — награда придёт сама</span>`;
-      else if (r.ready) btn += atNb ? `<span class="hint">Сдать — у Доски объявлений</span>` : `<button class="go" data-b="claim" data-v="${t.id}">Забрать${r.ready > 1 ? ` (${r.ready})` : ''}</button>`;
-      if (t.take && S.taken(t.id) && !r.ready && this.opt.near('nb')) btn += `<button class="ghost" data-b="drop" data-v="${t.id}">Отменить</button>`;
+      else if (r.ready) btn += atNpc ? `<span class="hint">✔ Сдать — у ${esc(who)}</span>` : atNb ? `<span class="hint">Сдать — у Доски объявлений</span>` : `<button class="go" data-b="claim" data-v="${t.id}">Забрать${r.ready > 1 ? ` (${r.ready})` : ''}</button>`;
+      if (t.take && t.nb && S.taken(t.id) && !r.ready && this.opt.near('nb')) btn += `<button class="ghost" data-b="drop" data-v="${t.id}">Отменить</button>`;
       if (!needTake && t.cat !== 'tut') btn += `<button class="pin ${S.pinned(t.id) ? 'on' : ''}" data-b="pin" data-v="${t.id}" title="Показывать в трекере">${S.pinned(t.id) ? '✔ В трекере' : '＋ В трекер'}</button>`;
     }
     const where = !hid && !r.done && hasPlace(t) ? '<small class="pl" title="Трекер покажет стрелку">➤ есть место на карте</small>' : '';
@@ -146,8 +134,9 @@ export class BoardWin {
   renderInfo() {
     const S = this.s, el = this.el.querySelector('.mc-bd-info'); if (!el || !S.st) return;
     const st = S.st, rs = st.reset || {};
-    el.innerHTML = this.mode === 'all' && PERIODIC.includes(this.tab) ? `Обновление через ${fmtLeft((rs[this.tab] || 0) - Date.now())} (по Киеву)` +
-      (st.cap ? ` · опыт за день: ${st.xd} / ${st.cap}` : '') : this.mode === 'all' && ['npc', 'hunt', 'daily'].includes(this.tab) && st.cap ? `Опыт за задания сегодня: ${st.xd} / ${st.cap}` : '';
+    const PER = { daily: 'сегодня', hunt: 'сегодня', npc: 'сегодня', ach: 'сегодня', weekly: 'за неделю', hard: 'за неделю', monthly: 'за месяц' };
+    const xs = st.xs?.[this.tab], xt = xs ? ` · опыт ${PER[this.tab] || ''}: ${xs[0]} / ${xs[1]}` : ''; // потолок категории за её период
+    el.innerHTML = this.mode === 'all' && PERIODIC.includes(this.tab) ? `Обновление через ${fmtLeft((rs[this.tab] || 0) - Date.now())} (по Киеву)${xt}` : this.mode === 'all' && xs ? xt.slice(3) : '';
   }
   render() {
     const S = this.s;

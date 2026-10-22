@@ -9,6 +9,7 @@ import { WORLD_PORTALS } from '../worlds/portals.ts';
 import { inLiquid, resolveLiquid } from './liquid.ts';
 import { worldBounds } from '../worlds/sizes.ts';
 import { inRoomArea, resolveRoom, roomAt, roomBounds, roomWalkable, buildingColliders } from './cityBuild.ts';
+import { resolveBoards, blockedBoards } from './boardCols.ts';
 
 export const BODY_R = 10;              // радиус тела героя (как прежний hub.map.isBlocked(…, 10))
 const ALTAR_EDGE = { o: 22, r: 9 };    // алтарь Перевоплощения: основание ~60 px — твёрдые края, центр активируем
@@ -63,13 +64,14 @@ export function worldGrid(world: string, x = 0, y = 0): ColliderGrid | null {
 // + непроходимые жидкости (liquid.ts: вода/лава по типу тайла, выключатели — админка «Рельеф»)
 export function resolveWorld(world: string, x: number, y: number, r = BODY_R): [number, number] {
   if (world === 'arinar' && inRoomArea(x, y)) return resolveRoom(x, y, r); // интерьер здания города (cityBuild.ts)
-  const [px, py] = resolveCircle(worldGrid(world, x, y), x, y, r);
+  const [bx, by] = resolveBoards(world, x, y, r); // доски объявлений/достижений (boardCols.ts)
+  const [px, py] = resolveCircle(worldGrid(world, bx, by), bx, by, r);
   const [lx, ly] = resolveLiquid(world, px, py);
   return lx === px && ly === py ? [px, py] : resolveCircle(worldGrid(world, lx, ly), lx, ly, r);
 }
 export function blockedWorld(world: string, x: number, y: number, r = BODY_R): boolean {
   if (world === 'arinar' && inRoomArea(x, y)) return !roomWalkable(x, y, r);
-  return blocked(worldGrid(world, x, y), x, y, r) || inLiquid(world, x, y);
+  return blocked(worldGrid(world, x, y), x, y, r) || blockedBoards(world, x, y, r) || inLiquid(world, x, y);
 }
 /** границы перемещения [lo, hi] в точке: в интерьере — комната, иначе мир (worldBounds) */
 export function boundsAt(world: string, x: number, y: number): [number, number] {

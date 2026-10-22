@@ -1130,3 +1130,22 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-touch .mc-tracker .bq .bt.pin .ra { flex: none; }
 .mc-touch .mc-tracker .bq .bt.pin .ra span { display: none; }
 .mc-help-open .ch-root { display: none; }
+/* метки отслеживаемых целей на экране (ui/targetPtr.js): номер и цвет — как в трекере; соседние — одной группой */
+.mc-tptr { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.mc-tptr .tp { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.mc-tptr .tp u { position: absolute; left: 0; top: -24px; transform: translateX(-50%); display: flex; gap: 1px; text-decoration: none; }
+.mc-tptr .tp.out u { top: -9px; }
+.mc-tptr .tp u i { width: 18px; height: 18px; border-radius: 50%; background: rgba(8, 6, 16, .9); border: 2px solid var(--c); color: var(--c); font: bold 10px/14px sans-serif; text-align: center; font-style: normal; box-sizing: border-box; box-shadow: 0 0 4px rgba(0,0,0,.8); }
+.mc-tptr .tp u i.more { --c: #e5e7eb; width: auto; padding: 0 3px; border-radius: 9px; }
+.mc-tptr .tp s { display: none; }
+.mc-tptr .tp.out s { display: block; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; text-decoration: none; }
+.mc-tptr .tp.out s::after { content: ''; position: absolute; right: -6px; top: 17px; border: 5px solid transparent; border-left: 8px solid var(--c); filter: drop-shadow(0 0 2px #000); }
+.mc-tptr .tp b { position: absolute; left: -30px; top: 11px; width: 60px; text-align: center; font: bold 9px sans-serif; color: #f1f5f9; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.mc-tracker .tn { display: inline-block; min-width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--c); color: var(--c); background: rgba(8,6,16,.9); font: bold 9px/11px sans-serif; text-align: center; font-style: normal; margin-right: 4px; vertical-align: 1px; box-sizing: border-box; }
+.mc-tracker .q .t2.hn small { color: #a8a29e; }
+.mc-tracker .q .t2.hn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-touch .mc-tracker .q .t2.hn small { display: none; }
+.mc-tracker .bq .more { color: #a8a29e; font-size: .92em; }
+.mc-in-duel .mc-tptr, .mc-bd-open .mc-tptr { display: none !important; }
+/* любое окно поверх игры (диалог персонажа, настройки…) — кнопка PK не перекрывает его текст и кнопки */
+:has(.mc3d-screen) > .ch-root { display: none; }

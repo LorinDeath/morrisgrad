@@ -243,7 +243,7 @@ export class Book {
       case 'lfilter': this.lfilter = v; this.render(); break;
       case 'cfilter': this.cfilter = v; this.render(); break;
       case 'lvlsort': this.lvlSort = this.lvlSort === 'desc' ? 'asc' : 'desc'; this.render(); break; // Библиотека и Бестиарий: по уровню ↑/↓
-      case 'mtrack': this.meta.setMobTrack(this.meta.mobTrack === v ? null : v); this.render(); break; // «Отслеживать» моба из Бестиария
+      case 'mtrack': { const max = this.board?.defs?.cfg?.trackMax || 10; if (!this.meta.isMobTracked(v) && this.meta.mobTracks.length >= max) { this.ov?.toast?.(`Отслеживать можно не больше ${max} врагов — снимите одну цель`, '#fca5a5'); break; } this.meta.toggleMobTrack(v); this.render(); break; } // «Отслеживать» моба из Бестиария
       case 'seenall': {
         const L = this.meta.library;
         if (v === 'items' && L) this.meta.markSeen('items', Object.keys(L.items).filter((id) => L.items[id].isNew));
@@ -652,7 +652,7 @@ export class Book {
         const canTrack = !id.startsWith('run_');
         body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${fmtBig(S.hp)} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>
           ${lm?.st?.skills?.length ? `<div class="h">Навыки: ${lm.st.skills.map(esc).join(', ')}</div>` : ''}
-          ${canTrack ? `<button class="mc-btn sm ${this.meta.mobTrack === id ? 'gold' : ''}" data-act="mtrack" data-v="${id}">${this.meta.mobTrack === id ? '🧭 Не отслеживать' : '🧭 Отслеживать'}</button>` : ''}
+          ${canTrack ? `<button class="mc-btn sm ${this.meta.isMobTracked(id) ? 'gold' : ''}" data-act="mtrack" data-v="${id}">${this.meta.isMobTracked(id) ? '🧭 Не отслеживать' : `🧭 Отслеживать${this.meta.mobTracks.length ? ` (${this.meta.mobTracks.length})` : ''}`}</button>` : ''}
           ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
           ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : '<p class="mc-dim">Загрузка пула добычи…</p>'}
           ${info?.lore ? `<div class="lore">${esc(info.lore)}</div>` : ''}`;

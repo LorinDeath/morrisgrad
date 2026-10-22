@@ -4,7 +4,7 @@
 import { WORLD_GEN } from '../../../../../server/meta/zoneGen.ts';
 import { goalMatch } from '../../../../../server/meta/biomes.ts';
 import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
-import { RESOURCES } from '../../../../../server/meta/shared.ts';
+import { RESOURCES, NPCS } from '../../../../../server/meta/shared.ts';
 import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { WORLD_PORTALS } from '../../../../../server/worlds/portals.ts';
 import { npcPos } from '../meta/npcLive.js';
@@ -15,10 +15,13 @@ const ALTAR = { world: 'hellfire', x: 565, y: 600, label: 'Алтарь пере
 const flags = (t) => new Set(String(t.f || '').split(',').filter(Boolean));
 const mobOf = (t) => { const m = String(t.m || ''); if (t.ev === 'st' && m.startsWith('mob:')) return m.slice(4); if (t.ev === 'kill' && m && !/^(biome|role|cls):/.test(m)) return m; return ''; };
 
+const isNpcAt = (t) => !!t.at && t.at !== 'board';
+/** живая позиция персонажа-выдающего (личные задания) */
+function npcAt(id, label) { const n = NPCS[id], p = npcPos(id); return n && p ? { world: n.world || 'hellfire', x: p.x, y: p.y, label: `${label}: ${n.name}`, npc: id } : null; }
 /** есть ли у задания место на карте (иначе — только счётчик) */
 export function hasPlace(t) {
   if (!t || t.hid) return false;
-  if (t.nb || t.take) return true; // сдача/взятие — у Доски объявлений
+  if (t.nb || t.take || isNpcAt(t)) return true; // взятие/сдача — у Доски объявлений или у персонажа (личное задание)
   const F = flags(t), m = String(t.m || '');
   switch (t.ev) {
     case 'kill': return !!mobOf(t) || m.startsWith('biome:') || F.has('wboss') || F.has('rare');
@@ -58,6 +61,10 @@ export function taskTarget(t, store, ctx) {
   if (!hasPlace(t)) return null;
   const props = store.defs?.props || {}, nb = props.nb && { world: props.nb.world, x: props.nb.x, y: props.nb.y, label: 'Доска объявлений', board: 'nb' };
   const r = store.tier(t);
+  if (isNpcAt(t)) { // личное задание: взять и сдать — у персонажа (как сюжетный квест)
+    if (t.take && !store.taken(t.id)) return viaPortal(npcAt(t.at, 'Взять'), ctx);
+    if (r.ready && !r.done) return viaPortal(npcAt(t.at, 'Сдать'), ctx);
+  }
   if (t.take && !store.taken(t.id)) return viaPortal(nb, ctx);
   if (t.nb && r.ready) return viaPortal({ ...nb, label: 'Сдать: Доска объявлений' }, ctx);
   if (r.done) return null;

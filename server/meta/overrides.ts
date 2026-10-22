@@ -27,7 +27,7 @@ import { ENCH, ENCH_N } from "./enchant";
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
-import { BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES } from "./board";
+import { BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols } from "./board";
 
 export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
@@ -345,15 +345,22 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   board: { name: "📋 Доска заданий: настройки", fields: [
     { path: "_h_b1", label: "Общее", t: "hdr" }, { path: "on", label: "Доска включена", t: "bool" },
     ...CATS.map((c): Field => ({ path: `cats.${c}`, label: `Вкладка «${CAT_NAMES[c]}»`, t: "bool" })),
-    N("dailyN", "Ежедневных заданий в день", 0, 12, "int"), N("weeklyN", "Еженедельных в неделю", 0, 12, "int"), N("monthlyN", "Ежемесячных в месяц", 0, 12, "int"),
+    { path: "_h_bp", label: "Случайный пул (каждому игроку — своё на период; вес задания — в «Задания доски»)", t: "hdr" },
+    N("dailyMin", "Ежедневных в день: от", 0, 12, "int"), N("dailyMax", "Ежедневных в день: до", 0, 12, "int"),
+    N("weeklyMin", "Еженедельных в неделю: от", 0, 12, "int"), N("weeklyMax", "Еженедельных в неделю: до", 0, 12, "int"),
+    N("monthlyMin", "Ежемесячных в месяц: от", 0, 12, "int"), N("monthlyMax", "Ежемесячных в месяц: до", 0, 12, "int"),
+    N("npcMax", "Личных заданий персонажей взято одновременно", 1, 30, "int"),
     N("huntMax", "Доска объявлений: взятых заказов одновременно", 1, 20, "int"), N("huntOffer", "Доска объявлений: заказов охоты в день", 1, 30, "int"), N("huntBossOffer", "…из них боссов и редких", 0, 10, "int"),
     { path: "_h_nb", label: "Доска объявлений (стартовая площадь Аринара) и Доска достижений (Алтарь тел)", t: "hdr" },
     { path: "nbWorld", label: "Доска объявлений: мир", t: "enum", opts: ["arinar", "hellfire"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("nbX", "Доска объявлений: x", 0, 48000, "int"), N("nbY", "Доска объявлений: y", 0, 48000, "int"), N("nbRange", "Доска объявлений: радиус, px", 40, 300, "int"),
-    { path: "abWorld", label: "Доска достижений: мир", t: "enum", opts: ["hellfire", "arinar"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("abX", "Доска достижений: x", 0, 48000, "int"), N("abY", "Доска достижений: y", 0, 48000, "int"), N("abRange", "Доска достижений: радиус, px", 40, 300, "int"), N("pinMax", "Заданий в трекере", 1, 5, "int"),
+    { path: "abWorld", label: "Доска достижений: мир", t: "enum", opts: ["hellfire", "arinar"], optn: { arinar: "Аринар", hellfire: "Хаб" } }, N("abX", "Доска достижений: x", 0, 48000, "int"), N("abY", "Доска достижений: y", 0, 48000, "int"), N("abRange", "Доска достижений: радиус, px", 40, 300, "int"), N("pinMax", "Отслеживаемых заданий (трекер, стрелки, карта)", 1, 30, "int"), N("trackMax", "Отслеживаемых врагов из Бестиария", 1, 30, "int"),
     { path: "_h_b2", label: "Сброс (часовой пояс — Киев)", t: "hdr" }, { path: "tz", label: "Часовой пояс", t: "text" }, N("resetHour", "Час сброса (0–23)", 0, 23, "int"), N("weekDay", "День недельного сброса (1 = пн … 7 = вс)", 1, 7, "int"),
     { path: "_h_b3", label: "Опыт: % от опыта на уровень (по уровню цели × сложность)", t: "hdr" },
     ...[0, 1, 2, 3, 4, 5].flatMap((b) => [N(`bands.${b}`, `Полоса ${b + 1}: до уровня`, 1, 30, "int"), ...[0, 1, 2, 3, 4].map((d) => N(`xp.${b}.${d}`, `Полоса ${b + 1} · сложность ${d + 1}, %`, 0, 100))]),
-    N("refPlus", "Уровень цели + N — потолок для опыта", 0, 30, "int"), N("capPct", "Потолок опыта доски в сутки, % уровня", 0, 500),
+    N("refPlus", "Уровень цели + N — потолок для опыта", 0, 30, "int"),
+    { path: "_h_b6", label: "Опыт по категориям: множитель к таблице и потолок за период (% опыта на уровень; 0 — без потолка)", t: "hdr" },
+    ...CATS.flatMap((c): Field[] => [N(`xpMul.${c}`, `${CAT_NAMES[c]}: множитель опыта`, 0, 10),
+      ...(c === "tut" ? [] : [N(`caps.${c}`, `${CAT_NAMES[c]}: потолок, % уровня ${c === "weekly" || c === "hard" ? "в неделю" : c === "monthly" ? "в месяц" : "в сутки"}`, 0, 500)])]),
     { path: "_h_b4", label: "Обучение", t: "hdr" }, { path: "tutOn", label: "Обучение включено", t: "bool" }, { path: "tutSkip", label: "Можно пропустить целиком", t: "bool" },
     { path: "dailyFixed", label: "Ежедневные у всех каждый день (id через запятую)", t: "ltext" }, N("tutVetLvl", "Опытный игрок с уровня (обучение засчитано без наград)", 1, 31, "int"),
     { path: "_h_b5", label: "Удобство (QoL)", t: "hdr" }, { path: "qol.help", label: "Справка по управлению (F1 / ❔)", t: "bool" }, { path: "qol.lowHp", label: "Предупреждение о низком ОЗ", t: "bool" },
@@ -363,16 +370,17 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   btask: { name: "📋 Задание доски", fields: [
     { path: "on", label: "Включено", t: "bool" }, { path: "title", label: "Название", t: "ltext" }, { path: "why", label: "Зачем (одна строка)", t: "ltext" },
     { path: "pc", label: "Подсказка: ПК", t: "ltext" }, { path: "mob", label: "Подсказка: телефон", t: "ltext" },
-    { path: "giver", label: "Кто выдаёт (персонаж или Доска объявлений)", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
+    { path: "giver", label: "Кто выдаёт и принимает: персонаж — в своём диалоге, Доска объявлений — у доски, «—» — в окне «Задания»", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
     { path: "hl", label: "Подсветка (altar, mob, node, bag, npc:petr, btn:book…)", t: "text" },
     N("ord", "Порядок", 0, 9999, "int"), N("minLvl", "Доступно с уровня", 1, 30, "int"), N("maxLvl", "До уровня (пул периодических)", 1, 30, "int"), N("lvl", "Уровень цели для опыта (0 — уровень героя)", 0, 30, "int"),
     { path: "req", label: "Сначала выполнить (id через запятую, id@ступень)", t: "ltext" },
-    { path: "m", label: "Цель (моб, ресурс, biome:ice, role:tank…)", t: "text" }, { path: "f", label: "Условия (elite, cursed, ench, party, solo, rare, boss, wboss, lvl, min)", t: "text" },
+    { path: "m", label: "Цель (моб, ресурс, biome:ice, role:tank…)", t: "text" }, { path: "f", label: "Условия (elite, cursed, ench, e1…e6, e3up, ewear6, party, solo, rare, boss, wboss, lvl, min, night…)", t: "text" },
     N("minT", "Забег не короче, с", 0, 3600, "int"),
     ...[0, 1, 2, 3, 4].flatMap((i) => [N(`n.${i}`, `Ступень ${i + 1}: сколько (0 — нет)`, 0, 1000000, "int"), N(`d.${i}`, `Ступень ${i + 1}: сложность 1–5`, 0, 5, "int")]),
     { path: "res", label: "Материалы за ступень (× номер ступени)", t: "resmap" }, { path: "item", label: "Предмет за последнюю ступень (id)", t: "text" },
     { path: "auto", label: "Обучение: засчитать само (lvl:5, equipped:1…)", t: "text" },
     { path: "hidden", label: "Скрытое («???» до выполнения)", t: "bool" },
+    N("w", "Вес в случайном пуле (0 — не выпадает)", 0, 100),
   ] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
@@ -445,12 +453,13 @@ export function validatePatch(kind: Kind, id: string, patch: any): any | string 
     const C = TABLES.board[id]; let prev = 0;
     for (let b = 0; b < 6; b++) { const x = out[`bands.${b}`] ?? C.bands?.[b]; if (!(x > prev)) return "полосы уровней должны расти"; prev = x; }
     if (prev < 30) return "последняя полоса — до 30 уровня";
+    for (const c of ["daily", "weekly", "monthly"]) { const lo = out[c + "Min"] ?? C[c + "Min"], hi = out[c + "Max"] ?? C[c + "Max"]; if (lo > hi) return `${CAT_NAMES[c as keyof typeof CAT_NAMES]}: «от» больше «до»`; }
     if (out.tz != null) { try { new Intl.DateTimeFormat("en", { timeZone: out.tz || "Europe/Kyiv" }); } catch { return "Часовой пояс: неизвестный"; } }
   }
   if (kind === "rare") { const cur = TABLES.rare[id].every; const a = out["every.0"] ?? cur[0], b = out["every.1"] ?? cur[1]; if (a > b) return "мин. время больше макс."; }
   return out;
 }
-const BT_FLAGS = new Set(["elite", "cursed", "ench", "party", "solo", "rare", "boss", "wboss", "lvl", "min", "night", "midnight", "hp10", "wearc", "wearc5", "dark50", "naked"]);
+const BT_FLAGS = new Set(["elite", "cursed", "ench", "ewear6", "party", "solo", "rare", "boss", "wboss", "lvl", "min", "night", "midnight", "hp10", "wearc", "wearc5", "dark50", "naked"]);
 function validateBtask(id: string, out: any): string | null {
   const T = TABLES.btask[id], get = (p: string, d: any) => (out[p] !== undefined ? out[p] : p.split(".").reduce((x: any, k) => x?.[k], T) ?? d);
   let prev = 0, end = false;
@@ -463,7 +472,7 @@ function validateBtask(id: string, out: any): string | null {
     prev = n;
   }
   if (get("minLvl", 1) > get("maxLvl", 30)) return "«доступно с» больше «до уровня»";
-  const f = String(get("f", "")); for (const x of f.split(",").map((s) => s.trim()).filter(Boolean)) if (!BT_FLAGS.has(x)) return `условие «${x}» неизвестно`;
+  const f = String(get("f", "")); for (const x of f.split(",").map((s) => s.trim()).filter(Boolean)) if (!BT_FLAGS.has(x) && !isEnchFlag(x)) return `условие «${x}» неизвестно`;
   if (!/^[\w:]{0,40}$/.test(String(get("m", "")))) return "цель: латиница, цифры, «_» и «:»";
   const item = String(get("item", "")); if (item && !ITEM_BY_ID[item]) return `нет предмета ${item}`;
   for (const r of String(get("req", "")).split(",").map((s) => s.trim()).filter(Boolean)) { const rid = r.split("@")[0]; if (!TABLES.btask[rid]) return `нет задания ${rid}`; if (rid === id) return "задание не может требовать само себя"; }
@@ -474,6 +483,10 @@ function validateBtask(id: string, out: any): string | null {
 const ORIG = new Map<string, any>();
 /** Наложить правку (патч поверх значений из кода). patch=null — вернуть исходное. */
 export function applyOverride(kind: Kind, id: string, patch: any | null) {
+  applyOverride0(kind, id, patch);
+  if (kind === "board") syncBoardCols(); // доски передвинули/выключили — коллизии за ними
+}
+function applyOverride0(kind: Kind, id: string, patch: any | null) {
   const o = TABLES[kind]?.[id]; if (!o) return;
   const key = kind + ":" + id;
   const paths = kind === "loot" ? ["gear", "materials"] : [...SCHEMA[kind].fields.map((f) => f.path)];

@@ -6,6 +6,7 @@
 import { fmtBig } from './fmtNum.js';
 import { showError, hookGlobalErrors, setErrSink } from './boot/errorBox.js'; // коды ошибок (src/errors/codes.js)
 import { resolveWorld, boundsAt } from '../../../../server/meta/propCollision.ts';
+import { setBoardCols } from '../../../../server/meta/boardCols.ts';
 import { CityRoomView, spaceOf, inRoomPt } from './hub/cityRoom.js';
 import { DayNight, lightOf, lampHash, lampGlowK, nightGlow, LT } from './engine/dayNight.js';
 import { setEmitterCamera, lightEmitter, emitterVersion } from './engine/lightEmitter.js';
@@ -47,6 +48,7 @@ import { BoardStore } from './meta/boardStore.js';
 import { BoardWin } from './ui/board.js';
 import { QolHud } from './ui/qol.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
+import { TargetPointers } from './ui/targetPtr.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
@@ -261,13 +263,15 @@ async function boot(canvasId, username, userId, api) {
   // Доска заданий и достижений (server/meta/board.ts): окно U/📋, Доска объявлений (Аринар), Доска достижений (у Алтаря)
   const boardSt = new BoardStore(send);
   api.board = boardSt;
+  book.board = boardSt; // лимит целей Бестиария (trackMax) — из настроек доски
   const nearBoard = (k) => { const p = boardSt.defs?.props?.[k]; return !!p && mode === 'hub' && world === p.world && Math.hypot(player.x - p.x, player.y - p.y) <= p.r; };
   const boardWin = new BoardWin(overlay, boardSt, { mobile, near: nearBoard, onTrack: () => { tracker.bsig = ''; }, onShow: (on) => container.classList.toggle('mc-bd-open', on) }); // открыто окно — кнопка PK (над слоем окон) прячется
   api.boardWin = boardWin;
   queueMicrotask(() => { api.tracker = tracker; api.social = social; api.overlay = overlay; }); // для локальных плейтестов (debug)
   const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), onOpenBoard: (tab) => boardWin.open('all', tab === 'tut' ? 'tut' : tab), mobile, board: boardSt });
+  const tptr = new TargetPointers(overlay.layer, { mobile }); // метки отслеживаемых целей на экране (номер/цвет — как в трекере)
   { const bo = book.open.bind(book); book.open = (...a) => { tracker.tutDone('book'); return bo(...a); }; }
-  const dialog = new NpcDialog(overlay, meta);
+  const dialog = new NpcDialog(overlay, meta, boardSt);
   dialog.onCraft = () => book.open('craft');
   const upgWin = new UpgradeWin(overlay, meta, { nearPetr: () => mode === 'hub' && zone.nearestNpc(world, player.x, player.y)?.id === 'petr' });
   dialog.onUpgrade = () => upgWin.open();
@@ -557,7 +561,7 @@ async function boot(canvasId, username, userId, api) {
     addCards(d.loot?.cards); addCards(d.reward?.cards);
     meta.apply(d);
     boardSt.apply(d);
-    if (d.boardDefs) zone.setBoards?.(d.boardDefs.props, d.boardDefs.on);
+    if (d.boardDefs) { zone.setBoards?.(d.boardDefs.props, d.boardDefs.on); const P = d.boardDefs.props || {}; setBoardCols(d.boardDefs.on ? [P.nb, P.ab].filter(Boolean) : []); } // доски непроходимы — как на сервере
     for (const g of d.boardGranted || []) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac');
     if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}`, '#86efac'); }
     if (d.toast) overlay.toast(d.toast, '#c4b5fd');
@@ -581,12 +585,12 @@ async function boot(canvasId, username, userId, api) {
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
   });
   // туман войны и большая карта (M)
-  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, hunt: tracker.hunt, party: party.others().filter((m) => m.world === world && !m.run) }));
+  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, hunt: tracker.hunt, hunts: tracker.hunts, targets: tracker.targets, party: party.others().filter((m) => m.world === world && !m.run) }));
   worldMap.send = (o) => net.send(o); // метки карты — на сервер
   hud.minimap.onOpenMap = () => worldMap.open();
   net.on('fog', (d) => { fog.setFull(d); worldMap.draw(); });
   net.on('fog_add', (d) => { fog.add(d); if (worldMap.isOpen) worldMap.draw(); });
-  net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests));
+  net.on('npc_dialog', (d) => dialog.open(d.npc, d.quests, d.tasks));
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
   // Рейтинг и просмотр персонажа (данные — только от сервера)
   const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), onParty: (sid) => party.invite(sid), canParty: (sid) => !!sid && sid !== myId && party.canInvite(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
@@ -1720,7 +1724,7 @@ async function boot(canvasId, username, userId, api) {
         heroName: meta.hero ? meta.heroName(meta.hero.cls || player.stats.classId) : '', hp: zone.me?.maxHp ? zone.me.hp : meta.hero?.effective?.maxHp, maxHp: zone.me?.maxHp || meta.hero?.effective?.maxHp, bk: meta.hero?.effective?.blkVis | 0 });
       hud.update({
         player, username, mode, run, ping: net.ping, online: others.size + 1, zoom: stage.view.zoom, viewCells: Math.round(stage.viewCells()),
-        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes, hunt: tracker.hunt?.target || null,
+        roomCounts, runRoom, otherPlayers: [...others.values()].filter((o) => !o.runRoom), boss, portals, world, party: party.others(), zoneMobs: zone.mobs, mobInfo: ZONE_MOBS, camps: world === 'arinar' ? zone.camps : null, track: tracker.trackTypes, hunt: tracker.hunt?.target || null, targets: tracker.targets || null,
         lastFaceDir: { x: player.dirX, y: player.dirY }, nearby: nearbyList(), dash,
         zoneMe: mode === 'hub' && meta.hero ? zone.me : null, eff: meta.hero?.effective || null, heroName: meta.hero ? meta.heroName(player.stats.classId) : null, dps: dpsMeter.stats(),
       });
@@ -1930,6 +1934,10 @@ async function boot(canvasId, username, userId, api) {
     tracker.update({ bmDomes: world === 'arinar' && zone.bmv ? [...zone.bmv.domes.values()] : null, mobs: mode === 'hub' ? zone.mobs : null, nodes: mode === 'hub' ? zone.nodes : null, camps: world === 'arinar' ? zone.camps : null, world, x: player.x, y: player.y, hasClass: !!player.stats.classId, online: net.isOpen() && !net.offline, mobsNear: !!zone.nearestMob(player.x, player.y, 400), near: { altar: world === 'hellfire' && Math.hypot(player.x - ALTAR.x, player.y - ALTAR.y) < 90 } });
     party.setHub(mode === 'hub'); // панель отряда видна в мире и без отряда («＋ Пригласить»)
     zone.trackTypes = tracker.trackTypes; // подсветка мобов-целей квеста на экране
+    if (mode === 'hub') { const now = performance.now(); // метки целей на экране; панели трекера/мини-карты — раз в 0,5 с (без лишних замеров)
+      if (!tptr.avAt || now - tptr.avAt > 500) { tptr.avAt = now; const L = overlay.layer.getBoundingClientRect(); tptr.avoid = [tracker.el, document.getElementById('mm-canvas')].map((e) => e?.offsetParent && e.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - L.left, t: r.top - L.top, r: r.right - L.left, b: r.bottom - L.top })); }
+      tptr.update(tracker.targets, { world, x: player.x, y: player.y }, (x, y) => stage.project(toX(x), 1.2, toZ(y)), stage.width, stage.height, now, tptr.avoid);
+    } else tptr.hide();
     refreshAbilityButtons();
   }
 
@@ -1995,11 +2003,15 @@ async function boot(canvasId, username, userId, api) {
     const st = meta.state;
     if (!st) return '';
     for (const qid of st.complete || []) if (QUEST_BY_ID[qid]?.npc === id && !QUEST_BY_ID[qid].auto) return '✔';
+    const pt = boardSt.npcTasks(id); // личные задания (доска заданий, «кто выдаёт» = этот персонаж) — та же пометка, что у квестов
+    if (pt.some((x) => x.state === 'complete')) return '✔';
     for (const qid of st.available || []) if (QUEST_BY_ID[qid]?.npc === id && !st.account.quests.active[qid]) return '❕';
+    if (pt.some((x) => x.state === 'available')) return '❕';
     return '';
   }
 
   function runFrame(dt, now) {
+    tptr.hide();
     // Сообщаем серверу о гибели/подъёме (он решает, погиб ли отряд целиком → сброс экземпляра)
     if (lobby && run.epoch && !run.stale && run.me.dead !== run.sentDead) { run.sentDead = run.me.dead; net.runDead(run.epoch, run.me.dead); }
     // Страховка паузы выбора улучшения: пока есть невыбранные улучшения, модалка должна быть открыта.
@@ -2086,7 +2098,7 @@ async function boot(canvasId, username, userId, api) {
       party: () => party.state,
       myId: () => myId,
       runRoom: () => lobby?.room || null,
-      track: () => ({ hunt: tracker.hunt, target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
+      track: () => ({ hunt: tracker.hunt, hunts: (tracker.hunts || []).length, targets: (tracker.targets || []).map((t) => ({ n: t.n, c: t.c, world: t.world, kind: t.kind })), ptr: tptr?.stats, target: tracker.target, types: [...(tracker.trackTypes || [])], camps: (zone.camps || []).length, mm: hud.minimap?.stats }),
       forceQuest: (id) => { const tq = meta.trackedQuests.bind(meta); meta.trackedQuests = () => [id, ...tq().filter((x) => x !== id)]; meta.trackedQuest = () => id; },
       worldMapStats: () => worldMap.stats,
       campsRaw: () => zone.camps,
@@ -2178,6 +2190,7 @@ async function boot(canvasId, username, userId, api) {
         return { gl: CITY_CFG.groundLight, fade: cv.fade, fadeBand: cv.fadeBand, blight: cv.blight, blightScale: cityView.blightG ? +cityView.blightG.scale.x.toFixed(3) : null, blightVis: cityView.blightG?.visible ?? null,
           cityChunksGl: t ? [...t.chunks.values()].filter((c) => c.city).map((c) => c.gl) : [], pk: pkUi(), reduceMax: DN_CFG.reduceMax, lt: { ...LT }, emitters: DN_CFG.emitters,
           lantern: lightEmitter('dm_lantern_pole', null, 'city'), emV: emitterVersion(), cityEmV: cityView.emV, cityLights: cityView.lights?.length || 0 }; },
+      npcAt: (id) => { const p = npcPos(id); return p && { x: Math.round(p.x), y: Math.round(p.y) }; }, // живая позиция NPC (плейтесты)
       walk: (x, y) => { autoMv = x || y ? { x, y } : null; return autoMv; }, // идти в направлении (плейтест стрима), 0,0 — стоп
       frames: (reset) => { const q = (a, k) => { if (!a.length) return 0; const b = [...a].sort((u, v) => u - v); return Math.round(b[Math.min(b.length - 1, Math.floor(b.length * k))] * 10) / 10; };
         const o = { n: FS.n, cpuMax: Math.round(FS.cpuMax * 10) / 10, cpuP99: q(FS.cpu, 0.99), cpuP50: q(FS.cpu, 0.5), gapMax: Math.round(FS.gapMax), gapP99: q(FS.gap, 0.99), gapP50: q(FS.gap, 0.5) };

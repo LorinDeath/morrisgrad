@@ -15,14 +15,21 @@ export class MetaClient {
     this._mt = undefined; // локальная правка до ответа сервера
   }
   // отслеживание моба из Бестиария (одна цель; работает вместе с отслеживанием квеста) — хранит сервер (account.mobTrack)
-  get mobTrack() { return this._mt !== undefined ? this._mt : this.state?.account?.mobTrack || null; }
-  setMobTrack(id) { this._mt = id || null; this.send({ type: 'mob_track', id: id || null }); for (const fn of this.listeners) { try { fn(this.state); } catch (_) {} } }
+  // несколько целей (account.mobTracks, лимит — админка «📋 Доска» trackMax); mobTrack — первая (совместимость)
+  get mobTracks() { if (this._mt !== undefined) return this._mt; const a = this.state?.account; return Array.isArray(a?.mobTracks) ? a.mobTracks : a?.mobTrack ? [a.mobTrack] : []; }
+  get mobTrack() { return this.mobTracks[0] || null; }
+  isMobTracked(id) { return this.mobTracks.includes(id); }
+  /** добавить/убрать цель (сервер проверит лимит и вернёт итоговый список) */
+  toggleMobTrack(id, on = !this.isMobTracked(id)) { const L = this.mobTracks.filter((x) => x !== id); if (on) L.push(id); this._mt = L; this.send({ type: 'mob_track', id, on: !!on }); this.ping(); }
+  /** одна цель (заменить все) / null — снять все */
+  setMobTrack(id) { this._mt = id ? [id] : []; this.send({ type: 'mob_track', id: id || null }); this.ping(); }
+  ping() { for (const fn of this.listeners) { try { fn(this.state); } catch (_) {} } }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   apply(st) {
     addCards(st.cards);
     if (st.account && this.state?.account && !st.recipes && this.state.recipes) st.recipes = this.state.recipes;
     this.state = st;
-    if (st?.account && 'mobTrack' in st.account) this._mt = undefined; // сервер подтвердил
+    if (st?.account && ('mobTracks' in st.account || 'mobTrack' in st.account)) this._mt = undefined; // сервер подтвердил
     try { const old = localStorage.getItem('mc-mob-track'); if (old && st?.account && !st.account.mobTrack) { localStorage.removeItem('mc-mob-track'); this.setMobTrack(old); } else if (old !== null) localStorage.removeItem('mc-mob-track'); } catch (_) {} // перенос старого локального выбора
     this.version++;
     for (const fn of this.listeners) { try { fn(st); } catch (err) { console.error('[meta]', err); } }

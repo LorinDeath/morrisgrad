@@ -12,6 +12,24 @@ import { taskTarget, hasPlace, viaPortal } from './boardLoc.js';
 const TUT_KEY = 'mc-tut-v2';
 const FOLD_KEY = 'mc-tut-fold'; // «свернуть подсказки обучения» — только на этом устройстве (выключить совсем — в настройках, хранит сервер)
 const angOf = (t, ctx) => Math.atan2(t.y - ctx.y, t.x - ctx.x);
+/** цвета меток целей: номер + цвет одинаковы в трекере, на экране, мини-карте и карте M (дальше — по кругу, номер различает) */
+export const T_COLORS = ['#4ade80', '#38bdf8', '#f472b6', '#facc15', '#fb923c', '#a78bfa', '#f87171', '#2dd4bf', '#e879f9', '#a3e635', '#60a5fa', '#fbbf24'];
+export const tColor = (i) => T_COLORS[i % T_COLORS.length];
+/** цель охоты из Бестиария: ближайший живой моб → лагерь → место обитания → портал в другую локацию */
+function huntOf(mt, ctx) {
+  const isT = (t) => goalMatch(mt, t);
+  const nm = ZONE_MOBS[mt]?.name || ZONE_MOBS[baseOf(mt)]?.name || mt;
+  let best = null, bd = Infinity, where = '';
+  for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: '🎯 ' + nm, mob: 1, hunt: 'mob' }; } }
+  if (best) where = 'рядом';
+  if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🎯 Лагерь: ' + nm, mob: 1, hunt: 'camp' }; } }
+  if (best && !where) where = 'лагерь неподалёку';
+  if (!best) { const n = nearestHome(mt, ctx.world, ctx.x, ctx.y);
+    if (n && !n.portal && n.home.world === ctx.world) { best = { world: ctx.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm + ' · ' + n.home.region.split(':')[0], mob: 1, hunt: 'home' }; where = n.home.region; }
+    else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
+    else where = 'место обитания неизвестно'; }
+  return { id: mt, name: nm, where, target: best };
+}
 
 export class QuestTracker {
   constructor(overlay, meta, { onOpenBook, onOpenBoard, mobile, board }) {
@@ -134,29 +152,24 @@ export class QuestTracker {
       html = '<div class="t">◆ Начало</div><ul><li>Подойдите к Алтарю перевоплощения в центре Поляны</li></ul>';
       this.target = { world: 'hellfire', x: 565, y: 600, label: 'Алтарь' };
     }
-    // «Отслеживать» из Бестиария: строка «Охота: <моб>» с подсказкой места; подсветка (экран/мини-карта/карта M) и компас —
-    // к ближайшему живому мобу, иначе к лагерю, иначе к месту обитания; в другой локации — к порталу туда
-    const mt = this.meta.mobTrack;
-    this.hunt = null;
-    if (mt && (ZONE_MOBS[mt] || ZONE_MOBS[baseOf(mt)])) {
-      this.trackTypes.add(mt);
-      const isT = (t) => goalMatch(mt, t);
-      const nm = ZONE_MOBS[mt]?.name || ZONE_MOBS[baseOf(mt)]?.name || mt;
-      let best = null, bd = Infinity, where = '';
-      for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: '🎯 ' + nm, mob: 1, hunt: 'mob' }; } }
-      if (best) where = 'рядом';
-      if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🎯 Лагерь: ' + nm, mob: 1, hunt: 'camp' }; } }
-      if (best && !where) where = 'лагерь неподалёку';
-      if (!best) { const n = nearestHome(mt, ctx.world, ctx.x, ctx.y);
-        if (n && !n.portal && n.home.world === ctx.world) { best = { world: ctx.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm + ' · ' + n.home.region.split(':')[0], mob: 1, hunt: 'home' }; where = n.home.region; }
-        else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
-        else where = 'место обитания неизвестно'; }
-      this.hunt = { id: mt, name: nm, where, target: best };
-      if (best) this.target = best; // охота из Бестиария — явный выбор игрока, компас ведёт к ней (среди целей заданий — ближайшая)
-      html += `<div class="hunt${html ? ' sep' : ''}"><div class="t">🎯 Охота: ${esc(nm)}</div><ul><li>${esc(where)}</li></ul></div>`;
+    // «Отслеживать» из Бестиария (несколько целей, лимит — админка): строки «Охота: <моб>» с номером и цветом метки; метки — на экране,
+    // мини-карте и карте M; компас — к первой. Цель: ближайший живой моб, иначе лагерь, иначе место обитания; в другой локации — портал туда
+    const mts = (this.meta.mobTracks || (this.meta.mobTrack ? [this.meta.mobTrack] : [])).filter((id) => ZONE_MOBS[id] || ZONE_MOBS[baseOf(id)]);
+    this.hunts = []; this.hunt = null;
+    for (const mt of mts) { this.trackTypes.add(mt); this.hunts.push(huntOf(mt, ctx)); }
+    if (this.hunts.length) {
+      this.hunt = this.hunts[0];
+      if (this.hunt.target) this.target = this.hunt.target; // охота из Бестиария — явный выбор игрока, компас ведёт к первой
+      const many = this.hunts.length > 1, show = this.mobile ? 2 : 12;
+      html += `<div class="hunt${html ? ' sep' : ''}">` + this.hunts.slice(0, show).map((h, i) => {
+        const tn = many || this.board?.st?.pin?.length ? `<i class="tn" style="--c:${tColor(i)}">${i + 1}</i>` : '';
+        return i === 0 && !many ? `<div class="t">${tn}🎯 Охота: ${esc(h.name)}</div><ul><li>${esc(h.where)}</li></ul>` : `<div class="t2 hn">${tn}🎯 ${esc(h.name)} <small>${esc(h.where)}</small></div>`;
+      }).join('') + (this.hunts.length > show ? `<div class="t2">… ещё ${this.hunts.length - show} — метки на карте</div>` : '') + '</div>';
     }
     if (html !== this.sig) { this.sig = html; this.qEl.innerHTML = html; }
     this.qEl.style.display = html ? '' : 'none';
+    // все цели для меток (экран, мини-карта, карта M): номер и цвет совпадают со строкой трекера
+    this.targets = this.hunts.map((h, i) => h.target && { ...h.target, n: i + 1, c: tColor(i), kind: 'hunt', id: h.id }).filter(Boolean);
     this.boardUpdate(ctx);
     // стрелка к цели
     const t = this.target;
@@ -182,7 +195,7 @@ export class QuestTracker {
   /** доска: шаг обучения (подсказка ПК/телефон) и отслеживаемые задания. Мини-стрелка — только у заданий с местом на карте;
    *  у остальных — счётчик. Главная стрелка — к шагу/заданию, только если у квестов и охоты из Бестиария цели нет. */
   boardUpdate(ctx) {
-    const B = this.board; this.boardTarget = null;
+    const B = this.board; this.boardTarget = null; this.targets ||= [];
     if (!B?.ready || !B.defs.on || !ctx.hasClass && !B.tutStep()) { if (this.bsig) { this.bsig = ''; this.bqEl.innerHTML = ''; } this.bqEl.style.display = 'none'; return; }
     const rows = [], arrows = [];
     const st = B.tutStep();
@@ -195,13 +208,17 @@ export class QuestTracker {
       if (tg) arrows.push(tg);
       if (tg && !this.target) this.boardTarget = tg;
     }
-    for (const id of B.st.pin || []) {
-      const t = B.def(id); if (!t) continue;
-      const r = B.tier(t), tg = hasPlace(t) ? taskTarget(t, B, ctx) : null;
-      const cnt = r.done ? '✔' : r.ready && !(t.take && !B.taken(id)) ? '✔ забрать' : `${r.have}/${r.n}`;
-      rows.push(`<div class="bt pin" data-bt="${t.cat}"><div class="nm">◇ ${esc(B.title(t))} <b>${cnt}</b></div>${tg ? `<div class="ra" data-i="${arrows.length}"><i>➤</i><span></span><b></b></div>` : ''}</div>`);
-      if (tg) { arrows.push(tg); if (!this.target && !this.boardTarget) this.boardTarget = tg; if (tg.mob || tg.via?.mob) this.trackTypes?.add(tg.mob || tg.via.mob); }
-    }
+    const pins = (B.st.pin || []).map((id) => B.def(id)).filter(Boolean), showP = this.mobile ? 4 : 12;
+    let k = (this.hunts || []).length; // номера меток: сначала охота из Бестиария, затем задания
+    pins.forEach((t, pi) => {
+      const id = t.id, r = B.tier(t), tg = hasPlace(t) ? taskTarget(t, B, ctx) : null, npcAt = t.at && t.at !== 'board';
+      const cnt = r.done ? '✔' : r.ready && !(t.take && !B.taken(id)) ? (npcAt ? '✔ сдать' : '✔ забрать') : `${r.have}/${r.n}`;
+      const n = tg ? ++k : 0, tn = n ? `<i class="tn" style="--c:${tColor(n - 1)}">${n}</i>` : '◇';
+      if (tg) { this.targets.push({ ...tg, n, c: tColor(n - 1), kind: 'task', id }); }
+      if (pi < showP) rows.push(`<div class="bt pin" data-bt="${t.cat}"><div class="nm">${tn} ${esc(B.title(t))} <b>${cnt}</b></div>${tg ? `<div class="ra" data-i="${arrows.length}"><i>➤</i><span></span><b></b></div>` : ''}</div>`);
+      if (tg) { if (pi < showP) arrows.push(tg); if (!this.target && !this.boardTarget) this.boardTarget = tg; if (tg.mob || tg.via?.mob) this.trackTypes?.add(tg.mob || tg.via.mob); }
+    });
+    if (pins.length > showP) rows.push(`<div class="bt more" data-bt="${pins[showP].cat}">… ещё ${pins.length - showP} — в окне «Задания»</div>`);
     const html = rows.join('');
     if (html !== this.bsig) { this.bsig = html; this.bqEl.innerHTML = html; this.rowArrows = [...this.bqEl.querySelectorAll('.ra')]; }
     this.bqEl.style.display = html ? '' : 'none';

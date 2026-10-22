@@ -272,7 +272,7 @@ export class GameHUD {
     this.txt('ghud-coords', mode === 'run' && run ? `${run.me.x.toFixed(0)} м | ${run.me.z.toFixed(0)} м` : `X: ${Math.round(player.x)} | Y: ${Math.round(player.y)}`);
 
     if (mode === 'run' && run) this.minimap.updateRun(run);
-    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: worldSize(d.world), lastFaceDir: d.lastFaceDir, currentWorld: d.world || 'hellfire', mobs: d.zoneMobs, mobInfo: d.mobInfo, hunt: d.hunt || null, camps: d.camps, track: d.track, party: d.party });
+    else this.minimap.update({ player, otherPlayers: d.otherPlayers, boss: d.boss, worldPortals: d.portals, worldSize: worldSize(d.world), lastFaceDir: d.lastFaceDir, currentWorld: d.world || 'hellfire', mobs: d.zoneMobs, mobInfo: d.mobInfo, hunt: d.hunt || null, targets: d.targets || null, camps: d.camps, track: d.track, party: d.party });
 
     // цель
     const t = this.currentTarget;

@@ -163,7 +163,7 @@ export class Minimap {
     document.head.appendChild(style);
   }
 
-  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null, party = null, hunt = null }) {
+  update({ player, otherPlayers, boss, worldPortals, worldSize = 1200, lastFaceDir = { x: 0, y: 1 }, currentWorld = 'hellfire', mobs = null, mobInfo = {}, camps = null, track = null, party = null, hunt = null, targets = null }) {
     if (!this.ctx || !this.canvas) return;
     const now = performance.now();
     if (now - (this._drawAt || 0) < 120) return;   // троттлинг перерисовки (~8 Гц)
@@ -351,7 +351,23 @@ export class Minimap {
     }
 
     // 4c. Охота из Бестиария: 🎯 к цели (живой моб / лагерь / место обитания / портал); за краем — на краю, по направлению
-    if (hunt && hunt.world === currentWorld) {
+    if (targets && targets.length) { // все отслеживаемые цели: кружок цвета строки трекера с номером; за краем — на краю, по направлению
+      // круглая мини-карта (интерфейс «в игре», не квадрат) — край по окружности; метки у края не слипаются (сдвиг вдоль края)
+      const de = document.documentElement, round = de.classList.contains('mc-hud-ig') && !de.classList.contains('mc-ig-sq');
+      let nIn = 0, nEdge = 0; const m = 8, R = Math.min(w, h) / 2 - m, placed = []; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = targets.length - 1; i >= 0; i--) { const t = targets[i]; if (t.world !== currentWorld) continue;
+        let dx = (t.x - player.x) * scale, dy = (t.y - player.y) * scale, hx = cx + dx, hy = cy + dy;
+        const edge = round ? Math.hypot(dx, dy) > R : hx < m || hy < m || hx > w - m || hy > h - m;
+        if (edge) { let a = Math.atan2(dy, dx);
+          for (let k = 0; k < 10 && placed.some((q) => Math.abs(q - a) < 0.2); k++) a += 0.2 * (k % 2 ? -(k + 1) : k + 1) / 2; placed.push(a);
+          if (round) { hx = cx + Math.cos(a) * R; hy = cy + Math.sin(a) * R; }
+          else { const ux = Math.cos(a), uy = Math.sin(a), k = Math.min((w / 2 - m) / Math.abs(ux || 1e-6), (h / 2 - m) / Math.abs(uy || 1e-6)); hx = cx + ux * k; hy = cy + uy * k; }
+          nEdge++; } else nIn++;
+        ctx.fillStyle = 'rgba(8,6,16,.9)'; ctx.strokeStyle = t.c || '#4ade80'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = t.c || '#4ade80'; ctx.fillText(String(t.n || ''), hx, hy + 0.5); }
+      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+      this.stats.targets = { in: nIn, edge: nEdge, round }; this.stats.hunt = nIn ? 'in' : nEdge ? 'edge' : null;
+    } else if (hunt && hunt.world === currentWorld) {
       let hx = cx + (hunt.x - player.x) * scale, hy = cy + (hunt.y - player.y) * scale; const m = 7;
       const edge = hx < m || hy < m || hx > w - m || hy > h - m;
       if (edge) { const dx = hx - cx, dy = hy - cy, k = Math.min((w / 2 - m) / Math.abs(dx || 1e-6), (h / 2 - m) / Math.abs(dy || 1e-6)); hx = cx + dx * k; hy = cy + dy * k; }

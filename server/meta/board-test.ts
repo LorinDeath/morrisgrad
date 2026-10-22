@@ -1,5 +1,5 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
-import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, dayCap, periodKey, nextResets, boardClient, boardDefs } from "./board";
+import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt } from "./board";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 import { heroXpNeed } from "./defs";
@@ -46,19 +46,30 @@ const mk = () => { const a: any = newAccount(); a.hero = "warrior"; const h: any
 function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 5 }, ctx); return (boardOf(a).p["npc_a01"] || 0) > 0; }
 // потолок опыта в сутки
 { const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const b = boardOf(a);
-  const cap = dayCap(12); ok(cap === Math.round(heroXpNeed(12) * BOARD_CFG.capPct / 100), "потолок = % уровня");
+  const cap = catCap("ach", 12); ok(cap === Math.round(heroXpNeed(12) * BOARD_CFG.caps.ach / 100), "потолок = % уровня");
+  ok(dayCap(12) === Math.round(heroXpNeed(12) * 10 / 100), "ежедневные: не больше 10% уровня в сутки");
   const ach = BTASKS["ach_kills"]; let total = 0;
   for (let i = 0; i < 1000; i++) boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12 }, ctx);
   const r = boardClaim(a, h, "ach_kills", ctx); total += r.xp || 0;
-  b.xd.v = cap - 10; b.p["ach_elite"] = 10; const r2 = boardClaim(a, h, "ach_elite", ctx);
+  b.xs.ach = { k: periodKey("daily"), v: cap - 10 }; b.p["ach_elite"] = 10; const r2 = boardClaim(a, h, "ach_elite", ctx);
   ok(r2.ok && r2.xp <= 10 && r2.cappedXp > 0, `сверх потолка опыт не даётся (дано ${r2.xp}, срезано ${r2.cappedXp})`);
-  ok(b.xd.v <= cap, "дневной счётчик не выше потолка");
+  ok(b.xs.ach.v <= cap, "дневной счётчик не выше потолка");
   void ach; void total;
 }
 // периоды: смена суток по Киеву
 { const { a, h } = mk(); h.lvl = 10; const t0 = Date.UTC(2026, 9, 22, 20, 59); // 23:59 Киев
   boardRefresh(a, h, ctx, t0); const b = boardOf(a);
-  ok((b.sel.daily || []).length === BOARD_CFG.dailyN + 1 && b.sel.daily.includes("d_bmage"), `ежедневных выбрано ${b.sel.daily?.length} (+«Найти Чёрного мага» у всех)`);
+  ok(b.sel.daily.length >= BOARD_CFG.dailyMin && b.sel.daily.length <= BOARD_CFG.dailyMax, `ежедневных выбрано ${b.sel.daily?.length} (${BOARD_CFG.dailyMin}–${BOARD_CFG.dailyMax})`);
+  { const n: Record<number, number> = {}; let bm = 0; const N = 400;
+    for (let i = 0; i < N; i++) { const { a: x } = mk(); boardRefresh(x, h, { pkey: "uid:p" + i }, t0); const s = boardOf(x).sel; n[s.daily.length] = (n[s.daily.length] || 0) + 1; if (s.daily.includes("d_bmage")) bm++;
+      if (i < 50) { ok(s.weekly.length >= BOARD_CFG.weeklyMin && s.weekly.length <= BOARD_CFG.weeklyMax && s.monthly.length >= BOARD_CFG.monthlyMin && s.monthly.length <= BOARD_CFG.monthlyMax, ""); } }
+    ok(Object.keys(n).length >= 2, `разное число ежедневных у разных игроков: ${JSON.stringify(n)}`);
+    ok(bm > N * 0.1 && bm < N, `«Найти Чёрного мага» — в случайном пуле (выпало у ${bm} из ${N})`);
+    const { a: y } = mk(); boardRefresh(y, h, { pkey: "uid:p7" }, t0); const { a: z } = mk(); boardRefresh(z, h, { pkey: "uid:p7" }, t0 - 3600e3);
+    ok(JSON.stringify(boardOf(y).sel.daily) === JSON.stringify(boardOf(z).sel.daily), "тот же игрок и день — тот же выбор (детерминированно)");
+    applyOverride("btask", "d_bmage", { w: 0 }); let bm0 = 0; for (let i = 0; i < 100; i++) { const { a: x } = mk(); boardRefresh(x, h, { pkey: "uid:q" + i }, t0); if (boardOf(x).sel.daily.includes("d_bmage")) bm0++; }
+    ok(bm0 === 0, "вес 0 — задание не выпадает"); applyOverride("btask", "d_bmage", null);
+  }
   ok(new Set(b.sel.daily.map((id: string) => BTASKS[id].ev + BTASKS[id].f)).size === b.sel.daily.length, "ежедневные разные по типу");
   const d0 = b.sel.daily[0]; b.p[d0] = 1; b.c[d0] = 1;
   boardRefresh(a, h, ctx, t0 + 30e3); ok(b.c[d0] === 1, "до полуночи — без сброса");
@@ -101,8 +112,48 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
 }
 // опыт строго по таблице
 { const t = BTASKS["hunt_ice_crescent_wolf"]; const L = Math.min(20, t.lvl + BOARD_CFG.refPlus);
-  ok(tierXp(t, 0, 20) === Math.round(heroXpNeed(L) * BOARD_CFG.xp[Math.floor((L - 1) / 5)][t.d[0] - 1] / 100), "опыт = опыт уровня цели × % таблицы");
+  ok(tierXp(t, 0, 20) === Math.round(heroXpNeed(L) * BOARD_CFG.xp[Math.floor((L - 1) / 5)][t.d[0] - 1] / 100 * BOARD_CFG.xpMul.hunt), "опыт = опыт уровня цели × % таблицы × множитель категории");
   ok(tierXp(t, 0, 20) < tierXp({ ...t, lvl: 0 } as any, 0, 20), "низкое задание на высоком уровне даёт меньше");
+}
+// «с нуля»: старые победы бестиария и уже выполненное до запуска не дают наград
+{ const { a, h } = mk(); h.lvl = 16; a.bestiary = { dew_slime: { seen: 1, kills: 999 }, crescent_wolf: { seen: 1, kills: 50 } };
+  boardRefresh(a, h, ctx); const b = boardOf(a);
+  ok(!!b.t0, "точка отсчёта записана при включении");
+  ok(!(b.p["ach_mob_dew_slime"] > 0), "старые победы над видом не засчитаны");
+  const best = Object.values(BTASKS).find((t) => t.cat === "ach" && t.ev === "st" && t.m === "bestiary"); if (best) ok(!(b.p[best.id] > 0), "старые записи бестиария не засчитаны");
+  const lv = Object.values(BTASKS).find((t) => t.cat === "ach" && (t.ev === "lvl" || (t.ev === "st" && t.m === "lvl")) && t.n[0] <= 16); if (lv) { ok((b.pre[lv.id] || 0) > 0, "уровень, набранный до запуска, закрыт без награды"); ok(!boardClaim(a, h, lv.id, ctx).ok, "и сдать его нельзя"); }
+  boardEvent(a, h, { type: "kill", mob: "dew_slime", kind: "dew_slime", lvl: 16 }, ctx); ok(b.p["ach_mob_dew_slime"] === 1, "новая победа — с единицы");
+  const rev = b.t0; boardRefresh(a, h, ctx, Date.now() + 864e5); ok(b.t0 === rev, "точка отсчёта не сдвигается");
+}
+// личные задания НПС: берут и сдают у персонажа, «кто выдаёт» из админки работает
+{ const { a, h } = mk(); h.lvl = 3; boardRefresh(a, h, ctx);
+  ok(takeAt(BTASKS["npc_a01"]) === "alzi" && takeAt(BTASKS["hunt_ice_crescent_wolf"]) === "board" && takeAt(BTASKS["ach_kills"]) === "", "где берут: персонаж / доска / окно");
+  const L = npcTasks(a, h, "alzi"); ok(L.some((x) => x.id === "npc_a01" && x.state === "available"), "у Алзи — её задание, доступно");
+  ok(!npcTasks(a, h, "petr").some((x) => BTASKS[x.id].giver !== "petr"), "у Петра — только его задания");
+  ok(npcTasks(a, h, "nobody").length === 0, "у прочих — ничего");
+  ok(boardTake(a, h, "npc_a01", true).ok, "взять у персонажа"); ok(boardOf(a).pin.includes("npc_a01"), "взятое — сразу в трекере");
+  ok(npcTasks(a, h, "alzi").find((x) => x.id === "npc_a01")!.state === "active", "в диалоге — «в процессе»");
+  for (let i = 0; i < 40; i++) boardEvent(a, h, { type: "kill", mob: "dew_slime", kind: "dew_slime", lvl: 3 }, ctx);
+  ok(npcTasks(a, h, "alzi").find((x) => x.id === "npc_a01")!.state === "complete", "выполнено — «готово к сдаче»");
+  applyOverride("btask", "npc_a01", { giver: "leyr" }); ok(npcTasks(a, h, "leyr").some((x) => x.id === "npc_a01") && !npcTasks(a, h, "alzi").some((x) => x.id === "npc_a01"), "смена «кто выдаёт» в админке переносит задание");
+  applyOverride("btask", "npc_a01", { giver: "" }); ok(takeAt(BTASKS["npc_a01"]) === "", "без выдающего — в окне «Задания»"); applyOverride("btask", "npc_a01", null);
+  ok(!npcTasks(a, h, "alzi").some((x) => BTASKS[x.id].cat === "daily" || BTASKS[x.id].cat === "ach"), "периодические и достижения — не у персонажей (по умолчанию)");
+}
+// зачарования и чёрные вещи: условия-ярусы и скрытые достижения
+{ const { a, h } = mk(); h.lvl = 20; boardRefresh(a, h, ctx); const b = boardOf(a);
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 20, ench: 3 }, ctx); ok(b.p["ach_ench_kill_e3"] === 1 && !(b.p["ach_ench_kill_e1"] > 0), "ярус врага: e3 — только «Странный»");
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 20, ench: 6, party: 1, players: 1 }, ctx); ok(b.p["ach_x_black_kill"] === 1, "чёрный враг — скрытое засчитано");
+  boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 20, ench: 2, cursed: 1 }, ctx); ok(b.p["ach_x_ench_combo_mob"] === 1, "проклятый + зачарованный — «двойная метка»");
+  boardEvent(a, h, { type: "salvage", n: 2, items: [{ ench: 0 }, { ench: 6 }] }, ctx); ok(b.p["ach_x_black_salvage"] === 1 && b.p["ach_ench_salvage"] === 1, "разбор считает только зачарованные вещи из списка");
+  boardEvent(a, h, { type: "upgrade", up: 3, ench: 4 }, ctx); ok(b.p["ach_x_ench_upg_hi"] === 1, "улучшение легендарной");
+  boardEvent(a, h, { type: "upgrade", up: 3, ench: 0 }, ctx); ok(b.p["ach_x_ench_upg_hi"] === 1, "обычное улучшение — не считается");
+  for (const e of [1, 2, 3, 4, 5, 6]) a.inv.push({ uid: "e" + e, id: "fly_legs", ench: e } as any);
+  boardRefresh(a, h, ctx); const st: any = boardClient(a, h);
+  for (const id of ["ach_x_ench_t1", "ach_x_ench_t5", "ach_x_ench_all6", "ach_x_ench6"]) ok(b.p[id] >= 1 && st.reveal[id], `скрытое «${BTASKS[id].title}» открыто`);
+  ok(!st.reveal["ach_x_black_three"], "«Три тени» ещё скрыто (одна чёрная вещь)");
+  const d = boardDefs().tasks.filter((t: any) => /^ach_x_(ench|black)/.test(t.id)); ok(d.length >= 30 && d.every((t: any) => t.t === "???"), `скрытых про чары и чёрные вещи: ${d.length}, все «???»`);
+  const { a: a2, h: h2 } = mk(); h2.lvl = 20; a2.inv.push({ uid: "z", id: "fly_legs", ench: 5 } as any); boardRefresh(a2, h2, ctx);
+  ok((boardOf(a2).pre["ach_x_ench_t5"] || 0) === 1 && !boardClient(a2, h2).reveal["ach_x_ench_t5"], "вещь была до запуска — скрытое не открывается и не награждает");
 }
 // админка
 { ok(typeof validatePatch("btask", "hunt_ice_crescent_wolf", { "n.1": 5 }) === "string", "ступени должны расти");
@@ -113,8 +164,9 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
   applyOverride("btask", "hunt_ice_crescent_wolf", null); ok(BTASKS["hunt_ice_crescent_wolf"].n[0] === 10, "сброс правки");
   ok(typeof validatePatch("board", "main", { "bands.2": 3 }) === "string", "полосы уровней должны расти");
   ok(typeof validatePatch("board", "main", { tz: "Mars/Base" }) === "string", "неизвестный пояс — отказ");
-  const q = validatePatch("board", "main", { capPct: 20, "xp.1.2": 6 }); applyOverride("board", "main", q); ok(BOARD_CFG.capPct === 20 && BOARD_CFG.xp[1][2] === 6, "таблица опыта правится");
-  applyOverride("board", "main", null); ok(BOARD_CFG.capPct === 30 && BOARD_CFG.xp[1][2] === 7, "сброс таблицы");
+  const q = validatePatch("board", "main", { "caps.daily": 8, "xp.1.2": 6, "xpMul.weekly": 0.5 }); applyOverride("board", "main", q); ok(BOARD_CFG.caps.daily === 8 && BOARD_CFG.xp[1][2] === 6 && BOARD_CFG.xpMul.weekly === 0.5, "таблица, потолки и множители правятся");
+  applyOverride("board", "main", null); ok(BOARD_CFG.caps.daily === 10 && BOARD_CFG.xp[1][2] === 7, "сброс таблицы");
+  ok(typeof validatePatch("board", "main", { dailyMin: 7, dailyMax: 5 }) === "string", "пул: «от» больше «до» — отказ");
   ok(currentValues("board", "main")["cats.hard"] === true, "значения для панели");
   applyOverride("board", "main", { "cats.hunt": false }); const { a, h } = mk(); h.lvl = 6; boardRefresh(a, h, ctx);
   boardOf(a).sel.hunt = ["hunt_ice_crescent_wolf"]; ok(!boardTake(a, h, "hunt_ice_crescent_wolf", true).ok, "вкладка выключена — взять нельзя"); applyOverride("board", "main", null);

@@ -132,7 +132,21 @@ export class WorldMap {
       ctx.fillStyle = '#4ade80'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.font = '11px sans-serif'; ctx.fillStyle = '#bbf7d0'; ctx.textAlign = 'center'; ctx.fillText(m.name, x, y - 10); ctx.font = '14px sans-serif';
     }
-    const hu = st.hunt; // охота из Бестиария: место обитания (регион) + текущая цель 🎯
+    const TG = st.targets || []; // все отслеживаемые цели (охота из Бестиария + задания): цвет и номер — как в трекере
+    if (TG.length) { ctx.lineWidth = 2; const hus = st.hunts || [];
+      hus.forEach((h, i) => { const c = TG.find((t) => t.kind === 'hunt' && t.id === h.id)?.c || '#4ade80'; // места обитания — пунктир цвета цели
+        for (const hm of mobHomes(h.id).filter((x) => x.world === w)) { const [x, y] = this.toScreen(hm.x, hm.y); if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue; ctx.strokeStyle = c; ctx.globalAlpha = 0.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(x, y, Math.max(8, 600 * this.k), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; } });
+      const placed = []; let shown = 0;
+      for (const t of TG) { if (t.world !== w) continue; let [x, y] = this.toScreen(t.x, t.y); if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+        for (let k = 0; k < 6 && placed.some(([px, py]) => Math.hypot(px - x, py - y) < 22); k++) { x += 14 * Math.cos(k * 2.1); y += 14 * Math.sin(k * 2.1); } // соседние цели не слипаются
+        placed.push([x, y]); shown++;
+        ctx.fillStyle = 'rgba(8,6,16,.9)'; ctx.strokeStyle = t.c || '#4ade80'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = t.c || '#4ade80'; ctx.fillText(String(t.n), x, y + 0.5);
+        if (this.k > 0.05) { const tx = String(t.label || '').replace(/^🎯 /, ''), tw = ctx.measureText(tx).width + 8; ctx.font = '11px sans-serif'; ctx.fillStyle = 'rgba(10,6,20,.8)'; ctx.fillRect(x - tw / 2, y + 12, tw, 14); ctx.fillStyle = '#e5e7eb'; ctx.fillText(tx, x, y + 19.5); }
+        ctx.font = '14px sans-serif'; ctx.textBaseline = 'alphabetic'; }
+      this.stats_hunt = { targets: TG.length, shown };
+    }
+    const hu = TG.length ? null : st.hunt; // одна охота без списка целей (старый вид)
     if (hu) { const hs = mobHomes(hu.id).filter((h) => h.world === w); ctx.lineWidth = 2;
       for (const h of hs) { const [x, y] = this.toScreen(h.x, h.y); if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue; ctx.strokeStyle = 'rgba(74,222,128,.55)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(x, y, Math.max(8, 600 * this.k), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
       const t = hu.target; if (t && t.world === w) { const [x, y] = this.toScreen(t.x, t.y); ctx.fillStyle = 'rgba(10,30,15,.85)'; ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 12 + 2 * Math.sin(performance.now() / 220), 0, Math.PI * 2); ctx.fill(); ctx.stroke();

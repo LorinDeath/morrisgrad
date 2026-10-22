@@ -43,7 +43,7 @@ import { dnClient, DN_CFG, dnAt, dnMinutes } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
-import { BOARD_CFG, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, BTASKS } from "./board";
+import { BOARD_CFG, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, takeAt, npcTasks, BTASKS } from "./board";
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -575,6 +575,7 @@ export class MetaService {
         const now = Date.now(); if (now - ((ms as any).bclAt || 0) < 150) return true; (ms as any).bclAt = now;
         const bid = String(msg.id).slice(0, 64);
         if (BTASKS[bid] && atBoard(BTASKS[bid]) && !nearBoard("nb", session.world || "hellfire", session.x, session.y)) { this.send(ws, { type: "toast_error", message: "Этот заказ сдаётся у Доски объявлений (Аринар, у портала)" }); return true; }
+        { const at = BTASKS[bid] ? takeAt(BTASKS[bid]) : ""; if (at && at !== "board" && !this.nearNpc(session, at)) { this.send(ws, { type: "toast_error", message: `Личное задание сдаётся персонажу: ${NPCS[at]?.name || at}` }); return true; } }
         const r = boardClaim(a, h, bid, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
         if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err, code: "MC-B03" }); return true; }
         this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id });
@@ -582,8 +583,13 @@ export class MetaService {
         if (r.levelUps) this.refreshZonePlayer(session);
         return true;
       }
-      case "board_take": { if (!nearBoard("nb", session.world || "hellfire", session.x, session.y)) { this.send(ws, { type: "toast_error", message: "Заказы берут и отменяют у Доски объявлений (Аринар, у портала)" }); return true; }
-        const r = boardTake(a, h, String(msg.id).slice(0, 64), !!msg.on); if (r.ok) this.push(ws, session, r.msg ? { toast: r.msg } : {}); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
+      case "board_take": {
+        const tid = String(msg.id).slice(0, 64), at = BTASKS[tid] ? takeAt(BTASKS[tid]) : "board";
+        if (at === "board" && !nearBoard("nb", session.world || "hellfire", session.x, session.y)) { this.send(ws, { type: "toast_error", message: "Заказы берут и отменяют у Доски объявлений (Аринар, у портала)" }); return true; }
+        if (at && at !== "board" && !this.nearNpc(session, at)) { this.send(ws, { type: "toast_error", message: `Личные задания берут у персонажа: ${NPCS[at]?.name || at}` }); return true; }
+        const r = boardTake(a, h, tid, !!msg.on);
+        if (r.ok && msg.on && BTASKS[tid]?.ev === "reach") this.bev(session, { type: "reach", world: session.world || "hellfire" }); // «дойти до …» — уже там (как у квестов)
+        if (r.ok) this.push(ws, session, r.msg ? { toast: r.msg } : {}); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
       case "board_pin": { const r = boardPin(a, String(msg.id).slice(0, 64), !!msg.on); if (r.ok) this.push(ws, session); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
       case "board_tut": { const r = boardTut(a, String(msg.mode)); if (r.ok) this.push(ws, session); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
       case "board_ui": { // клиентские «ui»-события: только шаги обучения (без ценности), имя — из белого списка
@@ -617,7 +623,7 @@ export class MetaService {
         const own = a.inv.find((i) => i.uid === String(msg.uid));
         if (own?.hero && own.hero !== cls) { this.send(ws, { type: "toast_error", message: "Это предмет другого героя" }); return true; }
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
-        const sr: any = salvage(a, heroes, String(msg.uid)); if (sr.ok) this.bev(session, { type: "salvage", n: 1 });
+        const sr: any = salvage(a, heroes, String(msg.uid)); if (sr.ok) this.bev(session, { type: "salvage", n: 1, items: own ? [{ ench: own.ench | 0, cursed: !!own.cursed }] : [] });
         reply(sr); return true;
       }
       case "item_lock": { // закрепление экземпляра (флаг в D1: item_instances.locked)
@@ -628,7 +634,7 @@ export class MetaService {
         if (!this.nearNpc(session, "petr")) { this.send(ws, { type: "toast_error", message: "Улучшение — у Петра (хаб, юго-запад)" }); return true; }
         const now = Date.now(); if (now - ((ms as any).upgAt || 0) < 250) return true; (ms as any).upgAt = now;
         const r: any = upgradeItem(a, cls || null, String(msg.uid), msg.at == null ? undefined : Number(msg.at));
-        if (r.ok) { this.store.audit(ms.pkey, "upgrade", `upg:${msg.uid}:${r.up}`, { uid: msg.uid, up: r.up, cost: r.cost }); this.bev(session, { type: "upgrade", up: r.up | 0 }); }
+        if (r.ok) { this.store.audit(ms.pkey, "upgrade", `upg:${msg.uid}:${r.up}`, { uid: msg.uid, up: r.up, cost: r.cost }); const ui: any = a.inv.find((i) => i.uid === String(msg.uid)); this.bev(session, { type: "upgrade", up: r.up | 0, ench: ui?.ench | 0, cursed: !!ui?.cursed }); }
         this.send(ws, { type: "upgrade_result", ok: !!r.ok, uid: String(msg.uid), up: r.up, err: r.err });
         reply(r); if (r.ok) this.refreshZonePlayer(session); return true;
       }
@@ -639,7 +645,9 @@ export class MetaService {
       case "salvage_many": {
         const heroes = HERO_IDS.map((id) => this.store.hero(ms.pkey, id));
         const uids = Array.isArray(msg.uids) ? msg.uids.slice(0, 500).map(String) : [];
-        const sr: any = salvageMany(a, heroes, cls || null, String(msg.rarity), uids); if (sr.ok && sr.n) this.bev(session, { type: "salvage", n: sr.n });
+        const was = new Map(a.inv.map((i) => [i.uid, { ench: (i as any).ench | 0, cursed: !!i.cursed }]));
+        const sr: any = salvageMany(a, heroes, cls || null, String(msg.rarity), uids);
+        if (sr.ok && sr.n) { const left = new Set(a.inv.map((i) => i.uid)); this.bev(session, { type: "salvage", n: sr.n, items: [...was].filter(([u]) => !left.has(u)).map(([, v]) => v) }); }
         reply(sr); return true;
       }
       case "craft": {
@@ -677,13 +685,17 @@ export class MetaService {
           return { id: q.id, state, reason: state === "locked" ? questLockReason(a, q, h) : state === "elsewhere" ? `берётся у: ${NPCS[q.npc]?.name || q.npc}` : undefined, p: act?.p };
         }).filter((x) => x.state !== "elsewhere" || a.quests.done.includes(x.id));
         this.push(ws, session);
-        this.send(ws, { type: "npc_dialog", npc, quests });
+        this.send(ws, { type: "npc_dialog", npc, quests, tasks: npcTasks(a, h, npc) }); // личные задания персонажа (доска заданий, поле «кто выдаёт»)
         return true;
       }
       case "mob_track": { // «Отслеживать» из Бестиария: { id } или { id: null } — снять
         const id = msg.id ? String(msg.id) : null;
         if (id && !(ZONE_MOBS as any)[id] && !(ZONE_MOBS as any)[baseOf(id)]) { this.send(ws, { type: "toast_error", message: "Нет такого существа" }); return true; }
-        a.mobTrack = id; if (id) this.bev(session, { type: "track" }); reply({ ok: true }); return true;
+        // несколько целей: { id, on } — добавить/убрать; { id } (старый клиент) — одна цель; { id: null } — снять все. Лимит — админка «📋 Доска» trackMax
+        const max = Math.max(1, Math.min(30, (BOARD_CFG.trackMax | 0) || 10));
+        let L: string[] = Array.isArray((a as any).mobTracks) ? (a as any).mobTracks.filter((x: any) => typeof x === "string") : a.mobTrack ? [a.mobTrack] : [];
+        if (!id) L = []; else if (msg.on === undefined) L = [id]; else if (msg.on) { if (!L.includes(id)) { if (L.length >= max) { this.send(ws, { type: "toast_error", message: `Отслеживать можно не больше ${max} врагов` }); this.push(ws, session); return true; } L.push(id); } } else L = L.filter((x) => x !== id);
+        (a as any).mobTracks = L; a.mobTrack = L[0] || null; if (id && msg.on !== false) this.bev(session, { type: "track" }); reply({ ok: true }); return true;
       }
       case "quest_track": { // отслеживание: { id, on } или { all: true, on }
         const id = msg.all ? null : String(msg.id ?? "");
