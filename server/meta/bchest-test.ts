@@ -1,8 +1,9 @@
 // 🎁 Сундуки наград доски: ранг → ярус, уровень вещей ±spread, потолок редкости/зачарования, количество по разделам,
 // выдача за сданное задание, хранилище (полно — задание не сдаётся), открытие (вещи внутри, переживают перезаход),
 // забрать по одной/всё при полной сумке, разобрать и надеть — проверяет сервер.
-import { BCHEST, BC_TIERS, BC_CATS, BC_RARS, BC_RANKS, rarIdx, chestOdds, rollItems, countOf, rarOdds, bchestPreview, artOf, lvlWindow, chestPool, cursePctOf, tierOfRank, BC_ENCH_CAP, enchCapOf, rankCursePct } from "./boardChestCfg";
-import { ITEMS } from "./defs";
+import { BCHEST, BC_TIERS, BC_CATS, BC_RARS, BC_RANKS, rarIdx, chestOdds, rollItems, countOf, rarOdds, bchestPreview, artOf, lvlWindow, chestPool, cursePctOf, tierOfRank, BC_ENCH_CAP, enchCapOf, rankCursePct, BC_CURSE_MAX, BC_CURSE_OLD, migrateBchestPatch } from "./boardChestCfg";
+import { validatePatch, applyOverride } from "./overrides";
+import { ITEMS, salvageYield } from "./defs";
 import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
 import { BTASKS, boardRefresh, boardOf, boardClaim, makeRoll } from "./board";
 import { newAccount, newHero, fixAccount } from "./profile";
@@ -37,7 +38,8 @@ ok(chestOdds("black", 25, "daily").rar.mythic > 0, "чёрный L25: мифич
   for (let k = 0; k < 4000; k++) for (const x of rollItems("black", 22, "monthly", rnd)) { n++; ids.add(x.id); if (x.c) big++; if (x.c && x.e === 6) bc++; if (x.c && !x.e && rarIdx(ITEM_BY_ID[x.id].rarity) < rarIdx("epic")) lowC++; if (x.b) { blk++; bv.push(x.b); } }
   const cp = cursePctOf("black"); ok(Math.abs(big / n * 100 - cp) < 2, `чёрный: проклятых ${(big / n * 100).toFixed(1)}% ≈ ${cp.toFixed(1)}% (общая доля ${chestOdds("black", 22, "daily").base.cursePct}%, шансы × ${BCHEST.tiers.black.curseMult})`);
   { const k = CURSE.mobDropMult; CURSE.mobDropMult = 1; const hi = cursePctOf("black"), lo = cursePctOf("uncommon"); CURSE.mobDropMult = k; ok(hi < 100 && hi > cp && lo < hi, `админ поднял общую долю проклятых до 50 % — сундуки следуют, без 100 %: чёрный ${hi.toFixed(1)}%, добротный ${lo.toFixed(1)}%`); }
-  ok(bc > 0, `чёрный: чёрные проклятые (☠ + ${ENCH.tiers[5].name}) выпадают: ${bc} из ${n}`);
+  ok(bc === 0, `обычный чёрный: чёрных проклятых (☠ + ${ENCH.tiers[5].name}) нет: ${bc} из ${n}`);
+  { let bc2 = 0, n2 = 0; for (let k = 0; k < 2000; k++) for (const x of rollItems("black", 22, "monthly", rnd, true)) { n2++; if (x.c && x.e === 6) bc2++; } ok(bc2 > 0, `чёрный проклятый: чёрные проклятые (☠ + ${ENCH.tiers[5].name}) выпадают: ${bc2} из ${n2}`); }
   ok(lowC > 0, `чёрный: проклятые низких редкостей тоже: ${lowC}`);
   const T = BCHEST.tiers.black; ok(Math.abs(blk / n * 100 - T.blkPct) < 1.5 && Math.min(...bv) >= T.blkMin && Math.max(...bv) <= T.blkMax, `чёрный: очернено ${(blk / n * 100).toFixed(1)}% ≈ ${T.blkPct}%, −${Math.min(...bv)}…${Math.max(...bv)}%`);
   const med = bv.sort((x, y) => x - y)[bv.length >> 1]; ok(med < (T.blkMin + T.blkMax) / 2, `очернение чаще малое: медиана ${med}%`);
@@ -89,7 +91,7 @@ while (A.inv.filter((i: any) => i.hero === "warrior").length < 117) A.inv.push({
   const r2: any = chestTake(A, "warrior", big.id, null, true); ok(!r2.ok && /Сумка полна/.test(r2.err), "сумка полна — ошибка, вещи на месте");
   A = relog(A); ok(chestsOf(A).list.find((c: any) => c.id === big.id)?.items?.length === n0 - 3, "остаток пережил перезаход"); }
 // 5) разобрать из сундука (сумка полна — можно), надеть (нужно место и уровень)
-{ const c = chestsOf(A).list.find((c: any) => c.id === big.id)!; const x = c.items![0]; const res0 = JSON.stringify(A.res);
+{ const c = chestsOf(A).list.find((c: any) => c.id === big.id)!; const x = c.items!.find((y) => Object.keys(salvageYield(y.id)).length) || c.items![0]; const res0 = JSON.stringify(A.res); // у части вещей разбор пуст (данные) — берётся вещь с выходом
   const r: any = chestSalvage(A, "warrior", big.id, x.lid); ok(r.ok && JSON.stringify(A.res) !== res0 && !c.items!.some((y) => y.lid === x.lid), "разобрано из сундука, материалы начислены: " + JSON.stringify(r.got));
   ok(!chestSalvage(A, "warrior", big.id, x.lid).ok, "повторно ту же вещь не разобрать");
   ok(!chestSalvage(A, "warrior", big.id, 999).ok && !chestTake(A, "warrior", big.id, 999, false).ok, "несуществующая вещь — отказ"); }
@@ -118,25 +120,44 @@ ok(BC_RANKS.every((r) => { const t = tierOfRank(r)!; return artOf(t, r) === BCHE
 // 9) потолок зачарования по ярусу сундука (1:1 с ярусами ✦) и ☠ вариант каждого яруса
 ok(BC_TIERS.join() === "common,uncommon,rare,strange,legendary,divine,black" && BC_TIERS.every((t, i) => BC_ENCH_CAP[t] === i && enchCapOf(t) === i), "7 ярусов, потолок ✦ = 0…6: " + BC_TIERS.map((t) => `${t}:${enchCapOf(t)}`).join(" "));
 ok(BC_TIERS.slice(1).every((t, i) => ENCH.tiers[enchCapOf(t) - 1].name === ["Необычный", "Редкий", "Странный", "Легендарный", "Божественный", "Чёрный"][i]), "потолок = ярусы зачарования: Необычный … Чёрный");
-{ const per: Record<string, { n: number; e: number; over: number; c: number; bc: number }> = {};
-  for (const t of BC_TIERS) for (const cur of [false, true]) { const k = t + (cur ? "☠" : ""), r = (per[k] = { n: 0, e: 0, over: 0, c: 0, bc: 0 });
-    for (let i = 0; i < 1500; i++) for (const x of rollItems(t, 22, "weekly", rnd, cur)) { r.n++; if (x.e) r.e++; if ((x.e || 0) > enchCapOf(t)) r.over++; if (x.c) r.c++; if (x.c && x.e === 6) r.bc++; } }
+{ const per: Record<string, { n: number; e: number; over: number; c: number; bc: number; e6: number }> = {};
+  for (const t of BC_TIERS) for (const cur of [false, true]) { const k = t + (cur ? "☠" : ""), r = (per[k] = { n: 0, e: 0, over: 0, c: 0, bc: 0, e6: 0 });
+    for (let i = 0; i < 1500; i++) for (const x of rollItems(t, 22, "weekly", rnd, cur)) { r.n++; if (x.e) r.e++; if ((x.e || 0) > enchCapOf(t)) r.over++; if (x.c) r.c++; if (x.c && x.e === 6) r.bc++; if (x.e === 6) r.e6++; } }
   ok(per.common.e === 0 && per["common☠"].e === 0, `простой и проклятый простой: 0 зачарованных из ${per.common.n} + ${per["common☠"].n}`);
   ok(Object.values(per).every((r) => r.over === 0), "выше потолка яруса — 0 вещей во всех 14 вариантах");
   ok(BC_TIERS.slice(1).every((t) => per[t].e > 0), "у ярусов с потолком ≥ 1 зачарованные выпадают");
   ok(BC_TIERS.every((t) => per[t + "☠"].c > per[t].c * 1.5 || per[t].c === 0 && per[t + "☠"].c > 0), "☠ вариант: проклятых заметно больше: " + BC_TIERS.map((t) => `${t} ${(per[t].c / per[t].n * 100).toFixed(1)}→${(per[t + "☠"].c / per[t + "☠"].n * 100).toFixed(1)}%`).join(", "));
-  ok(BC_TIERS.every((t) => t === "black" || per[t].bc + per[t + "☠"].bc === 0) && per["black☠"].bc > per.black.bc, `чёрные проклятые (☠+✦6) — только в «Чёрном» (☠ ${per["black☠"].bc} > обычный ${per.black.bc})`);
+  ok(BC_TIERS.every((t) => t === "black" || per[t].bc + per[t + "☠"].bc === 0) && per["black☠"].bc > 0 && per.black.bc === 0, `чёрные проклятые (☠+✦6) — только в «Чёрном проклятом» (☠ ${per["black☠"].bc}, обычный ${per.black.bc})`);
+  ok(per.black.e6 > 0 && enchCapOf("black") === 6, `обычный «Чёрный»: чары до «Чёрный» (✦6) есть — ${per.black.e6} из ${per.black.n}, без ☠`);
+  ok(chestOdds("black", 22, "weekly").blackCursed === 0 && chestOdds("black", 22, "weekly", true).blackCursed > 0, "шансы: ☠+✦6 у обычного «Чёрного» 0 %, у проклятого > 0");
   ok(BC_TIERS.every((t) => cursePctOf(t, true) > cursePctOf(t)), "формула: ☠ вариант > обычного для всех ярусов"); }
-// бросок ☠ по рангу: шанс из админки, SS — всегда
-ok(rankCursePct("F") === 0 && rankCursePct("SS") === 100 && BC_RANKS.every((r, i) => i === 0 || rankCursePct(r) >= rankCursePct(BC_RANKS[i - 1])), "шанс ☠ растёт с рангом, F 0 %, SS 100 %: " + BC_RANKS.map((r) => `${r} ${rankCursePct(r)}%`).join(" "));
-{ const A2: any = newAccount(); const n0 = 3000; let cu = 0; BCHEST.maxStore = 99999;
-  for (let i = 0; i < n0; i++) { const c = grantChest(A2, "warrior", "S", 10, "daily", "t", rnd)!; if (c.cur) cu++; }
-  ok(Math.abs(cu / n0 * 100 - rankCursePct("S")) < 3, `ранг S: проклятых сундуков ${(cu / n0 * 100).toFixed(1)}% ≈ ${rankCursePct("S")}%`);
-  const ss = grantChest(A2, "warrior", "SS", 10, "daily", "t", rnd)!; ok(ss.tier === "black" && ss.cur === 1, "SS → «Чёрный проклятый сундук»");
-  const f0 = grantChest(A2, "warrior", "F", 10, "daily", "t", rnd)!; ok(f0.tier === "common" && !f0.cur, "F → простой, не проклятый");
+// бросок ☠ по рангу: по умолчанию F 30 … SS 2 (низкий ранг — чаще), потолок 30 % для любого ранга, 100 % не бывает
+const RC0: Record<string, number> = { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 };
+ok(BC_CURSE_MAX === 30 && BC_RANKS.every((r) => rankCursePct(r) === RC0[r]), "шанс ☠ по рангу: " + BC_RANKS.map((r) => `${r} ${rankCursePct(r)}%`).join(" "));
+ok(BC_RANKS.every((r, i) => i === 0 || rankCursePct(r) <= rankCursePct(BC_RANKS[i - 1])) && BC_RANKS.every((r) => rankCursePct(r) <= BC_CURSE_MAX), "шанс ☠ падает с рангом и не выше 30 %");
+{ const A2: any = newAccount(); BCHEST.maxStore = 99999;
+  for (const [rk, n0] of [["F", 4000], ["S", 4000], ["SS", 6000]] as [string, number][]) { let cu = 0, bl = 0;
+    for (let i = 0; i < n0; i++) { const c = grantChest(A2, "warrior", rk, 10, "daily", "t", rnd)!; if (c.cur) cu++; if (c.tier === "black") bl++; }
+    const tol = rk === "SS" ? 1 : 2.5;
+    ok(Math.abs(cu / n0 * 100 - RC0[rk]) < tol && (rk !== "SS" || bl === n0), `ранг ${rk}: проклятых сундуков ${(cu / n0 * 100).toFixed(2)}% ≈ ${RC0[rk]}%${rk === "SS" ? ` (все ${bl} — ярус «Чёрный»)` : ""}`);
+    A2.chests.list = []; }
+  let ss: any = null; for (let i = 0; i < 400 && !ss; i++) { const c = grantChest(A2, "warrior", "SS", 10, "daily", "t", rnd)!; if (!c.cur) ss = c; }
+  ok(ss && ss.tier === "black" && !ss.cur, "SS → обычно обычный «Чёрный сундук»");
+  const ssc = grantChest(A2, "warrior", "SS", 10, "daily", "t", rnd, true)!; ok(ssc.tier === "black" && ssc.cur === 1, "SS ☠ (2 %) → «Чёрный проклятый сундук»");
+  const f0 = grantChest(A2, "warrior", "F", 10, "daily", "t", rnd, false)!; ok(f0.tier === "common" && !f0.cur, "F → простой (без ☠ при броске мимо)");
   const fc = grantChest(A2, "warrior", "F", 10, "daily", "t", rnd, true)!; ok(fc.cur === 1, "принудительно ☠ (dev)");
-  { const k = BCHEST.rankCurse.D; BCHEST.rankCurse.D = 100; ok(grantChest(A2, "warrior", "D", 10, "daily", "t", rnd)!.cur === 1, "админка: шанс ☠ ранга D = 100 %"); BCHEST.rankCurse.D = k; }
-  const v = chestList(A2, "warrior").list.find((x: any) => x.id === ss.id); ok(v && v.cur && v.dark && v.art === "cursed_mythic" && /проклятый/i.test(v.name) && v.odds?.enchCap === 6, `вид ☠ чёрного: ${v?.name} [${v?.art}] ✦≤${v?.odds?.enchCap}`);
+  { const k = BCHEST.rankCurse.D; BCHEST.rankCurse.D = 100; let cu = 0; const A4: any = newAccount(); for (let i = 0; i < 3000; i++) if (grantChest(A4, "warrior", "D", 10, "daily", "t", rnd)!.cur) cu++;
+    ok(rankCursePct("D") === 30 && Math.abs(cu / 3000 * 100 - 30) < 3, `сервер: в памяти D = 100 → режется до 30 % (${(cu / 30).toFixed(1)}%)`); BCHEST.rankCurse.D = k; }
+  // админка: больше 30 не сохраняется; сохранённые старые строки D1 мигрируются
+  ok(typeof validatePatch("bchest", "main", { "rankCurse.SS": 100 }) === "string" && typeof validatePatch("bchest", "main", { "rankCurse.F": 31 }) === "string", "админка: шанс ☠ > 30 % отклоняется: " + validatePatch("bchest", "main", { "rankCurse.SS": 100 }));
+  ok(typeof validatePatch("bchest", "main", { "rankCurse.SS": 30 }) !== "string", "админка: 30 % — можно");
+  { const old: any = Object.fromEntries(BC_RANKS.map((r) => [`rankCurse.${r}`, BC_CURSE_OLD[r]])); old["rankCurse.B"] = 55; old["rankCurse.C"] = 7; old["count.daily.max"] = 4;
+    const mg = migrateBchestPatch(old), p = validatePatch("bchest", "main", mg.patch);
+    ok(typeof p !== "string", "миграция: старая строка D1 проходит проверку: " + mg.changed.join("; "));
+    applyOverride("bchest", "main", p); ok(BC_RANKS.every((r) => r === "B" ? BCHEST.rankCurse.B === 30 : r === "C" ? BCHEST.rankCurse.C === 7 : BCHEST.rankCurse[r] === RC0[r]) && BCHEST.count.daily.max === 4,
+      "миграция: прежние значения по умолчанию → новые, 55 → 30, своя правка 7 и другие поля сохранены: " + BC_RANKS.map((r) => `${r} ${BCHEST.rankCurse[r]}`).join(" "));
+    applyOverride("bchest", "main", null); ok(BCHEST.rankCurse.SS === 2 && BCHEST.rankCurse.B === 12, "сброс правки → значения по умолчанию"); }
+  const v = chestList(A2).list.find((x: any) => x.id === ssc.id); ok(v && v.cur && v.dark && v.art === "cursed_mythic" && /проклятый/i.test(v.name) && v.odds?.enchCap === 6, `вид ☠ чёрного: ${v?.name} [${v?.art}] ✦≤${v?.odds?.enchCap}`);
   const o = chestOpen(A2, "warrior", fc.id) as any; ok(o.ok && o.chest.items.every((x: any) => !x.e), "проклятый простой открыт: без чар"); }
 // старые сундуки в хранилище: ярус «cursed» → проклятый божественный, «black» → чёрный проклятый
 { const A3: any = newAccount(); A3.chests = { seq: 3, list: [{ id: 1, tier: "cursed", L: 5, cat: "daily", rank: "S", hero: "warrior", src: "x", at: 1 }, { id: 2, tier: "black", L: 5, cat: "daily", rank: "SS", hero: "warrior", src: "x", at: 1 }, { id: 3, tier: "rare", L: 5, cat: "daily", rank: "C", hero: "warrior", src: "x", at: 1 }] };

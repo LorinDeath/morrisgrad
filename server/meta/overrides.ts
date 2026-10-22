@@ -26,7 +26,7 @@ import { ENCH, ENCH_N } from "./enchant";
 // шанс проклятого моба, % — живёт в ZONE_GEN.cursedPct (там его читают зона и тесты); правится во вкладке «☠ Проклятие» (curse.cursedPct)
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
-import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, bchestErr } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, BC_CURSE_MAX, bchestErr } from "./boardChestCfg";
 import { RARITIES as RAR_NAMES } from "./shared";
 import { UPG, UPG_ORDER } from "./upgrade";
 import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, RANKS, RANK_CATS, BONUS_NAMES, reindexBtasks, type Cat } from "./board";
@@ -354,8 +354,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("maxItems", "Потолок вещей в одном сундуке", 1, 200, "int"),
     { path: "_h_bc1", label: "Ранг задания → сундук", t: "hdr" },
     ...BC_RANKS.map((r): Field => ({ path: `rankTier.${r}`, label: `Ранг ${r}`, t: "enum", opts: [...BC_TIERS], optn: Object.fromEntries(BC_TIERS.map((t) => [t, BCHEST.tiers[t].name])) })),
-    { path: "_h_bc1c", label: "Ранг → шанс, что сундук — ПРОКЛЯТЫЙ вариант своего яруса (тот же потолок чар, больше проклятых вещей), %", t: "hdr" },
-    ...BC_RANKS.map((r): Field => N(`rankCurse.${r}`, `Ранг ${r}: проклятый сундук, %`, 0, 100)),
+    { path: "_h_bc1c", label: "Ранг → шанс, что сундук — ПРОКЛЯТЫЙ вариант своего яруса (тот же потолок чар, больше проклятых вещей), %; не больше 30 %, чёрные проклятые вещи — только в «Чёрном проклятом»", t: "hdr" },
+    ...BC_RANKS.map((r): Field => N(`rankCurse.${r}`, `Ранг ${r}: проклятый сундук, % (не больше ${BC_CURSE_MAX})`, 0, BC_CURSE_MAX)),
     { path: "_h_bc1a", label: "Вид сундука по рангу — только если нужно отличие от яруса (по умолчанию «как у яруса»: вид = содержимое)", t: "hdr" },
     ...BC_RANKS.map((r): Field => ({ path: `rankArt.${r}`, label: `Ранг ${r} — вид`, t: "enum", ...{ opts: ["", ...BC_ART], optn: { "": "как у яруса", ...Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) } } })),
     { path: "_h_bc2", label: "Сколько вещей (от/до) по разделам", t: "hdr" },

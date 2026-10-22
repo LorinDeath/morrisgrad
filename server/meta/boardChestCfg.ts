@@ -15,6 +15,20 @@ export type BcTier = (typeof BC_TIERS)[number];
 export const BC_ENCH_CAP: Record<BcTier, number> = { common: 0, uncommon: 1, rare: 2, strange: 3, legendary: 4, divine: 5, black: 6 };
 export const BC_RANKS = ["F", "E", "D", "C", "B", "A", "S", "SS"] as const;
 export const BC_CATS = ["daily", "weekly", "monthly", "hard", "hunt"] as const;
+/** жёсткий потолок шанса проклятого варианта сундука для любого ранга, % (сервер режет и сохранённые правки; админка не даёт больше) */
+export const BC_CURSE_MAX = 30;
+/** прежние значения rankCurse по умолчанию (до инверсии) — сохранённые с формой админки строки сбрасываются на новые значения */
+export const BC_CURSE_OLD: Record<string, number> = { F: 0, E: 2, D: 4, C: 6, B: 9, A: 14, S: 25, SS: 100 };
+/** миграция сохранённой правки «Сундуки» (D1 game_overrides) при загрузке: старое значение по умолчанию — убрать (действует новое),
+ *  любое другое выше потолка — до BC_CURSE_MAX. Возвращает новую правку и список изменений (для журнала). */
+export function migrateBchestPatch(patch: any): { patch: any; changed: string[] } {
+  const changed: string[] = []; if (!patch || typeof patch !== "object") return { patch, changed };
+  const out: any = { ...patch };
+  for (const [k, v] of Object.entries(patch)) { const m = /^rankCurse\.(\w+)$/.exec(k); if (!m) continue; const n = Number(v);
+    if (BC_CURSE_OLD[m[1]] === n && n !== BCHEST.rankCurse[m[1]]) { delete out[k]; changed.push(`${k}: ${n} → по умолчанию`); }
+    else if (n > BC_CURSE_MAX) { out[k] = BC_CURSE_MAX; changed.push(`${k}: ${n} → ${BC_CURSE_MAX}`); } }
+  return { patch: out, changed };
+}
 /** ключи анимации/иконок художника (/workspace/art/chests → public/mc/chests): редкость или cursed_<редкость> */
 export const BC_ART = ["common", "uncommon", "rare", "epic", "legendary", "mythic", "cursed_common", "cursed_uncommon", "cursed_rare", "cursed_epic", "cursed_legendary", "cursed_mythic"];
 // ОСНОВА — ОБЩИЕ таблицы игры (не таблицы конкретных мобов):
@@ -43,8 +57,9 @@ export const BCHEST: {
   maxStore: 100,    // сколько неоткрытых/недобранных сундуков хранится; полон — задание с рангом не сдаётся (награда не пропадает)
   maxItems: 60,     // потолок вещей в одном сундуке (страховка от правок «от/до»)
   rankTier: { F: "common", E: "common", D: "uncommon", C: "rare", B: "strange", A: "legendary", S: "divine", SS: "black" },
-  // шанс, что сундук ранга — проклятый вариант своего яруса, % (SS — всегда «Чёрный проклятый»)
-  rankCurse: { F: 0, E: 2, D: 4, C: 6, B: 9, A: 14, S: 25, SS: 100 },
+  // шанс, что сундук ранга — проклятый вариант своего яруса, %: чем ниже ранг, тем чаще проклятие (жёсткий потолок BC_CURSE_MAX,
+  // 100 % не бывает ни у какого ранга); SS — обычно обычный «Чёрный сундук», «Чёрный проклятый» — 2 %
+  rankCurse: { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 },
   // вид сундука по рангу; "" — как у яруса (tiers.<ярус>.art) — по умолчанию у всех, чтобы вид всегда совпадал с содержимым
   rankArt: { F: "", E: "", D: "", C: "", B: "", A: "", S: "", SS: "" },
   tiers: {
@@ -66,7 +81,7 @@ export function artOf(tier: BcTier, rank?: string, cur = false): string { const 
 /** потолок яруса зачарования: min(админка enchMax, жёсткий BC_ENCH_CAP) */
 export const enchCapOf = (tier: BcTier) => Math.max(0, Math.min(BC_ENCH_CAP[tier] ?? 0, ENCH_N, (BCHEST.tiers[tier]?.enchMax | 0) || 0));
 /** шанс проклятого варианта для ранга, % */
-export const rankCursePct = (rank: string) => pct(BCHEST.rankCurse?.[rank] ?? 0);
+export const rankCursePct = (rank: string) => Math.min(BC_CURSE_MAX, pct(BCHEST.rankCurse?.[rank] ?? 0));
 function pct(v: number) { return Math.max(0, Math.min(100, Number(v) || 0)); }
 export const tierOfRank = (rank: string): BcTier | null => { const t0 = BCHEST.rankTier[rank] as string, t = (t0 === "cursed" ? "divine" : t0) as BcTier; /* старое значение админки «cursed» */ return t && BCHEST.tiers[t] ? t : null; };
 export function countOf(cat: string): [number, number] {
@@ -138,9 +153,9 @@ export function chestOdds(tier: BcTier, L: number, cat: string, cur = false) {
   const T = BCHEST.tiers[tier]; const [cmin, cmax] = countOf(cat), W = lvlWindow(L), ro = rarOdds(tier, L);
   const eo = enchOdds(tier), ep = enchPctOf(tier), cp = cursePctOf(tier, cur), [b0, b1] = T ? blkRange(T) : [0, 0];
   // чёрная проклятая (проклятая + ярус «Чёрный»): доля от всех вещей
-  const blackCursed = Math.round(cp / 100 * ep / 100 * (eo[ENCH_N] || 0) * 100) / 100;
+  const blackCursed = cur ? Math.round(cp / 100 * ep / 100 * (eo[ENCH_N] || 0) * 100) / 100 : 0; // только проклятый вариант
   return { tier, cur: !!cur, art: artOf(tier, undefined, cur), dark: !!T?.dark, name: (cur ? T?.nameC : T?.name) || T?.name || tier, color: T?.color || "#999", enchCap: enchCapOf(tier), enchCapName: enchCapOf(tier) ? ENCH.tiers[enchCapOf(tier) - 1]?.name || "" : "", enchCapColor: enchCapOf(tier) ? ENCH.tiers[enchCapOf(tier) - 1]?.color || "" : "", L: W.L, lo: W.lo, hi: W.hi, cmin, cmax,
-    rar: ro.odds, enchPct: Math.round(ep * 10) / 10, ench: eo, cursePct: Math.round(cp * 10) / 10, blackCursed,
+    rar: ro.odds, enchPct: Math.round(ep * 10) / 10, ench: eo, cursePct: Math.round((cur ? cp : cp * (1 - ep / 100 * (eo[ENCH_N] || 0) / 100)) * 10) / 10, blackCursed, // обычный вариант: без ☠ у вещей с чарами «Чёрный»
     blkPct: pct(T?.blkPct || 0), blkMin: b0, blkMax: b1,
     base: { rar: baseRarPct(), cursePct: Math.round(baseCursePct() * 100) / 100, enchPct: Math.round(baseEnchPct() * 100) / 100, boost: T?.boost || 1, curseMult: (cur ? T?.cCurseMult : T?.curseMult) || 0, enchMult: T?.enchMult || 0 } };
 }
@@ -161,6 +176,7 @@ export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => numbe
     if (o.e && o.e > cap) o.e = cap; // страховка: ярус чар не выше яруса сундука (у простого — нет вовсе)
     if (!o.e) delete o.e;
     if (rnd() * 100 < cp) o.c = 1;
+    if (o.c && !cur && o.e === ENCH_N) delete o.c; // «чёрная проклятая» (☠ + ярус «Чёрный») — только в проклятом варианте; обычный сундук — чары «Чёрный» без проклятия
     if (bp > 0 && rnd() * 100 < bp) o.b = Math.max(1, Math.round(b0 + (b1 - b0) * Math.pow(rnd(), bc)));
     out.push(o);
   }
@@ -168,6 +184,7 @@ export function rollItems(tier: BcTier, L: number, cat: string, rnd: () => numbe
 }
 /** Проверка правки админки (после наложения). */
 export function bchestErr(get: (p: string) => any): string | null {
+  for (const r of BC_RANKS) { const v = Number(get(`rankCurse.${r}`)); if (v > BC_CURSE_MAX) return `Ранг ${r}: проклятый сундук не больше ${BC_CURSE_MAX} %`; }
   for (const c of BC_CATS) { const lo = Number(get(`count.${c}.min`)), hi = Number(get(`count.${c}.max`)); if (lo > hi) return `${BC_CAT_NAMES[c]}: «вещей от» больше «до»`; }
   for (const t of BC_TIERS) {
     if (rarIdx(String(get(`tiers.${t}.minRar`))) > rarIdx(String(get(`tiers.${t}.maxRar`)))) return `${BCHEST.tiers[t].name}: мин. редкость выше макс.`;

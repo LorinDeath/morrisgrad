@@ -8,6 +8,7 @@ import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validateConds, COND_DEFS } from "./questConds";
 import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, type Kind, type Trait } from "./overrides";
+import { migrateBchestPatch } from "./boardChestCfg";
 import { BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, BT_CATS_NEW, CAT_NAMES, GIVER_NAMES, NPC_GIVERS, CUSTOM_BT } from "./board";
 import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS, RESOURCES as RES_ALL } from "./defs";
@@ -141,7 +142,9 @@ export class AdminStore {
         const ver = Number(v?.v ?? 0); if (!force && ver === this.ver) return;
         const rows = (await this.db.prepare("SELECT kind, id, data FROM game_overrides").all()).results || [];
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
-        for (const r of rows) { this.touched.add(r.kind + ":" + r.id); const p = validatePatch(r.kind, r.id, JSON.parse(r.data)); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
+        for (const r of rows) { this.touched.add(r.kind + ":" + r.id); let raw = JSON.parse(r.data);
+          if (r.kind === "bchest") { const mg = migrateBchestPatch(raw); raw = mg.patch; if (mg.changed.length) console.warn(`[admin] bchest:${r.id} миграция шанса ☠ сундуков: ${mg.changed.join(", ")}`); } // потолок 30 %, прежние значения по умолчанию → новые
+          const p = validatePatch(r.kind, r.id, raw); if (typeof p !== "string") applyOverride(r.kind, r.id, p); }
         const qs = (await this.db.prepare("SELECT data FROM custom_quests WHERE enabled = 1").all()).results || [];
         // сюжетные квесты: сначала вернуть исходные, затем наложить правки (строки custom_quests с id сюжетного квеста)
         for (const q of QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null);
