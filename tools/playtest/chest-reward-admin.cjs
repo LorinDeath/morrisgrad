@@ -17,7 +17,7 @@ const UA_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebK
 async function open(b, uid, mob) {
   const ctx = await b.newContext(mob ? { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, userAgent: UA_IOS } : { viewport: { width: 1280, height: 800 } });
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
-  const p = await ctx.newPage(); p.errs = []; p.fr = []; p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 300)));
+  const p = await ctx.newPage(); p.errs = []; p.fr = []; p.on('pageerror', (e) => p.errs.push(String(e.stack || e).replace(/\n\s*/g, ' | ').slice(0, 700)));
   p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|"admin_|bchest|board_res|"err/.test(s)) p.fr.push(s.slice(0, 600)); }));
   await p.goto(assertLocalUrl(`${BASE}?name=${uid}&uid=${uid}&ws=${WS}&fs=1&debug=1${mob ? '&mobile=1' : ''}`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game?.debug, null, { timeout: 120000 }); await sleep(2500);
@@ -34,7 +34,7 @@ const shot = async (p, n, o = {}) => { await clean(p); await sleep(250); await p
   await G(() => window.__game.debug.openAdmin()); await p.waitForFunction(() => document.querySelectorAll('.mc-admin [data-tab]').length > 0, null, { timeout: 15000 });
   await G(() => document.querySelector('.mc-admin [data-tab="btask"]').click()); await sleep(700);
   await G((id) => { const i = document.querySelector('.mc-admin aside input'); i.value = id; i.dispatchEvent(new Event('input', { bubbles: true })); }, TASK); await sleep(500);
-  await p.waitForFunction((id) => !!document.querySelector(`.mc-admin aside li[data-id="${id}"]`) || (() => { const i = document.querySelector('.mc-admin aside input'); if (i && i.value !== id) { i.value = id; i.dispatchEvent(new Event('input', { bubbles: true })); } return false; })(), TASK, { timeout: 20000, polling: 500 }).catch(() => {});
+  await p.waitForFunction((id) => !!document.querySelector(`.mc-admin aside li[data-id="${id}"]`) || (() => { const i = document.querySelector('.mc-admin aside input'); if (i && document.querySelector('.mc-admin aside li') && i.value !== id) { i.value = id; i.dispatchEvent(new Event('input', { bubbles: true })); } return false; })(), TASK, { timeout: 20000, polling: 500 }).catch(() => {});
   const found = await G((id) => { const li = document.querySelector(`.mc-admin aside li[data-id="${id}"]`); li?.click(); return !!li; }, TASK); await sleep(900);
   t('админка: задание найдено в списке', found);
   const sec = await G(() => { const s = document.querySelector('.mc-admin .bt-ch'); s?.scrollIntoView({ block: 'center' }); return s ? s.textContent.replace(/\s+/g, ' ').slice(0, 300) : null; });
