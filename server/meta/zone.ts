@@ -241,7 +241,7 @@ export class Zone {
   bossIds: Record<string, number> = {};
   rareAt: Record<string, number> = {};
   rareIds: Record<string, number> = {};
-  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
+  stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, domeDrops: 0, domeMoved: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
   byId = new Map<number, ZMob>();
   buckets = new Map<number, ZMob[]>(); // чанк WORLD_CHUNK → мобы (интерес/выборки)
   awake = new Set<number>();           // чанки рядом с игроками (остальные спят: без ИИ)
@@ -295,6 +295,7 @@ export class Zone {
         if (R() > G.campAccept + dn * dn * 1.3) continue;
         const minD = G.campMinDist * Math.max(0.5, minMul) * (1 + (1 - dn) * 1.8 * R() + (R() < 0.15 ? 0.6 : 0));       // в густых пятнах — ближе (но ≥ campMinDist)
         if (inSafe(x, y, 300, this.world) || this.gen.bosses.some((b) => Math.hypot(b.x - x, b.y - y) < 700)) continue;
+        if (this.keepOut?.inside(x, y, 200 + G.campRing)) continue; // пересборка лагерей (админка) — не под куполом города и не у самого края (как pruneKeepOut)
         if (tooClose(x, y, minD)) continue;
         if (wetNear(this.world, x, y, G.campRing + 40)) continue; // лагерь целиком на суше (вода/лава непроходимы — liquid.ts)
         let tw = reg.table.reduce((a, b) => a + b.w, 0) * R(), row = reg.table[0];
@@ -583,6 +584,7 @@ export class Zone {
   }
   addMob(type: string, x: number, y: number, o: { fixed?: boolean; respawn?: number; region?: string | null; elite?: boolean; hpMul?: number; special?: "" | "boss" | "rare" } = {}) {
     const d = ZONE_MOBS[type];
+    { const K = this.keepOut; if (K && o.special !== "boss" && !d?.boss && K.inside(x, y, 60)) { const o2 = K.out(x, y); const a = Math.atan2(o2[1] - y, o2[0] - x); x = this.clamp(Math.round(o2[0] + Math.cos(a) * 80)); y = this.clamp(Math.round(o2[1] + Math.sin(a) * 80)); this.stats.domeMoved++; } } // дом моба под куполом города (лагерь/стая/бродячий) — за край, R + толчок + 80 px
     const hp = capHp(d.hp * (o.elite ? ZONE_GEN.eliteHp : 1) * (o.hpMul || 1));
     const m: ZMob = { mobTarget: 0, scanAt: 0, roam: null, cursed: false, skills: [], skCd: {}, reset: false, burstUntil: 0, camp: 0, leapCd: 0, shieldUntil: 0, id: this.nextId++, type, respawn: o.respawn || 0, sx: x, sy: y, x, y, hp, maxHp: hp, dead: false, respawnAt: 0, targetSid: null,
       wanderX: x, wanderY: y, nextWander: 0, atkCd: 0, dmgBy: new Map(), usedAbility: new Set(), windup: 0, dashX: 0, dashY: 0, dashT: 0,
@@ -966,8 +968,10 @@ export class Zone {
       // цель
       // поводок MMO: утащили далеко от дома → «сброс»: домой бегом, быстро лечится до полного, игнорирует игроков
       const homeD = Math.hypot(m.x - m.sx, m.y - m.sy);
-      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, this.keepOut!.aggroPad?.() ?? 24); })()); // цель ушла под купол города (+ запас mobAggroPadPx) — моб сбрасывается
-      if (!m.reset && (m.targetSid || m.mobTarget) && (tIn || homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash))) {
+      const tIn = !!(this.keepOut && m.targetSid && (() => { const t = players.get(m.targetSid!); return t && this.keepOut!.inside(t.x, t.y, -(this.keepOut!.aggroPad?.() ?? 0)); })()); // цель ушла под купол глубже края на mobAggroPadPx (радиус R − запас; было R + запас — игрок СНАРУЖИ у края сбрасывал мобов) — моб теряет цель
+      // цель ушла под купол: моб просто теряет её (без «Уклонения» — не неуязвим, не бежит домой с лечением; дальше бродит у дома как обычно)
+      if (tIn && !m.reset) { m.targetSid = null; m.casts = []; m.windup = 0; m.dashT = 0; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.domeDrops++; }
+      if (!m.reset && (m.targetSid || m.mobTarget) && homeD > (m.special || d.boss ? ZONE_GEN.leashBoss : ZONE_GEN.leash)) {
         m.reset = true; m.targetSid = null; m.mobTarget = 0; m.casts = []; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.burstUntil = 0; (m as any).combatSince = 0; this.stats.resets++;
         this.events.push({ k: "evade", id: m.id, x: Math.round(m.x), y: Math.round(m.y) });
       }
@@ -985,7 +989,8 @@ export class Zone {
       const aggro = (m as any).devCalm ? 0 : d.aggro * (m.special ? 1.2 : 1) * (isKiller(m) ? 1.25 : 1); // devCalm — только dev_spawn_mob (скриншоты)
       let best: ZPlayer | null = null, bd = aggro;
       if (m.targetSid) { const t = players.get(m.targetSid); if (t && t.alive) { const dd = Math.hypot(t.x - m.x, t.y - m.y); if (dd < aggro * (m.special ? 2.6 : 1.8) || (m.huntUntil && now < m.huntUntil && dd < ZONE_GEN.ambientDespawnDist)) { best = t; bd = dd; } } }
-      if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
+      const KO = this.keepOut, kpad = KO ? -(KO.aggroPad?.() ?? 0) : 0; // игрока под куполом (глубже края на запас) не выбираем целью — иначе агро → потеря цели → агро по кругу
+      if (!best) for (const p of (pgrid ? this.playersNear(pgrid, m.x, m.y) : players.values())) { if (!p.alive) continue; if (KO && KO.inside(p.x, p.y, kpad)) continue; const dd = Math.hypot(p.x - m.x, p.y - m.y); if (dd < bd) { bd = dd; best = p; } }
       const fresh = !m.targetSid && best;
       m.targetSid = best ? best.sid : null;
       if (best) m.mobTarget = 0; // игроки важнее драки с мобом
