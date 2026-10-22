@@ -32,6 +32,7 @@ export interface BTask {
   res: Record<string, number>; item: string;                        // материалы за ступень (× номер ступени), предмет за последнюю
   auto: string;                                                     // обучение: состояние, при котором шаг засчитан сам
   hidden: boolean;                                                  // скрытое: до выполнения игрок видит «???» (текст не уходит клиенту)
+  x: number[]; xm: boolean;                                       // опыт за ступень — число (от уровня задания по таблице); xm — задан вручную в админке
   w: number;                                                        // вес в случайном пуле (ежедневные/еженедельные/ежемесячные/заказы), 0 — не выпадает
 }
 export const BOARD_CFG: any = {
@@ -52,11 +53,11 @@ export const BOARD_CFG: any = {
   // % от опыта на уровень (heroXpNeed) по полосам уровней и сложности 1…5
   xp: [[3, 6, 10, 16, 25], [2, 4, 7, 12, 20], [2, 4, 7, 12, 20], [1.5, 3, 5, 9, 15], [1, 2, 4, 7, 12], [1, 2, 4, 7, 12]],
   bands: [5, 10, 15, 20, 25, 30],
-  refPlus: 2,      // задание с уровнем цели L даёт опыт не выше уровня L + refPlus (низкие задания на высоком уровне — мало)
+  refPlus: 2,      // устарело (не используется): опыт теперь — число от уровня задания; было: задание с уровнем цели L даёт опыт не выше уровня L + refPlus (низкие задания на высоком уровне — мало)
   // множитель к таблице по категории и потолок опыта категории за её период (% опыта на уровень; 0 — без потолка).
   // День — ежедневные, заказы Доски объявлений, личные задания персонажей, достижения; неделя — еженедельные и тяжёлые; месяц — ежемесячные.
   xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 1, monthly: 1, hard: 0.6, ach: 0.25 },
-  caps: { tut: 0, npc: 0, hunt: 0, daily: 10, weekly: 20, monthly: 35, hard: 0, ach: 0 }, // решение Алекса: потолок только у ежедневных/еженедельных/ежемесячных
+  caps: { tut: 0, npc: 0, hunt: 0, daily: 0, weekly: 0, monthly: 0, hard: 0, ach: 0 }, // решение Алекса: потолков нет (механизм оставлен выключенным — число > 0 в админке включит)
   tutOn: true, tutVetLvl: 10, tutSkip: true,
   qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30 },
 };
@@ -70,7 +71,7 @@ syncBoardCols();
 // ---------------- генерация ----------------
 const T = (o: Partial<BTask> & { id: string; cat: Cat; title: string; ev: string }): BTask => ({
   on: true, ord: 0, giver: "", why: "", pc: "", mob: "", hl: "", m: "", f: "", minT: 0, n: [1, 0, 0, 0, 0], d: [1, 0, 0, 0, 0],
-  lvl: 0, minLvl: 1, maxLvl: 30, req: "", res: {}, item: "", auto: "", hidden: false, w: 1, ...o,
+  lvl: 0, minLvl: 1, maxLvl: 30, req: "", res: {}, item: "", auto: "", hidden: false, w: 1, x: [0, 0, 0, 0, 0], xm: false, ...o,
 } as BTask);
 const pad5 = (a: number[]) => [...a, 0, 0, 0, 0, 0].slice(0, 5); // всегда 5 ячеек: админка правит n.0…n.4 / d.0…d.4
 const mobName = (id: string) => ZONE_MOBS[id]?.name || id;
@@ -926,12 +927,41 @@ export function boardRefresh(a: Account, h: Hero | null, ctx: Ctx, now = Date.no
 // ---------------- награды ----------------
 export function bandOf(L: number): number { const B: number[] = BOARD_CFG.bands || [5, 10, 15, 20, 25, 30]; for (let i = 0; i < B.length; i++) if (L <= B[i]) return i; return B.length - 1; }
 export function xpPct(L: number, d: number): number { const row = BOARD_CFG.xp?.[bandOf(L)] || []; return Math.max(0, Math.min(100, Number(row[Math.max(0, Math.min(4, (d | 0) - 1))]) || 0)); }
-export function refLvl(t: BTask, heroLvl: number): number { return t.lvl > 0 ? Math.max(1, Math.min(heroLvl, t.lvl + (BOARD_CFG.refPlus | 0))) : heroLvl; }
-export function tierXp(t: BTask, ti: number, heroLvl: number): number {
-  const L = Math.min(HERO_MAX_LEVEL, refLvl(t, heroLvl));
-  const mul = Number(BOARD_CFG.xpMul?.[t.cat] ?? 1); const k = Number.isFinite(mul) ? Math.max(0, mul) : 1;
+// ── Опыт — фиксированное число от уровня ЗАДАНИЯ (решение Алекса): одно и то же задание даёт одинаковый опыт героям любого уровня ──
+const clampL = (x: number) => Math.max(1, Math.min(HERO_MAX_LEVEL, Math.round(x) || 1));
+/** уровень задания, если он не задан: от моба/края/босса/забега, иначе — по доступности (минимальный уровень; у широких
+ *  периодических «для всех уровней» тоже минимальный: середина диапазона давала новичкам до 86% уровня в день) */
+export function guessLvl(t: BTask): number {
+  const m = t.m || "", mob = (id: string) => (ZONE_MOBS as any)[id]?.lvl || 0;
+  if ((t.ev === "kill" || t.ev === "death") && m) {
+    if (mob(m)) return clampL(mob(m));
+    if (m.startsWith("biome:")) { const B = (BIOMES as any)[m.slice(6)]; if (B) return clampL((B.lvl[0] + B.lvl[1]) / 2); }
+  }
+  if (t.ev === "st" && m.startsWith("mob:") && mob(m.slice(4))) return clampL(mob(m.slice(4)));
+  if (t.ev === "run") return clampL(Math.max(t.minLvl || 1, m === "abyss" ? 10 : 3));
+  return clampL(t.minLvl || 1);
+}
+/** уровень ступени: лестницы уровня героя («дорасти до N») — сам N; у достижений и тяжёлых ступени открываются позже — +4 уровня за ступень */
+export function tierLvl(t: BTask, ti: number): number {
+  const base = t.lvl > 0 ? t.lvl : guessLvl(t);
+  if (t.ev === "st" && (t.m === "lvl" || t.m.startsWith("hero:"))) return clampL(t.n?.[ti] || base);
+  if ((t.cat === "ach" || t.cat === "hard") && ti > 0) return clampL(base + 4 * ti);
+  return clampL(base);
+}
+/** опыт ступени по таблице «уровень × сложность» × множитель раздела (для кнопки «пересчитать» и заполнения при загрузке) */
+export function tableXp(t: BTask, ti: number): number {
+  const L = tierLvl(t, ti), mul = Number(BOARD_CFG.xpMul?.[t.cat] ?? 1), k = Number.isFinite(mul) ? Math.max(0, mul) : 1;
   return Math.round(heroXpNeed(L) * xpPct(L, t.d?.[ti] || 1) / 100 * k);
 }
+/** назначить уровень (если 0) и опыт ступеней (если не задан вручную) */
+export function prepXp(t: BTask) {
+  if (!(t.lvl > 0)) t.lvl = guessLvl(t);
+  if (!Array.isArray(t.x)) t.x = [0, 0, 0, 0, 0];
+  if (!t.xm) for (let i = 0; i < 5; i++) t.x[i] = i < tiersOf(t).length ? tableXp(t, i) : 0;
+}
+export function prepAllXp() { for (const t of BTASK_LIST()) prepXp(t); }
+/** опыт ступени — сохранённое число (heroLvl не влияет; параметр оставлен для совместимости вызовов) */
+export function tierXp(t: BTask, ti: number, _heroLvl?: number): number { const v = Number(t.x?.[ti]); return Number.isFinite(v) && v > 0 ? Math.round(v) : 0; }
 /** период потолка опыта категории: день, неделя (еженедельные и тяжёлые) или месяц */
 export const capPeriod = (c: Cat): Cat | "" => c === "tut" ? "" : c === "weekly" || c === "hard" ? "weekly" : c === "monthly" ? "monthly" : "daily";
 /** потолок опыта категории за её период, опыт (0 — без потолка) */
@@ -1040,7 +1070,7 @@ export function boardTut(a: Account, mode: string): any {
 /** определения: раз в сессию и после правок в админке */
 /** задание → описание для клиента (скрытое — без текста). Его же использует предпросмотр в админке */
 export const btDef = (t: BTask): any => t.hidden ? { id: t.id, cat: t.cat, ord: t.ord, hid: 1, t: "???", n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length) } : ({ id: t.id, cat: t.cat, ord: t.ord, g: t.giver || undefined, hid: t.hidden || undefined, t: t.hidden ? "???" : t.title, w: t.hidden ? undefined : t.why || undefined, pc: t.pc || undefined, mob: t.mob || undefined, hl: t.hl || undefined,
-      ev: t.ev, m: t.m || undefined, f: t.f || undefined, nb: atBoard(t) || undefined, at: takeAt(t) || undefined, take: needsTake(t) || undefined, wt: t.w !== 1 ? t.w : undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined });
+      ev: t.ev, m: t.m || undefined, f: t.f || undefined, nb: atBoard(t) || undefined, at: takeAt(t) || undefined, take: needsTake(t) || undefined, wt: t.w !== 1 ? t.w : undefined, n: tiersOf(t), d: (t.d || []).slice(0, tiersOf(t).length), lvl: t.lvl || 0, min: t.minLvl, max: t.maxLvl < 30 ? t.maxLvl : undefined, res: Object.keys(t.res || {}).length ? t.res : undefined, item: t.item || undefined, x: (t.x || []).slice(0, tiersOf(t).length) });
 export function boardDefs() {
   return {
     v: 1, on: BOARD_CFG.on !== false,
@@ -1079,3 +1109,6 @@ export function tutPending(a: Account): boolean {
   for (const t of BTASK_LIST()) if (t.cat === "tut" && t.on && (b.p[t.id] || 0) >= tiersOf(t)[0] && !(b.c[t.id] > 0)) return true;
   return false;
 }
+
+// опыт заданий — числа от уровня задания (после объявления всех таблиц и функций модуля)
+prepAllXp();

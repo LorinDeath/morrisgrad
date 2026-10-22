@@ -27,7 +27,7 @@ import { ENCH, ENCH_N } from "./enchant";
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
 import { UPG, UPG_ORDER } from "./upgrade";
-import { BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, reindexBtasks, type Cat } from "./board";
+import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, reindexBtasks, type Cat } from "./board";
 import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
@@ -360,7 +360,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_b2", label: "Сброс (часовой пояс — Киев)", t: "hdr" }, { path: "tz", label: "Часовой пояс", t: "text" }, N("resetHour", "Час сброса (0–23)", 0, 23, "int"), N("weekDay", "День недельного сброса (1 = пн … 7 = вс)", 1, 7, "int"),
     { path: "_h_b3", label: "Опыт: % от опыта на уровень (по уровню цели × сложность)", t: "hdr" },
     ...[0, 1, 2, 3, 4, 5].flatMap((b) => [N(`bands.${b}`, `Полоса ${b + 1}: до уровня`, 1, 30, "int"), ...[0, 1, 2, 3, 4].map((d) => N(`xp.${b}.${d}`, `Полоса ${b + 1} · сложность ${d + 1}, %`, 0, 100))]),
-    N("refPlus", "Уровень цели + N — потолок для опыта", 0, 30, "int"),
+    N("refPlus", "Устарело, не используется (опыт — число от уровня задания)", 0, 30, "int"),
     { path: "_h_b6", label: "Опыт по категориям: множитель к таблице и потолок за период (% опыта на уровень; 0 — без потолка)", t: "hdr" },
     ...CATS.flatMap((c): Field[] => [N(`xpMul.${c}`, `${CAT_NAMES[c]}: множитель опыта`, 0, 10),
       ...(c === "tut" ? [] : [N(`caps.${c}`, `${CAT_NAMES[c]}: потолок, % уровня ${c === "weekly" || c === "hard" ? "в неделю" : c === "monthly" ? "в месяц" : "в сутки"}`, 0, 500)])]),
@@ -377,7 +377,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "pc", label: "Подсказка: ПК", t: "ltext" }, { path: "mob", label: "Подсказка: телефон", t: "ltext" },
     { path: "giver", label: "Кто выдаёт и принимает: персонаж — в своём диалоге, Доска объявлений — у доски, «—» — в окне «Задания»", t: "enum", opts: GIVERS, optn: GIVER_NAMES },
     { path: "hl", label: "Подсветка (altar, mob, node, bag, npc:petr, btn:book…)", t: "text" },
-    N("ord", "Порядок", 0, 9999, "int"), N("minLvl", "Доступно с уровня", 1, 30, "int"), N("maxLvl", "До уровня (пул периодических)", 1, 30, "int"), N("lvl", "Уровень цели для опыта (0 — уровень героя)", 0, 30, "int"),
+    N("ord", "Порядок", 0, 9999, "int"), N("minLvl", "Доступно с уровня", 1, 30, "int"), N("maxLvl", "До уровня (пул периодических)", 1, 30, "int"), N("lvl", "Уровень задания (от него опыт по таблице; 0 — подобрать по цели)", 0, 30, "int"),
     { path: "req", label: "Сначала выполнить (id через запятую, id@ступень)", t: "ltext" },
     { path: "m", label: "Цель (моб, ресурс, biome:ice, role:tank…)", t: "text" }, { path: "f", label: "Условия (elite, cursed, ench, e1…e6, e3up, ewear6, party, solo, rare, boss, wboss, lvl, min, night…)", t: "text" },
     N("minT", "Забег не короче, с", 0, 3600, "int"),
@@ -385,6 +385,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "res", label: "Материалы за ступень (× номер ступени)", t: "resmap" }, { path: "item", label: "Предмет за последнюю ступень (id)", t: "text" },
     { path: "auto", label: "Обучение: засчитать само (lvl:5, equipped:1…)", t: "text" },
     { path: "hidden", label: "Скрытое («???» до выполнения)", t: "bool" },
+    { path: "xm", label: "Опыт задан вручную (иначе — по таблице от уровня задания)", t: "bool" },
+    ...[0, 1, 2, 3, 4].map((i) => N(`x.${i}`, `Ступень ${i + 1}: опыт (число)`, 0, 10000000, "int")),
     N("w", "Вес в случайном пуле (0 — не выпадает)", 0, 100),
   ] },
 };
@@ -540,11 +542,12 @@ const ORIG = new Map<string, any>();
 export function applyOverride(kind: Kind, id: string, patch: any | null) {
   if (kind === "btask" && CUSTOM_BT.test(id)) { // своё задание: правка — создать по шаблону, сброс — удалить целиком
     ORIG.delete("btask:" + id); delBtask(id);
-    if (patch) { BTASKS[id] = makeBtask(id, patch.cat, patch.ev); applyOverride0(kind, id, patch); }
+    if (patch) { BTASKS[id] = makeBtask(id, patch.cat, patch.ev); applyOverride0(kind, id, patch); prepXp(BTASKS[id]); }
     reindexBtasks(); return;
   }
   applyOverride0(kind, id, patch);
-  if (kind === "btask") reindexBtasks();
+  if (kind === "btask") { if (BTASKS[id]) prepXp(BTASKS[id]); reindexBtasks(); } // опыт — по таблице, если не задан вручную
+  if (kind === "board") prepAllXp(); // таблица опыта/множители поменялись — пересчитать (кроме заданных вручную)
   if (kind === "board") syncBoardCols(); // доски передвинули/выключили — коллизии за ними
 }
 function applyOverride0(kind: Kind, id: string, patch: any | null) {

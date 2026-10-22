@@ -1,5 +1,5 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
-import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt } from "./board";
+import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt } from "./board";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 import { heroXpNeed } from "./defs";
@@ -46,17 +46,20 @@ const mk = () => { const a: any = newAccount(); a.hero = "warrior"; const h: any
 function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 5 }, ctx); return (boardOf(a).p["npc_a01"] || 0) > 0; }
 // потолок опыта в сутки
 { const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const b = boardOf(a);
-  // решение Алекса: потолок только у ежедневных (10%/сутки), еженедельных (20%/нед), ежемесячных (35%/мес); охота, достижения, тяжёлые, персонажи — без потолка
-  for (const c of ["hunt", "ach", "hard", "npc"] as const) ok(catCap(c, 12) === 0, `${c}: без потолка опыта`);
-  ok(catCap("weekly", 12) === Math.round(heroXpNeed(12) * 20 / 100) && catCap("monthly", 12) === Math.round(heroXpNeed(12) * 35 / 100), "еженедельные 20%, ежемесячные 35%");
-  ok(dayCap(12) === Math.round(heroXpNeed(12) * 10 / 100), "ежедневные: не больше 10% уровня в сутки");
+  // решение Алекса: потолков опыта нет ни у одного раздела (механизм остаётся: число > 0 в админке включит)
+  for (const c of ["daily", "weekly", "monthly", "hunt", "ach", "hard", "npc"] as const) ok(catCap(c, 12) === 0, `${c}: без потолка опыта`);
   for (let i = 0; i < 1000; i++) boardEvent(a, h, { type: "kill", mob: "x", kind: "x", lvl: 12 }, ctx);
   b.xs.ach = { k: periodKey("daily"), v: 10 ** 9 }; b.p["ach_elite"] = 10; const r2 = boardClaim(a, h, "ach_elite", ctx);
-  ok(r2.ok && r2.xp > 0 && !r2.cappedXp, `достижения без потолка (дано ${r2.xp}, срезано ${r2.cappedXp})`);
-  const did = (b.sel.daily || []).find((id: string) => id !== "d_bmage")!, cap = dayCap(12);
-  b.xs.daily = { k: periodKey("daily"), v: cap - 10 }; b.p[did] = 10 ** 6; const r3 = boardClaim(a, h, did, ctx);
-  ok(r3.ok && r3.xp <= 10 && r3.cappedXp > 0, `ежедневные сверх потолка опыт не дают (дано ${r3.xp}, срезано ${r3.cappedXp})`);
-  ok(b.xs.daily.v <= cap, "дневной счётчик не выше потолка");
+  ok(r2.ok && r2.xp === tierXp(BTASKS.ach_elite, 0) && !r2.cappedXp, `достижения без потолка (дано ${r2.xp})`);
+  const did = (b.sel.daily || []).find((id: string) => id !== "d_bmage")!;
+  b.xs.daily = { k: periodKey("daily"), v: 10 ** 9 }; b.p[did] = 10 ** 6; const r3 = boardClaim(a, h, did, ctx);
+  ok(r3.ok && r3.xp === tierXp(BTASKS[did], 0) && !r3.cappedXp, `ежедневные без потолка (дано ${r3.xp})`);
+  // включённый потолок по-прежнему режет
+  const q0 = validatePatch("board", "main", { "caps.daily": 10 }); applyOverride("board", "main", q0);
+  ok(dayCap(12) === Math.round(heroXpNeed(12) * 10 / 100), "потолок можно включить в админке");
+  b.xs.daily = { k: periodKey("daily"), v: dayCap(12) - 5 }; const did2 = (b.sel.daily || []).find((id: string) => id !== "d_bmage" && id !== did)!; b.p[did2] = 10 ** 6;
+  const r4 = boardClaim(a, h, did2, ctx); ok(r4.ok && r4.xp <= 5 && r4.cappedXp > 0, `включённый потолок режет (дано ${r4.xp}, срезано ${r4.cappedXp})`);
+  applyOverride("board", "main", null);
 
 }
 // периоды: смена суток по Киеву
@@ -114,10 +117,21 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
   boardEvent(a, h, { type: "city" }, ctx); boardEvent(a, h, { type: "city" }, ctx); ok(boardOf(a).p["ach_x_alkazak"] === 1, "Альказак — один раз");
 }
 // опыт строго по таблице
-{ const t = BTASKS["hunt_ice_crescent_wolf"]; const L = Math.min(20, t.lvl + BOARD_CFG.refPlus);
-  ok(tierXp(t, 0, 20) === Math.round(heroXpNeed(L) * BOARD_CFG.xp[Math.floor((L - 1) / 5)][t.d[0] - 1] / 100 * BOARD_CFG.xpMul.hunt), "опыт = опыт уровня цели × % таблицы × множитель категории");
-  ok(tierXp(t, 0, 20) < tierXp({ ...t, lvl: 0 } as any, 0, 20), "низкое задание на высоком уровне даёт меньше");
+// опыт — фиксированное число от уровня ЗАДАНИЯ (не от уровня героя)
+{ const t = BTASKS["hunt_ice_crescent_wolf"]; const L = t.lvl;
+  ok(L > 0 && tierXp(t, 0) === Math.round(heroXpNeed(L) * BOARD_CFG.xp[Math.floor((L - 1) / 5)][t.d[0] - 1] / 100 * BOARD_CFG.xpMul.hunt), "опыт = опыт уровня задания × % таблицы × множитель раздела");
+  ok(tierXp(t, 0, 5) === tierXp(t, 0, 25) && tierXp(t, 0, L) === tierXp(t, 0, L + 1), "одинаково героям любого уровня");
+  ok(Object.values(BTASKS).every((x) => x.lvl >= 1 && x.lvl <= 30), "у каждого задания есть уровень");
+  ok(Object.values(BTASKS).every((x) => tiersOf0(x).every((_, i) => x.x[i] > 0 || BOARD_CFG.xpMul[x.cat] === 0)), "у каждой ступени — число опыта");
+  const lad = Object.values(BTASKS).find((x) => x.ev === "st" && x.m === "lvl" && x.n[1] > 0)!; ok(tierLvl(lad, 1) === lad.n[1] && lad.x[1] > lad.x[0], "лестница уровня: ступень «дорасти до N» — уровня N");
+  // ручной опыт и пересчёт по таблице
+  const v: any = currentValues("btask", t.id); const p1 = validatePatch("btask", t.id, { ...v, xm: true, "x.0": 777 }); applyOverride("btask", t.id, p1); ok(tierXp(t, 0) === 777, "опыт задаётся числом вручную");
+  const p2 = validatePatch("btask", t.id, { ...v, "d.0": 4 }); applyOverride("btask", t.id, p2); ok(t.x[0] === tableXp(t, 0) && t.x[0] !== 777, "без «вручную» — пересчёт по таблице");
+  applyOverride("btask", t.id, null); ok(t.x[0] === tableXp(t, 0), "сброс — по таблице");
+  const q = validatePatch("board", "main", { "xpMul.hunt": 0.7 }); const x0 = t.x[0]; applyOverride("board", "main", q); ok(t.x[0] > x0, "правка таблицы/множителя пересчитывает опыт"); applyOverride("board", "main", null); ok(t.x[0] === x0, "и обратно");
+  ok(guessLvl({ ...t, lvl: 0, m: "biome:ice" } as any) >= 3, "уровень по краю");
 }
+function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!(n > 0)) break; if (o.length && n <= o[o.length - 1]) break; o.push(n); } return o.length ? o : [1]; }
 // «с нуля»: старые победы бестиария и уже выполненное до запуска не дают наград
 { const { a, h } = mk(); h.lvl = 16; a.bestiary = { dew_slime: { seen: 1, kills: 999 }, crescent_wolf: { seen: 1, kills: 50 } };
   boardRefresh(a, h, ctx); const b = boardOf(a);
@@ -168,7 +182,7 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
   ok(typeof validatePatch("board", "main", { "bands.2": 3 }) === "string", "полосы уровней должны расти");
   ok(typeof validatePatch("board", "main", { tz: "Mars/Base" }) === "string", "неизвестный пояс — отказ");
   const q = validatePatch("board", "main", { "caps.daily": 8, "xp.1.2": 6, "xpMul.weekly": 0.5 }); applyOverride("board", "main", q); ok(BOARD_CFG.caps.daily === 8 && BOARD_CFG.xp[1][2] === 6 && BOARD_CFG.xpMul.weekly === 0.5, "таблица, потолки и множители правятся");
-  applyOverride("board", "main", null); ok(BOARD_CFG.caps.daily === 10 && BOARD_CFG.xp[1][2] === 7, "сброс таблицы");
+  applyOverride("board", "main", null); ok(BOARD_CFG.caps.daily === 0 && BOARD_CFG.xp[1][2] === 7, "сброс таблицы");
   ok(typeof validatePatch("board", "main", { dailyMin: 7, dailyMax: 5 }) === "string", "пул: «от» больше «до» — отказ");
   ok(currentValues("board", "main")["cats.hard"] === true, "значения для панели");
   applyOverride("board", "main", { "cats.hunt": false }); const { a, h } = mk(); h.lvl = 6; boardRefresh(a, h, ctx);

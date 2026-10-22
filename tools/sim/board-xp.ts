@@ -1,9 +1,10 @@
 // Опыт доски по разделам: день / неделя / месяц (% опыта уровня) и прибавка к обычному темпу игры.
 // Запуск: bun tools/sim/board-xp.ts [часов игры в день=1.5]. Темп без доски — tools/sim/progression.mjs (часов на уровень).
+// Опыт задания — фиксированное число от уровня ЗАДАНИЯ (таблица «уровень × сложность» × множитель раздела), не от уровня героя.
 // Модель «активного игрока»: каждый день — все случайные ежедневные (ступень 1), 3 заказа охоты (ступень 1), 1 личное задание
 // персонажа, 3 ступени достижений; раз в неделю — все еженедельные (все ступени) и 2 тяжёлых; раз в месяц — все ежемесячные.
 // Потолки (caps) — как на сервере (board.ts catCap); 0 = без потолка.
-import { BTASKS, BOARD_CFG, boardRefresh, boardOf, tierXp, tiersOf, catCap } from "../../server/meta/board";
+import { BTASKS, BOARD_CFG, boardRefresh, boardOf, tierXp, tiersOf, catCap, xpPct } from "../../server/meta/board";
 import { newAccount, newHero } from "../../server/meta/profile";
 import { heroXpNeed } from "../../server/meta/defs";
 const H = Number(process.argv[2]) || 1.5;
@@ -51,3 +52,22 @@ console.log("Фарм без потолка, % уровня в час игры (
 console.log("| Ур. | Игра без доски, %/ч | Охота: 1 заказ на цель, %/ч | Охота: 6 заказов сразу (верхняя граница), %/ч | Прибавка охоты (1 / 6) | Охота, всего (заказ не повторяется после последней ступени) | Тяжёлые, всего | Достижения, всего | Персонажи, всего |");
 console.log("|---|---|---|---|---|---|---|---|---|");
 for (const r of farm) console.log(`| ${r.L} | ${f(r.base)}% | ${f(r.h1)}% | ${f(r.h6)}% | +${f(r.h1 / r.base * 100)}% / +${f(r.h6 / r.base * 100)}% | ${f(r.hunt)}% | ${f(r.hard)}% | ${f(r.ach)}% | ${f(r.npc)}% |`);
+
+// Сколько опыта даёт задание каждого уровня и сколько таких нужно на уровень героя того же уровня
+console.log("");
+console.log("Опыт задания по уровню задания и сложности (без множителя раздела), и сколько заданий сложности 3 нужно на уровень героя того же уровня по разделам:");
+const CATS2 = ["daily", "weekly", "monthly", "hunt", "npc", "hard", "ach"] as const;
+console.log(`| Ур. задания | Опыт на уровень | сл.1 | сл.2 | сл.3 | сл.4 | сл.5 | ${CATS2.map((c) => `${c} ×${BOARD_CFG.xpMul[c]}: заданий/ур.`).join(" | ")} |`);
+console.log("|" + "---|".repeat(7 + CATS2.length));
+for (const L of [1, 3, 5, 8, 10, 12, 15, 18, 20, 22, 25]) {
+  const need = heroXpNeed(L), x = [1, 2, 3, 4, 5].map((d) => Math.round(need * xpPct(L, d) / 100));
+  console.log(`| ${L} | ${need} | ${x.join(" | ")} | ${CATS2.map((c) => { const v = x[2] * (BOARD_CFG.xpMul[c] ?? 1); return v > 0 ? (need / v).toFixed(1) : "—"; }).join(" | ")} |`);
+}
+console.log("");
+console.log("Задания игры по уровню задания: количество и средний опыт ступени 1 (число):");
+console.log("| Уровни задания | Ежедн. | Еженед. | Ежемес. | Охота | Персонажи | Тяжёлые | Достижения |");
+console.log("|---|---|---|---|---|---|---|---|");
+for (const [a, b] of [[1, 4], [5, 9], [10, 14], [15, 19], [20, 24], [25, 30]]) {
+  const cell = (c: string) => { const L = Object.values(BTASKS).filter((t) => t.cat === c && t.on && t.lvl >= a && t.lvl <= b); return L.length ? `${L.length} · ${Math.round(avg(L.map((t) => tierXp(t, 0))))}` : "—"; };
+  console.log(`| ${a}–${b} | ${["daily", "weekly", "monthly", "hunt", "npc", "hard", "ach"].map(cell).join(" | ")} |`);
+}

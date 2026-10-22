@@ -76,13 +76,8 @@ export class BoardStore {
     }
     return out;
   }
-  xpOf(t, ti) { // как на сервере (tierXp): % от опыта уровня по таблице «уровень × сложность» × множитель категории
-    const X = this.defs?.xp, hl = this.st?.lvl || 1; if (!X) return 0;
-    const L0 = t.lvl > 0 ? Math.max(1, Math.min(hl, t.lvl + (X.refPlus | 0))) : hl, L = Math.min(X.need.length, L0);
-    let b = X.bands.findIndex((v) => L <= v); if (b < 0) b = X.bands.length - 1;
-    const pct = Number(X.t?.[b]?.[Math.max(0, Math.min(4, ((t.d?.[ti] | 0) || 1) - 1))]) || 0;
-    const mul = Number(X.mul?.[t.cat] ?? 1), k = Number.isFinite(mul) ? Math.max(0, mul) : 1;
-    return Math.round((X.need[L - 1] || 0) * pct / 100 * k);
+  xpOf(t, ti) { // опыт ступени — число от уровня задания (сервер: board.ts tierXp/tableXp), одинаковое героям любого уровня
+    const v = Number(t?.x?.[ti]); return Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
   }
   rewardList(t, ti) {
     const out = [], xp = this.xpOf(t, ti); if (xp) out.push(`+${xp} опыта`);

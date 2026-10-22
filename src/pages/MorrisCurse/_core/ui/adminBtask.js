@@ -5,7 +5,7 @@
 import { esc } from './overlay.js';
 import { BoardStore, PERIODIC } from '../meta/boardStore.js';
 import { BoardWin } from './board.js';
-import { btDef, makeBtask } from '../../../../../server/meta/board.ts';
+import { btDef, makeBtask, prepXp, tableXp, tierLvl } from '../../../../../server/meta/board.ts';
 
 const NEW_IDS = { __btnew: 'daily', __achnew: 'ach' };
 const POOL_CATS = [['daily', 'Ежедневные', 'dailyMin', 'dailyMax'], ['weekly', 'Еженедельные', 'weeklyMin', 'weeklyMax'], ['monthly', 'Ежемесячные', 'monthlyMin', 'monthlyMax'], ['hunt', 'Заказы Доски объявлений', 'huntOffer', null]];
@@ -22,14 +22,17 @@ export function btTopItems() {
 function blankValues(cat, ev) {
   const t = makeBtask('cx_tmp', cat, ev), v = {};
   for (const k of ['cat', 'ev', 'on', 'title', 'why', 'pc', 'mob', 'giver', 'hl', 'ord', 'minLvl', 'maxLvl', 'lvl', 'req', 'm', 'f', 'minT', 'res', 'item', 'auto', 'hidden', 'w']) v[k] = t[k];
-  for (let i = 0; i < 5; i++) { v[`n.${i}`] = t.n[i] || 0; v[`d.${i}`] = t.d[i] || 0; }
+  for (let i = 0; i < 5; i++) { v[`n.${i}`] = t.n[i] || 0; v[`d.${i}`] = t.d[i] || 0; v[`x.${i}`] = 0; }
+  v.xm = false; v.lvl = 0;
   if (cat === 'npc') v.giver = 'petr';
   return v;
 }
 /** значения формы → задание в формате сервера (для btDef и предпросмотра) */
 function toTask(id, v) {
   const t = makeBtask(id, v.cat, v.ev);
-  for (const [k, x] of Object.entries(v)) { const m = /^([nd])\.(\d)$/.exec(k); if (m) t[m[1]][+m[2]] = Number(x) || 0; else t[k] = x; }
+  t.x = [0, 0, 0, 0, 0];
+  for (const [k, x] of Object.entries(v)) { const m = /^([ndx])\.(\d)$/.exec(k); if (m) t[m[1]][+m[2]] = Number(x) || 0; else t[k] = x; }
+  prepXp(t); // уровень (если 0) и опыт по таблице (если не вручную) — как на сервере
   return t;
 }
 /** проверка до отправки (те же правила, что на сервере; сервер всё равно проверит) */
@@ -165,7 +168,7 @@ export function btaskForm(panel, sec, e, opts = {}) {
   const evL = [...bt.evs.map((x) => [x.id, x.name]), ...(v.ev === 'ui' ? [['ui', 'Действие в интерфейсе (обучение)']] : [])];
   const gL = Object.entries(bt.givers).map(([k, n]) => [k, k === '' ? '— окно «Задания» (без персонажа)' : k === 'board' ? 'Доска объявлений' : `${n} (личное задание в диалоге)`]);
   const flags = String(v.f || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const tierRow = (i) => `<tr><td>Ступень ${i + 1}</td><td><input type="number" min="0" max="1000000" data-v="n.${i}" value="${v[`n.${i}`] || 0}"></td><td>${sel(`d.${i}`, [[0, '—'], [1, '1 · легко'], [2, '2'], [3, '3 · средне'], [4, '4'], [5, '5 · очень трудно']].map(([a, b]) => [String(a), b]), String(v[`d.${i}`] || 0))}</td><td class="xp" data-xp="${i}"></td></tr>`;
+  const tierRow = (i) => `<tr><td>Ступень ${i + 1}</td><td><input type="number" min="0" max="1000000" data-v="n.${i}" value="${v[`n.${i}`] || 0}"></td><td>${sel(`d.${i}`, [[0, '—'], [1, '1 · легко'], [2, '2'], [3, '3 · средне'], [4, '4'], [5, '5 · очень трудно']].map(([a, b]) => [String(a), b]), String(v[`d.${i}`] || 0))}</td><td><input type="number" min="0" max="10000000" data-v="x.${i}" value="${v[`x.${i}`] || 0}" title="Опыт за ступень — число. Изменили — опыт станет «вручную»"></td><td class="xp" data-xp="${i}"></td></tr>`;
   const pool = PERIODIC.includes(v.cat) || v.cat === 'hunt';
   sec.innerHTML = `<div class="btf">
     <h3>${isNew ? (v.cat === 'ach' ? '＋ Новое достижение' : '＋ Новое задание') : esc(v.title)} <small style="color:#9a8bb8">${esc(id)} · ${custom ? 'создано в админке' : 'встроенное'}</small></h3>
@@ -185,9 +188,10 @@ export function btaskForm(panel, sec, e, opts = {}) {
       ${Object.keys(bt.flags).some((k) => flagFor(v.ev, k)) ? '' : '<small class="mc-dim">Дополнительных условий у этого действия нет.</small>'}
       ${v.ev === 'run' ? num('minT', 'Забег не короче, секунд', 0, 3600) : ''}</div>
     <div class="box"><b>Ступени</b> <small>каждая следующая больше предыдущей; пустая ступень — конец</small>
-      <table class="tiers"><tr><th></th><th>Сколько</th><th>Сложность</th><th>Опыт*</th></tr>${[0, 1, 2, 3, 4].map(tierRow).join('')}</table>
-      <small class="mc-dim">* опыт героя ${panel.board?.st?.lvl || 10} ур. по текущей таблице; таблица, множители разделов и дневные пороги — «⚖ Пулы, веса и лимиты» → Настройки Доски.</small></div>
-    <div class="box"><b>Доступность</b><div class="grid">${num('minLvl', 'Доступно с уровня', 1, 30)}${num('maxLvl', 'До уровня (для пула)', 1, 30)}${num('lvl', 'Уровень цели для опыта (0 — уровень героя)', 0, 30)}
+      <table class="tiers"><tr><th></th><th>Сколько</th><th>Сложность</th><th>Опыт (число)</th><th>По таблице*</th></tr>${[0, 1, 2, 3, 4].map(tierRow).join('')}</table>
+      <p><label style="display:inline-flex"><span>Опыт задан вручную</span><input type="checkbox" data-v="xm" ${v.xm ? 'checked' : ''}></label> <button class="btn sm" data-xrecalc>↻ Пересчитать по таблице</button></p>
+      <small class="mc-dim">Опыт — одно и то же число героям любого уровня. * по таблице «уровень задания × сложность» (вкладка «📋 Доска»); без «вручную» сервер сам держит опыт равным таблице.</small></div>
+    <div class="box"><b>Доступность</b><div class="grid">${num('minLvl', 'Доступно с уровня', 1, 30)}${num('maxLvl', 'До уровня (для пула)', 1, 30)}${num('lvl', 'Уровень задания (от него опыт; 0 — подобрать по цели)', 0, 30)}
       ${pool ? `<label><span>Вес в случайном наборе (0 — не выпадает)</span><input type="number" min="0" max="100" step="0.5" data-v="w" value="${v.w ?? 1}"></label>` : ''}</div></div>
     ${reqHtml(cat, v, id)}
     ${rewardHtml(cat, v)}
@@ -204,11 +208,13 @@ export function btaskForm(panel, sec, e, opts = {}) {
   const redraw = () => btaskForm(panel, sec, e, opts);
   const upd = () => {
     $('.pvb').innerHTML = previewHtml(panel, id, v);
-    const S = panel.board; for (let i = 0; i < 5; i++) { const c = sec.querySelector(`[data-xp="${i}"]`); if (c) c.textContent = (+v[`n.${i}`] > 0 && S?.defs) ? '+' + S.xpOf({ cat: v.cat, lvl: +v.lvl || 0, d: [0, 1, 2, 3, 4].map((k) => +v[`d.${k}`] || 0) }, i) : ''; }
+    const T0 = toTask(id, { ...v, xm: false }); for (let i = 0; i < 5; i++) { const c = sec.querySelector(`[data-xp="${i}"]`); if (c) c.textContent = +v[`n.${i}`] > 0 ? `${tableXp(T0, i)} (ур. ${tierLvl(T0, i)})` : ''; }
+    if (!v.xm) { const T1 = toTask(id, v); for (let i = 0; i < 5; i++) { v[`x.${i}`] = T1.x[i]; const inp = sec.querySelector(`[data-v="x.${i}"]`); if (inp && document.activeElement !== inp) inp.value = T1.x[i]; } }
     const er = checkValues(v, bt, ids); $('.errs').innerHTML = er.length ? `<div class="box err">${er.map((x) => '✖ ' + esc(x)).join('<br>')}</div>` : '';
   };
   $$('[data-v]').forEach((i) => i.addEventListener(i.tagName === 'SELECT' || i.type === 'checkbox' ? 'change' : 'input', () => {
     const p = i.dataset.v; v[p] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? (i.value === '' ? 0 : Number(i.value)) : i.value;
+    if (/^x\.\d$/.test(p)) { v.xm = true; const c = sec.querySelector('[data-v="xm"]'); if (c) c.checked = true; }
     if (p === 'cat' || p === 'ev') { if (p === 'ev') v.m = ''; if (p === 'cat' && v.cat === 'npc' && !bt.npcGivers.includes(v.giver)) v.giver = bt.npcGivers[0]; redraw(); return; }
     upd();
   }));
@@ -217,6 +223,7 @@ export function btaskForm(panel, sec, e, opts = {}) {
     s.querySelectorAll('option').forEach((o) => { o.hidden = !!t && !o.textContent.toLowerCase().includes(t) && !o.value.toLowerCase().includes(t); });
     s.querySelectorAll('optgroup').forEach((g) => { g.hidden = ![...g.querySelectorAll('option')].some((o) => !o.hidden); });
     const f = [...s.querySelectorAll('option')].find((o) => !o.hidden); if (t && f && s.selectedOptions[0]?.hidden) { s.value = f.value; s.dispatchEvent(new Event('change')); } }));
+  $('[data-xrecalc]').onclick = () => { v.xm = false; redraw(); panel.msg('Опыт пересчитан по таблице — сохраните'); };
   // предусловия
   $('[data-rq-add]').onclick = () => { const rid = $('[data-rq]').value, ti = $('[data-rq-t]').value; if (!rid) return; const L = String(v.req || '').split(',').map((s) => s.trim()).filter(Boolean); const r = ti ? `${rid}@${ti}` : rid; if (!L.includes(r)) L.push(r); v.req = L.join(','); redraw(); };
   $$('[data-rq-del]').forEach((b) => (b.onclick = () => { v.req = String(v.req || '').split(',').map((s) => s.trim()).filter((x) => x && x !== b.dataset.rqDel).join(','); redraw(); }));
@@ -285,7 +292,7 @@ export const BT_CSS = `
 .mc-admin .btf label.wide{grid-column:1/-1}.mc-admin .btf label.wide input[type=text]{flex:1;min-width:200px}
 .mc-admin .btf .pick1{display:flex;gap:4px;flex:1;min-width:0}.mc-admin .btf .pick1 select{flex:1;min-width:0;max-width:100%}.mc-admin .btf .pick1 input{width:120px}
 .mc-admin .btf .flg{margin-top:6px}.mc-admin .btf .flg label{font-size:11px}
-.mc-admin .btf table.tiers input{width:110px}.mc-admin .btf td.xp{color:#86efac}
+.mc-admin .btf table.tiers input{width:100px}.mc-admin .btf table.tiers td.xp{font-size:11px}.mc-admin .btf td.xp{color:#86efac}
 .mc-admin .btf .box.err{border-color:#f87171;color:#fca5a5}
 .mc-admin .btf .chip{display:inline-flex;gap:4px;align-items:center;border:1px solid #3b2c52;border-radius:6px;padding:2px 6px;background:#140e24}
 .mc-admin .btf table.pool tr.off{opacity:.5}.mc-admin .btf table.pool input[type=number]{width:70px}
