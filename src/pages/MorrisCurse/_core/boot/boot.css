@@ -64,3 +64,7 @@ html.mc-ui .mcl-btn:hover { border-image-source: var(--ui-button-hover, none); }
 @keyframes mcl-spin { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
 @keyframes mcl-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mcl * { animation: none !important; transition: none !important; } }
+
+/* предупреждения и подсказки — не красные (hotfix 22.10): красная рамка только у ошибок */
+.mcl-err.sev-warn .mcl-box, .mcl-err.sev-info .mcl-box { border-color: #7a5a2e; box-shadow: 0 0 0 2px var(--ui-outline, #1a1626), 0 0 18px rgba(200, 150, 60, .28), inset 0 0 0 2px var(--ui-face0, #0b0a12); }
+.mcl-err.sev-warn .mcl-code { color: var(--ui-warn, #f0c070); }

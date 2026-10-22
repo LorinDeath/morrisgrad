@@ -12,6 +12,7 @@ function report(r) {
   if (SINK) { try { SINK(r); } catch (_) {} return; }
   Q.push(r); try { localStorage.setItem('mc_err_q', JSON.stringify(Q.slice(-10))); } catch (_) {}
 }
+const AUTO_MIN = 20000; // плашка с кодом видна минимум 20 с
 let CUR = null; export const ERR_LOG = []; if (typeof window !== 'undefined') window.__mcErrLog = ERR_LOG; // для плейтестов: какие коды показаны
 /**
  * Показать ошибку. code — из реестра; opt: { detail (только в консоль/сервер), step (видно игроку — какой шаг ждём), onRetry, soft (без затемнения, плашкой сверху), host }
@@ -22,7 +23,8 @@ export function showError(code, opt = {}) {
   const info = codeInfo(code), ctx = opt.ctx || ctxId(), at = new Date();
   console.warn('[mc-err]', code, ctx, opt.detail || '');
   report({ code, ctx, ver: clientVersion(), step: opt.step ? String(opt.step).slice(0, 40) : undefined });
-  ERR_LOG.push({ code, ctx, step: opt.step || null, at: at.getTime() });
+  ERR_LOG.push({ code, ctx, step: opt.step || null, at: at.getTime(), quiet: !!opt.quiet });
+  if (opt.quiet) return { code, ctx, text: `${code} · ${ctx}`, close() {}, setStep() {}, el: null }; // тихо: только консоль и журнал сервера, без окна
   if (CUR && CUR.code === code) { CUR.setStep(opt.step); return CUR; }
   CUR?.close();
   const root = mclRoot(opt.host), el = document.createElement('div');
@@ -44,7 +46,14 @@ export function showError(code, opt = {}) {
   root.appendChild(el);
   const close = () => { el.remove(); if (CUR === h) CUR = null; };
   const h = { code, ctx, text, close, setStep, el };
-  CUR = h; if (opt.autoClose) setTimeout(close, opt.autoClose);
+  // авто-закрытие: не раньше чем через AUTO_MIN мс (код успели прочитать/скопировать); пока курсор/фокус на плашке — не закрываем,
+  // после «Скопировать код» плашка остаётся до ✕
+  if (opt.autoClose) { let keep = false, tm = 0; const arm = (ms) => { clearTimeout(tm); tm = setTimeout(() => { if (!keep) close(); }, ms); };
+    el.addEventListener('pointerenter', () => { keep = true; clearTimeout(tm); }); el.addEventListener('pointerleave', () => { keep = false; if (!h.pinned) arm(4000); });
+    el.addEventListener('focusin', () => { keep = true; clearTimeout(tm); });
+    el.addEventListener('click', (e) => { if (e.target.closest('[data-a="copy"]')) { h.pinned = true; keep = true; clearTimeout(tm); } });
+    arm(Math.max(AUTO_MIN, +opt.autoClose || 0)); }
+  CUR = h;
   return h;
 }
 export const currentError = () => CUR;
