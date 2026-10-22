@@ -127,7 +127,16 @@ function valueNoise(seed: number, step: number) {
     return a + (b - a) * sy;
   };
 }
-export const regSig = (r: any) => JSON.stringify([r.dens, r.packs, r.pack, r.elite, r.eliteMax, r.bossOn]);
+export const regSig = (r: any) => JSON.stringify([r.dens, r.packs, r.pack, r.elite, r.eliteMax, r.bossOn, popMul()]); // + численность лагерей (админка «Спавн»)
+/** множитель численности лагерей (ZONE_GEN.campPopMul, 0.25…4; не число — 1) */
+export const popMul = () => { const v = Number((ZONE_GEN as any).campPopMul); return Number.isFinite(v) && v > 0 ? Math.min(4, Math.max(0.25, v)) : 1; };
+/** когда воскреснет моб лагеря: случайно в [campRespawnMin, campRespawnMax] с; оба 0 — старое campRespawn × ранг (вожак ×2, кочевник ×1.5) */
+export function campRespawnSec(rk: number, R: () => number = Math.random) {
+  const G: any = ZONE_GEN, a = Math.max(0, Number(G.campRespawnMin) || 0), b = Math.max(0, Number(G.campRespawnMax) || 0);
+  if (!a && !b) return (Number(G.campRespawn) || 45) * rk;
+  const lo = Math.min(a || b, b || a), hi = Math.max(a, b);
+  return lo + R() * (hi - lo);
+}
 export const DOT_STACK_MAX = 5; // стаков одного статуса на цели
 const MOB_INDEX: Record<string, number> = Object.fromEntries(Object.keys(ZONE_MOBS).map((k, i) => [k, i]));
 // выстрел дальнобойного моба: спрайт по стихии
@@ -326,6 +335,7 @@ export class Zone {
           let n = row.pack[0] + Math.floor(R() * (row.pack[1] - row.pack[0] + 1));
           const roll = R(); if (roll < 0.18) n = Math.min(6, n + 1); else if (roll < 0.3) n = Math.max(2, n - 1);
           if (reg.pack) n = reg.pack[0] + Math.floor(R() * (reg.pack[1] - reg.pack[0] + 1)); // админка: мобов в пачке
+          { const pm = popMul(); if (pm !== 1) { const nm = n * pm, fr = (Math.imul(x * 73856093 ^ y * 19349663 ^ (pk + 1) * 83492791, 2654435761) >>> 0) / 4294967296; n = Math.max(1, Math.min(15, Math.floor(nm) + (fr < nm - Math.floor(nm) ? 1 : 0))); } } // численность лагерей ×campPopMul (админка «Спавн»); дробь — по хешу места, R() не тратим: раскладка лагерей та же
           const eliteThis = R() < reg.elite && elites < eliteMax; if (eliteThis) elites++; // шанс элиты — на пачку, не больше eliteMax в лагере
           const prow = pk > 0 && R() < 0.35 ? reg.table[Math.floor(R() * reg.table.length)] : row; // соседняя пачка бывает другого вида
           const types: string[] = [];
@@ -1220,7 +1230,7 @@ export class Zone {
   }
   kill(m: ZMob, onKill: (m: ZMob) => void) {
     m.dead = true; m.hp = 0; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.casts = [];
-    m.respawnAt = Date.now() + (m.rk ? ZONE_GEN.campRespawn * m.rk : m.respawn) * 1000; // лагеря — живая правка админки
+    m.respawnAt = Date.now() + (m.rk ? campRespawnSec(m.rk) : m.respawn) * 1000; // лагеря — случайно campRespawnMin…Max (живая правка админки)
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
     if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}»${tierDef(m.ench) ? ` (✦ ${tierDef(m.ench)!.name})` : ""} повержен!`, color: "#fde68a" });
     onKill(m);

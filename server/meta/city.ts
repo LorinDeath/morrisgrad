@@ -117,6 +117,8 @@ export function pkPublic(st: any, s: PkState, killer: boolean, now = Date.now())
 export const POS_CFG: any = {
   on: true,                 // вход/переподключение — в том же мире и точке (выкл — как раньше, в хабе)
   saveSec: 60,              // позиция пишется не чаще раза в N с (и всегда при смене мира и выходе)
+  perBody: true,            // у каждого тела своя точка (вход — туда, где оставили активное тело; нет своей — общая последняя)
+  switchTp: false,          // смена тела у Алтаря переносит новое тело туда, где его оставили (выкл — остаёмся у Алтаря)
 };
 export const cityR = () => Math.max(1, Number(CITY_CFG.rTiles) || 32) * CITY_TILE;
 export const cityOn = () => CITY_CFG.on !== false;

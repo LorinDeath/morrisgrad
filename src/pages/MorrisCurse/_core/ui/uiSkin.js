@@ -9,7 +9,8 @@ export const UI_BASE = '/mc-ui/';
 export const UI = { on: true, glitch: 1, biomeMix: 60, ornaments: true, avatarCursedAt: 25, avatars: true, hudIngame: true, hudOldDefault: false, mmMobile: true, mmSize: 176,
   mmX: 10, mmY: 10, mmZoom: 1, mmRound: true, tgtSide: 'left', tgtTop: 100, tgtHide: 0, plate: 88,
   atmo: true, vig: 45, grade: 30, parts: 50, atmoMobile: 40, partsMobile: 60, loc: {}, sfx: true, sfxVol: 40, trans: true, transMs: 160, loadScreen: true,
-  texPc: '32', texMobile: '16', scalePc: 100, scaleMobile: 0, scaleMin: 70, scaleMax: 150 };
+  texPc: '32', texMobile: '16', scalePc: 100, scaleMobile: 0, scaleMin: 70, scaleMax: 150,
+  drag: true, dragMobile: true, longPressMs: 450, xpBar: true, xpPop: true, xpPopMs: 1600, fsAuto: true };
 const CURSED = '#8a6aa6';
 const TINTABLE = ['frame_window', 'frame_panel', 'frame_small', 'frame_tooltip', 'corner_tl', 'corner_tr', 'corner_bl', 'corner_br',
   'divider_h', 'divider_v', 'divider_ornament', 'slot_normal_normal', 'slot_normal_hover', 'slot_normal_selected',
@@ -108,6 +109,8 @@ export function setUiCfg(c) {
   try { localStorage.setItem('mc_ui_load', UI.on !== false && UI.loadScreen !== false ? '1' : '0'); } catch (_) {}
   // «Текстуры» по умолчанию для ПК/телефона (worlds/texPref.js texDefault) — тоже до прихода настроек, со следующей загрузки
   try { localStorage.setItem('mc_tex_def', JSON.stringify({ pc: UI.texPc === '16' ? '16' : '32', mob: UI.texMobile === '32' ? '32' : '16' })); } catch (_) {}
+  // админ-флаг автоперехода в полный экран (ui/fullscreen.js): действует сразу и с первого жеста следующей загрузки
+  window.__MC_FS_AUTO__ = UI.fsAuto !== false; try { localStorage.setItem('mc_fs_adm', UI.fsAuto !== false ? '1' : '0'); } catch (_) {}
   applyClasses(); if (UI.biomeMix !== mix) { curT = ''; retint(); }
 }
 // ——— аватары (Историк, /mc-ui/avatars): 64/128 px, показываем 1:1 (без дробного масштаба) ———

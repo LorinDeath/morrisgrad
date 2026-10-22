@@ -12,7 +12,7 @@
 .ch-pk:hover { border-color: var(--ch-pk); }
 .ch-pk:focus-visible { outline: 2px solid var(--ch-pk); outline-offset: 2px; }
 .ch-pk-ic { font-size: 14px; filter: grayscale(.6); }
-.ch-pk.ch-on { color: #fff; border-color: var(--ch-pk); box-shadow: 0 0 0 1px var(--ch-pk) inset, 0 0 14px color-mix(in srgb, var(--ch-pk) 55%, transparent); background: color-mix(in srgb, var(--ch-pk) 28%, var(--ch-bg)); }
+.ch-pk.ch-on { color: #fff; border-color: var(--ch-pk); box-shadow: 0 0 0 1px var(--ch-pk) inset; background: color-mix(in srgb, var(--ch-pk) 28%, var(--ch-bg)); }
 .ch-pk.ch-on .ch-pk-ic { filter: none; }
 .ch-pk.ch-wait { border-color: var(--ch-wait); color: var(--ch-wait); }
 .ch-pk.ch-off { opacity: .5; }

@@ -78,8 +78,10 @@ import { WORLD_PORTALS as OFFLINE_PORTALS, HOME_PORTAL_HUB } from '../../../../s
 import { CHARACTER_CLASSES as OFFLINE_CLASSES } from '../../../../server/classes.ts';
 import './styles/core3d.css';
 import './styles/ui-cursed.css'; // реворк UI «проклятое + очернённое» (поверх core3d.css, html.mc-ui)
-import { initUiSkin, setUiMode, setUiCfg } from './ui/uiSkin.js';
-import { PlayerFrame } from './ui/playerFrame.js';
+import { initUiSkin, setUiMode, setUiCfg, UI as UI_SKIN } from './ui/uiSkin.js';
+import { UiDrag } from './ui/uiDrag.js'; // перетаскивание блоков HUD и окон (раскладка — на сервере, по аккаунту)
+import { XpBar } from './ui/xpBar.js'; // полоса опыта над панелью умений
+import { PlayerFrame, pkSlot } from './ui/playerFrame.js';
 import { TEX_MODE } from './worlds/texPref.js';
 import { TERRAIN_CFG } from '../../../../server/meta/terrainCfg.ts';
 import { liquidAt, inLiquid, resolveLiquid } from '../../../../server/meta/liquid.ts';
@@ -255,6 +257,9 @@ async function boot(canvasId, username, userId, api) {
   const statsUI = new StatsUI(overlay);
   // Мета-прогрессия героя (сервер): книга, трекер заданий, диалоги NPC
   const meta = new MetaClient(send);
+  const xpBar = new XpBar(overlay.layer, mobile);
+  const uiDrag = new UiDrag({ root: container, layer: overlay.layer, mobile, send: (m) => send(m), onMove: () => xpBar.place() });
+  api.uiDrag = uiDrag; api.xpBar = xpBar;
   api.meta = meta;
   queueMicrotask(() => { api.book = book; });
   const book = new Book(overlay, meta, {
@@ -560,9 +565,11 @@ async function boot(canvasId, username, userId, api) {
     if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
-    const prevLvl = meta.hero?.lvl;
+    const prevLvl = meta.hero?.lvl, prevNeed = Number(meta.hero?.xpNeed) || 0;
     addCards(d.loot?.cards); addCards(d.reward?.cards);
     meta.apply(d);
+    xpBar.set(meta.hero); if (d.loot?.xp && prevNeed) xpBar.pop(d.loot.xp / prevNeed * 100); // моб: «+0,1% опыта» у полосы, а не «+N опыта»
+    if (d.uiLay !== undefined) uiDrag.applyServer(d.uiLay); // раскладка интерфейса аккаунта (приходит при входе)
     boardSt.apply(d);
     if (d.boardDefs) { zone.setBoards?.(d.boardDefs.props, d.boardDefs.on); const P = d.boardDefs.props || {}; setBoardCols(d.boardDefs.on ? [P.nb, P.ab].filter(Boolean) : []); } // доски непроходимы — как на сервере
     for (const g of d.boardGranted || []) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac');
@@ -598,6 +605,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('library', (d) => { meta.applyLibrary(d); updateBookBadge(); });
   // Рейтинг и просмотр персонажа (данные — только от сервера)
   const social = new Social({ overlay, send, onDuel: (sid) => challengeDuel(sid), onParty: (sid) => party.invite(sid), canParty: (sid) => !!sid && sid !== myId && party.canInvite(sid), canDuel: (sid) => others.has(sid) && !duel.inArena && world !== 'arena' });
+  social.uiDrag = uiDrag; // настройки → ✥ Расположение интерфейса
   social.tutCtl = { // настройки → 🧭 Обучение
     state: () => boardSt.ready ? { off: !!boardSt.st.tut.off, skip: !!(boardSt.st.tut.skip || boardSt.st.tut.vet), done: !boardSt.tutLeft(), canSkip: boardSt.defs.cfg.tutSkip !== false } : null,
     set: (m) => boardSt.tut(m), fold: () => tracker.fold, setFold: (on) => tracker.setFold(on) };
@@ -860,6 +868,7 @@ async function boot(canvasId, username, userId, api) {
   api.qol = qol;
   // рамка героя (лево-верх): аватар, имя, уровень, ОЗ — когда нет боковой карточки «ГЕРОЙ»
   const pframe = new PlayerFrame(overlay.layer, { onClick: () => toggleCharSheet() });
+  cityHud.mount(pkSlot()); // ⚔ PK — у ника в рамке героя (телефон — в полоске «ОЗ + PK» слева сверху)
   function updateBookBadge() {
     const n = meta.unread().total;
     const em = bookBtn.querySelector('em');
@@ -905,7 +914,7 @@ async function boot(canvasId, username, userId, api) {
   });
   function showLoot(loot) {
     const parts = [];
-    if (loot.xp) parts.push(`+${loot.xp} опыта`);
+    if (loot.xp && UI_SKIN.xpBar === false) parts.push(`+${loot.xp} опыта`); // с полосой опыта — доля уровня у полосы (xpBar.pop)
     for (const it of loot.items || []) {
       const def = ITEM_BY_ID[it.id];
       if (def) overlay.toast(`🎁 ${def.icon} ${def.name} (${RARITIES[def.rarity].name})`, RARITIES[def.rarity].color);
@@ -1097,7 +1106,7 @@ async function boot(canvasId, username, userId, api) {
     runView = new RunView(THREE, stage.scene, run, arena);
     stage.setEnvironment(arena);
     atmoWorld = 'run_' + (arena.theme || 'crypt'); atmo.setScene(atmoWorld, null, []);
-    mode = 'run'; setUiMode('run'); // забег — без темы реворка (там всё как было)
+    mode = 'run'; setUiMode('run'); xpBar.show(false); // забег — без темы реворка (там всё как было)
     cityHud.setWorld(''); // кнопка ⚔ PK — только в мире (в забеге кадр хаба не идёт и мир не сбрасывался)
     runUI.show(true);
     runUI.setAbilities(run.me.abilities);
@@ -1143,7 +1152,7 @@ async function boot(canvasId, username, userId, api) {
     overlay.clearFloats();
     hub.attach();
     touch.setMode('hub');
-    mode = 'hub'; setUiMode('hub');
+    mode = 'hub'; setUiMode('hub'); xpBar.show(true);
     stage.follow(toX(player.x), toZ(player.y), 0, true);
   }
 

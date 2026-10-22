@@ -94,12 +94,12 @@
 .mc3d-ttop .mc3d-tbtn { width: 38px; height: 38px; font-size: 15px; }
 
 /* Раскладка: в полноэкранном режиме канвас занимает всё свободное место (3D не требует квадрата) */
-.game-window:fullscreen #game-canvas.mc3d-canvas { aspect-ratio: auto; flex: 1 1 auto; min-width: 0; max-width: none; width: 100%; }
+.game-window:is(:fullscreen, .mc-full) #game-canvas.mc3d-canvas { aspect-ratio: auto; flex: 1 1 auto; min-width: 0; max-width: none; width: 100%; }
 .game-screen.mc3d-mobile { width: 100vw !important; max-width: 100vw; height: calc(100svh - 120px) !important; min-height: min(420px, calc(100svh - 46px)); margin: 0 auto; }
-.game-window:fullscreen .game-screen.mc3d-mobile { height: calc(100svh - 46px) !important; }
+.game-window:is(:fullscreen, .mc-full) .game-screen.mc3d-mobile { height: 100% !important; } /* шапки окна больше нет (страница игры — на всё окно) */
 .game-screen.mc3d-mobile .game-hud-panel { display: none !important; }
 @media (max-width: 900px) {
-  .game-window:fullscreen .game-hud-panel { display: none !important; }
+  .game-window:is(:fullscreen, .mc-full) .game-hud-panel { display: none !important; }
 }
 .mc3d-overlay-canvas { position: absolute; pointer-events: none; z-index: 4; }
 
@@ -692,9 +692,9 @@
 .game-hud-panel .hud-duel-btn, #ghud-rating-btn, .mc-ratebtn, .mc-tchip {
   transition: border-color 1.4s ease, box-shadow 1.4s ease, color 1.4s ease, background-color 1.4s ease, text-shadow 1.4s ease;
 }
-html[data-biome] .game-window:fullscreen .hud-left { border-right-color: color-mix(in srgb, var(--mc-biome) 55%, #231b33); }
-html[data-biome] .game-window:fullscreen .hud-right { border-left-color: color-mix(in srgb, var(--mc-biome) 55%, #231b33); }
-html[data-biome] .game-window:fullscreen #game-canvas { border-left-color: color-mix(in srgb, var(--mc-biome) 40%, #c59b27); border-right-color: color-mix(in srgb, var(--mc-biome) 40%, #c59b27); }
+html[data-biome] .game-window:is(:fullscreen, .mc-full) .hud-left { border-right-color: color-mix(in srgb, var(--mc-biome) 55%, #231b33); }
+html[data-biome] .game-window:is(:fullscreen, .mc-full) .hud-right { border-left-color: color-mix(in srgb, var(--mc-biome) 55%, #231b33); }
+html[data-biome] .game-window:is(:fullscreen, .mc-full) #game-canvas { border-left-color: color-mix(in srgb, var(--mc-biome) 40%, #c59b27); border-right-color: color-mix(in srgb, var(--mc-biome) 40%, #c59b27); }
 html[data-biome] .game-hud-panel .hud-card {
   border-color: color-mix(in srgb, var(--mc-biome) 62%, #2d2242);
   box-shadow: 0 4px 10px rgba(0,0,0,0.5), 0 0 12px color-mix(in srgb, var(--mc-biome) 34%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--mc-biome2) 14%, transparent);
@@ -1264,3 +1264,29 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 /* «Чёрный» сундук: мифический рисунок в тёмном тоне (без свечения) */
 .bc-dark .bc-ico, .bc-dark canvas, .bc-dark img, .bc-fx.dark canvas.ch { filter: brightness(.55) saturate(.3) contrast(1.15); }
 .mc-bchest .bc-curn { color: #d8b4fe; }
+
+/* ── полоса опыта над панелью умений (ui/xpBar.js) — фиолетовая, как уровень в окне C; без свечения ── */
+.mc-xpbar { position: absolute; z-index: 6; height: 5px; background: #000; box-shadow: 0 0 0 1px #000, 0 0 0 2px #3b2a55; pointer-events: auto; cursor: default; }
+.mc-xpbar::before { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; } /* шире зона наведения/касания */
+.mc-xpbar .f { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7c3aed, #c084fc); transition: width .35s; }
+html.mc-ui .mc-xpbar { box-shadow: 0 0 0 1px var(--ui-outline, #000), 0 0 0 2px var(--ui-metal-lo, #3b2a55); }
+html.mc-ui .mc-xpbar .f { background: linear-gradient(180deg, var(--ui-v2, #c084fc), var(--ui-v1, #7c3aed)); }
+.mc-xpbar.free, .mc-xpbar.mob { left: 50%; width: min(44vw, 320px); bottom: calc(var(--sb, 0px) + 3px); margin-left: calc(min(44vw, 320px) / -2); }
+.mc-xpbar.mob { height: 4px; }
+.mc-xpbar .tip, .mc-xpbar .pop { position: absolute; bottom: calc(100% + 6px); white-space: nowrap; font: 11px/1.2 var(--ui-font, monospace); color: #e9d5ff; text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.mc-xpbar .tip { left: 50%; transform: translateX(-50%); background: rgba(10, 6, 20, .9); padding: 2px 6px; box-shadow: 0 0 0 1px #3b2a55; }
+.mc-xpbar .pop { right: 0; color: #d8b4fe; font-weight: 700; }
+.mc-xpbar.tipon .tip { opacity: 1; }
+.mc-xpbar.popon .pop { opacity: 1; animation: mc-xppop .25s ease-out; }
+.mc-xpbar.tipon .pop { opacity: 0; }
+@keyframes mc-xppop { from { transform: translateY(4px); } to { transform: none; } }
+
+/* ── перетаскивание интерфейса (ui/uiDrag.js) ── */
+.mc-touch .mc-dr:not(.mc-dr-win), html.mc-uiedit .mc-dr { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.mc-touch .mc-dr:not(.mc-dr-win), html.mc-uiedit .mc-dr { touch-action: none; }
+html.mc-dragging, html.mc-dragging * { -webkit-user-select: none !important; user-select: none !important; cursor: grabbing !important; }
+.mc-dr-win :is([class*="head"], h2):not(button) { cursor: grab; }
+html.mc-uiedit .mc-dr.mc-dr-edit { outline: 1px dashed #c084fc; outline-offset: 2px; cursor: grab; pointer-events: auto !important; }
+.mc-dr.mc-dr-live { outline: 1px solid #e9d5ff !important; outline-offset: 2px; opacity: .92; }
+.mc-uiedit-bar { position: absolute; z-index: 60; left: 50%; top: 8px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: rgba(10, 6, 20, .94); box-shadow: 0 0 0 1px #000, 0 0 0 2px #3b2a55; color: #e9d5ff; font: 12px/1.3 var(--ui-font, monospace); pointer-events: auto; white-space: nowrap; }
+.mc-touch .mc-uiedit-bar { top: calc(var(--st, 0px) + 6px); font-size: 11px; white-space: normal; max-width: 92vw; }
