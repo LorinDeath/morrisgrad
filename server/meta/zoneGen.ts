@@ -137,7 +137,7 @@ const PG = Math.round(WORLD_SIZES.arinar / PATCH_CELL);
 const RING0 = Math.floor((H0 * K) / PATCH_CELL), RING1 = Math.ceil((H1 * K) / PATCH_CELL); // клетки кольца хаба
 type Kind = { kind: string; biome?: BiomeId; mk: (half: 0 | 1, rect: Region["rect"], name: string) => Region; nm: string };
 const LEG = (id: string, name: string, band: string, tier: number, lvl: [number, number], biome: string, elite: number, tags: Record<string, number>, nodes: Region["nodes"]): Kind =>
-  ({ kind: id, nm: name, mk: (_h, rect, nm) => reg({ id, name: nm, band, tier, lvl, biome, rect, cap: 0, elite, tags, nodes }) });
+  ({ kind: id, nm: name, mk: (_h, rect, nm) => reg({ id, name: `${name}${nm}`, band, tier, lvl, biome, rect, cap: 0, elite, tags, nodes }) });
 const ELEM = (biome: BiomeId, inner: string, outer: string, nodes: [Region["nodes"], Region["nodes"]]): Kind =>
   ({ kind: biome, biome, nm: BIOMES[biome].name, mk: (h, rect, nm) => BR(biome, h, `${BIOMES[biome].name}: ${h ? outer : inner}${nm}`, rect, nodes[h]) });
 const KINDS: Record<string, Kind> = {

@@ -1,7 +1,7 @@
 // Биомы Аринара (48000×48000 px): центральный хаб + 4 стихийных края вокруг него.
 // Мобы биомов — «варианты» существующих Отголосков бестиария: тот же спрайт (spr) с перекраской
 // (tint — множитель RGB в SpriteBatch), уровень/статы пересчитаны кривыми balance.ts под уровень биома.
-// Трофеи, запись бестиария и квесты считаются по базовому мобу (base) — у варианта нет своего комплекта.
+// Трофеи и квесты считаются по базовому мобу (base) — у варианта нет своего комплекта; запись Бестиария у варианта своя (bestiaryKey).
 // Клиентобезопасно (только balance + публичные данные). Порядок VARIANTS фиксирован: варианты
 // дописываются в конец ZONE_MOBS (сервер) и MOB_INFO (клиент) — индекс типа в zone_state совпадает.
 import { mobStats, tierOf } from "./balance";
@@ -47,8 +47,12 @@ export const baseOf = (type: string) => VARIANT_BY_ID[type]?.base || type;
  *  Обычный вариант биома (перекраска, «Чугунный голем») засчитывается как базовый Отголосок, но ВАРИАНТ-БОСС —
  *  отдельный именной босс («Часовой Пустоты» ≠ «Безветрие»): только точное совпадение. Цель-вариант — тоже точно. */
 export const goalMatch = (goal: string, type: string) => type === goal || (!VARIANT_BY_ID[goal] && !VARIANT_BY_ID[type]?.boss && baseOf(type) === goal);
-/** запись Бестиария для типа: вариант-босс биома — отдельный босс без своей карточки (не засчитывается как базовый) */
-export const bestiaryKey = (type: string): string | null => (VARIANT_BY_ID[type]?.boss ? null : baseOf(type));
+/** запись Бестиария для типа: у каждого вида своя карточка — и у варианта биома («Чугунный голем»), и у варианта-босса
+ *  («Часовой Пустоты»); в базовую карточку вариант не пишется (раньше обычный вариант засчитывался базовому, а вариант-босс — никуда) */
+export const bestiaryKey = (type: string): string | null => (type ? type : null);
+/** свита босса при смене фазы (zone.ts): мелкие не-редкие не-танки того же яруса — общая формула для зоны и Бестиария */
+export const summonPool = (table: Record<string, any>, boss: { tier: number }): string[] =>
+  Object.entries(table).filter(([, x]) => x.size === "s" && !x.rare && x.tier === boss.tier && x.role !== "tank").map(([k]) => k);
 /** ключ спрайта (атлас Отголосков) */
 export const sprOf = (type: string) => VARIANT_BY_ID[type]?.base || type;
 export const tintOf = (type: string): [number, number, number] | null => { const v = VARIANT_BY_ID[type]; return v ? BIOMES[v.biome].tint : null; };

@@ -247,10 +247,11 @@ export class Book {
         this.render(); break;
       }
       case 'lsel': this.lsel = v; if (this.meta.library?.items?.[v]?.isNew) this.meta.markSeen('items', [v]); this.render(); break;
-      case 'msel': this.msel = this.msel === v ? null : v; if (this.meta.library?.mobs?.[v]?.isNew) this.meta.markSeen('mobs', [v]); this.render(); break;
+      case 'msel': { this.msel = this.msel === v ? null : v; const nw = [v, 'run_' + v].filter((k) => this.meta.library?.mobs?.[k]?.isNew); if (nw.length) this.meta.markSeen('mobs', nw); this.render(); break; }
       case 'lfilter': this.lfilter = v; this.render(); break;
       case 'cfilter': this.cfilter = v; this.render(); break;
       case 'bfilt': this.bFilt = v; this.render(); break; // Бестиарий: все / убиты / не убиты
+      case 'btab': this.bTab = v; this.msel = null; this.render(); break; // Бестиарий: Мобы / Элита / Боссы / Мировые боссы
       case 'lvlsort': this.lvlSort = this.lvlSort === 'desc' ? 'asc' : 'desc'; this.render(); break; // Библиотека и Бестиарий: по уровню ↑/↓
       case 'mtrack': { const max = this.board?.defs?.cfg?.trackMax || 10; if (!this.meta.isMobTracked(v) && this.meta.mobTracks.length >= max) { this.ov?.toast?.(`Отслеживать можно не больше ${max} врагов — снимите одну цель`, '#fca5a5'); break; } this.meta.toggleMobTrack(v); this.render(); break; } // «Отслеживать» моба из Бестиария
       case 'seenall': {
@@ -633,33 +634,43 @@ export class Book {
   }
   rBestiary(st) {
     const L = this.meta.library;
-    const b = { ...(st.account.bestiary || {}) };
-    for (const [id, m] of Object.entries(L?.mobs || {})) if (!b[id]) b[id] = { seen: 1, kills: m.kills, v: m.isNew ? 0 : 1 };
-    // уровень/статы — с сервера (правки админки), иначе из справочника
-    const lvlOf = (id) => L?.mobs?.[id]?.st?.lvl ?? MOB_INFO[id]?.lvl ?? 1, dir = this.lvlSort === 'desc' ? -1 : 1;
-    const order = Object.keys(MOB_INFO).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir);
-    const keys = [...order, ...Object.keys(b).filter((k) => !MOB_INFO[k])];
-    const total = order.length;
-    const seen = keys.filter((k) => b[k]).length;
-    // шкала «библиотеки»: знаменатель — текущий справочник (новые мобы/боссы сами увеличивают его); бестиарий — вся история встреч
-    const kindOf = (id) => MOB_INFO[id]?.boss ? 'boss' : MOB_INFO[id]?.rare ? 'rare' : 'mob', KN = { mob: 'Отголоски', rare: 'Редкие', boss: 'Мировые боссы' };
-    const killed = (id) => (b[id]?.kills || 0) > 0, F = this.bFilt || 'all';
-    const stat = (L) => ({ n: L.length, seen: L.filter((k) => b[k]).length, kill: L.filter(killed).length });
-    const all = stat(order), pct = (x, n) => (n ? Math.floor((x / n) * 100) : 0);
+    const b = {};
+    // записи забегов прошлых версий («run_imp») сливаются в карточку вида мира
+    const put = (id, e) => { const k = String(id).replace(/^run_/, ''), o = b[k]; b[k] = o ? { seen: 1, kills: (o.kills || 0) + (e.kills || 0), v: o.v && e.v ? 1 : 0 } : { ...e }; };
+    for (const [id, e] of Object.entries(st.account.bestiary || {})) put(id, e);
+    for (const [id, m] of Object.entries(L?.mobs || {})) if (!st.account.bestiary?.[id]) put(id, { seen: 1, kills: m.kills, v: m.isNew ? 0 : 1 });
+    const lmOf = (id) => L?.mobs?.[id] || L?.mobs?.['run_' + id];
+    // реестр — с сервера: всё, что реально появляется (таблицы регионов, логова, редкие, свита боссов, забеги/испытания);
+    // без него (старый сервер) — справочник клиента
+    const REG = L?.reg || Object.keys(MOB_INFO).map((id) => ({ id, g: MOB_INFO[id].boss ? 'world' : MOB_INFO[id].rare ? 'elite' : 'mob', lvl: MOB_INFO[id].lvl, where: [] }));
+    const RB = Object.fromEntries(REG.map((e) => [e.id, e]));
+    const lvlOf = (id) => lmOf(id)?.st?.lvl ?? RB[id]?.lvl ?? MOB_INFO[id]?.lvl ?? 1, dir = this.lvlSort === 'desc' ? -1 : 1;
+    const K1 = { mob: 'моб', elite: 'элита', boss: 'босс', world: 'мировой босс' }, KN = { mob: 'Мобы', elite: 'Элита', boss: 'Боссы', world: 'Мировые боссы' };
+    const grpOf = (id) => RB[id]?.g || (MOB_INFO[id]?.boss ? 'world' : MOB_INFO[id]?.rare ? 'elite' : 'mob');
+    const killed = (id) => (b[id]?.kills || 0) > 0, F = this.bFilt || 'all', T = KN[this.bTab] ? this.bTab : 'mob';
+    const stat = (ids) => ({ n: ids.length, seen: ids.filter((k) => b[k]).length, kill: ids.filter(killed).length });
+    const byG = (g) => REG.filter((e) => e.g === g).map((e) => e.id);
+    const all = stat(REG.map((e) => e.id)), pct = (x, n) => (n ? Math.floor((x / n) * 100) : 0);
     const bar = (nm, s0) => `<div class="ps"><span>${nm}</span><div class="pb sm"><i style="width:${pct(s0.kill, s0.n)}%"></i></div><b>${s0.kill}/${s0.n}</b></div>`;
+    // шкала: знаменатель — реестр (новые мобы/боссы сами увеличивают его); записи вне реестра (старые виды) видны, но не считаются
     const prog = `<div class="mc-prog"><div class="pt"><b>Изучено ${pct(all.seen, all.n)}%</b><span>встречено ${all.seen} из ${all.n} · убито ${all.kill} из ${all.n} (${pct(all.kill, all.n)}%)</span></div><div class="pb"><i style="width:${pct(all.kill, all.n)}%"></i><u style="width:${pct(all.seen, all.n)}%"></u></div>
-      <div class="pss">${['mob', 'rare', 'boss'].map((k) => { const L = order.filter((id) => kindOf(id) === k); return L.length ? bar(KN[k], stat(L)) : ''; }).join('')}</div>
-      <div class="mc-bfilt">${[['all', 'Все'], ['kill', 'Убиты'], ['nokill', 'Не убиты']].map(([k, n]) => `<button class="mc-btn sm ${F === k ? 'gold' : ''}" data-act="bfilt" data-v="${k}">${n}</button>`).join('')}</div>
+      <div class="pss">${Object.keys(KN).map((g) => { const ids = byG(g); return ids.length ? bar(KN[g], stat(ids)) : ''; }).join('')}</div>
       <small class="mc-dim">Бестиарий — вся история ваших встреч; достижения доски считаются с её запуска.</small></div>`;
-    const where = (id) => { const h = mobHomes(id)[0]; if (!h) return ''; if (h.kind === 'boss') return `${WORLD_NAMES[h.world] || h.world}, логово мирового босса`; return String(h.region || '').split(':')[0]; };
-    const rows = keys.filter((id) => F === 'all' || (F === 'kill' ? killed(id) : MOB_INFO[id] && !killed(id))).map((id) => {
+    const tabs = `<div class="mc-libf mc-btabs">${Object.entries(KN).map(([g, nm]) => { const s0 = stat(byG(g)); return `<button class="mc-btn sm ${T === g ? 'gold' : ''}" data-act="btab" data-v="${g}">${esc(nm)} ${s0.kill}/${s0.n}</button>`; }).join('')}</div>
+      <div class="mc-bfilt">${[['all', 'Все'], ['kill', 'Убиты'], ['nokill', 'Не убиты']].map(([k, n]) => `<button class="mc-btn sm ${F === k ? 'gold' : ''}" data-act="bfilt" data-v="${k}">${n}</button>`).join('')}</div>`;
+    const NOTE = { mob: 'Обычные виды, включая варианты краёв — у каждого своя карточка.', elite: 'Редкие именные Отголоски: появляются ненадолго и по одному. Элита и вожаки лагерей — сильные особи обычных видов: их победы засчитываются в карточку вида.', boss: 'Боссы забегов и испытаний.', world: 'Боссы логов открытого мира и их варианты краёв (появляются по таймеру).' };
+    const inTab = byG(T).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir);
+    const extra = Object.keys(b).filter((k) => !RB[k] && grpOf(k) === T).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir); // старые записи вне реестра
+    const keys = [...inTab, ...extra];
+    const where = (id) => RB[id]?.where?.length ? RB[id].where.join(', ') : (() => { const h = mobHomes(id)[0]; if (!h) return ''; return h.kind === 'boss' ? `${WORLD_NAMES[h.world] || h.world}, логово мирового босса` : String(h.region || '').split(':')[0]; })();
+    const rows = keys.filter((id) => F === 'all' || (F === 'kill' ? killed(id) : RB[id] && !killed(id))).map((id) => {
       const e = b[id];
-      const info = MOB_INFO[id.replace(/^run_/, '')];
-      if (!e) { if (!MOB_INFO[id]) return ''; const w = where(id); return `<div class="mc-beast unknown"><b>??? <small>${KN[kindOf(id)] === 'Отголоски' ? '' : esc(KN[kindOf(id)])}</small></b><small>ур. ${lvlOf(id)} · ещё не встречен${w ? ` · водится: ${esc(w)}` : ''}</small></div>`; }
-      const lm = L?.mobs?.[id];
+      const info = MOB_INFO[id];
+      if (!e) { const w = where(id); return `<div class="mc-beast unknown"><b>??? <small>${T === 'mob' ? '' : esc(K1[T])}</small></b><small>ур. ${lvlOf(id)} · ещё не встречен${w ? ` · водится: ${esc(w)}` : ''}</small></div>`; }
+      const lm = lmOf(id);
       const isNew = lm ? lm.isNew : e.v === 0;
       const open = this.msel === id;
-      const tag = info?.boss ? 'мировой босс' : info?.rare ? 'редкий' : info?.huge ? 'огромный' : id.startsWith('run_') ? 'забег' : ({ s: 'мелкий', m: 'средний', l: 'крупный' }[info?.size] || '');
+      const tag = [RB[id] ? (T === 'mob' ? '' : K1[T]) : 'вне реестра', info?.huge ? 'огромный' : ({ s: 'мелкий', m: 'средний', l: 'крупный' }[info?.size] || '')].filter(Boolean).join(' · ');
       let body = '';
       if (open) {
         const d = lm?.drops;
@@ -669,18 +680,20 @@ export class Book {
         }).join('');
         const mats = (d?.res || []).map((m) => `<li>${RESOURCES[m.res]?.icon || ''} ${esc(RESOURCES[m.res]?.name || m.res)} — <b>${fmtPct(m.chance)}%</b> ×${m.qty[0]}${m.qty[1] !== m.qty[0] ? '–' + m.qty[1] : ''}</li>`).join('');
         const S = lm?.st || info; // сервер: статы с правками админки
-        const canTrack = !id.startsWith('run_');
+        const canTrack = !!info && mobHomes(id).length > 0; // в мире: «Отслеживать» ведёт к месту обитания
         body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${fmtBig(S.hp)} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>
           ${lm?.st?.skills?.length ? `<div class="h">Навыки: ${lm.st.skills.map(esc).join(', ')}</div>` : ''}
           ${canTrack ? `<button class="mc-btn sm ${this.meta.isMobTracked(id) ? 'gold' : ''}" data-act="mtrack" data-v="${id}">${this.meta.isMobTracked(id) ? '🧭 Не отслеживать' : `🧭 Отслеживать${this.meta.mobTracks.length ? ` (${this.meta.mobTracks.length})` : ''}`}</button>` : ''}
           ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
-          ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : '<p class="mc-dim">Загрузка пула добычи…</p>'}
+          ${RB[id]?.where?.length ? `<div class="h">Где встречается: ${esc(RB[id].where.join(', '))}</div>` : ''}
+          ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : lm ? '<p class="mc-dim">Своей добычи нет.</p>' : '<p class="mc-dim">Загрузка пула добычи…</p>'}
           ${info?.lore ? `<div class="lore">${esc(info.lore)}</div>` : ''}`;
       }
-      return `<div class="mc-beast ${isNew ? 'isnew' : ''}"><button class="mc-beast-h" data-act="msel" data-v="${id}"><b>${esc(info?.name || id)}${id.startsWith('run_') ? ' (забег)' : ''}</b>${isNew ? NEW_BADGE : ''}<small>${tag} · убито ${e.kills || 0}</small></button>${body}</div>`;
-    }).join('');
+      return `<div class="mc-beast ${isNew ? 'isnew' : ''}"><button class="mc-beast-h" data-act="msel" data-v="${id}"><b>${esc(info?.name || RB[id]?.name || id)}</b>${isNew ? NEW_BADGE : ''}<small>${tag ? tag + ' · ' : ''}ур. ${lvlOf(id)} · убито ${e.kills || 0}</small></button>${body}</div>`;
+    }).join('') || '<p class="mc-dim">Здесь пока пусто.</p>';
     const anyNew = L ? Object.values(L.mobs).some((m) => m.isNew) : false;
-    return (this.board?.defs?.cfg?.bars?.lib === false ? '' : prog) + `<p class="mc-dim">${sortBtn(this.lvlSort)} Встречено ${seen} из ${total}. Записи открываются при встрече; пул добычи — после встречи (закрытые предметы — силуэтом с редкостью и шансом). ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="mobs">отметить всё просмотренным</button>` : ''}</p>${rows}`;
+    const sT = stat(inTab);
+    return (this.board?.defs?.cfg?.bars?.lib === false ? '' : prog) + tabs + `<p class="mc-dim">${sortBtn(this.lvlSort)} ${esc(KN[T])}: встречено ${sT.seen} из ${sT.n}, убито ${sT.kill}. ${esc(NOTE[T])} Записи открываются при встрече; пул добычи — после встречи (закрытые предметы — силуэтом с редкостью и шансом). ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="mobs">отметить всё просмотренным</button>` : ''}</p>${rows}`;
   }
 
   // ---------- ветка души ----------

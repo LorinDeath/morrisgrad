@@ -15,7 +15,7 @@ ok(!goalMatch("moon_sentinel", "air_moon_sentinel") && !goalMatch("moon_sentinel
 ok(goalMatch("moon_sentinel", "moon_sentinel") && goalMatch("air_moon_sentinel", "air_moon_sentinel"), "точное совпадение засчитывается");
 ok(goalMatch("golem", "stone_golem"), "обычный вариант биома («Чугунный голем») по-прежнему засчитывается как базовый");
 ok(!goalMatch("stone_golem", "golem"), "цель-вариант не засчитывается базовым мобом");
-ok(bestiaryKey("air_moon_sentinel") === null && bestiaryKey("stone_golem") === "golem", "Бестиарий: вариант-босс не пишется в карточку Безветрия");
+ok(bestiaryKey("air_moon_sentinel") === "air_moon_sentinel" && bestiaryKey("stone_golem") === "stone_golem" && bestiaryKey("") === null, "Бестиарий: у варианта и варианта-босса своя карточка (в базовую не пишутся)");
 const homes = mobHomes("moon_sentinel"); ok(homes.length > 0 && homes.every((h) => !/Звёздная высь|Железные каменоломни/.test(h.region)), "места обитания Безветрия — без биомов Часовых: " + homes.map((h) => h.region).join("; "));
 
 // --- 2. условия: проверка правки

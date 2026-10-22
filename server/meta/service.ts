@@ -54,6 +54,7 @@ import { BCHEST, bchestPreview } from "./boardChestCfg";
 import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
+import { bestiaryRegistry, arenaKey, ARENA_ONLY, TRIAL_BOSS_WAVE } from "./bestiaryReg";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
 import { Pvp, type Duel } from "./pvp";
 import { Social } from "./social";
@@ -897,6 +898,20 @@ export class MetaService {
 
   // Библиотека предметов и мобов (вкладки Книги). Сервер присылает данные ТОЛЬКО открытых предметов;
   // закрытые — силуэты (слот/редкость/ярус по номеру в пуле), без имени, статов, свойств и навыков.
+  /** Бестиарий для забегов/испытаний: вид мира или вид только арены (arenaKey); боссы — не больше одного за раз */
+  noteArenaKills(a: Account, raw: any, o: { cap?: number; skip?: string; onlyBoss?: boolean; bossOk?: boolean } = {}) {
+    let left = o.cap ?? Infinity;
+    for (const [type, n0] of Object.entries(raw && typeof raw === "object" ? raw : {})) {
+      const key = arenaKey(type); if (!key || key === o.skip) continue;
+      const isBoss = !!((ZONE_MOBS as any)[key]?.boss || ARENA_ONLY[key]?.boss);
+      if (o.onlyBoss && !isBoss) continue;
+      if (isBoss && !o.onlyBoss && !o.bossOk) continue;
+      const n = Math.min(isBoss ? 1 : Infinity, left, Math.max(0, Math.floor(Number(n0) || 0)));
+      if (n <= 0) continue;
+      noteMob(a, key, n); left -= n;
+      if (left <= 0) break;
+    }
+  }
   library(a: Account, heroes: any[] = []) {
     const items: Record<string, any> = {};
     const owned: Record<string, { n: number; srcs: string[] }> = {};
@@ -907,7 +922,8 @@ export class MetaService {
     }
     const known = (id: string) => !!a.disc.items[id];
     const mobs: Record<string, any> = {};
-    for (const [id, b] of Object.entries(a.bestiary)) mobs[id] = { kills: b.kills || 0, isNew: !b.v, drops: mobDropView(id, known), st: mobStatView(id) }; // статы — с правками админки (как считает сервер)
+    for (const [id, b] of Object.entries(a.bestiary)) mobs[id] = { kills: b.kills || 0, isNew: !b.v, drops: mobDropView(id, known), st: mobStatView(id) ?? (ARENA_ONLY[id] ? { lvl: ARENA_ONLY[id].lvl } : null) }; // статы — с правками админки (как считает сервер)
+    const reg = bestiaryRegistry(); // реестр Бестиария: всё, что появляется в игре (группы, уровень, где водится) — знаменатель шкалы
     const feats = Object.fromEntries(Object.entries(a.disc.feats).map(([f, d]) => [f, { isNew: !d.v }]));
     // Кодекс навыков: ВСЕ навыки (героев, оружия R, монстров) с действующими (после правок админки) значениями и «открыт/нет»
     const lvlBy: Record<string, number> = {}; HERO_IDS.forEach((cls, i) => { const h = heroes[i]; if (h) lvlBy[cls] = h.lvl || 1; }); // навык героя открыт, когда уровень героя этого класса ≥ уровня открытия
@@ -926,7 +942,7 @@ export class MetaService {
     const { bound, hidden } = codexBound(a, eqUids);
     // открытое оружие с этим навыком открывает и карточку навыка
     for (const c of codex as any[]) { if (bound[c.id]?.length) c.found = true; if (bound[c.id]) c.bound = bound[c.id].sort((x, y) => +y.eq - +x.eq || x.name.localeCompare(y.name)); if (hidden[c.id]) c.boundHidden = hidden[c.id]; }
-    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, feats, codex, inv };
+    return { size: SILHOUETTES.length, sil: SILHOUETTES, items, mobs, reg, feats, codex, inv };
   }
 
   nearNpcOrAltar(session: any) {
@@ -1010,12 +1026,13 @@ export class MetaService {
       const per = mobXp(h?.lvl || 1);
       const mins = Math.min(REWARD_RULES.runMaxMinutes, time / 60);
       out.xp = Math.round(Math.min(REWARD_RULES.runMaxMinutes * REWARD_RULES.runXpPerMinute * 1.25, mins * REWARD_RULES.runXpPerMinute + total * REWARD_RULES.runXpPerKill) * per);
+      // Бестиарий: убитые в забеге — в карточки своих видов мира (раньше — в отдельные «run_*»); босс комнаты — ниже по bossKills
+      this.noteArenaKills(a, kills, { skip: RUN_BOSS_BY_ROOM[run.room] || "warden" });
       // броски дропа по трофеям убитых (ограничено по числу бросков)
       let rolls = 0;
       for (const [type, n] of Object.entries(kills)) {
         const key = RUN_LOOT_KEY[type];
         if (!key || !MONSTER_LOOT[key]) continue;
-        noteMob(a, key, n);
         for (let i = 0; i < n && rolls < REWARD_RULES.runMaxLootRolls; i++, rolls++) this.grantLoot(a, rollMonsterLoot(key), out, `run:${run.room}:${key}`);
       }
       const bosses = Math.min(Math.floor(time / 300), Math.max(0, Math.floor(Number(msg.bossKills) || 0)));
@@ -1030,11 +1047,13 @@ export class MetaService {
       const won = !!msg.won && time >= 10;
       out.xp = won ? REWARD_RULES.duel.winXp : (time >= 10 ? REWARD_RULES.duel.lossXp : 0);
       if (won) this.qev(a, session, { type: "duel_win", hpCapPct: Math.max(1, Math.min(100, Number(msg.hpCapPct) || 100)) });
+      if (won && time >= 10) this.noteArenaKills(a, msg.kills, { cap: 1, onlyBoss: true }); // «Отражение Кьют» — только победа над отражением (не над игроком: тогда kills пуст)
       if (time >= 10) this.bev(session, { type: "duel" }); // любая честная дуэль (не короче 10 с)
     } else if (mode === "trial") {
       const waves = Math.min(REWARD_RULES.trial.maxWaves, Math.floor(time / 20), Math.max(0, Math.floor(Number(msg.wave) || 0)));
       out.xp = waves * REWARD_RULES.trial.perWaveXp;
       out.waves = waves;
+      if (time >= 20) this.noteArenaKills(a, msg.kills, { cap: Math.floor(time * REWARD_RULES.runMaxKillsPerSecond), bossOk: waves >= TRIAL_BOSS_WAVE }); // только Бестиарий (без лута)
       if (time >= 20) this.bev(session, { type: "trial", waves, players });
     }
     if (h && out.xp) out.levelUps = gainXp(h, out.xp);
@@ -1455,7 +1474,7 @@ export class MetaService {
       const cls = session.stats?.classId || null;
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       const base = baseOf(m.type); // вариант биома → трофеи/бестиарий/квесты базового Отголоска
-      { const bk = bestiaryKey(m.type); if (bk) noteMob(a, bk, 1); } // вариант-босс («Часовой Пустоты») не идёт в карточку базового («Безветрие»)
+      { const bk = bestiaryKey(m.type); if (bk) noteMob(a, bk, 1); } // у варианта и варианта-босса («Часовой Пустоты») — своя карточка
       const lootKey = MONSTER_LOOT[m.type] ? m.type : base; // у каждого моба своя (правимая в админке) таблица
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
       const n = recv.get(sid) || 1;

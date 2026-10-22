@@ -233,7 +233,8 @@
 .mc-beast { border: 1px solid #3b2c52; border-radius: 8px; padding: 5px 9px; margin: 4px 0; background: #120d20; }
 .mc-beast summary { cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
 .mc-beast summary small, .mc-beast.unknown small { color: #94a3b8; }
-.mc-beast.unknown { display: flex; justify-content: space-between; opacity: 0.55; }
+.mc-beast.unknown { display: flex; justify-content: flex-start; align-items: baseline; gap: 8px; opacity: 0.55; }
+.mc-beast.unknown > b { flex: none; } .mc-beast.unknown > small { flex: 1 1 auto; min-width: 0; text-align: left; }
 .mc-beast .s { color: #a5b4fc; margin: 4px 0; font-size: 11px; }
 .mc-beast .h { color: #fde68a; font-size: 11px; margin-top: 4px; }
 .mc-beast ul { margin: 2px 0; padding-left: 16px; }
@@ -1183,7 +1184,8 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 .mc-prog .ps span { min-width: 92px; }
 .mc-prog .ps b { color: #e5e7eb; font-size: .9em; min-width: 34px; text-align: right; }
 .mc-prog .pd summary { cursor: pointer; color: #c4b5fd; font-size: .9em; }
-.mc-prog .mc-bfilt { display: flex; gap: 4px; flex-wrap: wrap; }
+.mc-prog .mc-bfilt, .mc-bfilt { display: flex; gap: 4px; flex-wrap: wrap; }
+.mc-btabs + .mc-bfilt { margin: 0 0 6px; }
 .mc-touch .mc-prog .pss { grid-template-columns: 1fr 1fr; }
 /* кнопка PK не перекрывает открытую Книгу героя (Бестиарий, шкала) и админку */
 .mc-book-open .ch-root, :has(> .mc-admin) > .ch-root { display: none; }

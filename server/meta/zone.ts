@@ -16,6 +16,7 @@ import { mobShot } from "./mobFamily";
 import { GATHER_CFG } from "./gatherCfg";
 import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
+import { summonPool } from "./biomes";
 import { ZONE_GEN, BOSS_TIMERS, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
 import { WORLD_CHUNK } from "../worlds/sizes";
 
@@ -885,7 +886,7 @@ export class Zone {
     m.phase = want;
     if (want === 3) m.enraged = true;
     this.events.push({ k: "phase", id: m.id, x: Math.round(m.x), y: Math.round(m.y), p: want, text: want === 3 ? `«${d.name}» в ярости!` : `«${d.name}» меняет тактику!` });
-    const pool = Object.entries(ZONE_MOBS).filter(([, x]) => x.size === "s" && !x.rare && x.tier === d.tier && x.role !== "tank").map(([k]) => k);
+    const pool = summonPool(ZONE_MOBS, d); // biomes.ts — та же формула показывает свиту в Бестиарии
     const n = d.size === "huge" ? 4 : 3;
     for (let i = 0; i < n && pool.length; i++) {
       const a = (i / n) * Math.PI * 2;
