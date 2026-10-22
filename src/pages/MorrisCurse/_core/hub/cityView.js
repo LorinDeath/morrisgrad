@@ -10,7 +10,7 @@ import { GRADE } from '../engine/atmosphere.js';
 import { lightOf, lampHash, FIRE, flickerOf, LT } from '../engine/dayNight.js';
 import { emitterOffsetM, emitterSpotsM, emitterWorld, emitterVersion } from '../engine/lightEmitter.js';
 import { ProjBatch } from '../engine/projBatch.js';
-import { loadAtlasTexture } from '../engine/spriteBatch.js';
+import { loadAtlasTexture, assetUrl } from '../engine/spriteBatch.js';
 import { toX, toZ } from '../engine/geometry.js';
 import { NPC_ROWS, MOB_ROWS } from '../engine/pixSprites.js';
 import { NPCS } from '../../../../../server/meta/shared.ts';
@@ -42,6 +42,22 @@ const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a)
 const MOBILE = /Mobi|Android|iPhone/i.test(globalThis.navigator?.userAgent || '');
 const hex = (c, d = 0x8b5cf6) => (/^#[0-9a-f]{6}$/i.test(c || '') ? parseInt(c.slice(1), 16) : d);
 
+// Кадр листа города как ОТДЕЛЬНАЯ маленькая текстура, общая для всех копий ключа (hotfix 22.10):
+//  раньше каждый спрайт делал t0.clone() листа — в three r128 это ещё одна загрузка ВСЕЙ картинки листа в видеопамять
+//  (~300 копий листов по 1,2–1,7 МБ ≈ 400+ МБ только на пропсы Альказака → перебор бюджета, MC-G04 и выгрузка/перезагрузка
+//  сотен одинаковых текстур каждые 0,5 с). Теперь: канвас с кадрами ключа (зеркальный — отдельный), анимация — полоса кадров;
+//  копии с анимацией делятся на PH групп фазы (не мигают все разом). Кэш — на картинку листа (img), поэтому переживает пересборку карты.
+const CELL_PH = 3, CELLS = new WeakMap();
+export function cellTex(THREE, t0, cols, rows, col, row, frames = 1, flip = false, ph = 0) {
+  const img = t0.image; let M = CELLS.get(img); if (!M) CELLS.set(img, (M = new Map()));
+  const n = Math.max(1, frames | 0), g = n > 1 ? Math.min(CELL_PH - 1, Math.floor(((ph % 1) + 1) % 1 * CELL_PH)) : 0, id = `${col}|${row}|${n}|${flip ? 1 : 0}|${g}`;
+  let e = M.get(id); if (e) return e;
+  const fw = Math.round(img.width / cols), fh = Math.round(img.height / rows), cv = document.createElement('canvas'); cv.width = fw * n; cv.height = fh;
+  const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
+  for (let f = 0; f < n; f++) { const c = col + f; x.save(); if (flip) { x.translate((f + 1) * fw, 0); x.scale(-1, 1); x.drawImage(img, (c % cols) * fw, row * fh, fw, fh, 0, 0, fw, fh); } else x.drawImage(img, (c % cols) * fw, row * fh, fw, fh, f * fw, 0, fw, fh); x.restore(); }
+  const t = pixTex(THREE, new THREE.CanvasTexture(cv)); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.repeat.set(1 / n, 1); t.offset.set(0, 0); t.needsUpdate = true;
+  e = { tex: t, ph: n > 1 ? (g + 0.5) / CELL_PH : 0 }; M.set(id, e); return e;
+}
 export class CityView {
   constructor(THREE, root) {
     this.THREE = THREE; this.root = root; this.cfg = null; this.ready = false; this.time = 0; this.quality = 0;
@@ -102,7 +118,7 @@ export class CityView {
     const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } if (o.isMesh) o.geometry?.dispose?.(); }); } // у Sprite геометрия общая (three) — только у мешей (пролёты забора)
     this.toneMats = []; this.toneSig = '';
-    const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = [];
+    const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = []; this.animSet = new Set();
     const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; this.lights = []; this.halos = [];
     // ореол огня: мягкое тёплое пятно (за спрайтом), в точке излучения (engine/lightEmitter.js — центроид _glow)
     const haloTex = this._haloTex ||= (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -115,14 +131,16 @@ export class CityView {
       const sp = new THREE.Sprite(m); sp.scale.set(haloM, haloM, 1); sp.renderOrder = 2; gg.add(sp);
       this.glows.push({ m, lamp: true, h, halo: true, fire, kind, x0, z0, off, sp, haloM, k });
     }; // свечение (_glow) отдельно: ночью рисуется ещё раз поверх маски темноты (game.js)
-    const L = (src) => (this._tex ||= {})[src] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
+    // ключ кэша — СТРОКА адреса: в сборке Astro импорт .png — объект { src, width, height }, и ключ-объект превращался в «[object Object]» —
+    // все четыре листа пропсов (p32, b64 и их _glow) делили одну текстуру, какая загрузилась первой → «перемешанные» пропсы Альказака на проде (hotfix 22.10)
+    const L = (src) => (this._tex ||= {})[assetUrl(src)] ||= loadAtlasTexture(THREE, src).then((t) => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; });
     const sprite = (base, glow, fr, cols, rows, col, row, wM, hM, x, y, flip, an = [0.5, 1], frames = 1, fps = 0, lamp = false, kind = 'lamp') => {
       const mk = (tp, add) => tp.then((t0) => {
-        const t = pixTex(THREE, t0.clone()); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / cols, 1 / rows); t.offset.set((col + (flip ? 1 : 0)) / cols, 1 - (row + 1) / rows);
+        const ph = (x * 7 + y * 3) % 1000 / 1000, ce = cellTex(THREE, t0, cols, rows, col, row, frames, flip, ph), t = ce.tex; // общий кадр на ключ (без clone() листа: у r128 clone = вся картинка листа ещё раз в видеопамяти)
         const m = pixMat(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: add ? 0 : 0.04, depthWrite: !add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false }));
         (this.toneMats ||= []).push({ m, add }); this.toneSig = '';
         const sp = new THREE.Sprite(m); sp.center.set(an[0], 1 - an[1]); sp.scale.set(wM, hM * SIN_P, 1); sp.position.set(toX(x), add ? 0.02 : 0, toZ(y) + (add ? 0.01 : 0)); sp.renderOrder = add ? 4 : 3;
-        (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, kind, h: lampHash(toX(x), toZ(y)) }); if (frames > 1) this.anim.push({ t, cols, col, row, rows, frames, fps, flip, ph: (x * 7 + y * 3) % 1000 / 1000 });
+        (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, kind, h: lampHash(toX(x), toZ(y)) }); if (frames > 1 && !(this.animSet ||= new Set()).has(t)) { this.animSet.add(t); this.anim.push({ t, frames, fps, ph: ce.ph }); } // общая полоса — один раз на текстуру
       });
       mk(L(base), false); if (glow && this.glowOn) mk(L(glow), true);
     };
@@ -143,7 +161,7 @@ export class CityView {
     //   северной точке (y−64); высота кадра 4.8 м на земле = 4.8·sin(тангажа) на экране — как у билборда (× SIN_P). Глубина — как у земли:
     //   герой у северной половины не перекрывается пролётом (README, риск 1)
     const fenceSpan = (base, S, k, wM, hM, x, y, flip) => L(base).then((t0) => {
-      const t = pixTex(THREE, t0.clone()); t.needsUpdate = true; t.repeat.set((flip ? -1 : 1) / S.cols, 1 / S.rows); t.offset.set((k.col + (flip ? 1 : 0)) / S.cols, 1 - (k.row + 1) / S.rows);
+      const t = cellTex(THREE, t0, S.cols, S.rows, k.col, k.row, 1, flip, 0).tex; // общий кадр (см. cellTex)
       const m = new THREE.Mesh(new THREE.PlaneGeometry(wM, hM), pixMat(new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.04, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }))); // light-nowashout: sRGB-текстура, без тонмаппинга
       m.rotation.x = -Math.PI / 2; m.position.set(toX(x), 0.03, toZ(y) - hM / 2); m.renderOrder = 3; m.name = 'dm_fence_v'; g.add(m); });
     for (const p of mapProps(c.rTiles)) {
@@ -244,7 +262,7 @@ export class CityView {
       this.rim.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, col, row);
       if (glow) this.rimG?.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, col, row, 1, 1, 1, 0.75); }
     this.rim.end(); this.rimG?.end();
-    for (const a of this.anim || []) { const f = Math.floor(T * a.fps + a.ph * a.frames) % a.frames; a.t.offset.x = (a.col + f + (a.flip ? 1 : 0)) / a.cols; }
+    for (const a of this.anim || []) { const f = Math.floor(T * a.fps + a.ph * a.frames) % a.frames; a.t.offset.x = f / a.frames; } // полоса кадров cellTex: кадр f — f/frames
     // вспышка обода при отталкивании: 0.3 с по кривой (30 fps)
     const fk = Math.floor((T - this.flashAt) * 30), fa = fk >= 0 && fk < FLASH.length ? FLASH[fk] : 0;
     this.flash.begin(); this.flashG?.begin();
