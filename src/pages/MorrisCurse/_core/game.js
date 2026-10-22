@@ -1936,7 +1936,7 @@ async function boot(canvasId, username, userId, api) {
     party.setHub(mode === 'hub'); // панель отряда видна в мире и без отряда («＋ Пригласить»)
     zone.trackTypes = tracker.trackTypes; // подсветка мобов-целей квеста на экране
     if (mode === 'hub') { const now = performance.now(); // метки целей на экране; панели трекера/мини-карты — раз в 0,5 с (без лишних замеров)
-      if (!tptr.avAt || now - tptr.avAt > 500) { tptr.avAt = now; const L = overlay.layer.getBoundingClientRect(); tptr.avoid = [tracker.el, document.getElementById('mm-canvas')].map((e) => e?.offsetParent && e.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - L.left, t: r.top - L.top, r: r.right - L.left, b: r.bottom - L.top })); }
+      if (!tptr.avAt || now - tptr.avAt > 500) { tptr.avAt = now; const L = overlay.layer.getBoundingClientRect(); tptr.avoid = [tracker.el, document.getElementById('mm-canvas'), document.querySelector('.mc-party')].map((e) => e?.offsetParent && e.getBoundingClientRect()).filter((r) => r && r.width).map((r) => ({ l: r.left - L.left, t: r.top - L.top, r: r.right - L.left, b: r.bottom - L.top })); }
       tptr.update(tracker.targets, { world, x: player.x, y: player.y }, (x, y) => stage.project(toX(x), 1.2, toZ(y)), stage.width, stage.height, now, tptr.avoid);
     } else tptr.hide();
     refreshAbilityButtons();
