@@ -65,6 +65,10 @@ export const ZONE_GEN = {
   despawnIdle: 30,           // …и вне боя столько секунд → исчезает
   // лагеря (Аринар): сетка с шагом campStep и разбросом; соседние лагеря дальше, чем радиус «подтягивания»
   campStep: 1000, campJitter: 220, campMinDist: 900, campRespawn: 45,
+  // численность лагерей: мобов в каждой пачке ×campPopMul (вожаки — как были; дробная часть — случайно); смена → лагеря пересобираются
+  campPopMul: 1.5,
+  // респавн мобов лагеря (и вожаков, и кочевников): случайно от campRespawnMin до campRespawnMax с; 0/0 — по-старому campRespawn × ранг
+  campRespawnMin: 180, campRespawnMax: 300,
   // большие лагеря: 2–3 пачки по кругу campRing + вожак (×chiefHp ОЗ, ×chiefDmg урон), в части лагерей два вожака
   campFill: 0.95, campAccept: 0.3, campRing: 120, campPacks3: 0.45, campTwoChiefs: 0.22, chiefHp: 2.6, chiefDmg: 1.4,
   // кочевники: доля мобов региона, бродят по петле соседних лагерей (в пределах roamRange) и дерутся с враждебными

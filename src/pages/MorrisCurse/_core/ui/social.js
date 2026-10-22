@@ -9,6 +9,7 @@ import { setMobPref, mobSettingsRow } from '../engine/mobPref.js';
 import { curseTint } from './book.js';
 import { tierOf, lookCls, lookStyle, lookName, enchText, enchBadge } from '../meta/enchCfg.js';
 import { grimGet, grimReset, grimSet } from './grim.js';
+import { fsSupported, fsActive, fsToggle, fsAutoPref, setFsAutoPref, fsAdminOn } from './fullscreen.js';
 // Рейтинг игроков (топ-100 по уровню / по рекорду урона) и просмотр персонажа (только чтение).
 // Все данные — от сервера (rating / inspect); клиент ничего не считает и не хранит.
 import { statIcon } from './statIcons.js';
@@ -234,6 +235,10 @@ export class Social {
       else if (act === 'dnd') this.send({ type: 'settings_set', dnd: !(this.settings?.dnd > 0) });
       else if (act === 'tutset' && this.tutCtl) { const v = b.dataset.v; if (v === 'fold' || v === 'unfold') this.tutCtl.setFold(v === 'fold'); else this.tutCtl.set(v); setTimeout(() => this.view === 'settings' && this.renderSettings(), 400); }
       else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
+      else if (act === 'uilay' && this.uiDrag) { const v = b.dataset.v, D = this.uiDrag; // ✥ раскладка: этот тип устройства (ПК/телефон), хранит сервер
+        if (v === 'edit') { this.close(); D.setEdit(true); } else if (v === 'reset') { D.reset(); this.renderSettings(); } else if (v === 'lock') { D.setLock(!D.locked()); this.renderSettings(); } }
+      else if (act === 'fs') { fsToggle().finally(() => setTimeout(() => this.view === 'settings' && this.renderSettings(), 300)); }
+      else if (act === 'fsauto') { setFsAutoPref(b.dataset.v === '1'); this.renderSettings(); }
       else if (act === 'uitheme') { setUiPref(b.dataset.v); this.renderSettings(); }
       else if (act === 'hudold') { setHudOldPanels(b.dataset.v === '1'); this.renderSettings(); } // только это устройство; применяется сразу
       else if (act === 'tex') { setTexPref(b.dataset.v); this.renderSettings(); } // только это устройство; земля перепекается после перезагрузки
@@ -270,12 +275,22 @@ export class Social {
     return `<div class="mc-set-row"><span>🧭 Обучение</span><div class="grp">${st.done ? '<b class="mc-dim">пройдено</b>' : st.skip ? b('restart', 'Вернуть', false)
       : `${st.off ? b('on', 'Включить', false) : b('off', 'Выключить', false)}${b(T.fold() ? 'unfold' : 'fold', T.fold() ? 'Развернуть' : 'Свернуть', T.fold())}${st.canSkip ? b('skip', 'Пропустить всё', false) : ''}`}</div></div>`;
   }
+  layRow() { // ✥ перетаскивание интерфейса (ui/uiDrag.js); выключено админкой — строки нет
+    const D = this.uiDrag; if (!D || !D.enabled()) return '';
+    const lk = D.locked(), n = Object.keys(D.lay().off || {}).length;
+    return `<div class="mc-set-row"><span>✥ Расположение интерфейса <small class="mc-set-note">${D.mobile ? 'телефон: долгое нажатие на блок' : 'ПК: окна — за заголовок'} · для аккаунта</small></span><div class="grp"><button class="mc-btn sm" data-act="uilay" data-v="edit"${lk ? ' disabled title="Сначала снимите замок"' : ''}>Настроить</button><button class="mc-btn sm" data-act="uilay" data-v="reset"${n ? '' : ' disabled'} title="Сбросить расположение интерфейса">Сбросить</button><button class="mc-btn sm ${lk ? 'gold' : ''}" data-act="uilay" data-v="lock" title="Запретить перетаскивание">${lk ? '🔒 Закреплено' : '🔓 Не закреплено'}</button></div></div>`;
+  }
+  fsRow() { // ⛶ полноэкранный режим (ui/fullscreen.js); «авто» — при первом касании/клавише после входа (если разрешено админкой)
+    const on = fsActive(), can = fsSupported(), adm = fsAdminOn(), au = fsAutoPref();
+    return `<div class="mc-set-row"><span>⛶ Полный экран${adm ? '' : ' <small class="mc-set-note">авто выключено администратором</small>'}</span><div class="grp"><button class="mc-btn sm ${on ? 'gold' : ''}" data-act="fs"${can ? '' : ' disabled title="Браузер не поддерживает (iPhone — «На экран Домой»)"'}>${on ? 'Включён' : 'Выключен'}</button><button class="mc-btn sm ${au && adm ? 'gold' : ''}" data-act="fsauto" data-v="${au ? '0' : '1'}"${adm && can ? '' : ' disabled'} title="Входить в полный экран при первом касании">${au ? 'Авто: да' : 'Авто: нет'}</button></div></div>`;
+  }
   renderSettings() {
     const st = this.settings || { duel: 'all', freq: true, dnd: 0 };
     const opt = (v, t) => `<button class="mc-btn sm ${st.duel === v ? 'gold' : ''}" data-act="duelset" data-v="${v}">${t}</button>`;
     const dndMin = st.dnd > 0 ? Math.ceil(st.dnd / 60000) : 0;
     this.overlay.showScreen(`<div class="mc-soc mc-soc-people"><div class="mc-soc-head"><h2>⚙️ НАСТРОЙКИ</h2><button class="mc-soc-x" title="Закрыть (Esc)">✕</button></div>${this.socTabs('settings')}
       <div class="mc-set"><div class="mc-set-row"><span>🖥 Интерфейс</span><div class="grp"><button class="mc-btn sm ${uiPref() === 'new' && UI_SKIN.on ? 'gold' : ''}" data-act="uitheme" data-v="new"${UI_SKIN.on ? '' : ' disabled title="Новый интерфейс сейчас выключен администратором"'}>Новый</button><button class="mc-btn sm ${uiPref() === 'old' || !UI_SKIN.on ? 'gold' : ''}" data-act="uitheme" data-v="old">Старый</button></div></div>${(() => { const can = UI_SKIN.on && UI_SKIN.hudIngame && uiPref() === 'new', old = !can || hudOldPanels(), why = !can ? ` disabled title="${uiPref() === 'new' && UI_SKIN.on ? 'HUD внутри поля выключен администратором' : 'Только с новым интерфейсом'}"` : ''; return `<div class="mc-set-row"><span>🧭 Старые панели <small class="mc-set-note">боковые колонки HUD</small></span><div class="grp"><button class="mc-btn sm ${old ? 'gold' : ''}" data-act="hudold" data-v="1"${why}>Вкл</button><button class="mc-btn sm ${!old ? 'gold' : ''}" data-act="hudold" data-v="0"${why}>Выкл</button></div></div>`; })()}<div class="mc-set-row"><span>🧱 Текстуры${texPref() !== TEX_MODE ? ' <small class="mc-set-note">— после перезагрузки</small>' : ''}</span><div class="grp"><button class="mc-btn sm ${texPref() === '32' ? 'gold' : ''}" data-act="tex" data-v="32" title="Тайлсеты 32 px: больше детали, ×4 памяти на землю">Новые (32)</button><button class="mc-btn sm ${texPref() === '16' ? 'gold' : ''}" data-act="tex" data-v="16" title="Прежние 16 px: легче для телефона">Старые (16)</button>${texPref() !== TEX_MODE ? '<button class="mc-btn sm" data-act="texreload" title="Перезагрузить страницу сейчас">↻</button>' : ''}</div></div>${mobSettingsRow()}
+${this.layRow()}${this.fsRow()}
       <div class="mc-set-row"><span>🔊 Звук</span><button class="mc-btn sm ${soundOn() ? 'gold' : ''}" data-act="sound">${soundOn() ? 'Включён' : 'Выключен'}</button></div>${(() => { const can = uiActive() && UI_SKIN.sfx !== false, why = can ? '' : ` disabled title="${UI_SKIN.sfx === false ? 'Звуки интерфейса выключены администратором' : 'Только с новым интерфейсом'}"`, v = sfxVol(); return `<div class="mc-set-row"><span>🔔 Звуки интерфейса <small class="mc-set-note">клик, окна</small></span><div class="grp"><input type="range" min="0" max="100" step="5" value="${v}" data-sfx${why}><b class="mc-grim-v" data-sfxv>${v ? v + '%' : 'выкл'}</b></div></div>`; })()}${(() => { const r = uiScaleRange(), v = uiScaleChosen(); return `<div class="mc-set-row" data-uisrow><span>🔍 Размер интерфейса <small class="mc-set-note">${uiScaleMobile() ? 'на этом телефоне' : 'на этом ПК'}</small></span><div class="grp"><input type="range" min="${r.min}" max="${r.max}" step="5" value="${v}" data-uis><b class="mc-grim-v" data-uisv>${uisTxt()}</b><button class="mc-btn sm${uiScalePref() == null ? ' gold' : ''}" data-uisdef title="Вернуть размер по умолчанию${uiScaleMobile() ? ' (авто по экрану)' : ''}">${uiScaleMobile() ? 'Авто' : '100%'}</button></div></div>`; })()}
       <div class="mc-set-row"><span>🌑 Мрачность</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('grim')}" data-grim="grim"><b class="mc-grim-v" data-grimv="grim">${grimGet('grim')}%</b></div></div>
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"><b class="mc-grim-v" data-grimv="fog">${grimGet('fog')}%</b></div></div>

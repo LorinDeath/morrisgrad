@@ -17,7 +17,7 @@ const c1 = cnt(); ok(c1 > c0, `плотность ×2: лагерей ${c0} → 
 ok(z.camps.filter((c: any) => c.region === rid).every((c: any) => !ids0.has(c.id)), "новые id лагерей (без дублей)");
 const byCamp = new Map<number, any[]>(); for (const m of alive()) { const l = byCamp.get(m.camp) || []; l.push(m); byCamp.set(m.camp, l); }
 const sizes = [...byCamp.values()].map((l) => l.filter((m) => !m.chief).length);
-ok(sizes.every((n) => n === 6), `3 пачки × 2 моба = 6 в каждом лагере (${[...new Set(sizes)]})`);
+ok(sizes.every((n) => n === 9), `3 пачки × 2 моба × 1.5 (численность лагерей) = 9 в каждом лагере (${[...new Set(sizes)]})`);
 ok([...byCamp.values()].every((l) => l.filter((m) => m.elite && !m.chief).length <= 1), "элит в лагере ≤ 1 (кроме вожаков)");
 const stale = z.mobs.filter((m: any) => !m.dead && m.camp && !z.camps.some((c: any) => c.id === m.camp)).length;
 ok(stale === 0, "живых мобов от старых лагерей не осталось");

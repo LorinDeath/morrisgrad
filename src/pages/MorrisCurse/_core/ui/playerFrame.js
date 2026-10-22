@@ -28,10 +28,10 @@ export class PlayerFrame {
     this.info = el.querySelector('.pf-info');
     // телефон: полоска «ОЗ + PK» слева сверху (обе темы; пустая — скрыта)
     const mob = document.createElement('div');
-    mob.className = 'mc-pf-mob'; mob.innerHTML = '<div class="mc-uibar hp mhp"><i></i><span></span></div>';
+    mob.className = 'mc-pf-mob'; mob.innerHTML = '<div class="mpf-col"><div class="mpf-nm"></div><div class="mc-uibar hp mhp"><i></i><span></span></div></div>';
     mob.addEventListener('pointerdown', (e) => e.stopPropagation());
     layer.appendChild(mob);
-    this.mob = mob; this.mbar = mob.querySelector('.mhp i'); this.mval = mob.querySelector('.mhp span');
+    this.mob = mob; this.mnm = mob.querySelector('.mpf-nm'); this.mbar = mob.querySelector('.mhp i'); this.mval = mob.querySelector('.mhp span');
     this.placePk();
   }
   // слот PK — в видимую рамку: новая (.mc-pframe, после полоски ОЗ) или прежняя карточка «ГЕРОЙ» (рядом с полоской ОЗ)
@@ -53,7 +53,7 @@ export class PlayerFrame {
     if (!show) return;
     const url = UI.avatars ? avatarUrl(d.cls, d.bk, 64) : '';
     this.set('av', url, (u) => { this.av.style.setProperty('--av', u ? `url('${u}')` : 'none'); this.av.classList.toggle('cz', u.includes('_cursed')); this.el.classList.toggle('noav', !u); });
-    this.set('nm', d.name, (v) => { this.nm.textContent = v; });
+    this.set('nm', d.name, (v) => { this.nm.textContent = v; this.mnm.textContent = v; });
     const body = d.heroName && d.heroName !== d.name ? d.heroName : (RUN_CLASSES[d.cls]?.name || d.heroName || '');
     this.set('cl', `${body} · ур. ${d.lvl || 1}`, (v) => { this.cl.textContent = v; });
     const mx = Math.max(1, d.maxHp || 1), hp = Math.max(0, Math.min(mx, d.hp ?? mx)), p = Math.round(hp / mx * 1000) / 10;

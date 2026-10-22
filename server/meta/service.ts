@@ -33,7 +33,8 @@ import { regionAt, isNight } from "./zoneGen";
 import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
 import { gatherClient } from "./gatherCfg";
-import { uiClient } from "./uiCfg";
+import { uiClient, UI_CFG } from "./uiCfg";
+import { cleanLayout, layoutView, UI_LAY_RATE_MS } from "./uiLayout";
 import { terrainClient } from "./terrainCfg";
 import { NpcWander } from "./npcWander";
 import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
@@ -111,6 +112,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   admin_bchest_preview: S({ patch: "o", L: "n", cat: "s" }), admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
   bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
+  ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }), // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
 };
 function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
@@ -239,21 +241,24 @@ export class MetaService {
     { const ms0 = this.ms.get(session.id); const role = ms0?.verified ? this.roles.of(pkey) : undefined; const pf = this.roles.panelFlags(ms0); this.send(ws, { type: "my_role", role: role || null, ...pf }); }
     if (a.hero && CHARACTER_CLASSES[a.hero] && !session.stats.classId) this.applyHeroToSession(session, a.hero);
     this.refreshZonePlayer(session);
-    this.send(ws, { type: "meta_state", ...this.snap(session) });
+    this.send(ws, { type: "meta_state", ...this.snap(session), uiLay: layoutView(a) }); // раскладка интерфейса — только при входе (дальше клиент сам)
     this.restorePos(ws, session, ms, a); // вход/переподключение: туда, где был (мир и точка; невалидная — ближайшая допустимая)
     { const P = this.pkOf(ms); if (session.stats) session.stats.pk = P.pk ? 1 : 0; if (P.pk || P.to !== null) this.pkSend(ws, ms); }
   }
 
   // ——— позиция между входами (админка «🏰 Город» → posOn): аккаунт хранит lastPos = { w, x, y, at, h? } ———
   /** запомнить (не чаще posSaveSec; force — смена мира/выход). Мёртвых и забеги не трогаем */
-  posNote(session: any, ms: any, force = false, now = Date.now()) {
+  posNote(session: any, ms: any, force = false, now = Date.now(), cls: string | null = session?.stats?.classId || null) {
     if (POS_CFG.on === false || !ms || !ms.zp.alive || session.runRoom || session.inDuel) return;
     const w = session.world || "hellfire"; if (!POS_WORLDS.has(w)) return;
     if (!force && now - ((ms as any).posAt || 0) < Math.max(5, Number(POS_CFG.saveSec) || 60) * 1000) return;
-    const a = this.store.account(ms.pkey), o = a.lastPos as any;
-    if (o && o.w === w && Math.abs(o.x - session.x) < 16 && Math.abs(o.y - session.y) < 16) { (ms as any).posAt = now; return; } // не двигался — без записи
+    const a = this.store.account(ms.pkey) as any, by = POS_CFG.perBody !== false && cls && CHARACTER_CLASSES[cls] ? cls : null;
+    const o = (by ? a.posBy?.[by] : null) || a.lastPos;
+    if (o && o.w === w && Math.abs(o.x - session.x) < 16 && Math.abs(o.y - session.y) < 16 && (!by || a.posBy?.[by])) { (ms as any).posAt = now; return; } // не двигался — без записи
     const h = w === "arinar" ? roomAt(session.x, session.y) : null; // в здании города: id здания + точка в комнате (раскладка комнаты может смениться)
-    (a as any).lastPos = h ? { w, x: Math.round(h.x), y: Math.round(h.y), at: now, h: h.id, rx: Math.round(session.x - h.ox), ry: Math.round(session.y - h.oy) } : { w, x: Math.round(session.x), y: Math.round(session.y), at: now };
+    const p = h ? { w, x: Math.round(h.x), y: Math.round(h.y), at: now, h: h.id, rx: Math.round(session.x - h.ox), ry: Math.round(session.y - h.oy) } : { w, x: Math.round(session.x), y: Math.round(session.y), at: now };
+    a.lastPos = p; // общая (последнее тело) — запасная, если у тела своей ещё нет
+    if (by) { if (!a.posBy || typeof a.posBy !== "object") a.posBy = {}; a.posBy[by] = { ...p }; } // своя у каждого тела (POS_CFG.perBody)
     (ms as any).posAt = now; ms.dirty = true;
   }
   /** точка входа по сохранённой: проверки (мир, границы, проходимость/вода/лава, купол города для убийц, купол мага, исчезнувший дом) */
@@ -281,7 +286,12 @@ export class MetaService {
     if (a.klp && !this.killLog.p.has(ms.pkey)) this.killLog.p.set(ms.pkey, (a.klp as number[]).filter((t) => Number.isFinite(t)));
     if (POS_CFG.on === false || (session as any).posRestored || session.runRoom || session.inDuel) return;
     (session as any).posRestored = true;
-    const f = this.posFix(ms, a.lastPos); if (!f) return;
+    const by = POS_CFG.perBody !== false && a.hero ? a.posBy?.[a.hero] : null; // точка активного тела; нет — общая (старые аккаунты)
+    const f = this.posFix(ms, by || a.lastPos); if (!f) return;
+    this.posGo(ws, session, f);
+  }
+  /** перенести сессию в проверенную точку (вход/переподключение, смена тела с POS_CFG.switchTp) */
+  posGo(ws: WebSocket, session: any, f: { w: string; x: number; y: number; why: string }) {
     if (f.w === "hellfire" && (session.world || "hellfire") === "hellfire" && Math.hypot(f.x - session.x, f.y - session.y) < 24) return;
     session.world = f.w; session.x = f.x; session.y = f.y; (session as any).lastMoveAt = Date.now();
     if (f.w === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
@@ -830,6 +840,21 @@ export class MetaService {
         // «Не беспокоить 5 минут»: отказ + запрет вызовов на весь аккаунт (все герои, все вкладки) на 5 минут
         if (msg.dnd) { this.social.setDnd(ms.pkey, true).then((p) => this.send(ws, { type: "settings", settings: this.social.settingsView(p), toast: "Не беспокоить: 5 минут" })).catch(() => {}); msg.accept = false; }
         this.pvp.respond(ws, session, msg); return true;
+      case "ui_layout_set": {
+        // перетаскивание интерфейса: раскладка ПК/телефона — в аккаунт (переезжает между устройствами); выкл в админке — не храним
+        if (UI_CFG.drag === false) return true;
+        const t = Date.now();
+        if (t - ((ms as any).layAt || 0) < UI_LAY_RATE_MS) { this.send(ws, { type: "ui_layout", ok: false, why: "rate", dev: msg.dev }); return true; }
+        const c = cleanLayout(msg.dev, msg.lay, msg.lock, t);
+        if (!c) { this.send(ws, { type: "ui_layout", ok: false, why: "bad", dev: msg.dev }); return true; }
+        (ms as any).layAt = t;
+        const a = this.store.account(ms.pkey) as any;
+        a.uiLay = { ...(a.uiLay && typeof a.uiLay === "object" ? a.uiLay : {}), [c.dev]: c.lay };
+        for (const k of Object.keys(a.uiLay)) if (k !== "pc" && k !== "mob") delete a.uiLay[k];
+        ms.dirty = true;
+        this.send(ws, { type: "ui_layout", ok: true, dev: c.dev, at: c.lay.at, n: Object.keys(c.lay.off).length });
+        return true;
+      }
       case "save_now": {
         // кнопка «Сохранить сейчас» у Алтаря перевоплощения (автосохранение тоже работает)
         if (!this.nearNpcOrAltar(session)) { this.send(ws, { type: "toast_error", message: "Сохранение — у Алтаря перевоплощения" }); return true; }
@@ -955,6 +980,7 @@ export class MetaService {
     if (!ms) return;
     const a = this.store.account(ms.pkey);
     const prev = a.hero;
+    if (prev && prev !== session.stats.classId) this.posNote(session, ms, true, Date.now(), prev); // прежнее тело «остаётся» здесь (своя точка)
     a.hero = session.stats.classId;
     this.store.hero(ms.pkey, a.hero!);
     // смена души: всё прошлого героя (сумка, 4 надетых, прогресс) — в D1 сразу, не ждём автосохранения
@@ -964,6 +990,10 @@ export class MetaService {
     this.refreshZonePlayer(session);
     ms.zp.hp = ms.zp.maxHp;
     this.push(ws, session);
+    // смена тела: по умолчанию остаёмся у Алтаря; POS_CFG.switchTp — новое тело встаёт туда, где его оставили (с проверками posFix)
+    if (prev && prev !== a.hero && POS_CFG.on !== false && POS_CFG.perBody !== false && POS_CFG.switchTp === true && !session.runRoom && !session.inDuel) {
+      const f = this.posFix(ms, (a as any).posBy?.[a.hero!]); if (f) this.posGo(ws, session, f);
+    } else if (prev !== a.hero) this.posNote(session, ms, true);
   }
   onWorldChange(ws: WebSocket, session: any) {
     const ms = this.ms.get(session.id);

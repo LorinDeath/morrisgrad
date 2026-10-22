@@ -396,7 +396,7 @@ html.mc-ui .game-hud-panel .hud-dash-fill { background: linear-gradient(180deg, 
 html.mc-ui .game-hud-panel :is(.hud-row, .hud-ctrl-item, .hud-bar-val) { color: var(--ui-text2); }
 html.mc-ui .game-hud-panel :is(.hud-row b, .hud-ctrl-item span) { color: var(--ui-text); }
 html.mc-ui .hud-who { display: flex; align-items: center; gap: 8px; }
-html.mc-ui .game-window:fullscreen #game-canvas { border-left-color: var(--ui-metal) !important; border-right-color: var(--ui-metal) !important; }
+html.mc-ui .game-window:is(:fullscreen, .mc-full) #game-canvas { border-left-color: var(--ui-metal) !important; border-right-color: var(--ui-metal) !important; }
 html.mc-ui .hud-nearby-item { border-radius: 0; }
 html.mc-ui .mc-admin { font-family: var(--ui-font); }
 html.mc-ui .mc-admin .chip { border-radius: 0; }
@@ -470,7 +470,7 @@ html.mc-ui .mc-lobby-acts { position: sticky; bottom: -2px; margin-top: 10px; pa
    «Цель» — панель кита слева под рамкой героя (только когда есть цель); «Забеги», «Рядом», «Управление» — всплывающие окна. */
 .mc-ighud { display: none; }
 html.mc-hud-ig .game-hud-panel { display: none !important; }
-html.mc-hud-ig .game-window:fullscreen #game-canvas { border-left: 0 !important; border-right: 0 !important; max-width: none !important; }
+html.mc-hud-ig .game-window:is(:fullscreen, .mc-full) #game-canvas { border-left: 0 !important; border-right: 0 !important; max-width: none !important; }
 html.mc-hud-ig .mc-ighud { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 6; font-family: var(--ui-font); color: var(--ui-text); font-size: var(--ui-fs-xs, 11px); }
 html.mc-hud-ig .mc-ighud :is(.ig-mm, .ig-tgt, .ig-pop.open, .ig-help.open) { pointer-events: auto; }
 /* — круглая мини-карта — */
@@ -594,7 +594,21 @@ html.mc-ui:not(.mc-atmo-tr) .mc-load .sig * { animation: none; }
 /* пустой — скрыт в обеих темах (вид рамок не меняется); с кнопкой — квадрат 36×36 (рамка + кольцо прогресса) рядом с ОЗ */
 .mc-pf-pk-slot { flex: 0 0 auto; width: 36px; height: 36px; position: relative; pointer-events: auto; box-sizing: border-box; }
 .mc-pf-pk-slot:empty { display: none !important; }
-.mc-pframe > .mc-pf-pk-slot { align-self: flex-end; margin: 0 0 1px 2px; }
+.mc-pframe > .mc-pf-pk-slot { align-self: flex-start; margin: 2px 0 0 2px; } /* у ника (верхний ряд рамки) */
+/* кнопка ⚔ PK (ui/cityHud.js) в слоте: квадрат в рамке кита, значок + короткая подпись / отсчёт; без свечения */
+.mc-pf-pk-slot > .ch-pk.ch-compact { width: 100%; height: 100%; min-height: 0; padding: 0; margin: 0; flex-direction: column; justify-content: center; gap: 0; border-radius: 4px; box-shadow: none !important;
+  font: bold 9px/1.05 var(--ui-font, monospace); letter-spacing: 0; background: rgba(14, 10, 20, .88); }
+html.mc-ui .mc-pf-pk-slot > .ch-pk.ch-compact { border: 6px solid transparent; border-image: var(--ui-frame-small) 5 fill / 10px stretch; image-rendering: pixelated; border-radius: 0; background: #1a1626; background-clip: padding-box; }
+.mc-pf-pk-slot > .ch-pk.ch-compact .ch-pk-ic { font-size: 12px; line-height: 1; }
+.mc-pf-pk-slot > .ch-pk.ch-compact .ch-pk-t:empty { display: none; }
+.mc-pf-pk-slot > .ch-pk.ch-compact .ch-pk-n:empty { display: none; }
+.mc-pf-pk-slot > .ch-pk.ch-compact.ch-on { color: var(--ch-pk); background: color-mix(in srgb, var(--ch-pk) 22%, #1a1626); background-clip: padding-box; }
+.mc-pf-pk-slot > .ch-pk.ch-compact.ch-wait { color: var(--ch-wait); }
+.mc-touch .mc-pf-pk-slot > .ch-pk.ch-compact { font-size: 10px; }
+.mc-touch .mc-pf-pk-slot > .ch-pk.ch-compact .ch-pk-ic { font-size: 15px; }
+/* телефон: ник над полоской ОЗ (кнопка PK — справа, «возле ника») */
+.mc-pf-mob .mpf-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mc-pf-mob .mpf-nm { font: bold 11px/1.1 var(--ui-font, monospace); color: var(--ui-head, #f1e6c8); text-shadow: 0 1px 0 #000, 0 0 2px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
 /* прежняя карточка «ГЕРОЙ»: справа от полоски ОЗ (полоска укорачивается только когда кнопка есть) */
 .hud-card:has(> .mc-pf-pk-slot:not(:empty)) { position: relative; }
 .hud-card > .mc-pf-pk-slot { position: absolute; right: 8px; margin-top: -26px; }

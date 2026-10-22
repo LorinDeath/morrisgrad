@@ -7,34 +7,18 @@ let ssrSigned = false;
 try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
 ---
 
-<Layout title="Проклятые | Моррис Град" viewportFit>
-  <main class="container">
-    <h1>ПРОКЛЯТЫЕ</h1>
-    <div class="shimmer-line"></div>
-
-    <div class="game-wrapper">
-      <div class="game-window" id="game-window" data-signed={ssrSigned ? "1" : "0"}>
-        <div class="game-header">
-          <span class="game-title">Альказак // Viewport (300x300)</span>
-          <button id="btn-fullscreen" class="btn-fullscreen" title="На весь экран" aria-label="Развернуть">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="game-screen" id="game-screen">
-          <div class="launcher-overlay" id="launcher-overlay">
-            <span class="auth-back" id="auth-back" hidden>✓ Вход выполнен</span>
-            <button class="btn-start" id="btn-start">Начать игру</button>
-            <span class="hint">Управление: WASD / Зум: +/-</span>
-          </div>
-
-          <canvas id="game-canvas" width="300" height="300" tabindex="0"></canvas>
-        </div>
+<Layout title="Проклятые | Моррис Град" viewportFit bare>
+  <!-- Игра на всё окно (100vw × 100dvh): без шапки/подвала сайта, без кнопки «Начать игру» — загрузка стартует сразу при открытии.
+       Полный экран — по первому клику/касанию/клавише (ui/fullscreen.js), Esc возвращает в «на всё окно» без сдвига раскладки. -->
+  <div class="game-window mc-full" id="game-window" data-signed={ssrSigned ? "1" : "0"}>
+    <div class="game-screen" id="game-screen">
+      <div class="launcher-overlay" id="launcher-overlay">
+        <span class="auth-back" id="auth-back" hidden>✓ Вход выполнен</span>
+        <span class="hint">Загрузка…</span>
       </div>
+      <canvas id="game-canvas" width="300" height="300" tabindex="0"></canvas>
     </div>
-  </main>
+  </div>
 </Layout>
 
 <!-- Сторож запуска (MC-L09): если сам загрузчик игры (модуль ниже) не скачался — связь оборвалась на первой загрузке страницы,
@@ -65,6 +49,8 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
   (window as any).__mcLaunch = 1; // сторож MC-L09 выше: загрузчик дошёл
   import { syncAssets, AC } from './_core/boot/assetCache.js';
   import { showError, hookGlobalErrors } from './_core/boot/errorBox.js';
+  import { armAutoFullscreen, fsActive } from './_core/ui/fullscreen.js';
+  import { unlockAudioOnGesture } from './_core/boot/audioUnlock.js';
   // Вход (гости): оверлей с формой Clerk грузится лениво (src/scripts/mcAuthGate.ts) — только если входа нет.
   // Вошедший игрок стартует как раньше: без ожидания Clerk и без лишнего кода.
   const PENDING = 'mc-auth-pending';
@@ -109,17 +95,14 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
   }
 
   function initLauncher() {
-    const startBtn = document.getElementById('btn-start');
     const overlay = document.getElementById('launcher-overlay');
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     const gameWindow = document.getElementById('game-window');
-    const fsBtn = document.getElementById('btn-fullscreen');
+    if (!canvas || !gameWindow || W.__MC_LAUNCHED__ === canvas) return; // astro:page-load + DOMContentLoaded — запуск один раз на этот канвас
+    W.__MC_LAUNCHED__ = canvas;
+    let gameStarted = false;
 
-    if (!startBtn || !canvas || !gameWindow) return;
-
-    let gameStarted = false, starting = false;
-
-    // вернулись со входа через Google/Discord/Twitch (страница перезагрузилась) — «Продолжить» одним нажатием
+    // вернулись со входа через Google/Discord/Twitch (страница перезагрузилась) — короткая отметка «Вход выполнен»
     let pending = false;
     try { const t = Number(sessionStorage.getItem(PENDING)); pending = t > 0 && Date.now() - t < 20 * 60_000; } catch (_) {}
     if (pending || location.hash === '#mc-auth-done') {
@@ -127,7 +110,6 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
         if (!c?.user) return;
         try { sessionStorage.removeItem(PENDING); } catch (_) {}
         if (location.hash === '#mc-auth-done') history.replaceState(history.state, '', location.pathname + location.search);
-        const b = document.getElementById('btn-start'); if (b) b.textContent = 'Продолжить';
         const ok = document.getElementById('auth-back'); if (ok) ok.hidden = false;
       });
     }
@@ -154,54 +136,32 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
       try { ({ initGame } = await import('./_core/game.js')); }
       catch (err) { ld?.close(); showError('MC-L05', { detail: String(err?.message || err) }); return; } // «Повторить» = перезагрузка (неудачный import браузер запоминает)
       if (ld) { const done = () => ld.close(); window.addEventListener('mc:first-frame', done, { once: true }); setTimeout(done, 20000); }
+      if (overlay) overlay.style.display = 'none'; // дальше — экран загрузки самой игры
       // Передача userId третьим аргументом обязательна!
       const api = (initGame)(canvas.id, username, userId);
       watchSession(api, gameWindow, W.__MC_AUTH_GUEST__ ? '' : (W.Clerk?.user?.id || (gameWindow.dataset.signed === '1' ? 'ssr' : '')));
     };
 
-    const handleStart = async () => {
-      if (gameStarted || starting) return;
-      starting = true;
-      if (overlay) overlay.style.display = 'none';
-      canvas?.focus();
-
-      if (!document.fullscreenElement && gameWindow) {
-        gameWindow.requestFullscreen().catch((err) => {
-          console.warn('Fullscreen отклонен:', err);
-        });
-      }
-
+    // Запуск — сразу при открытии страницы (меню сайта, ссылка, прямой заход): без кнопки «Начать игру».
+    // Звук разблокируется первым жестом (boot/audioUnlock.js), полный экран — тоже первым жестом (ui/fullscreen.js).
+    const launch = async () => {
+      if (gameStarted) return;
       try {
         if (gameWindow.dataset.signed !== '1') {
           const c = await clerkReady(5000);
           if (!c?.user) {
-            const g = await gate();
+            const g = await gate(); // гость: окно «Войти / Играть гостем» (как и раньше, только без лишнего нажатия перед ним)
             const r = await g.openAuthGate({ host: gameWindow, mode: c ? 'start' : 'error', code: c ? undefined : 'MC-A01' });
             W.__MC_AUTH_GUEST__ = r === 'guest';
           }
         }
         await startGame();
-      } finally { starting = false; }
+      } catch (err) { console.warn('[mc-launch]', err); showError('MC-X00', { detail: String((err as any)?.message || err), step: 'запуск игры' }); }
     };
-
-    // Удаляем старые листенеры через клонирование, если они были, и вешаем новые
-    const newStartBtn = startBtn.cloneNode(true);
-    startBtn.parentNode?.replaceChild(newStartBtn, startBtn);
-    newStartBtn.addEventListener('click', handleStart);
-
-    canvas?.addEventListener('click', () => canvas.focus());
-
-    const newFsBtn = fsBtn?.cloneNode(true);
-    if (fsBtn && newFsBtn) {
-      fsBtn.parentNode?.replaceChild(newFsBtn, fsBtn);
-      newFsBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-          gameWindow?.requestFullscreen().catch(err => console.error(err));
-        } else {
-          document.exitFullscreen();
-        }
-      });
-    }
+    unlockAudioOnGesture();
+    armAutoFullscreen();
+    canvas.addEventListener('pointerdown', () => canvas.focus());
+    launch();
   }
 
   // Поддержка стандартной загрузки и переходов View Transitions в Astro
@@ -217,132 +177,40 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
     }
   }, { passive: false });
 
+  // вход/выход из полного экрана (в т. ч. Esc): окно остаётся «на всё окно», фокус — на игре (клавиши продолжают работать)
   document.addEventListener('fullscreenchange', () => {
-    const canvas = document.getElementById('game-canvas');
-    if (document.fullscreenElement) {
-      canvas?.focus();
-    }
+    const canvas = document.getElementById('game-canvas') as HTMLElement | null;
+    document.documentElement.classList.toggle('mc-fs', fsActive());
+    const a = document.activeElement as HTMLElement | null;
+    if (!a || a === document.body) canvas?.focus({ preventScroll: true });
+    window.dispatchEvent(new Event('resize')); // HUD (перетаскиваемые блоки, чат) пересчитывает положение
   });
 </script>
 
 <style is:global>
-  .shimmer-line {
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.5), transparent);
-    margin: 2rem 0;
-  }
+  /* Страница игры: всё окно, без прокрутки (Layout bare — без шапки/подвала сайта) */
+  html:has(body.mc-bare), body.mc-bare { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: #000; }
+  body.mc-bare { position: fixed; inset: 0; touch-action: manipulation; }
 
-  .game-wrapper {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 2rem 0;
+  .game-window.mc-full, .game-window:fullscreen {
+    position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; margin: 0; padding: 0;
+    border: 0; border-radius: 0; box-shadow: none; overflow: hidden; background: #06050b; display: block;
   }
-
-  .game-window {
-    width: 360px;
-    background: #0d0a14;
-    border: 2px solid #332742;
-    border-radius: 8px;
-    box-shadow: 0 0 25px rgba(0, 0, 0, 0.8), 0 0 10px rgba(160, 32, 240, 0.2);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+  /* одна раскладка в обоих режимах — вход/выход из полного экрана не сдвигает канвас и HUD */
+  #game-window .game-screen, #game-window .game-screen.mc3d-mobile {
+    position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; max-width: none !important;
+    margin: 0 !important; border: 0; display: flex; flex-direction: row; justify-content: space-between; align-items: stretch;
+    background: #07050d; overflow: hidden;
   }
-
-  .game-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #181224;
-    padding: 8px 14px;
-    border-bottom: 1px solid #332742;
-  }
-
-  .game-title {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: #cbbbd9;
-    font-family: monospace;
-    letter-spacing: 0.5px;
-  }
-
-  .btn-fullscreen {
-    background: transparent;
-    border: 1px solid #443755;
-    color: #cbbbd9;
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .btn-fullscreen:hover {
-    color: #ffd700;
-    border-color: #ffd700;
-    background: rgba(255, 215, 0, 0.1);
-  }
-
-  .game-screen {
-    position: relative;
-    width: 340px;
-    height: 340px;
-    margin: 10px auto;
-    background: #050408;
-    border: 1px solid #221830;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
   #game-canvas {
-    width: 100%;
-    height: 100%;
-    image-rendering: pixelated;
-    outline: none;
+    width: 100%; height: 100%; display: block; flex: 1 1 auto; min-width: 0;
+    image-rendering: pixelated; outline: none; touch-action: none;
   }
 
-  .game-hud-panel {
-    display: none;
-  }
+  .game-hud-panel { display: none; }
 
-  /* Fullscreen: адаптивная разметка дашборда */
-  .game-window:fullscreen {
-    width: 100vw;
-    height: 100vh;
-    border-radius: 0;
-    border: none;
-    background: #06050b;
-  }
-
-  .game-window:fullscreen .game-screen {
-    width: 100%;
-    height: calc(100vh - 46px);
-    margin: 0;
-    border: none;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: stretch;
-    background: #07050d;
-    overflow: hidden;
-  }
-
-  .game-window:fullscreen #game-canvas {
-    width: auto;
-    height: 100%;
-    max-width: calc(100vw - 520px);
-    aspect-ratio: 1 / 1;
-    z-index: 1;
-    border-left: 2px solid #c59b27;
-    border-right: 2px solid #c59b27;
-    box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
-  }
-
-  .game-window:fullscreen .game-hud-panel {
+  /* старые боковые панели (Настройки → «Старые панели»): как раньше в полном экране — теперь всегда */
+  .game-window.mc-full .game-hud-panel {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -356,10 +224,8 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
     font-family: monospace;
     z-index: 2;
   }
-
-  .game-window:fullscreen .hud-left { border-right: 1px solid #231b33; }
-  .game-window:fullscreen .hud-right { border-left: 1px solid #231b33; }
-
+  .game-window.mc-full .hud-left { border-right: 1px solid #231b33; }
+  .game-window.mc-full .hud-right { border-left: 1px solid #231b33; }
   .hud-card {
     background: #120d20;
     border: 1px solid #2d2242;
@@ -508,25 +374,6 @@ try { ssrSigned = !!(Astro.locals as any).auth?.()?.userId; } catch (_) {}
     align-items: center;
     gap: 14px;
     z-index: 10;
-  }
-
-  .btn-start {
-    background: #ffd700;
-    color: #111;
-    border: none;
-    padding: 10px 24px;
-    font-weight: 800;
-    font-size: 1rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: transform 0.1s, box-shadow 0.2s;
-  }
-
-  .btn-start:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
   }
 
   .auth-back { font: 600 0.85rem 'Exo 2', system-ui, sans-serif; color: #8fd6a0; }

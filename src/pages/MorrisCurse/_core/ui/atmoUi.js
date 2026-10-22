@@ -126,7 +126,7 @@ let ac = null, noise = null, lastPlay = {};
 function ctx() {
   if (ac) return ac;
   const A = window.AudioContext || window.webkitAudioContext; if (!A) return null;
-  try { ac = new A(); } catch (_) { return null; }
+  try { ac = window.__mcAC || (window.__mcAC = new A()); } catch (_) { return null; } // общий с boot/audioUnlock.js (разблокирован первым жестом)
   const b = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate), d = b.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   noise = b; return ac;

@@ -18,9 +18,12 @@ export class CityHud {
     root.appendChild(el);
     this.btn = el.querySelector('.ch-pk'); this.denyEl = el.querySelector('.ch-deny');
     this.btn.addEventListener('click', (e) => { e.stopPropagation(); this.send({ type: 'pk_toggle' }); });
-    this.btn.addEventListener('mousedown', (e) => e.stopPropagation());
+    this.btn.addEventListener('mousedown', (e) => e.stopPropagation()); this.btn.addEventListener('pointerdown', (e) => e.stopPropagation()); // в рамке героя: клик по PK не открывает окно C
     this.render();
   }
+  /** кнопка — в слот у ника рамки героя (ui/playerFrame.js pkSlot): компактная 36×36 (ПК) / 44×44 (телефон).
+   *  Без слота (старые страницы) — прежнее место над панелью навыков. Скрытая кнопка уходит из слота (пустой слот скрыт). */
+  mount(slot) { this.slot = slot || null; this.btn.classList.toggle('ch-compact', !!slot); this.render(); }
   /** мир сменился: кнопка — только в Аринаре */
   setWorld(w) { if (w === this.world) return; this.world = w; this.render(); }
   get pk() { return !!this.st.pk; }
@@ -53,12 +56,14 @@ export class CityHud {
   render() {
     const s = this.st, b = this.btn, show = this.world === 'arinar' && (s.on || s.pk);
     this.el.classList.toggle('ch-hidden', !show);
+    if (this.slot) { if (show) { if (b.parentElement !== this.slot) this.slot.appendChild(b); } else if (b.parentElement !== this.el) this.el.prepend(b); }
     b.classList.toggle('ch-on', s.pk); b.classList.toggle('ch-wait', s.to !== null); b.classList.toggle('ch-off', !s.on && !s.pk);
     b.setAttribute('aria-pressed', s.pk ? 'true' : 'false');
-    b.querySelector('.ch-pk-t').textContent = s.to !== null ? (s.to ? 'PK через' : 'Выход') : s.pk ? 'PK вкл' : 'PK';
+    b.querySelector('.ch-pk-t').textContent = this.slot ? (s.to !== null ? '' : s.pk ? 'ВКЛ' : 'PK') : s.to !== null ? (s.to ? 'PK через' : 'Выход') : s.pk ? 'PK вкл' : 'PK';
+    b.title = s.to !== null ? (s.to ? 'PK-режим включается — нажмите, чтобы отменить' : 'PK-режим выключается — нажмите, чтобы отменить') : s.pk ? 'PK-режим включён — нажмите, чтобы выключить (30 с без боя)' : 'PK-режим: нападать на игроков (вне куполов). Купол города не пускает убийц.';
     if (s.to === null) b.querySelector('.ch-pk-n').textContent = '';
     b.style.setProperty('--ch-pk', s.color || '#ef4444');
     this.denyEl.hidden = !this.deny; if (this.deny) this.denyEl.querySelector('.ch-deny-m').textContent = this.deny.msg;
   }
-  debug() { return { pk: this.st.pk, to: this.st.to, bar: this.track.html(), barT: this.track.t, barP: +this.track.cur(performance.now()).toFixed(3), deny: this.deny?.msg || null, shown: !this.el.classList.contains('ch-hidden'), label: this.btn.textContent.trim() }; }
+  debug() { return { pk: this.st.pk, to: this.st.to, bar: this.track.html(), barT: this.track.t, barP: +this.track.cur(performance.now()).toFixed(3), deny: this.deny?.msg || null, shown: !this.el.classList.contains('ch-hidden'), label: this.btn.textContent.trim(), inSlot: !!this.slot && this.btn.parentElement === this.slot }; }
 }
