@@ -149,14 +149,15 @@ function chestsBind(sec, v, redraw, upd) {
   const $$ = (q) => [...sec.querySelectorAll(q)];
   $$('[data-ch]').forEach((i) => i.addEventListener(i.tagName === 'SELECT' ? 'change' : 'input', () => {
     const [k, f] = i.dataset.ch.split('.'), x = v.ch[+k]; if (!x) return; const n = Number(i.value);
-    if (f === 'n') x.n = Math.max(1, Math.min(BC_SPEC_N, Math.round(n) || 1));
+    // числа не подрезаем молча: вне пределов — сообщение при сохранении (bcSpecErr), а не тихая подмена значения в поле
+    if (f === 'n') x.n = Math.round(n) || 0;
     else if (f === 't') { x.t = i.value; const cap = BC_ENCH_CAP[x.t] ?? 0; if (x.e > cap) x.e = cap; if (!cap) x.e = -1; redraw(); return; }
     else if (f === 'lm') { if (i.value === 'task') { x.L = 0; x.L2 = 0; } else if (i.value === 'fix') { x.L = x.L || 10; x.L2 = 0; } else { x.L = x.L || 10; x.L2 = Math.max(x.L, x.L2 || x.L + 2); } redraw(); return; }
-    else if (f === 'L') { x.L = Math.max(1, Math.min(25, Math.round(n) || 1)); if (x.L2 && x.L2 < x.L) x.L2 = x.L; }
-    else if (f === 'L2') x.L2 = Math.max(1, Math.min(25, Math.round(n) || 1));
+    else if (f === 'L') x.L = Math.round(n) || 0;
+    else if (f === 'L2') x.L2 = Math.round(n) || 0;
     else if (f === 'e') x.e = Math.round(n);
     else if (f === 'cm') { x.c = i.value === 'yes' ? 'yes' : i.value === 'pct' ? 10 : 'no'; redraw(); return; }
-    else if (f === 'c') x.c = Math.max(0, Math.min(BC_CURSE_MAX, n || 0));
+    else if (f === 'c') x.c = Number.isFinite(n) ? n : 0;
     upd(); }));
   $$('[data-chdel]').forEach((b) => (b.onclick = () => { v.ch.splice(+b.dataset.chdel, 1); redraw(); }));
   const add = sec.querySelector('[data-chadd]'); if (add) add.onclick = () => { if (!Array.isArray(v.ch)) v.ch = []; v.ch.push({ n: 1, t: 'rare', L: 0, L2: 0, e: -1, c: 'no' }); redraw(); };

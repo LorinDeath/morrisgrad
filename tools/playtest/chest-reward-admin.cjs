@@ -18,7 +18,7 @@ async function open(b, uid, mob) {
   const ctx = await b.newContext(mob ? { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, userAgent: UA_IOS } : { viewport: { width: 1280, height: 800 } });
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
   const p = await ctx.newPage(); p.errs = []; p.fr = []; p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 300)));
-  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast_error|"admin_|bchest/.test(s)) p.fr.push(s.slice(0, 600)); }));
+  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|"admin_|bchest|board_res|"err/.test(s)) p.fr.push(s.slice(0, 600)); }));
   await p.goto(assertLocalUrl(`${BASE}?name=${uid}&uid=${uid}&ws=${WS}&fs=1&debug=1${mob ? '&mobile=1' : ''}`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game?.debug, null, { timeout: 120000 }); await sleep(2500);
   await p.evaluate(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await p.evaluate(() => window.__game.board?.tut?.('skip')); await sleep(500);
@@ -34,6 +34,7 @@ const shot = async (p, n, o = {}) => { await clean(p); await sleep(250); await p
   await G(() => window.__game.debug.openAdmin()); await p.waitForFunction(() => document.querySelectorAll('.mc-admin [data-tab]').length > 0, null, { timeout: 15000 });
   await G(() => document.querySelector('.mc-admin [data-tab="btask"]').click()); await sleep(700);
   await G((id) => { const i = document.querySelector('.mc-admin aside input'); i.value = id; i.dispatchEvent(new Event('input', { bubbles: true })); }, TASK); await sleep(500);
+  await p.waitForFunction((id) => !!document.querySelector(`.mc-admin aside li[data-id="${id}"]`) || (() => { const i = document.querySelector('.mc-admin aside input'); if (i && i.value !== id) { i.value = id; i.dispatchEvent(new Event('input', { bubbles: true })); } return false; })(), TASK, { timeout: 20000, polling: 500 }).catch(() => {});
   const found = await G((id) => { const li = document.querySelector(`.mc-admin aside li[data-id="${id}"]`); li?.click(); return !!li; }, TASK); await sleep(900);
   t('админка: задание найдено в списке', found);
   const sec = await G(() => { const s = document.querySelector('.mc-admin .bt-ch'); s?.scrollIntoView({ block: 'center' }); return s ? s.textContent.replace(/\s+/g, ' ').slice(0, 300) : null; });
@@ -53,7 +54,11 @@ const shot = async (p, n, o = {}) => { await clean(p); await sleep(250); await p
   // неверное значение: 11 сундуков в строке (максимум 10) и 40 % проклятия (максимум 30) — сохранение не уходит
   await set('0.n', 11); await set('1.c', 40); await G(() => document.querySelector('.mc-admin [data-bt-save]').click()); await sleep(900);
   const errs = await G(() => document.querySelector('.mc-admin .errs')?.textContent.replace(/\s+/g, ' ').trim() || '');
-  t('форма: 11 сундуков и 40 % — ошибки, сохранение не отправлено', /10|11/.test(errs) && /30/.test(errs), errs);
+  t('форма: 11 сундуков — ошибка «сколько 1…10», сохранение не отправлено', /1…10/.test(errs), errs);
+  await shot(p, 'pc-11b-admin-validation-count');
+  await set('0.n', 2); await G(() => document.querySelector('.mc-admin [data-bt-save]').click()); await sleep(900);
+  const errs1 = await G(() => document.querySelector('.mc-admin .errs')?.textContent.replace(/\s+/g, ' ').trim() || '');
+  t('форма: проклятие 40 % — ошибка «0…30 %», сохранение не отправлено', /30/.test(errs1), errs1);
   await G(() => document.querySelector('.mc-admin .errs')?.scrollIntoView({ block: 'center' })); await shot(p, 'pc-11b-admin-validation');
   t('в D1 ничего не записано при ошибке', !d1(`SELECT id FROM game_overrides WHERE kind='btask' AND id='${TASK}'`).length);
   await set('0.n', 2); await set('1.c', 20); p.fr.length = 0;
@@ -85,13 +90,15 @@ const shot = async (p, n, o = {}) => { await clean(p); await sleep(250); await p
   // iPhone 13: тот же аккаунт-администратор недоступен второй сессией — новый игрок, задание у него из общих данных
   { const U = 'qa_p22_mob_' + stamp; const o = await open(b, U, true); await o.p.evaluate((id) => window.__game.debug.rawSend({ type: 'dev_grant', boardRoll: { id, r: 'C', n: 3 } }), TASK); await sleep(1500); await card('iphone13', o.p, true);
     // сдать: прогресс n=3 (dev) → «Сдать» → сундуки в 🎁
+    // задание «Разминка» сдаётся с 10 уровня — герою теста сначала опыт (только локальный dev_grant)
+    await o.p.evaluate(() => window.__game.debug.rawSend({ type: 'dev_grant', xp: 400000 })); await sleep(1500);
     await o.p.evaluate((id) => window.__game.debug.rawSend({ type: 'dev_grant', boardRoll: { id, r: 'C', n: 3, p: 3 } }), TASK); await sleep(1500);
     await o.p.evaluate(() => window.__game.boardWin.open('all', 'daily')); await sleep(900);
     const cl = await o.p.evaluate((id) => { const b = document.querySelector(`.mc-bd-row[data-id="${id}"] [data-b="claim"]`); b?.scrollIntoView({ block: 'center' }); return !!b; }, TASK);
     t('iphone13: задание готово к сдаче', cl); await shot(o.p, 'iphone13-11e-ready');
-    if (cl) { await o.p.evaluate((id) => document.querySelector(`.mc-bd-row[data-id="${id}"] [data-b="claim"]`).click(), TASK); await sleep(2500); }
+    if (cl) { o.p.fr.length = 0; await o.p.evaluate((id) => document.querySelector(`.mc-bd-row[data-id="${id}"] [data-b="claim"]`).click(), TASK); await sleep(2500); console.log('claim-frames', JSON.stringify(o.p.fr.slice(-6)).slice(0, 1500)); }
     await o.p.evaluate(() => window.__game.boardWin.close()); await sleep(400);
-    await o.p.evaluate(() => document.querySelector('.mc-bchestbtn')?.click()); await sleep(1500);
+    await o.p.evaluate(() => document.querySelector('.mc-bchestbtn')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', button: 0 }))); await sleep(1500);
     const L = await o.p.evaluate(() => [...document.querySelectorAll('.mc-bchest [data-id], .mc-bchest .bc-row, .mc-bchest li')].map((e) => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 80)));
     t('iphone13: после сдачи в 🎁 сундук ранга + 4 сундука награды', L.length >= 5, L);
     await shot(o.p, 'iphone13-11f-chests-after-claim');
