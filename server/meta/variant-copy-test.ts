@@ -51,5 +51,14 @@ const cat = s2.catalog(), ce = cat.ent.item.find((e: any) => e.id === C), ce2 = 
 ok(ce?.part === B && ce.inh === false && ce2?.inh === true && ce2.part === "night_bat_armor", "каталог: part/inh у копий");
 const r3 = await s2.reset("t", "item", C);
 ok(r3.ok && !s2.copyOwn.has(C) && I[C].rs === "split_shard", "сброс копии — снова наследует базу");
+// раздельное сохранение (release: admin_save_sec): раздел копии — своя строка «<id>@<раздел>», прочие поля наследуются
+if (typeof s2.saveSection === "function") {
+  const OV: any = await import("./overrides"), map = OV.sectionMap("item"), K = "ice_night_bat_weapon", KB = "night_bat_weapon", sec = map["rs"];
+  const r4 = await s2.saveSection("t", "item", K, sec, { rs: "fire_spark" });
+  ok(r4.ok && I[K].rs === "fire_spark" && s2.copyOwn.has(K) && [...s2.db._st.ov.keys()].some((k: string) => k.endsWith(sec === OV.SEC_MAIN ? "\u0000" + K : K + "@" + sec)) && r4.copies?.some((c: any) => c.id === K && !c.inh), `раздел «${sec}» копии сохранён своей строкой`);
+  const dm = I[K].stats.dmgMax, bRow = JSON.parse(rows.find((r) => r.id === KB)?.data || "{}");
+  await s2.save("t", "item", KB, { ...bRow, "stats.dmgMax": Math.round((I[KB].stats.dmgMax || 10) * 2) });
+  ok(I[K].rs === "fire_spark" && I[K].stats.dmgMax > dm, `после раздела: правка базы меняет унаследованный урон (${dm} → ${I[K].stats.dmgMax}), свой навык R остаётся`);
+}
 ok(s2.db._st.audit.length >= 4 && SEED_BY === "seed:variant-copies", "журнал правок пишется");
 console.log(`\n${pass} PASS, ${fail} FAIL`); process.exit(fail ? 1 : 0);

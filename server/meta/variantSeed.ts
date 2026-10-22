@@ -24,11 +24,14 @@ export function memDb(rows: Row[]) {
       return null;
     },
     async all() {
-      if (/FROM game_overrides/.test(sql)) return { results: [...ov.values()].map((r) => ({ kind: r.kind, id: r.id, data: r.data, version: r.version })) };
+      const rs = [...ov.values()].map((r) => ({ kind: r.kind, id: r.id, data: r.data, version: r.version }));
+      if (/FROM game_overrides WHERE kind = \? AND \(id = \? OR substr/.test(sql)) return { results: rs.filter((r) => r.kind === a[0] && (r.id === a[1] || r.id.startsWith(a[3]))) }; // строки разделов сущности
+      if (/FROM game_overrides/.test(sql)) return { results: rs };
       return { results: [] };
     },
     async run() {
       if (/^INSERT INTO game_overrides/.test(sql)) ov.set(a[0] + "\u0000" + a[1], { kind: a[0], id: a[1], data: a[2], version: a[3] });
+      else if (/^DELETE FROM game_overrides WHERE kind = \? AND substr/.test(sql)) { for (const [k, r] of ov) if (r.kind === a[0] && r.id.startsWith(a[2])) ov.delete(k); }
       else if (/^DELETE FROM game_overrides/.test(sql)) ov.delete(a[0] + "\u0000" + a[1]);
       else if (/^INSERT INTO game_override_audit/.test(sql)) st.audit.push(a);
       else if (/^UPDATE game_config_version/.test(sql)) st.v++;
@@ -51,7 +54,7 @@ export async function seedPlan(rows: Row[]): Promise<{ plan: PlanItem[]; store: 
   const codeStats: Record<string, Record<string, number>> = {};
   for (const id of copyIds()) codeStats[id] = { ...((ITEM_BY_ID as any)[id].stats || {}) };
   const store = new AdminStore(memDb(rows)); await store.sync(true);
-  const have = new Set(rows.filter((r) => r.kind === "item").map((r) => r.id));
+  const have = new Set(rows.filter((r) => r.kind === "item").map((r) => r.id.split("@")[0])); // и строки разделов «<id>@<раздел>»
   const plan: PlanItem[] = [];
   const dev = (x: number, m: number) => (m > 0 ? (x / m - 1) * 100 : 0);
   for (const id of copyIds()) {
