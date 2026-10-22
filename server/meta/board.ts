@@ -7,6 +7,8 @@
 // Формулы опыта за мобов, регенерация и множитель элиты здесь не трогаются.
 import { ZONE_MOBS, MONSTER_LOOT, RESOURCES, RECIPES, ITEM_BY_ID, heroXpNeed, HERO_MAX_LEVEL, HERO_IDS } from "./defs";
 import { HERO_NAMES } from "./shared";
+import { BCHEST, BC_CATS, tierOfRank, countOf } from "./boardChestCfg";
+import { grantChest, chestRoomErr } from "./boardChest";
 import { VARIANTS, VARIANT_BY_ID, BIOMES, baseOf, goalMatch, type BiomeId } from "./biomes";
 import { BOSS_TIMERS } from "./zoneGen";
 import { gainXp, addRes, addItem, talentSpent, equippedItems, activeLook, type Account, type Hero } from "./profile";
@@ -862,7 +864,7 @@ export function devBoardRoll(a: Account, h: Hero | null, id: string, r: string, 
   b.roll[id] = R; delete b.p[id]; delete b.c[id]; b.rev++; return true;
 }
 /** основное условие словами (для окна и трекера) */
-function rollText(t: BTask, o: { minL: number; n: number; f: string }): string {
+function rollText(t: BTask, o: { r?: string; L?: number; minL: number; n: number; f: string }): string {
   const what = o.minL && flags(t).has("lvl") ? "" : t.why || "";
   if (o.f === "wboss") return "Мировые боссы — зовите отряд";
   return [what, o.minL ? `враги ${o.minL} ур. и выше` : ""].filter(Boolean).join(" · ");
@@ -1310,6 +1312,8 @@ function claimTiers(a: Account, h: Hero, b: BoardState, t0: BTask, ctx: Ctx): an
   let last = ti; while (last + 1 < tiers.length && p >= tiers[last + 1]) last++;
   const wantItem = !!(t.item && ITEM_BY_ID[t.item]) && last === tiers.length - 1;
   if (wantItem && (a.inv?.length || 0) >= BAG_LIMIT) return { ok: false, err: "Сумка полна — освободите место для награды" }; // проверка ДО записи ступени
+  const wantChest = !!(R && R.r && tierOfRank(R.r)) && (BC_CATS as readonly string[]).includes(t.cat) && last === tiers.length - 1 && BCHEST.on !== false;
+  if (wantChest) { const e = chestRoomErr(a); if (e) return { ok: false, err: e }; } // хранилище сундуков полно — ступень не пишем, награда не пропадает
   const cp = capPeriod(t.cat), ck = cp ? periodKey(cp) : "", cap = catCap(t.cat, h.lvl);
   const xs = (b.xs[t.cat] && b.xs[t.cat].k === ck) ? b.xs[t.cat] : (b.xs[t.cat] = { k: ck, v: 0 });
   const r: any = { ok: true, id: t.id, title: t.title, cat: t.cat, rank: R?.r, bon: R ? R.bon.filter((o) => o.ok && R.done).length : undefined, xp: 0, res: {} as Record<string, number>, tiers: [] as number[], cappedXp: 0, levelUps: 0 };
@@ -1321,6 +1325,7 @@ function claimTiers(a: Account, h: Hero, b: BoardState, t0: BTask, ctx: Ctx): an
     for (const [res, n] of Object.entries(t.res || {})) if (RESOURCES[res] && n > 0) { const q = Math.round(n * (ti + 1)); addRes(a, res, q); r.res[res] = (r.res[res] || 0) + q; }
   }
   if (wantItem) { const it = addItem(a, t.item, "board:" + t.id, a.hero); if (it) r.item = { id: it.id, uid: it.uid }; }
+  if (wantChest && a.hero) { const c = grantChest(a, a.hero, R!.r, R!.L, t.cat, "board:" + t.id); if (c) { const [lo, hi] = countOf(t.cat); r.chest = { id: c.id, tier: c.tier, name: BCHEST.tiers[c.tier].name, color: BCHEST.tiers[c.tier].color, L: c.L, lo, hi }; } }
   if (r.xp > 0) r.levelUps = gainXp(h, r.xp);
   if ((b.c[t.id] || 0) >= tiers.length) { b.tk = b.tk.filter((x) => x !== t.id); b.pin = b.pin.filter((x) => x !== t.id);
     if (t.cat === "hunt" && R) { delete b.c[t.id]; delete b.p[t.id]; delete b.roll[t.id]; b.sel.hunt = (b.sel.hunt || []).filter((x) => x !== t.id); } } // заказ повторяемый: сдан — снова в пуле (не сегодня)

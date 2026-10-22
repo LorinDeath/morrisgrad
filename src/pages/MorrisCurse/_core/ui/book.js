@@ -169,11 +169,11 @@ export class Book {
     this.cmpEl.innerHTML = html; this.cmpEl.style.display = ''; this.placeCmp(x, y);
   }
   /** всплывающая карточка: предмет + сравнение с надетым в том же слоте */
-  cmpHtml(uid) {
+  cmpHtml(uid, ovr = null) { // ovr — вещь не из сумки (сундук наград): { id, cursed, ench, up }, hint — своя подсказка
     const a = this.meta.account, h = this.meta.hero;
-    const it = a?.inv.find((i) => i.uid === uid); if (!it) return '';
+    const it = ovr || a?.inv.find((i) => i.uid === uid); if (!it) return '';
     const d = curseDef(ITEM_BY_ID[it.id], it); if (!d) return '';
-    const curUid = h?.equip?.[d.slot], worn = curUid === uid;
+    const curUid = h?.equip?.[d.slot], worn = !ovr && curUid === uid;
     const cit = !worn && curUid ? a.inv.find((i) => i.uid === curUid) : null;
     const cd = cit ? curseDef(ITEM_BY_ID[cit.id], cit) : null;
     const col = itemColor;
@@ -193,13 +193,13 @@ export class Book {
     const head = worn ? '<div class="cmpw">Надето сейчас</div>' : !h ? '' : cd
       ? `<div class="cmpw">Сравнение с надетым: <b style="color:${col(cd)}">${esc(cd.name)}</b> <small>(ур. ${cd.lvl || 1}${cd.cursed ? ', ☠' : ''}${cd.ench ? ', ✦ ' + esc(enchFem(cd.ench)) : ''})</small></div>`
       : `<div class="cmpw">Слот «${esc(SLOTS[d.slot])}» пуст — всё ниже будет прибавкой</div>`;
-    const rsRow = d.slot === 'weapon' ? `<div class="row rsk">🌀 Навык R: <b>${R ? `${R.icon} ${esc(R.name)}` : 'нет'}</b>${cd && !worn ? (CR?.name === R?.name ? ' <small>(тот же)</small>' : ` <small>(сейчас: ${CR ? esc(CR.name) : 'нет'})</small>`) : ''}</div>` : '';
+    const rsRow = !ovr && d.slot === 'weapon' ? `<div class="row rsk">🌀 Навык R: <b>${R ? `${R.icon} ${esc(R.name)}` : 'нет'}</b>${cd && !worn ? (CR?.name === R?.name ? ' <small>(тот же)</small>' : ` <small>(сейчас: ${CR ? esc(CR.name) : 'нет'})</small>`) : ''}</div>` : '';
     const low = h && h.lvl < reqOf(d);
     return `<div class="nm" style="color:${col(d)}">${iconHtml(d, 24)} ${esc(d.up ? d.name.replace(/ \+\d+$/, '') : d.name)}${upBadge(it.up, it.cursed, true)}${it.lk ? ' 🔒' : ''}</div>
       <div class="rr">${lookBadges(d)}${esc(RARITIES[d.rarity]?.name || '')} · ${esc(SLOTS[d.slot])} · ур. ${d.lvl || 1}${cd && lvlD ? ` ${arrow(lvlD)}` : ''}</div>
       ${head}<div class="rows">${rows || '<div class="mc-dim">Без характеристик</div>'}</div>${rsRow}
       ${low ? `<div class="row ls">Нужен ${reqOf(d)} уровень героя (у вас ${h.lvl})</div>` : ''}
-      <div class="hint">${worn ? 'Нажмите — карточка предмета' : 'Нажмите — карточка · двойной клик — надеть'}</div>`;
+      <div class="hint">${ovr ? esc(ovr.hint || '') : worn ? 'Нажмите — карточка предмета' : 'Нажмите — карточка · двойной клик — надеть'}</div>`;
   }
   confirmIn(title, html, onOk, okLabel = 'Разобрать') {
     this.askOk = onOk;

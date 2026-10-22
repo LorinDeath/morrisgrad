@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { join, resolve } from 'path';
 export const GROUP_RULES = [ // [регэксп исходного пути, группа] — первая подходящая
   [/\.(mp3|ogg|wav|m4a)$/i, null],
+  [/assets\/mc\/rewardchest\//, 'rchest'], // 🎁 сундуки наград: только при открытии (не в первой загрузке)
   [/assets\/mc\/props3\//, 'props3'],
   [/assets\/mc\/bestiary32\//, 'mobs32'],   // мобы 32 (mobs32): по требованию (листы тиров по радиусу), кэшируются сервис-воркером
   [/assets\/mc\/props2\//, 'props2'],

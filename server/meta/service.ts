@@ -49,6 +49,8 @@ import {
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh, blackenEquipped,
 } from "./profile";
+import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
+import { BCHEST, bchestPreview } from "./boardChestCfg";
 import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
@@ -105,7 +107,8 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   party_invite: S({ sid: "s" }), party_respond: S({ from: "s", accept: "b" }), party_leave: S({}), party_kick: S({ sid: "s" }), party_promote: S({ sid: "s" }), party_get: S({}),
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
-  admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
+  admin_bchest_preview: S({ patch: "o", L: "n", cat: "s" }), admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
+  bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
 };
 function validMsg(msg: any): boolean {
@@ -301,6 +304,7 @@ export class MetaService {
     const bs: any = {}; const bUps = this.boardSnap(ms, a, h, bs); // до снимка: награды шагов обучения уже в опыте/материалах
     const s: any = snapshot(a, h, cls, heroBase(cls), ms.verified);
     Object.assign(s, bs); if (bUps) s.boardLevelUps = bUps;
+    { const L = chestsOf(a).list; s.bchest = { n: L.length, mine: L.filter((c) => c.hero === cls).length, fresh: L.filter((c) => c.hero === cls && !Array.isArray(c.items)).length, on: BCHEST.on !== false }; } // 🎁 значок HUD
     // Алтарь тел: у каждого героя — статы/экип/сумка для превью без смены оболочки
     for (const id of HERO_IDS) {
       const hh = this.store.hero(ms.pkey, id);
@@ -578,8 +582,8 @@ export class MetaService {
         { const at = BTASKS[bid] ? takeAt(BTASKS[bid]) : ""; if (at && at !== "board" && !this.nearNpc(session, at)) { this.send(ws, { type: "toast_error", message: `Личное задание сдаётся персонажу: ${NPCS[at]?.name || at}` }); return true; } }
         const r = boardClaim(a, h, bid, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
         if (!r.ok) { this.send(ws, { type: "toast_error", message: r.err, code: "MC-B03" }); return true; }
-        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${(a as any).hero || ""}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id });
-        this.push(ws, session, { boardClaimed: { id: r.id, title: r.title, xp: r.xp, res: r.res, item: r.item, tiers: r.tiers, capped: r.cappedXp || undefined, levelUps: r.levelUps || undefined } });
+        this.store.audit(ms.pkey, "board", `board:${ms.pkey}:${(a as any).hero || ""}:${r.id}:${r.tiers.join(".")}:${(a as any).board?.per?.[r.cat] || ""}`, { id: r.id, tiers: r.tiers, xp: r.xp, res: r.res, item: r.item?.id, chest: r.chest?.tier });
+        this.push(ws, session, { boardClaimed: { id: r.id, title: r.title, xp: r.xp, res: r.res, item: r.item, chest: r.chest, tiers: r.tiers, capped: r.cappedXp || undefined, levelUps: r.levelUps || undefined } });
         if (r.levelUps) this.refreshZonePlayer(session);
         return true;
       }
@@ -611,6 +615,23 @@ export class MetaService {
         if (!this.nearNpcOrAltar(session)) { this.send(ws, { type: "toast_error", message: "Ветка души открывается только у Алтаря перевоплощения" }); return true; }
         const sb: any = buySoulNode(a, String(msg.id)); if (sb.ok) this.bev(session, { type: "soul" });
         reply(sb, "Душа изменилась"); this.refreshZonePlayer(session); return true;
+      }
+      case "bchest_list": this.send(ws, this.bchestMsg(ms, a)); return true;
+      case "bchest_open": case "bchest_take": case "bchest_salvage": case "bchest_equip": { // 🎁 сундуки наград доски: всё решает сервер
+        const now = Date.now(); if (now - ((ms as any).bcAt || 0) < 40) return true; (ms as any).bcAt = now;
+        let r: any;
+        if (msg.type === "bchest_open") r = chestOpen(a, cls, msg.id);
+        else if (msg.type === "bchest_take") r = chestTake(a, cls, msg.id, msg.lid, !!msg.all);
+        else if (msg.type === "bchest_salvage") r = chestSalvage(a, cls, msg.id, msg.lid);
+        else { if (!needHero()) return true; r = chestEquip(a, h!, cls!, msg.id, msg.lid); }
+        if (r.ok && msg.type === "bchest_open" && r.fresh) this.store.audit(ms.pkey, "bchest", `bchest:${ms.pkey}:${msg.id}:open`, { id: msg.id, n: r.chest?.items?.length || 0 });
+        if (r.ok && msg.type === "bchest_salvage") this.bev(session, { type: "salvage", n: 1, items: [] });
+        if (r.ok && msg.type === "bchest_equip") { const it = a.inv.find((i) => i.uid === r.uid); const mon = it && ITEM_BY_ID[it.id]?.monster; if (mon) this.qev(a, session, { type: "equip_monster", monster: mon }); this.bev(session, { type: "equip" }); }
+        if (r.ok && r.fresh) for (const x of r.chest?.items || []) noteItem(a, x.id, "bchest", false); // увидели в сундуке — в Библиотеку как «видели»
+        this.send(ws, { ...this.bchestMsg(ms, a), ev: { op: msg.type.slice(7), id: msg.id, ...r } });
+        if (r.ok || r.got?.length) this.push(ws, session, r.msg ? { toast: r.msg } : {}); else if (r.err) this.send(ws, { type: "toast_error", message: r.err });
+        if (msg.type === "bchest_equip" && r.ok) this.refreshZonePlayer(session);
+        return true;
       }
       case "equip": {
         if (!needHero()) return true;
@@ -734,6 +755,12 @@ export class MetaService {
         this.perfSnapshot().then((data) => this.send(ws, { type: "admin_perf", data })).catch((e) => console.error("[mc] perf", e?.message || e));
         return true;
       }
+      case "admin_bchest_preview": { // 🎁 предпросмотр шансов сундуков наград (значения формы не сохраняются)
+        if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+        if (Date.now() - ((ms as any).bcpAt || 0) < 250) return true; (ms as any).bcpAt = Date.now();
+        if (JSON.stringify(msg).length > 24000) return true;
+        this.send(ws, { type: "admin_bchest_preview", ...bchestPreview(msg.patch, msg.L, String(msg.cat || "daily"), cryptoRand) }); return true;
+      }
       case "client_stats": { // fps/пинг/устройство раз в минуту; значения проверяются и обрезаются в ST.clientStats
         if (Date.now() - ((ms as any).cstAt || 0) < 20000) return true; (ms as any).cstAt = Date.now();
         ST.clientStats(session.id, msg); return true;
@@ -835,6 +862,8 @@ export class MetaService {
         if (msg.xp && h) gainXp(h, Number(msg.xp));
         if (msg.boardRoll && typeof msg.boardRoll === "object") { const br: any = msg.boardRoll; ms.dirty = true; // тест рангов: вариант задания с заданным рангом (и количеством)
           const r = devBoardRoll(a, h, String(br.id || ""), String(br.r || ""), Number(br.n) || 0, Number.isFinite(br.minL) ? Number(br.minL) : -1, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) }, String(br.rb || "")); if (r) this.boardSoon(session); }
+        if (msg.bchestGrant && typeof msg.bchestGrant === "object" && a.hero) { const g: any = msg.bchestGrant; ms.dirty = true; // тест сундуков наград (только dev): ранги → сундуки, как за сданное задание
+          for (const r of (Array.isArray(g.ranks) ? g.ranks : [g.rank]).slice(0, 12)) grantChest(a, a.hero, String(r || "F"), Math.max(1, Math.min(25, Number(g.L) || 10)), String(g.cat || "daily"), "dev"); }
         if (msg.killNear || msg.killNearAny) { const z = this.zoneOf(session); const m = z?.mobs.filter((x: any) => !x.dead && (msg.killNearAny || !x.special) && (!msg.killType || x.type === msg.killType)).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
           if (m && Math.hypot(m.x - session.x, m.y - session.y) < 500) { if (msg.cursed) m.cursed = true; if (Number.isInteger(msg.ench) && msg.ench >= 0 && msg.ench <= 6) m.ench = msg.ench; z!.damage(m, session.id, m.hp + 1e6, (mm: any) => this.onMobKilled(mm)); } } // тест: настоящее убийство (обычный путь награды); killNearAny — и боссы (только MC_DEV); killType — фильтр вида
         if (msg.mobInfo) { const z = this.zoneOf(session); const list = (z?.mobs || []).filter((x: any) => !x.dead).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y)); const m = msg.typeFilter ? list.find((x: any) => x.type === msg.typeFilter) : list[0]; if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench || 0, elite: !!m.elite, special: m.special || "" }); }
@@ -1526,6 +1555,12 @@ export class MetaService {
       for (const [sid, pk] of rec) { const en = this.sessionLookup?.(sid); const mine = c.entries.filter((x) => x.o === pk).length; if (en && (mine || c.keepEmpty)) this.send(en[0], { type: "chest_spawn", id: c.id, x: c.x, y: c.y, mine, kills: e.kills.length, second: i ? 1 : undefined }); }
     }
     if (!any) for (const sid of rec.keys()) { const en = this.sessionLookup?.(sid); if (en) this.send(en[0], { type: "toast", message: "Лагерь зачищен — в этот раз без добычи" }); } // пустой сундук не ставим (campSpawnEmpty выкл)
+  }
+  /** 🎁 окно сундуков наград: список + карточки вещей внутри (клиент не знает таблиц предметов) */
+  private bchestMsg(ms: MetaSess, a: Account) {
+    const L = chestList(a), cards: Record<string, any> = {};
+    for (const c of L.list) for (const x of c.items || []) if (!ms.cards.has(x.id)) { const cc = itemCard(x.id); if (cc) { cards[x.id] = cc; ms.cards.add(x.id); } }
+    return { type: "bchest_state", ...L, cards };
   }
   chestView(c: Chest, ms: MetaSess, extra: any = {}) {
     const now = Date.now(), ents = this.chests.visible(c, ms.pkey, now), cards: Record<string, any> = {};

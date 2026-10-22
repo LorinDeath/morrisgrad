@@ -1188,3 +1188,59 @@ html.mc-ui .mc-tracker .bq { padding: 2px 4px !important; position: relative; }
 /* кнопка PK не перекрывает открытую Книгу героя (Бестиарий, шкала) и админку */
 .mc-book-open .ch-root, :has(> .mc-admin) > .ch-root { display: none; }
 .mc-touch .mc-tracker .bq .bt.pin:has(.xb) { flex-wrap: wrap; } .mc-touch .mc-tracker .bq .bt.pin .xb { flex-basis: 100%; margin-left: 14px; }
+
+/* 🎁 Сундуки наград доски: окно (Y / 🎁) и сцена открытия. Без свечений и звёзд — плоские пиксельные вспышки. */
+.mc-bchestbtn { left: 252px; }
+.mc-loot.mc-bchest { width: min(760px, 96%); top: 50%; }
+.mc-bchest header small.ttl { color: #a8977a; }
+.mc-bchest .bc-body { display: grid; grid-template-columns: 270px 1fr; min-height: 300px; max-height: min(560px, 76vh); }
+.mc-bchest .bc-list { overflow: auto; border-right: 1px solid #3d2f12; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.mc-bchest .bc-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid #3a3150; border-left: 4px solid var(--cc, #999); border-radius: 5px; background: #0e0b15; color: inherit; font: inherit; text-align: left; cursor: pointer; touch-action: manipulation; }
+.mc-bchest .bc-row:hover { background: #221a33; } .mc-bchest .bc-row.on { background: #2a2140; border-color: #b8913a; border-left-color: var(--cc, #999); }
+.mc-bchest .bc-row.other { opacity: .62; }
+.mc-bchest .bc-row .t { display: flex; flex-direction: column; min-width: 0; } .mc-bchest .bc-row .t b { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-bchest .bc-row small { color: #a8977a; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-bchest .bc-pane { display: flex; flex-direction: column; min-width: 0; overflow: auto; }
+.mc-bchest .bc-empty { padding: 18px 12px; color: #a8977a; text-align: center; line-height: 1.5; }
+.mc-bchest .bc-big { display: flex; gap: 12px; align-items: center; padding: 10px; } .mc-bchest .bc-big > div { display: flex; flex-direction: column; gap: 2px; } .mc-bchest .bc-big b { font-size: 15px; } .mc-bchest .bc-big small { color: #a8977a; }
+.mc-bchest .bc-odds { padding: 0 10px 6px; font-size: 12px; line-height: 1.55; } .mc-bchest .bc-odds small { color: #a8977a; }
+.mc-bchest .od { display: grid; grid-template-columns: 110px 1fr 48px; gap: 6px; align-items: center; }
+.mc-bchest .od i { height: 7px; background: #0b0812; border: 1px solid #3a3150; } .mc-bchest .od i b { display: block; height: 100%; }
+.mc-bchest .od em { font-style: normal; text-align: right; color: #eadfbf; }
+.mc-bchest .bc-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; } .mc-bchest .bc-head small { color: #a8977a; margin-left: auto; }
+.mc-bchest .grid { max-height: none; flex: 1; align-content: start; }
+.mc-bchest .cell.cursed { box-shadow: none; border: 1px solid #a855f7; background: #1c1030; } /* без свечения */
+.mc-bchest .cell.sel { outline: 2px solid #fbbf24; outline-offset: -2px; }
+.mc-bchest .cell.hid { visibility: hidden; }
+.mc-bchest .cell.pop { animation: bcPop .22s steps(4) both; }
+@keyframes bcPop { 0% { transform: scale(.4); } 60% { transform: scale(1.15); } 100% { transform: none; } }
+.mc-bchest .bc-acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px; }
+.mc-bchest .btn { font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 5px; border: 1px solid #5b4720; background: #2a2010; color: #eadfbf; cursor: pointer; touch-action: manipulation; }
+.mc-bchest .btn:disabled { opacity: .4; cursor: default; } .mc-bchest .btn.danger { border-color: #7f1d1d; color: #fca5a5; } .mc-bchest .bc-acts .all { margin-left: auto; }
+.bc-ico { display: inline-block; flex: none; image-rendering: pixelated; background-repeat: no-repeat; }
+.bc-ico.fb { background: var(--cc, #999); border: 2px solid #000; box-sizing: border-box; }
+.mc-touch .mc-loot.mc-bchest, .mc-bchest.mob { width: 98%; top: 50%; }
+@media (max-width: 640px), (max-height: 520px) and (pointer: coarse) {
+  .mc-bchest .bc-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; max-height: 82vh; }
+  .mc-bchest .bc-list { flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid #3d2f12; }
+  .mc-bchest .bc-row { flex: none; width: 200px; }
+  .mc-bchest .grid { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); }
+  .mc-bchest .btn { padding: 8px 12px; }
+}
+@media (max-height: 520px) and (orientation: landscape) { .mc-bchest .bc-body { grid-template-columns: 220px 1fr; grid-template-rows: none; } .mc-bchest .bc-list { flex-direction: column; overflow-y: auto; border-right: 1px solid #3d2f12; border-bottom: 0; } .mc-bchest .bc-row { width: auto; } }
+.bc-fx { position: fixed; inset: 0; z-index: 200; background: rgba(5, 3, 10, .72); overflow: hidden; touch-action: none; user-select: none; transition: opacity .25s; }
+.bc-fx.fade { opacity: 0; }
+.bc-fx canvas.pt { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; }
+.bc-fx .sh { position: absolute; left: 0; top: 0; will-change: transform; }
+.bc-fx canvas.ch { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+.bc-fx .its { position: absolute; left: 0; top: 0; }
+.bc-it { position: absolute; left: 0; top: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--rc, #9ca3af); background: #0e0b15; box-sizing: border-box; will-change: transform; pointer-events: none; }
+.bc-it.fly { position: fixed; z-index: 205; }
+.bc-it .cz { position: absolute; left: 1px; top: -2px; font-size: 10px; color: #c084fc; }
+.bc-fx .cap { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); text-align: center; font-family: monospace; color: #eadfbf; text-shadow: 2px 2px 0 #000; opacity: 0; transition: opacity .2s; white-space: nowrap; }
+.bc-fx .cap.in { opacity: 1; } .bc-fx .cap.out { opacity: 0; }
+.bc-fx .cap b { display: block; font-size: 22px; } .bc-fx .cap em { font-style: normal; } .bc-fx .cap span, .bc-fx .cap em { display: block; font-size: 13px; color: #d6d3d1; margin-top: 3px; }
+.bc-fx .skip { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); font: 11px monospace; color: #8b7d63; }
+.bc-fx .bc-more { position: absolute; left: 50%; top: 20%; transform: translateX(-50%); font: bold 14px monospace; color: #fde68a; text-shadow: 2px 2px 0 #000; }
+.bc-poof { position: fixed; pointer-events: none; z-index: 210; image-rendering: pixelated; }
+.mc3d-ttop .mc3d-tbtn { position: relative; } .mc3d-ttop .mc3d-tbtn .mc-cnt { position: absolute; top: -6px; right: -6px; margin: 0; font-size: 10px; }

@@ -43,6 +43,7 @@ export class TouchControls {
         <div class="mc3d-tbtn" data-act="map" title="Карта мира">🗺</div>
         <div class="mc3d-tbtn" data-act="book" title="Книга Проклятого">📖</div>
         <div class="mc3d-tbtn" data-act="board" title="Задания и достижения">📋</div>
+        <div class="mc3d-tbtn" data-act="chests" title="Сундуки наград">🎁<em class="mc-cnt" style="display:none"></em></div>
         <div class="mc3d-tbtn" data-act="rating" title="Рейтинг игроков">🏆</div>
         <div class="mc3d-tbtn" data-act="people" title="Онлайн · друзья · настройки">👥</div>
         <div class="mc3d-tbtn" data-act="chat" title="Чат">💬</div>
@@ -115,6 +116,9 @@ export class TouchControls {
       });
     });
   }
+
+  /** значок-счётчик на кнопке верхнего ряда (например, 🎁 — неоткрытые сундуки) */
+  setBadge(act, n) { const em = this.el?.querySelector?.(`.mc3d-tbtn[data-act="${act}"] .mc-cnt`) || this.container?.querySelector?.(`.mc3d-tbtn[data-act="${act}"] .mc-cnt`); if (!em) return; em.style.display = n ? '' : 'none'; em.textContent = n > 99 ? '99+' : String(n); }
 
   setMode(mode) {
     if (!this.root) return;

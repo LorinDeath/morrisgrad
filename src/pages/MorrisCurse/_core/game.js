@@ -85,6 +85,7 @@ import { TERRAIN_CFG } from '../../../../server/meta/terrainCfg.ts';
 import { liquidAt, inLiquid, resolveLiquid } from '../../../../server/meta/liquid.ts';
 import { AdminPanel } from './ui/admin.js';
 import { LootWindow } from './ui/loot.js';
+import { BchestWindow } from './ui/bchest.js';
 import { ChestWindow } from './ui/chest.js';
 import { DpsMeter } from './ui/dps.js';
 import { PartyUI } from './ui/party.js';
@@ -314,6 +315,7 @@ async function boot(canvasId, username, userId, api) {
     onSoul: () => book.toggle('hero'),
     onBook: () => book.toggle(),
     onBoard: () => boardWin.toggle('all'),
+    onChests: () => bchestWin.toggle(),
     onAbility: (slot) => useAbility(slot ?? 0),
     onChat: () => openChat(),
     onZoomIn: () => zoomBy(1.2),
@@ -563,7 +565,8 @@ async function boot(canvasId, username, userId, api) {
     boardSt.apply(d);
     if (d.boardDefs) { zone.setBoards?.(d.boardDefs.props, d.boardDefs.on); const P = d.boardDefs.props || {}; setBoardCols(d.boardDefs.on ? [P.nb, P.ab].filter(Boolean) : []); } // доски непроходимы — как на сервере
     for (const g of d.boardGranted || []) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac');
-    if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}`, '#86efac'); }
+    if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}${c.chest ? ` · 🎁 ${c.chest.name} (ур. ${c.chest.L}, вещей ${c.chest.lo}–${c.chest.hi}) — откройте: Y / 🎁` : ''}`, '#86efac'); }
+    if (d.bchest) bchestUi(d.bchest);
     if (d.toast) overlay.toast(d.toast, '#c4b5fd');
     qol.onState(d);
     updateBookBadge();
@@ -683,6 +686,10 @@ async function boot(canvasId, username, userId, api) {
   net.on('chest_spawn', (d) => overlay.toast(`📦 Сундук схватки: ваших предметов — ${d.mine}`, '#fde68a'));
   function openChest(c) { if (Math.hypot(c.x - player.x, c.y - player.y) > 110) { overlay.toast('Подойдите ближе к сундуку', '#94a3b8'); return; } send({ type: 'chest_open', chest: c.id }); }
   const lootWin = new LootWindow(container, (o) => send(o)); // окно мешка добычи (внутри игры)
+  const bchestWin = new BchestWindow(container, (o) => send(o), { book, meta }); // 🎁 сундуки наград доски (Y)
+  api.bchestWin = bchestWin;
+  net.on('bchest_state', (d) => bchestWin.onState(d));
+  net.on('admin_bchest_preview', (d) => adminPanel.onBchestPreview?.(d));
   const adminPanel = new AdminPanel((o) => send(o), container); // окно внутри игры (полноэкранный режим, игра позади)
   adminPanel.board = boardSt; // предпросмотр заданий доски (опыт, строка как у игрока)
   net.on('admin_catalog', (d) => adminPanel.onCatalog(d));
@@ -840,6 +847,11 @@ async function boot(canvasId, username, userId, api) {
   boardBtn.className = 'mc-bookbtn mc-boardbtn'; boardBtn.title = 'Задания и достижения (U)'; boardBtn.innerHTML = '📋<em class="mc-cnt" style="display:none"></em>';
   boardBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); boardWin.toggle('all'); });
   overlay.layer.appendChild(boardBtn);
+  const bchestBtn = document.createElement('button'); // 🎁 сундуки наград: значок — сколько неоткрытых у текущего тела
+  bchestBtn.className = 'mc-bookbtn mc-bchestbtn'; bchestBtn.title = 'Сундуки наград (Y)'; bchestBtn.innerHTML = '🎁<em class="mc-cnt" style="display:none"></em>';
+  bchestBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); bchestWin.toggle(); });
+  overlay.layer.appendChild(bchestBtn);
+  function bchestUi(b) { const em = bchestBtn.querySelector('em'), n = b.fresh | 0; em.style.display = n ? '' : 'none'; em.textContent = n > 99 ? '99+' : String(n); bchestBtn.style.display = b.on === false && !b.n ? 'none' : ''; touch?.setBadge?.('chests', n); if (bchestWin.isOpen && b.n !== bchestWin.st?.list?.length) send({ type: 'bchest_list' }); }
   boardSt.on(() => { const n = boardSt.readyCount(), em = boardBtn.querySelector('em'); em.style.display = n ? '' : 'none'; em.textContent = n > 99 ? '99+' : String(n); boardBtn.style.display = boardSt.defs?.on === false ? 'none' : '';
     const tb = overlay.layer.querySelector('.mc3d-tbtn[data-act="board"]'); if (tb) { tb.dataset.cnt = n ? String(Math.min(99, n)) : ''; tb.classList.toggle('hascnt', n > 0); tb.style.display = boardSt.defs?.on === false ? 'none' : ''; } });
   const qol = new QolHud(overlay, meta, boardSt, { mobile });
@@ -1191,8 +1203,10 @@ async function boot(canvasId, username, userId, api) {
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && upgWin.isOpen) { upgWin.close(); return; }
     if (e.key === 'Escape' && boardWin.isOpen) { boardWin.close(); return; }
+    if (e.key === 'Escape' && bchestWin.isOpen) { bchestWin.close(); return; }
     if (e.key === 'Escape' && qol.helpOpen) { qol.toggleHelp(false); return; }
     if (e.key === 'F1' && !e.repeat) { e.preventDefault(); qol.toggleHelp(); return; }
+    if ((k === 'y' || k === 'н') && !e.repeat && !overlay.chatOpen) { bchestWin.toggle(); return; } // Y — сундуки наград
     if ((k === 'u' || k === 'г') && !e.repeat && !overlay.chatOpen) { boardWin.toggle('all'); return; } // U — общее окно; доски открываются E рядом с ними
     if (e.key === 'Escape' && worldMap.isOpen) { worldMap.close(); return; }
     if (worldMap.isOpen && (k === 'n' || k === 'т') && !e.repeat) { worldMap.toggleBiome(); return; } // N — карта биомов

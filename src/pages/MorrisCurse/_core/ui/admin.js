@@ -50,7 +50,7 @@ const BT_RANKS = ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS'];
 /** высший ранг, который может выпасть заданию ('' — у раздела нет рангов) */
 const rankTop = (e) => (['daily', 'weekly', 'monthly', 'hard', 'hunt'].includes(e.cat) ? e.values?.rmax || (['kill', 'run', 'trial'].includes(e.values?.ev) ? 'SS' : 'A') : '');
 const rankCan = (e, r) => { const t = rankTop(e); return !!t && BT_RANKS.indexOf(r) <= BT_RANKS.indexOf(t); };
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['bchest', '🎁 Сундуки наград'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 const STAT_OF = (path) => (path.startsWith('stats.') ? path.slice(6) : { hp: 'maxHp', dmg: 'dmgMin', armor: 'armor', speed: 'speedPct', 'atk.range': 'area', cd: 'atkSpeedPct', 'status.dpsPct': 'dmgPct', crit: 'critPct' }[path]);
 const css = `
@@ -211,6 +211,28 @@ export class AdminPanel {
       copy: async () => { const t = JSON.stringify(this.perf, null, 2); try { await navigator.clipboard.writeText(t); this.msg('✔ JSON скопирован'); } catch (_) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); this.msg('✔ JSON скопирован'); } } });
     clearInterval(this.perfTimer); this.perfTimer = setInterval(() => { if (this.tab !== 'perf' || !this.el?.isConnected) { clearInterval(this.perfTimer); return; } if (sec.querySelector('[data-auto]')?.checked) this.send({ type: 'admin_perf' }); }, 5000);
   }
+  /** 🎁 предпросмотр сундуков наград: значения формы (без сохранения) → сервер считает шансы и бросает пример */
+  bchestPreviewBox(sec) {
+    const S = this.cat.schema.bchest; if (!S) return;
+    sec.insertAdjacentHTML('beforeend', `<div class="box mc-bcp" style="margin-top:10px"><b>🔎 Предпросмотр (значения формы, без сохранения)</b>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">Уровень задания <input type="number" class="bcp-L" min="1" max="30" value="10" style="width:60px">
+      Раздел <select class="bcp-cat"><option value="daily">ежедневное</option><option value="weekly">недельное</option><option value="monthly">месячное</option><option value="hard">испытание</option><option value="hunt">заказ</option></select>
+      <button class="btn bcp-go">Предпросмотр</button></div><div class="bcp-out" style="font-size:12px">Нажмите «Предпросмотр» — сервер посчитает шансы по всем ярусам и бросит пример содержимого.</div></div>`);
+    sec.querySelector('.bcp-go').onclick = () => {
+      const patch = {}; sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (!f) return; if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' || f.t === 'text' || f.t === 'ltext' ? i.value : Number(i.value); else if (f.t === 'enum' && f.opts?.includes('')) patch[f.path] = ''; });
+      this.bcpSec = sec; sec.querySelector('.bcp-out').textContent = 'Считаем…';
+      this.send({ type: 'admin_bchest_preview', patch, L: Number(sec.querySelector('.bcp-L').value) || 10, cat: sec.querySelector('.bcp-cat').value });
+    };
+  }
+  onBchestPreview(d) {
+    const out = this.bcpSec?.isConnected && this.bcpSec.querySelector('.bcp-out'); if (!out) return;
+    if (!d.ok) { out.innerHTML = `<span style="color:#fca5a5">✖ ${esc(d.err || 'ошибка')}</span>`; return; }
+    const R = RARITIES, rn = (r) => R[r]?.name || r, rc = (r) => R[r]?.color || '#ccc', pc = (p) => (p >= 10 || Number.isInteger(p) ? Math.round(p) : (+p).toFixed(1)) + '%';
+    out.innerHTML = `<table class="mc-bcp-t" style="width:100%;border-collapse:collapse"><tr><th align="left">Ярус (ранги)</th><th>Вид</th><th>Ур. вещей</th><th>Вещей</th><th align="left">Качество</th><th>✦</th><th>☠</th><th align="left">Пример</th></tr>`
+      + d.tiers.map((t) => `<tr style="border-top:1px solid #3b2c52;vertical-align:top"><td><b style="color:${esc(t.color === '#1c1917' ? '#d6d3d1' : t.color)}">${esc(t.name)}</b><br><small>${esc((t.ranks || []).join(', ') || '—')}</small></td><td align="center"><small>${esc(t.art)}</small></td><td align="center">${t.lo}–${t.hi}</td><td align="center">${t.cmin}–${t.cmax}</td>`
+        + `<td>${Object.entries(t.rar || {}).filter(([, p]) => p > 0).map(([r, p]) => `<span style="color:${esc(rc(r))}">${esc(rn(r))} ${pc(p)}</span>`).join('<br>') || '—'}</td><td align="center">${pc(t.enchPct)}</td><td align="center">${pc(t.cursePct)}</td>`
+        + `<td><small>${(t.sample || []).map((x) => `<span style="color:${esc(x.c ? '#c084fc' : rc(x.rarity))}">${esc(x.name)} ${x.lvl}${x.c ? '☠' : ''}${x.e ? '✦' + x.e : ''}</span>`).join(', ')}</small></td></tr>`).join('') + '</table>';
+  }
   onAudit(rows) { this.audit = rows; if (this.tab === 'audit') this.render(); }
   items() {
     if (!this.cat) return [];
@@ -310,6 +332,7 @@ export class AdminPanel {
     const e = this.cat.ent[kind].find((x) => x.id === id);
     if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.tab === 'btask' ? (this.cat.ent.btask || []).length : this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
     this.entityForm(sec, kind, e);
+    if (kind === 'bchest' && this.full) this.bchestPreviewBox(sec);
     if (kind === 'region') { sec.insertAdjacentHTML('beforeend', regionMapHtml()); this.rmap = mountRegionMap(sec, id, (rid) => { if (this.cat.ent.region.some((x) => x.id === rid)) { this.sel = 'region:' + rid; this.render(); this.el.querySelector('aside li.on')?.scrollIntoView({ block: 'nearest' }); } }); }
   }
   entityForm(sec, kind, e) {
@@ -373,7 +396,7 @@ export class AdminPanel {
       let patch = {};
       if (kind === 'loot') patch = this.readLoot(sec);
       else {
-        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' || f.t === 'text' || f.t === 'ltext' ? i.value : Number(i.value); else if (f.t === 'text' || f.t === 'ltext') patch[f.path] = ''; });
+        sec.querySelectorAll('[data-p]').forEach((i) => { const f = S.fields.find((x) => x.path === i.dataset.p); if (i.type === 'checkbox') patch[f.path] = i.checked; else if (i.value !== '') patch[f.path] = f.t === 'enum' || f.t === 'color' || f.t === 'text' || f.t === 'ltext' ? i.value : Number(i.value); else if (f.t === 'text' || f.t === 'ltext' || (f.t === 'enum' && f.opts?.includes(''))) patch[f.path] = ''; }); // пустой вариант списка — тоже значение («как у яруса», «снаружи»)
         sec.querySelectorAll('input[data-rm]').forEach((i) => { const m = {}; for (const part of i.value.split(',')) { const [r, n] = part.split(':').map((x) => x.trim()); if (r) m[r] = Number(n ?? 1); } patch[i.dataset.rm] = m; });
         if (S.fields.some((f) => f.t === 'skills')) patch.skills = [...sec.querySelectorAll('[data-sk]:checked')].map((i) => i.dataset.sk);
         if (S.traits) patch.traits = this.traits;

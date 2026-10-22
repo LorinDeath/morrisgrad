@@ -26,13 +26,15 @@ import { ENCH, ENCH_N } from "./enchant";
 // шанс проклятого моба, % — живёт в ZONE_GEN.cursedPct (там его читают зона и тесты); правится во вкладке «☠ Проклятие» (curse.cursedPct)
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
+import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, bchestErr } from "./boardChestCfg";
+import { RARITIES as RAR_NAMES } from "./shared";
 import { UPG, UPG_ORDER } from "./upgrade";
 import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, RANKS, RANK_CATS, BONUS_NAMES, reindexBtasks, type Cat } from "./board";
 import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
 
-export type Kind = "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
+export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -345,6 +347,26 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
       return [N(`em.${s}.${k}.x`, `${pre} · ${nm}: x`, -1, 128, "int"), N(`em.${s}.${k}.y`, `${pre} · ${nm}: y`, -1, 128, "int")]; }))] },
   rare: { name: "Редкие Отголоски", fields: [N("every.0", "Появление через, мин. с", 60, 86400, "int"), N("every.1", "Появление через, макс. с", 60, 86400, "int"), N("life", "Живёт, если не нашли, с", 30, 7200, "int")] },
   // 📋 Доска заданий (board.ts): общие настройки, таблица опыта, обучение, QoL
+  bchest: { name: "🎁 Сундуки наград доски", fields: [
+    { path: "_h_bc0", label: "Общее (за сданное задание с рангом — сундук в 🎁; вещи бросаются при открытии)", t: "hdr" },
+    { path: "on", label: "Сундуки наград включены", t: "bool" },
+    N("spread", "Уровень вещей: уровень задания ±", 0, 10, "int"), N("maxStore", "Хранится сундуков (полно — задание с рангом не сдаётся)", 1, 500, "int"),
+    N("maxItems", "Потолок вещей в одном сундуке", 1, 200, "int"),
+    { path: "_h_bc1", label: "Ранг задания → сундук", t: "hdr" },
+    ...BC_RANKS.map((r): Field => ({ path: `rankTier.${r}`, label: `Ранг ${r}`, t: "enum", opts: [...BC_TIERS], optn: Object.fromEntries(BC_TIERS.map((t) => [t, BCHEST.tiers[t].name])) })),
+    { path: "_h_bc1a", label: "Вид сундука по рангу (рисунок художника; только внешний вид, содержимое решает ярус)", t: "hdr" },
+    ...BC_RANKS.map((r): Field => ({ path: `rankArt.${r}`, label: `Ранг ${r} — вид`, t: "enum", ...{ opts: ["", ...BC_ART], optn: { "": "как у яруса", ...Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) } } })),
+    { path: "_h_bc2", label: "Сколько вещей (от/до) по разделам", t: "hdr" },
+    ...BC_CATS.flatMap((c) => [N(`count.${c}.min`, `${BC_CAT_NAMES[c]}: вещей от`, 1, 200, "int"), N(`count.${c}.max`, `${BC_CAT_NAMES[c]}: вещей до`, 1, 200, "int")]),
+    ...BC_TIERS.flatMap((t): Field[] => [
+      { path: `_h_bct_${t}`, label: `Ярус: ${BCHEST.tiers[t].name}`, t: "hdr" },
+      { path: `tiers.${t}.name`, label: "Название", t: "text" }, { path: `tiers.${t}.art`, label: "Анимация и иконка (рисунок художника)", t: "enum", opts: [...BC_ART], optn: Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) }, { path: `tiers.${t}.color`, label: "Цвет", t: "color" },
+      { path: `tiers.${t}.maxRar`, label: "Макс. редкость вещей (качество не выше)", t: "enum", opts: [...BC_RARS], optn: Object.fromEntries(BC_RARS.map((r) => [r, RAR_NAMES[r]?.name || r])) },
+      ...BC_RARS.map((r) => N(`tiers.${t}.w.${r}`, `Вес: ${RAR_NAMES[r]?.name || r}`, 0, 1000)),
+      N(`tiers.${t}.enchPct`, "Шанс зачарования вещи, %", 0, 100), N(`tiers.${t}.enchMax`, "Ярус зачарования не выше (0 — нет)", 0, 6, "int"),
+      N(`tiers.${t}.cursePct`, "Шанс проклятой вещи, %", 0, 100),
+    ]),
+  ] },
   board: { name: "📋 Доска заданий: настройки", fields: [
     { path: "_h_b1", label: "Общее", t: "hdr" }, { path: "on", label: "Доска включена", t: "bool" },
     ...CATS.map((c): Field => ({ path: `cats.${c}`, label: `Вкладка «${CAT_NAMES[c]}»`, t: "bool" })),
@@ -403,7 +425,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("w", "Вес в случайном пуле (0 — не выпадает)", 0, 100),
   ] },
 };
-export const TABLES: Record<Kind, Record<string, any>> = { board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
+export const TABLES: Record<Kind, Record<string, any>> = { bchest: { main: BCHEST }, board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
   spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
@@ -500,6 +522,7 @@ function validatePatch0(kind: Kind, id: string, patch: any): any | string {
   }
   if (kind === "ench") { const E = TABLES.ench[id]; for (let i = 0; i < ENCH_N; i++) { const a = out[`tiers.${i}.skMin`] ?? E.tiers[i].skMin, b = out[`tiers.${i}.skMax`] ?? E.tiers[i].skMax; if (a > b) return `ярус ${i + 1}: навыков «от» больше «до»`; } }
   if (kind === "btask") { const r = validateBtask(id, out); if (r) return r; }
+  if (kind === "bchest") { const e = bchestErr((p) => (out[p] !== undefined ? out[p] : getP(BCHEST, p))); if (e) return e; }
   if (kind === "board") {
     const C = TABLES.board[id]; let prev = 0;
     for (let b = 0; b < 6; b++) { const x = out[`bands.${b}`] ?? C.bands?.[b]; if (!(x > prev)) return "полосы уровней должны расти"; prev = x; }
