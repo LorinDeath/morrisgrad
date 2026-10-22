@@ -43,7 +43,7 @@ import { dnClient, DN_CFG, dnAt, dnMinutes } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
-import { BOARD_CFG, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, takeAt, npcTasks, BTASKS } from "./board";
+import { BOARD_CFG, devBoardRoll, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, takeAt, npcTasks, BTASKS } from "./board";
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -833,6 +833,8 @@ export class MetaService {
         if (msg.ratingRefresh) { this.save(session); (this.store.chain.get(ms.pkey) || Promise.resolve()).then(() => this.store.flush(ms.pkey)).then(() => { this.rating.at = 0; this.send(ws, { type: "dev_rating_reset" }); }); return true; }
         if (msg.stars) for (const [c, n] of Object.entries(msg.stars)) a.stars[c] = (a.stars[c] || 0) + Number(n);
         if (msg.xp && h) gainXp(h, Number(msg.xp));
+        if (msg.boardRoll && typeof msg.boardRoll === "object") { const br: any = msg.boardRoll; ms.dirty = true; // тест рангов: вариант задания с заданным рангом (и количеством)
+          const r = devBoardRoll(a, h, String(br.id || ""), String(br.r || ""), Number(br.n) || 0, Number.isFinite(br.minL) ? Number(br.minL) : -1, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) }); if (r) this.boardSoon(session); }
         if (msg.killNear || msg.killNearAny) { const z = this.zoneOf(session); const m = z?.mobs.filter((x: any) => !x.dead && (msg.killNearAny || !x.special) && (!msg.killType || x.type === msg.killType)).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
           if (m && Math.hypot(m.x - session.x, m.y - session.y) < 500) { if (msg.cursed) m.cursed = true; if (Number.isInteger(msg.ench) && msg.ench >= 0 && msg.ench <= 6) m.ench = msg.ench; z!.damage(m, session.id, m.hp + 1e6, (mm: any) => this.onMobKilled(mm)); } } // тест: настоящее убийство (обычный путь награды); killNearAny — и боссы (только MC_DEV); killType — фильтр вида
         if (msg.mobInfo) { const z = this.zoneOf(session); const list = (z?.mobs || []).filter((x: any) => !x.dead).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y)); const m = msg.typeFilter ? list.find((x: any) => x.type === msg.typeFilter) : list[0]; if (m) this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench || 0, elite: !!m.elite, special: m.special || "" }); }

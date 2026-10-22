@@ -308,7 +308,7 @@ export class AdminPanel {
     const kind = pre ? pre[1] : this.tab, id = pre ? this.sel.slice(pre[0].length) : this.sel;
     if (String(this.sel || '').startsWith('res:')) { const r = (this.cat.res || []).find((x) => 'res:' + x.id === this.sel); sec.innerHTML = r ? `<h3>${esc(r.icon || '')} ${esc(r.name)}</h3><p>Материал <code>${esc(r.id)}</code> — выпадает с мобов и из сбора; редактируется через таблицы дропа (вкладка «Дроп»).</p>` : ''; return; }
     const e = this.cat.ent[kind].find((x) => x.id === id);
-    if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
+    if (!e) { sec.innerHTML = `<h3>${esc(this.cat.schema[this.tab].name)}</h3><p>Выберите запись слева. Всего: ${this.tab === 'btask' ? (this.cat.ent.btask || []).length : this.items().filter((x) => !x.grp && !x.id.startsWith('__')).length}.</p>`; return; }
     this.entityForm(sec, kind, e);
     if (kind === 'region') { sec.insertAdjacentHTML('beforeend', regionMapHtml()); this.rmap = mountRegionMap(sec, id, (rid) => { if (this.cat.ent.region.some((x) => x.id === rid)) { this.sel = 'region:' + rid; this.render(); this.el.querySelector('aside li.on')?.scrollIntoView({ block: 'nearest' }); } }); }
   }

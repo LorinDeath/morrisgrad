@@ -698,8 +698,8 @@ function pickRank(seed: string, ev: string, rmax: string): string {
 const MAX_MOB_LVL = () => Math.max(1, ...Object.values(ZONE_MOBS).map((m: any) => m.lvl || 1));
 const autoTarget = (t: BTask) => t.ev === "kill" && (!t.m || t.m.startsWith("biome:") || t.m.startsWith("role:")) && !/(^|,)(boss|wboss|rare)(,|$)/.test(t.f); // у боссов и редких свой уровень
 /** бросок варианта задания при выдаче: детерминированно по игроку, периоду и заданию */
-export function makeRoll(t: BTask, heroLvl: number, seed: string, k: string, heroes: string[]): Roll {
-  const r = pickRank(seed, t.ev, (t as any).rmax || ""), RC = BOARD_CFG.ranks?.[r] || { plus: 0, mul: 1, cnt: 1, bon: 1 };
+export function makeRoll(t: BTask, heroLvl: number, seed: string, k: string, heroes: string[], force = ""): Roll {
+  const r = force && RANKS.includes(force as any) ? force : pickRank(seed, t.ev, (t as any).rmax || ""), RC = BOARD_CFG.ranks?.[r] || { plus: 0, mul: 1, cnt: 1, bon: 1 };
   const ri = RANKS.indexOf(r as any), plus = (Number(RC.plus) || 0) + (Number(BOARD_CFG.catPlus?.[t.cat]) || 0);
   const tiers = tiersOf(t);
   let n: number, d: number, f = "", minL = 0;
@@ -729,10 +729,26 @@ export function makeRoll(t: BTask, heroLvl: number, seed: string, k: string, her
   }
   return { r, L, minL, n, d, x, f, bon, k, w: rollText(t, { r, L, minL, n, f }) };
 }
+/** тела для бонуса «только в теле»: те, которыми игрок уже играл (уровень > 1), и текущее */
+function rollHeroes(a: Account, ctx: Ctx): string[] {
+  const L = Object.entries(ctx.heroes || {}).filter(([c, hh]: any) => HERO_IDS.includes(c) && (hh?.lvl || 0) > 1).map(([c]) => c);
+  if (a.hero && !L.includes(a.hero)) L.push(a.hero);
+  return L;
+}
+/** только для локальных тестов (dev_grant): выпавший вариант с заданным рангом; задание — в набор периода */
+export function devBoardRoll(a: Account, h: Hero | null, id: string, r: string, n: number, minL: number, ctx: Ctx): boolean {
+  const t = BTASKS[id]; if (!t || !RANK_CATS.includes(t.cat)) return false;
+  const b = boardOf(a), lvl = h?.lvl || 1, cat = t.cat === "hunt" ? "hunt" : t.cat;
+  if (!(b.sel[cat] || []).includes(id)) b.sel[cat] = [id, ...(b.sel[cat] || [])];
+  const heroes = rollHeroes(a, ctx);
+  const R = makeRoll(t, lvl, ctx.pkey + "|dev|" + id + "|" + Date.now(), b.per[cat] || "dev", heroes, r);
+  if (n > 0) R.n = n; if (minL >= 0) { R.minL = minL; R.w = rollText(t, R); }
+  b.roll[id] = R; delete b.p[id]; delete b.c[id]; b.rev++; return true;
+}
 /** основное условие словами (для окна и трекера) */
 function rollText(t: BTask, o: { minL: number; n: number; f: string }): string {
   const what = o.minL && flags(t).has("lvl") ? "" : t.why || "";
-  if (o.f === "wboss") return `Мировые боссы: ${o.n} — зовите отряд`;
+  if (o.f === "wboss") return "Мировые боссы — зовите отряд";
   return [what, o.minL ? `враги ${o.minL} ур. и выше` : ""].filter(Boolean).join(" · ");
 }
 /** задание с учётом выпавшего варианта (ранг, количество, уровень врагов) */
@@ -878,7 +894,16 @@ function rollPeriods(a: Account, b: BoardState, lvl: number, ctx: Ctx, now: numb
   let ch = false;
   for (const c of PERIODIC) {
     const k = periodKey(c, now);
-    if (b.per[c] === k && Array.isArray(b.sel[c])) continue;
+    if (b.per[c] === k && Array.isArray(b.sel[c])) { // набор периода есть; не добран (герой был ниже) — добрать при новом уровне, не трогая выпавшее
+      const want = periodCount(c, ctx.pkey + "|" + k);
+      if (b.sel[c].length < want && b.per[c + "L"] !== String(lvl)) {
+        b.per[c + "L"] = String(lvl);
+        const pool = BTASK_LIST().filter((t) => t.cat === c && lvl <= (t.maxLvl || 30) && !lockReason(a, t, lvl) && (t.w ?? 1) > 0 && !b.sel[c].includes(t.id));
+        const add = weighted(pool, ctx.pkey + "|" + k).slice(0, want - b.sel[c].length).map((t) => t.id);
+        if (add.length) { b.sel[c] = [...b.sel[c], ...add]; ch = true; }
+      }
+      continue;
+    }
     for (const t of BTASK_LIST()) if (t.cat === c) { delete b.p[t.id]; delete b.c[t.id]; delete b.roll[t.id]; }
     const pool = BTASK_LIST().filter((t) => t.cat === c && lvl <= (t.maxLvl || 30) && !lockReason(a, t, lvl) && (t.w ?? 1) > 0);
     const n = periodCount(c, ctx.pkey + "|" + k);
@@ -890,7 +915,7 @@ function rollPeriods(a: Account, b: BoardState, lvl: number, ctx: Ctx, now: numb
     b.sel[c] = [...fixed, ...pick]; b.per[c] = k; ch = true;
   }
   // ранги: вариант выпавшего (и у уже выбранных до включения рангов — если ещё не сдано)
-  const heroes = Object.keys(ctx.heroes || {}).filter((c) => HERO_IDS.includes(c)); if (!heroes.length && a.hero) heroes.push(a.hero);
+  const heroes = rollHeroes(a, ctx);
   for (const c of PERIODIC) for (const id of b.sel[c] || []) {
     const t = BTASKS[id]; if (!t) continue;
     if (BOARD_CFG.rankOn?.[c] === false) { if (b.roll[id] && !(b.c[id] > 0)) { delete b.roll[id]; ch = true; } continue; }

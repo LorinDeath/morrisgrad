@@ -235,6 +235,11 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
   ok(b.roll.d_kill_a.bon[0].ok === 0 && b.roll.d_kill_a.bon[1].ok === 1, "убийство без отряда срывает «в отряде»; «на время» уложился");
   const r2 = boardClaim(a, h, "d_kill_a", ctx); ok(r2.xp === 110, `только основное + «на время»: ${r2.xp}`);
 }
+{ // набор периода добирается при росте уровня (тяжёлые с 1-го уровня пусты)
+  const { a, h } = mk(); h.lvl = 1; boardRefresh(a, h, ctx); const b = boardOf(a); const n1 = (b.sel.hard || []).length;
+  const keep = [...(b.sel.daily || [])]; h.lvl = 15; boardRefresh(a, h, ctx);
+  ok((b.sel.hard || []).length > n1 && b.sel.hard.every((id: string) => b.roll[id]) && keep.every((id) => b.sel.daily.includes(id)), `тяжёлые добраны на 15 ур.: ${n1} → ${(b.sel.hard || []).length}, выпавшее не тронуто`);
+}
 { // заказ Доски с рангом: сдан — снова может выпасть (не сегодня)
   const { a, h } = mk(); h.lvl = 10; boardRefresh(a, h, ctx); const b = boardOf(a); const id = (b.sel.hunt || [])[0];
   ok(boardTake(a, h, id, true).ok, "заказ взят"); b.p[id] = b.roll[id].n; const r = boardClaim(a, h, id, ctx);
