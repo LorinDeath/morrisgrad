@@ -245,6 +245,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_rose", label: "Роза в центре города", t: "hdr" },
     { path: "roseId", label: "id розы (black_roses)", t: "text" }, { path: "roseBloom", label: "Сразу раскрыта (стадия 6)", t: "bool" }, { path: "roseNoCurse", label: "Без проклятой земли", t: "bool" },
     { path: "noCurseIn", label: "Внутри купола проклятая земля роз не действует", t: "bool" },
+    { path: "ringOn", label: "Линия края купола на земле по всему кругу (только вид, вживую)", t: "bool" }, N("ringA", "…непрозрачность линии", 0, 1), N("ringW", "…ширина линии, px мира", 1, 24), N("ringGlow", "…ореол, × ширины (0 — без ореола)", 0, 10),
     { path: "blightOn", label: "Пятно порчи под розой (только вид)", t: "bool" }, N("blightSize", "…размер пятна, ×", 0.3, 3), N("blightK", "…сила пятна (непрозрачность, искры), ×", 0, 2),
     { path: "_h_look", label: "Вид", t: "hdr" },
     N("plazaTiles", "Площадь: радиус, клеток (после перезапуска)", 4, 12, "int"),

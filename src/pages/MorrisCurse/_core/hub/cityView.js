@@ -99,6 +99,7 @@ export class CityView {
     const moved = !this.cfg || this.cfg.x !== c.x || this.cfg.y !== c.y || this.cfg.cp !== c.cp;
     this.cfg = c; Object.assign(CITY_CFG, { name: c.name, x: c.x, y: c.y, alphaIn: c.aIn, centerpiece: c.cp, plazaTiles: c.plaza, on: c.on, groundLight: Number(c.gl) || 1 });
     this.group.visible = !!c.on;
+    this.ringCfg(c); // линия края купола — вживую из админки
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
     for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
@@ -120,6 +121,7 @@ export class CityView {
     this.toneMats = []; this.toneSig = '';
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = []; this.animSet = new Set();
     const gg = new THREE.Group(); gg.name = 'city-glow'; g.add(gg); this.glowG = gg; this.glows = []; this.lights = []; this.halos = [];
+    this.buildRing(gg);
     // ореол огня: мягкое тёплое пятно (за спрайтом), в точке излучения (engine/lightEmitter.js — центроид _glow)
     const haloTex = this._haloTex ||= (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
       gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.18, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
@@ -173,6 +175,29 @@ export class CityView {
         addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
+  }
+  // ——— линия края купола на земле (hotfix 22.10, «🏰 Город» → ringOn/ringA/ringW/ringGlow): тонкое фиолетовое свечение по всему кругу R.
+  //      Обод купола — проекция (север уходит «в небо»), поэтому на земле край был виден не везде. Один меш-кольцо, один draw call,
+  //      шейдер считает расстояние до окружности (яркая линия + мягкий ореол). Над землёй (y 0.015, polygonOffset), под персонажами.
+  //      Лежит в группе свечения города (city-glow): ночью рисуется ещё раз поверх маски темноты — видна и ночью.
+  buildRing(parent) {
+    const THREE = this.THREE, c = this.cfg; if (!c) return;
+    if (this.ring) { this.ring.parent?.remove(this.ring); this.ring.geometry.dispose(); this.ring.material.dispose(); this.ring = null; }
+    const R = (c.r || 1280) / PX, maxHalf = (24 * 11) / PX / 2 + 0.2; // кольцо с запасом под максимальные ширину и ореол
+    const geo = new THREE.RingGeometry(Math.max(0.1, R - maxHalf), R + maxHalf, 360, 1); geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: true, fog: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+      uniforms: { uR: { value: R }, uW: { value: 0.2 }, uG: { value: 4 }, uA: { value: 0.8 }, uCol: { value: new THREE.Color(0x8b5cf6) } },
+      vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform float uR, uW, uG, uA; uniform vec3 uCol; varying vec2 vP; void main(){ float d = abs(length(vP) - uR); float hw = uW * 0.5;' +
+        ' float core = 1.0 - smoothstep(hw * 0.6, hw, d); float halo = uG > 0.0 ? exp(-d / max(0.001, hw * uG * 0.5)) * 0.55 : 0.0; float a = max(core, halo) * uA; if (a < 0.004) discard;' +
+        ' vec3 col = mix(uCol, vec3(1.0, 0.92, 1.0), core * 0.55); gl_FragColor = vec4(col, a); }' });
+    const m = new THREE.Mesh(geo, mat); m.name = 'city-dome-ring'; m.renderOrder = 1; m.frustumCulled = false; m.position.set(this.ax ?? toX(c.x), 0.015, this.az ?? toZ(c.y));
+    this.ring = m; parent.add(m); this.ringCfg(c);
+  }
+  ringCfg(c) {
+    const m = this.ring; if (!m || !c) return; const r = c.ring || {}, u = m.material.uniforms;
+    m.visible = r.on !== false && (r.a ?? 0.8) > 0.001; u.uA.value = Math.max(0, Math.min(1, r.a ?? 0.8)); u.uW.value = Math.max(1, Math.min(24, r.w || 4)) / PX; u.uG.value = Math.max(0, Math.min(10, r.g ?? 4));
+    u.uCol.value.setHex(hex(c.color)); u.uR.value = (c.r || 1280) / PX;
   }
   // ——— пятно порчи под розой города: очернённая проклятая земля расползается в траву (рваный край, тёмные жилы, искры).
   //      Только вид — механики проклятия нет (city.ts noCurseIn). Пиксель-арт: 1 арт-px = 2 px мира, сид — позиция розы ———
