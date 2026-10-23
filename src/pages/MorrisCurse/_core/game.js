@@ -548,7 +548,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.dash) { DASH.cooldown = Number(d.dash.cd) || DASH.cooldown; DASH.invulnMs = Number(d.dash.invulnMs) || 0; DASH.blink = d.dash.blink !== false; dash.max = DASH.cooldown; }
     if (d.ui) setUiCfg(d.ui); // вид интерфейса (админка «🎨 Интерфейс»)
     if (d.terrain) Object.assign(TERRAIN_CFG, d.terrain); // непроходимая вода/лава — предсказание как у сервера (админка «🌊 Рельеф»)
-    if (d.gather) zone.setGlow(d.gather); // свечение узлов сбора (админка «⛏ Сбор»)
+    if (d.gather) { zone.setGlow(d.gather); zone.setGatherCfg(d.gather); } // дальность/время сбора и свечение узлов сбора (админка «⛏ Сбор»)
     if (d.mapZones) setMapZones(d.mapZones); // карта M: биомы и уровни мобов (с сервера, правки админки)
     if (d.upg) Object.assign(UPG, d.upg); // улучшение у Петра (админка «⚒ Улучшение») — для подписей статов и стоимости
     if (d.ench) setEnch(d.ench); // ярусы зачарования (админка «✦ Зачарование») — цвета, имена, множители для подписей
@@ -1492,7 +1492,7 @@ async function boot(canvasId, username, userId, api) {
       if (nn && !nearestPortal() && !nearestFlower()) { const left = Math.max(1, Math.ceil(((nn.readyAt || 0) - Date.now()) / 1000)); overlay.toast(`${zone.resName(nn.def.res)}: уже собрано — вырастет через ≈${left} с`, '#c4b5fd'); return; } }
     if (node && !zoneSt.gather) {
       if (!player.stats.classId) { overlay.toast('Собирать может только герой — выберите оболочку у Алтаря', '#94a3b8'); return; }
-      zoneSt.gather = { id: node.id, t: 0, x: player.x, y: player.y, res: node.def.res };
+      zoneSt.gather = { id: node.id, t: 0, x: node.def.x, y: node.def.y, res: node.def.res }; // якорь — сам узел, а не точка, где нажали E
       send({ type: 'gather_start', node: node.id });
       return;
     }
@@ -1973,7 +1973,7 @@ async function boot(canvasId, username, userId, api) {
     if (zoneSt.gather) {
       const g = zoneSt.gather;
       g.t += dt;
-      if (Math.hypot(player.x - g.x, player.y - g.y) > 30) { zoneSt.gather = null; overlay.toast('Сбор прерван: вы отошли', '#94a3b8'); }
+      if (Math.hypot(player.x - g.x, player.y - g.y) > zone.gatherRange() + zone.gatherSlack()) { zoneSt.gather = null; overlay.toast('Сбор прерван: вы отошли', '#94a3b8'); }
       else if (g.t * 1000 >= zone.gatherTime() + 60) { send({ type: 'gather_done', node: g.id }); zoneSt.gather = null; }
       return;
     }
@@ -2144,7 +2144,7 @@ async function boot(canvasId, username, userId, api) {
       openAdmin: () => adminPanel.open(), closeAdmin: () => adminPanel.close(), admin: () => ({ open: adminPanel.isOpen, loaded: !!adminPanel.cat, scope: adminPanel.cat?.scope || (adminPanel.full ? 'admin' : 'moderator'), full: !!adminPanel.full, tabs: adminPanel.tabs?.().map((x) => x[0]) || [], totals: adminPanel.cat?.totals, configVer, weapon: (id) => WEAPON_TYPES[id], skill: (id) => ABILITY_BY_ID[id], card: (id) => cardOf(id), cardIds: () => cardIds(), questDef: (id) => ALL_QUESTS.find((x) => x.id === id), quest: (id) => { const q = ALL_QUESTS.find((x) => x.id === id); return q && { title: q.title, offer: q.offer }; }, btn: !!document.getElementById('ghud-admin-btn') && document.getElementById('ghud-admin-btn').style.display !== 'none' }),
       fog: () => ({ world: fog.world, active: fog.active(world), cells: fog.cells, pct: fog.pct() }),
       nodesNear: (r = 900, res = null) => [...zone.nodes.values()].filter((n) => (!res || n.def.res === res) && Math.hypot(n.def.x - player.x, n.def.y - player.y) < r).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, res: n.def.res, type: n.def.type, ready: n.ready, readyIn: n.readyIn })),
-      nodesAll: (res) => [...zone.nodes.values()].filter((n) => !res || n.def.res === res).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, ready: n.ready })),
+      nodesAll: (res) => [...zone.nodes.values()].filter((n) => !res || n.def.res === res).map((n) => ({ id: n.id, x: n.def.x, y: n.def.y, ready: n.ready, res: n.def.res, type: n.def.type })),
       glowSet: (c) => zone.setGlow(c), glowCfg: () => zone.glowCfg, interact: () => interact(), questCond: () => tracker.cond || {},
       dashInfo: () => ({ cd: DASH.cooldown, invulnMs: DASH.invulnMs, blink: DASH.blink, blinking: [...ivBlink.keys()] }),
       biomes: () => ({ known: mapZonesKnown(), labels: biomeLabels(world).map((L) => L.key) }),
@@ -2232,6 +2232,8 @@ async function boot(canvasId, username, userId, api) {
       tex: () => { const t = hub.env?.terrain; let px = 0, n = 0; const add = (im) => { if (im) { px += im.width * im.height; n++; } }; if (t?.chunks) for (const c of t.chunks.values()) add(c.mesh?.material?.map?.image); else add(t?.ground?.material?.map?.image); return { mode: TEX_MODE, canvases: n, mb: Math.round(px * 4 * 4 / 3 / 1048576 * 10) / 10 }; }, // RGBA + мипмапы
       biomeVars: () => ({ biome: document.documentElement.dataset.biome || '', col: getComputedStyle(document.documentElement).getPropertyValue('--mc-biome').trim() }),
       pos: () => ({ x: player.x, y: player.y }),
+      gatherCfg: () => ({ range: zone.gatherRange(), slack: zone.gatherSlack(), timeMs: zone.gatherTime() }),
+      gatherSt: () => (zoneSt.gather ? { id: zoneSt.gather.id, t: zoneSt.gather.t, x: zoneSt.gather.x, y: zoneSt.gather.y } : null),
       // экранная точка мировой позиции (px мира) — для тестов клика мышью
       screenOf: (x, y) => {
         const v = new THREE.Vector3(toX(x), 0, toZ(y)).project(stage.activeCamera());

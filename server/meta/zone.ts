@@ -13,7 +13,7 @@ import { WET } from "./zoneGen";
 WET.f = wetNear; // узлы сбора — не в воде/лаве
 const MOB_R = 12;
 import { mobShot } from "./mobFamily";
-import { GATHER_CFG } from "./gatherCfg";
+import { GATHER_CFG, gatherRange, gatherSlack, gatherTimeMs } from "./gatherCfg";
 import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
 import { summonPool } from "./biomes";
@@ -1251,8 +1251,8 @@ export class Zone {
   gatherCheck(p: ZPlayer, nodeId: number, startedAt: number, now: number, who?: string): ZNode | null {
     const n = this.nodes.find((x) => x.id === nodeId);
     if (!n || now < this.nodeReadyAt(n, who) || !p.alive) return null;
-    if (Math.hypot(n.x - p.x, n.y - p.y) > GATHER_RANGE) return null;
-    if (now - startedAt < GATHER_TIME_MS) return null;
+    if (Math.hypot(n.x - p.x, n.y - p.y) > gatherRange() + gatherSlack()) return null; // дальность и запас — из админки «⛏ Сбор»
+    if (now - startedAt < gatherTimeMs()) return null;
     return n;
   }
   // AOI: клиент получает только мобов/события в радиусе видимости

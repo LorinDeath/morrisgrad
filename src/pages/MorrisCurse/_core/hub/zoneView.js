@@ -15,7 +15,11 @@ import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
   MOB_INFO as ZONE_MOBS, NPCS, NPC_RANGE, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, RESOURCES, WEAPON_TYPES, CLASS_WTYPE,
 } from '../../../../../server/meta/shared.ts';
-import { genNodes, ZONE_GEN } from '../../../../../server/meta/zoneGen.ts';
+import { genNodes, ZONE_GEN, WET } from '../../../../../server/meta/zoneGen.ts';
+import { wetNear } from '../../../../../server/meta/liquid.ts';
+// Те же узлы сбора, что у сервера: сервер при генерации пропускает точки у воды/лавы (zone.ts: WET.f = wetNear), и этот пропуск
+// сдвигает весь дальнейший ряд случайных чисел. Без того же фильтра здесь id узла N на клиенте стоял бы не там, где у сервера.
+WET.f = wetNear;
 import { sprOf, tintOf } from '../../../../../server/meta/biomes.ts';
 import { ProjFx } from '../engine/projFx.js';
 import { ProjAtlasFx, curseRGB, curseHex } from '../engine/projAtlas.js';
@@ -106,6 +110,14 @@ export class ZoneView {
     this.glowCfg = { on: c?.glowOn !== false && Number(c?.glowPower ?? 1) > 0, rgb: [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255],
       power: Math.max(0, Math.min(3, Number(c?.glowPower ?? 1))), pulse: Math.max(0, Math.min(5, Number(c?.glowPulse ?? 1))), size: Math.max(1, Math.min(1.6, Number(c?.glowSize) || 1.18)) };
   }
+
+  // дальность/время сбора из админки «⛏ Сбор» (snap.gather); без данных — прежние константы
+  setGatherCfg(c) {
+    const n = (v, d, lo, hi) => { const x = Number(v); return Number.isFinite(x) ? Math.max(lo, Math.min(hi, x)) : d; };
+    this.gCfg = { range: n(c?.range, GATHER_RANGE, 20, 400), slack: n(c?.slack, 20, 0, 200), timeMs: n(c?.timeMs, GATHER_TIME_MS, 100, 15000) };
+  }
+  gatherRange() { return (this.gCfg || (this.setGatherCfg(), this.gCfg)).range; }
+  gatherSlack() { return (this.gCfg || (this.setGatherCfg(), this.gCfg)).slack; }
 
   setWorld(world) {
     if (world === this.world) return;
@@ -210,7 +222,7 @@ export class ZoneView {
   }
   // all — и узлы на восстановлении (для подсказки «вырастет через N с»)
   nearestNode(px, py, all = false) {
-    let best = null, bd = GATHER_RANGE;
+    let best = null, bd = this.gatherRange();
     for (const n of this.nodes.values()) {
       if (!n.ready && !all) continue;
       const d = Math.hypot(n.def.x - px, n.def.y - py);
@@ -237,7 +249,7 @@ export class ZoneView {
     return best;
   }
   resName(res) { return RESOURCES[res]?.name || res; }
-  gatherTime() { return GATHER_TIME_MS; }
+  gatherTime() { return (this.gCfg || (this.setGatherCfg(), this.gCfg)).timeMs; }
 
   // wtype — тип оружия (WEAPON_TYPES): копьё, кинжалы, посох, лук, секира, меч, лапки-лезвия…
   // mob — цель (летит за ней), иначе в точку (tx,ty); у дуговых ударов — короткий «серп» в сторону удара

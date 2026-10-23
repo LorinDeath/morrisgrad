@@ -32,7 +32,7 @@ import { ST } from "./stats";
 import { regionAt, isNight } from "./zoneGen";
 import { ZONE_NAMES, zoneKeyOf } from "./mapZones";
 import { dashTry, dashClient, DASH_CFG, isInvuln } from "./dash";
-import { gatherClient } from "./gatherCfg";
+import { gatherClient, gatherRange, gatherSlack } from "./gatherCfg";
 import { uiClient, UI_CFG } from "./uiCfg";
 import { cleanLayout, layoutView, UI_LAY_RATE_MS } from "./uiLayout";
 import { terrainClient } from "./terrainCfg";
@@ -1419,7 +1419,7 @@ export class MetaService {
     const n = zone.gatherCheck(ms.zp, ms.gather.node, ms.gather.at, now, ms.pkey);
     ms.gather = null;
     if (!n) { // понятная причина вместо тишины
-      const why = !nd ? "узел не найден" : zone.nodeReadyAt(nd, ms.pkey) > now ? `ещё не вырос (≈${Math.ceil((zone.nodeReadyAt(nd, ms.pkey) - now) / 1000)} с)` : !ms.zp.alive ? "герой мёртв" : Math.hypot(nd.x - ms.zp.x, nd.y - ms.zp.y) > GATHER_RANGE ? "слишком далеко" : "прервано";
+      const why = !nd ? "узел не найден" : zone.nodeReadyAt(nd, ms.pkey) > now ? `ещё не вырос (≈${Math.ceil((zone.nodeReadyAt(nd, ms.pkey) - now) / 1000)} с)` : !ms.zp.alive ? "герой мёртв" : Math.hypot(nd.x - ms.zp.x, nd.y - ms.zp.y) > gatherRange() + gatherSlack() ? "слишком далеко" : "прервано";
       this.send(ws, { type: "toast_error", message: "Сбор не удался: " + why }); return; }
     zone.nodeTaken(n, ms.pkey, now);
     const qty = n.qty[0] + Math.floor(cryptoRand() * (n.qty[1] - n.qty[0] + 1));
