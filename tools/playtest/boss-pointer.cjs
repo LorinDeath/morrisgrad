@@ -27,8 +27,8 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
   let t = await tr(); console.log('трекер:', JSON.stringify(t).slice(0, 500));
   const tx = t.hunt?.hx ?? t.target?.x, ty = t.hunt?.hy ?? t.target?.y;
   ok(tx != null, 'есть цель охоты: ' + tx + ',' + ty);
-  ok(/Босс появится через \d+:\d\d|Босс появляется/.test(t.text), 'трекер: «Босс появится через мм:сс» (текст: ' + t.text.replace(/\s+/g, ' ').slice(0, 120) + ')');
-  ok(/появится через|появляется/.test(t.arrow), 'стрелка трекера: таймер в подписи (' + t.arrow + ')');
+  ok(/Босс появится через \d+:\d\d|Босс вот-вот появится|Босс появляется/.test(t.text), 'трекер: «Босс появится через мм:сс» (текст: ' + t.text.replace(/\s+/g, ' ').slice(0, 120) + ')');
+  ok(/появится через|вот-вот появится|появляется/.test(t.arrow), 'стрелка трекера: таймер в подписи (' + t.arrow + ')');
   // у метки на экране
   await G(([x, y]) => { window.__game.debug.rawSend({ type: 'dev_teleport', x: x - 420, y: y + 80, god: true }); window.__game.debug.teleport(x - 420, y + 80); }, [tx, ty]); await sleep(2500);
   const ptr = await G(() => [...document.querySelectorAll('.mc-tptr .tp b')].map((e) => e.textContent).join('|'));

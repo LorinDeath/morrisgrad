@@ -12,7 +12,7 @@ let ok = 0, bad = 0; const t = (n: string, c: any) => { c ? (ok++, console.log("
 const z = new Zone("arinar", [], [], { proc: true, seed: 3 });
 const b = z.gen.bosses[0]; const now = Date.now();
 let st = z.bossStatus(now).find((x) => x[0] === (b.key || b.type))!;
-t("статус: пятый элемент — выключен = 0 по умолчанию", st.length === 5 && st[4] === 0);
+t("статус: пятый элемент — выключен = 0 по умолчанию", st.length >= 5 && st[4] === 0);
 const reg = z.gen.regions.find((r) => b.x >= r.rect[0] && b.x < r.rect[2] && b.y >= r.rect[1] && b.y < r.rect[3]);
 if (reg) { (reg as any).bossOn = false; st = z.bossStatus(now).find((x) => x[0] === (b.key || b.type))!; t("статус: босс выключен в локации → 1", st[4] === 1); (reg as any).bossOn = undefined; }
 else t("у логова есть регион", false);
@@ -42,7 +42,7 @@ let pk = pickLair(ls.filter((l: any) => l.key === A.id.slice(5) || l.key === B.i
 t("мёртвые оба: берём то, что появится раньше (не ближайшее статичное)", pk.key === B.id.slice(5));
 const cfg = { on: true, soon: 10 };
 t("текст «появится через 4:12»", spawnText({ alive: false, left: 252 }, cfg) === "Босс появится через 4:12" && fmtLeft(3725) === "1:02:05");
-t("текст «появляется» у порога", spawnText({ alive: false, left: 8 }, cfg) === "Босс появляется" && spawnText({ alive: false, left: 0 }, cfg) === "Босс появляется");
+t("текст «вот-вот появится» у порога, «появляется» при нуле", spawnText({ alive: false, left: 8 }, cfg) === "Босс вот-вот появится" && spawnText({ alive: false, left: 0 }, cfg) === "Босс появляется");
 setBossState([[A.id.slice(5), 1, 0, type(A.id), 0]], T0);
 ls = bossLairs(() => true, "arinar", T0); pk = pickLair(ls.filter((l: any) => l.key === A.id.slice(5) || l.key === B.id.slice(5)), { x: B.x, y: B.y });
 t("живой босс важнее ближайшего мёртвого", pk.key === A.id.slice(5) && spawnText(pk, cfg) === "Босс жив");

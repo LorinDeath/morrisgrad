@@ -14,7 +14,7 @@ import { RUN_ROOMS, ROOM_WAVES, ROOM_BOSS, ROOM_ELITES, TRIAL_WAVES, ENEMIES } f
 
 export type BGroup = "mob" | "elite" | "boss" | "world";
 export const BGROUPS: BGroup[] = ["mob", "elite", "boss", "world"];
-export interface BEntry { id: string; g: BGroup; lvl: number; where: string[]; name?: string }
+export interface BEntry { id: string; g: BGroup; lvl: number; where: string[]; name?: string; resp?: [number, number] } // resp — окно возвращения редкого Отголоска, сек (для подсказки в «???»)
 
 const R: any = RUN_ROOMS, EN: any = ENEMIES;
 /** виды только забегов/испытаний (нет в мире): «Отражение Кьют» — запись Бестиария есть, лута/статов мира нет */
@@ -30,14 +30,14 @@ const regionAt = (G: any, x: number, y: number) => G.regions.find((r: any) => x 
 const roomName = (room: string) => (R[room]?.mode ? "Испытание: " : "Забег: ") + (R[room]?.name || room);
 
 export function bestiaryRegistry(): BEntry[] {
-  const where = new Map<string, Set<string>>(), boss = new Set<string>(), world = new Set<string>(), rare = new Set<string>();
+  const resp = new Map<string, [number, number]>(), where = new Map<string, Set<string>>(), boss = new Set<string>(), world = new Set<string>(), rare = new Set<string>();
   const add = (id: string, w: string) => { if (!id) return; let s = where.get(id); if (!s) where.set(id, (s = new Set())); if (w && s.size < 4) s.add(w); };
   for (const [wid, G] of Object.entries(WORLD_GEN) as [string, any][]) {
     const W = WORLD_NAMES[wid] || wid;
     for (const r of G.regions) for (const row of r.table || []) add(row.type, `${W} · ${region(r.name)}`);
     for (const b of G.bosses || []) { world.add(b.type); const rg = regionAt(G, b.x, b.y); add(b.type, `${W} · логово${rg ? ": " + region(rg.name) : ""}`); }
     for (const r of G.rares || []) {
-      rare.add(r.type);
+      rare.add(r.type); if (r.every) resp.set(r.type, [r.every[0], r.every[1]]);
       const rg = G.regions.find((x: any) => x.id === r.region || x.kind === r.region); // как в zone.ts: регион или пятна биома
       add(r.type, `${W} · ${rg ? region(rg.name) : "редкое появление"}`);
     }
@@ -57,7 +57,7 @@ export function bestiaryRegistry(): BEntry[] {
     const z: any = (ZONE_MOBS as any)[id], a = ARENA_ONLY[id];
     if (!z && !a) continue;
     const g: BGroup = world.has(id) || BOSS_TIMERS[id] ? "world" : boss.has(id) || z?.boss ? "boss" : rare.has(id) || z?.rare ? "elite" : "mob";
-    out.push({ id, g, lvl: z?.lvl ?? a?.lvl ?? 1, where: [...w], ...(z ? {} : { name: a.name }) });
+    out.push({ id, g, lvl: z?.lvl ?? a?.lvl ?? 1, where: [...w], ...(z ? {} : { name: a.name }), ...(g === "elite" && resp.has(id) ? { resp: resp.get(id)! } : {}) });
   }
   return out;
 }

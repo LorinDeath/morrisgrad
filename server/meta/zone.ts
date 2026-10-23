@@ -260,6 +260,9 @@ export class Zone {
   bossIds: Record<string, number> = {};
   rareAt: Record<string, number> = {};
   rareIds: Record<string, number> = {};
+  rareNext: Record<string, { x: number; y: number; reg: string }> = {}; // заранее выбранное место следующего появления редкого (там же отсчёт для игроков)
+  rareDirty = false;  // таймеры изменились — сервису пора сохранить их (чтобы перезапуск не сбрасывал отсчёт)
+  rareHold = false;   // пока сохранённые таймеры не подгружены, новые не заводим
   stats = { spawned: 0, despawned: 0, rejected: 0, awake: 0, asleep: 0, resets: 0, domeDrops: 0, domeMoved: 0, cursed: 0, ench: 0, roamers: 0, mobHits: 0, mobKills: 0 };
   byId = new Map<number, ZMob>();
   buckets = new Map<number, ZMob[]>(); // чанк WORLD_CHUNK → мобы (интерес/выборки)
@@ -679,12 +682,12 @@ export class Zone {
   }
 
   /** состояние логов мировых боссов для карты, трекера и охоты: [ключ, жив, секунд до появления, тип, выключен в локации (админка)] */
-  bossStatus(now: number): [string, number, number, string, number][] {
+  bossStatus(now: number): [string, number, number, string, number, number, number, string][] {
     return this.gen.bosses.map((b) => { const bk = b.key || b.type, id = this.bossIds[bk], m = id ? this.byId.get(id) : null;
       const alive = !!(m && !m.dead), at = this.bossAt[bk];
       const left = alive ? 0 : at && at < Number.MAX_SAFE_INTEGER ? Math.ceil((at - now) / 1000) : (BOSS_TIMERS[b.type]?.firstAfter ?? b.firstAfter) + ((b as any).stagger || 0);
       const off = this.gen.regions.find((r) => b.x >= r.rect[0] && b.x < r.rect[2] && b.y >= r.rect[1] && b.y < r.rect[3])?.bossOn === false;
-      return [bk, alive ? 1 : 0, Math.max(0, left), b.type, off ? 1 : 0]; });
+      return [bk, alive ? 1 : 0, Math.max(0, left), b.type, off ? 1 : 0, Math.round(b.x), Math.round(b.y), b.where || ""]; }); // x, y, where — клиент создаёт метку логова сам, если её нет (новый босс из кода/админки)
   }
 
   // ---------- мировые боссы и редкие Отголоски ----------
@@ -704,28 +707,76 @@ export class Zone {
       this.events.push({ k: "announce", text: `${m.cursed ? "☠️ ПРОКЛЯТЫЙ " + etn + "м" : et ? etn + "м" : "🌙 М"}ировой босс «${d.name}» (ур. ${d.lvl}) пробуждается ${b.where}!`, color: et && et.color !== "#0a0a0a" ? et.color : "#c084fc", x: undefined });
     }
     for (const r of G.rares) {
-      if (!this.rareAt[r.type]) this.rareAt[r.type] = now + (r.every[0] + this.rand() * (r.every[1] - r.every[0])) * 1000;
+      if (this.rareHold) continue;
+      this.rareInit(r, now);
       const live = this.rareIds[r.type] ? this.mobs.find((m) => m.id === this.rareIds[r.type] && !m.dead) : null;
       if (live) {
         if (now > live.expireAt && !live.targetSid) { live.dead = true; live.respawnAt = -1; this.events.push({ k: "announce", text: `«${ZONE_MOBS[r.type].name}» ускользает…`, color: "#94a3b8" }); }
         continue;
       }
-      if (this.rareIds[r.type]) { delete this.rareIds[r.type]; this.rareAt[r.type] = now + (r.every[0] + this.rand() * (r.every[1] - r.every[0])) * 1000; continue; }
+      if (this.rareIds[r.type]) { delete this.rareIds[r.type]; this.rareSchedule(r, now); continue; }
       if (now < this.rareAt[r.type]) continue;
-      const cand = G.regions.filter((x) => x.id === r.region || (x as any).kind === r.region); // пятна одного биома
-      const reg = cand.length ? cand[Math.floor(this.rand() * cand.length)] : null;
-      if (!reg) continue;
-      for (let t = 0; t < 12; t++) {
-        const x = reg.rect[0] + 60 + this.rand() * (reg.rect[2] - reg.rect[0] - 120), y = reg.rect[1] + 60 + this.rand() * (reg.rect[3] - reg.rect[1] - 120);
-        if (this.safeAt(x, y, 40) || [...players.values()].some((p) => Math.hypot(p.x - x, p.y - y) < 260)) continue;
-        const m = this.addMob(r.type, x, y, { region: null, special: "rare" });
-        m.expireAt = now + r.life * 1000;
-        this.rareIds[r.type] = m.id; this.rareAt[r.type] = Number.MAX_SAFE_INTEGER;
-        const d = ZONE_MOBS[r.type];
-        this.events.push({ k: "announce", text: `✨ Редкий Отголосок «${d.name}» (ур. ${d.lvl}) замечен: ${reg.name}!`, color: "#fde68a" });
-        break;
-      }
+      // место выбрано заранее (там же игроки видят отсчёт); если его нет — выбираем сейчас, подальше от игроков
+      let pt: { x: number; y: number; reg: string } | null = this.rareNext[r.type] || this.rarePick(r, players);
+      if (!pt) continue;
+      const m = this.addMob(r.type, pt.x, pt.y, { region: null, special: "rare" });
+      m.expireAt = now + r.life * 1000;
+      this.rareIds[r.type] = m.id; this.rareAt[r.type] = Number.MAX_SAFE_INTEGER; delete this.rareNext[r.type]; this.rareDirty = true;
+      const d = ZONE_MOBS[r.type];
+      this.events.push({ k: "announce", text: `✨ Редкий Отголосок «${d.name}» (ур. ${d.lvl}) замечен: ${pt.reg}!`, color: "#fde68a" });
     }
+  }
+
+  /** выбор точки появления редкого: случайное пятно подходящего региона, не в безопасной зоне (и вдали от игроков, если они переданы) */
+  rarePick(r: { type: string; region: string }, players?: Map<string, ZPlayer>): { x: number; y: number; reg: string } | null {
+    const cand = this.gen.regions.filter((x) => x.id === r.region || (x as any).kind === r.region); // пятна одного биома
+    const reg = cand.length ? cand[Math.floor(this.rand() * cand.length)] : null;
+    if (!reg) return null;
+    for (let t = 0; t < 12; t++) {
+      const x = reg.rect[0] + 60 + this.rand() * (reg.rect[2] - reg.rect[0] - 120), y = reg.rect[1] + 60 + this.rand() * (reg.rect[3] - reg.rect[1] - 120);
+      if (this.safeAt(x, y, 40) || (players && [...players.values()].some((p) => Math.hypot(p.x - x, p.y - y) < 260))) continue;
+      return { x, y, reg: reg.name };
+    }
+    return null;
+  }
+  /** следующее появление редкого: таймер из настроек (админка) + заранее выбранное место */
+  rareSchedule(r: { type: string; region: string; every: [number, number] }, now: number) {
+    this.rareAt[r.type] = now + (r.every[0] + this.rand() * (r.every[1] - r.every[0])) * 1000;
+    const pt = this.rarePick(r); if (pt) this.rareNext[r.type] = pt; else delete this.rareNext[r.type];
+    this.rareDirty = true;
+  }
+  /** первый таймер (после старта сервера, если сохранённого нет) */
+  rareInit(r: { type: string; region: string; every: [number, number] }, now: number) {
+    if (!this.rareAt[r.type]) this.rareSchedule(r, now);
+    else if (!this.rareIds[r.type] && !this.rareNext[r.type] && this.rareAt[r.type] < Number.MAX_SAFE_INTEGER) { const pt = this.rarePick(r); if (pt) { this.rareNext[r.type] = pt; this.rareDirty = true; } }
+  }
+  /** состояние редких Отголосков для клиента: [тип, жив, секунд до появления, x, y, пятно] (жив: x, y — где сейчас; пятно — «Лунный кратер») */
+  rareStatus(now: number): [string, number, number, number, number, string][] {
+    const out: [string, number, number, number, number, string][] = [];
+    for (const r of this.gen.rares || []) {
+      if (!this.rareHold) this.rareInit(r, now);
+      const id = this.rareIds[r.type], m = id ? this.byId.get(id) : null, alive = !!(m && !m.dead);
+      const nx = this.rareNext[r.type], at = this.rareAt[r.type];
+      if (alive) { out.push([r.type, 1, Math.max(0, Math.ceil((m!.expireAt - now) / 1000)), Math.round(m!.x), Math.round(m!.y), String((this.gen.regions.find((x) => m!.x >= x.rect[0] && m!.x < x.rect[2] && m!.y >= x.rect[1] && m!.y < x.rect[3]) || { name: "" }).name)]); continue; }
+      if (!nx) continue; // места нет (ещё не заведён таймер) — клиенту показывать нечего
+      out.push([r.type, 0, at && at < Number.MAX_SAFE_INTEGER ? Math.max(0, Math.ceil((at - now) / 1000)) : 0, Math.round(nx.x), Math.round(nx.y), nx.reg]);
+    }
+    return out;
+  }
+  /** снимок ожидающих таймеров для сохранения: тип → [когда (мс), x, y, пятно] */
+  rareSnapshot(): Record<string, [number, number, number, string]> {
+    const o: Record<string, [number, number, number, string]> = {};
+    for (const r of this.gen.rares || []) { const at = this.rareAt[r.type], nx = this.rareNext[r.type]; if (at && at < Number.MAX_SAFE_INTEGER && nx && !this.rareIds[r.type]) o[r.type] = [Math.round(at), Math.round(nx.x), Math.round(nx.y), nx.reg]; }
+    return o;
+  }
+  /** подгрузка сохранённых таймеров: просроченный — «вот-вот» (через 1–3 минуты), неизвестные типы игнорируются */
+  rareRestore(snap: any, now: number) {
+    for (const r of this.gen.rares || []) {
+      const e = snap && snap[r.type]; if (!Array.isArray(e) || !(+e[0] > 0) || !Number.isFinite(+e[1]) || !Number.isFinite(+e[2])) continue;
+      this.rareAt[r.type] = +e[0] > now ? Math.min(+e[0], now + r.every[1] * 1000) : now + (60 + this.rand() * 120) * 1000;
+      this.rareNext[r.type] = { x: +e[1], y: +e[2], reg: String(e[3] || "") };
+    }
+    this.rareHold = false;
   }
 
   // ---------- режиссёр процедурного спавна ----------
@@ -923,7 +974,7 @@ export class Zone {
           }
           if (m.special === "rare" && this.rareIds[m.type] === m.id) {
             const r = this.gen.rares.find((x) => x.type === m.type)!;
-            delete this.rareIds[m.type]; this.rareAt[m.type] = now + (r.every[0] + this.rand() * (r.every[1] - r.every[0])) * 1000;
+            delete this.rareIds[m.type]; this.rareSchedule(r, now);
           }
           this.byId.delete(m.id);
           this.mobs.splice(i, 1);

@@ -28,7 +28,7 @@ function huntOf(mt, ctx, bcfg = { on: true, soon: 10 }) {
   if (best && !where) where = 'лагерь неподалёку';
   if (!best) { // мировой босс: логово с живым состоянием (жив / возродится через…); логово без босса — с таймером, а не «босс здесь»
     const l = pickLair(bossLairs(isT, ctx.world), ctx);
-    if (l) { best = lairTarget(l, '🎯 ' + nm, bcfg, { mob: 1, hunt: 'boss' }); where = l.alive ? 'жив, в своём логове' : bcfg.on ? spawnText(l, bcfg) : 'логово мирового босса'; } }
+    if (l) { best = lairTarget(l, '🎯 ' + nm, bcfg, { mob: 1, hunt: l.kind === 'rare' ? 'rare' : 'boss' }); where = l.alive ? (l.kind === 'rare' ? 'редкий Отголосок сейчас здесь' : 'жив, в своём логове') : bcfg.on ? spawnText(l, bcfg) : l.kind === 'rare' ? 'место появления редкого Отголоска' : 'логово мирового босса'; } }
   if (!best) { const n = nearestHome(mt, ctx.world, ctx.x, ctx.y);
     if (n && !n.portal && n.home.world === ctx.world) { best = { world: ctx.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm + ' · ' + n.home.region.split(':')[0], mob: 1, hunt: 'home' }; where = n.home.region; }
     else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
@@ -139,7 +139,7 @@ export class QuestTracker {
         if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
         if (!best) { const l = pickLair(bossLairs(isT, ctx.world), ctx); // мировой босс: логово с живым состоянием
           if (l) { best = lairTarget(l, ZONE_MOBS[l.type]?.name || 'Босс', this.bcfg, { mob: 1 });
-            if (best.sp) html = html.replace('</ul>', `<li class="turnin bsp${l.alive ? ' alive' : ''}">${l.alive ? '☠' : '⏳'} ${esc(best.sp)}</li></ul>`); } }
+            if (best.sp) html = html.replace('</ul>', `<li class="turnin bsp${l.alive ? ' alive' : ''}">${l.alive ? (l.kind === 'rare' ? '◆' : '☠') : '⏳'} ${esc(best.sp)}</li></ul>`); } }
         if (!best) { // нет рядом — место обитания первого незакрытого моба-цели (в другой локации — портал туда)
           let ty = null, n = null, nd = Infinity; // ближайшее место обитания среди всех мобов-целей (своя локация важнее)
           for (const t0 of primTypes) { const r = nearestHome(t0, ctx.world, ctx.x, ctx.y); if (!r) continue; const d = r.portal ? 1e12 : Math.hypot(r.home.x - ctx.x, r.home.y - ctx.y); if (d < nd) { nd = d; n = r; ty = t0; } }

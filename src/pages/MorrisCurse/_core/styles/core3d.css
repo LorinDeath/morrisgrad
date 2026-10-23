@@ -1317,3 +1317,10 @@ html.mc-uiedit .mc3d-toasts.mc-dr-edit:empty::before { content: 'Сообщен�
 .mc-touch .mc-uiedit-bar { font-size: 11px; max-width: calc(100% - 8px); }
 .mc-touch .mc-uiedit-bar .tx small { font-size: 10px; }
 .mc-touch .mc-uiedit-bar .mc-btn.sm { padding: 3px 6px; font-size: 11px; }
+.mc-beast.unknown { flex-wrap: wrap; }
+.mc-beast.unknown > small.hint { flex: 1 0 100%; text-align: left; color: #cbd5e1; }
+.mc-beast.unknown:has(.hint) { opacity: .85; }
+
+/* отсчёт появления над местом спавна (боссы и редкие Отголоски): крупнее обычной подписи, без свечения */
+.mc3d-label small.sp { font-size: 12px; font-weight: 700; opacity: 1; margin-top: 1px; }
+@media (max-width: 700px) { .mc3d-label small.sp { font-size: 13px; } }

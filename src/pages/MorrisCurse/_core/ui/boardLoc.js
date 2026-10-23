@@ -49,7 +49,7 @@ function mobTarget(id, ctx, bcfg) {
 function regionsWhere(fn) { const out = []; for (const [world, G] of Object.entries(WORLD_GEN)) for (const r of G.regions || []) if (fn(r)) out.push({ world, x: (r.rect[0] + r.rect[2]) / 2, y: (r.rect[1] + r.rect[3]) / 2, label: r.name }); return out; }
 const BIOME_REG = new Map();
 function bossSpots() { const out = []; for (const [world, G] of Object.entries(WORLD_GEN)) for (const b of G.bosses || []) out.push({ world, x: b.x, y: b.y, label: (ZONE_MOBS[b.type]?.name || 'Мировой босс') + (b.where ? ' · ' + b.where : ''), mob: b.type }); return out; }
-function rareSpots() { const out = []; for (const [world, G] of Object.entries(WORLD_GEN)) { const by = new Map((G.regions || []).map((r) => [r.id, r])); for (const r of G.rares || []) { const rg = by.get(r.region); if (rg) out.push({ world, x: (rg.rect[0] + rg.rect[2]) / 2, y: (rg.rect[1] + rg.rect[3]) / 2, label: (ZONE_MOBS[r.type]?.name || 'Редкий') + ' · ' + rg.name, mob: r.type }); } } return out; }
+function rareSpots() { const out = []; for (const [world, G] of Object.entries(WORLD_GEN)) for (const r of G.rares || []) for (const rg of (G.regions || []).filter((x) => x.id === r.region || x.kind === r.region)) out.push({ world, x: (rg.rect[0] + rg.rect[2]) / 2, y: (rg.rect[1] + rg.rect[3]) / 2, label: (ZONE_MOBS[r.type]?.name || 'Редкий') + ' · ' + rg.name, mob: r.type }); return out; }
 
 /** в другой локации — к порталу туда */
 export function viaPortal(tg, ctx) {
@@ -77,8 +77,8 @@ export function taskTarget(t, store, ctx) {
       const id = mobOf(t);
       if (id) tg = mobTarget(id, ctx, bcfg);
       else if (m.startsWith('biome:')) { const b = 'b_' + m.slice(6); if (!BIOME_REG.has(b)) BIOME_REG.set(b, regionsWhere((rg) => rg.biome === b)); tg = nearestOf(BIOME_REG.get(b), ctx); }
-      else if (F.has('wboss') || m === 'wbosses') { const l = pickLair(bossLairs(() => true, ctx.world), ctx); tg = l ? lairTarget(l, (ZONE_MOBS[l.type]?.name || 'Мировой босс'), bcfg, { mob: l.type }) : nearestOf(bossSpots(), ctx); }
-      else if (F.has('rare')) tg = nearestOf(rareSpots(), ctx);
+      else if (F.has('wboss') || m === 'wbosses') { const l = pickLair(bossLairs((ty, k) => k === 'boss', ctx.world), ctx); tg = l ? lairTarget(l, (ZONE_MOBS[l.type]?.name || 'Мировой босс'), bcfg, { mob: l.type }) : nearestOf(bossSpots(), ctx); }
+      else if (F.has('rare')) { const l = pickLair(bossLairs((ty, k) => k === 'rare', ctx.world), ctx); tg = l ? lairTarget(l, ZONE_MOBS[l.type]?.name || 'Редкий Отголосок', bcfg, { mob: l.type }) : nearestOf(rareSpots(), ctx); } // редкий: место и отсчёт от сервера
       break;
     }
     case 'gather': {

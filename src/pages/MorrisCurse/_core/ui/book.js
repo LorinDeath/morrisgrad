@@ -667,7 +667,9 @@ export class Book {
     const rows = keys.filter((id) => F === 'all' || (F === 'kill' ? killed(id) : RB[id] && !killed(id))).map((id) => {
       const e = b[id];
       const info = MOB_INFO[id];
-      if (!e) { const w = where(id); return `<div class="mc-beast unknown"><b>??? <small>${T === 'mob' ? '' : esc(K1[T])}</small></b><small>ур. ${lvlOf(id)} · ещё не встречен${w ? ` · водится: ${esc(w)}` : ''}</small></div>`; }
+      if (!e) { const w = where(id), rs = RB[id]?.resp, mn = rs ? Math.max(1, Math.round(rs[0] / 60)) : 0, mx = rs ? Math.max(mn, Math.round(rs[1] / 60)) : 0; // редкий Отголосок: подсказка без имени — где, что редкий и как возвращается
+        const hint = rs ? `<small class="hint">Редкий Отголосок: появляется ненадолго в одном месте и возвращается примерно через ${mn === mx ? mn : mn + '–' + mx} мин. Отсчёт видно на месте появления.</small>` : '';
+        return `<div class="mc-beast unknown"><b>??? <small>${T === 'mob' ? '' : esc(K1[T])}</small></b><small>ур. ${lvlOf(id)} · ещё не встречен${w ? ` · водится: ${esc(w)}` : ''}</small>${hint}</div>`; }
       const lm = lmOf(id);
       const isNew = lm ? lm.isNew : e.v === 0;
       const open = this.msel === id;

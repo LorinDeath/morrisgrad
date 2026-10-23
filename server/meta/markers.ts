@@ -15,19 +15,34 @@ export function unregisterMarker(id: string) { REG.delete(id); listeners.forEach
 export function markersOf(world: string, type?: string): MapMarker[] { return [...REG.values()].filter((m) => m.world === world && (!type || m.type === type)); }
 export function onMarkers(f: () => void) { listeners.add(f); return () => listeners.delete(f); }
 export const MARKER_STYLE: Record<string, { icon: string; color: string }> = {
-  sign: { icon: "🪧", color: "#fde68a" }, portal: { icon: "🌀", color: "#818cf8" }, npc: { icon: "💬", color: "#f9a8d4" }, boss: { icon: "☠", color: "#f0abfc" },
+  sign: { icon: "🪧", color: "#fde68a" }, portal: { icon: "🌀", color: "#818cf8" }, npc: { icon: "💬", color: "#f9a8d4" }, boss: { icon: "☠", color: "#f0abfc" }, rare: { icon: "◆", color: "#fbbf24" },
 };
 
-// --- живое состояние мировых боссов (сервер → zone_state.wb раз в несколько секунд): жив / через сколько возродится ---
-export interface BossState { alive: boolean; at: number; type?: string; off?: boolean }
+// --- живое состояние «мест появления»: мировые боссы (логова) и редкие Отголоски (общий механизм) ---
+// Класс моба определяет, попадёт ли он сюда: всё из WORLD_GEN[мир].bosses и .rares получает отсчёт у точки появления, метки, указатели
+// и подсказки автоматически (сервер шлёт zone_state.wb / zone_state.rs, клиент хранит в BOSS_STATE; ключ "boss:<логово>" / "rare:<тип>").
+export interface BossState { alive: boolean; at: number; type?: string; off?: boolean; kind?: "boss" | "rare"; x?: number; y?: number; where?: string }
 export const BOSS_STATE = new Map<string, BossState>();
-/** list: [ключ логова, жив 0/1, секунд до появления, тип, выключен в локации 0/1] */
-export function setBossState(list: [string, number, number, string?, number?][], now = Date.now()) {
-  for (const [k, a, s, t, off] of list) BOSS_STATE.set("boss:" + k, { alive: !!a, at: now + Math.max(0, s) * 1000, type: t, off: !!off });
+/** типы меток, у которых есть таймер появления */
+export const SPAWN_MARKERS = new Set(["boss", "rare"]);
+/** list: [ключ логова, жив 0/1, секунд до появления, тип, выключен в локации 0/1, x, y, пояснение]; метки логов, которых ещё нет в реестре, создаются по данным сервера */
+export function setBossState(list: [string, number, number, string?, number?, number?, number?, string?][], now = Date.now(), world = "arinar", name: (t: string) => string = (t) => t) {
+  for (const [k, a, s, t, off, x, y, where] of list) {
+    BOSS_STATE.set("boss:" + k, { alive: !!a, at: now + Math.max(0, s) * 1000, type: t, off: !!off, kind: "boss", x, y, where });
+    if (!REG.has("boss:" + k) && x != null && y != null) REG.set("boss:" + k, { id: "boss:" + k, type: "boss", world, x, y, icon: "☠", label: `Логово босса ${where || name(t || "")}` });
+  }
+  listeners.forEach((f) => f());
+}
+/** list: [тип, жив 0/1, секунд (нет в живых — до появления; жив — до ухода), x, y, пятно]; место (метка на карте) создаётся по данным сервера */
+export function setRareState(list: [string, number, number, number, number, string?][], world: string, now = Date.now(), name: (t: string) => string = (t) => t) {
+  for (const [t, a, s, x, y, where] of list) {
+    BOSS_STATE.set("rare:" + t, { alive: !!a, at: now + Math.max(0, s) * 1000, type: t, kind: "rare", x, y, where });
+    REG.set("rare:" + t, { id: "rare:" + t, type: "rare", world, x, y, icon: "◆", label: `${name(t)} · редкий Отголосок${where ? " · " + where : ""}` });
+  }
   listeners.forEach((f) => f());
 }
 export function bossStatus(m: MapMarker, now = Date.now()): { alive: boolean; text: string } | null {
-  const st = m.type === "boss" ? BOSS_STATE.get(m.id) : null; if (!st) return null;
+  const st = SPAWN_MARKERS.has(m.type) ? BOSS_STATE.get(m.id) : null; if (!st) return null;
   if (st.alive) return { alive: true, text: "жив" };
   if (st.off) return { alive: false, text: "выключен" };
   const s = Math.max(0, Math.round((st.at - now) / 1000)), h = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;

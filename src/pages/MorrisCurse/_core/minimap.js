@@ -2,7 +2,7 @@ import { goalMatch } from '../../../../server/meta/biomes.ts';
 const inTrack = (track, t) => { if (!track) return false; for (const g of track) if (goalMatch(g, t)) return true; return false; };
 import { WORLD_GEN } from '../../../../server/meta/zoneGen.ts';
 import { fog } from './map/fog.js';
-import { markersOf, MARKER_STYLE, bossStatus } from '../../../../server/meta/markers.ts';
+import { markersOf, MARKER_STYLE, bossStatus, SPAWN_MARKERS } from '../../../../server/meta/markers.ts';
 import { BIOMES } from '../../../../server/meta/biomes.ts';
 import { mapImage, drawMarkerIcon, drawFog } from './map/mapArt.js';
 import { FOG_N, getBit } from '../../../../server/meta/explore.ts';
@@ -285,9 +285,9 @@ export class Minimap {
       this.stats.markers++;
       const col = m.color || MARKER_STYLE[m.type]?.color || '#fff';
       ctx.strokeStyle = col; ctx.lineWidth = 1;
-      if (m.type === 'boss') { // мировой босс: живой — красное пульсирующее кольцо, мёртвый — серый с таймером
+      if (SPAWN_MARKERS.has(m.type)) { // мировой босс / редкий Отголосок: живой — красное пульсирующее кольцо, мёртвый — серый с таймером
         const bs = bossStatus(m);
-        if (this.style !== 'art' || !drawMarkerIcon(ctx, m.type, bx, by, 16)) { ctx.fillStyle = bs?.alive ? '#ef4444' : '#6b7280'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('☠', bx, by); }
+        if (this.style !== 'art' || !drawMarkerIcon(ctx, m.type, bx, by, 16)) { ctx.fillStyle = bs?.alive ? (m.type === 'rare' ? '#fbbf24' : '#ef4444') : '#6b7280'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.type === 'rare' ? '◆' : '☠', bx, by); }
         if (bs?.alive) { const pu = 5 + 2 * Math.sin(performance.now() / 220); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, by, pu + 3, 0, Math.PI * 2); ctx.stroke(); }
         else if (bs) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI * 2); ctx.fill(); ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(bs.text, bx, by + 7); ctx.fillStyle = '#d1d5db'; ctx.fillText(bs.text, bx, by + 7); }
         continue;

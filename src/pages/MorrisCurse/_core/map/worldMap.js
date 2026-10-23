@@ -3,7 +3,7 @@ import { mobHomes } from '../../../../../server/meta/mobHome.ts';
 // перетаскивание/колесо/щипок, туман войны (чёрное — не разведано), объекты из реестра (server/meta/markers.ts) —
 // только в разведанных местах. Подложка — арт художника v5 (map/mapArt.js: 4096 десктоп / 2048 мобильные).
 import { mapImage, drawMarkerIcon, drawFog } from './mapArt.js';
-import { markersOf, MARKER_STYLE, bossStatus } from '../../../../../server/meta/markers.ts';
+import { markersOf, MARKER_STYLE, bossStatus, SPAWN_MARKERS } from '../../../../../server/meta/markers.ts';
 import { WORLD_SIZES } from '../../../../../server/worlds/sizes.ts';
 import { fog } from './fog.js';
 import { FOG_N, getBit } from '../../../../../server/meta/explore.ts';
@@ -94,7 +94,7 @@ export class WorldMap {
   hover(sx, sy) {
     const m = this.visibleMarkers().find((m) => { const [x, y] = this.toScreen(m.x, m.y); return Math.hypot(sx - x, sy - y) < 12; });
     if (!m) { this.tip.style.display = 'none'; return; }
-    this.tip.style.display = 'block'; this.tip.style.left = sx + 14 + 'px'; this.tip.style.top = sy + 'px'; { const bs = bossStatus(m); this.tip.innerHTML = esc(m.label) + (bs ? `<br><b style="color:${bs.alive ? '#fca5a5' : '#d1d5db'}">${bs.alive ? '☠ Босс жив — можно идти' : '⏳ Возродится через ' + esc(bs.text)}</b>` : ''); }
+    this.tip.style.display = 'block'; this.tip.style.left = sx + 14 + 'px'; this.tip.style.top = sy + 'px'; { const bs = bossStatus(m); this.tip.innerHTML = esc(m.label) + (bs ? `<br><b style="color:${bs.alive ? '#fca5a5' : '#d1d5db'}">${m.type === 'rare' ? (bs.alive ? '◆ Отголосок здесь — можно идти' : '⏳ Появится через ' + esc(bs.text)) : bs.alive ? '☠ Босс жив — можно идти' : '⏳ Возродится через ' + esc(bs.text)}</b>` : ''); }
   }
   draw() {
     if (!this.isOpen) return;
@@ -120,8 +120,8 @@ export class WorldMap {
         ctx.strokeStyle = m.color || stl.color || '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.fillText(m.icon || stl.icon || '•', x, y + 1);
       }
-      if (m.type === 'boss') { const bs = bossStatus(m); // мировой босс: «☠ жив» красным / «⏳ 4:12» до возрождения
-        if (bs) { const t = bs.alive ? '☠ жив' : '⏳ ' + bs.text; ctx.font = 'bold 12px sans-serif'; const tw = ctx.measureText(t).width + 8;
+      if (SPAWN_MARKERS.has(m.type)) { const bs = bossStatus(m); // мировой босс / редкий Отголосок: «☠ жив» красным / «⏳ 4:12» до возрождения
+        if (bs) { const t = bs.alive ? (m.type === 'rare' ? '◆ здесь' : '☠ жив') : '⏳ ' + bs.text; ctx.font = 'bold 12px sans-serif'; const tw = ctx.measureText(t).width + 8;
           if (bs.alive) { ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 15 + 2 * Math.sin(performance.now() / 220), 0, Math.PI * 2); ctx.stroke(); }
           else { ctx.fillStyle = 'rgba(40,40,48,.55)'; ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill(); }
           ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fillRect(x - tw / 2, y + 16, tw, 16); ctx.fillStyle = bs.alive ? '#fca5a5' : '#d1d5db'; ctx.fillText(t, x, y + 24.5); ctx.font = '14px sans-serif'; } }

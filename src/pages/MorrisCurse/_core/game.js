@@ -49,6 +49,8 @@ import { BoardWin } from './ui/board.js';
 import { QolHud } from './ui/qol.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
 import { TargetPointers } from './ui/targetPtr.js';
+import { spawnLabelItems, drawSpawnLabels } from './ui/spawnLabels.js';
+import { bossCfg } from './ui/bossSpawn.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
@@ -93,7 +95,7 @@ import { DpsMeter } from './ui/dps.js';
 import { PartyUI } from './ui/party.js';
 import { setCustomQuests, applyBuiltinOverride, QUESTS as ALL_QUESTS } from '../../../../server/meta/quests.ts';
 import { setQuestDialogues, QUEST_DIALOGUES } from '../../../../server/meta/vnChars.ts';
-import { setBossState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
+import { setBossState, setRareState, BOSS_STATE as BOSS_STATE_DBG } from '../../../../server/meta/markers.ts';
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 import { setMapZones, mapZonesKnown, biomeLabels } from './map/biomeLabels.js';
 import { onMarks, onMarkOk, marks as MARKS } from './map/marks.js';
@@ -275,6 +277,7 @@ async function boot(canvasId, username, userId, api) {
   api.boardWin = boardWin;
   queueMicrotask(() => { api.tracker = tracker; api.social = social; api.overlay = overlay; }); // для локальных плейтестов (debug)
   const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), onOpenBoard: (tab) => boardWin.open('all', tab === 'tut' ? 'tut' : tab), mobile, board: boardSt });
+  const bestKnown = (t) => !!(meta.state?.account?.bestiary?.[t] || meta.library?.mobs?.[t]); // вид уже встречен (скрытый — без имени в подписях места появления)
   const tptr = new TargetPointers(overlay.layer, { mobile }); // метки отслеживаемых целей на экране (номер/цвет — как в трекере)
   { const bo = book.open.bind(book); book.open = (...a) => { tracker.tutDone('book'); return bo(...a); }; }
   const dialog = new NpcDialog(overlay, meta, boardSt);
@@ -885,7 +888,8 @@ async function boot(canvasId, username, userId, api) {
     if (d.npc) npcUpdate(d.npc); // NPC бродят: позиции с сервера
     if (d.city) citySync(d.city);
     if (d.dn) dayNight.setServer(d.dn);
-    if (Array.isArray(d.wb)) setBossState(d.wb);
+    if (Array.isArray(d.wb)) setBossState(d.wb, Date.now(), world, (t) => ZONE_MOBS[t]?.name || t);
+    if (Array.isArray(d.rs)) setRareState(d.rs, world, Date.now(), (t) => (bestKnown(t) ? ZONE_MOBS[t]?.name || t : 'Редкий Отголосок')); // редкие Отголоски: место и отсчёт (общий механизм с боссами)
     for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
     if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
     for (const e of d.ev || []) if (e.k === 'hit' && e.by === myId && e.d > 0) dpsMeter.add(e.d); // мировые боссы: жив / таймер — на карте и мини-карте
@@ -1903,6 +1907,8 @@ async function boot(canvasId, username, userId, api) {
       const extra = pt.runRoom ? `<small>${roomCounts[pt.runRoom] || 0}/4 в забеге · co-op</small>` : '';
       overlay.label('pt_' + pt.id, q.x, q.y, `${esc(pt.name)}${extra}`, pt.color || '#c084fc');
     }
+    // отсчёт до появления над логовами мировых боссов и местами появления редких Отголосков (общий механизм)
+    if (mode === 'hub') drawSpawnLabels(overlay, spawnLabelItems(world, player.x, player.y, bossCfg(boardSt), Date.now(), bestKnown), (x, y) => stage.project(toX(x), 3.4, toZ(y)));
     // сундуки схватки: таймер личной/общей фазы
     for (const c of zone.chests.values()) { const q = stage.project(toX(c.x), 2.2, toZ(c.y)); if (!q) continue; const left = Math.max(0, c.left - Math.floor((Date.now() - c.at) / 1000)); const t = left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left} с`;
       overlay.label('ch_' + c.id, q.x, q.y, c.pub ? `📦 Общий сундук<small>${c.n} предм. · ${t}</small>` : `📦 ${c.mine ? 'Ваша добыча: ' + c.mine : 'Чужая добыча'}<small>личный · ${t}</small>`, c.pub ? '#e5e7eb' : c.mine ? '#fde68a' : '#94a3b8'); }

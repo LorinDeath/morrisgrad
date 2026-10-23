@@ -44,7 +44,7 @@ import { dnClient, DN_CFG, dnAt, dnMinutes } from "./dayNight";
 import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
-import { BOARD_CFG, devBoardRoll, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, takeAt, npcTasks, BTASKS } from "./board";
+import { BOARD_CFG, devBoardRoll, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, takeAt, npcTasks, BTASKS, isEliteKill } from "./board";
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
@@ -920,6 +920,8 @@ export class MetaService {
         { const z = this.zoneOf(session) as any; if (z) {
           if (msg.spawnBosses) for (const b of z.gen.bosses) if (!z.bossIds[b.key || b.type]) z.bossAt[b.key || b.type] = 1;
           if (msg.killBoss) { const id = z.bossIds[msg.killBoss], m = id && z.byId.get(id); if (m && !m.dead) z.kill(m, (mm: any) => this.onMobKilled(mm)); }
+          if (msg.rareIn != null && z.gen.rares) for (const r of z.gen.rares) { z.rareInit(r, Date.now()); if (!z.rareIds[r.type]) { z.rareAt[r.type] = Date.now() + Math.max(0, +msg.rareIn) * 1000; z.rareDirty = true; } } // тесты: до появления редких — N секунд
+          if (msg.killRare) { const id = z.rareIds[msg.killRare], m = id && z.byId.get(id); if (m && !m.dead) z.kill(m, (mm: any) => this.onMobKilled(mm)); }
           if (msg.ambientNow) z.ambNext.set(session.id, 0);
           if (msg.devStats) this.send(ws, { type: "dev_stats", amb: z.ambStats, ambient: z.mobs.filter((m: any) => m.ambient === session.id && !m.dead).map((m: any) => ({ id: m.id, type: m.type, elite: m.elite, x: Math.round(m.x), y: Math.round(m.y), tgt: m.targetSid === session.id })), bosses: z.bossStatus(Date.now()).slice(0, 80).map((x: any, i: number) => [...x, z.gen.bosses[i].x, z.gen.bosses[i].y]) });
         } }
@@ -1538,7 +1540,7 @@ export class MetaService {
       const fight = this.fightFacts(m, sid, session, ms, h);
       const qf: any[] = [];
       const how = killHow(m, sid); // как убит (сервер считал каждый удар) — задания «одним ударом», «только навыками», «без навыков»
-      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf, lvl: d.lvl || 1, elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss, rare: !!d.rare, party: n, ...how,
+      this.qev(a, session, { type: "kill", mob: base, kind: m.type, cls, fight, failed: qf, lvl: d.lvl || 1, elite: isEliteKill(m, d), cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss, rare: !!d.rare, party: n, ...how,
         night: session.world === "arinar" && dnAt(dnMinutes()).phase === "night", hpPct: ms.zp?.maxHp ? Math.round((ms.zp.hp / ms.zp.maxHp) * 100) : 100 });
       if (d.boss) this.qev(a, session, { type: "kill_boss", mob: base, kind: m.type, usedAbility: m.usedAbility.has(sid), fight, failed: qf });
       for (const f of qf) this.send(ws, { type: "quest_cond", qid: f.qid, i: f.i, ok: false, reason: f.reason, kill: 1 });
@@ -1546,6 +1548,24 @@ export class MetaService {
     }
   }
   sessionLookup: ((sid: string) => [WebSocket, any] | null) | null = null;
+  /** таймеры редких Отголосков в D1 (library_meta, ключ rare_timers): перезапуск/выкладка не сбрасывает отсчёт. Нет базы — таймеры в памяти, как раньше. */
+  rareLoaded: 0 | 1 | 2 = 0; rareSavedAt = 0; rareSavedSig = "";
+  rareKeep(now: number) {
+    const z: any = (this.zones as any).arinar; if (!z?.gen?.rares?.length) return;
+    if (this.rareLoaded === 0) {
+      this.rareLoaded = 1;
+      if (!this.db) { this.rareLoaded = 2; return; }
+      z.rareHold = true;
+      const done = (snap: any) => { try { z.rareRestore(snap, Date.now()); } catch (e: any) { z.rareHold = false; console.error("[mc] rare restore", e?.message || e); } this.rareLoaded = 2; };
+      const t = setTimeout(() => { if (this.rareLoaded === 1) done(null); }, 4000); // база не ответила — стартуем с новыми таймерами
+      Promise.resolve(this.db.prepare("SELECT value FROM library_meta WHERE key = 'rare_timers'").first()).then((row: any) => { clearTimeout(t); if (this.rareLoaded === 1) { let snap: any = null; try { snap = row?.value ? JSON.parse(row.value) : null; } catch {} done(snap); } }).catch(() => { clearTimeout(t); if (this.rareLoaded === 1) done(null); });
+      return;
+    }
+    if (this.rareLoaded !== 2 || !this.db || !z.rareDirty || now - this.rareSavedAt < 5000) return;
+    z.rareDirty = false; this.rareSavedAt = now;
+    const val = JSON.stringify(z.rareSnapshot()); if (val === this.rareSavedSig) return; this.rareSavedSig = val;
+    Promise.resolve(this.db.prepare("INSERT INTO library_meta (key, value) VALUES ('rare_timers', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(val).run()).catch((e: any) => { this.rareSavedSig = ""; z.rareDirty = true; console.error("[mc] rare save", e?.message || e); });
+  }
   party!: Parties; partyAt = 0; regAt = 0;
   /** пересобрать лагеря локаций, чьи настройки плотности изменились (админка → D1 → applyOverride на этом экземпляре) */
   syncRegions() {
@@ -2068,6 +2088,7 @@ export class MetaService {
     }
     if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); this.chestTick(now); }
     this.chestChan(now);
+    this.rareKeep(now);
     if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.admin.sync().catch(() => {}); this.syncRegions(); } // набор правок (D1, не чаще раза в 10 с — внутри sync) + пересборка лагерей / ОЗ живых мобов
     if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
@@ -2169,6 +2190,9 @@ export class MetaService {
         // логова мировых боссов (карта M и мини-карта): раз в 5 с и сразу при смене (клиент сам скрывает неразведанные)
         let wb: any;
         if (zone.gen.bosses.length) { const list = zone.bossStatus(now), sig = list.map((x) => x[0] + x[1] + x[4]).join(); if (now - ((ms as any).wbAt || 0) > 5000 || (ms as any).wbSig !== sig) { wb = list; (ms as any).wbAt = now; (ms as any).wbSig = sig; } }
+        // редкие Отголоски (общий механизм с боссами): место и отсчёт до появления; жив — где сейчас
+        let rs: any;
+        if (zone.gen.rares?.length) { const list = zone.rareStatus(now), sig = list.map((x) => x[0] + x[1] + x[3] + x[4]).join(); if (now - ((ms as any).rsAt || 0) > 5000 || (ms as any).rsSig !== sig) { rs = list; (ms as any).rsAt = now; (ms as any).rsSig = sig; } }
         // лагеря рядом (мини-карта: зоны агро и активность; трекер квеста: где искать цель) — раз в 2 с
         let cp: any;
         if (zone.camps.length && now - ((ms as any).cpAt || 0) > 2000) { (ms as any).cpAt = now; cp = zone.campSummary(now).filter((c: any) => Math.abs(c[1] - s.x) < 6000 && Math.abs(c[2] - s.y) < 6000); }
@@ -2181,7 +2205,7 @@ export class MetaService {
         let city: any; if (w === "arinar" && (ms as any).cityVer !== this.cityVer && ((Math.abs(s.x - CITY_CFG.x) < 9000 && Math.abs(s.y - CITY_CFG.y) < 9000) || inRoomArea(s.x, s.y))) { (ms as any).cityVer = this.cityVer; city = cityClient(); }
         // день и ночь: часы и настройки — при входе, при правке в админке (подпись) и раз в 20 с (клиент ведёт часы сам)
         let dn: any; if (w === "arinar" && ((ms as any).dnSig !== dnSig || now - ((ms as any).dnAt || 0) > 20000)) { (ms as any).dnSig = dnSig; (ms as any).dnAt = now; dn = dnClient(now); }
-        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, cp, bm, city, dn, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
+        this.send(ws, { type: "zone_state", ...st, tg, bags, chests, fp, wb, rs, cp, bm, city, dn, npc: npc.length ? npc : undefined, me: { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp, alive: ms.zp.alive, wt: ms.wt } });
       }
     }
   }

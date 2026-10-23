@@ -10,7 +10,7 @@ import { HERO_NAMES } from "./shared";
 import { BCHEST, BC_CATS, BC_TIERS, BC_CURSE_MAX, tierOfRank, countOf, rankCursePct, bcSpecCount, type BcSpec } from "./boardChestCfg";
 import { grantChest, grantSpec, chestRoomErr, chestsOf, chestOps } from "./boardChest";
 import { VARIANTS, VARIANT_BY_ID, BIOMES, baseOf, goalMatch, type BiomeId } from "./biomes";
-import { BOSS_TIMERS } from "./zoneGen";
+import { BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { gainXp, addRes, addItem, talentSpent, equippedItems, activeLook, type Account, type Hero } from "./profile";
 import { charBlk, blkOf } from "./bmCfg";
 import { setBoardCols } from "./boardCols";
@@ -106,7 +106,8 @@ const resName = (r: string) => RESOURCES[r]?.name || r;
 const firstMat = (base: string) => (MONSTER_LOOT[base]?.materials || []).map((m) => m.res).find((r) => RESOURCES[r] && r !== "soul_shard") || "soul_shard";
 const HUNT_TIERS = [10, 15, 20, 30, 45];
 const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
-const RARES = ["dew_king", "white_stag", "rust_baron", "cooler_maw", "fallen_star"];
+/** редкие Отголоски — из реестра класса (WORLD_GEN[мир].rares): новый редкий получает охоту/достижения сам */
+const RARES: string[] = [...new Set(Object.values(WORLD_GEN).flatMap((G: any) => (G.rares || []).map((r: any) => r.type as string)))];
 /** исполнитель по смыслу задания: охота — Алзи, ремесло и материалы — Петр, арена и забеги — Кьют, остальное — Лэйр */
 const giverOf = (ev: string, f = "") => ev === "kill" ? (f.includes("party") ? "kyut" : "alzi") : ["gather", "craft", "salvage", "upgrade", "loot"].includes(ev) ? "petr" : ["run", "trial", "duel", "duel_win", "party", "dash", "ability"].includes(ev) ? "kyut" : "leyr";
 const ROLE_NAMES: Record<string, string> = { swarm: "стайных", melee: "бойцов ближнего боя", charger: "таранящих", ranged: "стрелков", tank: "толстокожих", caster: "колдующих" };
@@ -175,7 +176,7 @@ function genNpc(): BTask[] {
     ["k11", "kyut", "Десять забегов", "Опыт приходит с повторением", "run", "", [10], [3], 12, "npc_k10", { soul_shard: 5 }],
     ["k12", "kyut", "Все восемь волн", "Пройдите Испытание целиком", "trial", "max", [8], [5], 14, "npc_k11", { soul_shard: 8 }],
     ["a01", "alzi", "Первая охота", "Десять Отголосков — для разминки", "kill", "", [10], [1], 1, "", { moonpetal: 2 }],
-    ["a02", "alzi", "Элита", "Элитные враги — с рамкой у имени", "kill", "|elite", [3], [2], 3, "npc_a01", { soul_shard: 1 }],
+    ["a02", "alzi", "Элита", "Элитные враги — с рамкой у имени, а также редкие Отголоски", "kill", "|elite", [3], [2], 3, "npc_a01", { soul_shard: 1 }],
     ["a03", "alzi", "Кровавые льды", "Ближний к хабу край", "kill", "biome:ice", [30], [2], 3, "npc_a02,npc_l01", { soul_shard: 2 }],
     ["a04", "alzi", "Синее пламя", "Край огненных Отголосков", "kill", "biome:fire", [30], [2], 5, "npc_a03,npc_p03", { soul_shard: 2 }],
     ["a05", "alzi", "Проклятый враг", "Проклятые — с особой меткой", "kill", "|cursed", [1], [3], 5, "npc_a04", { soul_shard: 2 }],
@@ -247,11 +248,11 @@ function genPeriodic(): BTask[] {
   const R: PRow[] = [];
   for (const [lo, hi, s, k] of [[1, 9, "a", 1], [10, 19, "b", 1.5], [20, 30, "c", 2]] as [number, number, string, number][]) {
     R.push([`d_kill_${s}`, "daily", "Разминка", "Враги не ниже вашего уровня − 2", "kill", "|lvl", Math.round(40 * k), 2, lo, hi]);
-    R.push([`d_elite_${s}`, "daily", "Элитная охота", "Элита — с рамкой у имени", "kill", "|elite", Math.round(3 * k), 2, Math.max(3, lo), hi]);
+    R.push([`d_elite_${s}`, "daily", "Элитная охота", "Элита — с рамкой у имени или редкий Отголосок", "kill", "|elite", Math.round(3 * k), 2, Math.max(3, lo), hi]);
     R.push([`d_gather_${s}`, "daily", "Сборщик", "Любые ресурсы с узлов", "gather", "", Math.round(10 * k), 1, lo, hi, { moonpetal: 2 }]);
     R.push([`d_loot_${s}`, "daily", "Мешки", "Забирайте добычу из мешков", "loot", "bag", Math.round(15 * k), 1, lo, hi]);
     R.push([`w_kill_${s}`, "weekly", "Неделя охоты", "Враги не ниже вашего уровня − 2", "kill", "|lvl", Math.round(400 * k), 3, lo, hi, { soul_shard: 3 }]);
-    R.push([`w_elite_${s}`, "weekly", "Неделя элиты", "Элита — с рамкой у имени", "kill", "|elite", Math.round(25 * k), 3, Math.max(3, lo), hi, { soul_shard: 3 }]);
+    R.push([`w_elite_${s}`, "weekly", "Неделя элиты", "Элита — с рамкой у имени или редкий Отголосок", "kill", "|elite", Math.round(25 * k), 3, Math.max(3, lo), hi, { soul_shard: 3 }]);
   }
   R.push(
     ["d_dash", "daily", "Ловкость", "Рывок спасает от ударов", "dash", "", 30, 1, 1, 30],
@@ -316,7 +317,7 @@ function genPeriodic(): BTask[] {
   for (const b of BIOME_IDS) {
     const B = BIOMES[b];
     R.push([`d_${b}`, "daily", `Край: ${B.name}`, `Отголоски края, ур. ${B.lvl[0]}–${B.lvl[1]}`, "kill", "biome:" + b, 30, 2, B.lvl[0], B.lvl[1] + 6]);
-    R.push([`d_${b}_elite`, "daily", `Элита: ${B.name}`, "Элита края", "kill", "biome:" + b + "|elite", 3, 2, B.lvl[0], B.lvl[1] + 6]);
+    R.push([`d_${b}_elite`, "daily", `Элита: ${B.name}`, "Элита края (в рамке)", "kill", "biome:" + b + "|elite", 3, 2, B.lvl[0], B.lvl[1] + 6]);
     R.push([`w_${b}`, "weekly", `Неделя: ${B.name}`, "Отголоски края", "kill", "biome:" + b, 150, 3, B.lvl[0], B.lvl[1] + 6, { soul_shard: 3 }]);
   }
   for (const r of ["dreamwood", "moonpetal", "rot_ore", "starsilver"]) {
@@ -612,6 +613,8 @@ function genAch(): BTask[] {
 
 export const BTASKS: Record<string, BTask> = {};
 for (const t of [...genTut(), ...genNpc(), ...genHunt(), ...genPeriodic(), ...genPool(), ...genHard(), ...genAch()]) BTASKS[t.id] = t;
+/** убийство «элиты» для заданий: особь в рамке ИЛИ редкий именной Отголосок (вкладка «Элита» Бестиария). Босс мира — не элита. */
+export const isEliteKill = (m: { elite?: any }, d: { rare?: any }): boolean => !!m.elite || !!d.rare;
 export const BTASK_LIST = () => Object.values(BTASKS);
 const BY_EV = new Map<string, BTask[]>();
 /** индекс «событие → задания»; пересобирается после любой правки задания в админке (новое, удалённое, сменилось событие) */

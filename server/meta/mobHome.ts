@@ -13,10 +13,9 @@ export function mobHomes(id: string): MobHome[] {
   if (cache.has(id)) return cache.get(id)!;
   const out: MobHome[] = [];
   for (const [world, G] of Object.entries(WORLD_GEN)) {
-    const byId = new Map(G.regions.map((r) => [r.id, r]));
     for (const r of G.regions) if (r.table?.some((row) => same(row.type, id))) out.push({ world, x: (r.rect[0] + r.rect[2]) / 2, y: (r.rect[1] + r.rect[3]) / 2, region: r.name, kind: "region" });
     for (const b of G.bosses || []) if (same(b.type, id)) out.push({ world, x: b.x, y: b.y, region: b.where || "", kind: "boss" });
-    for (const r of G.rares || []) if (same(r.type, id)) { const rg = byId.get(r.region); if (rg) out.push({ world, x: (rg.rect[0] + rg.rect[2]) / 2, y: (rg.rect[1] + rg.rect[3]) / 2, region: rg.name, kind: "rare" }); }
+    for (const r of G.rares || []) if (same(r.type, id)) for (const rg of G.regions.filter((x: any) => x.id === r.region || x.kind === r.region)) out.push({ world, x: (rg.rect[0] + rg.rect[2]) / 2, y: (rg.rect[1] + rg.rect[3]) / 2, region: rg.name, kind: "rare" }); // регион или все пятна биома (как в zone.ts)
   }
   cache.set(id, out); return out;
 }
