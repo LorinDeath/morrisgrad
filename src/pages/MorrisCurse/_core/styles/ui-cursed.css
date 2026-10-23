@@ -406,6 +406,9 @@ html.mc-ui .mc-admin .chip { border-radius: 0; }
 html.mc-ui:is([data-ui-glitch="1"], [data-ui-glitch="2"]) :is(.mc-btn, .mc3d-btn, .mc-book-tabs button, .mc-soc-tabs button, .mc-as, .mc-bookbtn, .mc-ratebtn, .mc-insp-slot, .mc-gslot, .mc-item, .mc-lib):hover:not(:disabled) {
   animation: uiTwitch .18s steps(1) 1;
 }
+/* inherits:false — смещение действует только на сам блок; вложенные кнопки (в блоке «Отряд» и т. п.) при вздрагивании не уезжают на смещение родителя */
+@property --mc-dx { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --mc-dy { syntax: '<length>'; inherits: false; initial-value: 0px; }
 /* от текущего смещения блока (--mc-dx/--mc-dy ставит uiDrag), иначе перенесённая кнопка на время вздрагивания прыгает на старое место */
 @keyframes uiTwitch { 0% { translate: calc(var(--mc-dx, 0px) + 2px) var(--mc-dy, 0px); } 33% { translate: calc(var(--mc-dx, 0px) + 4px) var(--mc-dy, 0px); } 66% { translate: calc(var(--mc-dx, 0px) + 2px) var(--mc-dy, 0px); } 100% { translate: var(--mc-dx, 0px) var(--mc-dy, 0px); } }
 /* 2: ещё редкие вздрагивания больших окон (раз в ~11 с, 2 кадра) и моргание глаз-застёжек */
