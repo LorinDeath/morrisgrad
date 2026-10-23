@@ -312,7 +312,7 @@ export const REWARD_RULES = {
   // опыт забега ГЕРОЮ — в «мобах уровня героя» (× balance.mobXp(lvl)): 2 в минуту + 0.01 за убийство, потолок 15 минут
   // (≤ ~38 убийств-эквивалентов за забег: уровни забега быстрые, но героя они почти не качают)
   runXpPerMinute: 2, runXpPerKill: 0.01, runMaxMinutes: 15, runMaxKillsPerSecond: 5, runMaxLootRolls: 40,
-  duel: { winXp: 40, lossXp: 12 }, trial: { perWaveXp: 12, maxWaves: 8 },
+  duel: { winXp: 40, lossXp: 12, minWinSec: 3 }, trial: { perWaveXp: 12, maxWaves: 8 },
 };
 
 

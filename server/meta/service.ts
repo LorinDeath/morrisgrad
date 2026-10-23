@@ -1084,11 +1084,13 @@ export class MetaService {
       }
       this.qev(a, session, { type: "run", room: run.room, time, cls, players });
     } else if (mode === "duel") {
-      const won = !!msg.won && time >= 10;
-      out.xp = won ? REWARD_RULES.duel.winXp : (time >= 10 ? REWARD_RULES.duel.lossXp : 0);
+      // Победа над отражением Кьют: отражение выходит на 1,5-й секунде, так что честная победа возможна и быстрее 10 с (сильный герой).
+      // Задания/Бестиарий/доска считают победу от minWinSec (время всё равно ограничено серверными часами комнаты); опыт — как раньше, от 10 с.
+      const won = !!msg.won && time >= REWARD_RULES.duel.minWinSec;
+      out.xp = won && time >= 10 ? REWARD_RULES.duel.winXp : (!won && time >= 10 ? REWARD_RULES.duel.lossXp : 0);
       if (won) this.qev(a, session, { type: "duel_win", hpCapPct: Math.max(1, Math.min(100, Number(msg.hpCapPct) || 100)) });
-      if (won && time >= 10) this.noteArenaKills(a, msg.kills, { cap: 1, onlyBoss: true }); // «Отражение Кьют» — только победа над отражением (не над игроком: тогда kills пуст)
-      if (time >= 10) this.bev(session, { type: "duel" }); // любая честная дуэль (не короче 10 с)
+      if (won) this.noteArenaKills(a, msg.kills, { cap: 1, onlyBoss: true }); // «Отражение Кьют» — только победа над отражением (не над игроком: тогда kills пуст)
+      if (time >= 10 || won) this.bev(session, { type: "duel" }); // любая честная дуэль (не короче 10 с) или победа
     } else if (mode === "trial") {
       const waves = Math.min(REWARD_RULES.trial.maxWaves, Math.floor(time / 20), Math.max(0, Math.floor(Number(msg.wave) || 0)));
       out.xp = waves * REWARD_RULES.trial.perWaveXp;

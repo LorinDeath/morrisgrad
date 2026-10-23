@@ -1045,7 +1045,7 @@ async function boot(canvasId, username, userId, api) {
     const rows = info.members.map((m) => `<div class="mc-lobby-row"><span class="nm" style="color:${esc(m.color)}">${m.leader ? '👑 ' : ''}${esc(m.username)}</span>
       <small>${CLASS_ICON[m.classId] || '👻'} ${esc(displayClassName(m.classId))}</small>
       <span class="st ${m.ready ? '' : 'run'}">${running ? (m.out ? 'сдался' : m.dead ? 'пал' : 'в забеге') : m.ready ? 'готов' : 'не готов'}</span></div>`).join('');
-    const caps = room.mode === 'duel' && !running ? `<div class="caps">Кап здоровья (звёздные задания Кьют): ${[100, 50, 30].map((c) => `<button class="mc-btn ${runOpts.hpCapPct === c ? 'on' : ''}" data-cap="${c}">${c}%</button>`).join('')}</div>` : '';
+    const caps = room.mode === 'duel' && !running ? `<div class="caps">Кап здоровья (звёздные задания Кьют): ${[100, 50, 30, 25].map((c) => `<button class="mc-btn ${runOpts.hpCapPct === c ? 'on' : ''}" data-cap="${c}">${c}%</button>`).join('')}</div>` : '';
     const btns = [];
     if (!running) {
       if (meIsLeader) btns.push({ text: allReady ? '▶ Начать забег' : `▶ Начать (готовы ${info.members.filter((m) => m.ready).length}/${info.members.length})`, cls: 'gold', id: 'mc3d-run-start', onClick: () => net.lobbyStart() });
@@ -1532,7 +1532,7 @@ async function boot(canvasId, username, userId, api) {
       ${player.stats.classId ? '' : '<p style="color:#fcd34d">Без тела у вас нет навыков — выберите оболочку у Алтаря.</p>'}`,
     [
       ...(room.mode === 'duel'
-        ? [100, 50, 30].map((cap) => ({ text: cap === 100 ? '▶ Бой' : `▶ Бой · кап ${cap}% HP`, cls: cap === 100 ? 'gold' : '', id: cap === 100 ? 'mc3d-run-start' : undefined, onClick: () => { overlay.hideScreen(); runOpts.hpCapPct = cap; requestRun(room.id, p.id); } }))
+        ? [100, 50, 30, 25].map((cap) => ({ text: cap === 100 ? '▶ Бой' : `▶ Бой · кап ${cap}% HP`, cls: cap === 100 ? 'gold' : '', id: cap === 100 ? 'mc3d-run-start' : undefined, onClick: () => { overlay.hideScreen(); runOpts.hpCapPct = cap; requestRun(room.id, p.id); } }))
         : [{ text: room.mode === 'trial' ? '▶ Начать испытание' : '▶ Начать забег', cls: 'gold', id: 'mc3d-run-start', onClick: () => { overlay.hideScreen(); runOpts.hpCapPct = 100; requestRun(room.id, p.id); } }]),
       { text: 'Отмена', cls: 'ghost', onClick: () => overlay.hideScreen() },
     ]);
