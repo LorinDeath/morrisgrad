@@ -429,6 +429,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_b5", label: "Удобство (QoL)", t: "hdr" }, { path: "qol.help", label: "Справка по управлению (F1 / ❔)", t: "bool" }, { path: "qol.lowHp", label: "Предупреждение о низком ОЗ", t: "bool" },
     N("qol.lowHpPct", "Низкое ОЗ, %", 5, 80, "int"), { path: "qol.lvlInfo", label: "Что открылось на новом уровне", t: "bool" }, { path: "qol.talentNag", label: "Напоминание о свободных очках талантов", t: "bool" },
     { path: "qol.bmArrow", label: "Стрелка трекера к Чёрному магу (живая позиция)", t: "bool" },
+    { path: "qol.bossTimer", label: "Мировые боссы: таймер появления в трекере, охоте, заданиях, на карте и у метки", t: "bool" }, N("qol.bossSoonSec", "Мировые боссы: «появляется» за сколько секунд до спавна", 0, 120, "int"),
   ] },
   btask: { name: "📋 Задание доски", fields: [
     { path: "cat", label: "Раздел (выбирается при создании)", t: "enum", opts: CATS, optn: CAT_NAMES },

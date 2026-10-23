@@ -19,16 +19,17 @@ export const MARKER_STYLE: Record<string, { icon: string; color: string }> = {
 };
 
 // --- живое состояние мировых боссов (сервер → zone_state.wb раз в несколько секунд): жив / через сколько возродится ---
-export interface BossState { alive: boolean; at: number; type?: string }
+export interface BossState { alive: boolean; at: number; type?: string; off?: boolean }
 export const BOSS_STATE = new Map<string, BossState>();
-/** list: [ключ логова, жив 0/1, секунд до появления, тип] */
-export function setBossState(list: [string, number, number, string?][], now = Date.now()) {
-  for (const [k, a, s, t] of list) BOSS_STATE.set("boss:" + k, { alive: !!a, at: now + Math.max(0, s) * 1000, type: t });
+/** list: [ключ логова, жив 0/1, секунд до появления, тип, выключен в локации 0/1] */
+export function setBossState(list: [string, number, number, string?, number?][], now = Date.now()) {
+  for (const [k, a, s, t, off] of list) BOSS_STATE.set("boss:" + k, { alive: !!a, at: now + Math.max(0, s) * 1000, type: t, off: !!off });
   listeners.forEach((f) => f());
 }
 export function bossStatus(m: MapMarker, now = Date.now()): { alive: boolean; text: string } | null {
   const st = m.type === "boss" ? BOSS_STATE.get(m.id) : null; if (!st) return null;
   if (st.alive) return { alive: true, text: "жив" };
+  if (st.off) return { alive: false, text: "выключен" };
   const s = Math.max(0, Math.round((st.at - now) / 1000)), h = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
   return { alive: false, text: s <= 0 ? "вот-вот" : h ? `${h}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${mm}:${String(ss).padStart(2, "0")}` };
 }

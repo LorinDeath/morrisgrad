@@ -6,6 +6,7 @@ import { goalMatch } from '../../../../../server/meta/biomes.ts';
 import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
 import { RESOURCES, NPCS } from '../../../../../server/meta/shared.ts';
 import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
+import { bossCfg, bossLairs, pickLair, lairTarget } from './bossSpawn.js';
 import { WORLD_PORTALS } from '../../../../../server/worlds/portals.ts';
 import { npcPos } from '../meta/npcLive.js';
 
@@ -34,13 +35,14 @@ export function hasPlace(t) {
 }
 
 function nearestOf(list, ctx) { let best = null, bd = Infinity; for (const p of list) { if (!p) continue; const d = p.world === ctx.world ? Math.hypot(p.x - ctx.x, p.y - ctx.y) : 1e12; if (d < bd) { bd = d; best = p; } } return best; }
-function mobTarget(id, ctx) {
+function mobTarget(id, ctx, bcfg) {
   const nm = ZONE_MOBS[id]?.name || id;
   let best = null, bd = Infinity;
   for (const m of ctx.mobs?.values?.() || []) if (goalMatch(id, m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: nm, mob: id }; } }
   if (best) return best;
   for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some((ty) => goalMatch(id, ty))) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + nm, mob: id }; } }
   if (best) return best;
+  { const l = pickLair(bossLairs((ty) => goalMatch(id, ty), ctx.world), ctx); if (l) return lairTarget(l, nm, bcfg, { mob: id }); } // мировой босс: живое состояние логова
   const n = nearestHome(id, ctx.world, ctx.x, ctx.y); if (!n) return null;
   return { world: n.home.world, x: n.home.x, y: n.home.y, label: nm + (n.home.region ? ' · ' + n.home.region.split(':')[0] : ''), mob: id };
 }
@@ -68,14 +70,14 @@ export function taskTarget(t, store, ctx) {
   if (t.take && !store.taken(t.id)) return viaPortal(nb, ctx);
   if (t.nb && r.ready) return viaPortal({ ...nb, label: 'Сдать: Доска объявлений' }, ctx);
   if (r.done) return null;
-  const F = flags(t), m = String(t.m || '');
+  const F = flags(t), m = String(t.m || ''), bcfg = bossCfg(store);
   let tg = null;
   switch (t.ev) {
     case 'kill': case 'st': {
       const id = mobOf(t);
-      if (id) tg = mobTarget(id, ctx);
+      if (id) tg = mobTarget(id, ctx, bcfg);
       else if (m.startsWith('biome:')) { const b = 'b_' + m.slice(6); if (!BIOME_REG.has(b)) BIOME_REG.set(b, regionsWhere((rg) => rg.biome === b)); tg = nearestOf(BIOME_REG.get(b), ctx); }
-      else if (F.has('wboss') || m === 'wbosses') tg = nearestOf(bossSpots(), ctx);
+      else if (F.has('wboss') || m === 'wbosses') { const l = pickLair(bossLairs(() => true, ctx.world), ctx); tg = l ? lairTarget(l, (ZONE_MOBS[l.type]?.name || 'Мировой босс'), bcfg, { mob: l.type }) : nearestOf(bossSpots(), ctx); }
       else if (F.has('rare')) tg = nearestOf(rareSpots(), ctx);
       break;
     }

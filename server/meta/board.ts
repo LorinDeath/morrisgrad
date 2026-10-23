@@ -86,7 +86,7 @@ export const BOARD_CFG: any = {
   xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 1 / 3, monthly: 1, hard: 0.6, ach: 0.25 },
   caps: { tut: 0, npc: 0, hunt: 0, daily: 0, weekly: 0, monthly: 0, hard: 0, ach: 0 }, // решение Алекса: потолков нет (механизм оставлен выключенным — число > 0 в админке включит)
   tutOn: true, tutVetLvl: 10, tutSkip: true,
-  qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30 },
+  qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30, bossTimer: true, bossSoonSec: 10 },
 };
 
 /** коллизии обеих досок по текущим настройкам (вызывается при загрузке и после правки «📋 Доска» в админке) */

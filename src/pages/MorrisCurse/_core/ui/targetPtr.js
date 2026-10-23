@@ -45,7 +45,8 @@ export class TargetPointers {
         const L = g.list.slice(0, SHOW);
         e._n.innerHTML = L.map((t) => `<i style="--c:${t.c}">${t.n}</i>`).join('') + (g.list.length > SHOW ? `<i class="more">+${g.list.length - SHOW}</i>` : '');
         e.style.setProperty('--c', g.list[0].c); e.classList.toggle('out', g.out); e.title = g.list.map((t) => `${t.n}. ${t.label || ''}`).join('\n'); }
-      const dt = g.out ? `${Math.round(g.dist / 20)} м` : ''; if (e._d.textContent !== dt) e._d.textContent = dt;
+      const spT = g.list.find((t) => t.sp && !t.spAlive)?.sp; // мировой босс ещё не появился: таймер рядом с меткой (из живого состояния логова)
+      const dt = (g.out ? `${Math.round(g.dist / 20)} м` : '') + (spT ? `${g.out ? ' · ' : ''}⏳ ${spT.replace('Босс ', '')}` : ''); if (e._d.textContent !== dt) { e._d.textContent = dt; e._d.classList.toggle('sp', !!spT); }
       e._a.style.transform = g.out ? `rotate(${g.ang}rad)` : '';
       e.style.transform = `translate(${Math.round(g.x)}px, ${Math.round(g.y)}px)`; if (e.style.display) e.style.display = '';
     });

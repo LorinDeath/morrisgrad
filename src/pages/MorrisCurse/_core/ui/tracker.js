@@ -9,6 +9,7 @@ import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts'
 import { esc } from './overlay.js';
 import { rankTag } from '../meta/boardStore.js';
 import { taskTarget, hasPlace, viaPortal } from './boardLoc.js';
+import { bossCfg, bossLairs, pickLair, lairTarget, spawnText } from './bossSpawn.js';
 
 const TUT_KEY = 'mc-tut-v2';
 const FOLD_KEY = 'mc-tut-fold'; // «свернуть подсказки обучения» — только на этом устройстве (выключить совсем — в настройках, хранит сервер)
@@ -17,7 +18,7 @@ const angOf = (t, ctx) => Math.atan2(t.y - ctx.y, t.x - ctx.x);
 export const T_COLORS = ['#4ade80', '#38bdf8', '#f472b6', '#facc15', '#fb923c', '#a78bfa', '#f87171', '#2dd4bf', '#e879f9', '#a3e635', '#60a5fa', '#fbbf24'];
 export const tColor = (i) => T_COLORS[i % T_COLORS.length];
 /** цель охоты из Бестиария: ближайший живой моб → лагерь → место обитания → портал в другую локацию */
-function huntOf(mt, ctx) {
+function huntOf(mt, ctx, bcfg = { on: true, soon: 10 }) {
   const isT = (t) => goalMatch(mt, t);
   const nm = ZONE_MOBS[mt]?.name || ZONE_MOBS[baseOf(mt)]?.name || mt;
   let best = null, bd = Infinity, where = '';
@@ -25,6 +26,9 @@ function huntOf(mt, ctx) {
   if (best) where = 'рядом';
   if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🎯 Лагерь: ' + nm, mob: 1, hunt: 'camp' }; } }
   if (best && !where) where = 'лагерь неподалёку';
+  if (!best) { // мировой босс: логово с живым состоянием (жив / возродится через…); логово без босса — с таймером, а не «босс здесь»
+    const l = pickLair(bossLairs(isT, ctx.world), ctx);
+    if (l) { best = lairTarget(l, '🎯 ' + nm, bcfg, { mob: 1, hunt: 'boss' }); where = l.alive ? 'жив, в своём логове' : bcfg.on ? spawnText(l, bcfg) : 'логово мирового босса'; } }
   if (!best) { const n = nearestHome(mt, ctx.world, ctx.x, ctx.y);
     if (n && !n.portal && n.home.world === ctx.world) { best = { world: ctx.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm + ' · ' + n.home.region.split(':')[0], mob: 1, hunt: 'home' }; where = n.home.region; }
     else if (n) { where = `${WORLD_NAMES[n.home.world] || n.home.world} · ${n.home.region}`; best = n.portal ? { world: ctx.world, x: n.portal.x, y: n.portal.y, label: `🎯 ${nm}: портал в ${WORLD_NAMES[n.home.world] || n.home.world}`, hunt: 'portal', far: n.home.world } : { world: n.home.world, x: n.home.x, y: n.home.y, label: '🎯 ' + nm, hunt: 'far' }; }
@@ -73,6 +77,7 @@ export class QuestTracker {
   // ctx: { world, x, y, hasClass, online, near: {altar, npc}, moved }
   update(ctx) {
     const st = this.meta.state;
+    this.bcfg = bossCfg(this.board);
     // обучение: короткие шаги, пока игрок их не выполнил
     let tip = '';
     const B = this.board, srvTut = !!(B?.ready && B.defs.cfg.tutOn);
@@ -132,6 +137,9 @@ export class QuestTracker {
         let best = null, bd = Infinity;
         for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: ZONE_MOBS[m.type]?.name || 'Цель', mob: 1 }; } }
         if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
+        if (!best) { const l = pickLair(bossLairs(isT, ctx.world), ctx); // мировой босс: логово с живым состоянием
+          if (l) { best = lairTarget(l, ZONE_MOBS[l.type]?.name || 'Босс', this.bcfg, { mob: 1 });
+            if (best.sp) html = html.replace('</ul>', `<li class="turnin bsp${l.alive ? ' alive' : ''}">${l.alive ? '☠' : '⏳'} ${esc(best.sp)}</li></ul>`); } }
         if (!best) { // нет рядом — место обитания первого незакрытого моба-цели (в другой локации — портал туда)
           let ty = null, n = null, nd = Infinity; // ближайшее место обитания среди всех мобов-целей (своя локация важнее)
           for (const t0 of primTypes) { const r = nearestHome(t0, ctx.world, ctx.x, ctx.y); if (!r) continue; const d = r.portal ? 1e12 : Math.hypot(r.home.x - ctx.x, r.home.y - ctx.y); if (d < nd) { nd = d; n = r; ty = t0; } }
@@ -157,7 +165,7 @@ export class QuestTracker {
     // мини-карте и карте M; компас — к первой. Цель: ближайший живой моб, иначе лагерь, иначе место обитания; в другой локации — портал туда
     const mts = (this.meta.mobTracks || (this.meta.mobTrack ? [this.meta.mobTrack] : [])).filter((id) => ZONE_MOBS[id] || ZONE_MOBS[baseOf(id)]);
     this.hunts = []; this.hunt = null;
-    for (const mt of mts) { this.trackTypes.add(mt); this.hunts.push(huntOf(mt, ctx)); }
+    for (const mt of mts) { this.trackTypes.add(mt); this.hunts.push(huntOf(mt, ctx, this.bcfg)); }
     if (this.hunts.length) {
       this.hunt = this.hunts[0];
       if (this.hunt.target) this.target = this.hunt.target; // охота из Бестиария — явный выбор игрока, компас ведёт к первой

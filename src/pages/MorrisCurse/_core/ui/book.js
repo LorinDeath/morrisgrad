@@ -20,6 +20,7 @@ import { ITEM_BY_ID, iconHtml } from '../meta/itemCards.js';
 import { QUESTS, QUEST_BY_ID, CAMPAIGN_NAMES } from '../../../../../server/meta/quests.ts';
 import { esc } from './overlay.js';
 import { mobHomes, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
+import { bossCfg, bossLairs, pickLair, spawnText } from './bossSpawn.js';
 import { skillIcon } from './actionBar.js';
 
 const TABS = [
@@ -684,6 +685,7 @@ export class Book {
         body = `<div class="s">${S ? `ур. ${S.lvl} · ${esc(ROLE_RU[info?.role] || info?.role || '')} · ОЗ ${fmtBig(S.hp)} · урон ${S.dmg} · броня ${S.armor}` : ''}</div>
           ${lm?.st?.skills?.length ? `<div class="h">Навыки: ${lm.st.skills.map(esc).join(', ')}</div>` : ''}
           ${canTrack ? `<button class="mc-btn sm ${this.meta.isMobTracked(id) ? 'gold' : ''}" data-act="mtrack" data-v="${id}">${this.meta.isMobTracked(id) ? '🧭 Не отслеживать' : `🧭 Отслеживать${this.meta.mobTracks.length ? ` (${this.meta.mobTracks.length})` : ''}`}</button>` : ''}
+          ${(() => { const bc = bossCfg(this.board), l = bc.on && pickLair(bossLairs((ty) => ty === id, 'arinar'), { x: 0, y: 0 }); return l ? `<div class="h">${l.alive ? '☠' : '⏳'} ${esc(spawnText(l, bc))}</div>` : ''; })()}
           ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
           ${RB[id]?.where?.length ? `<div class="h">Где встречается: ${esc(RB[id].where.join(', '))}</div>` : ''}
           ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : lm ? '<p class="mc-dim">Своей добычи нет.</p>' : '<p class="mc-dim">Загрузка пула добычи…</p>'}
