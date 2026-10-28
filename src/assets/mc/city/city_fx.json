@@ -1,0 +1,13 @@
+{
+  "_doc": "Эффекты Альказака (hub/cityView.js): дым из труб. chimneys — по ключу картинки здания (buildings.json), точки [x, y] в px картинки: x — середина трубы, y — верх трубы (откуда идёт дым). clip — снять запечённый дым над трубой: прямоугольник [x-left .. x+right] × [0 .. y-gap] стирается при загрузке. smoke_sheet — лист дыма Художника (fx/chimney_smoke.png), пока его нет — мягкий процедурный клуб.",
+  "chimneys": {
+    "bld_house_log_thatch": [[219, 32]],
+    "bld_house_log_slate": [[225, 32]],
+    "bld_house_plank_thatch": [[63, 32]],
+    "bld_house_timber_slate": [[75, 32]],
+    "bld_tavern": [[65, 30], [324, 36]]
+  },
+  "clip": { "left": 16, "right": 20, "gap": 0 },
+  "smoke": { "rate": 2.2, "life": 3.6, "rise_mps": 0.75, "drift_mps": 0.28, "size0_m": 0.7, "size1_m": 2.3, "alpha": 0.75, "color": "#a29eb0", "max": 120 },
+  "smoke_sheet": { "file": "fx/chimney_smoke.png", "frameW": 32, "frameH": 32, "frames": 8, "fps": 8, "note": "8 кадров 32×32 в строку (256×32), RGBA, клуб дыма по центру кадра; кадр выбирается по возрасту частицы (0 — рождение … 7 — растаял)" }
+}

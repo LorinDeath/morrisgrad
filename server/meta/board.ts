@@ -19,10 +19,10 @@ export type Cat = "tut" | "npc" | "hunt" | "daily" | "weekly" | "monthly" | "har
 export const CATS: Cat[] = ["tut", "npc", "hunt", "daily", "weekly", "monthly", "hard", "ach"];
 export const CAT_NAMES: Record<Cat, string> = { tut: "Обучение", npc: "Персонажи", hunt: "Доска охоты", daily: "Ежедневные", weekly: "Еженедельные", monthly: "Ежемесячные", hard: "Тяжёлые", ach: "Достижения" };
 /** кто выдаёт: персонаж или «Доска объявлений» (объект в Аринаре; задания с неё берут, отменяют и сдают рядом с ней) */
-export const GIVERS = ["", "board", "petr", "kyut", "alzi", "leyr"];
+export const GIVERS = ["", "board", "petr", "kyut", "alzi", "leyr", "city_27"]; // city_27 — Китти (житель Альказака, ходит по городу; server/meta/city.ts)
 /** персонажи, которые сами выдают и принимают свои (личные) задания — в диалоге, как сюжетные квесты */
-export const NPC_GIVERS = ["petr", "kyut", "alzi", "leyr"];
-export const GIVER_NAMES: Record<string, string> = { "": "—", board: "Доска объявлений", petr: "Петр", kyut: "Кьют", alzi: "Алзи", leyr: "Лэйр" };
+export const NPC_GIVERS = ["petr", "kyut", "alzi", "leyr", "city_27"];
+export const GIVER_NAMES: Record<string, string> = { "": "—", board: "Доска объявлений", petr: "Петр", kyut: "Кьют", alzi: "Алзи", leyr: "Лэйр", city_27: "Китти" };
 const PERIODIC: Cat[] = ["daily", "weekly", "monthly", "hard"]; // тяжёлые — случайный набор на неделю (решение Алекса: всё повторяющееся — из пула)
 
 export interface BTask {

@@ -37,11 +37,12 @@ import { uiClient, UI_CFG } from "./uiCfg";
 import { cleanLayout, layoutView, UI_LAY_RATE_MS } from "./uiLayout";
 import { terrainClient } from "./terrainCfg";
 import { NpcWander } from "./npcWander";
+import { CityWalk } from "./cityWalk";
 import { BlackMage, BM_NPC, BM_LOCK } from "./blackMage";
 import { BM_CFG, bmClock, bmClient, DAY_MS } from "./bmCfg";
 import { WORLD_GEN, inSafe } from "./zoneGen";
 import { dnClient, DN_CFG, dnAt, dnMinutes } from "./dayNight";
-import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, type PkState } from "./city";
+import { CITY_CFG, PK_CFG, POS_CFG, KillLog, inCity, pushOut, cityKeepOut, cityR, newPk, pkToggle, pkInterrupt, pkTick, pkLeft, pvpAllowed, pkGrantDefense, pkIdle, CITY_TILE, pkPublic, cityAltarPos, cityAltarOn, type PkState } from "./city";
 import { cityClient, syncCityNpcs, cityNpcId, slotPos, roomAt, buildingById, doorNear, onExit, roomSpawn, outsideDoor, inRoomArea, roomWalkable } from "./cityBuild";
 let MZ: { ver: number; z: any } | null = null;
 import { BOARD_CFG, devBoardRoll, bmWanted, tutPending, boardEvent, boardRefresh, boardClient, boardDefs, boardClaim, boardTake, boardPin, boardTut, nearBoard, atBoard, takeAt, npcTasks, BTASKS, isEliteKill } from "./board";
@@ -99,6 +100,7 @@ export interface MetaSess {
 // Схема входящих мета-сообщений: тип → поля и их типы (лишние поля игнорируются, неверные — отказ)
 const S = (o: Record<string, "s" | "n" | "b" | "o" | "a" | "s?" | "n?" | "b?" | "o?" | "a?">) => o;
 const MSG_SCHEMA: Record<string, Record<string, string>> = {
+  city_altar: S({ act: "s" }), // алтарь перевоплощения Альказака: bind | unbind | soul | body
   meta_get: S({}), lib_get: S({}), board_claim: S({ id: "s" }), board_take: S({ id: "s", on: "b" }), board_pin: S({ id: "s", on: "b" }), board_tut: S({ mode: "s" }), board_ui: S({ name: "s" }), talent_learn: S({ id: "s" }), loadout_set: S({ ids: "a" }), radiance_up: S({ id: "s" }), ability_silence: S({ id: "s", confirm: "s?" }),
   soul_buy: S({ id: "s" }), equip: S({ uid: "s" }), unequip: S({ slot: "s" }), salvage: S({ uid: "s" }), item_lock: S({ uid: "s", on: "b" }), item_upgrade: S({ uid: "s", at: "n?" }), salvage_preview: S({ rarity: "s" }), salvage_many: S({ rarity: "s", uids: "a" }), craft: S({ recipe: "s" }), npc_talk: S({ npc: "s" }), npc_talk_end: S({ npc: "s?" }),
   quest_accept: S({ id: "s" }), quest_turnin: S({ id: "s" }), run_result: S({ time: "n?", kills: "o?", bossKills: "n?", room: "s?" }),
@@ -234,6 +236,7 @@ export class MetaService {
     const ms: MetaSess = { cards: new Set(), rl: { t: 0, n: 0, warned: 0 }, sid: session.id, pkey, verified, ready: true, zp: { sid: session.id, x: session.x, y: session.y, hp: 70, maxHp: 70, armorRed: 0, alive: true, respawnAt: 0 },
       lastAtk: 0, gather: null, abilCd: {}, run: null, dirty: false, lastSave: Date.now(), lastHub: 0 };
     this.ms.set(session.id, ms);
+    if (session.stats?.soul) delete session.stats.soul; // облик души не переживает вход — всегда в теле
     ST.join(session.id, pkey, verified); if (verified && msg.guestId) { ST.pendingConv.add(pkey); if (ST.pendingConv.size > 500) ST.pendingConv.clear(); } // гость → вошёл в аккаунт (оценка)
     const a = this.store.account(pkey);
     // гость: имя из 100 четырёхбуквенных назначает сервер один раз (хранится в профиле), показ — «Гость» Имя
@@ -537,8 +540,9 @@ export class MetaService {
 
   bm = new BlackMage("arinar"); bmLoaded = false; bmSaving = false; bmDirty = false; bmSaveAt = 0; // Чёрный маг (blackMage.ts) — один на Аринар
   npcs = new NpcWander(); // NPC бродят вокруг точки появления (позиции — сервер, рассылка в zone_state.npc)
+  cityWalk = new CityWalk(); // жители Альказака: дом ↔ улица (места города с walk, cityWalk.ts)
   nearNpc(session: any, npc: string) {
-    const n = NPCS[npc], p = npc === BM_NPC ? { x: this.bm.x, y: this.bm.y } : this.npcs.pos(npc) || n; // Чёрный маг — живая позиция (телепорт)
+    const n = NPCS[npc], p = npc === BM_NPC ? { x: this.bm.x, y: this.bm.y } : this.npcs.pos(npc) || this.cityWalk.pos(npc) || n; // Чёрный маг — живая позиция (телепорт)
     if (npc === BM_NPC && (BM_CFG.on === false || this.bm.aggro.has(session.id))) return false; // выключен / этот игрок с ним в бою — ни взять, ни сдать
     // +20 px запаса: клиент видит NPC с интерполяцией (до ~0,2 с отставания), NPC мог чуть отойти
     return n && (session.world || "hellfire") === n.world && Math.hypot(session.x - p.x, session.y - p.y) <= NPC_RANGE + 20;
@@ -709,12 +713,13 @@ export class MetaService {
         else this.pkSend(ws, ms); // клиент думал, что он убийца, а это уже не так — обновить состояние
         return true;
       }
-      case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); if (!msg.npc || msg.npc === BM_NPC) this.bm.talkEnd(session.id); return true; }
+      case "city_altar": { this.cityAltar(ws, session, ms, String(msg.act), ctx); return true; }
+      case "npc_talk_end": { this.npcs.talkEnd(msg.npc ? String(msg.npc) : null, session.id); this.cityWalk.talkEnd(msg.npc ? String(msg.npc) : null, session.id); if (!msg.npc || msg.npc === BM_NPC) this.bm.talkEnd(session.id); return true; }
       case "npc_talk": {
         const npc = String(msg.npc);
         if (npc === BM_NPC && this.bm.aggro.has(session.id)) { this.send(ws, { type: "toast_error", message: "Чёрный маг не станет говорить с тем, кто на него напал" }); return true; } // с остальными говорит и во время боя
         if (!this.nearNpc(session, npc)) { this.send(ws, { type: "toast_error", message: "Подойдите ближе" }); return true; }
-        this.npcs.talkStart(npc, session.id, session.x, session.y); // стоит, пока открыт диалог (npc_talk_end / таймаут)
+        this.npcs.talkStart(npc, session.id, session.x, session.y); this.cityWalk.talkStart(npc, session.id, session.x, session.y); // стоит, пока открыт диалог (npc_talk_end / таймаут)
         if (npc === BM_NPC) this.bm.talkStart(session.id); // Чёрный маг тоже стоит и смотрит (если на него никто не напал)
         this.questEv(ws, session, { type: "talk", npc });
         questRefresh(a, h);
@@ -858,11 +863,11 @@ export class MetaService {
       }
       // выбор цели кликом: сервер шлёт её точные ХП/макс. ХП/имя/уровень в zone_state (панель «Цель»)
       case "zone_target": { const id = Number(msg.id); (ms as any).target = Number.isFinite(id) && id > 0 ? id : 0; return true; }
-      case "zone_attack": if (this.pvp.inDuel(session.id)) this.pvp.attack(ws, session, msg); else this.zoneAttack(ws, session, msg); return true;
-      case "zone_ability": if (this.pvp.inDuel(session.id)) this.pvp.ability(ws, session, msg); else this.zoneAbility(ws, session, msg); return true;
+      case "zone_attack": if (session.stats?.soul) return true; if (this.pvp.inDuel(session.id)) this.pvp.attack(ws, session, msg); else this.zoneAttack(ws, session, msg); return true;
+      case "zone_ability": if (session.stats?.soul) { this.send(ws, { type: "toast_error", message: "В облике души навыки недоступны" }); return true; } if (this.pvp.inDuel(session.id)) this.pvp.ability(ws, session, msg); else this.zoneAbility(ws, session, msg); return true;
       // PvP-дуэли (meta/pvp.ts): вызов, ответ, отмена своего вызова, сдача
       case "party_invite": case "party_respond": case "party_leave": case "party_kick": case "party_promote": case "party_get": this.partyMsg(ws, session, msg); return true;
-      case "duel_challenge": this.pvp.challenge(ws, session, msg); return true;
+      case "duel_challenge": if (session.stats?.soul) { this.send(ws, { type: "toast_error", message: "В облике души вызвать на дуэль нельзя" }); return true; } this.pvp.challenge(ws, session, msg); return true;
       case "duel_respond":
         // «Не беспокоить 5 минут»: отказ + запрет вызовов на весь аккаунт (все герои, все вкладки) на 5 минут
         if (msg.dnd) { this.social.setDnd(ms.pkey, true).then((p) => this.send(ws, { type: "settings", settings: this.social.settingsView(p), toast: "Не беспокоить: 5 минут" })).catch(() => {}); msg.accept = false; }
@@ -900,7 +905,7 @@ export class MetaService {
         return true;
       case "duel_cancel": this.pvp.cancel(ws, session); return true;
       case "duel_leave": this.pvp.leave(session, "forfeit"); return true;
-      case "gather_start": ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
+      case "gather_start": if (session.stats?.soul) { ms.gather = null; this.send(ws, { type: "toast_error", message: "В облике души собирать нельзя" }); return true; } ms.gather = { node: Number(msg.node), at: Date.now() }; return true;
       case "gather_done": this.gatherDone(ws, session, msg); return true;
       case "loot_open": this.lootOpen(ws, session, msg); return true;
       case "loot_take": this.lootTake(ws, session, msg); return true;
@@ -1029,6 +1034,7 @@ export class MetaService {
     if (!ms) return;
     ms.zp.x = session.x; ms.zp.y = session.y;
     (ms as any).cityVer = 0; // город: настройки отрисовки — заново
+    if (session.stats?.soul) this.soulSet(ws, session, ms, false, "мир сменился");
     this.posNote(session, ms, true);
     const a = this.store.account(ms.pkey);
     if (this.qev(a, session, { type: "reach", world: session.world }).length) { this.autoTurnInPrologue(a, session); this.push(ws, session); }
@@ -1043,6 +1049,7 @@ export class MetaService {
   }
   onRunJoin(session: any, room: string, members: number) {
     const ms = this.ms.get(session.id);
+    if (session.stats?.soul) delete session.stats.soul; // в забег — в теле
     if (ms) ms.run = { room, at: Date.now(), cls: session.stats?.classId || null, maxMembers: members, usedAbility: false };
   }
   onRunMembers(room: string, members: any[]) {
@@ -1821,12 +1828,69 @@ export class MetaService {
     return pushOut(x, y, 24 + CITY_TILE * Math.max(0, Number(CITY_CFG.pushExtraTiles) || 0));
   }
   /** такт игрока Аринара: PK-отсчёт, убийцу внутри — за край (стал убийцей внутри, телепорт, вход в игру) */
+  // ——— Алтарь перевоплощения Альказака (CITY_CFG.altar): точка возрождения + облик души ———
+  /** игрок у алтаря: тот же мир, жив, в радиусе (+20 px запаса на интерполяцию клиента) */
+  nearCityAltar(session: any) {
+    if (!cityAltarOn() || (session.world || "hellfire") !== "arinar" || session.runRoom) return false;
+    const [ax, ay] = cityAltarPos(); return Math.hypot(session.x - ax, session.y - ay) <= (Number(CITY_CFG.altar?.r) || 110) + 20;
+  }
+  /** точка возрождения у алтаря (на шаг южнее, проходимая) — если привязан, город и алтарь есть, мир Аринар и игрок не убийца */
+  altarRespawn(s: any, ms: any, w: string, now = Date.now()): { x: number; y: number } | null {
+    if (w !== "arinar" || !cityAltarOn()) return null;
+    const a: any = this.store.account(ms.pkey); const b = a?.altarRp; if (!b || b.id !== "alkazak") return null;
+    if (this.killerOf(ms, now).killer || this.pkOf(ms).pk) return null; // убийцу купол не пустит — возрождение как раньше
+    let [x, y] = cityAltarPos(); y += 48;
+    if (!walkable("arinar", x, y)) { const f = freeWalk("arinar", x, y); if (!f) return null; [x, y] = f; }
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+  /** облик души вкл/выкл: только вид и запреты (атаки, навыки, сбор, дуэли); в профиль не пишется — при переподключении тело */
+  soulSet(ws: WebSocket, session: any, ms: any, on: boolean, why = "") {
+    if (!session.stats) return;
+    if (on) session.stats.soul = 1; else delete session.stats.soul;
+    if (on) ms.gather = null;
+    this.send(ws, { type: "city_soul", on: on ? 1 : 0, why });
+    this.onPlayersChanged?.(); // всем — новый облик (stats.soul в рассылке игроков)
+  }
+  cityAltar(ws: WebSocket, session: any, ms: any, act: string, _ctx?: any) {
+    const C = CITY_CFG.altar || {}, now = Date.now(), a: any = this.store.account(ms.pkey);
+    const err = (m: string) => this.send(ws, { type: "toast_error", message: m });
+    if (!["bind", "unbind", "soul", "body", "get"].includes(act)) return;
+    if (act === "body") { if (session.stats?.soul) { const cd = Math.max(0, Number(C.soulCdSec) || 0) * 1000; if (now - ((ms as any).soulAt || 0) < cd) return err(`Облик можно сменить через ${Math.ceil((cd - (now - (ms as any).soulAt)) / 1000)} с`); (ms as any).soulAt = now; this.soulSet(ws, session, ms, false); this.altarState(ws, session, ms); } return; } // вернуться в тело — где угодно
+    if (!this.nearCityAltar(session)) return err("Подойдите к алтарю");
+    if (act === "get") return this.altarState(ws, session, ms);
+    if (!ms.zp.alive) return err("Вы мертвы");
+    if (act === "bind" || act === "unbind") {
+      const cd = Math.max(0, Number(C.bindCdSec) || 0) * 1000;
+      if (now - ((ms as any).altarAt || 0) < cd) return err(`Алтарь ещё не откликается: ${Math.ceil((cd - (now - (ms as any).altarAt)) / 1000)} с`);
+      if (act === "bind" && this.killerOf(ms, now).killer) return err("Алтарь не принимает убийцу");
+      (ms as any).altarAt = now;
+      if (act === "bind") a.altarRp = { w: "arinar", id: "alkazak", at: now }; else delete a.altarRp;
+      ms.dirty = true;
+      this.send(ws, { type: "toast", message: act === "bind" ? "✨ Алтарь перевоплощения запомнил вас: после гибели вы возродитесь здесь" : "Связь с алтарём разорвана: возрождение — как прежде", color: "#c4b5fd" });
+      return this.altarState(ws, session, ms);
+    }
+    // soul
+    if (C.soulOn === false) return err("Облик души сейчас недоступен");
+    if (session.stats?.soul) return;
+    if (!session.stats?.classId) return err("Сначала обретите тело");
+    if (session.inDuel || this.pvp.inDuel(session.id)) return err("Нельзя во время дуэли");
+    if (this.pkOf(ms).pk || this.killerOf(ms, now).killer) return err("Душа убийцы не отделится от тела");
+    const cd = Math.max(0, Number(C.soulCdSec) || 0) * 1000;
+    if (now - ((ms as any).soulAt || 0) < cd) return err(`Облик можно сменить через ${Math.ceil((cd - (now - (ms as any).soulAt)) / 1000)} с`);
+    (ms as any).soulAt = now; this.soulSet(ws, session, ms, true); this.altarState(ws, session, ms);
+  }
+  altarState(ws: WebSocket, session: any, ms: any) {
+    const a: any = this.store.account(ms.pkey), C = CITY_CFG.altar || {}, now = Date.now();
+    const left = (at: number, sec: number) => Math.max(0, Math.ceil((Number(sec) * 1000 - (now - (at || 0))) / 1000));
+    this.send(ws, { type: "city_altar", bound: a?.altarRp?.id === "alkazak" ? 1 : 0, soul: session.stats?.soul ? 1 : 0, soulOn: C.soulOn !== false, bindCd: left((ms as any).altarAt, C.bindCdSec || 0), soulCd: left((ms as any).soulAt, C.soulCdSec || 0) });
+  }
   cityTick(ws: WebSocket, s: any, ms: any, now: number) {
     const P = this.pkOf(ms);
     if (pkTick(P, now)) { this.pkSend(ws, ms, now); if (s.stats) s.stats.pk = P.pk ? 1 : 0; ST.inc(P.pk ? "pk_on" : "pk_off"); (this.store.account(ms.pkey) as any).pk = P.pk ? 1 : undefined; ms.dirty = true;
       this.send(ws, { type: "toast", message: P.pk ? "⚔ PK-режим включён: вы можете нападать на игроков. Купол Альказака вас не пустит." : "PK-режим выключен", color: P.pk ? PK_CFG.color : "#a7f3d0" }); }
     const k = this.killerOf(ms, now);
     if (s.stats) pkPublic(s.stats, P, PK_CFG.tagKiller !== false && k.killer && !P.pk, now); // видят все: полоса отсчёта над героем, значок PK у убийц
+    if (s.stats?.soul && (!ms.zp.alive || P.pk || !inCity(s.x, s.y) || s.inDuel)) this.soulSet(ws, s, ms, false, !ms.zp.alive ? "гибель" : P.pk ? "PK-режим" : s.inDuel ? "дуэль" : "вне города");
     if (!ms.zp.alive || !inCity(s.x, s.y)) return;
     if (!(ms as any).cityIn) { (ms as any).cityIn = 1; this.bev(s, { type: "city" }); } // доска: скрытое достижение — один раз (повтор отсекает boardEvent)
     if (!k.killer) return;
@@ -1879,7 +1943,8 @@ export class MetaService {
     if (!aSid || !vSid || aSid === vSid) return false;
     const ams = this.ms.get(aSid), vms = this.ms.get(vSid); if (!ams || !vms || !ams.zp.alive || !vms.zp.alive) return false;
     const ea = this.sessionLookup?.(aSid), ev = this.sessionLookup?.(vSid); if (!ea || !ev) return false;
-    const sa = ea[1], sv = ev[1]; if ((sa.world || "hellfire") !== "arinar" || (sv.world || "hellfire") !== "arinar" || sa.inDuel || sv.inDuel) return false;
+    const sa = ea[1], sv = ev[1]; if (sa.stats?.soul || sv.stats?.soul) return false; // облик души — вне боя
+    if ((sa.world || "hellfire") !== "arinar" || (sv.world || "hellfire") !== "arinar" || sa.inDuel || sv.inDuel) return false;
     if (PK_CFG.on === false) return false;
     const now = Date.now(), A = this.pkOf(ams), V = this.pkOf(vms);
     const how = pvpAllowed(A, V, vSid, this.pvpSafe(aSid, ams), this.pvpSafe(vSid, vms), now); if (!how) return false;
@@ -2114,6 +2179,7 @@ export class MetaService {
     if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
     try { this.npcs.tick(now, Math.min(0.5, dt)); } catch (e: any) { console.error("[mc] npc tick", e?.message || e); }
+    try { this.cityWalk.sync(now); this.cityWalk.tick(now, Math.min(0.5, dt)); } catch (e: any) { console.error("[mc] city walk tick", e?.message || e); }
     const byWorld: Record<string, { players: Map<string, ZPlayer>; socks: [WebSocket, any][] }> = {};
     for (const w of Object.keys(this.zones)) byWorld[w] = { players: new Map(), socks: [] };
     for (const [ws, s] of sessions) {
@@ -2125,7 +2191,7 @@ export class MetaService {
         this.fogTick(ws, s, ms, w, now);
         if (!ms.zp.alive && now >= ms.zp.respawnAt) {
           ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp;
-          const rp = genOf(w).respawn;
+          const rp = this.altarRespawn(s, ms, w, now) || genOf(w).respawn; // привязка к алтарю перевоплощения Альказака — там; иначе как раньше
           s.x = rp.x; s.y = rp.y; ms.zp.x = s.x; ms.zp.y = s.y;
           this.send(ws, { type: "zone_respawn", x: s.x, y: s.y });
         }
@@ -2179,7 +2245,7 @@ export class MetaService {
       const npc: any[] = this.npcs.snapshot(w); // [id, x, y, dir, moving] — все NPC мира (их единицы)
       const bmOn = w === "arinar" && this.bm.loaded && BM_CFG.on !== false, bmE = bmOn ? this.bm.npcEntry() : null;
       if (bmE) npc.push(bmE); // Чёрный маг — НПС квестов (позиция живая)
-      if (w === "arinar" && CITY_CFG.on !== false) (CITY_CFG.npc as any[]).forEach((sl, i) => { const p = sl.on ? slotPos(sl) : null; if (p) npc.push([cityNpcId(i), p[0], p[1], 0, 0]); }); // места NPC города (снаружи и в комнатах зданий)
+      if (w === "arinar" && CITY_CFG.on !== false) (CITY_CFG.npc as any[]).forEach((sl, i) => { const id = cityNpcId(i), e = sl.on ? this.cityWalk.entry(id) : null; if (e) { npc.push(e); return; } const p = sl.on ? slotPos(sl) : null; if (p) npc.push([id, p[0], p[1], 0, 0]); }); // места NPC города (снаружи и в комнатах зданий)
       const cityCfgSig = w === "arinar" ? JSON.stringify(cityClient()) : "";
       const dnSig = w === "arinar" ? JSON.stringify(DN_CFG) : "";
       if (cityCfgSig && cityCfgSig !== (this as any).citySig) { (this as any).citySig = cityCfgSig; this.cityVer++; syncCityNpcs(NPCS as any); }

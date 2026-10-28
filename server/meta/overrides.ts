@@ -273,10 +273,30 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "centerpiece", label: "Центр площади: fountain — фонтан, statue — статуя (место зарезервировано), none — пусто (коллизия — после перезапуска)", t: "enum", opts: Object.keys(CENTERPIECES) },
     N("centerFreeTiles", "Свободно вокруг центра, клеток (после перезапуска)", 1, 6),
     N("groundLight", "Яркость земли города (1 — как тайлы; больше — светлее днём и ночью; вживую)", 0.4, 2.5),
+    { path: "_h_altar", label: "Алтарь перевоплощения (у фонтана)", t: "hdr" },
+    { path: "altar.on", label: "Алтарь стоит (привязка точки возрождения, облик души)", t: "bool" },
+    N("altar.dx", "Точка X, px от центра города (клетка фонтана)", -1200, 1200, "int"), N("altar.dy", "Точка Y, px от центра города", -1200, 1200, "int"),
+    N("altar.r", "Радиус взаимодействия, px", 40, 400, "int"), N("altar.bindCdSec", "Откат привязки возрождения, с", 0, 3600, "int"),
+    { path: "altar.soulOn", label: "Можно принять облик души (белая душа, без атак и сбора)", t: "bool" }, N("altar.soulCdSec", "Откат смены облика (душа ↔ тело), с", 0, 600, "int"),
+    { path: "_h_walk", label: "Жители: прогулка (места с «ходит»)", t: "hdr" },
+    { path: "walk.on", label: "Жители ходят (выкл — стоят дома на своём месте)", t: "bool" }, { path: "walk.goOut", label: "Выходят из дома на улицу", t: "bool" },
+    N("walk.speed", "Скорость шага, px/с", 5, 160, "int"), N("walk.rInTiles", "Радиус прогулки дома, клеток", 0, 6), N("walk.rOutTiles", "Радиус прогулки на улице (от двери), клеток", 0, 20),
+    N("walk.inMinSec", "Дома: от, с", 5, 3600, "int"), N("walk.inMaxSec", "Дома: до, с", 5, 3600, "int"), N("walk.outMinSec", "На улице: от, с", 5, 3600, "int"), N("walk.outMaxSec", "На улице: до, с", 5, 3600, "int"),
+    N("walk.pauseMin", "Пауза между шагами: от, с", 0, 60), N("walk.pauseMax", "Пауза: до, с", 0, 60),
+    N("walk.roamRTiles", "«Бродит по городу»: длина шага-перехода, клеток (следующая точка — от текущей позиции)", 2, 30), N("walk.roamOutMul", "…на улице дольше обычного, ×", 1, 10),
+    N("walk.roamHomeSec", "…путь домой пешком: не дольше, с (потом — сразу через дверь)", 10, 600, "int"),
+    { path: "_h_fx", label: "Эффекты: дым из труб, камин", t: "hdr" },
+    { path: "fx.smokeOn", label: "Дым из труб (вживую)", t: "bool" }, N("fx.smokeRate", "…частота клубов, ×", 0.1, 4), N("fx.smokeRise", "…скорость подъёма, ×", 0.1, 4), N("fx.smokeAlpha", "…непрозрачность", 0, 1), N("fx.smokeSize", "…размер клубов, ×", 0.3, 3), { path: "fx.smokeSheet", label: "…лист дыма (main — основной, thin — тонкий)", t: "enum", opts: ["main", "thin"] },
+    { path: "fx.resGlow", label: "Свечение листов жителей (residents/<key>_glow.png: глаза и т.п.)", t: "bool" }, N("fx.resGlowK", "…сила свечения", 0, 4), N("fx.resRim", "Контур жителей 1px (видимость тёмных волос на тёмной земле), 0 — выкл", 0, 1),
+    { path: "fx.hearthOn", label: "Огонь в каминах домов (анимация + свет)", t: "bool" }, N("fx.hearthFlick", "…мерцание света: сила (0 — ровный)", 0, 1), N("fx.hearthSpeed", "…мерцание: скорость, ×", 0.1, 5),
+    N("fx.hearthK", "…яркость света", 0, 2), N("fx.hearthR", "…радиус света, ×", 0.3, 3),
     ...Array.from({ length: CITY_SLOTS }, (_, i) => { const p = (k: string) => `npc.${i}.${k}`; return [
       { path: p("_h"), label: `NPC — место ${i + 1}`, t: "hdr" as const }, { path: p("on"), label: "Стоит в городе (квесты — во вкладке «📜 Квесты», NPC city_" + (i + 1) + ")", t: "bool" as const },
       { path: p("name"), label: "Имя", t: "text" as const }, { path: p("title"), label: "Подпись", t: "text" as const },
       { path: p("look"), label: "Вид (временный, лист NPC)", t: "enum" as const, opts: CITY_LOOKS },
+      { path: p("sprite"), label: "Свой спрайт: ключ листа src/assets/mc/city/residents/<ключ>.png (пусто/нет файла — «Вид»)", t: "text" as const },
+      { path: p("walk"), label: "Ходит: живёт в здании и выходит гулять по городу", t: "bool" as const },
+      { path: p("roam"), label: "Бродит по всему городу (не только у своей двери)", t: "bool" as const },
       N(p("dx"), "Снаружи: точка X, клеток от центра (по умолчанию — точки карты Историка)", -60, 60), N(p("dy"), "Снаружи: точка Y, клеток от центра", -60, 60),
       { path: p("house"), label: "В здании (пусто — снаружи, по точке X/Y)", t: "enum" as const, opts: ["", ...BUILD_DEF.map((h) => h.id)], optn: Object.fromEntries([["", "— снаружи"], ...BUILD_DEF.map((h) => [h.id, h.name])]) },
       { path: p("spot"), label: "Место в здании: " + [...new Set(Object.values(ROOMS).flatMap((r: any) => (r.npc_spots || []).map((s: any) => s.id)))].join(" / "), t: "text" as const },
@@ -601,7 +621,7 @@ function validateBtask(id: string, out: any): string | null {
   const f = String(get("f", "")); for (const x of f.split(",").map((s) => s.trim()).filter(Boolean)) if (!BT_FLAGS.has(x) && !isEnchFlag(x)) return `условие «${x}» неизвестно`;
   if (!/^[\w:]{0,40}$/.test(String(get("m", "")))) return "цель: латиница, цифры, «_» и «:»";
   { const m = String(get("m", "")), ev = String(get("ev", "")), orig = ORIG.get("btask:" + id)?.m ?? T.m; if (m !== orig || CUSTOM_BT.test(id)) { const e = btTargetErr(ev, m); if (e) return e; } }
-  if (CUSTOM_BT.test(id) && T.cat === "npc" && !NPC_GIVERS.includes(String(get("giver", "")))) return "задание персонажа: выберите, кто его выдаёт (Петр, Кьют, Алзи или Лэйр)";
+  if (CUSTOM_BT.test(id) && T.cat === "npc" && !NPC_GIVERS.includes(String(get("giver", "")))) return "задание персонажа: выберите, кто его выдаёт (Петр, Кьют, Алзи, Китти или Лэйр)";
   const item = String(get("item", "")); if (item && !ITEM_BY_ID[item]) return `нет предмета ${item}`;
   for (const r of String(get("req", "")).split(",").map((s) => s.trim()).filter(Boolean)) { const rid = r.split("@")[0]; if (!TABLES.btask[rid]) return `нет задания ${rid}`; if (rid === id) return "задание не может требовать само себя"; }
   if (!/^[\w:]{0,40}$/.test(String(get("hl", "")))) return "подсветка: латиница, цифры, «_» и «:»";

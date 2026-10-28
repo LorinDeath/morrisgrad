@@ -19,6 +19,8 @@ import { registerMarker } from '../../../../../server/meta/markers.ts';
 import DOME from '../../../../assets/mc/city/city_dome.json';
 import PROPS from '../../../../assets/mc/city/props_dark_atlas.json';
 import BLD from '../../../../assets/mc/city/buildings.json';
+import FXJ from '../../../../assets/mc/city/city_fx.json';
+import { makePortal } from '../engine/models.js';
 import p32Src from '../../../../assets/mc/city/props_dark_p32.png';
 import p32GSrc from '../../../../assets/mc/city/props_dark_p32_glow.png';
 import b64Src from '../../../../assets/mc/city/props_dark_b64.png';
@@ -34,6 +36,8 @@ import flSrc from '../../../../assets/mc/city/city_dome_rim_flash.png';
 import flGSrc from '../../../../assets/mc/city/city_dome_rim_flash_glow.png';
 
 const BLD_SRC = import.meta.glob('../../../../assets/mc/city/bld_*.png', { eager: true, query: '?url', import: 'default' });
+// дым из труб (city_fx.json): лист Художника fx/chimney_smoke.png, если положен; иначе — процедурный клуб
+const SMOKE_SRCS = Object.fromEntries(Object.entries(import.meta.glob('../../../../assets/mc/city/fx/chimney_smoke*.png', { eager: true, query: '?url', import: 'default' })).map(([k, v]) => [k.includes('_alt_thin') ? 'thin' : 'main', v])); // админка fx.smokeSheet: main | thin
 const bldUrl = (f) => BLD_SRC[`../../../../assets/mc/city/${f}`] || null;
 const SIN_P = Math.sin(1.02); // камера 58°: арт 3/4 (1 px = 1 px мира на экране) → высота спрайта × sin(pitch), основание совпадает с землёй
 const PX = 20, BLOCK_M = 1.6, FLASH = DOME.sheets?.rim_flash?.alpha_curve_30fps || [0, 1, 0.85, 0.65, 0.45, 0.3, 0.18, 0.08, 0];
@@ -102,9 +106,10 @@ export class CityView {
     this.ringCfg(c); // линия края купола — вживую из админки
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
-    for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
+    for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, sprite: n.sprite || '', glow: c.fx?.resGlow === false ? 0 : Math.max(0, Number(c.fx?.resGlowK ?? 1.4)), rim: Math.max(0, Math.min(1, Number(c.fx?.resRim ?? 0.6))), walk: !!n.walk }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
     registerMarker({ id: 'city:alkazak', type: 'sign', world: 'arinar', x: c.x, y: c.y - 60, icon: '🏰', label: `${c.name || 'Альказак'} — город под куполом · без сражений` });
-    if (moved) this.place();
+    if (moved) this.place(); else if (this.ready) this.buildMap(); // алтарь / дым из админки — пересборка по подписи
+    this.placeAltar();
   }
   place() {
     const c = this.cfg; if (!c) return;
@@ -113,10 +118,63 @@ export class CityView {
     this.buildHouses(); this.buildCenter(); this.buildMap(); this.buildBlight();
   }
   buildHouses() {}
+  /** запечённый в арт здания дым над трубой — стереть (дым теперь живой). Общая копия на ключ здания */
+  clipSmoke(tp, key, ch) {
+    const C = (this._clip ||= {}); if (C[key]) return C[key];
+    const cl = FXJ.clip || { left: 16, right: 20, gap: 0 };
+    return (C[key] = tp.then((t0) => { const im = t0.image, cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height; const x = cv.getContext('2d'); x.drawImage(im, 0, 0);
+      for (const [ix, iy] of ch) x.clearRect(ix - (cl.left ?? 16), 0, (cl.left ?? 16) + (cl.right ?? 20), Math.max(0, iy - (cl.gap ?? 0)));
+      const t = new this.THREE.CanvasTexture(cv); t.magFilter = t.minFilter = this.THREE.NearestFilter; t.generateMipmaps = false; return t; }));
+  }
+  /** клубы дыма: пул спрайтов (один материал на частицу — своя прозрачность) */
+  smokeInit() {
+    const THREE = this.THREE, S = FXJ.smoke || {}, max = Math.max(8, Math.min(240, S.max | 0 || 120));
+    const proc = () => { const cv = document.createElement('canvas'); cv.width = cv.height = 32; const x = cv.getContext('2d'); // мягкий пиксельный клуб
+      for (const [cx, cy, r, a] of [[16, 17, 11, 0.55], [11, 14, 7, 0.5], [21, 13, 7, 0.45], [15, 10, 6, 0.4]]) { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); }
+      const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return [t]; };
+    this.smokeTex = proc(); this.smoke = []; this.smokeG = new THREE.Group(); this.smokeG.name = 'city-smoke'; this.group.add(this.smokeG);
+
+    const col = hex(S.color, 0x6f6a78);
+    for (let i = 0; i < max; i++) { const m = new THREE.SpriteMaterial({ map: this.smokeTex[0], transparent: true, depthWrite: false, opacity: 0, fog: false }); setDisplayHex(m.color, col);
+      const sp = new THREE.Sprite(m); sp.visible = false; sp.renderOrder = 5; this.smokeG.add(sp); this.smoke.push({ sp, t: 1e9, life: 1, vx: 0, vy: 0, vz: 0 }); }
+  }
+  smokeLoad(key) { // лист дыма Художника; нет файла — процедурный клуб
+    const THREE = this.THREE;
+    const src = SMOKE_SRCS[key] || SMOKE_SRCS.main; this._smK = key; if (!src) return;
+    loadAtlasTexture(THREE, src).then((t0) => { if (this._smK !== key) return; const sh = FXJ.smoke_sheet || {}, n = Math.max(1, sh.frames | 0 || 8), im = t0.image, fw = Math.round(im.width / n), out = [];
+      for (let f = 0; f < n; f++) { const cv = document.createElement('canvas'); cv.width = fw; cv.height = im.height; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(im, f * fw, 0, fw, im.height, 0, 0, fw, im.height);
+        const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; out.push(pixTex(THREE, t)); }
+      this.smokeTex = out; this.smokeSheet = true; for (const q of this.smoke || []) q.sp.material.color.setRGB(1, 1, 1); }).catch(() => {}); // цвет — из листа (без подкраски)
+  }
+  smokeStep(dt) {
+    const C = this.cfg?.fx || {}, S = FXJ.smoke || {}; if (!this.smoke) this.smokeInit(); const smK = C.smokeSheet === 'thin' ? 'thin' : 'main'; if (this._smK !== smK) this.smokeLoad(smK);
+    const on = C.smokeOn !== false && this.chim?.length, rate = (Number(S.rate) || 2.2) * Math.max(0, Number(C.smokeRate ?? 1)) * (this.quality >= 2 ? 0.5 : 1);
+    const life = Number(S.life) || 3.6, rise = (Number(S.rise_mps) || 0.75) * Math.max(0, Number(C.smokeRise ?? 1)), drift = Number(S.drift_mps) || 0.28;
+    const s0 = (Number(S.size0_m) || 0.7) * Math.max(0.1, Number(C.smokeSize ?? 1)), s1 = (Number(S.size1_m) || 2.3) * Math.max(0.1, Number(C.smokeSize ?? 1)), A = Math.min(1, Math.max(0, Number(C.smokeAlpha ?? S.alpha ?? 0.55)));
+    const W = this._ws ||= [0, 0, 0], T = this.time;
+    if (on) for (const e of this.chim) { e.acc += rate * dt; while (e.acc >= 1) { e.acc -= 1; const p = this.smoke.find((q) => q.t >= q.life); if (!p) break;
+      emitterWorld(e.x0, 0, e.z0, e.off, -0.35, W); p.sp.position.set(W[0] + (Math.random() - 0.5) * 0.15, W[1], W[2]); p.t = 0; p.life = life * (0.8 + Math.random() * 0.4);
+      p.vx = drift * (0.6 + Math.random() * 0.8) * (0.8 + 0.4 * Math.sin(T * 0.3)); p.vy = rise * (0.85 + Math.random() * 0.3); p.vz = -0.05; p.sp.visible = true; } }
+    const F = this.smokeTex, nF = F.length;
+    for (const p of this.smoke) { if (p.t >= p.life) { if (p.sp.visible) p.sp.visible = false; continue; }
+      p.t += dt; const k = Math.min(1, p.t / p.life); if (k >= 1) { p.sp.visible = false; continue; }
+      p.sp.position.x += p.vx * dt * (0.3 + k); p.sp.position.y += p.vy * dt; p.sp.position.z += p.vz * dt;
+      const sz = s0 + (s1 - s0) * Math.sqrt(k); p.sp.scale.set(sz, sz, 1);
+      p.sp.material.opacity = A * Math.min(1, k * 6) * (1 - k); // линейное угасание: шлейф виден на тёмной крыше/траве (квадрат гасил клуб к середине жизни)
+      const map = F[Math.min(nF - 1, Math.floor(k * nF))]; if (p.sp.material.map !== map) { p.sp.material.map = map; p.sp.material.needsUpdate = true; } }
+  }
+  /** Алтарь перевоплощения у фонтана (zone_state.city.altar) — тот же арт, что у Алтаря Поляны */
+  placeAltar() {
+    const a = this.cfg?.on && this.cfg?.altar;
+    if (!a) { if (this.altarObj) { this.group.remove(this.altarObj.group); this.altarObj = null; } return; }
+    if (!this.altarObj) { this.altarObj = makePortal(this.THREE, { id: 'portal_class_select', color: '#a855f7' }); this.altarObj.group.name = 'city-altar'; this.group.add(this.altarObj.group); }
+    this.altarObj.group.position.set(toX(a.x), 0, toZ(a.y));
+  }
+  flashAltar() { this.altarObj?.flash?.(); }
   // ——— карта Историка: здания bld_* (+glow) и пропсы dm_* (+glow, анимации) — спрайты к камере, якорь — низ по центру ———
   buildMap() {
     const THREE = this.THREE, c = this.cfg; if (!c) return;
-    const sig = `${c.x},${c.y},${c.rTiles}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
+    const A = c.altar, fxo = c.fx || {}, sig = `${c.x},${c.y},${c.rTiles}|${A ? A.x + ',' + A.y : '-'}|${fxo.smokeOn !== false}`; if (this.mapSig === sig) return; this.mapSig = sig; this.emV = emitterVersion();
     if (this.mapG) { this.group.remove(this.mapG); this.mapG.traverse((o) => { if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } if (o.isMesh) o.geometry?.dispose?.(); }); } // у Sprite геометрия общая (three) — только у мешей (пролёты забора)
     this.toneMats = []; this.toneSig = '';
     const g = new THREE.Group(); g.name = 'city-map'; this.mapG = g; this.group.add(g); this.anim = []; this.animSet = new Set();
@@ -144,13 +202,17 @@ export class CityView {
         const sp = new THREE.Sprite(m); sp.center.set(an[0], 1 - an[1]); sp.scale.set(wM, hM * SIN_P, 1); sp.position.set(toX(x), add ? 0.02 : 0, toZ(y) + (add ? 0.01 : 0)); sp.renderOrder = add ? 4 : 3;
         (add ? gg : g).add(sp); if (add) this.glows.push({ m, lamp, kind, h: lampHash(toX(x), toZ(y)) }); if (frames > 1 && !(this.animSet ||= new Set()).has(t)) { this.animSet.add(t); this.anim.push({ t, frames, fps, ph: ce.ph }); } // общая полоса — один раз на текстуру
       });
-      mk(L(base), false); if (glow && this.glowOn) mk(L(glow), true);
+      mk(base && typeof base.then === 'function' ? base : L(base), false); if (glow && this.glowOn) mk(L(glow), true);
     };
     // здания: картинка целиком (основание + крыша), ширина footprint·32 px
     const [sx, sy] = mapShiftPx();
+    this.chim = []; const smokeOn = fxo.smokeOn !== false;
     for (const b of MAP.buildings || []) {
       const k = BLD.keys?.[b.key]; const src = k && bldUrl(k.image); if (!src) continue;
-      sprite(src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true, 'window');
+      const ch = smokeOn ? FXJ.chimneys?.[b.key] : null;
+      if (ch?.length) { const x0 = toX(b.anchor_world_px[0] + sx), z0 = toZ(b.anchor_world_px[1] + sy);
+        for (const [ix, iy] of ch) this.chim.push({ x0, z0, off: [(ix - k.w / 2) / PX, ((k.h - iy) / PX) * SIN_P], acc: ((ix * 13 + iy * 7 + b.anchor_world_px[0]) % 100) / 100, px: [Math.round(b.anchor_world_px[0] + sx + ix - k.w / 2), Math.round(b.anchor_world_px[1] + sy)] }); }
+      sprite(ch?.length ? this.clipSmoke(L(src), b.key, ch) : src, k.glow ? bldUrl(k.glow) : null, 0, 1, 1, 0, 0, k.w / PX, k.h / PX, b.anchor_world_px[0] + sx, b.anchor_world_px[1] + sy, false, k.anchor || [0.5, 1], 1, 0, true, 'window');
       { const x0 = toX(b.anchor_world_px[0] + sx), z0 = toZ(b.anchor_world_px[1] + sy), tav = b.interior === 'shop_tavern';
         for (const sp of emitterSpotsM(b.key, { wM: k.w / PX, hM: (k.h / PX) * SIN_P, max: tav ? 6 : 3 })) addLight(x0, z0, 0xffc477, 1.6 + Math.min(1.4, sp[2] / 40), 0.62, [sp[0], sp[1]], false, 1.5 + Math.min(1.5, sp[2] / 30), 'window');
         const e = b.exit_world_px; if (e) addLight(toX(e[0] + sx), toZ(e[1] + sy - 10), 0xffc879, tav ? 4.4 : 3.4, 0.8, [0, 0.9], false, tav ? 3.2 : 2.6, 'door'); } // дверь: проём над порогом // окна — «огни»: загораются вразнобой
@@ -174,6 +236,7 @@ export class CityView {
       const Lp = lightOf(p.k); if (Lp) { const sc = p.s || 1, off = emitterOffsetM(p.k, { wM: wM * sc, hM: hM * sc * SIN_P, flip: !!p.f, set: 'city' }) || [0, (Lp[4] || 1) * SIN_P], fire = FIRE.test(p.k);
         addLight(toX(p.x), toZ(p.y), Lp[1], Lp[2] * sc, Lp[3], off, fire, (fire ? 3.4 : 2.6) * sc); }
     }
+    if (A) addLight(toX(A.x), toZ(A.y), 0xa855f7, 3.2, 0.75, [0, 1.6], false, 3.4, 'lamp'); // алтарь перевоплощения светится и ночью
     this.stats.props = (MAP.props || []).length; this.stats.buildings = (MAP.buildings || []).length;
   }
   // ——— линия края купола на земле (hotfix 22.10, «🏰 Город» → ringOn/ringA/ringW/ringGlow): тонкое фиолетовое свечение по всему кругу R.
@@ -287,6 +350,7 @@ export class CityView {
       this.rim.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, col, row);
       if (glow) this.rimG?.push(ax + ox, oy, az + oz, BLOCK_M, BLOCK_M, 0, 0, 0, 0, col, row, 1, 1, 1, 0.75); }
     this.rim.end(); this.rimG?.end();
+    this.altarObj?.update(T); try { this.smokeStep(dt); } catch (e) { if (!this._smErr) { this._smErr = 1; console.warn('[city-smoke]', e); } }
     for (const a of this.anim || []) { const f = Math.floor(T * a.fps + a.ph * a.frames) % a.frames; a.t.offset.x = f / a.frames; } // полоса кадров cellTex: кадр f — f/frames
     // вспышка обода при отталкивании: 0.3 с по кривой (30 fps)
     const fk = Math.floor((T - this.flashAt) * 30), fa = fk >= 0 && fk < FLASH.length ? FLASH[fk] : 0;
@@ -322,5 +386,5 @@ export class CityView {
     // фонтан «бьёт»
     if (this.jet) { this.jet.scale.y = 1 + 0.18 * Math.sin(T * 6); this.jetMat.opacity = 0.45 + 0.15 * Math.sin(T * 9); this.waterMat.color.setHSL(0.72, 0.4, 0.28 + 0.03 * Math.sin(T * 2.1)); }
   }
-  debug() { return this.cfg ? { on: this.cfg.on, name: this.cfg.name, x: this.cfg.x, y: this.cfg.y, r: this.cfg.r, ready: this.ready, glow: !!this.rimG, shellA: +(this.shellA ?? 0).toFixed(3), fade: this.fade?.last || null, inHouse: this.inHouse, houses: this.houses.length, props: this.mapG ? this.mapG.children.length : 0, anim: (this.anim || []).length, center: this.center?.name || null, repel: this.stats.repel, npc: (this.cfg.npc || []).length } : null; }
+  debug() { return this.cfg ? { chimneys: this.chim?.length || 0, chimAt: (this.chim || []).map((e) => e.px), smoke: (this.smoke || []).filter((q) => q.sp.visible).length, smokeSheet: !!this.smokeSheet, altar: this.altarObj ? { x: this.cfg.altar?.x, y: this.cfg.altar?.y } : null, on: this.cfg.on, name: this.cfg.name, x: this.cfg.x, y: this.cfg.y, r: this.cfg.r, ready: this.ready, glow: !!this.rimG, shellA: +(this.shellA ?? 0).toFixed(3), fade: this.fade?.last || null, inHouse: this.inHouse, houses: this.houses.length, props: this.mapG ? this.mapG.children.length : 0, anim: (this.anim || []).length, center: this.center?.name || null, repel: this.stats.repel, npc: (this.cfg.npc || []).length } : null; }
 }

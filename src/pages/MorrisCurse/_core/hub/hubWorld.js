@@ -126,9 +126,9 @@ export class HubWorld {
     };
 
     const me = state.me;
-    place('__me', kindFromClass(me.classId, me.look), me, me.color);
+    place('__me', me.soul ? 'soul' : kindFromClass(me.classId, me.look), me, me.soul ? '#f8fafc' : me.color); // облик души (алтарь Альказака) — белая душа, тело остаётся
     (state.others || []).forEach((p) => {
-      place('p_' + p.key, kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink, cg: p.stats?.cg, bk: p.stats?.bk }, p.color);
+      place('p_' + p.key, p.stats?.soul ? 'soul' : kindFromClass(p.stats?.classId, p.look || p.stats?.look), { x: p.x, y: p.y, dirX: p.dirX, dirY: p.dirY, moving: p.moving, blink: p.blink, cg: p.stats?.cg, bk: p.stats?.bk }, p.stats?.soul ? '#f8fafc' : p.color);
     });
     if (state.boss && state.boss.state !== 'dead') place('boss_keyt', 'keyt', state.boss);
     if (state.dar && state.dar.state !== 'dead') place('boss_dar', 'dar', state.dar);

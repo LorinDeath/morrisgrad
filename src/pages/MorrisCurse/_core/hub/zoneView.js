@@ -59,6 +59,13 @@ const PX = 20;
 export const MOB_VIS = 0.75;
 export const mobScale = (o, boss = !!ZONE_MOBS[o.type]?.boss) => MOB_VIS * (boss ? 1.35 : o.chief ? 1.6 : o.elite ? 1.25 : 1);
 
+// жители Альказака (city_25…): свой лист src/assets/mc/city/residents/<sprite>.png — 1152×60 (24 кадра 48×60:
+// 4 направления вниз/влево/вправо/вверх × 6 кадров, как строка NPC в heroes_atlas). Нет листа — рисуется строкой «вида» (look).
+const RES_SHEETS = import.meta.glob('../../../../assets/mc/city/residents/*.png', { eager: true, query: '?url', import: 'default' });
+const RES_URL = {}; for (const [k, v] of Object.entries(RES_SHEETS)) RES_URL[k.split('/').pop().replace(/\.png$/, '')] = v;
+const RIM_M = HERO_H_M * 1.08 / 60; // 1 пиксель листа жителя в метрах
+export function residentSheetKeys() { return Object.keys(RES_URL).filter((k) => !k.endsWith('_glow')); } // <key>_glow.png — слой свечения листа (глаза и т.п.)
+
 export class ZoneView {
   constructor(THREE, parent) {
     this.THREE = THREE;
@@ -83,7 +90,7 @@ export class ZoneView {
     }
     // NPC мира — утверждённые листы 48×60 (строки 4–7 heroes_atlas, 4 направления × 6 кадров), дыхание на месте
     if (HERO_HD && at.heroes) {
-      this.npcBatch = new SpriteBatch(THREE, at.heroes, { cellW: HERO_CELL.w, cellH: HERO_CELL.h, cols: HERO_CELL.cols, rows: HERO_CELL.rows, max: 16 });
+      this.npcBatch = new SpriteBatch(THREE, at.heroes, { cellW: HERO_CELL.w, cellH: HERO_CELL.h, cols: HERO_CELL.cols, rows: HERO_CELL.rows, max: 40 });
       this.root.add(this.npcBatch.mesh);
     }
     // телеграфы, метки под целями, кольца взрывов — спрайты FX atlas v2 (tele_*, mark_*, boom) через this.pfx
@@ -413,15 +420,29 @@ export class ZoneView {
     }
     const NPB = this.npcBatch;
     if (NPB) {
-      NPB.begin();
+      NPB.begin(); const RB = this.resB || (this.resB = new Map()); for (const r of RB.values()) { r.b?.begin(); r.g?.begin(); r.s?.begin(); }
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || NPC_ROWS[id] === undefined) continue;
+        const sk = n.sprite && RES_URL[n.sprite] ? n.sprite : '';
+        if (sk) { // свой лист жителя: грузится один раз; пока грузится — строка «вида»
+          let r = RB.get(sk); if (!r) { r = { b: null, g: null, gu: { value: 1 } }; RB.set(sk, r); const cell = { cellW: 48, cellH: 60, cols: 24, rows: 1, max: 8 };
+            loadAtlasTexture(this.THREE, RES_URL[sk]).then((t) => { r.b = new SpriteBatch(this.THREE, t, cell); r.s = new SpriteBatch(this.THREE, t, { ...cell, sil: true }); this.root.add(r.s.mesh, r.b.mesh); }).catch(() => { r.bad = 1; });
+            if (RES_URL[sk + '_glow']) loadAtlasTexture(this.THREE, RES_URL[sk + '_glow']).then((t) => { r.g = new SpriteBatch(this.THREE, t, { ...cell, additive: true, glowU: r.gu }); r.g.material.uniforms.uGrade = { value: new this.THREE.Color(1, 1, 1) }; /* свечение — своё, не тонируется ночью (общий GRADE гасил глаза до фиолетового) */ r.g.begin(); r.g.end(); if (!this.resGlowG) { this.resGlowG = new this.THREE.Group(); this.root.add(this.resGlowG); } this.resGlowG.add(r.g.mesh); }).catch(() => {}); }
+          // кадры листа: только 0–3 (шаг/стойка/вдох); 4–5 не показываем — у Знахаря там заточка кинжала (решение Алекса: без неё)
+          if (r.b) { const p = npcPos(id), col = p.dir * HERO_FRAMES + (p.moving ? [0, 1, 2, 1][Math.floor(T * 7 + n.x) & 3] : ((Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1));
+            r.b.push(toX(p.x), 0, toZ(p.y), HERO_H_M * 1.08, col, 0, false, 1, 1, 1, 0, 1);
+            if (n.rim > 0) for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) r.s.push(toX(p.x) + dx * RIM_M, 0, toZ(p.y) + dz * RIM_M, HERO_H_M * 1.08, col, 0, false, 0.62, 0.58, 0.74, 0, n.rim); // контур 1px: тёмные волосы на тёмной земле Альказака (fx.resRim)
+            atmo.shadow(toX(p.x), toZ(p.y), 0.6);
+            if (r.g && n.glow > 0) { r.gu.value = n.glow; r.g.push(toX(p.x), 0, toZ(p.y), HERO_H_M * 1.08, col, 0, false, 1, 1, 1, 0, 1);
+              for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) r.g.push(toX(p.x) + dx * RIM_M, 0, toZ(p.y) + dz * RIM_M, HERO_H_M * 1.08, col, 0, false, 1, 1, 1, 0, 0.45); } // свечение листа (админка «🏰 Город» → fx.resGlow)
+            continue; }
+        }
         // кадры героя: направление (0 вниз, 1 влево, 2 вправо, 3 вверх) × 6 (шаг A, стойка, шаг B, вдох, …): ходьба A-стойка-B-стойка, стоя — дыхание
         const p = npcPos(id), col = p.dir * HERO_FRAMES + (p.moving ? [0, 1, 2, 1][Math.floor(T * 7 + n.x) & 3] : ((Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1));
         NPB.push(toX(p.x), 0, toZ(p.y), HERO_H_M * 1.08, col, NPC_ROWS[id], false, 1, 1, 1, 0, 1);
         atmo.shadow(toX(p.x), toZ(p.y), 0.6);
       }
-      NPB.end();
+      NPB.end(); for (const r of RB.values()) { r.b?.end(); r.g?.end(); r.s?.end(); }
     }
     // ресурсы: готовые — светятся и покачиваются
     const NB = this.nodeBatch;
