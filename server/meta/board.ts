@@ -1531,7 +1531,13 @@ export function boardClient(a: Account, h: Hero | null) {
   const bcs = { n: chestsOf(a).list.length, max: Math.max(1, BCHEST.maxStore | 0 || 100) };
   // редкие/боссы по уровню цели: в карточке ярус сундука выше на fitReward(L).tu — как при сдаче
   for (const [id, R] of Object.entries(roll)) { const c = bc[id], up = R?.maxL ? fitReward(R.L).tu : 0; if (!c || !up) continue;
-    const T = BCHEST.tiers[bumpTier(tierOfRank(R.r), up)!]; if (T) Object.assign(c, { n: T.name, c: T.color, nc: T.nameC }); }
+    const b0 = bumpTier(tierOfRank(R.r), up)!, T = BCHEST.tiers[b0]; if (!T) continue;
+    // «шанс улучшиться до …»: при сдаче сперва бросок rankUp, затем +up ярусов (потолок «божественный») — сдвигаем строки так же,
+    // совпавшие с итоговым ярусом убираем, слившиеся на потолке складываем
+    const uv: { t: string; n: string; c: string; p: number }[] = [];
+    for (const x of c.up || []) { const t2 = bumpTier(x.t, up)!; if (t2 === b0) continue; const e = uv.find((y) => y.t === t2), TT = BCHEST.tiers[t2];
+      if (e) e.p = Math.round((e.p + x.p) * 10) / 10; else if (TT) uv.push({ t: t2, n: TT.name, c: TT.color, p: x.p }); }
+    Object.assign(c, { n: T.name, c: T.color, nc: T.nameC, up: uv }); }
   // задания других тел, которые выполняются на текущем: показать в трекере («для Велеса — сдать на Велесе»)
   const xb: any[] = [];
   if (a.hero && b.bod) for (const [o, S] of Object.entries(b.bod)) { if (o === a.hero || !S || !objOk(S.sel)) continue;

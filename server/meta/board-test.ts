@@ -1,6 +1,6 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
 import { fitReward, BOARD_CFG, tiersOf, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS, BTASK_LIST } from "./board";
-import { BCHEST, tierOfRank, rankCursePct } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, tierOfRank, rankCursePct } from "./boardChestCfg";
 import { bumpTier } from "./boardChest";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
@@ -275,7 +275,14 @@ const FIT_TM = BOARD_CFG.fit.tierMax; BOARD_CFG.fit.tierMax = 0; // ниже —
   BOARD_CFG.fit.tierMax = FIT_TM;
   { const st2: any = boardClient(a, h); const fit = Object.keys(st2.roll || {}).filter((id) => st2.roll[id].maxL && st2.bc[id]);
     const bad2 = fit.filter((id) => { const R = st2.roll[id]; return st2.bc[id].n !== BCHEST.tiers[bumpTier(tierOfRank(R.r)!, fitReward(R.L).tu)!].name; });
-    ok(!bad2.length, `редкие/боссы по уровню цели: ярус сундука в карточке с прибавкой (${fit.length} шт.)`, bad2.slice(0, 3)); }
+    ok(!bad2.length, `редкие/боссы по уровню цели: ярус сундука в карточке с прибавкой (${fit.length} шт.)`, bad2.slice(0, 3));
+    // строка «шанс улучшиться до …» — от яруса с прибавкой: все ярусы выше итогового, без повторов
+    const RU = { ...BCHEST.rankUp }, RU2 = { ...BCHEST.rankUp2 }; for (const r of ["F", "E", "D", "C", "B", "A", "S", "SS"]) { BCHEST.rankUp[r] = 20; BCHEST.rankUp2[r] = 5; }
+    const st3: any = boardClient(a, h); const fit3 = Object.keys(st3.roll || {}).filter((id) => st3.roll[id].maxL && st3.bc[id] && fitReward(st3.roll[id].L).tu > 0);
+    const bad3 = fit3.filter((id) => { const c = st3.bc[id], b0 = BC_TIERS.findIndex((t) => BCHEST.tiers[t].name === c.n), ts = c.up.map((x: any) => x.t);
+      return ts.some((t: string) => BC_TIERS.indexOf(t as any) <= b0) || new Set(ts).size !== ts.length; });
+    Object.assign(BCHEST.rankUp, RU); Object.assign(BCHEST.rankUp2, RU2);
+    ok(fit3.length > 0 && !bad3.length, `редкие/боссы по уровню цели: «шанс улучшиться» считается от яруса с прибавкой (${fit3.length} шт.)`, bad3.slice(0, 2).map((id) => st3.bc[id])); }
   const exp: Record<string, number> = { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 }; ok(Object.entries(exp).every(([r, v]) => rankCursePct(r) === v), "шанс проклятого F30 E25 D20 C15 B12 A10 S5 SS2");
   ok(st.bcs && st.bcs.max === 100 && st.bcs.n === 0, "хранилище сундуков: 0 из 100", st.bcs);
   const save = BCHEST.rankCurse.D; BCHEST.rankCurse.D = 7; const st2: any = boardClient(a, h); const dId = ids.find((id) => st.roll[id].r === "D");
