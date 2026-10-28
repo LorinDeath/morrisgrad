@@ -57,6 +57,7 @@ export function mountBmMobs(ap, sec) {
   return mobs(ap, S, bd, sec);
 }
 const resName = (r) => RESOURCES[r]?.name || r;
+const liveTxt = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : c.live.state === 'cleared' || c.live.next ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}`;
 function mobs(ap, S, bd, sec) {
   const L = S.list, drafts = new Map((L.drafts || []).map((d) => [d.id, d]));
   const all = [...L.mobs]; for (const [id, d] of drafts) if (!all.some((m) => m.id === id)) all.push({ id, ...(d.data || {}), _new: true });
@@ -129,7 +130,8 @@ function select(ap, S, id, sec) {
 function camps(ap, S, bd, sec) {
   const L = S.list, C = L.camps || [], mobsAll = [...(L.mobs || []).map((m) => ({ id: m.id, name: m.name, black: 1 })), ...(L.normal || [])];
   const e = S.camp; const mobOpt = (v) => mobsAll.map((m) => `<option value="${esc(m.id)}" ${v === m.id ? 'selected' : ''}>${m.black ? '👹 ' : ''}${esc(m.name || m.id)}</option>`).join('');
-  const live = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : c.live.state === 'cleared' || c.live.next ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}`;
+  const live = liveTxt; clearInterval(S.cti); S.cti = setInterval(() => { if (ap.tab !== 'bmmobs' || S.sub !== 'camps' || !ap.el?.isConnected || !sec.isConnected) { clearInterval(S.cti); return; } ap.send({ type: 'admin_bmm', op: 'camps' }); }, 2000);
+  const _live0 = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : c.live.state === 'cleared' || c.live.next ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}`;
   bd.innerHTML = `<p class="mc-dim">Лагерь — точка, радиус, состав и вожак; логово — лагерь с флажком «Логово» (все элита). Таймер возрождения — случайный «от–до», переживает перезапуск сервера. Чёрные дерутся с обычными мобами, только если рядом игрок (настройка «⚙»).</p>
     <table><tr><th>Лагерь</th><th>Мир · x,y · r</th><th>Состав</th><th>Возрождение</th><th>Сейчас</th><th></th></tr>${C.map((c) => `<tr><td>${c.lair ? '🕳 ' : '⛺ '}${esc(c.name)}</td><td>${esc(c.world)} · ${c.x},${c.y} · ${c.r}</td><td style="font-size:11px">${(c.mobs || []).map((x) => `${esc(mobsAll.find((m) => m.id === x.mob)?.name || x.mob)}×${x.n}`).join(', ')}${c.chief ? ` · вожак: ${esc(mobsAll.find((m) => m.id === c.chief)?.name || c.chief)}` : ''}</td><td>${c.respawnMin}–${c.respawnMax} с</td><td data-live="${esc(c.id)}">${esc(live(c))}</td><td><button class="b" data-ce="${esc(c.id)}">✎</button></td></tr>`).join('')}</table>
     <p><button class="b" data-x="cnew">＋ Новый лагерь</button> <button class="b" data-x="crefresh">↻ Таймеры</button></p>
@@ -192,7 +194,8 @@ export function onBmmResult(ap, d) {
     else { S.status = 'Не опубликовано: ' + (d.err || d.message || 'ошибка'); S.stCls = 'err'; } }
   else if (d.op === 'auto' && d.ok && S.edit) { Object.assign(S.edit.data, d.stats); S.status = 'Статы по уровню подставлены — черновик'; S.stCls = 'draft'; clearTimeout(S.dt); S.dt = setTimeout(() => ap.send({ type: 'admin_bmm', op: 'draft', id: S.edit.id, data: S.edit.data }), DRAFT_MS); }
   else if (d.op === 'here' && d.ok && S.camp) { Object.assign(S.camp, { world: d.world, x: d.x, y: d.y }); S.cstatus = `📍 ${d.world} ${d.x},${d.y}`; S.cst = ''; }
-  else if (d.op === 'camps' && d.ok && S.list) { S.list.camps = d.camps; }
+  else if (d.op === 'camps' && d.ok && S.list) { S.list.camps = d.camps; // живые таймеры — только ячейки «Сейчас», без перерисовки формы
+    const cells = ap.el?.querySelectorAll('.bmma [data-live]'); if (cells?.length) { for (const td of cells) { const c = d.camps.find((x) => x.id === td.dataset.live); if (c) td.textContent = liveTxt(c); } if (cells.length === d.camps.length) return; } }
   else if (d.op === 'save') { const ok = d.ok, msg = ok ? '✔ Сохранено' : 'Ошибка: ' + (d.err || d.message || '');
     if (d.kind === 'bmcamp') { S.cstatus = msg; S.cst = ok ? 'ok' : 'err'; if (ok) { if (d.camps) S.list.camps = d.camps; if (S.camp) S.camp.id = d.id; } }
     else if (d.kind === 'bmbody') { S.bstatus = msg; if (ok) { if (d.body) S.list.body = d.body; if (S.bpart) S.bpart.id = d.id; } }
