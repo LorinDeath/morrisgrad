@@ -423,10 +423,10 @@ async function boot(canvasId, username, userId, api) {
   // настройки города с сервера (админка): центр/радиус — от них узлы ресурсов (за край купола) и места NPC
   let citySig = '';
   function citySync(c) {
-    cityView.apply(c); setPkUi(c.pkUi); // вид PK (полоса, значок) — из админки
+    cityView.apply(c); cityRoom.setFx(c.fx); setPkUi(c.pkUi); // вид PK (полоса, значок) — из админки
     if (zone.bmv) { zone.bmv.roseAt = c.rose ? { [c.rose.id]: [c.rose.x, c.rose.y] } : {}; const r = c.rose && zone.bmv.roses.get(Number(c.rose.id)); if (r) { r.x = c.rose.x; r.y = c.rose.y; } } // роза города — в точке карты (только отрисовка)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
-    for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '' });
+    for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '', sprite: n.sprite || '', walk: !!n.walk });
     const k = `${c.x},${c.y},${c.rTiles},${c.on}`; if (k === citySig) return; const first = !citySig; citySig = k;
     const ch = CITY_CFG.x !== c.x || CITY_CFG.y !== c.y || CITY_CFG.rTiles !== c.rTiles || CITY_CFG.on !== c.on;
     Object.assign(CITY_CFG, { x: c.x, y: c.y, rTiles: c.rTiles, on: c.on, name: c.name });
@@ -434,6 +434,25 @@ async function boot(canvasId, username, userId, api) {
   }
   net.on('pk_state', (d) => cityHud.onPk(d));
   net.on('city_deny', (d) => { cityHud.onDeny(d); cityView.repel(player.x, player.y); });
+  // Алтарь перевоплощения у фонтана Альказака (server/meta/service.ts cityAltar): привязка возрождения и облик души
+  const cityAlt = { bound: 0, soul: 0, soulOn: 1, want: false };
+  const cityAltarPt = () => { const a = cityView.cfg?.on && cityView.cfg?.altar; return a && world === 'arinar' && !cityRoom.inside ? a : null; };
+  const nearCityAltar = () => { const a = cityAltarPt(); return !!a && Math.hypot(player.x - a.x, player.y - a.y) < (Number(a.r) || 110); };
+  function openCityAltar() {
+    const b = []; const act = (a) => () => { overlay.hideScreen(); send({ type: 'city_altar', act: a }); cityView.flashAltar(); };
+    b.push(cityAlt.bound ? { text: 'Отвязать возрождение', cls: 'ghost', onClick: act('unbind') } : { text: '🜏 Привязать возрождение', onClick: act('bind') });
+    if (player.stats.soul) b.push({ text: 'Вернуться в тело', onClick: act('body') });
+    else if (cityAlt.soulOn) b.push({ text: '👻 Облик души', onClick: act('soul') });
+    b.push({ text: 'Закрыть', cls: 'ghost', onClick: () => overlay.hideScreen() });
+    overlay.showScreen(`<h2>Алтарь перевоплощения</h2><p>${cityAlt.bound ? 'Ваше возрождение привязано к этому алтарю: после гибели вы очнётесь здесь.' : 'Привяжите возрождение — после гибели вы очнётесь у алтаря, а не у входа в Аринар.'}</p>
+      <p style="color:#cbd5e1">${player.stats.soul ? 'Вы в облике души: тело ждёт вас. Душа не сражается и не собирает; вне купола вернётся в тело сама.' : 'Облик души — белая душа без тела (только в городе). Тело и вещи остаются при вас.'}</p>`, b, 'mc3d-city-altar');
+  }
+  net.on('city_altar', (d) => { Object.assign(cityAlt, { bound: d.bound | 0, soul: d.soul | 0, soulOn: d.soulOn ?? 1 }); if (cityAlt.want) { cityAlt.want = false; if (!overlay.screen) openCityAltar(); } });
+  net.on('city_soul', (d) => {
+    const was = !!player.stats.soul; if (d.on) player.stats.soul = 1; else delete player.stats.soul;
+    if (d.on && !was) overlay.toast('👻 Душа отделилась от тела', '#f8fafc');
+    else if (!d.on && was) overlay.toast(`Вы вернулись в тело${d.why ? ' · ' + String(d.why).slice(0, 40) : ''}`, '#e9d5ff');
+  });
   net.on('pvp_kill', (d) => cityHud.onKill(d));
   net.on('pvp_death', (d) => cityHud.onDeath(d));
   // переход между зонами: текстуры новой сцены — в очередь загрузки на GPU (≤ upMs мс/кадр), подпись «Готовим мир…» до готовности (≤ 4 с)
@@ -1488,6 +1507,7 @@ async function boot(canvasId, username, userId, api) {
     { const b = zone.nearestBag(player.x, player.y, 100); if (b) { if (lootWin.isOpen) lootWin.close(); else openBag(b); return; } }
     const npc = zone.nearestNpc(world, player.x, player.y);
     if (npc) { if (net.isOpen()) send({ type: 'npc_talk', npc: npc.id }); else overlay.toast('Персонажи говорят только при связи с сервером', '#fca5a5'); return; }
+    if (nearCityAltar()) { if (net.isOpen()) { cityAlt.want = true; send({ type: 'city_altar', act: 'get' }); } else overlay.toast('Алтарь отвечает только при связи с сервером', '#fca5a5'); return; }
     { const bk = nearBoard('nb') ? 'nb' : nearBoard('ab') ? 'ab' : null; // доски: ближе портала (Алтарь рядом с Доской достижений)
       if (bk) { const p = boardSt.defs.props[bk], bp = nearestPortal(), dB = Math.hypot(player.x - p.x, player.y - p.y);
         if (!bp || dB < Math.hypot(player.x - bp.x, player.y - bp.y)) { boardWin.toggle(bk); return; } } }
@@ -1846,7 +1866,7 @@ async function boot(canvasId, username, userId, api) {
     const mySpace = spaceOf(player.x, player.y); // в доме города видно только тех, кто в той же комнате (и снаружи — не видно тех, кто в домах)
     const visibleOthers = [...others.values()].filter((o) => o.world === world && !o.runRoom && spaceOf(o.x, o.y) === mySpace);
     hub.update(dt, {
-      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0, bk: meta.hero?.effective?.blkVis || 0 },
+      me: { x: player.x, y: player.y, dirX: player.dirX, dirY: player.dirY, moving: player.moving, classId: player.stats.classId, look: meta.hero?.effective?.look || null, color: player.color, soul: !!player.stats.soul, scale: dash.active ? 1.08 : 1, blink: (zone.me && zone.me.alive === false) || blinkOn('me'), cg: meta.hero?.effective?.cursedGlow || 0, bk: meta.hero?.effective?.blkVis || 0 },
       others: visibleOthers.map((o) => ({ key: o.id, x: o.x, y: o.y, dirX: o.dirX, dirY: o.dirY, moving: o.moving, stats: o.stats, look: o.stats?.look || null, color: o.color, blink: blinkOn(o.id) })),
       boss: world === 'hellfire' ? boss : null,
       dar: world === 'hellfire' ? dar : null,
@@ -1867,6 +1887,7 @@ async function boot(canvasId, username, userId, api) {
     // подписи
     overlay.beginFrame();
     cityHud.setWorld(mode === 'hub' ? world : ''); cityHud.tick();
+    if (cityRoom.inside) { try { cityRoom.update(dt); } catch (err) { console.warn('[city-room]', err); } } // огонь очага: кадры и мерцание света
     if (cityRoom.inside && (world !== 'arinar' || !inRoomPt(player.x, player.y))) cityRoom.clear(); // ушли из дома (мир сменился, смерть, выставили)
     dpsMeter.render();
     const head = (x, y, h = 2.5) => stage.project(toX(x), h, toZ(y));
@@ -1952,6 +1973,7 @@ async function boot(canvasId, username, userId, api) {
       else if (bagN && !lootWin.isOpen) promptText = `${key} — открыть добычу (${bagN.n})`;
       else if (zoneSt.gather) promptText = `Сбор: ${zone.resName(zoneSt.gather.res)} ${Math.round(Math.min(1, zoneSt.gather.t / (zone.gatherTime() / 1000)) * 100)}%`;
       else if (npc) promptText = `${key} — поговорить: ${npc.name}`;
+      else if (nearCityAltar()) promptText = `${key} — Алтарь перевоплощения${cityAlt.bound ? ' (возрождение здесь)' : ''}`;
       else if (nearBoard('nb') && (!np || Math.hypot(player.x - boardSt.defs.props.nb.x, player.y - boardSt.defs.props.nb.y) < Math.hypot(player.x - np.x, player.y - np.y))) promptText = `${key} — Доска объявлений (заказы охоты)`;
       else if (nearBoard('ab') && (!np || Math.hypot(player.x - boardSt.defs.props.ab.x, player.y - boardSt.defs.props.ab.y) < Math.hypot(player.x - np.x, player.y - np.y))) promptText = `${key} — Доска достижений`;
       else if (node) promptText = `${key} — собрать: ${zone.resName(node.def.res)}`;

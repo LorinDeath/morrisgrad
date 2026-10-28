@@ -59,6 +59,12 @@ const PX = 20;
 export const MOB_VIS = 0.75;
 export const mobScale = (o, boss = !!ZONE_MOBS[o.type]?.boss) => MOB_VIS * (boss ? 1.35 : o.chief ? 1.6 : o.elite ? 1.25 : 1);
 
+// жители Альказака (city_25…): свой лист src/assets/mc/city/residents/<sprite>.png — 1152×60 (24 кадра 48×60:
+// 4 направления вниз/влево/вправо/вверх × 6 кадров, как строка NPC в heroes_atlas). Нет листа — рисуется строкой «вида» (look).
+const RES_SHEETS = import.meta.glob('../../../../assets/mc/city/residents/*.png', { eager: true, query: '?url', import: 'default' });
+const RES_URL = {}; for (const [k, v] of Object.entries(RES_SHEETS)) RES_URL[k.split('/').pop().replace(/\.png$/, '')] = v;
+export function residentSheetKeys() { return Object.keys(RES_URL); }
+
 export class ZoneView {
   constructor(THREE, parent) {
     this.THREE = THREE;
@@ -83,7 +89,7 @@ export class ZoneView {
     }
     // NPC мира — утверждённые листы 48×60 (строки 4–7 heroes_atlas, 4 направления × 6 кадров), дыхание на месте
     if (HERO_HD && at.heroes) {
-      this.npcBatch = new SpriteBatch(THREE, at.heroes, { cellW: HERO_CELL.w, cellH: HERO_CELL.h, cols: HERO_CELL.cols, rows: HERO_CELL.rows, max: 16 });
+      this.npcBatch = new SpriteBatch(THREE, at.heroes, { cellW: HERO_CELL.w, cellH: HERO_CELL.h, cols: HERO_CELL.cols, rows: HERO_CELL.rows, max: 40 });
       this.root.add(this.npcBatch.mesh);
     }
     // телеграфы, метки под целями, кольца взрывов — спрайты FX atlas v2 (tele_*, mark_*, boom) через this.pfx
@@ -413,15 +419,21 @@ export class ZoneView {
     }
     const NPB = this.npcBatch;
     if (NPB) {
-      NPB.begin();
+      NPB.begin(); const RB = this.resB || (this.resB = new Map()); for (const r of RB.values()) if (r.b) r.b.begin();
       for (const [id, n] of Object.entries(NPCS)) {
         if (n.world !== world || NPC_ROWS[id] === undefined) continue;
+        const sk = n.sprite && RES_URL[n.sprite] ? n.sprite : '';
+        if (sk) { // свой лист жителя: грузится один раз; пока грузится — строка «вида»
+          let r = RB.get(sk); if (!r) { r = { b: null }; RB.set(sk, r); loadAtlasTexture(this.THREE, RES_URL[sk]).then((t) => { r.b = new SpriteBatch(this.THREE, t, { cellW: 48, cellH: 60, cols: 24, rows: 1, max: 4 }); this.root.add(r.b.mesh); }).catch(() => { r.bad = 1; }); }
+          if (r.b) { const p = npcPos(id), col = p.dir * HERO_FRAMES + (p.moving ? [0, 1, 2, 1][Math.floor(T * 7 + n.x) & 3] : ((Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1));
+            r.b.push(toX(p.x), 0, toZ(p.y), HERO_H_M * 1.08, col, 0, false, 1, 1, 1, 0, 1); atmo.shadow(toX(p.x), toZ(p.y), 0.6); continue; }
+        }
         // кадры героя: направление (0 вниз, 1 влево, 2 вправо, 3 вверх) × 6 (шаг A, стойка, шаг B, вдох, …): ходьба A-стойка-B-стойка, стоя — дыхание
         const p = npcPos(id), col = p.dir * HERO_FRAMES + (p.moving ? [0, 1, 2, 1][Math.floor(T * 7 + n.x) & 3] : ((Math.floor(T * 1.25 + n.x) & 1) ? 3 : 1));
         NPB.push(toX(p.x), 0, toZ(p.y), HERO_H_M * 1.08, col, NPC_ROWS[id], false, 1, 1, 1, 0, 1);
         atmo.shadow(toX(p.x), toZ(p.y), 0.6);
       }
-      NPB.end();
+      NPB.end(); for (const r of RB.values()) if (r.b) r.b.end();
     }
     // ресурсы: готовые — светятся и покачиваются
     const NB = this.nodeBatch;

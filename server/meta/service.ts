@@ -1871,7 +1871,7 @@ export class MetaService {
       this.send(ws, { type: "toast", message: P.pk ? "⚔ PK-режим включён: вы можете нападать на игроков. Купол Альказака вас не пустит." : "PK-режим выключен", color: P.pk ? PK_CFG.color : "#a7f3d0" }); }
     const k = this.killerOf(ms, now);
     if (s.stats) pkPublic(s.stats, P, PK_CFG.tagKiller !== false && k.killer && !P.pk, now); // видят все: полоса отсчёта над героем, значок PK у убийц
-    if (s.stats?.soul && (!ms.zp.alive || P.pk || !inCity(s.x, s.y) || s.inDuel)) this.soulSet(ws, s, ms, false, P.pk ? "PK-режим" : "вне города");
+    if (s.stats?.soul && (!ms.zp.alive || P.pk || !inCity(s.x, s.y) || s.inDuel)) this.soulSet(ws, s, ms, false, !ms.zp.alive ? "гибель" : P.pk ? "PK-режим" : s.inDuel ? "дуэль" : "вне города");
     if (!ms.zp.alive || !inCity(s.x, s.y)) return;
     if (!(ms as any).cityIn) { (ms as any).cityIn = 1; this.bev(s, { type: "city" }); } // доска: скрытое достижение — один раз (повтор отсекает boardEvent)
     if (!k.killer) return;
