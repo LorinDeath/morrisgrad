@@ -24,6 +24,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
+import { BMA_CFG, bmSkillPct } from "./blackArt";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
@@ -79,7 +80,7 @@ const ck = (x: number, y: number) => Math.floor(x / WORLD_CHUNK) * 4096 + Math.f
 const SLEEP_CELL = 1000;
 const sk = (x: number, y: number) => Math.floor(x / SLEEP_CELL) * 4096 + Math.floor(y / SLEEP_CELL);
 
-export interface ZCast { proj?: string; fx?: string; leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number }
+export interface ZCast { proj?: string; fx?: string; leap?: boolean; kind: "circle" | "line" | "ring" | "nova"; at: number; x: number; y: number; dx?: number; dy?: number; r?: number; r0?: number; len?: number; w?: number; dmg: number; bm?: number } // bm — навык артефакта: % макс. ОЗ игрока (чёрный урон)
 /** удары игрока по мобу: всего, навыками, автоатакой; full — первый удар пришёлся по целому мобу без чужого урона */
 export type MobHits = { n: number; ab: number; ba: number; full: boolean };
 /** как игрок sid убил моба m (только по серверному учёту ударов): одним ударом — его первый и единственный удар по целому мобу,
@@ -880,7 +881,9 @@ export class Zone {
   }
 
   // ---------- телеграфы ----------
+  private bmCast: { pct: number; D: number } | null = null;
   cast(m: ZMob, c: ZCast) {
+    if (this.bmCast && this.bmCast.D > 0) c.bm = Math.round(this.bmCast.pct * c.dmg / this.bmCast.D * 1000) / 1000; // доля формы (дождь ×0.6, конус ×0.7) — и для %
     m.casts.push(c);
     const t = Math.round(Math.max(0.2, (c.at - this.now) / 1000) * 100) / 100;
     if (c.kind === "circle") this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, fx: c.fx, fdx: c.fx === "meteor" ? (c.x < m.x ? -1 : 1) : undefined });
@@ -888,7 +891,7 @@ export class Zone {
     else if (c.kind === "ring") this.events.push({ k: "tele_ring", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r0: c.r0, r: c.r, t, fx: c.fx });
     else this.events.push({ k: "tele_circle", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, t, nova: 1, fx: c.fx });
   }
-  resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob) => void) {
+  resolveCasts(m: ZMob, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void) {
     for (let i = m.casts.length - 1; i >= 0; i--) {
       const c = m.casts[i];
       if (now < c.at) continue;
@@ -896,7 +899,7 @@ export class Zone {
       if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); this.solid(m); }
       if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
         this.fire({ o: "m", mob: m.id, t: c.proj, x: m.x, y: m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: c.proj === "fireball" ? 480 : PROJ_SPEED.mob,
-          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m) });
+          onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m, c.bm) });
         continue;
       }
       for (const p of players.values()) {
@@ -905,7 +908,7 @@ export class Zone {
         const hit = c.kind === "circle" || c.kind === "nova" ? dist < c.r! + 8
           : c.kind === "ring" ? dist > c.r0! - 8 && dist < c.r! + 8
           : segDist(p.x, p.y, c.x, c.y, c.dx!, c.dy!, c.len!) < c.w! / 2 + 10;
-        if (hit) onHit(p.sid, c.dmg, m.type, m);
+        if (hit) onHit(p.sid, c.dmg, m.type, m, c.bm);
       }
       if (c.kind === "line") this.events.push({ k: "mshot", id: m.id, x: Math.round(c.x), y: Math.round(c.y), tx: Math.round(c.x + c.dx! * c.len!), ty: Math.round(c.y + c.dy! * c.len!) });
       else this.events.push({ k: "slam", id: m.id, x: Math.round(c.x), y: Math.round(c.y), r: c.r, r0: c.r0, fx: c.fx, nova: c.kind === "nova" ? 1 : undefined }); // fx — спрайт атласа снарядов (метеор, копья, осколки…)
@@ -959,7 +962,7 @@ export class Zone {
   }
 
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
-  update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob) => void, onKill: (m: ZMob) => void) {
+  update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
     this.now = now; this.pl = players;
     if (this.projs.length) this.updateProjs(dt, players);
     const scale = Math.max(1, Math.min(4, players.size)); // ХП босса растёт с числом игроков (ограниченно)
@@ -1209,6 +1212,11 @@ export class Zone {
    *  Урон — урон моба × сила навыка (не больше CURSE.mobSkillPowerCap, по умолчанию ×1.8). */
   heroCast(m: ZMob, d: any, id: string, t: ZPlayer, players: Map<string, ZPlayer>, now: number, dmg: number, big: number, tele: number, ux: number, uy: number) {
     const s: any = shapeOf(id), pw = Math.min(Math.max(0.8, Number((CURSE as any).mobSkillPowerCap) || 1.8), Math.max(0.8, (ABILITY_BY_ID as any)[id]?.power || 1)), D = dmg * pw, k = Math.max(0.8, big);
+    const AD: any = (ABILITY_BY_ID as any)[id]; // 🜏 навык артефакта у любого моба: % ОЗ игрока = pct + k × чёрный урон моба (обычный моб — 0)
+    this.bmCast = AD?.cls === "artifact" && BMA_CFG.on && AD.bm ? { pct: bmSkillPct(AD.bm, Number(d?.bdmg) || 0), D } : null;
+    try { this.heroCastShape(m, s, id, t, now, D, k, tele, ux, uy); } finally { this.bmCast = null; }
+  }
+  private heroCastShape(m: ZMob, s: any, id: string, t: ZPlayer, now: number, D: number, k: number, tele: number, ux: number, uy: number) {
     switch (s.k) {
       case "line": this.cast(m, { kind: "line", at: now + tele, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round((s.w || 44) * k), dmg: D }); break;
       case "proj": this.cast(m, { kind: "line", at: now + 550, x: m.x, y: m.y, dx: ux, dy: uy, len: Math.round(s.len * k), w: Math.round(40 * k), dmg: D, proj: id === "fireball" ? "fireball" : "fire_spark" }); break;
@@ -1260,7 +1268,7 @@ export class Zone {
   mobsAround(x: number, y: number, r: number): ZMob[] {
     return this.near(x, y, r + 60).filter((m) => Math.hypot(m.x - x, m.y - y) <= r + ZONE_MOBS[m.type].radius);
   }
-  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number }, src?: "ba" | "ab") {
+  damage(m: ZMob, sid: string, dmg: number, onKill: (m: ZMob) => void, pen?: { penFlat?: number; penPct?: number; black?: boolean }, src?: "ba" | "ab") {
     if (m.dead) return;
     // удары игрока по мобу (задания доски: «одним ударом», «только навыками», «без навыков»): сколько ударов, какими, был ли моб цел
     if (sid && !sid.startsWith("mob:") && !m.reset) { const hb = (m.hb ||= new Map()); let e = hb.get(sid);
@@ -1270,7 +1278,8 @@ export class Zone {
     if (m.reset) { this.events.push({ k: "hit", id: m.id, d: 0, evade: 1 }); return 0; } // «Уклонение»: сбрасывающийся моб неуязвим
     if (this.guard && sid) { const a = this.pl?.get(sid); if (this.guard.guardMobHit(m, sid, a ? a.x : NaN, a ? a.y : NaN)) { this.events.push({ k: "hit", id: m.id, d: 0, dome: 1 }); return 0; } } // купол Чёрного мага
     const armor = d.armor * mobArmorMul(m);
-    const real = Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * (m.shieldUntil > Date.now() ? 0.5 : 1)));
+    const sh = m.shieldUntil > Date.now() ? 0.5 : 1;
+    const real = pen?.black ? Math.max(0, Math.round(dmg * sh)) : Math.max(1, Math.round(mitigateDamage(dmg, armor, pen?.penFlat || 0, pen?.penPct || 0) * sh)); // 🜏 чёрный урон: броня моба не действует
     if (sid && !m.qf?.has(sid)) this.onEngage?.(m, sid); // начало боя игрока с мобом (условия квестов)
     m.hp -= real;
     m.dmgBy.set(sid, (m.dmgBy.get(sid) || 0) + real);

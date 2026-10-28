@@ -1,4 +1,6 @@
 import { isRs, rsCodexId } from "./rsAny";
+import { artInfo, isArtifactId } from "./blackArtReg";
+import { BMA_CFG, isBmSkill } from "./blackArt";
 import { CHEST } from "./chests";
 import { UPG, upgCost, upgClient } from "./upgrade";
 import { BM_CFG, charBlk, charBlkVis, blkVisClient } from "./bmCfg";
@@ -105,7 +107,12 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
   }
   if (!(dark && BM_CFG.groundTalentsOff)) for (const id of a.soul) { const n = SOUL_BRANCH.find((s) => s.id === id); if (n) for (const [k, v] of Object.entries(n.per)) raw[k] += v || 0; }
   let wMin = 0, wMax = 0, weaponId: string | null = null;
-  const items = equippedItems(a, h);
+  const all = equippedItems(a, h);
+  // артефакт чёрной магии в руке (ответ 1): действуют только душа, таланты и база класса/уровня; ВСЁ снаряжение и комплекты заглушены
+  const artE = BMA_CFG.on ? all.find((e) => ITEM_BY_ID[e.id]?.slot === "weapon" && (ITEM_BY_ID[e.id] as any).bm) : undefined;
+  const art = artE ? artInfo(artE.id) : null;
+  const items = art ? [] : all;
+  if (art) weaponId = artE!.id;
   for (const e of items) {
     const st: any = instStats(ITEM_BY_ID[e.id], e, dark); // проклятый экземпляр: статы базы ×1.5 на лету; очернение — bmCfg
     if (ITEM_BY_ID[e.id].slot === "weapon") weaponId = e.id;
@@ -113,7 +120,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     for (const k of ["armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct", "armorPen", "armorPenPct"]) raw[k] += (st as any)[k] || 0;
   }
   // полный комплект моба: облик + бонус комплекта (bestiary.ts → look.stat)
-  const look = activeLook(a, h);
+  const look = art ? null : activeLook(a, h);
   const lookStat = look && !dark ? LOOKS[look]?.stat : null; // на проклятой земле бонус комплекта — обычный стат, не действует
   if (lookStat) for (const [k, v] of Object.entries(lookStat)) raw[k] = (raw[k] || 0) + (v || 0);
   // капы и убывающая отдача (см. docs/MORRISCURSE-BALANCE.md)
@@ -133,7 +140,8 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     armorPenPct: Math.round(softCap(raw.armorPenPct, STAT_CAPS.armorPenPct) * 10) / 10,
     revive: raw.revive > 0 ? 1 : 0,
     weaponMin: base.minAtk + wMin, weaponMax: base.maxAtk + wMax, itemDmgMin: wMin, itemDmgMax: wMax,
-    look, weaponId, wtype: weaponType(weaponId, cls),
+    look, weaponId, wtype: art ? "artifact" : weaponType(weaponId, cls),
+    bm: art ? art.stats : null, art: art ? { id: artE!.id, uid: artE!.uid, atk: art.atk, cd: art.cd, skills: art.skills, ranged: art.ranged, elem: art.elem } : null,
     cursedGlow: glowLevel(items.filter((e) => e.cursed).length), weaponCursed: items.some((e) => e.cursed && e.slot === "weapon") ? 1 : 0,
     blkAvg: charBlk(items), blkVis: charBlkVis(items), // очернение героя: % по надетому (режим админки) и сила затемнения 0…100 (видно всем)
   };
@@ -156,13 +164,21 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
 
 // Навык доступен герою: свой класс (по уровню, не заглушён) или навык монстра от надетого трофея
 export function monsterAbilities(a: Account, h: Hero): string[] {
+  if (artInHand(a, h)) return []; // артефакт в руке: трофеи заглушены вместе со снаряжением
   return equippedItems(a, h).map((e) => ITEM_BY_ID[e.id].grantsAbility).filter(Boolean) as string[];
+}
+/** навыки частей надетого артефакта (пусто — артефакт не надет / выключен) */
+export function artifactAbilities(a: Account, h: Hero): string[] {
+  if (!BMA_CFG.on) return [];
+  const e = equippedItems(a, h).find((x) => (ITEM_BY_ID[x.id] as any)?.bm);
+  return (e && artInfo(e.id)?.skills.filter(isBmSkill)) || [];
 }
 export function usableAbility(a: Account, h: Hero, cls: string, id: string): boolean {
   const def = ABILITY_BY_ID[id];
   if (!def) return false;
   if (h.abil[id]?.silenced) return false;
   if (def.cls === "monster") return monsterAbilities(a, h).includes(id);
+  if ((def.cls as string) === "artifact") return artifactAbilities(a, h).includes(id); // ответ 2: навыки надетого артефакта — в любые слоты
   return def.cls === cls && abilityUnlocked(h, cls, id);
 }
 // Навык класса открыт: стартовый (legacy) — всегда; остальные — узлом дерева талантов (очками), не уровнем.
@@ -415,6 +431,16 @@ export function addRes(a: Account, res: string, n: number) {
   a.res[res] = Math.min(9999, (a.res[res] || 0) + Math.floor(n));
 }
 
+/** настройки артефактов для клиента (вкладка «Артефакты», заряд, лимит) */
+export function bmaClient(a: Account) {
+  return { on: BMA_CFG.on, chargeMoveMul: BMA_CFG.chargeMoveMul, holdMaxSec: BMA_CFG.holdMaxSec, minFrac: BMA_CFG.minFrac, critMul: BMA_CFG.critMul, bagSize: BMA_CFG.bagSize,
+    classMul: BMA_CFG.classMul, maxArtifacts: BMA_CFG.maxArtifacts, have: a.inv.filter((i) => isArtifactId(i.id)).length };
+}
+/** в слоте оружия — артефакт чёрной магии */
+export function artInHand(a: Account, h: Hero): boolean {
+  const u = h.equip.weapon; if (!u) return false;
+  const it = a.inv.find((i) => i.uid === u); return !!(it && (ITEM_BY_ID[it.id] as any)?.bm);
+}
 export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   const it = a.inv.find((i) => i.uid === uid);
   if (!it) return fail("Нет такого предмета");
@@ -426,11 +452,13 @@ export function equip(a: Account, h: Hero, cls: string, uid: string): R {
   // Классовых ограничений экипа нет: любой герой носит любой предмет (гибриды ок).
   const req = itemReq(def);
   if (h.lvl < req) return fail(`Нужен ${req} уровень героя (у героя ${h.lvl})`);
+  if (def.slot !== "weapon" && artInHand(a, h)) return fail("В руке артефакт: остальные слоты заблокированы (снимите артефакт)");
   h.equip[def.slot] = uid;
   return { ok: true };
 }
-export function unequip(h: Hero, slot: string): R {
+export function unequip(h: Hero, slot: string, a?: Account): R {
   if (!h.equip[slot]) return fail("Слот пуст");
+  if (a && slot !== "weapon" && artInHand(a, h)) return fail("В руке артефакт: остальные слоты заблокированы (снимите артефакт)");
   delete h.equip[slot];
   return { ok: true };
 }
@@ -749,10 +777,10 @@ export function snapshot(a: Account, h: Hero | null, cls: string | null, base: a
   const heroes: Record<string, any> = {};
   return {
     verified, kst: killStats(a), // пожизненная статистика: игроков убито / смертей от игроков / мобов убито
-    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), bmv: blkVisClient(), light: lightClient(), gfx: gfxClient(), ench: enchClient(), upg: upgClient(), account: { mobTrack: a.mobTrack || null, mobTracks: Array.isArray((a as any).mobTracks) ? (a as any).mobTracks : a.mobTrack ? [a.mobTrack] : [], runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
+    weaponSkill: weaponSkill(a, h), weaponCursed: weaponCursed(a, h), cursedGlow: cursedGlow(a, h).glow, curse: curseClient(), bmv: blkVisClient(), bma: bmaClient(a), light: lightClient(), gfx: gfxClient(), ench: enchClient(), upg: upgClient(), account: { mobTrack: a.mobTrack || null, mobTracks: Array.isArray((a as any).mobTracks) ? (a as any).mobTracks : a.mobTrack ? [a.mobTrack] : [], runSkills: a.runSkills || [], inv: cls ? a.inv.filter((i) => !i.hero || i.hero === cls) : a.inv.filter((i) => !i.hero), res: a.res, stars: a.stars, starsBy: a.starsBy, creation: a.creation, soul: a.soul, quests: a.quests, bestiary: a.bestiary, flags: a.flags, disc: a.disc },
     hero: h && cls ? {
       cls, lvl: h.lvl, xp: h.xp, xpNeed: heroXpNeed(h.lvl), talents: h.talents, talentPoints: talentPoints(h), abil: h.abil, loadout: h.loadout,
-      slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), unlocked: unlockedAbilities(h, cls),
+      slots: abilitySlots(h.lvl), equip: h.equip, monsterAbilities: monsterAbilities(a, h), artAbilities: artifactAbilities(a, h), artInHand: artInHand(a, h), unlocked: unlockedAbilities(h, cls),
       effective: base ? heroEffective(a, h, cls, base) : null,
     } : null,
     heroes,

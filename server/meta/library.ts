@@ -1,3 +1,4 @@
+import { artInfo } from "./blackArtReg";
 import { CURSE, cursedStats } from "./cursed";
 import { dropChance, matChance } from "./profile";
 // Библиотека предметов (только сервер): фиксированный пул предметов с уникальными id — из defs.ts (бестиарий).
@@ -74,10 +75,16 @@ export function itemCard(id: string) {
     lore: it.lore, classes: it.classes || null, band: it.band || null, monster: it.monster || null, monsterName: it.from || it.monster ? ZONE_MOBS[it.from || it.monster!]?.name || null : null,
     look: look ? { id: look.id, name: look.name, bonus: look.bonus, parts: look.parts.length } : null,
     ability: ab ? { id: ab.id, name: ab.name, icon: ab.icon, desc: ab.desc, cd: ab.cd } : null,
+    art: (it as any).bm ? artCard(it.id) : null, // 🜏 артефакт: чёрные статы, форма удара, навыки частей
     sources: itemSources(id).map((s) => ({ mob: s.mob, name: s.mob.startsWith("craft:") ? "Ремесло у Петра" : (ZONE_MOBS[s.mob.replace(/^run_/, "")]?.name || s.mob) + (s.mob.startsWith("run_") ? " (забег)" : ""), chance: s.mob.startsWith("craft:") ? s.chance : Math.min(100, s.chance * CURSE.equipDropMult) })),
   };
 }
 // Силуэт закрытого предмета: только слот и ярус (без id, имени, статов) — порядковый номер в пуле
+function artCard(id: string) {
+  const i = artInfo(id); if (!i) return null;
+  return { stats: i.stats, atk: i.atk, cd: i.cd, ranged: i.ranged, elem: i.elem, parts: i.parts,
+    skills: i.skills.map((s) => { const d: any = ABILITY_BY_ID[s]; return d ? { id: s, name: d.name, icon: d.icon, cd: d.cd, desc: d.desc, pct: d.bm?.pct || 0, k: d.bm?.k || 0 } : null; }).filter(Boolean) };
+}
 export function itemSilhouette(idx: number) {
   const it = ITEMS[idx];
   return { n: idx, ic: iconIndex(it.id), slot: it.slot, rarity: it.rarity, tier: Math.max(1, Math.min(5, Math.ceil((it.lvl || 1) / 5))) };
