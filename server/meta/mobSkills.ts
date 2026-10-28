@@ -16,5 +16,5 @@ export const MOB_SKILLS_LIST = Object.keys(MOB_SKILLS);
 export function mobSkillOptions(): { id: string; name: string; group: string }[] {
   const ab: any = Object.fromEntries(ABILITIES_DEF.map((a) => [a.id, a]));
   return MOB_SKILLS_LIST.map((id) => ({ id, name: MOB_SKILLS[id].name + (ab[id] && ab[id].cls !== "monster" && HERO_NAMES[ab[id].cls] ? ` (${HERO_NAMES[ab[id].cls]})` : ""),
-    group: id.startsWith("rs:") ? "Оружие (R)" : ab[id]?.cls === "monster" || !ab[id] ? "Монстры" : "Герои" }));
+    group: id.startsWith("rs:") ? "Оружие (R)" : ab[id]?.cls === "artifact" ? "Артефакты" : ab[id]?.cls === "monster" || !ab[id] ? "Монстры" : "Герои" }));
 }

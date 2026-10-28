@@ -1,3 +1,4 @@
+import { BMA_CFG, BM_PARTS, BM_SKILL_IDS } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
@@ -34,7 +35,7 @@ import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
 
-export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
+export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask" | "bmagic" | "bpart";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext" | "chests"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string>; h?: string } // h — короткая подсказка (что делает, единицы); диапазон и «по умолчанию» админка допишет сама
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -59,7 +60,36 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     // навык оружия (R): если задан — важнее навыка, выпавшего у экземпляра; «» — как выпало
     { path: "rs", label: "Навык оружия (R), важнее выпавшего — любой навык игры", t: "enum", opts: ["", ...rsOptions().map((r) => r.id)], optl: rsOptions() },
     { path: "salvage", label: "Разбор даёт (ресурс: кол-во)", t: "resmap" }] },
-  skill: { name: "Навыки", traits: true, fields: [N("cd", "Перезарядка, с", 0.5, 120), N("power", "Сила, ×", 0.1, 10)] },
+  skill: { name: "Навыки", traits: true, fields: [N("cd", "Перезарядка, с", 0.5, 120), N("power", "Сила, ×", 0.1, 10),
+    N("bm.pct", "Только навыки артефактов: урон, % макс. ОЗ цели (основа)", 0, 100), N("bm.k", "Только навыки артефактов: + × «Чёрный урон» героя", 0, 100)] },
+  // чёрная магия (blackArt.ts): артефакты-оружие, чёрные статы, мешок крита, заряд
+  bmagic: { name: "Чёрная магия: артефакты", fields: [{ path: "on", label: "Артефакты включены", t: "bool" },
+    N("critMul", "Крит, × урона", 1, 10), N("bagSize", "Мешочек крита: ударов в мешке", 10, 1000, "int"),
+    { path: "_h_cls", label: "Чёрный урон по категориям целей, ×", t: "hdr" },
+    ...["mob", "elite", "chief", "rare", "boss", "world"].map((c) => N("classMul." + c, { mob: "Моб", elite: "Элита", chief: "Вожак", rare: "Редкий", boss: "Босс", world: "Мировой босс" }[c]!, 0, 10)),
+    { path: "_h_vs", label: "Чёрный урон по игрокам", t: "hdr" },
+    N("vsPlayer", "Чёрные мобы и навыки артефактов у мобов по игрокам, ×", 0, 10), N("pvpMul", "PK: чёрный удар игрока по игроку, ×", 0, 10),
+    { path: "_h_chg", label: "Заряд и форма удара", t: "hdr" },
+    N("chargeMoveMul", "Скорость героя при зарядке, ×", 0.1, 1), N("holdMaxSec", "Заряд сгорает через, с", 1, 60), N("powerMaxMul", "Мощность: предел размера, ×", 1, 5),
+    N("minFrac", "Минимальная доля заряда (меньше — без бонуса)", 0, 1), N("maxRangeTiles", "Дальнее лезвие: макс. дальность, клеток", 1, 40, "int"),
+    { path: "_h_misc", label: "Прочее", t: "hdr" },
+    N("maxArtifacts", "Артефактов на аккаунт", 1, 300, "int"), { path: "levelGapOff", label: "Разница уровней не режет чёрный урон", t: "bool" },
+    { path: "soulToBlack", label: "Проценты души/талантов (+% урона) усиливают чёрный урон", t: "bool" },
+    { path: "liveParts", label: "Живой пересчёт частей (выкл — снимок при сборке)", t: "bool" },
+    { path: "skillBag", label: "Навыки артефакта тоже тянут крит из мешочка", t: "bool" },
+    { path: "_h_caps", label: "Капы чёрных статов (заряд и предельная броня — нижний предел)", t: "hdr" },
+    N("caps.force", "Сила атаки, макс.", 0, 1e6), N("caps.power", "Мощность, макс. %", 0, 1000), N("caps.charge", "Скорость заряда, мин. с", 0.05, 10),
+    N("caps.bdmg", "Чёрный урон, макс. %", 0, 100), N("caps.barm", "Чёрная броня, макс.", 0, 1e7), N("caps.bcap", "Предельная броня, мин. %", 0, 100), N("caps.bcrit", "Крит, макс. из 100", 0, 100, "int")] },
+  bpart: { name: "Части оружия", fields: [{ path: "name", label: "Название", t: "ltext" },
+    { path: "rarity", label: "Редкость", t: "enum", opts: ["common", "uncommon", "rare", "epic", "legendary", "mythic"] }, N("lvl", "Уровень", 1, 60, "int"),
+    { path: "hidden", label: "Скрыта (не выдаётся)", t: "bool" },
+    { path: "_h_st", label: "Чёрные статы части", t: "hdr" },
+    N("stats.force", "Сила атаки", 0, 1e6), N("stats.power", "Мощность, %", 0, 1000), N("stats.charge", "Скорость заряда, с", 0, 30), N("stats.bdmg", "Чёрный урон, %", 0, 100),
+    N("stats.barm", "Чёрная броня", 0, 1e7), N("stats.bcap", "Предельная броня, %", 0, 100), N("stats.bcrit", "Крит, из 100", 0, 100, "int"),
+    { path: "_h_f", label: "Форма (рукоять — темп, лезвие — дальность/дуга)", t: "hdr" },
+    N("cd", "Рукоять: перезарядка удара, мс", 200, 5000, "int"), N("reach", "Ближнее лезвие: дальность, px", 40, 400, "int"), N("arc", "Ближнее лезвие: дуга, рад", 0.2, 3.1),
+    N("rangeTiles", "Дальнее лезвие: дальность, клеток", 1, 40, "int"), N("width", "Дальнее лезвие: ширина снаряда, px", 4, 120, "int"),
+    { path: "skill", label: "Навык части — любой навык артефактов из общего списка «✨ Навыки»", t: "enum", opts: ["", ...BM_SKILL_IDS] }] },
   loot: { name: "Дроп", fields: [] }, // gear/materials — таблицы, проверяются отдельно (validateLoot)
   // спавн Аринара (живые: сервер читает ZONE_GEN на каждом респавне/проверке) — лагеря и бродячие мобы
   spawn: { name: "Спавн", fields: [N("regenCombat", "Восстановление ХП в бою, × (вне боя — полное)", 0, 1), N("regenCombatSec", "«В бою» после удара/урона, с", 0, 60),
@@ -496,7 +526,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   ] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { bchest: { main: BCHEST }, board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, bmagic: { main: BMA_CFG }, bpart: BM_PARTS, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);

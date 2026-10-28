@@ -9,6 +9,7 @@
 //  • аккаунт: общая сумка предметов и материалы, кошелёк звёзд, очки Создания и ветка души,
 //    сюжет/квесты, бестиарий. Баланс и капы — docs/MORRISCURSE-BALANCE.md.
 
+import { BM_SKILLS } from "./blackArt";
 import { xpNeed } from "./balance";
 import { cityNpcDefs } from "./cityBuild";
 import { MOBS_PUBLIC_ALL } from "./biomes";
@@ -156,7 +157,7 @@ export const TALENT_BY_ID: Record<string, TalentDef> = Object.fromEntries(Object
 
 // ---------------- навыки: пул класса + навыки монстров; раскладка 2–3 слота ----------------
 export interface AbilityDef {
-  id: string; cls: HeroId | "monster"; name: string; icon: string; desc: string;
+  id: string; cls: HeroId | "monster" | "artifact"; name: string; icon: string; desc: string;
   cd: number; power: number; unlockLevel: number; legacy?: boolean; base?: string; monster?: string;
   radiance: [string, string, string]; // уникальное свойство на 3-м уровне жёлтого / красного / фиолетового сияния
 }
@@ -178,6 +179,8 @@ export const ABILITIES_DEF: AbilityDef[] = [
 ];
 // навыки монстров из бестиария (base — какая реализация навыка используется в забеге)
 for (const a of MONSTER_ABILITIES) if (!ABILITIES_DEF.some((x) => x.id === a.id)) ABILITIES_DEF.push(a);
+// навыки артефактов (чёрная магия): тот же единый список навыков — у героя с артефактом, у любого моба, у оружия
+for (const a of BM_SKILLS) if (!ABILITIES_DEF.some((x) => x.id === a.id)) ABILITIES_DEF.push(a as any);
 export const ABILITY_BY_ID: Record<string, AbilityDef> = Object.fromEntries(ABILITIES_DEF.map((a) => [a.id, a]));
 export const LEGACY_ABILITY: Record<string, string> = { warrior: "backstab", spearman: "pierce", rogue: "trick_strike", mage: "fireball" };
 export const RADIANCE_PROPS: Record<string, { name: string; desc: string }> = {

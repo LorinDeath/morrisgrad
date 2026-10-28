@@ -13,6 +13,7 @@ import { HERO_IDS, ITEM_BY_ID, RESOURCES } from "./defs";
 import { newAccount, newHero, newUid, noteItem, fixAccount, sanitizeTalents, type Account, type Hero, type InvItem } from "./profile";
 import { TALENT_VERSION } from "./shared";
 import { libraryHash, seedTables, SEED_COLS, SEED_PK } from "./library";
+import { isArtifactId, registerArtifactRow, artifactRow, ARTIFACT_INSERT, ARTIFACT_SELECT } from "./blackArtReg";
 
 // Обещание с тайм-аутом: зависший запрос к D1 (например, начатый в контексте уже отменённого запроса)
 // не должен навсегда блокировать вход игроков.
@@ -160,6 +161,15 @@ export class ProfileStore {
     }
   }
 
+  /** дочитать из items строки артефактов, которых ещё нет в ITEM_BY_ID (ошибка D1 — бросаем: профиль не грузится, а не теряет вещи) */
+  async loadArtifacts(ids: string[]) {
+    const need = [...new Set(ids.filter((id) => isArtifactId(id) && !ITEM_BY_ID[id]))];
+    for (let i = 0; i < need.length; i += 50) {
+      const part = need.slice(i, i + 50);
+      const r: any = await this.db.prepare(ARTIFACT_SELECT + "(" + part.map(() => "?").join(", ") + ")").bind(...part).all();
+      for (const row of r?.results || []) registerArtifactRow(row);
+    }
+  }
   async loadD1(pkey: string, gen = 0) {
     // библиотека не нужна для профиля: ждём ограниченно, при зависании — сбрасываем и идём дальше
     const lib = this.ensureLibrary();
@@ -202,6 +212,9 @@ export class ProfileStore {
       if (raw) console.log(`[mc] migrated legacy profile ${pkey.slice(0, 12)}… items=${a.inv.length}`);
       return;
     }
+    // артефакты (вещи, созданные игроками: art_<hex>) живут в items D1, а не в коде — дочитать ДО фильтра,
+    // иначе фильтр ниже выбросил бы их из сумки (и следующая выгрузка пометила бы их удалёнными)
+    await this.loadArtifacts(instR.map((r: any) => r.item_id));
     const a: Account = fixAccount({ ...newAccount(), ...JSON.parse(accR[0].data) });
     a.inv = instR.filter((r: any) => ITEM_BY_ID[r.item_id]).map((r: any) => ({ uid: r.instance_id, id: r.item_id, at: r.acquired_at, src: r.source, n: r.viewed_at == null ? 1 : 0, hero: r.hero || null, ...(r.run_skill ? { rs: r.run_skill } : {}), ...(r.cursed ? { cursed: 1 } : {}), ...(r.ench >= 1 && r.ench <= 6 ? { ench: r.ench | 0 } : {}), ...(r.locked ? { lk: 1 } : {}), ...(r.upg ? { up: r.upg } : {}), ...(r.blk > 0 ? { blk: Math.min(100, Number(r.blk)) } : {}) }));
     a.res = Object.fromEntries(resR.map((r: any) => [r.res, r.qty]));
@@ -320,6 +333,7 @@ export class ProfileStore {
       if (old.inv.has(uid)) continue;
       const it = byUid.get(uid)!;
       const tx = `grant:${uid}`;
+      if (isArtifactId(id) && ITEM_BY_ID[id]) P(ARTIFACT_INSERT, ...artifactRow(ITEM_BY_ID[id])); // артефакт: сперва строка items (FK item_instances.item_id)
       P("INSERT OR IGNORE INTO item_instances (instance_id, owner, item_id, acquired_at, source, state, tx_id, viewed_at, updated_at, hero, run_skill, cursed, ench, locked, upg, blk) VALUES (?, ?, ?, ?, ?, 'inv', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         uid, pkey, id, it.at || now, it.src || "?", tx, it.n ? null : now, now, it.hero || null, it.rs || null, it.cursed ? 1 : 0, it.ench | 0, it.lk ? 1 : 0, it.up || 0, it.blk || 0);
       P("INSERT OR IGNORE INTO grant_audit (ts, pkey, kind, item_id, instance_id, qty, source, tx_id, detail) VALUES (?, ?, 'grant', ?, ?, 1, ?, ?, NULL)", it.at || now, pkey, id, uid, it.src || "?", tx);

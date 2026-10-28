@@ -3,6 +3,7 @@
 // линия насквозь, снаряд со взрывом, рывок/прыжок (сервер сам двигает героя, клиенту — ability_move),
 // дождь из точек, отложенный удар (метеор), аура с тиками, неуязвимость/снижение урона, заморозка/замедление.
 // Направление — от клиента (нормализуется), всё остальное (дальность, урон, цели, позиции) — сервер.
+import { BM_SHAPES } from "./blackArt";
 import { ENEMY_SPRITES } from "./mobFamily";
 import { ABILITY_BY_ID } from "./defs";
 import { cryptoRand } from "./profile";
@@ -55,6 +56,7 @@ export const SHAPES: Record<string, Shape> = {
   dew_splash: { k: "cone", len: 220, arc: 1.1, slow: true },
   warden_slam: { k: "meteor", dist: 140, r: 120, delay: 350 },
   gear_spin: { k: "cone", len: 200, arc: 1.6, knock: 2 },
+  ...BM_SHAPES, // навыки артефактов (blackArt.ts)
 };
 // навыки монстров: форма их базовой реализации (AbilityDef.base), иначе — вспышка
 export function shapeOf(id: string): Shape {

@@ -27,7 +27,7 @@ export const isRs = (id: any) => typeof id === "string" && !!rsInfo(id);
 export function rsOptions(): { id: string; name: string; group: string }[] {
   const out: { id: string; name: string; group: string }[] = [];
   for (const r of RUN_SKILLS) out.push({ id: r.id, name: r.name, group: "Оружие (R)" });
-  for (const d of ABILITIES_DEF as any[]) out.push({ id: "ab:" + d.id, name: d.name + (d.cls && d.cls !== "monster" ? ` (${(HERO_NAMES as any)[d.cls] || d.cls})` : ""), group: d.cls === "monster" ? "Монстры" : "Герои" });
+  for (const d of ABILITIES_DEF as any[]) out.push({ id: "ab:" + d.id, name: d.name + (d.cls && d.cls !== "monster" && d.cls !== "artifact" ? ` (${(HERO_NAMES as any)[d.cls] || d.cls})` : ""), group: d.cls === "artifact" ? "Артефакты" : d.cls === "monster" ? "Монстры" : "Герои" });
   for (const [k, m] of Object.entries(MOB_SKILLS)) if (!k.startsWith("rs:") && !(ABILITY_BY_ID as any)[k]) out.push({ id: "mob:" + k, name: m.name, group: "Монстры" });
   return out;
 }
