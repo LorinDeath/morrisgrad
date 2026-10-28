@@ -95,7 +95,11 @@ export class BoardStore {
   /** заказы у Доски объявлений: охота + всё, что админ перенёс на Доску (giver = board) */
   boardOrders() { if (!this.defs) return []; const off = new Set(this.st?.sel?.hunt || []);
     return this.defs.tasks.filter((t) => t.nb && (t.cat !== 'hunt' || off.has(t.id) || this.taken(t.id)) && !(t.take && this.tier(t).done)); }
-  takenCount() { return (this.st?.tk || []).length; } // как считает сервер (лимит «Взято X из Y»)
+  /** взятые задания — как считает сервер (boardTake): у заказов Доски и у личных заданий персонажей (НПС, сюжетные) свои лимиты.
+   *  Раньше считались все вместе — отсюда «Взято 7 / 6» у Доски, хотя лимит Доски не превышен. */
+  takenCount(kind = 'board') { return (this.st?.tk || []).filter((id) => { const t = this.def(id); return t && (t.at === 'board') === (kind === 'board'); }).length; }
+  /** лимиты взятых заданий (те же умолчания, что на сервере) */
+  takeMax(kind = 'board') { const c = this.defs?.cfg || {}; return kind === 'board' ? (c.huntMax | 0) || 6 : (c.npcMax | 0) || 8; }
   readyCount(cat) { if (!this.defs) return 0; let n = 0; for (const t of cat ? this.list(cat) : this.defs.tasks) if ((!t.take || this.taken(t.id)) && this.tier(t).ready && !this.locked(t.id)) n++; return n; }
   /** обучение: текущий шаг (первый не выполненный по порядку) */
   tutStep() {
@@ -125,7 +129,8 @@ export class BoardStore {
   rewardList(t, ti) {
     const out = [], xp = this.xpOf(t, ti); if (xp) out.push(`+${xp} опыта`);
     const bx = this.bonuses(t).filter((o) => o.st !== 'fail').reduce((a, o) => a + o.xp, 0); if (bx) out.push(`бонусы до +${bx}`);
-    for (const [k, v] of Object.entries(t.res || {})) out.push(`${RESOURCES[k]?.icon || ''}${v} ${RESOURCES[k]?.name || k}`);
+    const rm = t.roll?.rm > 0 ? t.roll.rm : 1; // редкие/боссы по уровню героя: ресурсов больше с уровнем цели (сервер: fitReward)
+    for (const [k, v] of Object.entries(t.res || {})) out.push(`${RESOURCES[k]?.icon || ''}${Math.round(v * rm)} ${RESOURCES[k]?.name || k}`);
     if (t.item && ti === (t.n.length - 1)) out.push(`🎁 ${ITEM_BY_ID[t.item]?.name || 'предмет'}`);
     return out;
   }

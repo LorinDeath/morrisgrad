@@ -35,7 +35,9 @@ export interface Account {
   quests: { active: Record<string, { p: number[] }>; done: string[]; untracked?: string[]; rep?: Record<string, string>; br?: Record<string, string> };
   mobTrack?: string | null; // «Отслеживать» из Бестиария (одна цель, сохраняется на сервере)
   mobTracks?: string[]; // несколько целей Бестиария (лимит — BOARD_CFG.trackMax); mobTrack = первая (совместимость)
-  bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
+  bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc;
+  /** Бестиарий: особые особи вида (bestiaryVar.ts) — { вид: { c|e1…e6: [встречен, побед, ОЗ] } }; в accounts.data */
+  bvar?: Record<string, Record<string, [number, number, number]>>; flags: Record<string, boolean>; hero: string | null; nextUid: number;
   runSkills?: string[]; // кодекс: открытые (хоть раз выпавшие) навыки «Вампир-лайка»
   gname?: string; // имя гостевого профиля (guestNames.ts), назначает сервер
 }

@@ -57,6 +57,7 @@ import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer }
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
 import { bestiaryRegistry, arenaKey, ARENA_ONLY, TRIAL_BOSS_WAVE } from "./bestiaryReg";
+import { noteVarSeen, noteVarKill, bvarView } from "./bestiaryVar";
 import { Rating, loadPublicProfile, publicCharacter, guestName, opaqueId, loadDuelRecord } from "./rating";
 import { Pvp, type Duel } from "./pvp";
 import { Social } from "./social";
@@ -530,7 +531,7 @@ export class MetaService {
   boardSnap(ms: any, a: Account, h: Hero | null, s: any) {
     try {
       const r = boardRefresh(a, h, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
-      if (r.granted.length) { s.boardGranted = r.granted.map((g: any) => ({ id: g.id, title: g.title, cat: g.cat, xp: g.xp, res: g.res, capped: g.cappedXp || undefined })); ms.dirty = true; }
+      if (r.granted.length) { s.boardGranted = r.granted.map((g: any) => ({ id: g.id, title: g.title, cat: g.cat, xp: g.xp, res: g.res, capped: g.cappedXp || undefined, vet: g.vet || undefined })); ms.dirty = true; }
       if (ms.boardDefsVer !== this.admin.ver) { s.boardDefs = boardDefs(); ms.boardDefsVer = this.admin.ver; ms.boardRev = -1; }
       const st = boardClient(a, h);
       if (st.rev !== ms.boardRev || st.lvl !== ms.boardLvl) { s.board = st; ms.boardRev = st.rev; ms.boardLvl = st.lvl; }
@@ -615,7 +616,7 @@ export class MetaService {
         if (at === "board" && !nearBoard("nb", session.world || "hellfire", session.x, session.y)) { this.send(ws, { type: "toast_error", message: "Заказы берут и отменяют у Доски объявлений (Аринар, у портала)" }); return true; }
         if (at && at !== "board" && !this.nearNpc(session, at)) { this.send(ws, { type: "toast_error", message: `Личные задания берут у персонажа: ${NPCS[at]?.name || at}` }); return true; }
         const r = boardTake(a, h, tid, !!msg.on);
-        if (r.ok && msg.on && BTASKS[tid]?.ev === "reach") this.bev(session, { type: "reach", world: session.world || "hellfire" }); // «дойти до …» — уже там (как у квестов)
+        // «Дорога в Аринар» и др. «дойти до …»: больше НЕ засчитывается сразу при взятии (решение Алекса) — только настоящий вход в мир (onWorldChange)
         if (r.ok) this.push(ws, session, r.msg ? { toast: r.msg } : {}); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
       case "board_pin": { const r = boardPin(a, String(msg.id).slice(0, 64), !!msg.on); if (r.ok) this.push(ws, session); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
       case "board_tut": { const r = boardTut(a, String(msg.mode)); if (r.ok) this.push(ws, session); else this.send(ws, { type: "toast_error", message: r.err }); return true; }
@@ -752,7 +753,7 @@ export class MetaService {
         const q = QUEST_BY_ID[String(msg.id)];
         if (!q || !this.nearNpc(session, q.npc)) { this.send(ws, { type: "toast_error", message: "Возьмите квест у персонажа" }); return true; }
         const r = acceptQuest(a, q.id, h);
-        if (r.ok) { this.qev(a, session, { type: "talk", npc: q.npc }); if ((session.world || "hellfire") === "arinar") this.qev(a, session, { type: "reach", world: "arinar" }); }
+        if (r.ok) { this.qev(a, session, { type: "talk", npc: q.npc }); if ((session.world || "hellfire") === "arinar") this.qev(a, session, { type: "reach", world: "arinar", here: true }); } // here — «уже здесь»: сюжетным квестам, не доске
         reply(r, `Квест принят: ${q.title}`); return true;
       }
       case "quest_choice": { // выбор игрока в диалоге: проверяется по опубликованному диалогу (фаза, окно, вариант), рядом с NPC квеста
@@ -940,6 +941,10 @@ export class MetaService {
         if (msg.freeSlots) { let n = Math.min(200, Number(msg.freeSlots) || 0); for (let i = a.inv.length - 1; i >= 0 && n > 0; i--) if (a.inv[i].src === "grant:fill") { a.inv.splice(i, 1); n--; } }
         if (msg.invCount) { const cnt: Record<string, number> = {}; for (const it of a.inv) cnt[it.id] = (cnt[it.id] || 0) + 1; this.send(ws, { type: "dev_inv", n: a.inv.length, cnt, uids: new Set(a.inv.map((i) => i.uid)).size, res: a.res }); }
         if (msg.res) for (const [r, n] of Object.entries(msg.res)) addRes(a, r, Number(n));
+        if (msg.questActive && QUEST_BY_ID[String(msg.questActive)] && !a.quests.done.includes(String(msg.questActive))) { a.quests.active[String(msg.questActive)] = { p: QUEST_BY_ID[String(msg.questActive)].objectives.map(() => 0) } as any; ms.dirty = true; } // плейтест сюжета (только dev)
+        if (msg.varNear && typeof msg.varNear === "object") { const z = this.zoneOf(session), v: any = msg.varNear; // тест «Вариантов» Бестиария (только dev): ближайший моб — проклятый/зачарованный, ОЗ как у настоящего
+          const m: any = z?.mobs.filter((x: any) => !x.dead && !x.special && (!v.type || x.type === v.type)).sort((p: any, q: any) => Math.hypot(p.x - session.x, p.y - session.y) - Math.hypot(q.x - session.x, q.y - session.y))[0];
+          if (m) { m.cursed = !!v.cursed; m.ench = Number.isInteger(v.ench) && v.ench >= 0 && v.ench <= 6 ? v.ench : 0; m.maxHp = m.hp = Math.round((m.hpBase || m.maxHp) * (m.cursed ? CURSE.mobHp : 1) * (Number(tierDef(m.ench)?.mobHp) || 1)); this.send(ws, { type: "dev_mob", id: m.id, mob: m.type, maxHp: m.maxHp, x: Math.round(m.x), y: Math.round(m.y) }); } }
         // тесты: мировые боссы (spawnBosses — всех сразу, killBoss — ключ логова), бродячие (ambientNow — проверка сейчас)
         { const z = this.zoneOf(session) as any; if (z) {
           if (msg.spawnBosses) for (const b of z.gen.bosses) if (!z.bossIds[b.key || b.type]) z.bossAt[b.key || b.type] = 1;
@@ -982,6 +987,7 @@ export class MetaService {
     const known = (id: string) => !!a.disc.items[id];
     const mobs: Record<string, any> = {};
     for (const [id, b] of Object.entries(a.bestiary)) mobs[id] = { kills: b.kills || 0, isNew: !b.v, drops: mobDropView(id, known), st: mobStatView(id) ?? (ARENA_ONLY[id] ? { lvl: ARENA_ONLY[id].lvl } : null) }; // статы — с правками админки (как считает сервер)
+    for (const id of Object.keys(mobs)) if ((ZONE_MOBS as any)[id]) mobs[id].vr = bvarView(a as any, id); // особые особи и варианты краёв: статус, ОЗ/ур. после встречи
     const reg = bestiaryRegistry(); // реестр Бестиария: всё, что появляется в игре (группы, уровень, где водится) — знаменатель шкалы
     const feats = Object.fromEntries(Object.entries(a.disc.feats).map(([f, d]) => [f, { isNew: !d.v }]));
     // Кодекс навыков: ВСЕ навыки (героев, оружия R, монстров) с действующими (после правок админки) значениями и «открыт/нет»
@@ -1106,7 +1112,7 @@ export class MetaService {
       for (let i = 0; i < bosses; i++) {
         noteMob(a, boss, 1);
         this.grantLoot(a, rollMonsterLoot(boss), out, `run:${run.room}:${boss}`);
-        this.qev(a, session, { type: "kill_boss", mob: boss, usedAbility: true });
+        // цели «Победите <босса>» (kill_boss) забег больше НЕ засчитывает (решение Алекса): только настоящее убийство в открытом мире (onMobKilled)
       }
       this.qev(a, session, { type: "run", room: run.room, time, cls, players });
     } else if (mode === "duel") {
@@ -1516,10 +1522,13 @@ export class MetaService {
     const world: string | null = null; // мир — по участнику (моб в том же мире, что и бивший его)
     const recv = new Map<string, number>(); // sid → размер группы для дележа
     const grpOf = new Map<string, string[]>();
+    // босс/редкий: засчитывается и павшим членам отряда рядом (погиб в бою — убийство всё равно его); в забеге — не считается
+    const big = !!(d?.boss || d?.rare || m.special === "boss" || m.special === "rare");
+    const posFn = (s: string) => { const q = this.partyPos(s); return q && !q.run ? (big ? { ...q, alive: true } : q) : null; };
     for (const [sid, dmg] of m.dmgBy as Map<string, number>) {
-      if (!d.boss && !d.rare && dmg / total < 0.15 && sid !== bagOwner) continue; // вклад ≥15% (босс/редкий — любой вклад)
+      if (!big && dmg / total < 0.15 && sid !== bagOwner) continue; // вклад ≥15% (босс/редкий — любой вклад)
       const me = this.partyPos(sid); if (!me) continue;
-      const grp = this.party.near(sid, world || me.world, m.x, m.y, this.partyPos);
+      const grp = this.party.near(sid, world || me.world, m.x, m.y, posFn);
       for (const g of grp) { recv.set(g, Math.max(recv.get(g) || 1, grp.length)); grpOf.set(g, grp); }
       if (!grp.includes(sid)) { recv.set(sid, 1); grpOf.set(sid, [sid]); }
     }
@@ -1543,6 +1552,7 @@ export class MetaService {
       const h = cls ? this.store.hero(ms.pkey, cls) : null;
       const base = baseOf(m.type); // вариант биома → трофеи/бестиарий/квесты базового Отголоска
       { const bk = bestiaryKey(m.type); if (bk) noteMob(a, bk, 1); } // у варианта и варианта-босса («Часовой Пустоты») — своя карточка
+      noteVarKill(a, m.type, m); // Бестиарий: победа над проклятым/зачарованным (bestiaryVar.ts) — тот же получатель, что и запись вида
       const lootKey = MONSTER_LOOT[m.type] ? m.type : base; // у каждого моба своя (правимая в админке) таблица
       // опыт: по уровню моба с поправкой на разницу уровней (серые мобы почти ничего не дают)
       const n = recv.get(sid) || 1;
@@ -2258,6 +2268,9 @@ export class MetaService {
         if (acc) for (let i = 0; i < st.m.length; i += 6) {
           const type = bestiaryKey(MOB_TYPES[st.m[i + 1]] || "");
           if (type && !acc.bestiary[type] && Math.abs(st.m[i + 2] - s.x) < 420 && Math.abs(st.m[i + 3] - s.y) < 320) { noteMob(acc, type, 0); ms.dirty = true; met = true; }
+          // проклятый/зачарованный (биты 1024 и 23–25): «встречен» — в поле зрения (≈ экран) или в радиусе агрессии
+          if (type && st.m[i + 5] & (1024 | (7 << 23))) { const vm: any = zone.byId.get(st.m[i]), dx = st.m[i + 2] - s.x, dy = st.m[i + 3] - s.y;
+            if (vm && ((Math.abs(dx) < 420 && Math.abs(dy) < 320) || Math.hypot(dx, dy) < (ZONE_MOBS[vm.type]?.aggro || 0)) && noteVarSeen(acc, type, vm)) { ms.dirty = true; met = true; } }
         }
         if (met) this.send(ws, { type: "meta_state", ...this.snap(s) }); // новая запись Бестиария → счётчик «новое»
         const tid = (ms as any).target, tm = tid ? zone.byId.get(tid) : null;

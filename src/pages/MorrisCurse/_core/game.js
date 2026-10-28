@@ -49,7 +49,8 @@ import { BoardWin } from './ui/board.js';
 import { QolHud } from './ui/qol.js';
 import { NpcDialog, npcIconUrl } from './ui/dialog.js';
 import { TargetPointers } from './ui/targetPtr.js';
-import { spawnLabelItems, drawSpawnLabels } from './ui/spawnLabels.js';
+import { spawnLabelItems, drawSpawnLabels, campLabelItems } from './ui/spawnLabels.js';
+import { campTimersOn, campCfg } from './ui/campTimer.js';
 import { bossCfg } from './ui/bossSpawn.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
@@ -594,7 +595,9 @@ async function boot(canvasId, username, userId, api) {
     if (d.uiLay !== undefined) uiDrag.applyServer(d.uiLay); // раскладка интерфейса аккаунта (приходит при входе)
     boardSt.apply(d);
     if (d.boardDefs) { zone.setBoards?.(d.boardDefs.props, d.boardDefs.on); const P = d.boardDefs.props || {}; setBoardCols(d.boardDefs.on ? [P.nb, P.ab].filter(Boolean) : []); } // доски непроходимы — как на сервере
-    for (const g of d.boardGranted || []) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac');
+    { const G = d.boardGranted || [], V = G.filter((g) => g.vet); // опытный игрок: награды обучения разом — один тост вместо десятка
+      if (V.length > 1) { const xp = V.reduce((s, g) => s + (g.xp || 0), 0); overlay.toast(`✔ Обучение засчитано: наград ${V.length}${xp ? ` · +${xp} опыта` : ''}`, '#86efac'); }
+      for (const g of V.length > 1 ? G.filter((g) => !g.vet) : G) overlay.toast(`✔ ${g.title}${g.xp ? ` · +${g.xp} опыта` : ''}`, '#86efac'); }
     if (d.boardClaimed) { const c = d.boardClaimed; overlay.toast(`✔ ${c.title}: награда получена${c.xp ? ` · +${c.xp} опыта` : ''}${c.capped ? ' (дневной предел опыта)' : ''}${c.item ? ` · ${c.item.name || 'предмет'}` : ''}${c.chest ? ` · 🎁 ${c.chest.name} (ур. ${c.chest.L}, вещей ${c.chest.lo}–${c.chest.hi}) — откройте: Y / 🎁` : ''}${c.chests?.length ? ` · 🎁 ${[...c.chests.reduce((m, x) => m.set(x.name, (m.get(x.name) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${k} × ` : '') + n).join(', ')}${c.chest ? '' : ' — откройте: Y / 🎁'}` : ''}`, '#86efac'); }
     if (d.bchest) bchestUi(d.bchest);
     if (d.toast) overlay.toast(d.toast, '#c4b5fd');
@@ -619,7 +622,7 @@ async function boot(canvasId, username, userId, api) {
     for (const q of d.quests || []) if (q.complete && QUEST_BY_ID[q.id]) overlay.toast(`◆ Цель выполнена: ${QUEST_BY_ID[q.id].title}`, '#a7f3d0');
   });
   // туман войны и большая карта (M)
-  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, hunt: tracker.hunt, hunts: tracker.hunts, targets: tracker.targets, party: party.others().filter((m) => m.world === world && !m.run) }));
+  const worldMap = new WorldMap(container, () => ({ world, me: { x: player.x, y: player.y }, hunt: tracker.hunt, hunts: tracker.hunts, targets: tracker.targets, party: party.others().filter((m) => m.world === world && !m.run), camps: world === 'arinar' ? zone.camps : null, campQol: boardSt.defs?.cfg?.qol }));
   worldMap.send = (o) => net.send(o); // метки карты — на сервер
   hud.minimap.onOpenMap = () => worldMap.open();
   net.on('fog', (d) => { fog.setFull(d); worldMap.draw(); });
@@ -911,7 +914,7 @@ async function boot(canvasId, username, userId, api) {
     if (Array.isArray(d.wb)) setBossState(d.wb, Date.now(), world, (t) => ZONE_MOBS[t]?.name || t);
     if (Array.isArray(d.rs)) setRareState(d.rs, world, Date.now(), (t) => (bestKnown(t) ? ZONE_MOBS[t]?.name || t : 'Редкий Отголосок')); // редкие Отголоски: место и отсчёт (общий механизм с боссами)
     for (const e of d.ev || []) if (e.k === 'lsheal' && e.sid === myId) lsAdd(e.d);
-    if (Array.isArray(d.cp)) zone.camps = d.cp; // лагеря рядом: мини-карта (агро/активность) и трекер квеста
+    if (Array.isArray(d.cp)) { const t0 = Date.now(); zone.camps = d.cp; for (const c of d.cp) c[9] = c[8] > 0 ? t0 + c[8] * 1000 : 0; } // [9] — момент возрождения по часам клиента // лагеря рядом: мини-карта (агро/активность) и трекер квеста
     for (const e of d.ev || []) if (e.k === 'hit' && e.by === myId && e.d > 0) dpsMeter.add(e.d); // мировые боссы: жив / таймер — на карте и мини-карте
     if (d.fp !== undefined || world === 'arinar') syncForeignPortals(world === 'arinar' ? d.fp : []);
     if (mode !== 'hub') return;
@@ -1449,6 +1452,7 @@ async function boot(canvasId, username, userId, api) {
       if (was !== 'arinar') v.zoom = v.targetZoom;
     } else if (was === 'arinar') { v.minZoom = 0.2; v.maxZoom = 1.5; v.targetZoom = v.zoom = 0.5; }
   }
+  hud.minimap.getQol = () => boardSt.defs?.cfg?.qol; // таймеры лагерей (qol.campTimer/campZoom)
   hud.minimap.getCamCells = () => (world === 'arinar' && mode === 'hub' ? stage.viewCells() : 0);
   hud.minimap.onZoom = (f) => zoomBy(f);
   { // щипок двумя пальцами — зум камеры (плавно, тем же zoomBy)
@@ -1565,7 +1569,7 @@ async function boot(canvasId, username, userId, api) {
   function mobTarget(o, tg) {
     const info = ZONE_MOBS[o.type] || {};
     const en = tierOf(tg?.ench ?? o.ench);
-    const tags = [en ? '✦ ' + enchName(en) : '', tg?.cursed || o.cursed ? '☠ Проклятый' : '', tg?.boss || info.boss ? '👑 Босс' : '', tg?.elite || o.elite ? '★ Элита' : '', tg?.reset ? '↩ сброс' : ''].filter(Boolean).join(' · ');
+    const tags = [en ? '✦ ' + enchName(en) : '', tg?.cursed || o.cursed ? '☠ Проклятый' : '', tg?.boss || info.boss ? '👑 Босс' : '', tg?.chief || o.chief ? '⚑ Вожак' : tg?.elite || o.elite ? '★ Элита' : '', tg?.reset ? '↩ сброс' : ''].filter(Boolean).join(' · ');
     return {
       kind: 'mob', id: o.id, name: tg?.name || info.name || o.type, color: en ? enchText(en) : '', glitch: en === 6,
       typeLabel: `ур. ${tg?.lvl ?? info.lvl ?? '?'}${tags ? ' · ' + tags : ''}${tg?.skills ? ' · 🌀 ' + tg.skills.join(', ') : ''}${stsLabel(tg?.sts || o.sts)}`,
@@ -1932,7 +1936,7 @@ async function boot(canvasId, username, userId, api) {
       overlay.label('pt_' + pt.id, q.x, q.y, `${esc(pt.name)}${extra}`, pt.color || '#c084fc');
     }
     // отсчёт до появления над логовами мировых боссов и местами появления редких Отголосков (общий механизм)
-    if (mode === 'hub') drawSpawnLabels(overlay, spawnLabelItems(world, player.x, player.y, bossCfg(boardSt), Date.now(), bestKnown), (x, y) => stage.project(toX(x), 3.4, toZ(y)));
+    if (mode === 'hub') drawSpawnLabels(overlay, [...spawnLabelItems(world, player.x, player.y, bossCfg(boardSt), Date.now(), bestKnown), ...(world === 'arinar' && campTimersOn() ? campLabelItems(zone.camps, player.x, player.y, campCfg(boardSt.defs?.cfg?.qol)) : [])], (x, y) => stage.project(toX(x), 3.4, toZ(y)));
     // сундуки схватки: таймер личной/общей фазы
     for (const c of zone.chests.values()) { const q = stage.project(toX(c.x), 2.2, toZ(c.y)); if (!q) continue; const left = Math.max(0, c.left - Math.floor((Date.now() - c.at) / 1000)); const t = left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left} с`;
       overlay.label('ch_' + c.id, q.x, q.y, c.pub ? `📦 Общий сундук<small>${c.n} предм. · ${t}</small>` : `📦 ${c.mine ? 'Ваша добыча: ' + c.mine : 'Чужая добыча'}<small>личный · ${t}</small>`, c.pub ? '#e5e7eb' : c.mine ? '#fde68a' : '#94a3b8'); }

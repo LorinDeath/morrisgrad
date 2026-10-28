@@ -1,0 +1,28 @@
+// Бестиарий: варианты (bestiaryVar.ts) — встреча, победа, вид карточки; обычная особь bvar не пишет
+import { noteVarSeen, noteVarKill, bvarView, varKeys, VAR_KEYS } from "./bestiaryVar";
+import { ZONE_MOBS } from "./defs";
+let ok = 0, bad = 0; const t = (c: any, m: string) => { if (c) ok++; else { bad++; console.log("FAIL", m); } };
+const a: any = { bestiary: { star_hound: { seen: 1, kills: 3 } } };
+t(VAR_KEYS.length === 7 && VAR_KEYS[0] === "c" && VAR_KEYS[6] === "e6", "ключи c,e1…e6");
+t(varKeys({}).length === 0 && varKeys({ cursed: true, ench: 3 }).join() === "c,e3" && varKeys({ ench: 9 }).length === 0, "varKeys");
+t(noteVarSeen(a, "star_hound", { maxHp: 100 }) === false && !a.bvar, "обычная особь — без bvar");
+t(noteVarSeen(a, "star_hound", { ench: 6, maxHp: 4000 }) === true, "встреча Чёрного");
+t(noteVarSeen(a, "star_hound", { ench: 6, maxHp: 4000 }) === false, "повторная встреча — без изменений");
+t(a.bvar.star_hound.e6[1] === 0 && a.bvar.star_hound.e6[2] === 4000, "встречен, не побеждён, ОЗ записаны");
+noteVarKill(a, "star_hound", { ench: 6, maxHp: 4000 }); noteVarKill(a, "star_hound", { ench: 6, maxHp: 4000 });
+noteVarKill(a, "star_hound", { cursed: true, maxHp: 900 });
+t(a.bvar.star_hound.e6[1] === 2 && a.bvar.star_hound.c[1] === 1, "победы считаются (и без отдельной встречи)");
+t(noteVarSeen(a, "no_such_mob", { cursed: true }) === false && !a.bvar.no_such_mob, "неизвестный вид не пишется");
+const v = bvarView(a, "star_hound");
+const g = (k: string) => v.find((x) => x.k === k)!;
+t(g("e6").st === 2 && g("e6").kills === 2 && g("e6").hp === 4000 && g("e6").lvl === (ZONE_MOBS as any).star_hound.lvl && g("e6").name === "Чёрный", "Чёрный: побеждён ×2, ОЗ, ур.");
+t(g("c").st === 2 && g("c").name === "Проклятый", "Проклятый побеждён");
+t(g("e1").st === 0 && g("e1").hp === undefined && g("e1").lvl === undefined, "невстреченный — без ОЗ/ур.");
+const fv = g("v:fire_star_hound"); t(fv && fv.st === 0 && fv.name === "???" && fv.spr === "star_hound", "вариант края не встречен: ???, силуэт базового");
+a.bestiary.fire_star_hound = { seen: 1, kills: 0 };
+const fv2 = bvarView(a, "star_hound").find((x) => x.k === "v:fire_star_hound")!;
+t(fv2.st === 1 && fv2.name === "Гончая синего пламени" && Array.isArray(fv2.tint) && fv2.hp! > 0 && !!fv2.where, "вариант края встречен: имя, оттенок, ОЗ, где");
+const back = bvarView(a, "fire_star_hound").find((x) => x.k === "v:star_hound")!;
+t(back && back.st === 2 && back.kills === 3, "в карточке варианта — базовый вид");
+t(JSON.parse(JSON.stringify(a)).bvar.star_hound.e6[1] === 2, "bvar — обычный JSON (accounts.data)");
+console.log(`${ok} PASS ${bad} FAIL`); if (bad) process.exit(1);

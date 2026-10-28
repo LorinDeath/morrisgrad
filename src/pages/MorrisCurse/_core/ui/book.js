@@ -22,6 +22,7 @@ import { esc } from './overlay.js';
 import { mobHomes, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { bossCfg, bossLairs, pickLair, spawnText } from './bossSpawn.js';
 import { skillIcon } from './actionBar.js';
+import { bprevHtml } from './beastPreview.js';
 
 const TABS = [
   ['quests', '📜', 'Задания', 'J'],
@@ -633,6 +634,19 @@ export class Book {
       <small>Навыки героев открываются уровнем, навыки оружия — с добытым оружием (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%; клавиша R), навыки монстров — при встрече с ними.</small></div>
       <div class="mc-libf">${tabs}</div><div class="mc-rs-grid">${cards}</div>`;
   }
+  /** «Варианты» в карточке Бестиария: особые особи (проклятый, ярусы зачарования, Чёрный-глитч) и варианты краёв — статус игрока с сервера (bestiaryVar.ts) */
+  varsHtml(id, vr, where) {
+    if (!Array.isArray(vr) || !vr.length) return '';
+    const seen = vr.filter((v) => v.st > 0).length, won = vr.filter((v) => v.st === 2).length;
+    const li = vr.map((v) => {
+      const isV = v.k.startsWith('v:'), vid = isV ? v.k.slice(2) : id, spr = v.spr || MOB_INFO[vid]?.base || id;
+      const w = isV ? where(vid) || v.where || '' : where(id);
+      const pv = bprevHtml(spr, isV ? 'v' : v.k, v.tint, v.st === 0, 56);
+      if (v.st === 0) return `<li class="mc-bvar unseen">${pv || '<span class="mc-bvar-q">?</span>'}<div><b style="color:${esc(v.col)}">${isV ? '???' : esc(v.name) + ' · ???'}</b><small>ещё не встречен${isV && v.where ? ` · ${esc(v.where)}` : ''}</small></div></li>`;
+      return `<li class="mc-bvar">${pv}<div><b style="color:${esc(v.col)}">${esc(v.name)}</b><small>ур. ${v.lvl ?? '?'} · ОЗ ${fmtBig(v.hp || 0)} · ${v.st === 2 ? `<span class="ok">побеждён ×${v.kills}</span>` : '<span class="no">встречен, не побеждён</span>'}</small>${w ? `<small>Где живёт: ${esc(w)}</small>` : ''}</div></li>`;
+    }).join('');
+    return `<div class="h">Варианты: встречено ${seen} из ${vr.length}, побеждено ${won}</div><ul class="mc-bvars">${li}</ul>`;
+  }
   rBestiary(st) {
     const L = this.meta.library;
     const b = {};
@@ -643,11 +657,11 @@ export class Book {
     const lmOf = (id) => L?.mobs?.[id] || L?.mobs?.['run_' + id];
     // реестр — с сервера: всё, что реально появляется (таблицы регионов, логова, редкие, свита боссов, забеги/испытания);
     // без него (старый сервер) — справочник клиента
-    const REG = L?.reg || Object.keys(MOB_INFO).map((id) => ({ id, g: MOB_INFO[id].boss ? 'world' : MOB_INFO[id].rare ? 'elite' : 'mob', lvl: MOB_INFO[id].lvl, where: [] }));
+    const REG = L?.reg || Object.keys(MOB_INFO).map((id) => ({ id, g: MOB_INFO[id].boss ? 'world' : MOB_INFO[id].rare ? 'rare' : 'mob', lvl: MOB_INFO[id].lvl, where: [] }));
     const RB = Object.fromEntries(REG.map((e) => [e.id, e]));
     const lvlOf = (id) => lmOf(id)?.st?.lvl ?? RB[id]?.lvl ?? MOB_INFO[id]?.lvl ?? 1, dir = this.lvlSort === 'desc' ? -1 : 1;
-    const K1 = { mob: 'моб', elite: 'элита', boss: 'босс', world: 'мировой босс' }, KN = { mob: 'Мобы', elite: 'Элита', boss: 'Боссы', world: 'Мировые боссы' };
-    const grpOf = (id) => RB[id]?.g || (MOB_INFO[id]?.boss ? 'world' : MOB_INFO[id]?.rare ? 'elite' : 'mob');
+    const K1 = { mob: 'моб', elite: 'элита', chief: 'вожак', rare: 'редкий', boss: 'босс', world: 'мировой босс' }, KN = { mob: 'Мобы', elite: 'Элита', chief: 'Вожаки', rare: 'Редкие', boss: 'Боссы', world: 'Мировые боссы' };
+    const grpOf = (id) => (KN[RB[id]?.g] ? RB[id].g : null) || (MOB_INFO[id]?.boss ? 'world' : MOB_INFO[id]?.rare ? 'rare' : 'mob');
     const killed = (id) => (b[id]?.kills || 0) > 0, F = this.bFilt || 'all', T = KN[this.bTab] ? this.bTab : 'mob';
     const stat = (ids) => ({ n: ids.length, seen: ids.filter((k) => b[k]).length, kill: ids.filter(killed).length });
     const byG = (g) => REG.filter((e) => e.g === g).map((e) => e.id);
@@ -659,7 +673,7 @@ export class Book {
       <small class="mc-dim">Бестиарий — вся история ваших встреч; достижения доски считаются с её запуска.</small></div>`;
     const tabs = `<div class="mc-libf mc-btabs">${Object.entries(KN).map(([g, nm]) => { const s0 = stat(byG(g)); return `<button class="mc-btn sm ${T === g ? 'gold' : ''}" data-act="btab" data-v="${g}">${esc(nm)} ${s0.kill}/${s0.n}</button>`; }).join('')}</div>
       <div class="mc-bfilt">${[['all', 'Все'], ['kill', 'Убиты'], ['nokill', 'Не убиты']].map(([k, n]) => `<button class="mc-btn sm ${F === k ? 'gold' : ''}" data-act="bfilt" data-v="${k}">${n}</button>`).join('')}</div>`;
-    const NOTE = { mob: 'Обычные виды, включая варианты краёв — у каждого своя карточка.', elite: 'Редкие именные Отголоски: появляются ненадолго и по одному. Элита и вожаки лагерей — сильные особи обычных видов: их победы засчитываются в карточку вида.', boss: 'Боссы забегов и испытаний.', world: 'Боссы логов открытого мира и их варианты краёв (появляются по таймеру).' };
+    const NOTE = { mob: 'Обычные виды, включая варианты краёв — у каждого своя карточка.', elite: 'Элита забегов и испытаний — усиленные особи в комнатах. Элита в открытом мире засчитывается в карточку своего вида.', chief: 'Вожаки лагерей: сильнейший вид края стоит в центре лагеря (больше ОЗ и урона, возрождается вдвое дольше).', rare: 'Редкие именные Отголоски: появляются ненадолго и по одному.', boss: 'Боссы забегов и испытаний.', world: 'Боссы логов открытого мира и их варианты краёв (появляются по таймеру).' };
     const inTab = byG(T).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir);
     const extra = Object.keys(b).filter((k) => !RB[k] && grpOf(k) === T).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir); // старые записи вне реестра
     const keys = [...inTab, ...extra];
@@ -690,6 +704,7 @@ export class Book {
           ${(() => { const bc = bossCfg(this.board), l = bc.on && pickLair(bossLairs((ty) => ty === id, 'arinar'), { x: 0, y: 0 }); return l ? `<div class="h">${l.alive ? '☠' : '⏳'} ${esc(spawnText(l, bc))}</div>` : ''; })()}
           ${info?.desc ? `<div class="h">${esc(info.desc)}</div>` : ''}
           ${RB[id]?.where?.length ? `<div class="h">Где встречается: ${esc(RB[id].where.join(', '))}</div>` : ''}
+          ${this.varsHtml(id, lm?.vr, where)}
           ${d ? `<div class="h">Добыча (шанс за убийство):</div><ul>${gear || '<li class="mc-dim">—</li>'}</ul>${mats ? `<div class="h">Материалы:</div><ul>${mats}</ul>` : ''}` : lm ? '<p class="mc-dim">Своей добычи нет.</p>' : '<p class="mc-dim">Загрузка пула добычи…</p>'}
           ${info?.lore ? `<div class="lore">${esc(info.lore)}</div>` : ''}`;
       }

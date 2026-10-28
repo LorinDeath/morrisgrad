@@ -11,6 +11,7 @@ let f = 0, n = 0; const ok = (c: any, m: string) => { n++; if (!c) { console.log
 const tot = (h: any) => { let s = h.xp; for (let l = 1; l < h.lvl; l++) s += heroXpNeed(l); return s; }; // весь опыт тела с 1-го уровня
 const capsKeep = JSON.parse(JSON.stringify(BOARD_CFG.caps || {})); for (const k of Object.keys(BOARD_CFG.caps || {})) BOARD_CFG.caps[k] = 0; // потолок — отдельно ниже
 BCHEST.maxStore = 1e6;
+BOARD_CFG.tutVetReward = false; // награды обучения опытному игроку (выдаются разом при boardRefresh) — проверяются в board-test, здесь мешали бы сверке опыта
 const CATS = ["daily", "weekly", "monthly", "hard", "hunt"];
 /** то, что видит игрок: карточка доски и трекер (BoardStore — тот же класс, что в клиенте) */
 function shown(a: any, h: any, id: string) {

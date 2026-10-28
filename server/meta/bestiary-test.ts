@@ -1,5 +1,7 @@
 // Реестр Бестиария: всё, что появляется в игре, — в реестре и в своей группе; убийства вариантов/боссов/забегов пишутся в свои карточки.
-import { bestiaryRegistry, arenaKey, ARENA_ONLY, TRIAL_BOSS_WAVE, BGROUPS } from "./bestiaryReg";
+import { bestiaryRegistry, arenaKey, ARENA_ONLY, TRIAL_BOSS_WAVE, BGROUPS, campChiefs, mobCategories } from "./bestiaryReg";
+import { campChiefType } from "./defs";
+import { validatePatch } from "./overrides";
 import { bestiaryKey, summonPool, VARIANT_BY_ID } from "./biomes";
 import { ZONE_MOBS, HUB_SPAWNS } from "./defs";
 import { WORLD_GEN, BOSS_TIMERS } from "./zoneGen";
@@ -40,9 +42,9 @@ console.log("справочник вне реестра (не появляетс
 // 2) группы
 ok(Object.values(BOSS_TIMERS).every((t) => by[t.type]?.g === "world"), "мировые боссы (таймеры) — «Мировые боссы»");
 ok(Object.keys(VARIANT_BY_ID).filter((v) => VARIANT_BY_ID[v].boss).every((v) => by[v]?.g === "world"), "варианты-боссы краёв — «Мировые боссы»");
-ok(["dew_king", "white_stag", "rust_baron", "cooler_maw", "fallen_star"].every((t) => by[t]?.g === "elite"), "редкие Отголоски — «Элита»");
+ok(["dew_king", "white_stag", "rust_baron", "cooler_maw", "fallen_star"].every((t) => by[t]?.g === "rare"), "редкие Отголоски — «Редкие»");
 ok(by.warden?.g === "boss" && by.kyut_mirror?.g === "boss" && by.kyut_mirror.name === "Отражение Кьют", "боссы забегов/испытаний: Страж Проклятия, Отражение Кьют");
-ok(Object.keys(VARIANT_BY_ID).filter((v) => !VARIANT_BY_ID[v].boss).every((v) => by[v]?.g === "mob"), "варианты краёв — «Мобы», своими карточками");
+ok(Object.keys(VARIANT_BY_ID).filter((v) => !VARIANT_BY_ID[v].boss).every((v) => by[v]?.g === "mob" || by[v]?.g === "chief"), "варианты краёв — «Мобы» (или «Вожаки», если стоят в центре лагеря), своими карточками");
 ok(["dew_king", "white_stag", "rust_baron", "cooler_maw", "fallen_star"].every((t) => by[t].where.some((w) => w.startsWith("Аринар · ") && !/пятно/.test(w))), "у редких — место (пятна биома по kind)");
 ok(!reg.some((e) => /альказ|alkaz/i.test(e.where.join(" ") + (e.name || ""))), "публичный текст без названия города");
 ok(!reg.some((e) => e.where.some((w) => /·\s*\(|·\s*$/.test(w))), "без безымянных регионов");
@@ -62,5 +64,20 @@ const P: any = (MetaService as any).prototype;
 { const a: any = newAccount(); P.noteArenaKills.call({}, a, { kyut_mirror: 4, imp: 3 }, { cap: 1, onlyBoss: true });
   ok(a.bestiary.kyut_mirror?.kills === 1 && !a.bestiary.imp, "дуэль: только «Отражение Кьют», одно"); }
 { const a: any = newAccount(); P.noteArenaKills.call({}, a, null, {}); P.noteArenaKills.call({}, a, "x", {}); ok(!Object.keys(a.bestiary).length, "мусор в kills — без записей"); }
+// ---- категории: вожаки лагерей, элита забегов, правка админки (mob.cat) ----
+{ const ch = campChiefs();
+  ok(ch.size > 0 && [...ch.keys()].every((t) => by[t]?.g === "chief" || by[t]?.g === "rare" || by[t]?.g === "world"), "вожаки лагерей — «Вожаки»");
+  for (const G of Object.values(WORLD_GEN) as any[]) for (const r of G.regions || []) if (r.table?.length && r.dens !== 0) ok(ch.has(campChiefType(r.table)!), "вожак региона " + r.id + " в списке");
+  const runEl = new Set(Object.values(ROOM_ELITES as any).flat() as string[]);
+  ok([...runEl].filter((t) => by[t] && !ch.has(t)).every((t) => by[t].g === "elite"), "элита забегов — «Элита»");
+  ok(reg.every((e) => BGROUPS.includes(e.g)), "у всех записей известная группа");
+  const mc = mobCategories(); ok(Object.keys(ZONE_MOBS).every((id) => mc[id] && BGROUPS.includes(mc[id].g)), "категории админки — у каждого вида");
+  ok([...ch.keys()].every((t) => !mc[t] || mc[t].g !== "chief" || /лагеря/.test(mc[t].why || "")), "у вожака есть причина");
+  // правка: категория из game_overrides важнее места появления (только показ — засчитывание убийств не меняется)
+  const t = [...ch.keys()][0], z: any = (ZONE_MOBS as any)[t], was = z.cat;
+  ok(typeof validatePatch("mob", t, { cat: "rare" }) === "object", "SCHEMA: cat=rare принимается");
+  ok(typeof validatePatch("mob", t, { cat: "dragon" }) === "string", "SCHEMA: неизвестная категория отклоняется");
+  z.cat = "rare"; const e2 = bestiaryRegistry().find((e) => e.id === t)!; ok(e2.g === "rare" && e2.g0 === "chief" && mobCategories()[t].g === "rare", "правка категории → вкладка «Редкие», исходная — «Вожаки»");
+  if (was === undefined) delete z.cat; else z.cat = was; }
 console.log(`\n${pass} PASS, ${fail} FAIL`);
 if (fail) process.exit(1);

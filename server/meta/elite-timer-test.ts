@@ -60,7 +60,7 @@ function pickup(c: Cls, label: string): string[] {
   const e = bestiaryRegistry().find((x) => x.id === c.type);
   if (!e) miss.push("нет в реестре Бестиария");
   else {
-    if (e.g !== (c.kind === "boss" ? "world" : "elite")) miss.push(`не та группа Бестиария (${e.g})`);
+    if (e.g !== (c.kind === "boss" ? "world" : "rare")) miss.push(`не та группа Бестиария (${e.g})`);
     if (!e.where.length) miss.push("в Бестиарии нет «где водится»");
     if (c.kind === "rare" && !(e.resp && e.resp[0] > 0 && e.resp[1] >= e.resp[0])) miss.push("в Бестиарии нет окна возвращения (resp)");
   }

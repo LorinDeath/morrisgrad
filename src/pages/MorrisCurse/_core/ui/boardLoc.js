@@ -7,6 +7,7 @@ import { ZONE_MOBS } from '../../../../../server/meta/defs.ts';
 import { RESOURCES, NPCS } from '../../../../../server/meta/shared.ts';
 import { nearestHome, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { bossCfg, bossLairs, pickLair, lairTarget } from './bossSpawn.js';
+import { deadCampTarget } from './campTimer.js';
 import { WORLD_PORTALS } from '../../../../../server/worlds/portals.ts';
 import { npcPos } from '../meta/npcLive.js';
 
@@ -43,6 +44,7 @@ function mobTarget(id, ctx, bcfg) {
   for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some((ty) => goalMatch(id, ty))) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + nm, mob: id }; } }
   if (best) return best;
   { const l = pickLair(bossLairs((ty) => goalMatch(id, ty), ctx.world), ctx); if (l) return lairTarget(l, nm, bcfg, { mob: id }); } // мировой босс: живое состояние логова
+  { const t = deadCampTarget(ctx.camps, (ty) => goalMatch(id, ty), ctx, 'Лагерь: ' + nm, { mob: id }); if (t) return t; } // все цели в лагерях мертвы — к ближайшему с таймером
   const n = nearestHome(id, ctx.world, ctx.x, ctx.y); if (!n) return null;
   return { world: n.home.world, x: n.home.x, y: n.home.y, label: nm + (n.home.region ? ' · ' + n.home.region.split(':')[0] : ''), mob: id };
 }

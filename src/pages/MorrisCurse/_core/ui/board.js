@@ -1,6 +1,6 @@
 // Окно «Задания»: три вида.
 //  all — общее окно (U / 📋): вкладки Обучение · Персонажи · Доска охоты · Ежедневные · Еженедельные · Ежемесячные · Тяжёлые · Достижения;
-//  nb  — Доска объявлений (Аринар, у места появления): листки-заказы на пробковой доске, «Взято X / Y», взять/отменить/сдать;
+//  nb  — Доска объявлений (Аринар, у места появления): листки-заказы на пробковой доске, «взято X из Y» (только заказы Доски; личные задания НПС — отдельно), взять/отменить/сдать;
 //  ab  — Доска достижений (Поляна, у Алтаря тел): таблички по разделам, «Тела» — уровни каждого героя.
 // Без «сияния» и «звёзд». Только показ: что засчитать и что выдать — решает сервер (board_claim/take/pin/tut).
 import { esc } from './overlay.js';
@@ -105,7 +105,7 @@ export class BoardWin {
   // ——— вкладка «Обучение» ———
   tutBody() {
     const S = this.s, st = S.st, L = S.list('tut'), cur = S.tutStep(), mob = this.opt.mobile;
-    const left = S.tutLeft(), state = st.tut.vet ? 'Вы опытный игрок — обучение засчитано без наград.' : st.tut.skip ? 'Обучение пропущено.' : st.tut.off ? 'Подсказки обучения выключены.' : left ? `Осталось шагов: ${left} из ${L.length}` : 'Обучение пройдено!';
+    const left = S.tutLeft(), state = st.tut.vet ? (S.defs.cfg.tutVetReward !== false ? 'Вы опытный игрок — обучение засчитано, награды выданы.' : 'Вы опытный игрок — обучение засчитано без наград.') : st.tut.skip ? 'Обучение пропущено.' : st.tut.off ? 'Подсказки обучения выключены.' : left ? `Осталось шагов: ${left} из ${L.length}` : 'Обучение пройдено!';
     const ctl = [
       !st.tut.skip && !st.tut.vet && left && this.s.defs.cfg.tutSkip ? '<button class="ghost" data-b="tut" data-v="skip">Пропустить обучение</button>' : '',
       st.tut.off ? '<button data-b="tut" data-v="on">Включить подсказки</button>' : !st.tut.skip && left ? '<button class="ghost" data-b="tut" data-v="off">Выключить подсказки</button>' : '',
@@ -170,10 +170,10 @@ export class BoardWin {
   nbBody() {
     const S = this.s, orders = S.boardOrders(), hunt = orders.filter((t) => t.cat === 'hunt'), other = orders.filter((t) => t.cat !== 'hunt');
     const takenH = hunt.filter((t) => S.taken(t.id)), offer = hunt.filter((t) => !S.taken(t.id));
-    const max = S.defs.cfg.huntMax, n = S.takenCount();
+    const max = S.takeMax('board'), n = Math.min(S.takenCount('board'), max), nN = S.takenCount('npc'), maxN = S.takeMax('npc'); // X не больше Y
     const ready = orders.filter((t) => (!t.take || S.taken(t.id)) && S.tier(t).ready);
     const grid = (ts) => `<div class="mc-nb-grid">${ts.map((t) => this.sheet(t)).join('')}</div>`;
-    return `<div class="mc-nb-head"><span class="cnt${n >= max ? ' full' : ''}">Взято ${n} / ${max}</span>${S.body ? `<span>Заказы тела: ${esc(S.bodyName(S.body))}</span>` : ''}<span>Новые заказы — через ${fmtLeft((S.st.reset?.daily || 0) - Date.now())}</span></div>` +
+    return `<div class="mc-nb-head"><span class="cnt${n >= max ? ' full' : ''}" title="Заказы Доски объявлений; личные задания персонажей считаются отдельно">Заказы доски: взято ${n} из ${max}</span>${nN ? `<span title="Задания, взятые у персонажей, — свой лимит">Личные задания: ${Math.min(nN, maxN)} из ${maxN}</span>` : ''}${S.body ? `<span>Заказы тела: ${esc(S.bodyName(S.body))}</span>` : ''}<span>Новые заказы — через ${fmtLeft((S.st.reset?.daily || 0) - Date.now())}</span></div>` +
       (ready.length ? `<div class="mc-nb-sec">Готово к сдаче</div>${grid(ready)}` : '') +
       `<div class="mc-nb-sec">Ваши заказы</div>${takenH.filter((t) => !S.tier(t).ready).length ? grid(takenH.filter((t) => !S.tier(t).ready)) : '<p class="mc-nb-empty">Пока ничего не взято. Выберите листок ниже.</p>'}` +
       `<div class="mc-nb-sec">Заказы охоты на сегодня</div>${offer.length ? grid(offer) : '<p class="mc-nb-empty">Сегодняшние заказы разобраны.</p>'}` +

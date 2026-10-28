@@ -18,6 +18,7 @@ import { WORLD_NAMES } from "./mobHome";
 import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOriginal, type QuestDef, type Objective } from "./quests";
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
+import { mobCategories } from "./bestiaryReg";
 import { MOB_SKILLS_LIST } from "./mobSkills";
 import { validateDialogue, dialogueKeys, dialogueEmpty, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
 
@@ -489,6 +490,7 @@ export class AdminStore {
         rarity: o.rarity || "common", slot: o.slot || "", stats: { ...(o.stats || {}) },
       })),
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
+      mobCats: mobCategories(), // категория каждого вида (вкладки админки: мобы / элита / вожаки / редкие / боссы / мировые боссы)
       mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl, boss: !!o.boss || undefined, base: o.variant ? o.base : undefined, baseName: o.variant ? (ZONE_MOBS as any)[o.base]?.name : undefined, biome: o.variant ? o.biome : undefined })),
       objTypes: OBJ_TYPES, conds: COND_DEFS,
       // задания доски: списки для выбора цели/условий/предусловий (без ввода id руками)
@@ -513,6 +515,7 @@ export class AdminStore {
       scope: "moderator" as const,
       schema, traits: full.traits, ent,
       mobSkills: full.mobSkills, // нужны для выбора навыков в карточке моба
+      mobCats: full.mobCats,
       quests: [], npcs: [], items: full.items, res: full.res, mobs: full.mobs, objTypes: [],
       vn: { chars: [], emotions: [], limits: full.vn?.limits || {}, dialogues: {} },
       totals: full.totals,
