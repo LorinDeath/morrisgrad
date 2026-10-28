@@ -25,6 +25,7 @@ import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
 import { BMA_CFG, bmSkillPct } from "./blackArt";
+import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
@@ -116,7 +117,10 @@ export const HOSTILITY: Record<string, string[]> = {
   ice: ["fire", "air", "wild"], fire: ["ice", "stone", "wild"], stone: ["fire", "air", "wild"], air: ["stone", "ice", "wild"],
   wild: ["ice", "fire", "stone", "air"],
 };
-export const factionOf = (type: string) => { const k = type.split("_")[0]; return HOSTILITY[k] && k !== "wild" ? k : "wild"; };
+// чёрные мобы (конструктор, этап В) — своя фракция «black», враждебна всем обычным
+for (const k of Object.keys(HOSTILITY)) HOSTILITY[k].push("black");
+HOSTILITY.black = ["ice", "fire", "stone", "air", "wild"];
+export const factionOf = (type: string) => { if ((ZONE_MOBS as any)[type]?.black) return "black"; const k = type.split("_")[0]; return HOSTILITY[k] && k !== "wild" && k !== "black" ? k : "wild"; };
 export const hostile = (a: string, b: string) => HOSTILITY[factionOf(a)].includes(factionOf(b));
 /** гладкий шум 0..1 (значения в узлах решётки step, билинейно) — плотность лагерей «пятнами» */
 function valueNoise(seed: number, step: number) {
@@ -439,11 +443,49 @@ export class Zone {
     let best: ZMob | null = null, bd = r;
     for (const o of this.near(m.x, m.y, r)) {
       if (o === m || o.reset || o.special || !hostile(m.type, o.type)) continue;
-      if (!m.roam && !o.roam) continue; // лагеря не воюют друг с другом — только с проходящими кочевниками
+      if (!m.roam && !o.roam && !(((ZONE_MOBS as any)[m.type]?.black || (ZONE_MOBS as any)[o.type]?.black) && this.playerNear(m.x, m.y, (BMM_CFG.fightNearTiles || 0) * 32))) continue; // лагеря не воюют друг с другом — только с кочевниками; чёрные — со всеми, если рядом игрок
       const d = Math.hypot(o.x - m.x, o.y - m.y); if (d < bd) { bd = d; best = o; }
     }
     return best;
   }
+  /** живой игрок ближе r px (чёрные мобы дерутся с обычными только на глазах у игроков — иначе мир спит) */
+  playerNear(x: number, y: number, r: number) { if (!(r > 0) || !this.pl) return false; for (const p of this.pl.values()) if (p.alive && Math.abs(p.x - x) < r && Math.abs(p.y - y) < r && Math.hypot(p.x - x, p.y - y) < r) return true; return false; }
+  // ---------- лагеря/логова чёрных мобов (админка «👹 Чёрные мобы») ----------
+  bmSig = ""; bmCampNum = new Map<string, number>(); bmSeq = 900000; bmCheckAt = 0;
+  bmPending: Record<string, number> | null = null; // таймеры возрождения из library_meta (после перезапуска)
+  /** где лагерь нельзя ставить (город/купол/безопасная зона) — текст причины или null */
+  bmCampErr(c: BmCamp) { const pad = BMM_CFG.campMinDist || 0; if (this.safeAt(c.x, c.y, pad)) return "слишком близко к городу/безопасной зоне"; if (!(c.x >= 0 && c.y >= 0 && c.x <= this.size && c.y <= this.size)) return "за краем мира"; return null; }
+  /** привести мобов лагерей к таблице BM_CAMPS (правка админки — лагерь пересобирается; таймеры живых не трогаются у неизменённых) */
+  syncBlackCamps(now = Date.now(), force = false) {
+    if (!force && now < this.bmCheckAt) return; this.bmCheckAt = now + 2000;
+    const want = BMM_CFG.on ? Object.values(BM_CAMPS).filter((c) => !c.hidden && c.world === this.world && !this.bmCampErr(c)).slice(0, BMM_CFG.maxCamps || 30) : [];
+    const sigOf = (c: BmCamp) => JSON.stringify([c.x, c.y, c.r, c.mobs, c.chief, c.lair, c.respawnMin, c.respawnMax]);
+    const sig = JSON.stringify(want.map((c) => [c.id, sigOf(c)])); if (sig === this.bmSig && !force) return; this.bmSig = sig;
+    const keep = new Map(want.map((c) => [c.id, sigOf(c)]));
+    // убрать мобов снятых/изменённых лагерей
+    const drop = new Set<string>();
+    for (const m of this.mobs) { const k = (m as any).bmc as string | undefined; if (!k || m.respawnAt === -1) continue; if (keep.get(k) !== (m as any).bmSig) { drop.add(k); } }
+    for (const m of this.mobs) { const k = (m as any).bmc; if (k && drop.has(k) && m.respawnAt !== -1) { m.dead = true; m.respawnAt = -1; m.camp = 0; } }
+    this.camps = this.camps.filter((c) => !(c.region.startsWith("bm:") && (drop.has(c.region.slice(3)) || !keep.has(c.region.slice(3)))));
+    const have = new Set<string>(); for (const m of this.mobs) if ((m as any).bmc && m.respawnAt !== -1) have.add((m as any).bmc);
+    for (const c of want) {
+      if (have.has(c.id)) continue;
+      let num = this.bmCampNum.get(c.id); if (!num) { num = this.bmSeq++; this.bmCampNum.set(c.id, num); }
+      const list: string[] = []; if (c.chief) list.push(c.chief); for (const e of c.mobs) for (let i = 0; i < e.n; i++) list.push(e.mob);
+      const cap = BMM_CFG.maxCampMobs || 40; list.length = Math.min(list.length, cap);
+      const types: string[] = [];
+      list.forEach((t, i) => { if (!(ZONE_MOBS as any)[t]) return;
+        const a = (i / Math.max(1, list.length)) * Math.PI * 2 + 0.3, rr = i === 0 && c.chief ? 0 : c.r * (0.35 + 0.55 * ((i * 0.618) % 1));
+        const m = this.addMob(t, this.clamp(Math.round(c.x + Math.cos(a) * rr)), this.clamp(Math.round(c.y + Math.sin(a) * rr)), { fixed: true, respawn: c.respawnMin, region: "bm:" + c.id, elite: (i === 0 && !!c.chief) || !!c.lair });
+        m.camp = num!; (m as any).bmc = c.id; (m as any).bmSig = keep.get(c.id); (m as any).bmSlot = i; if (i === 0 && c.chief) m.chief = true;
+        const tk = this.bmPending?.[c.id + ":" + i]; if (tk && tk > now) { m.dead = true; m.hp = 0; m.respawnAt = tk; }
+        types.push(t); });
+      this.camps.push({ id: num, region: "bm:" + c.id, x: c.x, y: c.y, types });
+    }
+    this.bmPending = null; (this as any).campCache && ((this as any).campCache.at = 0);
+  }
+  /** таймеры возрождения мёртвых мобов чёрных лагерей: «лагерь:слот» → время (мс) */
+  bmTimers(now = Date.now()) { const o: Record<string, number> = {}; for (const m of this.mobs) { const k = (m as any).bmc; if (k && m.dead && m.respawnAt > now) o[k + ":" + (m as any).bmSlot] = m.respawnAt; } return o; }
   /** удар моба по мобу (броня цели учитывается); вклад копится в dmgBy под ключом "mob:<id>" — игрок без ≥15% вклада награды не получит */
   mobHit(src: ZMob, t: ZMob, dmg: number, onKill: (m: ZMob) => void) {
     if (t.dead || t.reset) return 0;
@@ -551,6 +593,7 @@ export class Zone {
   rollCursed(m: ZMob) {
     m.cursed = this.rand() * 100 < ZONE_GEN.cursedPct;
     m.ench = rollMobTier(() => this.rand(), { boss: m.special === "boss" || !!ZONE_MOBS[m.type]?.boss, cursed: m.cursed });
+    { const B = BM_MOBS[m.type]; if (B) { if (B.cursed) m.cursed = true; if (B.ench) m.ench = B.ench; } } // чёрный моб: флаги из конструктора
     this.rollSkills(m);
     if (m.cursed) this.stats.cursed++;
     if (m.ench) this.stats.ench++;
@@ -964,6 +1007,7 @@ export class Zone {
   // players: sid → состояние игрока в мире. onHit(sid, dmg) — урон игроку; onKill(mob) — смерть моба.
   update(dt: number, now: number, players: Map<string, ZPlayer>, onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
     this.now = now; this.pl = players;
+    this.syncBlackCamps(now);
     if (this.projs.length) this.updateProjs(dt, players);
     const scale = Math.max(1, Math.min(4, players.size)); // ХП босса растёт с числом игроков (ограниченно)
     if (this.proc) {
@@ -1292,7 +1336,7 @@ export class Zone {
   }
   kill(m: ZMob, onKill: (m: ZMob) => void) {
     m.dead = true; m.hp = 0; m.windup = 0; m.dashT = 0; m.dot = null; m.dots = []; m.casts = [];
-    m.respawnAt = Date.now() + (m.rk ? campRespawnSec(m.rk) : m.respawn) * 1000; // лагеря — случайно campRespawnMin…Max (живая правка админки)
+    { const bc = (m as any).bmc && BM_CAMPS[(m as any).bmc]; m.respawnAt = Date.now() + (bc ? campRespawn(bc, () => this.rand()) : m.rk ? campRespawnSec(m.rk) : m.respawn) * 1000; } // лагеря — случайно campRespawnMin…Max (живая правка админки)
     this.events.push({ k: "die", id: m.id, x: Math.round(m.x), y: Math.round(m.y), type: m.type });
     if (m.special === "boss") this.events.push({ k: "announce", text: `🏆 ${m.cursed ? "Проклятый м" : "М"}ировой босс «${ZONE_MOBS[m.type].name}»${tierDef(m.ench) ? ` (✦ ${tierDef(m.ench)!.name})` : ""} повержен!`, color: "#fde68a" });
     onKill(m);
@@ -1332,7 +1376,7 @@ export class Zone {
       if (far && !(x.special && Math.abs(x.x - px) < aoi * 1.15 && Math.abs(x.y - py) < aoi * 1.15)) continue; // боссов видно дальше
       // статусы — битами (могут быть одновременно) + число стаков каждого (по 3 бита: поджог 13–15, яд 16–18, кровотечение 19–21)
       const st = mobStatusBits(x.dots, now);
-      m.push(x.id, MOB_INDEX[x.type], Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
+      m.push(x.id, MOB_INDEX[x.type] ?? bmxIndex(x.type), Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
         (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0) | (enchTier(x) << 23)); // ярус зачарования — биты 23–25
     }
     const nr = aoi * 2.2; // узлы — тоже по интересу (в Аринаре их сотни)

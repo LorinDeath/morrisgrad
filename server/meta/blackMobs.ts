@@ -92,7 +92,7 @@ for (const [id, name, cls, lvl, body, weapon, drops] of BUILTIN) {
 
 export interface BmCampMob { mob: string; n: number }
 export interface BmCamp { id: string; name: string; world: string; x: number; y: number; r: number; mobs: BmCampMob[]; chief: string; respawnMin: number; respawnMax: number; hidden?: boolean; lair?: boolean }
-export const CUSTOM_BC = /^bmc_[a-z0-9_]{2,32}$/;
+export const CUSTOM_BC = /^bcx_[a-z0-9_]{2,32}$/;
 export const BM_CAMPS: Record<string, BmCamp> = {};
 export function makeCamp(id: string): BmCamp { return { id, name: "Лагерь чёрных", world: "arinar", x: 0, y: 0, r: 160, mobs: [], chief: "", respawnMin: 60, respawnMax: 120 }; }
 

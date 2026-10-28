@@ -1,3 +1,4 @@
+import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs } from "./blackMobs";
 import { BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
@@ -35,7 +36,7 @@ import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
 
-export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask" | "bmagic" | "bpart";
+export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask" | "bmagic" | "bpart" | "bmbody" | "bmmob" | "bmcamp" | "bmmcfg";
 export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext" | "chests"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string>; h?: string } // h — короткая подсказка (что делает, единицы); диапазон и «по умолчанию» админка допишет сама
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
@@ -80,6 +81,27 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "_h_caps", label: "Капы чёрных статов (заряд и предельная броня — нижний предел)", t: "hdr" },
     N("caps.force", "Сила атаки, макс. %", 0, 5000), N("caps.power", "Мощность, макс. %", 0, 1000), N("caps.charge", "Скорость заряда, мин. с", 0.05, 10),
     N("caps.bdmg", "Чёрный урон, макс. %", 0, 100), N("caps.barm", "Чёрная броня, макс.", 0, 1e7), N("caps.bcap", "Предельная броня, мин. %", 0, 100), N("caps.bcrit", "Крит, макс. из 100", 0, 100, "int")] },
+  bmbody: { name: "Части тела чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "slot", label: "Слот (у встроенной не меняется)", t: "enum", opts: [...BODY_SLOTS] },
+    { path: "img", label: "Лист Художника (slot_N из public/bm-art/body)", t: "text" }, { path: "desc", label: "Описание", t: "ltext" }, { path: "hidden", label: "Скрыта (нельзя выбрать)", t: "bool" },
+    N("hp", "ОЗ моба, %", -90, 500), N("dmg", "Урон моба, %", -90, 500), N("armor", "Броня моба, +", -1000, 1e5), N("speed", "Скорость моба, %", -90, 300)] },
+  bmmob: { name: "Чёрные мобы", fields: [{ path: "name", label: "Имя", t: "ltext" }, { path: "desc", label: "Описание", t: "ltext" },
+    { path: "cls", label: "Класс (табличка)", t: "enum", opts: [...BM_CLASSES] }, N("lvl", "Уровень", 1, 60, "int"),
+    N("hp", "ОЗ (база)", 1, 1e9, "int"), N("dmg", "Урон (база)", 0, 1e6), N("armor", "Броня (база)", 0, 1e6, "int"), N("speed", "Скорость", 10, 400, "int"),
+    N("aggro", "Агро, px", 0, 2000, "int"), N("radius", "Хитбокс, px", 6, 80, "int"), N("xp", "Опыт", 0, 1e7, "int"), N("scale", "Размер, ×", 0.4, 3),
+    { path: "cursed", label: "Всегда проклятый", t: "bool" }, N("ench", "Ярус зачарования (0 — по миру)", 0, 6, "int"), { path: "hidden", label: "Снят с публикации", t: "bool" },
+    { path: "artId", label: "Артефакт игрока в руке (art_…)", t: "text" },
+    ...BODY_SLOTS.map((s) => ({ path: "body." + s, label: "Тело: " + s, t: "text" as const })),
+    ...BP_TYPES.map((t) => ({ path: "weapon." + t, label: "Оружие: " + t, t: "text" as const })),
+    { path: "drops", label: "Дроп [{res, chance, qty:[a,b]}]", t: "text" }] },
+  bmcamp: { name: "Лагеря чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "world", label: "Мир", t: "enum", opts: ["arinar", "hellfire"] },
+    N("x", "X, px", -1e6, 1e6, "int"), N("y", "Y, px", -1e6, 1e6, "int"), N("r", "Радиус, px", 40, 1200, "int"), { path: "chief", label: "Вожак (вид моба)", t: "text" },
+    N("respawnMin", "Возрождение от, с", 5, 86400, "int"), N("respawnMax", "Возрождение до, с", 5, 86400, "int"), { path: "lair", label: "Логово (одиночный сильный)", t: "bool" },
+    { path: "hidden", label: "Выключен", t: "bool" }, { path: "mobs", label: "Состав [{mob, n}]", t: "text" }] },
+  bmmcfg: { name: "Чёрные мобы: настройки", fields: [{ path: "on", label: "Чёрные мобы и лагеря в мире", t: "bool" },
+    N("fightNearTiles", "Драка с обычными мобами: игрок ближе, клеток", 0, 64, "int"), N("maxCampMobs", "Мобов в лагере, макс.", 1, 200, "int"), N("maxCamps", "Лагерей, макс.", 0, 500, "int"),
+    N("maxCustomMobs", "Своих мобов, макс.", 0, 2000, "int"), N("maxCustomBody", "Своих частей тела, макс.", 0, 3000, "int"), N("mobVis", "Масштаб листа в мире", 0.1, 3),
+    N("weaponDmgPct", "Оружие в руке: +% урона", 0, 500), N("refMul", "«Авто по уровню»: × обычного моба", 0.1, 10), N("campMinDist", "Лагерь от города, мин. px", 0, 20000, "int"),
+    ...BM_CLASSES.flatMap((c) => [N(`cls.${c}.hp`, `${c}: ×ОЗ`, 0.1, 10), N(`cls.${c}.dmg`, `${c}: ×урон`, 0.1, 10), N(`cls.${c}.speed`, `${c}: ×скорость`, 0.1, 10)])] },
   bpart: { name: "Части оружия", fields: [{ path: "name", label: "Название", t: "ltext" },
     { path: "type", label: "Тип детали (у встроенной не меняется)", t: "enum", opts: [...BP_TYPES] }, { path: "elem", label: "Стихия", t: "enum", opts: [...BP_ELEMS] },
     { path: "icon", label: "Значок (эмодзи, пока нет листа Художника)", t: "text" }, { path: "color", label: "Цвет заглушки", t: "color" },
@@ -532,7 +554,7 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
   ] },
 };
 export const TABLES: Record<Kind, Record<string, any>> = { bchest: { main: BCHEST }, board: { main: BOARD_CFG }, btask: BTASKS, mob: ZONE_MOBS, weapon: WEAPON_TYPES, item: ITEM_BY_ID, skill: SKILL_REGISTRY, loot: MONSTER_LOOT,
-  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, bmagic: { main: BMA_CFG }, bpart: BM_PARTS, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
+  spawn: { arinar: ZONE_GEN }, curse: { main: CURSE }, ench: { main: ENCH }, chest: { main: CHEST }, dash: { main: DASH_CFG }, gather: { main: GATHER_CFG }, npc: { main: NPC_CFG }, bmage: { main: BM_CFG }, bmagic: { main: BMA_CFG }, bpart: BM_PARTS, bmbody: BM_BODY, bmmob: BM_MOBS, bmcamp: BM_CAMPS, bmmcfg: { main: BMM_CFG }, light: { main: LIGHT_CFG }, ui: { main: UI_CFG }, terrain: { main: TERRAIN_CFG }, city: { main: CITY_CFG }, pk: { main: PK_CFG }, pos: { main: POS_CFG }, dn: { main: DN_CFG }, gfx: { main: GFX_CFG }, upgrade: { main: UPG }, biome: initZoneNames(WORLD_GEN.arinar.regions as any), region: Object.fromEntries(WORLD_GEN.arinar.regions.filter((r: any) => r.table.length).map((r: any) => [r.id, r])), boss: BOSS_TIMERS, rare: Object.fromEntries(WORLD_GEN.arinar.rares.map((r: any) => [r.type, r])) };
 export const TRAITS: Record<string, Record<string, Trait[]>> = { weapon: {}, item: {}, skill: {} };
 
 const getP = (o: any, p: string) => p.split(".").reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -566,6 +588,34 @@ function validateLoot(patch: any): any | string {
   }
   return out;
 }
+/** чёрные мобы (этап В): свои «bbx_/bmx_/bcx_…» создаются по шаблону на время проверки; списки (дроп, состав, тело) — своя проверка */
+const BMK: Record<string, { T: Record<string, any>; re: RegExp; make: (id: string, p: any) => any; max: () => number }> = {
+  bmbody: { T: BM_BODY, re: CUSTOM_BB, make: (id, p) => makeBody(id, String(p?.slot || "torso")), max: () => BMM_CFG.maxCustomBody || 300 },
+  bmmob: { T: BM_MOBS, re: CUSTOM_BM, make: (id, p) => makeMob(id, Number(p?.lvl) || 5, String(p?.cls || "warrior")), max: () => BMM_CFG.maxCustomMobs || 200 },
+  bmcamp: { T: BM_CAMPS, re: CUSTOM_BC, make: (id) => makeCamp(id), max: () => BMM_CFG.maxCamps || 30 },
+};
+function validateBm(kind: string, id: string, patch: any): any | string {
+  const K = BMK[kind]; if (!patch || typeof patch !== "object") return "пустой патч";
+  let made = false;
+  if (!K.T[id]) { if (!K.re.test(id)) return "нет такой сущности"; if (Object.keys(K.T).filter((k) => K.re.test(k)).length >= K.max()) return `своих не больше ${K.max()}`; K.T[id] = K.make(id, patch); made = true; }
+  try {
+    const P = K.T[id], rest: any = {}, out: any = {};
+    for (const [k, v] of Object.entries(patch)) {
+      if (kind === "bmmob" && k === "drops") { const d = cleanDrops(v); if (typeof d === "string") return d; out.drops = d; }
+      else if (kind === "bmcamp" && k === "mobs") { const d = cleanCampMobs(v); if (typeof d === "string") return d; out.mobs = d; }
+      else if (kind === "bmmob" && (k.startsWith("body.") || k.startsWith("weapon.") || k === "artId")) { const t = String(v ?? "").trim(); if (!/^[A-Za-z0-9_]{0,48}$/.test(t)) return `${k}: латиница`; out[k] = t; }
+      else if (kind === "bmcamp" && k === "chief") { const t = String(v ?? "").trim(); if (t && !ZONE_MOBS[t] && !BM_MOBS[t]) return `вожак: нет моба ${t}`; out.chief = t; }
+      else if (kind === "bmbody" && k === "img") { const t = String(v ?? "").trim(); if (!/^[a-z0-9_-]{0,48}$/.test(t)) return "лист: латиница"; out.img = t; }
+      else rest[k] = v;
+    }
+    const r = validatePatch0(kind as Kind, id, rest); if (typeof r === "string") return r; Object.assign(out, r);
+    if (kind === "bmbody" && !K.re.test(id) && out.slot !== undefined && out.slot !== (ORIG.get("bmbody:" + id)?.slot ?? P.slot)) return "слот встроенной части не меняется — создайте новую";
+    if (kind === "bmmob") { const c = JSON.parse(JSON.stringify(P)); for (const [k, v] of Object.entries(out)) setP(c, k, v); const e = mobErr(c); if (e) return e; }
+    if (kind === "bmcamp") { const a = out.respawnMin ?? P.respawnMin, b = out.respawnMax ?? P.respawnMax; if (a > b) return "возрождение: «от» больше «до»"; }
+    if (K.re.test(id) && kind === "bmbody") out.slot = out.slot ?? P.slot;
+    return out;
+  } finally { if (made) delete K.T[id]; }
+}
 /** деталь оружия (этап Б): своя деталь «bpx_…», которой ещё нет, создаётся по шаблону на время проверки; тип встроенной не меняется */
 function validateBpart(id: string, patch: any): any | string {
   let made = false;
@@ -591,6 +641,7 @@ function validateBpart(id: string, patch: any): any | string {
  *  и удаляется, если правка не прошла. Раздел и событие встроенного задания менять нельзя (на них завязаны счётчики игроков). */
 export function validatePatch(kind: Kind, id: string, patch: any): any | string {
   if (kind === "bpart") return validateBpart(id, patch);
+  if (BMK[kind]) return validateBm(kind, id, patch);
   if (kind !== "btask") return validatePatch0(kind, id, patch);
   let made = false;
   if (!TABLES.btask[id]) {
@@ -719,7 +770,13 @@ export function applyOverride(kind: Kind, id: string, patch: any | null) {
     if (patch) { BM_PARTS[id] = makeBpart(id, String(patch.type || "blade"), String(patch.elem || "fire")); applyOverride0(kind, id, patch); }
     return;
   }
+  if (BMK[kind] && BMK[kind].re.test(id)) { // свой моб/часть/лагерь: правка — создать по шаблону, сброс — убрать из таблицы (вид в ZONE_MOBS остаётся для живых)
+    const K = BMK[kind]; ORIG.delete(kind + ":" + id); delete K.T[id];
+    if (patch) { K.T[id] = K.make(id, patch); applyOverride0(kind, id, patch); }
+    if (kind !== "bmcamp") registerBlackMobs(ITEM_BY_ID as any); return;
+  }
   applyOverride0(kind, id, patch);
+  if (kind === "bmbody" || kind === "bmmob" || kind === "bmmcfg") registerBlackMobs(ITEM_BY_ID as any);
   if (kind === "btask") { if (BTASKS[id]) prepXp(BTASKS[id]); reindexBtasks(); } // опыт — по таблице, если не задан вручную
   if (kind === "board") prepAllXp(); // таблица опыта/множители поменялись — пересчитать (кроме заданных вручную)
   if (kind === "board") syncBoardCols(); // доски передвинули/выключили — коллизии за ними
