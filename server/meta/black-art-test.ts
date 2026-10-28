@@ -14,13 +14,18 @@ let pass = 0, fail = 0;
 const ok = (c: any, m: string) => { if (c) pass++; else fail++; console.log((c ? "PASS " : "FAIL ") + m); };
 const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e;
 
-// --- мешок крита: ровно bcrit на bagSize, в любом порядке
+// --- мешок крита: ровно bcrit на мешочек; выпали все криты — сразу новый мешочек (ответ Алекса 28.10)
 { let bag: Bag | null = null, crits = 0; let r = 0.37; const rnd = () => (r = (r * 9301 + 49297) % 233280 / 233280);
-  for (let i = 0; i < 100; i++) { const d = bagDraw(bag, 7, rnd, 100); bag = d.bag; if (d.crit) crits++; }
-  ok(crits === 7, `мешок: 7 критов из 100 (вышло ${crits})`);
-  crits = 0; for (let i = 0; i < 300; i++) { const d = bagDraw(bag, 7, Math.random, 100); bag = d.bag; if (d.crit) crits++; }
-  ok(crits === 21, `мешок: 3 полных мешка — ровно 21 (вышло ${crits})`);
-  let b0: Bag | null = null, c0 = 0; for (let i = 0; i < 50; i++) { const d = bagDraw(b0, 0, Math.random, 100); b0 = d.bag; if (d.crit) c0++; }
+  let draws = 0; while (crits < 7 && draws < 200) { const d = bagDraw(bag, 7, rnd, 100); bag = d.bag; draws++; if (d.crit) crits++; }
+  ok(crits === 7 && draws <= 100, `мешок: 7 критов не позже 100-го удара (вышло ${crits} за ${draws})`);
+  ok(bag![0] === 0 && bag![1] === 0 && bag![3] === 7, `мешок: после 7-го крита — сразу новый мешочек ${JSON.stringify(bag)}`);
+  // много мешочков: каждый кончается ровно на 7-м крите, в мешочке ≤ 100 ударов
+  let bagsOk = true, nBags = 0, inBag = 0, cIn = 0; bag = null;
+  for (let i = 0; i < 20000; i++) { const d = bagDraw(bag, 7, Math.random, 100); bag = d.bag; inBag++; if (d.crit) cIn++; if (bag[0] === 0) { if (cIn !== 7 || inBag > 100) bagsOk = false; nBags++; inBag = 0; cIn = 0; } }
+  ok(bagsOk && nBags > 150, `мешок: ${nBags} мешочков подряд — в каждом ровно 7 критов и ≤ 100 ударов`);
+  // старое сохранение мешка ([вытянуто, выпало, размер, в мешке]) читается как есть
+  { const d = bagDraw([50, 3, 100, 7], 7, () => 0, 100); ok(d.crit && d.bag[0] === 51 && d.bag[1] === 4, "мешок: старое состояние продолжается"); }
+  let b0: Bag | null = null, c0 = 0; for (let i = 0; i < 250; i++) { const d = bagDraw(b0, 0, Math.random, 100); b0 = d.bag; if (d.crit) c0++; }
   ok(c0 === 0, "мешок: bcrit 0 — критов нет");
   let b1: Bag | null = null, c1 = 0; for (let i = 0; i < 100; i++) { const d = bagDraw(b1, 100, Math.random, 100); b1 = d.bag; if (d.crit) c1++; }
   ok(c1 === 100, "мешок: bcrit 100 — все удары криты");
@@ -29,16 +34,19 @@ const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e;
 { const bm: any = { force: 40, power: 0, charge: 1, bdmg: 0.1, barm: 0, bcap: 0, bcrit: 0 };
   ok(near(bmHit(10000, "mob", bm, 0, false), 10), "bmHit: 0.1% от 10000 = 10");
   ok(near(bmHit(10000, "boss", bm, 0, false), 10 * BMA_CFG.classMul.boss), "bmHit: босс × classMul");
-  ok(near(bmHit(10000, "mob", bm, 1, false), 50), "bmHit: полный заряд +force");
-  ok(near(bmHit(10000, "mob", bm, 1, true), 50 * BMA_CFG.critMul), "bmHit: крит × critMul");
+  ok(near(bmHit(10000, "mob", bm, 1, false), 14), "bmHit: полный заряд — удар × (1 + 40%)");
+  ok(near(bmHit(10000, "mob", bm, 0.99, false), 10), "bmHit: неполный заряд — обычный удар");
+  ok(near(bmHit(300, "mob", { ...bm, bdmg: 10, force: 20 }, 1, false), 36), "bmHit: пример Алекса 10% от 300 = 30, сила +20% → 36");
+  ok(near(bmHit(10000, "mob", bm, 1, true), 14 * BMA_CFG.critMul), "bmHit: крит × critMul");
   ok(bmDefend(100, { barm: 30, bcap: 0 }, 1000) === 70, "bmDefend: −чёрная броня");
   ok(bmDefend(100, { barm: 0, bcap: 5 }, 1000) === 50, "bmDefend: потолок 5% ОЗ");
   ok(bmDefend(10, { barm: 30, bcap: 5 }, 1000) === 0, "bmDefend: 0 разрешён");
   ok(near(bmSkillPct({ pct: 0.6, k: 2 }, 0.12), 0.84), "навык: pct + k × bdmg");
-  ok(chargeFrac(0, 5000, 1) === 0 && chargeFrac(1000, 1500, 1) === 0.5 && chargeFrac(1000, 4000, 1) === 1, "заряд: доля по часам сервера");
-  ok(chargeFrac(1000, 1000 + (BMA_CFG.holdMaxSec + 1) * 1000, 1) === 0, "заряд: передержал — сгорел");
-  ok(chargeFrac(1000, 1020, 1) === 0, "заряд: меньше minFrac — 0");
+  ok(chargeFrac(0, 5000, 1) === 0 && chargeFrac(1000, 1500, 1) === 0 && chargeFrac(1000, 2000, 1) === 1 && chargeFrac(1000, 4000, 1) === 1, "заряд: только полный (≥ «Скорость заряда») — 1, раньше — 0");
+  ok(chargeFrac(1000, 1000 + (BMA_CFG.holdMaxSec + 1) * 1000, 1) === 0, "заряд: передержал дольше holdMaxSec — сгорел");
+  { const hm = BMA_CFG.holdMaxSec; BMA_CFG.holdMaxSec = 0; ok(chargeFrac(1000, 60000, 1) === 1, "заряд: holdMaxSec 0 — не сгорает"); BMA_CFG.holdMaxSec = hm; }
   const A = chargedAtk({ kind: "arc", range: 100, arc: 1 }, 400, 1); ok(A.range === 100 * BMA_CFG.powerMaxMul, "заряд: размер не больше powerMaxMul");
+  ok(chargedAtk({ kind: "arc", range: 100, arc: 1 }, 50, 0.9).range === 100 && chargedAtk({ kind: "arc", range: 100, arc: 1 }, 50, 1).range === 150, "Мощность: только на полном заряде");
 }
 // --- артефакт
 const parts = { handle: "fire_handle", blade: "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3", crystal: "fire_crystal" };

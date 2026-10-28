@@ -433,7 +433,7 @@ export function addRes(a: Account, res: string, n: number) {
 
 /** настройки артефактов для клиента (вкладка «Артефакты», заряд, лимит) */
 export function bmaClient(a: Account) {
-  return { on: BMA_CFG.on, chargeMoveMul: BMA_CFG.chargeMoveMul, holdMaxSec: BMA_CFG.holdMaxSec, minFrac: BMA_CFG.minFrac, critMul: BMA_CFG.critMul, bagSize: BMA_CFG.bagSize,
+  return { on: BMA_CFG.on, chargeMoveMul: BMA_CFG.chargeMoveMul, holdMaxSec: BMA_CFG.holdMaxSec, critMul: BMA_CFG.critMul, bagSize: BMA_CFG.bagSize,
     classMul: BMA_CFG.classMul, maxArtifacts: BMA_CFG.maxArtifacts, have: a.inv.filter((i) => isArtifactId(i.id)).length };
 }
 /** в слоте оружия — артефакт чёрной магии */

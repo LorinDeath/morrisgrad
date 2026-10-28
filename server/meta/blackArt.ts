@@ -7,13 +7,13 @@ import type { AbilityDef } from "./shared";
 export type BmStats = { force: number; power: number; charge: number; bdmg: number; barm: number; bcap: number; bcrit: number };
 export const BM_KEYS: (keyof BmStats)[] = ["force", "power", "charge", "bdmg", "barm", "bcap", "bcrit"];
 export const BM_NAMES: Record<keyof BmStats, { name: string; unit: string; icon: string; hint: string }> = {
-  force: { name: "Сила атаки", unit: "", icon: "✊", hint: "можно зажать атаку; полный заряд даёт +сила к урону" },
-  power: { name: "Мощность", unit: "%", icon: "💥", hint: "на полном заряде размер и дальность удара +мощность %" },
-  charge: { name: "Скорость заряда", unit: "с", icon: "⏳", hint: "секунд до полного заряда" },
+  force: { name: "Сила атаки", unit: "%", icon: "✊", hint: "зажмите атаку: только ПОЛНЫЙ заряд умножает удар на (1 + сила %); отпустили раньше — обычный удар" },
+  power: { name: "Мощность", unit: "%", icon: "💥", hint: "только на полном заряде: размер и дальность удара +мощность %" },
+  charge: { name: "Скорость заряда", unit: "с", icon: "⏳", hint: "секунд до полного заряда (держать дольше не нужно)" },
   bdmg: { name: "Чёрный урон", unit: "%", icon: "🔥", hint: "удар = % от макс. ОЗ цели, обычная броня не учитывается" },
   barm: { name: "Чёрная броня", unit: "", icon: "🛡", hint: "вычитается из каждого входящего удара (можно 0)" },
   bcap: { name: "Предельная броня", unit: "%", icon: "⛨", hint: "один удар снимает не больше этого % ваших макс. ОЗ" },
-  bcrit: { name: "Шанс крита", unit: " из 100", icon: "🎲", hint: "мешочек: ровно столько критов на каждые 100 ударов" },
+  bcrit: { name: "Шанс крита", unit: " из 100", icon: "🎲", hint: "мешочек: ровно столько критов на 100 ударов; выпали все криты — сразу новый мешочек" },
 };
 export const bmZero = (): BmStats => ({ force: 0, power: 0, charge: 0, bdmg: 0, barm: 0, bcap: 0, bcrit: 0 });
 
@@ -24,14 +24,14 @@ export const BMA_CFG = {
   classMul: { mob: 1, elite: 0.6, chief: 0.5, rare: 0.4, boss: 0.15, world: 0.05 } as Record<string, number>,
   vsPlayer: 1,                     // ответ 5: множитель урона «чёрного» удара (мобы, навыки артефактов у мобов) по игрокам
   pvpMul: 1,                       // PK: чёрный удар игрока по игроку (поверх PK «Урон ×»)
-  chargeMoveMul: 0.6, holdMaxSec: 6, powerMaxMul: 2, minFrac: 0.1, // заряд: замедление, сгорание, предохранитель мощности, минимальная доля
+  chargeMoveMul: 0.6, holdMaxSec: 6, powerMaxMul: 2, minFrac: 0.1, // заряд: замедление, сгорание (0 — не сгорает), предохранитель мощности; minFrac — устарело (бонус только на полном заряде)
   maxRangeTiles: 14, tile: 32,     // дальний бой: макс. дальность лезвия в клетках
   maxArtifacts: 30,                // ответ 6: на аккаунт
   levelGapOff: true,               // разница уровней не режет процентный урон
   soulToBlack: false,              // проценты души/талантов (dmgPct) к чёрному урону — выкл
   liveParts: false,                // ответ 4: снимок частей (выкл) / живой пересчёт
   skillBag: true,                  // навыки артефакта тоже тянут из мешка крита (одно вытягивание на применение)
-  caps: { force: 5000, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100 } as Record<string, number>, // charge — нижний предел (с), bcap — нижний предел (%)
+  caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100 } as Record<string, number>, // charge — нижний предел (с), bcap — нижний предел (%)
 };
 
 /** Часть оружия (kind bpart). Тестовый огненный набор этапа А — ЗАГЛУШКА (арт — от Художника на этапе Б). */
@@ -133,17 +133,19 @@ export function bagDraw(bag: Bag | null | undefined, bcrit: number, rnd: () => n
   const leftDraws = b[2] - b[0], leftCrits = Math.max(0, b[3] - b[1]);
   const crit = leftCrits > 0 && rnd() * leftDraws < leftCrits;
   b = [b[0] + 1, b[1] + (crit ? 1 : 0), b[2], b[3]];
-  if (b[0] >= b[2]) b = [0, 0, N, want];
+  // мешочек кончился ИЛИ выпали все его криты (ответ Алекса 28.10) — сразу новый мешочек
+  if (b[0] >= b[2] || (b[3] > 0 && b[1] >= b[3])) b = [0, 0, N, want];
   return { crit, bag: b };
 }
 
 // ---------- урон ----------
-/** чёрный удар по цели с макс. ОЗ maxHp: (maxHp×bdmg% × classMul × vs + force×frac) × крит */
+/** чёрный удар по цели с макс. ОЗ maxHp: maxHp×bdmg% × classMul × vs × (1 + force% на ПОЛНОМ заряде) × крит.
+ *  Пример: 10% от 300 = 30, «Сила атаки» +20% → 36. frac < 1 (отпустили раньше) — обычный удар. */
 export function bmHit(maxHp: number, cat: string, bm: BmStats, frac: number, crit: boolean, vs = 1, pctOverride?: number): number {
   const pct = pctOverride ?? bm.bdmg;
   const base = Math.max(0, maxHp) * Math.max(0, pct) / 100 * (BMA_CFG.classMul[cat] ?? 1) * vs;
-  const chg = Math.max(0, bm.force) * Math.max(0, Math.min(1, frac));
-  return (base + chg) * (crit ? BMA_CFG.critMul : 1);
+  const full = frac >= 1 ? Math.max(0, bm.force) / 100 : 0;
+  return base * (1 + full) * (crit ? BMA_CFG.critMul : 1);
 }
 /** защита «чёрной» цели: −чёрная броня, затем не больше bcap % своих ОЗ; 0 разрешён */
 export function bmDefend(dmg: number, def: { barm: number; bcap: number }, maxHp: number): number {
@@ -153,16 +155,16 @@ export function bmDefend(dmg: number, def: { barm: number; bcap: number }, maxHp
 }
 /** % урона навыка артефакта: pct + k × чёрный урон */
 export const bmSkillPct = (cfg: { pct?: number; k?: number } | undefined, bdmg: number) => Math.max(0, (Number(cfg?.pct) || 0) + (Number(cfg?.k) || 0) * Math.max(0, bdmg));
-/** доля заряда по часам сервера; сгорел (дольше holdMaxSec) — 0 */
+/** заряд по часам сервера: 1 — полный (держали ≥ «Скорость заряда»), иначе 0 (частичного бонуса нет).
+ *  Передержал дольше holdMaxSec (если > 0) — сгорел, 0. */
 export function chargeFrac(startAt: number, now: number, chargeSec: number): number {
   if (!startAt) return 0;
   const t = (now - startAt) / 1000;
-  if (t > BMA_CFG.holdMaxSec) return 0;
-  const f = Math.max(0, Math.min(1, t / Math.max(0.05, chargeSec || 1)));
-  return f < BMA_CFG.minFrac ? 0 : f;
+  if (BMA_CFG.holdMaxSec > 0 && t > BMA_CFG.holdMaxSec) return 0;
+  return t + 1e-3 >= Math.max(0.05, chargeSec || 1) ? 1 : 0;
 }
-/** форма удара с зарядом: размер/дальность × (1 + power% × frac), не больше powerMaxMul */
+/** форма удара с зарядом: только полный заряд (frac 1) — размер/дальность × (1 + power%), не больше powerMaxMul */
 export function chargedAtk(atk: ArtAtk, power: number, frac: number): ArtAtk {
-  const m = Math.min(Math.max(1, BMA_CFG.powerMaxMul), 1 + Math.max(0, power) / 100 * Math.max(0, Math.min(1, frac)));
+  const m = Math.min(Math.max(1, BMA_CFG.powerMaxMul), 1 + (frac >= 1 ? Math.max(0, power) / 100 : 0));
   return { ...atk, range: Math.round(atk.range * m), ...(atk.width ? { width: Math.round(atk.width * m) } : {}), ...(atk.arc ? { arc: Math.min(3.1, atk.arc * Math.sqrt(m)) } : {}) };
 }

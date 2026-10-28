@@ -254,6 +254,7 @@ export class Book {
       case 'msel': { this.msel = this.msel === v ? null : v; const nw = [v, 'run_' + v].filter((k) => this.meta.library?.mobs?.[k]?.isNew); if (nw.length) this.meta.markSeen('mobs', nw); this.render(); break; }
       case 'lfilter': this.lfilter = v; this.render(); break;
       case 'cfilter': this.cfilter = v; this.render(); break;
+      case 'codexart': this.tab = 'runskills'; this.cfilter = 'artifact'; this.sel = null; this.render(); break;
       case 'bfilt': this.bFilt = v; this.render(); break; // Бестиарий: все / убиты / не убиты
       case 'btab': this.bTab = v; this.msel = null; this.render(); break; // Бестиарий: Мобы / Элита / Боссы / Мировые боссы
       case 'lvlsort': this.lvlSort = this.lvlSort === 'desc' ? 'asc' : 'desc'; this.render(); break; // Библиотека и Бестиарий: по уровню ↑/↓
@@ -634,15 +635,15 @@ export class Book {
   rRunSkills(st) {
     const cur = st.weaponSkill || null, C = this.meta.library?.codex;
     if (!C) return '<p class="mc-dim">Загрузка Кодекса…</p>';
-    const f = this.cfilter || 'all', KN = { hero: 'Герои', weapon: 'Оружие (R)', trophy: 'Трофеи', mob: 'Монстры' };
+    const f = this.cfilter || 'all', KN = { hero: 'Герои', weapon: 'Оружие (R)', trophy: 'Трофеи', mob: 'Монстры', artifact: '🔥 Навыки артефактов' };
     const list = C.filter((c) => f === 'all' || c.kind === f);
     const found = C.filter((c) => c.found).length;
     const cards = list.map((c) => c.found
-      ? `<div class="mc-rskill ${cur && c.id === 'rs:' + cur ? 'on' : ''}"><i>${c.icon || '✦'}</i><b>${esc(c.name)}</b><small>${esc(c.desc || '')}</small><small class="mc-dim">${c.bound?.length ? `<small class="bound">📌 закреплён за: ${c.bound.map((w) => esc(w.name) + (w.eq ? ' <span class="eq">(надето)</span>' : '')).join(', ')}${c.boundHidden ? ` <span class="mc-dim">+ ещё ??? (${c.boundHidden})</span>` : ''}</small>` : c.boundHidden ? `<small class="bound mc-dim">📌 закреплён за: ??? — найдите оружие, чтобы узнать</small>` : ''}${esc(KN[c.kind])}${c.cls ? ' · ' + esc(HERO_NAMES[c.cls] || c.cls) : ''}${c.cd ? ` · перезарядка ${c.cd} с` : ''}${c.power ? ` · сила ×${c.power}` : ''}</small>${cur && c.id === 'rs:' + cur ? '<em>на надетом оружии · R</em>' : ''}</div>`
+      ? `<div class="mc-rskill ${cur && c.id === 'rs:' + cur ? 'on' : ''}"><i>${c.icon || '✦'}</i><b>${esc(c.name)}</b><small>${esc(c.desc || '')}</small><small class="mc-dim">${c.bound?.length ? `<small class="bound">📌 закреплён за: ${c.bound.map((w) => esc(w.name) + (w.eq ? ' <span class="eq">(надето)</span>' : '')).join(', ')}${c.boundHidden ? ` <span class="mc-dim">+ ещё ??? (${c.boundHidden})</span>` : ''}</small>` : c.boundHidden ? `<small class="bound mc-dim">📌 закреплён за: ??? — найдите оружие, чтобы узнать</small>` : ''}${esc(KN[c.kind])}${c.cls && c.kind !== 'artifact' ? ' · ' + esc(HERO_NAMES[c.cls] || c.cls) : ''}${c.cd ? ` · перезарядка ${c.cd} с` : ''}${c.power && c.kind !== 'artifact' ? ` · сила ×${c.power}` : ''}</small>${c.bm ? `<small class="bmf" style="color:#ffb347">🔥 урон: ${c.bm.pct ?? 0}% + ${c.bm.k ?? 0}×«Чёрный урон» от макс. ОЗ цели${(c.bm.traits || []).length ? ' · ' + c.bm.traits.map((t) => t.k === 'burn' ? `поджог ${t.chance}%` : esc(t.k)).join(', ') : ''}</small>` : ''}${cur && c.id === 'rs:' + cur ? '<em>на надетом оружии · R</em>' : ''}</div>`
       : `<div class="mc-rskill locked"><i>❔</i><b>???</b><small>${c.kind === 'hero' && HERO_NAMES[c.cls] ? `${esc(HERO_NAMES[c.cls])}: откроется на ур. ${c.lvl}` : c.kind === 'weapon' ? 'Выпадает с оружием монстров открытого мира' : c.kind === 'trophy' ? 'Трофей монстров: даёт предмет из облика монстра' : 'Встретьте монстра с этим навыком'}</small>${c.boundHidden ? `<small class="bound mc-dim">📌 есть у ??? оружия (${c.boundHidden})</small>` : ''}</div>`).join('');
     const tabs = [['all', 'Все'], ...Object.entries(KN)].map(([v, nm]) => `<button class="mc-btn sm ${f === v ? 'gold' : ''}" data-act="cfilter" data-v="${v}">${esc(nm)} ${v === 'all' ? C.length : C.filter((c) => c.kind === v).length}</button>`).join('');
     return `<div class="mc-rs-head"><b>Кодекс навыков: ${found}/${C.length}</b>
-      <small>Навыки героев открываются уровнем, навыки оружия — с добытым оружием (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%; клавиша R), навыки монстров — при встрече с ними.</small></div>
+      <small>Навыки артефактов (🔥) действуют, пока артефакт в руке; ставятся в слоты в «Навыки». Навыки героев открываются уровнем, навыки оружия — с добытым оружием (${RUN_SKILL_DROP_PCT.mob}% · редкие/элита ${RUN_SKILL_DROP_PCT.rare}% · боссы ${RUN_SKILL_DROP_PCT.boss}%; клавиша R), навыки монстров — при встрече с ними.</small></div>
       <div class="mc-libf">${tabs}</div><div class="mc-rs-grid">${cards}</div>`;
   }
   /** «Варианты» в карточке Бестиария: особые особи (проклятый, ярусы зачарования, Чёрный-глитч) и варианты краёв — статус игрока с сервера (bestiaryVar.ts) */

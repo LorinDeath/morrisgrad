@@ -39,6 +39,8 @@ const CSS = `
 @keyframes bmFlick{0%{text-shadow:0 0 4px #ff6a1a,0 0 9px #ff3d0066}100%{text-shadow:0 0 8px #ffb347,0 0 16px #ff3d00aa}}
 .bm-hand{position:absolute;pointer-events:none;transform:translate(-50%,-50%);z-index:4;display:flex;flex-direction:column;align-items:center;font:700 9px/1 system-ui,sans-serif;letter-spacing:1px;color:#ffe08a;text-shadow:0 0 4px #ff3d00}
 .bm-hand .orb{width:22px;height:30px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:radial-gradient(60% 55% at 50% 70%,#ffe08a 0%,#ffb347 35%,#ff6a1a 65%,#a8320f00 100%);box-shadow:0 0 14px 4px #ff6a1a88;animation:bmFlame .18s infinite alternate,bmBob 1.6s ease-in-out infinite}
+.bm-hand.full .orb{animation:bmFlame .09s infinite alternate;background:radial-gradient(60% 55% at 50% 70%,#fff6c8 0%,#ffd36a 35%,#ff6a1a 65%,#a8320f00 100%)}
+.bm-sklink{margin:6px 0;font-size:12px}.bm-sklink .mc-btn{padding:1px 6px}
 .bm-hand.chg .orb{box-shadow:0 0 calc(10px + var(--c)*26px) calc(3px + var(--c)*10px) #ff3d00cc}
 .bm-hand span{margin-top:2px;background:#1a0d08cc;border:1px solid #a8320f;border-radius:3px;padding:1px 3px}
 @keyframes bmFlame{from{transform:scale(1,1) skewX(-3deg)}to{transform:scale(1.06,.94) skewX(3deg)}}
@@ -50,7 +52,8 @@ export function bmCss() {
   const s = document.createElement('style'); s.id = 'bm-art-css'; s.textContent = CSS; document.head.appendChild(s);
 }
 
-const fmtBm = (k, v) => { const n = BM_NAMES[k]; if (!n) return String(v); const x = k === 'bdmg' ? Math.round(v * 1000) / 10 : Math.round(v * 100) / 100; return `${x}${n.unit}`; };
+const fmtBm = (k, v) => { const n = BM_NAMES[k]; if (!n) return String(v); const x = k === 'bdmg' ? Math.round(v * 1000) / 10 : Math.round(v * 100) / 100; return `${k === 'force' || k === 'power' ? '+' : ''}${x}${n.unit}`; };
+export { fmtBm };
 const ORD = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %' };
 export const isArtItem = (it) => !!(it && typeof it.id === 'string' && it.id.startsWith('art_'));
 
@@ -88,7 +91,7 @@ export function rArtifacts(book, st) {
       || '<div class="bm-row" style="--i:0"><span class="mc-dim">Снаряжение не надето — глушить нечего</span></div>';
     const blkRows = A ? BM_KEYS.map((k, i) => `<div class="bm-row" style="--i:${i}" title="${esc(BM_NAMES[k].hint)}"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('') : '';
     const parts = A ? Object.entries(A.parts || {}).map(([t, pid]) => `${BM_PARTS[pid]?.icon || '•'} ${esc(BM_PARTS[pid]?.name || pid)}`).join(' · ') : '';
-    const skills = A ? (A.skills || []).map((s) => `<div class="bm-skill"><i>${s.icon}</i><div><b>${esc(s.name)}</b> · ${s.cd} с<div class="f">урон: ${s.pct}% + ${s.k}×«Чёрный урон» от макс. ОЗ цели</div><small>${esc(s.desc || '')}</small></div></div>`).join('') : '';
+    const nSk = A ? (A.skills || []).length : 0;
     const inHand = it.uid === handUid;
     detail = `<div class="bm-cols" data-anim="${esc(it.uid)}">
         <div class="bm-col bm-sup"><h4>Обычные параметры ${inHand ? '· заглушены' : '· будут заглушены'}</h4>${ordRows}
@@ -96,8 +99,8 @@ export function rArtifacts(book, st) {
         <div class="bm-col blk bm-unl"><h4 style="color:#ffb347">🔥 Чёрные параметры ${inHand ? '· раскрыты' : '· раскроются'}</h4>${blkRows}
           <div class="bm-keep">Остаются: параметры души, таланты и навыки талантов (их урон режет чёрная броня).</div></div>
       </div>
-      ${A ? `<p class="mc-dim">Удар: ${A.ranged ? `дальний, ${Math.round(A.atk.range)} px` : `ближний, ${Math.round(A.atk.range)} px`} · перезарядка ${A.cd} мс · зажмите атаку для заряда (полный — за ${A.stats.charge} с).<br>Части: ${parts}</p>
-      <h4>Навыки артефакта (выберите в «Навыки» → «Навыки артефакта»)</h4>${skills}` : ''}
+      ${A ? `<p class="mc-dim">Удар: ${A.ranged ? `дальний, ${Math.round(A.atk.range)} px` : `ближний, ${Math.round(A.atk.range)} px`} · перезарядка ${A.cd} мс · зажмите атаку: полный заряд за ${A.stats.charge} с — удар ${fmtBm('force', A.stats.force || 0)}${A.stats.power ? `, размер ${fmtBm('power', A.stats.power)}` : ''}; отпустили раньше — обычный удар.<br>Части: ${parts}</p>
+      ${nSk ? `<p class="bm-sklink">🔥 Навыков артефакта: ${nSk} — <button class="mc-btn sm" data-act="codexart">Кодекс навыков → «Навыки артефактов»</button>, в слоты — <button class="mc-btn sm" data-act="tab" data-v="skills">«Навыки»</button>.</p>` : ''}` : ''}
       <div class="acts" style="margin-top:8px">${inHand ? `<button class="mc-btn" data-act="unequip" data-v="weapon">Убрать из руки</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">🔥 Выбрать чёрную магию (взять в руку)</button>`}</div>`;
   }
   return `<div class="bm-wrap"><div class="bm-head"><span class="bm-cnt">Артефакты: ${arts.length}/${B.maxArtifacts || 30}</span>${testBtns}</div>
@@ -122,6 +125,6 @@ export class ArtHand {
     if (!this.el) { bmCss(); this.el = document.createElement('div'); this.el.className = 'bm-hand'; this.el.innerHTML = '<div class="orb"></div><span>ЗАГЛУШКА</span>'; this.layer.appendChild(this.el); }
     this.el.style.display = '';
     this.el.style.left = `${p.x + 26}px`; this.el.style.top = `${p.y + 18}px`;
-    this.el.classList.toggle('chg', chg > 0); this.el.style.setProperty('--c', String(Math.min(1, chg)));
+    this.el.classList.toggle('chg', chg > 0); this.el.classList.toggle('full', chg >= 1); this.el.style.setProperty('--c', String(Math.min(1, chg)));
   }
 }

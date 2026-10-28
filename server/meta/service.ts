@@ -1025,7 +1025,7 @@ export class MetaService {
     const lvlBy: Record<string, number> = {}; HERO_IDS.forEach((cls, i) => { const h = heroes[i]; if (h) lvlBy[cls] = h.lvl || 1; }); // навык героя открыт, когда уровень героя этого класса ≥ уровня открытия
     const mobSk = new Set<string>(); for (const id of Object.keys(a.bestiary)) for (const k of ((ZONE_MOBS as any)[id]?.skills || [])) mobSk.add(k);
     const codex = [
-      ...Object.values(ABILITY_BY_ID).map((d: any) => ({ id: d.id, kind: d.cls === "monster" ? "trophy" : "hero", cls: d.cls, name: d.name, icon: d.icon, desc: d.desc, cd: d.cd, power: d.power, lvl: d.unlockLevel || 1, found: d.cls === "monster" ? mobSk.has(d.id) : (lvlBy[d.cls] || 0) >= (d.unlockLevel || 1) })),
+      ...Object.values(ABILITY_BY_ID).map((d: any) => ({ id: d.id, kind: d.cls === "monster" ? "trophy" : d.cls === "artifact" ? "artifact" : "hero", cls: d.cls, name: d.name, icon: d.icon, desc: d.desc, cd: d.cd, power: d.power, lvl: d.unlockLevel || 1, ...(d.cls === "artifact" ? { bm: { pct: d.bm?.pct, k: d.bm?.k, traits: d.bm?.traits } } : {}), found: d.cls === "monster" ? mobSk.has(d.id) : d.cls === "artifact" ? true : (lvlBy[d.cls] || 0) >= (d.unlockLevel || 1) })),
       ...RUN_SKILLS.map((r) => ({ id: "rs:" + r.id, kind: "weapon", name: r.name, icon: r.icon, desc: r.desc, cd: RS_DEF["rs:" + r.id]?.cd ?? WEAPON_SKILL_CD, found: (a.runSkills || []).includes(r.id) })),
       ...Object.entries(MOB_SKILLS).filter(([id]) => !id.startsWith("rs:")).map(([id, m]) => ({ id: "mob:" + id, kind: "mob", name: m.name, icon: "👹", desc: "Навык монстров и боссов", cd: m.cd, found: mobSk.has(id) })),
     ];

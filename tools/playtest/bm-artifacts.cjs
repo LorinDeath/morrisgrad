@@ -43,8 +43,16 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
   await G(() => window.__game.debug.openBook('artifacts')); await sleep(1500);
   const tab = await G(() => ({ cards: document.querySelectorAll('.bm-card').length, sup: document.querySelectorAll('.bm-sup .bm-row').length, unl: document.querySelectorAll('.bm-unl .bm-row').length, test: document.querySelectorAll('[data-act="bmtest"]').length, txt: document.querySelector('.bm-cnt')?.textContent }));
   t('вкладка «Артефакты»: карточки, глушение, раскрытие, кнопки теста', tab.cards === 2 && tab.sup >= 4 && tab.unl === 7 && tab.test === 2, tab);
+  const tab2 = await G(() => ({ sk: document.querySelectorAll('.bm-wrap .bm-skill').length, link: !!document.querySelector('.bm-sklink [data-act="codexart"]'), force: [...document.querySelectorAll('.bm-unl .bm-row')].find((r) => r.textContent.includes('Сила атаки'))?.textContent }));
+  t('«Артефакты»: навыков списком нет — только ссылка на Кодекс; «Сила атаки +N%»', tab2.sk === 0 && tab2.link && /\+\d+%/.test(tab2.force || ''), tab2);
   await sleep(200); await shot('01-artifacts-tab-anim-start');
   await sleep(1800); await shot('02-artifacts-tab-preview');
+  // ссылка → Кодекс навыков, раздел «Навыки артефактов»
+  await G(() => document.querySelector('.bm-sklink [data-act="codexart"]')?.click()); await sleep(1500);
+  const cx = await G(() => ({ tab: !!document.querySelector('[data-act="cfilter"][data-v="artifact"].gold'), n: document.querySelectorAll('.mc-rs-grid .mc-rskill').length, f: document.querySelectorAll('.mc-rs-grid .bmf').length, open: document.querySelectorAll('.mc-rs-grid .mc-rskill.locked').length }));
+  t('Кодекс навыков → «🔥 Навыки артефактов»: 5 открытых карточек с формулой', cx.tab && cx.n === 5 && cx.f === 5 && cx.open === 0, cx);
+  await shot('10-codex-artifact-skills');
+  await G(() => window.__game.debug.openBook('artifacts')); await sleep(800);
   // взять в руку
   await G(() => document.querySelector('[data-act="equip"]')?.click()); await sleep(1500);
   const inHand = await S();
@@ -78,9 +86,11 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
   // заряд: зажать ЛКМ ~1.2 с
   const vp = p.viewportSize(); await p.mouse.move(vp.width / 2 + 260, vp.height / 2 + 120); await p.mouse.down(); await sleep(300);
   console.log('diag', JSON.stringify(await G(() => ({ aim: window.__game.debug.aim(), el: document.elementFromPoint(innerWidth / 2 + 260, innerHeight / 2 + 120)?.tagName, book: document.querySelector('.mc-book')?.offsetParent != null }))));
-  await sleep(900);
-  const chg = await G(() => document.querySelector('.bm-hand')?.classList.contains('chg')); t('зажатая атака — заряд (свечение заглушки)', !!chg, chg);
-  await shot('08-charging'); await p.mouse.up(); await sleep(600);
+  await sleep(600);
+  const chg = await G(() => { const e = document.querySelector('.bm-hand'); return { chg: e?.classList.contains('chg'), full: e?.classList.contains('full') }; }); t('зажатая атака — заряд идёт, ещё не полный', chg.chg && !chg.full, chg);
+  await shot('08-charging'); await sleep(1400);
+  const full = await G(() => document.querySelector('.bm-hand')?.classList.contains('full')); t('заряд полный через «Скорость заряда» (1.6 с)', !!full, full);
+  await shot('08b-charge-full'); await p.mouse.up(); await sleep(600);
   // админка: «Пересчитать все»
   await p.waitForFunction(() => { if (document.querySelectorAll('.mc-admin [data-tab]').length) return true; try { if (!window.__game.debug.admin().open) window.__game.debug.openAdmin(); } catch {} return false; }, null, { timeout: 30000 }).catch(() => {});
   await G(() => document.querySelector('.mc-admin [data-tab="bmagic"]')?.click()); await sleep(800);
