@@ -57,7 +57,7 @@ export function mountBmMobs(ap, sec) {
   return mobs(ap, S, bd, sec);
 }
 const resName = (r) => RESOURCES[r]?.name || r;
-const liveTxt = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : c.live.state === 'cleared' || c.live.next ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}`;
+const liveTxt = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : !c.live.alive && c.live.total ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}${c.live.next ? ` · ⏳ следующий через ${Math.round(c.live.next)} с` : ''}${c.live.state === 1 ? ' · ⚔ бой' : ''}`;
 function mobs(ap, S, bd, sec) {
   const L = S.list, drafts = new Map((L.drafts || []).map((d) => [d.id, d]));
   const all = [...L.mobs]; for (const [id, d] of drafts) if (!all.some((m) => m.id === id)) all.push({ id, ...(d.data || {}), _new: true });
@@ -131,7 +131,7 @@ function camps(ap, S, bd, sec) {
   const L = S.list, C = L.camps || [], mobsAll = [...(L.mobs || []).map((m) => ({ id: m.id, name: m.name, black: 1 })), ...(L.normal || [])];
   const e = S.camp; const mobOpt = (v) => mobsAll.map((m) => `<option value="${esc(m.id)}" ${v === m.id ? 'selected' : ''}>${m.black ? '👹 ' : ''}${esc(m.name || m.id)}</option>`).join('');
   const live = liveTxt; clearInterval(S.cti); S.cti = setInterval(() => { if (ap.tab !== 'bmmobs' || S.sub !== 'camps' || !ap.el?.isConnected || !sec.isConnected) { clearInterval(S.cti); return; } ap.send({ type: 'admin_bmm', op: 'camps' }); }, 2000);
-  const _live0 = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : c.live.state === 'cleared' || c.live.next ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}`;
+  const _live0 = (c) => !c.live ? (c.hidden ? 'выключен' : c.err ? '⚠ ' + c.err : '—') : !c.live.alive && c.live.total ? `разбит · возрождение через ${Math.max(0, Math.round(c.live.next || 0))} с` : `живы ${c.live.alive}/${c.live.total}${c.live.next ? ` · ⏳ следующий через ${Math.round(c.live.next)} с` : ''}${c.live.state === 1 ? ' · ⚔ бой' : ''}`;
   bd.innerHTML = `<p class="mc-dim">Лагерь — точка, радиус, состав и вожак; логово — лагерь с флажком «Логово» (все элита). Таймер возрождения — случайный «от–до», переживает перезапуск сервера. Чёрные дерутся с обычными мобами, только если рядом игрок (настройка «⚙»).</p>
     <table><tr><th>Лагерь</th><th>Мир · x,y · r</th><th>Состав</th><th>Возрождение</th><th>Сейчас</th><th></th></tr>${C.map((c) => `<tr><td>${c.lair ? '🕳 ' : '⛺ '}${esc(c.name)}</td><td>${esc(c.world)} · ${c.x},${c.y} · ${c.r}</td><td style="font-size:11px">${(c.mobs || []).map((x) => `${esc(mobsAll.find((m) => m.id === x.mob)?.name || x.mob)}×${x.n}`).join(', ')}${c.chief ? ` · вожак: ${esc(mobsAll.find((m) => m.id === c.chief)?.name || c.chief)}` : ''}</td><td>${c.respawnMin}–${c.respawnMax} с</td><td data-live="${esc(c.id)}">${esc(live(c))}</td><td><button class="b" data-ce="${esc(c.id)}">✎</button></td></tr>`).join('')}</table>
     <p><button class="b" data-x="cnew">＋ Новый лагерь</button> <button class="b" data-x="crefresh">↻ Таймеры</button></p>
