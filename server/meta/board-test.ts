@@ -266,11 +266,16 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
   ok(r.ok && r.rank && !b.c[id] && !b.roll[id] && !(b.sel.hunt || []).includes(id), "сданный заказ вернулся в пул");
 }
 
+const FIT_TM = BOARD_CFG.fit.tierMax; BOARD_CFG.fit.tierMax = 0; // ниже — ярус строго по рангу (прибавку по уровню цели проверяем отдельно)
 // сундук за ранговое задание: карточка знает ярус и шанс проклятого (от сервера, с правками админки); потолок хранилища
 { const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const st: any = boardClient(a, h); const ids = Object.keys(st.roll || {});
   const bad = ids.filter((id) => { const R = st.roll[id], t = BTASKS[id], c = st.bc[id]; const want = !!tierOfRank(R.r) && ["daily", "weekly", "monthly", "hard", "hunt"].includes(t.cat);
-    if (!want) return !!c; const T = BCHEST.tiers[bumpTier(tierOfRank(R.r)!, R.maxL ? fitReward(R.L).tu : 0)]; return !c || c.n !== T.name || c.cp !== rankCursePct(R.r) || c.cp > 30; });
+    if (!want) return !!c; const T = BCHEST.tiers[tierOfRank(R.r)!]; return !c || c.n !== T.name || c.cp !== rankCursePct(R.r) || c.cp > 30; });
   ok(ids.length > 0 && !bad.length, `сундук в карточке у ${ids.length} ранговых заданий: ярус и шанс проклятого по рангу`, bad.slice(0, 3));
+  BOARD_CFG.fit.tierMax = FIT_TM;
+  { const st2: any = boardClient(a, h); const fit = Object.keys(st2.roll || {}).filter((id) => st2.roll[id].maxL && st2.bc[id]);
+    const bad2 = fit.filter((id) => { const R = st2.roll[id]; return st2.bc[id].n !== BCHEST.tiers[bumpTier(tierOfRank(R.r)!, fitReward(R.L).tu)!].name; });
+    ok(!bad2.length, `редкие/боссы по уровню цели: ярус сундука в карточке с прибавкой (${fit.length} шт.)`, bad2.slice(0, 3)); }
   const exp: Record<string, number> = { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 }; ok(Object.entries(exp).every(([r, v]) => rankCursePct(r) === v), "шанс проклятого F30 E25 D20 C15 B12 A10 S5 SS2");
   ok(st.bcs && st.bcs.max === 100 && st.bcs.n === 0, "хранилище сундуков: 0 из 100", st.bcs);
   const save = BCHEST.rankCurse.D; BCHEST.rankCurse.D = 7; const st2: any = boardClient(a, h); const dId = ids.find((id) => st.roll[id].r === "D");

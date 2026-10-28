@@ -18,8 +18,8 @@ import { WORLD_NAMES } from "./mobHome";
 import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOriginal, type QuestDef, type Objective } from "./quests";
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
-import { MOB_SKILLS_LIST } from "./mobSkills";
 import { mobCategories } from "./bestiaryReg";
+import { MOB_SKILLS_LIST } from "./mobSkills";
 import { validateDialogue, dialogueEmpty, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
 
 /** «Спавн» → локация: что будет, если поле пустое (как в коде) — подсказка вместо «—» */

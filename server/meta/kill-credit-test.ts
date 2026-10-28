@@ -2,7 +2,9 @@
 // достижения, Бестиарий), соло и в отряде (рядом без урона, павший рядом, далеко). Прогон: bun meta/kill-credit-test.ts
 import { MetaService } from "./service";
 import { newAccount, newHero, acceptQuest } from "./profile";
-import { BTASKS, boardOf, boardRefresh, BOARD_CFG, makeRoll, fitWindow, fitReward } from "./board";
+import { BTASKS, boardOf, boardRefresh, boardClaim, BOARD_CFG, makeRoll, fitWindow, fitReward } from "./board";
+import { bumpTier } from "./boardChest";
+import { tierOfRank } from "./boardChestCfg";
 import { ZONE_MOBS, RUN_BOSS_BY_ROOM } from "./defs";
 import { QUEST_BY_ID } from "./quests";
 let f = 0; const ok = (c: any, m: string, x?: any) => { console.log((c ? "PASS " : "FAIL ") + m + (!c && x !== undefined ? " " + JSON.stringify(x) : "")); if (!c) f++; };
@@ -89,5 +91,10 @@ for (const [lab, type, fl, want] of CATS) {
   ok(fitReward(hi.L).rm > fitReward(lo.L).rm && fitReward(hi.L).tu >= fitReward(lo.L).tu, "награды (ресурсы, ярус сундука) растут с уровнем цели");
   const W = fitWindow("rare", 4)!; ok(W && W.lo >= 1 && W.Lc === 5, "окно редких для 4 ур.: ближайший — Королевская роса (5)", W);
   const old = BOARD_CFG.fit.on; BOARD_CFG.fit.on = false; ok(!(makeRoll(BTASKS.w_rare, 24, "s1", "k", ["warrior"], "C") as any).maxL, "fit.on=false — как раньше"); BOARD_CFG.fit.on = old; }
+// сдача: ярус выданного сундука — с прибавкой по уровню цели (как в карточке)
+{ const a: any = newAccount(), h: any = newHero("warrior"); a.hero = "warrior"; h.lvl = 25; const ctx = { pkey: "uid:fit" }; boardRefresh(a, h, ctx);
+  const b = boardOf(a), R = makeRoll(BTASKS.d_rare, 25, "s1", "k", ["warrior"], "C") as any; b.sel.daily = ["d_rare"]; b.roll.d_rare = R; b.p.d_rare = 99;
+  const r = boardClaim(a, h, "d_rare", ctx), want = bumpTier(tierOfRank("C"), fitReward(R.L).tu);
+  ok(r.ok && r.chest && r.chest.tier === want && fitReward(R.L).tu > 0, `сдача d_rare на 25 ур.: сундук «${r.chest?.name}» (ярус ${r.chest?.tier}, ожидался ${want})`, r.err || r.chest); }
 console.log("\nТАБЛИЦА\n" + table.join("\n"));
 console.log(f ? `\n${f} FAIL` : "\nвсё PASS"); process.exit(f ? 1 : 0);
