@@ -40,7 +40,7 @@ export function rewardsHtml(q, x = {}) {
   for (const id of r.items || []) out.push(`🎁 ${ITEM_BY_ID[id]?.name || id}`);
   for (const [id, n] of Object.entries(r.res || {})) out.push(`${RESOURCES[id]?.icon || '🪨'} ${RESOURCES[id]?.name || id} ×${n}`);
   if (r.blkFix > 0) out.push(`🌑 Очищение надетого снаряжения ${r.blkFix}%`);
-  const alt = q.rewards?.alt || {}, ks = Object.keys(alt), chs = chestHtml(x.chv);
+  const alt = q.rewards?.alt || {}, ks = Object.keys(alt), chs = chestHtml((x.br && x.chvB?.[x.br]) || x.chv);
   const brl = ks.length ? `<small class="vn-alt">${x.br && alt[x.br] ? `Ваш выбор: <b>${esc(alt[x.br].name || x.br)}</b> — награда этой ветки` : `Награда зависит от выбора в диалоге: ${ks.map((k) => `«${esc(alt[k].name || k)}»`).join(', ')}`}</small>` : '';
   const rep = q.repeat ? `<small class="vn-rep">${esc(REPEAT_NAMES[q.repeat] || '')}</small>` : '';
   return out.length || chs || brl || rep ? `<div class="vn-rew"><b>Награда:</b> ${out.map((x) => `<span>${esc(x)}</span>`).join('')}${chs}${brl}${rep}</div>` : '';

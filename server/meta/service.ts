@@ -48,7 +48,7 @@ import { BOARD_CFG, devBoardRoll, bmWanted, tutPending, boardEvent, boardRefresh
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
-  questLockReason, questRefresh, questDoneNow, questChestSpec, questChoose, blackenEquipped,
+  questLockReason, questRefresh, questDoneNow, questChestSpec, questChestBranches, questChoose, blackenEquipped,
 } from "./profile";
 import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
 import { BCHEST, bchestPreview, specView } from "./boardChestCfg";
@@ -724,7 +724,7 @@ export class MetaService {
           const state = act ? (questComplete(a, q.id) ? (turninNpc(q) === npc ? "complete" : "active") : "active") : questDoneNow(a, q) ? "done" : q.npc !== npc ? "elsewhere" : questAvailable(a, q, h) ? "available" : "locked";
           // сундуки за квест (свои / ветки / по типу) с «шансом улучшиться до …» — показываются в окне квеста
           return { id: q.id, state, reason: state === "locked" || (state === "done" && q.repeat) ? questLockReason(a, q, h) : state === "elsewhere" ? `берётся у: ${NPCS[q.npc]?.name || q.npc}` : undefined, p: act?.p,
-            chv: specView(questChestSpec(a, q)), br: a.quests.br?.[q.id], rep: q.repeat };
+            chv: specView(questChestSpec(a, q)), chvB: (() => { const B = questChestBranches(q); return B ? Object.fromEntries(Object.entries(B).map(([k, L]) => [k, specView(L)])) : undefined; })(), br: a.quests.br?.[q.id], rep: q.repeat };
         }).filter((x) => x.state !== "elsewhere" || a.quests.done.includes(x.id));
         this.push(ws, session);
         this.send(ws, { type: "npc_dialog", npc, quests, tasks: npcTasks(a, h, npc) }); // личные задания персонажа (доска заданий, поле «кто выдаёт»)

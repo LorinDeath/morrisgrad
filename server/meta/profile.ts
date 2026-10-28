@@ -20,7 +20,7 @@ import { weaponType,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, questType, type QuestDef } from "./quests";
 import { grantSpec, chestRoomErr } from "./boardChest";
-import { BCHEST, effSpec, bcSpecCount } from "./boardChestCfg";
+import { BCHEST, effSpec, bcSpecCount, type BcSpec } from "./boardChestCfg";
 import { condFail } from "./questConds";
 import { goalMatch } from "./biomes";
 
@@ -679,6 +679,12 @@ export function questRewardsFor(a: Account, q: QuestDef): { xp?: number; items?:
 export function questChestSpec(a: Account | null, q: QuestDef) {
   const R = a ? questRewardsFor(a, q) : (q.rewards as any);
   return effSpec(R.ch, (q.rewards as any).chOff, questType(q));
+}
+/** сундуки каждой ветки со своим полем «Сундуки» — клиент показывает их сразу после выбора в диалоге */
+export function questChestBranches(q: QuestDef): Record<string, BcSpec[]> | undefined {
+  const A: any = (q.rewards as any).alt || {}, o: Record<string, BcSpec[]> = {};
+  for (const k of Object.keys(A)) if (Array.isArray(A[k]?.ch) && A[k].ch.length) o[k] = effSpec(A[k].ch, (q.rewards as any).chOff, questType(q));
+  return Object.keys(o).length ? o : undefined;
 }
 /** выбор игрока в окне диалога квеста: запоминается ветка (награда и открытие следующих квестов) */
 export function questChoose(a: Account, qid: string, k: string): R {
