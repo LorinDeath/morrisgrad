@@ -5,9 +5,9 @@
 import { esc } from './overlay.js';
 import { BoardStore, PERIODIC } from '../meta/boardStore.js';
 import { BoardWin } from './board.js';
-import { btDef, makeBtask, prepXp, tableXp, tierLvl, makeRoll, RANKS, BONUS_NAMES, BOARD_CFG } from '../../../../../server/meta/board.ts';
+import { btType, btDef, makeBtask, prepXp, tableXp, tierLvl, makeRoll, RANKS, BONUS_NAMES, BOARD_CFG } from '../../../../../server/meta/board.ts';
 import { HERO_NAMES } from '../../../../../server/meta/shared.ts';
-import { BCHEST, BC_TIERS, BC_ENCH_CAP, BC_CURSE_MAX, BC_SPEC_MAX, BC_SPEC_N, bcSpecErr } from '../../../../../server/meta/boardChestCfg.ts';
+import { BCHEST, BC_TIERS, BC_ENCH_CAP, BC_CURSE_MAX, BC_SPEC_MAX, BC_SPEC_N, bcSpecErr, upView, QDEF_NAMES } from '../../../../../server/meta/boardChestCfg.ts';
 
 const NEW_IDS = { __btnew: 'daily', __achnew: 'ach' };
 const POOL_CATS = [['daily', 'Ежедневные', 'dailyMin', 'dailyMax'], ['weekly', 'Еженедельные', 'weeklyMin', 'weeklyMax'], ['monthly', 'Ежемесячные', 'monthlyMin', 'monthlyMax'], ['hard', 'Тяжёлые (на неделю)', 'hardMin', 'hardMax'], ['hunt', 'Заказы Доски объявлений', 'huntOffer', null]];
@@ -125,12 +125,20 @@ function rewardHtml(cat, v) {
     <table class="rm">${res.map(([r, n], i) => `<tr><td><select data-rr="${i}">${rOpt(r)}</select></td><td><input type="number" min="1" max="999" data-rn="${i}" value="${n}"></td><td><button class="btn sm red" data-rdel="${i}">✕</button></td></tr>`).join('')}</table>
     <button class="btn sm" data-radd>＋ Материал</button>
     <label class="wide"><span>Предмет за последнюю ступень (расходник или вещь)</span><span class="pick1"><input type="search" placeholder="поиск предмета…" data-flt="item"><select data-v="item">${iOpt}</select></span></label>
-    ${chestsHtml(cat, v)}
+    ${chestsHtml(cat, v, v.cat ? btType({ id: "", f: "", ...v }) : null)}
     <div class="xpv"></div></div>`;
 }
 /** награда «Сундуки» (поле ch): строки { сколько, ярус, уровень вещей, потолок чар, проклятость }; сервер проверяет те же правила (boardChestCfg bcSpecErr) */
 const bcName = (cat, t, cur) => { const T = (cat.ent.bchest?.[0]?.values || {}); return (cur ? T[`tiers.${t}.nameC`] : T[`tiers.${t}.name`]) || (cur ? BCHEST.tiers[t]?.nameC : BCHEST.tiers[t]?.name) || t; };
-function chestsHtml(cat, v) {
+/** умолчание типа (админка «Сундуки наград → По типам квестов»): «Добротный ×1, улучшение +1 12 % / +2 3 %» или «нет» */
+export function qdefText(cat, type) {
+  const T = cat?.ent?.bchest?.[0]?.values || {}, d = BCHEST.qdef?.[type] || {}, g = (k) => T[`qdef.${type}.${k}`] ?? d[k];
+  const n = Number(g('n')) || 0; if (!n) return 'нет (только сундук ранга, если включён)';
+  const u = Number(g('u')) || 0, u2 = Number(g('u2')) || 0;
+  return `${bcName(cat, g('t'), false)} ×${n}${u || u2 ? ` · улучшение +1: ${u}%${u2 ? `, +2: ${u2}%` : ''}` : ''}`;
+}
+/** таблица «Сундуки» (общая: задания доски и квесты): сколько, ярус, уровень, чары, проклятость, шанс улучшения +1/+2; type — ключ умолчания */
+export function chestsHtml(cat, v, type = null, what = 'за последнюю ступень') {
   const L = Array.isArray(v.ch) ? v.ch : [];
   const row = (x, i) => { const cap = BC_ENCH_CAP[x.t] ?? 0, cm = x.c === 'yes' ? 'yes' : typeof x.c === 'number' && x.c > 0 ? 'pct' : 'no', lm = !x.L ? 'task' : x.L2 ? 'range' : 'fix';
     return `<tr data-chr="${i}"><td><input type="number" min="1" max="${BC_SPEC_N}" data-ch="${i}.n" value="${x.n || 1}" title="Сколько сундуков"></td>
@@ -140,12 +148,16 @@ function chestsHtml(cat, v) {
       <td><select data-ch="${i}.e" ${cap ? '' : 'disabled title="Простой сундук не зачарован"'}><option value="-1" ${!(x.e >= 0) ? 'selected' : ''}>${cap ? `по ярусу (до ${cap})` : 'без чар'}</option>${cap ? Array.from({ length: cap + 1 }, (_, k) => `<option value="${k}" ${x.e === k ? 'selected' : ''}>${k ? `до яруса ${k}` : 'без чар'}</option>`).join('') : ''}</select></td>
       <td><select data-ch="${i}.cm"><option value="no" ${cm === 'no' ? 'selected' : ''}>нет</option><option value="yes" ${cm === 'yes' ? 'selected' : ''}>да («${esc(bcName(cat, x.t, true))}»)</option><option value="pct" ${cm === 'pct' ? 'selected' : ''}>шанс, %</option></select>
         ${cm === 'pct' ? `<input type="number" min="1" max="${BC_CURSE_MAX}" step="0.5" data-ch="${i}.c" value="${x.c}" class="n2">` : ''}</td>
+      <td class="nw"><input type="number" min="0" max="100" step="0.5" data-ch="${i}.u" value="${x.u || 0}" class="n2" title="Шанс улучшиться на 1 ярус, % (0…100)">/<input type="number" min="0" max="100" step="0.5" data-ch="${i}.u2" value="${x.u2 || 0}" class="n2" title="Шанс улучшиться сразу на 2 яруса, % (0…100; бросается первым)"></td>
       <td><button class="btn sm red" data-chdel="${i}">✕</button></td></tr>`; };
-  return `<div class="bt-ch"><b>Сундуки</b> <small>за последнюю ступень, во вкладку 🎁; уровень вещей «по заданию» — уровень выпавшего ранга (или задания) ±2; чары — не выше яруса сундука (простой — без чар); проклятый — да или шанс до ${BC_CURSE_MAX} %; «чёрные проклятые» вещи (☠ + ✦6) — только из «Чёрного проклятого сундука». Хранилище — до ${BCHEST.maxStore || 100}: при полном задание не сдать, как ранговое. Сундук за ранг выдаётся как раньше.</small>
-    ${L.length ? `<table class="rm ch"><tr><th>Сколько</th><th>Сундук</th><th>Уровень вещей</th><th>Зачарование</th><th>Проклятый</th><th></th></tr>${L.map(row).join('')}</table>` : '<div class="mc-dim">— нет —</div>'}
+  const ty = type || null, def = ty ? qdefText(cat, ty) : '';
+  return `<div class="bt-ch"><b>Сундуки</b> ${ty ? `<label class="chk"><input type="checkbox" data-choff ${v.chOff ? 'checked' : ''}> без сундука</label>` : ''}
+    ${ty ? `<div class="bt-chdef${L.length || v.chOff ? ' off' : ''}">${v.chOff ? '🚫 Сундук не выдаётся (даже по типу).' : L.length ? '✎ Свой список ниже — умолчание типа не действует.' : '↳ Пусто — действует умолчание типа'} «${esc(QDEF_NAMES[ty] || ty)}»: <b>${esc(def)}</b></div>` : ''}
+    <small class="hlp">${esc(what)}, во вкладку 🎁; «Улучш. +1/+2» — шанс, что ярус поднимется (простой → добротный N %), бросок на сервере при выдаче; уровень вещей «по заданию» — уровень выпавшего ранга (или задания) ±2; чары — не выше яруса сундука (простой — без чар); проклятый — да или шанс до ${BC_CURSE_MAX} %; «чёрные проклятые» вещи (☠ + ✦6) — только из «Чёрного проклятого сундука». Хранилище — до ${BCHEST.maxStore || 100}: при полном задание не сдать.</small>
+    ${L.length ? `<table class="rm ch"><tr><th>Сколько</th><th>Сундук</th><th>Уровень вещей</th><th>Зачарование</th><th>Проклятый</th><th title="Шанс улучшения яруса: +1 / +2, %">Улучш. +1/+2 %</th><th></th></tr>${L.map(row).join('')}</table>` : '<div class="mc-dim">— нет —</div>'}
     ${L.length < BC_SPEC_MAX ? '<button class="btn sm" data-chadd>＋ Сундук</button>' : ''}</div>`;
 }
-function chestsBind(sec, v, redraw, upd) {
+export function chestsBind(sec, v, redraw, upd) {
   const $$ = (q) => [...sec.querySelectorAll(q)];
   $$('[data-ch]').forEach((i) => i.addEventListener(i.tagName === 'SELECT' ? 'change' : 'input', () => {
     const [k, f] = i.dataset.ch.split('.'), x = v.ch[+k]; if (!x) return; const n = Number(i.value);
@@ -158,7 +170,9 @@ function chestsBind(sec, v, redraw, upd) {
     else if (f === 'e') x.e = Math.round(n);
     else if (f === 'cm') { x.c = i.value === 'yes' ? 'yes' : i.value === 'pct' ? 10 : 'no'; redraw(); return; }
     else if (f === 'c') x.c = Number.isFinite(n) ? n : 0;
+    else if (f === 'u' || f === 'u2') x[f] = Number.isFinite(n) ? n : 0;
     upd(); }));
+  const off = sec.querySelector('[data-choff]'); if (off) off.onchange = () => { v.chOff = off.checked; redraw(); };
   $$('[data-chdel]').forEach((b) => (b.onclick = () => { v.ch.splice(+b.dataset.chdel, 1); redraw(); }));
   const add = sec.querySelector('[data-chadd]'); if (add) add.onclick = () => { if (!Array.isArray(v.ch)) v.ch = []; v.ch.push({ n: 1, t: 'rare', L: 0, L2: 0, e: -1, c: 'no' }); redraw(); };
 }
@@ -195,7 +209,8 @@ function previewHtml(panel, id, v) {
   const S = new BoardStore(() => {});
   S.defs = { ...(live?.defs || { on: true, givers: panel.cat.bt.givers, cfg: {} }), tasks: [def] }; S.byId = new Map([[def.id, def]]);
   S.st = { ...(live?.st || {}), p: { [id]: Math.floor((def.n[0] || 1) / 2) }, c: {}, tk: [], pin: [], lock: {}, reveal: {}, sel: { [def.cat]: [def.id] }, lvl: live?.st?.lvl || 10 };
-  if (Array.isArray(v.ch) && v.ch.length && !bcSpecErr(v.ch)) S.st.bx = { [id]: v.ch.map((x) => { const cp = x.c === 'yes' ? 100 : typeof x.c === 'number' ? Math.min(BC_CURSE_MAX, x.c) : 0; return { k: x.n, n: bcName(panel.cat, x.t, cp === 100), c: BCHEST.tiers[x.t]?.color, nc: bcName(panel.cat, x.t, true), L: x.L || 0, L2: x.L2 || 0, e: x.e >= 0 ? x.e : -1, cp }; }) };
+  if (Array.isArray(v.ch) && v.ch.length && !bcSpecErr(v.ch)) S.st.bx = { [id]: v.ch.map((x) => { const cp = x.c === 'yes' ? 100 : typeof x.c === 'number' ? Math.min(BC_CURSE_MAX, x.c) : 0; return { k: x.n, n: bcName(panel.cat, x.t, cp === 100), c: BCHEST.tiers[x.t]?.color, nc: bcName(panel.cat, x.t, true), L: x.L || 0, L2: x.L2 || 0, e: x.e >= 0 ? x.e : -1, cp, up: upView(x.t, x.u || 0, x.u2 || 0) }; }) };
+  if (v.chOff) S.st.bx = { [id]: [] };
   const W = Object.create(BoardWin.prototype); W.s = S; W.mode = ''; W.opt = { near: () => false, mobile: false };
   const row = (d) => { try { return W.row(d); } catch (e) { return `<p class="mc-dim">предпросмотр недоступен: ${esc(e.message)}</p>`; } };
   const g = v.giver, gName = panel.cat.bt.givers[g] || '';

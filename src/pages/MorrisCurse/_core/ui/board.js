@@ -19,6 +19,8 @@ const AB_SECT = [
 const secOf = (t) => (t.hid ? 'hidden' : AB_SECT.find((s) => s[2](t.id))[0]);
 const fmtLeft = (ms) => { const s = Math.max(0, Math.round(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d} д ${h} ч` : h ? `${h} ч ${m} мин` : `${m} мин`; };
 
+/** «шанс улучшиться до Редкого 15%, до Странного 3%» (сервер: BCHEST rankUp / qdef / поле u, u2 задания) */
+const upTxt = (U) => (Array.isArray(U) && U.length ? `<span class="up"> · шанс улучшиться ${U.map((u) => `до <b style="color:${esc(u.c || '#e5c07b')}">${esc(String(u.n || '').replace(/\s*сундук\s*/i, ' ').trim().toLowerCase())}</b> ${u.p}%`).join(', ')}</span>` : '');
 export class BoardWin {
   /** opt: { mobile, near(kind) — рядом ли с доской nb/ab, heroLvl(), onTrack() } */
   constructor(overlay, store, opt) {
@@ -79,19 +81,19 @@ export class BoardWin {
   chestHtml(t, r) { return r.done ? '' : this.rankChestHtml(t) + this.specChestHtml(t); }
   /** награда «Сундуки» из админки (st.bx[id]): ярус, сколько, уровень вещей, потолок чар, проклятость — та же рамка, что у сундука ранга */
   specChestHtml(t) {
-    const st = this.s.st || {}, L = st.bx?.[t.id]; if (!Array.isArray(L) || !L.length) return '';
+    const st = this.s.st || {}, L = st.bx?.[t.id] ?? st.bq?.[st.bt?.[t.id] || t.cat]; if (!Array.isArray(L) || !L.length) return ''; // свой список или по типу задания
     const mx = st.bcs?.max || 100, have = st.bcs?.n || 0, need = L.reduce((s, x) => s + (x.k || 1), 0), full = have + need > mx;
     const lv = (x) => (x.L ? (x.L2 && x.L2 !== x.L ? `ур. ${x.L}–${x.L2}` : `ур. ${x.L}`) : 'ур. задания ±2');
     return L.map((x, i) => { const nm = String(x.n || '').replace(/\s*сундук\s*/i, ' ').trim().toLowerCase() || 'сундук';
       const cur = x.cp >= 100 ? '' : x.cp > 0 ? ` (шанс проклятого ${Math.round(x.cp * 10) / 10}%)` : '';
       const ex = [lv(x), x.e === 0 ? 'без чар' : x.e > 0 ? `чары до яруса ${x.e}` : ''].filter(Boolean).join(' · ');
-      return `<div class="mc-bd-chest spec${full ? ' full' : ''}" style="--cc:${esc(x.c || '#999')}" title="${esc(`${x.cp > 0 && x.cp < 100 ? `Проклятый вариант: «${x.nc || ''}». ` : ''}Сундуков хранится не больше ${mx}.`)}">+ ${x.k > 1 ? `${x.k} × ` : ''}сундук: <b>${esc(nm)}</b>${esc(cur)} · ${esc(ex)}${i === L.length - 1 ? `<small>${full ? `хранилище полно (${have}/${mx}) — откройте сундуки 🎁, иначе задание не сдать` : `хранится до ${mx} сундуков · сейчас ${have}`}</small>` : ''}</div>`; }).join('');
+      return `<div class="mc-bd-chest spec${full ? ' full' : ''}" style="--cc:${esc(x.c || '#999')}" title="${esc(`${x.cp > 0 && x.cp < 100 ? `Проклятый вариант: «${x.nc || ''}». ` : ''}Сундуков хранится не больше ${mx}.`)}">+ ${x.k > 1 ? `${x.k} × ` : ''}сундук: <b>${esc(nm)}</b>${esc(cur)} · ${esc(ex)}${upTxt(x.up)}${i === L.length - 1 ? `<small>${full ? `хранилище полно (${have}/${mx}) — откройте сундуки 🎁, иначе задание не сдать` : `хранится до ${mx} сундуков · сейчас ${have}`}</small>` : ''}</div>`; }).join('');
   }
   rankChestHtml(t) {
     const st = this.s.st || {}, c = st.bc?.[t.id]; if (!c) return '';
     const nm = String(c.n || '').replace(/\s*сундук\s*/i, ' ').trim().toLowerCase() || 'сундук', mx = st.bcs?.max || 100, have = st.bcs?.n || 0;
     const full = have >= mx, cnt = c.hi > 1 ? `${c.lo === c.hi ? c.lo : `${c.lo}–${c.hi}`} ${c.hi === 1 ? 'вещь' : 'вещей'}` : '';
-    return `<div class="mc-bd-chest${full ? ' full' : ''}" style="--cc:${esc(c.c || '#999')}" title="${esc(`Проклятый вариант: «${c.nc || ''}». Сундуков хранится не больше ${mx}.`)}">+ сундук: <b>${esc(nm)}</b> (шанс проклятого ${Math.max(0, Math.round(c.cp || 0))}%)${cnt ? ` · ${esc(cnt)}` : ''}<small>${full ? `хранилище полно (${have}/${mx}) — откройте сундуки 🎁, иначе задание не сдать` : `хранится до ${mx} сундуков · сейчас ${have}`}</small></div>`;
+    return `<div class="mc-bd-chest${full ? ' full' : ''}" style="--cc:${esc(c.c || '#999')}" title="${esc(`Проклятый вариант: «${c.nc || ''}». Сундуков хранится не больше ${mx}.`)}">+ сундук: <b>${esc(nm)}</b> (шанс проклятого ${Math.max(0, Math.round(c.cp || 0))}%)${cnt ? ` · ${esc(cnt)}` : ''}${upTxt(c.up)}<small>${full ? `хранилище полно (${have}/${mx}) — откройте сундуки 🎁, иначе задание не сдать` : `хранится до ${mx} сундуков · сейчас ${have}`}</small></div>`;
   }
   /** ранговое задание: основное условие и бонусные — с наградой и отметкой */
   condHtml(t, r) {

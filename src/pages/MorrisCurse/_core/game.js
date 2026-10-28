@@ -588,6 +588,7 @@ async function boot(canvasId, username, userId, api) {
     if (d.questDone) {
       const q = QUEST_BY_ID[d.questDone.id];
       if (q) overlay.toast(`✔ Задание выполнено: ${q.title}`, '#4ade80');
+      for (const c of d.questDone.rewards?.chests || []) overlay.toast(c.upFrom ? `🎁 ${c.upFrom} улучшился: ${c.name}!` : `🎁 ${c.name}`, c.color || '#e5c07b'); // сундук за квест (бросок улучшения — на сервере)
     }
     if (meta.hero && prevLvl && meta.hero.lvl > prevLvl) overlay.toast(`${HERO_NAMES[meta.hero.cls]}: уровень ${meta.hero.lvl}! +очко таланта`, '#facc15');
     refreshAbilityButtons();

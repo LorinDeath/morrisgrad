@@ -15,6 +15,7 @@ ok(L.filter((t: any) => t.hidden).map((t: any) => t.id).sort().join() === "ach_x
 // новый игрок: доска запущена до сундуков — всё с нуля; открыл — засчитано сервером
 const a: any = newAccount(), W: any = newHero("warrior"); W.lvl = 10; a.hero = "warrior"; const ctx = { pkey: "uid:cha", heroes: { warrior: W } };
 boardRefresh(a, W, ctx); const b = boardOf(a);
+for (const r of Object.keys(BCHEST.rankUp || {})) { BCHEST.rankUp[r] = 0; BCHEST.rankUp2[r] = 0; } // ярусы без «улучшения» — проверяем счёт по ярусам
 ok(!(b.p.ach_bch_all || 0) && !(b.pre.ach_bch_all || 0), "до открытий — 0");
 const got = { cur: 0, black: 0 }; let cc: any = null;
 for (let i = 0; i < 40; i++) { const c = grantChest(a, "warrior", i % 2 ? "F" : "SS", 10, "daily", "t", rnd)!; if (c.cur) got.cur++; if (c.cur && c.tier === "black") cc = c; chestOpen(a, "warrior", c.id, rnd); chestsOf(a).list = chestsOf(a).list.filter((x) => x.id !== c.id); }

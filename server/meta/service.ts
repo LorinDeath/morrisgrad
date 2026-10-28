@@ -48,10 +48,10 @@ import { BOARD_CFG, devBoardRoll, bmWanted, tutPending, boardEvent, boardRefresh
 import {
   heroEffective, weaponCursed, cursedGlow, markSeen, rollRunSkill, weaponSkill, noteMob, noteItem, cryptoRand, snapshot, learnTalent, setLoadout, upgradeRadiance, silenceAbility, buySoulNode, equip, unequip, salvage, setLock, upgradeItem, salvagePreview, salvageMany, effSkill, codexBound,
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
-  questLockReason, questRefresh, blackenEquipped,
+  questLockReason, questRefresh, questDoneNow, questChestSpec, questChestBranches, questChoose, blackenEquipped,
 } from "./profile";
 import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
-import { BCHEST, bchestPreview } from "./boardChestCfg";
+import { BCHEST, bchestPreview, specView } from "./boardChestCfg";
 import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
@@ -110,13 +110,15 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   duel_challenge: S({ sid: "s" }), duel_respond: S({ from: "s", accept: "b", dnd: "b?" }),
   save_now: S({}), online_get: S({}), friends_get: S({}), friend_add: S({ sid: "s?", id: "s?" }), friend_respond: S({ id: "s", accept: "b" }),
   admin_bchest_preview: S({ patch: "o", L: "n", cat: "s" }), admin_open: S({}), admin_audit: S({}), admin_save: S({ kind: "s", id: "s", patch: "o" }), admin_save_sec: S({ kind: "s", id: "s", sec: "s", patch: "o" }), admin_reset: S({ kind: "s", id: "s" }), admin_quest_save: S({ quest: "o" }), admin_quest_delete: S({ id: "s" }), admin_quest_reset: S({ id: "s" }), admin_dialogue_save: S({ questId: "s", dialogue: "o" }),
+  admin_qdraft_get: S({ id: "s" }), admin_qdraft_save: S({ id: "s", meta: "o?", wins: "a?", len: "o?" }), admin_qdraft_publish: S({ id: "s" }), admin_qdraft_discard: S({ id: "s" }), admin_qdraft_list: S({}),
+  quest_choice: S({ id: "s", ph: "s", wi: "n", ci: "n" }), // выбор в окне диалога квеста (ветка: награда и открытие квестов)
   bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }), // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
 };
 const ADMIN_PATCH_TYPES = new Set(["admin_save", "admin_save_sec", "admin_bchest_preview"]), ADMIN_PATCH_KEYS = 600;
 /** сохранения админки ждут admin_result: любой отказ (схема, частота, размер) — ответом, а не только всплывашкой (панель не висит) */
-const ADMIN_RESULT_TYPES = new Set(["admin_save", "admin_save_sec", "admin_reset", "admin_quest_save", "admin_quest_delete", "admin_quest_reset", "admin_dialogue_save"]);
+const ADMIN_RESULT_TYPES = new Set(["admin_save", "admin_save_sec", "admin_reset", "admin_quest_save", "admin_quest_delete", "admin_quest_reset", "admin_dialogue_save", "admin_qdraft_get", "admin_qdraft_save", "admin_qdraft_publish", "admin_qdraft_discard"]);
 export function validMsg(msg: any): boolean {
   const sch = MSG_SCHEMA[msg.type];
   if (!sch) return true; // не мета-сообщение — его разберёт GameRoom
@@ -719,8 +721,10 @@ export class MetaService {
         // все квесты персонажа: доступные, закрытые (с причиной), активные, готовые к сдаче, выполненные (лор читается)
         const quests = QUESTS.filter((q) => !q.auto && (q.npc === npc || turninNpc(q) === npc)).map((q) => {
           const act = a.quests.active[q.id];
-          const state = act ? (questComplete(a, q.id) ? (turninNpc(q) === npc ? "complete" : "active") : "active") : a.quests.done.includes(q.id) ? "done" : q.npc !== npc ? "elsewhere" : questAvailable(a, q, h) ? "available" : "locked";
-          return { id: q.id, state, reason: state === "locked" ? questLockReason(a, q, h) : state === "elsewhere" ? `берётся у: ${NPCS[q.npc]?.name || q.npc}` : undefined, p: act?.p };
+          const state = act ? (questComplete(a, q.id) ? (turninNpc(q) === npc ? "complete" : "active") : "active") : questDoneNow(a, q) ? "done" : q.npc !== npc ? "elsewhere" : questAvailable(a, q, h) ? "available" : "locked";
+          // сундуки за квест (свои / ветки / по типу) с «шансом улучшиться до …» — показываются в окне квеста
+          return { id: q.id, state, reason: state === "locked" || (state === "done" && q.repeat) ? questLockReason(a, q, h) : state === "elsewhere" ? `берётся у: ${NPCS[q.npc]?.name || q.npc}` : undefined, p: act?.p,
+            chv: specView(questChestSpec(a, q)), chvB: (() => { const B = questChestBranches(q); return B ? Object.fromEntries(Object.entries(B).map(([k, L]) => [k, specView(L)])) : undefined; })(), br: a.quests.br?.[q.id], rep: q.repeat };
         }).filter((x) => x.state !== "elsewhere" || a.quests.done.includes(x.id));
         this.push(ws, session);
         this.send(ws, { type: "npc_dialog", npc, quests, tasks: npcTasks(a, h, npc) }); // личные задания персонажа (доска заданий, поле «кто выдаёт»)
@@ -745,6 +749,15 @@ export class MetaService {
         const r = acceptQuest(a, q.id, h);
         if (r.ok) { this.qev(a, session, { type: "talk", npc: q.npc }); if ((session.world || "hellfire") === "arinar") this.qev(a, session, { type: "reach", world: "arinar" }); }
         reply(r, `Квест принят: ${q.title}`); return true;
+      }
+      case "quest_choice": { // выбор игрока в диалоге: проверяется по опубликованному диалогу (фаза, окно, вариант), рядом с NPC квеста
+        const q = QUEST_BY_ID[String(msg.id)], d = q ? QUEST_DIALOGUES[q.id] : null;
+        const ph = msg.ph === "done" ? "done" : "offer", w = d?.[ph]?.[msg.wi | 0], c = w?.ch?.[msg.ci | 0];
+        if (!q || !c) { reply({ ok: false, err: "Нет такого выбора" }); return true; }
+        if (!this.nearNpc(session, ph === "done" ? turninNpc(q) : q.npc)) { reply({ ok: false, err: "Подойдите к персонажу" }); return true; }
+        if (ph === "done" && !a.quests.active[q.id]) { reply({ ok: false, err: "Квест не взят" }); return true; }
+        if (!c.k) { reply({ ok: true }); return true; } // вариант без ключа — только переход по диалогу
+        reply(questChoose(a, q.id, c.k)); return true;
       }
       case "quest_turnin": {
         const q = QUEST_BY_ID[String(msg.id)];
@@ -782,7 +795,8 @@ export class MetaService {
         if (Date.now() - ((ms as any).cstAt || 0) < 20000) return true; (ms as any).cstAt = Date.now();
         ST.clientStats(session.id, msg); return true;
       }
-      case "admin_open": case "admin_audit": case "admin_save": case "admin_save_sec": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save": {
+      case "admin_open": case "admin_audit": case "admin_save": case "admin_save_sec": case "admin_reset": case "admin_quest_save": case "admin_quest_delete": case "admin_quest_reset": case "admin_dialogue_save":
+      case "admin_qdraft_get": case "admin_qdraft_save": case "admin_qdraft_publish": case "admin_qdraft_discard": case "admin_qdraft_list": {
         // роли из D1 + verified; id/роль из сообщения клиента игнорируются.
         // Админ — всё. Модератор — только admin_open + admin_save/reset для mob/weapon/item. Остальное — отказ.
         const deny = (why: string) => { this.send(ws, { type: "toast_error", message: "Недостаточно прав", code: "MC-A07", for: String(msg.type || "").slice(0, 40), why }); this.store.audit(ms.pkey, "reject", `admin:${ms.pkey}:${Date.now()}`, { why, type: msg.type, kind: (msg as any).kind }); return true; };
@@ -806,6 +820,11 @@ export class MetaService {
         else if (msg.type === "admin_reset") this.admin.reset(ms.pkey, msg.kind, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "reset", kind: msg.kind, id: msg.id, ...r })).catch(fail);
         else if (msg.type === "admin_quest_reset") this.admin.resetQuest(ms.pkey, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "quest", reset: true, ...r })).catch(fail);
         else if (msg.type === "admin_dialogue_save") this.admin.saveDialogue(ms.pkey, msg.questId, msg.dialogue).then((r) => this.send(ws, { type: "admin_result", op: "dialogue", ...r })).catch(fail);
+        else if (msg.type === "admin_qdraft_get") this.admin.draftGet(String(msg.id)).then((r) => this.send(ws, { type: "admin_result", op: "qdraft", ...r })).catch(fail);
+        else if (msg.type === "admin_qdraft_list") this.admin.draftList().then((list) => this.send(ws, { type: "admin_result", op: "qdraft_list", ok: true, list })).catch(fail);
+        else if (msg.type === "admin_qdraft_save") this.admin.draftSave(ms.pkey, msg).then((r) => this.send(ws, { type: "admin_result", op: "qdraft_save", ...r })).catch(fail);
+        else if (msg.type === "admin_qdraft_publish") this.admin.draftPublish(ms.pkey, String(msg.id)).then((r) => this.send(ws, { type: "admin_result", op: "quest", ...r })).catch(fail);
+        else if (msg.type === "admin_qdraft_discard") this.admin.draftDiscard(ms.pkey, String(msg.id)).then((r) => this.send(ws, { type: "admin_result", op: "qdraft_discard", ...r })).catch(fail);
         else if (msg.type === "admin_quest_save") this.admin.saveQuest(ms.pkey, msg.quest).then((r) => this.send(ws, { type: "admin_result", op: "quest", ...r })).catch(fail);
         else this.admin.deleteQuest(ms.pkey, msg.id).then((r) => this.send(ws, { type: "admin_result", op: "quest_delete", id: msg.id, ...r })).catch(fail);
         return true;

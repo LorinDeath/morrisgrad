@@ -18,7 +18,9 @@ import { weaponType,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
   radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS, OWN_GEAR, lootMobLvl, partOf,
 } from "./defs";
-import { QUESTS, QUEST_BY_ID, type QuestDef } from "./quests";
+import { QUESTS, QUEST_BY_ID, questType, type QuestDef } from "./quests";
+import { grantSpec, chestRoomErr } from "./boardChest";
+import { BCHEST, effSpec, bcSpecCount, type BcSpec } from "./boardChestCfg";
 import { condFail } from "./questConds";
 import { goalMatch } from "./biomes";
 
@@ -30,7 +32,7 @@ export interface Disc { items: Record<string, { st: "seen" | "owned"; at: number
 export interface Account {
   v: number; inv: InvItem[]; res: Record<string, number>; stars: Record<string, number>;
   starsBy: Record<string, Record<string, number>>; creation: number; soul: string[];
-  quests: { active: Record<string, { p: number[] }>; done: string[]; untracked?: string[] };
+  quests: { active: Record<string, { p: number[] }>; done: string[]; untracked?: string[]; rep?: Record<string, string>; br?: Record<string, string> };
   mobTrack?: string | null; // «Отслеживать» из Бестиария (одна цель, сохраняется на сервере)
   mobTracks?: string[]; // несколько целей Бестиария (лимит — BOARD_CFG.trackMax); mobTrack = первая (совместимость)
   bestiary: Record<string, { seen: number; kills: number; at?: number; v?: number }>; disc: Disc; flags: Record<string, boolean>; hero: string | null; nextUid: number;
@@ -556,20 +558,34 @@ export function campRoll(k: { lootKey: string; elite: boolean; cursed: boolean; 
 }
 
 // ---------------- квесты ----------------
+// повторяемые квесты (q.repeat): период — как у доски заданий (день/неделя по Киеву); board.ts подставляет periodKey при загрузке
+let QPERIOD: (cat: string) => string = () => "";
+export function setQuestPeriod(f: (cat: string) => string) { QPERIOD = f; }
+export const questPeriod = (q: QuestDef) => (q.repeat ? QPERIOD(q.repeat) : "");
+/** квест закрыт как выполненный СЕЙЧАС: обычный — сдан; повторяемый — сдан в текущем периоде */
+export function questDoneNow(a: Account, q: QuestDef): boolean {
+  if (!a.quests.done.includes(q.id)) return false;
+  return !q.repeat || (a.quests.rep?.[q.id] || "") === questPeriod(q);
+}
+/** условия ветки: в квесте b.q сдан и выбран вариант b.k */
+const branchMiss = (a: Account, q: QuestDef) => (q.reqBranch || []).filter((b) => !(a.quests.done.includes(b.q) && a.quests.br?.[b.q] === b.k));
 export function questAvailable(a: Account, q: QuestDef, h: Hero | null = null): boolean {
-  if (a.quests.done.includes(q.id) || a.quests.active[q.id]) return false;
+  if (questDoneNow(a, q) || a.quests.active[q.id]) return false;
   if (q.minLevel && (!h || h.lvl < q.minLevel)) return false;
   if (q.requires && !q.requires.every((r) => a.quests.done.includes(r))) return false;
+  if (branchMiss(a, q).length) return false;
   if (q.requiresStars && (a.starsBy[q.requiresStars.npc]?.[q.requiresStars.color] || 0) < q.requiresStars.count) return false;
   return true;
 }
 /** Почему квест закрыт (для списка «Все квесты»): null — можно взять. */
 export function questLockReason(a: Account, q: QuestDef, h: Hero | null): string | null {
-  if (a.quests.done.includes(q.id)) return "уже выполнен";
+  if (questDoneNow(a, q)) return q.repeat ? (q.repeat === "weekly" ? "выполнен на этой неделе — снова на следующей" : "выполнен сегодня — снова завтра") : "уже выполнен";
   if (a.quests.active[q.id]) return null;
   if (q.minLevel && (!h || h.lvl < q.minLevel)) return `нужен уровень героя ${q.minLevel}${h ? ` (у вас ${h.lvl})` : ""}`;
   const miss = (q.requires || []).filter((r) => !a.quests.done.includes(r));
   if (miss.length) return "сначала: " + miss.map((r) => `«${QUEST_BY_ID[r]?.title || r}»`).join(", ");
+  const bm = branchMiss(a, q);
+  if (bm.length) return "сначала: " + bm.map((b) => { const bq = QUEST_BY_ID[b.q]; return `«${bq?.title || b.q}» — выбор «${bq?.rewards.alt?.[b.k]?.name || b.k}»`; }).join(", ");
   if (q.requiresStars && (a.starsBy[q.requiresStars.npc]?.[q.requiresStars.color] || 0) < q.requiresStars.count) return `нужно звёзд (${q.requiresStars.color}) от персонажа: ${q.requiresStars.count}`;
   return null;
 }
@@ -652,6 +668,31 @@ function questEventRaw(a: Account, ev: any): string[] {
   }
   return [...new Set(changed)];
 }
+/** итоговая награда с учётом выбранной ветки */
+export function questRewardsFor(a: Account, q: QuestDef): { xp?: number; items?: string[]; res?: Record<string, number>; ch?: any[]; br?: string } {
+  const k = a.quests.br?.[q.id], v: any = k ? q.rewards.alt?.[k] : null, b: any = q.rewards;
+  if (!v) return { xp: b.xp, items: b.items, res: b.res, ch: b.ch };
+  const has = (x: any) => x != null && !(Array.isArray(x) && !x.length) && !(typeof x === "object" && !Array.isArray(x) && !Object.keys(x).length);
+  return { xp: v.xp != null ? v.xp : b.xp, items: has(v.items) ? v.items : b.items, res: has(v.res) ? v.res : b.res, ch: has(v.ch) ? v.ch : b.ch, br: k };
+}
+/** сундуки квеста (BcSpec[]): свои → ветки → по типу квеста; rewards.chOff — без сундука */
+export function questChestSpec(a: Account | null, q: QuestDef) {
+  const R = a ? questRewardsFor(a, q) : (q.rewards as any);
+  return effSpec(R.ch, (q.rewards as any).chOff, questType(q));
+}
+/** сундуки каждой ветки со своим полем «Сундуки» — клиент показывает их сразу после выбора в диалоге */
+export function questChestBranches(q: QuestDef): Record<string, BcSpec[]> | undefined {
+  const A: any = (q.rewards as any).alt || {}, o: Record<string, BcSpec[]> = {};
+  for (const k of Object.keys(A)) if (Array.isArray(A[k]?.ch) && A[k].ch.length) o[k] = effSpec(A[k].ch, (q.rewards as any).chOff, questType(q));
+  return Object.keys(o).length ? o : undefined;
+}
+/** выбор игрока в окне диалога квеста: запоминается ветка (награда и открытие следующих квестов) */
+export function questChoose(a: Account, qid: string, k: string): R {
+  const q = QUEST_BY_ID[qid]; if (!q) return fail("Нет такого квеста");
+  if (questDoneNow(a, q) && !a.quests.active[qid]) return fail("Квест уже сдан — выбор не меняется");
+  (a.quests.br = a.quests.br || {})[qid] = k;
+  return { ok: true };
+}
 export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewards?: any } {
   const q = QUEST_BY_ID[qid];
   questRefresh(a, h);
@@ -666,17 +707,28 @@ export function turnInQuest(a: Account, h: Hero | null, qid: string): R & { rewa
     if (o.res) a.res[o.res] = Math.max(0, (a.res[o.res] || 0) - o.count);
     else { const eq = new Set(Object.values(h?.equip || {})); let n = o.count; a.inv = a.inv.filter((i) => { if (n > 0 && i.id === o.item && !i.lk && (!i.hero || i.hero === a.hero) && !eq.has(i.uid)) { n--; return false; } return true; }); }
   }
+  // награда ветки диалога (выбор игрока, a.quests.br): заполненные поля заменяют основные
+  const R = questRewardsFor(a, q);
+  const spec = questChestSpec(a, q), nCh = bcSpecCount(spec);
+  if (nCh && !q.auto) { const e = chestRoomErr(a, nCh); if (e) return fail(e); }
   delete a.quests.active[qid];
-  a.quests.done.push(qid);
-  const got: any = { items: [], res: q.rewards.res || {}, stars: q.rewards.stars || {}, xp: 0 };
-  if (q.rewards.xp && h) { gainXp(h, q.rewards.xp); got.xp = q.rewards.xp; }
+  if (!a.quests.done.includes(qid)) a.quests.done.push(qid);
+  if (q.repeat) (a.quests.rep = a.quests.rep || {})[qid] = questPeriod(q);
+  const got: any = { items: [], res: R.res || {}, stars: q.rewards.stars || {}, xp: 0 };
+  if (R.br) got.br = R.br;
+  if (R.xp && h) { gainXp(h, R.xp); got.xp = R.xp; }
   for (const [c, n] of Object.entries(q.rewards.stars || {})) {
     a.stars[c] = (a.stars[c] || 0) + n;
     (a.starsBy[q.npc] = a.starsBy[q.npc] || {})[c] = (a.starsBy[q.npc]?.[c] || 0) + n;
   }
-  for (const id of q.rewards.items || []) { const it = addItem(a, id, `quest:${qid}`); if (it) got.items.push(it); }
-  for (const [r, n] of Object.entries(q.rewards.res || {})) addRes(a, r, n);
+  for (const id of R.items || []) { const it = addItem(a, id, `quest:${qid}`); if (it) got.items.push(it); }
+  for (const [r, n] of Object.entries(R.res || {})) addRes(a, r, n);
   if (q.rewards.flag) a.flags[q.rewards.flag] = true;
+  // сундуки за квест: свой список квеста/ветки или по типу (BCHEST.qdef); улучшение яруса — бросок здесь, на сервере
+  if (nCh && a.hero && !(q.auto && chestRoomErr(a, nCh))) {
+    const cs = grantSpec(a, a.hero, spec, h?.lvl || 1, "quest", `quest:${qid}`);
+    if (cs.length) got.chests = cs.map((c) => ({ id: c.id, tier: c.tier, cur: !!c.cur, ...(c.up ? { upFrom: BCHEST.tiers[c.up]?.name } : {}), name: c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name, color: BCHEST.tiers[c.tier].color, L: c.L }));
+  }
   // «Очищение снаряжения» (Чёрный маг): −N % очернения у каждой НАДЕТОЙ вещи героя, сдающего квест (не ниже 0)
   if ((q.rewards as any).blkFix > 0 && h) got.blkFix = repairBlackened(a, h, (q.rewards as any).blkFix);
   // авто-принятие следующего авто-квеста (пролог)

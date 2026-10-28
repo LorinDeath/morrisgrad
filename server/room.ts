@@ -13,7 +13,7 @@ const SMALL_MSG_CHARS = 16 * 1024;
 // боссы зон (meta) не затронуты. Вернуть — true.
 const LEGACY_HUB_FIGHTS = false;
 const NO_SESSIONS = new Map<WebSocket, Session>();
-const BIG_MSG_TYPES = new Set(["run_relay", "run_result", "admin_save", "admin_save_sec", "admin_quest_save"]);
+const BIG_MSG_TYPES = new Set(["run_relay", "run_result", "admin_save", "admin_save_sec", "admin_quest_save", "admin_qdraft_save"]);
 const joinCoord = (v: any): number => { const n = Number(v); const [lo, hi] = worldBounds("hellfire"); return Number.isFinite(n) && n !== 0 ? Math.max(lo, Math.min(hi, n)) : 600; };
 import { ZONE_RESPAWN } from "./meta/shared";
 import { ZONE_MOBS } from "./meta/defs";
