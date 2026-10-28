@@ -672,7 +672,7 @@ export class Book {
     const REG = L?.reg || Object.keys(MOB_INFO).map((id) => ({ id, g: MOB_INFO[id].boss ? 'world' : MOB_INFO[id].rare ? 'rare' : 'mob', lvl: MOB_INFO[id].lvl, where: [] }));
     const RB = Object.fromEntries(REG.map((e) => [e.id, e]));
     const lvlOf = (id) => lmOf(id)?.st?.lvl ?? RB[id]?.lvl ?? MOB_INFO[id]?.lvl ?? 1, dir = this.lvlSort === 'desc' ? -1 : 1;
-    const K1 = { mob: 'моб', elite: 'элита', chief: 'вожак', rare: 'редкий', boss: 'босс', world: 'мировой босс' }, KN = { mob: 'Мобы', elite: 'Элита', chief: 'Вожаки', rare: 'Редкие', boss: 'Боссы', world: 'Мировые боссы' };
+    const K1 = { mob: 'моб', elite: 'элита', chief: 'вожак', rare: 'редкий', boss: 'босс', world: 'мировой босс', black: 'чёрный' }, KN = { mob: 'Мобы', elite: 'Элита', chief: 'Вожаки', rare: 'Редкие', boss: 'Боссы', world: 'Мировые боссы', black: '👹 Чёрные' };
     const grpOf = (id) => (KN[RB[id]?.g] ? RB[id].g : null) || (MOB_INFO[id]?.boss ? 'world' : MOB_INFO[id]?.rare ? 'rare' : 'mob');
     const killed = (id) => (b[id]?.kills || 0) > 0, F = this.bFilt || 'all', T = KN[this.bTab] ? this.bTab : 'mob';
     const stat = (ids) => ({ n: ids.length, seen: ids.filter((k) => b[k]).length, kill: ids.filter(killed).length });
@@ -685,7 +685,7 @@ export class Book {
       <small class="mc-dim">Бестиарий — вся история ваших встреч; достижения доски считаются с её запуска.</small></div>`;
     const tabs = `<div class="mc-libf mc-btabs">${Object.entries(KN).map(([g, nm]) => { const s0 = stat(byG(g)); return `<button class="mc-btn sm ${T === g ? 'gold' : ''}" data-act="btab" data-v="${g}">${esc(nm)} ${s0.kill}/${s0.n}</button>`; }).join('')}</div>
       <div class="mc-bfilt">${[['all', 'Все'], ['kill', 'Убиты'], ['nokill', 'Не убиты']].map(([k, n]) => `<button class="mc-btn sm ${F === k ? 'gold' : ''}" data-act="bfilt" data-v="${k}">${n}</button>`).join('')}</div>`;
-    const NOTE = { mob: 'Обычные виды, включая варианты краёв — у каждого своя карточка.', elite: 'Элита забегов и испытаний — усиленные особи в комнатах. Элита в открытом мире засчитывается в карточку своего вида.', chief: 'Вожаки лагерей: сильнейший вид края стоит в центре лагеря (больше ОЗ и урона, возрождается вдвое дольше).', rare: 'Редкие именные Отголоски: появляются ненадолго и по одному.', boss: 'Боссы забегов и испытаний.', world: 'Боссы логов открытого мира и их варианты краёв (появляются по таймеру).' };
+    const NOTE = { black: 'Чёрные мобы — собраны из частей, с огненным оружием в руке; живут в лагерях и логовах, дерутся с обычными мобами, когда рядом игрок.', mob: 'Обычные виды, включая варианты краёв — у каждого своя карточка.', elite: 'Элита забегов и испытаний — усиленные особи в комнатах. Элита в открытом мире засчитывается в карточку своего вида.', chief: 'Вожаки лагерей: сильнейший вид края стоит в центре лагеря (больше ОЗ и урона, возрождается вдвое дольше).', rare: 'Редкие именные Отголоски: появляются ненадолго и по одному.', boss: 'Боссы забегов и испытаний.', world: 'Боссы логов открытого мира и их варианты краёв (появляются по таймеру).' };
     const inTab = byG(T).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir);
     const extra = Object.keys(b).filter((k) => !RB[k] && grpOf(k) === T).sort((x, y) => (lvlOf(x) - lvlOf(y)) * dir); // старые записи вне реестра
     const keys = [...inTab, ...extra];

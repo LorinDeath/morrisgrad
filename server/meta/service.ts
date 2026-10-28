@@ -2170,10 +2170,11 @@ export class MetaService {
   async bmmOp(ms: any, session: any, msg: any): Promise<any> {
     const db: any = (this.store as any).db, A = this.admin, by = ms.pkey;
     const vals = (k: string, id: string) => ovValues(k as any, id);
-    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: CUSTOM_BM.test(id), ...vals("bmmob", id), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)) }));
-    const bodyList = () => Object.keys(BM_BODY).map((id) => ({ id, custom: CUSTOM_BB.test(id), ...vals("bmbody", id) }));
+    const nest = (v: any) => { const o: any = {}; for (const [p, x] of Object.entries(v || {})) { if (x == null) continue; const ks = p.split("."); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === "object" ? t[k] : {}; t[ks.at(-1)!] = x; } return o; };
+    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: CUSTOM_BM.test(id), ...nest(vals("bmmob", id)), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)) }));
+    const bodyList = () => Object.keys(BM_BODY).map((id) => ({ id, custom: CUSTOM_BB.test(id), ...nest(vals("bmbody", id)) }));
     const campList = () => { const sum = new Map<string, any>(); for (const w of ["arinar", "hellfire"]) { const z: any = (this.zones as any)[w]; for (const c of z?.campSummary?.() || []) { const zc = z.camps.find((x: any) => x.id === c[0]); if (zc?.region?.startsWith("bm:")) sum.set(zc.region.slice(3), { alive: c[3], total: c[4], state: c[5], next: c[8] }); } }
-      return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; return { id, ...vals("bmcamp", id), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null }; }); };
+      return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; return { id, ...nest(vals("bmcamp", id)), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null }; }); };
     const flat = (kind: string, raw: any) => { const paths = new Set((OV_SCHEMA as any)[kind].fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path)); const patch: any = {};
       const walk = (o: any, pre: string) => { for (const [k, v] of Object.entries(o || {})) { const p = pre + k; if (paths.has(p)) patch[p] = v; else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, p + "."); } };
       walk(raw, ""); return patch; };
@@ -2187,7 +2188,7 @@ export class MetaService {
         if (db) { try { arts = ((await db.prepare("SELECT id, name, rarity FROM items WHERE id LIKE 'art\\_%' ESCAPE '\\' ORDER BY rowid DESC LIMIT 200").all()).results || []); } catch {} }
         const res = Object.entries(RESOURCES as any).slice(0, 600).map(([id, r]: any) => ({ id, name: r?.name || id }));
         const mobs = Object.keys(ZONE_MOBS).filter((id) => !(ZONE_MOBS as any)[id].black).slice(0, 600).map((id) => ({ id, name: (ZONE_MOBS as any)[id].name, lvl: (ZONE_MOBS as any)[id].lvl || 0 }));
-        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: vals("bmmcfg", "main"), drafts, arts, res, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", hidden: !!(BM_PARTS as any)[id].hidden })) };
+        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: nest(vals("bmmcfg", "main")), drafts, arts, res, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", hidden: !!(BM_PARTS as any)[id].hidden })) };
       }
       case "auto": return { ok: true, stats: refStats(Number(msg.lvl) || 1) };
       case "here": return { ok: true, world: session.world || "hellfire", x: Math.round(session.x || 0), y: Math.round(session.y || 0) };

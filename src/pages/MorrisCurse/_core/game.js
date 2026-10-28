@@ -745,6 +745,7 @@ async function boot(canvasId, username, userId, api) {
   net.on('admin_result', (d) => adminPanel.onResult(d));
   net.on('bm_forge', (d) => forgeWin.onMsg(d));
   net.on('admin_bmf', (d) => adminPanel.onBmf?.(d));
+  net.on('admin_bmm', (d) => adminPanel.onBmm?.(d));
   net.on('loot_bag', (d) => { addCards(d.cards); if (lootWin.isOpen) lootWin.update(d); else if (!d.taken) lootWin.open(d); });
   net.on('home_portal_err', (d) => overlay.toast('🌀 ' + d.message, '#fca5a5'));
   net.on('loot_err', (d) => { if (lootWin.isOpen) lootWin.error(d.message); else overlay.toast(d.message, '#fca5a5'); });

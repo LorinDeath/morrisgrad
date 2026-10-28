@@ -83,6 +83,12 @@ hits = z.stats.mobHits; ok(hits > 0, `чёрные и обычные бьют д
 // снять лагерь — мобы уходят
 applyOverride("bmcamp" as any, "bcx_test", { ...cp, hidden: true }); z.syncBlackCamps(Date.now(), true);
 ok(!z.mobs.some((m: any) => m.bmc === "bcx_test" && m.respawnAt !== -1) && !z.camps.some((c) => c.region === "bm:bcx_test"), "выключенный лагерь убран");
+{ const { bestiaryRegistry } = await import("./bestiaryReg"); const { btTargetErr } = await import("./overrides");
+  const C0: any = BM_CAMPS.bcx_test, h0 = C0.hidden; C0.hidden = false;
+  const rb = bestiaryRegistry().filter((e) => e.g === "black"); C0.hidden = true;
+  ok(!bestiaryRegistry().some((e) => e.where.some((w) => w.includes("Тест-лагерь"))), "Бестиарий: скрытый лагерь — не показан"); C0.hidden = h0;
+  ok(rb.some((e) => e.id === "bmx_forge_brute" && e.where.some((w) => w.includes("Тест-лагерь"))), "Бестиарий: группа «Чёрные», место — лагерь");
+  ok(btTargetErr("kill", "bmx_ash_warden") === null, "доска/охота: чёрный моб — допустимая цель"); }
 // лагерь у города — отказ в мире
 const city = { ...cp, x: -10, y: 5 }; ok(!!z.bmCampErr({ ...(BM_CAMPS.bcx_test as any), ...city }), "лагерь за краем/у города не ставится");
 applyOverride("bmcamp" as any, "bcx_test", null); applyOverride("bmmob" as any, "bmx_probe", null);

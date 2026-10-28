@@ -12,11 +12,12 @@ import { ZONE_MOBS, HUB_SPAWNS, campChiefType } from "./defs";
 import { WORLD_GEN, BOSS_TIMERS } from "./zoneGen";
 import { summonPool } from "./biomes";
 import { WORLD_NAMES } from "./mobHome";
+import { BM_CAMPS, BMM_CFG } from "./blackMobs";
 import { RUN_ROOMS, ROOM_WAVES, ROOM_BOSS, ROOM_ELITES, TRIAL_WAVES, ENEMIES } from "../../src/pages/MorrisCurse/_core/survivors/data.js";
 
-export type BGroup = "mob" | "elite" | "chief" | "rare" | "boss" | "world";
-export const BGROUPS: BGroup[] = ["mob", "elite", "chief", "rare", "boss", "world"];
-export const BGROUP_RU: Record<BGroup, string> = { mob: "Мобы", elite: "Элита", chief: "Вожаки", rare: "Редкие", boss: "Боссы", world: "Мировые боссы" };
+export type BGroup = "mob" | "elite" | "chief" | "rare" | "boss" | "world" | "black";
+export const BGROUPS: BGroup[] = ["mob", "elite", "chief", "rare", "boss", "world", "black"];
+export const BGROUP_RU: Record<BGroup, string> = { mob: "Мобы", elite: "Элита", chief: "Вожаки", rare: "Редкие", boss: "Боссы", world: "Мировые боссы", black: "Чёрные" };
 /** вожаки лагерей: вид → регионы, где он стоит в центре лагеря (для отчёта/админки) */
 export function campChiefs(): Map<string, string[]> {
   const out = new Map<string, string[]>();
@@ -58,6 +59,9 @@ export function bestiaryRegistry(): BEntry[] {
     for (const b of G.bosses || []) { const d: any = (ZONE_MOBS as any)[b.type]; if (d) for (const t of summonPool(ZONE_MOBS, d)) add(t, `свита: ${d.name}`); }
   }
   for (const s of HUB_SPAWNS) add(s.type, `${WORLD_NAMES.hellfire} · у портала`);
+  // 👹 чёрные мобы конструктора: в реестре, только если стоят во включённом лагере (снятый с публикации — нет)
+  const black = new Set<string>();
+  if (BMM_CFG.on) for (const c of Object.values(BM_CAMPS)) { if (c.hidden) continue; for (const t of [c.chief, ...(c.mobs || []).map((x) => x.mob)]) { const z: any = (ZONE_MOBS as any)[t]; if (!z?.black || z.bmHidden) continue; black.add(t); add(t, `${WORLD_NAMES[c.world] || c.world} · ${c.lair ? "логово" : "лагерь"}: ${c.name}`); } }
   for (const t of Object.values(BOSS_TIMERS)) { world.add(t.type); add(t.type, ""); }
   for (const room of Object.keys(R)) {
     const mix = room === "trial" ? (TRIAL_WAVES as any[]) : ((ROOM_WAVES as any)[room] || []).map((w: any) => w.mix);
@@ -70,7 +74,7 @@ export function bestiaryRegistry(): BEntry[] {
   for (const [id, w] of where) {
     const z: any = (ZONE_MOBS as any)[id], a = ARENA_ONLY[id];
     if (!z && !a) continue;
-    const g0: BGroup = world.has(id) || BOSS_TIMERS[id] ? "world" : boss.has(id) || z?.boss ? "boss" : rare.has(id) || z?.rare ? "rare" : chiefs.has(id) ? "chief" : ELITE_RUN.has(id) ? "elite" : "mob";
+    const g0: BGroup = black.has(id) || z?.black ? "black" : world.has(id) || BOSS_TIMERS[id] ? "world" : boss.has(id) || z?.boss ? "boss" : rare.has(id) || z?.rare ? "rare" : chiefs.has(id) ? "chief" : ELITE_RUN.has(id) ? "elite" : "mob";
     const g: BGroup = BGROUPS.includes(z?.cat) ? z.cat : g0; // правка админки (mob.cat) важнее
     out.push({ id, g, ...(g !== g0 ? { g0 } : {}), lvl: z?.lvl ?? a?.lvl ?? 1, where: [...w], ...(z ? {} : { name: a.name }), ...(resp.has(id) ? { resp: resp.get(id)! } : {}) });
   }
@@ -81,7 +85,7 @@ export function bestiaryRegistry(): BEntry[] {
 export function mobCategories(): Record<string, { g: BGroup; g0: BGroup; why?: string }> {
   const reg = new Map(bestiaryRegistry().map((e) => [e.id, e])), ch = campChiefs(), out: Record<string, any> = {};
   for (const [id, z] of Object.entries(ZONE_MOBS) as [string, any][]) {
-    const e = reg.get(id), g0: BGroup = e ? e.g0 || e.g : z.boss ? "world" : z.rare ? "rare" : ch.has(id) ? "chief" : ELITE_RUN.has(id) ? "elite" : "mob";
+    const e = reg.get(id), g0: BGroup = e ? e.g0 || e.g : z.black ? "black" : z.boss ? "world" : z.rare ? "rare" : ch.has(id) ? "chief" : ELITE_RUN.has(id) ? "elite" : "mob";
     const g: BGroup = BGROUPS.includes(z.cat) ? z.cat : g0;
     out[id] = { g, g0, ...(ch.has(id) ? { why: "сильнейший вид региона — стоит в центре лагеря: " + ch.get(id)!.slice(0, 4).join(", ") + (ch.get(id)!.length > 4 ? ` и ещё ${ch.get(id)!.length - 4}` : "") } : {}) };
   }

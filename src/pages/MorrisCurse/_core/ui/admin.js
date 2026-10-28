@@ -2,6 +2,7 @@
 // Сервер проверяет КАЖДЫЙ запрос (клиентская кнопка и вкладки лишь скрыты). Поля — из overrides.ts (SCHEMA).
 import { showError } from '../boot/errorBox.js';
 import { mountBmForge, onBmfResult } from './bmForgeAdmin.js';
+import { mountBmMobs, onBmmResult } from './bmMobsAdmin.js';
 import { esc } from './overlay.js';
 import { cleanNum } from './fmtPct.js';
 import { regionMapHtml, mountRegionMap } from './regionMap.js';
@@ -59,10 +60,10 @@ const BT_RANKS = ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS'];
 /** высший ранг, который может выпасть заданию ('' — у раздела нет рангов) */
 const rankTop = (e) => (['daily', 'weekly', 'monthly', 'hard', 'hunt'].includes(e.cat) ? e.values?.rmax || (['kill', 'run', 'trial'].includes(e.values?.ev) ? 'SS' : 'A') : '');
 const rankCan = (e, r) => { const t = rankTop(e); return !!t && BT_RANKS.indexOf(r) <= BT_RANKS.indexOf(t); };
-const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['bchest', '🎁 Сундуки наград'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['bmagic', '🜏 Чёрная магия'], ['bpart', '🔥 Части оружия'], ['bmforge', '🔥 Конструктор оружия'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
+const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['bchest', '🎁 Сундуки наград'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['bmagic', '🜏 Чёрная магия'], ['bpart', '🔥 Части оружия'], ['bmforge', '🔥 Конструктор оружия'], ['bmmobs', '👹 Чёрные мобы'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
 // категории Бестиария (bestiaryReg.ts BGROUPS) — фильтр-вкладки вкладки «Бестиарий»; правка — поле «Категория» (mob.cat)
-const MOB_CAT_N = { mob: 'Мобы', elite: 'Элита', chief: 'Вожаки', rare: 'Редкие', boss: 'Боссы', world: 'Мировые боссы' };
+const MOB_CAT_N = { mob: 'Мобы', elite: 'Элита', chief: 'Вожаки', rare: 'Редкие', boss: 'Боссы', world: 'Мировые боссы', black: '👹 Чёрные' };
 /** нет ответа на сохранение за это время — ошибка в окне (раньше «Сохранение…» висело навсегда) */
 export const SAVE_TIMEOUT_MS = 12000;
 // разделы формы (заголовки t:"hdr") сохраняются по отдельности: admin_save_sec — только изменённые поля раздела (как server/meta/overrides.ts sectionMap)
@@ -337,12 +338,13 @@ export class AdminPanel {
         + `<td><small>${(t.sample || []).map((x) => `<span style="color:${esc(x.c ? '#c084fc' : rc(x.rarity))}">${esc(x.name)} ${x.lvl}${x.c ? '☠' : ''}${x.e ? '✦' + x.e : ''}${x.b ? '🌑' + x.b + '%' : ''}</span>`).join(', ')}</small></td></tr>`).join('') + '</table>';
   }
   onBmf(d) { onBmfResult(this, d); }
+  onBmm(d) { onBmmResult(this, d); }
   onAudit(rows) { this.audit = rows; if (this.tab === 'audit') this.render(); }
   items() {
     if (!this.cat) return [];
     const row = (e, kind, pre = '') => ({ id: pre + e.id, name: `${e.icon || ''} ${e.name}`.trim(), sub: e.part ? `${e.id} · ${e.inh ? 'наследует от' : 'копия'} ${e.part}` : e.id, lvl: e.lvl, kind });
     if (this.tab === 'quest') return [{ id: '__tree', name: '🌳 Дерево квестов' }, { id: '__new', name: '＋ Новый квест' }, ...this.cat.quests.map((q) => ({ id: q.id, name: q.title, stars: q.stars, lvl: q.minLevel, sub: (q.custom ? '✚ ' : q.edited ? '✎ ' : '📖 ') + q.npc }))];
-    if (this.tab === 'audit' || this.tab === 'perf' || this.tab === 'bmforge') return [];
+    if (this.tab === 'audit' || this.tab === 'perf' || this.tab === 'bmforge' || this.tab === 'bmmobs') return [];
     // Оружие: типы (форма удара, черты) + конкретное оружие-предметы с требуемым уровнем надевания (item.req/lvl)
     if (this.tab === 'weapon') return [{ grp: 1, id: '__g1', name: 'Типы оружия' }, ...this.cat.ent.weapon.map((e) => ({ ...row(e, 'weapon'), sub: 'тип · ' + e.id })),
       { grp: 1, id: '__g2', name: 'Оружие (предметы)' }, ...this.cat.ent.item.filter((e) => e.slot === 'weapon').sort((a, b) => (a.lvl || 0) - (b.lvl || 0)).map((e) => row(e, 'item', 'item:'))];
@@ -431,6 +433,7 @@ export class AdminPanel {
     this.list();
     if (!this.full && !(this.kinds || []).includes(this.tab)) { this.tab = (this.kinds || ['mob'])[0]; }
     if (this.tab === 'audit') { if (!this.full) { sec.innerHTML = '<p>Журнал доступен только админу.</p>'; return; } if (!this.audit) this.send({ type: 'admin_audit' }); sec.innerHTML = this.auditHtml(); return; }
+    if (this.tab === 'bmmobs') { if (!this.full) { sec.innerHTML = '<p>Конструктор доступен только админу.</p>'; return; } mountBmMobs(this, sec); return; }
     if (this.tab === 'bmforge') { if (!this.full) { sec.innerHTML = '<p>Конструктор доступен только админу.</p>'; return; } mountBmForge(this, sec); return; }
     if (this.tab === 'perf') { if (!this.perf || Date.now() - (this.perfAt || 0) > 5000) this.send({ type: 'admin_perf' }); this.renderPerf(sec); return; }
     if (this.tab === 'quest') { if (!this.full) { sec.innerHTML = '<p>Квесты доступны только админу.</p>'; return; } if (!this.sel || this.sel === '__tree') this.questTree(sec); else this.questForm(sec); return; }

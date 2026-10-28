@@ -81,7 +81,8 @@ function targetPicker(cat, v) {
     groups = [['', [['', 'Любые враги']]], ['Края (все враги края)', Object.entries(bt.biomes).map(([k, n]) => ['biome:' + k, `Край: ${n}`])],
       ['Типы врагов', Object.entries(bt.roles).map(([k, n]) => ['role:' + k, `Тип: ${n}`])],
       ['Мировые боссы', mobs.filter((m) => m.boss).map((m) => [m.id, `${m.name} · ур. ${m.lvl}`])],
-      ['Отголоски', mobs.filter((m) => !m.boss && !m.base).map((m) => [m.id, `${m.name} · ур. ${m.lvl}`])],
+      ['👹 Чёрные мобы (конструктор)', mobs.filter((m) => m.black).map((m) => [m.id, `${m.name} · ур. ${m.lvl}`])],
+      ['Отголоски', mobs.filter((m) => !m.boss && !m.base && !m.black).map((m) => [m.id, `${m.name} · ур. ${m.lvl}`])],
       ['Отголоски краёв (варианты)', mobs.filter((m) => !m.boss && m.base).map((m) => [m.id, `${m.name} · ур. ${m.lvl}${m.biome ? ' · ' + (bt.biomes[m.biome] || m.biome) : ''}`])]];
     if (v.ev === 'kill') groups.push(['Вашим героем', Object.entries(bt.heroes).map(([k, n]) => ['cls:' + k, `Играя за: ${n}`])]);
   } else if (tg === 'res') groups = [['', [['', 'Любой ресурс']]], ['Ресурсы', (cat.res || []).map((r) => [r.id, `${r.icon || ''} ${r.name}`])]];

@@ -510,7 +510,7 @@ export class AdminStore {
       })),
       res: Object.entries(RESOURCES).map(([id, o]) => ({ id, name: o.name, icon: o.icon })),
       mobCats: mobCategories(), // категория каждого вида (вкладки админки: мобы / элита / вожаки / редкие / боссы / мировые боссы)
-      mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl, boss: !!o.boss || undefined, base: o.variant ? o.base : undefined, baseName: o.variant ? (ZONE_MOBS as any)[o.base]?.name : undefined, biome: o.variant ? o.biome : undefined })),
+      mobs: Object.entries(ZONE_MOBS).map(([id, o]: [string, any]) => ({ id, name: o.name, lvl: o.lvl, boss: !!o.boss || undefined, base: o.variant ? o.base : undefined, baseName: o.variant ? (ZONE_MOBS as any)[o.base]?.name : undefined, biome: o.variant ? o.biome : undefined, black: o.black ? 1 : undefined })),
       objTypes: OBJ_TYPES, conds: COND_DEFS,
       // задания доски: списки для выбора цели/условий/предусловий (без ввода id руками)
       bt: { evs: BT_EVS, states: BT_STATES, flags: BT_FLAG_NAMES, cats: BT_CATS_NEW.map((id) => ({ id, name: CAT_NAMES[id] })), givers: GIVER_NAMES, npcGivers: NPC_GIVERS, custom: CUSTOM_BT.source,
