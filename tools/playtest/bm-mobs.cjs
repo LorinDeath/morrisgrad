@@ -22,7 +22,7 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
   const p = await ctx.newPage(); const errs = []; const fr = [];
   p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
-  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_result/.test(s)) fr.push(s.slice(0, 1500)); }));
+  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_result|"dev_mob"/.test(s)) fr.push(s.slice(0, 1500)); }));
   const G = (f, a) => p.evaluate(f, a);
   const shot = async (n, o = {}) => { await G(() => document.querySelectorAll('.mcl-err').forEach((e) => e.remove())); await sleep(300); await p.screenshot({ path: `${OUT}/${n}.png`, ...o }); console.log('shot', `${OUT}/${n}.png`); };
   const marks = []; const mark = (n) => marks.push([n, Date.now()]); const T0 = Date.now();
@@ -41,9 +41,9 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   }
   const camps = await G(() => window.__game.debug.campsRaw());
   const pl0 = await G(() => { const s = window.__game.state(); return { x: s.player?.x ?? s.x, y: s.player?.y ?? s.y }; });
-  const CL = (camps || []).map((c) => Array.isArray(c) ? { id: c[0], x: c[1], y: c[2], alive: c[3] } : c).filter((c) => (c.alive ?? 2) >= 2).map((c) => ({ ...c, d: Math.hypot(c.x - pl0.x, c.y - pl0.y) })).filter((c) => c.d > 900).sort((a, b) => a.d - b.d);
+  const CL = (camps || []).map((c) => Array.isArray(c) ? { id: c[0], x: c[1], y: c[2], alive: c[3], total: c[4], st: c[5] } : c).filter((c) => (c.alive ?? 2) >= 3 && c.alive === c.total && c.st === 0).map((c) => ({ ...c, d: Math.hypot(c.x - pl0.x, c.y - pl0.y) })).filter((c) => c.d > 900).sort((a, b) => a.d - b.d);
   t('обычные лагеря видны клиенту', CL.length > 0, { n: CL.length, c0: CL[0], pl0, raw: (camps || []).slice(0, 1) });
-  const tgt = CL[0] || { x: pl0.x + 1500, y: pl0.y };
+  const tgt = CL[Math.floor(Math.random() * Math.min(6, CL.length))] || { x: pl0.x + 1500, y: pl0.y };
   // админка → «👹 Чёрные мобы»
   await p.waitForFunction(() => { if (document.querySelectorAll('.mc-admin [data-tab]').length) return true; try { if (!window.__game.debug.admin().open) window.__game.debug.openAdmin(); } catch {} return false; }, null, { timeout: 30000 }).catch(() => {});
   await p.waitForFunction(() => { if (document.querySelectorAll('.bmma .pl [data-m]').length >= 3) return true; document.querySelector('.mc-admin [data-tab="bmmobs"]')?.click(); return false; }, null, { timeout: 25000, polling: 1500 }).catch(() => {}); await sleep(300);
@@ -107,11 +107,22 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   await shot('07-camp-table-live');
   // мир: драка чёрных с обычными (игрок рядом)
   await G(() => window.__game.debug.closeAdmin()); await sleep(800);
-  const hp0 = await G(() => Object.fromEntries(window.__game.debug.zoneMobsFull().map((m) => [m.id, m.hp])));
+  // игрок — зритель: в 11 клетках (драка идёт только «на глазах»), но вне агро, иначе мобы бьют игрока, а не друг друга
+  { let hr = {}; try { hr = JSON.parse(here || '{}'); } catch {} if (hr.x) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [hr.x - 75, hr.y - 330]); await sleep(1500); } }
+  const hp0 = await G(() => { const ms = window.__game.debug.zoneMobsFull(), D = window.__game.debug.mobDef, bl = ms.filter((m) => D(m.type)?.black); if (!bl.length) return {}; const cx = bl.reduce((a, m) => a + m.x, 0) / bl.length, cy = bl.reduce((a, m) => a + m.y, 0) / bl.length; return Object.fromEntries(ms.filter((m) => Math.hypot(m.x - cx, m.y - cy) < 500).map((m) => [m.id, m.hp])); });
   await shot('08-world-black-camp'); mark('world');
-  let fight = null; for (let i = 0; i < 30; i++) { const r = await G((hp0) => { const ms = window.__game.debug.zoneMobsFull(); const hit = (b) => ms.filter((m) => !!window.__game.debug.mobDef(m.type)?.black === b && hp0[m.id] != null && m.hp < hp0[m.id]).length; return { nrm: hit(false), blk: hit(true) }; }, hp0);
-    if (r.nrm && r.blk) { fight = r; break; } await sleep(1000); }
-  t('чёрные дерутся с обычными (обе стороны теряют ОЗ)', !!fight, fight);
+  // точные ОЗ чёрных (у клиента — проценты, царапина от слабых обычных их не сдвигает): dev_grant mobInfo
+  const rawHp = async () => { const o = {}; for (const ty of ['bmx_ash_warden', 'bmx_ember_archer', 'bmx_forge_brute']) { fr.length = 0; await G((ty) => window.__game.debug.rawSend({ type: 'dev_grant', mobInfo: 1, typeFilter: ty }), ty); const x = await waitFr(/"dev_mob"/, 2500); try { const j = JSON.parse(x); o[j.id] = j.hp; } catch {} } return o; };
+  const raw0 = await rawHp();
+  let fight = null, seenB = 0, seenN = 0; for (let i = 0; i < 40; i++) { const r = await G((hp0) => { const ms = window.__game.debug.zoneMobsFull(), D = window.__game.debug.mobDef, byId = new Map(ms.map((m) => [m.id, m]));
+      const bl = ms.filter((m) => D(m.type)?.black); const cx = bl.length ? bl.reduce((a, m) => a + m.x, 0) / bl.length : 0, cy = bl.length ? bl.reduce((a, m) => a + m.y, 0) / bl.length : 0;
+      const blk = bl.filter((m) => m.hp < (hp0[m.id] ?? 100) || m.hp < 100).length;
+      const nrm = Object.entries(hp0).filter(([id, h]) => { const m = byId.get(+id); return h != null && (!m ? true : (!D(m.type)?.black && Math.hypot(m.x - cx, m.y - cy) < 700 && m.hp < h)); }).length; // упал в ОЗ или погиб (пропал из зоны)
+      return { nrm, blk, nb: bl.length }; }, hp0);
+    seenB = Math.max(seenB, r.blk); seenN = Math.max(seenN, r.nrm);
+    if (seenN && !seenB && i % 5 === 4) { const r1 = await rawHp(); seenB = Object.keys(raw0).filter((id) => r1[id] == null || r1[id] < raw0[id]).length; }
+    if (seenN && seenB) { fight = { ...r, seenN, seenB }; break; } await sleep(1000); }
+  t('чёрные дерутся с обычными (обе стороны теряют ОЗ)', !!fight, fight || { seenN, seenB });
   await shot('09-world-fight'); mark('fight'); await sleep(1500); await shot('10-world-fight-2');
   // таймер: ждём павшего чёрного → «следующий через N с»
   // ускорить: всех чёрных лагеря добить (dev_grant killNearAny, только локально) → «разбит · возрождение через N с»
