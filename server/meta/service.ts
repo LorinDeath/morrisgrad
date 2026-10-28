@@ -525,7 +525,7 @@ export class MetaService {
   boardSnap(ms: any, a: Account, h: Hero | null, s: any) {
     try {
       const r = boardRefresh(a, h, { pkey: ms.pkey, heroes: this.store.heroMap(ms.pkey) });
-      if (r.granted.length) { s.boardGranted = r.granted.map((g: any) => ({ id: g.id, title: g.title, cat: g.cat, xp: g.xp, res: g.res, capped: g.cappedXp || undefined })); ms.dirty = true; }
+      if (r.granted.length) { s.boardGranted = r.granted.map((g: any) => ({ id: g.id, title: g.title, cat: g.cat, xp: g.xp, res: g.res, capped: g.cappedXp || undefined, vet: g.vet || undefined })); ms.dirty = true; }
       if (ms.boardDefsVer !== this.admin.ver) { s.boardDefs = boardDefs(); ms.boardDefsVer = this.admin.ver; ms.boardRev = -1; }
       const st = boardClient(a, h);
       if (st.rev !== ms.boardRev || st.lvl !== ms.boardLvl) { s.board = st; ms.boardRev = st.rev; ms.boardLvl = st.lvl; }

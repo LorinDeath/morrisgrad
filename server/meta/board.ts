@@ -86,6 +86,7 @@ export const BOARD_CFG: any = {
   xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 1 / 3, monthly: 1, hard: 0.6, ach: 0.25 },
   caps: { tut: 0, npc: 0, hunt: 0, daily: 0, weekly: 0, monthly: 0, hard: 0, ach: 0 }, // решение Алекса: потолков нет (механизм оставлен выключенным — число > 0 в админке включит)
   tutOn: true, tutVetLvl: 10, tutSkip: true,
+  tutVetReward: true,       // опытному игроку (tutVetLvl) награды шагов обучения всё равно выдаются — один раз (решение Алекса; выкл — как раньше, без наград)
   qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30, bossTimer: true, bossSoonSec: 10 },
 };
 
@@ -1260,8 +1261,16 @@ export function boardRefresh(a: Account, h: Hero | null, ctx: Ctx, now = Date.no
   const top = stateVal(a, h, "lvl", ctx);
   if (!b.t0 && (h || !Object.keys(ctx.heroes || {}).length)) { boardBaseline(a, h, b, ctx, now); out.changed = true; } // без выбранного героя (а герои есть) — ждём героя
   if (rollPeriods(a, b, h ? lvl : top, ctx, now)) out.changed = true; // набор тела — по уровню этого тела
-  // опытные игроки: обучение считается пройденным, без наград
+  // опытные игроки: обучение считается пройденным (подсказки шагов не ведут)
   if (!b.tut.vet && !b.tut.skip && top >= (Number(BOARD_CFG.tutVetLvl) || 99) && !(Object.keys(b.c).some((id) => id.startsWith("tut_")))) { b.tut.vet = true; out.changed = true; }
+  // …и награды шагов обучения выдаются всё равно (tutVetReward), в том числе тем, кто уже был отмечен опытным без наград.
+  // Повторной выдачи нет: полученная ступень записана в b.c (claimTiers пишет её ДО выдачи), такие шаги пропускаются.
+  if (h && b.tut.vet && BOARD_CFG.tutVetReward !== false && BOARD_CFG.tutOn !== false) for (const t of BTASK_LIST()) {
+    if (t.cat !== "tut" || !t.on || !catOn(t.cat)) continue;
+    const tiers = tiersOf(t); if ((b.c[t.id] || 0) >= tiers.length) continue;
+    const cap = tiers[tiers.length - 1]; if ((b.p[t.id] || 0) < cap) { b.p[t.id] = cap; out.changed = true; } // шаг засчитан выполненным
+    const r = claimTiers(a, h, b, t, ctx); if (r.ok) { r.vet = 1; out.granted.push(r); out.levelUps += r.levelUps || 0; out.changed = true; }
+  }
   for (const t of BTASK_LIST()) {
     if (t.ev !== "st" && t.ev !== "lvl" && !t.auto) continue;
     if (!counts(a, b, t, lvl)) continue;
@@ -1443,7 +1452,7 @@ export function boardDefs() {
     xp: { t: BOARD_CFG.xp, bands: BOARD_CFG.bands, refPlus: BOARD_CFG.refPlus | 0, need: Array.from({ length: HERO_MAX_LEVEL }, (_, i) => heroXpNeed(i + 1)), mul: BOARD_CFG.xpMul, caps: BOARD_CFG.caps },
     givers: GIVER_NAMES,
     props: { nb: { world: BOARD_CFG.nbWorld, x: BOARD_CFG.nbX, y: BOARD_CFG.nbY, r: BOARD_CFG.nbRange }, ab: { world: BOARD_CFG.abWorld, x: BOARD_CFG.abX, y: BOARD_CFG.abY, r: BOARD_CFG.abRange } },
-    cfg: { huntMax: BOARD_CFG.huntMax, npcMax: BOARD_CFG.npcMax, huntOffer: BOARD_CFG.huntOffer, pinMax: pinLimit(), trackMax: Math.max(1, Math.min(30, (BOARD_CFG.trackMax | 0) || 10)), bars: { ach: BOARD_CFG.bars?.ach !== false, lib: BOARD_CFG.bars?.lib !== false }, tutSkip: BOARD_CFG.tutSkip !== false, tutOn: BOARD_CFG.tutOn !== false, qol: BOARD_CFG.qol },
+    cfg: { huntMax: BOARD_CFG.huntMax, npcMax: BOARD_CFG.npcMax, huntOffer: BOARD_CFG.huntOffer, pinMax: pinLimit(), trackMax: Math.max(1, Math.min(30, (BOARD_CFG.trackMax | 0) || 10)), bars: { ach: BOARD_CFG.bars?.ach !== false, lib: BOARD_CFG.bars?.lib !== false }, tutSkip: BOARD_CFG.tutSkip !== false, tutOn: BOARD_CFG.tutOn !== false, tutVetReward: BOARD_CFG.tutVetReward !== false, qol: BOARD_CFG.qol },
   };
 }
 /** состояние игрока: в meta_state, когда меняется rev */

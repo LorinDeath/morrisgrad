@@ -95,7 +95,11 @@ export class BoardStore {
   /** заказы у Доски объявлений: охота + всё, что админ перенёс на Доску (giver = board) */
   boardOrders() { if (!this.defs) return []; const off = new Set(this.st?.sel?.hunt || []);
     return this.defs.tasks.filter((t) => t.nb && (t.cat !== 'hunt' || off.has(t.id) || this.taken(t.id)) && !(t.take && this.tier(t).done)); }
-  takenCount() { return (this.st?.tk || []).length; } // как считает сервер (лимит «Взято X из Y»)
+  /** взятые задания — как считает сервер (boardTake): у заказов Доски и у личных заданий персонажей (НПС, сюжетные) свои лимиты.
+   *  Раньше считались все вместе — отсюда «Взято 7 / 6» у Доски, хотя лимит Доски не превышен. */
+  takenCount(kind = 'board') { return (this.st?.tk || []).filter((id) => { const t = this.def(id); return t && (t.at === 'board') === (kind === 'board'); }).length; }
+  /** лимиты взятых заданий (те же умолчания, что на сервере) */
+  takeMax(kind = 'board') { const c = this.defs?.cfg || {}; return kind === 'board' ? (c.huntMax | 0) || 6 : (c.npcMax | 0) || 8; }
   readyCount(cat) { if (!this.defs) return 0; let n = 0; for (const t of cat ? this.list(cat) : this.defs.tasks) if ((!t.take || this.taken(t.id)) && this.tier(t).ready && !this.locked(t.id)) n++; return n; }
   /** обучение: текущий шаг (первый не выполненный по порядку) */
   tutStep() {

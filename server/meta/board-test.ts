@@ -1,5 +1,5 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
-import { BOARD_CFG, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS, BTASK_LIST } from "./board";
+import { BOARD_CFG, tiersOf, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS, BTASK_LIST } from "./board";
 import { BCHEST, tierOfRank, rankCursePct } from "./boardChestCfg";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
@@ -100,7 +100,17 @@ function counts0(a: any, h: any) { boardEvent(a, h, { type: "kill", mob: "x", ki
   boardEvent(a, h, { type: "ui", name: "book" }, ctx);
   ok(boardTut(a, "skip").ok && b.tut.skip, "пропустить всё");
   boardEvent(a, h, { type: "ui", name: "map" }, ctx); const r3 = boardRefresh(a, h, ctx); ok(!b.p["tut_map"] && r3.granted.length === 0, "после пропуска — ни прогресса, ни наград");
-  const { a: v, h: hv } = mk(); hv.lvl = 14; boardRefresh(v, hv, ctx); ok(boardOf(v).tut.vet && !Object.keys(boardOf(v).c).some((k) => k.startsWith("tut_")), "опытный игрок: обучение засчитано без наград");
+  { const { a: v, h: hv } = mk(); hv.lvl = 14; const rv = boardRefresh(v, hv, ctx), bv = boardOf(v), T = BTASK_LIST().filter((t) => t.cat === "tut" && t.on);
+    ok(bv.tut.vet, "опытный игрок: обучение засчитано");
+    ok(T.every((t) => (bv.c[t.id] || 0) >= tiersOf(t).length), "опытный игрок: все шаги обучения засчитаны выполненными");
+    ok(rv.granted.length === T.length && rv.granted.every((g: any) => g.vet && g.xp > 0), "опытный игрок: награды обучения выданы (" + rv.granted.length + ")");
+    const xp1 = hv.xp, rv2 = boardRefresh(v, hv, ctx); ok(rv2.granted.length === 0 && hv.xp === xp1, "опытный игрок: второй раз — без повторной выдачи"); }
+  { const { a: v, h: hv } = mk(); hv.lvl = 3; boardRefresh(v, hv, ctx); const bv = boardOf(v), got = Object.keys(bv.c).filter((k) => k.startsWith("tut_")); // часть шагов уже получена обычным путём
+    hv.lvl = 14; delete (bv.tut as any).vet; bv.tut.vet = true; const rv = boardRefresh(v, hv, ctx); // старый «ветеран» без наград
+    ok(rv.granted.every((g: any) => !got.includes(g.id)), "уже полученные шаги обучения не выдаются повторно");
+    ok(BTASK_LIST().filter((t) => t.cat === "tut" && t.on).every((t) => (bv.c[t.id] || 0) >= tiersOf(t).length), "отмеченный ранее опытный игрок получает недостающие награды"); }
+  { const old = BOARD_CFG.tutVetReward; BOARD_CFG.tutVetReward = false; const { a: v, h: hv } = mk(); hv.lvl = 14; boardRefresh(v, hv, ctx);
+    ok(boardOf(v).tut.vet && !Object.keys(boardOf(v).c).some((k) => k.startsWith("tut_")), "tutVetReward выкл: как раньше, без наград"); BOARD_CFG.tutVetReward = old; }
 }
 // ui-события не продвигают обычные задания
 { const { a, h } = mk(); h.lvl = 5; boardRefresh(a, h, ctx); const before = JSON.stringify(Object.entries(boardOf(a).p).filter(([k]) => !k.startsWith("tut_")));
