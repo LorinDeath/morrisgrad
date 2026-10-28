@@ -106,7 +106,7 @@ export class CityView {
     this.ringCfg(c); // линия края купола — вживую из админки
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
-    for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, sprite: n.sprite || '', glow: c.fx?.resGlow === false ? 0 : Math.max(0, Number(c.fx?.resGlowK ?? 1.4)), walk: !!n.walk }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
+    for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, sprite: n.sprite || '', glow: c.fx?.resGlow === false ? 0 : Math.max(0, Number(c.fx?.resGlowK ?? 1.4)), rim: Math.max(0, Math.min(1, Number(c.fx?.resRim ?? 0.6))), walk: !!n.walk }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
     registerMarker({ id: 'city:alkazak', type: 'sign', world: 'arinar', x: c.x, y: c.y - 60, icon: '🏰', label: `${c.name || 'Альказак'} — город под куполом · без сражений` });
     if (moved) this.place(); else if (this.ready) this.buildMap(); // алтарь / дым из админки — пересборка по подписи
     this.placeAltar();
@@ -160,7 +160,7 @@ export class CityView {
       p.t += dt; const k = Math.min(1, p.t / p.life); if (k >= 1) { p.sp.visible = false; continue; }
       p.sp.position.x += p.vx * dt * (0.3 + k); p.sp.position.y += p.vy * dt; p.sp.position.z += p.vz * dt;
       const sz = s0 + (s1 - s0) * Math.sqrt(k); p.sp.scale.set(sz, sz, 1);
-      p.sp.material.opacity = A * Math.min(1, k * 6) * (1 - k) * (1 - k);
+      p.sp.material.opacity = A * Math.min(1, k * 6) * (1 - k); // линейное угасание: шлейф виден на тёмной крыше/траве (квадрат гасил клуб к середине жизни)
       const map = F[Math.min(nF - 1, Math.floor(k * nF))]; if (p.sp.material.map !== map) { p.sp.material.map = map; p.sp.material.needsUpdate = true; } }
   }
   /** Алтарь перевоплощения у фонтана (zone_state.city.altar) — тот же арт, что у Алтаря Поляны */
