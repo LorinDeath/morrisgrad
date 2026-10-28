@@ -5,6 +5,7 @@ import { BM_KEYS, BM_NAMES, BM_PARTS } from '../../../../../server/meta/blackArt
 import { ABILITIES_DEF, SLOT_ORDER, SLOTS } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
+import { drawWeapon } from './bmWeaponArt.js';
 
 const CSS = `
 .bm-wrap{--f1:#ff6a1a;--f2:#ffb347;--f3:#ffe08a;--ch:#1a0d08}
@@ -42,7 +43,7 @@ const CSS = `
 .bm-hand.full .orb{animation:bmFlame .09s infinite alternate;background:radial-gradient(60% 55% at 50% 70%,#fff6c8 0%,#ffd36a 35%,#ff6a1a 65%,#a8320f00 100%)}
 .bm-sklink{margin:6px 0;font-size:12px}.bm-sklink .mc-btn{padding:1px 6px}
 .bm-hand.chg .orb{box-shadow:0 0 calc(10px + var(--c)*26px) calc(3px + var(--c)*10px) #ff3d00cc}
-.bm-hand span{margin-top:2px;background:#1a0d08cc;border:1px solid #a8320f;border-radius:3px;padding:1px 3px}
+.bm-hand canvas{display:none;image-rendering:pixelated;width:72px;height:84px}.bm-hand.art canvas{display:block}.bm-hand.art .orb,.bm-hand.art span{display:none}\n.bm-hand span{margin-top:2px;background:#1a0d08cc;border:1px solid #a8320f;border-radius:3px;padding:1px 3px}
 @keyframes bmFlame{from{transform:scale(1,1) skewX(-3deg)}to{transform:scale(1.06,.94) skewX(3deg)}}
 @keyframes bmBob{0%,100%{margin-top:0}50%{margin-top:-4px}}
 `;
@@ -119,14 +120,22 @@ export function rArtSkillLib() {
       <small>${esc(d.desc || '')}</small>${d.bm?.vfx ? `<div class="v">🎞 ${esc(d.bm.vfx)}</div>` : ''}</div></div>`).join('') || '<p class="mc-dim">Нет навыков.</p>'}</div>`;
 }
 
-/** Парящий артефакт у руки героя: отдельный слой поверх сцены (спрайты героя не трогаем). Пока — огненная заглушка. */
+/** Парящий артефакт у руки героя: отдельный слой поверх сцены (спрайты героя не трогаем). Листы Художника (bmWeaponArt), без листов — огненная заглушка. */
 export class ArtHand {
-  constructor(layer) { this.layer = layer; this.el = null; }
-  update(p, on, chg = 0) {
-    if (!on || !p) { if (this.el) this.el.style.display = 'none'; return; }
-    if (!this.el) { bmCss(); this.el = document.createElement('div'); this.el.className = 'bm-hand'; this.el.innerHTML = '<div class="orb"></div><span>ЗАГЛУШКА</span>'; this.layer.appendChild(this.el); }
+  constructor(layer) { this.layer = layer; this.el = null; this.cv = null; this.t0 = performance.now(); this.swAt = 0; }
+  /** p — экранная точка руки; on; chg 0..1 — заряд; art — hero.effective.art (parts) */
+  update(p, on, chg = 0, art = null) {
+    if (!on || !p) { if (this.el) this.el.style.display = 'none'; this.prevChg = 0; return; }
+    if (!this.el) { bmCss(); this.el = document.createElement('div'); this.el.className = 'bm-hand'; this.el.innerHTML = '<canvas width="96" height="112"></canvas><div class="orb"></div><span>ЗАГЛУШКА</span>'; this.layer.appendChild(this.el); this.cv = this.el.querySelector('canvas'); }
     this.el.style.display = '';
     this.el.style.left = `${p.x + 26}px`; this.el.style.top = `${p.y + 18}px`;
     this.el.classList.toggle('chg', chg > 0); this.el.classList.toggle('full', chg >= 1); this.el.style.setProperty('--c', String(Math.min(1, chg)));
+    const now = performance.now(), t = (now - this.t0) / 1000;
+    if ((this.prevChg || 0) > 0 && chg === 0) this.swAt = now; this.prevChg = chg; // отпустили заряд — замах/выстрел
+    const sw = now - this.swAt < 320, ranged = !!art?.ranged;
+    const anim = sw ? (ranged ? 'cast' : 'swing') : chg >= 1 ? 'full' : chg > 0 ? 'charge' : 'idle';
+    const ctx = this.cv.getContext('2d'); ctx.clearRect(0, 0, 96, 112);
+    const mode = art?.parts ? drawWeapon(ctx, art.parts, sw ? (now - this.swAt) / 1000 : t, { x: 48, y: 92, scale: 1, angle: sw && !ranged ? 0.9 * Math.sin((now - this.swAt) / 320 * Math.PI) : 0.25, anim }) : 'stub';
+    this.el.classList.toggle('art', mode === 'art');
   }
 }

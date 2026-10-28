@@ -68,17 +68,17 @@ export function makeBpart(id: string, type: string, elem = "fire"): BmPart {
     stats: {}, cost: BP_COST_DEF[t], ...(t === "handle" ? { cd: 600 } : t === "blade" ? { reach: 110, arc: 1.1 } : {}) };
 }
 export const BM_PARTS: Record<string, BmPart> = {
-  fire_handle: { id: "fire_handle", name: "Рукоять тлеющего угля", type: "handle", elem: "fire", rarity: "rare", lvl: 1, icon: "🔥", color: "#e0601a",
+  fire_handle: { id: "fire_handle", img: "handle_1", name: "Рукоять тлеющего угля", type: "handle", elem: "fire", rarity: "rare", lvl: 1, icon: "🔥", color: "#e0601a",
     stats: { force: 40, charge: 1.6, bcrit: 5 }, cd: 560, skill: "bmf_phoenix_dash" },
-  fire_blade: { id: "fire_blade", name: "Лезвие пламени", type: "blade", elem: "fire", rarity: "rare", lvl: 1, icon: "🗡️", color: "#ffa531",
+  fire_blade: { id: "fire_blade", img: "blade_1", name: "Лезвие пламени", type: "blade", elem: "fire", rarity: "rare", lvl: 1, icon: "🗡️", color: "#ffa531",
     stats: { bdmg: 0.1, power: 40, bcrit: 2 }, reach: 120, arc: 1.15, skill: "bmf_ember_lash" },
-  fire_blade_r: { id: "fire_blade_r", name: "Лезвие искр (дальнее)", type: "blade", elem: "fire", rarity: "rare", lvl: 1, icon: "🏹", color: "#ffa531",
+  fire_blade_r: { id: "fire_blade_r", img: "blade_1_ranged", name: "Лезвие искр (дальнее)", type: "blade", elem: "fire", rarity: "rare", lvl: 1, icon: "🏹", color: "#ffa531",
     stats: { bdmg: 0.08, power: 30, bcrit: 2 }, ranged: true, rangeTiles: 9, width: 22, skill: "bmf_ember_lash" },
-  fire_blade2: { id: "fire_blade2", name: "Второе лезвие: обсидиан", type: "blade2", elem: "fire", rarity: "uncommon", lvl: 1, icon: "🪨", color: "#a8320f",
+  fire_blade2: { id: "fire_blade2", img: "blade2_1", name: "Второе лезвие: обсидиан", type: "blade2", elem: "fire", rarity: "uncommon", lvl: 1, icon: "🪨", color: "#a8320f",
     stats: { barm: 3, bcap: 12 }, skill: "bmf_magma_ring" },
-  fire_blade3: { id: "fire_blade3", name: "Третье лезвие: лава", type: "blade3", elem: "fire", rarity: "uncommon", lvl: 1, icon: "🌋", color: "#5c1a0b",
+  fire_blade3: { id: "fire_blade3", img: "blade3_1", name: "Третье лезвие: лава", type: "blade3", elem: "fire", rarity: "uncommon", lvl: 1, icon: "🌋", color: "#5c1a0b",
     stats: { bdmg: 0.02, barm: 2 }, skill: "bmf_lava_rain" },
-  fire_crystal: { id: "fire_crystal", name: "Кристалл жара", type: "crystal", elem: "fire", rarity: "epic", lvl: 1, icon: "💎", color: "#ffe08a",
+  fire_crystal: { id: "fire_crystal", img: "crystal_1", name: "Кристалл жара", type: "crystal", elem: "fire", rarity: "epic", lvl: 1, icon: "💎", color: "#ffe08a",
     stats: { bcrit: 1, power: 10 }, skill: "bmf_cinder_bolt" },
 };
 const RAR_ORDER = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];

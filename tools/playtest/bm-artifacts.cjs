@@ -93,8 +93,7 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
   await shot('08b-charge-full'); await p.mouse.up(); await sleep(600);
   // админка: «Пересчитать все»
   await p.waitForFunction(() => { if (document.querySelectorAll('.mc-admin [data-tab]').length) return true; try { if (!window.__game.debug.admin().open) window.__game.debug.openAdmin(); } catch {} return false; }, null, { timeout: 30000 }).catch(() => {});
-  await G(() => document.querySelector('.mc-admin [data-tab="bmagic"]')?.click()); await sleep(800);
-  await G(() => document.querySelector('.mc-admin aside li[data-id]')?.click()); await sleep(800);
+  await p.waitForFunction(() => { if (document.querySelector('[data-bmrecalc]')) return true; const li = document.querySelector('.mc-admin aside li[data-id]'); if (li && document.querySelector('.mc-admin [data-tab="bmagic"].on, .mc-admin [data-tab="bmagic"].active')) li.click(); else document.querySelector('.mc-admin [data-tab="bmagic"]')?.click(); return false; }, null, { timeout: 20000, polling: 1000 }).catch(() => {});
   const rb = await G(() => !!document.querySelector('[data-bmrecalc]'));
   fr.length = 0; await G(() => document.querySelector('[data-bmrecalc]')?.click()); await sleep(1500);
   t('админка: «Пересчитать все артефакты»', rb && fr.some((x) => x.includes('bm_recalc')), { rb, fr: fr.slice(0, 3) });

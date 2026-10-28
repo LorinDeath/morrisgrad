@@ -1,0 +1,669 @@
+{
+ "name": "black_magic",
+ "elem": "fire",
+ "style": "bestiary32",
+ "pxPerM": 20,
+ "outline": "#1a1626",
+ "palette": [
+  "#2a0e08",
+  "#5c1a0b",
+  "#a8320f",
+  "#e0601a",
+  "#ffa531",
+  "#ffe08a"
+ ],
+ "glowOnlyColors": [
+  "#e0601a",
+  "#ffa531",
+  "#ffe08a"
+ ],
+ "body": {
+  "cell": 104,
+  "cols": 19,
+  "rows": 4,
+  "frames": 64,
+  "groundY": 100,
+  "centerX": 52,
+  "sheet": [
+   1976,
+   416
+  ],
+  "anims": {
+   "idle": {
+    "off": 0,
+    "n": 16,
+    "fps": 12,
+    "loop": true
+   },
+   "walk": {
+    "off": 16,
+    "n": 12,
+    "fps": 24,
+    "loop": true
+   },
+   "atk": {
+    "off": 28,
+    "n": 12,
+    "fps": 20,
+    "loop": false,
+    "wind": [
+     0,
+     5
+    ],
+    "hold": 5,
+    "strike": [
+     6,
+     8
+    ],
+    "impact": 7,
+    "recover": [
+     9,
+     11
+    ]
+   },
+   "hurt": {
+    "off": 40,
+    "n": 6,
+    "fps": 24,
+    "loop": false
+   },
+   "die": {
+    "off": 46,
+    "n": 18,
+    "fps": 24,
+    "loop": false
+   }
+  },
+  "rig": {
+   "neck": [
+    52,
+    40
+   ],
+   "shoulderL": [
+    40,
+    46
+   ],
+   "shoulderR": [
+    64,
+    46
+   ],
+   "hipL": [
+    46,
+    70
+   ],
+   "hipR": [
+    58,
+    70
+   ],
+   "tailBase": [
+    44,
+    72
+   ],
+   "root": [
+    52,
+    100
+   ]
+  },
+  "z": {
+   "tail": 0,
+   "armL": 1,
+   "legL": 2,
+   "torso": 3,
+   "legR": 4,
+   "head": 5,
+   "armR": 6
+  },
+  "handAngle": "градусы, 0 = оружие вверх, + по часовой (вперёд)",
+  "parts": {
+   "armL": [
+    {
+     "key": "armL_1",
+     "name": "Костяная с когтями",
+     "image": "body/armL_1.png",
+     "glow": "body/armL_1_glow.png",
+     "json": "body/armL_1.json"
+    },
+    {
+     "key": "armL_2",
+     "name": "Каменный кулак",
+     "image": "body/armL_2.png",
+     "glow": "body/armL_2_glow.png",
+     "json": "body/armL_2.json"
+    },
+    {
+     "key": "armL_3",
+     "name": "Раскалённая латная",
+     "image": "body/armL_3.png",
+     "glow": "body/armL_3_glow.png",
+     "json": "body/armL_3.json"
+    },
+    {
+     "key": "armL_4",
+     "name": "Обугленная ветвь",
+     "image": "body/armL_4.png",
+     "glow": "body/armL_4_glow.png",
+     "json": "body/armL_4.json"
+    },
+    {
+     "key": "armL_5",
+     "name": "Обсидиановая клешня",
+     "image": "body/armL_5.png",
+     "glow": "body/armL_5_glow.png",
+     "json": "body/armL_5.json"
+    }
+   ],
+   "armR": [
+    {
+     "key": "armR_1",
+     "name": "Костяная с когтями",
+     "image": "body/armR_1.png",
+     "glow": "body/armR_1_glow.png",
+     "json": "body/armR_1.json"
+    },
+    {
+     "key": "armR_2",
+     "name": "Каменный кулак",
+     "image": "body/armR_2.png",
+     "glow": "body/armR_2_glow.png",
+     "json": "body/armR_2.json"
+    },
+    {
+     "key": "armR_3",
+     "name": "Раскалённая латная",
+     "image": "body/armR_3.png",
+     "glow": "body/armR_3_glow.png",
+     "json": "body/armR_3.json"
+    },
+    {
+     "key": "armR_4",
+     "name": "Обугленная ветвь",
+     "image": "body/armR_4.png",
+     "glow": "body/armR_4_glow.png",
+     "json": "body/armR_4.json"
+    },
+    {
+     "key": "armR_5",
+     "name": "Обсидиановая клешня",
+     "image": "body/armR_5.png",
+     "glow": "body/armR_5_glow.png",
+     "json": "body/armR_5.json"
+    }
+   ],
+   "head": [
+    {
+     "key": "head_1",
+     "name": "Рогатый череп",
+     "image": "body/head_1.png",
+     "glow": "body/head_1_glow.png",
+     "json": "body/head_1.json"
+    },
+    {
+     "key": "head_2",
+     "name": "Голова-жаровня",
+     "image": "body/head_2.png",
+     "glow": "body/head_2_glow.png",
+     "json": "body/head_2.json"
+    },
+    {
+     "key": "head_3",
+     "name": "Морда адского пса",
+     "image": "body/head_3.png",
+     "glow": "body/head_3_glow.png",
+     "json": "body/head_3.json"
+    },
+    {
+     "key": "head_4",
+     "name": "Каменный монолит",
+     "image": "body/head_4.png",
+     "glow": "body/head_4_glow.png",
+     "json": "body/head_4.json"
+    },
+    {
+     "key": "head_5",
+     "name": "Пепельный капюшон",
+     "image": "body/head_5.png",
+     "glow": "body/head_5_glow.png",
+     "json": "body/head_5.json"
+    }
+   ],
+   "legL": [
+    {
+     "key": "legL_1",
+     "name": "Костяная с копытом",
+     "image": "body/legL_1.png",
+     "glow": "body/legL_1_glow.png",
+     "json": "body/legL_1.json"
+    },
+    {
+     "key": "legL_2",
+     "name": "Каменный столб",
+     "image": "body/legL_2.png",
+     "glow": "body/legL_2_glow.png",
+     "json": "body/legL_2.json"
+    },
+    {
+     "key": "legL_3",
+     "name": "Раскалённые латы",
+     "image": "body/legL_3.png",
+     "glow": "body/legL_3_glow.png",
+     "json": "body/legL_3.json"
+    },
+    {
+     "key": "legL_4",
+     "name": "Корни",
+     "image": "body/legL_4.png",
+     "glow": "body/legL_4_glow.png",
+     "json": "body/legL_4.json"
+    },
+    {
+     "key": "legL_5",
+     "name": "Хитиновая лапа",
+     "image": "body/legL_5.png",
+     "glow": "body/legL_5_glow.png",
+     "json": "body/legL_5.json"
+    }
+   ],
+   "legR": [
+    {
+     "key": "legR_1",
+     "name": "Костяная с копытом",
+     "image": "body/legR_1.png",
+     "glow": "body/legR_1_glow.png",
+     "json": "body/legR_1.json"
+    },
+    {
+     "key": "legR_2",
+     "name": "Каменный столб",
+     "image": "body/legR_2.png",
+     "glow": "body/legR_2_glow.png",
+     "json": "body/legR_2.json"
+    },
+    {
+     "key": "legR_3",
+     "name": "Раскалённые латы",
+     "image": "body/legR_3.png",
+     "glow": "body/legR_3_glow.png",
+     "json": "body/legR_3.json"
+    },
+    {
+     "key": "legR_4",
+     "name": "Корни",
+     "image": "body/legR_4.png",
+     "glow": "body/legR_4_glow.png",
+     "json": "body/legR_4.json"
+    },
+    {
+     "key": "legR_5",
+     "name": "Хитиновая лапа",
+     "image": "body/legR_5.png",
+     "glow": "body/legR_5_glow.png",
+     "json": "body/legR_5.json"
+    }
+   ],
+   "tail": [
+    {
+     "key": "tail_1",
+     "name": "Костяной позвоночник",
+     "image": "body/tail_1.png",
+     "glow": "body/tail_1_glow.png",
+     "json": "body/tail_1.json"
+    },
+    {
+     "key": "tail_2",
+     "name": "Хвост ящера с огнём",
+     "image": "body/tail_2.png",
+     "glow": "body/tail_2_glow.png",
+     "json": "body/tail_2.json"
+    },
+    {
+     "key": "tail_3",
+     "name": "Каменная булава",
+     "image": "body/tail_3.png",
+     "glow": "body/tail_3_glow.png",
+     "json": "body/tail_3.json"
+    },
+    {
+     "key": "tail_4",
+     "name": "Плеть из углей",
+     "image": "body/tail_4.png",
+     "glow": "body/tail_4_glow.png",
+     "json": "body/tail_4.json"
+    },
+    {
+     "key": "tail_5",
+     "name": "Скорпионье жало",
+     "image": "body/tail_5.png",
+     "glow": "body/tail_5_glow.png",
+     "json": "body/tail_5.json"
+    }
+   ],
+   "torso": [
+    {
+     "key": "torso_1",
+     "name": "Рёберная клетка",
+     "image": "body/torso_1.png",
+     "glow": "body/torso_1_glow.png",
+     "json": "body/torso_1.json"
+    },
+    {
+     "key": "torso_2",
+     "name": "Обсидиановый панцирь",
+     "image": "body/torso_2.png",
+     "glow": "body/torso_2_glow.png",
+     "json": "body/torso_2.json"
+    },
+    {
+     "key": "torso_3",
+     "name": "Каменная глыба",
+     "image": "body/torso_3.png",
+     "glow": "body/torso_3_glow.png",
+     "json": "body/torso_3.json"
+    },
+    {
+     "key": "torso_4",
+     "name": "Обугленный ствол",
+     "image": "body/torso_4.png",
+     "glow": "body/torso_4_glow.png",
+     "json": "body/torso_4.json"
+    },
+    {
+     "key": "torso_5",
+     "name": "Кузнечный горн",
+     "image": "body/torso_5.png",
+     "glow": "body/torso_5_glow.png",
+     "json": "body/torso_5.json"
+    }
+   ]
+  }
+ },
+ "weapon": {
+  "cell": 64,
+  "cols": 8,
+  "rows": 5,
+  "sheet": [
+   512,
+   320
+  ],
+  "anims": {
+   "idle": {
+    "row": 0,
+    "n": 8,
+    "fps": 10,
+    "loop": true
+   },
+   "charge": {
+    "row": 1,
+    "n": 8,
+    "fps": 12,
+    "loop": true
+   },
+   "full": {
+    "row": 2,
+    "n": 4,
+    "fps": 12,
+    "loop": true
+   },
+   "swing": {
+    "row": 3,
+    "n": 6,
+    "fps": 20,
+    "loop": false
+   },
+   "cast": {
+    "row": 4,
+    "n": 6,
+    "fps": 20,
+    "loop": false
+   }
+  },
+  "grip": "рукоять.grip ставится в hand руки, оружие поворачивается на handAngle",
+  "chain": "blade.base→handle.bladeBase; blade2.base→blade.branch1; blade3.base→blade.branch2; crystal.base→handle.crystalSlot",
+  "parts": {
+   "blade2": [
+    {
+     "key": "blade2_1",
+     "name": "Крюк-шип",
+     "image": "weapon/blade2_1.png",
+     "glow": "weapon/blade2_1_glow.png",
+     "json": "weapon/blade2_1.json"
+    },
+    {
+     "key": "blade2_2",
+     "name": "Лезвие-крыло",
+     "image": "weapon/blade2_2.png",
+     "glow": "weapon/blade2_2_glow.png",
+     "json": "weapon/blade2_2.json"
+    },
+    {
+     "key": "blade2_3",
+     "name": "Огненный рог",
+     "image": "weapon/blade2_3.png",
+     "glow": "weapon/blade2_3_glow.png",
+     "json": "weapon/blade2_3.json"
+    },
+    {
+     "key": "blade2_4",
+     "name": "Зубчатый серп",
+     "image": "weapon/blade2_4.png",
+     "glow": "weapon/blade2_4_glow.png",
+     "json": "weapon/blade2_4.json"
+    },
+    {
+     "key": "blade2_5",
+     "name": "Трезубый коготь",
+     "image": "weapon/blade2_5.png",
+     "glow": "weapon/blade2_5_glow.png",
+     "json": "weapon/blade2_5.json"
+    }
+   ],
+   "blade3": [
+    {
+     "key": "blade3_1",
+     "name": "Пила",
+     "image": "weapon/blade3_1.png",
+     "glow": "weapon/blade3_1_glow.png",
+     "json": "weapon/blade3_1.json"
+    },
+    {
+     "key": "blade3_2",
+     "name": "Полумесяц",
+     "image": "weapon/blade3_2.png",
+     "glow": "weapon/blade3_2_glow.png",
+     "json": "weapon/blade3_2.json"
+    },
+    {
+     "key": "blade3_3",
+     "name": "Осколки обсидиана",
+     "image": "weapon/blade3_3.png",
+     "glow": "weapon/blade3_3_glow.png",
+     "json": "weapon/blade3_3.json"
+    },
+    {
+     "key": "blade3_4",
+     "name": "Шип с зазубриной",
+     "image": "weapon/blade3_4.png",
+     "glow": "weapon/blade3_4_glow.png",
+     "json": "weapon/blade3_4.json"
+    },
+    {
+     "key": "blade3_5",
+     "name": "Огненное перо",
+     "image": "weapon/blade3_5.png",
+     "glow": "weapon/blade3_5_glow.png",
+     "json": "weapon/blade3_5.json"
+    }
+   ],
+   "blade": [
+    {
+     "key": "blade_1",
+     "name": "Широкий меч",
+     "image": "weapon/blade_1.png",
+     "glow": "weapon/blade_1_glow.png",
+     "json": "weapon/blade_1.json",
+     "mode": "ближний"
+    },
+    {
+     "key": "blade_1_ranged",
+     "name": "Широкий меч (дальний)",
+     "image": "weapon/blade_1_ranged.png",
+     "glow": "weapon/blade_1_ranged_glow.png",
+     "json": "weapon/blade_1_ranged.json",
+     "mode": "дальний"
+    },
+    {
+     "key": "blade_2",
+     "name": "Изогнутая сабля",
+     "image": "weapon/blade_2.png",
+     "glow": "weapon/blade_2_glow.png",
+     "json": "weapon/blade_2.json",
+     "mode": "ближний"
+    },
+    {
+     "key": "blade_2_ranged",
+     "name": "Изогнутая сабля (дальний)",
+     "image": "weapon/blade_2_ranged.png",
+     "glow": "weapon/blade_2_ranged_glow.png",
+     "json": "weapon/blade_2_ranged.json",
+     "mode": "дальний"
+    },
+    {
+     "key": "blade_3",
+     "name": "Посох-жаровня",
+     "image": "weapon/blade_3.png",
+     "glow": "weapon/blade_3_glow.png",
+     "json": "weapon/blade_3.json",
+     "mode": "ближний"
+    },
+    {
+     "key": "blade_3_ranged",
+     "name": "Посох-жаровня (дальний)",
+     "image": "weapon/blade_3_ranged.png",
+     "glow": "weapon/blade_3_ranged_glow.png",
+     "json": "weapon/blade_3_ranged.json",
+     "mode": "дальний"
+    },
+    {
+     "key": "blade_4",
+     "name": "Секира",
+     "image": "weapon/blade_4.png",
+     "glow": "weapon/blade_4_glow.png",
+     "json": "weapon/blade_4.json",
+     "mode": "ближний"
+    },
+    {
+     "key": "blade_4_ranged",
+     "name": "Секира (дальний)",
+     "image": "weapon/blade_4_ranged.png",
+     "glow": "weapon/blade_4_ranged_glow.png",
+     "json": "weapon/blade_4_ranged.json",
+     "mode": "дальний"
+    },
+    {
+     "key": "blade_5",
+     "name": "Пламенный клинок",
+     "image": "weapon/blade_5.png",
+     "glow": "weapon/blade_5_glow.png",
+     "json": "weapon/blade_5.json",
+     "mode": "ближний"
+    },
+    {
+     "key": "blade_5_ranged",
+     "name": "Пламенный клинок (дальний)",
+     "image": "weapon/blade_5_ranged.png",
+     "glow": "weapon/blade_5_ranged_glow.png",
+     "json": "weapon/blade_5_ranged.json",
+     "mode": "дальний"
+    }
+   ],
+   "crystal": [
+    {
+     "key": "crystal_1",
+     "name": "Капля магмы",
+     "image": "weapon/crystal_1.png",
+     "glow": "weapon/crystal_1_glow.png",
+     "json": "weapon/crystal_1.json"
+    },
+    {
+     "key": "crystal_2",
+     "name": "Огранённый обсидиан",
+     "image": "weapon/crystal_2.png",
+     "glow": "weapon/crystal_2_glow.png",
+     "json": "weapon/crystal_2.json"
+    },
+    {
+     "key": "crystal_3",
+     "name": "Уголь в клетке",
+     "image": "weapon/crystal_3.png",
+     "glow": "weapon/crystal_3_glow.png",
+     "json": "weapon/crystal_3.json"
+    },
+    {
+     "key": "crystal_4",
+     "name": "Пылающее сердце",
+     "image": "weapon/crystal_4.png",
+     "glow": "weapon/crystal_4_glow.png",
+     "json": "weapon/crystal_4.json"
+    },
+    {
+     "key": "crystal_5",
+     "name": "Глаз Пекла",
+     "image": "weapon/crystal_5.png",
+     "glow": "weapon/crystal_5_glow.png",
+     "json": "weapon/crystal_5.json"
+    }
+   ],
+   "handle": [
+    {
+     "key": "handle_1",
+     "name": "Обугленное древко",
+     "image": "weapon/handle_1.png",
+     "glow": "weapon/handle_1_glow.png",
+     "json": "weapon/handle_1.json"
+    },
+    {
+     "key": "handle_2",
+     "name": "Костяная с черепом",
+     "image": "weapon/handle_2.png",
+     "glow": "weapon/handle_2_glow.png",
+     "json": "weapon/handle_2.json"
+    },
+    {
+     "key": "handle_3",
+     "name": "Обсидиановая крестовина",
+     "image": "weapon/handle_3.png",
+     "glow": "weapon/handle_3_glow.png",
+     "json": "weapon/handle_3.json"
+    },
+    {
+     "key": "handle_4",
+     "name": "Кованая с цепью",
+     "image": "weapon/handle_4.png",
+     "glow": "weapon/handle_4_glow.png",
+     "json": "weapon/handle_4.json"
+    },
+    {
+     "key": "handle_5",
+     "name": "Рукоять-коготь",
+     "image": "weapon/handle_5.png",
+     "glow": "weapon/handle_5_glow.png",
+     "json": "weapon/handle_5.json"
+    }
+   ]
+  }
+ },
+ "previews": [
+  "mob_10.gif",
+  "mob_11.gif",
+  "mob_20.gif",
+  "mob_21.gif",
+  "mob_30.gif",
+  "mob_31.gif",
+  "mood_embers.gif",
+  "weapon_40.gif",
+  "weapon_41.gif",
+  "weapon_50.gif",
+  "weapon_51.gif"
+ ],
+ "collage": "collage.png",
+ "selfcheck": "SELFCHECK.md"
+}

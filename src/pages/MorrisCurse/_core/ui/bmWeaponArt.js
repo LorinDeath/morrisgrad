@@ -27,35 +27,58 @@ function geom(parts) {
   const bl = partOf(parts.blade), L = bl ? Math.max(26, Math.min(70, (bl.reach || 60) * 0.55)) : 40;
   return { L, ranged: !!bl?.ranged };
 }
-/** нарисовать оружие: (x, y) — точка хвата (рука), angle — радианы (0 — вверх), scale — множитель */
 const partOf = (v) => (!v ? null : typeof v === 'object' ? v : BM_PARTS[v] || null);
+// манифест листов Художника (public/bm-art/weapon/index.json: точки стыковки, анимации)
+let WMAN = null, wmanP = null;
+export function weaponManifest() {
+  if (WMAN || wmanP || typeof fetch === 'undefined') return WMAN;
+  wmanP = fetch(`${BM_ART_BASE}/weapon/index.json`).then((r) => (r.ok ? r.json() : {})).then((j) => { WMAN = j || {}; }).catch(() => { WMAN = {}; });
+  return WMAN;
+}
+export const weaponSheets = () => Object.entries(weaponManifest() || {}).map(([k, v]) => ({ key: k, slot: v.slot, name: v.name, mode: v.mode }));
+const ORDER = ['blade3', 'blade2', 'handle', 'blade', 'crystal'];
+/** оружие по листам: все части есть в манифесте и картинки загружены → true (нарисовано) */
+function drawSheets(ctx, P, t, anim, glow) {
+  const M = weaponManifest(); if (!M) return false;
+  const sh = {}; for (const k of ORDER) { const p = P(k); if (!p) continue; const m = p.img && M[p.img]; if (!m) return false; const im = artImg(`weapon/${p.img}.png`); if (!im) return false; sh[k] = { m, im, gl: artImg(`weapon/${p.img}_glow.png`) }; }
+  if (!sh.handle || !sh.blade) return false;
+  const pt = (k, n) => sh[k].m.points[n] || [32, 32];
+  const o = {}; const g = pt('handle', 'grip'); o.handle = [-g[0], -g[1]];
+  const hb = pt('handle', 'bladeBase'), bb = pt('blade', 'base'); o.blade = [o.handle[0] + hb[0] - bb[0], o.handle[1] + hb[1] - bb[1]];
+  if (sh.blade2) { const a = pt('blade', 'branch1'), b = pt('blade2', 'base'); o.blade2 = [o.blade[0] + a[0] - b[0], o.blade[1] + a[1] - b[1]]; }
+  if (sh.blade3) { const a = pt('blade', 'branch2'), b = pt('blade3', 'base'); o.blade3 = [o.blade[0] + a[0] - b[0], o.blade[1] + a[1] - b[1]]; }
+  if (sh.crystal) { const a = pt('handle', 'crystalSlot'), b = pt('crystal', 'base'); o.crystal = [o.handle[0] + a[0] - b[0], o.handle[1] + a[1] - b[1]]; }
+  ctx.imageSmoothingEnabled = false;
+  for (const pass of [0, 1]) { if (pass) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, glow); }
+    for (const k of ORDER) { const e = sh[k]; if (!e) continue; const im = pass ? e.gl : e.im; if (!im) continue;
+      const A = e.m.anims[anim] || e.m.anims.idle, c = e.m.cell || 64; const f = A.loop ? Math.floor(t * A.fps) % A.n : Math.min(A.n - 1, Math.floor(t * A.fps));
+      ctx.drawImage(im, f * c, A.row * c, c, c, o[k][0], o[k][1], c, c); } }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  return true;
+}
+/** нарисовать оружие: (x, y) — точка хвата (рука), angle — радианы (0 — вверх), scale — множитель; anim — idle/charge/full/swing/cast (листы) */
 export function drawWeapon(ctx, parts, t = 0, o = {}) {
-  const { x = 0, y = 0, scale = 1, angle = 0, labels = false, glow = 1 } = o;
+  const { x = 0, y = 0, scale = 1, angle = 0, labels = false, glow = 1, anim = 'idle' } = o;
   const P = (k) => partOf(parts[k]); // id детали или сам объект (черновик админки)
   const { L, ranged } = geom(parts);
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.scale(scale, scale);
+  if (drawSheets(ctx, P, t, anim, glow)) { ctx.restore(); return 'art'; }
+  // — ЗАГЛУШКА (нет листа у какой-то части)
   // — рукоять
   const h = P('handle');
-  if (h) { const im = artImg(h.img ? `weapon/${h.img}.png` : '');
-    if (im) ctx.drawImage(im, -im.width / 2, -6, im.width, im.height);
-    else { ctx.fillStyle = '#2a1308'; ctx.fillRect(-3, -6, 6, 26); ctx.fillStyle = h.color || '#e0601a'; for (let i = 0; i < 4; i++) ctx.fillRect(-3, -2 + i * 6, 6, 1.5);
+  if (h) { ctx.fillStyle = '#2a1308'; ctx.fillRect(-3, -6, 6, 26); ctx.fillStyle = h.color || '#e0601a'; for (let i = 0; i < 4; i++) ctx.fillRect(-3, -2 + i * 6, 6, 1.5);
       ctx.fillStyle = '#ff6a1a'; ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 6); ctx.fillRect(-2, 18, 4, 4); ctx.globalAlpha = 1;
-      ctx.fillStyle = '#3b1a0c'; ctx.fillRect(-10, -9, 20, 4); }
+      ctx.fillStyle = '#3b1a0c'; ctx.fillRect(-10, -9, 20, 4);
     if (labels) label(ctx, 'рукоять', 0, 30); }
-  // — кристалл (на гарде)
   const c = P('crystal');
-  // — лезвия: 2-е и 3-е — боковые языки под углом
   for (const [k, side] of [['blade2', -1], ['blade3', 1]]) { const b = P(k); if (!b) continue;
-    const im = artImg(b.img ? `weapon/${b.img}.png` : '');
     ctx.save(); ctx.translate(side * 7, -8); ctx.rotate(side * 0.55);
-    if (im) ctx.drawImage(im, -im.width / 2, -im.height, im.width, im.height);
-    else { ctx.fillStyle = '#5c1a0b'; ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(0, -L * 0.5); ctx.lineTo(4, 0); ctx.closePath(); ctx.fill(); flame(ctx, 0, -2, 7, L * 0.48, t, '#ffd36a', b.color || '#ff3d00', side * 3); }
+    ctx.fillStyle = '#5c1a0b'; ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(0, -L * 0.5); ctx.lineTo(4, 0); ctx.closePath(); ctx.fill(); flame(ctx, 0, -2, 7, L * 0.48, t, '#ffd36a', b.color || '#ff3d00', side * 3);
     if (labels) label(ctx, k === 'blade2' ? 'лезвие 2' : 'лезвие 3', 0, -L * 0.55);
     ctx.restore(); }
   const b = P('blade');
-  if (b) { const im = artImg(b.img ? `weapon/${b.img}.png` : '');
-    if (im) ctx.drawImage(im, -im.width / 2, -im.height - 8, im.width, im.height);
-    else if (ranged) { // дальний: «посох» с огненным шаром на конце
+  if (b) {
+    if (ranged) {
       ctx.fillStyle = '#3b1a0c'; ctx.fillRect(-2, -L, 4, L - 6);
       const r = 7 + Math.sin(t * 8) * 1.2; const g = ctx.createRadialGradient(0, -L - 4, 1, 0, -L - 4, r * 2.2); g.addColorStop(0, '#fff6c8'); g.addColorStop(0.4, b.color || '#ffa531'); g.addColorStop(1, '#ff3d0000');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -L - 4, r * 2.2, 0, 7); ctx.fill();
@@ -65,12 +88,11 @@ export function drawWeapon(ctx, parts, t = 0, o = {}) {
       flame(ctx, 0, -9, 13, L * 1.02, t, '#ffe08a', b.color || '#ff6a1a', 1);
     }
     if (labels) label(ctx, ranged ? 'лезвие (дальнее)' : 'лезвие', 0, -L - 14); }
-  if (c) { const im = artImg(c.img ? `weapon/${c.img}.png` : '');
-    if (im) ctx.drawImage(im, -im.width / 2, -12 - im.height / 2, im.width, im.height);
-    else { ctx.save(); ctx.translate(0, -8); ctx.rotate(Math.PI / 4); const s = 5 + Math.sin(t * 5) * 0.6;
-      ctx.shadowColor = '#ff6a1a'; ctx.shadowBlur = 10 * glow; ctx.fillStyle = c.color || '#ffcf4a'; ctx.fillRect(-s / 2, -s / 2, s, s); ctx.restore(); }
+  if (c) { ctx.save(); ctx.translate(0, -8); ctx.rotate(Math.PI / 4); const s = 5 + Math.sin(t * 5) * 0.6;
+      ctx.shadowColor = '#ff6a1a'; ctx.shadowBlur = 10 * glow; ctx.fillStyle = c.color || '#ffcf4a'; ctx.fillRect(-s / 2, -s / 2, s, s); ctx.restore();
     if (labels) label(ctx, 'кристалл', 16, -6); }
   ctx.restore();
+  return 'stub';
 }
 
 /** анимированное превью в <canvas>: оружие покачивается, раз в 2,4 с — замах (дуга удара) или выстрел */
@@ -92,7 +114,9 @@ export class WeaponPreview {
     const ang = bl?.ranged ? -0.25 + Math.sin(t * 1.5) * 0.05 : -0.35 + Math.sin(t * 1.5) * 0.06 + sw * 1.9;
     if (sw > 0.05 && bl && !bl.ranged) { const arc = bl.arc || 1.1; ctx.save(); ctx.translate(W / 2, H * 0.72); ctx.strokeStyle = `rgba(255,154,60,${0.6 * sw})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, H * 0.5, -Math.PI / 2 - arc / 2, -Math.PI / 2 + arc / 2); ctx.stroke(); ctx.restore(); }
     if (bl?.ranged && ph > 0.7) { const k = (ph - 0.7) / 0.3; ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.arc(W / 2 + k * W * 0.45, H * 0.3 - k * 10, 5, 0, 7); ctx.fill(); }
-    drawWeapon(ctx, this.parts, t, { x: W / 2, y: H * 0.72, scale: Math.min(W, H) / 120, angle: ang, labels: this.labels });
-    ctx.fillStyle = '#ffe08a99'; ctx.font = '700 9px system-ui'; ctx.textAlign = 'left'; ctx.fillText('ЗАГЛУШКА · арт частей — от Художника', 6, H - 6);
+    const anim = ph < 0.35 ? 'idle' : ph < 0.6 ? 'charge' : ph < 0.7 ? 'full' : bl?.ranged ? 'cast' : 'swing';
+    const mode = drawWeapon(ctx, this.parts, anim === 'swing' || anim === 'cast' ? (ph - 0.7) * 2.4 : t, { x: W / 2, y: H * 0.72, scale: Math.max(1, Math.floor(Math.min(W, H) / 70)), angle: ang, labels: this.labels, anim });
+    this.mode = mode;
+    if (mode !== 'art') { ctx.fillStyle = '#ffe08a99'; ctx.font = '700 9px system-ui'; ctx.textAlign = 'left'; ctx.fillText('ЗАГЛУШКА · у части нет листа Художника', 6, H - 6); }
   }
 }

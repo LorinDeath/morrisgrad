@@ -1915,7 +1915,7 @@ async function boot(canvasId, username, userId, api) {
     const alive = new Set(['__me']);
     let p = head(player.x, player.y);
     { const art = mode === 'hub' && meta.state?.hero?.effective?.art; const ph = art ? head(player.x, player.y, 1.4) : null; const B = meta.state?.bma || {};
-      artHand.update(ph, !!art && zone.me?.alive !== false, bmChg.sent ? Math.min(1, (performance.now() - bmChg.at) / 1000 / Math.max(0.1, meta.state?.hero?.effective?.bm?.charge || 1)) : 0); }
+      artHand.update(ph, !!art && zone.me?.alive !== false, bmChg.sent ? Math.min(1, (performance.now() - bmChg.at) / 1000 / Math.max(0.1, meta.state?.hero?.effective?.bm?.charge || 1)) : 0, art || null); }
     if (p) {
       const zm = zone.me;
       const hpBar = player.stats.classId && zm && zm.maxHp && zm.hp < zm.maxHp ? `<div class="mc3d-mini-hp"><i style="width:${Math.max(0, Math.round((zm.hp / zm.maxHp) * 100))}%"></i></div>` : '';

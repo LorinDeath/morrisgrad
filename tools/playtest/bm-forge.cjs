@@ -68,6 +68,7 @@ const ADMIN = 'qa_bmb_' + Date.now().toString(36);
   await sleep(1200);
   const asm = await G(() => ({ cv: !!document.querySelector('.bmf-cv'), rows: document.querySelectorAll('.bmf-stats .bm-row').length, anim: window.__game.forgeWin.prev?.on }));
   t('сборка: живое превью + чёрные параметры', asm.cv && asm.anim && asm.rows >= 7, asm); mark('asm');
+  await sleep(1200); const pmode = await G(() => window.__game.forgeWin.prev?.mode); t('превью рисует листы Художника (не заглушку)', pmode === 'art', pmode);
   await shot('04-forge-assembly-preview'); await sleep(700); await shot('04b-forge-assembly-preview-swing');
   // имя: брань / мусор / норма
   const typeName = async (n) => { await p.fill('.bmf-name', ''); await p.type('.bmf-name', n, { delay: VIDEO ? 45 : 0 }); await sleep(200); fr.length = 0; const dis = await G(() => document.querySelector('[data-f="build"]').disabled); await G(() => document.querySelector('[data-f="build"]').click()); console.log('  click build', new Date().toISOString().slice(11, 19)); const t0 = Date.now(); for (let i = 0; i < 100; i++) { await sleep(200); const e = await G(() => document.querySelector('.bmf-err')?.textContent || ''); if (e || fr.some((x) => x.includes('"built"'))) { console.log('  build reply ms', Date.now() - t0); return e; } } console.log('  build: no reply', { dis, fr: fr.slice(0, 3), sent: fs_.slice(-3) }); await G(() => window.__game.debug.send({ type: 'bm_forge_open' })); await sleep(2500); console.log('  after open', fr.slice(0, 3).map((x) => x.slice(0, 160))); return ''; };

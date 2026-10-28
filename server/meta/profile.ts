@@ -141,7 +141,7 @@ export function heroEffective(a: Account, h: Hero, cls: string, base: { maxHp: n
     revive: raw.revive > 0 ? 1 : 0,
     weaponMin: base.minAtk + wMin, weaponMax: base.maxAtk + wMax, itemDmgMin: wMin, itemDmgMax: wMax,
     look, weaponId, wtype: art ? "artifact" : weaponType(weaponId, cls),
-    bm: art ? art.stats : null, art: art ? { id: artE!.id, uid: artE!.uid, atk: art.atk, cd: art.cd, skills: art.skills, ranged: art.ranged, elem: art.elem } : null,
+    bm: art ? art.stats : null, art: art ? { id: artE!.id, uid: artE!.uid, parts: art.parts, atk: art.atk, cd: art.cd, skills: art.skills, ranged: art.ranged, elem: art.elem } : null,
     cursedGlow: glowLevel(items.filter((e) => e.cursed).length), weaponCursed: items.some((e) => e.cursed && e.slot === "weapon") ? 1 : 0,
     blkAvg: charBlk(items), blkVis: charBlkVis(items), // очернение героя: % по надетому (режим админки) и сила затемнения 0…100 (видно всем)
   };

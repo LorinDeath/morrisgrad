@@ -6,7 +6,7 @@ import { instStats, cursedStats } from "./cursed";
 import { validatePatch, applyOverride } from "./overrides";
 import { RESOURCES, STAT_CAPS } from "./shared";
 let fail = 0; const ok = (c: boolean, m: string) => { if (!c) fail++; console.log((c ? "PASS " : "FAIL ") + m); };
-ok(UPG_ORDER.length === Object.keys(RESOURCES).length && new Set(UPG_ORDER).size === UPG_ORDER.length && UPG.maxLvl === 58, `порядок: ${UPG_ORDER.length} разных материалов, максимум +${UPG.maxLvl}`);
+ok(UPG_ORDER.length === Object.keys(RESOURCES).filter((k) => !/^(bp_|bm_)/.test(k)).length && new Set(UPG_ORDER).size === UPG_ORDER.length && UPG.maxLvl === 58, `порядок: ${UPG_ORDER.length} разных материалов, максимум +${UPG.maxLvl}`);
 ok(JSON.stringify(upgCost(1, false)) === JSON.stringify({ [UPG_ORDER[0]]: 3 }) && upgCost(10, false)![UPG_ORDER[9]] === 3, "обычная: +N стоит 3 × N-й материал");
 { const c = upgCost(5, true)!; ok(c[UPG_ORDER[4]] === 6 && c[UPG_ORDER[5]] === 6 && Object.keys(c).length === 2, "проклятая: 6 × материал уровня + 6 × следующий " + JSON.stringify(c)); }
 { const c = upgCost(58, true)!; ok(c[UPG_ORDER[57]] === 6 && c[UPG_ORDER[56]] === 6, "проклятая +58: пара — предыдущий материал"); }
