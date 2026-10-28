@@ -23,12 +23,14 @@ import { mobHomes, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { bossCfg, bossLairs, pickLair, spawnText } from './bossSpawn.js';
 import { skillIcon } from './actionBar.js';
 import { bprevHtml } from './beastPreview.js';
+import { rArtifacts, rArtSkillLib } from './bmArtUi.js';
 
 const TABS = [
   ['quests', '📜', 'Задания', 'J'],
   ['hero', '🧬', 'Герой', 'T'],
   ['skills', '✦', 'Навыки', 'K'],
   ['gear', '🎒', 'Снаряжение', 'I'],
+  ['artifacts', '🔥', 'Артефакты', ''],
   ['library', '📚', 'Библиотека', 'L'],
   ['bestiary', '👁️', 'Бестиарий', 'B'],
   ['runskills', '🌀', 'Кодекс навыков', ''],
@@ -280,6 +282,8 @@ export class Book {
       }
       case 'unslot': m.setLoadout((m.hero?.loadout || []).map((x) => (x === v ? '' : x))); break;
       case 'equip': m.equip(v); break;
+      case 'artsel': this.artSel = v; this.render(); break;
+      case 'bmtest': m.send({ type: 'bm_test_artifact', ranged: v === '1' }); break;
       case 'unequip': m.unequip(v); break;
       case 'salvage': { const it = m.account?.inv.find((i) => i.uid === v), d = it && ITEM_BY_ID[it.id];
         if (it?.lk) break; // закреплённый — кнопка неактивна (и сервер всё равно откажет)
@@ -301,8 +305,8 @@ export class Book {
     this.tabsEl.innerHTML = TABS.filter(([id]) => id !== 'soul' || this.canSoul() || (st?.account?.creation || 0) > 0 || (st?.account?.soul || []).length)
       .map(([id, ic, nm, key]) => { const n = this.badge(id); return `<button data-act="tab" data-v="${id}" class="${this.tab === id ? 'on' : ''}" title="${nm}${key ? ` [${key}]` : ''}">${ic}<span>${nm}</span>${n ? `<em class="mc-cnt">${n}</em>` : ''}</button>`; }).join('');
     if (!st) { this.body.innerHTML = '<p class="mc-dim">Нет связи с сервером: прогресс героя хранится на сервере и сейчас недоступен. Соло-забеги работают офлайн.</p>'; return; }
-    const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, runskills: this.rRunSkills, soul: this.rSoul }[this.tab] || this.rQuests;
-    if ((this.tab === 'library' || this.tab === 'bestiary' || this.tab === 'runskills' || this.tab === 'gear') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
+    const fn = { quests: this.rQuests, hero: this.rHero, skills: this.rSkills, gear: this.rGear, library: this.rLibrary, craft: this.rCraft, bestiary: this.rBestiary, runskills: this.rRunSkills, soul: this.rSoul, artifacts: this.rArtifacts }[this.tab] || this.rQuests;
+    if ((this.tab === 'library' || this.tab === 'bestiary' || this.tab === 'runskills' || this.tab === 'gear' || this.tab === 'artifacts') && this.libAsked !== this.meta.version) { this.libAsked = this.meta.version; this.meta.libGet(); }
     // прокрутка сохраняется у тела И у всех внутренних списков (сетка Библиотеки, Бестиарий, Кодекс, сумка, карточка):
     // перерисовка после клика по предмету/«просмотрено» не должна прыгать в начало
     const scroll = this.body.scrollTop, key = (e) => e.className.split(' ')[0] + '#' + [...this.body.querySelectorAll('.' + e.className.split(' ')[0])].indexOf(e);
@@ -455,11 +459,15 @@ export class Book {
   }
 
   // ---------- навыки и Сияние ----------
+  // ---------- артефакты (чёрная магия) ----------
+  rArtifacts(st) { return rArtifacts(this, st); }
+
   rSkills(st) {
     const h = st.hero;
     if (!h) return '<p>Сначала выберите оболочку у Алтаря.</p>';
     const own = ABILITIES_DEF.filter((x) => x.cls === h.cls);
     const mons = (h.monsterAbilities || []).map((id) => ABILITY_BY_ID[id]).filter(Boolean);
+    const arts = (h.artAbilities || []).map((id) => ABILITY_BY_ID[id]).filter(Boolean);
     const radOpen = this.meta.flag('radiance_open');
     const slots = [];
     for (let i = 0; i < h.slots; i++) {
@@ -482,7 +490,7 @@ export class Book {
         ? `<button class="mc-btn ${inLo && h.loadout.indexOf(d.id) === i ? 'on' : ''}" data-act="slot" data-v="${d.id}|${i}" title="Назначить на ${k}${h.loadout[i] && h.loadout[i] !== d.id ? ' (поменяется местами)' : ''}">${k}</button>`
         : `<button class="mc-btn" disabled title="Слот F — с 5 уровня героя">${k}</button>`).join('');
       return `<div class="mc-abil ${locked ? 'locked' : ''} ${sil ? 'sil' : ''}">
-        <div class="t">${skillIcon(d.id, 32)}<b>${esc(d.name)}</b>${monster ? '<em>трофей</em>' : ''}${d.legacy ? '<em>классовый</em>' : ''}${locked ? `<em title="Откройте узел «${esc(node?.name || '')}» в дереве талантов">🔒 дерево, ярус ${node?.tier || '?'}</em>` : ''}${sil ? '<em>заглушён</em>' : ''}</div>
+        <div class="t">${skillIcon(d.id, 32)}<b>${esc(d.name)}</b>${monster === 'art' ? '<em style="color:#ffb347">🔥 артефакт</em>' : monster ? '<em>трофей</em>' : ''}${d.legacy ? '<em>классовый</em>' : ''}${locked ? `<em title="Откройте узел «${esc(node?.name || '')}» в дереве талантов">🔒 дерево, ярус ${node?.tier || '?'}</em>` : ''}${sil ? '<em>заглушён</em>' : ''}</div>
         <div class="d">${esc(d.desc)} · перезарядка ${d.cd} с</div>
         <div class="rad">Сияние: ${stars.join('')}</div>
         <div class="props">${props}</div>
@@ -494,6 +502,7 @@ export class Book {
     return `<h3>Раскладка (${h.slots} слота${h.slots < 3 ? ' · 3-й слот с 5 уровня' : ''})</h3><div class="mc-aslots">${slots.join('')}</div>
       ${radOpen ? '' : '<p class="mc-lock">🔒 Сияние навыков откроет Лэйр — кампания «Чувствовать», глава 1. Звёзды дают звёздные испытания.</p>'}
       <h3>Навыки героя</h3>${own.map((d) => card(d, false)).join('')}
+      ${arts.length ? `<h3>🔥 Навыки артефакта</h3><p class="mc-dim">Артефакт в руке: выберите, какие его навыки поставить в слоты.</p>${arts.map((d) => card(d, 'art')).join('')}` : ''}
       ${mons.length ? `<h3>Навыки трофеев</h3>${mons.map((d) => card(d, true)).join('')}` : '<p class="mc-dim">Навыки Отголосков даёт их снаряжение: наденьте «Лапки-лезвия мухи» — получите «Лезвийный рывок».</p>'}
       <p class="mc-dim">Сияние: 3 уровня за каждый цвет звёзд (жёлтые → красные → фиолетовые), на 3-м уровне цвета — уникальное свойство. Сила +6%/шаг (кап +45%), перезарядка −2.5%/шаг.</p>`;
   }
@@ -583,6 +592,8 @@ export class Book {
   rLibrary(st) {
     const L = this.meta.library;
     if (!L) return '<p class="mc-dim">Загрузка Библиотеки…</p>';
+    const bmTab = `<button class="mc-btn sm ${this.lfilter === 'bmskills' ? 'gold' : ''}" data-act="lfilter" data-v="bmskills">🔥 Навыки артефактов</button>`;
+    if (this.lfilter === 'bmskills') return `<div class="mc-libf">${[['all', 'Все'], ...SLOT_ORDER.map((s) => [s, SLOTS[s]])].map(([v, nm]) => `<button class="mc-btn sm" data-act="lfilter" data-v="${v}">${esc(nm)}</button>`).join('')} ${bmTab}</div>${rArtSkillLib()}`;
     const byN = new Map(Object.values(L.items).map((c) => [c.n, c]));
     const f = this.lfilter || 'all';
     const dir = this.lvlSort === 'desc' ? -1 : 1, lvOf = (n) => byN.get(n)?.lvl ?? (L.sil[n][2] || 1) * 5 - 2;
@@ -611,7 +622,7 @@ export class Book {
     const tabs = [['all', 'Все'], ...SLOT_ORDER.map((s) => [s, SLOTS[s]])].map(([v, nm]) => `<button class="mc-btn sm ${f === v ? 'gold' : ''}" data-act="lfilter" data-v="${v}">${esc(nm)}</button>`).join('');
     const anyNew = Object.values(L.items).some((x) => x.isNew);
     return `<p class="mc-dim">Открыто <b>${opened}</b> из ${L.size} · получено ${owned}. ${anyNew ? `<button class="mc-btn sm" data-act="seenall" data-v="items">отметить всё просмотренным</button>` : ''}</p>
-      <div class="mc-libf">${tabs} ${sortBtn(this.lvlSort)}</div><div class="mc-gear"><div class="mc-libgrid">${cells}</div><div class="mc-detail">${detail}</div></div>`;
+      <div class="mc-libf">${tabs} ${bmTab} ${sortBtn(this.lvlSort)}</div><div class="mc-gear"><div class="mc-libgrid">${cells}</div><div class="mc-detail">${detail}</div></div>`;
   }
 
   // ---------- Библиотека мобов (бестиарий) ----------

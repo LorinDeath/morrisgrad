@@ -1,0 +1,94 @@
+// LOCAL: чёрная магия, этап А — вкладка «Артефакты» (глушение обычных/раскрытие чёрных), блок слотов, навыки артефакта,
+// Библиотека «🔥 Навыки артефактов», огненная заглушка у руки, заряд, админка «Пересчитать все».
+const { chromium } = require('playwright-core');
+const { execSync } = require('node:child_process');
+const fs = require('fs');
+const { guardLocal, assertLocalUrl } = require('./_local.cjs');
+const OUT = process.env.OUT || '/workspace/black-magic/shots-a';
+const BASE = process.env.UD_BASE || 'http://127.0.0.1:5411/game.html', WS = process.env.UD_WS || 'ws://127.0.0.1:8411';
+const PERSIST = process.env.PERSIST || '/workspace/mc-harness-bma/wr';
+assertLocalUrl(BASE); assertLocalUrl(WS); fs.mkdirSync(OUT, { recursive: true });
+const W = '/workspace/mc-ui-tools/node_modules/.bin/wrangler';
+const d1 = (sql) => JSON.parse(execSync(`cd /workspace/mg-black-a/server && PATH=/workspace/tools/node22/bin:$PATH ${W} d1 execute morrisgrad_db --local --persist-to ${PERSIST} --json --command ${JSON.stringify(sql)}`, { stdio: 'pipe' }).toString())[0].results;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let ok = 0, bad = 0; const t = (n, c, x) => { c ? ok++ : bad++; console.log(c ? 'ok  ' : 'FAIL', n, x === undefined ? '' : JSON.stringify(x).slice(0, 400)); };
+const ADMIN = 'qa_bma_' + Date.now().toString(36);
+(async () => {
+  d1(`INSERT OR REPLACE INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:${ADMIN}', 'admin', 'local-test', 0)`);
+  const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 860 } });
+  await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
+  const p = await ctx.newPage(); const errs = []; const fr = [];
+  p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
+  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_result/.test(s)) fr.push(s.slice(0, 300)); }));
+  const G = (f, a) => p.evaluate(f, a);
+  const shot = async (n, o = {}) => { await G(() => document.querySelectorAll('.mcl-err').forEach((e) => e.remove())); await sleep(300); await p.screenshot({ path: `${OUT}/${n}.png`, ...o }); console.log('shot', `${OUT}/${n}.png`); };
+  await p.goto(assertLocalUrl(`${BASE}?name=${ADMIN}&uid=${ADMIN}&ws=${WS}&fs=1&debug=1`));
+  await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game?.debug, null, { timeout: 120000 }); await sleep(2500);
+  await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400);
+  const S = () => G(() => { const s = window.__game.debug.metaSt(); return s && { inv: s.account.inv.map((i) => ({ id: i.id, uid: i.uid })), equip: s.hero?.equip, eff: s.hero?.effective && { art: s.hero.effective.art, bm: s.hero.effective.bm, crit: s.hero.effective.critPct, spd: s.hero.effective.speedPct, hp: s.hero.effective.maxHp }, bma: s.bma, artAb: s.hero?.artAbilities, inHand: s.hero?.artInHand, loadout: s.hero?.loadout }; });
+  // обычное снаряжение — надеть
+  for (const id of ['dew_slime_helmet', 'dew_slime_armor', 'dew_slime_legs', 'dew_slime_hands', 'dew_slime_weapon']) { await G((i) => window.__game.debug.send({ type: 'dev_grant', item: i }), id); await sleep(250); }
+  await sleep(800);
+  let s = await S();
+  for (const it of s.inv.filter((i) => i.id.startsWith('dew_slime_'))) { await G((u) => window.__game.debug.send({ type: 'equip', uid: u }), it.uid); await sleep(250); }
+  await sleep(800); const before = await S();
+  t('обычное снаряжение надето', Object.keys(before.equip || {}).length >= 5, before.equip);
+  // тестовые артефакты (админ): ближний и дальний
+  await G(() => window.__game.debug.send({ type: 'bm_test_artifact', ranged: false })); await sleep(1300);
+  await G(() => window.__game.debug.send({ type: 'bm_test_artifact', ranged: true })); await sleep(1300);
+  s = await S(); const arts = s.inv.filter((i) => i.id.startsWith('art_'));
+  t('2 тестовых артефакта в сумке', arts.length === 2, arts);
+  t('bma в снимке (лимит 30)', s.bma?.maxArtifacts === 30 && s.bma.have === 2, s.bma);
+  await G(() => window.__game.debug.openBook('artifacts')); await sleep(1500);
+  const tab = await G(() => ({ cards: document.querySelectorAll('.bm-card').length, sup: document.querySelectorAll('.bm-sup .bm-row').length, unl: document.querySelectorAll('.bm-unl .bm-row').length, test: document.querySelectorAll('[data-act="bmtest"]').length, txt: document.querySelector('.bm-cnt')?.textContent }));
+  t('вкладка «Артефакты»: карточки, глушение, раскрытие, кнопки теста', tab.cards === 2 && tab.sup >= 4 && tab.unl === 7 && tab.test === 2, tab);
+  await sleep(200); await shot('01-artifacts-tab-anim-start');
+  await sleep(1800); await shot('02-artifacts-tab-preview');
+  // взять в руку
+  await G(() => document.querySelector('[data-act="equip"]')?.click()); await sleep(1500);
+  const inHand = await S();
+  t('артефакт в руке: eff.art + чёрные статы', !!inHand.eff?.art && inHand.eff.bm?.bdmg > 0, inHand.eff);
+  t('снаряжение заглушено (крит/скорость не от предметов)', inHand.eff.crit < before.eff.crit, { before: before.eff.crit, after: inHand.eff.crit });
+  t('5 навыков артефакта доступны', (inHand.artAb || []).length === 5, inHand.artAb);
+  await sleep(1800); await shot('03-artifacts-in-hand');
+  // слот заблокирован
+  fr.length = 0; await G(() => window.__game.debug.send({ type: 'unequip', slot: 'helmet' })); await sleep(800);
+  t('слоты кроме оружия заблокированы', fr.some((x) => x.includes('остальные слоты заблокированы')), fr);
+  // навыки → поставить артефактный навык
+  await G(() => window.__game.debug.openBook('skills')); await sleep(800);
+  const sk = await G(() => ({ h: [...document.querySelectorAll('h3')].some((h) => h.textContent.includes('Навыки артефакта')), n: document.querySelectorAll('.mc-abil').length }));
+  t('«Навыки» → секция «Навыки артефакта»', sk.h, sk);
+  await G(() => { const id = window.__game.debug.metaSt().hero.artAbilities[1]; document.querySelector(`[data-act="slot"][data-v="${id}|0"]`)?.click(); }); await sleep(1000);
+  const lo = await S(); t('артефактный навык в слоте Q', String(lo.loadout?.[0] || '').startsWith('bmf_'), lo.loadout);
+  await G(() => [...document.querySelectorAll('h3')].find((h) => h.textContent.includes('Навыки артефакта'))?.scrollIntoView({ block: 'start' })); await sleep(400);
+  await shot('04-skills-artifact-section');
+  // Библиотека → «Навыки артефактов»
+  await G(() => window.__game.debug.openBook('library')); await sleep(1500);
+  await G(() => document.querySelector('[data-act="lfilter"][data-v="bmskills"]')?.click()); await sleep(800);
+  const lib = await G(() => document.querySelectorAll('.bm-skill').length);
+  t('Библиотека: 5 навыков артефактов', lib === 5, lib);
+  await shot('05-library-artifact-skills');
+  // заглушка у руки + заряд
+  await G(() => window.__game.debug.openBook?.(null)); await G(() => document.querySelector('.mc-book [data-x], .mc-book .close')?.click()); await p.keyboard.press('Escape'); await sleep(1000);
+  const hand = await G(() => { const e = document.querySelector('.bm-hand'); return e && { vis: e.style.display !== 'none', txt: e.textContent, x: e.style.left, y: e.style.top }; });
+  t('огненная заглушка «ЗАГЛУШКА» у руки героя', hand?.vis && hand.txt.includes('ЗАГЛУШКА'), hand);
+  await shot('06-hand-placeholder');
+  { const r = await G(() => { const e = document.querySelector('.bm-hand'); const b = e.getBoundingClientRect(); return { x: b.left, y: b.top }; }); await shot('07-hand-placeholder-zoom', { clip: { x: Math.max(0, r.x - 150), y: Math.max(0, r.y - 150), width: 300, height: 300 } }); }
+  // заряд: зажать ЛКМ ~1.2 с
+  const vp = p.viewportSize(); await p.mouse.move(vp.width / 2 + 260, vp.height / 2 + 120); await p.mouse.down(); await sleep(300);
+  console.log('diag', JSON.stringify(await G(() => ({ aim: window.__game.debug.aim(), el: document.elementFromPoint(innerWidth / 2 + 260, innerHeight / 2 + 120)?.tagName, book: document.querySelector('.mc-book')?.offsetParent != null }))));
+  await sleep(900);
+  const chg = await G(() => document.querySelector('.bm-hand')?.classList.contains('chg')); t('зажатая атака — заряд (свечение заглушки)', !!chg, chg);
+  await shot('08-charging'); await p.mouse.up(); await sleep(600);
+  // админка: «Пересчитать все»
+  await p.waitForFunction(() => { if (document.querySelectorAll('.mc-admin [data-tab]').length) return true; try { if (!window.__game.debug.admin().open) window.__game.debug.openAdmin(); } catch {} return false; }, null, { timeout: 30000 }).catch(() => {});
+  await G(() => document.querySelector('.mc-admin [data-tab="bmagic"]')?.click()); await sleep(800);
+  await G(() => document.querySelector('.mc-admin aside li[data-id]')?.click()); await sleep(800);
+  const rb = await G(() => !!document.querySelector('[data-bmrecalc]'));
+  fr.length = 0; await G(() => document.querySelector('[data-bmrecalc]')?.click()); await sleep(1500);
+  t('админка: «Пересчитать все артефакты»', rb && fr.some((x) => x.includes('bm_recalc')), { rb, fr: fr.slice(0, 3) });
+  await shot('09-admin-recalc');
+  t('без ошибок страницы', errs.length === 0, errs.slice(0, 3));
+  console.log(`DONE ok=${ok} bad=${bad}`); await b.close(); process.exit(bad ? 1 : 0);
+})().catch((e) => { console.log('FAIL crash', e.stack); process.exit(1); });

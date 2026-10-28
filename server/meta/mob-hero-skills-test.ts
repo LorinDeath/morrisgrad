@@ -5,8 +5,9 @@ import { validatePatch, applyOverride } from "./overrides";
 import { ZONE_MOBS } from "./defs";
 let f = 0; const ok = (c: any, m: string) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) f++; };
 const ids = ABILITIES_DEF.map((a) => a.id);
-ok(ids.length === 24, `героевых навыков ${ids.length}`);
-ok(ids.every((i) => MOB_SKILLS[i]), "все 24 — в пуле навыков монстров");
+ok(ids.filter((i) => !i.startsWith("bmf_")).length === 24, `героевых навыков ${ids.length}`); // + 5 огненных навыков артефактов (bmf_*) — тот же список
+ok(ids.filter((i) => i.startsWith("bmf_")).length === 5, "5 навыков артефактов в общем списке");
+ok(ids.every((i) => MOB_SKILLS[i]), "все (24 + 5 артефактных) — в пуле навыков монстров");
 ok(ids.every((i) => MOB_SKILLS[i].cd >= 6), "перезарядка у моба ≥ 6 с");
 ok(typeof validatePatch("mob", Object.keys(ZONE_MOBS)[0], { skills: ["pierce", "leap_strike"] }) !== "string", "админка принимает навыки героя у моба");
 const z: any = new Zone("arinar", [], [], { proc: true, seed: 3 });

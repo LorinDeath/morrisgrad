@@ -100,6 +100,7 @@ import { setBossState, setRareState, BOSS_STATE as BOSS_STATE_DBG } from '../../
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 import { setMapZones, mapZonesKnown, biomeLabels } from './map/biomeLabels.js';
 import { onMarks, onMarkOk, marks as MARKS } from './map/marks.js';
+import { ArtHand } from './ui/bmArtUi.js';
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
 function applyConfig(d) {
@@ -279,7 +280,9 @@ async function boot(canvasId, username, userId, api) {
   queueMicrotask(() => { api.tracker = tracker; api.social = social; api.overlay = overlay; }); // для локальных плейтестов (debug)
   const tracker = new QuestTracker(overlay, meta, { onOpenBook: () => book.toggle('quests'), onOpenBoard: (tab) => boardWin.open('all', tab === 'tut' ? 'tut' : tab), mobile, board: boardSt });
   const bestKnown = (t) => !!(meta.state?.account?.bestiary?.[t] || meta.library?.mobs?.[t]); // вид уже встречен (скрытый — без имени в подписях места появления)
-  const tptr = new TargetPointers(overlay.layer, { mobile }); // метки отслеживаемых целей на экране (номер/цвет — как в трекере)
+  const tptr = new TargetPointers(overlay.layer, { mobile });
+  const artHand = new ArtHand(overlay.layer); // чёрная магия: артефакт парит у руки героя (отдельный слой, спрайты не трогаем)
+  const bmChg = { at: 0, sent: false }; // зажатая атака артефактом (заряд считает сервер: bm_hold on/off) // метки отслеживаемых целей на экране (номер/цвет — как в трекере)
   { const bo = book.open.bind(book); book.open = (...a) => { tracker.tutDone('book'); return bo(...a); }; }
   const dialog = new NpcDialog(overlay, meta, boardSt);
   dialog.onCraft = () => book.open('craft');
@@ -694,6 +697,7 @@ async function boot(canvasId, username, userId, api) {
   let myRole = null; // роль своего аккаунта (сервер: player_roles + проверенный вход)
   net.on('my_role', (d) => {
     myRole = d.role || null;
+    book.canTestArt = !!d.admin || /^(localhost|127\.0\.0\.1)$/.test(location.hostname); // кнопки тестового артефакта (сервер проверяет сам)
     // кнопка панели — админ (полный доступ) или модератор (бестиарий/оружие/предметы); сервер проверяет каждый admin_*
     const canPanel = !!(d.admin || d.modAdmin);
     adminPanel.setAccess({ full: !!d.admin, allowed: !!(d.admin || d.modAdmin), kinds: d.kinds || (d.modAdmin ? ['mob', 'weapon', 'item'] : null) });
@@ -1422,7 +1426,8 @@ async function boot(canvasId, username, userId, api) {
         : { kind: 'rs', slot: 3, key: 'R', name: 'Навык оружия', locked: true, lockText: 'наденьте оружие с навыком «Вампир-лайка» (редкий трофей открытого мира)' }); }
     list.push({ kind: 'dash', id: 'dash', key: 'Space', name: 'Рывок', desc: 'Короткий рывок (Space / Shift)', cdLeft: dash.cd, cdTotal: DASH.cooldown });
     const wt = zone.myWeaponType(player.stats.classId);
-    const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
+    const artE = meta.state?.hero?.effective?.art, artBm = meta.state?.hero?.effective?.bm;
+    const atkMs = artE ? (artE.cd || ZONE_ATK_MS) : (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
     list.push({ kind: 'atk', id: 'attack', key: 'ЛКМ', name: `Атака: ${WEAPON_TYPES[wt]?.name || 'оружие'}`, desc: 'Удерживайте ЛКМ — удар в сторону курсора; V — автоатака', cdLeft: Math.max(0, atkMs - (now - zoneSt.lastAtk)) / 1000, cdTotal: atkMs / 1000, locked: !h, lockText: 'атака есть только у героя — выберите героя на Алтаре Перевоплощения' });
     abar.setSlots(list);
   }
@@ -1823,7 +1828,7 @@ async function boot(canvasId, username, userId, api) {
     // скорость героя из талантов/снаряжения/души (eff.speedPct, сервер уже применил мягкий кап и нижнюю границу −20%)
     // Порыв сияния (+25% на 2 с) — и в открытом мире, и на арене
     const swiftK = (pn < swiftSt.until || pn < pvpSt.swiftUntil) ? 1.25 : 1;
-    const spK = mode === 'run' ? 1 : 1 + (meta.hero?.effective?.speedPct || 0) / 100;
+    const spK = (mode === 'run' ? 1 : 1 + (meta.hero?.effective?.speedPct || 0) / 100) * (bmChg.sent ? (meta.state?.bma?.chargeMoveMul ?? 0.6) : 1); // заряд артефакта замедляет
     let vx = mv.x * MOVE_SPEED * slowK * spK * swiftK, vy = mv.y * MOVE_SPEED * slowK * spK * swiftK;
     if (dash.active) {
       vx = dash.dirX * DASH.speed; vy = dash.dirY * DASH.speed;
@@ -1900,6 +1905,8 @@ async function boot(canvasId, username, userId, api) {
     const head = (x, y, h = 2.5) => stage.project(toX(x), h, toZ(y));
     const alive = new Set(['__me']);
     let p = head(player.x, player.y);
+    { const art = mode === 'hub' && meta.state?.hero?.effective?.art; const ph = art ? head(player.x, player.y, 1.4) : null; const B = meta.state?.bma || {};
+      artHand.update(ph, !!art && zone.me?.alive !== false, bmChg.sent ? Math.min(1, (performance.now() - bmChg.at) / 1000 / Math.max(0.1, meta.state?.hero?.effective?.bm?.charge || 1)) : 0); }
     if (p) {
       const zm = zone.me;
       const hpBar = player.stats.classId && zm && zm.maxHp && zm.hp < zm.maxHp ? `<div class="mc3d-mini-hp"><i style="width:${Math.max(0, Math.round((zm.hp / zm.maxHp) * 100))}%"></i></div>` : '';
@@ -2014,7 +2021,20 @@ async function boot(canvasId, username, userId, api) {
     }
     if (!hasHero || overlay.screen || book.isOpen || zone.me?.alive === false) return;
     const wt = zone.myWeaponType(player.stats.classId);
-    const atkMs = (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
+    const artE = meta.state?.hero?.effective?.art, artBm = meta.state?.hero?.effective?.bm;
+    const atkMs = artE ? (artE.cd || ZONE_ATK_MS) : (WEAPON_TYPES[wt]?.cd || ZONE_ATK_MS) / (1 + Math.max(0, meta.state?.hero?.effective?.atkSpeedPct || 0) / 100);
+    // артефакт с «Силой атаки»: зажатая ЛКМ дольше 180 мс — заряд (сервер считает долю по своему времени), отпускание — удар
+    if (artE && artBm?.force > 0 && !aim.touch) {
+      const now2 = performance.now();
+      if (aim.held) {
+        if (!bmChg.at) { bmChg.at = now2; bmChg.sent = false; }
+        if (!bmChg.sent && now2 - bmChg.at > 180 && now - zoneSt.lastAtk >= atkMs) { bmChg.sent = true; bmChg.at = now2; send({ type: 'bm_hold', on: true }); }
+        if (bmChg.sent) return;
+      } else if (bmChg.at) {
+        const wasSent = bmChg.sent; bmChg.at = 0; bmChg.sent = false;
+        if (wasSent) { const d0 = aimDir() || { x: player.dirX || 0, y: player.dirY || 1 }; zoneSt.lastAtk = now; send({ type: 'bm_hold', on: false, ...shotMsg(d0) }); return; }
+      }
+    } else if (bmChg.at) { if (bmChg.sent) send({ type: 'bm_hold', on: false }); bmChg.at = 0; bmChg.sent = false; }
     if (now - zoneSt.lastAtk < atkMs) return;
     let dir = null, lock = null;
     if (aim.held) {
@@ -2041,7 +2061,7 @@ async function boot(canvasId, username, userId, api) {
     send({ type: 'zone_attack', ...sm });
     { // стрелковое оружие: свой снаряд рисуем сразу из центра героя (подтвердит сервер тем же cid)
       const W0 = WEAPON_TYPES[wt] || WEAPON_TYPES.book;
-      if (W0.atk.kind !== 'arc' && zone.pax) { zone.pax.meSid = myId; const t = { daggers: 'auto_daggers', book: 'auto_staff', staff: 'auto_staff', bow: 'auto_bow', fly_blades: 'auto_claws', spear: 'spear' }[wt] || 'auto_staff'; // = AUTO_SPRITE сервера
+      if (!artE && W0.atk.kind !== 'arc' && zone.pax) { zone.pax.meSid = myId; const t = { daggers: 'auto_daggers', book: 'auto_staff', staff: 'auto_staff', bow: 'auto_bow', fly_blades: 'auto_claws', spear: 'spear' }[wt] || 'auto_staff'; // = AUTO_SPRITE сервера
         const tx = sm.tx ?? player.x + dir.x * 100, ty = sm.ty ?? player.y + dir.y * 100, L = Math.hypot(tx - player.x, ty - player.y) || 1, ux = (tx - player.x) / L, uy = (ty - player.y) / L;
         for (const [vx, vy] of volleyDirs(W0.atk, ux, uy)) zone.pax.predict(sm.cid, t, player.x, player.y, vx, vy, W0.atk.range, { auto_bow: 900, auto_daggers: 760, auto_staff: 620, auto_claws: 700, spear: 820 }[t] || 640); }
     }
@@ -2293,6 +2313,7 @@ async function boot(canvasId, username, userId, api) {
         d: stage.distance(), near: stage.camera.near, far: stage.camera.far, fogFar: stage.scene.fog?.far, shadowHalf: stage.sun.shadow.camera.right, pitch: stage.pitch, fov: stage.camera.fov }),
       spawn: (type, n = 1, elite = false) => { if (run) for (let i = 0; i < n; i++) run.spawnEnemy(type, run.me, null, { elite }); },
       openBook: (tab) => book.open(tab),
+      metaSt: () => meta.state, // плейтесты: снимок профиля (чёрная магия — артефакты, bma)
       openUpgrade: () => upgWin.open(),
       lobby: (roomId) => openBrowser(roomId || Object.keys(RUN_ROOMS)[0]),
       clearTarget: () => { hud.clearTarget(); if (zone.selected) { zone.selected = 0; send({ type: 'zone_target', id: 0 }); } },
