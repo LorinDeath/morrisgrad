@@ -164,16 +164,19 @@ export function bmmClient(items?: Record<string, any>) {
   return { order: [...BM_ORDER], mobs, body, vis: BMM_CFG.mobVis, base: BMX_BASE, classes: BM_CLASS_NAMES };
 }
 /** клиент: принять список с сервера (те же таблицы, что у сервера — ZONE_MOBS общий модуль) */
-export function applyBmmClient(d: any) {
+export let BMM_VER = 0;
+export function applyBmmClient(d: any, extra?: Record<string, any>) {
   if (!d || typeof d !== "object") return;
   for (const [id, m] of Object.entries<any>(d.mobs || {})) {
     BM_MOBS[id] = { id, name: m.name, cls: m.cls, lvl: m.lvl, hp: m.hp, dmg: m.dmg, armor: m.armor, speed: m.speed, aggro: m.aggro, radius: m.radius, xp: m.xp, body: m.body || {}, weapon: m.weapon || {}, scale: m.scale || 1, cursed: m.cursed, ench: m.ench, drops: m.drops || [], hidden: m.hidden, desc: m.desc };
     const cur: any = (ZONE_MOBS as any)[id], def = { name: m.name, hp: m.hp, dmg: m.dmg, armor: m.armor, speed: m.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: "#ff5a1a", lvl: m.lvl, tier: tierOf(m.lvl), role: m.ranged ? "ranged" : "melee", size: "m", black: true, bmCls: m.cls, bmHidden: !!m.hidden };
     if (cur) Object.assign(cur, def); else (ZONE_MOBS as any)[id] = def;
+    if (extra && extra !== ZONE_MOBS) { if (extra[id]) Object.assign(extra[id], def, { black: true }); else extra[id] = (ZONE_MOBS as any)[id]; }
   }
   for (const [id, b] of Object.entries<any>(d.body || {})) BM_BODY[id] = { ...(BM_BODY[id] || makeBody(id, b.slot)), ...b, id };
   if (Array.isArray(d.order)) { BM_ORDER.length = 0; ordIdx.clear(); for (const t of d.order) { ordIdx.set(t, BM_ORDER.length); BM_ORDER.push(t); } }
   if (Number.isFinite(d.vis)) BMM_CFG.mobVis = d.vis;
+  BMM_VER++;
 }
 export const bmxTypeAt = (idx: number) => (idx >= BMX_BASE ? BM_ORDER[idx - BMX_BASE] : undefined);
 /** случайная длительность возрождения лагеря, с */

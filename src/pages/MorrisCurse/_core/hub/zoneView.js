@@ -1,5 +1,7 @@
 import { ChestSprites } from '../engine/chestSprite.js';
 import { BmView } from './bmView.js';
+import { BmMobLayer } from './bmMobView.js'; // 👹 чёрные мобы конструктора (части тела Художника + оружие в руке)
+import { bmxTypeAt, BMX_BASE } from '../../../../../server/meta/blackMobs.ts';
 import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
 // Клиент получает только сущности рядом (AOI) раз в 200 мс, интерполирует их и рисует 2.5D-спрайтами
@@ -97,6 +99,7 @@ export class ZoneView {
     // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
     this.pfx = new ProjFx(THREE, this.root, { max: 600, glowMax: 600 });
     this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (FX atlas v2)
+    this.bmm = new BmMobLayer(THREE, this.root);
     this.bmv = new BmView(THREE, this.root); // Чёрный маг: маг, купола, стрелы, взрывы, розы, проклятая земля (hub/bmView.js)
     this.hits = [];
     this.seed = ZONE_GEN.seed;
@@ -154,9 +157,9 @@ export class ZoneView {
       const id = m[i];
       seen.add(id);
       let o = this.mobs.get(id);
-      const type = MOB_TYPES[m[i + 1]] || 'blade_fly';
+      const ti = m[i + 1], type = (ti >= BMX_BASE ? bmxTypeAt(ti) : MOB_TYPES[ti]) || 'blade_fly';
       // варианты биомов: спрайт базового Отголоска (sk) + перекраска (tint) — server/meta/biomes.ts
-      if (!o) { o = initState({ id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false, mvT: 9, hitN: false, strN: false, ph: (id * 0.618) % 1 }); this.mobs.set(id, o); }
+      if (!o) { o = initState({ id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false, mvT: 9, hitN: false, strN: false, ph: (id * 0.618) % 1 }); this.mobs.set(id, o); o.black = !!ZONE_MOBS[type]?.black; }
       if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
       o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096); o.frozen = !!(f & (1 << 22)); o.ench = (f >> 23) & 7; o.flagRaw = f;
@@ -181,6 +184,7 @@ export class ZoneView {
       else if (e.k === 'shot') { if (e.sid !== myId) this.shoot(e.x, e.y, null, e.w, e.tx, e.ty); }
       else if (e.k === 'announce') out.push({ k: 'toast', text: e.text, color: e.color });
       else if (e.k === 'crit') out.push({ k: 'float', x: e.x, y: e.y - 10, text: 'КРИТ', color: '#facc15' });
+      else if (e.k === 'die' && ZONE_MOBS[e.type]?.black) { this.bmm.die(this.mobs.get(e.id), e); this.mobs.delete(e.id); }
       else if (e.k === 'die') { this.dying.push({ type: e.type, sk: sprOf(e.type), tint: tintOf(e.type), x: e.x, y: e.y, t: 0, flip: !!this.mobs.get(e.id)?.flip, boss: !!ZONE_MOBS[e.type]?.boss }); this.mobs.delete(e.id); }
       else if (e.k === 'slam') {
         if (e.nova && !e.fx) this.teles.push({ kind: 'nova', fx: 'nova_burst', x: e.x, y: e.y, r: e.r, t: 0, life: 0.5, col: [1, 0.45, 0.55] }); // навык монстра без формы — nova_burst (тинт)
@@ -371,6 +375,17 @@ export class ZoneView {
       }
       BB?.end(); NV?.end();
     }
+    this.bmm.draw(this.mobs, T, dt, toX, toZ, (o) => { // 👹 чёрные мобы: те же оттенки, что у обычных (элита, статусы, проклятие, чары)
+      let r = o.flag === 1 ? 1.25 : 1, g = 1, bl = 1;
+      if (o.elite) { const p = 0.85 + Math.sin(T * 5 + o.id) * 0.15; r = 1.15 * p + 0.15; g = 1.0 * p + 0.05; bl = 0.75; }
+      if (o.st === 'burn') { r *= 1.3; g *= 0.85; bl *= 0.6; } else if (o.st === 'bleed') { r *= 1.3; g *= 0.7; bl *= 0.7; } else if (o.st === 'freeze') { r *= 0.75; bl = 1.6; }
+      if (o.cursed) { const p = 0.8 + Math.sin(T * 4 + o.id) * 0.2; r *= 1.1 * p + 0.2; g *= 0.55; bl *= 1.5 * p + 0.2; }
+      if (o.ench) [r, g, bl] = enchTint(o, T, r, g, bl);
+      if (o.reset) { r *= 0.6; g *= 0.6; bl *= 0.7; }
+      if (o.frozen) { r = r * 0.55 + 0.25; g = g * 0.8 + 0.35; bl = 2.1; }
+      atmo.shadow(toX(o.x), toZ(o.y), Math.max(0.45, (ZONE_MOBS[o.type]?.radius || 14) / PX * 1.1), 1);
+      return [r, g, bl];
+    });
     if (B) {
       B.begin();
       for (const o of this.mobs.values()) {
@@ -533,5 +548,5 @@ export class ZoneView {
     this.bmv.world = this.world; this.bmv.update(dt, this.view);
   }
 
-  dispose() { this.pax?.dispose(); this.root.parent?.remove(this.root); }
+  dispose() { this.bmm?.dispose(); this.pax?.dispose(); this.root.parent?.remove(this.root); }
 }

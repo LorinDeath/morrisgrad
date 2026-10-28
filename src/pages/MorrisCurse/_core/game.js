@@ -102,11 +102,13 @@ import { setMapZones, mapZonesKnown, biomeLabels } from './map/biomeLabels.js';
 import { onMarks, onMarkOk, marks as MARKS } from './map/marks.js';
 import { ArtHand, setBmParts } from './ui/bmArtUi.js';
 import { BmForgeWin } from './ui/bmForgeUi.js';
+import { applyBmmClient } from '../../../../server/meta/blackMobs.ts'; // 👹 чёрные мобы конструктора: тело/оружие/порядок индексов
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
 function applyConfig(d) {
   if (Number.isFinite(d?.ver)) configVer = d.ver;
   if (d?.bmParts && typeof d.bmParts === 'object') setBmParts(d.bmParts); // 🔥 детали оружия чёрной магии (правки/свои детали админки)
+  if (d?.bmMobs && typeof d.bmMobs === 'object') applyBmmClient(d.bmMobs, ZONE_MOBS);
   if (d?.regenCfg) globalThis.__mcRegen = d.regenCfg; // забег: восстановление в бою по настройкам админки
   for (const p of d?.patches || []) { const o = CFG_TABLES[p.kind]?.[p.id]; if (!o || !p.values) continue;
     for (const [path, v] of Object.entries(p.values)) { if (v == null || path === 'traits') continue; const ks = path.split('.'); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === 'object' ? t[k] : {}; t[ks.at(-1)] = v; } }
@@ -594,7 +596,7 @@ async function boot(canvasId, username, userId, api) {
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
     if (d.questDialogues && typeof d.questDialogues === 'object') setQuestDialogues(d.questDialogues); // диалоги-новеллы
     if (d.portal !== undefined) syncHomePortal(d.portal);
-    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg, bmParts: d.bmParts });
+    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg, bmParts: d.bmParts, bmMobs: d.bmMobs });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl, prevNeed = Number(meta.hero?.xpNeed) || 0;
