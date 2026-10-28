@@ -2,12 +2,12 @@
 // пока не открыты и не опустошены. Открытие бросает содержимое ВНУТРЬ сундука (сохраняется: повторный вход
 // покажет те же вещи); забрать/разобрать/надеть — по одной или всё; не влезло в сумку — осталось в сундуке;
 // пустой сундук исчезает. Сундук принадлежит телу, которое сдало задание (как и сама награда).
-import { BCHEST, BC_TIERS, BC_CURSE_MAX, tierOfRank, artOf, chestOdds, rollItems, countOf, rankCursePct, bcSpecCount, type BcTier, type BcSpec } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_CURSE_MAX, tierOfRank, artOf, chestOdds, rollItems, countOf, rankCursePct, bcSpecCount, upTier, type BcTier, type BcSpec } from "./boardChestCfg";
 import { ITEM_BY_ID, salvageYield, HERO_NAMES } from "./defs";
 import { addItem, addRes, equip, cryptoRand, type Account, type Hero } from "./profile";
 
 export interface BcItem { lid: number; id: string; c?: 1; e?: number; b?: number } // b — очернение %, переносится на экземпляр (InvItem.blk)
-export interface BcChest { id: number; tier: BcTier; cur?: 1; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number; em?: number } // em — потолок чар из награды задания
+export interface BcChest { id: number; tier: BcTier; cur?: 1; L: number; cat: string; rank: string; hero: string; src: string; at: number; items?: BcItem[]; n?: number; em?: number; up?: BcTier } // up — ярус до улучшения (сундук улучшился при выдаче); em — потолок чар из награды задания
 export interface BcStore { seq: number; list: BcChest[]; v?: number; op?: Record<string, number> } // op — счётчики открытых сундуков (достижения)
 const BAG = 120;
 export function chestsOf(a: Account): BcStore {
@@ -58,9 +58,10 @@ export function chestRoomErr(a: Account, need = 1): string | null {
 /** Выдать сундук за ранг задания. null — ранг без сундука или выключено. */
 export function grantChest(a: Account, hero: string, rank: string, L: number, cat: string, src: string, rnd: () => number = cryptoRand, force?: boolean): BcChest | null {
   if (BCHEST.on === false) return null;
-  const tier = tierOfRank(rank); if (!tier) return null;
+  const t0 = tierOfRank(rank); if (!t0) return null;
+  const tier = upTier(t0, BCHEST.rankUp?.[rank] || 0, BCHEST.rankUp2?.[rank] || 0, rnd); // шанс улучшиться на 1/2 яруса (админка: ранг → улучшение)
   const cur = typeof force === "boolean" ? force : rnd() * 100 < rankCursePct(rank); // проклятый вариант — отдельный бросок по рангу
-  const s = chestsOf(a); const c: BcChest = { id: ++s.seq, tier, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank, hero, src, at: Date.now() };
+  const s = chestsOf(a); const c: BcChest = { id: ++s.seq, tier, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank, hero, src, at: Date.now(), ...(tier !== t0 ? { up: t0 } : {}) };
   s.list.push(c); return c;
 }
 /** Сундуки из награды задания (админка, поле ch): ярус, уровень, потолок чар, проклятость — как задано; потолок шанса BC_CURSE_MAX. */
@@ -69,9 +70,10 @@ export function grantSpec(a: Account, hero: string, specs: BcSpec[], taskL: numb
   const s = chestsOf(a), out: BcChest[] = [];
   for (const x of specs) { if (!BCHEST.tiers[x.t]) continue;
     for (let k = 0; k < Math.min(10, x.n | 0); k++) {
+      const tier = upTier(x.t, x.u || 0, x.u2 || 0, rnd); // «шанс улучшиться до …» — бросок на сервере, на каждый сундук
       const lo = x.L || taskL, hi = x.L && x.L2 ? x.L2 : lo, L = lo + Math.floor(rnd() * (hi - lo + 1));
       const cur = x.c === "yes" ? true : typeof x.c === "number" ? rnd() * 100 < Math.min(BC_CURSE_MAX, x.c) : false;
-      const c: BcChest = { id: ++s.seq, tier: x.t, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank: "", hero, src, at: Date.now(), ...(Number.isInteger(x.e) && x.e! >= 0 ? { em: x.e } : {}) };
+      const c: BcChest = { id: ++s.seq, tier, ...(tier !== x.t ? { up: x.t } : {}), ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank: "", hero, src, at: Date.now(), ...(Number.isInteger(x.e) && x.e! >= 0 ? { em: x.e } : {}) };
       s.list.push(c); out.push(c); } }
   return out;
 }
@@ -79,7 +81,7 @@ export { bcSpecCount };
 function view(a: Account, c: BcChest) {
   const o = chestOdds(c.tier, c.L, c.cat, !!c.cur);
   return { id: c.id, tier: c.tier, cur: !!c.cur, dark: o.dark, art: artOf(c.tier, c.rank, !!c.cur), name: o.name, color: o.color, L: c.L, cat: c.cat, rank: c.rank, hero: c.hero, heroName: (HERO_NAMES as any)[c.hero] || c.hero,
-    src: c.src, at: c.at, opened: Array.isArray(c.items), items: c.items || null, odds: o };
+    src: c.src, at: c.at, ...(c.up && BCHEST.tiers[c.up] ? { upFrom: BCHEST.tiers[c.up].name } : {}), opened: Array.isArray(c.items), items: c.items || null, odds: o };
 }
 export function chestList(a: Account) {
   const s = chestsOf(a);

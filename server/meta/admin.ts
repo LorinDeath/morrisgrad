@@ -7,9 +7,9 @@ import { ZONE_GEN } from "./zoneGen";
 import { STAR_COLORS } from "./shared";
 import { itemReq } from "./profile";
 import { validateConds, COND_DEFS } from "./questConds";
-import { validatePatch, applyOverride, currentValues, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, SEC_MAIN, SEC_SEP, sectionable, sectionMap, sectionIds, secRowId, splitRowId, type Kind, type Trait } from "./overrides";
+import { validatePatch, applyOverride, currentValues, defaultDiff, SCHEMA, TABLES, TRAIT_DEFS, TRAITS, BT_FLAG_NAMES, SEC_MAIN, SEC_SEP, sectionable, sectionMap, sectionIds, secRowId, splitRowId, type Kind, type Trait } from "./overrides";
 import { copyIds, copyPatch, isCopy } from "./variantCopy";
-import { migrateBchestPatch } from "./boardChestCfg";
+import { migrateBchestPatch, bcSpecErr, bcSpecNorm } from "./boardChestCfg";
 import { BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, BT_CATS_NEW, CAT_NAMES, GIVER_NAMES, NPC_GIVERS, CUSTOM_BT } from "./board";
 import { BIOMES } from "./biomes";
 import { RECIPES, HERO_IDS, RESOURCES as RES_ALL } from "./defs";
@@ -19,7 +19,7 @@ import { QUESTS, QUEST_BY_ID, setCustomQuests, applyBuiltinOverride, questOrigin
 import { NPCS, RESOURCES } from "./shared";
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { MOB_SKILLS_LIST } from "./mobSkills";
-import { validateDialogue, dialogueEmpty, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
+import { validateDialogue, dialogueKeys, dialogueEmpty, setQuestDialogues, QUEST_DIALOGUES, VN_CHARS, VN_EMOTIONS, VN_EMOTION_NAMES, VN_LIMITS, type QuestDialogue } from "./vnChars";
 
 /** «Спавн» → локация: что будет, если поле пустое (как в коде) — подсказка вместо «—» */
 function regionDefs(r: any) {
@@ -97,13 +97,67 @@ export function validateQuest(q: any, builtin?: QuestDef): QuestDef | string {
     if (Object.keys(res).length) rewards.res = res;
   }
   if (r.blkFix != null && r.blkFix !== "" && Number(r.blkFix) !== 0) { const n = Math.round(Number(r.blkFix) * 10) / 10; if (!(n > 0 && n <= 100)) return "починка очернения: 0…100 %"; (rewards as any).blkFix = n; } // Чёрный маг: очищение надетых вещей
+  // сундуки за квест: свой список (ярус, сколько, уровень, чары, проклятость, шанс улучшения); пусто — по типу квеста
+  { const e = bcSpecErr(r.ch); if (e) return e; const ch = bcSpecNorm(r.ch); if (ch.length) rewards.ch = ch; }
+  if (r.chOff === true || r.chOff === "1") rewards.chOff = true;
+  // награды веток диалога: ключ выбора → что заменить (пустые поля — основная награда)
+  if (r.alt != null) {
+    if (typeof r.alt !== "object" || Array.isArray(r.alt)) return "награды веток: объект";
+    const ks = Object.keys(r.alt); if (ks.length > 8) return "веток с наградой не больше 8";
+    const alt: Record<string, any> = {};
+    for (const k of ks) { const v = r.alt[k] || {}, w = `ветка «${STR(v.name, 40) || k}»`, o: any = {};
+      if (!/^[a-z0-9_]{1,24}$/.test(k)) return `${w}: ключ — латиница/цифры/_ (до 24)`;
+      if (v.name) o.name = STR(v.name, 40).trim();
+      if (v.xp != null && v.xp !== "") { const n = Math.round(Number(v.xp)); if (!(n >= 0 && n <= 100000)) return `${w}: опыт 0…100000`; o.xp = n; }
+      if (v.items?.length) { if (!Array.isArray(v.items) || v.items.length > 4 || !v.items.every((i: any) => ITEM_BY_ID[i])) return `${w}: до 4 существующих предметов`; o.items = v.items.map(String); }
+      if (v.res && Object.keys(v.res).length) { if (typeof v.res !== "object" || Object.keys(v.res).length > 6) return `${w}: до 6 ресурсов`; o.res = {};
+        for (const [rk, rv] of Object.entries(v.res)) { const n = Math.round(Number(rv)); if (!RESOURCES[rk] || !(n >= 1 && n <= 999)) return `${w}: ресурс ${rk} 1…999`; o.res[rk] = n; } }
+      if (v.ch?.length) { const e = bcSpecErr(v.ch); if (e) return `${w}: ${e}`; o.ch = bcSpecNorm(v.ch); }
+      alt[k] = o; }
+    if (Object.keys(alt).length) rewards.alt = alt;
+  }
   if (builtin && (builtin.rewards as any)?.flag) (rewards as any).flag = (builtin.rewards as any).flag; // сюжетный флаг награды — не редактируется
   const lines = (v: any, n: number) => (Array.isArray(v) ? v : [v]).map((x) => STR(x, 400).trim()).filter(Boolean).slice(0, n);
   const offer = lines(q.offer, 6), done = lines(q.done, 6);
   if (!offer.length || !done.length) return "нужны окна пояснения и сдачи";
-  return { id, npc: q.npc, turnin: q.turnin || undefined, campaign: "custom", custom: true, title, chapter: STR(q.chapter, 80) || "Поручения", minLevel, requires,
+  // повторяемый (день/неделя — сброс доски), открытие после ВЕТКИ другого квеста, карточка главы
+  const repeat = q.repeat === "daily" || q.repeat === "weekly" ? q.repeat : undefined;
+  if (q.repeat && !repeat && q.repeat !== "none") return "повтор: daily / weekly / пусто";
+  if (repeat && (builtin?.auto || q.auto)) return "авто-квест (пролог) нельзя сделать повторяемым";
+  if (q.reqBranch != null && !Array.isArray(q.reqBranch)) return "условие ветки: список";
+  const reqBranch: { q: string; k: string }[] = [];
+  for (const b of (q.reqBranch || []).slice(0, 4)) { const bq = String(b?.q || ""), k = String(b?.k || "");
+    if (!bq && !k) continue;
+    if (bq === id) return "условие ветки: нельзя ссылаться на этот же квест";
+    if (!QUEST_BY_ID[bq]) return `условие ветки: нет квеста ${bq}`;
+    if (!/^[a-z0-9_]{1,24}$/.test(k)) return `условие ветки: выберите вариант выбора в «${QUEST_BY_ID[bq].title}»`;
+    reqBranch.push({ q: bq, k }); }
+  const cd = q.card || {}, card = cd.on === true || cd.on === "1" ? { on: true, t: STR(cd.t, 60).trim() || undefined, s: STR(cd.s, 90).trim() || undefined } : undefined;
+  return { id, npc: q.npc, turnin: q.turnin || undefined, campaign: "custom", custom: true, title, chapter: STR(q.chapter, 80) || builtin?.chapter || "Поручения", minLevel, requires,
+    ...(repeat ? { repeat } : {}), ...(reqBranch.length ? { reqBranch } : {}), ...(card ? { card } : {}),
     objectives, rewards, offer, progress: STR(q.progress, 300) || "…", done, lore: STR(q.lore, 2000) || undefined, hint: STR(q.hint, 200) || undefined,
     track: q.track === false || q.track === "0" ? false : true }; // отслеживание целей (мобы на карте + компас)
+}
+
+const DRAFT = "draft:";
+const draftIdOk = (id: string) => /^c_[a-z0-9_]{1,40}$/.test(id) || !!questOriginal(id);
+/** окно черновика: мягкая чистка (пустой текст можно — допишется позже), полная проверка — при публикации */
+function draftWin(w: any): any | string {
+  if (!w || typeof w !== "object" || Array.isArray(w)) return "пустое окно";
+  const S = (v: any, n: number) => String(v ?? "").slice(0, n);
+  const o: any = { who: S(w.who, 32) || "hero", emo: S(w.emo, 16) || "calm", text: S(w.text, VN_LIMITS.text) };
+  if (w.id) o.id = S(w.id, 24); if (w.go) o.go = S(w.go, 24);
+  if (Array.isArray(w.ch) && w.ch.length) o.ch = w.ch.slice(0, VN_LIMITS.choices).map((c: any) => ({ t: S(c?.t, 80), ...(c?.go ? { go: S(c.go, 24) } : {}), ...(c?.k ? { k: S(c.k, 24) } : {}) }));
+  return o;
+}
+/** ветки ↔ награды: у каждой награды ветки есть выбор с этим ключом; «открывается после ветки» ссылается на существующий выбор */
+export function questBranchErr(q: QuestDef, d: QuestDialogue | null | undefined): string | null {
+  const keys = dialogueKeys(d);
+  for (const k of Object.keys(q.rewards.alt || {})) if (!keys.includes(k)) return `награда ветки «${q.rewards.alt![k].name || k}»: в диалоге нет варианта выбора с ключом «${k}»`;
+  for (const b of q.reqBranch || []) { const bq = QUEST_BY_ID[b.q]; if (!bq) continue;
+    const ks = [...dialogueKeys(QUEST_DIALOGUES[b.q]), ...Object.keys(bq.rewards.alt || {})];
+    if (!ks.includes(b.k)) return `условие ветки: в «${bq.title}» нет выбора с ключом «${b.k}»`; }
+  return null;
 }
 
 /** черты (RPG Maker MZ-подобные эффекты) при попадании игрока: оружие + надетые предметы + навык */
@@ -311,6 +365,7 @@ export class AdminStore {
     }
     const orig = questOriginal(String(raw?.id || ""));
     const q = validateQuest(raw, orig); if (typeof q === "string") return { ok: false, err: q };
+    { const e = questBranchErr(q, dlg !== undefined ? dlg : QUEST_DIALOGUES[q.id]); if (e) return { ok: false, err: e }; }
     const before = QUEST_BY_ID[q.id] ? JSON.parse(JSON.stringify(QUEST_BY_ID[q.id])) : null;
     const row = await this.db.prepare("SELECT version FROM custom_quests WHERE id = ?").bind(q.id).first();
     const version = Number(row?.version || 0) + 1;
@@ -321,6 +376,56 @@ export class AdminStore {
     let dialogue: any = undefined;
     if (dlg) { const r = await this.saveDialogue(by, q.id, dlg); if (!r.ok) return { ok: false, err: r.err }; dialogue = r.dialogue; }
     return { ok: true, quest: orig ? { ...QUEST_BY_ID[q.id] } : q, builtin: !!orig, version, ...(dlg ? { dialogue, questId: q.id, withDialogue: true } : {}) };
+  }
+  // ── черновики квестов (большие сюжетные диалоги собираются по окну): строка custom_quests id «draft:<id квеста>», enabled = 2
+  // (живые квесты грузятся только с enabled = 1 — черновик игроку не виден); опубликован/удалён — enabled = 3. Новой таблицы не нужно.
+  async draftGet(id: string) {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    if (!draftIdOk(id)) return { ok: false, err: "id квеста: c_ + латиница/цифры/_ или сюжетный квест" };
+    const row: any = await this.db.prepare("SELECT data, version, updated_at FROM custom_quests WHERE id = ? AND enabled = 2").bind(DRAFT + id).first();
+    return { ok: true, id, draft: row ? JSON.parse(row.data) : null, version: Number(row?.version || 0), at: Number(row?.updated_at || 0) };
+  }
+  async draftList() {
+    if (!this.db) return [];
+    const r = (await this.db.prepare("SELECT id, version, updated_at FROM custom_quests WHERE enabled = 2 AND id LIKE 'draft:%'").all()).results || [];
+    return (r as any[]).map((x) => ({ id: String(x.id).slice(DRAFT.length), version: Number(x.version), at: Number(x.updated_at) }));
+  }
+  /** сохранить часть черновика: поля квеста (meta), отдельные окна (wins: фаза, номер, окно), длины фаз (len) — без проверки целостности */
+  async draftSave(by: string, m: any) {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    const id = String(m?.id || ""); if (!draftIdOk(id)) return { ok: false, err: "id квеста: c_ + латиница/цифры/_ или сюжетный квест" };
+    const row: any = await this.db.prepare("SELECT data, version FROM custom_quests WHERE id = ? AND enabled = 2").bind(DRAFT + id).first();
+    const d: any = row ? JSON.parse(row.data) : { q: { id }, d: { offer: [], done: [] } };
+    if (m.meta && typeof m.meta === "object") { const { dialogue, ...rest } = m.meta; d.q = { ...rest, id }; }
+    for (const ph of ["offer", "done"] as const) if (!Array.isArray(d.d[ph])) d.d[ph] = [];
+    for (const x of Array.isArray(m.wins) ? m.wins.slice(0, 60) : []) {
+      const ph = x?.ph === "done" ? "done" : x?.ph === "offer" ? "offer" : null, i = Math.round(Number(x?.i));
+      if (!ph || !(i >= 0 && i < VN_LIMITS.windows)) return { ok: false, err: "окно: фаза offer/done и номер 0…" + (VN_LIMITS.windows - 1) };
+      const w = draftWin(x.w); if (typeof w === "string") return { ok: false, err: `окно ${i + 1}: ${w}` };
+      while (d.d[ph].length < i) d.d[ph].push({ who: "hero", emo: "calm", text: "" });
+      d.d[ph][i] = w;
+    }
+    for (const ph of ["accept", "progress"] as const) if (m[ph] !== undefined) { const w = m[ph] ? draftWin(m[ph]) : null; if (typeof w === "string") return { ok: false, err: w }; d.d[ph] = w; }
+    if (m.len) for (const ph of ["offer", "done"] as const) { const n = Math.round(Number(m.len[ph])); if (n >= 0 && n <= VN_LIMITS.windows) d.d[ph].length = Math.min(d.d[ph].length, n); }
+    const data = JSON.stringify(d); if (data.length > 600000) return { ok: false, err: "черновик слишком большой" };
+    const version = Number(row?.version || 0) + 1;
+    await this.db.prepare("INSERT INTO custom_quests (id, data, enabled, version, updated_by, updated_at) VALUES (?, ?, 2, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, enabled = 2, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at")
+      .bind(DRAFT + id, data, version, by, Date.now()).run();
+    return { ok: true, id, version, len: { offer: d.d.offer.length, done: d.d.done.length } };
+  }
+  /** опубликовать черновик: полная проверка (квест, диалог, ветки, награды) → обычное сохранение квеста и диалога */
+  async draftPublish(by: string, id: string) {
+    const g: any = await this.draftGet(id); if (!g.ok) return g; if (!g.draft) return { ok: false, err: "черновика нет" };
+    const r: any = await this.saveQuest(by, { ...g.draft.q, id, dialogue: g.draft.d });
+    if (!r.ok) return { ...r, err: "не опубликовано: " + r.err };
+    await this.db!.prepare("UPDATE custom_quests SET enabled = 3, updated_by = ?, updated_at = ? WHERE id = ?").bind(by, Date.now(), DRAFT + id).run();
+    return { ...r, published: true };
+  }
+  async draftDiscard(by: string, id: string) {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    if (!draftIdOk(id)) return { ok: false, err: "нет такого черновика" };
+    await this.db.prepare("UPDATE custom_quests SET enabled = 3, updated_by = ?, updated_at = ? WHERE id = ? AND enabled = 2").bind(by, Date.now(), DRAFT + id).run();
+    return { ok: true, id, discarded: true };
   }
   /** сюжетный квест: удалить правку — вернуть значения из кода */
   async resetQuest(by: string, id: string) {
@@ -374,7 +479,7 @@ export class AdminStore {
     // уровень в строке списка: моб — lvl; предмет/оружие — требуемый уровень надевания itemReq = max(req, lvl);
     // навык — unlockLevel; таблица дропа — уровень моба-владельца
     const lvlOf = (k: string, id: string, o: any) => k === "btask" ? o.minLvl : k === "mob" ? o.lvl : k === "item" ? itemReq(o) : k === "skill" ? o.unlockLevel : k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.lvl : undefined;
-    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "ench" ? "✦ Зачарование: ярусы вещей и мобов, регенерация, дроп, улучшение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "npc" ? "🚶 NPC: прогулка вокруг точки появления" : k === "bmage" ? "🌑 Чёрный маг: купола, чёрная магия, очернение, розы" : k === "city" ? "🏰 Альказак: купол, безопасная зона, убийцы, вид, места NPC" : k === "pk" ? "⚔ PK-режим: отсчёт, самооборона, урон" : k === "pos" ? "📍 Вход: позиция между входами" : k === "dn" ? "🌗 День и ночь: время, цвета, огни, форс-время" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "board" ? "📋 Доска заданий: настройки, опыт, обучение, удобство" : k === "btask" ? o.title : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, part: k === "item" && o.part ? o.part : undefined, partName: k === "item" && o.part ? (TABLES.item[o.part] as any)?.name : undefined, inh: k === "item" && o.part ? !this.copyOwn.has(id) : undefined, cat: k === "btask" ? o.cat : undefined, values: currentValues(k, id) }));
+    for (const k of KINDS) ent[k] = Object.entries(TABLES[k]).map(([id, o]: [string, any]) => ({ id, name: (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.name : k === "spawn" ? "Аринар: лагеря и бродячие мобы" : k === "curse" ? "☠ Проклятие: дроп, вещи, мобы, свечение" : k === "ench" ? "✦ Зачарование: ярусы вещей и мобов, регенерация, дроп, улучшение" : k === "chest" ? "📦 Сундуки: лагерь, таймеры, вклад, отряд, стража" : k === "biome" ? `🧭 ${o.name}${o.sub ? ": " + o.sub : ""}` : k === "dash" ? "🏃 Рывок: перезарядка, неуязвимость, мигание" : k === "gather" ? "⛏ Сбор ресурсов: свечение узлов, личные узлы, восстановление" : k === "npc" ? "🚶 NPC: прогулка вокруг точки появления" : k === "bmage" ? "🌑 Чёрный маг: купола, чёрная магия, очернение, розы" : k === "city" ? "🏰 Альказак: купол, безопасная зона, убийцы, вид, места NPC" : k === "pk" ? "⚔ PK-режим: отсчёт, самооборона, урон" : k === "pos" ? "📍 Вход: позиция между входами" : k === "dn" ? "🌗 День и ночь: время, цвета, огни, форс-время" : k === "upgrade" ? "⚒ Улучшение у Петра: материалы, стоимость, статы" : k === "board" ? "📋 Доска заданий: настройки, опыт, обучение, удобство" : k === "btask" ? o.title : k === "region" ? `${o.name} · ур. ${o.lvl?.[0]}–${o.lvl?.[1]}` : null) || o.name || o.title || id, icon: o.icon || (k === "loot" || k === "boss" || k === "rare" ? (ZONE_MOBS as any)[id]?.icon || "" : ""), lvl: lvlOf(k, id, o), defs: k === "region" ? regionDefs(o) : undefined, slot: o.slot, wtype: o.wtype, part: k === "item" && o.part ? o.part : undefined, partName: k === "item" && o.part ? (TABLES.item[o.part] as any)?.name : undefined, inh: k === "item" && o.part ? !this.copyOwn.has(id) : undefined, cat: k === "btask" ? o.cat : undefined, values: currentValues(k, id), dv: defaultDiff(k, id) }));
     return {
       schema: SCHEMA, traits: TRAIT_DEFS, ent, mobSkills: MOB_SKILLS_LIST,
       quests: QUESTS.map((q) => ({ id: q.id, title: q.title, npc: q.npc, custom: !!q.custom, edited: !!(q as any).edited, requires: q.requires || [], minLevel: q.minLevel, stars: Object.values(q.rewards?.stars || {}).reduce((a: number, b: any) => a + (Number(b) || 0), 0), def: q })),

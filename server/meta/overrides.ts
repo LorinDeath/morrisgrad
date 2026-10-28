@@ -26,7 +26,7 @@ import { ENCH, ENCH_N } from "./enchant";
 // шанс проклятого моба, % — живёт в ZONE_GEN.cursedPct (там его читают зона и тесты); правится во вкладке «☠ Проклятие» (curse.cursedPct)
 if (!Object.getOwnPropertyDescriptor(CURSE, "cursedPct")) Object.defineProperty(CURSE, "cursedPct", { get: () => ZONE_GEN.cursedPct, set: (v: number) => { ZONE_GEN.cursedPct = v; }, enumerable: true });
 import { CHEST } from "./chests";
-import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, BC_CURSE_MAX, bchestErr, bcSpecErr, bcSpecNorm } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, BC_RANKS, BC_CATS, BC_CAT_NAMES, BC_RARS, BC_ART, BC_ENCH_CAP, BC_CURSE_MAX, bchestErr, bcSpecErr, bcSpecNorm, QDEF_NAMES } from "./boardChestCfg";
 import { RARITIES as RAR_NAMES } from "./shared";
 import { UPG, UPG_ORDER } from "./upgrade";
 import { prepXp, prepAllXp, BOARD_CFG, BTASKS, GIVERS, GIVER_NAMES, CATS, CAT_NAMES, isEnchFlag, syncBoardCols, NPC_GIVERS, CUSTOM_BT, BT_CATS_NEW, BT_EVS, BT_STATES, BT_ROLE_NAMES, ROOM_NAMES, makeBtask, delBtask, RANKS, RANK_CATS, BONUS_NAMES, reindexBtasks, type Cat } from "./board";
@@ -35,7 +35,7 @@ import { RECIPES, HERO_IDS } from "./defs";
 import { WORLD_NAMES } from "./mobHome";
 
 export type Kind = "bchest" | "mob" | "weapon" | "item" | "skill" | "loot" | "spawn" | "boss" | "rare" | "region" | "curse" | "chest" | "dash" | "biome" | "upgrade" | "gather" | "npc" | "ench" | "bmage" | "light" | "ui" | "terrain" | "city" | "pk" | "pos" | "dn" | "gfx" | "board" | "btask";
-export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext" | "chests"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string> }
+export interface Field { path: string; label: string; t: "hdr" | "int" | "num" | "bool" | "enum" | "skills" | "resmap" | "color" | "text" | "ltext" | "chests"; min?: number; max?: number; opts?: string[]; optl?: { id: string; name: string; group: string }[]; optn?: Record<string, string>; h?: string } // h — короткая подсказка (что делает, единицы); диапазон и «по умолчанию» админка допишет сама
 export interface TraitParam { k: string; label: string; min: number; max: number; def: number }
 export const TRAIT_DEFS: Record<string, { name: string; params: TraitParam[] }> = {
   burn: { name: "Поджог", params: [{ k: "chance", label: "Шанс, %", min: 0, max: 100, def: 25 }, { k: "dpsPct", label: "Урон/с, % удара", min: 1, max: 200, def: 15 }, { k: "dur", label: "Длит., с", min: 0.5, max: 20, def: 3 }] },
@@ -373,10 +373,22 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     ...BC_RANKS.map((r): Field => ({ path: `rankTier.${r}`, label: `Ранг ${r}`, t: "enum", opts: [...BC_TIERS], optn: Object.fromEntries(BC_TIERS.map((t) => [t, BCHEST.tiers[t].name])) })),
     { path: "_h_bc1c", label: "Ранг → шанс, что сундук — ПРОКЛЯТЫЙ вариант своего яруса (тот же потолок чар, больше проклятых вещей), %; не больше 30 %, чёрные проклятые вещи — только в «Чёрном проклятом»", t: "hdr" },
     ...BC_RANKS.map((r): Field => N(`rankCurse.${r}`, `Ранг ${r}: проклятый сундук, % (не больше ${BC_CURSE_MAX})`, 0, BC_CURSE_MAX)),
+    { path: "_h_bc1u", label: "Ранг → шанс, что сундук УЛУЧШИТСЯ при выдаче (бросок на сервере): на 1 ярус / сразу на 2 яруса, %", t: "hdr" },
+    ...BC_RANKS.flatMap((r): Field[] => [{ ...N(`rankUp.${r}`, `Ранг ${r}: улучшение на 1 ярус, %`, 0, 100), h: "Шанс, что сундук ранга станет на ярус лучше (простой → добротный). Сумма с «на 2 яруса» — не больше 100 %." },
+      { ...N(`rankUp2.${r}`, `Ранг ${r}: улучшение сразу на 2 яруса, %`, 0, 100), h: "Шанс прыжка через ярус (простой → редкий). Бросается первым." }]),
+    { path: "_h_bc1r", label: "Сундук ЗА РАНГ по разделам доски (выкл. — только сундук задания: своё поле «Сундуки» или по типу ниже)", t: "hdr" },
+    ...BC_CATS.map((c): Field => ({ path: `rankChest.${c}`, label: `${BC_CAT_NAMES[c]}: случайный сундук за ранг`, t: "bool", h: c === "hunt" ? "Охота: по умолчанию выключено — вместо случайного сундука ранга выдаётся сундук задания (тип «Заказ»)." : "Вкл. — за сданное задание с рангом выдаётся сундук яруса ранга (как раньше)." })),
+    { path: "_h_bc1q", label: "Сундук по ТИПУ квеста (наследуется, если у квеста/задания нет своего поля «Сундуки» и не стоит «без сундука»)", t: "hdr" },
+    ...Object.keys(BCHEST.qdef).flatMap((k): Field[] => [
+      { ...N(`qdef.${k}.n`, `${QDEF_NAMES[k] || k}: сколько сундуков`, 0, 10, "int"), h: "0 — без сундука по умолчанию. Свой список «Сундуки» у квеста заменяет это значение." },
+      { path: `qdef.${k}.t`, label: `${QDEF_NAMES[k] || k}: ярус`, t: "enum", opts: [...BC_TIERS], optn: Object.fromEntries(BC_TIERS.map((t) => [t, BCHEST.tiers[t].name])), h: "Базовый ярус сундука до броска улучшения." },
+      { ...N(`qdef.${k}.u`, `${QDEF_NAMES[k] || k}: улучшение на 1 ярус, %`, 0, 100), h: "«Шанс улучшиться до …» следующего яруса. Показывается игроку в окне квеста." },
+      { ...N(`qdef.${k}.u2`, `${QDEF_NAMES[k] || k}: улучшение на 2 яруса, %`, 0, 100), h: "Шанс прыжка через ярус. Сумма с «на 1 ярус» ≤ 100 %." }]),
     { path: "_h_bc1a", label: "Вид сундука по рангу — только если нужно отличие от яруса (по умолчанию «как у яруса»: вид = содержимое)", t: "hdr" },
     ...BC_RANKS.map((r): Field => ({ path: `rankArt.${r}`, label: `Ранг ${r} — вид`, t: "enum", ...{ opts: ["", ...BC_ART], optn: { "": "как у яруса", ...Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) } } })),
     { path: "_h_bc2", label: "Сколько вещей (от/до) по разделам", t: "hdr" },
     ...BC_CATS.flatMap((c) => [N(`count.${c}.min`, `${BC_CAT_NAMES[c]}: вещей от`, 1, 200, "int"), N(`count.${c}.max`, `${BC_CAT_NAMES[c]}: вещей до`, 1, 200, "int")]),
+    { ...N("count.quest.min", "Сюжетные и свои квесты: вещей от", 1, 200, "int"), h: "Сколько вещей выпадает при открытии сундука за квест у NPC (минимум)." }, { ...N("count.quest.max", "Сюжетные и свои квесты: вещей до", 1, 200, "int"), h: "Максимум вещей в сундуке за квест у NPC." },
     ...BC_TIERS.flatMap((t): Field[] => [
       { path: `_h_bct_${t}`, label: `Ярус: ${BCHEST.tiers[t].name}`, t: "hdr" },
       { path: `tiers.${t}.name`, label: "Название", t: "text" }, { path: `tiers.${t}.art`, label: "Анимация и иконка (рисунок художника)", t: "enum", opts: [...BC_ART], optn: Object.fromEntries(BC_ART.map((k) => [k, (k.startsWith("cursed_") ? "проклятый " : "") + (RAR_NAMES[k.replace("cursed_", "")]?.name || k)])) }, { path: `tiers.${t}.color`, label: "Цвет", t: "color" },
@@ -446,7 +458,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("minT", "Забег не короче, с", 0, 3600, "int"),
     ...[0, 1, 2, 3, 4].flatMap((i) => [N(`n.${i}`, `Ступень ${i + 1}: сколько (0 — нет)`, 0, 1000000, "int"), N(`d.${i}`, `Ступень ${i + 1}: сложность 1–5`, 0, 5, "int")]),
     { path: "res", label: "Материалы за ступень (× номер ступени)", t: "resmap" }, { path: "item", label: "Предмет за последнюю ступень (id)", t: "text" },
-    { path: "ch", label: "Сундуки за последнюю ступень (ярус, сколько, уровень вещей, потолок чар, проклятость)", t: "chests" },
+    { path: "ch", label: "Сундуки за последнюю ступень (ярус, сколько, уровень вещей, потолок чар, проклятость, шанс улучшения)", t: "chests", h: "Пусто — сундук по типу задания (🎁 Сундуки наград → «Сундук по типу квеста»)." },
+    { path: "chOff", label: "Без сундука (не выдавать даже сундук по типу)", t: "bool", h: "Вкл. — за задание сундук не выдаётся совсем." },
     { path: "auto", label: "Обучение: засчитать само (lvl:5, equipped:1…)", t: "text" },
     { path: "hidden", label: "Скрытое («???» до выполнения)", t: "bool" },
     { path: "hint", label: "Скрытое: подсказка до выполнения (необязательно; пусто — «Условие откроется, когда вы его выполните»)", t: "ltext" },
@@ -636,6 +649,13 @@ function applyOverride0(kind: Kind, id: string, patch: any | null) {
     else if (!SCHEMA[kind].fields.some((f) => f.path === p)) continue; // старые поля из D1 (например, статус типа оружия) — игнорируются
     else setP(o, p, v);
   }
+}
+/** значения из кода (до правок D1) для полей, где правка их меняет: админка показывает «по умолчанию: …» */
+export function defaultDiff(kind: Kind, id: string): Record<string, any> | undefined {
+  const orig = ORIG.get(kind + ":" + id), o = TABLES[kind]?.[id]; if (!orig || !o || kind === "loot") return undefined;
+  const out: Record<string, any> = {};
+  for (const [p, v] of Object.entries(orig)) if (JSON.stringify(v) !== JSON.stringify(getP(o, p) ?? null)) out[p] = v;
+  return Object.keys(out).length ? out : undefined;
 }
 export function currentValues(kind: Kind, id: string) {
   const o = TABLES[kind][id]; if (!o) return null;

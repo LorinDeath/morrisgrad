@@ -31,10 +31,14 @@ export const vnIcon = (id: string) => `${VN_BASE}/${id}/icon.webp`;
 /** иконка NPC мира (квестодатель) → персонаж VN, если арт есть */
 export const npcVnChar = (npc: string) => Object.values(VN_CHARS).find((c) => c.npc === npc)?.id || (npc === "leyr_echo" ? "leyr" : undefined);
 
-export interface VnWindow { who: string; emo: VnEmotion; text: string }
+/** окно новеллы. id — метка для переходов; go — после окна перейти к метке («end» — конец фазы); ch — выбор игрока (2…4 варианта):
+ *  вариант t — текст кнопки, go — к какому окну (пусто — следующее), k — ключ ветки (награда rewards.alt[k] и открытие квестов «после ветки») */
+export interface VnChoice { t: string; go?: string; k?: string }
+export interface VnWindow { who: string; emo: VnEmotion; text: string; id?: string; go?: string; ch?: VnChoice[] }
 /** поток квеста: offer — окна пояснения → accept — окно получения (цели+награда, «Взять») → progress — «В процессе» → done — окна сдачи («Сдать» на последнем) */
 export interface QuestDialogue { offer: VnWindow[]; accept?: VnWindow | null; progress?: VnWindow | null; done: VnWindow[] }
-export const VN_LIMITS = { windows: 30, text: 500 };
+export const VN_LIMITS = { windows: 250, text: 500, choices: 4 };
+const LBL = /^[a-z0-9_]{1,24}$/;
 
 /** серверная проверка диалога из админки: известный говорящий и эмоция, лимиты длины. Возвращает чистую копию или ошибку. */
 function cleanWin(w: any, label: string, allowEmpty = false): VnWindow | string | null {
@@ -47,8 +51,40 @@ function cleanWin(w: any, label: string, allowEmpty = false): VnWindow | string 
   const text = String(w.text || "").replace(/\r/g, "").trim();
   if (!text && !allowEmpty) return `${label}: пустой текст`;
   if (text.length > VN_LIMITS.text) return `${label}: текст длиннее ${VN_LIMITS.text}`;
-  return { who, emo: emo as VnEmotion, text };
+  const o: VnWindow = { who, emo: emo as VnEmotion, text };
+  if (w.id != null && w.id !== "") { const id = String(w.id); if (!LBL.test(id) || id === "end") return `${label}: метка — латиница/цифры/_ (до 24)`; o.id = id; }
+  if (w.go != null && w.go !== "") { const g = String(w.go); if (!LBL.test(g)) return `${label}: переход — метка окна или end`; o.go = g; }
+  if (w.ch != null && !(Array.isArray(w.ch) && !w.ch.length)) {
+    if (!Array.isArray(w.ch) || w.ch.length < 2 || w.ch.length > VN_LIMITS.choices) return `${label}: вариантов выбора 2…${VN_LIMITS.choices}`;
+    o.ch = [];
+    for (const [j, c] of w.ch.entries()) { const t = String(c?.t || "").trim().slice(0, 80), g = String(c?.go || ""), k = String(c?.k || "");
+      if (!t) return `${label}, вариант ${j + 1}: нужен текст кнопки`;
+      if (g && !LBL.test(g)) return `${label}, вариант ${j + 1}: переход — метка окна или end`;
+      if (k && !LBL.test(k)) return `${label}, вариант ${j + 1}: ключ ветки — латиница/цифры/_ (до 24)`;
+      o.ch.push({ t, ...(g ? { go: g } : {}), ...(k ? { k } : {}) }); }
+  }
+  return o;
 }
+/** проверка графа фазы (offer/done): метки уникальны, переходы ведут к существующим окнам, конец достижим, все окна достижимы */
+export function dialogueGraphErr(ws: VnWindow[], ph: string): string | null {
+  const name = ph === "done" ? "сдача" : "пояснение", ids = new Map<string, number>();
+  for (const [i, w] of ws.entries()) if (w.id) { if (ids.has(w.id)) return `${name}: метка «${w.id}» повторяется (окна ${ids.get(w.id)! + 1} и ${i + 1})`; ids.set(w.id, i); }
+  const tgt = (g: string | undefined, i: number) => (!g ? i + 1 : g === "end" ? ws.length : ids.get(g) ?? -1);
+  for (const [i, w] of ws.entries()) {
+    if (w.go && tgt(w.go, i) < 0) return `${name}, окно ${i + 1}: переход к несуществующей метке «${w.go}»`;
+    for (const [j, c] of (w.ch || []).entries()) if (c.go && tgt(c.go, i) < 0) return `${name}, окно ${i + 1}, вариант ${j + 1}: ветка ведёт к несуществующей метке «${c.go}»`;
+  }
+  if (!ws.length) return null;
+  const seen = new Set<number>(), st = [0]; let end = false;
+  while (st.length) { const i = st.pop()!; if (i >= ws.length) { end = true; continue; } if (seen.has(i)) continue; seen.add(i);
+    const w = ws[i]; if (w.ch?.length) for (const c of w.ch) st.push(tgt(c.go, i)); else st.push(tgt(w.go, i)); }
+  if (!end) return `${name}: диалог зациклен — из окна 1 нельзя дойти до конца`;
+  const lost = ws.map((_, i) => i).filter((i) => !seen.has(i));
+  if (lost.length) return `${name}: окна ${lost.slice(0, 6).map((i) => i + 1).join(", ")}${lost.length > 6 ? "…" : ""} недостижимы (нет перехода к их метке)`;
+  return null;
+}
+/** ключи веток, которые можно выбрать в диалоге */
+export const dialogueKeys = (d: QuestDialogue | null | undefined) => [...new Set([...(d?.offer || []), ...(d?.done || [])].flatMap((w) => (w.ch || []).map((c) => c.k).filter(Boolean) as string[]))];
 /** серверная проверка диалога из админки: известный говорящий и эмоция, лимиты длины. Возвращает чистую копию или ошибку. */
 export function validateDialogue(d: any): QuestDialogue | string {
   if (!d || typeof d !== "object" || Array.isArray(d)) return "диалог: нужен объект";
@@ -60,8 +96,10 @@ export function validateDialogue(d: any): QuestDialogue | string {
     for (let i = 0; i < arr.length; i++) { const w = cleanWin(arr[i], `окно ${i + 1}`); if (typeof w === "string") return w; if (w) out[ph].push(w); }
   }
   // окно получения: текст может быть пустым (покажем цели и награду); «В процессе» с пустым текстом — нет окна
-  const acc = cleanWin(d.accept, "окно получения", true); if (typeof acc === "string") return acc; if (acc) out.accept = acc;
-  const pr = cleanWin(d.progress, "окно «В процессе»", true); if (typeof pr === "string") return pr; if (pr && pr.text) out.progress = pr;
+  for (const ph of ["offer", "done"] as const) { const e = dialogueGraphErr(out[ph], ph); if (e) return e; }
+  const plain = (w: VnWindow) => ({ who: w.who, emo: w.emo, text: w.text }); // окна получения и «В процессе» — без выбора
+  const acc = cleanWin(d.accept, "окно получения", true); if (typeof acc === "string") return acc; if (acc) out.accept = plain(acc);
+  const pr = cleanWin(d.progress, "окно «В процессе»", true); if (typeof pr === "string") return pr; if (pr && pr.text) out.progress = plain(pr);
   return out;
 }
 export const dialogueEmpty = (d: QuestDialogue) => !d.offer.length && !d.done.length && !d.accept && !d.progress;

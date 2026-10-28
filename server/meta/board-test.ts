@@ -257,7 +257,7 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
 
 // сундук за ранговое задание: карточка знает ярус и шанс проклятого (от сервера, с правками админки); потолок хранилища
 { const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const st: any = boardClient(a, h); const ids = Object.keys(st.roll || {});
-  const bad = ids.filter((id) => { const R = st.roll[id], t = BTASKS[id], c = st.bc[id]; const want = !!tierOfRank(R.r) && ["daily", "weekly", "monthly", "hard", "hunt"].includes(t.cat);
+  const bad = ids.filter((id) => { const R = st.roll[id], t = BTASKS[id], c = st.bc[id]; const want = !!tierOfRank(R.r) && ["daily", "weekly", "monthly", "hard", "hunt"].includes(t.cat) && BCHEST.rankChest?.[t.cat] !== false; // охота: по умолчанию без сундука ранга (сундук по типу «Охота»)
     if (!want) return !!c; const T = BCHEST.tiers[tierOfRank(R.r)!]; return !c || c.n !== T.name || c.cp !== rankCursePct(R.r) || c.cp > 30; });
   ok(ids.length > 0 && !bad.length, `сундук в карточке у ${ids.length} ранговых заданий: ярус и шанс проклятого по рангу`, bad.slice(0, 3));
   const exp: Record<string, number> = { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 }; ok(Object.entries(exp).every(([r, v]) => rankCursePct(r) === v), "шанс проклятого F30 E25 D20 C15 B12 A10 S5 SS2");

@@ -28,10 +28,16 @@ export interface QuestDef {
   auto?: boolean; // сдаётся автоматически (пролог)
   track?: boolean; // отслеживание целей-мобов (подсветка на карте/мини-карте + компас); false — выключено в админке
   objectives: Objective[];
-  rewards: { xp?: number; stars?: Record<string, number>; items?: string[]; res?: Record<string, number>; flag?: string };
+  rewards: QuestRewards & { flag?: string; stars?: Record<string, number>; chOff?: boolean;
+    alt?: Record<string, QuestRewards & { name?: string }> }; // alt — награда ветки (ключ = выбор в окне диалога): заполненные поля заменяют основные
   offer: string[]; progress: string; done: string[];
   hint?: string;
+  card?: { on?: boolean; t?: string; s?: string }; // карточка главы перед диалогом: «Глава первая» + подзаголовок (пусто — из «Главы»)
+  repeat?: "daily" | "weekly"; // повторяемый: снова доступен в новый день/неделю (сброс доски, Киев)
+  reqBranch?: { q: string; k: string }[]; // открывается после ВЕТКИ: в квесте q выбран вариант k (и квест сдан)
 }
+/** награда квеста: опыт, предметы, ресурсы, сундуки (BcSpec[]; пусто — по типу квеста, BCHEST.qdef) */
+export interface QuestRewards { xp?: number; items?: string[]; res?: Record<string, number>; ch?: { n: number; t: any; L?: number; L2?: number; e?: number; c?: any; u?: number; u2?: number }[] }
 
 export const QUESTS: QuestDef[] = [
   // ---------------- Пролог «Как детализировано» (Поляна перевоплощения = хаб) ----------------
@@ -148,7 +154,7 @@ export function setCustomQuests(list: QuestDef[]) {
 // правки СЮЖЕТНЫХ квестов из админ-панели: поверх значений из кода, id не меняется (прогресс игроков сохраняется).
 // Объект квеста мутируется на месте — ссылки QUEST_BY_ID/QUESTS остаются теми же; null — вернуть исходное.
 const QUEST_ORIG = new Map<string, QuestDef>();
-export const QUEST_EDITABLE = ["title", "chapter", "npc", "turnin", "minLevel", "requires", "objectives", "rewards", "offer", "progress", "done", "lore", "hint"] as const;
+export const QUEST_EDITABLE = ["title", "chapter", "npc", "turnin", "minLevel", "requires", "objectives", "rewards", "offer", "progress", "done", "lore", "hint", "card", "repeat", "reqBranch"] as const;
 export function questOriginal(id: string): QuestDef | undefined { const q = QUEST_BY_ID[id]; if (!q || q.custom) return undefined; return QUEST_ORIG.get(id) || q; }
 export function applyBuiltinOverride(id: string, patch: Partial<QuestDef> | null) {
   const q = QUEST_BY_ID[id]; if (!q || q.custom) return;
@@ -160,4 +166,12 @@ export function applyBuiltinOverride(id: string, patch: Partial<QuestDef> | null
 }
 export function builtinOverrides(): Partial<QuestDef>[] { return QUESTS.filter((q: any) => !q.custom && q.edited).map((q) => { const o: any = { id: q.id }; for (const k of QUEST_EDITABLE) o[k] = (q as any)[k]; return o; }); }
 export const turninNpc = (q: QuestDef) => q.turnin || q.npc;
+/** тип квеста для сундука по умолчанию (BCHEST.qdef, админка «🎁 Сундуки наград») */
+export function questType(q: QuestDef): string {
+  if (q.repeat) return q.repeat === "weekly" ? "rep_weekly" : "rep_daily";
+  if (q.campaign === "prologue") return "prologue";
+  if (q.campaign === "leyr" || q.campaign === "alzi") return "story";
+  if (q.campaign === "star") return q.star === "red" ? "star_red" : q.star === "purple" ? "star_purple" : "star_yellow";
+  return q.campaign; // joint, exam, black, custom
+}
 export const CAMPAIGN_NAMES: Record<string, string> = { custom: "Поручения", prologue: "Пролог", leyr: "Лэйр · «Чувствовать»", alzi: "Алзи · «Держать мир»", joint: "Совместная · «Гул»", star: "Звёздные квесты", exam: "Экзамены", black: "Чёрная звезда" };
