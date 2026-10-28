@@ -102,6 +102,6 @@ function d1() {
   await A.draftSave("t", { id: "c_saga", meta: { ...meta, title: "Сага (правка)" } }); ok(QUEST_BY_ID.c_saga.title === "Сага", "новый черновик не трогает живой квест");
   await A.draftDiscard("t", "c_saga"); ok(!(await A.draftGet("c_saga")).draft && QUEST_BY_ID.c_saga.title === "Сага", "черновик удалён, живой квест цел");
   const B = new AdminStore(D); await B.sync(true); ok(QUEST_BY_ID.c_saga && !QUEST_BY_ID["draft:c_saga"], "после перезагрузки: живой квест есть, черновиков среди квестов нет");
-  ok(validMsg({ t: "quest_choice", id: "c_choice", ph: "offer", wi: 0, ci: 1 }) && validMsg({ t: "admin_qdraft_save", id: "c_saga", wins: [] }), "сообщения quest_choice / admin_qdraft_save проходят схему");
+  ok(validMsg({ type: "quest_choice", id: "c_choice", ph: "offer", wi: 0, ci: 1 }) && validMsg({ type: "admin_qdraft_save", id: "c_saga", wins: [] }) && !validMsg({ type: "quest_choice", id: "c_choice", ph: "offer", wi: "0", ci: 1 }), "сообщения quest_choice / admin_qdraft_save проходят схему");
   console.log(f ? `FAILED ${f}` : "quest-chest ok"); if (f) process.exit(1);
 })();

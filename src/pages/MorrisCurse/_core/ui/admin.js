@@ -8,7 +8,15 @@ import { perfHtml, mountPerf } from './perfTab.js';
 import { statIcon } from './statIcons.js';
 import { questFlow } from '../../../../../server/meta/vnChars.ts';
 import { RARITIES, SLOTS } from '../../../../../server/meta/shared.ts';
-import { btTopItems, btaskForm, poolsForm, BT_CSS, isCustom } from './adminBtask.js';
+import { btTopItems, btaskForm, poolsForm, BT_CSS, isCustom, chestsHtml, chestsBind } from './adminBtask.js';
+import { chapterCard } from './dialog.js';
+import { BC_TIERS, BCHEST } from '../../../../../server/meta/boardChestCfg.ts';
+
+/** тип квеста для сундука по умолчанию (как questType на сервере) */
+const qTypeOf = (q) => (q.repeat ? (q.repeat === 'weekly' ? 'rep_weekly' : 'rep_daily') : q.campaign === 'prologue' ? 'prologue' : q.campaign === 'leyr' || q.campaign === 'alzi' ? 'story' : q.campaign === 'star' ? (q.star === 'red' ? 'star_red' : q.star === 'purple' ? 'star_purple' : 'star_yellow') : q.campaign || 'custom');
+/** ключи веток выбора в диалоге (окна пояснения и сдачи) */
+const dlgKeys = (d) => [...new Set([...(d?.offer || []), ...(d?.done || [])].flatMap((w) => (w?.ch || []).map((c) => c.k).filter(Boolean)))];
+const DRAFT_CHUNK = 14000, DRAFT_GAP_MS = 360;
 
 // краткое описание предмета для пикера наград квеста (уровень, редкость, слот, статы)
 const ITEM_STAT_RU = {
@@ -138,11 +146,34 @@ const css = `
 .mc-admin .pick .pi{display:flex;flex-direction:column;gap:1px;border-bottom:1px solid #1d1530;padding:4px 6px!important}
 .mc-admin .pick .pi .meta{color:#9a8bb8;font-size:10px;line-height:1.3;padding-left:12px}
 
+.mc-admin label.fl{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;padding:3px 6px}.mc-admin label.fl .fn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.mc-admin label.fl .fh{grid-column:1/-1;color:#9a8bb8;font-size:10.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mc-admin label.fl:hover{border-color:#6b4fa0}.mc-admin label.fl:hover .fh{-webkit-line-clamp:unset;color:#c4b5fd}.mc-admin label.fl.hit{border-color:#c59b27;background:#1c1430}
+.mc-admin label.fl[style*="grid-column"]{grid-template-columns:1fr}.mc-admin .ed{color:#fbbf24;font-style:normal}
+.mc-admin .sechd{border-bottom:1px solid #3b2a12!important;padding-bottom:3px!important;position:sticky;top:-10px;background:rgba(10,7,20,.96)!important;z-index:2}.mc-admin .sechd .fh{flex-basis:100%;color:#9a8bb8;font-size:10.5px}
+.mc-admin .sechd .tg{background:none;border:0;color:#c59b27;cursor:pointer;font:inherit;padding:0 2px;width:16px}
+.mc-admin .ffind{display:flex;gap:6px;align-items:center;margin:0 0 8px;position:sticky;top:-10px;z-index:3;background:rgba(10,7,20,.97);padding:4px 0}.mc-admin .ffind input{flex:1;min-width:160px;padding:5px 8px;border-color:#5b4416}
+.mc-admin .grid{gap:4px 10px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.mc-admin .qsec{border:1px solid #3b2c52;border-radius:8px;margin:8px 0;background:#110b1e}.mc-admin .qsec>summary{cursor:pointer;padding:6px 10px;color:#fde68a;font-weight:bold;list-style:none}.mc-admin .qsec>summary::before{content:'▸ ';color:#c59b27}.mc-admin .qsec[open]>summary::before{content:'▾ '}
+.mc-admin .qsec>summary small{color:#9a8bb8;font-weight:normal}.mc-admin .qsec>.in{padding:4px 10px 10px}.mc-admin .bt-chdef{margin:4px 0;color:#a7f3d0;font-size:12px}.mc-admin .bt-chdef.off{color:#9a8bb8}
+.mc-admin .vnch{display:flex;flex-direction:column;gap:3px;margin-top:4px;border-left:2px solid #c59b27;padding-left:6px}.mc-admin .vnch div{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.mc-admin .vnch input{width:auto}
+.mc-admin .vnw .lbl{display:flex;gap:4px;align-items:center;font-size:11px;color:#9a8bb8}.mc-admin .vnw .lbl input{width:90px}.mc-admin .vnw.dirty{border-color:#fbbf24}.mc-admin .vnw.saved{border-color:#22c55e}
+.mc-admin .qdraft{display:flex;gap:6px;flex-wrap:wrap;align-items:center;border:1px dashed #c59b27;border-radius:8px;padding:6px 8px;margin:8px 0;background:rgba(197,155,39,.06)}.mc-admin .qdraft .st{color:#fde68a}
+.mc-admin .altr{display:grid;grid-template-columns:100px 1fr 90px 1fr;gap:4px 8px;align-items:center;border-bottom:1px dashed #2c2145;padding:4px 0}
+.mc-admin .chk{display:inline-flex;gap:4px;align-items:center;background:none;border:0;padding:0}
 @media (max-width:760px){.mc-admin main{flex-direction:column}.mc-admin aside{width:auto;max-height:34vh;border-right:0;border-bottom:1px solid #3b2c52}}
 `;
 
 const SLOT_ORDER = ['', 'helmet', 'armor', 'hands', 'legs', 'boots', 'ring', 'amulet', 'paws', 'consumable', 'quest', '__res'];
 const SLOT_NAMES = { helmet: '⛑ Шлемы', armor: '🛡 Броня (тело)', hands: '🧤 Перчатки', legs: '👖 Поножи', boots: '👢 Обувь', ring: '💍 Кольца', amulet: '📿 Амулеты', paws: '🐾 Лапы', consumable: '🧪 Расходники', quest: '📜 Квестовые', __res: '🪨 Материалы' };
+/** короткая подсказка поля по-русски: что делает (f.h), единицы/диапазон, умолчание из кода. Пустых подсказок нет — минимум диапазон. */
+export function fieldHint(f, def) {
+  const unit = /%/.test(f.label) ? ' %' : /, с\b|сек/.test(f.label) ? ' с' : '';
+  const rng = f.t === 'int' || f.t === 'num' ? (f.min != null || f.max != null ? `${f.min ?? '…'}…${f.max ?? '…'}${unit}` : '') : f.t === 'bool' ? 'вкл/выкл' : f.t === 'enum' ? `${(f.opts || f.optl || []).length} вариантов` : f.t === 'text' ? 'до 48 символов' : f.t === 'ltext' ? 'до 160 символов' : '';
+  const dv = def == null || def === '' ? '' : `по умолчанию ${f.t === 'bool' ? (def === true || def === 'true' || def === 1 ? 'вкл' : 'выкл') : f.optn?.[def] || def}${unit && typeof def !== 'boolean' ? unit : ''}`;
+  return [f.h, [rng, dv].filter(Boolean).join(' · ')].filter(Boolean).join(' — ');
+}
+
 export class AdminPanel {
   // окно ВНУТРИ игрового контейнера (работает в полноэкранном режиме, игра рисуется позади): перетаскивание за шапку,
   // изменение размера за угол, Esc — закрыть; на телефоне — лист на весь игровой экран
@@ -219,6 +250,7 @@ export class AdminPanel {
   secMark(sec, t, err) { const k = sec ?? this.secCur; if (!this.el || k == null) return; const n = this.el.querySelector(`[data-smsg="${CSS.escape(k)}"]`); if (n) { n.textContent = t; n.className = 'smsg' + (err ? ' err' : ' ok'); } }
   onCatalog(d) { this.cat = d; clearTimeout(this.openT); this.errBox?.close(); this.errBox = null; this.render(); }
   onResult(r) {
+    if (r.op === 'qdraft_save' || r.op === 'qdraft' || r.op === 'qdraft_discard' || r.op === 'qdraft_list' || (r.op === 'reject' && this.draftQ)) { this.onDraftResult(r); return; }
     if (r.sec != null || this.secQ) { if (this.onSecResult(r)) return; }
     if (!r.ok) { this.msg('✖ ' + (r.err || 'ошибка'), true); return; }
     if (!this.cat) { if (r.op === 'dialogue' || (r.op === 'quest' && r.withDialogue)) this.onDialogueApplied?.(r); if (r.op === 'quest' && r.quest) this.onQuestApplied?.(r); return; } // каталог не загружен (окно закрыто; правка из плейтеста/другой вкладки) — без падения
@@ -233,6 +265,7 @@ export class AdminPanel {
     // копии трофеев вариантов: правка базы сразу меняет наследующие копии; своя правка копии — «своя строка»
     if (Array.isArray(r.copies)) for (const c of r.copies) { const e = this.cat.ent?.item?.find((x) => x.id === c.id); if (e) { e.values = c.values; e.inh = c.inh; e.lvl = c.lvl; } }
     if (r.op === 'quest' && r.withDialogue) { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
+    if (r.op === 'quest') { this.qx = null; if (r.published) this.dStat = { key: r.quest?.id, t: '✔ опубликовано' }; }
     if (r.op === 'quest' && r.quest) { this.onQuestApplied?.(r); const i = this.cat.quests.findIndex((x) => x.id === r.quest.id); const row = { id: r.quest.id, title: r.quest.title, npc: r.quest.npc, custom: !r.builtin, edited: r.builtin && !r.reset, requires: r.quest.requires || [], minLevel: r.quest.minLevel, stars: Object.values(r.quest.rewards?.stars || {}).reduce((a, b) => a + b, 0), def: r.quest }; if (i >= 0) this.cat.quests[i] = row; else this.cat.quests.push(row); this.sel = r.quest.id; }
     if (r.op === 'dialogue') { this.onDialogueApplied?.(r); if (this.cat.vn) { if (r.dialogue) this.cat.vn.dialogues[r.questId] = r.dialogue; else delete this.cat.vn.dialogues[r.questId]; } this.vnDraft = null; }
     if (r.op === 'quest_delete') { this.cat.quests = this.cat.quests.filter((x) => x.id !== r.id); this.sel = null; }
@@ -410,7 +443,7 @@ export class AdminPanel {
     // поля до первого заголовка (и черты) — раздел «Основное»: свой заголовок с кнопкой, если в форме есть разделы
     const mainHdr = secOn && hasHdr && S.fields[0]?.t !== 'hdr' ? `<div class="box sechd" style="grid-column:1/-1;background:none;border:none;padding:0"><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">Основное</b><button class="btn sm" data-ssave="${SEC_MAIN}" title="Сохранить только изменённые поля этого раздела">💾 Сохранить раздел</button><span class="smsg" data-smsg="${SEC_MAIN}"></span></div>` : '';
     const field = (f) => {
-      if (f.t === 'hdr') return `<div class="box sechd" style="grid-column:1/-1;background:none;border:none;padding:6px 0 0"><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">${esc(f.label)}</b>${secOn ? `<button class="btn sm" data-ssave="${esc(f.path)}" title="Сохранить только изменённые поля этого раздела">💾 Сохранить раздел</button><span class="smsg" data-smsg="${esc(f.path)}"></span>` : ''}</div>`;
+      if (f.t === 'hdr') return `<div class="box sechd" data-hs="${esc(f.path)}" style="grid-column:1/-1;background:none;border:none;padding:6px 0 0"><button class="tg" data-tog="${esc(f.path)}" title="Свернуть / развернуть раздел">${this.secClosed?.has(kind + ':' + f.path) ? '▸' : '▾'}</button><b style="color:#e9c46a;text-transform:uppercase;letter-spacing:1px">${esc(f.label)}</b><small class="mc-dim" data-scnt="${esc(f.path)}"></small>${f.h ? `<small class="fh">${esc(f.h)}</small>` : ''}${secOn ? `<button class="btn sm" data-ssave="${esc(f.path)}" title="Сохранить только изменённые поля этого раздела">💾 Сохранить раздел</button><span class="smsg" data-smsg="${esc(f.path)}"></span>` : ''}</div>`;
       const val = v[f.path], ic = STAT_OF(f.path) ? statIcon(STAT_OF(f.path), 16) : '';
       let inp;
       if (f.t === 'bool') inp = `<input type="checkbox" data-p="${f.path}" ${val ? 'checked' : ''}>`;
@@ -430,16 +463,18 @@ export class AdminPanel {
           return [...new Set(L.map((o) => o.group))].map((g) => `<div class="chips" data-g="${esc(g)}"><small class="mc-dim">${esc(g)}</small>${L.filter((o) => o.group === g).map((o) => `<label title="${esc(o.id)}"><input type="checkbox" data-sk="${esc(o.id)}" ${(val || []).includes(o.id) ? 'checked' : ''}>${esc(o.name)}</label>`).join('')}</div>`).join('');
         })()}</div>`;
       else inp = `<input type="number" step="${f.t === 'int' ? 1 : 'any'}" min="${f.min}" max="${f.max}" data-p="${f.path}" value="${val ?? ''}" placeholder="${esc(e.defs?.[f.path] ?? '—')}" title="${val == null && e.defs?.[f.path] ? 'Пусто — как в коде: ' + esc(e.defs[f.path]) : ''}">`;
-      return `<label title="${f.path} · ${f.min ?? ''}…${f.max ?? ''}"><span>${ic}${esc(f.label)}</span>${inp}</label>`;
+      const hint = fieldHint(f, e.defs?.[f.path]), sk = SM[f.path] ?? SEC_MAIN, wide = f.t === 'ltext' ? ' style="grid-column:1/-1"' : '';
+      return `<label class="fl" data-fs="${esc(sk)}" data-fk="${esc((f.label + ' ' + f.path + ' ' + hint).toLowerCase())}" title="${esc(f.path)}${hint ? ' — ' + esc(hint) : ''}"${this.secClosed?.has(kind + ':' + sk) ? ' hidden' : ''}${wide}><span class="fn">${ic}${esc(f.label)}${val != null && e.defs?.[f.path] != null && String(val) !== String(e.defs[f.path]) ? ' <i class="ed" title="изменено в D1 (в коде: ' + esc(e.defs[f.path]) + ')">✎</i>' : ''}</span>${inp}${hint ? `<small class="fh">${esc(hint)}</small>` : ''}</label>`;
     };
     sec.innerHTML = `<h3>${esc(e.icon || '')} ${esc(e.name)} <small style="color:#9a8bb8">${esc(kind)}:${esc(e.id)}</small>${e.lvl ? ` <span class="lv" style="color:#86efac">ур. ${e.lvl}</span>` : ''}</h3>
       ${kind === 'item' && e.part ? `<p class="inh"><small>${e.inh ? `🔗 <b>наследует от ${esc(e.part)}</b> (${esc(e.partName || '')}): навык R, черты и разбор — как у базы, уровень — уровень моба-варианта, статы — профиль базы по силе соседей этого уровня. Правка базы сразу меняет эту копию. «Сохранить» создаст свою строку копии в D1 (она важнее наследования); «Вернуть исходное» — снова наследовать.` : `✎ копия ${esc(e.part)} (${esc(e.partName || '')}) — <b>своя строка в D1</b>, важнее наследования от базы; «Вернуть исходное» удалит её, и копия снова будет наследовать базу.`}</small></p>` : ''}
       ${kind === 'item' && e.slot === 'weapon' ? `<p><small>Оружие: требуемый уровень надевания = max(«Треб. уровень» <code>req</code>, «Ур. предмета» <code>lvl</code>); проверяет сервер при экипировке. Тип: ${esc(e.wtype || '—')}</small></p>` : ''}
-      ${kind === 'loot' ? this.lootHtml(v) : `<div class="grid">${mainHdr}${S.fields.map(field).join('')}</div>`}
+      ${kind === 'loot' ? this.lootHtml(v) : `${S.fields.length > 8 ? `<div class="ffind"><input type="search" data-ffind placeholder="🔎 поиск поля: название, путь или подсказка…" value="${esc(this.fFind || '')}"><button class="btn sm" data-fall="1">▾ Развернуть все</button><button class="btn sm" data-fall="0">▸ Свернуть все</button><small class="mc-dim" data-fcnt></small></div>` : ''}<div class="grid">${mainHdr}${S.fields.map(field).join('')}</div>`}
       ${S.traits ? `<div class="box"><b>Черты / эффекты</b> <small>(как Traits в RPG Maker MZ — срабатывают на сервере при попадании)</small><div class="traits"></div>
         <select class="addk">${Object.entries(this.cat.traits).map(([k, d]) => `<option value="${k}">${esc(d.name)}</option>`).join('')}</select> <button class="btn" data-addt>＋ Добавить эффект</button></div>` : ''}
       <p><button class="btn gold" data-save title="${secOn ? 'Сохраняет только изменённые поля — каждый изменённый раздел отдельно' : ''}">💾 ${secOn ? 'Сохранить изменения в D1' : 'Сохранить в D1'}</button> <button class="btn red" data-reset>↺ Вернуть исходное</button>${secOn && !hasHdr ? `<span class="smsg" data-smsg="${SEC_MAIN}"></span>` : ''}</p>`;
     this.traits = JSON.parse(JSON.stringify(v.traits || []));
+    this.bindFieldNav(sec, kind);
     const drawTraits = () => {
       const box = sec.querySelector('.traits'); if (!box) return;
       box.innerHTML = this.traits.map((t, i) => { const d = this.cat.traits[t.k]; return `<div class="trait"><span class="tn">${t.k === 'burn' ? '🔥' : t.k === 'freeze' ? '❄️' : t.k === 'poison' ? '☠' : t.k === 'bleed' ? '🩸' : t.k === 'lifesteal' ? '🦇' : '✦'} ${esc(d?.name || t.k)}</span>${(d?.params || []).map((p) => `<label><span>${esc(p.label)}</span><input type="number" step="0.1" min="${p.min}" max="${p.max}" data-ti="${i}" data-tk="${p.k}" value="${t[p.k] ?? p.def}"></label>`).join('')}<button class="btn red" data-trm="${i}">✕</button></div>`; }).join('') || '<small>Эффектов нет</small>';
@@ -494,6 +529,20 @@ export class AdminPanel {
     };
     sec.querySelector('[data-reset]').onclick = () => { if (confirm('Вернуть значения из кода (удалить правку)?')) this.send({ type: 'admin_reset', kind, id: e.id }); };
   }
+  /** сворачивание разделов (запоминается в сессии) и поиск поля по названию/пути/подсказке: совпавшие разделы раскрываются */
+  bindFieldNav(sec, kind) {
+    const C = this.secClosed || (this.secClosed = new Set()), $$ = (q) => [...sec.querySelectorAll(q)];
+    const apply = () => {
+      const t = (this.fFind || '').trim().toLowerCase(), cnt = {}; let shown = 0;
+      $$('label.fl').forEach((l) => { const hit = !t || l.dataset.fk.includes(t), k = l.dataset.fs; l.hidden = !hit || (!t && C.has(kind + ':' + k)); l.classList.toggle('hit', !!t && hit); if (hit) { shown++; cnt[k] = (cnt[k] || 0) + 1; } });
+      $$('[data-hs]').forEach((h) => { const k = h.dataset.hs, n = cnt[k] || 0; h.hidden = !!t && !n; const b = h.querySelector('[data-tog]'); if (b) b.textContent = !t && C.has(kind + ':' + k) ? '▸' : '▾'; const c = h.querySelector('[data-scnt]'); if (c) c.textContent = t ? `${n} совп.` : ''; });
+      const fc = sec.querySelector('[data-fcnt]'); if (fc) fc.textContent = t ? `найдено полей: ${shown}` : '';
+    };
+    $$('[data-tog]').forEach((b) => (b.onclick = (ev) => { ev.preventDefault(); const k = kind + ':' + b.dataset.tog; if (C.has(k)) C.delete(k); else C.add(k); apply(); }));
+    $$('[data-fall]').forEach((b) => (b.onclick = () => { $$('[data-tog]').forEach((t) => { const k = kind + ':' + t.dataset.tog; if (b.dataset.fall === '1') C.delete(k); else C.add(k); }); apply(); }));
+    const q = sec.querySelector('[data-ffind]'); if (q) q.oninput = () => { this.fFind = q.value; apply(); };
+    apply();
+  }
   lootHtml(v) {
     const opt = (list, cur) => list.map((x) => `<option value="${x.id}" ${x.id === cur ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
     return `<div class="box"><b>Снаряжение (шанс %)</b><table class="lg">${(v.gear || []).map((g) => `<tr><td><select data-gi>${opt(this.cat.items, g.item)}</select></td><td><input type="number" data-gc min="0" max="100" step="0.1" value="${cleanNum(g.chance)}"></td><td><button class="btn red" data-delrow>✕</button></td></tr>`).join('')}</table><button class="btn" data-addg>＋ предмет</button></div>
@@ -523,6 +572,12 @@ export class AdminPanel {
     if (!row && this.sel !== '__new') { sec.innerHTML = '<h3>Квесты</h3><p>Выберите квест или «＋ Новый квест». Квест назначается NPC; игроки видят его в диалоге NPC («Все квесты»).</p>'; return; }
     const builtin = row && !row.custom;
     const q = draft || row?.def || { id: 'c_', npc: this.cat.npcs[0]?.id, title: '', objectives: [{ type: 'kill', mob: this.cat.mobs[0]?.id, count: 5, text: '' }], rewards: { xp: 100 }, offer: [''], progress: '', done: [''], lore: '' };
+    const qkey = row?.id || '__new', cp = (x) => JSON.parse(JSON.stringify(x ?? null));
+    if (!this.qx || this.qx.key !== qkey) this.qx = { key: qkey, ch: cp(q.rewards?.ch) || [], chOff: !!q.rewards?.chOff, alt: cp(q.rewards?.alt) || {}, reqBranch: cp(q.reqBranch) || [] };
+    const X = this.qx, qtype = qTypeOf({ ...(row?.def || {}), ...q, campaign: q.campaign || row?.def?.campaign || 'custom' });
+    const keysOf = (id) => [...new Set([...dlgKeys(this.cat.vn?.dialogues?.[id]), ...Object.keys(this.cat.quests.find((x) => x.id === id)?.def?.rewards?.alt || {})])];
+    const qOptB = (cur) => '<option value="">— квест —</option>' + this.cat.quests.filter((x) => x.id !== q.id && keysOf(x.id).length).map((x) => `<option value="${esc(x.id)}" ${x.id === cur ? 'selected' : ''}>${esc(x.title)} — ${esc(x.id)}</option>`).join('');
+    const rbRow = (b, i) => `<div class="trait" data-rb="${i}"><span class="tn">🔀 после выбора</span><select data-rbq>${qOptB(b.q)}</select><select data-rbk>${b.q ? keysOf(b.q).map((k) => `<option ${k === b.k ? 'selected' : ''}>${esc(k)}</option>`).join('') : '<option value="">—</option>'}</select><button class="btn red sm" data-rbdel="${i}">✕</button></div>`;
     const npcOpt = (cur, empty) => (empty ? '<option value="">— тот же —</option>' : '') + this.cat.npcs.map((n) => `<option value="${n.id}" ${n.id === cur ? 'selected' : ''}>${esc(n.name)} (${n.world})</option>`).join('');
     const opt = (list, cur) => list.map((x) => `<option value="${x.id}" ${x.id === cur ? 'selected' : ''}>${esc(x.name)}${x.lvl ? ' · ур.' + x.lvl : ''}</option>`).join('');
     // цель-моб: боссы помечены 👑; вариант биома — с пометкой, чей он вариант (вариант-босс — ОТДЕЛЬНЫЙ босс, не базовый)
@@ -549,7 +604,23 @@ export class AdminPanel {
       <label><span>Мин. уровень</span><input type="number" data-q="minLevel" min="1" max="60" value="${q.minLevel ?? ''}"></label><label style="grid-column:1/-1"><span>🔗 Открывается после квеста(ов)<br><small>Ctrl/⌘ — несколько; пусто — корень дерева</small></span><select multiple size="6" data-q="requires">${this.cat.quests.filter((x) => x.id !== q.id).map((x) => `<option value="${esc(x.id)}" ${(q.requires || []).includes(x.id) ? 'selected' : ''}>${esc(x.title)}${x.stars ? ' ' + x.stars + '★' : ''} — ${esc(x.id)}</option>`).join('')}</select></label>
       <label><span>🧭 Отслеживание мобов-целей<br><small>подсветка на экране/мини-карте + компас</small></span><input type="checkbox" data-q="track" ${q.track === false ? '' : 'checked'}></label>
 </div>
+      <details class="qsec" ${this.qOpen?.rep ?? (q.repeat || X.reqBranch.length) ? 'open' : ''} data-qs="rep"><summary>🔁 Повтор и открытие по сюжету <small>— ежедневный/еженедельный квест; откроется после квеста (выше) и/или после выбранной ветки</small></summary><div class="in">
+        <div class="grid"><label class="fl"><span class="fn">Повтор</span><select data-q="repeat"><option value="">нет — один раз</option><option value="daily" ${q.repeat === 'daily' ? 'selected' : ''}>🔁 ежедневно</option><option value="weekly" ${q.repeat === 'weekly' ? 'selected' : ''}>🔁 еженедельно</option></select><small class="fh">Сброс — как у Доски заданий: день — в 00:00 по Киеву, неделя — в понедельник. После сдачи NPC снова предложит квест в новом периоде. Сундук по умолчанию — тип «${esc(qtype)}».</small></label></div>
+        <div data-rbl>${X.reqBranch.map(rbRow).join('')}</div><button class="btn sm" data-rbadd ${X.reqBranch.length >= 4 ? 'disabled' : ''}>＋ условие «после выбора в другом квесте»</button>
+        <small class="mc-dim" style="display:block;margin-top:4px">Пример: освобождённый NPC («Пощадить») даёт ежедневное «убей пятерых …». Пока условие не выполнено, игрок видит квест в «🔒 Откроются позже» с причиной.</small></div></details>
+      <details class="qsec" ${this.qOpen?.card ?? (q.card?.on || q.chapter) ? 'open' : ''} data-qs="card"><summary>📖 Глава и карточка главы <small>— тёмный ар-деко титр перед первым окном (один раз на устройстве, пропуск — тап/клавиша)</small></summary><div class="in"><div class="grid">
+        <label class="fl"><span class="fn">Глава</span><input data-q="chapter" maxlength="80" value="${esc(q.chapter || '')}" placeholder="Поручения"><small class="fh">Группа квеста в «Все квесты»; до 80 символов. Пусто — «Поручения».</small></label>
+        <label class="fl"><span class="fn">Показать карточку главы</span><input type="checkbox" data-q="cardOn" ${q.card?.on ? 'checked' : ''}><small class="fh">Вкл. — перед пояснением титр главы на ~3,6 с; по умолчанию выкл.</small></label>
+        <label class="fl"><span class="fn">Заголовок карточки</span><input data-q="cardT" maxlength="60" value="${esc(q.card?.t || '')}" placeholder="как «Глава»"><small class="fh">До 60 символов. Пусто — название главы.</small></label>
+        <label class="fl"><span class="fn">Подзаголовок</span><input data-q="cardS" maxlength="90" value="${esc(q.card?.s || '')}" placeholder="как название квеста"><small class="fh">До 90 символов. Пусто — название квеста.</small></label>
+      </div><button class="btn sm" data-cardprev>▶ Предпросмотр карточки</button></div></details>
+      <details class="qsec" ${this.qOpen?.ch ?? true ? 'open' : ''} data-qs="ch"><summary>🎁 Сундук за квест <small>— ярус, сколько, шанс «улучшиться до …»; бросок на сервере при сдаче</small></summary><div class="in" data-qch></div></details>
+      <details class="qsec" ${this.qOpen?.alt ?? true ? 'open' : ''} data-qs="alt"><summary>🔀 Награды веток <small>— если в диалоге есть выбор с ключом: своя награда за ветку (пустое поле — основная награда)</small></summary><div class="in" data-qalt></div></details>
       <div class="box vn-flow"><b>🎬 Поток квеста</b> <small>— всё, что видит игрок у NPC, по порядку. Одна кнопка сохраняет квест и окна.</small>
+        <div class="qdraft"><b>📝 Черновик</b><span class="st" data-dst>${esc(this.dStat?.key === qkey ? this.dStat.t : 'не сохранён')}</span>
+          <button class="btn sm" data-dsave title="Сохранить весь квест и все окна в черновик (частями, игроки не видят)">💾 Сохранить черновик</button><button class="btn sm" data-dload>📥 Открыть черновик</button>
+          <button class="btn sm gold" data-dpub title="Полная проверка (цели, награды, ветки, метки) и публикация">⬆ Опубликовать</button><button class="btn sm red" data-ddel>🗑 Удалить черновик</button>
+          <small class="mc-dim" style="flex-basis:100%">Большой сюжет (до ${this.cat.vn?.limits?.windows || 250} окон) можно сохранять на любом окне кнопкой 💾 у окна — живой квест у игроков не меняется до «Опубликовать».</small></div>
         <div class="vn-stepbox"><h4>1 · Пояснение (окна)</h4><small>Окна листаются «Дальше»; после последнего — окно получения.</small><div data-vnlist="offer"></div></div>
         <div class="vn-stepbox"><h4>2 · Окно получения (цели + награда)</h4><small>Говорящий и текст; ниже игрок видит цели с именами целей и награду, кнопки «Взять» / «Уйти».</small><div data-vnone="accept"></div>
           <div class="box"><b>Цели</b><div class="objs">${q.objectives.map(objRow).join('')}</div><button class="btn" data-oadd>＋ цель</button></div>
@@ -568,9 +639,24 @@ export class AdminPanel {
           return d?.p ? { k, v: d.p.t === 'num' ? Number(v?.value) : v?.value } : { k }; });
         return { type: s('[data-ot]'), mob: s('[data-om]'), npc: s('[data-on]'), res: s('[data-or]'), item: s('[data-oc]') || undefined, world: s('[data-ow]'), count: Number(s('[data-ocnt]') || 1), text: s('[data-otext]'), conds: conds.length ? conds : undefined }; });
       return { id: g('id').trim(), title: g('title'), npc: g('npc'), turnin: g('turnin') || undefined, minLevel: g('minLevel') || undefined, requires: [...sec.querySelector('[data-q="requires"]').selectedOptions].map((o) => o.value),
-        objectives, rewards: { xp: Number(g('xp') || 0), items: [...sec.querySelectorAll('[data-qi]')].map((x) => x.dataset.qi), stars: Object.fromEntries([...sec.querySelectorAll('[data-star]')].filter((i) => Number(i.value) > 0).map((i) => [i.dataset.star, Number(i.value)])), blkFix: Number(g('blkFix') || 0) || undefined }, lore: g('lore'), dialogue: this.vnOut(), track: sec.querySelector('[data-q="track"]').checked };
+        objectives, rewards: { xp: Number(g('xp') || 0), items: [...sec.querySelectorAll('[data-qi]')].map((x) => x.dataset.qi), stars: Object.fromEntries([...sec.querySelectorAll('[data-star]')].filter((i) => Number(i.value) > 0).map((i) => [i.dataset.star, Number(i.value)])), blkFix: Number(g('blkFix') || 0) || undefined,
+          ch: X.ch.length ? cp(X.ch) : undefined, chOff: X.chOff || undefined, alt: this.altOut() }, lore: g('lore'), dialogue: this.vnOut(), track: sec.querySelector('[data-q="track"]').checked,
+        chapter: g('chapter').trim() || undefined, repeat: g('repeat') || undefined, reqBranch: X.reqBranch.filter((b) => b.q && b.k), card: sec.querySelector('[data-q="cardOn"]').checked ? { on: true, t: g('cardT').trim() || undefined, s: g('cardS').trim() || undefined } : undefined };
     };
     const rerender = (q2) => { this.vnSync(sec); this.questForm(sec, q2); };
+    this.qRead = read;
+    sec.querySelectorAll('details.qsec').forEach((d) => d.addEventListener('toggle', () => { (this.qOpen ||= {})[d.dataset.qs] = d.open; }));
+    sec.querySelector('[data-q="repeat"]').onchange = () => rerender(read());
+    sec.querySelector('[data-rbadd]').onclick = () => { X.reqBranch.push({ q: '', k: '' }); rerender(read()); };
+    sec.querySelectorAll('[data-rbdel]').forEach((b) => (b.onclick = () => { X.reqBranch.splice(+b.dataset.rbdel, 1); rerender(read()); }));
+    sec.querySelectorAll('[data-rb]').forEach((r) => { const b = X.reqBranch[+r.dataset.rb];
+      r.querySelector('[data-rbq]').onchange = (ev) => { b.q = ev.target.value; b.k = keysOf(b.q)[0] || ''; rerender(read()); };
+      r.querySelector('[data-rbk]').onchange = (ev) => { b.k = ev.target.value; }; });
+    sec.querySelector('[data-cardprev]').onclick = () => { const g = (k) => sec.querySelector(`[data-q="${k}"]`).value.trim(); chapterCard(g('cardT') || g('chapter') || 'Поручения', g('cardS') || g('title'), () => {}); };
+    const chBox = sec.querySelector('[data-qch]'), drawCh = () => { chBox.innerHTML = chestsHtml(this.cat, X, qtype, 'при сдаче квеста'); chestsBind(chBox, X, drawCh, () => {}); };
+    drawCh();
+    this.altDraw = () => this.drawAlt(sec);
+    this.bindDraft(sec, read, qkey);
     sec.querySelector('[data-totree]').onclick = () => { this.sel = '__tree'; this.render(); };
     sec.querySelectorAll('[data-ot]').forEach((s) => (s.onchange = () => rerender(read())));
     sec.querySelectorAll('[data-orm]').forEach((b) => (b.onclick = () => { const q2 = read(); q2.objectives.splice(+b.dataset.orm, 1); rerender(q2); }));
@@ -603,11 +689,14 @@ export class AdminPanel {
     const win = (w, ph, i, list) => `<div class="vnw" data-ph="${ph}" data-wi="${i}"><b>${list ? i + 1 : '•'}</b><img class="vn-th" src="${imgOf(w.who, w.emo, true)}" alt="">
       <div class="vn-f"><div><select data-wwho>${charOpt(w.who)}</select><select data-wemo>${vn.emotions.map((e) => `<option value="${e.id}" ${e.id === w.emo ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></div>
       <div class="vn-emos">${vn.emotions.map((e) => `<img src="${imgOf(w.who, e.id, true)}" title="${esc(e.name)}" data-pick="${e.id}" class="${e.id === w.emo ? 'on' : ''}">`).join('')}</div>
-      <textarea data-wtext maxlength="${vn.limits.text}" placeholder="${ph === 'accept' ? 'Текст окна получения (можно пусто — будут только цели и награда)' : ph === 'progress' ? 'Пусто — без своего окна' : 'Текст окна'}">${esc(w.text || '')}</textarea></div>
+      <textarea data-wtext maxlength="${vn.limits.text}" placeholder="${ph === 'accept' ? 'Текст окна получения (можно пусто — будут только цели и награда)' : ph === 'progress' ? 'Пусто — без своего окна' : 'Текст окна'}">${esc(w.text || '')}</textarea>
+      ${list ? `<div class="lbl"><span title="Метка окна: сюда может вести переход или выбор (латиница/цифры/_)">🏷 метка</span><input data-wid maxlength="24" value="${esc(w.id || '')}" placeholder="—"><span title="Куда дальше после «Дальше»: метка окна или end (конец фазы). Пусто — следующее окно">→ переход</span><input data-wgo maxlength="24" list="vn-lbls-${ph}" value="${esc(w.go || '')}" placeholder="следующее"${w.ch?.length ? ' disabled title="у окна с выбором переход задают варианты"' : ''}>
+        <button class="btn sm" data-vchadd ${(w.ch?.length || 0) >= (vn.limits.choices || 4) ? 'disabled' : ''} title="Варианты ответа (2…${vn.limits.choices || 4}): каждый ведёт к метке; ключ — для награды ветки">＋ выбор</button><button class="btn sm" data-wsave title="Сохранить это окно в черновик (живой квест не меняется)">💾</button></div>
+      ${w.ch?.length ? `<div class="vnch"><small class="mc-dim">Выбор игрока (2…${vn.limits.choices || 4}); ключ — латиница, по нему «Награды веток» и условия других квестов</small>${w.ch.map((c, j) => `<div>${j + 1}. <input data-vct="${j}" maxlength="80" placeholder="текст кнопки" value="${esc(c.t || '')}" style="flex:1;min-width:140px">→<input data-vcg="${j}" maxlength="24" list="vn-lbls-${ph}" placeholder="метка / end" value="${esc(c.go || '')}" style="width:90px">ключ<input data-vck="${j}" maxlength="24" placeholder="напр. spare" value="${esc(c.k || '')}" style="width:90px"><button class="btn red sm" data-vcdel="${j}">✕</button></div>`).join('')}</div>` : ''}` : ''}</div>
       ${list ? `<div class="vn-ops"><button class="btn" data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button class="btn" data-dn="${i}" ${i < D[ph].length - 1 ? '' : 'disabled'}>▼</button><button class="btn red" data-wrm="${i}">✕</button></div>` : '<span></span>'}</div>`;
     const draw = () => {
       for (const ph of ['offer', 'done']) { const box = sec.querySelector(`[data-vnlist="${ph}"]`); if (!box) continue;
-        box.innerHTML = D[ph].map((w, i) => win(w, ph, i, true)).join('') + `<button class="btn" data-wadd="${ph}" ${D[ph].length >= vn.limits.windows ? 'disabled' : ''}>＋ окно</button>`; }
+        box.innerHTML = D[ph].map((w, i) => win(w, ph, i, true)).join('') + `<datalist id="vn-lbls-${ph}"><option value="end">${D[ph].filter((w) => w.id).map((w) => `<option value="${esc(w.id)}">`).join('')}</datalist><button class="btn" data-wadd="${ph}" ${D[ph].length >= vn.limits.windows ? 'disabled' : ''}>＋ окно</button> <small class="mc-dim">${D[ph].length} / ${vn.limits.windows}</small>`; }
       for (const ph of ['accept', 'progress']) { const box = sec.querySelector(`[data-vnone="${ph}"]`); if (box) box.innerHTML = win(D[ph], ph, 0, false); }
       const giver = () => vn.chars.find((c) => c.npc === sec.querySelector('[data-q="npc"]')?.value)?.id || 'alzi';
       const W = (el) => { const r = el.closest('[data-ph]'); const ph = r.dataset.ph; return [ph, ph === 'accept' || ph === 'progress' ? null : +r.dataset.wi]; };
@@ -617,17 +706,99 @@ export class AdminPanel {
       sec.querySelectorAll('.vn-flow [data-up]').forEach((b) => (b.onclick = () => { this.vnSync(sec); const [ph, i] = W(b); const L = D[ph]; [L[i - 1], L[i]] = [L[i], L[i - 1]]; draw(); }));
       sec.querySelectorAll('.vn-flow [data-dn]').forEach((b) => (b.onclick = () => { this.vnSync(sec); const [ph, i] = W(b); const L = D[ph]; [L[i + 1], L[i]] = [L[i], L[i + 1]]; draw(); }));
       sec.querySelectorAll('.vn-flow [data-wrm]').forEach((b) => (b.onclick = () => { this.vnSync(sec); const [ph, i] = W(b); D[ph].splice(i, 1); draw(); }));
+      sec.querySelectorAll('.vn-flow [data-vchadd]').forEach((b) => (b.onclick = () => { this.vnSync(sec); const [ph, i] = W(b), w = at(ph, i); w.ch ||= []; do w.ch.push({ t: '', go: '', k: '' }); while (w.ch.length < 2); delete w.go; draw(); }));
+      sec.querySelectorAll('.vn-flow [data-vcdel]').forEach((b) => (b.onclick = () => { this.vnSync(sec); const [ph, i] = W(b), w = at(ph, i); w.ch.splice(+b.dataset.vcdel, 1); if (w.ch.length < 2) delete w.ch; draw(); }));
+      sec.querySelectorAll('.vn-flow .vnw').forEach((r) => r.addEventListener('input', () => r.classList.add('dirty')));
+      sec.querySelectorAll('.vn-flow [data-vck]').forEach((x) => x.addEventListener('change', () => { this.vnSync(sec); this.altDraw?.(); }));
+      this.altDraw?.();
       sec.querySelectorAll('.vn-flow [data-wadd]').forEach((b) => (b.onclick = () => { this.vnSync(sec); const L = D[b.dataset.wadd]; const prev = L[L.length - 1]; L.push({ who: prev?.who || giver(), emo: 'calm', text: '' }); draw(); }));
     };
     this.vnDraw = draw; draw();
   }
+  /** награды веток: строки по ключам выбора из окон (черновик диалога), значения — в this.qx.alt */
+  drawAlt(sec) {
+    const box = sec.querySelector('[data-qalt]'), X = this.qx; if (!box || !X) return;
+    const keys = dlgKeys(this.vnDraft || {}), A = X.alt;
+    for (const k of Object.keys(A)) if (!keys.includes(k) && !Object.values(A[k] || {}).some((v) => v !== '' && v != null)) delete A[k];
+    const tOpt = (cur) => `<option value="">— как основная —</option>${BC_TIERS.map((t) => `<option value="${t}" ${t === cur ? 'selected' : ''}>${esc(BCHEST.tiers[t]?.name || t)}</option>`).join('')}`;
+    box.innerHTML = keys.length ? keys.map((k) => { const a = A[k] || {}, c = a.ch?.[0] || {};
+      return `<div class="altr" data-ak="${esc(k)}"><b title="ключ выбора">«${esc(k)}»</b><input data-af="name" maxlength="40" placeholder="название ветки (видит игрок)" value="${esc(a.name || '')}">
+        <input type="number" data-af="xp" min="0" max="100000" placeholder="опыт" value="${a.xp ?? ''}" title="Опыт за ветку (пусто — основной)"><input data-af="items" list="mc-adm-items" placeholder="предметы id через запятую (до 4)" value="${esc((a.items || []).join(', '))}">
+        <span></span><span>сундук: <select data-af="ct">${tOpt(c.t)}</select> ×<input type="number" data-af="cn" min="1" max="10" value="${c.n || 1}" class="n2" style="width:48px"> улучш. +1 <input type="number" data-af="cu" min="0" max="100" step="0.5" value="${c.u || 0}" style="width:56px">%</span><span></span><small class="mc-dim">пусто — основная награда квеста</small></div>`; }).join('') + `<datalist id="mc-adm-items">${this.cat.items.slice(0, 600).map((i) => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}</datalist>`
+      : '<small class="mc-dim">В диалоге нет вариантов выбора с ключом. Добавьте у окна «＋ выбор» и укажите ключ (латиница), чтобы задать награду ветки.</small>';
+    box.querySelectorAll('[data-ak]').forEach((r) => r.querySelectorAll('[data-af]').forEach((i) => i.addEventListener(i.tagName === 'SELECT' ? 'change' : 'input', () => {
+      const k = r.dataset.ak, a = A[k] || (A[k] = {}), f = i.dataset.af, v = i.value.trim();
+      if (f === 'name') a.name = v || undefined; else if (f === 'xp') a.xp = v === '' ? undefined : Number(v);
+      else if (f === 'items') a.items = v ? v.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4) : undefined;
+      else { const c = a.ch?.[0] || { n: 1, t: '', L: 0, L2: 0, e: -1, c: 'no', u: 0, u2: 0 };
+        if (f === 'ct') c.t = v; if (f === 'cn') c.n = Math.round(Number(v)) || 1; if (f === 'cu') c.u = Number(v) || 0;
+        a.ch = c.t ? [c] : undefined; } })));
+  }
+  altOut() { const A = this.qx?.alt || {}, o = {}; for (const [k, a] of Object.entries(A)) { const x = {}; for (const [f, v] of Object.entries(a || {})) if (v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)) x[f] = v; if (Object.keys(x).length) o[k] = x; } return Object.keys(o).length ? o : undefined; }
+  /** черновик сюжета: сохраняется частями (≤ 14 000 символов, не чаще раза в 360 мс) — строка custom_quests «draft:<id>», игрокам не видна */
+  bindDraft(sec, read, qkey) {
+    const idOf = () => sec.querySelector('[data-q="id"]').value.trim();
+    const stat = (t) => { this.dStat = { key: qkey, t }; const n = sec.querySelector('[data-dst]'); if (n) n.textContent = t; };
+    this.dStatFn = stat;
+    const D = () => this.vnDraft, clean = (w) => JSON.parse(JSON.stringify(w));
+    sec.querySelector('[data-dsave]').onclick = () => {
+      if (this.draftQ) { this.msg('Подождите: черновик ещё сохраняется'); return; }
+      this.vnSync(sec); const id = idOf(), d = D(); if (!d) return;
+      const { dialogue, ...meta } = read(), wins = [...d.offer.map((w, i) => ({ ph: 'offer', i, w: clean(w) })), ...d.done.map((w, i) => ({ ph: 'done', i, w: clean(w) }))];
+      const chunks = []; let cur = { type: 'admin_qdraft_save', id, meta, accept: d.accept, progress: d.progress?.text?.trim() ? d.progress : null, len: { offer: d.offer.length, done: d.done.length }, wins: [] };
+      for (const x of wins) { const sz = JSON.stringify(cur).length + JSON.stringify(x).length; if (cur.wins.length && (sz > DRAFT_CHUNK || cur.wins.length >= 60)) { chunks.push(cur); cur = { type: 'admin_qdraft_save', id, wins: [] }; } cur.wins.push(x); }
+      chunks.push(cur);
+      this.draftQ = { id, chunks, n: chunks.length, wins: wins.length }; stat(`сохранение… 0 / ${chunks.length} частей`); this.draftNext();
+    };
+    sec.querySelector('[data-dload]').onclick = () => { this.msg('Загрузка черновика…'); this.send({ type: 'admin_qdraft_get', id: idOf() }); };
+    sec.querySelector('[data-dpub]').onclick = () => { if (confirm('Опубликовать черновик? Сначала сохраните черновик — публикуется то, что лежит в D1.')) { this.msg('Публикация…'); this.send({ type: 'admin_qdraft_publish', id: idOf() }); } };
+    sec.querySelector('[data-ddel]').onclick = () => { if (confirm('Удалить черновик? Опубликованный квест не изменится.')) this.send({ type: 'admin_qdraft_discard', id: idOf() }); };
+    // 💾 у окна: только это окно (и длина фаз) — для длинных сюжетов «сохранить на любом окне»
+    sec.querySelector('.vn-flow').addEventListener('click', (ev) => { const b = ev.target.closest('[data-wsave]'); if (!b) return; ev.preventDefault();
+      if (this.draftQ) { this.msg('Подождите: черновик ещё сохраняется'); return; }
+      this.vnSync(sec); const r = b.closest('[data-ph]'), ph = r.dataset.ph, i = +r.dataset.wi, d = D(), { dialogue, ...meta } = read();
+      this.draftQ = { id: idOf(), chunks: [{ type: 'admin_qdraft_save', id: idOf(), meta, wins: [{ ph, i, w: clean(d[ph][i]) }], len: { offer: d.offer.length, done: d.done.length } }], n: 1, one: `${ph === 'offer' ? 'пояснение' : 'сдача'}, окно ${i + 1} / ${d[ph].length}`, el: r };
+      stat('сохранение окна…'); this.draftNext(); });
+  }
+  draftNext() {
+    const Q = this.draftQ; if (!Q) return; const m = Q.chunks.shift();
+    if (!m) { this.draftQ = null; return; }
+    const wait = Math.max(0, (this.draftAt || 0) + DRAFT_GAP_MS - Date.now()); setTimeout(() => { this.draftAt = Date.now(); this.send(m); }, wait);
+  }
+  onDraftResult(r) {
+    const Q = this.draftQ, stat = this.dStatFn || (() => {});
+    if (!r.ok) { this.draftQ = null; stat('✖ ' + (r.err || 'ошибка')); this.msg('✖ Черновик: ' + (r.err || 'ошибка'), true); return; }
+    if (r.op === 'qdraft_save') {
+      if (!Q) return;
+      const t = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (Q.chunks.length) { stat(`сохранение… ${Q.n - Q.chunks.length} / ${Q.n} частей`); this.draftNext(); return; }
+      this.draftQ = null;
+      if (Q.one) { Q.el?.classList.remove('dirty'); Q.el?.classList.add('saved'); stat(`✔ черновик в. ${r.version} · сохранено: ${Q.one} · ${t}`); }
+      else stat(`✔ черновик в. ${r.version} · окон: пояснение ${r.len?.offer ?? '?'}, сдача ${r.len?.done ?? '?'} · ${t}`);
+      this.msg('✔ Черновик сохранён в D1 (игроки не видят)'); return;
+    }
+    if (r.op === 'qdraft') {
+      if (!r.draft) { stat('черновика нет'); this.msg('Черновика для этого квеста нет'); return; }
+      const sec = this.el?.querySelector('section'), d = r.draft.d || {}, cur = this.vnDraft;
+      this.vnDraft = { key: cur?.key || this.qx?.key, offer: d.offer || [], accept: d.accept || cur?.accept, progress: d.progress || cur?.progress || { who: cur?.accept?.who || 'hero', emo: 'think', text: '' }, done: d.done || [] };
+      const base = this.qRead ? this.qRead() : {}; this.qx = null;
+      this.dStat = { key: this.vnDraft.key, t: `📥 открыт черновик в. ${r.version} от ${new Date(r.at).toLocaleString('ru-RU')}` };
+      if (sec) this.questForm(sec, { ...base, ...r.draft.q, rewards: { ...(base.rewards || {}), ...(r.draft.q?.rewards || {}) } });
+      this.msg('✔ Черновик открыт — правьте и сохраняйте; живой квест не изменится до публикации'); return;
+    }
+    if (r.op === 'qdraft_discard') { stat('черновик удалён'); this.msg('✔ Черновик удалён'); return; }
+  }
   vnSync(sec) {
     const D = this.vnDraft; if (!D) return;
     sec.querySelectorAll('.vn-flow .vnw').forEach((r) => { const ph = r.dataset.ph, w = ph === 'accept' || ph === 'progress' ? D[ph] : D[ph][+r.dataset.wi]; if (!w) return;
-      w.who = r.querySelector('[data-wwho]').value; w.emo = r.querySelector('[data-wemo]').value; w.text = r.querySelector('[data-wtext]').value; });
+      w.who = r.querySelector('[data-wwho]').value; w.emo = r.querySelector('[data-wemo]').value; w.text = r.querySelector('[data-wtext]').value;
+      const id = r.querySelector('[data-wid]'); if (id) { const v = id.value.trim(); if (v) w.id = v; else delete w.id; }
+      const go = r.querySelector('[data-wgo]'); if (go && !go.disabled) { const v = go.value.trim(); if (v) w.go = v; else delete w.go; }
+      if (w.ch) w.ch = w.ch.map((c, j) => { const g = (a) => r.querySelector(`[data-${a}="${j}"]`)?.value.trim() || ''; const o = { t: g('vct') }; if (g('vcg')) o.go = g('vcg'); if (g('vck')) o.k = g('vck'); return o; }); });
   }
   vnOut() { const sec = this.el?.querySelector('section'); if (sec) this.vnSync(sec); const D = this.vnDraft; if (!D) return undefined;
-    return { offer: D.offer.filter((w) => w.text.trim()), accept: D.accept, progress: D.progress.text.trim() ? D.progress : null, done: D.done.filter((w) => w.text.trim()) }; }
+    const keep = (w) => w.text.trim() || w.ch?.length || w.id; // окно-развилка или окно с меткой — не выбрасывать (на него ведут переходы)
+    return { offer: D.offer.filter(keep), accept: D.accept, progress: D.progress.text.trim() ? D.progress : null, done: D.done.filter(keep) }; }
   // дерево квестов (как граф Obsidian, но деревом): корни — квесты без предусловий; дети — квесты, которые открываются после.
   // Квест с несколькими предусловиями виден под каждым (↪ — повтор). Узлы сворачиваются; клик по названию — открыть в редакторе.
   questTree(sec) {
