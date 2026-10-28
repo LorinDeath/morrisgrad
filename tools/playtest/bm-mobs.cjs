@@ -33,8 +33,13 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400);
   for (let i = 0; i < 8 && (await G(() => window.__game.state().world)) !== 'arinar'; i++) { await G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 240, y: 600 }); window.__game.debug.teleport(240, 600); }); await sleep(1200); await G(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
   t('в Аринаре', (await G(() => window.__game.state().world)) === 'arinar');
-  await p.waitForFunction(() => (window.__game.state().camps || []).length > 0, null, { timeout: 20000 }).catch(() => {});
-  const camps = await G(() => window.__game.state().camps);
+  // лагеря приходят только в радиусе 6000 от игрока; город пуст — выходим наружу кольцом
+  for (const [dx, dy] of [[0, 0], [7000, 0], [-7000, 0], [0, 7000], [0, -7000], [7000, 7000], [-7000, -7000], [7000, -7000], [-7000, 7000]]) {
+    if (dx || dy) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [24000 + dx, 24150 + dy]); }
+    const okc = await p.waitForFunction(() => (window.__game.debug.campsRaw() || []).some((c) => (c[3] ?? 2) >= 2), null, { timeout: dx || dy ? 6000 : 4000 }).then(() => true).catch(() => false);
+    if (okc) break;
+  }
+  const camps = await G(() => window.__game.debug.campsRaw());
   const pl0 = await G(() => { const s = window.__game.state(); return { x: s.player?.x ?? s.x, y: s.player?.y ?? s.y }; });
   const CL = (camps || []).map((c) => Array.isArray(c) ? { id: c[0], x: c[1], y: c[2], alive: c[3] } : c).filter((c) => (c.alive ?? 2) >= 2).map((c) => ({ ...c, d: Math.hypot(c.x - pl0.x, c.y - pl0.y) })).filter((c) => c.d > 900).sort((a, b) => a.d - b.d);
   t('обычные лагеря видны клиенту', CL.length > 0, { n: CL.length, c0: CL[0], pl0, raw: (camps || []).slice(0, 1) });
@@ -70,14 +75,14 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   const st1 = await G(() => document.querySelector('.bmma .st')?.textContent);
   const dr = d1(`SELECT id, data FROM game_overrides WHERE kind = 'bmc_mdraft' AND id = '${nid}'`)[0];
   t('черновик сохранился сам (bmc_mdraft в БД)', !!dr && JSON.parse(dr.data).name === 'Пепельный палач' && /Черновик сохранён/.test(st1 || ''), { st1, dr: dr && dr.data.slice(0, 160) });
-  t('черновик не попал в игру', await G((id) => !window.__game.state().mobInfo?.[id], nid));
+  t('черновик не попал в игру', await G((id) => !window.__game.debug.mobDef(id), nid));
   await shot('04-new-mob-draft-preview'); mark('draft');
   fr.length = 0; await G(() => document.querySelector('.bmma [data-x="pub"]').click());
   const pub = await waitFr(/"op":"publish"/); t('публикация: ok, новый', !!pub && pub.includes('"ok":true') && pub.includes('"isNew":true'), pub?.slice(0, 200));
   await sleep(1500);
   const ov = d1(`SELECT kind, id FROM game_overrides WHERE id = '${nid}'`);
   t('в БД: bmmob есть, черновик удалён', ov.some((r) => r.kind === 'bmmob') && !ov.some((r) => r.kind === 'bmc_mdraft'), ov);
-  const lv0 = await G((id) => window.__game.state().mobInfo?.[id], nid); t('у клиента — новый вид (black)', !!lv0?.black, lv0 && { name: lv0.name, black: lv0.black });
+  const lv0 = await G((id) => window.__game.debug.mobDef(id), nid); t('у клиента — новый вид (black)', !!lv0?.black, lv0 && { name: lv0.name, black: lv0.black });
   await shot('05-new-mob-published'); mark('pub');
   // лагерь чёрных рядом с обычным лагерем
   await G(([x, y]) => window.__game.debug.tp(x, y, true), [Math.round(tgt.x + 150), Math.round(tgt.y + 30)]); await sleep(1500);
@@ -93,7 +98,7 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   await shot('06-camp-form');
   fr.length = 0; await G(() => document.querySelector('.bmma [data-x="csave"]').click());
   const sv = await waitFr(/"op":"save"/); t('лагерь сохранён', !!sv && sv.includes('"ok":true'), sv?.slice(0, 300)); mark('camp');
-  const isBlack = () => G(() => { const I = window.__game.state().mobInfo || {}; return window.__game.debug.zoneMobsFull().filter((m) => I[m.type]?.black).map((m) => ({ id: m.id, type: m.type, hp: m.hp, x: Math.round(m.x), y: Math.round(m.y) })); });
+  const isBlack = () => G(() => { return window.__game.debug.zoneMobsFull().filter((m) => window.__game.debug.mobDef(m.type)?.black).map((m) => ({ id: m.id, type: m.type, hp: m.hp, x: Math.round(m.x), y: Math.round(m.y) })); });
   let bm = []; for (let i = 0; i < 20; i++) { bm = await isBlack(); if (bm.length >= 5) break; await sleep(700); }
   t('в мире появились чёрные мобы лагеря (≥5)', bm.length >= 5, bm.slice(0, 3));
   await sleep(2500);
@@ -104,11 +109,13 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   await G(() => window.__game.debug.closeAdmin()); await sleep(800);
   const hp0 = await G(() => Object.fromEntries(window.__game.debug.zoneMobsFull().map((m) => [m.id, m.hp])));
   await shot('08-world-black-camp'); mark('world');
-  let fight = null; for (let i = 0; i < 30; i++) { const r = await G((hp0) => { const I = window.__game.state().mobInfo || {}; const ms = window.__game.debug.zoneMobsFull(); const hit = (b) => ms.filter((m) => !!I[m.type]?.black === b && hp0[m.id] != null && m.hp < hp0[m.id]).length; return { nrm: hit(false), blk: hit(true) }; }, hp0);
+  let fight = null; for (let i = 0; i < 30; i++) { const r = await G((hp0) => { const ms = window.__game.debug.zoneMobsFull(); const hit = (b) => ms.filter((m) => !!window.__game.debug.mobDef(m.type)?.black === b && hp0[m.id] != null && m.hp < hp0[m.id]).length; return { nrm: hit(false), blk: hit(true) }; }, hp0);
     if (r.nrm && r.blk) { fight = r; break; } await sleep(1000); }
   t('чёрные дерутся с обычными (обе стороны теряют ОЗ)', !!fight, fight);
   await shot('09-world-fight'); mark('fight'); await sleep(1500); await shot('10-world-fight-2');
   // таймер: ждём павшего чёрного → «следующий через N с»
+  // ускорить: всех чёрных лагеря добить (dev_grant killNearAny, только локально) → «разбит · возрождение через N с»
+  { const bl = await isBlack(); for (const m of bl) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [m.x + 20, m.y]); await sleep(500); await G((ty) => window.__game.debug.rawSend({ type: 'dev_grant', killNearAny: true, killType: ty }), m.type); await sleep(500); } }
   await G(() => window.__game.debug.openAdmin()); await sleep(800);
   await p.waitForFunction(() => { if (document.querySelector('.bmma [data-live]')) return true; document.querySelector('.mc-admin [data-tab="bmmobs"]')?.click(); setTimeout(() => document.querySelector('.bmma [data-bs="camps"]')?.click(), 400); return false; }, null, { timeout: 15000, polling: 1500 }).catch(() => {});
   let tm = ''; for (let i = 0; i < 45; i++) { tm = await G(() => [...document.querySelectorAll('.bmma [data-live]')].map((e) => e.textContent).join(' | ')); if (/через \d+ с/.test(tm)) break; await sleep(1000); }

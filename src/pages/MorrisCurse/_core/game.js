@@ -2194,6 +2194,7 @@ async function boot(canvasId, username, userId, api) {
       forceQuest: (id) => { const tq = meta.trackedQuests.bind(meta); meta.trackedQuests = () => [id, ...tq().filter((x) => x !== id)]; meta.trackedQuest = () => id; },
       worldMapStats: () => worldMap.stats,
       campsRaw: () => zone.camps,
+      mobDef: (id) => { const m = ZONE_MOBS[id]; return m ? { name: m.name, lvl: m.lvl, black: !!m.black, cat: m.cat || null } : null; },
       bossState: () => [...BOSS_STATE_DBG.entries()],
       projs: () => ({ live: zone.pax.count, fx: zone.pax.fx.length, kinds: [...zone.pax.live.values()].map((p) => `${p.o || "?"}:${p.t}`), ready: zone.pax.ready, spawned: { ...zone.pax.spawned } }),
       rawSend: (o) => net.send(o),
