@@ -426,7 +426,7 @@ async function boot(canvasId, username, userId, api) {
     cityView.apply(c); cityRoom.setFx(c.fx); setPkUi(c.pkUi); // вид PK (полоса, значок) — из админки
     if (zone.bmv) { zone.bmv.roseAt = c.rose ? { [c.rose.id]: [c.rose.x, c.rose.y] } : {}; const r = c.rose && zone.bmv.roses.get(Number(c.rose.id)); if (r) { r.x = c.rose.x; r.y = c.rose.y; } } // роза города — в точке карты (только отрисовка)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
-    for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '', sprite: n.sprite || '', walk: !!n.walk });
+    for (const n of c.npc || []) NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, house: n.house || '', sprite: n.sprite || '', glow: c.fx?.resGlow === false ? 0 : Math.max(0, Number(c.fx?.resGlowK ?? 1.4)), walk: !!n.walk });
     const k = `${c.x},${c.y},${c.rTiles},${c.on}`; if (k === citySig) return; const first = !citySig; citySig = k;
     const ch = CITY_CFG.x !== c.x || CITY_CFG.y !== c.y || CITY_CFG.rTiles !== c.rTiles || CITY_CFG.on !== c.on;
     Object.assign(CITY_CFG, { x: c.x, y: c.y, rTiles: c.rTiles, on: c.on, name: c.name });

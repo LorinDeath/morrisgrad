@@ -37,7 +37,7 @@ import flGSrc from '../../../../assets/mc/city/city_dome_rim_flash_glow.png';
 
 const BLD_SRC = import.meta.glob('../../../../assets/mc/city/bld_*.png', { eager: true, query: '?url', import: 'default' });
 // дым из труб (city_fx.json): лист Художника fx/chimney_smoke.png, если положен; иначе — процедурный клуб
-const SMOKE_SRC = Object.values(import.meta.glob('../../../../assets/mc/city/fx/chimney_smoke.png', { eager: true, query: '?url', import: 'default' }))[0] || null;
+const SMOKE_SRCS = Object.fromEntries(Object.entries(import.meta.glob('../../../../assets/mc/city/fx/chimney_smoke*.png', { eager: true, query: '?url', import: 'default' })).map(([k, v]) => [k.includes('_alt_thin') ? 'thin' : 'main', v])); // админка fx.smokeSheet: main | thin
 const bldUrl = (f) => BLD_SRC[`../../../../assets/mc/city/${f}`] || null;
 const SIN_P = Math.sin(1.02); // камера 58°: арт 3/4 (1 px = 1 px мира на экране) → высота спрайта × sin(pitch), основание совпадает с землёй
 const PX = 20, BLOCK_M = 1.6, FLASH = DOME.sheets?.rim_flash?.alpha_curve_30fps || [0, 1, 0.85, 0.65, 0.45, 0.3, 0.18, 0.08, 0];
@@ -106,7 +106,7 @@ export class CityView {
     this.ringCfg(c); // линия края купола — вживую из админки
     // места NPC: в общий реестр (диалог, ближайший NPC, отрисовка листом выбранного «вида»)
     for (const id of Object.keys(NPCS)) if (id.startsWith('city_')) NPCS[id].world = '-';
-    for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, sprite: n.sprite || '', walk: !!n.walk }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
+    for (const n of c.npc || []) { NPCS[n.id] = Object.assign(NPCS[n.id] || {}, { name: n.name, title: n.title, world: 'arinar', x: n.x, y: n.y, color: '#c4b5fd', role: 'city', mobile: true, sprite: n.sprite || '', glow: c.fx?.resGlow === false ? 0 : Math.max(0, Number(c.fx?.resGlowK ?? 1.4)), walk: !!n.walk }); NPC_ROWS[n.id] = NPC_ROWS[n.look] ?? 6; MOB_ROWS[n.id] = MOB_ROWS[n.look] ?? MOB_ROWS.petr; }
     registerMarker({ id: 'city:alkazak', type: 'sign', world: 'arinar', x: c.x, y: c.y - 60, icon: '🏰', label: `${c.name || 'Альказак'} — город под куполом · без сражений` });
     if (moved) this.place(); else if (this.ready) this.buildMap(); // алтарь / дым из админки — пересборка по подписи
     this.placeAltar();
@@ -133,16 +133,21 @@ export class CityView {
       for (const [cx, cy, r, a] of [[16, 17, 11, 0.55], [11, 14, 7, 0.5], [21, 13, 7, 0.45], [15, 10, 6, 0.4]]) { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); }
       const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return [t]; };
     this.smokeTex = proc(); this.smoke = []; this.smokeG = new THREE.Group(); this.smokeG.name = 'city-smoke'; this.group.add(this.smokeG);
-    if (SMOKE_SRC) loadAtlasTexture(THREE, SMOKE_SRC).then((t0) => { const sh = FXJ.smoke_sheet || {}, n = Math.max(1, sh.frames | 0 || 8), im = t0.image, fw = Math.round(im.width / n), out = [];
-      for (let f = 0; f < n; f++) { const cv = document.createElement('canvas'); cv.width = fw; cv.height = im.height; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(im, f * fw, 0, fw, im.height, 0, 0, fw, im.height);
-        const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; out.push(pixTex(THREE, t)); }
-      this.smokeTex = out; this.smokeSheet = true; }).catch(() => {});
+
     const col = hex(S.color, 0x6f6a78);
     for (let i = 0; i < max; i++) { const m = new THREE.SpriteMaterial({ map: this.smokeTex[0], transparent: true, depthWrite: false, opacity: 0, fog: false }); setDisplayHex(m.color, col);
       const sp = new THREE.Sprite(m); sp.visible = false; sp.renderOrder = 5; this.smokeG.add(sp); this.smoke.push({ sp, t: 1e9, life: 1, vx: 0, vy: 0, vz: 0 }); }
   }
+  smokeLoad(key) { // лист дыма Художника; нет файла — процедурный клуб
+    const THREE = this.THREE;
+    const src = SMOKE_SRCS[key] || SMOKE_SRCS.main; this._smK = key; if (!src) return;
+    loadAtlasTexture(THREE, src).then((t0) => { if (this._smK !== key) return; const sh = FXJ.smoke_sheet || {}, n = Math.max(1, sh.frames | 0 || 8), im = t0.image, fw = Math.round(im.width / n), out = [];
+      for (let f = 0; f < n; f++) { const cv = document.createElement('canvas'); cv.width = fw; cv.height = im.height; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(im, f * fw, 0, fw, im.height, 0, 0, fw, im.height);
+        const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; out.push(pixTex(THREE, t)); }
+      this.smokeTex = out; this.smokeSheet = true; for (const q of this.smoke || []) q.sp.material.color.setRGB(1, 1, 1); }).catch(() => {}); // цвет — из листа (без подкраски)
+  }
   smokeStep(dt) {
-    const C = this.cfg?.fx || {}, S = FXJ.smoke || {}; if (!this.smoke) this.smokeInit();
+    const C = this.cfg?.fx || {}, S = FXJ.smoke || {}; if (!this.smoke) this.smokeInit(); const smK = C.smokeSheet === 'thin' ? 'thin' : 'main'; if (this._smK !== smK) this.smokeLoad(smK);
     const on = C.smokeOn !== false && this.chim?.length, rate = (Number(S.rate) || 2.2) * Math.max(0, Number(C.smokeRate ?? 1)) * (this.quality >= 2 ? 0.5 : 1);
     const life = Number(S.life) || 3.6, rise = (Number(S.rise_mps) || 0.75) * Math.max(0, Number(C.smokeRise ?? 1)), drift = Number(S.drift_mps) || 0.28;
     const s0 = (Number(S.size0_m) || 0.7) * Math.max(0.1, Number(C.smokeSize ?? 1)), s1 = (Number(S.size1_m) || 2.3) * Math.max(0.1, Number(C.smokeSize ?? 1)), A = Math.min(1, Math.max(0, Number(C.smokeAlpha ?? S.alpha ?? 0.55)));

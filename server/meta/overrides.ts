@@ -284,7 +284,8 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("walk.inMinSec", "Дома: от, с", 5, 3600, "int"), N("walk.inMaxSec", "Дома: до, с", 5, 3600, "int"), N("walk.outMinSec", "На улице: от, с", 5, 3600, "int"), N("walk.outMaxSec", "На улице: до, с", 5, 3600, "int"),
     N("walk.pauseMin", "Пауза между шагами: от, с", 0, 60), N("walk.pauseMax", "Пауза: до, с", 0, 60),
     { path: "_h_fx", label: "Эффекты: дым из труб, камин", t: "hdr" },
-    { path: "fx.smokeOn", label: "Дым из труб (вживую)", t: "bool" }, N("fx.smokeRate", "…частота клубов, ×", 0.1, 4), N("fx.smokeRise", "…скорость подъёма, ×", 0.1, 4), N("fx.smokeAlpha", "…непрозрачность", 0, 1), N("fx.smokeSize", "…размер клубов, ×", 0.3, 3),
+    { path: "fx.smokeOn", label: "Дым из труб (вживую)", t: "bool" }, N("fx.smokeRate", "…частота клубов, ×", 0.1, 4), N("fx.smokeRise", "…скорость подъёма, ×", 0.1, 4), N("fx.smokeAlpha", "…непрозрачность", 0, 1), N("fx.smokeSize", "…размер клубов, ×", 0.3, 3), { path: "fx.smokeSheet", label: "…лист дыма (main — основной, thin — тонкий)", t: "enum", opts: ["main", "thin"] },
+    { path: "fx.resGlow", label: "Свечение листов жителей (residents/<key>_glow.png: глаза и т.п.)", t: "bool" }, N("fx.resGlowK", "…сила свечения", 0, 4),
     { path: "fx.hearthOn", label: "Огонь в каминах домов (анимация + свет)", t: "bool" }, N("fx.hearthFlick", "…мерцание света: сила (0 — ровный)", 0, 1), N("fx.hearthSpeed", "…мерцание: скорость, ×", 0.1, 5),
     N("fx.hearthK", "…яркость света", 0, 2), N("fx.hearthR", "…радиус света, ×", 0.3, 3),
     ...Array.from({ length: CITY_SLOTS }, (_, i) => { const p = (k: string) => `npc.${i}.${k}`; return [

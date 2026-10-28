@@ -101,7 +101,7 @@ export const CITY_CFG: any = {
   // dx/dy — px от центра города (клетка фонтана); r — радиус взаимодействия, px; откаты — с
   altar: { on: true, dx: 176, dy: 24, r: 110, bindCdSec: 10, soulCdSec: 5, soulOn: true },
   // эффекты города: дым из труб (cityView) и огонь камина в домах (cityRoom); мерцание света камина
-  fx: { smokeOn: true, smokeRate: 1, smokeRise: 1, smokeAlpha: 0.75, smokeSize: 1, hearthOn: true, hearthFlick: 0.35, hearthSpeed: 1, hearthK: 0.8, hearthR: 1 },
+  fx: { smokeOn: true, smokeRate: 1, smokeRise: 1, smokeAlpha: 0.75, smokeSize: 1, smokeSheet: "main", hearthOn: true, hearthFlick: 0.35, hearthSpeed: 1, hearthK: 0.8, hearthR: 1, resGlow: true, resGlowK: 1.4 },
 };
 /** точка алтаря перевоплощения (px мира) */
 export const cityAltarPos = (): [number, number] => [CITY_CFG.x + (Number(CITY_CFG.altar?.dx) || 0), CITY_CFG.y + (Number(CITY_CFG.altar?.dy) || 0)];
