@@ -11,7 +11,7 @@
 //  • убийства, сделанные из-под любого купола (город, купол/сфера мага), не считаются.
 import { ROSE_ADJ } from "./bmCfg";
 export const CITY_TILE = 32;
-export const CITY_SLOTS = 24; // мест для NPC (админка: включить, имя, вид, точка, дом)
+export const CITY_SLOTS = 28; // мест для NPC (админка: включить, имя, вид, точка, дом)
 export const CITY_LOOKS = ["petr", "kyut", "alzi", "leyr"]; // вид NPC-заглушки (листы героев NPC_ROWS) — пока нет своих спрайтов жителей
 
 // ——— раскладка (клетки от центра; +x — восток, +y — юг) ———
@@ -34,6 +34,16 @@ const SLOT_DEF: [number, number, string, string, string, boolean, string?][] = [
   [0, 0, "house_se1", "hearth", "Жилица", false], [0, 0, "house_s1", "table", "Жилец", false], [0, 0, "tent_s2", "bedroll", "Беженец", false],
   [0, 0, "tavern", "customer", "Посетитель", false], [0, 0, "tavern", "hearth", "Путник", false], [0, 0, "house_elder", "table", "Писарь", false],
   [0, 0, "house_nw2", "bed", "Больной", false], [0, 0, "house_n1", "bed", "Старик", false], [0, 0, "house_s1", "hearth", "Жилица", false],
+];
+/** жители Альказака (места 25–28 → id city_25…city_28; не путать с NPC «kyut» и отражением Кьют арены «kyut_mirror»).
+ *  Живут в доме (house + spot) и выходят гулять по городу (walk, server/meta/cityWalk.ts). Квестов нет — назначаются в админке квестов.
+ *  name/title — Историк (правка в админке «🏰 Город» → место N, без кода); sprite — ключ листа Художника
+ *  (src/assets/mc/city/residents/<sprite>.png, см. README там же); пока листа нет — заглушка look (листы NPC_ROWS). */
+const RESIDENTS: { house: string; spot: string; name: string; title: string; look: string; sprite: string }[] = [
+  { house: "house_se1", spot: "hearth", name: "Знахарь", title: "ветеран «Детей ночи»", look: "petr", sprite: "res_znahar" },
+  { house: "house_n1", spot: "table", name: "Королева Мэл", title: "глава клана «Дети ночи»", look: "leyr", sprite: "res_mel" },
+  { house: "house_n2", spot: "hearth", name: "Кьют", title: "горничная королевы Мэл", look: "alzi", sprite: "res_kyut_maid" },
+  { house: "house_sw1", spot: "hearth", name: "Ликёр Владолларс", title: "глава клана «Праведные коты»", look: "petr", sprite: "res_liker" },
 ];
 
 // ——— настройки (админка) ———
@@ -82,8 +92,20 @@ export const CITY_CFG: any = {
   roseId: "1792366351175927", roseBloom: true, roseNoCurse: true, noCurseIn: true,
   rosePos: [24608, 3232],   // центр травяной клумбы (решение пользователя: роза на траве, не на досках); где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
   // места NPC: npc.N.on / name / title / look / house + spot (место в комнате, npc_spots интерьера) или dx / dy (клетки от центра при R = 32, снаружи)
-  npc: SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot })),
+  // walk — житель ходит (дом ↔ улица), sprite — свой лист Художника (пусто — заглушка look)
+  npc: [...SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot, walk: false, sprite: "" })),
+    ...RESIDENTS.map((r) => ({ on: true, name: r.name, title: r.title, look: r.look, dx: 0, dy: 0, f: "down", house: r.house, spot: r.spot, walk: true, sprite: r.sprite }))],
+  // прогулки жителей (места с walk): дома ↔ на улице у своей двери, по таймеру; радиусы — от точки дома / от двери
+  walk: { on: true, goOut: true, speed: 38, rInTiles: 2.5, rOutTiles: 7, inMinSec: 30, inMaxSec: 70, outMinSec: 40, outMaxSec: 90, pauseMin: 2.5, pauseMax: 7, talkHoldSec: 90 },
+  // Алтарь перевоплощения у фонтана (вид — алтарь выбора класса хаба, engine/models.js): привязка точки возрождения + облик души.
+  // dx/dy — px от центра города (клетка фонтана); r — радиус взаимодействия, px; откаты — с
+  altar: { on: true, dx: 176, dy: 24, r: 110, bindCdSec: 10, soulCdSec: 5, soulOn: true },
+  // эффекты города: дым из труб (cityView) и огонь камина в домах (cityRoom); мерцание света камина
+  fx: { smokeOn: true, smokeRate: 1, smokeRise: 1, smokeAlpha: 0.55, smokeSize: 1, hearthOn: true, hearthFlick: 0.35, hearthSpeed: 1, hearthK: 0.8, hearthR: 1 },
 };
+/** точка алтаря перевоплощения (px мира) */
+export const cityAltarPos = (): [number, number] => [CITY_CFG.x + (Number(CITY_CFG.altar?.dx) || 0), CITY_CFG.y + (Number(CITY_CFG.altar?.dy) || 0)];
+export const cityAltarOn = () => CITY_CFG.on !== false && CITY_CFG.altar?.on !== false;
 export const PK_CFG: any = {
   on: true,                 // PK-режим доступен
   enterSec: 7,              // включить: ждать N с без боя
