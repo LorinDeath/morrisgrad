@@ -22,7 +22,7 @@ import { BMA_CFG, bagDraw, bmHit, bmDefend, bmSkillPct, chargeFrac, chargedAtk }
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
-import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, bmmClient, refStats, mobFinal, makeMob } from "./blackMobs";
+import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult } from "./profile";
@@ -2171,7 +2171,7 @@ export class MetaService {
     const db: any = (this.store as any).db, A = this.admin, by = ms.pkey;
     const vals = (k: string, id: string) => ovValues(k as any, id);
     const nest = (v: any) => { const o: any = {}; for (const [p, x] of Object.entries(v || {})) { if (x == null) continue; const ks = p.split("."); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === "object" ? t[k] : {}; t[ks.at(-1)!] = x; } return o; };
-    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: CUSTOM_BM.test(id), ...nest(vals("bmmob", id)), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)) }));
+    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: isCustomBm(id), ...nest(vals("bmmob", id)), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)) }));
     const bodyList = () => Object.keys(BM_BODY).map((id) => ({ id, custom: CUSTOM_BB.test(id), ...nest(vals("bmbody", id)) }));
     const campList = () => { const sum = new Map<string, any>(); for (const w of ["arinar", "hellfire"]) { const z: any = (this.zones as any)[w]; for (const c of z?.campSummary?.() || []) { const zc = z.camps.find((x: any) => x.id === c[0]); if (zc?.region?.startsWith("bm:")) sum.set(zc.region.slice(3), { alive: c[3], total: c[4], state: c[5], next: c[8] }); } }
       return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; return { id, ...nest(vals("bmcamp", id)), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null }; }); };
@@ -2195,7 +2195,7 @@ export class MetaService {
       case "camps": return { ok: true, camps: campList() };
       case "draft": { const id = String(msg.id || ""); if (!BM_MOBS[id] && !CUSTOM_BM.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_mdraft", id, msg.data || {}); return { ...r, id }; }
       case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_mdraft", id); return { ok: true, id }; }
-      case "new": { if (Object.keys(BM_MOBS).filter((k) => CUSTOM_BM.test(k)).length >= (BMM_CFG.maxCustomMobs || 200)) return { ok: false, err: "лимит своих мобов" };
+      case "new": { if (Object.keys(BM_MOBS).filter((k) => isCustomBm(k)).length >= (BMM_CFG.maxCustomMobs || 200)) return { ok: false, err: "лимит своих мобов" };
         const id = rid("bmx", BM_MOBS), data: any = makeMob(id, Number(msg.lvl) || 5, String(msg.cls || "warrior")); delete data.id; await A.bmcSave(by, "bmc_mdraft", id, data); return { ok: true, id, data }; }
       case "publish": { const id = String(msg.id || ""); const raw = msg.data && typeof msg.data === "object" ? msg.data : null; if (!raw) return { ok: false, err: "пустой черновик" };
         const isNew = !BM_MOBS[id]; const r: any = await saveFull("bmmob", id, raw); if (r.ok) await A.bmcDel("bmc_mdraft", id);

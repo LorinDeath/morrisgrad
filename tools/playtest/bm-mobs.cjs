@@ -33,6 +33,7 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   await G(() => window.__game.debug.selectClass('warrior')); await sleep(2500); await G(() => window.__game.board?.tut?.('skip')); await sleep(400);
   for (let i = 0; i < 8 && (await G(() => window.__game.state().world)) !== 'arinar'; i++) { await G(() => { window.__game.debug.rawSend({ type: 'dev_teleport', x: 240, y: 600 }); window.__game.debug.teleport(240, 600); }); await sleep(1200); await G(() => window.__game.debug.rawSend({ type: 'use_portal', portalId: 'portal_arinar' })); await sleep(3000); }
   t('в Аринаре', (await G(() => window.__game.state().world)) === 'arinar');
+  await p.waitForFunction(() => (window.__game.state().camps || []).length > 0, null, { timeout: 20000 }).catch(() => {});
   const camps = await G(() => window.__game.state().camps);
   const pl0 = await G(() => { const s = window.__game.state(); return { x: s.player?.x ?? s.x, y: s.player?.y ?? s.y }; });
   const CL = (camps || []).map((c) => Array.isArray(c) ? { id: c[0], x: c[1], y: c[2], alive: c[3] } : c).filter((c) => (c.alive ?? 2) >= 2).map((c) => ({ ...c, d: Math.hypot(c.x - pl0.x, c.y - pl0.y) })).filter((c) => c.d > 900).sort((a, b) => a.d - b.d);
@@ -41,7 +42,8 @@ const ADMIN = 'qa_bmc_' + Date.now().toString(36);
   // админка → «👹 Чёрные мобы»
   await p.waitForFunction(() => { if (document.querySelectorAll('.mc-admin [data-tab]').length) return true; try { if (!window.__game.debug.admin().open) window.__game.debug.openAdmin(); } catch {} return false; }, null, { timeout: 30000 }).catch(() => {});
   await p.waitForFunction(() => { if (document.querySelectorAll('.bmma .pl [data-m]').length >= 3) return true; document.querySelector('.mc-admin [data-tab="bmmobs"]')?.click(); return false; }, null, { timeout: 25000, polling: 1500 }).catch(() => {}); await sleep(300);
-  const tabOk = await G(() => ({ tab: !!document.querySelector('.mc-admin [data-tab="bmmobs"]'), list: document.querySelectorAll('.bmma .pl [data-m]').length, subs: document.querySelectorAll('.bmma [data-bs]').length }));
+  const tabOk = await G(() => ({ tab: !!document.querySelector('.mc-admin [data-tab="bmmobs"]'), list: document.querySelectorAll('.bmma .pl [data-m]').length, subs: document.querySelectorAll('.bmma [data-bs]').length, html: (document.querySelector('.bmma')?.innerText || '').slice(0, 300) }));
+  if (tabOk.list < 3) console.log('FR', fr.slice(-6).map((x) => x.slice(0, 300)));
   t('вкладка «👹 Чёрные мобы»: список встроенных мобов, 4 подвкладки', tabOk.tab && tabOk.list >= 3 && tabOk.subs === 4, tabOk);
   mark('tab');
   await G(() => document.querySelector('.bmma [data-m="bmx_ash_warden"]').click()); await sleep(2500);

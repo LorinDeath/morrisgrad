@@ -84,6 +84,9 @@ const BUILTIN: [string, string, string, number, Partial<Record<BodySlot, number>
   ["bmx_forge_brute", "Горновой громила", "brute", 12, { tail: 3, armL: 2, legL: 2, torso: 5, legR: 2, head: 4, armR: 2 }, { handle: "fire_handle", blade: "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3" }, [{ res: pieceId("fire", "blade2"), chance: 15, qty: [1, 2] }, { res: pieceId("fire", "blade3"), chance: 15, qty: [1, 2] }]],
 ];
 export const BM_MOBS: Record<string, BmMob> = {};
+/** встроенные мобы: id тоже bmx_*, но это не «свои» — сброс правок их не удаляет */
+export const BM_BUILTIN = new Set(BUILTIN.map((b) => b[0]));
+export const isCustomBm = (id: string) => CUSTOM_BM.test(id) && !BM_BUILTIN.has(id);
 for (const [id, name, cls, lvl, body, weapon, drops] of BUILTIN) {
   const m = makeMob(id, lvl, cls); m.name = name; m.body = Object.fromEntries(Object.entries(body).map(([s, v]) => [s, `fb_${s}_${v}`])); m.weapon = { ...weapon }; m.drops = drops;
   if (cls === "brute") m.scale = 1.2;

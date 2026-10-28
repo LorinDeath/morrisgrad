@@ -1,4 +1,4 @@
-import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs } from "./blackMobs";
+import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs, BM_BUILTIN } from "./blackMobs";
 import { BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
@@ -770,7 +770,7 @@ export function applyOverride(kind: Kind, id: string, patch: any | null) {
     if (patch) { BM_PARTS[id] = makeBpart(id, String(patch.type || "blade"), String(patch.elem || "fire")); applyOverride0(kind, id, patch); }
     return;
   }
-  if (BMK[kind] && BMK[kind].re.test(id)) { // свой моб/часть/лагерь: правка — создать по шаблону, сброс — убрать из таблицы (вид в ZONE_MOBS остаётся для живых)
+  if (BMK[kind] && BMK[kind].re.test(id) && !(kind === "bmmob" && BM_BUILTIN.has(id))) { // свой моб/часть/лагерь: правка — создать по шаблону, сброс — убрать из таблицы (вид в ZONE_MOBS остаётся для живых)
     const K = BMK[kind]; ORIG.delete(kind + ":" + id); delete K.T[id];
     if (patch) { K.T[id] = K.make(id, patch); applyOverride0(kind, id, patch); }
     if (kind !== "bmcamp") registerBlackMobs(ITEM_BY_ID as any); return;

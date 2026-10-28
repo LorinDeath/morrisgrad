@@ -93,4 +93,7 @@ ok(!z.mobs.some((m: any) => m.bmc === "bcx_test" && m.respawnAt !== -1) && !z.ca
 const city = { ...cp, x: -10, y: 5 }; ok(!!z.bmCampErr({ ...(BM_CAMPS.bcx_test as any), ...city }), "лагерь за краем/у города не ставится");
 applyOverride("bmcamp" as any, "bcx_test", null); applyOverride("bmmob" as any, "bmx_probe", null);
 ok(!BM_MOBS.bmx_probe && (ZONE_MOBS as any).bmx_probe, "сброс своего моба: из конструктора убран, вид для живых остаётся");
+// сброс всех правок (admin reset) не удаляет встроенных bmx_* мобов
+for (const id of Object.keys(BM_MOBS)) applyOverride("bmmob" as any, id, null);
+ok(!!BM_MOBS.bmx_ash_warden && !!BM_MOBS.bmx_ember_archer && !!BM_MOBS.bmx_forge_brute, "сброс правок: встроенные чёрные мобы остаются");
 console.log(`\n${pass} PASS / ${fail} FAIL`); if (fail) process.exit(1);
