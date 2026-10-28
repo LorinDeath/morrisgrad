@@ -97,6 +97,11 @@ const IDLE = {
 export const NPC_SERVICES = {
   petr: [{ id: 'npc-svc-craft', text: '⚒️ Ремесло', cb: 'onCraft' }, { id: 'npc-svc-upgrade', text: '🔨 Улучшение', cb: 'onUpgrade' }],
 };
+// услуги по ИМЕНИ NPC (у жителей городов id вида city_N зависит от порядка в конфиге города)
+export const NPC_SERVICES_BY_NAME = {
+  'Знахарь': [{ id: 'npc-svc-forge', text: '🔥 Кузня Знахаря', cb: 'onForge' }],
+};
+const svcOf = (npc) => NPC_SERVICES[npc] || NPC_SERVICES_BY_NAME[NPCS[npc]?.name] || [];
 
 // звёздный квест: «N ★» после названия (N — сколько звёзд даёт награда)
 export const starCount = (q) => Object.values(q?.rewards?.stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -202,7 +207,7 @@ export class NpcDialog {
   turnIn(q) { if (q.bt) this.board.claim(q.id); else this.meta.turnIn(q.id); }
   /** кнопки услуг NPC (Пётр: Ремесло/Улучшение) — во всех окнах диалога, рядом с квестами */
   // окно услуги открыто — NPC продолжает стоять (сервер держит его до npc_talk_end, который шлёт game.js при закрытии окна услуги)
-  btnSvc() { return (NPC_SERVICES[this.npc] || []).map((s) => ({ text: s.text, cls: 'svc', id: s.id, onClick: () => { const npc = this.npc; this.close(true); this.svcNpc = npc; this[s.cb]?.(); } })); }
+  btnSvc() { return svcOf(this.npc).map((s) => ({ text: s.text, cls: 'svc', id: s.id, onClick: () => { const npc = this.npc; this.close(true); this.svcNpc = npc; this[s.cb]?.(); } })); }
   /** «Все квесты» + услуги — для промежуточных окон VN и концовок */
   btnMid() { return [...this.btnAll(), ...this.btnSvc()]; }
   btnAll() { return (this.list || []).some((x) => x.bt || QUEST_BY_ID[x.id]) ? [{ text: '📜 Все квесты', id: 'npc-all-quests', onClick: () => this.showAll() }] : []; }

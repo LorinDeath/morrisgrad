@@ -239,7 +239,7 @@ export class AdminStore {
       try {
         const v = await this.db.prepare("SELECT v FROM game_config_version WHERE k = 'overrides'").first();
         const ver = Number(v?.v ?? 0); if (!force && ver === this.ver) return;
-        const rows = (await this.db.prepare("SELECT kind, id, data FROM game_overrides").all()).results || [];
+        const rows = (await this.db.prepare("SELECT kind, id, data FROM game_overrides WHERE substr(kind, 1, 4) <> 'bmc_'").all()).results || [];
         for (const k of KINDS) for (const id of Object.keys(TABLES[k])) applyOverride(k, id, null);
         this.copyOwn.clear();
         // строки разделов («main@_h_kill») сливаются с основной строкой сущности: сначала основная, затем разделы
@@ -338,6 +338,24 @@ export class AdminStore {
     const values = currentValues(kind, id), pick = (o: any) => o && Object.fromEntries(Object.entries(o).filter(([k]) => (map[k] ?? SEC_MAIN) === sec));
     await this.bump(by, kind, rid, pick(before), pick(values), version);
     return { ok: true, values, version, sec, changed: keys, ...(snap ? { copies: this.copyDiff(snap, isCopy(id) ? id : undefined) } : {}) };
+  }
+  // ---- черновики конструктора чёрной магии (как в Obsidian: автосохранение, «Опубликовать» — обычная правка) ----
+  // строки game_overrides kind «bmc_*» (bmc_draft — детали оружия, bmc_mdraft — мобы): в игру не идут (sync их пропускает), версию не трогают
+  async bmcList(kind: string): Promise<{ id: string; data: any; at: number; by: string }[]> {
+    if (!this.db || !/^bmc_[a-z]{2,12}$/.test(kind)) return [];
+    const rows = (await this.db.prepare("SELECT id, data, updated_at, updated_by FROM game_overrides WHERE kind = ? ORDER BY updated_at DESC LIMIT 300").bind(kind).all()).results || [];
+    return rows.map((r: any) => { let d: any = null; try { d = JSON.parse(r.data); } catch {} return { id: String(r.id), data: d, at: Number(r.updated_at) || 0, by: String(r.updated_by || "") }; });
+  }
+  async bmcSave(by: string, kind: string, id: string, data: any) {
+    if (!this.db) return { ok: false, err: "База недоступна" };
+    if (!/^bmc_[a-z]{2,12}$/.test(kind) || !ID_RE.test(id)) return { ok: false, err: "неверный черновик" };
+    const j = JSON.stringify(data ?? null); if (j.length > 16000) return { ok: false, err: "черновик слишком большой" };
+    await UPSERT(this.db, kind, id, data, 0, by).run();
+    return { ok: true, at: Date.now() };
+  }
+  async bmcDel(kind: string, id: string) {
+    if (!this.db || !/^bmc_[a-z]{2,12}$/.test(kind)) return { ok: false };
+    await DEL(this.db, kind, id).run(); return { ok: true };
   }
   async reset(by: string, kind: Kind, id: string) {
     if (!this.db) return { ok: false, err: "База недоступна" };

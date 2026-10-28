@@ -434,7 +434,7 @@ export function addRes(a: Account, res: string, n: number) {
 /** настройки артефактов для клиента (вкладка «Артефакты», заряд, лимит) */
 export function bmaClient(a: Account) {
   return { on: BMA_CFG.on, chargeMoveMul: BMA_CFG.chargeMoveMul, holdMaxSec: BMA_CFG.holdMaxSec, critMul: BMA_CFG.critMul, bagSize: BMA_CFG.bagSize,
-    classMul: BMA_CFG.classMul, maxArtifacts: BMA_CFG.maxArtifacts, have: a.inv.filter((i) => isArtifactId(i.id)).length };
+    classMul: BMA_CFG.classMul, maxArtifacts: BMA_CFG.maxArtifacts, have: a.inv.filter((i) => isArtifactId(i.id)).length, parts: (a as any).bmParts || {} };
 }
 /** в слоте оружия — артефакт чёрной магии */
 export function artInHand(a: Account, h: Hero): boolean {

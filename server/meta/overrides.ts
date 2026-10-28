@@ -1,4 +1,4 @@
-import { BMA_CFG, BM_PARTS, BM_SKILL_IDS } from "./blackArt";
+import { BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
 import { DASH_CFG } from "./dash";
@@ -81,6 +81,9 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("caps.force", "Сила атаки, макс. %", 0, 5000), N("caps.power", "Мощность, макс. %", 0, 1000), N("caps.charge", "Скорость заряда, мин. с", 0.05, 10),
     N("caps.bdmg", "Чёрный урон, макс. %", 0, 100), N("caps.barm", "Чёрная броня, макс.", 0, 1e7), N("caps.bcap", "Предельная броня, мин. %", 0, 100), N("caps.bcrit", "Крит, макс. из 100", 0, 100, "int")] },
   bpart: { name: "Части оружия", fields: [{ path: "name", label: "Название", t: "ltext" },
+    { path: "type", label: "Тип детали (у встроенной не меняется)", t: "enum", opts: [...BP_TYPES] }, { path: "elem", label: "Стихия", t: "enum", opts: [...BP_ELEMS] },
+    { path: "icon", label: "Значок (эмодзи, пока нет листа Художника)", t: "text" }, { path: "color", label: "Цвет заглушки", t: "color" },
+    { path: "img", label: "Лист Художника (ключ файла, пусто — огненная заглушка)", t: "text" }, { path: "desc", label: "Описание", t: "ltext" },
     { path: "rarity", label: "Редкость", t: "enum", opts: ["common", "uncommon", "rare", "epic", "legendary", "mythic"] }, N("lvl", "Уровень", 1, 60, "int"),
     { path: "hidden", label: "Скрыта (не выдаётся)", t: "bool" },
     { path: "_h_st", label: "Чёрные статы части", t: "hdr" },
@@ -88,8 +91,11 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     N("stats.barm", "Чёрная броня", 0, 1e7), N("stats.bcap", "Предельная броня, %", 0, 100), N("stats.bcrit", "Крит, из 100", 0, 100, "int"),
     { path: "_h_f", label: "Форма (рукоять — темп, лезвие — дальность/дуга)", t: "hdr" },
     N("cd", "Рукоять: перезарядка удара, мс", 200, 5000, "int"), N("reach", "Ближнее лезвие: дальность, px", 40, 400, "int"), N("arc", "Ближнее лезвие: дуга, рад", 0.2, 3.1),
+    { path: "ranged", label: "Лезвие дальнего боя (снаряд)", t: "bool" },
     N("rangeTiles", "Дальнее лезвие: дальность, клеток", 1, 40, "int"), N("width", "Дальнее лезвие: ширина снаряда, px", 4, 120, "int"),
-    { path: "skill", label: "Навык части — любой навык артефактов из общего списка «✨ Навыки»", t: "enum", opts: ["", ...BM_SKILL_IDS] }] },
+    { path: "skill", label: "Навык части — любой навык артефактов из общего списка «✨ Навыки»", t: "enum", opts: ["", ...BM_SKILL_IDS] },
+    { path: "_h_cost", label: "Создание у Знахаря", t: "hdr" },
+    N("cost", "Кусочков чертежа (bp_<стихия>_<тип>) на одну деталь", 0, 9999, "int"), N("reqLvl", "Требуемый уровень героя", 0, 60, "int")] },
   loot: { name: "Дроп", fields: [] }, // gear/materials — таблицы, проверяются отдельно (validateLoot)
   // спавн Аринара (живые: сервер читает ZONE_GEN на каждом респавне/проверке) — лагеря и бродячие мобы
   spawn: { name: "Спавн", fields: [N("regenCombat", "Восстановление ХП в бою, × (вне боя — полное)", 0, 1), N("regenCombatSec", "«В бою» после удара/урона, с", 0, 60),
@@ -560,10 +566,31 @@ function validateLoot(patch: any): any | string {
   }
   return out;
 }
+/** деталь оружия (этап Б): своя деталь «bpx_…», которой ещё нет, создаётся по шаблону на время проверки; тип встроенной не меняется */
+function validateBpart(id: string, patch: any): any | string {
+  let made = false;
+  if (!BM_PARTS[id]) {
+    if (!CUSTOM_BP.test(id)) return "нет такой сущности";
+    if (Object.keys(BM_PARTS).filter((k) => CUSTOM_BP.test(k)).length >= (BMA_CFG.maxCustomParts || 300)) return `своих деталей не больше ${BMA_CFG.maxCustomParts || 300}`;
+    const t = String(patch?.type || ""); if (!(BP_TYPES as readonly string[]).includes(t)) return "тип детали: выберите из списка";
+    BM_PARTS[id] = makeBpart(id, t, String(patch?.elem || "fire")); made = true;
+  }
+  const P = BM_PARTS[id], custom = CUSTOM_BP.test(id);
+  if (!custom && patch?.type !== undefined && String(patch.type) !== String((ORIG.get("bpart:" + id)?.type) ?? P.type)) return "тип встроенной детали не меняется — создайте новую деталь";
+  const r = validatePatch0("bpart", id, patch);
+  if (made) delete BM_PARTS[id];
+  if (typeof r === "string") return r;
+  if (r.img !== undefined && !/^[a-z0-9_-]{0,48}$/.test(String(r.img))) return "лист Художника: латиница, цифры, _ и - (до 48)";
+  if (r.icon !== undefined && String(r.icon).length > 8) return "значок: до 8 символов";
+  const ty = r.type ?? P.type;
+  if (r.ranged && ty !== "blade") return "дальний бой — только у основного лезвия";
+  return r;
+}
 /** Проверка патча: только поля схемы, числа в диапазоне. Возвращает очищенный патч или текст ошибки. */
 /** Проверка правки. Задание доски с id «cx_…», которого ещё нет, — новое (из админки): шаблон создаётся на время проверки
  *  и удаляется, если правка не прошла. Раздел и событие встроенного задания менять нельзя (на них завязаны счётчики игроков). */
 export function validatePatch(kind: Kind, id: string, patch: any): any | string {
+  if (kind === "bpart") return validateBpart(id, patch);
   if (kind !== "btask") return validatePatch0(kind, id, patch);
   let made = false;
   if (!TABLES.btask[id]) {
@@ -686,6 +713,11 @@ export function applyOverride(kind: Kind, id: string, patch: any | null) {
     ORIG.delete("btask:" + id); delBtask(id);
     if (patch) { BTASKS[id] = makeBtask(id, patch.cat, patch.ev); applyOverride0(kind, id, patch); prepXp(BTASKS[id]); }
     reindexBtasks(); return;
+  }
+  if (kind === "bpart" && CUSTOM_BP.test(id)) { // своя деталь: правка — создать по шаблону, сброс — удалить
+    ORIG.delete("bpart:" + id); delete BM_PARTS[id];
+    if (patch) { BM_PARTS[id] = makeBpart(id, String(patch.type || "blade"), String(patch.elem || "fire")); applyOverride0(kind, id, patch); }
+    return;
   }
   applyOverride0(kind, id, patch);
   if (kind === "btask") { if (BTASKS[id]) prepXp(BTASKS[id]); reindexBtasks(); } // опыт — по таблице, если не задан вручную

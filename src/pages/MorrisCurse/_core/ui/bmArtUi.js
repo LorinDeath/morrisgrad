@@ -55,6 +55,8 @@ export function bmCss() {
 const fmtBm = (k, v) => { const n = BM_NAMES[k]; if (!n) return String(v); const x = k === 'bdmg' ? Math.round(v * 1000) / 10 : Math.round(v * 100) / 100; return `${k === 'force' || k === 'power' ? '+' : ''}${x}${n.unit}`; };
 export { fmtBm };
 const ORD = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %' };
+/** детали с сервера (правки админки, свои bpx_): заменить содержимое общего BM_PARTS (тот же объект — у всех импортёров) */
+export function setBmParts(o) { for (const k of Object.keys(BM_PARTS)) if (!o[k]) delete BM_PARTS[k]; for (const [k, v] of Object.entries(o)) if (v && typeof v === 'object') BM_PARTS[k] = v; }
 export const isArtItem = (it) => !!(it && typeof it.id === 'string' && it.id.startsWith('art_'));
 
 /** Обычные параметры, которые даёт снаряжение (их глушит артефакт): сумма статов надетых предметов кроме самого артефакта. */

@@ -223,6 +223,13 @@ export const RESOURCES: Record<string, { name: string; icon: string; color: stri
   dreamwood: { name: "Гранатовая ветвь", icon: "🌿", color: "#be123c" },
   rot_ore: { name: "Гнилая руда", icon: "🪨", color: "#84cc16" },
   soul_shard: { name: "Осколок души", icon: "💠", color: "#c084fc" },
+  // чёрная магия, этап Б: кусочки чертежа (bp_<стихия>_<тип>) и базовые осколки разбора артефактов — огонь
+  bp_fire_handle: { name: "Кусочек чертежа: огненная рукоять", icon: "📜", color: "#ff7a1a" },
+  bp_fire_blade: { name: "Кусочек чертежа: огненное лезвие", icon: "📜", color: "#ffa531" },
+  bp_fire_blade2: { name: "Кусочек чертежа: второе лезвие", icon: "📜", color: "#e0601a" },
+  bp_fire_blade3: { name: "Кусочек чертежа: третье лезвие", icon: "📜", color: "#c2410c" },
+  bp_fire_crystal: { name: "Кусочек чертежа: кристалл жара", icon: "📜", color: "#ffe08a" },
+  bm_shard_fire: { name: "Осколок огня", icon: "🔸", color: "#ff7a1a" },
 };
 for (const [k, v] of Object.entries(MOB_RESOURCES)) if (!RESOURCES[k]) RESOURCES[k] = v;
 

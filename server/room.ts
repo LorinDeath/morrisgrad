@@ -25,6 +25,7 @@ import { CHARACTER_CLASSES } from "./classes";
 import { getSkill } from "./skills";
 import { DarBoss } from "./dar";
 import { MetaService } from "./meta/service";
+import { roomAt } from "./meta/cityBuild";
 
 export function getFlowerName(flower: FlowerState): string {
   switch (flower.flowerType) {
@@ -1050,11 +1051,13 @@ export class GameRoom extends DurableObject {
         // только dev (MC_DEV_TRUST_USERID=1): мгновенный перенос по миру — скриншоты/плейтесты Аринара 24000 px
         if (msg.type === "dev_teleport" && session && session.dev === true) {
           const [lo, hi] = worldBounds(session.world);
-          session.x = Math.max(lo, Math.min(hi, Number(msg.x) || session.x)); session.y = Math.max(lo, Math.min(hi, Number(msg.y) || session.y));
+          const inRoom = session.world === "arinar" && Number.isFinite(Number(msg.x)) && Number.isFinite(Number(msg.y)) && roomAt(Number(msg.x), Number(msg.y)); // dev: прыжок прямо в комнату здания (Знахарь у очага) — комнаты лежат за краем карты
+          if (inRoom) { session.x = Number(msg.x); session.y = Number(msg.y); } else { session.x = Math.max(lo, Math.min(hi, Number(msg.x) || session.x)); session.y = Math.max(lo, Math.min(hi, Number(msg.y) || session.y)); }
           (session as any).lastMoveAt = Date.now(); if (session.world === "arinar") (session as any).arVer = ARINAR_LAYOUT_VER;
           if (msg.god) { const ms = (this.meta as any).ms?.get(session.id); if (ms) { ms.invulnUntil = Date.now() + 10 * 60000; ms.zp.alive = true; ms.zp.hp = ms.zp.maxHp; } } // dev: неуязвимость для скриншотов
           this.meta.onWorldChange(server, session);
           server.send(JSON.stringify({ type: "zone_respawn", x: session.x, y: session.y }));
+          if (session.world === "arinar") (this.meta as any).cityRoomNote?.(server, session, inRoom ? "enter" : "tp", inRoom ? (inRoom as any).id : undefined);
           return;
         }
         if (msg.type === "dev_plant_flower" && session && session.dev === true && (session.world || "hellfire") === "hellfire") {

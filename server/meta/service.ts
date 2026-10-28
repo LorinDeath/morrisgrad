@@ -19,7 +19,10 @@ import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
 import { parseTag, tierDef } from "./enchant";
 import { BMA_CFG, bagDraw, bmHit, bmDefend, bmSkillPct, chargeFrac, chargedAtk } from "./blackArt";
-import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE } from "./blackArtReg";
+import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
+import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
+import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
+import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult } from "./profile";
 import { LootBags, pickBagOwner, type Bag } from "./loot";
@@ -121,7 +124,9 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }),
-  bm_hold: S({ on: "b" }), bm_test_artifact: S({ ranged: "b?" }), admin_bm_recalc: S({}), // 🜏 артефакты чёрной магии: заряд, тестовый артефакт (dev/админ), «Пересчитать все» // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
+  bm_hold: S({ on: "b" }), bm_test_artifact: S({ ranged: "b?" }), admin_bm_recalc: S({}),
+  bm_forge_open: S({}), bm_forge_craft: S({ part: "s", n: "n?" }), bm_forge_build: S({ handle: "s", blade: "s", blade2: "s?", blade3: "s?", crystal: "s?", name: "s" }), // 🔥 кузня Знахаря (этап Б)
+  admin_bmf: S({ op: "s", id: "s?", data: "o?", type: "s?", mob: "s?", res: "s?", chance: "n?", qmin: "n?", qmax: "n?", name: "s?" }), // 🔥 конструктор оружия (админка) // 🜏 артефакты чёрной магии: заряд, тестовый артефакт (dev/админ), «Пересчитать все» // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
 };
 const ADMIN_PATCH_TYPES = new Set(["admin_save", "admin_save_sec", "admin_bchest_preview"]), ADMIN_PATCH_KEYS = 600;
 /** сохранения админки ждут admin_result: любой отказ (схема, частота, размер) — ответом, а не только всплывашкой (панель не висит) */
@@ -368,6 +373,7 @@ export class MetaService {
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
     if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); s.gather = gatherClient(); s.ui = uiClient(); s.terrain = terrainClient(); // вид интерфейса (админка «🎨 Интерфейс») // карта M: биом · ур. мобов (живые уровни)
+    if ([...this.admin.touched].some((k) => k.startsWith("bpart:"))) s.bmParts = BM_PARTS; // детали оружия (правки/свои детали админки) — клиент заменяет свой список
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
     s.zone = { hp: Math.round(ms.zp.hp), maxHp: ms.zp.maxHp };
@@ -388,7 +394,7 @@ export class MetaService {
    *  свежие карточки изменённых предметов, пересчитанные статы героя. Сервер уже применил правку в памяти (мир/дуэли/забеги). */
   broadcastConfig() {
     const patches = this.admin.clientPatches(), items = this.admin.touchedItems();
-    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), questDialogues: QUEST_DIALOGUES, regenCfg: regenCfg() };
+    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), questDialogues: QUEST_DIALOGUES, regenCfg: regenCfg(), ...([...this.admin.touched].some((k) => k.startsWith("bpart:")) ? { bmParts: BM_PARTS } : {}) };
     for (const [sid, ms] of this.ms) {
       const e = this.sessionLookup?.(sid); if (!e) continue;
       const cards: Record<string, any> = {};
@@ -687,6 +693,39 @@ export class MetaService {
         a.inv.push({ uid: newUid(), id: def.id, at: Date.now(), src: "grant:bm_test", n: 1, hero: cls } as any); ms.dirty = true;
         this.store.audit(ms.pkey, "bm_art", `bm_art:${ms.pkey}:${def.id}`, { id: def.id, ranged: !!msg.ranged, by: session.dev === true ? "dev" : "admin" });
         this.push(ws, session, { toast: `🔥 ${def.name} — в сумке` }); return true;
+      }
+      case "bm_forge_open": case "bm_forge_craft": case "bm_forge_build": { // 🔥 кузня Знахаря: всё считает сервер
+        if (!needHero()) return true;
+        if (!this.atForge(session)) { this.send(ws, { type: "toast_error", message: "Кузня — у Знахаря в Альказаке" }); return true; }
+        const now = Date.now(); if (msg.type === "bm_forge_build" && now - ((ms as any).bmfBuildAt || 0) < 700) return true; // двойной клик «Выковать» — один артефакт (метка — только после удачной сборки); детали — по rateOk
+        const lvl = h!.lvl || 1;
+        if (msg.type === "bm_forge_craft") {
+          if (!rateOk(((ms as any).bmfCraft ||= []), BMA_CFG.partCraftPerMin || 30, now)) { this.send(ws, { type: "toast_error", message: "Знахарь не успевает — чуть позже" }); return true; }
+          const r = craftPart(a, String(msg.part), lvl, Number(msg.n) || 1); if (r.ok) { ms.dirty = true; this.store.audit(ms.pkey, "bm_part", `bm_part:${ms.pkey}:${now}`, { part: r.part, n: r.n }); }
+          reply(r); if (!r.ok) return true;
+        }
+        if (msg.type === "bm_forge_build") {
+          const nm = cleanArtName(msg.name); if (!nm.ok) { this.send(ws, { type: "toast_error", message: nm.err }); this.send(ws, { type: "bm_forge", err: nm.err, field: "name" }); return true; }
+          const parts: any = { handle: msg.handle, blade: msg.blade, blade2: msg.blade2, blade3: msg.blade3, crystal: msg.crystal };
+          const c = checkBuild(a, parts); if (!c.ok) { reply(c); return true; }
+          if (!rateOk(((ms as any).bmfBuild ||= []), BMA_CFG.craftPerMin || 6, now)) { this.send(ws, { type: "toast_error", message: "Не чаще нескольких сборок в минуту" }); return true; }
+          const def = makeArtifact(c.parts!, nm.name, { author: String(session.username || session.name || "").slice(0, 24), src: "forge", lore: "Собран в кузне Знахаря (Альказак)." });
+          if (!def) { this.send(ws, { type: "toast_error", message: "Детали не собираются" }); return true; }
+          spendParts(a, c.parts!); (ms as any).bmfBuildAt = now;
+          a.inv.push({ uid: newUid(), id: def.id, at: now, src: "forge", n: 1, hero: cls } as any); ms.dirty = true;
+          this.store.audit(ms.pkey, "bm_art", `bm_art:${ms.pkey}:${def.id}`, { id: def.id, parts: c.parts, name: def.name, by: "forge" });
+          this.save(session); (this.store.chain.get(ms.pkey) || Promise.resolve()).then(() => this.store.flushNow?.(ms.pkey)).catch(() => {}); // сразу в D1: видно в админке
+          this.push(ws, session, { toast: `🔥 ${def.name} — выкован!` }); this.send(ws, { type: "bm_forge", built: def.id, name: def.name });
+        }
+        this.send(ws, { type: "bm_forge", st: forgeState(a, lvl) }); return true;
+      }
+      case "admin_bmf": { // 🔥 конструктор оружия: черновики, публикация, браузер, дроп кусочков
+        if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+        const t = Date.now(); if (msg.op !== "list" && msg.op !== "draft" && t - ((ms as any).admAt || 0) < 250) return true; (ms as any).admAt = t;
+        if (JSON.stringify(msg).length > 20000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
+        const out = (r: any) => this.send(ws, { type: "admin_bmf", op: msg.op, ...r });
+        const fail = (e: any) => { console.error("[mc] admin_bmf", e?.message || e); out({ ok: false, err: "Ошибка" }); };
+        this.bmfOp(ms, msg).then(out).catch(fail); return true;
       }
       case "admin_bm_recalc": { // «Пересчитать все»: снимки артефактов заново из текущих частей (админка)
         if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
@@ -2069,6 +2108,52 @@ export class MetaService {
     const g = this.bmCats.c[m.type]?.g || (ZONE_MOBS[m.type]?.boss ? "boss" : "mob");
     const inst = m.special === "boss" ? "world" : m.special === "rare" ? "rare" : m.chief ? "chief" : m.elite ? "elite" : "mob";
     return order.indexOf(inst) > order.indexOf(g) ? inst : g;
+  }
+  /** игрок у Знахаря (Альказак): рядом с ним (≤ 160 px, тот же мир); dev — где угодно в городе; forgeCityOnly=false — везде */
+  znaharId(): string { const i = (CITY_CFG.npc as any[]).findIndex((n) => n.sprite === "res_znahar" || n.name === "Знахарь"); return cityNpcId(Math.max(0, i)); }
+  atForge(session: any): boolean {
+    if (BMA_CFG.forgeCityOnly === false) return true;
+    const id = this.znaharId(), n = NPCS[id]; const p = this.cityWalk?.pos?.(id) || n;
+    if (n && p && (session.world || "hellfire") === n.world && Math.hypot(session.x - p.x, session.y - p.y) <= 160) return true;
+    return session.dev === true && inCity(session.x, session.y);
+  }
+  /** операции конструктора оружия (админка) */
+  async bmfOp(ms: any, msg: any): Promise<any> {
+    const db: any = (this.store as any).db, A = this.admin, by = ms.pkey;
+    const partList = () => Object.keys(BM_PARTS).map((id) => ({ id, custom: CUSTOM_BP.test(id), ...ovValues("bpart", id) }));
+    switch (msg.op) {
+      case "list": {
+        const drafts = await A.bmcList("bmc_draft");
+        let arts: any[] = [];
+        if (db) { try { arts = ((await db.prepare("SELECT i.id, i.name, i.rarity, i.props, (SELECT COUNT(*) FROM item_instances x WHERE x.item_id = i.id AND x.state <> 'salvaged') AS n FROM items i WHERE i.id LIKE 'art\\_%' ESCAPE '\\' ORDER BY i.rowid DESC LIMIT 200").all()).results || []).map((r: any) => { let p: any = {}; try { p = JSON.parse(r.props || "{}"); } catch {} return { id: r.id, name: r.name, rarity: r.rarity, n: Number(r.n) || 0, author: p.author || "", created: p.created || 0, src: p.src || "", parts: p.bm?.parts || {}, ranged: !!p.bm?.ranged }; }); } catch (e: any) { console.error("[mc] bmf arts", e?.message || e); } }
+        const mobs = Object.keys(ZONE_MOBS).slice(0, 400).map((id) => ({ id, name: (ZONE_MOBS as any)[id]?.name || id, lvl: (ZONE_MOBS as any)[id]?.lvl || 0, drops: ((MONSTER_LOOT as any)[id]?.materials || []).filter((m: any) => /^bp_/.test(m.res)) }));
+        return { ok: true, parts: partList(), drafts, arts, mobs, types: BP_TYPES, elems: BP_ELEMS, pieces: BP_TYPES.map((t) => pieceId("fire", t)) };
+      }
+      case "draft": { const id = String(msg.id || ""); if (!BM_PARTS[id] && !CUSTOM_BP.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_draft", id, msg.data || {}); return { ...r, id }; }
+      case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_draft", id); return { ok: true, id }; }
+      case "new": { const t = String(msg.ptype || "blade"); if (!BP_TYPES.includes(t as any)) return { ok: false, err: "тип?" };
+        let id = ""; for (let i = 0; i < 20 && (!id || BM_PARTS[id]); i++) id = `bpx_${t}_${Math.random().toString(36).slice(2, 7)}`;
+        const data = { type: t, elem: "fire", name: "Новая деталь" }; await A.bmcSave(by, "bmc_draft", id, data); return { ok: true, id, data }; }
+      case "publish": { const id = String(msg.id || ""); const raw = msg.data && typeof msg.data === "object" ? msg.data : null; if (!raw) return { ok: false, err: "пустой черновик" };
+        // черновик — вложенный объект детали (stats: {...}); правка — плоские пути схемы («stats.force»), лишнее (id, custom…) отбрасываем
+        const paths = new Set((OV_SCHEMA as any).bpart.fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path)); const patch: any = {};
+        const walk = (o: any, pre: string) => { for (const [k, v] of Object.entries(o || {})) { const p = pre + k; if (paths.has(p)) patch[p] = v; else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, p + "."); } };
+        walk(raw, ""); if (!Object.keys(patch).length) return { ok: false, err: "пустой черновик" };
+        const isNew = !BM_PARTS[id];
+        const r: any = await A.save(by, "bpart" as any, id, patch); if (r.ok) await A.bmcDel("bmc_draft", id);
+        return { ...r, id, isNew, parts: partList() }; }
+      case "drop": { // шанс кусочка чертежа у моба (таблица «Дроп» → materials)
+        const mob = String(msg.mob || ""), res = String(msg.res || ""); if (!(ZONE_MOBS as any)[mob] || !/^bp_[a-z]+_[a-z0-9]+$/.test(res)) return { ok: false, err: "моб/кусочек?" };
+        const cur: any = ovValues("loot" as any, mob) || {}; const mats = (Array.isArray(cur.materials) ? cur.materials : ((MONSTER_LOOT as any)[mob]?.materials || [])).filter((m: any) => m.res !== res);
+        const ch = Math.max(0, Math.min(100, Number(msg.chance) || 0)); if (ch > 0) mats.push({ res, chance: ch, qty: [Math.max(1, Math.round(Number(msg.qmin) || 1)), Math.max(1, Math.round(Number(msg.qmax) || Number(msg.qmin) || 1))] });
+        const gear = Array.isArray(cur.gear) ? cur.gear : ((MONSTER_LOOT as any)[mob]?.gear || []);
+        const r: any = await A.save(by, "loot" as any, mob, { gear, materials: mats.slice(0, 12) });
+        return { ...r, mob, drops: mats.filter((m: any) => /^bp_/.test(m.res)) }; }
+      case "hide_name": { const id = String(msg.id || ""); if (!/^art_[0-9a-f]{12}$/.test(id) || !db) return { ok: false, err: "id?" };
+        await db.prepare(ARTIFACT_RENAME).bind(ART_HIDDEN_NAME, id).run(); const d: any = (ITEM_BY_ID as any)[id]; if (d) d.name = ART_HIDDEN_NAME;
+        this.store.audit(by, "bm_art_hide", `bm_art_hide:${id}:${Date.now()}`, { id }); return { ok: true, id }; }
+    }
+    return { ok: false, err: "неизвестная операция" };
   }
   /** «Пересчитать все»: загруженные — в памяти, все строки items (art_*) в D1 — заново из частей */
   async bmRecalc(): Promise<number> {

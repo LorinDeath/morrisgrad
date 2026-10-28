@@ -100,11 +100,13 @@ import { setBossState, setRareState, BOSS_STATE as BOSS_STATE_DBG } from '../../
 // правки админ-панели на клиенте: значения по путям (stats.hp, atk.range…) в общие таблицы
 import { setMapZones, mapZonesKnown, biomeLabels } from './map/biomeLabels.js';
 import { onMarks, onMarkOk, marks as MARKS } from './map/marks.js';
-import { ArtHand } from './ui/bmArtUi.js';
+import { ArtHand, setBmParts } from './ui/bmArtUi.js';
+import { BmForgeWin } from './ui/bmForgeUi.js';
 const CFG_TABLES = { weapon: WEAPON_TYPES, skill: ABILITY_BY_ID, mob: ZONE_MOBS };
 let configVer = 0;
 function applyConfig(d) {
   if (Number.isFinite(d?.ver)) configVer = d.ver;
+  if (d?.bmParts && typeof d.bmParts === 'object') setBmParts(d.bmParts); // 🔥 детали оружия чёрной магии (правки/свои детали админки)
   if (d?.regenCfg) globalThis.__mcRegen = d.regenCfg; // забег: восстановление в бою по настройкам админки
   for (const p of d?.patches || []) { const o = CFG_TABLES[p.kind]?.[p.id]; if (!o || !p.values) continue;
     for (const [path, v] of Object.entries(p.values)) { if (v == null || path === 'traits') continue; const ks = path.split('.'); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === 'object' ? t[k] : {}; t[ks.at(-1)] = v; } }
@@ -288,6 +290,10 @@ async function boot(canvasId, username, userId, api) {
   dialog.onCraft = () => book.open('craft');
   const upgWin = new UpgradeWin(overlay, meta, { nearPetr: () => mode === 'hub' && zone.nearestNpc(world, player.x, player.y)?.id === 'petr' });
   dialog.onUpgrade = () => upgWin.open();
+  const forgeWin = new BmForgeWin(overlay, meta, (m) => net.send(m)); // 🔥 кузня Знахаря (Альказак): детали · сборка · разбор
+  dialog.onForge = () => forgeWin.open();
+  forgeWin.onClose = () => dialog.svcDone();
+  api.forgeWin = forgeWin;
   // NPC стоит, пока открыто окно его услуги; закрыли — может снова гулять
   { const uc = upgWin.close.bind(upgWin); upgWin.close = (...a) => { uc(...a); dialog.svcDone(); };
     const bc = book.close.bind(book); book.close = (...a) => { bc(...a); dialog.svcDone(); }; }
@@ -588,7 +594,7 @@ async function boot(canvasId, username, userId, api) {
     if (Array.isArray(d.customQuests)) setCustomQuests(d.customQuests); // квесты админ-панели (тексты для диалогов)
     if (d.questDialogues && typeof d.questDialogues === 'object') setQuestDialogues(d.questDialogues); // диалоги-новеллы
     if (d.portal !== undefined) syncHomePortal(d.portal);
-    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg });
+    if (Array.isArray(d.configPatches)) applyConfig({ ver: d.configVer, patches: d.configPatches, regenCfg: d.regenCfg, bmParts: d.bmParts });
     if (Array.isArray(d.questOverrides)) { for (const q of ALL_QUESTS) if (!q.custom) applyBuiltinOverride(q.id, null); for (const o of d.questOverrides) applyBuiltinOverride(o.id, o); } // правки сюжетных квестов
     metaLoad.got = true; clearTimeout(metaLoad.t);
     const prevLvl = meta.hero?.lvl, prevNeed = Number(meta.hero?.xpNeed) || 0;
@@ -735,6 +741,8 @@ async function boot(canvasId, username, userId, api) {
   adminPanel.onDialogueApplied = (r) => { if (r.dialogue) QUEST_DIALOGUES[r.questId] = r.dialogue; else delete QUEST_DIALOGUES[r.questId]; };
   adminPanel.onQuestApplied = (r) => { if (r.builtin) applyBuiltinOverride(r.quest.id, r.reset ? null : r.quest); };
   net.on('admin_result', (d) => adminPanel.onResult(d));
+  net.on('bm_forge', (d) => forgeWin.onMsg(d));
+  net.on('admin_bmf', (d) => adminPanel.onBmf?.(d));
   net.on('loot_bag', (d) => { addCards(d.cards); if (lootWin.isOpen) lootWin.update(d); else if (!d.taken) lootWin.open(d); });
   net.on('home_portal_err', (d) => overlay.toast('🌀 ' + d.message, '#fca5a5'));
   net.on('loot_err', (d) => { if (lootWin.isOpen) lootWin.error(d.message); else overlay.toast(d.message, '#fca5a5'); });
@@ -1243,6 +1251,7 @@ async function boot(canvasId, username, userId, api) {
     if (isTyping(e) || net.kicked) return;
     const k = e.key.toLowerCase();
     if (e.key === 'Escape' && upgWin.isOpen) { upgWin.close(); return; }
+    if (e.key === 'Escape' && forgeWin.isOpen) { forgeWin.close(); return; }
     if (e.key === 'Escape' && boardWin.isOpen) { boardWin.close(); return; }
     if (e.key === 'Escape' && bchestWin.isOpen) { bchestWin.close(); return; }
     if (e.key === 'Escape' && qol.helpOpen) { qol.toggleHelp(false); return; }
@@ -2244,6 +2253,7 @@ async function boot(canvasId, username, userId, api) {
       domeMobs: () => { const c = cityView.cfg; if (!c) return []; return [...zone.mobs.values()].map((m) => ({ id: m.id, d: Math.round(Math.hypot(m.x - c.x, m.y - c.y)) })).sort((a, b) => a.d - b.d).slice(0, 5); }, // плейтест купол↔моб: ближайшие к центру
       city: () => ({ room: cityRoom.debug(), hud: cityHud.debug(), dome: cityView.debug(), space: spaceOf(player.x, player.y), labels: [...document.querySelectorAll('.mc3d-label')].filter((l) => l.querySelector('.mc-pk-tag, .mc-pkbar')).map((l) => { const tag = l.querySelector('.mc-pk-tag'), bar = l.querySelector('.mc-pkbar'), r = l.querySelector('.mc-role:not(.mc-pk-tag)'); const kids = [...l.querySelectorAll('.mc-role')].map((e) => e.textContent); return { key: l.dataset.key || '', text: l.textContent.slice(0, 40), color: l.style.color, tag: tag?.textContent || null, tagBg: tag?.style.background || null, order: kids, bar: bar ? { t: bar.dataset.t, p: Number(bar.dataset.p || 0), col: bar.querySelector('i')?.style.background || '', w: bar.querySelector('i')?.style.width || '' } : null }; }) }),
       hpBars: () => [...document.querySelectorAll('.mc3d-label .mc3d-mini-hp i')].map((i) => ({ party: i.parentElement.classList.contains('party'), self: !!i.closest('.mc3d-label')?.dataset?.me, color: getComputedStyle(i).backgroundColor })),
+      npcByName: (name) => { const id = Object.keys(NPCS).find((k) => NPCS[k].name === name); return id ? { id, ...npcPos(id), world: NPCS[id].world } : null; }, // плейтест: где NPC (по имени)
       tp: (x, y, god = true) => { player.x = x; player.y = y; net.send({ type: 'dev_teleport', x, y, god }); }, // dev-сервер: мгновенно и на сервере
       devSpawn: (type, x, y, cursed, ench) => net.send({ type: 'dev_spawn_mob', mob: type, x, y, cursed, ench }),
       target: () => hud.currentTarget,

@@ -31,6 +31,13 @@ export const BMA_CFG = {
   soulToBlack: false,              // проценты души/талантов (dmgPct) к чёрному урону — выкл
   liveParts: false,                // ответ 4: снимок частей (выкл) / живой пересчёт
   skillBag: true,                  // навыки артефакта тоже тянут из мешка крита (одно вытягивание на применение)
+  // этап Б: кузня Знахаря (Альказак) — детали из кусочков чертежа, сборка, разбор
+  craftPerMin: 6,                  // сборок артефакта в минуту (антиспам)
+  partCraftPerMin: 30,             // созданий деталей в минуту
+  salvageBase: 10,                 // разбор артефакта: базовые осколки bm_shard_<стихия>
+  salvagePerPart: 4,               //   + за каждую деталь сверх двух обязательных
+  forgeCityOnly: true,             // кузня — только в Альказаке (рядом со Знахарем)
+  maxCustomParts: 300,             // своих деталей из конструктора (bpx_*) не больше
   caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100 } as Record<string, number>, // charge — нижний предел (с), bcap — нижний предел (%)
 };
 
@@ -39,6 +46,26 @@ export interface BmPart {
   id: string; name: string; type: "handle" | "blade" | "blade2" | "blade3" | "crystal"; elem: string; rarity: string; lvl: number;
   stats: Partial<BmStats>; skill?: string; icon: string; color: string;
   ranged?: boolean; rangeTiles?: number; reach?: number; arc?: number; width?: number; cd?: number; extraShot?: boolean; hidden?: boolean;
+  /** этап Б: стоимость детали в кусочках чертежа bp_<стихия>_<тип>, требуемый уровень героя, описание, лист Художника (ключ) */
+  cost?: number; reqLvl?: number; desc?: string; img?: string;
+}
+/** типы деталей: обязательные handle + blade, необязательные blade2/blade3/crystal */
+export const BP_TYPES = ["handle", "blade", "blade2", "blade3", "crystal"] as const;
+export type BpType = typeof BP_TYPES[number];
+export const BP_TYPE_NAMES: Record<string, string> = { handle: "Рукоять", blade: "Лезвие", blade2: "Второе лезвие", blade3: "Третье лезвие", crystal: "Кристалл" };
+export const BP_ELEMS = ["fire"];
+export const BP_ELEM_NAMES: Record<string, string> = { fire: "Огонь" };
+/** кусочек чертежа (ресурс) для типа детали */
+export const pieceId = (elem: string, type: string) => `bp_${elem}_${type}`;
+export const shardId = (elem: string) => `bm_shard_${elem}`;
+export const BP_COST_DEF: Record<string, number> = { handle: 20, blade: 30, blade2: 15, blade3: 15, crystal: 25 };
+export const partCost = (p: BmPart) => Math.max(0, Math.round(p.cost ?? BP_COST_DEF[p.type] ?? 20));
+/** своя деталь из конструктора админки */
+export const CUSTOM_BP = /^bpx_[a-z0-9_]{2,32}$/;
+export function makeBpart(id: string, type: string, elem = "fire"): BmPart {
+  const t = (BP_TYPES as readonly string[]).includes(type) ? type as BpType : "blade";
+  return { id, name: BP_TYPE_NAMES[t] + " (новая)", type: t, elem, rarity: "common", lvl: 1, icon: t === "crystal" ? "💎" : t === "handle" ? "🔥" : "🗡️", color: "#ff7a1a",
+    stats: {}, cost: BP_COST_DEF[t], ...(t === "handle" ? { cd: 600 } : t === "blade" ? { reach: 110, arc: 1.1 } : {}) };
 }
 export const BM_PARTS: Record<string, BmPart> = {
   fire_handle: { id: "fire_handle", name: "Рукоять тлеющего угля", type: "handle", elem: "fire", rarity: "rare", lvl: 1, icon: "🔥", color: "#e0601a",

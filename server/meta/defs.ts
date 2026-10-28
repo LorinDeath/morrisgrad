@@ -11,6 +11,7 @@
 // defs.ts — ТОЛЬКО СЕРВЕР: всё из shared.ts + предметы, добыча, облики, ремесло, статы мобов.
 
 import { CONTENT } from "./content";
+import { artSalvage } from "./blackForge";
 import { withVariants, baseOf } from "./biomes";
 import type { ItemDef, HeroId } from "./shared";
 import { CLASS_WTYPE } from "./shared";
@@ -136,5 +137,6 @@ export function salvageDefault(id: string): Record<string, number> {
   const n = SALVAGE_SHARDS[(ITEM_BY_ID as any)[id]?.rarity] || 0; return n ? { soul_shard: n } : {};
 }
 export function salvageYield(id: string): Record<string, number> {
-  const s = (ITEM_BY_ID as any)[id]?.salvage; return s && typeof s === "object" ? { ...s } : salvageDefault(id);
+  const d = (ITEM_BY_ID as any)[id]; if (d?.bm && d.art) return artSalvage(d.bm); // артефакт чёрной магии → осколки стихии (этап Б)
+  const s = d?.salvage; return s && typeof s === "object" ? { ...s } : salvageDefault(id);
 }
