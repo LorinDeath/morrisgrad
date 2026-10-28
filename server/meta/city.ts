@@ -36,14 +36,15 @@ const SLOT_DEF: [number, number, string, string, string, boolean, string?][] = [
   [0, 0, "house_nw2", "bed", "Больной", false], [0, 0, "house_n1", "bed", "Старик", false], [0, 0, "house_s1", "hearth", "Жилица", false],
 ];
 /** жители Альказака (места 25–28 → id city_25…city_28; не путать с NPC «kyut» и отражением Кьют арены «kyut_mirror»).
- *  Живут в доме (house + spot) и выходят гулять по городу (walk, server/meta/cityWalk.ts). Квестов нет — назначаются в админке квестов.
+ *  Живут в доме (house + spot) и выходят гулять по городу (walk, server/meta/cityWalk.ts). Квесты — в админке квестов (NPC city_N); Китти (city_27) ещё и выдаёт/принимает задания доски (board.ts GIVERS).
+ *  roam — бродит по всему городу (цепочка точек от текущей позиции, а не круг у двери), домой возвращается пешком.
  *  name/title — Историк (правка в админке «🏰 Город» → место N, без кода); sprite — ключ листа Художника
  *  (src/assets/mc/city/residents/<sprite>.png, см. README там же); пока листа нет — заглушка look (листы NPC_ROWS). */
-const RESIDENTS: { house: string; spot: string; name: string; title: string; look: string; sprite: string }[] = [
+const RESIDENTS: { house: string; spot: string; name: string; title: string; look: string; sprite: string; roam?: boolean }[] = [
   { house: "house_se1", spot: "hearth", name: "Знахарь", title: "ветеран «Детей ночи»", look: "petr", sprite: "res_znahar" },
   { house: "house_n1", spot: "table", name: "Королева Мэл", title: "глава клана «Дети ночи»", look: "leyr", sprite: "res_mel" },
-  { house: "house_n2", spot: "hearth", name: "Кьют", title: "горничная королевы Мэл", look: "alzi", sprite: "res_kyut_maid" },
-  { house: "house_sw1", spot: "hearth", name: "Ликёр Владолларс", title: "глава клана «Праведные коты»", look: "petr", sprite: "res_liker" },
+  { house: "house_n2", spot: "hearth", name: "Китти", title: "горничная королевы Мэл", look: "alzi", sprite: "res_kitty", roam: true }, // сестра Кьют; бродит по всему городу; даёт и принимает задания (board GIVERS)
+  { house: "house_sw1", spot: "hearth", name: "Ликёр В.", title: "глава клана «Праведные коты»", look: "petr", sprite: "res_liker" },
 ];
 
 // ——— настройки (админка) ———
@@ -93,10 +94,10 @@ export const CITY_CFG: any = {
   rosePos: [24608, 3232],   // центр травяной клумбы (решение пользователя: роза на траве, не на досках); где РИСОВАТЬ розу города (точка карты Историка; только отрисовка, данные black_roses не меняются)
   // места NPC: npc.N.on / name / title / look / house + spot (место в комнате, npc_spots интерьера) или dx / dy (клетки от центра при R = 32, снаружи)
   // walk — житель ходит (дом ↔ улица), sprite — свой лист Художника (пусто — заглушка look)
-  npc: [...SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot, walk: false, sprite: "" })),
-    ...RESIDENTS.map((r) => ({ on: true, name: r.name, title: r.title, look: r.look, dx: 0, dy: 0, f: "down", house: r.house, spot: r.spot, walk: true, sprite: r.sprite }))],
+  npc: [...SLOT_DEF.map(([dx, dy, house, spot, name, on, f], i) => ({ on, name, title: "житель города", look: CITY_LOOKS[i % CITY_LOOKS.length], dx, dy, f: f || "down", house, spot, walk: false, roam: false, sprite: "" })),
+    ...RESIDENTS.map((r) => ({ on: true, name: r.name, title: r.title, look: r.look, dx: 0, dy: 0, f: "down", house: r.house, spot: r.spot, walk: true, roam: !!r.roam, sprite: r.sprite }))],
   // прогулки жителей (места с walk): дома ↔ на улице у своей двери, по таймеру; радиусы — от точки дома / от двери
-  walk: { on: true, goOut: true, speed: 38, rInTiles: 2.5, rOutTiles: 7, inMinSec: 30, inMaxSec: 70, outMinSec: 40, outMaxSec: 90, pauseMin: 2.5, pauseMax: 7, talkHoldSec: 90 },
+  walk: { on: true, goOut: true, speed: 38, rInTiles: 2.5, rOutTiles: 7, inMinSec: 30, inMaxSec: 70, outMinSec: 40, outMaxSec: 90, pauseMin: 2.5, pauseMax: 7, talkHoldSec: 90, roamRTiles: 10, roamOutMul: 3, roamHomeSec: 120 },
   // Алтарь перевоплощения у фонтана (вид — алтарь выбора класса хаба, engine/models.js): привязка точки возрождения + облик души.
   // dx/dy — px от центра города (клетка фонтана); r — радиус взаимодействия, px; откаты — с
   altar: { on: true, dx: 176, dy: 24, r: 110, bindCdSec: 10, soulCdSec: 5, soulOn: true },

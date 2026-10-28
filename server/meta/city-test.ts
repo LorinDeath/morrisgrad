@@ -186,7 +186,7 @@ const reset = () => { Object.assign(CITY_CFG, JSON.parse(JSON.stringify(cfg0)));
 { CITY_CFG.x = 24624; CITY_CFG.y = 3376; CITY_CFG.rTiles = 40;
   t("NPC: прежние 24 места выключены, жители 25–28 включены (ходят, свой спрайт)", (CITY_CFG.npc as any[]).length === 28 && (CITY_CFG.npc as any[]).slice(0, 24).every((n) => !n.on) && (CITY_CFG.npc as any[]).slice(24).every((n) => n.on && n.walk && n.house && n.sprite));
   t("NPC: клиенту уходят ровно 4 жителя city_25…city_28 (не kyut / kyut_mirror)", JSON.stringify((cityClient().npc || []).map((n: any) => n.id)) === JSON.stringify(["city_25", "city_26", "city_27", "city_28"]), cityClient().npc);
-  t("NPC: имена жителей — Историка", JSON.stringify((cityClient().npc || []).map((n: any) => n.name)) === JSON.stringify(["Знахарь", "Королева Мэл", "Кьют", "Ликёр Владолларс"]));
+  t("NPC: имена жителей — Историка", JSON.stringify((cityClient().npc || []).map((n: any) => n.name)) === JSON.stringify(["Знахарь", "Королева Мэл", "Китти", "Ликёр В."]));
   let bedOk = true; for (let i = ROSE_BED.i0; i <= ROSE_BED.i1; i++) for (let j = ROSE_BED.j0; j <= ROSE_BED.j1; j++) { const g: any = cityGround(i, j, 40); if (!g || !/^grass/.test(g.base) || (g.dover || []).length) bedOk = false; }
   t("роза: клумба стала травой (без оверлеев tilled_rot/blight)", bedOk);
   const [bx0, by0, bx1, by1] = roseBedPx(); const rp = (CITY_CFG as any).rosePos;

@@ -93,4 +93,19 @@ const last = (s: any, t: string) => [...s.sent].reverse().find((m: any) => m.typ
   (CITY_CFG.npc as any[])[25].on = false; W.sync(t); ok(!W.pos("city_26") && W.st.size === 3, "место выключили в админке — житель пропал"); (CITY_CFG.npc as any[])[25].on = true;
   CITY_CFG.walk.on = false; W.sync(t); W.tick(t + 100, 0.1); ok([...W.st.values()].every((s) => !s.out && s.x === s.home[0] && s.y === s.home[1]), "прогулки выкл — стоят дома на своём месте"); CITY_CFG.walk.on = true; }
 
+// ——— Китти (city_27): бродит по всему городу (roam), домой — пешком к своей двери; даёт и принимает задания доски ———
+{ const { NPC_GIVERS, GIVER_NAMES } = await import("./board");
+  const sl = (CITY_CFG.npc as any[])[26];
+  ok(sl.name === "Китти" && sl.sprite === "res_kitty" && sl.roam === true && !(CITY_CFG.npc as any[]).some((s) => /kyut_maid/.test(s.sprite || "")), "место 27 — Китти, лист res_kitty, бродит по городу (без kyut_maid)");
+  ok((CITY_CFG.npc as any[])[27].name === "Ликёр В." && (CITY_CFG.npc as any[])[27].title === "глава клана «Праведные коты»", "место 28 — «Ликёр В.», подпись прежняя");
+  ok(NPC_GIVERS.includes("city_27") && GIVER_NAMES.city_27 === "Китти", "Китти в списке «кто выдаёт и принимает» задания");
+  Object.assign(CITY_CFG.walk, { inMinSec: 1, inMaxSec: 1, outMinSec: 200, outMaxSec: 200, roamOutMul: 1, pauseMin: 0.2, pauseMax: 0.5, roamHomeSec: 600 });
+  const W = new CityWalk(); W.sync(0); let t = 0, far = 0, farO = 0, bad = 0; const k = W.pos("city_27")!, o = W.pos("city_25")!;
+  for (let i = 0; i < 1800; i++) { t += 100; W.tick(t, 0.1); if (k.out) { far = Math.max(far, Math.hypot(k.x - k.door[0], k.y - k.door[1])); if (cityWalkBlocked(k.x, k.y, 10)) bad++; } if (o.out) farO = Math.max(farO, Math.hypot(o.x - o.door[0], o.y - o.door[1])); }
+  ok(far > 12 * 32 && far > farO, `Китти уходит далеко от двери (${Math.round(far)} px; Знахарь ${Math.round(farO)} px — круг ${CITY_CFG.walk.rOutTiles} кл.)`);
+  ok(bad === 0, "Китти не заходит в стены и за купол", bad);
+  Object.assign(CITY_CFG.walk, { outMinSec: 1, outMaxSec: 1 }); k.phaseUntil = t; let back = false, jump = 0, px = k.x, py = k.y;
+  for (let i = 0; i < 6000 && !back; i++) { t += 100; W.tick(t, 0.1); if (!k.out) back = true; else { jump = Math.max(jump, Math.hypot(k.x - px, k.y - py)); px = k.x; py = k.y; } }
+  ok(back && jump < 40, `прогулка кончилась — дошла до двери пешком (без телепорта через город, макс. шаг ${Math.round(jump)} px)`); }
+
 console.log(`\n${pass} ok, ${fail} fail`); process.exit(fail ? 1 : 0);
