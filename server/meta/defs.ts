@@ -72,6 +72,10 @@ export const ZONE_WORLD = "arinar";
 export interface ZoneMobDef { name: string; hp: number; dmg: number; speed: number; aggro: number; xp: number; radius: number; armor: number; color: string; boss?: boolean; lvl: number; tier: number; role: string; size: string; rare?: boolean; huge?: boolean; phases?: number }
 // Все Отголоски мира: статы — из кривых balance.ts по уровню/роли/размеру (см. bestiary.ts)
 export const ZONE_MOBS: Record<string, ZoneMobDef> = withVariants(CONTENT.zoneMobs as any); // + варианты биомов Аринара
+/** вожак лагеря: самый сильный вид таблицы региона (уровень, затем ОЗ) — его ставят в центр лагеря (zone.ts buildRegionCamps) */
+export function campChiefType(table: { type: string }[]): string | undefined {
+  return [...(table || [])].sort((p, q) => (ZONE_MOBS[q.type]?.lvl || 0) - (ZONE_MOBS[p.type]?.lvl || 0) || (ZONE_MOBS[q.type]?.hp || 0) - (ZONE_MOBS[p.type]?.hp || 0))[0]?.type;
+}
 export const ZONE_SPAWNS: { type: string; x: number; y: number; respawn: number }[] = [
   { type: "blade_fly", x: 420, y: 300, respawn: 20 }, { type: "blade_fly", x: 500, y: 250, respawn: 20 }, { type: "blade_fly", x: 560, y: 330, respawn: 20 },
   { type: "blade_fly", x: 700, y: 280, respawn: 20 }, { type: "blade_fly", x: 760, y: 360, respawn: 20 }, { type: "blade_fly", x: 640, y: 210, respawn: 20 },

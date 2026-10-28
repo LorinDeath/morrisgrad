@@ -19,6 +19,7 @@ import { iconHtml } from '../meta/itemCards.js';
 import { drawHeroPreview } from './heroPreview.js';
 import { skillIcon, radColor } from './actionBar.js';
 import { esc, roleTag } from './overlay.js';
+import { campTimersOn, setCampTimers } from './campTimer.js';
 
 const WORLD_RU = { hellfire: 'Поляна', arinar: 'Аринар' };
 const STAT_RU = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с',
@@ -235,6 +236,7 @@ export class Social {
       else if (act === 'dnd') this.send({ type: 'settings_set', dnd: !(this.settings?.dnd > 0) });
       else if (act === 'tutset' && this.tutCtl) { const v = b.dataset.v; if (v === 'fold' || v === 'unfold') this.tutCtl.setFold(v === 'fold'); else this.tutCtl.set(v); setTimeout(() => this.view === 'settings' && this.renderSettings(), 400); }
       else if (act === 'sound') { setSound(!soundOn()); this.renderSettings(); }
+      else if (act === 'camptimer') { setCampTimers(!campTimersOn()); window.dispatchEvent(new Event('mc-camptimer')); this.renderSettings(); }
       else if (act === 'uilay' && this.uiDrag) { const v = b.dataset.v, D = this.uiDrag; // ✥ раскладка: этот тип устройства (ПК/телефон), хранит сервер
         if (v === 'edit') { this.close(); D.setEdit(true); } else if (v === 'reset') { D.reset(); this.renderSettings(); } else if (v === 'lock') { D.setLock(!D.locked()); this.renderSettings(); } }
       else if (act === 'fs') { fsToggle().finally(() => setTimeout(() => this.view === 'settings' && this.renderSettings(), 300)); }
@@ -296,13 +298,14 @@ ${this.layRow()}${this.fsRow()}
       <div class="mc-set-row"><span>🌫 Дымка вдали</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('fog')}" data-grim="fog"><b class="mc-grim-v" data-grimv="fog">${grimGet('fog')}%</b></div></div>
       <div class="mc-set-row"><span>🎨 Единый стиль</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${grimGet('style')}" data-grim="style"><b class="mc-grim-v" data-grimv="style">${grimGet('style')}%</b></div></div>
       <div class="mc-set-row"><span>🌗 Смягчить ночь</span><div class="grp"><input type="range" min="0" max="100" step="5" value="${dnReduceGet()}" data-dnr><b class="mc-grim-v" data-dnrv>${dnReduceGet()}%</b></div></div>
+      <div class="mc-set-row"><span>⏳ Таймеры логов и лагерей, маркеры заданий</span><button class="mc-btn sm ${campTimersOn() ? 'gold' : ''}" data-act="camptimer">${campTimersOn() ? 'Показывать' : 'Скрыты'}</button></div>
       <div class="mc-set-row"><span>🖼 Картинка</span><button class="mc-btn sm" data-act="grimreset">Сбросить к стандартным</button></div>
       <div class="mc-set-row"><span>⚔️ Вызовы на дуэль</span><div class="grp">${opt('all', 'От всех')}${opt('friends', 'Только друзья')}${opt('none', 'Никто')}</div></div>
       <div class="mc-set-row"><span>🤝 Заявки в друзья</span><button class="mc-btn sm ${st.freq ? 'gold' : ''}" data-act="freq">${st.freq ? 'Принимать' : 'Не принимать'}</button></div>
       <div class="mc-set-row"><span>🌙 Не беспокоить (5 минут)</span><button class="mc-btn sm ${dndMin ? 'gold' : ''}" data-act="dnd">${dndMin ? `Включено · ещё ${dndMin} мин` : 'Выключено'}</button></div>
       ${this.tutRow()}
       <p class="mc-dim">Обучение: «Свернуть» — только на этом устройстве; «Выключить» и «Пропустить» хранит сервер.</p>
-      <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук и картинка (мрачность, дымка, единый стиль, ночь) — на этом устройстве, у каждого игрока свои.</p></div></div>`, [], 'mc-social');
+      <p class="mc-dim">Настройки дуэлей и «Не беспокоить» — для всего аккаунта (всех героев) и проверяются сервером. Звук, картинка (мрачность, дымка, единый стиль, ночь) и таймеры лагерей — на этом устройстве, у каждого игрока свои.</p></div></div>`, [], 'mc-social');
     this.bindSoc(this.overlay.screen);
     // картинка — на этом устройстве (localStorage), у каждого игрока своя; 0 = эффект выключен
     // звуки интерфейса — на этом устройстве; 0 = выкл; при отпускании — пробный клик

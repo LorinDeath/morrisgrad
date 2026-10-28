@@ -129,7 +129,8 @@ export class BoardStore {
   rewardList(t, ti) {
     const out = [], xp = this.xpOf(t, ti); if (xp) out.push(`+${xp} опыта`);
     const bx = this.bonuses(t).filter((o) => o.st !== 'fail').reduce((a, o) => a + o.xp, 0); if (bx) out.push(`бонусы до +${bx}`);
-    for (const [k, v] of Object.entries(t.res || {})) out.push(`${RESOURCES[k]?.icon || ''}${v} ${RESOURCES[k]?.name || k}`);
+    const rm = t.roll?.rm > 0 ? t.roll.rm : 1; // редкие/боссы по уровню героя: ресурсов больше с уровнем цели (сервер: fitReward)
+    for (const [k, v] of Object.entries(t.res || {})) out.push(`${RESOURCES[k]?.icon || ''}${Math.round(v * rm)} ${RESOURCES[k]?.name || k}`);
     if (t.item && ti === (t.n.length - 1)) out.push(`🎁 ${ITEM_BY_ID[t.item]?.name || 'предмет'}`);
     return out;
   }

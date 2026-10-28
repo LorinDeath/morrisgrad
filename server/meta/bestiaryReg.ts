@@ -2,19 +2,33 @@
 // Открытый мир — таблицы регионов (лагеря, вожаки, кочевники, фоновые стаи; zoneTables.ts по тегам where), фиксированные
 // спавны хаба, логова мировых боссов, редкие Отголоски, свита боссов при смене фазы (summonPool); забеги и испытания —
 // волны/элита/боссы комнат survivors/data.js. Новый моб/босс (в т. ч. правкой админки таблиц/таймеров) попадает в реестр сам.
-// Группы: mob — обычные виды (и варианты биомов — отдельными карточками), elite — редкие именные Отголоски,
-// boss — боссы забегов/испытаний, world — мировые боссы (логова и таймеры). Элита и вожаки лагерей — экземпляры
-// обычного вида: их убийства засчитываются в карточку вида. Только сервер (таблицы регионов есть лишь на сервере).
+// Группы (вкладки Бестиария в игре и на сайте, фильтры админки): mob — обычные виды (и варианты биомов — отдельными карточками),
+// elite — элита забегов/испытаний (ROOM_ELITES), chief — вожаки лагерей (сильнейший вид таблицы региона, campChiefType),
+// rare — редкие именные Отголоски, boss — боссы забегов/испытаний, world — мировые боссы (логова и таймеры).
+// Категорию любого вида можно переопределить в админке (Бестиарий → «Категория», game_overrides mob.cat).
+// Элита/вожак «в рамке» у обычного вида — экземпляр: его убийство засчитывается в карточку вида. Только сервер (таблицы регионов есть лишь на сервере).
 import "./zoneTables";
-import { ZONE_MOBS, HUB_SPAWNS } from "./defs";
+import { ZONE_MOBS, HUB_SPAWNS, campChiefType } from "./defs";
 import { WORLD_GEN, BOSS_TIMERS } from "./zoneGen";
 import { summonPool } from "./biomes";
 import { WORLD_NAMES } from "./mobHome";
 import { RUN_ROOMS, ROOM_WAVES, ROOM_BOSS, ROOM_ELITES, TRIAL_WAVES, ENEMIES } from "../../src/pages/MorrisCurse/_core/survivors/data.js";
 
-export type BGroup = "mob" | "elite" | "boss" | "world";
-export const BGROUPS: BGroup[] = ["mob", "elite", "boss", "world"];
-export interface BEntry { id: string; g: BGroup; lvl: number; where: string[]; name?: string; resp?: [number, number] } // resp — окно возвращения редкого Отголоска, сек (для подсказки в «???»)
+export type BGroup = "mob" | "elite" | "chief" | "rare" | "boss" | "world";
+export const BGROUPS: BGroup[] = ["mob", "elite", "chief", "rare", "boss", "world"];
+export const BGROUP_RU: Record<BGroup, string> = { mob: "Мобы", elite: "Элита", chief: "Вожаки", rare: "Редкие", boss: "Боссы", world: "Мировые боссы" };
+/** вожаки лагерей: вид → регионы, где он стоит в центре лагеря (для отчёта/админки) */
+export function campChiefs(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const [wid, G] of Object.entries(WORLD_GEN) as [string, any][]) for (const r of G.regions || []) {
+    if (!r.table?.length || r.dens === 0) continue; const t = campChiefType(r.table); if (!t) continue;
+    const l = out.get(t) || [], n = `${WORLD_NAMES[wid] || wid} · ${region(r.name)}`; if (!l.includes(n)) l.push(n); out.set(t, l);
+  }
+  return out;
+}
+/** категория по умолчанию (без правки админки) — для реестра и фильтров админки */
+const ELITE_RUN = new Set(Object.values(ROOM_ELITES as any).flat() as string[]);
+export interface BEntry { id: string; g: BGroup; g0?: BGroup; lvl: number; where: string[]; name?: string; resp?: [number, number] } // resp — окно возвращения редкого Отголоска, сек (для подсказки в «???»)
 
 const R: any = RUN_ROOMS, EN: any = ENEMIES;
 /** виды только забегов/испытаний (нет в мире): «Отражение Кьют» — запись Бестиария есть, лута/статов мира нет */
@@ -52,12 +66,24 @@ export function bestiaryRegistry(): BEntry[] {
     const bt = (ROOM_BOSS as any)[room]; if (bt) { boss.add(bt); add(bt, roomName(room)); }
   }
   for (const [id, e] of Object.entries(ARENA_ONLY)) if (e.boss) { boss.add(id); add(id, "Испытание отражений"); } // дуэль: «Нет соперника — выйдет отражение»
-  const out: BEntry[] = [];
+  const out: BEntry[] = [], chiefs = campChiefs();
   for (const [id, w] of where) {
     const z: any = (ZONE_MOBS as any)[id], a = ARENA_ONLY[id];
     if (!z && !a) continue;
-    const g: BGroup = world.has(id) || BOSS_TIMERS[id] ? "world" : boss.has(id) || z?.boss ? "boss" : rare.has(id) || z?.rare ? "elite" : "mob";
-    out.push({ id, g, lvl: z?.lvl ?? a?.lvl ?? 1, where: [...w], ...(z ? {} : { name: a.name }), ...(g === "elite" && resp.has(id) ? { resp: resp.get(id)! } : {}) });
+    const g0: BGroup = world.has(id) || BOSS_TIMERS[id] ? "world" : boss.has(id) || z?.boss ? "boss" : rare.has(id) || z?.rare ? "rare" : chiefs.has(id) ? "chief" : ELITE_RUN.has(id) ? "elite" : "mob";
+    const g: BGroup = BGROUPS.includes(z?.cat) ? z.cat : g0; // правка админки (mob.cat) важнее
+    out.push({ id, g, ...(g !== g0 ? { g0 } : {}), lvl: z?.lvl ?? a?.lvl ?? 1, where: [...w], ...(z ? {} : { name: a.name }), ...(resp.has(id) ? { resp: resp.get(id)! } : {}) });
+  }
+  return out;
+}
+
+/** категории всех видов для админки: { id: { g — действующая, g0 — по месту появления, why — почему вожак } } */
+export function mobCategories(): Record<string, { g: BGroup; g0: BGroup; why?: string }> {
+  const reg = new Map(bestiaryRegistry().map((e) => [e.id, e])), ch = campChiefs(), out: Record<string, any> = {};
+  for (const [id, z] of Object.entries(ZONE_MOBS) as [string, any][]) {
+    const e = reg.get(id), g0: BGroup = e ? e.g0 || e.g : z.boss ? "world" : z.rare ? "rare" : ch.has(id) ? "chief" : ELITE_RUN.has(id) ? "elite" : "mob";
+    const g: BGroup = BGROUPS.includes(z.cat) ? z.cat : g0;
+    out[id] = { g, g0, ...(ch.has(id) ? { why: "сильнейший вид региона — стоит в центре лагеря: " + ch.get(id)!.slice(0, 4).join(", ") + (ch.get(id)!.length > 4 ? ` и ещё ${ch.get(id)!.length - 4}` : "") } : {}) };
   }
   return out;
 }

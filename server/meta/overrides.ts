@@ -51,7 +51,8 @@ export interface Trait { k: string; [p: string]: any }
 const N = (path: string, label: string, min: number, max: number, t: "int" | "num" = "num"): Field => ({ path, label, t, min, max });
 const ST = ["dmgMin", "dmgMax", "armor", "hp", "speedPct", "critPct", "regen", "cdrPct", "magnetPct", "lifestealPct", "atkSpeedPct", "armorPen", "armorPenPct"];
 export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: boolean }> = {
-  mob: { name: "Бестиарий", fields: [N("lvl", "Уровень", 1, 60, "int"), N("hp", "ОЗ", 1, Number.MAX_SAFE_INTEGER, "int"), N("dmg", "Урон", 0, 1e5), N("armor", "Броня", 0, 1e4), N("speed", "Скорость", 0, 400), N("aggro", "Агро, px", 0, 2000, "int"), N("xp", "Опыт", 0, 1e6, "int"), N("radius", "Радиус", 4, 200, "int"), { path: "skills", label: "Навыки моба (любые навыки игры, до 5)", t: "skills", optl: mobSkillOptions() }] },
+  mob: { name: "Бестиарий", fields: [N("lvl", "Уровень", 1, 60, "int"), N("hp", "ОЗ", 1, Number.MAX_SAFE_INTEGER, "int"), N("dmg", "Урон", 0, 1e5), N("armor", "Броня", 0, 1e4), N("speed", "Скорость", 0, 400), N("aggro", "Агро, px", 0, 2000, "int"), N("xp", "Опыт", 0, 1e6, "int"), N("radius", "Радиус", 4, 200, "int"), { path: "skills", label: "Навыки моба (любые навыки игры, до 5)", t: "skills", optl: mobSkillOptions() },
+    { path: "cat", label: "Категория: вкладка Бестиария (игра и сайт) и фильтр админки; пусто — по месту появления", t: "enum", opts: ["", "mob", "elite", "chief", "rare", "boss", "world"], optn: { "": "— по месту появления", mob: "Моб", elite: "Элита", chief: "Вожак", rare: "Редкий", boss: "Босс", world: "Мировой босс" } }] },
   weapon: { name: "Оружие", traits: true, fields: [N("cd", "Перезарядка удара, мс", 100, 5000, "int"), { path: "atk.kind", label: "Форма удара", t: "enum", opts: ["proj", "line", "arc"] }, N("atk.range", "Дальность", 20, 800, "int"), N("atk.width", "Ширина", 4, 200, "int"), N("atk.arc", "Дуга, рад", 0.1, 3.2), N("atk.max", "Целей", 1, 10, "int"), N("atk.count", "Снарядов в залпе", 1, 9, "int"), N("atk.spread", "Веер, рад", 0, 2), N("atk.per", "Урон снаряда, ×", 0.05, 1), N("status.knock", "Отбрасывание", 0, 10),
     { path: "rs", label: "Навык оружия (R) для всего типа — важнее выпавшего (предмет может задать свой)", t: "enum", opts: ["", ...rsOptions().map((r) => r.id)], optl: rsOptions() }] }, // статусы — только чертами предметов
   item: { name: "Предметы", traits: true, fields: [N("lvl", "Ур. предмета", 1, 60, "int"), N("req", "Треб. уровень (надеть)", 1, 60, "int"), ...ST.map((k) => N("stats." + k, k, 0, 1e4)),
@@ -425,12 +426,17 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     ...CATS.flatMap((c): Field[] => [N(`xpMul.${c}`, `${CAT_NAMES[c]}: множитель опыта`, 0, 10),
       ...(c === "tut" ? [] : [N(`caps.${c}`, `${CAT_NAMES[c]}: потолок, % уровня ${c === "weekly" || c === "hard" ? "в неделю" : c === "monthly" ? "в месяц" : "в сутки"}`, 0, 500)])]),
     { path: "_h_b4", label: "Обучение", t: "hdr" }, { path: "tutOn", label: "Обучение включено", t: "bool" }, { path: "tutSkip", label: "Можно пропустить целиком", t: "bool" },
-    { path: "dailyFixed", label: "Ежедневные у всех каждый день (id через запятую)", t: "ltext" }, N("tutVetLvl", "Опытный игрок с уровня (обучение засчитано сразу)", 1, 31, "int"),
+    { path: "dailyFixed", label: "Ежедневные у всех каждый день (id через запятую)", t: "ltext" }, N("tutVetLvl", "Опытный игрок с уровня, включительно («больше десятого» = 11) (обучение засчитано сразу)", 1, 31, "int"),
     { path: "tutVetReward", label: "Опытному игроку — награды за шаги обучения тоже выдаются (один раз, без повторов)", t: "bool" },
     { path: "_h_b5", label: "Удобство (QoL)", t: "hdr" }, { path: "qol.help", label: "Справка по управлению (F1 / ❔)", t: "bool" }, { path: "qol.lowHp", label: "Предупреждение о низком ОЗ", t: "bool" },
     N("qol.lowHpPct", "Низкое ОЗ, %", 5, 80, "int"), { path: "qol.lvlInfo", label: "Что открылось на новом уровне", t: "bool" }, { path: "qol.talentNag", label: "Напоминание о свободных очках талантов", t: "bool" },
     { path: "qol.bmArrow", label: "Стрелка трекера к Чёрному магу (живая позиция)", t: "bool" },
     { path: "qol.bossTimer", label: "Мировые боссы: таймер появления в трекере, охоте, заданиях, на карте и у метки", t: "bool" }, N("qol.bossSoonSec", "Мировые боссы: «появляется» за сколько секунд до спавна", 0, 120, "int"),
+    { path: "qol.campTimer", label: "Логова и лагеря: таймер возрождения на карте, мини-карте и у логова (игрок может скрыть в настройках)", t: "bool" },
+    N("qol.campZoom", "Мини-карта: таймеры лагерей с приближения (× к самому дальнему обзору; 1 — всегда, обычный ≈1.5, ближе всего — 3)", 0.5, 8), N("qol.campNear", "Таймер в мире: показывать ближе, px", 100, 4000, "int"),
+    { path: "_h_bfit", label: "Редкие и боссы по уровню героя", t: "hdr" }, { path: "fit.on", label: "Общие задания «редкие / боссы / мировые боссы»: цель по уровню героя", t: "bool" },
+    N("fit.below", "Окно целей: ниже, ур.", 0, 30, "int"), N("fit.above", "Окно целей: выше, ур.", 0, 30, "int"),
+    N("fit.resPct", "Ресурсы: +% за каждый уровень цели", 0, 100), N("fit.tierLvl", "Сундук: +1 ярус за каждые N ур. цели (0 — нет)", 0, 60, "int"), N("fit.tierMax", "Сундук: не больше +N ярусов", 0, 5, "int"),
   ] },
   btask: { name: "📋 Задание доски", fields: [
     { path: "cat", label: "Раздел (выбирается при создании)", t: "enum", opts: CATS, optn: CAT_NAMES },

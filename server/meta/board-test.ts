@@ -1,6 +1,7 @@
 // Доска заданий: счётчики, взятие/сдача, повторная награда, периоды (Киев), потолок опыта, обучение, админка.
-import { BOARD_CFG, tiersOf, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS, BTASK_LIST } from "./board";
+import { fitReward, BOARD_CFG, tiersOf, BTASKS, boardCounts, boardEvent, boardRefresh, boardClaim, boardTake, boardTut, boardOf, tierXp, tableXp, tierLvl, guessLvl, dayCap, catCap, periodKey, nextResets, boardClient, boardDefs, npcTasks, takeAt, effOf, makeRoll, RANKS, BTASK_LIST } from "./board";
 import { BCHEST, tierOfRank, rankCursePct } from "./boardChestCfg";
+import { bumpTier } from "./boardChest";
 import { newAccount, newHero } from "./profile";
 import { validatePatch, applyOverride, currentValues } from "./overrides";
 import { heroXpNeed } from "./defs";
@@ -268,7 +269,7 @@ function tiersOf0(x: any) { const o: number[] = []; for (const n of x.n) { if (!
 // сундук за ранговое задание: карточка знает ярус и шанс проклятого (от сервера, с правками админки); потолок хранилища
 { const { a, h } = mk(); h.lvl = 12; boardRefresh(a, h, ctx); const st: any = boardClient(a, h); const ids = Object.keys(st.roll || {});
   const bad = ids.filter((id) => { const R = st.roll[id], t = BTASKS[id], c = st.bc[id]; const want = !!tierOfRank(R.r) && ["daily", "weekly", "monthly", "hard", "hunt"].includes(t.cat);
-    if (!want) return !!c; const T = BCHEST.tiers[tierOfRank(R.r)!]; return !c || c.n !== T.name || c.cp !== rankCursePct(R.r) || c.cp > 30; });
+    if (!want) return !!c; const T = BCHEST.tiers[bumpTier(tierOfRank(R.r)!, R.maxL ? fitReward(R.L).tu : 0)]; return !c || c.n !== T.name || c.cp !== rankCursePct(R.r) || c.cp > 30; });
   ok(ids.length > 0 && !bad.length, `сундук в карточке у ${ids.length} ранговых заданий: ярус и шанс проклятого по рангу`, bad.slice(0, 3));
   const exp: Record<string, number> = { F: 30, E: 25, D: 20, C: 15, B: 12, A: 10, S: 5, SS: 2 }; ok(Object.entries(exp).every(([r, v]) => rankCursePct(r) === v), "шанс проклятого F30 E25 D20 C15 B12 A10 S5 SS2");
   ok(st.bcs && st.bcs.max === 100 && st.bcs.n === 0, "хранилище сундуков: 0 из 100", st.bcs);

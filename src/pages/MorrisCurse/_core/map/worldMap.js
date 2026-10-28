@@ -11,6 +11,7 @@ import { esc } from '../ui/overlay.js';
 import { biomeLabels, drawBiomeLabel, placeLabels } from './biomeLabels.js';
 import { regionsLayer } from '../ui/regionMap.js';
 import { marks, drawMark, MARK_NAME_MAX } from './marks.js';
+import { campTimersOn, campCfg, campLeft, respawnTxt } from '../ui/campTimer.js';
 
 const url = (s) => (typeof s === 'object' && s !== null ? (s.src || s.default || '') : s);
 export class WorldMap {
@@ -127,6 +128,12 @@ export class WorldMap {
           ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fillRect(x - tw / 2, y + 16, tw, 16); ctx.fillStyle = bs.alive ? '#fca5a5' : '#d1d5db'; ctx.fillText(t, x, y + 24.5); ctx.font = '14px sans-serif'; } }
       if (this.k > 0.12 && m.type === 'sign') { ctx.font = '11px sans-serif'; ctx.fillStyle = '#fde68a'; ctx.fillText(m.label, x, y + 24); ctx.font = '14px sans-serif'; }
     }
+    if (st.camps && w === 'arinar' && this.k > 0.05 && campTimersOn() && campCfg(st.campQol).on) { ctx.font = 'bold 11px sans-serif'; // лагеря рядом (сервер шлёт в радиусе ~6000): пустой — «⏳ 2:40» до ближайшего возрождения
+      for (const c of st.camps) { if (c[3] > 0) continue; const [x, y] = this.toScreen(c[1], c[2]); if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue;
+        const left = campLeft(c), t = '⛺ ' + (left > 0 ? respawnTxt(left) : 'скоро'), tw = ctx.measureText(t).width + 8;
+        ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, Math.max(6, c[6] * this.k), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fillRect(x - tw / 2, y - 8, tw, 16); ctx.fillStyle = '#d1d5db'; ctx.fillText(t, x, y + 0.5); }
+      ctx.font = '14px sans-serif'; }
     for (const m of st.party || []) { // отряд на карте M — зелёные метки с именем
       const [x, y] = this.toScreen(m.x, m.y);
       ctx.fillStyle = '#4ade80'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();

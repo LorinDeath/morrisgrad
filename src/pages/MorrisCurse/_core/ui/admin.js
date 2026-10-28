@@ -52,6 +52,8 @@ const rankTop = (e) => (['daily', 'weekly', 'monthly', 'hard', 'hunt'].includes(
 const rankCan = (e, r) => { const t = rankTop(e); return !!t && BT_RANKS.indexOf(r) <= BT_RANKS.indexOf(t); };
 const ALL_TABS = [['mob', '👹 Бестиарий'], ['weapon', '🗡 Оружие'], ['item', '🎒 Предметы'], ['skill', '✨ Навыки'], ['loot', '💰 Дроп'], ['spawn', '⏱ Спавн'], ['curse', '☠ Проклятие'], ['ench', '✦ Зачарование'], ['chest', '📦 Сундуки'], ['bchest', '🎁 Сундуки наград'], ['dash', '🏃 Рывок'], ['gather', '⛏ Сбор'], ['npc', '🚶 NPC'], ['bmage', '🌑 Чёрный маг'], ['light', '💡 Свет'], ['ui', '🎨 Интерфейс'], ['terrain', '🌊 Рельеф'], ['city', '🏰 Альказак'], ['pk', '⚔ PK'], ['pos', '📍 Вход'], ['dn', '🌗 День и ночь'], ['gfx', '🖼 Графика'], ['upgrade', '⚒ Улучшение'], ['biome', '🧭 Биомы'], ['quest', '📜 Квесты'], ['board', '📋 Доска'], ['btask', '📌 Задания доски'], ['audit', '🧾 Журнал'], ['perf', '📊 Нагрузка']];
 const MOD_TABS = new Set(['mob', 'weapon', 'item']);
+// категории Бестиария (bestiaryReg.ts BGROUPS) — фильтр-вкладки вкладки «Бестиарий»; правка — поле «Категория» (mob.cat)
+const MOB_CAT_N = { mob: 'Мобы', elite: 'Элита', chief: 'Вожаки', rare: 'Редкие', boss: 'Боссы', world: 'Мировые боссы' };
 /** нет ответа на сохранение за это время — ошибка в окне (раньше «Сохранение…» висело навсегда) */
 export const SAVE_TIMEOUT_MS = 12000;
 // разделы формы (заголовки t:"hdr") сохраняются по отдельности: admin_save_sec — только изменённые поля раздела (как server/meta/overrides.ts sectionMap)
@@ -346,6 +348,12 @@ export class AdminPanel {
       { grp: 1, id: '__gl', name: 'Локации — плотность мобов (лагеря пересобираются сразу)' }, ...(this.cat.ent.region || []).map((e) => ({ ...row(e, 'region', 'region:'), name: '🗺 ' + e.name, sub: `${e.values.dens != null ? '×' + e.values.dens : 'как в коде'}${e.values.bossOn === false ? ' · без босса' : ''} · ${e.id}` })),
       { grp: 1, id: '__gb', name: 'Мировые боссы — таймеры' }, ...(this.cat.ent.boss || []).map((e) => ({ ...row(e, 'boss', 'boss:'), sub: `${Math.round(e.values.every / 60)} мин · ${e.id}` })),
       { grp: 1, id: '__gr', name: 'Редкие Отголоски' }, ...(this.cat.ent.rare || []).map((e) => ({ ...row(e, 'rare', 'rare:'), sub: `${Math.round(e.values['every.0'] / 60)}–${Math.round(e.values['every.1'] / 60)} мин` }))];
+    if (this.tab === 'mob') { // Бестиарий: фильтр-вкладки по категории (мобы / элита / вожаки / редкие / боссы / мировые боссы)
+      const MC = this.cat.mobCats || {};
+      return (this.cat.ent.mob || []).filter((e) => !this.mchip || (MC[e.id]?.g || 'mob') === this.mchip)
+        .map((e) => { const c = MC[e.id], r = row(e, 'mob'); return c ? { ...r, sub: `${r.sub} · ${MOB_CAT_N[c.g] || c.g}${c.g !== c.g0 ? ' (правка; было: ' + (MOB_CAT_N[c.g0] || c.g0) + ')' : ''}`, ...(c.why ? { title: c.why } : {}) } : r; })
+        .sort((a, b) => (a.lvl || 0) - (b.lvl || 0));
+    }
     const ent = this.cat.ent[this.tab] || [];
     const list = ent.map((e) => row(e, this.tab));
     return this.tab === 'loot' ? list : list.sort((a, b) => (a.lvl || 0) - (b.lvl || 0));
@@ -370,6 +378,9 @@ export class AdminPanel {
         ${F.cat || F.rk || F.lv || F.g ? '<button class="btn sm" data-bf-clear>✕ сброс</button>' : ''}</div>`;
       chips.querySelectorAll('[data-bf]').forEach((i) => i.addEventListener('change', () => { F[i.dataset.bf] = i.value; F.page = 0; this.list(); }));
       chips.querySelector('[data-bf-clear]')?.addEventListener('click', () => { Object.assign(F, { cat: '', rk: '', lv: '', g: '', page: 0 }); this.list(); });
+    } else if (chips && this.tab === 'mob') { chips.style.display = ''; const MC = this.cat.mobCats || {}, n = (g) => (this.cat.ent.mob || []).filter((e) => !g || (MC[e.id]?.g || 'mob') === g).length;
+      chips.innerHTML = ['', ...Object.keys(MOB_CAT_N)].map((g) => `<button class="chip ${(this.mchip || '') === g ? 'on' : ''}" data-mchip="${g}">${g ? MOB_CAT_N[g] : 'Все'} · ${n(g)}</button>`).join('');
+      chips.querySelectorAll('[data-mchip]').forEach((b) => (b.onclick = () => { this.mchip = b.dataset.mchip || null; this.list(); }));
     } else if (chips) { chips.style.display = this.tab === 'item' ? '' : 'none';
       if (this.tab === 'item') { const gs = ['', ...new Set(this.cat.ent.item.filter((e) => e.slot !== 'weapon').map((e) => e.slot)), '__res'].sort((a, b) => (SLOT_ORDER.indexOf(a) + 99) % 99 - (SLOT_ORDER.indexOf(b) + 99) % 99);
         chips.innerHTML = gs.map((g) => `<button class="chip ${(this.chip || '') === g ? 'on' : ''}" data-chip="${g}">${g ? SLOT_NAMES[g] || g : 'Все'}</button>`).join('');

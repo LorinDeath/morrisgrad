@@ -8,7 +8,7 @@
 import { ZONE_MOBS, MONSTER_LOOT, RESOURCES, RECIPES, ITEM_BY_ID, heroXpNeed, HERO_MAX_LEVEL, HERO_IDS } from "./defs";
 import { HERO_NAMES } from "./shared";
 import { BCHEST, BC_CATS, BC_TIERS, BC_CURSE_MAX, tierOfRank, countOf, rankCursePct, bcSpecCount, type BcSpec } from "./boardChestCfg";
-import { grantChest, grantSpec, chestRoomErr, chestsOf, chestOps } from "./boardChest";
+import { grantChest, bumpTier, grantSpec, chestRoomErr, chestsOf, chestOps } from "./boardChest";
 import { VARIANTS, VARIANT_BY_ID, BIOMES, baseOf, goalMatch, type BiomeId } from "./biomes";
 import { BOSS_TIMERS, WORLD_GEN } from "./zoneGen";
 import { gainXp, addRes, addItem, talentSpent, equippedItems, activeLook, type Account, type Hero } from "./profile";
@@ -85,9 +85,12 @@ export const BOARD_CFG: any = {
   // День — ежедневные, заказы Доски объявлений, личные задания персонажей, достижения; неделя — еженедельные и тяжёлые; месяц — ежемесячные.
   xpMul: { tut: 1, npc: 1, hunt: 0.35, daily: 0.6, weekly: 1 / 3, monthly: 1, hard: 0.6, ach: 0.25 },
   caps: { tut: 0, npc: 0, hunt: 0, daily: 0, weekly: 0, monthly: 0, hard: 0, ach: 0 }, // решение Алекса: потолков нет (механизм оставлен выключенным — число > 0 в админке включит)
-  tutOn: true, tutVetLvl: 10, tutSkip: true,
+  tutOn: true, tutVetLvl: 11, tutSkip: true, // «больше десятого уровня» (решение Алекса) = с 11-го; сравнение «уровень ≥ tutVetLvl»
   tutVetReward: true,       // опытному игроку (tutVetLvl) награды шагов обучения всё равно выдаются — один раз (решение Алекса; выкл — как раньше, без наград)
-  qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30, bossTimer: true, bossSoonSec: 10 },
+  qol: { help: true, lowHp: true, lvlInfo: true, talentNag: true, bmArrow: true, lowHpPct: 30, bossTimer: true, bossSoonSec: 10, campTimer: true, campZoom: 1.4, campNear: 900 },
+  // редкие / боссы / мировые боссы в общих заданиях (без конкретного врага): цель — по уровню героя, награда — по уровню цели
+  // below/above — окно уровней целей вокруг выбранной (ур.); resPct — +% ресурсов за каждый уровень цели выше 1-го; tierLvl — +1 ярус сундука за каждые N ур. цели; tierMax — не больше +N ярусов
+  fit: { on: true, below: 4, above: 4, resPct: 5, tierLvl: 8, tierMax: 2 },
 };
 
 /** коллизии обеих досок по текущим настройкам (вызывается при загрузке и после правки «📋 Доска» в админке) */
@@ -188,7 +191,7 @@ function genNpc(): BTask[] {
     ["a10", "alzi", "Редкий Отголосок", "Редкие уходят, если их не найти", "kill", "|rare", [1], [4], 8, "npc_a09,npc_l07", { soul_shard: 4 }],
     ["a11", "alzi", "Сотня равных", "Враги не ниже вашего уровня − 2", "kill", "|lvl", [100], [4], 10, "npc_a10", { soul_shard: 5 }],
     ["a12", "alzi", "Пять мировых боссов", "Настоящий охотник", "kill", "|wboss", [5], [5], 12, "npc_a11,npc_k10", { soul_shard: 8 }],
-    ["l01", "leyr", "Дорога в Аринар", "Там начинается охота", "reach", "arinar", [1], [1], 1, "", {}],
+    ["l01", "leyr", "Дорога в Аринар", "Там начинается охота. Засчитывается, когда войдёте в Аринар через портал (если взяли здесь — сходите в хаб и вернитесь)", "reach", "arinar", [1], [1], 1, "", {}],
     ["l02", "leyr", "Дрёмодрево", "Дерево нужно для ремесла", "gather", "dreamwood", [10], [1], 2, "npc_l01", { moonpetal: 2 }],
     ["l03", "leyr", "Дорога домой", "Портал домой экономит время", "portal", "", [1], [1], 3, "npc_l02", {}],
     ["l04", "leyr", "Пять записей бестиария", "Бестиарий подскажет, где кто живёт", "st", "bestiary", [5], [2], 3, "npc_l03,npc_a02", { soul_shard: 1 }],
@@ -769,7 +772,7 @@ export interface Ctx { pkey: string; heroes?: Record<string, Hero> }
 export const RANKS = ["F", "E", "D", "C", "B", "A", "S", "SS"] as const;
 export const RANK_CATS: Cat[] = ["daily", "weekly", "monthly", "hard", "hunt"];
 export interface RollBonus { k: string; v?: number | string; xp: number; ok: 0 | 1 }
-export interface Roll { r: string; L: number; minL: number; n: number; d: number; x: number; f: string; bon: RollBonus[]; t1?: number; done?: number; k: string; w: string; rb?: string }
+export interface Roll { r: string; L: number; minL: number; maxL?: number; n: number; d: number; x: number; f: string; bon: RollBonus[]; t1?: number; done?: number; k: string; w: string; rb?: string }
 export const BONUS_NAMES: Record<string, string> = {
   nodeath: "Без единой смерти, пока задание не выполнено", fast: "Уложиться в N мин с первого засчитанного", body: "Только в теле героя",
   higher: "Только враги на N ур. выше вас", party: "Только в отряде", solo: "Только в одиночку", night: "Только ночью", elite: "Только элитные враги",
@@ -812,6 +815,29 @@ function pickRank(seed: string, ev: string, rmax: string): string {
   for (const r of L) { x -= Number(R[r].w); if (x <= 0) return r; }
   return L[L.length - 1];
 }
+/** уровни целей для общих заданий «редкие / боссы / мировые боссы» (из реестров класса: новый редкий или босс подхватывается сам) */
+const FIT_FLAG = /(^|,)(boss|wboss|rare)(,|$)/;
+export function fitLevels(f: string): number[] {
+  const F = new Set(f.split(",").filter(Boolean)), L = new Set<number>(), lv = (ty: string) => (ZONE_MOBS as any)[ty]?.lvl || 0;
+  if (F.has("rare")) for (const ty of RARES) L.add(lv(ty));
+  if (F.has("wboss")) for (const ty of Object.keys(BOSS_TIMERS)) L.add(lv(ty));
+  else if (F.has("boss")) { for (const G of Object.values(WORLD_GEN) as any[]) for (const b of G.bosses || []) L.add(lv(b.type)); for (const [, m] of Object.entries(ZONE_MOBS) as any) if (m.boss && !m.variant) L.add(m.lvl || 0); }
+  return [...L].filter((x) => x > 0).sort((a, b) => a - b);
+}
+/** окно уровней цели под героя: ближайший к target уровень, существующий у целей, ± настройки fit (админка «📋 Доска») */
+export function fitWindow(f: string, target: number): { Lc: number; lo: number; hi: number } | null {
+  const C = BOARD_CFG.fit || {}; if (C.on === false) return null;
+  const Ls = fitLevels(f); if (!Ls.length) return null;
+  let Lc = Ls[0]; for (const x of Ls) if (Math.abs(x - target) < Math.abs(Lc - target) || (Math.abs(x - target) === Math.abs(Lc - target) && x < Lc)) Lc = x;
+  const below = Math.max(0, Number(C.below) || 0), above = Math.max(0, Number(C.above) || 0);
+  return { Lc, lo: Math.max(1, Math.min(Lc, target) - below), hi: Math.max(Lc, target) + above };
+}
+/** множитель ресурсов и прибавка яруса сундука по уровню цели (только для заданий с окном уровней) */
+export function fitReward(L: number): { rm: number; tu: number } {
+  const C = BOARD_CFG.fit || {}, l = Math.max(1, L | 0);
+  const rm = 1 + Math.max(0, Number(C.resPct) || 0) * (l - 1) / 100, per = Math.max(0, Number(C.tierLvl) || 0);
+  return { rm: Math.round(rm * 100) / 100, tu: per > 0 ? Math.min(Math.max(0, Number(C.tierMax) | 0), Math.floor((l - 1) / per)) : 0 };
+}
 const MAX_MOB_LVL = () => Math.max(1, ...Object.values(ZONE_MOBS).map((m: any) => m.lvl || 1));
 const autoTarget = (t: BTask) => t.ev === "kill" && (!t.m || t.m.startsWith("biome:") || t.m.startsWith("role:")) && !/(^|,)(boss|wboss|rare)(,|$)/.test(t.f); // у боссов и редких свой уровень
 /** база опыта задания уровня L: на стыке ступеней xpPct (16, 21 ур.) процент падает — берём максимум по 5 уровням ниже,
@@ -844,6 +870,10 @@ export function makeRoll(t: BTask, heroLvl: number, seed: string, k: string, her
   }
   if (mobL && !f) L = clampL(mobL); // конкретный враг: уровень задания = уровень врага (ранг меняет количество, опыт и бонусы)
   if (minL) L = clampL(Math.max(L, minL));
+  // общие «редкие / боссы / мировые боссы»: цель по уровню героя (окно ур. lo–hi), опыт — по уровню цели (решение Алекса)
+  let maxL = 0; const ff = [t.f, f].filter(Boolean).join(",");
+  if (t.ev === "kill" && !(t.m && f !== "wboss") && FIT_FLAG.test(ff)) { const W = fitWindow(ff, clampL(heroLvl + plus + (f === "wboss" ? 6 : 0)));
+    if (W) { minL = W.lo; maxL = W.hi; L = clampL(f === "wboss" ? Math.max(L, W.Lc) : W.Lc); } } // ранг SS → мировой босс: опыт не ниже, чем у ранга ниже
   const mul = Number(BOARD_CFG.xpMul?.[t.cat] ?? 1), x = Math.round(xpBaseAt(L, d) * (Number.isFinite(mul) ? Math.max(0, mul) : 1) * (Number(RC.mul) || 1));
   // бонусные условия: из пула события, без противоречий с основным
   const have = flags(t), B = BOARD_CFG.bonus || {};
@@ -857,7 +887,8 @@ export function makeRoll(t: BTask, heroLvl: number, seed: string, k: string, her
     const v = q === "fast" ? Math.max(5, Number(B.fast?.[t.cat]) || 60) : q === "higher" ? Math.max(1, Number(B.higher?.n) || 3) : q === "body" ? heroes[Math.floor(hu(seed + "|body") * heroes.length)] : undefined;
     bon.push({ k: q, v, xp: bx, ok: 1 });
   }
-  const out: Roll = { r, L, minL, n, d, x, f, bon, k, w: rollText(t, { r, L, minL, n, f }) };
+  const out: Roll = { r, L, minL, n, d, x, f, bon, k, w: rollText(t, { r, L, minL, maxL, n, f }) };
+  if (maxL) out.maxL = maxL;
   if (rb) out.rb = rb;
   return out;
 }
@@ -884,15 +915,16 @@ export function devBoardRoll(a: Account, h: Hero | null, id: string, r: string, 
   b.roll[id] = R; delete b.p[id]; delete b.c[id]; if (p > 0) b.p[id] = Math.min(p, R.n); b.rev++; return true; // p — сразу прогресс (плейтест сдачи)
 }
 /** основное условие словами (для окна и трекера) */
-function rollText(t: BTask, o: { r?: string; L?: number; minL: number; n: number; f: string }): string {
+function rollText(t: BTask, o: { r?: string; L?: number; minL: number; maxL?: number; n: number; f: string }): string {
   const what = o.minL && flags(t).has("lvl") ? "" : t.why || "";
+  if (o.maxL) return [o.f === "wboss" ? "Мировые боссы — зовите отряд" : what, `цели ${o.minL}–${o.maxL} ур.`].filter(Boolean).join(" · ");
   if (o.f === "wboss") return "Мировые боссы — зовите отряд";
   return [what, o.minL ? `враги ${o.minL} ур. и выше` : ""].filter(Boolean).join(" · ");
 }
 /** задание с учётом выпавшего варианта (ранг, количество, уровень врагов) */
 export function effOf(b: BoardState, t: BTask): BTask {
   const R = b?.roll?.[t.id]; if (!R) return t;
-  return { ...t, n: [R.n, 0, 0, 0, 0], d: [R.d, 0, 0, 0, 0], x: [R.x + R.bon.reduce((a, o) => a + (o.ok && R.done ? o.xp : 0), 0), 0, 0, 0, 0], f: [t.f, R.f].filter(Boolean).join(","), m: R.f === "wboss" ? "" : t.m, lvl: R.L, minL: R.minL } as any;
+  return { ...t, n: [R.n, 0, 0, 0, 0], d: [R.d, 0, 0, 0, 0], x: [R.x + R.bon.reduce((a, o) => a + (o.ok && R.done ? o.xp : 0), 0), 0, 0, 0, 0], f: [t.f, R.f].filter(Boolean).join(","), m: R.f === "wboss" ? "" : t.m, lvl: R.L, minL: R.minL, maxL: R.maxL || 0 } as any;
 }
 const SELS = new WeakMap<object, { refs: any[]; s: Set<string>; n: number }>(); // кэш «выпавшие на период» по ссылкам на массивы b.sel (они заменяются целиком)
 function selSet(b: BoardState): Set<string> {
@@ -1105,6 +1137,7 @@ function amount(t: BTask, ev: any, lvl: number): { v: number; max?: boolean } {
         else if (!goalMatch(t.m, kind)) return NO;
       }
       if ((t as any).minL && !((ev.lvl || 0) >= (t as any).minL)) return NO; // ранг: враги не ниже уровня, выпавшего при выдаче
+      if ((t as any).maxL && (ev.lvl || 0) > (t as any).maxL) return NO; // редкие/боссы по уровню героя: цель не выше окна
       if (F.has("elite") && !ev.elite) return NO;
       if (F.has("cursed") && !ev.cursed) return NO;
       if (!enchOk(F, ev.ench | 0)) return NO;
@@ -1167,7 +1200,7 @@ function amount(t: BTask, ev: any, lvl: number): { v: number; max?: boolean } {
     case "claim": return ty === "board_claim" && ev.cat !== "ach" && ev.cat !== "tut" && (!t.m || ev.cat === t.m) ? { v: 1 } : NO;
     case "quest": return ty === "quest_done" ? { v: 1 } : NO;
     case "ui": return ty === "ui" && ev.name === t.m ? { v: 1 } : NO;
-    case "reach": return ty === "reach" && (!t.m || ev.world === t.m) ? { v: 1 } : NO;
+    case "reach": return ty === "reach" && !ev.here && (!t.m || ev.world === t.m) ? { v: 1 } : NO; // доска: только настоящий вход в мир (портал), не «уже здесь»
     case "ability": return ty === "ability_used" ? { v: 1 } : NO;
     case "lvlup": return ty === "lvlup" ? { v: Math.max(1, Math.min(30, ev.n | 0)) } : NO;
     case "death": return ty === "death" && (!t.m || ev.by === t.m) && wearOk(F, ev) ? { v: 1 } : NO;
@@ -1347,16 +1380,17 @@ function claimTiers(a: Account, h: Hero, b: BoardState, t0: BTask, ctx: Ctx): an
   if (needCh) { const e = chestRoomErr(a, needCh); if (e) return { ok: false, err: e }; } // хранилище сундуков полно — ступень не пишем, награда не пропадает
   const cp = capPeriod(t.cat), ck = cp ? periodKey(cp) : "", cap = catCap(t.cat, h.lvl);
   const xs = (b.xs[t.cat] && b.xs[t.cat].k === ck) ? b.xs[t.cat] : (b.xs[t.cat] = { k: ck, v: 0 });
+  const FR = R?.maxL ? fitReward(R.L) : { rm: 1, tu: 0 }; // редкие/боссы по уровню: ресурсы и ярус сундука растут с уровнем цели
   const r: any = { ok: true, id: t.id, title: t.title, cat: t.cat, rank: R?.r, bon: R ? R.bon.filter((o) => o.ok && R.done).length : undefined, xp: 0, res: {} as Record<string, number>, tiers: [] as number[], cappedXp: 0, levelUps: 0 };
   for (; ti <= last; ti++) {
     b.c[t.id] = ti + 1; // ступень отмечена ДО выдачи: повтор запроса ничего не даст
     let xp = tierXp(t, ti, h.lvl);
     if (cap > 0) { const left = Math.max(0, cap - xs.v); if (xp > left) { r.cappedXp += xp - left; xp = left; } xs.v += xp; }
     r.xp += xp; r.tiers.push(ti + 1);
-    for (const [res, n] of Object.entries(t.res || {})) if (RESOURCES[res] && n > 0) { const q = Math.round(n * (ti + 1)); addRes(a, res, q); r.res[res] = (r.res[res] || 0) + q; }
+    for (const [res, n] of Object.entries(t.res || {})) if (RESOURCES[res] && n > 0) { const q = Math.round(n * (ti + 1) * FR.rm); addRes(a, res, q); r.res[res] = (r.res[res] || 0) + q; }
   }
   if (wantItem) { const it = addItem(a, t.item, "board:" + t.id, a.hero); if (it) r.item = { id: it.id, uid: it.uid }; }
-  if (wantChest && a.hero) { const c = grantChest(a, a.hero, R!.r, R!.L, t.cat, "board:" + t.id); if (c) { const [lo, hi] = countOf(t.cat); r.chest = { id: c.id, tier: c.tier, cur: !!c.cur, name: (c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name), color: BCHEST.tiers[c.tier].color, L: c.L, lo, hi }; } }
+  if (wantChest && a.hero) { const c = grantChest(a, a.hero, R!.r, R!.L, t.cat, "board:" + t.id, undefined, undefined, FR.tu); if (c) { const [lo, hi] = countOf(t.cat); r.chest = { id: c.id, tier: c.tier, cur: !!c.cur, name: (c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name), color: BCHEST.tiers[c.tier].color, L: c.L, lo, hi }; } }
   if (wantSpec && a.hero) { const L = R?.L || t.lvl || h.lvl || 1; // «по уровню задания» — уровень выпавшего ранга, иначе уровень задания, иначе героя (±spread при открытии)
     r.chests = grantSpec(a, a.hero, t.ch!, L, t.cat, "board:" + t.id).map((c) => ({ id: c.id, tier: c.tier, cur: !!c.cur, name: (c.cur ? BCHEST.tiers[c.tier].nameC : BCHEST.tiers[c.tier].name), color: BCHEST.tiers[c.tier].color, L: c.L })); }
   if (r.xp > 0) r.levelUps = gainXp(h, r.xp);
@@ -1469,11 +1503,11 @@ export function boardClient(a: Account, h: Hero | null) {
   const xs: Record<string, [number, number]> = {};
   for (const c of CATS) { const cp = capPeriod(c); if (!cp) continue; const cap = catCap(c, lvl); if (!cap) continue; const v = b.xs[c]?.k === periodKey(cp) ? b.xs[c].v : 0; xs[c] = [v, cap]; }
   const roll: Record<string, Roll> = {};
-  for (const id of new Set([...Object.values(b.sel).flat(), ...b.tk])) if (b.roll[id]) roll[id] = b.roll[id];
+  for (const id of new Set([...Object.values(b.sel).flat(), ...b.tk])) if (b.roll[id]) roll[id] = b.roll[id].maxL ? { ...b.roll[id], rm: fitReward(b.roll[id].L).rm } as any : b.roll[id]; // rm — множитель ресурсов по уровню цели (для показа)
   // сундук за задание с рангом (выдаёт claimTiers за последнюю ступень): ярус и шанс проклятого — из BCHEST (админка «🎁 Сундуки наград»,
   // правки D1), клиент сам их не знает. bc[id] = { n: имя, c: цвет, cp: шанс проклятого %, nc: имя проклятого варианта, lo/hi: вещей }
   const bc: Record<string, { n: string; c: string; cp: number; nc: string; lo: number; hi: number }> = {};
-  if (BCHEST.on !== false) for (const [id, R] of Object.entries(roll)) { const t = BTASKS[id], tr = R?.r ? tierOfRank(R.r) : null;
+  if (BCHEST.on !== false) for (const [id, R] of Object.entries(roll)) { const t = BTASKS[id], tr = R?.r ? bumpTier(tierOfRank(R.r), R.maxL ? fitReward(R.L).tu : 0) : null;
     if (!t || !tr || !(BC_CATS as readonly string[]).includes(t.cat)) continue; const T = BCHEST.tiers[tr], [lo, hi] = countOf(t.cat);
     bc[id] = { n: T.name, c: T.color, cp: rankCursePct(R.r), nc: T.nameC, lo, hi }; }
   // награда «Сундуки» из админки (поле ch): для карточки и записки — имя яруса, цвет, уровень, потолок чар, проклятость

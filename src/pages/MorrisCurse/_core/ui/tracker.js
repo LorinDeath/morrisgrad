@@ -10,6 +10,7 @@ import { esc } from './overlay.js';
 import { rankTag } from '../meta/boardStore.js';
 import { taskTarget, hasPlace, viaPortal } from './boardLoc.js';
 import { bossCfg, bossLairs, pickLair, lairTarget, spawnText } from './bossSpawn.js';
+import { deadCampTarget } from './campTimer.js';
 
 const TUT_KEY = 'mc-tut-v2';
 const FOLD_KEY = 'mc-tut-fold'; // «свернуть подсказки обучения» — только на этом устройстве (выключить совсем — в настройках, хранит сервер)
@@ -26,6 +27,7 @@ function huntOf(mt, ctx, bcfg = { on: true, soon: 10 }) {
   if (best) where = 'рядом';
   if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: '🎯 Лагерь: ' + nm, mob: 1, hunt: 'camp' }; } }
   if (best && !where) where = 'лагерь неподалёку';
+  if (!best) { best = deadCampTarget(ctx.camps, isT, ctx, '🎯 Лагерь: ' + nm, { mob: 1, hunt: 'camp' }); if (best) where = best.sp ? 'лагерь: все убиты, ' + best.sp.replace('⏳ ', '') : 'лагерь: все убиты'; } // все в лагере мертвы — таймер, а не «цель здесь»
   if (!best) { // мировой босс: логово с живым состоянием (жив / возродится через…); логово без босса — с таймером, а не «босс здесь»
     const l = pickLair(bossLairs(isT, ctx.world), ctx);
     if (l) { best = lairTarget(l, '🎯 ' + nm, bcfg, { mob: 1, hunt: l.kind === 'rare' ? 'rare' : 'boss' }); where = l.alive ? (l.kind === 'rare' ? 'редкий Отголосок сейчас здесь' : 'жив, в своём логове') : bcfg.on ? spawnText(l, bcfg) : l.kind === 'rare' ? 'место появления редкого Отголоска' : 'логово мирового босса'; } }
@@ -137,6 +139,8 @@ export class QuestTracker {
         let best = null, bd = Infinity;
         for (const m of ctx.mobs?.values?.() || []) if (isT(m.type) && !(m.hp <= 0)) { const d = Math.hypot(m.x - ctx.x, m.y - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: m.x, y: m.y, label: ZONE_MOBS[m.type]?.name || 'Цель', mob: 1 }; } }
         if (!best) for (const c of ctx.camps || []) if (c[3] > 0 && c[7].some(isT)) { const d = Math.hypot(c[1] - ctx.x, c[2] - ctx.y); if (d < bd) { bd = d; best = { world: ctx.world, x: c[1], y: c[2], label: 'Лагерь: ' + (ZONE_MOBS[c[7].find(isT)]?.name || 'цель'), mob: 1 }; } }
+        if (!best) { best = deadCampTarget(ctx.camps, isT, ctx, 'Лагерь: ' + (ZONE_MOBS[[...primTypes][0]]?.name || 'цель'), { mob: 1 }); // все цели лагеря мертвы — к лагерю с таймером
+          if (best?.sp) html = html.replace('</ul>', `<li class="turnin bsp">${esc(best.sp)}</li></ul>`); }
         if (!best) { const l = pickLair(bossLairs(isT, ctx.world), ctx); // мировой босс: логово с живым состоянием
           if (l) { best = lairTarget(l, ZONE_MOBS[l.type]?.name || 'Босс', this.bcfg, { mob: 1 });
             if (best.sp) html = html.replace('</ul>', `<li class="turnin bsp${l.alive ? ' alive' : ''}">${l.alive ? (l.kind === 'rare' ? '◆' : '☠') : '⏳'} ${esc(best.sp)}</li></ul>`); } }

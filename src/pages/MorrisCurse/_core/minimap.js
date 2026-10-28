@@ -7,6 +7,8 @@ import { BIOMES } from '../../../../server/meta/biomes.ts';
 import { mapImage, drawMarkerIcon, drawFog } from './map/mapArt.js';
 import { FOG_N, getBit } from '../../../../server/meta/explore.ts';
 import { enchColor } from './meta/enchCfg.js';
+import { campTimersOn, campCfg, campLeft, respawnTxt } from './ui/campTimer.js';
+import { VIEW_CELLS } from '../../../../server/worlds/sizes.ts';
 // подложка мини-карты Аринара: регионы цветом биома (240×240, рисуется один раз)
 const REG_COL = { grove: '#2f5a3a', meadow: '#4b4a7a', garden: '#6a3a44', waste: '#3a4458', rot: '#3d4426', ridge: '#4a4038', pylon: '#3c3a62', glitch: '#24502e', crater: '#3a3a5a', thin: '#4a4260' };
 function arinarMinimapBg(size) {
@@ -316,6 +318,8 @@ export class Minimap {
     // бой — красный, спит — оранжевый, пусто (ждёт респавна) — серый пунктир; лагерь с целью квеста — зелёный контур
     if (camps) {
       const isT = (t) => inTrack(track, t);
+      const cc = campCfg(this.getQol?.()), ratio = camCells ? VIEW_CELLS.max / camCells : scale / this.zoomLevels[0]; // × к самому дальнему обзору
+      const showT = cc.on && campTimersOn() && ratio >= cc.zoom - 1e-6; this.stats.campZoom = Math.round(ratio * 100) / 100;
       for (const c of camps) {
         const x = cx + (c[1] - player.x) * scale, y = cy + (c[2] - player.y) * scale, r = Math.max(3, c[6] * scale);
         if (x < -r || y < -r || x > w + r || y > h + r) continue;
@@ -328,7 +332,9 @@ export class Minimap {
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = ctx.strokeStyle; ctx.font = '8px monospace'; ctx.textAlign = 'center';
-        if (r > 8) ctx.fillText(`⛺${c[3]}/${c[4]}`, x, y + 3);
+        const tl = st === 2 && showT ? campLeft(c) : 0; // пустой лагерь при достаточном приближении — отсчёт до возрождения
+        if (st === 2 && showT) { const t = '⏳' + (tl > 0 ? respawnTxt(tl) : '…'); ctx.font = 'bold 9px monospace'; ctx.fillStyle = 'rgba(10,6,20,.8)'; const tw = ctx.measureText(t).width + 4; ctx.fillRect(x - tw / 2, y - 6, tw, 11); ctx.fillStyle = '#e5e7eb'; ctx.fillText(t, x, y + 3); this.stats.campTimers = (this.stats.campTimers || 0) + 1; }
+        else if (r > 8) ctx.fillText(`⛺${c[3]}/${c[4]}`, x, y + 3);
       }
     }
     // 4b. Мобы открытого мира (все известные клиенту — зона присылает их по области видимости): обычные — красные точки,

@@ -588,7 +588,11 @@
 .mc-soc-pl .who { flex: 1; min-width: 0; }
 .mc-soc-pl .who small { display: block; color: #94a3b8; font-size: 11px; }
 .mc-soc-pl .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-.mc-set { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; }
+.mc-set { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1 1 auto; -webkit-overflow-scrolling: touch; } /* окно настроек не вылезает за экран (ПК и телефон): прокрутка внутри */
+.mc-social .mc-soc { max-height: calc(100dvh - 24px); min-height: 0; }
+.mc-set-row > span { min-width: 0; flex: 1 1 140px; }
+.mc-set-row .grp { max-width: 100%; }
+.mc-set-row input[type=range] { max-width: min(220px, 46vw); }
 .mc-set-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .mc-set-row .grp { display: flex; gap: 4px; flex-wrap: wrap; }
 .mc-set-note { color: #94a3b8; font-size: 10px; font-weight: normal; }

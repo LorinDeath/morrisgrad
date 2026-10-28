@@ -55,10 +55,15 @@ export function chestRoomErr(a: Account, need = 1): string | null {
   const mx = Math.max(1, BCHEST.maxStore | 0 || 100);
   return chestsOf(a).list.length + Math.max(1, need) > mx ? `Сундуков наград уже ${mx} — откройте или опустошите часть (🎁, клавиша Y), и сдайте задание снова` : null;
 }
+/** ярус выше на bump ступеней (не выше «божественного»: чёрный — только особые награды) */
+export function bumpTier(t: BcTier | null, bump: number): BcTier | null {
+  if (!t || !(bump > 0)) return t; const i = BC_TIERS.indexOf(t), top = BC_TIERS.indexOf("divine");
+  return i >= top ? t : BC_TIERS[Math.min(top, i + Math.floor(bump))];
+}
 /** Выдать сундук за ранг задания. null — ранг без сундука или выключено. */
-export function grantChest(a: Account, hero: string, rank: string, L: number, cat: string, src: string, rnd: () => number = cryptoRand, force?: boolean): BcChest | null {
+export function grantChest(a: Account, hero: string, rank: string, L: number, cat: string, src: string, rnd: () => number = cryptoRand, force?: boolean, bump = 0): BcChest | null {
   if (BCHEST.on === false) return null;
-  const tier = tierOfRank(rank); if (!tier) return null;
+  const tier = bumpTier(tierOfRank(rank), bump); if (!tier) return null;
   const cur = typeof force === "boolean" ? force : rnd() * 100 < rankCursePct(rank); // проклятый вариант — отдельный бросок по рангу
   const s = chestsOf(a); const c: BcChest = { id: ++s.seq, tier, ...(cur ? { cur: 1 as const } : {}), L: Math.max(1, Math.min(25, Math.round(L) || 1)), cat, rank, hero, src, at: Date.now() };
   s.list.push(c); return c;

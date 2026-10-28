@@ -14,7 +14,7 @@ WET.f = wetNear; // узлы сбора — не в воде/лаве
 const MOB_R = 12;
 import { mobShot } from "./mobFamily";
 import { GATHER_CFG, gatherRange, gatherSlack, gatherTimeMs } from "./gatherCfg";
-import { ZONE_MOBS, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
+import { ZONE_MOBS, campChiefType, ABILITY_BY_ID, GATHER_RANGE, GATHER_TIME_MS, ZONE_ATTACK_RANGE, ZONE_ATTACK_CD_MS } from "./defs";
 import "./zoneTables"; // заполняет таблицы мобов регионов (только сервер)
 import { summonPool } from "./biomes";
 import { ZONE_GEN, BOSS_TIMERS, rng, inSafe, isNight, genNodes, genOf, type Region, type WorldGen } from "./zoneGen";
@@ -352,7 +352,7 @@ export class Zone {
           }
         }
         // вожак: самый сильный вид региона, элита, ×chiefHp ОЗ, ×chiefDmg урон; в части лагерей — двое
-        const strong = [...reg.table].sort((p, q) => (ZONE_MOBS[q.type]?.lvl || 0) - (ZONE_MOBS[p.type]?.lvl || 0) || (ZONE_MOBS[q.type]?.hp || 0) - (ZONE_MOBS[p.type]?.hp || 0))[0].type;
+        const strong = campChiefType(reg.table)!; // тот же выбор, что у категории «Вожак» Бестиария (bestiaryReg.ts)
         const nChief = R() < G.campTwoChiefs ? 2 : 1;
         for (let c = 0; c < nChief; c++) {
           const [qx, qy] = spot(x + (nChief > 1 ? (c ? 26 : -26) : 0), y);
@@ -457,7 +457,7 @@ export class Zone {
     return real;
   }
   /** пачка лагеря поднимается на защиту (против моба) */
-  /** Лагеря для мини-карты/трекера: [id, x, y, живых, всего, состояние 0 спит/1 бой/2 пуст, радиус агро, типы]. Кэш ~1 с. */
+  /** Лагеря для мини-карты/трекера: [id, x, y, живых, всего, состояние 0 спит/1 бой/2 пуст, радиус агро, типы, сек до возрождения]. Кэш ~1 с. */
   private campCache: { at: number; list: any[] } = { at: 0, list: [] };
   campSummary(now = Date.now()) {
     if (now - this.campCache.at < 1000) return this.campCache.list;
@@ -468,7 +468,8 @@ export class Zone {
       const fight = alive.some((m) => m.targetSid || m.mobTarget);
       const aggro = Math.max(0, ...[...new Set(c.types)].map((t) => ZONE_MOBS[t]?.aggro || 0));
       const spread = Math.max(0, ...ms.map((m) => Math.hypot(m.sx - c.x, m.sy - c.y)));
-      return [c.id, Math.round(c.x), Math.round(c.y), alive.length, ms.length, fight ? 1 : alive.length ? 0 : 2, Math.round(spread + aggro), [...new Set(c.types)]];
+      const ra = ms.filter((m) => m.dead && m.respawnAt > now).map((m) => m.respawnAt); // [8] — сек до ближайшего возрождения (0 — некого ждать)
+      return [c.id, Math.round(c.x), Math.round(c.y), alive.length, ms.length, fight ? 1 : alive.length ? 0 : 2, Math.round(spread + aggro), [...new Set(c.types)], ra.length ? Math.ceil((Math.min(...ra) - now) / 1000) : 0];
     }) };
     return this.campCache.list;
   }
