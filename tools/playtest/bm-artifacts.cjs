@@ -7,6 +7,7 @@ const { guardLocal, assertLocalUrl } = require('./_local.cjs');
 const OUT = process.env.OUT || '/workspace/black-magic/shots-a';
 const BASE = process.env.UD_BASE || 'http://127.0.0.1:5411/game.html', WS = process.env.UD_WS || 'ws://127.0.0.1:8411';
 const PERSIST = process.env.PERSIST || '/workspace/mc-harness-bma/wr';
+const VIDEO = process.env.VIDEO || '';
 assertLocalUrl(BASE); assertLocalUrl(WS); fs.mkdirSync(OUT, { recursive: true });
 const W = '/workspace/mc-ui-tools/node_modules/.bin/wrangler';
 const d1 = (sql) => JSON.parse(execSync(`cd /workspace/mg-black-a/server && PATH=/workspace/tools/node22/bin:$PATH ${W} d1 execute morrisgrad_db --local --persist-to ${PERSIST} --json --command ${JSON.stringify(sql)}`, { stdio: 'pipe' }).toString())[0].results;
@@ -16,7 +17,7 @@ const ADMIN = 'qa_bma_' + Date.now().toString(36);
 (async () => {
   d1(`INSERT OR REPLACE INTO player_roles (pkey, role, granted_by, granted_at) VALUES ('uid:${ADMIN}', 'admin', 'local-test', 0)`);
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const ctx = await b.newContext({ viewport: { width: 1440, height: 860 } });
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 860 }, ...(VIDEO ? { recordVideo: { dir: VIDEO, size: { width: 1280, height: 764 } } } : {}) });
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
   const p = await ctx.newPage(); const errs = []; const fr = [];
   p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
