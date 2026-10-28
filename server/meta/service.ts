@@ -22,6 +22,7 @@ import { BMA_CFG, bagDraw, bmHit, bmDefend, bmSkillPct, chargeFrac, chargedAtk }
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
+import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, bmmClient, refStats, mobFinal, makeMob } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult } from "./profile";
@@ -126,6 +127,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }),
   bm_hold: S({ on: "b" }), bm_test_artifact: S({ ranged: "b?" }), admin_bm_recalc: S({}),
   bm_forge_open: S({}), bm_forge_craft: S({ part: "s", n: "n?" }), bm_forge_build: S({ handle: "s", blade: "s", blade2: "s?", blade3: "s?", crystal: "s?", name: "s" }), // 🔥 кузня Знахаря (этап Б)
+  admin_bmm: S({ op: "s", id: "s?", kind: "s?", data: "o?", lvl: "n?", cls: "s?" }), // 👹 конструктор чёрных мобов и лагерей (админка)
   admin_bmf: S({ op: "s", id: "s?", data: "o?", type: "s?", mob: "s?", res: "s?", chance: "n?", qmin: "n?", qmax: "n?", name: "s?" }), // 🔥 конструктор оружия (админка) // 🜏 артефакты чёрной магии: заряд, тестовый артефакт (dev/админ), «Пересчитать все» // раскладка интерфейса (uiLayout.ts: id из списка, числа −1…1, ≤ 40 записей, ≤ 2 КБ)
 };
 const ADMIN_PATCH_TYPES = new Set(["admin_save", "admin_save_sec", "admin_bchest_preview"]), ADMIN_PATCH_KEYS = 600;
@@ -189,6 +191,7 @@ export class MetaService {
     this.marks = new MarkStore(env?.GAME_DB);
     this.admin = new AdminStore(env?.GAME_DB);
     this.loot = new LootBags(); this.chests = new Chests(); this.camps = new CampRuns(); this.db = env?.GAME_DB || null;
+    registerBlackMobs(ITEM_BY_ID as any); // 👹 чёрные мобы конструктора → ZONE_MOBS (до первой правки D1 — встроенные)
     { let t: any = null; this.admin.onChange = () => { if (!t) t = setTimeout(() => { t = null; this.broadcastConfig(); }, 50); }; } // правки — всем онлайн сразу
     this.rating.roleOf = (pk: string) => this.roles.of(pk);
     if (env?.GAME_DB) this.store.ensureLibrary();
@@ -373,6 +376,7 @@ export class MetaService {
     s.questOverrides = builtinOverrides(); // правки сюжетных квестов (клиент накладывает поверх кода)
     if (h) s.portal = h.portal?.x != null ? { x: h.portal.x, y: h.portal.y, cd: h.portal.cd } : { cd: h.portal?.cd || 0 }; // личный портал домой
     if (!MZ || MZ.ver !== this.admin.ver) MZ = { ver: this.admin.ver, z: mapZones(WORLD_GEN.arinar.regions as any, ZONE_MOBS as any) }; s.mapZones = MZ.z; s.dash = dashClient(); s.gather = gatherClient(); s.ui = uiClient(); s.terrain = terrainClient(); // вид интерфейса (админка «🎨 Интерфейс») // карта M: биом · ур. мобов (живые уровни)
+    s.bmMobs = bmmClient(ITEM_BY_ID as any); // 👹 чёрные мобы: тело/оружие/табличка/порядок индексов (клиент рисует и вливает в ZONE_MOBS)
     if ([...this.admin.touched].some((k) => k.startsWith("bpart:"))) s.bmParts = BM_PARTS; // детали оружия (правки/свои детали админки) — клиент заменяет свой список
     s.configPatches = this.admin.clientPatches(); s.configVer = this.admin.ver; s.regenCfg = regenCfg(); // правки оружия/навыков/мобов
     s.complete = Object.keys(a.quests.active).filter((id) => questComplete(a, id));
@@ -394,7 +398,7 @@ export class MetaService {
    *  свежие карточки изменённых предметов, пересчитанные статы героя. Сервер уже применил правку в памяти (мир/дуэли/забеги). */
   broadcastConfig() {
     const patches = this.admin.clientPatches(), items = this.admin.touchedItems();
-    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), questDialogues: QUEST_DIALOGUES, regenCfg: regenCfg(), ...([...this.admin.touched].some((k) => k.startsWith("bpart:")) ? { bmParts: BM_PARTS } : {}) };
+    const base = { type: "config_update", ver: this.admin.ver, patches, customQuests: QUESTS.filter((q) => q.custom), questOverrides: builtinOverrides(), questDialogues: QUEST_DIALOGUES, regenCfg: regenCfg(), bmMobs: bmmClient(ITEM_BY_ID as any), ...([...this.admin.touched].some((k) => k.startsWith("bpart:")) ? { bmParts: BM_PARTS } : {}) };
     for (const [sid, ms] of this.ms) {
       const e = this.sessionLookup?.(sid); if (!e) continue;
       const cards: Record<string, any> = {};
@@ -726,6 +730,13 @@ export class MetaService {
         const out = (r: any) => this.send(ws, { type: "admin_bmf", op: msg.op, ...r });
         const fail = (e: any) => { console.error("[mc] admin_bmf", e?.message || e); out({ ok: false, err: "Ошибка" }); };
         this.bmfOp(ms, msg).then(out).catch(fail); return true;
+      }
+      case "admin_bmm": { // 👹 конструктор чёрных мобов: черновики, публикация, части тела, лагеря, настройки
+        if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
+        const t = Date.now(); if (!["list", "draft", "auto", "here", "camps"].includes(msg.op) && t - ((ms as any).admAt || 0) < 250) return true; (ms as any).admAt = t;
+        if (JSON.stringify(msg).length > 20000) { this.send(ws, { type: "toast_error", message: "Слишком большой запрос" }); return true; }
+        const out = (r: any) => this.send(ws, { type: "admin_bmm", op: msg.op, ...r });
+        this.bmmOp(ms, session, msg).then(out).catch((e: any) => { console.error("[mc] admin_bmm", e?.message || e); out({ ok: false, err: "Ошибка" }); }); return true;
       }
       case "admin_bm_recalc": { // «Пересчитать все»: снимки артефактов заново из текущих частей (админка)
         if (!this.roles.canAdminFull(ms)) { this.send(ws, { type: "toast_error", message: "Недостаточно прав" }); return true; }
@@ -2155,6 +2166,67 @@ export class MetaService {
     }
     return { ok: false, err: "неизвестная операция" };
   }
+  /** 👹 админка «Чёрные мобы»: черновики мобов — bmc_mdraft (в игру не идут), публикация — game_overrides bmmob/bmbody/bmcamp/bmmcfg */
+  async bmmOp(ms: any, session: any, msg: any): Promise<any> {
+    const db: any = (this.store as any).db, A = this.admin, by = ms.pkey;
+    const vals = (k: string, id: string) => ovValues(k as any, id);
+    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: CUSTOM_BM.test(id), ...vals("bmmob", id), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)) }));
+    const bodyList = () => Object.keys(BM_BODY).map((id) => ({ id, custom: CUSTOM_BB.test(id), ...vals("bmbody", id) }));
+    const campList = () => { const sum = new Map<string, any>(); for (const w of ["arinar", "hellfire"]) { const z: any = (this.zones as any)[w]; for (const c of z?.campSummary?.() || []) { const zc = z.camps.find((x: any) => x.id === c[0]); if (zc?.region?.startsWith("bm:")) sum.set(zc.region.slice(3), { alive: c[3], total: c[4], state: c[5], next: c[8] }); } }
+      return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; return { id, ...vals("bmcamp", id), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null }; }); };
+    const flat = (kind: string, raw: any) => { const paths = new Set((OV_SCHEMA as any)[kind].fields.filter((f: any) => f.t !== "hdr").map((f: any) => f.path)); const patch: any = {};
+      const walk = (o: any, pre: string) => { for (const [k, v] of Object.entries(o || {})) { const p = pre + k; if (paths.has(p)) patch[p] = v; else if (v && typeof v === "object" && !Array.isArray(v)) walk(v, p + "."); } };
+      walk(raw, ""); return patch; };
+    const saveFull = async (kind: string, id: string, data: any) => { const patch = { ...(((OV_SCHEMA as any)[kind] && (BM_MOBS[id] || BM_BODY[id] || BM_CAMPS[id] || id === "main")) ? flat(kind, vals(kind, id) || {}) : {}), ...flat(kind, data) };
+      if (!Object.keys(patch).length) return { ok: false, err: "пусто" }; return A.save(by, kind as any, id, patch); };
+    const rid = (pre: string, T: Record<string, any>) => { let id = ""; for (let i = 0; i < 20 && (!id || T[id]); i++) id = `${pre}_${Math.random().toString(36).slice(2, 8)}`; return id; };
+    switch (msg.op) {
+      case "list": {
+        const drafts = await A.bmcList("bmc_mdraft");
+        let arts: any[] = [];
+        if (db) { try { arts = ((await db.prepare("SELECT id, name, rarity FROM items WHERE id LIKE 'art\\_%' ESCAPE '\\' ORDER BY rowid DESC LIMIT 200").all()).results || []); } catch {} }
+        const res = Object.entries(RESOURCES as any).slice(0, 600).map(([id, r]: any) => ({ id, name: r?.name || id }));
+        const mobs = Object.keys(ZONE_MOBS).filter((id) => !(ZONE_MOBS as any)[id].black).slice(0, 600).map((id) => ({ id, name: (ZONE_MOBS as any)[id].name, lvl: (ZONE_MOBS as any)[id].lvl || 0 }));
+        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: vals("bmmcfg", "main"), drafts, arts, res, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", hidden: !!(BM_PARTS as any)[id].hidden })) };
+      }
+      case "auto": return { ok: true, stats: refStats(Number(msg.lvl) || 1) };
+      case "here": return { ok: true, world: session.world || "hellfire", x: Math.round(session.x || 0), y: Math.round(session.y || 0) };
+      case "camps": return { ok: true, camps: campList() };
+      case "draft": { const id = String(msg.id || ""); if (!BM_MOBS[id] && !CUSTOM_BM.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_mdraft", id, msg.data || {}); return { ...r, id }; }
+      case "discard": { const id = String(msg.id || ""); await A.bmcDel("bmc_mdraft", id); return { ok: true, id }; }
+      case "new": { if (Object.keys(BM_MOBS).filter((k) => CUSTOM_BM.test(k)).length >= (BMM_CFG.maxCustomMobs || 200)) return { ok: false, err: "лимит своих мобов" };
+        const id = rid("bmx", BM_MOBS), data: any = makeMob(id, Number(msg.lvl) || 5, String(msg.cls || "warrior")); delete data.id; await A.bmcSave(by, "bmc_mdraft", id, data); return { ok: true, id, data }; }
+      case "publish": { const id = String(msg.id || ""); const raw = msg.data && typeof msg.data === "object" ? msg.data : null; if (!raw) return { ok: false, err: "пустой черновик" };
+        const isNew = !BM_MOBS[id]; const r: any = await saveFull("bmmob", id, raw); if (r.ok) await A.bmcDel("bmc_mdraft", id);
+        return { ...r, id, isNew, mobs: mobList() }; }
+      case "hide": { const id = String(msg.id || ""), kind = String(msg.kind || "bmmob"); if (!["bmmob", "bmbody", "bmcamp"].includes(kind)) return { ok: false, err: "вид?" };
+        const T: any = kind === "bmmob" ? BM_MOBS : kind === "bmbody" ? BM_BODY : BM_CAMPS; if (!T[id]) return { ok: false, err: "нет" };
+        const r: any = await saveFull(kind, id, { hidden: !!msg.data?.hidden }); return { ...r, id }; }
+      case "save": { // часть тела / лагерь / настройки (новые — id без префикса: сервер выдаст свой)
+        const kind = String(msg.kind || ""); if (!["bmbody", "bmcamp", "bmmcfg"].includes(kind)) return { ok: false, err: "вид?" };
+        let id = String(msg.id || ""); if (kind === "bmmcfg") id = "main"; else if (!id) id = rid(kind === "bmbody" ? "bbx" : "bcx", kind === "bmbody" ? BM_BODY : BM_CAMPS);
+        const r: any = await saveFull(kind, id, msg.data || {});
+        if (r.ok && kind === "bmcamp") for (const z of Object.values(this.zones as any) as any[]) z?.syncBlackCamps?.(Date.now(), true);
+        return { ...r, id, kind, camps: kind === "bmcamp" ? campList() : undefined, body: kind === "bmbody" ? bodyList() : undefined }; }
+    }
+    return { ok: false, err: "неизвестная операция" };
+  }
+  /** таймеры лагерей чёрных мобов в D1 (library_meta «bm_timers»), как у редких: перезапуск не сбрасывает отсчёт */
+  bmtLoaded: 0 | 1 | 2 = 0; bmtSavedAt = 0; bmtSig = "";
+  bmKeep(now: number) {
+    const zs = Object.entries(this.zones as any) as [string, any][];
+    if (this.bmtLoaded === 0) {
+      this.bmtLoaded = 1; if (!this.db) { this.bmtLoaded = 2; return; }
+      const done = (snap: any) => { if (this.bmtLoaded !== 1) return; this.bmtLoaded = 2; if (snap && typeof snap === "object") for (const [w, z] of zs) { z.bmPending = snap[w] || null; z.syncBlackCamps?.(Date.now(), true); } };
+      const t = setTimeout(() => done(null), 4000);
+      Promise.resolve(this.db.prepare("SELECT value FROM library_meta WHERE key = 'bm_timers'").first()).then((row: any) => { clearTimeout(t); let s: any = null; try { s = row?.value ? JSON.parse(row.value) : null; } catch {} done(s); }).catch(() => { clearTimeout(t); done(null); });
+      return;
+    }
+    if (this.bmtLoaded !== 2 || !this.db || now - this.bmtSavedAt < 5000) return; this.bmtSavedAt = now;
+    const snap: any = {}; for (const [w, z] of zs) { const t = z.bmTimers?.(now); if (t && Object.keys(t).length) snap[w] = t; }
+    const val = JSON.stringify(snap); if (val === this.bmtSig) return; this.bmtSig = val;
+    Promise.resolve(this.db.prepare("INSERT INTO library_meta (key, value) VALUES ('bm_timers', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(val).run()).catch((e: any) => { this.bmtSig = ""; console.error("[mc] bm timers save", e?.message || e); });
+  }
   /** «Пересчитать все»: загруженные — в памяти, все строки items (art_*) в D1 — заново из частей */
   async bmRecalc(): Promise<number> {
     const live = recalcAllArtifacts(); const db: any = (this.store as any).db;
@@ -2361,7 +2433,7 @@ export class MetaService {
     }
     if (now - (this.lootExpAt || 0) > 1000) { this.lootExpAt = now; this.loot.expire(now); this.chestTick(now); }
     this.chestChan(now);
-    this.rareKeep(now);
+    this.rareKeep(now); this.bmKeep(now);
     if (now - (this.regAt || 0) > 3000) { this.regAt = now; this.admin.sync().catch(() => {}); this.syncRegions(); } // набор правок (D1, не чаще раза в 10 с — внутри sync) + пересборка лагерей / ОЗ живых мобов
     if (now - this.partyAt > 1000) { this.partyAt = now; for (const p of this.party.parties.values()) this.partySend(p); } // ОЗ/позиции отряда — для рамок, карты и мини-карты
     try { this.pvp.tick(now); } catch (e: any) { console.error("[mc] pvp tick", e?.message || e); }
