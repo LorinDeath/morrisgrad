@@ -4,6 +4,7 @@
 // дождь из точек, отложенный удар (метеор), аура с тиками, неуязвимость/снижение урона, заморозка/замедление.
 // Направление — от клиента (нормализуется), всё остальное (дальность, урон, цели, позиции) — сервер.
 import { BM_SHAPES, BMA_CFG } from "./blackArt";
+import { SK_DEFS, castCraft, skShape } from "./skillCraft";
 import { ENEMY_SPRITES } from "./mobFamily";
 import { ABILITY_BY_ID } from "./defs";
 import { cryptoRand } from "./profile";
@@ -62,6 +63,7 @@ export const SHAPES: Record<string, Shape> = {
 export function shapeOf(id: string): Shape {
   if (id.startsWith("rs:") && RS_SHAPES[id.slice(3)]) return RS_SHAPES[id.slice(3)];
   const d: any = ABILITY_BY_ID[id];
+  if (SK_DEFS[id] && !SK_DEFS[id].preset) return skShape(SK_DEFS[id]); // свой навык конструктора (skx_…): форма из его данных
   return SHAPES[id] || (d?.base && SHAPES[d.base]) || { k: "nova", r: 140 };
 }
 
@@ -81,6 +83,8 @@ export interface CastCtx {
   /** текущая позиция героя (для отложенного «эха») */
   here?: () => [number, number];
   echo?: boolean;
+  /** хуки конструктора навыков (цена ОЗ, модификаторы, бафы на себя) — только у героя в открытом мире */
+  sk?: any;
   /** настоящий снаряд сервера (открытый мир); без него (дуэль) — прежний мгновенный расчёт */
   fire?: (o: { t: string; x: number; y: number; dx: number; dy: number; range: number; w: number; max: number; spd?: number; arc?: boolean; onHit?: (m: any, i: number) => void; onEnd?: (x: number, y: number, hit: boolean) => void }) => any;
 }
@@ -123,7 +127,7 @@ function lineMobs(zone: any, x: number, y: number, dx: number, dy: number, len: 
 export function castShape(id: string, c: CastCtx): number {
   const s = shapeOf(id);
   // 🜏 навык артефакта: клиент рисует его листом Художника; art:0 — выключено в админке, fs — масштаб анимаций
-  const bmArt = !!BM_SHAPES[id], art = bmArt && BMA_CFG.skillArt !== false, fs = Number(BMA_CFG.skillFxScale) || 1;
+  const bmArt = !!BM_SHAPES[id] || !!SK_DEFS[id], art = bmArt && BMA_CFG.skillArt !== false, fs = Number(BMA_CFG.skillFxScale) || 1;
   if (bmArt && (!art || fs !== 1)) { const ev0 = c.ev; c = Object.assign(Object.create(c), { ev: (e: any) => ev0({ ...e, ...(art ? {} : { art: 0 }), ...(fs !== 1 ? { fs } : {}) }) }); }
   const k = c.radiusMult;
   const P = c.props || [];
@@ -135,7 +139,10 @@ export function castShape(id: string, c: CastCtx): number {
     for (let i = 0; i < n; i++) { const a = phase + (i / n) * Math.PI * 2;
       c.fire({ t: spr, x: ox, y: oy, dx: Math.cos(a), dy: Math.sin(a), range, w: 24, max, onHit: (m) => { const d = c.hit(m, mult) || 0; dealt += d; onHit?.(m, d); } }); }
   };
-  switch (s.k) {
+  const sk = SK_DEFS[id];
+  if (sk && (BMA_CFG.skillCraft !== false || !BM_SHAPES[id])) { // 🛠 конструктор навыков (пресеты = прежние формы один в один)
+    const r = castCraft(id, sk, c, k, art, cryptoRand, projSprite(id, "fireball")); dealt = r.dealt; endX = r.ex; endY = r.ey;
+  } else switch (s.k) {
     case "nova": {
       const r = s.r * k;
       // таланты как в забеге: «Отражение» — волна стены щитов ×2 и +1 с защиты; «Шесть топоров» — вихрь 6 топоров вместо 4 (урон ×1.5)
@@ -317,6 +324,6 @@ export function castShape(id: string, c: CastCtx): number {
     c.ev({ k: "ability", sid: c.sid, id: "nova", x: R(endX), y: R(endY), r });
   }
   if (P.includes("echo") && !c.echo) // Сияние «Эхо»: повтор через 0.6 с с силой 40% из текущей позиции, без перемещения
-    c.later(600, () => { const [hx, hy] = c.here ? c.here() : [endX, endY]; castShape(id, { ...c, x: hx, y: hy, dmg: c.dmg * 0.4, echo: true, hit: (m, mult, o) => c.hit(m, mult * 0.4, o), move: () => {}, buff: () => {} }); });
+    c.later(600, () => { const [hx, hy] = c.here ? c.here() : [endX, endY]; castShape(id, { ...c, sk: undefined, x: hx, y: hy, dmg: c.dmg * 0.4, echo: true, hit: (m, mult, o) => c.hit(m, mult * 0.4, o), move: () => {}, buff: () => {} }); });
   return dealt;
 }

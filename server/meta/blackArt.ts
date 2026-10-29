@@ -56,6 +56,8 @@ export const BMA_CFG = {
   mobAimMs: 350,                   // чёрный лучник/маг: прицел (линия-телеграф) до вылета снаряда, мс
   skillArt: true,                  // 🜏 навыки артефактов: анимации листами Художника (выкл — старые код-эффекты); снаряд навыка — свой спрайт
   skillFxScale: 1,                 // масштаб листов навыков (× к размеру по радиусу/дальности)
+  skillCraft: true,                // 🛠 навыки артефактов исполняются конструктором навыков (выкл — прежний код форм, аварийный откат)
+  skMaxSpeedPct: 60,               // потолок прибавки скорости бега от модификаторов навыков, %
   rainLead: 450,                   // дождь навыка: метки на земле за столько мс до удара каждой капли (капля успевает упасть)
   staffSpread: 12,                 // посохи: угол между снарядами мульти-выстрела, градусы (2-й/3-й посох — свой снаряд)
   staffStatsAdd: false,            // посохи во 2/3 слоте: складывать их боевые статы (выкл — каждый снаряд с уроном основного)
@@ -245,9 +247,11 @@ export const BM_SKILLS: (AbilityDef & { bm: BmSkillCfg })[] = [
     bm: { pct: 0.5, k: 2, elem: "ice", vfx: "вихрь снега, след инея, короткая неуязвимость" } },
 ];
 /** стихия навыка артефакта: bmi_* — лёд, bmf_* — огонь */
-export const skillElem = (id: any) => (typeof id === "string" && id.startsWith("bmi_") ? "ice" : "fire");
+/** стихия навыков конструктора (skillCraft.ts заполняет: пресеты и свои skx_…) */
+export const SK_ELEM: Record<string, string> = {};
+export const skillElem = (id: any) => (typeof id === "string" && SK_ELEM[id] ? SK_ELEM[id] : typeof id === "string" && id.startsWith("bmi_") ? "ice" : "fire");
 export const BM_SKILL_IDS = BM_SKILLS.map((s) => s.id);
-export const isBmSkill = (id: any) => typeof id === "string" && (id.startsWith("bmf_") || id.startsWith("bmi_"));
+export const isBmSkill = (id: any) => typeof id === "string" && (id.startsWith("bmf_") || id.startsWith("bmi_") || !!SK_ELEM[id]);
 /** формы навыков (abilityShapes.SHAPES) */
 export const BM_SHAPES: Record<string, any> = {
   bmf_ember_lash: { k: "cone", len: 230, arc: 1.0 },
