@@ -104,6 +104,7 @@ export const BMA_CFG = {
   // этап 2: большой взмах ближнего лезвия со следом воздуха (клиент рисует; хитбокс — прежняя дуга)
   bigSwing: true, swingTrail: 1, swingScale: 1.25, swingAirMs: 260,
   // этап 2: типы снарядов дальних лезвий (поле shot у детали): множители по умолчанию
+  swingTrail: true, swingTrailLen: 0.8, swingH: 1.1, swingLife: 0.5, // ЭТАП 2: большой взмах ближнего лезвия — след в воздухе (длина — доля дуги, высота, м; жизнь, с)
   shotOn: true, shotExplodeR: 80, shotExplodeK: 0.6, shotRicochetN: 2, shotRicochetK: 0.7, shotRicochetR: 260, shotPierceN: 3, shotSplitN: 3, shotSplitK: 0.5, shotSplitR: 160,
   // этап 2: камень — замедление-оглушение (плеть/кольцо), как iceSlow у льда; яд природы — в чертах навыков, отбрасывание воды — в форме
   stoneSlow: true,
@@ -128,6 +129,13 @@ export const SHOT_TYPES = ["", "explode", "ricochet", "pierce", "split"] as cons
 export const SHOT_NAMES: Record<string, string> = { "": "Обычный", explode: "Взрывной", ricochet: "Рикошет", pierce: "Пробивной", split: "Раскалывающийся" };
 /** тип снаряда сборки (слепок артефакта): от основного лезвия; параметры по умолчанию — BMA_CFG.shot* */
 export type ShotInfo = { t: string; n: number; r: number; k: number };
+/** ЭТАП 2: параметры большого взмаха для событий shot/marc (клиент рисует след в воздухе; по умолчанию — без полей) */
+export function swingEv(): Record<string, number> {
+  const C: any = BMA_CFG; if (C.swingTrail === false) return { stl: 0 };
+  const o: Record<string, number> = {}, L = Number(C.swingTrailLen), H = Number(C.swingH), F = Number(C.swingLife);
+  if (Number.isFinite(L) && L !== 0.8) o.stl = Math.max(0, Math.min(2, L)); if (Number.isFinite(H) && H !== 1.1) o.sth = Math.max(0, Math.min(4, H)); if (Number.isFinite(F) && F !== 0.5) o.slf = Math.max(0.1, Math.min(2, F));
+  return o;
+}
 export function shotOf(b: BmPart | null | undefined): ShotInfo | null {
   const t = b?.shot; if (!t || !(SHOT_TYPES as readonly string[]).includes(t) || (BMA_CFG as any).shotOn === false) return null;
   const C: any = BMA_CFG;

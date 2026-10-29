@@ -13,7 +13,7 @@ let fails = 0;
 const ok = (c: any, m: string) => { if (!c) { fails++; console.log("FAIL", m); } else console.log("ok  ", m); };
 const before = JSON.stringify(SK_PRESET_IDS.map((id) => SK_DEFS[id])), abBefore = JSON.stringify(BM_SKILLS);
 ok(KINDS.includes("skdef" as any), "skdef в KINDS админки");
-ok(TABLES.skdef === SK_DEFS && SK_PRESET_IDS.length === 10, "таблица = SK_DEFS, 10 пресетов");
+ok(TABLES.skdef === SK_DEFS && SK_PRESET_IDS.length === 30, "таблица = SK_DEFS, 30 пресетов (по 5 на 6 стихий)");
 const F = SCHEMA.skdef.fields;
 ok(F.filter((f) => f.t !== "hdr").every((f) => f.h || f.t === "text" || f.t === "ltext" || f.t === "bool" || f.path.startsWith("mods.") || ["slow", "dmg"].includes(f.path) || f.label), "у полей есть подписи");
 ok(F.some((f) => f.path === "mods.3.ch") && F.some((f) => f.path === "path" && f.opts?.includes("homing")), "модификаторы 1–4 и траектории в схеме");

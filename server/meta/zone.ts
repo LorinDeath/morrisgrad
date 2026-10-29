@@ -25,7 +25,7 @@ import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { pathWorld, steer, hbTouch } from "./skillCraft";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf } from "./blackArt";
+import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf, swingEv } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -613,7 +613,7 @@ export class Zone {
    *  игрокам (onHit) и враждебным мобам (mobHit). Возвращает число задетых. */
   bmSwing(m: ZMob, d: any, ux: number, uy: number, dmgP: number, dmgM: number, players: Map<string, ZPlayer> | null, onHit: ((sid: string, dmg: number, src: string, mob?: ZMob) => void) | null, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, R = A.range, arc = A.arc || 1, max = Math.max(1, BMA_CFG.arcMax | 0), seen = new Set<number | string>();
-    this.events.push({ k: "marc", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), r: R, a: +arc.toFixed(3), ...(d.elem && d.elem !== "fire" ? { el: d.elem } : {}) });
+    this.events.push({ k: "marc", id: m.id, x: Math.round(m.x), y: Math.round(m.y), dx: +ux.toFixed(3), dy: +uy.toFixed(3), r: R, a: +arc.toFixed(3), ...(d.elem && d.elem !== "fire" ? { el: d.elem } : {}), ...swingEv() });
     if (players && onHit) for (const p of players.values()) {
       if (seen.size >= max) break;
       if (!p.alive || seen.has(p.sid) || !inArc(m.x, m.y, ux, uy, R, arc, p.x, p.y, 14)) continue;

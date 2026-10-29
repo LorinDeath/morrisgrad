@@ -18,7 +18,7 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
 import { parseTag, tierDef } from "./enchant";
-import { BMA_CFG, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureSum, pureEvFields, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
+import { BMA_CFG, swingEv, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureSum, pureEvFields, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
@@ -1425,7 +1425,7 @@ export class MetaService {
       const [vx, vy] = dirs[si];
       if (W.atk.kind === "arc") {
         const targets = zone.targetsInDir(ms.zp, vx, vy, W.atk);
-        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt, ...(art ? { bm: 1, fr: Math.round(frac * 100) / 100, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3), ...(art.elem && art.elem !== "fire" ? { el: art.elem } : {}) } : {}) }); // 🜏 r/a — ровно хитбокс дуги (клиент рисует огненный взмах)
+        zone.events.push({ k: "shot", sid: session.id, x: Math.round(ox), y: Math.round(oy), tx: Math.round(ox + vx * reach), ty: Math.round(oy + vy * reach), w: wt, ...(art ? { bm: 1, fr: Math.round(frac * 100) / 100, dx: +vx.toFixed(3), dy: +vy.toFixed(3), r: W.atk.range, a: +(W.atk.arc || 1).toFixed(3), ...(art.elem && art.elem !== "fire" ? { el: art.elem } : {}), ...swingEv() } : {}) }); // 🜏 r/a — ровно хитбокс дуги (клиент рисует огненный взмах)
         targets.forEach((m, i) => applyHit(m, per * (i === 0 ? 1 : 0.8)));
         if ((session.world || "hellfire") === "arinar") this.pvpArc(session, ms, ox, oy, vx, vy, W.atk, per); // PK-режим: удар задевает и игроков
         if (zone.guard === this.guardMux && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
