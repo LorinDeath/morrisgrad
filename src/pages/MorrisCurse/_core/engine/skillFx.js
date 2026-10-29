@@ -7,6 +7,7 @@
 // Слои: ground — на полу (y≈0.06), above — поверх персонажей (y≈0.9). Рисунки смотрят вправо (+x). glow — пара _glow (аддитивно).
 import { SKILL_FX, FX_META, preloadSkillFx } from './fxAtlas.js';
 import { BM_SKILLS, BM_SHAPES, SK_ELEM } from '../../../../../server/meta/blackArt.ts';
+import { clearProjInfo } from './projAtlas.js';
 import { SK_DEFS, skBlank, skFxElem } from '../../../../../server/meta/skillCraft.ts';
 
 export const SLOT_OF = { cone: 'whip', nova: 'ring', proj: 'bolt', rain: 'rain', dash: 'dash' };
@@ -36,7 +37,7 @@ for (const id of Object.keys(BM_SHAPES)) boltAlias(id);
 export function registerSkDefs(list) {
   if (!Array.isArray(list)) return 0;
   for (const d of list) { if (!d?.id) continue; const base = SK_DEFS[d.id] || skBlank(d.id, d.form, d.elem); SK_DEFS[d.id] = { ...base, ...d, b1a: d.b?.[0] ?? base.b1a, b1s: d.b?.[1] ?? base.b1s, b2a: d.b?.[2] ?? base.b2a, b2s: d.b?.[3] ?? base.b2s }; SK_ELEM[d.id] = d.elem || base.elem; cache.delete(d.id); boltAlias(d.id); }
-  return list.length;
+  clearProjInfo(); return list.length;
 }
 
 /** часть листа: ключ FX, анимация, длительность, размер ячейки (м), слой */

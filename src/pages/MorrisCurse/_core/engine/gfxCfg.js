@@ -56,8 +56,12 @@ function applyLive(c) {
 try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && typeof v === 'object') { for (const k of LOAD_KEYS) if (typeof v[k] === 'boolean') GFX[k] = v[k]; applyLive(v); } } catch (_) {}
 export const GFX_NEXT = { value: null };
 /** снимок сервера: живые поля — сразу, поля загрузки — в кэш (со следующей загрузки страницы) */
+/** 📊 лимиты частиц снарядов и навыков (админка «🖼 Графика» → fx), живые */
+export const FX_LIM = { projMax: 500, fxMax: 240, trailMax: 320, trailStep: 16, skfMax: 260, auto: true, autoFps: 30, low: false };
 export function setGfxCfg(c) {
   if (!c || typeof c !== 'object') return;
+  if (c.fx && typeof c.fx === 'object') for (const k of ['projMax', 'fxMax', 'trailMax', 'trailStep', 'skfMax', 'autoFps']) { const n = Number(c.fx[k]); if (Number.isFinite(n) && n >= 0) FX_LIM[k] = n; }
+  if (c.fx && typeof c.fx.auto === 'boolean') FX_LIM.auto = c.fx.auto;
   applyLive(c);
   const next = {}; for (const k of LOAD_KEYS) next[k] = typeof c[k] === 'boolean' ? c[k] : GFX[k];
   try { localStorage.setItem(KEY, JSON.stringify({ ...next, ...ARENA3_KEYS.reduce((o, k) => ((o[k] = GFX[k]), o), {}), fpsMul: GFX.fpsMul, glow: GFX.glow, lt: GFX.lt, em: GFX.em, ...Object.fromEntries([...MOB_BOOL, 'mobFps', 'mobGlow', 'mobHurtFlash', 'mobGrace', 'mobLoadR'].map((k) => [k, GFX[k]])) })); } catch (_) {}

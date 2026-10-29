@@ -23,7 +23,7 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
   await guardLocal(ctx); await ctx.addInitScript(() => { try { localStorage.setItem('mc_fs_auto', '0'); localStorage.setItem('mc_ui_theme', 'new'); } catch {} });
   const p = await ctx.newPage(); const errs = []; const fr = []; const ev = [];
   p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
-  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_bmf|bm_forge|admin_result|"dev_mob"/.test(s)) fr.push(s.slice(0, 2500));
+  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_bmf|bm_forge|admin_result|"dev_mob"|"dev_perf"/.test(s)) fr.push(s.slice(0, 2500));
     if (/"pi"|"pf"|ice_bolt|"z":1|"z":true/.test(s)) { try { const o = JSON.parse(s), out = []; walk(o, out); const at = Date.now(); for (const e of out) if (e.pi || e.pf || e.t === 'ice_bolt' || e.z) ev.push({ ...e, at }); } catch {} } }));
   if (process.env.DBG) p.on('websocket', (ws) => { ws.on('framereceived', (f) => { const s = String(f.payload); for (const m of s.match(/\{[^{}]*"(aline|ability_move)"[^{}]*\}/g) || []) console.log('DBG<', m.slice(0, 200)); }); ws.on('framesent', (f) => { const s = String(f.payload); if (/ability|cast/.test(s)) console.log('DBG>', s.slice(0, 200)); }); });
   const G = (f, a) => p.evaluate(f, a);
@@ -63,13 +63,13 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
   const s0 = await S(); const had = new Set(s0.account.inv.map((i) => i.uid)); await G(() => window.__game.debug.send({ type: 'bm_test_artifact', ranged: false })); await sleep(1600);
   const A = (await S()).account.inv.find((i) => !had.has(i.uid) && /bm|art/i.test(i.id)) || null; t('артефакт', !!A);
   let ids = []; for (let k = 0; k < 4 && ids.length !== 5; k++) { await G((u) => window.__game.debug.send({ type: 'equip', uid: u }), A.uid); await sleep(1500 + 700 * k); ids = (await S()).hero.artAbilities || []; }
-  const cast = [ids[2], ids[3], ids[1]].filter(Boolean); await G((ids) => window.__game.debug.send({ type: 'loadout_set', ids }), cast); await sleep(900);
+  const slotOf = async (id) => G((id) => window.__game.debug.skfSlot(id), id); const bySlot = {}; for (const id of ids) bySlot[await slotOf(id)] = id;
+  const cast = (process.env.CAST ? process.env.CAST.split(',') : [bySlot.bolt, bySlot.rain, bySlot.ring]).filter(Boolean); await G((ids) => window.__game.debug.send({ type: 'loadout_set', ids }), cast); await sleep(900);
   const P0 = await field(); console.log('field', P0, cast);
   const ring = []; for (let i = 0; i < MOBS; i++) { const a = (i / MOBS) * Math.PI * 2, r = 260 + (i % 4) * 90; ring.push([Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r)]); }
-  for (const [dx, dy] of ring) { await G((m) => window.__game.debug.rawSend({ type: 'dev_grant', spawnMob: m }), { type: ['golem', 'wolf', 'skeleton'][Math.abs(dx + dy) % 3], dx, dy, calm: true }); await sleep(60); }
+  for (const [dx, dy] of ring) { await G((m) => window.__game.debug.rawSend({ type: 'dev_grant', spawnMob: m }), { type: 'golem', dx, dy, calm: true }); await sleep(60); }
   await sleep(1500);
   const perf = async (ms) => { fr.length = 0; await G((ms) => window.__game.debug.rawSend({ type: 'dev_grant', perfStats: ms }), ms); for (let i = 0; i < 40; i++) { const x = fr.find((y) => y.includes('"dev_perf"')); if (x) return JSON.parse(x); await sleep(100); } return null; };
-  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (s.includes('"dev_perf"')) fr.push(s.slice(0, 2500)); }));
   const fpsStart = () => G(() => { const F = (window.__fps = { d: [], last: performance.now(), on: true, live: 0, fx: 0 }); const loop = (t) => { if (!F.on) return; F.d.push(t - F.last); F.last = t; try { const q = window.__game.debug.projs(); F.live = Math.max(F.live, q.live); F.fx = Math.max(F.fx, q.fx); } catch {} requestAnimationFrame(loop); }; requestAnimationFrame(loop); });
   const fpsStop = () => G(() => { const F = window.__fps; F.on = false; const d = F.d.slice(5).sort((a, b) => a - b), n = d.length, sum = d.reduce((a, b) => a + b, 0);
     const q = (p) => d[Math.min(n - 1, Math.floor(p * n))]; return { frames: n, fps: +(1000 * n / sum).toFixed(1), p50ms: +q(0.5).toFixed(1), p95ms: +q(0.95).toFixed(1), p99ms: +q(0.99).toFixed(1), maxMs: +d[n - 1].toFixed(1), long50: d.filter((x) => x > 50).length, low1fps: +(1000 / q(0.99)).toFixed(1), paxLiveMax: F.live, paxFxMax: F.fx }; });
@@ -78,10 +78,12 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
   await fpsStart(); await sleep(8000); res.idle = { client: await fpsStop(), server: await perf(8000) };
   // нагрузка: залпы навыков без отката по кругу + удары
   const mobsNow = (await G(() => window.__game.debug.zoneMobsFull().length)); res.mobsSeen = mobsNow;
-  await fpsStart(); const tS = Date.now(); let n = 0, maxProj = 0;
-  while (Date.now() - tS < SEC * 1000) { const a = (n * 0.7) % (Math.PI * 2), id = cast[n % cast.length]; const m = await me();
-    await G(([id, dx, dy, x, y]) => window.__game.debug.rawSend({ type: 'dev_grant', stressCast: { id, dx, dy, ox: x, oy: y, tx: Math.round(x + dx * 400), ty: Math.round(y + dy * 400), cid: Math.floor(Math.random() * 1e6) } }), [id, +Math.cos(a).toFixed(3), +Math.sin(a).toFixed(3), Math.round(m.x), Math.round(m.y)]);
-    n++; if (n % 25 === 0) { const q = await perf(1000); if (q) maxProj = Math.max(maxProj, q.projs); } await sleep(RATE); }
+  await fpsStart(); const tS = Date.now(); let maxProj = 0;
+  // залпы — из страницы (точный темп): навык по кругу, направление вращается
+  await G(([cast, rate]) => { window.__stN = 0; clearInterval(window.__st); window.__st = setInterval(() => { const D = window.__game.debug, m = D.me(), n = window.__stN++, a = (n * 0.7) % (Math.PI * 2), dx = +Math.cos(a).toFixed(3), dy = +Math.sin(a).toFixed(3);
+    D.rawSend({ type: 'dev_grant', stressCast: { id: cast[n % cast.length], dx, dy, ox: Math.round(m.x), oy: Math.round(m.y), tx: Math.round(m.x + dx * 400), ty: Math.round(m.y + dy * 400), cid: (n % 1e6) + 1 } }); }, rate); }, [cast, RATE]);
+  while (Date.now() - tS < SEC * 1000) { await sleep(2500); const q = await perf(1000); if (q) maxProj = Math.max(maxProj, q.projs); }
+  const n = await G(() => { clearInterval(window.__st); return window.__stN; });
   res.stress = { casts: n, client: await fpsStop(), server: await perf(SEC * 1000), maxServerProjs: maxProj };
   await raw(`perf-${LABEL}`);
   console.log('PERF', JSON.stringify(res));

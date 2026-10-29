@@ -13,7 +13,7 @@ import { loadPropTextures, PropSprites } from '../engine/propAtlas.js';
 import { BEAST_ROW, BEAST_H, beastTop as BEAST_TOP, beastFlying, loadBeastBatch } from '../engine/beastSprites.js';
 import { Beast32View, B32, b32On } from '../engine/beast32.js';
 import { mobFrame, stepZone, initState, forceState } from '../engine/beastFrames.js';
-import { GFX } from '../engine/gfxCfg.js';
+import { GFX, FX_LIM } from '../engine/gfxCfg.js';
 import { pixAtlases, MOB_CELL, MOB_ROWS, MOB_HEIGHT, MOB_FLYING, HERO_HD, HERO_CELL, HERO_H_M, NPC_ROWS, HERO_FRAMES } from '../engine/pixSprites.js';
 import { mergeParts, flatMat, toX, toZ } from '../engine/geometry.js';
 import {
@@ -102,6 +102,7 @@ export class ZoneView {
     // выстрелы базовой атаки и вспышки попаданий — PNG-спрайты (вид снаряда зависит от типа оружия)
     this.pfx = new ProjFx(THREE, this.root, { max: 600, glowMax: 600 });
     this.pax = new ProjAtlasFx(THREE, this.root, toX, toZ); // настоящие снаряды сервера (FX atlas v2)
+    this.pax.mobPos = (id) => { const o = this.mobs.get(id); return o ? [o.x, o.y] : null; }; // 🛠 самонаведение снарядов конструктора
     this.bmm = new BmMobLayer(THREE, this.root);
     this.bmv = new BmView(THREE, this.root); // Чёрный маг: маг, купола, стрелы, взрывы, розы, проклятая земля (hub/bmView.js)
     this.hits = [];
@@ -181,7 +182,7 @@ export class ZoneView {
     for (const e of s.ev || []) {
       if (e.k === 'bmblk') { this.pax.live.delete(e.id); for (const L of Object.values(this.pax.pred || {})) for (let i = L.length - 1; i >= 0; i--) if (L[i].id === e.id) L.splice(i, 1); } // выстрел из купола почернел: дальше его рисует клиент мага
       // 🜏 навыки артефактов: листы Художника (хлыст/кольцо/снаряд/дождь/рывок) вместо код-эффекта, если лист стихии есть
-      if ((e.k === 'acone' || e.k === 'ability' || e.k === 'aline' || e.k === 'arain') && skillEvent(e, (t) => { if (this.teles.length < 260) this.teles.push(t); }, (x, y, r) => [...this.mobs.values()].filter((o) => !o.demo && Math.hypot(o.x - x, o.y - y) <= r))) continue;
+      if ((e.k === 'acone' || e.k === 'ability' || e.k === 'aline' || e.k === 'arain') && skillEvent(e, (t) => { if (this.teles.length < (FX_LIM.low ? FX_LIM.skfMax * 0.6 : FX_LIM.skfMax)) this.teles.push(t); }, (x, y, r) => [...this.mobs.values()].filter((o) => !o.demo && Math.hypot(o.x - x, o.y - y) <= r))) continue;
       if ((e.k[0] === 'b' && e.k[1] === 'm') || ((e.k === 'proj' || e.k === 'pend') && String(e.t || '').startsWith('bm_'))) { this.bmv.event(e); continue; } // Чёрный маг
       if (e.k === 'hit') { const o = this.mobs.get(e.id); if (o) { o.flash = e.bm ? 0.2 : 0.15; o.hitN = true; const PL = pureList(e), pp = PL.reduce((q, [, n]) => q + n, 0), ice = e.el === 'ice';
         out.push({ k: 'float', mid: e.id, x: o.x, y: o.y, text: e.evade ? 'Уклонение' : String(Math.round(e.d - pp)), color: e.evade ? '#94a3b8' : e.bm ? (ice ? '#a5dcff' : '#ffb347') : '#fff' });
@@ -226,6 +227,7 @@ export class ZoneView {
       // снаряды сервера: вылет / попадание; лужа фляги; удары навыков мобов спрайтами атласа
       else if (e.k === 'proj') { this.pax.spawn(e); if (e.bm) { if (e.o === 'm') { const o = this.mobs.get(e.mob); if (o) { o.bmAtk = 0.4; if (Math.abs(e.dx) > 0.2) o.flip = e.dx < 0; } } if (e.sid === myId || (e.o === 'm' && this.nearMe(e.x, e.y))) uiSfx('bm_shot'); } }
       else if (e.k === 'pend') this.pax.end(e);
+      else if (e.k === 'ptg') this.pax.target(e.id, e.m); // 🛠 цель самонаведения
       else if (e.k === 'puddle') this.pax.puddle(e.x, e.y, e.r, e.t);
       else if (e.k === 'ability') { const cz = !!e.cz, col = cz ? curseRGB() : null; const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60), cz }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70), cz }); const id = String(e.id || '').replace(/^rs:/, ''); if (NOVA_FX[id]) this.teles.push({ kind: 'nova', fx: NOVA_FX[id], x: e.x, y: e.y, r: e.r || 120, t: 0, life: 0.6, col }); else if (/^bmi_/.test(id)) { this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.45, color: 0x6cc8ff }); this.efx('ice_hit', 'hit', e.x, e.y, 0.5, Math.max(1.4, (e.r || 60) / 50)); } // ICE: кодовый fx ледяных навыков до прихода своих листов (line/cone/circle)
       else this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: a ? 0.25 : 0.4, color: cz ? curseHex() : 0xfde68a }); }

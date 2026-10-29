@@ -46,6 +46,8 @@ export const GFX_CFG: any = {
   mobGrace: 20,        // страница тира выгружается из видеопамяти через столько секунд без мобов рядом
   mobLoadR: 50,        // радиус подгрузки страниц, тайлов (выгрузка — на +6 тайлов дальше)
   mobPackGlow: true,   // листы _glow мобов как RGBA 5551 (вдвое меньше видеопамяти; со следующей загрузки страницы тира)
+  // 📊 лимиты частиц снарядов и навыков (живые): потолки, шаг следа, авто-качество при низком FPS (engine/projAtlas.js, hub/zoneView.js)
+  fx: { projMax: 500, fxMax: 240, trailMax: 320, trailStep: 16, skfMax: 260, auto: true, autoFps: 30 },
 };
 const cl = (v: any, a: number, b: number, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; };
 const b = (v: any, d: boolean) => (typeof v === "boolean" ? v : d);
@@ -59,6 +61,7 @@ export const gfxClient = () => {
     vram: (() => { const v = G.vram || {}; return { budgetPc: cl(v.budgetPc, 128, 8192, 2048), budgetMob: cl(v.budgetMob, 64, 4096, 512), gracePc: cl(v.gracePc, 1, 600, 20), graceMob: cl(v.graceMob, 1, 600, 10),
       loadTilesPc: cl(v.loadTilesPc, 20, 150, 50), loadTilesMob: cl(v.loadTilesMob, 20, 150, 50), hystTiles: cl(v.hystTiles, 1, 40, 6), marginTiles: cl(v.marginTiles, 0, 20, 4), upMsPc: cl(v.upMsPc, 0.5, 16, 4), upMsMob: cl(v.upMsMob, 0.5, 16, 2) }; })(),
     fpsMul: cl(G.fpsMul, 0.25, 3, 1), glow: cl(G.glow, 0, 3, 1),
+    fx: (() => { const f = G.fx || {}; return { projMax: Math.round(cl(f.projMax, 50, 2000, 500)), fxMax: Math.round(cl(f.fxMax, 20, 2000, 240)), trailMax: Math.round(cl(f.trailMax, 0, 3000, 320)), trailStep: cl(f.trailStep, 6, 80, 16), skfMax: Math.round(cl(f.skfMax, 20, 2000, 260)), auto: b(f.auto, true), autoFps: cl(f.autoFps, 10, 60, 30) }; })(),
     mobs32: b(G.mobs32, true), mobs32Pc: b(G.mobs32Pc, true), mobs32Mobile: b(G.mobs32Mobile, false), mobs32Run: b(G.mobs32Run, false), mobPackGlow: b(G.mobPackGlow, true),
     mobFps: cl(G.mobFps, 0.25, 3, 1), mobGlow: cl(G.mobGlow, 0, 3, 1), mobHurtFlash: cl(G.mobHurtFlash, 0, 1, 0), mobGrace: cl(G.mobGrace, 2, 600, 20), mobLoadR: cl(G.mobLoadR, 10, 200, 50),
     lt: Object.fromEntries(LIGHT_TYPES.map((t) => { const o = G.lt?.[t] || {}; return [t, { haloS: cl(o.haloS, 0.2, 3, 1), haloK: cl(o.haloK, 0, 3, 1), poolS: cl(o.poolS, 0.2, 3, 1), poolK: cl(o.poolK, 0, 3, 1) }]; })),
