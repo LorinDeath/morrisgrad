@@ -32,16 +32,17 @@ export function rarityRows() {
 export function mobRows() {
   return Object.entries(MONSTER_LOOT).filter(([k]) => !["run_fly", "run_moth", "run_glitch"].includes(k)).map(([id, m]) => {
     const z = ZONE_MOBS[id.replace(/^run_/, "")];
-    return { id, name: m.name || z?.name || id, lvl: m.lvl || z?.lvl || 1, tier: m.tier || z?.tier || 1, role: m.role || z?.role || "melee", size: m.size || z?.size || "s", kind: m.kind,
-      rare: m.rare ? 1 : 0, stats: JSON.stringify(m.stats), where_tags: JSON.stringify(m.where || []), look_id: m.look?.id || null, description: (m.abilitiesText || []).join(" ") };
+    return { id, name: m.name || z?.name || id, lvl: m.lvl || z?.lvl || 1, tier: m.tier || z?.tier || 1, role: m.role || z?.role || "melee", size: m.size || z?.size || "s", kind: m.kind || "zone", // NOT NULL-колонки — с умолчаниями: иначе досев (чёрные мобы без kind/stats) падал на каждом старте DO
+
+      rare: m.rare ? 1 : 0, stats: JSON.stringify(m.stats || (z ? { hp: z.hp, dmg: z.dmg, armor: z.armor || 0, speed: String(z.speed) } : {})), where_tags: JSON.stringify(m.where || []), look_id: m.look?.id || null, description: (m.abilitiesText || []).join(" ") };
   });
 }
 export function dropRows() {
   const out: any[] = [];
   for (const r of mobRows()) {
     const m = MONSTER_LOOT[r.id];
-    for (const g of m.gear) out.push({ mob_id: r.id, kind: "item", ref_id: g.item, chance: g.chance, min_qty: 1, max_qty: 1, conditions: JSON.stringify(ITEM_BY_ID[g.item]?.grantsAbility ? { setPiece: true } : {}) });
-    for (const x of m.materials) out.push({ mob_id: r.id, kind: "res", ref_id: x.res, chance: x.chance, min_qty: x.qty[0], max_qty: x.qty[1], conditions: "{}" });
+    for (const g of m.gear || []) out.push({ mob_id: r.id, kind: "item", ref_id: g.item, chance: g.chance, min_qty: 1, max_qty: 1, conditions: JSON.stringify(ITEM_BY_ID[g.item]?.grantsAbility ? { setPiece: true } : {}) });
+    for (const x of m.materials || []) out.push({ mob_id: r.id, kind: "res", ref_id: x.res, chance: x.chance, min_qty: x.qty[0], max_qty: x.qty[1], conditions: "{}" });
   }
   return out;
 }

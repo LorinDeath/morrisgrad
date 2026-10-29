@@ -153,12 +153,12 @@ function arts(ap, S, bd) {
 function drops(ap, S, bd) {
   const M = S.list.mobs || [], P = S.list.pieces || [], q = (S.q || '').toLowerCase();
   const rows = M.filter((m) => !q || m.name.toLowerCase().includes(q) || m.id.includes(q) || m.drops.length).filter((m) => !q || m.name.toLowerCase().includes(q) || m.id.includes(q)).slice(0, 60);
-  bd.innerHTML = `<p class="mc-dim">Шанс выпадения кусочков чертежа с моба (вкладка «💰 Дроп» — те же данные). 0 — убрать. Здесь — только огненные: ❄ ледяные кусочки падают лишь с ледяных чёрных мобов (конструктор мобов).</p>
+  bd.innerHTML = `<p class="mc-dim">⚠ Кусочки чертежа (все стихии) и осколки падают <b>только с чёрных мобов</b> — их дроп и сундуки задаются в «👹 Чёрные мобы» (конструктор мобов → Дроп). У обычных мобов здесь можно только убрать старые записи (шанс 0).</p>
     <input placeholder="Поиск моба…" class="q" value="${esc(S.q || '')}" style="width:240px">
     <table><tr><th>Моб</th><th>Ур.</th><th>Кусочки сейчас</th><th>Кусочек</th><th>Шанс %</th><th>Кол-во</th><th></th></tr>${rows.map((m) => `<tr data-m="${esc(m.id)}"><td>${esc(m.name)}</td><td>${m.lvl}</td>
       <td style="font-size:11px">${m.drops.map((d) => `${esc(RESOURCES[d.res]?.name?.replace('Кусочек чертежа: ', '') || d.res)} ${d.chance}% ×${d.qty?.[0]}–${d.qty?.[1]}`).join('<br>') || '—'}</td>
-      <td><select class="r">${P.filter((r) => /^bp_fire_/.test(r)).map((r) => `<option value="${r}">${esc(RESOURCES[r]?.name?.replace('Кусочек чертежа: ', '') || r)}</option>`).join('')}</select></td>
-      <td><input class="c" type="number" min="0" max="100" step="0.1" value="5" style="width:60px"></td><td><input class="a" type="number" min="1" max="99" value="1" style="width:44px">–<input class="z" type="number" min="1" max="99" value="1" style="width:44px"></td>
+      <td><select class="r">${[...new Set([...P, ...m.drops.map((d) => d.res)])].filter((r) => m.drops.some((d) => d.res === r) || /^bp_fire_/.test(r)).map((r) => `<option value="${r}">${esc(RESOURCES[r]?.name?.replace('Кусочек чертежа: ', '') || r)}</option>`).join('')}</select></td>
+      <td><input class="c" type="number" min="0" max="0" step="0.1" value="0" style="width:60px" title="обычным мобам — только 0 (убрать)"></td><td><input class="a" type="number" min="1" max="99" value="1" style="width:44px">–<input class="z" type="number" min="1" max="99" value="1" style="width:44px"></td>
       <td><button class="b pri">Сохранить</button></td></tr>`).join('')}</table>`;
   const qi = bd.querySelector('.q'); qi.oninput = () => { S.q = qi.value; clearTimeout(S.qt); S.qt = setTimeout(() => { drops(ap, S, bd); const n = bd.querySelector('.q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
   bd.querySelectorAll('tr[data-m] .b').forEach((b) => (b.onclick = () => { const tr = b.closest('tr'), v = (s) => tr.querySelector(s).value;

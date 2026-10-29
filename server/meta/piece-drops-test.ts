@@ -1,0 +1,30 @@
+// Кусочки чертежа bp_* (все стихии) и осколки bm_shard_* — только с чёрных мобов: ни в дефолтах кода, ни из правок D1 («💰 Дроп»), ни в броске добычи.
+import { ZONE_MOBS, MONSTER_LOOT } from "./defs";
+import { validatePatch, lootElemErr, applyOverride, stripOrdinaryPieces, isPieceRes } from "./overrides";
+import { rollMonsterLoot } from "./profile";
+import { BM_MOBS, registerBlackMobs, cleanDrops } from "./blackMobs";
+import { ITEM_BY_ID } from "./defs";
+import { pieceId, BP_ELEMS, BP_TYPES } from "./blackArt";
+let P = 0, F = 0; const ok = (c: any, m: string) => { if (c) { P++; console.log("PASS " + m); } else { F++; console.log("FAIL " + m); } };
+registerBlackMobs(ITEM_BY_ID as any);
+const ordinary = Object.keys(MONSTER_LOOT).filter((id) => !(ZONE_MOBS as any)[id]?.black);
+const bad = ordinary.flatMap((id) => (MONSTER_LOOT[id].materials || []).filter((m: any) => isPieceRes(m.res)).map((m: any) => id + ":" + m.res));
+ok(ordinary.length > 20 && bad.length === 0, `дефолты кода: у ${ordinary.length} обычных мобов нет кусочков/осколков`);
+const black = Object.keys(BM_MOBS); ok(black.length >= 8 && black.every((id) => (MONSTER_LOOT as any)[id]?.materials?.some((m: any) => /^bp_/.test(m.res))), "чёрные мобы: кусочки в дропе (из конструктора)");
+const all = [...BP_ELEMS, "water", "stone", "nature", "lightning"].flatMap((el) => BP_TYPES.map((t) => pieceId(el, t)));
+const wolf = ordinary.find((id) => (ZONE_MOBS as any)[id] && !(ZONE_MOBS as any)[id].black)!;
+ok(all.every((r) => !!lootElemErr(wolf, r)) && !!lootElemErr(wolf, "bm_shard_fire") && !lootElemErr(wolf, "gold"), "💰 Дроп: обычному мобу нельзя ни одного кусочка (в т.ч. огненных), прочее — можно");
+ok(typeof validatePatch("loot" as any, wolf, { materials: [{ res: "bp_fire_blade", chance: 5, qty: [1, 1] }] }) === "string", "validatePatch loot: bp_fire у обычного моба отклоняется");
+// старая запись D1 с кусочками у обычного моба — при применении вычищается
+const keep = JSON.parse(JSON.stringify(MONSTER_LOOT[wolf]));
+applyOverride("loot" as any, wolf, { gear: keep.gear, materials: [...(keep.materials || []), { res: "bp_fire_blade", chance: 50, qty: [1, 2] }, { res: "bp_ice_handle", chance: 50, qty: [1, 1] }] });
+ok(!(MONSTER_LOOT[wolf].materials || []).some((m: any) => isPieceRes(m.res)) && (MONSTER_LOOT[wolf].materials || []).length === (keep.materials || []).length, "старая правка D1: кусочки не применяются, остальной дроп цел");
+(MONSTER_LOOT[wolf] as any).materials.push({ res: "bp_fire_blade", chance: 100, qty: [1, 1] });
+let got = 0; for (let i = 0; i < 50; i++) got += rollMonsterLoot(wolf, Math.random, 1, false, "raw").res.bp_fire_blade || 0;
+ok(got === 0, "бросок добычи: обычный моб не роняет кусочки даже при шансе 100%");
+ok(stripOrdinaryPieces(wolf) === 1, "stripOrdinaryPieces: вычищает");
+applyOverride("loot" as any, wolf, null);
+const bid = black[0]; let bg = 0; for (let i = 0; i < 200; i++) bg += Object.keys(rollMonsterLoot(bid, Math.random, 5, false, "raw").res).filter((r) => /^bp_/.test(r)).length;
+ok(bg > 0, "чёрный моб роняет кусочки");
+ok(Array.isArray(cleanDrops([{ res: "bp_fire_blade", chance: 10, qty: [1, 2] }])), "конструктор мобов: дроп кусочков настраивается (cleanDrops)");
+console.log(`${P} PASS / ${F} FAIL`); if (F) process.exitCode = 1;

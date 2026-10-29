@@ -8,7 +8,7 @@ import { bmCss, fmtBm, isArtItem } from './bmArtUi.js';
 import { WeaponPreview, drawWeapon } from './bmWeaponArt.js';
 
 const CSS = `
-.bmf{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:60;background:#0008}
+.bmf{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:60;background:#0008;pointer-events:auto} /* слой .mc3d-layer — pointer-events:none; без auto клики уходили в холст → «зависание» окна */
 .bmf-box{width:min(940px,96vw);max-height:92vh;overflow:auto;border-radius:12px;border:1px solid #a8320f;color:#ffe9d0;
   background:radial-gradient(120% 80% at 50% 120%,#5c1a0b 0%,#1a0d08 55%,#0b0604 100%);box-shadow:0 0 40px #ff3d0044,inset 0 0 30px #00000088;font:13px/1.35 system-ui,sans-serif}
 .bmf-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #5c1a0b;background:linear-gradient(#2a0f06,#160905)}
