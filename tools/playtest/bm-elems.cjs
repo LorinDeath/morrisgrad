@@ -47,6 +47,9 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
   const clearNear = async () => { const ms = await G(() => window.__game.debug.zoneMobsFull().map((m) => m.type)); for (const ty of [...new Set(ms)]) await kill(ty); };
   const aimAt = async (wx, wy) => { const q = await G(([x, y]) => window.__game.debug.w2s(x, y), [wx, wy]); if (q) await p.mouse.move(q.x, q.y); return q; };
   const strike = async (wx, wy, holdMs = 300) => { await aimAt(wx, wy); await p.mouse.down(); const t0 = Date.now(); while (Date.now() - t0 < holdMs) { await sleep(80); } await p.mouse.up(); };
+  // видимость: чёрные мобы стихии реально нарисованы — лист собран из листов Художника (state art, пиксели > 0), попали в батч кадра
+  const visOk = async (label, want = MOB) => { let v = null; for (let i = 0; i < 12; i++) { v = await G(() => window.__game.debug.bmmVis?.()); const ms = (v?.mobs || []).filter((m) => want.includes(m.type)); if (ms.length && ms.every((m) => m.batch && m.st === 'art' && m.px > 0 && m.drawn > 0 && m.vis !== false)) break; await sleep(500); }
+    const ms = (v?.mobs || []).filter((m) => want.includes(m.type)); t(`${label}: мобы видимы (лист art, пиксели > 0, в батче)`, ms.length > 0 && ms.every((m) => m.batch && m.st === 'art' && m.px > 0 && m.drawn > 0 && m.vis !== false), ms.slice(0, 6).map((m) => [m.type, m.st, m.px, m.drawn, m.vis])); return ms; };
   const blacks = () => G(() => { const m0 = window.__game.debug.me(); return window.__game.debug.zoneMobsFull().filter((m) => window.__game.debug.mobDef(m.type)?.black).map((m) => ({ id: m.id, type: m.type, hp: m.hp, x: Math.round(m.x), y: Math.round(m.y), d: Math.hypot(m.x - m0.x, m.y - m0.y) })).sort((a, b) => a.d - b.d); });
   await p.goto(assertLocalUrl(`${BASE}?name=${ADMIN}&uid=${ADMIN}&ws=${WS}&fs=1&debug=1`));
   await p.waitForFunction(() => window.__game?.state?.().mode === 'hub' && window.__game?.debug, null, { timeout: 120000 }); await sleep(2500);
@@ -59,7 +62,7 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
   t('в Аринаре', (await G(() => window.__game.state().world)) === 'arinar');
   const toZnahar = async () => { let z = null; for (let i = 0; i < 20 && !z; i++) { z = await G(() => window.__game.debug.npcByName('Знахарь')); if (!z) await sleep(700); }
     const q = await G((id) => window.__game.debug.npcAt(id), z.id); await G(([x, y]) => window.__game.debug.tp(x, y + 30, true), [q.x, q.y]); await sleep(1300); return z; };
-  const field = async () => { let P0 = null; for (const [x, y] of [[31000, 31000], [17000, 31000], [30500, 24150], [17500, 24150], [24000, 31000], [17000, 17000]]) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [x, y]); await sleep(2200); const n = await G(() => { const m = window.__game.debug.me(); return window.__game.debug.zoneMobsFull().filter((q) => Math.hypot(q.x - m.x, q.y - m.y) < 700).length; }); if (n <= 1) { const pr = await spawn('golem', 0, 420, true); await kill('golem'); if (pr && !pr.safe) { P0 = [x, y]; break; } } }
+  const field = async () => { let P0 = null; for (const [x, y] of [...(process.env.FIELD ? [process.env.FIELD.split(',').map(Number)] : []), [31000, 31000], [17000, 31000], [30500, 24150], [17500, 24150], [24000, 31000], [17000, 17000]]) { await G(([x, y]) => window.__game.debug.tp(x, y, true), [x, y]); await sleep(2200); const n = await G(() => { const m = window.__game.debug.me(); return window.__game.debug.zoneMobsFull().filter((q) => Math.hypot(q.x - m.x, q.y - m.y) < 700).length; }); if (n <= 1) { const pr = await spawn('golem', 0, 420, true); await kill('golem'); if (pr && !pr.safe) { P0 = [x, y]; break; } } }
     if (!P0) { P0 = [30500, 24150]; await G(([x, y]) => window.__game.debug.tp(x, y, true), P0); await sleep(1500); } await clearNear(); await sleep(600); return P0; };
   const openAdmin = async () => p.waitForFunction(() => { if (document.querySelectorAll('.mc-admin [data-tab]').length) return true; try { if (!window.__game.debug.admin().open) window.__game.debug.openAdmin(); } catch {} return false; }, null, { timeout: 30000 }).catch(() => {});
   const pieces = (s) => Object.fromEntries(Object.entries(s.account.res || {}).filter(([k]) => k.startsWith('bp_')));
@@ -156,6 +159,8 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
     await cap(`${NM}: чёрный лагерь стихии`);
     let bm = []; for (let i = 0; i < 25; i++) { bm = (await blacks()).filter((m) => m.d < 900); if (bm.length >= 5) break; await sleep(700); }
     t(`чёрные мобы «${NM}» лагеря в мире`, bm.filter((m) => MOB.includes(m.type)).length >= 5, bm.slice(0, 6).map((m) => m.type));
+    await G(([x, y]) => window.__game.debug.tp(x, y, true), [M.x + 360 - 230, M.y]); await sleep(1500); // лагерь в кадре (а не за краем экрана)
+    await visOk(`лагерь «${NM}»`);
     await shot('c01-camp');
     await G(([x, y]) => window.__game.debug.tp(x, y, true), [bm[0].x - 200, bm[0].y]); await sleep(600);
     const res0 = pieces(await S()); ev.length = 0; fr.length = 0; await cap(`${NM}: бой с лагерем`);

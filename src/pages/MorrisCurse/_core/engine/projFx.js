@@ -144,6 +144,7 @@ export class ProjFx {
     const base = Math.atan2(dz, dx), fade = 1 - k, sw = Math.min(1, k * 2.6), th = -h + 2 * h * sw, ice = el === 'ice', ec = elRGB(el);
     let hot = ice ? (full ? [0.92, 0.98, 1] : [0.66, 0.89, 1]) : full ? [1, 0.82, 0.35] : [1, 0.5, 0.12], deep = ice ? (full ? [0.37, 0.72, 0.91] : [0.18, 0.35, 0.54]) : full ? [1, 0.55, 0.12] : [0.95, 0.28, 0.04];
     if (ec) { hot = ec.map((c) => Math.min(1, c * 0.55 + (full ? 0.5 : 0.35))); deep = ec.map((c) => c * (full ? 0.95 : 0.7)); } // ЭТАП 2: вода/камень/природа/молния — цвет стихии из админки
+    const water = el === 'water'; if (water && ec) hot = ec.map((c) => Math.min(1, c * 0.4 + 0.6)); // вода: светлее край (тёмно-синий терялся на траве/в тени)
     // ЭТАП 2: большой взмах — лента следа в воздухе за лезвием (длина stl — доля дуги, высота sth, м): от яркого края к прозрачному хвосту
     const stl = o.stl ?? 0.8, sth = o.sth ?? 1.1, ssc = (o.ssc || 1.25) / 1.25;
     if (stl > 0 && sw > 0.02) {
@@ -153,6 +154,8 @@ export class ProjFx {
         const q = i / steps, aa = base + a, ux = Math.cos(aa), uz = Math.sin(aa), R = L * (0.92 - 0.1 * q), w = ((1 - q) * 1.15 + 0.2) * ssc, al = (1 - q) * (1 - q) * fade;
         this.glow.push(x + ux * R, sth + lift * (1 - q), z + uz * R, w * 1.6, w * 0.55, 1, 0, -uz, ux, GLOW.streak, 0, hot[0], hot[1], hot[2], 0.85 * al);
         if (i % 2 === 0) this.glow.push(x + ux * R * 0.72, sth * 0.8, z + uz * R * 0.72, w, w, 0, 0, 0, 0, GLOW.ball, 0, deep[0], deep[1], deep[2], 0.45 * al);
+        if (water) { this.glow.push(x + ux * R * 1.02, sth + lift * (1 - q) + 0.08, z + uz * R * 1.02, w * 1.9, w * 0.32, 1, 0, -uz, ux, GLOW.streak, 0, 0.92, 0.98, 1, 0.9 * al); // пенный гребень волны
+          if (i % 3 === 0) this.glow.push(x + ux * R * 0.86, sth * 0.9, z + uz * R * 0.86, w * 1.3, w * 1.3, 0, 0, 0, 0, GLOW.ball, 0, ec ? ec[0] : 0.2, ec ? ec[1] : 0.6, ec ? ec[2] : 1, 0.6 * al); }
       }
     }
     // лёд: дуга Художника (ice_arc, 6 кадров @24, радиус ~50 px из 128 — масштаб по дальности) поверх заливки

@@ -57,4 +57,16 @@ for (const el of ELS) {
   const r1 = craftPart(acc, part.id, 30); ok(r1.ok && acc.bmParts[part.id] === 1 && !acc.res[pieceId(el, "blade")] && acc.res[pieceId("fire", "blade")] === 999, `${el}: деталь ${part.id} — из своих кусочков`);
   const r2 = craftPart({ res: { [pieceId("fire", "blade")]: 999 } }, part.id, 30); ok(!r2.ok, `${el}: чужие кусочки не подходят`);
   ok(forgeState(acc, 30).parts.some((p: any) => p.elem === el), `${el}: детали стихии в кузне`); }
+// ЭТАП 2: лагеря разных стихий не рядом (elemGap): второй чужой стихии ближе зазора не ставится, своей стихии — ставится
+{ const { Zone } = await import("./zone"); const { BMM_CFG } = await import("./blackMobs");
+  const z: any = new Zone("arinar", [], [], { proc: true, seed: 3 }); const sv = Object.fromEntries(Object.entries(BM_CAMPS).map(([k, c]) => [k, c.hidden]));
+  for (const c of Object.values(BM_CAMPS)) c.hidden = true;
+  const w = BM_CAMPS.bc_water, s = BM_CAMPS.bc_stone, ws = { x: w.x, y: w.y }, ss = { x: s.x, y: s.y };
+  w.hidden = false; s.hidden = false; s.x = w.x + 700; s.y = w.y;
+  z.syncBlackCamps(Date.now(), true); const has = (id: string) => z.mobs.some((m: any) => m.bmc === id && m.respawnAt !== -1);
+  ok(BMM_CFG.elemGap >= 1000 && has("bc_water") && !has("bc_stone"), `чужая стихия в 700 px (< ${BMM_CFG.elemGap}) не ставится — снаряды соседнего лагеря не долетают`);
+  s.x = w.x + BMM_CFG.elemGap + 50; z.syncBlackCamps(Date.now(), true); ok(has("bc_water") && has("bc_stone"), "за зазором — оба лагеря стоят");
+  const g0 = BMM_CFG.elemGap; BMM_CFG.elemGap = 0; s.x = w.x + 700; z.syncBlackCamps(Date.now(), true); ok(has("bc_stone"), "elemGap 0 — проверка выключена"); BMM_CFG.elemGap = g0;
+  ok(validatePatch("bmmcfg" as any, "main", { elemGap: 2000 }) === null || typeof validatePatch("bmmcfg" as any, "main", { elemGap: 2000 }) !== "string", "elemGap правится в админке");
+  Object.assign(w, ws); Object.assign(s, ss); for (const [k, h] of Object.entries(sv)) BM_CAMPS[k].hidden = h as any; }
 console.log(`${P} PASS / ${F} FAIL`); if (F) process.exitCode = 1;

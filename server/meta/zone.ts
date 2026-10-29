@@ -26,7 +26,7 @@ import { shapeOf } from "./abilityShapes";
 import { pathWorld, steer, hbTouch } from "./skillCraft";
 import { mitigateDamage } from "./balance";
 import { BMA_CFG, bmSkillPct, bmPure, pureSum, pureEvFields, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf, swingEv } from "./blackArt";
-import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
+import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, campElems, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
 const hashStr = (t: string) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
@@ -544,7 +544,11 @@ export class Zone {
   /** привести мобов лагерей к таблице BM_CAMPS (правка админки — лагерь пересобирается; таймеры живых не трогаются у неизменённых) */
   syncBlackCamps(now = Date.now(), force = false) {
     if (!force && now < this.bmCheckAt) return; this.bmCheckAt = now + 2000;
-    const want = BMM_CFG.on ? Object.values(BM_CAMPS).filter((c) => !c.hidden && c.world === this.world && !this.bmCampErr(c)).slice(0, BMM_CFG.maxCamps || 30) : [];
+    const want0 = BMM_CFG.on ? Object.values(BM_CAMPS).filter((c) => !c.hidden && c.world === this.world && !this.bmCampErr(c)).slice(0, BMM_CFG.maxCamps || 30) : [];
+    // лагеря разных стихий не рядом: первый в таблице остаётся, соседний чужой стихии (ближе elemGap) не ставится
+    const gap = Number(BMM_CFG.elemGap) || 0, want: BmCamp[] = [], wEl: Set<string>[] = [];
+    for (const c of want0) { const e = campElems(c); const clash = gap > 0 && e.size > 0 && want.some((a, i) => wEl[i].size > 0 && ![...e].some((x) => wEl[i].has(x)) && Math.hypot(a.x - c.x, a.y - c.y) < gap);
+      if (!clash) { want.push(c); wEl.push(e); } }
     const sigOf = (c: BmCamp) => JSON.stringify([c.x, c.y, c.r, c.mobs, c.chief, c.lair, c.respawnMin, c.respawnMax]);
     const sig = JSON.stringify(want.map((c) => [c.id, sigOf(c)])); if (sig === this.bmSig && !force) return; this.bmSig = sig;
     const keep = new Map(want.map((c) => [c.id, sigOf(c)]));

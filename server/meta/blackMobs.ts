@@ -28,12 +28,15 @@ export const BMM_CFG = {
   maxCamps: 30,             // лагерей всего
   maxCustomMobs: 200, maxCustomBody: 300,
   mobVis: 0.6,              // масштаб листа Художника в мире (лист 104 px ≈ 5.2 м; 0.6 → моб ≈ 2.3 м, как обычные крупные)
+  rim: 0.85,                // контур цветом стихии вокруг чёрного моба (0 — выкл): тёмный лист виден на тёмной земле
+  rimW: 0.06,               // толщина контура — доля размера листа
   moveOn: true,             // ЭТАП 2: рывки/телепорты/тени из параметров движения моба (выкл — только ходьба)
   moveCdMul: 1,             // множитель перезарядки рывков и телепортов всех чёрных мобов
   weaponDmgPct: 15,         // моб с оружием в руке: +% урона
   refMul: 1.35,             // «Авто по уровню»: × статов обычного моба того же уровня
   cls: { warrior: { hp: 1, dmg: 1, speed: 1 }, archer: { hp: 0.8, dmg: 0.9, speed: 1.05 }, mage: { hp: 0.75, dmg: 1.15, speed: 0.95 }, brute: { hp: 1.5, dmg: 0.85, speed: 0.85 } } as Record<string, { hp: number; dmg: number; speed: number }>,
   campMinDist: 400,         // лагерь не ближе к городу/куполу, px
+  elemGap: 1400,            // ЭТАП 2: лагеря РАЗНЫХ стихий не ближе, px (иначе позже записанный не ставится — снаряды соседей не долетают; 0 — выкл)
 };
 
 export interface BmBody { id: string; name: string; slot: BodySlot; img: string; hp: number; dmg: number; armor: number; speed: number; hidden?: boolean; desc?: string;
