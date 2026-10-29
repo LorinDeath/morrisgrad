@@ -127,7 +127,7 @@ const MSG_SCHEMA: Record<string, Record<string, string>> = {
   bchest_list: S({}), bchest_open: S({ id: "n" }), bchest_take: S({ id: "n", lid: "n?", all: "b?" }), bchest_salvage: S({ id: "n", lid: "n" }), bchest_equip: S({ id: "n", lid: "n" }),
   friend_cancel: S({ id: "s" }), friend_remove: S({ id: "s" }), role_set: S({ id: "s?", sid: "s?", moderator: "b" }), settings_set: S({ duel: "s?", freq: "b?", dnd: "b?" }), duel_cancel: S({}), duel_leave: S({}),
   ui_layout_set: S({ dev: "s", lay: "o", lock: "b?" }),
-  bm_hold: S({ on: "b" }), bm_mode: S({ melee: "b" }), bm_test_artifact: S({ ranged: "b?", staff: "b?" }), admin_bm_recalc: S({}),
+  bm_hold: S({ on: "b" }), bm_mode: S({ melee: "b" }), bm_test_artifact: S({ ranged: "b?", staff: "b?", elem: "s?", blade: "s?" }), admin_bm_recalc: S({}),
   bm_forge_open: S({}), bm_forge_craft: S({ part: "s", n: "n?" }), bm_forge_build: S({ handle: "s", blade: "s", blade2: "s?", blade3: "s?", crystal: "s?", name: "s" }), // 🔥 кузня Знахаря (этап Б)
   admin_skc: S({ op: "s", id: "s?", data: "o?" }), // 🛠 конструктор навыков (админка)
   admin_bmm: S({ op: "s", id: "s?", kind: "s?", data: "o?", lvl: "n?", cls: "s?" }), // 👹 конструктор чёрных мобов и лагерей (админка)
@@ -711,7 +711,9 @@ export class MetaService {
         if (Date.now() - ((ms as any).bmtAt || 0) < 1000) return true; (ms as any).bmtAt = Date.now();
         const have = a.inv.filter((i) => isArtifactId(i.id)).length;
         if (have >= BMA_CFG.maxArtifacts) { this.send(ws, { type: "toast_error", message: `Артефактов уже ${have} из ${BMA_CFG.maxArtifacts}` }); return true; }
-        const def = makeArtifact(msg.staff ? { handle: "fire_handle", blade: "fire_staff_arch", blade2: "fire_b2staff_1", blade3: "fire_b3staff_1", crystal: "fire_crystal" } // три посоха Художника — тройной выстрел
+        const tel = typeof msg.elem === "string" && (BP_ELEMS as readonly string[]).includes(msg.elem) && msg.elem !== "fire" ? msg.elem : ""; // плейтест стихий (dev): артефакт из деталей стихии; blade — любое лезвие этой стихии
+        const tb = tel && typeof msg.blade === "string" && (BM_PARTS as any)[msg.blade]?.elem === tel && /^blade/.test((BM_PARTS as any)[msg.blade].type) ? msg.blade : "";
+        const def = tel ? makeArtifact({ handle: `${tel}_handle`, blade: tb || (msg.ranged ? `${tel}_blade_r` : `${tel}_blade`), blade2: `${tel}_blade2`, blade3: `${tel}_blade3`, crystal: `${tel}_crystal` }) : makeArtifact(msg.staff ? { handle: "fire_handle", blade: "fire_staff_arch", blade2: "fire_b2staff_1", blade3: "fire_b3staff_1", crystal: "fire_crystal" } // три посоха Художника — тройной выстрел
           : { handle: "fire_handle", blade: msg.ranged ? "fire_blade_r" : "fire_blade", blade2: "fire_blade2", blade3: "fire_blade3", crystal: "fire_crystal" });
         if (!def) { this.send(ws, { type: "toast_error", message: "Части артефакта не найдены (админка → 🔥 Части оружия)" }); return true; }
         a.inv.push({ uid: newUid(), id: def.id, at: Date.now(), src: "grant:bm_test", n: 1, hero: cls } as any); ms.dirty = true;
