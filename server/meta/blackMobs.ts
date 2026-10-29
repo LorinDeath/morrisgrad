@@ -8,7 +8,7 @@
 import { ZONE_MOBS, MONSTER_LOOT, ITEM_BY_ID } from "./defs";
 import { BC_TIERS } from "./boardChestCfg";
 import { RESOURCES } from "./shared";
-import { BM_PARTS, BP_TYPES, BP_ELEMS, ALL_ELEMS, PURE_KEYS, ELEM_COLOR, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
+import { BM_PARTS, BP_TYPES, BP_ELEMS, ALL_ELEMS, PURE_KEYS, ELEM_COLOR, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles, shotOf } from "./blackArt";
 import { mobXp, tierOf } from "./balance";
 import { BM_ELEM_NAMES } from "./bmElemNames";
 
@@ -320,12 +320,12 @@ export function mobFinal(m: BmMob, items?: Record<string, any>) {
 /** удар чёрного моба — как у игрока с этим лезвием: ближнее — дуга (радиус = досягаемость лезвия, полуугол = arc),
  *  дальнее — настоящий снаряд (дальность лезвия в клетках, не дальше maxRangeTiles; ширина лезвия). Лучник/маг без
  *  дальнего лезвия — снаряд на 8 клеток; без лезвия — короткая дуга «кулаком». cd — рукоять (мс). */
-export function mobAtk(w: Record<string, string>, ranged: boolean): { kind: "arc" | "proj"; range: number; arc?: number; width?: number; cd: number; count?: number } {
+export function mobAtk(w: Record<string, string>, ranged: boolean): { kind: "arc" | "proj"; range: number; arc?: number; width?: number; cd: number; count?: number; shot?: { t: string; n: number; r: number; k: number } } {
   const b: any = w.blade && BM_PARTS[w.blade], h: any = w.handle && BM_PARTS[w.handle], T = BMA_CFG.tile, rm = Math.max(0.1, Number(BMA_CFG.mobRangeMul) || 1);
   const cd = Math.max(200, h?.cd || 900), st = isStaff(b, "blade"), sb = !!b && (b.ranged || st);
   // посохи во 2/3 слоте — по снаряду на каждый (как у игрока); разброс — BMA_CFG.staffSpread (читается при выстреле)
   const n = 1 + (["blade2", "blade3"] as const).filter((k) => w[k] && isStaff(BM_PARTS[w[k]], k)).length;
-  if (ranged) return { kind: "proj", range: Math.round(Math.min(BMA_CFG.maxRangeTiles * T, (sb ? Math.max(1, b.rangeTiles || (st ? BMA_CFG.staffRangeTiles : 6)) : 8) * T * rm)), width: sb ? b.width || 20 : 20, cd, ...(n > 1 ? { count: n } : {}) };
+  if (ranged) return { kind: "proj", range: Math.round(Math.min(BMA_CFG.maxRangeTiles * T, (sb ? Math.max(1, b.rangeTiles || (st ? BMA_CFG.staffRangeTiles : 6)) : 8) * T * rm)), width: sb ? b.width || 20 : 20, cd, ...(n > 1 ? { count: n } : {}), ...(sb && shotOf(b) ? { shot: shotOf(b)! } : {}) }; // этап 2: тип снаряда лезвия
   return { kind: "arc", range: Math.round(Math.max(40, (b && !b.ranged ? b.reach || 110 : 80) * rm)), arc: Math.min(ARC_MAX, b && !b.ranged ? b.arc || 1.1 : 0.9), cd };
 }
 /** цвет моба: огонь — прежний «#ff5a1a», остальные — цвет стихии (правится в админке) */

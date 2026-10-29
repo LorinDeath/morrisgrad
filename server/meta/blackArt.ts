@@ -104,7 +104,7 @@ export const BMA_CFG = {
   // этап 2: большой взмах ближнего лезвия со следом воздуха (клиент рисует; хитбокс — прежняя дуга)
   bigSwing: true, swingTrail: 1, swingScale: 1.25, swingAirMs: 260,
   // этап 2: типы снарядов дальних лезвий (поле shot у детали): множители по умолчанию
-  shotExplodeR: 80, shotExplodeK: 0.6, shotRicochetN: 2, shotRicochetK: 0.7, shotRicochetR: 260, shotPierceN: 3, shotSplitN: 3, shotSplitK: 0.5, shotSplitR: 160,
+  shotOn: true, shotExplodeR: 80, shotExplodeK: 0.6, shotRicochetN: 2, shotRicochetK: 0.7, shotRicochetR: 260, shotPierceN: 3, shotSplitN: 3, shotSplitK: 0.5, shotSplitR: 160,
   // этап 2: камень — замедление-оглушение (плеть/кольцо), как iceSlow у льда; яд природы — в чертах навыков, отбрасывание воды — в форме
   stoneSlow: true,
   iceSlow: true,                   // ледяные навыки артефактов (Ледяной хлыст, Кольцо инея) замедляют цель (стандартное замедление игры) // charge — нижний предел (с), bcap — нижний предел (%)
@@ -129,7 +129,7 @@ export const SHOT_NAMES: Record<string, string> = { "": "Обычный", explod
 /** тип снаряда сборки (слепок артефакта): от основного лезвия; параметры по умолчанию — BMA_CFG.shot* */
 export type ShotInfo = { t: string; n: number; r: number; k: number };
 export function shotOf(b: BmPart | null | undefined): ShotInfo | null {
-  const t = b?.shot; if (!t || !(SHOT_TYPES as readonly string[]).includes(t)) return null;
+  const t = b?.shot; if (!t || !(SHOT_TYPES as readonly string[]).includes(t) || (BMA_CFG as any).shotOn === false) return null;
   const C: any = BMA_CFG;
   const def = t === "explode" ? { n: 1, r: C.shotExplodeR, k: C.shotExplodeK } : t === "ricochet" ? { n: C.shotRicochetN, r: C.shotRicochetR, k: C.shotRicochetK }
     : t === "pierce" ? { n: C.shotPierceN, r: 0, k: 0.8 } : { n: C.shotSplitN, r: C.shotSplitR, k: C.shotSplitK };

@@ -177,6 +177,9 @@ export interface Proj {
   /** 🛠 конструктор навыков: траектория (skillCraft.pathAt; x0/y0/ax/ay — старт и прицел), хитбокс по картинке, наведение */
   pth?: { p: string; a?: number; f?: number; b?: number[]; turn?: number; seek?: number }; hb?: any; x0?: number; y0?: number; ax?: number; ay?: number;
   hx?: number; hy?: number; tg?: any; turned?: number; hbR?: number;
+  /** 🜏 этап 2: тип снаряда дальнего лезвия (blackArt shotOf: explode/ricochet/pierce/split; n/r/k), стихия (цвет у клиента),
+   *  onAux — вторичный удар (цель, × урона): взрыв по соседям, отскок, осколок; child — осколок (без своего типа) */
+  shot?: { t: string; n: number; r: number; k: number } | null; el?: string; onAux?: (target: any, k: number) => void; child?: number; boom?: number;
 }
 export const PROJ_SPEED: Record<string, number> = { default: 640, auto_bow: 900, thorn_bow: 900, spear: 820, pierce: 820, auto_daggers: 760, daggers: 760, fireball: 560, fire_spark: 760, ice_bolt: 760, moon_orb: 520, split_shard: 620, war_axe: 600, ice_fan: 720, auto_staff: 620, auto_claws: 700, chain_bolt: 1100, mob: 420, bm_arrow_small: 620, bm_arrow_big: 620 };
 
@@ -210,9 +213,45 @@ export class Zone {
     const p: Proj = { spd: PROJ_SPEED[o.t] || PROJ_SPEED.default, flown: 0, hit: new Set(), n: 0, born: this.now || Date.now(), id: this.nextProj++, ...o, dx: o.dx / L, dy: o.dy / L } as Proj;
     if (p.pth) { p.x0 = p.x; p.y0 = p.y; p.ax = p.dx; p.ay = p.dy; p.hx = p.dx; p.hy = p.dy; }
     if (p.hb) p.hbR = p.hb.s === "c" ? p.hb.r : Math.max(Math.abs(p.hb.a0), Math.abs(p.hb.a1), p.hb.hw);
+    if (p.shot && p.shot.t === "pierce") p.max = Math.max(p.max, Math.max(1, Math.round(p.shot.n || 1))); // пробивной: N целей насквозь
     this.projs.push(p);
-    this.events.push({ k: "proj", _b: p.born, ...(p.pth ? { pth: { p: p.pth.p, a: p.pth.a, f: p.pth.f, b: p.pth.b, turn: p.pth.turn } } : {}), cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined, sz: (p as any).sz, bm: (p as any).bm, mob: p.o === "m" ? p.mob : undefined });
+    this.events.push({ k: "proj", _b: p.born, ...(p.pth ? { pth: { p: p.pth.p, a: p.pth.a, f: p.pth.f, b: p.pth.b, turn: p.pth.turn } } : {}), cid: (p as any).cid, id: p.id, o: p.o, sid: p.sid, t: p.t, x: Math.round(p.x), y: Math.round(p.y), dx: +p.dx.toFixed(3), dy: +p.dy.toFixed(3), s: p.spd, r: Math.round(p.range), arc: p.arc ? 1 : undefined, cz: (p as any).cz ? 1 : undefined, sz: (p as any).sz, bm: (p as any).bm, mob: p.o === "m" ? p.mob : undefined, el: p.el || undefined, st: p.shot?.t || undefined });
     return p;
+  }
+  /** 🜏 этап 2: вторичный эффект снаряда по типу (вызывается при первом попадании; взрыв — и в конце полёта без попадания).
+   *  Цели — мобы для снаряда игрока, игроки для снаряда моба; уже задетые снарядом пропускаются. Событие shx (x/y — для AOI). */
+  shotFx(p: Proj, tgt: any | null, x: number, y: number, players: Map<string, ZPlayer>) {
+    const S = p.shot; if (!S || p.child || !p.onAux) return;
+    const isP = p.o === "p";
+    const idOf = (t: any) => isP ? t.id : t.sid;
+    const pick = (cx: number, cy: number, r: number, skip: Set<number | string>) => {
+      const out: { t: any; d: number }[] = [];
+      if (isP) { for (const m of this.near(cx, cy, r + 60)) { if (m.dead || m.reset || skip.has(m.id)) continue; const d = Math.hypot(m.x - cx, m.y - cy); if (d <= r + (ZONE_MOBS[m.type]?.radius || 16)) out.push({ t: m, d }); } }
+      else for (const pl of players.values()) { if (!pl.alive || skip.has(pl.sid)) continue; const d = Math.hypot(pl.x - cx, pl.y - cy); if (d <= r + 14) out.push({ t: pl, d }); }
+      return out.sort((a, b) => a.d - b.d);
+    };
+    const r = Math.max(0, Number(S.r) || 0), k = Math.max(0, Number(S.k) || 0), n = Math.max(1, Math.min(8, Math.round(Number(S.n) || 1)));
+    if (S.t === "explode") {
+      if (p.boom) return; p.boom = 1;
+      for (const c of pick(x, y, r, p.hit)) { p.hit.add(idOf(c.t)); p.onAux(c.t, k); }
+      this.events.push({ k: "shx", t: "explode", x: Math.round(x), y: Math.round(y), r, el: p.el, o: p.o });
+    } else if (S.t === "ricochet" && tgt) {
+      const seen = new Set(p.hit); let cur = tgt, kk = 1; const pts: number[][] = [[Math.round(tgt.x), Math.round(tgt.y)]];
+      for (let j = 0; j < n; j++) {
+        const c = pick(cur.x, cur.y, r, seen)[0]; if (!c) break;
+        seen.add(idOf(c.t)); p.hit.add(idOf(c.t)); kk *= k; p.onAux(c.t, kk); cur = c.t; pts.push([Math.round(cur.x), Math.round(cur.y)]);
+      }
+      if (pts.length > 1) this.events.push({ k: "shx", t: "ric", x: pts[0][0], y: pts[0][1], pts, el: p.el, o: p.o });
+    } else if (S.t === "split" && tgt) {
+      const base = Math.atan2(p.dy, p.dx), spread = 1.1, aux = p.onAux;
+      for (let j = 0; j < n; j++) {
+        const a = base + (n === 1 ? 0 : -spread / 2 + spread * j / (n - 1));
+        const c = this.fire({ o: p.o, sid: p.sid, mob: p.mob, t: p.t, x, y, dx: Math.cos(a), dy: Math.sin(a), range: Math.max(30, r), w: Math.max(8, Math.round(p.w * 0.6)), max: 1, spd: p.spd,
+          child: 1, el: p.el, bm: p.bm, sz: p.sz ? +(p.sz * 0.6).toFixed(2) : undefined, vm: undefined, onHit: (t: any) => aux(t, k) } as any);
+        if (c) for (const h of p.hit) c.hit.add(h);
+      }
+      this.events.push({ k: "shx", t: "split", x: Math.round(x), y: Math.round(y), n, el: p.el, o: p.o });
+    }
   }
   /** 🛠 шаг снаряда по траектории конструктора навыков: путь детерминирован от старта (клиент считает так же);
    *  самонаведение — поворот к цели (ptg — клиенту, на кого наводится); бумеранг на развороте снова может задеть тех же */
@@ -251,7 +290,7 @@ export class Zone {
           for (const m of this.near(p.x, p.y, (p.hbR ? p.hbR * 2 : p.w) + 60)) {
             if (m.dead || p.hit.has(m.id)) continue;
             if (p.hb ? !hbTouch(p.hb, p.x, p.y, p.hx ?? p.dx, p.hy ?? p.dy, m.x, m.y, ZONE_MOBS[m.type].radius) : Math.hypot(m.x - p.x, m.y - p.y) > ZONE_MOBS[m.type].radius + p.w / 2) continue;
-            p.hit.add(m.id); const k = p.n++; p.onHit?.(m, k); // n считаем и без onHit (взрыв в onEnd)
+            p.hit.add(m.id); const k = p.n++; p.onHit?.(m, k); if (k === 0 && p.shot) this.shotFx(p, m, m.x, m.y, players); // n считаем и без onHit (взрыв в onEnd)
             if (p.n >= p.max) { done = true; break; }
           }
           // PK: автоатака игрока задевает игроков (решает guard.pvpHit: PK-режим, самооборона, безопасные зоны)
@@ -280,7 +319,7 @@ export class Zone {
           for (const pl of players.values()) {
             if (!pl.alive || p.hit.has(pl.sid) || ((p as any).only && (p as any).only !== pl.sid)) continue; // only — стрела мага летит только в напавшего
             if (Math.hypot(pl.x - p.x, pl.y - p.y) > 14 + p.w / 2) continue;
-            p.hit.add(pl.sid); const k = p.n++; p.onHit?.(pl, k);
+            p.hit.add(pl.sid); const k = p.n++; p.onHit?.(pl, k); if (k === 0 && p.shot) this.shotFx(p, pl, pl.x, pl.y, players);
             if (p.n >= p.max) { done = true; break; }
           }
         }
@@ -289,6 +328,7 @@ export class Zone {
       if (done) {
         this.projs.splice(i, 1);
         this.events.push({ k: "pend", id: p.id, x: Math.round(p.x), y: Math.round(p.y), hit: p.n > 0 ? 1 : undefined, t: (p as any).blk ? "bm_arrow_small" : p.t }); // чёрный выстрел — конец рисует клиент мага
+        if (p.shot?.t === "explode") this.shotFx(p, null, p.x, p.y, players); // взрыв в конце полёта (и без попадания)
         p.onEnd?.(p.x, p.y, p.n > 0);
       }
     }
@@ -610,7 +650,7 @@ export class Zone {
         const w = A.width || 20;
         const D = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха в руке (риг зеркален при взгляде влево)
         for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i];
-          this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, proj: d.elem === "ice" ? "ice_bolt" : "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
+          this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, ...(A.shot ? { shot: A.shot } : {}), ...(d.elem && d.elem !== "fire" && d.elem !== "ice" ? { el: d.elem } : {}), proj: d.elem === "ice" || d.elem === "water" || d.elem === "lightning" ? "ice_bolt" : "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
         m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); // без windup: он у мобов запускает рывок
       }
       return;
@@ -1093,6 +1133,7 @@ export class Zone {
       if (c.leap) { m.x = this.clamp(c.x); m.y = this.clamp(c.y); this.solid(m); }
       if (c.kind === "line" && c.proj) { // настоящий снаряд моба: летит от моба, от него можно отойти
         this.fire({ o: "m", mob: m.id, t: c.proj, x: (c as any).sz ? c.x : m.x, y: (c as any).sz ? c.y : m.y, dx: c.dx!, dy: c.dy!, range: c.len!, w: c.w!, max: 1, spd: (c as any).spd || (c.proj === "fireball" ? 480 : PROJ_SPEED.mob), ...((c as any).sz ? { sz: (c as any).sz, bm: 1 } : {}),
+          ...((c as any).el ? { el: (c as any).el } : {}), ...((c as any).shot && (BMA_CFG as any).shotOn !== false ? { shot: (c as any).shot, onAux: (pl: ZPlayer, k: number) => onHit(pl.sid, c.dmg * k, m.type, m, c.bm) } : {}),
           onHit: (pl: ZPlayer) => onHit(pl.sid, c.dmg, m.type, m, c.bm) });
         continue;
       }

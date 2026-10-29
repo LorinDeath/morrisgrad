@@ -1431,8 +1431,9 @@ export class MetaService {
         if (zone.guard === this.guardMux && this.bm.meleeHits(ox, oy, vx, vy, W.atk.range, W.atk.arc, W.atk.width, "arc")) this.bm.hitMage(session.id); // удар по магу — нападение
       } else {
         const line = W.atk.kind === "line";
-        zone.fire({ o: "p", sid: session.id, t: art ? (art.elem === "ice" ? "ice_bolt" : frac > 0.5 ? "fireball" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
-          ...(art ? { bm: 1, bf: frac, sz: +((W.atk.width || 20) / 20).toFixed(2) } : {}), // 🜏 bf — заряд на момент выстрела (PK-попадание позже), sz — размер снаряда от ширины (Мощность)
+        zone.fire({ o: "p", sid: session.id, t: art ? (art.elem === "ice" || art.elem === "water" || art.elem === "lightning" ? "ice_bolt" : frac > 0.5 ? "fireball" : "fire_spark") : AUTO_SPRITE[wt] || "auto_staff", x: orig ? orig[si][0] : ox, y: orig ? orig[si][1] : oy, cid: Number(msg.cid) || undefined, dx: vx, dy: vy, range: W.atk.range, w: W.atk.width || 20, max: line ? W.atk.max || 1 : 1, pv: (session.world || "hellfire") === "arinar" ? 1 : undefined, pvk: per,
+          ...(art ? { bm: 1, bf: frac, sz: +((W.atk.width || 20) / 20).toFixed(2), ...(art.elem && art.elem !== "fire" && art.elem !== "ice" ? { el: art.elem } : {}) } : {}),
+          ...(art?.shot && (BMA_CFG as any).shotOn !== false ? { shot: art.shot, onAux: (m: any, k: number) => applyHit(m, per * k) } : {}), // этап 2: тип снаряда (взрыв/рикошет/насквозь/раскол) // 🜏 bf — заряд на момент выстрела (PK-попадание позже), sz — размер снаряда от ширины (Мощность)
           onHit: (m: any, i: number) => applyHit(m, per * (i === 0 ? 1 : line ? 0.7 : 0.8)) });
       }
     }

@@ -13,6 +13,9 @@ const PX = 20;
 // проклятый навык R (cz): фиолетовый шейдер — умножение цвета спрайта + фиолетовый ореол (цвет — CURSE.tint)
 import { curseRGB, curseHex } from '../meta/curseCfg.js';
 export { curseRGB, curseHex };
+import { ELEM_COLOR } from '../../../../../server/meta/blackArt.ts';
+/** ЭТАП 2: цвет снаряда по стихии (вода/камень/природа/молния — перекраска спрайта, цвет из админки); огонь/лёд — свой спрайт */
+export const elRGB = (el) => { const hx = el && el !== 'fire' && el !== 'ice' && ELEM_COLOR[el]; if (!hx || !/^#[0-9a-f]{6}$/i.test(hx)) return null; return [1, 3, 5].map((j) => parseInt(hx.slice(j, j + 2), 16) / 255); };
 // старые ключи сервера, которых нет в v2, — на ключи v2 (sun_beam как снаряд — его вспышка; лужа — plague_puddle)
 const T2 = { sun_beam: 'sun_beam' };
 // 📊 кэш описаний (fxDef + разбор анимаций — на каждый снаряд/вспышку дорого); сброс — при смене псевдонимов (навыки конструктора)
@@ -63,17 +66,17 @@ export class ProjAtlasFx {
   }
   spawn(e) {
     // ICE: вспышка вылета ice_release у дула (лист Художника: центр 48,48)
-    if (e.t === 'ice_bolt') { const ri = projInfo('ice_release'); if (ri.key === 'ice_release') this._fx({ kind: 'impact', t: 'ice_release', x: e.x, y: e.y, age: 0, life: ri.impDur, info: ri, k: Math.max(0.8, e.sz || 1), dx: e.dx || 1, dy: e.dy || 0, fdx: 1, cz: false }); }
+    if (e.t === 'ice_bolt') { const ri = projInfo('ice_release'); if (ri.key === 'ice_release') this._fx({ kind: 'impact', t: 'ice_release', x: e.x, y: e.y, age: 0, life: ri.impDur, info: ri, k: Math.max(0.8, e.sz || 1), dx: e.dx || 1, dy: e.dy || 0, fdx: 1, cz: elRGB(e.el) || false }); }
     this.spawned[`${e.o || '?'}:${e.t}`] = (this.spawned[`${e.o || '?'}:${e.t}`] || 0) + 1; // счётчик для отладки/тестов
     const L = e.cid && e.sid === this.meSid ? this.pred[e.cid] : null;
     if (L?.length) { // подтверждение своего: ближайший по направлению прогноз получает id сервера (позиция не прыгает)
       let bi = 0, bd = -2; L.forEach((q, i) => { const d = q.dx * e.dx + q.dy * e.dy; if (d > bd) { bd = d; bi = i; } });
       const q = L.splice(bi, 1)[0]; if (!L.length) delete this.pred[e.cid];
-      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.cz = !!e.cz; q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; q.k = e.sz || q.k || 1; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
+      if (this.live.get(q.id) === q) { this.live.delete(q.id); q.cz = e.cz ? true : elRGB(e.el) || false; q.id = e.id; q.dx = e.dx; q.dy = e.dy; q.s = e.s || q.s; q.r = e.r || q.r; q.t = e.t; q.info = projInfo(e.t); q.pred = 0; q.k = e.sz || q.k || 1; this.live.set(e.id, q); this.confirmed = (this.confirmed || 0) + 1; return; }
     }
     if (this.live.size > this._cap('projMax')) { this.stat.drop++; return; }
     // a — мс, которые снаряд уже пролетел на сервере до отправки пачки: догоняем, чтобы он был там, где на самом деле
-    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o, cz: !!e.cz, k: Math.max(0.4, Math.min(4, Number(e.sz) || 1)), pth: e.pth && e.pth.p && e.pth.p !== 'line' ? e.pth : null, hx: e.dx, hy: e.dy, cx: e.x, cy: e.y, tg: 0 }); // k — размер снаряда (чёрное лезвие: ширина хитбокса / 20, растёт с Мощностью)
+    this.live.set(e.id, { id: e.id, t: e.t, x0: e.x, y0: e.y, dx: e.dx, dy: e.dy, s: e.s || 520, r: e.r || 400, arc: !!e.arc, age: Math.min(0.4, (e.a || 0) / 1000), info: projInfo(e.t), o: e.o, cz: e.cz ? true : elRGB(e.el) || false, k: Math.max(0.4, Math.min(4, Number(e.sz) || 1)), pth: e.pth && e.pth.p && e.pth.p !== 'line' ? e.pth : null, hx: e.dx, hy: e.dy, cx: e.x, cy: e.y, tg: 0 }); // k — размер снаряда (чёрное лезвие: ширина хитбокса / 20, растёт с Мощностью)
   }
   // сервер: попал / долетел
   end(e) {
@@ -85,9 +88,9 @@ export class ProjAtlasFx {
     const t = e.t || p?.t || 'fireball';
     if (t === 'plague_flask') return; // фляга: лужу рисует событие 'puddle'
     if ((p?.info || projInfo(t)).skill) return; // 🜏 навык артефакта: взрыв (burst) рисует zoneView по событию 'ability'
-    this.impact(t, e.x, e.y, { dx: p?.dx, dy: p?.dy, cz: p?.cz });
+    this.impact(t, e.x, e.y, { dx: p?.dx, dy: p?.dy, cz: p?.cz || elRGB(e.el) || false });
   }
-  impact(t, x, y, o = {}) { this._fx({ kind: 'impact', t, x, y, age: 0, life: projInfo(t).impDur, info: projInfo(t), k: o.k || 1, dx: o.dx || 1, dy: o.dy || 0, fdx: o.fdx || 1, cz: !!o.cz }); }
+  impact(t, x, y, o = {}) { this._fx({ kind: 'impact', t, x, y, age: 0, life: projInfo(t).impDur, info: projInfo(t), k: o.k || 1, dx: o.dx || 1, dy: o.dy || 0, fdx: o.fdx || 1, cz: Array.isArray(o.cz) ? o.cz : !!o.cz }); }
   puddle(x, y, r, life = 2.4, t = 'plague_puddle') { this._fx({ kind: 'loop', t, x, y, age: 0, life, info: projInfo(t), k: Math.max(1, (r || 60) / 50) }); }
   // падение сверху к моменту удара (метеор, дождь копий): delay — сек до удара
   fall(t, x, y, delay, fdx = 1, k = 1) { this._fx({ kind: 'fall', t, x, y, age: -Math.max(0, delay - 0.35), life: 0.35, info: projInfo(t), fdx, k }); }
@@ -97,8 +100,8 @@ export class ProjAtlasFx {
   // (x,y) — точка мира; h — высота, м; w (знак — зеркало), hh — размер; mode 0/1/2; anim/t — анимация и её время
   _put(info, anim, t, x, y, h, w, hh, mode, dx, dz, a = 1, loop, cz = false) {
     const X = this.toX(x), Z = this.toZ(y);
-    if (cz) { const CZ = curseRGB(), gs = Math.max(Math.abs(w), hh) * 2.1; this.atl.glow.push(X, mode === 2 ? 0.05 : h, Z, gs, gs, mode === 2 ? 2 : 0, 0, 0, 0, GLOW.ball, 0, CZ[0], CZ[1], CZ[2], 0.75 * a); }
-    this.atl.draw(info.key, anim, t, X, h, Z, w, hh, mode, 0, dx, dz, cz ? curseRGB().map((c) => -c) : null, a, cz ? 0 : 1, loop);
+    if (cz) { const CZ = Array.isArray(cz) ? cz : curseRGB(), gs = Math.max(Math.abs(w), hh) * 2.1; this.atl.glow.push(X, mode === 2 ? 0.05 : h, Z, gs, gs, mode === 2 ? 2 : 0, 0, 0, 0, GLOW.ball, 0, CZ[0], CZ[1], CZ[2], 0.75 * a); }
+    this.atl.draw(info.key, anim, t, X, h, Z, w, hh, mode, 0, dx, dz, cz ? (Array.isArray(cz) ? cz : curseRGB()).map((c) => -c) : null, a, cz ? 0 : 1, loop); // cz: true — проклятие, [r,g,b] — стихия
   }
   _mode(info) { return info.ground ? 2 : info.rot ? 1 : 0; }
 
@@ -123,8 +126,8 @@ export class ProjAtlasFx {
       const h = p.arc ? 0.6 + Math.sin(Math.min(1, d / p.r) * Math.PI) * Math.min(4, p.r / PX * 0.35) : i.ground ? 0.06 : 1.0;
       const m = this._mode(i), w = i.cell ? i.cell[0] * (p.k || 1) : i.fall && p.dx < 0 ? -S : S, hh = i.cell ? i.cell[1] * (p.k || 1) : S;
       if (i.trail && trMax > 0) { p.tr ??= 0; const tl = fxDur(i.key, 'trail') || 0.33;
-        if (p.pth) { if (d - p.tr >= step) { p.tr = d; this._fx({ kind: 'trail', t: p.t, x, y, dx: hdx, dy: hdy, age: 0, life: tl, info: i, k: p.k || 1 }); } } // по траектории — в текущей точке
-        else while (d - p.tr >= step) { p.tr += step; if (!this._fx({ kind: 'trail', t: p.t, x: p.x0 + p.dx * p.tr, y: p.y0 + p.dy * p.tr, dx: p.dx, dy: p.dy, age: 0, life: tl, info: i, k: p.k || 1 })) { p.tr = d; break; } } }
+        if (p.pth) { if (d - p.tr >= step) { p.tr = d; this._fx({ kind: 'trail', t: p.t, x, y, dx: hdx, dy: hdy, age: 0, life: tl, info: i, k: p.k || 1, cz: Array.isArray(p.cz) ? p.cz : false }); } } // по траектории — в текущей точке
+        else while (d - p.tr >= step) { p.tr += step; if (!this._fx({ kind: 'trail', t: p.t, x: p.x0 + p.dx * p.tr, y: p.y0 + p.dy * p.tr, dx: p.dx, dy: p.dy, age: 0, life: tl, info: i, k: p.k || 1, cz: Array.isArray(p.cz) ? p.cz : false })) { p.tr = d; break; } } }
       this._put(i, i.fly, p.age, x, y, h, w, hh, m, m ? hdx : 0, m ? hdy : 0, 1, true, p.cz);
     }
     for (let j = this.fx.length - 1; j >= 0; j--) {
@@ -150,7 +153,7 @@ export class ProjAtlasFx {
         const k = f.age / f.life, hgt = 7 * (1 - k), off = 3 * PX * (1 - k) * -f.fdx;
         this._put(i, 'fall', this.time, f.x + off, f.y, 0.3 + hgt, f.fdx < 0 && f.t === 'meteor' ? -S : S, S * 2, 0, 0, 0, 1, true);
       } else if (f.kind === 'trail') { // 🜏 след снаряда навыка: кадры trail на месте, гаснет
-        this._put(i, 'trail', f.age, f.x, f.y, 1.0, i.cell[0] * f.k, i.cell[1] * f.k, m, f.dx, f.dy, 1 - (f.age / f.life) * 0.5);
+        this._put(i, 'trail', f.age, f.x, f.y, 1.0, i.cell[0] * f.k, i.cell[1] * f.k, m, f.dx, f.dy, 1 - (f.age / f.life) * 0.5, undefined, f.cz);
       } else if (f.kind === 'fly') {
         const d = f.r * (f.age / f.life);
         this._put(i, i.fly, f.age, f.x + f.dx * d, f.y + f.dy * d, 1.0, S, S, m, f.dx, f.dy, 1 - f.age / f.life * 0.5, true);

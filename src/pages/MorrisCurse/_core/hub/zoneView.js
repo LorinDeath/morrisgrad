@@ -218,6 +218,13 @@ export class ZoneView {
         else if (e.fx === 'plague_puddle') this.pax.puddle(e.x, e.y, e.r, 1.6);
         else if (e.fx !== 'meteor' && e.fx !== 'spear_rain') this.pax.impact(e.fx, e.x, e.y, { k: Math.max(1, e.r / 50) }); // метеор/копья — своё падение
       }
+      else if (e.k === 'shx') { // ЭТАП 2: тип снаряда — взрыв (вспышка в радиусе), рикошет (цепь между целями), раскол (искра в точке); цвет стихии из админки
+        const hx = ELEM_COLOR[e.el] || (e.o === 'm' ? '#ff5a1a' : '#ff8a2a'), col = [1, 3, 5].map((j) => parseInt(hx.slice(j, j + 2), 16) / 255), ci = parseInt(hx.slice(1), 16);
+        const cz = e.el && e.el !== 'fire' && e.el !== 'ice' ? col : false, spr = e.el === 'water' || e.el === 'lightning' || e.el === 'ice' ? 'ice_bolt' : 'fireball';
+        if (e.t === 'explode') { this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r || 80, t: 0, life: 0.45, color: ci }); this.pax.impact(spr, e.x, e.y, { k: Math.max(1, (e.r || 80) / 55), cz }); }
+        else if (e.t === 'ric' && Array.isArray(e.pts)) for (let j = 1; j < e.pts.length; j++) { const [x0, y0] = e.pts[j - 1], [x1, y1] = e.pts[j], dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+          this.teles.push({ kind: 'dash', fx: 'dash_trail', x: x0, y: y0, dx: dx / len, dy: dy / len, len, t: -0.06 * (j - 1), life: 0.3, col }); this.pax.impact(spr, x1, y1, { k: 0.8, cz }); }
+        else if (e.t === 'split') this.pax.impact(spr, e.x, e.y, { k: 0.9, cz }); }
       else if (e.k === 'mmv') { // ЭТАП 2: рывок/телепорт чёрного моба — тени цвета стихии и шлейф; телепорт — сразу на месте
         const o = this.mobs.get(e.id), hx = ELEM_COLOR[e.el] || '#ffffff', col = [1, 3, 5].map((j) => parseInt(hx.slice(j, j + 2), 16) / 255);
         if (o && e.t === 'blink') { o.x = o.tx = e.x1; o.y = o.ty = e.y1; }
