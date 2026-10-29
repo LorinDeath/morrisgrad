@@ -108,30 +108,31 @@ export function drawWeapon(ctx, parts, t = 0, o = {}) {
 
 /** анимированное превью в <canvas>: оружие покачивается, раз в 2,4 с — замах (дуга удара) или выстрел */
 export class WeaponPreview {
-  constructor(canvas) { this.cv = canvas; this.parts = {}; this.t0 = performance.now(); this.raf = 0; this.on = false; this.labels = true; }
+  constructor(canvas) { this.cv = canvas; this.parts = {}; this.t0 = performance.now(); this.raf = 0; this.on = false; this.labels = true; this.anim = 'cycle'; } // anim: cycle | idle | attack (админка: превью по наведению/клику)
   set(parts) { this.parts = { ...parts }; }
   start() { if (this.on) return; this.on = true; const loop = () => { if (!this.on || !this.cv.isConnected) { this.on = false; return; } this.frame(); this.raf = requestAnimationFrame(loop); }; loop(); }
   stop() { this.on = false; cancelAnimationFrame(this.raf); }
   frame() {
     const cv = this.cv, ctx = cv.getContext('2d'), W = cv.width, H = cv.height, t = (performance.now() - this.t0) / 1000;
     ctx.clearRect(0, 0, W, H);
-    const bg = ctx.createRadialGradient(W / 2, H * 0.9, 10, W / 2, H * 0.6, H); bg.addColorStop(0, '#5c1a0b'); bg.addColorStop(0.6, '#1a0d08'); bg.addColorStop(1, '#0b0604');
+    const ice = partOf(this.parts.blade)?.elem === 'ice' || (!this.parts.blade && partOf(this.parts.handle)?.elem === 'ice'); // ICE: стихия — по лезвию
+    const bg = ctx.createRadialGradient(W / 2, H * 0.9, 10, W / 2, H * 0.6, H); bg.addColorStop(0, ice ? '#12405c' : '#5c1a0b'); bg.addColorStop(0.6, ice ? '#08141d' : '#1a0d08'); bg.addColorStop(1, ice ? '#04080c' : '#0b0604');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     // искры
-    for (let i = 0; i < 18; i++) { const sx = (i * 53 + t * 20 * (1 + (i % 3))) % W, sy = H - ((t * 40 * (1 + (i % 4)) + i * 37) % H); ctx.fillStyle = i % 2 ? '#ffb347aa' : '#ff6a1a88'; ctx.fillRect(sx, sy, 2, 2); }
-    const ph = (t % 2.4) / 2.4, sw = ph > 0.7 ? Math.sin((ph - 0.7) / 0.3 * Math.PI) : 0;
+    for (let i = 0; i < 18; i++) { const sx = (i * 53 + t * 20 * (1 + (i % 3))) % W, sy = H - ((t * 40 * (1 + (i % 4)) + i * 37) % H); ctx.fillStyle = ice ? (i % 2 ? '#dff4ffaa' : '#6cc8ff88') : i % 2 ? '#ffb347aa' : '#ff6a1a88'; ctx.fillRect(sx, sy, 2, 2); }
+    const ph = this.anim === 'idle' ? (t % 2.4) / 2.4 * 0.35 : this.anim === 'attack' ? 0.7 + ((t % 0.8) / 0.8) * 0.3 : (t % 2.4) / 2.4, sw = ph > 0.7 ? Math.sin((ph - 0.7) / 0.3 * Math.PI) : 0;
     const bl = partOf(this.parts.blade);
     if (!this.parts.handle && !this.parts.blade) { ctx.fillStyle = '#fdba74'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Выберите рукоять и лезвие', W / 2, H / 2); return; }
     const ang = bl?.ranged ? -0.25 + Math.sin(t * 1.5) * 0.05 : -0.35 + Math.sin(t * 1.5) * 0.06 + sw * 1.9;
-    if (sw > 0.05 && bl && !bl.ranged) { const arc = bl.arc || 1.1; ctx.save(); ctx.translate(W / 2, H * 0.72); ctx.strokeStyle = `rgba(255,154,60,${0.6 * sw})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, H * 0.5, -Math.PI / 2 - arc / 2, -Math.PI / 2 + arc / 2); ctx.stroke(); ctx.restore(); }
+    if (sw > 0.05 && bl && !bl.ranged) { const arc = bl.arc || 1.1; ctx.save(); ctx.translate(W / 2, H * 0.72); ctx.strokeStyle = ice ? `rgba(140,215,255,${0.7 * sw})` : `rgba(255,154,60,${0.6 * sw})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, H * 0.5, -Math.PI / 2 - arc / 2, -Math.PI / 2 + arc / 2); ctx.stroke(); ctx.restore(); }
     const anim = ph < 0.35 ? 'idle' : ph < 0.6 ? 'charge' : ph < 0.7 ? 'full' : bl?.ranged ? 'cast' : 'swing';
     const mode = drawWeapon(ctx, this.parts, anim === 'swing' || anim === 'cast' ? (ph - 0.7) * 2.4 : t, { x: W / 2, y: H * 0.72, scale: Math.max(1, Math.floor(Math.min(W, H) / 70)), angle: ang, labels: this.labels, anim });
     this.mode = mode;
     if (bl?.ranged && ph > 0.7) { // выстрел: по снаряду из дула каждого посоха (веер), как на сервере
       const k = (ph - 0.7) / 0.3, M = lastMuzzles.length ? lastMuzzles : [[W / 2, H * 0.3]], n = M.length, st = (this.spread ?? BMA_CFG.staffSpread ?? 12) * Math.PI / 180;
       M.forEach(([mx, my], i) => { const a = -0.25 + st * (i - (n - 1) / 2), d = k * W * 0.5, px = mx + Math.cos(a) * d, py = my + Math.sin(a) * d;
-        const g = ctx.createRadialGradient(px, py, 0, px, py, 9); g.addColorStop(0, '#fff6c8'); g.addColorStop(0.4, '#ffb347'); g.addColorStop(1, '#ff3d0000'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill();
-        if (k < 0.3) { ctx.fillStyle = `rgba(255,230,160,${0.8 * (1 - k / 0.3)})`; ctx.beginPath(); ctx.arc(mx, my, 6, 0, 7); ctx.fill(); } }); }
+        const g = ctx.createRadialGradient(px, py, 0, px, py, 9); g.addColorStop(0, ice ? '#f2fbff' : '#fff6c8'); g.addColorStop(0.4, ice ? '#6cc8ff' : '#ffb347'); g.addColorStop(1, ice ? '#2a7fb800' : '#ff3d0000'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 9, 0, 7); ctx.fill();
+        if (k < 0.3) { ctx.fillStyle = ice ? `rgba(200,240,255,${0.8 * (1 - k / 0.3)})` : `rgba(255,230,160,${0.8 * (1 - k / 0.3)})`; ctx.beginPath(); ctx.arc(mx, my, 6, 0, 7); ctx.fill(); } }); }
     if (mode !== 'art') { ctx.fillStyle = '#ffe08a99'; ctx.font = '700 9px system-ui'; ctx.textAlign = 'left'; ctx.fillText('ЗАГЛУШКА · у части нет листа Художника', 6, H - 6); }
   }
 }

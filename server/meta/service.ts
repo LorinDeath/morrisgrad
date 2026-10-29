@@ -22,7 +22,7 @@ import { BMA_CFG, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureS
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
-import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob } from "./blackMobs";
+import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, mobElem } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult, artModeKey } from "./profile";
@@ -2182,6 +2182,7 @@ export class MetaService {
         return { ...r, id, isNew, parts: partList() }; }
       case "drop": { // шанс кусочка чертежа у моба (таблица «Дроп» → materials)
         const mob = String(msg.mob || ""), res = String(msg.res || ""); if (!(ZONE_MOBS as any)[mob] || !/^bp_[a-z]+_[a-z0-9]+$/.test(res)) return { ok: false, err: "моб/кусочек?" };
+        if (Number(msg.chance) > 0 && !/^bp_fire_/.test(res)) return { ok: false, err: "Кусочки льда (и других стихий, кроме огня) выпадают только с чёрных мобов своей стихии — задайте их в конструкторе мобов" }; // ICE §2
         const cur: any = ovValues("loot" as any, mob) || {}; const mats = (Array.isArray(cur.materials) ? cur.materials : ((MONSTER_LOOT as any)[mob]?.materials || [])).filter((m: any) => m.res !== res);
         const ch = Math.max(0, Math.min(100, Number(msg.chance) || 0)); if (ch > 0) mats.push({ res, chance: ch, qty: [Math.max(1, Math.round(Number(msg.qmin) || 1)), Math.max(1, Math.round(Number(msg.qmax) || Number(msg.qmin) || 1))] });
         const gear = Array.isArray(cur.gear) ? cur.gear : ((MONSTER_LOOT as any)[mob]?.gear || []);
@@ -2198,7 +2199,7 @@ export class MetaService {
     const db: any = (this.store as any).db, A = this.admin, by = ms.pkey;
     const vals = (k: string, id: string) => ovValues(k as any, id);
     const nest = (v: any) => { const o: any = {}; for (const [p, x] of Object.entries(v || {})) { if (x == null) continue; const ks = p.split("."); let t = o; for (const k of ks.slice(0, -1)) t = t[k] = t[k] && typeof t[k] === "object" ? t[k] : {}; t[ks.at(-1)!] = x; } return o; };
-    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: isCustomBm(id), ...nest(vals("bmmob", id)), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)) }));
+    const mobList = () => Object.keys(BM_MOBS).map((id) => ({ id, custom: isCustomBm(id), ...nest(vals("bmmob", id)), final: (({ weapon, ...f }) => ({ ...f, weapon }))(mobFinal(BM_MOBS[id], ITEM_BY_ID as any)), el: mobElem(BM_MOBS[id], ITEM_BY_ID as any) }));
     const bodyList = () => Object.keys(BM_BODY).map((id) => ({ id, custom: CUSTOM_BB.test(id), ...nest(vals("bmbody", id)) }));
     const campList = () => { const sum = new Map<string, any>(); for (const w of ["arinar", "hellfire"]) { const z: any = (this.zones as any)[w]; for (const c of z?.campSummary?.() || []) { const zc = z.camps.find((x: any) => x.id === c[0]); if (zc?.region?.startsWith("bm:")) sum.set(zc.region.slice(3), { alive: c[3], total: c[4], state: c[5], next: c[8] }); } }
       return Object.keys(BM_CAMPS).map((id) => { const c = BM_CAMPS[id], z: any = (this.zones as any)[c.world]; return { id, ...nest(vals("bmcamp", id)), err: z?.bmCampErr?.(c) || null, live: sum.get(id) || null }; }); };
@@ -2215,7 +2216,7 @@ export class MetaService {
         if (db) { try { arts = ((await db.prepare("SELECT id, name, rarity FROM items WHERE id LIKE 'art\\_%' ESCAPE '\\' ORDER BY rowid DESC LIMIT 200").all()).results || []); } catch {} }
         const res = Object.entries(RESOURCES as any).slice(0, 600).map(([id, r]: any) => ({ id, name: r?.name || id }));
         const mobs = Object.keys(ZONE_MOBS).filter((id) => !(ZONE_MOBS as any)[id].black).slice(0, 600).map((id) => ({ id, name: (ZONE_MOBS as any)[id].name, lvl: (ZONE_MOBS as any)[id].lvl || 0 }));
-        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: nest(vals("bmmcfg", "main")), drafts, arts, res, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", hidden: !!(BM_PARTS as any)[id].hidden })) };
+        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: nest(vals("bmmcfg", "main")), drafts, arts, res, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", elem: (BM_PARTS as any)[id].elem || "fire", hidden: !!(BM_PARTS as any)[id].hidden })) };
       }
       case "auto": return { ok: true, stats: refStats(Number(msg.lvl) || 1) };
       case "here": return { ok: true, world: session.world || "hellfire", x: Math.round(session.x || 0), y: Math.round(session.y || 0) };

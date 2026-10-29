@@ -1,6 +1,6 @@
 // «Чёрная магия», этап Б — окно «🔥 Кузня Знахаря» (Альказак): Детали (из кусочков чертежа) · Сборка (живое превью, имя) · Разбор.
 // Всё решает сервер (bm_forge_*, salvage): клиент показывает витрину из ответа bm_forge и просит. Огненный стиль; арт — заглушки.
-import { BM_PARTS, BM_KEYS, BM_NAMES, BP_TYPES, BP_TYPE_NAMES, BMA_CFG, computeArtifact } from '../../../../../server/meta/blackArt.ts';
+import { BM_PARTS, BM_KEYS, BM_NAMES, BP_TYPES, BP_TYPE_NAMES, BMA_CFG, BP_ELEMS, BP_ELEM_NAMES, ELEM_COLOR, computeArtifact } from '../../../../../server/meta/blackArt.ts';
 import { RESOURCES } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
@@ -50,6 +50,10 @@ const CSS = `
 .bmf-salv{display:flex;align-items:center;gap:8px;border:1px solid #5c1a0b;border-radius:8px;padding:6px 8px;margin:4px 0;background:#140904}
 .bmf-salv canvas{width:44px;height:44px;border-radius:6px;background:#1a0d08}
 .bmf-salv .nm{flex:1}
+.bmf-el{display:inline-block;font-size:10px;font-weight:700;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px;border:1px solid currentColor}
+.bmf-el.fire{color:#ff8a2a;background:#3a1206}.bmf-el.ice{color:#6cc8ff;background:#0b2233}
+.bmf-part.ice{border-color:#1e4a66;background:#08131c}.bmf-part.ice.can{border-color:#6cc8ff}.bmf-part.ice h5{color:#9fdcff}
+.bmf-filt{display:flex;gap:6px;margin:2px 0 6px}.bmf-filt button.on{outline:2px solid #ffe08a}
 .bmf-done{animation:bmfDone 1.2s ease-out}
 @keyframes bmfPulse{0%,100%{box-shadow:0 0 18px #ff6a1a66}50%{box-shadow:0 0 30px #ffb347aa}}
 @keyframes bmfDone{0%{box-shadow:0 0 0 #ffe08a}30%{box-shadow:0 0 50px #ffe08a}100%{box-shadow:0 0 40px #ff3d0044}}
@@ -57,13 +61,15 @@ const CSS = `
 let cssOn = false;
 const css = () => { if (cssOn || typeof document === 'undefined') return; cssOn = true; const s = document.createElement('style'); s.id = 'bm-forge-css'; s.textContent = CSS; document.head.appendChild(s); };
 const SAY = { idle: 'Огонь помнит форму. Принеси кусочки чертежа — выкую деталь, а из деталей — оружие.', craft: 'Деталь готова. Тёплая ещё.', build: 'Готово. Назови — и оно твоё.', salv: 'Разобрал. Осколки огня сохрани.', err: 'Не выйдет. Посмотри, чего не хватает.' };
+const ELI = { fire: '🔥', ice: '❄' };
+export const elBadge = (el) => { el = el || 'fire'; return `<span class="bmf-el ${esc(el)}" title="Стихия: ${esc(BP_ELEM_NAMES[el] || el)}">${ELI[el] || '◆'} ${esc(BP_ELEM_NAMES[el] || el)}</span>`; };
 const statLine = (st) => BM_KEYS.filter((k) => st?.[k]).map((k) => `${BM_NAMES[k].icon} ${fmtBm(k, st[k])}`).join(' · ');
 
 export class BmForgeWin {
   constructor(overlay, meta, send) {
     css(); bmCss();
     this.ov = overlay; this.meta = meta; this.send = send; this.isOpen = false; this.tab = 'parts'; this.st = null; this.sel = { handle: '', blade: '', blade2: '', blade3: '', crystal: '' };
-    this.name = ''; this.err = ''; this.say = SAY.idle; this.confirm = null;
+    this.name = ''; this.err = ''; this.say = SAY.idle; this.confirm = null; this.elf = '';
     const el = document.createElement('div'); el.className = 'bmf'; el.style.display = 'none'; overlay.layer.appendChild(el); this.el = el;
     el.addEventListener('pointerdown', (e) => e.stopPropagation());
     el.addEventListener('keydown', (e) => e.stopPropagation());
@@ -96,29 +102,32 @@ export class BmForgeWin {
       this.send(m); return;
     }
     if (a === 'salv') { if (this.confirm !== v) { this.confirm = v; return this.render(); } this.confirm = null; this.send({ type: 'salvage', uid: v }); setTimeout(() => this.send({ type: 'bm_forge_open' }), 400); return; }
+    if (a === 'elf') { this.elf = v; return this.render(); }
     if (a === 'asm') { this.tab = 'asm'; return this.render(); }
   }
   onChange(e) { const s = e.target.closest('[data-slot]'); if (!s) return; this.sel[s.dataset.slot] = s.value; this.err = ''; this.render(); }
   owned(type) { const st = this.st; if (!st) return []; return st.parts.filter((p) => p.type === type && p.have > 0); }
   rParts() {
     const st = this.st; if (!st) return '<p class="mc-dim">Знахарь раскладывает инструменты…</p>';
-    return BP_TYPES.map((t) => { const L = st.parts.filter((p) => p.type === t); if (!L.length) return '';
+    const els = st.elems || BP_ELEMS, f = this.elf;
+    const filt = `<div class="bmf-filt">${[['', 'Все'], ...els.map((e) => [e, `${ELI[e] || '◆'} ${BP_ELEM_NAMES[e] || e}`])].map(([k, n]) => `<button class="bmf-btn sm dark ${f === k ? 'on' : ''}" data-f="elf" data-v="${esc(k)}">${esc(n)}</button>`).join('')}<span class="mc-dim" style="font-size:11px;align-self:center">ледяные детали — только из ледяных кусочков (с ледяных чёрных мобов)</span></div>`;
+    return filt + BP_TYPES.map((t) => { const L = st.parts.filter((p) => p.type === t && (!f || (p.elem || 'fire') === f)).sort((x, y) => els.indexOf(x.elem || 'fire') - els.indexOf(y.elem || 'fire')); if (!L.length) return '';
       return `<div class="bmf-h">${esc(BP_TYPE_NAMES[t])}</div><div class="bmf-grid">${L.map((p) => { const have = st.pieces[p.piece] || 0;
-        return `<div class="bmf-part ${p.can ? 'can' : ''}" data-part="${esc(p.id)}"><span class="have" title="Создано деталей">×${p.have}</span><h5>${esc(p.icon || '•')} ${esc(p.name)}${p.form === 'staff' ? ' 🪄' : p.ranged ? ' 🏹' : ''}</h5>
+        return `<div class="bmf-part ${p.can ? 'can' : ''} ${esc(p.elem || 'fire')}" data-part="${esc(p.id)}" data-elem="${esc(p.elem || 'fire')}"><span class="have" title="Создано деталей">×${p.have}</span><h5>${esc(p.icon || '•')} ${esc(p.name)}${p.form === 'staff' ? ' 🪄' : p.ranged ? ' 🏹' : ''}${elBadge(p.elem)}</h5>
           <div class="st">${statLine(p.stats) || '—'}</div>${p.desc ? `<div class="st mc-dim">${esc(p.desc)}</div>` : ''}
           <div class="cost ${have >= p.cost ? 'ok' : 'no'}">${RESOURCES[p.piece]?.icon || '📜'} ${esc(RESOURCES[p.piece]?.name || p.piece)}: <b>${have}/${p.cost}</b>${p.reqLvl ? ` · ур. ${p.reqLvl}+` : ''}</div>
-          <button class="bmf-btn sm" data-f="craft" data-v="${esc(p.id)}" ${p.can ? '' : 'disabled'}>🔥 Создать</button></div>`; }).join('')}</div>`; }).join('');
+          <button class="bmf-btn sm" data-f="craft" data-v="${esc(p.id)}" ${p.can ? '' : 'disabled'}>${p.elem === 'ice' ? '❄' : '🔥'} Создать</button></div>`; }).join('')}</div>`; }).join('');
   }
   rAsm() {
     const st = this.st; if (!st) return '<p class="mc-dim">…</p>';
     for (const k of BP_TYPES) if (this.sel[k] && !this.owned(k).some((p) => p.id === this.sel[k])) this.sel[k] = '';
     const slots = BP_TYPES.map((t) => `<label class="bmf-slot ${t === 'handle' || t === 'blade' ? 'req' : ''}"><span>${esc(BP_TYPE_NAMES[t])}</span>
-      <select data-slot="${t}"><option value="">${t === 'handle' || t === 'blade' ? '— выберите —' : '— нет —'}</option>${this.owned(t).map((p) => `<option value="${esc(p.id)}" ${this.sel[t] === p.id ? 'selected' : ''}>${esc(p.name)} ×${p.have}</option>`).join('')}</select></label>`).join('');
+      <select data-slot="${t}"><option value="">${t === 'handle' || t === 'blade' ? '— выберите —' : '— нет —'}</option>${(st.elems || BP_ELEMS).map((e) => { const L = this.owned(t).filter((p) => (p.elem || 'fire') === e); return L.length ? `<optgroup label="${ELI[e] || '◆'} ${esc(BP_ELEM_NAMES[e] || e)}">${L.map((p) => `<option value="${esc(p.id)}" ${this.sel[t] === p.id ? 'selected' : ''}>${esc(p.name)} ×${p.have}</option>`).join('')}</optgroup>` : ''; }).join('')}</select></label>`).join('');
     const parts = Object.fromEntries(BP_TYPES.filter((k) => this.sel[k]).map((k) => [k, this.sel[k]]));
     if (st.cfg) Object.assign(BMA_CFG, st.cfg, { staffTest: false }); // посохи: правила сервера (тип детали уже решён сервером — form)
     const A = parts.handle && parts.blade ? computeArtifact(parts, Object.fromEntries(st.parts.map((p) => [p.id, p]))) : null;
     const stats = A ? BM_KEYS.map((k) => `<div class="bm-row"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('')
-      + `<div class="bm-row"><span>Удар</span><b>${A.ranged ? `дальний · ${Math.round(A.atk.range)} px` : `ближний · дуга ${Math.round(((A.atk.arc || 0) * 180) / Math.PI)}° · ${Math.round(A.atk.range)} px`}</b></div>${A.staff ? `<div class="bm-row"><span>🪄 Посох</span><b>дальний по умолчанию · переключается на ближний</b></div>` : ''}<div class="bm-row" data-shots="${A.ranged ? A.shots || 1 : 1}"><span>Снарядов за выстрел</span><b>${A.ranged ? `${A.shots || 1}${(A.shots || 1) > 1 ? ` (посохи во 2/3 слоте, веер ${Math.round(Number(st.cfg?.staffSpread ?? 12))}°)` : ''}` : (A.shots || 1) > 1 ? `ближний — 1 удар (посохи стреляют только в дальнем)` : '—'}</b></div><div class="bm-row"><span>Навыки артефакта</span><b>${(A.skills || []).length}</b></div>` : '<p class="mc-dim">Выберите рукоять и лезвие — появятся чёрные параметры.</p>';
+      + `<div class="bm-row"><span>Удар</span><b>${A.ranged ? `дальний · ${Math.round(A.atk.range)} px` : `ближний · дуга ${Math.round(((A.atk.arc || 0) * 180) / Math.PI)}° · ${Math.round(A.atk.range)} px`}</b></div>${A.staff ? `<div class="bm-row"><span>🪄 Посох</span><b>дальний по умолчанию · переключается на ближний</b></div>` : ''}<div class="bm-row" data-shots="${A.ranged ? A.shots || 1 : 1}"><span>Снарядов за выстрел</span><b>${A.ranged ? `${A.shots || 1}${(A.shots || 1) > 1 ? ` (посохи во 2/3 слоте, веер ${Math.round(Number(st.cfg?.staffSpread ?? 12))}°)` : ''}` : (A.shots || 1) > 1 ? `ближний — 1 удар (посохи стреляют только в дальнем)` : '—'}</b></div><div class="bm-row"><span>Навыки артефакта</span><b>${(A.skills || []).length}</b></div><div class="bm-row" data-elem="${esc(A.elem || 'fire')}"><span>Стихия</span><b>${(A.elems && A.elems.length > 1 ? A.elems : [A.elem || 'fire']).map(elBadge).join(' ')}${A.elems && A.elems.length > 1 ? ' <small class="mc-dim">(смешанное; удар — по лезвию)</small>' : ''}</b></div>` : '<p class="mc-dim">Выберите рукоять и лезвие — появятся чёрные параметры.</p>';
     const none = !this.owned('handle').length || !this.owned('blade').length;
     return `<div class="bmf-asm"><div><canvas class="bmf-cv" width="260" height="260"></canvas></div><div>
       <div class="bmf-slots">${slots}</div>
@@ -133,19 +142,19 @@ export class BmForgeWin {
     const a = this.meta.account, h = this.meta.hero; if (!a) return '';
     const worn = new Set(Object.values(h?.equip || {}));
     const arts = a.inv.filter(isArtItem);
-    if (!arts.length) return '<p class="mc-dim">Артефактов нет. Разбор даёт базовые осколки огня.</p>';
+    if (!arts.length) return '<p class="mc-dim">Артефактов нет. Разбор даёт осколки стихии артефакта (огонь 🔸 / лёд 🔹).</p>';
     const S = this.st?.salvage || { base: 10, per: 4 };
-    return `<p class="mc-dim">Разбор: ${S.base} 🔸 осколков огня + ${S.per} за каждую деталь сверх рукояти и лезвия. Надетый и закреплённый не разбираются.</p>` + arts.map((it) => { const d = ITEM_BY_ID[it.id]; const n = Object.keys(d?.art?.parts || {}).length; const q = S.base + Math.max(0, n - 2) * S.per;
+    return `<p class="mc-dim">Разбор: ${S.base} осколков стихии артефакта (🔸 огонь / 🔹 лёд) + ${S.per} за каждую деталь сверх рукояти и лезвия. Надетый и закреплённый не разбираются.</p>` + arts.map((it) => { const d = ITEM_BY_ID[it.id]; const n = Object.keys(d?.art?.parts || {}).length; const q = S.base + Math.max(0, n - 2) * S.per;
       const busy = worn.has(it.uid) || it.lk;
-      return `<div class="bmf-salv"><canvas width="44" height="44" data-parts="${esc(JSON.stringify(d?.art?.parts || {}))}"></canvas><div class="nm"><b>${esc(d?.name || 'Артефакт')}</b><br><small class="mc-dim">${n} дет. · ${worn.has(it.uid) ? 'в руке' : it.lk ? 'закреплён' : `→ ${q} 🔸`}</small></div>
+      return `<div class="bmf-salv"><canvas width="44" height="44" data-parts="${esc(JSON.stringify(d?.art?.parts || {}))}"></canvas><div class="nm"><b>${esc(d?.name || 'Артефакт')}</b><br><small class="mc-dim">${n} дет. · ${worn.has(it.uid) ? 'в руке' : it.lk ? 'закреплён' : `→ ${q} ${d?.art?.elem === 'ice' ? '🔹' : '🔸'}`}</small></div>
         <button class="bmf-btn sm ${this.confirm === it.uid ? '' : 'dark'}" data-f="salv" data-v="${esc(it.uid)}" ${busy ? 'disabled' : ''}>${this.confirm === it.uid ? 'Точно разобрать?' : 'Разобрать'}</button></div>`; }).join('');
   }
   render() {
     const st = this.st, tabs = [['parts', '📜 Детали'], ['asm', '⚒ Сборка'], ['salv', '🔸 Разбор']];
-    const res = st ? Object.entries(st.pieces).map(([k, n]) => `<div><span>${RESOURCES[k]?.icon || '📜'} ${esc((RESOURCES[k]?.name || k).replace('Кусочек чертежа: ', ''))}</span><b>${n}</b></div>`).join('') + `<div><span>🔸 Осколки огня</span><b>${st.shards}</b></div>` : '';
+    const res = st ? Object.entries(st.pieces).map(([k, n]) => `<div><span>${RESOURCES[k]?.icon || '📜'} ${esc((RESOURCES[k]?.name || k).replace('Кусочек чертежа: ', ''))}</span><b>${n}</b></div>`).join('') + (st.elems || BP_ELEMS).map((e) => `<div><span>${e === 'ice' ? '🔹 Осколки льда' : e === 'fire' ? '🔸 Осколки огня' : `◆ Осколки: ${esc(e)}`}</span><b>${st.shardsBy?.[e] ?? (e === 'fire' ? st.shards : 0)}</b></div>`).join('') : '';
     const body = this.tab === 'asm' ? this.rAsm() : this.tab === 'salv' ? this.rSalv() : this.rParts();
     const fl = this.done && Date.now() - this.done < 1500 ? 'bmf-done' : '';
-    this.el.innerHTML = `<div class="bmf-box ${fl}"><div class="bmf-hd"><b>🔥 Кузня Знахаря</b><span class="mc-dim">Альказак · чёрная магия огня</span><span class="sp"></span><button class="mc-book-x" data-f="x" title="Закрыть (Esc)">✕</button></div>
+    this.el.innerHTML = `<div class="bmf-box ${fl}"><div class="bmf-hd"><b>🔥❄ Кузня Знахаря</b><span class="mc-dim">Альказак · чёрная магия огня и льда</span><span class="sp"></span><button class="mc-book-x" data-f="x" title="Закрыть (Esc)">✕</button></div>
       <div class="bmf-tabs">${tabs.map(([k, n]) => `<button class="bmf-tab ${this.tab === k ? 'on' : ''}" data-f="tab" data-v="${k}">${n}</button>`).join('')}</div>
       <div class="bmf-bd"><aside class="bmf-npc"><div class="av">🧙</div><div class="say">«${esc(this.say)}»</div><div class="res"><div class="mc-dim">Кусочки чертежа</div>${res}</div></aside><section>${body}</section></div></div>`;
     const cv = this.el.querySelector('.bmf-cv');

@@ -1,7 +1,7 @@
 // «Чёрная магия», этап А — клиент: вкладка «Артефакты» (до 30 на аккаунт; видно, как обычные параметры глушатся,
 // а чёрные раскрываются), Библиотека «🔥 Навыки артефактов» и парящий огненный слой-заглушка у руки героя.
 // Все числа — из снимка сервера (hero.effective.bm/art, bma) и карточек предметов (card.art); клиент ничего не считает в бою.
-import { BM_KEYS, BM_NAMES, BM_PARTS } from '../../../../../server/meta/blackArt.ts';
+import { BM_KEYS, BM_NAMES, BM_PARTS, BP_ELEM_NAMES, ELEM_COLOR } from '../../../../../server/meta/blackArt.ts';
 import { ABILITIES_DEF, SLOT_ORDER, SLOTS } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
@@ -59,6 +59,9 @@ export { fmtBm };
 const ORD = { dmgMin: 'Урон (мин)', dmgMax: 'Урон (макс)', hp: 'Здоровье', armor: 'Броня', critPct: 'Крит, %', speedPct: 'Скорость, %', regen: 'Регенерация/с', cdrPct: 'Перезарядка −%', lifestealPct: 'Вампиризм, %', atkSpeedPct: 'Скорость атаки, %', dmgPct: 'Урон, %' };
 /** детали с сервера (правки админки, свои bpx_): заменить содержимое общего BM_PARTS (тот же объект — у всех импортёров) */
 export function setBmParts(o) { for (const k of Object.keys(BM_PARTS)) if (!o[k]) delete BM_PARTS[k]; for (const [k, v] of Object.entries(o)) if (v && typeof v === 'object') BM_PARTS[k] = v; }
+/** значок стихии (огонь/лёд/…): цвет — ELEM_COLOR; список — смешанное оружие */
+export const elTag = (el) => { el = el || 'fire'; const c = ELEM_COLOR[el] || '#e5e7eb'; return `<span class="bm-el" data-elem="${esc(el)}" style="color:${c};border:1px solid ${c};border-radius:4px;padding:0 4px;font-size:10px;font-weight:700;margin-left:4px">${el === 'ice' ? '❄' : el === 'fire' ? '🔥' : '◆'} ${esc(BP_ELEM_NAMES[el] || el)}</span>`; };
+const artEls = (A) => (A?.elems?.length > 1 ? A.elems : [A?.elem || 'fire']);
 export const isArtItem = (it) => !!(it && typeof it.id === 'string' && it.id.startsWith('art_'));
 
 /** Обычные параметры, которые даёт снаряжение (их глушит артефакт): сумма статов надетых предметов кроме самого артефакта. */
@@ -83,7 +86,7 @@ export function rArtifacts(book, st) {
   const cards = arts.map((it) => {
     const d = ITEM_BY_ID[it.id], A = d?.art;
     return `<button class="bm-card ${it.uid === selUid ? 'on' : ''} ${it.uid === handUid ? 'hand' : ''}" data-act="artsel" data-v="${it.uid}">
-      <b>${esc(d?.name || 'Артефакт')}</b><small>${A ? `${A.staff ? '🪄 посох' : A.ranged ? '🏹 дальний' : '🗡️ ближний'}${(A.shots || 1) > 1 ? ` ×${A.shots}` : ''} · 🔥 ${fmtBm('bdmg', A.stats.bdmg)} · 🎲 ${A.stats.bcrit}/100` : 'карточка загружается…'}</small></button>`;
+      <b>${esc(d?.name || 'Артефакт')}${A ? artEls(A).map(elTag).join('') : ''}</b><small>${A ? `${A.staff ? '🪄 посох' : A.ranged ? '🏹 дальний' : '🗡️ ближний'}${(A.shots || 1) > 1 ? ` ×${A.shots}` : ''} · 🔥 ${fmtBm('bdmg', A.stats.bdmg)} · 🎲 ${A.stats.bcrit}/100${A.stats.pfire ? ` · <span style="color:#ff8a2a">🔥 ${fmtBm('pfire', A.stats.pfire)}</span>` : ''}${A.stats.pice ? ` · <span style="color:#6cc8ff">❄ ${fmtBm('pice', A.stats.pice)}</span>` : ''}` : 'карточка загружается…'}</small></button>`;
   }).join('');
   const testBtns = book.canTestArt ? `<button class="mc-btn sm" data-act="bmtest" data-v="0" title="Только админ/локальная разработка">＋ тест: огненный (ближний)</button><button class="mc-btn sm" data-act="bmtest" data-v="1">＋ тест: огненный (дальний)</button><button class="mc-btn sm" data-act="bmtest" data-v="2">＋ тест: посох-жаровня</button>` : '';
   let detail = '<p class="mc-dim">Артефактов пока нет. Их собирают из частей чёрного оружия (этап Б). Выбрав артефакт, вы увидите, как обычные параметры глушатся, а чёрные — раскрываются.</p>';
@@ -93,7 +96,7 @@ export function rArtifacts(book, st) {
     const ord = ordinaryFromGear(st);
     const ordRows = Object.entries(ord).map(([k, v], i) => `<div class="bm-row" style="--i:${i}"><span>${esc(ORD[k] || k)}</span><b>+${Math.round(v * 10) / 10}</b></div>`).join('')
       || '<div class="bm-row" style="--i:0"><span class="mc-dim">Снаряжение не надето — глушить нечего</span></div>';
-    const blkRows = A ? BM_KEYS.map((k, i) => `<div class="bm-row" style="--i:${i}" title="${esc(BM_NAMES[k].hint)}"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('') : '';
+    const blkRows = A ? BM_KEYS.map((k, i) => `<div class="bm-row" style="--i:${i}${k === 'pfire' ? ';color:#ff8a2a' : k === 'pice' ? ';color:#6cc8ff' : ''}" title="${esc(BM_NAMES[k].hint)}"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('') : '';
     const parts = A ? Object.entries(A.parts || {}).map(([t, pid]) => `${BM_PARTS[pid]?.icon || '•'} ${esc(BM_PARTS[pid]?.name || pid)}`).join(' · ') : '';
     const nSk = A ? (A.skills || []).length : 0;
     const inHand = it.uid === handUid;
@@ -105,7 +108,7 @@ export function rArtifacts(book, st) {
       </div>
       ${A?.staff ? (() => { const E = st.hero?.effective?.art, melee = inHand && E?.mode === 'melee';
         return `<div class="bm-mode" data-mode="${melee ? 'melee' : 'ranged'}">🪄 Посох — режим удара: <button class="mc-btn sm ${!melee ? 'gold' : ''}" data-act="bmmode" data-v="0" ${inHand ? '' : 'disabled'}>🏹 дальний${(A.shots || 1) > 1 ? ` ×${A.shots}` : ''}</button><button class="mc-btn sm ${melee ? 'gold' : ''}" data-act="bmmode" data-v="1" ${inHand ? '' : 'disabled'}>🗡️ ближний</button>${inHand ? '' : ' <small class="mc-dim">(возьмите в руку)</small>'}</div>`; })() : ''}
-      ${A ? `<p class="mc-dim">Удар: ${A.ranged ? `дальний, ${Math.round(A.atk.range)} px${(A.shots || 1) > 1 ? `, снарядов: ${A.shots} (каждый — урон основного лезвия)` : ''}` : `ближний, ${Math.round(A.atk.range)} px`} · перезарядка ${A.cd} мс · зажмите атаку: полный заряд за ${A.stats.charge} с — удар ${fmtBm('force', A.stats.force || 0)}${A.stats.power ? `, размер ${fmtBm('power', A.stats.power)}` : ''}; отпустили раньше — обычный удар.<br>Части: ${parts}</p>
+      ${A ? `<p class="mc-dim">Удар: ${A.ranged ? `дальний, ${Math.round(A.atk.range)} px${(A.shots || 1) > 1 ? `, снарядов: ${A.shots} (каждый — урон основного лезвия)` : ''}` : `ближний, ${Math.round(A.atk.range)} px`} · перезарядка ${A.cd} мс · зажмите атаку: полный заряд за ${A.stats.charge} с — удар ${fmtBm('force', A.stats.force || 0)}${A.stats.power ? `, размер ${fmtBm('power', A.stats.power)}` : ''}; отпустили раньше — обычный удар.<br>Части: ${parts}<br>Стихия: ${artEls(A).map(elTag).join(' ')}${artEls(A).length > 1 ? ' — смешанное: снаряд и дуга — по стихии лезвия' : ''}</p>
       ${nSk ? `<p class="bm-sklink">🔥 Навыков артефакта: ${nSk} — <button class="mc-btn sm" data-act="codexart">Кодекс навыков → «Навыки артефактов»</button>, в слоты — <button class="mc-btn sm" data-act="tab" data-v="skills">«Навыки»</button>.</p>` : ''}` : ''}
       <div class="acts" style="margin-top:8px">${inHand ? `<button class="mc-btn" data-act="unequip" data-v="weapon">Убрать из руки</button>` : `<button class="mc-btn gold" data-act="equip" data-v="${it.uid}">🔥 Выбрать чёрную магию (взять в руку)</button>`}</div>`;
   }
@@ -118,8 +121,8 @@ export function rArtSkillLib() {
   bmCss();
   const list = ABILITIES_DEF.filter((d) => d.cls === 'artifact');
   return `<div class="bm-wrap"><p class="mc-dim">Навыки артефактов — общий список: их получают артефакты (от частей оружия), и админка может назначить их любому мобу. Урон — % от макс. ОЗ цели, мимо обычной брони.</p>
-    ${list.map((d) => `<div class="bm-skill"><i>${d.icon}</i><div><b>${esc(d.name)}</b> · перезарядка ${d.cd} с
-      <div class="f">урон: ${d.bm?.pct ?? 0}% + ${d.bm?.k ?? 0}×«Чёрный урон» от макс. ОЗ цели${(d.bm?.traits || []).length ? ' · ' + d.bm.traits.map((t) => t.k === 'burn' ? `поджог ${t.chance}%` : esc(t.k)).join(', ') : ''}</div>
+    ${list.map((d) => `<div class="bm-skill"><i>${d.icon}</i><div><b>${esc(d.name)}</b>${elTag(d.bm?.elem || (String(d.id).startsWith('bmi_') ? 'ice' : 'fire'))} · перезарядка ${d.cd} с
+      <div class="f">урон: ${d.bm?.pct ?? 0}% + ${d.bm?.k ?? 0}×«Чёрный урон» от макс. ОЗ цели${(d.bm?.traits || []).length ? ' · ' + d.bm.traits.map((t) => t.k === 'burn' ? `поджог ${t.chance}%` : t.k === 'slow' ? `замедление ${t.pct ?? ''}%` : esc(t.k)).join(', ') : ''}</div>
       <small>${esc(d.desc || '')}</small>${d.bm?.vfx ? `<div class="v">🎞 ${esc(d.bm.vfx)}</div>` : ''}</div></div>`).join('') || '<p class="mc-dim">Нет навыков.</p>'}</div>`;
 }
 
