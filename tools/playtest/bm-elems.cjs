@@ -31,7 +31,7 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
     window.__cap = (t) => { const e = document.getElementById('vcap'); if (e) { e.textContent = t; e.style.display = t ? 'block' : 'none'; } }; });
   const p = await ctx.newPage(); const errs = []; const fr = []; const ev = [];
   p.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 400)));
-  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_bmf|bm_forge|admin_result|"dev_mob"|chest_|bchest_state/.test(s)) fr.push(s.slice(0, 2500));
+  p.on('websocket', (ws) => ws.on('framereceived', (f) => { const s = String(f.payload); if (/toast|admin_bmm|admin_bmf|bm_forge|admin_result|"dev_mob"|chest_|bchest_state/.test(s)) fr.push(s.slice(0, 40000));
     if (/"k":"/.test(s)) { try { const o = JSON.parse(s), out = []; walk(o, out); const at = Date.now(); for (const e of out) if (e.k && /^(shx|proj|marc|shot|hit|dmg|fslash)$/.test(e.k) || e.pe || e.pi || e.pf || e.el) { if (ev.length < 30000) ev.push({ ...e, at }); } } catch {} } }));
   const G = (f, a) => p.evaluate(f, a);
   const T0 = Date.now(), marks = []; const mark = (n) => marks.push([n, (Date.now() - T0) / 1000]);
@@ -129,7 +129,8 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
       SHX[ty] = { shx: sx.map((e) => e.t), projEl: [...new Set(pr.map((e) => e.el || '-'))], projSt: [...new Set(pr.map((e) => e.st || '-'))] };
       const want = ty === 'pierce' ? null : ty === 'ricochet' ? 'ric' : ty;
       t(`снаряд «${ty}»: ${want ? 'событие shx ' + want : 'пробивает'} и цвет стихии`, (want ? sx.some((e) => e.t === want && e.el === EL) : pr.length > 0) && pr.some((e) => e.el === EL), SHX[ty]);
-      for (const m of MOB.slice(1, 2)) await kill(m);
+      for (let k = 0; k < 7 && (await blacks()).length; k++) { const q = (await blacks())[0]; if (!q) break; await G(([x, y]) => window.__game.debug.tp(x, y, true), [q.x - 80, q.y]); await sleep(250); await G((ty) => window.__game.debug.rawSend({ type: 'dev_grant', killNearAny: true, killType: ty }), q.type); await sleep(350); }
+      await G(([x, y]) => window.__game.debug.tp(x, y, true), P0); await sleep(700);
     }
     console.log('SHX', JSON.stringify(SHX));
   }
@@ -139,9 +140,12 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
     const speedOf = async (ty) => { const M0 = await me(); let m = null; for (let k = 0; k < 3 && !m; k++) { m = await spawn(ty, 330, 0, false); if (!m) await sleep(900); } const def = await G((ty) => { const d = window.__game.debug.mobDef(ty) || {}; return { spd: d.speed ?? d.spd, mv: d.move?.spd ?? null, dash: !!d.move?.dash, blink: !!d.move?.blink }; }, ty); if (!m) return { def }; const a = await byId(m.id); await sleep(1000); const c = await byId(m.id); await kill(ty); await sleep(400); return { def, px_s: a && c ? Math.round(Math.hypot(c.x - a.x, c.y - a.y)) : null }; };
     const SPEED = { [MOB[0]]: await speedOf(MOB[0]), [MOB[3]]: await speedOf(MOB[3]), golem: await speedOf('golem') }; console.log('SPEED', EL, JSON.stringify(SPEED));
     await clearNear(); await sleep(500);
-    const M = await me(); await openAdmin(); fr.length = 0;
+    const M = await me(); await openAdmin(); await sleep(1200); let sv = null;
+    for (let k = 0; k < 3 && !sv; k++) { fr.length = 0;
     await G(([x, y, el, M]) => window.__game.debug.send({ type: 'admin_bmm', op: 'save', kind: 'bmcamp', id: '', data: { name: `Лагерь (${el}, тест)`, world: 'arinar', x: Math.round(x + 360), y: Math.round(y), r: 120, mobs: [{ mob: M[0], n: 2 }, { mob: M[1], n: 2 }, { mob: M[2], n: 1 }], chief: M[3], respawnMin: 20, respawnMax: 25, loot: { drops: [{ res: `bp_${el}_blade`, chance: 100, qty: [1, 2] }, { res: `bp_${el}_crystal`, chance: 60, qty: [1, 1] }], chests: [{ t: 'rare', chance: 100 }] } } }), [M.x, M.y, EL, MOB]);
-    const sv = await waitFr(/"op":"save"/, 8000); t(`лагерь «${NM}» сохранён`, !!sv && sv.includes('"ok":true'), sv?.slice(0, 160));
+      sv = await waitFr(/"op":"save"/, 6000); if (!sv) await sleep(800); }
+    const campId = (sv || '').match(/"id":"([^"]+)","kind":"bmcamp"/)?.[1] || null;
+ t(`лагерь «${NM}» сохранён`, !!sv && sv.includes('"ok":true'), sv?.slice(0, 160));
     await G(() => window.__game.debug.closeAdmin()); await sleep(600);
     await cap(`${NM}: чёрный лагерь стихии`);
     let bm = []; for (let i = 0; i < 25; i++) { bm = await blacks(); if (bm.length >= 5) break; await sleep(700); }
@@ -165,6 +169,7 @@ const ART_NAME = { water: 'Клинок прилива', stone: 'Скол гор
     t('после лагеря: награда (кусочки/сундук) пришла', gained.length + seen.length + chf > 0, { gained, seen, chf });
     t(`кусочки только своей стихии (${EL})`, [...gained, ...seen].every((k) => k.startsWith(`bp_${EL}_`)), { gained, seen });
     const ch = chf, bags = seen.length;
+    if (campId) { await sleep(400); await G((id) => window.__game.debug.send({ type: 'admin_bmm', op: 'hide', kind: 'bmcamp', id, data: { hidden: true } }), campId); await sleep(700); } console.log('camp id', campId);
     fs.writeFileSync(`${OUT}/camp-${EL}.json`, JSON.stringify({ SPEED, gained, ch, bags }));
   }
   // ================= ADMIN =================
