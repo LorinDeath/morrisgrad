@@ -117,7 +117,7 @@ function lazySheet(sheet) {
 }
 /** заранее загрузить листы навыков: keys — ключи Художника (ember_whip…) или их части sk_*; без аргумента — ничего */
 export function preloadSkillFx(keys = []) {
-  for (const sh of Object.keys(META.sheets)) if (META.sheets[sh].lazy && keys.some((k) => sh.startsWith('bmsk_' + k.replace(/^sk_/, '')))) lazySheet(sh);
+  for (const sh of Object.keys(META.sheets)) if (META.sheets[sh].lazy && keys.some((k) => sh.startsWith('bmsk_' + k.replace(/^sk_/, '') + '_'))) lazySheet(sh);
 }
 export const skillFxLoaded = () => Object.keys(LAZY);
 if (typeof window !== 'undefined') window.__skillFxLoaded = skillFxLoaded; // для автотестов

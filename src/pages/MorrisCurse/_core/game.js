@@ -54,7 +54,7 @@ import { campTimersOn, campCfg } from './ui/campTimer.js';
 import { bossCfg } from './ui/bossSpawn.js';
 import { npcPos, npcUpdate, npcServer } from './meta/npcLive.js';
 import { ZoneView, mobScale, MOB_VIS } from './hub/zoneView.js';
-import { preloadSkills } from './engine/skillFx.js';
+import { preloadSkills, skillArt as skillArtOf } from './engine/skillFx.js';
 import { RESOURCES, RARITIES, ABILITY_BY_ID, HERO_NAMES, NPCS, MOB_INFO as ZONE_MOBS, WEAPON_TYPES, volleyDirs, abilitySlots, RUN_SKILL_BY_ID } from '../../../../server/meta/shared.ts';
 import { ITEM_BY_ID, addCards, iconHtml, card as cardOf, cardIds } from './meta/itemCards.js';
 import { QUEST_BY_ID } from '../../../../server/meta/quests.ts';
@@ -1419,7 +1419,7 @@ async function boot(canvasId, username, userId, api) {
   let _skPre = '';
   function updateActionBar() {
     const now = performance.now();
-    { const ids = (meta.hero?.effective?.abilities || []).map((a) => a.id), sg = ids.join(); if (sg !== _skPre) { _skPre = sg; preloadSkills(ids); } } // 🜏 листы навыков артефакта — заранее
+    { const ids = [...(meta.hero?.artAbilities || []), ...(meta.hero?.effective?.abilities || []).map((a) => a.id)], sg = ids.join(); if (sg !== _skPre) { _skPre = sg; preloadSkills(ids); } } // 🜏 листы навыков артефакта — заранее
     if (mode === 'run' && run) {
       const m = run.me;
       const list = (m.abilities || []).map((a, i) => ({ kind: 'ab', slot: i, id: a.id, key: ABAR_KEYS[i], name: a.name, desc: a.desc, rad: a.rad || 0, cdLeft: a.cdLeft, cdTotal: a.cd }));
@@ -2352,6 +2352,8 @@ async function boot(canvasId, username, userId, api) {
       vn: (who, emo = 'calm', text = '…') => dialog.playVN([{ who, emo, text }], { id: 'dbg', title: 'Сцена', chapter: '' }, [{ text: 'Уйти', cls: 'ghost', onClick: () => dialog.close() }]), // скриншоты VN-арта
       npcPos: (id) => npcPos(id), npcServer: (id) => npcServer(id), npcSpawn: (id) => NPCS[id] && { x: NPCS[id].x, y: NPCS[id].y }, nearestNpc: () => zone.nearestNpc(world, player.x, player.y)?.id || null,
       send: (m) => send(m), // тесты: dev_grant работает только при MC_DEV_TRUST_USERID=1 (локально)
+      skfSlot: (id) => skillArtOf(id)?.slot || null,
+      skf: () => ({ k: (zone.teles || []).filter((t) => t.kind === 'skf').map((t) => t.k), loaded: window.__skillFxLoaded?.() || null, spawned: zone.pax?.spawned || null }), // 🜏 анимации навыков (playtest)
       bm: () => zone.bmv?.debug() || null, target: () => hud.currentTarget, // Чёрный маг (hub/bmView.js): маг, купола, розы, земля
       overlay, runUI, zone,
       WEAPONS,
