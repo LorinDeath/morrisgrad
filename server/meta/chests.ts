@@ -81,7 +81,7 @@ export class Encounters {
 // Только мобы лагеря (m.camp) копят добычу; лагерь зачищен, когда КАЖДЫЙ его моб убит хотя бы раз за эту зачистку
 // (лагерные мобы возрождаются за ~45 с — «все мертвы одновременно» в большом лагере недостижимо). Тогда — ОДИН сундук
 // в центре лагеря, броски по СЫРЫМ шансам таблицы (без equipDropMult/matDropMult). Одиночки, бродяги, стража — мешки.
-export type CampRun = Encounter & { camp: number; killed: Set<number> };
+export type CampRun = Encounter & { camp: number; killed: Set<number>; bmc?: string }; // bmc — лагерь конструктора (BM_CAMPS id)
 export class CampRuns {
   map = new Map<string, CampRun>(); private seq = 1;
   key(world: string, camp: number) { return world + ":" + camp; }
@@ -93,7 +93,7 @@ export class CampRuns {
     const k = this.key(world, m.camp); let r = this.map.get(k);
     if (r && now - r.lastAt > CHEST.campIdleSec * 1000) { this.map.delete(k); r = undefined; }
     if (!r) { r = { id: this.seq++, camp: m.camp, killed: new Set(), world, watch: new Set(), dmg: new Map(), pkey: new Map(), kills: [], x: m.x, y: m.y, lastAt: now, startAt: now, anyBoss: false }; this.map.set(k, r); }
-    r.killed.add(m.id);
+    r.killed.add(m.id); if (m.bmc && !r.bmc) r.bmc = String(m.bmc);
     for (const [sid, d] of m.dmgBy as Map<string, number>) if (!sid.startsWith("mob:")) { r.dmg.set(sid, (r.dmg.get(sid) || 0) + d); const pk = pkeyOf(sid); if (pk) r.pkey.set(sid, pk); }
     r.lastAt = now; return r;
   }

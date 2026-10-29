@@ -5,7 +5,8 @@
 //  · bmcamp — лагерь: точка, радиус, состав [{mob, n}], вожак, возрождение от/до (с); таймеры — library_meta «bm_timers»
 //  · bmmcfg — общие настройки (всё правится в админке, game_overrides; старые сейвы не затронуты — новых полей у игрока нет)
 // Снятие с публикации — hidden:1 (никогда не удаление: живые мобы и записи бестиария остаются целы).
-import { ZONE_MOBS, MONSTER_LOOT } from "./defs";
+import { ZONE_MOBS, MONSTER_LOOT, ITEM_BY_ID } from "./defs";
+import { BC_TIERS } from "./boardChestCfg";
 import { RESOURCES } from "./shared";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, ALL_ELEMS, PURE_KEYS, ELEM_COLOR, pieceId, shardId, elemOf, CUSTOM_BP, BMA_CFG, ARC_MAX, isStaff, staffMuzzles } from "./blackArt";
 import { mobXp, tierOf } from "./balance";
@@ -82,6 +83,11 @@ export function makeBody(id: string, slot: string): BmBody {
 }
 
 export interface BmDrop { res: string; chance: number; qty: [number, number] }
+export interface BmGear { item: string; chance: number }
+/** сундук наград (окно «🎁 Сундуки»): ярус BC_TIERS, шанс %, шанс проклятого %, уровень (0 — по мобу) */
+export interface BmChestDrop { t: string; chance: number; c?: number; L?: number }
+/** добыча лагеря/логова целиком (сверх бросков его мобов): кусочки/ресурсы, снаряжение, сундуки наград — каждому получателю сундука лагеря */
+export interface BmCampLoot { drops?: BmDrop[]; gear?: BmGear[]; chests?: BmChestDrop[] }
 export interface BmMob {
   id: string; name: string; desc?: string; cls: string; lvl: number;
   hp: number; dmg: number; armor: number; speed: number; aggro: number; radius: number; xp: number;
@@ -89,7 +95,8 @@ export interface BmMob {
   weapon: Partial<Record<string, string>>;   // детали кузни (handle/blade/…) — пусто: без оружия
   artId?: string;                            // артефакт игрока в руке (art_…): тогда детали — из него
   cursed?: boolean; ench?: number;           // всегда проклятый / ярус зачарования (0 — по броску мира)
-  scale: number; drops: BmDrop[]; gear?: { item: string; chance: number }[]; hidden?: boolean;
+  scale: number; drops: BmDrop[]; gear?: BmGear[]; hidden?: boolean;
+  chests?: BmChestDrop[];                    // ЭТАП 2: сундуки наград (ярус, шанс %, проклятый %) — убийце/владельцу мешка, в окно «🎁 Сундуки»
   elem?: string;                             // ICE: стихия моба (нет — по лезвию/торсу); ледяные кусочки падают только с ледяных
   move?: BmMove;                             // ЭТАП 2: движение (скорость ×, рывки, телепорт, послеобразы); нет — как раньше
 }
@@ -192,10 +199,27 @@ for (const [id, name, cls, lvl, body, weapon, drops] of BUILTIN) {
 }
 
 export interface BmCampMob { mob: string; n: number }
-export interface BmCamp { id: string; name: string; world: string; x: number; y: number; r: number; mobs: BmCampMob[]; chief: string; respawnMin: number; respawnMax: number; hidden?: boolean; lair?: boolean }
+export interface BmCamp { id: string; name: string; world: string; x: number; y: number; r: number; mobs: BmCampMob[]; chief: string; respawnMin: number; respawnMax: number; hidden?: boolean; lair?: boolean; loot?: BmCampLoot }
 export const CUSTOM_BC = /^bcx_[a-z0-9_]{2,32}$/;
 export const BM_CAMPS: Record<string, BmCamp> = {};
 export function makeCamp(id: string): BmCamp { return { id, name: "Лагерь чёрных", world: "arinar", x: 0, y: 0, r: 160, mobs: [], chief: "", respawnMin: 60, respawnMax: 120 }; }
+
+/** ЭТАП 2: встроенные лагерь + логово на стихию (вода/камень/природа/молния). По умолчанию скрыты — включает админка («👹 Лагеря»: снять «скрыт»),
+ *  так что выкладка ничего не меняет в мире сама. Добыча лагеря — только кусочки своей стихии + сундуки наград; логово — вожак и ярус сундука выше. */
+export const BM_CAMP_BUILTIN = new Set<string>();
+{ const P: [number, number][] = [[32640, 24000], [16220, 31141], [25067, 11566], [32795, 35402], [7919, 21219], [39343, 14136], [18879, 43499], [19966, 16359]];
+  const NM: Record<string, [string, string]> = { water: ["Лагерь прилива", "Логово глубин"], stone: ["Лагерь сколов", "Логово горы"], nature: ["Лагерь терний", "Логово корней"], lightning: ["Лагерь бури", "Логово грома"] };
+  const ID: Record<string, string[]> = { water: ["tide_warden", "spray_archer", "deep_seer", "drowned_brute"], stone: ["rock_warden", "shard_archer", "mount_seer", "cliff_brute"], nature: ["thorn_warden", "burr_archer", "trap_seer", "root_brute"], lightning: ["storm_warden", "volt_archer", "tempest_seer", "thunder_brute"] };
+  const TIER: Record<string, [string, string]> = { water: ["uncommon", "rare"], stone: ["uncommon", "rare"], nature: ["rare", "strange"], lightning: ["rare", "strange"] };
+  let k = 0;
+  for (const el of ["water", "stone", "nature", "lightning"]) { const i = ID[el].map((x) => "bmx_" + x);
+    for (const lair of [false, true]) { const [x, y] = P[k++], id = `bc_${el}${lair ? "_lair" : ""}`;
+      const c = makeCamp(id); Object.assign(c, { name: NM[el][lair ? 1 : 0], world: "arinar", x, y, r: lair ? 220 : 170, hidden: true, lair: lair || undefined,
+        mobs: lair ? [{ mob: i[0], n: 2 }, { mob: i[1], n: 2 }, { mob: i[2], n: 1 }] : [{ mob: i[0], n: 2 }, { mob: i[1], n: 2 }],
+        chief: lair ? i[3] : "", respawnMin: lair ? 240 : 90, respawnMax: lair ? 420 : 180,
+        loot: { drops: lair ? [{ res: pieceId(el, "crystal"), chance: 60, qty: [1, 2] }, { res: pieceId(el, "blade3"), chance: 40, qty: [1, 1] }, { res: shardId(el), chance: 50, qty: [1, 3] }] : [{ res: pieceId(el, "handle"), chance: 50, qty: [1, 2] }, { res: pieceId(el, "blade"), chance: 30, qty: [1, 1] }],
+          chests: [{ t: TIER[el][lair ? 1 : 0], chance: lair ? 100 : 35, ...(lair ? { c: 10 } : {}) }] } });
+      BM_CAMPS[id] = c; BM_CAMP_BUILTIN.add(id); } } }
 
 // ---------- проверки ----------
 const okRes = (r: string) => !!(RESOURCES as any)[r];
@@ -204,6 +228,47 @@ export function cleanDrops(v: any): BmDrop[] | string {
   const out: BmDrop[] = [];
   for (const d of v) { const c = Number(d?.chance), a = Math.round(Number(d?.qty?.[0] ?? 1)), b = Math.round(Number(d?.qty?.[1] ?? a));
     if (!okRes(String(d?.res))) return `нет ресурса ${d?.res}`; if (!(c >= 0 && c <= 100) || !(a >= 1 && b >= a && b <= 99)) return "дроп: шанс 0…100, кол-во 1…99"; out.push({ res: String(d.res), chance: c, qty: [a, b] }); }
+  return out;
+}
+export function cleanGear(v: any): BmGear[] | string {
+  if (!Array.isArray(v) || v.length > 12) return "снаряжение: список до 12";
+  const out: BmGear[] = [];
+  for (const g of v) { const id = String(g?.item || ""), c = Number(g?.chance); if (!(ITEM_BY_ID as any)[id]) return `нет предмета ${id}`; if (!(c >= 0 && c <= 100)) return "снаряжение: шанс 0…100"; out.push({ item: id, chance: c }); }
+  return out;
+}
+export function cleanChests(v: any): BmChestDrop[] | string {
+  if (!Array.isArray(v) || v.length > 6) return "сундуки: список до 6";
+  const out: BmChestDrop[] = [];
+  for (const x of v) { const t = String(x?.t || ""), c = Number(x?.chance), cu = Number(x?.c ?? 0), L = Math.round(Number(x?.L ?? 0));
+    if (!(BC_TIERS as readonly string[]).includes(t)) return `сундук: нет яруса ${t}`; if (!(c >= 0 && c <= 100)) return "сундук: шанс 0…100"; if (!(cu >= 0 && cu <= 100)) return "сундук: проклятый 0…100 %"; if (!(L >= 0 && L <= 25)) return "сундук: уровень 0…25 (0 — по мобу)";
+    out.push({ t, chance: c, ...(cu ? { c: cu } : {}), ...(L ? { L } : {}) }); }
+  return out;
+}
+/** стихии лагеря: стихии его мобов и вожака (обычные мобы — без стихии) */
+export function campElems(c: BmCamp, items?: Record<string, any>): Set<string> {
+  const s = new Set<string>(); for (const id of [...(c.mobs || []).map((x) => x.mob), c.chief]) { const m = id && BM_MOBS[id]; if (m) s.add(mobElem(m, items)); } return s;
+}
+/** добыча лагеря: кусочки стихии — только если в лагере есть мобы этой стихии (лагерь без чёрных — без кусочков вовсе) */
+export function cleanCampLoot(v: any, c?: BmCamp): BmCampLoot | string {
+  if (v == null || v === "") return {}; if (typeof v !== "object" || Array.isArray(v)) return "добыча лагеря: объект {drops, gear, chests}";
+  const o: BmCampLoot = {};
+  if (v.drops !== undefined) { const d = cleanDrops(v.drops); if (typeof d === "string") return d; o.drops = d; }
+  if (v.gear !== undefined) { const g = cleanGear(v.gear); if (typeof g === "string") return g; o.gear = g; }
+  if (v.chests !== undefined) { const h = cleanChests(v.chests); if (typeof h === "string") return h; o.chests = h; }
+  if (c && o.drops?.length) { const els = campElems(c); for (const d of o.drops) { const re = resElem(d.res); if (re && !els.has(re)) return `${d.res}: кусочки стихии «${re}» — только из лагеря с мобами этой стихии`; } }
+  return o;
+}
+/** бросок сундуков наград (сервер, cryptoRand): список [ярус, проклятый?, уровень] */
+export function rollBmChests(list: BmChestDrop[] | undefined, lvl: number, rnd: () => number, mul = 1): { t: string; cur: boolean; L: number }[] {
+  const out: { t: string; cur: boolean; L: number }[] = [];
+  for (const x of list || []) if (rnd() * 100 < Math.min(100, x.chance * mul)) out.push({ t: x.t, cur: !!x.c && rnd() * 100 < x.c, L: Math.max(1, Math.min(25, x.L || lvl || 1)) });
+  return out;
+}
+/** бросок добычи лагеря (ресурсы/кусочки и снаряжение — по сырым шансам) */
+export function rollCampLoot(l: BmCampLoot | undefined, rnd: () => number): { items: string[]; res: Record<string, number> } {
+  const out = { items: [] as string[], res: {} as Record<string, number> }; if (!l) return out;
+  for (const g of l.gear || []) if (rnd() * 100 < g.chance) out.items.push(g.item);
+  for (const d of l.drops || []) if (rnd() * 100 < d.chance) out.res[d.res] = (out.res[d.res] || 0) + d.qty[0] + Math.floor(rnd() * (d.qty[1] - d.qty[0] + 1));
   return out;
 }
 export function cleanCampMobs(v: any): BmCampMob[] | string {
@@ -223,6 +288,9 @@ export function mobErr(m: BmMob): string | null {
   if (m.artId && !/^art_[0-9a-f]{12}$/.test(m.artId)) return "артефакт: id вида art_…";
   if (m.elem && !BP_ELEMS.includes(m.elem)) return "стихия: из списка";
   { const el = mobElem(m); for (const d of m.drops || []) { const re = resElem(d.res); if (re && re !== el && (BMM_CFG.strictElemDrops !== false || re !== "fire")) return `${d.res}: кусочки этой стихии падают только с мобов стихии «${re}» (у моба — «${el}»)`; } }
+  if (m.gear !== undefined) { const g = cleanGear(m.gear); if (typeof g === "string") return g; }
+  if (m.chests !== undefined) { const h = cleanChests(m.chests); if (typeof h === "string") return h; }
+  if (m.move !== undefined) { const v = cleanMove(m.move); if (typeof v === "string") return v; }
   if (!(BM_CLASSES as readonly string[]).includes(m.cls)) return "класс: из списка";
   return null;
 }
@@ -265,7 +333,7 @@ export function registerBlackMobs(items?: Record<string, any>) {
   for (const [id, m] of Object.entries(BM_MOBS)) {
     const f = mobFinal(m, items), role = f.ranged ? (m.cls === "mage" ? "caster" : "ranged") : CLASS_ROLE[m.cls] || "melee";
     const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
-      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: m.move && (m.move.dash || m.move.blink) ? m.move : undefined }; // bmMz — дула посохов (снаряды вылетают из них)
+      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: (() => { const mv = cleanMove(m.move); return mv && typeof mv === "object" && (mv.dash || mv.blink || mv.ghost) ? mv : undefined; })() }; // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));

@@ -1,4 +1,4 @@
-import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
+import { BMM_CFG, BM_BODY, BM_MOBS, BM_CAMPS, BODY_SLOTS, BM_CLASSES, CUSTOM_BB, CUSTOM_BM, CUSTOM_BC, makeBody, makeMob, makeCamp, cleanDrops, cleanCampMobs, cleanGear, cleanChests, cleanCampLoot, cleanMove, mobErr, registerBlackMobs, BM_BUILTIN, resElem } from "./blackMobs";
 import { ELEMENTS, BMA_CFG, BM_PARTS, BM_SKILL_IDS, BP_TYPES, BP_ELEMS, BP_ELEM_NAMES, PURE_KEYS, CUSTOM_BP, makeBpart } from "./blackArt";
 import { rsOptions, SKILL_REGISTRY } from "./rsAny";
 import { initZoneNames } from "./mapZones";
@@ -109,11 +109,14 @@ export const SCHEMA: Record<Kind, { name: string; fields: Field[]; traits?: bool
     { path: "artId", label: "Артефакт игрока в руке (art_…)", t: "text" },
     ...BODY_SLOTS.map((s) => ({ path: "body." + s, label: "Тело: " + s, t: "text" as const })),
     ...BP_TYPES.map((t) => ({ path: "weapon." + t, label: "Оружие: " + t, t: "text" as const })),
-    { path: "drops", label: "Дроп [{res, chance, qty:[a,b]}]", t: "text" }] },
+    { path: "drops", label: "Дроп [{res, chance, qty:[a,b]}]", t: "text" },
+    { path: "gear", label: "Снаряжение [{item, chance}]", t: "text" }, { path: "chests", label: "Сундуки наград [{t: ярус, chance, c: проклятый %, L: уровень}]", t: "text" },
+    { path: "move", label: "Движение {spd, dash:{cd,len,spd}, blink:{cd,range}, ghost}", t: "text" }] },
   bmcamp: { name: "Лагеря чёрных мобов", fields: [{ path: "name", label: "Название", t: "ltext" }, { path: "world", label: "Мир", t: "enum", opts: ["arinar", "hellfire"] },
     N("x", "X, px", -1e6, 1e6, "int"), N("y", "Y, px", -1e6, 1e6, "int"), N("r", "Радиус, px", 40, 1200, "int"), { path: "chief", label: "Вожак (вид моба)", t: "text" },
     N("respawnMin", "Возрождение от, с", 5, 86400, "int"), N("respawnMax", "Возрождение до, с", 5, 86400, "int"), { path: "lair", label: "Логово (одиночный сильный)", t: "bool" },
-    { path: "hidden", label: "Выключен", t: "bool" }, { path: "mobs", label: "Состав [{mob, n}]", t: "text" }] },
+    { path: "hidden", label: "Выключен", t: "bool" }, { path: "mobs", label: "Состав [{mob, n}]", t: "text" },
+    { path: "loot", label: "Добыча лагеря {drops, gear, chests} — сверх мобов, в сундук зачистки", t: "text" }] },
   bmmcfg: { name: "Чёрные мобы: настройки", fields: [{ path: "on", label: "Чёрные мобы и лагеря в мире", t: "bool" },
     N("fightNearTiles", "Драка с обычными мобами: игрок ближе, клеток", 0, 64, "int"), N("maxCampMobs", "Мобов в лагере, макс.", 1, 200, "int"), { path: "strictElemDrops", label: "Кусочки стихии — только с мобов этой стихии (ледяные мобы — только ледяные)", t: "bool" }, N("maxCamps", "Лагерей, макс.", 0, 500, "int"),
     N("maxCustomMobs", "Своих мобов, макс.", 0, 2000, "int"), N("maxCustomBody", "Своих частей тела, макс.", 0, 3000, "int"), N("mobVis", "Масштаб листа в мире", 0.1, 3),
@@ -682,6 +685,10 @@ function validateBm(kind: string, id: string, patch: any): any | string {
     const P = K.T[id], rest: any = {}, out: any = {};
     for (const [k, v] of Object.entries(patch)) {
       if (kind === "bmmob" && k === "drops") { const d = cleanDrops(v); if (typeof d === "string") return d; out.drops = d; }
+      else if (kind === "bmmob" && k === "gear") { const d = cleanGear(v); if (typeof d === "string") return d; out.gear = d; }
+      else if (kind === "bmmob" && k === "chests") { const d = cleanChests(v); if (typeof d === "string") return d; out.chests = d; }
+      else if (kind === "bmmob" && k === "move") { const d = cleanMove(v); if (typeof d === "string") return d; out.move = d || {}; }
+      else if (kind === "bmcamp" && k === "loot") { const c = { ...P, ...(patch.mobs ? { mobs: patch.mobs } : {}), ...(patch.chief !== undefined ? { chief: patch.chief } : {}) }; const d = cleanCampLoot(v, c); if (typeof d === "string") return d; out.loot = d; }
       else if (kind === "bmcamp" && k === "mobs") { const d = cleanCampMobs(v); if (typeof d === "string") return d; out.mobs = d; }
       else if (kind === "bmmob" && (k.startsWith("body.") || k.startsWith("weapon.") || k === "artId")) { const t = String(v ?? "").trim(); if (!/^[A-Za-z0-9_]{0,48}$/.test(t)) return `${k}: латиница`; out[k] = t; }
       else if (kind === "bmcamp" && k === "chief") { const t = String(v ?? "").trim(); if (t && !ZONE_MOBS[t] && !BM_MOBS[t]) return `вожак: нет моба ${t}`; out.chief = t; }

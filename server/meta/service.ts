@@ -22,7 +22,7 @@ import { BMA_CFG, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureS
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
-import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, mobElem } from "./blackMobs";
+import { BM_MOBS, BM_BODY, BM_CAMPS, BMM_CFG, BODY_SLOTS, BODY_SLOT_NAMES, BODY_REQ, BM_CLASSES, BM_CLASS_NAMES, CUSTOM_BM, CUSTOM_BB, CUSTOM_BC, registerBlackMobs, isCustomBm, bmmClient, refStats, mobFinal, makeMob, mobElem, rollBmChests, rollCampLoot } from "./blackMobs";
 import { currentValues as ovValues, SCHEMA as OV_SCHEMA } from "./overrides";
 import { mobCategories } from "./bestiaryReg";
 import { enchDropMult, artModeKey } from "./profile";
@@ -58,7 +58,7 @@ import {
   craft, addItem, addRes, rollMonsterLoot, campRoll, gainXp, questEvent, questAvailable, acceptQuest, turnInQuest, questComplete, type Account, type Hero,
   questLockReason, questRefresh, questDoneNow, questChestSpec, questChestBranches, questChoose, blackenEquipped,
 } from "./profile";
-import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest } from "./boardChest";
+import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest, grantSpec } from "./boardChest";
 import { BCHEST, bchestPreview, specView } from "./boardChestCfg";
 import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, inArc, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
@@ -1701,6 +1701,7 @@ export class MetaService {
     if (enc) { enc.kills.push({ type: m.type, lootKey: MONSTER_LOOT[m.type] ? m.type : baseOf(m.type), elite: !!m.elite, cursed: !!m.cursed, ench: m.ench || 0, boss: !!d.boss || m.special === "boss", rare: !!d.rare, special: m.special || "", x: m.x, y: m.y }); if (d.boss) enc.anyBoss = true;
       for (const sid of recv.keys()) { const pk = this.ms.get(sid)?.pkey; if (pk && !enc.pkey.has(sid)) enc.pkey.set(sid, pk); } // отряд рядом
       if (this.camps.cleared(enc, zone.mobs)) { const c = (zone.camps || []).find((x: any) => x.id === enc.camp); if (c) { enc.x = c.x; enc.y = c.y; } else { enc.x = m.x; enc.y = m.y; } this.finishCamp(enc); } }
+    { const bm = (d as any)?.black ? BM_MOBS[m.type] : null; if (bm?.chests?.length) this.grantBmChests(bagOwner, bm.chests, d.lvl || bm.lvl || 1, `bmmob:${m.type}`, m.elite ? 2 : 1); } // сундук наград с чёрного моба — владельцу мешка (один бросок на убийство; элита ×2)
     let split: Map<string, { items: string[]; res: Record<string, number> }> | null = null;
     for (const sid of recv.keys()) {
       const ms = this.ms.get(sid);
@@ -1813,6 +1814,17 @@ export class MetaService {
   // ---------- сундуки схватки ----------
   /** лагерь зачищен: ОДИН сундук в центре лагеря. Шансы — СЫРЫЕ из таблицы (без equipDropMult/matDropMult).
    * Проклятые мобы — прежние правила: обычные вещи/материалы × mobDropMult, проклятые копии — по CURSE.bossOnly и itemChanceMult. */
+  /** сундуки наград из конструктора (моб/лагерь): бросок на сервере, сундук — телу героя в окно «🎁 Сундуки» */
+  grantBmChests(sid: string, list: any[], lvl: number, src: string, mul = 1) {
+    const ms = this.ms.get(sid), en = this.sessionLookup?.(sid); if (!ms || !en) return 0;
+    const a = this.store.account(ms.pkey); if (!a?.hero) return 0;
+    const got = rollBmChests(list, lvl, cryptoRand, mul); if (!got.length) return 0;
+    const made = got.flatMap((g) => grantSpec(a, a.hero!, [{ t: g.t as any, n: 1, L: g.L, c: g.cur ? "yes" : undefined } as any], g.L, "black", src));
+    if (!made.length) return 0;
+    (ms as any).dirty = true;
+    this.send(en[0], { type: "toast", message: `🎁 Сундук наград: ${made.map((c) => ((BCHEST.tiers as any)[c.tier]?.name || c.tier) + (c.cur ? " (проклятый)" : "")).join(", ")}` });
+    this.send(en[0], this.bchestMsg(ms, a)); return made.length;
+  }
   finishCamp(e: CampRun) {
     this.camps.close(e);
     const groupOf = (sid: string) => { const p = this.party.get(sid); return p ? p.members.filter((x) => { const q = this.partyPos(x), me = this.partyPos(sid); return q && me && q.world === me.world && Math.hypot(q.x - e.x, q.y - e.y) < 1500; }) : [sid]; };
@@ -1822,13 +1834,16 @@ export class MetaService {
     // второй сундук — с шансом campSecondPct (независимый второй бросок по тем же убийствам), чуть в стороне
     const n = 1 + (cryptoRand() * 100 < CHEST.campSecondPct ? 1 : 0);
     let any = false;
+    const bc = e.bmc ? BM_CAMPS[e.bmc] : null; // лагерь конструктора: своя добыча (кусочки своей стихии, снаряжение) — в первый сундук каждому получателю; сундуки наград — в «🎁»
     for (let i = 0; i < n; i++) {
       const ents = rollChest(e, rec, groupOf, campRoll, cryptoRand);
+      if (bc?.loot && i === 0) for (const pk of new Set(rec.values())) { const r = rollCampLoot(bc.loot, cryptoRand); for (const it of r.items) ents.push({ o: pk, id: it, k: "item", n: 1 }); for (const [x, q] of Object.entries(r.res)) ents.push({ o: pk, id: x, k: "res", n: q }); }
       for (const en of ents) if (en.k === "item") { ST.inc("items_drop"); const t = parseTag(en.id); if (t.c) ST.inc("cursed_drop"); if (t.e) ST.inc("ench_drop"); }
       const c = this.chests.spawn(e.world, e.x + (i ? 70 : 0), e.y + (i ? 30 : 0), ents, `camp:${e.world}:${e.camp}`, kind, last.type, guardType, Date.now(), CHEST.campSpawnEmpty);
       if (!c) continue; any = true;
       for (const [sid, pk] of rec) { const en = this.sessionLookup?.(sid); const mine = c.entries.filter((x) => x.o === pk).length; if (en && (mine || c.keepEmpty)) this.send(en[0], { type: "chest_spawn", id: c.id, x: c.x, y: c.y, mine, kills: e.kills.length, second: i ? 1 : undefined }); }
     }
+    if (bc?.loot?.chests?.length) { const L = Math.max(1, ...e.kills.map((k) => (ZONE_MOBS as any)[k.type]?.lvl || 1)); for (const sid of rec.keys()) this.grantBmChests(sid, bc.loot.chests, L, `bmcamp:${e.bmc}`); }
     if (!any) for (const sid of rec.keys()) { const en = this.sessionLookup?.(sid); if (en) this.send(en[0], { type: "toast", message: "Лагерь зачищен — в этот раз без добычи" }); } // пустой сундук не ставим (campSpawnEmpty выкл)
   }
   /** 🎁 окно сундуков наград: список + карточки вещей внутри (клиент не знает таблиц предметов) */
