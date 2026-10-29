@@ -384,9 +384,12 @@ export class Minimap {
     // 5. Другие игроки (текущего мира; без поля world — считаем, что в нашем): единый цвет «союзник» — голубой с белым контуром,
     // чтобы не путать с мобами и собой (золотой)
     // 5a. Отряд: зелёные с белым контуром (позиции с сервера — видны и вне области видимости), стрелка у края, если далеко
-    const pset = new Set((party || []).map((m) => m.sid));
+    // в pset — только реально нарисованные союзники: если позиция отряда устарела (смена мира/зоны приходит с party_state
+    // раз в ~1 с) — союзник рисуется обычной точкой из players_state, а не пропадает совсем (hotfix-1029)
+    const pset = new Set();
     for (const m of party || []) {
-      if (m.world !== currentWorld || m.run) continue;
+      if (m.online === false || m.world !== currentWorld || m.run || !Number.isFinite(m.x) || !Number.isFinite(m.y)) continue;
+      pset.add(m.sid);
       this.stats.party = (this.stats.party || 0) + 1;
       let ox = cx + (m.x - player.x) * scale, oy = cy + (m.y - player.y) * scale;
       const out = ox < 4 || oy < 4 || ox > w - 4 || oy > h - 4;
