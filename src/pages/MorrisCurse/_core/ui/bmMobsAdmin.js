@@ -88,7 +88,9 @@ function mobs(ap, S, bd, sec) {
   const e = S.edit; let form = '<p class="mc-dim">Выберите моба слева или создайте нового (＋).</p>';
   if (e) {
     const d = e.data, B = L.body || [], P = L.parts || [];
-    const num = (k, lab, mn, mx, st = 1) => `<label>${esc(lab)}<input type="number" data-k="${k}" data-n="1" min="${mn}" max="${mx}" step="${st}" value="${d[k] ?? ''}"></label>`;
+    const itemName = (id) => (L.gear || []).find((g) => g.id === id)?.name || id, tierName = (t) => (L.tiers || []).find((x) => x.id === t)?.name || t;
+    const gv = (k) => k.split('.').reduce((o, x) => (o == null ? undefined : o[x]), d);
+    const num = (k, lab, mn, mx, st = 1, tip = '') => `<label${tip ? ` title="${esc(tip)}"` : ''}>${esc(lab)}<input type="number" data-k="${k}" data-n="1" min="${mn}" max="${mx}" step="${st}" value="${gv(k) ?? ''}"></label>`;
     const slotSel = (s) => `<label>${esc(L.slotNames?.[s] || s)}${(L.req || []).includes(s) ? ' *' : ''}<select data-k="body.${s}"><option value="">— нет —</option>${optsByEl(B.filter((b) => b.slot === s && (!b.hidden || d.body?.[s] === b.id)), d.body?.[s], (b) => `${b.name || b.id}${b.img ? '' : ' (заглушка)'}`)}</select></label>`;
     const wSel = (t) => `<label>${esc(BP_TYPE_NAMES[t] || t)}<select data-k="weapon.${t}" ${d.artId ? 'disabled' : ''}><option value="">— нет —</option>${optsByEl(P.filter((p) => p.type === t && (!p.hidden || d.weapon?.[t] === p.id)), d.weapon?.[t], (p) => p.name || p.id)}</select></label>`;
     const fin = L.mobs.find((m) => m.id === e.id)?.final;
@@ -108,6 +110,14 @@ function mobs(ap, S, bd, sec) {
       <div class="hd">Дроп</div>
       <div class="w"><table><tr><th>Ресурс</th><th>Шанс %</th><th>Кол-во</th><th></th></tr>${(d.drops || []).map((x, i) => `<tr><td>${esc(resName(x.res))}</td><td>${x.chance}</td><td>${x.qty?.[0]}–${x.qty?.[1]}</td><td><button class="b warn" data-dd="${i}">✕</button></td></tr>`).join('')}
         <tr><td><select class="dres">${(L.res || []).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></td><td><input class="dch" type="number" min="0" max="100" step="0.1" value="10" style="width:60px"></td><td><input class="dqa" type="number" min="1" max="99" value="1" style="width:40px">–<input class="dqb" type="number" min="1" max="99" value="1" style="width:40px"></td><td><button class="b" data-x="dadd">＋</button></td></tr></table></div>
+      <div class="hd">Снаряжение в дроп <small class="mc-dim">обычные вещи; шанс за убийство</small></div>
+      <div class="w"><table><tr><th>Вещь</th><th>Шанс %</th><th></th></tr>${(d.gear || []).map((x, i) => `<tr><td>${esc(itemName(x.item))}</td><td>${x.chance}</td><td><button class="b warn" data-gd="${i}">✕</button></td></tr>`).join('')}
+        <tr><td><select class="gitem">${(S.list.gear || []).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></td><td><input class="gch" type="number" min="0" max="100" step="0.1" value="5" style="width:60px"></td><td><button class="b" data-x="gadd">＋</button></td></tr></table></div>
+      <div class="hd">Сундуки наград <small class="mc-dim">ранг сундука доски; уходит владельцу добычи (элита — шанс ×2)</small></div>
+      <div class="w"><table><tr><th>Ранг</th><th>Шанс %</th><th>Проклятый %</th><th>Ур.</th><th></th></tr>${(d.chests || []).map((x, i) => `<tr><td>${esc(tierName(x.t))}</td><td>${x.chance}</td><td>${x.c || 0}</td><td>${x.L || 'моба'}</td><td><button class="b warn" data-cd="${i}">✕</button></td></tr>`).join('')}
+        <tr><td><select class="ct">${(S.list.tiers || []).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></td><td><input class="cch" type="number" min="0" max="100" step="0.1" value="10" style="width:60px"></td><td><input class="cc" type="number" min="0" max="100" value="0" style="width:50px"></td><td><input class="cl" type="number" min="0" max="25" value="0" style="width:40px" title="0 — уровень моба"></td><td><button class="b" data-x="cadd">＋</button></td></tr></table></div>
+      <div class="hd">Движение <small class="mc-dim">рывок к цели / отскок стрелка, телепорт, тени-послеобразы цвета стихии; пусто — нет</small></div>
+      ${num('move.spd', 'Скорость, ×', 0.2, 4, 0.05, 'множитель к итоговой скорости')}${num('move.dash.cd', 'Рывок: перезарядка, мс', 300, 60000, 100)}${num('move.dash.len', 'Рывок: длина, px', 20, 600)}${num('move.dash.spd', 'Рывок: скорость, px/с', 200, 4000, 50)}${num('move.blink.cd', 'Телепорт: перезарядка, мс', 500, 60000, 100)}${num('move.blink.range', 'Телепорт: дальность, px', 40, 800)}${num('move.ghost', 'Теней при рывке', 0, 8)}
     </div>
     ${fin ? `<div class="fin">Опубликовано, итог: ОЗ ${Math.round(fin.hp)} · урон ${(+fin.dmg).toFixed(1)} · броня ${Math.round(fin.armor)} · скорость ${Math.round(fin.speed)} · ${fin.ranged ? 'дальний бой' : 'ближний бой'}</div>` : ''}
     <div class="st ${S.stCls}">${esc(S.status)}</div>
@@ -134,6 +144,10 @@ function mobs(ap, S, bd, sec) {
   bd.querySelectorAll('[data-k]').forEach((el) => { el.oninput = () => onEdit(el); el.onchange = () => onEdit(el); });
   bd.querySelectorAll('[data-dd]').forEach((b) => (b.onclick = () => { e.data.drops.splice(Number(b.dataset.dd), 1); touch(true); }));
   bd.querySelector('[data-x="dadd"]').onclick = () => { const v = (s) => bd.querySelector(s).value; (e.data.drops ||= []).push({ res: v('.dres'), chance: Number(v('.dch')), qty: [Number(v('.dqa')), Math.max(Number(v('.dqa')), Number(v('.dqb')))] }); touch(true); };
+  bd.querySelectorAll('[data-gd]').forEach((b) => (b.onclick = () => { e.data.gear.splice(Number(b.dataset.gd), 1); touch(true); }));
+  bd.querySelectorAll('[data-cd]').forEach((b) => (b.onclick = () => { e.data.chests.splice(Number(b.dataset.cd), 1); touch(true); }));
+  bd.querySelector('[data-x="gadd"]').onclick = () => { const v = (s) => bd.querySelector(s).value; if (!v('.gitem')) return; (e.data.gear ||= []).push({ item: v('.gitem'), chance: Number(v('.gch')) }); touch(true); };
+  bd.querySelector('[data-x="cadd"]').onclick = () => { const v = (s) => bd.querySelector(s).value; const c = { t: v('.ct'), chance: Number(v('.cch')) }; if (Number(v('.cc'))) c.c = Number(v('.cc')); if (Number(v('.cl'))) c.L = Number(v('.cl')); (e.data.chests ||= []).push(c); touch(true); };
   bd.querySelector('[data-x="auto"]').onclick = () => ap.send({ type: 'admin_bmm', op: 'auto', lvl: Number(e.data.lvl) || 1 });
   bd.querySelector('[data-x="pub"]').onclick = () => { clearTimeout(S.dt); S.status = 'Публикация…'; S.stCls = ''; ap.send({ type: 'admin_bmm', op: 'publish', id: e.id, data: e.data }); };
   bd.querySelector('[data-x="discard"]').onclick = () => { if (!confirm('Отменить черновик? Опубликованный моб не изменится.')) return; clearTimeout(S.dt); ap.send({ type: 'admin_bmm', op: 'discard', id: e.id }); };
@@ -174,6 +188,15 @@ function camps(ap, S, bd, sec) {
       <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" data-c="hidden" ${e.hidden ? 'checked' : ''}> Выключен</label>
       <div class="w"><table><tr><th>Моб</th><th>Сколько</th><th></th></tr>${(e.mobs || []).map((x, i) => `<tr><td>${esc(mobsAll.find((m) => m.id === x.mob)?.name || x.mob)}</td><td>${x.n}</td><td><button class="b warn" data-cd="${i}">✕</button></td></tr>`).join('')}
         <tr><td><select class="cm">${mobOpt('')}</select></td><td><input class="cn" type="number" min="1" max="40" value="3" style="width:50px"></td><td><button class="b" data-x="cadd">＋</button></td></tr></table></div>
+      ${(() => { const lo = e.loot || {}, els = campEls(e), R = (L.res || []).filter((r) => !/^(bp_|bm_shard_)/.test(r.id) || els.some((el) => r.id.startsWith(`bp_${el}_`) || r.id === `bm_shard_${el}`)), rn = (id) => (L.res || []).find((r) => r.id === id)?.name || id;
+        const gn = (id) => (L.gear || []).find((g) => g.id === id)?.name || id, tn = (t) => (L.tiers || []).find((x) => x.id === t)?.name || t;
+        return `<div class="hd">Добыча лагеря <small class="mc-dim">в сундук лагеря каждому участнику; кусочки — только стихии мобов лагеря (${els.map(EL_ICON).join('') || '—'})</small></div>
+      <div class="w"><table><tr><th>Ресурс</th><th>Шанс %</th><th>Кол-во</th><th></th></tr>${(lo.drops || []).map((x, i) => `<tr><td>${esc(rn(x.res))}</td><td>${x.chance}</td><td>${x.qty?.[0]}–${x.qty?.[1]}</td><td><button class="b warn" data-ld="${i}">✕</button></td></tr>`).join('')}
+        <tr><td><select class="lres">${R.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></td><td><input class="lch" type="number" min="0" max="100" step="0.1" value="25" style="width:60px"></td><td><input class="lqa" type="number" min="1" max="99" value="1" style="width:40px">–<input class="lqb" type="number" min="1" max="99" value="2" style="width:40px"></td><td><button class="b" data-x="ldadd">＋</button></td></tr></table></div>
+      <div class="w"><table><tr><th>Снаряжение</th><th>Шанс %</th><th></th></tr>${(lo.gear || []).map((x, i) => `<tr><td>${esc(gn(x.item))}</td><td>${x.chance}</td><td><button class="b warn" data-lg="${i}">✕</button></td></tr>`).join('')}
+        <tr><td><select class="lgi">${(L.gear || []).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></td><td><input class="lgc" type="number" min="0" max="100" step="0.1" value="10" style="width:60px"></td><td><button class="b" data-x="lgadd">＋</button></td></tr></table></div>
+      <div class="w"><table><tr><th>Сундук наград</th><th>Шанс %</th><th>Проклятый %</th><th>Ур.</th><th></th></tr>${(lo.chests || []).map((x, i) => `<tr><td>${esc(tn(x.t))}</td><td>${x.chance}</td><td>${x.c || 0}</td><td>${x.L || 'по мобам'}</td><td><button class="b warn" data-lc="${i}">✕</button></td></tr>`).join('')}
+        <tr><td><select class="lct">${(L.tiers || []).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></td><td><input class="lcch" type="number" min="0" max="100" step="0.1" value="35" style="width:60px"></td><td><input class="lcc" type="number" min="0" max="100" value="0" style="width:50px"></td><td><input class="lcl" type="number" min="0" max="25" value="0" style="width:40px"></td><td><button class="b" data-x="lcadd">＋</button></td></tr></table></div>`; })()}
       <div class="w"><button class="b" data-x="here">📍 Поставить у меня</button> <button class="b pri" data-x="csave">💾 Сохранить лагерь</button> <span class="st ${S.cst || ''}">${esc(S.cstatus || '')}</span></div></div>` : ''}`;
   bindElFilter(ap, S, bd, sec);
   bd.querySelectorAll('[data-ce]').forEach((b) => (b.onclick = () => { const c = C.find((x) => x.id === b.dataset.ce); S.camp = clone(c); delete S.camp.live; delete S.camp.err; S.cstatus = ''; mountBmMobs(ap, sec); }));
@@ -183,6 +206,13 @@ function camps(ap, S, bd, sec) {
   bd.querySelectorAll('[data-c]').forEach((el) => (el.onchange = () => { const k = el.dataset.c; e[k] = el.type === 'checkbox' ? el.checked : el.dataset.n ? Number(el.value) : el.value; }));
   bd.querySelectorAll('[data-cd]').forEach((b) => (b.onclick = () => { e.mobs.splice(Number(b.dataset.cd), 1); mountBmMobs(ap, sec); }));
   bd.querySelector('[data-x="cadd"]').onclick = () => { const m = bd.querySelector('.cm').value, n = Number(bd.querySelector('.cn').value) || 1; (e.mobs ||= []).push({ mob: m, n }); mountBmMobs(ap, sec); };
+  const LO = () => (e.loot ||= {}), rr = () => mountBmMobs(ap, sec), q = (c) => bd.querySelector(c).value;
+  bd.querySelectorAll('[data-ld]').forEach((b) => (b.onclick = () => { LO().drops.splice(Number(b.dataset.ld), 1); rr(); }));
+  bd.querySelectorAll('[data-lg]').forEach((b) => (b.onclick = () => { LO().gear.splice(Number(b.dataset.lg), 1); rr(); }));
+  bd.querySelectorAll('[data-lc]').forEach((b) => (b.onclick = () => { LO().chests.splice(Number(b.dataset.lc), 1); rr(); }));
+  bd.querySelector('[data-x="ldadd"]').onclick = () => { if (!q('.lres')) return; const a = Number(q('.lqa')) || 1; (LO().drops ||= []).push({ res: q('.lres'), chance: Number(q('.lch')), qty: [a, Math.max(a, Number(q('.lqb')) || a)] }); rr(); };
+  bd.querySelector('[data-x="lgadd"]').onclick = () => { if (!q('.lgi')) return; (LO().gear ||= []).push({ item: q('.lgi'), chance: Number(q('.lgc')) }); rr(); };
+  bd.querySelector('[data-x="lcadd"]').onclick = () => { const c = { t: q('.lct'), chance: Number(q('.lcch')) }; if (Number(q('.lcc'))) c.c = Number(q('.lcc')); if (Number(q('.lcl'))) c.L = Number(q('.lcl')); (LO().chests ||= []).push(c); rr(); };
   bd.querySelector('[data-x="here"]').onclick = () => ap.send({ type: 'admin_bmm', op: 'here' });
   bd.querySelector('[data-x="csave"]').onclick = () => { const { id, ...data } = e; S.cstatus = 'Сохранение…'; S.cst = ''; ap.send({ type: 'admin_bmm', op: 'save', kind: 'bmcamp', id: id || '', data }); };
 }

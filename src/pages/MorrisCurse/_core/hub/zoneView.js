@@ -218,6 +218,12 @@ export class ZoneView {
         else if (e.fx === 'plague_puddle') this.pax.puddle(e.x, e.y, e.r, 1.6);
         else if (e.fx !== 'meteor' && e.fx !== 'spear_rain') this.pax.impact(e.fx, e.x, e.y, { k: Math.max(1, e.r / 50) }); // метеор/копья — своё падение
       }
+      else if (e.k === 'mmv') { // ЭТАП 2: рывок/телепорт чёрного моба — тени цвета стихии и шлейф; телепорт — сразу на месте
+        const o = this.mobs.get(e.id), hx = ELEM_COLOR[e.el] || '#ffffff', col = [1, 3, 5].map((j) => parseInt(hx.slice(j, j + 2), 16) / 255);
+        if (o && e.t === 'blink') { o.x = o.tx = e.x1; o.y = o.ty = e.y1; }
+        if (o) this.bmm.ghost(o, e, col);
+        const dx = e.x1 - e.x0, dy = e.y1 - e.y0, len = Math.hypot(dx, dy) || 1;
+        this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x0, y: e.y0, dx: dx / len, dy: dy / len, len, t: 0, life: e.t === 'blink' ? 0.25 : 0.35, col }); }
       else if (e.k === 'tele') { this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: 0, life: e.t || 0.55 }); this.teles.push({ kind: 'dash', fx: 'dash_trail', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, t: -(e.t || 0.55), life: 0.3, col: [1, 0.5, 0.45] }); } // рывок моба: телеграф, затем шлейф dash_trail
       else if (e.k === 'tele_line') this.teles.push({ kind: 'line', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, w: e.w, t: 0, life: e.t || 0.55 });
       else if (e.k === 'tele_ring') this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 });

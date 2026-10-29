@@ -7,7 +7,7 @@ import { BM_MOBS, BMM_CFG, BMM_VER } from '../../../../../server/meta/blackMobs.
 
 const PX_PER_M = 20;
 export class BmMobLayer {
-  constructor(THREE, root) { this.THREE = THREE; this.root = root; this.b = new Map(); this.tried = new Map(); this.dying = []; this.sig = ''; }
+  constructor(THREE, root) { this.THREE = THREE; this.root = root; this.b = new Map(); this.tried = new Map(); this.dying = []; this.ghosts = []; this.sig = ''; }
   /** правки конструктора: пересобрать листы изменённых типов */
   invalidate() { for (const [id, e] of this.b) { this.root.remove(e.batch.mesh); e.batch.dispose(); e.tex.dispose(); } this.b.clear(); this.tried.clear(); }
   batch(type) {
@@ -37,7 +37,16 @@ export class BmMobLayer {
     for (let i = this.dying.length - 1; i >= 0; i--) { const d = this.dying[i]; d.t += dt; const A = BANIM.die, life = A.n / A.fps + 0.25; if (d.t >= life) { this.dying.splice(i, 1); continue; }
       const e = this.batch(d.type); if (!e) continue; const f = A.off + Math.min(A.n - 1, Math.floor(d.t * A.fps));
       e.batch.push(toX(d.x), 0, toZ(d.y), d.h, f % MCOLS, Math.floor(f / MCOLS) + (d.flip ? MIRROR_ROW : 0), false, 1, 1, 1, 0, 1 - Math.max(0, d.t - life + 0.25) * 4); }
+    for (let i = this.ghosts.length - 1; i >= 0; i--) { const g = this.ghosts[i]; g.t += dt; if (g.t >= g.life) { this.ghosts.splice(i, 1); continue; } if (g.t < 0) continue;
+      const e = this.batch(g.type); if (!e) continue; const a = 0.55 * (1 - g.t / g.life);
+      e.batch.push(toX(g.x), 0, toZ(g.y), g.h, g.f % MCOLS, Math.floor(g.f / MCOLS) + (g.flip ? MIRROR_ROW : 0), false, g.col[0], g.col[1], g.col[2], 0.55, a); }
     for (const e of this.b.values()) e.batch.end();
+  }
+  /** ЭТАП 2: тени-послеобразы рывка/телепорта (событие mmv): n копий кадра вдоль пути, цвет стихии, тают; при рывке появляются по ходу движения */
+  ghost(o, e, col) {
+    const n = Math.max(0, Math.min(8, e.g | 0)); if (!n || !o || this.ghosts.length > 96) return;
+    const f = o.bmA ? BANIM[o.bmA].off : BANIM.walk.off, h = this.heightOf(o), dur = e.t === 'dash' ? (e.ms || 150) / 1000 : 0;
+    for (let i = 0; i < n; i++) { const k = (i + 1) / (n + 1); this.ghosts.push({ type: o.type, x: e.x0 + (e.x1 - e.x0) * k, y: e.y0 + (e.y1 - e.y0) * k, f, h, flip: !!o.flip, col, t: -dur * k, life: 0.32 + 0.05 * i }); }
   }
   die(o, e) { this.dying.push({ type: e.type, x: e.x, y: e.y, t: 0, flip: !!o?.flip, h: o ? this.heightOf(o) : this.heightOf({ type: e.type }) }); }
   dispose() { this.invalidate(); }

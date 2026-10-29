@@ -601,6 +601,7 @@ export class Zone {
     onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1);
     (m as any).bmFl = faceLeftOf(ux, (m as any).bmFl); (m as any).bmFt = now + 600; // смотрит на цель (клиенту — биты 26/27)
+    if (this.bmMoveStep(m, d, dist, ux, uy, A.kind === "proj" ? Math.min(A.range * 0.6, 220) : Math.max(d.radius + 10, A.range * 0.55), now, dt, A.kind === "proj")) return;
     if (A.kind === "proj") {
       const want = Math.min(A.range * 0.6, 220);
       if (dist > want) { m.x += ux * sp * dt; m.y += uy * sp * dt; this.solid(m); }
@@ -621,6 +622,34 @@ export class Zone {
       this.bmSwing(m, d, ux, uy, dmg, dmg, players, onHit, onKill);
       m.atkCd = Math.max(0.5, A.cd / 1000 * 1.5 * cdK);
     }
+  }
+  /** ЭТАП 2: движение конструктора (move: рывок / телепорт / шлейф). true — шаг занят рывком (без удара в этот тик).
+   *  Ближний: рывок/телепорт К цели, если она дальше желаемой; дальний: рывок вбок/назад, если цель вплотную, телепорт — отскок.
+   *  Клиенту — событие mmv {id, x0,y0,x1,y1, t: dash|blink, g: число теней, el} (рисует тени-послеобразы). Всё — BMM_CFG (админка). */
+  bmMoveStep(m: ZMob, d: any, dist: number, ux: number, uy: number, want: number, now: number, dt: number, ranged: boolean): boolean {
+    const mv = d.bmMove, X: any = m; if (!mv || BMM_CFG.moveOn === false) return false;
+    if (X.bmDashT > 0) { // идёт рывок
+      const st = Math.min(X.bmDashLeft, X.bmDashSpd * dt); X.bmDashLeft -= st; X.bmDashT -= dt; m.x = this.clamp(m.x + X.bmDashX * st); m.y = this.clamp(m.y + X.bmDashY * st); this.solid(m);
+      if (X.bmDashT <= 0 || X.bmDashLeft <= 0) X.bmDashT = 0;
+      return true;
+    }
+    const cdK = Math.max(0.1, Number(BMM_CFG.moveCdMul) || 1), far = dist > want + 40, near = ranged && dist < want - 60;
+    if (mv.blink && (X.bmBlinkAt || 0) <= now && ((!ranged && dist > want + 120 && dist < mv.blink.range * 2.2) || (near && dist < 90))) {
+      const x0 = Math.round(m.x), y0 = Math.round(m.y), r = Math.min(mv.blink.range, ranged ? mv.blink.range : Math.max(0, dist - want));
+      const sx = ranged ? -ux : ux, sy = ranged ? -uy : uy, side = (m.id % 2 ? 1 : -1) * (ranged ? 0.6 : 0.25); // отскок назад-вбок / за спину цели чуть сбоку
+      const nx = this.clamp(m.x + (sx - sy * side) * r), ny = this.clamp(m.y + (sy + sx * side) * r);
+      if (!this.safeAt(nx, ny, 0)) { m.x = nx; m.y = ny; this.solid(m); X.bmBlinkAt = now + mv.blink.cd * cdK; m.atkCd = Math.max(m.atkCd, 0.25);
+        this.events.push({ k: "mmv", id: m.id, x: Math.round(m.x), y: Math.round(m.y), x0, y0, x1: Math.round(m.x), y1: Math.round(m.y), t: "blink", g: mv.ghost || 0, el: d.elem || "fire" }); return true; }
+      X.bmBlinkAt = now + 800;
+    }
+    if (mv.dash && (X.bmDashAt || 0) <= now && (far && dist < mv.dash.len * 3 || near)) {
+      const len = Math.min(mv.dash.len, ranged ? mv.dash.len : Math.max(20, dist - want + 10));
+      const side = near ? (m.id % 2 ? 1 : -1) : 0; let dx = near ? -ux - uy * side : ux, dy = near ? -uy + ux * side : uy; const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
+      X.bmDashX = dx; X.bmDashY = dy; X.bmDashLeft = len; X.bmDashSpd = mv.dash.spd || 1000; X.bmDashT = len / X.bmDashSpd + 0.05; X.bmDx0 = Math.round(m.x); X.bmDy0 = Math.round(m.y);
+      X.bmDashAt = now + mv.dash.cd * cdK; const ex = Math.round(this.clamp(m.x + dx * len)), ey = Math.round(this.clamp(m.y + dy * len));
+      this.events.push({ k: "mmv", id: m.id, x: ex, y: ey, x0: X.bmDx0, y0: X.bmDy0, x1: ex, y1: ey, t: "dash", ms: Math.round(X.bmDashT * 1000), g: mv.ghost || 0, el: d.elem || "fire" }); return true;
+    }
+    return false;
   }
   /** чёрный моб в драке с мобом — то же оружие, что против игроков */
   bmMobFight(m: ZMob, d: any, t: ZMob, dist: number, ux: number, uy: number, dt: number, onKill: (m: ZMob) => void, mul: number): boolean {

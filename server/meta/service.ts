@@ -59,7 +59,7 @@ import {
   questLockReason, questRefresh, questDoneNow, questChestSpec, questChestBranches, questChoose, blackenEquipped,
 } from "./profile";
 import { chestsOf, chestList, chestOpen, chestTake, chestSalvage, chestEquip, grantChest, grantSpec } from "./boardChest";
-import { BCHEST, bchestPreview, specView } from "./boardChestCfg";
+import { BCHEST, BC_TIERS, bchestPreview, specView } from "./boardChestCfg";
 import { Zone, killHow, MOB_SKILLS, regSig, mobEffStats, enchMul, inArc, type ZPlayer } from "./zone";
 import { ProfileStore } from "./store";
 import { itemCard, mobDropView, mobStatView, SILHOUETTES, ITEM_INDEX } from "./library";
@@ -2285,7 +2285,9 @@ export class MetaService {
         if (db) { try { arts = ((await db.prepare("SELECT id, name, rarity FROM items WHERE id LIKE 'art\\_%' ESCAPE '\\' ORDER BY rowid DESC LIMIT 200").all()).results || []); } catch {} }
         const res = Object.entries(RESOURCES as any).slice(0, 600).map(([id, r]: any) => ({ id, name: r?.name || id }));
         const mobs = Object.keys(ZONE_MOBS).filter((id) => !(ZONE_MOBS as any)[id].black).slice(0, 600).map((id) => ({ id, name: (ZONE_MOBS as any)[id].name, lvl: (ZONE_MOBS as any)[id].lvl || 0 }));
-        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: nest(vals("bmmcfg", "main")), drafts, arts, res, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", elem: (BM_PARTS as any)[id].elem || "fire", hidden: !!(BM_PARTS as any)[id].hidden })) };
+        const tiers = BC_TIERS.map((t) => ({ id: t, name: (BCHEST.tiers as any)[t]?.name || t })); // ЭТАП 2: сундуки наград / снаряжение в дроп
+        const gear = (ITEMS as any[]).filter((i) => i && i.slot && !String(i.id).startsWith("art_")).slice(0, 900).map((i) => ({ id: i.id, name: i.name || i.id }));
+        return { ok: true, mobs: mobList(), body: bodyList(), camps: campList(), cfg: nest(vals("bmmcfg", "main")), drafts, arts, res, tiers, gear, normal: mobs, slots: BODY_SLOTS, slotNames: BODY_SLOT_NAMES, req: BODY_REQ, classes: BM_CLASSES, classNames: BM_CLASS_NAMES, bpTypes: BP_TYPES, parts: Object.keys(BM_PARTS).map((id) => ({ id, name: (BM_PARTS as any)[id].name, type: (BM_PARTS as any)[id].type, img: (BM_PARTS as any)[id].img || "", elem: (BM_PARTS as any)[id].elem || "fire", hidden: !!(BM_PARTS as any)[id].hidden })) };
       }
       case "auto": return { ok: true, stats: refStats(Number(msg.lvl) || 1) };
       case "here": return { ok: true, world: session.world || "hellfire", x: Math.round(session.x || 0), y: Math.round(session.y || 0) };

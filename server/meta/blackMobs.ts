@@ -28,6 +28,8 @@ export const BMM_CFG = {
   maxCamps: 30,             // лагерей всего
   maxCustomMobs: 200, maxCustomBody: 300,
   mobVis: 0.6,              // масштаб листа Художника в мире (лист 104 px ≈ 5.2 м; 0.6 → моб ≈ 2.3 м, как обычные крупные)
+  moveOn: true,             // ЭТАП 2: рывки/телепорты/тени из параметров движения моба (выкл — только ходьба)
+  moveCdMul: 1,             // множитель перезарядки рывков и телепортов всех чёрных мобов
   weaponDmgPct: 15,         // моб с оружием в руке: +% урона
   refMul: 1.35,             // «Авто по уровню»: × статов обычного моба того же уровня
   cls: { warrior: { hp: 1, dmg: 1, speed: 1 }, archer: { hp: 0.8, dmg: 0.9, speed: 1.05 }, mage: { hp: 0.75, dmg: 1.15, speed: 0.95 }, brute: { hp: 1.5, dmg: 0.85, speed: 0.85 } } as Record<string, { hp: number; dmg: number; speed: number }>,
@@ -102,7 +104,7 @@ export interface BmMob {
 }
 /** параметры движения чёрного моба (всё — в админке «Чёрные мобы» → «Движение»):
  *  spd — × скорости; dash — рывок к цели (кд мс, длина px, скорость px/с); blink — телепорт за спину/вбок (кд мс, дальность px);
- *  ghost — послеобразов при рывке/телепорте (0 — нет). Сервер шлёт событие bmmv, клиент рисует след и вспышку стихии. */
+ *  ghost — послеобразов при рывке/телепорте (0 — нет). Сервер шлёт событие mmv (не bm* — те идут виду Чёрного мага), клиент рисует след и вспышку стихии. */
 export interface BmMove { spd?: number; dash?: { cd: number; len: number; spd?: number }; blink?: { cd: number; range: number }; ghost?: number }
 export const ELEM_MOVE: Record<string, BmMove> = {
   lightning: { spd: 1.35, dash: { cd: 2200, len: 170, spd: 1400 }, blink: { cd: 5000, range: 220 }, ghost: 4 }, // молния: быстрые и острые
@@ -332,8 +334,9 @@ export const mobColor = (el: string) => (el === "fire" && ELEM_COLOR.fire === "#
 export function registerBlackMobs(items?: Record<string, any>) {
   for (const [id, m] of Object.entries(BM_MOBS)) {
     const f = mobFinal(m, items), role = f.ranged ? (m.cls === "mage" ? "caster" : "ranged") : CLASS_ROLE[m.cls] || "melee";
-    const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: f.speed, aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
-      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: (() => { const mv = cleanMove(m.move); return mv && typeof mv === "object" && (mv.dash || mv.blink || mv.ghost) ? mv : undefined; })() }; // bmMz — дула посохов (снаряды вылетают из них)
+    const mv0 = cleanMove(m.move), mv = mv0 && typeof mv0 === "object" ? mv0 : undefined;
+    const def: any = { name: m.name, hp: f.hp, dmg: f.dmg, armor: f.armor, speed: Math.round(f.speed * (mv?.spd || 1)), aggro: m.aggro, xp: m.xp, radius: m.radius, color: mobColor(mobElem(m, items)), lvl: m.lvl, tier: tierOf(m.lvl), role, size: m.scale >= 1.3 ? "l" : "m",
+      black: true, cat: "black", bmCls: m.cls, bmHidden: !!m.hidden, elem: mobElem(m, items), bmPure: mobPure(m, items) || undefined, bmAtk: mobAtk(f.weapon, f.ranged), bmMz: staffMuzzles(f.weapon).map(([x, y]) => [x * (m.scale || 1), y * (m.scale || 1)]), bmMove: mv && (mv.dash || mv.blink) ? mv : undefined }; // bmMz — дула посохов (снаряды вылетают из них)
     const cur: any = (ZONE_MOBS as any)[id]; if (cur) { for (const k of Object.keys(cur)) if (!(k in def) && k !== "skills") delete cur[k]; Object.assign(cur, def); } else (ZONE_MOBS as any)[id] = def;
     const L: any = (MONSTER_LOOT as any)[id] || ((MONSTER_LOOT as any)[id] = { gear: [], materials: [] });
     L.materials = (m.drops || []).map((d) => ({ ...d, qty: [...d.qty] })); L.gear = (m.gear || []).map((g) => ({ ...g }));
