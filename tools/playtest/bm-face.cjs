@@ -56,11 +56,11 @@ const ICE_RES = { bp_ice_handle: 40, bp_ice_blade: 60, bp_ice_blade2: 30, bp_ice
   await G(() => window.__game.debug.tp(30500, 24150, true)); await sleep(2500); await clearNear(); await sleep(500);
   const DIRS = { left: [180, 0], right: [-180, 0], up: [0, 160], down: [0, -160] }; // моб идёт к герою: справа → идёт влево
   const res = {};
-  for (const type of ['bmx_ash_warden', 'bmx_frost_warden', 'bmx_qa_mixed']) {
-    for (const [dir, [dx, dy]] of Object.entries(DIRS)) {
+  for (const type of (process.env.TYPES ? process.env.TYPES.split(',') : ['bmx_ash_warden', 'bmx_frost_warden', 'bmx_qa_mixed'])) {
+    for (const [dir, [dx, dy]] of Object.entries(DIRS).filter(([d]) => !process.env.ONLYDIR || process.env.ONLYDIR.split(',').includes(d))) {
       const M0 = await me(); await clearNear(); await sleep(300);
       const sp = await spawn(type, dx, dy, false); if (DBG) console.log('SP', JSON.stringify(sp), JSON.stringify(await G(() => window.__game.debug.zoneMobsFull().slice(0, 5))), JSON.stringify(await me())); if (!sp) { t(`спавн ${type}`, false); continue; }
-      let q = null; for (let i = 0; i < 14; i++) { await sleep(120); q = await G((id) => window.__game.debug.zoneMobsFull().find((m) => m.id === id), sp.id); if (q && q.bmA === 'walk') break; }
+      let q = null; for (let i = 0; i < 14; i++) { await sleep(120); q = await G((id) => window.__game.debug.zoneMobsFull().find((m) => m.id === id), sp.id); if (DBG) console.log('POLL', dir, i, JSON.stringify({ x: q?.x, flip: q?.flip, a: q?.bmA, f: q?.f })); if (q && q.bmA === 'walk') break; }
       await sleep(250); q = await G((id) => window.__game.debug.zoneMobsFull().find((m) => m.id === id), sp.id);
       await shot(`${PRE}-${type.replace('bmx_', '')}-walk-${dir}`);
       res[`${type}:${dir}`] = { flip: q?.flip, a: q?.bmA };
