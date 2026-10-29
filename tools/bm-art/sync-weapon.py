@@ -12,6 +12,12 @@ DST = os.path.join(ROOT, 'public/bm-art')
 FORCE_STAFF = {'blade_3', 'blade_3_ranged'}
 os.makedirs(os.path.join(DST, 'weapon'), exist_ok=True)
 idx, pts = {}, {}
+# ледяные листы (tools/bm-art/sync-ice.py, ключи ice_*) — сохранить
+_old = os.path.join(DST, 'weapon/index.json')
+if os.path.exists(_old): idx.update({k: v for k, v in json.load(open(_old)).items() if k.startswith('ice_')})
+try:
+    import re as _re; _t = open(os.path.join(ROOT, 'server/meta/bmWeaponPts.ts')).read(); pts.update({k: v for k, v in json.loads(_re.search(r'= (\{.*\});', _t, _re.S).group(1)).items() if k.startswith('ice_')})
+except Exception: pass
 for f in sorted(glob.glob(os.path.join(SRC, 'weapon/*.json'))):
     d = json.load(open(f)); k = d.get('key') or os.path.basename(f)[:-5]
     for n in (d.get('image') or k + '.png', d.get('glow') or k + '_glow.png'):
