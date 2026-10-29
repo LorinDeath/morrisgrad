@@ -2,6 +2,7 @@
 import { ITEM_BY_ID, ZONE_MOBS } from "./defs";
 import { Zone } from "./zone";
 import { BM_PARTS, BMA_CFG, shotOf, swingEv } from "./blackArt";
+import { forgeState } from "./blackForge";
 import { BM_MOBS, registerBlackMobs, mobAtk } from "./blackMobs";
 let P = 0, F = 0; const ok = (c: any, m: string) => { if (c) { P++; console.log("PASS " + m); } else { F++; console.log("FAIL " + m); } };
 registerBlackMobs(ITEM_BY_ID as any);
@@ -51,4 +52,5 @@ ok(!ricB || shotOf(ricB[1] as any)!.n === 5, "админка: число отс�
 ok(JSON.stringify(swingEv()) === "{}", "взмах: по умолчанию событие без лишних полей");
 C.swingTrail = 2; C.swingAirMs = 760; { const e = swingEv(); ok(e.stl === 1.6 && e.slf === 1, `взмах: длина и время из админки (${JSON.stringify(e)})`); } C.swingTrail = 1; C.swingAirMs = 260;
 C.bigSwing = false; ok(swingEv().stl === 0, "взмах: «Большой взмах» выкл — без ленты"); C.bigSwing = true;
+{ const fs: any = forgeState({ res: {}, bmParts: {} } as any, 30); const sh = fs.parts.filter((p: any) => p.shot); ok(sh.length >= 4 && sh.every((p: any) => p.ranged) && new Set(sh.map((p: any) => p.shot.t)).size === 4, `кузня: у дальних лезвий виден тип снаряда (${sh.length}, типов ${new Set(sh.map((p: any) => p.shot.t)).size})`); }
 console.log(`${P} PASS / ${F} FAIL`); if (F) process.exitCode = 1;
