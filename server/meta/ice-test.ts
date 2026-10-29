@@ -36,12 +36,13 @@ ok(iceDropMobs.length > 0 && iceDropMobs.every((m) => mobElem(m, ITEM_BY_ID as a
 { const fm = { ...BM_MOBS.bmx_ash_warden, drops: [{ res: pieceId("ice", "blade"), chance: 10, qty: [1, 1] as [number, number] }] };
   ok(!!mobErr(fm as any), "огненному мобу нельзя дать ледяной кусочек: " + mobErr(fm as any));
   ok(!!mobErr({ ...BM_MOBS.bmx_ash_warden, elem: "lava" } as any), "неизвестная стихия моба — отказ");
-  const mixed = { ...BM_MOBS.bmx_ash_warden, weapon: { handle: "fire_handle", blade: "ice_blade" } };
+  const mixed = { ...BM_MOBS.bmx_ash_warden, weapon: { handle: "fire_handle", blade: "ice_blade" }, drops: [] };
   ok(!mobErr(mixed as any) && mobElem(mixed as any) === "ice", "смешанный моб разрешён; стихия — по лезвию");
+  ok(!!mobErr({ ...mixed, drops: BM_MOBS.bmx_ash_warden.drops } as any), "смешанный (лёд по лезвию) с огненными кусочками — отказ: ледяные мобы — только ледяные");
   const mixedB = { ...BM_MOBS.bmx_frost_warden, body: { ...BM_MOBS.bmx_frost_warden.body, head: "fb_head_1" } };
   ok(!mobErr(mixedB as any), "смешанное тело (огонь + лёд) разрешено");
   const v = validatePatch("bmmob" as any, "bmx_frost_warden", { drops: [{ res: pieceId("fire", "blade"), chance: 5, qty: [1, 1] }] });
-  ok(typeof v === "object", "огненный кусочек на ледяном — можно (огонь как прежде)"); }
+  ok(typeof v === "string", "огненный кусочек на ледяном — нельзя (ледяные мобы — только ледяные кусочки)"); }
 ok((ZONE_MOBS as any).bmx_frost_warden?.elem === "ice" && (ZONE_MOBS as any).bmx_ash_warden?.elem !== "ice", "ZONE_MOBS: elem");
 ok((bmmClient(ITEM_BY_ID as any) as any).mobs.bmx_glacier_seer?.elem === "ice", "клиент: моб несёт elem");
 

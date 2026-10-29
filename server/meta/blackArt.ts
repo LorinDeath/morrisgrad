@@ -18,9 +18,25 @@ export const BM_NAMES: Record<keyof BmStats, { name: string; unit: string; icon:
   pfire: { name: "Чистый огненный урон", unit: "% ОЗ", icon: "🔥", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони (TZ.md §ICE)" },
   pice: { name: "Чистый ледяной урон", unit: "% ОЗ", icon: "❄", hint: "к каждому удару: этот % ВАШИХ макс. ОЗ сверху, мимо чёрной брони и предельной брони (TZ.md §ICE)" },
 };
-/** стихии чистого урона: стат → стихия */
-export const PURE_KEYS: Record<string, "pfire" | "pice"> = { fire: "pfire", ice: "pice" };
-export const ELEM_COLOR: Record<string, string> = { fire: "#ff8a2a", ice: "#6cc8ff" };
+/** 🜏 ОСЬ СТИХИЙ — единый реестр (данные, не код). Новая стихия = строка здесь + контент (детали/тела/кусочки/арт) + live:true.
+ *  live:false — стихия заготовлена (цвет, иконка, чистый стат, набор fx), но в игре ещё не участвует: нет деталей, кусочков, выбора в админке.
+ *  pure — ключ стата чистого урона (% ОЗ атакующего); fx — набор эффектов (снаряд, атлас навыков public/bm-art/<fx.skills>, вспышка). */
+export type ElemDef = { id: string; name: string; icon: string; color: string; pure: string; live: boolean; trait?: string;
+  fx: { proj: string; skills: string; hit: string } };
+export const ELEMENTS: ElemDef[] = [
+  { id: "fire", name: "Огонь", icon: "🔥", color: "#ff8a2a", pure: "pfire", live: true, fx: { proj: "fire_spark", skills: "fx/skills", hit: "ember" } },
+  { id: "ice", name: "Лёд", icon: "❄", color: "#6cc8ff", pure: "pice", live: true, trait: "замедление", fx: { proj: "ice_bolt", skills: "ice/fx/skills", hit: "frost" } },
+  { id: "water", name: "Вода", icon: "💧", color: "#3a8dff", pure: "pwater", live: false, fx: { proj: "ice_bolt", skills: "water/fx/skills", hit: "splash" } },
+  { id: "stone", name: "Камень", icon: "🪨", color: "#a08a6a", pure: "pstone", live: false, fx: { proj: "fire_spark", skills: "stone/fx/skills", hit: "dust" } },
+  { id: "nature", name: "Природа", icon: "🌿", color: "#5fd04a", pure: "pnature", live: false, trait: "острая и опасная", fx: { proj: "fire_spark", skills: "nature/fx/skills", hit: "thorn" } },
+  { id: "lightning", name: "Молния", icon: "⚡", color: "#ffe14a", pure: "plightning", live: false, trait: "острые и очень быстрые", fx: { proj: "fire_spark", skills: "lightning/fx/skills", hit: "spark" } },
+];
+export const ELEM_BY_ID: Record<string, ElemDef> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e]));
+/** все стихии оси (включая заготовленные) */
+export const ALL_ELEMS = ELEMENTS.map((e) => e.id);
+/** стихии чистого урона: стихия → стат (для всей оси) */
+export const PURE_KEYS: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.pure]));
+export const ELEM_COLOR: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.color]));
 export const bmZero = (): BmStats => ({ force: 0, power: 0, charge: 0, bdmg: 0, barm: 0, bcap: 0, bcrit: 0, pfire: 0, pice: 0 });
 
 /** Настройки чёрной магии (админка «🜏 Чёрная магия: настройки», kind bmagic/main). */
@@ -55,10 +71,10 @@ export const BMA_CFG = {
   salvagePerPart: 4,               //   + за каждую деталь сверх двух обязательных
   forgeCityOnly: true,             // кузня — только в Альказаке (рядом со Знахарем)
   maxCustomParts: 300,             // своих деталей из конструктора (bpx_*) не больше
-  caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100, pfire: 20, pice: 20 } as Record<string, number>,
+  caps: { force: 500, power: 200, charge: 0.3, bdmg: 5, barm: 100000, bcap: 1, bcrit: 100, ...Object.fromEntries(ELEMENTS.map((e) => [e.pure, 20])) } as Record<string, number>,
   // этап ICE: чистый урон стихий (pfire/pice) = % макс. ОЗ АТАКУЮЩЕГО, сверху остального урона (TZ.md §ICE)
-  pureMul: { fire: 1, ice: 1 } as Record<string, number>,                 // глобальный множитель по стихии
-  pureClassMul: { mob: 1, elite: 1, chief: 1, rare: 1, boss: 1, world: 1, player: 1 } as Record<string, number>, // по категории цели (как classMul у чёрного урона)
+  pureMul: Object.fromEntries(ELEMENTS.map((e) => [e.id, 1])) as Record<string, number>,                 // глобальный множитель по стихии
+  pureClassMul: { mob: 1, elite: 0.6, chief: 0.5, rare: 0.4, boss: 0.15, world: 0.05, player: 1 } as Record<string, number>, // по категории цели — по умолчанию те же множители, что classMul у чёрного урона (решение Алекса)
   pureSkill: 1,                    // навыки артефактов: множитель чистого урона за одно попадание навыка
   pureVsPlayer: 1,                 // по игрокам (PvP и чёрные мобы → игрок)
   pureMob: 1,                      // чёрные мобы: множитель их чистого урона (их ОЗ × сумма pfire/pice их частей)
@@ -93,9 +109,10 @@ export function isStaff(p: BmPart | null | undefined, slot?: string): boolean {
 export const BP_TYPES = ["handle", "blade", "blade2", "blade3", "crystal"] as const;
 export type BpType = typeof BP_TYPES[number];
 export const BP_TYPE_NAMES: Record<string, string> = { handle: "Рукоять", blade: "Лезвие", blade2: "Второе лезвие", blade3: "Третье лезвие", crystal: "Кристалл" };
-export const BP_ELEMS = ["fire", "ice"];
-export const BP_ELEM_NAMES: Record<string, string> = { fire: "Огонь", ice: "Лёд" };
-export const BP_ELEM_ICONS: Record<string, string> = { fire: "🔥", ice: "❄" };
+/** стихии в игре (live): детали, кусочки, мобы, выбор в админке. Порядок — как в реестре ELEMENTS */
+export const BP_ELEMS = ELEMENTS.filter((e) => e.live).map((e) => e.id);
+export const BP_ELEM_NAMES: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.name]));
+export const BP_ELEM_ICONS: Record<string, string> = Object.fromEntries(ELEMENTS.map((e) => [e.id, e.icon]));
 /** стихия: нет поля / неизвестная — огонь (старые сохранения) */
 export const elemOf = (e: any) => (BP_ELEMS.includes(e) ? e : "fire");
 /** кусочек чертежа (ресурс) для типа детали */
@@ -321,23 +338,37 @@ export function bmDefendEx(dmg: number, def: { barm: number; bcap: number }, max
 /** ЧИСТЫЙ урон стихий (TZ.md §ICE): X% макс. ОЗ АТАКУЮЩЕГО за удар, сверху остального урона.
  *  attMaxHp — макс. ОЗ атакующего; bm.pfire/pice — % (сумма частей/кристаллов этой стихии); cat — категория цели (mob/elite/…/player);
  *  vs — доп. множитель (pureVsPlayer / pureSkill / pureMob считает вызывающий). Возврат — по стихиям, целые ≥ 0. */
-export function bmPure(attMaxHp: number, bm: Partial<BmStats> | null | undefined, cat: string, vs = 1, crit = false): { fire: number; ice: number } {
-  const out = { fire: 0, ice: 0 };
+export type PureHit = { fire: number; ice: number; [el: string]: number };
+export function bmPure(attMaxHp: number, bm: Partial<BmStats> | Record<string, any> | null | undefined, cat: string, vs = 1, crit = false): PureHit {
+  const out: PureHit = { fire: 0, ice: 0 };
   if (!bm || !(attMaxHp > 0)) return out;
   const cm = BMA_CFG.pureClassMul[cat] ?? 1, cr = crit && BMA_CFG.pureCrit ? BMA_CFG.critMul : 1;
-  for (const el of ["fire", "ice"] as const) {
-    const pct = Math.min(Number(bm[PURE_KEYS[el]]) || 0, BMA_CFG.caps[PURE_KEYS[el]] ?? 1e9);
+  for (const el of ALL_ELEMS) {
+    const pct = Math.min(Number((bm as any)[PURE_KEYS[el]]) || 0, BMA_CFG.caps[PURE_KEYS[el]] ?? 1e9);
     if (pct > 0) out[el] = Math.round(attMaxHp * pct / 100 * (BMA_CFG.pureMul[el] ?? 1) * cm * vs * cr);
   }
   return out;
 }
 /** чистый урон по игроку с чёрной защитой: при BMA_CFG.pureArmor — тоже режется чёрной/предельной бронёй (без мин. урона) */
-export function pureVsDef(p: { fire: number; ice: number }, def: { barm: number; bcap: number } | null | undefined, maxHp: number) {
-  const s = p.fire + p.ice; if (!BMA_CFG.pureArmor || !def || s <= 0) return p;
+export function pureVsDef(p: PureHit, def: { barm: number; bcap: number } | null | undefined, maxHp: number): PureHit {
+  const s = pureSum(p); if (!BMA_CFG.pureArmor || !def || s <= 0) return p;
   let d = Math.max(0, s - Math.max(0, def.barm || 0)); if (def.bcap > 0) d = Math.min(d, Math.max(0, maxHp) * def.bcap / 100);
-  return { fire: Math.round(p.fire * d / s), ice: Math.round(p.ice * d / s) };
+  const o: PureHit = { fire: 0, ice: 0 }; for (const k of Object.keys(p)) o[k] = Math.round((p[k] || 0) * d / s); return o;
 }
-export const pureSum = (p: { fire: number; ice: number } | null | undefined) => (p ? (p.fire || 0) + (p.ice || 0) : 0);
+/** поля события удара: pf/pi (огонь/лёд, совместимость со старым клиентом) + pe {стихия: n} для прочих стихий оси */
+export function pureEvFields(p: Record<string, number> | null | undefined): any {
+  const o: any = {}; if (!p) return o;
+  for (const k of Object.keys(p)) { const n = Math.round(Number(p[k]) || 0); if (n <= 0) continue; if (k === "fire") o.pf = n; else if (k === "ice") o.pi = n; else (o.pe ||= {})[k] = n; }
+  return o;
+}
+/** клиент: [стихия, число][] из события удара (pf/pi/pe) — цифры каждой стихии своим цветом (ELEM_COLOR) */
+export function pureList(e: any): [string, number][] {
+  const L: [string, number][] = []; if (!e) return L;
+  if (e.pf > 0) L.push(["fire", e.pf]); if (e.pi > 0) L.push(["ice", e.pi]);
+  if (e.pe) for (const k of Object.keys(e.pe)) if (e.pe[k] > 0) L.push([k, e.pe[k]]);
+  return L;
+}
+export const pureSum = (p: Record<string, number> | null | undefined) => { let s = 0; if (p) for (const k of Object.keys(p)) s += Number(p[k]) || 0; return s; };
 /** % урона навыка артефакта: pct + k × чёрный урон */
 export const bmSkillPct = (cfg: { pct?: number; k?: number } | undefined, bdmg: number) => Math.max(0, (Number(cfg?.pct) || 0) + (Number(cfg?.k) || 0) * Math.max(0, bdmg));
 /** заряд по часам сервера: 1 — полный (держали ≥ «Скорость заряда»), иначе 0 (частичного бонуса нет).

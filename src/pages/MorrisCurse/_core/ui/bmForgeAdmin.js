@@ -1,7 +1,7 @@
 // Админка «🔥 Конструктор оружия» (чёрная магия, этап Б): детали оружия как заметки Obsidian —
 // черновик сохраняется сам (admin_bmf draft), «Опубликовать» — обычная правка bpart (аудит, версия, у всех сразу).
 // Вкладки: Детали (список + форма + живое превью) · Артефакты игроков (браузер, скрыть имя) · Дроп кусочков (шанс по мобам).
-import { BM_PARTS, BM_NAMES, BP_TYPE_NAMES, BP_ELEMS, BP_ELEM_NAMES } from '../../../../../server/meta/blackArt.ts';
+import { BM_PARTS, BM_NAMES, BP_TYPE_NAMES, BP_ELEMS, BP_ELEM_NAMES, BP_ELEM_ICONS } from '../../../../../server/meta/blackArt.ts';
 import { RESOURCES } from '../../../../../server/meta/shared.ts';
 import { esc } from './overlay.js';
 import { elTag } from './bmArtUi.js';
@@ -71,7 +71,7 @@ function parts(ap, S, bd, sec) {
   const byType = {}; for (const p of L.parts) (byType[p.type] ||= []).push(p);
   for (const [id, d] of drafts) if (!L.parts.some((p) => p.id === id)) (byType[d.data?.type || 'blade'] ||= []).push({ id, ...(d.data || {}), _new: true });
   const ef = S.elf || '', q = (S.pq || '').toLowerCase(), okP = (p) => (!ef || (p.elem || 'fire') === ef) && (!q || String(p.name || '').toLowerCase().includes(q) || String(p.id).includes(q));
-  const filt = `<div class="ef">${[['', 'Все'], ...BP_ELEMS.map((x) => [x, `${x === 'ice' ? '❄' : '🔥'} ${BP_ELEM_NAMES[x] || x}`])].map(([k, n]) => `<button class="b ${ef === k ? 'on' : ''}" data-ef="${esc(k)}">${esc(n)}</button>`).join('')}<input type="search" data-pq placeholder="поиск…" value="${esc(S.pq || '')}"></div>`;
+  const filt = `<div class="ef">${[['', 'Все'], ...BP_ELEMS.map((x) => [x, `${BP_ELEM_ICONS[x] || '✦'} ${BP_ELEM_NAMES[x] || x}`])].map(([k, n]) => `<button class="b ${ef === k ? 'on' : ''}" data-ef="${esc(k)}">${esc(n)}</button>`).join('')}<input type="search" data-pq placeholder="поиск…" value="${esc(S.pq || '')}"></div>`;
   const list = Object.keys(BP_TYPE_NAMES).map((t) => `<div class="g">${esc(BP_TYPE_NAMES[t])} <button class="b" style="float:right;padding:0 6px" data-new="${t}" title="Новая деталь">＋</button></div>`
     + BP_ELEMS.map((el) => { const L = (byType[t] || []).filter((p) => (p.elem || 'fire') === el && okP(p)); return L.length ? `<div class="eg">${elTag(el)} · ${L.length}</div>` + L.map((p) => `<div data-p="${esc(p.id)}" data-elem="${esc(p.elem || 'fire')}" class="${S.sel === p.id ? 'on' : ''}">${esc(p.icon || '•')} ${esc(p.name || p.id)}${drafts.has(p.id) ? ' <span class="dr" title="Есть неопубликованный черновик">✎</span>' : ''}${p._new ? ' <small class="dr">новая</small>' : ''}${p.custom ? ' <small class="mc-dim">своя</small>' : ''}</div>`).join('') : ''; }).join('')).join('');
   const e = S.edit;
@@ -144,7 +144,7 @@ const artElems = (a) => { const s = [...new Set(Object.values(a.parts || {}).map
 function arts(ap, S, bd) {
   const A = S.list.arts || [];
   bd.innerHTML = `<p class="mc-dim">Созданные артефакты (из БД, последние 200): игроки — кузня Знахаря, тестовые — админка. Имя можно скрыть (заменится на «Безымянный артефакт»). Выдать мобу в руку — в конструкторе мобов (этап В).</p>
-    <div class="ef">${[['', 'Все'], ...BP_ELEMS.map((x) => [x, `${x === 'ice' ? '❄' : '🔥'} ${BP_ELEM_NAMES[x] || x}`])].map(([k, n]) => `<button class="b ${(S.aef || '') === k ? 'on' : ''}" data-aef="${esc(k)}">${esc(n)}</button>`).join('')}</div>
+    <div class="ef">${[['', 'Все'], ...BP_ELEMS.map((x) => [x, `${BP_ELEM_ICONS[x] || '✦'} ${BP_ELEM_NAMES[x] || x}`])].map(([k, n]) => `<button class="b ${(S.aef || '') === k ? 'on' : ''}" data-aef="${esc(k)}">${esc(n)}</button>`).join('')}</div>
     <table><tr><th>Имя</th><th>Стихия</th><th>Автор</th><th>Создан</th><th>Источник</th><th>Детали</th><th>Экз.</th><th></th></tr>${A.filter((a) => !S.aef || artElems(a).includes(S.aef)).map((a) => `<tr data-elem="${esc(artElems(a).join(','))}"><td>${esc(a.name)}</td><td>${artElems(a).map(elTag).join('')}</td><td>${esc(a.author || '—')}</td><td>${a.created ? new Date(a.created).toLocaleString('ru-RU') : '—'}</td><td>${esc(a.src || '—')}</td>
       <td style="font-size:11px">${Object.values(a.parts || {}).map((id) => esc(BM_PARTS[id]?.name || id)).join(' + ')}${a.ranged ? ' 🏹' : ''}</td><td>${a.n ?? '—'}</td><td>${a.name === 'Безымянный артефакт' ? '' : `<button class="b warn" data-hide="${esc(a.id)}">Скрыть имя</button>`}</td></tr>`).join('') || '<tr><td colspan="7" class="mc-dim">Пока нет</td></tr>'}</table>`;
   bd.querySelectorAll('[data-aef]').forEach((b) => (b.onclick = () => { S.aef = b.dataset.aef; arts(ap, S, bd); }));

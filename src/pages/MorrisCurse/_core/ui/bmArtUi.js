@@ -1,7 +1,8 @@
 // «Чёрная магия», этап А — клиент: вкладка «Артефакты» (до 30 на аккаунт; видно, как обычные параметры глушатся,
 // а чёрные раскрываются), Библиотека «🔥 Навыки артефактов» и парящий огненный слой-заглушка у руки героя.
 // Все числа — из снимка сервера (hero.effective.bm/art, bma) и карточек предметов (card.art); клиент ничего не считает в бою.
-import { BM_KEYS, BM_NAMES, BM_PARTS, BP_ELEM_NAMES, ELEM_COLOR } from '../../../../../server/meta/blackArt.ts';
+import { BM_KEYS, BM_NAMES, BM_PARTS, BP_ELEM_NAMES, ELEM_COLOR, ELEMENTS } from '../../../../../server/meta/blackArt.ts';
+const PURE_COL = Object.fromEntries(ELEMENTS.map((e) => [e.pure, e.color])); // ось стихий: цвет строки чистого стата
 import { ABILITIES_DEF, SLOT_ORDER, SLOTS } from '../../../../../server/meta/shared.ts';
 import { ITEM_BY_ID } from '../meta/itemCards.js';
 import { esc } from './overlay.js';
@@ -96,7 +97,7 @@ export function rArtifacts(book, st) {
     const ord = ordinaryFromGear(st);
     const ordRows = Object.entries(ord).map(([k, v], i) => `<div class="bm-row" style="--i:${i}"><span>${esc(ORD[k] || k)}</span><b>+${Math.round(v * 10) / 10}</b></div>`).join('')
       || '<div class="bm-row" style="--i:0"><span class="mc-dim">Снаряжение не надето — глушить нечего</span></div>';
-    const blkRows = A ? BM_KEYS.map((k, i) => `<div class="bm-row" style="--i:${i}${k === 'pfire' ? ';color:#ff8a2a' : k === 'pice' ? ';color:#6cc8ff' : ''}" title="${esc(BM_NAMES[k].hint)}"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('') : '';
+    const blkRows = A ? BM_KEYS.map((k, i) => `<div class="bm-row" style="--i:${i}${PURE_COL[k] ? ';color:' + PURE_COL[k] : ''}" title="${esc(BM_NAMES[k].hint)}"><span>${BM_NAMES[k].icon} ${esc(BM_NAMES[k].name)}</span><b>${fmtBm(k, A.stats[k] || 0)}</b></div>`).join('') : '';
     const parts = A ? Object.entries(A.parts || {}).map(([t, pid]) => `${BM_PARTS[pid]?.icon || '•'} ${esc(BM_PARTS[pid]?.name || pid)}`).join(' · ') : '';
     const nSk = A ? (A.skills || []).length : 0;
     const inHand = it.uid === handUid;

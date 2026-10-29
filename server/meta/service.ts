@@ -18,7 +18,7 @@ import { HOME_PORTAL_HUB, HOME_PORTAL_CD_MS, HOME_PORTAL_COMBAT_MS } from "../wo
 import { AUTO_SPRITE, shotAim } from "./abilityShapes";
 import { CURSE, curseClient, isCursedTag, untag, skillPowerMult } from "./cursed";
 import { parseTag, tierDef } from "./enchant";
-import { BMA_CFG, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureSum, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
+import { BMA_CFG, bagDraw, bmHit, bmDefend, bmDefendEx, bmPure, pureVsDef, pureSum, pureEvFields, bmSkillPct, chargeFrac, chargedAtk, staffMuzzles, shotOrigins } from "./blackArt";
 import { makeArtifact, isArtifactId, recalcAllArtifacts, ARTIFACT_UPDATE, ART_HIDDEN_NAME, ARTIFACT_RENAME } from "./blackArtReg";
 import { forgeState, craftPart, checkBuild, spendParts, cleanArtName, rateOk } from "./blackForge";
 import { BM_PARTS, BP_TYPES, BP_ELEMS, CUSTOM_BP, pieceId } from "./blackArt";
@@ -159,8 +159,8 @@ export function heroBase(cls: string | null) {
 }
 
 /** ICE: поля события удара для клиента — pf/pi (чистый огненный/ледяной, цифры своим цветом), z — броня поглотила удар («0 урона»), el — стихия */
-function pureEv(p: { fire: number; ice: number } | null | undefined, zero = 0, el?: string) {
-  const o: any = {}; if (p?.fire) o.pf = p.fire; if (p?.ice) o.pi = p.ice; if (zero) o.z = 1; if (el && el !== "fire") o.el = el; return o;
+function pureEv(p: Record<string, number> | null | undefined, zero = 0, el?: string) {
+  const o: any = pureEvFields(p); if (zero) o.z = 1; if (el && el !== "fire") o.el = el; return o;
 }
 const skillElemOf = (id: any) => (typeof id === "string" && id.startsWith("bmi_") ? "ice" : "fire");
 
