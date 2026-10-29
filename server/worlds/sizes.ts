@@ -20,3 +20,6 @@ export const ARINAR_LAYOUT_VER = 3; // версия раскладки: стар
 export const VIEW_CELLS = { min: 10, def: 20, max: 30 };
 export const CELL_PX = 32;
 export const OPEN_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.1); // 528 px
+// Игроки (players_state): мини-карта в Аринаре = обзор камеры × MINIMAP_MARGIN (1.3, minimap.js) → ±624 px при
+// самом дальнем зуме. С ±OPEN_AOI (528) игроки в кольце 528–624 px пропадали с мини-карты (hotfix-1029) — шлём с запасом.
+export const PLAYER_AOI = Math.round((VIEW_CELLS.max * CELL_PX) / 2 * 1.35); // 648 px
