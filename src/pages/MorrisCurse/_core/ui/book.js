@@ -23,7 +23,7 @@ import { mobHomes, WORLD_NAMES } from '../../../../../server/meta/mobHome.ts';
 import { bossCfg, bossLairs, pickLair, spawnText } from './bossSpawn.js';
 import { skillIcon } from './actionBar.js';
 import { bprevHtml } from './beastPreview.js';
-import { rArtifacts, rArtSkillLib } from './bmArtUi.js';
+import { rArtifacts, rArtSkillLib, artGlyph, isArtItem, ART_TAG } from './bmArtUi.js';
 
 const TABS = [
   ['quests', '📜', 'Задания', 'J'],
@@ -515,12 +515,16 @@ export class Book {
     const a = st.account;
     const byUid = new Map(a.inv.map((i) => [i.uid, i]));
     const equippedUids = new Set(h ? Object.values(h.equip || {}) : []);
+    // 🜏 артефакт в руке: в слоте оружия — его значок и «В РУКЕ», остальное надетое заглушено (как во вкладке «Артефакты»)
+    const artIt = h?.equip?.weapon && byUid.get(h.equip.weapon), artA = artIt && isArtItem(artIt) ? ITEM_BY_ID[artIt.id]?.art || {} : null;
     const slots = SLOT_ORDER.map((slot) => {
       const uid = h?.equip?.[slot];
       const it = uid && byUid.get(uid);
       const d = it && curseDef(ITEM_BY_ID[it.id], it);
+      if (artA && it && slot === 'weapon' && d) return `<button class="mc-gslot filled mc-art-hand ${this.sel === uid ? 'on' : ''}" data-act="sel" data-v="${uid}" title="${esc(d.name)} — артефакт в руке">${ART_TAG}<span>${artGlyph(artA, 40)}</span><small>${esc(SLOTS[slot])}</small><b style="color:#ffb347">${esc(d.name)}</b></button>`;
+      const mute = artA && d ? ' mc-art-muted' : '';
       // клик по надетому — карточка статов (Снять только кнопкой в карточке); снятие drag'ом не меняем (его нет)
-      return `<button class="mc-gslot ${d ? 'filled' : ''}${itemCls(d)} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${itemColor(d)};${itemStyle(d)}"` : ''}>${gems(d)}<span>${d ? iconHtml(d, 40) + upBadge(it.up, it.cursed) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${itemColor(d)}">${esc(d.name)}</b>` : ''}</button>`;
+      return `<button class="mc-gslot ${d ? 'filled' : ''}${itemCls(d)}${mute} ${d && this.sel === uid ? 'on' : ''}" ${d && uid ? `data-act="sel" data-v="${uid}"` : `data-act="sel" data-v=""`} ${d ? '' : `title="${esc(SLOTS[slot])}: пусто"`} ${d ? `style="border-color:${itemColor(d)};${itemStyle(d)}"` : ''}>${gems(d)}<span>${d ? iconHtml(d, 40) + upBadge(it.up, it.cursed) : '·'}</span><small>${esc(SLOTS[slot])}</small>${it?.lk ? '<i class="mc-lk" title="Закреплён">🔒</i>' : ''}${d ? `<b style="color:${itemColor(d)}">${esc(d.name)}</b>` : ''}</button>`;
     }).join('');
     const bagItems = a.inv.filter((i) => !equippedUids.has(i.uid));
     const bag = bagItems.slice().sort((x, y) => (RARITIES[ITEM_BY_ID[y.id]?.rarity]?.order || 0) - (RARITIES[ITEM_BY_ID[x.id]?.rarity]?.order || 0)).map((it) => {

@@ -65,6 +65,28 @@ export const elTag = (el) => { el = el || 'fire'; const c = ELEM_COLOR[el] || '#
 const artEls = (A) => (A?.elems?.length > 1 ? A.elems : [A?.elem || 'fire']);
 export const isArtItem = (it) => !!(it && typeof it.id === 'string' && it.id.startsWith('art_'));
 
+/** 🜏 артефакт в руке — общий вид для «Снаряжения» (I) и окна C: значок слота, метка «В РУКЕ», заглушённые слоты, чёрные параметры */
+const HAND_CSS = `
+.mc-art-ic{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:radial-gradient(circle,#3a1408 0,#0b0503 72%);box-shadow:inset 0 0 8px var(--ac,#ff6a1a),0 0 6px #ff6a1a55;color:var(--ac,#ff6a1a);line-height:1}
+.mc-art-hand{position:relative;border-color:#ff6a1a !important}
+.mc-art-tag{position:absolute;font-style:normal;font-family:inherit;top:2px;right:3px;font-size:8px;line-height:10px;color:#ffe08a;letter-spacing:1px;background:#1a0d08d0;padding:0 3px;border-radius:3px;pointer-events:none;z-index:1}
+.mc-art-muted{opacity:.45;filter:grayscale(.75)}
+.mc-art-note{grid-column:1/-1;color:#ffb347;font-size:11px;margin:2px 0 4px}
+.mc-insp-st.mc-insp-bm b{color:#ffb347}
+`;
+export function artHandCss() { if (typeof document === 'undefined' || document.getElementById('bm-hand-css')) return; const s = document.createElement('style'); s.id = 'bm-hand-css'; s.textContent = HAND_CSS; document.head.appendChild(s); }
+/** A — {staff, ranged, elem, elems} (card.art или метка с сервера) */
+export function artGlyph(A, px = 40) {
+  artHandCss();
+  const el = (A?.elems?.length > 1 ? A.elems[0] : A?.elem) || 'fire', c = ELEM_COLOR[el] || '#ff6a1a';
+  return `<i class="mc-art-ic" style="--ac:${c};width:${px}px;height:${px}px;font-size:${Math.round(px * 0.62)}px" aria-hidden="true">${A?.staff ? '🪄' : A?.ranged ? '🏹' : '🗡️'}</i>`;
+}
+export const ART_TAG = '<i class="mc-art-tag">В РУКЕ</i>';
+export const artKind = (A) => (A?.staff ? '🪄 посох' : A?.ranged ? '🏹 дальний' : '🗡️ ближний');
+export const artElTags = (A) => artEls(A).map(elTag).join('');
+/** чёрные параметры строками окна C: P(подпись, значение) — та же разметка, что у обычных */
+export function bmRows(bm, P) { return BM_KEYS.map((k) => P(`${BM_NAMES[k].icon} ${BM_NAMES[k].name}`, fmtBm(k, bm?.[k] || 0), PURE_COL[k], BM_NAMES[k].hint)).join(''); }
+
 /** Обычные параметры, которые даёт снаряжение (их глушит артефакт): сумма статов надетых предметов кроме самого артефакта. */
 function ordinaryFromGear(st) {
   const h = st.hero, a = st.account, sum = {};

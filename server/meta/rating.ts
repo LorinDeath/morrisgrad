@@ -165,11 +165,16 @@ export async function loadPublicProfile(db: any, pkey: string): Promise<{ a: Acc
 
 // Публичная карточка персонажа: имя, герой, уровень, надетое (иконка, редкость, статы), итоговые параметры
 // (как их считает сервер) и навыки раскладки с Сиянием. Без сумки, ресурсов, квестов, талантов, ключей.
+/** метка артефакта для окна C: тип и стихии (без деталей/формул — их видно во вкладке «Артефакты» владельца) */
+function artTag(bm: any) {
+  const elems = Array.isArray(bm?.elems) && bm.elems.length > 1 ? bm.elems.slice(0, 4) : undefined;
+  return { staff: bm?.staff ? 1 : 0, ranged: bm?.ranged ? 1 : 0, elem: bm?.elem || "fire", ...(elems ? { elems } : {}) };
+}
 export function publicCharacter(name: string, cls: string, a: Account, h: Hero & { md?: number; mdW?: string }, base: any) {
   const eff: any = heroEffective(a, h, cls, base);
   const gear = equippedItems(a, h).map((e) => {
     const it = ITEM_BY_ID[e.id];
-    return { slot: e.slot, n: ITEM_INDEX[e.id], ic: iconIndex(e.id), id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}), ...((e as any).ench ? { ench: (e as any).ench } : {}), ...(blkOf(e) ? { blk: blkOf(e) } : {}) };
+    return { slot: e.slot, n: ITEM_INDEX[e.id], ic: iconIndex(e.id), id: e.id, name: it.name, rarity: it.rarity, req: Math.max(1, it.req || 1, it.lvl || 1), stats: instStats(it, e), up: (e as any).up || 0, cursed: (e as any).cursed ? 1 : 0, icon: it.icon, ...(e.cursed ? { cursed: 1 } : {}), ...((e as any).ench ? { ench: (e as any).ench } : {}), ...(blkOf(e) ? { blk: blkOf(e) } : {}), ...((it as any).bm ? { art: artTag((it as any).bm) } : {}) };
   });
   // очернение: сколько ушло «в тень» (статы вещей × очернение%) — показываем как есть, без объяснения, где они действуют
   const shadow: Record<string, number> = {};
@@ -178,6 +183,8 @@ export function publicCharacter(name: string, cls: string, a: Account, h: Hero &
     name, cls, lvl: h.lvl, gear,
     stats: { maxHp: eff.maxHp, armor: eff.armor, dr: eff.damageReduction, wMin: eff.weaponMin, wMax: eff.weaponMax, dmgPct: eff.dmgPct, critPct: eff.critPct, atkSpeedPct: eff.atkSpeedPct,
       speedPct: eff.speedPct, regen: eff.regen, lifestealPct: eff.lifestealPct, cdrPct: eff.cdrPct, magnetPct: eff.magnetPct, revive: eff.revive, armorPen: eff.armorPen || 0, armorPenPct: eff.armorPenPct || 0 },
+    // 🜏 артефакт в руке: обычное снаряжение заглушено — окно C показывает чёрные параметры (как вкладка «Артефакты»)
+    bm: eff.art && eff.bm ? eff.bm : null, artIn: eff.art ? { staff: eff.art.staff ? 1 : 0, mode: eff.art.mode || undefined, ranged: eff.art.ranged ? 1 : 0, shots: eff.art.shots || 1, elem: eff.art.elem || "fire" } : null,
     look: eff.look || null, wtype: eff.wtype, cg: eff.cursedGlow || 0, bk: eff.blkVis || 0, blk: eff.blkAvg ? { avg: eff.blkAvg, shadow } : null,
     abilities: eff.abilities.map((x: any) => ({ id: x.id, rad: x.rad, power: x.power, cd: x.cd })),
     maxDmg: h.md ? { v: h.md, where: h.mdW || "" } : null,

@@ -16,6 +16,7 @@ import { statIcon } from './statIcons.js';
 import { ABILITY_BY_ID, RADIANCE_PROPS, radianceProps, RARITIES, SLOTS, SLOT_ORDER, MOB_INFO } from '../../../../../server/meta/shared.ts';
 import { displayClassName } from '../survivors/data.js';
 import { iconHtml } from '../meta/itemCards.js';
+import { artGlyph, artKind, artElTags, bmRows, artHandCss, ART_TAG } from './bmArtUi.js';
 import { drawHeroPreview } from './heroPreview.js';
 import { skillIcon, radColor } from './actionBar.js';
 import { esc, roleTag } from './overlay.js';
@@ -139,7 +140,11 @@ export class Social {
         const stHtml = (g.stats?.dmgMin || g.stats?.dmgMax ? `${statIcon('dmgMin')}Урон: <b>${g.stats.dmgMin}–${g.stats.dmgMax}</b><br>` : '') + st.filter(([k]) => k !== 'dmgMin' && k !== 'dmgMax').map(([k, v]) => `${statIcon(k)}${STAT_RU[k] || esc(k)}: <b>+${v}</b>`).join('<br>');
         const cz = !!g.cursed, en = tierOf(g), rc = en ? enchText(en) : cz ? curseTint() : rar.color;
         const nm = lookName(g.name, cz, en);
-        return `<div class="mc-insp-slot${lookCls(cz, en)}" tabindex="0" style="--rc:${rc};${lookStyle(en)}" title="${esc(nm)}${g.up ? ' +' + g.up : ''}">${en ? '<i class="mc-eg" aria-hidden="true"></i>' : ''}<div class="ic">${iconHtml(g, 40)}${upBadge(g.up, g.cursed)}</div><span>${esc(SLOTS[s])}</span>
+        // 🜏 артефакт в руке: свой значок + «В РУКЕ»; остальное снаряжение заглушено (как во вкладке «Артефакты»)
+        if (g.art) return `<div class="mc-insp-slot mc-art-hand" tabindex="0" style="--rc:#ff6a1a" title="${esc(g.name)} — артефакт в руке">${ART_TAG}<div class="ic">${artGlyph(g.art, 40)}</div><span>${esc(SLOTS[s])}</span>
+          <div class="tip"><b style="color:#ffb347">${esc(g.name)}</b>${artElTags(g.art)}<br><small>🜏 Артефакт · ${artKind(g.art)} · в руке</small><br><small class="mc-dim">Обычное снаряжение и комплекты не действуют, пока артефакт в руке.</small></div></div>`;
+        const mute = d.artIn ? ' mc-art-muted' : '';
+        return `<div class="mc-insp-slot${lookCls(cz, en)}${mute}" tabindex="0" style="--rc:${rc};${lookStyle(en)}" title="${esc(nm)}${g.up ? ' +' + g.up : ''}${mute ? ' — заглушено артефактом' : ''}">${en ? '<i class="mc-eg" aria-hidden="true"></i>' : ''}<div class="ic">${iconHtml(g, 40)}${upBadge(g.up, g.cursed)}</div><span>${esc(SLOTS[s])}</span>
           <div class="tip${cz ? ' cursed' : ''}${en ? ' ench' : ''}" style="${lookStyle(en)}"><b style="color:${rc}">${esc(nm)}</b>${upBadge(g.up, g.cursed, true)}<br><small>${cz ? '<b class="cz">☠ Проклятая</b> · ' : ''}${en ? enchBadge(en) + ' · ' : ''}${esc(rar.name)} · ур. ${g.req}</small>${g.blk ? `<br><b class="bk" style="color:#a78bfa">🌑 ${g.blk >= 100 ? 'Сломано очернением — не работает' : `Очернение −${+Number(g.blk).toFixed(1)}%`}</b>` : ''}<br>${stHtml || '—'}</div></div>`;
       }).join('');
       const s = d.stats;
@@ -155,6 +160,10 @@ export class Social {
       const shTxt = (sh.some(([k]) => k === 'dmgMin' || k === 'dmgMax') ? [`${statIcon('dmgMin')}${bl.shadow.dmgMin || 0}–${bl.shadow.dmgMax || 0}`] : [])
         .concat(sh.filter(([k]) => k !== 'dmgMin' && k !== 'dmgMax').map(([k, v]) => `<span title="${esc(STAT_RU[k] || k)}">${statIcon(k)}+${v}</span>`)).join(' · ');
       const blkRows = bl && bl.avg > 0 ? P('🌑 Очернение снаряжения', `${+Number(bl.avg).toFixed(1)}%`) + (shTxt ? `<div class="mc-insp-st mc-insp-blk" style="grid-column:1/-1" title="Очернённая сила надетых вещей"><span>🌑 Ушло в тень</span><b style="color:#c4b5fd">${shTxt}</b></div>` : '') : '';
+      // 🜏 чёрные параметры артефакта в руке (сила атаки, мощность, чёрный урон/броня, крит из 100, чистый урон стихий) — как во вкладке «Артефакты»
+      const PB = (k, v, col, hint) => `<div class="mc-insp-st mc-insp-bm"${hint ? ` title="${esc(hint)}"` : ''}><span${col ? ` style="color:${col}"` : ''}>${esc(k)}</span><b${col ? ` style="color:${col}"` : ''}>${esc(v)}</b></div>`;
+      if (d.bm) artHandCss();
+      const bmBlock = d.bm ? `<div class="mc-insp-h">🜏 Чёрные параметры <small class="mc-dim">(артефакт в руке${d.artIn ? ' · ' + artKind(d.artIn) : ''})</small></div><div class="mc-insp-stats">${bmRows(d.bm, PB)}</div>` : '';
       const abil = d.abilities.length ? d.abilities.map((a) => {
         const def = ABILITY_BY_ID[a.id] || { name: a.id, desc: '' };
         const props = radianceProps(a.id, a.rad).map((p) => RADIANCE_PROPS[p]?.name).filter(Boolean);
@@ -166,7 +175,7 @@ export class Social {
           ${d.duel ? `<div class="mc-insp-rec duel">Дуэли<br><b>${d.duel.w}–${d.duel.l}</b><small>победы–поражения${d.duel.d ? ` · ничьи ${d.duel.d}` : ''}</small></div>` : ''}</div></div>
         ${d.sid && this.canDuel?.(d.sid) ? '<button class="mc-btn mc-insp-duel">⚔️ Вызвать на дуэль</button>' : ''}
         <div class="mc-insp-h">Снаряжение</div><div class="mc-insp-gear">${gear}</div>
-        <div class="mc-insp-h">Параметры</div><div class="mc-insp-stats">${stats}${blkRows}</div>
+        ${bmBlock}<div class="mc-insp-h">${d.bm ? 'Обычные параметры <small class="mc-dim">(заглушены артефактом)</small>' : 'Параметры'}</div><div class="mc-insp-stats${d.bm ? ' mc-art-muted' : ''}">${stats}${blkRows}</div>
         ${d.kills ? `<div class="mc-insp-h">Счёт убийств</div><div class="mc-insp-kills">${[['⚔️', 'Игроков убито', d.kills.p, 'p'], ['💀', 'Пал от игроков', d.kills.d, 'd'], ['👹', 'Чудовищ убито', d.kills.m, 'm']].map(([ic, t, v, k]) => `<div class="mc-insp-kill k-${k}"><b>${fmtKill(v)}</b><small>${ic} ${t}</small></div>`).join('')}</div>` : ''}
         <div class="mc-insp-h">Навыки</div><div class="mc-insp-abs">${abil}</div>`;
     }
