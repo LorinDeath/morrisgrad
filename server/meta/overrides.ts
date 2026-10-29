@@ -635,10 +635,17 @@ export function validateTraits(list: any): Trait[] | string {
 }
 /** 💰 Дроп: кусочки/осколки стихии — только с мобов этой стихии (ледяные мобы — только ледяные кусочки; BMM_CFG.strictElemDrops).
  *  Обычные (не чёрные) мобы: стихийные кусочки, кроме огня (как было), нельзя. */
+/** кусочки чертежа bp_* и осколки bm_shard_* — только у чёрных мобов (их дроп — BmMob.drops в конструкторе мобов) */
+export const isPieceRes = (res: string) => /^bp_/.test(String(res)) || /^bm_shard_/.test(String(res)) || !!resElem(String(res));
+export function stripOrdinaryPieces(id: string): number {
+  const L: any = (MONSTER_LOOT as any)[id]; if (!L || (ZONE_MOBS as any)[id]?.black || !Array.isArray(L.materials)) return 0;
+  const n = L.materials.length; L.materials = L.materials.filter((m: any) => !isPieceRes(m?.res)); return n - L.materials.length;
+}
 export function lootElemErr(mobId: string, res: string): string | null {
-  const re = resElem(res); if (!re) return null;
   const z: any = (ZONE_MOBS as any)[mobId];
-  if (!z?.black) return re === "fire" ? null : `${res}: кусочки стихии «${re}» падают только с чёрных мобов этой стихии`;
+  if (!z?.black && isPieceRes(res)) return `${res}: кусочки чертежа и осколки (любой стихии) падают только с чёрных мобов — задайте дроп в конструкторе мобов`;
+  const re = resElem(res); if (!re) return null;
+  if (!z?.black) return `${res}: кусочки чертежа и осколки (любой стихии) падают только с чёрных мобов — задайте дроп в конструкторе мобов`; // обычные мобы — без кусочков вообще (решение Алекса)
   const el = z.elem || "fire";
   if (re !== el && (BMM_CFG.strictElemDrops !== false || re !== "fire")) return `${res}: кусочки стихии «${re}» падают только с мобов этой стихии (у моба — «${el}»)`;
   return null;
@@ -852,6 +859,7 @@ export function applyOverride(kind: Kind, id: string, patch: any | null) {
     if (kind !== "bmcamp") registerBlackMobs(ITEM_BY_ID as any); return;
   }
   applyOverride0(kind, id, patch);
+  if (kind === "loot") stripOrdinaryPieces(id); // старые записи D1 с кусочками у обычных мобов — не применяются
   if (kind === "bmbody" || kind === "bmmob" || kind === "bmmcfg") registerBlackMobs(ITEM_BY_ID as any);
   if (kind === "btask") { if (BTASKS[id]) prepXp(BTASKS[id]); reindexBtasks(); } // опыт — по таблице, если не задан вручную
   if (kind === "board") prepAllXp(); // таблица опыта/множители поменялись — пересчитать (кроме заданных вручную)

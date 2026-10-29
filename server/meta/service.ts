@@ -2197,7 +2197,7 @@ export class MetaService {
         const drafts = await A.bmcList("bmc_draft");
         let arts: any[] = [];
         if (db) { try { arts = ((await db.prepare("SELECT i.id, i.name, i.rarity, i.props, (SELECT COUNT(*) FROM item_instances x WHERE x.item_id = i.id AND x.state <> 'salvaged') AS n FROM items i WHERE i.id LIKE 'art\\_%' ESCAPE '\\' ORDER BY i.rowid DESC LIMIT 200").all()).results || []).map((r: any) => { let p: any = {}; try { p = JSON.parse(r.props || "{}"); } catch {} return { id: r.id, name: r.name, rarity: r.rarity, n: Number(r.n) || 0, author: p.author || "", created: p.created || 0, src: p.src || "", parts: p.bm?.parts || {}, ranged: !!p.bm?.ranged }; }); } catch (e: any) { console.error("[mc] bmf arts", e?.message || e); } }
-        const mobs = Object.keys(ZONE_MOBS).slice(0, 400).map((id) => ({ id, name: (ZONE_MOBS as any)[id]?.name || id, lvl: (ZONE_MOBS as any)[id]?.lvl || 0, drops: ((MONSTER_LOOT as any)[id]?.materials || []).filter((m: any) => /^bp_/.test(m.res)) }));
+        const mobs = Object.keys(ZONE_MOBS).filter((id) => !(ZONE_MOBS as any)[id]?.black).slice(0, 400).map((id) => ({ id, name: (ZONE_MOBS as any)[id]?.name || id, lvl: (ZONE_MOBS as any)[id]?.lvl || 0, drops: ((MONSTER_LOOT as any)[id]?.materials || []).filter((m: any) => /^bp_/.test(m.res)) }));
         return { ok: true, parts: partList(), drafts, arts, mobs, types: BP_TYPES, elems: BP_ELEMS, pieces: BP_ELEMS.flatMap((el) => BP_TYPES.map((t) => pieceId(el, t))) };
       }
       case "draft": { const id = String(msg.id || ""); if (!BM_PARTS[id] && !CUSTOM_BP.test(id)) return { ok: false, err: "неверный id" }; const r = await A.bmcSave(by, "bmc_draft", id, msg.data || {}); return { ...r, id }; }
@@ -2215,7 +2215,7 @@ export class MetaService {
         return { ...r, id, isNew, parts: partList() }; }
       case "drop": { // шанс кусочка чертежа у моба (таблица «Дроп» → materials)
         const mob = String(msg.mob || ""), res = String(msg.res || ""); if (!(ZONE_MOBS as any)[mob] || !/^bp_[a-z]+_[a-z0-9]+$/.test(res)) return { ok: false, err: "моб/кусочек?" };
-        if (Number(msg.chance) > 0 && !/^bp_fire_/.test(res)) return { ok: false, err: "Кусочки льда (и других стихий, кроме огня) выпадают только с чёрных мобов своей стихии — задайте их в конструкторе мобов" }; // ICE §2
+        if (Number(msg.chance) > 0 && !(ZONE_MOBS as any)[mob]?.black) return { ok: false, err: "Кусочки чертежа (любой стихии) выпадают только с чёрных мобов — задайте дроп в конструкторе мобов (👹 Чёрные мобы → Дроп)" }; // обычным мобам — только 0 (убрать)
         const cur: any = ovValues("loot" as any, mob) || {}; const mats = (Array.isArray(cur.materials) ? cur.materials : ((MONSTER_LOOT as any)[mob]?.materials || [])).filter((m: any) => m.res !== res);
         const ch = Math.max(0, Math.min(100, Number(msg.chance) || 0)); if (ch > 0) mats.push({ res, chance: ch, qty: [Math.max(1, Math.round(Number(msg.qmin) || 1)), Math.max(1, Math.round(Number(msg.qmax) || Number(msg.qmin) || 1))] });
         const gear = Array.isArray(cur.gear) ? cur.gear : ((MONSTER_LOOT as any)[mob]?.gear || []);

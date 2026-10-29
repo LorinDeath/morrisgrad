@@ -21,7 +21,7 @@ import { ENCH, parseTag, tagOf, tierDef, tierOk, weightedTier, enchClient } from
 import { weaponType,
   HERO_IDS, HERO_MAX_LEVEL, heroXpNeed, talentPointsForLevel, abilitySlots, heroLevelHp, STAT_CAPS, softCap, armorToReduction,
   TALENTS, TALENT_BY_ID, TALENT_TIER_REQ, TALENT_VERSION, ACTIVE_NODE, ABILITIES_DEF, ABILITY_BY_ID, LEGACY_ABILITY, RADIANCE_MAX, radianceCost, radianceProps,
-  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS, OWN_GEAR, lootMobLvl, partOf,
+  radiancePowerMult, radianceCdMult, SOUL_BRANCH, ITEM_BY_ID, MONSTER_LOOT, RUN_SKILLS, RUN_SKILL_BY_ID, RUN_SKILL_DROP_PCT, LOOKS, RECIPES, RESOURCES, SLOTS, salvageYield, WEAPON_TYPES, ITEMS, OWN_GEAR, lootMobLvl, partOf, ZONE_MOBS,
 } from "./defs";
 import { QUESTS, QUEST_BY_ID, questType, type QuestDef } from "./quests";
 import { grantSpec, chestRoomErr } from "./boardChest";
@@ -567,9 +567,10 @@ export function lootLvlFit(item: string, monster: string): string | null {
   return own && ok(own) ? own : null;
 }
 export function rollMonsterLoot(monster: string, rng = cryptoRand, mul = 1, cursedRoll = false, mode: LootMode = "base", ench = 0): { items: string[]; res: Record<string, number> } {
-  const m0 = MONSTER_LOOT[monster];
+  const m00 = MONSTER_LOOT[monster];
   const out = { items: [] as string[], res: {} as Record<string, number> };
-  if (!m0) return out;
+  if (!m00) return out;
+  const m0 = (ZONE_MOBS as any)[monster]?.black ? m00 : { ...m00, materials: (m00.materials || []).filter((r: any) => !/^(bp_|bm_shard_)/.test(String(r.res))) }; // кусочки — только с чёрных мобов
   // таблица со стражем уровня: шанс строки сохраняется, предмет — в окне уровня моба
   const m = { ...m0, gear: m0.gear.flatMap((g) => { const x = lootLvlFit(g.item, monster); return x ? [x === g.item ? g : { ...g, item: x }] : []; }) };
   const gc = (g: { item: string; chance: number }) => (mode === "raw" ? g.chance : dropChance(g));
