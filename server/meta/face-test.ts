@@ -57,5 +57,15 @@ ok(!!seer?.bmMz?.length, "ZONE_MOBS: у посохового моба есть �
   z.bmSwing(m, dm, -1, 0, 1, 1, null, null, () => {}); const ev: any = (z as any).events.find((e: any) => e.k === "marc");
   ok(ev && ev.dx === -1 && ev.x === Math.round(m.x), "взмах влево: событие marc с dx −1 из центра моба (клиент поворачивает моба по dx)");
 }
+// --- 5. ледяной стрелок против героя: стреляет ice_bolt из руки со стороны цели (обе стороны)
+{ const z = new Zone("arinar", [], [], { proc: true, seed: 12 } as any); (z as any).now = Date.now();
+  const type = Object.keys(BM_MOBS).find((k) => (ZONE_MOBS as any)[k]?.bmAtk?.kind === "proj" && (ZONE_MOBS as any)[k]?.elem === "ice")!;
+  const d: any = (ZONE_MOBS as any)[type]; const m: any = z.mobs.find((x: any) => !x.dead && !x.special); m.type = type; m.hp = m.maxHp = 5000;
+  const dist = Math.min(d.bmAtk.range * 0.6, 220) - 30;
+  for (const ux of [-1, 1]) { m.atkCd = 0; m.casts = []; const x0 = m.x;
+    z.bmMobVsPlayer(m, d, { sid: "p", x: m.x + ux * dist, y: m.y } as any, new Map(), Date.now(), 1, dist, ux, 0, 0, 0.05, () => {}, () => {});
+    const c = m.casts[0];
+    ok(!!type && c && c.proj === "ice_bolt" && (ux < 0 ? c.x < x0 : c.x > x0) && m.bmFl === (ux < 0), `${type}: ice_bolt ${ux < 0 ? "влево" : "вправо"} из руки со стороны цели`); }
+}
 void staffMuzzles;
 console.log(`\n${pass} passed, ${fail} failed`); if (fail) process.exit(1);
