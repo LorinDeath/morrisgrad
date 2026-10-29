@@ -67,23 +67,35 @@ export function drawPlate(ctx, m, cx, y) {
   ctx.fillStyle = '#1a0d08dd'; ctx.fillRect(Math.round(cx - w / 2), y - 10, Math.round(w), 13); ctx.strokeStyle = m.cursed ? '#c084fc' : '#ff6a1a'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(cx - w / 2) + 0.5, y - 9.5, Math.round(w) - 1, 12);
   ctx.fillStyle = '#ffe08a'; ctx.fillText(txt, cx, y); ctx.restore();
 }
-/** лист моба на 64 кадра: MCOLS×4 клеток MCELL (тело со сдвигом PAD); null — листы ещё грузятся */
+/** ряды листа: 0–3 — смотрит вправо (как нарисовал Художник), 4–7 — тот же риг зеркально (смотрит влево) */
+export const MROWS = 8, MIRROR_ROW = 4;
+/** клетка моба зеркально относительно её центра (тело по центру: PAD_X + 52 = MCELL / 2): тело, свечение, оружие, хвост — всё вместе */
+export function drawMobCell(ctx, m, f, x, y, faceL, o = {}) {
+  const anim = f >= 46 ? 'die' : f >= 40 ? 'hurt' : f >= 28 ? 'atk' : f >= 16 ? 'walk' : 'idle';
+  if (faceL) { ctx.save(); ctx.translate(x + MCELL, y); ctx.scale(-1, 1); drawMobFrame(ctx, m.body, m.weapon, f, PAD_X, PAD_Y, { anim, t: f / 12 }); ctx.restore(); }
+  else drawMobFrame(ctx, m.body, m.weapon, f, x + PAD_X, y + PAD_Y, { anim, t: f / 12 });
+  if (o.plate !== false && f < 46) drawPlate(ctx, m, x + PAD_X + 52, y + 14); // табличка — всегда прямо (не зеркалится)
+}
+/** лист моба на 64 кадра × 2 стороны: MCOLS×8 клеток MCELL (ряды 4–7 — зеркальный риг); null — листы ещё грузятся */
 export function composeMobSheet(mobId, o = {}) {
   const m = BM_MOBS[mobId]; if (!m || typeof document === 'undefined') return null;
   const st = bodyState(m.body); if (st === 'wait') return null;
-  const cv = document.createElement('canvas'); cv.width = MCOLS * MCELL; cv.height = 4 * MCELL; const ctx = cv.getContext('2d');
-  for (let f = 0; f < 64; f++) { const x = (f % MCOLS) * MCELL, y = Math.floor(f / MCOLS) * MCELL;
-    const anim = f >= 46 ? 'die' : f >= 40 ? 'hurt' : f >= 28 ? 'atk' : f >= 16 ? 'walk' : 'idle';
-    drawMobFrame(ctx, m.body, m.weapon, f, x + PAD_X, y + PAD_Y, { anim, t: f / 12 });
-    if (o.plate !== false && f < 46) drawPlate(ctx, m, x + PAD_X + 52, y + 14); }
+  const cv = document.createElement('canvas'); cv.width = MCOLS * MCELL; cv.height = MROWS * MCELL; const ctx = cv.getContext('2d');
+  for (let side = 0; side < 2; side++) for (let f = 0; f < 64; f++) drawMobCell(ctx, m, f, (f % MCOLS) * MCELL, (Math.floor(f / MCOLS) + side * MIRROR_ROW) * MCELL, side === 1, o);
   cv.state = st; return cv;
+}
+/** сторона взгляда чёрного моба (клиент): сервер шлёт, куда он смотрит в бою (биты 26/27 флагов), иначе — по ходу по x; вверх/вниз — прежняя */
+export function mobFaceL(prevL, dxMove, flags) {
+  if (flags & (1 << 27)) return !!(flags & (1 << 26));
+  if (Math.abs(dxMove) > 1) return dxMove < 0;
+  return !!prevL;
 }
 /** кадр анимации по времени */
 export const animFrame = (a, t) => { const A = BANIM[a] || BANIM.idle; const k = Math.floor(t * A.fps); return A.off + (A.loop ? k % A.n : Math.min(A.n - 1, k)); };
 
 /** живое превью в админке: анимация (idle/walk/atk/hurt/die или «all» по кругу), сетка, силуэт героя 1,8 м, круги хитбокса/агро */
 export class MobPreview {
-  constructor(canvas) { this.cv = canvas; this.mob = null; this.anim = 'all'; this.grid = true; this.hero = true; this.rings = true; this.t0 = performance.now(); this.on = false; this.zoom = 3; }
+  constructor(canvas) { this.cv = canvas; this.mob = null; this.anim = 'all'; this.grid = true; this.hero = true; this.rings = true; this.faceL = false; this.t0 = performance.now(); this.on = false; this.zoom = 3; }
   set(mob) { this.mob = mob; }
   start() { if (this.on) return; this.on = true; const loop = () => { if (!this.on || !this.cv.isConnected) { this.on = false; return; } this.frame(); requestAnimationFrame(loop); }; loop(); }
   stop() { this.on = false; }
@@ -101,10 +113,10 @@ export class MobPreview {
     if (a === 'all') { const tot = seq.reduce((s, x) => s + dur[x], 0) + 0.5; let r = t % tot; a = 'die'; for (const x of seq) { if (r < dur[x]) { a = x; break; } r -= dur[x]; } ta = r; }
     else if (!BANIM[a]?.loop) ta = t % (dur[a] + 0.5);
     const f = animFrame(a, ta);
-    ctx.save(); ctx.translate(gx, gy); const s = k * 0.6 / 0.6 * sc * 0.6; ctx.scale(s, s); ctx.translate(-52, -100);
+    ctx.save(); ctx.translate(gx, gy); const s = k * 0.6 / 0.6 * sc * 0.6; ctx.scale(this.faceL ? -s : s, s); ctx.translate(-52, -100); // ◀ — зеркально, как в мире
     drawMobFrame(ctx, m.body, m.weapon, f, 0, 0, { anim: a, t, glow: 1 }); ctx.restore();
     this.state = bodyState(m.body); this.frameNo = f; this.animNow = a;
     drawPlate(ctx, m, gx, Math.max(14, gy - 100 * s - 6));
-    ctx.fillStyle = '#ffe08acc'; ctx.font = '700 10px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`${a} · кадр ${f}${this.state === 'stub' ? ' · ЗАГЛУШКА у части без листа' : ''}`, 6, 14);
+    ctx.fillStyle = '#ffe08acc'; ctx.font = '700 10px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`${a} · кадр ${f}${this.faceL ? ' · ◀' : ''}${this.state === 'stub' ? ' · ЗАГЛУШКА у части без листа' : ''}`, 6, 14);
   }
 }

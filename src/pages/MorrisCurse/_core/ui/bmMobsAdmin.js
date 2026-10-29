@@ -115,14 +115,14 @@ function mobs(ap, S, bd, sec) {
   }
   const pvBox = e ? `<canvas width="320" height="320"></canvas>
     <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;margin-top:4px"><select data-pv="anim">${ANIMS.map(([k, n]) => `<option value="${k}" ${S.anim === k ? 'selected' : ''}>${n}</option>`).join('')}</select>
-    <label><input type="checkbox" data-pv="grid" ${S.grid ? 'checked' : ''}> сетка</label><label><input type="checkbox" data-pv="hero" ${S.hero ? 'checked' : ''}> герой</label><label><input type="checkbox" data-pv="rings" ${S.rings ? 'checked' : ''}> хитбокс/агро</label></div>
+    <label><input type="checkbox" data-pv="grid" ${S.grid ? 'checked' : ''}> сетка</label><label><input type="checkbox" data-pv="hero" ${S.hero ? 'checked' : ''}> герой</label><label><input type="checkbox" data-pv="rings" ${S.rings ? 'checked' : ''}> хитбокс/агро</label><label title="Моб смотрит влево: весь риг (тело, оружие, свечение) зеркально, как в мире при ходьбе/атаке влево"><input type="checkbox" data-pv="faceL" ${S.faceL ? 'checked' : ''}> ◀ смотрит влево</label></div>
     <p class="mc-dim" style="font-size:11px">Живое превью: части тела Художника по z (хвост → правая рука), оружие в точке хвата кадра. Клик по превью — атака ↔ все по кругу.</p>` : '';
   bd.innerHTML = `<div class="cols"><div>${elFilter(S, 'mef')}<div class="pl">${list}</div></div><div>${form}</div><div>${pvBox}</div></div>`;
   bindElFilter(ap, S, bd, sec);
   bd.querySelectorAll('[data-m]').forEach((el) => (el.onclick = () => select(ap, S, el.dataset.m, sec)));
   bd.querySelector('[data-new]').onclick = () => { S.status = 'Создание…'; ap.send({ type: 'admin_bmm', op: 'new', lvl: 8, cls: 'warrior' }); };
   if (!e) return;
-  const cv = bd.querySelector('canvas'); S.pv?.stop(); S.pv = new MobPreview(cv); Object.assign(S.pv, { anim: S.anim, grid: S.grid, hero: S.hero, rings: S.rings }); preview(S); S.pv.start();
+  const cv = bd.querySelector('canvas'); S.pv?.stop(); S.pv = new MobPreview(cv); Object.assign(S.pv, { anim: S.anim, grid: S.grid, hero: S.hero, rings: S.rings, faceL: !!S.faceL }); preview(S); S.pv.start();
   cv.style.cursor = 'pointer'; cv.onclick = () => { S.anim = S.anim === 'atk' ? 'all' : 'atk'; S.pv.anim = S.anim; const sl = bd.querySelector('[data-pv="anim"]'); if (sl) sl.value = S.anim; };
   bd.querySelectorAll('[data-pv]').forEach((el) => (el.onchange = () => { const k = el.dataset.pv; S[k] = el.type === 'checkbox' ? el.checked : el.value; S.pv[k] = S[k]; }));
   const touch = (rerender) => { S.status = 'Черновик: сохраняется…'; S.stCls = 'draft'; const st = bd.querySelector('.st'); if (st) { st.className = 'st draft'; st.textContent = S.status; }

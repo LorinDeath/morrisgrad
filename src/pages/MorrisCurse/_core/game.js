@@ -2287,7 +2287,7 @@ async function boot(canvasId, username, userId, api) {
         return n; },
       mobDemoAt: (t) => { for (const m of zone.mobs.values()) if (m.demo) m.faFix = t == null ? -1 : t; }, // кадр показа «на паузе» (GIF по кадрам)
       mobTypes32: () => B32_META.rows.slice(),
-      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench | 0, elite: !!m.elite, boss: !!(m.flagRaw & 256) })),
+      zoneMobsFull: () => [...zone.mobs.values()].map((m) => ({ id: m.id, type: m.type, x: m.x, y: m.y, hp: m.hp, maxHp: m.maxHp, cursed: !!m.cursed, ench: m.ench | 0, elite: !!m.elite, boss: !!(m.flagRaw & 256), flip: !!m.flip, bmA: m.bmA || null, flag: m.flag | 0 })),
       abilities: () => (meta.hero?.effective?.abilities || []).map((a) => a.id),
       bolts: () => zone.bolts.length, lastVolley: () => zoneSt.lastVolley || 0,
       selected: () => zone.selected || 0,

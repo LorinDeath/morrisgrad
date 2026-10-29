@@ -1,7 +1,7 @@
 import { ChestSprites } from '../engine/chestSprite.js';
 import { uiSfx } from '../ui/atmoUi.js';
 import { BmView } from './bmView.js';
-import { BmMobLayer } from './bmMobView.js'; // 👹 чёрные мобы конструктора (части тела Художника + оружие в руке)
+import { BmMobLayer } from './bmMobView.js'; import { mobFaceL } from '../ui/bmMobArt.js'; // 👹 чёрные мобы конструктора (части тела Художника + оружие в руке)
 import { bmxTypeAt, BMX_BASE } from '../../../../../server/meta/blackMobs.ts';
 import { baseOf, goalMatch } from '../../../../../server/meta/biomes.ts';
 // Общий мир (Поляна / Аринар): мобы сервера, ресурсы, NPC — всё сервер-авторитетно (server/meta/zone.ts).
@@ -161,8 +161,9 @@ export class ZoneView {
       const ti = m[i + 1], type = (ti >= BMX_BASE ? bmxTypeAt(ti) : MOB_TYPES[ti]) || 'blade_fly';
       // варианты биомов: спрайт базового Отголоска (sk) + перекраска (tint) — server/meta/biomes.ts
       if (!o) { o = initState({ id, type, sk: sprOf(type), tint: tintOf(type), x: m[i + 2], y: m[i + 3], flash: 0, flip: false, mvT: 9, hitN: false, strN: false, ph: (id * 0.618) % 1 }); this.mobs.set(id, o); o.black = !!ZONE_MOBS[type]?.black; }
-      if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       const f = m[i + 5];
+      if (o.black) o.flip = mobFaceL(o.flip, m[i + 2] - o.x, f); // 👹 чёрный: в бою — к цели (сервер), иначе по ходу
+      else if (Math.abs(m[i + 2] - o.x) > 1) o.flip = m[i + 2] < o.x;
       o.tx = m[i + 2]; o.ty = m[i + 3]; o.hp = m[i + 4]; o.flag = f & 3; o.elite = !!(f & 4); o.cursed = !!(f & 1024); o.reset = !!(f & 2048); o.chief = !!(f & 4096); o.frozen = !!(f & (1 << 22)); o.ench = (f >> 23) & 7; o.flagRaw = f;
       o.st = f & 8 ? 'burn' : f & 16 ? 'poison' : f & 32 ? 'bleed' : f & 64 ? 'freeze' : null;
       o.sts = f & 56 ? { burn: (f >> 13) & 7, poison: (f >> 16) & 7, bleed: (f >> 19) & 7 } : null; // стаки статусов (одновременно несколько видов)
@@ -192,7 +193,7 @@ export class ZoneView {
         if (e.sid === myId) uiSfx('bm_swing');
       }
       else if (e.k === 'marc') { // взмах чёрного моба — та же дуга, что у игрока
-        const o = this.mobs.get(e.id); if (o) { o.bmAtk = 0.45; o.flash = Math.max(o.flash || 0, 0.06); }
+        const o = this.mobs.get(e.id); if (o) { o.bmAtk = 0.45; o.flash = Math.max(o.flash || 0, 0.06); if (Math.abs(e.dx) > 0.2) o.flip = e.dx < 0; }
         this.fslash(e.x, e.y, e.dx, e.dy, e.r, e.a, 0, e.el);
         if (this.nearMe(e.x, e.y)) uiSfx('bm_swing');
       }
@@ -220,7 +221,7 @@ export class ZoneView {
       else if (e.k === 'acone') { const id = String(e.id || '').replace(/^rs:/, ''); this.teles.push({ kind: 'cone', fx: CONE_FX[id] || 'gear_spin_cone', x: e.x, y: e.y, dx: e.dx, dy: e.dy, len: e.len, arc: e.arc, t: 0, life: 0.45 }); }
       else if (e.k === 'tele_circle') { this.teles.push({ kind: 'circle', x: e.x, y: e.y, r: e.r, t: 0, life: e.t || 1.2 }); if (e.fx === 'warden_slam') this.teles.push({ kind: 'slam', x: e.x, y: e.y, r: e.r, t: -Math.max(0, (e.t || 1.2) - 0.35), life: 0.35 + 0.6 }); if (e.fx === 'meteor' || e.fx === 'spear_rain') this.pax.fall(e.fx, e.x, e.y, e.t || 1.2, e.fdx || 1, e.fx === 'meteor' ? Math.max(1, e.r / 70) : 1); }
       // снаряды сервера: вылет / попадание; лужа фляги; удары навыков мобов спрайтами атласа
-      else if (e.k === 'proj') { this.pax.spawn(e); if (e.bm) { if (e.o === 'm') { const o = this.mobs.get(e.mob); if (o) o.bmAtk = 0.4; } if (e.sid === myId || (e.o === 'm' && this.nearMe(e.x, e.y))) uiSfx('bm_shot'); } }
+      else if (e.k === 'proj') { this.pax.spawn(e); if (e.bm) { if (e.o === 'm') { const o = this.mobs.get(e.mob); if (o) { o.bmAtk = 0.4; if (Math.abs(e.dx) > 0.2) o.flip = e.dx < 0; } } if (e.sid === myId || (e.o === 'm' && this.nearMe(e.x, e.y))) uiSfx('bm_shot'); } }
       else if (e.k === 'pend') this.pax.end(e);
       else if (e.k === 'puddle') this.pax.puddle(e.x, e.y, e.r, e.t);
       else if (e.k === 'ability') { const cz = !!e.cz, col = cz ? curseRGB() : null; const a = atlasId(e.id); if (a && a !== 'meteor') this.pax.impact(a, e.x, e.y, { k: Math.max(1, (e.r || 40) / 60), cz }); else if (a === 'meteor') this.pax.impact('meteor', e.x, e.y, { k: Math.max(1, (e.r || 70) / 70), cz }); const id = String(e.id || '').replace(/^rs:/, ''); if (NOVA_FX[id]) this.teles.push({ kind: 'nova', fx: NOVA_FX[id], x: e.x, y: e.y, r: e.r || 120, t: 0, life: 0.6, col }); else if (/^bmi_/.test(id)) { this.teles.push({ kind: 'boom', x: e.x, y: e.y, r: e.r, t: 0, life: 0.45, color: 0x6cc8ff }); this.efx('ice_hit', 'hit', e.x, e.y, 0.5, Math.max(1.4, (e.r || 60) / 50)); } // ICE: кодовый fx ледяных навыков до прихода своих листов (line/cone/circle)

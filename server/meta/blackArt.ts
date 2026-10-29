@@ -384,6 +384,23 @@ export function shotOrigins(mz: [number, number][], n: number, x: number, y: num
   }
   return out;
 }
+/** рука чёрного моба в «px рига» от центра ног (тело 104: центр x 52, земля y 100; DEF_HAND клиента 66,68 → +14, −32) и угол хвата, ° по часовой от «вверх» */
+export const MOB_HAND: [number, number, number] = [14, -32, 24];
+/** точки вылета снарядов чёрного моба: дуло оружия В ЕГО РУКЕ (хват под углом MOB_HAND), не повёрнутое по прицелу.
+ *  faceL — моб смотрит влево: весь риг зеркален (x → −x), порядок дул слева направо тоже переворачивается. Экран вверх = мир −y. */
+export function mobShotOrigins(mz: [number, number][], n: number, x: number, y: number, faceL: boolean): [number, number][] {
+  const s = Math.max(0, Math.min(2, Number(BMA_CFG.muzzleScale) || 0)), side = faceL ? -1 : 1, a = MOB_HAND[2] * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+  const L = faceL ? [...mz].reverse() : mz, out: [number, number][] = [];
+  for (let k = 0; k < n; k++) {
+    const m = L.length ? L[L.length === n ? k : n === 1 ? Math.floor(L.length / 2) : Math.min(L.length - 1, k)] : null;
+    if (!m || !s) { out.push([x, y]); continue; }
+    const rx = m[0] * c - m[1] * sn, ry = m[0] * sn + m[1] * c; // поворот по часовой (экранные оси, y вниз)
+    out.push([x + side * s * (MOB_HAND[0] + rx), y + s * (MOB_HAND[1] + ry)]);
+  }
+  return out;
+}
+/** сторона взгляда моба на цель: |ux| мал (цель строго сверху/снизу) — прежняя сторона */
+export const faceLeftOf = (ux: number, prev: boolean) => (Math.abs(ux) > 0.2 ? ux < 0 : !!prev);
 export function staffDirs(n: number, dx: number, dy: number): [number, number][] {
   const k = Math.max(1, Math.min(3, n | 0)); if (k === 1) return [[dx, dy]];
   const a0 = Math.atan2(dy, dx), st = Math.max(0, Number(BMA_CFG.staffSpread) || 0) * Math.PI / 180, out: [number, number][] = [];

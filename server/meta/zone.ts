@@ -24,7 +24,7 @@ import { WORLD_CHUNK } from "../worlds/sizes";
 import { MOB_SKILLS, MOB_NATIVE } from "./mobSkills";
 import { shapeOf } from "./abilityShapes";
 import { mitigateDamage } from "./balance";
-import { BMA_CFG, bmSkillPct, bmPure, staffDirs, shotOrigins } from "./blackArt";
+import { BMA_CFG, bmSkillPct, bmPure, staffDirs, shotOrigins, mobShotOrigins, faceLeftOf } from "./blackArt";
 import { BM_MOBS, BM_CAMPS, BMM_CFG, bmxIndex, campRespawn, type BmCamp } from "./blackMobs";
 export { MOB_SKILLS };
 const SKILL_IDS = Object.keys(MOB_SKILLS);
@@ -564,7 +564,7 @@ export class Zone {
   /** выстрел чёрного моба по мобу: настоящий снаряд (урон при попадании, увернуться можно) */
   bmShootMob(m: ZMob, d: any, ux: number, uy: number, dmg: number, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, w = A.width || 20; let last: any = null;
-    const D = staffDirs(A.count || 1, ux, uy), O = shotOrigins(d.bmMz || [], D.length, m.x, m.y, ux, uy); // из дула каждого посоха
+    const D = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха В РУКЕ (сторона взгляда)
     for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i]; // посохи во 2/3 слоте: по снаряду на каждый, у каждого полный урон
       last = this.fire({ o: "m", mob: m.id, t: d.elem === "ice" ? "ice_bolt" : "fire_spark", x: O[i][0], y: O[i][1], dx: vx, dy: vy, range: A.range, w, max: 1, spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2), bm: 1,
         vm: 1, foe: this.bmFoe(m), onMob: (t: ZMob) => this.mobHit(m, t, dmg, onKill) } as any); }
@@ -574,13 +574,14 @@ export class Zone {
   bmMobVsPlayer(m: ZMob, d: any, best: ZPlayer, players: Map<string, ZPlayer>, now: number, mul: number, dist: number, ux: number, uy: number, sp: number, dt: number,
     onHit: (sid: string, dmg: number, src: string, mob?: ZMob, bm?: number) => void, onKill: (m: ZMob) => void) {
     const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1);
+    (m as any).bmFl = faceLeftOf(ux, (m as any).bmFl); (m as any).bmFt = now + 600; // смотрит на цель (клиенту — биты 26/27)
     if (A.kind === "proj") {
       const want = Math.min(A.range * 0.6, 220);
       if (dist > want) { m.x += ux * sp * dt; m.y += uy * sp * dt; this.solid(m); }
       else if (dist < want - 60) { m.x -= ux * sp * 0.6 * dt; m.y -= uy * sp * 0.6 * dt; this.solid(m); }
       if (dist <= A.range * 0.95 && m.atkCd <= 0) {
         const w = A.width || 20;
-        const D = staffDirs(A.count || 1, ux, uy), O = shotOrigins(d.bmMz || [], D.length, m.x, m.y, ux, uy); // из дула каждого посоха
+        const D = staffDirs(A.count || 1, ux, uy), O = mobShotOrigins(d.bmMz || [], D.length, m.x, m.y, !!(m as any).bmFl); // из дула посоха в руке (риг зеркален при взгляде влево)
         for (let i = 0; i < D.length; i++) { const [vx, vy] = D[i];
           this.cast(m, { kind: "line", at: now + Math.round(Math.max(0, Number(BMA_CFG.mobAimMs) || 0)), x: O[i][0], y: O[i][1], dx: vx, dy: vy, len: A.range, w, dmg: d.dmg * 1.2 * mul, proj: d.elem === "ice" ? "ice_bolt" : "fire_spark", spd: PROJ_SPEED.fire_spark, sz: +(w / 20).toFixed(2) } as any); }
         m.atkCd = Math.max(0.6, A.cd / 1000 * 2 * cdK); // без windup: он у мобов запускает рывок
@@ -598,6 +599,7 @@ export class Zone {
   /** чёрный моб в драке с мобом — то же оружие, что против игроков */
   bmMobFight(m: ZMob, d: any, t: ZMob, dist: number, ux: number, uy: number, dt: number, onKill: (m: ZMob) => void, mul: number): boolean {
     const A = d.bmAtk, cdK = Math.max(0.1, Number(BMA_CFG.mobCdMul) || 1), td = ZONE_MOBS[t.type], sp = d.speed * (m.slowUntil > this.now ? 0.55 : 1) * dt;
+    (m as any).bmFl = faceLeftOf(ux, (m as any).bmFl); (m as any).bmFt = this.now + 600;
     const dmg = d.dmg * mul * (d.role === "tank" ? 1.25 : 1);
     if (A.kind === "proj") {
       const want = Math.min(A.range * 0.6, 220);
@@ -1470,7 +1472,7 @@ export class Zone {
       // статусы — битами (могут быть одновременно) + число стаков каждого (по 3 бита: поджог 13–15, яд 16–18, кровотечение 19–21)
       const st = mobStatusBits(x.dots, now);
       m.push(x.id, MOB_INDEX[x.type] ?? bmxIndex(x.type), Math.round(x.x), Math.round(x.y), Math.round((x.hp / x.maxHp) * 100),
-        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0) | (enchTier(x) << 23)); // ярус зачарования — биты 23–25
+        (x.windup > 0 ? 1 : x.dashT > 0 ? 2 : 0) | (x.elite ? 4 : 0) | st | (x.slowUntil > now ? 64 : 0) | (x.enraged ? 128 : 0) | (x.special === "boss" ? 256 : x.special === "rare" ? 512 : 0) | (x.cursed ? 1024 : 0) | (x.reset ? 2048 : 0) | (x.chief ? 4096 : 0) | ((x as any).frozenUntil > now ? 1 << 22 : 0) | (enchTier(x) << 23) | ((x as any).bmFt > now ? (1 << 27) | ((x as any).bmFl ? 1 << 26 : 0) : 0)); // ярус зачарования — биты 23–25; 👹 чёрный в бою: 27 — сторона задана, 26 — смотрит влево
     }
     const nr = aoi * 2.2; // узлы — тоже по интересу (в Аринаре их сотни)
     const n = this.nodes.filter((x) => !this.gen.camps || (Math.abs(x.x - px) < nr && Math.abs(x.y - py) < nr)).map((x) => { const r = this.nodeReadyAt(x, who); return r <= now ? [x.id, 1] : [x.id, 0, Math.ceil((r - now) / 1000)]; }); // [id, готов, через сколько с]
